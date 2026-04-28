@@ -1,0 +1,39 @@
+{
+  "name": "Mission Control",
+  "short_name": "MissionCtrl",
+  "description": "Jammi Fashion – Shop Dashboard & KI-Assistent",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0f0f0f",
+  "theme_color": "#0f0f0f",
+  "orientation": "portrait-primary",
+  "lang": "de",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "categories": ["business", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Bestellungen",
+      "url": "./index.html#orders",
+      "description": "Direkt zu den Bestellungen"
+    },
+    {
+      "name": "Claude",
+      "url": "./index.html#claude",
+      "description": "KI-Assistent öffnen"
+    }
+  ]
+}
