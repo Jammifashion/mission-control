@@ -520,6 +520,7 @@
           document.getElementById(`panel-${btn.dataset.panel}`).classList.add('active');
           if (btn.dataset.panel === 'dashboard') loadDashboard();
           if (btn.dataset.panel === 'orders')    loadOrders();
+          if (btn.dataset.panel === 'products')  ssot.kategorien.length ? populateCategories() : loadSsotData();
         });
       });
 
