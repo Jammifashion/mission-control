@@ -1,0 +1,23 @@
+{
+  "name": "mission-control-backend",
+  "version": "1.0.0",
+  "description": "Mission Control – Jammi Fashion Backend API",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "keywords": [],
+  "author": "Jammifashion",
+  "license": "ISC",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1",
+    "@woocommerce/woocommerce-rest-api": "^1.0.2",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.4.1",
+    "helmet": "^8.1.0"
+  }
+}

@@ -57,4 +57,67 @@ router.delete('/chat/:session_id', (req, res) => {
   res.json({ cleared: true });
 });
 
+// POST /api/claude/generate-product
+router.post('/generate-product', async (req, res, next) => {
+  try {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return res.status(503).json({ error: 'ANTHROPIC_API_KEY nicht konfiguriert.' });
+    }
+
+    const { action, name, keywords, shop } = req.body;
+
+    if (action !== 'generate_description') {
+      return res.status(400).json({ error: 'Unbekannte action. Erwartet: generate_description' });
+    }
+    if (!name || !keywords || !shop) {
+      return res.status(400).json({ error: 'Felder name, keywords und shop sind erforderlich.' });
+    }
+
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    const prompt = `Erstelle eine verkaufsstarke WooCommerce-Produktbeschreibung für folgenden Artikel:
+
+Produktname: ${name}
+Keywords / Eigenschaften: ${keywords}
+Shop / Marke: ${shop}
+
+Antworte ausschließlich als valides JSON-Objekt mit diesen zwei Feldern:
+- "short_description": Ein einzelner, knackiger Einleitungssatz (max. 20 Wörter), der das Produkt emotional und prägnant beschreibt. Kein HTML.
+- "full_description": Eine vollständige HTML-Produktbeschreibung mit:
+  1. Einem kurzen emotionalen Einleitungssatz als <p>
+  2. Einer <ul>-Liste mit 4–6 prägnanten Highlight-Bulletpoints (<li>)
+  3. Einem abschließenden SEO-Absatz als <p> (~100 Wörter) mit natürlicher Keyword-Integration
+
+Ton: selbstbewusst, urban, zielgruppenorientiert (Streetwear/Fanmerch). Sprache: Deutsch.
+Gib nur das JSON zurück, keinen weiteren Text.`;
+
+    const response = await client.messages.create({
+      model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }],
+    });
+
+    const raw = response.content[0]?.text ?? '';
+
+    let parsed;
+    try {
+      const jsonMatch = raw.match(/\{[\s\S]*\}/);
+      parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+    } catch {
+      return res.status(502).json({ error: 'Claude-Antwort konnte nicht als JSON geparst werden.', raw });
+    }
+
+    if (!parsed.short_description || !parsed.full_description) {
+      return res.status(502).json({ error: 'Antwort enthält nicht alle erwarteten Felder.', raw: parsed });
+    }
+
+    res.json({
+      short_description: parsed.short_description,
+      full_description: parsed.full_description,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;
