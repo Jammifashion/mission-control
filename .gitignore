@@ -8,6 +8,10 @@ node_modules/
 .env.local
 .env.*.local
 
+# Google service account credentials
+google-credentials.json
+*-credentials.json
+
 # Build output
 dist/
 build/
