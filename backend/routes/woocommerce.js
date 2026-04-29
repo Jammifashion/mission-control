@@ -57,29 +57,45 @@ router.get('/products', async (req, res, next) => {
   }
 });
 
-// GET /api/woocommerce/stats  – today's summary
+// GET /api/woocommerce/stats  – today's summary + 7-day revenue
 router.get('/stats', async (req, res, next) => {
   try {
     const wc = getClient();
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const weekStart  = new Date(); weekStart.setDate(weekStart.getDate() - 6); weekStart.setHours(0, 0, 0, 0);
 
-    const [ordersToday, pendingOrders, activeProducts] = await Promise.all([
+    const [ordersToday, pendingOrders, activeProducts, ordersWeek] = await Promise.all([
       wc.get('orders', { after: todayStart.toISOString(), per_page: 100 }),
       wc.get('orders', { status: 'processing', per_page: 1 }),
       wc.get('products', { status: 'publish', per_page: 1 }),
+      wc.get('orders', { after: weekStart.toISOString(), per_page: 100 }),
     ]);
 
     const revenueToday = ordersToday.data
       .filter(o => o.status !== 'cancelled' && o.status !== 'refunded')
       .reduce((sum, o) => sum + parseFloat(o.total), 0);
 
+    // Build 7-day revenue map (last 7 days including today)
+    const dayMap = {};
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(); d.setDate(d.getDate() - (6 - i));
+      const key = d.toISOString().slice(0, 10);
+      dayMap[key] = { date: d.toLocaleDateString('de-DE', { weekday: 'short' }), revenue: 0 };
+    }
+    ordersWeek.data
+      .filter(o => o.status !== 'cancelled' && o.status !== 'refunded')
+      .forEach(o => {
+        const key = o.date_created?.slice(0, 10);
+        if (key && dayMap[key]) dayMap[key].revenue += parseFloat(o.total);
+      });
+
     res.json({
-      orders_today: ordersToday.data.length,
-      revenue_today: revenueToday.toFixed(2),
-      pending: parseInt(pendingOrders.headers['x-wp-total'] ?? '0', 10),
+      orders_today:    ordersToday.data.length,
+      revenue_today:   revenueToday.toFixed(2),
+      pending:         parseInt(pendingOrders.headers['x-wp-total'] ?? '0', 10),
       products_active: parseInt(activeProducts.headers['x-wp-total'] ?? '0', 10),
+      revenue_7days:   Object.values(dayMap).map(d => ({ date: d.date, revenue: parseFloat(d.revenue.toFixed(2)) })),
     });
   } catch (err) {
     next(err);

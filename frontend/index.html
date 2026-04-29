@@ -90,22 +90,29 @@
       }
       .card h2 { font-size: 0.9rem; color: var(--muted); margin-bottom: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; }
 
-      /* ── Stats grid ── */
-      .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-        gap: 1rem;
-        margin-bottom: 1rem;
-      }
-      .stat-card {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 1rem;
-        text-align: center;
-      }
-      .stat-card .value { font-size: 1.8rem; font-weight: 700; color: var(--accent); }
-      .stat-card .label { font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem; }
+      /* ── Dashboard ── */
+      .dash-greeting { margin-bottom: 1.5rem; padding-bottom: 1.1rem; border-bottom: 1px solid var(--border); }
+      .dash-greeting-text { font-size: 1.45rem; font-weight: 700; color: var(--accent); }
+      .dash-greeting-date { font-size: 0.82rem; color: var(--muted); margin-top: 0.25rem; }
+      .dash-stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+      .dash-stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.1rem 1.25rem; }
+      .dash-stat-clickable { cursor: pointer; transition: border-color 0.2s; }
+      .dash-stat-clickable:hover { border-color: var(--accent); }
+      .dash-stat-value { font-size: 2.2rem; font-weight: 700; color: var(--accent); line-height: 1; }
+      .dash-stat-label { font-size: 0.72rem; color: var(--muted); margin-top: 0.35rem; text-transform: uppercase; letter-spacing: 0.05em; }
+      .rev-chart { display: flex; align-items: flex-end; gap: 6px; height: 120px; }
+      .rev-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; justify-content: flex-end; }
+      .rev-bar { width: 100%; background: var(--accent); border-radius: 3px 3px 0 0; opacity: 0.8; transition: opacity 0.15s; }
+      .rev-col:hover .rev-bar { opacity: 1; }
+      .rev-day { font-size: 0.62rem; color: var(--muted); }
+      .dash-placeholder { color: var(--muted); font-size: 0.85rem; padding: 0.25rem 0; }
+      .cost-rows { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.85rem; }
+      .cost-item { display: flex; justify-content: space-between; font-size: 0.87rem; }
+      .cost-item-label { color: var(--muted); }
+      .cost-item-value { font-weight: 500; }
+      .cost-budget-meta { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--muted); margin-bottom: 0.4rem; }
+      .cost-bar-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+      .cost-bar-fill { height: 100%; background: var(--accent); border-radius: 3px; width: 0%; }
 
       /* ── Orders table ── */
       .orders-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -319,15 +326,53 @@
     <main>
       <!-- Dashboard -->
       <section id="panel-dashboard" class="panel active">
-        <div class="stats-grid" id="stats-grid">
-          <div class="stat-card"><div class="skeleton"></div><div class="label">Bestellungen heute</div></div>
-          <div class="stat-card"><div class="skeleton"></div><div class="label">Umsatz heute</div></div>
-          <div class="stat-card"><div class="skeleton"></div><div class="label">Offen</div></div>
-          <div class="stat-card"><div class="skeleton"></div><div class="label">Produkte aktiv</div></div>
+        <div class="dash-greeting">
+          <div class="dash-greeting-text" id="dash-greeting-text">Guten Morgen</div>
+          <div class="dash-greeting-date" id="dash-greeting-date"></div>
+        </div>
+        <div class="dash-stats-row" id="dash-stats-row">
+          <div class="dash-stat-card">
+            <div class="skeleton" style="height:2.2rem;margin-bottom:0.35rem;border-radius:4px;"></div>
+            <div class="dash-stat-label">Bestellungen heute</div>
+          </div>
+          <div class="dash-stat-card dash-stat-clickable" id="stat-open">
+            <div class="skeleton" style="height:2.2rem;margin-bottom:0.35rem;border-radius:4px;"></div>
+            <div class="dash-stat-label">Offen ↗</div>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Umsatz letzte 7 Tage</h2>
+          <div id="rev-chart-wrap" class="rev-chart">
+            <div class="skeleton" style="width:100%;height:90px;align-self:flex-start;"></div>
+          </div>
         </div>
         <div class="card">
           <h2>Letzte Bestellungen</h2>
           <div id="recent-orders"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+        </div>
+        <div class="card">
+          <h2>Kalender</h2>
+          <div class="dash-placeholder">Kalender wird in Session 6 angebunden</div>
+        </div>
+        <div class="card">
+          <h2>Kosten / Budget</h2>
+          <div class="cost-rows">
+            <div class="cost-item">
+              <span class="cost-item-label">Google Cloud</span>
+              <span class="cost-item-value" id="cost-gcloud">0,00 EUR</span>
+            </div>
+            <div class="cost-item">
+              <span class="cost-item-label">Claude API</span>
+              <span class="cost-item-value" id="cost-claude">0,00 EUR</span>
+            </div>
+          </div>
+          <div class="cost-budget-meta">
+            <span>Budget: 200 EUR / Monat</span>
+            <span id="cost-pct">0 %</span>
+          </div>
+          <div class="cost-bar-track">
+            <div class="cost-bar-fill" id="cost-bar-fill"></div>
+          </div>
         </div>
       </section>
 
@@ -568,21 +613,57 @@
       }
 
       // ── Dashboard ────────────────────────────────────────────────────────
+      function setGreeting() {
+        const h = new Date().getHours();
+        document.getElementById('dash-greeting-text').textContent =
+          h < 12 ? 'Guten Morgen' : h < 18 ? 'Guten Tag' : 'Guten Abend';
+        document.getElementById('dash-greeting-date').textContent =
+          new Date().toLocaleDateString('de-DE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      }
+
       async function loadDashboard() {
+        setGreeting();
         try {
           const [stats, orders] = await Promise.all([
             fetch(`${API_BASE()}/api/woocommerce/stats`).then(r => r.json()),
             fetch(`${API_BASE()}/api/woocommerce/orders?per_page=5`).then(r => r.json()),
           ]);
-          document.getElementById('stats-grid').innerHTML = `
-            <div class="stat-card"><div class="value">${stats.orders_today ?? '–'}</div><div class="label">Bestellungen heute</div></div>
-            <div class="stat-card"><div class="value">${stats.revenue_today != null ? parseFloat(stats.revenue_today).toLocaleString('de-DE',{style:'currency',currency:'EUR'}) : '–'}</div><div class="label">Umsatz heute</div></div>
-            <div class="stat-card"><div class="value">${stats.pending ?? '–'}</div><div class="label">Offen</div></div>
-            <div class="stat-card"><div class="value">${stats.products_active ?? '–'}</div><div class="label">Produkte aktiv</div></div>
-          `;
+
+          // Stat cards
+          document.getElementById('dash-stats-row').innerHTML = `
+            <div class="dash-stat-card">
+              <div class="dash-stat-value">${stats.orders_today ?? '–'}</div>
+              <div class="dash-stat-label">Bestellungen heute</div>
+            </div>
+            <div class="dash-stat-card dash-stat-clickable" id="stat-open">
+              <div class="dash-stat-value">${stats.pending ?? '–'}</div>
+              <div class="dash-stat-label">Offen ↗</div>
+            </div>`;
+          document.getElementById('stat-open')?.addEventListener('click', () =>
+            document.querySelector('nav button[data-panel="orders"]')?.click());
+
+          // Revenue chart
+          const days = stats.revenue_7days ?? [];
+          const chartEl = document.getElementById('rev-chart-wrap');
+          if (days.length) {
+            const max = Math.max(...days.map(d => d.revenue), 1);
+            chartEl.innerHTML = days.map(d => {
+              const barH = Math.max(Math.round((d.revenue / max) * 90), 2);
+              const fmt  = d.revenue.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+              return `<div class="rev-col" title="${d.date}: ${fmt}">
+                <div class="rev-bar" style="height:${barH}px"></div>
+                <div class="rev-day">${d.date}</div>
+              </div>`;
+            }).join('');
+          } else {
+            chartEl.innerHTML = '<p style="color:var(--muted);font-size:0.82rem;align-self:center;">Keine Daten</p>';
+          }
+
+          // Recent orders
           document.getElementById('recent-orders').innerHTML = ordersTable(orders);
         } catch (e) {
-          document.getElementById('recent-orders').innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+          document.getElementById('recent-orders').innerHTML =
+            `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
         }
       }
 
