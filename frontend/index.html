@@ -207,7 +207,15 @@
       .multiselect-dropdown.open { display: block; }
       .ms-option { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; font-size: 14px; cursor: pointer; color: var(--text); }
       .ms-option:hover { background: var(--border); }
-      .ms-option input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; }
+      .ms-option input[type="checkbox"] { accent-color: var(--accent); width: 14px; height: 14px; flex-shrink: 0; }
+      .ms-option.ms-indented { padding-left: 1.75rem; }
+      .ms-search-wrap { padding: 0.45rem 0.55rem; border-bottom: 1px solid var(--border); background: var(--surface); }
+      .ms-search { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; color: var(--text); padding: 0.38rem 0.6rem; font-size: 13px; font-family: inherit; outline: none; }
+      .ms-search:focus { border-color: var(--accent); }
+      .ms-list { max-height: 240px; overflow-y: auto; }
+      .ms-group-header { padding: 0.3rem 0.75rem; font-size: 0.7rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.07em; background: var(--surface); border-top: 1px solid var(--border); pointer-events: none; user-select: none; }
+      .ms-list > .ms-group-header:first-child { border-top: none; }
+      .ms-empty { padding: 0.75rem; color: var(--muted); font-size: 13px; text-align: center; }
 
       .seo-block { display: none; }
       .seo-block.visible { display: block; }
@@ -592,6 +600,7 @@
 
       // ── SSOT Stammdaten ───────────────────────────────────────────────────
       const ssot = { lieferzeiten: [], versandklassen: [], kategorien: [], attribute: [] };
+      const selectedCats = new Map(); // value (Kategorienummer) → Kategoriename
 
       async function loadSsotData() {
         const base = API_BASE();
@@ -638,26 +647,80 @@
 
       function populateCategories() {
         const dropdown = document.getElementById('pf-cats-dropdown');
-        const checked = [...dropdown.querySelectorAll('input:checked')].map(i => i.value);
         dropdown.innerHTML = '';
+
+        // Build groups: Hauptkategorie (first segment before " > ") → items
+        const groups = new Map();
         ssot.kategorien.forEach(cat => {
           const nr   = cat['Kategorienummer']?.trim();
           const name = cat['Kategoriename']?.trim();
           const pfad = cat['Kategorien']?.trim();
           if (!name) return;
-          const label = document.createElement('label');
-          label.className = 'ms-option';
-          label.title = pfad || '';
-          const cb = document.createElement('input');
-          cb.type = 'checkbox';
-          cb.value = nr || name;
-          cb.dataset.label = name;
-          cb.checked = checked.includes(cb.value);
-          cb.addEventListener('change', updateCatLabel);
-          label.appendChild(cb);
-          label.append(' ' + name);
-          dropdown.appendChild(label);
+          const gruppe = pfad?.includes(' > ') ? pfad.split(' > ')[0] : (pfad || name);
+          if (!groups.has(gruppe)) groups.set(gruppe, []);
+          groups.get(gruppe).push({ nr, name, pfad });
         });
+
+        // Search input
+        const searchWrap = document.createElement('div');
+        searchWrap.className = 'ms-search-wrap';
+        const searchInput = document.createElement('input');
+        searchInput.type = 'text';
+        searchInput.className = 'ms-search';
+        searchInput.placeholder = 'Kategorie suchen...';
+        searchInput.autocomplete = 'off';
+        searchWrap.appendChild(searchInput);
+        dropdown.appendChild(searchWrap);
+
+        // Scrollable list
+        const listEl = document.createElement('div');
+        listEl.className = 'ms-list';
+        dropdown.appendChild(listEl);
+
+        function renderList(q) {
+          listEl.innerHTML = '';
+          const filter = (q || '').toLowerCase();
+          groups.forEach((items, gruppe) => {
+            const visible = filter
+              ? items.filter(i => i.name.toLowerCase().includes(filter) || i.pfad?.toLowerCase().includes(filter))
+              : items;
+            if (!visible.length) return;
+
+            const hdr = document.createElement('div');
+            hdr.className = 'ms-group-header';
+            hdr.textContent = `${gruppe} (${visible.length})`;
+            listEl.appendChild(hdr);
+
+            visible.forEach(item => {
+              const label = document.createElement('label');
+              label.className = 'ms-option' + (item.pfad?.includes(' > ') ? ' ms-indented' : '');
+              label.title = item.pfad || '';
+              const cb = document.createElement('input');
+              cb.type = 'checkbox';
+              cb.value = item.nr || item.name;
+              cb.dataset.label = item.name;
+              cb.checked = selectedCats.has(cb.value);
+              cb.addEventListener('change', () => {
+                cb.checked ? selectedCats.set(cb.value, item.name) : selectedCats.delete(cb.value);
+                updateCatLabel();
+              });
+              label.appendChild(cb);
+              label.append(' ' + item.name);
+              listEl.appendChild(label);
+            });
+          });
+
+          if (!listEl.hasChildNodes()) {
+            const empty = document.createElement('div');
+            empty.className = 'ms-empty';
+            empty.textContent = 'Keine Kategorien gefunden.';
+            listEl.appendChild(empty);
+          }
+        }
+
+        renderList('');
+        searchInput.addEventListener('input', e => renderList(e.target.value));
+        dropdown._focusSearch = () => searchInput.focus();
         updateCatLabel();
       }
 
@@ -762,13 +825,16 @@
       // Multi-select categories
       const catTrigger  = document.getElementById('pf-cats-trigger');
       const catDropdown = document.getElementById('pf-cats-dropdown');
-      catTrigger.addEventListener('click', e => { catDropdown.classList.toggle('open'); e.stopPropagation(); });
+      catTrigger.addEventListener('click', e => {
+        catDropdown.classList.toggle('open');
+        if (catDropdown.classList.contains('open')) setTimeout(() => catDropdown._focusSearch?.(), 50);
+        e.stopPropagation();
+      });
       document.addEventListener('click', () => catDropdown.classList.remove('open'));
       function updateCatLabel() {
-        const sel = [...catDropdown.querySelectorAll('input:checked')].map(i => i.dataset.label || i.value);
-        document.getElementById('pf-cats-label').textContent = sel.length ? sel.join(', ') : 'Keine ausgewählt';
+        const names = [...selectedCats.values()];
+        document.getElementById('pf-cats-label').textContent = names.length ? names.join(', ') : 'Keine ausgewählt';
       }
-      catDropdown.querySelectorAll('input').forEach(cb => cb.addEventListener('change', updateCatLabel));
 
       // "+ Neu anlegen" placeholder
       ['link-new-delivery','link-new-shipping','link-new-cat'].forEach(id =>
@@ -854,7 +920,7 @@
           ssotId:       document.getElementById('pf-ssot-id').value,
           delivery:     document.getElementById('pf-delivery').value,
           shipping:     document.getElementById('pf-shipping').value,
-          categories:   [...catDropdown.querySelectorAll('input:checked')].map(i => i.value),
+          categories:   [...selectedCats.keys()],
           properties,
           variantRules: document.getElementById('pf-variant-rules').value,
           shortDesc:    document.getElementById('prod-short-desc').value,
