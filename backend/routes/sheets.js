@@ -54,10 +54,12 @@ router.get('/versandklassen', async (req, res, next) => {
 });
 
 // ── GET /api/sheets/kategorien ───────────────────────────────────────────────
+// Erwartet Spalten: Kategorienummer, Kategoriename, Kategorien (vollständiger Pfad)
 router.get('/kategorien', async (req, res, next) => {
   try {
     const rows = await readRange('Struktur_Kategorien');
-    res.json(rowsToObjects(rows));
+    const objects = rowsToObjects(rows);
+    res.json(objects.filter(r => r['Kategoriename']?.trim()));
   } catch (err) { next(err); }
 });
 
