@@ -4,31 +4,46 @@ import { google } from 'googleapis';
 let cachedAuth = null;
 
 /**
- * Loads OAuth2 credentials from Google Secret Manager and returns
- * an authenticated GoogleAuth client scoped for Sheets + Drive.
+ * Returns an authenticated GoogleAuth client.
+ *
+ * Priority:
+ *  1. GOOGLE_CREDENTIALS_JSON  – raw service-account JSON in .env (local dev)
+ *  2. GOOGLE_SECRET_NAME       – loads JSON from Google Secret Manager (production)
  */
 export async function getGoogleAuth() {
   if (cachedAuth) return cachedAuth;
 
-  const secretName = process.env.GOOGLE_SECRET_NAME;
-  const projectId  = process.env.GOOGLE_PROJECT_ID;
+  let credentials;
 
-  if (!secretName || !projectId) {
-    throw new Error('GOOGLE_SECRET_NAME und GOOGLE_PROJECT_ID müssen in .env gesetzt sein.');
+  if (process.env.GOOGLE_CREDENTIALS_JSON) {
+    // Local dev: credentials JSON directly in .env
+    try {
+      credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
+    } catch {
+      throw new Error('GOOGLE_CREDENTIALS_JSON ist kein gültiges JSON.');
+    }
+  } else {
+    // Production: load from Secret Manager
+    const secretName = process.env.GOOGLE_SECRET_NAME;
+    const projectId  = process.env.GOOGLE_PROJECT_ID;
+
+    if (!secretName || !projectId) {
+      throw new Error(
+        'Google-Credentials fehlen. Setze entweder GOOGLE_CREDENTIALS_JSON (lokal) ' +
+        'oder GOOGLE_SECRET_NAME + GOOGLE_PROJECT_ID (Produktion) in .env.'
+      );
+    }
+
+    const client = new SecretManagerServiceClient();
+    const fullName = secretName.startsWith('projects/')
+      ? secretName
+      : `projects/${projectId}/secrets/${secretName}/versions/latest`;
+
+    const [version] = await client.accessSecretVersion({ name: fullName });
+    const payload = version.payload?.data?.toString('utf8');
+    if (!payload) throw new Error(`Secret "${secretName}" ist leer oder nicht lesbar.`);
+    credentials = JSON.parse(payload);
   }
-
-  const client = new SecretManagerServiceClient();
-
-  const fullName = secretName.startsWith('projects/')
-    ? secretName
-    : `projects/${projectId}/secrets/${secretName}/versions/latest`;
-
-  const [version] = await client.accessSecretVersion({ name: fullName });
-  const payload = version.payload?.data?.toString('utf8');
-
-  if (!payload) throw new Error(`Secret "${secretName}" ist leer oder nicht lesbar.`);
-
-  const credentials = JSON.parse(payload);
 
   cachedAuth = new google.auth.GoogleAuth({
     credentials,
