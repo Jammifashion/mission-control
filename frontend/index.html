@@ -830,6 +830,7 @@
         if (catDropdown.classList.contains('open')) setTimeout(() => catDropdown._focusSearch?.(), 50);
         e.stopPropagation();
       });
+      catDropdown.addEventListener('click', e => e.stopPropagation());
       document.addEventListener('click', () => catDropdown.classList.remove('open'));
       function updateCatLabel() {
         const names = [...selectedCats.values()];
