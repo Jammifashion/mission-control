@@ -394,19 +394,14 @@
             <div class="form-field">
               <label>Lieferzeit</label>
               <select id="pf-delivery" class="form-select">
-                <option value="">Bitte wählen…</option>
-                <option>1-3 Werktage</option>
-                <option>3-5 Werktage</option>
-                <option>5-7 Werktage</option>
+                <option value="">Wird geladen…</option>
               </select>
               <a class="link-new" id="link-new-delivery">+ Neu anlegen</a>
             </div>
             <div class="form-field">
               <label>Versandklasse</label>
               <select id="pf-shipping" class="form-select">
-                <option value="">Bitte wählen…</option>
-                <option>Standard</option>
-                <option>Übergröße</option>
+                <option value="">Wird geladen…</option>
               </select>
               <a class="link-new" id="link-new-shipping">+ Neu anlegen</a>
             </div>
@@ -418,9 +413,6 @@
                   <span style="font-size:0.7rem;color:var(--muted);">&#9662;</span>
                 </div>
                 <div class="multiselect-dropdown" id="pf-cats-dropdown">
-                  <label class="ms-option"><input type="checkbox" value="hoodies" /> Hoodies</label>
-                  <label class="ms-option"><input type="checkbox" value="t-shirts" /> T-Shirts</label>
-                  <label class="ms-option"><input type="checkbox" value="accessoires" /> Accessoires</label>
                 </div>
               </div>
               <a class="link-new" id="link-new-cat">+ Neu anlegen</a>
@@ -517,7 +509,7 @@
 
     <script type="module">
       // ── Config ──────────────────────────────────────────────────────────
-      const API_BASE = () => localStorage.getItem('mc_api_url') || '';
+      const API_BASE = () => localStorage.getItem('mc_api_url') || 'http://localhost:3001';
 
       // ── Tab navigation ───────────────────────────────────────────────────
       document.querySelectorAll('nav button').forEach(btn => {
@@ -597,8 +589,76 @@
         }
       }
 
+      // ── SSOT Stammdaten ───────────────────────────────────────────────────
+      const ssot = { lieferzeiten: [], versandklassen: [], kategorien: [], attribute: [] };
+
+      async function loadSsotData() {
+        const base = API_BASE();
+        await Promise.allSettled([
+          ['lieferzeiten',  `${base}/api/sheets/lieferzeiten`],
+          ['versandklassen',`${base}/api/sheets/versandklassen`],
+          ['kategorien',    `${base}/api/sheets/kategorien`],
+          ['attribute',     `${base}/api/sheets/attribute`],
+        ].map(async ([key, url]) => {
+          try {
+            const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+            if (r.ok) ssot[key] = await r.json();
+          } catch { /* Fallback: Array bleibt leer */ }
+        }));
+        populateDelivery();
+        populateShipping();
+        populateCategories();
+        renderProperties();
+      }
+
+      function populateDelivery() {
+        const sel = document.getElementById('pf-delivery');
+        const current = sel.value;
+        sel.innerHTML = '<option value="">Bitte wählen…</option>';
+        ssot.lieferzeiten.forEach(lz => {
+          const opt = document.createElement('option');
+          opt.value = lz; opt.textContent = lz;
+          sel.appendChild(opt);
+        });
+        if (current) sel.value = current;
+      }
+
+      function populateShipping() {
+        const sel = document.getElementById('pf-shipping');
+        const current = sel.value;
+        sel.innerHTML = '<option value="">Bitte wählen…</option>';
+        ssot.versandklassen.forEach(vk => {
+          const opt = document.createElement('option');
+          opt.value = vk; opt.textContent = vk;
+          sel.appendChild(opt);
+        });
+        if (current) sel.value = current;
+      }
+
+      function populateCategories() {
+        const dropdown = document.getElementById('pf-cats-dropdown');
+        const checked = [...dropdown.querySelectorAll('input:checked')].map(i => i.value);
+        dropdown.innerHTML = '';
+        const nameKey = ssot.kategorien[0]
+          ? (Object.keys(ssot.kategorien[0]).find(k => /kategor|name/i.test(k)) ?? Object.keys(ssot.kategorien[0])[0])
+          : null;
+        ssot.kategorien.forEach(cat => {
+          const val = nameKey ? cat[nameKey] : Object.values(cat)[0];
+          if (!val?.trim()) return;
+          const label = document.createElement('label');
+          label.className = 'ms-option';
+          const cb = document.createElement('input');
+          cb.type = 'checkbox'; cb.value = val; cb.checked = checked.includes(val);
+          cb.addEventListener('change', updateCatLabel);
+          label.appendChild(cb);
+          label.append(' ' + val);
+          dropdown.appendChild(label);
+        });
+        updateCatLabel();
+      }
+
       // ── Artikelerfassung ─────────────────────────────────────────────────
-      const PROP_NAMES = ['Farbe', 'Größe', 'Druckfarbe'];
+      const PROP_NAMES = ['Farbe', 'Größe', 'Druckfarbe']; // Fallback bis SSOT geladen
       let properties = [{ name: '', tags: [] }];
 
       // Auto Artikelnummer
@@ -626,6 +686,7 @@
 
       // Property rows
       function renderProperties() {
+        const attrNames = ssot.attribute.length ? ssot.attribute.map(a => a.eigenschaft) : PROP_NAMES;
         const container = document.getElementById('properties-container');
         container.innerHTML = '';
         properties.forEach((prop, i) => {
@@ -634,7 +695,7 @@
           row.innerHTML = `
             <select class="form-select prop-name-sel" data-idx="${i}">
               <option value="">Eigenschaft…</option>
-              ${PROP_NAMES.map(n => `<option${prop.name === n ? ' selected' : ''}>${n}</option>`).join('')}
+              ${attrNames.map(n => `<option${prop.name === n ? ' selected' : ''}>${n}</option>`).join('')}
             </select>
             <div class="tag-wrap" id="tagwrap-${i}">
               ${prop.tags.map((t, ti) => `<span class="tag-item">${t}<button class="tag-remove" data-p="${i}" data-t="${ti}">&#x2715;</button></span>`).join('')}
@@ -645,7 +706,17 @@
         });
 
         container.querySelectorAll('.prop-name-sel').forEach(sel =>
-          sel.addEventListener('change', e => { properties[+e.target.dataset.idx].name = e.target.value; }));
+          sel.addEventListener('change', e => {
+            const idx = +e.target.dataset.idx;
+            properties[idx].name = e.target.value;
+            // Begriffe aus SSOT als Tags vorbelegen (nur wenn noch keine Tags gesetzt)
+            if (e.target.value && !properties[idx].tags.length) {
+              const attr = ssot.attribute.find(a => a.eigenschaft === e.target.value);
+              if (attr?.begriffe?.length) properties[idx].tags = [...attr.begriffe];
+            }
+            renderProperties();
+            document.querySelector(`#tagwrap-${idx} .tag-input`)?.focus();
+          }));
 
         container.querySelectorAll('.tag-input').forEach(inp => {
           inp.addEventListener('keydown', e => {
@@ -912,6 +983,7 @@
 
       // ── Init ─────────────────────────────────────────────────────────────
       loadDashboard();
+      loadSsotData();
     </script>
   </body>
 </html>
