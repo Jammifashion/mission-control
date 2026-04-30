@@ -41,6 +41,39 @@ router.get('/orders/:id', async (req, res, next) => {
   }
 });
 
+// GET /api/woocommerce/products/search?q=&per_page=40  — must come before /:id
+router.get('/products/search', async (req, res, next) => {
+  try {
+    const wc = getClient();
+    const { q = '', per_page = 40 } = req.query;
+    const { data } = await wc.get('products', {
+      search:   q,
+      per_page: Math.min(Number(per_page), 100),
+      status:   'any',
+    });
+    const list = Array.isArray(data) ? data : [data];
+    res.json(list.map(p => ({ id: p.id, name: p.name, sku: p.sku, status: p.status })));
+  } catch (err) { next(err); }
+});
+
+// GET /api/woocommerce/products/:id/variations
+router.get('/products/:id/variations', async (req, res, next) => {
+  try {
+    const wc = getClient();
+    const { data } = await wc.get(`products/${req.params.id}/variations`, { per_page: 100 });
+    res.json(Array.isArray(data) ? data : [data]);
+  } catch (err) { next(err); }
+});
+
+// GET /api/woocommerce/products/:id
+router.get('/products/:id', async (req, res, next) => {
+  try {
+    const wc = getClient();
+    const { data } = await wc.get(`products/${req.params.id}`);
+    res.json(Array.isArray(data) ? data[0] : data);
+  } catch (err) { next(err); }
+});
+
 // GET /api/woocommerce/products
 router.get('/products', async (req, res, next) => {
   try {
@@ -100,6 +133,85 @@ router.get('/stats', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// POST /api/woocommerce/products
+// Schritt 1: Produkt anlegen (status: draft), Schritt 2: Varianten einzeln anlegen
+router.post('/products', async (req, res, next) => {
+  try {
+    const wc = getClient();
+    const { ssot_id, variations, ...payload } = req.body;
+
+    // Schritt 1: Produkt anlegen
+    const productResponse = await wc.post('products', { ...payload, status: 'draft' });
+    console.log('WC POST /products HTTP status:', productResponse.status);
+    const productRaw = productResponse.data;
+    const product = Array.isArray(productRaw) ? productRaw[0] : productRaw;
+    const productId = product.id;
+
+    // Schritt 2: Varianten einzeln anlegen
+    const variationResults = [];
+    if (Array.isArray(variations) && variations.length) {
+      for (const variation of variations) {
+        try {
+          const varResponse = await wc.post(`products/${productId}/variations`, {
+            ...variation,
+            status: 'publish',
+          });
+          const varRaw = varResponse.data;
+          const v = Array.isArray(varRaw) ? varRaw[0] : varRaw;
+          variationResults.push({ ok: true, id: v.id });
+        } catch (varErr) {
+          variationResults.push({ ok: false, error: varErr.message ?? String(varErr) });
+        }
+      }
+    }
+
+    const created = variationResults.filter(r => r.ok).length;
+    const failed  = variationResults.filter(r => !r.ok).length;
+    const errors  = variationResults.filter(r => !r.ok).map(r => r.error);
+
+    res.status(201).json({
+      id:                  productId,
+      status:              product.status,
+      variations_created:  created,
+      variations_failed:   failed,
+      variation_errors:    errors,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PUT /api/woocommerce/products/:id
+router.put('/products/:id', async (req, res, next) => {
+  try {
+    const wc = getClient();
+    const { variations, ...payload } = req.body;
+    const { data: productRaw } = await wc.put(`products/${req.params.id}`, payload);
+    const product = Array.isArray(productRaw) ? productRaw[0] : productRaw;
+
+    if (Array.isArray(variations) && variations.length) {
+      const toUpdate = variations.filter(v => v.id).map(v => ({
+        id:            v.id,
+        attributes:    v.attributes,
+        regular_price: v.regular_price,
+      }));
+      const toCreate = variations.filter(v => !v.id).map(v => ({
+        attributes:    v.attributes,
+        regular_price: v.regular_price,
+        status:        'publish',
+      }));
+      if (toUpdate.length || toCreate.length) {
+        await wc.post(`products/${req.params.id}/variations/batch`, {
+          ...(toUpdate.length ? { update: toUpdate } : {}),
+          ...(toCreate.length ? { create: toCreate } : {}),
+        });
+      }
+    }
+
+    res.json({ id: product.id });
+  } catch (err) { next(err); }
 });
 
 export default router;

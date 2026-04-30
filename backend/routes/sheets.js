@@ -24,6 +24,46 @@ function rowsToObjects(rows) {
     .map(row => Object.fromEntries(headers.map((h, i) => [h, row[i] ?? ''])));
 }
 
+// Normalisiert einen Key für tolerantes Matching (Leerzeichen/Bindestriche/Unterstriche weg)
+function norm(s) { return String(s).toLowerCase().replace(/[\s\-_]+/g, ''); }
+
+// Baut eine Zeile in Header-Reihenfolge aus payload + ssotId + varianten
+function buildRow(headers, body, ssotId) {
+  const flat = {
+    ...body,
+    'SSOT-ID':      ssotId,
+    'ID':           ssotId,
+    'Status Shop':  body['Status Shop']  || body.statusShop  || '',
+    'SEO_Status':   body['SEO_Status']   || body.seoStatus   || '',
+    'Produkt-ID':   body['Produkt-ID']   || body.produktId   || '',
+    'Datum':        body['Datum'] || new Date().toLocaleDateString('de-DE'),
+  };
+  delete flat.varianten;
+  delete flat.row;
+
+  function getField(header) {
+    if (flat[header] !== undefined) return String(flat[header]);
+    const hn  = norm(header);
+    const hit = Object.entries(flat).find(([k]) => norm(k) === hn);
+    return hit ? String(hit[1]) : '';
+  }
+
+  const varianten = Array.isArray(body.varianten) ? body.varianten.slice(0, 8) : [];
+  const bData = {};
+  varianten.forEach((v, bi) => {
+    const b     = `B${bi + 1}`;
+    const attrs = Array.isArray(v.attrs) ? v.attrs : [];
+    for (let ai = 0; ai < 3; ai++) {
+      bData[`${b}_E${ai + 1}`] = attrs[ai]?.name  ?? '';
+      bData[`${b}_V${ai + 1}`] = attrs[ai]?.value ?? '';
+    }
+    bData[`${b}_Preis`]        = v.price ?? '';
+    bData[`${b}_Google_Farbe`] = '';
+  });
+
+  return headers.map(h => (bData[h] !== undefined ? bData[h] : getField(h)));
+}
+
 async function readRange(tab, range = 'A1:Z1000') {
   const sheets = await getSheets();
   const { data } = await sheets.spreadsheets.values.get({
@@ -89,26 +129,85 @@ router.get('/attribute', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── POST /api/sheets/erfassung ───────────────────────────────────────────────
-// Schreibt einen neuen Artikel als neue Zeile in den Reiter "Erfassungsmaske"
+// ── GET /api/sheets/erfassung/list ───────────────────────────────────────────
+// Gibt alle Zeilen mit Status "Entwurf" zurück (inkl. vollständiger Zeilendaten).
+router.get('/erfassung/list', async (req, res, next) => {
+  try {
+    const sheets = await getSheets();
+    const { data } = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId(),
+      range: 'Erfassungsmaske!A1:BZ2000',
+    });
+    const rows    = data.values ?? [];
+    const headers = rows[0] ?? [];
+
+    const statusIdx  = headers.findIndex(h => norm(h) === norm('Status'));
+    const ssotIdx    = headers.findIndex(h => /ssot.?id|^id$/i.test(h));
+    const artNrIdx   = headers.findIndex(h => norm(h) === norm('Artikelnummer'));
+    const nameIdx    = headers.findIndex(h => norm(h) === norm('Produktname'));
+
+    const drafts = [];
+    rows.slice(1).forEach((row, i) => {
+      const rowStatus = (row[statusIdx] ?? '').trim().toLowerCase();
+      if (rowStatus !== 'entwurf' && rowStatus !== 'draft') return;
+      const rowObj = Object.fromEntries(headers.map((h, hi) => [h, row[hi] ?? '']));
+      drafts.push({
+        row:          i + 2,             // 1-basiert (Zeile 1 = Header)
+        ssotId:       row[ssotIdx]   ?? '',
+        artikelnummer:row[artNrIdx]  ?? '',
+        produktname:  row[nameIdx]   ?? '',
+        data:         rowObj,
+      });
+    });
+
+    res.json(drafts);
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/sheets/erfassung ────────────────────────────────────────────────
+// Prüft ob Artikelnummer bereits existiert.
+// Wenn nicht: neue SSOT-ID generieren + Zeile anhängen → { success, ssotId, exists: false }
+// Wenn ja:    nichts schreiben               → { success, ssotId, exists: true, row }
 router.post('/erfassung', async (req, res, next) => {
   try {
     const sheets = await getSheets();
     const spreadsheetId = sheetId();
 
-    // Erste Zeile holen um Header-Reihenfolge zu kennen
-    const { data: headerData } = await sheets.spreadsheets.values.get({
+    const { data: sheetData } = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: 'Erfassungsmaske!1:1',
+      range: 'Erfassungsmaske!A1:BZ2000',
     });
-    const headers = headerData.values?.[0] ?? [];
+    const rows    = sheetData.values ?? [];
+    const headers = rows[0] ?? [];
 
-    const payload = req.body;
+    // ── Artikelnummer-Duplikat-Prüfung ────────────────────────────────────
+    const artikelnummer = (req.body['Artikelnummer'] || '').trim();
+    const artColIdx     = headers.findIndex(h => norm(h) === norm('Artikelnummer'));
+    const ssotColIdx    = headers.findIndex(h => /ssot.?id|^id$/i.test(h));
 
-    // Zeile in Header-Reihenfolge aufbauen – unbekannte Felder werden leer gelassen
-    const row = headers.length
-      ? headers.map(h => payload[h] ?? payload[h.toLowerCase().replace(/\s+/g, '_')] ?? '')
-      : Object.values(payload);
+    if (artikelnummer && artColIdx >= 0) {
+      for (let i = 1; i < rows.length; i++) {
+        if ((rows[i][artColIdx] ?? '').trim() === artikelnummer) {
+          const existingSsotId = ssotColIdx >= 0 ? (rows[i][ssotColIdx] ?? '') : '';
+          return res.json({ success: true, ssotId: existingSsotId, exists: true, row: i + 1 });
+        }
+      }
+    }
+
+    // ── Neue SSOT-ID generieren ────────────────────────────────────────────
+    const year   = new Date().getFullYear();
+    const prefix = `JFN-${year}-`;
+    let maxSeq   = 0;
+    rows.slice(1).forEach(r => {
+      const val = ssotColIdx >= 0 ? (r[ssotColIdx] ?? '') : '';
+      if (val.startsWith(prefix)) {
+        const n = parseInt(val.slice(prefix.length), 10);
+        if (!isNaN(n) && n > maxSeq) maxSeq = n;
+      }
+    });
+    const ssotId = `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
+
+    const row = buildRow(headers, req.body, ssotId);
 
     await sheets.spreadsheets.values.append({
       spreadsheetId,
@@ -118,7 +217,36 @@ router.post('/erfassung', async (req, res, next) => {
       requestBody: { values: [row] },
     });
 
-    res.json({ success: true, written: row });
+    // rows enthält Header + alle Datenzeilen vor dem Append → neue Zeile = rows.length + 1
+    res.json({ success: true, ssotId, exists: false, row: rows.length + 1 });
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/sheets/erfassung/overwrite ──────────────────────────────────────
+// Überschreibt eine bestehende Zeile komplett (row = 1-basierte Sheet-Zeilennummer).
+router.post('/erfassung/overwrite', async (req, res, next) => {
+  try {
+    const { row: rowNum, ssotId, ...body } = req.body;
+    if (!rowNum) return res.status(400).json({ error: 'row fehlt' });
+
+    const sheets = await getSheets();
+    const spreadsheetId = sheetId();
+
+    const { data: headerData } = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: 'Erfassungsmaske!1:1',
+    });
+    const headers = headerData.values?.[0] ?? [];
+    const rowData = buildRow(headers, body, ssotId);
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `Erfassungsmaske!A${rowNum}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [rowData] },
+    });
+
+    res.json({ success: true, ssotId });
   } catch (err) { next(err); }
 });
 

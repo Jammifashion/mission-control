@@ -224,10 +224,53 @@
       .ms-list > .ms-group-header:first-child { border-top: none; }
       .ms-empty { padding: 0.75rem; color: var(--muted); font-size: 13px; text-align: center; }
 
+      /* ── Toast ── */
+      .toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.7rem 1rem; font-size: 0.86rem; z-index: 9999; box-shadow: 0 4px 16px rgba(0,0,0,0.5); animation: toast-in 0.18s ease; pointer-events: none; max-width: 340px; }
+      .toast.success { border-color: var(--success); color: var(--success); }
+      .toast.error   { border-color: var(--danger);  color: var(--danger); }
+      .toast.info    { border-color: var(--muted);   color: var(--text); }
+      @keyframes toast-in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+      /* ── Modal ── */
+      .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 9000; display: flex; align-items: center; justify-content: center; }
+      .modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem; max-width: 400px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+      .modal-title { font-size: 1rem; font-weight: 600; margin-bottom: 0.5rem; }
+      .modal-body { font-size: 0.86rem; color: var(--muted); margin-bottom: 1.25rem; line-height: 1.5; }
+      .modal-body strong { color: var(--text); }
+      .modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
+      .btn-danger { background: var(--danger); color: #fff; border: none; border-radius: 6px; padding: 0.5rem 1rem; font-size: 0.88rem; cursor: pointer; font-family: inherit; }
+      .btn-danger:hover { opacity: 0.88; }
+
+      .variants-section { margin-top: 0.85rem; border-top: 1px solid var(--border); padding-top: 0.75rem; }
+      .variants-section-title { font-size: 0.72rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 0.5rem; font-weight: 600; }
+      .variant-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem; }
+      .variant-row.over-limit { opacity: 0.35; }
+      .variant-attrs { flex: 1; font-size: 0.82rem; color: var(--text); display: flex; flex-wrap: wrap; gap: 0.25rem; }
+      .variant-attr-chip { background: var(--border); border-radius: 3px; padding: 0.1em 0.45em; font-size: 0.78rem; white-space: nowrap; }
+      .variant-price-inp { width: 88px; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; color: var(--text); padding: 0.28rem 0.5rem; font-size: 0.83rem; font-family: inherit; text-align: right; }
+      .variant-price-inp:focus { outline: none; border-color: var(--accent); }
+      .variant-price-inp.invalid { border-color: var(--danger); }
+      .variants-warn { font-size: 0.78rem; color: var(--danger); margin-top: 0.5rem; }
+
+      .prop-suggest-wrap { position: relative; margin-top: 0.2rem; }
+      .prop-suggest-trigger { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--muted); cursor: pointer; padding: 0.2rem 0.5rem; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); user-select: none; }
+      .prop-suggest-trigger:hover { border-color: var(--accent); color: var(--accent); }
+      .prop-suggest-dropdown { display: none; position: absolute; top: calc(100% + 3px); left: 0; min-width: 200px; max-width: 280px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; z-index: 200; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+      .prop-suggest-dropdown.open { display: block; }
+
       .seo-block { display: none; }
       .seo-block.visible { display: block; }
 
       .panel-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; padding-top: 1rem; border-top: 1px solid var(--border); margin-top: 0.25rem; }
+      .mode-toggle { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+      .mode-btn { padding: 0.5rem 1rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 0.88rem; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+      .mode-btn.active { background: var(--accent); color: #111; border-color: var(--accent); }
+      .mode-btn:not(.active):hover { border-color: var(--accent); color: var(--accent); }
+      .wc-search-wrap { position: relative; }
+      .wc-search-results { position: absolute; top: 100%; left: 0; right: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; max-height: 220px; overflow-y: auto; z-index: 50; margin-top: 2px; }
+      .wc-search-item { padding: 0.55rem 0.85rem; cursor: pointer; font-size: 0.88rem; border-bottom: 1px solid var(--border); }
+      .wc-search-item:last-child { border-bottom: none; }
+      .wc-search-item:hover { background: #2a2a2a; color: var(--accent); }
+      .wc-search-item .wc-item-status { font-size: 0.75rem; color: var(--muted); margin-left: 0.4rem; }
       .btn-secondary { background: none; border: 1px solid var(--accent); color: var(--accent); padding: 0.65rem 1.1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: background 0.15s; }
       .btn-secondary:hover { background: #2a220a; }
       .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -387,6 +430,42 @@
       <!-- Products -->
       <section id="panel-products" class="panel">
 
+        <!-- Modus-Auswahl -->
+        <div class="mode-toggle">
+          <button class="mode-btn active" id="mode-btn-new">＋ Neu anlegen</button>
+          <button class="mode-btn" id="mode-btn-edit">✏️ Artikel ändern</button>
+        </div>
+
+        <!-- Entwurf laden (Modus: Neu) -->
+        <div class="card" id="pf-entwurf-block" style="margin-bottom:1rem;">
+          <div class="form-section-title">Entwurf laden</div>
+          <select id="pf-entwurf-select" class="form-select">
+            <option value="">— Entwurf auswählen —</option>
+          </select>
+        </div>
+
+        <!-- Artikel suchen (Modus: Ändern) -->
+        <div class="card" id="pf-search-block" style="margin-bottom:1rem;display:none;">
+          <div class="form-section-title">Artikel suchen</div>
+          <div class="wc-search-wrap">
+            <input id="pf-wc-search" type="text" class="form-input" placeholder="Name oder Artikelnummer eingeben…" autocomplete="off" />
+            <div id="pf-wc-search-results" class="wc-search-results" style="display:none;"></div>
+          </div>
+        </div>
+
+        <!-- Status Shop (nur sichtbar nach WC-Anlage / im Ändern-Modus) -->
+        <div id="pf-status-shop-wrap" style="display:none;margin-bottom:0.75rem;">
+          <div class="status-bar">
+            <div class="status-field">
+              <label>Status Shop</label>
+              <select id="prod-status-shop" class="form-select accent">
+                <option value="draft">Entwurf</option>
+                <option value="publish">Veröffentlicht</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         <!-- Status-Leiste -->
         <div class="status-bar">
           <div class="status-field">
@@ -458,6 +537,10 @@
               </select>
               <a class="link-new" id="link-new-shipping">+ Neu anlegen</a>
             </div>
+            <div class="form-field">
+              <label>Regulärer Preis (€) <span class="field-note">*</span></label>
+              <input id="pf-price-regular" type="number" class="form-input" placeholder="z. B. 49.99" step="0.01" min="0" />
+            </div>
             <div class="form-field form-col-full">
               <label>Kategorien</label>
               <div class="custom-multiselect" id="pf-cats-wrap">
@@ -478,6 +561,10 @@
           <div class="form-section-title">3 — Artikeleigenschaften</div>
           <div id="properties-container"></div>
           <button class="btn-secondary" id="btn-add-property" style="font-size:0.82rem;padding:0.42rem 0.85rem;margin-top:0.25rem;">+ Eigenschaft hinzufügen</button>
+          <div id="variants-section" class="variants-section" style="display:none;">
+            <div class="variants-section-title">Varianten &amp; Preise</div>
+            <div id="variants-table"></div>
+          </div>
         </div>
 
         <!-- Block 4: KI Variantenlogik -->
@@ -520,6 +607,7 @@
         <div class="panel-actions">
           <button class="btn-secondary" id="btn-save-draft">Entwurf speichern</button>
           <button class="btn" id="btn-create-wc" disabled>In WooCommerce anlegen</button>
+          <button class="btn" id="btn-update-wc" style="display:none;">Änderungen speichern</button>
           <span id="prod-push-status" style="font-size:0.82rem;color:var(--muted);align-self:center;"></span>
         </div>
 
@@ -808,6 +896,80 @@
       // ── Artikelerfassung ─────────────────────────────────────────────────
       const PROP_NAMES = ['Farbe', 'Größe', 'Druckfarbe']; // Fallback bis SSOT geladen
       let properties = [{ name: '', tags: [] }];
+      let kurzbezManuallyEdited = false; // verhindert Auto-Sync nach manuellem Laden
+      let draftList = [];                // gecachte Entwurfsliste
+      let currentDraftRow = null;        // Sheet-Zeilennummer des geladenen Entwurfs
+
+      // Variant combinations: [{ attrs: [{name, value}], price: '' }]
+      let variants = [];
+
+      function recomputeVariants() {
+        const valid = properties.filter(p => p.name && p.tags.length);
+        if (!valid.length) { variants = []; return; }
+        // Cartesian product
+        let combos = [[]];
+        valid.forEach(prop =>
+          combos = combos.flatMap(c => prop.tags.map(t => [...c, { name: prop.name, value: t }]))
+        );
+        const priceMap = new Map(variants.map(v => [
+          v.attrs.map(a => `${a.name}=${a.value}`).join('|'),
+          { price: v.price, _autoFilled: v._autoFilled ?? false },
+        ]));
+        variants = combos.map(attrs => {
+          const key      = attrs.map(a => `${a.name}=${a.value}`).join('|');
+          const existing = priceMap.get(key);
+          return { attrs, price: existing?.price ?? '', _autoFilled: existing?._autoFilled ?? false };
+        });
+      }
+
+      function renderVariants() {
+        const section = document.getElementById('variants-section');
+        const table   = document.getElementById('variants-table');
+        if (!section) return;
+        if (!variants.length) { section.style.display = 'none'; return; }
+        section.style.display = 'block';
+        table.innerHTML = '';
+        const defaultPrice = document.getElementById('pf-price-regular')?.value || '';
+        variants.forEach((v, vi) => {
+          // Vorbelegung aus Standardpreis wenn Variantenpreis noch leer
+          if (!v.price && defaultPrice) {
+            v.price       = defaultPrice;
+            v._autoFilled = true;
+          }
+
+          const row = document.createElement('div');
+          row.className = 'variant-row' + (vi >= 8 ? ' over-limit' : '');
+          const attrsEl = document.createElement('div');
+          attrsEl.className = 'variant-attrs';
+          attrsEl.innerHTML = v.attrs.map(a =>
+            `<span class="variant-attr-chip">${a.name}: ${a.value}</span>`
+          ).join('');
+          const priceEl = document.createElement('input');
+          priceEl.type        = 'number';
+          priceEl.className   = 'variant-price-inp';
+          priceEl.placeholder = defaultPrice || '0.00';
+          priceEl.step        = '0.01';
+          priceEl.min         = '0';
+          priceEl.value       = v.price;
+          priceEl.required    = true;
+          priceEl.title       = vi >= 8 ? 'Max. B8 – wird nicht ins Sheet geschrieben' : '';
+          priceEl.classList.toggle('invalid', !v.price && vi < 8);
+          priceEl.addEventListener('input', () => {
+            variants[vi].price       = priceEl.value;
+            variants[vi]._autoFilled = false; // manuell geändert → nicht mehr überschreiben
+            priceEl.classList.toggle('invalid', !priceEl.value);
+          });
+          row.appendChild(attrsEl);
+          row.appendChild(priceEl);
+          table.appendChild(row);
+        });
+        if (variants.length > 8) {
+          const warn = document.createElement('div');
+          warn.className   = 'variants-warn';
+          warn.textContent = `Nur die ersten 8 Varianten (B1–B8) werden ins Sheet geschrieben. Aktuell: ${variants.length}`;
+          table.appendChild(warn);
+        }
+      }
 
       // Auto Artikelnummer
       function updateArticleNr() {
@@ -818,11 +980,42 @@
       document.getElementById('pf-lshop-nr').addEventListener('input', updateArticleNr);
       document.getElementById('pf-short-name').addEventListener('input', updateArticleNr);
 
+      // Produktname → Artikelkurzbezeichnung spiegeln (nur solange nicht manuell überschrieben)
+      const pfName      = document.getElementById('pf-name');
+      const pfShortName = document.getElementById('pf-short-name');
+      pfName.addEventListener('input', () => {
+        if (!kurzbezManuallyEdited &&
+            (!pfShortName.value || pfShortName.value === pfName._lastMirrored)) {
+          pfShortName.value    = pfName.value;
+          pfName._lastMirrored = pfName.value;
+          updateArticleNr();
+        }
+      });
+      pfShortName.addEventListener('input', () => {
+        kurzbezManuallyEdited = true;
+        updateArticleNr();
+      });
+
+      // Standardpreis → auto-belegte Variantenpreise synchron halten
+      document.getElementById('pf-price-regular').addEventListener('input', e => {
+        const newDefault = e.target.value;
+        variants.forEach(v => {
+          if (v._autoFilled) v.price = newDefault;
+        });
+        renderVariants();
+      });
+
       // Status bar
       const prodStatusSel  = document.getElementById('prod-status');
       const seoStatusSel   = document.getElementById('prod-seo-status');
+      const statusShopSel  = document.getElementById('prod-status-shop');
+      const statusShopWrap = document.getElementById('pf-status-shop-wrap');
       const seoBlock       = document.getElementById('seo-block');
       const createWcBtn    = document.getElementById('btn-create-wc');
+
+      function wcStatusLabel(s) {
+        return s === 'publish' ? 'Veröffentlicht' : s === 'draft' ? 'Entwurf' : s || '';
+      }
 
       prodStatusSel.addEventListener('change', () => {
         createWcBtn.disabled = prodStatusSel.value !== 'ready';
@@ -837,65 +1030,166 @@
         const attrNames = ssot.attribute.length ? ssot.attribute.map(a => a.eigenschaft) : PROP_NAMES;
         const container = document.getElementById('properties-container');
         container.innerHTML = '';
+
         properties.forEach((prop, i) => {
           const row = document.createElement('div');
           row.className = 'property-row';
-          row.innerHTML = `
-            <select class="form-select prop-name-sel" data-idx="${i}">
-              <option value="">Eigenschaft…</option>
-              ${attrNames.map(n => `<option${prop.name === n ? ' selected' : ''}>${n}</option>`).join('')}
-            </select>
-            <div class="tag-wrap" id="tagwrap-${i}">
-              ${prop.tags.map((t, ti) => `<span class="tag-item">${t}<button class="tag-remove" data-p="${i}" data-t="${ti}">&#x2715;</button></span>`).join('')}
-              <input class="tag-input" data-idx="${i}" placeholder="Begriff, Enter..." />
-            </div>
-            <button class="prop-remove" data-idx="${i}" title="Entfernen">&#x2715;</button>`;
+
+          // Name select
+          const sel = document.createElement('select');
+          sel.className = 'form-select prop-name-sel';
+          sel.innerHTML = `<option value="">Eigenschaft…</option>` +
+            attrNames.map(n => `<option${prop.name === n ? ' selected' : ''}>${n}</option>`).join('');
+
+          // Middle column: tag-wrap + optional SSOT suggest
+          const mid = document.createElement('div');
+          mid.style.cssText = 'display:flex;flex-direction:column;gap:0.2rem;min-width:0;';
+
+          // Tag wrap
+          const tagWrap = document.createElement('div');
+          tagWrap.className = 'tag-wrap';
+          tagWrap.id = `tagwrap-${i}`;
+
+          const tagInput = document.createElement('input');
+          tagInput.className = 'tag-input';
+          tagInput.placeholder = 'Begriff, Enter...';
+          tagWrap.appendChild(tagInput);
+
+          function renderTagChips() {
+            tagWrap.querySelectorAll('.tag-item').forEach(el => el.remove());
+            prop.tags.forEach((t, ti) => {
+              const span = document.createElement('span');
+              span.className = 'tag-item';
+              const rm = document.createElement('button');
+              rm.className = 'tag-remove';
+              rm.innerHTML = '&#x2715;';
+              rm.addEventListener('click', () => { prop.tags.splice(ti, 1); renderTagChips(); });
+              span.append(t, rm);
+              tagWrap.insertBefore(span, tagInput);
+            });
+            // Sync checkboxes in open SSOT dropdown
+            document.querySelectorAll(`#suggestdrop-${i} input[type="checkbox"]`).forEach(cb => {
+              cb.checked = prop.tags.includes(cb.value);
+            });
+            recomputeVariants();
+            renderVariants();
+          }
+          renderTagChips();
+
+          tagInput.addEventListener('keydown', e => {
+            if ((e.key === 'Enter' || e.key === ',') && tagInput.value.trim()) {
+              e.preventDefault();
+              const val = tagInput.value.trim().replace(/,$/, '');
+              if (!prop.tags.includes(val)) prop.tags.push(val);
+              tagInput.value = '';
+              renderTagChips();
+            }
+            if (e.key === 'Backspace' && !tagInput.value && prop.tags.length) {
+              prop.tags.pop();
+              renderTagChips();
+            }
+          });
+          tagWrap.addEventListener('click', e => { if (!e.target.closest('.tag-remove')) tagInput.focus(); });
+          mid.appendChild(tagWrap);
+
+          // SSOT suggest dropdown (only when SSOT has terms for this property)
+          const ssotAttr = ssot.attribute.find(a => a.eigenschaft === prop.name);
+          if (ssotAttr?.begriffe?.length) {
+            const suggestWrap = document.createElement('div');
+            suggestWrap.className = 'prop-suggest-wrap';
+
+            const trigger = document.createElement('div');
+            trigger.className = 'prop-suggest-trigger';
+            trigger.innerHTML = `Aus SSOT wählen <span style="font-size:0.65rem;">&#9662;</span>`;
+
+            const drop = document.createElement('div');
+            drop.className = 'prop-suggest-dropdown';
+            drop.id = `suggestdrop-${i}`;
+
+            const searchWrap = document.createElement('div');
+            searchWrap.className = 'ms-search-wrap';
+            const searchInp = document.createElement('input');
+            searchInp.type = 'text';
+            searchInp.className = 'ms-search';
+            searchInp.placeholder = 'Begriff suchen...';
+            searchWrap.appendChild(searchInp);
+            drop.appendChild(searchWrap);
+
+            const listEl = document.createElement('div');
+            listEl.className = 'ms-list';
+            drop.appendChild(listEl);
+
+            function renderSuggestList(q) {
+              listEl.innerHTML = '';
+              const filter = (q || '').toLowerCase();
+              const visible = filter
+                ? ssotAttr.begriffe.filter(b => b.toLowerCase().includes(filter))
+                : ssotAttr.begriffe;
+              if (!visible.length) {
+                listEl.innerHTML = '<div class="ms-empty">Keine Begriffe gefunden.</div>';
+                return;
+              }
+              visible.forEach(b => {
+                const label = document.createElement('label');
+                label.className = 'ms-option';
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.value = b;
+                cb.checked = prop.tags.includes(b);
+                cb.addEventListener('change', () => {
+                  if (cb.checked) { if (!prop.tags.includes(b)) prop.tags.push(b); }
+                  else { const idx = prop.tags.indexOf(b); if (idx > -1) prop.tags.splice(idx, 1); }
+                  renderTagChips();
+                });
+                label.appendChild(cb);
+                label.append(' ' + b);
+                listEl.appendChild(label);
+              });
+            }
+
+            searchInp.addEventListener('input', e => renderSuggestList(e.target.value));
+
+            trigger.addEventListener('click', e => {
+              const isOpen = drop.classList.contains('open');
+              document.querySelectorAll('.prop-suggest-dropdown.open').forEach(d => d.classList.remove('open'));
+              if (!isOpen) {
+                renderSuggestList(searchInp.value); // refresh to reflect current tags
+                drop.classList.add('open');
+                setTimeout(() => searchInp.focus(), 50);
+              }
+              e.stopPropagation();
+            });
+            drop.addEventListener('click', e => e.stopPropagation());
+
+            suggestWrap.appendChild(trigger);
+            suggestWrap.appendChild(drop);
+            mid.appendChild(suggestWrap);
+          }
+
+          // Remove row button
+          const removeBtn = document.createElement('button');
+          removeBtn.className = 'prop-remove';
+          removeBtn.title = 'Entfernen';
+          removeBtn.innerHTML = '&#x2715;';
+          removeBtn.addEventListener('click', () => { properties.splice(i, 1); renderProperties(); });
+
+          // Property name change → clear tags, re-render
+          sel.addEventListener('change', () => {
+            properties[i].name = sel.value;
+            properties[i].tags = [];
+            renderProperties();
+            document.querySelector(`#tagwrap-${i} .tag-input`)?.focus();
+          });
+
+          row.appendChild(sel);
+          row.appendChild(mid);
+          row.appendChild(removeBtn);
           container.appendChild(row);
         });
 
-        container.querySelectorAll('.prop-name-sel').forEach(sel =>
-          sel.addEventListener('change', e => {
-            const idx = +e.target.dataset.idx;
-            properties[idx].name = e.target.value;
-            // Begriffe aus SSOT als Tags vorbelegen (nur wenn noch keine Tags gesetzt)
-            if (e.target.value && !properties[idx].tags.length) {
-              const attr = ssot.attribute.find(a => a.eigenschaft === e.target.value);
-              if (attr?.begriffe?.length) properties[idx].tags = [...attr.begriffe];
-            }
-            renderProperties();
-            document.querySelector(`#tagwrap-${idx} .tag-input`)?.focus();
-          }));
-
-        container.querySelectorAll('.tag-input').forEach(inp => {
-          inp.addEventListener('keydown', e => {
-            const idx = +inp.dataset.idx;
-            if ((e.key === 'Enter' || e.key === ',') && inp.value.trim()) {
-              e.preventDefault();
-              properties[idx].tags.push(inp.value.trim().replace(/,$/, ''));
-              renderProperties();
-              document.querySelector(`#tagwrap-${idx} .tag-input`)?.focus();
-            }
-            if (e.key === 'Backspace' && !inp.value && properties[idx].tags.length) {
-              properties[idx].tags.pop();
-              renderProperties();
-              document.querySelector(`#tagwrap-${idx} .tag-input`)?.focus();
-            }
-          });
-        });
-
-        container.querySelectorAll('.tag-remove').forEach(btn =>
-          btn.addEventListener('click', () => {
-            properties[+btn.dataset.p].tags.splice(+btn.dataset.t, 1);
-            renderProperties();
-          }));
-
-        container.querySelectorAll('.prop-remove').forEach(btn =>
-          btn.addEventListener('click', () => {
-            properties.splice(+btn.dataset.idx, 1);
-            renderProperties();
-          }));
-
         document.getElementById('btn-add-property').style.display = properties.length >= 3 ? 'none' : '';
+        recomputeVariants();
+        renderVariants();
       }
 
       document.getElementById('btn-add-property').addEventListener('click', () => {
@@ -913,6 +1207,7 @@
       });
       catDropdown.addEventListener('click', e => e.stopPropagation());
       document.addEventListener('click', () => catDropdown.classList.remove('open'));
+      document.addEventListener('click', () => document.querySelectorAll('.prop-suggest-dropdown.open').forEach(d => d.classList.remove('open')));
       function updateCatLabel() {
         const names = [...selectedCats.values()];
         document.getElementById('pf-cats-label').textContent = names.length ? names.join(', ') : 'Keine ausgewählt';
@@ -991,8 +1286,406 @@
         }
       });
 
-      // Save draft
-      document.getElementById('btn-save-draft').addEventListener('click', () => {
+      // ── Entwurf laden ────────────────────────────────────────────────────
+      async function loadEntwuerfe() {
+        const sel = document.getElementById('pf-entwurf-select');
+        sel.innerHTML = '<option value="">Wird geladen…</option>';
+        try {
+          const res = await fetch(`${API_BASE()}/api/sheets/erfassung/list`);
+          draftList = await res.json();
+          sel.innerHTML = '<option value="">— Entwurf auswählen —</option>';
+          if (!draftList.length) {
+            sel.innerHTML = '<option value="">Keine Entwürfe vorhanden</option>';
+            return;
+          }
+          draftList.forEach((d, i) => {
+            const opt = document.createElement('option');
+            opt.value = i;
+            opt.textContent =
+              `${d.artikelnummer || '—'} – ${d.produktname || '—'} (ID: ${d.ssotId || '?'})`;
+            sel.appendChild(opt);
+          });
+        } catch (e) {
+          sel.innerHTML = `<option value="">Fehler beim Laden</option>`;
+        }
+      }
+
+      function loadDraft(d) {
+        currentDraftRow = d.row ?? null;
+
+        // ── Stammdaten ───────────────────────────────────────────────────
+        pfName.value = d.data['Produktname'] || '';
+        pfShortName.value = d.data['Artikelkurzbezeichnung'] || '';
+        document.getElementById('pf-lshop-nr').value =
+          d.data['L-Shop-Artikelnummer'] || d.data['L-Shop Artikelnummer'] || '';
+        document.getElementById('pf-ssot-id').value = d.ssotId;
+        updateArticleNr();
+
+        // ── Status ───────────────────────────────────────────────────────
+        const statusRaw = (d.data['Status'] || '').toLowerCase();
+        prodStatusSel.value = statusRaw === 'bereit zur anlage' ? 'ready' : 'draft';
+        createWcBtn.disabled = prodStatusSel.value !== 'ready';
+
+        // ── Shop-Einstellungen ───────────────────────────────────────────
+        document.getElementById('pf-delivery').value = d.data['Lieferzeit']    || '';
+        document.getElementById('pf-shipping').value = d.data['Versandklasse'] || '';
+
+        // ── Kategorien ───────────────────────────────────────────────────
+        selectedCats.clear();
+        (d.data['Kategorien'] || '').split(',').map(s => s.trim()).filter(Boolean).forEach(name => {
+          const cat = ssot.kategorien.find(k => (k['Kategoriename'] || '').trim() === name);
+          selectedCats.set(cat?.['Kategorienummer']?.trim() || name, name);
+        });
+        updateCatLabel();
+
+        // ── Varianten aus B1–B8 rekonstruieren ───────────────────────────
+        const loadedVariants = [];
+        for (let bi = 1; bi <= 8; bi++) {
+          const b = `B${bi}`;
+          if (!d.data[`${b}_E1`]) break;
+          const attrs = [];
+          for (let ai = 1; ai <= 3; ai++) {
+            const name  = d.data[`${b}_E${ai}`];
+            const value = d.data[`${b}_V${ai}`];
+            if (name && value) attrs.push({ name, value });
+          }
+          loadedVariants.push({ attrs, price: d.data[`${b}_Preis`] || '', _autoFilled: false });
+        }
+
+        // Properties aus Varianten ableiten
+        const propMap = {};
+        loadedVariants.forEach(v =>
+          v.attrs.forEach(a => {
+            if (!propMap[a.name]) propMap[a.name] = [];
+            if (!propMap[a.name].includes(a.value)) propMap[a.name].push(a.value);
+          })
+        );
+        properties = Object.entries(propMap).map(([name, tags]) => ({ name, tags }));
+
+        // Varianten VOR renderProperties setzen → priceMap wird korrekt gebaut
+        variants = loadedVariants;
+        renderProperties(); // ruft intern recomputeVariants() + renderVariants() auf
+
+        // Flag: Kurzbezeichnung wurde manuell geladen → Auto-Sync sperren
+        kurzbezManuallyEdited = true;
+      }
+
+      const entwurfSel = document.getElementById('pf-entwurf-select');
+      entwurfSel.addEventListener('focus',  () => loadEntwuerfe());
+      entwurfSel.addEventListener('change', () => {
+        const idx = entwurfSel.value;
+        if (idx === '') return;
+        loadDraft(draftList[+idx]);
+        entwurfSel.value = '';
+      });
+
+      // ── Modus-Steuerung ──────────────────────────────────────────────────
+      let editMode = false;          // false = Neu anlegen, true = Artikel ändern
+      let wcEditProductId = null;    // WC-ID des geladenen Produkts im Ändern-Modus
+
+      const modeBtnNew    = document.getElementById('mode-btn-new');
+      const modeBtnEdit   = document.getElementById('mode-btn-edit');
+      const entwurfBlock  = document.getElementById('pf-entwurf-block');
+      const searchBlock   = document.getElementById('pf-search-block');
+      const btnCreateWc   = document.getElementById('btn-create-wc');
+      const btnUpdateWc   = document.getElementById('btn-update-wc');
+      const btnSaveDraft  = document.getElementById('btn-save-draft');
+
+      function resetForm() {
+        pfName.value = '';
+        pfShortName.value = '';
+        document.getElementById('pf-lshop-nr').value = '';
+        document.getElementById('pf-ssot-id').value = '';
+        document.getElementById('pf-wc-id').value = '';
+        document.getElementById('pf-article-nr').value = '';
+        document.getElementById('pf-delivery').value = '';
+        document.getElementById('pf-shipping').value = '';
+        document.getElementById('pf-price-regular').value = '';
+        document.getElementById('prod-short-desc').value = '';
+        document.getElementById('prod-full-desc-raw').value = '';
+        selectedCats.clear();
+        updateCatLabel();
+        properties = [{ name: '', tags: [] }];
+        variants = [];
+        kurzbezManuallyEdited = false;
+        currentDraftRow = null;
+        wcEditProductId = null;
+        renderProperties();
+        statusShopSel.value = 'draft';
+        statusShopWrap.style.display = 'none';
+        document.getElementById('prod-push-status').textContent = '';
+      }
+
+      function setMode(edit) {
+        editMode = edit;
+        modeBtnNew.classList.toggle('active', !edit);
+        modeBtnEdit.classList.toggle('active', edit);
+        entwurfBlock.style.display   = edit ? 'none' : '';
+        searchBlock.style.display    = edit ? '' : 'none';
+        btnCreateWc.style.display    = edit ? 'none' : '';
+        btnUpdateWc.style.display    = edit ? '' : 'none';
+        btnSaveDraft.style.display   = edit ? 'none' : '';
+        statusShopWrap.style.display = edit ? '' : 'none';
+        resetForm();
+        if (!edit) btnCreateWc.disabled = true;
+      }
+
+      modeBtnNew.addEventListener('click',  () => { if (editMode)  setMode(false); });
+      modeBtnEdit.addEventListener('click', () => { if (!editMode) setMode(true); });
+
+      // ── WC-Produktsuche (Modus: Ändern) ──────────────────────────────────
+      const wcSearchInput   = document.getElementById('pf-wc-search');
+      const wcSearchResults = document.getElementById('pf-wc-search-results');
+      let searchTimer = null;
+
+      wcSearchInput.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        const q = wcSearchInput.value.trim();
+        if (q.length < 2) { wcSearchResults.style.display = 'none'; return; }
+        searchTimer = setTimeout(async () => {
+          wcSearchResults.innerHTML = '<div class="wc-search-item" style="color:var(--muted)">Suche…</div>';
+          wcSearchResults.style.display = 'block';
+          try {
+            const res  = await fetch(`${API_BASE()}/api/woocommerce/products/search?q=${encodeURIComponent(q)}&per_page=40`);
+            const list = await res.json();
+            if (!list.length) {
+              wcSearchResults.innerHTML = '<div class="wc-search-item" style="color:var(--muted)">Keine Treffer</div>';
+              return;
+            }
+            wcSearchResults.innerHTML = '';
+            list.forEach(p => {
+              const div = document.createElement('div');
+              div.className = 'wc-search-item';
+              div.innerHTML = `${p.sku ? `<strong>${p.sku}</strong> – ` : ''}${p.name}<span class="wc-item-status">[${p.status}]</span>`;
+              div.addEventListener('click', () => {
+                wcSearchResults.style.display = 'none';
+                wcSearchInput.value = p.sku ? `${p.sku} – ${p.name}` : p.name;
+                loadWcProduct(p.id);
+              });
+              wcSearchResults.appendChild(div);
+            });
+          } catch {
+            wcSearchResults.innerHTML = '<div class="wc-search-item" style="color:var(--danger)">Fehler bei der Suche</div>';
+          }
+        }, 350);
+      });
+
+      document.addEventListener('click', e => {
+        if (!searchBlock.contains(e.target)) wcSearchResults.style.display = 'none';
+      });
+
+      // ── WC-Produkt laden und Formular vorbelegen ──────────────────────────
+      async function loadWcProduct(id) {
+        document.getElementById('prod-push-status').textContent = 'Produkt wird geladen…';
+        try {
+          const [prodRes, varRes] = await Promise.all([
+            fetch(`${API_BASE()}/api/woocommerce/products/${id}`),
+            fetch(`${API_BASE()}/api/woocommerce/products/${id}/variations`),
+          ]);
+          const p    = await prodRes.json();
+          const vars = await varRes.json();
+
+          wcEditProductId = p.id;
+          document.getElementById('pf-wc-id').value = p.id;
+          statusShopSel.value = (p.status === 'publish') ? 'publish' : 'draft';
+
+          // Stammdaten
+          pfName.value = p.name || '';
+          document.getElementById('prod-short-desc').value   = p.short_description?.replace(/<[^>]+>/g, '') || '';
+          document.getElementById('prod-full-desc-raw').value = p.description || '';
+
+          // SKU → Artikelnummer + Teile
+          const sku = p.sku || '';
+          document.getElementById('pf-article-nr').value = sku;
+          if (sku.includes('/')) {
+            const [lshop, ...rest] = sku.split('/');
+            document.getElementById('pf-lshop-nr').value  = lshop.trim();
+            document.getElementById('pf-short-name').value = rest.join('/').trim();
+          }
+
+          // Kategorien
+          selectedCats.clear();
+          (p.categories || []).forEach(c => selectedCats.set(String(c.id), c.name));
+          updateCatLabel();
+
+          // Versandklasse
+          document.getElementById('pf-shipping').value = p.shipping_class || '';
+
+          // Varianten rekonstruieren
+          const loadedVariants = (Array.isArray(vars) ? vars : []).map(v => ({
+            attrs:        (v.attributes || []).map(a => ({ name: a.name, value: a.option })),
+            price:        v.regular_price || '',
+            _autoFilled:  false,
+            wcVariationId: v.id,
+          }));
+
+          const propMap = {};
+          loadedVariants.forEach(v =>
+            v.attrs.forEach(a => {
+              if (!propMap[a.name]) propMap[a.name] = [];
+              if (!propMap[a.name].includes(a.value)) propMap[a.name].push(a.value);
+            })
+          );
+          properties = Object.entries(propMap).map(([name, tags]) => ({ name, tags }));
+          variants = loadedVariants;
+          renderProperties();
+          kurzbezManuallyEdited = true;
+
+          btnUpdateWc.disabled = false;
+          document.getElementById('prod-push-status').textContent = `Produkt #${p.id} geladen`;
+        } catch (e) {
+          document.getElementById('prod-push-status').textContent = `Fehler: ${e.message}`;
+        }
+      }
+
+      // ── PUT Handler: Änderungen speichern ────────────────────────────────
+      document.getElementById('btn-update-wc').addEventListener('click', async () => {
+        if (!wcEditProductId) return;
+        if (variants.some(v => !v.price)) {
+          showToast('Bitte alle Variantenpreise ausfüllen', 'error'); return;
+        }
+
+        const pushStatus = document.getElementById('prod-push-status');
+        btnUpdateWc.disabled = true;
+        pushStatus.textContent = 'Wird gespeichert…';
+        pushStatus.style.color = 'var(--muted)';
+
+        const wcVariations = variants.map(v => ({
+          id:            v.wcVariationId || undefined,
+          attributes:    v.attrs.map(a => ({ name: a.name, option: a.value })),
+          regular_price: String(v.price),
+        }));
+
+        const attrMap = {};
+        variants.forEach(v => v.attrs.forEach(a => {
+          if (!attrMap[a.name]) attrMap[a.name] = new Set();
+          attrMap[a.name].add(a.value);
+        }));
+
+        try {
+          const selectedShopStatus = statusShopSel.value;
+          const res = await fetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name:              pfName.value.trim(),
+              short_description: document.getElementById('prod-short-desc').value,
+              description:       document.getElementById('prod-full-desc-raw').value,
+              sku:               document.getElementById('pf-article-nr').value,
+              status:            selectedShopStatus,
+              categories:        [...selectedCats.keys()].map(id => ({ id: Number(id) })),
+              attributes:        Object.entries(attrMap).map(([name, vals]) => ({
+                name, options: [...vals], variation: true, visible: true,
+              })),
+              shipping_class: document.getElementById('pf-shipping').value,
+              variations:     wcVariations,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok || data.error) throw new Error(data.error || 'Update fehlgeschlagen');
+
+          // Sheet-Writeback wenn Zeile bekannt
+          if (currentDraftRow) {
+            const ssotId      = document.getElementById('pf-ssot-id').value;
+            const artikelnummer = document.getElementById('pf-article-nr').value.trim();
+            const draft = {
+              status:     'Im Shop',
+              statusShop: wcStatusLabel(selectedShopStatus),
+              seoStatus:  seoStatusSel.value,
+              name:       pfName.value,
+              lshopNr:    document.getElementById('pf-lshop-nr').value,
+              shortName:  document.getElementById('pf-short-name').value,
+              ssotId,
+              delivery:   document.getElementById('pf-delivery').value,
+              shipping:   document.getElementById('pf-shipping').value,
+              shortDesc:  document.getElementById('prod-short-desc').value,
+              fullDesc:   document.getElementById('prod-full-desc-raw').value,
+            };
+            await fetch(`${API_BASE()}/api/sheets/erfassung/overwrite`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                row:           currentDraftRow,
+                ssotId,
+                'Produkt-ID':  String(wcEditProductId),
+                ...buildSheetPayload(draft, artikelnummer),
+                'Status Shop': wcStatusLabel(selectedShopStatus),
+              }),
+            });
+          }
+
+          pushStatus.textContent = `Gespeichert – WC-ID: ${data.id}`;
+          pushStatus.style.color = 'var(--success)';
+          showToast(`Artikel aktualisiert – WC-ID: ${data.id}`, 'success');
+          btnUpdateWc.disabled = false;
+        } catch (e) {
+          pushStatus.textContent = `Fehler: ${e.message}`;
+          pushStatus.style.color = 'var(--danger)';
+          btnUpdateWc.disabled = false;
+        }
+      });
+
+      // ── UI-Helfer ────────────────────────────────────────────────────────
+      function showToast(msg, type = 'success', ms = 3500) {
+        const el = document.createElement('div');
+        el.className = `toast ${type}`;
+        el.textContent = msg;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), ms);
+      }
+
+      function showConfirm(title, bodyHtml, confirmLabel = 'OK', cancelLabel = 'Abbrechen') {
+        return new Promise(resolve => {
+          const backdrop = document.createElement('div');
+          backdrop.className = 'modal-backdrop';
+          backdrop.innerHTML = `
+            <div class="modal-box">
+              <div class="modal-title">${title}</div>
+              <div class="modal-body">${bodyHtml}</div>
+              <div class="modal-actions">
+                <button class="btn-secondary" id="_mc">${cancelLabel}</button>
+                <button class="btn-danger"    id="_mo">${confirmLabel}</button>
+              </div>
+            </div>`;
+          document.body.appendChild(backdrop);
+          backdrop.querySelector('#_mc').onclick = () => { backdrop.remove(); resolve(false); };
+          backdrop.querySelector('#_mo').onclick = () => { backdrop.remove(); resolve(true); };
+        });
+      }
+
+      function buildSheetPayload(draft, artikelnummer) {
+        return {
+          'SSOT-ID':                draft.ssotId || undefined,
+          'Produktname':            draft.name,
+          'Produktart':             'Variabel',
+          'Artikelnummer':          artikelnummer,
+          'L-Shop-Artikelnummer':   draft.lshopNr,
+          'Artikelkurzbezeichnung': draft.shortName,
+          'Status':                 ({ draft: 'Entwurf', ready: 'Bereit zur Anlage' })[draft.status] || draft.status,
+          'Status Shop':            draft.statusShop || '',
+          'SEO_Status':             ({ pending: 'Ausstehend', ready: 'Bereit' })[draft.seoStatus] || draft.seoStatus || '',
+          'Lieferzeit':             draft.delivery,
+          'Versandklasse':          draft.shipping,
+          'Kategorien':             [...selectedCats.values()].join(', '),
+          'Kurzbeschreibung':       draft.shortDesc,
+          'Produktbeschreibung':    draft.fullDesc,
+          varianten:                variants.slice(0, 8),
+        };
+      }
+
+      // Save draft → localStorage + Google Sheet (mit Duplikat-Prüfung)
+      document.getElementById('btn-save-draft').addEventListener('click', async () => {
+        const btn          = document.getElementById('btn-save-draft');
+        const artikelnummer = document.getElementById('pf-article-nr').value.trim();
+
+        if (variants.length > 0 && variants.slice(0, 8).some(v => !v.price)) {
+          showToast('Bitte alle Variantenpreise ausfüllen', 'error');
+          return;
+        }
+
+        btn.disabled    = true;
+        btn.textContent = 'Wird gespeichert…';
+
         const draft = {
           status:       prodStatusSel.value,
           seoStatus:    seoStatusSel.value,
@@ -1004,14 +1697,82 @@
           shipping:     document.getElementById('pf-shipping').value,
           categories:   [...selectedCats.keys()],
           properties,
+          variants,
           variantRules: document.getElementById('pf-variant-rules').value,
           shortDesc:    document.getElementById('prod-short-desc').value,
           fullDesc:     document.getElementById('prod-full-desc-raw').value,
+          regularPrice: document.getElementById('pf-price-regular').value,
         };
         localStorage.setItem('mc_product_draft', JSON.stringify(draft));
-        const btn = document.getElementById('btn-save-draft');
-        btn.textContent = 'Gespeichert ✓';
-        setTimeout(() => btn.textContent = 'Entwurf speichern', 2000);
+
+        const payload = buildSheetPayload(draft, artikelnummer);
+
+        const applyId = (ssotId) => {
+          document.getElementById('pf-ssot-id').value = ssotId;
+          draft.ssotId = ssotId;
+          localStorage.setItem('mc_product_draft', JSON.stringify(draft));
+        };
+
+        const resetBtn = () => {
+          btn.textContent = 'Entwurf speichern';
+          btn.disabled    = false;
+        };
+
+        try {
+          // ── Erster Call: prüfen ob Artikelnummer bereits existiert ────────
+          const res  = await fetch(`${API_BASE()}/api/sheets/erfassung`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) throw new Error(data.error || 'Sheet-Fehler');
+
+          if (!data.exists) {
+            // Neue Zeile angelegt
+            applyId(data.ssotId);
+            if (data.row) currentDraftRow = data.row;
+            resetBtn();
+            showToast(`Gespeichert – SSOT-ID: ${data.ssotId}`, 'success');
+            return;
+          }
+
+          // ── Artikel gefunden: Bestätigungsdialog ─────────────────────────
+          resetBtn();
+          applyId(data.ssotId); // gefundene ID schon mal eintragen
+
+          const confirmed = await showConfirm(
+            'Artikel bereits vorhanden',
+            `Artikel <strong>${artikelnummer}</strong> existiert bereits (ID: <strong>${data.ssotId}</strong>).<br>Wirklich überschreiben?`,
+            'Überschreiben'
+          );
+
+          if (!confirmed) {
+            showToast(`Nicht überschrieben – ID: ${data.ssotId}`, 'info');
+            return;
+          }
+
+          // ── Zweiter Call: Zeile überschreiben ─────────────────────────────
+          btn.disabled    = true;
+          btn.textContent = 'Wird überschrieben…';
+
+          const res2  = await fetch(`${API_BASE()}/api/sheets/erfassung/overwrite`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ row: data.row, ssotId: data.ssotId, ...payload }),
+          });
+          const data2 = await res2.json();
+          if (!res2.ok || !data2.success) throw new Error(data2.error || 'Overwrite-Fehler');
+
+          applyId(data2.ssotId);
+          if (data.row) currentDraftRow = data.row;
+          resetBtn();
+          showToast(`Überschrieben – SSOT-ID: ${data2.ssotId}`, 'success');
+
+        } catch (e) {
+          resetBtn();
+          showToast(`Fehler: ${e.message}`, 'error', 5000);
+        }
       });
 
       // SSOT-ID generator: JFN-YYYY-NNNN (counter persisted in localStorage per year)
@@ -1023,18 +1784,57 @@
         return `JFN-${year}-${String(next).padStart(4, '0')}`;
       }
 
-      // Create in WooCommerce
+      // Normalize variant textarea content → WooCommerce variations array
+      function parseVariantsForWC(text) {
+        if (!text) return [];
+        try {
+          const parsed = JSON.parse(text);
+          if (!Array.isArray(parsed) || !parsed.length) return [];
+          // Already WC format: [{attributes: [{name, option}]}]
+          if (parsed[0]?.attributes) return parsed;
+          // Flat format: [{Farbe: "Rot", Größe: "S"}] → normalize
+          return parsed.map(item =>
+            ({ attributes: Object.entries(item).map(([name, option]) => ({ name, option: String(option) })) })
+          );
+        } catch {
+          return [];
+        }
+      }
+
+      // Create in WooCommerce – drei Schritte: Produkt → Varianten → Sheet-Writeback
       document.getElementById('btn-create-wc').addEventListener('click', async () => {
-        const pushStatus = document.getElementById('prod-push-status');
+        if (variants.length > 0 && variants.some(v => !v.price)) {
+          showToast('Bitte alle Variantenpreise ausfüllen', 'error');
+          return;
+        }
+
+        const pushStatus   = document.getElementById('prod-push-status');
         createWcBtn.disabled = true;
-        pushStatus.textContent = 'Wird angelegt…';
         pushStatus.style.color = 'var(--muted)';
 
-        const ssotId = generateSsotId();
-        document.getElementById('pf-ssot-id').value = ssotId;
+        const ssotId       = document.getElementById('pf-ssot-id').value;
+        const defaultPrice = document.getElementById('pf-price-regular').value;
+
+        // Aggregierte Attribute für das Produkt-Objekt (eindeutige Werte je Attributname)
+        const attrMap = {};
+        variants.forEach(v => v.attrs.forEach(a => {
+          if (!attrMap[a.name]) attrMap[a.name] = new Set();
+          attrMap[a.name].add(a.value);
+        }));
+        const aggregatedAttributes = Object.entries(attrMap).map(([name, vals]) => ({
+          name, options: [...vals], variation: true, visible: true,
+        }));
+
+        const wcVariations = variants.map(v => ({
+          attributes:    v.attrs.map(a => ({ name: a.name, option: a.value })),
+          regular_price: String(v.price || defaultPrice || ''),
+          status:        'publish',
+        }));
 
         try {
-          const res = await fetch(`${API_BASE()}/api/woocommerce/products`, {
+          // Schritt 1: Produkt anlegen
+          pushStatus.textContent = 'Schritt 1/3: Produkt wird angelegt…';
+          const res1 = await fetch(`${API_BASE()}/api/woocommerce/products`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1043,14 +1843,69 @@
               description:       document.getElementById('prod-full-desc-raw').value,
               sku:               document.getElementById('pf-article-nr').value,
               type:              'variable',
-              ssot_id:           ssotId,
+              ssot_id:           ssotId || undefined,
+              categories:        [...selectedCats.keys()].map(id => ({ id: Number(id) })),
+              attributes:        aggregatedAttributes,
+              variations:        wcVariations,
             }),
           });
-          const data = await res.json();
-          if (!res.ok || data.error) throw new Error(data.error || 'Fehler bei der Anlage');
-          document.getElementById('pf-wc-id').value = data.id ?? '';
-          pushStatus.textContent = `Angelegt – WooCommerce ID: ${data.id}`;
-          pushStatus.style.color = 'var(--success)';
+          const data1 = await res1.json();
+          if (!res1.ok || data1.error) throw new Error(data1.error || 'Produkt-Anlage fehlgeschlagen');
+
+          const wcId      = data1.id;
+          const wcStatus  = data1.status ?? 'draft';
+          const created   = data1.variations_created ?? 0;
+          const failed    = data1.variations_failed  ?? 0;
+
+          // Status Shop anzeigen + Wert aus API-Response setzen
+          statusShopSel.value          = wcStatus;
+          statusShopWrap.style.display = '';
+
+          // Schritt 2: Status-Update
+          pushStatus.textContent = `Schritt 2/3: ${created} Varianten angelegt${failed ? `, ${failed} fehlgeschlagen` : ''}…`;
+
+          // Schritt 3: WC-ID ins Formular + Sheet-Writeback
+          pushStatus.textContent = 'Schritt 3/3: SSOT wird aktualisiert…';
+          document.getElementById('pf-wc-id').value = wcId;
+
+          if (currentDraftRow && ssotId) {
+            const artikelnummer = document.getElementById('pf-article-nr').value.trim();
+            const draft = {
+              status:     'Im Shop',
+              statusShop: wcStatusLabel(wcStatus),
+              seoStatus:  'Artikelbeschreibung fehlt',
+              name:       document.getElementById('pf-name').value,
+              lshopNr:    document.getElementById('pf-lshop-nr').value,
+              shortName:  document.getElementById('pf-short-name').value,
+              ssotId,
+              delivery:   document.getElementById('pf-delivery').value,
+              shipping:   document.getElementById('pf-shipping').value,
+              shortDesc:  document.getElementById('prod-short-desc').value,
+              fullDesc:   document.getElementById('prod-full-desc-raw').value,
+            };
+            const sheetPayload = buildSheetPayload(draft, artikelnummer);
+            await fetch(`${API_BASE()}/api/sheets/erfassung/overwrite`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                row:           currentDraftRow,
+                ssotId,
+                'Produkt-ID':  String(wcId),
+                ...sheetPayload,
+                'Status':      'Im Shop',
+                'Status Shop': wcStatusLabel(wcStatus),
+                'SEO_Status':  'Artikelbeschreibung fehlt',
+              }),
+            });
+          }
+
+          const varMsg = failed
+            ? `${created}/${created + failed} Varianten angelegt`
+            : `${created} Variante${created !== 1 ? 'n' : ''} angelegt`;
+          pushStatus.textContent = `Angelegt – WooCommerce ID: ${wcId}, ${varMsg}`;
+          pushStatus.style.color = failed ? 'var(--warning, orange)' : 'var(--success)';
+          showToast(`Produkt angelegt – WC-ID: ${wcId}, ${varMsg}`, failed ? 'info' : 'success');
+
         } catch (e) {
           pushStatus.textContent = `Fehler: ${e.message}`;
           pushStatus.style.color = 'var(--danger)';

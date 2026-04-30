@@ -64,10 +64,51 @@ router.post('/generate-product', async (req, res, next) => {
       return res.status(503).json({ error: 'ANTHROPIC_API_KEY nicht konfiguriert.' });
     }
 
-    const { action, name, keywords, shop } = req.body;
+    const { action, name, keywords, shop, properties, rules } = req.body;
+
+    if (action === 'generate_variants') {
+      if (!name || !properties) {
+        return res.status(400).json({ error: 'Felder name und properties sind erforderlich.' });
+      }
+
+      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+      const variantPrompt = `Erstelle alle Varianten für folgendes WooCommerce-Produkt:
+
+Produktname: ${name}
+Eigenschaften:
+${properties}
+${rules ? `\nVariantenregeln:\n${rules}` : ''}
+
+Antworte ausschließlich als valides JSON-Array. Jedes Element repräsentiert eine Variante:
+[
+  {"attributes": [{"name": "Farbe", "option": "Rot"}, {"name": "Größe", "option": "S"}]},
+  {"attributes": [{"name": "Farbe", "option": "Rot"}, {"name": "Größe", "option": "M"}]}
+]
+
+Bilde alle sinnvollen Kombinationen der Eigenschaften. Berücksichtige Variantenregeln falls angegeben.
+Gib nur das JSON-Array zurück, keinen weiteren Text.`;
+
+      const response = await client.messages.create({
+        model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
+        max_tokens: 2048,
+        messages: [{ role: 'user', content: variantPrompt }],
+      });
+
+      const raw = response.content[0]?.text ?? '';
+      let variants;
+      try {
+        const jsonMatch = raw.match(/\[[\s\S]*\]/);
+        variants = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+      } catch {
+        return res.status(502).json({ error: 'Claude-Antwort konnte nicht als JSON geparst werden.', raw });
+      }
+
+      return res.json({ variants });
+    }
 
     if (action !== 'generate_description') {
-      return res.status(400).json({ error: 'Unbekannte action. Erwartet: generate_description' });
+      return res.status(400).json({ error: 'Unbekannte action. Erwartet: generate_description oder generate_variants' });
     }
     if (!name || !keywords || !shop) {
       return res.status(400).json({ error: 'Felder name, keywords und shop sind erforderlich.' });
