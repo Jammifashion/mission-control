@@ -1026,15 +1026,21 @@
         const container = document.getElementById('properties-container');
         container.innerHTML = '';
 
+        // Namen die bereits in anderen Zeilen belegt sind
+        const usedNames = new Set(properties.map(p => p.name).filter(Boolean));
+
         properties.forEach((prop, i) => {
           const row = document.createElement('div');
           row.className = 'property-row';
 
-          // Name select
+          // Name select — nur Eigenschaften anzeigen die noch nicht gewählt sind (oder die eigene)
           const sel = document.createElement('select');
           sel.className = 'form-select prop-name-sel';
           sel.innerHTML = `<option value="">Eigenschaft…</option>` +
-            attrNames.map(n => `<option${prop.name === n ? ' selected' : ''}>${n}</option>`).join('');
+            attrNames
+              .filter(n => n === prop.name || !usedNames.has(n))
+              .map(n => `<option${prop.name === n ? ' selected' : ''}>${n}</option>`)
+              .join('');
 
           // Middle column: tag-wrap + optional SSOT suggest
           const mid = document.createElement('div');
