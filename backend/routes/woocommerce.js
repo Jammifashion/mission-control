@@ -41,6 +41,16 @@ router.get('/orders/:id', async (req, res, next) => {
   }
 });
 
+// GET /api/woocommerce/shipping-classes
+router.get('/shipping-classes', async (req, res, next) => {
+  try {
+    const wc = getClient();
+    const { data } = await wc.get('products/shipping_classes', { per_page: 100 });
+    const list = Array.isArray(data) ? data : [data];
+    res.json(list.map(s => ({ slug: s.slug, name: s.name })));
+  } catch (err) { next(err); }
+});
+
 // GET /api/woocommerce/products/search?q=&per_page=40  — must come before /:id
 router.get('/products/search', async (req, res, next) => {
   try {
@@ -99,7 +109,10 @@ router.get('/products/:id', async (req, res, next) => {
   try {
     const wc = getClient();
     const { data } = await wc.get(`products/${req.params.id}`);
-    res.json(Array.isArray(data) ? data[0] : data);
+    const product = Array.isArray(data) ? data[0] : data;
+    console.log('WC GET /products/:id meta_data:', JSON.stringify(product.meta_data ?? []));
+    console.log('WC GET /products/:id shipping_class:', product.shipping_class, '| slug:', product.shipping_class_id);
+    res.json(product);
   } catch (err) { next(err); }
 });
 
@@ -172,6 +185,7 @@ router.post('/products', async (req, res, next) => {
     const { ssot_id, variations, ...payload } = req.body;
 
     // Schritt 1: Produkt anlegen
+    console.log('WC POST /products payload:', JSON.stringify({ ...payload, status: 'draft' }, null, 2));
     const productResponse = await wc.post('products', { ...payload, status: 'draft' });
     console.log('WC POST /products HTTP status:', productResponse.status);
     const productRaw = productResponse.data;
@@ -217,6 +231,7 @@ router.put('/products/:id', async (req, res, next) => {
   try {
     const wc = getClient();
     const { variations, ...payload } = req.body;
+    console.log('WC PUT /products/:id payload:', JSON.stringify(payload, null, 2));
     const { data: productRaw } = await wc.put(`products/${req.params.id}`, payload);
     const product = Array.isArray(productRaw) ? productRaw[0] : productRaw;
 

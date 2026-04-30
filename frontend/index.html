@@ -784,16 +784,17 @@
       }
 
       // ── SSOT Stammdaten ───────────────────────────────────────────────────
-      const ssot = { lieferzeiten: [], versandklassen: [], kategorien: [], attribute: [] };
+      const ssot = { lieferzeiten: [], versandklassen: [], kategorien: [], attribute: [], wcShippingClasses: [] };
       const selectedCats = new Map(); // value (Kategorienummer) → Kategoriename
 
       async function loadSsotData() {
         const base = API_BASE();
         await Promise.allSettled([
-          ['lieferzeiten',  `${base}/api/sheets/lieferzeiten`],
-          ['versandklassen',`${base}/api/sheets/versandklassen`],
-          ['kategorien',    `${base}/api/sheets/kategorien`],
-          ['attribute',     `${base}/api/sheets/attribute`],
+          ['lieferzeiten',      `${base}/api/sheets/lieferzeiten`],
+          ['versandklassen',    `${base}/api/sheets/versandklassen`],
+          ['kategorien',        `${base}/api/sheets/kategorien`],
+          ['attribute',         `${base}/api/sheets/attribute`],
+          ['wcShippingClasses', `${base}/api/woocommerce/shipping-classes`],
         ].map(async ([key, url]) => {
           try {
             const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
@@ -804,6 +805,15 @@
         populateShipping();
         populateCategories();
         renderProperties();
+      }
+
+      // Hilfsfunktion: Anzeigename → WC-Slug (Fallback: Wert direkt)
+      function shippingSlug(nameOrSlug) {
+        if (!nameOrSlug) return '';
+        const match = ssot.wcShippingClasses.find(
+          s => s.slug === nameOrSlug || s.name === nameOrSlug
+        );
+        return match ? match.slug : nameOrSlug;
       }
 
       function populateDelivery() {
@@ -822,9 +832,13 @@
         const sel = document.getElementById('pf-shipping');
         const current = sel.value;
         sel.innerHTML = '<option value="">Bitte wählen…</option>';
-        ssot.versandklassen.forEach(vk => {
+        // WC-Klassen bevorzugen (Slug als value, Name als Text)
+        const classes = ssot.wcShippingClasses.length
+          ? ssot.wcShippingClasses
+          : ssot.versandklassen.map(v => ({ slug: v, name: v }));
+        classes.forEach(({ slug, name }) => {
           const opt = document.createElement('option');
-          opt.value = vk; opt.textContent = vk;
+          opt.value = slug; opt.textContent = name;
           sel.appendChild(opt);
         });
         if (current) sel.value = current;
@@ -1351,7 +1365,7 @@
 
         // ── Shop-Einstellungen ───────────────────────────────────────────
         document.getElementById('pf-delivery').value = d.data['Lieferzeit']    || '';
-        document.getElementById('pf-shipping').value = d.data['Versandklasse'] || '';
+        document.getElementById('pf-shipping').value = shippingSlug(d.data['Versandklasse'] || '');
 
         // ── Kategorien ───────────────────────────────────────────────────
         selectedCats.clear();
@@ -1691,8 +1705,14 @@
           (p.categories || []).forEach(c => selectedCats.set(String(c.id), c.name));
           updateCatLabel();
 
-          // Versandklasse
+          // Versandklasse (slug direkt aus WC)
           document.getElementById('pf-shipping').value = p.shipping_class || '';
+
+          // Lieferzeit aus meta_data
+          const lieferzeitMeta = (p.meta_data || []).find(
+            m => m.key === '_lieferzeit' || m.key === 'lieferzeit' || m.key === '_delivery_time'
+          );
+          if (lieferzeitMeta) document.getElementById('pf-delivery').value = lieferzeitMeta.value || '';
 
           // Bestehende Varianten für Tabelle + Vergleich speichern
           existingVariations = (Array.isArray(vars) ? vars : []).map(v => ({
@@ -1770,6 +1790,7 @@
                 name, options: [...vals], variation: true, visible: true,
               })),
               shipping_class: document.getElementById('pf-shipping').value,
+              meta_data:      [{ key: '_lieferzeit', value: document.getElementById('pf-delivery').value }],
               variations:     wcVariations,
             }),
           });
@@ -2052,6 +2073,8 @@
               ssot_id:           ssotId || undefined,
               categories:        [...selectedCats.keys()].map(id => ({ id: Number(id) })),
               attributes:        aggregatedAttributes,
+              shipping_class:    document.getElementById('pf-shipping').value,
+              meta_data:         [{ key: '_lieferzeit', value: document.getElementById('pf-delivery').value }],
               variations:        wcVariations,
             }),
           });
