@@ -453,19 +453,6 @@
           </div>
         </div>
 
-        <!-- Status Shop (nur sichtbar nach WC-Anlage / im Ändern-Modus) -->
-        <div id="pf-status-shop-wrap" style="display:none;margin-bottom:0.75rem;">
-          <div class="status-bar">
-            <div class="status-field">
-              <label>Status Shop</label>
-              <select id="prod-status-shop" class="form-select accent">
-                <option value="draft">Entwurf</option>
-                <option value="publish">Veröffentlicht</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
         <!-- Status-Leiste -->
         <div class="status-bar">
           <div class="status-field">
@@ -474,12 +461,20 @@
               <option value="draft">Entwurf</option>
               <option value="ready">Bereit zur Anlage</option>
             </select>
+            <span id="prod-status-text" class="form-input accent" style="display:none;cursor:default;"></span>
           </div>
           <div class="status-field">
             <label>SEO-Status</label>
             <select id="prod-seo-status" class="form-select" disabled>
               <option value="pending">Ausstehend</option>
               <option value="ready">Bereit</option>
+            </select>
+          </div>
+          <div class="status-field" id="pf-status-shop-wrap" style="display:none;">
+            <label>Status Shop</label>
+            <select id="prod-status-shop" class="form-select accent">
+              <option value="draft">Entwurf</option>
+              <option value="publish">Veröffentlicht</option>
             </select>
           </div>
         </div>
@@ -1412,7 +1407,7 @@
         wcEditProductId = null;
         renderProperties();
         statusShopSel.value = 'draft';
-        statusShopWrap.style.display = 'none';
+        document.getElementById('prod-status-text').textContent = '';
         document.getElementById('prod-push-status').textContent = '';
       }
 
@@ -1425,7 +1420,18 @@
         btnCreateWc.style.display    = edit ? 'none' : '';
         btnUpdateWc.style.display    = edit ? '' : 'none';
         btnSaveDraft.style.display   = edit ? 'none' : '';
+
+        // Status: Dropdown (Neu) vs. Read-only Text (Ändern)
+        prodStatusSel.style.display                                     = edit ? 'none' : '';
+        document.getElementById('prod-status-text').style.display       = edit ? '' : 'none';
+
+        // Status Shop: nur im Ändern-Modus
         statusShopWrap.style.display = edit ? '' : 'none';
+
+        // Artikelkurzbezeichnung: read-only im Ändern-Modus
+        pfShortName.readOnly = edit;
+        pfShortName.classList.toggle('accent', !edit);
+
         resetForm();
         if (!edit) btnCreateWc.disabled = true;
       }
@@ -1478,16 +1484,25 @@
       async function loadWcProduct(id) {
         document.getElementById('prod-push-status').textContent = 'Produkt wird geladen…';
         try {
-          const [prodRes, varRes] = await Promise.all([
+          const [prodRes, varRes, ssotRes] = await Promise.all([
             fetch(`${API_BASE()}/api/woocommerce/products/${id}`),
             fetch(`${API_BASE()}/api/woocommerce/products/${id}/variations`),
+            fetch(`${API_BASE()}/api/sheets/erfassung/by-wc-id?id=${id}`),
           ]);
-          const p    = await prodRes.json();
-          const vars = await varRes.json();
+          const p       = await prodRes.json();
+          const vars    = await varRes.json();
+          const ssotData = await ssotRes.json();
 
           wcEditProductId = p.id;
           document.getElementById('pf-wc-id').value = p.id;
           statusShopSel.value = (p.status === 'publish') ? 'publish' : 'draft';
+
+          // SSOT-ID + Zeilennummer aus Sheet
+          if (ssotData.ssotId) {
+            document.getElementById('pf-ssot-id').value = ssotData.ssotId;
+            currentDraftRow = ssotData.row;
+          }
+          document.getElementById('prod-status-text').textContent = ssotData.status || '—';
 
           // Stammdaten
           pfName.value = p.name || '';

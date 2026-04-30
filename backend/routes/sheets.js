@@ -129,6 +129,38 @@ router.get('/attribute', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /api/sheets/erfassung/by-wc-id?id={wcId} ────────────────────────────
+// Sucht in Spalte "Produkt-ID" nach der WC-ID → gibt { ssotId, row, status } zurück
+router.get('/erfassung/by-wc-id', async (req, res, next) => {
+  try {
+    const wcId = (req.query.id ?? '').trim();
+    if (!wcId) return res.json({ ssotId: null });
+
+    const sheets = await getSheets();
+    const { data } = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId(),
+      range: 'Erfassungsmaske!A1:BZ2000',
+    });
+    const rows    = data.values ?? [];
+    const headers = rows[0] ?? [];
+
+    const ssotIdx      = headers.findIndex(h => /ssot.?id|^id$/i.test(h));
+    const produktIdIdx = headers.findIndex(h => norm(h) === norm('Produkt-ID'));
+    const statusIdx    = headers.findIndex(h => norm(h) === norm('Status'));
+
+    for (let i = 1; i < rows.length; i++) {
+      if ((rows[i][produktIdIdx] ?? '').trim() === wcId) {
+        return res.json({
+          ssotId: rows[i][ssotIdx]  ?? '',
+          row:    i + 1,
+          status: rows[i][statusIdx] ?? '',
+        });
+      }
+    }
+    res.json({ ssotId: null });
+  } catch (err) { next(err); }
+});
+
 // ── GET /api/sheets/erfassung/list ───────────────────────────────────────────
 // Gibt alle Zeilen mit Status "Entwurf" zurück (inkl. vollständiger Zeilendaten).
 router.get('/erfassung/list', async (req, res, next) => {
