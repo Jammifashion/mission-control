@@ -357,6 +357,7 @@
         text-align: center;
       }
     </style>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.snow.min.css" rel="stylesheet">
   </head>
   <body>
     <header>
@@ -439,8 +440,79 @@
         <!-- Modus-Auswahl -->
         <div class="mode-toggle">
           <button class="mode-btn active" id="mode-btn-new">＋ Neu anlegen</button>
+          <button class="mode-btn" id="mode-btn-seo">🔍 SEO Daten</button>
           <button class="mode-btn" id="mode-btn-edit">✏️ Artikel ändern</button>
         </div>
+
+        <!-- SEO Modus Panel -->
+        <div id="seo-mode-panel" style="display:none;">
+          <div class="card" style="margin-bottom:1rem;">
+            <div class="form-section-title">Artikel auswählen</div>
+            <select id="seo-article-select" class="form-select">
+              <option value="">Wird geladen…</option>
+            </select>
+          </div>
+          <div id="seo-article-panel" style="display:none;">
+            <div class="card" style="margin-bottom:1rem;">
+              <div class="form-section-title">Produktinfo</div>
+              <div class="form-grid">
+                <div class="form-field">
+                  <label>Produktname</label>
+                  <input id="seo-produktname" type="text" class="form-input accent" readonly />
+                </div>
+                <div class="form-field">
+                  <label>Artikelnummer</label>
+                  <input id="seo-artikelnummer" type="text" class="form-input accent" readonly />
+                </div>
+                <div class="form-field">
+                  <label>L-Shop Artikelnummer <span class="field-note">(Suchartikel)</span></label>
+                  <input id="seo-lshop-nr" type="text" class="form-input accent" readonly />
+                </div>
+                <div class="form-field">
+                  <label>SEO-Status</label>
+                  <input id="seo-status-text" type="text" class="form-input accent" readonly value="Ausstehend" />
+                </div>
+                <div class="form-field form-col-full">
+                  <label>L-Shop URL</label>
+                  <input id="seo-lshop-url" type="url" class="form-input" placeholder="https://www.l-shop-team.de/…" />
+                </div>
+              </div>
+            </div>
+            <div class="card" style="margin-bottom:1rem;">
+              <div class="form-section-title">Beschreibungen</div>
+              <div class="form-field" style="margin-bottom:0.75rem;">
+                <label>Kurzbeschreibung</label>
+                <div id="quill-seo-short"></div>
+              </div>
+              <div class="form-field" style="margin-top:0.75rem;">
+                <label>Artikelbeschreibung</label>
+                <div id="quill-seo-full"></div>
+              </div>
+              <div class="form-grid" style="margin-top:1rem;">
+                <div class="form-field">
+                  <label>Instagram URL <span class="field-note">(aus Kategorie)</span></label>
+                  <input id="seo-instagram" type="url" class="form-input" placeholder="https://instagram.com/p/…" />
+                </div>
+                <div class="form-field">
+                  <label>TikTok URL <span class="field-note">(aus Kategorie)</span></label>
+                  <input id="seo-tiktok" type="url" class="form-input" placeholder="https://tiktok.com/@…" />
+                </div>
+                <div class="form-field form-col-full">
+                  <label>Eigene Ideen / Hinweise</label>
+                  <textarea id="seo-hinweise" class="form-input" rows="3" style="resize:vertical;font-family:inherit;" placeholder="z.B. Betone Vereinseignung, erwähne Sonderfarben…"></textarea>
+                </div>
+              </div>
+            </div>
+            <div class="panel-actions">
+              <button class="btn-secondary" id="btn-seo-generate">Beschreibung generieren</button>
+              <button class="btn" id="btn-seo-save">SEO Speichern</button>
+              <span id="seo-status-msg" style="font-size:0.82rem;color:var(--muted);align-self:center;"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Produkt-Formular (Modus: Neu + Ändern) -->
+        <div id="product-form-area">
 
         <!-- Entwurf laden (Modus: Neu) -->
         <div class="card" id="pf-entwurf-block" style="margin-bottom:1rem;">
@@ -516,6 +588,16 @@
             <div class="form-field form-col-full">
               <label>WooCommerce Product ID <span class="field-note">(nach Anlage)</span></label>
               <input id="pf-wc-id" type="text" class="form-input" readonly placeholder="—" />
+            </div>
+            <div id="pf-desc-edit-wrap" style="display:none;grid-column:1/-1;">
+              <div class="form-field form-col-full">
+                <label>Kurzbeschreibung</label>
+                <div id="quill-short-desc"></div>
+              </div>
+              <div class="form-field form-col-full" style="margin-top:0.75rem;">
+                <label>Artikelbeschreibung</label>
+                <div id="quill-description"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -626,6 +708,7 @@
           <button class="btn" id="btn-update-wc" style="display:none;">Änderungen speichern</button>
           <span id="prod-push-status" style="font-size:0.82rem;color:var(--muted);align-self:center;"></span>
         </div>
+        </div><!-- /product-form-area -->
 
       </section>
 
@@ -984,8 +1067,8 @@
           priceEl.min         = '0';
           priceEl.value       = v.price;
           priceEl.required    = true;
-          priceEl.title       = vi >= 8 ? 'Max. B8 – wird nicht ins Sheet geschrieben' : '';
-          priceEl.classList.toggle('invalid', !v.price && vi < 8);
+          priceEl.title       = vi >= 50 ? 'Max. B50 – wird nicht ins Sheet geschrieben' : '';
+          priceEl.classList.toggle('invalid', !v.price && vi < 50);
           priceEl.addEventListener('input', () => {
             variants[vi].price       = priceEl.value;
             variants[vi]._autoFilled = false; // manuell geändert → nicht mehr überschreiben
@@ -995,10 +1078,10 @@
           row.appendChild(priceEl);
           table.appendChild(row);
         });
-        if (variants.length > 8) {
+        if (variants.length > 50) {
           const warn = document.createElement('div');
           warn.className   = 'variants-warn';
-          warn.textContent = `Nur die ersten 8 Varianten (B1–B8) werden ins Sheet geschrieben. Aktuell: ${variants.length}`;
+          warn.textContent = `Nur die ersten 50 Varianten (B1–B50) werden ins Sheet geschrieben. Aktuell: ${variants.length}`;
           table.appendChild(warn);
         }
       }
@@ -1376,9 +1459,9 @@
         });
         updateCatLabel();
 
-        // ── Varianten aus B1–B8 rekonstruieren ───────────────────────────
+        // ── Varianten aus B1–B50 rekonstruieren ──────────────────────────
         const loadedVariants = [];
-        for (let bi = 1; bi <= 8; bi++) {
+        for (let bi = 1; bi <= 50; bi++) {
           const b = `B${bi}`;
           if (!d.data[`${b}_E1`]) break;
           const attrs = [];
@@ -1419,15 +1502,21 @@
 
       // ── Modus-Steuerung ──────────────────────────────────────────────────
       let editMode = false;          // false = Neu anlegen, true = Artikel ändern
+      let seoMode  = false;          // SEO Daten Modus
       let wcEditProductId = null;    // WC-ID des geladenen Produkts im Ändern-Modus
+      let seoCurrentItem  = null;    // aktuell gewählter SEO-Artikel
+      let seoPendingList  = [];      // Liste aller ausstehenden SEO-Artikel
 
-      const modeBtnNew    = document.getElementById('mode-btn-new');
-      const modeBtnEdit   = document.getElementById('mode-btn-edit');
-      const entwurfBlock  = document.getElementById('pf-entwurf-block');
-      const searchBlock   = document.getElementById('pf-search-block');
-      const btnCreateWc   = document.getElementById('btn-create-wc');
-      const btnUpdateWc   = document.getElementById('btn-update-wc');
-      const btnSaveDraft  = document.getElementById('btn-save-draft');
+      const modeBtnNew      = document.getElementById('mode-btn-new');
+      const modeBtnSeo      = document.getElementById('mode-btn-seo');
+      const modeBtnEdit     = document.getElementById('mode-btn-edit');
+      const entwurfBlock    = document.getElementById('pf-entwurf-block');
+      const searchBlock     = document.getElementById('pf-search-block');
+      const btnCreateWc     = document.getElementById('btn-create-wc');
+      const btnUpdateWc     = document.getElementById('btn-update-wc');
+      const btnSaveDraft    = document.getElementById('btn-save-draft');
+      const productFormArea = document.getElementById('product-form-area');
+      const seoModePanel    = document.getElementById('seo-mode-panel');
 
       function resetForm() {
         pfName.value = '';
@@ -1441,6 +1530,8 @@
         document.getElementById('pf-price-regular').value = '';
         document.getElementById('prod-short-desc').value = '';
         document.getElementById('prod-full-desc-raw').value = '';
+        if (quillShort) quillShort.root.innerHTML = '';
+        if (quillFull)  quillFull.root.innerHTML  = '';
         selectedCats.clear();
         updateCatLabel();
         properties = [{ name: '', tags: [] }];
@@ -1458,8 +1549,14 @@
 
       function setMode(edit) {
         editMode = edit;
+        seoMode  = false;
+        seoModePanel.style.display    = 'none';
+        productFormArea.style.display = '';
+
         modeBtnNew.classList.toggle('active', !edit);
+        modeBtnSeo.classList.remove('active');
         modeBtnEdit.classList.toggle('active', edit);
+
         entwurfBlock.style.display   = edit ? 'none' : '';
         searchBlock.style.display    = edit ? '' : 'none';
         btnCreateWc.style.display    = edit ? 'none' : '';
@@ -1480,12 +1577,195 @@
         // "Neue Varianten anlegen" nur im Ändern-Modus
         document.getElementById('btn-add-new-variants').style.display = edit ? '' : 'none';
 
+        // Quill-Editoren nur im Ändern-Modus
+        document.getElementById('pf-desc-edit-wrap').style.display = edit ? '' : 'none';
+        if (edit) initQuillEditors();
+
         resetForm();
         if (!edit) btnCreateWc.disabled = true;
       }
 
-      modeBtnNew.addEventListener('click',  () => { if (editMode)  setMode(false); });
-      modeBtnEdit.addEventListener('click', () => { if (!editMode) setMode(true); });
+      function setSeoMode() {
+        seoMode  = true;
+        editMode = false;
+        productFormArea.style.display = 'none';
+        seoModePanel.style.display    = '';
+
+        modeBtnNew.classList.remove('active');
+        modeBtnEdit.classList.remove('active');
+        modeBtnSeo.classList.add('active');
+
+        resetForm();
+        loadSeoPendingList();
+      }
+
+      modeBtnNew.addEventListener('click',  () => { if (editMode || seoMode) setMode(false); });
+      modeBtnSeo.addEventListener('click',  () => { if (!seoMode) setSeoMode(); });
+      modeBtnEdit.addEventListener('click', () => { if (!editMode || seoMode) setMode(true); });
+
+      // ── SEO Modus ────────────────────────────────────────────────────────
+      async function loadSeoPendingList() {
+        const sel = document.getElementById('seo-article-select');
+        document.getElementById('seo-article-panel').style.display = 'none';
+        seoCurrentItem = null;
+        sel.innerHTML = '<option value="">Wird geladen…</option>';
+        try {
+          const res = await fetch(`${API_BASE()}/api/sheets/erfassung/seo-pending`);
+          seoPendingList = await res.json();
+          if (!Array.isArray(seoPendingList) || !seoPendingList.length) {
+            sel.innerHTML = '<option value="">Keine ausstehenden SEO-Artikel</option>';
+            return;
+          }
+          sel.innerHTML = '<option value="">— Artikel auswählen —</option>' +
+            seoPendingList.map((item, i) =>
+              `<option value="${i}">${item.artikelnummer ? item.artikelnummer + ' – ' : ''}${item.produktname}</option>`
+            ).join('');
+        } catch (e) {
+          sel.innerHTML = '<option value="">Fehler beim Laden</option>';
+        }
+      }
+
+      document.getElementById('seo-article-select').addEventListener('change', async function () {
+        const idx = this.value;
+        if (idx === '') {
+          document.getElementById('seo-article-panel').style.display = 'none';
+          seoCurrentItem = null;
+          return;
+        }
+        seoCurrentItem = seoPendingList[Number(idx)];
+        document.getElementById('seo-produktname').value   = seoCurrentItem.produktname;
+        document.getElementById('seo-artikelnummer').value = seoCurrentItem.artikelnummer;
+        document.getElementById('seo-lshop-nr').value      = seoCurrentItem.lshopNr  || '';
+        document.getElementById('seo-lshop-url').value     = seoCurrentItem.lshopUrl || '';
+        document.getElementById('seo-instagram').value     = '';
+        document.getElementById('seo-tiktok').value        = '';
+        document.getElementById('seo-hinweise').value      = '';
+        document.getElementById('seo-status-msg').textContent = '';
+
+        initSeoQuillEditors();
+        quillSeoShort.root.innerHTML = '';
+        quillSeoFull.root.innerHTML  = '';
+
+        document.getElementById('seo-article-panel').style.display = '';
+        document.getElementById('seo-status-msg').textContent = 'Produkt wird geladen…';
+
+        const loadPromises = [];
+
+        // WC product → Quill content + social media via categories
+        if (seoCurrentItem.wcId) {
+          loadPromises.push(
+            fetch(`${API_BASE()}/api/woocommerce/products/${seoCurrentItem.wcId}`)
+              .then(r => r.json())
+              .then(async p => {
+                quillSeoShort.root.innerHTML = p.short_description || '';
+                quillSeoFull.root.innerHTML  = p.description || '';
+                // Try to load social media for the first category
+                const catId = p.categories?.[0]?.id;
+                if (catId) {
+                  try {
+                    const sm = await fetch(`${API_BASE()}/api/sheets/social-media?kategorieId=${catId}`);
+                    const { instagram, tiktok } = await sm.json();
+                    document.getElementById('seo-instagram').value = instagram || '';
+                    document.getElementById('seo-tiktok').value    = tiktok    || '';
+                  } catch (_) {}
+                }
+              })
+              .catch(() => {})
+          );
+        }
+
+        await Promise.all(loadPromises);
+        document.getElementById('seo-status-msg').textContent = '';
+      });
+
+      document.getElementById('btn-seo-generate').addEventListener('click', async () => {
+        if (!seoCurrentItem) return;
+        const statusMsg = document.getElementById('seo-status-msg');
+        statusMsg.style.color = 'var(--muted)';
+        statusMsg.textContent = 'L-Shop Seite wird geladen und Beschreibung generiert…';
+        try {
+          const res = await fetch(`${API_BASE()}/api/claude/generate-product`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action:        'seo_description',
+              produktname:   seoCurrentItem.produktname,
+              artikelnummer: seoCurrentItem.artikelnummer,
+              lshopNr:       seoCurrentItem.lshopNr  || '',
+              lshopUrl:      document.getElementById('seo-lshop-url').value,
+              kategorien:    '',
+              eigenschaften: '',
+              instagram:     document.getElementById('seo-instagram').value,
+              tiktok:        document.getElementById('seo-tiktok').value,
+              hinweise:      document.getElementById('seo-hinweise').value,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok || data.error) throw new Error(data.error || 'Fehler');
+          quillSeoShort.root.innerHTML = data.short_description || '';
+          quillSeoFull.root.innerHTML  = data.full_description  || '';
+          statusMsg.textContent = '';
+        } catch (e) {
+          statusMsg.textContent = `Fehler: ${e.message}`;
+          statusMsg.style.color = 'var(--danger)';
+        }
+      });
+
+      document.getElementById('btn-seo-save').addEventListener('click', async () => {
+        if (!seoCurrentItem) return;
+        if (!seoCurrentItem.wcId) {
+          const msg = document.getElementById('seo-status-msg');
+          msg.textContent = 'Keine WC-ID – Speichern nicht möglich';
+          msg.style.color = 'var(--danger)';
+          return;
+        }
+        const statusMsg = document.getElementById('seo-status-msg');
+        statusMsg.style.color = 'var(--muted)';
+        statusMsg.textContent = 'Wird gespeichert…';
+        try {
+          const wcRes = await fetch(`${API_BASE()}/api/woocommerce/products/${seoCurrentItem.wcId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              short_description: quillSeoShort.root.innerHTML,
+              description:       quillSeoFull.root.innerHTML,
+            }),
+          });
+          if (!wcRes.ok) throw new Error('WooCommerce-Update fehlgeschlagen');
+
+          await fetch(`${API_BASE()}/api/sheets/erfassung/patch-fields`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              row: seoCurrentItem.row,
+              fields: {
+                'SEO_Status': 'Erledigt',
+                'L-Shop URL': document.getElementById('seo-lshop-url').value,
+              },
+            }),
+          });
+
+          seoPendingList = seoPendingList.filter(item => item.row !== seoCurrentItem.row);
+          seoCurrentItem = null;
+          document.getElementById('seo-article-panel').style.display = 'none';
+
+          const sel = document.getElementById('seo-article-select');
+          if (!seoPendingList.length) {
+            sel.innerHTML = '<option value="">Keine ausstehenden SEO-Artikel</option>';
+          } else {
+            sel.innerHTML = '<option value="">— Artikel auswählen —</option>' +
+              seoPendingList.map((item, i) =>
+                `<option value="${i}">${item.artikelnummer ? item.artikelnummer + ' – ' : ''}${item.produktname}</option>`
+              ).join('');
+          }
+
+          statusMsg.textContent = '';
+          showToast('✓ SEO gespeichert – Artikel aus Liste entfernt');
+        } catch (e) {
+          statusMsg.textContent = `Fehler: ${e.message}`;
+          statusMsg.style.color = 'var(--danger)';
+        }
+      });
 
       // ── Bestehende Varianten ─────────────────────────────────────────────
       function variantKey(attrs) {
@@ -1691,6 +1971,8 @@
           pfName.value = p.name || '';
           document.getElementById('prod-short-desc').value   = p.short_description?.replace(/<[^>]+>/g, '') || '';
           document.getElementById('prod-full-desc-raw').value = p.description || '';
+          if (quillShort) quillShort.root.innerHTML = p.short_description || '';
+          if (quillFull)  quillFull.root.innerHTML  = p.description || '';
 
           // SKU → Artikelnummer + Teile
           const sku = p.sku || '';
@@ -1782,8 +2064,8 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               name:              pfName.value.trim(),
-              short_description: document.getElementById('prod-short-desc').value,
-              description:       document.getElementById('prod-full-desc-raw').value,
+              short_description: quillShort ? quillShort.root.innerHTML : '',
+              description:       quillFull  ? quillFull.root.innerHTML  : '',
               sku:               document.getElementById('pf-article-nr').value,
               status:            selectedShopStatus,
               categories:        [...selectedCats.keys()].map(id => ({ id: Number(id) })),
@@ -1897,7 +2179,7 @@
           'Kategorien':             [...selectedCats.values()].join(', '),
           'Kurzbeschreibung':       draft.shortDesc,
           'Produktbeschreibung':    draft.fullDesc,
-          varianten:                variants.slice(0, 8),
+          varianten:                variants.slice(0, 50),
         };
       }
 
@@ -1906,7 +2188,7 @@
         const btn          = document.getElementById('btn-save-draft');
         const artikelnummer = document.getElementById('pf-article-nr').value.trim();
 
-        if (variants.length > 0 && variants.slice(0, 8).some(v => !v.price)) {
+        if (variants.length > 0 && variants.slice(0, 50).some(v => !v.price)) {
           showToast('Bitte alle Variantenpreise ausfüllen', 'error');
           return;
         }
@@ -2221,6 +2503,80 @@
       // ── Init ─────────────────────────────────────────────────────────────
       loadDashboard();
       loadSsotData();
+    </script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.min.js"></script>
+    <style>
+      /* Quill dark-mode overrides */
+      .ql-toolbar.ql-snow {
+        background: #2a2a2a;
+        border-color: #3a3a3a;
+        border-radius: 6px 6px 0 0;
+      }
+      .ql-container.ql-snow {
+        background: #1a1a1a;
+        border-color: #3a3a3a;
+        border-radius: 0 0 6px 6px;
+        color: #e0e0e0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 0.9rem;
+      }
+      .ql-editor { min-height: 80px; }
+      .ql-editor.ql-blank::before { color: #555; font-style: normal; }
+      .ql-snow .ql-stroke { stroke: #aaa; }
+      .ql-snow .ql-fill, .ql-snow .ql-stroke.ql-fill { fill: #aaa; }
+      .ql-snow .ql-picker { color: #aaa; }
+      .ql-snow .ql-picker-options { background: #2a2a2a; border-color: #3a3a3a; }
+      .ql-snow .ql-active .ql-stroke,
+      .ql-snow .ql-formats button:hover .ql-stroke { stroke: #e8c44a; }
+      .ql-snow .ql-active .ql-fill,
+      .ql-snow .ql-formats button:hover .ql-fill { fill: #e8c44a; }
+      .ql-snow .ql-active { color: #e8c44a !important; }
+      .ql-snow a { color: #e8c44a; }
+      #quill-short-desc .ql-editor { min-height: 70px; max-height: 160px; overflow-y: auto; }
+      #quill-description .ql-editor { min-height: 140px; max-height: 360px; overflow-y: auto; }
+    </style>
+    <script>
+      // ── Quill-Instanzen ────────────────────────────────────────────────────
+      var quillShort    = null;
+      var quillFull     = null;
+      var quillSeoShort = null;
+      var quillSeoFull  = null;
+
+      var TOOLBAR_FULL = [
+        ['bold', 'italic', 'underline'],
+        [{ header: 2 }, { header: 3 }],
+        [{ list: 'ordered' }, { list: 'bullet' }],
+        ['link'],
+      ];
+
+      function initQuillEditors() {
+        if (quillShort) return;
+        quillShort = new Quill('#quill-short-desc', {
+          theme: 'snow',
+          placeholder: 'Kurzbeschreibung…',
+          modules: { toolbar: [['bold', 'italic', 'link']] },
+        });
+        quillFull = new Quill('#quill-description', {
+          theme: 'snow',
+          placeholder: 'Artikelbeschreibung…',
+          modules: { toolbar: TOOLBAR_FULL },
+        });
+      }
+
+      function initSeoQuillEditors() {
+        if (quillSeoShort) return;
+        quillSeoShort = new Quill('#quill-seo-short', {
+          theme: 'snow',
+          placeholder: 'Kurzbeschreibung…',
+          modules: { toolbar: [['bold', 'italic', 'link']] },
+        });
+        quillSeoFull = new Quill('#quill-seo-full', {
+          theme: 'snow',
+          placeholder: 'Artikelbeschreibung…',
+          modules: { toolbar: TOOLBAR_FULL },
+        });
+      }
     </script>
   </body>
 </html>

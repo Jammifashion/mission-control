@@ -48,7 +48,7 @@ function buildRow(headers, body, ssotId) {
     return hit ? String(hit[1]) : '';
   }
 
-  const varianten = Array.isArray(body.varianten) ? body.varianten.slice(0, 8) : [];
+  const varianten = Array.isArray(body.varianten) ? body.varianten.slice(0, 50) : [];
   const bData = {};
   varianten.forEach((v, bi) => {
     const b     = `B${bi + 1}`;
@@ -94,12 +94,44 @@ router.get('/versandklassen', async (req, res, next) => {
 });
 
 // ── GET /api/sheets/kategorien ───────────────────────────────────────────────
-// Erwartet Spalten: Kategorienummer, Kategoriename, Kategorien (vollständiger Pfad)
+// Spalten: Kategorienummer | Kategorien | Kategoriename | Instagram URL | TikTok URL
 router.get('/kategorien', async (req, res, next) => {
   try {
     const rows = await readRange('Struktur_Kategorien');
     const objects = rowsToObjects(rows);
     res.json(objects.filter(r => r['Kategoriename']?.trim()));
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/sheets/social-media?kategorieId={id} ────────────────────────────
+// Gibt { instagram, tiktok } für die erste Kategorie mit gesetzten URLs zurück
+router.get('/social-media', async (req, res, next) => {
+  try {
+    const kategorieId = (req.query.kategorieId ?? '').trim();
+    if (!kategorieId) return res.json({ instagram: '', tiktok: '' });
+
+    const rows    = await readRange('Struktur_Kategorien');
+    const objects = rowsToObjects(rows);
+    if (!objects.length) return res.json({ instagram: '', tiktok: '' });
+
+    const first      = objects[0];
+    const nummerKey  = Object.keys(first).find(k => k.toLowerCase().includes('kategorienummer')) ?? 'Kategorienummer';
+    const instaKey   = Object.keys(first).find(k => k.toLowerCase().includes('instagram'))      ?? 'Instagram URL';
+    const tiktokKey  = Object.keys(first).find(k => k.toLowerCase().includes('tiktok'))         ?? 'TikTok URL';
+
+    // Erste Kategorie mit gesetzten URLs gewinnt; Fallback: erste Übereinstimmung ohne URLs
+    const withUrls = objects.find(r =>
+      String(r[nummerKey] ?? '').trim() === kategorieId &&
+      (r[instaKey]?.trim() || r[tiktokKey]?.trim())
+    );
+    const match = withUrls || objects.find(r => String(r[nummerKey] ?? '').trim() === kategorieId);
+
+    if (!match) return res.json({ instagram: '', tiktok: '' });
+
+    res.json({
+      instagram: match[instaKey]  ? match[instaKey].trim()  : '',
+      tiktok:    match[tiktokKey] ? match[tiktokKey].trim() : '',
+    });
   } catch (err) { next(err); }
 });
 
@@ -279,6 +311,83 @@ router.post('/erfassung/overwrite', async (req, res, next) => {
     });
 
     res.json({ success: true, ssotId });
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/sheets/erfassung/seo-pending ────────────────────────────────────
+// Gibt alle Zeilen zurück wo SEO_Status = "Ausstehend"
+router.get('/erfassung/seo-pending', async (req, res, next) => {
+  try {
+    const sheets = await getSheets();
+    const { data } = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId(),
+      range: 'Erfassungsmaske!A1:BZ2000',
+    });
+    const rows    = data.values ?? [];
+    const headers = rows[0] ?? [];
+
+    const seoStatusIdx = headers.findIndex(h => norm(h) === norm('SEO_Status'));
+    const ssotIdx      = headers.findIndex(h => /ssot.?id|^id$/i.test(h));
+    const artNrIdx     = headers.findIndex(h => norm(h) === norm('Artikelnummer'));
+    const nameIdx      = headers.findIndex(h => norm(h) === norm('Produktname'));
+    const wcIdIdx      = headers.findIndex(h => norm(h) === norm('Produkt-ID'));
+    const lshopIdx     = headers.findIndex(h => norm(h) === norm('L-Shop-Artikelnummer'));
+    const lshopUrlIdx  = headers.findIndex(h => norm(h) === norm('L-Shop URL'));
+
+    const pending = [];
+    rows.slice(1).forEach((row, i) => {
+      const seoStatus = (row[seoStatusIdx] ?? '').trim().toLowerCase();
+      if (seoStatus !== 'ausstehend') return;
+      pending.push({
+        row:           i + 2,
+        ssotId:        row[ssotIdx]       ?? '',
+        artikelnummer: row[artNrIdx]      ?? '',
+        produktname:   row[nameIdx]       ?? '',
+        wcId:          row[wcIdIdx]       ?? '',
+        lshopNr:       lshopIdx    >= 0 ? (row[lshopIdx]    ?? '') : '',
+        lshopUrl:      lshopUrlIdx >= 0 ? (row[lshopUrlIdx] ?? '') : '',
+      });
+    });
+
+    res.json(pending);
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/sheets/erfassung/patch-fields ──────────────────────────────────
+// Aktualisiert nur bestimmte Felder einer Zeile (liest restliche Werte aus Sheet)
+router.post('/erfassung/patch-fields', async (req, res, next) => {
+  try {
+    const { row: rowNum, fields } = req.body;
+    if (!rowNum || !fields || typeof fields !== 'object') {
+      return res.status(400).json({ error: 'row und fields erforderlich' });
+    }
+
+    const sheets        = await getSheets();
+    const spreadsheetId = sheetId();
+
+    const [headerResp, rowResp] = await Promise.all([
+      sheets.spreadsheets.values.get({ spreadsheetId, range: 'Erfassungsmaske!1:1' }),
+      sheets.spreadsheets.values.get({ spreadsheetId, range: `Erfassungsmaske!A${rowNum}:BZ${rowNum}` }),
+    ]);
+
+    const headers    = headerResp.data.values?.[0] ?? [];
+    const currentRow = rowResp.data.values?.[0]   ?? [];
+
+    const updatedRow = headers.map((h, i) => {
+      if (fields[h] !== undefined) return String(fields[h]);
+      const hn  = norm(h);
+      const hit = Object.entries(fields).find(([k]) => norm(k) === hn);
+      return hit ? String(hit[1]) : (currentRow[i] ?? '');
+    });
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range:            `Erfassungsmaske!A${rowNum}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody:      { values: [updatedRow] },
+    });
+
+    res.json({ success: true });
   } catch (err) { next(err); }
 });
 

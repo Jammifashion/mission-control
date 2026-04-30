@@ -107,8 +107,107 @@ Gib nur das JSON-Array zurück, keinen weiteren Text.`;
       return res.json({ variants });
     }
 
+    if (action === 'seo_description') {
+      const { produktname, artikelnummer, lshopNr, lshopUrl, kategorien, eigenschaften, instagram, tiktok, hinweise } = req.body;
+      if (!produktname) return res.status(400).json({ error: 'produktname ist erforderlich.' });
+      if (!lshopUrl?.trim()) return res.status(400).json({ error: 'Bitte L-Shop URL eintragen' });
+
+      // ── L-Shop Seite abrufen und HTML zu Klartext reduzieren ─────────────
+      let lshopText = '';
+      try {
+        const htmlRes = await fetch(lshopUrl.trim(), {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'de-DE,de;q=0.9,en;q=0.5',
+          },
+          redirect: 'follow',
+          signal: AbortSignal.timeout(15000),
+        });
+        if (!htmlRes.ok) throw new Error(`HTTP ${htmlRes.status}`);
+        const html = await htmlRes.text();
+        lshopText = html
+          .replace(/<script[\s\S]*?<\/script>/gi, '')
+          .replace(/<style[\s\S]*?<\/style>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&#\d+;/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 8000);
+      } catch (fetchErr) {
+        return res.status(502).json({ error: `L-Shop Seite konnte nicht geladen werden: ${fetchErr.message}` });
+      }
+
+      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+      const SEO_SYSTEM = `Du bist ein SEO-Texter für einen deutschen Textildruck-Onlineshop.
+Schreibe verkaufsfördernde, SEO-optimierte Produktbeschreibungen auf Deutsch.
+NICHT erwähnen: Herstellerfirma, L-Shop, Bedruckung, Merch, Druck.
+Pflichtangaben (Materialzusammensetzung in %) immer einbauen.
+Ausgabe als JSON: { "short_description": "...", "description": "..." }`;
+
+      const socialPart = [
+        instagram ? `Instagram: ${instagram}` : '',
+        tiktok    ? `TikTok: ${tiktok}`       : '',
+      ].filter(Boolean).join(' | ');
+
+      const userPrompt = `Erstelle eine SEO-Produktbeschreibung für diesen Artikel.
+
+PRODUKTDATEN (aus Hersteller-Katalogseite extrahieren):
+${lshopText}
+
+---
+Produktname im Shop: ${produktname}
+${artikelnummer ? `Artikelnummer: ${artikelnummer}` : ''}
+${lshopNr       ? `L-Shop Nr.: ${lshopNr}`          : ''}
+${kategorien    ? `Kategorien: ${kategorien}`        : ''}
+${eigenschaften ? `Eigenschaften/Varianten: ${eigenschaften}` : ''}
+${socialPart    ? `Social Media: ${socialPart}`      : ''}
+${hinweise      ? `Shop-Hinweise: ${hinweise}`       : ''}
+
+Extrahiere aus den Produktdaten: Material, Grammatur (g/m²), Schnitt/Passform, Pflegehinweise, Materialzusammensetzung in %.
+
+HTML-Aufbau für "description":
+<h2>[Produktname] – [SEO-Keyword]</h2>
+<p>Einleitung: 2-3 Sätze emotional &amp; keyword-reich</p>
+<h3>Artikeleigenschaften</h3>
+<ul>
+  <li>Material &amp; Grammatur</li>
+  <li>Schnitt &amp; Passform</li>
+  <li>Verfügbare Farben/Größen</li>
+  <li>Pflegehinweise</li>
+  <li>Pflichtangaben (Materialzusammensetzung in %)</li>
+</ul>
+${socialPart ? `<p>Abschluss: Social-Media Hinweis auf ${socialPart}</p>` : ''}
+
+"short_description": 1-2 Sätze Teaser, SEO-Keyword am Anfang, kein HTML.
+
+Nur JSON: { "short_description": "...", "description": "..." }`;
+
+      const response = await client.messages.create({
+        model:      process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
+        max_tokens: 4096,
+        system:     SEO_SYSTEM,
+        messages:   [{ role: 'user', content: userPrompt }],
+      });
+
+      const raw = response.content.find(b => b.type === 'text')?.text ?? '';
+      let parsed;
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+      } catch {
+        return res.status(502).json({ error: 'Claude-Antwort konnte nicht geparst werden.', raw });
+      }
+
+      return res.json({
+        short_description: parsed.short_description || '',
+        full_description:  parsed.description || parsed.full_description || '',
+      });
+    }
+
     if (action !== 'generate_description') {
-      return res.status(400).json({ error: 'Unbekannte action. Erwartet: generate_description oder generate_variants' });
+      return res.status(400).json({ error: 'Unbekannte action. Erwartet: generate_description, seo_description oder generate_variants' });
     }
     if (!name || !keywords || !shop) {
       return res.status(400).json({ error: 'Felder name, keywords und shop sind erforderlich.' });
