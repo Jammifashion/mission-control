@@ -65,6 +65,35 @@ router.get('/products/:id/variations', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// POST /api/woocommerce/products/:id/variations
+router.post('/products/:id/variations', async (req, res, next) => {
+  try {
+    const wc = getClient();
+    const { data: raw } = await wc.post(`products/${req.params.id}/variations`, { ...req.body, status: 'publish' });
+    const v = Array.isArray(raw) ? raw[0] : raw;
+    res.status(201).json({ id: v.id });
+  } catch (err) { next(err); }
+});
+
+// PUT /api/woocommerce/products/:id/variations/:varId
+router.put('/products/:id/variations/:varId', async (req, res, next) => {
+  try {
+    const wc = getClient();
+    const { data: raw } = await wc.put(`products/${req.params.id}/variations/${req.params.varId}`, req.body);
+    const v = Array.isArray(raw) ? raw[0] : raw;
+    res.json({ id: v.id });
+  } catch (err) { next(err); }
+});
+
+// DELETE /api/woocommerce/products/:id/variations/:varId
+router.delete('/products/:id/variations/:varId', async (req, res, next) => {
+  try {
+    const wc = getClient();
+    await wc.delete(`products/${req.params.id}/variations/${req.params.varId}`, { force: true });
+    res.json({ deleted: true });
+  } catch (err) { next(err); }
+});
+
 // GET /api/woocommerce/products/:id
 router.get('/products/:id', async (req, res, next) => {
   try {

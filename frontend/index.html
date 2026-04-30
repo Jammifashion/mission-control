@@ -271,6 +271,12 @@
       .wc-search-item:last-child { border-bottom: none; }
       .wc-search-item:hover { background: #2a2a2a; color: var(--accent); }
       .wc-search-item .wc-item-status { font-size: 0.75rem; color: var(--muted); margin-left: 0.4rem; }
+      .ev-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+      .ev-table th { text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+      .ev-table td { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+      .ev-table tr:last-child td { border-bottom: none; }
+      .ev-del-btn { background: none; border: none; cursor: pointer; font-size: 1rem; padding: 0.1rem 0.3rem; opacity: 0.6; border-radius: 4px; }
+      .ev-del-btn:hover { opacity: 1; background: #3a1a1a; }
       .btn-secondary { background: none; border: 1px solid var(--accent); color: var(--accent); padding: 0.65rem 1.1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: background 0.15s; }
       .btn-secondary:hover { background: #2a220a; }
       .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -551,11 +557,26 @@
           </div>
         </div>
 
+        <!-- Bestehende Varianten (nur Ändern-Modus) -->
+        <div class="card" id="existing-variants-block" style="display:none;margin-bottom:1rem;">
+          <div class="form-section-title">Bestehende Varianten</div>
+          <div style="overflow-x:auto;">
+            <table class="ev-table">
+              <thead id="ev-thead"></thead>
+              <tbody id="ev-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- Block 3: Artikeleigenschaften -->
         <div class="card" style="margin-bottom:1rem;">
           <div class="form-section-title">3 — Artikeleigenschaften</div>
           <div id="properties-container"></div>
-          <button class="btn-secondary" id="btn-add-property" style="font-size:0.82rem;padding:0.42rem 0.85rem;margin-top:0.25rem;">+ Eigenschaft hinzufügen</button>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.25rem;">
+            <button class="btn-secondary" id="btn-add-property" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Eigenschaft hinzufügen</button>
+            <button class="btn-secondary" id="btn-add-new-variants" style="display:none;font-size:0.82rem;padding:0.42rem 0.85rem;">Neue Varianten anlegen</button>
+            <span id="new-variants-status" style="font-size:0.82rem;color:var(--muted);align-self:center;"></span>
+          </div>
           <div id="variants-section" class="variants-section" style="display:none;">
             <div class="variants-section-title">Varianten &amp; Preise</div>
             <div id="variants-table"></div>
@@ -894,6 +915,7 @@
       let kurzbezManuallyEdited = false; // verhindert Auto-Sync nach manuellem Laden
       let draftList = [];                // gecachte Entwurfsliste
       let currentDraftRow = null;        // Sheet-Zeilennummer des geladenen Entwurfs
+      let existingVariations = [];       // [{ id, attrs:[{name,value}], price, _origPrice }]
 
       // Variant combinations: [{ attrs: [{name, value}], price: '' }]
       let variants = [];
@@ -1415,6 +1437,8 @@
         statusShopSel.value = 'draft';
         document.getElementById('prod-status-text').textContent = '';
         document.getElementById('prod-push-status').textContent = '';
+        existingVariations = [];
+        document.getElementById('existing-variants-block').style.display = 'none';
       }
 
       function setMode(edit) {
@@ -1438,12 +1462,150 @@
         pfShortName.readOnly = edit;
         pfShortName.classList.toggle('accent', !edit);
 
+        // "Neue Varianten anlegen" nur im Ändern-Modus
+        document.getElementById('btn-add-new-variants').style.display = edit ? '' : 'none';
+
         resetForm();
         if (!edit) btnCreateWc.disabled = true;
       }
 
       modeBtnNew.addEventListener('click',  () => { if (editMode)  setMode(false); });
       modeBtnEdit.addEventListener('click', () => { if (!editMode) setMode(true); });
+
+      // ── Bestehende Varianten ─────────────────────────────────────────────
+      function variantKey(attrs) {
+        return [...attrs].sort((a, b) => a.name.localeCompare(b.name))
+          .map(a => `${a.name}=${a.value}`).join('|');
+      }
+
+      function renderExistingVariations() {
+        const block = document.getElementById('existing-variants-block');
+        const thead = document.getElementById('ev-thead');
+        const tbody = document.getElementById('ev-tbody');
+
+        if (!existingVariations.length) { block.style.display = 'none'; return; }
+
+        const sorted = [...existingVariations].sort((a, b) => {
+          const cmp0 = (a.attrs[0]?.value ?? '').localeCompare(b.attrs[0]?.value ?? '', 'de');
+          if (cmp0 !== 0) return cmp0;
+          return (a.attrs[1]?.value ?? '').localeCompare(b.attrs[1]?.value ?? '', 'de');
+        });
+
+        const maxAttrs = Math.max(...sorted.map(v => v.attrs.length));
+        const attrNames = sorted[0].attrs.map(a => a.name);
+
+        thead.innerHTML = '<tr>' +
+          attrNames.map(n => `<th>${n}</th>`).join('') +
+          Array.from({ length: maxAttrs - attrNames.length }, () => '<th>—</th>').join('') +
+          '<th>Preis (€)</th><th></th></tr>';
+
+        tbody.innerHTML = '';
+        sorted.forEach(v => {
+          const tr = document.createElement('tr');
+
+          for (let i = 0; i < maxAttrs; i++) {
+            const td = document.createElement('td');
+            td.textContent = v.attrs[i]?.value ?? '—';
+            tr.appendChild(td);
+          }
+
+          const priceTd = document.createElement('td');
+          const inp = document.createElement('input');
+          inp.type = 'number'; inp.value = v.price; inp.step = '0.01'; inp.min = '0';
+          inp.className = 'form-input';
+          inp.style.cssText = 'width:85px;padding:0.25rem 0.4rem;font-size:0.85rem;';
+          inp.addEventListener('input', () => {
+            const ev = existingVariations.find(x => x.id === v.id);
+            if (ev) ev.price = inp.value;
+          });
+          priceTd.appendChild(inp);
+          tr.appendChild(priceTd);
+
+          const delTd = document.createElement('td');
+          const delBtn = document.createElement('button');
+          delBtn.textContent = '🗑️';
+          delBtn.className = 'ev-del-btn';
+          delBtn.addEventListener('click', async () => {
+            const label = v.attrs.map(a => `${a.name}: ${a.value}`).join(' / ');
+            const ok = await showConfirm('Variante löschen',
+              `Variante <strong>${label}</strong> wirklich löschen?`, 'Löschen');
+            if (!ok) return;
+            try {
+              const r = await fetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations/${v.id}`, { method: 'DELETE' });
+              if (!r.ok) throw new Error('Löschen fehlgeschlagen');
+              existingVariations = existingVariations.filter(x => x.id !== v.id);
+              renderExistingVariations();
+              showToast('Variante gelöscht', 'success');
+            } catch (e) { showToast(`Fehler: ${e.message}`, 'error'); }
+          });
+          delTd.appendChild(delBtn);
+          tr.appendChild(delTd);
+          tbody.appendChild(tr);
+        });
+
+        block.style.display = '';
+      }
+
+      // ── Neue Varianten anlegen (Ändern-Modus) ───────────────────────────
+      document.getElementById('btn-add-new-variants').addEventListener('click', async () => {
+        if (!wcEditProductId) return;
+        const valid = properties.filter(p => p.name && p.tags.length);
+        if (!valid.length) { showToast('Bitte zuerst Eigenschaften mit Werten befüllen', 'error'); return; }
+
+        const statusEl = document.getElementById('new-variants-status');
+        statusEl.textContent = 'Wird berechnet…';
+        statusEl.style.color = 'var(--muted)';
+
+        // Kartesisches Produkt
+        let combos = [[]];
+        valid.forEach(p => combos = combos.flatMap(c => p.tags.map(t => [...c, { name: p.name, value: t }])));
+
+        const existingKeys = new Set(existingVariations.map(v => variantKey(v.attrs)));
+        const toCreate = combos.filter(attrs => !existingKeys.has(variantKey(attrs)));
+        const skipped  = combos.length - toCreate.length;
+
+        // Attribute für Produkt aggregieren
+        const attrMap = {};
+        valid.forEach(p => { attrMap[p.name] = p.tags; });
+
+        // Produkt-Attribute aktualisieren
+        await fetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            attributes: Object.entries(attrMap).map(([name, options]) => ({ name, options, variation: true, visible: true })),
+          }),
+        });
+
+        let added = 0;
+        for (const attrs of toCreate) {
+          try {
+            await fetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ attributes: attrs.map(a => ({ name: a.name, option: a.value })) }),
+            });
+            added++;
+          } catch { /* einzelne Fehler ignorieren */ }
+        }
+
+        // Tabelle neu laden
+        const vRes  = await fetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations`);
+        const vData = await vRes.json();
+        existingVariations = vData.map(v => ({
+          id:         v.id,
+          attrs:      (v.attributes || []).map(a => ({ name: a.name, value: a.option })),
+          price:      v.regular_price || '',
+          _origPrice: v.regular_price || '',
+        }));
+        renderExistingVariations();
+
+        const msg = `${added} neue Variante${added !== 1 ? 'n' : ''} angelegt` +
+          (skipped ? `, ${skipped} bereits vorhanden — übersprungen` : '');
+        statusEl.textContent = msg;
+        statusEl.style.color = 'var(--success)';
+        showToast(msg, 'success');
+      });
 
       // ── WC-Produktsuche (Modus: Ändern) ──────────────────────────────────
       const wcSearchInput   = document.getElementById('pf-wc-search');
@@ -1532,11 +1694,20 @@
           // Versandklasse
           document.getElementById('pf-shipping').value = p.shipping_class || '';
 
-          // Varianten rekonstruieren
-          const loadedVariants = (Array.isArray(vars) ? vars : []).map(v => ({
-            attrs:        (v.attributes || []).map(a => ({ name: a.name, value: a.option })),
-            price:        v.regular_price || '',
-            _autoFilled:  false,
+          // Bestehende Varianten für Tabelle + Vergleich speichern
+          existingVariations = (Array.isArray(vars) ? vars : []).map(v => ({
+            id:         v.id,
+            attrs:      (v.attributes || []).map(a => ({ name: a.name, value: a.option })),
+            price:      v.regular_price || '',
+            _origPrice: v.regular_price || '',
+          }));
+          renderExistingVariations();
+
+          // Varianten für state.variants (Neu-Anlage-Flow) rekonstruieren
+          const loadedVariants = existingVariations.map(v => ({
+            attrs:         v.attrs,
+            price:         v.price,
+            _autoFilled:   false,
             wcVariationId: v.id,
           }));
 
@@ -1635,9 +1806,23 @@
             });
           }
 
-          pushStatus.textContent = `Gespeichert – WC-ID: ${data.id}`;
+          // Geänderte Varianten-Preise einzeln aktualisieren
+          const changedVars = existingVariations.filter(v => v.price !== v._origPrice);
+          for (const v of changedVars) {
+            try {
+              await fetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations/${v.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ regular_price: String(v.price) }),
+              });
+              v._origPrice = v.price;
+            } catch { /* Einzelfehler loggen aber nicht abbrechen */ }
+          }
+
+          const varPriceMsg = changedVars.length ? `, ${changedVars.length} Variante${changedVars.length !== 1 ? 'n' : ''} aktualisiert` : '';
+          pushStatus.textContent = `Gespeichert – WC-ID: ${data.id}${varPriceMsg}`;
           pushStatus.style.color = 'var(--success)';
-          showToast(`Artikel aktualisiert – WC-ID: ${data.id}`, 'success');
+          showToast(`Artikel aktualisiert – WC-ID: ${data.id}${varPriceMsg}`, 'success');
           btnUpdateWc.disabled = false;
         } catch (e) {
           pushStatus.textContent = `Fehler: ${e.message}`;
