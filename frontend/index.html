@@ -807,13 +807,14 @@
         renderProperties();
       }
 
-      // Hilfsfunktion: Anzeigename → WC-Slug (Fallback: Wert direkt)
-      function shippingSlug(nameOrSlug) {
-        if (!nameOrSlug) return '';
+      // Hilfsfunktion: ID / Slug / Name → WC-Slug
+      function shippingSlug(idOrSlugOrName) {
+        if (!idOrSlugOrName) return '';
+        const val = String(idOrSlugOrName);
         const match = ssot.wcShippingClasses.find(
-          s => s.slug === nameOrSlug || s.name === nameOrSlug
+          s => String(s.id) === val || s.slug === val || s.name === val
         );
-        return match ? match.slug : nameOrSlug;
+        return match ? match.slug : val;
       }
 
       function populateDelivery() {

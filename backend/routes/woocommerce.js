@@ -47,7 +47,7 @@ router.get('/shipping-classes', async (req, res, next) => {
     const wc = getClient();
     const { data } = await wc.get('products/shipping_classes', { per_page: 100 });
     const list = Array.isArray(data) ? data : [data];
-    res.json(list.map(s => ({ slug: s.slug, name: s.name })));
+    res.json(list.map(s => ({ id: s.id, slug: s.slug, name: s.name })));
   } catch (err) { next(err); }
 });
 
