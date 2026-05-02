@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const router = Router();
 
@@ -107,10 +108,53 @@ Gib nur das JSON-Array zurück, keinen weiteren Text.`;
       return res.json({ variants });
     }
 
+    if (action === 'suggest_variants') {
+      const { name, combos } = req.body;
+      if (!name || !Array.isArray(combos) || !combos.length) {
+        return res.status(400).json({ error: 'name und combos sind erforderlich.' });
+      }
+      if (!process.env.GEMINI_API_KEY) {
+        return res.status(503).json({ error: 'GEMINI_API_KEY nicht konfiguriert.' });
+      }
+
+      const SUGGEST_SYSTEM = `Du analysierst Produktvarianten für einen deutschen Modeshop und erkennst unübliche Kombinationen.
+Antworte ausschließlich als JSON: { "unusual": ["key1", "key2"] }
+Die Keys haben das Format "Attribut=Wert|Attribut=Wert" (alphabetisch sortierte Attribute, | als Trennzeichen).`;
+
+      const userPrompt = `Produkt: ${name}
+
+Alle Varianten-Kombinationen:
+${combos.map(c => `- ${c.label}  (Key: ${c.key})`).join('\n')}
+
+Welche dieser Kombinationen sind für dieses Produkt in einem deutschen Modeshop unüblich oder werden sehr selten bestellt?
+Antworte als JSON: { "unusual": ["key1", "key2", ...] }
+Gib nur die Keys zurück, keinen weiteren Text.`;
+
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      const geminiModel = genAI.getGenerativeModel({
+        model: 'gemini-2.5-flash-preview-05-20',
+        systemInstruction: SUGGEST_SYSTEM,
+      });
+
+      const geminiResult = await geminiModel.generateContent(userPrompt);
+      const raw = geminiResult.response.text();
+
+      let parsed;
+      try {
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+      } catch {
+        return res.status(502).json({ error: 'Gemini-Antwort konnte nicht geparst werden.', raw });
+      }
+
+      return res.json({ unusual: Array.isArray(parsed.unusual) ? parsed.unusual : [] });
+    }
+
     if (action === 'seo_description') {
       const { produktname, artikelnummer, lshopNr, lshopUrl, kategorien, eigenschaften, instagram, tiktok, hinweise } = req.body;
       if (!produktname) return res.status(400).json({ error: 'produktname ist erforderlich.' });
       if (!lshopUrl?.trim()) return res.status(400).json({ error: 'Bitte L-Shop URL eintragen' });
+      if (!process.env.GEMINI_API_KEY) return res.status(503).json({ error: 'GEMINI_API_KEY nicht konfiguriert.' });
 
       // ── L-Shop Seite abrufen und HTML zu Klartext reduzieren ─────────────
       let lshopText = '';
@@ -137,8 +181,6 @@ Gib nur das JSON-Array zurück, keinen weiteren Text.`;
       } catch (fetchErr) {
         return res.status(502).json({ error: `L-Shop Seite konnte nicht geladen werden: ${fetchErr.message}` });
       }
-
-      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
       const SEO_SYSTEM = `Du bist ein SEO-Texter für einen deutschen Textildruck-Onlineshop.
 Schreibe verkaufsfördernde, SEO-optimierte Produktbeschreibungen auf Deutsch.
@@ -184,20 +226,21 @@ ${socialPart ? `<p>Abschluss: Social-Media Hinweis auf ${socialPart}</p>` : ''}
 
 Nur JSON: { "short_description": "...", "description": "..." }`;
 
-      const response = await client.messages.create({
-        model:      process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
-        max_tokens: 4096,
-        system:     SEO_SYSTEM,
-        messages:   [{ role: 'user', content: userPrompt }],
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      const geminiModel = genAI.getGenerativeModel({
+        model: 'gemini-2.5-flash-preview-05-20',
+        systemInstruction: SEO_SYSTEM,
       });
 
-      const raw = response.content.find(b => b.type === 'text')?.text ?? '';
+      const geminiResult = await geminiModel.generateContent(userPrompt);
+      const raw = geminiResult.response.text();
+
       let parsed;
       try {
         const jsonMatch = raw.match(/\{[\s\S]*\}/);
         parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
       } catch {
-        return res.status(502).json({ error: 'Claude-Antwort konnte nicht geparst werden.', raw });
+        return res.status(502).json({ error: 'Gemini-Antwort konnte nicht geparst werden.', raw });
       }
 
       return res.json({

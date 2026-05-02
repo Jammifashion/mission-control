@@ -242,14 +242,20 @@
 
       .variants-section { margin-top: 0.85rem; border-top: 1px solid var(--border); padding-top: 0.75rem; }
       .variants-section-title { font-size: 0.72rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 0.5rem; font-weight: 600; }
+      .variants-toolbar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+      .variants-count { font-size: 0.82rem; color: var(--muted); }
       .variant-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem; }
       .variant-row.over-limit { opacity: 0.35; }
+      .variant-row.unchecked { opacity: 0.38; }
+      .variant-cb-wrap { display: flex; align-items: center; flex-shrink: 0; }
+      .variant-cb { width: 15px; height: 15px; cursor: pointer; accent-color: var(--accent); }
       .variant-attrs { flex: 1; font-size: 0.82rem; color: var(--text); display: flex; flex-wrap: wrap; gap: 0.25rem; }
       .variant-attr-chip { background: var(--border); border-radius: 3px; padding: 0.1em 0.45em; font-size: 0.78rem; white-space: nowrap; }
       .variant-price-inp { width: 88px; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; color: var(--text); padding: 0.28rem 0.5rem; font-size: 0.83rem; font-family: inherit; text-align: right; }
       .variant-price-inp:focus { outline: none; border-color: var(--accent); }
       .variant-price-inp.invalid { border-color: var(--danger); }
       .variants-warn { font-size: 0.78rem; color: var(--danger); margin-top: 0.5rem; }
+      .btn-xs { font-size: 0.75rem !important; padding: 0.22rem 0.55rem !important; }
 
       .prop-suggest-wrap { position: relative; margin-top: 0.2rem; }
       .prop-suggest-trigger { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--muted); cursor: pointer; padding: 0.2rem 0.5rem; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); user-select: none; }
@@ -660,7 +666,14 @@
             <span id="new-variants-status" style="font-size:0.82rem;color:var(--muted);align-self:center;"></span>
           </div>
           <div id="variants-section" class="variants-section" style="display:none;">
-            <div class="variants-section-title">Varianten &amp; Preise</div>
+            <div class="variants-section-title" id="variants-section-title">Varianten &amp; Preise</div>
+            <div class="variants-toolbar" id="variants-toolbar" style="display:none;">
+              <span class="variants-count" id="variants-count-label"></span>
+              <button class="btn-secondary btn-xs" id="btn-check-all">Alle</button>
+              <button class="btn-secondary btn-xs" id="btn-check-none">Keine</button>
+              <button class="btn-secondary btn-xs" id="btn-ai-suggest" style="margin-left:auto;">KI Vorschlag</button>
+              <span id="ai-suggest-status" style="font-size:0.8rem;color:var(--muted);"></span>
+            </div>
             <div id="variants-table"></div>
           </div>
         </div>
@@ -1018,6 +1031,8 @@
       let draftList = [];                // gecachte Entwurfsliste
       let currentDraftRow = null;        // Sheet-Zeilennummer des geladenen Entwurfs
       let existingVariations = [];       // [{ id, attrs:[{name,value}], price, _origPrice }]
+      let editMode = false;              // false = Neu anlegen, true = Artikel ändern
+      let seoMode  = false;              // SEO Daten Modus
 
       // Variant combinations: [{ attrs: [{name, value}], price: '' }]
       let variants = [];
@@ -1032,37 +1047,82 @@
         );
         const priceMap = new Map(variants.map(v => [
           v.attrs.map(a => `${a.name}=${a.value}`).join('|'),
-          { price: v.price, _autoFilled: v._autoFilled ?? false },
+          { price: v.price, _autoFilled: v._autoFilled ?? false, _checked: v._checked ?? true },
         ]));
         variants = combos.map(attrs => {
           const key      = attrs.map(a => `${a.name}=${a.value}`).join('|');
           const existing = priceMap.get(key);
-          return { attrs, price: existing?.price ?? '', _autoFilled: existing?._autoFilled ?? false };
+          return {
+            attrs,
+            price:       existing?.price       ?? '',
+            _autoFilled: existing?._autoFilled ?? false,
+            _checked:    existing?._checked    ?? true,
+          };
         });
       }
 
       function renderVariants() {
-        const section = document.getElementById('variants-section');
-        const table   = document.getElementById('variants-table');
+        const section  = document.getElementById('variants-section');
+        const table    = document.getElementById('variants-table');
+        const toolbar  = document.getElementById('variants-toolbar');
+        const countLbl = document.getElementById('variants-count-label');
+        const titleEl  = document.getElementById('variants-section-title');
         if (!section) return;
-        if (!variants.length) { section.style.display = 'none'; return; }
+
+        // Ändern-Modus: nur Kombis die noch nicht in WooCommerce existieren
+        const existingKeys = editMode
+          ? new Set(existingVariations.map(v => variantKey(v.attrs)))
+          : new Set();
+        const displayVariants = editMode
+          ? variants.filter(v => !existingKeys.has(variantKey(v.attrs)))
+          : variants;
+
+        if (!displayVariants.length) { section.style.display = 'none'; return; }
         section.style.display = 'block';
+
+        if (titleEl) titleEl.textContent = editMode ? 'Neue Varianten hinzufügen' : 'Varianten & Preise';
+        if (toolbar) toolbar.style.display = 'flex';
+
+        const checkedCount = displayVariants.filter(v => v._checked !== false).length;
+        if (countLbl) countLbl.textContent =
+          `${displayVariants.length} Kombination${displayVariants.length !== 1 ? 'en' : ''} · ${checkedCount} ausgewählt`;
+
         table.innerHTML = '';
         const defaultPrice = document.getElementById('pf-price-regular')?.value || '';
-        variants.forEach((v, vi) => {
-          // Vorbelegung aus Standardpreis wenn Variantenpreis noch leer
-          if (!v.price && defaultPrice) {
-            v.price       = defaultPrice;
-            v._autoFilled = true;
-          }
+
+        displayVariants.forEach((v) => {
+          const realIdx = variants.indexOf(v);
+          if (!v.price && defaultPrice) { v.price = defaultPrice; v._autoFilled = true; }
+          const checked = v._checked !== false;
 
           const row = document.createElement('div');
-          row.className = 'variant-row' + (vi >= 8 ? ' over-limit' : '');
+          row.className = 'variant-row' + (!checked ? ' unchecked' : '');
+
+          // Checkbox
+          const cbWrap = document.createElement('label');
+          cbWrap.className = 'variant-cb-wrap';
+          const cb = document.createElement('input');
+          cb.type      = 'checkbox';
+          cb.checked   = checked;
+          cb.className = 'variant-cb';
+          cb.addEventListener('change', () => {
+            variants[realIdx]._checked = cb.checked;
+            row.classList.toggle('unchecked', !cb.checked);
+            const sel = (editMode
+              ? variants.filter(vv => !existingKeys.has(variantKey(vv.attrs)))
+              : variants
+            ).filter(vv => vv._checked !== false).length;
+            if (countLbl) countLbl.textContent =
+              `${displayVariants.length} Kombination${displayVariants.length !== 1 ? 'en' : ''} · ${sel} ausgewählt`;
+          });
+          cbWrap.appendChild(cb);
+
           const attrsEl = document.createElement('div');
           attrsEl.className = 'variant-attrs';
           attrsEl.innerHTML = v.attrs.map(a =>
             `<span class="variant-attr-chip">${a.name}: ${a.value}</span>`
           ).join('');
+
           const priceEl = document.createElement('input');
           priceEl.type        = 'number';
           priceEl.className   = 'variant-price-inp';
@@ -1071,22 +1131,73 @@
           priceEl.min         = '0';
           priceEl.value       = v.price;
           priceEl.required    = true;
-          priceEl.title       = vi >= 50 ? 'Max. B50 – wird nicht ins Sheet geschrieben' : '';
-          priceEl.classList.toggle('invalid', !v.price && vi < 50);
+          priceEl.classList.toggle('invalid', !v.price);
           priceEl.addEventListener('input', () => {
-            variants[vi].price       = priceEl.value;
-            variants[vi]._autoFilled = false; // manuell geändert → nicht mehr überschreiben
+            variants[realIdx].price       = priceEl.value;
+            variants[realIdx]._autoFilled = false;
             priceEl.classList.toggle('invalid', !priceEl.value);
           });
+
+          row.appendChild(cbWrap);
           row.appendChild(attrsEl);
           row.appendChild(priceEl);
           table.appendChild(row);
         });
-        if (variants.length > 50) {
+
+        if (displayVariants.length > 50) {
           const warn = document.createElement('div');
           warn.className   = 'variants-warn';
-          warn.textContent = `Nur die ersten 50 Varianten (B1–B50) werden ins Sheet geschrieben. Aktuell: ${variants.length}`;
+          warn.textContent = `Nur die ersten 50 Varianten werden angelegt. Aktuell: ${displayVariants.length}`;
           table.appendChild(warn);
+        }
+      }
+
+      async function handleAiSuggest() {
+        const name = document.getElementById('pf-name').value.trim();
+        if (!name) { showToast('Bitte zuerst den Produktnamen eintragen.', 'error'); return; }
+
+        const existingKeys = editMode
+          ? new Set(existingVariations.map(v => variantKey(v.attrs)))
+          : new Set();
+        const displayVariants = editMode
+          ? variants.filter(v => !existingKeys.has(variantKey(v.attrs)))
+          : variants;
+        if (!displayVariants.length) return;
+
+        const statusEl = document.getElementById('ai-suggest-status');
+        const btn      = document.getElementById('btn-ai-suggest');
+        btn.disabled   = true;
+        statusEl.textContent = 'KI analysiert…';
+        statusEl.style.color = 'var(--muted)';
+
+        try {
+          const combosPayload = displayVariants.map(v => ({
+            key:   variantKey(v.attrs),
+            label: v.attrs.map(a => `${a.name}: ${a.value}`).join(', '),
+          }));
+          const res  = await fetch(`${API_BASE()}/api/claude/generate-product`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body:    JSON.stringify({ action: 'suggest_variants', name, combos: combosPayload }),
+          });
+          const data = await res.json();
+          if (!res.ok || data.error) throw new Error(data.error || 'Fehler');
+
+          const unusualKeys = new Set(data.unusual || []);
+          let unchecked = 0;
+          variants.forEach(v => {
+            if (unusualKeys.has(variantKey(v.attrs))) { v._checked = false; unchecked++; }
+          });
+          renderVariants();
+          statusEl.textContent = unchecked
+            ? `${unchecked} unübliche Kombination${unchecked !== 1 ? 'en' : ''} abgewählt`
+            : 'Alle Kombinationen sind üblich';
+          statusEl.style.color = unchecked ? 'var(--warning, orange)' : 'var(--success)';
+        } catch (e) {
+          statusEl.textContent = `Fehler: ${e.message}`;
+          statusEl.style.color = 'var(--danger)';
+        } finally {
+          btn.disabled = false;
         }
       }
 
@@ -1320,6 +1431,15 @@
       document.getElementById('btn-add-property').addEventListener('click', () => {
         if (properties.length < 3) { properties.push({ name: '', tags: [] }); renderProperties(); }
       });
+      document.getElementById('btn-check-all').addEventListener('click', () => {
+        variants.forEach(v => v._checked = true);
+        renderVariants();
+      });
+      document.getElementById('btn-check-none').addEventListener('click', () => {
+        variants.forEach(v => v._checked = false);
+        renderVariants();
+      });
+      document.getElementById('btn-ai-suggest').addEventListener('click', handleAiSuggest);
       renderProperties();
 
       // Multi-select categories
@@ -1509,8 +1629,6 @@
       });
 
       // ── Modus-Steuerung ──────────────────────────────────────────────────
-      let editMode = false;          // false = Neu anlegen, true = Artikel ändern
-      let seoMode  = false;          // SEO Daten Modus
       let wcEditProductId = null;    // WC-ID des geladenen Produkts im Ändern-Modus
       let seoCurrentItem  = null;    // aktuell gewählter SEO-Artikel
       let seoPendingList  = [];      // Liste aller ausstehenden SEO-Artikel
@@ -1854,41 +1972,49 @@
       // ── Neue Varianten anlegen (Ändern-Modus) ───────────────────────────
       document.getElementById('btn-add-new-variants').addEventListener('click', async () => {
         if (!wcEditProductId) return;
-        const valid = properties.filter(p => p.name && p.tags.length);
-        if (!valid.length) { showToast('Bitte zuerst Eigenschaften mit Werten befüllen', 'error'); return; }
-
-        const statusEl = document.getElementById('new-variants-status');
-        statusEl.textContent = 'Wird berechnet…';
-        statusEl.style.color = 'var(--muted)';
-
-        // Kartesisches Produkt
-        let combos = [[]];
-        valid.forEach(p => combos = combos.flatMap(c => p.tags.map(t => [...c, { name: p.name, value: t }])));
 
         const existingKeys = new Set(existingVariations.map(v => variantKey(v.attrs)));
-        const toCreate = combos.filter(attrs => !existingKeys.has(variantKey(attrs)));
-        const skipped  = combos.length - toCreate.length;
+        const toCreate = variants.filter(v =>
+          v._checked !== false && !existingKeys.has(variantKey(v.attrs))
+        );
 
-        // Attribute für Produkt aggregieren
+        if (!toCreate.length) {
+          showToast('Keine neuen Varianten ausgewählt', 'info');
+          return;
+        }
+
+        const statusEl = document.getElementById('new-variants-status');
+        statusEl.textContent = 'Wird angelegt…';
+        statusEl.style.color = 'var(--muted)';
+
+        // Attribut-Aggregation für Produkt-Update
         const attrMap = {};
-        valid.forEach(p => { attrMap[p.name] = p.tags; });
+        toCreate.forEach(v => v.attrs.forEach(a => {
+          if (!attrMap[a.name]) attrMap[a.name] = new Set();
+          attrMap[a.name].add(a.value);
+        }));
 
         // Produkt-Attribute aktualisieren
         await fetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            attributes: Object.entries(attrMap).map(([name, options]) => ({ name, options, variation: true, visible: true })),
+            attributes: Object.entries(attrMap).map(([name, vals]) => ({
+              name, options: [...vals], variation: true, visible: true,
+            })),
           }),
         });
 
         let added = 0;
-        for (const attrs of toCreate) {
+        for (const v of toCreate) {
           try {
             await fetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ attributes: attrs.map(a => ({ name: a.name, option: a.value })) }),
+              body: JSON.stringify({
+                attributes: v.attrs.map(a => ({ name: a.name, option: a.value })),
+                ...(v.price ? { regular_price: String(v.price) } : {}),
+              }),
             });
             added++;
           } catch { /* einzelne Fehler ignorieren */ }
@@ -1904,9 +2030,13 @@
           _origPrice: v.regular_price || '',
         }));
         renderExistingVariations();
+        renderVariants();
 
-        const msg = `${added} neue Variante${added !== 1 ? 'n' : ''} angelegt` +
-          (skipped ? `, ${skipped} bereits vorhanden — übersprungen` : '');
+        const skipped    = variants.filter(v => existingKeys.has(variantKey(v.attrs))).length;
+        const notChecked = variants.filter(v => !existingKeys.has(variantKey(v.attrs)) && v._checked === false).length;
+        let msg = `${added} neue Variante${added !== 1 ? 'n' : ''} angelegt`;
+        if (skipped)    msg += `, ${skipped} bereits vorhanden`;
+        if (notChecked) msg += `, ${notChecked} abgewählt`;
         statusEl.textContent = msg;
         statusEl.style.color = 'var(--success)';
         showToast(msg, 'success');
@@ -2327,7 +2457,12 @@
 
       // Create in WooCommerce – drei Schritte: Produkt → Varianten → Sheet-Writeback
       document.getElementById('btn-create-wc').addEventListener('click', async () => {
-        if (variants.length > 0 && variants.some(v => !v.price)) {
+        const activeVariants = variants.filter(v => v._checked !== false);
+        if (activeVariants.length === 0 && variants.length > 0) {
+          showToast('Bitte mindestens eine Variante auswählen', 'error');
+          return;
+        }
+        if (activeVariants.some(v => !v.price)) {
           showToast('Bitte alle Variantenpreise ausfüllen', 'error');
           return;
         }
@@ -2339,9 +2474,9 @@
         const ssotId       = document.getElementById('pf-ssot-id').value;
         const defaultPrice = document.getElementById('pf-price-regular').value;
 
-        // Aggregierte Attribute für das Produkt-Objekt (eindeutige Werte je Attributname)
+        // Aggregierte Attribute nur aus angehakten Varianten
         const attrMap = {};
-        variants.forEach(v => v.attrs.forEach(a => {
+        activeVariants.forEach(v => v.attrs.forEach(a => {
           if (!attrMap[a.name]) attrMap[a.name] = new Set();
           attrMap[a.name].add(a.value);
         }));
@@ -2349,7 +2484,7 @@
           name, options: [...vals], variation: true, visible: true,
         }));
 
-        const wcVariations = variants.map(v => ({
+        const wcVariations = activeVariants.map(v => ({
           attributes:    v.attrs.map(a => ({ name: a.name, option: a.value })),
           regular_price: String(v.price || defaultPrice || ''),
           status:        'publish',
