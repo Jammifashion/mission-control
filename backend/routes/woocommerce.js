@@ -51,6 +51,36 @@ router.get('/shipping-classes', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// GET /api/woocommerce/categories
+router.get('/categories', async (req, res, next) => {
+  try {
+    const wc = getClient();
+    const { data } = await wc.get('products/categories', { per_page: 100, hide_empty: false });
+    const list = Array.isArray(data) ? data : [data];
+    const byId = Object.fromEntries(list.map(c => [c.id, c.name]));
+    res.json(list.map(c => ({
+      Kategorienummer: String(c.id),
+      Kategoriename:   c.name,
+      Kategorien:      c.parent ? `${byId[c.parent] ?? ''} > ${c.name}` : c.name,
+    })));
+  } catch (err) { next(err); }
+});
+
+// GET /api/woocommerce/attributes  — name + all terms
+router.get('/attributes', async (req, res, next) => {
+  try {
+    const wc = getClient();
+    const { data: attrs } = await wc.get('products/attributes', { per_page: 100 });
+    const list = Array.isArray(attrs) ? attrs : [attrs];
+    const result = await Promise.all(list.map(async a => {
+      const { data: terms } = await wc.get(`products/attributes/${a.id}/terms`, { per_page: 100 });
+      const begriffe = (Array.isArray(terms) ? terms : [terms]).map(t => t.name);
+      return { eigenschaft: a.name, begriffe };
+    }));
+    res.json(result);
+  } catch (err) { next(err); }
+});
+
 // GET /api/woocommerce/products/search?q=&per_page=40  — must come before /:id
 router.get('/products/search', async (req, res, next) => {
   try {
