@@ -28,7 +28,7 @@
         color: var(--text);
         min-height: 100dvh;
         display: grid;
-        grid-template-rows: auto 1fr auto;
+        grid-template-rows: auto auto 1fr;
       }
 
       /* ── Header ── */
@@ -869,6 +869,8 @@
       // ── SSOT Stammdaten ───────────────────────────────────────────────────
       const ssot = { lieferzeiten: [], versandklassen: [], kategorien: [], attribute: [], wcShippingClasses: [] };
       const selectedCats = new Map(); // value (Kategorienummer) → Kategoriename
+      let _pendingDelivery = '';
+      let _pendingShipping = '';
 
       async function loadSsotData() {
         const base = API_BASE();
@@ -902,7 +904,8 @@
 
       function populateDelivery() {
         const sel = document.getElementById('pf-delivery');
-        const current = sel.value;
+        const current = sel.value || _pendingDelivery;
+        _pendingDelivery = '';
         sel.innerHTML = '<option value="">Bitte wählen…</option>';
         ssot.lieferzeiten.forEach(lz => {
           const opt = document.createElement('option');
@@ -914,7 +917,8 @@
 
       function populateShipping() {
         const sel = document.getElementById('pf-shipping');
-        const current = sel.value;
+        const current = sel.value || _pendingShipping;
+        _pendingShipping = '';
         sel.innerHTML = '<option value="">Bitte wählen…</option>';
         // WC-Klassen bevorzugen (Slug als value, Name als Text)
         const classes = ssot.wcShippingClasses.length
@@ -925,7 +929,7 @@
           opt.value = slug; opt.textContent = name;
           sel.appendChild(opt);
         });
-        if (current) sel.value = current;
+        if (current) sel.value = shippingSlug(current);
       }
 
       function populateCategories() {
@@ -1448,8 +1452,12 @@
         createWcBtn.disabled = prodStatusSel.value !== 'ready';
 
         // ── Shop-Einstellungen ───────────────────────────────────────────
-        document.getElementById('pf-delivery').value = d.data['Lieferzeit']    || '';
-        document.getElementById('pf-shipping').value = shippingSlug(d.data['Versandklasse'] || '');
+        const _dv = d.data['Lieferzeit'] || '';
+        const _sv = shippingSlug(d.data['Versandklasse'] || '');
+        _pendingDelivery = _dv;
+        _pendingShipping = _sv;
+        document.getElementById('pf-delivery').value = _dv;
+        document.getElementById('pf-shipping').value = _sv;
 
         // ── Kategorien ───────────────────────────────────────────────────
         selectedCats.clear();
@@ -1525,6 +1533,8 @@
         document.getElementById('pf-ssot-id').value = '';
         document.getElementById('pf-wc-id').value = '';
         document.getElementById('pf-article-nr').value = '';
+        _pendingDelivery = '';
+        _pendingShipping = '';
         document.getElementById('pf-delivery').value = '';
         document.getElementById('pf-shipping').value = '';
         document.getElementById('pf-price-regular').value = '';
@@ -1989,13 +1999,17 @@
           updateCatLabel();
 
           // Versandklasse (slug direkt aus WC)
-          document.getElementById('pf-shipping').value = p.shipping_class || '';
+          const _wcShipping = p.shipping_class || '';
+          _pendingShipping = _wcShipping;
+          document.getElementById('pf-shipping').value = _wcShipping;
 
           // Lieferzeit aus meta_data
           const lieferzeitMeta = (p.meta_data || []).find(
             m => m.key === '_lieferzeit' || m.key === 'lieferzeit' || m.key === '_delivery_time'
           );
-          if (lieferzeitMeta) document.getElementById('pf-delivery').value = lieferzeitMeta.value || '';
+          const _wcDelivery = lieferzeitMeta ? (lieferzeitMeta.value || '') : '';
+          _pendingDelivery = _wcDelivery;
+          if (_wcDelivery) document.getElementById('pf-delivery').value = _wcDelivery;
 
           // Bestehende Varianten für Tabelle + Vergleich speichern
           existingVariations = (Array.isArray(vars) ? vars : []).map(v => ({
