@@ -240,9 +240,10 @@ router.post('/products', async (req, res, next) => {
       }
     }
 
-    const created = variationResults.filter(r => r.ok).length;
-    const failed  = variationResults.filter(r => !r.ok).length;
-    const errors  = variationResults.filter(r => !r.ok).map(r => r.error);
+    const created      = variationResults.filter(r => r.ok).length;
+    const failed       = variationResults.filter(r => !r.ok).length;
+    const errors       = variationResults.filter(r => !r.ok).map(r => r.error);
+    const variationIds = variationResults.map(r => r.ok ? r.id : null);
 
     res.status(201).json({
       id:                  productId,
@@ -250,6 +251,7 @@ router.post('/products', async (req, res, next) => {
       variations_created:  created,
       variations_failed:   failed,
       variation_errors:    errors,
+      variation_ids:       variationIds,
     });
   } catch (err) {
     next(err);
@@ -285,6 +287,18 @@ router.put('/products/:id', async (req, res, next) => {
     }
 
     res.json({ id: product.id });
+  } catch (err) { next(err); }
+});
+
+// PUT /api/woocommerce/orders/:id/status
+router.put('/orders/:id/status', async (req, res, next) => {
+  try {
+    const wc = getClient();
+    const { status } = req.body;
+    if (!status) return res.status(400).json({ error: 'status fehlt' });
+    const { data } = await wc.put(`orders/${req.params.id}`, { status });
+    const order = Array.isArray(data) ? data[0] : data;
+    res.json({ id: order.id, status: order.status });
   } catch (err) { next(err); }
 });
 

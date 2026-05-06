@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mission-control-v1';
+const CACHE_NAME = 'mission-control-v9';
 
 const PRECACHE = [
   './index.html',

@@ -24,6 +24,7 @@
 
       body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 18px;
         background: var(--bg);
         color: var(--text);
         min-height: 100dvh;
@@ -124,6 +125,135 @@
       .orders-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); }
       .orders-table tr:last-child td { border-bottom: none; }
 
+      /* ── Sub-tabs (Auftragsmonitor) ── */
+      .sub-tabs { display: flex; gap: 0; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); }
+      .sub-tab {
+        background: none; border: none; border-bottom: 2px solid transparent;
+        color: var(--muted); cursor: pointer; font-size: 0.85rem; font-weight: 500;
+        padding: 0.55rem 1.1rem; margin-bottom: -1px; transition: color 0.15s;
+      }
+      .sub-tab:hover:not(:disabled) { color: var(--fg); }
+      .sub-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+      .sub-tab:disabled { opacity: 0.38; cursor: not-allowed; }
+      .sub-tab-panel { display: none; }
+      .sub-tab-panel.active { display: block; }
+      .orders-summary {
+        font-size: 0.84rem; color: var(--muted); margin-bottom: 1rem;
+        padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);
+      }
+      .orders-summary strong { color: var(--fg); }
+
+      /* ── L-Shop inner tabs ── */
+      .lshop-inner-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1rem; }
+      .lshop-tab {
+        background: none; border: none; border-bottom: 2px solid transparent;
+        color: var(--muted); cursor: pointer; font-size: 0.82rem; font-weight: 500;
+        padding: 0.4rem 0.9rem; margin-bottom: -1px; transition: color 0.15s;
+      }
+      .lshop-tab:hover { color: var(--fg); }
+      .lshop-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+      .lshop-panel { display: none; }
+      .lshop-panel.active { display: block; }
+
+      .lshop-offen-header { font-size: 0.82rem; font-weight: 600; color: var(--muted); margin-bottom: 0.75rem; letter-spacing: 0.03em; }
+
+      /* ── L-Shop Varianten-Karten ── */
+      .lshop-card {
+        border: 1px solid var(--border); border-radius: 7px;
+        padding: 0.75rem 0.9rem; margin-bottom: 0.55rem;
+        display: grid; grid-template-columns: 1fr auto; gap: 0.5rem 1rem; align-items: start;
+      }
+      .lshop-card-info { min-width: 0; }
+      .lshop-card-title { font-size: 0.88rem; font-weight: 600; margin-bottom: 0.2rem; }
+      .lshop-card-variante { font-size: 0.8rem; color: var(--accent); margin-bottom: 0.2rem; }
+      .lshop-card-bedarf { font-size: 0.78rem; color: var(--muted); margin-bottom: 0.2rem; }
+      .lshop-card-orders { font-size: 0.77rem; color: var(--muted); line-height: 1.5; }
+      .lshop-card-right { display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem; }
+      .lshop-stueck { font-size: 1.1rem; font-weight: 700; color: var(--fg); white-space: nowrap; }
+      .lshop-kw-input {
+        background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+        color: var(--fg); padding: 0.25rem 0.45rem; font-size: 0.78rem; width: 72px; text-align: center;
+      }
+      .lshop-kw-input:focus { outline: none; border-color: var(--accent); }
+      .btn-lshop-bestellen {
+        background: #1a3a20; color: #4caf50; border: 1px solid #2a5a30;
+        border-radius: 5px; padding: 0.3rem 0.65rem; font-size: 0.8rem; font-weight: 500;
+        cursor: pointer; white-space: nowrap; transition: background 0.15s;
+      }
+      .btn-lshop-bestellen:hover { background: #1f4525; }
+      .btn-lshop-bestellen:disabled { opacity: 0.5; cursor: not-allowed; }
+
+      /* ── L-Shop Protokoll ── */
+      .lshop-proto-row {
+        display: grid; grid-template-columns: 130px 1fr auto;
+        gap: 0.3rem 0.75rem; align-items: baseline;
+        padding: 0.45rem 0; border-bottom: 1px solid var(--border); font-size: 0.82rem;
+      }
+      .lshop-proto-row:last-child { border-bottom: none; }
+      .lshop-proto-id { color: var(--accent); font-weight: 500; font-size: 0.78rem; }
+      .lshop-proto-detail { color: var(--fg); }
+      .lshop-proto-meta { color: var(--muted); font-size: 0.76rem; text-align: right; white-space: nowrap; }
+
+      /* ── Order cards ── */
+      .order-card { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 0.6rem; overflow: hidden; }
+      .order-card-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 0.7rem 1rem; cursor: pointer; user-select: none; gap: 0.75rem;
+        transition: background 0.12s;
+      }
+      .order-card-header:hover { background: rgba(255,255,255,0.03); }
+      .order-card-meta { display: flex; align-items: center; gap: 0.6rem; flex: 1; flex-wrap: wrap; min-width: 0; }
+      .order-card-id   { font-weight: 600; font-size: 0.88rem; white-space: nowrap; }
+      .order-card-customer { font-size: 0.84rem; }
+      .order-card-detail   { font-size: 0.77rem; color: var(--muted); white-space: nowrap; }
+      .order-progress { display: inline-block; font-size: 0.75rem; font-weight: 500; padding: 0.15em 0.5em; border-radius: 4px; white-space: nowrap; }
+      .order-progress.prog-none    { background: #2a2a2a; color: var(--muted); }
+      .order-progress.prog-partial { background: #4a3a10; color: var(--accent); }
+      .order-progress.prog-done    { background: #1a3a20; color: #4caf50; }
+      .order-card-toggle { font-size: 0.75rem; color: var(--muted); transition: transform 0.18s; flex-shrink: 0; }
+      .order-card.open .order-card-toggle { transform: rotate(180deg); }
+      .order-card-body { display: none; border-top: 1px solid var(--border); padding: 0.9rem 1rem; }
+      .order-card.open .order-card-body { display: block; }
+
+      /* ── Produktions-Items ── */
+      .prod-item {
+        background: rgba(255,255,255,0.025); border: 1px solid var(--border);
+        border-radius: 6px; padding: 0.7rem 0.85rem; margin-bottom: 0.5rem;
+      }
+      .prod-item:last-of-type { margin-bottom: 0; }
+      .prod-item-name    { font-size: 0.86rem; font-weight: 500; margin-bottom: 0.2rem; }
+      .prod-item-sku     { font-size: 0.74rem; color: var(--muted); font-weight: 400; margin-left: 0.3rem; }
+      .prod-item-variant { font-size: 0.78rem; color: var(--accent); margin-bottom: 0.35rem; }
+      .prod-checks { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem 0.75rem; margin: 0.45rem 0; }
+      .prod-check-label {
+        display: flex; align-items: center; gap: 0.4rem;
+        font-size: 0.81rem; cursor: pointer; user-select: none;
+      }
+      .prod-check-label input[type=checkbox] { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+      .prod-notiz-input {
+        margin-top: 0.45rem; width: 100%; box-sizing: border-box;
+        background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+        color: var(--fg); padding: 0.28rem 0.5rem; font-size: 0.8rem;
+      }
+      .prod-notiz-input:focus { outline: none; border-color: var(--accent); }
+      .btn-complete-order {
+        margin-top: 0.8rem; width: 100%; background: #1a3a20; color: #4caf50;
+        border: 1px solid #2a5a30; border-radius: 6px; padding: 0.48rem;
+        font-size: 0.84rem; font-weight: 500; cursor: pointer; transition: background 0.15s;
+      }
+      .btn-complete-order:hover { background: #1f4525; }
+
+      /* ── Toast ── */
+      .toast {
+        position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999;
+        background: #1e1e1e; border: 1px solid var(--border); border-radius: 8px;
+        padding: 0.6rem 1rem; font-size: 0.84rem; color: var(--fg);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.45); max-width: 320px;
+        animation: toastIn 0.18s ease;
+      }
+      .toast.toast-error { border-color: var(--danger); color: var(--danger); }
+      @keyframes toastIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
       .badge {
         display: inline-block;
         padding: 0.2em 0.55em;
@@ -131,7 +261,7 @@
         font-size: 0.75rem;
         font-weight: 600;
       }
-      .badge-processing { background: #2a4a8a; color: #8ab4f8; }
+      .badge-processing { background: #1a3a20; color: #4caf50; }
       .badge-completed  { background: #1a4a2e; color: var(--success); }
       .badge-pending    { background: #4a3a10; color: var(--accent); }
       .badge-cancelled  { background: #3a1a1a; color: var(--danger); }
@@ -372,7 +502,7 @@
 
     <nav>
       <button class="active" data-panel="dashboard">Dashboard</button>
-      <button data-panel="orders">Bestellungen</button>
+      <button data-panel="orders">Auftragsmonitor</button>
       <button data-panel="products">Produkte</button>
       <button data-panel="claude">Claude</button>
       <button data-panel="settings">Einstellungen</button>
@@ -431,11 +561,36 @@
         </div>
       </section>
 
-      <!-- Orders -->
+      <!-- Auftragsmonitor -->
       <section id="panel-orders" class="panel">
-        <div class="card">
-          <h2>Alle Bestellungen</h2>
-          <div id="orders-list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+        <div class="sub-tabs">
+          <button class="sub-tab active" data-subtab="tab-jfn-shop">Jammifashion Shop</button>
+          <button class="sub-tab" data-subtab="tab-dtf" disabled title="Coming soon">DTF Bestellungen</button>
+          <button class="sub-tab" data-subtab="tab-lshop">L-Shop Bestellungen</button>
+        </div>
+
+        <div id="tab-jfn-shop" class="sub-tab-panel active">
+          <div class="card">
+            <div id="jfn-orders-summary" class="orders-summary" style="display:none;"></div>
+            <div id="jfn-orders-list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+          </div>
+        </div>
+
+        <!-- Placeholder für spätere Sub-Reiter -->
+        <div id="tab-dtf" class="sub-tab-panel"></div>
+        <div id="tab-lshop" class="sub-tab-panel">
+          <div class="card">
+            <div class="lshop-inner-tabs">
+              <button class="lshop-tab active" data-lshoptab="lshop-offen">Offen</button>
+              <button class="lshop-tab" data-lshoptab="lshop-protokoll">Protokoll</button>
+            </div>
+            <div id="lshop-offen" class="lshop-panel active">
+              <div class="skeleton"></div><div class="skeleton"></div>
+            </div>
+            <div id="lshop-protokoll" class="lshop-panel" style="display:none;">
+              <div class="skeleton"></div><div class="skeleton"></div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -716,25 +871,6 @@
           </div>
         </div>
 
-        <!-- Block 4: KI Variantenlogik -->
-        <div class="card" style="margin-bottom:1rem;">
-          <div class="form-section-title">4 — KI Variantenlogik</div>
-          <div class="form-field" style="margin-bottom:0.85rem;">
-            <label>Variantenregeln</label>
-            <textarea id="pf-variant-rules" class="form-input" rows="3" style="resize:vertical;" placeholder="Bsp: Rot nur bis 2XL, Schwarz bis 4XL..."></textarea>
-          </div>
-          <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
-            <button class="btn" id="btn-generate-variants">Varianten generieren</button>
-            <span id="variant-status" style="font-size:0.82rem;color:var(--muted);"></span>
-          </div>
-          <div id="variant-output" style="display:none;margin-top:0.85rem;">
-            <div class="form-field">
-              <label>Generierte Varianten</label>
-              <textarea id="pf-variant-result" class="form-input" rows="5" readonly style="resize:vertical;"></textarea>
-            </div>
-          </div>
-        </div>
-
         <!-- Block 5: SEO (nur sichtbar wenn SEO-Status = Bereit) -->
         <div class="card seo-block" id="seo-block" style="margin-bottom:1rem;">
           <div class="form-section-title">5 — SEO &amp; Beschreibungen</div>
@@ -830,7 +966,7 @@
 
       // ── Helpers ──────────────────────────────────────────────────────────
       function statusBadge(s) {
-        const map = { processing: 'Bearbeitung', completed: 'Abgeschlossen', pending: 'Ausstehend', cancelled: 'Storniert' };
+        const map = { processing: 'In Bearbeitung', completed: 'Abgeschlossen', pending: 'Wartend', cancelled: 'Storniert' };
         return `<span class="badge badge-${s}">${map[s] || s}</span>`;
       }
 
@@ -905,14 +1041,366 @@
         }
       }
 
-      // ── Orders ───────────────────────────────────────────────────────────
-      async function loadOrders() {
-        const el = document.getElementById('orders-list');
+      // ── Auftragsmonitor: Sub-Tab-Wechsel ─────────────────────────────────
+      document.querySelectorAll('#panel-orders .sub-tab:not(:disabled)').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const panel = document.getElementById(btn.dataset.subtab);
+          if (!panel) return;
+          document.querySelectorAll('#panel-orders .sub-tab').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('#panel-orders .sub-tab-panel').forEach(p => p.classList.remove('active'));
+          btn.classList.add('active');
+          panel.classList.add('active');
+          if (btn.dataset.subtab === 'tab-lshop') loadLShopOffen();
+        });
+      });
+
+      // ── L-Shop inner Tab-Wechsel ──────────────────────────────────────────
+      document.querySelectorAll('.lshop-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.lshop-tab').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.lshop-panel').forEach(p => { p.classList.remove('active'); p.style.display = 'none'; });
+          btn.classList.add('active');
+          const panel = document.getElementById(btn.dataset.lshoptab);
+          panel.classList.add('active');
+          panel.style.display = 'block';
+          if (btn.dataset.lshoptab === 'lshop-protokoll') loadLShopProtokoll();
+        });
+      });
+
+      // ── L-Shop: Offen laden ───────────────────────────────────────────────
+      async function loadLShopOffen() {
+        const el = document.getElementById('lshop-offen');
         el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
         try {
-          const orders = await fetch(`${API_BASE()}/api/woocommerce/orders?per_page=25`).then(r => r.json());
-          el.innerHTML = ordersTable(orders);
+          const items = await fetch(`${API_BASE()}/api/auftragsmonitor/lshop/offen`).then(r => r.json());
+          if (!Array.isArray(items) || items.length === 0) {
+            el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Keine offenen L-Shop Bestellungen.</p>';
+            return;
+          }
+          const headerHtml = `<div class="lshop-offen-header">🔴 OFFEN (${items.length} Variante${items.length !== 1 ? 'n' : ''})</div>`;
+          el.innerHTML = headerHtml + items.map(item => {
+            const orderLines = item.betroffeneOrders
+              .map(o => `#${o.orderId} ${o.kunde} ×${o.stueck}`)
+              .join(' &nbsp;·&nbsp; ');
+            const varLabel = item.variante || '–';
+            return `
+              <div class="lshop-card" id="lshop-card-${item.groupKey.replace(/[^a-z0-9]/gi,'_')}">
+                <div class="lshop-card-info">
+                  <div class="lshop-card-title">${item.artikelnummer}</div>
+                  <div class="lshop-card-variante">${varLabel}</div>
+                  <div class="lshop-card-bedarf">Bedarf: <strong>${item.stueck} Stück</strong> · ${item.betroffeneOrders.length} Bestellung${item.betroffeneOrders.length !== 1 ? 'en' : ''}</div>
+                  <div class="lshop-card-orders">${orderLines}</div>
+                </div>
+                <div class="lshop-card-right">
+                  <span class="lshop-stueck">${item.stueck} Stk</span>
+                  <input class="lshop-kw-input" type="text" placeholder="KW…"
+                    data-groupkey="${item.groupKey.replace(/"/g,'')}"
+                    title="Lieferwoche eingeben">
+                  <button class="btn-lshop-bestellen"
+                    data-groupkey="${item.groupKey.replace(/"/g,'')}">
+                    📦 Beim L-Shop bestellt
+                  </button>
+                </div>
+              </div>`;
+          }).join('');
+
+          // Daten als Map für Klick-Handler speichern
+          window._lshopOffenData = Object.fromEntries(items.map(i => [i.groupKey, i]));
+
+          // Bestellt-Buttons
+          el.querySelectorAll('.btn-lshop-bestellen').forEach(btn => {
+            btn.addEventListener('click', () => lshopBestellen(btn.dataset.groupkey, el));
+          });
         } catch (e) {
+          el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Fehler: ${e.message}</p>`;
+        }
+      }
+
+      // ── L-Shop: Bestellen ─────────────────────────────────────────────────
+      async function lshopBestellen(groupKey, listEl) {
+        const item = window._lshopOffenData?.[groupKey];
+        if (!item) return;
+
+        const cardId = `lshop-card-${groupKey.replace(/[^a-z0-9]/gi,'_')}`;
+        const card   = document.getElementById(cardId);
+        const btn    = card?.querySelector('.btn-lshop-bestellen');
+        const kwInput = card?.querySelector('.lshop-kw-input');
+        if (btn) btn.disabled = true;
+
+        const kw         = kwInput?.value?.trim() ?? '';
+        const orderIds   = item.betroffeneOrders.map(o => o.orderId);
+        const wcItemIds  = item.betroffeneOrders.flatMap(o =>
+          o.wcItemIds.map(wid => ({ orderId: o.orderId, wcItemId: wid }))
+        );
+
+        try {
+          const resp = await fetch(`${API_BASE()}/api/auftragsmonitor/lshop/bestellen`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ssotId:        item.ssotId,
+              artikelnummer: item.artikelnummer,
+              variante:      item.variante,
+              stueck:        item.stueck,
+              kw,
+              orderIds,
+              wcItemIds,
+            }),
+          }).then(r => r.json());
+
+          if (!resp.ok) throw new Error(resp.error ?? 'Unbekannter Fehler');
+          card?.remove();
+          showToast(`${item.artikelnummer} · ${item.variante || '–'} als bestellt markiert (${resp.bestellId})`);
+
+          if (!listEl.querySelector('.lshop-card')) {
+            listEl.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Alle Artikel bestellt.</p>';
+          }
+          loadLShopOffen();
+          loadLShopProtokoll();
+        } catch (e) {
+          if (btn) btn.disabled = false;
+          showToast(`Fehler: ${e.message}`, 'error');
+        }
+      }
+
+      // ── L-Shop: Protokoll laden ───────────────────────────────────────────
+      async function loadLShopProtokoll() {
+        const el = document.getElementById('lshop-protokoll');
+        el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
+        try {
+          const rows = await fetch(`${API_BASE()}/api/auftragsmonitor/lshop/protokoll?days=7`).then(r => r.json());
+          if (!Array.isArray(rows) || rows.length === 0) {
+            el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Keine Einträge in den letzten 7 Tagen.</p>';
+            return;
+          }
+          el.innerHTML = rows.map(r => {
+            const d = new Date(r.bestelldatum).toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'2-digit' });
+            return `
+              <div class="lshop-proto-row">
+                <span class="lshop-proto-id">${r.bestellId}</span>
+                <span class="lshop-proto-detail">
+                  ${r.artikelnummer}${r.variante ? ' · ' + r.variante : ''}
+                  · <strong>${r.stueck} Stk</strong>
+                  ${r.kw ? ' · ' + r.kw : ''}
+                </span>
+                <span class="lshop-proto-meta">${d}<br>${r.betroffeneOrders ? '#' + r.betroffeneOrders.replace(/,\s*/g,' #') : ''}</span>
+              </div>`;
+          }).join('');
+        } catch (e) {
+          el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Fehler: ${e.message}</p>`;
+        }
+      }
+
+
+      // ── Fortschritts-Badge ────────────────────────────────────────────────
+      function progressBadge(items) {
+        if (!items || items.length === 0) return '<span class="order-progress prog-none">–</span>';
+        const done  = items.filter(i => i.versendet).length;
+        const total = items.length;
+        if (done === total) return `<span class="order-progress prog-done">${done}/${total} versendet ✓</span>`;
+        if (done > 0)       return `<span class="order-progress prog-partial">${done}/${total} versendet</span>`;
+        return `<span class="order-progress prog-none">0/${total} versendet</span>`;
+      }
+
+      // ── Produktions-Artikel rendern ───────────────────────────────────────
+      function renderProdItems(orderId, items) {
+        if (!items.length) return '<p style="color:var(--muted);font-size:0.83rem;">Keine Artikel gefunden.</p>';
+        const FIELDS = [
+          { key: 'lshopBestellt', label: 'L-Shop bestellt' },
+          { key: 'dtfBestellt',   label: 'DTF bestellt' },
+          { key: 'gedruckt',      label: 'Gedruckt' },
+          { key: 'versendet',     label: 'Versendet' },
+        ];
+        return items.map(item => `
+          <div class="prod-item">
+            <div class="prod-item-name">
+              ${item.menge}× ${item.artikelname}
+              <span class="prod-item-sku">(${item.sku || '–'})</span>
+            </div>
+            ${item.variante ? `<div class="prod-item-variant">${item.variante}</div>` : ''}
+            <div class="prod-checks">
+              ${FIELDS.map(f => `
+                <label class="prod-check-label">
+                  <input type="checkbox"
+                    data-order="${orderId}" data-item="${item.wcItemId}" data-field="${f.key}"
+                    ${item[f.key] ? 'checked' : ''}>
+                  ${f.label}
+                </label>`).join('')}
+            </div>
+            <input class="prod-notiz-input" type="text" placeholder="Notiz…"
+              value="${(item.notiz || '').replace(/"/g, '&quot;')}"
+              data-order="${orderId}" data-item="${item.wcItemId}">
+          </div>`).join('');
+      }
+
+      // ── Bestellkarten rendern ─────────────────────────────────────────────
+      function renderOrderCards(orders) {
+        if (!orders?.length) return '<p style="color:var(--muted);font-size:0.85rem;">Keine offenen Bestellungen.</p>';
+        return orders.map(o => {
+          const name    = `${o.billing?.first_name ?? ''} ${o.billing?.last_name ?? ''}`.trim();
+          const city    = o.billing?.city ?? '';
+          const date    = new Date(o.date_created).toLocaleDateString('de-DE');
+          const amount  = parseFloat(o.total).toLocaleString('de-DE', { style: 'currency', currency: o.currency || 'EUR' });
+          const payment = o.payment_method_title ?? '';
+          return `
+            <div class="order-card" id="order-card-${o.id}">
+              <div class="order-card-header" data-order-id="${o.id}">
+                <div class="order-card-meta">
+                  <span class="order-card-id">#${o.id}</span>
+                  <span class="order-card-customer">${name}${city ? ' · ' + city : ''}</span>
+                  <span class="order-card-detail">${date} · ${amount}${payment ? ' · ' + payment : ''}</span>
+                  ${statusBadge(o.status)}
+                </div>
+                <span id="order-progress-${o.id}">${progressBadge(null)}</span>
+                <span class="order-card-toggle">▼</span>
+              </div>
+              <div class="order-card-body">
+                <div id="order-items-${o.id}">
+                  <div class="skeleton"></div><div class="skeleton"></div>
+                </div>
+                <button class="btn-complete-order" data-order-id="${o.id}">
+                  Als erledigt markieren (WC Status → completed)
+                </button>
+              </div>
+            </div>`;
+        }).join('');
+      }
+
+      // ── Produktions-Status laden (lazy beim Aufklappen) ───────────────────
+      async function loadOrderItems(orderId) {
+        const el = document.getElementById(`order-items-${orderId}`);
+        try {
+          // WC-Bestellung und Sheet-Status parallel laden
+          const [order, resp] = await Promise.all([
+            fetch(`${API_BASE()}/api/woocommerce/orders/${orderId}`).then(r => r.json()),
+            fetch(`${API_BASE()}/api/sheets/produktions-status?orderId=${orderId}`).then(r => r.json()),
+          ]);
+
+          // Varianten-Attribute aus WC meta_data extrahieren (interne Keys mit _ überspringen)
+          const wcItemMap = {};
+          (order.line_items ?? []).forEach(item => {
+            const attrs = (item.meta_data ?? [])
+              .filter(m => m.display_key && m.display_value && !m.key.startsWith('_'))
+              .map(m => `${m.display_key}: ${m.display_value}`)
+              .join(' · ');
+            wcItemMap[String(item.id)] = attrs;
+          });
+
+          // Init wenn noch keine Sheet-Zeilen vorhanden
+          let items = resp.items ?? [];
+          if (items.length === 0) {
+            const initItems = (order.line_items ?? []).map(item => ({
+              wcItemId: String(item.id), artikelname: item.name, sku: item.sku || '', menge: item.quantity,
+            }));
+            await fetch(`${API_BASE()}/api/sheets/produktions-status/init`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ orderId: String(orderId), items: initItems }),
+            });
+            const fresh = await fetch(`${API_BASE()}/api/sheets/produktions-status?orderId=${orderId}`).then(r => r.json());
+            items = fresh.items ?? [];
+          }
+
+          // Varianten-Info einbetten
+          const enriched = items.map(item => ({ ...item, variante: wcItemMap[item.wcItemId] || '' }));
+
+          el.innerHTML = renderProdItems(orderId, enriched);
+          document.getElementById(`order-progress-${orderId}`).innerHTML = progressBadge(enriched);
+          attachItemListeners(orderId);
+        } catch (e) {
+          el.innerHTML = `<p style="color:var(--danger);font-size:0.83rem;">Fehler: ${e.message}</p>`;
+        }
+      }
+
+      // ── Event-Listener für Checkboxen + Notiz ────────────────────────────
+      function attachItemListeners(orderId) {
+        const card = document.getElementById(`order-card-${orderId}`);
+        if (!card) return;
+
+        card.querySelectorAll('input[type=checkbox]').forEach(cb => {
+          cb.addEventListener('change', async () => {
+            const { order, item, field } = cb.dataset;
+            const newVal = cb.checked;
+            try {
+              await fetch(`${API_BASE()}/api/sheets/produktions-status`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderId: order, wcItemId: item, field, value: newVal }),
+              });
+              const updated = await fetch(`${API_BASE()}/api/sheets/produktions-status?orderId=${order}`).then(r => r.json());
+              document.getElementById(`order-progress-${order}`).innerHTML = progressBadge(updated.items ?? []);
+            } catch {
+              cb.checked = !newVal;
+              showToast('Fehler beim Speichern', 'error');
+            }
+          });
+        });
+
+        card.querySelectorAll('.prod-notiz-input').forEach(input => {
+          input.addEventListener('blur', async () => {
+            const { order, item } = input.dataset;
+            try {
+              await fetch(`${API_BASE()}/api/sheets/produktions-status/notiz`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ orderId: order, wcItemId: item, notiz: input.value }),
+              });
+            } catch {
+              showToast('Fehler beim Speichern der Notiz', 'error');
+            }
+          });
+        });
+      }
+
+      // ── Bestellung als erledigt markieren ────────────────────────────────
+      async function completeOrder(orderId) {
+        try {
+          await fetch(`${API_BASE()}/api/woocommerce/orders/${orderId}/status`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'completed' }),
+          });
+          document.getElementById(`order-card-${orderId}`)?.remove();
+          showToast(`Bestellung #${orderId} als erledigt markiert ✓`);
+          const remaining = document.querySelectorAll('.order-card').length;
+          if (remaining === 0) {
+            document.getElementById('jfn-orders-list').innerHTML =
+              '<p style="color:var(--muted);font-size:0.85rem;">Keine offenen Bestellungen.</p>';
+          }
+        } catch (e) {
+          showToast(`Fehler: ${e.message}`, 'error');
+        }
+      }
+
+      // ── Auftragsmonitor: Jammifashion Shop laden ──────────────────────────
+      async function loadOrders() {
+        const el = document.getElementById('jfn-orders-list');
+        const summaryEl = document.getElementById('jfn-orders-summary');
+        el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+        summaryEl.style.display = 'none';
+        try {
+          const orders = await fetch(`${API_BASE()}/api/woocommerce/orders?per_page=50&status=pending,processing`).then(r => r.json());
+          const count = Array.isArray(orders) ? orders.length : 0;
+          const total = (Array.isArray(orders) ? orders : []).reduce((s, o) => s + parseFloat(o.total || 0), 0);
+          summaryEl.innerHTML = `<strong>${count}</strong> offene Bestellung${count !== 1 ? 'en' : ''} &nbsp;·&nbsp; EUR <strong>${total.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> Umsatz`;
+          summaryEl.style.display = '';
+          el.innerHTML = renderOrderCards(orders);
+
+          // Karten-Toggle
+          document.querySelectorAll('.order-card-header').forEach(header => {
+            header.addEventListener('click', () => {
+              const card = document.getElementById(`order-card-${header.dataset.orderId}`);
+              const wasOpen = card.classList.contains('open');
+              card.classList.toggle('open');
+              if (!wasOpen) loadOrderItems(header.dataset.orderId);
+            });
+          });
+
+          // Erledigt-Buttons
+          document.querySelectorAll('.btn-complete-order').forEach(btn => {
+            btn.addEventListener('click', e => {
+              e.stopPropagation();
+              completeOrder(btn.dataset.orderId);
+            });
+          });
+
+        } catch (e) {
+          summaryEl.style.display = 'none';
           el.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
         }
       }
@@ -1480,41 +1968,6 @@
         document.getElementById(id)?.addEventListener('click', () =>
           alert('SSOT-Anbindung folgt — Wert direkt im Dropdown ergänzen.')));
 
-      // Generate variants
-      document.getElementById('btn-generate-variants').addEventListener('click', async () => {
-        const name  = document.getElementById('pf-name').value.trim();
-        const rules = document.getElementById('pf-variant-rules').value.trim();
-        const btn   = document.getElementById('btn-generate-variants');
-        const variantStatus = document.getElementById('variant-status');
-
-        if (!name) { alert('Bitte zuerst den Produktnamen eintragen.'); return; }
-        btn.disabled = true;
-        variantStatus.textContent = 'Generiert…';
-        variantStatus.style.color = 'var(--muted)';
-
-        try {
-          const propsText = properties.filter(p => p.name && p.tags.length)
-            .map(p => `${p.name}: ${p.tags.join(', ')}`).join('\n');
-          const res = await fetch(`${API_BASE()}/api/claude/generate-product`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'generate_variants', name, properties: propsText, rules }),
-          });
-          const data = await res.json();
-          if (!res.ok || data.error) throw new Error(data.error || 'Fehler');
-          document.getElementById('pf-variant-result').value =
-            typeof data.variants === 'string' ? data.variants : JSON.stringify(data.variants, null, 2);
-          document.getElementById('variant-output').style.display = 'block';
-          variantStatus.textContent = 'Varianten bereit';
-          variantStatus.style.color = 'var(--success)';
-          seoStatusSel.disabled = false;
-        } catch (e) {
-          variantStatus.textContent = `Fehler: ${e.message}`;
-          variantStatus.style.color = 'var(--danger)';
-        } finally {
-          btn.disabled = false;
-        }
-      });
 
       // Generate description (Block 5)
       const statusBadgeEl = document.getElementById('prod-status-badge');
@@ -1572,7 +2025,7 @@
         }
       }
 
-      function loadDraft(d) {
+      async function loadDraft(d) {
         currentDraftRow = d.row ?? null;
 
         // ── Stammdaten ───────────────────────────────────────────────────
@@ -1601,32 +2054,43 @@
         });
         updateCatLabel();
 
-        // ── Varianten aus B1–B50 rekonstruieren ──────────────────────────
-        const loadedVariants = [];
-        for (let bi = 1; bi <= 50; bi++) {
-          const b = `B${bi}`;
-          if (!d.data[`${b}_E1`]) break;
-          const attrs = [];
-          for (let ai = 1; ai <= 3; ai++) {
-            const name  = d.data[`${b}_E${ai}`];
-            const value = d.data[`${b}_V${ai}`];
-            if (name && value) attrs.push({ name, value });
+        // ── Varianten aus Varianten-Sheet laden ──────────────────────────
+        const ssotIdVal = d.ssotId;
+        if (ssotIdVal) {
+          try {
+            const vResp = await fetch(`${API_BASE()}/api/sheets/varianten?ssotId=${encodeURIComponent(ssotIdVal)}`);
+            const vData = await vResp.json();
+            const loadedVariants = (vData.varianten ?? []).map(v => ({
+              attrs: [
+                ...(v.e1 && v.v1 ? [{ name: v.e1, value: v.v1 }] : []),
+                ...(v.e2 && v.v2 ? [{ name: v.e2, value: v.v2 }] : []),
+                ...(v.e3 && v.v3 ? [{ name: v.e3, value: v.v3 }] : []),
+              ],
+              price:         String(v.preis || ''),
+              _checked:      v.aktiv,
+              _autoFilled:   false,
+              wcVariationId: v.wcVariationId ?? null,
+              googleFarbe:   v.googleFarbe   ?? '',
+              _nr:           v.nr,
+            }));
+            const propMap = {};
+            loadedVariants.forEach(v =>
+              v.attrs.forEach(a => {
+                if (!propMap[a.name]) propMap[a.name] = [];
+                if (!propMap[a.name].includes(a.value)) propMap[a.name].push(a.value);
+              })
+            );
+            properties = Object.entries(propMap).map(([name, tags]) => ({ name, tags }));
+            variants   = loadedVariants;
+          } catch (e) {
+            console.warn('Varianten-Sheet konnte nicht geladen werden:', e.message);
+            variants   = [];
+            properties = [{ name: '', tags: [] }];
           }
-          loadedVariants.push({ attrs, price: d.data[`${b}_Preis`] || '', _autoFilled: false });
+        } else {
+          variants   = [];
+          properties = [{ name: '', tags: [] }];
         }
-
-        // Properties aus Varianten ableiten
-        const propMap = {};
-        loadedVariants.forEach(v =>
-          v.attrs.forEach(a => {
-            if (!propMap[a.name]) propMap[a.name] = [];
-            if (!propMap[a.name].includes(a.value)) propMap[a.name].push(a.value);
-          })
-        );
-        properties = Object.entries(propMap).map(([name, tags]) => ({ name, tags }));
-
-        // Varianten VOR renderProperties setzen → priceMap wird korrekt gebaut
-        variants = loadedVariants;
         renderProperties(); // ruft intern recomputeVariants() + renderVariants() auf
 
         // Flag: Kurzbezeichnung wurde manuell geladen → Auto-Sync sperren
@@ -2324,7 +2788,19 @@
           'Kategorien':             [...selectedCats.values()].join(', '),
           'Kurzbeschreibung':       draft.shortDesc,
           'Produktbeschreibung':    draft.fullDesc,
-          varianten:                variants.slice(0, 50),
+          varianten:                variants.map((v, i) => ({
+            nr:            v._nr ?? (i + 1),
+            e1:            v.attrs[0]?.name  ?? '',
+            v1:            v.attrs[0]?.value ?? '',
+            e2:            v.attrs[1]?.name  ?? '',
+            v2:            v.attrs[1]?.value ?? '',
+            e3:            v.attrs[2]?.name  ?? '',
+            v3:            v.attrs[2]?.value ?? '',
+            preis:         v.price ?? '',
+            aktiv:         v._checked !== false,
+            wcVariationId: v.wcVariationId ?? null,
+            googleFarbe:   v.googleFarbe   ?? '',
+          })),
         };
       }
 
@@ -2353,7 +2829,6 @@
           categories:   [...selectedCats.keys()],
           properties,
           variants,
-          variantRules: document.getElementById('pf-variant-rules').value,
           shortDesc:    document.getElementById('prod-short-desc').value,
           fullDesc:     document.getElementById('prod-full-desc-raw').value,
           regularPrice: document.getElementById('pf-price-regular').value,
@@ -2529,12 +3004,43 @@
           pushStatus.textContent = 'Schritt 3/3: SSOT wird aktualisiert…';
           document.getElementById('pf-wc-id').value = wcId;
 
+          // Varianten-Reiter aktualisieren (immer, wenn ssotId vorhanden)
+          if (ssotId) {
+            try {
+              const variantenPayload = variants.map((v, i) => {
+                const activeIdx = activeVariants.indexOf(v);
+                const wcVarId   = activeIdx >= 0 ? (data1.variation_ids?.[activeIdx] ?? null) : null;
+                return {
+                  nr:            v._nr ?? (i + 1),
+                  e1:            v.attrs[0]?.name  ?? '',
+                  v1:            v.attrs[0]?.value ?? '',
+                  e2:            v.attrs[1]?.name  ?? '',
+                  v2:            v.attrs[1]?.value ?? '',
+                  e3:            v.attrs[2]?.name  ?? '',
+                  v3:            v.attrs[2]?.value ?? '',
+                  preis:         v.price ?? '',
+                  aktiv:         v._checked !== false,
+                  wcVariationId: wcVarId,
+                  googleFarbe:   v.googleFarbe ?? '',
+                };
+              });
+              await fetch(`${API_BASE()}/api/sheets/varianten/${encodeURIComponent(ssotId)}`, {
+                method:  'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body:    JSON.stringify({ varianten: variantenPayload }),
+              });
+            } catch (e) {
+              console.warn('Varianten-Sheet Writeback fehlgeschlagen:', e.message);
+            }
+          }
+
+          // Erfassungsmaske aktualisieren (nur wenn Draft-Zeile bekannt)
           if (currentDraftRow && ssotId) {
             const artikelnummer = document.getElementById('pf-article-nr').value.trim();
             const draft = {
               status:     'Im Shop',
               statusShop: wcStatusLabel(wcStatus),
-              seoStatus:  'Artikelbeschreibung fehlt',
+              seoStatus:  'Ausstehend',
               name:       document.getElementById('pf-name').value,
               lshopNr:    document.getElementById('pf-lshop-nr').value,
               shortName:  document.getElementById('pf-short-name').value,
@@ -2554,7 +3060,7 @@
                 ...sheetPayload,
                 'Status':      'Im Shop',
                 'Status Shop': wcStatusLabel(wcStatus),
-                'SEO_Status':  'Artikelbeschreibung fehlt',
+                'SEO_Status':  'Ausstehend',
               }),
             });
           }
@@ -2690,10 +3196,11 @@
       }
       .rich-content:empty::before { content: attr(data-placeholder); color: #555; pointer-events: none; display: block; }
       #rich-short-desc, #rich-seo-short { min-height: 70px; max-height: 160px; }
-      #rich-description, #rich-seo-full  { min-height: 140px; max-height: 360px; }
+      #rich-description, #rich-seo-full  { min-height: 140px; max-height: 520px; }
       .rich-content a { color: #e8c44a; }
       .rich-content table { border-collapse: collapse; width: 100%; margin: 0.4rem 0; }
-      .rich-content td, .rich-content th { border: 1px solid #3a3a3a; padding: 0.3rem 0.5rem; font-size: 0.85rem; }
+      .rich-content td, .rich-content th { border: 1px solid #555; padding: 0.3rem 0.5rem; font-size: 0.85rem; vertical-align: top; color: inherit; }
+      .rich-content th { background: rgba(255,255,255,0.06); font-weight: 600; }
     </style>
     <script>
       // ── Rich-Editor-Wrapper (Quill-API-kompatibel) ─────────────────────────
