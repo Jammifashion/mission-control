@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch index.js"
+    "dev": "nodemon index.js"
   },
   "keywords": [],
   "author": "Jammifashion",
@@ -22,5 +22,8 @@
     "express-rate-limit": "^8.4.1",
     "googleapis": "^171.4.0",
     "helmet": "^8.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
   }
 }
