@@ -42,12 +42,12 @@
         background: var(--surface);
       }
       header h1 { font-size: 1.1rem; letter-spacing: 0.08em; text-transform: uppercase; }
-      #status-bar { display: flex; gap: 0.75rem; align-items: center; }
-      .svc-dot { display: flex; align-items: center; gap: 0.3rem; font-size: 0.7rem; color: var(--muted); transition: color 0.3s; }
-      .svc-dot i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); transition: background 0.3s; flex-shrink: 0; }
-      .svc-dot.online  { color: var(--fg); }
-      .svc-dot.online  i { background: var(--success); }
-      .svc-dot.offline i { background: var(--danger); }
+      #status-dot {
+        width: 10px; height: 10px; border-radius: 50%;
+        background: var(--muted); transition: background 0.3s; cursor: default;
+      }
+      #status-dot.online  { background: var(--success); }
+      #status-dot.offline { background: var(--danger); }
 
       /* ── Nav tabs ── */
       nav {
@@ -496,11 +496,7 @@
   <body>
     <header>
       <h1>Mission Control</h1>
-      <div id="status-bar">
-        <div class="svc-dot" id="svc-woocommerce" title="WooCommerce"><i></i>WC</div>
-        <div class="svc-dot" id="svc-sheet"       title="Google Sheet"><i></i>Sheet</div>
-        <div class="svc-dot" id="svc-claude"      title="Claude API"><i></i>AI</div>
-      </div>
+      <div id="status-dot" title="API-Status wird geladen…"></div>
     </header>
 
     <nav>
@@ -954,20 +950,18 @@
         });
       });
 
-      // ── Status bar ───────────────────────────────────────────────────────
-      const SVC_IDS = { woocommerce: 'svc-woocommerce', sheet: 'svc-sheet', claude: 'svc-claude' };
+      // ── Status dot ───────────────────────────────────────────────────────
       async function checkStatus() {
+        const dot = document.getElementById('status-dot');
         try {
           const data = await fetch(`${API_BASE()}/api/health/full`, { signal: AbortSignal.timeout(10000) }).then(r => r.json());
-          for (const [key, id] of Object.entries(SVC_IDS)) {
-            const el = document.getElementById(id);
-            if (el) el.className = `svc-dot ${data.services?.[key]?.ok ? 'online' : 'offline'}`;
-          }
+          const s = data.services ?? {};
+          const label = svc => s[svc]?.ok ? '✓' : '✗';
+          dot.title     = `WC ${label('woocommerce')} | Sheet ${label('sheet')} | Claude ${label('claude')}`;
+          dot.className = data.ok ? 'online' : 'offline';
         } catch {
-          Object.values(SVC_IDS).forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.className = 'svc-dot offline';
-          });
+          dot.title     = 'Verbindung fehlgeschlagen';
+          dot.className = 'offline';
         }
       }
       checkStatus();
