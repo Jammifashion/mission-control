@@ -21,7 +21,21 @@ router.get('/orders', async (req, res, next) => {
   try {
     const wc = getClient();
     const { per_page = 20, page = 1, status } = req.query;
-    const params = { per_page: Math.min(Number(per_page), 100), page: Number(page) };
+    const perPage = Math.min(Number(per_page), 100);
+
+    // Bei mehreren Status (z.B. "pending,processing") jeden separat abrufen und mergen,
+    // da die WC REST API Komma-getrennte Werte nicht zuverlässig interpretiert
+    if (status && status.includes(',')) {
+      const statuses = status.split(',').map(s => s.trim());
+      const results = await Promise.all(
+        statuses.map(s => wc.get('orders', { per_page: perPage, page: Number(page), status: s }))
+      );
+      const merged = results.flatMap(r => r.data);
+      merged.sort((a, b) => new Date(b.date_created) - new Date(a.date_created));
+      return res.json(merged);
+    }
+
+    const params = { per_page: perPage, page: Number(page) };
     if (status) params.status = status;
     const { data } = await wc.get('orders', params);
     res.json(data);
