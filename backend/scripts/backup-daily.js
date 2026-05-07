@@ -2,8 +2,6 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import { google } from 'googleapis';
-import { readFileSync } from 'fs';
-import { resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { gzipSync } from 'zlib';
 import { Readable } from 'stream';
@@ -15,23 +13,18 @@ const SCOPES = [
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 function getAuth() {
-  let credentials;
-
+  // GOOGLE_CREDENTIALS_JSON: JSON-String direkt (GitHub Actions Secret als Env-Var)
   if (process.env.GOOGLE_CREDENTIALS_JSON) {
+    let credentials;
     try {
       credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
     } catch {
       throw new Error('GOOGLE_CREDENTIALS_JSON ist kein gültiges JSON.');
     }
-  } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-    const __dirname = fileURLToPath(new URL('.', import.meta.url));
-    const keyPath   = resolve(__dirname, '..', process.env.GOOGLE_APPLICATION_CREDENTIALS);
-    credentials     = JSON.parse(readFileSync(keyPath, 'utf8'));
-  } else {
-    return new google.auth.GoogleAuth({ scopes: SCOPES });
+    return new google.auth.GoogleAuth({ credentials, scopes: SCOPES });
   }
-
-  return new google.auth.GoogleAuth({ credentials, scopes: SCOPES });
+  // GOOGLE_APPLICATION_CREDENTIALS: GoogleAuth liest den Pfad automatisch aus der Umgebung
+  return new google.auth.GoogleAuth({ scopes: SCOPES });
 }
 
 // ── Backup-Logik (exportiert für Route-Wiederverwendung) ──────────────────────
