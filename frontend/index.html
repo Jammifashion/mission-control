@@ -953,6 +953,7 @@
       // ── Status dot ───────────────────────────────────────────────────────
       async function checkStatus() {
         const dot = document.getElementById('status-dot');
+        if (!dot) return;
         try {
           const data = await fetch(`${API_BASE()}/api/health/full`, { signal: AbortSignal.timeout(10000) }).then(r => r.json());
           const s = data.services ?? {};
