@@ -42,7 +42,7 @@ async function checkClaude() {
 }
 
 // ── GET /api/health/full ──────────────────────────────────────────────────────
-router.get('/health/full', async (req, res, next) => {
+router.get('/full', async (req, res, next) => {
   try {
     const [woocommerce, sheet, claude] = await Promise.all([
       checkWooCommerce().catch(err => ({ ok: false, ms: 0, error: err.message })),
@@ -70,7 +70,7 @@ router.get('/health/full', async (req, res, next) => {
 });
 
 // ── POST /api/system/log ──────────────────────────────────────────────────────
-router.post('/system/log', async (req, res, next) => {
+router.post('/log', async (req, res, next) => {
   try {
     const { level = 'INFO', service = '', message = '', details = '' } = req.body;
     if (!message) return res.status(400).json({ error: 'message erforderlich' });
