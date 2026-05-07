@@ -186,7 +186,7 @@ router.get('/stats', async (req, res, next) => {
 
     const [ordersToday, pendingOrders, activeProducts, ordersWeek] = await Promise.all([
       wc.get('orders', { after: todayStart.toISOString(), per_page: 100 }),
-      wc.get('orders', { status: 'processing', per_page: 1 }),
+      wc.get('orders', { status: 'on-hold', per_page: 1 }),
       wc.get('products', { status: 'publish', per_page: 1 }),
       wc.get('orders', { after: weekStart.toISOString(), per_page: 100 }),
     ]);

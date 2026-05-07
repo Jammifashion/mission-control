@@ -1378,7 +1378,7 @@
         el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
         summaryEl.style.display = 'none';
         try {
-          const orders = await fetch(`${API_BASE()}/api/woocommerce/orders?per_page=50&status=pending,processing`).then(r => r.json());
+          const orders = await fetch(`${API_BASE()}/api/woocommerce/orders?per_page=50&status=pending,processing,on-hold`).then(r => r.json());
           const count = Array.isArray(orders) ? orders.length : 0;
           const total = (Array.isArray(orders) ? orders : []).reduce((s, o) => s + parseFloat(o.total || 0), 0);
           summaryEl.innerHTML = `<strong>${count}</strong> offene Bestellung${count !== 1 ? 'en' : ''} &nbsp;·&nbsp; EUR <strong>${total.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> Umsatz`;

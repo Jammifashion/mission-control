@@ -55,12 +55,13 @@ router.get('/lshop/offen', async (req, res, next) => {
     const spreadsheetId = sid();
 
     // Alle Datenquellen parallel laden
-    const [psResp, varResp, erfResp, wcPending, wcProcessing] = await Promise.all([
+    const [psResp, varResp, erfResp, wcPending, wcProcessing, wcOnHold] = await Promise.all([
       sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_PS}!A1:J5000` }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_VAR}!A1:L2000` }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_ERF}!A1:BZ2000` }),
       wc.get('orders', { status: 'pending',    per_page: 100 }),
       wc.get('orders', { status: 'processing', per_page: 100 }),
+      wc.get('orders', { status: 'on-hold',    per_page: 100 }),
     ]);
 
     const psRows   = (psResp.data.values  ?? []).slice(1);
@@ -70,6 +71,7 @@ router.get('/lshop/offen', async (req, res, next) => {
     const wcOrders = [
       ...(Array.isArray(wcPending.data)    ? wcPending.data    : []),
       ...(Array.isArray(wcProcessing.data) ? wcProcessing.data : []),
+      ...(Array.isArray(wcOnHold.data)     ? wcOnHold.data     : []),
     ];
 
     // WC_Variation_ID → {ssotId, e1-v3}
