@@ -51,6 +51,20 @@ router.get('/health/full', async (req, res, next) => {
     ]);
 
     const ok = woocommerce.ok && sheet.ok && claude.ok;
+
+    if (!ok && process.env.NTFY_TOPIC) {
+      const failed = { woocommerce, sheet, claude };
+      await Promise.allSettled(
+        Object.entries(failed)
+          .filter(([, v]) => !v.ok)
+          .map(([name]) => fetch(`https://ntfy.sh/${process.env.NTFY_TOPIC}`, {
+            method:  'POST',
+            body:    `Mission Control: ${name} nicht erreichbar`,
+            headers: { 'Title': 'Mission Control Alert', 'Priority': 'high' },
+          }))
+      );
+    }
+
     res.status(ok ? 200 : 503).json({ ok, services: { woocommerce, sheet, claude } });
   } catch (err) { next(err); }
 });
