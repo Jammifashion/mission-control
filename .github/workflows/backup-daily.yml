@@ -23,6 +23,9 @@ jobs:
         run: npm install
         working-directory: backend
 
+      - name: Write Google credentials
+        run: echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > google-credentials.json
+
       - name: Run backup
         env:
           GOOGLE_SHEET_ID:                ${{ secrets.GOOGLE_SHEET_ID }}
@@ -30,5 +33,5 @@ jobs:
           GOOGLE_DRIVE_BACKUP_FOLDER_ID:  ${{ secrets.GOOGLE_DRIVE_BACKUP_FOLDER_ID }}
           GOOGLE_DRIVE_BACKUP_DAILY_ID:   ${{ secrets.GOOGLE_DRIVE_BACKUP_DAILY_ID }}
           GOOGLE_DRIVE_BACKUP_MONTHLY_ID: ${{ secrets.GOOGLE_DRIVE_BACKUP_MONTHLY_ID }}
-          GOOGLE_CREDENTIALS_JSON:        ${{ secrets.GOOGLE_CREDENTIALS_JSON }}
+          GOOGLE_APPLICATION_CREDENTIALS: ./google-credentials.json
         run: node backend/scripts/backup-daily.js
