@@ -12,6 +12,7 @@ import claudeRouter from './routes/claude.js';
 import sheetsRouter from './routes/sheets.js';
 import auftragsmonitorRouter from './routes/auftragsmonitor.js';
 import backupRouter from './routes/backup.js';
+import systemRouter from './routes/system.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -41,6 +42,7 @@ app.use('/api/claude', claudeRouter);
 app.use('/api/sheets', sheetsRouter);
 app.use('/api/auftragsmonitor', auftragsmonitorRouter);
 app.use('/api/backup', backupRouter);
+app.use('/api', systemRouter);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
