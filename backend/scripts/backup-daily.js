@@ -118,26 +118,25 @@ export async function runBackup() {
   // ── Cleanup Daily (> 30 Tage) ─────────────────────────────────────────────
   const cutoffDaily = new Date(now);
   cutoffDaily.setDate(cutoffDaily.getDate() - 30);
-  await cleanupFolder(drive, DAILY_FOLDER, SHARED_DRIVE, cutoffDaily, 'Daily');
+  await cleanupFolder(drive, DAILY_FOLDER, cutoffDaily, 'Daily');
 
   // ── Cleanup Monthly (> 12 Monate) ────────────────────────────────────────
   const cutoffMonthly = new Date(now);
   cutoffMonthly.setMonth(cutoffMonthly.getMonth() - 12);
-  await cleanupFolder(drive, MONTHLY_FOLDER, SHARED_DRIVE, cutoffMonthly, 'Monthly');
+  await cleanupFolder(drive, MONTHLY_FOLDER, cutoffMonthly, 'Monthly');
 
   return { fileName: dailyName, sizeKB, tabCount: tabTitles.length, fileId: dailyFile.data.id };
 }
 
-async function cleanupFolder(drive, folderId, sharedDriveId, cutoff, label) {
+async function cleanupFolder(drive, folderId, cutoff, label) {
   const { data } = await drive.files.list({
-    q:                       `'${folderId}' in parents and trashed = false`,
-    fields:                  'files(id,name,createdTime)',
-    orderBy:                 'createdTime',
-    pageSize:                200,
-    supportsAllDrives:       true,
+    q:                         `'${folderId}' in parents and trashed = false`,
+    fields:                    'files(id,name,createdTime)',
+    orderBy:                   'createdTime',
+    pageSize:                  200,
+    supportsAllDrives:         true,
     includeItemsFromAllDrives: true,
-    corpora:                 'drive',
-    driveId:                 sharedDriveId,
+    corpora:                   'allDrives',
   });
   const toDelete = (data.files ?? []).filter(f => new Date(f.createdTime) < cutoff);
   for (const f of toDelete) {
