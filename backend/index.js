@@ -16,13 +16,17 @@ import auftragsmonitorRouter from './routes/auftragsmonitor.js';
 import backupRouter from './routes/backup.js';
 import systemRoutes from './routes/system.js';
 
+// Secrets vor Express-Setup laden – stellt sicher dass process.env.CORS_ORIGIN
+// (und alle anderen Secrets) bereits gesetzt sind wenn die Middleware konfiguriert wird.
+await loadAllSecrets();
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // ── Security & parsing ────────────────────────────────────────────────────────
 app.use(helmet());
 app.use(cors({
-  origin: (process.env.CORS_ORIGIN || 'http://localhost:5173').split(',').map(s => s.trim()),
+  origin: (process.env.CORS_ORIGIN || 'https://jammifashion.github.io').split(',').map(s => s.trim()),
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
 }));
 app.use(express.json({ limit: '256kb' }));
@@ -50,8 +54,6 @@ app.use((err, _req, res, _next) => {
   console.error(err);
   res.status(500).json({ error: 'Interner Serverfehler.' });
 });
-
-await loadAllSecrets();
 
 app.listen(PORT, () => {
   console.log(`Mission Control backend → http://localhost:${PORT}`);

@@ -11,6 +11,7 @@ export const SECRET_KEYS = [
   'GOOGLE_SHEET_ID',
   'GEMINI_API_KEY',
   'MC_API_KEY',
+  'CORS_ORIGIN',
 ];
 
 function getSmClient() {
