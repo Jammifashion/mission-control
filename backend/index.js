@@ -2,11 +2,13 @@ import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import dotenv from 'dotenv';
 dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../.env') });
+import './scripts/check-env.js';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 
+import { loadAllSecrets } from './utils/secrets.js';
 import { requireApiKey } from './middleware/auth.js';
 import woocommerceRouter from './routes/woocommerce.js';
 import claudeRouter from './routes/claude.js';
@@ -61,6 +63,8 @@ app.use((err, _req, res, _next) => {
   console.error(err);
   res.status(500).json({ error: 'Interner Serverfehler.' });
 });
+
+await loadAllSecrets();
 
 app.listen(PORT, () => {
   console.log(`Mission Control backend → http://localhost:${PORT}`);

@@ -132,7 +132,7 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
 
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
       const geminiModel = genAI.getGenerativeModel({
-        model: 'gemini-2.5-flash-preview-05-20',
+        model: process.env.GEMINI_MODEL || 'gemini-2.5-flash-preview-05-20',
         systemInstruction: SUGGEST_SYSTEM,
       });
 
@@ -228,7 +228,7 @@ Nur JSON: { "short_description": "...", "description": "..." }`;
 
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
       const geminiModel = genAI.getGenerativeModel({
-        model: 'gemini-2.5-flash-preview-05-20',
+        model: process.env.GEMINI_MODEL || 'gemini-2.5-flash-preview-05-20',
         systemInstruction: SEO_SYSTEM,
       });
 
