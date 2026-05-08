@@ -519,4 +519,180 @@ router.post('/dtf/bestellen', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── POST /api/auftragsmonitor/lshop/bestellen-bulk ───────────────────────────
+// Body: { bestellungen: [{ ssotId, artikelnummer, variante, stueck, kw, orderIds[], wcItemIds? }] }
+router.post('/lshop/bestellen-bulk', async (req, res, next) => {
+  try {
+    const { bestellungen } = req.body;
+    if (!Array.isArray(bestellungen) || bestellungen.length === 0) {
+      return res.status(400).json({ error: 'bestellungen Array erforderlich' });
+    }
+
+    const sheets        = await getSheets();
+    const spreadsheetId = sid();
+    const year          = new Date().getFullYear();
+    const prefix        = `LSB-${year}-`;
+
+    // Sequenz einmalig lesen, dann lokal inkrementieren
+    const { data: lsbData } = await sheets.spreadsheets.values.get({
+      spreadsheetId, range: `${TAB_LSB}!A1:A5000`,
+    });
+    let maxSeq = 0;
+    (lsbData.values ?? []).slice(1).forEach(r => {
+      const val = (r[0] ?? '').trim();
+      if (val.startsWith(prefix)) {
+        const n = parseInt(val.slice(prefix.length), 10);
+        if (!isNaN(n) && n > maxSeq) maxSeq = n;
+      }
+    });
+
+    // Produktions_Status einmalig lesen
+    const { data: psData } = await sheets.spreadsheets.values.get({
+      spreadsheetId, range: `${TAB_PS}!A1:J5000`,
+    });
+    const psRows = psData.values ?? [];
+
+    const results = [];
+    for (const b of bestellungen) {
+      const { ssotId = '', artikelnummer, variante = '', stueck, kw = '', orderIds = [], wcItemIds = [] } = b;
+      if (!artikelnummer || !Array.isArray(orderIds) || orderIds.length === 0) {
+        results.push({ ok: false, error: 'artikelnummer und orderIds erforderlich', artikelnummer });
+        continue;
+      }
+      maxSeq++;
+      const bestellId = `${prefix}${String(maxSeq).padStart(4, '0')}`;
+      try {
+        await sheets.spreadsheets.values.append({
+          spreadsheetId,
+          range: `${TAB_LSB}!A1`, valueInputOption: 'USER_ENTERED', insertDataOption: 'INSERT_ROWS',
+          requestBody: { values: [[
+            bestellId, new Date().toISOString(), ssotId, artikelnummer,
+            variante, stueck ?? 0, kw, orderIds.map(String).join(', '),
+          ]] },
+        });
+
+        const updateRows = [];
+        if (wcItemIds.length > 0) {
+          const pairSet = new Set(wcItemIds.map(({ orderId, wcItemId }) => `${orderId}|${wcItemId}`));
+          psRows.slice(1).forEach((r, i) => {
+            const key = `${(r[PI.orderId] ?? '').trim()}|${(r[PI.wcItemId] ?? '').trim()}`;
+            if (pairSet.has(key)) updateRows.push(i + 2);
+          });
+        } else {
+          const orderIdSet = new Set(orderIds.map(String));
+          psRows.slice(1).forEach((r, i) => {
+            if (
+              orderIdSet.has((r[PI.orderId] ?? '').trim()) &&
+              (r[PI.artikelname] ?? '').trim().includes(artikelnummer.split('/').pop())
+            ) updateRows.push(i + 2);
+          });
+        }
+        if (updateRows.length > 0) {
+          await sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId,
+            requestBody: {
+              valueInputOption: 'USER_ENTERED',
+              data: updateRows.map(row => ({ range: `${TAB_PS}!F${row}`, values: [[true]] })),
+            },
+          });
+        }
+        results.push({ ok: true, bestellId, updated: updateRows.length, artikelnummer });
+      } catch (err) {
+        results.push({ ok: false, error: err.message ?? String(err), artikelnummer });
+      }
+    }
+
+    const totalOrdered = results.filter(r => r.ok).length;
+    const errors       = results.filter(r => !r.ok).map(r => ({ artikelnummer: r.artikelnummer, error: r.error }));
+    res.json({ ok: errors.length === 0, totalOrdered, results, errors });
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/auftragsmonitor/dtf/bestellen-bulk ─────────────────────────────
+// Body: { bestellungen: [{ ssotId, artikelnummer, variante, stueck, orderIds[], wcItemIds? }] }
+router.post('/dtf/bestellen-bulk', async (req, res, next) => {
+  try {
+    const { bestellungen } = req.body;
+    if (!Array.isArray(bestellungen) || bestellungen.length === 0) {
+      return res.status(400).json({ error: 'bestellungen Array erforderlich' });
+    }
+
+    const sheets        = await getSheets();
+    const spreadsheetId = sid();
+    const year          = new Date().getFullYear();
+    const prefix        = `DTFB-${year}-`;
+
+    const { data: dtfData } = await sheets.spreadsheets.values.get({
+      spreadsheetId, range: `${TAB_DTF}!A1:A5000`,
+    });
+    let maxSeq = 0;
+    (dtfData.values ?? []).slice(1).forEach(r => {
+      const val = (r[0] ?? '').trim();
+      if (val.startsWith(prefix)) {
+        const n = parseInt(val.slice(prefix.length), 10);
+        if (!isNaN(n) && n > maxSeq) maxSeq = n;
+      }
+    });
+
+    const { data: psData } = await sheets.spreadsheets.values.get({
+      spreadsheetId, range: `${TAB_PS}!A1:J5000`,
+    });
+    const psRows = psData.values ?? [];
+
+    const results = [];
+    for (const b of bestellungen) {
+      const { ssotId = '', artikelnummer, variante = '', stueck, orderIds = [], wcItemIds = [] } = b;
+      if (!artikelnummer || !Array.isArray(orderIds) || orderIds.length === 0) {
+        results.push({ ok: false, error: 'artikelnummer und orderIds erforderlich', artikelnummer });
+        continue;
+      }
+      maxSeq++;
+      const bestellId = `${prefix}${String(maxSeq).padStart(4, '0')}`;
+      try {
+        await sheets.spreadsheets.values.append({
+          spreadsheetId,
+          range: `${TAB_DTF}!A1`, valueInputOption: 'USER_ENTERED', insertDataOption: 'INSERT_ROWS',
+          requestBody: { values: [[
+            bestellId, new Date().toISOString(), ssotId, artikelnummer,
+            variante, stueck ?? 0, orderIds.map(String).join(', '),
+          ]] },
+        });
+
+        const updateRows = [];
+        if (wcItemIds.length > 0) {
+          const pairSet = new Set(wcItemIds.map(({ orderId, wcItemId }) => `${orderId}|${wcItemId}`));
+          psRows.slice(1).forEach((r, i) => {
+            const key = `${(r[PI.orderId] ?? '').trim()}|${(r[PI.wcItemId] ?? '').trim()}`;
+            if (pairSet.has(key)) updateRows.push(i + 2);
+          });
+        } else {
+          const orderIdSet = new Set(orderIds.map(String));
+          psRows.slice(1).forEach((r, i) => {
+            if (
+              orderIdSet.has((r[PI.orderId] ?? '').trim()) &&
+              (r[PI.artikelname] ?? '').trim().includes(artikelnummer.split('/').pop())
+            ) updateRows.push(i + 2);
+          });
+        }
+        if (updateRows.length > 0) {
+          await sheets.spreadsheets.values.batchUpdate({
+            spreadsheetId,
+            requestBody: {
+              valueInputOption: 'USER_ENTERED',
+              data: updateRows.map(row => ({ range: `${TAB_PS}!G${row}`, values: [[true]] })),
+            },
+          });
+        }
+        results.push({ ok: true, bestellId, updated: updateRows.length, artikelnummer });
+      } catch (err) {
+        results.push({ ok: false, error: err.message ?? String(err), artikelnummer });
+      }
+    }
+
+    const totalOrdered = results.filter(r => r.ok).length;
+    const errors       = results.filter(r => !r.ok).map(r => ({ artikelnummer: r.artikelnummer, error: r.error }));
+    res.json({ ok: errors.length === 0, totalOrdered, results, errors });
+  } catch (err) { next(err); }
+});
+
 export default router;

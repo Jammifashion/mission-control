@@ -172,13 +172,23 @@
       .btn-dtf-bestellen:hover { background: #1f4525; }
       .btn-dtf-bestellen:disabled { opacity: 0.5; cursor: not-allowed; }
 
-      .lshop-offen-header { font-size: 0.82rem; font-weight: 600; color: var(--muted); margin-bottom: 0.75rem; letter-spacing: 0.03em; }
+      .lshop-offen-header { font-size: 0.82rem; font-weight: 600; color: var(--muted); margin-bottom: 0.75rem; letter-spacing: 0.03em; display: flex; align-items: center; justify-content: space-between; }
+      .bulk-all-label { font-size: 0.78rem; font-weight: 400; display: flex; align-items: center; gap: 0.3rem; cursor: pointer; letter-spacing: 0; }
+      .card-cb-wrap { display: flex; align-items: flex-start; padding-top: 0.18rem; }
+      .select-cb { width: 15px; height: 15px; cursor: pointer; accent-color: var(--accent); flex-shrink: 0; }
+      .bulk-bar {
+        display: flex; align-items: center; gap: 0.65rem;
+        border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+        border-radius: 6px; padding: 0.4rem 0.75rem; margin-bottom: 0.65rem;
+        background: color-mix(in srgb, var(--accent) 6%, transparent);
+      }
+      .bulk-count { font-size: 0.8rem; color: var(--muted); flex: 1; }
 
       /* ── L-Shop Varianten-Karten ── */
       .lshop-card {
         border: 1px solid var(--border); border-radius: 7px;
         padding: 0.75rem 0.9rem; margin-bottom: 0.55rem;
-        display: grid; grid-template-columns: 1fr auto; gap: 0.5rem 1rem; align-items: start;
+        display: grid; grid-template-columns: auto 1fr auto; gap: 0.5rem 1rem; align-items: start;
       }
       .lshop-card-info { min-width: 0; }
       .lshop-card-title { font-size: 0.88rem; font-weight: 600; margin-bottom: 0.2rem; }
@@ -1125,14 +1135,26 @@
             el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Keine offenen DTF-Aufträge.</p>';
             return;
           }
-          const headerHtml = `<div class="lshop-offen-header">🔴 OFFEN (${items.length} Variante${items.length !== 1 ? 'n' : ''})</div>`;
-          el.innerHTML = headerHtml + items.map(item => {
+          el.innerHTML = `
+            <div class="lshop-offen-header">
+              <span>🔴 OFFEN (${items.length} Variante${items.length !== 1 ? 'n' : ''})</span>
+              <label class="bulk-all-label"><input type="checkbox" class="select-cb" id="dtf-select-all"> Alle</label>
+            </div>
+            <div class="bulk-bar" id="dtf-bulk-bar" style="display:none;">
+              <span class="bulk-count" id="dtf-bulk-count"></span>
+              <button class="btn-dtf-bestellen" id="dtf-bulk-btn">🖨️ Ausgewählte bestellen</button>
+            </div>` + items.map(item => {
             const orderLines = item.betroffeneOrders
               .map(o => `#${o.orderId} ${o.kunde} ×${o.stueck}`)
               .join(' &nbsp;·&nbsp; ');
             const varLabel = item.variante || '–';
+            const safeKey  = item.groupKey.replace(/[^a-z0-9]/gi, '_');
+            const safeAttr = item.groupKey.replace(/"/g, '');
             return `
-              <div class="lshop-card" id="dtf-card-${item.groupKey.replace(/[^a-z0-9]/gi,'_')}">
+              <div class="lshop-card" id="dtf-card-${safeKey}">
+                <div class="card-cb-wrap">
+                  <input type="checkbox" class="select-cb dtf-select-cb" data-groupkey="${safeAttr}">
+                </div>
                 <div class="lshop-card-info">
                   <div class="lshop-card-title">${item.artikelnummer}</div>
                   <div class="lshop-card-variante">${varLabel}</div>
@@ -1141,17 +1163,34 @@
                 </div>
                 <div class="lshop-card-right">
                   <span class="lshop-stueck">${item.stueck} Stk</span>
-                  <button class="btn-dtf-bestellen"
-                    data-groupkey="${item.groupKey.replace(/"/g,'')}">
-                    🖨️ DTF bestellt
-                  </button>
+                  <button class="btn-dtf-bestellen" data-groupkey="${safeAttr}">🖨️ DTF bestellt</button>
                 </div>
               </div>`;
           }).join('');
 
           window._dtfOffenData = Object.fromEntries(items.map(i => [i.groupKey, i]));
 
-          el.querySelectorAll('.btn-dtf-bestellen').forEach(btn => {
+          function updateDtfBulkBar() {
+            const cbs     = el.querySelectorAll('.dtf-select-cb');
+            const checked = el.querySelectorAll('.dtf-select-cb:checked');
+            const n = checked.length;
+            const bar = el.querySelector('#dtf-bulk-bar');
+            const bulkBtn = el.querySelector('#dtf-bulk-btn');
+            const cnt = el.querySelector('#dtf-bulk-count');
+            const all = el.querySelector('#dtf-select-all');
+            if (bar) bar.style.display = n > 0 ? 'flex' : 'none';
+            if (bulkBtn) bulkBtn.textContent = `🖨️ ${n} ausgewählte bestellen`;
+            if (cnt) cnt.textContent = `${n} von ${cbs.length} ausgewählt`;
+            if (all) { all.checked = n === cbs.length && cbs.length > 0; all.indeterminate = n > 0 && n < cbs.length; }
+          }
+
+          el.querySelector('#dtf-select-all')?.addEventListener('change', e => {
+            el.querySelectorAll('.dtf-select-cb').forEach(cb => cb.checked = e.target.checked);
+            updateDtfBulkBar();
+          });
+          el.querySelectorAll('.dtf-select-cb').forEach(cb => cb.addEventListener('change', updateDtfBulkBar));
+          el.querySelector('#dtf-bulk-btn')?.addEventListener('click', () => dtfBestellenBulk(el));
+          el.querySelectorAll('.btn-dtf-bestellen[data-groupkey]').forEach(btn => {
             btn.addEventListener('click', () => dtfBestellen(btn.dataset.groupkey, el));
           });
         } catch (e) {
@@ -1202,6 +1241,47 @@
         }
       }
 
+      // ── DTF: Sammelbestellung ─────────────────────────────────────────────
+      async function dtfBestellenBulk(listEl) {
+        const checked = [...listEl.querySelectorAll('.dtf-select-cb:checked')];
+        if (checked.length === 0) return;
+        const btn = listEl.querySelector('#dtf-bulk-btn');
+        if (btn) btn.disabled = true;
+
+        const bestellungen = checked.map(cb => {
+          const item = window._dtfOffenData?.[cb.dataset.groupkey];
+          if (!item) return null;
+          return {
+            ssotId:        item.ssotId,
+            artikelnummer: item.artikelnummer,
+            variante:      item.variante,
+            stueck:        item.stueck,
+            orderIds:      item.betroffeneOrders.map(o => o.orderId),
+            wcItemIds:     item.betroffeneOrders.flatMap(o =>
+              o.wcItemIds.map(wid => ({ orderId: o.orderId, wcItemId: wid }))
+            ),
+          };
+        }).filter(Boolean);
+
+        try {
+          const resp = await fetch(`${API_BASE()}/api/auftragsmonitor/dtf/bestellen-bulk`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bestellungen }),
+          }).then(r => r.json());
+
+          if (resp.errors?.length) {
+            showToast(`${resp.totalOrdered} bestellt · ${resp.errors.length} Fehler`, 'error');
+          } else {
+            showToast(`${resp.totalOrdered} DTF-Auftrag${resp.totalOrdered !== 1 ? 'e' : ''} bestellt`);
+          }
+          loadDtfOffen();
+          loadDtfProtokoll();
+        } catch (e) {
+          if (btn) btn.disabled = false;
+          showToast(`Fehler: ${e.message}`, 'error');
+        }
+      }
+
       // ── DTF: Protokoll laden ──────────────────────────────────────────────
       async function loadDtfProtokoll() {
         const el = document.getElementById('dtf-protokoll');
@@ -1239,14 +1319,26 @@
             el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Keine offenen L-Shop Bestellungen.</p>';
             return;
           }
-          const headerHtml = `<div class="lshop-offen-header">🔴 OFFEN (${items.length} Variante${items.length !== 1 ? 'n' : ''})</div>`;
-          el.innerHTML = headerHtml + items.map(item => {
+          el.innerHTML = `
+            <div class="lshop-offen-header">
+              <span>🔴 OFFEN (${items.length} Variante${items.length !== 1 ? 'n' : ''})</span>
+              <label class="bulk-all-label"><input type="checkbox" class="select-cb" id="lshop-select-all"> Alle</label>
+            </div>
+            <div class="bulk-bar" id="lshop-bulk-bar" style="display:none;">
+              <span class="bulk-count" id="lshop-bulk-count"></span>
+              <button class="btn-lshop-bestellen" id="lshop-bulk-btn">📦 Ausgewählte bestellen</button>
+            </div>` + items.map(item => {
             const orderLines = item.betroffeneOrders
               .map(o => `#${o.orderId} ${o.kunde} ×${o.stueck}`)
               .join(' &nbsp;·&nbsp; ');
             const varLabel = item.variante || '–';
+            const safeKey  = item.groupKey.replace(/[^a-z0-9]/gi, '_');
+            const safeAttr = item.groupKey.replace(/"/g, '');
             return `
-              <div class="lshop-card" id="lshop-card-${item.groupKey.replace(/[^a-z0-9]/gi,'_')}">
+              <div class="lshop-card" id="lshop-card-${safeKey}">
+                <div class="card-cb-wrap">
+                  <input type="checkbox" class="select-cb lshop-select-cb" data-groupkey="${safeAttr}">
+                </div>
                 <div class="lshop-card-info">
                   <div class="lshop-card-title">${item.artikelnummer}</div>
                   <div class="lshop-card-variante">${varLabel}</div>
@@ -1256,21 +1348,35 @@
                 <div class="lshop-card-right">
                   <span class="lshop-stueck">${item.stueck} Stk</span>
                   <input class="lshop-kw-input" type="text" placeholder="KW…"
-                    data-groupkey="${item.groupKey.replace(/"/g,'')}"
-                    title="Lieferwoche eingeben">
-                  <button class="btn-lshop-bestellen"
-                    data-groupkey="${item.groupKey.replace(/"/g,'')}">
-                    📦 Beim L-Shop bestellt
-                  </button>
+                    data-groupkey="${safeAttr}" title="Lieferwoche eingeben">
+                  <button class="btn-lshop-bestellen" data-groupkey="${safeAttr}">📦 Beim L-Shop bestellt</button>
                 </div>
               </div>`;
           }).join('');
 
-          // Daten als Map für Klick-Handler speichern
           window._lshopOffenData = Object.fromEntries(items.map(i => [i.groupKey, i]));
 
-          // Bestellt-Buttons
-          el.querySelectorAll('.btn-lshop-bestellen').forEach(btn => {
+          function updateLShopBulkBar() {
+            const cbs     = el.querySelectorAll('.lshop-select-cb');
+            const checked = el.querySelectorAll('.lshop-select-cb:checked');
+            const n = checked.length;
+            const bar = el.querySelector('#lshop-bulk-bar');
+            const bulkBtn = el.querySelector('#lshop-bulk-btn');
+            const cnt = el.querySelector('#lshop-bulk-count');
+            const all = el.querySelector('#lshop-select-all');
+            if (bar) bar.style.display = n > 0 ? 'flex' : 'none';
+            if (bulkBtn) bulkBtn.textContent = `📦 ${n} ausgewählte bestellen`;
+            if (cnt) cnt.textContent = `${n} von ${cbs.length} ausgewählt`;
+            if (all) { all.checked = n === cbs.length && cbs.length > 0; all.indeterminate = n > 0 && n < cbs.length; }
+          }
+
+          el.querySelector('#lshop-select-all')?.addEventListener('change', e => {
+            el.querySelectorAll('.lshop-select-cb').forEach(cb => cb.checked = e.target.checked);
+            updateLShopBulkBar();
+          });
+          el.querySelectorAll('.lshop-select-cb').forEach(cb => cb.addEventListener('change', updateLShopBulkBar));
+          el.querySelector('#lshop-bulk-btn')?.addEventListener('click', () => lshopBestellenBulk(el));
+          el.querySelectorAll('.btn-lshop-bestellen[data-groupkey]').forEach(btn => {
             btn.addEventListener('click', () => lshopBestellen(btn.dataset.groupkey, el));
           });
         } catch (e) {
@@ -1315,6 +1421,50 @@
 
           if (!listEl.querySelector('.lshop-card')) {
             listEl.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Alle Artikel bestellt.</p>';
+          }
+          loadLShopOffen();
+          loadLShopProtokoll();
+        } catch (e) {
+          if (btn) btn.disabled = false;
+          showToast(`Fehler: ${e.message}`, 'error');
+        }
+      }
+
+      // ── L-Shop: Sammelbestellung ──────────────────────────────────────────
+      async function lshopBestellenBulk(listEl) {
+        const checked = [...listEl.querySelectorAll('.lshop-select-cb:checked')];
+        if (checked.length === 0) return;
+        const btn = listEl.querySelector('#lshop-bulk-btn');
+        if (btn) btn.disabled = true;
+
+        const bestellungen = checked.map(cb => {
+          const item = window._lshopOffenData?.[cb.dataset.groupkey];
+          if (!item) return null;
+          const card = listEl.querySelector(`#lshop-card-${cb.dataset.groupkey.replace(/[^a-z0-9]/gi, '_')}`);
+          const kw   = card?.querySelector('.lshop-kw-input')?.value?.trim() ?? '';
+          return {
+            ssotId:        item.ssotId,
+            artikelnummer: item.artikelnummer,
+            variante:      item.variante,
+            stueck:        item.stueck,
+            kw,
+            orderIds:      item.betroffeneOrders.map(o => o.orderId),
+            wcItemIds:     item.betroffeneOrders.flatMap(o =>
+              o.wcItemIds.map(wid => ({ orderId: o.orderId, wcItemId: wid }))
+            ),
+          };
+        }).filter(Boolean);
+
+        try {
+          const resp = await fetch(`${API_BASE()}/api/auftragsmonitor/lshop/bestellen-bulk`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bestellungen }),
+          }).then(r => r.json());
+
+          if (resp.errors?.length) {
+            showToast(`${resp.totalOrdered} bestellt · ${resp.errors.length} Fehler`, 'error');
+          } else {
+            showToast(`${resp.totalOrdered} Artikel beim L-Shop bestellt`);
           }
           loadLShopOffen();
           loadLShopProtokoll();
