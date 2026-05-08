@@ -23,6 +23,7 @@ jobs:
         with:
           workload_identity_provider: projects/181760755456/locations/global/workloadIdentityPools/github-pool/providers/github-provider
           service_account: mission-control-sa@mission-control-495711.iam.gserviceaccount.com
+          token_format: 'access_token'
 
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v2
