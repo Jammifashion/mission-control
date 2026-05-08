@@ -6,10 +6,9 @@ import './scripts/check-env.js';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
 
 import { loadAllSecrets } from './utils/secrets.js';
-import { requireApiKey } from './middleware/auth.js';
+import { apiRateLimiter, requireApiKey } from './middleware/auth.js';
 import woocommerceRouter from './routes/woocommerce.js';
 import claudeRouter from './routes/claude.js';
 import sheetsRouter from './routes/sheets.js';
@@ -23,26 +22,14 @@ const PORT = process.env.PORT || 3001;
 // ── Security & parsing ────────────────────────────────────────────────────────
 app.use(helmet());
 app.use(cors({
-  origin: (process.env.CORS_ORIGIN || 'http://localhost:5173,http://localhost:4000').split(',').map(s => s.trim()),
+  origin: (process.env.CORS_ORIGIN || 'http://localhost:5173').split(',').map(s => s.trim()),
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
 }));
 app.use(express.json({ limit: '256kb' }));
 
-// ── Rate limiting ─────────────────────────────────────────────────────────────
-app.use('/api/', rateLimit({
-  windowMs: 60 * 1000,
-  max: 60,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Zu viele Anfragen. Bitte kurz warten.' },
-}));
-
-// ── Auth ──────────────────────────────────────────────────────────────────────
-app.use((req, res, next) => {
-  const open = ['/', '/health', '/api/health/full'];
-  if (open.includes(req.path)) return next();
-  requireApiKey(req, res, next);
-});
+// ── Rate limiting → Auth (Reihenfolge: rateLimiter → requireApiKey → Router) ──
+app.use('/api/', apiRateLimiter);
+app.use(requireApiKey);
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => res.json({ status: 'ok', ts: Date.now() }));
