@@ -46,7 +46,7 @@ jobs:
             --platform managed \
             --allow-unauthenticated \
             --service-account mission-control-sa@mission-control-495711.iam.gserviceaccount.com \
-            --set-env-vars NODE_ENV=production,GOOGLE_PROJECT_ID=mission-control-495711,PORT=8080 \
+            --set-env-vars NODE_ENV=production,GOOGLE_PROJECT_ID=mission-control-495711 \
             --memory 512Mi \
             --min-instances 0 \
             --max-instances 2
