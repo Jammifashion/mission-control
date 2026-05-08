@@ -184,10 +184,11 @@ router.get('/stats', async (req, res, next) => {
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
     const weekStart  = new Date(); weekStart.setDate(weekStart.getDate() - 6); weekStart.setHours(0, 0, 0, 0);
 
-    const [ordersToday, pendingOrders, activeProducts, ordersWeek] = await Promise.all([
+    const [ordersToday, pendingOrders, processingOrders, activeProducts, ordersWeek] = await Promise.all([
       wc.get('orders', { after: todayStart.toISOString(), per_page: 100 }),
-      wc.get('orders', { status: 'on-hold', per_page: 1 }),
-      wc.get('products', { status: 'publish', per_page: 1 }),
+      wc.get('orders', { status: 'on-hold',    per_page: 1 }),
+      wc.get('orders', { status: 'processing', per_page: 1 }),
+      wc.get('products', { status: 'publish',  per_page: 1 }),
       wc.get('orders', { after: weekStart.toISOString(), per_page: 100 }),
     ]);
 
@@ -212,7 +213,8 @@ router.get('/stats', async (req, res, next) => {
     res.json({
       orders_today:    ordersToday.data.length,
       revenue_today:   revenueToday.toFixed(2),
-      pending:         parseInt(pendingOrders.headers['x-wp-total'] ?? '0', 10),
+      pending:         parseInt(pendingOrders.headers['x-wp-total']    ?? '0', 10),
+      processing:      parseInt(processingOrders.headers['x-wp-total'] ?? '0', 10),
       products_active: parseInt(activeProducts.headers['x-wp-total'] ?? '0', 10),
       revenue_7days:   Object.values(dayMap).map(d => ({ date: d.date, revenue: parseFloat(d.revenue.toFixed(2)) })),
     });

@@ -100,11 +100,15 @@
       .dash-stat-clickable:hover { border-color: var(--accent); }
       .dash-stat-value { font-size: 2.2rem; font-weight: 700; color: var(--accent); line-height: 1; }
       .dash-stat-label { font-size: 0.72rem; color: var(--muted); margin-top: 0.35rem; text-transform: uppercase; letter-spacing: 0.05em; }
+      .rev-donut-wrap { display: grid; grid-template-columns: 65fr 35fr; gap: 1.25rem; align-items: center; }
       .rev-chart { display: flex; align-items: flex-end; gap: 6px; height: 120px; }
       .rev-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; justify-content: flex-end; }
       .rev-bar { width: 100%; background: var(--accent); border-radius: 3px 3px 0 0; opacity: 0.8; transition: opacity 0.15s; }
       .rev-col:hover .rev-bar { opacity: 1; }
       .rev-day { font-size: 0.62rem; color: var(--muted); }
+      .donut-wrap { display: flex; flex-direction: column; align-items: center; gap: 0.55rem; }
+      .donut-svg { width: 100%; max-width: 120px; }
+      .donut-legend { font-size: 0.72rem; color: var(--muted); text-align: center; line-height: 1.8; }
       .dash-placeholder { color: var(--muted); font-size: 0.85rem; padding: 0.25rem 0; }
       .cost-rows { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.85rem; }
       .cost-item { display: flex; justify-content: space-between; font-size: 0.87rem; }
@@ -554,8 +558,15 @@
         </div>
         <div class="card">
           <h2>Umsatz letzte 7 Tage</h2>
-          <div id="rev-chart-wrap" class="rev-chart">
-            <div class="skeleton" style="width:100%;height:90px;align-self:flex-start;"></div>
+          <div class="rev-donut-wrap">
+            <div id="rev-chart-wrap" class="rev-chart">
+              <div class="skeleton" style="width:100%;height:90px;align-self:flex-start;"></div>
+            </div>
+            <div id="donut-wrap" class="donut-wrap">
+              <svg class="donut-svg" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="35" fill="none" stroke="#2a2a2a" stroke-width="14"/>
+              </svg>
+            </div>
           </div>
         </div>
         <div class="card">
@@ -1076,6 +1087,32 @@
           } else {
             chartEl.innerHTML = '<p style="color:var(--muted);font-size:0.82rem;align-self:center;">Keine Daten</p>';
           }
+
+          // Donut chart – offene Bestellungen nach Status
+          (function renderDonut(processing, onHold) {
+            const donutEl = document.getElementById('donut-wrap');
+            if (!donutEl) return;
+            const C     = 219.91;   // 2π × 35
+            const total = processing + onHold;
+            let segs    = `<circle cx="50" cy="50" r="35" fill="none" stroke="#242424" stroke-width="14"/>`;
+            if (total > 0) {
+              const pLen = parseFloat(((processing / total) * C).toFixed(2));
+              const oLen = parseFloat(((onHold     / total) * C).toFixed(2));
+              if (pLen > 0) segs += `<circle cx="50" cy="50" r="35" fill="none" stroke="#e8c44a" stroke-width="14"
+                stroke-dasharray="${pLen} ${C}" stroke-dashoffset="0" transform="rotate(-90 50 50)"/>`;
+              if (oLen > 0) segs += `<circle cx="50" cy="50" r="35" fill="none" stroke="#555" stroke-width="14"
+                stroke-dasharray="${oLen} ${C}" stroke-dashoffset="${-pLen}" transform="rotate(-90 50 50)"/>`;
+            }
+            donutEl.innerHTML = `
+              <svg class="donut-svg" viewBox="0 0 100 100">${segs}
+                <text x="50" y="47" text-anchor="middle" font-size="18" font-weight="700" fill="#ececec">${total}</text>
+                <text x="50" y="60" text-anchor="middle" font-size="7.5" fill="#777">Offen</text>
+              </svg>
+              <div class="donut-legend">
+                <span style="color:#e8c44a">▪</span> ${processing} In Bearbeitung<br>
+                <span style="color:#555">▪</span> ${onHold} Wartestellung
+              </div>`;
+          })(stats.processing ?? 0, stats.pending ?? 0);
 
           // Recent orders
           document.getElementById('recent-orders').innerHTML = ordersTable(orders);
