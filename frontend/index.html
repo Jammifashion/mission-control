@@ -154,6 +154,24 @@
       .lshop-panel { display: none; }
       .lshop-panel.active { display: block; }
 
+      /* ── DTF inner tabs ── */
+      .dtf-tab {
+        background: none; border: none; border-bottom: 2px solid transparent;
+        color: var(--muted); cursor: pointer; font-size: 0.82rem; font-weight: 500;
+        padding: 0.4rem 0.9rem; margin-bottom: -1px; transition: color 0.15s;
+      }
+      .dtf-tab:hover { color: var(--fg); }
+      .dtf-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+      .dtf-panel { display: none; }
+      .dtf-panel.active { display: block; }
+      .btn-dtf-bestellen {
+        background: #1a3a20; color: #4caf50; border: 1px solid #2a5a30;
+        border-radius: 5px; padding: 0.3rem 0.65rem; font-size: 0.8rem; font-weight: 500;
+        cursor: pointer; white-space: nowrap; transition: background 0.15s;
+      }
+      .btn-dtf-bestellen:hover { background: #1f4525; }
+      .btn-dtf-bestellen:disabled { opacity: 0.5; cursor: not-allowed; }
+
       .lshop-offen-header { font-size: 0.82rem; font-weight: 600; color: var(--muted); margin-bottom: 0.75rem; letter-spacing: 0.03em; }
 
       /* ── L-Shop Varianten-Karten ── */
@@ -564,7 +582,7 @@
       <section id="panel-orders" class="panel">
         <div class="sub-tabs">
           <button class="sub-tab active" data-subtab="tab-jfn-shop">Jammifashion Shop</button>
-          <button class="sub-tab" data-subtab="tab-dtf" disabled title="Coming soon">DTF Bestellungen</button>
+          <button class="sub-tab" data-subtab="tab-dtf">DTF Bestellungen</button>
           <button class="sub-tab" data-subtab="tab-lshop">L-Shop Bestellungen</button>
         </div>
 
@@ -575,8 +593,20 @@
           </div>
         </div>
 
-        <!-- Placeholder für spätere Sub-Reiter -->
-        <div id="tab-dtf" class="sub-tab-panel"></div>
+        <div id="tab-dtf" class="sub-tab-panel">
+          <div class="card">
+            <div class="lshop-inner-tabs">
+              <button class="dtf-tab active" data-dtftab="dtf-offen">Offen</button>
+              <button class="dtf-tab" data-dtftab="dtf-protokoll">Protokoll</button>
+            </div>
+            <div id="dtf-offen" class="dtf-panel active">
+              <div class="skeleton"></div><div class="skeleton"></div>
+            </div>
+            <div id="dtf-protokoll" class="dtf-panel" style="display:none;">
+              <div class="skeleton"></div><div class="skeleton"></div>
+            </div>
+          </div>
+        </div>
         <div id="tab-lshop" class="sub-tab-panel">
           <div class="card">
             <div class="lshop-inner-tabs">
@@ -1055,6 +1085,20 @@
           btn.classList.add('active');
           panel.classList.add('active');
           if (btn.dataset.subtab === 'tab-lshop') loadLShopOffen();
+          if (btn.dataset.subtab === 'tab-dtf')   loadDtfOffen();
+        });
+      });
+
+      // ── DTF inner Tab-Wechsel ─────────────────────────────────────────────
+      document.querySelectorAll('.dtf-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.dtf-tab').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.dtf-panel').forEach(p => { p.classList.remove('active'); p.style.display = 'none'; });
+          btn.classList.add('active');
+          const panel = document.getElementById(btn.dataset.dtftab);
+          panel.classList.add('active');
+          panel.style.display = 'block';
+          if (btn.dataset.dtftab === 'dtf-protokoll') loadDtfProtokoll();
         });
       });
 
@@ -1070,6 +1114,120 @@
           if (btn.dataset.lshoptab === 'lshop-protokoll') loadLShopProtokoll();
         });
       });
+
+      // ── DTF: Offen laden ─────────────────────────────────────────────────
+      async function loadDtfOffen() {
+        const el = document.getElementById('dtf-offen');
+        el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+        try {
+          const items = await fetch(`${API_BASE()}/api/auftragsmonitor/dtf/offen`).then(r => r.json());
+          if (!Array.isArray(items) || items.length === 0) {
+            el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Keine offenen DTF-Aufträge.</p>';
+            return;
+          }
+          const headerHtml = `<div class="lshop-offen-header">🔴 OFFEN (${items.length} Variante${items.length !== 1 ? 'n' : ''})</div>`;
+          el.innerHTML = headerHtml + items.map(item => {
+            const orderLines = item.betroffeneOrders
+              .map(o => `#${o.orderId} ${o.kunde} ×${o.stueck}`)
+              .join(' &nbsp;·&nbsp; ');
+            const varLabel = item.variante || '–';
+            return `
+              <div class="lshop-card" id="dtf-card-${item.groupKey.replace(/[^a-z0-9]/gi,'_')}">
+                <div class="lshop-card-info">
+                  <div class="lshop-card-title">${item.artikelnummer}</div>
+                  <div class="lshop-card-variante">${varLabel}</div>
+                  <div class="lshop-card-bedarf">Bedarf: <strong>${item.stueck} Stück</strong> · ${item.betroffeneOrders.length} Bestellung${item.betroffeneOrders.length !== 1 ? 'en' : ''}</div>
+                  <div class="lshop-card-orders">${orderLines}</div>
+                </div>
+                <div class="lshop-card-right">
+                  <span class="lshop-stueck">${item.stueck} Stk</span>
+                  <button class="btn-dtf-bestellen"
+                    data-groupkey="${item.groupKey.replace(/"/g,'')}">
+                    🖨️ DTF bestellt
+                  </button>
+                </div>
+              </div>`;
+          }).join('');
+
+          window._dtfOffenData = Object.fromEntries(items.map(i => [i.groupKey, i]));
+
+          el.querySelectorAll('.btn-dtf-bestellen').forEach(btn => {
+            btn.addEventListener('click', () => dtfBestellen(btn.dataset.groupkey, el));
+          });
+        } catch (e) {
+          el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Fehler: ${e.message}</p>`;
+        }
+      }
+
+      // ── DTF: Bestellen ────────────────────────────────────────────────────
+      async function dtfBestellen(groupKey, listEl) {
+        const item = window._dtfOffenData?.[groupKey];
+        if (!item) return;
+
+        const cardId = `dtf-card-${groupKey.replace(/[^a-z0-9]/gi,'_')}`;
+        const card   = document.getElementById(cardId);
+        const btn    = card?.querySelector('.btn-dtf-bestellen');
+        if (btn) btn.disabled = true;
+
+        const orderIds  = item.betroffeneOrders.map(o => o.orderId);
+        const wcItemIds = item.betroffeneOrders.flatMap(o =>
+          o.wcItemIds.map(wid => ({ orderId: o.orderId, wcItemId: wid }))
+        );
+
+        try {
+          const resp = await fetch(`${API_BASE()}/api/auftragsmonitor/dtf/bestellen`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ssotId:        item.ssotId,
+              artikelnummer: item.artikelnummer,
+              variante:      item.variante,
+              stueck:        item.stueck,
+              orderIds,
+              wcItemIds,
+            }),
+          }).then(r => r.json());
+
+          if (!resp.ok) throw new Error(resp.error ?? 'Unbekannter Fehler');
+          card?.remove();
+          showToast(`${item.artikelnummer} · ${item.variante || '–'} als DTF bestellt markiert (${resp.bestellId})`);
+
+          if (!listEl.querySelector('.lshop-card')) {
+            listEl.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Alle Aufträge bestellt.</p>';
+          }
+          loadDtfOffen();
+          loadDtfProtokoll();
+        } catch (e) {
+          if (btn) btn.disabled = false;
+          showToast(`Fehler: ${e.message}`, 'error');
+        }
+      }
+
+      // ── DTF: Protokoll laden ──────────────────────────────────────────────
+      async function loadDtfProtokoll() {
+        const el = document.getElementById('dtf-protokoll');
+        el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
+        try {
+          const rows = await fetch(`${API_BASE()}/api/auftragsmonitor/dtf/protokoll?days=7`).then(r => r.json());
+          if (!Array.isArray(rows) || rows.length === 0) {
+            el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Keine Einträge in den letzten 7 Tagen.</p>';
+            return;
+          }
+          el.innerHTML = rows.map(r => {
+            const d = new Date(r.bestelldatum).toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'2-digit' });
+            return `
+              <div class="lshop-proto-row">
+                <span class="lshop-proto-id">${r.bestellId}</span>
+                <span class="lshop-proto-detail">
+                  ${r.artikelnummer}${r.variante ? ' · ' + r.variante : ''}
+                  · <strong>${r.stueck} Stk</strong>
+                </span>
+                <span class="lshop-proto-meta">${d}<br>${r.betroffeneOrders ? '#' + r.betroffeneOrders.replace(/,\s*/g,' #') : ''}</span>
+              </div>`;
+          }).join('');
+        } catch (e) {
+          el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Fehler: ${e.message}</p>`;
+        }
+      }
 
       // ── L-Shop: Offen laden ───────────────────────────────────────────────
       async function loadLShopOffen() {
