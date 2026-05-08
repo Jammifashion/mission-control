@@ -975,6 +975,15 @@
           <p id="url-saved" style="color:var(--success);font-size:0.8rem;margin-top:0.5rem;display:none;">Gespeichert.</p>
         </div>
         <div class="card">
+          <h2>API Key</h2>
+          <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+            <input id="api-key" type="password" placeholder="MC_API_KEY"
+              style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.6rem 0.8rem;color:var(--text);font-size:0.9rem;" />
+            <button class="btn" id="save-key">Speichern</button>
+          </div>
+          <p id="key-saved" style="color:var(--success);font-size:0.8rem;margin-top:0.5rem;display:none;">Gespeichert.</p>
+        </div>
+        <div class="card">
           <h2>PWA installieren</h2>
           <button class="btn btn-ghost" id="install-btn" style="display:none;">Zum Startbildschirm hinzufügen</button>
           <p id="install-hint" style="color:var(--muted);font-size:0.85rem;">App bereits installiert oder Browser unterstützt keine Installation.</p>
@@ -986,7 +995,21 @@
 
     <script type="module">
       // ── Config ──────────────────────────────────────────────────────────
-      const API_BASE = () => localStorage.getItem('mc_api_url') || 'http://localhost:3001';
+      const API_BASE = () => localStorage.getItem('mc_api_url') || 'https://mission-control-backend-181760755456.europe-west1.run.app';
+
+      function getApiKey() {
+        let key = localStorage.getItem('mc_api_key');
+        if (key === null) {
+          key = (prompt('Mission Control API Key eingeben:') ?? '').trim();
+          localStorage.setItem('mc_api_key', key);
+        }
+        return key;
+      }
+
+      function apiFetch(url, options = {}) {
+        const headers = { ...(options.headers ?? {}), 'X-API-Key': getApiKey() };
+        return fetch(url, { ...options, headers });
+      }
 
       // ── Tab navigation ───────────────────────────────────────────────────
       document.querySelectorAll('nav button').forEach(btn => {
@@ -1006,7 +1029,7 @@
         const dot = document.getElementById('status-dot');
         if (!dot) return;
         try {
-          const data = await fetch(`${API_BASE()}/api/health/full`, { signal: AbortSignal.timeout(10000) }).then(r => r.json());
+          const data = await apiFetch(`${API_BASE()}/api/health/full`, { signal: AbortSignal.timeout(10000) }).then(r => r.json());
           const s = data.services ?? {};
           const label = svc => s[svc]?.ok ? '✓' : '✗';
           dot.title     = `WC ${label('woocommerce')} | Sheet ${label('sheet')} | Claude ${label('claude')}`;
@@ -1054,8 +1077,8 @@
         setGreeting();
         try {
           const [stats, orders] = await Promise.all([
-            fetch(`${API_BASE()}/api/woocommerce/stats`).then(r => r.json()),
-            fetch(`${API_BASE()}/api/woocommerce/orders?per_page=5`).then(r => r.json()),
+            apiFetch(`${API_BASE()}/api/woocommerce/stats`).then(r => r.json()),
+            apiFetch(`${API_BASE()}/api/woocommerce/orders?per_page=5`).then(r => r.json()),
           ]);
 
           // Stat cards
@@ -1167,7 +1190,7 @@
         const el = document.getElementById('dtf-offen');
         el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
         try {
-          const items = await fetch(`${API_BASE()}/api/auftragsmonitor/dtf/offen`).then(r => r.json());
+          const items = await apiFetch(`${API_BASE()}/api/auftragsmonitor/dtf/offen`).then(r => r.json());
           if (!Array.isArray(items) || items.length === 0) {
             el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Keine offenen DTF-Aufträge.</p>';
             return;
@@ -1251,7 +1274,7 @@
         );
 
         try {
-          const resp = await fetch(`${API_BASE()}/api/auftragsmonitor/dtf/bestellen`, {
+          const resp = await apiFetch(`${API_BASE()}/api/auftragsmonitor/dtf/bestellen`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               ssotId:        item.ssotId,
@@ -1301,7 +1324,7 @@
         }).filter(Boolean);
 
         try {
-          const resp = await fetch(`${API_BASE()}/api/auftragsmonitor/dtf/bestellen-bulk`, {
+          const resp = await apiFetch(`${API_BASE()}/api/auftragsmonitor/dtf/bestellen-bulk`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ bestellungen }),
           }).then(r => r.json());
@@ -1324,7 +1347,7 @@
         const el = document.getElementById('dtf-protokoll');
         el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
         try {
-          const rows = await fetch(`${API_BASE()}/api/auftragsmonitor/dtf/protokoll?days=7`).then(r => r.json());
+          const rows = await apiFetch(`${API_BASE()}/api/auftragsmonitor/dtf/protokoll?days=7`).then(r => r.json());
           if (!Array.isArray(rows) || rows.length === 0) {
             el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Keine Einträge in den letzten 7 Tagen.</p>';
             return;
@@ -1351,7 +1374,7 @@
         const el = document.getElementById('lshop-offen');
         el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
         try {
-          const items = await fetch(`${API_BASE()}/api/auftragsmonitor/lshop/offen`).then(r => r.json());
+          const items = await apiFetch(`${API_BASE()}/api/auftragsmonitor/lshop/offen`).then(r => r.json());
           if (!Array.isArray(items) || items.length === 0) {
             el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Keine offenen L-Shop Bestellungen.</p>';
             return;
@@ -1439,7 +1462,7 @@
         );
 
         try {
-          const resp = await fetch(`${API_BASE()}/api/auftragsmonitor/lshop/bestellen`, {
+          const resp = await apiFetch(`${API_BASE()}/api/auftragsmonitor/lshop/bestellen`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               ssotId:        item.ssotId,
@@ -1493,7 +1516,7 @@
         }).filter(Boolean);
 
         try {
-          const resp = await fetch(`${API_BASE()}/api/auftragsmonitor/lshop/bestellen-bulk`, {
+          const resp = await apiFetch(`${API_BASE()}/api/auftragsmonitor/lshop/bestellen-bulk`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ bestellungen }),
           }).then(r => r.json());
@@ -1516,7 +1539,7 @@
         const el = document.getElementById('lshop-protokoll');
         el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
         try {
-          const rows = await fetch(`${API_BASE()}/api/auftragsmonitor/lshop/protokoll?days=7`).then(r => r.json());
+          const rows = await apiFetch(`${API_BASE()}/api/auftragsmonitor/lshop/protokoll?days=7`).then(r => r.json());
           if (!Array.isArray(rows) || rows.length === 0) {
             el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Keine Einträge in den letzten 7 Tagen.</p>';
             return;
@@ -1620,8 +1643,8 @@
         try {
           // WC-Bestellung und Sheet-Status parallel laden
           const [order, resp] = await Promise.all([
-            fetch(`${API_BASE()}/api/woocommerce/orders/${orderId}`).then(r => r.json()),
-            fetch(`${API_BASE()}/api/sheets/produktions-status?orderId=${orderId}`).then(r => r.json()),
+            apiFetch(`${API_BASE()}/api/woocommerce/orders/${orderId}`).then(r => r.json()),
+            apiFetch(`${API_BASE()}/api/sheets/produktions-status?orderId=${orderId}`).then(r => r.json()),
           ]);
 
           // Varianten-Attribute aus WC meta_data extrahieren (interne Keys mit _ überspringen)
@@ -1640,11 +1663,11 @@
             const initItems = (order.line_items ?? []).map(item => ({
               wcItemId: String(item.id), artikelname: item.name, sku: item.sku || '', menge: item.quantity,
             }));
-            await fetch(`${API_BASE()}/api/sheets/produktions-status/init`, {
+            await apiFetch(`${API_BASE()}/api/sheets/produktions-status/init`, {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ orderId: String(orderId), items: initItems }),
             });
-            const fresh = await fetch(`${API_BASE()}/api/sheets/produktions-status?orderId=${orderId}`).then(r => r.json());
+            const fresh = await apiFetch(`${API_BASE()}/api/sheets/produktions-status?orderId=${orderId}`).then(r => r.json());
             items = fresh.items ?? [];
           }
 
@@ -1669,11 +1692,11 @@
             const { order, item, field } = cb.dataset;
             const newVal = cb.checked;
             try {
-              await fetch(`${API_BASE()}/api/sheets/produktions-status`, {
+              await apiFetch(`${API_BASE()}/api/sheets/produktions-status`, {
                 method: 'PUT', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ orderId: order, wcItemId: item, field, value: newVal }),
               });
-              const updated = await fetch(`${API_BASE()}/api/sheets/produktions-status?orderId=${order}`).then(r => r.json());
+              const updated = await apiFetch(`${API_BASE()}/api/sheets/produktions-status?orderId=${order}`).then(r => r.json());
               document.getElementById(`order-progress-${order}`).innerHTML = progressBadge(updated.items ?? []);
             } catch {
               cb.checked = !newVal;
@@ -1686,7 +1709,7 @@
           input.addEventListener('blur', async () => {
             const { order, item } = input.dataset;
             try {
-              await fetch(`${API_BASE()}/api/sheets/produktions-status/notiz`, {
+              await apiFetch(`${API_BASE()}/api/sheets/produktions-status/notiz`, {
                 method: 'PUT', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ orderId: order, wcItemId: item, notiz: input.value }),
               });
@@ -1700,7 +1723,7 @@
       // ── Bestellung als erledigt markieren ────────────────────────────────
       async function completeOrder(orderId) {
         try {
-          await fetch(`${API_BASE()}/api/woocommerce/orders/${orderId}/status`, {
+          await apiFetch(`${API_BASE()}/api/woocommerce/orders/${orderId}/status`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: 'completed' }),
           });
@@ -1723,7 +1746,7 @@
         el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
         summaryEl.style.display = 'none';
         try {
-          const orders = await fetch(`${API_BASE()}/api/woocommerce/orders?per_page=50&status=pending,processing,on-hold`).then(r => r.json());
+          const orders = await apiFetch(`${API_BASE()}/api/woocommerce/orders?per_page=50&status=pending,processing,on-hold`).then(r => r.json());
           const count = Array.isArray(orders) ? orders.length : 0;
           const total = (Array.isArray(orders) ? orders : []).reduce((s, o) => s + parseFloat(o.total || 0), 0);
           summaryEl.innerHTML = `<strong>${count}</strong> offene Bestellung${count !== 1 ? 'en' : ''} &nbsp;·&nbsp; EUR <strong>${total.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> Umsatz`;
@@ -1767,7 +1790,7 @@
           ['attribute',         `${base}/api/woocommerce/attributes`],
         ].map(async ([key, url]) => {
           try {
-            const r = await fetch(url, { signal: AbortSignal.timeout(8000) });
+            const r = await apiFetch(url, { signal: AbortSignal.timeout(8000) });
             if (r.ok) ssot[key] = await r.json();
           } catch { /* Fallback: Array bleibt leer */ }
         }));
@@ -2029,7 +2052,7 @@
             key:   variantKey(v.attrs),
             label: v.attrs.map(a => `${a.name}: ${a.value}`).join(', '),
           }));
-          const res  = await fetch(`${API_BASE()}/api/claude/generate-product`, {
+          const res  = await apiFetch(`${API_BASE()}/api/claude/generate-product`, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({ action: 'suggest_variants', name, combos: combosPayload }),
@@ -2334,7 +2357,7 @@
         if (!name) { alert('Bitte zuerst den Produktnamen eintragen.'); return; }
         setProdDescStatus('loading');
         try {
-          const res = await fetch(`${API_BASE()}/api/claude/generate-product`, {
+          const res = await apiFetch(`${API_BASE()}/api/claude/generate-product`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'generate_description', name, keywords, shop: 'JFN' }),
@@ -2355,7 +2378,7 @@
         const sel = document.getElementById('pf-entwurf-select');
         sel.innerHTML = '<option value="">Wird geladen…</option>';
         try {
-          const res = await fetch(`${API_BASE()}/api/sheets/erfassung/list`);
+          const res = await apiFetch(`${API_BASE()}/api/sheets/erfassung/list`);
           draftList = await res.json();
           sel.innerHTML = '<option value="">— Entwurf auswählen —</option>';
           if (!draftList.length) {
@@ -2407,7 +2430,7 @@
         const ssotIdVal = d.ssotId;
         if (ssotIdVal) {
           try {
-            const vResp = await fetch(`${API_BASE()}/api/sheets/varianten?ssotId=${encodeURIComponent(ssotIdVal)}`);
+            const vResp = await apiFetch(`${API_BASE()}/api/sheets/varianten?ssotId=${encodeURIComponent(ssotIdVal)}`);
             const vData = await vResp.json();
             const loadedVariants = (vData.varianten ?? []).map(v => ({
               attrs: [
@@ -2563,7 +2586,7 @@
         seoCurrentItem = null;
         sel.innerHTML = '<option value="">Wird geladen…</option>';
         try {
-          const res = await fetch(`${API_BASE()}/api/sheets/erfassung/seo-pending`);
+          const res = await apiFetch(`${API_BASE()}/api/sheets/erfassung/seo-pending`);
           seoPendingList = await res.json();
           if (!Array.isArray(seoPendingList) || !seoPendingList.length) {
             sel.innerHTML = '<option value="">Keine ausstehenden SEO-Artikel</option>';
@@ -2607,7 +2630,7 @@
         // WC product → Quill content + social media via categories
         if (seoCurrentItem.wcId) {
           loadPromises.push(
-            fetch(`${API_BASE()}/api/woocommerce/products/${seoCurrentItem.wcId}`)
+            apiFetch(`${API_BASE()}/api/woocommerce/products/${seoCurrentItem.wcId}`)
               .then(r => r.json())
               .then(async p => {
                 quillSeoShort.root.innerHTML = p.short_description || '';
@@ -2616,7 +2639,7 @@
                 const catId = p.categories?.[0]?.id;
                 if (catId) {
                   try {
-                    const sm = await fetch(`${API_BASE()}/api/sheets/social-media?kategorieId=${catId}`);
+                    const sm = await apiFetch(`${API_BASE()}/api/sheets/social-media?kategorieId=${catId}`);
                     const { instagram, tiktok } = await sm.json();
                     document.getElementById('seo-instagram').value = instagram || '';
                     document.getElementById('seo-tiktok').value    = tiktok    || '';
@@ -2637,7 +2660,7 @@
         statusMsg.style.color = 'var(--muted)';
         statusMsg.textContent = 'L-Shop Seite wird geladen und Beschreibung generiert…';
         try {
-          const res = await fetch(`${API_BASE()}/api/claude/generate-product`, {
+          const res = await apiFetch(`${API_BASE()}/api/claude/generate-product`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -2676,7 +2699,7 @@
         statusMsg.style.color = 'var(--muted)';
         statusMsg.textContent = 'Wird gespeichert…';
         try {
-          const wcRes = await fetch(`${API_BASE()}/api/woocommerce/products/${seoCurrentItem.wcId}`, {
+          const wcRes = await apiFetch(`${API_BASE()}/api/woocommerce/products/${seoCurrentItem.wcId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -2686,7 +2709,7 @@
           });
           if (!wcRes.ok) throw new Error('WooCommerce-Update fehlgeschlagen');
 
-          await fetch(`${API_BASE()}/api/sheets/erfassung/patch-fields`, {
+          await apiFetch(`${API_BASE()}/api/sheets/erfassung/patch-fields`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -2779,7 +2802,7 @@
               `Variante <strong>${label}</strong> wirklich löschen?`, 'Löschen');
             if (!ok) return;
             try {
-              const r = await fetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations/${v.id}`, { method: 'DELETE' });
+              const r = await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations/${v.id}`, { method: 'DELETE' });
               if (!r.ok) throw new Error('Löschen fehlgeschlagen');
               existingVariations = existingVariations.filter(x => x.id !== v.id);
               renderExistingVariations();
@@ -2820,7 +2843,7 @@
         }));
 
         // Produkt-Attribute aktualisieren
-        await fetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}`, {
+        await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -2833,7 +2856,7 @@
         let added = 0;
         for (const v of toCreate) {
           try {
-            await fetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations`, {
+            await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -2846,7 +2869,7 @@
         }
 
         // Tabelle neu laden
-        const vRes  = await fetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations`);
+        const vRes  = await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations`);
         const vData = await vRes.json();
         existingVariations = vData.map(v => ({
           id:         v.id,
@@ -2880,7 +2903,7 @@
           wcSearchResults.innerHTML = '<div class="wc-search-item" style="color:var(--muted)">Suche…</div>';
           wcSearchResults.style.display = 'block';
           try {
-            const res  = await fetch(`${API_BASE()}/api/woocommerce/products/search?q=${encodeURIComponent(q)}&per_page=40`);
+            const res  = await apiFetch(`${API_BASE()}/api/woocommerce/products/search?q=${encodeURIComponent(q)}&per_page=40`);
             const list = await res.json();
             if (!list.length) {
               wcSearchResults.innerHTML = '<div class="wc-search-item" style="color:var(--muted)">Keine Treffer</div>';
@@ -2913,9 +2936,9 @@
         document.getElementById('prod-push-status').textContent = 'Produkt wird geladen…';
         try {
           const [prodRes, varRes, ssotRes] = await Promise.all([
-            fetch(`${API_BASE()}/api/woocommerce/products/${id}`),
-            fetch(`${API_BASE()}/api/woocommerce/products/${id}/variations`),
-            fetch(`${API_BASE()}/api/sheets/erfassung/by-wc-id?id=${id}`),
+            apiFetch(`${API_BASE()}/api/woocommerce/products/${id}`),
+            apiFetch(`${API_BASE()}/api/woocommerce/products/${id}/variations`),
+            apiFetch(`${API_BASE()}/api/sheets/erfassung/by-wc-id?id=${id}`),
           ]);
           const p       = await prodRes.json();
           const vars    = await varRes.json();
@@ -3020,7 +3043,7 @@
 
         try {
           const selectedShopStatus = statusShopSel.value;
-          const res = await fetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}`, {
+          const res = await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -3056,7 +3079,7 @@
               shortDesc:  document.getElementById('prod-short-desc').value,
               fullDesc:   document.getElementById('prod-full-desc-raw').value,
             };
-            await fetch(`${API_BASE()}/api/sheets/erfassung/overwrite`, {
+            await apiFetch(`${API_BASE()}/api/sheets/erfassung/overwrite`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -3073,7 +3096,7 @@
           const changedVars = existingVariations.filter(v => v.price !== v._origPrice);
           for (const v of changedVars) {
             try {
-              await fetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations/${v.id}`, {
+              await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations/${v.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ regular_price: String(v.price) }),
@@ -3199,7 +3222,7 @@
 
         try {
           // ── Erster Call: prüfen ob Artikelnummer bereits existiert ────────
-          const res  = await fetch(`${API_BASE()}/api/sheets/erfassung`, {
+          const res  = await apiFetch(`${API_BASE()}/api/sheets/erfassung`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
@@ -3235,7 +3258,7 @@
           btn.disabled    = true;
           btn.textContent = 'Wird überschrieben…';
 
-          const res2  = await fetch(`${API_BASE()}/api/sheets/erfassung/overwrite`, {
+          const res2  = await apiFetch(`${API_BASE()}/api/sheets/erfassung/overwrite`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ row: data.row, ssotId: data.ssotId, ...payload }),
@@ -3318,7 +3341,7 @@
         try {
           // Schritt 1: Produkt anlegen
           pushStatus.textContent = 'Schritt 1/3: Produkt wird angelegt…';
-          const res1 = await fetch(`${API_BASE()}/api/woocommerce/products`, {
+          const res1 = await apiFetch(`${API_BASE()}/api/woocommerce/products`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -3373,7 +3396,7 @@
                   googleFarbe:   v.googleFarbe ?? '',
                 };
               });
-              await fetch(`${API_BASE()}/api/sheets/varianten/${encodeURIComponent(ssotId)}`, {
+              await apiFetch(`${API_BASE()}/api/sheets/varianten/${encodeURIComponent(ssotId)}`, {
                 method:  'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body:    JSON.stringify({ varianten: variantenPayload }),
@@ -3399,7 +3422,7 @@
               fullDesc:   document.getElementById('prod-full-desc-raw').value,
             };
             const sheetPayload = buildSheetPayload(draft, artikelnummer);
-            await fetch(`${API_BASE()}/api/sheets/erfassung/overwrite`, {
+            await apiFetch(`${API_BASE()}/api/sheets/erfassung/overwrite`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -3450,7 +3473,7 @@
         appendMsg('user', text);
         const thinking = appendMsg('assistant thinking', '…');
         try {
-          const res = await fetch(`${API_BASE()}/api/claude/chat`, {
+          const res = await apiFetch(`${API_BASE()}/api/claude/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ message: text }),
@@ -3481,6 +3504,15 @@
         saved.style.display = 'block';
         setTimeout(() => saved.style.display = 'none', 2000);
         checkStatus();
+      });
+
+      const keyInput = document.getElementById('api-key');
+      keyInput.value = localStorage.getItem('mc_api_key') || '';
+      document.getElementById('save-key').addEventListener('click', () => {
+        localStorage.setItem('mc_api_key', keyInput.value.trim());
+        const saved = document.getElementById('key-saved');
+        saved.style.display = 'block';
+        setTimeout(() => saved.style.display = 'none', 2000);
       });
 
       // ── PWA install prompt ───────────────────────────────────────────────
