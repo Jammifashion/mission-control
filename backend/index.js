@@ -7,6 +7,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 
+import { requireApiKey } from './middleware/auth.js';
 import woocommerceRouter from './routes/woocommerce.js';
 import claudeRouter from './routes/claude.js';
 import sheetsRouter from './routes/sheets.js';
@@ -33,6 +34,13 @@ app.use('/api/', rateLimit({
   legacyHeaders: false,
   message: { error: 'Zu viele Anfragen. Bitte kurz warten.' },
 }));
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+app.use((req, res, next) => {
+  const open = ['/', '/health', '/api/health/full'];
+  if (open.includes(req.path)) return next();
+  requireApiKey(req, res, next);
+});
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => res.json({ status: 'ok', ts: Date.now() }));
