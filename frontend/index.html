@@ -3194,8 +3194,8 @@
       }
 
       // Save draft → localStorage + Google Sheet (mit Duplikat-Prüfung)
-      document.getElementById('btn-save-draft').addEventListener('click', async () => {
-        const btn          = document.getElementById('btn-save-draft');
+      async function saveDraft(showButton = true) {
+        const btn = showButton ? document.getElementById('btn-save-draft') : null;
         const artikelnummer = document.getElementById('pf-article-nr').value.trim();
 
         if (variants.length > 0 && variants.slice(0, 50).some(v => !v.price)) {
@@ -3203,8 +3203,10 @@
           return;
         }
 
-        btn.disabled    = true;
-        btn.textContent = 'Wird gespeichert…';
+        if (btn) {
+          btn.disabled    = true;
+          btn.textContent = 'Wird gespeichert…';
+        }
 
         const draft = {
           status:       prodStatusSel.value,
@@ -3232,8 +3234,10 @@
         };
 
         const resetBtn = () => {
-          btn.textContent = 'Entwurf speichern';
-          btn.disabled    = false;
+          if (btn) {
+            btn.textContent = 'Entwurf speichern';
+            btn.disabled    = false;
+          }
         };
 
         try {
@@ -3251,7 +3255,7 @@
             applyId(data.ssotId);
             if (data.row) currentDraftRow = data.row;
             resetBtn();
-            showToast(`Gespeichert – SSOT-ID: ${data.ssotId}`, 'success');
+            if (showButton) showToast(`Gespeichert – SSOT-ID: ${data.ssotId}`, 'success');
             return;
           }
 
@@ -3285,12 +3289,17 @@
           applyId(data2.ssotId);
           if (data.row) currentDraftRow = data.row;
           resetBtn();
-          showToast(`Überschrieben – SSOT-ID: ${data2.ssotId}`, 'success');
+          if (showButton) showToast(`Überschrieben – SSOT-ID: ${data2.ssotId}`, 'success');
 
         } catch (e) {
           resetBtn();
-          showToast(`Fehler: ${e.message}`, 'error', 5000);
+          if (showButton) showToast(`Fehler: ${e.message}`, 'error', 5000);
+          throw e;
         }
+      }
+
+      document.getElementById('btn-save-draft').addEventListener('click', async () => {
+        await saveDraft(true);
       });
 
       // SSOT-ID generator: JFN-YYYY-NNNN (counter persisted in localStorage per year)
@@ -3319,7 +3328,7 @@
         }
       }
 
-      // Create in WooCommerce – drei Schritte: Produkt → Varianten → Sheet-Writeback
+      // Create in WooCommerce – mit automatischem Draft-Save falls nötig
       document.getElementById('btn-create-wc').addEventListener('click', async () => {
         const activeVariants = variants.filter(v => v._checked !== false);
         if (activeVariants.length === 0 && variants.length > 0) {
@@ -3335,7 +3344,24 @@
         createWcBtn.disabled = true;
         pushStatus.style.color = 'var(--muted)';
 
-        const ssotId       = document.getElementById('pf-ssot-id').value;
+        let ssotId = document.getElementById('pf-ssot-id').value;
+
+        // Wenn keine SSOT-ID vorhanden: Entwurf zuerst speichern
+        if (!ssotId) {
+          try {
+            pushStatus.textContent = 'Schritt 0/4: Entwurf wird gespeichert…';
+            await saveDraft(false);
+            ssotId = document.getElementById('pf-ssot-id').value;
+            if (!ssotId) throw new Error('SSOT-ID konnte nicht generiert werden');
+            pushStatus.textContent = 'Schritt 0/4: Entwurf gespeichert. Artikel wird angelegt…';
+          } catch (e) {
+            pushStatus.textContent = `Fehler beim Entwurf-Save: ${e.message}`;
+            pushStatus.style.color = 'var(--danger)';
+            createWcBtn.disabled = false;
+            showToast(`Fehler: ${e.message}`, 'error', 5000);
+            return;
+          }
+        }
         const defaultPrice = document.getElementById('pf-price-regular').value;
 
         // Aggregierte Attribute nur aus angehakten Varianten
