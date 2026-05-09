@@ -2266,13 +2266,19 @@
               const isOpen = drop.classList.contains('open');
               document.querySelectorAll('.prop-suggest-dropdown.open').forEach(d => d.classList.remove('open'));
               if (!isOpen) {
-                renderSuggestList(searchInp.value); // refresh to reflect current tags
+                renderSuggestList(searchInp.value);
                 drop.classList.add('open');
                 setTimeout(() => searchInp.focus(), 50);
               }
               e.stopPropagation();
             });
             drop.addEventListener('click', e => e.stopPropagation());
+
+            // Auto-open when property name was just selected (no tags yet)
+            if (!prop.tags.length) {
+              renderSuggestList('');
+              drop.classList.add('open');
+            }
 
             suggestWrap.appendChild(trigger);
             suggestWrap.appendChild(drop);
