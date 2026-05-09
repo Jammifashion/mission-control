@@ -132,7 +132,7 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
 
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
       const geminiModel = genAI.getGenerativeModel({
-        model: process.env.GEMINI_MODEL || 'gemini-2.5-flash-preview-05-20',
+        model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
         systemInstruction: SUGGEST_SYSTEM,
       });
 
@@ -196,7 +196,7 @@ Erstelle folgende Texte und antworte NUR mit diesem JSON:
       if (process.env.GEMINI_API_KEY) {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         const geminiModel = genAI.getGenerativeModel({
-          model: process.env.GEMINI_MODEL || 'gemini-2.5-flash-preview-05-20',
+          model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
           systemInstruction: SEO_SYSTEM,
         });
         const geminiResult = await geminiModel.generateContent(userPrompt);
