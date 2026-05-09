@@ -270,6 +270,7 @@ router.post('/products', async (req, res, next) => {
       variation_ids:       variationIds,
     });
   } catch (err) {
+    console.error('WC Error Response:', err.response?.data);
     next(err);
   }
 });
