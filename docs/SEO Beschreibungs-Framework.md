@@ -59,6 +59,7 @@
 
 #### Block 2 – Produktdetails (Pflicht + SEO)
 Als strukturierte Liste – muss Pflichtangaben enthalten:
+**Max. 7 Punkte**, davon einer immer: Material-Angabe (Rechtspflicht)
 
 ```
 📐 Passform: Regular Fit / Slim Fit / Oversized
@@ -70,15 +71,18 @@ Als strukturierte Liste – muss Pflichtangaben enthalten:
 🏭 Hergestellt in: [Herkunftsland wenn bekannt]
 ```
 
-**Wichtig:** Material-Zeile ist RECHTSPFLICHT – darf nie fehlen.
+**Wichtig:** 
+- Material-Zeile ist RECHTSPFLICHT – darf nie fehlen
+- Insgesamt max. 7 Punkte (nicht alle aufzählen, nur die wichtigsten)
 
 ---
 
-#### Block 3 – SEO-Fließtext (100-150 Wörter)
+#### Block 3 – SEO-Fließtext (60-80 Wörter)
 - 1 Hauptkeyword + 2-3 Longtail-Keywords natürlich eingebaut
 - Einzigartiger Text (kein Herstellertext, kein Duplicate Content)
 - Informativ + emotional
 - Zielgruppe direkt ansprechen
+- **Längenvorgabe:** 60-80 Wörter (kurz und prägnant)
 
 **Keyword-Strategie für Jammifashion:**
 | Produkttyp | Hauptkeyword | Longtails |
@@ -109,7 +113,8 @@ WICHTIGE REGELN:
 4. Beschreibungen müssen einzigartig sein (kein Herstellertext)
 5. Faserzusammensetzung MUSS als Pflichtangabe enthalten sein (EU-Textilkennzeichnungsverordnung)
 6. Wenn Material unbekannt: Platzhalter "[Material: bitte ergänzen]" setzen
-7. Antworte NUR mit dem JSON-Objekt, ohne Präambel oder Markdown-Codeblock
+7. HTML-Formatierung: Nur <p>, <ul>, <li>, <strong>, <em>, <br> verwenden – KEIN Markdown
+8. Antworte NUR mit dem JSON-Objekt, ohne Präambel oder Markdown-Codeblock
 ```
 
 ### User Prompt Template
@@ -129,10 +134,18 @@ PRODUKTDATEN:
 EIGENE HINWEISE / IDEEN:
 {eigene_hinweise}
 
-Erstelle folgende Texte und antworte NUR mit diesem JSON:
+LÄNGENVORGABEN:
+- kurzbeschreibung: Plain Text, max. 160 Zeichen, 2 Sätze, Hauptkeyword im 1. Satz, CTA am Ende
+- produktbeschreibung gesamt: max. 200 Wörter
+  * Block 1 – Emotionaler Einstieg: 2 Sätze in <p>
+  * Block 2 – Produktdetails: <ul> mit max. 7 <li>-Punkten, Material als PFLICHTANGABE
+  * Block 3 – SEO-Fließtext: 60-80 Wörter in <p>, mit Longtail-Keywords
+  * Block 4 – CTA: 1 Satz in <p>
+
+Erstelle folgende Texte und antworte NUR mit diesem JSON (KEIN Markdown-Codeblock):
 {
-  "kurzbeschreibung": "2-3 Sätze, 120-160 Zeichen, Hauptkeyword im ersten Satz, CTA am Ende",
-  "produktbeschreibung": "HTML-formatiert mit 4 Blöcken: 1) Emotionaler Einstieg (2-3 Sätze) 2) Produktdetails als <ul>-Liste mit Material als PFLICHTANGABE 3) SEO-Fließtext 100-150 Wörter mit Longtail-Keywords 4) kurzer CTA-Abschluss"
+  "kurzbeschreibung": "Plain Text, max. 160 Zeichen",
+  "produktbeschreibung": "Valides HTML mit <p>, <ul>, <li>, <strong>, <em>, <br>"
 }
 ```
 
@@ -157,7 +170,8 @@ Erstelle folgende Texte und antworte NUR mit diesem JSON:
 
 ### Kurzbeschreibung ✓ wenn:
 - [ ] Hauptkeyword in ersten 10 Wörtern
-- [ ] 120-160 Zeichen
+- [ ] Max. 160 Zeichen
+- [ ] 2 Sätze
 - [ ] CTA enthalten
 - [ ] Kein Keyword-Stuffing
 
@@ -166,8 +180,12 @@ Erstelle folgende Texte und antworte NUR mit diesem JSON:
 - [ ] Mindestens 1 Longtail-Keyword
 - [ ] 4 Blöcke vorhanden
 - [ ] Kein Herstellertext / kein Duplicate Content
-- [ ] HTML valide (<ul>, <li>, <strong>, <p>)
-- [ ] 150-300 Wörter gesamt
+- [ ] HTML valide (nur <p>, <ul>, <li>, <strong>, <em>, <br> – KEIN Markdown)
+- [ ] Max. 200 Wörter gesamt
+- [ ] Produktdetails: max. 7 Punkte
+- [ ] SEO-Fließtext: 60-80 Wörter
+- [ ] Block 1 (Einstieg): 2 Sätze
+- [ ] Block 4 (CTA): 1 Satz
 
 ---
 

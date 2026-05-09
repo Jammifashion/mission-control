@@ -164,7 +164,8 @@ WICHTIGE REGELN:
 4. Beschreibungen müssen einzigartig sein (kein Herstellertext)
 5. Faserzusammensetzung MUSS als Pflichtangabe enthalten sein (EU-Textilkennzeichnungsverordnung)
 6. Wenn Material unbekannt: Platzhalter "[Material: bitte ergänzen]" setzen
-7. Antworte NUR mit dem JSON-Objekt, ohne Präambel oder Markdown-Codeblock`;
+7. HTML-Formatierung: Nur <p>, <ul>, <li>, <strong>, <em>, <br> verwenden – KEIN Markdown, KEIN Markdown-Codeblock
+8. Antworte NUR mit dem JSON-Objekt, ohne Präambel`;
 
       // Größen und Farben aus eigenschaften extrahieren
       const eigenschaftenLines = eigenschaften ? eigenschaften.split('\n').filter(Boolean) : [];
@@ -186,10 +187,27 @@ PRODUKTDATEN:
 EIGENE HINWEISE / IDEEN:
 ${hinweise || 'keine'}
 
-Erstelle folgende Texte und antworte NUR mit diesem JSON:
+LÄNGENVORGABEN:
+- kurzbeschreibung: Plain Text, max. 160 Zeichen, 2 Sätze, Hauptkeyword im 1. Satz, CTA am Ende
+- produktbeschreibung gesamt: max. 200 Wörter
+  * Block 1 – Emotionaler Einstieg: 2 Sätze in <p>
+  * Block 2 – Produktdetails: <ul> mit max. 7 <li>-Punkten, Material als PFLICHTANGABE, verwende <strong> wo sinnvoll
+  * Block 3 – SEO-Fließtext: 60-80 Wörter in <p>, mit Longtail-Keywords
+  * Block 4 – CTA: 1 Satz in <p>
+
+HTML-Beispiel:
+<p>Emotionaler Einstieg 1. Satz. Emotionaler Einstieg 2. Satz.</p>
+<ul>
+<li><strong>Material:</strong> 100% Polyester</li>
+<li>Schnitt: Regular Fit</li>
+</ul>
+<p>SEO-Fließtext mit Keywords...</p>
+<p>CTA-Satz.</p>
+
+Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock um das JSON):
 {
-  "kurzbeschreibung": "2-3 Sätze, 120-160 Zeichen, Hauptkeyword im ersten Satz, CTA am Ende",
-  "produktbeschreibung": "HTML-formatiert mit 4 Blöcken: 1) Emotionaler Einstieg (2-3 Sätze) 2) Produktdetails als <ul>-Liste mit Material als PFLICHTANGABE 3) SEO-Fließtext 100-150 Wörter mit Longtail-Keywords 4) kurzer CTA-Abschluss"
+  "kurzbeschreibung": "Plain Text, max. 160 Zeichen",
+  "produktbeschreibung": "Valides HTML mit <p>, <ul>, <li>, <strong>, <em>, <br>"
 }`;
 
       let raw;
@@ -216,8 +234,13 @@ Erstelle folgende Texte und antworte NUR mit diesem JSON:
 
       let parsed;
       try {
-        const jsonMatch = raw.match(/\{[\s\S]*\}/);
-        parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
+        let cleaned = raw.trim();
+        // Markdown-Codeblock entfernen falls vorhanden
+        if (cleaned.startsWith('```')) {
+          cleaned = cleaned.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+        }
+        const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+        parsed = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);
       } catch {
         return res.status(502).json({ error: 'KI-Antwort konnte nicht geparst werden.', raw });
       }
