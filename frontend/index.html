@@ -1008,7 +1008,8 @@
 
       function apiFetch(url, options = {}) {
         const headers = { ...(options.headers ?? {}), 'X-API-Key': getApiKey() };
-        return fetch(url, { ...options, headers });
+        const signal = options.signal ?? AbortSignal.timeout(15000);
+        return fetch(url, { ...options, headers, signal });
       }
 
       // ── Tab navigation ───────────────────────────────────────────────────
