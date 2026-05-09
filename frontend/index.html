@@ -1786,8 +1786,8 @@
         const base = API_BASE();
         await Promise.allSettled([
           ['wcShippingClasses', `${base}/api/woocommerce/shipping-classes`],
-          ['kategorien',        `${base}/api/woocommerce/categories`],
-          ['attribute',         `${base}/api/woocommerce/attributes`],
+          ['kategorien',        `${base}/api/sheets/kategorien`],
+          ['attribute',         `${base}/api/sheets/attribute`],
         ].map(async ([key, url]) => {
           try {
             const r = await apiFetch(url, { signal: AbortSignal.timeout(8000) });
@@ -3504,6 +3504,7 @@
         saved.style.display = 'block';
         setTimeout(() => saved.style.display = 'none', 2000);
         checkStatus();
+        loadSsotData();
       });
 
       const keyInput = document.getElementById('api-key');
@@ -3513,6 +3514,7 @@
         const saved = document.getElementById('key-saved');
         saved.style.display = 'block';
         setTimeout(() => saved.style.display = 'none', 2000);
+        loadSsotData();
       });
 
       // ── PWA install prompt ───────────────────────────────────────────────
