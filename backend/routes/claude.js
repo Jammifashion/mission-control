@@ -193,7 +193,8 @@ LÄNGENVORGABEN:
 - kurzbeschreibung: Plain Text, max. 160 Zeichen, 2 Sätze, Hauptkeyword im 1. Satz, CTA am Ende
 - produktbeschreibung gesamt: max. 200 Wörter, exakt diese Struktur:
 
-<h2>[Produktname] – [kurzer USP mit Hauptkeyword]</h2>
+<h2>[Produktname] – [4 Wörter Kurzslogan mit Hauptkeyword]</h2>
+Beispiele: "Badminton Trikot – Dein Vereinslook", "Hoodie bedruckt – Dein Design, dein Style"
 <p>[Emotionaler Einstieg: 2 Sätze, Zielgruppenansprache]</p>
 
 <h3>Produktdetails</h3>
