@@ -10,6 +10,7 @@ node_modules/
 
 # Google service account credentials
 google-credentials.json
+google-credentials-new.json
 *-credentials.json
 
 # Build output
