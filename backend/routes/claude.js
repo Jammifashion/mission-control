@@ -164,8 +164,10 @@ WICHTIGE REGELN:
 4. Beschreibungen müssen einzigartig sein (kein Herstellertext)
 5. Faserzusammensetzung MUSS als Pflichtangabe enthalten sein (EU-Textilkennzeichnungsverordnung)
 6. Wenn Material unbekannt: Platzhalter "[Material: bitte ergänzen]" setzen
-7. HTML-Formatierung: Nur <p>, <ul>, <li>, <strong>, <em>, <br> verwenden – KEIN Markdown, KEIN Markdown-Codeblock
-8. Antworte NUR mit dem JSON-Objekt, ohne Präambel`;
+7. HTML-Formatierung: Nur <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>, <br> verwenden – KEIN Markdown, KEIN Markdown-Codeblock
+8. <h2> enthält Produktname + kurzen USP und das Hauptkeyword
+9. <h3> sind Zwischenüberschriften für Struktur (z.B. "Produktdetails", "Das sagt der Court")
+10. Antworte NUR mit dem JSON-Objekt, ohne Präambel`;
 
       // Größen und Farben aus eigenschaften extrahieren
       const eigenschaftenLines = eigenschaften ? eigenschaften.split('\n').filter(Boolean) : [];
@@ -189,25 +191,26 @@ ${hinweise || 'keine'}
 
 LÄNGENVORGABEN:
 - kurzbeschreibung: Plain Text, max. 160 Zeichen, 2 Sätze, Hauptkeyword im 1. Satz, CTA am Ende
-- produktbeschreibung gesamt: max. 200 Wörter
-  * Block 1 – Emotionaler Einstieg: 2 Sätze in <p>
-  * Block 2 – Produktdetails: <ul> mit max. 7 <li>-Punkten, Material als PFLICHTANGABE, verwende <strong> wo sinnvoll
-  * Block 3 – SEO-Fließtext: 60-80 Wörter in <p>, mit Longtail-Keywords
-  * Block 4 – CTA: 1 Satz in <p>
+- produktbeschreibung gesamt: max. 200 Wörter, exakt diese Struktur:
 
-HTML-Beispiel:
-<p>Emotionaler Einstieg 1. Satz. Emotionaler Einstieg 2. Satz.</p>
+<h2>[Produktname] – [kurzer USP mit Hauptkeyword]</h2>
+<p>[Emotionaler Einstieg: 2 Sätze, Zielgruppenansprache]</p>
+
+<h3>Produktdetails</h3>
 <ul>
-<li><strong>Material:</strong> 100% Polyester</li>
-<li>Schnitt: Regular Fit</li>
+<li><strong>Material:</strong> ... (PFLICHTANGABE)</li>
+... (max. 7 Punkte gesamt)
 </ul>
-<p>SEO-Fließtext mit Keywords...</p>
-<p>CTA-Satz.</p>
+
+<h3>Das sagt der Court</h3>
+<p>[SEO-Fließtext: 60-80 Wörter mit Longtail-Keywords]</p>
+
+<p>[CTA: 1 Satz]</p>
 
 Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock um das JSON):
 {
   "kurzbeschreibung": "Plain Text, max. 160 Zeichen",
-  "produktbeschreibung": "Valides HTML mit <p>, <ul>, <li>, <strong>, <em>, <br>"
+  "produktbeschreibung": "Valides HTML wie oben definiert"
 }`;
 
       let raw;
