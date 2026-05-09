@@ -3367,7 +3367,7 @@
           const res1 = await apiFetch(`${API_BASE()}/api/woocommerce/products`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            signal: AbortSignal.timeout(60000),
+            signal: AbortSignal.timeout(120000),
             body: JSON.stringify({
               name:              document.getElementById('pf-name').value.trim(),
               short_description: document.getElementById('prod-short-desc').value,
