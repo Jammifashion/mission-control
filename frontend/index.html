@@ -3382,7 +3382,7 @@
             }),
           });
           const data1 = await res1.json();
-          if (!res1.ok || data1.error) throw new Error(data1.error || 'Produkt-Anlage fehlgeschlagen');
+          if (!res1.ok || data1.error) throw new Error(data1.error || data1.message || 'Produkt-Anlage fehlgeschlagen');
 
           const wcId      = data1.id;
           const wcStatus  = data1.status ?? 'draft';

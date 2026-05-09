@@ -230,9 +230,28 @@ router.post('/products', async (req, res, next) => {
     const wc = getClient();
     const { ssot_id, variations, ...payload } = req.body;
 
-    // Schritt 1: Produkt anlegen
+    // Schritt 1: Produkt anlegen (mit SKU-Fallback bei Duplikat)
     console.log('WC POST /products payload:', JSON.stringify({ ...payload, status: 'draft' }, null, 2));
-    const productResponse = await wc.post('products', { ...payload, status: 'draft' });
+    let productResponse;
+    try {
+      productResponse = await wc.post('products', { ...payload, status: 'draft' });
+    } catch (skuErr) {
+      if (skuErr.response?.data?.code === 'product_invalid_sku') {
+        const fallbackSku = (payload.sku || '') + '-v2';
+        console.warn(`SKU "${payload.sku}" bereits vergeben – Retry mit "${fallbackSku}"`);
+        try {
+          productResponse = await wc.post('products', { ...payload, sku: fallbackSku, status: 'draft' });
+        } catch (retryErr) {
+          const msg = retryErr.response?.data?.message || retryErr.message;
+          console.error('WC SKU Retry fehlgeschlagen:', retryErr.response?.data);
+          const e = new Error(`SKU bereits vergeben. Bitte Artikelnummer anpassen. (${msg})`);
+          e.status = 422;
+          throw e;
+        }
+      } else {
+        throw skuErr;
+      }
+    }
     console.log('WC POST /products HTTP status:', productResponse.status);
     const productRaw = productResponse.data;
     const product = Array.isArray(productRaw) ? productRaw[0] : productRaw;
