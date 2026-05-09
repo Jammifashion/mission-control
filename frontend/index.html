@@ -1787,13 +1787,28 @@
         await Promise.allSettled([
           ['wcShippingClasses', `${base}/api/woocommerce/shipping-classes`],
           ['kategorien',        `${base}/api/sheets/kategorien`],
-          ['attribute',         `${base}/api/sheets/attribute`],
         ].map(async ([key, url]) => {
           try {
             const r = await apiFetch(url, { signal: AbortSignal.timeout(8000) });
             if (r.ok) ssot[key] = await r.json();
           } catch { /* Fallback: Array bleibt leer */ }
         }));
+
+        // Attribute: WC-API (globale Attribute) primär, Sheets als Fallback
+        try {
+          const r = await apiFetch(`${base}/api/woocommerce/attributes`, { signal: AbortSignal.timeout(8000) });
+          if (r.ok) {
+            const data = await r.json();
+            ssot.attribute = data.length ? data : ssot.attribute;
+          }
+        } catch { /* bleibt leer */ }
+        if (!ssot.attribute.length) {
+          try {
+            const r = await apiFetch(`${base}/api/sheets/attribute`, { signal: AbortSignal.timeout(8000) });
+            if (r.ok) ssot.attribute = await r.json();
+          } catch { /* bleibt leer */ }
+        }
+
         populateShipping();
         populateCategories();
         renderProperties();
