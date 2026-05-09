@@ -52,7 +52,10 @@ app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
 // ── Error handler ─────────────────────────────────────────────────────────────
 app.use((err, _req, res, _next) => {
   console.error(err);
-  res.status(500).json({ error: 'Interner Serverfehler.' });
+  const message = process.env.NODE_ENV === 'production'
+    ? (err.message || 'Interner Serverfehler.')
+    : (err.stack || err.message || 'Interner Serverfehler.');
+  res.status(err.status ?? 500).json({ error: message });
 });
 
 app.listen(PORT, () => {

@@ -2400,7 +2400,9 @@
         sel.innerHTML = '<option value="">Wird geladen…</option>';
         try {
           const res = await apiFetch(`${API_BASE()}/api/sheets/erfassung/list`);
-          draftList = await res.json();
+          const json = await res.json();
+          if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+          draftList = json;
           sel.innerHTML = '<option value="">— Entwurf auswählen —</option>';
           if (!draftList.length) {
             sel.innerHTML = '<option value="">Keine Entwürfe vorhanden</option>';
@@ -2414,7 +2416,7 @@
             sel.appendChild(opt);
           });
         } catch (e) {
-          sel.innerHTML = `<option value="">Fehler beim Laden</option>`;
+          sel.innerHTML = `<option value="">Fehler: ${e.message}</option>`;
         }
       }
 
