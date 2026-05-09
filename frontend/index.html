@@ -682,14 +682,14 @@
                   <label>SEO-Status</label>
                   <input id="seo-status-text" type="text" class="form-input accent" readonly value="Ausstehend" />
                 </div>
-                <div class="form-field form-col-full">
-                  <label>L-Shop URL</label>
-                  <input id="seo-lshop-url" type="url" class="form-input" placeholder="https://www.l-shop-team.de/…" />
-                </div>
               </div>
             </div>
             <div class="card" style="margin-bottom:1rem;">
               <div class="form-section-title">Beschreibungen</div>
+              <div class="form-field" style="margin-bottom:0.75rem;">
+                <label>Eigene Hinweise / Ideen für die KI (optional)</label>
+                <textarea id="seo-hinweise" class="form-input" rows="3" style="resize:vertical;font-family:inherit;" placeholder="z.B. Zielgruppe, besondere Merkmale, Tonalität..."></textarea>
+              </div>
               <div class="form-field" style="margin-bottom:0.75rem;">
                 <label>Kurzbeschreibung</label>
                 <div class="rich-editor">
@@ -729,10 +729,6 @@
                 <div class="form-field">
                   <label>TikTok URL <span class="field-note">(aus Kategorie)</span></label>
                   <input id="seo-tiktok" type="url" class="form-input" placeholder="https://tiktok.com/@…" />
-                </div>
-                <div class="form-field form-col-full">
-                  <label>Eigene Ideen / Hinweise</label>
-                  <textarea id="seo-hinweise" class="form-input" rows="3" style="resize:vertical;font-family:inherit;" placeholder="z.B. Betone Vereinseignung, erwähne Sonderfarben…"></textarea>
                 </div>
               </div>
             </div>
@@ -2636,7 +2632,6 @@
         document.getElementById('seo-produktname').value   = seoCurrentItem.produktname;
         document.getElementById('seo-artikelnummer').value = seoCurrentItem.artikelnummer;
         document.getElementById('seo-lshop-nr').value      = seoCurrentItem.lshopNr  || '';
-        document.getElementById('seo-lshop-url').value     = seoCurrentItem.lshopUrl || '';
         document.getElementById('seo-instagram').value     = '';
         document.getElementById('seo-tiktok').value        = '';
         document.getElementById('seo-hinweise').value      = '';
@@ -2682,7 +2677,7 @@
         if (!seoCurrentItem) return;
         const statusMsg = document.getElementById('seo-status-msg');
         statusMsg.style.color = 'var(--muted)';
-        statusMsg.textContent = 'L-Shop Seite wird geladen und Beschreibung generiert…';
+        statusMsg.textContent = 'Beschreibung wird generiert…';
         try {
           const res = await apiFetch(`${API_BASE()}/api/claude/generate-product`, {
             method: 'POST',
@@ -2692,7 +2687,6 @@
               produktname:   seoCurrentItem.produktname,
               artikelnummer: seoCurrentItem.artikelnummer,
               lshopNr:       seoCurrentItem.lshopNr  || '',
-              lshopUrl:      document.getElementById('seo-lshop-url').value,
               kategorien:    '',
               eigenschaften: '',
               instagram:     document.getElementById('seo-instagram').value,
@@ -2740,7 +2734,6 @@
               row: seoCurrentItem.row,
               fields: {
                 'SEO_Status': 'Erledigt',
-                'L-Shop URL': document.getElementById('seo-lshop-url').value,
               },
             }),
           });

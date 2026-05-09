@@ -151,101 +151,80 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
     }
 
     if (action === 'seo_description') {
-      const { produktname, artikelnummer, lshopNr, lshopUrl, kategorien, eigenschaften, instagram, tiktok, hinweise } = req.body;
+      const { produktname, artikelnummer, lshopNr, kategorien, eigenschaften, hinweise } = req.body;
       if (!produktname) return res.status(400).json({ error: 'produktname ist erforderlich.' });
-      if (!lshopUrl?.trim()) return res.status(400).json({ error: 'Bitte L-Shop URL eintragen' });
-      if (!process.env.GEMINI_API_KEY) return res.status(503).json({ error: 'GEMINI_API_KEY nicht konfiguriert.' });
 
-      // ── L-Shop Seite abrufen und HTML zu Klartext reduzieren ─────────────
-      let lshopText = '';
-      try {
-        const htmlRes = await fetch(lshopUrl.trim(), {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'de-DE,de;q=0.9,en;q=0.5',
-          },
-          redirect: 'follow',
-          signal: AbortSignal.timeout(15000),
+      const SEO_SYSTEM = `Du bist ein SEO-Texter für den deutschen Online-Shop jammifashion.de, \
+der individuell bedruckte Textilien für Vereine, Teams und Künstler verkauft.
+
+WICHTIGE REGELN:
+1. Schreibe immer auf Deutsch
+2. Ton: professionell aber nahbar, sportlich-modern
+3. KEIN Keyword-Stuffing
+4. Beschreibungen müssen einzigartig sein (kein Herstellertext)
+5. Faserzusammensetzung MUSS als Pflichtangabe enthalten sein (EU-Textilkennzeichnungsverordnung)
+6. Wenn Material unbekannt: Platzhalter "[Material: bitte ergänzen]" setzen
+7. Antworte NUR mit dem JSON-Objekt, ohne Präambel oder Markdown-Codeblock`;
+
+      // Größen und Farben aus eigenschaften extrahieren
+      const eigenschaftenLines = eigenschaften ? eigenschaften.split('\n').filter(Boolean) : [];
+      const groessen = eigenschaftenLines.filter(l => /größe|size/i.test(l)).join(', ') || 'XS – 3XL';
+      const farben   = eigenschaftenLines.filter(l => /farbe|color/i.test(l)).join(', ') || 'siehe Varianten';
+
+      const userPrompt = `Erstelle SEO-optimierte Produktbeschreibungen für folgenden Artikel:
+
+PRODUKTDATEN:
+- Produktname: ${produktname}
+- Kategorie: ${kategorien || 'Textilien'}
+- L-Shop Artikelnummer: ${lshopNr || 'nicht angegeben'}
+- Verfügbare Größen: ${groessen}
+- Verfügbare Farben: ${farben}
+- Material: [Material: bitte ergänzen] (PFLICHTANGABE - wenn unbekannt: "[Material: bitte ergänzen]")
+- Drucktechnik: DTF-Druck (Direct-to-Film)
+- Zielgruppe: Vereine, Teams, Künstler
+
+EIGENE HINWEISE / IDEEN:
+${hinweise || 'keine'}
+
+Erstelle folgende Texte und antworte NUR mit diesem JSON:
+{
+  "kurzbeschreibung": "2-3 Sätze, 120-160 Zeichen, Hauptkeyword im ersten Satz, CTA am Ende",
+  "produktbeschreibung": "HTML-formatiert mit 4 Blöcken: 1) Emotionaler Einstieg (2-3 Sätze) 2) Produktdetails als <ul>-Liste mit Material als PFLICHTANGABE 3) SEO-Fließtext 100-150 Wörter mit Longtail-Keywords 4) kurzer CTA-Abschluss"
+}`;
+
+      let raw;
+      if (process.env.GEMINI_API_KEY) {
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        const geminiModel = genAI.getGenerativeModel({
+          model: process.env.GEMINI_MODEL || 'gemini-2.5-flash-preview-05-20',
+          systemInstruction: SEO_SYSTEM,
         });
-        if (!htmlRes.ok) throw new Error(`HTTP ${htmlRes.status}`);
-        const html = await htmlRes.text();
-        lshopText = html
-          .replace(/<script[\s\S]*?<\/script>/gi, '')
-          .replace(/<style[\s\S]*?<\/style>/gi, '')
-          .replace(/<[^>]+>/g, ' ')
-          .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').replace(/&#\d+;/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim()
-          .slice(0, 8000);
-      } catch (fetchErr) {
-        return res.status(502).json({ error: `L-Shop Seite konnte nicht geladen werden: ${fetchErr.message}` });
+        const geminiResult = await geminiModel.generateContent(userPrompt);
+        raw = geminiResult.response.text();
+      } else if (process.env.ANTHROPIC_API_KEY) {
+        const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+        const response = await client.messages.create({
+          model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
+          max_tokens: 2048,
+          system: SEO_SYSTEM,
+          messages: [{ role: 'user', content: userPrompt }],
+        });
+        raw = response.content[0]?.text ?? '';
+      } else {
+        return res.status(503).json({ error: 'Weder GEMINI_API_KEY noch ANTHROPIC_API_KEY konfiguriert.' });
       }
-
-      const SEO_SYSTEM = `Du bist ein SEO-Texter für einen deutschen Textildruck-Onlineshop.
-Schreibe verkaufsfördernde, SEO-optimierte Produktbeschreibungen auf Deutsch.
-NICHT erwähnen: Herstellerfirma, L-Shop, Bedruckung, Merch, Druck.
-Pflichtangaben (Materialzusammensetzung in %) immer einbauen.
-Ausgabe als JSON: { "short_description": "...", "description": "..." }`;
-
-      const socialPart = [
-        instagram ? `Instagram: ${instagram}` : '',
-        tiktok    ? `TikTok: ${tiktok}`       : '',
-      ].filter(Boolean).join(' | ');
-
-      const userPrompt = `Erstelle eine SEO-Produktbeschreibung für diesen Artikel.
-
-PRODUKTDATEN (aus Hersteller-Katalogseite extrahieren):
-${lshopText}
-
----
-Produktname im Shop: ${produktname}
-${artikelnummer ? `Artikelnummer: ${artikelnummer}` : ''}
-${lshopNr       ? `L-Shop Nr.: ${lshopNr}`          : ''}
-${kategorien    ? `Kategorien: ${kategorien}`        : ''}
-${eigenschaften ? `Eigenschaften/Varianten: ${eigenschaften}` : ''}
-${socialPart    ? `Social Media: ${socialPart}`      : ''}
-${hinweise      ? `Shop-Hinweise: ${hinweise}`       : ''}
-
-Extrahiere aus den Produktdaten: Material, Grammatur (g/m²), Schnitt/Passform, Pflegehinweise, Materialzusammensetzung in %.
-
-HTML-Aufbau für "description":
-<h2>[Produktname] – [SEO-Keyword]</h2>
-<p>Einleitung: 2-3 Sätze emotional &amp; keyword-reich</p>
-<h3>Artikeleigenschaften</h3>
-<ul>
-  <li>Material &amp; Grammatur</li>
-  <li>Schnitt &amp; Passform</li>
-  <li>Verfügbare Farben/Größen</li>
-  <li>Pflegehinweise</li>
-  <li>Pflichtangaben (Materialzusammensetzung in %)</li>
-</ul>
-${socialPart ? `<p>Abschluss: Social-Media Hinweis auf ${socialPart}</p>` : ''}
-
-"short_description": 1-2 Sätze Teaser, SEO-Keyword am Anfang, kein HTML.
-
-Nur JSON: { "short_description": "...", "description": "..." }`;
-
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      const geminiModel = genAI.getGenerativeModel({
-        model: process.env.GEMINI_MODEL || 'gemini-2.5-flash-preview-05-20',
-        systemInstruction: SEO_SYSTEM,
-      });
-
-      const geminiResult = await geminiModel.generateContent(userPrompt);
-      const raw = geminiResult.response.text();
 
       let parsed;
       try {
         const jsonMatch = raw.match(/\{[\s\S]*\}/);
         parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
       } catch {
-        return res.status(502).json({ error: 'Gemini-Antwort konnte nicht geparst werden.', raw });
+        return res.status(502).json({ error: 'KI-Antwort konnte nicht geparst werden.', raw });
       }
 
       return res.json({
-        short_description: parsed.short_description || '',
-        full_description:  parsed.description || parsed.full_description || '',
+        short_description: parsed.kurzbeschreibung || '',
+        full_description:  parsed.produktbeschreibung || '',
       });
     }
 
