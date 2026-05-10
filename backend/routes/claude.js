@@ -229,14 +229,23 @@ Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock):
       let parsed;
       try {
         let cleaned = raw.trim();
-        // Markdown-Codeblock entfernen falls vorhanden
-        if (cleaned.startsWith('```')) {
-          cleaned = cleaned.replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
-        }
+        console.log('SEO raw response:', cleaned.substring(0, 200));
+
+        // Markdown-Codeblock entfernen falls vorhanden (json ... oder ... oder ```json)
+        cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+
+        // JSON-Objekt extrahieren (alles von { bis })
         const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-        parsed = JSON.parse(jsonMatch ? jsonMatch[0] : cleaned);
-      } catch {
-        return res.status(502).json({ error: 'KI-Antwort konnte nicht geparst werden.', raw });
+        if (!jsonMatch) {
+          console.error('Kein JSON-Match gefunden in:', cleaned.substring(0, 300));
+          throw new Error('Kein JSON-Objekt in Antwort gefunden');
+        }
+
+        parsed = JSON.parse(jsonMatch[0]);
+        console.log('SEO parsed:', Object.keys(parsed));
+      } catch (e) {
+        console.error('SEO parsing error:', e.message, 'raw:', raw.substring(0, 300));
+        return res.status(502).json({ error: 'KI-Antwort konnte nicht geparst werden: ' + e.message, raw: raw.substring(0, 500) });
       }
 
       return res.json({
