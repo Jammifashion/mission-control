@@ -163,6 +163,7 @@ WICHTIG:
 - Faserzusammensetzung MUSS enthalten sein (EU-Textilkennzeichnungsverordnung)
 - Wenn Material unbekannt: "[Material: bitte ergänzen]"
 - HTML nur: <h1>, <h2>, <p>, <ul>, <li>, <strong> – KEIN Markdown, KEIN Codeblock
+- JSON-Output MUSS valides JSON sein: Zeilenumbrüche in Strings als \n, Anführungszeichen in HTML escapen
 - Antworte NUR mit dem JSON-Objekt`;
 
       // Größen und Farben aus eigenschaften extrahieren
@@ -241,8 +242,17 @@ Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock):
           throw new Error('Kein JSON-Objekt in Antwort gefunden');
         }
 
-        parsed = JSON.parse(jsonMatch[0]);
-        console.log('SEO parsed:', Object.keys(parsed));
+        let jsonStr = jsonMatch[0];
+        try {
+          parsed = JSON.parse(jsonStr);
+        } catch (parseErr) {
+          // Fallback: Versuche, ungültige Anführungszeichen in HTML-Strings zu escapen
+          console.warn('JSON Parse failed, attempting cleanup:', parseErr.message);
+          // Vereinfachter Fix: ersetze unescapte Anführungszeichen INNERHALB von HTML-Tags
+          jsonStr = jsonStr.replace(/(<[^>]*)"([^>]*>)/g, '$1\\"$2');
+          parsed = JSON.parse(jsonStr);
+          console.log('SEO parsed after cleanup:', Object.keys(parsed));
+        }
       } catch (e) {
         console.error('SEO parsing error:', e.message, 'raw:', raw.substring(0, 300));
         return res.status(502).json({ error: 'KI-Antwort konnte nicht geparst werden: ' + e.message, raw: raw.substring(0, 500) });
