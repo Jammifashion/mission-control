@@ -172,18 +172,20 @@ WICHTIG:
 
       const userPrompt = `Erstelle Beschreibungen für folgenden FERTIGEN bedruckten Artikel:
 
+KONTEXT & HINWEISE (PRIMÄR):
+${hinweise || 'Keine besonderen Hinweise'}
+
 PRODUKTDATEN:
 - Artikelname: ${produktname}
 - Kategorie: ${kategorien || 'Textilien'}
-- Eigenschaften (Varianten): ${eigenschaften || 'siehe Material'}
 - Material: ${eigenschaftenLines.find(l => /material|baumwolle|polyester/i.test(l))?.trim() || '[Material: bitte ergänzen]'}
-- Hinweise / Anlass / Zielgruppe: ${hinweise || 'keine besonderen Hinweise'}
+${eigenschaften ? `- Weitere Eigenschaften: ${eigenschaften}` : ''}
 
-STRUKTUR der produktbeschreibung (EXAKT einhalten, keine Abweichungen):
+STRUKTUR der produktbeschreibung (EXAKT einhalten):
 
-<h1>[Artikelbezeichnung] – [passender Schlagwort-Slogan, z.B. "Die Vereinstradition", "Party-ready", "Kreatives Statement"]</h1>
+<h1>[Artikelbezeichnung] – [passender Slogan basierend auf Kontext]</h1>
 
-<p>[Einleitung: 2-3 Sätze. Beschreibt WER diesen Artikel trägt (Verein/Team/Künstler/Party-Gast) und WANN/WARUM er getragen wird. Stimmung und Anlass klar machen.]</p>
+<p>[Einleitung: 2-3 Sätze. WER trägt das + WANN/WARUM. Stimmung/Anlass aus Kontext oben. Basiere Ton auf den Hinweisen.]</p>
 
 <h2>Produktdetails</h2>
 <ul>
@@ -191,10 +193,10 @@ STRUKTUR der produktbeschreibung (EXAKT einhalten, keine Abweichungen):
 ${eigenschaftenLines.filter(l => !/material|baumwolle|polyester/i.test(l)).slice(0, 5).map(p => `<li>${p.trim()}</li>`).join('\n')}
 </ul>
 
-<p>[Abschluss: 2 Sätze. Was macht diesen Artikel besonders? Warum sollte man ihn jetzt kaufen? Direkte, motivierende Kaufaufforderung.]</p>
+<p>[Abschluss: 2 Sätze. Was macht diesen Artikel besonders? Direkte Kaufaufforderung – passend zur Stimmung aus den Hinweisen.]</p>
 
-kurzbeschreibung: Plain Text, max. 160 Zeichen, Artikel + Highlight + CTA.
-NICHT "individuell" oder "personalisierbar" schreiben.
+kurzbeschreibung: Plain Text, max. 160 Zeichen. Artikel + Highlight + CTA.
+NICHT "individuell" oder "personalisierbar".
 
 Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock):
 {
