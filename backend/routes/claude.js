@@ -154,63 +154,51 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
       const { produktname, artikelnummer, lshopNr, kategorien, eigenschaften, hinweise } = req.body;
       if (!produktname) return res.status(400).json({ error: 'produktname ist erforderlich.' });
 
-      const SEO_SYSTEM = `Du bist ein SEO-Texter für den deutschen Online-Shop jammifashion.de, \
-der individuell bedruckte Textilien für Vereine, Teams und Künstler verkauft.
+      const SEO_SYSTEM = `Du bist SEO-Texter für jammifashion.de. Der Artikel ist ein FERTIG BEDRUCKTES Textil – genau so wird er verkauft.
 
-WICHTIGE REGELN:
-1. Schreibe immer auf Deutsch
-2. Ton: professionell aber nahbar, sportlich-modern
-3. KEIN Keyword-Stuffing
-4. Beschreibungen müssen einzigartig sein (kein Herstellertext)
-5. Faserzusammensetzung MUSS als Pflichtangabe enthalten sein (EU-Textilkennzeichnungsverordnung)
-6. Wenn Material unbekannt: Platzhalter "[Material: bitte ergänzen]" setzen
-7. HTML-Formatierung: Nur <h2>, <h3>, <p>, <ul>, <li>, <strong>, <em>, <br> verwenden – KEIN Markdown, KEIN Markdown-Codeblock
-8. <h2> enthält Produktname + kurzen USP und das Hauptkeyword
-9. <h3> sind Zwischenüberschriften für Struktur (z.B. "Produktdetails", "Das sagt der Court")
-10. Antworte NUR mit dem JSON-Objekt, ohne Präambel`;
+WICHTIG:
+- NICHT schreiben: "individuell bedruckbar", "eigenes Design", "personalisierbar", "jetzt selbst gestalten"
+- Schreibe als würdest du einen fertigen Markenartikel beschreiben – der Druck IST der Artikel
+- Ton passt sich an: Verein=sportlich/motivierend, Party=locker/spaßig, Künstler=kreativ/einzigartig
+- Faserzusammensetzung MUSS enthalten sein (EU-Textilkennzeichnungsverordnung)
+- Wenn Material unbekannt: "[Material: bitte ergänzen]"
+- HTML nur: <h1>, <h2>, <p>, <ul>, <li>, <strong> – KEIN Markdown, KEIN Codeblock
+- Antworte NUR mit dem JSON-Objekt`;
 
       // Größen und Farben aus eigenschaften extrahieren
       const eigenschaftenLines = eigenschaften ? eigenschaften.split('\n').filter(Boolean) : [];
       const groessen = eigenschaftenLines.filter(l => /größe|size/i.test(l)).join(', ') || 'XS – 3XL';
       const farben   = eigenschaftenLines.filter(l => /farbe|color/i.test(l)).join(', ') || 'siehe Varianten';
 
-      const userPrompt = `Erstelle SEO-optimierte Produktbeschreibungen für folgenden Artikel:
+      const userPrompt = `Erstelle Beschreibungen für folgenden FERTIGEN bedruckten Artikel:
 
 PRODUKTDATEN:
-- Produktname: ${produktname}
+- Artikelname: ${produktname}
 - Kategorie: ${kategorien || 'Textilien'}
-- L-Shop Artikelnummer: ${lshopNr || 'nicht angegeben'}
-- Verfügbare Größen: ${groessen}
-- Verfügbare Farben: ${farben}
-- Material: [Material: bitte ergänzen] (PFLICHTANGABE - wenn unbekannt: "[Material: bitte ergänzen]")
-- Drucktechnik: DTF-Druck (Direct-to-Film)
-- Zielgruppe: Vereine, Teams, Künstler
+- Eigenschaften (Varianten): ${eigenschaften || 'siehe Material'}
+- Material: ${eigenschaftenLines.find(l => /material|baumwolle|polyester/i.test(l))?.trim() || '[Material: bitte ergänzen]'}
+- Hinweise / Anlass / Zielgruppe: ${hinweise || 'keine besonderen Hinweise'}
 
-EIGENE HINWEISE / IDEEN:
-${hinweise || 'keine'}
+STRUKTUR der produktbeschreibung (EXAKT einhalten, keine Abweichungen):
 
-LÄNGENVORGABEN:
-- kurzbeschreibung: Plain Text, max. 160 Zeichen, 2 Sätze, Hauptkeyword im 1. Satz, CTA am Ende
-- produktbeschreibung gesamt: max. 200 Wörter, exakt diese Struktur:
+<h1>[Artikelbezeichnung] – [passender Schlagwort-Slogan, z.B. "Die Vereinstradition", "Party-ready", "Kreatives Statement"]</h1>
 
-<h2>[Produktname] – [4 Wörter Kurzslogan mit Hauptkeyword]</h2>
-Beispiele: "Badminton Trikot – Dein Vereinslook", "Hoodie bedruckt – Dein Design, dein Style"
-<p>[Emotionaler Einstieg: 2 Sätze, Zielgruppenansprache]</p>
+<p>[Einleitung: 2-3 Sätze. Beschreibt WER diesen Artikel trägt (Verein/Team/Künstler/Party-Gast) und WANN/WARUM er getragen wird. Stimmung und Anlass klar machen.]</p>
 
-<h3>Produktdetails</h3>
+<h2>Produktdetails</h2>
 <ul>
-<li><strong>Material:</strong> ... (PFLICHTANGABE)</li>
-... (max. 7 Punkte gesamt)
+<li><strong>Material:</strong> ${eigenschaftenLines.find(l => /material|baumwolle|polyester/i.test(l))?.trim() || '[Material: bitte ergänzen]'}</li>
+${eigenschaftenLines.filter(l => !/material|baumwolle|polyester/i.test(l)).slice(0, 5).map(p => `<li>${p.trim()}</li>`).join('\n')}
 </ul>
 
-<h3>Das sagt der Court</h3>
-<p>[SEO-Fließtext: 60-80 Wörter mit Longtail-Keywords]</p>
+<p>[Abschluss: 2 Sätze. Was macht diesen Artikel besonders? Warum sollte man ihn jetzt kaufen? Direkte, motivierende Kaufaufforderung.]</p>
 
-<p>[CTA: 1 Satz]</p>
+kurzbeschreibung: Plain Text, max. 160 Zeichen, Artikel + Highlight + CTA.
+NICHT "individuell" oder "personalisierbar" schreiben.
 
-Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock um das JSON):
+Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock):
 {
-  "kurzbeschreibung": "Plain Text, max. 160 Zeichen",
+  "kurzbeschreibung": "...",
   "produktbeschreibung": "Valides HTML wie oben definiert"
 }`;
 
