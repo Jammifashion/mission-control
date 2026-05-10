@@ -691,6 +691,10 @@
                 <textarea id="seo-hinweise" class="form-input" rows="6" style="resize:vertical;min-height:120px;font-family:inherit;" placeholder="z.B. Zielgruppe, besondere Merkmale, Tonalität..."></textarea>
               </div>
               <div class="form-field" style="margin-bottom:0.75rem;">
+                <label>Eigenschaften (Grammatur, Schnitt, Passform, etc.)</label>
+                <textarea id="seo-eigenschaften" class="form-input" rows="4" style="resize:vertical;font-family:inherit;" placeholder="Zeilenweise eingeben, z.B.&#10;Grammatur: 280 g/m²&#10;Schnitt: Regular Fit&#10;Passform: Unisex"></textarea>
+              </div>
+              <div class="form-field" style="margin-bottom:0.75rem;">
                 <label>Kurzbeschreibung</label>
                 <div class="rich-editor">
                   <div class="rich-toolbar">
@@ -2635,6 +2639,7 @@
         document.getElementById('seo-instagram').value     = '';
         document.getElementById('seo-tiktok').value        = '';
         document.getElementById('seo-hinweise').value      = '';
+        document.getElementById('seo-eigenschaften').value = '';
         document.getElementById('seo-status-msg').textContent = '';
 
         initSeoQuillEditors();
@@ -2688,7 +2693,7 @@
               artikelnummer: seoCurrentItem.artikelnummer,
               lshopNr:       seoCurrentItem.lshopNr  || '',
               kategorien:    '',
-              eigenschaften: '',
+              eigenschaften: document.getElementById('seo-eigenschaften').value,
               instagram:     document.getElementById('seo-instagram').value,
               tiktok:        document.getElementById('seo-tiktok').value,
               hinweise:      document.getElementById('seo-hinweise').value,
