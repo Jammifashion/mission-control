@@ -464,6 +464,33 @@ router.get('/abrechnungen', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /api/kalkulation/verkaeufe ───────────────────────────────────────────
+// Alle Verkäufe – Admin-Sicht (optional ?partnerId=X&status=Y)
+router.get('/verkaeufe', async (req, res, next) => {
+  try {
+    const sheetId = process.env.BUSINESS_SHEET_ID;
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
+    const { partnerId, status } = req.query;
+    const sheets = await getSheets();
+    const { header, rows } = await readTab(sheets, sheetId, 'Partner_Verkäufe');
+    const h = col => header.indexOf(col);
+    res.json(rows
+      .filter(r => (!partnerId || r[h('Partner-ID')] === partnerId) &&
+                   (!status    || r[h('Status')]     === status))
+      .map(r => ({
+        partnerId:     r[h('Partner-ID')]           ?? '',
+        datum:         r[h('Datum')]                ?? '',
+        orderId:       r[h('Order-ID')]             ?? '',
+        artikelnummer: r[h('Artikelnummer')]         ?? '',
+        variante:      r[h('Variante')]             ?? '',
+        stueckzahl:    parseInt(r[h('Stückzahl')]   ?? '1', 10),
+        vkPreisBrutto: parseFloat(r[h('VK-Preis-Brutto')] ?? '0'),
+        lizenzgebuehr: parseFloat(r[h('Lizenzgebühr')]    ?? '0'),
+        status:        r[h('Status')]               ?? '',
+      })));
+  } catch (err) { next(err); }
+});
+
 // ── PATCH /api/kalkulation/abrechnung/:id/status ─────────────────────────────
 // Status einer Abrechnung ändern (geprüft → freigegeben → bezahlt)
 router.patch('/abrechnung/:id/status', async (req, res, next) => {

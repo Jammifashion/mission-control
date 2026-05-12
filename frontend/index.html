@@ -1009,13 +1009,36 @@
           </div>
         </div>
         <div id="ptab-verkaeufe" class="sub-tab-panel">
-          <div class="card"><h2>Verkäufe</h2>
-            <p style="color:var(--muted);padding:2rem 0;text-align:center;font-size:0.9rem;">Coming soon</p>
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+              <h2>Verkäufe</h2>
+              <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                <select class="form-select" id="verkaeufe-filter-partner" style="font-size:0.83rem;padding:0.36rem 0.65rem;">
+                  <option value="">Alle Partner</option>
+                </select>
+                <select class="form-select" id="verkaeufe-filter-status" style="font-size:0.83rem;padding:0.36rem 0.65rem;">
+                  <option value="">Alle Status</option>
+                  <option value="offen">Offen</option>
+                  <option value="abgerechnet">Abgerechnet</option>
+                </select>
+                <button class="btn" id="btn-add-verkauf" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Verkauf erfassen</button>
+              </div>
+            </div>
+            <div id="verkaeufe-list-wrap"></div>
           </div>
         </div>
         <div id="ptab-abrechnungen" class="sub-tab-panel">
-          <div class="card"><h2>Abrechnungen</h2>
-            <p style="color:var(--muted);padding:2rem 0;text-align:center;font-size:0.9rem;">Coming soon</p>
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+              <h2>Abrechnungen</h2>
+              <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                <select class="form-select" id="abrechnungen-filter-partner" style="font-size:0.83rem;padding:0.36rem 0.65rem;">
+                  <option value="">Alle Partner</option>
+                </select>
+                <button class="btn" id="btn-add-abrechnung" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Abrechnung erstellen</button>
+              </div>
+            </div>
+            <div id="abrechnungen-list-wrap"></div>
           </div>
         </div>
       </section>
@@ -3728,7 +3751,9 @@
           document.querySelectorAll('#panel-partnerportal .sub-tab-panel').forEach(p => p.classList.remove('active'));
           btn.classList.add('active');
           document.getElementById(`ptab-${btn.dataset.ptab}`).classList.add('active');
-          if (btn.dataset.ptab === 'kalkulation') loadKalkulationTab();
+          if (btn.dataset.ptab === 'kalkulation')  loadKalkulationTab();
+          if (btn.dataset.ptab === 'verkaeufe')    loadVerkaeufeTab();
+          if (btn.dataset.ptab === 'abrechnungen') loadAbrechnungenTab();
         });
       });
 
@@ -3908,6 +3933,11 @@
       document.getElementById('btn-add-druckpreis').addEventListener('click', () => openDruckpreisModal());
       document.getElementById('btn-add-verkaufspreis').addEventListener('click', () => openVerkaufspreisModal());
       document.getElementById('btn-add-artikel').addEventListener('click', () => openArtikelModal());
+      document.getElementById('btn-add-verkauf').addEventListener('click', () => openVerkaufModal());
+      document.getElementById('btn-add-abrechnung').addEventListener('click', () => openAbrechnungModal());
+      document.getElementById('verkaeufe-filter-partner').addEventListener('change', () => loadVerkaeufeTable());
+      document.getElementById('verkaeufe-filter-status').addEventListener('change', () => loadVerkaeufeTable());
+      document.getElementById('abrechnungen-filter-partner').addEventListener('change', () => loadAbrechnungenTable());
 
       function _toIso(de) {
         if (!de) return '';
@@ -4164,6 +4194,227 @@
             if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
             bd.remove(); window.showToast('Artikel gespeichert.'); loadArtikelTable();
           } catch (e) { window.showToast(`Fehler: ${e.message}`, 'toast-error'); btn.disabled = false; btn.textContent = 'Hinzufügen'; }
+        };
+      }
+
+      // ── Verkäufe Tab ──────────────────────────────────────────────────────────
+      let _verkaeufeLoaded = false;
+      async function loadVerkaeufeTab() {
+        if (!_verkaeufeLoaded) {
+          const sel = document.getElementById('verkaeufe-filter-partner');
+          if (_ppPartners.length) {
+            sel.innerHTML = '<option value="">Alle Partner</option>' +
+              _ppPartners.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+          }
+          _verkaeufeLoaded = true;
+        }
+        loadVerkaeufeTable();
+      }
+
+      async function loadVerkaeufeTable() {
+        const wrap      = document.getElementById('verkaeufe-list-wrap');
+        const partnerId = document.getElementById('verkaeufe-filter-partner').value;
+        const status    = document.getElementById('verkaeufe-filter-status').value;
+        wrap.innerHTML  = '<div class="skeleton" style="height:80px;"></div>';
+        const qs = new URLSearchParams();
+        if (partnerId) qs.set('partnerId', partnerId);
+        if (status)    qs.set('status', status);
+        try {
+          const rows = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/verkaeufe?${qs}`).then(r => r.json());
+          if (!rows.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Verkäufe gefunden.</p>'; return; }
+          const pName = id => _ppPartners.find(p => p.id === id)?.name || id;
+          const sumLizenz = rows.reduce((s, r) => s + r.lizenzgebuehr, 0);
+          wrap.innerHTML = `
+            <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;">
+              ${rows.length} Einträge &nbsp;·&nbsp; Lizenz gesamt:
+              <strong>${sumLizenz.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</strong>
+            </p>
+            <div style="overflow-x:auto;"><table class="orders-table">
+              <thead><tr>
+                <th>Partner</th><th>Datum</th><th>Order-ID</th><th>Artikel</th>
+                <th>Variante</th><th>Stück</th><th>VK Brutto</th><th>Lizenz</th><th>Status</th>
+              </tr></thead>
+              <tbody>${rows.map(r => `<tr>
+                <td>${pName(r.partnerId)}</td>
+                <td>${r.datum}</td><td>${r.orderId}</td><td>${r.artikelnummer}</td>
+                <td>${r.variante || '–'}</td><td>${r.stueckzahl}</td>
+                <td>${r.vkPreisBrutto.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</td>
+                <td>${r.lizenzgebuehr.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</td>
+                <td><span class="badge ${r.status==='offen'?'badge-processing':'badge-completed'}">${r.status}</span></td>
+              </tr>`).join('')}</tbody>
+            </table></div>`;
+        } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`; }
+      }
+
+      function openVerkaufModal() {
+        const opts = _ppPartners.map(p => `<option value="${p.id}">${p.name} (${p.id})</option>`).join('');
+        const bd = document.createElement('div'); bd.className = 'modal-backdrop';
+        bd.innerHTML = `<div class="modal-box" style="max-width:480px;width:94%;">
+          <div class="modal-title">Verkauf erfassen</div>
+          <div style="margin-top:1.1rem;"><div class="form-grid">
+            <div class="form-field form-col-full"><label>Partner *</label>
+              <select class="form-select" id="sv-p"><option value="">– wählen –</option>${opts}</select></div>
+            <div class="form-field"><label>Datum</label>
+              <input class="form-input" type="date" id="sv-dat" value="${new Date().toISOString().slice(0,10)}"></div>
+            <div class="form-field"><label>Order-ID *</label>
+              <input class="form-input" id="sv-ord" placeholder="z.B. 12345"></div>
+            <div class="form-field"><label>Artikelnummer *</label>
+              <input class="form-input" id="sv-art" placeholder="z.B. AB-001"></div>
+            <div class="form-field"><label>Variante</label>
+              <input class="form-input" id="sv-var" placeholder="z.B. M / Weiß"></div>
+            <div class="form-field"><label>Stückzahl</label>
+              <input class="form-input" type="number" id="sv-stk" min="1" value="1"></div>
+            <div class="form-field form-col-full"><label>VK Brutto (€) *</label>
+              <input class="form-input" type="number" id="sv-vk" step="0.01" min="0" placeholder="0.00"></div>
+          </div><div class="modal-actions" style="margin-top:1.25rem;">
+            <button class="btn-secondary" id="sv-x">Abbrechen</button>
+            <button class="btn" id="sv-ok">Speichern</button>
+          </div></div></div>`;
+        document.body.appendChild(bd);
+        bd.querySelector('#sv-x').onclick = () => bd.remove();
+        bd.querySelector('#sv-ok').onclick = async () => {
+          const partnerId = bd.querySelector('#sv-p').value;
+          const orderId   = bd.querySelector('#sv-ord').value.trim();
+          const artNr     = bd.querySelector('#sv-art').value.trim();
+          const vkBrutto  = parseFloat(bd.querySelector('#sv-vk').value);
+          if (!partnerId || !orderId || !artNr || isNaN(vkBrutto))
+            { window.showToast('Partner, Order-ID, Artikelnummer und VK Brutto sind erforderlich.', 'toast-error'); return; }
+          const btn = bd.querySelector('#sv-ok'); btn.disabled = true; btn.textContent = '...';
+          try {
+            const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/partner-verkauf`, {
+              method: 'POST', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({
+                partnerId, orderId, artikelnummer: artNr,
+                datum:      bd.querySelector('#sv-dat').value,
+                variante:   bd.querySelector('#sv-var').value,
+                stueckzahl: parseInt(bd.querySelector('#sv-stk').value) || 1,
+                vkPreisBrutto: vkBrutto,
+              }),
+            });
+            if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+            bd.remove(); window.showToast('Verkauf gespeichert.'); loadVerkaeufeTable();
+          } catch (e) { window.showToast(`Fehler: ${e.message}`, 'toast-error'); btn.disabled = false; btn.textContent = 'Speichern'; }
+        };
+      }
+
+      // ── Abrechnungen Tab ──────────────────────────────────────────────────────
+      let _abrLoaded = false;
+      async function loadAbrechnungenTab() {
+        if (!_abrLoaded) {
+          const sel = document.getElementById('abrechnungen-filter-partner');
+          if (_ppPartners.length) {
+            sel.innerHTML = '<option value="">Alle Partner</option>' +
+              _ppPartners.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+          }
+          _abrLoaded = true;
+        }
+        loadAbrechnungenTable();
+      }
+
+      async function loadAbrechnungenTable() {
+        const wrap      = document.getElementById('abrechnungen-list-wrap');
+        const partnerId = document.getElementById('abrechnungen-filter-partner').value;
+        wrap.innerHTML  = '<div class="skeleton" style="height:80px;"></div>';
+        const qs = new URLSearchParams();
+        if (partnerId) qs.set('partnerId', partnerId);
+        try {
+          const rows = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/abrechnungen?${qs}`).then(r => r.json());
+          if (!rows.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Abrechnungen vorhanden.</p>'; return; }
+          const FLOW = ['angefordert', 'geprüft', 'bezahlt'];
+          const pName = id => _ppPartners.find(p => p.id === id)?.name || id;
+          wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+            <thead><tr>
+              <th>ID</th><th>Partner</th><th>Von</th><th>Bis</th>
+              <th>Saldo</th><th>Status</th><th>Erstellt</th><th>Aktion</th>
+            </tr></thead>
+            <tbody>${rows.map(r => {
+              const next = FLOW[FLOW.indexOf(r.status) + 1];
+              const badge = { angefordert: 'badge-pending', geprüft: 'badge-processing', bezahlt: 'badge-completed' }[r.status] ?? 'badge-idle';
+              return `<tr>
+                <td style="font-size:0.8rem;">${r.abrechnungId}</td>
+                <td>${pName(r.partnerId)}</td>
+                <td>${r.zeitraumVon}</td><td>${r.zeitraumBis}</td>
+                <td>${r.saldo.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</td>
+                <td><span class="badge ${badge}">${r.status}</span></td>
+                <td style="font-size:0.8rem;">${r.erstelltAm}</td>
+                <td>${next
+                  ? `<button class="btn-secondary btn-xs" data-abr-id="${r.abrechnungId}" data-abr-next="${next}">→ ${next}</button>`
+                  : '<span style="color:var(--muted);font-size:0.8rem;">–</span>'}</td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table></div>`;
+          wrap.querySelectorAll('[data-abr-id]').forEach(btn =>
+            btn.addEventListener('click', () => advanceAbrStatus(btn.dataset.abrId, btn.dataset.abrNext)));
+        } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`; }
+      }
+
+      async function advanceAbrStatus(id, newStatus) {
+        const confirmed = await window.showConfirm(
+          `Status → "${newStatus}"?`,
+          `Abrechnung <strong>${id}</strong> wird auf <strong>${newStatus}</strong> gesetzt.`,
+          'Bestätigen'
+        );
+        if (!confirmed) return;
+        try {
+          const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/abrechnung/${id}/status`, {
+            method: 'PATCH', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ status: newStatus }),
+          });
+          if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+          window.showToast(`Status aktualisiert: ${newStatus}`);
+          loadAbrechnungenTable();
+        } catch (e) { window.showToast(`Fehler: ${e.message}`, 'toast-error'); }
+      }
+
+      function openAbrechnungModal() {
+        const opts  = _ppPartners.map(p => `<option value="${p.id}">${p.name} (${p.id})</option>`).join('');
+        const today = new Date().toISOString().slice(0, 10);
+        const vom   = today.slice(0, 7) + '-01';
+        const bd = document.createElement('div'); bd.className = 'modal-backdrop';
+        bd.innerHTML = `<div class="modal-box" style="max-width:440px;width:94%;">
+          <div class="modal-title">Abrechnung erstellen</div>
+          <div style="margin-top:1.1rem;"><div class="form-grid">
+            <div class="form-field form-col-full"><label>Partner *</label>
+              <select class="form-select" id="ab-p"><option value="">– wählen –</option>${opts}</select></div>
+            <div class="form-field"><label>Zeitraum Von *</label>
+              <input class="form-input" type="date" id="ab-von" value="${vom}"></div>
+            <div class="form-field"><label>Zeitraum Bis *</label>
+              <input class="form-input" type="date" id="ab-bis" value="${today}"></div>
+            <div class="form-field form-col-full"><label>Notiz</label>
+              <input class="form-input" id="ab-no" placeholder="Optional"></div>
+          </div>
+          <p style="font-size:0.8rem;color:var(--muted);margin-top:0.75rem;">
+            Alle offenen Verkäufe im Zeitraum werden automatisch als "abgerechnet" markiert.
+          </p>
+          <div class="modal-actions" style="margin-top:1.25rem;">
+            <button class="btn-secondary" id="ab-x">Abbrechen</button>
+            <button class="btn" id="ab-ok">Erstellen</button>
+          </div></div></div>`;
+        document.body.appendChild(bd);
+        bd.querySelector('#ab-x').onclick = () => bd.remove();
+        bd.querySelector('#ab-ok').onclick = async () => {
+          const partnerId = bd.querySelector('#ab-p').value;
+          const von       = bd.querySelector('#ab-von').value;
+          const bis       = bd.querySelector('#ab-bis').value;
+          if (!partnerId || !von || !bis)
+            { window.showToast('Partner, Von und Bis sind erforderlich.', 'toast-error'); return; }
+          const btn = bd.querySelector('#ab-ok'); btn.disabled = true; btn.textContent = '...';
+          try {
+            const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/abrechnung/erstellen`, {
+              method: 'POST', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({
+                partnerId,
+                zeitraumVon: _toDE(von),
+                zeitraumBis: _toDE(bis),
+                notiz:       bd.querySelector('#ab-no').value,
+              }),
+            });
+            if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+            const data = await r.json();
+            bd.remove();
+            window.showToast(`Abrechnung ${data.abrechnungId} erstellt (${data.anzahlVerkäufe} Verkäufe, ${data.saldo.toLocaleString('de-DE',{style:'currency',currency:'EUR'})})`);
+            loadAbrechnungenTable();
+          } catch (e) { window.showToast(`Fehler: ${e.message}`, 'toast-error'); btn.disabled = false; btn.textContent = 'Erstellen'; }
         };
       }
 
