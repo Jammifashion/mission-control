@@ -1069,7 +1069,7 @@
         return fetch(url, { ...options, headers, signal });
       }
 
-      // ── Tab navigation ───────────────────────────────────────────────────
+      // ── SECTION: Navigation (Zeile 1072) ──
       document.querySelectorAll('nav button').forEach(btn => {
         btn.addEventListener('click', () => {
           document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
@@ -1101,7 +1101,7 @@
       checkStatus();
       setInterval(checkStatus, 60_000);
 
-      // ── Helpers ──────────────────────────────────────────────────────────
+      // ── SECTION: Helpers (Zeile 1104) ──
       function statusBadge(s) {
         const map = { processing: 'In Bearbeitung', completed: 'Abgeschlossen', pending: 'Wartend', cancelled: 'Storniert' };
         return `<span class="badge badge-${s}">${map[s] || s}</span>`;
@@ -1204,7 +1204,7 @@
         }
       }
 
-      // ── Auftragsmonitor: Sub-Tab-Wechsel ─────────────────────────────────
+      // ── SECTION: Auftragsmonitor (Zeile 1207) ──
       document.querySelectorAll('#panel-orders .sub-tab:not(:disabled)').forEach(btn => {
         btn.addEventListener('click', () => {
           const panel = document.getElementById(btn.dataset.subtab);
@@ -1798,7 +1798,7 @@
         }
       }
 
-      // ── Auftragsmonitor: Jammifashion Shop laden ──────────────────────────
+      // ── Auftragsmonitor: Shop Orders (Zeile 1801) ──
       async function loadOrders() {
         const el = document.getElementById('jfn-orders-list');
         const summaryEl = document.getElementById('jfn-orders-summary');
@@ -1975,7 +1975,7 @@
         updateCatLabel();
       }
 
-      // ── Artikelerfassung ─────────────────────────────────────────────────
+      // ── SECTION: Artikelerfassung (Zeile 1978) ──
       const PROP_NAMES = ['Farbe', 'Größe', 'Druckfarbe']; // Fallback bis SSOT geladen
       let properties = [{ name: '', tags: [] }];
       let kurzbezManuallyEdited = false; // verhindert Auto-Sync nach manuellem Laden
@@ -2661,7 +2661,7 @@
       modeBtnSeo.addEventListener('click',  () => { if (!seoMode) setSeoMode(); });
       modeBtnEdit.addEventListener('click', () => { if (!editMode || seoMode) setMode(true); });
 
-      // ── SEO Modus ────────────────────────────────────────────────────────
+      // ── SECTION: SEO-Flow (Zeile 2664) ──
       async function loadSeoPendingList() {
         const sel = document.getElementById('seo-article-select');
         document.getElementById('seo-article-panel').style.display = 'none';
@@ -3601,7 +3601,7 @@
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
       });
 
-      // ── Settings ─────────────────────────────────────────────────────────
+      // ── SECTION: Settings (Zeile 3604) ──
       const urlInput = document.getElementById('api-url');
       urlInput.value = localStorage.getItem('mc_api_url') || '';
       document.getElementById('save-url').addEventListener('click', () => {
@@ -3721,7 +3721,7 @@
         quillSeoFull  = makeRichEditor('rich-seo-full');
       }
 
-      // ── Partnerportal ─────────────────────────────────────────────────────────
+      // ── SECTION: Partnerportal (Zeile 3724) ──
       document.querySelectorAll('#panel-partnerportal .sub-tab').forEach(btn => {
         btn.addEventListener('click', () => {
           document.querySelectorAll('#panel-partnerportal .sub-tab').forEach(b => b.classList.remove('active'));
