@@ -578,4 +578,115 @@ router.get('/verkaufspreise', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── POST /api/kalkulation/druckpreise ───────────────────────────────────────
+router.post('/druckpreise', async (req, res, next) => {
+  try {
+    const sheetId = process.env.BUSINESS_SHEET_ID;
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
+
+    const { druckposition, groesse, preisNetto, gueltigAb } = req.body;
+    if (!druckposition || !groesse || preisNetto === undefined)
+      return res.status(400).json({ error: 'druckposition, groesse, preisNetto sind erforderlich.' });
+
+    const sheets = await getSheets();
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: sheetId,
+      range: 'Kalkulation_Druckpreise!A:D',
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [[druckposition, groesse, preisNetto, gueltigAb || '']] },
+    });
+
+    res.status(201).json({ druckposition, groesse, preisNetto, gueltigAb: gueltigAb || null });
+  } catch (err) { next(err); }
+});
+
+// ── PATCH /api/kalkulation/fixkosten/:position ──────────────────────────────
+router.patch('/fixkosten/:position', async (req, res, next) => {
+  try {
+    const sheetId = process.env.BUSINESS_SHEET_ID;
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
+
+    const sheets = await getSheets();
+    const { header, rows } = await readTab(sheets, sheetId, 'Kalkulation_Fixkosten');
+
+    const posIdx   = header.indexOf('Position');
+    const rowIndex = rows.findIndex(r => r[posIdx] === req.params.position);
+    if (rowIndex === -1)
+      return res.status(404).json({ error: `Fixkosten-Position "${req.params.position}" nicht gefunden.` });
+
+    const { betrag, einheit, gueltigAb } = req.body;
+    const sheetRow = rowIndex + 2;
+
+    const colMap = {
+      'Betrag':    betrag,
+      'Einheit':   einheit,
+      'Gültig-Ab': gueltigAb,
+    };
+
+    const data = Object.entries(colMap)
+      .filter(([, v]) => v !== undefined)
+      .map(([col, value]) => ({
+        range: `Kalkulation_Fixkosten!${colLetter(header.indexOf(col))}${sheetRow}`,
+        majorDimension: 'ROWS',
+        values: [[value]],
+      }));
+
+    if (data.length > 0) {
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: sheetId,
+        requestBody: { valueInputOption: 'USER_ENTERED', data },
+      });
+    }
+
+    res.json({ position: req.params.position, updated: Object.keys(colMap).filter(k => colMap[k] !== undefined) });
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/kalkulation/verkaufspreise ─────────────────────────────────────
+router.post('/verkaufspreise', async (req, res, next) => {
+  try {
+    const sheetId = process.env.BUSINESS_SHEET_ID;
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
+
+    const { produkttyp, abMenge, vkBrutto, gueltigAb, notiz } = req.body;
+    if (!produkttyp || abMenge === undefined || vkBrutto === undefined)
+      return res.status(400).json({ error: 'produkttyp, abMenge, vkBrutto sind erforderlich.' });
+
+    const sheets = await getSheets();
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: sheetId,
+      range: 'Kalkulation_Verkaufspreise!A:E',
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [[produkttyp, abMenge, vkBrutto, gueltigAb || '', notiz || '']] },
+    });
+
+    res.status(201).json({ produkttyp, abMenge, vkBrutto, gueltigAb: gueltigAb || null, notiz: notiz || '' });
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/kalkulation/artikel ────────────────────────────────────────────
+router.post('/artikel', async (req, res, next) => {
+  try {
+    const sheetId = process.env.BUSINESS_SHEET_ID;
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
+
+    const { lshopNr, artikelname, ekPreisNetto, kategorie, gueltigAb, notiz } = req.body;
+    if (!lshopNr || !artikelname || ekPreisNetto === undefined)
+      return res.status(400).json({ error: 'lshopNr, artikelname, ekPreisNetto sind erforderlich.' });
+
+    const sheets = await getSheets();
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: sheetId,
+      range: 'Kalkulation_Artikel!A:F',
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [[lshopNr, artikelname, ekPreisNetto, kategorie || '', gueltigAb || '', notiz || '']] },
+    });
+
+    res.status(201).json({ lshopNr, artikelname, ekPreisNetto, kategorie: kategorie || '', gueltigAb: gueltigAb || null, notiz: notiz || '' });
+  } catch (err) { next(err); }
+});
+
 export default router;

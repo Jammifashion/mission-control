@@ -982,8 +982,30 @@
           </div>
         </div>
         <div id="ptab-kalkulation" class="sub-tab-panel">
-          <div class="card"><h2>Kalkulation</h2>
-            <p style="color:var(--muted);padding:2rem 0;text-align:center;font-size:0.9rem;">Coming soon</p>
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+              <h2>Druckpreise</h2>
+              <button class="btn" id="btn-add-druckpreis" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Hinzufügen</button>
+            </div>
+            <div id="druckpreise-table-wrap"><div class="skeleton" style="height:60px;"></div></div>
+          </div>
+          <div class="card">
+            <h2>Fixkosten</h2>
+            <div id="fixkosten-table-wrap"><div class="skeleton" style="height:60px;"></div></div>
+          </div>
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+              <h2>Verkaufspreise</h2>
+              <button class="btn" id="btn-add-verkaufspreis" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Hinzufügen</button>
+            </div>
+            <div id="verkaufspreise-table-wrap"><div class="skeleton" style="height:60px;"></div></div>
+          </div>
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+              <h2>Artikel / EK-Preise</h2>
+              <button class="btn" id="btn-add-artikel" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Hinzufügen</button>
+            </div>
+            <div id="artikel-table-wrap"><div class="skeleton" style="height:60px;"></div></div>
           </div>
         </div>
         <div id="ptab-verkaeufe" class="sub-tab-panel">
@@ -3706,6 +3728,7 @@
           document.querySelectorAll('#panel-partnerportal .sub-tab-panel').forEach(p => p.classList.remove('active'));
           btn.classList.add('active');
           document.getElementById(`ptab-${btn.dataset.ptab}`).classList.add('active');
+          if (btn.dataset.ptab === 'kalkulation') loadKalkulationTab();
         });
       });
 
@@ -3878,6 +3901,270 @@
         } catch (e) {
           window.showToast(`Fehler: ${e.message}`, 'toast-error');
         }
+      }
+
+      // ── Kalkulation Tab ───────────────────────────────────────────────────────
+
+      document.getElementById('btn-add-druckpreis').addEventListener('click', () => openDruckpreisModal());
+      document.getElementById('btn-add-verkaufspreis').addEventListener('click', () => openVerkaufspreisModal());
+      document.getElementById('btn-add-artikel').addEventListener('click', () => openArtikelModal());
+
+      function _toIso(de) {
+        if (!de) return '';
+        if (/^\d{4}-\d{2}-\d{2}$/.test(de)) return de;
+        const [d, m, y] = de.split('.');
+        return `${y}-${(m||'').padStart(2,'0')}-${(d||'').padStart(2,'0')}`;
+      }
+      function _toDE(iso) {
+        if (!iso) return '';
+        if (/^\d{2}\.\d{2}\.\d{4}$/.test(iso)) return iso;
+        const [y, m, d] = iso.split('-');
+        return `${d}.${m}.${y}`;
+      }
+
+      async function loadKalkulationTab() {
+        await Promise.all([
+          loadDruckpreiseTable(),
+          loadFixkostenTable(),
+          loadVerkaufspreiseTable(),
+          loadArtikelTable(),
+        ]);
+      }
+
+      // ── Druckpreise ─────────────────────────────────────────────────────────
+      let _dpRows = [];
+      async function loadDruckpreiseTable() {
+        const wrap = document.getElementById('druckpreise-table-wrap');
+        wrap.innerHTML = '<div class="skeleton" style="height:60px;"></div>';
+        try {
+          _dpRows = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/druckpreise`).then(r => r.json());
+          if (!_dpRows.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Einträge.</p>'; return; }
+          wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+            <thead><tr><th>Druckposition</th><th>Größe</th><th>Preis Netto</th><th>Gültig Ab</th><th>Aktionen</th></tr></thead>
+            <tbody>${_dpRows.map((r, i) => `<tr>
+              <td>${r.druckposition}</td><td>${r.groesse}</td>
+              <td>${r.preisNetto.toFixed(2)} €</td><td>${r.gueltigAb || '–'}</td>
+              <td><button class="btn-secondary btn-xs" data-dp-i="${i}">Bearbeiten</button></td>
+            </tr>`).join('')}</tbody>
+          </table></div>`;
+          wrap.querySelectorAll('[data-dp-i]').forEach(btn =>
+            btn.addEventListener('click', () => openDruckpreisModal(_dpRows[+btn.dataset.dpI])));
+        } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`; }
+      }
+
+      function openDruckpreisModal(ex = null) {
+        const isNew = ex === null;
+        const bd = document.createElement('div'); bd.className = 'modal-backdrop';
+        bd.innerHTML = `<div class="modal-box" style="max-width:420px;width:94%;">
+          <div class="modal-title">${isNew ? 'Druckpreis hinzufügen' : 'Druckpreis / neue Version'}</div>
+          <div style="margin-top:1.1rem;"><div class="form-grid">
+            <div class="form-field"><label>Druckposition *</label>
+              <input class="form-input" id="dp-pos" value="${isNew ? '' : ex.druckposition}" placeholder="z.B. Brust vorne"></div>
+            <div class="form-field"><label>Größe *</label>
+              <select class="form-select" id="dp-gr">
+                ${['Klein','Mittel','Groß'].map(v => `<option${(!isNew && ex.groesse===v)?' selected':''}>${v}</option>`).join('')}
+              </select></div>
+            <div class="form-field"><label>Preis Netto (€) *</label>
+              <input class="form-input" type="number" id="dp-pr" step="0.01" min="0" value="${isNew ? '' : ex.preisNetto}"></div>
+            <div class="form-field"><label>Gültig Ab</label>
+              <input class="form-input" type="date" id="dp-ab" value="${isNew ? '' : _toIso(ex.gueltigAb)}"></div>
+          </div><div class="modal-actions" style="margin-top:1.25rem;">
+            <button class="btn-secondary" id="dp-x">Abbrechen</button>
+            <button class="btn" id="dp-ok">Hinzufügen</button>
+          </div></div></div>`;
+        document.body.appendChild(bd);
+        bd.querySelector('#dp-x').onclick = () => bd.remove();
+        bd.querySelector('#dp-ok').onclick = async () => {
+          const pos = bd.querySelector('#dp-pos').value.trim();
+          const pr  = parseFloat(bd.querySelector('#dp-pr').value);
+          if (!pos || isNaN(pr)) { window.showToast('Druckposition und Preis sind erforderlich.', 'toast-error'); return; }
+          const btn = bd.querySelector('#dp-ok'); btn.disabled = true; btn.textContent = '...';
+          try {
+            const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/druckpreise`, {
+              method: 'POST', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ druckposition: pos, groesse: bd.querySelector('#dp-gr').value, preisNetto: pr, gueltigAb: _toDE(bd.querySelector('#dp-ab').value) }),
+            });
+            if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+            bd.remove(); window.showToast('Druckpreis gespeichert.'); loadDruckpreiseTable();
+          } catch (e) { window.showToast(`Fehler: ${e.message}`, 'toast-error'); btn.disabled = false; btn.textContent = 'Hinzufügen'; }
+        };
+      }
+
+      // ── Fixkosten ───────────────────────────────────────────────────────────
+      let _fkRows = [];
+      async function loadFixkostenTable() {
+        const wrap = document.getElementById('fixkosten-table-wrap');
+        wrap.innerHTML = '<div class="skeleton" style="height:60px;"></div>';
+        try {
+          _fkRows = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/fixkosten`).then(r => r.json());
+          if (!_fkRows.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Einträge.</p>'; return; }
+          wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+            <thead><tr><th>Position</th><th>Betrag</th><th>Einheit</th><th>Gültig Ab</th><th>Aktionen</th></tr></thead>
+            <tbody>${_fkRows.map((r, i) => `<tr>
+              <td>${r.position}</td><td>${r.betrag}</td><td>${r.einheit}</td>
+              <td>${r.gueltigAb || '–'}</td>
+              <td><button class="btn-secondary btn-xs" data-fk-i="${i}">Bearbeiten</button></td>
+            </tr>`).join('')}</tbody>
+          </table></div>`;
+          wrap.querySelectorAll('[data-fk-i]').forEach(btn =>
+            btn.addEventListener('click', () => openFixkostenModal(_fkRows[+btn.dataset.fkI])));
+        } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`; }
+      }
+
+      function openFixkostenModal(row) {
+        const bd = document.createElement('div'); bd.className = 'modal-backdrop';
+        bd.innerHTML = `<div class="modal-box" style="max-width:380px;width:94%;">
+          <div class="modal-title">Fixkosten: ${row.position}</div>
+          <div style="margin-top:1.1rem;"><div class="form-grid">
+            <div class="form-field"><label>Betrag *</label>
+              <input class="form-input" type="number" id="fk-bt" step="0.01" min="0" value="${row.betrag}"></div>
+            <div class="form-field"><label>Einheit</label>
+              <input class="form-input" id="fk-ei" value="${row.einheit}"></div>
+            <div class="form-field form-col-full"><label>Gültig Ab</label>
+              <input class="form-input" type="date" id="fk-ab" value="${_toIso(row.gueltigAb)}"></div>
+          </div><div class="modal-actions" style="margin-top:1.25rem;">
+            <button class="btn-secondary" id="fk-x">Abbrechen</button>
+            <button class="btn" id="fk-ok">Speichern</button>
+          </div></div></div>`;
+        document.body.appendChild(bd);
+        bd.querySelector('#fk-x').onclick = () => bd.remove();
+        bd.querySelector('#fk-ok').onclick = async () => {
+          const betrag = parseFloat(bd.querySelector('#fk-bt').value);
+          if (isNaN(betrag)) { window.showToast('Betrag ist erforderlich.', 'toast-error'); return; }
+          const btn = bd.querySelector('#fk-ok'); btn.disabled = true; btn.textContent = '...';
+          try {
+            const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/fixkosten/${encodeURIComponent(row.position)}`, {
+              method: 'PATCH', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ betrag, einheit: bd.querySelector('#fk-ei').value || undefined, gueltigAb: _toDE(bd.querySelector('#fk-ab').value) || undefined }),
+            });
+            if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+            bd.remove(); window.showToast('Fixkosten gespeichert.'); loadFixkostenTable();
+          } catch (e) { window.showToast(`Fehler: ${e.message}`, 'toast-error'); btn.disabled = false; btn.textContent = 'Speichern'; }
+        };
+      }
+
+      // ── Verkaufspreise ──────────────────────────────────────────────────────
+      let _vkRows = [];
+      async function loadVerkaufspreiseTable() {
+        const wrap = document.getElementById('verkaufspreise-table-wrap');
+        wrap.innerHTML = '<div class="skeleton" style="height:60px;"></div>';
+        try {
+          _vkRows = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/verkaufspreise`).then(r => r.json());
+          if (!_vkRows.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Einträge.</p>'; return; }
+          wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+            <thead><tr><th>Produkttyp</th><th>Ab Menge</th><th>VK Brutto</th><th>Gültig Ab</th><th>Notiz</th><th>Aktionen</th></tr></thead>
+            <tbody>${_vkRows.map((r, i) => `<tr>
+              <td>${r.produkttyp}</td><td>${r.abMenge}</td><td>${r.vkBrutto.toFixed(2)} €</td>
+              <td>${r.gueltigAb || '–'}</td><td>${r.notiz || '–'}</td>
+              <td><button class="btn-secondary btn-xs" data-vk-i="${i}">Bearbeiten</button></td>
+            </tr>`).join('')}</tbody>
+          </table></div>`;
+          wrap.querySelectorAll('[data-vk-i]').forEach(btn =>
+            btn.addEventListener('click', () => openVerkaufspreisModal(_vkRows[+btn.dataset.vkI])));
+        } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`; }
+      }
+
+      function openVerkaufspreisModal(ex = null) {
+        const isNew = ex === null;
+        const bd = document.createElement('div'); bd.className = 'modal-backdrop';
+        bd.innerHTML = `<div class="modal-box" style="max-width:440px;width:94%;">
+          <div class="modal-title">${isNew ? 'Verkaufspreis hinzufügen' : 'Verkaufspreis / neue Version'}</div>
+          <div style="margin-top:1.1rem;"><div class="form-grid">
+            <div class="form-field form-col-full"><label>Produkttyp *</label>
+              <input class="form-input" id="vk-ty" value="${isNew ? '' : ex.produkttyp}" placeholder="z.B. Premium Shirt"></div>
+            <div class="form-field"><label>Ab Menge *</label>
+              <input class="form-input" type="number" id="vk-mg" min="1" step="1" value="${isNew ? 1 : ex.abMenge}"></div>
+            <div class="form-field"><label>VK Brutto (€) *</label>
+              <input class="form-input" type="number" id="vk-pr" step="0.01" min="0" value="${isNew ? '' : ex.vkBrutto}"></div>
+            <div class="form-field"><label>Gültig Ab</label>
+              <input class="form-input" type="date" id="vk-ab" value="${isNew ? '' : _toIso(ex.gueltigAb)}"></div>
+            <div class="form-field form-col-full"><label>Notiz</label>
+              <input class="form-input" id="vk-no" value="${isNew ? '' : (ex.notiz||'')}" placeholder="Optional"></div>
+          </div><div class="modal-actions" style="margin-top:1.25rem;">
+            <button class="btn-secondary" id="vk-x">Abbrechen</button>
+            <button class="btn" id="vk-ok">Hinzufügen</button>
+          </div></div></div>`;
+        document.body.appendChild(bd);
+        bd.querySelector('#vk-x').onclick = () => bd.remove();
+        bd.querySelector('#vk-ok').onclick = async () => {
+          const typ = bd.querySelector('#vk-ty').value.trim();
+          const mg  = parseInt(bd.querySelector('#vk-mg').value);
+          const pr  = parseFloat(bd.querySelector('#vk-pr').value);
+          if (!typ || isNaN(mg) || isNaN(pr)) { window.showToast('Produkttyp, Ab Menge und VK Brutto sind erforderlich.', 'toast-error'); return; }
+          const btn = bd.querySelector('#vk-ok'); btn.disabled = true; btn.textContent = '...';
+          try {
+            const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/verkaufspreise`, {
+              method: 'POST', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ produkttyp: typ, abMenge: mg, vkBrutto: pr, gueltigAb: _toDE(bd.querySelector('#vk-ab').value), notiz: bd.querySelector('#vk-no').value }),
+            });
+            if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+            bd.remove(); window.showToast('Verkaufspreis gespeichert.'); loadVerkaufspreiseTable();
+          } catch (e) { window.showToast(`Fehler: ${e.message}`, 'toast-error'); btn.disabled = false; btn.textContent = 'Hinzufügen'; }
+        };
+      }
+
+      // ── Artikel / EK-Preise ─────────────────────────────────────────────────
+      let _artRows = [];
+      async function loadArtikelTable() {
+        const wrap = document.getElementById('artikel-table-wrap');
+        wrap.innerHTML = '<div class="skeleton" style="height:60px;"></div>';
+        try {
+          _artRows = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/artikel`).then(r => r.json());
+          if (!_artRows.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Artikel erfasst.</p>'; return; }
+          wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+            <thead><tr><th>L-Shop-Nr</th><th>Artikelname</th><th>EK Netto</th><th>Kategorie</th><th>Gültig Ab</th><th>Notiz</th><th>Aktionen</th></tr></thead>
+            <tbody>${_artRows.map((r, i) => `<tr>
+              <td>${r.lshopNr}</td><td>${r.artikelname}</td><td>${r.ekPreisNetto.toFixed(2)} €</td>
+              <td>${r.kategorie || '–'}</td><td>${r.gueltigAb || '–'}</td><td>${r.notiz || '–'}</td>
+              <td><button class="btn-secondary btn-xs" data-art-i="${i}">Bearbeiten</button></td>
+            </tr>`).join('')}</tbody>
+          </table></div>`;
+          wrap.querySelectorAll('[data-art-i]').forEach(btn =>
+            btn.addEventListener('click', () => openArtikelModal(_artRows[+btn.dataset.artI])));
+        } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`; }
+      }
+
+      function openArtikelModal(ex = null) {
+        const isNew = ex === null;
+        const bd = document.createElement('div'); bd.className = 'modal-backdrop';
+        const katNames = (window.ssot?.kategorien ?? []).map(k => (k['Kategoriename']||'').trim()).filter(Boolean);
+        const katOpts  = katNames.map(k => `<option${(!isNew && ex.kategorie===k)?' selected':''}>${k}</option>`).join('');
+        bd.innerHTML = `<div class="modal-box" style="max-width:480px;width:94%;">
+          <div class="modal-title">${isNew ? 'Artikel hinzufügen' : 'Artikel / neue Version'}</div>
+          <div style="margin-top:1.1rem;"><div class="form-grid">
+            <div class="form-field"><label>L-Shop-Nr *</label>
+              <input class="form-input" id="art-nr" value="${isNew ? '' : ex.lshopNr}" placeholder="Artikelnummer"></div>
+            <div class="form-field"><label>Artikelname *</label>
+              <input class="form-input" id="art-na" value="${isNew ? '' : ex.artikelname}" placeholder="Name"></div>
+            <div class="form-field"><label>EK Preis Netto (€) *</label>
+              <input class="form-input" type="number" id="art-ek" step="0.01" min="0" value="${isNew ? '' : ex.ekPreisNetto}"></div>
+            <div class="form-field"><label>Kategorie</label>
+              <select class="form-select" id="art-ka"><option value="">– wählen –</option>${katOpts}</select></div>
+            <div class="form-field"><label>Gültig Ab</label>
+              <input class="form-input" type="date" id="art-ab" value="${isNew ? '' : _toIso(ex.gueltigAb)}"></div>
+            <div class="form-field form-col-full"><label>Notiz</label>
+              <input class="form-input" id="art-no" value="${isNew ? '' : (ex.notiz||'')}" placeholder="Optional"></div>
+          </div><div class="modal-actions" style="margin-top:1.25rem;">
+            <button class="btn-secondary" id="art-x">Abbrechen</button>
+            <button class="btn" id="art-ok">Hinzufügen</button>
+          </div></div></div>`;
+        document.body.appendChild(bd);
+        bd.querySelector('#art-x').onclick = () => bd.remove();
+        bd.querySelector('#art-ok').onclick = async () => {
+          const nr = bd.querySelector('#art-nr').value.trim();
+          const na = bd.querySelector('#art-na').value.trim();
+          const ek = parseFloat(bd.querySelector('#art-ek').value);
+          if (!nr || !na || isNaN(ek)) { window.showToast('L-Shop-Nr, Artikelname und EK Preis sind erforderlich.', 'toast-error'); return; }
+          const btn = bd.querySelector('#art-ok'); btn.disabled = true; btn.textContent = '...';
+          try {
+            const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/artikel`, {
+              method: 'POST', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ lshopNr: nr, artikelname: na, ekPreisNetto: ek, kategorie: bd.querySelector('#art-ka').value, gueltigAb: _toDE(bd.querySelector('#art-ab').value), notiz: bd.querySelector('#art-no').value }),
+            });
+            if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+            bd.remove(); window.showToast('Artikel gespeichert.'); loadArtikelTable();
+          } catch (e) { window.showToast(`Fehler: ${e.message}`, 'toast-error'); btn.disabled = false; btn.textContent = 'Hinzufügen'; }
+        };
       }
 
       // Toolbar-Klicks für alle Rich-Editoren
