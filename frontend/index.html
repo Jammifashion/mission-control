@@ -3938,6 +3938,14 @@
       document.getElementById('verkaeufe-filter-partner').addEventListener('change', () => loadVerkaeufeTable());
       document.getElementById('verkaeufe-filter-status').addEventListener('change', () => loadVerkaeufeTable());
       document.getElementById('abrechnungen-filter-partner').addEventListener('change', () => loadAbrechnungenTable());
+      document.getElementById('abrechnungen-list-wrap').addEventListener('change', async e => {
+        const sel = e.target.closest('[data-abr-sel]');
+        if (!sel) return;
+        const newStatus = sel.value;
+        const oldStatus = sel.dataset.abrCur;
+        if (newStatus === oldStatus) return;
+        await setAbrStatus(sel.dataset.abrSel, newStatus, sel, oldStatus);
+      });
 
       function _toIso(de) {
         if (!de) return '';
@@ -4320,41 +4328,41 @@
         try {
           const rows = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/abrechnungen?${qs}`).then(r => r.json());
           if (!rows.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Abrechnungen vorhanden.</p>'; return; }
-          const FLOW = ['angefordert', 'geprüft', 'bezahlt'];
-          const pName = id => _ppPartners.find(p => p.id === id)?.name || id;
+          const STATUSES = ['angefordert', 'geprüft', 'bezahlt'];
+          const pName    = id => _ppPartners.find(p => p.id === id)?.name || id;
+          const badge    = s => ({ angefordert: 'badge-pending', geprüft: 'badge-processing', freigegeben: 'badge-idle', bezahlt: 'badge-completed' }[s] ?? 'badge-idle');
           wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
             <thead><tr>
               <th>ID</th><th>Partner</th><th>Von</th><th>Bis</th>
-              <th>Saldo</th><th>Status</th><th>Erstellt</th><th>Aktion</th>
+              <th>Saldo</th><th>Erstellt</th><th>Status</th>
             </tr></thead>
             <tbody>${rows.map(r => {
-              const next = FLOW[FLOW.indexOf(r.status) + 1];
-              const badge = { angefordert: 'badge-pending', geprüft: 'badge-processing', bezahlt: 'badge-completed' }[r.status] ?? 'badge-idle';
+              const opts = STATUSES.map(s =>
+                `<option value="${s}"${s === r.status ? ' selected' : ''}>${s}</option>`
+              ).join('');
               return `<tr>
                 <td style="font-size:0.8rem;">${r.abrechnungId}</td>
                 <td>${pName(r.partnerId)}</td>
                 <td>${r.zeitraumVon}</td><td>${r.zeitraumBis}</td>
                 <td>${r.saldo.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</td>
-                <td><span class="badge ${badge}">${r.status}</span></td>
                 <td style="font-size:0.8rem;">${r.erstelltAm}</td>
-                <td>${next
-                  ? `<button class="btn-secondary btn-xs" data-abr-id="${r.abrechnungId}" data-abr-next="${next}">→ ${next}</button>`
-                  : '<span style="color:var(--muted);font-size:0.8rem;">–</span>'}</td>
+                <td><span class="badge ${badge(r.status)}" style="margin-bottom:0.35rem;display:inline-block;">${r.status}</span><br>
+                  <select class="form-select" style="font-size:0.78rem;padding:0.22rem 0.5rem;margin-top:0.15rem;"
+                    data-abr-sel="${r.abrechnungId}" data-abr-cur="${r.status}">${opts}</select></td>
               </tr>`;
             }).join('')}</tbody>
           </table></div>`;
-          wrap.querySelectorAll('[data-abr-id]').forEach(btn =>
-            btn.addEventListener('click', () => advanceAbrStatus(btn.dataset.abrId, btn.dataset.abrNext)));
         } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`; }
       }
 
-      async function advanceAbrStatus(id, newStatus) {
+      async function setAbrStatus(id, newStatus, selEl, oldStatus) {
         const confirmed = await window.showConfirm(
           `Status → "${newStatus}"?`,
           `Abrechnung <strong>${id}</strong> wird auf <strong>${newStatus}</strong> gesetzt.`,
           'Bestätigen'
         );
-        if (!confirmed) return;
+        if (!confirmed) { selEl.value = oldStatus; return; }
+        selEl.disabled = true;
         try {
           const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/abrechnung/${id}/status`, {
             method: 'PATCH', headers: {'Content-Type':'application/json'},
@@ -4363,7 +4371,11 @@
           if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
           window.showToast(`Status aktualisiert: ${newStatus}`);
           loadAbrechnungenTable();
-        } catch (e) { window.showToast(`Fehler: ${e.message}`, 'toast-error'); }
+        } catch (e) {
+          window.showToast(`Fehler: ${e.message}`, 'toast-error');
+          selEl.value = oldStatus;
+          selEl.disabled = false;
+        }
       }
 
       function openAbrechnungModal() {
