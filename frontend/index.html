@@ -515,6 +515,25 @@
         margin: 0.4rem 0;
       }
 
+      /* ── Lizenz-Detail-Tooltip (Partner-Artikel-Tab) ── */
+      #liz-tooltip {
+        position: fixed;
+        display: none;
+        background: #232323;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 0.75rem 0.9rem;
+        font-family: 'SF Mono', Consolas, Menlo, monospace;
+        font-size: 0.78rem;
+        color: var(--text);
+        white-space: pre;
+        z-index: 9500;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+        pointer-events: none;
+        min-width: 220px;
+      }
+      .liz-cell { cursor: help; }
+
       /* ── Footer ── */
       footer {
         padding: 0.75rem 1.5rem;
@@ -1104,6 +1123,8 @@
     </main>
 
     <footer>Jammi Fashion &mdash; Mission Control v0.1</footer>
+
+    <div id="liz-tooltip" aria-hidden="true"></div>
 
     <script type="module">
       // ── Config ──────────────────────────────────────────────────────────
@@ -4688,15 +4709,26 @@
       }
 
       // Vereinfachte Vorschau pro Stück: 1-Artikel-Bestellung, ohne Porto-Saldo.
-      function berechneLizenzVorschau({ vkBrutto, ekPreis, druckkosten, versandart, lizenzProzent, konfig }) {
+      // Gibt Detail-Objekt zurück (für Tooltip + Tabellen-Zelle).
+      function berechneLizenzDetail({ vkBrutto, ekPreis, druckkosten, versandart, lizenzProzent, konfig }) {
         const k = konfig || {};
+        const mwstProzent = k.mwstProzent || 19;
         const va = (versandart || 'P').toUpperCase();
-        const vkNetto     = vkBrutto / (1 + (k.mwstProzent || 19) / 100);
-        const herstellung = (ekPreis || 0) + (druckkosten || 0) + (k.herstellungsnebenkosten || 0);
-        const versandnk   = va === 'B' ? (k.versandnebenkostenB || 0) : (k.versandnebenkostenP || 0);
-        const paypal      = vkBrutto * (k.paypalProzent || 0) / 100 + (k.paypalPauschale || 0);
-        const gewinn      = vkNetto - herstellung - versandnk - paypal;
-        return gewinn * (lizenzProzent || 0) / 100;
+        const vkNetto       = vkBrutto / (1 + mwstProzent / 100);
+        const mwst          = vkBrutto - vkNetto;
+        const ek            = ekPreis || 0;
+        const druck         = druckkosten || 0;
+        const herstellungNk = k.herstellungsnebenkosten || 0;
+        const versandNk     = va === 'B' ? (k.versandnebenkostenB || 0) : (k.versandnebenkostenP || 0);
+        const nebenkosten   = herstellungNk + versandNk;
+        const paypal        = vkBrutto * (k.paypalProzent || 0) / 100 + (k.paypalPauschale || 0);
+        const gewinnNetto   = vkNetto - ek - druck - nebenkosten - paypal;
+        const lizenz        = gewinnNetto * (lizenzProzent || 0) / 100;
+        return { vkBrutto, mwst, mwstProzent, vkNetto, ek, druck, nebenkosten, paypal, gewinnNetto, lizenzProzent: lizenzProzent || 0, lizenz, versandart: va };
+      }
+
+      function berechneLizenzVorschau(input) {
+        return berechneLizenzDetail(input).lizenz;
       }
 
       async function loadArtikelTab() {
@@ -4786,11 +4818,11 @@
               <th style="text-align:right;cursor:help;" title="Vorschau bei 1 Artikel ohne Porto-Saldo. Genaue Lizenz siehe Verkäufe-Tab nach Sync.">Lizenz/Stück (bei VK ${vk}€) <span style="opacity:0.6;font-size:0.8em;">ⓘ</span></th>
             </tr></thead>
             <tbody>${artikel.map((a, i) => {
-              const liz = berechneLizenzVorschau({
+              const det = berechneLizenzDetail({
                 vkBrutto: vk, ekPreis: a.ekPreis, druckkosten: a.druckkosten,
                 versandart: a.versandart, lizenzProzent: a.lizenzProzent, konfig,
               });
-              const lizColor = liz < 0 ? 'color:var(--danger);' : '';
+              const lizColor = det.lizenz < 0 ? 'color:var(--danger);' : '';
               return `<tr data-art-i="${i}">
                 <td style="font-size:0.82rem;">${a.artikelnummer}</td>
                 <td>${a.artikelname}</td>
@@ -4801,7 +4833,7 @@
                   <option value="P"${a.versandart === 'P' ? ' selected' : ''}>P</option>
                 </select></td>
                 <td style="text-align:right;"><input class="form-input art-edit" data-field="lizenzProzent" type="number" step="0.1" min="0" max="100" value="${a.lizenzProzent}" style="width:70px;text-align:right;font-size:0.82rem;padding:0.22rem 0.4rem;"></td>
-                <td style="text-align:right;font-weight:600;${lizColor}" data-cell="liz">${liz.toFixed(2)} €</td>
+                <td class="liz-cell" style="text-align:right;font-weight:600;${lizColor}" data-cell="liz">${det.lizenz.toFixed(2)} €</td>
               </tr>`;
             }).join('')}</tbody>
           </table></div>`;
@@ -4814,6 +4846,58 @@
         wrap.querySelectorAll('.art-edit').forEach(el => {
           el.addEventListener('change', () => saveArtikelEdit(el));
         });
+
+        wrap.querySelectorAll('.liz-cell').forEach(cell => {
+          cell.addEventListener('mouseenter', () => showLizTooltip(cell));
+          cell.addEventListener('mouseleave', hideLizTooltip);
+        });
+      }
+
+      function showLizTooltip(cell) {
+        const tr = cell.closest('tr[data-art-i]');
+        if (!tr) return;
+        const a   = _artikelState.artikel[+tr.dataset.artI];
+        const det = berechneLizenzDetail({
+          vkBrutto: _artikelState.vkVorschau,
+          ekPreis: a.ekPreis, druckkosten: a.druckkosten,
+          versandart: a.versandart, lizenzProzent: a.lizenzProzent,
+          konfig: _artikelState.konfig,
+        });
+        const fmt   = n => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+        const pad   = s => s.padEnd(16);
+        const padR  = n => fmt(n).padStart(10);
+        const lines = [
+          pad('VK Brutto:')      + padR(det.vkBrutto),
+          pad(`− MwSt (${det.mwstProzent}%):`) + padR(det.mwst),
+          pad('= VK Netto:')     + padR(det.vkNetto),
+          pad('− EK:')           + padR(det.ek),
+          pad('− Druck:')        + padR(det.druck),
+          pad('− Nebenkosten:')  + padR(det.nebenkosten),
+          pad('− PayPal:')       + padR(det.paypal),
+          pad('= Gewinn netto:') + padR(det.gewinnNetto),
+          pad(`× Lizenz ${det.lizenzProzent}%:`) + padR(det.lizenz),
+        ];
+
+        const tip = document.getElementById('liz-tooltip');
+        tip.textContent = lines.join('\n');
+        tip.style.display = 'block';
+
+        const rect = cell.getBoundingClientRect();
+        const tipRect = tip.getBoundingClientRect();
+        let top  = rect.bottom + 6;
+        let left = rect.right - tipRect.width;
+        // Wenn unten zu wenig Platz → über die Zelle stellen
+        if (top + tipRect.height > window.innerHeight - 8) {
+          top = rect.top - tipRect.height - 6;
+        }
+        if (left < 8) left = 8;
+        tip.style.top  = `${Math.max(8, top)}px`;
+        tip.style.left = `${left}px`;
+      }
+
+      function hideLizTooltip() {
+        const tip = document.getElementById('liz-tooltip');
+        if (tip) tip.style.display = 'none';
       }
 
       function recomputeLizenzCells() {
@@ -4833,6 +4917,7 @@
         });
         document.querySelector('#artikel-list-wrap th:last-child').innerHTML =
           `Lizenz/Stück (bei VK ${vk}€) <span style="opacity:0.6;font-size:0.8em;">ⓘ</span>`;
+        hideLizTooltip(); // Tooltip schließen, da Werte sich geändert haben
       }
 
       async function saveArtikelEdit(el) {

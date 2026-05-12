@@ -255,6 +255,30 @@ router.get('/verkaeufe', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /api/partner/intern?token= ───────────────────────────────────────────
+// Direkte Bestellungen für die Partner-Sicht – ohne Preise.
+router.get('/intern', async (req, res, next) => {
+  try {
+    const { token } = req.query;
+    if (!token) return res.status(401).json({ error: 'token fehlt.' });
+    const { partnerId } = await resolvePartner(token);
+
+    const sheetId = process.env.BUSINESS_SHEET_ID;
+    const sheets  = await getSheets();
+    const { header, rows } = await readTab(sheets, sheetId, 'Partner_Interne_Bestellungen');
+    const h = col => header.indexOf(col);
+
+    res.json(rows
+      .filter(r => r[h('Partner-ID')] === partnerId)
+      .map(r => ({
+        datum:       r[h('Datum')]       ?? '',
+        bezeichnung: r[h('Bezeichnung')] ?? '',
+        anzahl:      toFloat(r[h('Anzahl')]),
+        status:      r[h('Status')]      ?? '',
+      })));
+  } catch (err) { next(err); }
+});
+
 // ── GET /api/partner/abrechnungen?token= ─────────────────────────────────────
 router.get('/abrechnungen', async (req, res, next) => {
   try {

@@ -168,6 +168,32 @@
       }
     }
 
+    // ── Direkte Bestellungen laden & rendern ─────────────────────────────────
+    async function loadIntern() {
+      const wrap = document.getElementById('pv-intern');
+      if (!wrap) return;
+      wrap.innerHTML = '<div class="skeleton"></div>';
+      try {
+        const rows = await apiGet(`/api/partner/intern?token=${encodeURIComponent(TOKEN)}`);
+        if (!rows.length) { wrap.innerHTML = '<p class="empty">Keine direkten Bestellungen vorhanden.</p>'; return; }
+        wrap.innerHTML = `
+          <p class="summary">${rows.length} Eintrag/Einträge</p>
+          <div style="overflow-x:auto;"><table>
+            <thead><tr>
+              <th>Datum</th><th>Bezeichnung</th><th>Anzahl</th><th>Status</th>
+            </tr></thead>
+            <tbody>${rows.map(r => `<tr>
+              <td>${r.datum}</td>
+              <td>${r.bezeichnung}</td>
+              <td>${r.anzahl}</td>
+              <td><span class="badge ${badgeClass(r.status)}">${r.status}</span></td>
+            </tr>`).join('')}</tbody>
+          </table></div>`;
+      } catch (e) {
+        wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${e.message}</p>`;
+      }
+    }
+
     // ── Abrechnungen laden & rendern ─────────────────────────────────────────
     async function loadAbrechnungen() {
       const wrap = document.getElementById('pv-abrechnungen');
@@ -225,14 +251,23 @@
         </div>
         <div class="card">
           <div class="card-header">
+            <h2>Direkte Bestellungen</h2>
+          </div>
+          <div id="pv-intern"><div class="skeleton"></div></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
             <h2>Meine Abrechnungen</h2>
           </div>
           <div id="pv-abrechnungen"><div class="skeleton"></div></div>
         </div>`;
 
-      document.getElementById('btn-refresh-verkaeufe').addEventListener('click', loadVerkaeufe);
+      document.getElementById('btn-refresh-verkaeufe').addEventListener('click', () => {
+        loadVerkaeufe();
+        loadIntern();
+      });
 
-      await Promise.all([loadVerkaeufe(), loadAbrechnungen()]);
+      await Promise.all([loadVerkaeufe(), loadIntern(), loadAbrechnungen()]);
     }
 
     init();
