@@ -418,4 +418,83 @@ router.patch('/abrechnung/:id/status', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /api/kalkulation/artikel ────────────────────────────────────────────────
+router.get('/artikel', async (req, res, next) => {
+  try {
+    const sheetId = process.env.BUSINESS_SHEET_ID;
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
+
+    const sheets = await getSheets();
+    const { header, rows } = await readTab(sheets, sheetId, 'Kalkulation_Artikel');
+
+    const h = col => header.indexOf(col);
+    res.json(rows.map(r => ({
+      lshopNr:       r[h('L-Shop-Nr')]      ?? '',
+      artikelname:   r[h('Artikelname')]    ?? '',
+      ekPreisNetto:  parseFloat(r[h('EK-Preis-Netto')] ?? '0'),
+      kategorie:     r[h('Kategorie')]      ?? '',
+      gueltigAb:     r[h('Gültig-Ab')]      ?? null,
+      notiz:         r[h('Notiz')]          ?? '',
+    })));
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/kalkulation/druckpreise ────────────────────────────────────────────
+router.get('/druckpreise', async (req, res, next) => {
+  try {
+    const sheetId = process.env.BUSINESS_SHEET_ID;
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
+
+    const sheets = await getSheets();
+    const { header, rows } = await readTab(sheets, sheetId, 'Kalkulation_Druckpreise');
+
+    const h = col => header.indexOf(col);
+    res.json(rows.map(r => ({
+      druckposition: r[h('Druckposition')] ?? '',
+      groesse:       r[h('Größe')]         ?? '',
+      preisNetto:    parseFloat(r[h('Preis-Netto')] ?? '0'),
+      gueltigAb:     r[h('Gültig-Ab')]     ?? null,
+    })));
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/kalkulation/fixkosten ──────────────────────────────────────────────
+router.get('/fixkosten', async (req, res, next) => {
+  try {
+    const sheetId = process.env.BUSINESS_SHEET_ID;
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
+
+    const sheets = await getSheets();
+    const { header, rows } = await readTab(sheets, sheetId, 'Kalkulation_Fixkosten');
+
+    const h = col => header.indexOf(col);
+    res.json(rows.map(r => ({
+      position:  r[h('Position')]  ?? '',
+      betrag:    parseFloat(r[h('Betrag')] ?? '0'),
+      einheit:   r[h('Einheit')]   ?? '',
+      gueltigAb: r[h('Gültig-Ab')] ?? null,
+    })));
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/kalkulation/verkaufspreise ────────────────────────────────────────
+router.get('/verkaufspreise', async (req, res, next) => {
+  try {
+    const sheetId = process.env.BUSINESS_SHEET_ID;
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
+
+    const sheets = await getSheets();
+    const { header, rows } = await readTab(sheets, sheetId, 'Kalkulation_Verkaufspreise');
+
+    const h = col => header.indexOf(col);
+    res.json(rows.map(r => ({
+      produkttyp: r[h('Produkttyp')]  ?? '',
+      abMenge:    parseInt(r[h('Ab-Menge')] ?? '1', 10),
+      vkBrutto:   parseFloat(r[h('VK-Brutto')] ?? '0'),
+      gueltigAb:  r[h('Gültig-Ab')]   ?? null,
+      notiz:      r[h('Notiz')]       ?? '',
+    })));
+  } catch (err) { next(err); }
+});
+
 export default router;
