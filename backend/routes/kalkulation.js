@@ -175,11 +175,12 @@ router.get('/partner', async (req, res, next) => {
 
     const sheets = await getSheets();
     const { header, rows } = await readTab(sheets, sheetId, 'Partner');
-    const idIdx   = header.indexOf('Partner-ID');
-    const nameIdx = header.indexOf('Name');
-    const katIdx  = header.indexOf('Hauptkategorie');
-    const aktivIdx = header.indexOf('Aktiv');
-    const lizenzIdx = header.indexOf('Lizenz-%');
+    const idIdx      = header.indexOf('Partner-ID');
+    const nameIdx    = header.indexOf('Name');
+    const katIdx     = header.indexOf('Hauptkategorie');
+    const tokenIdx   = header.indexOf('Token');
+    const aktivIdx   = header.indexOf('Aktiv');
+    const lizenzIdx  = header.indexOf('Lizenz-%');
     const versandIdx = header.indexOf('Versand-Modell');
     const paypalIdx  = header.indexOf('PayPal-Modell');
     const notizIdx   = header.indexOf('Notiz');
@@ -188,6 +189,7 @@ router.get('/partner', async (req, res, next) => {
       id:            r[idIdx]    ?? '',
       name:          r[nameIdx]  ?? '',
       kategorie:     r[katIdx]   ?? '',
+      token:         r[tokenIdx] ?? '',
       aktiv:         (r[aktivIdx] ?? '').toLowerCase() === 'ja',
       lizenzProzent: parseFloat(r[lizenzIdx] ?? '0'),
       versandModell: r[versandIdx] ?? '',
@@ -246,12 +248,13 @@ router.patch('/partner/:id', async (req, res, next) => {
     if (rowIndex === -1)
       return res.status(404).json({ error: `Partner "${req.params.id}" nicht gefunden.` });
 
-    const { name, kategorie, lizenzProzent, versandModell, paypalModell, aktiv, notiz } = req.body;
+    const { name, kategorie, lizenzProzent, versandModell, paypalModell, aktiv, notiz, token } = req.body;
     const sheetRow = rowIndex + 2;
 
     const colMap = {
       'Name':           name,
       'Hauptkategorie': kategorie,
+      'Token':          token,
       'Lizenz-%':       lizenzProzent,
       'Versand-Modell': versandModell,
       'PayPal-Modell':  paypalModell,

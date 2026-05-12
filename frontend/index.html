@@ -3788,7 +3788,7 @@
               <table class="orders-table">
                 <thead><tr>
                   <th>Name</th><th>Hauptkategorie</th><th>Lizenz-%</th>
-                  <th>Versand-Modell</th><th>PayPal-Modell</th><th>Aktiv</th><th>Aktionen</th>
+                  <th>Versand-Modell</th><th>PayPal-Modell</th><th>Aktiv</th><th>Token</th><th>Aktionen</th>
                 </tr></thead>
                 <tbody>${_ppPartners.map(p => `
                   <tr>
@@ -3799,8 +3799,16 @@
                     <td>${p.paypalModell || '–'}</td>
                     <td><span class="badge ${p.aktiv ? 'badge-completed' : 'badge-cancelled'}">${p.aktiv ? 'Aktiv' : 'Inaktiv'}</span></td>
                     <td style="white-space:nowrap;">
+                      ${p.token
+                        ? `<code style="font-size:0.73rem;color:var(--muted);">${p.token.slice(0,8)}…</code>`
+                        : '<span style="color:var(--muted);font-size:0.8rem;">–</span>'}
+                    </td>
+                    <td style="white-space:nowrap;">
                       <button class="btn-secondary btn-xs" data-pp-edit="${p.id}">Bearbeiten</button>
                       <button class="btn-ghost btn-xs" data-pp-toggle="${p.id}" data-aktiv="${p.aktiv}" style="margin-left:0.3rem;">${p.aktiv ? 'Deaktivieren' : 'Aktivieren'}</button>
+                      ${p.token
+                        ? `<button class="btn-secondary btn-xs" data-pp-copy="${p.id}" style="margin-left:0.3rem;">Link kopieren</button>`
+                        : `<button class="btn-secondary btn-xs" data-pp-gen-token="${p.id}" style="margin-left:0.3rem;">Token gen.</button>`}
                     </td>
                   </tr>`).join('')}
                 </tbody>
@@ -3814,6 +3822,41 @@
           });
           wrap.querySelectorAll('[data-pp-toggle]').forEach(btn => {
             btn.addEventListener('click', () => togglePartnerAktiv(btn.dataset.ppToggle, btn.dataset.aktiv === 'true'));
+          });
+          wrap.querySelectorAll('[data-pp-copy]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const p = _ppPartners.find(x => x.id === btn.dataset.ppCopy);
+              if (!p?.token) return;
+              const apiUrl = window.API_BASE();
+              const link = `https://jammifashion.github.io/mission-control/partner.html?token=${encodeURIComponent(p.token)}${apiUrl ? '&api=' + encodeURIComponent(apiUrl) : ''}`;
+              try {
+                await navigator.clipboard.writeText(link);
+                window.showToast('Partner-Link kopiert!');
+              } catch {
+                window.showToast('Kopieren fehlgeschlagen – bitte manuell kopieren.', 'toast-error');
+              }
+            });
+          });
+          wrap.querySelectorAll('[data-pp-gen-token]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const p = _ppPartners.find(x => x.id === btn.dataset.ppGenToken);
+              if (!p) return;
+              btn.disabled = true; btn.textContent = '...';
+              try {
+                const token = crypto.randomUUID();
+                const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/partner/${p.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ token }),
+                });
+                if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+                window.showToast('Token gespeichert.');
+                loadPartner();
+              } catch (e) {
+                window.showToast(`Fehler: ${e.message}`, 'toast-error');
+                btn.disabled = false; btn.textContent = 'Token gen.';
+              }
+            });
           });
         } catch (e) {
           wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
