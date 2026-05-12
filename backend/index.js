@@ -28,7 +28,7 @@ const PORT = process.env.PORT || 3001;
 app.use(helmet());
 app.use(cors({
   origin: (process.env.CORS_ORIGIN || 'https://jammifashion.github.io').split(',').map(s => s.trim()),
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
 }));
 app.use(express.json({ limit: '256kb' }));
 
