@@ -27,7 +27,10 @@ Neue Sektionen immer mit Anker versehen:
 ## Wichtige Dateien
 - backend/utils/secrets.js – Secret Manager, loadAllSecrets()
 - backend/middleware/auth.js – X-API-Key Auth + Rate Limiting
-- backend/routes/kalkulation.js – Partnerportal Backend
+- backend/routes/kalkulation.js – Partner CRUD, Druck-/Fixkosten, Abrechnungen
+- backend/routes/partner-artikel.js – Partner_Artikel + Interne Bestellungen (Admin, MC_API_KEY)
+- backend/routes/partnerPortal.js – Token-Auth für partner.html + WC-Sync
+- backend/utils/partner-kalkulation.js – berechnePartnerAnteil() Helper
 - docs/SEO Beschreibungs-Framework.md – SEO Prompt Vorlage
 - GCP_Setup_Notizen.md – GCP IDs (lokal only, nicht im Repo)
 

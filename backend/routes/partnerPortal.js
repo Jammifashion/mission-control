@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { google } from 'googleapis';
 import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
 import { getGoogleAuth } from '../lib/googleAuth.js';
+import { berechnePartnerAnteil, parseKonfiguration } from '../utils/partner-kalkulation.js';
 
 const router = Router();
 
@@ -75,7 +76,7 @@ router.get('/verkaeufe/sync', async (req, res, next) => {
 
     const sheets = await getSheets();
 
-    // 1. Partner_Artikel laden → Map: productId (string) → [{ partnerId, lizenzProzent }]
+    // 1a. Partner_Artikel laden → Map: productId → [{ partnerId, lizenzProzent, ek, druck, versandart }]
     const { header: aH, rows: aRows } = await readTab(sheets, sheetId, 'Partner_Artikel');
     const ah = col => aH.indexOf(col);
     const partnerArtikelMap = {};
@@ -83,13 +84,31 @@ router.get('/verkaeufe/sync', async (req, res, next) => {
       const pid        = (r[ah('Produkt-ID')] ?? '').toString().trim();
       const partnerId  = r[ah('Partner-ID')] ?? '';
       const lizenzProzent = parseFloat(r[ah('Lizenz-%')] ?? '0');
+      const ekPreis     = parseFloat((r[ah('EK-Preis-Netto')] ?? '0').toString().replace(',', '.'));
+      const druckkosten = parseFloat((r[ah('Druckkosten')]    ?? '0').toString().replace(',', '.'));
+      const versandart  = ((r[ah('Versandart')] ?? 'P').toString().toUpperCase() === 'B') ? 'B' : 'P';
       if (!pid || !partnerId) continue;
       if (!partnerArtikelMap[pid]) partnerArtikelMap[pid] = [];
-      partnerArtikelMap[pid].push({ partnerId, lizenzProzent });
+      partnerArtikelMap[pid].push({ partnerId, lizenzProzent, ekPreis, druckkosten, versandart });
     }
 
     if (!Object.keys(partnerArtikelMap).length)
       return res.json({ synced: 0, orders: 0, message: 'Partner_Artikel ist leer – bitte zuerst Artikel importieren.' });
+
+    // 1b. Partner → Porto-Modell-Map
+    const { header: pH, rows: pRows } = await readTab(sheets, sheetId, 'Partner');
+    const ph = col => pH.indexOf(col);
+    const partnerInfoMap = {};
+    for (const r of pRows) {
+      const id = r[ph('Partner-ID')] ?? '';
+      if (id) partnerInfoMap[id] = {
+        portoModell: r[ph('Porto-Modell')] ?? 'geteilt-50-50',
+      };
+    }
+
+    // 1c. Konfiguration aus Kalkulation_Fixkosten
+    const { header: kH, rows: kRows } = await readTab(sheets, sheetId, 'Kalkulation_Fixkosten');
+    const konfiguration = parseKonfiguration(kRows, kH);
 
     // 2. Partner_Verkäufe laden → Duplikat-Set + neuestes Datum für after-Parameter
     const { header: vH, rows: vRows } = await readTab(sheets, sheetId, 'Partner_Verkäufe');
@@ -124,29 +143,54 @@ router.get('/verkaeufe/sync', async (req, res, next) => {
       if (proc.data.length < 100 && compl.data.length < 100) break;
     }
 
-    // 4. Order-Items → Partner_Artikel-Lookup → Zeilen sammeln
+    // 4. Order-Items → Partner_Artikel-Lookup → Helper berechnePartnerAnteil
     const toWrite = [];
+    const artikelName = (item) => item.name || item.sku || String(item.product_id);
+
     for (const order of orders) {
-      const orderDate = toDE(new Date(order.date_created));
-      const artikelName = (item) => item.name || item.sku || String(item.product_id);
+      const orderDate     = toDE(new Date(order.date_created));
+      const shippingTotal = parseFloat(order.shipping_total ?? '0');
+      const orderTotal    = order.line_items.reduce((s, i) => s + parseFloat(i.total ?? '0'), 0);
 
+      // Matching-Items + Versandart der Bestellung bestimmen:
+      // wenn mindestens ein matchender Artikel "P" hat → ganze Bestellung gilt als "P".
+      const matching = [];
+      let orderVersandart = 'B';
       for (const item of order.line_items) {
-        const productId = String(item.product_id || '');
-        const entries   = partnerArtikelMap[productId];
-        if (!entries) continue; // kein Partner für dieses Produkt
+        const entries = partnerArtikelMap[String(item.product_id || '')];
+        if (!entries) continue;
+        matching.push({ item, entries });
+        if (entries.some(e => e.versandart === 'P')) orderVersandart = 'P';
+      }
+      if (!matching.length) continue;
 
-        for (const { partnerId, lizenzProzent } of entries) {
-          const artKey = artikelName(item);
-          const key    = `${order.id}|${artKey}|${partnerId}`;
+      for (const { item, entries } of matching) {
+        const itemTotal  = parseFloat(item.total ?? '0');
+        const anteil     = orderTotal > 0 ? (itemTotal / orderTotal) : 0;
+        const portoEinnahmeAnteil = shippingTotal * anteil;
+        const artKey = artikelName(item);
+
+        for (const e of entries) {
+          const key = `${order.id}|${artKey}|${e.partnerId}`;
           if (existingKeys.has(key)) continue;
           existingKeys.add(key);
 
-          const vkBrutto = parseFloat(item.total ?? '0');
-          const lizenz   = parseFloat(((vkBrutto * lizenzProzent) / 100).toFixed(2));
+          const calc = berechnePartnerAnteil({
+            vkBrutto:           itemTotal,
+            ekPreis:            e.ekPreis,
+            druckkosten:        e.druckkosten,
+            versandart:         orderVersandart,
+            portoModell:        partnerInfoMap[e.partnerId]?.portoModell ?? 'geteilt-50-50',
+            bestellungsAnteil:  anteil,
+            lizenzProzent:      e.lizenzProzent,
+            portoEinnahmeAnteil,
+            konfiguration,
+          });
+
           toWrite.push([
-            partnerId, orderDate, String(order.id),
+            e.partnerId, orderDate, String(order.id),
             artKey, item.sku || '', String(item.quantity),
-            vkBrutto, lizenz, 'offen',
+            itemTotal, calc.partnerAnteil, 'offen',
           ]);
         }
       }

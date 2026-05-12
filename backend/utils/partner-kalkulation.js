@@ -68,6 +68,10 @@ function round2(n) { return Math.round(n * 100) / 100; }
  * @param {'B'|'P'} input.versandart                 Versandart der Bestellung
  * @param {'geteilt-50-50'|'partner-trägt'} input.portoModell
  * @param {number}  input.anzahlArtikelInBestellung  Anzahl Artikel in der gesamten Bestellung
+ *                                                   (Fallback wenn kein bestellungsAnteil)
+ * @param {number}  [input.bestellungsAnteil]        Anteil dieses Artikels an der Bestellung
+ *                                                   (0..1, z.B. item.total / order.total).
+ *                                                   Überschreibt 1/anzahlArtikelInBestellung.
  * @param {number}  input.lizenzProzent              Lizenz-% des Partners (z.B. 30)
  * @param {number}  [input.portoEinnahmeAnteil]      Anteilige Porto-Einnahme aus WC shipping_total
  *                                                   für DIESEN Artikel (default 0 für Preview)
@@ -79,23 +83,29 @@ function round2(n) { return Math.round(n * 100) / 100; }
  */
 export function berechnePartnerAnteil({
   vkBrutto, ekPreis, druckkosten, versandart,
-  portoModell, anzahlArtikelInBestellung,
+  portoModell, anzahlArtikelInBestellung, bestellungsAnteil,
   lizenzProzent, portoEinnahmeAnteil = 0, konfiguration,
 }) {
   const k = { ...DEFAULT_KONFIG, ...(konfiguration ?? {}) };
   const anzahl = Math.max(1, anzahlArtikelInBestellung || 1);
   const va = (versandart || 'P').toUpperCase();
+  // Anteil dieses Artikels an pro-Bestellung-Kosten:
+  //   - Sync übergibt bestellungsAnteil (anteilig nach Artikelwert)
+  //   - Preview ohne Aufteilung → 1/anzahl (Gleichverteilung)
+  const anteil = (typeof bestellungsAnteil === 'number' && bestellungsAnteil >= 0)
+    ? bestellungsAnteil
+    : (1 / anzahl);
 
   const vkNetto           = vkBrutto / (1 + k.mwstProzent / 100);
   const herstellungspreis = (ekPreis || 0) + (druckkosten || 0) + k.herstellungsnebenkosten;
 
   const versandnebenkostenTotal = va === 'B' ? k.versandnebenkostenB : k.versandnebenkostenP;
-  const versandnebenkosten      = versandnebenkostenTotal / anzahl;
+  const versandnebenkosten      = versandnebenkostenTotal * anteil;
 
   const portoKostenTotal  = va === 'B' ? k.portoB : k.portoP;
-  const portoKostenAnteil = portoKostenTotal / anzahl;
+  const portoKostenAnteil = portoKostenTotal * anteil;
 
-  const paypalKosten = (vkBrutto * k.paypalProzent / 100) + (k.paypalPauschale / anzahl);
+  const paypalKosten = (vkBrutto * k.paypalProzent / 100) + (k.paypalPauschale * anteil);
 
   // gewinnNetto = reine Artikel-Marge ohne Porto.
   const gewinnNetto            = vkNetto - herstellungspreis - versandnebenkosten - paypalKosten;
