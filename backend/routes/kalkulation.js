@@ -382,8 +382,9 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
     if (!vonDatum || !bisDatum) return res.status(400).json({ error: 'Ungültiges Datumsformat (DD.MM.YYYY oder ISO).' });
 
     const sheets = await getSheets();
-    const [verkäufeTab, abrechnungenTab] = await Promise.all([
+    const [verkäufeTab, internTab, abrechnungenTab] = await Promise.all([
       readTab(sheets, sheetId, 'Partner_Verkäufe'),
+      readTab(sheets, sheetId, 'Partner_Interne_Bestellungen'),
       readTab(sheets, sheetId, 'Partner_Abrechnungen'),
     ]);
 
@@ -394,7 +395,7 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
     const stIdx   = verkäufeTab.header.indexOf('Status');
 
     const offene = verkäufeTab.rows
-      .map((row, rowIndex) => ({ row, rowIndex: rowIndex + 2 })) // +2: 1-basiert + Header
+      .map((row, rowIndex) => ({ row, rowIndex: rowIndex + 2 }))
       .filter(({ row }) => {
         if (row[pIdx] !== partnerId) return false;
         if ((row[stIdx] ?? '') !== 'offen') return false;
@@ -405,15 +406,34 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
     if (!offene.length)
       return res.status(404).json({ error: `Keine offenen Verkäufe für Partner "${partnerId}" im Zeitraum.` });
 
-    const verkaufsSumme = offene.reduce((s, { row }) => s + parseFloat(row[lizIdx] ?? '0'), 0);
-    const saldo         = parseFloat(verkaufsSumme.toFixed(2));
+    const lizenzSumme = offene.reduce((s, { row }) => s + parseFloat(row[lizIdx] ?? '0'), 0);
+
+    // Offene interne Bestellungen im Zeitraum (Kosten für Partner → Abzug)
+    const ipIdx  = internTab.header.indexOf('Partner-ID');
+    const idatIdx = internTab.header.indexOf('Datum');
+    const iSumIdx = internTab.header.indexOf('Summe');
+    const istIdx  = internTab.header.indexOf('Status');
+
+    const offeneIntern = internTab.rows
+      .map((row, rowIndex) => ({ row, rowIndex: rowIndex + 2 }))
+      .filter(({ row }) => {
+        if (row[ipIdx] !== partnerId) return false;
+        if ((row[istIdx] ?? '') !== 'offen') return false;
+        const d = parseDate(row[idatIdx] ?? '');
+        return d && d >= vonDatum && d <= bisDatum;
+      });
+
+    const interneSumme = offeneIntern.reduce((s, { row }) => s + parseFloat(row[iSumIdx] ?? '0'), 0);
+
+    // Saldo = Lizenz-Einnahmen − interne Bestellungskosten
+    const saldo = parseFloat((lizenzSumme - interneSumme).toFixed(2));
 
     // Neue Abrechnungs-ID
-    const abIdIdx   = abrechnungenTab.header.indexOf('Abrechnungs-ID');
-    const abId      = nextAbrechnungId(abrechnungenTab.rows, abIdIdx);
+    const abIdIdx    = abrechnungenTab.header.indexOf('Abrechnungs-ID');
+    const abId       = nextAbrechnungId(abrechnungenTab.rows, abIdIdx);
     const erstelltAm = toDE(new Date());
 
-    // Abrechnung schreiben
+    // Abrechnung schreiben (Verkaufs-Guthaben = Lizenz-Summe, Saldo = nach Abzug Intern)
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
       range: 'Partner_Abrechnungen!A:I',
@@ -422,26 +442,36 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
       requestBody: { values: [[
         abId, partnerId,
         toDE(vonDatum), toDE(bisDatum),
-        saldo, saldo, 'angefordert', erstelltAm, notiz ?? '',
+        parseFloat(lizenzSumme.toFixed(2)), saldo, 'angefordert', erstelltAm, notiz ?? '',
       ]]},
     });
 
-    // Verkäufe als 'abgerechnet' markieren (batch)
-    const stColLetter = colLetter(stIdx);
-    const requests = offene.map(({ rowIndex }) => ({
-      range:          `Partner_Verkäufe!${stColLetter}${rowIndex}`,
-      majorDimension: 'ROWS',
-      values:         [['abgerechnet']],
-    }));
-    await sheets.spreadsheets.values.batchUpdate({
-      spreadsheetId: sheetId,
-      requestBody: { valueInputOption: 'USER_ENTERED', data: requests },
-    });
+    // Verkäufe + interne Bestellungen als 'abgerechnet' markieren (batch)
+    const stColLetter  = colLetter(stIdx);
+    const istColLetter = colLetter(istIdx);
+    const markRequests = [
+      ...offene.map(({ rowIndex }) => ({
+        range: `Partner_Verkäufe!${stColLetter}${rowIndex}`,
+        majorDimension: 'ROWS', values: [['abgerechnet']],
+      })),
+      ...offeneIntern.map(({ rowIndex }) => ({
+        range: `Partner_Interne_Bestellungen!${istColLetter}${rowIndex}`,
+        majorDimension: 'ROWS', values: [['abgerechnet']],
+      })),
+    ];
+    if (markRequests.length) {
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: sheetId,
+        requestBody: { valueInputOption: 'USER_ENTERED', data: markRequests },
+      });
+    }
 
     res.status(201).json({
       abrechnungId: abId, partnerId,
       zeitraumVon: toDE(vonDatum), zeitraumBis: toDE(bisDatum),
-      anzahlVerkäufe: offene.length, saldo, status: 'angefordert',
+      anzahlVerkäufe: offene.length, lizenzSumme: parseFloat(lizenzSumme.toFixed(2)),
+      anzahlInterne: offeneIntern.length, interneSumme: parseFloat(interneSumme.toFixed(2)),
+      saldo, status: 'angefordert',
     });
   } catch (err) { next(err); }
 });

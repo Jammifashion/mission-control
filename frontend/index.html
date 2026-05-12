@@ -4004,18 +4004,63 @@
       document.getElementById('btn-add-druckpreis').addEventListener('click', () => openDruckpreisModal());
       document.getElementById('btn-add-verkaufspreis').addEventListener('click', () => openVerkaufspreisModal());
       document.getElementById('btn-add-artikel').addEventListener('click', () => openArtikelModal());
-      document.getElementById('btn-wc-sync').addEventListener('click', async () => {
-        const btn = document.getElementById('btn-wc-sync');
-        btn.disabled = true; btn.textContent = '↻ Sync…';
+      document.getElementById('btn-wc-sync').addEventListener('click', () => openSyncModal());
+
+      async function openSyncModal() {
+        // Prüfe ob Partner_Verkäufe noch leer ist → zeige Datumspicker für ersten Sync.
+        // Nach dem ersten Sync erkennt das Backend das neueste Datum automatisch.
+        let hasEntries = false;
         try {
-          const r = await window.apiFetch(`${window.API_BASE()}/api/partner/verkaeufe/sync`);
-          const data = await r.json();
-          if (!r.ok) throw new Error(data.error ?? r.statusText);
-          window.showToast(data.message || `${data.synced} neue Einträge synchronisiert.`);
-          if (data.synced > 0) loadVerkaeufeTable();
-        } catch (e) { window.showToast(`Sync-Fehler: ${e.message}`, 'toast-error'); }
-        finally { btn.disabled = false; btn.textContent = '↻ WC-Sync'; }
-      });
+          const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/verkaeufe`);
+          if (r.ok) { const d = await r.json(); hasEntries = d.length > 0; }
+        } catch { /* ignore, Backend auto-detect */ }
+
+        const today = new Date().toISOString().slice(0, 10);
+        const einstiegDatum = hasEntries ? '' : today;
+
+        const bd = document.createElement('div'); bd.className = 'modal-backdrop';
+        bd.innerHTML = `<div class="modal-box" style="max-width:400px;width:94%;">
+          <div class="modal-title">WC-Bestellungen synchronisieren</div>
+          <div style="margin-top:1.1rem;">
+            <div class="form-field">
+              <label>Bestellungen laden ab:</label>
+              <input class="form-input" type="date" id="sync-from" value="${einstiegDatum}">
+              <p style="font-size:0.78rem;color:var(--muted);margin-top:0.4rem;">
+                ${hasEntries
+                  ? 'Leer lassen → Backend nutzt automatisch das Datum des neuesten Eintrags.'
+                  : 'Erster Sync: Bitte Startdatum wählen, ab wann Bestellungen importiert werden sollen.'}
+              </p>
+            </div>
+            <div class="modal-actions" style="margin-top:1.25rem;">
+              <button class="btn-secondary" id="sync-x">Abbrechen</button>
+              <button class="btn" id="sync-ok">Sync starten</button>
+            </div>
+          </div>
+        </div>`;
+        document.body.appendChild(bd);
+        bd.querySelector('#sync-x').onclick = () => bd.remove();
+        bd.querySelector('#sync-ok').onclick = async () => {
+          const fromVal = bd.querySelector('#sync-from').value;
+          if (!hasEntries && !fromVal) {
+            window.showToast('Bitte ein Startdatum wählen (erster Sync).', 'toast-error'); return;
+          }
+          const okBtn = bd.querySelector('#sync-ok');
+          okBtn.disabled = true; okBtn.textContent = '↻ Sync…';
+          const qs = fromVal ? `?after=${encodeURIComponent(new Date(fromVal).toISOString())}` : '';
+          try {
+            const r = await window.apiFetch(`${window.API_BASE()}/api/partner/verkaeufe/sync${qs}`);
+            const data = await r.json();
+            if (!r.ok) throw new Error(data.error ?? r.statusText);
+            bd.remove();
+            const afterInfo = data.afterParam ? ` (ab ${data.afterParam.slice(0,10)})` : '';
+            window.showToast((data.message || `${data.synced} neue Einträge`) + afterInfo);
+            if (data.synced > 0) loadVerkaeufeTable();
+          } catch (e) {
+            window.showToast(`Sync-Fehler: ${e.message}`, 'toast-error');
+            okBtn.disabled = false; okBtn.textContent = 'Sync starten';
+          }
+        };
+      }
       document.getElementById('btn-add-verkauf').addEventListener('click', () => openVerkaufModal());
       document.getElementById('btn-add-abrechnung').addEventListener('click', () => openAbrechnungModal());
       document.getElementById('verkaeufe-filter-partner').addEventListener('change', () => loadVerkaeufeTable());
@@ -4507,7 +4552,8 @@
             if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
             const data = await r.json();
             bd.remove();
-            window.showToast(`Abrechnung ${data.abrechnungId} erstellt (${data.anzahlVerkäufe} Verkäufe, ${data.saldo.toLocaleString('de-DE',{style:'currency',currency:'EUR'})})`);
+            const internInfo = data.anzahlInterne ? ` − ${data.anzahlInterne} Intern (${data.interneSumme?.toLocaleString('de-DE',{style:'currency',currency:'EUR'})})` : '';
+            window.showToast(`Abrechnung ${data.abrechnungId} erstellt: ${data.anzahlVerkäufe} Verkäufe${internInfo} → Saldo ${data.saldo.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}`);
             loadAbrechnungenTable();
           } catch (e) { window.showToast(`Fehler: ${e.message}`, 'toast-error'); btn.disabled = false; btn.textContent = 'Erstellen'; }
         };
@@ -4559,13 +4605,13 @@
             _artikelState.konfig = parseKonfigClient(rows);
           } catch { _artikelState.konfig = parseKonfigClient([]); }
         }
-        if (_artikelState.partnerId) loadArtikelTable();
+        if (_artikelState.partnerId) loadPartnerArtikelTable();
       }
 
       document.getElementById('artikel-filter-partner').addEventListener('change', e => {
         _artikelState.partnerId = e.target.value;
         document.getElementById('btn-artikel-import').disabled = !_artikelState.partnerId;
-        if (_artikelState.partnerId) loadArtikelTable();
+        if (_artikelState.partnerId) loadPartnerArtikelTable();
         else document.getElementById('artikel-list-wrap').innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Bitte Partner wählen.</p>';
       });
 
@@ -4578,7 +4624,7 @@
           const data = await r.json();
           if (!r.ok) throw new Error(data.error || r.statusText);
           window.showToast(data.message || `${data.neu} neue Artikel importiert.`);
-          loadArtikelTable();
+          loadPartnerArtikelTable();
         } catch (e) {
           window.showToast(`Import-Fehler: ${e.message}`, 'toast-error');
         } finally {
@@ -4586,7 +4632,7 @@
         }
       });
 
-      async function loadArtikelTable() {
+      async function loadPartnerArtikelTable() {
         const wrap = document.getElementById('artikel-list-wrap');
         wrap.innerHTML = '<div class="skeleton" style="height:80px;"></div>';
         try {
@@ -4688,7 +4734,7 @@
         const i  = +tr.dataset.artI;
         const a  = _artikelState.artikel[i];
         const field = el.dataset.field;
-        const val   = field === 'versandart' ? el.value : parseFloat(el.value);
+        const val   = field === 'versandart' ? el.value : parseFloat(el.value.replace(',', '.'));
         if (field !== 'versandart' && Number.isNaN(val)) {
           window.showToast('Ungültiger Wert.', 'toast-error');
           el.value = a[field];
@@ -4767,7 +4813,7 @@
           <thead><tr>
             <th>Datum</th><th>Bezeichnung</th>
             <th style="text-align:right;">Anzahl</th>
-            <th style="text-align:right;">Einzelpreis</th>
+            <th style="text-align:right;">Einzelpreis brutto</th>
             <th style="text-align:right;">Summe</th>
             <th>Status</th>
           </tr></thead>
@@ -4823,7 +4869,7 @@
               <input class="form-input" type="number" id="int-a" min="1" step="1" value="1"></div>
             <div class="form-field form-col-full"><label>Bezeichnung *</label>
               <input class="form-input" id="int-b" placeholder="z.B. Werbeshirts April"></div>
-            <div class="form-field"><label>Einzelpreis €</label>
+            <div class="form-field"><label>Einzelpreis brutto (€)</label>
               <input class="form-input" type="number" id="int-e" min="0" step="0.01" value="0"></div>
           </div>
           <div class="modal-actions" style="margin-top:1.25rem;">
@@ -4834,8 +4880,8 @@
         bd.querySelector('#int-x').onclick = () => bd.remove();
         bd.querySelector('#int-ok').onclick = async () => {
           const bezeichnung = bd.querySelector('#int-b').value.trim();
-          const anzahl      = parseFloat(bd.querySelector('#int-a').value);
-          const einzelpreis = parseFloat(bd.querySelector('#int-e').value);
+          const anzahl      = parseFloat(bd.querySelector('#int-a').value.replace(',', '.'));
+          const einzelpreis = parseFloat(bd.querySelector('#int-e').value.replace(',', '.'));
           if (!bezeichnung || !anzahl || anzahl <= 0) {
             window.showToast('Bezeichnung und Anzahl sind erforderlich.', 'toast-error'); return;
           }

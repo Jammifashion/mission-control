@@ -63,8 +63,8 @@ router.get('/auth', async (req, res, next) => {
 });
 
 // ── GET /api/partner/verkaeufe/sync   (requires MC_API_KEY) ──────────────────
-// Holt WC-Bestellungen, matched Produkt-Kategorien gegen Partner-Hauptkategorie,
-// schreibt neue Zeilen in Partner_Verkäufe (Duplikate per Order-ID + Artikelname).
+// Lookup via Partner_Artikel (Produkt-ID → Partner-ID), kein Kategorie-Lookup.
+// ?after=ISO-DATUM optional; ohne Parameter: auto-detect aus neuestem Eintrag.
 router.get('/verkaeufe/sync', async (req, res, next) => {
   if (req.headers['x-api-key'] !== process.env.MC_API_KEY)
     return res.status(401).json({ error: 'Unauthorized.' });
@@ -75,96 +75,84 @@ router.get('/verkaeufe/sync', async (req, res, next) => {
 
     const sheets = await getSheets();
 
-    // 1. Partner mit Hauptkategorie und Lizenz-% laden
-    const { header: pH, rows: pRows } = await readTab(sheets, sheetId, 'Partner');
-    const ph = col => pH.indexOf(col);
-    const partners = pRows.map(r => ({
-      id:            r[ph('Partner-ID')]       ?? '',
-      kategorie:     (r[ph('Hauptkategorie')] ?? '').trim().toLowerCase(),
-      lizenzProzent: parseFloat(r[ph('Lizenz-%')] ?? '0'),
-    })).filter(p => p.id && p.kategorie);
-
-    if (!partners.length)
-      return res.json({ synced: 0, orders: 0, message: 'Keine Partner mit Kategorie konfiguriert.' });
-
-    // 2. WC Produktkategorien laden → Hierarchie-Map aufbauen
-    const wc = getWcClient();
-    const catMap = {}; // id → { name, parentId }
-    for (let page = 1; ; page++) {
-      const { data: cats } = await wc.get('products/categories', { per_page: 100, page });
-      cats.forEach(c => { catMap[c.id] = { name: c.name.toLowerCase(), parentId: c.parent ?? 0 }; });
-      if (cats.length < 100) break;
+    // 1. Partner_Artikel laden → Map: productId (string) → [{ partnerId, lizenzProzent }]
+    const { header: aH, rows: aRows } = await readTab(sheets, sheetId, 'Partner_Artikel');
+    const ah = col => aH.indexOf(col);
+    const partnerArtikelMap = {};
+    for (const r of aRows) {
+      const pid        = (r[ah('Produkt-ID')] ?? '').toString().trim();
+      const partnerId  = r[ah('Partner-ID')] ?? '';
+      const lizenzProzent = parseFloat(r[ah('Lizenz-%')] ?? '0');
+      if (!pid || !partnerId) continue;
+      if (!partnerArtikelMap[pid]) partnerArtikelMap[pid] = [];
+      partnerArtikelMap[pid].push({ partnerId, lizenzProzent });
     }
 
-    // Root-Kategorie eines Kategorieeintrags ermitteln (parent-Kette hochlaufen)
-    function rootCatName(catId) {
-      let cur = catMap[catId];
-      while (cur?.parentId) cur = catMap[cur.parentId];
-      return cur?.name ?? null;
-    }
+    if (!Object.keys(partnerArtikelMap).length)
+      return res.json({ synced: 0, orders: 0, message: 'Partner_Artikel ist leer – bitte zuerst Artikel importieren.' });
 
-    // 3. Bereits vorhandene Einträge laden → Duplikat-Set
+    // 2. Partner_Verkäufe laden → Duplikat-Set + neuestes Datum für after-Parameter
     const { header: vH, rows: vRows } = await readTab(sheets, sheetId, 'Partner_Verkäufe');
     const vh = col => vH.indexOf(col);
     const existingKeys = new Set(
-      vRows.map(r => `${r[vh('Order-ID')] ?? ''}|${r[vh('Artikelnummer')] ?? ''}`)
+      vRows.map(r => `${r[vh('Order-ID')] ?? ''}|${r[vh('Artikelnummer')] ?? ''}|${r[vh('Partner-ID')] ?? ''}`)
     );
 
-    // 4. WC Bestellungen laden (processing + completed, alle Seiten)
+    // after-Parameter: explizit übergeben oder auto-detect aus neuestem Eintrag
+    let afterParam = req.query.after || null;
+    if (!afterParam && vRows.length) {
+      const datIdx = vh('Datum');
+      let newest = null;
+      for (const r of vRows) {
+        const d = parseDate(r[datIdx] ?? '');
+        if (d && (!newest || d > newest)) newest = d;
+      }
+      if (newest) afterParam = newest.toISOString().slice(0, 19);
+    }
+
+    // 3. WC Bestellungen laden (mit optionalem after-Filter)
+    const wc = getWcClient();
     const orders = [];
     for (let page = 1; ; page++) {
+      const params = { per_page: 100, page };
+      if (afterParam) params.after = afterParam;
       const [proc, compl] = await Promise.all([
-        wc.get('orders', { per_page: 100, page, status: 'processing' }),
-        wc.get('orders', { per_page: 100, page, status: 'completed'  }),
+        wc.get('orders', { ...params, status: 'processing' }),
+        wc.get('orders', { ...params, status: 'completed'  }),
       ]);
       orders.push(...proc.data, ...compl.data);
       if (proc.data.length < 100 && compl.data.length < 100) break;
     }
 
-    // 5. Unique product_ids sammeln → Produkte in 100er-Batches laden
-    const uniqueIds = [...new Set(
-      orders.flatMap(o => o.line_items.map(i => i.product_id).filter(Boolean))
-    )];
-    const prodCache = {}; // productId → { name, catIds }
-    for (let i = 0; i < uniqueIds.length; i += 100) {
-      const batch = uniqueIds.slice(i, i + 100);
-      try {
-        const { data: prods } = await wc.get('products', { include: batch.join(','), per_page: 100 });
-        prods.forEach(p => {
-          prodCache[p.id] = { name: p.name, catIds: (p.categories ?? []).map(c => c.id) };
-        });
-      } catch { /* Batch überspringen */ }
-    }
-
-    // 6. Iterieren: Order-Items → Kategorie-Match → Zeilen sammeln
+    // 4. Order-Items → Partner_Artikel-Lookup → Zeilen sammeln
     const toWrite = [];
     for (const order of orders) {
       const orderDate = toDE(new Date(order.date_created));
+      const artikelName = (item) => item.name || item.sku || String(item.product_id);
+
       for (const item of order.line_items) {
-        const prod = prodCache[item.product_id];
-        if (!prod) continue;
+        const productId = String(item.product_id || '');
+        const entries   = partnerArtikelMap[productId];
+        if (!entries) continue; // kein Partner für dieses Produkt
 
-        const rootNames = [...new Set(prod.catIds.map(id => rootCatName(id)).filter(Boolean))];
+        for (const { partnerId, lizenzProzent } of entries) {
+          const artKey = artikelName(item);
+          const key    = `${order.id}|${artKey}|${partnerId}`;
+          if (existingKeys.has(key)) continue;
+          existingKeys.add(key);
 
-        for (const rootName of rootNames) {
-          for (const partner of partners.filter(p => p.kategorie === rootName)) {
-            const key = `${order.id}|${prod.name}`;
-            if (existingKeys.has(key)) continue;
-            existingKeys.add(key);
-
-            const vkBrutto = parseFloat(item.total ?? '0');
-            const lizenz   = parseFloat(((vkBrutto * partner.lizenzProzent) / 100).toFixed(2));
-            toWrite.push([
-              partner.id, orderDate, String(order.id),
-              prod.name, '', String(item.quantity),
-              vkBrutto, lizenz, 'offen',
-            ]);
-          }
+          const vkBrutto = parseFloat(item.total ?? '0');
+          const lizenz   = parseFloat(((vkBrutto * lizenzProzent) / 100).toFixed(2));
+          toWrite.push([
+            partnerId, orderDate, String(order.id),
+            artKey, item.sku || '', String(item.quantity),
+            vkBrutto, lizenz, 'offen',
+          ]);
         }
       }
     }
 
-    // 7. Batch-Append ins Sheet
+    // 5. Batch-Append ins Sheet
     if (toWrite.length > 0) {
       await sheets.spreadsheets.values.append({
         spreadsheetId: sheetId,
@@ -176,9 +164,10 @@ router.get('/verkaeufe/sync', async (req, res, next) => {
     }
 
     res.json({
-      synced:  toWrite.length,
-      orders:  orders.length,
-      message: toWrite.length
+      synced:     toWrite.length,
+      orders:     orders.length,
+      afterParam: afterParam || null,
+      message:    toWrite.length
         ? `${toWrite.length} neue Einträge aus ${orders.length} Bestellungen synchronisiert.`
         : 'Alle Einträge bereits vorhanden – nichts Neues.',
     });
