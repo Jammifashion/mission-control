@@ -3621,6 +3621,12 @@
         navigator.serviceWorker.register('./sw.js').catch(console.error);
       }
 
+      // ── Helpers global verfügbar für non-module Scripts (Partnerportal etc.) ──
+      window.API_BASE    = API_BASE;
+      window.apiFetch    = apiFetch;
+      window.showToast   = showToast;
+      window.showConfirm = showConfirm;
+
       // ── Init ─────────────────────────────────────────────────────────────
       loadDashboard();
       loadSsotData();
@@ -3710,7 +3716,7 @@
       async function loadPartnerportal() {
         if (!window.ssot?.kategorien?.length) {
           try {
-            const r = await apiFetch(`${API_BASE()}/api/sheets/kategorien`, { signal: AbortSignal.timeout(8000) });
+            const r = await window.apiFetch(`${window.API_BASE()}/api/sheets/kategorien`, { signal: AbortSignal.timeout(8000) });
             if (r.ok) {
               const kategorien = await r.json();
               if (window.ssot) window.ssot.kategorien = kategorien;
@@ -3724,7 +3730,7 @@
         const wrap = document.getElementById('partner-list-wrap');
         wrap.innerHTML = '<div class="skeleton" style="height:80px;"></div>';
         try {
-          _ppPartners = await apiFetch(`${API_BASE()}/api/kalkulation/partner`).then(r => r.json());
+          _ppPartners = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/partner`).then(r => r.json());
           if (!_ppPartners.length) {
             wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Noch keine Partner erfasst.</p>';
             return;
@@ -3827,7 +3833,7 @@
         backdrop.querySelector('#pp-f-cancel').onclick = () => backdrop.remove();
         backdrop.querySelector('#pp-f-save').onclick = async () => {
           const name = backdrop.querySelector('#pp-f-name').value.trim();
-          if (!name) { showToast('Name ist erforderlich.', 'toast-error'); return; }
+          if (!name) { window.showToast('Name ist erforderlich.', 'toast-error'); return; }
           const body = {
             name,
             kategorie:     backdrop.querySelector('#pp-f-kat').value,
@@ -3839,38 +3845,38 @@
           const saveBtn = backdrop.querySelector('#pp-f-save');
           saveBtn.disabled = true; saveBtn.textContent = '...';
           try {
-            const url    = isEdit ? `${API_BASE()}/api/kalkulation/partner/${partner.id}` : `${API_BASE()}/api/kalkulation/partner`;
+            const url    = isEdit ? `${window.API_BASE()}/api/kalkulation/partner/${partner.id}` : `${window.API_BASE()}/api/kalkulation/partner`;
             const method = isEdit ? 'PATCH' : 'POST';
-            const r = await apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            const r = await window.apiFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
             if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
             backdrop.remove();
-            showToast(isEdit ? 'Partner gespeichert.' : 'Partner hinzugefügt.');
+            window.showToast(isEdit ? 'Partner gespeichert.' : 'Partner hinzugefügt.');
             loadPartner();
           } catch (e) {
-            showToast(`Fehler: ${e.message}`, 'toast-error');
+            window.showToast(`Fehler: ${e.message}`, 'toast-error');
             saveBtn.disabled = false; saveBtn.textContent = isEdit ? 'Speichern' : 'Hinzufügen';
           }
         };
       }
 
       async function togglePartnerAktiv(id, currentAktiv) {
-        const confirmed = await showConfirm(
+        const confirmed = await window.showConfirm(
           currentAktiv ? 'Partner deaktivieren?' : 'Partner aktivieren?',
           `Partner <strong>${id}</strong> wird ${currentAktiv ? 'deaktiviert' : 'aktiviert'}.`,
           currentAktiv ? 'Deaktivieren' : 'Aktivieren'
         );
         if (!confirmed) return;
         try {
-          const r = await apiFetch(`${API_BASE()}/api/kalkulation/partner/${id}`, {
+          const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/partner/${id}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ aktiv: !currentAktiv }),
           });
           if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
-          showToast(`Partner ${!currentAktiv ? 'aktiviert' : 'deaktiviert'}.`);
+          window.showToast(`Partner ${!currentAktiv ? 'aktiviert' : 'deaktiviert'}.`);
           loadPartner();
         } catch (e) {
-          showToast(`Fehler: ${e.message}`, 'toast-error');
+          window.showToast(`Fehler: ${e.message}`, 'toast-error');
         }
       }
 
