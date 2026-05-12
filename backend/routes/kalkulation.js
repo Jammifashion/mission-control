@@ -197,6 +197,87 @@ router.get('/partner', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── POST /api/kalkulation/partner ────────────────────────────────────────────
+router.post('/partner', async (req, res, next) => {
+  try {
+    const sheetId = process.env.BUSINESS_SHEET_ID;
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
+
+    const { name, kategorie = '', lizenzProzent = 0, versandModell = 'pauschal', paypalModell = 'pauschal', aktiv = true, notiz = '' } = req.body;
+    if (!name) return res.status(400).json({ error: 'name ist erforderlich.' });
+
+    const sheets = await getSheets();
+    const { header, rows } = await readTab(sheets, sheetId, 'Partner');
+
+    const idIdx = header.indexOf('Partner-ID');
+    const maxNum = rows
+      .map(r => (r[idIdx] ?? '').toString())
+      .filter(id => /^P-\d+$/.test(id))
+      .map(id => parseInt(id.slice(2), 10))
+      .reduce((m, n) => Math.max(m, n), 0);
+    const partnerId = `P-${String(maxNum + 1).padStart(3, '0')}`;
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: sheetId,
+      range: 'Partner!A:I',
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [[
+        partnerId, name, kategorie, '', aktiv ? 'Ja' : 'Nein',
+        lizenzProzent, versandModell, paypalModell, notiz,
+      ]]},
+    });
+
+    res.status(201).json({ id: partnerId, name, kategorie, aktiv, lizenzProzent, versandModell, paypalModell, notiz });
+  } catch (err) { next(err); }
+});
+
+// ── PATCH /api/kalkulation/partner/:id ──────────────────────────────────────
+router.patch('/partner/:id', async (req, res, next) => {
+  try {
+    const sheetId = process.env.BUSINESS_SHEET_ID;
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
+
+    const sheets = await getSheets();
+    const { header, rows } = await readTab(sheets, sheetId, 'Partner');
+
+    const idIdx    = header.indexOf('Partner-ID');
+    const rowIndex = rows.findIndex(r => r[idIdx] === req.params.id);
+    if (rowIndex === -1)
+      return res.status(404).json({ error: `Partner "${req.params.id}" nicht gefunden.` });
+
+    const { name, kategorie, lizenzProzent, versandModell, paypalModell, aktiv, notiz } = req.body;
+    const sheetRow = rowIndex + 2;
+
+    const colMap = {
+      'Name':           name,
+      'Hauptkategorie': kategorie,
+      'Lizenz-%':       lizenzProzent,
+      'Versand-Modell': versandModell,
+      'PayPal-Modell':  paypalModell,
+      'Aktiv':          aktiv !== undefined ? (aktiv ? 'Ja' : 'Nein') : undefined,
+      'Notiz':          notiz,
+    };
+
+    const data = Object.entries(colMap)
+      .filter(([, v]) => v !== undefined)
+      .map(([col, value]) => ({
+        range: `Partner!${colLetter(header.indexOf(col))}${sheetRow}`,
+        majorDimension: 'ROWS',
+        values: [[value]],
+      }));
+
+    if (data.length > 0) {
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: sheetId,
+        requestBody: { valueInputOption: 'USER_ENTERED', data },
+      });
+    }
+
+    res.json({ id: req.params.id, updated: Object.keys(colMap).filter(k => colMap[k] !== undefined) });
+  } catch (err) { next(err); }
+});
+
 // ── POST /api/kalkulation/partner-verkauf ────────────────────────────────────
 // Einen Verkauf für einen Partner erfassen
 router.post('/partner-verkauf', async (req, res, next) => {
