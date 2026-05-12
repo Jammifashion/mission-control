@@ -1021,6 +1021,7 @@
                   <option value="offen">Offen</option>
                   <option value="abgerechnet">Abgerechnet</option>
                 </select>
+                <button class="btn-secondary" id="btn-wc-sync" style="font-size:0.82rem;padding:0.42rem 0.85rem;">↻ WC-Sync</button>
                 <button class="btn" id="btn-add-verkauf" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Verkauf erfassen</button>
               </div>
             </div>
@@ -3976,6 +3977,18 @@
       document.getElementById('btn-add-druckpreis').addEventListener('click', () => openDruckpreisModal());
       document.getElementById('btn-add-verkaufspreis').addEventListener('click', () => openVerkaufspreisModal());
       document.getElementById('btn-add-artikel').addEventListener('click', () => openArtikelModal());
+      document.getElementById('btn-wc-sync').addEventListener('click', async () => {
+        const btn = document.getElementById('btn-wc-sync');
+        btn.disabled = true; btn.textContent = '↻ Sync…';
+        try {
+          const r = await window.apiFetch(`${window.API_BASE()}/api/partner/verkaeufe/sync`);
+          const data = await r.json();
+          if (!r.ok) throw new Error(data.error ?? r.statusText);
+          window.showToast(data.message || `${data.synced} neue Einträge synchronisiert.`);
+          if (data.synced > 0) loadVerkaeufeTable();
+        } catch (e) { window.showToast(`Sync-Fehler: ${e.message}`, 'toast-error'); }
+        finally { btn.disabled = false; btn.textContent = '↻ WC-Sync'; }
+      });
       document.getElementById('btn-add-verkauf').addEventListener('click', () => openVerkaufModal());
       document.getElementById('btn-add-abrechnung').addEventListener('click', () => openAbrechnungModal());
       document.getElementById('verkaeufe-filter-partner').addEventListener('change', () => loadVerkaeufeTable());

@@ -17,6 +17,7 @@ import backupRouter from './routes/backup.js';
 import systemRoutes from './routes/system.js';
 import kalkulationRouter from './routes/kalkulation.js';
 import partnerViewRouter from './routes/partnerView.js';
+import partnerPortalRouter from './routes/partnerPortal.js';
 
 // Secrets vor Express-Setup laden – stellt sicher dass process.env.CORS_ORIGIN
 // (und alle anderen Secrets) bereits gesetzt sind wenn die Middleware konfiguriert wird.
@@ -35,7 +36,8 @@ app.use(express.json({ limit: '256kb' }));
 
 // ── Rate limiting → Auth (Reihenfolge: rateLimiter → requireApiKey → Router) ──
 app.use('/api/', apiRateLimiter);
-app.use('/api/partner-view', partnerViewRouter); // Token-Auth, kein API-Key nötig
+app.use('/api/partner-view', partnerViewRouter); // legacy, bleibt erhalten
+app.use('/api/partner',      partnerPortalRouter); // Token-Auth oder eigene Key-Prüfung
 app.use(requireApiKey);
 
 // ── Routes ────────────────────────────────────────────────────────────────────
