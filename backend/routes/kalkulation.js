@@ -47,6 +47,13 @@ async function readTab(sheets, sheetId, tabName) {
   return { header: header ?? [], rows: rows.filter(r => r.some(c => c)) };
 }
 
+// Robustes parseFloat: behandelt Komma als Dezimaltrennzeichen (DE-Format aus Sheet).
+function toFloat(val, fallback = 0) {
+  if (val === null || val === undefined || val === '') return fallback;
+  const n = parseFloat(val.toString().replace(',', '.'));
+  return Number.isNaN(n) ? fallback : n;
+}
+
 // Liefert Spaltenbuchstaben für Index (0=A, 25=Z, 26=AA …)
 function colLetter(idx) {
   let s = ''; idx++;
@@ -121,7 +128,7 @@ router.post('/berechnen', async (req, res, next) => {
     let fixGesamt = 0;
     const fixDetail = [];
     for (const { row: r } of Object.values(gFix)) {
-      const betrag  = parseFloat(r[fBetragIdx] ?? '0');
+      const betrag  = toFloat(r[fBetragIdx]);
       const einheit = r[fEinheitIdx] ?? '';
       fixDetail.push({ position: r[fPosIdx], betrag, einheit });
       if (einheit !== '%/VK') fixGesamt += betrag;
@@ -138,7 +145,7 @@ router.post('/berechnen', async (req, res, next) => {
     const vkEintraege = Object.values(gVk)
       .map(({ row: r }) => ({
         typ: r[vkTypIdx] ?? '', abMenge: parseInt(r[vkMengeIdx] ?? '1', 10),
-        vkBrutto: parseFloat(r[vkPreisIdx] ?? '0'),
+        vkBrutto: toFloat(r[vkPreisIdx]),
       }))
       .filter(e => parseInt(menge, 10) >= e.abMenge)
       .sort((a, b) => b.abMenge - a.abMenge);
@@ -190,7 +197,7 @@ router.get('/partner', async (req, res, next) => {
       kategorie:     r[katIdx]   ?? '',
       token:         r[tokenIdx] ?? '',
       aktiv:         (r[aktivIdx] ?? '').toLowerCase() === 'ja',
-      lizenzProzent: parseFloat(r[lizenzIdx] ?? '0'),
+      lizenzProzent: toFloat(r[lizenzIdx]),
       portoModell:   r[portoIdx]   ?? 'geteilt-50-50',
       notiz:         r[notizIdx]   ?? '',
     })));
@@ -356,13 +363,83 @@ router.get('/partner/:id/verkaeufe', async (req, res, next) => {
         artikelnummer: r[header.indexOf('Artikelnummer')]  ?? '',
         variante:     r[header.indexOf('Variante')]        ?? '',
         stueckzahl:   parseInt(r[header.indexOf('Stückzahl')] ?? '1', 10),
-        vkPreisBrutto: parseFloat(r[header.indexOf('VK-Preis-Brutto')] ?? '0'),
-        lizenzgebühr:  parseFloat(r[header.indexOf('Lizenzgebühr')] ?? '0'),
+        vkPreisBrutto: toFloat(r[header.indexOf('VK-Preis-Brutto')]),
+        lizenzgebühr:  toFloat(r[header.indexOf('Lizenzgebühr')]),
         status:       r[header.indexOf('Status')] ?? '',
       }));
 
     const summe = filtered.reduce((s, v) => s + v.lizenzgebühr, 0);
     res.json({ partnerId: id, anzahl: filtered.length, lizenzSumme: parseFloat(summe.toFixed(2)), verkäufe: filtered });
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/kalkulation/abrechnung/vorschau ────────────────────────────────
+// Liefert die Detail-Daten für ein Vorschau-Modal ohne etwas zu schreiben.
+router.post('/abrechnung/vorschau', async (req, res, next) => {
+  try {
+    const sheetId = process.env.BUSINESS_SHEET_ID;
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
+
+    const { partnerId, zeitraumVon, zeitraumBis } = req.body;
+    if (!partnerId || !zeitraumVon || !zeitraumBis)
+      return res.status(400).json({ error: 'partnerId, zeitraumVon, zeitraumBis sind erforderlich.' });
+
+    const vonDatum = parseDate(zeitraumVon);
+    const bisDatum = parseDate(zeitraumBis);
+    if (!vonDatum || !bisDatum) return res.status(400).json({ error: 'Ungültiges Datumsformat.' });
+
+    const sheets = await getSheets();
+    const [verkäufeTab, internTab] = await Promise.all([
+      readTab(sheets, sheetId, 'Partner_Verkäufe'),
+      readTab(sheets, sheetId, 'Partner_Interne_Bestellungen'),
+    ]);
+
+    const vh = col => verkäufeTab.header.indexOf(col);
+    const verkaeufe = verkäufeTab.rows
+      .filter(row => {
+        if (row[vh('Partner-ID')] !== partnerId) return false;
+        if ((row[vh('Status')] ?? '') !== 'offen') return false;
+        const d = parseDate(row[vh('Datum')] ?? '');
+        return d && d >= vonDatum && d <= bisDatum;
+      })
+      .map(row => ({
+        datum:       row[vh('Datum')]        ?? '',
+        orderId:     row[vh('Order-ID')]     ?? '',
+        artikelname: row[vh('Artikelnummer')] ?? '',
+        stueckzahl:  toFloat(row[vh('Stückzahl')]),
+        vkBrutto:    toFloat(row[vh('VK-Preis-Brutto')]),
+        lizenz:      toFloat(row[vh('Lizenzgebühr')]),
+      }));
+
+    const ih = col => internTab.header.indexOf(col);
+    const intern = internTab.rows
+      .filter(row => {
+        if (row[ih('Partner-ID')] !== partnerId) return false;
+        if ((row[ih('Status')] ?? '') !== 'offen') return false;
+        const d = parseDate(row[ih('Datum')] ?? '');
+        return d && d >= vonDatum && d <= bisDatum;
+      })
+      .map(row => ({
+        datum:       row[ih('Datum')]       ?? '',
+        bezeichnung: row[ih('Bezeichnung')] ?? '',
+        anzahl:      toFloat(row[ih('Anzahl')]),
+        einzelpreis: toFloat(row[ih('Einzelpreis')]),
+        summe:       toFloat(row[ih('Summe')]),
+      }));
+
+    const lizenzSumme  = verkaeufe.reduce((s, v) => s + v.lizenz, 0);
+    const interneSumme = intern.reduce((s, i) => s + i.summe, 0);
+    const saldo        = lizenzSumme - interneSumme;
+
+    res.json({
+      partnerId,
+      zeitraumVon: toDE(vonDatum), zeitraumBis: toDE(bisDatum),
+      verkaeufe,
+      intern,
+      lizenzSumme:  parseFloat(lizenzSumme.toFixed(2)),
+      interneSumme: parseFloat(interneSumme.toFixed(2)),
+      saldo:        parseFloat(saldo.toFixed(2)),
+    });
   } catch (err) { next(err); }
 });
 
@@ -406,7 +483,7 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
     if (!offene.length)
       return res.status(404).json({ error: `Keine offenen Verkäufe für Partner "${partnerId}" im Zeitraum.` });
 
-    const lizenzSumme = offene.reduce((s, { row }) => s + parseFloat(row[lizIdx] ?? '0'), 0);
+    const lizenzSumme = offene.reduce((s, { row }) => s + toFloat(row[lizIdx]), 0);
 
     // Offene interne Bestellungen im Zeitraum (Kosten für Partner → Abzug)
     const ipIdx  = internTab.header.indexOf('Partner-ID');
@@ -423,7 +500,7 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
         return d && d >= vonDatum && d <= bisDatum;
       });
 
-    const interneSumme = offeneIntern.reduce((s, { row }) => s + parseFloat(row[iSumIdx] ?? '0'), 0);
+    const interneSumme = offeneIntern.reduce((s, { row }) => s + toFloat(row[iSumIdx]), 0);
 
     // Saldo = Lizenz-Einnahmen − interne Bestellungskosten
     const saldo = parseFloat((lizenzSumme - interneSumme).toFixed(2));
@@ -496,8 +573,8 @@ router.get('/abrechnungen', async (req, res, next) => {
         partnerId:       r[h('Partner-ID')]          ?? '',
         zeitraumVon:     r[h('Zeitraum-Von')]        ?? '',
         zeitraumBis:     r[h('Zeitraum-Bis')]        ?? '',
-        verkaufsSumme:   parseFloat(r[h('Verkaufs-Guthaben')] ?? '0'),
-        saldo:           parseFloat(r[h('Saldo')]    ?? '0'),
+        verkaufsSumme:   toFloat(r[h('Verkaufs-Guthaben')]),
+        saldo:           toFloat(r[h('Saldo')]),
         status:          r[h('Status')]              ?? '',
         erstelltAm:      r[h('Erstellt-Am')]         ?? '',
         notiz:           r[h('Notiz')]               ?? '',
@@ -527,8 +604,8 @@ router.get('/verkaeufe', async (req, res, next) => {
         artikelnummer: r[h('Artikelnummer')]         ?? '',
         variante:      r[h('Variante')]             ?? '',
         stueckzahl:    parseInt(r[h('Stückzahl')]   ?? '1', 10),
-        vkPreisBrutto: parseFloat(r[h('VK-Preis-Brutto')] ?? '0'),
-        lizenzgebuehr: parseFloat(r[h('Lizenzgebühr')]    ?? '0'),
+        vkPreisBrutto: toFloat(r[h('VK-Preis-Brutto')]),
+        lizenzgebuehr: toFloat(r[h('Lizenzgebühr')]),
         status:        r[h('Status')]               ?? '',
       })));
   } catch (err) { next(err); }
@@ -582,7 +659,7 @@ router.get('/artikel', async (req, res, next) => {
     res.json(rows.map(r => ({
       lshopNr:       r[h('L-Shop-Nr')]      ?? '',
       artikelname:   r[h('Artikelname')]    ?? '',
-      ekPreisNetto:  parseFloat(r[h('EK-Preis-Netto')] ?? '0'),
+      ekPreisNetto:  toFloat(r[h('EK-Preis-Netto')]),
       kategorie:     r[h('Kategorie')]      ?? '',
       gueltigAb:     r[h('Gültig-Ab')]      ?? null,
       notiz:         r[h('Notiz')]          ?? '',
@@ -603,7 +680,7 @@ router.get('/druckpreise', async (req, res, next) => {
     res.json(rows.map(r => ({
       druckposition: r[h('Druckposition')] ?? '',
       groesse:       r[h('Größe')]         ?? '',
-      preisNetto:    parseFloat(r[h('Preis-Netto')] ?? '0'),
+      preisNetto:    toFloat(r[h('Preis-Netto')]),
       gueltigAb:     r[h('Gültig-Ab')]     ?? null,
     })));
   } catch (err) { next(err); }
@@ -621,7 +698,7 @@ router.get('/fixkosten', async (req, res, next) => {
     const h = col => header.indexOf(col);
     res.json(rows.map(r => ({
       position:  r[h('Position')]  ?? '',
-      betrag:    parseFloat(r[h('Betrag')] ?? '0'),
+      betrag:    toFloat(r[h('Betrag')]),
       einheit:   r[h('Einheit')]   ?? '',
       gueltigAb: r[h('Gültig-Ab')] ?? null,
     })));
@@ -641,7 +718,7 @@ router.get('/verkaufspreise', async (req, res, next) => {
     res.json(rows.map(r => ({
       produkttyp: r[h('Produkttyp')]  ?? '',
       abMenge:    parseInt(r[h('Ab-Menge')] ?? '1', 10),
-      vkBrutto:   parseFloat(r[h('VK-Brutto')] ?? '0'),
+      vkBrutto:   toFloat(r[h('VK-Brutto')]),
       gueltigAb:  r[h('Gültig-Ab')]   ?? null,
       notiz:      r[h('Notiz')]       ?? '',
     })));

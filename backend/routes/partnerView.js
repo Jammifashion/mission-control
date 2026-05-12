@@ -17,6 +17,12 @@ async function readTab(sheets, sheetId, tabName) {
   return { header: header ?? [], rows: rows.filter(r => r.some(c => c)) };
 }
 
+function toFloat(val, fallback = 0) {
+  if (val === null || val === undefined || val === '') return fallback;
+  const n = parseFloat(val.toString().replace(',', '.'));
+  return Number.isNaN(n) ? fallback : n;
+}
+
 // Liest Partner-Zeile aus Sheet und validiert Token
 async function resolvePartner(token) {
   const sheetId = process.env.BUSINESS_SHEET_ID;
@@ -68,8 +74,8 @@ router.get('/verkaeufe', async (req, res, next) => {
         artikelnummer: r[h('Artikelnummer')]         ?? '',
         variante:      r[h('Variante')]             ?? '',
         stueckzahl:    parseInt(r[h('Stückzahl')]   ?? '1', 10),
-        vkPreisBrutto: parseFloat(r[h('VK-Preis-Brutto')] ?? '0'),
-        lizenzgebuehr: parseFloat(r[h('Lizenzgebühr')]    ?? '0'),
+        vkPreisBrutto: toFloat(r[h('VK-Preis-Brutto')]),
+        lizenzgebuehr: toFloat(r[h('Lizenzgebühr')]),
         status:        r[h('Status')]               ?? '',
       })));
   } catch (err) { next(err); }
@@ -93,7 +99,7 @@ router.get('/abrechnungen', async (req, res, next) => {
         abrechnungId: r[h('Abrechnungs-ID')]    ?? '',
         zeitraumVon:  r[h('Zeitraum-Von')]       ?? '',
         zeitraumBis:  r[h('Zeitraum-Bis')]       ?? '',
-        saldo:        parseFloat(r[h('Saldo')]   ?? '0'),
+        saldo:        toFloat(r[h('Saldo')]),
         status:       r[h('Status')]             ?? '',
         erstelltAm:   r[h('Erstellt-Am')]         ?? '',
         notiz:        r[h('Notiz')]              ?? '',

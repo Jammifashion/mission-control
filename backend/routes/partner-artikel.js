@@ -29,6 +29,12 @@ async function readTab(sheets, sheetId, tabName) {
   return { header: header ?? [], rows: rows.filter(r => r.some(c => c)) };
 }
 
+function toFloat(val, fallback = 0) {
+  if (val === null || val === undefined || val === '') return fallback;
+  const n = parseFloat(val.toString().replace(',', '.'));
+  return Number.isNaN(n) ? fallback : n;
+}
+
 function colLetter(idx) {
   let s = '';
   idx++;
@@ -54,7 +60,7 @@ async function loadPartner(sheets, sheetId, partnerId) {
     id:            row[h('Partner-ID')]     ?? '',
     name:          row[h('Name')]           ?? '',
     hauptkategorie:(row[h('Hauptkategorie')] ?? '').trim(),
-    lizenzProzent: parseFloat(row[h('Lizenz-%')] ?? '0'),
+    lizenzProzent: toFloat(row[h('Lizenz-%')]),
     portoModell:   row[h('Porto-Modell')]   ?? 'geteilt-50-50',
   };
 }
@@ -87,10 +93,10 @@ router.get('/:id/artikel', async (req, res, next) => {
         artikelnummer: r[h('Artikelnummer')] ?? '',
         produktId:     r[h('Produkt-ID')]    ?? '',
         artikelname:   r[h('Artikelname')]   ?? '',
-        ekPreis:       parseFloat(r[h('EK-Preis-Netto')] ?? '0'),
-        druckkosten:   parseFloat(r[h('Druckkosten')]    ?? '0'),
+        ekPreis:       toFloat(r[h('EK-Preis-Netto')]),
+        druckkosten:   toFloat(r[h('Druckkosten')]),
         versandart:    (r[h('Versandart')] ?? 'P').toUpperCase(),
-        lizenzProzent: parseFloat(r[h('Lizenz-%')] ?? '0'),
+        lizenzProzent: toFloat(r[h('Lizenz-%')]),
         letzteSynchro: r[h('Letzte-Synchro')] ?? '',
       })));
   } catch (err) { next(err); }
@@ -289,8 +295,8 @@ router.post('/:id/intern', async (req, res, next) => {
     const partner = await loadPartner(sheets, sheetId, req.params.id);
     if (!partner) return res.status(404).json({ error: 'Partner nicht gefunden.' });
 
-    const anz = parseFloat(anzahl);
-    const ep  = parseFloat(einzelpreis);
+    const anz = toFloat(anzahl);
+    const ep  = toFloat(einzelpreis);
     const summe = Math.round(anz * ep * 100) / 100;
 
     await sheets.spreadsheets.values.append({
@@ -320,13 +326,13 @@ router.get('/:id/intern', async (req, res, next) => {
 
     res.json(rows
       .map((r, idx) => ({
-        rowId:       idx + 2, // Sheet-Zeile (1-basiert + Header)
+        rowId:       idx + 2,
         partnerId:   r[h('Partner-ID')]  ?? '',
         datum:       r[h('Datum')]       ?? '',
         bezeichnung: r[h('Bezeichnung')] ?? '',
-        anzahl:      parseFloat(r[h('Anzahl')]      ?? '0'),
-        einzelpreis: parseFloat(r[h('Einzelpreis')] ?? '0'),
-        summe:       parseFloat(r[h('Summe')]       ?? '0'),
+        anzahl:      toFloat(r[h('Anzahl')]),
+        einzelpreis: toFloat(r[h('Einzelpreis')]),
+        summe:       toFloat(r[h('Summe')]),
         status:      r[h('Status')]      ?? '',
       }))
       .filter(r => r.partnerId === req.params.id));

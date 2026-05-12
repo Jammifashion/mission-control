@@ -29,6 +29,13 @@ async function readTab(sheets, sheetId, tabName) {
   return { header: header ?? [], rows: rows.filter(r => r.some(c => c)) };
 }
 
+// Robustes parseFloat: behandelt Komma als Dezimaltrennzeichen (DE-Format aus Sheet).
+function toFloat(val, fallback = 0) {
+  if (val === null || val === undefined || val === '') return fallback;
+  const n = parseFloat(val.toString().replace(',', '.'));
+  return Number.isNaN(n) ? fallback : n;
+}
+
 function toDE(date) {
   const d = new Date(date);
   return `${String(d.getUTCDate()).padStart(2,'0')}.${String(d.getUTCMonth()+1).padStart(2,'0')}.${d.getUTCFullYear()}`;
@@ -83,9 +90,9 @@ router.get('/verkaeufe/sync', async (req, res, next) => {
     for (const r of aRows) {
       const pid        = (r[ah('Produkt-ID')] ?? '').toString().trim();
       const partnerId  = r[ah('Partner-ID')] ?? '';
-      const lizenzProzent = parseFloat(r[ah('Lizenz-%')] ?? '0');
-      const ekPreis     = parseFloat((r[ah('EK-Preis-Netto')] ?? '0').toString().replace(',', '.'));
-      const druckkosten = parseFloat((r[ah('Druckkosten')]    ?? '0').toString().replace(',', '.'));
+      const lizenzProzent = toFloat(r[ah('Lizenz-%')]);
+      const ekPreis     = toFloat(r[ah('EK-Preis-Netto')]);
+      const druckkosten = toFloat(r[ah('Druckkosten')]);
       const versandart  = ((r[ah('Versandart')] ?? 'P').toString().toUpperCase() === 'B') ? 'B' : 'P';
       if (!pid || !partnerId) continue;
       if (!partnerArtikelMap[pid]) partnerArtikelMap[pid] = [];
@@ -147,10 +154,14 @@ router.get('/verkaeufe/sync', async (req, res, next) => {
     const toWrite = [];
     const artikelName = (item) => item.name || item.sku || String(item.product_id);
 
+    const mwstFaktor = 1 + (konfiguration.mwstProzent || 0) / 100;
+
     for (const order of orders) {
       const orderDate     = toDE(new Date(order.date_created));
-      const shippingTotal = parseFloat(order.shipping_total ?? '0');
-      const orderTotal    = order.line_items.reduce((s, i) => s + parseFloat(i.total ?? '0'), 0);
+      // WC liefert shipping_total und item.total netto → brutto erst hier hochrechnen.
+      const shippingNetto = toFloat(order.shipping_total);
+      const shippingBrutto = shippingNetto * mwstFaktor;
+      const orderNetto    = order.line_items.reduce((s, i) => s + toFloat(i.total), 0);
 
       // Matching-Items + Versandart der Bestellung bestimmen:
       // wenn mindestens ein matchender Artikel "P" hat → ganze Bestellung gilt als "P".
@@ -165,9 +176,10 @@ router.get('/verkaeufe/sync', async (req, res, next) => {
       if (!matching.length) continue;
 
       for (const { item, entries } of matching) {
-        const itemTotal  = parseFloat(item.total ?? '0');
-        const anteil     = orderTotal > 0 ? (itemTotal / orderTotal) : 0;
-        const portoEinnahmeAnteil = shippingTotal * anteil;
+        const itemNetto  = toFloat(item.total);
+        const itemBrutto = itemNetto * mwstFaktor;
+        const anteil     = orderNetto > 0 ? (itemNetto / orderNetto) : 0;
+        const portoEinnahmeAnteil = shippingBrutto * anteil;
         const artKey = artikelName(item);
 
         for (const e of entries) {
@@ -176,7 +188,7 @@ router.get('/verkaeufe/sync', async (req, res, next) => {
           existingKeys.add(key);
 
           const calc = berechnePartnerAnteil({
-            vkBrutto:           itemTotal,
+            vkBrutto:           itemBrutto,
             ekPreis:            e.ekPreis,
             druckkosten:        e.druckkosten,
             versandart:         orderVersandart,
@@ -190,7 +202,7 @@ router.get('/verkaeufe/sync', async (req, res, next) => {
           toWrite.push([
             e.partnerId, orderDate, String(order.id),
             artKey, item.sku || '', String(item.quantity),
-            itemTotal, calc.partnerAnteil, 'offen',
+            itemBrutto.toFixed(2), calc.partnerAnteil, 'offen',
           ]);
         }
       }
@@ -260,7 +272,7 @@ router.get('/abrechnungen', async (req, res, next) => {
       .map(r => ({
         zeitraumVon: r[h('Zeitraum-Von')] ?? '',
         zeitraumBis: r[h('Zeitraum-Bis')] ?? '',
-        saldo:       parseFloat(r[h('Saldo')] ?? '0'),
+        saldo:       toFloat(r[h('Saldo')]),
         status:      r[h('Status')]        ?? '',
       })));
   } catch (err) { next(err); }

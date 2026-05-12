@@ -4512,7 +4512,7 @@
         const vom   = today.slice(0, 7) + '-01';
         const bd = document.createElement('div'); bd.className = 'modal-backdrop';
         bd.innerHTML = `<div class="modal-box" style="max-width:440px;width:94%;">
-          <div class="modal-title">Abrechnung erstellen</div>
+          <div class="modal-title">Abrechnung – Vorschau</div>
           <div style="margin-top:1.1rem;"><div class="form-grid">
             <div class="form-field form-col-full"><label>Partner *</label>
               <select class="form-select" id="ab-p"><option value="">– wählen –</option>${opts}</select></div>
@@ -4524,11 +4524,12 @@
               <input class="form-input" id="ab-no" placeholder="Optional"></div>
           </div>
           <p style="font-size:0.8rem;color:var(--muted);margin-top:0.75rem;">
-            Alle offenen Verkäufe im Zeitraum werden automatisch als "abgerechnet" markiert.
+            Erst Vorschau ansehen – im nächsten Schritt wird die Abrechnung erstellt
+            und alle Posten als „abgerechnet" markiert.
           </p>
           <div class="modal-actions" style="margin-top:1.25rem;">
             <button class="btn-secondary" id="ab-x">Abbrechen</button>
-            <button class="btn" id="ab-ok">Erstellen</button>
+            <button class="btn" id="ab-ok">Vorschau anzeigen</button>
           </div></div></div>`;
         document.body.appendChild(bd);
         bd.querySelector('#ab-x').onclick = () => bd.remove();
@@ -4536,26 +4537,131 @@
           const partnerId = bd.querySelector('#ab-p').value;
           const von       = bd.querySelector('#ab-von').value;
           const bis       = bd.querySelector('#ab-bis').value;
+          const notiz     = bd.querySelector('#ab-no').value;
           if (!partnerId || !von || !bis)
             { window.showToast('Partner, Von und Bis sind erforderlich.', 'toast-error'); return; }
           const btn = bd.querySelector('#ab-ok'); btn.disabled = true; btn.textContent = '...';
           try {
-            const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/abrechnung/erstellen`, {
+            const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/abrechnung/vorschau`, {
               method: 'POST', headers: {'Content-Type':'application/json'},
               body: JSON.stringify({
                 partnerId,
                 zeitraumVon: _toDE(von),
                 zeitraumBis: _toDE(bis),
-                notiz:       bd.querySelector('#ab-no').value,
               }),
             });
             if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
             const data = await r.json();
             bd.remove();
-            const internInfo = data.anzahlInterne ? ` − ${data.anzahlInterne} Intern (${data.interneSumme?.toLocaleString('de-DE',{style:'currency',currency:'EUR'})})` : '';
-            window.showToast(`Abrechnung ${data.abrechnungId} erstellt: ${data.anzahlVerkäufe} Verkäufe${internInfo} → Saldo ${data.saldo.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}`);
+            openVorschauModal(data, { partnerId, von, bis, notiz });
+          } catch (e) {
+            window.showToast(`Fehler: ${e.message}`, 'toast-error');
+            btn.disabled = false; btn.textContent = 'Vorschau anzeigen';
+          }
+        };
+      }
+
+      function openVorschauModal(data, ctx) {
+        const partnerName = _ppPartners.find(p => p.id === ctx.partnerId)?.name || ctx.partnerId;
+        const fmt = v => v.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
+        const verkaeufeRows = data.verkaeufe.length
+          ? data.verkaeufe.map(v => `<tr>
+              <td style="font-size:0.78rem;">${v.datum}</td>
+              <td style="font-size:0.78rem;">${v.orderId}</td>
+              <td style="font-size:0.78rem;">${v.artikelname}</td>
+              <td style="text-align:right;font-size:0.78rem;">${v.stueckzahl}</td>
+              <td style="text-align:right;font-size:0.78rem;">${fmt(v.vkBrutto)}</td>
+              <td style="text-align:right;font-weight:600;font-size:0.78rem;">${fmt(v.lizenz)}</td>
+            </tr>`).join('')
+          : `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:0.6rem;font-size:0.82rem;">Keine offenen Verkäufe</td></tr>`;
+        const internRows = data.intern.length
+          ? data.intern.map(i => `<tr>
+              <td style="font-size:0.78rem;">${i.datum}</td>
+              <td style="font-size:0.78rem;">${i.bezeichnung}</td>
+              <td style="text-align:right;font-size:0.78rem;">${i.anzahl}</td>
+              <td style="text-align:right;font-size:0.78rem;">${fmt(i.einzelpreis)}</td>
+              <td style="text-align:right;font-weight:600;font-size:0.78rem;">${fmt(i.summe)}</td>
+            </tr>`).join('')
+          : `<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:0.6rem;font-size:0.82rem;">Keine internen Bestellungen</td></tr>`;
+
+        const bd = document.createElement('div'); bd.className = 'modal-backdrop';
+        bd.innerHTML = `<div class="modal-box" style="max-width:880px;width:96%;max-height:90vh;overflow-y:auto;">
+          <div class="modal-title">Vorschau – ${partnerName} (${data.zeitraumVon} – ${data.zeitraumBis})</div>
+          <div style="margin-top:1rem;">
+            <h3 style="font-size:0.92rem;margin:0 0 0.4rem;">Shop-Verkäufe (Lizenz-Einnahmen)</h3>
+            <div style="overflow-x:auto;border:1px solid var(--border);border-radius:6px;">
+              <table class="orders-table" style="margin:0;">
+                <thead><tr>
+                  <th style="font-size:0.76rem;">Datum</th>
+                  <th style="font-size:0.76rem;">Bestellnr.</th>
+                  <th style="font-size:0.76rem;">Artikel</th>
+                  <th style="text-align:right;font-size:0.76rem;">Menge</th>
+                  <th style="text-align:right;font-size:0.76rem;">VK brutto</th>
+                  <th style="text-align:right;font-size:0.76rem;">Lizenz</th>
+                </tr></thead>
+                <tbody>${verkaeufeRows}</tbody>
+              </table>
+            </div>
+            <p style="font-size:0.78rem;color:var(--muted);margin:0.5rem 0 1.25rem;">
+              <strong>Formel pro Verkauf:</strong> VK netto − (EK + Druck + Herstellungsnk. + Versandnk. + PayPal) = Gewinn × Lizenz % + Porto-Saldo = Lizenz-Anteil.
+              Detail-Posten siehe Kalkulations-Tab / Konfiguration.
+            </p>
+
+            <h3 style="font-size:0.92rem;margin:0 0 0.4rem;">Interne Bestellungen (Kosten für Partner)</h3>
+            <div style="overflow-x:auto;border:1px solid var(--border);border-radius:6px;">
+              <table class="orders-table" style="margin:0;">
+                <thead><tr>
+                  <th style="font-size:0.76rem;">Datum</th>
+                  <th style="font-size:0.76rem;">Bezeichnung</th>
+                  <th style="text-align:right;font-size:0.76rem;">Anzahl</th>
+                  <th style="text-align:right;font-size:0.76rem;">Einzelpreis</th>
+                  <th style="text-align:right;font-size:0.76rem;">Summe</th>
+                </tr></thead>
+                <tbody>${internRows}</tbody>
+              </table>
+            </div>
+
+            <div style="margin-top:1.25rem;padding:1rem 1.1rem;background:var(--card);border:1px solid var(--border);border-radius:8px;">
+              <table style="width:100%;font-size:0.88rem;">
+                <tr><td>Lizenz-Summe (${data.verkaeufe.length} Verkäufe)</td>
+                    <td style="text-align:right;font-weight:600;">${fmt(data.lizenzSumme)}</td></tr>
+                <tr><td>− Interne Bestellungen (${data.intern.length})</td>
+                    <td style="text-align:right;font-weight:600;color:${data.interneSumme > 0 ? 'var(--danger)' : 'inherit'};">−${fmt(data.interneSumme)}</td></tr>
+                <tr><td colspan="2"><hr style="border:none;border-top:1px solid var(--border);margin:0.4rem 0;"></td></tr>
+                <tr style="font-size:1rem;"><td><strong>Saldo (Auszahlung)</strong></td>
+                    <td style="text-align:right;font-weight:700;color:${data.saldo < 0 ? 'var(--danger)' : 'var(--accent)'};">${fmt(data.saldo)}</td></tr>
+              </table>
+            </div>
+          </div>
+          <div class="modal-actions" style="margin-top:1.25rem;">
+            <button class="btn-secondary" id="vor-x">Schließen</button>
+            <button class="btn" id="vor-ok"${data.verkaeufe.length === 0 ? ' disabled' : ''}>Abrechnung jetzt erstellen</button>
+          </div>
+        </div>`;
+        document.body.appendChild(bd);
+        bd.querySelector('#vor-x').onclick = () => bd.remove();
+        bd.querySelector('#vor-ok').onclick = async () => {
+          const btn = bd.querySelector('#vor-ok'); btn.disabled = true; btn.textContent = '...';
+          try {
+            const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/abrechnung/erstellen`, {
+              method: 'POST', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({
+                partnerId:   ctx.partnerId,
+                zeitraumVon: _toDE(ctx.von),
+                zeitraumBis: _toDE(ctx.bis),
+                notiz:       ctx.notiz,
+              }),
+            });
+            if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+            const result = await r.json();
+            bd.remove();
+            const internInfo = result.anzahlInterne ? ` − ${result.anzahlInterne} Intern` : '';
+            window.showToast(`Abrechnung ${result.abrechnungId} erstellt: ${result.anzahlVerkäufe} Verkäufe${internInfo} → Saldo ${fmt(result.saldo)}`);
             loadAbrechnungenTable();
-          } catch (e) { window.showToast(`Fehler: ${e.message}`, 'toast-error'); btn.disabled = false; btn.textContent = 'Erstellen'; }
+          } catch (e) {
+            window.showToast(`Fehler: ${e.message}`, 'toast-error');
+            btn.disabled = false; btn.textContent = 'Abrechnung jetzt erstellen';
+          }
         };
       }
 
