@@ -3708,10 +3708,13 @@
       let _ppPartners = [];
 
       async function loadPartnerportal() {
-        if (!ssot.kategorien.length) {
+        if (!window.ssot?.kategorien?.length) {
           try {
             const r = await apiFetch(`${API_BASE()}/api/sheets/kategorien`, { signal: AbortSignal.timeout(8000) });
-            if (r.ok) ssot.kategorien = await r.json();
+            if (r.ok) {
+              const kategorien = await r.json();
+              if (window.ssot) window.ssot.kategorien = kategorien;
+            }
           } catch { /* nutze leere Liste */ }
         }
         loadPartner();
@@ -3768,7 +3771,7 @@
         const backdrop = document.createElement('div');
         backdrop.className = 'modal-backdrop';
 
-        const katNames = (ssot.kategorien ?? [])
+        const katNames = (window.ssot?.kategorien ?? [])
           .map(k => (k['Kategoriename'] || '').trim()).filter(Boolean);
         const katOptions = katNames.map(k =>
           `<option value="${k}"${isEdit && partner.kategorie === k ? ' selected' : ''}>${k}</option>`
