@@ -181,8 +181,7 @@ router.get('/partner', async (req, res, next) => {
     const tokenIdx   = header.indexOf('Token');
     const aktivIdx   = header.indexOf('Aktiv');
     const lizenzIdx  = header.indexOf('Lizenz-%');
-    const versandIdx = header.indexOf('Versand-Modell');
-    const paypalIdx  = header.indexOf('PayPal-Modell');
+    const portoIdx   = header.indexOf('Porto-Modell');
     const notizIdx   = header.indexOf('Notiz');
 
     res.json(rows.map(r => ({
@@ -192,8 +191,7 @@ router.get('/partner', async (req, res, next) => {
       token:         r[tokenIdx] ?? '',
       aktiv:         (r[aktivIdx] ?? '').toLowerCase() === 'ja',
       lizenzProzent: parseFloat(r[lizenzIdx] ?? '0'),
-      versandModell: r[versandIdx] ?? '',
-      paypalModell:  r[paypalIdx]  ?? '',
+      portoModell:   r[portoIdx]   ?? 'geteilt-50-50',
       notiz:         r[notizIdx]   ?? '',
     })));
   } catch (err) { next(err); }
@@ -205,7 +203,10 @@ router.post('/partner', async (req, res, next) => {
     const sheetId = process.env.BUSINESS_SHEET_ID;
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
 
-    const { name, kategorie = '', lizenzProzent = 0, versandModell = 'pauschal', paypalModell = 'pauschal', aktiv = true, notiz = '' } = req.body;
+    const {
+      name, kategorie = '', lizenzProzent = 0,
+      portoModell = 'geteilt-50-50', aktiv = true, notiz = '',
+    } = req.body;
     if (!name) return res.status(400).json({ error: 'name ist erforderlich.' });
 
     const sheets = await getSheets();
@@ -219,18 +220,28 @@ router.post('/partner', async (req, res, next) => {
       .reduce((m, n) => Math.max(m, n), 0);
     const partnerId = `P-${String(maxNum + 1).padStart(3, '0')}`;
 
+    // Header-basiert schreiben (Sheet kann Spalten in beliebiger Reihenfolge haben).
+    // Versand-Modell / PayPal-Modell deprecated seit Sprint 4.2 – Spalten bleiben leer.
+    const rowVals = new Array(header.length).fill('');
+    const put = (col, v) => { const i = header.indexOf(col); if (i !== -1) rowVals[i] = v; };
+    put('Partner-ID',     partnerId);
+    put('Name',           name);
+    put('Hauptkategorie', kategorie);
+    put('Token',          '');
+    put('Aktiv',          aktiv ? 'Ja' : 'Nein');
+    put('Lizenz-%',       lizenzProzent);
+    put('Porto-Modell',   portoModell);
+    put('Notiz',          notiz);
+
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
-      range: 'Partner!A:I',
+      range: `Partner!A:${colLetter(header.length - 1)}`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [[
-        partnerId, name, kategorie, '', aktiv ? 'Ja' : 'Nein',
-        lizenzProzent, versandModell, paypalModell, notiz,
-      ]]},
+      requestBody: { values: [rowVals] },
     });
 
-    res.status(201).json({ id: partnerId, name, kategorie, aktiv, lizenzProzent, versandModell, paypalModell, notiz });
+    res.status(201).json({ id: partnerId, name, kategorie, aktiv, lizenzProzent, portoModell, notiz });
   } catch (err) { next(err); }
 });
 
@@ -248,7 +259,7 @@ router.patch('/partner/:id', async (req, res, next) => {
     if (rowIndex === -1)
       return res.status(404).json({ error: `Partner "${req.params.id}" nicht gefunden.` });
 
-    const { name, kategorie, lizenzProzent, versandModell, paypalModell, aktiv, notiz, token } = req.body;
+    const { name, kategorie, lizenzProzent, portoModell, aktiv, notiz, token } = req.body;
     const sheetRow = rowIndex + 2;
 
     const colMap = {
@@ -256,8 +267,7 @@ router.patch('/partner/:id', async (req, res, next) => {
       'Hauptkategorie': kategorie,
       'Token':          token,
       'Lizenz-%':       lizenzProzent,
-      'Versand-Modell': versandModell,
-      'PayPal-Modell':  paypalModell,
+      'Porto-Modell':   portoModell,
       'Aktiv':          aktiv !== undefined ? (aktiv ? 'Ja' : 'Nein') : undefined,
       'Notiz':          notiz,
     };
@@ -670,6 +680,31 @@ router.patch('/fixkosten/:position', async (req, res, next) => {
     }
 
     res.json({ position: req.params.position, updated: Object.keys(colMap).filter(k => colMap[k] !== undefined) });
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/kalkulation/fixkosten ──────────────────────────────────────────
+// Legt eine neue Fixkosten-Position an (z.B. Versandnebenkosten B, Porto P, …).
+// Body: { position, betrag, einheit, gueltigAb }
+router.post('/fixkosten', async (req, res, next) => {
+  try {
+    const sheetId = process.env.BUSINESS_SHEET_ID;
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
+
+    const { position, betrag, einheit, gueltigAb } = req.body;
+    if (!position || betrag === undefined)
+      return res.status(400).json({ error: 'position, betrag sind erforderlich.' });
+
+    const sheets = await getSheets();
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: sheetId,
+      range: 'Kalkulation_Fixkosten!A:D',
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [[position, betrag, einheit || '', gueltigAb || '']] },
+    });
+
+    res.status(201).json({ position, betrag, einheit: einheit || '', gueltigAb: gueltigAb || null });
   } catch (err) { next(err); }
 });
 

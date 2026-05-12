@@ -968,6 +968,8 @@
       <section id="panel-partnerportal" class="panel">
         <div class="sub-tabs">
           <button class="sub-tab active" data-ptab="partner">Partner</button>
+          <button class="sub-tab" data-ptab="artikel">Artikel</button>
+          <button class="sub-tab" data-ptab="intern">Interne Bestellungen</button>
           <button class="sub-tab" data-ptab="kalkulation">Kalkulation</button>
           <button class="sub-tab" data-ptab="verkaeufe">Verkäufe</button>
           <button class="sub-tab" data-ptab="abrechnungen">Abrechnungen</button>
@@ -979,6 +981,35 @@
               <button class="btn" id="btn-add-partner" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Partner hinzufügen</button>
             </div>
             <div id="partner-list-wrap"><div class="skeleton" style="height:80px;"></div></div>
+          </div>
+        </div>
+        <div id="ptab-artikel" class="sub-tab-panel">
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+              <h2>Partner-Artikel</h2>
+              <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                <select class="form-select" id="artikel-filter-partner" style="font-size:0.83rem;padding:0.36rem 0.65rem;min-width:180px;">
+                  <option value="">– Partner wählen –</option>
+                </select>
+                <button class="btn-secondary" id="btn-artikel-import" style="font-size:0.82rem;padding:0.42rem 0.85rem;" disabled>↓ Aus WC importieren</button>
+              </div>
+            </div>
+            <div id="artikel-warning-wrap" style="margin-bottom:0.75rem;"></div>
+            <div id="artikel-list-wrap"><p style="color:var(--muted);font-size:0.85rem;">Bitte Partner wählen.</p></div>
+          </div>
+        </div>
+        <div id="ptab-intern" class="sub-tab-panel">
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+              <h2>Interne Bestellungen</h2>
+              <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                <select class="form-select" id="intern-filter-partner" style="font-size:0.83rem;padding:0.36rem 0.65rem;min-width:180px;">
+                  <option value="">– Partner wählen –</option>
+                </select>
+                <button class="btn" id="btn-intern-add" style="font-size:0.82rem;padding:0.42rem 0.85rem;" disabled>+ Hinzufügen</button>
+              </div>
+            </div>
+            <div id="intern-list-wrap"><p style="color:var(--muted);font-size:0.85rem;">Bitte Partner wählen.</p></div>
           </div>
         </div>
         <div id="ptab-kalkulation" class="sub-tab-panel">
@@ -3752,6 +3783,8 @@
           document.querySelectorAll('#panel-partnerportal .sub-tab-panel').forEach(p => p.classList.remove('active'));
           btn.classList.add('active');
           document.getElementById(`ptab-${btn.dataset.ptab}`).classList.add('active');
+          if (btn.dataset.ptab === 'artikel')      loadArtikelTab();
+          if (btn.dataset.ptab === 'intern')       loadInternTab();
           if (btn.dataset.ptab === 'kalkulation')  loadKalkulationTab();
           if (btn.dataset.ptab === 'verkaeufe')    loadVerkaeufeTab();
           if (btn.dataset.ptab === 'abrechnungen') loadAbrechnungenTab();
@@ -3789,15 +3822,14 @@
               <table class="orders-table">
                 <thead><tr>
                   <th>Name</th><th>Hauptkategorie</th><th>Lizenz-%</th>
-                  <th>Versand-Modell</th><th>PayPal-Modell</th><th>Aktiv</th><th>Token</th><th>Aktionen</th>
+                  <th>Porto-Modell</th><th>Aktiv</th><th>Token</th><th>Aktionen</th>
                 </tr></thead>
                 <tbody>${_ppPartners.map(p => `
                   <tr>
                     <td>${p.name}</td>
                     <td>${p.kategorie || '–'}</td>
                     <td>${p.lizenzProzent}%</td>
-                    <td>${p.versandModell || '–'}</td>
-                    <td>${p.paypalModell || '–'}</td>
+                    <td>${p.portoModell || '–'}</td>
                     <td><span class="badge ${p.aktiv ? 'badge-completed' : 'badge-cancelled'}">${p.aktiv ? 'Aktiv' : 'Inaktiv'}</span></td>
                     <td style="white-space:nowrap;">
                       ${p.token
@@ -3874,8 +3906,8 @@
         const katOptions = katNames.map(k =>
           `<option value="${k}"${isEdit && partner.kategorie === k ? ' selected' : ''}>${k}</option>`
         ).join('');
-        const selOpt = cur =>
-          ['pauschal', 'anteilig', 'partner-trägt'].map(v =>
+        const selPorto = cur =>
+          ['geteilt-50-50', 'partner-trägt'].map(v =>
             `<option value="${v}"${cur === v ? ' selected' : ''}>${v}</option>`
           ).join('');
 
@@ -3899,12 +3931,8 @@
                   <input class="form-input" type="number" id="pp-f-lizenz" min="0" max="100" step="0.1" value="${isEdit ? partner.lizenzProzent : 0}">
                 </div>
                 <div class="form-field">
-                  <label>Versand-Modell</label>
-                  <select class="form-select" id="pp-f-versand">${selOpt(isEdit ? partner.versandModell : 'pauschal')}</select>
-                </div>
-                <div class="form-field">
-                  <label>PayPal-Modell</label>
-                  <select class="form-select" id="pp-f-paypal">${selOpt(isEdit ? partner.paypalModell : 'pauschal')}</select>
+                  <label>Porto-Modell</label>
+                  <select class="form-select" id="pp-f-porto">${selPorto(isEdit ? partner.portoModell : 'geteilt-50-50')}</select>
                 </div>
                 <div class="form-field">
                   <label>Aktiv</label>
@@ -3930,8 +3958,7 @@
             name,
             kategorie:     backdrop.querySelector('#pp-f-kat').value,
             lizenzProzent: parseFloat(backdrop.querySelector('#pp-f-lizenz').value) || 0,
-            versandModell: backdrop.querySelector('#pp-f-versand').value,
-            paypalModell:  backdrop.querySelector('#pp-f-paypal').value,
+            portoModell:   backdrop.querySelector('#pp-f-porto').value,
             aktiv:         backdrop.querySelector('#pp-f-aktiv').value === 'true',
           };
           const saveBtn = backdrop.querySelector('#pp-f-save');
@@ -4485,6 +4512,388 @@
           } catch (e) { window.showToast(`Fehler: ${e.message}`, 'toast-error'); btn.disabled = false; btn.textContent = 'Erstellen'; }
         };
       }
+
+      // ── SECTION: Partner-Artikel-Tab (Zeile 4532) ──
+      let _artikelState = { konfig: null, partnerId: '', artikel: [], vkVorschau: 25 };
+
+      function parseKonfigClient(rows) {
+        const map = {
+          'Herstellungsnebenkosten': 'herstellungsnebenkosten',
+          'Versandnebenkosten B':    'versandnebenkostenB',
+          'Versandnebenkosten P':    'versandnebenkostenP',
+          'Porto B':                 'portoB',
+          'Porto P':                 'portoP',
+          'PayPal Prozent':          'paypalProzent',
+          'PayPal Pauschale':        'paypalPauschale',
+          'MwSt':                    'mwstProzent',
+        };
+        const k = {
+          herstellungsnebenkosten: 0, versandnebenkostenB: 0, versandnebenkostenP: 0,
+          portoB: 0, portoP: 0, paypalProzent: 0, paypalPauschale: 0, mwstProzent: 19,
+        };
+        rows.forEach(r => { if (map[r.position] !== undefined) k[map[r.position]] = r.betrag; });
+        return k;
+      }
+
+      // Vereinfachte Vorschau pro Stück: 1-Artikel-Bestellung, ohne Porto-Saldo.
+      function berechneLizenzVorschau({ vkBrutto, ekPreis, druckkosten, versandart, lizenzProzent, konfig }) {
+        const k = konfig || {};
+        const va = (versandart || 'P').toUpperCase();
+        const vkNetto     = vkBrutto / (1 + (k.mwstProzent || 19) / 100);
+        const herstellung = (ekPreis || 0) + (druckkosten || 0) + (k.herstellungsnebenkosten || 0);
+        const versandnk   = va === 'B' ? (k.versandnebenkostenB || 0) : (k.versandnebenkostenP || 0);
+        const paypal      = vkBrutto * (k.paypalProzent || 0) / 100 + (k.paypalPauschale || 0);
+        const gewinn      = vkNetto - herstellung - versandnk - paypal;
+        return gewinn * (lizenzProzent || 0) / 100;
+      }
+
+      async function loadArtikelTab() {
+        const sel = document.getElementById('artikel-filter-partner');
+        if (sel.options.length <= 1 && _ppPartners.length) {
+          sel.innerHTML = '<option value="">– Partner wählen –</option>' +
+            _ppPartners.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+        }
+        if (!_artikelState.konfig) {
+          try {
+            const rows = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/fixkosten`).then(r => r.json());
+            _artikelState.konfig = parseKonfigClient(rows);
+          } catch { _artikelState.konfig = parseKonfigClient([]); }
+        }
+        if (_artikelState.partnerId) loadArtikelTable();
+      }
+
+      document.getElementById('artikel-filter-partner').addEventListener('change', e => {
+        _artikelState.partnerId = e.target.value;
+        document.getElementById('btn-artikel-import').disabled = !_artikelState.partnerId;
+        if (_artikelState.partnerId) loadArtikelTable();
+        else document.getElementById('artikel-list-wrap').innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Bitte Partner wählen.</p>';
+      });
+
+      document.getElementById('btn-artikel-import').addEventListener('click', async () => {
+        if (!_artikelState.partnerId) return;
+        const btn = document.getElementById('btn-artikel-import');
+        btn.disabled = true; btn.textContent = '↓ Import…';
+        try {
+          const r = await window.apiFetch(`${window.API_BASE()}/api/partner/${_artikelState.partnerId}/artikel/import`, { method: 'POST' });
+          const data = await r.json();
+          if (!r.ok) throw new Error(data.error || r.statusText);
+          window.showToast(data.message || `${data.neu} neue Artikel importiert.`);
+          loadArtikelTable();
+        } catch (e) {
+          window.showToast(`Import-Fehler: ${e.message}`, 'toast-error');
+        } finally {
+          btn.disabled = false; btn.textContent = '↓ Aus WC importieren';
+        }
+      });
+
+      async function loadArtikelTable() {
+        const wrap = document.getElementById('artikel-list-wrap');
+        wrap.innerHTML = '<div class="skeleton" style="height:80px;"></div>';
+        try {
+          _artikelState.artikel = await window.apiFetch(
+            `${window.API_BASE()}/api/partner/${_artikelState.partnerId}/artikel`
+          ).then(r => r.json());
+          renderArtikelTable();
+        } catch (e) {
+          wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+        }
+      }
+
+      function renderArtikelTable() {
+        const wrap = document.getElementById('artikel-list-wrap');
+        const warnWrap = document.getElementById('artikel-warning-wrap');
+        const artikel  = _artikelState.artikel;
+
+        if (!artikel.length) {
+          wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Noch keine Artikel. Klicke „Aus WC importieren".</p>';
+          warnWrap.innerHTML = '';
+          return;
+        }
+
+        const ohneKalk = artikel.filter(a => !a.ekPreis || a.ekPreis === 0).length;
+        warnWrap.innerHTML = ohneKalk
+          ? `<span class="badge badge-pending" style="font-size:0.78rem;">${ohneKalk} Artikel ohne EK-Preis</span>`
+          : '';
+
+        const vk = _artikelState.vkVorschau;
+        const konfig = _artikelState.konfig;
+        wrap.innerHTML = `
+          <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
+            <label style="font-size:0.82rem;color:var(--muted);">VK-Brutto (Vorschau):</label>
+            <input class="form-input" type="number" id="artikel-vk-vorschau" min="0" step="0.5"
+              value="${vk}" style="width:90px;font-size:0.85rem;padding:0.32rem 0.5rem;">
+            <span style="font-size:0.78rem;color:var(--muted);">€  (für Lizenz-Berechnung pro Stück)</span>
+          </div>
+          <div style="overflow-x:auto;"><table class="orders-table">
+            <thead><tr>
+              <th>Artikelnummer</th><th>Name</th>
+              <th style="text-align:right;">EK €</th>
+              <th style="text-align:right;">Druck €</th>
+              <th>B/P</th>
+              <th style="text-align:right;">Lizenz %</th>
+              <th style="text-align:right;cursor:help;" title="Vorschau bei 1 Artikel ohne Porto-Saldo. Genaue Lizenz siehe Verkäufe-Tab nach Sync.">Lizenz/Stück (bei VK ${vk}€) <span style="opacity:0.6;font-size:0.8em;">ⓘ</span></th>
+            </tr></thead>
+            <tbody>${artikel.map((a, i) => {
+              const liz = berechneLizenzVorschau({
+                vkBrutto: vk, ekPreis: a.ekPreis, druckkosten: a.druckkosten,
+                versandart: a.versandart, lizenzProzent: a.lizenzProzent, konfig,
+              });
+              const lizColor = liz < 0 ? 'color:var(--danger);' : '';
+              return `<tr data-art-i="${i}">
+                <td style="font-size:0.82rem;">${a.artikelnummer}</td>
+                <td>${a.artikelname}</td>
+                <td style="text-align:right;"><input class="form-input art-edit" data-field="ekPreis" type="number" step="0.01" min="0" value="${a.ekPreis}" style="width:80px;text-align:right;font-size:0.82rem;padding:0.22rem 0.4rem;"></td>
+                <td style="text-align:right;"><input class="form-input art-edit" data-field="druckkosten" type="number" step="0.01" min="0" value="${a.druckkosten}" style="width:80px;text-align:right;font-size:0.82rem;padding:0.22rem 0.4rem;"></td>
+                <td><select class="form-select art-edit" data-field="versandart" style="width:60px;font-size:0.82rem;padding:0.22rem 0.4rem;">
+                  <option value="B"${a.versandart === 'B' ? ' selected' : ''}>B</option>
+                  <option value="P"${a.versandart === 'P' ? ' selected' : ''}>P</option>
+                </select></td>
+                <td style="text-align:right;"><input class="form-input art-edit" data-field="lizenzProzent" type="number" step="0.1" min="0" max="100" value="${a.lizenzProzent}" style="width:70px;text-align:right;font-size:0.82rem;padding:0.22rem 0.4rem;"></td>
+                <td style="text-align:right;font-weight:600;${lizColor}" data-cell="liz">${liz.toFixed(2)} €</td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table></div>`;
+
+        document.getElementById('artikel-vk-vorschau').addEventListener('input', e => {
+          _artikelState.vkVorschau = parseFloat(e.target.value) || 0;
+          recomputeLizenzCells();
+        });
+
+        wrap.querySelectorAll('.art-edit').forEach(el => {
+          el.addEventListener('change', () => saveArtikelEdit(el));
+        });
+      }
+
+      function recomputeLizenzCells() {
+        const vk = _artikelState.vkVorschau;
+        const konfig = _artikelState.konfig;
+        document.querySelectorAll('#artikel-list-wrap tr[data-art-i]').forEach(tr => {
+          const i = +tr.dataset.artI;
+          const a = _artikelState.artikel[i];
+          if (!a) return;
+          const liz = berechneLizenzVorschau({
+            vkBrutto: vk, ekPreis: a.ekPreis, druckkosten: a.druckkosten,
+            versandart: a.versandart, lizenzProzent: a.lizenzProzent, konfig,
+          });
+          const cell = tr.querySelector('[data-cell="liz"]');
+          cell.textContent = liz.toFixed(2) + ' €';
+          cell.style.color = liz < 0 ? 'var(--danger)' : '';
+        });
+        document.querySelector('#artikel-list-wrap th:last-child').innerHTML =
+          `Lizenz/Stück (bei VK ${vk}€) <span style="opacity:0.6;font-size:0.8em;">ⓘ</span>`;
+      }
+
+      async function saveArtikelEdit(el) {
+        const tr = el.closest('tr[data-art-i]');
+        const i  = +tr.dataset.artI;
+        const a  = _artikelState.artikel[i];
+        const field = el.dataset.field;
+        const val   = field === 'versandart' ? el.value : parseFloat(el.value);
+        if (field !== 'versandart' && Number.isNaN(val)) {
+          window.showToast('Ungültiger Wert.', 'toast-error');
+          el.value = a[field];
+          return;
+        }
+        const oldVal = a[field];
+        a[field] = val;
+        el.disabled = true;
+        try {
+          const r = await window.apiFetch(
+            `${window.API_BASE()}/api/partner/${_artikelState.partnerId}/artikel/${encodeURIComponent(a.artikelnummer)}`,
+            { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ [field]: val }) }
+          );
+          if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+          recomputeLizenzCells();
+          // Warnung neu zählen
+          const ohne = _artikelState.artikel.filter(x => !x.ekPreis || x.ekPreis === 0).length;
+          const warnWrap = document.getElementById('artikel-warning-wrap');
+          warnWrap.innerHTML = ohne
+            ? `<span class="badge badge-pending" style="font-size:0.78rem;">${ohne} Artikel ohne EK-Preis</span>`
+            : '';
+        } catch (e) {
+          window.showToast(`Fehler: ${e.message}`, 'toast-error');
+          a[field] = oldVal;
+          el.value = oldVal;
+        } finally {
+          el.disabled = false;
+        }
+      }
+
+      // ── SECTION: Interne-Bestellungen-Tab (Zeile 4710) ──
+      let _internState = { partnerId: '', rows: [] };
+
+      async function loadInternTab() {
+        const sel = document.getElementById('intern-filter-partner');
+        if (sel.options.length <= 1 && _ppPartners.length) {
+          sel.innerHTML = '<option value="">– Partner wählen –</option>' +
+            _ppPartners.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+        }
+        if (_internState.partnerId) loadInternTable();
+      }
+
+      document.getElementById('intern-filter-partner').addEventListener('change', e => {
+        _internState.partnerId = e.target.value;
+        document.getElementById('btn-intern-add').disabled = !_internState.partnerId;
+        if (_internState.partnerId) loadInternTable();
+        else document.getElementById('intern-list-wrap').innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Bitte Partner wählen.</p>';
+      });
+
+      document.getElementById('btn-intern-add').addEventListener('click', () => openInternModal());
+
+      async function loadInternTable() {
+        const wrap = document.getElementById('intern-list-wrap');
+        wrap.innerHTML = '<div class="skeleton" style="height:60px;"></div>';
+        try {
+          _internState.rows = await window.apiFetch(
+            `${window.API_BASE()}/api/partner/${_internState.partnerId}/intern`
+          ).then(r => r.json());
+          renderInternTable();
+        } catch (e) {
+          wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+        }
+      }
+
+      function renderInternTable() {
+        const wrap = document.getElementById('intern-list-wrap');
+        const rows = _internState.rows;
+        if (!rows.length) {
+          wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Noch keine internen Bestellungen.</p>';
+          return;
+        }
+        const STATUSES = ['offen', 'abgerechnet'];
+        const badge    = s => ({ offen: 'badge-pending', abgerechnet: 'badge-completed' }[s] ?? 'badge-idle');
+        const fmt      = v => v.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
+        wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+          <thead><tr>
+            <th>Datum</th><th>Bezeichnung</th>
+            <th style="text-align:right;">Anzahl</th>
+            <th style="text-align:right;">Einzelpreis</th>
+            <th style="text-align:right;">Summe</th>
+            <th>Status</th>
+          </tr></thead>
+          <tbody>${rows.map(r => {
+            const opts = STATUSES.map(s =>
+              `<option value="${s}"${s === r.status ? ' selected' : ''}>${s}</option>`
+            ).join('');
+            return `<tr>
+              <td>${r.datum}</td>
+              <td>${r.bezeichnung}</td>
+              <td style="text-align:right;">${r.anzahl}</td>
+              <td style="text-align:right;">${fmt(r.einzelpreis)}</td>
+              <td style="text-align:right;font-weight:600;">${fmt(r.summe)}</td>
+              <td><span class="badge ${badge(r.status)}" style="margin-bottom:0.35rem;display:inline-block;">${r.status}</span><br>
+                <select class="form-select" style="font-size:0.78rem;padding:0.22rem 0.5rem;margin-top:0.15rem;"
+                  data-int-sel="${r.rowId}" data-int-cur="${r.status}">${opts}</select></td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table></div>`;
+
+        wrap.querySelectorAll('[data-int-sel]').forEach(sel => {
+          sel.addEventListener('change', async () => {
+            const rowId = sel.dataset.intSel;
+            const oldStatus = sel.dataset.intCur;
+            const newStatus = sel.value;
+            sel.disabled = true;
+            try {
+              const r = await window.apiFetch(
+                `${window.API_BASE()}/api/partner/${_internState.partnerId}/intern/${rowId}/status`,
+                { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ status: newStatus }) }
+              );
+              if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+              window.showToast(`Status aktualisiert: ${newStatus}`);
+              loadInternTable();
+            } catch (e) {
+              window.showToast(`Fehler: ${e.message}`, 'toast-error');
+              sel.value = oldStatus;
+              sel.disabled = false;
+            }
+          });
+        });
+      }
+
+      function openInternModal() {
+        const today = new Date().toISOString().slice(0, 10);
+        const bd = document.createElement('div'); bd.className = 'modal-backdrop';
+        bd.innerHTML = `<div class="modal-box" style="max-width:440px;width:94%;">
+          <div class="modal-title">Interne Bestellung erfassen</div>
+          <div style="margin-top:1.1rem;"><div class="form-grid">
+            <div class="form-field"><label>Datum *</label>
+              <input class="form-input" type="date" id="int-d" value="${today}"></div>
+            <div class="form-field"><label>Anzahl *</label>
+              <input class="form-input" type="number" id="int-a" min="1" step="1" value="1"></div>
+            <div class="form-field form-col-full"><label>Bezeichnung *</label>
+              <input class="form-input" id="int-b" placeholder="z.B. Werbeshirts April"></div>
+            <div class="form-field"><label>Einzelpreis €</label>
+              <input class="form-input" type="number" id="int-e" min="0" step="0.01" value="0"></div>
+          </div>
+          <div class="modal-actions" style="margin-top:1.25rem;">
+            <button class="btn-secondary" id="int-x">Abbrechen</button>
+            <button class="btn" id="int-ok">Hinzufügen</button>
+          </div></div></div>`;
+        document.body.appendChild(bd);
+        bd.querySelector('#int-x').onclick = () => bd.remove();
+        bd.querySelector('#int-ok').onclick = async () => {
+          const bezeichnung = bd.querySelector('#int-b').value.trim();
+          const anzahl      = parseFloat(bd.querySelector('#int-a').value);
+          const einzelpreis = parseFloat(bd.querySelector('#int-e').value);
+          if (!bezeichnung || !anzahl || anzahl <= 0) {
+            window.showToast('Bezeichnung und Anzahl sind erforderlich.', 'toast-error'); return;
+          }
+          const btn = bd.querySelector('#int-ok'); btn.disabled = true; btn.textContent = '...';
+          try {
+            const r = await window.apiFetch(
+              `${window.API_BASE()}/api/partner/${_internState.partnerId}/intern`,
+              { method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ datum: _toDE(bd.querySelector('#int-d').value), bezeichnung, anzahl, einzelpreis }) }
+            );
+            if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+            bd.remove();
+            window.showToast('Interne Bestellung erfasst.');
+            loadInternTable();
+          } catch (e) {
+            window.showToast(`Fehler: ${e.message}`, 'toast-error');
+            btn.disabled = false; btn.textContent = 'Hinzufügen';
+          }
+        };
+      }
+
+      // ── SECTION: Fixkosten-Konfiguration sicherstellen (Zeile 4810) ──
+      // Garantiert, dass die Standard-Konfigurations-Positionen im Sheet existieren.
+      const FIXKOSTEN_DEFAULTS = [
+        { position: 'Herstellungsnebenkosten', einheit: 'EUR/Artikel' },
+        { position: 'Versandnebenkosten B',    einheit: 'EUR/Bestellung' },
+        { position: 'Versandnebenkosten P',    einheit: 'EUR/Bestellung' },
+        { position: 'Porto B',                 einheit: 'EUR/Bestellung' },
+        { position: 'Porto P',                 einheit: 'EUR/Bestellung' },
+        { position: 'PayPal Prozent',          einheit: '%' },
+        { position: 'PayPal Pauschale',        einheit: 'EUR/Bestellung' },
+        { position: 'MwSt',                    einheit: '%' },
+      ];
+
+      async function ensureFixkostenDefaults() {
+        try {
+          const rows = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/fixkosten`).then(r => r.json());
+          const existing = new Set(rows.map(r => r.position));
+          const missing  = FIXKOSTEN_DEFAULTS.filter(d => !existing.has(d.position));
+          if (!missing.length) return 0;
+          await Promise.all(missing.map(d =>
+            window.apiFetch(`${window.API_BASE()}/api/kalkulation/fixkosten`, {
+              method: 'POST', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ position: d.position, betrag: 0, einheit: d.einheit, gueltigAb: '' }),
+            })
+          ));
+          return missing.length;
+        } catch { return 0; }
+      }
+
+      // Beim Kalkulations-Tab-Wechsel die Defaults sicherstellen
+      document.querySelector('[data-ptab="kalkulation"]')?.addEventListener('click', async () => {
+        const added = await ensureFixkostenDefaults();
+        if (added > 0) {
+          window.showToast(`${added} Konfigurations-Felder ergänzt.`);
+          loadFixkostenTable();
+        }
+      });
 
       // Toolbar-Klicks für alle Rich-Editoren
       document.addEventListener('mousedown', e => {

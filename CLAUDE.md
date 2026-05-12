@@ -15,6 +15,9 @@ Aktuelle Sektionen:
 - SEO-Flow (Zeile 2664)
 - Settings (Zeile 3604)
 - Partnerportal (Zeile 3724)
+- Partner-Artikel-Tab (Zeile ~4532)
+- Interne-Bestellungen-Tab (Zeile ~4710)
+- Fixkosten-Konfiguration (Zeile ~4810)
 
 Neue Sektionen immer mit Anker versehen:
 ```javascript
@@ -27,6 +30,11 @@ Neue Sektionen immer mit Anker versehen:
 - backend/routes/kalkulation.js – Partnerportal Backend
 - docs/SEO Beschreibungs-Framework.md – SEO Prompt Vorlage
 - GCP_Setup_Notizen.md – GCP IDs (lokal only, nicht im Repo)
+
+## Deprecated
+- Sheet-Spalten `Versand-Modell` und `PayPal-Modell` im Partner-Reiter sind seit Sprint 4.2 deprecated.
+  Der Kalkulations-Helper nutzt zentrale Fixkosten + `Porto-Modell`. Spalten bleiben im Sheet, werden
+  aber von Backend/Frontend nicht mehr gelesen/geschrieben.
 
 ## ENV Variablennamen (tatsächlich im Code)
 ANTHROPIC_API_KEY, WC_KEY, WC_SECRET, WC_URL,
