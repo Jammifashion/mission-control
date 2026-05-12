@@ -1815,7 +1815,7 @@
       }
 
       // ── SSOT Stammdaten ───────────────────────────────────────────────────
-      const ssot = { kategorien: [], attribute: [], wcShippingClasses: [] };
+      const ssot = window.ssot = { kategorien: [], attribute: [], wcShippingClasses: [] };
       const selectedCats = new Map(); // value (Kategorienummer) → Kategoriename
       let _pendingShipping = '';
 
