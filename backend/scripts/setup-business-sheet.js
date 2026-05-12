@@ -10,41 +10,41 @@ const SPREADSHEET_ID = process.env.BUSINESS_SHEET_ID;
 const TABS = [
   {
     name: 'Kalkulation_Artikel',
-    header: ['L-Shop-Nr', 'Artikelname', 'EK-Preis-Netto', 'Kategorie', 'Notiz'],
-    widths: [120, 220, 120, 160, 240],
+    header: ['L-Shop-Nr', 'Artikelname', 'EK-Preis-Netto', 'Kategorie', 'Gültig-Ab', 'Notiz'],
+    widths: [120, 220, 120, 160, 110, 240],
     seedData: [],
   },
   {
     name: 'Kalkulation_Druckpreise',
-    header: ['Druckposition', 'Größe', 'Preis-Netto'],
-    widths: [160, 100, 100],
+    header: ['Druckposition', 'Größe', 'Preis-Netto', 'Gültig-Ab'],
+    widths: [160, 100, 100, 110],
     seedData: [
-      ['Brust vorne', 'Klein',  '3.00'],
-      ['Brust vorne', 'Mittel', '4.50'],
-      ['Brust vorne', 'Groß',   '6.50'],
-      ['Rücken',      'Klein',  '3.00'],
-      ['Rücken',      'Mittel', '4.50'],
-      ['Rücken',      'Groß',   '6.50'],
+      ['Brust vorne', 'Klein',  '3.00', '01.01.2026'],
+      ['Brust vorne', 'Mittel', '4.50', '01.01.2026'],
+      ['Brust vorne', 'Groß',   '6.50', '01.01.2026'],
+      ['Rücken',      'Klein',  '3.00', '01.01.2026'],
+      ['Rücken',      'Mittel', '4.50', '01.01.2026'],
+      ['Rücken',      'Groß',   '6.50', '01.01.2026'],
     ],
   },
   {
     name: 'Kalkulation_Fixkosten',
-    header: ['Position', 'Betrag', 'Einheit'],
-    widths: [180, 100, 140],
+    header: ['Position', 'Betrag', 'Einheit', 'Gültig-Ab'],
+    widths: [180, 100, 140, 110],
     seedData: [
-      ['Nebenkosten',   '0.70', 'EUR/Artikel'],
-      ['Versandanteil', '1.75', 'EUR/Artikel'],
-      ['PayPal-Anteil', '0.66', '%/VK'],
+      ['Nebenkosten',   '0.70', 'EUR/Artikel', '01.01.2026'],
+      ['Versandanteil', '1.75', 'EUR/Artikel', '01.01.2026'],
+      ['PayPal-Anteil', '0.66', '%/VK',        '01.01.2026'],
     ],
   },
   {
     name: 'Kalkulation_Verkaufspreise',
-    header: ['Produkttyp', 'Ab-Menge', 'VK-Brutto', 'Notiz'],
-    widths: [180, 90, 100, 240],
+    header: ['Produkttyp', 'Ab-Menge', 'VK-Brutto', 'Gültig-Ab', 'Notiz'],
+    widths: [180, 90, 100, 110, 240],
     seedData: [
-      ['Premium Shirt', '1',  '25.00', 'Standard Einzelpreis'],
-      ['Premium Shirt', '10', '22.50', 'Ab 10 Stück'],
-      ['Premium Shirt', '30', '20.00', 'Ab 30 Stück'],
+      ['Premium Shirt', '1',  '25.00', '01.01.2026', 'Standard Einzelpreis'],
+      ['Premium Shirt', '10', '22.50', '01.01.2026', 'Ab 10 Stück'],
+      ['Premium Shirt', '30', '20.00', '01.01.2026', 'Ab 30 Stück'],
     ],
   },
   {
@@ -73,84 +73,116 @@ const TABS = [
 async function setupTab(sheets, existingSheets, tab) {
   const existing = existingSheets.find(s => s.properties.title === tab.name);
 
-  let sheetId;
+  if (!existing) {
+    // ── Neuen Reiter anlegen ────────────────────────────────────────────────
+    const { data: addResp } = await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: { requests: [{ addSheet: { properties: { title: tab.name } } }] },
+    });
+    const sheetId = addResp.replies[0].addSheet.properties.sheetId;
+    console.log(`  ✓  "${tab.name}" angelegt (sheetId: ${sheetId})`);
 
-  if (existing) {
-    sheetId = existing.properties.sheetId;
-    console.log(`  ↩  "${tab.name}" existiert bereits (sheetId: ${sheetId})`);
-
-    const { data: check } = await sheets.spreadsheets.values.get({
+    const rows = [tab.header, ...tab.seedData];
+    if (tab.note) rows.push([`// ${tab.note}`]);
+    await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
       range: `${tab.name}!A1`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: rows },
     });
+    console.log(`     ${tab.seedData.length + 1} Zeile(n) geschrieben (Header + ${tab.seedData.length} Seed-Datensätze).`);
 
-    if ((check.values ?? []).length === 0) {
-      await sheets.spreadsheets.values.update({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `${tab.name}!A1`,
-        valueInputOption: 'USER_ENTERED',
-        requestBody: { values: [tab.header] },
-      });
-      console.log(`     Header geschrieben.`);
-    } else {
-      console.log(`     Header vorhanden – keine Änderungen.`);
-    }
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: [
+          {
+            repeatCell: {
+              range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
+              cell: {
+                userEnteredFormat: {
+                  textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } },
+                  backgroundColor: { red: 0.15, green: 0.15, blue: 0.15 },
+                },
+              },
+              fields: 'userEnteredFormat(textFormat,backgroundColor)',
+            },
+          },
+          {
+            updateSheetProperties: {
+              properties: { sheetId, gridProperties: { frozenRowCount: 1 } },
+              fields: 'gridProperties.frozenRowCount',
+            },
+          },
+          ...tab.widths.map((px, i) => ({
+            updateDimensionProperties: {
+              range: { sheetId, dimension: 'COLUMNS', startIndex: i, endIndex: i + 1 },
+              properties: { pixelSize: px },
+              fields: 'pixelSize',
+            },
+          })),
+        ],
+      },
+    });
+    console.log(`     Formatierung angewendet (${tab.widths.length} Spaltenbreiten).`);
     return;
   }
 
-  // Neuen Reiter anlegen
-  const { data: addResp } = await sheets.spreadsheets.batchUpdate({
-    spreadsheetId: SPREADSHEET_ID,
-    requestBody: { requests: [{ addSheet: { properties: { title: tab.name } } }] },
-  });
-  sheetId = addResp.replies[0].addSheet.properties.sheetId;
-  console.log(`  ✓  "${tab.name}" angelegt (sheetId: ${sheetId})`);
+  // ── Reiter existiert: prüfe ob Spalten fehlen ──────────────────────────────
+  const sheetId = existing.properties.sheetId;
+  console.log(`  ↩  "${tab.name}" existiert (sheetId: ${sheetId})`);
 
-  // Header + Seed-Daten schreiben
-  const rows = [tab.header, ...tab.seedData];
-  if (tab.note) rows.push([`// ${tab.note}`]);
+  const { data: headerData } = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${tab.name}!1:1`,
+  });
+  const currentHeader = (headerData.values?.[0] ?? []);
+
+  const missingCols = tab.header.filter(h => !currentHeader.includes(h));
+  if (missingCols.length === 0) {
+    console.log(`     Alle Spalten vorhanden – keine Änderungen.`);
+    return;
+  }
+
+  // Fehlende Spalten am Ende anhängen
+  const startColIdx = currentHeader.length;
+  const newHeaderRange = colLetter(startColIdx) + '1';
   await sheets.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
-    range: `${tab.name}!A1`,
+    range: `${tab.name}!${newHeaderRange}`,
     valueInputOption: 'USER_ENTERED',
-    requestBody: { values: rows },
+    requestBody: { values: [missingCols] },
   });
-  console.log(`     ${rows.length - 1} Zeile(n) geschrieben (Header + ${tab.seedData.length} Seed-Datensätze).`);
+  console.log(`     ${missingCols.length} neue Spalte(n) ergänzt: ${missingCols.join(', ')}`);
 
-  // Formatierung: Header-Zeile fett + dark BG, Freeze, Spaltenbreiten
+  // Spaltenbreiten für neue Spalten setzen
+  const requests = missingCols.map((col, i) => {
+    const colIdx = startColIdx + i;
+    const width  = tab.widths[tab.header.indexOf(col)] ?? 120;
+    return {
+      updateDimensionProperties: {
+        range: { sheetId, dimension: 'COLUMNS', startIndex: colIdx, endIndex: colIdx + 1 },
+        properties: { pixelSize: width },
+        fields: 'pixelSize',
+      },
+    };
+  });
   await sheets.spreadsheets.batchUpdate({
     spreadsheetId: SPREADSHEET_ID,
-    requestBody: {
-      requests: [
-        {
-          repeatCell: {
-            range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
-            cell: {
-              userEnteredFormat: {
-                textFormat: { bold: true, foregroundColor: { red: 1, green: 1, blue: 1 } },
-                backgroundColor: { red: 0.15, green: 0.15, blue: 0.15 },
-              },
-            },
-            fields: 'userEnteredFormat(textFormat,backgroundColor)',
-          },
-        },
-        {
-          updateSheetProperties: {
-            properties: { sheetId, gridProperties: { frozenRowCount: 1 } },
-            fields: 'gridProperties.frozenRowCount',
-          },
-        },
-        ...tab.widths.map((px, i) => ({
-          updateDimensionProperties: {
-            range: { sheetId, dimension: 'COLUMNS', startIndex: i, endIndex: i + 1 },
-            properties: { pixelSize: px },
-            fields: 'pixelSize',
-          },
-        })),
-      ],
-    },
+    requestBody: { requests },
   });
-  console.log(`     Formatierung angewendet (Header, Freeze, ${tab.widths.length} Spaltenbreiten).`);
+  console.log(`     Spaltenbreiten aktualisiert.`);
+}
+
+function colLetter(idx) {
+  let s = '';
+  idx++;
+  while (idx > 0) {
+    idx--;
+    s = String.fromCharCode(65 + (idx % 26)) + s;
+    idx = Math.floor(idx / 26);
+  }
+  return s;
 }
 
 async function main() {

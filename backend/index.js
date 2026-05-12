@@ -15,6 +15,7 @@ import sheetsRouter from './routes/sheets.js';
 import auftragsmonitorRouter from './routes/auftragsmonitor.js';
 import backupRouter from './routes/backup.js';
 import systemRoutes from './routes/system.js';
+import kalkulationRouter from './routes/kalkulation.js';
 
 // Secrets vor Express-Setup laden – stellt sicher dass process.env.CORS_ORIGIN
 // (und alle anderen Secrets) bereits gesetzt sind wenn die Middleware konfiguriert wird.
@@ -44,6 +45,7 @@ app.use('/api/sheets', sheetsRouter);
 app.use('/api/auftragsmonitor', auftragsmonitorRouter);
 app.use('/api/backup', backupRouter);
 app.use('/api/system', systemRoutes);
+app.use('/api/kalkulation', kalkulationRouter);
 app.use('/api/health', systemRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
