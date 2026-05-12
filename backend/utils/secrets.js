@@ -9,6 +9,7 @@ export const SECRET_KEYS = [
   'WC_SECRET',
   'WC_URL',
   'GOOGLE_SHEET_ID',
+  'BUSINESS_SHEET_ID',
   'GEMINI_API_KEY',
   'MC_API_KEY',
   'CORS_ORIGIN',
