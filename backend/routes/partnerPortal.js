@@ -256,7 +256,7 @@ router.get('/verkaeufe', async (req, res, next) => {
 });
 
 // ── GET /api/partner/intern?token= ───────────────────────────────────────────
-// Direkte Bestellungen für die Partner-Sicht – ohne Preise.
+// Direkte Bestellungen für die Partner-Sicht – mit Preisen (eigene Kosten).
 router.get('/intern', async (req, res, next) => {
   try {
     const { token } = req.query;
@@ -274,8 +274,44 @@ router.get('/intern', async (req, res, next) => {
         datum:       r[h('Datum')]       ?? '',
         bezeichnung: r[h('Bezeichnung')] ?? '',
         anzahl:      toFloat(r[h('Anzahl')]),
+        einzelpreis: toFloat(r[h('Einzelpreis')]),
+        summe:       toFloat(r[h('Summe')]),
         status:      r[h('Status')]      ?? '',
       })));
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/partner/saldo?token= ────────────────────────────────────────────
+// Aggregierte offene Posten: Lizenz-Summe − Interne-Summe = Saldo.
+router.get('/saldo', async (req, res, next) => {
+  try {
+    const { token } = req.query;
+    if (!token) return res.status(401).json({ error: 'token fehlt.' });
+    const { partnerId } = await resolvePartner(token);
+
+    const sheetId = process.env.BUSINESS_SHEET_ID;
+    const sheets  = await getSheets();
+    const [verkäufeTab, internTab] = await Promise.all([
+      readTab(sheets, sheetId, 'Partner_Verkäufe'),
+      readTab(sheets, sheetId, 'Partner_Interne_Bestellungen'),
+    ]);
+
+    const vh = col => verkäufeTab.header.indexOf(col);
+    const lizenzSumme = verkäufeTab.rows
+      .filter(r => r[vh('Partner-ID')] === partnerId && (r[vh('Status')] ?? '') === 'offen')
+      .reduce((s, r) => s + toFloat(r[vh('Lizenzgebühr')]), 0);
+
+    const ih = col => internTab.header.indexOf(col);
+    const interneSumme = internTab.rows
+      .filter(r => r[ih('Partner-ID')] === partnerId && (r[ih('Status')] ?? '') === 'offen')
+      .reduce((s, r) => s + toFloat(r[ih('Summe')]), 0);
+
+    const saldo = lizenzSumme - interneSumme;
+    res.json({
+      lizenzSumme:  parseFloat(lizenzSumme.toFixed(2)),
+      interneSumme: parseFloat(interneSumme.toFixed(2)),
+      saldo:        parseFloat(saldo.toFixed(2)),
+    });
   } catch (err) { next(err); }
 });
 

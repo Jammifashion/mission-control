@@ -68,6 +68,14 @@
     .api-cfg { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
     .api-cfg label { font-size: 0.84rem; color: var(--muted); white-space: nowrap; }
     .api-cfg input { flex: 1; min-width: 200px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.45rem 0.75rem; color: var(--text); font-size: 0.88rem; }
+    /* Saldo */
+    .saldo-row { display: flex; justify-content: space-between; align-items: baseline; padding: 0.4rem 0; font-size: 0.92rem; }
+    .saldo-row.muted { color: var(--muted); font-size: 0.86rem; }
+    .saldo-row .amount { font-variant-numeric: tabular-nums; font-weight: 600; }
+    .saldo-divider { border: none; border-top: 1px solid var(--border); margin: 0.4rem 0; }
+    .saldo-final { font-size: 1.05rem; font-weight: 700; padding-top: 0.4rem; }
+    .saldo-positive { color: #4caf50; }
+    .saldo-negative { color: var(--danger); }
   </style>
 </head>
 <body>
@@ -180,15 +188,53 @@
           <p class="summary">${rows.length} Eintrag/Einträge</p>
           <div style="overflow-x:auto;"><table>
             <thead><tr>
-              <th>Datum</th><th>Bezeichnung</th><th>Anzahl</th><th>Status</th>
+              <th>Datum</th><th>Bezeichnung</th>
+              <th style="text-align:right;">Anzahl</th>
+              <th style="text-align:right;">Einzelpreis brutto</th>
+              <th style="text-align:right;">Summe</th>
+              <th>Status</th>
             </tr></thead>
             <tbody>${rows.map(r => `<tr>
               <td>${r.datum}</td>
               <td>${r.bezeichnung}</td>
-              <td>${r.anzahl}</td>
+              <td style="text-align:right;">${r.anzahl}</td>
+              <td style="text-align:right;">${fmt(r.einzelpreis)}</td>
+              <td style="text-align:right;"><strong>${fmt(r.summe)}</strong></td>
               <td><span class="badge ${badgeClass(r.status)}">${r.status}</span></td>
             </tr>`).join('')}</tbody>
           </table></div>`;
+      } catch (e) {
+        wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${e.message}</p>`;
+      }
+    }
+
+    // ── Saldo laden & rendern ────────────────────────────────────────────────
+    async function loadSaldo() {
+      const wrap = document.getElementById('pv-saldo');
+      if (!wrap) return;
+      wrap.innerHTML = '<div class="skeleton" style="height:120px;"></div>';
+      try {
+        const data = await apiGet(`/api/partner/saldo?token=${encodeURIComponent(TOKEN)}`);
+        const positiv  = data.saldo >= 0;
+        const label    = positiv ? 'Aktuelles Guthaben' : 'Aktueller Rückstand';
+        const colorCls = positiv ? 'saldo-positive' : 'saldo-negative';
+        wrap.innerHTML = `
+          <div class="saldo-row">
+            <span>Verkäufe (Lizenz)</span>
+            <span class="amount saldo-positive">+${fmt(data.lizenzSumme)}</span>
+          </div>
+          <div class="saldo-row">
+            <span>Direkte Bestellungen</span>
+            <span class="amount saldo-negative">−${fmt(data.interneSumme)}</span>
+          </div>
+          <hr class="saldo-divider">
+          <div class="saldo-row saldo-final">
+            <span>${label}</span>
+            <span class="amount ${colorCls}">${positiv ? '' : '−'}${fmt(Math.abs(data.saldo))}</span>
+          </div>
+          <p class="saldo-row muted" style="padding-top:0.6rem;">
+            Nur offene, noch nicht abgerechnete Positionen.
+          </p>`;
       } catch (e) {
         wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${e.message}</p>`;
       }
@@ -257,6 +303,12 @@
         </div>
         <div class="card">
           <div class="card-header">
+            <h2>Saldo (offene Posten)</h2>
+          </div>
+          <div id="pv-saldo"><div class="skeleton" style="height:120px;"></div></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
             <h2>Meine Abrechnungen</h2>
           </div>
           <div id="pv-abrechnungen"><div class="skeleton"></div></div>
@@ -265,9 +317,10 @@
       document.getElementById('btn-refresh-verkaeufe').addEventListener('click', () => {
         loadVerkaeufe();
         loadIntern();
+        loadSaldo();
       });
 
-      await Promise.all([loadVerkaeufe(), loadIntern(), loadAbrechnungen()]);
+      await Promise.all([loadVerkaeufe(), loadIntern(), loadSaldo(), loadAbrechnungen()]);
     }
 
     init();
