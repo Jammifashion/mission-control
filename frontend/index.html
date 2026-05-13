@@ -5219,14 +5219,26 @@
         const padR = n => fmt(n).padStart(10);
 
         const lines = [];
-        lines.push(pad('Gewinn netto:') + padR(gewinnNetto));
-        lines.push(pad(`× Lizenz ${lizenzPct}%:`) + padR(lizenzAnteil));
-        if (Math.abs(portoSaldo) > 0.001) {
-          lines.push(pad(`+ Porto-Saldo:`) + padR(portoSaldo));
+
+        // Wenn Breakdown-Daten vorhanden: vollständige Anzeige
+        if (gewinnNetto > 0.001) {
+          lines.push(pad('Gewinn netto:') + padR(gewinnNetto));
+          lines.push(pad(`× Lizenz ${lizenzPct}%:`) + padR(lizenzAnteil));
+          if (Math.abs(portoSaldo) > 0.001) {
+            lines.push(pad(`+ Porto-Saldo:`) + padR(portoSaldo));
+          }
+          lines.push('─'.repeat(32));
+          lines.push(pad('= Partner-Anteil (netto):') + padR(lizenzNetto));
+          if (anteilBrutto > 0.001) {
+            lines.push(pad('× (1 + 19% MwSt):') + padR(anteilBrutto));
+          }
+        } else {
+          // Fallback für alte Syncs ohne Breakdown-Daten
+          lines.push(pad('VK Brutto:') + padR(vkBrutto));
+          lines.push(pad(`× Lizenz ${lizenzPct}%:`) + padR(lizenzNetto));
+          lines.push('─'.repeat(32));
+          lines.push(pad('= Partner-Anteil (netto):') + padR(lizenzNetto));
         }
-        lines.push('─'.repeat(32));
-        lines.push(pad('= Partner-Anteil (netto):') + padR(lizenzNetto));
-        lines.push(pad('× (1 + 19% MwSt):') + padR(anteilBrutto));
 
         const tip = document.getElementById('liz-tooltip');
         tip.textContent = lines.join('\n');

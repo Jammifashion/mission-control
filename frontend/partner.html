@@ -176,7 +176,7 @@
           <p class="summary">${rows.length} Eintrag/Einträge</p>
           <div style="overflow-x:auto;"><table>
             <thead><tr>
-              <th>Bestellnummer</th><th>Artikel</th><th>Menge</th><th>Datum</th><th>Status</th>
+              <th>Bestellnummer</th><th>Artikel</th><th>Menge</th><th>Datum</th><th>Status Abrechnung</th>
             </tr></thead>
             <tbody>${rows.map(r => `<tr>
               <td>${r.orderId}</td>
@@ -207,7 +207,7 @@
               <th style="text-align:right;">Anzahl</th>
               <th style="text-align:right;">Einzelpreis brutto</th>
               <th style="text-align:right;">Summe</th>
-              <th>Status</th>
+              <th>Status Abrechnung</th>
             </tr></thead>
             <tbody>${rows.map(r => `<tr>
               <td>${r.datum}</td>
