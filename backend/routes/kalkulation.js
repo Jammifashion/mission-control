@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
+import { berechnePartnerAnteil, parseKonfiguration } from '../utils/partner-kalkulation.js';
 
 const router = Router();
 
@@ -459,15 +460,46 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
     if (!vonDatum || !bisDatum) return res.status(400).json({ error: 'Ungültiges Datumsformat (DD.MM.YYYY oder ISO).' });
 
     const sheets = await getSheets();
-    const [verkäufeTab, internTab, abrechnungenTab] = await Promise.all([
+    const [verkäufeTab, internTab, abrechnungenTab, artikelTab, partnerTab, konfigTab] = await Promise.all([
       readTab(sheets, sheetId, 'Partner_Verkäufe'),
       readTab(sheets, sheetId, 'Partner_Interne_Bestellungen'),
       readTab(sheets, sheetId, 'Partner_Abrechnungen'),
+      readTab(sheets, sheetId, 'Partner_Artikel'),
+      readTab(sheets, sheetId, 'Partner'),
+      readTab(sheets, sheetId, 'Kalkulation_Fixkosten'),
     ]);
+
+    // Konfiguration + Partner-Info + Partner_Artikel-Map (für Kalkulationsgrundlage)
+    const konfiguration = parseKonfiguration(konfigTab.rows, konfigTab.header);
+    const partnerInfo = (() => {
+      const ph = col => partnerTab.header.indexOf(col);
+      const row = partnerTab.rows.find(r => r[ph('Partner-ID')] === partnerId);
+      return row ? { portoModell: row[ph('Porto-Modell')] ?? 'geteilt-50-50' } : { portoModell: 'geteilt-50-50' };
+    })();
+    const artLookup = {}; // partnerId|artikelname → { ekPreis, druckkosten, versandart, lizenzProzent }
+    {
+      const h = col => artikelTab.header.indexOf(col);
+      for (const r of artikelTab.rows) {
+        const pId = r[h('Partner-ID')] ?? '';
+        const name = r[h('Artikelname')] ?? '';
+        if (!pId || !name) continue;
+        artLookup[`${pId}|${name}`] = {
+          ekPreis:       toFloat(r[h('EK-Preis-Netto')]),
+          druckkosten:   toFloat(r[h('Druckkosten')]),
+          versandart:    ((r[h('Versandart')] ?? 'P').toString().toUpperCase() === 'B') ? 'B' : 'P',
+          lizenzProzent: toFloat(r[h('Lizenz-%')]),
+        };
+      }
+    }
 
     // Offene Verkäufe im Zeitraum
     const pIdx    = verkäufeTab.header.indexOf('Partner-ID');
     const datIdx  = verkäufeTab.header.indexOf('Datum');
+    const ordIdx  = verkäufeTab.header.indexOf('Order-ID');
+    const artIdx  = verkäufeTab.header.indexOf('Artikelnummer');
+    const varIdx  = verkäufeTab.header.indexOf('Variante');
+    const stkIdx  = verkäufeTab.header.indexOf('Stückzahl');
+    const vkIdx   = verkäufeTab.header.indexOf('VK-Preis-Brutto');
     const lizIdx  = verkäufeTab.header.indexOf('Lizenzgebühr');
     const stIdx   = verkäufeTab.header.indexOf('Status');
 
@@ -485,9 +517,53 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
 
     const lizenzSumme = offene.reduce((s, { row }) => s + toFloat(row[lizIdx]), 0);
 
+    // Pro Verkauf: Kalkulationsdetail re-berechnen (für Anzeige im Detail-View).
+    // Sheet-Lizenzgebühr bleibt autoritativ als 'lizenz' im Positions-JSON.
+    const verkaeufePositionen = offene.map(({ row, rowIndex }) => {
+      const artikelname = row[artIdx] ?? '';
+      const artikel     = artLookup[`${partnerId}|${artikelname}`];
+      const vkBrutto    = toFloat(row[vkIdx]);
+      const lizenz      = toFloat(row[lizIdx]);
+      let detail = null;
+      if (artikel) {
+        const calc = berechnePartnerAnteil({
+          vkBrutto, ekPreis: artikel.ekPreis, druckkosten: artikel.druckkosten,
+          versandart: artikel.versandart, portoModell: partnerInfo.portoModell,
+          bestellungsAnteil: 1, lizenzProzent: artikel.lizenzProzent,
+          portoEinnahmeAnteil: 0, konfiguration,
+        });
+        detail = {
+          ek:                 artikel.ekPreis,
+          druck:              artikel.druckkosten,
+          herstellungspreis:  calc.herstellungspreis,
+          versandnebenkosten: calc.versandnebenkosten,
+          portoKostenAnteil:  calc.portoKostenAnteil,
+          paypalKosten:       calc.paypalKosten,
+          gewinnNetto:        calc.gewinnNetto,
+          portoSaldoPartner:  calc.portoSaldoPartner,
+          lizenzProzent:      artikel.lizenzProzent,
+          versandart:         artikel.versandart,
+        };
+      }
+      return {
+        rowIndex,
+        datum:       row[datIdx] ?? '',
+        orderId:     row[ordIdx] ?? '',
+        artikelname,
+        variationId: row[varIdx] ?? '',
+        stueckzahl:  toFloat(row[stkIdx]),
+        vkBrutto,
+        lizenz,
+        detail,
+      };
+    });
+
     // Offene interne Bestellungen im Zeitraum (Kosten für Partner → Abzug)
-    const ipIdx  = internTab.header.indexOf('Partner-ID');
+    const ipIdx   = internTab.header.indexOf('Partner-ID');
     const idatIdx = internTab.header.indexOf('Datum');
+    const ibezIdx = internTab.header.indexOf('Bezeichnung');
+    const ianIdx  = internTab.header.indexOf('Anzahl');
+    const iepIdx  = internTab.header.indexOf('Einzelpreis');
     const iSumIdx = internTab.header.indexOf('Summe');
     const istIdx  = internTab.header.indexOf('Status');
 
@@ -501,8 +577,15 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
       });
 
     const interneSumme = offeneIntern.reduce((s, { row }) => s + toFloat(row[iSumIdx]), 0);
+    const internPositionen = offeneIntern.map(({ row, rowIndex }) => ({
+      rowIndex,
+      datum:       row[idatIdx] ?? '',
+      bezeichnung: row[ibezIdx] ?? '',
+      anzahl:      toFloat(row[ianIdx]),
+      einzelpreis: toFloat(row[iepIdx]),
+      summe:       toFloat(row[iSumIdx]),
+    }));
 
-    // Saldo = Lizenz-Einnahmen − interne Bestellungskosten
     const saldo = parseFloat((lizenzSumme - interneSumme).toFixed(2));
 
     // Neue Abrechnungs-ID
@@ -510,45 +593,42 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
     const abId       = nextAbrechnungId(abrechnungenTab.rows, abIdIdx);
     const erstelltAm = toDE(new Date());
 
-    // Abrechnung schreiben (Verkaufs-Guthaben = Lizenz-Summe, Saldo = nach Abzug Intern)
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: sheetId,
-      range: 'Partner_Abrechnungen!A:I',
-      valueInputOption: 'USER_ENTERED',
-      insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [[
-        abId, partnerId,
-        toDE(vonDatum), toDE(bisDatum),
-        parseFloat(lizenzSumme.toFixed(2)), saldo, 'angefordert', erstelltAm, notiz ?? '',
-      ]]},
+    const positionenJson = JSON.stringify({
+      verkaeufe: verkaeufePositionen,
+      intern:    internPositionen,
     });
 
-    // Verkäufe + interne Bestellungen als 'abgerechnet' markieren (batch)
-    const stColLetter  = colLetter(stIdx);
-    const istColLetter = colLetter(istIdx);
-    const markRequests = [
-      ...offene.map(({ rowIndex }) => ({
-        range: `Partner_Verkäufe!${stColLetter}${rowIndex}`,
-        majorDimension: 'ROWS', values: [['abgerechnet']],
-      })),
-      ...offeneIntern.map(({ rowIndex }) => ({
-        range: `Partner_Interne_Bestellungen!${istColLetter}${rowIndex}`,
-        majorDimension: 'ROWS', values: [['abgerechnet']],
-      })),
-    ];
-    if (markRequests.length) {
-      await sheets.spreadsheets.values.batchUpdate({
-        spreadsheetId: sheetId,
-        requestBody: { valueInputOption: 'USER_ENTERED', data: markRequests },
-      });
-    }
+    // Abrechnung als Entwurf schreiben – header-basiert (Sheet kann beliebige Spaltenreihenfolge haben)
+    const aH = abrechnungenTab.header;
+    const rowVals = new Array(aH.length).fill('');
+    const put = (col, v) => { const i = aH.indexOf(col); if (i !== -1) rowVals[i] = v; };
+    put('Abrechnungs-ID',     abId);
+    put('Partner-ID',         partnerId);
+    put('Zeitraum-Von',       toDE(vonDatum));
+    put('Zeitraum-Bis',       toDE(bisDatum));
+    put('Verkaufs-Guthaben',  parseFloat(lizenzSumme.toFixed(2)));
+    put('Saldo',              saldo);
+    put('Status',             'entwurf');
+    put('Erstellt-Am',        erstelltAm);
+    put('Notiz',              notiz ?? '');
+    put('Positionen',         positionenJson);
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: sheetId,
+      range: `Partner_Abrechnungen!A:${colLetter(aH.length - 1)}`,
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [rowVals] },
+    });
+
+    // KEIN Markieren als abgerechnet – erst bei Freigabe.
 
     res.status(201).json({
       abrechnungId: abId, partnerId,
       zeitraumVon: toDE(vonDatum), zeitraumBis: toDE(bisDatum),
       anzahlVerkäufe: offene.length, lizenzSumme: parseFloat(lizenzSumme.toFixed(2)),
       anzahlInterne: offeneIntern.length, interneSumme: parseFloat(interneSumme.toFixed(2)),
-      saldo, status: 'angefordert',
+      saldo, status: 'entwurf',
     });
   } catch (err) { next(err); }
 });
@@ -568,17 +648,26 @@ router.get('/abrechnungen', async (req, res, next) => {
     const filtered = rows
       .filter(r => (!partnerId || r[h('Partner-ID')] === partnerId) &&
                    (!status    || r[h('Status')]     === status))
-      .map(r => ({
-        abrechnungId:    r[h('Abrechnungs-ID')]     ?? '',
-        partnerId:       r[h('Partner-ID')]          ?? '',
-        zeitraumVon:     r[h('Zeitraum-Von')]        ?? '',
-        zeitraumBis:     r[h('Zeitraum-Bis')]        ?? '',
-        verkaufsSumme:   toFloat(r[h('Verkaufs-Guthaben')]),
-        saldo:           toFloat(r[h('Saldo')]),
-        status:          r[h('Status')]              ?? '',
-        erstelltAm:      r[h('Erstellt-Am')]         ?? '',
-        notiz:           r[h('Notiz')]               ?? '',
-      }));
+      .map((r, idx) => {
+        let positionen = null;
+        const posRaw = r[h('Positionen')];
+        if (posRaw) {
+          try { positionen = JSON.parse(posRaw); } catch { positionen = null; }
+        }
+        return {
+          rowIndex:        idx + 2,
+          abrechnungId:    r[h('Abrechnungs-ID')]     ?? '',
+          partnerId:       r[h('Partner-ID')]          ?? '',
+          zeitraumVon:     r[h('Zeitraum-Von')]        ?? '',
+          zeitraumBis:     r[h('Zeitraum-Bis')]        ?? '',
+          verkaufsSumme:   toFloat(r[h('Verkaufs-Guthaben')]),
+          saldo:           toFloat(r[h('Saldo')]),
+          status:          r[h('Status')]              ?? '',
+          erstelltAm:      r[h('Erstellt-Am')]         ?? '',
+          notiz:           r[h('Notiz')]               ?? '',
+          positionen,
+        };
+      });
 
     res.json(filtered);
   } catch (err) { next(err); }

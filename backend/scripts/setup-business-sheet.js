@@ -63,10 +63,10 @@ const TABS = [
   },
   {
     name: 'Partner_Abrechnungen',
-    header: ['Abrechnungs-ID', 'Partner-ID', 'Zeitraum-Von', 'Zeitraum-Bis', 'Verkaufs-Guthaben', 'Saldo', 'Status', 'Erstellt-Am', 'Notiz'],
-    widths: [150, 120, 120, 120, 150, 100, 120, 120, 220],
+    header: ['Abrechnungs-ID', 'Partner-ID', 'Zeitraum-Von', 'Zeitraum-Bis', 'Verkaufs-Guthaben', 'Saldo', 'Status', 'Erstellt-Am', 'Notiz', 'Positionen'],
+    widths: [150, 120, 120, 120, 150, 100, 120, 120, 220, 400],
     seedData: [],
-    note: 'Abrechnungs-ID: AB-YYYY-NNNN | Status: angefordert | geprüft | freigegeben | bezahlt',
+    note: 'Abrechnungs-ID: AB-YYYY-NNNN | Status: entwurf → freigegeben → bezahlt (Alt: angefordert | geprüft)  ·  Positionen: JSON',
   },
 ];
 
