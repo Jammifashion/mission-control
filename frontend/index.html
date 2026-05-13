@@ -4467,7 +4467,7 @@
             <div style="overflow-x:auto;"><table class="orders-table">
               <thead><tr>
                 <th>Partner</th><th>Datum</th><th>Order-ID</th><th>Artikel</th>
-                <th>Variante</th><th>Stück</th><th>VK Brutto</th><th>Lizenz</th><th>Status</th>
+                <th>Variante</th><th>Stück</th><th>VK Brutto</th><th style="cursor:help;" title="Mauszeiger über Betrag → Berechnungsformel anzeigen">Lizenz ⓘ</th><th>Status</th>
               </tr></thead>
               <tbody>${rows.map(r => `<tr>
                 <td>${pName(r.partnerId)}</td>
@@ -4478,12 +4478,18 @@
                 <td><span class="badge ${r.status==='offen'?'badge-processing':'badge-completed'}">${r.status}</span></td>
               </tr>`).join('')}</tbody>
             </table></div>`;
-          wrap.querySelectorAll('.liz-cell').forEach(cell => {
-            cell.addEventListener('mouseenter', () => showLizTooltipVerkauf(cell));
-            cell.addEventListener('mouseleave', hideLizTooltip);
-          });
         } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`; }
       }
+
+      // Tooltip-Delegation für Verkäufe-Lizenz (einmalig, unabhängig von Tabellen-Reload)
+      document.addEventListener('mouseover', e => {
+        const cell = e.target.closest('#verkaeufe-list-wrap .liz-cell');
+        if (cell && !cell.contains(e.relatedTarget)) showLizTooltipVerkauf(cell);
+      });
+      document.addEventListener('mouseout', e => {
+        const cell = e.target.closest('#verkaeufe-list-wrap .liz-cell');
+        if (cell && !cell.contains(e.relatedTarget)) hideLizTooltip();
+      });
 
       function openVerkaufModal() {
         const opts = _ppPartners.map(p => `<option value="${p.id}">${p.name} (${p.id})</option>`).join('');
