@@ -4147,6 +4147,13 @@
         const [y, m, d] = iso.split('-');
         return `${d}.${m}.${y}`;
       }
+      function _getTodayIso() {
+        const d = new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
 
       async function loadKalkulationTab() {
         await Promise.all([
@@ -4260,17 +4267,20 @@
 
       function openFixkostenModal(row) {
         const bd = document.createElement('div'); bd.className = 'modal-backdrop';
-        bd.innerHTML = `<div class="modal-box" style="max-width:390px;width:94%;">
+        const todayIso = _getTodayIso();
+        bd.innerHTML = `<div class="modal-box" style="max-width:420px;width:94%;">
           <div class="modal-title">Neue Version: ${row.position}</div>
           <p style="font-size:0.8rem;color:var(--muted);margin:0.4rem 0 0.9rem;">
             Aktuell: <strong>${row.betrag} ${row.einheit}</strong> ab ${row.gueltigAb || '–'}<br>
-            Speichern schließt den alten Eintrag und legt eine neue Version ab heute an.
+            Neue Version startet ab dem gewählten Datum; alte Zeile wird davor geschlossen.
           </p>
           <div><div class="form-grid">
             <div class="form-field"><label>Neuer Betrag *</label>
               <input class="form-input" type="number" id="fk-bt" step="0.01" min="0" value="${row.betrag}"></div>
             <div class="form-field"><label>Einheit</label>
               <input class="form-input" id="fk-ei" value="${row.einheit}"></div>
+            <div class="form-field"><label>Gültig ab *</label>
+              <input class="form-input" type="date" id="fk-ab" value="${todayIso}"></div>
           </div><div class="modal-actions" style="margin-top:1.25rem;">
             <button class="btn-secondary" id="fk-x">Abbrechen</button>
             <button class="btn" id="fk-ok">Neue Version speichern</button>
@@ -4281,25 +4291,32 @@
           const betrag = parseFloat(bd.querySelector('#fk-bt').value);
           if (isNaN(betrag)) { window.showToast('Betrag ist erforderlich.', 'toast-error'); return; }
           const einheit = bd.querySelector('#fk-ei').value || row.einheit;
+          const gueltigAbIso = bd.querySelector('#fk-ab').value;
+          if (!gueltigAbIso) { window.showToast('Gültig ab Datum ist erforderlich.', 'toast-error'); return; }
+          const gueltigAb = _toDE(gueltigAbIso);
           const btn = bd.querySelector('#fk-ok'); btn.disabled = true; btn.textContent = '...';
           const fmtDE = d => `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;
-          const heute    = fmtDE(new Date());
-          const gestern  = (() => { const g = new Date(); g.setDate(g.getDate() - 1); return fmtDE(g); })();
+          const gestern = (() => {
+            const gDatum = new Date(gueltigAbIso);
+            const g = new Date(gDatum);
+            g.setDate(g.getDate() - 1);
+            return fmtDE(g);
+          })();
           try {
-            // 1. Alte aktive Zeile schließen (Gültig_bis = gestern)
+            // 1. Alte aktive Zeile schließen (Gültig_bis = Tag davor)
             const r1 = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/fixkosten/${encodeURIComponent(row.position)}`, {
               method: 'PATCH', headers: {'Content-Type':'application/json'},
               body: JSON.stringify({ gueltigBis: gestern }),
             });
             if (!r1.ok) throw new Error((await r1.json()).error ?? r1.statusText);
-            // 2. Neue Zeile anlegen (Gültig_ab = heute, Gültig_bis leer)
+            // 2. Neue Zeile anlegen (Gültig_ab = gewähltes Datum, Gültig_bis leer)
             const r2 = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/fixkosten`, {
               method: 'POST', headers: {'Content-Type':'application/json'},
-              body: JSON.stringify({ position: row.position, betrag, einheit, gueltigAb: heute, gueltigBis: '' }),
+              body: JSON.stringify({ position: row.position, betrag, einheit, gueltigAb, gueltigBis: '' }),
             });
             if (!r2.ok) throw new Error((await r2.json()).error ?? r2.statusText);
             bd.remove();
-            window.showToast(`Neue Version für "${row.position}" ab ${heute} gespeichert.`);
+            window.showToast(`Neue Version für "${row.position}" ab ${gueltigAb} gespeichert.`);
             loadFixkostenTable();
           } catch (e) {
             window.showToast(`Fehler: ${e.message}`, 'toast-error');

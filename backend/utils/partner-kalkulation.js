@@ -108,7 +108,7 @@ function round2(n) { return Math.round(n * 100) / 100; }
  * aufgeschlagen.
  *
  * @param {Object}  input
- * @param {number}  input.vkBrutto                   VK-Preis inkl. MwSt (€)
+ * @param {number}  input.vkNetto                    VK-Preis netto aus WC item.total (€)
  * @param {number}  input.ekPreis                    EK-Preis netto (€)
  * @param {number}  input.druckkosten                Druckkosten (€)
  * @param {'B'|'P'} input.versandart                 Versandart der Bestellung
@@ -125,10 +125,10 @@ function round2(n) { return Math.round(n * 100) / 100; }
  *
  * @returns {Object} { herstellungspreis, versandnebenkosten, portoKostenAnteil,
  *                     portoEinnahmeAnteil, portoSaldoPartner, paypalKosten,
- *                     gewinnNetto, partnerAnteil, eigenAnteil }
+ *                     gewinnNetto, partnerAnteil, eigenAnteil, netto, brutto }
  */
 export function berechnePartnerAnteil({
-  vkBrutto, ekPreis, druckkosten, versandart,
+  vkNetto, ekPreis, druckkosten, versandart,
   portoModell, anzahlArtikelInBestellung, bestellungsAnteil,
   lizenzProzent, portoEinnahmeAnteil = 0, konfiguration,
 }) {
@@ -142,32 +142,34 @@ export function berechnePartnerAnteil({
     ? bestellungsAnteil
     : (1 / anzahl);
 
-  const vkNetto           = vkBrutto / (1 + k.mwstProzent / 100);
-  const herstellungspreis = (ekPreis || 0) + (druckkosten || 0) + k.herstellungsnebenkosten;
+  // WC item.total ist Netto – kein MwSt-Abzug erforderlich
+  const herstellungspreis = (ekPreis || 0) + (druckkosten || 0) + k.herstellungsnebenkosten; // (netto)
 
   const versandnebenkostenTotal = va === 'B' ? k.versandnebenkostenB : k.versandnebenkostenP;
-  const versandnebenkosten      = versandnebenkostenTotal * anteil;
+  const versandnebenkosten      = versandnebenkostenTotal * anteil; // (netto)
 
   const portoKostenTotal  = va === 'B' ? k.portoB : k.portoP;
-  const portoKostenAnteil = portoKostenTotal * anteil;
+  const portoKostenAnteil = portoKostenTotal * anteil; // (netto)
 
-  const paypalKosten = (vkBrutto * k.paypalProzent / 100) + (k.paypalPauschale * anteil);
+  const paypalKosten = (vkNetto * k.paypalProzent / 100) + (k.paypalPauschale * anteil); // (netto)
 
   // gewinnNetto = reine Artikel-Marge ohne Porto.
-  const gewinnNetto            = vkNetto - herstellungspreis - versandnebenkosten - paypalKosten;
-  const partnerAnteilVomGewinn = gewinnNetto * (lizenzProzent || 0) / 100;
+  const gewinnNetto            = vkNetto - herstellungspreis - versandnebenkosten - paypalKosten; // (netto)
+  const partnerAnteilVomGewinn = gewinnNetto * (lizenzProzent || 0) / 100; // (netto)
 
-  // Porto-Saldo (Einnahme − Kosten) aufteilen.
+  // Porto-Saldo (Einnahme − Kosten) aufteilen. Alle Werte netto (WC shipping_total ist netto).
   //   partner-trägt   → Partner bekommt 100 % des Saldos
   //   geteilt-50-50   → Partner bekommt 50 % des Saldos
-  const portoSaldoArtikel = (portoEinnahmeAnteil || 0) - portoKostenAnteil;
-  const portoSaldoPartner = portoModell === 'partner-trägt'
+  const portoSaldoArtikel   = (portoEinnahmeAnteil || 0) - portoKostenAnteil; // (netto)
+  const portoSaldoPartner   = portoModell === 'partner-trägt'
     ? portoSaldoArtikel
     : portoSaldoArtikel / 2;
   const portoSaldoPlattform = portoSaldoArtikel - portoSaldoPartner;
 
-  const partnerAnteil = partnerAnteilVomGewinn + portoSaldoPartner;
-  const eigenAnteil   = (gewinnNetto - partnerAnteilVomGewinn) + portoSaldoPlattform;
+  const partnerAnteil = partnerAnteilVomGewinn + portoSaldoPartner; // (netto)
+  const eigenAnteil   = (gewinnNetto - partnerAnteilVomGewinn) + portoSaldoPlattform; // (netto)
+
+  const partnerAnteilBrutto = round2(partnerAnteil * (1 + k.mwstProzent / 100)); // (brutto)
 
   return {
     herstellungspreis:   round2(herstellungspreis),
@@ -179,5 +181,7 @@ export function berechnePartnerAnteil({
     gewinnNetto:         round2(gewinnNetto),
     partnerAnteil:       round2(partnerAnteil),
     eigenAnteil:         round2(eigenAnteil),
+    netto:               round2(partnerAnteil),
+    brutto:              partnerAnteilBrutto,
   };
 }

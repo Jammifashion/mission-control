@@ -266,7 +266,7 @@ router.post('/kalkulation/preview', async (req, res, next) => {
     const konfiguration = await loadKonfiguration(sheets, sheetId);
 
     const result = berechnePartnerAnteil({
-      vkBrutto:                  parseFloat(req.body.vkBrutto ?? 0),
+      vkNetto:                   parseFloat(req.body.vkBrutto ?? 0),
       ekPreis:                   parseFloat(req.body.ekPreis ?? 0),
       druckkosten:               parseFloat(req.body.druckkosten ?? 0),
       versandart:                req.body.versandart ?? 'P',

@@ -145,12 +145,10 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
   // 4. Iterieren → Sheet-Zeilen sammeln
   const toWrite = [];
   const artikelName = (item) => item.name || item.sku || String(item.product_id);
-  const mwstFaktor = 1 + (konfiguration.mwstProzent || 0) / 100;
 
   for (const order of orders) {
     const orderDate      = toDE(new Date(order.date_created));
-    const shippingNetto  = toFloat(order.shipping_total);
-    const shippingBrutto = shippingNetto * mwstFaktor;
+    const shippingNetto  = toFloat(order.shipping_total); // net from WC
     const orderNetto     = order.line_items.reduce((s, i) => s + toFloat(i.total), 0);
 
     const matching = [];
@@ -164,10 +162,9 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     if (!matching.length) continue;
 
     for (const { item, entries } of matching) {
-      const itemNetto  = toFloat(item.total);
-      const itemBrutto = itemNetto * mwstFaktor;
+      const itemNetto  = toFloat(item.total); // net from WC
       const anteil     = orderNetto > 0 ? (itemNetto / orderNetto) : 0;
-      const portoEinnahmeAnteil = shippingBrutto * anteil;
+      const portoEinnahmeAnteil = shippingNetto * anteil; // net from WC
       const artKey      = artikelName(item);
       const variationId = String(item.variation_id || 0);
 
@@ -177,7 +174,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
         existingKeys.add(key);
 
         const calc = berechnePartnerAnteil({
-          vkBrutto:           itemBrutto,
+          vkNetto:            itemNetto,
           ekPreis:            e.ekPreis,
           druckkosten:        e.druckkosten,
           versandart:         orderVersandart,
@@ -191,7 +188,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
         toWrite.push([
           e.partnerId, orderDate, String(order.id),
           artKey, variationId, String(item.quantity),
-          itemBrutto.toFixed(2), calc.partnerAnteil, 'offen',
+          itemNetto.toFixed(2), calc.partnerAnteil, 'offen',
         ]);
       }
     }
