@@ -515,6 +515,53 @@
         margin: 0.4rem 0;
       }
 
+      /* ── Aufklappbare Abrechnungs-Detailansicht ── */
+      .abr-master { cursor: pointer; }
+      .abr-master:hover { background: rgba(255,255,255,0.02); }
+      .abr-arrow { display: inline-block; width: 1em; transition: transform 0.15s; }
+      .abr-master.open .abr-arrow { transform: rotate(90deg); }
+      .abr-detail-row { display: none; }
+      .abr-detail-row.open { display: table-row; }
+      .abr-detail-cell {
+        padding: 0.9rem 1.1rem !important;
+        background: rgba(255,255,255,0.02);
+        border-bottom: 1px solid var(--border) !important;
+      }
+      .abr-sub-table { width: 100%; font-size: 0.84rem; margin-bottom: 0.8rem; }
+      .abr-sub-table th { color: var(--muted); font-weight: 500; font-size: 0.78rem; text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); }
+      .abr-sub-table td { padding: 0.42rem 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
+      .abr-sub-table tr:last-child td { border-bottom: none; }
+      .abr-sub-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+      .abr-verkauf-master { cursor: pointer; }
+      .abr-verkauf-master:hover { background: rgba(255,255,255,0.03); }
+      .abr-verkauf-detail-row { display: none; }
+      .abr-verkauf-detail-row.open { display: table-row; }
+      .abr-verkauf-detail-cell {
+        padding: 0.55rem 0.9rem !important;
+        background: rgba(0,0,0,0.18);
+        font-size: 0.78rem;
+        color: var(--muted);
+      }
+      .abr-calc-line { display: inline-block; margin-right: 1.1rem; }
+      .abr-calc-line strong { color: var(--text); font-weight: 600; }
+      .abr-saldo-block {
+        margin-top: 0.5rem;
+        padding: 0.85rem 1rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        max-width: 480px;
+      }
+      .abr-saldo-row { display: flex; justify-content: space-between; padding: 0.25rem 0; font-size: 0.88rem; font-variant-numeric: tabular-nums; }
+      .abr-saldo-row.final { font-size: 1rem; font-weight: 700; border-top: 1px solid var(--border); padding-top: 0.5rem; margin-top: 0.3rem; }
+      .abr-saldo-pos { color: #4caf50; }
+      .abr-saldo-neg { color: var(--danger); }
+      .abr-actions { margin-top: 0.85rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+      .btn-success { background: #4caf50; color: #000; border: none; border-radius: 6px; padding: 0.45rem 1rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+      .btn-success:hover:not(:disabled) { opacity: 0.88; }
+      .btn-danger { background: var(--danger); color: #fff; border: none; border-radius: 6px; padding: 0.45rem 1rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+      .btn-danger:hover:not(:disabled) { opacity: 0.88; }
+
       /* ── Lizenz-Detail-Tooltip (Partner-Artikel-Tab) ── */
       #liz-tooltip {
         position: fixed;
@@ -4087,14 +4134,6 @@
       document.getElementById('verkaeufe-filter-partner').addEventListener('change', () => loadVerkaeufeTable());
       document.getElementById('verkaeufe-filter-status').addEventListener('change', () => loadVerkaeufeTable());
       document.getElementById('abrechnungen-filter-partner').addEventListener('change', () => loadAbrechnungenTable());
-      document.getElementById('abrechnungen-list-wrap').addEventListener('change', async e => {
-        const sel = e.target.closest('[data-abr-sel]');
-        if (!sel) return;
-        const newStatus = sel.value;
-        const oldStatus = sel.dataset.abrCur;
-        if (newStatus === oldStatus) return;
-        await setAbrStatus(sel.dataset.abrSel, newStatus, sel, oldStatus);
-      });
 
       function _toIso(de) {
         if (!de) return '';
@@ -4468,6 +4507,8 @@
         loadAbrechnungenTable();
       }
 
+      let _abrRows = [];
+
       async function loadAbrechnungenTable() {
         const wrap      = document.getElementById('abrechnungen-list-wrap');
         const partnerId = document.getElementById('abrechnungen-filter-partner').value;
@@ -4475,43 +4516,232 @@
         const qs = new URLSearchParams();
         if (partnerId) qs.set('partnerId', partnerId);
         try {
-          const rows = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/abrechnungen?${qs}`).then(r => r.json());
-          if (!rows.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Abrechnungen vorhanden.</p>'; return; }
-          const STATUSES = ['angefordert', 'geprüft', 'bezahlt'];
-          const pName    = id => _ppPartners.find(p => p.id === id)?.name || id;
-          const badge    = s => ({ angefordert: 'badge-pending', geprüft: 'badge-processing', freigegeben: 'badge-idle', bezahlt: 'badge-completed' }[s] ?? 'badge-idle');
-          wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
-            <thead><tr>
-              <th>ID</th><th>Partner</th><th>Von</th><th>Bis</th>
-              <th>Saldo</th><th>Erstellt</th><th>Status</th>
-            </tr></thead>
-            <tbody>${rows.map(r => {
-              const opts = STATUSES.map(s =>
-                `<option value="${s}"${s === r.status ? ' selected' : ''}>${s}</option>`
-              ).join('');
-              return `<tr>
-                <td style="font-size:0.8rem;">${r.abrechnungId}</td>
-                <td>${pName(r.partnerId)}</td>
-                <td>${r.zeitraumVon}</td><td>${r.zeitraumBis}</td>
-                <td>${r.saldo.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</td>
-                <td style="font-size:0.8rem;">${r.erstelltAm}</td>
-                <td><span class="badge ${badge(r.status)}" style="margin-bottom:0.35rem;display:inline-block;">${r.status}</span><br>
-                  <select class="form-select" style="font-size:0.78rem;padding:0.22rem 0.5rem;margin-top:0.15rem;"
-                    data-abr-sel="${r.abrechnungId}" data-abr-cur="${r.status}">${opts}</select></td>
-              </tr>`;
-            }).join('')}</tbody>
-          </table></div>`;
+          _abrRows = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/abrechnungen?${qs}`).then(r => r.json());
+          renderAbrechnungenTable();
         } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`; }
       }
 
-      async function setAbrStatus(id, newStatus, selEl, oldStatus) {
+      function renderAbrechnungenTable() {
+        const wrap = document.getElementById('abrechnungen-list-wrap');
+        if (!_abrRows.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Abrechnungen vorhanden.</p>'; return; }
+        const pName = id => _ppPartners.find(p => p.id === id)?.name || id;
+        const badge = s => ({
+          entwurf: 'badge-idle', freigegeben: 'badge-processing', bezahlt: 'badge-completed',
+          angefordert: 'badge-pending', geprüft: 'badge-processing',
+        }[s] ?? 'badge-idle');
+        const fmt = v => v.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
+
+        wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+          <thead><tr>
+            <th style="width:1.5em;"></th>
+            <th>ID</th><th>Partner</th><th>Von</th><th>Bis</th>
+            <th>Saldo</th><th>Erstellt</th><th>Status</th>
+          </tr></thead>
+          <tbody>${_abrRows.map((r, i) => `
+            <tr class="abr-master" data-abr-id="${r.abrechnungId}" data-abr-i="${i}">
+              <td><span class="abr-arrow">▸</span></td>
+              <td style="font-size:0.8rem;">${r.abrechnungId}</td>
+              <td>${pName(r.partnerId)}</td>
+              <td>${r.zeitraumVon}</td><td>${r.zeitraumBis}</td>
+              <td class="num">${fmt(r.saldo)}</td>
+              <td style="font-size:0.8rem;">${r.erstelltAm}</td>
+              <td><span class="badge ${badge(r.status)}">${r.status}</span></td>
+            </tr>
+            <tr class="abr-detail-row" data-abr-detail="${r.abrechnungId}">
+              <td colspan="8" class="abr-detail-cell">${renderAbrDetail(r)}</td>
+            </tr>
+          `).join('')}</tbody>
+        </table></div>`;
+
+        attachAbrEvents(wrap);
+      }
+
+      function renderAbrDetail(r) {
+        const fmt = v => (v ?? 0).toLocaleString('de-DE',{style:'currency',currency:'EUR',minimumFractionDigits:2});
+        const p   = r.positionen || { verkaeufe: [], intern: [] };
+
+        // Verkäufe-Block
+        const verkaeufeHTML = (p.verkaeufe && p.verkaeufe.length) ? `
+          <h3 style="font-size:0.88rem;margin:0 0 0.5rem;">Verkäufe (${p.verkaeufe.length})</h3>
+          <table class="abr-sub-table">
+            <thead><tr>
+              <th style="width:1.2em;"></th>
+              <th>Datum</th><th>Bestellnr.</th><th>Artikel</th>
+              <th class="num">Menge</th><th class="num">VK brutto</th><th class="num">Lizenz</th>
+            </tr></thead>
+            <tbody>${p.verkaeufe.map((v, vi) => {
+              const hasDetail = !!v.detail;
+              const det = v.detail || {};
+              const lineParts = hasDetail ? [
+                `<span class="abr-calc-line">EK <strong>${fmt(det.ek)}</strong></span>`,
+                `<span class="abr-calc-line">Druck <strong>${fmt(det.druck)}</strong></span>`,
+                `<span class="abr-calc-line">Nebenkosten <strong>${fmt(det.versandnebenkosten)}</strong></span>`,
+                `<span class="abr-calc-line">PayPal <strong>${fmt(det.paypalKosten)}</strong></span>`,
+                `<span class="abr-calc-line">Versand <strong>${det.versandart || '–'}</strong></span>`,
+                `<span class="abr-calc-line">Porto-Saldo <strong>${fmt(det.portoSaldoPartner)}</strong></span>`,
+                `<span class="abr-calc-line">Gewinn <strong>${fmt(det.gewinnNetto)}</strong></span>`,
+                `<span class="abr-calc-line">× <strong>${det.lizenzProzent || 0}%</strong> = <strong>${fmt(v.lizenz)}</strong></span>`,
+              ].join('') : '<span style="font-style:italic;">Kalkulationsgrundlage nicht verfügbar (kein Match in Partner_Artikel).</span>';
+
+              return `
+                <tr class="abr-verkauf-master" data-abr-id="${r.abrechnungId}" data-vk-i="${vi}">
+                  <td><span class="abr-arrow">▸</span></td>
+                  <td>${v.datum}</td>
+                  <td>${v.orderId}</td>
+                  <td>${v.artikelname}</td>
+                  <td class="num">${v.stueckzahl}</td>
+                  <td class="num">${fmt(v.vkBrutto)}</td>
+                  <td class="num"><strong>${fmt(v.lizenz)}</strong></td>
+                </tr>
+                <tr class="abr-verkauf-detail-row" data-abr-id="${r.abrechnungId}" data-vk-detail="${vi}">
+                  <td colspan="7" class="abr-verkauf-detail-cell">${lineParts}</td>
+                </tr>`;
+            }).join('')}</tbody>
+          </table>` : `<p style="color:var(--muted);font-size:0.82rem;margin:0.4rem 0 0.8rem;">Keine Verkäufe in dieser Abrechnung.</p>`;
+
+        // Intern-Block
+        const internHTML = (p.intern && p.intern.length) ? `
+          <h3 style="font-size:0.88rem;margin:1rem 0 0.5rem;">Interne Bestellungen (${p.intern.length})</h3>
+          <table class="abr-sub-table">
+            <thead><tr>
+              <th>Datum</th><th>Bezeichnung</th>
+              <th class="num">Anzahl</th><th class="num">Einzelpreis</th><th class="num">Summe</th>
+            </tr></thead>
+            <tbody>${p.intern.map(i => `<tr>
+              <td>${i.datum}</td>
+              <td>${i.bezeichnung}</td>
+              <td class="num">${i.anzahl}</td>
+              <td class="num">${fmt(i.einzelpreis)}</td>
+              <td class="num"><strong>${fmt(i.summe)}</strong></td>
+            </tr>`).join('')}</tbody>
+          </table>` : '';
+
+        // Saldo-Block
+        const lizenzSumme  = (p.verkaeufe || []).reduce((s, v) => s + (v.lizenz || 0), 0);
+        const interneSumme = (p.intern || []).reduce((s, v) => s + (v.summe || 0), 0);
+        const isPos = r.saldo >= 0;
+        const saldoLabel = isPos ? 'Auszahlung an Partner' : 'Forderung an Partner';
+        const saldoHTML = `
+          <div class="abr-saldo-block">
+            <div class="abr-saldo-row">
+              <span>Lizenz-Summe</span>
+              <span class="abr-saldo-pos">+${fmt(lizenzSumme)}</span>
+            </div>
+            <div class="abr-saldo-row">
+              <span>Interne Bestellungen</span>
+              <span class="abr-saldo-neg">−${fmt(interneSumme)}</span>
+            </div>
+            <div class="abr-saldo-row final">
+              <span>${saldoLabel}</span>
+              <span class="${isPos ? 'abr-saldo-pos' : 'abr-saldo-neg'}">${isPos ? '' : '−'}${fmt(Math.abs(r.saldo))}</span>
+            </div>
+          </div>`;
+
+        // Aktions-Block je nach Status
+        let actionsHTML = '';
+        if (r.status === 'entwurf') {
+          actionsHTML = `
+            <div class="abr-actions">
+              <button class="btn-success" data-abr-action="freigeben" data-abr-id="${r.abrechnungId}">✓ Freigeben</button>
+              <button class="btn-danger" data-abr-action="verwerfen" data-abr-id="${r.abrechnungId}">✗ Verwerfen</button>
+            </div>
+            <p style="font-size:0.78rem;color:var(--muted);margin-top:0.6rem;">
+              Bei Freigabe werden alle Verkäufe und interne Bestellungen auf „abgerechnet" gesetzt.
+              Beim Verwerfen wird der Entwurf gelöscht – Posten bleiben offen.
+            </p>`;
+        } else if (r.status === 'freigegeben') {
+          actionsHTML = `
+            <div class="abr-actions">
+              <button class="btn" data-abr-action="bezahlt" data-abr-id="${r.abrechnungId}">→ Als bezahlt markieren</button>
+            </div>`;
+        }
+
+        const notiz = r.notiz ? `<p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.4rem;"><em>Notiz:</em> ${r.notiz}</p>` : '';
+
+        return notiz + verkaeufeHTML + internHTML + saldoHTML + actionsHTML;
+      }
+
+      function attachAbrEvents(wrap) {
+        // Abrechnungs-Zeile aufklappen (Detail-Row ist nextElementSibling)
+        wrap.querySelectorAll('.abr-master').forEach(tr => {
+          tr.addEventListener('click', () => {
+            tr.classList.toggle('open');
+            tr.nextElementSibling?.classList.toggle('open');
+          });
+        });
+
+        // Verkauf-Zeile aufklappen
+        wrap.querySelectorAll('.abr-verkauf-master').forEach(tr => {
+          tr.addEventListener('click', e => {
+            e.stopPropagation();
+            tr.classList.toggle('open');
+            tr.nextElementSibling?.classList.toggle('open');
+          });
+        });
+
+        // Aktions-Buttons
+        wrap.querySelectorAll('[data-abr-action]').forEach(btn => {
+          btn.addEventListener('click', async e => {
+            e.stopPropagation();
+            const action = btn.dataset.abrAction;
+            const id     = btn.dataset.abrId;
+            if (action === 'freigeben')      await abrFreigeben(id, btn);
+            else if (action === 'verwerfen') await abrVerwerfen(id, btn);
+            else if (action === 'bezahlt')   await setAbrStatus(id, 'bezahlt', btn, 'freigegeben');
+          });
+        });
+      }
+
+      async function abrFreigeben(id, btn) {
+        const confirmed = await window.showConfirm(
+          'Abrechnung freigeben?',
+          `<strong>${id}</strong>: alle Verkäufe und interne Bestellungen werden auf <strong>abgerechnet</strong> gesetzt.`,
+          'Freigeben'
+        );
+        if (!confirmed) return;
+        btn.disabled = true; btn.textContent = '...';
+        try {
+          const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/abrechnung/${id}/freigeben`, { method: 'POST' });
+          if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+          window.showToast(`Abrechnung ${id} freigegeben.`);
+          loadAbrechnungenTable();
+        } catch (e) {
+          window.showToast(`Fehler: ${e.message}`, 'toast-error');
+          btn.disabled = false; btn.textContent = '✓ Freigeben';
+        }
+      }
+
+      async function abrVerwerfen(id, btn) {
+        const confirmed = await window.showConfirm(
+          'Entwurf verwerfen?',
+          `<strong>${id}</strong> wird gelöscht. Verkäufe und interne Bestellungen bleiben offen.`,
+          'Verwerfen'
+        );
+        if (!confirmed) return;
+        btn.disabled = true; btn.textContent = '...';
+        try {
+          const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/abrechnung/${id}`, { method: 'DELETE' });
+          if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+          window.showToast(`Entwurf ${id} verworfen.`);
+          loadAbrechnungenTable();
+        } catch (e) {
+          window.showToast(`Fehler: ${e.message}`, 'toast-error');
+          btn.disabled = false; btn.textContent = '✗ Verwerfen';
+        }
+      }
+
+      async function setAbrStatus(id, newStatus, el, oldStatus) {
+        const isSelect = el?.tagName === 'SELECT';
         const confirmed = await window.showConfirm(
           `Status → "${newStatus}"?`,
           `Abrechnung <strong>${id}</strong> wird auf <strong>${newStatus}</strong> gesetzt.`,
           'Bestätigen'
         );
-        if (!confirmed) { selEl.value = oldStatus; return; }
-        selEl.disabled = true;
+        if (!confirmed) {
+          if (isSelect) el.value = oldStatus;
+          return;
+        }
+        if (el) el.disabled = true;
         try {
           const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/abrechnung/${id}/status`, {
             method: 'PATCH', headers: {'Content-Type':'application/json'},
@@ -4522,8 +4752,8 @@
           loadAbrechnungenTable();
         } catch (e) {
           window.showToast(`Fehler: ${e.message}`, 'toast-error');
-          selEl.value = oldStatus;
-          selEl.disabled = false;
+          if (isSelect) el.value = oldStatus;
+          if (el) el.disabled = false;
         }
       }
 
