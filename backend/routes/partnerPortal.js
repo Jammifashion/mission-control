@@ -230,7 +230,15 @@ router.get('/verkaeufe/sync', async (req, res, next) => {
     const sheetId = process.env.BUSINESS_SHEET_ID;
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
     const sheets = await getSheets();
-    const result = await runVerkaeufeSync(sheets, sheetId, { after: req.query.after });
+
+    // Optional partner filter
+    let partnerFilter = null;
+    if (req.query.partnerId) {
+      partnerFilter = new Set([req.query.partnerId]);
+      console.log(`Sync gefiltert auf Partner: ${req.query.partnerId}`);
+    }
+
+    const result = await runVerkaeufeSync(sheets, sheetId, { after: req.query.after, partnerFilter });
     res.json(result);
   } catch (err) { next(err); }
 });

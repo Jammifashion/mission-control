@@ -4114,7 +4114,11 @@
           }
           const okBtn = bd.querySelector('#sync-ok');
           okBtn.disabled = true; okBtn.textContent = '↻ Sync…';
-          const qs = fromVal ? `?after=${encodeURIComponent(new Date(fromVal).toISOString())}` : '';
+          const params = new URLSearchParams();
+          if (fromVal) params.set('after', new Date(fromVal).toISOString());
+          const selectedPartner = document.getElementById('verkaeufe-filter-partner').value;
+          if (selectedPartner) params.set('partnerId', selectedPartner);
+          const qs = params.toString() ? `?${params.toString()}` : '';
           try {
             const r = await window.apiFetch(`${window.API_BASE()}/api/partner/verkaeufe/sync${qs}`);
             const data = await r.json();
