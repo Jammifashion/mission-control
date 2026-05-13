@@ -4491,7 +4491,16 @@
                 <td>${r.datum}</td><td>${r.orderId}</td><td>${r.artikelnummer}</td>
                 <td>${r.variante || '–'}</td><td>${r.stueckzahl}</td>
                 <td>${r.vkPreisBrutto.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</td>
-                <td class="liz-cell" data-vk-brutto="${r.vkPreisBrutto}" data-lizenz-pct="${_ppPartners.find(p=>p.id===r.partnerId)?.lizenzProzent||0}" data-lizenz="${r.lizenzgebuehr}">${r.lizenzgebuehr.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</td>
+                <td class="liz-cell"
+                    data-vk-brutto="${r.vkPreisBrutto}"
+                    data-lizenz-pct="${_ppPartners.find(p=>p.id===r.partnerId)?.lizenzProzent||0}"
+                    data-lizenz="${r.lizenzgebuehr}"
+                    data-gewinn-netto="${r.gewinnNetto || ''}"
+                    data-lizenz-anteil="${r.lizenzAnteil || ''}"
+                    data-porto-saldo="${r.portoSaldo || ''}"
+                    data-anteil-brutto="${r.anteilBrutto || ''}">
+                  ${r.lizenzgebuehr.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}
+                </td>
                 <td><span class="badge ${r.status==='offen'?'badge-processing':'badge-completed'}">${r.status}</span></td>
               </tr>`).join('')}</tbody>
             </table></div>`;
@@ -5197,16 +5206,28 @@
       }
 
       function showLizTooltipVerkauf(cell) {
-        const vkBrutto  = parseFloat(cell.dataset.vkBrutto)  || 0;
-        const lizenzPct = parseFloat(cell.dataset.lizenzPct) || 0;
-        const lizenz    = parseFloat(cell.dataset.lizenz)    || 0;
+        const vkBrutto      = parseFloat(cell.dataset.vkBrutto)      || 0;
+        const lizenzPct     = parseFloat(cell.dataset.lizenzPct)     || 0;
+        const lizenzNetto   = parseFloat(cell.dataset.lizenz)        || 0;  // = partnerAnteil netto
+        const gewinnNetto   = parseFloat(cell.dataset.gewinnNetto)   || 0;
+        const lizenzAnteil  = parseFloat(cell.dataset.lizenzAnteil)  || 0;
+        const portoSaldo    = parseFloat(cell.dataset.portoSaldo)    || 0;
+        const anteilBrutto  = parseFloat(cell.dataset.anteilBrutto)  || 0;
+
         const fmt  = n => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
-        const pad  = s => s.padEnd(16);
+        const pad  = s => s.padEnd(22);
         const padR = n => fmt(n).padStart(10);
-        const lines = [
-          pad('VK Brutto:')              + padR(vkBrutto),
-          pad(`× Lizenz ${lizenzPct}%:`) + padR(lizenz),
-        ];
+
+        const lines = [];
+        lines.push(pad('Gewinn netto:') + padR(gewinnNetto));
+        lines.push(pad(`× Lizenz ${lizenzPct}%:`) + padR(lizenzAnteil));
+        if (Math.abs(portoSaldo) > 0.001) {
+          lines.push(pad(`+ Porto-Saldo:`) + padR(portoSaldo));
+        }
+        lines.push('─'.repeat(32));
+        lines.push(pad('= Partner-Anteil (netto):') + padR(lizenzNetto));
+        lines.push(pad('× (1 + 19% MwSt):') + padR(anteilBrutto));
+
         const tip = document.getElementById('liz-tooltip');
         tip.textContent = lines.join('\n');
         tip.style.display = 'block';

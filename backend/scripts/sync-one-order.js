@@ -152,11 +152,18 @@ async function run() {
 
       if (!isDuplicate) {
         existingKeys.add(key);
+        // Berechnung Breakdown für Tooltip
+        const lizenzAnteilVomGewinn = calc.gewinnNetto * (e.lizenzProzent || 0) / 100;
+
         toWrite.push([
           e.partnerId, orderDate, String(order.id),
           artKey, variationId, String(item.quantity),
           itemNetto.toFixed(2), calc.partnerAnteil, 'offen',
           String(item.product_id),  // Produkt-ID für späteren Lookup
+          calc.gewinnNetto.toFixed(2),  // Gewinn netto
+          lizenzAnteilVomGewinn.toFixed(2),  // Lizenz-Anteil vom Gewinn
+          calc.portoSaldoPartner.toFixed(2),  // Porto-Saldo
+          calc.brutto.toFixed(2),  // Partner-Anteil brutto
         ]);
       }
     }
@@ -170,7 +177,7 @@ async function run() {
   console.log(`\n→ Schreibe ${toWrite.length} Zeile(n) in Partner_Verkäufe …`);
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: 'Partner_Verkäufe!A:J',
+    range: 'Partner_Verkäufe!A:N',
     valueInputOption: 'USER_ENTERED',
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values: toWrite },
