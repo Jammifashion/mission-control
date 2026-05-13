@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
-import { berechnePartnerAnteil, parseKonfiguration } from '../utils/partner-kalkulation.js';
+import { berechnePartnerAnteil, parseKonfiguration, getKostenSatz } from '../utils/partner-kalkulation.js';
 
 const router = Router();
 
@@ -25,13 +25,24 @@ function toDE(date) {
   return `${String(d.getUTCDate()).padStart(2,'0')}.${String(d.getUTCMonth()+1).padStart(2,'0')}.${d.getUTCFullYear()}`;
 }
 
-// Aus Zeilen den Eintrag wählen, dessen Gültig-Ab <= datum ist — bei mehreren den neuesten
+// Aus Zeilen den Eintrag wählen, dessen Gültig-Ab/Gültig_ab <= datum ist — bei mehreren den neuesten.
+// Unterstützt auch Gültig_bis (neues Fixkosten-Schema): Zeile wird ignoriert wenn bis < datum.
 function findGueltig(rows, header, datum, keyFn) {
-  const idx = header.indexOf('Gültig-Ab');
-  if (idx === -1) return rows;
+  const abIdx = header.indexOf('Gültig-Ab') !== -1
+    ? header.indexOf('Gültig-Ab')
+    : header.indexOf('Gültig_ab');
+  if (abIdx === -1) return rows;
+  const bisIdx = header.indexOf('Gültig_bis');
   return rows
-    .map(row => ({ row, gueltigAb: parseDate(row[idx] ?? '') }))
-    .filter(({ gueltigAb }) => gueltigAb !== null && gueltigAb <= datum)
+    .map(row => ({ row, gueltigAb: parseDate(row[abIdx] ?? '') }))
+    .filter(({ row, gueltigAb }) => {
+      if (!gueltigAb || gueltigAb > datum) return false;
+      if (bisIdx !== -1 && row[bisIdx] && row[bisIdx].trim() !== '') {
+        const bis = parseDate(row[bisIdx]);
+        if (bis && bis < datum) return false;
+      }
+      return true;
+    })
     .reduce((best, cur) => {
       const key = keyFn(cur.row);
       if (!best[key] || cur.gueltigAb > best[key].gueltigAb) best[key] = cur;
@@ -120,19 +131,21 @@ router.post('/berechnen', async (req, res, next) => {
       return sum + (e ? parseFloat(e.row[dPreisIdx] ?? '0') : 0);
     }, 0);
 
-    // Fixkosten
+    // Fixkosten – Wert-Spalte: neues Schema 'Wert', Fallback auf altes 'Betrag'
     const fPosIdx    = fixkosten.header.indexOf('Position');
-    const fBetragIdx = fixkosten.header.indexOf('Betrag');
+    const fWertIdx   = fixkosten.header.indexOf('Wert') !== -1
+      ? fixkosten.header.indexOf('Wert')
+      : fixkosten.header.indexOf('Betrag');
     const fEinheitIdx = fixkosten.header.indexOf('Einheit');
 
     const gFix = findGueltig(fixkosten.rows, fixkosten.header, datum, r => r[fPosIdx] ?? '');
     let fixGesamt = 0;
     const fixDetail = [];
     for (const { row: r } of Object.values(gFix)) {
-      const betrag  = toFloat(r[fBetragIdx]);
+      const betrag  = toFloat(r[fWertIdx]);
       const einheit = r[fEinheitIdx] ?? '';
       fixDetail.push({ position: r[fPosIdx], betrag, einheit });
-      if (einheit !== '%/VK') fixGesamt += betrag;
+      if (einheit === 'EUR/Artikel') fixGesamt += betrag;
     }
 
     // VK-Preis (Mengenstaffel)
@@ -905,12 +918,17 @@ router.get('/fixkosten', async (req, res, next) => {
     const sheets = await getSheets();
     const { header, rows } = await readTab(sheets, sheetId, 'Kalkulation_Fixkosten');
 
-    const h = col => header.indexOf(col);
+    const h       = col => header.indexOf(col);
+    const wertIdx = h('Wert') !== -1 ? h('Wert') : h('Betrag');
+    const abIdx   = h('Gültig_ab') !== -1 ? h('Gültig_ab') : h('Gültig-Ab');
+    const bisIdx  = h('Gültig_bis');
+
     res.json(rows.map(r => ({
-      position:  r[h('Position')]  ?? '',
-      betrag:    toFloat(r[h('Betrag')]),
-      einheit:   r[h('Einheit')]   ?? '',
-      gueltigAb: r[h('Gültig-Ab')] ?? null,
+      position:   r[h('Position')]    ?? '',
+      betrag:     toFloat(r[wertIdx]),
+      einheit:    r[h('Einheit')]     ?? '',
+      gueltigAb:  r[abIdx]            ?? null,
+      gueltigBis: bisIdx !== -1 ? (r[bisIdx] ?? null) : null,
     })));
   } catch (err) { next(err); }
 });
@@ -959,6 +977,8 @@ router.post('/druckpreise', async (req, res, next) => {
 });
 
 // ── PATCH /api/kalkulation/fixkosten/:position ──────────────────────────────
+// Aktualisiert die aktuell aktive Zeile (Gültig_bis leer) für diese Position.
+// Unterstützte Felder: betrag, einheit, gueltigAb, gueltigBis
 router.patch('/fixkosten/:position', async (req, res, next) => {
   try {
     const sheetId = process.env.BUSINESS_SHEET_ID;
@@ -967,27 +987,34 @@ router.patch('/fixkosten/:position', async (req, res, next) => {
     const sheets = await getSheets();
     const { header, rows } = await readTab(sheets, sheetId, 'Kalkulation_Fixkosten');
 
-    const posIdx   = header.indexOf('Position');
-    const rowIndex = rows.findIndex(r => r[posIdx] === req.params.position);
-    if (rowIndex === -1)
-      return res.status(404).json({ error: `Fixkosten-Position "${req.params.position}" nicht gefunden.` });
+    const posIdx  = header.indexOf('Position');
+    const wertIdx = header.indexOf('Wert') !== -1 ? header.indexOf('Wert') : header.indexOf('Betrag');
+    const abIdx   = header.indexOf('Gültig_ab') !== -1 ? header.indexOf('Gültig_ab') : header.indexOf('Gültig-Ab');
+    const bisIdx  = header.indexOf('Gültig_bis');
 
-    const { betrag, einheit, gueltigAb } = req.body;
+    // Aktive Zeile = diese Position + Gültig_bis leer (oder Spalte existiert noch nicht)
+    const rowIndex = rows.findIndex(r => {
+      if ((r[posIdx] ?? '') !== req.params.position) return false;
+      if (bisIdx === -1) return true;
+      return !(r[bisIdx] && r[bisIdx].trim() !== '');
+    });
+    if (rowIndex === -1)
+      return res.status(404).json({ error: `Aktive Fixkosten-Position "${req.params.position}" nicht gefunden.` });
+
+    const { betrag, einheit, gueltigAb, gueltigBis } = req.body;
     const sheetRow = rowIndex + 2;
 
-    const colMap = {
-      'Betrag':    betrag,
-      'Einheit':   einheit,
-      'Gültig-Ab': gueltigAb,
-    };
+    const colMap = {};
+    if (betrag    !== undefined) colMap[header[wertIdx]] = betrag;
+    if (einheit   !== undefined) colMap['Einheit']       = einheit;
+    if (gueltigAb !== undefined) colMap[header[abIdx]]   = gueltigAb;
+    if (gueltigBis !== undefined && bisIdx !== -1) colMap['Gültig_bis'] = gueltigBis;
 
-    const data = Object.entries(colMap)
-      .filter(([, v]) => v !== undefined)
-      .map(([col, value]) => ({
-        range: `Kalkulation_Fixkosten!${colLetter(header.indexOf(col))}${sheetRow}`,
-        majorDimension: 'ROWS',
-        values: [[value]],
-      }));
+    const data = Object.entries(colMap).map(([col, value]) => ({
+      range: `Kalkulation_Fixkosten!${colLetter(header.indexOf(col))}${sheetRow}`,
+      majorDimension: 'ROWS',
+      values: [[value]],
+    }));
 
     if (data.length > 0) {
       await sheets.spreadsheets.values.batchUpdate({
@@ -996,32 +1023,32 @@ router.patch('/fixkosten/:position', async (req, res, next) => {
       });
     }
 
-    res.json({ position: req.params.position, updated: Object.keys(colMap).filter(k => colMap[k] !== undefined) });
+    res.json({ position: req.params.position, updated: Object.keys(colMap) });
   } catch (err) { next(err); }
 });
 
 // ── POST /api/kalkulation/fixkosten ──────────────────────────────────────────
-// Legt eine neue Fixkosten-Position an (z.B. Versandnebenkosten B, Porto P, …).
-// Body: { position, betrag, einheit, gueltigAb }
+// Legt eine neue Fixkosten-Zeile an.
+// Body: { position, betrag, einheit, gueltigAb, gueltigBis }
 router.post('/fixkosten', async (req, res, next) => {
   try {
     const sheetId = process.env.BUSINESS_SHEET_ID;
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
 
-    const { position, betrag, einheit, gueltigAb } = req.body;
+    const { position, betrag, einheit, gueltigAb, gueltigBis } = req.body;
     if (!position || betrag === undefined)
       return res.status(400).json({ error: 'position, betrag sind erforderlich.' });
 
     const sheets = await getSheets();
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
-      range: 'Kalkulation_Fixkosten!A:D',
+      range: 'Kalkulation_Fixkosten!A:E',
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [[position, betrag, einheit || '', gueltigAb || '']] },
+      requestBody: { values: [[position, betrag, einheit || '', gueltigAb || '', gueltigBis ?? '']] },
     });
 
-    res.status(201).json({ position, betrag, einheit: einheit || '', gueltigAb: gueltigAb || null });
+    res.status(201).json({ position, betrag, einheit: einheit || '', gueltigAb: gueltigAb || null, gueltigBis: gueltigBis || null });
   } catch (err) { next(err); }
 });
 

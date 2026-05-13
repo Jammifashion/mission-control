@@ -4218,20 +4218,41 @@
 
       // ── Fixkosten ───────────────────────────────────────────────────────────
       let _fkRows = [];
+      let _fkHistorie = false;
+
       async function loadFixkostenTable() {
         const wrap = document.getElementById('fixkosten-table-wrap');
         wrap.innerHTML = '<div class="skeleton" style="height:60px;"></div>';
         try {
           _fkRows = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/fixkosten`).then(r => r.json());
-          if (!_fkRows.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Einträge.</p>'; return; }
-          wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
-            <thead><tr><th>Position</th><th>Betrag</th><th>Einheit</th><th>Gültig Ab</th><th>Aktionen</th></tr></thead>
-            <tbody>${_fkRows.map((r, i) => `<tr>
-              <td>${r.position}</td><td>${r.betrag}</td><td>${r.einheit}</td>
-              <td>${r.gueltigAb || '–'}</td>
-              <td><button class="btn-secondary btn-xs" data-fk-i="${i}">Bearbeiten</button></td>
-            </tr>`).join('')}</tbody>
-          </table></div>`;
+          const anzeigen = _fkHistorie ? _fkRows : _fkRows.filter(r => !r.gueltigBis);
+          if (!anzeigen.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Einträge.</p>'; return; }
+          wrap.innerHTML = `
+            <div style="margin-bottom:0.6rem;display:flex;align-items:center;gap:0.75rem;">
+              <button class="btn-secondary btn-xs" id="fk-hist-toggle">
+                ${_fkHistorie ? 'Aktive anzeigen' : 'Historie anzeigen'}
+              </button>
+              ${_fkHistorie ? '<span style="font-size:0.78rem;color:var(--muted);">Ausgegraut = abgelaufen</span>' : ''}
+            </div>
+            <div style="overflow-x:auto;"><table class="orders-table">
+              <thead><tr>
+                <th>Position</th><th>Betrag</th><th>Einheit</th><th>Gültig Ab</th>
+                ${_fkHistorie ? '<th>Gültig Bis</th>' : ''}<th>Aktionen</th>
+              </tr></thead>
+              <tbody>${anzeigen.map(r => {
+                const abgelaufen = !!r.gueltigBis;
+                const origI = _fkRows.indexOf(r);
+                return `<tr${abgelaufen ? ' style="opacity:0.42;"' : ''}>
+                  <td>${r.position}</td><td>${r.betrag}</td><td>${r.einheit}</td>
+                  <td>${r.gueltigAb || '–'}</td>
+                  ${_fkHistorie ? `<td>${r.gueltigBis || '–'}</td>` : ''}
+                  <td>${abgelaufen ? '' : `<button class="btn-secondary btn-xs" data-fk-i="${origI}">Bearbeiten</button>`}</td>
+                </tr>`;
+              }).join('')}</tbody>
+            </table></div>`;
+          wrap.querySelector('#fk-hist-toggle').addEventListener('click', () => {
+            _fkHistorie = !_fkHistorie; loadFixkostenTable();
+          });
           wrap.querySelectorAll('[data-fk-i]').forEach(btn =>
             btn.addEventListener('click', () => openFixkostenModal(_fkRows[+btn.dataset.fkI])));
         } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`; }
@@ -4239,33 +4260,51 @@
 
       function openFixkostenModal(row) {
         const bd = document.createElement('div'); bd.className = 'modal-backdrop';
-        bd.innerHTML = `<div class="modal-box" style="max-width:380px;width:94%;">
-          <div class="modal-title">Fixkosten: ${row.position}</div>
-          <div style="margin-top:1.1rem;"><div class="form-grid">
-            <div class="form-field"><label>Betrag *</label>
+        bd.innerHTML = `<div class="modal-box" style="max-width:390px;width:94%;">
+          <div class="modal-title">Neue Version: ${row.position}</div>
+          <p style="font-size:0.8rem;color:var(--muted);margin:0.4rem 0 0.9rem;">
+            Aktuell: <strong>${row.betrag} ${row.einheit}</strong> ab ${row.gueltigAb || '–'}<br>
+            Speichern schließt den alten Eintrag und legt eine neue Version ab heute an.
+          </p>
+          <div><div class="form-grid">
+            <div class="form-field"><label>Neuer Betrag *</label>
               <input class="form-input" type="number" id="fk-bt" step="0.01" min="0" value="${row.betrag}"></div>
             <div class="form-field"><label>Einheit</label>
               <input class="form-input" id="fk-ei" value="${row.einheit}"></div>
-            <div class="form-field form-col-full"><label>Gültig Ab</label>
-              <input class="form-input" type="date" id="fk-ab" value="${_toIso(row.gueltigAb)}"></div>
           </div><div class="modal-actions" style="margin-top:1.25rem;">
             <button class="btn-secondary" id="fk-x">Abbrechen</button>
-            <button class="btn" id="fk-ok">Speichern</button>
+            <button class="btn" id="fk-ok">Neue Version speichern</button>
           </div></div></div>`;
         document.body.appendChild(bd);
         bd.querySelector('#fk-x').onclick = () => bd.remove();
         bd.querySelector('#fk-ok').onclick = async () => {
           const betrag = parseFloat(bd.querySelector('#fk-bt').value);
           if (isNaN(betrag)) { window.showToast('Betrag ist erforderlich.', 'toast-error'); return; }
+          const einheit = bd.querySelector('#fk-ei').value || row.einheit;
           const btn = bd.querySelector('#fk-ok'); btn.disabled = true; btn.textContent = '...';
+          const fmtDE = d => `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;
+          const heute    = fmtDE(new Date());
+          const gestern  = (() => { const g = new Date(); g.setDate(g.getDate() - 1); return fmtDE(g); })();
           try {
-            const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/fixkosten/${encodeURIComponent(row.position)}`, {
+            // 1. Alte aktive Zeile schließen (Gültig_bis = gestern)
+            const r1 = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/fixkosten/${encodeURIComponent(row.position)}`, {
               method: 'PATCH', headers: {'Content-Type':'application/json'},
-              body: JSON.stringify({ betrag, einheit: bd.querySelector('#fk-ei').value || undefined, gueltigAb: _toDE(bd.querySelector('#fk-ab').value) || undefined }),
+              body: JSON.stringify({ gueltigBis: gestern }),
             });
-            if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
-            bd.remove(); window.showToast('Fixkosten gespeichert.'); loadFixkostenTable();
-          } catch (e) { window.showToast(`Fehler: ${e.message}`, 'toast-error'); btn.disabled = false; btn.textContent = 'Speichern'; }
+            if (!r1.ok) throw new Error((await r1.json()).error ?? r1.statusText);
+            // 2. Neue Zeile anlegen (Gültig_ab = heute, Gültig_bis leer)
+            const r2 = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/fixkosten`, {
+              method: 'POST', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ position: row.position, betrag, einheit, gueltigAb: heute, gueltigBis: '' }),
+            });
+            if (!r2.ok) throw new Error((await r2.json()).error ?? r2.statusText);
+            bd.remove();
+            window.showToast(`Neue Version für "${row.position}" ab ${heute} gespeichert.`);
+            loadFixkostenTable();
+          } catch (e) {
+            window.showToast(`Fehler: ${e.message}`, 'toast-error');
+            btn.disabled = false; btn.textContent = 'Neue Version speichern';
+          }
         };
       }
 
@@ -4435,10 +4474,14 @@
                 <td>${r.datum}</td><td>${r.orderId}</td><td>${r.artikelnummer}</td>
                 <td>${r.variante || '–'}</td><td>${r.stueckzahl}</td>
                 <td>${r.vkPreisBrutto.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</td>
-                <td>${r.lizenzgebuehr.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</td>
+                <td class="liz-cell" data-vk-brutto="${r.vkPreisBrutto}" data-lizenz-pct="${_ppPartners.find(p=>p.id===r.partnerId)?.lizenzProzent||0}" data-lizenz="${r.lizenzgebuehr}">${r.lizenzgebuehr.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</td>
                 <td><span class="badge ${r.status==='offen'?'badge-processing':'badge-completed'}">${r.status}</span></td>
               </tr>`).join('')}</tbody>
             </table></div>`;
+          wrap.querySelectorAll('.liz-cell').forEach(cell => {
+            cell.addEventListener('mouseenter', () => showLizTooltipVerkauf(cell));
+            cell.addEventListener('mouseleave', hideLizTooltip);
+          });
         } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`; }
       }
 
@@ -5130,6 +5173,30 @@
         if (tip) tip.style.display = 'none';
       }
 
+      function showLizTooltipVerkauf(cell) {
+        const vkBrutto  = parseFloat(cell.dataset.vkBrutto)  || 0;
+        const lizenzPct = parseFloat(cell.dataset.lizenzPct) || 0;
+        const lizenz    = parseFloat(cell.dataset.lizenz)    || 0;
+        const fmt  = n => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+        const pad  = s => s.padEnd(16);
+        const padR = n => fmt(n).padStart(10);
+        const lines = [
+          pad('VK Brutto:')              + padR(vkBrutto),
+          pad(`× Lizenz ${lizenzPct}%:`) + padR(lizenz),
+        ];
+        const tip = document.getElementById('liz-tooltip');
+        tip.textContent = lines.join('\n');
+        tip.style.display = 'block';
+        const rect    = cell.getBoundingClientRect();
+        const tipRect = tip.getBoundingClientRect();
+        let top  = rect.bottom + 6;
+        let left = rect.right - tipRect.width;
+        if (top + tipRect.height > window.innerHeight - 8) top = rect.top - tipRect.height - 6;
+        if (left < 8) left = 8;
+        tip.style.top  = `${Math.max(8, top)}px`;
+        tip.style.left = `${left}px`;
+      }
+
       function recomputeLizenzCells() {
         const vk = _artikelState.vkVorschau;
         const konfig = _artikelState.konfig;
@@ -5327,12 +5394,15 @@
       // ── SECTION: Fixkosten-Konfiguration sicherstellen (Zeile 4810) ──
       // Garantiert, dass die Standard-Konfigurations-Positionen im Sheet existieren.
       const FIXKOSTEN_DEFAULTS = [
-        { position: 'Herstellungsnebenkosten', einheit: 'EUR/Artikel' },
+        { position: 'Nebenkosten',             einheit: 'EUR/Artikel' },
+        { position: 'Versandanteil',           einheit: 'EUR/Artikel' },
+        { position: 'PayPal-Anteil',           einheit: '%/VK' },
         { position: 'Versandnebenkosten B',    einheit: 'EUR/Bestellung' },
         { position: 'Versandnebenkosten P',    einheit: 'EUR/Bestellung' },
+        { position: 'Herstellungsnebenkosten', einheit: 'EUR/Artikel' },
         { position: 'Porto B',                 einheit: 'EUR/Bestellung' },
-        { position: 'Porto P',                 einheit: 'EUR/Bestellung' },
         { position: 'PayPal Prozent',          einheit: '%' },
+        { position: 'Porto P',                 einheit: 'EUR/Bestellung' },
         { position: 'PayPal Pauschale',        einheit: 'EUR/Bestellung' },
         { position: 'MwSt',                    einheit: '%' },
       ];
@@ -5346,7 +5416,7 @@
           await Promise.all(missing.map(d =>
             window.apiFetch(`${window.API_BASE()}/api/kalkulation/fixkosten`, {
               method: 'POST', headers: {'Content-Type':'application/json'},
-              body: JSON.stringify({ position: d.position, betrag: 0, einheit: d.einheit, gueltigAb: '' }),
+              body: JSON.stringify({ position: d.position, betrag: 0, einheit: d.einheit, gueltigAb: '01.01.2022', gueltigBis: '' }),
             })
           ));
           return missing.length;

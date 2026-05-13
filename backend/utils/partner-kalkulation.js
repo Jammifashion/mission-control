@@ -1,15 +1,33 @@
 // ── Partner-Kalkulation – Live-Berechnung Lizenz-Anteil pro Artikel ──────────
 //
 // Konfiguration wird aus Kalkulation_Fixkosten gelesen.
-// Position-Namen (Header "Position", Wert "Betrag"):
-//   Herstellungsnebenkosten   €/Artikel
-//   Versandnebenkosten B      €/Bestellung
-//   Versandnebenkosten P      €/Bestellung
-//   Porto B                   €/Bestellung
-//   Porto P                   €/Bestellung
+// Neues Schema (ab Phase 0.1): Position | Wert | Einheit | Gültig_ab | Gültig_bis
+//
+// Position-Namen:
+//   Herstellungsnebenkosten   EUR/Artikel
+//   Versandnebenkosten B      EUR/Bestellung
+//   Versandnebenkosten P      EUR/Bestellung
+//   Porto B                   EUR/Bestellung
+//   Porto P                   EUR/Bestellung
 //   PayPal Prozent            %  (von VK-Brutto)
-//   PayPal Pauschale          €/Bestellung
+//   PayPal Pauschale          EUR/Bestellung
 //   MwSt                      %
+
+function _parseDate(str) {
+  if (!str) return null;
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(str)) {
+    const [d, m, y] = str.split('.');
+    return new Date(`${y}-${m}-${d}T00:00:00Z`);
+  }
+  const d = new Date(str);
+  return isNaN(d) ? null : d;
+}
+
+function _toFloat(val) {
+  if (val === null || val === undefined || val === '') return 0;
+  const n = parseFloat(val.toString().replace(',', '.'));
+  return Number.isNaN(n) ? 0 : n;
+}
 
 const DEFAULT_KONFIG = {
   herstellungsnebenkosten: 0,
@@ -33,15 +51,43 @@ const POSITION_MAP = {
   'MwSt':                    'mwstProzent',
 };
 
-export function parseKonfiguration(rows, header) {
-  const h = col => header.indexOf(col);
-  const result = { ...DEFAULT_KONFIG };
+/**
+ * Liefert den gültigen Wert einer Fixkosten-Position zum angegebenen Datum.
+ * Unterstützt das neue Schema (Wert | Gültig_ab | Gültig_bis).
+ * Bei mehreren Treffern gewinnt die neueste Gültig_ab.
+ */
+export function getKostenSatz(rows, header, position, datum) {
+  const d = datum instanceof Date ? datum : (_parseDate(datum) ?? new Date());
+  const posIdx  = header.indexOf('Position');
+  const wertIdx = header.indexOf('Wert');
+  const abIdx   = header.indexOf('Gültig_ab');
+  const bisIdx  = header.indexOf('Gültig_bis');
+
+  const matches = [];
   for (const r of rows) {
-    const pos = r[h('Position')];
-    const key = POSITION_MAP[pos];
-    if (!key) continue;
-    const val = parseFloat((r[h('Betrag')] ?? '0').toString().replace(',', '.'));
-    if (!Number.isNaN(val)) result[key] = val;
+    if ((r[posIdx] ?? '') !== position) continue;
+    const ab = _parseDate(r[abIdx] ?? '');
+    if (!ab || ab > d) continue;
+    if (bisIdx !== -1 && r[bisIdx] && r[bisIdx].trim() !== '') {
+      const bis = _parseDate(r[bisIdx]);
+      if (bis && bis < d) continue;
+    }
+    matches.push({ val: _toFloat(r[wertIdx]), ab });
+  }
+  if (!matches.length) return null;
+  matches.sort((a, b) => b.ab - a.ab);
+  return matches[0].val;
+}
+
+/**
+ * Baut das Konfigurations-Objekt für berechnePartnerAnteil auf.
+ * datum (optional, Default: today) bestimmt, welche Version der Fixkosten gilt.
+ */
+export function parseKonfiguration(rows, header, datum = new Date()) {
+  const result = { ...DEFAULT_KONFIG };
+  for (const [pos, key] of Object.entries(POSITION_MAP)) {
+    const val = getKostenSatz(rows, header, pos, datum);
+    if (val !== null) result[key] = val;
   }
   return result;
 }
