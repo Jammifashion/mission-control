@@ -76,6 +76,21 @@
     .saldo-final { font-size: 1.05rem; font-weight: 700; padding-top: 0.4rem; }
     .saldo-positive { color: #4caf50; }
     .saldo-negative { color: var(--danger); }
+    /* Abrechnungs-Detail (gerendert innerhalb der äußeren Card) */
+    .abr-card { padding-top: 1.25rem; margin-top: 1.25rem; border-top: 1px solid var(--border); }
+    .abr-card:first-child { padding-top: 0; margin-top: 0; border-top: none; }
+    .abr-card h3 { font-size: 0.9rem; margin: 1rem 0 0.4rem; font-weight: 600; color: var(--text); }
+    .abr-card h3:first-child { margin-top: 0; }
+    .abr-header {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 0.5rem; padding-bottom: 0.6rem; margin-bottom: 0.6rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .abr-zeitraum { font-size: 0.86rem; color: var(--muted); }
+    .abr-summe { font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .abr-summe.pos { color: #4caf50; }
+    .abr-summe.neg { color: var(--danger); }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
   </style>
 </head>
 <body>
@@ -241,6 +256,7 @@
     }
 
     // ── Abrechnungen laden & rendern ─────────────────────────────────────────
+    // Partner sieht nur freigegebene + bezahlte Abrechnungen (Entwürfe sind ausgeblendet).
     async function loadAbrechnungen() {
       const wrap = document.getElementById('pv-abrechnungen');
       if (!wrap) return;
@@ -249,25 +265,98 @@
         const rows = await apiGet(`/api/partner/abrechnungen?token=${encodeURIComponent(TOKEN)}`);
         if (!rows.length) { wrap.innerHTML = '<p class="empty">Noch keine Abrechnungen vorhanden.</p>'; return; }
         const sumBezahlt = rows.filter(r => r.status === 'bezahlt').reduce((s, r) => s + r.saldo, 0);
+
+        // Sortierung: neueste zuerst
+        rows.sort((a, b) => (b.erstelltAm || '').localeCompare(a.erstelltAm || ''));
+
         wrap.innerHTML = `
           <p class="summary">
             ${rows.length} Abrechnung(en) &nbsp;·&nbsp;
-            Ausgezahlt: <strong>${fmt(sumBezahlt)}</strong>
+            Bereits ausgezahlt: <strong>${fmt(sumBezahlt)}</strong>
           </p>
-          <div style="overflow-x:auto;"><table>
-            <thead><tr>
-              <th>Zeitraum Von</th><th>Zeitraum Bis</th><th>Saldo</th><th>Status</th>
-            </tr></thead>
-            <tbody>${rows.map(r => `<tr>
-              <td>${r.zeitraumVon}</td>
-              <td>${r.zeitraumBis}</td>
-              <td><strong>${fmt(r.saldo)}</strong></td>
-              <td><span class="badge ${badgeClass(r.status)}">${r.status}</span></td>
-            </tr>`).join('')}</tbody>
-          </table></div>`;
+          ${rows.map(r => renderAbrechnungBlock(r)).join('')}`;
       } catch (e) {
         wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${e.message}</p>`;
       }
+    }
+
+    function renderAbrechnungBlock(r) {
+      const p = r.positionen || { verkaeufe: [], intern: [] };
+      const isPos = r.saldo >= 0;
+      const summeCls = isPos ? 'pos' : 'neg';
+      const summeSign = isPos ? '' : '−';
+
+      const verkaeufeRows = (p.verkaeufe && p.verkaeufe.length)
+        ? p.verkaeufe.map(v => `<tr>
+            <td>${v.datum}</td>
+            <td>${v.orderId}</td>
+            <td>${v.artikelname}</td>
+            <td class="num">${v.stueckzahl}</td>
+            <td class="num">${fmt(v.vkBrutto)}</td>
+            <td class="num"><strong>${fmt(v.lizenz)}</strong></td>
+          </tr>`).join('')
+        : `<tr><td colspan="6" class="empty" style="text-align:center;">Keine Verkäufe</td></tr>`;
+
+      const internRows = (p.intern && p.intern.length)
+        ? p.intern.map(i => `<tr>
+            <td>${i.datum}</td>
+            <td>${i.bezeichnung}</td>
+            <td class="num">${i.anzahl}</td>
+            <td class="num">${fmt(i.summe)}</td>
+          </tr>`).join('')
+        : null;
+
+      const internBlock = internRows ? `
+        <h3>Direkte Bestellungen</h3>
+        <div style="overflow-x:auto;"><table>
+          <thead><tr>
+            <th>Datum</th><th>Bezeichnung</th>
+            <th class="num">Anzahl</th><th class="num">Summe</th>
+          </tr></thead>
+          <tbody>${internRows}</tbody>
+        </table></div>` : '';
+
+      const lizenzSumme  = (p.verkaeufe || []).reduce((s, v) => s + (v.lizenz || 0), 0);
+      const interneSumme = (p.intern    || []).reduce((s, v) => s + (v.summe  || 0), 0);
+
+      return `
+        <div class="abr-card">
+          <div class="abr-header">
+            <div>
+              <strong>${r.abrechnungId}</strong>
+              <span class="abr-zeitraum">&nbsp;·&nbsp;${r.zeitraumVon} – ${r.zeitraumBis}</span>
+              <span class="badge ${badgeClass(r.status)}" style="margin-left:0.5rem;">${r.status}</span>
+            </div>
+            <div class="abr-summe ${summeCls}">${summeSign}${fmt(Math.abs(r.saldo))}</div>
+          </div>
+
+          <h3>Verkäufe (${(p.verkaeufe || []).length})</h3>
+          <div style="overflow-x:auto;"><table>
+            <thead><tr>
+              <th>Datum</th><th>Bestellnr.</th><th>Artikel</th>
+              <th class="num">Menge</th><th class="num">VK brutto</th><th class="num">Lizenz</th>
+            </tr></thead>
+            <tbody>${verkaeufeRows}</tbody>
+          </table></div>
+
+          ${internBlock}
+
+          <div style="margin-top:1rem;padding:0.85rem 1rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;max-width:480px;">
+            <div class="saldo-row">
+              <span>Lizenz-Summe</span>
+              <span class="amount saldo-positive">+${fmt(lizenzSumme)}</span>
+            </div>
+            <div class="saldo-row">
+              <span>Direkte Bestellungen</span>
+              <span class="amount saldo-negative">−${fmt(interneSumme)}</span>
+            </div>
+            <hr class="saldo-divider">
+            <div class="saldo-row saldo-final">
+              <span>${r.status === 'bezahlt' ? 'Ausgezahlt' : 'Auszahlung'}</span>
+              <span class="amount ${isPos ? 'saldo-positive' : 'saldo-negative'}">${summeSign}${fmt(Math.abs(r.saldo))}</span>
+            </div>
+          </div>
+        </div>`;
     }
 
     // ── Init ─────────────────────────────────────────────────────────────────

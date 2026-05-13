@@ -319,6 +319,7 @@ router.get('/saldo', async (req, res, next) => {
 });
 
 // ── GET /api/partner/abrechnungen?token= ─────────────────────────────────────
+// Partner sieht nur freigegebene oder bezahlte Abrechnungen (keine Entwürfe).
 router.get('/abrechnungen', async (req, res, next) => {
   try {
     const { token } = req.query;
@@ -329,15 +330,27 @@ router.get('/abrechnungen', async (req, res, next) => {
     const sheets  = await getSheets();
     const { header, rows } = await readTab(sheets, sheetId, 'Partner_Abrechnungen');
     const h = col => header.indexOf(col);
+    const VISIBLE = new Set(['freigegeben', 'bezahlt']);
 
     res.json(rows
-      .filter(r => r[h('Partner-ID')] === partnerId)
-      .map(r => ({
-        zeitraumVon: r[h('Zeitraum-Von')] ?? '',
-        zeitraumBis: r[h('Zeitraum-Bis')] ?? '',
-        saldo:       toFloat(r[h('Saldo')]),
-        status:      r[h('Status')]        ?? '',
-      })));
+      .filter(r => r[h('Partner-ID')] === partnerId && VISIBLE.has(r[h('Status')] ?? ''))
+      .map(r => {
+        let positionen = null;
+        const posRaw = r[h('Positionen')];
+        if (posRaw) {
+          try { positionen = JSON.parse(posRaw); } catch { positionen = null; }
+        }
+        return {
+          abrechnungId: r[h('Abrechnungs-ID')] ?? '',
+          zeitraumVon:  r[h('Zeitraum-Von')]    ?? '',
+          zeitraumBis:  r[h('Zeitraum-Bis')]    ?? '',
+          verkaufsSumme: toFloat(r[h('Verkaufs-Guthaben')]),
+          saldo:        toFloat(r[h('Saldo')]),
+          status:       r[h('Status')]          ?? '',
+          erstelltAm:   r[h('Erstellt-Am')]     ?? '',
+          positionen,
+        };
+      }));
   } catch (err) { next(err); }
 });
 
