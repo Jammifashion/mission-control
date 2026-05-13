@@ -118,10 +118,12 @@ router.get('/verkaeufe/sync', async (req, res, next) => {
     const konfiguration = parseKonfiguration(kRows, kH);
 
     // 2. Partner_Verkäufe laden → Duplikat-Set + neuestes Datum für after-Parameter
+    // Dedup-Key: orderId|artikelName|variationId|partnerId  (variationId '' wird zu '0' gemappt)
     const { header: vH, rows: vRows } = await readTab(sheets, sheetId, 'Partner_Verkäufe');
     const vh = col => vH.indexOf(col);
+    const varKey = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
     const existingKeys = new Set(
-      vRows.map(r => `${r[vh('Order-ID')] ?? ''}|${r[vh('Artikelnummer')] ?? ''}|${r[vh('Partner-ID')] ?? ''}`)
+      vRows.map(r => `${r[vh('Order-ID')] ?? ''}|${r[vh('Artikelnummer')] ?? ''}|${varKey(r[vh('Variante')])}|${r[vh('Partner-ID')] ?? ''}`)
     );
 
     // after-Parameter: explizit übergeben oder auto-detect aus neuestem Eintrag
@@ -182,8 +184,9 @@ router.get('/verkaeufe/sync', async (req, res, next) => {
         const portoEinnahmeAnteil = shippingBrutto * anteil;
         const artKey = artikelName(item);
 
+        const variationId = String(item.variation_id || 0);
         for (const e of entries) {
-          const key = `${order.id}|${artKey}|${e.partnerId}`;
+          const key = `${order.id}|${artKey}|${variationId}|${e.partnerId}`;
           if (existingKeys.has(key)) continue;
           existingKeys.add(key);
 
@@ -201,7 +204,7 @@ router.get('/verkaeufe/sync', async (req, res, next) => {
 
           toWrite.push([
             e.partnerId, orderDate, String(order.id),
-            artKey, item.sku || '', String(item.quantity),
+            artKey, variationId, String(item.quantity),
             itemBrutto.toFixed(2), calc.partnerAnteil, 'offen',
           ]);
         }
