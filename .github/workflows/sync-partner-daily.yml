@@ -1,0 +1,35 @@
+name: Partner Sync täglich
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # täglich 02:00 UTC = 03:00 MEZ / 04:00 MESZ
+  workflow_dispatch:        # manueller Trigger über GitHub UI
+
+jobs:
+  sync:
+    name: Trigger Partner-Sync (sync-all)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: POST /api/partner/verkaeufe/sync-all
+        env:
+          API_URL: ${{ secrets.BACKEND_URL }}
+          API_KEY: ${{ secrets.MC_API_KEY }}
+        run: |
+          set -e
+          if [ -z "$API_URL" ] || [ -z "$API_KEY" ]; then
+            echo "::error::BACKEND_URL oder MC_API_KEY fehlt in GitHub Secrets."
+            exit 1
+          fi
+          echo "Triggere Partner-Sync gegen $API_URL"
+          response=$(curl -sS -w "\n%{http_code}" -X POST \
+            -H "x-api-key: $API_KEY" \
+            "$API_URL/api/partner/verkaeufe/sync-all")
+          body=$(echo "$response" | head -n -1)
+          status=$(echo "$response" | tail -n1)
+          echo "HTTP $status"
+          echo "$body" | jq . || echo "$body"
+          if [ "$status" != "200" ]; then
+            echo "::error::Sync fehlgeschlagen mit HTTP $status"
+            exit 1
+          fi

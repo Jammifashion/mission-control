@@ -70,165 +70,205 @@ router.get('/auth', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Sync-Kern (wiederverwendbar für /sync und /sync-all) ─────────────────────
+// opts.after          – ISO-Datum (z.B. '2026-05-01T00:00:00') als WC after-Filter
+// opts.partnerFilter  – Set<Partner-ID>, wenn gesetzt: nur diese Partner berücksichtigen
+async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
+  const { after, partnerFilter } = opts;
+
+  // 1a. Partner_Artikel laden → Map: productId → [{ partnerId, lizenzProzent, ek, druck, versandart }]
+  const { header: aH, rows: aRows } = await readTab(sheets, sheetId, 'Partner_Artikel');
+  const ah = col => aH.indexOf(col);
+  const partnerArtikelMap = {};
+  for (const r of aRows) {
+    const partnerId  = r[ah('Partner-ID')] ?? '';
+    if (partnerFilter && !partnerFilter.has(partnerId)) continue;
+    const pid        = (r[ah('Produkt-ID')] ?? '').toString().trim();
+    const lizenzProzent = toFloat(r[ah('Lizenz-%')]);
+    const ekPreis     = toFloat(r[ah('EK-Preis-Netto')]);
+    const druckkosten = toFloat(r[ah('Druckkosten')]);
+    const versandart  = ((r[ah('Versandart')] ?? 'P').toString().toUpperCase() === 'B') ? 'B' : 'P';
+    if (!pid || !partnerId) continue;
+    if (!partnerArtikelMap[pid]) partnerArtikelMap[pid] = [];
+    partnerArtikelMap[pid].push({ partnerId, lizenzProzent, ekPreis, druckkosten, versandart });
+  }
+
+  if (!Object.keys(partnerArtikelMap).length)
+    return { synced: 0, orders: 0, afterParam: null, message: 'Keine passenden Partner-Artikel.' };
+
+  // 1b. Partner → Porto-Modell
+  const { header: pH, rows: pRows } = await readTab(sheets, sheetId, 'Partner');
+  const ph = col => pH.indexOf(col);
+  const partnerInfoMap = {};
+  for (const r of pRows) {
+    const id = r[ph('Partner-ID')] ?? '';
+    if (id) partnerInfoMap[id] = { portoModell: r[ph('Porto-Modell')] ?? 'geteilt-50-50' };
+  }
+
+  // 1c. Konfiguration
+  const { header: kH, rows: kRows } = await readTab(sheets, sheetId, 'Kalkulation_Fixkosten');
+  const konfiguration = parseKonfiguration(kRows, kH);
+
+  // 2. Partner_Verkäufe → Duplikat-Set + neuestes Datum
+  const { header: vH, rows: vRows } = await readTab(sheets, sheetId, 'Partner_Verkäufe');
+  const vh = col => vH.indexOf(col);
+  const varKey = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
+  const existingKeys = new Set(
+    vRows.map(r => `${r[vh('Order-ID')] ?? ''}|${r[vh('Artikelnummer')] ?? ''}|${varKey(r[vh('Variante')])}|${r[vh('Partner-ID')] ?? ''}`)
+  );
+
+  let afterParam = after || null;
+  if (!afterParam && vRows.length) {
+    const datIdx = vh('Datum');
+    let newest = null;
+    for (const r of vRows) {
+      const d = parseDate(r[datIdx] ?? '');
+      if (d && (!newest || d > newest)) newest = d;
+    }
+    if (newest) afterParam = newest.toISOString().slice(0, 19);
+  }
+
+  // 3. WC Bestellungen laden
+  const wc = getWcClient();
+  const orders = [];
+  for (let page = 1; ; page++) {
+    const params = { per_page: 100, page };
+    if (afterParam) params.after = afterParam;
+    const [proc, compl] = await Promise.all([
+      wc.get('orders', { ...params, status: 'processing' }),
+      wc.get('orders', { ...params, status: 'completed'  }),
+    ]);
+    orders.push(...proc.data, ...compl.data);
+    if (proc.data.length < 100 && compl.data.length < 100) break;
+  }
+
+  // 4. Iterieren → Sheet-Zeilen sammeln
+  const toWrite = [];
+  const artikelName = (item) => item.name || item.sku || String(item.product_id);
+  const mwstFaktor = 1 + (konfiguration.mwstProzent || 0) / 100;
+
+  for (const order of orders) {
+    const orderDate      = toDE(new Date(order.date_created));
+    const shippingNetto  = toFloat(order.shipping_total);
+    const shippingBrutto = shippingNetto * mwstFaktor;
+    const orderNetto     = order.line_items.reduce((s, i) => s + toFloat(i.total), 0);
+
+    const matching = [];
+    let orderVersandart = 'B';
+    for (const item of order.line_items) {
+      const entries = partnerArtikelMap[String(item.product_id || '')];
+      if (!entries) continue;
+      matching.push({ item, entries });
+      if (entries.some(e => e.versandart === 'P')) orderVersandart = 'P';
+    }
+    if (!matching.length) continue;
+
+    for (const { item, entries } of matching) {
+      const itemNetto  = toFloat(item.total);
+      const itemBrutto = itemNetto * mwstFaktor;
+      const anteil     = orderNetto > 0 ? (itemNetto / orderNetto) : 0;
+      const portoEinnahmeAnteil = shippingBrutto * anteil;
+      const artKey      = artikelName(item);
+      const variationId = String(item.variation_id || 0);
+
+      for (const e of entries) {
+        const key = `${order.id}|${artKey}|${variationId}|${e.partnerId}`;
+        if (existingKeys.has(key)) continue;
+        existingKeys.add(key);
+
+        const calc = berechnePartnerAnteil({
+          vkBrutto:           itemBrutto,
+          ekPreis:            e.ekPreis,
+          druckkosten:        e.druckkosten,
+          versandart:         orderVersandart,
+          portoModell:        partnerInfoMap[e.partnerId]?.portoModell ?? 'geteilt-50-50',
+          bestellungsAnteil:  anteil,
+          lizenzProzent:      e.lizenzProzent,
+          portoEinnahmeAnteil,
+          konfiguration,
+        });
+
+        toWrite.push([
+          e.partnerId, orderDate, String(order.id),
+          artKey, variationId, String(item.quantity),
+          itemBrutto.toFixed(2), calc.partnerAnteil, 'offen',
+        ]);
+      }
+    }
+  }
+
+  if (toWrite.length > 0) {
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: sheetId,
+      range: 'Partner_Verkäufe!A:I',
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: toWrite },
+    });
+  }
+
+  return {
+    synced:     toWrite.length,
+    orders:     orders.length,
+    afterParam: afterParam || null,
+    message:    toWrite.length
+      ? `${toWrite.length} neue Einträge aus ${orders.length} Bestellungen synchronisiert.`
+      : 'Alle Einträge bereits vorhanden – nichts Neues.',
+  };
+}
+
 // ── GET /api/partner/verkaeufe/sync   (requires MC_API_KEY) ──────────────────
-// Lookup via Partner_Artikel (Produkt-ID → Partner-ID), kein Kategorie-Lookup.
-// ?after=ISO-DATUM optional; ohne Parameter: auto-detect aus neuestem Eintrag.
 router.get('/verkaeufe/sync', async (req, res, next) => {
   if (req.headers['x-api-key'] !== process.env.MC_API_KEY)
     return res.status(401).json({ error: 'Unauthorized.' });
-
   try {
     const sheetId = process.env.BUSINESS_SHEET_ID;
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
+    const sheets = await getSheets();
+    const result = await runVerkaeufeSync(sheets, sheetId, { after: req.query.after });
+    res.json(result);
+  } catch (err) { next(err); }
+});
 
+// ── POST /api/partner/verkaeufe/sync-all  (requires MC_API_KEY) ──────────────
+// Sync für alle AKTIVEN Partner. Gedacht für Cron-Jobs (täglich 02:00 Uhr).
+router.post('/verkaeufe/sync-all', async (req, res, next) => {
+  if (req.headers['x-api-key'] !== process.env.MC_API_KEY)
+    return res.status(401).json({ error: 'Unauthorized.' });
+  try {
+    const sheetId = process.env.BUSINESS_SHEET_ID;
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
     const sheets = await getSheets();
 
-    // 1a. Partner_Artikel laden → Map: productId → [{ partnerId, lizenzProzent, ek, druck, versandart }]
-    const { header: aH, rows: aRows } = await readTab(sheets, sheetId, 'Partner_Artikel');
-    const ah = col => aH.indexOf(col);
-    const partnerArtikelMap = {};
-    for (const r of aRows) {
-      const pid        = (r[ah('Produkt-ID')] ?? '').toString().trim();
-      const partnerId  = r[ah('Partner-ID')] ?? '';
-      const lizenzProzent = toFloat(r[ah('Lizenz-%')]);
-      const ekPreis     = toFloat(r[ah('EK-Preis-Netto')]);
-      const druckkosten = toFloat(r[ah('Druckkosten')]);
-      const versandart  = ((r[ah('Versandart')] ?? 'P').toString().toUpperCase() === 'B') ? 'B' : 'P';
-      if (!pid || !partnerId) continue;
-      if (!partnerArtikelMap[pid]) partnerArtikelMap[pid] = [];
-      partnerArtikelMap[pid].push({ partnerId, lizenzProzent, ekPreis, druckkosten, versandart });
-    }
+    // Aktive Partner aus Sheet Partner (Spalte 'Aktiv' = 'ja')
+    const { header, rows } = await readTab(sheets, sheetId, 'Partner');
+    const h = col => header.indexOf(col);
+    const aktivePartner = rows
+      .filter(r => (r[h('Aktiv')] ?? '').toString().toLowerCase() === 'ja')
+      .map(r => r[h('Partner-ID')])
+      .filter(Boolean);
 
-    if (!Object.keys(partnerArtikelMap).length)
-      return res.json({ synced: 0, orders: 0, message: 'Partner_Artikel ist leer – bitte zuerst Artikel importieren.' });
+    if (!aktivePartner.length)
+      return res.json({ partner: 0, neueVerkäufe: 0, errors: [], message: 'Keine aktiven Partner.' });
 
-    // 1b. Partner → Porto-Modell-Map
-    const { header: pH, rows: pRows } = await readTab(sheets, sheetId, 'Partner');
-    const ph = col => pH.indexOf(col);
-    const partnerInfoMap = {};
-    for (const r of pRows) {
-      const id = r[ph('Partner-ID')] ?? '';
-      if (id) partnerInfoMap[id] = {
-        portoModell: r[ph('Porto-Modell')] ?? 'geteilt-50-50',
-      };
-    }
-
-    // 1c. Konfiguration aus Kalkulation_Fixkosten
-    const { header: kH, rows: kRows } = await readTab(sheets, sheetId, 'Kalkulation_Fixkosten');
-    const konfiguration = parseKonfiguration(kRows, kH);
-
-    // 2. Partner_Verkäufe laden → Duplikat-Set + neuestes Datum für after-Parameter
-    // Dedup-Key: orderId|artikelName|variationId|partnerId  (variationId '' wird zu '0' gemappt)
-    const { header: vH, rows: vRows } = await readTab(sheets, sheetId, 'Partner_Verkäufe');
-    const vh = col => vH.indexOf(col);
-    const varKey = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
-    const existingKeys = new Set(
-      vRows.map(r => `${r[vh('Order-ID')] ?? ''}|${r[vh('Artikelnummer')] ?? ''}|${varKey(r[vh('Variante')])}|${r[vh('Partner-ID')] ?? ''}`)
-    );
-
-    // after-Parameter: explizit übergeben oder auto-detect aus neuestem Eintrag
-    let afterParam = req.query.after || null;
-    if (!afterParam && vRows.length) {
-      const datIdx = vh('Datum');
-      let newest = null;
-      for (const r of vRows) {
-        const d = parseDate(r[datIdx] ?? '');
-        if (d && (!newest || d > newest)) newest = d;
-      }
-      if (newest) afterParam = newest.toISOString().slice(0, 19);
-    }
-
-    // 3. WC Bestellungen laden (mit optionalem after-Filter)
-    const wc = getWcClient();
-    const orders = [];
-    for (let page = 1; ; page++) {
-      const params = { per_page: 100, page };
-      if (afterParam) params.after = afterParam;
-      const [proc, compl] = await Promise.all([
-        wc.get('orders', { ...params, status: 'processing' }),
-        wc.get('orders', { ...params, status: 'completed'  }),
-      ]);
-      orders.push(...proc.data, ...compl.data);
-      if (proc.data.length < 100 && compl.data.length < 100) break;
-    }
-
-    // 4. Order-Items → Partner_Artikel-Lookup → Helper berechnePartnerAnteil
-    const toWrite = [];
-    const artikelName = (item) => item.name || item.sku || String(item.product_id);
-
-    const mwstFaktor = 1 + (konfiguration.mwstProzent || 0) / 100;
-
-    for (const order of orders) {
-      const orderDate     = toDE(new Date(order.date_created));
-      // WC liefert shipping_total und item.total netto → brutto erst hier hochrechnen.
-      const shippingNetto = toFloat(order.shipping_total);
-      const shippingBrutto = shippingNetto * mwstFaktor;
-      const orderNetto    = order.line_items.reduce((s, i) => s + toFloat(i.total), 0);
-
-      // Matching-Items + Versandart der Bestellung bestimmen:
-      // wenn mindestens ein matchender Artikel "P" hat → ganze Bestellung gilt als "P".
-      const matching = [];
-      let orderVersandart = 'B';
-      for (const item of order.line_items) {
-        const entries = partnerArtikelMap[String(item.product_id || '')];
-        if (!entries) continue;
-        matching.push({ item, entries });
-        if (entries.some(e => e.versandart === 'P')) orderVersandart = 'P';
-      }
-      if (!matching.length) continue;
-
-      for (const { item, entries } of matching) {
-        const itemNetto  = toFloat(item.total);
-        const itemBrutto = itemNetto * mwstFaktor;
-        const anteil     = orderNetto > 0 ? (itemNetto / orderNetto) : 0;
-        const portoEinnahmeAnteil = shippingBrutto * anteil;
-        const artKey = artikelName(item);
-
-        const variationId = String(item.variation_id || 0);
-        for (const e of entries) {
-          const key = `${order.id}|${artKey}|${variationId}|${e.partnerId}`;
-          if (existingKeys.has(key)) continue;
-          existingKeys.add(key);
-
-          const calc = berechnePartnerAnteil({
-            vkBrutto:           itemBrutto,
-            ekPreis:            e.ekPreis,
-            druckkosten:        e.druckkosten,
-            versandart:         orderVersandart,
-            portoModell:        partnerInfoMap[e.partnerId]?.portoModell ?? 'geteilt-50-50',
-            bestellungsAnteil:  anteil,
-            lizenzProzent:      e.lizenzProzent,
-            portoEinnahmeAnteil,
-            konfiguration,
-          });
-
-          toWrite.push([
-            e.partnerId, orderDate, String(order.id),
-            artKey, variationId, String(item.quantity),
-            itemBrutto.toFixed(2), calc.partnerAnteil, 'offen',
-          ]);
-        }
-      }
-    }
-
-    // 5. Batch-Append ins Sheet
-    if (toWrite.length > 0) {
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: sheetId,
-        range: 'Partner_Verkäufe!A:I',
-        valueInputOption: 'USER_ENTERED',
-        insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: toWrite },
-      });
+    const errors = [];
+    let neueVerkäufe = 0;
+    let result = null;
+    try {
+      result = await runVerkaeufeSync(sheets, sheetId, { partnerFilter: new Set(aktivePartner) });
+      neueVerkäufe = result.synced;
+    } catch (err) {
+      errors.push(err.message ?? String(err));
     }
 
     res.json({
-      synced:     toWrite.length,
-      orders:     orders.length,
-      afterParam: afterParam || null,
-      message:    toWrite.length
-        ? `${toWrite.length} neue Einträge aus ${orders.length} Bestellungen synchronisiert.`
-        : 'Alle Einträge bereits vorhanden – nichts Neues.',
+      partner:      aktivePartner.length,
+      partnerIds:   aktivePartner,
+      neueVerkäufe,
+      orders:       result?.orders ?? 0,
+      afterParam:   result?.afterParam ?? null,
+      errors,
+      message:      result?.message ?? (errors.length ? 'Sync mit Fehlern' : 'Sync fertig'),
     });
   } catch (err) { next(err); }
 });
