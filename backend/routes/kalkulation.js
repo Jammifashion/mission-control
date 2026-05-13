@@ -701,13 +701,15 @@ router.get('/verkaeufe', async (req, res, next) => {
 });
 
 // ── PATCH /api/kalkulation/abrechnung/:id/status ─────────────────────────────
-// Status einer Abrechnung ändern (geprüft → freigegeben → bezahlt)
+// Status einer Abrechnung ändern. Neuer Flow: entwurf → freigegeben → bezahlt.
+// Übergang entwurf → freigegeben sollte via /freigeben laufen (markiert Posten).
+// Alte Werte 'angefordert' und 'geprüft' bleiben als Eingabe erlaubt für Altdaten.
 router.patch('/abrechnung/:id/status', async (req, res, next) => {
   try {
     const sheetId = process.env.BUSINESS_SHEET_ID;
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
 
-    const VALID = ['angefordert', 'geprüft', 'freigegeben', 'bezahlt'];
+    const VALID = ['entwurf', 'freigegeben', 'bezahlt', 'angefordert', 'geprüft'];
     const { status } = req.body;
     if (!VALID.includes(status))
       return res.status(400).json({ error: `Ungültiger Status. Erlaubt: ${VALID.join(', ')}` });
@@ -721,7 +723,7 @@ router.patch('/abrechnung/:id/status', async (req, res, next) => {
     if (rowIndex === -1)
       return res.status(404).json({ error: `Abrechnung "${req.params.id}" nicht gefunden.` });
 
-    const sheetRow   = rowIndex + 2; // 1-basiert + Header
+    const sheetRow   = rowIndex + 2;
     const stColLetter = colLetter(stIdx);
 
     await sheets.spreadsheets.values.update({
@@ -732,6 +734,125 @@ router.patch('/abrechnung/:id/status', async (req, res, next) => {
     });
 
     res.json({ abrechnungId: req.params.id, status });
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/kalkulation/abrechnung/:id/freigeben ───────────────────────────
+// Setzt Entwurf auf 'freigegeben' und markiert alle zugehörigen Verkäufe +
+// Internen Bestellungen als 'abgerechnet' (rowIndices aus Positionen-JSON).
+router.post('/abrechnung/:id/freigeben', async (req, res, next) => {
+  try {
+    const sheetId = process.env.BUSINESS_SHEET_ID;
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
+
+    const sheets = await getSheets();
+    const [abrechnungenTab, verkäufeTab, internTab] = await Promise.all([
+      readTab(sheets, sheetId, 'Partner_Abrechnungen'),
+      readTab(sheets, sheetId, 'Partner_Verkäufe'),
+      readTab(sheets, sheetId, 'Partner_Interne_Bestellungen'),
+    ]);
+
+    const aH = abrechnungenTab.header;
+    const abIdIdx = aH.indexOf('Abrechnungs-ID');
+    const stIdx   = aH.indexOf('Status');
+    const posIdx  = aH.indexOf('Positionen');
+    const rowIdx  = abrechnungenTab.rows.findIndex(r => r[abIdIdx] === req.params.id);
+    if (rowIdx === -1)
+      return res.status(404).json({ error: `Abrechnung "${req.params.id}" nicht gefunden.` });
+
+    const row = abrechnungenTab.rows[rowIdx];
+    if ((row[stIdx] ?? '') !== 'entwurf')
+      return res.status(400).json({ error: `Nur Entwürfe können freigegeben werden (aktueller Status: ${row[stIdx]}).` });
+
+    let positionen = null;
+    try { positionen = JSON.parse(row[posIdx] ?? ''); } catch {}
+    if (!positionen)
+      return res.status(400).json({ error: 'Positionen-Daten fehlen oder sind ungültig.' });
+
+    // Markiere Verkäufe + Interne als 'abgerechnet'
+    const vStCol = colLetter(verkäufeTab.header.indexOf('Status'));
+    const iStCol = colLetter(internTab.header.indexOf('Status'));
+    const markRequests = [
+      ...(positionen.verkaeufe || []).map(p => ({
+        range: `Partner_Verkäufe!${vStCol}${p.rowIndex}`,
+        majorDimension: 'ROWS', values: [['abgerechnet']],
+      })),
+      ...(positionen.intern || []).map(p => ({
+        range: `Partner_Interne_Bestellungen!${iStCol}${p.rowIndex}`,
+        majorDimension: 'ROWS', values: [['abgerechnet']],
+      })),
+    ];
+
+    // Status der Abrechnung + Markierungen in einem batch
+    const stColLetter = colLetter(stIdx);
+    const sheetRow    = rowIdx + 2;
+    const allRequests = [
+      {
+        range: `Partner_Abrechnungen!${stColLetter}${sheetRow}`,
+        majorDimension: 'ROWS', values: [['freigegeben']],
+      },
+      ...markRequests,
+    ];
+
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: sheetId,
+      requestBody: { valueInputOption: 'USER_ENTERED', data: allRequests },
+    });
+
+    res.json({
+      abrechnungId:    req.params.id,
+      status:          'freigegeben',
+      anzahlVerkäufe:  (positionen.verkaeufe || []).length,
+      anzahlInterne:   (positionen.intern || []).length,
+    });
+  } catch (err) { next(err); }
+});
+
+// ── DELETE /api/kalkulation/abrechnung/:id ───────────────────────────────────
+// Verwirft einen Entwurf. Löscht die Zeile aus Partner_Abrechnungen.
+// Berührt KEINE Verkäufe oder interne Bestellungen (waren nie auf 'abgerechnet').
+router.delete('/abrechnung/:id', async (req, res, next) => {
+  try {
+    const sheetId = process.env.BUSINESS_SHEET_ID;
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
+
+    const sheets = await getSheets();
+    const { header, rows } = await readTab(sheets, sheetId, 'Partner_Abrechnungen');
+
+    const abIdIdx = header.indexOf('Abrechnungs-ID');
+    const stIdx   = header.indexOf('Status');
+    const rowIdx  = rows.findIndex(r => r[abIdIdx] === req.params.id);
+    if (rowIdx === -1)
+      return res.status(404).json({ error: `Abrechnung "${req.params.id}" nicht gefunden.` });
+
+    const status = rows[rowIdx][stIdx] ?? '';
+    if (status !== 'entwurf')
+      return res.status(400).json({ error: `Nur Entwürfe können verworfen werden (aktueller Status: ${status}).` });
+
+    // sheetId (numerisch) für deleteDimension holen
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: 'sheets.properties' });
+    const sheetGid = meta.data.sheets.find(s => s.properties.title === 'Partner_Abrechnungen')?.properties.sheetId;
+    if (sheetGid === undefined)
+      return res.status(503).json({ error: 'Sheet "Partner_Abrechnungen" nicht gefunden.' });
+
+    const sheetRow = rowIdx + 2; // 1-basiert + Header
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: sheetId,
+      requestBody: {
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: sheetGid,
+              dimension: 'ROWS',
+              startIndex: sheetRow - 1, // 0-basiert inclusive
+              endIndex:   sheetRow,     // 0-basiert exclusive
+            },
+          },
+        }],
+      },
+    });
+
+    res.json({ abrechnungId: req.params.id, deleted: true });
   } catch (err) { next(err); }
 });
 
