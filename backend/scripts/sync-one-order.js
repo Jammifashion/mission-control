@@ -47,6 +47,8 @@ async function run() {
   // Partner_Artikel → Map productId → Einträge
   const ah = col => aTab.header.indexOf(col);
   const partnerArtikelMap = {};
+  console.log(`\n━━ Partner_Artikel-Lookup aufgebaut ━━`);
+  console.log(`Header: ${aTab.header.join(' | ')}`);
   for (const r of aTab.rows) {
     const partnerId    = r[ah('Partner-ID')] ?? '';
     const pid          = (r[ah('Produkt-ID')] ?? '').toString().trim();
@@ -54,10 +56,13 @@ async function run() {
     const ekPreis       = toFloat(r[ah('EK-Preis-Netto')]);
     const druckkosten   = toFloat(r[ah('Druckkosten')]);
     const versandart    = ((r[ah('Versandart')] ?? 'P').toString().toUpperCase() === 'B') ? 'B' : 'P';
-    if (!pid || !partnerId) continue;
+    const artikelname   = r[ah('Artikelname')] ?? '';
+    if (!pid || !partnerId) { console.log(`  ⊘ Zeile übersprungen: pid="${pid}" partnerId="${partnerId}"`); continue; }
     if (!partnerArtikelMap[pid]) partnerArtikelMap[pid] = [];
-    partnerArtikelMap[pid].push({ partnerId, lizenzProzent, ekPreis, druckkosten, versandart });
+    partnerArtikelMap[pid].push({ partnerId, lizenzProzent, ekPreis, druckkosten, versandart, artikelname });
+    console.log(`  ✓ Produkt-ID ${pid}: Partner ${partnerId}, ${artikelname}, Lizenz ${lizenzProzent}%, EK ${ekPreis}€, Druck ${druckkosten}€`);
   }
+  console.log(`→ ${Object.keys(partnerArtikelMap).length} unterschiedliche Produkt-IDs registriert\n`);
 
   // Partner → Porto-Modell
   const ph = col => pTab.header.indexOf(col);
@@ -91,14 +96,27 @@ async function run() {
   const shippingNetto = toFloat(order.shipping_total);
   const orderNetto    = order.line_items.reduce((s, i) => s + toFloat(i.total), 0);
 
+  console.log(`\n━━ WC-Order-Items vs. Partner_Artikel-Lookup ━━`);
   let orderVersandart = 'B';
   const matching = [];
   for (const item of order.line_items) {
-    const entries = partnerArtikelMap[String(item.product_id || '')];
-    if (!entries) { console.log(`  ⚠  Produkt ${item.product_id} ("${item.name}") nicht in Partner_Artikel`); continue; }
+    const pid = String(item.product_id || '');
+    const entries = partnerArtikelMap[pid];
+    console.log(`\nItem: Produkt-ID ${pid}`);
+    console.log(`  Name: "${item.name}" (SKU: ${item.sku || '–'})`);
+    console.log(`  Quantity: ${item.quantity}, Total netto: ${item.total}€`);
+    if (!entries) {
+      console.log(`  ⚠ NICHT GEFUNDEN in Partner_Artikel`);
+      continue;
+    }
+    console.log(`  ✓ GEFUNDEN: ${entries.length} Eintrag(e)`);
+    for (const e of entries) {
+      console.log(`    - Partner ${e.partnerId}: ${e.artikelname || '(keine Beschreibung)'}, Lizenz ${e.lizenzProzent}%, EK ${e.ekPreis}€, Druck ${e.druckkosten}€, Versand ${e.versandart}`);
+    }
     matching.push({ item, entries });
     if (entries.some(e => e.versandart === 'P')) orderVersandart = 'P';
   }
+  console.log(`\n→ ${matching.length} passende Artikel gefunden\n`);
 
   if (!matching.length) {
     console.log('Keine passenden Partner-Artikel gefunden – nichts zu schreiben.');
