@@ -170,17 +170,41 @@ async function run() {
     }
     console.log('');
 
-    // ── Artikel-Daten ───────────────────────────────────────────────────────
+    // ── Artikel-Daten (Lookup: Partner-ID + Produkt-ID, mit Fallback) ────────
     const ah  = col => artikelTab.header.indexOf(col);
-    const aRow = artikelTab.rows.find(r =>
-      (r[ah('Partner-ID')] ?? '') === partnerId &&
-      (r[ah('Artikelname')] ?? '') === artikelname
-    );
+    const produktId = vRow[vh('Produkt-ID')] ?? '';  // Produkt-ID aus synced row (neu)
+
+    let aRow = null;
+    let matchMethod = '';
+
+    // Primäre Methode: Produkt-ID (neu)
+    if (produktId) {
+      aRow = artikelTab.rows.find(r =>
+        (r[ah('Partner-ID')] ?? '') === partnerId &&
+        (r[ah('Produkt-ID')] ?? '') === produktId
+      );
+      matchMethod = `Prod-ID ${produktId}`;
+    }
+
+    // Fallback: Artikelname (alt, ignoriert Varianten-Suffix wie "-XL", "-M", etc.)
+    if (!aRow) {
+      // Entferne Varianten-Suffix (z.B. " - XL", " - L", " - M", etc.)
+      const baseArtikelname = artikelname.replace(/\s*-\s*[A-Z0-9]+\s*$/, '').trim();
+      aRow = artikelTab.rows.find(r => {
+        const sheetArtikel = r[ah('Artikelname')] ?? '';
+        return (r[ah('Partner-ID')] ?? '') === partnerId &&
+               (sheetArtikel === baseArtikelname || sheetArtikel === artikelname || artikelname.startsWith(sheetArtikel));
+      });
+      matchMethod = `Artikelname "${baseArtikelname}"`;
+    }
+
     const ekPreis      = aRow ? toFloat(aRow[ah('EK-Preis-Netto')]) : 0;
     const druckkosten  = aRow ? toFloat(aRow[ah('Druckkosten')])     : 0;
     const versandart   = aRow ? ((aRow[ah('Versandart')] ?? 'P').toString().toUpperCase() === 'B' ? 'B' : 'P') : 'P';
+    const matchedArtikelname = aRow ? (aRow[ah('Artikelname')] ?? '–') : '–';
 
-    if (!aRow) console.log(' ⚠  Kein Eintrag in Partner_Artikel → EK/Druck = 0\n');
+    if (!aRow) console.log(` ⚠  Kein Eintrag in Partner_Artikel (${matchMethod}) → EK/Druck = 0\n`);
+    else console.log(` ℹ  Match (${matchMethod}): ${matchedArtikelname}, EK ${fmt(ekPreis)}, Druck ${fmt(druckkosten)}\n`);
 
     // ── Konfiguration ───────────────────────────────────────────────────────
     const konfig = parseKonfiguration(fixkostenTab.rows, fixkostenTab.header);

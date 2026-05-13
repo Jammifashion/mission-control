@@ -156,6 +156,7 @@ async function run() {
           e.partnerId, orderDate, String(order.id),
           artKey, variationId, String(item.quantity),
           itemNetto.toFixed(2), calc.partnerAnteil, 'offen',
+          String(item.product_id),  // Produkt-ID für späteren Lookup
         ]);
       }
     }
@@ -169,7 +170,7 @@ async function run() {
   console.log(`\n→ Schreibe ${toWrite.length} Zeile(n) in Partner_Verkäufe …`);
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: 'Partner_Verkäufe!A:I',
+    range: 'Partner_Verkäufe!A:J',
     valueInputOption: 'USER_ENTERED',
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values: toWrite },

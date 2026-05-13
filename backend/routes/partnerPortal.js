@@ -189,6 +189,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
           e.partnerId, orderDate, String(order.id),
           artKey, variationId, String(item.quantity),
           itemNetto.toFixed(2), calc.partnerAnteil, 'offen',
+          String(item.product_id),  // Produkt-ID für späteren Lookup
         ]);
       }
     }
@@ -197,7 +198,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
   if (toWrite.length > 0) {
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
-      range: 'Partner_Verkäufe!A:I',
+      range: 'Partner_Verkäufe!A:J',
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       requestBody: { values: toWrite },
