@@ -444,6 +444,7 @@
       .ev-table tr:last-child td { border-bottom: none; }
       .ev-del-btn { background: none; border: none; cursor: pointer; font-size: 1rem; padding: 0.1rem 0.3rem; opacity: 0.6; border-radius: 4px; }
       .ev-del-btn:hover { opacity: 1; background: #3a1a1a; }
+      .ev-row-cb { cursor: pointer; accent-color: var(--accent, #6c8ebf); }
       .btn-secondary { background: none; border: 1px solid var(--accent); color: var(--accent); padding: 0.65rem 1.1rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: background 0.15s; }
       .btn-secondary:hover { background: #2a220a; }
       .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -957,7 +958,10 @@
 
         <!-- Bestehende Varianten (nur Ändern-Modus) -->
         <div class="card" id="existing-variants-block" style="display:none;margin-bottom:1rem;">
-          <div class="form-section-title">Bestehende Varianten</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+            <div class="form-section-title" style="margin:0;">Bestehende Varianten</div>
+            <button id="ev-bulk-delete-btn" class="btn-secondary" style="display:none;color:var(--danger);border-color:var(--danger);font-size:0.82rem;padding:0.35rem 0.75rem;">0 löschen</button>
+          </div>
           <div style="overflow-x:auto;">
             <table class="ev-table">
               <thead id="ev-thead"></thead>
@@ -2105,6 +2109,7 @@
       let draftList = [];                // gecachte Entwurfsliste
       let currentDraftRow = null;        // Sheet-Zeilennummer des geladenen Entwurfs
       let existingVariations = [];       // [{ id, attrs:[{name,value}], price, _origPrice }]
+      let selectedVariationIds = new Set();
       let editMode = false;              // false = Neu anlegen, true = Artikel ändern
       let seoMode  = false;              // SEO Daten Modus
 
@@ -2953,11 +2958,20 @@
       }
 
       function renderExistingVariations() {
-        const block = document.getElementById('existing-variants-block');
-        const thead = document.getElementById('ev-thead');
-        const tbody = document.getElementById('ev-tbody');
+        const block   = document.getElementById('existing-variants-block');
+        const thead   = document.getElementById('ev-thead');
+        const tbody   = document.getElementById('ev-tbody');
+        const bulkBtn = document.getElementById('ev-bulk-delete-btn');
 
-        if (!existingVariations.length) { block.style.display = 'none'; return; }
+        if (!existingVariations.length) {
+          block.style.display = 'none';
+          selectedVariationIds = new Set();
+          bulkBtn.style.display = 'none';
+          return;
+        }
+
+        selectedVariationIds = new Set();
+        bulkBtn.style.display = 'none';
 
         const sorted = [...existingVariations].sort((a, b) => {
           const cmp0 = (a.attrs[0]?.value ?? '').localeCompare(b.attrs[0]?.value ?? '', 'de');
@@ -2968,14 +2982,55 @@
         const maxAttrs = Math.max(...sorted.map(v => v.attrs.length));
         const attrNames = sorted[0].attrs.map(a => a.name);
 
-        thead.innerHTML = '<tr>' +
-          attrNames.map(n => `<th>${n}</th>`).join('') +
-          Array.from({ length: maxAttrs - attrNames.length }, () => '<th>—</th>').join('') +
-          '<th>Preis (€)</th><th></th></tr>';
+        function syncBulkBtn() {
+          const n = selectedVariationIds.size;
+          bulkBtn.style.display = n ? '' : 'none';
+          bulkBtn.textContent = `${n} Variante${n !== 1 ? 'n' : ''} löschen`;
+        }
+
+        // thead mit Master-Checkbox
+        const headerRow = document.createElement('tr');
+        const cbTh = document.createElement('th');
+        const masterCb = document.createElement('input');
+        masterCb.type = 'checkbox';
+        masterCb.className = 'ev-row-cb';
+        masterCb.title = 'Alle auswählen';
+        masterCb.addEventListener('change', () => {
+          tbody.querySelectorAll('.ev-row-cb').forEach(cb => {
+            cb.checked = masterCb.checked;
+            const id = Number(cb.dataset.id);
+            masterCb.checked ? selectedVariationIds.add(id) : selectedVariationIds.delete(id);
+          });
+          syncBulkBtn();
+        });
+        cbTh.appendChild(masterCb);
+        headerRow.appendChild(cbTh);
+        attrNames.forEach(n => { const th = document.createElement('th'); th.textContent = n; headerRow.appendChild(th); });
+        for (let i = attrNames.length; i < maxAttrs; i++) { const th = document.createElement('th'); th.textContent = '—'; headerRow.appendChild(th); }
+        const priceTh = document.createElement('th'); priceTh.textContent = 'Preis (€)'; headerRow.appendChild(priceTh);
+        headerRow.appendChild(document.createElement('th'));
+        thead.innerHTML = '';
+        thead.appendChild(headerRow);
 
         tbody.innerHTML = '';
         sorted.forEach(v => {
           const tr = document.createElement('tr');
+
+          // Zeilen-Checkbox
+          const cbTd = document.createElement('td');
+          const rowCb = document.createElement('input');
+          rowCb.type = 'checkbox';
+          rowCb.className = 'ev-row-cb';
+          rowCb.dataset.id = v.id;
+          rowCb.addEventListener('change', () => {
+            rowCb.checked ? selectedVariationIds.add(v.id) : selectedVariationIds.delete(v.id);
+            const allCbs = [...tbody.querySelectorAll('.ev-row-cb')];
+            masterCb.checked       = allCbs.every(c => c.checked);
+            masterCb.indeterminate = !masterCb.checked && allCbs.some(c => c.checked);
+            syncBulkBtn();
+          });
+          cbTd.appendChild(rowCb);
+          tr.appendChild(cbTd);
 
           for (let i = 0; i < maxAttrs; i++) {
             const td = document.createElement('td');
@@ -3019,6 +3074,28 @@
 
         block.style.display = '';
       }
+
+      // ── Bulk-Delete bestehender Varianten ───────────────────────────────
+      document.getElementById('ev-bulk-delete-btn').addEventListener('click', async () => {
+        const ids = [...selectedVariationIds];
+        if (!ids.length) return;
+        const n = ids.length;
+        const ok = await showConfirm('Varianten löschen',
+          `${n} Variante${n !== 1 ? 'n' : ''} wirklich löschen?`, 'Löschen');
+        if (!ok) return;
+        const bulkBtn = document.getElementById('ev-bulk-delete-btn');
+        bulkBtn.disabled = true;
+        let deleted = 0;
+        for (const id of ids) {
+          try {
+            const r = await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations/${id}`, { method: 'DELETE' });
+            if (r.ok) { existingVariations = existingVariations.filter(x => x.id !== id); deleted++; }
+          } catch { /* weiter */ }
+        }
+        bulkBtn.disabled = false;
+        renderExistingVariations();
+        showToast(`${deleted} Variante${deleted !== 1 ? 'n' : ''} gelöscht`, deleted ? 'success' : 'error');
+      });
 
       // ── Neue Varianten anlegen (Ändern-Modus) ───────────────────────────
       document.getElementById('btn-add-new-variants').addEventListener('click', async () => {
