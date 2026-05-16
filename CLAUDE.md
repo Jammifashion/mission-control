@@ -31,7 +31,9 @@ Neue Sektionen immer mit Anker versehen:
 - backend/routes/kalkulation.js – Partner CRUD, Druck-/Fixkosten, Abrechnungen
 - backend/routes/partner-artikel.js – Partner_Artikel + Interne Bestellungen (Admin, MC_API_KEY)
 - backend/routes/partnerPortal.js – Token-Auth für partner.html + WC-Sync
-- backend/routes/anfragen.js – Kundenanfragen (POST /neu, GET /, PATCH /:id/status)
+- backend/routes/anfragen.js – Kundenanfragen Admin (POST /neu, GET /, PATCH /:id/status) – hinter requireApiKey
+- backend/routes/anfragen-chat.js – Chat-Widget public endpoint (POST /chat, kein API-Key) – vor requireApiKey
+- frontend/anfrage.html – Standalone Chat-Widget für Kunden (GitHub Pages, kein MC-Design)
 - backend/utils/partner-kalkulation.js – berechnePartnerAnteil() Helper
 - docs/SEO Beschreibungs-Framework.md – SEO Prompt Vorlage
 - GCP_Setup_Notizen.md – GCP IDs (lokal only, nicht im Repo)

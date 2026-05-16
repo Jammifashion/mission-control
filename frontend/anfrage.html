@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Anfrage stellen – Jammi Fashion</title>
+  <meta name="description" content="Stelle deine individuelle Anfrage für bedruckte Textilien und Merchandise bei Jammi Fashion.">
+  <meta name="theme-color" content="#E8C44A">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --brand:        #E8C44A;
+      --brand-dark:   #C9A828;
+      --brand-light:  #FFF8E0;
+      --bg:           #F2F2F7;
+      --surface:      #FFFFFF;
+      --agent-bg:     #EBEBEB;
+      --user-bg:      #E8C44A;
+      --text:         #1C1C1E;
+      --text-2:       #636366;
+      --border:       #D1D1D6;
+      --success:      #34C759;
+      --danger:       #FF3B30;
+      --warning:      #FF9500;
+      --shadow:       0 2px 10px rgba(0,0,0,0.07);
+      --r:            18px;
+      --r-sm:         10px;
+    }
+
+    html, body {
+      height: 100%;
+      height: 100dvh;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* ── Layout ──────────────────────────────────────────────────────────── */
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      height: 100dvh;
+      max-width: 680px;
+      margin: 0 auto;
+      background: var(--bg);
+    }
+
+    /* ── Header ──────────────────────────────────────────────────────────── */
+    .header {
+      background: rgba(255,255,255,0.92);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+    }
+
+    .header-logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: var(--brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 13px;
+      color: #1A1A1A;
+      flex-shrink: 0;
+      letter-spacing: -0.5px;
+    }
+
+    .header-info { flex: 1; min-width: 0; }
+    .header-info h1 {
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .header-info p { font-size: 12px; color: var(--text-2); margin-top: 1px; }
+
+    .header-online {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: var(--text-2);
+      white-space: nowrap;
+    }
+
+    .online-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--success);
+      flex-shrink: 0;
+      transition: background 0.3s;
+    }
+
+    /* ── Messages ────────────────────────────────────────────────────────── */
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      overscroll-behavior: contain;
+    }
+
+    .messages::-webkit-scrollbar { width: 3px; }
+    .messages::-webkit-scrollbar-track { background: transparent; }
+    .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .date-chip {
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-2);
+      padding: 6px 0 10px;
+      letter-spacing: 0.3px;
+    }
+
+    /* ── Message rows ────────────────────────────────────────────────────── */
+    .msg-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      max-width: 100%;
+      animation: msgIn 0.18s ease-out both;
+    }
+
+    @keyframes msgIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg-row.agent { justify-content: flex-start; }
+    .msg-row.user  { justify-content: flex-end; }
+
+    .avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--brand);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 800;
+      color: #1A1A1A;
+      flex-shrink: 0;
+      letter-spacing: -0.3px;
+    }
+
+    .bubble {
+      max-width: min(72vw, 460px);
+      padding: 10px 14px;
+      font-size: 15px;
+      line-height: 1.55;
+      word-break: break-word;
+    }
+
+    .msg-row.agent .bubble {
+      background: var(--surface);
+      color: var(--text);
+      border-radius: var(--r) var(--r) var(--r) var(--r-sm);
+      box-shadow: var(--shadow);
+    }
+
+    .msg-row.user .bubble {
+      background: var(--user-bg);
+      color: #1A1A1A;
+      border-radius: var(--r) var(--r) var(--r-sm) var(--r);
+    }
+
+    /* Bubble markdown */
+    .bubble p          { margin-bottom: 5px; }
+    .bubble p:last-child { margin-bottom: 0; }
+    .bubble strong     { font-weight: 600; }
+    .bubble em         { font-style: italic; }
+    .bubble ul         { padding-left: 18px; margin: 4px 0; }
+    .bubble ol         { padding-left: 18px; margin: 4px 0; }
+    .bubble li         { margin-bottom: 2px; }
+    .bubble code       { background: rgba(0,0,0,0.06); padding: 1px 5px; border-radius: 4px; font-size: 13px; }
+
+    /* ── Typing indicator ────────────────────────────────────────────────── */
+    .typing-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      animation: msgIn 0.18s ease-out both;
+    }
+
+    .typing-bubble {
+      background: var(--surface);
+      border-radius: var(--r) var(--r) var(--r) var(--r-sm);
+      padding: 13px 16px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      box-shadow: var(--shadow);
+    }
+
+    .typing-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--text-2);
+      animation: bounce 1.2s ease-in-out infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes bounce {
+      0%, 55%, 100% { opacity: 0.35; transform: translateY(0); }
+      28%           { opacity: 1;    transform: translateY(-5px); }
+    }
+
+    /* ── Success card ────────────────────────────────────────────────────── */
+    .success-card {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 28px 20px 24px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      margin: 8px 0;
+      animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+
+    @keyframes scaleIn {
+      from { opacity: 0; transform: scale(0.9); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    .success-icon {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: #E8F5E9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      margin: 0 auto 14px;
+    }
+
+    .success-card h2 {
+      font-size: 19px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .success-card .sub {
+      font-size: 14px;
+      color: var(--text-2);
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+
+    .anfrage-id-badge {
+      display: inline-block;
+      background: var(--brand-light);
+      border: 1.5px solid var(--brand);
+      color: #7a5c00;
+      font-weight: 700;
+      font-size: 13px;
+      padding: 5px 14px;
+      border-radius: 20px;
+      letter-spacing: 0.8px;
+      margin-top: 4px;
+    }
+
+    /* ── Error bubble ────────────────────────────────────────────────────── */
+    .error-bubble {
+      max-width: min(72vw, 460px);
+      background: #FFF2F2;
+      border: 1px solid #FFCDD2;
+      color: var(--danger);
+      border-radius: var(--r) var(--r) var(--r) var(--r-sm);
+      padding: 10px 14px;
+      font-size: 14px;
+      box-shadow: var(--shadow);
+    }
+
+    /* ── Input bar ───────────────────────────────────────────────────────── */
+    .input-bar {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 8px 12px;
+      padding-bottom: max(8px, env(safe-area-inset-bottom));
+      display: flex;
+      align-items: flex-end;
+      gap: 8px;
+    }
+
+    .input-wrap {
+      flex: 1;
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      border-radius: 22px;
+      display: flex;
+      align-items: flex-end;
+      padding: 8px 14px;
+      transition: border-color 0.15s;
+      min-height: 40px;
+    }
+    .input-wrap:focus-within { border-color: var(--brand-dark); }
+
+    #msg-input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      font-family: inherit;
+      font-size: 15px;
+      color: var(--text);
+      resize: none;
+      max-height: 110px;
+      line-height: 1.4;
+      overflow-y: auto;
+    }
+    #msg-input::placeholder { color: var(--text-2); }
+
+    .send-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: none;
+      background: var(--brand);
+      color: #1A1A1A;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: background 0.15s, transform 0.1s, opacity 0.15s;
+    }
+    .send-btn:hover:not(:disabled) { background: var(--brand-dark); }
+    .send-btn:active:not(:disabled) { transform: scale(0.91); }
+    .send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .send-btn svg { width: 17px; height: 17px; }
+
+    .done-bar {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 12px 16px;
+      text-align: center;
+      font-size: 13px;
+      color: var(--text-2);
+      display: none;
+    }
+    .done-bar.visible { display: block; }
+
+    /* ── Desktop ─────────────────────────────────────────────────────────── */
+    @media (min-width: 680px) {
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #E8E8EE;
+      }
+      .app {
+        height: 88dvh;
+        border-radius: 22px;
+        overflow: hidden;
+        box-shadow: 0 12px 40px rgba(0,0,0,0.14);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="header-logo">JF</div>
+      <div class="header-info">
+        <h1>Jammi Fashion</h1>
+        <p>Anfrage-Assistent</p>
+      </div>
+      <div class="header-online">
+        <div class="online-dot" id="online-dot"></div>
+        <span id="online-label">Online</span>
+      </div>
+    </header>
+
+    <!-- Messages -->
+    <div class="messages" id="messages">
+      <div class="date-chip" id="date-chip"></div>
+    </div>
+
+    <!-- Done notice (shown instead of input when complete) -->
+    <div class="done-bar" id="done-bar">
+      Anfrage eingegangen ✓ &nbsp;·&nbsp; Wir melden uns bald!
+    </div>
+
+    <!-- Input bar -->
+    <div class="input-bar" id="input-bar">
+      <div class="input-wrap">
+        <textarea
+          id="msg-input"
+          rows="1"
+          placeholder="Nachricht eingeben…"
+          aria-label="Nachricht"
+          autocomplete="off"
+          autocorrect="on"
+          spellcheck="true"
+        ></textarea>
+      </div>
+      <button class="send-btn" id="send-btn" disabled aria-label="Senden">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M3.4 20.4l17.45-7.48a1 1 0 000-1.84L3.4 3.6a1 1 0 00-1.39.91L2 9.12a1 1 0 00.86.99l13.12 1.89L2.86 13.9A1 1 0 002 14.88L2.01 19.5a1 1 0 001.39.9z"/>
+        </svg>
+      </button>
+    </div>
+
+  </div>
+
+  <script>
+    const API_URL = 'https://mission-control-backend-181760755456.europe-west1.run.app';
+
+    // ── State ───────────────────────────────────────────────────────────────
+    let messages    = [];
+    let sessionData = {};
+    let isWaiting   = false;
+    let isComplete  = false;
+
+    // ── DOM ─────────────────────────────────────────────────────────────────
+    const messagesEl = document.getElementById('messages');
+    const inputEl    = document.getElementById('msg-input');
+    const sendBtn    = document.getElementById('send-btn');
+    const inputBar   = document.getElementById('input-bar');
+    const doneBar    = document.getElementById('done-bar');
+    const onlineDot  = document.getElementById('online-dot');
+    const onlineLbl  = document.getElementById('online-label');
+
+    // ── Date chip ───────────────────────────────────────────────────────────
+    document.getElementById('date-chip').textContent = new Date().toLocaleDateString('de-DE', {
+      weekday: 'long', day: 'numeric', month: 'long',
+    });
+
+    // ── Markdown renderer (minimal, safe) ───────────────────────────────────
+    function renderMd(raw) {
+      if (!raw) return '';
+      let t = raw
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+
+      // Inline: bold, italic
+      t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      t = t.replace(/\*([^*]+)\*/g,     '<em>$1</em>');
+
+      // Build paragraphs/lists per line
+      const lines  = t.split('\n');
+      const chunks = [];
+      let   listBuf = [];
+
+      function flushList() {
+        if (listBuf.length) {
+          chunks.push('<ul>' + listBuf.join('') + '</ul>');
+          listBuf = [];
+        }
+      }
+
+      for (const line of lines) {
+        const tr = line.trim();
+        if (!tr) { flushList(); continue; }
+        if (/^[-•]\s+/.test(tr)) {
+          listBuf.push('<li>' + tr.replace(/^[-•]\s+/, '') + '</li>');
+        } else {
+          flushList();
+          chunks.push('<p>' + tr + '</p>');
+        }
+      }
+      flushList();
+      return chunks.join('') || '<p>' + t + '</p>';
+    }
+
+    // ── Append bubble ───────────────────────────────────────────────────────
+    function appendBubble(role, text) {
+      const row = document.createElement('div');
+      row.className = 'msg-row ' + role;
+
+      if (role === 'agent') {
+        const av  = document.createElement('div');
+        av.className = 'avatar';
+        av.textContent = 'JF';
+        const bbl = document.createElement('div');
+        bbl.className = 'bubble';
+        bbl.innerHTML  = renderMd(text);
+        row.appendChild(av);
+        row.appendChild(bbl);
+      } else {
+        const bbl = document.createElement('div');
+        bbl.className = 'bubble';
+        bbl.textContent = text;
+        row.appendChild(bbl);
+      }
+
+      messagesEl.appendChild(row);
+      scrollDown();
+    }
+
+    function appendError(text) {
+      const row = document.createElement('div');
+      row.className = 'msg-row agent';
+      const av = document.createElement('div');
+      av.className = 'avatar';
+      av.style.cssText = 'background:#FFE0E0; font-size:14px;';
+      av.textContent = '!';
+      const bbl = document.createElement('div');
+      bbl.className = 'error-bubble';
+      bbl.innerHTML  = renderMd(text);
+      row.appendChild(av);
+      row.appendChild(bbl);
+      messagesEl.appendChild(row);
+      scrollDown();
+    }
+
+    // ── Typing indicator ────────────────────────────────────────────────────
+    let typingEl = null;
+
+    function showTyping() {
+      if (typingEl) return;
+      typingEl = document.createElement('div');
+      typingEl.className = 'typing-row';
+      typingEl.innerHTML = `
+        <div class="avatar">JF</div>
+        <div class="typing-bubble">
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+          <div class="typing-dot"></div>
+        </div>`;
+      messagesEl.appendChild(typingEl);
+      scrollDown();
+    }
+
+    function hideTyping() {
+      if (typingEl) { typingEl.remove(); typingEl = null; }
+    }
+
+    // ── Scroll ──────────────────────────────────────────────────────────────
+    function scrollDown() {
+      requestAnimationFrame(() => {
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+      });
+    }
+
+    // ── Status indicator ────────────────────────────────────────────────────
+    function setStatus(state) {
+      const map = {
+        online:   { color: 'var(--success)', label: 'Online' },
+        thinking: { color: 'var(--warning)', label: 'Tippt…' },
+        error:    { color: 'var(--danger)',  label: 'Fehler' },
+        done:     { color: 'var(--success)', label: 'Anfrage gesendet' },
+      };
+      const s = map[state] || map.online;
+      onlineDot.style.background = s.color;
+      onlineLbl.textContent       = s.label;
+    }
+
+    // ── Complete UI ─────────────────────────────────────────────────────────
+    function showSuccess(anfrageId) {
+      isComplete = true;
+      inputBar.style.display = 'none';
+      doneBar.classList.add('visible');
+      setStatus('done');
+
+      const card = document.createElement('div');
+      card.className = 'success-card';
+      card.innerHTML = `
+        <div class="success-icon">✓</div>
+        <h2>Anfrage eingegangen!</h2>
+        <p class="sub">Wir haben deine Anfrage erhalten und melden<br>uns so schnell wie möglich bei dir.</p>
+        ${anfrageId ? `<div class="anfrage-id-badge">${anfrageId}</div>` : ''}
+      `;
+      messagesEl.appendChild(card);
+      scrollDown();
+    }
+
+    // ── Core API call ───────────────────────────────────────────────────────
+    async function callChat(text, hidden = false) {
+      if (isWaiting || isComplete) return;
+
+      // Add to state + optionally show user bubble
+      messages.push({ role: 'user', content: text });
+      if (!hidden) appendBubble('user', text);
+
+      isWaiting = true;
+      sendBtn.disabled = true;
+      inputEl.disabled = true;
+      setStatus('thinking');
+      showTyping();
+
+      try {
+        const res = await fetch(`${API_URL}/api/anfragen/chat`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ messages, sessionData }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || `HTTP ${res.status}`);
+        }
+
+        const data = await res.json();
+
+        sessionData = data.sessionData ?? sessionData;
+        messages.push({ role: 'assistant', content: data.reply });
+
+        hideTyping();
+        appendBubble('agent', data.reply);
+        setStatus('online');
+
+        if (data.completed) showSuccess(data.anfrageId);
+
+      } catch (err) {
+        hideTyping();
+        console.error('[chat]', err);
+        appendError('Verbindungsfehler – bitte Seite neu laden und erneut versuchen.');
+        setStatus('error');
+      }
+
+      isWaiting = false;
+      if (!isComplete) {
+        inputEl.disabled = false;
+        sendBtn.disabled = !inputEl.value.trim();
+        inputEl.focus();
+      }
+    }
+
+    // ── Send handler ────────────────────────────────────────────────────────
+    function handleSend() {
+      const text = inputEl.value.trim();
+      if (!text || isWaiting || isComplete) return;
+      inputEl.value = '';
+      inputEl.style.height = 'auto';
+      sendBtn.disabled = true;
+      callChat(text);
+    }
+
+    // ── Input events ────────────────────────────────────────────────────────
+    inputEl.addEventListener('input', () => {
+      inputEl.style.height = 'auto';
+      inputEl.style.height = Math.min(inputEl.scrollHeight, 110) + 'px';
+      sendBtn.disabled = !inputEl.value.trim() || isWaiting;
+    });
+
+    inputEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      }
+    });
+
+    sendBtn.addEventListener('click', handleSend);
+
+    // ── Boot ────────────────────────────────────────────────────────────────
+    callChat('__init__', true);
+  </script>
+</body>
+</html>
