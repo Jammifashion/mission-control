@@ -401,6 +401,231 @@
       .btn-danger { background: var(--danger); color: #fff; border: none; border-radius: 6px; padding: 0.5rem 1rem; font-size: 0.88rem; cursor: pointer; font-family: inherit; }
       .btn-danger:hover { opacity: 0.88; }
 
+      /* ── Kundenanfragen Extern ── */
+      .anf-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+      .anf-header-title h2 { font-size: 1.45rem; font-weight: 700; color: var(--text); margin: 0; letter-spacing: -0.01em; }
+      .anf-header-sub { font-size: 0.82rem; color: var(--muted); margin-top: 0.25rem; }
+      .anf-new-btn {
+        display: inline-flex; align-items: center; gap: 0.45rem;
+        background: var(--accent); color: #111; border: none;
+        border-radius: 8px; padding: 0.6rem 1rem; font-size: 0.88rem; font-weight: 600;
+        cursor: pointer; font-family: inherit; transition: transform 0.12s, box-shadow 0.12s;
+        box-shadow: 0 1px 0 rgba(0,0,0,0.2), 0 0 0 1px rgba(232,196,74,0.15);
+      }
+      .anf-new-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(232,196,74,0.25); }
+      .anf-new-icon { font-size: 1.05rem; line-height: 1; font-weight: 700; }
+
+      .anf-kpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.85rem; margin-bottom: 1.25rem; }
+      .anf-kpi {
+        background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+        padding: 1rem 1.1rem; position: relative; overflow: hidden;
+        transition: border-color 0.15s, transform 0.15s;
+      }
+      .anf-kpi::before {
+        content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+      }
+      .anf-kpi-neu::before    { background: #ffb84a; }
+      .anf-kpi-active::before { background: #4a9eff; }
+      .anf-kpi-done::before   { background: #6a6a6a; }
+      .anf-kpi-value { font-size: 2rem; font-weight: 700; color: var(--text); line-height: 1; }
+      .anf-kpi-neu .anf-kpi-value    { color: #ffb84a; }
+      .anf-kpi-active .anf-kpi-value { color: #4a9eff; }
+      .anf-kpi-done .anf-kpi-value   { color: #c0c0c0; }
+      .anf-kpi-label { font-size: 0.72rem; color: var(--muted); margin-top: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+
+      .anf-filters { display: flex; align-items: center; gap: 0.55rem; flex-wrap: wrap; margin-bottom: 1rem; }
+      .anf-pill-wrap { position: relative; }
+      .anf-pill-select {
+        background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
+        color: var(--text); padding: 0.5rem 2rem 0.5rem 1rem; font-size: 0.85rem;
+        cursor: pointer; font-family: inherit;
+        appearance: none; -webkit-appearance: none;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%23888' d='M0 0l5 6 5-6z'/></svg>");
+        background-repeat: no-repeat; background-position: right 0.85rem center;
+        transition: border-color 0.15s, background-color 0.15s;
+      }
+      .anf-pill-select:hover { border-color: var(--accent); }
+      .anf-pill-select:focus { outline: none; border-color: var(--accent); }
+      .anf-search-wrap { flex: 1; min-width: 220px; }
+      .anf-search-input {
+        width: 100%; background: var(--surface); border: 1px solid var(--border);
+        border-radius: 999px; color: var(--text); padding: 0.5rem 1rem;
+        font-size: 0.85rem; font-family: inherit;
+        transition: border-color 0.15s;
+      }
+      .anf-search-input::placeholder { color: var(--muted); }
+      .anf-search-input:focus { outline: none; border-color: var(--accent); }
+      .anf-refresh-btn {
+        display: inline-flex; align-items: center; gap: 0.4rem;
+        background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
+        color: var(--text); padding: 0.5rem 1rem; font-size: 0.85rem;
+        cursor: pointer; font-family: inherit; transition: border-color 0.15s, color 0.15s;
+      }
+      .anf-refresh-btn:hover { border-color: var(--accent); color: var(--accent); }
+      .anf-refresh-icon { font-size: 0.95rem; line-height: 1; display: inline-block; }
+      .anf-refresh-btn.is-loading .anf-refresh-icon { animation: anf-spin 0.9s linear infinite; }
+      @keyframes anf-spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+
+      .anf-table-card {
+        background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+        overflow: hidden;
+      }
+      .anf-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+      .anf-table thead th {
+        text-align: left; padding: 0.85rem 1rem; font-weight: 500;
+        font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+        color: var(--muted); background: rgba(255,255,255,0.015);
+        border-bottom: 1px solid var(--border);
+      }
+      .anf-table thead th.anf-num { text-align: right; }
+      .anf-table tbody tr {
+        cursor: pointer;
+        transition: background-color 0.12s;
+      }
+      .anf-table tbody tr + tr td { border-top: 1px solid rgba(255,255,255,0.04); }
+      .anf-table tbody tr:hover { background: rgba(232,196,74,0.04); }
+      .anf-table tbody td { padding: 0.85rem 1rem; color: var(--text); vertical-align: middle; }
+      .anf-table tbody td.anf-num { text-align: right; font-variant-numeric: tabular-nums; }
+      .anf-table .anf-cell-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; color: var(--muted); }
+      .anf-table .anf-cell-customer { font-weight: 500; }
+      .anf-table .anf-cell-customer-sub { font-size: 0.74rem; color: var(--muted); margin-top: 0.15rem; }
+      .anf-table .anf-cell-produkt { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .anf-table .anf-row-action { color: var(--muted); font-size: 1.1rem; transition: color 0.12s; }
+      .anf-table tbody tr:hover .anf-row-action { color: var(--accent); }
+      .anf-empty { text-align: center; color: var(--muted); padding: 2.5rem 1rem; font-size: 0.88rem; }
+      .anf-empty-soft { padding: 0.85rem; }
+
+      /* ── Pill-Badges (Kanal/Status) ── */
+      .anf-badge {
+        display: inline-flex; align-items: center; gap: 0.35rem;
+        font-size: 0.74rem; font-weight: 600; padding: 0.22rem 0.6rem;
+        border-radius: 999px; line-height: 1; letter-spacing: 0.01em;
+        white-space: nowrap;
+      }
+      .anf-badge::before {
+        content: ''; width: 6px; height: 6px; border-radius: 50%;
+        background: currentColor; opacity: 0.85;
+      }
+      /* Kanal */
+      .anf-kanal-Homepage { background: rgba(74,158,255,0.14); color: #6db4ff; }
+      .anf-kanal-EMail    { background: rgba(168,122,255,0.14); color: #b89bff; }
+      .anf-kanal-Manuell  { background: rgba(140,140,140,0.16); color: #b0b0b0; }
+      /* Status */
+      .anf-status-Neu              { background: rgba(255,184,74,0.14);  color: #ffc466; }
+      .anf-status-Geprueft         { background: rgba(74,158,255,0.14);  color: #6db4ff; }
+      .anf-status-Angebot-gesendet { background: rgba(255,140,66,0.14);  color: #ffa066; }
+      .anf-status-Bestaetigt       { background: rgba(82,201,122,0.14);  color: #6fd99a; }
+      .anf-status-In-Produktion    { background: rgba(255,224,102,0.14); color: #ffe082; }
+      .anf-status-Abgeschlossen    { background: rgba(140,140,140,0.16); color: #b0b0b0; }
+
+      /* ── Side-Panel ── */
+      .anf-side-backdrop {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+        opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 9100;
+      }
+      .anf-side-backdrop.is-open { opacity: 1; pointer-events: auto; }
+      .anf-side-panel {
+        position: fixed; top: 0; right: 0; bottom: 0; width: 480px; max-width: 100vw;
+        background: var(--surface); border-left: 1px solid var(--border);
+        transform: translateX(100%); transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+        z-index: 9200; display: flex; flex-direction: column;
+        box-shadow: -8px 0 32px rgba(0,0,0,0.4);
+      }
+      .anf-side-panel.is-open { transform: translateX(0); }
+      .anf-side-head {
+        display: flex; align-items: flex-start; justify-content: space-between;
+        padding: 1.25rem 1.5rem 1rem; border-bottom: 1px solid var(--border);
+      }
+      .anf-side-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1rem; font-weight: 600; color: var(--accent); }
+      .anf-side-date { font-size: 0.78rem; color: var(--muted); margin-top: 0.2rem; }
+      .anf-side-close {
+        background: none; border: none; color: var(--muted); cursor: pointer;
+        font-size: 1.6rem; line-height: 1; padding: 0.15rem 0.4rem; border-radius: 6px;
+        transition: background-color 0.12s, color 0.12s;
+      }
+      .anf-side-close:hover { background: var(--border); color: var(--text); }
+      .anf-side-body { flex: 1; overflow-y: auto; padding: 1.25rem 1.5rem; }
+      .anf-side-section + .anf-side-section { margin-top: 1.5rem; padding-top: 1.25rem; border-top: 1px solid var(--border); }
+      .anf-side-section-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); font-weight: 600; margin-bottom: 0.75rem; }
+      .anf-side-customer-name { font-size: 1.2rem; font-weight: 600; color: var(--text); }
+      .anf-side-customer-email { font-size: 0.86rem; color: var(--muted); margin-top: 0.2rem; }
+      .anf-side-customer-email a { color: inherit; text-decoration: none; }
+      .anf-side-customer-email a:hover { color: var(--accent); }
+      .anf-side-customer-badges { display: flex; gap: 0.4rem; margin-top: 0.7rem; flex-wrap: wrap; }
+      .anf-side-row { display: flex; flex-direction: column; gap: 0.2rem; margin-bottom: 0.7rem; }
+      .anf-side-row-inline { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; }
+      .anf-side-row-inline > div { display: flex; flex-direction: column; gap: 0.2rem; }
+      .anf-side-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 500; }
+      .anf-side-val { font-size: 0.88rem; color: var(--text); }
+      .anf-side-val-empty { color: var(--muted); font-style: italic; }
+      .anf-side-chat { display: flex; flex-direction: column; gap: 0.6rem; }
+      .anf-bubble {
+        background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+        border-radius: 10px; padding: 0.7rem 0.85rem; font-size: 0.86rem; color: var(--text);
+        line-height: 1.45; max-width: 92%;
+      }
+      .anf-bubble.anf-bubble-kunde { border-left: 2px solid #4a9eff; align-self: flex-start; }
+      .anf-bubble.anf-bubble-intern { border-left: 2px solid var(--accent); align-self: flex-end; background: rgba(232,196,74,0.05); }
+      .anf-bubble-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 0.3rem; font-weight: 600; }
+      .anf-side-footer {
+        padding: 1rem 1.5rem 1.25rem; border-top: 1px solid var(--border); background: var(--surface);
+        display: flex; flex-direction: column; gap: 0.6rem;
+      }
+      .anf-side-edit { display: flex; flex-direction: column; gap: 0.3rem; }
+      .anf-side-edit-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; }
+      .anf-side-notiz {
+        width: 100%; box-sizing: border-box; background: var(--bg); border: 1px solid var(--border);
+        border-radius: 8px; color: var(--text); padding: 0.55rem 0.7rem; font-size: 0.86rem;
+        font-family: inherit; resize: vertical; min-height: 60px;
+      }
+      .anf-side-notiz:focus { outline: none; border-color: var(--accent); }
+      .anf-side-save { width: 100%; margin-top: 0.3rem; }
+      .anf-side-savestatus { font-size: 0.78rem; text-align: center; min-height: 1em; }
+      .anf-side-savestatus.is-success { color: var(--success); }
+      .anf-side-savestatus.is-error   { color: var(--danger); }
+
+      /* ── Modal Neue Anfrage ── */
+      .anf-modal-backdrop {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+        opacity: 0; pointer-events: none; transition: opacity 0.18s; z-index: 9300;
+        display: flex; align-items: center; justify-content: center; padding: 1rem;
+      }
+      .anf-modal-backdrop.is-open { opacity: 1; pointer-events: auto; }
+      .anf-modal {
+        background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+        width: 100%; max-width: 560px; max-height: 90vh; display: flex; flex-direction: column;
+        box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+        transform: scale(0.96); transition: transform 0.18s;
+      }
+      .anf-modal-backdrop.is-open .anf-modal { transform: scale(1); }
+      .anf-modal-head {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--border);
+      }
+      .anf-modal-title { font-size: 1.05rem; font-weight: 600; color: var(--text); }
+      .anf-modal-body { padding: 1.25rem 1.5rem 1.5rem; overflow-y: auto; }
+      .anf-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem 0.85rem; }
+      .anf-form-field { display: flex; flex-direction: column; gap: 0.3rem; }
+      .anf-form-field-full { grid-column: 1 / -1; }
+      .anf-form-field > span { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; }
+      .anf-form-field input, .anf-form-field textarea {
+        background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+        color: var(--text); padding: 0.55rem 0.75rem; font-size: 0.88rem;
+        font-family: inherit; resize: vertical;
+      }
+      .anf-form-field input:focus, .anf-form-field textarea:focus { outline: none; border-color: var(--accent); }
+      .anf-modal-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.25rem; }
+      .anf-modal-error { color: var(--danger); font-size: 0.84rem; margin-top: 0.75rem; min-height: 1em; }
+
+      @media (max-width: 720px) {
+        .anf-kpi-row { grid-template-columns: 1fr; }
+        .anf-side-panel { width: 100vw; }
+        .anf-form-grid { grid-template-columns: 1fr; }
+        .anf-table th:nth-child(1), .anf-table td:nth-child(1),
+        .anf-table th:nth-child(2), .anf-table td:nth-child(2),
+        .anf-table th:nth-child(7), .anf-table td:nth-child(7) { display: none; }
+      }
+
       .variants-section { margin-top: 0.85rem; border-top: 1px solid var(--border); padding-top: 0.75rem; }
       .variants-section-title { font-size: 0.72rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 0.5rem; font-weight: 600; }
       .variants-toolbar { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
@@ -602,6 +827,7 @@
       <button class="active" data-panel="dashboard">Dashboard</button>
       <button data-panel="orders">Auftragsmonitor</button>
       <button data-panel="products">Produkte</button>
+      <button data-panel="anfragen">Kundenanfragen Extern</button>
       <button data-panel="claude">Claude</button>
       <button data-panel="partnerportal">Partnerportal</button>
       <button data-panel="settings">Einstellungen</button>
@@ -1146,6 +1372,83 @@
       </section>
 
       <!-- Settings -->
+      <!-- Kundenanfragen Extern -->
+      <section id="panel-anfragen" class="panel">
+        <div class="anf-header">
+          <div class="anf-header-title">
+            <h2>Kundenanfragen</h2>
+            <div class="anf-header-sub">Externe Produkt- und Auftragsanfragen</div>
+          </div>
+          <button class="anf-new-btn" id="anf-btn-new" title="Neue Anfrage manuell anlegen">
+            <span class="anf-new-icon">+</span> Neue Anfrage
+          </button>
+        </div>
+
+        <div class="anf-kpi-row">
+          <div class="anf-kpi anf-kpi-neu" data-status-group="neu">
+            <div class="anf-kpi-value" id="anf-kpi-neu-val">—</div>
+            <div class="anf-kpi-label">Neu</div>
+          </div>
+          <div class="anf-kpi anf-kpi-active" data-status-group="active">
+            <div class="anf-kpi-value" id="anf-kpi-active-val">—</div>
+            <div class="anf-kpi-label">In Bearbeitung</div>
+          </div>
+          <div class="anf-kpi anf-kpi-done" data-status-group="done">
+            <div class="anf-kpi-value" id="anf-kpi-done-val">—</div>
+            <div class="anf-kpi-label">Abgeschlossen</div>
+          </div>
+        </div>
+
+        <div class="anf-filters">
+          <div class="anf-pill-wrap">
+            <select class="anf-pill-select" id="anf-filter-status">
+              <option value="">Alle Status</option>
+              <option value="Neu">Neu</option>
+              <option value="Geprüft">Geprüft</option>
+              <option value="Angebot-gesendet">Angebot gesendet</option>
+              <option value="Bestätigt">Bestätigt</option>
+              <option value="In-Produktion">In Produktion</option>
+              <option value="Abgeschlossen">Abgeschlossen</option>
+            </select>
+          </div>
+          <div class="anf-pill-wrap">
+            <select class="anf-pill-select" id="anf-filter-kanal">
+              <option value="">Alle Kanäle</option>
+              <option value="Homepage">Homepage</option>
+              <option value="E-Mail">E-Mail</option>
+              <option value="Manuell">Manuell</option>
+            </select>
+          </div>
+          <div class="anf-search-wrap">
+            <input class="anf-search-input" id="anf-filter-search" type="search" placeholder="Suche Kunde oder Produkt…" autocomplete="off" />
+          </div>
+          <button class="anf-refresh-btn" id="anf-btn-refresh" title="Aktualisieren">
+            <span class="anf-refresh-icon">⟳</span> Aktualisieren
+          </button>
+        </div>
+
+        <div class="anf-table-card">
+          <table class="anf-table">
+            <thead>
+              <tr>
+                <th>Anfrage-ID</th>
+                <th>Datum</th>
+                <th>Kanal</th>
+                <th>Kunde</th>
+                <th>Produkt</th>
+                <th class="anf-num">Menge</th>
+                <th class="anf-num">Preisvorschlag</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="anf-tbody">
+              <tr><td colspan="9" class="anf-empty">Lade…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <section id="panel-settings" class="panel">
         <div class="card">
           <h2>Backend-URL</h2>
@@ -1172,6 +1475,121 @@
         </div>
       </section>
     </main>
+
+    <!-- Kundenanfragen: Side-Panel + Modal -->
+    <div class="anf-side-backdrop" id="anf-side-backdrop"></div>
+    <aside class="anf-side-panel" id="anf-side-panel" aria-hidden="true">
+      <header class="anf-side-head">
+        <div>
+          <div class="anf-side-id" id="anf-side-id">—</div>
+          <div class="anf-side-date" id="anf-side-date"></div>
+        </div>
+        <button class="anf-side-close" id="anf-side-close" aria-label="Schließen">×</button>
+      </header>
+
+      <div class="anf-side-body" id="anf-side-body">
+        <section class="anf-side-section anf-side-customer">
+          <div class="anf-side-customer-name" id="anf-side-cust-name">—</div>
+          <div class="anf-side-customer-email" id="anf-side-cust-email"></div>
+          <div class="anf-side-customer-badges">
+            <span class="anf-badge anf-badge-kanal" id="anf-side-kanal"></span>
+            <span class="anf-badge anf-badge-status" id="anf-side-status-badge"></span>
+          </div>
+        </section>
+
+        <section class="anf-side-section">
+          <div class="anf-side-section-title">Produkt</div>
+          <div class="anf-side-row"><span class="anf-side-label">Beschreibung</span><span class="anf-side-val" id="anf-side-produkt">—</span></div>
+          <div class="anf-side-row anf-side-row-inline">
+            <div><span class="anf-side-label">Menge</span><span class="anf-side-val" id="anf-side-menge">—</span></div>
+            <div><span class="anf-side-label">Varianten</span><span class="anf-side-val" id="anf-side-varianten">—</span></div>
+          </div>
+          <div class="anf-side-row anf-side-row-inline">
+            <div><span class="anf-side-label">Preisvorschlag</span><span class="anf-side-val" id="anf-side-preis">—</span></div>
+            <div><span class="anf-side-label">Partner</span><span class="anf-side-val" id="anf-side-partner">—</span></div>
+          </div>
+          <div class="anf-side-row"><span class="anf-side-label">WC-Order</span><span class="anf-side-val" id="anf-side-wcorder">—</span></div>
+        </section>
+
+        <section class="anf-side-section">
+          <div class="anf-side-section-title">Gesprächsverlauf</div>
+          <div class="anf-side-chat" id="anf-side-chat">
+            <div class="anf-empty anf-empty-soft">Keine Anmerkungen.</div>
+          </div>
+        </section>
+      </div>
+
+      <footer class="anf-side-footer">
+        <div class="anf-side-edit">
+          <label class="anf-side-edit-label">Status ändern</label>
+          <select class="anf-pill-select" id="anf-side-status-sel">
+            <option value="Neu">Neu</option>
+            <option value="Geprüft">Geprüft</option>
+            <option value="Angebot-gesendet">Angebot gesendet</option>
+            <option value="Bestätigt">Bestätigt</option>
+            <option value="In-Produktion">In Produktion</option>
+            <option value="Abgeschlossen">Abgeschlossen</option>
+          </select>
+        </div>
+        <div class="anf-side-edit">
+          <label class="anf-side-edit-label">Interne Notiz</label>
+          <textarea class="anf-side-notiz" id="anf-side-notiz" rows="3" placeholder="Notiz hinzufügen oder bestehende überschreiben…"></textarea>
+        </div>
+        <button class="btn anf-side-save" id="anf-side-save">Speichern</button>
+        <div class="anf-side-savestatus" id="anf-side-savestatus"></div>
+      </footer>
+    </aside>
+
+    <!-- Neue Anfrage Modal -->
+    <div class="anf-modal-backdrop" id="anf-modal-backdrop">
+      <div class="anf-modal" role="dialog" aria-modal="true">
+        <header class="anf-modal-head">
+          <div class="anf-modal-title">Neue Anfrage</div>
+          <button class="anf-side-close" id="anf-modal-close" aria-label="Schließen">×</button>
+        </header>
+        <form id="anf-new-form" class="anf-modal-body">
+          <div class="anf-form-grid">
+            <label class="anf-form-field">
+              <span>Name *</span>
+              <input type="text" name="kundeName" required />
+            </label>
+            <label class="anf-form-field">
+              <span>E-Mail *</span>
+              <input type="email" name="kundeEmail" required />
+            </label>
+            <label class="anf-form-field anf-form-field-full">
+              <span>Produkt-Beschreibung *</span>
+              <textarea name="produktBeschreibung" rows="3" required></textarea>
+            </label>
+            <label class="anf-form-field">
+              <span>Menge</span>
+              <input type="text" name="menge" placeholder="z. B. 50" />
+            </label>
+            <label class="anf-form-field">
+              <span>Varianten</span>
+              <input type="text" name="varianten" placeholder="z. B. S/M/L, schwarz" />
+            </label>
+            <label class="anf-form-field">
+              <span>Partner-ID (optional)</span>
+              <input type="text" name="partnerId" />
+            </label>
+            <label class="anf-form-field">
+              <span>Preisvorschlag</span>
+              <input type="number" step="0.01" name="preisvorschlag" />
+            </label>
+            <label class="anf-form-field anf-form-field-full">
+              <span>Anmerkungen des Kunden</span>
+              <textarea name="anmerkungenKunde" rows="2"></textarea>
+            </label>
+          </div>
+          <div class="anf-modal-actions">
+            <button type="button" class="btn btn-ghost" id="anf-modal-cancel">Abbrechen</button>
+            <button type="submit" class="btn" id="anf-modal-submit">Anfrage anlegen</button>
+          </div>
+          <div class="anf-modal-error" id="anf-modal-error"></div>
+        </form>
+      </div>
+    </div>
 
     <footer>Jammi Fashion &mdash; Mission Control v0.1</footer>
 
@@ -1206,6 +1624,7 @@
           if (btn.dataset.panel === 'dashboard')     loadDashboard();
           if (btn.dataset.panel === 'orders')        loadOrders();
           if (btn.dataset.panel === 'products')      ssot.kategorien.length ? populateCategories() : loadSsotData();
+          if (btn.dataset.panel === 'anfragen')      loadAnfragen();
           if (btn.dataset.panel === 'partnerportal') loadPartnerportal();
         });
       });
@@ -3800,6 +4219,291 @@
       sendBtn.addEventListener('click', sendMessage);
       inputEl.addEventListener('keydown', e => {
         if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+      });
+
+      // ── SECTION: Kundenanfragen Extern (Zeile 4222) ──
+      const ANF_ACTIVE_STATES = ['Geprüft', 'Angebot-gesendet', 'Bestätigt', 'In-Produktion'];
+      let anfCache = [];          // alle vom Server geladenen Anfragen
+      let anfCurrentId = null;    // aktuell im Side-Panel geöffnete Anfrage-ID
+      let anfSearchTimer = null;
+
+      function anfCssSafeKanal(kanal) {
+        return (kanal || '').replace(/-/g, '').replace(/[^A-Za-z0-9]/g, '');
+      }
+      function anfCssSafeStatus(status) {
+        return (status || '')
+          .replace(/ü/g, 'ue').replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ß/g, 'ss')
+          .replace(/[^A-Za-z0-9-]/g, '');
+      }
+      function anfEscape(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+      }
+      function anfFormatPreis(v) {
+        if (v === '' || v === null || v === undefined) return '—';
+        const n = parseFloat(String(v).replace(',', '.'));
+        if (!Number.isFinite(n)) return anfEscape(v);
+        return n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+      }
+      function anfKanalBadge(kanal) {
+        if (!kanal) return '';
+        return `<span class="anf-badge anf-kanal-${anfCssSafeKanal(kanal)}">${anfEscape(kanal)}</span>`;
+      }
+      function anfStatusBadge(status) {
+        if (!status) return '';
+        return `<span class="anf-badge anf-status-${anfCssSafeStatus(status)}">${anfEscape(status)}</span>`;
+      }
+
+      function anfUpdateKpis(rows) {
+        const cNeu    = rows.filter(r => r.status === 'Neu').length;
+        const cActive = rows.filter(r => ANF_ACTIVE_STATES.includes(r.status)).length;
+        const cDone   = rows.filter(r => r.status === 'Abgeschlossen').length;
+        document.getElementById('anf-kpi-neu-val').textContent    = cNeu;
+        document.getElementById('anf-kpi-active-val').textContent = cActive;
+        document.getElementById('anf-kpi-done-val').textContent   = cDone;
+      }
+
+      function anfApplyFilters() {
+        const status = document.getElementById('anf-filter-status').value;
+        const kanal  = document.getElementById('anf-filter-kanal').value;
+        const search = document.getElementById('anf-filter-search').value.trim().toLowerCase();
+        return anfCache.filter(r => {
+          if (status && r.status !== status) return false;
+          if (kanal  && r.kanal  !== kanal)  return false;
+          if (search) {
+            const hay = `${r.kundeName} ${r.kundeEmail} ${r.produktBeschreibung}`.toLowerCase();
+            if (!hay.includes(search)) return false;
+          }
+          return true;
+        });
+      }
+
+      function anfRenderTable() {
+        const tbody = document.getElementById('anf-tbody');
+        const rows  = anfApplyFilters();
+        if (!rows.length) {
+          tbody.innerHTML = `<tr><td colspan="9" class="anf-empty">Keine Anfragen gefunden.</td></tr>`;
+          return;
+        }
+        // Sortierung: neueste zuerst (anhand Anfrage-ID, da diese aufsteigend pro Jahr läuft)
+        const sorted = [...rows].sort((a, b) => (b.anfrageId || '').localeCompare(a.anfrageId || ''));
+        tbody.innerHTML = sorted.map(r => `
+          <tr data-id="${anfEscape(r.anfrageId)}">
+            <td class="anf-cell-id">${anfEscape(r.anfrageId)}</td>
+            <td>${anfEscape(r.datum || '—')}</td>
+            <td>${anfKanalBadge(r.kanal)}</td>
+            <td>
+              <div class="anf-cell-customer">${anfEscape(r.kundeName || '—')}</div>
+              <div class="anf-cell-customer-sub">${anfEscape(r.kundeEmail || '')}</div>
+            </td>
+            <td><div class="anf-cell-produkt" title="${anfEscape(r.produktBeschreibung)}">${anfEscape(r.produktBeschreibung || '—')}</div></td>
+            <td class="anf-num">${anfEscape(r.menge || '—')}</td>
+            <td class="anf-num">${anfFormatPreis(r.preisvorschlag)}</td>
+            <td>${anfStatusBadge(r.status)}</td>
+            <td class="anf-num"><span class="anf-row-action">›</span></td>
+          </tr>
+        `).join('');
+        tbody.querySelectorAll('tr[data-id]').forEach(tr => {
+          tr.addEventListener('click', () => anfOpenSide(tr.dataset.id));
+        });
+      }
+
+      async function loadAnfragen() {
+        const refreshBtn = document.getElementById('anf-btn-refresh');
+        refreshBtn.classList.add('is-loading');
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/anfragen`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          anfCache = await res.json();
+          anfUpdateKpis(anfCache);
+          anfRenderTable();
+        } catch (e) {
+          document.getElementById('anf-tbody').innerHTML =
+            `<tr><td colspan="9" class="anf-empty">Fehler beim Laden: ${anfEscape(e.message)}</td></tr>`;
+        } finally {
+          refreshBtn.classList.remove('is-loading');
+        }
+      }
+      window.loadAnfragen = loadAnfragen;
+
+      function anfOpenSide(anfrageId) {
+        const r = anfCache.find(x => x.anfrageId === anfrageId);
+        if (!r) return;
+        anfCurrentId = anfrageId;
+
+        document.getElementById('anf-side-id').textContent   = r.anfrageId;
+        document.getElementById('anf-side-date').textContent = r.datum || '—';
+
+        document.getElementById('anf-side-cust-name').textContent  = r.kundeName || '—';
+        const emailEl = document.getElementById('anf-side-cust-email');
+        emailEl.innerHTML = r.kundeEmail
+          ? `<a href="mailto:${anfEscape(r.kundeEmail)}">${anfEscape(r.kundeEmail)}</a>`
+          : '<span class="anf-side-val-empty">Keine E-Mail</span>';
+
+        const kanalEl = document.getElementById('anf-side-kanal');
+        kanalEl.className = `anf-badge anf-kanal-${anfCssSafeKanal(r.kanal || 'Manuell')}`;
+        kanalEl.textContent = r.kanal || '—';
+        const statusBadgeEl = document.getElementById('anf-side-status-badge');
+        statusBadgeEl.className = `anf-badge anf-status-${anfCssSafeStatus(r.status || 'Neu')}`;
+        statusBadgeEl.textContent = r.status || '—';
+
+        document.getElementById('anf-side-produkt').textContent   = r.produktBeschreibung || '—';
+        document.getElementById('anf-side-menge').textContent     = r.menge || '—';
+        document.getElementById('anf-side-varianten').textContent = r.varianten || '—';
+        document.getElementById('anf-side-preis').textContent     = r.preisvorschlag ? anfFormatPreis(r.preisvorschlag) : '—';
+        document.getElementById('anf-side-partner').textContent   = r.partnerId || '—';
+        document.getElementById('anf-side-wcorder').textContent   = r.wcOrderId || '—';
+
+        const chat = document.getElementById('anf-side-chat');
+        const bubbles = [];
+        if (r.anmerkungenKunde) {
+          bubbles.push(`<div class="anf-bubble anf-bubble-kunde"><div class="anf-bubble-label">Kunde</div>${anfEscape(r.anmerkungenKunde)}</div>`);
+        }
+        if (r.notizIntern) {
+          bubbles.push(`<div class="anf-bubble anf-bubble-intern"><div class="anf-bubble-label">Intern</div>${anfEscape(r.notizIntern)}</div>`);
+        }
+        chat.innerHTML = bubbles.length ? bubbles.join('') : '<div class="anf-empty anf-empty-soft">Noch keine Anmerkungen.</div>';
+
+        document.getElementById('anf-side-status-sel').value = r.status || 'Neu';
+        document.getElementById('anf-side-notiz').value      = r.notizIntern || '';
+        const saveStatus = document.getElementById('anf-side-savestatus');
+        saveStatus.textContent = '';
+        saveStatus.className   = 'anf-side-savestatus';
+
+        document.getElementById('anf-side-backdrop').classList.add('is-open');
+        const panel = document.getElementById('anf-side-panel');
+        panel.classList.add('is-open');
+        panel.setAttribute('aria-hidden', 'false');
+      }
+
+      function anfCloseSide() {
+        anfCurrentId = null;
+        document.getElementById('anf-side-backdrop').classList.remove('is-open');
+        const panel = document.getElementById('anf-side-panel');
+        panel.classList.remove('is-open');
+        panel.setAttribute('aria-hidden', 'true');
+      }
+
+      async function anfSaveSide() {
+        if (!anfCurrentId) return;
+        const original    = anfCache.find(x => x.anfrageId === anfCurrentId);
+        const status      = document.getElementById('anf-side-status-sel').value;
+        const notizIntern = document.getElementById('anf-side-notiz').value;
+        const body = {};
+        if (original?.status !== status)               body.status = status;
+        if ((original?.notizIntern ?? '') !== notizIntern) body.notizIntern = notizIntern;
+
+        const saveStatus = document.getElementById('anf-side-savestatus');
+        const saveBtn    = document.getElementById('anf-side-save');
+
+        if (!Object.keys(body).length) {
+          saveStatus.textContent = 'Keine Änderungen.';
+          saveStatus.className   = 'anf-side-savestatus';
+          return;
+        }
+
+        saveBtn.disabled = true;
+        saveStatus.textContent = 'Speichere…';
+        saveStatus.className   = 'anf-side-savestatus';
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/anfragen/${encodeURIComponent(anfCurrentId)}/status`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+          if (original) {
+            if (body.status      !== undefined) original.status      = body.status;
+            if (body.notizIntern !== undefined) original.notizIntern = body.notizIntern;
+          }
+          anfUpdateKpis(anfCache);
+          anfRenderTable();
+          saveStatus.textContent = 'Gespeichert.';
+          saveStatus.className   = 'anf-side-savestatus is-success';
+          showToast('Anfrage aktualisiert', 'success');
+        } catch (e) {
+          saveStatus.textContent = `Fehler: ${e.message}`;
+          saveStatus.className   = 'anf-side-savestatus is-error';
+        } finally {
+          saveBtn.disabled = false;
+        }
+      }
+
+      function anfOpenModal() {
+        const form = document.getElementById('anf-new-form');
+        form.reset();
+        document.getElementById('anf-modal-error').textContent = '';
+        document.getElementById('anf-modal-backdrop').classList.add('is-open');
+        setTimeout(() => form.querySelector('input[name="kundeName"]')?.focus(), 60);
+      }
+      function anfCloseModal() {
+        document.getElementById('anf-modal-backdrop').classList.remove('is-open');
+      }
+      async function anfSubmitNew(e) {
+        e.preventDefault();
+        const form = e.target;
+        const errEl = document.getElementById('anf-modal-error');
+        const submitBtn = document.getElementById('anf-modal-submit');
+        errEl.textContent = '';
+        const fd = new FormData(form);
+        const body = {
+          kanal:               'Manuell',
+          kundeName:           (fd.get('kundeName') || '').trim(),
+          kundeEmail:          (fd.get('kundeEmail') || '').trim(),
+          produktBeschreibung: (fd.get('produktBeschreibung') || '').trim(),
+          menge:               (fd.get('menge') || '').trim(),
+          varianten:           (fd.get('varianten') || '').trim(),
+          partnerId:           (fd.get('partnerId') || '').trim(),
+          preisvorschlag:      (fd.get('preisvorschlag') || '').trim(),
+          anmerkungenKunde:    (fd.get('anmerkungenKunde') || '').trim(),
+        };
+        if (!body.kundeName || !body.kundeEmail || !body.produktBeschreibung) {
+          errEl.textContent = 'Bitte Name, E-Mail und Produkt-Beschreibung ausfüllen.';
+          return;
+        }
+        submitBtn.disabled = true;
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/anfragen/neu`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+          anfCloseModal();
+          showToast(`Anfrage ${data.anfrageId} angelegt`, 'success');
+          await loadAnfragen();
+          anfOpenSide(data.anfrageId);
+        } catch (e) {
+          errEl.textContent = `Fehler: ${e.message}`;
+        } finally {
+          submitBtn.disabled = false;
+        }
+      }
+
+      // Event-Wiring
+      document.getElementById('anf-btn-refresh').addEventListener('click', loadAnfragen);
+      document.getElementById('anf-filter-status').addEventListener('change', anfRenderTable);
+      document.getElementById('anf-filter-kanal').addEventListener('change', anfRenderTable);
+      document.getElementById('anf-filter-search').addEventListener('input', () => {
+        clearTimeout(anfSearchTimer);
+        anfSearchTimer = setTimeout(anfRenderTable, 180);
+      });
+      document.getElementById('anf-side-close').addEventListener('click', anfCloseSide);
+      document.getElementById('anf-side-backdrop').addEventListener('click', anfCloseSide);
+      document.getElementById('anf-side-save').addEventListener('click', anfSaveSide);
+      document.getElementById('anf-btn-new').addEventListener('click', anfOpenModal);
+      document.getElementById('anf-modal-close').addEventListener('click', anfCloseModal);
+      document.getElementById('anf-modal-cancel').addEventListener('click', anfCloseModal);
+      document.getElementById('anf-modal-backdrop').addEventListener('click', e => {
+        if (e.target.id === 'anf-modal-backdrop') anfCloseModal();
+      });
+      document.getElementById('anf-new-form').addEventListener('submit', anfSubmitNew);
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+          if (document.getElementById('anf-modal-backdrop').classList.contains('is-open')) anfCloseModal();
+          else if (document.getElementById('anf-side-panel').classList.contains('is-open')) anfCloseSide();
+        }
       });
 
       // ── SECTION: Settings (Zeile 3604) ──

@@ -13,6 +13,7 @@ Aktuelle Sektionen:
 - Auftragsmonitor: Shop Orders (Zeile 1801)
 - Artikelerfassung (Zeile 1978)
 - SEO-Flow (Zeile 2664)
+- Kundenanfragen Extern (Zeile 4222)
 - Settings (Zeile 3604)
 - Partnerportal (Zeile 3724)
 - Partner-Artikel-Tab (Zeile ~4532)
@@ -30,6 +31,7 @@ Neue Sektionen immer mit Anker versehen:
 - backend/routes/kalkulation.js – Partner CRUD, Druck-/Fixkosten, Abrechnungen
 - backend/routes/partner-artikel.js – Partner_Artikel + Interne Bestellungen (Admin, MC_API_KEY)
 - backend/routes/partnerPortal.js – Token-Auth für partner.html + WC-Sync
+- backend/routes/anfragen.js – Kundenanfragen (POST /neu, GET /, PATCH /:id/status)
 - backend/utils/partner-kalkulation.js – berechnePartnerAnteil() Helper
 - docs/SEO Beschreibungs-Framework.md – SEO Prompt Vorlage
 - GCP_Setup_Notizen.md – GCP IDs (lokal only, nicht im Repo)
