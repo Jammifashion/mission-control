@@ -3223,7 +3223,8 @@
       // ── PUT Handler: Änderungen speichern ────────────────────────────────
       document.getElementById('btn-update-wc').addEventListener('click', async () => {
         if (!wcEditProductId) return;
-        if (variants.some(v => !v.price)) {
+        const activeVariants = variants.filter(v => v._checked !== false);
+        if (activeVariants.some(v => !v.price)) {
           showToast('Bitte alle Variantenpreise ausfüllen', 'error'); return;
         }
 
@@ -3232,14 +3233,14 @@
         pushStatus.textContent = 'Wird gespeichert…';
         pushStatus.style.color = 'var(--muted)';
 
-        const wcVariations = variants.map(v => ({
+        const wcVariations = activeVariants.map(v => ({
           id:            v.wcVariationId || undefined,
           attributes:    v.attrs.map(a => ({ name: a.name, option: a.value })),
           regular_price: String(v.price),
         }));
 
         const attrMap = {};
-        variants.forEach(v => v.attrs.forEach(a => {
+        activeVariants.forEach(v => v.attrs.forEach(a => {
           if (!attrMap[a.name]) attrMap[a.name] = new Set();
           attrMap[a.name].add(a.value);
         }));
