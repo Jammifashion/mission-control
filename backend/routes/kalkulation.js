@@ -208,12 +208,12 @@ router.get('/partner', async (req, res, next) => {
     const shopIdx    = header.indexOf('Shop');
 
     const reqShop = req.query.shop === 'honk' ? 'honk' : 'jfn';
-    const matchesShop = r => {
+    const effectiveShop = r => {
       const s = (shopIdx !== -1 ? (r[shopIdx] ?? '') : '').toLowerCase().trim();
-      return s === '' || s === 'beide' || s === reqShop;
+      return (s === '' || s === 'beide' || s === 'jfn') ? 'jfn' : 'honk';
     };
 
-    res.json(rows.filter(matchesShop).map(r => ({
+    res.json(rows.filter(r => effectiveShop(r) === reqShop).map(r => ({
       id:            r[idIdx]    ?? '',
       name:          r[nameIdx]  ?? '',
       kategorie:     r[katIdx]   ?? '',
@@ -222,7 +222,7 @@ router.get('/partner', async (req, res, next) => {
       lizenzProzent: toFloat(r[lizenzIdx]),
       portoModell:   r[portoIdx]   ?? 'geteilt-50-50',
       notiz:         r[notizIdx]   ?? '',
-      shop:          (shopIdx !== -1 ? (r[shopIdx] ?? '') : '') || 'beide',
+      shop:          effectiveShop(r),
     })));
   } catch (err) { next(err); }
 });
@@ -235,14 +235,23 @@ router.post('/partner', async (req, res, next) => {
 
     const {
       name, kategorie = '', lizenzProzent = 0,
-      portoModell = 'geteilt-50-50', aktiv = true, notiz = '', shop = 'beide',
+      portoModell = 'geteilt-50-50', aktiv = true, notiz = '',
     } = req.body;
+    const cleanShop = req.body.shop === 'honk' ? 'honk' : 'jfn';
     if (!name) return res.status(400).json({ error: 'name ist erforderlich.' });
 
     const sheets = await getSheets();
     const { header, rows } = await readTab(sheets, sheetId, 'Partner');
 
-    const idIdx = header.indexOf('Partner-ID');
+    const idIdx   = header.indexOf('Partner-ID');
+    const shopIdx = header.indexOf('Shop');
+    if (cleanShop === 'honk') {
+      const hasHonk = rows.some(r => {
+        const s = (shopIdx !== -1 ? (r[shopIdx] ?? '') : '').toLowerCase().trim();
+        return s === 'honk';
+      });
+      if (hasHonk) return res.status(400).json({ error: 'HonkShop kann nur einen Partner haben.' });
+    }
     const maxNum = rows
       .map(r => (r[idIdx] ?? '').toString())
       .filter(id => /^P-\d+$/.test(id))
@@ -262,7 +271,7 @@ router.post('/partner', async (req, res, next) => {
     put('Lizenz-%',       lizenzProzent);
     put('Porto-Modell',   portoModell);
     put('Notiz',          notiz);
-    put('Shop',           shop);
+    put('Shop',           cleanShop);
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
@@ -272,7 +281,7 @@ router.post('/partner', async (req, res, next) => {
       requestBody: { values: [rowVals] },
     });
 
-    res.status(201).json({ id: partnerId, name, kategorie, aktiv, lizenzProzent, portoModell, notiz, shop });
+    res.status(201).json({ id: partnerId, name, kategorie, aktiv, lizenzProzent, portoModell, notiz, shop: cleanShop });
   } catch (err) { next(err); }
 });
 
@@ -290,7 +299,8 @@ router.patch('/partner/:id', async (req, res, next) => {
     if (rowIndex === -1)
       return res.status(404).json({ error: `Partner "${req.params.id}" nicht gefunden.` });
 
-    const { name, kategorie, lizenzProzent, portoModell, aktiv, notiz, token, shop } = req.body;
+    const { name, kategorie, lizenzProzent, portoModell, aktiv, notiz, token } = req.body;
+    const patchShop = req.body.shop === 'honk' ? 'honk' : req.body.shop === 'jfn' ? 'jfn' : undefined;
     const sheetRow = rowIndex + 2;
 
     const colMap = {
@@ -301,7 +311,7 @@ router.patch('/partner/:id', async (req, res, next) => {
       'Porto-Modell':   portoModell,
       'Aktiv':          aktiv !== undefined ? (aktiv ? 'Ja' : 'Nein') : undefined,
       'Notiz':          notiz,
-      'Shop':           shop,
+      'Shop':           patchShop,
     };
 
     const data = Object.entries(colMap)

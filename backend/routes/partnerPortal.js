@@ -72,7 +72,105 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
   const shopCfg = getShopConfig(shop);
   const TAB_VERKAEUFE = shopCfg.tabVerkaeufe;
 
-  // 1a. Partner_Artikel laden → Map: productId → [{ partnerId, lizenzProzent, ek, druck, versandart }]
+  // HonkShop: kein Partner_Artikel Lookup – alle Items gehen an den einzigen honk-Partner.
+  if (shop === 'honk') {
+    const { header: pH, rows: pRows } = await readTab(sheets, sheetId, 'Partner');
+    const ph = col => pH.indexOf(col);
+    const shopCol = ph('Shop');
+    const honkRow = pRows.find(r =>
+      (shopCol !== -1 ? (r[shopCol] ?? '') : '').toLowerCase().trim() === 'honk' &&
+      (r[ph('Aktiv')] ?? '').toLowerCase() === 'ja'
+    );
+    if (!honkRow) return { synced: 0, orders: 0, afterParam: null, message: 'Kein aktiver HonkShop-Partner gefunden.' };
+
+    const honkPartnerId  = honkRow[ph('Partner-ID')] ?? '';
+    const lizenzProzent  = toFloat(honkRow[ph('Lizenz-%')]);
+    const portoModell    = honkRow[ph('Porto-Modell')] ?? 'geteilt-50-50';
+
+    const { header: kH, rows: kRows } = await readTab(sheets, sheetId, 'Kalkulation_Fixkosten');
+    const konfiguration = parseKonfiguration(kRows, kH);
+
+    const { header: vH, rows: vRows } = await readTab(sheets, sheetId, TAB_VERKAEUFE);
+    const vh = col => vH.indexOf(col);
+    const varKey = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
+    const existingKeys = new Set(
+      vRows.map(r => `${r[vh('Order-ID')] ?? ''}|${r[vh('Artikelnummer')] ?? ''}|${varKey(r[vh('Variante')])}|${r[vh('Partner-ID')] ?? ''}`)
+    );
+
+    let afterParam = after || null;
+    if (!afterParam && vRows.length) {
+      const datIdx = vh('Datum');
+      let newest = null;
+      for (const r of vRows) {
+        const d = parseDate(r[datIdx] ?? '');
+        if (d && (!newest || d > newest)) newest = d;
+      }
+      if (newest) afterParam = newest.toISOString().slice(0, 19);
+    }
+
+    const wc = getWcClient(shop);
+    const orders = [];
+    for (let page = 1; ; page++) {
+      const params = { per_page: 100, page };
+      if (afterParam) params.after = afterParam;
+      const [proc, compl] = await Promise.all([
+        wc.get('orders', { ...params, status: 'processing' }),
+        wc.get('orders', { ...params, status: 'completed'  }),
+      ]);
+      orders.push(...proc.data, ...compl.data);
+      if (proc.data.length < 100 && compl.data.length < 100) break;
+    }
+
+    const toWrite = [];
+    const artikelName = item => item.name || item.sku || String(item.product_id);
+    for (const order of orders) {
+      const orderDate = toDE(new Date(order.date_created));
+      const shippingNetto = toFloat(order.shipping_total);
+      const orderNetto = order.line_items.reduce((s, i) => s + toFloat(i.total), 0);
+
+      for (const item of order.line_items) {
+        const itemNetto = toFloat(item.total);
+        const anteil = orderNetto > 0 ? (itemNetto / orderNetto) : 0;
+        const portoEinnahmeAnteil = shippingNetto * anteil;
+        const artKey = artikelName(item);
+        const variationId = String(item.variation_id || 0);
+        const key = `${order.id}|${artKey}|${variationId}|${honkPartnerId}`;
+        if (existingKeys.has(key)) continue;
+        existingKeys.add(key);
+
+        const calc = berechnePartnerAnteil({
+          vkNetto: itemNetto, ekPreis: 0, druckkosten: 0, versandart: 'P',
+          portoModell, bestellungsAnteil: anteil, lizenzProzent, portoEinnahmeAnteil, konfiguration,
+        });
+        const lizenzAnteilVomGewinn = calc.gewinnNetto * (lizenzProzent || 0) / 100;
+        toWrite.push([
+          honkPartnerId, orderDate, order.id,
+          artKey, item.variation_id || 0, item.quantity,
+          itemNetto, calc.partnerAnteil, 'offen',
+          item.product_id, calc.gewinnNetto, lizenzAnteilVomGewinn, calc.portoSaldoPartner, calc.brutto,
+        ]);
+      }
+    }
+
+    if (toWrite.length > 0) {
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: sheetId,
+        range: `${TAB_VERKAEUFE}!A:N`,
+        valueInputOption: 'RAW',
+        insertDataOption: 'INSERT_ROWS',
+        requestBody: { values: toWrite },
+      });
+    }
+
+    return {
+      synced: toWrite.length, orders: orders.length, afterParam: afterParam || null,
+      message: toWrite.length
+        ? `${toWrite.length} neue Einträge aus ${orders.length} Bestellungen synchronisiert.`
+        : 'Alle Einträge bereits vorhanden – nichts Neues.',
+    };
+  }
+
+  // JFN: Partner_Artikel Lookup → Map: productId → [{ partnerId, lizenzProzent, ek, druck, versandart }]
   const { header: aH, rows: aRows } = await readTab(sheets, sheetId, 'Partner_Artikel');
   const ah = col => aH.indexOf(col);
   const partnerArtikelMap = {};

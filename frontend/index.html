@@ -1708,6 +1708,8 @@
         b.title = (shop === 'honk' ? 'HonkShop' : 'Jammi Fashion') + ' – Klick zum Wechseln';
         const ordersLabel = document.getElementById('nav-orders-label');
         if (ordersLabel) ordersLabel.textContent = shop === 'honk' ? 'HonkShop' : 'Jammi Fashion Shop';
+        const artikelTab = document.querySelector('[data-ptab="artikel"]');
+        if (artikelTab) artikelTab.style.display = shop === 'honk' ? 'none' : '';
       }
 
       // Fügt ?shop=<currentShop> an alle Mission-Control-API-URLs an.
@@ -4892,6 +4894,16 @@
         } catch (e) {
           wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
         }
+        // HonkShop: "Neuer Partner" sperren wenn bereits ein Partner vorhanden
+        const addBtn = document.getElementById('btn-add-partner');
+        if (addBtn && window.currentShop?.() === 'honk') {
+          const hasHonk = _ppPartners.some(p => p.shop === 'honk');
+          addBtn.disabled = hasHonk;
+          addBtn.title = hasHonk ? 'HonkShop kann nur einen Partner haben.' : '';
+        } else if (addBtn) {
+          addBtn.disabled = false;
+          addBtn.title = '';
+        }
       }
 
       function openPartnerModal(partner = null) {
@@ -4942,8 +4954,7 @@
                 <div class="form-field">
                   <label>Shop</label>
                   <select class="form-select" id="pp-f-shop">
-                    <option value="beide"${(!isEdit || partner.shop === 'beide') ? ' selected' : ''}>Beide</option>
-                    <option value="jfn"${(isEdit && partner.shop === 'jfn') ? ' selected' : ''}>Jammi Fashion (JFN)</option>
+                    <option value="jfn"${(!isEdit || partner.shop !== 'honk') ? ' selected' : ''}>Jammi Fashion (JFN)</option>
                     <option value="honk"${(isEdit && partner.shop === 'honk') ? ' selected' : ''}>HonkShop (HONK)</option>
                   </select>
                 </div>
