@@ -904,7 +904,7 @@
 
     <nav>
       <button class="active" data-panel="dashboard">Dashboard</button>
-      <button data-panel="orders">Auftragsmonitor</button>
+      <button data-panel="orders"><span id="nav-orders-label">Auftragsmonitor</span></button>
       <button data-panel="products">Produkte</button>
       <button data-panel="anfragen">Kundenanfragen Extern</button>
       <button data-panel="claude">Claude</button>
@@ -1706,6 +1706,8 @@
         b.textContent = shop === 'honk' ? 'HONK' : 'JFN';
         b.classList.toggle('shop-honk', shop === 'honk');
         b.title = (shop === 'honk' ? 'HonkShop' : 'Jammi Fashion') + ' – Klick zum Wechseln';
+        const ordersLabel = document.getElementById('nav-orders-label');
+        if (ordersLabel) ordersLabel.textContent = shop === 'honk' ? 'HonkShop' : 'Jammi Fashion Shop';
       }
 
       // Fügt ?shop=<currentShop> an alle Mission-Control-API-URLs an.
@@ -4817,7 +4819,7 @@
               <table class="orders-table">
                 <thead><tr>
                   <th>Name</th><th>Hauptkategorie</th><th>Lizenz-%</th>
-                  <th>Porto-Modell</th><th>Aktiv</th><th>Token</th><th>Aktionen</th>
+                  <th>Porto-Modell</th><th>Shop</th><th>Aktiv</th><th>Token</th><th>Aktionen</th>
                 </tr></thead>
                 <tbody>${_ppPartners.map(p => `
                   <tr>
@@ -4825,6 +4827,7 @@
                     <td>${p.kategorie || '–'}</td>
                     <td>${p.lizenzProzent}%</td>
                     <td>${p.portoModell || '–'}</td>
+                    <td>${p.shop === 'honk' ? 'HONK' : p.shop === 'jfn' ? 'JFN' : 'Beide'}</td>
                     <td><span class="badge ${p.aktiv ? 'badge-completed' : 'badge-cancelled'}">${p.aktiv ? 'Aktiv' : 'Inaktiv'}</span></td>
                     <td style="white-space:nowrap;">
                       ${p.token
@@ -4936,6 +4939,14 @@
                     <option value="false"${(isEdit && !partner.aktiv) ? ' selected' : ''}>Nein</option>
                   </select>
                 </div>
+                <div class="form-field">
+                  <label>Shop</label>
+                  <select class="form-select" id="pp-f-shop">
+                    <option value="beide"${(!isEdit || partner.shop === 'beide') ? ' selected' : ''}>Beide</option>
+                    <option value="jfn"${(isEdit && partner.shop === 'jfn') ? ' selected' : ''}>Jammi Fashion (JFN)</option>
+                    <option value="honk"${(isEdit && partner.shop === 'honk') ? ' selected' : ''}>HonkShop (HONK)</option>
+                  </select>
+                </div>
               </div>
               <div class="modal-actions" style="margin-top:1.25rem;">
                 <button class="btn-secondary" id="pp-f-cancel">Abbrechen</button>
@@ -4955,6 +4966,7 @@
             lizenzProzent: parseFloat(backdrop.querySelector('#pp-f-lizenz').value) || 0,
             portoModell:   backdrop.querySelector('#pp-f-porto').value,
             aktiv:         backdrop.querySelector('#pp-f-aktiv').value === 'true',
+            shop:          backdrop.querySelector('#pp-f-shop').value,
           };
           const saveBtn = backdrop.querySelector('#pp-f-save');
           saveBtn.disabled = true; saveBtn.textContent = '...';
