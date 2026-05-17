@@ -30,6 +30,13 @@ const TABS = [
     seedData: [],
     note: 'HonkShop-Abrechnungen – Abrechnungs-ID: AB-YYYY-NNNN | Status: entwurf → freigegeben → bezahlt · Positionen: JSON',
   },
+  {
+    name: 'HK_Partner_Artikel',
+    header: ['Produkt-ID', 'Artikelname', 'EK-Preis-Netto', 'Druckkosten', 'Versandart'],
+    widths: [120, 280, 120, 120, 100],
+    seedData: [],
+    note: 'HonkShop-Artikel – Versandart: P (Paket) | B (Brief)',
+  },
 ];
 
 function colLetter(idx) {

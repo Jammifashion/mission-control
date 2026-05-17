@@ -72,14 +72,29 @@ function requireSheetId(res) {
   return sheetId;
 }
 
+const isHonk = req => req.query.shop === 'honk';
+const TAB_HK_ARTIKEL = 'HK_Partner_Artikel';
+
 // ── GET /:id/artikel ─────────────────────────────────────────────────────────
 router.get('/:id/artikel', async (req, res, next) => {
   try {
     const sheetId = requireSheetId(res); if (!sheetId) return;
     const sheets  = await getSheets();
+
+    if (isHonk(req)) {
+      const { header, rows } = await readTab(sheets, sheetId, TAB_HK_ARTIKEL);
+      const h = col => header.indexOf(col);
+      return res.json(rows.map(r => ({
+        produktId:   r[h('Produkt-ID')]   ?? '',
+        artikelname: r[h('Artikelname')]  ?? '',
+        ekPreis:     toFloat(r[h('EK-Preis-Netto')]),
+        druckkosten: toFloat(r[h('Druckkosten')]),
+        versandart:  (r[h('Versandart')] ?? 'P').toUpperCase(),
+      })));
+    }
+
     const { header, rows } = await readTab(sheets, sheetId, 'Partner_Artikel');
     const h = col => header.indexOf(col);
-
     res.json(rows
       .filter(r => (r[h('Partner-ID')] ?? '') === req.params.id)
       .map(r => ({
@@ -96,12 +111,52 @@ router.get('/:id/artikel', async (req, res, next) => {
 });
 
 // ── POST /:id/artikel/import ─────────────────────────────────────────────────
-// Holt alle WC-Produkte unter Partner.Hauptkategorie (inkl. Unterkategorien via
+// JFN: Holt alle WC-Produkte unter Partner.Hauptkategorie (inkl. Unterkategorien via
 // Parent-Kette) und legt fehlende Zeilen in Partner_Artikel mit Defaults an.
+// HonkShop: Holt alle WC-Produkte (keine Kategorie-Filter), speichert in HK_Partner_Artikel.
 router.post('/:id/artikel/import', async (req, res, next) => {
   try {
     const sheetId = requireSheetId(res); if (!sheetId) return;
     const sheets  = await getSheets();
+
+    if (isHonk(req)) {
+      const wc = getWcClient(req);
+      const products = [];
+      for (let page = 1; ; page++) {
+        const { data: prods } = await wc.get('products', { per_page: 100, page, status: 'publish' });
+        products.push(...prods);
+        if (prods.length < 100) break;
+      }
+
+      const { header: aH, rows: aRows } = await readTab(sheets, sheetId, TAB_HK_ARTIKEL);
+      const ah = col => aH.indexOf(col);
+      const existingIds = new Set(aRows.map(r => (r[ah('Produkt-ID')] ?? '').toString()));
+
+      const toWrite = [];
+      for (const p of products) {
+        if (existingIds.has(String(p.id))) continue;
+        existingIds.add(String(p.id));
+        toWrite.push([String(p.id), p.name, 0, 0, 'P']);
+      }
+
+      if (toWrite.length > 0) {
+        await sheets.spreadsheets.values.append({
+          spreadsheetId: sheetId,
+          range: `${TAB_HK_ARTIKEL}!A:E`,
+          valueInputOption: 'USER_ENTERED',
+          insertDataOption: 'INSERT_ROWS',
+          requestBody: { values: toWrite },
+        });
+      }
+
+      return res.json({
+        neu:       toWrite.length,
+        vorhanden: products.length - toWrite.length,
+        message:   toWrite.length
+          ? `${toWrite.length} neue Artikel importiert.`
+          : 'Keine neuen Artikel – alle bereits vorhanden.',
+      });
+    }
 
     const partner = await loadPartner(sheets, sheetId, req.params.id);
     if (!partner) return res.status(404).json({ error: 'Partner nicht gefunden.' });
@@ -201,10 +256,41 @@ router.post('/:id/artikel/import', async (req, res, next) => {
 });
 
 // ── PATCH /:id/artikel/:artikelnummer ────────────────────────────────────────
+// HonkShop: :artikelnummer ist die Produkt-ID; kein Partner-ID-Filter.
 router.patch('/:id/artikel/:artikelnummer', async (req, res, next) => {
   try {
     const sheetId = requireSheetId(res); if (!sheetId) return;
     const sheets  = await getSheets();
+
+    if (isHonk(req)) {
+      const { header, rows } = await readTab(sheets, sheetId, TAB_HK_ARTIKEL);
+      const h = col => header.indexOf(col);
+      const rowIdx = rows.findIndex(r => (r[h('Produkt-ID')] ?? '') === req.params.artikelnummer);
+      if (rowIdx === -1)
+        return res.status(404).json({ error: 'Artikel nicht gefunden.' });
+
+      const { ekPreis, druckkosten, versandart } = req.body;
+      const colMap = {
+        'EK-Preis-Netto': ekPreis,
+        'Druckkosten':    druckkosten,
+        'Versandart':     versandart ? versandart.toUpperCase() : undefined,
+      };
+      const sheetRow = rowIdx + 2;
+      const data = Object.entries(colMap)
+        .filter(([, v]) => v !== undefined)
+        .map(([col, value]) => ({
+          range: `${TAB_HK_ARTIKEL}!${colLetter(h(col))}${sheetRow}`,
+          majorDimension: 'ROWS', values: [[value]],
+        }));
+      if (data.length === 0)
+        return res.status(400).json({ error: 'Keine Felder zum Aktualisieren.' });
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: sheetId,
+        requestBody: { valueInputOption: 'USER_ENTERED', data },
+      });
+      return res.json({ produktId: req.params.artikelnummer, updated: Object.keys(colMap).filter(k => colMap[k] !== undefined) });
+    }
+
     const { header, rows } = await readTab(sheets, sheetId, 'Partner_Artikel');
     const h = col => header.indexOf(col);
 
