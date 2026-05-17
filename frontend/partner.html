@@ -96,7 +96,7 @@
 <body>
 
   <header>
-    <span class="logo">Jammi Fashion – Partner Portal</span>
+    <span class="logo" id="shop-logo">Jammi Fashion – Partner Portal</span>
     <span class="partner-name" id="partner-name-header"></span>
   </header>
 
@@ -111,15 +111,22 @@
     const params   = new URLSearchParams(location.search);
     const TOKEN    = params.get('token') || '';
     const apiParam = params.get('api');
+    // Sprint 5.4 – Multi-Shop: ?shop=jfn|honk wählt den Shop. Default 'jfn'.
+    const SHOP     = (params.get('shop') === 'honk') ? 'honk' : 'jfn';
 
     if (apiParam) localStorage.setItem('mc_api_url', apiParam.replace(/\/$/, ''));
     let API_BASE = localStorage.getItem('mc_api_url') || '';
 
     const main = document.getElementById('main-content');
 
+    function withShop(path) {
+      const sep = path.includes('?') ? '&' : '?';
+      return `${path}${sep}shop=${SHOP}`;
+    }
+
     async function apiGet(path) {
       if (!API_BASE) throw new Error('Backend-URL nicht konfiguriert.');
-      const r = await fetch(`${API_BASE}${path}`);
+      const r = await fetch(`${API_BASE}${withShop(path)}`);
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));
         const err  = new Error(body.error || r.statusText);
@@ -361,6 +368,8 @@
 
     // ── Init ─────────────────────────────────────────────────────────────────
     async function init() {
+      const shopLabel = SHOP === 'honk' ? 'HonkShop' : 'Jammi Fashion';
+      document.getElementById('shop-logo').textContent = `${shopLabel} – Partner Portal`;
       if (!TOKEN) { showError('Kein Token in der URL.<br>Bitte nutze den Link deines Ansprechpartners bei Jammi Fashion.'); return; }
       if (!API_BASE) { showApiConfig(); return; }
 

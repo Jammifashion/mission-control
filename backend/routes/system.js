@@ -1,21 +1,14 @@
 import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
-import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
+import { getWcClient } from '../lib/shopConfig.js';
 
 const router = Router();
 
-function getWc() {
-  return new WooCommerceRestApi.default({
-    url: process.env.WC_URL, consumerKey: process.env.WC_KEY,
-    consumerSecret: process.env.WC_SECRET, version: 'wc/v3', queryStringAuth: true,
-  });
-}
-
-async function checkWooCommerce() {
+async function checkWooCommerce(shop) {
   const t0 = Date.now();
-  await getWc().get('system_status');
+  await getWcClient(shop).get('system_status');
   return { ok: true, ms: Date.now() - t0 };
 }
 
@@ -45,7 +38,7 @@ async function checkClaude() {
 router.get('/full', async (req, res, next) => {
   try {
     const [woocommerce, sheet, claude] = await Promise.all([
-      checkWooCommerce().catch(err => ({ ok: false, ms: 0, error: err.message })),
+      checkWooCommerce(req.query.shop).catch(err => ({ ok: false, ms: 0, error: err.message })),
       checkSheet().catch(err        => ({ ok: false, ms: 0, error: err.message })),
       checkClaude().catch(err       => ({ ok: false, ms: 0, error: err.message })),
     ]);

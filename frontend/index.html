@@ -49,6 +49,66 @@
       #status-dot.online  { background: var(--success); }
       #status-dot.offline { background: var(--danger); }
 
+      /* ── Shop-Badge (Sprint 5.4) ── */
+      .header-actions { display: flex; align-items: center; gap: 0.75rem; }
+      #shop-badge {
+        background: rgba(232,196,74,0.15);
+        color: var(--accent);
+        border: 1px solid rgba(232,196,74,0.35);
+        border-radius: 14px;
+        padding: 0.22rem 0.7rem;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      #shop-badge:hover { background: rgba(232,196,74,0.28); }
+      #shop-badge.shop-honk {
+        background: rgba(120,180,255,0.15);
+        color: #78b4ff;
+        border-color: rgba(120,180,255,0.4);
+      }
+      #shop-badge.shop-honk:hover { background: rgba(120,180,255,0.28); }
+      /* Modal */
+      #shop-modal-overlay {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.72);
+        display: none; align-items: center; justify-content: center;
+        z-index: 9999;
+      }
+      #shop-modal-overlay.active { display: flex; }
+      #shop-modal {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.6rem 1.8rem;
+        max-width: 380px; width: calc(100% - 2rem);
+        box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+      }
+      #shop-modal h2 {
+        font-size: 1.05rem; margin-bottom: 0.4rem; color: var(--accent);
+      }
+      #shop-modal p { color: var(--muted); font-size: 0.86rem; margin-bottom: 1.1rem; }
+      .shop-modal-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 1rem; }
+      .shop-modal-btn {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 1.1rem 0.75rem;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 0.92rem;
+        font-weight: 600;
+        transition: border-color 0.15s, color 0.15s;
+      }
+      .shop-modal-btn:hover { border-color: var(--accent); color: var(--accent); }
+      .shop-modal-btn.shop-honk-btn:hover { border-color: #78b4ff; color: #78b4ff; }
+      .shop-modal-remember {
+        display: flex; align-items: center; gap: 0.5rem;
+        font-size: 0.82rem; color: var(--muted); cursor: pointer;
+      }
+      .shop-modal-remember input { accent-color: var(--accent); }
+
       /* ── Nav tabs ── */
       nav {
         display: flex;
@@ -820,8 +880,27 @@
   <body>
     <header>
       <h1>Mission Control</h1>
-      <div id="status-dot" title="API-Status wird geladen…"></div>
+      <div class="header-actions">
+        <button id="shop-badge" type="button" title="Shop wechseln">JFN</button>
+        <div id="status-dot" title="API-Status wird geladen…"></div>
+      </div>
     </header>
+
+    <!-- Shop-Auswahl Modal (Sprint 5.4) -->
+    <div id="shop-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="shop-modal-title">
+      <div id="shop-modal">
+        <h2 id="shop-modal-title">Shop auswählen</h2>
+        <p>Mit welchem Shop möchtest du arbeiten? Wechsel später jederzeit über das Badge oben.</p>
+        <div class="shop-modal-buttons">
+          <button class="shop-modal-btn" data-shop-choice="jfn" type="button">Jammi Fashion</button>
+          <button class="shop-modal-btn shop-honk-btn" data-shop-choice="honk" type="button">HonkShop</button>
+        </div>
+        <label class="shop-modal-remember">
+          <input type="checkbox" id="shop-remember" checked>
+          Beim nächsten Start merken
+        </label>
+      </div>
+    </div>
 
     <nav>
       <button class="active" data-panel="dashboard">Dashboard</button>
@@ -1608,10 +1687,75 @@
         return key;
       }
 
+      // ── Shop-Wahl (Sprint 5.4) ──────────────────────────────────────────
+      // Aktuelle Wahl liegt für die Session in window.__mcShop; persistiert
+      // wird nur, wenn die "Merken"-Checkbox im Modal aktiv ist.
+      const SHOP_KEY = 'mc_shop';
+      function currentShop() {
+        return window.__mcShop || localStorage.getItem(SHOP_KEY) || 'jfn';
+      }
+      function setCurrentShop(shop, persist) {
+        const s = shop === 'honk' ? 'honk' : 'jfn';
+        window.__mcShop = s;
+        if (persist) localStorage.setItem(SHOP_KEY, s);
+        updateShopBadge(s);
+      }
+      function updateShopBadge(shop) {
+        const b = document.getElementById('shop-badge');
+        if (!b) return;
+        b.textContent = shop === 'honk' ? 'HONK' : 'JFN';
+        b.classList.toggle('shop-honk', shop === 'honk');
+        b.title = (shop === 'honk' ? 'HonkShop' : 'Jammi Fashion') + ' – Klick zum Wechseln';
+      }
+
+      // Fügt ?shop=<currentShop> an alle Mission-Control-API-URLs an.
+      // Nur Backend-Routen (/api/) werden modifiziert, externe URLs bleiben unverändert.
+      function withShopParam(url) {
+        try {
+          if (typeof url !== 'string') return url;
+          if (!url.includes('/api/')) return url;
+          const u = new URL(url, location.href);
+          if (!u.searchParams.has('shop')) u.searchParams.set('shop', currentShop());
+          return u.toString();
+        } catch { return url; }
+      }
+
       function apiFetch(url, options = {}) {
         const headers = { ...(options.headers ?? {}), 'X-API-Key': getApiKey() };
         const signal = options.signal ?? AbortSignal.timeout(60000);
-        return fetch(url, { ...options, headers, signal });
+        return fetch(withShopParam(url), { ...options, headers, signal });
+      }
+
+      function openShopModal() {
+        const overlay = document.getElementById('shop-modal-overlay');
+        if (!overlay) return;
+        const cb = document.getElementById('shop-remember');
+        if (cb) cb.checked = localStorage.getItem(SHOP_KEY) !== null;
+        overlay.classList.add('active');
+      }
+      function closeShopModal() {
+        document.getElementById('shop-modal-overlay')?.classList.remove('active');
+      }
+      document.querySelectorAll('[data-shop-choice]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const remember = document.getElementById('shop-remember')?.checked;
+          if (!remember) localStorage.removeItem(SHOP_KEY);
+          setCurrentShop(btn.dataset.shopChoice, remember);
+          closeShopModal();
+          // Aktiven Panel neu laden, damit Daten zum neuen Shop kommen.
+          const active = document.querySelector('nav button.active');
+          active?.click();
+        });
+      });
+      document.getElementById('shop-badge')?.addEventListener('click', openShopModal);
+
+      // Initialer Shop: aus localStorage übernehmen oder Modal öffnen.
+      const _storedShop = localStorage.getItem(SHOP_KEY);
+      if (_storedShop === 'jfn' || _storedShop === 'honk') {
+        setCurrentShop(_storedShop, false);
+      } else {
+        setCurrentShop('jfn', false);
+        openShopModal();
       }
 
       // ── SECTION: Navigation (Zeile 1072) ──
@@ -4549,10 +4693,11 @@
       }
 
       // ── Helpers global verfügbar für non-module Scripts (Partnerportal etc.) ──
-      window.API_BASE    = API_BASE;
-      window.apiFetch    = apiFetch;
-      window.showToast   = showToast;
-      window.showConfirm = showConfirm;
+      window.API_BASE     = API_BASE;
+      window.apiFetch     = apiFetch;
+      window.showToast    = showToast;
+      window.showConfirm  = showConfirm;
+      window.currentShop  = currentShop;
 
       // ── Init ─────────────────────────────────────────────────────────────
       loadDashboard();

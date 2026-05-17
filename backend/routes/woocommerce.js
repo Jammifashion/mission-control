@@ -1,25 +1,15 @@
 import { Router } from 'express';
-import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
+import { getWcClient } from '../lib/shopConfig.js';
 
 const router = Router();
 
-function getClient() {
-  if (!process.env.WC_URL || !process.env.WC_KEY || !process.env.WC_SECRET) {
-    throw new Error('WooCommerce-Zugangsdaten fehlen (WC_URL, WC_KEY, WC_SECRET).');
-  }
-  return new WooCommerceRestApi.default({
-    url: process.env.WC_URL,
-    consumerKey: process.env.WC_KEY,
-    consumerSecret: process.env.WC_SECRET,
-    version: 'wc/v3',
-    queryStringAuth: true,
-  });
-}
+// shop-Slug aus req.query.shop ziehen (Default 'jfn' wird in getWcClient erzwungen).
+const getClient = (req) => getWcClient(req?.query?.shop);
 
 // GET /api/woocommerce/orders
 router.get('/orders', async (req, res, next) => {
   try {
-    const wc = getClient();
+    const wc = getClient(req);
     const { per_page = 20, page = 1, status } = req.query;
     const perPage = Math.min(Number(per_page), 100);
 
@@ -47,7 +37,7 @@ router.get('/orders', async (req, res, next) => {
 // GET /api/woocommerce/orders/:id
 router.get('/orders/:id', async (req, res, next) => {
   try {
-    const wc = getClient();
+    const wc = getClient(req);
     const { data } = await wc.get(`orders/${req.params.id}`);
     res.json(data);
   } catch (err) {
@@ -58,7 +48,7 @@ router.get('/orders/:id', async (req, res, next) => {
 // GET /api/woocommerce/shipping-classes
 router.get('/shipping-classes', async (req, res, next) => {
   try {
-    const wc = getClient();
+    const wc = getClient(req);
     const { data } = await wc.get('products/shipping_classes', { per_page: 100 });
     const list = Array.isArray(data) ? data : [data];
     res.json(list.map(s => ({ id: s.id, slug: s.slug, name: s.name })));
@@ -68,7 +58,7 @@ router.get('/shipping-classes', async (req, res, next) => {
 // GET /api/woocommerce/categories
 router.get('/categories', async (req, res, next) => {
   try {
-    const wc = getClient();
+    const wc = getClient(req);
     const { data } = await wc.get('products/categories', { per_page: 100, hide_empty: false });
     const list = Array.isArray(data) ? data : [data];
     const byId = Object.fromEntries(list.map(c => [c.id, c.name]));
@@ -83,7 +73,7 @@ router.get('/categories', async (req, res, next) => {
 // GET /api/woocommerce/attributes  — name + all terms
 router.get('/attributes', async (req, res, next) => {
   try {
-    const wc = getClient();
+    const wc = getClient(req);
     const { data: attrs } = await wc.get('products/attributes', { per_page: 100 });
     const list = Array.isArray(attrs) ? attrs : [attrs];
     const result = await Promise.all(list.map(async a => {
@@ -98,7 +88,7 @@ router.get('/attributes', async (req, res, next) => {
 // GET /api/woocommerce/products/search?q=&per_page=40  — must come before /:id
 router.get('/products/search', async (req, res, next) => {
   try {
-    const wc = getClient();
+    const wc = getClient(req);
     const { q = '', per_page = 40 } = req.query;
     const { data } = await wc.get('products', {
       search:   q,
@@ -113,7 +103,7 @@ router.get('/products/search', async (req, res, next) => {
 // GET /api/woocommerce/products/:id/variations
 router.get('/products/:id/variations', async (req, res, next) => {
   try {
-    const wc = getClient();
+    const wc = getClient(req);
     const { data } = await wc.get(`products/${req.params.id}/variations`, { per_page: 100 });
     res.json(Array.isArray(data) ? data : [data]);
   } catch (err) { next(err); }
@@ -122,7 +112,7 @@ router.get('/products/:id/variations', async (req, res, next) => {
 // POST /api/woocommerce/products/:id/variations
 router.post('/products/:id/variations', async (req, res, next) => {
   try {
-    const wc = getClient();
+    const wc = getClient(req);
     const { data: raw } = await wc.post(`products/${req.params.id}/variations`, { ...req.body, status: 'publish' });
     const v = Array.isArray(raw) ? raw[0] : raw;
     res.status(201).json({ id: v.id });
@@ -132,7 +122,7 @@ router.post('/products/:id/variations', async (req, res, next) => {
 // PUT /api/woocommerce/products/:id/variations/:varId
 router.put('/products/:id/variations/:varId', async (req, res, next) => {
   try {
-    const wc = getClient();
+    const wc = getClient(req);
     const { data: raw } = await wc.put(`products/${req.params.id}/variations/${req.params.varId}`, req.body);
     const v = Array.isArray(raw) ? raw[0] : raw;
     res.json({ id: v.id });
@@ -142,7 +132,7 @@ router.put('/products/:id/variations/:varId', async (req, res, next) => {
 // DELETE /api/woocommerce/products/:id/variations/:varId
 router.delete('/products/:id/variations/:varId', async (req, res, next) => {
   try {
-    const wc = getClient();
+    const wc = getClient(req);
     await wc.delete(`products/${req.params.id}/variations/${req.params.varId}`, { force: true });
     res.json({ deleted: true });
   } catch (err) { next(err); }
@@ -151,7 +141,7 @@ router.delete('/products/:id/variations/:varId', async (req, res, next) => {
 // GET /api/woocommerce/products/:id
 router.get('/products/:id', async (req, res, next) => {
   try {
-    const wc = getClient();
+    const wc = getClient(req);
     const { data } = await wc.get(`products/${req.params.id}`);
     const product = Array.isArray(data) ? data[0] : data;
     console.log('WC GET /products/:id meta_data:', JSON.stringify(product.meta_data ?? []));
@@ -163,7 +153,7 @@ router.get('/products/:id', async (req, res, next) => {
 // GET /api/woocommerce/products
 router.get('/products', async (req, res, next) => {
   try {
-    const wc = getClient();
+    const wc = getClient(req);
     const { per_page = 20, page = 1, status = 'publish' } = req.query;
     const { data } = await wc.get('products', {
       per_page: Math.min(Number(per_page), 100),
@@ -179,7 +169,7 @@ router.get('/products', async (req, res, next) => {
 // GET /api/woocommerce/stats  – today's summary + 7-day revenue
 router.get('/stats', async (req, res, next) => {
   try {
-    const wc = getClient();
+    const wc = getClient(req);
 
     const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
     const weekStart  = new Date(); weekStart.setDate(weekStart.getDate() - 6); weekStart.setHours(0, 0, 0, 0);
@@ -227,7 +217,7 @@ router.get('/stats', async (req, res, next) => {
 // Schritt 1: Produkt anlegen (status: draft), Schritt 2: Varianten einzeln anlegen
 router.post('/products', async (req, res, next) => {
   try {
-    const wc = getClient();
+    const wc = getClient(req);
     const { ssot_id, variations, ...payload } = req.body;
 
     // Schritt 1: Produkt anlegen (mit SKU-Fallback bei Duplikat)
@@ -297,7 +287,7 @@ router.post('/products', async (req, res, next) => {
 // PUT /api/woocommerce/products/:id
 router.put('/products/:id', async (req, res, next) => {
   try {
-    const wc = getClient();
+    const wc = getClient(req);
     const { variations, ...payload } = req.body;
     console.log('WC PUT /products/:id payload:', JSON.stringify(payload, null, 2));
     const { data: productRaw } = await wc.put(`products/${req.params.id}`, payload);
@@ -329,7 +319,7 @@ router.put('/products/:id', async (req, res, next) => {
 // PUT /api/woocommerce/orders/:id/status
 router.put('/orders/:id/status', async (req, res, next) => {
   try {
-    const wc = getClient();
+    const wc = getClient(req);
     const { status } = req.body;
     if (!status) return res.status(400).json({ error: 'status fehlt' });
     const { data } = await wc.put(`orders/${req.params.id}`, { status });

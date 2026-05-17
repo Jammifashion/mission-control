@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { google } from 'googleapis';
-import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
 import { getGoogleAuth } from '../lib/googleAuth.js';
+import { getWcClient as wcClientForShop, getShopConfig } from '../lib/shopConfig.js';
 import { berechnePartnerAnteil, parseKonfiguration } from '../utils/partner-kalkulation.js';
 
 const router = Router();
@@ -12,14 +12,7 @@ function getSheets() {
   return getGoogleAuth().then(auth => google.sheets({ version: 'v4', auth }));
 }
 
-function getWcClient() {
-  if (!process.env.WC_URL || !process.env.WC_KEY || !process.env.WC_SECRET)
-    throw new Error('WooCommerce-Zugangsdaten fehlen (WC_URL, WC_KEY, WC_SECRET).');
-  return new WooCommerceRestApi.default({
-    url: process.env.WC_URL, consumerKey: process.env.WC_KEY,
-    consumerSecret: process.env.WC_SECRET, version: 'wc/v3', queryStringAuth: true,
-  });
-}
+const getWcClient = (shop) => wcClientForShop(shop);
 
 async function readTab(sheets, sheetId, tabName) {
   const { data } = await sheets.spreadsheets.values.get({
@@ -73,8 +66,11 @@ router.get('/auth', async (req, res, next) => {
 // ── Sync-Kern (wiederverwendbar für /sync und /sync-all) ─────────────────────
 // opts.after          – ISO-Datum (z.B. '2026-05-01T00:00:00') als WC after-Filter
 // opts.partnerFilter  – Set<Partner-ID>, wenn gesetzt: nur diese Partner berücksichtigen
+// opts.shop           – 'jfn' (Default) oder 'honk' – bestimmt WC-Credentials + Sheet-Tab
 async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
-  const { after, partnerFilter } = opts;
+  const { after, partnerFilter, shop } = opts;
+  const shopCfg = getShopConfig(shop);
+  const TAB_VERKAEUFE = shopCfg.tabVerkaeufe;
 
   // 1a. Partner_Artikel laden → Map: productId → [{ partnerId, lizenzProzent, ek, druck, versandart }]
   const { header: aH, rows: aRows } = await readTab(sheets, sheetId, 'Partner_Artikel');
@@ -109,8 +105,8 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
   const { header: kH, rows: kRows } = await readTab(sheets, sheetId, 'Kalkulation_Fixkosten');
   const konfiguration = parseKonfiguration(kRows, kH);
 
-  // 2. Partner_Verkäufe → Duplikat-Set + neuestes Datum
-  const { header: vH, rows: vRows } = await readTab(sheets, sheetId, 'Partner_Verkäufe');
+  // 2. Partner_Verkäufe → Duplikat-Set + neuestes Datum (shop-spezifischer Tab)
+  const { header: vH, rows: vRows } = await readTab(sheets, sheetId, TAB_VERKAEUFE);
   const vh = col => vH.indexOf(col);
   const varKey = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
   const existingKeys = new Set(
@@ -128,8 +124,8 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     if (newest) afterParam = newest.toISOString().slice(0, 19);
   }
 
-  // 3. WC Bestellungen laden
-  const wc = getWcClient();
+  // 3. WC Bestellungen laden (shop-spezifische Credentials)
+  const wc = getWcClient(shop);
   const orders = [];
   for (let page = 1; ; page++) {
     const params = { per_page: 100, page };
@@ -205,7 +201,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
   if (toWrite.length > 0) {
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
-      range: 'Partner_Verkäufe!A:N',
+      range: `${TAB_VERKAEUFE}!A:N`,
       valueInputOption: 'RAW',
       insertDataOption: 'INSERT_ROWS',
       requestBody: { values: toWrite },
@@ -238,7 +234,7 @@ router.get('/verkaeufe/sync', async (req, res, next) => {
       console.log(`Sync gefiltert auf Partner: ${req.query.partnerId}`);
     }
 
-    const result = await runVerkaeufeSync(sheets, sheetId, { after: req.query.after, partnerFilter });
+    const result = await runVerkaeufeSync(sheets, sheetId, { after: req.query.after, partnerFilter, shop: req.query.shop });
     res.json(result);
   } catch (err) { next(err); }
 });
@@ -268,7 +264,7 @@ router.post('/verkaeufe/sync-all', async (req, res, next) => {
     let neueVerkäufe = 0;
     let result = null;
     try {
-      result = await runVerkaeufeSync(sheets, sheetId, { partnerFilter: new Set(aktivePartner) });
+      result = await runVerkaeufeSync(sheets, sheetId, { partnerFilter: new Set(aktivePartner), shop: req.query.shop });
       neueVerkäufe = result.synced;
     } catch (err) {
       errors.push(err.message ?? String(err));
@@ -296,7 +292,8 @@ router.get('/verkaeufe', async (req, res, next) => {
 
     const sheetId = process.env.BUSINESS_SHEET_ID;
     const sheets  = await getSheets();
-    const { header, rows } = await readTab(sheets, sheetId, 'Partner_Verkäufe');
+    const tabVerkaeufe = getShopConfig(req.query.shop).tabVerkaeufe;
+    const { header, rows } = await readTab(sheets, sheetId, tabVerkaeufe);
     const h = col => header.indexOf(col);
 
     res.json(rows
@@ -347,8 +344,9 @@ router.get('/saldo', async (req, res, next) => {
 
     const sheetId = process.env.BUSINESS_SHEET_ID;
     const sheets  = await getSheets();
+    const tabVerkaeufe = getShopConfig(req.query.shop).tabVerkaeufe;
     const [verkäufeTab, internTab] = await Promise.all([
-      readTab(sheets, sheetId, 'Partner_Verkäufe'),
+      readTab(sheets, sheetId, tabVerkaeufe),
       readTab(sheets, sheetId, 'Partner_Interne_Bestellungen'),
     ]);
 
@@ -381,7 +379,8 @@ router.get('/abrechnungen', async (req, res, next) => {
 
     const sheetId = process.env.BUSINESS_SHEET_ID;
     const sheets  = await getSheets();
-    const { header, rows } = await readTab(sheets, sheetId, 'Partner_Abrechnungen');
+    const tabAbrechnungen = getShopConfig(req.query.shop).tabAbrechnungen;
+    const { header, rows } = await readTab(sheets, sheetId, tabAbrechnungen);
     const h = col => header.indexOf(col);
     const VISIBLE = new Set(['freigegeben', 'bezahlt']);
 

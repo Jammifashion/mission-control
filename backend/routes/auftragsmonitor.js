@@ -1,20 +1,12 @@
 import { Router } from 'express';
-import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
+import { getWcClient } from '../lib/shopConfig.js';
 
 const router = Router();
 
 // ── Clients ───────────────────────────────────────────────────────────────────
-function getWc() {
-  if (!process.env.WC_URL || !process.env.WC_KEY || !process.env.WC_SECRET) {
-    throw new Error('WooCommerce-Zugangsdaten fehlen.');
-  }
-  return new WooCommerceRestApi.default({
-    url: process.env.WC_URL, consumerKey: process.env.WC_KEY,
-    consumerSecret: process.env.WC_SECRET, version: 'wc/v3', queryStringAuth: true,
-  });
-}
+const getWc = (req) => getWcClient(req?.query?.shop);
 
 function sid() {
   if (!process.env.GOOGLE_SHEET_ID) throw new Error('GOOGLE_SHEET_ID fehlt in .env');
@@ -51,7 +43,7 @@ function buildVariante(v1, v2, v3) {
 // ── GET /api/auftragsmonitor/lshop/offen ──────────────────────────────────────
 router.get('/lshop/offen', async (req, res, next) => {
   try {
-    const wc            = getWc();
+    const wc            = getWc(req);
     const sheets        = await getSheets();
     const spreadsheetId = sid();
 
@@ -292,7 +284,7 @@ router.post('/lshop/bestellen', async (req, res, next) => {
 // ── GET /api/auftragsmonitor/dtf/offen ───────────────────────────────────────
 router.get('/dtf/offen', async (req, res, next) => {
   try {
-    const wc            = getWc();
+    const wc            = getWc(req);
     const sheets        = await getSheets();
     const spreadsheetId = sid();
 

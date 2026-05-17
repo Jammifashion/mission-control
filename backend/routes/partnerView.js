@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
+import { getShopConfig } from '../lib/shopConfig.js';
 
 const router = Router();
 
@@ -63,7 +64,8 @@ router.get('/verkaeufe', async (req, res, next) => {
 
     const sheetId = process.env.BUSINESS_SHEET_ID;
     const sheets  = await getSheets();
-    const { header, rows } = await readTab(sheets, sheetId, 'Partner_Verkäufe');
+    const tabVerkaeufe = getShopConfig(req.query.shop).tabVerkaeufe;
+    const { header, rows } = await readTab(sheets, sheetId, tabVerkaeufe);
     const h = col => header.indexOf(col);
 
     res.json(rows
@@ -90,7 +92,8 @@ router.get('/abrechnungen', async (req, res, next) => {
 
     const sheetId = process.env.BUSINESS_SHEET_ID;
     const sheets  = await getSheets();
-    const { header, rows } = await readTab(sheets, sheetId, 'Partner_Abrechnungen');
+    const tabAbrechnungen = getShopConfig(req.query.shop).tabAbrechnungen;
+    const { header, rows } = await readTab(sheets, sheetId, tabAbrechnungen);
     const h = col => header.indexOf(col);
 
     res.json(rows

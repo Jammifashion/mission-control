@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { google } from 'googleapis';
-import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
 import { getGoogleAuth } from '../lib/googleAuth.js';
+import { getWcClient as wcClientForShop } from '../lib/shopConfig.js';
 import { berechnePartnerAnteil, parseKonfiguration } from '../utils/partner-kalkulation.js';
 
 const router = Router();
@@ -12,14 +12,7 @@ function getSheets() {
   return getGoogleAuth().then(auth => google.sheets({ version: 'v4', auth }));
 }
 
-function getWcClient() {
-  if (!process.env.WC_URL || !process.env.WC_KEY || !process.env.WC_SECRET)
-    throw new Error('WooCommerce-Zugangsdaten fehlen (WC_URL, WC_KEY, WC_SECRET).');
-  return new WooCommerceRestApi.default({
-    url: process.env.WC_URL, consumerKey: process.env.WC_KEY,
-    consumerSecret: process.env.WC_SECRET, version: 'wc/v3', queryStringAuth: true,
-  });
-}
+const getWcClient = (req) => wcClientForShop(req?.query?.shop);
 
 async function readTab(sheets, sheetId, tabName) {
   const { data } = await sheets.spreadsheets.values.get({
@@ -116,7 +109,7 @@ router.post('/:id/artikel/import', async (req, res, next) => {
       return res.status(400).json({ error: 'Partner hat keine Hauptkategorie konfiguriert.' });
 
     // 1. WC-Kategorien laden, Hauptkategorie + alle Nachkommen ermitteln
-    const wc = getWcClient();
+    const wc = getWcClient(req);
     const catMap = {}; // id → { name, parentId }
     for (let page = 1; ; page++) {
       const { data: cats } = await wc.get('products/categories', { per_page: 100, page });

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
+import { getShopConfig } from '../lib/shopConfig.js';
 import { berechnePartnerAnteil, parseKonfiguration, getKostenSatz } from '../utils/partner-kalkulation.js';
 
 const router = Router();
@@ -337,9 +338,10 @@ router.post('/partner-verkauf', async (req, res, next) => {
     const lizenzgebühr  = parseFloat(((vkBrutto * lizenzProzent) / 100).toFixed(2));
     const datumStr      = datum ? toDE(new Date(datum)) : toDE(new Date());
 
+    const tabVerkaeufe = getShopConfig(req.query.shop).tabVerkaeufe;
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
-      range: 'Partner_Verkäufe!A:I',
+      range: `${tabVerkaeufe}!A:I`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       requestBody: { values: [[
@@ -363,7 +365,8 @@ router.get('/partner/:id/verkaeufe', async (req, res, next) => {
     const { status } = req.query; // optional: ?status=offen
 
     const sheets = await getSheets();
-    const { header, rows } = await readTab(sheets, sheetId, 'Partner_Verkäufe');
+    const tabVerkaeufe = getShopConfig(req.query.shop).tabVerkaeufe;
+    const { header, rows } = await readTab(sheets, sheetId, tabVerkaeufe);
 
     const pIdx  = header.indexOf('Partner-ID');
     const stIdx = header.indexOf('Status');
@@ -403,8 +406,9 @@ router.post('/abrechnung/vorschau', async (req, res, next) => {
     if (!vonDatum || !bisDatum) return res.status(400).json({ error: 'Ungültiges Datumsformat.' });
 
     const sheets = await getSheets();
+    const tabVerkaeufe = getShopConfig(req.query.shop).tabVerkaeufe;
     const [verkäufeTab, internTab] = await Promise.all([
-      readTab(sheets, sheetId, 'Partner_Verkäufe'),
+      readTab(sheets, sheetId, tabVerkaeufe),
       readTab(sheets, sheetId, 'Partner_Interne_Bestellungen'),
     ]);
 
@@ -473,10 +477,11 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
     if (!vonDatum || !bisDatum) return res.status(400).json({ error: 'Ungültiges Datumsformat (DD.MM.YYYY oder ISO).' });
 
     const sheets = await getSheets();
+    const shopCfg = getShopConfig(req.query.shop);
     const [verkäufeTab, internTab, abrechnungenTab, artikelTab, partnerTab, konfigTab] = await Promise.all([
-      readTab(sheets, sheetId, 'Partner_Verkäufe'),
+      readTab(sheets, sheetId, shopCfg.tabVerkaeufe),
       readTab(sheets, sheetId, 'Partner_Interne_Bestellungen'),
-      readTab(sheets, sheetId, 'Partner_Abrechnungen'),
+      readTab(sheets, sheetId, shopCfg.tabAbrechnungen),
       readTab(sheets, sheetId, 'Partner_Artikel'),
       readTab(sheets, sheetId, 'Partner'),
       readTab(sheets, sheetId, 'Kalkulation_Fixkosten'),
@@ -628,7 +633,7 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
-      range: `Partner_Abrechnungen!A:${colLetter(aH.length - 1)}`,
+      range: `${shopCfg.tabAbrechnungen}!A:${colLetter(aH.length - 1)}`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       requestBody: { values: [rowVals] },
@@ -655,7 +660,8 @@ router.get('/abrechnungen', async (req, res, next) => {
 
     const { partnerId, status } = req.query;
     const sheets = await getSheets();
-    const { header, rows } = await readTab(sheets, sheetId, 'Partner_Abrechnungen');
+    const tabAbrechnungen = getShopConfig(req.query.shop).tabAbrechnungen;
+    const { header, rows } = await readTab(sheets, sheetId, tabAbrechnungen);
 
     const h = col => header.indexOf(col);
     const filtered = rows
@@ -694,7 +700,8 @@ router.get('/verkaeufe', async (req, res, next) => {
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
     const { partnerId, status } = req.query;
     const sheets = await getSheets();
-    const { header, rows } = await readTab(sheets, sheetId, 'Partner_Verkäufe');
+    const tabVerkaeufe = getShopConfig(req.query.shop).tabVerkaeufe;
+    const { header, rows } = await readTab(sheets, sheetId, tabVerkaeufe);
     const h = col => header.indexOf(col);
     res.json(rows
       .filter(r => (!partnerId || r[h('Partner-ID')] === partnerId) &&
@@ -732,7 +739,8 @@ router.patch('/abrechnung/:id/status', async (req, res, next) => {
       return res.status(400).json({ error: `Ungültiger Status. Erlaubt: ${VALID.join(', ')}` });
 
     const sheets = await getSheets();
-    const { header, rows } = await readTab(sheets, sheetId, 'Partner_Abrechnungen');
+    const tabAbrechnungen = getShopConfig(req.query.shop).tabAbrechnungen;
+    const { header, rows } = await readTab(sheets, sheetId, tabAbrechnungen);
 
     const abIdIdx  = header.indexOf('Abrechnungs-ID');
     const stIdx    = header.indexOf('Status');
@@ -745,7 +753,7 @@ router.patch('/abrechnung/:id/status', async (req, res, next) => {
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: sheetId,
-      range: `Partner_Abrechnungen!${stColLetter}${sheetRow}`,
+      range: `${tabAbrechnungen}!${stColLetter}${sheetRow}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [[status]] },
     });
@@ -763,9 +771,10 @@ router.post('/abrechnung/:id/freigeben', async (req, res, next) => {
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
 
     const sheets = await getSheets();
+    const shopCfg = getShopConfig(req.query.shop);
     const [abrechnungenTab, verkäufeTab, internTab] = await Promise.all([
-      readTab(sheets, sheetId, 'Partner_Abrechnungen'),
-      readTab(sheets, sheetId, 'Partner_Verkäufe'),
+      readTab(sheets, sheetId, shopCfg.tabAbrechnungen),
+      readTab(sheets, sheetId, shopCfg.tabVerkaeufe),
       readTab(sheets, sheetId, 'Partner_Interne_Bestellungen'),
     ]);
 
@@ -791,7 +800,7 @@ router.post('/abrechnung/:id/freigeben', async (req, res, next) => {
     const iStCol = colLetter(internTab.header.indexOf('Status'));
     const markRequests = [
       ...(positionen.verkaeufe || []).map(p => ({
-        range: `Partner_Verkäufe!${vStCol}${p.rowIndex}`,
+        range: `${shopCfg.tabVerkaeufe}!${vStCol}${p.rowIndex}`,
         majorDimension: 'ROWS', values: [['abgerechnet']],
       })),
       ...(positionen.intern || []).map(p => ({
@@ -805,7 +814,7 @@ router.post('/abrechnung/:id/freigeben', async (req, res, next) => {
     const sheetRow    = rowIdx + 2;
     const allRequests = [
       {
-        range: `Partner_Abrechnungen!${stColLetter}${sheetRow}`,
+        range: `${shopCfg.tabAbrechnungen}!${stColLetter}${sheetRow}`,
         majorDimension: 'ROWS', values: [['freigegeben']],
       },
       ...markRequests,
@@ -834,7 +843,8 @@ router.delete('/abrechnung/:id', async (req, res, next) => {
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
 
     const sheets = await getSheets();
-    const { header, rows } = await readTab(sheets, sheetId, 'Partner_Abrechnungen');
+    const tabAbrechnungen = getShopConfig(req.query.shop).tabAbrechnungen;
+    const { header, rows } = await readTab(sheets, sheetId, tabAbrechnungen);
 
     const abIdIdx = header.indexOf('Abrechnungs-ID');
     const stIdx   = header.indexOf('Status');
@@ -848,9 +858,9 @@ router.delete('/abrechnung/:id', async (req, res, next) => {
 
     // sheetId (numerisch) für deleteDimension holen
     const meta = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: 'sheets.properties' });
-    const sheetGid = meta.data.sheets.find(s => s.properties.title === 'Partner_Abrechnungen')?.properties.sheetId;
+    const sheetGid = meta.data.sheets.find(s => s.properties.title === tabAbrechnungen)?.properties.sheetId;
     if (sheetGid === undefined)
-      return res.status(503).json({ error: 'Sheet "Partner_Abrechnungen" nicht gefunden.' });
+      return res.status(503).json({ error: `Sheet "${tabAbrechnungen}" nicht gefunden.` });
 
     const sheetRow = rowIdx + 2; // 1-basiert + Header
     await sheets.spreadsheets.batchUpdate({
