@@ -6629,7 +6629,7 @@
 
       // ── SECTION: Festpreis-Tab (Sprint 5.5) ──────────────────────────────────
       {
-        const FP = window.API_BASE;
+        const FP = () => window.API_BASE?.() ?? '';
         let _fpPartners = [];
 
         // Sub-Tab-Switching
