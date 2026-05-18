@@ -5441,7 +5441,7 @@
             <div style="overflow-x:auto;"><table class="orders-table">
               <thead><tr>
                 <th>Partner</th><th>Datum</th><th>Order-ID</th><th>Artikel</th>
-                <th>Variante</th><th>Stück</th><th>VK Brutto</th><th style="cursor:help;" title="Mauszeiger über Betrag → Berechnungsformel anzeigen">Lizenz ⓘ</th><th>Status Abrechnung</th>
+                <th>Variante</th><th>Stück</th><th>VK Netto</th><th style="cursor:help;" title="Mauszeiger über Betrag → Berechnungsformel anzeigen">Lizenz ⓘ</th><th>Status Abrechnung</th>
               </tr></thead>
               <tbody>${rows.map(r => `<tr>
                 <td>${pName(r.partnerId)}</td>
@@ -5599,7 +5599,7 @@
             <thead><tr>
               <th style="width:1.2em;"></th>
               <th>Datum</th><th>Bestellnr.</th><th>Artikel</th>
-              <th class="num">Menge</th><th class="num">VK brutto</th><th class="num">Lizenz</th>
+              <th class="num">Menge</th><th class="num">VK Netto</th><th class="num">Lizenz</th>
             </tr></thead>
             <tbody>${p.verkaeufe.map((v, vi) => {
               const hasDetail = !!v.detail;
@@ -5879,7 +5879,7 @@
                   <th style="font-size:0.76rem;">Bestellnr.</th>
                   <th style="font-size:0.76rem;">Artikel</th>
                   <th style="text-align:right;font-size:0.76rem;">Menge</th>
-                  <th style="text-align:right;font-size:0.76rem;">VK brutto</th>
+                  <th style="text-align:right;font-size:0.76rem;">VK Netto</th>
                   <th style="text-align:right;font-size:0.76rem;">Lizenz</th>
                 </tr></thead>
                 <tbody>${verkaeufeRows}</tbody>
@@ -6278,7 +6278,7 @@
           }
         } else {
           // Fallback für alte Syncs ohne Breakdown-Daten
-          lines.push(pad('VK Brutto:') + padR(vkBrutto));
+          lines.push(pad('VK Netto:') + padR(vkBrutto));
           lines.push(pad(`× Lizenz ${lizenzPct}%:`) + padR(lizenzNetto));
           lines.push('─'.repeat(32));
           lines.push(pad('= Partner-Anteil (netto):') + padR(lizenzNetto));
