@@ -116,6 +116,50 @@ router.get('/artikel/:partnerId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── PATCH /api/festpreis/artikel/:partnerId/:produktId ───────────────────────
+// Body: { festpreisEK, handlingGebuehr, versandart }
+router.patch('/artikel/:partnerId/:produktId', async (req, res, next) => {
+  try {
+    const sheetId = SHEETID();
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
+    const { partnerId, produktId } = req.params;
+    const { festpreisEK, handlingGebuehr, versandart } = req.body;
+
+    const sheets = await getSheets();
+    const { data: meta } = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: 'sheets.properties' });
+    const sheetMeta = (meta.sheets ?? []).find(s => s.properties.title === TAB_FP_ARTIKEL);
+    if (!sheetMeta) return res.status(404).json({ error: 'FP_Artikel Sheet nicht gefunden.' });
+    const sheetId2 = sheetMeta.properties.sheetId;
+
+    const { header, rows } = await readTab(sheets, sheetId, TAB_FP_ARTIKEL);
+    const pidIdx  = header.indexOf('Partner-ID');
+    const prodIdx = header.indexOf('Produkt-ID');
+    const ekIdx   = header.indexOf('Festpreis-EK-Netto');
+    const hgIdx   = header.indexOf('Handling-Gebühr');
+    const vaIdx   = header.indexOf('Versandart');
+
+    const rowIdx = rows.findIndex(r =>
+      (r[pidIdx] ?? '') === partnerId && String(r[prodIdx] ?? '') === String(produktId)
+    );
+    if (rowIdx === -1) return res.status(404).json({ error: 'Artikel nicht gefunden.' });
+
+    const sheetRow = rowIdx + 2; // +1 header, +1 1-based
+    const updates = [];
+    const colLetter = i => String.fromCharCode(65 + i);
+    if (ekIdx !== -1 && festpreisEK !== undefined) updates.push({ range: `${TAB_FP_ARTIKEL}!${colLetter(ekIdx)}${sheetRow}`, values: [[Number(festpreisEK)]] });
+    if (hgIdx !== -1 && handlingGebuehr !== undefined) updates.push({ range: `${TAB_FP_ARTIKEL}!${colLetter(hgIdx)}${sheetRow}`, values: [[Number(handlingGebuehr)]] });
+    if (vaIdx !== -1 && versandart !== undefined) updates.push({ range: `${TAB_FP_ARTIKEL}!${colLetter(vaIdx)}${sheetRow}`, values: [[String(versandart).toUpperCase() === 'B' ? 'B' : 'P']] });
+
+    if (updates.length > 0) {
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: sheetId,
+        requestBody: { valueInputOption: 'RAW', data: updates },
+      });
+    }
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 // ── POST /api/festpreis/artikel/:partnerId/import ────────────────────────────
 // Body: { shop, kategorie }  (kategorie = WC category name/slug, optional)
 router.post('/artikel/:partnerId/import', async (req, res, next) => {

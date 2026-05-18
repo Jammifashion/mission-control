@@ -909,6 +909,7 @@
       <button data-panel="anfragen">Kundenanfragen Extern</button>
       <button data-panel="claude">Claude</button>
       <button data-panel="partnerportal">Partnerportal</button>
+      <button data-panel="festpreis">Festpreis</button>
       <button data-panel="settings">Einstellungen</button>
     </nav>
 
@@ -1449,6 +1450,99 @@
               </div>
             </div>
             <div id="abrechnungen-list-wrap"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Festpreis-Tab (Sprint 5.5) -->
+      <section id="panel-festpreis" class="panel">
+        <div class="sub-tabs">
+          <button class="sub-tab active" data-fptab="fp-partner">Partner</button>
+          <button class="sub-tab" data-fptab="fp-artikel">Artikel</button>
+          <button class="sub-tab" data-fptab="fp-verkaeufe">Bestellungen</button>
+          <button class="sub-tab" data-fptab="fp-abrechnungen">Abrechnung</button>
+        </div>
+
+        <!-- Partner -->
+        <div id="fptab-fp-partner" class="sub-tab-panel active">
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
+              <h2>Festpreis-Partner</h2>
+              <button class="btn" id="btn-fp-add-partner" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Partner hinzufügen</button>
+            </div>
+            <div id="fp-partner-list-wrap"><div class="skeleton" style="height:80px;"></div></div>
+          </div>
+        </div>
+
+        <!-- Artikel -->
+        <div id="fptab-fp-artikel" class="sub-tab-panel">
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+              <h2>Festpreis-Artikel</h2>
+              <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                <select class="form-select" id="fp-artikel-filter-partner" style="font-size:0.83rem;padding:0.36rem 0.65rem;min-width:180px;">
+                  <option value="">– Partner wählen –</option>
+                </select>
+                <input type="text" id="fp-artikel-kategorie" class="form-input" placeholder="WC-Kategorie (opt.)" style="font-size:0.83rem;padding:0.42rem 0.7rem;width:180px;" />
+                <button class="btn-secondary" id="btn-fp-artikel-import" style="font-size:0.82rem;padding:0.42rem 0.85rem;" disabled>↓ Aus WC importieren</button>
+              </div>
+            </div>
+            <div id="fp-artikel-list-wrap"><p style="color:var(--muted);font-size:0.85rem;">Bitte Partner wählen.</p></div>
+          </div>
+        </div>
+
+        <!-- Bestellungen -->
+        <div id="fptab-fp-verkaeufe" class="sub-tab-panel">
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+              <h2>Festpreis-Bestellungen</h2>
+              <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                <select class="form-select" id="fp-verkaeufe-filter-partner" style="font-size:0.83rem;padding:0.36rem 0.65rem;">
+                  <option value="">Alle Partner</option>
+                </select>
+                <select class="form-select" id="fp-verkaeufe-filter-status" style="font-size:0.83rem;padding:0.36rem 0.65rem;">
+                  <option value="">Alle Status</option>
+                  <option value="offen">Offen</option>
+                  <option value="abgerechnet">Abgerechnet</option>
+                </select>
+                <button class="btn-secondary" id="btn-fp-sync" style="font-size:0.82rem;padding:0.42rem 0.85rem;">↻ WC-Sync</button>
+              </div>
+            </div>
+            <div id="fp-verkaeufe-list-wrap"><div class="skeleton" style="height:80px;"></div></div>
+          </div>
+        </div>
+
+        <!-- Abrechnung -->
+        <div id="fptab-fp-abrechnungen" class="sub-tab-panel">
+          <div class="card" style="margin-bottom:1rem;">
+            <h2 style="margin-bottom:1rem;">Neue Abrechnung erstellen</h2>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:0.75rem;align-items:end;">
+              <div class="form-field">
+                <label style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-weight:600;">Partner</label>
+                <select class="form-select" id="fp-abr-partner" style="font-size:0.84rem;">
+                  <option value="">– Partner wählen –</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-weight:600;">Zeitraum von</label>
+                <input type="text" id="fp-abr-von" class="form-input" placeholder="01.01.2026" style="font-size:0.84rem;" />
+              </div>
+              <div class="form-field">
+                <label style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-weight:600;">Zeitraum bis</label>
+                <input type="text" id="fp-abr-bis" class="form-input" placeholder="31.01.2026" style="font-size:0.84rem;" />
+              </div>
+              <button class="btn" id="btn-fp-abrechnung-erstellen" style="font-size:0.82rem;padding:0.42rem 0.85rem;">Erstellen</button>
+            </div>
+            <div id="fp-abr-status" style="margin-top:0.6rem;font-size:0.82rem;min-height:1.1em;"></div>
+          </div>
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+              <h2>Abrechnungen</h2>
+              <select class="form-select" id="fp-abrechnungen-filter-partner" style="font-size:0.83rem;padding:0.36rem 0.65rem;">
+                <option value="">Alle Partner</option>
+              </select>
+            </div>
+            <div id="fp-abrechnungen-list-wrap"><div class="skeleton" style="height:80px;"></div></div>
           </div>
         </div>
       </section>
@@ -6532,6 +6626,372 @@
           loadFixkostenTable();
         }
       });
+
+      // ── SECTION: Festpreis-Tab (Sprint 5.5) ──────────────────────────────────
+      {
+        const FP = window.API_BASE;
+        let _fpPartners = [];
+
+        // Sub-Tab-Switching
+        document.querySelectorAll('#panel-festpreis .sub-tab').forEach(btn => {
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('#panel-festpreis .sub-tab').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('#panel-festpreis .sub-tab-panel').forEach(p => p.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById(`fptab-${btn.dataset.fptab}`).classList.add('active');
+            if (btn.dataset.fptab === 'fp-partner')      loadFpPartner();
+            if (btn.dataset.fptab === 'fp-artikel')      initFpArtikelTab();
+            if (btn.dataset.fptab === 'fp-verkaeufe')    loadFpVerkaeufe();
+            if (btn.dataset.fptab === 'fp-abrechnungen') initFpAbrechnungTab();
+          });
+        });
+
+        // ── Partner ──────────────────────────────────────────────────────────
+        document.getElementById('btn-fp-add-partner').addEventListener('click', () => openFpPartnerModal());
+
+        async function loadFpPartner() {
+          const wrap = document.getElementById('fp-partner-list-wrap');
+          wrap.innerHTML = '<div class="skeleton" style="height:80px;"></div>';
+          try {
+            const data = await window.apiFetch(`${FP()}/api/festpreis/partner`).then(r => r.json());
+            _fpPartners = data.partner ?? [];
+            if (!_fpPartners.length) {
+              wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Noch keine Festpreis-Partner erfasst.</p>';
+              return;
+            }
+            wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+              <thead><tr><th>Partner-ID</th><th>Name</th><th>Shop</th><th>Aktiv</th><th>Notiz</th><th>Aktionen</th></tr></thead>
+              <tbody>${_fpPartners.map(p => `<tr>
+                <td>${p['Partner-ID'] ?? '–'}</td>
+                <td>${p['Name'] ?? '–'}</td>
+                <td>${(p['Shop'] ?? '').toUpperCase() || 'JFN'}</td>
+                <td><span class="badge ${(p['Aktiv'] ?? '').toLowerCase() === 'ja' ? 'badge-completed' : 'badge-cancelled'}">${(p['Aktiv'] ?? '').toLowerCase() === 'ja' ? 'Aktiv' : 'Inaktiv'}</span></td>
+                <td style="color:var(--muted);font-size:0.84rem;">${p['Notiz'] || '–'}</td>
+                <td><button class="btn-secondary btn-xs" data-fp-edit="${p['Partner-ID']}">Bearbeiten</button></td>
+              </tr>`).join('')}</tbody>
+            </table></div>`;
+            wrap.querySelectorAll('[data-fp-edit]').forEach(btn => {
+              btn.addEventListener('click', () => {
+                const p = _fpPartners.find(x => x['Partner-ID'] === btn.dataset.fpEdit);
+                if (p) openFpPartnerModal(p);
+              });
+            });
+            populateFpPartnerSelects();
+          } catch (e) {
+            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+          }
+        }
+
+        function populateFpPartnerSelects() {
+          const selects = ['fp-artikel-filter-partner', 'fp-verkaeufe-filter-partner', 'fp-abr-partner', 'fp-abrechnungen-filter-partner'];
+          selects.forEach(id => {
+            const sel = document.getElementById(id);
+            if (!sel) return;
+            const val = sel.value;
+            const allOpt = id.includes('filter') ? '<option value="">Alle Partner</option>' : '<option value="">– Partner wählen –</option>';
+            sel.innerHTML = allOpt + _fpPartners.map(p =>
+              `<option value="${p['Partner-ID']}"${val === p['Partner-ID'] ? ' selected' : ''}>${p['Name']} (${p['Partner-ID']})</option>`
+            ).join('');
+          });
+        }
+
+        function openFpPartnerModal(partner = null) {
+          const isEdit = partner !== null;
+          const backdrop = document.createElement('div');
+          backdrop.className = 'modal-backdrop';
+          backdrop.innerHTML = `
+            <div class="modal-box" style="max-width:440px;width:94%;">
+              <div class="modal-title">${isEdit ? 'FP-Partner bearbeiten' : 'FP-Partner hinzufügen'}</div>
+              <div style="margin-top:1rem;">
+                <div class="form-grid">
+                  <div class="form-field form-col-full">
+                    <label>Name *</label>
+                    <input class="form-input" id="fp-f-name" value="${isEdit ? (partner['Name'] ?? '') : ''}" placeholder="Partnername">
+                  </div>
+                  <div class="form-field">
+                    <label>Shop</label>
+                    <select class="form-select" id="fp-f-shop">
+                      <option value="jfn"${!isEdit || (partner['Shop'] ?? '').toLowerCase() !== 'honk' ? ' selected' : ''}>Jammi Fashion (JFN)</option>
+                      <option value="honk"${isEdit && (partner['Shop'] ?? '').toLowerCase() === 'honk' ? ' selected' : ''}>HonkShop (HONK)</option>
+                    </select>
+                  </div>
+                  <div class="form-field">
+                    <label>Aktiv</label>
+                    <select class="form-select" id="fp-f-aktiv">
+                      <option value="Ja"${!isEdit || (partner['Aktiv'] ?? '').toLowerCase() === 'ja' ? ' selected' : ''}>Ja</option>
+                      <option value="Nein"${isEdit && (partner['Aktiv'] ?? '').toLowerCase() !== 'ja' ? ' selected' : ''}>Nein</option>
+                    </select>
+                  </div>
+                  <div class="form-field form-col-full">
+                    <label>Notiz</label>
+                    <input class="form-input" id="fp-f-notiz" value="${isEdit ? (partner['Notiz'] ?? '') : ''}" placeholder="Interne Notiz">
+                  </div>
+                </div>
+                <div class="modal-actions" style="margin-top:1.25rem;">
+                  <button class="btn-secondary" id="fp-f-cancel">Abbrechen</button>
+                  <button class="btn" id="fp-f-save">${isEdit ? 'Speichern' : 'Hinzufügen'}</button>
+                </div>
+                <div id="fp-f-err" style="color:var(--danger);font-size:0.83rem;margin-top:0.5rem;min-height:1em;"></div>
+              </div>
+            </div>`;
+          document.body.appendChild(backdrop);
+          backdrop.querySelector('#fp-f-cancel').onclick = () => backdrop.remove();
+          backdrop.querySelector('#fp-f-save').onclick = async () => {
+            const name = backdrop.querySelector('#fp-f-name').value.trim();
+            if (!name) { backdrop.querySelector('#fp-f-err').textContent = 'Name ist erforderlich.'; return; }
+            const body = {
+              name,
+              shop:  backdrop.querySelector('#fp-f-shop').value,
+              aktiv: backdrop.querySelector('#fp-f-aktiv').value,
+              notiz: backdrop.querySelector('#fp-f-notiz').value.trim(),
+            };
+            const saveBtn = backdrop.querySelector('#fp-f-save');
+            saveBtn.disabled = true; saveBtn.textContent = '...';
+            try {
+              const r = await window.apiFetch(`${FP()}/api/festpreis/partner`, {
+                method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body),
+              });
+              if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+              backdrop.remove();
+              window.showToast('FP-Partner gespeichert.');
+              loadFpPartner();
+            } catch (e) {
+              backdrop.querySelector('#fp-f-err').textContent = `Fehler: ${e.message}`;
+              saveBtn.disabled = false; saveBtn.textContent = isEdit ? 'Speichern' : 'Hinzufügen';
+            }
+          };
+        }
+
+        // ── Artikel ──────────────────────────────────────────────────────────
+        const fpArtikelPartnerSel = document.getElementById('fp-artikel-filter-partner');
+        const btnFpImport         = document.getElementById('btn-fp-artikel-import');
+
+        fpArtikelPartnerSel.addEventListener('change', () => {
+          btnFpImport.disabled = !fpArtikelPartnerSel.value;
+          if (fpArtikelPartnerSel.value) loadFpArtikel(fpArtikelPartnerSel.value);
+          else document.getElementById('fp-artikel-list-wrap').innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Bitte Partner wählen.</p>';
+        });
+
+        btnFpImport.addEventListener('click', async () => {
+          const partnerId = fpArtikelPartnerSel.value;
+          if (!partnerId) return;
+          const partner = _fpPartners.find(p => p['Partner-ID'] === partnerId);
+          const shop    = (partner?.['Shop'] ?? '').toLowerCase() === 'honk' ? 'honk' : 'jfn';
+          const kategorie = document.getElementById('fp-artikel-kategorie').value.trim();
+          btnFpImport.disabled = true; btnFpImport.textContent = '...';
+          try {
+            const r = await window.apiFetch(`${FP()}/api/festpreis/artikel/${encodeURIComponent(partnerId)}/import`, {
+              method: 'POST', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ shop, kategorie: kategorie || undefined }),
+            });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error ?? r.statusText);
+            window.showToast(`${d.imported} Artikel importiert (von ${d.total} WC-Produkten).`);
+            loadFpArtikel(partnerId);
+          } catch (e) {
+            window.showToast(`Fehler: ${e.message}`, 'toast-error');
+          } finally {
+            btnFpImport.disabled = false; btnFpImport.textContent = '↓ Aus WC importieren';
+          }
+        });
+
+        function initFpArtikelTab() {
+          if (fpArtikelPartnerSel.value) loadFpArtikel(fpArtikelPartnerSel.value);
+        }
+
+        async function loadFpArtikel(partnerId) {
+          const wrap = document.getElementById('fp-artikel-list-wrap');
+          wrap.innerHTML = '<div class="skeleton" style="height:80px;"></div>';
+          try {
+            const data = await window.apiFetch(`${FP()}/api/festpreis/artikel/${encodeURIComponent(partnerId)}`).then(r => r.json());
+            const artikel = data.artikel ?? [];
+            if (!artikel.length) {
+              wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Artikel. Bitte aus WC importieren.</p>';
+              return;
+            }
+            const fmt = v => Number(v || 0).toFixed(2).replace('.', ',');
+            wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+              <thead><tr>
+                <th>Produkt-ID</th><th>Artikelname</th><th>WC-Kategorie</th>
+                <th>Festpreis-EK (€)</th><th>Handling (€)</th><th>Versandart</th><th>Speichern</th>
+              </tr></thead>
+              <tbody>${artikel.map((a, i) => `<tr data-fp-art-idx="${i}" data-fp-art-pid="${a['Produkt-ID']}">
+                <td style="font-size:0.8rem;color:var(--muted);">${a['Produkt-ID']}</td>
+                <td style="font-size:0.85rem;">${a['Artikelname']}</td>
+                <td style="font-size:0.82rem;color:var(--muted);">${a['WC-Kategorie'] || '–'}</td>
+                <td><input type="number" class="form-input fp-art-ek" value="${Number(a['Festpreis-EK-Netto'] || 0)}" step="0.01" min="0" style="width:90px;padding:0.3rem 0.5rem;font-size:0.84rem;"></td>
+                <td><input type="number" class="form-input fp-art-hg" value="${Number(a['Handling-Gebühr'] || 0)}" step="0.01" min="0" style="width:90px;padding:0.3rem 0.5rem;font-size:0.84rem;"></td>
+                <td><select class="form-select fp-art-va" style="font-size:0.83rem;padding:0.3rem 0.5rem;">
+                  <option value="P"${(a['Versandart'] ?? 'P') !== 'B' ? ' selected' : ''}>Paket (P)</option>
+                  <option value="B"${(a['Versandart'] ?? '') === 'B' ? ' selected' : ''}>Brief (B)</option>
+                </select></td>
+                <td><button class="btn-secondary btn-xs fp-art-save" data-pid="${a['Produkt-ID']}">Speichern</button></td>
+              </tr>`).join('')}</tbody>
+            </table></div>`;
+            wrap.querySelectorAll('.fp-art-save').forEach(btn => {
+              btn.addEventListener('click', async () => {
+                const tr = btn.closest('tr');
+                const ek = parseFloat(tr.querySelector('.fp-art-ek').value) || 0;
+                const hg = parseFloat(tr.querySelector('.fp-art-hg').value) || 0;
+                const va = tr.querySelector('.fp-art-va').value;
+                btn.disabled = true; btn.textContent = '...';
+                try {
+                  const r = await window.apiFetch(`${FP()}/api/festpreis/artikel/${encodeURIComponent(partnerId)}/${encodeURIComponent(btn.dataset.pid)}`, {
+                    method: 'PATCH', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ festpreisEK: ek, handlingGebuehr: hg, versandart: va }),
+                  });
+                  if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+                  btn.textContent = '✓';
+                  setTimeout(() => { btn.disabled = false; btn.textContent = 'Speichern'; }, 1500);
+                } catch (e) {
+                  window.showToast(`Fehler: ${e.message}`, 'toast-error');
+                  btn.disabled = false; btn.textContent = 'Speichern';
+                }
+              });
+            });
+          } catch (e) {
+            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+          }
+        }
+
+        // ── Bestellungen / Verkäufe ───────────────────────────────────────────
+        document.getElementById('btn-fp-sync').addEventListener('click', async () => {
+          const btn = document.getElementById('btn-fp-sync');
+          btn.disabled = true; btn.textContent = '...';
+          try {
+            const r = await window.apiFetch(`${FP()}/api/festpreis/verkaeufe/sync`, {
+              method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({}),
+            });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error ?? r.statusText);
+            window.showToast(d.message);
+            loadFpVerkaeufe();
+          } catch (e) {
+            window.showToast(`Fehler: ${e.message}`, 'toast-error');
+          } finally {
+            btn.disabled = false; btn.textContent = '↻ WC-Sync';
+          }
+        });
+
+        document.getElementById('fp-verkaeufe-filter-partner').addEventListener('change', () => loadFpVerkaeufe());
+        document.getElementById('fp-verkaeufe-filter-status').addEventListener('change', () => loadFpVerkaeufe());
+
+        async function loadFpVerkaeufe() {
+          const wrap = document.getElementById('fp-verkaeufe-list-wrap');
+          wrap.innerHTML = '<div class="skeleton" style="height:80px;"></div>';
+          const partnerId = document.getElementById('fp-verkaeufe-filter-partner').value;
+          const status    = document.getElementById('fp-verkaeufe-filter-status').value;
+          const params = new URLSearchParams();
+          if (partnerId) params.set('partnerId', partnerId);
+          if (status)    params.set('status', status);
+          try {
+            const data = await window.apiFetch(`${FP()}/api/festpreis/verkaeufe?${params}`).then(r => r.json());
+            const rows = data.verkaeufe ?? [];
+            if (!rows.length) {
+              wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Einträge.</p>';
+              return;
+            }
+            const fmt = v => Number(v || 0).toFixed(2).replace('.', ',');
+            wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table" style="font-size:0.84rem;">
+              <thead><tr>
+                <th>Partner</th><th>Datum</th><th>WC-Nr</th><th>Artikel</th><th>Variante</th>
+                <th>Stk</th><th>EK</th><th>Handling</th><th>Porto+</th><th>Porto−</th>
+                <th>VersNK</th><th>PayPal</th><th>Netto</th><th>Brutto</th><th>Status</th>
+              </tr></thead>
+              <tbody>${rows.map(r => `<tr>
+                <td>${r['Partner-ID']}</td>
+                <td>${r['Datum']}</td>
+                <td>${r['WC-Bestellnummer']}</td>
+                <td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${r['Artikelname']}">${r['Artikelname']}</td>
+                <td>${r['Variante'] || '–'}</td>
+                <td>${r['Stückzahl']}</td>
+                <td>${fmt(r['Festpreis-EK'])}</td>
+                <td>${fmt(r['Handling'])}</td>
+                <td>${fmt(r['Porto-Einnahme'])}</td>
+                <td>${fmt(r['Porto-Kosten'])}</td>
+                <td>${fmt(r['Versandnebenkosten'])}</td>
+                <td>${fmt(r['PayPal-Kosten'])}</td>
+                <td style="font-weight:600;">${fmt(r['Gesamt-Partner-Netto'])}</td>
+                <td>${fmt(r['Gesamt-Partner-Brutto'])}</td>
+                <td><span class="badge ${r['Status Abrechnung'] === 'abgerechnet' ? 'badge-completed' : 'badge-processing'}">${r['Status Abrechnung']}</span></td>
+              </tr>`).join('')}</tbody>
+            </table></div>`;
+          } catch (e) {
+            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+          }
+        }
+
+        // ── Abrechnung ────────────────────────────────────────────────────────
+        document.getElementById('btn-fp-abrechnung-erstellen').addEventListener('click', async () => {
+          const partnerId = document.getElementById('fp-abr-partner').value;
+          const vonDatum  = document.getElementById('fp-abr-von').value.trim();
+          const bisDatum  = document.getElementById('fp-abr-bis').value.trim();
+          const statusEl  = document.getElementById('fp-abr-status');
+          if (!partnerId || !vonDatum || !bisDatum) {
+            statusEl.style.color = 'var(--danger)'; statusEl.textContent = 'Partner, Von- und Bis-Datum sind erforderlich.'; return;
+          }
+          const btn = document.getElementById('btn-fp-abrechnung-erstellen');
+          btn.disabled = true; statusEl.style.color = 'var(--muted)'; statusEl.textContent = 'Wird erstellt…';
+          try {
+            const r = await window.apiFetch(`${FP()}/api/festpreis/abrechnungen`, {
+              method: 'POST', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ partnerId, vonDatum, bisDatum }),
+            });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error ?? r.statusText);
+            statusEl.style.color = 'var(--success)';
+            statusEl.textContent = `Abrechnung ${d.abrechnungsId} erstellt – ${d.positionen} Pos., ${Number(d.gesamtNetto).toFixed(2)} € netto`;
+            loadFpAbrechnungen();
+          } catch (e) {
+            statusEl.style.color = 'var(--danger)'; statusEl.textContent = `Fehler: ${e.message}`;
+          } finally {
+            btn.disabled = false;
+          }
+        });
+
+        document.getElementById('fp-abrechnungen-filter-partner').addEventListener('change', () => loadFpAbrechnungen());
+
+        function initFpAbrechnungTab() {
+          loadFpAbrechnungen();
+        }
+
+        async function loadFpAbrechnungen() {
+          const wrap = document.getElementById('fp-abrechnungen-list-wrap');
+          wrap.innerHTML = '<div class="skeleton" style="height:80px;"></div>';
+          const partnerId = document.getElementById('fp-abrechnungen-filter-partner').value;
+          const params = partnerId ? `?partnerId=${encodeURIComponent(partnerId)}` : '';
+          try {
+            const data = await window.apiFetch(`${FP()}/api/festpreis/abrechnungen${params}`).then(r => r.json());
+            const rows = data.abrechnungen ?? [];
+            if (!rows.length) {
+              wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Abrechnungen vorhanden.</p>';
+              return;
+            }
+            const fmt = v => Number(v || 0).toFixed(2).replace('.', ',');
+            wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+              <thead><tr><th>Abr.-ID</th><th>Partner</th><th>Von</th><th>Bis</th><th>Netto</th><th>Brutto</th><th>Status</th><th>Erstellt</th></tr></thead>
+              <tbody>${rows.map(r => `<tr>
+                <td style="font-size:0.82rem;font-weight:600;">${r['Abrechnungs-ID']}</td>
+                <td>${r['Partner-ID']}</td>
+                <td>${r['Zeitraum-Von']}</td>
+                <td>${r['Zeitraum-Bis']}</td>
+                <td style="font-weight:600;">${fmt(r['Gesamt-Netto'])} €</td>
+                <td>${fmt(r['Gesamt-Brutto'])} €</td>
+                <td><span class="badge ${r['Status'] === 'freigegeben' ? 'badge-completed' : 'badge-processing'}">${r['Status']}</span></td>
+                <td style="color:var(--muted);font-size:0.82rem;">${r['Erstellt-Am']}</td>
+              </tr>`).join('')}</tbody>
+            </table></div>`;
+          } catch (e) {
+            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+          }
+        }
+
+        // Panel-Aktivierung: Partner beim ersten Öffnen laden
+        const fpPanelBtn = document.querySelector('nav button[data-panel="festpreis"]');
+        fpPanelBtn?.addEventListener('click', () => {
+          if (!_fpPartners.length) loadFpPartner();
+        });
+      }
 
       // Toolbar-Klicks für alle Rich-Editoren
       document.addEventListener('mousedown', e => {
