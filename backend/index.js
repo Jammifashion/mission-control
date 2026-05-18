@@ -21,6 +21,7 @@ import partnerPortalRouter from './routes/partnerPortal.js';
 import partnerArtikelRouter from './routes/partner-artikel.js';
 import anfragenRouter from './routes/anfragen.js';
 import anfragenChatRouter from './routes/anfragen-chat.js';
+import festpreisRouter from './routes/festpreis-portal.js';
 
 // Secrets vor Express-Setup laden – stellt sicher dass process.env.CORS_ORIGIN
 // (und alle anderen Secrets) bereits gesetzt sind wenn die Middleware konfiguriert wird.
@@ -56,6 +57,7 @@ app.use('/api/system', systemRoutes);
 app.use('/api/kalkulation', kalkulationRouter);
 app.use('/api/partner',     partnerArtikelRouter); // Admin-Endpunkte (hinter requireApiKey)
 app.use('/api/anfragen',    anfragenRouter);
+app.use('/api/festpreis',   festpreisRouter);
 app.use('/api/health', systemRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
