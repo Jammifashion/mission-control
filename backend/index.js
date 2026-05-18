@@ -22,6 +22,7 @@ import partnerArtikelRouter from './routes/partner-artikel.js';
 import anfragenRouter from './routes/anfragen.js';
 import anfragenChatRouter from './routes/anfragen-chat.js';
 import festpreisRouter from './routes/festpreis-portal.js';
+import festpreisPublicRouter from './routes/festpreis-public.js';
 
 // Secrets vor Express-Setup laden – stellt sicher dass process.env.CORS_ORIGIN
 // (und alle anderen Secrets) bereits gesetzt sind wenn die Middleware konfiguriert wird.
@@ -42,7 +43,8 @@ app.use(express.json({ limit: '256kb' }));
 app.use('/api/', apiRateLimiter);
 app.use('/api/partner-view', partnerViewRouter); // legacy, bleibt erhalten
 app.use('/api/partner',      partnerPortalRouter); // Token-Auth oder eigene Key-Prüfung
-app.use('/api/anfragen',     anfragenChatRouter);  // public: nur /chat (kein API-Key nötig)
+app.use('/api/anfragen',           anfragenChatRouter);   // public: nur /chat (kein API-Key nötig)
+app.use('/api/festpreis-public',   festpreisPublicRouter); // public: Token-Auth (kein API-Key)
 app.use(requireApiKey);
 
 // ── Routes ────────────────────────────────────────────────────────────────────

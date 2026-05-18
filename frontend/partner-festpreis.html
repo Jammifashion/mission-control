@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Festpreis Partner Portal – Jammi Fashion</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #121212; --card: #1e1e1e; --border: #2e2e2e;
+      --text: #e0e0e0; --muted: #999; --accent: #e8c44a;
+      --success: #4caf50; --danger: #f44336;
+    }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 15px; min-height: 100vh;
+    }
+    header {
+      background: var(--card); border-bottom: 1px solid var(--border);
+      padding: 1rem 1.5rem; display: flex; align-items: center;
+      justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+    }
+    header .logo { font-size: 1.05rem; color: var(--accent); font-weight: 700; letter-spacing: 0.02em; }
+    header .partner-name { font-size: 0.9rem; color: var(--muted); }
+    main { max-width: 1060px; margin: 0 auto; padding: 1.5rem 1rem; display: flex; flex-direction: column; gap: 1.5rem; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem 1.5rem; }
+    .card-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.1rem; }
+    .card-header h2 { font-size: 1rem; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    thead tr { border-bottom: 1px solid var(--border); }
+    th { padding: 0.55rem 0.8rem; text-align: left; color: var(--muted); font-weight: 500; font-size: 0.82rem; white-space: nowrap; }
+    td { padding: 0.6rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.9rem; }
+    tr:last-child td { border-bottom: none; }
+    .badge { display: inline-block; padding: 0.22rem 0.65rem; border-radius: 20px; font-size: 0.78rem; font-weight: 600; }
+    .badge-offen       { background: rgba(255,193,7,0.15);  color: #ffc107; }
+    .badge-abgerechnet { background: rgba(76,175,80,0.15);  color: #4caf50; }
+    .badge-entwurf     { background: rgba(120,120,120,0.2); color: #aaa; }
+    .badge-freigegeben { background: rgba(76,175,80,0.15);  color: #4caf50; }
+    .skeleton { background: linear-gradient(90deg, var(--card) 25%, #252525 50%, var(--card) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px; height: 80px; }
+    @keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
+    .empty { color: var(--muted); font-size: 0.88rem; padding: 1.5rem 0; }
+    .btn { background: var(--accent); color: #000; border: none; border-radius: 6px; padding: 0.45rem 1.1rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+    .btn:hover { opacity: 0.88; }
+    .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem 0.9rem; font-size: 0.84rem; cursor: pointer; }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+    #splash { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 55vh; gap: 1rem; }
+    #splash p { color: var(--muted); font-size: 0.92rem; }
+    .error-box { background: rgba(244,67,54,0.1); border: 1px solid rgba(244,67,54,0.35); border-radius: 8px; padding: 1.5rem 2rem; text-align: center; }
+    .error-box p { color: var(--danger); font-size: 1rem; line-height: 1.6; }
+    .api-cfg { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    .api-cfg label { font-size: 0.84rem; color: var(--muted); white-space: nowrap; }
+    .api-cfg input { flex: 1; min-width: 200px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.45rem 0.75rem; color: var(--text); font-size: 0.88rem; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    /* Saldo-Block */
+    .saldo-row { display: flex; justify-content: space-between; align-items: baseline; padding: 0.4rem 0; font-size: 0.92rem; }
+    .saldo-row.muted { color: var(--muted); font-size: 0.86rem; }
+    .saldo-row .amount { font-variant-numeric: tabular-nums; font-weight: 600; }
+    .saldo-divider { border: none; border-top: 1px solid var(--border); margin: 0.4rem 0; }
+    .saldo-final { font-size: 1.05rem; font-weight: 700; padding-top: 0.4rem; }
+    .saldo-positive { color: #4caf50; }
+    .saldo-negative { color: var(--danger); }
+    /* Abrechnung */
+    .abr-card { padding-top: 1.25rem; margin-top: 1.25rem; border-top: 1px solid var(--border); }
+    .abr-card:first-child { padding-top: 0; margin-top: 0; border-top: none; }
+    .abr-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; padding-bottom: 0.6rem; margin-bottom: 0.6rem; border-bottom: 1px solid var(--border); }
+    .abr-zeitraum { font-size: 0.86rem; color: var(--muted); }
+    .abr-summe { font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .abr-summe.pos { color: #4caf50; }
+    .summary { font-size: 0.84rem; color: var(--muted); margin-bottom: 0.85rem; }
+    .summary strong { color: var(--text); }
+    /* Kalkulations-Info */
+    .kalk-info { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 0.75rem; }
+    .kalk-info-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem 1rem; }
+    .kalk-info-label { font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 0.25rem; }
+    .kalk-info-value { font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    @media (max-width: 600px) {
+      th:nth-child(n+5), td:nth-child(n+5) { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <span class="logo">Jammi Fashion – Festpreis Partner Portal</span>
+    <span class="partner-name" id="partner-name-header"></span>
+  </header>
+
+  <main id="main-content">
+    <div id="splash">
+      <div class="skeleton" style="width:220px;height:22px;border-radius:4px;"></div>
+      <p>Daten werden geladen…</p>
+    </div>
+  </main>
+
+  <script>
+    const params   = new URLSearchParams(location.search);
+    const TOKEN    = params.get('token') || '';
+    const apiParam = params.get('api');
+
+    if (apiParam) localStorage.setItem('mc_api_url', apiParam.replace(/\/$/, ''));
+    let API_BASE = localStorage.getItem('mc_api_url') || '';
+
+    const main = document.getElementById('main-content');
+
+    async function apiFetch(path) {
+      if (!API_BASE) throw new Error('Backend-URL nicht konfiguriert.');
+      const r = await fetch(`${API_BASE}${path}`);
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const err = new Error(body.error || r.statusText);
+        err.status = r.status;
+        throw err;
+      }
+      return body;
+    }
+
+    function fmt(val) {
+      return Number(val || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+    }
+
+    function showError(msg) {
+      main.innerHTML = `<div class="error-box" style="max-width:480px;margin:3rem auto;"><p>${msg}</p></div>`;
+    }
+
+    function showApiConfig() {
+      main.innerHTML = `
+        <div class="api-cfg">
+          <label>Backend-URL:</label>
+          <input id="api-url-input" type="url" placeholder="https://backend.run.app" value="${API_BASE}">
+          <button class="btn" id="api-save-btn">Laden</button>
+        </div>
+        <p style="font-size:0.84rem;color:var(--muted);margin-top:0.5rem;">Bitte Backend-URL eingeben (wird gespeichert).</p>`;
+      document.getElementById('api-save-btn').onclick = () => {
+        const val = document.getElementById('api-url-input').value.trim().replace(/\/$/, '');
+        if (!val) return;
+        localStorage.setItem('mc_api_url', val);
+        API_BASE = val;
+        init();
+      };
+    }
+
+    // ── Verkäufe ─────────────────────────────────────────────────────────────
+    async function loadVerkaeufe() {
+      const wrap = document.getElementById('pv-verkaeufe');
+      if (!wrap) return;
+      wrap.innerHTML = '<div class="skeleton"></div>';
+      try {
+        const rows = await apiFetch(`/api/festpreis-public/verkaeufe?token=${encodeURIComponent(TOKEN)}`);
+        const offen = rows.filter(r => (r['Status Abrechnung'] ?? '').toLowerCase() === 'offen');
+        if (!rows.length) { wrap.innerHTML = '<p class="empty">Noch keine Verkäufe vorhanden.</p>'; return; }
+
+        const totalNetto  = offen.reduce((s, r) => s + Number(r['Gesamt-Partner-Netto']  || 0), 0);
+        const totalBrutto = offen.reduce((s, r) => s + Number(r['Gesamt-Partner-Brutto'] || 0), 0);
+
+        wrap.innerHTML = `
+          <p class="summary">${rows.length} Eintrag/Einträge &nbsp;·&nbsp; ${offen.length} offen &nbsp;·&nbsp; Offenes Guthaben netto: <strong>${fmt(totalNetto)}</strong> (brutto: ${fmt(totalBrutto)})</p>
+          <div style="overflow-x:auto;"><table>
+            <thead><tr>
+              <th>Datum</th><th>Bestell-Nr.</th><th>Artikel</th>
+              <th>Variante</th><th class="num">Menge</th>
+              <th class="num">EK</th><th class="num">Handling</th>
+              <th class="num">Porto+</th><th class="num">Porto−</th>
+              <th class="num">Netto</th><th class="num">Brutto</th><th>Status</th>
+            </tr></thead>
+            <tbody>${rows.map(r => `<tr>
+              <td>${r['Datum']}</td>
+              <td>${r['WC-Bestellnummer']}</td>
+              <td style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${r['Artikelname']}">${r['Artikelname']}</td>
+              <td>${r['Variante'] || '–'}</td>
+              <td class="num">${r['Stückzahl']}</td>
+              <td class="num">${fmt(r['Festpreis-EK'])}</td>
+              <td class="num">${fmt(r['Handling'])}</td>
+              <td class="num">${fmt(r['Porto-Einnahme'])}</td>
+              <td class="num">${fmt(r['Porto-Kosten'])}</td>
+              <td class="num"><strong>${fmt(r['Gesamt-Partner-Netto'])}</strong></td>
+              <td class="num">${fmt(r['Gesamt-Partner-Brutto'])}</td>
+              <td><span class="badge badge-${r['Status Abrechnung'].toLowerCase()}">${r['Status Abrechnung']}</span></td>
+            </tr>`).join('')}</tbody>
+          </table></div>`;
+      } catch (e) {
+        wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${e.message}</p>`;
+      }
+    }
+
+    // ── Abrechnungen ─────────────────────────────────────────────────────────
+    async function loadAbrechnungen() {
+      const wrap = document.getElementById('pv-abrechnungen');
+      if (!wrap) return;
+      wrap.innerHTML = '<div class="skeleton"></div>';
+      try {
+        const rows = await apiFetch(`/api/festpreis-public/abrechnungen?token=${encodeURIComponent(TOKEN)}`);
+        if (!rows.length) { wrap.innerHTML = '<p class="empty">Noch keine Abrechnungen vorhanden.</p>'; return; }
+
+        rows.sort((a, b) => (b['Erstellt-Am'] || '').localeCompare(a['Erstellt-Am'] || ''));
+        const sumFreigegeben = rows
+          .filter(r => r['Status'] === 'freigegeben')
+          .reduce((s, r) => s + Number(r['Gesamt-Brutto'] || 0), 0);
+
+        wrap.innerHTML = `
+          <p class="summary">${rows.length} Abrechnung(en) &nbsp;·&nbsp; Freigegeben gesamt brutto: <strong>${fmt(sumFreigegeben)}</strong></p>
+          ${rows.map(r => {
+            const netto  = Number(r['Gesamt-Netto']  || 0);
+            const brutto = Number(r['Gesamt-Brutto'] || 0);
+            const status = r['Status'] || 'entwurf';
+            return `
+            <div class="abr-card">
+              <div class="abr-header">
+                <div>
+                  <strong>${r['Abrechnungs-ID']}</strong>
+                  <span class="abr-zeitraum">&nbsp;·&nbsp;${r['Zeitraum-Von']} – ${r['Zeitraum-Bis']}</span>
+                  <span class="badge badge-${status}" style="margin-left:0.5rem;">${status}</span>
+                </div>
+                <div class="abr-summe pos">${fmt(brutto)}</div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:0.6rem;margin-top:0.6rem;">
+                <div class="kalk-info-box">
+                  <div class="kalk-info-label">Gesamt Netto</div>
+                  <div class="kalk-info-value">${fmt(netto)}</div>
+                </div>
+                <div class="kalk-info-box">
+                  <div class="kalk-info-label">Gesamt Brutto (inkl. MwSt.)</div>
+                  <div class="kalk-info-value">${fmt(brutto)}</div>
+                </div>
+                <div class="kalk-info-box">
+                  <div class="kalk-info-label">Erstellt am</div>
+                  <div class="kalk-info-value" style="font-size:0.95rem;">${r['Erstellt-Am']}</div>
+                </div>
+              </div>
+            </div>`;
+          }).join('')}`;
+      } catch (e) {
+        wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${e.message}</p>`;
+      }
+    }
+
+    // ── Init ─────────────────────────────────────────────────────────────────
+    async function init() {
+      if (!TOKEN) {
+        showError('Kein Token in der URL.<br>Bitte nutze den Link deines Ansprechpartners bei Jammi Fashion.');
+        return;
+      }
+      if (!API_BASE) { showApiConfig(); return; }
+
+      main.innerHTML = '<div class="skeleton" style="height:60px;border-radius:8px;"></div>';
+      try {
+        const me = await apiFetch(`/api/festpreis-public/auth?token=${encodeURIComponent(TOKEN)}`);
+        document.getElementById('partner-name-header').textContent = me.partnerName;
+        document.title = `${me.partnerName} – Jammi Fashion Festpreis Portal`;
+      } catch (e) {
+        if (e.status === 401 || e.status === 403)
+          showError('Kein Zugang.<br>Dein Token ist ungültig oder dein Konto ist nicht aktiv.');
+        else showError(`Fehler beim Laden: ${e.message}`);
+        return;
+      }
+
+      main.innerHTML = `
+        <div class="card">
+          <div class="card-header">
+            <h2>Meine Verkäufe</h2>
+            <button class="btn-outline" id="btn-refresh">↻ Aktualisieren</button>
+          </div>
+          <div id="pv-verkaeufe"><div class="skeleton"></div></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Meine Abrechnungen</h2>
+          </div>
+          <div id="pv-abrechnungen"><div class="skeleton"></div></div>
+        </div>`;
+
+      document.getElementById('btn-refresh').addEventListener('click', () => {
+        loadVerkaeufe();
+        loadAbrechnungen();
+      });
+
+      await Promise.all([loadVerkaeufe(), loadAbrechnungen()]);
+    }
+
+    init();
+  </script>
+</body>
+</html>

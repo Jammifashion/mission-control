@@ -101,6 +101,41 @@ router.post('/partner', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── PATCH /api/festpreis/partner/:partnerId ───────────────────────────────────
+// Nur für Token-Feld (weiteres kann später ergänzt werden)
+router.patch('/partner/:partnerId', async (req, res, next) => {
+  try {
+    const sheetId = SHEETID();
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
+    const { token, aktiv } = req.body;
+
+    const sheets = await getSheets();
+    const { header, rows } = await readTab(sheets, sheetId, TAB_FP_PARTNER);
+    const pidIdx   = header.indexOf('Partner-ID');
+    const tokenIdx = header.indexOf('Token');
+    const aktivIdx = header.indexOf('Aktiv');
+
+    const rowIdx = rows.findIndex(r => (r[pidIdx] ?? '') === req.params.partnerId);
+    if (rowIdx === -1) return res.status(404).json({ error: 'Partner nicht gefunden.' });
+
+    const sheetRow = rowIdx + 2;
+    const colLetter = i => String.fromCharCode(65 + i);
+    const updates = [];
+    if (token !== undefined && tokenIdx !== -1)
+      updates.push({ range: `${TAB_FP_PARTNER}!${colLetter(tokenIdx)}${sheetRow}`, values: [[token]] });
+    if (aktiv !== undefined && aktivIdx !== -1)
+      updates.push({ range: `${TAB_FP_PARTNER}!${colLetter(aktivIdx)}${sheetRow}`, values: [[aktiv]] });
+
+    if (updates.length > 0) {
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: sheetId,
+        requestBody: { valueInputOption: 'RAW', data: updates },
+      });
+    }
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
 // ── GET /api/festpreis/artikel/:partnerId ────────────────────────────────────
 router.get('/artikel/:partnerId', async (req, res, next) => {
   try {
