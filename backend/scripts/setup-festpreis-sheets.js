@@ -13,8 +13,8 @@ const SPREADSHEET_ID = process.env.BUSINESS_SHEET_ID;
 const TABS = [
   {
     name: 'FP_Partner',
-    header: ['Partner-ID', 'Name', 'Shop', 'Aktiv', 'Notiz', 'Token'],
-    widths: [120, 200, 80, 80, 300, 280],
+    header: ['Partner-ID', 'Name', 'Shop', 'Aktiv', 'Notiz', 'Kategorien', 'Token'],
+    widths: [120, 200, 80, 80, 300, 200, 280],
     note: 'Festpreis-Partner – Shop: jfn | honk – Aktiv: Ja | Nein',
     dateColumns: [],
     currencyColumns: [],

@@ -90,12 +90,16 @@ router.post('/partner', async (req, res, next) => {
     }, 0);
     const partnerId = `FP-${String(maxId + 1).padStart(3, '0')}`;
 
+    const kategorien = Array.isArray(req.body.kategorien)
+      ? req.body.kategorien.join(',')
+      : (req.body.kategorien ?? '');
+
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
-      range: `${TAB_FP_PARTNER}!A:E`,
+      range: `${TAB_FP_PARTNER}!A:G`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [[partnerId, name, cleanShop, aktiv, notiz]] },
+      requestBody: { values: [[partnerId, name, cleanShop, aktiv, notiz, kategorien, '']] },
     });
     res.status(201).json({ partnerId, name, shop: cleanShop });
   } catch (err) { next(err); }
@@ -107,13 +111,14 @@ router.patch('/partner/:partnerId', async (req, res, next) => {
   try {
     const sheetId = SHEETID();
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
-    const { token, aktiv } = req.body;
+    const { token, aktiv, kategorien } = req.body;
 
     const sheets = await getSheets();
     const { header, rows } = await readTab(sheets, sheetId, TAB_FP_PARTNER);
     const pidIdx   = header.indexOf('Partner-ID');
     const tokenIdx = header.indexOf('Token');
     const aktivIdx = header.indexOf('Aktiv');
+    const katIdx   = header.indexOf('Kategorien');
 
     const rowIdx = rows.findIndex(r => (r[pidIdx] ?? '') === req.params.partnerId);
     if (rowIdx === -1) return res.status(404).json({ error: 'Partner nicht gefunden.' });
@@ -125,6 +130,10 @@ router.patch('/partner/:partnerId', async (req, res, next) => {
       updates.push({ range: `${TAB_FP_PARTNER}!${colLetter(tokenIdx)}${sheetRow}`, values: [[token]] });
     if (aktiv !== undefined && aktivIdx !== -1)
       updates.push({ range: `${TAB_FP_PARTNER}!${colLetter(aktivIdx)}${sheetRow}`, values: [[aktiv]] });
+    if (kategorien !== undefined && katIdx !== -1) {
+      const katStr = Array.isArray(kategorien) ? kategorien.join(',') : String(kategorien ?? '');
+      updates.push({ range: `${TAB_FP_PARTNER}!${colLetter(katIdx)}${sheetRow}`, values: [[katStr]] });
+    }
 
     if (updates.length > 0) {
       await sheets.spreadsheets.values.batchUpdate({
@@ -196,35 +205,87 @@ router.patch('/artikel/:partnerId/:produktId', async (req, res, next) => {
 });
 
 // ── POST /api/festpreis/artikel/:partnerId/import ────────────────────────────
-// Body: { shop, kategorie }  (kategorie = WC category name/slug, optional)
+// Liest Shop + Kategorien aus FP_Partner. Unterkategorien werden automatisch
+// eingeschlossen. Body-Parameter werden nur als Fallback akzeptiert.
 router.post('/artikel/:partnerId/import', async (req, res, next) => {
   try {
     const sheetId = SHEETID();
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
     const { partnerId } = req.params;
-    const { shop = 'jfn', kategorie } = req.body;
 
     const sheets = await getSheets();
 
+    // Partner-Daten lesen (Shop + Kategorien)
+    const { header: pH, rows: pRows } = await readTab(sheets, sheetId, TAB_FP_PARTNER);
+    const ph = col => pH.indexOf(col);
+    const partnerRow = pRows.find(r => (r[ph('Partner-ID')] ?? '') === partnerId);
+    if (!partnerRow) return res.status(404).json({ error: 'FP-Partner nicht gefunden.' });
+
+    const shop = (partnerRow[ph('Shop')] ?? '').toLowerCase() === 'honk' ? 'honk' : 'jfn';
+    const kategorienRaw = partnerRow[ph('Kategorien')] ?? req.body.kategorien ?? '';
+    const kategorienIds = String(kategorienRaw).split(',').map(s => s.trim()).filter(Boolean);
+
     // Vorhandene Produkt-IDs dieses Partners ermitteln (Dedup)
     const { header: aH, rows: aRows } = await readTab(sheets, sheetId, TAB_FP_ARTIKEL);
-    const pidCol = aH.indexOf('Partner-ID');
+    const pidCol    = aH.indexOf('Partner-ID');
     const prodIdCol = aH.indexOf('Produkt-ID');
     const existingIds = new Set(
       aRows.filter(r => (r[pidCol] ?? '') === partnerId).map(r => String(r[prodIdCol] ?? ''))
     );
 
     const wc = getWcClient(shop);
-    const products = [];
-    for (let page = 1; ; page++) {
-      const params = { status: 'publish', per_page: 100, page };
-      if (kategorie) params.category = kategorie;
-      const { data } = await wc.get('products', params);
-      products.push(...data);
-      if (data.length < 100) break;
+
+    // Ziel-Kategorie-IDs bestimmen (inkl. Unterkategorien)
+    let targetCatIds = [];
+    if (kategorienIds.length > 0) {
+      const allCats = [];
+      for (let page = 1; ; page++) {
+        const { data } = await wc.get('products/categories', { per_page: 100, page });
+        allCats.push(...data);
+        if (data.length < 100) break;
+      }
+      // parent → [child-IDs]
+      const children = {};
+      for (const c of allCats) {
+        if (c.parent) {
+          if (!children[c.parent]) children[c.parent] = [];
+          children[c.parent].push(c.id);
+        }
+      }
+      // Rekursiv alle Nachfahren sammeln
+      const expand = id => {
+        const num = Number(id);
+        const result = [num];
+        for (const child of (children[num] ?? [])) result.push(...expand(child));
+        return result;
+      };
+      const expanded = new Set();
+      for (const id of kategorienIds) expand(id).forEach(i => expanded.add(i));
+      targetCatIds = [...expanded];
     }
 
-    const toWrite = products
+    // WC-Produkte laden
+    const allProducts = [];
+    const seenIds = new Set();
+    if (targetCatIds.length > 0) {
+      for (const catId of targetCatIds) {
+        for (let page = 1; ; page++) {
+          const { data } = await wc.get('products', { status: 'publish', per_page: 100, page, category: catId });
+          for (const p of data) {
+            if (!seenIds.has(p.id)) { seenIds.add(p.id); allProducts.push(p); }
+          }
+          if (data.length < 100) break;
+        }
+      }
+    } else {
+      for (let page = 1; ; page++) {
+        const { data } = await wc.get('products', { status: 'publish', per_page: 100, page });
+        allProducts.push(...data);
+        if (data.length < 100) break;
+      }
+    }
+
+    const toWrite = allProducts
       .filter(p => !existingIds.has(String(p.id)))
       .map(p => [
         partnerId,
@@ -246,7 +307,7 @@ router.post('/artikel/:partnerId/import', async (req, res, next) => {
       });
     }
 
-    res.json({ imported: toWrite.length, total: products.length });
+    res.json({ imported: toWrite.length, total: allProducts.length, kategorien: targetCatIds });
   } catch (err) { next(err); }
 });
 
