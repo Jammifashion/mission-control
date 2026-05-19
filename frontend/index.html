@@ -6750,13 +6750,24 @@
           const initKats = await loadFpKategorien(initShop);
           const initSelected = new Set(String(isEdit ? (partner['Kategorien'] ?? '') : '').split(',').map(s => s.trim()).filter(Boolean));
 
-          const renderKatList = (kats, selected) => kats.length
-            ? kats.map(k => `<label style="display:flex;align-items:center;gap:0.5rem;padding:0.25rem 0.1rem;font-size:0.84rem;cursor:pointer;">
-                <input type="checkbox" class="fp-kat-cb" value="${k.id}"${selected.has(k.id) ? ' checked' : ''}
-                  style="accent-color:var(--accent);width:15px;height:15px;flex-shrink:0;">
-                <span style="color:var(--muted);font-size:0.78rem;margin-right:0.2rem;">${k.id}</span>${k.label}
-              </label>`).join('')
-            : '<span style="color:var(--muted);font-size:0.82rem;">Keine Kategorien gefunden.</span>';
+          const renderKatList = (kats, selected) => {
+            const sorted = [...kats].sort((a, b) => a.label.localeCompare(b.label, 'de'));
+            return sorted.length
+              ? sorted.map(k => `<label class="fp-kat-item" data-label="${k.label.toLowerCase()}" style="display:flex;align-items:center;gap:0.5rem;padding:0.25rem 0.1rem;font-size:0.84rem;cursor:pointer;">
+                  <input type="checkbox" class="fp-kat-cb" value="${k.id}"${selected.has(k.id) ? ' checked' : ''}
+                    style="accent-color:var(--accent);width:15px;height:15px;flex-shrink:0;">
+                  <span style="color:var(--muted);font-size:0.78rem;margin-right:0.25rem;">${k.id}</span>${k.label}
+                </label>`).join('')
+              : '<span style="color:var(--muted);font-size:0.82rem;">Keine Kategorien gefunden.</span>';
+          };
+          const attachKatSearch = (bd) => {
+            bd.querySelector('.fp-kat-search')?.addEventListener('input', e => {
+              const q = e.target.value.toLowerCase();
+              bd.querySelectorAll('.fp-kat-item').forEach(item => {
+                item.style.display = !q || item.dataset.label.includes(q) ? '' : 'none';
+              });
+            });
+          };
 
           backdrop.innerHTML = `
             <div class="modal-box" style="max-width:480px;width:94%;">
@@ -6783,7 +6794,9 @@
                   </div>
                   <div class="form-field form-col-full">
                     <label>WC-Kategorie(n) <span style="color:var(--muted);font-weight:400;">(Mehrfachauswahl)</span></label>
-                    <div id="fp-kat-wrap" style="border:1px solid var(--border);border-radius:6px;max-height:160px;overflow-y:auto;padding:0.5rem 0.65rem;background:var(--bg);">
+                    <input type="text" class="form-input fp-kat-search" placeholder="Kategorien filtern…"
+                      style="font-size:0.83rem;padding:0.38rem 0.65rem;margin-bottom:0.35rem;">
+                    <div id="fp-kat-wrap" style="border:1px solid var(--border);border-radius:6px;max-height:150px;overflow-y:auto;padding:0.45rem 0.65rem;background:var(--bg);">
                       ${renderKatList(initKats, initSelected)}
                     </div>
                   </div>
@@ -6800,14 +6813,18 @@
               </div>
             </div>`;
           document.body.appendChild(backdrop);
+          attachKatSearch(backdrop);
 
           // Shop-Wechsel → Kategorien neu laden
           backdrop.querySelector('#fp-f-shop').addEventListener('change', async () => {
             const newShop = backdrop.querySelector('#fp-f-shop').value;
             const katWrap = backdrop.querySelector('#fp-kat-wrap');
+            const katSearch = backdrop.querySelector('.fp-kat-search');
+            if (katSearch) katSearch.value = '';
             katWrap.innerHTML = '<span style="color:var(--muted);font-size:0.83rem;">Wird geladen…</span>';
             const kats = await loadFpKategorien(newShop);
             katWrap.innerHTML = renderKatList(kats, new Set());
+            attachKatSearch(backdrop);
           });
 
           backdrop.querySelector('#fp-f-cancel').onclick = () => backdrop.remove();

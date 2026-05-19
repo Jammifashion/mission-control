@@ -82,7 +82,7 @@ router.post('/partner', async (req, res, next) => {
     const cleanShop = (shop ?? '').toLowerCase() === 'honk' ? 'honk' : 'jfn';
 
     const sheets = await getSheets();
-    const { rows } = await readTab(sheets, sheetId, TAB_FP_PARTNER);
+    const { header, rows } = await readTab(sheets, sheetId, TAB_FP_PARTNER);
 
     const maxId = rows.reduce((max, r) => {
       const m = String(r[0] ?? '').match(/^FP-?(\d+)$/i);
@@ -94,12 +94,22 @@ router.post('/partner', async (req, res, next) => {
       ? req.body.kategorien.join(',')
       : (req.body.kategorien ?? '');
 
+    // Zeilenarray anhand der tatsächlichen Sheet-Header aufbauen (reihenfolge-sicher)
+    const h = col => header.indexOf(col);
+    const row = new Array(header.length).fill('');
+    if (h('Partner-ID')  !== -1) row[h('Partner-ID')]  = partnerId;
+    if (h('Name')        !== -1) row[h('Name')]        = name;
+    if (h('Shop')        !== -1) row[h('Shop')]        = cleanShop;
+    if (h('Aktiv')       !== -1) row[h('Aktiv')]       = aktiv;
+    if (h('Notiz')       !== -1) row[h('Notiz')]       = notiz;
+    if (h('Kategorien')  !== -1) row[h('Kategorien')]  = kategorien;
+
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
-      range: `${TAB_FP_PARTNER}!A:G`,
+      range: `${TAB_FP_PARTNER}!A1`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [[partnerId, name, cleanShop, aktiv, notiz, kategorien, '']] },
+      requestBody: { values: [row] },
     });
     res.status(201).json({ partnerId, name, shop: cleanShop });
   } catch (err) { next(err); }
