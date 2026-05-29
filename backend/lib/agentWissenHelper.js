@@ -1,8 +1,9 @@
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 
-const TAB     = 'Agent_Wissen';
-const TTL_MS  = 5 * 60 * 1000; // 5 Minuten
+const TAB_WISSEN = 'Agent_Wissen';
+const TAB_VK     = 'Kalkulation_Verkaufspreise';
+const TTL_MS     = 5 * 60 * 1000; // 5 Minuten
 
 let _cache = null; // { prompt: string, cachedAt: number }
 
@@ -25,6 +26,51 @@ WICHTIG:
 - Nenne keine Namen von Partnern oder deren Konditionen
 - Bei Fragen zu Sonderpreisen: "Das klären wir gerne direkt mit dir"`;
 
+async function getSheets() {
+  const auth = await getGoogleAuth();
+  return google.sheets({ version: 'v4', auth });
+}
+
+export async function getStaffelpreise() {
+  const sheetId = process.env.BUSINESS_SHEET_ID;
+  if (!sheetId) return '';
+  try {
+    const sheets = await getSheets();
+    const { data } = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: `${TAB_VK}!A:E`,
+    });
+
+    const [header, ...rawRows] = data.values ?? [];
+    if (!header) return '';
+
+    const rows = rawRows.filter(r => r.some(c => c));
+    const hi = col => header.indexOf(col);
+
+    // Gruppieren nach Produkttyp, sortiert nach Ab-Menge
+    const byTyp = {};
+    rows.forEach(r => {
+      const typ    = r[hi('Produkttyp')] ?? '';
+      const menge  = parseInt(r[hi('Ab-Menge')] ?? '0', 10);
+      const preis  = parseFloat(String(r[hi('VK-Brutto')] ?? '').replace(',', '.'));
+      if (!typ || !Number.isFinite(menge) || !Number.isFinite(preis)) return;
+      if (!byTyp[typ]) byTyp[typ] = [];
+      byTyp[typ].push({ menge, preis });
+    });
+
+    const lines = Object.entries(byTyp).map(([typ, staffeln]) => {
+      const sorted = staffeln.sort((a, b) => a.menge - b.menge);
+      const preise = sorted.map(s => `  ab ${s.menge} Stück: ${s.preis.toFixed(2)} EUR`).join('\n');
+      return `${typ}:\n${preise}`;
+    });
+
+    return lines.join('\n\n');
+  } catch (e) {
+    console.error('agentWissenHelper: Staffelpreise-Fehler:', e.message);
+    return '';
+  }
+}
+
 export async function getAgentSystemPrompt() {
   if (_cache && Date.now() - _cache.cachedAt < TTL_MS) {
     return _cache.prompt;
@@ -34,14 +80,17 @@ export async function getAgentSystemPrompt() {
   if (!sheetId) return FALLBACK_PROMPT;
 
   try {
-    const auth   = await getGoogleAuth();
-    const sheets = google.sheets({ version: 'v4', auth });
-    const { data } = await sheets.spreadsheets.values.get({
-      spreadsheetId: sheetId,
-      range: `${TAB}!A:D`,
-    });
+    const sheets = await getSheets();
 
-    const [, ...rawRows] = data.values ?? []; // erste Zeile = Header überspringen
+    const [wissenRes, staffelText] = await Promise.all([
+      sheets.spreadsheets.values.get({
+        spreadsheetId: sheetId,
+        range: `${TAB_WISSEN}!A:D`,
+      }),
+      getStaffelpreise(),
+    ]);
+
+    const [, ...rawRows] = wissenRes.data.values ?? [];
     const rows = (rawRows ?? []).filter(r => r.some(c => c));
 
     const byTyp = { produkt: [], ton: [], info: [] };
@@ -52,10 +101,15 @@ export async function getAgentSystemPrompt() {
 
     const block = entries => entries.map(e => `${e.schluessel}: ${e.wert}`).join('\n') || '(keine Einträge)';
 
+    const staffelBlock = staffelText
+      ? `STAFFELPREISE:\n${staffelText}\n\n`
+      : '';
+
     const prompt =
       `Du bist der Anfrage-Assistent von JammiFashion, einem Textildruck-Unternehmen.\n` +
       `Du führst Kunden strukturiert durch eine Preisanfrage bis zum fertigen Angebot.\n\n` +
       `PRODUKTINFOS:\n${block(byTyp.produkt)}\n\n` +
+      staffelBlock +
       `TONALITÄT & KOMMUNIKATION:\n${block(byTyp.ton)}\n\n` +
       `ALLGEMEINE INFOS:\n${block(byTyp.info)}\n\n` +
       `GESPRÄCHSFLUSS - führe den Kunden durch diese Schritte:\n` +
