@@ -734,6 +734,25 @@
       .btn-secondary:hover { background: #2a220a; }
       .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
 
+      /* ── Agent-Wissen ── */
+      .aw-table { width:100%; border-collapse:collapse; font-size:0.88rem; }
+      .aw-table th { font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; padding:0.42rem 0.5rem; border-bottom:1px solid var(--border); text-align:left; font-weight:600; }
+      .aw-table td { padding:0.45rem 0.5rem; border-bottom:1px solid var(--border); vertical-align:middle; }
+      .aw-table tbody tr:last-child td { border-bottom:none; }
+      .aw-key { color:var(--muted); font-size:0.82rem; font-family:monospace; white-space:nowrap; }
+      .aw-input { background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:0.3rem 0.5rem; color:var(--text); font-size:0.85rem; width:100%; box-sizing:border-box; }
+      .aw-input:focus { outline:none; border-color:var(--accent); }
+      .aw-save-btn { font-size:0.75rem; padding:0.28rem 0.65rem; background:transparent; border:1px solid var(--accent); color:var(--accent); border-radius:4px; cursor:pointer; white-space:nowrap; transition:background 0.15s; }
+      .aw-save-btn:hover { background:rgba(232,196,74,0.1); }
+      .aw-save-btn:disabled { opacity:0.45; cursor:not-allowed; }
+      .aw-add-form { margin-top:0.75rem; padding:0.75rem; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:6px; }
+      .aw-add-row { display:flex; gap:0.5rem; flex-wrap:wrap; align-items:flex-end; }
+      .aw-add-row label { font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; display:block; margin-bottom:0.25rem; }
+      .aw-add-field { flex:1; min-width:110px; }
+      .aw-hint-box { margin-top:0.85rem; padding:0.6rem 0.85rem; border:1px solid var(--accent); border-radius:6px; font-size:0.83rem; color:var(--text); background:rgba(232,196,74,0.06); }
+      .aw-prompt-ta { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:0.65rem 0.85rem; color:var(--text); font-size:0.78rem; font-family:monospace; resize:vertical; margin-top:0.75rem; box-sizing:border-box; line-height:1.55; }
+      .aw-toolbar { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; margin-top:0.4rem; }
+
       /* ── Claude chat ── */
       #chat-messages {
         height: 340px;
@@ -907,6 +926,7 @@
       <button data-panel="orders"><span id="nav-orders-label">Auftragsmonitor</span></button>
       <button data-panel="products">Produkte</button>
       <button data-panel="anfragen">Kundenanfragen Extern</button>
+      <button data-panel="agent-wissen">Agent-Wissen</button>
       <button data-panel="claude">Claude</button>
       <button data-panel="partnerportal">Partnerportal</button>
       <button data-panel="festpreis">Festpreis</button>
@@ -1624,6 +1644,107 @@
         </div>
       </section>
 
+      <!-- Agent-Wissen KB -->
+      <section id="panel-agent-wissen" class="panel">
+
+        <!-- Sektion 1: Produktinfos -->
+        <div class="card" style="margin-bottom:1rem;">
+          <div class="form-section-title">Produktinfos</div>
+          <div id="aw-produkt-wrap"><div class="skeleton" style="height:60px;"></div></div>
+          <div style="margin-top:0.75rem;">
+            <button class="btn-secondary" id="aw-produkt-add-btn" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Eintrag hinzufügen</button>
+          </div>
+          <div class="aw-add-form" id="aw-produkt-add-form" style="display:none;">
+            <div class="aw-add-row">
+              <div class="aw-add-field">
+                <label>Schlüssel</label>
+                <input class="aw-input" id="aw-produkt-new-key" placeholder="z.B. mindestmenge" />
+              </div>
+              <div class="aw-add-field" style="flex:2;">
+                <label>Wert</label>
+                <input class="aw-input" id="aw-produkt-new-val" placeholder="Wert" />
+              </div>
+              <div class="aw-add-field" style="flex:2;">
+                <label>Notiz</label>
+                <input class="aw-input" id="aw-produkt-new-notiz" placeholder="Optionale Notiz" />
+              </div>
+              <div>
+                <button class="btn" id="aw-produkt-save-new" style="font-size:0.82rem;padding:0.42rem 0.85rem;">Hinzufügen</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sektion 2: Tonalität & Kommunikation -->
+        <div class="card" style="margin-bottom:1rem;">
+          <div class="form-section-title">Tonalität &amp; Kommunikation</div>
+          <div id="aw-ton-wrap"><div class="skeleton" style="height:60px;"></div></div>
+          <div style="margin-top:0.75rem;">
+            <button class="btn-secondary" id="aw-ton-add-btn" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Eintrag hinzufügen</button>
+          </div>
+          <div class="aw-add-form" id="aw-ton-add-form" style="display:none;">
+            <div class="aw-add-row">
+              <div class="aw-add-field">
+                <label>Schlüssel</label>
+                <input class="aw-input" id="aw-ton-new-key" placeholder="z.B. anrede" />
+              </div>
+              <div class="aw-add-field" style="flex:2;">
+                <label>Wert</label>
+                <input class="aw-input" id="aw-ton-new-val" placeholder="Wert" />
+              </div>
+              <div class="aw-add-field" style="flex:2;">
+                <label>Notiz</label>
+                <input class="aw-input" id="aw-ton-new-notiz" placeholder="Optionale Notiz" />
+              </div>
+              <div>
+                <button class="btn" id="aw-ton-save-new" style="font-size:0.82rem;padding:0.42rem 0.85rem;">Hinzufügen</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sektion 3: Allgemeine Infos -->
+        <div class="card" style="margin-bottom:1rem;">
+          <div class="form-section-title">Allgemeine Infos</div>
+          <div id="aw-info-wrap"><div class="skeleton" style="height:60px;"></div></div>
+          <div style="margin-top:0.75rem;">
+            <button class="btn-secondary" id="aw-info-add-btn" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Eintrag hinzufügen</button>
+          </div>
+          <div class="aw-add-form" id="aw-info-add-form" style="display:none;">
+            <div class="aw-add-row">
+              <div class="aw-add-field">
+                <label>Schlüssel</label>
+                <input class="aw-input" id="aw-info-new-key" placeholder="z.B. versand" />
+              </div>
+              <div class="aw-add-field" style="flex:2;">
+                <label>Wert</label>
+                <input class="aw-input" id="aw-info-new-val" placeholder="Wert" />
+              </div>
+              <div class="aw-add-field" style="flex:2;">
+                <label>Notiz</label>
+                <input class="aw-input" id="aw-info-new-notiz" placeholder="Optionale Notiz" />
+              </div>
+              <div>
+                <button class="btn" id="aw-info-save-new" style="font-size:0.82rem;padding:0.42rem 0.85rem;">Hinzufügen</button>
+              </div>
+            </div>
+          </div>
+          <div class="aw-hint-box">⚠️ Keine kunden-spezifischen Konditionen hier speichern (Datenschutz)</div>
+        </div>
+
+        <!-- Sektion 4: System-Prompt Vorschau -->
+        <div class="card">
+          <div class="form-section-title">System-Prompt Vorschau</div>
+          <div class="aw-toolbar">
+            <button class="btn-secondary" id="aw-gen-prompt-btn" style="font-size:0.82rem;padding:0.42rem 0.85rem;">Prompt generieren</button>
+            <button class="btn" id="aw-copy-btn" style="font-size:0.82rem;padding:0.42rem 0.85rem;" disabled>In Zwischenablage kopieren</button>
+            <span id="aw-copy-status" style="font-size:0.82rem;color:var(--muted);"></span>
+          </div>
+          <textarea class="aw-prompt-ta" id="aw-prompt-preview" rows="10" readonly placeholder="Noch kein Prompt generiert – zuerst Daten laden."></textarea>
+        </div>
+
+      </section>
+
       <section id="panel-settings" class="panel">
         <div class="card">
           <h2>Backend-URL</h2>
@@ -1869,6 +1990,7 @@
           if (btn.dataset.panel === 'orders')        loadOrders();
           if (btn.dataset.panel === 'products')      ssot.kategorien.length ? populateCategories() : loadSsotData();
           if (btn.dataset.panel === 'anfragen')      loadAnfragen();
+          if (btn.dataset.panel === 'agent-wissen') loadAgentWissen();
           if (btn.dataset.panel === 'partnerportal') loadPartnerportal();
         });
       });
@@ -3766,7 +3888,7 @@
 
         const existingKeys = new Set(existingVariations.map(v => variantKey(v.attrs)));
         const toCreate = variants.filter(v =>
-          v._checked !== false && !existingKeys.has(variantKey(v.attrs))
+          v._checked !== false && !v.wcVariationId && !existingKeys.has(variantKey(v.attrs))
         );
 
         if (!toCreate.length) {
@@ -4414,6 +4536,19 @@
           pushStatus.style.color = failed ? 'var(--warning, orange)' : 'var(--success)';
           showToast(`Produkt angelegt – WC-ID: ${wcId}, ${varMsg}`, failed ? 'info' : 'success');
 
+          // Formular zurücksetzen für nächsten Artikel
+          resetForm();
+          renderVariants();
+          prodStatusSel.value = 'draft';
+          createWcBtn.disabled = true;
+          seoStatusSel.value = 'pending';
+          seoStatusSel.classList.remove('accent');
+          seoBlock.classList.remove('visible');
+          statusShopWrap.style.display = 'none';
+          document.getElementById('ai-suggest-status').textContent = '';
+          localStorage.removeItem('mc_product_draft');
+          pfName.focus();
+
         } catch (e) {
           pushStatus.textContent = `Fehler: ${e.message}`;
           pushStatus.style.color = 'var(--danger)';
@@ -4791,6 +4926,160 @@
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js').catch(console.error);
       }
+
+      // ── SECTION: Agent-Wissen ─────────────────────────────────────────────────
+      let awData = null;
+
+      function awEsc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
+
+      async function loadAgentWissen() {
+        if (awData) return;
+        ['aw-produkt-wrap', 'aw-ton-wrap', 'aw-info-wrap'].forEach(id => {
+          document.getElementById(id).innerHTML = '<div class="skeleton" style="height:60px;"></div>';
+        });
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/agent-wissen`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          awData = await res.json();
+          awRenderSection('produkt');
+          awRenderSection('ton');
+          awRenderSection('info');
+        } catch (e) {
+          ['aw-produkt-wrap', 'aw-ton-wrap', 'aw-info-wrap'].forEach(id => {
+            document.getElementById(id).innerHTML =
+              `<div style="color:var(--danger);font-size:0.85rem;padding:0.5rem 0;">Fehler: ${awEsc(e.message)}</div>`;
+          });
+        }
+      }
+
+      function awRenderSection(typ) {
+        const wrap = document.getElementById(`aw-${typ}-wrap`);
+        const rows = (awData || []).filter(r => r.typ === typ);
+        if (!rows.length) {
+          wrap.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:0.4rem 0;">Keine Einträge.</div>';
+          return;
+        }
+        wrap.innerHTML = `
+          <table class="aw-table">
+            <thead>
+              <tr>
+                <th style="width:22%">Schlüssel</th>
+                <th style="width:34%">Wert</th>
+                <th style="width:30%">Notiz</th>
+                <th style="width:14%"></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map(r => `
+                <tr>
+                  <td class="aw-key">${awEsc(r.schluessel)}</td>
+                  <td><input class="aw-input aw-val" value="${awEsc(r.wert)}" /></td>
+                  <td><input class="aw-input aw-notiz" value="${awEsc(r.notiz)}" /></td>
+                  <td><button class="aw-save-btn" data-schluessel="${awEsc(r.schluessel)}">Speichern</button></td>
+                </tr>`).join('')}
+            </tbody>
+          </table>`;
+        wrap.querySelectorAll('.aw-save-btn').forEach(btn => {
+          btn.addEventListener('click', () => awSaveRow(btn));
+        });
+      }
+
+      async function awSaveRow(btn) {
+        const tr         = btn.closest('tr');
+        const schluessel = btn.dataset.schluessel;
+        const wert       = tr.querySelector('.aw-val').value;
+        const notiz      = tr.querySelector('.aw-notiz').value;
+        btn.disabled = true;
+        btn.textContent = '…';
+        try {
+          const res = await apiFetch(
+            `${API_BASE()}/api/agent-wissen/${encodeURIComponent(schluessel)}`,
+            { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wert, notiz }) }
+          );
+          if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Fehler'); }
+          const entry = (awData || []).find(r => r.schluessel === schluessel);
+          if (entry) { entry.wert = wert; entry.notiz = notiz; }
+          btn.textContent = '✓';
+          btn.style.borderColor = 'var(--success)';
+          btn.style.color = 'var(--success)';
+          setTimeout(() => { btn.textContent = 'Speichern'; btn.style.borderColor = ''; btn.style.color = ''; btn.disabled = false; }, 1600);
+        } catch (e) {
+          btn.textContent = '✗';
+          btn.style.borderColor = 'var(--danger)';
+          btn.style.color = 'var(--danger)';
+          setTimeout(() => { btn.textContent = 'Speichern'; btn.style.borderColor = ''; btn.style.color = ''; btn.disabled = false; }, 2000);
+          showToast(`Fehler: ${e.message}`, 'error');
+        }
+      }
+
+      // Inline-Formular toggle + POST für alle drei Typen
+      ['produkt', 'ton', 'info'].forEach(typ => {
+        document.getElementById(`aw-${typ}-add-btn`).addEventListener('click', () => {
+          const form = document.getElementById(`aw-${typ}-add-form`);
+          form.style.display = form.style.display === 'none' ? '' : 'none';
+        });
+
+        document.getElementById(`aw-${typ}-save-new`).addEventListener('click', async () => {
+          const keyEl      = document.getElementById(`aw-${typ}-new-key`);
+          const valEl      = document.getElementById(`aw-${typ}-new-val`);
+          const notizEl    = document.getElementById(`aw-${typ}-new-notiz`);
+          const schluessel = keyEl.value.trim();
+          const wert       = valEl.value.trim();
+          const notiz      = notizEl.value.trim();
+          if (!schluessel || !wert) { showToast('Schlüssel und Wert sind erforderlich.', 'error'); return; }
+          const saveBtn = document.getElementById(`aw-${typ}-save-new`);
+          saveBtn.disabled = true;
+          saveBtn.textContent = '…';
+          try {
+            const res = await apiFetch(`${API_BASE()}/api/agent-wissen`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ typ, schluessel, wert, notiz }),
+            });
+            if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Fehler'); }
+            if (!awData) awData = [];
+            awData.push({ typ, schluessel, wert, notiz });
+            awRenderSection(typ);
+            keyEl.value = ''; valEl.value = ''; notizEl.value = '';
+            document.getElementById(`aw-${typ}-add-form`).style.display = 'none';
+            showToast('Eintrag hinzugefügt', 'success');
+          } catch (e) {
+            showToast(`Fehler: ${e.message}`, 'error');
+          } finally {
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Hinzufügen';
+          }
+        });
+      });
+
+      // Prompt generieren
+      document.getElementById('aw-gen-prompt-btn').addEventListener('click', () => {
+        if (!awData) { showToast('Daten noch nicht geladen', 'error'); return; }
+        const block = typ => awData.filter(r => r.typ === typ).map(r => `${r.schluessel}: ${r.wert}`).join('\n');
+        const prompt =
+          `Du bist der Anfrage-Assistent von Jammi Fashion.\n\n` +
+          `PRODUKTINFOS:\n${block('produkt')}\n\n` +
+          `TONALITÄT:\n${block('ton')}\n\n` +
+          `ALLGEMEINE INFOS:\n${block('info')}\n\n` +
+          `Wichtig: Gib keine Auskunft über individuelle Kunden-Konditionen oder Partner-Details.`;
+        document.getElementById('aw-prompt-preview').value = prompt;
+        document.getElementById('aw-copy-btn').disabled = false;
+      });
+
+      document.getElementById('aw-copy-btn').addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(document.getElementById('aw-prompt-preview').value);
+          const btn    = document.getElementById('aw-copy-btn');
+          const status = document.getElementById('aw-copy-status');
+          btn.textContent = 'Kopiert!';
+          status.textContent = '✓ In Zwischenablage';
+          status.style.color = 'var(--success)';
+          setTimeout(() => { btn.textContent = 'In Zwischenablage kopieren'; status.textContent = ''; }, 2000);
+        } catch { showToast('Kopieren fehlgeschlagen', 'error'); }
+      });
 
       // ── Helpers global verfügbar für non-module Scripts (Partnerportal etc.) ──
       window.API_BASE     = API_BASE;

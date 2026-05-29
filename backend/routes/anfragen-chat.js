@@ -2,6 +2,7 @@ import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
+import { getAgentSystemPrompt } from '../lib/agentWissenHelper.js';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
@@ -67,7 +68,7 @@ async function loadRecentAnfragen() {
   } catch { return []; }
 }
 
-function buildSystemPrompt(history, sessionData) {
+function buildSystemPrompt(kbBase, history, sessionData) {
   const examples = history.length
     ? history.map((a, i) =>
         `${i + 1}. ${a.produkt} | Menge: ${a.menge} | Preis: ${a.preisvorschlag}€`
@@ -78,37 +79,17 @@ function buildSystemPrompt(history, sessionData) {
     ? `\nAKTUELLER FORMULARSTAND: ${JSON.stringify(sessionData)}`
     : '';
 
-  return `Du bist der freundliche Anfrage-Assistent von Jammi Fashion, einem deutschen Hersteller für individuell bedruckte Textilien und Merchandise.
+  return `${kbBase}
+Beantworte immer nur eine Frage pro Nachricht. Wenn die erste Nutzernachricht "__init__" lautet, starte direkt mit einer herzlichen Begrüßung.${stateStr}
 
-Führe den Kunden auf Deutsch durch eine Anfrage in 10 Schritten. Beantworte immer nur eine Frage pro Nachricht. Sei herzlich, professionell und präzise.
-Wenn die erste Nutzernachricht "__init__" lautet, starte direkt mit einer herzlichen Begrüßung (Schritt 1).${stateStr}
-
-SCHRITTE:
-1. Begrüße herzlich und frage was der Kunde möchte.
-2. Kläre Produkt (T-Shirt, Hoodie, Tasse etc.) und Motiv/Aufdruck.
-3. Frage nach der benötigten Menge.
-4. Frage nach Varianten (Farben, Größen mit Stückzahlen).
-5. Frage ob Vereins- oder Gruppenauftrag. Falls ja: bitte um die Partner-ID.
-6. Frage nach Name und E-Mail-Adresse.
-7. Berechne einen unverbindlichen Richtpreis und zeige ihn klar an.
-8. Frage nach weiteren besonderen Wünschen.
-9. Fasse ALLE Infos zusammen und bitte um Bestätigung mit "Ja" oder "Nein".
-10. Bestätige den Eingang und erkläre nächste Schritte.
-
-RICHTWERTE FÜR SCHRITT 7:
-T-Shirts: 12–18 €/Stk | Hoodies: 22–38 €/Stk | Tassen: 6–10 €/Stk | Beutel: 5–9 €/Stk
-Mengenstaffel: ≥20 Stk −10 % | ≥50 Stk −15 % | ≥100 Stk −20 %
-Mehrfarbdruck oder komplexes Motiv: +1–2 €/Stk
-Zeige Preis als "ca. X € gesamt (Y €/Stk)" – immer als unverbindlicher Richtpreis.
-
-Referenz-Aufträge (letzte abgeschlossene):
+REFERENZ-AUFTRÄGE (letzte abgeschlossene):
 ${examples}
 
 ANTWORTFORMAT – Antworte AUSSCHLIESSLICH mit einem JSON-Objekt, kein Text außerhalb:
 {
   "reply": "<Deine Antwort – darf einfaches Markdown enthalten>",
   "sessionData": {
-    "step": <1–10>,
+    "step": <1–8>,
     "produktBeschreibung": "<Produkt und Motiv>",
     "menge": "<Menge>",
     "varianten": "<Farben/Größen>",
@@ -121,7 +102,7 @@ ANTWORTFORMAT – Antworte AUSSCHLIESSLICH mit einem JSON-Objekt, kein Text auß
   },
   "completed": false
 }
-Setze "completed": true NUR wenn Kunde in Schritt 9 mit "Ja" o.Ä. bestätigt hat.
+Setze "completed": true NUR wenn Kunde in Schritt 8 bestätigt hat.
 Behalte ALLE bereits gesammelten sessionData-Werte – überschreibe sie nie mit leeren Strings.`;
 }
 
@@ -138,8 +119,8 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
       .filter(m => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
       .map(m => ({ role: m.role, content: m.content.slice(0, 2000) }));
 
-    const history     = await loadRecentAnfragen();
-    const systemPrompt = buildSystemPrompt(history, sessionData);
+    const [history, kbBase] = await Promise.all([loadRecentAnfragen(), getAgentSystemPrompt()]);
+    const systemPrompt = buildSystemPrompt(kbBase, history, sessionData);
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
