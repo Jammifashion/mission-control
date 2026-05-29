@@ -1,7 +1,7 @@
 {
   "name": "Mission Control",
   "short_name": "MissionCtrl",
-  "description": "Jammi Fashion – Shop Dashboard & KI-Assistent",
+  "description": "JammiFashion – Shop Dashboard & KI-Assistent",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#0f0f0f",

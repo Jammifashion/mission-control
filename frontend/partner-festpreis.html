@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Festpreis Partner Portal – Jammi Fashion</title>
+  <title>Festpreis Partner Portal – JammiFashion</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -82,7 +82,7 @@
 <body>
 
   <header>
-    <span class="logo">Jammi Fashion – Festpreis Partner Portal</span>
+    <span class="logo">JammiFashion – Festpreis Partner Portal</span>
     <span class="partner-name" id="partner-name-header"></span>
   </header>
 
@@ -237,7 +237,7 @@
     // ── Init ─────────────────────────────────────────────────────────────────
     async function init() {
       if (!TOKEN) {
-        showError('Kein Token in der URL.<br>Bitte nutze den Link deines Ansprechpartners bei Jammi Fashion.');
+        showError('Kein Token in der URL.<br>Bitte nutze den Link deines Ansprechpartners bei JammiFashion.');
         return;
       }
       if (!API_BASE) { showApiConfig(); return; }
@@ -246,7 +246,7 @@
       try {
         const me = await apiFetch(`/api/festpreis-public/auth?token=${encodeURIComponent(TOKEN)}`);
         document.getElementById('partner-name-header').textContent = me.partnerName;
-        document.title = `${me.partnerName} – Jammi Fashion Festpreis Portal`;
+        document.title = `${me.partnerName} – JammiFashion Festpreis Portal`;
       } catch (e) {
         if (e.status === 401 || e.status === 403)
           showError('Kein Zugang.<br>Dein Token ist ungültig oder dein Konto ist nicht aktiv.');

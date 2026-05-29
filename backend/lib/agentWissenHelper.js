@@ -7,7 +7,7 @@ const TTL_MS  = 5 * 60 * 1000; // 5 Minuten
 let _cache = null; // { prompt: string, cachedAt: number }
 
 const FALLBACK_PROMPT =
-  `Du bist der Anfrage-Assistent von Jammi Fashion, einem Textildruck-Unternehmen.
+  `Du bist der Anfrage-Assistent von JammiFashion, einem Textildruck-Unternehmen.
 Du führst Kunden strukturiert durch eine Preisanfrage bis zum fertigen Angebot.
 
 GESPRÄCHSFLUSS - führe den Kunden durch diese Schritte:
@@ -53,7 +53,7 @@ export async function getAgentSystemPrompt() {
     const block = entries => entries.map(e => `${e.schluessel}: ${e.wert}`).join('\n') || '(keine Einträge)';
 
     const prompt =
-      `Du bist der Anfrage-Assistent von Jammi Fashion, einem Textildruck-Unternehmen.\n` +
+      `Du bist der Anfrage-Assistent von JammiFashion, einem Textildruck-Unternehmen.\n` +
       `Du führst Kunden strukturiert durch eine Preisanfrage bis zum fertigen Angebot.\n\n` +
       `PRODUKTINFOS:\n${block(byTyp.produkt)}\n\n` +
       `TONALITÄT & KOMMUNIKATION:\n${block(byTyp.ton)}\n\n` +

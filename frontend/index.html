@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0f0f0f" />
-    <meta name="description" content="Mission Control – Jammi Fashion Dashboard" />
+    <meta name="description" content="Mission Control – JammiFashion Dashboard" />
     <title>Mission Control</title>
     <link rel="manifest" href="manifest.json" />
     <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -911,7 +911,7 @@
         <h2 id="shop-modal-title">Shop auswählen</h2>
         <p>Mit welchem Shop möchtest du arbeiten? Wechsel später jederzeit über das Badge oben.</p>
         <div class="shop-modal-buttons">
-          <button class="shop-modal-btn" data-shop-choice="jfn" type="button">Jammi Fashion</button>
+          <button class="shop-modal-btn" data-shop-choice="jfn" type="button">JammiFashion</button>
           <button class="shop-modal-btn shop-honk-btn" data-shop-choice="honk" type="button">HonkShop</button>
         </div>
         <label class="shop-modal-remember">
@@ -1887,7 +1887,7 @@
       </div>
     </div>
 
-    <footer>Jammi Fashion &mdash; Mission Control v0.1</footer>
+    <footer>JammiFashion &mdash; Mission Control v0.1</footer>
 
     <div id="liz-tooltip" aria-hidden="true"></div>
 
@@ -1922,9 +1922,9 @@
         if (!b) return;
         b.textContent = shop === 'honk' ? 'HONK' : 'JFN';
         b.classList.toggle('shop-honk', shop === 'honk');
-        b.title = (shop === 'honk' ? 'HonkShop' : 'Jammi Fashion') + ' – Klick zum Wechseln';
+        b.title = (shop === 'honk' ? 'HonkShop' : 'JammiFashion') + ' – Klick zum Wechseln';
         const ordersLabel = document.getElementById('nav-orders-label');
-        if (ordersLabel) ordersLabel.textContent = shop === 'honk' ? 'HonkShop' : 'Jammi Fashion Shop';
+        if (ordersLabel) ordersLabel.textContent = shop === 'honk' ? 'HonkShop' : 'JammiFashion Shop';
         const artikelTab = document.querySelector('[data-ptab="artikel"]');
         if (artikelTab) artikelTab.style.display = '';
       }
@@ -5060,7 +5060,7 @@
         if (!awData) { showToast('Daten noch nicht geladen', 'error'); return; }
         const block = typ => awData.filter(r => r.typ === typ).map(r => `${r.schluessel}: ${r.wert}`).join('\n');
         const prompt =
-          `Du bist der Anfrage-Assistent von Jammi Fashion.\n\n` +
+          `Du bist der Anfrage-Assistent von JammiFashion.\n\n` +
           `PRODUKTINFOS:\n${block('produkt')}\n\n` +
           `TONALITÄT:\n${block('ton')}\n\n` +
           `ALLGEMEINE INFOS:\n${block('info')}\n\n` +
@@ -5339,7 +5339,7 @@
                 <div class="form-field">
                   <label>Shop</label>
                   <select class="form-select" id="pp-f-shop">
-                    <option value="jfn"${(!isEdit || partner.shop !== 'honk') ? ' selected' : ''}>Jammi Fashion (JFN)</option>
+                    <option value="jfn"${(!isEdit || partner.shop !== 'honk') ? ' selected' : ''}>JammiFashion (JFN)</option>
                     <option value="honk"${(isEdit && partner.shop === 'honk') ? ' selected' : ''}>HonkShop (HONK)</option>
                   </select>
                 </div>
@@ -7070,7 +7070,7 @@
                   <div class="form-field">
                     <label>Shop</label>
                     <select class="form-select" id="fp-f-shop">
-                      <option value="jfn"${initShop !== 'honk' ? ' selected' : ''}>Jammi Fashion (JFN)</option>
+                      <option value="jfn"${initShop !== 'honk' ? ' selected' : ''}>JammiFashion (JFN)</option>
                       <option value="honk"${initShop === 'honk' ? ' selected' : ''}>HonkShop (HONK)</option>
                     </select>
                   </div>

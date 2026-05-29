@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Partner Portal – Jammi Fashion</title>
+  <title>Partner Portal – JammiFashion</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -96,7 +96,7 @@
 <body>
 
   <header>
-    <span class="logo" id="shop-logo">Jammi Fashion – Partner Portal</span>
+    <span class="logo" id="shop-logo">JammiFashion – Partner Portal</span>
     <span class="partner-name" id="partner-name-header"></span>
   </header>
 
@@ -368,16 +368,16 @@
 
     // ── Init ─────────────────────────────────────────────────────────────────
     async function init() {
-      const shopLabel = SHOP === 'honk' ? 'HonkShop' : 'Jammi Fashion';
+      const shopLabel = SHOP === 'honk' ? 'HonkShop' : 'JammiFashion';
       document.getElementById('shop-logo').textContent = `${shopLabel} – Partner Portal`;
-      if (!TOKEN) { showError('Kein Token in der URL.<br>Bitte nutze den Link deines Ansprechpartners bei Jammi Fashion.'); return; }
+      if (!TOKEN) { showError('Kein Token in der URL.<br>Bitte nutze den Link deines Ansprechpartners bei JammiFashion.'); return; }
       if (!API_BASE) { showApiConfig(); return; }
 
       main.innerHTML = '<div class="skeleton" style="height:60px;border-radius:8px;"></div>';
       try {
         const me = await apiGet(`/api/partner/auth?token=${encodeURIComponent(TOKEN)}`);
         document.getElementById('partner-name-header').textContent = me.partnerName;
-        document.title = `${me.partnerName} – Jammi Fashion Partner Portal`;
+        document.title = `${me.partnerName} – JammiFashion Partner Portal`;
       } catch (e) {
         if (e.status === 401 || e.status === 403)
           showError('Kein Zugang.<br>Dein Token ist ungültig oder dein Konto wurde deaktiviert.');

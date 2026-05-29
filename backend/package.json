@@ -1,7 +1,7 @@
 {
   "name": "mission-control-backend",
   "version": "1.0.0",
-  "description": "Mission Control – Jammi Fashion Backend API",
+  "description": "Mission Control – JammiFashion Backend API",
   "main": "index.js",
   "type": "module",
   "scripts": {

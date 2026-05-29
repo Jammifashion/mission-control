@@ -2,14 +2,14 @@ import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
 
 // Sprint 5.4 – Multi-Shop Support
 // Mapping shop-Slug → WC-Credentials + shop-spezifische Sheet-Tabs.
-// Default-Shop ist 'jfn' (Jammi Fashion). 'honk' ist der HonkShop.
+// Default-Shop ist 'jfn' (JammiFashion). 'honk' ist der HonkShop.
 // Unbekannte oder fehlende Werte fallen auf 'jfn' zurück, damit Altcode
 // ohne shop-Parameter weiterhin funktioniert.
 
 const SHOPS = {
   jfn: {
     shop: 'jfn',
-    label: 'Jammi Fashion',
+    label: 'JammiFashion',
     wcUrl:    () => process.env.WC_URL,
     wcKey:    () => process.env.WC_KEY,
     wcSecret: () => process.env.WC_SECRET,
