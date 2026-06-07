@@ -34,6 +34,14 @@ function toDE(date) {
   return `${String(d.getUTCDate()).padStart(2,'0')}.${String(d.getUTCMonth()+1).padStart(2,'0')}.${d.getUTCFullYear()}`;
 }
 
+function parseDate(s) {
+  if (!s) return null;
+  const [d, m, y] = s.split('.');
+  if (!d || !m || !y) return null;
+  const dt = new Date(`${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
 async function resolvePartner(token) {
   const sheetId = process.env.BUSINESS_SHEET_ID;
   if (!sheetId) throw Object.assign(new Error('BUSINESS_SHEET_ID nicht konfiguriert.'), { status: 503 });
