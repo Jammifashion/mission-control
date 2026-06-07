@@ -18,6 +18,78 @@ const TAB_FP_VERKAEUFE     = 'FP_Verkäufe';
 const TAB_FP_ABRECHNUNGEN  = 'FP_Abrechnungen';
 const TAB_FIXKOSTEN        = 'Kalkulation_Fixkosten';
 
+// Erlaubte WC-Status für neue Einträge (inkl. on-hold)
+const FP_STATES_VERKAUF = ['processing', 'completed', 'on-hold'];
+const FP_STATES_STORNO  = ['refunded', 'cancelled'];
+const FP_STORNO_MARKER  = 'Storniert/Rückerstattet';
+
+// Lädt WC-Bestellungen für mehrere Status paginiert. afterParam optional (ISO).
+async function fetchFpOrders(wc, statuses, afterParam) {
+  const all = [];
+  for (let page = 1; ; page++) {
+    const results = await Promise.all(statuses.map(status => {
+      const params = { per_page: 100, page, status };
+      if (afterParam) params.after = afterParam;
+      return wc.get('orders', params);
+    }));
+    for (const r of results) all.push(...r.data);
+    if (results.every(r => r.data.length < 100)) break;
+  }
+  return all;
+}
+
+// Erzeugt negative Gegeneinträge für FP_Verkäufe-Zeilen deren Order storniert wurde.
+// FP_Verkäufe Spalten-Layout (A=0 … P=15, Q=16 neu):
+//   0=Partner-ID, 1=Datum, 2=WC-Bestellnummer, 3=Artikelname, 4=Variante,
+//   5=Stückzahl, 6=Festpreis-EK, 7=Handling, 8=Porto-Einnahme, 9=Porto-Kosten,
+//   10=Versandnk, 11=PayPal, 12=Gesamt-Netto, 13=Gesamt-Brutto,
+//   14=Status Abrechnung, 15=Produkt-ID, 16=Storno-Status (Q)
+function buildFpStornoRows(vRows, stornoOrders) {
+  const ORD_COL    = 2;
+  const ART_COL    = 3;
+  const VAR_COL    = 4;
+  const PID_COL    = 0;
+  const DATE_COL   = 1;
+  const STATUS_COL = 14;
+  const STORNO_COL = 16;
+  const NEG_COLS   = new Set([5, 6, 7, 8, 9, 10, 11, 12, 13]);
+  const varKey = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
+
+  const refundDate = new Map(
+    stornoOrders.map(o => [String(o.id), toDE(new Date(o.date_modified || o.date_created))])
+  );
+
+  // Bereits vorhandene Storno-Einträge nicht doppelt anlegen
+  const stornoDone = new Set();
+  for (const r of vRows) {
+    if ((r[STORNO_COL] ?? '') !== '')
+      stornoDone.add(`${r[ORD_COL]}|${r[ART_COL]}|${varKey(r[VAR_COL])}|${r[PID_COL]}`);
+  }
+
+  const out = [];
+  for (const r of vRows) {
+    const oid = String(r[ORD_COL] ?? '');
+    if (!refundDate.has(oid)) continue;
+    if ((r[STORNO_COL] ?? '') !== '') continue;  // Zeile ist selbst ein Gegeneintrag
+
+    const dupKey = `${r[ORD_COL]}|${r[ART_COL]}|${varKey(r[VAR_COL])}|${r[PID_COL]}`;
+    if (stornoDone.has(dupKey)) continue;
+    stornoDone.add(dupKey);
+
+    const counter = [];
+    for (let i = 0; i < 16; i++) {
+      let v = r[i] ?? '';
+      if (NEG_COLS.has(i) && v !== '') v = -toFloat(v);
+      counter[i] = v;
+    }
+    counter[DATE_COL]   = refundDate.get(oid) || r[DATE_COL] || toDE(new Date());
+    counter[STATUS_COL] = 'offen';
+    counter[STORNO_COL] = FP_STORNO_MARKER;
+    out.push(counter);
+  }
+  return out;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 async function getSheets() {
@@ -413,22 +485,14 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
     }
 
     // 6. WC Bestellungen laden (jfn + ggf. honk separat)
+    // Stornos voll-historisch ohne after-Filter – fängt auch ältere Refunds.
     const shopsNeeded = new Set(Object.values(partnerShopMap));
     const ordersByShop = {};
+    const stornoByShop = {};
     for (const shop of shopsNeeded) {
       const wc = getWcClient(shop);
-      const orders = [];
-      for (let page = 1; ; page++) {
-        const params = { per_page: 100, page };
-        if (afterParam) params.after = afterParam;
-        const [proc, compl] = await Promise.all([
-          wc.get('orders', { ...params, status: 'processing' }),
-          wc.get('orders', { ...params, status: 'completed'  }),
-        ]);
-        orders.push(...proc.data, ...compl.data);
-        if (proc.data.length < 100 && compl.data.length < 100) break;
-      }
-      ordersByShop[shop] = orders;
+      ordersByShop[shop] = await fetchFpOrders(wc, FP_STATES_VERKAUF, afterParam);
+      stornoByShop[shop] = await fetchFpOrders(wc, FP_STATES_STORNO, null);
     }
 
     // 7. Zeilen berechnen
@@ -496,23 +560,29 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
       }
     }
 
-    if (toWrite.length > 0) {
+    // Storno-Gegeneinträge: alle Shops zusammenführen, dann gegen vRows prüfen
+    const allStornoOrders = Object.values(stornoByShop).flat();
+    const stornoRows = buildFpStornoRows(vRows, allStornoOrders);
+
+    const allRows = [...toWrite, ...stornoRows];
+    if (allRows.length > 0) {
       await sheets.spreadsheets.values.append({
         spreadsheetId: sheetId,
-        range: `${TAB_FP_VERKAEUFE}!A:P`,
+        range: `${TAB_FP_VERKAEUFE}!A:Q`,
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: toWrite },
+        requestBody: { values: allRows },
       });
     }
 
     const totalOrders = Object.values(ordersByShop).reduce((s, o) => s + o.length, 0);
     res.json({
-      synced: toWrite.length,
-      orders: totalOrders,
+      synced:    toWrite.length,
+      storniert: stornoRows.length,
+      orders:    totalOrders,
       afterParam: afterParam || null,
-      message: toWrite.length
-        ? `${toWrite.length} neue Einträge aus ${totalOrders} Bestellungen synchronisiert.`
+      message: toWrite.length || stornoRows.length
+        ? `${[toWrite.length && `${toWrite.length} neue`, stornoRows.length && `${stornoRows.length} stornierte`].filter(Boolean).join(' + ')} Einträge synchronisiert.`
         : 'Alle Einträge bereits vorhanden – nichts Neues.',
     });
   } catch (err) { next(err); }
