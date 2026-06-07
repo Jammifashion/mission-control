@@ -43,7 +43,8 @@ async function fetchFpOrders(wc, statuses, afterParam) {
 //   0=Partner-ID, 1=Datum, 2=WC-Bestellnummer, 3=Artikelname, 4=Variante,
 //   5=Stückzahl, 6=Festpreis-EK, 7=Handling, 8=Porto-Einnahme, 9=Porto-Kosten,
 //   10=Versandnk, 11=PayPal, 12=Gesamt-Netto, 13=Gesamt-Brutto,
-//   14=Status Abrechnung, 15=Produkt-ID, 16=Storno-Status (Q)
+//   14=Status Abrechnung, 15=Produkt-ID, 16=Storno-Status (Q),
+//   17=Artikelkategorie (R), 18=Festpreis (S), 19=Mehrkosten (T)
 function buildFpStornoRows(vRows, stornoOrders) {
   const ORD_COL    = 2;
   const ART_COL    = 3;
@@ -52,7 +53,7 @@ function buildFpStornoRows(vRows, stornoOrders) {
   const DATE_COL   = 1;
   const STATUS_COL = 14;
   const STORNO_COL = 16;
-  const NEG_COLS   = new Set([5, 6, 7, 8, 9, 10, 11, 12, 13]);
+  const NEG_COLS   = new Set([5, 6, 7, 8, 9, 10, 11, 12, 13, 18, 19]); // inkl. Festpreis + Mehrkosten
   const varKey = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
 
   const refundDate = new Map(
@@ -77,7 +78,7 @@ function buildFpStornoRows(vRows, stornoOrders) {
     stornoDone.add(dupKey);
 
     const counter = [];
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 20; i++) {
       let v = r[i] ?? '';
       if (NEG_COLS.has(i) && v !== '') v = -toFloat(v);
       counter[i] = v;
@@ -422,7 +423,7 @@ router.get('/verkaeufe', async (req, res, next) => {
     let filtered = rows;
     if (partnerId) filtered = filtered.filter(r => (r[pidIdx] ?? '') === partnerId);
     if (status)    filtered = filtered.filter(r => (r[statusIdx] ?? '').toLowerCase() === status.toLowerCase());
-    res.json({ verkaeufe: filtered.map(r => rowToObj(header, r)) });
+    res.json({ verkaeufe: filtered.map(r => ({ ...rowToObj(header, r), _rowId: r._sheetRow })) });
   } catch (err) { next(err); }
 });
 
@@ -533,7 +534,7 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
     if (!activePartners.length)
       return res.json({ synced: 0, orders: 0, message: 'Keine aktiven FP-Partner gefunden.' });
 
-    // 2. FP_Artikel → Map: produktId → [{ partnerId, festpreisEK, handlingGebuehr, versandart }]
+    // 2. FP_Artikel → Map: produktId → [{ partnerId, festpreisEK, handlingGebuehr, versandart, artikelkategorie }]
     const { header: aH, rows: aRows } = await readTab(sheets, sheetId, TAB_FP_ARTIKEL);
     const ah = col => aH.indexOf(col);
     const activePartnerIds = new Set(activePartners.map(r => r[ph('Partner-ID')] ?? ''));
@@ -546,14 +547,25 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
       if (!produktId) continue;
       if (!artikelMap[produktId]) artikelMap[produktId] = [];
       artikelMap[produktId].push({
-        partnerId:      pid,
-        festpreisEK:    toFloat(r[ah('Festpreis-EK-Netto')]),
+        partnerId:       pid,
+        festpreisEK:     toFloat(r[ah('Festpreis-EK-Netto')]),
         handlingGebuehr: toFloat(r[ah('Handling-Gebühr')]),
-        versandart:     ((r[ah('Versandart')] ?? 'P').toUpperCase() === 'B') ? 'B' : 'P',
+        versandart:      ((r[ah('Versandart')] ?? 'P').toUpperCase() === 'B') ? 'B' : 'P',
+        artikelkategorie: r[ah('Artikelkategorie')] ?? '',
       });
     }
     if (!Object.keys(artikelMap).length)
       return res.json({ synced: 0, orders: 0, message: 'Keine FP-Artikel konfiguriert.' });
+
+    // 2b. FP_Artikel_Kategorie → Map: `${partnerId}|${kategorie}` → festpreis
+    const { header: akH, rows: akRows } = await readTab(sheets, sheetId, 'FP_Artikel_Kategorie');
+    const akh = col => akH.indexOf(col);
+    const festpreisMap = {};
+    for (const r of akRows) {
+      const pid = r[akh('Festpreispartner-ID')] ?? '';
+      const kat = r[akh('Kategorie')] ?? '';
+      if (pid && kat) festpreisMap[`${pid}|${kat}`] = toFloat(r[akh('Festpreis')]);
+    }
 
     // 3. Partner-Shop-Map für WC-Credentials
     const partnerShopMap = {};
@@ -639,23 +651,30 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
               mwstProzent: k.mwstProzent,
             });
 
+            const artikelkategorie = e.artikelkategorie || '';
+            const festpreis = festpreisMap[`${e.partnerId}|${artikelkategorie}`] ?? 0;
+
             toWrite.push([
-              e.partnerId,
-              orderDate,
-              order.id,
-              artikelname,
-              item.variation_id || 0,
-              item.quantity,
-              e.festpreisEK,
-              e.handlingGebuehr,
-              Math.round(portoEinnahmeAnteil * 100) / 100,
-              Math.round(portoKostenAnteil * 100) / 100,
-              Math.round(versandnkAnteil * 100) / 100,
-              Math.round(paypalKosten * 100) / 100,
-              netto,
-              brutto,
-              'offen',
-              item.product_id,
+              e.partnerId,           // A 0
+              orderDate,             // B 1
+              order.id,              // C 2
+              artikelname,           // D 3
+              item.variation_id || 0, // E 4
+              item.quantity,         // F 5
+              e.festpreisEK,         // G 6
+              e.handlingGebuehr,     // H 7
+              Math.round(portoEinnahmeAnteil * 100) / 100,  // I 8
+              Math.round(portoKostenAnteil * 100) / 100,    // J 9
+              Math.round(versandnkAnteil * 100) / 100,      // K 10
+              Math.round(paypalKosten * 100) / 100,         // L 11
+              netto,                 // M 12
+              brutto,                // N 13
+              'offen',               // O 14 Status Abrechnung
+              item.product_id,       // P 15 Produkt-ID
+              '',                    // Q 16 Storno-Status (leer)
+              artikelkategorie,      // R 17 Artikelkategorie
+              festpreis,             // S 18 Festpreis (aus FP_Artikel_Kategorie)
+              0,                     // T 19 Mehrkosten (manuell, default 0)
             ]);
           }
         }
@@ -670,7 +689,7 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
     if (allRows.length > 0) {
       await sheets.spreadsheets.values.append({
         spreadsheetId: sheetId,
-        range: `${TAB_FP_VERKAEUFE}!A:Q`,
+        range: `${TAB_FP_VERKAEUFE}!A:T`,
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
         requestBody: { values: allRows },
@@ -769,6 +788,100 @@ router.post('/abrechnungen', async (req, res, next) => {
     }
 
     res.status(201).json({ abrechnungsId, partnerId, gesamtNetto, gesamtBrutto, positionen: offene.length });
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/festpreis/preise ─────────────────────────────────────────────────
+// Liest FP_Artikel_Kategorie: Kategorie | Festpreispartner-ID | Festpreis
+router.get('/preise', async (req, res, next) => {
+  try {
+    const sheetId = SHEETID();
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
+    const sheets = await getSheets();
+    const { header, rows } = await readTab(sheets, sheetId, 'FP_Artikel_Kategorie');
+    res.json({ preise: rows.map(r => ({ ...rowToObj(header, r), _rowId: r._sheetRow })) });
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/festpreis/preise ────────────────────────────────────────────────
+router.post('/preise', async (req, res, next) => {
+  try {
+    const sheetId = SHEETID();
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
+    const { kategorie, partnerId, festpreis } = req.body;
+    if (!kategorie || !partnerId) return res.status(400).json({ error: 'kategorie und partnerId sind erforderlich.' });
+    const sheets = await getSheets();
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: sheetId,
+      range: 'FP_Artikel_Kategorie!A:C',
+      valueInputOption: 'RAW',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [[kategorie, partnerId, toFloat(festpreis)]] },
+    });
+    res.status(201).json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// ── PATCH /api/festpreis/preise/:rowId ───────────────────────────────────────
+router.patch('/preise/:rowId', async (req, res, next) => {
+  try {
+    const sheetId = SHEETID();
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
+    const sheetRow = parseInt(req.params.rowId, 10);
+    if (!sheetRow || sheetRow < 2) return res.status(400).json({ error: 'Ungültige rowId.' });
+    const { festpreis } = req.body;
+    if (festpreis === undefined) return res.status(400).json({ error: 'festpreis fehlt.' });
+    const sheets = await getSheets();
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: sheetId,
+      range: `FP_Artikel_Kategorie!C${sheetRow}`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [[toFloat(festpreis)]] },
+    });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// ── DELETE /api/festpreis/preise/:rowId ──────────────────────────────────────
+router.delete('/preise/:rowId', async (req, res, next) => {
+  try {
+    const sheetId = SHEETID();
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
+    const sheetRow = parseInt(req.params.rowId, 10);
+    if (!sheetRow || sheetRow < 2) return res.status(400).json({ error: 'Ungültige rowId.' });
+    const sheets = await getSheets();
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: 'sheets.properties' });
+    const sheetGid = meta.data.sheets.find(s => s.properties.title === 'FP_Artikel_Kategorie')?.properties.sheetId;
+    if (sheetGid === undefined) return res.status(404).json({ error: 'Tab nicht gefunden.' });
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: sheetId,
+      requestBody: { requests: [{ deleteDimension: { range: { sheetId: sheetGid, dimension: 'ROWS', startIndex: sheetRow - 1, endIndex: sheetRow } } }] },
+    });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// ── PATCH /api/festpreis/verkaeufe-eintrag/:rowId ────────────────────────────
+// Aktualisiert Mehrkosten (Spalte T) einer einzelnen FP_Verkäufe-Zeile.
+router.patch('/verkaeufe-eintrag/:rowId', async (req, res, next) => {
+  try {
+    const sheetId = SHEETID();
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
+    const sheetRow = parseInt(req.params.rowId, 10);
+    if (!sheetRow || sheetRow < 2) return res.status(400).json({ error: 'Ungültige rowId.' });
+    const { mehrkosten } = req.body;
+    if (mehrkosten === undefined) return res.status(400).json({ error: 'mehrkosten fehlt.' });
+    const sheets = await getSheets();
+    const { header } = await readTab(sheets, sheetId, TAB_FP_VERKAEUFE);
+    const mkIdx = header.indexOf('Mehrkosten');
+    if (mkIdx === -1) return res.status(400).json({ error: 'Spalte Mehrkosten nicht im Sheet.' });
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: sheetId,
+      range: `${TAB_FP_VERKAEUFE}!${String.fromCharCode(65 + mkIdx)}${sheetRow}`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [[toFloat(mehrkosten)]] },
+    });
+    res.json({ ok: true, sheetRow });
   } catch (err) { next(err); }
 });
 

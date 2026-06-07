@@ -1482,6 +1482,7 @@
           <button class="sub-tab" data-fptab="fp-verkaeufe">Bestellungen</button>
           <button class="sub-tab" data-fptab="fp-abrechnungen">Abrechnung</button>
           <button class="sub-tab" data-fptab="fp-zusammenfassung">Zusammenfassung</button>
+          <button class="sub-tab" data-fptab="fp-festpreise">Festpreise</button>
           <button class="sub-tab" data-fptab="fp-intern">Interne Bestellungen</button>
         </div>
 
@@ -1588,6 +1589,34 @@
               </div>
             </div>
             <div id="fp-zus-wrap"><p style="color:var(--muted);font-size:0.85rem;">Bitte Filter wählen und Laden klicken.</p></div>
+          </div>
+        </div>
+
+        <!-- FP Festpreise -->
+        <div id="fptab-fp-festpreise" class="sub-tab-panel">
+          <div class="card" style="margin-bottom:1rem;">
+            <h2 style="margin-bottom:1rem;">Festpreis erfassen</h2>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:0.75rem;align-items:end;">
+              <div class="form-field">
+                <label style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-weight:600;">Partner</label>
+                <select class="form-select" id="fp-preis-partner" style="font-size:0.84rem;">
+                  <option value="">– Partner wählen –</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-weight:600;">Artikelkategorie</label>
+                <input type="text" class="form-input" id="fp-preis-kategorie" placeholder="z.B. Trikot" style="font-size:0.84rem;">
+              </div>
+              <div class="form-field">
+                <label style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-weight:600;">Festpreis (€ netto)</label>
+                <input type="number" class="form-input" id="fp-preis-wert" step="0.01" min="0" placeholder="0.00" style="font-size:0.84rem;">
+              </div>
+              <button class="btn" id="btn-fp-preis-add" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Hinzufügen</button>
+            </div>
+          </div>
+          <div class="card">
+            <h2 style="margin-bottom:1rem;">Festpreise</h2>
+            <div id="fp-preise-list-wrap"><div class="skeleton" style="height:80px;"></div></div>
           </div>
         </div>
 
@@ -6991,6 +7020,7 @@
             if (btn.dataset.fptab === 'fp-verkaeufe')    loadFpVerkaeufe();
             if (btn.dataset.fptab === 'fp-abrechnungen')    initFpAbrechnungTab();
             if (btn.dataset.fptab === 'fp-zusammenfassung') populateFpPartnerSelects();
+            if (btn.dataset.fptab === 'fp-festpreise')      { populateFpPartnerSelects(); loadFpPreise(); }
             if (btn.dataset.fptab === 'fp-intern')          { populateFpPartnerSelects(); }
           });
         });
@@ -7069,7 +7099,7 @@
         }
 
         function populateFpPartnerSelects() {
-          const selects = ['fp-artikel-filter-partner', 'fp-verkaeufe-filter-partner', 'fp-abr-partner', 'fp-abrechnungen-filter-partner', 'fp-zus-partner', 'fp-intern-filter-partner'];
+          const selects = ['fp-artikel-filter-partner', 'fp-verkaeufe-filter-partner', 'fp-abr-partner', 'fp-abrechnungen-filter-partner', 'fp-zus-partner', 'fp-intern-filter-partner', 'fp-preis-partner'];
           selects.forEach(id => {
             const sel = document.getElementById(id);
             if (!sel) return;
@@ -7340,34 +7370,48 @@
               wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Einträge.</p>';
               return;
             }
-            const fmt = v => Number(v || 0).toFixed(2).replace('.', ',');
+            const fmt = v => Number(String(v||'0').replace(',','.')||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
             wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table" style="font-size:0.84rem;">
               <thead><tr>
                 <th>Partner</th><th>Datum</th><th>WC-Nr</th><th>Artikel</th><th>Variante</th>
-                <th>Stk</th><th>EK</th><th>Handling</th><th>Porto+</th><th>Porto−</th>
-                <th>VersNK</th><th>PayPal</th><th>Netto</th><th>Brutto</th><th>Status</th>
+                <th>Stk</th><th>Artikelkat.</th><th>Festpreis</th><th>Mehrkosten</th><th>Status</th>
               </tr></thead>
               <tbody>${rows.map(r => {
                 const isStorno = !!(r['Storno-Status'] || '').trim() || Number(r['Stückzahl'] || 0) < 0;
                 const red = 'color:var(--danger);font-weight:600;';
+                const rowId = r._rowId;
+                const mkVal = parseFloat(String(r['Mehrkosten']||'0').replace(',','.')) || 0;
                 return `<tr style="${isStorno ? 'background:rgba(220,38,38,0.06);' : ''}">
                 <td>${r['Partner-ID']}</td>
                 <td>${r['Datum']}</td>
                 <td>${r['WC-Bestellnummer']}</td>
-                <td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${r['Artikelname']}">${r['Artikelname']}${isStorno ? ` <span style="font-size:0.72rem;${red}">↩ Storno</span>` : ''}</td>
+                <td style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${r['Artikelname']}">${r['Artikelname']}${isStorno ? ` <span style="font-size:0.72rem;${red}">↩ Storno</span>` : ''}</td>
                 <td>${r['Variante'] || '–'}</td>
                 <td style="${isStorno ? red : ''}">${r['Stückzahl']}</td>
-                <td>${fmt(r['Festpreis-EK'])}</td>
-                <td>${fmt(r['Handling'])}</td>
-                <td>${fmt(r['Porto-Einnahme'])}</td>
-                <td>${fmt(r['Porto-Kosten'])}</td>
-                <td>${fmt(r['Versandnebenkosten'])}</td>
-                <td>${fmt(r['PayPal-Kosten'])}</td>
-                <td style="font-weight:600;${isStorno ? red : ''}">${fmt(r['Gesamt-Partner-Netto'])}</td>
-                <td>${fmt(r['Gesamt-Partner-Brutto'])}</td>
+                <td style="font-size:0.8rem;color:var(--muted);">${r['Artikelkategorie'] || '–'}</td>
+                <td style="${isStorno ? red : ''}">${fmt(r['Festpreis'])} €</td>
+                <td>${rowId && !isStorno ? `<input type="number" class="form-input fp-mk-input" step="0.01" min="0" value="${mkVal}" data-rowid="${rowId}" style="width:80px;padding:0.25rem 0.4rem;font-size:0.82rem;">` : fmt(r['Mehrkosten']) + ' €'}</td>
                 <td><span class="badge ${r['Status Abrechnung'] === 'abgerechnet' ? 'badge-completed' : 'badge-processing'}">${r['Status Abrechnung']}</span></td>
               </tr>`;}).join('')}</tbody>
             </table></div>`;
+
+            wrap.querySelectorAll('.fp-mk-input').forEach(input => {
+              input.addEventListener('blur', async () => {
+                const rowId = input.dataset.rowid;
+                const val   = parseFloat(input.value.replace(',', '.')) || 0;
+                try {
+                  const r = await window.apiFetch(`${FP()}/api/festpreis/verkaeufe-eintrag/${rowId}`, {
+                    method: 'PATCH', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ mehrkosten: val }),
+                  });
+                  if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+                  input.style.borderColor = 'var(--success)';
+                  setTimeout(() => { input.style.borderColor = ''; }, 1200);
+                } catch (e) {
+                  window.showToast(`Mehrkosten Fehler: ${e.message}`, 'toast-error');
+                }
+              });
+            });
           } catch (e) {
             wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
           }
@@ -7437,6 +7481,83 @@
             wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
           }
         }
+
+        // ── Festpreise Tab (Partner + Kategorie → Festpreis) ─────────────────
+        async function loadFpPreise() {
+          const wrap = document.getElementById('fp-preise-list-wrap');
+          wrap.innerHTML = '<div class="skeleton" style="height:60px;"></div>';
+          try {
+            const data = await window.apiFetch(`${FP()}/api/festpreis/preise`).then(r => r.json());
+            const preise = data.preise ?? [];
+            if (!preise.length) {
+              wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Noch keine Festpreise erfasst.</p>'; return;
+            }
+            const fmt = v => Number(String(v||'0').replace(',','.')||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
+            wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+              <thead><tr><th>Artikelkategorie</th><th>Partner-ID</th><th style="text-align:right;">Festpreis (€ netto)</th><th></th></tr></thead>
+              <tbody>${preise.map(p => `<tr>
+                <td>${p['Kategorie'] || '–'}</td>
+                <td style="color:var(--muted);font-size:0.82rem;">${p['Festpreispartner-ID'] || '–'}</td>
+                <td style="text-align:right;font-weight:600;">
+                  <input type="number" class="form-input fp-preis-edit" step="0.01" min="0"
+                    value="${parseFloat(String(p['Festpreis']||'0').replace(',','.')) || 0}"
+                    data-rowid="${p._rowId}" style="width:90px;padding:0.25rem 0.4rem;font-size:0.84rem;text-align:right;">
+                </td>
+                <td><button class="btn-secondary" style="font-size:0.75rem;padding:0.25rem 0.5rem;" data-del-preis="${p._rowId}">✕</button></td>
+              </tr>`).join('')}</tbody>
+            </table></div>`;
+
+            wrap.querySelectorAll('.fp-preis-edit').forEach(input => {
+              input.addEventListener('blur', async () => {
+                const rowId = input.dataset.rowid;
+                const val   = parseFloat(input.value.replace(',', '.')) || 0;
+                try {
+                  const r = await window.apiFetch(`${FP()}/api/festpreis/preise/${rowId}`, {
+                    method: 'PATCH', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ festpreis: val }),
+                  });
+                  if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+                  input.style.borderColor = 'var(--success)';
+                  setTimeout(() => { input.style.borderColor = ''; }, 1200);
+                } catch (e) { window.showToast(`Fehler: ${e.message}`, 'toast-error'); }
+              });
+            });
+
+            wrap.querySelectorAll('[data-del-preis]').forEach(btn => {
+              btn.addEventListener('click', async () => {
+                if (!await window.showConfirm('Festpreis löschen?')) return;
+                const rowId = btn.dataset.delPreis;
+                try {
+                  const r = await window.apiFetch(`${FP()}/api/festpreis/preise/${rowId}`, { method: 'DELETE' });
+                  if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+                  loadFpPreise();
+                } catch (e) { window.showToast(`Fehler: ${e.message}`, 'toast-error'); }
+              });
+            });
+          } catch (e) {
+            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+          }
+        }
+
+        document.getElementById('btn-fp-preis-add').addEventListener('click', async () => {
+          const partnerId  = document.getElementById('fp-preis-partner').value;
+          const kategorie  = document.getElementById('fp-preis-kategorie').value.trim();
+          const festpreis  = parseFloat(document.getElementById('fp-preis-wert').value.replace(',', '.')) || 0;
+          if (!partnerId || !kategorie) {
+            window.showToast('Partner und Artikelkategorie sind erforderlich.', 'toast-error'); return;
+          }
+          try {
+            const r = await window.apiFetch(`${FP()}/api/festpreis/preise`, {
+              method: 'POST', headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ kategorie, partnerId, festpreis }),
+            });
+            if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+            document.getElementById('fp-preis-kategorie').value = '';
+            document.getElementById('fp-preis-wert').value = '';
+            window.showToast('Festpreis hinzugefügt.');
+            loadFpPreise();
+          } catch (e) { window.showToast(`Fehler: ${e.message}`, 'toast-error'); }
+        });
 
         // ── Vorschau-Modal ────────────────────────────────────────────────────
         document.getElementById('btn-fp-vorschau').addEventListener('click', async () => {
