@@ -109,7 +109,7 @@ Behalte ALLE bereits gesammelten sessionData-Werte – überschreibe sie nie mit
 // ── POST /chat ────────────────────────────────────────────────────────────────
 router.post('/chat', chatLimiter, async (req, res, next) => {
   try {
-    const { messages = [], sessionData = {}, website = '' } = req.body ?? {};
+    const { messages = [], sessionData = {}, website = '', cfTurnstileToken } = req.body ?? {};
 
     // Honeypot: verstecktes Feld 'website' wird nur von Bots ausgefüllt.
     if (typeof website === 'string' && website.trim() !== '') {
@@ -118,6 +118,23 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
 
     if (!Array.isArray(messages) || messages.length > 20) {
       return res.status(400).json({ error: 'Ungültige Anfrage.' });
+    }
+
+    // Turnstile-Verifikation: nur bei der ersten Nachricht (token wird einmalig mitgeschickt)
+    if (cfTurnstileToken) {
+      const tsSecret = process.env.TURNSTILE_SECRET_KEY;
+      if (!tsSecret) {
+        return res.status(500).json({ error: 'Turnstile nicht konfiguriert.' });
+      }
+      const tsRes = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: tsSecret, response: cfTurnstileToken }),
+      });
+      const tsData = await tsRes.json();
+      if (!tsData.success) {
+        return res.status(403).json({ error: 'Bot-Verifikation fehlgeschlagen. Bitte Seite neu laden.' });
+      }
     }
 
     const validMsgs = messages

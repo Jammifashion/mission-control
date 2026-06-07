@@ -6,6 +6,7 @@
   <title>Anfrage stellen – JammiFashion</title>
   <meta name="description" content="Stelle deine individuelle Anfrage für bedruckte Textilien und Merchandise bei JammiFashion.">
   <meta name="theme-color" content="#E8C44A">
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -405,6 +406,15 @@
       Anfrage eingegangen ✓ &nbsp;·&nbsp; Wir melden uns bald!
     </div>
 
+    <!-- Turnstile-Widget (wird nach Verifikation ausgeblendet) -->
+    <div id="turnstile-wrap" style="display:flex;justify-content:center;padding:0.6rem 1rem 0.2rem;">
+      <div class="cf-turnstile"
+           data-sitekey="0x4AAAAAABkJ1g6kB3UqBi9x"
+           data-theme="dark"
+           data-callback="onTurnstileSuccess"
+           data-expired-callback="onTurnstileExpired"></div>
+    </div>
+
     <!-- Input bar -->
     <div class="input-bar" id="input-bar">
       <!-- Honeypot: für Menschen unsichtbar, nur Bots füllen es aus -->
@@ -434,10 +444,29 @@
     const API_URL = 'https://mission-control-backend-181760755456.europe-west1.run.app';
 
     // ── State ───────────────────────────────────────────────────────────────
-    let messages    = [];
-    let sessionData = {};
-    let isWaiting   = false;
-    let isComplete  = false;
+    let messages           = [];
+    let sessionData        = {};
+    let isWaiting          = false;
+    let isComplete         = false;
+    let _turnstileToken    = null;   // gesetzt von onTurnstileSuccess
+    let _turnstileVerified = false;  // true nachdem Backend-Verifikation durchgelaufen
+
+    // Turnstile-Callbacks (globale Funktionen, vom Widget aufgerufen)
+    function onTurnstileSuccess(token) {
+      _turnstileToken = token;
+      // Sende-Button freischalten sobald Text getippt wurde
+      updateSendBtn();
+    }
+    function onTurnstileExpired() {
+      _turnstileToken = null;
+      sendBtn.disabled = true;
+    }
+
+    // Sende-Button ist aktiv wenn: Text eingegeben + nicht wartend + Turnstile OK
+    function updateSendBtn() {
+      sendBtn.disabled = !inputEl?.value?.trim() || isWaiting || isComplete
+                      || (!_turnstileVerified && !_turnstileToken);
+    }
 
     // ── DOM ─────────────────────────────────────────────────────────────────
     const messagesEl = document.getElementById('messages');
@@ -608,6 +637,9 @@
       showTyping();
 
       try {
+        // Turnstile-Token einmalig bei der ersten (oder solange noch nicht verifiziert) Nachricht mitsenden
+        const tokenToSend = _turnstileVerified ? undefined : (_turnstileToken || undefined);
+
         const res = await fetch(`${API_URL}/api/anfragen/chat`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -615,6 +647,7 @@
             messages,
             sessionData,
             website: document.getElementById('hp-website')?.value ?? '',
+            ...(tokenToSend ? { cfTurnstileToken: tokenToSend } : {}),
           }),
         });
 
@@ -624,6 +657,13 @@
         }
 
         const data = await res.json();
+
+        // Turnstile-Widget nach erster erfolgreicher Verifikation ausblenden
+        if (tokenToSend && !_turnstileVerified) {
+          _turnstileVerified = true;
+          const tw = document.getElementById('turnstile-wrap');
+          if (tw) tw.style.display = 'none';
+        }
 
         sessionData = data.sessionData ?? sessionData;
         messages.push({ role: 'assistant', content: data.reply });
@@ -644,7 +684,7 @@
       isWaiting = false;
       if (!isComplete) {
         inputEl.disabled = false;
-        sendBtn.disabled = !inputEl.value.trim();
+        updateSendBtn();
         inputEl.focus();
       }
     }
@@ -663,7 +703,7 @@
     inputEl.addEventListener('input', () => {
       inputEl.style.height = 'auto';
       inputEl.style.height = Math.min(inputEl.scrollHeight, 110) + 'px';
-      sendBtn.disabled = !inputEl.value.trim() || isWaiting;
+      updateSendBtn();
     });
 
     inputEl.addEventListener('keydown', e => {

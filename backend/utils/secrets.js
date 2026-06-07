@@ -16,6 +16,7 @@ export const SECRET_KEYS = [
   'GEMINI_API_KEY',
   'MC_API_KEY',
   'CORS_ORIGIN',
+  'TURNSTILE_SECRET_KEY',
 ];
 
 function getSmClient() {
