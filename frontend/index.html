@@ -7593,10 +7593,10 @@
           </tr>`).join('');
           const s = d.summen;
           const bd = document.createElement('div'); bd.className = 'modal-backdrop';
-          bd.innerHTML = `<div class="modal-box" style="max-width:780px;width:97%;">
+          bd.innerHTML = `<div class="modal-box" style="max-width:780px;width:97%;max-height:90vh;display:flex;flex-direction:column;">
             <div class="modal-title">Abrechnung Vorschau – ${partnerName}</div>
             <p style="font-size:0.82rem;color:var(--muted);margin:0.6rem 0 1rem;">${vonDatum} – ${bisDatum} &nbsp;·&nbsp; ${d.positionen} Einzelpositionen</p>
-            <div style="overflow-x:auto;">
+            <div style="overflow:auto;flex:1;">
               <table class="orders-table">
                 <thead><tr>
                   <th>Artikel</th><th style="text-align:right;">Stück</th>
