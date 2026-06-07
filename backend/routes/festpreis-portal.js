@@ -53,7 +53,7 @@ function buildFpStornoRows(vRows, stornoOrders) {
   const DATE_COL   = 1;
   const STATUS_COL = 14;
   const STORNO_COL = 16;
-  const NEG_COLS   = new Set([5, 6, 7, 8, 9, 10, 11, 12, 13, 18, 19]); // inkl. Festpreis + Mehrkosten
+  const NEG_COLS   = new Set([5, 6, 7, 8, 9, 10, 11, 12, 13, 18, 19, 20]); // inkl. Festpreis, Mehrkosten, VK-Netto
   const varKey = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
 
   const refundDate = new Map(
@@ -78,7 +78,7 @@ function buildFpStornoRows(vRows, stornoOrders) {
     stornoDone.add(dupKey);
 
     const counter = [];
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 21; i++) {
       let v = r[i] ?? '';
       if (NEG_COLS.has(i) && v !== '') v = -toFloat(v);
       counter[i] = v;
@@ -675,6 +675,7 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
               artikelkategorie,      // R 17 Artikelkategorie
               festpreis,             // S 18 Festpreis (aus FP_Artikel_Kategorie)
               0,                     // T 19 Mehrkosten (manuell, default 0)
+              Math.round(itemNetto * 100) / 100, // U 20 VK-Netto (item.total aus WC)
             ]);
           }
         }
@@ -689,7 +690,7 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
     if (allRows.length > 0) {
       await sheets.spreadsheets.values.append({
         spreadsheetId: sheetId,
-        range: `${TAB_FP_VERKAEUFE}!A:T`,
+        range: `${TAB_FP_VERKAEUFE}!A:U`,
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
         requestBody: { values: allRows },

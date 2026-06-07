@@ -7374,7 +7374,7 @@
             wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table" style="font-size:0.84rem;">
               <thead><tr>
                 <th>Partner</th><th>Datum</th><th>WC-Nr</th><th>Artikel</th><th>Variante</th>
-                <th>Stk</th><th>Artikelkat.</th><th>Festpreis</th><th>Mehrkosten</th><th>Status</th>
+                <th>Stk</th><th>Artikelkat.</th><th>VK netto</th><th>Festpreis</th><th>Mehrkosten</th><th>Status</th>
               </tr></thead>
               <tbody>${rows.map(r => {
                 const isStorno = !!(r['Storno-Status'] || '').trim() || Number(r['Stückzahl'] || 0) < 0;
@@ -7389,6 +7389,7 @@
                 <td>${r['Variante'] || '–'}</td>
                 <td style="${isStorno ? red : ''}">${r['Stückzahl']}</td>
                 <td style="font-size:0.8rem;color:var(--muted);">${r['Artikelkategorie'] || '–'}</td>
+                <td style="${isStorno ? red : ''}">${fmt(r['VK-Netto'])} €</td>
                 <td style="${isStorno ? red : ''}">${fmt(r['Festpreis'])} €</td>
                 <td>${rowId && !isStorno ? `<input type="number" class="form-input fp-mk-input" step="0.01" min="0" value="${mkVal}" data-rowid="${rowId}" style="width:80px;padding:0.25rem 0.4rem;font-size:0.82rem;">` : fmt(r['Mehrkosten']) + ' €'}</td>
                 <td><span class="badge ${r['Status Abrechnung'] === 'abgerechnet' ? 'badge-completed' : 'badge-processing'}">${r['Status Abrechnung']}</span></td>
