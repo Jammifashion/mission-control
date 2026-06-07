@@ -7258,8 +7258,8 @@
                 <td style="font-size:0.8rem;color:var(--muted);">${a['Produkt-ID']}</td>
                 <td style="font-size:0.85rem;">${a['Artikelname']}</td>
                 <td style="font-size:0.82rem;color:var(--muted);">${a['WC-Kategorie'] || '–'}</td>
-                <td><input type="number" class="form-input fp-art-ek" value="${Number(a['Festpreis-EK-Netto'] || 0)}" step="0.01" min="0" style="width:90px;padding:0.3rem 0.5rem;font-size:0.84rem;"></td>
-                <td><input type="number" class="form-input fp-art-hg" value="${Number(a['Handling-Gebühr'] || 0)}" step="0.01" min="0" style="width:90px;padding:0.3rem 0.5rem;font-size:0.84rem;"></td>
+                <td><input type="number" class="form-input fp-art-ek" value="${parseFloat(String(a['Festpreis-EK-Netto'] || '0').replace(',', '.')) || 0}" step="0.01" min="0" style="width:90px;padding:0.3rem 0.5rem;font-size:0.84rem;"></td>
+                <td><input type="number" class="form-input fp-art-hg" value="${parseFloat(String(a['Handling-Gebühr'] || '0').replace(',', '.')) || 0}" step="0.01" min="0" style="width:90px;padding:0.3rem 0.5rem;font-size:0.84rem;"></td>
                 <td><select class="form-select fp-art-va" style="font-size:0.83rem;padding:0.3rem 0.5rem;">
                   <option value="P"${(a['Versandart'] ?? 'P') !== 'B' ? ' selected' : ''}>Paket (P)</option>
                   <option value="B"${(a['Versandart'] ?? '') === 'B' ? ' selected' : ''}>Brief (B)</option>
