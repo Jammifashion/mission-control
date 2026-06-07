@@ -95,9 +95,10 @@ router.get('/abrechnungen', async (req, res, next) => {
     const tabAbrechnungen = getShopConfig(req.query.shop).tabAbrechnungen;
     const { header, rows } = await readTab(sheets, sheetId, tabAbrechnungen);
     const h = col => header.indexOf(col);
+    const VISIBLE = new Set(['freigegeben', 'bezahlt']);
 
     res.json(rows
-      .filter(r => r[h('Partner-ID')] === partner.id)
+      .filter(r => r[h('Partner-ID')] === partner.id && VISIBLE.has(r[h('Status')] ?? ''))
       .map(r => ({
         abrechnungId: r[h('Abrechnungs-ID')]    ?? '',
         zeitraumVon:  r[h('Zeitraum-Von')]       ?? '',
