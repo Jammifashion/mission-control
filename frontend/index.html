@@ -1526,6 +1526,7 @@
                   <option value="offen">Offen</option>
                   <option value="abgerechnet">Abgerechnet</option>
                 </select>
+                <input class="form-input" id="fp-verkaeufe-filter-ab-order" type="number" placeholder="ab Order-ID" style="font-size:0.83rem;padding:0.36rem 0.65rem;width:130px;">
                 <button class="btn-secondary" id="btn-fp-sync" style="font-size:0.82rem;padding:0.42rem 0.85rem;">↻ WC-Sync</button>
               </div>
             </div>
@@ -7320,17 +7321,21 @@
         document.getElementById('fp-verkaeufe-filter-partner').addEventListener('change', () => loadFpVerkaeufe());
         document.getElementById('fp-verkaeufe-filter-status').addEventListener('change', () => loadFpVerkaeufe());
 
+        document.getElementById('fp-verkaeufe-filter-ab-order').addEventListener('change', () => loadFpVerkaeufe());
+
         async function loadFpVerkaeufe() {
           const wrap = document.getElementById('fp-verkaeufe-list-wrap');
           wrap.innerHTML = '<div class="skeleton" style="height:80px;"></div>';
           const partnerId = document.getElementById('fp-verkaeufe-filter-partner').value;
           const status    = document.getElementById('fp-verkaeufe-filter-status').value;
+          const abOrder   = parseInt(document.getElementById('fp-verkaeufe-filter-ab-order').value, 10) || 0;
           const params = new URLSearchParams();
           if (partnerId) params.set('partnerId', partnerId);
           if (status)    params.set('status', status);
           try {
             const data = await window.apiFetch(`${FP()}/api/festpreis/verkaeufe?${params}`).then(r => r.json());
-            const rows = data.verkaeufe ?? [];
+            let rows = data.verkaeufe ?? [];
+            if (abOrder > 0) rows = rows.filter(r => parseInt(r['WC-Bestellnummer'], 10) >= abOrder);
             if (!rows.length) {
               wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Einträge.</p>';
               return;
