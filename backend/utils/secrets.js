@@ -1,6 +1,7 @@
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 
-const cache = new Map();
+const cache = new Map(); // key → { val, at }
+const SECRET_TTL = 12 * 60 * 60 * 1000; // 12 h – Secret-Rotation wirkt ohne Neustart
 let smClient = null;
 
 export const SECRET_KEYS = [
@@ -30,11 +31,12 @@ function getSmClient() {
  *   development → process.env[key]
  */
 export async function getSecret(key) {
-  if (cache.has(key)) return cache.get(key);
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < SECRET_TTL) return hit.val;
 
   if (process.env.NODE_ENV !== 'production') {
     const val = process.env[key] ?? '';
-    cache.set(key, val);
+    cache.set(key, { val, at: Date.now() });
     return val;
   }
 
@@ -44,7 +46,7 @@ export async function getSecret(key) {
   const name = `projects/${project}/secrets/${key}/versions/latest`;
   const [version] = await getSmClient().accessSecretVersion({ name });
   const val = version.payload.data.toString('utf8').trim();
-  cache.set(key, val);
+  cache.set(key, { val, at: Date.now() });
   return val;
 }
 

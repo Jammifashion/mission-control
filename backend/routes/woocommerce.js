@@ -6,6 +6,19 @@ const router = Router();
 // shop-Slug aus req.query.shop ziehen (Default 'jfn' wird in getWcClient erzwungen).
 const getClient = (req) => getWcClient(req?.query?.shop);
 
+// ── N2: In-Memory Cache für selten ändernde WC-Stammdaten ────────────────────
+const _wcCache = new Map(); // `${shop}:${key}` → { data, at }
+const WC_CACHE_TTL = 30 * 60 * 1000; // 30 min
+
+async function wcCached(shop, key, fetcher) {
+  const cacheKey = `${shop ?? 'jfn'}:${key}`;
+  const hit = _wcCache.get(cacheKey);
+  if (hit && Date.now() - hit.at < WC_CACHE_TTL) return hit.data;
+  const data = await fetcher();
+  _wcCache.set(cacheKey, { data, at: Date.now() });
+  return data;
+}
+
 // GET /api/woocommerce/orders
 router.get('/orders', async (req, res, next) => {
   try {
@@ -13,16 +26,21 @@ router.get('/orders', async (req, res, next) => {
     const { per_page = 20, page = 1, status } = req.query;
     const perPage = Math.min(Number(per_page), 100);
 
-    // Bei mehreren Status (z.B. "pending,processing") jeden separat abrufen und mergen,
-    // da die WC REST API Komma-getrennte Werte nicht zuverlässig interpretiert
+    // Bei mehreren Status: alle Seiten je Status vollständig laden, dann zusammenführen
+    // und erst danach paginieren – sonst mischt Seite N verschiedene Status inkorrekt.
     if (status && status.includes(',')) {
       const statuses = status.split(',').map(s => s.trim());
-      const results = await Promise.all(
-        statuses.map(s => wc.get('orders', { per_page: perPage, page: Number(page), status: s }))
-      );
-      const merged = results.flatMap(r => r.data);
-      merged.sort((a, b) => new Date(b.date_created) - new Date(a.date_created));
-      return res.json(merged);
+      const all = [];
+      await Promise.all(statuses.map(async s => {
+        for (let p = 1; ; p++) {
+          const { data } = await wc.get('orders', { per_page: 100, page: p, status: s });
+          all.push(...data);
+          if (data.length < 100) break;
+        }
+      }));
+      all.sort((a, b) => new Date(b.date_created) - new Date(a.date_created));
+      const start = (Number(page) - 1) * perPage;
+      return res.json(all.slice(start, start + perPage));
     }
 
     const params = { per_page: perPage, page: Number(page) };
@@ -49,9 +67,11 @@ router.get('/orders/:id', async (req, res, next) => {
 router.get('/shipping-classes', async (req, res, next) => {
   try {
     const wc = getClient(req);
-    const { data } = await wc.get('products/shipping_classes', { per_page: 100 });
-    const list = Array.isArray(data) ? data : [data];
-    res.json(list.map(s => ({ id: s.id, slug: s.slug, name: s.name })));
+    const result = await wcCached(req.query.shop, 'shipping-classes', async () => {
+      const { data } = await wc.get('products/shipping_classes', { per_page: 100 });
+      return (Array.isArray(data) ? data : [data]).map(s => ({ id: s.id, slug: s.slug, name: s.name }));
+    });
+    res.json(result);
   } catch (err) { next(err); }
 });
 
@@ -59,14 +79,17 @@ router.get('/shipping-classes', async (req, res, next) => {
 router.get('/categories', async (req, res, next) => {
   try {
     const wc = getClient(req);
-    const { data } = await wc.get('products/categories', { per_page: 100, hide_empty: false });
-    const list = Array.isArray(data) ? data : [data];
-    const byId = Object.fromEntries(list.map(c => [c.id, c.name]));
-    res.json(list.map(c => ({
-      Kategorienummer: String(c.id),
-      Kategoriename:   c.name,
-      Kategorien:      c.parent ? `${byId[c.parent] ?? ''} > ${c.name}` : c.name,
-    })));
+    const result = await wcCached(req.query.shop, 'categories', async () => {
+      const { data } = await wc.get('products/categories', { per_page: 100, hide_empty: false });
+      const list = Array.isArray(data) ? data : [data];
+      const byId = Object.fromEntries(list.map(c => [c.id, c.name]));
+      return list.map(c => ({
+        Kategorienummer: String(c.id),
+        Kategoriename:   c.name,
+        Kategorien:      c.parent ? `${byId[c.parent] ?? ''} > ${c.name}` : c.name,
+      }));
+    });
+    res.json(result);
   } catch (err) { next(err); }
 });
 
@@ -74,13 +97,14 @@ router.get('/categories', async (req, res, next) => {
 router.get('/attributes', async (req, res, next) => {
   try {
     const wc = getClient(req);
-    const { data: attrs } = await wc.get('products/attributes', { per_page: 100 });
-    const list = Array.isArray(attrs) ? attrs : [attrs];
-    const result = await Promise.all(list.map(async a => {
-      const { data: terms } = await wc.get(`products/attributes/${a.id}/terms`, { per_page: 100 });
-      const begriffe = (Array.isArray(terms) ? terms : [terms]).map(t => t.name);
-      return { eigenschaft: a.name, begriffe };
-    }));
+    const result = await wcCached(req.query.shop, 'attributes', async () => {
+      const { data: attrs } = await wc.get('products/attributes', { per_page: 100 });
+      const list = Array.isArray(attrs) ? attrs : [attrs];
+      return Promise.all(list.map(async a => {
+        const { data: terms } = await wc.get(`products/attributes/${a.id}/terms`, { per_page: 100 });
+        return { eigenschaft: a.name, begriffe: (Array.isArray(terms) ? terms : [terms]).map(t => t.name) };
+      }));
+    });
     res.json(result);
   } catch (err) { next(err); }
 });
@@ -144,8 +168,6 @@ router.get('/products/:id', async (req, res, next) => {
     const wc = getClient(req);
     const { data } = await wc.get(`products/${req.params.id}`);
     const product = Array.isArray(data) ? data[0] : data;
-    console.log('WC GET /products/:id meta_data:', JSON.stringify(product.meta_data ?? []));
-    console.log('WC GET /products/:id shipping_class:', product.shipping_class, '| slug:', product.shipping_class_id);
     res.json(product);
   } catch (err) { next(err); }
 });
@@ -221,7 +243,6 @@ router.post('/products', async (req, res, next) => {
     const { ssot_id, variations, ...payload } = req.body;
 
     // Schritt 1: Produkt anlegen (mit SKU-Fallback bei Duplikat)
-    console.log('WC POST /products payload:', JSON.stringify({ ...payload, status: 'draft' }, null, 2));
     let productResponse;
     try {
       productResponse = await wc.post('products', { ...payload, status: 'draft' });
@@ -242,7 +263,6 @@ router.post('/products', async (req, res, next) => {
         throw skuErr;
       }
     }
-    console.log('WC POST /products HTTP status:', productResponse.status);
     const productRaw = productResponse.data;
     const product = Array.isArray(productRaw) ? productRaw[0] : productRaw;
     const productId = product.id;
@@ -289,7 +309,6 @@ router.put('/products/:id', async (req, res, next) => {
   try {
     const wc = getClient(req);
     const { variations, ...payload } = req.body;
-    console.log('WC PUT /products/:id payload:', JSON.stringify(payload, null, 2));
     const { data: productRaw } = await wc.put(`products/${req.params.id}`, payload);
     const product = Array.isArray(productRaw) ? productRaw[0] : productRaw;
 

@@ -68,7 +68,10 @@ async function loadRecentAnfragen() {
   } catch { return []; }
 }
 
-function buildSystemPrompt(kbBase, history, sessionData) {
+// Gibt System-Prompt als zwei Blöcke zurück für Anthropic Prompt Caching.
+// Block 1 (statisch, cachebar): kbBase + Referenzaufträge – ändert sich nur alle 10 min.
+// Block 2 (dynamisch): sessionData + Anweisungen – ändert sich pro Request.
+function buildSystemBlocks(kbBase, history, sessionData) {
   const examples = history.length
     ? history.map((a, i) =>
         `${i + 1}. ${a.produkt} | Menge: ${a.menge} | Preis: ${a.preisvorschlag}€`
@@ -79,11 +82,16 @@ function buildSystemPrompt(kbBase, history, sessionData) {
     ? `\nAKTUELLER FORMULARSTAND: ${JSON.stringify(sessionData)}`
     : '';
 
-  return `${kbBase}
-Beantworte immer nur eine Frage pro Nachricht. Wenn die erste Nutzernachricht "__init__" lautet, starte direkt mit einer herzlichen Begrüßung.${stateStr}
-
-REFERENZ-AUFTRÄGE (letzte abgeschlossene):
-${examples}
+  return [
+    {
+      type: 'text',
+      // Statischer Teil: kbBase + Beispiele bleiben 10 min konstant → Cache-Hit
+      text: `${kbBase}\n\nREFERENZ-AUFTRÄGE (letzte abgeschlossene):\n${examples}`,
+      cache_control: { type: 'ephemeral' },
+    },
+    {
+      type: 'text',
+      text: `Beantworte immer nur eine Frage pro Nachricht. Wenn die erste Nutzernachricht "__init__" lautet, starte direkt mit einer herzlichen Begrüßung.${stateStr}
 
 ANTWORTFORMAT – Antworte AUSSCHLIESSLICH mit einem JSON-Objekt, kein Text außerhalb:
 {
@@ -103,7 +111,9 @@ ANTWORTFORMAT – Antworte AUSSCHLIESSLICH mit einem JSON-Objekt, kein Text auß
   "completed": false
 }
 Setze "completed": true NUR wenn Kunde in Schritt 8 bestätigt hat.
-Behalte ALLE bereits gesammelten sessionData-Werte – überschreibe sie nie mit leeren Strings.`;
+Behalte ALLE bereits gesammelten sessionData-Werte – überschreibe sie nie mit leeren Strings.`,
+    },
+  ];
 }
 
 // ── POST /chat ────────────────────────────────────────────────────────────────
@@ -142,7 +152,7 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
       .map(m => ({ role: m.role, content: m.content.slice(0, 500) }));
 
     const [history, kbBase] = await Promise.all([loadRecentAnfragen(), getAgentSystemPrompt()]);
-    const systemPrompt = buildSystemPrompt(kbBase, history, sessionData);
+    const systemBlocks = buildSystemBlocks(kbBase, history, sessionData);
 
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -152,7 +162,7 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
     const claudeRes = await anthropic.messages.create({
       model:      'claude-haiku-4-5-20251001',
       max_tokens: 1024,
-      system:     systemPrompt,
+      system:     systemBlocks,
       messages:   apiMessages,
     });
 
@@ -193,6 +203,11 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
           const ids = (idData.values ?? []).flat();
           anfrageId = generateAnfrageId(ids, new Date().getFullYear());
 
+          // Sanitize: user-gesteuerte Felder kappen + unerwünschte Zeichen entfernen
+          const safeStr  = (v, max) => String(v ?? '').replace(/[\r\n\t]/g, ' ').slice(0, max);
+          const safeId   = String(merged.partnerId || '').replace(/[^A-Za-z0-9\-]/g, '').slice(0, 20);
+          const safePreis = String(merged.preisvorschlag || '').replace(/[^0-9.,]/g, '').slice(0, 10);
+
           await sheets.spreadsheets.values.append({
             spreadsheetId: sheetId,
             range: `${TAB}!A:N`,
@@ -203,14 +218,14 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
                 anfrageId,
                 todayDE(),
                 merged.kanal || 'Homepage',
-                merged.kundeName,
-                merged.kundeEmail,
-                merged.produktBeschreibung || '',
-                merged.menge || '',
-                merged.varianten || '',
-                merged.partnerId || '',
-                merged.preisvorschlag || '',
-                merged.anmerkungenKunde || '',
+                safeStr(merged.kundeName, 100),
+                safeStr(merged.kundeEmail, 200),
+                safeStr(merged.produktBeschreibung, 500),
+                safeStr(merged.menge, 100),
+                safeStr(merged.varianten, 200),
+                safeId,
+                safePreis,
+                safeStr(merged.anmerkungenKunde, 500),
                 'Neu',
                 '', '',
               ]],
