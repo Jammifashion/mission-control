@@ -1481,6 +1481,7 @@
           <button class="sub-tab" data-fptab="fp-artikel">Artikel</button>
           <button class="sub-tab" data-fptab="fp-verkaeufe">Bestellungen</button>
           <button class="sub-tab" data-fptab="fp-abrechnungen">Abrechnung</button>
+          <button class="sub-tab" data-fptab="fp-zusammenfassung">Zusammenfassung</button>
         </div>
 
         <!-- Partner -->
@@ -1550,6 +1551,7 @@
                 <label style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-weight:600;">Zeitraum bis</label>
                 <input type="text" id="fp-abr-bis" class="form-input" placeholder="31.01.2026" style="font-size:0.84rem;" />
               </div>
+              <button class="btn-secondary" id="btn-fp-vorschau" style="font-size:0.82rem;padding:0.42rem 0.85rem;">Vorschau</button>
               <button class="btn" id="btn-fp-abrechnung-erstellen" style="font-size:0.82rem;padding:0.42rem 0.85rem;">Erstellen</button>
             </div>
             <div id="fp-abr-status" style="margin-top:0.6rem;font-size:0.82rem;min-height:1.1em;"></div>
@@ -1564,6 +1566,29 @@
             <div id="fp-abrechnungen-list-wrap"><div class="skeleton" style="height:80px;"></div></div>
           </div>
         </div>
+
+        <!-- Zusammenfassung -->
+        <div id="fptab-fp-zusammenfassung" class="sub-tab-panel">
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+              <h2>Artikel-Zusammenfassung</h2>
+              <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+                <select class="form-select" id="fp-zus-partner" style="font-size:0.83rem;padding:0.36rem 0.65rem;min-width:160px;">
+                  <option value="">Alle Partner</option>
+                </select>
+                <input type="text" class="form-input" id="fp-zus-von" placeholder="Von DD.MM.YYYY" style="font-size:0.83rem;width:130px;">
+                <input type="text" class="form-input" id="fp-zus-bis" placeholder="Bis DD.MM.YYYY" style="font-size:0.83rem;width:130px;">
+                <select class="form-select" id="fp-zus-status" style="font-size:0.83rem;padding:0.36rem 0.65rem;">
+                  <option value="offen">offen</option>
+                  <option value="abgerechnet">abgerechnet</option>
+                </select>
+                <button class="btn-secondary" id="btn-fp-zus-laden" style="font-size:0.82rem;padding:0.42rem 0.85rem;">Laden</button>
+              </div>
+            </div>
+            <div id="fp-zus-wrap"><p style="color:var(--muted);font-size:0.85rem;">Bitte Filter wählen und Laden klicken.</p></div>
+          </div>
+        </div>
+
       </section>
 
       <!-- Settings -->
@@ -6946,7 +6971,8 @@
             if (btn.dataset.fptab === 'fp-partner')      loadFpPartner();
             if (btn.dataset.fptab === 'fp-artikel')      initFpArtikelTab();
             if (btn.dataset.fptab === 'fp-verkaeufe')    loadFpVerkaeufe();
-            if (btn.dataset.fptab === 'fp-abrechnungen') initFpAbrechnungTab();
+            if (btn.dataset.fptab === 'fp-abrechnungen')    initFpAbrechnungTab();
+            if (btn.dataset.fptab === 'fp-zusammenfassung') populateFpPartnerSelects();
           });
         });
 
@@ -7024,7 +7050,7 @@
         }
 
         function populateFpPartnerSelects() {
-          const selects = ['fp-artikel-filter-partner', 'fp-verkaeufe-filter-partner', 'fp-abr-partner', 'fp-abrechnungen-filter-partner'];
+          const selects = ['fp-artikel-filter-partner', 'fp-verkaeufe-filter-partner', 'fp-abr-partner', 'fp-abrechnungen-filter-partner', 'fp-zus-partner'];
           selects.forEach(id => {
             const sel = document.getElementById(id);
             if (!sel) return;
@@ -7380,6 +7406,132 @@
             wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
           }
         }
+
+        // ── Vorschau-Modal ────────────────────────────────────────────────────
+        document.getElementById('btn-fp-vorschau').addEventListener('click', async () => {
+          const partnerId = document.getElementById('fp-abr-partner').value;
+          const vonDatum  = document.getElementById('fp-abr-von').value.trim();
+          const bisDatum  = document.getElementById('fp-abr-bis').value.trim();
+          const statusEl  = document.getElementById('fp-abr-status');
+          if (!partnerId || !vonDatum || !bisDatum) {
+            statusEl.style.color = 'var(--danger)'; statusEl.textContent = 'Partner, Von- und Bis-Datum sind erforderlich.'; return;
+          }
+          statusEl.style.color = 'var(--muted)'; statusEl.textContent = 'Lade Vorschau…';
+          try {
+            const qs = new URLSearchParams({ partnerId, vonDatum, bisDatum });
+            const d = await window.apiFetch(`${FP()}/api/festpreis/verkaeufe/summary?${qs}`).then(r => r.json());
+            statusEl.textContent = '';
+            renderFpSummaryModal(d, partnerId, vonDatum, bisDatum);
+          } catch (e) {
+            statusEl.style.color = 'var(--danger)'; statusEl.textContent = `Fehler: ${e.message}`;
+          }
+        });
+
+        function renderFpSummaryModal(d, partnerId, vonDatum, bisDatum) {
+          const fmt = v => Number(v || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+          const partnerName = _fpPartners.find(p => p['Partner-ID'] === partnerId)?.Name || partnerId;
+          const tableBody = d.produkteGruppen.map(g => `<tr>
+            <td style="font-size:0.82rem;">${g.artikelname}<br><span style="color:var(--muted);font-size:0.75rem;">#${g.produktId}</span></td>
+            <td style="text-align:right;">${g.stueckzahl}</td>
+            <td style="text-align:right;">${fmt(g.ekGesamt + g.handlingGesamt)}</td>
+            <td style="text-align:right;color:var(--success);">${fmt(g.portoEinnahmen)}</td>
+            <td style="text-align:right;color:var(--danger);">−${fmt(g.portoKosten + g.versandnkGesamt)}</td>
+            <td style="text-align:right;color:var(--danger);">−${fmt(g.paypalGesamt)}</td>
+            <td style="text-align:right;font-weight:600;">${fmt(g.nettoGesamt)}</td>
+          </tr>`).join('');
+          const s = d.summen;
+          const bd = document.createElement('div'); bd.className = 'modal-backdrop';
+          bd.innerHTML = `<div class="modal-box" style="max-width:780px;width:97%;">
+            <div class="modal-title">Abrechnung Vorschau – ${partnerName}</div>
+            <p style="font-size:0.82rem;color:var(--muted);margin:0.6rem 0 1rem;">${vonDatum} – ${bisDatum} &nbsp;·&nbsp; ${d.positionen} Einzelpositionen</p>
+            <div style="overflow-x:auto;">
+              <table class="orders-table">
+                <thead><tr>
+                  <th>Artikel</th><th style="text-align:right;">Stück</th>
+                  <th style="text-align:right;">EK+Handling</th>
+                  <th style="text-align:right;">Porto-Einnahmen</th>
+                  <th style="text-align:right;">Porto+Versandnk</th>
+                  <th style="text-align:right;">PayPal</th>
+                  <th style="text-align:right;">Netto gesamt</th>
+                </tr></thead>
+                <tbody>${tableBody}</tbody>
+                <tfoot><tr style="font-weight:600;border-top:2px solid var(--border);">
+                  <td>Gesamt</td>
+                  <td style="text-align:right;">${s.stueckzahl}</td>
+                  <td style="text-align:right;">${fmt(s.ekGesamt + s.handlingGesamt)}</td>
+                  <td style="text-align:right;color:var(--success);">${fmt(s.portoEinnahmen)}</td>
+                  <td style="text-align:right;color:var(--danger);">−${fmt(s.portoKosten + s.versandnkGesamt)}</td>
+                  <td style="text-align:right;color:var(--danger);">−${fmt(s.paypalGesamt)}</td>
+                  <td style="text-align:right;">${fmt(s.nettoGesamt)}</td>
+                </tr></tfoot>
+              </table>
+            </div>
+            <div class="modal-actions" style="margin-top:1.25rem;">
+              <button class="btn-secondary" id="fp-vor-x">Schließen</button>
+              <button class="btn" id="fp-vor-ok">Abrechnung erstellen</button>
+            </div>
+          </div>`;
+          document.body.appendChild(bd);
+          bd.querySelector('#fp-vor-x').onclick = () => bd.remove();
+          bd.querySelector('#fp-vor-ok').onclick = () => {
+            bd.remove();
+            document.getElementById('btn-fp-abrechnung-erstellen').click();
+          };
+        }
+
+        // ── Zusammenfassungs-Tab ──────────────────────────────────────────────
+        document.getElementById('btn-fp-zus-laden').addEventListener('click', async () => {
+          const wrap      = document.getElementById('fp-zus-wrap');
+          const partnerId = document.getElementById('fp-zus-partner').value;
+          const vonDatum  = document.getElementById('fp-zus-von').value.trim();
+          const bisDatum  = document.getElementById('fp-zus-bis').value.trim();
+          const status    = document.getElementById('fp-zus-status').value;
+          wrap.innerHTML  = '<div class="skeleton" style="height:80px;"></div>';
+          try {
+            const qs = new URLSearchParams({ status });
+            if (partnerId) qs.set('partnerId', partnerId);
+            if (vonDatum)  qs.set('vonDatum', vonDatum);
+            if (bisDatum)  qs.set('bisDatum', bisDatum);
+            const d = await window.apiFetch(`${FP()}/api/festpreis/verkaeufe/summary?${qs}`).then(r => r.json());
+            if (!d.produkteGruppen.length) {
+              wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Einträge gefunden.</p>'; return;
+            }
+            const fmt = v => Number(v || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+            const s = d.summen;
+            wrap.innerHTML = `
+              <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;">${d.positionen} Einzelpositionen · ${d.produkteGruppen.length} Artikel-Gruppen</p>
+              <div style="overflow-x:auto;"><table class="orders-table">
+                <thead><tr>
+                  <th>Artikel</th><th style="text-align:right;">Stück</th>
+                  <th style="text-align:right;">EK+Handling</th>
+                  <th style="text-align:right;">Porto-Einnahmen</th>
+                  <th style="text-align:right;">Porto+Versandnk</th>
+                  <th style="text-align:right;">PayPal</th>
+                  <th style="text-align:right;">Netto gesamt</th>
+                </tr></thead>
+                <tbody>${d.produkteGruppen.map(g => `<tr>
+                  <td style="font-size:0.82rem;">${g.artikelname}<br><span style="color:var(--muted);font-size:0.75rem;">#${g.produktId}</span></td>
+                  <td style="text-align:right;">${g.stueckzahl}</td>
+                  <td style="text-align:right;">${fmt(g.ekGesamt + g.handlingGesamt)}</td>
+                  <td style="text-align:right;color:var(--success);">${fmt(g.portoEinnahmen)}</td>
+                  <td style="text-align:right;color:var(--danger);">−${fmt(g.portoKosten + g.versandnkGesamt)}</td>
+                  <td style="text-align:right;color:var(--danger);">−${fmt(g.paypalGesamt)}</td>
+                  <td style="text-align:right;font-weight:600;">${fmt(g.nettoGesamt)}</td>
+                </tr>`).join('')}</tbody>
+                <tfoot><tr style="font-weight:600;border-top:2px solid var(--border);">
+                  <td>Gesamt</td>
+                  <td style="text-align:right;">${s.stueckzahl}</td>
+                  <td style="text-align:right;">${fmt(s.ekGesamt + s.handlingGesamt)}</td>
+                  <td style="text-align:right;color:var(--success);">${fmt(s.portoEinnahmen)}</td>
+                  <td style="text-align:right;color:var(--danger);">−${fmt(s.portoKosten + s.versandnkGesamt)}</td>
+                  <td style="text-align:right;color:var(--danger);">−${fmt(s.paypalGesamt)}</td>
+                  <td style="text-align:right;">${fmt(s.nettoGesamt)}</td>
+                </tr></tfoot>
+              </table></div>`;
+          } catch (e) {
+            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+          }
+        });
 
         // Panel-Aktivierung: Partner beim ersten Öffnen laden
         const fpPanelBtn = document.querySelector('nav button[data-panel="festpreis"]');

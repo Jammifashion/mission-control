@@ -413,6 +413,95 @@ router.get('/verkaeufe', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /api/festpreis/verkaeufe/summary ─────────────────────────────────────
+// Aggregiert FP_Verkäufe pro Produkt-ID. Parameter: partnerId, vonDatum,
+// bisDatum (beide DD.MM.YYYY, optional), status (default: offen).
+router.get('/verkaeufe/summary', async (req, res, next) => {
+  try {
+    const sheetId = SHEETID();
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
+    const { partnerId, vonDatum, bisDatum } = req.query;
+    const statusFilter = req.query.status ?? 'offen';
+
+    const sheets = await getSheets();
+    const { header, rows } = await readTab(sheets, sheetId, TAB_FP_VERKAEUFE);
+    const vh = col => header.indexOf(col);
+
+    const von = vonDatum ? parseDate(vonDatum) : null;
+    const bis = bisDatum ? parseDate(bisDatum) : null;
+
+    const filtered = rows.filter(r => {
+      if (partnerId && (r[vh('Partner-ID')] ?? '') !== partnerId) return false;
+      if ((r[vh('Status Abrechnung')] ?? '').toLowerCase() !== statusFilter.toLowerCase()) return false;
+      if ((r[vh('Storno-Status')] ?? '') !== '') return false; // Storno-Gegenbuchungen ausschließen
+      if (von || bis) {
+        const d = parseDate(r[vh('Datum')] ?? '');
+        if (von && d && d < von) return false;
+        if (bis && d && d > bis) return false;
+      }
+      return true;
+    });
+
+    // Aggregieren pro Produkt-ID
+    const gruppen = {};
+    for (const r of filtered) {
+      const pid = String(r[vh('Produkt-ID')] ?? 'unbekannt');
+      if (!gruppen[pid]) {
+        gruppen[pid] = {
+          produktId:       pid,
+          artikelname:     r[vh('Artikelname')]    ?? '',
+          stueckzahl:      0,
+          ekGesamt:        0,
+          handlingGesamt:  0,
+          portoEinnahmen:  0,
+          portoKosten:     0,
+          versandnkGesamt: 0,
+          paypalGesamt:    0,
+          nettoGesamt:     0,
+          bruttoGesamt:    0,
+        };
+      }
+      const g = gruppen[pid];
+      g.stueckzahl      += toFloat(r[vh('Stückzahl')]);
+      g.ekGesamt        += toFloat(r[vh('Festpreis-EK-Netto')]);
+      g.handlingGesamt  += toFloat(r[vh('Handling-Gebühr')]);
+      g.portoEinnahmen  += toFloat(r[vh('Porto-Einnahme')]);
+      g.portoKosten     += toFloat(r[vh('Porto-Kosten')]);
+      g.versandnkGesamt += toFloat(r[vh('Versandnebenkosten')]);
+      g.paypalGesamt    += toFloat(r[vh('PayPal-Kosten')]);
+      g.nettoGesamt     += toFloat(r[vh('Gesamt-Partner-Netto')]);
+      g.bruttoGesamt    += toFloat(r[vh('Gesamt-Partner-Brutto')]);
+    }
+
+    const round2 = n => Math.round(n * 100) / 100;
+    const produkteGruppen = Object.values(gruppen).map(g => ({
+      ...g,
+      ekGesamt:        round2(g.ekGesamt),
+      handlingGesamt:  round2(g.handlingGesamt),
+      portoEinnahmen:  round2(g.portoEinnahmen),
+      portoKosten:     round2(g.portoKosten),
+      versandnkGesamt: round2(g.versandnkGesamt),
+      paypalGesamt:    round2(g.paypalGesamt),
+      nettoGesamt:     round2(g.nettoGesamt),
+      bruttoGesamt:    round2(g.bruttoGesamt),
+    }));
+
+    const summen = produkteGruppen.reduce((s, g) => ({
+      stueckzahl:      s.stueckzahl      + g.stueckzahl,
+      ekGesamt:        round2(s.ekGesamt        + g.ekGesamt),
+      handlingGesamt:  round2(s.handlingGesamt  + g.handlingGesamt),
+      portoEinnahmen:  round2(s.portoEinnahmen  + g.portoEinnahmen),
+      portoKosten:     round2(s.portoKosten     + g.portoKosten),
+      versandnkGesamt: round2(s.versandnkGesamt + g.versandnkGesamt),
+      paypalGesamt:    round2(s.paypalGesamt    + g.paypalGesamt),
+      nettoGesamt:     round2(s.nettoGesamt     + g.nettoGesamt),
+      bruttoGesamt:    round2(s.bruttoGesamt    + g.bruttoGesamt),
+    }), { stueckzahl:0, ekGesamt:0, handlingGesamt:0, portoEinnahmen:0, portoKosten:0, versandnkGesamt:0, paypalGesamt:0, nettoGesamt:0, bruttoGesamt:0 });
+
+    res.json({ produkteGruppen, summen, positionen: filtered.length });
+  } catch (err) { next(err); }
+});
+
 // ── POST /api/festpreis/verkaeufe/sync ───────────────────────────────────────
 router.post('/verkaeufe/sync', async (req, res, next) => {
   try {
