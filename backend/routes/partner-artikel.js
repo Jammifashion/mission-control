@@ -19,6 +19,9 @@ async function readTab(sheets, sheetId, tabName) {
     spreadsheetId: sheetId, range: `${tabName}!A1:Z`,
   });
   const [header, ...rows] = data.values ?? [];
+  // Echten Sheet-Zeilenindex (_sheetRow) anhängen BEVOR Leerzeilen gefiltert werden,
+  // damit Status-Updates die korrekte Zeile treffen (sonst verschiebt jede Leerzeile alles).
+  rows.forEach((r, i) => { r._sheetRow = i + 2; });
   return { header: header ?? [], rows: rows.filter(r => r.some(c => c)) };
 }
 
@@ -275,7 +278,7 @@ router.patch('/:id/artikel/:artikelnummer', async (req, res, next) => {
         'Druckkosten':    druckkosten,
         'Versandart':     versandart ? versandart.toUpperCase() : undefined,
       };
-      const sheetRow = rowIdx + 2;
+      const sheetRow = rows[rowIdx]._sheetRow;
       const data = Object.entries(colMap)
         .filter(([, v]) => v !== undefined)
         .map(([col, value]) => ({
@@ -309,7 +312,7 @@ router.patch('/:id/artikel/:artikelnummer', async (req, res, next) => {
       'Lizenz-%':       lizenzProzent,
     };
 
-    const sheetRow = rowIdx + 2;
+    const sheetRow = rows[rowIdx]._sheetRow;
     const data = Object.entries(colMap)
       .filter(([, v]) => v !== undefined)
       .map(([col, value]) => ({
@@ -404,8 +407,8 @@ router.get('/:id/intern', async (req, res, next) => {
     const h = col => header.indexOf(col);
 
     res.json(rows
-      .map((r, idx) => ({
-        rowId:       idx + 2,
+      .map((r) => ({
+        rowId:       r._sheetRow,
         partnerId:   r[h('Partner-ID')]  ?? '',
         datum:       r[h('Datum')]       ?? '',
         bezeichnung: r[h('Bezeichnung')] ?? '',

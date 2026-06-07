@@ -27,6 +27,9 @@ async function readAllRows(sheets, sheetId) {
   });
   const [header, ...rest] = data.values ?? [];
   if (!header) return [];
+  // Echten Sheet-Zeilenindex (_sheetRow) anhängen BEVOR Leerzeilen gefiltert werden,
+  // damit Updates die korrekte Zeile treffen (sonst verschiebt jede Leerzeile alles).
+  rest.forEach((r, i) => { r._sheetRow = i + 2; });
   return rest.filter(r => r.some(c => c));
 }
 
@@ -95,7 +98,7 @@ router.patch('/:schluessel', async (req, res, next) => {
       return res.status(404).json({ error: `Schlüssel "${schluessel}" nicht gefunden.` });
     }
 
-    const sheetRow = idx + 2; // +1 für 1-basiert, +1 für Header-Zeile
+    const sheetRow = rows[idx]._sheetRow; // echter Sheet-Zeilenindex (leerzeilen-sicher)
     const data = [{ range: `${TAB}!C${sheetRow}`, values: [[wert]] }];
     if (notiz !== undefined) data.push({ range: `${TAB}!D${sheetRow}`, values: [[notiz]] });
     await sheets.spreadsheets.values.batchUpdate({
