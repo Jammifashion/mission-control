@@ -791,6 +791,34 @@ router.post('/abrechnungen', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── PATCH /api/festpreis/abrechnungen/:id/status ─────────────────────────────
+router.patch('/abrechnungen/:id/status', async (req, res, next) => {
+  try {
+    const sheetId = SHEETID();
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
+    const { status } = req.body;
+    const ALLOWED = new Set(['entwurf', 'freigegeben', 'bezahlt']);
+    if (!status || !ALLOWED.has(status))
+      return res.status(400).json({ error: `Ungültiger Status. Erlaubt: ${[...ALLOWED].join(', ')}` });
+
+    const sheets = await getSheets();
+    const { header, rows } = await readTab(sheets, sheetId, TAB_FP_ABRECHNUNGEN);
+    const idIdx = header.indexOf('Abrechnungs-ID');
+    const stIdx = header.indexOf('Status');
+    const rowIdx = rows.findIndex(r => (r[idIdx] ?? '') === req.params.id);
+    if (rowIdx === -1) return res.status(404).json({ error: 'Abrechnung nicht gefunden.' });
+
+    const sheetRow = rows[rowIdx]._sheetRow;
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: sheetId,
+      range: `${TAB_FP_ABRECHNUNGEN}!${String.fromCharCode(65 + stIdx)}${sheetRow}`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [[status]] },
+    });
+    res.json({ ok: true, abrechnungsId: req.params.id, status });
+  } catch (err) { next(err); }
+});
+
 // ── GET /api/festpreis/preise ─────────────────────────────────────────────────
 // Liest FP_Artikel_Kategorie: Kategorie | Festpreispartner-ID | Festpreis
 router.get('/preise', async (req, res, next) => {

@@ -7464,19 +7464,51 @@
               return;
             }
             const fmt = v => Number(v || 0).toFixed(2).replace('.', ',');
+            const badgeCls = s => ({ freigegeben: 'badge-completed', bezahlt: 'badge-completed', entwurf: 'badge-processing' }[s] ?? 'badge-idle');
+            const STATI = ['entwurf', 'freigegeben', 'bezahlt'];
             wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
               <thead><tr><th>Abr.-ID</th><th>Partner</th><th>Von</th><th>Bis</th><th>Netto</th><th>Brutto</th><th>Status</th><th>Erstellt</th></tr></thead>
-              <tbody>${rows.map(r => `<tr>
-                <td style="font-size:0.82rem;font-weight:600;">${r['Abrechnungs-ID']}</td>
+              <tbody>${rows.map(r => {
+                const abrId = r['Abrechnungs-ID'];
+                const cur   = r['Status'] || 'entwurf';
+                const opts  = STATI.map(s => `<option value="${s}"${s === cur ? ' selected' : ''}>${s}</option>`).join('');
+                return `<tr>
+                <td style="font-size:0.82rem;font-weight:600;">${abrId}</td>
                 <td>${r['Partner-ID']}</td>
                 <td>${r['Zeitraum-Von']}</td>
                 <td>${r['Zeitraum-Bis']}</td>
                 <td style="font-weight:600;">${fmt(r['Gesamt-Netto'])} €</td>
                 <td>${fmt(r['Gesamt-Brutto'])} €</td>
-                <td><span class="badge ${r['Status'] === 'freigegeben' ? 'badge-completed' : 'badge-processing'}">${r['Status']}</span></td>
+                <td>
+                  <span class="badge ${badgeCls(cur)}" style="margin-bottom:0.3rem;display:inline-block;">${cur}</span><br>
+                  <select class="form-select fp-abr-status-sel" data-abr-id="${abrId}" data-abr-cur="${cur}"
+                    style="font-size:0.78rem;padding:0.22rem 0.5rem;margin-top:0.1rem;">${opts}</select>
+                </td>
                 <td style="color:var(--muted);font-size:0.82rem;">${r['Erstellt-Am']}</td>
-              </tr>`).join('')}</tbody>
+              </tr>`;}).join('')}</tbody>
             </table></div>`;
+
+            wrap.querySelectorAll('.fp-abr-status-sel').forEach(sel => {
+              sel.addEventListener('change', async () => {
+                const abrId    = sel.dataset.abrId;
+                const oldStatus = sel.dataset.abrCur;
+                const newStatus = sel.value;
+                sel.disabled = true;
+                try {
+                  const r = await window.apiFetch(`${FP()}/api/festpreis/abrechnungen/${encodeURIComponent(abrId)}/status`, {
+                    method: 'PATCH', headers: {'Content-Type':'application/json'},
+                    body: JSON.stringify({ status: newStatus }),
+                  });
+                  if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+                  window.showToast(`Status → ${newStatus}`);
+                  loadFpAbrechnungen();
+                } catch (e) {
+                  window.showToast(`Fehler: ${e.message}`, 'toast-error');
+                  sel.value = oldStatus;
+                  sel.disabled = false;
+                }
+              });
+            });
           } catch (e) {
             wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
           }
