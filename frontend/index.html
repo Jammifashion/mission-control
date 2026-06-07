@@ -1482,6 +1482,7 @@
           <button class="sub-tab" data-fptab="fp-verkaeufe">Bestellungen</button>
           <button class="sub-tab" data-fptab="fp-abrechnungen">Abrechnung</button>
           <button class="sub-tab" data-fptab="fp-zusammenfassung">Zusammenfassung</button>
+          <button class="sub-tab" data-fptab="fp-intern">Interne Bestellungen</button>
         </div>
 
         <!-- Partner -->
@@ -1586,6 +1587,22 @@
               </div>
             </div>
             <div id="fp-zus-wrap"><p style="color:var(--muted);font-size:0.85rem;">Bitte Filter wählen und Laden klicken.</p></div>
+          </div>
+        </div>
+
+        <!-- FP Interne Bestellungen -->
+        <div id="fptab-fp-intern" class="sub-tab-panel">
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
+              <h2>Interne Bestellungen</h2>
+              <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                <select class="form-select" id="fp-intern-filter-partner" style="font-size:0.83rem;padding:0.36rem 0.65rem;min-width:180px;">
+                  <option value="">– Partner wählen –</option>
+                </select>
+                <button class="btn" id="btn-fp-intern-add" style="font-size:0.82rem;padding:0.42rem 0.85rem;" disabled>+ Hinzufügen</button>
+              </div>
+            </div>
+            <div id="fp-intern-list-wrap"><p style="color:var(--muted);font-size:0.85rem;">Bitte Partner wählen.</p></div>
           </div>
         </div>
 
@@ -6973,6 +6990,7 @@
             if (btn.dataset.fptab === 'fp-verkaeufe')    loadFpVerkaeufe();
             if (btn.dataset.fptab === 'fp-abrechnungen')    initFpAbrechnungTab();
             if (btn.dataset.fptab === 'fp-zusammenfassung') populateFpPartnerSelects();
+            if (btn.dataset.fptab === 'fp-intern')          { populateFpPartnerSelects(); }
           });
         });
 
@@ -7050,7 +7068,7 @@
         }
 
         function populateFpPartnerSelects() {
-          const selects = ['fp-artikel-filter-partner', 'fp-verkaeufe-filter-partner', 'fp-abr-partner', 'fp-abrechnungen-filter-partner', 'fp-zus-partner'];
+          const selects = ['fp-artikel-filter-partner', 'fp-verkaeufe-filter-partner', 'fp-abr-partner', 'fp-abrechnungen-filter-partner', 'fp-zus-partner', 'fp-intern-filter-partner'];
           selects.forEach(id => {
             const sel = document.getElementById(id);
             if (!sel) return;
@@ -7532,6 +7550,153 @@
             wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
           }
         });
+
+        // ── FP Interne Bestellungen ───────────────────────────────────────────
+        let _fpInternState = { partnerId: '', rows: [] };
+
+        document.getElementById('fp-intern-filter-partner').addEventListener('change', e => {
+          _fpInternState.partnerId = e.target.value;
+          document.getElementById('btn-fp-intern-add').disabled = !_fpInternState.partnerId;
+          if (_fpInternState.partnerId) loadFpInternTable();
+          else document.getElementById('fp-intern-list-wrap').innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Bitte Partner wählen.</p>';
+        });
+
+        document.getElementById('btn-fp-intern-add').addEventListener('click', () => openFpInternModal());
+
+        async function loadFpInternTable() {
+          const wrap = document.getElementById('fp-intern-list-wrap');
+          wrap.innerHTML = '<div class="skeleton" style="height:60px;"></div>';
+          try {
+            _fpInternState.rows = await window.apiFetch(
+              `${window.API_BASE()}/api/partner/${_fpInternState.partnerId}/intern`
+            ).then(r => r.json());
+            renderFpInternTable();
+          } catch (e) {
+            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+          }
+        }
+
+        function renderFpInternTable() {
+          const wrap = document.getElementById('fp-intern-list-wrap');
+          const rows = _fpInternState.rows;
+          if (!rows.length) {
+            wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Noch keine internen Bestellungen.</p>';
+            return;
+          }
+          const STATUSES = ['offen', 'abgerechnet'];
+          const badge    = s => ({ offen: 'badge-pending', abgerechnet: 'badge-completed' }[s] ?? 'badge-idle');
+          const fmt      = v => v.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+          wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+            <thead><tr>
+              <th>Datum</th><th>Bezeichnung</th>
+              <th style="text-align:right;">Anzahl</th>
+              <th style="text-align:right;">Einzelpreis brutto</th>
+              <th style="text-align:right;">Summe</th>
+              <th>Status</th>
+              <th></th>
+            </tr></thead>
+            <tbody>${rows.map(r => {
+              const opts = STATUSES.map(s =>
+                `<option value="${s}"${s === r.status ? ' selected' : ''}>${s}</option>`
+              ).join('');
+              const editBtn = r.status === 'abgerechnet'
+                ? ''
+                : `<button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;" data-fpi-edit="${r.rowId}">Bearbeiten</button>`;
+              return `<tr>
+                <td>${r.datum}</td>
+                <td>${r.bezeichnung}</td>
+                <td style="text-align:right;">${r.anzahl}</td>
+                <td style="text-align:right;">${fmt(r.einzelpreis)}</td>
+                <td style="text-align:right;font-weight:600;">${fmt(r.summe)}</td>
+                <td><span class="badge ${badge(r.status)}" style="margin-bottom:0.35rem;display:inline-block;">${r.status}</span><br>
+                  <select class="form-select" style="font-size:0.78rem;padding:0.22rem 0.5rem;margin-top:0.15rem;"
+                    data-fpi-sel="${r.rowId}" data-fpi-cur="${r.status}">${opts}</select></td>
+                <td style="text-align:right;">${editBtn}</td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table></div>`;
+
+          wrap.querySelectorAll('[data-fpi-sel]').forEach(sel => {
+            sel.addEventListener('change', async () => {
+              const rowId = sel.dataset.fpiSel;
+              const oldStatus = sel.dataset.fpiCur;
+              const newStatus = sel.value;
+              sel.disabled = true;
+              try {
+                const r = await window.apiFetch(
+                  `${window.API_BASE()}/api/partner/${_fpInternState.partnerId}/intern/${rowId}/status`,
+                  { method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ status: newStatus }) }
+                );
+                if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+                window.showToast(`Status aktualisiert: ${newStatus}`);
+                loadFpInternTable();
+              } catch (e) {
+                window.showToast(`Fehler: ${e.message}`, 'toast-error');
+                sel.value = oldStatus;
+                sel.disabled = false;
+              }
+            });
+          });
+
+          wrap.querySelectorAll('[data-fpi-edit]').forEach(btn => {
+            btn.addEventListener('click', () => {
+              const row = _fpInternState.rows.find(r => String(r.rowId) === btn.dataset.fpiEdit);
+              if (row) openFpInternModal(row);
+            });
+          });
+        }
+
+        function openFpInternModal(existing = null) {
+          const isEdit = !!existing;
+          const today  = new Date().toISOString().slice(0, 10);
+          const dVal   = isEdit ? _toIso(existing.datum) : today;
+          const bd = document.createElement('div'); bd.className = 'modal-backdrop';
+          bd.innerHTML = `<div class="modal-box" style="max-width:440px;width:94%;">
+            <div class="modal-title">${isEdit ? 'Interne Bestellung bearbeiten' : 'Interne Bestellung erfassen'}</div>
+            <div style="margin-top:1.1rem;"><div class="form-grid">
+              <div class="form-field"><label>Datum *</label>
+                <input class="form-input" type="date" id="fpi-d" value="${dVal}"></div>
+              <div class="form-field"><label>Anzahl *</label>
+                <input class="form-input" type="number" id="fpi-a" min="1" step="1" value="${isEdit ? existing.anzahl : 1}"></div>
+              <div class="form-field form-col-full"><label>Bezeichnung *</label>
+                <input class="form-input" id="fpi-b" placeholder="z.B. Werbeshirts April" value="${isEdit ? anfEscape(existing.bezeichnung) : ''}"></div>
+              <div class="form-field"><label>Einzelpreis brutto (€)</label>
+                <input class="form-input" type="number" id="fpi-e" min="0" step="0.01" value="${isEdit ? existing.einzelpreis : 0}"></div>
+            </div>
+            <div class="modal-actions" style="margin-top:1.25rem;">
+              <button class="btn-secondary" id="fpi-x">Abbrechen</button>
+              <button class="btn" id="fpi-ok">${isEdit ? 'Speichern' : 'Hinzufügen'}</button>
+            </div></div></div>`;
+          document.body.appendChild(bd);
+          bd.querySelector('#fpi-x').onclick = () => bd.remove();
+          bd.querySelector('#fpi-ok').onclick = async () => {
+            const bezeichnung = bd.querySelector('#fpi-b').value.trim();
+            const anzahl      = parseFloat(bd.querySelector('#fpi-a').value.replace(',', '.'));
+            const einzelpreis = parseFloat(bd.querySelector('#fpi-e').value.replace(',', '.'));
+            if (!bezeichnung || !anzahl || anzahl <= 0) {
+              window.showToast('Bezeichnung und Anzahl sind erforderlich.', 'toast-error'); return;
+            }
+            const btn = bd.querySelector('#fpi-ok'); btn.disabled = true; btn.textContent = '...';
+            const payload = { datum: _toDE(bd.querySelector('#fpi-d').value), bezeichnung, anzahl, einzelpreis };
+            const url = isEdit
+              ? `${window.API_BASE()}/api/partner/${_fpInternState.partnerId}/intern/${existing.rowId}`
+              : `${window.API_BASE()}/api/partner/${_fpInternState.partnerId}/intern`;
+            try {
+              const r = await window.apiFetch(url, {
+                method: isEdit ? 'PATCH' : 'POST',
+                headers: {'Content-Type':'application/json'},
+                body: JSON.stringify(payload),
+              });
+              if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+              bd.remove();
+              window.showToast(isEdit ? 'Bestellung aktualisiert.' : 'Bestellung erfasst.');
+              loadFpInternTable();
+            } catch (e) {
+              window.showToast(`Fehler: ${e.message}`, 'toast-error');
+              btn.disabled = false; btn.textContent = isEdit ? 'Speichern' : 'Hinzufügen';
+            }
+          };
+        }
 
         // Panel-Aktivierung: Partner beim ersten Öffnen laden
         const fpPanelBtn = document.querySelector('nav button[data-panel="festpreis"]');
