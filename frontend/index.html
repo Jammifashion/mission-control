@@ -7347,23 +7347,26 @@
                 <th>Stk</th><th>EK</th><th>Handling</th><th>Porto+</th><th>Porto−</th>
                 <th>VersNK</th><th>PayPal</th><th>Netto</th><th>Brutto</th><th>Status</th>
               </tr></thead>
-              <tbody>${rows.map(r => `<tr>
+              <tbody>${rows.map(r => {
+                const isStorno = !!(r['Storno-Status'] || '').trim() || Number(r['Stückzahl'] || 0) < 0;
+                const red = 'color:var(--danger);font-weight:600;';
+                return `<tr style="${isStorno ? 'background:rgba(220,38,38,0.06);' : ''}">
                 <td>${r['Partner-ID']}</td>
                 <td>${r['Datum']}</td>
                 <td>${r['WC-Bestellnummer']}</td>
-                <td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${r['Artikelname']}">${r['Artikelname']}</td>
+                <td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${r['Artikelname']}">${r['Artikelname']}${isStorno ? ` <span style="font-size:0.72rem;${red}">↩ Storno</span>` : ''}</td>
                 <td>${r['Variante'] || '–'}</td>
-                <td>${r['Stückzahl']}</td>
+                <td style="${isStorno ? red : ''}">${r['Stückzahl']}</td>
                 <td>${fmt(r['Festpreis-EK'])}</td>
                 <td>${fmt(r['Handling'])}</td>
                 <td>${fmt(r['Porto-Einnahme'])}</td>
                 <td>${fmt(r['Porto-Kosten'])}</td>
                 <td>${fmt(r['Versandnebenkosten'])}</td>
                 <td>${fmt(r['PayPal-Kosten'])}</td>
-                <td style="font-weight:600;">${fmt(r['Gesamt-Partner-Netto'])}</td>
+                <td style="font-weight:600;${isStorno ? red : ''}">${fmt(r['Gesamt-Partner-Netto'])}</td>
                 <td>${fmt(r['Gesamt-Partner-Brutto'])}</td>
                 <td><span class="badge ${r['Status Abrechnung'] === 'abgerechnet' ? 'badge-completed' : 'badge-processing'}">${r['Status Abrechnung']}</span></td>
-              </tr>`).join('')}</tbody>
+              </tr>`;}).join('')}</tbody>
             </table></div>`;
           } catch (e) {
             wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
