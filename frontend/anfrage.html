@@ -407,6 +407,9 @@
 
     <!-- Input bar -->
     <div class="input-bar" id="input-bar">
+      <!-- Honeypot: für Menschen unsichtbar, nur Bots füllen es aus -->
+      <input type="text" id="hp-website" name="website" tabindex="-1" autocomplete="off"
+             aria-hidden="true" style="display:none !important;">
       <div class="input-wrap">
         <textarea
           id="msg-input"
@@ -608,7 +611,11 @@
         const res = await fetch(`${API_URL}/api/anfragen/chat`, {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ messages, sessionData }),
+          body:    JSON.stringify({
+            messages,
+            sessionData,
+            website: document.getElementById('hp-website')?.value ?? '',
+          }),
         });
 
         if (!res.ok) {

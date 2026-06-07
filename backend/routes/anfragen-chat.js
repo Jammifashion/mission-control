@@ -9,7 +9,7 @@ const router = Router();
 
 const chatLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 50,
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Zu viele Anfragen. Bitte in 15 Minuten erneut versuchen.' },
@@ -109,15 +109,20 @@ Behalte ALLE bereits gesammelten sessionData-Werte – überschreibe sie nie mit
 // ── POST /chat ────────────────────────────────────────────────────────────────
 router.post('/chat', chatLimiter, async (req, res, next) => {
   try {
-    const { messages = [], sessionData = {} } = req.body ?? {};
+    const { messages = [], sessionData = {}, website = '' } = req.body ?? {};
 
-    if (!Array.isArray(messages) || messages.length > 42) {
+    // Honeypot: verstecktes Feld 'website' wird nur von Bots ausgefüllt.
+    if (typeof website === 'string' && website.trim() !== '') {
+      return res.status(400).json({ error: 'Ungültige Anfrage.' });
+    }
+
+    if (!Array.isArray(messages) || messages.length > 20) {
       return res.status(400).json({ error: 'Ungültige Anfrage.' });
     }
 
     const validMsgs = messages
       .filter(m => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-      .map(m => ({ role: m.role, content: m.content.slice(0, 2000) }));
+      .map(m => ({ role: m.role, content: m.content.slice(0, 500) }));
 
     const [history, kbBase] = await Promise.all([loadRecentAnfragen(), getAgentSystemPrompt()]);
     const systemPrompt = buildSystemPrompt(kbBase, history, sessionData);

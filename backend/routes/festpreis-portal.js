@@ -30,6 +30,9 @@ async function readTab(sheets, sheetId, tabName) {
     spreadsheetId: sheetId, range: `${tabName}!A1:Z`,
   });
   const [header, ...rows] = data.values ?? [];
+  // Echten Sheet-Zeilenindex (_sheetRow) anhängen BEVOR Leerzeilen gefiltert werden,
+  // damit Status-Updates die korrekte Zeile treffen (sonst verschiebt jede Leerzeile alles).
+  rows.forEach((r, i) => { r._sheetRow = i + 2; });
   return { header: header ?? [], rows: rows.filter(r => r.some(c => c)) };
 }
 
@@ -133,7 +136,7 @@ router.patch('/partner/:partnerId', async (req, res, next) => {
     const rowIdx = rows.findIndex(r => (r[pidIdx] ?? '') === req.params.partnerId);
     if (rowIdx === -1) return res.status(404).json({ error: 'Partner nicht gefunden.' });
 
-    const sheetRow = rowIdx + 2;
+    const sheetRow = rows[rowIdx]._sheetRow;
     const colLetter = i => String.fromCharCode(65 + i);
     const updates = [];
     if (token !== undefined && tokenIdx !== -1)
@@ -197,7 +200,7 @@ router.patch('/artikel/:partnerId/:produktId', async (req, res, next) => {
     );
     if (rowIdx === -1) return res.status(404).json({ error: 'Artikel nicht gefunden.' });
 
-    const sheetRow = rowIdx + 2; // +1 header, +1 1-based
+    const sheetRow = rows[rowIdx]._sheetRow; // echter Sheet-Zeilenindex (leerzeilen-sicher)
     const updates = [];
     const colLetter = i => String.fromCharCode(65 + i);
     if (ekIdx !== -1 && festpreisEK !== undefined) updates.push({ range: `${TAB_FP_ARTIKEL}!${colLetter(ekIdx)}${sheetRow}`, values: [[Number(festpreisEK)]] });
@@ -456,7 +459,9 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
             const va = e.versandart;
             const portoKostenAnteil  = (va === 'B' ? k.portoB : k.portoP) * anteil;
             const versandnkAnteil    = (va === 'B' ? k.versandnebenkostenB : k.versandnebenkostenP) * anteil;
-            const paypalKosten       = (itemNetto * k.paypalProzent / 100) + (k.paypalPauschale * anteil);
+            // PayPal berechnet die Gebühr auf den Brutto-Betrag, den der Kunde zahlt.
+            const paypalKosten       = (itemNetto * (1 + k.mwstProzent / 100)) * (k.paypalProzent / 100)
+                                     + (k.paypalPauschale * anteil);
 
             const { netto, brutto } = berechneFestpreisAnteil({
               festpreisEK: e.festpreisEK,
@@ -576,15 +581,13 @@ router.post('/abrechnungen', async (req, res, next) => {
       requestBody: { values: [[abrechnungsId, partnerId, vonDatum, bisDatum, gesamtNetto, gesamtBrutto, 'entwurf', erstelltAm]] },
     });
 
-    // Zugehörige FP_Verkäufe auf 'abgerechnet' setzen
-    const allRows = (await readTab(sheets, sheetId, TAB_FP_VERKAEUFE)).rows;
+    // Zugehörige FP_Verkäufe auf 'abgerechnet' setzen – über echten Sheet-Zeilenindex
+    // (_sheetRow) statt Positions-Match, daher kein erneuter Read nötig.
     const statusColLetter = String.fromCharCode(65 + vh('Status Abrechnung'));
-    const updates = [];
-    allRows.forEach((r, i) => {
-      if (offene.includes(vRows[i])) {
-        updates.push({ range: `${TAB_FP_VERKAEUFE}!${statusColLetter}${i + 2}`, values: [['abgerechnet']] });
-      }
-    });
+    const updates = offene.map(r => ({
+      range: `${TAB_FP_VERKAEUFE}!${statusColLetter}${r._sheetRow}`,
+      values: [['abgerechnet']],
+    }));
 
     if (updates.length > 0) {
       await sheets.spreadsheets.values.batchUpdate({

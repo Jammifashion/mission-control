@@ -57,6 +57,9 @@ async function readTab(sheets, sheetId, tabName) {
     range: `${tabName}!A1:Z`,
   });
   const [header, ...rows] = data.values ?? [];
+  // Echten Sheet-Zeilenindex (_sheetRow) anhängen BEVOR Leerzeilen gefiltert werden,
+  // damit Status-Updates die korrekte Zeile treffen (sonst verschiebt jede Leerzeile alles).
+  rows.forEach((r, i) => { r._sheetRow = i + 2; });
   return { header: header ?? [], rows: rows.filter(r => r.some(c => c)) };
 }
 
@@ -301,7 +304,7 @@ router.patch('/partner/:id', async (req, res, next) => {
 
     const { name, kategorie, lizenzProzent, portoModell, aktiv, notiz, token } = req.body;
     const patchShop = req.body.shop === 'honk' ? 'honk' : req.body.shop === 'jfn' ? 'jfn' : undefined;
-    const sheetRow = rowIndex + 2;
+    const sheetRow = rows[rowIndex]._sheetRow;
 
     const colMap = {
       'Name':           name,
@@ -542,7 +545,7 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
     const stIdx   = verkäufeTab.header.indexOf('Status');
 
     const offene = verkäufeTab.rows
-      .map((row, rowIndex) => ({ row, rowIndex: rowIndex + 2 }))
+      .map((row) => ({ row, rowIndex: row._sheetRow }))
       .filter(({ row }) => {
         if (row[pIdx] !== partnerId) return false;
         if ((row[stIdx] ?? '') !== 'offen') return false;
@@ -606,7 +609,7 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
     const istIdx  = internTab.header.indexOf('Status');
 
     const offeneIntern = internTab.rows
-      .map((row, rowIndex) => ({ row, rowIndex: rowIndex + 2 }))
+      .map((row) => ({ row, rowIndex: row._sheetRow }))
       .filter(({ row }) => {
         if (row[ipIdx] !== partnerId) return false;
         if ((row[istIdx] ?? '') !== 'offen') return false;
@@ -694,7 +697,7 @@ router.get('/abrechnungen', async (req, res, next) => {
           try { positionen = JSON.parse(posRaw); } catch { positionen = null; }
         }
         return {
-          rowIndex:        idx + 2,
+          rowIndex:        r._sheetRow,
           abrechnungId:    r[h('Abrechnungs-ID')]     ?? '',
           partnerId:       r[h('Partner-ID')]          ?? '',
           zeitraumVon:     r[h('Zeitraum-Von')]        ?? '',
@@ -768,7 +771,7 @@ router.patch('/abrechnung/:id/status', async (req, res, next) => {
     if (rowIndex === -1)
       return res.status(404).json({ error: `Abrechnung "${req.params.id}" nicht gefunden.` });
 
-    const sheetRow   = rowIndex + 2;
+    const sheetRow   = rows[rowIndex]._sheetRow;
     const stColLetter = colLetter(stIdx);
 
     await sheets.spreadsheets.values.update({
@@ -831,7 +834,7 @@ router.post('/abrechnung/:id/freigeben', async (req, res, next) => {
 
     // Status der Abrechnung + Markierungen in einem batch
     const stColLetter = colLetter(stIdx);
-    const sheetRow    = rowIdx + 2;
+    const sheetRow    = abrechnungenTab.rows[rowIdx]._sheetRow;
     const allRequests = [
       {
         range: `${shopCfg.tabAbrechnungen}!${stColLetter}${sheetRow}`,
@@ -882,7 +885,7 @@ router.delete('/abrechnung/:id', async (req, res, next) => {
     if (sheetGid === undefined)
       return res.status(503).json({ error: `Sheet "${tabAbrechnungen}" nicht gefunden.` });
 
-    const sheetRow = rowIdx + 2; // 1-basiert + Header
+    const sheetRow = rows[rowIdx]._sheetRow; // echter Sheet-Zeilenindex (leerzeilen-sicher)
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId: sheetId,
       requestBody: {
@@ -1036,7 +1039,7 @@ router.patch('/fixkosten/:position', async (req, res, next) => {
       return res.status(404).json({ error: `Aktive Fixkosten-Position "${req.params.position}" nicht gefunden.` });
 
     const { betrag, einheit, gueltigAb, gueltigBis } = req.body;
-    const sheetRow = rowIndex + 2;
+    const sheetRow = rows[rowIndex]._sheetRow;
 
     const colMap = {};
     if (betrag    !== undefined) colMap[header[wertIdx]] = betrag;

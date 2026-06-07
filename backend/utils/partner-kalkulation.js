@@ -151,7 +151,9 @@ export function berechnePartnerAnteil({
   const portoKostenTotal  = va === 'B' ? k.portoB : k.portoP;
   const portoKostenAnteil = portoKostenTotal * anteil; // (netto)
 
-  const paypalKosten = (vkNetto * k.paypalProzent / 100) + (k.paypalPauschale * anteil); // (netto)
+  // PayPal berechnet die Gebühr auf den Brutto-Betrag, den der Kunde zahlt.
+  const paypalKosten = (vkNetto * (1 + k.mwstProzent / 100)) * (k.paypalProzent / 100)
+                     + (k.paypalPauschale * anteil); // (netto Pauschale)
 
   // gewinnNetto = reine Artikel-Marge ohne Porto.
   const gewinnNetto            = vkNetto - herstellungspreis - versandnebenkosten - paypalKosten; // (netto)

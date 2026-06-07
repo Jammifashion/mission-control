@@ -32,6 +32,10 @@ await loadAllSecrets();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Hinter Cloud Run (genau 1 Proxy): echte Client-IP aus X-Forwarded-For lesen,
+// damit Rate-Limiting pro IP greift. NICHT 'true' (würde XFF-Spoofing erlauben).
+app.set('trust proxy', 1);
+
 // ── Security & parsing ────────────────────────────────────────────────────────
 app.use(helmet());
 app.use(cors({
