@@ -42,6 +42,89 @@ function parseDate(s) {
   return Number.isNaN(dt.getTime()) ? null : dt;
 }
 
+// WC-Status für NEUE Einträge. refunded/cancelled/failed/trash werden NICHT
+// als Verkauf erfasst; refunded/cancelled lösen stattdessen Storno-Gegeneinträge aus.
+const WC_STATES_VERKAUF = ['processing', 'completed', 'on-hold'];
+const WC_STATES_STORNO  = ['refunded', 'cancelled'];
+const STORNO_MARKER     = 'Storniert/Rückerstattet';
+
+function buildSyncMessage(neu, storniert) {
+  if (!neu && !storniert) return 'Alle Einträge bereits vorhanden – nichts Neues.';
+  const parts = [];
+  if (neu)       parts.push(`${neu} neue`);
+  if (storniert) parts.push(`${storniert} stornierte`);
+  return `${parts.join(' + ')} Einträge synchronisiert.`;
+}
+
+// Lädt WC-Bestellungen für mehrere Status paginiert. afterParam optional (ISO).
+async function fetchOrders(wc, statuses, afterParam) {
+  const all = [];
+  for (let page = 1; ; page++) {
+    const results = await Promise.all(statuses.map(status => {
+      const params = { per_page: 100, page, status };
+      if (afterParam) params.after = afterParam;
+      return wc.get('orders', params);
+    }));
+    for (const r of results) all.push(...r.data);
+    if (results.every(r => r.data.length < 100)) break;
+  }
+  return all;
+}
+
+// Erzeugt negative Gegeneinträge für bestehende Verkaufs-Zeilen, deren Order in WC
+// auf refunded/cancelled steht. Der Originaleintrag bleibt unverändert; der
+// Gegeneintrag bekommt Status 'offen' (Spalte I) → fließt negativ in Saldo/Abrechnung,
+// sowie den Storno-Marker in Spalte O. Spalten-Layout fix (identisch zum Append A:N).
+function buildStornoRows(vRows, vh, stornoOrders, partnerFilter) {
+  const ordIdx = vh('Order-ID');
+  const artIdx = vh('Artikelnummer');
+  const varIdx = vh('Variante');
+  const pIdx   = vh('Partner-ID');
+  const varKey = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
+
+  // Order-ID → Storno-Datum (Zeitpunkt der Rückerstattung/Stornierung)
+  const refundDate = new Map(
+    stornoOrders.map(o => [String(o.id), toDE(new Date(o.date_modified || o.date_created))])
+  );
+
+  // Fixe Spalten-Positionen (so wie beim Append A:N geschrieben)
+  const NEG_COLS   = [5, 6, 7, 10, 11, 12, 13]; // Stückzahl, VK, Lizenz, gewinn, lizenzAnteil, portoSaldo, brutto
+  const STATUS_COL = 8;   // I
+  const DATE_COL   = 1;   // B
+  const STORNO_COL = 14;  // O
+
+  // Bereits stornierte Kombinationen (Spalte O gesetzt) nicht doppelt anlegen
+  const stornoDone = new Set();
+  for (const r of vRows) {
+    if ((r[STORNO_COL] ?? '') !== '')
+      stornoDone.add(`${r[ordIdx]}|${r[artIdx]}|${varKey(r[varIdx])}|${r[pIdx]}`);
+  }
+
+  const out = [];
+  for (const r of vRows) {
+    const oid = String(r[ordIdx] ?? '');
+    if (!refundDate.has(oid)) continue;          // Order nicht refunded/cancelled
+    if ((r[STORNO_COL] ?? '') !== '') continue;  // Zeile ist selbst ein Gegeneintrag
+    if (partnerFilter && !partnerFilter.has(r[pIdx])) continue;
+
+    const dupKey = `${r[ordIdx]}|${r[artIdx]}|${varKey(r[varIdx])}|${r[pIdx]}`;
+    if (stornoDone.has(dupKey)) continue;        // Gegeneintrag existiert bereits
+    stornoDone.add(dupKey);
+
+    const counter = [];
+    for (let i = 0; i < 14; i++) {
+      let v = r[i] ?? '';
+      if (NEG_COLS.includes(i) && v !== '' && v !== null) v = -toFloat(v);
+      counter[i] = v;
+    }
+    counter[DATE_COL]   = refundDate.get(oid) || r[DATE_COL] || toDE(new Date());
+    counter[STATUS_COL] = 'offen';
+    counter[STORNO_COL] = STORNO_MARKER;
+    out.push(counter);
+  }
+  return out;
+}
+
 async function resolvePartner(token) {
   const sheetId = process.env.BUSINESS_SHEET_ID;
   if (!sheetId) throw Object.assign(new Error('BUSINESS_SHEET_ID nicht konfiguriert.'), { status: 503 });
@@ -117,17 +200,9 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     }
 
     const wc = getWcClient(shop);
-    const orders = [];
-    for (let page = 1; ; page++) {
-      const params = { per_page: 100, page };
-      if (afterParam) params.after = afterParam;
-      const [proc, compl] = await Promise.all([
-        wc.get('orders', { ...params, status: 'processing' }),
-        wc.get('orders', { ...params, status: 'completed'  }),
-      ]);
-      orders.push(...proc.data, ...compl.data);
-      if (proc.data.length < 100 && compl.data.length < 100) break;
-    }
+    const orders = await fetchOrders(wc, WC_STATES_VERKAUF, afterParam);
+    // Stornos voll-historisch (ohne after-Filter) – fängt auch ältere Refunds.
+    const stornoOrders = await fetchOrders(wc, WC_STATES_STORNO, null);
 
     const toWrite = [];
     const artikelName = item => item.name || item.sku || String(item.product_id);
@@ -160,21 +235,21 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
       }
     }
 
-    if (toWrite.length > 0) {
+    const stornoRows = buildStornoRows(vRows, vh, stornoOrders, null);
+    const allRows = [...toWrite, ...stornoRows];
+    if (allRows.length > 0) {
       await sheets.spreadsheets.values.append({
         spreadsheetId: sheetId,
-        range: `${TAB_VERKAEUFE}!A:N`,
+        range: `${TAB_VERKAEUFE}!A:O`,
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: toWrite },
+        requestBody: { values: allRows },
       });
     }
 
     return {
-      synced: toWrite.length, orders: orders.length, afterParam: afterParam || null,
-      message: toWrite.length
-        ? `${toWrite.length} neue Einträge aus ${orders.length} Bestellungen synchronisiert.`
-        : 'Alle Einträge bereits vorhanden – nichts Neues.',
+      synced: toWrite.length, storniert: stornoRows.length, orders: orders.length, afterParam: afterParam || null,
+      message: buildSyncMessage(toWrite.length, stornoRows.length),
     };
   }
 
@@ -232,17 +307,9 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
 
   // 3. WC Bestellungen laden (shop-spezifische Credentials)
   const wc = getWcClient(shop);
-  const orders = [];
-  for (let page = 1; ; page++) {
-    const params = { per_page: 100, page };
-    if (afterParam) params.after = afterParam;
-    const [proc, compl] = await Promise.all([
-      wc.get('orders', { ...params, status: 'processing' }),
-      wc.get('orders', { ...params, status: 'completed'  }),
-    ]);
-    orders.push(...proc.data, ...compl.data);
-    if (proc.data.length < 100 && compl.data.length < 100) break;
-  }
+  const orders = await fetchOrders(wc, WC_STATES_VERKAUF, afterParam);
+  // Stornos voll-historisch (ohne after-Filter) – fängt auch ältere Refunds.
+  const stornoOrders = await fetchOrders(wc, WC_STATES_STORNO, null);
 
   // 4. Iterieren → Sheet-Zeilen sammeln
   const toWrite = [];
@@ -304,23 +371,24 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     }
   }
 
-  if (toWrite.length > 0) {
+  const stornoRows = buildStornoRows(vRows, vh, stornoOrders, partnerFilter);
+  const allRows = [...toWrite, ...stornoRows];
+  if (allRows.length > 0) {
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
-      range: `${TAB_VERKAEUFE}!A:N`,
+      range: `${TAB_VERKAEUFE}!A:O`,
       valueInputOption: 'RAW',
       insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: toWrite },
+      requestBody: { values: allRows },
     });
   }
 
   return {
     synced:     toWrite.length,
+    storniert:  stornoRows.length,
     orders:     orders.length,
     afterParam: afterParam || null,
-    message:    toWrite.length
-      ? `${toWrite.length} neue Einträge aus ${orders.length} Bestellungen synchronisiert.`
-      : 'Alle Einträge bereits vorhanden – nichts Neues.',
+    message:    buildSyncMessage(toWrite.length, stornoRows.length),
   };
 }
 
@@ -380,6 +448,7 @@ router.post('/verkaeufe/sync-all', async (req, res, next) => {
       partner:      aktivePartner.length,
       partnerIds:   aktivePartner,
       neueVerkäufe,
+      storniert:    result?.storniert ?? 0,
       orders:       result?.orders ?? 0,
       afterParam:   result?.afterParam ?? null,
       errors,
@@ -403,6 +472,7 @@ router.get('/verkaeufe', async (req, res, next) => {
     const h = col => header.indexOf(col);
 
     const parseDE = s => { const [d,m,y] = (s ?? '').split('.'); return new Date(`${y}-${m}-${d}`); };
+    const stornoIdx = h('Storno-Status') !== -1 ? h('Storno-Status') : 14; // Spalte O
     res.json(rows
       .filter(r => r[h('Partner-ID')] === partnerId && r[h('Status')] !== 'abgerechnet')
       .map(r => ({
@@ -411,6 +481,7 @@ router.get('/verkaeufe', async (req, res, next) => {
         stueckzahl:  parseInt(r[h('Stückzahl')] ?? '1', 10),
         datum:       r[h('Datum')]       ?? '',
         status:      r[h('Status')]      ?? '',
+        storno:      r[stornoIdx]        ?? '',
       }))
       .sort((a, b) => parseDE(b.datum) - parseDE(a.datum)));
   } catch (err) { next(err); }
