@@ -150,32 +150,19 @@
         const offen = rows.filter(r => (r['Status Abrechnung'] ?? '').toLowerCase() === 'offen');
         if (!rows.length) { wrap.innerHTML = '<p class="empty">Noch keine Verkäufe vorhanden.</p>'; return; }
 
-        const totalNetto  = offen.reduce((s, r) => s + Number(r['Gesamt-Partner-Netto']  || 0), 0);
-        const totalBrutto = offen.reduce((s, r) => s + Number(r['Gesamt-Partner-Brutto'] || 0), 0);
-
         wrap.innerHTML = `
-          <p class="summary">${rows.length} Eintrag/Einträge &nbsp;·&nbsp; ${offen.length} offen &nbsp;·&nbsp; Offenes Guthaben netto: <strong>${fmt(totalNetto)}</strong> (brutto: ${fmt(totalBrutto)})</p>
+          <p class="summary">${rows.length} Eintrag/Einträge &nbsp;·&nbsp; ${offen.length} offen</p>
           <div style="overflow-x:auto;"><table>
             <thead><tr>
               <th>Datum</th><th>Bestell-Nr.</th><th>Artikel</th>
-              <th>Variante</th><th class="num">Menge</th>
-              <th class="num">EK</th><th class="num">Handling</th>
-              <th class="num">Porto+</th><th class="num">Porto−</th>
-              <th class="num">Netto</th><th class="num">Brutto</th><th>Status</th>
+              <th class="num">Menge</th><th>Status</th>
             </tr></thead>
             <tbody>${rows.map(r => `<tr>
               <td>${r['Datum']}</td>
               <td>${r['WC-Bestellnummer']}</td>
-              <td style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${r['Artikelname']}">${r['Artikelname']}</td>
-              <td>${r['Variante'] || '–'}</td>
+              <td style="max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${r['Artikelname']}">${r['Artikelname']}</td>
               <td class="num">${r['Stückzahl']}</td>
-              <td class="num">${fmt(r['Festpreis-EK'])}</td>
-              <td class="num">${fmt(r['Handling'])}</td>
-              <td class="num">${fmt(r['Porto-Einnahme'])}</td>
-              <td class="num">${fmt(r['Porto-Kosten'])}</td>
-              <td class="num"><strong>${fmt(r['Gesamt-Partner-Netto'])}</strong></td>
-              <td class="num">${fmt(r['Gesamt-Partner-Brutto'])}</td>
-              <td><span class="badge badge-${r['Status Abrechnung'].toLowerCase()}">${r['Status Abrechnung']}</span></td>
+              <td><span class="badge badge-${(r['Status Abrechnung'] || 'offen').toLowerCase()}">${r['Status Abrechnung']}</span></td>
             </tr>`).join('')}</tbody>
           </table></div>`;
       } catch (e) {
