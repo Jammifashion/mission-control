@@ -157,13 +157,16 @@
               <th>Datum</th><th>Bestell-Nr.</th><th>Artikel</th>
               <th class="num">Menge</th><th>Status</th>
             </tr></thead>
-            <tbody>${rows.map(r => `<tr>
+            <tbody>${rows.map(r => {
+              const isStorno = !!(r['Storno-Status'] || '').trim() || Number(r['Stückzahl'] || 0) < 0;
+              const red = 'color:#dc2626;font-weight:600;';
+              return `<tr style="${isStorno ? 'background:rgba(220,38,38,0.07);' : ''}">
               <td>${r['Datum']}</td>
               <td>${r['WC-Bestellnummer']}</td>
-              <td style="max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${r['Artikelname']}">${r['Artikelname']}</td>
-              <td class="num">${r['Stückzahl']}</td>
+              <td style="max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${r['Artikelname']}">${r['Artikelname']}${isStorno ? ` <span style="font-size:0.72rem;${red}">↩ Storno</span>` : ''}</td>
+              <td class="num" style="${isStorno ? red : ''}">${r['Stückzahl']}</td>
               <td><span class="badge badge-${(r['Status Abrechnung'] || 'offen').toLowerCase()}">${r['Status Abrechnung']}</span></td>
-            </tr>`).join('')}</tbody>
+            </tr>`;}).join('')}</tbody>
           </table></div>`;
       } catch (e) {
         wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${e.message}</p>`;
