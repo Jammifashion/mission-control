@@ -5809,11 +5809,18 @@
                 <th>Partner</th><th>Datum</th><th>Order-ID</th><th>Artikel</th>
                 <th>Variante</th><th>Stück</th><th>VK Netto</th><th style="cursor:help;" title="Mauszeiger über Betrag → Berechnungsformel anzeigen">Lizenz ⓘ</th><th>Status Abrechnung</th>
               </tr></thead>
-              <tbody>${rows.map(r => `<tr>
+              <tbody>${rows.map(r => {
+                const isStorno = !!r.storno || r.stueckzahl < 0;
+                const red = 'color:var(--danger);font-weight:600;';
+                const rowStyle = isStorno ? 'background:rgba(220,38,38,0.06);' : '';
+                const numStyle = isStorno ? red : '';
+                return `<tr style="${rowStyle}">
                 <td>${pName(r.partnerId)}</td>
-                <td>${r.datum}</td><td>${r.orderId}</td><td>${r.artikelnummer}</td>
-                <td>${r.variante || '–'}</td><td>${r.stueckzahl}</td>
-                <td>${r.vkPreisBrutto.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</td>
+                <td>${r.datum}</td><td>${r.orderId}</td>
+                <td>${r.artikelnummer}${isStorno ? ' <span style="font-size:0.72rem;'+red+'">↩ Storno</span>' : ''}</td>
+                <td>${r.variante || '–'}</td>
+                <td style="${numStyle}">${r.stueckzahl}</td>
+                <td style="${numStyle}">${r.vkPreisBrutto.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</td>
                 <td class="liz-cell"
                     data-vk-brutto="${r.vkPreisBrutto}"
                     data-lizenz-pct="${_ppPartners.find(p=>p.id===r.partnerId)?.lizenzProzent||0}"
@@ -5821,11 +5828,12 @@
                     data-gewinn-netto="${r.gewinnNetto || ''}"
                     data-lizenz-anteil="${r.lizenzAnteil || ''}"
                     data-porto-saldo="${r.portoSaldo || ''}"
-                    data-anteil-brutto="${r.anteilBrutto || ''}">
+                    data-anteil-brutto="${r.anteilBrutto || ''}"
+                    style="${numStyle}">
                   ${r.lizenzgebuehr.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}
                 </td>
                 <td><span class="badge ${r.status==='offen'?'badge-processing':'badge-completed'}">${r.status}</span></td>
-              </tr>`).join('')}</tbody>
+              </tr>`;}).join('')}</tbody>
             </table></div>`;
         } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`; }
       }

@@ -185,13 +185,17 @@
             <thead><tr>
               <th>Bestellnummer</th><th>Artikel</th><th>Menge</th><th>Datum</th><th>Status Abrechnung</th>
             </tr></thead>
-            <tbody>${rows.map(r => `<tr>
+            <tbody>${rows.map(r => {
+              const isStorno = !!r.storno || r.stueckzahl < 0;
+              const red = 'color:#dc2626;font-weight:600;';
+              const rowStyle = isStorno ? 'background:rgba(220,38,38,0.07);' : '';
+              return `<tr style="${rowStyle}">
               <td>${r.orderId}</td>
-              <td>${r.artikelname}</td>
-              <td>${r.stueckzahl}</td>
+              <td>${r.artikelname}${isStorno ? ' <span style="font-size:0.72rem;'+red+'">↩ Storno</span>' : ''}</td>
+              <td style="${isStorno ? red : ''}">${r.stueckzahl}</td>
               <td>${r.datum}</td>
               <td><span class="badge ${badgeClass(r.status)}">${r.status}</span></td>
-            </tr>`).join('')}</tbody>
+            </tr>`;}).join('')}</tbody>
           </table></div>`;
       } catch (e) {
         wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${e.message}</p>`;

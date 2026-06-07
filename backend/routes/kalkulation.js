@@ -739,6 +739,7 @@ router.get('/verkaeufe', async (req, res, next) => {
         vkPreisBrutto: toFloat(r[h('VK-Preis-Brutto')]),
         lizenzgebuehr: toFloat(r[h('Lizenzgebühr')]),
         status:        r[h('Status')]               ?? '',
+        storno:        r[h('Storno-Status')]         ?? '',
         gewinnNetto:   toFloat(r[h('Gewinn-netto')]     ?? 0),
         lizenzAnteil:  toFloat(r[h('Lizenz-Anteil')]    ?? 0),
         portoSaldo:    toFloat(r[h('Porto-Saldo')]      ?? 0),
