@@ -7242,27 +7242,33 @@
           const wrap = document.getElementById('fp-artikel-list-wrap');
           wrap.innerHTML = '<div class="skeleton" style="height:80px;"></div>';
           try {
-            const data = await window.apiFetch(`${FP()}/api/festpreis/artikel/${encodeURIComponent(partnerId)}`).then(r => r.json());
-            const artikel = data.artikel ?? [];
+            const [artData, katData] = await Promise.all([
+              window.apiFetch(`${FP()}/api/festpreis/artikel/${encodeURIComponent(partnerId)}`).then(r => r.json()),
+              window.apiFetch(`${FP()}/api/festpreis/artikel-kategorien`).then(r => r.json()).catch(() => ({ kategorien: [] })),
+            ]);
+            const artikel    = artData.artikel ?? [];
+            const kategorien = katData.kategorien ?? [];
             if (!artikel.length) {
               wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Artikel. Bitte aus WC importieren.</p>';
               return;
             }
-            const fmt = v => Number(v || 0).toFixed(2).replace('.', ',');
+            const katOpts = kategorien.map(k => `<option value="${k}">${k}</option>`).join('');
             wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
               <thead><tr>
                 <th>Produkt-ID</th><th>Artikelname</th><th>WC-Kategorie</th>
-                <th>Festpreis-EK (€)</th><th>Handling (€)</th><th>Versandart</th><th>Speichern</th>
+                <th>Versandart</th><th>Artikelkategorie</th><th>Speichern</th>
               </tr></thead>
-              <tbody>${artikel.map((a, i) => `<tr data-fp-art-idx="${i}" data-fp-art-pid="${a['Produkt-ID']}">
+              <tbody>${artikel.map(a => `<tr data-fp-art-pid="${a['Produkt-ID']}">
                 <td style="font-size:0.8rem;color:var(--muted);">${a['Produkt-ID']}</td>
                 <td style="font-size:0.85rem;">${a['Artikelname']}</td>
                 <td style="font-size:0.82rem;color:var(--muted);">${a['WC-Kategorie'] || '–'}</td>
-                <td><input type="number" class="form-input fp-art-ek" value="${parseFloat(String(a['Festpreis-EK-Netto'] || '0').replace(',', '.')) || 0}" step="0.01" min="0" style="width:90px;padding:0.3rem 0.5rem;font-size:0.84rem;"></td>
-                <td><input type="number" class="form-input fp-art-hg" value="${parseFloat(String(a['Handling-Gebühr'] || '0').replace(',', '.')) || 0}" step="0.01" min="0" style="width:90px;padding:0.3rem 0.5rem;font-size:0.84rem;"></td>
                 <td><select class="form-select fp-art-va" style="font-size:0.83rem;padding:0.3rem 0.5rem;">
                   <option value="P"${(a['Versandart'] ?? 'P') !== 'B' ? ' selected' : ''}>Paket (P)</option>
                   <option value="B"${(a['Versandart'] ?? '') === 'B' ? ' selected' : ''}>Brief (B)</option>
+                </select></td>
+                <td><select class="form-select fp-art-ak" style="font-size:0.83rem;padding:0.3rem 0.5rem;">
+                  <option value="">– wählen –</option>
+                  ${kategorien.map(k => `<option value="${k}"${(a['Artikelkategorie'] ?? '') === k ? ' selected' : ''}>${k}</option>`).join('')}
                 </select></td>
                 <td><button class="btn-secondary btn-xs fp-art-save" data-pid="${a['Produkt-ID']}">Speichern</button></td>
               </tr>`).join('')}</tbody>
@@ -7270,14 +7276,13 @@
             wrap.querySelectorAll('.fp-art-save').forEach(btn => {
               btn.addEventListener('click', async () => {
                 const tr = btn.closest('tr');
-                const ek = parseFloat(tr.querySelector('.fp-art-ek').value) || 0;
-                const hg = parseFloat(tr.querySelector('.fp-art-hg').value) || 0;
                 const va = tr.querySelector('.fp-art-va').value;
+                const ak = tr.querySelector('.fp-art-ak').value;
                 btn.disabled = true; btn.textContent = '...';
                 try {
                   const r = await window.apiFetch(`${FP()}/api/festpreis/artikel/${encodeURIComponent(partnerId)}/${encodeURIComponent(btn.dataset.pid)}`, {
                     method: 'PATCH', headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify({ festpreisEK: ek, handlingGebuehr: hg, versandart: va }),
+                    body: JSON.stringify({ versandart: va, artikelkategorie: ak }),
                   });
                   if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
                   btn.textContent = '✓';

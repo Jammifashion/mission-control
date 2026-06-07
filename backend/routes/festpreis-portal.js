@@ -252,32 +252,29 @@ router.patch('/artikel/:partnerId/:produktId', async (req, res, next) => {
     const sheetId = SHEETID();
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
     const { partnerId, produktId } = req.params;
-    const { festpreisEK, handlingGebuehr, versandart } = req.body;
+    const { festpreisEK, handlingGebuehr, versandart, artikelkategorie } = req.body;
 
     const sheets = await getSheets();
-    const { data: meta } = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: 'sheets.properties' });
-    const sheetMeta = (meta.sheets ?? []).find(s => s.properties.title === TAB_FP_ARTIKEL);
-    if (!sheetMeta) return res.status(404).json({ error: 'FP_Artikel Sheet nicht gefunden.' });
-    const sheetId2 = sheetMeta.properties.sheetId;
-
     const { header, rows } = await readTab(sheets, sheetId, TAB_FP_ARTIKEL);
     const pidIdx  = header.indexOf('Partner-ID');
     const prodIdx = header.indexOf('Produkt-ID');
     const ekIdx   = header.indexOf('Festpreis-EK-Netto');
     const hgIdx   = header.indexOf('Handling-Gebühr');
     const vaIdx   = header.indexOf('Versandart');
+    const akIdx   = header.indexOf('Artikelkategorie');
 
     const rowIdx = rows.findIndex(r =>
       (r[pidIdx] ?? '') === partnerId && String(r[prodIdx] ?? '') === String(produktId)
     );
     if (rowIdx === -1) return res.status(404).json({ error: 'Artikel nicht gefunden.' });
 
-    const sheetRow = rows[rowIdx]._sheetRow; // echter Sheet-Zeilenindex (leerzeilen-sicher)
+    const sheetRow = rows[rowIdx]._sheetRow;
     const updates = [];
     const colLetter = i => String.fromCharCode(65 + i);
     if (ekIdx !== -1 && festpreisEK !== undefined) updates.push({ range: `${TAB_FP_ARTIKEL}!${colLetter(ekIdx)}${sheetRow}`, values: [[Number(festpreisEK)]] });
     if (hgIdx !== -1 && handlingGebuehr !== undefined) updates.push({ range: `${TAB_FP_ARTIKEL}!${colLetter(hgIdx)}${sheetRow}`, values: [[Number(handlingGebuehr)]] });
     if (vaIdx !== -1 && versandart !== undefined) updates.push({ range: `${TAB_FP_ARTIKEL}!${colLetter(vaIdx)}${sheetRow}`, values: [[String(versandart).toUpperCase() === 'B' ? 'B' : 'P']] });
+    if (akIdx !== -1 && artikelkategorie !== undefined) updates.push({ range: `${TAB_FP_ARTIKEL}!${colLetter(akIdx)}${sheetRow}`, values: [[String(artikelkategorie)]] });
 
     if (updates.length > 0) {
       await sheets.spreadsheets.values.batchUpdate({
@@ -355,7 +352,7 @@ router.post('/artikel/:partnerId/import', async (req, res, next) => {
     if (targetCatIds.length > 0) {
       for (const catId of targetCatIds) {
         for (let page = 1; ; page++) {
-          const { data } = await wc.get('products', { status: 'publish', per_page: 100, page, category: catId });
+          const { data } = await wc.get('products', { status: 'any', per_page: 100, page, category: catId });
           for (const p of data) {
             if (!seenIds.has(p.id)) { seenIds.add(p.id); allProducts.push(p); }
           }
@@ -364,7 +361,7 @@ router.post('/artikel/:partnerId/import', async (req, res, next) => {
       }
     } else {
       for (let page = 1; ; page++) {
-        const { data } = await wc.get('products', { status: 'publish', per_page: 100, page });
+        const { data } = await wc.get('products', { status: 'any', per_page: 100, page });
         allProducts.push(...data);
         if (data.length < 100) break;
       }
@@ -380,12 +377,13 @@ router.post('/artikel/:partnerId/import', async (req, res, next) => {
         0,   // Handling-Gebühr
         'P', // Versandart
         (p.categories?.[0]?.name) || '',
+        '',  // Artikelkategorie
       ]);
 
     if (toWrite.length > 0) {
       await sheets.spreadsheets.values.append({
         spreadsheetId: sheetId,
-        range: `${TAB_FP_ARTIKEL}!A:G`,
+        range: `${TAB_FP_ARTIKEL}!A:H`,
         valueInputOption: 'USER_ENTERED',
         insertDataOption: 'INSERT_ROWS',
         requestBody: { values: toWrite },
@@ -393,6 +391,21 @@ router.post('/artikel/:partnerId/import', async (req, res, next) => {
     }
 
     res.json({ imported: toWrite.length, total: allProducts.length, kategorien: targetCatIds });
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/festpreis/artikel-kategorien ────────────────────────────────────
+// Liefert alle Werte aus Spalte 'Kategorie' im Tab FP_Artikel_Kategorie.
+router.get('/artikel-kategorien', async (req, res, next) => {
+  try {
+    const sheetId = SHEETID();
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
+    const sheets = await getSheets();
+    const { header, rows } = await readTab(sheets, sheetId, 'FP_Artikel_Kategorie');
+    const katIdx = header.indexOf('Kategorie');
+    if (katIdx === -1) return res.json({ kategorien: [] });
+    const kategorien = rows.map(r => r[katIdx] ?? '').filter(Boolean);
+    res.json({ kategorien });
   } catch (err) { next(err); }
 });
 
