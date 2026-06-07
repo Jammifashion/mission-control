@@ -447,4 +447,62 @@ router.patch('/:id/intern/:rowId/status', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── PATCH /:id/intern/:rowId ──────────────────────────────────────────────────
+// Body: { datum?, bezeichnung?, anzahl?, einzelpreis? } – editiert die Felder einer
+// internen Bestellung. Summe wird bei Anzahl/Einzelpreis-Änderung neu berechnet.
+// Abgerechnete Einträge sind gesperrt (Teil einer freigegebenen Abrechnung).
+router.patch('/:id/intern/:rowId', async (req, res, next) => {
+  try {
+    const sheetId = requireSheetId(res); if (!sheetId) return;
+    const sheets  = await getSheets();
+    const { header, rows } = await readTab(sheets, sheetId, 'Partner_Interne_Bestellungen');
+    const h = col => header.indexOf(col);
+
+    const sheetRow = parseInt(req.params.rowId, 10);
+    if (!sheetRow || sheetRow < 2)
+      return res.status(400).json({ error: 'Ungültige rowId.' });
+
+    // Zielzeile über echten Sheet-Zeilenindex finden (leerzeilen-sicher)
+    const row = rows.find(r => r._sheetRow === sheetRow);
+    if (!row)
+      return res.status(404).json({ error: 'Bestellung nicht gefunden.' });
+    if ((row[h('Partner-ID')] ?? '') !== req.params.id)
+      return res.status(404).json({ error: 'Bestellung gehört nicht zu diesem Partner.' });
+    if ((row[h('Status')] ?? '') === 'abgerechnet')
+      return res.status(409).json({ error: 'Abgerechnete Bestellungen können nicht bearbeitet werden.' });
+
+    const { datum, bezeichnung, anzahl, einzelpreis } = req.body;
+
+    const newAnzahl = anzahl      !== undefined ? toFloat(anzahl)      : toFloat(row[h('Anzahl')]);
+    const newEp     = einzelpreis !== undefined ? toFloat(einzelpreis) : toFloat(row[h('Einzelpreis')]);
+
+    const colMap = {
+      'Datum':       datum,
+      'Bezeichnung': bezeichnung,
+      'Anzahl':      anzahl      !== undefined ? newAnzahl : undefined,
+      'Einzelpreis': einzelpreis !== undefined ? newEp     : undefined,
+    };
+    // Summe nur neu setzen, wenn Anzahl oder Einzelpreis geändert wurde
+    if (anzahl !== undefined || einzelpreis !== undefined)
+      colMap['Summe'] = Math.round(newAnzahl * newEp * 100) / 100;
+
+    const data = Object.entries(colMap)
+      .filter(([, v]) => v !== undefined)
+      .map(([col, value]) => ({
+        range: `Partner_Interne_Bestellungen!${colLetter(h(col))}${sheetRow}`,
+        majorDimension: 'ROWS', values: [[value]],
+      }));
+
+    if (data.length === 0)
+      return res.status(400).json({ error: 'Keine Felder zum Aktualisieren.' });
+
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: sheetId,
+      requestBody: { valueInputOption: 'USER_ENTERED', data },
+    });
+
+    res.json({ partnerId: req.params.id, rowId: sheetRow, summe: colMap['Summe'] });
+  } catch (err) { next(err); }
+});
+
 export default router;

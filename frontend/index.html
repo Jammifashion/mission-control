@@ -6771,11 +6771,15 @@
             <th style="text-align:right;">Einzelpreis brutto</th>
             <th style="text-align:right;">Summe</th>
             <th>Status</th>
+            <th></th>
           </tr></thead>
           <tbody>${rows.map(r => {
             const opts = STATUSES.map(s =>
               `<option value="${s}"${s === r.status ? ' selected' : ''}>${s}</option>`
             ).join('');
+            const editBtn = r.status === 'abgerechnet'
+              ? ''
+              : `<button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;" data-int-edit="${r.rowId}">Bearbeiten</button>`;
             return `<tr>
               <td>${r.datum}</td>
               <td>${r.bezeichnung}</td>
@@ -6785,6 +6789,7 @@
               <td><span class="badge ${badge(r.status)}" style="margin-bottom:0.35rem;display:inline-block;">${r.status}</span><br>
                 <select class="form-select" style="font-size:0.78rem;padding:0.22rem 0.5rem;margin-top:0.15rem;"
                   data-int-sel="${r.rowId}" data-int-cur="${r.status}">${opts}</select></td>
+              <td style="text-align:right;">${editBtn}</td>
             </tr>`;
           }).join('')}</tbody>
         </table></div>`;
@@ -6810,26 +6815,40 @@
             }
           });
         });
+
+        wrap.querySelectorAll('[data-int-edit]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const row = _internState.rows.find(r => String(r.rowId) === btn.dataset.intEdit);
+            if (row) openInternModal(row);
+          });
+        });
       }
 
-      function openInternModal() {
-        const today = new Date().toISOString().slice(0, 10);
+      // existing = null → Neuanlage (POST); sonst Bearbeiten (PATCH) der internen Bestellung.
+      function openInternModal(existing = null) {
+        const isEdit = !!existing;
+        const today  = new Date().toISOString().slice(0, 10);
+        const dVal   = isEdit ? _toIso(existing.datum) : today;
+        const aVal   = isEdit ? existing.anzahl : 1;
+        const bVal   = isEdit ? existing.bezeichnung : '';
+        const eVal   = isEdit ? existing.einzelpreis : 0;
+
         const bd = document.createElement('div'); bd.className = 'modal-backdrop';
         bd.innerHTML = `<div class="modal-box" style="max-width:440px;width:94%;">
-          <div class="modal-title">Interne Bestellung erfassen</div>
+          <div class="modal-title">${isEdit ? 'Interne Bestellung bearbeiten' : 'Interne Bestellung erfassen'}</div>
           <div style="margin-top:1.1rem;"><div class="form-grid">
             <div class="form-field"><label>Datum *</label>
-              <input class="form-input" type="date" id="int-d" value="${today}"></div>
+              <input class="form-input" type="date" id="int-d" value="${dVal}"></div>
             <div class="form-field"><label>Anzahl *</label>
-              <input class="form-input" type="number" id="int-a" min="1" step="1" value="1"></div>
+              <input class="form-input" type="number" id="int-a" min="1" step="1" value="${aVal}"></div>
             <div class="form-field form-col-full"><label>Bezeichnung *</label>
-              <input class="form-input" id="int-b" placeholder="z.B. Werbeshirts April"></div>
+              <input class="form-input" id="int-b" placeholder="z.B. Werbeshirts April" value="${anfEscape ? anfEscape(bVal) : bVal}"></div>
             <div class="form-field"><label>Einzelpreis brutto (€)</label>
-              <input class="form-input" type="number" id="int-e" min="0" step="0.01" value="0"></div>
+              <input class="form-input" type="number" id="int-e" min="0" step="0.01" value="${eVal}"></div>
           </div>
           <div class="modal-actions" style="margin-top:1.25rem;">
             <button class="btn-secondary" id="int-x">Abbrechen</button>
-            <button class="btn" id="int-ok">Hinzufügen</button>
+            <button class="btn" id="int-ok">${isEdit ? 'Speichern' : 'Hinzufügen'}</button>
           </div></div></div>`;
         document.body.appendChild(bd);
         bd.querySelector('#int-x').onclick = () => bd.remove();
@@ -6841,19 +6860,23 @@
             window.showToast('Bezeichnung und Anzahl sind erforderlich.', 'toast-error'); return;
           }
           const btn = bd.querySelector('#int-ok'); btn.disabled = true; btn.textContent = '...';
+          const payload = { datum: _toDE(bd.querySelector('#int-d').value), bezeichnung, anzahl, einzelpreis };
+          const url = isEdit
+            ? `${window.API_BASE()}/api/partner/${_internState.partnerId}/intern/${existing.rowId}`
+            : `${window.API_BASE()}/api/partner/${_internState.partnerId}/intern`;
           try {
-            const r = await window.apiFetch(
-              `${window.API_BASE()}/api/partner/${_internState.partnerId}/intern`,
-              { method: 'POST', headers: {'Content-Type':'application/json'},
-                body: JSON.stringify({ datum: _toDE(bd.querySelector('#int-d').value), bezeichnung, anzahl, einzelpreis }) }
-            );
+            const r = await window.apiFetch(url, {
+              method: isEdit ? 'PATCH' : 'POST',
+              headers: {'Content-Type':'application/json'},
+              body: JSON.stringify(payload),
+            });
             if (!r.ok) throw new Error((await r.json()).error || r.statusText);
             bd.remove();
-            window.showToast('Interne Bestellung erfasst.');
+            window.showToast(isEdit ? 'Interne Bestellung aktualisiert.' : 'Interne Bestellung erfasst.');
             loadInternTable();
           } catch (e) {
             window.showToast(`Fehler: ${e.message}`, 'toast-error');
-            btn.disabled = false; btn.textContent = 'Hinzufügen';
+            btn.disabled = false; btn.textContent = isEdit ? 'Speichern' : 'Hinzufügen';
           }
         };
       }
