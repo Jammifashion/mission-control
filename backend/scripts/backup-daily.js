@@ -140,8 +140,16 @@ async function cleanupFolder(drive, folderId, cutoff, label) {
   });
   const toDelete = (data.files ?? []).filter(f => new Date(f.createdTime) < cutoff);
   for (const f of toDelete) {
-    await drive.files.delete({ fileId: f.id, supportsAllDrives: true });
-    console.log(`  ✗ ${label} gelöscht: ${f.name} (${f.createdTime.slice(0,10)})`);
+    try {
+      await drive.files.delete({ fileId: f.id, supportsAllDrives: true });
+      console.log(`  ✗ ${label} gelöscht: ${f.name} (${f.createdTime.slice(0,10)})`);
+    } catch (err) {
+      if (err.code === 404) {
+        console.log(`  – Bereits gelöscht, übersprungen: ${f.name}`);
+      } else {
+        throw err;
+      }
+    }
   }
   if (toDelete.length === 0) console.log(`  – ${label} Cleanup: nichts zu löschen`);
 }

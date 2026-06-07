@@ -394,6 +394,7 @@ router.get('/verkaeufe', async (req, res, next) => {
     const { header, rows } = await readTab(sheets, sheetId, tabVerkaeufe);
     const h = col => header.indexOf(col);
 
+    const parseDE = s => { const [d,m,y] = (s ?? '').split('.'); return new Date(`${y}-${m}-${d}`); };
     res.json(rows
       .filter(r => r[h('Partner-ID')] === partnerId && r[h('Status')] !== 'abgerechnet')
       .map(r => ({
@@ -402,7 +403,8 @@ router.get('/verkaeufe', async (req, res, next) => {
         stueckzahl:  parseInt(r[h('Stückzahl')] ?? '1', 10),
         datum:       r[h('Datum')]       ?? '',
         status:      r[h('Status')]      ?? '',
-      })));
+      }))
+      .sort((a, b) => parseDE(b.datum) - parseDE(a.datum)));
   } catch (err) { next(err); }
 });
 

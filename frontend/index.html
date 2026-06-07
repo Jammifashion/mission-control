@@ -5410,28 +5410,15 @@
       document.getElementById('btn-wc-sync').addEventListener('click', () => openSyncModal());
 
       async function openSyncModal() {
-        // Prüfe ob Partner_Verkäufe noch leer ist → zeige Datumspicker für ersten Sync.
-        // Nach dem ersten Sync erkennt das Backend das neueste Datum automatisch.
-        let hasEntries = false;
-        try {
-          const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/verkaeufe`);
-          if (r.ok) { const d = await r.json(); hasEntries = d.length > 0; }
-        } catch { /* ignore, Backend auto-detect */ }
-
-        const today = new Date().toISOString().slice(0, 10);
-        const einstiegDatum = hasEntries ? '' : today;
-
         const bd = document.createElement('div'); bd.className = 'modal-backdrop';
         bd.innerHTML = `<div class="modal-box" style="max-width:400px;width:94%;">
           <div class="modal-title">WC-Bestellungen synchronisieren</div>
           <div style="margin-top:1.1rem;">
             <div class="form-field">
               <label>Bestellungen laden ab:</label>
-              <input class="form-input" type="date" id="sync-from" value="${einstiegDatum}">
+              <input class="form-input" type="date" id="sync-from">
               <p style="font-size:0.78rem;color:var(--muted);margin-top:0.4rem;">
-                ${hasEntries
-                  ? 'Leer lassen → Backend nutzt automatisch das Datum des neuesten Eintrags.'
-                  : 'Erster Sync: Bitte Startdatum wählen, ab wann Bestellungen importiert werden sollen.'}
+                Leer lassen → ab letztem bekannten Eintrag (beim ersten Sync: alle offenen Orders).
               </p>
             </div>
             <div class="modal-actions" style="margin-top:1.25rem;">
@@ -5444,9 +5431,6 @@
         bd.querySelector('#sync-x').onclick = () => bd.remove();
         bd.querySelector('#sync-ok').onclick = async () => {
           const fromVal = bd.querySelector('#sync-from').value;
-          if (!hasEntries && !fromVal) {
-            window.showToast('Bitte ein Startdatum wählen (erster Sync).', 'toast-error'); return;
-          }
           const okBtn = bd.querySelector('#sync-ok');
           okBtn.disabled = true; okBtn.textContent = '↻ Sync…';
           const params = new URLSearchParams();

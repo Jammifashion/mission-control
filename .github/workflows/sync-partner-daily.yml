@@ -2,7 +2,7 @@ name: Partner Sync täglich
 
 on:
   schedule:
-    - cron: '0 2 * * *'   # täglich 02:00 UTC = 03:00 MEZ / 04:00 MESZ
+    - cron: '0 3 * * *'   # täglich 03:00 UTC
   workflow_dispatch:        # manueller Trigger über GitHub UI
 
 jobs:
@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: POST /api/partner/verkaeufe/sync-all
+      - name: POST /api/partner/verkaeufe/sync-all (jfn)
         env:
           API_URL: ${{ secrets.BACKEND_URL }}
           API_KEY: ${{ secrets.MC_API_KEY }}
@@ -21,15 +21,34 @@ jobs:
             echo "::error::BACKEND_URL oder MC_API_KEY fehlt in GitHub Secrets."
             exit 1
           fi
-          echo "Triggere Partner-Sync gegen $API_URL"
+          echo "Triggere Partner-Sync (jfn) gegen $API_URL"
           response=$(curl -sS -w "\n%{http_code}" -X POST \
             -H "x-api-key: $API_KEY" \
-            "$API_URL/api/partner/verkaeufe/sync-all")
+            "$API_URL/api/partner/verkaeufe/sync-all?shop=jfn")
           body=$(echo "$response" | head -n -1)
           status=$(echo "$response" | tail -n1)
           echo "HTTP $status"
           echo "$body" | jq . || echo "$body"
           if [ "$status" != "200" ]; then
-            echo "::error::Sync fehlgeschlagen mit HTTP $status"
+            echo "::error::Sync (jfn) fehlgeschlagen mit HTTP $status"
+            exit 1
+          fi
+
+      - name: POST /api/partner/verkaeufe/sync-all (honk)
+        env:
+          API_URL: ${{ secrets.BACKEND_URL }}
+          API_KEY: ${{ secrets.MC_API_KEY }}
+        run: |
+          set -e
+          echo "Triggere Partner-Sync (honk) gegen $API_URL"
+          response=$(curl -sS -w "\n%{http_code}" -X POST \
+            -H "x-api-key: $API_KEY" \
+            "$API_URL/api/partner/verkaeufe/sync-all?shop=honk")
+          body=$(echo "$response" | head -n -1)
+          status=$(echo "$response" | tail -n1)
+          echo "HTTP $status"
+          echo "$body" | jq . || echo "$body"
+          if [ "$status" != "200" ]; then
+            echo "::error::Sync (honk) fehlgeschlagen mit HTTP $status"
             exit 1
           fi
