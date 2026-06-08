@@ -91,6 +91,57 @@ function buildFpStornoRows(vRows, stornoOrders) {
   return out;
 }
 
+// Aggregiert FP_Verkäufe-Zeilen pro Produkt-ID nach dem neuen Modell.
+// (Festpreis/Handling × Stückzahl + Mehrkosten, Porto-Saldo, PayPal → Auszahlung)
+function aggregateFpVerkaeufe(rows, vh) {
+  const round2 = n => Math.round(n * 100) / 100;
+  const gruppen = {};
+  for (const r of rows) {
+    const pid = String(r[vh('Produkt-ID')] ?? 'unbekannt');
+    if (!gruppen[pid]) {
+      gruppen[pid] = {
+        produktId:       pid,
+        artikelname:     r[vh('Artikelname')]      ?? '',
+        artikelkategorie: r[vh('Artikelkategorie')] ?? '',
+        stueckzahl: 0, vkNetto: 0, festpreisGesamt: 0, handlingGesamt: 0,
+        mehrkosten: 0, portoEinnahmen: 0, portoKosten: 0, paypalGesamt: 0, auszahlung: 0,
+      };
+    }
+    const stk             = toFloat(r[vh('Stückzahl')]);
+    const festpreis       = toFloat(r[vh('Festpreis')]);
+    const handlingskosten = toFloat(r[vh('Handlingskosten')]);
+    const mehrkosten      = toFloat(r[vh('Mehrkosten')]);
+    const portoEin        = toFloat(r[vh('Porto-Einnahme')]);
+    const portoKost       = toFloat(r[vh('Porto-Kosten')]) + toFloat(r[vh('Versandnebenkosten')]);
+    const paypal          = toFloat(r[vh('PayPal-Kosten')]);
+    const g = gruppen[pid];
+    g.stueckzahl      += stk;
+    g.vkNetto         += toFloat(r[vh('VK-Netto')]);
+    g.festpreisGesamt += festpreis * stk;
+    g.handlingGesamt  += handlingskosten * stk;
+    g.mehrkosten      += mehrkosten;
+    g.portoEinnahmen  += portoEin;
+    g.portoKosten     += portoKost;
+    g.paypalGesamt    += paypal;
+    g.auszahlung      += (festpreis - handlingskosten) * stk + mehrkosten + portoEin - portoKost - paypal;
+  }
+  const produkteGruppen = Object.values(gruppen).map(g => ({
+    ...g,
+    vkNetto: round2(g.vkNetto), festpreisGesamt: round2(g.festpreisGesamt),
+    handlingGesamt: round2(g.handlingGesamt), mehrkosten: round2(g.mehrkosten),
+    portoEinnahmen: round2(g.portoEinnahmen), portoKosten: round2(g.portoKosten),
+    paypalGesamt: round2(g.paypalGesamt), auszahlung: round2(g.auszahlung),
+  }));
+  const summen = produkteGruppen.reduce((s, g) => ({
+    stueckzahl: s.stueckzahl + g.stueckzahl,
+    vkNetto: round2(s.vkNetto + g.vkNetto), festpreisGesamt: round2(s.festpreisGesamt + g.festpreisGesamt),
+    handlingGesamt: round2(s.handlingGesamt + g.handlingGesamt), mehrkosten: round2(s.mehrkosten + g.mehrkosten),
+    portoEinnahmen: round2(s.portoEinnahmen + g.portoEinnahmen), portoKosten: round2(s.portoKosten + g.portoKosten),
+    paypalGesamt: round2(s.paypalGesamt + g.paypalGesamt), auszahlung: round2(s.auszahlung + g.auszahlung),
+  }), { stueckzahl:0, vkNetto:0, festpreisGesamt:0, handlingGesamt:0, mehrkosten:0, portoEinnahmen:0, portoKosten:0, paypalGesamt:0, auszahlung:0 });
+  return { produkteGruppen, summen };
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 async function getSheets() {
@@ -456,71 +507,7 @@ router.get('/verkaeufe/summary', async (req, res, next) => {
       return true;
     });
 
-    // Aggregieren pro Produkt-ID (neues Modell: Festpreis/Handling × Stückzahl + Mehrkosten)
-    const round2 = n => Math.round(n * 100) / 100;
-    const gruppen = {};
-    for (const r of filtered) {
-      const pid = String(r[vh('Produkt-ID')] ?? 'unbekannt');
-      if (!gruppen[pid]) {
-        gruppen[pid] = {
-          produktId:      pid,
-          artikelname:    r[vh('Artikelname')]    ?? '',
-          artikelkategorie: r[vh('Artikelkategorie')] ?? '',
-          stueckzahl:     0,
-          vkNetto:        0,
-          festpreisGesamt: 0,
-          handlingGesamt: 0,
-          mehrkosten:     0,
-          portoEinnahmen: 0,
-          portoKosten:    0,  // Porto-Kosten + Versandnk zusammengefasst
-          paypalGesamt:   0,
-          auszahlung:     0,
-        };
-      }
-      const stk = toFloat(r[vh('Stückzahl')]);
-      const festpreis      = toFloat(r[vh('Festpreis')]);
-      const handlingskosten = toFloat(r[vh('Handlingskosten')]);
-      const mehrkosten     = toFloat(r[vh('Mehrkosten')]);
-      const portoEin       = toFloat(r[vh('Porto-Einnahme')]);
-      const portoKost      = toFloat(r[vh('Porto-Kosten')]) + toFloat(r[vh('Versandnebenkosten')]);
-      const paypal         = toFloat(r[vh('PayPal-Kosten')]);
-
-      const g = gruppen[pid];
-      g.stueckzahl      += stk;
-      g.vkNetto         += toFloat(r[vh('VK-Netto')]);
-      g.festpreisGesamt += festpreis * stk;
-      g.handlingGesamt  += handlingskosten * stk;
-      g.mehrkosten      += mehrkosten;
-      g.portoEinnahmen  += portoEin;
-      g.portoKosten     += portoKost;
-      g.paypalGesamt    += paypal;
-      g.auszahlung      += (festpreis - handlingskosten) * stk + mehrkosten + portoEin - portoKost - paypal;
-    }
-
-    const produkteGruppen = Object.values(gruppen).map(g => ({
-      ...g,
-      vkNetto:         round2(g.vkNetto),
-      festpreisGesamt: round2(g.festpreisGesamt),
-      handlingGesamt:  round2(g.handlingGesamt),
-      mehrkosten:      round2(g.mehrkosten),
-      portoEinnahmen:  round2(g.portoEinnahmen),
-      portoKosten:     round2(g.portoKosten),
-      paypalGesamt:    round2(g.paypalGesamt),
-      auszahlung:      round2(g.auszahlung),
-    }));
-
-    const summen = produkteGruppen.reduce((s, g) => ({
-      stueckzahl:      s.stueckzahl      + g.stueckzahl,
-      vkNetto:         round2(s.vkNetto         + g.vkNetto),
-      festpreisGesamt: round2(s.festpreisGesamt + g.festpreisGesamt),
-      handlingGesamt:  round2(s.handlingGesamt  + g.handlingGesamt),
-      mehrkosten:      round2(s.mehrkosten      + g.mehrkosten),
-      portoEinnahmen:  round2(s.portoEinnahmen  + g.portoEinnahmen),
-      portoKosten:     round2(s.portoKosten     + g.portoKosten),
-      paypalGesamt:    round2(s.paypalGesamt    + g.paypalGesamt),
-      auszahlung:      round2(s.auszahlung      + g.auszahlung),
-    }), { stueckzahl:0, vkNetto:0, festpreisGesamt:0, handlingGesamt:0, mehrkosten:0, portoEinnahmen:0, portoKosten:0, paypalGesamt:0, auszahlung:0 });
-
+    const { produkteGruppen, summen } = aggregateFpVerkaeufe(filtered, vh);
     res.json({ produkteGruppen, summen, positionen: filtered.length });
   } catch (err) { next(err); }
 });
@@ -773,6 +760,9 @@ router.post('/abrechnungen', async (req, res, next) => {
     const gesamtNetto  = Math.round(offene.reduce((s, r) => s + toFloat(r[vh('Gesamt-Partner-Netto')]), 0) * 100) / 100;
     const gesamtBrutto = Math.round(offene.reduce((s, r) => s + toFloat(r[vh('Gesamt-Partner-Brutto')]), 0) * 100) / 100;
 
+    // Artikel-Aufschlüsselung für die Abrechnung (gleiche Logik wie Zusammenfassung)
+    const positionenJson = JSON.stringify(aggregateFpVerkaeufe(offene, vh));
+
     // Abrechnungs-ID generieren
     const { header: abH, rows: abRows } = await readTab(sheets, sheetId, TAB_FP_ABRECHNUNGEN);
     const maxAbNr = abRows.reduce((max, r) => {
@@ -784,10 +774,10 @@ router.post('/abrechnungen', async (req, res, next) => {
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
-      range: `${TAB_FP_ABRECHNUNGEN}!A:H`,
+      range: `${TAB_FP_ABRECHNUNGEN}!A:I`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [[abrechnungsId, partnerId, vonDatum, bisDatum, gesamtNetto, gesamtBrutto, 'entwurf', erstelltAm]] },
+      requestBody: { values: [[abrechnungsId, partnerId, vonDatum, bisDatum, gesamtNetto, gesamtBrutto, 'entwurf', erstelltAm, positionenJson]] },
     });
 
     // Zugehörige FP_Verkäufe auf 'abgerechnet' setzen – über echten Sheet-Zeilenindex

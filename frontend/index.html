@@ -7506,8 +7506,15 @@
                 const abrId = r['Abrechnungs-ID'];
                 const cur   = r['Status'] || 'entwurf';
                 const opts  = STATI.map(s => `<option value="${s}"${s === cur ? ' selected' : ''}>${s}</option>`).join('');
+                const idSafe = String(abrId).replace(/[^A-Za-z0-9_-]/g, '');
+                let detailCell = '<td colspan="8" style="color:var(--muted);font-size:0.82rem;padding:0.6rem;">Keine Aufschlüsselung gespeichert (vor diesem Update erstellt).</td>';
+                try {
+                  const pos = JSON.parse(r['Positionen'] || '');
+                  if (pos && pos.produkteGruppen?.length)
+                    detailCell = `<td colspan="8" style="padding:0.5rem 0.6rem;background:rgba(255,255,255,0.02);"><div style="overflow-x:auto;">${fpSummaryTableHTML(pos)}</div></td>`;
+                } catch {}
                 return `<tr>
-                <td style="font-size:0.82rem;font-weight:600;">${abrId}</td>
+                <td style="font-size:0.82rem;font-weight:600;cursor:pointer;" data-abr-detail="${idSafe}"><span class="fp-abr-caret">▸</span> ${abrId}</td>
                 <td>${r['Partner-ID']}</td>
                 <td>${r['Zeitraum-Von']}</td>
                 <td>${r['Zeitraum-Bis']}</td>
@@ -7519,8 +7526,20 @@
                     style="font-size:0.78rem;padding:0.22rem 0.5rem;margin-top:0.1rem;">${opts}</select>
                 </td>
                 <td style="color:var(--muted);font-size:0.82rem;">${r['Erstellt-Am']}</td>
-              </tr>`;}).join('')}</tbody>
+              </tr>
+              <tr id="fp-abr-det-${idSafe}" style="display:none;">${detailCell}</tr>`;}).join('')}</tbody>
             </table></div>`;
+
+            wrap.querySelectorAll('[data-abr-detail]').forEach(cell => {
+              cell.addEventListener('click', () => {
+                const det = document.getElementById('fp-abr-det-' + cell.dataset.abrDetail);
+                if (!det) return;
+                const show = det.style.display === 'none';
+                det.style.display = show ? '' : 'none';
+                const caret = cell.querySelector('.fp-abr-caret');
+                if (caret) caret.textContent = show ? '▾' : '▸';
+              });
+            });
 
             wrap.querySelectorAll('.fp-abr-status-sel').forEach(sel => {
               sel.addEventListener('change', async () => {
