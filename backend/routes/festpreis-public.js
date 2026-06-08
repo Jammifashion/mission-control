@@ -66,8 +66,9 @@ router.get('/verkaeufe', async (req, res, next) => {
 
     const { header, rows } = await readTab(sheets, sheetId, TAB_FP_VERKAEUFE);
     const pidIdx = header.indexOf('Partner-ID');
+    const stIdx  = header.indexOf('Status Abrechnung');
     const filtered = rows
-      .filter(r => (r[pidIdx] ?? '') === partnerId)
+      .filter(r => (r[pidIdx] ?? '') === partnerId && (r[stIdx] ?? '') !== 'abgerechnet')
       .map(r => rowToObj(header, r));
     res.json(filtered);
   } catch (err) { next(err); }
