@@ -723,11 +723,21 @@ router.get('/abrechnungen', async (req, res, next) => {
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
     const { partnerId } = req.query;
     const sheets = await getSheets();
-    const { header, rows } = await readTab(sheets, sheetId, TAB_FP_ABRECHNUNGEN);
-    const pidIdx = header.indexOf('Partner-ID');
-    let filtered = rows;
-    if (partnerId) filtered = filtered.filter(r => (r[pidIdx] ?? '') === partnerId);
-    res.json({ abrechnungen: filtered.map(r => rowToObj(header, r)) });
+    const { rows } = await readTab(sheets, sheetId, TAB_FP_ABRECHNUNGEN);
+    // Positionsfest gemäß POST-Schreibreihenfolge (A:I) – robust gegen Header-Namen.
+    const mapped = rows.map(r => ({
+      'Abrechnungs-ID': r[0] ?? '',
+      'Partner-ID':     r[1] ?? '',
+      'Zeitraum-Von':   r[2] ?? '',
+      'Zeitraum-Bis':   r[3] ?? '',
+      'Gesamt-Netto':   r[4] ?? '',
+      'Gesamt-Brutto':  r[5] ?? '',
+      'Status':         r[6] ?? '',
+      'Erstellt-Am':    r[7] ?? '',
+      'Positionen':     r[8] ?? '',
+    }));
+    const filtered = partnerId ? mapped.filter(a => a['Partner-ID'] === partnerId) : mapped;
+    res.json({ abrechnungen: filtered });
   } catch (err) { next(err); }
 });
 
@@ -759,11 +769,14 @@ router.post('/abrechnungen', async (req, res, next) => {
     if (!offene.length)
       return res.status(400).json({ error: 'Keine offenen Einträge im angegebenen Zeitraum.' });
 
-    const gesamtNetto  = Math.round(offene.reduce((s, r) => s + toFloat(r[vh('Gesamt-Partner-Netto')]), 0) * 100) / 100;
-    const gesamtBrutto = Math.round(offene.reduce((s, r) => s + toFloat(r[vh('Gesamt-Partner-Brutto')]), 0) * 100) / 100;
-
-    // Artikel-Aufschlüsselung für die Abrechnung (gleiche Logik wie Zusammenfassung)
-    const positionenJson = JSON.stringify(aggregateFpVerkaeufe(offene, vh));
+    // Summen + Aufschlüsselung aus DERSELBEN Aggregation wie die Vorschau berechnen
+    // (robust gegen Header-Abweichungen der Gesamt-Partner-Netto/-Brutto-Spalten).
+    const { produkteGruppen, summen } = aggregateFpVerkaeufe(offene, vh);
+    const { header: kH, rows: kRows } = await readTab(sheets, sheetId, TAB_FIXKOSTEN);
+    const mwstProzent = parseKonfiguration(kRows, kH).mwstProzent;
+    const gesamtNetto  = summen.auszahlung;
+    const gesamtBrutto = Math.round(summen.auszahlung * (1 + mwstProzent / 100) * 100) / 100;
+    const positionenJson = JSON.stringify({ produkteGruppen, summen });
 
     // Abrechnungs-ID generieren
     const { header: abH, rows: abRows } = await readTab(sheets, sheetId, TAB_FP_ABRECHNUNGEN);
@@ -812,16 +825,15 @@ router.patch('/abrechnungen/:id/status', async (req, res, next) => {
       return res.status(400).json({ error: `Ungültiger Status. Erlaubt: ${[...ALLOWED].join(', ')}` });
 
     const sheets = await getSheets();
-    const { header, rows } = await readTab(sheets, sheetId, TAB_FP_ABRECHNUNGEN);
-    const idIdx = header.indexOf('Abrechnungs-ID');
-    const stIdx = header.indexOf('Status');
-    const rowIdx = rows.findIndex(r => (r[idIdx] ?? '') === req.params.id);
+    const { rows } = await readTab(sheets, sheetId, TAB_FP_ABRECHNUNGEN);
+    // Positionsfest: Abrechnungs-ID = Spalte A (0), Status = Spalte G (Index 6)
+    const rowIdx = rows.findIndex(r => (r[0] ?? '') === req.params.id);
     if (rowIdx === -1) return res.status(404).json({ error: 'Abrechnung nicht gefunden.' });
 
     const sheetRow = rows[rowIdx]._sheetRow;
     await sheets.spreadsheets.values.update({
       spreadsheetId: sheetId,
-      range: `${TAB_FP_ABRECHNUNGEN}!${String.fromCharCode(65 + stIdx)}${sheetRow}`,
+      range: `${TAB_FP_ABRECHNUNGEN}!G${sheetRow}`,
       valueInputOption: 'RAW',
       requestBody: { values: [[status]] },
     });
