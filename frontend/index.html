@@ -1611,6 +1611,10 @@
                 <label style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-weight:600;">Festpreis (€ netto)</label>
                 <input type="number" class="form-input" id="fp-preis-wert" step="0.01" min="0" placeholder="0.00" style="font-size:0.84rem;">
               </div>
+              <div class="form-field">
+                <label style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-weight:600;">Handling (€ netto/Stk)</label>
+                <input type="number" class="form-input" id="fp-preis-handling" step="0.01" min="0" placeholder="0.00" style="font-size:0.84rem;">
+              </div>
               <button class="btn" id="btn-fp-preis-add" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Hinzufügen</button>
             </div>
           </div>
@@ -7374,7 +7378,7 @@
             wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table" style="font-size:0.84rem;">
               <thead><tr>
                 <th>Partner</th><th>Datum</th><th>WC-Nr</th><th>Artikel</th><th>Variante</th>
-                <th>Stk</th><th>Artikelkat.</th><th>VK netto</th><th>Festpreis</th><th>Mehrkosten</th><th>Status</th>
+                <th>Stk</th><th>Artikelkat.</th><th>VK netto</th><th>Festpreis</th><th>Handling</th><th>Mehrkosten</th><th>Netto</th><th>Status</th>
               </tr></thead>
               <tbody>${rows.map(r => {
                 const isStorno = !!(r['Storno-Status'] || '').trim() || Number(r['Stückzahl'] || 0) < 0;
@@ -7391,7 +7395,9 @@
                 <td style="font-size:0.8rem;color:var(--muted);">${r['Artikelkategorie'] || '–'}</td>
                 <td style="${isStorno ? red : ''}">${fmt(r['VK-Netto'])} €</td>
                 <td style="${isStorno ? red : ''}">${fmt(r['Festpreis'])} €</td>
+                <td style="color:var(--muted);">${fmt(r['Handlingskosten'])} €</td>
                 <td>${rowId && !isStorno ? `<input type="number" class="form-input fp-mk-input" step="0.01" min="0" value="${mkVal}" data-rowid="${rowId}" style="width:80px;padding:0.25rem 0.4rem;font-size:0.82rem;">` : fmt(r['Mehrkosten']) + ' €'}</td>
+                <td style="font-weight:600;${isStorno ? red : ''}">${fmt(r['Gesamt-Partner-Netto'])} €</td>
                 <td><span class="badge ${r['Status Abrechnung'] === 'abgerechnet' ? 'badge-completed' : 'badge-processing'}">${r['Status Abrechnung']}</span></td>
               </tr>`;}).join('')}</tbody>
             </table></div>`;
@@ -7527,14 +7533,21 @@
             }
             const fmt = v => Number(String(v||'0').replace(',','.')||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
             wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
-              <thead><tr><th>Artikelkategorie</th><th>Partner-ID</th><th style="text-align:right;">Festpreis (€ netto)</th><th></th></tr></thead>
+              <thead><tr><th>Artikelkategorie</th><th>Partner-ID</th><th style="text-align:right;">Festpreis (€)</th><th style="text-align:right;">Handling (€/Stk)</th><th></th></tr></thead>
               <tbody>${preise.map(p => `<tr>
                 <td>${p['Kategorie'] || '–'}</td>
                 <td style="color:var(--muted);font-size:0.82rem;">${p['Festpreispartner-ID'] || '–'}</td>
-                <td style="text-align:right;font-weight:600;">
+                <td style="text-align:right;">
                   <input type="number" class="form-input fp-preis-edit" step="0.01" min="0"
                     value="${parseFloat(String(p['Festpreis']||'0').replace(',','.')) || 0}"
-                    data-rowid="${p._rowId}" style="width:90px;padding:0.25rem 0.4rem;font-size:0.84rem;text-align:right;">
+                    data-rowid="${p._rowId}" data-field="festpreis"
+                    style="width:80px;padding:0.25rem 0.4rem;font-size:0.84rem;text-align:right;">
+                </td>
+                <td style="text-align:right;">
+                  <input type="number" class="form-input fp-preis-edit" step="0.01" min="0"
+                    value="${parseFloat(String(p['Handlingskosten']||'0').replace(',','.')) || 0}"
+                    data-rowid="${p._rowId}" data-field="handlingskosten"
+                    style="width:80px;padding:0.25rem 0.4rem;font-size:0.84rem;text-align:right;">
                 </td>
                 <td><button class="btn-secondary" style="font-size:0.75rem;padding:0.25rem 0.5rem;" data-del-preis="${p._rowId}">✕</button></td>
               </tr>`).join('')}</tbody>
@@ -7543,11 +7556,12 @@
             wrap.querySelectorAll('.fp-preis-edit').forEach(input => {
               input.addEventListener('blur', async () => {
                 const rowId = input.dataset.rowid;
+                const field = input.dataset.field;
                 const val   = parseFloat(input.value.replace(',', '.')) || 0;
                 try {
                   const r = await window.apiFetch(`${FP()}/api/festpreis/preise/${rowId}`, {
                     method: 'PATCH', headers: {'Content-Type':'application/json'},
-                    body: JSON.stringify({ festpreis: val }),
+                    body: JSON.stringify({ [field]: val }),
                   });
                   if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
                   input.style.borderColor = 'var(--success)';
@@ -7575,14 +7589,15 @@
         document.getElementById('btn-fp-preis-add').addEventListener('click', async () => {
           const partnerId  = document.getElementById('fp-preis-partner').value;
           const kategorie  = document.getElementById('fp-preis-kategorie').value.trim();
-          const festpreis  = parseFloat(document.getElementById('fp-preis-wert').value.replace(',', '.')) || 0;
+          const festpreis      = parseFloat(document.getElementById('fp-preis-wert').value.replace(',', '.')) || 0;
+          const handlingskosten = parseFloat(document.getElementById('fp-preis-handling').value.replace(',', '.')) || 0;
           if (!partnerId || !kategorie) {
             window.showToast('Partner und Artikelkategorie sind erforderlich.', 'toast-error'); return;
           }
           try {
             const r = await window.apiFetch(`${FP()}/api/festpreis/preise`, {
               method: 'POST', headers: {'Content-Type':'application/json'},
-              body: JSON.stringify({ kategorie, partnerId, festpreis }),
+              body: JSON.stringify({ kategorie, partnerId, festpreis, handlingskosten }),
             });
             if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
             document.getElementById('fp-preis-kategorie').value = '';

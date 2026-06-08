@@ -53,7 +53,7 @@ function buildFpStornoRows(vRows, stornoOrders) {
   const DATE_COL   = 1;
   const STATUS_COL = 14;
   const STORNO_COL = 16;
-  const NEG_COLS   = new Set([5, 6, 7, 8, 9, 10, 11, 12, 13, 18, 19, 20]); // inkl. Festpreis, Mehrkosten, VK-Netto
+  const NEG_COLS   = new Set([5, 6, 7, 8, 9, 10, 11, 12, 13, 18, 19, 20, 21]); // inkl. Festpreis, Mehrkosten, VK-Netto, Handlingskosten
   const varKey = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
 
   const refundDate = new Map(
@@ -78,7 +78,7 @@ function buildFpStornoRows(vRows, stornoOrders) {
     stornoDone.add(dupKey);
 
     const counter = [];
-    for (let i = 0; i < 21; i++) {
+    for (let i = 0; i < 22; i++) {
       let v = r[i] ?? '';
       if (NEG_COLS.has(i) && v !== '') v = -toFloat(v);
       counter[i] = v;
@@ -564,7 +564,10 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
     for (const r of akRows) {
       const pid = r[akh('Festpreispartner-ID')] ?? '';
       const kat = r[akh('Kategorie')] ?? '';
-      if (pid && kat) festpreisMap[`${pid}|${kat}`] = toFloat(r[akh('Festpreis')]);
+      if (pid && kat) festpreisMap[`${pid}|${kat}`] = {
+        festpreis:      toFloat(r[akh('Festpreis')]),
+        handlingskosten: toFloat(r[akh('Handlingskosten')]),
+      };
     }
 
     // 3. Partner-Shop-Map für WC-Credentials
@@ -641,18 +644,20 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
             const paypalKosten       = (itemNetto * (1 + k.mwstProzent / 100)) * (k.paypalProzent / 100)
                                      + (k.paypalPauschale * anteil);
 
+            const artikelkategorie = e.artikelkategorie || '';
+            const katPreis = festpreisMap[`${e.partnerId}|${artikelkategorie}`] ?? { festpreis: 0, handlingskosten: 0 };
+            const festpreis      = katPreis.festpreis;
+            const handlingskosten = katPreis.handlingskosten;
+
             const { netto, brutto } = berechneFestpreisAnteil({
-              festpreisEK: e.festpreisEK,
-              handlingGebuehr: e.handlingGebuehr,
+              festpreisEK: festpreis,
+              handlingskosten,
               portoEinnahmeAnteil,
               portoKostenAnteil,
               versandnkAnteil,
               paypalKosten,
               mwstProzent: k.mwstProzent,
             });
-
-            const artikelkategorie = e.artikelkategorie || '';
-            const festpreis = festpreisMap[`${e.partnerId}|${artikelkategorie}`] ?? 0;
 
             toWrite.push([
               e.partnerId,           // A 0
@@ -661,21 +666,22 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
               artikelname,           // D 3
               item.variation_id || 0, // E 4
               item.quantity,         // F 5
-              e.festpreisEK,         // G 6
-              e.handlingGebuehr,     // H 7
+              e.festpreisEK,         // G 6 (legacy, aus FP_Artikel)
+              e.handlingGebuehr,     // H 7 (legacy, aus FP_Artikel)
               Math.round(portoEinnahmeAnteil * 100) / 100,  // I 8
               Math.round(portoKostenAnteil * 100) / 100,    // J 9
               Math.round(versandnkAnteil * 100) / 100,      // K 10
               Math.round(paypalKosten * 100) / 100,         // L 11
-              netto,                 // M 12
-              brutto,                // N 13
+              netto,                 // M 12 Gesamt-Partner-Netto
+              brutto,                // N 13 Gesamt-Partner-Brutto
               'offen',               // O 14 Status Abrechnung
               item.product_id,       // P 15 Produkt-ID
               '',                    // Q 16 Storno-Status (leer)
               artikelkategorie,      // R 17 Artikelkategorie
               festpreis,             // S 18 Festpreis (aus FP_Artikel_Kategorie)
               0,                     // T 19 Mehrkosten (manuell, default 0)
-              Math.round(itemNetto * 100) / 100, // U 20 VK-Netto (item.total aus WC)
+              Math.round(itemNetto * 100) / 100, // U 20 VK-Netto
+              handlingskosten,       // V 21 Handlingskosten (aus FP_Artikel_Kategorie)
             ]);
           }
         }
@@ -690,7 +696,7 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
     if (allRows.length > 0) {
       await sheets.spreadsheets.values.append({
         spreadsheetId: sheetId,
-        range: `${TAB_FP_VERKAEUFE}!A:U`,
+        range: `${TAB_FP_VERKAEUFE}!A:V`,
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
         requestBody: { values: allRows },
@@ -837,15 +843,15 @@ router.post('/preise', async (req, res, next) => {
   try {
     const sheetId = SHEETID();
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
-    const { kategorie, partnerId, festpreis } = req.body;
+    const { kategorie, partnerId, festpreis, handlingskosten } = req.body;
     if (!kategorie || !partnerId) return res.status(400).json({ error: 'kategorie und partnerId sind erforderlich.' });
     const sheets = await getSheets();
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
-      range: 'FP_Artikel_Kategorie!A:C',
+      range: 'FP_Artikel_Kategorie!A:D',
       valueInputOption: 'RAW',
       insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [[kategorie, partnerId, toFloat(festpreis)]] },
+      requestBody: { values: [[kategorie, partnerId, toFloat(festpreis), toFloat(handlingskosten)]] },
     });
     res.status(201).json({ ok: true });
   } catch (err) { next(err); }
@@ -858,14 +864,15 @@ router.patch('/preise/:rowId', async (req, res, next) => {
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
     const sheetRow = parseInt(req.params.rowId, 10);
     if (!sheetRow || sheetRow < 2) return res.status(400).json({ error: 'Ungültige rowId.' });
-    const { festpreis } = req.body;
-    if (festpreis === undefined) return res.status(400).json({ error: 'festpreis fehlt.' });
+    const { festpreis, handlingskosten } = req.body;
     const sheets = await getSheets();
-    await sheets.spreadsheets.values.update({
+    const updates = [];
+    if (festpreis      !== undefined) updates.push({ range: `FP_Artikel_Kategorie!C${sheetRow}`, values: [[toFloat(festpreis)]] });
+    if (handlingskosten !== undefined) updates.push({ range: `FP_Artikel_Kategorie!D${sheetRow}`, values: [[toFloat(handlingskosten)]] });
+    if (!updates.length) return res.status(400).json({ error: 'Kein Feld zum Aktualisieren.' });
+    await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: sheetId,
-      range: `FP_Artikel_Kategorie!C${sheetRow}`,
-      valueInputOption: 'RAW',
-      requestBody: { values: [[toFloat(festpreis)]] },
+      requestBody: { valueInputOption: 'RAW', data: updates },
     });
     res.json({ ok: true });
   } catch (err) { next(err); }

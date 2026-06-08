@@ -22,14 +22,15 @@ function round2(n) { return Math.round(n * 100) / 100; }
  */
 export function berechneFestpreisAnteil({
   festpreisEK = 0,
-  handlingGebuehr = 0,
+  handlingskosten = 0,   // wird ABGEZOGEN (Bearbeitungsgebühr die JF einbehält)
   portoEinnahmeAnteil = 0,
   portoKostenAnteil = 0,
   versandnkAnteil = 0,
   paypalKosten = 0,
   mwstProzent = 19,
 }) {
-  const netto = festpreisEK + handlingGebuehr + portoEinnahmeAnteil - portoKostenAnteil - versandnkAnteil - paypalKosten;
+  // Auszahlung: Festpreis − Handling + Porto-Einnahmen − Porto-Kosten − Versandnk − PayPal
+  const netto = festpreisEK - handlingskosten + portoEinnahmeAnteil - portoKostenAnteil - versandnkAnteil - paypalKosten;
   const brutto = netto * (1 + mwstProzent / 100);
   return { netto: round2(netto), brutto: round2(brutto) };
 }
