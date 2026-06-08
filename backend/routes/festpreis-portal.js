@@ -108,6 +108,7 @@ function aggregateFpVerkaeufe(rows, vh) {
       };
     }
     const stk             = toFloat(r[vh('Stückzahl')]);
+    const vk              = toFloat(r[vh('VK-Netto')]);
     const festpreis       = toFloat(r[vh('Festpreis')]);
     const handlingskosten = toFloat(r[vh('Handlingskosten')]);
     const mehrkosten      = toFloat(r[vh('Mehrkosten')]);
@@ -116,14 +117,14 @@ function aggregateFpVerkaeufe(rows, vh) {
     const paypal          = toFloat(r[vh('PayPal-Kosten')]);
     const g = gruppen[pid];
     g.stueckzahl      += stk;
-    g.vkNetto         += toFloat(r[vh('VK-Netto')]);
+    g.vkNetto         += vk;
     g.festpreisGesamt += festpreis * stk;
     g.handlingGesamt  += handlingskosten * stk;
     g.mehrkosten      += mehrkosten;
     g.portoEinnahmen  += portoEin;
     g.portoKosten     += portoKost;
     g.paypalGesamt    += paypal;
-    g.auszahlung      += (festpreis - handlingskosten) * stk + mehrkosten + portoEin - portoKost - paypal;
+    g.auszahlung      += vk - (festpreis + handlingskosten) * stk - mehrkosten + portoEin - portoKost - paypal;
   }
   const produkteGruppen = Object.values(gruppen).map(g => ({
     ...g,
@@ -646,6 +647,7 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
             const handlingskosten = katPreis.handlingskosten;
 
             const { netto, brutto } = berechneFestpreisAnteil({
+              vkNetto: itemNetto,
               festpreisEK: festpreis,
               handlingskosten,
               stueckzahl: item.quantity || 1,
@@ -923,6 +925,7 @@ router.patch('/verkaeufe-eintrag/:rowId', async (req, res, next) => {
 
     // Netto/Brutto neu berechnen aus gespeicherten Komponenten + neuer Mehrkosten
     const { netto, brutto } = berechneFestpreisAnteil({
+      vkNetto:            toFloat(row[h('VK-Netto')]),
       festpreisEK:        toFloat(row[h('Festpreis')]),
       handlingskosten:    toFloat(row[h('Handlingskosten')]),
       stueckzahl:         toFloat(row[h('Stückzahl')]) || 1,

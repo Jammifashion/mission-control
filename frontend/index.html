@@ -7680,10 +7680,10 @@
           const body = d.produkteGruppen.map(g => `<tr>
             <td style="font-size:0.82rem;">${g.artikelname}<br><span style="color:var(--muted);font-size:0.74rem;">${g.artikelkategorie || '–'} · #${g.produktId}</span></td>
             <td style="text-align:right;">${g.stueckzahl}</td>
-            <td style="text-align:right;color:var(--muted);">${fmt(g.vkNetto)} €</td>
-            <td style="text-align:right;">${fmt(g.festpreisGesamt)} €</td>
+            <td style="text-align:right;font-weight:600;">${fmt(g.vkNetto)} €</td>
+            <td style="text-align:right;color:var(--danger);">${g.festpreisGesamt ? '−'+fmt(g.festpreisGesamt)+' €' : '0,00 €'}</td>
             <td style="text-align:right;color:var(--danger);">−${fmt(g.handlingGesamt)} €</td>
-            <td style="text-align:right;">${g.mehrkosten ? fmt(g.mehrkosten)+' €' : '–'}</td>
+            <td style="text-align:right;color:${g.mehrkosten?'var(--danger)':'inherit'};">${g.mehrkosten ? '−'+fmt(g.mehrkosten)+' €' : '–'}</td>
             <td style="text-align:right;">${saldo(g.portoEinnahmen, g.portoKosten)}</td>
             <td style="text-align:right;color:var(--danger);">−${fmt(g.paypalGesamt)} €</td>
             <td style="text-align:right;font-weight:600;">${fmt(g.auszahlung)} €</td>
@@ -7704,10 +7704,10 @@
             <tfoot><tr style="font-weight:600;border-top:2px solid var(--border);">
               <td>Gesamt</td>
               <td style="text-align:right;">${s.stueckzahl}</td>
-              <td style="text-align:right;color:var(--muted);">${fmt(s.vkNetto)} €</td>
-              <td style="text-align:right;">${fmt(s.festpreisGesamt)} €</td>
+              <td style="text-align:right;">${fmt(s.vkNetto)} €</td>
+              <td style="text-align:right;color:var(--danger);">${s.festpreisGesamt ? '−'+fmt(s.festpreisGesamt)+' €' : '0,00 €'}</td>
               <td style="text-align:right;color:var(--danger);">−${fmt(s.handlingGesamt)} €</td>
-              <td style="text-align:right;">${s.mehrkosten ? fmt(s.mehrkosten)+' €' : '–'}</td>
+              <td style="text-align:right;color:${s.mehrkosten?'var(--danger)':'inherit'};">${s.mehrkosten ? '−'+fmt(s.mehrkosten)+' €' : '–'}</td>
               <td style="text-align:right;">${saldo(s.portoEinnahmen, s.portoKosten)}</td>
               <td style="text-align:right;color:var(--danger);">−${fmt(s.paypalGesamt)} €</td>
               <td style="text-align:right;">${fmt(s.auszahlung)} €</td>

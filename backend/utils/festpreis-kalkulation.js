@@ -21,10 +21,11 @@ function round2(n) { return Math.round(n * 100) / 100; }
  * @returns {{ netto: number, brutto: number }}
  */
 export function berechneFestpreisAnteil({
-  festpreisEK = 0,        // Festpreis je Stück (netto)
-  handlingskosten = 0,    // Handling je Stück (netto), wird ABGEZOGEN
+  vkNetto = 0,            // Verkaufspreis netto aus WC (item.total) – Basis
+  festpreisEK = 0,        // Festpreis je Stück = JF-Herstellungskosten an den Partner, ABGEZOGEN
+  handlingskosten = 0,    // Handling je Stück (netto), ABGEZOGEN
   stueckzahl = 1,
-  mehrkosten = 0,         // manueller Aufschlag je Zeile (z.B. 3XL), wird ADDIERT
+  mehrkosten = 0,         // manueller Mehraufwand je Zeile (z.B. 3XL), ABGEZOGEN
   portoEinnahmeAnteil = 0,
   portoKostenAnteil = 0,
   versandnkAnteil = 0,
@@ -32,10 +33,11 @@ export function berechneFestpreisAnteil({
   mwstProzent = 19,
 }) {
   // Auszahlung an Partner:
-  //   (Festpreis − Handling) × Stückzahl + Mehrkosten
-  //   + Porto-Einnahmen − Porto-Kosten − Versandnk − PayPal
-  const netto = (festpreisEK - handlingskosten) * stueckzahl
-              + mehrkosten
+  //   VK-Netto − (Festpreis + Handling) × Stückzahl − Mehrkosten
+  //   + Porto-Einnahme − Porto-Kosten − Versandnebenkosten − PayPal
+  const netto = vkNetto
+              - (festpreisEK + handlingskosten) * stueckzahl
+              - mehrkosten
               + portoEinnahmeAnteil - portoKostenAnteil - versandnkAnteil - paypalKosten;
   const brutto = netto * (1 + mwstProzent / 100);
   return { netto: round2(netto), brutto: round2(brutto) };
