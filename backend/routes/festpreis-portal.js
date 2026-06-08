@@ -456,61 +456,70 @@ router.get('/verkaeufe/summary', async (req, res, next) => {
       return true;
     });
 
-    // Aggregieren pro Produkt-ID
+    // Aggregieren pro Produkt-ID (neues Modell: Festpreis/Handling × Stückzahl + Mehrkosten)
+    const round2 = n => Math.round(n * 100) / 100;
     const gruppen = {};
     for (const r of filtered) {
       const pid = String(r[vh('Produkt-ID')] ?? 'unbekannt');
       if (!gruppen[pid]) {
         gruppen[pid] = {
-          produktId:       pid,
-          artikelname:     r[vh('Artikelname')]    ?? '',
-          stueckzahl:      0,
-          ekGesamt:        0,
-          handlingGesamt:  0,
-          portoEinnahmen:  0,
-          portoKosten:     0,
-          versandnkGesamt: 0,
-          paypalGesamt:    0,
-          nettoGesamt:     0,
-          bruttoGesamt:    0,
+          produktId:      pid,
+          artikelname:    r[vh('Artikelname')]    ?? '',
+          artikelkategorie: r[vh('Artikelkategorie')] ?? '',
+          stueckzahl:     0,
+          vkNetto:        0,
+          festpreisGesamt: 0,
+          handlingGesamt: 0,
+          mehrkosten:     0,
+          portoEinnahmen: 0,
+          portoKosten:    0,  // Porto-Kosten + Versandnk zusammengefasst
+          paypalGesamt:   0,
+          auszahlung:     0,
         };
       }
+      const stk = toFloat(r[vh('Stückzahl')]);
+      const festpreis      = toFloat(r[vh('Festpreis')]);
+      const handlingskosten = toFloat(r[vh('Handlingskosten')]);
+      const mehrkosten     = toFloat(r[vh('Mehrkosten')]);
+      const portoEin       = toFloat(r[vh('Porto-Einnahme')]);
+      const portoKost      = toFloat(r[vh('Porto-Kosten')]) + toFloat(r[vh('Versandnebenkosten')]);
+      const paypal         = toFloat(r[vh('PayPal-Kosten')]);
+
       const g = gruppen[pid];
-      g.stueckzahl      += toFloat(r[vh('Stückzahl')]);
-      g.ekGesamt        += toFloat(r[vh('Festpreis-EK-Netto')]);
-      g.handlingGesamt  += toFloat(r[vh('Handling-Gebühr')]);
-      g.portoEinnahmen  += toFloat(r[vh('Porto-Einnahme')]);
-      g.portoKosten     += toFloat(r[vh('Porto-Kosten')]);
-      g.versandnkGesamt += toFloat(r[vh('Versandnebenkosten')]);
-      g.paypalGesamt    += toFloat(r[vh('PayPal-Kosten')]);
-      g.nettoGesamt     += toFloat(r[vh('Gesamt-Partner-Netto')]);
-      g.bruttoGesamt    += toFloat(r[vh('Gesamt-Partner-Brutto')]);
+      g.stueckzahl      += stk;
+      g.vkNetto         += toFloat(r[vh('VK-Netto')]);
+      g.festpreisGesamt += festpreis * stk;
+      g.handlingGesamt  += handlingskosten * stk;
+      g.mehrkosten      += mehrkosten;
+      g.portoEinnahmen  += portoEin;
+      g.portoKosten     += portoKost;
+      g.paypalGesamt    += paypal;
+      g.auszahlung      += (festpreis - handlingskosten) * stk + mehrkosten + portoEin - portoKost - paypal;
     }
 
-    const round2 = n => Math.round(n * 100) / 100;
     const produkteGruppen = Object.values(gruppen).map(g => ({
       ...g,
-      ekGesamt:        round2(g.ekGesamt),
+      vkNetto:         round2(g.vkNetto),
+      festpreisGesamt: round2(g.festpreisGesamt),
       handlingGesamt:  round2(g.handlingGesamt),
+      mehrkosten:      round2(g.mehrkosten),
       portoEinnahmen:  round2(g.portoEinnahmen),
       portoKosten:     round2(g.portoKosten),
-      versandnkGesamt: round2(g.versandnkGesamt),
       paypalGesamt:    round2(g.paypalGesamt),
-      nettoGesamt:     round2(g.nettoGesamt),
-      bruttoGesamt:    round2(g.bruttoGesamt),
+      auszahlung:      round2(g.auszahlung),
     }));
 
     const summen = produkteGruppen.reduce((s, g) => ({
       stueckzahl:      s.stueckzahl      + g.stueckzahl,
-      ekGesamt:        round2(s.ekGesamt        + g.ekGesamt),
+      vkNetto:         round2(s.vkNetto         + g.vkNetto),
+      festpreisGesamt: round2(s.festpreisGesamt + g.festpreisGesamt),
       handlingGesamt:  round2(s.handlingGesamt  + g.handlingGesamt),
+      mehrkosten:      round2(s.mehrkosten      + g.mehrkosten),
       portoEinnahmen:  round2(s.portoEinnahmen  + g.portoEinnahmen),
       portoKosten:     round2(s.portoKosten     + g.portoKosten),
-      versandnkGesamt: round2(s.versandnkGesamt + g.versandnkGesamt),
       paypalGesamt:    round2(s.paypalGesamt    + g.paypalGesamt),
-      nettoGesamt:     round2(s.nettoGesamt     + g.nettoGesamt),
-      bruttoGesamt:    round2(s.bruttoGesamt    + g.bruttoGesamt),
-    }), { stueckzahl:0, ekGesamt:0, handlingGesamt:0, portoEinnahmen:0, portoKosten:0, versandnkGesamt:0, paypalGesamt:0, nettoGesamt:0, bruttoGesamt:0 });
+      auszahlung:      round2(s.auszahlung      + g.auszahlung),
+    }), { stueckzahl:0, vkNetto:0, festpreisGesamt:0, handlingGesamt:0, mehrkosten:0, portoEinnahmen:0, portoKosten:0, paypalGesamt:0, auszahlung:0 });
 
     res.json({ produkteGruppen, summen, positionen: filtered.length });
   } catch (err) { next(err); }
@@ -652,6 +661,8 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
             const { netto, brutto } = berechneFestpreisAnteil({
               festpreisEK: festpreis,
               handlingskosten,
+              stueckzahl: item.quantity || 1,
+              mehrkosten: 0,
               portoEinnahmeAnteil,
               portoKostenAnteil,
               versandnkAnteil,
@@ -898,7 +909,8 @@ router.delete('/preise/:rowId', async (req, res, next) => {
 });
 
 // ── PATCH /api/festpreis/verkaeufe-eintrag/:rowId ────────────────────────────
-// Aktualisiert Mehrkosten (Spalte T) einer einzelnen FP_Verkäufe-Zeile.
+// Aktualisiert Mehrkosten und berechnet Gesamt-Partner-Netto/-Brutto neu,
+// damit die Abrechnung (summiert M/N) die Mehrkosten korrekt enthält.
 router.patch('/verkaeufe-eintrag/:rowId', async (req, res, next) => {
   try {
     const sheetId = SHEETID();
@@ -907,17 +919,43 @@ router.patch('/verkaeufe-eintrag/:rowId', async (req, res, next) => {
     if (!sheetRow || sheetRow < 2) return res.status(400).json({ error: 'Ungültige rowId.' });
     const { mehrkosten } = req.body;
     if (mehrkosten === undefined) return res.status(400).json({ error: 'mehrkosten fehlt.' });
+    const mk = toFloat(mehrkosten);
+
     const sheets = await getSheets();
-    const { header } = await readTab(sheets, sheetId, TAB_FP_VERKAEUFE);
-    const mkIdx = header.indexOf('Mehrkosten');
-    if (mkIdx === -1) return res.status(400).json({ error: 'Spalte Mehrkosten nicht im Sheet.' });
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: sheetId,
-      range: `${TAB_FP_VERKAEUFE}!${String.fromCharCode(65 + mkIdx)}${sheetRow}`,
-      valueInputOption: 'RAW',
-      requestBody: { values: [[toFloat(mehrkosten)]] },
+    const { header, rows } = await readTab(sheets, sheetId, TAB_FP_VERKAEUFE);
+    const h = col => header.indexOf(col);
+    const row = rows.find(r => r._sheetRow === sheetRow);
+    if (!row) return res.status(404).json({ error: 'Eintrag nicht gefunden.' });
+
+    // MwSt aus Fixkosten ziehen (für Brutto)
+    const { header: kH, rows: kRows } = await readTab(sheets, sheetId, TAB_FIXKOSTEN);
+    const mwstProzent = parseKonfiguration(kRows, kH).mwstProzent;
+
+    // Netto/Brutto neu berechnen aus gespeicherten Komponenten + neuer Mehrkosten
+    const { netto, brutto } = berechneFestpreisAnteil({
+      festpreisEK:        toFloat(row[h('Festpreis')]),
+      handlingskosten:    toFloat(row[h('Handlingskosten')]),
+      stueckzahl:         toFloat(row[h('Stückzahl')]) || 1,
+      mehrkosten:         mk,
+      portoEinnahmeAnteil: toFloat(row[h('Porto-Einnahme')]),
+      portoKostenAnteil:  toFloat(row[h('Porto-Kosten')]),
+      versandnkAnteil:    toFloat(row[h('Versandnebenkosten')]),
+      paypalKosten:       toFloat(row[h('PayPal-Kosten')]),
+      mwstProzent,
     });
-    res.json({ ok: true, sheetRow });
+
+    const col = i => String.fromCharCode(65 + i);
+    const updates = [
+      { range: `${TAB_FP_VERKAEUFE}!${col(h('Mehrkosten'))}${sheetRow}`,            values: [[mk]] },
+      { range: `${TAB_FP_VERKAEUFE}!${col(h('Gesamt-Partner-Netto'))}${sheetRow}`,  values: [[netto]] },
+      { range: `${TAB_FP_VERKAEUFE}!${col(h('Gesamt-Partner-Brutto'))}${sheetRow}`, values: [[brutto]] },
+    ].filter(u => !u.range.includes('@')); // safety, falls Header fehlt → -1
+
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: sheetId,
+      requestBody: { valueInputOption: 'RAW', data: updates },
+    });
+    res.json({ ok: true, sheetRow, netto, brutto });
   } catch (err) { next(err); }
 });
 

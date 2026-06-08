@@ -7654,44 +7654,56 @@
           }
         });
 
-        function renderFpSummaryModal(d, partnerId, vonDatum, bisDatum) {
-          const fmt = v => Number(v || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-          const partnerName = _fpPartners.find(p => p['Partner-ID'] === partnerId)?.Name || partnerId;
-          const tableBody = d.produkteGruppen.map(g => `<tr>
-            <td style="font-size:0.82rem;">${g.artikelname}<br><span style="color:var(--muted);font-size:0.75rem;">#${g.produktId}</span></td>
+        // Gemeinsamer Tabellen-Aufbau für Vorschau-Modal + Zusammenfassungs-Tab (neues Modell)
+        function fpSummaryTableHTML(d) {
+          const fmt   = v => Number(v || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          const saldo = (e, k) => { const v = (e||0) - (k||0); const col = v < 0 ? 'var(--danger)' : 'var(--success)'; return `<span style="color:${col};">${v<0?'−':''}${fmt(Math.abs(v))} €</span>`; };
+          const body = d.produkteGruppen.map(g => `<tr>
+            <td style="font-size:0.82rem;">${g.artikelname}<br><span style="color:var(--muted);font-size:0.74rem;">${g.artikelkategorie || '–'} · #${g.produktId}</span></td>
             <td style="text-align:right;">${g.stueckzahl}</td>
-            <td style="text-align:right;">${fmt(g.ekGesamt + g.handlingGesamt)}</td>
-            <td style="text-align:right;color:var(--success);">${fmt(g.portoEinnahmen)}</td>
-            <td style="text-align:right;color:var(--danger);">−${fmt(g.portoKosten + g.versandnkGesamt)}</td>
-            <td style="text-align:right;color:var(--danger);">−${fmt(g.paypalGesamt)}</td>
-            <td style="text-align:right;font-weight:600;">${fmt(g.nettoGesamt)}</td>
+            <td style="text-align:right;color:var(--muted);">${fmt(g.vkNetto)} €</td>
+            <td style="text-align:right;">${fmt(g.festpreisGesamt)} €</td>
+            <td style="text-align:right;color:var(--danger);">−${fmt(g.handlingGesamt)} €</td>
+            <td style="text-align:right;">${g.mehrkosten ? fmt(g.mehrkosten)+' €' : '–'}</td>
+            <td style="text-align:right;">${saldo(g.portoEinnahmen, g.portoKosten)}</td>
+            <td style="text-align:right;color:var(--danger);">−${fmt(g.paypalGesamt)} €</td>
+            <td style="text-align:right;font-weight:600;">${fmt(g.auszahlung)} €</td>
           </tr>`).join('');
           const s = d.summen;
+          return `<table class="orders-table">
+            <thead><tr>
+              <th>Artikel</th><th style="text-align:right;">Stück</th>
+              <th style="text-align:right;">VK netto</th>
+              <th style="text-align:right;">Festpreis</th>
+              <th style="text-align:right;">Handling</th>
+              <th style="text-align:right;">Mehrkosten</th>
+              <th style="text-align:right;">Porto-Saldo</th>
+              <th style="text-align:right;">PayPal</th>
+              <th style="text-align:right;">Auszahlung</th>
+            </tr></thead>
+            <tbody>${body}</tbody>
+            <tfoot><tr style="font-weight:600;border-top:2px solid var(--border);">
+              <td>Gesamt</td>
+              <td style="text-align:right;">${s.stueckzahl}</td>
+              <td style="text-align:right;color:var(--muted);">${fmt(s.vkNetto)} €</td>
+              <td style="text-align:right;">${fmt(s.festpreisGesamt)} €</td>
+              <td style="text-align:right;color:var(--danger);">−${fmt(s.handlingGesamt)} €</td>
+              <td style="text-align:right;">${s.mehrkosten ? fmt(s.mehrkosten)+' €' : '–'}</td>
+              <td style="text-align:right;">${saldo(s.portoEinnahmen, s.portoKosten)}</td>
+              <td style="text-align:right;color:var(--danger);">−${fmt(s.paypalGesamt)} €</td>
+              <td style="text-align:right;">${fmt(s.auszahlung)} €</td>
+            </tr></tfoot>
+          </table>`;
+        }
+
+        function renderFpSummaryModal(d, partnerId, vonDatum, bisDatum) {
+          const partnerName = _fpPartners.find(p => p['Partner-ID'] === partnerId)?.Name || partnerId;
           const bd = document.createElement('div'); bd.className = 'modal-backdrop';
-          bd.innerHTML = `<div class="modal-box" style="max-width:780px;width:97%;max-height:90vh;display:flex;flex-direction:column;">
+          bd.innerHTML = `<div class="modal-box" style="max-width:880px;width:97%;max-height:90vh;display:flex;flex-direction:column;">
             <div class="modal-title">Abrechnung Vorschau – ${partnerName}</div>
             <p style="font-size:0.82rem;color:var(--muted);margin:0.6rem 0 1rem;">${vonDatum} – ${bisDatum} &nbsp;·&nbsp; ${d.positionen} Einzelpositionen</p>
             <div style="overflow:auto;flex:1;">
-              <table class="orders-table">
-                <thead><tr>
-                  <th>Artikel</th><th style="text-align:right;">Stück</th>
-                  <th style="text-align:right;">EK+Handling</th>
-                  <th style="text-align:right;">Porto-Einnahmen</th>
-                  <th style="text-align:right;">Porto+Versandnk</th>
-                  <th style="text-align:right;">PayPal</th>
-                  <th style="text-align:right;">Netto gesamt</th>
-                </tr></thead>
-                <tbody>${tableBody}</tbody>
-                <tfoot><tr style="font-weight:600;border-top:2px solid var(--border);">
-                  <td>Gesamt</td>
-                  <td style="text-align:right;">${s.stueckzahl}</td>
-                  <td style="text-align:right;">${fmt(s.ekGesamt + s.handlingGesamt)}</td>
-                  <td style="text-align:right;color:var(--success);">${fmt(s.portoEinnahmen)}</td>
-                  <td style="text-align:right;color:var(--danger);">−${fmt(s.portoKosten + s.versandnkGesamt)}</td>
-                  <td style="text-align:right;color:var(--danger);">−${fmt(s.paypalGesamt)}</td>
-                  <td style="text-align:right;">${fmt(s.nettoGesamt)}</td>
-                </tr></tfoot>
-              </table>
+              ${fpSummaryTableHTML(d)}
             </div>
             <div class="modal-actions" style="margin-top:1.25rem;">
               <button class="btn-secondary" id="fp-vor-x">Schließen</button>
@@ -7723,38 +7735,9 @@
             if (!d.produkteGruppen.length) {
               wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Einträge gefunden.</p>'; return;
             }
-            const fmt = v => Number(v || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-            const s = d.summen;
             wrap.innerHTML = `
               <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;">${d.positionen} Einzelpositionen · ${d.produkteGruppen.length} Artikel-Gruppen</p>
-              <div style="overflow-x:auto;"><table class="orders-table">
-                <thead><tr>
-                  <th>Artikel</th><th style="text-align:right;">Stück</th>
-                  <th style="text-align:right;">EK+Handling</th>
-                  <th style="text-align:right;">Porto-Einnahmen</th>
-                  <th style="text-align:right;">Porto+Versandnk</th>
-                  <th style="text-align:right;">PayPal</th>
-                  <th style="text-align:right;">Netto gesamt</th>
-                </tr></thead>
-                <tbody>${d.produkteGruppen.map(g => `<tr>
-                  <td style="font-size:0.82rem;">${g.artikelname}<br><span style="color:var(--muted);font-size:0.75rem;">#${g.produktId}</span></td>
-                  <td style="text-align:right;">${g.stueckzahl}</td>
-                  <td style="text-align:right;">${fmt(g.ekGesamt + g.handlingGesamt)}</td>
-                  <td style="text-align:right;color:var(--success);">${fmt(g.portoEinnahmen)}</td>
-                  <td style="text-align:right;color:var(--danger);">−${fmt(g.portoKosten + g.versandnkGesamt)}</td>
-                  <td style="text-align:right;color:var(--danger);">−${fmt(g.paypalGesamt)}</td>
-                  <td style="text-align:right;font-weight:600;">${fmt(g.nettoGesamt)}</td>
-                </tr>`).join('')}</tbody>
-                <tfoot><tr style="font-weight:600;border-top:2px solid var(--border);">
-                  <td>Gesamt</td>
-                  <td style="text-align:right;">${s.stueckzahl}</td>
-                  <td style="text-align:right;">${fmt(s.ekGesamt + s.handlingGesamt)}</td>
-                  <td style="text-align:right;color:var(--success);">${fmt(s.portoEinnahmen)}</td>
-                  <td style="text-align:right;color:var(--danger);">−${fmt(s.portoKosten + s.versandnkGesamt)}</td>
-                  <td style="text-align:right;color:var(--danger);">−${fmt(s.paypalGesamt)}</td>
-                  <td style="text-align:right;">${fmt(s.nettoGesamt)}</td>
-                </tr></tfoot>
-              </table></div>`;
+              <div style="overflow-x:auto;">${fpSummaryTableHTML(d)}</div>`;
           } catch (e) {
             wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
           }
