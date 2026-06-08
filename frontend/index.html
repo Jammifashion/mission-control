@@ -7525,7 +7525,7 @@
                   <select class="form-select fp-abr-status-sel" data-abr-id="${abrId}" data-abr-cur="${cur}"
                     style="font-size:0.78rem;padding:0.22rem 0.5rem;margin-top:0.1rem;">${opts}</select>
                 </td>
-                <td style="color:var(--muted);font-size:0.82rem;">${r['Erstellt-Am']}</td>
+                <td style="color:var(--muted);font-size:0.82rem;">${r['Erstellt-Am']}${cur === 'entwurf' ? ` <button class="btn-secondary" style="font-size:0.72rem;padding:0.15rem 0.4rem;margin-left:0.4rem;" data-del-abr="${abrId}" title="Entwurf löschen">✕</button>` : ''}</td>
               </tr>
               <tr id="fp-abr-det-${idSafe}" style="display:none;">${detailCell}</tr>`;}).join('')}</tbody>
             </table></div>`;
@@ -7538,6 +7538,21 @@
                 det.style.display = show ? '' : 'none';
                 const caret = cell.querySelector('.fp-abr-caret');
                 if (caret) caret.textContent = show ? '▾' : '▸';
+              });
+            });
+
+            wrap.querySelectorAll('[data-del-abr]').forEach(btn => {
+              btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const abrId = btn.dataset.delAbr;
+                if (!await window.showConfirm(`Abrechnung ${abrId} löschen? Die zugehörigen Verkäufe werden wieder auf „offen" gesetzt.`)) return;
+                try {
+                  const r = await window.apiFetch(`${FP()}/api/festpreis/abrechnungen/${encodeURIComponent(abrId)}`, { method: 'DELETE' });
+                  if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+                  const d = await r.json();
+                  window.showToast(`Abrechnung gelöscht – ${d.zurueckgesetzt ?? 0} Verkäufe wieder offen.`);
+                  loadFpAbrechnungen();
+                } catch (e) { window.showToast(`Fehler: ${e.message}`, 'toast-error'); }
               });
             });
 

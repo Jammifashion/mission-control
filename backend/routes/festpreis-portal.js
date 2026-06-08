@@ -841,6 +841,55 @@ router.patch('/abrechnungen/:id/status', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── DELETE /api/festpreis/abrechnungen/:id ───────────────────────────────────
+// Löscht einen Entwurf und setzt die zugehörigen Verkäufe wieder auf 'offen'.
+router.delete('/abrechnungen/:id', async (req, res, next) => {
+  try {
+    const sheetId = SHEETID();
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
+    const sheets = await getSheets();
+
+    const { rows } = await readTab(sheets, sheetId, TAB_FP_ABRECHNUNGEN);
+    const rowIdx = rows.findIndex(r => (r[0] ?? '') === req.params.id); // Spalte A = Abrechnungs-ID
+    if (rowIdx === -1) return res.status(404).json({ error: 'Abrechnung nicht gefunden.' });
+    const abrRow = rows[rowIdx];
+    if ((abrRow[6] ?? '').toLowerCase() !== 'entwurf')
+      return res.status(400).json({ error: `Nur Entwürfe können gelöscht werden (Status: ${abrRow[6]}).` });
+
+    const partnerId = abrRow[1] ?? '';
+    const von = parseDate(abrRow[2] ?? '');
+    const bis = parseDate(abrRow[3] ?? '');
+
+    // 1. Zugehörige FP_Verkäufe (Partner + Zeitraum, abgerechnet) → 'offen'
+    const { header: vH, rows: vRows } = await readTab(sheets, sheetId, TAB_FP_VERKAEUFE);
+    const vh = col => vH.indexOf(col);
+    const stCol = String.fromCharCode(65 + vh('Status Abrechnung'));
+    const resets = vRows.filter(r => {
+      if ((r[vh('Partner-ID')] ?? '') !== partnerId) return false;
+      if ((r[vh('Status Abrechnung')] ?? '').toLowerCase() !== 'abgerechnet') return false;
+      const d = parseDate(r[vh('Datum')] ?? '');
+      return d && von && bis && d >= von && d <= bis;
+    }).map(r => ({ range: `${TAB_FP_VERKAEUFE}!${stCol}${r._sheetRow}`, values: [['offen']] }));
+    if (resets.length) {
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: sheetId, requestBody: { valueInputOption: 'RAW', data: resets },
+      });
+    }
+
+    // 2. Abrechnungs-Zeile löschen
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: 'sheets.properties' });
+    const gid = meta.data.sheets.find(s => s.properties.title === TAB_FP_ABRECHNUNGEN)?.properties.sheetId;
+    if (gid === undefined) return res.status(404).json({ error: 'Tab nicht gefunden.' });
+    const sheetRow = abrRow._sheetRow;
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: sheetId,
+      requestBody: { requests: [{ deleteDimension: { range: { sheetId: gid, dimension: 'ROWS', startIndex: sheetRow - 1, endIndex: sheetRow } } }] },
+    });
+
+    res.json({ ok: true, abrechnungsId: req.params.id, zurueckgesetzt: resets.length });
+  } catch (err) { next(err); }
+});
+
 // ── GET /api/festpreis/preise ─────────────────────────────────────────────────
 // Liest FP_Artikel_Kategorie: Kategorie | Festpreispartner-ID | Festpreis
 router.get('/preise', async (req, res, next) => {
