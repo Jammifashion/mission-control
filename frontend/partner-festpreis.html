@@ -173,6 +173,78 @@
       }
     }
 
+    // ── Direkte (interne) Bestellungen ───────────────────────────────────────
+    async function loadIntern() {
+      const wrap = document.getElementById('pv-intern');
+      if (!wrap) return;
+      wrap.innerHTML = '<div class="skeleton"></div>';
+      try {
+        const rows = await apiFetch(`/api/festpreis-public/intern?token=${encodeURIComponent(TOKEN)}`);
+        if (!rows.length) { wrap.innerHTML = '<p class="empty">Keine direkten Bestellungen vorhanden.</p>'; return; }
+        wrap.innerHTML = `
+          <p class="summary">${rows.length} Eintrag/Einträge</p>
+          <div style="overflow-x:auto;"><table>
+            <thead><tr>
+              <th>Datum</th><th>Bezeichnung</th>
+              <th class="num">Anzahl</th>
+              <th class="num">Einzelpreis brutto</th>
+              <th class="num">Summe</th>
+              <th>Status</th>
+            </tr></thead>
+            <tbody>${rows.map(r => `<tr>
+              <td>${r.datum}</td>
+              <td>${r.bezeichnung}</td>
+              <td class="num">${r.anzahl}</td>
+              <td class="num">${fmt(r.einzelpreis)}</td>
+              <td class="num"><strong>${fmt(r.summe)}</strong></td>
+              <td><span class="badge badge-${(r.status || 'offen').toLowerCase()}">${r.status || 'offen'}</span></td>
+            </tr>`).join('')}</tbody>
+          </table></div>`;
+      } catch (e) {
+        wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${e.message}</p>`;
+      }
+    }
+
+    // ── Saldo / offene Auszahlung ────────────────────────────────────────────
+    async function loadSaldo() {
+      const wrap = document.getElementById('pv-saldo');
+      if (!wrap) return;
+      wrap.innerHTML = '<div class="skeleton" style="height:120px;"></div>';
+      try {
+        const d = await apiFetch(`/api/festpreis-public/saldo?token=${encodeURIComponent(TOKEN)}`);
+        const positiv  = d.saldoBrutto >= 0;
+        const label    = positiv ? 'Offene Auszahlung (brutto)' : 'Aktueller Rückstand (brutto)';
+        const colorCls = positiv ? 'saldo-positive' : 'saldo-negative';
+        wrap.innerHTML = `
+          <div class="saldo-row">
+            <span>Auszahlung Verkäufe (netto)</span>
+            <span class="amount saldo-positive">+${fmt(d.auszahlungNetto)}</span>
+          </div>
+          <div class="saldo-row muted">
+            <span>zzgl. MwSt (${d.mwstProzent} %)</span>
+            <span class="amount">+${fmt((d.auszahlungBrutto || 0) - (d.auszahlungNetto || 0))}</span>
+          </div>
+          <div class="saldo-row">
+            <span>Auszahlung Verkäufe (brutto)</span>
+            <span class="amount saldo-positive">+${fmt(d.auszahlungBrutto)}</span>
+          </div>
+          <div class="saldo-row">
+            <span>Direkte Bestellungen (brutto)</span>
+            <span class="amount saldo-negative">−${fmt(d.interneSumme)}</span>
+          </div>
+          <hr class="saldo-divider">
+          <div class="saldo-row saldo-final">
+            <span>${label}</span>
+            <span class="amount ${colorCls}">${positiv ? '' : '−'}${fmt(Math.abs(d.saldoBrutto))}</span>
+          </div>
+          <p class="saldo-row muted" style="padding-top:0.6rem;">
+            Nur offene, noch nicht abgerechnete Positionen &nbsp;·&nbsp; entspricht netto ${fmt(d.saldoNetto)}.
+          </p>`;
+      } catch (e) {
+        wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${e.message}</p>`;
+      }
+    }
+
     // ── Abrechnungen ─────────────────────────────────────────────────────────
     async function loadAbrechnungen() {
       const wrap = document.getElementById('pv-abrechnungen');
@@ -193,6 +265,24 @@
             const netto  = Number(r['Gesamt-Netto']  || 0);
             const brutto = Number(r['Gesamt-Brutto'] || 0);
             const status = r['Status'] || 'entwurf';
+            let pos = null;
+            try { pos = JSON.parse(r['Positionen'] || ''); } catch {}
+            const intern = (pos && pos.intern) || [];
+            const interneSumme = (pos && pos.interneSumme) || intern.reduce((s, i) => s + Number(i.summe || 0), 0);
+            const internBlock = intern.length ? `
+              <h3 style="font-size:0.9rem;margin:1rem 0 0.5rem;">Verrechnete direkte Bestellungen</h3>
+              <div style="overflow-x:auto;"><table>
+                <thead><tr>
+                  <th>Datum</th><th>Bezeichnung</th>
+                  <th class="num">Anzahl</th><th class="num">Summe (brutto)</th>
+                </tr></thead>
+                <tbody>${intern.map(i => `<tr>
+                  <td>${i.datum}</td>
+                  <td>${i.bezeichnung}</td>
+                  <td class="num">${i.anzahl}</td>
+                  <td class="num" style="color:var(--danger);">−${fmt(i.summe)}</td>
+                </tr>`).join('')}</tbody>
+              </table></div>` : '';
             return `
             <div class="abr-card">
               <div class="abr-header">
@@ -205,11 +295,11 @@
               </div>
               <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:0.6rem;margin-top:0.6rem;">
                 <div class="kalk-info-box">
-                  <div class="kalk-info-label">Gesamt Netto</div>
+                  <div class="kalk-info-label">Auszahlung Netto</div>
                   <div class="kalk-info-value">${fmt(netto)}</div>
                 </div>
                 <div class="kalk-info-box">
-                  <div class="kalk-info-label">Gesamt Brutto (inkl. MwSt.)</div>
+                  <div class="kalk-info-label">Auszahlung Brutto (inkl. MwSt.)</div>
                   <div class="kalk-info-value">${fmt(brutto)}</div>
                 </div>
                 <div class="kalk-info-box">
@@ -217,6 +307,8 @@
                   <div class="kalk-info-value" style="font-size:0.95rem;">${r['Erstellt-Am']}</div>
                 </div>
               </div>
+              ${internBlock}
+              ${intern.length ? `<p class="summary" style="margin-top:0.6rem;">Auszahlung brutto ist nach Abzug der direkten Bestellungen (−${fmt(interneSumme)}) berechnet.</p>` : ''}
             </div>`;
           }).join('')}`;
       } catch (e) {
@@ -254,6 +346,18 @@
         </div>
         <div class="card">
           <div class="card-header">
+            <h2>Meine direkten Bestellungen</h2>
+          </div>
+          <div id="pv-intern"><div class="skeleton"></div></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h2>Offene Auszahlung</h2>
+          </div>
+          <div id="pv-saldo"><div class="skeleton" style="height:120px;"></div></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
             <h2>Meine Abrechnungen</h2>
           </div>
           <div id="pv-abrechnungen"><div class="skeleton"></div></div>
@@ -261,10 +365,12 @@
 
       document.getElementById('btn-refresh').addEventListener('click', () => {
         loadVerkaeufe();
+        loadIntern();
+        loadSaldo();
         loadAbrechnungen();
       });
 
-      await Promise.all([loadVerkaeufe(), loadAbrechnungen()]);
+      await Promise.all([loadVerkaeufe(), loadIntern(), loadSaldo(), loadAbrechnungen()]);
     }
 
     init();

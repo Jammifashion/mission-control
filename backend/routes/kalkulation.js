@@ -430,9 +430,10 @@ router.post('/abrechnung/vorschau', async (req, res, next) => {
 
     const sheets = await getSheets();
     const tabVerkaeufe = getShopConfig(req.query.shop).tabVerkaeufe;
-    const [verkäufeTab, internTab] = await Promise.all([
+    const [verkäufeTab, internTab, konfigTab] = await Promise.all([
       readTab(sheets, sheetId, tabVerkaeufe),
       readTab(sheets, sheetId, 'Partner_Interne_Bestellungen'),
+      readTab(sheets, sheetId, 'Kalkulation_Fixkosten'),
     ]);
 
     const vh = col => verkäufeTab.header.indexOf(col);
@@ -468,18 +469,27 @@ router.post('/abrechnung/vorschau', async (req, res, next) => {
         summe:       toFloat(row[ih('Summe')]),
       }));
 
-    const lizenzSumme  = verkaeufe.reduce((s, v) => s + v.lizenz, 0);
+    const round2 = n => Math.round(n * 100) / 100;
+    const mwstProzent  = parseKonfiguration(konfigTab.rows, konfigTab.header).mwstProzent;
+    const lizenzNetto  = verkaeufe.reduce((s, v) => s + v.lizenz, 0);
     const interneSumme = intern.reduce((s, i) => s + i.summe, 0);
-    const saldo        = lizenzSumme - interneSumme;
+    // Lizenz brutto (netto + MwSt), davon interne (brutto) abziehen.
+    const lizenzBrutto = round2(lizenzNetto * (1 + mwstProzent / 100));
+    const saldoBrutto  = round2(lizenzBrutto - interneSumme);
+    const saldoNetto   = round2(saldoBrutto / (1 + mwstProzent / 100));
 
     res.json({
       partnerId,
       zeitraumVon: toDE(vonDatum), zeitraumBis: toDE(bisDatum),
       verkaeufe,
       intern,
-      lizenzSumme:  parseFloat(lizenzSumme.toFixed(2)),
-      interneSumme: parseFloat(interneSumme.toFixed(2)),
-      saldo:        parseFloat(saldo.toFixed(2)),
+      mwstProzent,
+      lizenzNetto:  round2(lizenzNetto),
+      lizenzBrutto,
+      lizenzSumme:  round2(lizenzNetto),   // Rückwärtskompatibel (netto)
+      interneSumme: round2(interneSumme),
+      saldoNetto,
+      saldo:        saldoBrutto,            // Saldo jetzt brutto
     });
   } catch (err) { next(err); }
 });
@@ -627,7 +637,11 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
       summe:       toFloat(row[iSumIdx]),
     }));
 
-    const saldo = parseFloat((lizenzSumme - interneSumme).toFixed(2));
+    // Lizenz brutto (netto + MwSt), davon interne (brutto) abziehen → Saldo brutto.
+    const round2 = n => Math.round(n * 100) / 100;
+    const mwstProzent  = konfiguration.mwstProzent;
+    const lizenzBrutto = round2(lizenzSumme * (1 + mwstProzent / 100));
+    const saldo        = round2(lizenzBrutto - interneSumme);
 
     // Neue Abrechnungs-ID
     const abIdIdx    = abrechnungenTab.header.indexOf('Abrechnungs-ID');
@@ -635,8 +649,11 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
     const erstelltAm = toDE(new Date());
 
     const positionenJson = JSON.stringify({
-      verkaeufe: verkaeufePositionen,
-      intern:    internPositionen,
+      verkaeufe:    verkaeufePositionen,
+      intern:       internPositionen,
+      mwstProzent,
+      lizenzBrutto,
+      interneSumme: round2(interneSumme),
     });
 
     // Abrechnung als Entwurf schreiben – header-basiert (Sheet kann beliebige Spaltenreihenfolge haben)
@@ -667,8 +684,9 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
     res.status(201).json({
       abrechnungId: abId, partnerId,
       zeitraumVon: toDE(vonDatum), zeitraumBis: toDE(bisDatum),
-      anzahlVerkäufe: offene.length, lizenzSumme: parseFloat(lizenzSumme.toFixed(2)),
-      anzahlInterne: offeneIntern.length, interneSumme: parseFloat(interneSumme.toFixed(2)),
+      anzahlVerkäufe: offene.length,
+      lizenzSumme: round2(lizenzSumme), lizenzBrutto, mwstProzent,
+      anzahlInterne: offeneIntern.length, interneSumme: round2(interneSumme),
       saldo, status: 'entwurf',
     });
   } catch (err) { next(err); }

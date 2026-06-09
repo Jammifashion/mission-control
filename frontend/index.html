@@ -6099,19 +6099,31 @@
             </tr>`).join('')}</tbody>
           </table>` : '';
 
-        // Saldo-Block
-        const lizenzSumme  = (p.verkaeufe || []).reduce((s, v) => s + (v.lizenz || 0), 0);
+        // Saldo-Block (Lizenz brutto − interne brutto)
+        const lizenzNetto  = (p.verkaeufe || []).reduce((s, v) => s + (v.lizenz || 0), 0);
         const interneSumme = (p.intern || []).reduce((s, v) => s + (v.summe || 0), 0);
+        const mwst         = p.mwstProzent ?? 0;
+        const lizenzBrutto = p.lizenzBrutto ?? (lizenzNetto * (1 + mwst / 100));
         const isPos = r.saldo >= 0;
-        const saldoLabel = isPos ? 'Auszahlung an Partner' : 'Forderung an Partner';
+        const saldoLabel = isPos ? 'Auszahlung an Partner (brutto)' : 'Forderung an Partner (brutto)';
+        const mwstRow = mwst ? `
+            <div class="abr-saldo-row">
+              <span>zzgl. MwSt (${mwst} %)</span>
+              <span class="abr-saldo-pos">+${fmt(lizenzBrutto - lizenzNetto)}</span>
+            </div>` : '';
         const saldoHTML = `
           <div class="abr-saldo-block">
             <div class="abr-saldo-row">
-              <span>Lizenz-Summe</span>
-              <span class="abr-saldo-pos">+${fmt(lizenzSumme)}</span>
+              <span>Lizenz-Summe netto</span>
+              <span class="abr-saldo-pos">+${fmt(lizenzNetto)}</span>
+            </div>
+            ${mwstRow}
+            <div class="abr-saldo-row">
+              <span>Lizenz-Summe brutto</span>
+              <span class="abr-saldo-pos">+${fmt(lizenzBrutto)}</span>
             </div>
             <div class="abr-saldo-row">
-              <span>Interne Bestellungen</span>
+              <span>Interne Bestellungen (brutto)</span>
               <span class="abr-saldo-neg">−${fmt(interneSumme)}</span>
             </div>
             <div class="abr-saldo-row final">
@@ -6357,13 +6369,19 @@
 
             <div style="margin-top:1.25rem;padding:1rem 1.1rem;background:var(--card);border:1px solid var(--border);border-radius:8px;">
               <table style="width:100%;font-size:0.88rem;">
-                <tr><td>Lizenz-Summe (${data.verkaeufe.length} Verkäufe)</td>
-                    <td style="text-align:right;font-weight:600;">${fmt(data.lizenzSumme)}</td></tr>
-                <tr><td>− Interne Bestellungen (${data.intern.length})</td>
+                <tr><td>Lizenz-Summe netto (${data.verkaeufe.length} Verkäufe)</td>
+                    <td style="text-align:right;font-weight:600;">${fmt(data.lizenzNetto ?? data.lizenzSumme)}</td></tr>
+                ${data.mwstProzent ? `<tr><td style="color:var(--muted);">zzgl. MwSt (${data.mwstProzent} %)</td>
+                    <td style="text-align:right;color:var(--muted);">+${fmt((data.lizenzBrutto ?? 0) - (data.lizenzNetto ?? 0))}</td></tr>` : ''}
+                <tr><td>Lizenz-Summe brutto</td>
+                    <td style="text-align:right;font-weight:600;">${fmt(data.lizenzBrutto ?? data.lizenzSumme)}</td></tr>
+                <tr><td>− Interne Bestellungen brutto (${data.intern.length})</td>
                     <td style="text-align:right;font-weight:600;color:${data.interneSumme > 0 ? 'var(--danger)' : 'inherit'};">−${fmt(data.interneSumme)}</td></tr>
                 <tr><td colspan="2"><hr style="border:none;border-top:1px solid var(--border);margin:0.4rem 0;"></td></tr>
-                <tr style="font-size:1rem;"><td><strong>Saldo (Auszahlung)</strong></td>
+                <tr style="font-size:1rem;"><td><strong>Saldo (Auszahlung brutto)</strong></td>
                     <td style="text-align:right;font-weight:700;color:${data.saldo < 0 ? 'var(--danger)' : 'var(--accent)'};">${fmt(data.saldo)}</td></tr>
+                ${data.saldoNetto !== undefined ? `<tr><td style="color:var(--muted);font-size:0.8rem;">entspricht netto</td>
+                    <td style="text-align:right;color:var(--muted);font-size:0.8rem;">${fmt(data.saldoNetto)}</td></tr>` : ''}
               </table>
             </div>
           </div>
@@ -7471,7 +7489,8 @@
             const d = await r.json();
             if (!r.ok) throw new Error(d.error ?? r.statusText);
             statusEl.style.color = 'var(--success)';
-            statusEl.textContent = `Abrechnung ${d.abrechnungsId} erstellt – ${d.positionen} Pos., ${Number(d.gesamtNetto).toFixed(2)} € netto`;
+            const internTxt = d.interne ? `, ${d.interne} interne (−${Number(d.interneSumme).toFixed(2)} € brutto)` : '';
+            statusEl.textContent = `Abrechnung ${d.abrechnungsId} erstellt – ${d.positionen} Pos.${internTxt}, ${Number(d.gesamtBrutto).toFixed(2)} € brutto Auszahlung`;
             loadFpAbrechnungen();
           } catch (e) {
             statusEl.style.color = 'var(--danger)'; statusEl.textContent = `Fehler: ${e.message}`;
@@ -7731,14 +7750,50 @@
           </table>`;
         }
 
+        // Interne-Bestellungen-Block + finale Auszahlungs-Aufstellung für das Vorschau-Modal.
+        function fpInterneBlockHTML(d) {
+          const fmt = v => Number(v || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          const intern = d.intern || [];
+          const mwst   = d.mwstProzent ?? 0;
+          const internTable = intern.length ? `
+            <table class="orders-table" style="margin-top:1.2rem;">
+              <thead><tr>
+                <th>Interne Bestellung</th><th style="text-align:right;">Anzahl</th>
+                <th style="text-align:right;">Einzelpreis</th><th style="text-align:right;">Summe (brutto)</th>
+              </tr></thead>
+              <tbody>${intern.map(i => `<tr>
+                <td style="font-size:0.82rem;">${i.bezeichnung}<br><span style="color:var(--muted);font-size:0.74rem;">${i.datum}</span></td>
+                <td style="text-align:right;">${i.anzahl}</td>
+                <td style="text-align:right;">${fmt(i.einzelpreis)} €</td>
+                <td style="text-align:right;color:var(--danger);">−${fmt(i.summe)} €</td>
+              </tr>`).join('')}</tbody>
+            </table>` : '';
+          return `${internTable}
+            <div style="margin-top:1.2rem;padding:0.9rem 1.1rem;background:var(--bg-subtle,rgba(0,0,0,0.03));border-radius:8px;font-size:0.86rem;">
+              <div style="display:flex;justify-content:space-between;padding:0.15rem 0;">
+                <span>Auszahlung netto</span><span>${fmt(d.auszahlungNetto)} €</span></div>
+              <div style="display:flex;justify-content:space-between;padding:0.15rem 0;color:var(--muted);">
+                <span>zzgl. MwSt (${mwst} %)</span><span>${fmt((d.auszahlungBrutto||0)-(d.auszahlungNetto||0))} €</span></div>
+              <div style="display:flex;justify-content:space-between;padding:0.15rem 0;font-weight:600;border-top:1px solid var(--border);margin-top:0.25rem;padding-top:0.4rem;">
+                <span>Auszahlung brutto</span><span>${fmt(d.auszahlungBrutto)} €</span></div>
+              <div style="display:flex;justify-content:space-between;padding:0.15rem 0;color:var(--danger);">
+                <span>− Interne Bestellungen (brutto)</span><span>−${fmt(d.interneSumme)} €</span></div>
+              <div style="display:flex;justify-content:space-between;padding:0.4rem 0 0.1rem;font-weight:700;font-size:1rem;border-top:2px solid var(--border);margin-top:0.3rem;">
+                <span>Auszahlbetrag brutto</span><span>${fmt(d.gesamtBrutto)} €</span></div>
+              <div style="display:flex;justify-content:space-between;padding:0.1rem 0;color:var(--muted);font-size:0.8rem;">
+                <span>entspricht netto</span><span>${fmt(d.gesamtNetto)} €</span></div>
+            </div>`;
+        }
+
         function renderFpSummaryModal(d, partnerId, vonDatum, bisDatum) {
           const partnerName = _fpPartners.find(p => p['Partner-ID'] === partnerId)?.Name || partnerId;
           const bd = document.createElement('div'); bd.className = 'modal-backdrop';
           bd.innerHTML = `<div class="modal-box" style="max-width:880px;width:97%;max-height:90vh;display:flex;flex-direction:column;">
             <div class="modal-title">Abrechnung Vorschau – ${partnerName}</div>
-            <p style="font-size:0.82rem;color:var(--muted);margin:0.6rem 0 1rem;">${vonDatum} – ${bisDatum} &nbsp;·&nbsp; ${d.positionen} Einzelpositionen</p>
+            <p style="font-size:0.82rem;color:var(--muted);margin:0.6rem 0 1rem;">${vonDatum} – ${bisDatum} &nbsp;·&nbsp; ${d.positionen} Einzelpositionen${(d.intern||[]).length ? ` · ${(d.intern||[]).length} interne Bestellung(en)` : ''}</p>
             <div style="overflow:auto;flex:1;">
               ${fpSummaryTableHTML(d)}
+              ${fpInterneBlockHTML(d)}
             </div>
             <div class="modal-actions" style="margin-top:1.25rem;">
               <button class="btn-secondary" id="fp-vor-x">Schließen</button>

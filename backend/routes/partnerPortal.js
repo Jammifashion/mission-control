@@ -524,13 +524,17 @@ router.get('/saldo', async (req, res, next) => {
     const sheetId = process.env.BUSINESS_SHEET_ID;
     const sheets  = await getSheets();
     const tabVerkaeufe = getShopConfig(req.query.shop).tabVerkaeufe;
-    const [verkäufeTab, internTab] = await Promise.all([
+    const [verkäufeTab, internTab, konfigTab] = await Promise.all([
       readTab(sheets, sheetId, tabVerkaeufe),
       readTab(sheets, sheetId, 'Partner_Interne_Bestellungen'),
+      readTab(sheets, sheetId, 'Kalkulation_Fixkosten'),
     ]);
 
+    const round2 = n => Math.round(n * 100) / 100;
+    const mwstProzent = parseKonfiguration(konfigTab.rows, konfigTab.header).mwstProzent;
+
     const vh = col => verkäufeTab.header.indexOf(col);
-    const lizenzSumme = verkäufeTab.rows
+    const lizenzNetto = verkäufeTab.rows
       .filter(r => r[vh('Partner-ID')] === partnerId && (r[vh('Status')] ?? '') === 'offen')
       .reduce((s, r) => s + toFloat(r[vh('Lizenzgebühr')]), 0);
 
@@ -539,11 +543,18 @@ router.get('/saldo', async (req, res, next) => {
       .filter(r => r[ih('Partner-ID')] === partnerId && (r[ih('Status')] ?? '') === 'offen')
       .reduce((s, r) => s + toFloat(r[ih('Summe')]), 0);
 
-    const saldo = lizenzSumme - interneSumme;
+    // Lizenz brutto (netto + MwSt), davon interne (brutto) abziehen.
+    const lizenzBrutto = round2(lizenzNetto * (1 + mwstProzent / 100));
+    const saldoBrutto  = round2(lizenzBrutto - interneSumme);
+    const saldoNetto   = round2(saldoBrutto / (1 + mwstProzent / 100));
     res.json({
-      lizenzSumme:  parseFloat(lizenzSumme.toFixed(2)),
-      interneSumme: parseFloat(interneSumme.toFixed(2)),
-      saldo:        parseFloat(saldo.toFixed(2)),
+      mwstProzent,
+      lizenzNetto:  round2(lizenzNetto),
+      lizenzBrutto,
+      lizenzSumme:  round2(lizenzNetto),   // Rückwärtskompatibel (netto)
+      interneSumme: round2(interneSumme),
+      saldoNetto,
+      saldo:        saldoBrutto,            // Saldo jetzt brutto
     });
   } catch (err) { next(err); }
 });

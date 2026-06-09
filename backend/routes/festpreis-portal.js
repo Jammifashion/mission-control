@@ -188,6 +188,36 @@ function rowToObj(header, row) {
   return obj;
 }
 
+// Lädt offene interne Bestellungen eines FP-Partners im Zeitraum (Status 'offen',
+// Datum in [von, bis]). Liefert die Positionen inkl. echtem Sheet-Zeilenindex
+// (rowIndex) und den Spaltenbuchstaben der Status-Spalte für spätere Updates.
+// Einzelpreise/Summen sind BRUTTO (siehe Erfassungs-Modal "Einzelpreis brutto").
+async function loadOffeneInterne(sheets, sheetId, partnerId, von, bis) {
+  const { header, rows } = await readTab(sheets, sheetId, 'Partner_Interne_Bestellungen');
+  const h = col => header.indexOf(col);
+  const positionen = rows
+    .filter(r => {
+      if ((r[h('Partner-ID')] ?? '') !== partnerId) return false;
+      if ((r[h('Status')] ?? '') !== 'offen') return false;
+      const d = parseDate(r[h('Datum')] ?? '');
+      if (!d) return false;
+      if (von && d < von) return false;
+      if (bis && d > bis) return false;
+      return true;
+    })
+    .map(r => ({
+      rowIndex:    r._sheetRow,
+      datum:       r[h('Datum')]       ?? '',
+      bezeichnung: r[h('Bezeichnung')] ?? '',
+      anzahl:      toFloat(r[h('Anzahl')]),
+      einzelpreis: toFloat(r[h('Einzelpreis')]),
+      summe:       toFloat(r[h('Summe')]),
+    }));
+  const summe = Math.round(positionen.reduce((s, p) => s + p.summe, 0) * 100) / 100;
+  const statusCol = h('Status') !== -1 ? String.fromCharCode(65 + h('Status')) : null;
+  return { positionen, summe, statusCol };
+}
+
 // ── GET /api/festpreis/partner ───────────────────────────────────────────────
 router.get('/partner', async (req, res, next) => {
   try {
@@ -509,7 +539,25 @@ router.get('/verkaeufe/summary', async (req, res, next) => {
     });
 
     const { produkteGruppen, summen } = aggregateFpVerkaeufe(filtered, vh);
-    res.json({ produkteGruppen, summen, positionen: filtered.length });
+
+    // Interne Bestellungen (brutto) im Zeitraum von der Brutto-Auszahlung abziehen.
+    const { rows: kRows, header: kH } = await readTab(sheets, sheetId, TAB_FIXKOSTEN);
+    const mwstProzent = parseKonfiguration(kRows, kH).mwstProzent;
+    const interne = partnerId ? await loadOffeneInterne(sheets, sheetId, partnerId, von, bis) : { positionen: [], summe: 0 };
+
+    const auszahlungNetto = summen.auszahlung;
+    const auszahlungBrutto = Math.round(auszahlungNetto * (1 + mwstProzent / 100) * 100) / 100;
+    const gesamtBrutto = Math.round((auszahlungBrutto - interne.summe) * 100) / 100;
+    const gesamtNetto  = Math.round((gesamtBrutto / (1 + mwstProzent / 100)) * 100) / 100;
+
+    res.json({
+      produkteGruppen, summen, positionen: filtered.length,
+      mwstProzent,
+      intern: interne.positionen,
+      interneSumme: interne.summe,
+      auszahlungNetto, auszahlungBrutto,
+      gesamtNetto, gesamtBrutto,
+    });
   } catch (err) { next(err); }
 });
 
@@ -774,9 +822,13 @@ router.post('/abrechnungen', async (req, res, next) => {
     const { produkteGruppen, summen } = aggregateFpVerkaeufe(offene, vh);
     const { header: kH, rows: kRows } = await readTab(sheets, sheetId, TAB_FIXKOSTEN);
     const mwstProzent = parseKonfiguration(kRows, kH).mwstProzent;
-    const gesamtNetto  = summen.auszahlung;
-    const gesamtBrutto = Math.round(summen.auszahlung * (1 + mwstProzent / 100) * 100) / 100;
-    const positionenJson = JSON.stringify({ produkteGruppen, summen });
+
+    // Offene interne Bestellungen (brutto) im Zeitraum von der Brutto-Auszahlung abziehen.
+    const interne = await loadOffeneInterne(sheets, sheetId, partnerId, von, bis);
+    const auszahlungBrutto = Math.round(summen.auszahlung * (1 + mwstProzent / 100) * 100) / 100;
+    const gesamtBrutto = Math.round((auszahlungBrutto - interne.summe) * 100) / 100;
+    const gesamtNetto  = Math.round((gesamtBrutto / (1 + mwstProzent / 100)) * 100) / 100;
+    const positionenJson = JSON.stringify({ produkteGruppen, summen, intern: interne.positionen, interneSumme: interne.summe });
 
     // Abrechnungs-ID generieren
     const { header: abH, rows: abRows } = await readTab(sheets, sheetId, TAB_FP_ABRECHNUNGEN);
@@ -802,6 +854,12 @@ router.post('/abrechnungen', async (req, res, next) => {
       range: `${TAB_FP_VERKAEUFE}!${statusColLetter}${r._sheetRow}`,
       values: [['abgerechnet']],
     }));
+    // Einbezogene interne Bestellungen ebenfalls auf 'abgerechnet' setzen.
+    if (interne.statusCol) {
+      for (const p of interne.positionen) {
+        updates.push({ range: `Partner_Interne_Bestellungen!${interne.statusCol}${p.rowIndex}`, values: [['abgerechnet']] });
+      }
+    }
 
     if (updates.length > 0) {
       await sheets.spreadsheets.values.batchUpdate({
@@ -810,7 +868,10 @@ router.post('/abrechnungen', async (req, res, next) => {
       });
     }
 
-    res.status(201).json({ abrechnungsId, partnerId, gesamtNetto, gesamtBrutto, positionen: offene.length });
+    res.status(201).json({
+      abrechnungsId, partnerId, gesamtNetto, gesamtBrutto,
+      positionen: offene.length, interne: interne.positionen.length, interneSumme: interne.summe,
+    });
   } catch (err) { next(err); }
 });
 
@@ -870,6 +931,20 @@ router.delete('/abrechnungen/:id', async (req, res, next) => {
       const d = parseDate(r[vh('Datum')] ?? '');
       return d && von && bis && d >= von && d <= bis;
     }).map(r => ({ range: `${TAB_FP_VERKAEUFE}!${stCol}${r._sheetRow}`, values: [['offen']] }));
+
+    // 1b. Zugehörige interne Bestellungen (Partner + Zeitraum, abgerechnet) → 'offen'
+    const { header: iH, rows: iRows } = await readTab(sheets, sheetId, 'Partner_Interne_Bestellungen');
+    const ih = col => iH.indexOf(col);
+    const iStCol = ih('Status') !== -1 ? String.fromCharCode(65 + ih('Status')) : null;
+    if (iStCol) {
+      iRows.filter(r => {
+        if ((r[ih('Partner-ID')] ?? '') !== partnerId) return false;
+        if ((r[ih('Status')] ?? '').toLowerCase() !== 'abgerechnet') return false;
+        const d = parseDate(r[ih('Datum')] ?? '');
+        return d && von && bis && d >= von && d <= bis;
+      }).forEach(r => resets.push({ range: `Partner_Interne_Bestellungen!${iStCol}${r._sheetRow}`, values: [['offen']] }));
+    }
+
     if (resets.length) {
       await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: sheetId, requestBody: { valueInputOption: 'RAW', data: resets },
@@ -1012,5 +1087,9 @@ router.patch('/verkaeufe-eintrag/:rowId', async (req, res, next) => {
     res.json({ ok: true, sheetRow, netto, brutto });
   } catch (err) { next(err); }
 });
+
+// Für die Partner-Sicht (festpreis-public.js) wiederverwendbar – identische
+// Auszahlungs-Aggregation + Interne-Verrechnung wie im Admin.
+export { aggregateFpVerkaeufe, loadOffeneInterne };
 
 export default router;

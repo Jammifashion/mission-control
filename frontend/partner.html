@@ -242,15 +242,25 @@
       try {
         const data = await apiGet(`/api/partner/saldo?token=${encodeURIComponent(TOKEN)}`);
         const positiv  = data.saldo >= 0;
-        const label    = positiv ? 'Aktuelles Guthaben' : 'Aktueller Rückstand';
+        const label    = positiv ? 'Aktuelles Guthaben (brutto)' : 'Aktueller Rückstand (brutto)';
         const colorCls = positiv ? 'saldo-positive' : 'saldo-negative';
+        const lizenzNetto  = data.lizenzNetto ?? data.lizenzSumme ?? 0;
+        const lizenzBrutto = data.lizenzBrutto ?? lizenzNetto;
         wrap.innerHTML = `
           <div class="saldo-row">
-            <span>Verkäufe (Lizenz)</span>
-            <span class="amount saldo-positive">+${fmt(data.lizenzSumme)}</span>
+            <span>Verkäufe (Lizenz) netto</span>
+            <span class="amount saldo-positive">+${fmt(lizenzNetto)}</span>
+          </div>
+          <div class="saldo-row muted">
+            <span>zzgl. MwSt (${data.mwstProzent ?? 0} %)</span>
+            <span class="amount">+${fmt(lizenzBrutto - lizenzNetto)}</span>
           </div>
           <div class="saldo-row">
-            <span>Direkte Bestellungen</span>
+            <span>Verkäufe (Lizenz) brutto</span>
+            <span class="amount saldo-positive">+${fmt(lizenzBrutto)}</span>
+          </div>
+          <div class="saldo-row">
+            <span>Direkte Bestellungen (brutto)</span>
             <span class="amount saldo-negative">−${fmt(data.interneSumme)}</span>
           </div>
           <hr class="saldo-divider">
@@ -259,7 +269,7 @@
             <span class="amount ${colorCls}">${positiv ? '' : '−'}${fmt(Math.abs(data.saldo))}</span>
           </div>
           <p class="saldo-row muted" style="padding-top:0.6rem;">
-            Nur offene, noch nicht abgerechnete Positionen.
+            Nur offene, noch nicht abgerechnete Positionen${data.saldoNetto !== undefined ? ` · entspricht netto ${fmt(data.saldoNetto)}` : ''}.
           </p>`;
       } catch (e) {
         wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${e.message}</p>`;
@@ -327,8 +337,15 @@
           <tbody>${internRows}</tbody>
         </table></div>` : '';
 
-      const lizenzSumme  = (p.verkaeufe || []).reduce((s, v) => s + (v.lizenz || 0), 0);
+      const lizenzNetto  = (p.verkaeufe || []).reduce((s, v) => s + (v.lizenz || 0), 0);
       const interneSumme = (p.intern    || []).reduce((s, v) => s + (v.summe  || 0), 0);
+      const mwst         = p.mwstProzent ?? 0;
+      const lizenzBrutto = p.lizenzBrutto ?? (lizenzNetto * (1 + mwst / 100));
+      const mwstRow = mwst ? `
+            <div class="saldo-row muted">
+              <span>zzgl. MwSt (${mwst} %)</span>
+              <span class="amount">+${fmt(lizenzBrutto - lizenzNetto)}</span>
+            </div>` : '';
 
       return `
         <div class="abr-card">
@@ -354,16 +371,21 @@
 
           <div style="margin-top:1rem;padding:0.85rem 1rem;background:var(--bg);border:1px solid var(--border);border-radius:6px;max-width:480px;">
             <div class="saldo-row">
-              <span>Lizenz-Summe</span>
-              <span class="amount saldo-positive">+${fmt(lizenzSumme)}</span>
+              <span>Lizenz-Summe netto</span>
+              <span class="amount saldo-positive">+${fmt(lizenzNetto)}</span>
+            </div>
+            ${mwstRow}
+            <div class="saldo-row">
+              <span>Lizenz-Summe brutto</span>
+              <span class="amount saldo-positive">+${fmt(lizenzBrutto)}</span>
             </div>
             <div class="saldo-row">
-              <span>Direkte Bestellungen</span>
+              <span>Direkte Bestellungen (brutto)</span>
               <span class="amount saldo-negative">−${fmt(interneSumme)}</span>
             </div>
             <hr class="saldo-divider">
             <div class="saldo-row saldo-final">
-              <span>${r.status === 'bezahlt' ? 'Ausgezahlt' : 'Auszahlung'}</span>
+              <span>${r.status === 'bezahlt' ? 'Ausgezahlt (brutto)' : 'Auszahlung (brutto)'}</span>
               <span class="amount ${isPos ? 'saldo-positive' : 'saldo-negative'}">${summeSign}${fmt(Math.abs(r.saldo))}</span>
             </div>
           </div>
