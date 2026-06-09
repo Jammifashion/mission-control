@@ -61,6 +61,20 @@ async function loadPartner(sheets, sheetId, partnerId) {
   };
 }
 
+// Prüft, ob eine Partner-ID in 'Partner' ODER 'FP_Partner' existiert.
+// Interne Bestellungen werden im gemeinsamen Sheet geführt; der Festpreis-Reiter
+// nutzt FP-Partner-IDs, die nur im FP_Partner-Tab stehen.
+async function partnerIdExists(sheets, sheetId, partnerId) {
+  for (const tab of ['Partner', 'FP_Partner']) {
+    try {
+      const { header, rows } = await readTab(sheets, sheetId, tab);
+      const idx = header.indexOf('Partner-ID');
+      if (idx !== -1 && rows.some(r => (r[idx] ?? '') === partnerId)) return true;
+    } catch { /* Tab evtl. nicht vorhanden – ignorieren */ }
+  }
+  return false;
+}
+
 async function loadKonfiguration(sheets, sheetId) {
   const { header, rows } = await readTab(sheets, sheetId, 'Kalkulation_Fixkosten');
   return parseKonfiguration(rows, header);
@@ -374,8 +388,9 @@ router.post('/:id/intern', async (req, res, next) => {
     if (!bezeichnung || anzahl === undefined || einzelpreis === undefined)
       return res.status(400).json({ error: 'bezeichnung, anzahl, einzelpreis sind erforderlich.' });
 
-    const partner = await loadPartner(sheets, sheetId, req.params.id);
-    if (!partner) return res.status(404).json({ error: 'Partner nicht gefunden.' });
+    // Auch FP-Partner zulassen (Festpreis-Reiter nutzt denselben Endpoint).
+    if (!(await partnerIdExists(sheets, sheetId, req.params.id)))
+      return res.status(404).json({ error: 'Partner nicht gefunden.' });
 
     const anz = toFloat(anzahl);
     const ep  = toFloat(einzelpreis);
@@ -387,12 +402,12 @@ router.post('/:id/intern', async (req, res, next) => {
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       requestBody: { values: [[
-        partner.id, datum || todayDE(), bezeichnung, anz, ep, summe, 'offen',
+        req.params.id, datum || todayDE(), bezeichnung, anz, ep, summe, 'offen',
       ]] },
     });
 
     res.status(201).json({
-      partnerId: partner.id, datum: datum || todayDE(),
+      partnerId: req.params.id, datum: datum || todayDE(),
       bezeichnung, anzahl: anz, einzelpreis: ep, summe, status: 'offen',
     });
   } catch (err) { next(err); }
