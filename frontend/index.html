@@ -5322,7 +5322,8 @@
               const p = _ppPartners.find(x => x.id === btn.dataset.ppCopy);
               if (!p?.token) return;
               const apiUrl = window.API_BASE();
-              const link = `https://jammifashion.github.io/mission-control/partner.html?token=${encodeURIComponent(p.token)}${apiUrl ? '&api=' + encodeURIComponent(apiUrl) : ''}`;
+              const shopParam = p.shop === 'honk' ? '&shop=honk' : '';
+              const link = `https://jammifashion.github.io/mission-control/partner.html?token=${encodeURIComponent(p.token)}${apiUrl ? '&api=' + encodeURIComponent(apiUrl) : ''}${shopParam}`;
               try {
                 await navigator.clipboard.writeText(link);
                 window.showToast('Partner-Link kopiert!');
