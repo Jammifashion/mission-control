@@ -91,6 +91,17 @@
     .abr-summe.pos { color: #4caf50; }
     .abr-summe.neg { color: var(--danger); }
     .num { text-align: right; font-variant-numeric: tabular-nums; }
+    /* Eigenauftrag-Formular */
+    .ea-form { display: flex; flex-direction: column; gap: 0.85rem; max-width: 520px; }
+    .ea-label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.84rem; color: var(--muted); }
+    .ea-input { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.75rem; color: var(--text); font-size: 0.9rem; font-family: inherit; }
+    .ea-input:focus { outline: none; border-color: var(--accent); }
+    .ea-fieldset { border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+    .ea-fieldset legend { font-size: 0.84rem; color: var(--muted); padding: 0 0.4rem; }
+    .ea-radio { font-size: 0.88rem; color: var(--text); display: flex; align-items: center; gap: 0.4rem; cursor: pointer; }
+    .ea-adresse { display: flex; flex-direction: column; gap: 0.5rem; }
+    .ea-msg-ok { background: rgba(76,175,80,0.12); border: 1px solid rgba(76,175,80,0.4); color: var(--success); padding: 0.7rem 1rem; border-radius: 6px; font-size: 0.88rem; }
+    .ea-msg-err { background: rgba(244,67,54,0.1); border: 1px solid rgba(244,67,54,0.35); color: var(--danger); padding: 0.7rem 1rem; border-radius: 6px; font-size: 0.88rem; }
   </style>
 </head>
 <body>
@@ -116,6 +127,7 @@
 
     if (apiParam) localStorage.setItem('mc_api_url', apiParam.replace(/\/$/, ''));
     let API_BASE = localStorage.getItem('mc_api_url') || '';
+    let PARTNER_ID = '';
 
     const main = document.getElementById('main-content');
 
@@ -134,6 +146,22 @@
         throw err;
       }
       return r.json();
+    }
+
+    async function apiPost(path, body) {
+      if (!API_BASE) throw new Error('Backend-URL nicht konfiguriert.');
+      const r = await fetch(`${API_BASE}${withShop(path)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const err = new Error(data.error || r.statusText);
+        err.status = r.status;
+        throw err;
+      }
+      return data;
     }
 
     function fmt(val) {
@@ -392,6 +420,59 @@
         </div>`;
     }
 
+    // ── Eigenauftrag stellen ─────────────────────────────────────────────────
+    function initEigenauftrag() {
+      const form = document.getElementById('ea-form');
+      if (!form) return;
+      const adresse = document.getElementById('ea-adresse');
+      form.querySelectorAll('input[name="ea-liefer"]').forEach(r => {
+        r.addEventListener('change', () => {
+          const abw = form.querySelector('input[name="ea-liefer"]:checked').value === 'abweichend';
+          adresse.style.display = abw ? 'flex' : 'none';
+        });
+      });
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const msg = document.getElementById('ea-msg');
+        msg.className = ''; msg.textContent = '';
+
+        const artikel   = document.getElementById('ea-artikel').value.trim();
+        const menge     = document.getElementById('ea-menge').value;
+        const varianten = document.getElementById('ea-varianten').value.trim();
+        if (!artikel || !menge || !varianten) {
+          msg.className = 'ea-msg-err';
+          msg.textContent = 'Bitte Artikel, Menge und Varianten ausfüllen.';
+          return;
+        }
+
+        const payload = {
+          artikel, menge: Number(menge), varianten,
+          lieferTyp:     form.querySelector('input[name="ea-liefer"]:checked').value,
+          lieferName:    document.getElementById('ea-name').value.trim(),
+          lieferStrasse: document.getElementById('ea-strasse').value.trim(),
+          lieferPlzOrt:  document.getElementById('ea-plzort').value.trim(),
+          wunschtermin:  document.getElementById('ea-termin').value,
+          anmerkungen:   document.getElementById('ea-anmerkungen').value.trim(),
+        };
+
+        const btn = document.getElementById('ea-submit');
+        btn.disabled = true;
+        try {
+          await apiPost(`/api/partner/${encodeURIComponent(PARTNER_ID)}/eigenauftrag`, payload);
+          msg.className = 'ea-msg-ok';
+          msg.textContent = 'Dein Auftrag wurde übermittelt.';
+          form.reset();
+          adresse.style.display = 'none';
+        } catch (err) {
+          msg.className = 'ea-msg-err';
+          msg.textContent = `Fehler: ${err.message}`;
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    }
+
     // ── Init ─────────────────────────────────────────────────────────────────
     async function init() {
       const shopLabel = SHOP === 'honk' ? 'HonkShop' : 'JammiFashion';
@@ -402,6 +483,7 @@
       main.innerHTML = '<div class="skeleton" style="height:60px;border-radius:8px;"></div>';
       try {
         const me = await apiGet(`/api/partner/auth?token=${encodeURIComponent(TOKEN)}`);
+        PARTNER_ID = me.partnerId || '';
         document.getElementById('partner-name-header').textContent = me.partnerName;
         document.title = `${me.partnerName} – JammiFashion Partner Portal`;
       } catch (e) {
@@ -427,6 +509,40 @@
         </div>
         <div class="card">
           <div class="card-header">
+            <h2>Eigenauftrag stellen</h2>
+          </div>
+          <form id="ea-form" class="ea-form">
+            <div id="ea-msg"></div>
+            <label class="ea-label">Artikel / Produkt *
+              <input class="ea-input" id="ea-artikel" type="text" required>
+            </label>
+            <label class="ea-label">Menge *
+              <input class="ea-input" id="ea-menge" type="number" min="1" step="1" required>
+            </label>
+            <label class="ea-label">Größen / Varianten *
+              <input class="ea-input" id="ea-varianten" type="text" placeholder="z.B. 5x S, 10x M, 3x XL" required>
+            </label>
+            <fieldset class="ea-fieldset">
+              <legend>Lieferadresse</legend>
+              <label class="ea-radio"><input type="radio" name="ea-liefer" value="mich" checked> An mich</label>
+              <label class="ea-radio"><input type="radio" name="ea-liefer" value="abweichend"> Abweichende Adresse</label>
+              <div id="ea-adresse" class="ea-adresse" style="display:none;">
+                <input class="ea-input" id="ea-name" type="text" placeholder="Name">
+                <input class="ea-input" id="ea-strasse" type="text" placeholder="Straße & Hausnummer">
+                <input class="ea-input" id="ea-plzort" type="text" placeholder="PLZ & Ort">
+              </div>
+            </fieldset>
+            <label class="ea-label">Wunschtermin
+              <input class="ea-input" id="ea-termin" type="date">
+            </label>
+            <label class="ea-label">Anmerkungen
+              <textarea class="ea-input" id="ea-anmerkungen" rows="3"></textarea>
+            </label>
+            <button class="btn" type="submit" id="ea-submit">Eigenauftrag absenden</button>
+          </form>
+        </div>
+        <div class="card">
+          <div class="card-header">
             <h2>Saldo (offene Posten)</h2>
           </div>
           <div id="pv-saldo"><div class="skeleton" style="height:120px;"></div></div>
@@ -443,6 +559,8 @@
         loadIntern();
         loadSaldo();
       });
+
+      initEigenauftrag();
 
       await Promise.all([loadVerkaeufe(), loadIntern(), loadSaldo(), loadAbrechnungen()]);
     }

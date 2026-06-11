@@ -42,6 +42,27 @@ function parseDate(s) {
   return Number.isNaN(dt.getTime()) ? null : dt;
 }
 
+// Spaltenindex (0-basiert) → Spaltenbuchstabe (A, B, …, AA).
+function colLetter(idx) {
+  let s = '';
+  idx++;
+  while (idx > 0) { idx--; s = String.fromCharCode(65 + (idx % 26)) + s; idx = Math.floor(idx / 26); }
+  return s;
+}
+
+// Prüft, ob eine Partner-ID in 'Partner' ODER 'FP_Partner' existiert.
+// (Eigenaufträge kommen sowohl aus partner.html als auch partner-festpreis.html.)
+async function partnerIdExists(sheets, sheetId, partnerId) {
+  for (const tab of ['Partner', 'FP_Partner']) {
+    try {
+      const { header, rows } = await readTab(sheets, sheetId, tab);
+      const idx = header.indexOf('Partner-ID');
+      if (idx !== -1 && rows.some(r => (r[idx] ?? '') === partnerId)) return true;
+    } catch { /* Tab evtl. nicht vorhanden – ignorieren */ }
+  }
+  return false;
+}
+
 // WC-Status für NEUE Einträge. refunded/cancelled/failed/trash werden NICHT
 // als Verkauf erfasst; refunded/cancelled lösen stattdessen Storno-Gegeneinträge aus.
 const WC_STATES_VERKAUF = ['processing', 'completed', 'on-hold'];
@@ -593,6 +614,93 @@ router.get('/abrechnungen', async (req, res, next) => {
           positionen,
         };
       }));
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/partner/:id/eigenauftrag ───────────────────────────────────────
+// Öffentlich (kein API-Key): Partner stellt einen Eigenauftrag direkt im Portal.
+// Die Partner-ID wird zuvor über die Token-Auth der Portalseite ermittelt und hier
+// im Pfad mitgegeben. Schreibt nach Partner_Interne_Bestellungen mit Status 'Neu'
+// und Kanal 'Portal'. Preis/Summe bleiben leer und werden später vom Admin gepflegt.
+// Pflichtfelder: artikel, menge, varianten.
+router.post('/:id/eigenauftrag', async (req, res, next) => {
+  try {
+    const sheetId = process.env.BUSINESS_SHEET_ID;
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
+
+    const partnerId = req.params.id;
+    const { artikel, menge, varianten, lieferTyp,
+            lieferName, lieferStrasse, lieferPlzOrt, wunschtermin, anmerkungen } = req.body;
+
+    const artikelTrim   = (artikel   ?? '').toString().trim();
+    const variantenTrim = (varianten ?? '').toString().trim();
+    const mengeNum      = toFloat(menge, 0);
+    if (!artikelTrim || !variantenTrim || !(mengeNum > 0))
+      return res.status(400).json({ error: 'Artikel, Menge und Varianten sind Pflichtfelder.' });
+
+    const sheets = await getSheets();
+    if (!(await partnerIdExists(sheets, sheetId, partnerId)))
+      return res.status(404).json({ error: 'Partner nicht gefunden.' });
+
+    // Eigenauftrag-Details in die Bezeichnung komponieren (bestehende Admin-/Abrechnungs-
+    // Ansichten lesen nur Bezeichnung – so bleiben alle Felder ohne Schemaänderung sichtbar).
+    const teile = [artikelTrim, `Varianten: ${variantenTrim}`];
+    if ((lieferTyp ?? '') === 'abweichend') {
+      const adr = [lieferName, lieferStrasse, lieferPlzOrt].map(v => (v ?? '').toString().trim()).filter(Boolean);
+      teile.push(`Lieferung abweichend: ${adr.join(', ') || '—'}`);
+    } else {
+      teile.push('Lieferung an Partner');
+    }
+    if ((wunschtermin ?? '').toString().trim()) teile.push(`Wunschtermin: ${wunschtermin.toString().trim()}`);
+    if ((anmerkungen  ?? '').toString().trim()) teile.push(`Anmerkung: ${anmerkungen.toString().trim()}`);
+    const bezeichnung = teile.join(' | ');
+
+    // Spaltenlayout ermitteln; Kanal-Spalte ggf. neu anlegen.
+    const { header } = await readTab(sheets, sheetId, 'Partner_Interne_Bestellungen');
+    const kanalIsNew = header.indexOf('Kanal') === -1;
+    const kanalIdx   = kanalIsNew ? header.length : header.indexOf('Kanal');
+
+    // Beim ersten Mal Kanal-Header setzen und bestehende Einträge als 'Manuell' markieren.
+    if (kanalIsNew) {
+      const { data: colA } = await sheets.spreadsheets.values.get({
+        spreadsheetId: sheetId, range: 'Partner_Interne_Bestellungen!A:A',
+      });
+      const totalRows = (colA.values ?? []).length; // inkl. Header-Zeile
+      const kanalCol  = colLetter(kanalIdx);
+      const data = [{ range: `Partner_Interne_Bestellungen!${kanalCol}1`, values: [['Kanal']] }];
+      if (totalRows > 1)
+        data.push({
+          range:  `Partner_Interne_Bestellungen!${kanalCol}2:${kanalCol}${totalRows}`,
+          values: Array.from({ length: totalRows - 1 }, () => ['Manuell']),
+        });
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: sheetId,
+        requestBody: { valueInputOption: 'RAW', data },
+      });
+    }
+
+    // Zeile anhand der Header-Positionen aufbauen (Einzelpreis/Summe bleiben leer).
+    const rowArr = new Array(Math.max(header.length, kanalIdx + 1)).fill('');
+    const setCol = (name, val) => { const i = header.indexOf(name); if (i !== -1) rowArr[i] = val; };
+    setCol('Partner-ID',  partnerId);
+    setCol('Datum',       toDE(new Date()));
+    setCol('Bezeichnung', bezeichnung);
+    setCol('Anzahl',      mengeNum);
+    setCol('Status',      'Neu');
+    rowArr[kanalIdx] = 'Portal';
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: sheetId,
+      range: `Partner_Interne_Bestellungen!A:${colLetter(rowArr.length - 1)}`,
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [rowArr] },
+    });
+
+    res.status(201).json({
+      partnerId, bezeichnung, anzahl: mengeNum,
+      status: 'Neu', kanal: 'Portal',
+    });
   } catch (err) { next(err); }
 });
 
