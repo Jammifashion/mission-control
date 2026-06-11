@@ -436,6 +436,30 @@ router.get('/:id/intern', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── GET /interne-bestellungen ─────────────────────────────────────────────────
+// Alle internen Bestellungen (alle Partner) inkl. Kanal-Spalte – für den
+// Auftragsmonitor (Sektion "Partner-Eigenaufträge"). Admin-Endpunkt (requireApiKey).
+router.get('/interne-bestellungen', async (req, res, next) => {
+  try {
+    const sheetId = requireSheetId(res); if (!sheetId) return;
+    const sheets  = await getSheets();
+    const { header, rows } = await readTab(sheets, sheetId, 'Partner_Interne_Bestellungen');
+    const h = col => header.indexOf(col);
+
+    res.json(rows.map((r) => ({
+      rowId:       r._sheetRow,
+      partnerId:   r[h('Partner-ID')]  ?? '',
+      datum:       r[h('Datum')]       ?? '',
+      bezeichnung: r[h('Bezeichnung')] ?? '',
+      anzahl:      toFloat(r[h('Anzahl')]),
+      einzelpreis: toFloat(r[h('Einzelpreis')]),
+      summe:       toFloat(r[h('Summe')]),
+      status:      r[h('Status')]      ?? '',
+      kanal:       r[h('Kanal')]       ?? '',
+    })));
+  } catch (err) { next(err); }
+});
+
 // ── PATCH /:id/intern/:rowId/status ──────────────────────────────────────────
 router.patch('/:id/intern/:rowId/status', async (req, res, next) => {
   try {

@@ -359,6 +359,23 @@
       .badge-ready      { background: #1a4a2e; color: var(--success); }
       .badge-idle       { background: #2a2a2a; color: var(--muted); }
 
+      /* ── Auftragsmonitor: Tab-Zähler + Login-Toast (Sprint 5.6d) ── */
+      .nav-badge {
+        display: none; margin-left: 0.4rem; padding: 0.05em 0.5em;
+        border-radius: 999px; font-size: 0.7rem; font-weight: 700;
+        background: var(--accent); color: #1a1a1a; vertical-align: middle;
+      }
+      .nav-badge.has-count { display: inline-block; }
+      .mc-login-toast {
+        position: fixed; top: 1.25rem; right: 1.5rem; z-index: 10000;
+        background: #1e1e1e; border: 1px solid var(--accent); border-radius: 8px;
+        padding: 0.7rem 1.1rem; font-size: 0.86rem; color: var(--fg);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.45); max-width: 320px; cursor: pointer;
+        animation: toastIn 0.18s ease;
+      }
+      .mc-login-toast:hover { background: #262017; }
+      .mc-login-toast strong { color: var(--accent); }
+
       /* ── Product generator ── */
       .field-group { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.85rem; }
       .field-group label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -923,7 +940,7 @@
 
     <nav>
       <button class="active" data-panel="dashboard">Dashboard</button>
-      <button data-panel="orders"><span id="nav-orders-label">Auftragsmonitor</span></button>
+      <button data-panel="orders"><span id="nav-orders-label">Auftragsmonitor</span><span id="nav-orders-badge" class="nav-badge"></span></button>
       <button data-panel="products">Produkte</button>
       <button data-panel="anfragen">Kundenanfragen Extern</button>
       <button data-panel="agent-wissen">Agent-Wissen</button>
@@ -999,6 +1016,7 @@
           <button class="sub-tab active" data-subtab="tab-jfn-shop">Jammifashion Shop</button>
           <button class="sub-tab" data-subtab="tab-dtf">DTF Bestellungen</button>
           <button class="sub-tab" data-subtab="tab-lshop">L-Shop Bestellungen</button>
+          <button class="sub-tab" data-subtab="tab-eingaenge">Anfragen &amp; Eigenaufträge</button>
         </div>
 
         <div id="tab-jfn-shop" class="sub-tab-panel active">
@@ -1034,6 +1052,17 @@
             <div id="lshop-protokoll" class="lshop-panel" style="display:none;">
               <div class="skeleton"></div><div class="skeleton"></div>
             </div>
+          </div>
+        </div>
+
+        <div id="tab-eingaenge" class="sub-tab-panel">
+          <div class="card">
+            <h2>Kundenanfragen</h2>
+            <div id="mon-anfragen-list"><div class="skeleton"></div><div class="skeleton"></div></div>
+          </div>
+          <div class="card">
+            <h2>Partner-Eigenaufträge</h2>
+            <div id="mon-eigen-list"><div class="skeleton"></div><div class="skeleton"></div></div>
           </div>
         </div>
       </section>
@@ -2201,10 +2230,136 @@
           document.querySelectorAll('#panel-orders .sub-tab-panel').forEach(p => p.classList.remove('active'));
           btn.classList.add('active');
           panel.classList.add('active');
-          if (btn.dataset.subtab === 'tab-lshop') loadLShopOffen();
-          if (btn.dataset.subtab === 'tab-dtf')   loadDtfOffen();
+          if (btn.dataset.subtab === 'tab-lshop')     loadLShopOffen();
+          if (btn.dataset.subtab === 'tab-dtf')       loadDtfOffen();
+          if (btn.dataset.subtab === 'tab-eingaenge') loadAuftragsMonitor();
         });
       });
+
+      // ── SECTION: Auftragsmonitor Dual-Source (Sprint 5.6d) ──
+      // Zwei Quellen: Kundenanfragen (Sheet Kundenanfragen) + Partner-Eigenaufträge
+      // (Partner_Interne_Bestellungen, nur Kanal=Portal). Eine Abfrage versorgt
+      // Tabellen, Tab-Badge und Login-Toast gleichermaßen.
+      const MON_ANF_DONE   = ['Abgeschlossen', 'Abgelehnt'];
+      const MON_EIGEN_DONE = ['Erledigt', 'Abgerechnet'];
+      let monCache = null;
+
+      function monEsc(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+      }
+      // "TT.MM.JJJJ" → ms-Timestamp (Tagesbeginn); leer/ungültig → 0.
+      function monParseDate(s) {
+        const m = String(s ?? '').trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+        return m ? new Date(+m[3], +m[2] - 1, +m[1]).getTime() : 0;
+      }
+      function monOpenAnfragen(rows)  { return rows.filter(a => !MON_ANF_DONE.includes(a.status)); }
+      function monOpenEigen(rows)     { return rows.filter(e => !MON_EIGEN_DONE.includes(e.status)); }
+
+      async function monFetchData(force = false) {
+        if (monCache && !force) return monCache;
+        const [anfRes, eigenRes] = await Promise.all([
+          apiFetch(`${API_BASE()}/api/anfragen`),
+          apiFetch(`${API_BASE()}/api/partner/interne-bestellungen`),
+        ]);
+        const anfragen = anfRes.ok   ? await anfRes.json()   : [];
+        const eigenAll = eigenRes.ok ? await eigenRes.json() : [];
+        // Nur Portal-Eigenaufträge – manuelle Einträge gehören nicht in den Monitor.
+        const eigen = eigenAll.filter(e => (e.kanal || '') === 'Portal');
+        monCache = { anfragen, eigen };
+        return monCache;
+      }
+
+      function monUpdateBadge(anfragen, eigen) {
+        const badge = document.getElementById('nav-orders-badge');
+        if (!badge) return;
+        const count = monOpenAnfragen(anfragen).length + monOpenEigen(eigen).length;
+        badge.textContent = count > 0 ? count : '';
+        badge.classList.toggle('has-count', count > 0);
+      }
+
+      function monRenderAnfragen(rows) {
+        const wrap = document.getElementById('mon-anfragen-list');
+        if (!wrap) return;
+        const open = monOpenAnfragen(rows).sort((a, b) => (b.anfrageId || '').localeCompare(a.anfrageId || ''));
+        if (!open.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine offenen Kundenanfragen.</p>'; return; }
+        wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+          <thead><tr><th>Anfrage-ID</th><th>Datum</th><th>Kunde</th><th>Produkt</th><th>Menge</th><th>Status</th></tr></thead>
+          <tbody>${open.map(a => `<tr>
+            <td>${monEsc(a.anfrageId)}</td>
+            <td>${monEsc(a.datum || '—')}</td>
+            <td>${monEsc(a.kundeName || '—')}</td>
+            <td>${monEsc(a.produktBeschreibung || '—')}</td>
+            <td>${monEsc(a.menge || '—')}</td>
+            <td><span class="badge badge-pending">${monEsc(a.status || '—')}</span></td>
+          </tr>`).join('')}</tbody></table></div>`;
+      }
+
+      function monRenderEigen(rows) {
+        const wrap = document.getElementById('mon-eigen-list');
+        if (!wrap) return;
+        const open = monOpenEigen(rows).sort((a, b) =>
+          (monParseDate(b.datum) - monParseDate(a.datum)) || ((b.rowId || 0) - (a.rowId || 0)));
+        if (!open.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine offenen Partner-Eigenaufträge.</p>'; return; }
+        wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+          <thead><tr><th>Partner-ID</th><th>Bezeichnung</th><th>Menge</th><th>Status</th><th>Kanal</th></tr></thead>
+          <tbody>${open.map(e => `<tr>
+            <td>${monEsc(e.partnerId)}</td>
+            <td>${monEsc(e.bezeichnung || '—')}</td>
+            <td>${monEsc(e.anzahl || '—')}</td>
+            <td><span class="badge badge-pending">${monEsc(e.status || '—')}</span></td>
+            <td>${monEsc(e.kanal || '—')}</td>
+          </tr>`).join('')}</tbody></table></div>`;
+      }
+
+      async function loadAuftragsMonitor(force = true) {
+        const aWrap = document.getElementById('mon-anfragen-list');
+        const eWrap = document.getElementById('mon-eigen-list');
+        if (aWrap) aWrap.innerHTML = '<div class="skeleton"></div>';
+        if (eWrap) eWrap.innerHTML = '<div class="skeleton"></div>';
+        try {
+          const { anfragen, eigen } = await monFetchData(force);
+          monRenderAnfragen(anfragen);
+          monRenderEigen(eigen);
+          monUpdateBadge(anfragen, eigen);
+        } catch (e) {
+          if (aWrap) aWrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${monEsc(e.message)}</p>`;
+          if (eWrap) eWrap.innerHTML = '';
+        }
+      }
+
+      function monGoToMonitor() {
+        document.querySelector('nav button[data-panel="orders"]')?.click();
+        document.querySelector('#panel-orders .sub-tab[data-subtab="tab-eingaenge"]')?.click();
+      }
+
+      function monShowLoginToast(count) {
+        const el = document.createElement('div');
+        el.className = 'mc-login-toast';
+        el.innerHTML = `<strong>${count}</strong> neue${count === 1 ? 'r Auftrag' : ' Aufträge'} seit deinem letzten Besuch`;
+        el.title = 'Zum Auftragsmonitor';
+        el.addEventListener('click', () => { el.remove(); monGoToMonitor(); });
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 8000);
+      }
+
+      // Beim MC-Start: Badge setzen + ggf. Toast für neue Einträge seit letztem Besuch.
+      async function monInitOnLoad() {
+        let data;
+        try { data = await monFetchData(true); } catch { return; }
+        const { anfragen, eigen } = data;
+        monUpdateBadge(anfragen, eigen);
+
+        const LAST_KEY = 'mc_last_login';
+        const last = parseInt(localStorage.getItem(LAST_KEY) ?? '', 10);
+        if (Number.isFinite(last)) {
+          const isNew = x => monParseDate(x.datum) > last;
+          const neu = monOpenAnfragen(anfragen).filter(isNew).length
+                    + monOpenEigen(eigen).filter(isNew).length;
+          if (neu > 0) monShowLoginToast(neu);
+        }
+        // Erster Besuch (kein Timestamp) → nur setzen, kein Toast.
+        localStorage.setItem(LAST_KEY, String(Date.now()));
+      }
 
       // ── DTF inner Tab-Wechsel ─────────────────────────────────────────────
       document.querySelectorAll('.dtf-tab').forEach(btn => {
@@ -5167,6 +5322,7 @@
       // ── Init ─────────────────────────────────────────────────────────────
       loadDashboard();
       loadSsotData();
+      monInitOnLoad();
     </script>
 
     <style>
