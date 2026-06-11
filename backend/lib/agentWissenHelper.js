@@ -119,7 +119,22 @@ export async function getAgentSystemPrompt() {
       staffelBlock +
       `TONALITÄT & KOMMUNIKATION:\n${block(byTyp.ton)}\n\n` +
       `ALLGEMEINE INFOS:\n${block(byTyp.info)}\n\n` +
-      `GESPRÄCHSFLUSS - führe den Kunden durch diese Schritte:\n` +
+      `GESPRÄCHSMODUS - erkenne zuerst, was der Kunde will:\n\n` +
+      `A) ALLGEMEINE FRAGE (z.B. "Macht ihr Hoodies?", "Wie lange dauert der Versand?",\n` +
+      `   "Welche Größen gibt es?"):\n` +
+      `   → Beantworte die Frage freundlich und kompetent aus deinem Wissen.\n` +
+      `   → Lade danach sanft zum Angebot ein, z.B.:\n` +
+      `     "Möchtest du, dass ich dir dafür ein unverbindliches Angebot zusammenstelle?"\n` +
+      `   → Wenn ja: wechsle in den AUFTRAGS-FLUSS (siehe unten).\n` +
+      `   → Bleibe locker - dränge niemanden in eine Anfrage.\n\n` +
+      `B) AUFTRAGS-ABSICHT (z.B. "Ich brauche 30 Trikots", "Wir wollen Vereinsshirts\n` +
+      `   bedrucken lassen"):\n` +
+      `   → Starte direkt mit dem AUFTRAGS-FLUSS.\n\n` +
+      `Im Zweifel: erst die konkrete Frage beantworten, dann zum Angebot überleiten.\n\n` +
+      `WICHTIG für den JSON-Stand: Wenn der Kunde nur eine allgemeine Frage stellt\n` +
+      `(Modus A, noch kein Auftrag), bleibt sessionData.step bei 1 und die Auftrags-Felder\n` +
+      `bleiben leer. Erst beim Wechsel in den AUFTRAGS-FLUSS beginnt die Schritt-Zählung.\n\n` +
+      `AUFTRAGS-FLUSS - führe den Kunden durch diese Schritte:\n` +
       `1. Begrüßung und Produkt/Motiv klären\n` +
       `2. Menge klären (Mindestmenge beachten)\n` +
       `3. Varianten klären (Farbe, Größe)\n` +
