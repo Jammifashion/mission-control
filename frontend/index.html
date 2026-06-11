@@ -1016,7 +1016,7 @@
           <button class="sub-tab active" data-subtab="tab-jfn-shop">Jammifashion Shop</button>
           <button class="sub-tab" data-subtab="tab-dtf">DTF Bestellungen</button>
           <button class="sub-tab" data-subtab="tab-lshop">L-Shop Bestellungen</button>
-          <button class="sub-tab" data-subtab="tab-eingaenge">Anfragen &amp; Eigenaufträge</button>
+          <button class="sub-tab" data-subtab="tab-eingaenge">Anfragen &amp; Eigenaufträge<span id="sub-eingaenge-badge" class="nav-badge"></span></button>
         </div>
 
         <div id="tab-jfn-shop" class="sub-tab-panel active">
@@ -2270,11 +2270,14 @@
       }
 
       function monUpdateBadge(anfragen, eigen) {
-        const badge = document.getElementById('nav-orders-badge');
-        if (!badge) return;
         const count = monOpenAnfragen(anfragen).length + monOpenEigen(eigen).length;
-        badge.textContent = count > 0 ? count : '';
-        badge.classList.toggle('has-count', count > 0);
+        // Zähler am Haupt-Tab (Auftragsmonitor) UND am Sub-Reiter (Anfragen & Eigenaufträge).
+        ['nav-orders-badge', 'sub-eingaenge-badge'].forEach(id => {
+          const badge = document.getElementById(id);
+          if (!badge) return;
+          badge.textContent = count > 0 ? count : '';
+          badge.classList.toggle('has-count', count > 0);
+        });
       }
 
       function monRenderAnfragen(rows) {
