@@ -5703,6 +5703,11 @@
         const [y, m, d] = iso.split('-');
         return `${d}.${m}.${y}`;
       }
+      // HTML-Escape für diesen (Nicht-Modul-)Script-Block. anfEscape lebt im
+      // isolierten <script type="module"> und ist hier nicht erreichbar.
+      function _escHtml(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+      }
       function _getTodayIso() {
         const d = new Date();
         const y = d.getFullYear();
@@ -7036,9 +7041,10 @@
             const opts = STATUSES.map(s =>
               `<option value="${s}"${s === r.status ? ' selected' : ''}>${s}</option>`
             ).join('');
-            const editBtn = r.status === 'abgerechnet'
+            const actions = r.status === 'abgerechnet'
               ? ''
-              : `<button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;" data-int-edit="${r.rowId}">Bearbeiten</button>`;
+              : `<button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;" data-int-edit="${r.rowId}">Bearbeiten</button>
+                 <button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;margin-top:0.25rem;color:var(--danger);" data-int-del="${r.rowId}">Löschen</button>`;
             return `<tr>
               <td>${r.datum}</td>
               <td>${r.bezeichnung}</td>
@@ -7048,7 +7054,7 @@
               <td><span class="badge ${badge(r.status)}" style="margin-bottom:0.35rem;display:inline-block;">${r.status}</span><br>
                 <select class="form-select" style="font-size:0.78rem;padding:0.22rem 0.5rem;margin-top:0.15rem;"
                   data-int-sel="${r.rowId}" data-int-cur="${r.status}">${opts}</select></td>
-              <td style="text-align:right;">${editBtn}</td>
+              <td style="text-align:right;white-space:nowrap;">${actions}</td>
             </tr>`;
           }).join('')}</tbody>
         </table></div>`;
@@ -7081,6 +7087,30 @@
             if (row) openInternModal(row);
           });
         });
+
+        wrap.querySelectorAll('[data-int-del]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const row = _internState.rows.find(r => String(r.rowId) === btn.dataset.intDel);
+            if (!row) return;
+            const ok = await window.showConfirm(
+              'Interne Bestellung löschen?',
+              `<strong>${_escHtml(row.bezeichnung)}</strong> (${row.datum}) wird unwiderruflich gelöscht.`,
+              'Löschen', 'Abbrechen'
+            );
+            if (!ok) return;
+            try {
+              const r = await window.apiFetch(
+                `${window.API_BASE()}/api/partner/${_internState.partnerId}/intern/${row.rowId}`,
+                { method: 'DELETE' }
+              );
+              if (!r.ok) throw new Error((await r.json()).error || r.statusText);
+              window.showToast('Interne Bestellung gelöscht.');
+              loadInternTable();
+            } catch (e) {
+              window.showToast(`Fehler: ${e.message}`, 'toast-error');
+            }
+          });
+        });
       }
 
       // existing = null → Neuanlage (POST); sonst Bearbeiten (PATCH) der internen Bestellung.
@@ -7101,7 +7131,7 @@
             <div class="form-field"><label>Anzahl *</label>
               <input class="form-input" type="number" id="int-a" min="1" step="1" value="${aVal}"></div>
             <div class="form-field form-col-full"><label>Bezeichnung *</label>
-              <input class="form-input" id="int-b" placeholder="z.B. Werbeshirts April" value="${anfEscape ? anfEscape(bVal) : bVal}"></div>
+              <input class="form-input" id="int-b" placeholder="z.B. Werbeshirts April" value="${_escHtml(bVal)}"></div>
             <div class="form-field"><label>Einzelpreis brutto (€)</label>
               <input class="form-input" type="number" id="int-e" min="0" step="0.01" value="${eVal}"></div>
           </div>

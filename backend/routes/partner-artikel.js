@@ -544,4 +544,53 @@ router.patch('/:id/intern/:rowId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── DELETE /:id/intern/:zeilenId ──────────────────────────────────────────────
+// Löscht die Zeile aus Partner_Interne_Bestellungen anhand des echten Sheet-
+// Zeilenindex (_sheetRow). Abgerechnete Einträge sind gesperrt (Teil einer
+// freigegebenen Abrechnung).
+router.delete('/:id/intern/:zeilenId', async (req, res, next) => {
+  try {
+    const sheetId = requireSheetId(res); if (!sheetId) return;
+    const sheets  = await getSheets();
+    const { header, rows } = await readTab(sheets, sheetId, 'Partner_Interne_Bestellungen');
+    const h = col => header.indexOf(col);
+
+    const sheetRow = parseInt(req.params.zeilenId, 10);
+    if (!sheetRow || sheetRow < 2)
+      return res.status(400).json({ error: 'Ungültige Zeilen-ID.' });
+
+    const row = rows.find(r => r._sheetRow === sheetRow);
+    if (!row)
+      return res.status(404).json({ error: 'Bestellung nicht gefunden.' });
+    if ((row[h('Partner-ID')] ?? '') !== req.params.id)
+      return res.status(404).json({ error: 'Bestellung gehört nicht zu diesem Partner.' });
+    if ((row[h('Status')] ?? '') === 'abgerechnet')
+      return res.status(409).json({ error: 'Abgerechnete Bestellungen können nicht gelöscht werden.' });
+
+    // Numerische sheetId (gridId) für deleteDimension holen.
+    const meta = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: 'sheets.properties' });
+    const sheetGid = meta.data.sheets.find(s => s.properties.title === 'Partner_Interne_Bestellungen')?.properties.sheetId;
+    if (sheetGid === undefined)
+      return res.status(503).json({ error: 'Sheet "Partner_Interne_Bestellungen" nicht gefunden.' });
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: sheetId,
+      requestBody: {
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: sheetGid,
+              dimension: 'ROWS',
+              startIndex: sheetRow - 1, // 0-basiert inclusive
+              endIndex:   sheetRow,     // 0-basiert exclusive
+            },
+          },
+        }],
+      },
+    });
+
+    res.json({ partnerId: req.params.id, rowId: sheetRow, deleted: true });
+  } catch (err) { next(err); }
+});
+
 export default router;
