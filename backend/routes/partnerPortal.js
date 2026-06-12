@@ -3,6 +3,7 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient as wcClientForShop, getShopConfig } from '../lib/shopConfig.js';
 import { berechnePartnerAnteil, parseKonfiguration } from '../utils/partner-kalkulation.js';
+import { toFloat, toDE, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, buildStornoRows } from '../utils/sync-logic.js';
 
 const router = Router();
 
@@ -20,18 +21,6 @@ async function readTab(sheets, sheetId, tabName) {
   });
   const [header, ...rows] = data.values ?? [];
   return { header: header ?? [], rows: rows.filter(r => r.some(c => c)) };
-}
-
-// Robustes parseFloat: behandelt Komma als Dezimaltrennzeichen (DE-Format aus Sheet).
-function toFloat(val, fallback = 0) {
-  if (val === null || val === undefined || val === '') return fallback;
-  const n = parseFloat(val.toString().replace(',', '.'));
-  return Number.isNaN(n) ? fallback : n;
-}
-
-function toDE(date) {
-  const d = new Date(date);
-  return `${String(d.getUTCDate()).padStart(2,'0')}.${String(d.getUTCMonth()+1).padStart(2,'0')}.${d.getUTCFullYear()}`;
 }
 
 function parseDate(s) {
@@ -63,11 +52,8 @@ async function partnerIdExists(sheets, sheetId, partnerId) {
   return false;
 }
 
-// WC-Status für NEUE Einträge. refunded/cancelled/failed/trash werden NICHT
-// als Verkauf erfasst; refunded/cancelled lösen stattdessen Storno-Gegeneinträge aus.
-const WC_STATES_VERKAUF = ['processing', 'completed', 'on-hold'];
-const WC_STATES_STORNO  = ['refunded', 'cancelled'];
-const STORNO_MARKER     = 'Storniert/Rückerstattet';
+// WC-Status: VERKAUF = processing/completed/on-hold, STORNO = refunded/cancelled
+// (importiert aus sync-logic.js)
 
 function buildSyncMessage(neu, storniert) {
   if (!neu && !storniert) return 'Alle Einträge bereits vorhanden – nichts Neues.';
@@ -90,60 +76,6 @@ async function fetchOrders(wc, statuses, afterParam) {
     if (results.every(r => r.data.length < 100)) break;
   }
   return all;
-}
-
-// Erzeugt negative Gegeneinträge für bestehende Verkaufs-Zeilen, deren Order in WC
-// auf refunded/cancelled steht. Der Originaleintrag bleibt unverändert; der
-// Gegeneintrag bekommt Status 'offen' (Spalte I) → fließt negativ in Saldo/Abrechnung,
-// sowie den Storno-Marker in Spalte O. Spalten-Layout fix (identisch zum Append A:N).
-function buildStornoRows(vRows, vh, stornoOrders, partnerFilter) {
-  const ordIdx = vh('Order-ID');
-  const artIdx = vh('Artikelnummer');
-  const varIdx = vh('Variante');
-  const pIdx   = vh('Partner-ID');
-  const varKey = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
-
-  // Order-ID → Storno-Datum (Zeitpunkt der Rückerstattung/Stornierung)
-  const refundDate = new Map(
-    stornoOrders.map(o => [String(o.id), toDE(new Date(o.date_modified || o.date_created))])
-  );
-
-  // Fixe Spalten-Positionen (so wie beim Append A:N geschrieben)
-  const NEG_COLS   = [5, 6, 7, 10, 11, 12, 13]; // Stückzahl, VK, Lizenz, gewinn, lizenzAnteil, portoSaldo, brutto
-  const STATUS_COL = 8;   // I
-  const DATE_COL   = 1;   // B
-  const STORNO_COL = 14;  // O
-
-  // Bereits stornierte Kombinationen (Spalte O gesetzt) nicht doppelt anlegen
-  const stornoDone = new Set();
-  for (const r of vRows) {
-    if ((r[STORNO_COL] ?? '') !== '')
-      stornoDone.add(`${r[ordIdx]}|${r[artIdx]}|${varKey(r[varIdx])}|${r[pIdx]}`);
-  }
-
-  const out = [];
-  for (const r of vRows) {
-    const oid = String(r[ordIdx] ?? '');
-    if (!refundDate.has(oid)) continue;          // Order nicht refunded/cancelled
-    if ((r[STORNO_COL] ?? '') !== '') continue;  // Zeile ist selbst ein Gegeneintrag
-    if (partnerFilter && !partnerFilter.has(r[pIdx])) continue;
-
-    const dupKey = `${r[ordIdx]}|${r[artIdx]}|${varKey(r[varIdx])}|${r[pIdx]}`;
-    if (stornoDone.has(dupKey)) continue;        // Gegeneintrag existiert bereits
-    stornoDone.add(dupKey);
-
-    const counter = [];
-    for (let i = 0; i < 14; i++) {
-      let v = r[i] ?? '';
-      if (NEG_COLS.includes(i) && v !== '' && v !== null) v = -toFloat(v);
-      counter[i] = v;
-    }
-    counter[DATE_COL]   = refundDate.get(oid) || r[DATE_COL] || toDE(new Date());
-    counter[STATUS_COL] = 'offen';
-    counter[STORNO_COL] = STORNO_MARKER;
-    out.push(counter);
-  }
-  return out;
 }
 
 function extractToken(req) {
