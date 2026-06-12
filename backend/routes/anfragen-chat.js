@@ -1,8 +1,8 @@
 import { Router } from 'express';
-import Anthropic from '@anthropic-ai/sdk';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getAgentSystemPrompt } from '../lib/agentWissenHelper.js';
+import { loadRecentAnfragen, callChatAgent } from '../lib/chatCore.js';
 import rateLimit from 'express-rate-limit';
 
 const router = Router();
@@ -16,10 +16,6 @@ const chatLimiter = rateLimit({
 });
 
 const TAB = 'Kundenanfragen';
-
-let _historyCache   = null;
-let _historyCacheAt = 0;
-const HISTORY_TTL   = 10 * 60 * 1000;
 
 function todayDE() {
   const d = new Date();
@@ -38,82 +34,6 @@ function generateAnfrageId(existingIds, year) {
 
 function getSheets() {
   return getGoogleAuth().then(auth => google.sheets({ version: 'v4', auth }));
-}
-
-async function loadRecentAnfragen() {
-  if (_historyCache && Date.now() - _historyCacheAt < HISTORY_TTL) return _historyCache;
-  const sheetId = process.env.BUSINESS_SHEET_ID;
-  if (!sheetId) return [];
-  try {
-    const sheets = await getSheets();
-    const { data } = await sheets.spreadsheets.values.get({
-      spreadsheetId: sheetId, range: `${TAB}!A1:N`,
-    });
-    const [header, ...rawRows] = data.values ?? [];
-    if (!header) return [];
-    const rows = rawRows.filter(r => r.some(c => c) && !(r[0] ?? '').startsWith('//'));
-    const h = c => header.indexOf(c);
-    const completed = rows
-      .filter(r => (r[h('Status')] ?? '') === 'Abgeschlossen')
-      .slice(-20)
-      .map(r => ({
-        produkt:       r[h('Produkt-Beschreibung')] ?? '',
-        menge:         r[h('Menge')] ?? '',
-        preisvorschlag: r[h('Preisvorschlag')] ?? '',
-      }))
-      .filter(r => r.produkt || r.preisvorschlag);
-    _historyCache   = completed;
-    _historyCacheAt = Date.now();
-    return completed;
-  } catch { return []; }
-}
-
-// Gibt System-Prompt als zwei Blöcke zurück für Anthropic Prompt Caching.
-// Block 1 (statisch, cachebar): kbBase + Referenzaufträge – ändert sich nur alle 10 min.
-// Block 2 (dynamisch): sessionData + Anweisungen – ändert sich pro Request.
-function buildSystemBlocks(kbBase, history, sessionData) {
-  const examples = history.length
-    ? history.map((a, i) =>
-        `${i + 1}. ${a.produkt} | Menge: ${a.menge} | Preis: ${a.preisvorschlag}€`
-      ).join('\n')
-    : '(Noch keine Referenzdaten verfügbar)';
-
-  const stateStr = sessionData && Object.keys(sessionData).length > 0
-    ? `\nAKTUELLER FORMULARSTAND: ${JSON.stringify(sessionData)}`
-    : '';
-
-  return [
-    {
-      type: 'text',
-      // Statischer Teil: kbBase + Beispiele bleiben 10 min konstant → Cache-Hit
-      text: `${kbBase}\n\nREFERENZ-AUFTRÄGE (letzte abgeschlossene):\n${examples}`,
-      cache_control: { type: 'ephemeral' },
-    },
-    {
-      type: 'text',
-      text: `Beantworte immer nur eine Frage pro Nachricht. Wenn die erste Nutzernachricht "__init__" lautet, starte direkt mit einer herzlichen Begrüßung.${stateStr}
-
-ANTWORTFORMAT – Antworte AUSSCHLIESSLICH mit einem JSON-Objekt, kein Text außerhalb:
-{
-  "reply": "<Deine Antwort – darf einfaches Markdown enthalten>",
-  "sessionData": {
-    "step": <1–8>,
-    "produktBeschreibung": "<Produkt und Motiv>",
-    "menge": "<Menge>",
-    "varianten": "<Farben/Größen>",
-    "partnerId": "<Partner-ID oder leer>",
-    "kundeName": "<Name>",
-    "kundeEmail": "<E-Mail>",
-    "preisvorschlag": "<Zahl ohne €, z.B. 580>",
-    "anmerkungenKunde": "<Wünsche>",
-    "kanal": "Homepage"
-  },
-  "completed": false
-}
-Setze "completed": true NUR wenn Kunde in Schritt 8 bestätigt hat.
-Behalte ALLE bereits gesammelten sessionData-Werte – überschreibe sie nie mit leeren Strings.`,
-    },
-  ];
 }
 
 // ── POST /chat ────────────────────────────────────────────────────────────────
@@ -152,45 +72,14 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
       .map(m => ({ role: m.role, content: m.content.slice(0, 500) }));
 
     const [history, kbBase] = await Promise.all([loadRecentAnfragen(), getAgentSystemPrompt()]);
-    const systemBlocks = buildSystemBlocks(kbBase, history, sessionData);
+    const result = await callChatAgent({ messages: validMsgs, sessionData, kbBase, history });
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    // Prefill with '{' forces JSON output from the model
-    const apiMessages = [...validMsgs, { role: 'assistant', content: '{' }];
-
-    const claudeRes = await anthropic.messages.create({
-      model:      'claude-haiku-4-5-20251001',
-      max_tokens: 1024,
-      system:     systemBlocks,
-      messages:   apiMessages,
-    });
-
-    const rawText = '{' + (claudeRes.content[0]?.text ?? '');
-
-    let parsed;
-    try {
-      parsed = JSON.parse(rawText);
-    } catch {
-      const m = rawText.match(/\{[\s\S]*\}/);
-      try { parsed = m ? JSON.parse(m[0]) : null; } catch { parsed = null; }
-    }
-
-    if (!parsed?.reply) {
+    if (!result) {
       return res.status(502).json({ error: 'Agent konnte keine Antwort generieren.' });
     }
 
-    // Merge sessionData – never overwrite existing values with empty
-    const merged  = { kanal: 'Homepage', ...sessionData };
-    const updated = parsed.sessionData ?? {};
-    for (const [k, v] of Object.entries(updated)) {
-      if (v !== undefined && v !== null && String(v).trim() !== '') {
-        merged[k] = v;
-      }
-    }
-
-    const completed = !!parsed.completed;
-    let anfrageId   = null;
+    const { reply, sessionData: merged, completed } = result;
+    let anfrageId = null;
 
     if (completed && merged.kundeName && merged.kundeEmail) {
       try {
@@ -204,8 +93,8 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
           anfrageId = generateAnfrageId(ids, new Date().getFullYear());
 
           // Sanitize: user-gesteuerte Felder kappen + unerwünschte Zeichen entfernen
-          const safeStr  = (v, max) => String(v ?? '').replace(/[\r\n\t]/g, ' ').slice(0, max);
-          const safeId   = String(merged.partnerId || '').replace(/[^A-Za-z0-9\-]/g, '').slice(0, 20);
+          const safeStr   = (v, max) => String(v ?? '').replace(/[\r\n\t]/g, ' ').slice(0, max);
+          const safeId    = String(merged.partnerId || '').replace(/[^A-Za-z0-9\-]/g, '').slice(0, 20);
           const safePreis = String(merged.preisvorschlag || '').replace(/[^0-9.,]/g, '').slice(0, 10);
 
           await sheets.spreadsheets.values.append({
@@ -238,7 +127,7 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
     }
 
     res.json({
-      reply: parsed.reply,
+      reply,
       sessionData: merged,
       completed,
       ...(anfrageId ? { anfrageId } : {}),
