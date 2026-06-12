@@ -138,7 +138,9 @@
 
     async function apiGet(path) {
       if (!API_BASE) throw new Error('Backend-URL nicht konfiguriert.');
-      const r = await fetch(`${API_BASE}${withShop(path)}`);
+      const r = await fetch(`${API_BASE}${withShop(path)}`, {
+        headers: TOKEN ? { 'Authorization': `Bearer ${TOKEN}` } : {},
+      });
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));
         const err  = new Error(body.error || r.statusText);
@@ -152,7 +154,10 @@
       if (!API_BASE) throw new Error('Backend-URL nicht konfiguriert.');
       const r = await fetch(`${API_BASE}${withShop(path)}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(TOKEN ? { 'Authorization': `Bearer ${TOKEN}` } : {}),
+        },
         body: JSON.stringify(body),
       });
       const data = await r.json().catch(() => ({}));
@@ -205,7 +210,7 @@
       if (!wrap) return;
       wrap.innerHTML = '<div class="skeleton"></div>';
       try {
-        const rows = await apiGet(`/api/partner/verkaeufe?token=${encodeURIComponent(TOKEN)}`);
+        const rows = await apiGet('/api/partner/verkaeufe');
         if (!rows.length) { wrap.innerHTML = '<p class="empty">Keine offenen Verkäufe vorhanden.</p>'; return; }
         wrap.innerHTML = `
           <p class="summary">${rows.length} Eintrag/Einträge</p>
@@ -236,7 +241,7 @@
       if (!wrap) return;
       wrap.innerHTML = '<div class="skeleton"></div>';
       try {
-        const rows = await apiGet(`/api/partner/intern?token=${encodeURIComponent(TOKEN)}`);
+        const rows = await apiGet('/api/partner/intern');
         if (!rows.length) { wrap.innerHTML = '<p class="empty">Keine direkten Bestellungen vorhanden.</p>'; return; }
         wrap.innerHTML = `
           <p class="summary">${rows.length} Eintrag/Einträge</p>
@@ -268,7 +273,7 @@
       if (!wrap) return;
       wrap.innerHTML = '<div class="skeleton" style="height:120px;"></div>';
       try {
-        const data = await apiGet(`/api/partner/saldo?token=${encodeURIComponent(TOKEN)}`);
+        const data = await apiGet('/api/partner/saldo');
         const positiv  = data.saldo >= 0;
         const label    = positiv ? 'Aktuelles Guthaben (brutto)' : 'Aktueller Rückstand (brutto)';
         const colorCls = positiv ? 'saldo-positive' : 'saldo-negative';
@@ -311,7 +316,7 @@
       if (!wrap) return;
       wrap.innerHTML = '<div class="skeleton"></div>';
       try {
-        const rows = await apiGet(`/api/partner/abrechnungen?token=${encodeURIComponent(TOKEN)}`);
+        const rows = await apiGet('/api/partner/abrechnungen');
         if (!rows.length) { wrap.innerHTML = '<p class="empty">Noch keine Abrechnungen vorhanden.</p>'; return; }
         const sumBezahlt = rows.filter(r => r.status === 'bezahlt').reduce((s, r) => s + r.saldo, 0);
 
@@ -482,7 +487,7 @@
 
       main.innerHTML = '<div class="skeleton" style="height:60px;border-radius:8px;"></div>';
       try {
-        const me = await apiGet(`/api/partner/auth?token=${encodeURIComponent(TOKEN)}`);
+        const me = await apiGet('/api/partner/auth');
         PARTNER_ID = me.partnerId || '';
         document.getElementById('partner-name-header').textContent = me.partnerName;
         document.title = `${me.partnerName} – JammiFashion Partner Portal`;

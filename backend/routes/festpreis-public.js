@@ -43,6 +43,11 @@ function rowToObj(header, row) {
   return obj;
 }
 
+function extractToken(req) {
+  const auth = req.headers.authorization ?? '';
+  return auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+}
+
 async function resolvePartner(token) {
   const sheetId = SHEETID();
   if (!sheetId) throw Object.assign(new Error('BUSINESS_SHEET_ID nicht konfiguriert.'), { status: 503 });
@@ -57,20 +62,20 @@ async function resolvePartner(token) {
   return { partner: rowToObj(header, row), sheets, sheetId };
 }
 
-// ── GET /api/festpreis-public/auth?token= ────────────────────────────────────
+// ── GET /api/festpreis-public/auth ───────────────────────────────────────────
 router.get('/auth', async (req, res, next) => {
   try {
-    const { token } = req.query;
+    const token = extractToken(req);
     if (!token) return res.status(401).json({ error: 'token fehlt.' });
     const { partner } = await resolvePartner(token);
     res.json({ partnerId: partner['Partner-ID'], partnerName: partner['Name'] });
   } catch (err) { next(err); }
 });
 
-// ── GET /api/festpreis-public/verkaeufe?token= ───────────────────────────────
+// ── GET /api/festpreis-public/verkaeufe ──────────────────────────────────────
 router.get('/verkaeufe', async (req, res, next) => {
   try {
-    const { token } = req.query;
+    const token = extractToken(req);
     if (!token) return res.status(401).json({ error: 'token fehlt.' });
     const { partner, sheets, sheetId } = await resolvePartner(token);
     const partnerId = partner['Partner-ID'];
@@ -85,12 +90,12 @@ router.get('/verkaeufe', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/festpreis-public/intern?token= ──────────────────────────────────
+// ── GET /api/festpreis-public/intern ─────────────────────────────────────────
 // Direkte (interne) Bestellungen des FP-Partners – werden mit der Auszahlung
 // verrechnet. Einzelpreise sind brutto.
 router.get('/intern', async (req, res, next) => {
   try {
-    const { token } = req.query;
+    const token = extractToken(req);
     if (!token) return res.status(401).json({ error: 'token fehlt.' });
     const { partner, sheets, sheetId } = await resolvePartner(token);
     const partnerId = partner['Partner-ID'];
@@ -110,12 +115,12 @@ router.get('/intern', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/festpreis-public/saldo?token= ───────────────────────────────────
+// ── GET /api/festpreis-public/saldo ──────────────────────────────────────────
 // Offene Auszahlung (FP-Verkäufe, brutto) − offene interne Bestellungen (brutto).
 // Identische Rechnung wie Admin-Vorschau/Abrechnung ("von Brutto abziehen").
 router.get('/saldo', async (req, res, next) => {
   try {
-    const { token } = req.query;
+    const token = extractToken(req);
     if (!token) return res.status(401).json({ error: 'token fehlt.' });
     const { partner, sheets, sheetId } = await resolvePartner(token);
     const partnerId = partner['Partner-ID'];
@@ -147,10 +152,10 @@ router.get('/saldo', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/festpreis-public/abrechnungen?token= ────────────────────────────
+// ── GET /api/festpreis-public/abrechnungen ────────────────────────────────────
 router.get('/abrechnungen', async (req, res, next) => {
   try {
-    const { token } = req.query;
+    const token = extractToken(req);
     if (!token) return res.status(401).json({ error: 'token fehlt.' });
     const { partner, sheets, sheetId } = await resolvePartner(token);
     const partnerId = partner['Partner-ID'];

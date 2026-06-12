@@ -117,7 +117,9 @@
 
     async function apiFetch(path) {
       if (!API_BASE) throw new Error('Backend-URL nicht konfiguriert.');
-      const r = await fetch(`${API_BASE}${path}`);
+      const r = await fetch(`${API_BASE}${path}`, {
+        headers: TOKEN ? { 'Authorization': `Bearer ${TOKEN}` } : {},
+      });
       const body = await r.json().catch(() => ({}));
       if (!r.ok) {
         const err = new Error(body.error || r.statusText);
@@ -131,7 +133,10 @@
       if (!API_BASE) throw new Error('Backend-URL nicht konfiguriert.');
       const r = await fetch(`${API_BASE}${path}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(TOKEN ? { 'Authorization': `Bearer ${TOKEN}` } : {}),
+        },
         body: JSON.stringify(body),
       });
       const data = await r.json().catch(() => ({}));
@@ -174,7 +179,7 @@
       if (!wrap) return;
       wrap.innerHTML = '<div class="skeleton"></div>';
       try {
-        const rows = await apiFetch(`/api/festpreis-public/verkaeufe?token=${encodeURIComponent(TOKEN)}`);
+        const rows = await apiFetch('/api/festpreis-public/verkaeufe');
         const offen = rows.filter(r => (r['Status Abrechnung'] ?? '').toLowerCase() === 'offen');
         if (!rows.length) { wrap.innerHTML = '<p class="empty">Noch keine Verkäufe vorhanden.</p>'; return; }
 
@@ -207,7 +212,7 @@
       if (!wrap) return;
       wrap.innerHTML = '<div class="skeleton"></div>';
       try {
-        const rows = await apiFetch(`/api/festpreis-public/intern?token=${encodeURIComponent(TOKEN)}`);
+        const rows = await apiFetch('/api/festpreis-public/intern');
         if (!rows.length) { wrap.innerHTML = '<p class="empty">Keine direkten Bestellungen vorhanden.</p>'; return; }
         wrap.innerHTML = `
           <p class="summary">${rows.length} Eintrag/Einträge</p>
@@ -239,7 +244,7 @@
       if (!wrap) return;
       wrap.innerHTML = '<div class="skeleton" style="height:120px;"></div>';
       try {
-        const d = await apiFetch(`/api/festpreis-public/saldo?token=${encodeURIComponent(TOKEN)}`);
+        const d = await apiFetch('/api/festpreis-public/saldo');
         const positiv  = d.saldoBrutto >= 0;
         const label    = positiv ? 'Offene Auszahlung (brutto)' : 'Aktueller Rückstand (brutto)';
         const colorCls = positiv ? 'saldo-positive' : 'saldo-negative';
@@ -279,7 +284,7 @@
       if (!wrap) return;
       wrap.innerHTML = '<div class="skeleton"></div>';
       try {
-        const rows = await apiFetch(`/api/festpreis-public/abrechnungen?token=${encodeURIComponent(TOKEN)}`);
+        const rows = await apiFetch('/api/festpreis-public/abrechnungen');
         if (!rows.length) { wrap.innerHTML = '<p class="empty">Noch keine Abrechnungen vorhanden.</p>'; return; }
 
         rows.sort((a, b) => (b['Erstellt-Am'] || '').localeCompare(a['Erstellt-Am'] || ''));
@@ -407,7 +412,7 @@
 
       main.innerHTML = '<div class="skeleton" style="height:60px;border-radius:8px;"></div>';
       try {
-        const me = await apiFetch(`/api/festpreis-public/auth?token=${encodeURIComponent(TOKEN)}`);
+        const me = await apiFetch('/api/festpreis-public/auth');
         PARTNER_ID = me.partnerId || '';
         document.getElementById('partner-name-header').textContent = me.partnerName;
         document.title = `${me.partnerName} – JammiFashion Festpreis Portal`;

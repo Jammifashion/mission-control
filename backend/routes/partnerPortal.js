@@ -146,6 +146,11 @@ function buildStornoRows(vRows, vh, stornoOrders, partnerFilter) {
   return out;
 }
 
+function extractToken(req) {
+  const auth = req.headers.authorization ?? '';
+  return auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+}
+
 async function resolvePartner(token) {
   const sheetId = process.env.BUSINESS_SHEET_ID;
   if (!sheetId) throw Object.assign(new Error('BUSINESS_SHEET_ID nicht konfiguriert.'), { status: 503 });
@@ -166,10 +171,10 @@ async function resolvePartner(token) {
   return { partnerId: row[idIdx] ?? '', partnerName: row[nameIdx] ?? '' };
 }
 
-// ── GET /api/partner/auth?token= ─────────────────────────────────────────────
+// ── GET /api/partner/auth ────────────────────────────────────────────────────
 router.get('/auth', async (req, res, next) => {
   try {
-    const { token } = req.query;
+    const token = extractToken(req);
     if (!token) return res.status(401).json({ error: 'token fehlt.' });
     res.json(await resolvePartner(token));
   } catch (err) { next(err); }
@@ -478,11 +483,11 @@ router.post('/verkaeufe/sync-all', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/partner/verkaeufe?token= ────────────────────────────────────────
+// ── GET /api/partner/verkaeufe ───────────────────────────────────────────────
 // Gibt nur offene (nicht abgerechnete) Zeilen des Partners zurück – ohne Preise
 router.get('/verkaeufe', async (req, res, next) => {
   try {
-    const { token } = req.query;
+    const token = extractToken(req);
     if (!token) return res.status(401).json({ error: 'token fehlt.' });
     const { partnerId } = await resolvePartner(token);
 
@@ -508,11 +513,11 @@ router.get('/verkaeufe', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/partner/intern?token= ───────────────────────────────────────────
+// ── GET /api/partner/intern ──────────────────────────────────────────────────
 // Direkte Bestellungen für die Partner-Sicht – mit Preisen (eigene Kosten).
 router.get('/intern', async (req, res, next) => {
   try {
-    const { token } = req.query;
+    const token = extractToken(req);
     if (!token) return res.status(401).json({ error: 'token fehlt.' });
     const { partnerId } = await resolvePartner(token);
 
@@ -534,11 +539,11 @@ router.get('/intern', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/partner/saldo?token= ────────────────────────────────────────────
+// ── GET /api/partner/saldo ───────────────────────────────────────────────────
 // Aggregierte offene Posten: Lizenz-Summe − Interne-Summe = Saldo.
 router.get('/saldo', async (req, res, next) => {
   try {
-    const { token } = req.query;
+    const token = extractToken(req);
     if (!token) return res.status(401).json({ error: 'token fehlt.' });
     const { partnerId } = await resolvePartner(token);
 
@@ -580,11 +585,11 @@ router.get('/saldo', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/partner/abrechnungen?token= ─────────────────────────────────────
+// ── GET /api/partner/abrechnungen ────────────────────────────────────────────
 // Partner sieht nur freigegebene oder bezahlte Abrechnungen (keine Entwürfe).
 router.get('/abrechnungen', async (req, res, next) => {
   try {
-    const { token } = req.query;
+    const token = extractToken(req);
     if (!token) return res.status(401).json({ error: 'token fehlt.' });
     const { partnerId } = await resolvePartner(token);
 
