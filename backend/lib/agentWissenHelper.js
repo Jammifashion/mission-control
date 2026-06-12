@@ -8,6 +8,14 @@ const TTL_MS     = 5 * 60 * 1000;
 // Cache: { prompt, geruest, istOverride, bloecke, cachedAt }
 let _cache = null;
 
+// Fallback-Blöcke, falls das Sheet nicht erreichbar/leer ist.
+const EMPTY_BLOECKE = {
+  produktinfos:    '(keine Einträge)',
+  staffelpreise:   '(keine Staffelpreise hinterlegt)',
+  tonalitaet:      '(keine Einträge)',
+  allgemeineInfos: '(keine Einträge)',
+};
+
 export const DEFAULT_PROMPT_GERUEST =
   `Du bist der Anfrage-Assistent von JammiFashion, einem Textildruck-Unternehmen.\n` +
   `Du führst Kunden strukturiert durch eine Preisanfrage bis zum fertigen Angebot.\n\n` +
@@ -114,13 +122,7 @@ export async function getStaffelpreise() {
 
 async function loadSheetData() {
   const sheetId = process.env.BUSINESS_SHEET_ID;
-  const emptyBloecke = {
-    produktinfos:    '(keine Einträge)',
-    staffelpreise:   '(keine Staffelpreise hinterlegt)',
-    tonalitaet:      '(keine Einträge)',
-    allgemeineInfos: '(keine Einträge)',
-  };
-  if (!sheetId) return { geruest: null, bloecke: emptyBloecke };
+  if (!sheetId) return { geruest: null, bloecke: { ...EMPTY_BLOECKE } };
 
   const sheets = await getSheets();
   const [wissenRes, staffelText] = await Promise.all([
@@ -206,25 +208,32 @@ export async function getAgentSystemPrompt() {
     return prompt;
   } catch (e) {
     console.error('agentWissenHelper: Sheet-Fehler, Default wird genutzt:', e.message);
-    const bloecke = {
-      produktinfos:    '(keine Einträge)',
-      staffelpreise:   '(keine Staffelpreise hinterlegt)',
-      tonalitaet:      '(keine Einträge)',
-      allgemeineInfos: '(keine Einträge)',
-    };
-    return resolvePlaceholders(DEFAULT_PROMPT_GERUEST, bloecke);
+    return resolvePlaceholders(DEFAULT_PROMPT_GERUEST, EMPTY_BLOECKE);
   }
 }
 
 // Returns { geruest, istOverride, aufgeloest } for the admin GET endpoint.
-// aufgeloest = fully resolved prompt as sent to Claude, WITHOUT Referenzaufträge.
+// aufgeloest = vollständig aufgelöster Prompt wie er an Claude geht, exakt mit
+// derselben resolvePlaceholders()-Logik wie getAgentSystemPrompt() – nur OHNE die
+// pro Anfrage dynamisch angehängten Referenzaufträge.
 export async function getPromptInfo() {
-  await getAgentSystemPrompt(); // warms cache if needed
-  return {
-    geruest:     _cache?.geruest     ?? DEFAULT_PROMPT_GERUEST,
-    istOverride: _cache?.istOverride ?? false,
-    aufgeloest:  _cache?.prompt      ?? '',
-  };
+  try {
+    const { geruest: overrideGeruest, bloecke } = await loadSheetData();
+    const geruest     = overrideGeruest ?? DEFAULT_PROMPT_GERUEST;
+    const istOverride = overrideGeruest !== null;
+    return {
+      geruest,
+      istOverride,
+      aufgeloest: resolvePlaceholders(geruest, bloecke),
+    };
+  } catch (e) {
+    console.error('agentWissenHelper: getPromptInfo Sheet-Fehler, Default wird genutzt:', e.message);
+    return {
+      geruest:     DEFAULT_PROMPT_GERUEST,
+      istOverride: false,
+      aufgeloest:  resolvePlaceholders(DEFAULT_PROMPT_GERUEST, EMPTY_BLOECKE),
+    };
+  }
 }
 
 // Builds a resolved prompt from a custom gerüst without touching the cache.
@@ -236,12 +245,7 @@ export async function buildPromptWithGeruest(geruestText) {
       const loaded = await loadSheetData();
       bloecke = loaded.bloecke;
     } catch {
-      bloecke = {
-        produktinfos:    '(keine Einträge)',
-        staffelpreise:   '(keine Staffelpreise hinterlegt)',
-        tonalitaet:      '(keine Einträge)',
-        allgemeineInfos: '(keine Einträge)',
-      };
+      bloecke = EMPTY_BLOECKE;
     }
   }
   return resolvePlaceholders(geruestText, bloecke);
