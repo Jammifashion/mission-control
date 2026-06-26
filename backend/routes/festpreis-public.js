@@ -164,7 +164,14 @@ router.get('/abrechnungen', async (req, res, next) => {
     const pidIdx = header.indexOf('Partner-ID');
     const filtered = rows
       .filter(r => (r[pidIdx] ?? '') === partnerId && (r[header.indexOf('Status')] ?? '') !== 'entwurf')
-      .map(r => rowToObj(header, r));
+      .map(r => {
+        const obj = rowToObj(header, r);
+        // Sheet ist deutsch lokalisiert → "12,34"; als echte Zahl liefern,
+        // sonst ergibt Number("12,34") im Frontend NaN (→ Anzeige 0,00).
+        obj['Gesamt-Netto']  = toFloat(obj['Gesamt-Netto']);
+        obj['Gesamt-Brutto'] = toFloat(obj['Gesamt-Brutto']);
+        return obj;
+      });
     res.json(filtered);
   } catch (err) { next(err); }
 });

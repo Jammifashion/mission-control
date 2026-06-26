@@ -778,8 +778,10 @@ router.get('/abrechnungen', async (req, res, next) => {
       'Partner-ID':     r[1] ?? '',
       'Zeitraum-Von':   r[2] ?? '',
       'Zeitraum-Bis':   r[3] ?? '',
-      'Gesamt-Netto':   r[4] ?? '',
-      'Gesamt-Brutto':  r[5] ?? '',
+      // Sheet ist deutsch lokalisiert → Geldwerte kommen als "12,34" zurück.
+      // Als echte Zahl liefern, sonst ergibt Number("12,34") im Frontend NaN.
+      'Gesamt-Netto':   toFloat(r[4]),
+      'Gesamt-Brutto':  toFloat(r[5]),
       'Status':         r[6] ?? '',
       'Erstellt-Am':    r[7] ?? '',
       'Positionen':     r[8] ?? '',
