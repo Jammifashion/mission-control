@@ -11,6 +11,24 @@ const SCOPES = [
   'https://www.googleapis.com/auth/drive',
 ];
 
+// ── Retention ───────────────────────────────────────────────────────────────
+const DAILY_RETENTION_DAYS   = 14;
+const MONTHLY_RETENTION_MONTHS = 12;
+
+// ── Rate-Limit-Schutz für Cleanup-Deletes ──────────────────────────────────
+const DELETE_DELAY_MS   = 400;
+const MAX_DELETE_RETRIES = 3;
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isRateLimitError(err) {
+  const code = err.code ?? err.response?.status;
+  const message = (err.message ?? '').toLowerCase();
+  return (code === 403 || code === 429) && message.includes('rate limit');
+}
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 function getAuth() {
   // GOOGLE_CREDENTIALS_JSON: JSON-String direkt (GitHub Actions Secret als Env-Var)
@@ -115,15 +133,25 @@ export async function runBackup() {
     console.log(`✓ Monthly-Backup hochgeladen: ${monthlyName}`);
   }
 
-  // ── Cleanup Daily (> 30 Tage) ─────────────────────────────────────────────
+  // ── Cleanup Daily (> DAILY_RETENTION_DAYS) ────────────────────────────────
+  // Upload war erfolgreich (siehe oben) – Fehler in der Bereinigung dürfen den
+  // Prozess nicht mehr scheitern lassen, der nächste Lauf holt das nach.
   const cutoffDaily = new Date(now);
-  cutoffDaily.setDate(cutoffDaily.getDate() - 30);
-  await cleanupFolder(drive, DAILY_FOLDER, cutoffDaily, 'Daily');
+  cutoffDaily.setDate(cutoffDaily.getDate() - DAILY_RETENTION_DAYS);
+  try {
+    await cleanupFolder(drive, DAILY_FOLDER, cutoffDaily, 'Daily');
+  } catch (err) {
+    console.warn(`WARNUNG: Daily-Cleanup fehlgeschlagen, wird beim nächsten Lauf nachgeholt: ${err.message ?? err}`);
+  }
 
-  // ── Cleanup Monthly (> 12 Monate) ────────────────────────────────────────
+  // ── Cleanup Monthly (> MONTHLY_RETENTION_MONTHS) ─────────────────────────
   const cutoffMonthly = new Date(now);
-  cutoffMonthly.setMonth(cutoffMonthly.getMonth() - 12);
-  await cleanupFolder(drive, MONTHLY_FOLDER, cutoffMonthly, 'Monthly');
+  cutoffMonthly.setMonth(cutoffMonthly.getMonth() - MONTHLY_RETENTION_MONTHS);
+  try {
+    await cleanupFolder(drive, MONTHLY_FOLDER, cutoffMonthly, 'Monthly');
+  } catch (err) {
+    console.warn(`WARNUNG: Monthly-Cleanup fehlgeschlagen, wird beim nächsten Lauf nachgeholt: ${err.message ?? err}`);
+  }
 
   return { fileName: dailyName, sizeKB, tabCount: tabTitles.length, fileId: dailyFile.data.id };
 }
@@ -140,18 +168,29 @@ async function cleanupFolder(drive, folderId, cutoff, label) {
   });
   const toDelete = (data.files ?? []).filter(f => new Date(f.createdTime) < cutoff);
   for (const f of toDelete) {
-    try {
-      await drive.files.delete({ fileId: f.id, supportsAllDrives: true });
-      console.log(`  ✗ ${label} gelöscht: ${f.name} (${f.createdTime.slice(0,10)})`);
-    } catch (err) {
-      if (err.code === 404) {
-        console.log(`  – Bereits gelöscht, übersprungen: ${f.name}`);
-      } else {
-        throw err;
-      }
-    }
+    await deleteWithRetry(drive, f, label);
+    await sleep(DELETE_DELAY_MS);
   }
   if (toDelete.length === 0) console.log(`  – ${label} Cleanup: nichts zu löschen`);
+}
+
+async function deleteWithRetry(drive, f, label, attempt = 0) {
+  try {
+    await drive.files.delete({ fileId: f.id, supportsAllDrives: true });
+    console.log(`  ✗ ${label} gelöscht: ${f.name} (${f.createdTime.slice(0,10)})`);
+  } catch (err) {
+    if (err.code === 404) {
+      console.log(`  – Bereits gelöscht, übersprungen: ${f.name}`);
+      return;
+    }
+    if (isRateLimitError(err) && attempt < MAX_DELETE_RETRIES) {
+      const backoffMs = 1000 * 2 ** attempt; // 1s, 2s, 4s
+      console.warn(`  … Rate limit beim Löschen von ${f.name}, Retry in ${backoffMs}ms (Versuch ${attempt + 1}/${MAX_DELETE_RETRIES})`);
+      await sleep(backoffMs);
+      return deleteWithRetry(drive, f, label, attempt + 1);
+    }
+    throw err;
+  }
 }
 
 // ── Direktausführung (node backend/scripts/backup-daily.js) ──────────────────
