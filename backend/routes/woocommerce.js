@@ -317,11 +317,13 @@ router.put('/products/:id', async (req, res, next) => {
         id:            v.id,
         attributes:    v.attributes,
         regular_price: v.regular_price,
+        ...(v.image ? { image: v.image } : {}),
       }));
       const toCreate = variations.filter(v => !v.id).map(v => ({
         attributes:    v.attributes,
         regular_price: v.regular_price,
         status:        'publish',
+        ...(v.image ? { image: v.image } : {}),
       }));
       if (toUpdate.length || toCreate.length) {
         await wc.post(`products/${req.params.id}/variations/batch`, {

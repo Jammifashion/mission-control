@@ -18,6 +18,8 @@ export const SECRET_KEYS = [
   'MC_API_KEY',
   'CORS_ORIGIN',
   'TURNSTILE_SECRET_KEY',
+  'WP_APP_PASSWORD',
+  'WP_APP_PASSWORD_HONK',
 ];
 
 function getSmClient() {

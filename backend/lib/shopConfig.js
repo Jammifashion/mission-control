@@ -13,6 +13,10 @@ const SHOPS = {
     wcUrl:    () => process.env.WC_URL,
     wcKey:    () => process.env.WC_KEY,
     wcSecret: () => process.env.WC_SECRET,
+    // WP-Redakteur-Username für Basic Auth beim Media-Upload (Sprint: Varianten-Bild-
+    // Upload). Identisch mit dem Secret-Namen, kein eigenes Secret für den Usernamen.
+    wpAppUser:     'WP_APP_PASSWORD',
+    wpAppPassword: () => process.env.WP_APP_PASSWORD,
     tabVerkaeufe:   'Partner_Verkäufe',
     tabAbrechnungen: 'Partner_Abrechnungen',
   },
@@ -22,6 +26,8 @@ const SHOPS = {
     wcUrl:    () => process.env.WC_URL_HONK,
     wcKey:    () => process.env.WC_KEY_HONK,
     wcSecret: () => process.env.WC_SECRET_HONK,
+    wpAppUser:     'WP_APP_PASSWORD_HONK',
+    wpAppPassword: () => process.env.WP_APP_PASSWORD_HONK,
     tabVerkaeufe:   'HK_Partner_Verkäufe',
     tabAbrechnungen: 'HK_Partner_Abrechnungen',
   },
@@ -40,6 +46,8 @@ export function getShopConfig(shop) {
     wcUrl:   def.wcUrl(),
     wcKey:   def.wcKey(),
     wcSecret: def.wcSecret(),
+    wpAppUser:     def.wpAppUser,
+    wpAppPassword: def.wpAppPassword(),
     tabVerkaeufe:    def.tabVerkaeufe,
     tabAbrechnungen: def.tabAbrechnungen,
   };

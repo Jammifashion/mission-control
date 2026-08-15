@@ -720,6 +720,13 @@
       .variants-warn { font-size: 0.78rem; color: var(--danger); margin-top: 0.5rem; }
       .btn-xs { font-size: 0.75rem !important; padding: 0.22rem 0.55rem !important; }
 
+      .variant-image-wrap { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+      .variant-thumb { width: 34px; height: 34px; object-fit: cover; border-radius: 5px; border: 1px solid var(--border); background: var(--bg); }
+      .variant-file-inp { max-width: 130px; font-size: 14px; color: var(--muted); }
+      .variant-upload-btn { font-size: 14px !important; padding: 0.3rem 0.65rem !important; border-color: var(--accent) !important; color: var(--accent) !important; }
+      .variant-upload-btn:disabled { opacity: 0.4; border-color: var(--border) !important; color: var(--muted) !important; cursor: not-allowed; }
+      .variant-upload-status { font-size: 14px; color: var(--danger); min-width: 3.5rem; }
+
       .prop-suggest-wrap { position: relative; margin-top: 0.2rem; }
       .prop-suggest-trigger { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--muted); cursor: pointer; padding: 0.2rem 0.5rem; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); user-select: none; }
       .prop-suggest-trigger:hover { border-color: var(--accent); color: var(--accent); }
@@ -3228,7 +3235,10 @@
         );
         const priceMap = new Map(variants.map(v => [
           v.attrs.map(a => `${a.name}=${a.value}`).join('|'),
-          { price: v.price, _autoFilled: v._autoFilled ?? false, _checked: v._checked ?? true },
+          {
+            price: v.price, _autoFilled: v._autoFilled ?? false, _checked: v._checked ?? true,
+            imageId: v.imageId ?? null, imageUrl: v.imageUrl ?? null,
+          },
         ]));
         variants = combos.map(attrs => {
           const key      = attrs.map(a => `${a.name}=${a.value}`).join('|');
@@ -3238,6 +3248,11 @@
             price:       existing?.price       ?? '',
             _autoFilled: existing?._autoFilled ?? false,
             _checked:    existing?._checked    ?? true,
+            // Varianten-Bild bleibt beim Neu-Kombinieren der Eigenschaften erhalten
+            // (Recompute baut variants komplett neu auf – ohne diesen Übernahme-
+            // Schritt ginge ein bereits hochgeladenes Bild sonst verloren).
+            imageId:     existing?.imageId     ?? null,
+            imageUrl:    existing?.imageUrl    ?? null,
           };
         });
       }
@@ -3319,9 +3334,74 @@
             priceEl.classList.toggle('invalid', !priceEl.value);
           });
 
+          // Varianten-Bild: Datei-Input mit Vorschau-Thumbnail + separater Upload-Button.
+          const imgWrap = document.createElement('div');
+          imgWrap.className = 'variant-image-wrap';
+
+          const thumb = document.createElement('img');
+          thumb.className = 'variant-thumb';
+          thumb.style.display = v.imageUrl ? '' : 'none';
+          thumb.alt = 'Vorschau';
+          if (v.imageUrl) thumb.src = v.imageUrl;
+
+          const fileInp = document.createElement('input');
+          fileInp.type = 'file';
+          fileInp.accept = 'image/*';
+          fileInp.className = 'variant-file-inp';
+
+          const uploadBtn = document.createElement('button');
+          uploadBtn.type = 'button';
+          uploadBtn.className = 'btn-secondary variant-upload-btn';
+          uploadBtn.textContent = v.imageId ? '✓ Bild' : 'Hochladen';
+          uploadBtn.disabled = true;
+
+          const statusEl = document.createElement('span');
+          statusEl.className = 'variant-upload-status';
+
+          fileInp.addEventListener('change', () => {
+            const file = fileInp.files?.[0];
+            if (!file) return;
+            thumb.src = URL.createObjectURL(file);
+            thumb.style.display = '';
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = 'Hochladen';
+            statusEl.textContent = '';
+          });
+
+          uploadBtn.addEventListener('click', async () => {
+            const file = fileInp.files?.[0];
+            if (!file) return;
+            uploadBtn.disabled = true;
+            statusEl.textContent = 'Lädt hoch…';
+            statusEl.style.color = 'var(--muted)';
+            try {
+              const fd = new FormData();
+              fd.append('file', file);
+              const res  = await apiFetch(`${API_BASE()}/api/artikel/media-upload`, { method: 'POST', body: fd });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+              variants[realIdx].imageId  = data.attachmentId;
+              variants[realIdx].imageUrl = data.sourceUrl;
+              thumb.src = data.sourceUrl;
+              uploadBtn.textContent = '✓ Bild';
+              statusEl.textContent = '';
+            } catch (e) {
+              showToast(`Bild-Upload fehlgeschlagen: ${e.message}`, 'error');
+              statusEl.textContent = 'Fehler';
+              statusEl.style.color = 'var(--danger)';
+              uploadBtn.disabled = false;
+            }
+          });
+
+          imgWrap.appendChild(thumb);
+          imgWrap.appendChild(fileInp);
+          imgWrap.appendChild(uploadBtn);
+          imgWrap.appendChild(statusEl);
+
           row.appendChild(cbWrap);
           row.appendChild(attrsEl);
           row.appendChild(priceEl);
+          row.appendChild(imgWrap);
           table.appendChild(row);
         });
 
@@ -4416,6 +4496,7 @@
           id:            v.wcVariationId || undefined,
           attributes:    v.attrs.map(a => ({ name: a.name, option: a.value })),
           regular_price: String(v.price),
+          ...(v.imageId ? { image: { id: v.imageId } } : {}),
         }));
 
         const attrMap = {};
@@ -4423,6 +4504,11 @@
           if (!attrMap[a.name]) attrMap[a.name] = new Set();
           attrMap[a.name].add(a.value);
         }));
+
+        // Hauptprodukt-Bild: erstes Varianten-Bild, das hochgeladen wurde (kein
+        // separater Haupt-Upload nötig – dieselbe attachmentId kann mehrfach
+        // verwendet werden, kein Re-Upload).
+        const mainImageId = activeVariants.find(v => v.imageId)?.imageId;
 
         try {
           const selectedShopStatus = statusShopSel.value;
@@ -4441,6 +4527,7 @@
               })),
               shipping_class: document.getElementById('pf-shipping').value,
               variations:     wcVariations,
+              ...(mainImageId ? { images: [{ id: mainImageId }] } : {}),
             }),
           });
           const data = await res.json();
@@ -4744,7 +4831,12 @@
           attributes:    v.attrs.map(a => ({ name: a.name, option: a.value })),
           regular_price: String(v.price || defaultPrice || ''),
           status:        'publish',
+          ...(v.imageId ? { image: { id: v.imageId } } : {}),
         }));
+
+        // Hauptprodukt-Bild: erstes Varianten-Bild, das hochgeladen wurde – dieselbe
+        // attachmentId kann mehrfach verwendet werden, kein Re-Upload nötig.
+        const mainImageId = activeVariants.find(v => v.imageId)?.imageId;
 
         try {
           // Schritt 1: Produkt anlegen
@@ -4764,6 +4856,7 @@
               attributes:        aggregatedAttributes,
               shipping_class:    document.getElementById('pf-shipping').value,
               variations:        wcVariations,
+              ...(mainImageId ? { images: [{ id: mainImageId }] } : {}),
             }),
           });
           const data1 = await res1.json();
