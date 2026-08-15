@@ -3217,7 +3217,7 @@
       let kurzbezManuallyEdited = false; // verhindert Auto-Sync nach manuellem Laden
       let draftList = [];                // gecachte Entwurfsliste
       let currentDraftRow = null;        // Sheet-Zeilennummer des geladenen Entwurfs
-      let existingVariations = [];       // [{ id, attrs:[{name,value}], price, _origPrice }]
+      let existingVariations = [];       // [{ id, attrs:[{name,value}], price, _origPrice, imageId, imageUrl, _origImageId }]
       let selectedVariationIds = new Set();
       let editMode = false;              // false = Neu anlegen, true = Artikel ändern
       let seoMode  = false;              // SEO Daten Modus
@@ -4190,6 +4190,7 @@
         attrNames.forEach(n => { const th = document.createElement('th'); th.textContent = n; headerRow.appendChild(th); });
         for (let i = attrNames.length; i < maxAttrs; i++) { const th = document.createElement('th'); th.textContent = '—'; headerRow.appendChild(th); }
         const priceTh = document.createElement('th'); priceTh.textContent = 'Preis (€)'; headerRow.appendChild(priceTh);
+        const imgTh = document.createElement('th'); imgTh.textContent = 'Bild'; headerRow.appendChild(imgTh);
         headerRow.appendChild(document.createElement('th'));
         thead.innerHTML = '';
         thead.appendChild(headerRow);
@@ -4231,6 +4232,74 @@
           });
           priceTd.appendChild(inp);
           tr.appendChild(priceTd);
+
+          // Varianten-Bild: Vorschau-Thumbnail (zeigt bestehendes WC-Bild sofort) +
+          // Datei-Input + separater Upload-Button, analog zu renderVariants().
+          const imgTd = document.createElement('td');
+          const imgWrap = document.createElement('div');
+          imgWrap.className = 'variant-image-wrap';
+
+          const thumb = document.createElement('img');
+          thumb.className = 'variant-thumb';
+          thumb.alt = 'Vorschau';
+          thumb.style.display = v.imageUrl ? '' : 'none';
+          if (v.imageUrl) thumb.src = v.imageUrl;
+
+          const fileInp = document.createElement('input');
+          fileInp.type = 'file';
+          fileInp.accept = 'image/*';
+          fileInp.className = 'variant-file-inp';
+
+          const uploadBtn = document.createElement('button');
+          uploadBtn.type = 'button';
+          uploadBtn.className = 'btn-secondary variant-upload-btn';
+          uploadBtn.textContent = v.imageId ? '✓ Bild' : 'Hochladen';
+          uploadBtn.disabled = true;
+
+          const statusEl = document.createElement('span');
+          statusEl.className = 'variant-upload-status';
+
+          fileInp.addEventListener('change', () => {
+            const file = fileInp.files?.[0];
+            if (!file) return;
+            thumb.src = URL.createObjectURL(file);
+            thumb.style.display = '';
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = 'Hochladen';
+            statusEl.textContent = '';
+          });
+
+          uploadBtn.addEventListener('click', async () => {
+            const file = fileInp.files?.[0];
+            if (!file) return;
+            uploadBtn.disabled = true;
+            statusEl.textContent = 'Lädt hoch…';
+            statusEl.style.color = 'var(--muted)';
+            try {
+              const fd = new FormData();
+              fd.append('file', file);
+              const res  = await apiFetch(`${API_BASE()}/api/artikel/media-upload`, { method: 'POST', body: fd });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+              const ev = existingVariations.find(x => x.id === v.id);
+              if (ev) { ev.imageId = data.attachmentId; ev.imageUrl = data.sourceUrl; }
+              thumb.src = data.sourceUrl;
+              uploadBtn.textContent = '✓ Bild';
+              statusEl.textContent = '';
+            } catch (e) {
+              showToast(`Bild-Upload fehlgeschlagen: ${e.message}`, 'error');
+              statusEl.textContent = 'Fehler';
+              statusEl.style.color = 'var(--danger)';
+              uploadBtn.disabled = false;
+            }
+          });
+
+          imgWrap.appendChild(thumb);
+          imgWrap.appendChild(fileInp);
+          imgWrap.appendChild(uploadBtn);
+          imgWrap.appendChild(statusEl);
+          imgTd.appendChild(imgWrap);
+          tr.appendChild(imgTd);
 
           const delTd = document.createElement('td');
           const delBtn = document.createElement('button');
@@ -4334,10 +4403,13 @@
         const vRes  = await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations`);
         const vData = await vRes.json();
         existingVariations = vData.map(v => ({
-          id:         v.id,
-          attrs:      (v.attributes || []).map(a => ({ name: a.name, value: a.option })),
-          price:      v.regular_price || '',
-          _origPrice: v.regular_price || '',
+          id:            v.id,
+          attrs:         (v.attributes || []).map(a => ({ name: a.name, value: a.option })),
+          price:         v.regular_price || '',
+          _origPrice:    v.regular_price || '',
+          imageId:       v.image?.id  ?? null,
+          imageUrl:      v.image?.src ?? null,
+          _origImageId:  v.image?.id  ?? null,
         }));
         renderExistingVariations();
         renderVariants();
@@ -4445,10 +4517,13 @@
 
           // Bestehende Varianten für Tabelle + Vergleich speichern
           existingVariations = (Array.isArray(vars) ? vars : []).map(v => ({
-            id:         v.id,
-            attrs:      (v.attributes || []).map(a => ({ name: a.name, value: a.option })),
-            price:      v.regular_price || '',
-            _origPrice: v.regular_price || '',
+            id:            v.id,
+            attrs:         (v.attributes || []).map(a => ({ name: a.name, value: a.option })),
+            price:         v.regular_price || '',
+            _origPrice:    v.regular_price || '',
+            imageId:       v.image?.id  ?? null,
+            imageUrl:      v.image?.src ?? null,
+            _origImageId:  v.image?.id  ?? null,
           }));
           renderExistingVariations();
 
@@ -4562,16 +4637,21 @@
             });
           }
 
-          // Geänderte Varianten-Preise einzeln aktualisieren
-          const changedVars = existingVariations.filter(v => v.price !== v._origPrice);
+          // Geänderte Varianten-Preise + neu hochgeladene Varianten-Bilder einzeln aktualisieren
+          const changedVars = existingVariations.filter(v =>
+            v.price !== v._origPrice || v.imageId !== v._origImageId);
           for (const v of changedVars) {
             try {
               await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations/${v.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ regular_price: String(v.price) }),
+                body: JSON.stringify({
+                  regular_price: String(v.price),
+                  ...(v.imageId ? { image: { id: v.imageId } } : {}),
+                }),
               });
-              v._origPrice = v.price;
+              v._origPrice   = v.price;
+              v._origImageId = v.imageId;
             } catch { /* Einzelfehler loggen aber nicht abbrechen */ }
           }
 
