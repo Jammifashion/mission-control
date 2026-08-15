@@ -66,7 +66,7 @@ async function run() {
   // Get WC orders
   const wc = new WooCommerceRestApi.default({
     url: process.env.WC_URL, consumerKey: process.env.WC_KEY,
-    consumerSecret: process.env.WC_SECRET, version: 'wc/v3', queryStringAuth: true,
+    consumerSecret: process.env.WC_SECRET, version: 'wc/v3', queryStringAuth: false,
   });
 
   console.log('━━ Verifikation der Sync-Werte ━━\n');

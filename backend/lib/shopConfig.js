@@ -56,6 +56,6 @@ export function getWcClient(shop) {
     consumerKey:    cfg.wcKey,
     consumerSecret: cfg.wcSecret,
     version:        'wc/v3',
-    queryStringAuth: true,
+    queryStringAuth: false,
   });
 }

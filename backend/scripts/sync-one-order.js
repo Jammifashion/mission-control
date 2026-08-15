@@ -85,7 +85,7 @@ async function run() {
   // WC-Order direkt laden
   const wc = new WooCommerceRestApi.default({
     url: process.env.WC_URL, consumerKey: process.env.WC_KEY,
-    consumerSecret: process.env.WC_SECRET, version: 'wc/v3', queryStringAuth: true,
+    consumerSecret: process.env.WC_SECRET, version: 'wc/v3', queryStringAuth: false,
   });
   const { data: order } = await wc.get(`orders/${ORDER_ID}`);
   console.log(`\nOrder ${order.id} · Status: ${order.status} · ${order.date_created}`);

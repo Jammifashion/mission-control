@@ -20,7 +20,7 @@ function getWcClient() {
     consumerKey:     process.env.WC_KEY,
     consumerSecret:  process.env.WC_SECRET,
     version:         'wc/v3',
-    queryStringAuth: true,
+    queryStringAuth: false,
   });
 }
 

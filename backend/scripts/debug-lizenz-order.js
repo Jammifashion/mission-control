@@ -17,7 +17,7 @@ function getWcClient() {
     throw new Error('WooCommerce-Zugangsdaten fehlen (WC_URL, WC_KEY, WC_SECRET).');
   return new WooCommerceRestApi.default({
     url: process.env.WC_URL, consumerKey: process.env.WC_KEY,
-    consumerSecret: process.env.WC_SECRET, version: 'wc/v3', queryStringAuth: true,
+    consumerSecret: process.env.WC_SECRET, version: 'wc/v3', queryStringAuth: false,
   });
 }
 
