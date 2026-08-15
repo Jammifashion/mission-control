@@ -727,6 +727,16 @@
       .variant-upload-btn:disabled { opacity: 0.4; border-color: var(--border) !important; color: var(--muted) !important; cursor: not-allowed; }
       .variant-upload-status { font-size: 14px; color: var(--danger); min-width: 3.5rem; }
 
+      .variant-imgref-block { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 0.85rem; margin-bottom: 0.85rem; }
+      .variant-imgref-title { font-size: 14px; color: var(--accent); font-weight: 600; margin-bottom: 0.55rem; }
+      .variant-imgref-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+      .variant-imgref-row .form-select { font-size: 14px; padding: 0.35rem 2rem 0.35rem 0.6rem; min-width: 140px; }
+      .variant-imgref-list { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.65rem; }
+      .variant-imgref-item { display: flex; align-items: center; gap: 0.4rem; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 0.25rem 0.5rem; font-size: 14px; color: var(--text); }
+      .variant-imgref-item-remove { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 14px; padding: 0 0.15rem; line-height: 1; }
+      .variant-imgref-item-remove:hover { opacity: 0.7; }
+      .variant-imgref-empty { font-size: 14px; color: var(--muted); }
+
       .prop-suggest-wrap { position: relative; margin-top: 0.2rem; }
       .prop-suggest-trigger { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--muted); cursor: pointer; padding: 0.2rem 0.5rem; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); user-select: none; }
       .prop-suggest-trigger:hover { border-color: var(--accent); color: var(--accent); }
@@ -1360,6 +1370,17 @@
           </div>
           <div id="variants-section" class="variants-section" style="display:none;">
             <div class="variants-section-title" id="variants-section-title">Varianten &amp; Preise</div>
+            <div class="variant-imgref-block" id="variant-imgref-block">
+              <div class="variant-imgref-title">Bild-Referenz-Eigenschaft</div>
+              <div class="variant-imgref-row">
+                <select id="imgref-property-select" class="form-select"></select>
+                <select id="imgref-value-select" class="form-select"></select>
+                <input type="file" accept="image/*" id="imgref-file-inp" class="variant-file-inp" />
+                <button type="button" class="btn-secondary variant-upload-btn" id="imgref-upload-btn" disabled>Hochladen</button>
+                <span class="variant-upload-status" id="imgref-upload-status"></span>
+              </div>
+              <div id="imgref-assigned-list" class="variant-imgref-list"></div>
+            </div>
             <div class="variants-toolbar" id="variants-toolbar" style="display:none;">
               <span class="variants-count" id="variants-count-label"></span>
               <button class="btn-secondary btn-xs" id="btn-check-all">Alle</button>
@@ -3225,6 +3246,23 @@
       // Variant combinations: [{ attrs: [{name, value}], price: '' }]
       let variants = [];
 
+      // ── Bild-Referenz-Eigenschaft (automatische Varianten-Bild-Zuordnung) ────────
+      let imageRefProperty = null; // z.B. "Farbe" – aktuell gewählte Referenz-Eigenschaft
+      let variantImageMap  = {};   // { [wert]: { imageId, imageUrl } } je Wert der Referenz-Eigenschaft
+
+      // Wendet variantImageMap auf alle nicht-manuell bebilderten Einträge in arr an
+      // (arr = variants oder existingVariations). Manuell hochgeladene Bilder
+      // (_imageManual) werden nie überschrieben – das ist die einzige Ausnahme.
+      function applyAutoImages(arr) {
+        arr.forEach(v => {
+          if (v._imageManual) return;
+          const val   = imageRefProperty ? v.attrs.find(a => a.name === imageRefProperty)?.value : null;
+          const entry = val ? variantImageMap[val] : null;
+          v.imageId  = entry?.imageId  ?? null;
+          v.imageUrl = entry?.imageUrl ?? null;
+        });
+      }
+
       function recomputeVariants() {
         const valid = properties.filter(p => p.name && p.tags.length);
         if (!valid.length) { variants = []; return; }
@@ -3237,7 +3275,7 @@
           v.attrs.map(a => `${a.name}=${a.value}`).join('|'),
           {
             price: v.price, _autoFilled: v._autoFilled ?? false, _checked: v._checked ?? true,
-            imageId: v.imageId ?? null, imageUrl: v.imageUrl ?? null,
+            imageId: v.imageId ?? null, imageUrl: v.imageUrl ?? null, _imageManual: v._imageManual ?? false,
           },
         ]));
         variants = combos.map(attrs => {
@@ -3251,10 +3289,14 @@
             // Varianten-Bild bleibt beim Neu-Kombinieren der Eigenschaften erhalten
             // (Recompute baut variants komplett neu auf – ohne diesen Übernahme-
             // Schritt ginge ein bereits hochgeladenes Bild sonst verloren).
-            imageId:     existing?.imageId     ?? null,
-            imageUrl:    existing?.imageUrl    ?? null,
+            imageId:      existing?.imageId      ?? null,
+            imageUrl:     existing?.imageUrl     ?? null,
+            _imageManual: existing?._imageManual ?? false,
           };
         });
+        // Neu entstandene (und weiterhin nicht-manuelle) Kombinationen automatisch
+        // gemäß aktueller Bild-Referenz-Eigenschaft bebildern.
+        applyAutoImages(variants);
       }
 
       function renderVariants() {
@@ -3275,6 +3317,7 @@
 
         if (!displayVariants.length) { section.style.display = 'none'; return; }
         section.style.display = 'block';
+        renderImageRefBlock();
 
         if (titleEl) titleEl.textContent = editMode ? 'Neue Varianten hinzufügen' : 'Varianten & Preise';
         if (toolbar) toolbar.style.display = 'flex';
@@ -3380,8 +3423,9 @@
               const res  = await apiFetch(`${API_BASE()}/api/artikel/media-upload`, { method: 'POST', body: fd });
               const data = await res.json();
               if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-              variants[realIdx].imageId  = data.attachmentId;
-              variants[realIdx].imageUrl = data.sourceUrl;
+              variants[realIdx].imageId      = data.attachmentId;
+              variants[realIdx].imageUrl     = data.sourceUrl;
+              variants[realIdx]._imageManual = true; // manuelles Bild – automatische Zuordnung überschreibt es nie
               thumb.src = data.sourceUrl;
               uploadBtn.textContent = '✓ Bild';
               statusEl.textContent = '';
@@ -3411,6 +3455,83 @@
           warn.textContent = `Nur die ersten 50 Varianten werden angelegt. Aktuell: ${displayVariants.length}`;
           table.appendChild(warn);
         }
+      }
+
+      // ── Bild-Referenz-Eigenschaft: Dropdowns + Zuordnungsliste neu aufbauen ──────
+      function renderImageRefBlock() {
+        const block     = document.getElementById('variant-imgref-block');
+        const propSel   = document.getElementById('imgref-property-select');
+        const valSel    = document.getElementById('imgref-value-select');
+        const uploadBtn = document.getElementById('imgref-upload-btn');
+        const fileInp   = document.getElementById('imgref-file-inp');
+        if (!block) return;
+
+        const availableProps = properties.filter(p => p.name && p.tags.length);
+        if (!availableProps.length) { block.style.display = 'none'; return; }
+        block.style.display = '';
+
+        // Referenz-Eigenschaft bestimmen: aktuelle Wahl falls noch gültig, sonst
+        // "Farbe" falls vorhanden, sonst erste Eigenschaft.
+        const stillValid = availableProps.some(p => p.name === imageRefProperty);
+        if (!stillValid)
+          imageRefProperty = availableProps.some(p => p.name === 'Farbe') ? 'Farbe' : availableProps[0].name;
+
+        propSel.innerHTML = availableProps.map(p =>
+          `<option value="${p.name}"${p.name === imageRefProperty ? ' selected' : ''}>${p.name}</option>`
+        ).join('');
+
+        const currentProp = availableProps.find(p => p.name === imageRefProperty);
+        const tags = currentProp ? currentProp.tags : [];
+        const prevValue = valSel.value;
+        valSel.innerHTML = tags.map(t =>
+          `<option value="${t}"${t === prevValue ? ' selected' : ''}>${t}</option>`
+        ).join('');
+
+        uploadBtn.disabled = !fileInp.files?.[0];
+        renderImgRefAssignedList();
+      }
+
+      function renderImgRefAssignedList() {
+        const listEl = document.getElementById('imgref-assigned-list');
+        if (!listEl) return;
+        const entries = Object.entries(variantImageMap);
+        if (!entries.length) {
+          listEl.innerHTML = '<span class="variant-imgref-empty">Noch keine Bilder zugeordnet.</span>';
+          return;
+        }
+        listEl.innerHTML = '';
+        entries.forEach(([wert, { imageUrl }]) => {
+          const item = document.createElement('div');
+          item.className = 'variant-imgref-item';
+
+          const thumb = document.createElement('img');
+          thumb.className = 'variant-thumb';
+          thumb.src = imageUrl;
+          thumb.alt = wert;
+
+          const label = document.createElement('span');
+          label.textContent = wert;
+
+          const rm = document.createElement('button');
+          rm.type = 'button';
+          rm.className = 'variant-imgref-item-remove';
+          rm.textContent = '✕';
+          rm.title = `Zuordnung für "${wert}" entfernen`;
+          rm.addEventListener('click', () => removeImageRefEntry(wert));
+
+          item.append(thumb, label, rm);
+          listEl.appendChild(item);
+        });
+      }
+
+      // Entfernt eine Zuordnung + alle davon automatisch gesetzten (nicht-manuellen)
+      // Varianten-Bilder, damit keine verwaisten Bild-Referenzen zurückbleiben.
+      function removeImageRefEntry(wert) {
+        delete variantImageMap[wert];
+        applyAutoImages(variants);
+        applyAutoImages(existingVariations);
+        renderVariants();
+        renderExistingVariations();
       }
 
       async function handleAiSuggest() {
@@ -3707,6 +3828,70 @@
         renderVariants();
       });
       document.getElementById('btn-ai-suggest').addEventListener('click', handleAiSuggest);
+
+      // ── Bild-Referenz-Eigenschaft: Event-Wiring ──────────────────────────────
+      document.getElementById('imgref-property-select').addEventListener('change', async (e) => {
+        const newProp = e.target.value;
+        if (!newProp || newProp === imageRefProperty) return;
+        const hasEntries = Object.keys(variantImageMap).length > 0;
+        if (hasEntries) {
+          const ok = await showConfirm(
+            'Referenz-Eigenschaft wechseln?',
+            `Beim Wechsel zu <strong>${newProp}</strong> werden alle automatischen Bild-Zuordnungen für <strong>${imageRefProperty}</strong> gelöscht. Bereits manuell hochgeladene Einzelbilder bleiben erhalten.`,
+            'Wechseln & löschen',
+          );
+          if (!ok) { e.target.value = imageRefProperty; return; }
+        }
+        variantImageMap  = {};
+        imageRefProperty = newProp;
+        applyAutoImages(variants);
+        applyAutoImages(existingVariations);
+        renderVariants();
+        renderExistingVariations();
+      });
+
+      document.getElementById('imgref-file-inp').addEventListener('change', () => {
+        const fileInp   = document.getElementById('imgref-file-inp');
+        const uploadBtn = document.getElementById('imgref-upload-btn');
+        uploadBtn.disabled = !fileInp.files?.[0];
+        document.getElementById('imgref-upload-status').textContent = '';
+      });
+
+      document.getElementById('imgref-upload-btn').addEventListener('click', async () => {
+        const fileInp   = document.getElementById('imgref-file-inp');
+        const valSel    = document.getElementById('imgref-value-select');
+        const uploadBtn = document.getElementById('imgref-upload-btn');
+        const statusEl  = document.getElementById('imgref-upload-status');
+        const file = fileInp.files?.[0];
+        const wert = valSel.value;
+        if (!file || !wert) return;
+
+        uploadBtn.disabled = true;
+        statusEl.textContent = 'Lädt hoch…';
+        statusEl.style.color = 'var(--muted)';
+        try {
+          const fd = new FormData();
+          fd.append('file', file);
+          const res  = await apiFetch(`${API_BASE()}/api/artikel/media-upload`, { method: 'POST', body: fd });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+          variantImageMap[wert] = { imageId: data.attachmentId, imageUrl: data.sourceUrl };
+          applyAutoImages(variants);
+          applyAutoImages(existingVariations);
+          fileInp.value = '';
+          statusEl.textContent = '';
+          renderVariants();
+          renderExistingVariations();
+          showToast(`Bild für "${wert}" zugeordnet`, 'success');
+        } catch (e) {
+          showToast(`Bild-Upload fehlgeschlagen: ${e.message}`, 'error');
+          statusEl.textContent = 'Fehler';
+          statusEl.style.color = 'var(--danger)';
+          uploadBtn.disabled = false;
+        }
+      });
+
       renderProperties();
 
       // Multi-select categories
@@ -4282,7 +4467,7 @@
               const data = await res.json();
               if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
               const ev = existingVariations.find(x => x.id === v.id);
-              if (ev) { ev.imageId = data.attachmentId; ev.imageUrl = data.sourceUrl; }
+              if (ev) { ev.imageId = data.attachmentId; ev.imageUrl = data.sourceUrl; ev._imageManual = true; }
               thumb.src = data.sourceUrl;
               uploadBtn.textContent = '✓ Bild';
               statusEl.textContent = '';
