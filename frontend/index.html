@@ -2288,7 +2288,7 @@
       // (Partner_Interne_Bestellungen, nur Kanal=Portal). Eine Abfrage versorgt
       // Tabellen, Tab-Badge und Login-Toast gleichermaßen.
       const MON_ANF_DONE   = ['Abgeschlossen', 'Abgelehnt'];
-      const MON_EIGEN_DONE = ['Erledigt', 'Abgerechnet'];
+      const MON_EIGEN_DONE = ['Erledigt']; // Fulfillment-Status, NICHT der Abrechnungsstatus
       let monCache = null;
 
       function monEsc(s) {
@@ -2300,7 +2300,9 @@
         return m ? new Date(+m[3], +m[2] - 1, +m[1]).getTime() : 0;
       }
       function monOpenAnfragen(rows)  { return rows.filter(a => !MON_ANF_DONE.includes(a.status)); }
-      function monOpenEigen(rows)     { return rows.filter(e => !MON_EIGEN_DONE.includes(e.status)); }
+      // Nur noch für den Badge-Zähler – erledigte Eigenaufträge bleiben in der Liste
+      // sichtbar (gedimmt), werden also NICHT mehr aus monRenderEigen ausgefiltert.
+      function monOpenEigen(rows)     { return rows.filter(e => !MON_EIGEN_DONE.includes(e.fulfillment)); }
 
       async function monFetchData(force = false) {
         if (monCache && !force) return monCache;
@@ -2344,21 +2346,55 @@
           </tr>`).join('')}</tbody></table></div>`;
       }
 
+      // Fulfillment-Status umschalten (Admin-only Endpoint) und Sektion neu laden.
+      async function monToggleFulfillment(partnerId, rowId, next) {
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/partner/${encodeURIComponent(partnerId)}/intern/${rowId}/fulfillment`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fulfillment: next }),
+          });
+          if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `HTTP ${res.status}`); }
+          await loadAuftragsMonitor(true);
+        } catch (e) {
+          showToast(`Fehler: ${e.message}`, 'error');
+        }
+      }
+
       function monRenderEigen(rows) {
         const wrap = document.getElementById('mon-eigen-list');
         if (!wrap) return;
-        const open = monOpenEigen(rows).sort((a, b) =>
+        // Erledigte Eigenaufträge bleiben sichtbar (gedimmt) – nur der Badge-Zähler
+        // nutzt monOpenEigen(), hier wird alles gerendert.
+        const all = [...rows].sort((a, b) =>
           (monParseDate(b.datum) - monParseDate(a.datum)) || ((b.rowId || 0) - (a.rowId || 0)));
-        if (!open.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine offenen Partner-Eigenaufträge.</p>'; return; }
+        if (!all.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Partner-Eigenaufträge.</p>'; return; }
         wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
-          <thead><tr><th>Partner-ID</th><th>Bezeichnung</th><th>Menge</th><th>Status</th><th>Kanal</th></tr></thead>
-          <tbody>${open.map(e => `<tr>
-            <td>${monEsc(e.partnerId)}</td>
+          <thead><tr><th>Partner-ID</th><th>Bezeichnung</th><th>Menge</th><th>Status</th><th>Fulfillment</th><th>Kanal</th></tr></thead>
+          <tbody>${all.map(e => {
+            const erledigt = e.fulfillment === 'Erledigt';
+            const naechster = erledigt ? 'Beauftragt' : 'Erledigt';
+            const partnerLabel = e.partnerName ? `${monEsc(e.partnerId)} · ${monEsc(e.partnerName)}` : monEsc(e.partnerId);
+            return `<tr${erledigt ? ' style="opacity:0.5;"' : ''}>
+            <td>${partnerLabel}</td>
             <td>${monEsc(e.bezeichnung || '—')}</td>
             <td>${monEsc(e.anzahl || '—')}</td>
             <td><span class="badge badge-pending">${monEsc(e.status || '—')}</span></td>
+            <td>
+              <span class="badge ${erledigt ? 'badge-completed' : 'badge-pending'}">${monEsc(e.fulfillment || 'Beauftragt')}</span>
+              <button type="button" class="btn-secondary mon-fulfillment-btn"
+                style="margin-left:0.4rem;font-size:0.78rem;padding:0.3rem 0.6rem;"
+                data-partner-id="${monEsc(e.partnerId)}" data-row-id="${e.rowId}" data-next="${naechster}">
+                Als ${naechster} markieren
+              </button>
+            </td>
             <td>${monEsc(e.kanal || '—')}</td>
-          </tr>`).join('')}</tbody></table></div>`;
+          </tr>`;
+          }).join('')}</tbody></table></div>`;
+        wrap.querySelectorAll('.mon-fulfillment-btn').forEach(btn => {
+          btn.addEventListener('click', () =>
+            monToggleFulfillment(btn.dataset.partnerId, btn.dataset.rowId, btn.dataset.next));
+        });
       }
 
       async function loadAuftragsMonitor(force = true) {

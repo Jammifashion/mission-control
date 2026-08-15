@@ -20,7 +20,33 @@ async function readTab(sheets, sheetId, tabName) {
     spreadsheetId: sheetId, range: `${tabName}!A1:Z`,
   });
   const [header, ...rows] = data.values ?? [];
+  // Echten Sheet-Zeilenindex (_sheetRow) anhängen BEVOR Leerzeilen gefiltert werden,
+  // damit Status-Updates die korrekte Zeile treffen (sonst verschiebt jede Leerzeile alles).
+  rows.forEach((r, i) => { r._sheetRow = i + 2; });
   return { header: header ?? [], rows: rows.filter(r => r.some(c => c)) };
+}
+
+// Bugfix-Migration: Zeilen mit Status 'Neu' (vor dem Status-Bugfix angelegt, siehe
+// partner-artikel.js PATCH /:id/intern/:rowId) einmalig auf 'offen' heben, lazy
+// beim Lesen – damit sie in Saldo-Berechnung und Abrechnung ankommen. Mutiert rows
+// in-place, damit der Aufrufer sofort den korrigierten Wert sieht.
+async function migrateNeuStatus(sheets, sheetId, header, rows) {
+  const stIdx = header.indexOf('Status');
+  if (stIdx === -1) return;
+  const stCol = colLetter(stIdx);
+  const betroffen = rows.filter(r => (r[stIdx] ?? '') === 'Neu');
+  if (!betroffen.length) return;
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: sheetId,
+    requestBody: {
+      valueInputOption: 'RAW',
+      data: betroffen.map(r => ({
+        range: `Partner_Interne_Bestellungen!${stCol}${r._sheetRow}`,
+        values: [['offen']],
+      })),
+    },
+  });
+  betroffen.forEach(r => { r[stIdx] = 'offen'; });
 }
 
 function parseDate(s) {
@@ -456,6 +482,7 @@ router.get('/intern', async (req, res, next) => {
     const sheetId = process.env.BUSINESS_SHEET_ID;
     const sheets  = await getSheets();
     const { header, rows } = await readTab(sheets, sheetId, 'Partner_Interne_Bestellungen');
+    await migrateNeuStatus(sheets, sheetId, header, rows);
     const h = col => header.indexOf(col);
 
     res.json(rows
@@ -487,6 +514,7 @@ router.get('/saldo', async (req, res, next) => {
       readTab(sheets, sheetId, 'Partner_Interne_Bestellungen'),
       readTab(sheets, sheetId, 'Kalkulation_Fixkosten'),
     ]);
+    await migrateNeuStatus(sheets, sheetId, internTab.header, internTab.rows);
 
     const round2 = n => Math.round(n * 100) / 100;
     const mwstProzent = parseKonfiguration(konfigTab.rows, konfigTab.header).mwstProzent;
@@ -592,10 +620,12 @@ router.post('/:id/eigenauftrag', async (req, res, next) => {
     if ((anmerkungen  ?? '').toString().trim()) teile.push(`Anmerkung: ${anmerkungen.toString().trim()}`);
     const bezeichnung = teile.join(' | ');
 
-    // Spaltenlayout ermitteln; Kanal-Spalte ggf. neu anlegen.
+    // Spaltenlayout ermitteln; Kanal- und Fulfillment-Spalte ggf. neu anlegen.
     const { header } = await readTab(sheets, sheetId, 'Partner_Interne_Bestellungen');
     const kanalIsNew = header.indexOf('Kanal') === -1;
     const kanalIdx   = kanalIsNew ? header.length : header.indexOf('Kanal');
+    const fulIsNew   = header.indexOf('Fulfillment') === -1;
+    const fulIdx     = fulIsNew ? (kanalIsNew ? kanalIdx + 1 : header.length) : header.indexOf('Fulfillment');
 
     // Beim ersten Mal Kanal-Header setzen und bestehende Einträge als 'Manuell' markieren.
     if (kanalIsNew) {
@@ -616,15 +646,37 @@ router.post('/:id/eigenauftrag', async (req, res, next) => {
       });
     }
 
+    // Beim ersten Mal Fulfillment-Header setzen, Bestandszeilen mit 'Beauftragt' befüllen.
+    if (fulIsNew) {
+      const { data: colA } = await sheets.spreadsheets.values.get({
+        spreadsheetId: sheetId, range: 'Partner_Interne_Bestellungen!A:A',
+      });
+      const totalRows = (colA.values ?? []).length; // inkl. Header-Zeile
+      const fulCol    = colLetter(fulIdx);
+      const data = [{ range: `Partner_Interne_Bestellungen!${fulCol}1`, values: [['Fulfillment']] }];
+      if (totalRows > 1)
+        data.push({
+          range:  `Partner_Interne_Bestellungen!${fulCol}2:${fulCol}${totalRows}`,
+          values: Array.from({ length: totalRows - 1 }, () => ['Beauftragt']),
+        });
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: sheetId,
+        requestBody: { valueInputOption: 'RAW', data },
+      });
+    }
+
     // Zeile anhand der Header-Positionen aufbauen (Einzelpreis/Summe bleiben leer).
-    const rowArr = new Array(Math.max(header.length, kanalIdx + 1)).fill('');
+    const rowArr = new Array(Math.max(header.length, kanalIdx + 1, fulIdx + 1)).fill('');
     const setCol = (name, val) => { const i = header.indexOf(name); if (i !== -1) rowArr[i] = val; };
     setCol('Partner-ID',  partnerId);
     setCol('Datum',       toDE(new Date()));
     setCol('Bezeichnung', bezeichnung);
     setCol('Anzahl',      mengeNum);
-    setCol('Status',      'Neu');
+    // Bugfix: Status startet direkt auf 'offen' statt 'Neu' – Portal-Eigenaufträge
+    // flossen mit 'Neu' nie in Saldo/Abrechnung ein (Summe ist hier 0, unkritisch).
+    setCol('Status',      'offen');
     rowArr[kanalIdx] = 'Portal';
+    rowArr[fulIdx]   = 'Beauftragt';
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
@@ -636,7 +688,7 @@ router.post('/:id/eigenauftrag', async (req, res, next) => {
 
     res.status(201).json({
       partnerId, bezeichnung, anzahl: mengeNum,
-      status: 'Neu', kanal: 'Portal',
+      status: 'offen', kanal: 'Portal', fulfillment: 'Beauftragt',
     });
   } catch (err) { next(err); }
 });

@@ -75,6 +75,74 @@ async function partnerIdExists(sheets, sheetId, partnerId) {
   return false;
 }
 
+// Partner-Name je Partner-ID nachschlagen – sucht in 'Partner' UND 'FP_Partner'
+// (analog zu partnerIdExists, s.o.), da Interne Bestellungen im gemeinsamen Sheet
+// geführt werden, Festpreis-Partner aber nur im FP_Partner-Tab stehen.
+async function loadPartnerNames(sheets, sheetId) {
+  const map = {};
+  for (const tab of ['Partner', 'FP_Partner']) {
+    try {
+      const { header, rows } = await readTab(sheets, sheetId, tab);
+      const idIdx = header.indexOf('Partner-ID');
+      const nameIdx = header.indexOf('Name');
+      if (idIdx === -1 || nameIdx === -1) continue;
+      for (const r of rows) {
+        const id = r[idIdx] ?? '';
+        if (id && !map[id]) map[id] = r[nameIdx] ?? '';
+      }
+    } catch { /* Tab evtl. nicht vorhanden – ignorieren */ }
+  }
+  return map;
+}
+
+// Legt die Spalte 'Fulfillment' lazy an (Muster wie 'Kanal' in partnerPortal.js),
+// falls sie fehlt. Bestandszeilen erhalten Default 'Beauftragt'. Gibt den
+// Spaltenindex zurück.
+async function ensureFulfillmentColumn(sheets, sheetId, header) {
+  const idx = header.indexOf('Fulfillment');
+  if (idx !== -1) return idx;
+  const newIdx = header.length;
+  const { data: colA } = await sheets.spreadsheets.values.get({
+    spreadsheetId: sheetId, range: 'Partner_Interne_Bestellungen!A:A',
+  });
+  const totalRows = (colA.values ?? []).length; // inkl. Header-Zeile
+  const col = colLetter(newIdx);
+  const data = [{ range: `Partner_Interne_Bestellungen!${col}1`, values: [['Fulfillment']] }];
+  if (totalRows > 1)
+    data.push({
+      range:  `Partner_Interne_Bestellungen!${col}2:${col}${totalRows}`,
+      values: Array.from({ length: totalRows - 1 }, () => ['Beauftragt']),
+    });
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: sheetId,
+    requestBody: { valueInputOption: 'RAW', data },
+  });
+  return newIdx;
+}
+
+// Bugfix-Migration: Zeilen mit Status 'Neu' (vor dem Status-Bugfix angelegt, siehe
+// PATCH /:id/intern/:rowId) einmalig auf 'offen' heben, lazy beim Lesen – damit sie
+// in Saldo-Berechnung und Abrechnung ankommen. Mutiert rows in-place, damit die
+// Response sofort den korrigierten Wert zeigt.
+async function migrateNeuStatus(sheets, sheetId, header, rows) {
+  const stIdx = header.indexOf('Status');
+  if (stIdx === -1) return;
+  const stCol = colLetter(stIdx);
+  const betroffen = rows.filter(r => (r[stIdx] ?? '') === 'Neu');
+  if (!betroffen.length) return;
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: sheetId,
+    requestBody: {
+      valueInputOption: 'RAW',
+      data: betroffen.map(r => ({
+        range: `Partner_Interne_Bestellungen!${stCol}${r._sheetRow}`,
+        values: [['offen']],
+      })),
+    },
+  });
+  betroffen.forEach(r => { r[stIdx] = 'offen'; });
+}
+
 async function loadKonfiguration(sheets, sheetId) {
   const { header, rows } = await readTab(sheets, sheetId, 'Kalkulation_Fixkosten');
   return parseKonfiguration(rows, header);
@@ -444,11 +512,15 @@ router.get('/interne-bestellungen', async (req, res, next) => {
     const sheetId = requireSheetId(res); if (!sheetId) return;
     const sheets  = await getSheets();
     const { header, rows } = await readTab(sheets, sheetId, 'Partner_Interne_Bestellungen');
+    await migrateNeuStatus(sheets, sheetId, header, rows);
     const h = col => header.indexOf(col);
+    const fulIdx = h('Fulfillment');
+    const nameMap = await loadPartnerNames(sheets, sheetId);
 
     res.json(rows.map((r) => ({
       rowId:       r._sheetRow,
       partnerId:   r[h('Partner-ID')]  ?? '',
+      partnerName: nameMap[r[h('Partner-ID')]] ?? null,
       datum:       r[h('Datum')]       ?? '',
       bezeichnung: r[h('Bezeichnung')] ?? '',
       anzahl:      toFloat(r[h('Anzahl')]),
@@ -456,6 +528,7 @@ router.get('/interne-bestellungen', async (req, res, next) => {
       summe:       toFloat(r[h('Summe')]),
       status:      r[h('Status')]      ?? '',
       kanal:       r[h('Kanal')]       ?? '',
+      fulfillment: (fulIdx !== -1 ? r[fulIdx] : '') || 'Beauftragt',
     })));
   } catch (err) { next(err); }
 });
@@ -483,6 +556,38 @@ router.patch('/:id/intern/:rowId/status', async (req, res, next) => {
     });
 
     res.json({ partnerId: req.params.id, rowId: sheetRow, status });
+  } catch (err) { next(err); }
+});
+
+// ── PATCH /:id/intern/:rowId/fulfillment ──────────────────────────────────────
+// Fulfillment-Status (Beauftragt/Erledigt) – komplett unabhängig vom Abrechnungs-
+// Status (Spalte 'Status'). Nur für den Auftragsmonitor, Admin-only.
+router.patch('/:id/intern/:rowId/fulfillment', async (req, res, next) => {
+  try {
+    const sheetId = requireSheetId(res); if (!sheetId) return;
+    const sheets  = await getSheets();
+
+    const { fulfillment } = req.body;
+    const VALID = ['Beauftragt', 'Erledigt'];
+    if (!VALID.includes(fulfillment))
+      return res.status(400).json({ error: `Ungültiger Fulfillment-Status. Erlaubt: ${VALID.join(', ')}` });
+
+    const sheetRow = parseInt(req.params.rowId, 10);
+    if (!sheetRow || sheetRow < 2)
+      return res.status(400).json({ error: 'Ungültige rowId.' });
+
+    const { header } = await readTab(sheets, sheetId, 'Partner_Interne_Bestellungen');
+    const fulIdx = await ensureFulfillmentColumn(sheets, sheetId, header);
+    const fulCol = colLetter(fulIdx);
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: sheetId,
+      range: `Partner_Interne_Bestellungen!${fulCol}${sheetRow}`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [[fulfillment]] },
+    });
+
+    res.json({ partnerId: req.params.id, rowId: sheetRow, fulfillment });
   } catch (err) { next(err); }
 });
 
@@ -524,6 +629,13 @@ router.patch('/:id/intern/:rowId', async (req, res, next) => {
     // Summe nur neu setzen, wenn Anzahl oder Einzelpreis geändert wurde
     if (anzahl !== undefined || einzelpreis !== undefined)
       colMap['Summe'] = Math.round(newAnzahl * newEp * 100) / 100;
+
+    // Bugfix: Portal-Eigenaufträge starten mit Status 'Neu' (ohne Preis) und blieben
+    // bisher auch nach Bepreisung durch den Admin auf 'Neu' hängen – dadurch flossen
+    // sie nie in Saldo/Abrechnung ein. Bei Bepreisung Status auf 'offen' heben, außer
+    // er ist es (durch die Sperre oben ausgeschlossen: 'abgerechnet') bereits.
+    if (einzelpreis !== undefined && (row[h('Status')] ?? '') !== 'offen')
+      colMap['Status'] = 'offen';
 
     const data = Object.entries(colMap)
       .filter(([, v]) => v !== undefined)
