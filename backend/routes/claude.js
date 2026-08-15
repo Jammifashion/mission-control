@@ -4,6 +4,12 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const router = Router();
 
+// Eigener Modell-Eintrag für die SEO-Beschreibungsgenerierung – bewusst getrennt
+// von process.env.GEMINI_MODEL, das weiterhin nur die Varianten-Klassifizierung
+// (action=suggest_variants) steuert. So überschreibt eine GEMINI_MODEL-Änderung
+// nicht versehentlich auch das SEO-Modell.
+const GEMINI_MODEL_SEO = process.env.GEMINI_MODEL_SEO || 'gemini-3.5-flash-lite';
+
 const SYSTEM_PROMPT = `Du bist der KI-Assistent für das Mission Control Dashboard von JammiFashion.
 Du hilfst dem Team bei Fragen zu Bestellungen, Produkten, Shop-Analysen und operativen Aufgaben.
 Antworte präzise und auf Deutsch. Wenn du Zahlen oder Bestellinformationen nennst, formatiere sie übersichtlich.`;
@@ -209,7 +215,7 @@ Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock):
       if (process.env.GEMINI_API_KEY) {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         const geminiModel = genAI.getGenerativeModel({
-          model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+          model: GEMINI_MODEL_SEO,
           systemInstruction: SEO_SYSTEM,
         });
         const geminiResult = await geminiModel.generateContent(userPrompt);
