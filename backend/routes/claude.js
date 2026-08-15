@@ -4,11 +4,11 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const router = Router();
 
-// Eigener Modell-Eintrag für die SEO-Beschreibungsgenerierung – bewusst getrennt
-// von process.env.GEMINI_MODEL, das weiterhin nur die Varianten-Klassifizierung
-// (action=suggest_variants) steuert. So überschreibt eine GEMINI_MODEL-Änderung
-// nicht versehentlich auch das SEO-Modell.
-const GEMINI_MODEL_SEO = process.env.GEMINI_MODEL_SEO || 'gemini-3.5-flash-lite';
+// Einheitliches Gemini-Modell für Klassifizierung (suggest_variants) UND
+// SEO-Beschreibungsgenerierung – beide nutzen denselben Wert, zentral hier
+// gepflegt statt getrennter Env-Vars (Aug 2026: vormals GEMINI_MODEL_SEO,
+// zusammengeführt nachdem beide Use Cases auf dasselbe Modell umgestellt wurden).
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 
 const SYSTEM_PROMPT = `Du bist der KI-Assistent für das Mission Control Dashboard von JammiFashion.
 Du hilfst dem Team bei Fragen zu Bestellungen, Produkten, Shop-Analysen und operativen Aufgaben.
@@ -138,7 +138,7 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
 
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
       const geminiModel = genAI.getGenerativeModel({
-        model: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
+        model: GEMINI_MODEL,
         systemInstruction: SUGGEST_SYSTEM,
       });
 
@@ -215,7 +215,7 @@ Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock):
       if (process.env.GEMINI_API_KEY) {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         const geminiModel = genAI.getGenerativeModel({
-          model: GEMINI_MODEL_SEO,
+          model: GEMINI_MODEL,
           systemInstruction: SEO_SYSTEM,
         });
         const geminiResult = await geminiModel.generateContent(userPrompt);
