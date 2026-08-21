@@ -17,6 +17,51 @@ Antworte präzise und auf Deutsch. Wenn du Zahlen oder Bestellinformationen nenn
 const MAX_HISTORY = 10;
 const conversationHistory = new Map();
 
+// Gemini gibt gelegentlich rohe Steuerzeichen (echte \n, \r, \t) innerhalb von
+// JSON-String-Werten zurück statt sie zu escapen – JSON.parse bricht dann mit
+// "Bad control character in string literal" ab. Diese Funktion läuft den Text
+// zeichenweise durch, erkennt anhand unescapter " ob sie sich gerade innerhalb
+// eines String-Literals befindet, und escapt Steuerzeichen NUR dort – das
+// JSON-Grundgerüst (Klammern, Kommas etc.) bleibt unangetastet.
+function sanitizeJsonControlChars(str) {
+  let result = '';
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (inString) {
+      if (escaped) {
+        result += ch;
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        result += ch;
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') {
+        result += ch;
+        inString = false;
+        continue;
+      }
+      const code = str.charCodeAt(i);
+      if (code < 0x20) {
+        if (ch === '\n') result += '\\n';
+        else if (ch === '\r') result += '\\r';
+        else if (ch === '\t') result += '\\t';
+        else result += '\\u' + code.toString(16).padStart(4, '0');
+        continue;
+      }
+      result += ch;
+    } else {
+      if (ch === '"') inString = true;
+      result += ch;
+    }
+  }
+  return result;
+}
+
 // POST /api/claude/chat
 router.post('/chat', async (req, res, next) => {
   try {
@@ -170,6 +215,7 @@ WICHTIG:
 - Wenn Material unbekannt: "[Material: bitte ergänzen]"
 - HTML nur: <h1>, <h2>, <p>, <ul>, <li>, <strong> – KEIN Markdown, KEIN Codeblock
 - JSON-Output MUSS valides JSON sein: Zeilenumbrüche in Strings als \n, Anführungszeichen in HTML escapen
+- KEINE echten/rohen Zeilenumbrüche, Tabs oder Steuerzeichen innerhalb der JSON-Strings – ausschließlich escaped (\n, \r, \t)
 - Antworte NUR mit dem JSON-Objekt`;
 
       // Größen und Farben aus eigenschaften extrahieren
@@ -248,7 +294,7 @@ Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock):
           throw new Error('Kein JSON-Objekt in Antwort gefunden');
         }
 
-        let jsonStr = jsonMatch[0];
+        let jsonStr = sanitizeJsonControlChars(jsonMatch[0]);
         try {
           parsed = JSON.parse(jsonStr);
         } catch (parseErr) {
@@ -260,7 +306,7 @@ Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock):
           console.log('SEO parsed after cleanup:', Object.keys(parsed));
         }
       } catch (e) {
-        console.error('SEO parsing error:', e.message, 'raw:', raw.substring(0, 300));
+        console.error('SEO parsing error:', e.message, 'raw:', raw.substring(0, 500));
         return res.status(502).json({ error: 'KI-Antwort konnte nicht geparst werden: ' + e.message, raw: raw.substring(0, 500) });
       }
 
