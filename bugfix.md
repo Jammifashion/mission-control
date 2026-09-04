@@ -1,7 +1,8 @@
 # Bugfix- & Änderungsprotokoll
 
 Dokumentation aller Anpassungen der letzten ~60 Stunden (Stand: 2026-06-09).
-Ergänzend zum Projektdokument v8_1. Reihenfolge: neueste zuerst.
+Reihenfolge: neueste zuerst. Das früher hier referenzierte Projektdokument v8_1
+lag unter docs/ und wird inzwischen außerhalb des Repos gepflegt.
 
 Legende: **FIX** = Fehlerbehebung · **FEAT** = neue Funktion · **TOOL** = Hilfsskript/Tooling
 
