@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
+import { getModel } from './modelConfig.js';
 
 const TAB_ANFRAGEN = 'Kundenanfragen';
 
@@ -92,8 +93,8 @@ export async function callChatAgent({ messages, sessionData, kbBase, history }) 
   const apiMessages = [...messages, { role: 'assistant', content: '{' }];
 
   const claudeRes = await anthropic.messages.create({
-    model:      'claude-haiku-4-5-20251001',
-    max_tokens: 1024,
+    model:      await getModel('chat-kunde'),
+    max_tokens: 1536,
     system:     systemBlocks,
     messages:   apiMessages,
   });

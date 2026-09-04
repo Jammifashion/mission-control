@@ -1,0 +1,39 @@
+name: Modell-Check
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'   # wöchentlich montags 04:00 UTC = 05:00/06:00 deutscher Zeit
+  workflow_dispatch:        # manueller Trigger über GitHub UI
+
+jobs:
+  check-models:
+    name: Anthropic Modell-IDs gegen Models API prüfen
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: backend
+
+      # backend/lib/googleAuth.js löst GOOGLE_APPLICATION_CREDENTIALS relativ zu
+      # backend/ auf (nicht zum Workspace-Root) – Datei muss daher dort liegen.
+      - name: Write Google credentials
+        run: echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > google-credentials.json
+        working-directory: backend
+
+      - name: Run model check
+        env:
+          BUSINESS_SHEET_ID:              ${{ secrets.BUSINESS_SHEET_ID }}
+          ANTHROPIC_API_KEY:               ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_APPLICATION_CREDENTIALS:  ./google-credentials.json
+        run: node backend/scripts/check-models.js

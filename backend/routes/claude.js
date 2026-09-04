@@ -1,14 +1,9 @@
 import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getModel } from '../lib/modelConfig.js';
 
 const router = Router();
-
-// Einheitliches Gemini-Modell für Klassifizierung (suggest_variants) UND
-// SEO-Beschreibungsgenerierung – beide nutzen denselben Wert, zentral hier
-// gepflegt statt getrennter Env-Vars (Aug 2026: vormals GEMINI_MODEL_SEO,
-// zusammengeführt nachdem beide Use Cases auf dasselbe Modell umgestellt wurden).
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 
 const SYSTEM_PROMPT = `Du bist der KI-Assistent für das Mission Control Dashboard von JammiFashion.
 Du hilfst dem Team bei Fragen zu Bestellungen, Produkten, Shop-Analysen und operativen Aufgaben.
@@ -87,7 +82,7 @@ router.post('/chat', async (req, res, next) => {
     const trimmed = history.slice(-MAX_HISTORY);
 
     const response = await client.messages.create({
-      model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
+      model: await getModel('agent-intern'),
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
       messages: trimmed,
@@ -142,7 +137,7 @@ Bilde alle sinnvollen Kombinationen der Eigenschaften. Berücksichtige Varianten
 Gib nur das JSON-Array zurück, keinen weiteren Text.`;
 
       const response = await client.messages.create({
-        model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
+        model: await getModel('agent-intern'),
         max_tokens: 2048,
         messages: [{ role: 'user', content: variantPrompt }],
       });
@@ -181,9 +176,11 @@ Welche dieser Kombinationen sind für dieses Produkt in einem deutschen Modeshop
 Antworte als JSON: { "unusual": ["key1", "key2", ...] }
 Gib nur die Keys zurück, keinen weiteren Text.`;
 
-      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      const genAI  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+      const modellId = await getModel('klassifizierung');
+      console.log(`suggest_variants: Rolle klassifizierung -> ${modellId}`);
       const geminiModel = genAI.getGenerativeModel({
-        model: GEMINI_MODEL,
+        model: modellId,
         systemInstruction: SUGGEST_SYSTEM,
       });
 
@@ -259,9 +256,11 @@ Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock):
 
       let raw;
       if (process.env.GEMINI_API_KEY) {
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        const genAI  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+        const modellId = await getModel('seo-text');
+        console.log(`seo_description: Rolle seo-text -> ${modellId}`);
         const geminiModel = genAI.getGenerativeModel({
-          model: GEMINI_MODEL,
+          model: modellId,
           systemInstruction: SEO_SYSTEM,
         });
         const geminiResult = await geminiModel.generateContent(userPrompt);
@@ -269,7 +268,7 @@ Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock):
       } else if (process.env.ANTHROPIC_API_KEY) {
         const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
         const response = await client.messages.create({
-          model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
+          model: await getModel('agent-intern'),
           max_tokens: 2048,
           system: SEO_SYSTEM,
           messages: [{ role: 'user', content: userPrompt }],
@@ -342,7 +341,7 @@ Ton: selbstbewusst, urban, zielgruppenorientiert (Streetwear/Fanmerch). Sprache:
 Gib nur das JSON zurück, keinen weiteren Text.`;
 
     const response = await client.messages.create({
-      model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
+      model: await getModel('agent-intern'),
       max_tokens: 1024,
       messages: [{ role: 'user', content: prompt }],
     });

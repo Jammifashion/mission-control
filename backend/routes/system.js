@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient } from '../lib/shopConfig.js';
+import { getModel } from '../lib/modelConfig.js';
 
 const router = Router();
 
@@ -27,7 +28,7 @@ async function checkClaude() {
   const t0     = Date.now();
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   await client.messages.create({
-    model:      'claude-haiku-4-5-20251001',
+    model:      await getModel('agent-intern'),
     max_tokens: 10,
     messages:   [{ role: 'user', content: 'ping' }],
   });
