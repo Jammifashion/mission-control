@@ -112,6 +112,15 @@ Ladereihenfolge der Konfiguration: **Env-Var → `.env` → GCP Secret Manager**
 Cloud Run zieht eine neue Secret-Version erst beim Start einer neuen Revision –
 ein Secret-Update allein wirkt nicht auf die laufende Instanz.
 
+`deploy-backend.yml` hat kein `workflow_dispatch`, es gibt also keinen
+Redeploy-Knopf in der GitHub-UI. Eine neue Revision erzwingt man nur mit einem
+Push, der den `paths`-Filter trifft – also einer **echten** Änderung unter
+`backend/**` oder am `Dockerfile` (z.B. eine Kommentarzeile).
+`git commit --allow-empty` funktioniert dafür **nicht**: ein leerer Commit ändert
+keine Datei, der `paths`-Filter matcht nichts, der Workflow startet nicht.
+Alternative: `workflow_dispatch` im Workflow ergänzen – bisher bewusst nicht
+geschehen, weil es noch niemand gebraucht hat.
+
 ## Modell-Konfiguration
 Modell-IDs stehen nicht in der `.env`, sondern im Business-Sheet, Reiter
 `Config`: Spalte `Schlüssel` = `modell.<rolle>`, Spalte `Wert` = Modell-ID.
