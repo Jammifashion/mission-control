@@ -1,8 +1,9 @@
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
 import dotenv from 'dotenv';
-dotenv.config();
+dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.env') });
 
 import { google } from 'googleapis';
-import { fileURLToPath } from 'url';
 import { gzipSync } from 'zlib';
 import { Readable } from 'stream';
 

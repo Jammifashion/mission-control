@@ -1,7 +1,8 @@
-import dotenv from 'dotenv';
-dotenv.config();
-
 import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
+import dotenv from 'dotenv';
+dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.env') });
+
 import { DEFAULT_MODELS, getModelInfo } from '../lib/modelConfig.js';
 
 const pad = (str, len) => String(str).padEnd(len, ' ');

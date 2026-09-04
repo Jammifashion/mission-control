@@ -1,8 +1,9 @@
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
 import dotenv from 'dotenv';
-dotenv.config();
+dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.env') });
 
 import { google } from 'googleapis';
-import { fileURLToPath } from 'url';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import Anthropic from '@anthropic-ai/sdk';
 
