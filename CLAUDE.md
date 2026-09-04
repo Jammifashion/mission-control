@@ -36,7 +36,6 @@ Neue Sektionen immer mit Anker versehen:
 - frontend/anfrage.html – Standalone Chat-Widget für Kunden (GitHub Pages, kein MC-Design)
 - backend/utils/partner-kalkulation.js – berechnePartnerAnteil() Helper
 - docs/SEO Beschreibungs-Framework.md – SEO Prompt Vorlage
-- GCP_Setup_Notizen.md – GCP IDs (lokal only, nicht im Repo)
 
 ## Deprecated
 - Sheet-Spalten `Versand-Modell` und `PayPal-Modell` im Partner-Reiter sind seit Sprint 4.2 deprecated.
@@ -80,6 +79,38 @@ leer. Beim Abbruch listet die Konsole die Namen einzeln:
 Zusätzlich läuft davor `backend/scripts/check-env.js` (Import in index.js) mit
 einer kleineren Pflichtliste: ANTHROPIC_API_KEY, WC_KEY, WC_SECRET, WC_URL,
 GOOGLE_SHEET_ID, GOOGLE_PROJECT_ID – meldet `✗ ENV fehlt: <KEY>`.
+
+## Deployment (Cloud Run)
+Projekt `mission-control-495711`, Region `europe-west1`, Service
+`mission-control-backend`.
+
+Image in der Artifact Registry:
+`europe-west1-docker.pkg.dev/mission-control-495711/mission-control/backend`
+
+Der GitHub-Actions-Trigger (`.github/workflows/deploy-backend.yml`) feuert nur
+bei **push auf `main` UND** Änderungen unter `backend/**` oder am `Dockerfile`.
+Änderungen ausserhalb dieser Pfade (z.B. nur `docs/`, CLAUDE.md, `.env.example`)
+lösen **kein** Backend-Deployment aus – die Revision bleibt auf dem alten Stand.
+`frontend/**` hat einen eigenen Workflow (`deploy.yml` → GitHub Pages), der das
+Backend nicht anfasst. `deploy-backend.yml` hat **kein** `workflow_dispatch`:
+eine neue Revision entsteht nur über einen Push, der die Pfad-Filter trifft.
+
+In Cloud Run gesetzt sind nur `NODE_ENV=production` und
+`GOOGLE_PROJECT_ID=mission-control-495711`; alle übrigen Werte kommen aus dem
+Secret Manager.
+
+Ladereihenfolge der Konfiguration: **Env-Var → `.env` → GCP Secret Manager**
+(Secret Manager greift in production, siehe `getSecret()` in
+`backend/utils/secrets.js`).
+
+## Neues Secret anlegen
+1. Secret im GCP Secret Manager anlegen (Browser, Account gbr@jammifashion.de)
+2. Platzhalter in `.env.example` ergänzen
+3. Schlüssel in `SECRET_KEYS` in `backend/utils/secrets.js` eintragen
+4. Pushen
+
+Cloud Run zieht eine neue Secret-Version erst beim Start einer neuen Revision –
+ein Secret-Update allein wirkt nicht auf die laufende Instanz.
 
 ## Modell-Konfiguration
 Modell-IDs stehen nicht in der `.env`, sondern im Business-Sheet, Reiter
