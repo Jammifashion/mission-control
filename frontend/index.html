@@ -2127,6 +2127,26 @@
         return fetch(withShopParam(url), { ...options, headers, signal });
       }
 
+      // Antwort auspacken und die Server-Meldung durchreichen statt sie zu
+      // verschlucken. Die Erfassungsmaske-Endpunkte melden hier, welche
+      // Pflichtspalte in welchem Endpunkt fehlt - das muss beim Nutzer ankommen.
+      async function apiJson(res) {
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+        return json;
+      }
+
+      // Fehler in einem <select> anzeigen und zusaetzlich als langer Toast,
+      // weil die Meldung fuer eine Option-Zeile zu lang ist.
+      function setSelectError(sel, msg) {
+        sel.innerHTML = '';
+        const opt = document.createElement('option');
+        opt.value = '';
+        opt.textContent = `Fehler: ${msg}`;
+        sel.appendChild(opt);
+        showToast(msg, 'error', 12000);
+      }
+
       function openShopModal() {
         const overlay = document.getElementById('shop-modal-overlay');
         if (!overlay) return;
@@ -2506,7 +2526,7 @@
         const el = document.getElementById('dtf-offen');
         el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
         try {
-          const items = await apiFetch(`${API_BASE()}/api/auftragsmonitor/dtf/offen`).then(r => r.json());
+          const items = await apiFetch(`${API_BASE()}/api/auftragsmonitor/dtf/offen`).then(apiJson);
           if (!Array.isArray(items) || items.length === 0) {
             el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Keine offenen DTF-Aufträge.</p>';
             return;
@@ -2570,7 +2590,7 @@
             btn.addEventListener('click', () => dtfBestellen(btn.dataset.groupkey, el));
           });
         } catch (e) {
-          el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Fehler: ${e.message}</p>`;
+          el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Fehler: ${monEsc(e.message)}</p>`;
         }
       }
 
@@ -2690,7 +2710,7 @@
         const el = document.getElementById('lshop-offen');
         el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
         try {
-          const items = await apiFetch(`${API_BASE()}/api/auftragsmonitor/lshop/offen`).then(r => r.json());
+          const items = await apiFetch(`${API_BASE()}/api/auftragsmonitor/lshop/offen`).then(apiJson);
           if (!Array.isArray(items) || items.length === 0) {
             el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Keine offenen L-Shop Bestellungen.</p>';
             return;
@@ -2756,7 +2776,7 @@
             btn.addEventListener('click', () => lshopBestellen(btn.dataset.groupkey, el));
           });
         } catch (e) {
-          el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Fehler: ${e.message}</p>`;
+          el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Fehler: ${monEsc(e.message)}</p>`;
         }
       }
 
@@ -3954,9 +3974,7 @@
         sel.innerHTML = '<option value="">Wird geladen…</option>';
         try {
           const res = await apiFetch(`${API_BASE()}/api/sheets/erfassung/list`);
-          const json = await res.json();
-          if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
-          draftList = json;
+          draftList = await apiJson(res);
           sel.innerHTML = '<option value="">— Entwurf auswählen —</option>';
           if (!draftList.length) {
             sel.innerHTML = '<option value="">Keine Entwürfe vorhanden</option>';
@@ -3970,7 +3988,8 @@
             sel.appendChild(opt);
           });
         } catch (e) {
-          sel.innerHTML = `<option value="">Fehler: ${e.message}</option>`;
+          draftList = [];
+          setSelectError(sel, e.message);
         }
       }
 
@@ -4164,7 +4183,7 @@
         sel.innerHTML = '<option value="">Wird geladen…</option>';
         try {
           const res = await apiFetch(`${API_BASE()}/api/sheets/erfassung/seo-pending`);
-          seoPendingList = await res.json();
+          seoPendingList = await apiJson(res);
           if (!Array.isArray(seoPendingList) || !seoPendingList.length) {
             sel.innerHTML = '<option value="">Keine ausstehenden SEO-Artikel</option>';
             return;
@@ -4174,7 +4193,8 @@
               `<option value="${i}">${item.artikelnummer ? item.artikelnummer + ' – ' : ''}${item.produktname}</option>`
             ).join('');
         } catch (e) {
-          sel.innerHTML = '<option value="">Fehler beim Laden</option>';
+          seoPendingList = [];
+          setSelectError(sel, e.message);
         }
       }
 
@@ -4661,7 +4681,16 @@
           ]);
           const p       = await prodRes.json();
           const vars    = await varRes.json();
-          const ssotData = await ssotRes.json();
+
+          // Sheet-Fehler sichtbar machen. Ohne SSOT-Zeile fehlt die
+          // Verknuepfung ins Sheet - vorher blieb das kommentarlos leer.
+          let ssotData;
+          try {
+            ssotData = await apiJson(ssotRes);
+          } catch (e) {
+            ssotData = {};
+            showToast(`SSOT-Verknüpfung nicht geladen – ${e.message}`, 'error', 12000);
+          }
 
           wcEditProductId = p.id;
           document.getElementById('pf-wc-id').value = p.id;
@@ -4996,10 +5025,19 @@
           btn.disabled    = true;
           btn.textContent = 'Wird überschrieben…';
 
+          // Produkt-ID ausdruecklich mitschicken, wie in den beiden anderen
+          // overwrite-Aufrufen. Ohne Wert bleibt der Key weg, damit die
+          // Bestandszeile ihre Produkt-ID behaelt statt sie zu verlieren.
+          const wcIdFeld = document.getElementById('pf-wc-id').value.trim();
           const res2  = await apiFetch(`${API_BASE()}/api/sheets/erfassung/overwrite`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ row: data.row, ssotId: data.ssotId, ...payload }),
+            body: JSON.stringify({
+              row:    data.row,
+              ssotId: data.ssotId,
+              ...(wcIdFeld ? { 'Produkt-ID': wcIdFeld } : {}),
+              ...payload,
+            }),
           });
           const data2 = await res2.json();
           if (!res2.ok || !data2.success) throw new Error(data2.error || 'Overwrite-Fehler');

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient } from '../lib/shopConfig.js';
+import { requireHeader, requireHeaderAny } from '../utils/sheet-headers.js';
 
 const router = Router();
 
@@ -82,9 +83,14 @@ router.get('/lshop/offen', async (req, res, next) => {
     });
 
     // SSOT-ID → {artikelnummer, produktname}
-    const ssotIdx  = erfHdr.findIndex(h => /ssot.?id|^id$/i.test(h));
-    const artIdx   = erfHdr.findIndex(h => /artikelnummer/i.test(h));
-    const nameIdx  = erfHdr.findIndex(h => /produktname/i.test(h));
+    // Exakter Vergleich: /artikelnummer/i traf als Teilstring die Spalte
+    // "L-Shop-Artikelnummer", weil die im Sheet vor "Artikelnummer" steht.
+    // Pflichtspalten werfen: ein Monitor, der stumm die falsche Nummer zeigt,
+    // erzeugt Fehlbestellungen - der laute Ausfall ist der billigere Fehler.
+    const CTX_L    = 'GET /api/auftragsmonitor/lshop/offen';
+    const ssotIdx  = requireHeaderAny(erfHdr, ['SSOT-ID', 'ID'], CTX_L);
+    const artIdx   = requireHeader(erfHdr, 'Artikelnummer', CTX_L);
+    const nameIdx  = requireHeader(erfHdr, 'Produktname', CTX_L);
     const ssotArt  = {};
     erfRows.slice(1).forEach(r => {
       const id = (r[ssotIdx] ?? '').trim();
@@ -320,9 +326,11 @@ router.get('/dtf/offen', async (req, res, next) => {
       }
     });
 
-    const ssotIdx = erfHdr.findIndex(h => /ssot.?id|^id$/i.test(h));
-    const artIdx  = erfHdr.findIndex(h => /artikelnummer/i.test(h));
-    const nameIdx = erfHdr.findIndex(h => /produktname/i.test(h));
+    // Exakter Vergleich + Pflichtspalten, siehe lshop/offen-Handler oben.
+    const CTX_D   = 'GET /api/auftragsmonitor/dtf/offen';
+    const ssotIdx = requireHeaderAny(erfHdr, ['SSOT-ID', 'ID'], CTX_D);
+    const artIdx  = requireHeader(erfHdr, 'Artikelnummer', CTX_D);
+    const nameIdx = requireHeader(erfHdr, 'Produktname', CTX_D);
     const ssotArt = {};
     erfRows.slice(1).forEach(r => {
       const id = (r[ssotIdx] ?? '').trim();

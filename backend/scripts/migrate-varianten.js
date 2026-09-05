@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.env') });
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
+import { findHeaderAny } from '../utils/sheet-headers.js';
 
 const SPREADSHEET_ID   = process.env.GOOGLE_SHEET_ID;
 const TAB_ERFASSUNG    = 'Erfassungsmaske';
@@ -30,7 +31,7 @@ async function main() {
   const erfRows    = erfData.values ?? [];
   const erfHeaders = erfRows[0] ?? [];
 
-  const ssotIdx = erfHeaders.findIndex(h => /ssot.?id|^id$/i.test(h));
+  const ssotIdx = findHeaderAny(erfHeaders, ['SSOT-ID', 'ID']);
   if (ssotIdx < 0) {
     console.error('Fehler: SSOT-ID Spalte nicht gefunden in Erfassungsmaske');
     process.exit(1);

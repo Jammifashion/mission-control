@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
+import { findHeader, requireHeader, requireHeaderAny } from '../utils/sheet-headers.js';
+import { buildRow, mergeRow } from '../utils/sheet-rows.js';
 
 const router = Router();
 
@@ -38,30 +40,6 @@ function normalizeAktiv(val) {
   if (typeof val === 'boolean') return val;
   const s = String(val).toUpperCase().trim();
   return s === 'TRUE' || s === 'WAHR';
-}
-
-// Baut eine Erfassungsmaske-Zeile – B-Slot-Spalten werden nicht mehr beschrieben (deprecated)
-function buildRow(headers, body, ssotId) {
-  const flat = {
-    ...body,
-    'SSOT-ID':      ssotId,
-    'ID':           ssotId,
-    'Status Shop':  body['Status Shop']  || body.statusShop  || '',
-    'SEO_Status':   body['SEO_Status']   || body.seoStatus   || '',
-    'Produkt-ID':   body['Produkt-ID']   || body.produktId   || '',
-    'Datum':        body['Datum'] || new Date().toLocaleDateString('de-DE'),
-  };
-  delete flat.varianten;
-  delete flat.row;
-
-  function getField(header) {
-    if (flat[header] !== undefined) return String(flat[header]);
-    const hn  = norm(header);
-    const hit = Object.entries(flat).find(([k]) => norm(k) === hn);
-    return hit ? String(hit[1]) : '';
-  }
-
-  return headers.map(h => getField(h));
 }
 
 async function readRange(tab, range = 'A1:Z1000') {
@@ -275,9 +253,10 @@ router.get('/erfassung/by-wc-id', async (req, res, next) => {
     const rows    = data.values ?? [];
     const headers = rows[0] ?? [];
 
-    const ssotIdx      = headers.findIndex(h => /ssot.?id|^id$/i.test(h));
-    const produktIdIdx = headers.findIndex(h => norm(h) === norm('Produkt-ID'));
-    const statusIdx    = headers.findIndex(h => norm(h) === norm('Status'));
+    const CTX          = 'GET /api/sheets/erfassung/by-wc-id';
+    const ssotIdx      = requireHeaderAny(headers, ['SSOT-ID', 'ID'], CTX);
+    const produktIdIdx = requireHeader(headers, 'Produkt-ID', CTX);
+    const statusIdx    = requireHeader(headers, 'Status', CTX);
 
     for (let i = 1; i < rows.length; i++) {
       if ((rows[i][produktIdIdx] ?? '').trim() === wcId) {
@@ -303,10 +282,11 @@ router.get('/erfassung/list', async (req, res, next) => {
     const rows    = data.values ?? [];
     const headers = rows[0] ?? [];
 
-    const statusIdx  = headers.findIndex(h => norm(h) === norm('Status'));
-    const ssotIdx    = headers.findIndex(h => /ssot.?id|^id$/i.test(h));
-    const artNrIdx   = headers.findIndex(h => norm(h) === norm('Artikelnummer'));
-    const nameIdx    = headers.findIndex(h => norm(h) === norm('Produktname'));
+    const CTX        = 'GET /api/sheets/erfassung/list';
+    const statusIdx  = requireHeader(headers, 'Status', CTX);
+    const ssotIdx    = requireHeaderAny(headers, ['SSOT-ID', 'ID'], CTX);
+    const artNrIdx   = requireHeader(headers, 'Artikelnummer', CTX);
+    const nameIdx    = requireHeader(headers, 'Produktname', CTX);
 
     const drafts = [];
     rows.slice(1).forEach((row, i) => {
@@ -337,13 +317,16 @@ router.get('/erfassung/seo-pending', async (req, res, next) => {
     const rows    = data.values ?? [];
     const headers = rows[0] ?? [];
 
-    const seoStatusIdx = headers.findIndex(h => norm(h) === norm('SEO_Status'));
-    const ssotIdx      = headers.findIndex(h => /ssot.?id|^id$/i.test(h));
-    const artNrIdx     = headers.findIndex(h => norm(h) === norm('Artikelnummer'));
-    const nameIdx      = headers.findIndex(h => norm(h) === norm('Produktname'));
-    const wcIdIdx      = headers.findIndex(h => norm(h) === norm('Produkt-ID'));
-    const lshopIdx     = headers.findIndex(h => norm(h) === norm('L-Shop-Artikelnummer'));
-    const lshopUrlIdx  = headers.findIndex(h => norm(h) === norm('L-Shop URL'));
+    // Pflichtspalten werfen bei Umbenennung. Die beiden L-Shop-Spalten sind
+    // optional und bleiben bewusst weich (L-Shop URL existiert im Sheet nicht).
+    const CTX          = 'GET /api/sheets/erfassung/seo-pending';
+    const seoStatusIdx = requireHeader(headers, 'SEO_Status', CTX);
+    const ssotIdx      = requireHeaderAny(headers, ['SSOT-ID', 'ID'], CTX);
+    const artNrIdx     = requireHeader(headers, 'Artikelnummer', CTX);
+    const nameIdx      = requireHeader(headers, 'Produktname', CTX);
+    const wcIdIdx      = requireHeader(headers, 'Produkt-ID', CTX);
+    const lshopIdx     = findHeader(headers, 'L-Shop-Artikelnummer');
+    const lshopUrlIdx  = findHeader(headers, 'L-Shop URL');
 
     const pending = [];
     rows.slice(1).forEach((row, i) => {
@@ -380,13 +363,14 @@ router.post('/erfassung', async (req, res, next) => {
 
     // ── Artikelnummer-Duplikat-Prüfung ────────────────────────────────────
     const artikelnummer = (req.body['Artikelnummer'] || '').trim();
-    const artColIdx     = headers.findIndex(h => norm(h) === norm('Artikelnummer'));
-    const ssotColIdx    = headers.findIndex(h => /ssot.?id|^id$/i.test(h));
+    const CTX           = 'POST /api/sheets/erfassung';
+    const artColIdx     = requireHeader(headers, 'Artikelnummer', CTX);
+    const ssotColIdx    = requireHeaderAny(headers, ['SSOT-ID', 'ID'], CTX);
 
-    if (artikelnummer && artColIdx >= 0) {
+    if (artikelnummer) {
       for (let i = 1; i < rows.length; i++) {
         if ((rows[i][artColIdx] ?? '').trim() === artikelnummer) {
-          const existingSsotId = ssotColIdx >= 0 ? (rows[i][ssotColIdx] ?? '') : '';
+          const existingSsotId = rows[i][ssotColIdx] ?? '';
 
           // Varianten aktualisieren auch bei bestehendem Artikel
           if (Array.isArray(req.body.varianten) && req.body.varianten.length > 0) {
@@ -403,7 +387,7 @@ router.post('/erfassung', async (req, res, next) => {
     const prefix = `JFN-${year}-`;
     let maxSeq   = 0;
     rows.slice(1).forEach(r => {
-      const val = ssotColIdx >= 0 ? (r[ssotColIdx] ?? '') : '';
+      const val = r[ssotColIdx] ?? '';
       if (val.startsWith(prefix)) {
         const n = parseInt(val.slice(prefix.length), 10);
         if (!isNaN(n) && n > maxSeq) maxSeq = n;
@@ -439,12 +423,14 @@ router.post('/erfassung/overwrite', async (req, res, next) => {
     const sheets         = await getSheets();
     const spreadsheetId  = sheetId();
 
-    const { data: headerData } = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: 'Erfassungsmaske!1:1',
-    });
-    const headers = headerData.values?.[0] ?? [];
-    const rowData = buildRow(headers, body, ssotId);
+    // Bestandszeile mitlesen: alles, wozu der Body nichts sagt, bleibt stehen.
+    const [headerResp, rowResp] = await Promise.all([
+      sheets.spreadsheets.values.get({ spreadsheetId, range: 'Erfassungsmaske!1:1' }),
+      sheets.spreadsheets.values.get({ spreadsheetId, range: `Erfassungsmaske!A${rowNum}:BZ${rowNum}` }),
+    ]);
+    const headers    = headerResp.data.values?.[0] ?? [];
+    const currentRow = rowResp.data.values?.[0]   ?? [];
+    const rowData    = mergeRow(headers, body, ssotId, currentRow);
 
     await sheets.spreadsheets.values.update({
       spreadsheetId,
