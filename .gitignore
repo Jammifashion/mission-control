@@ -52,3 +52,6 @@ coverage/
 
 # One-time secret management scripts (contain secrets in memory at runtime)
 backend/scripts/push-secrets-to-gcp.js
+
+# Generierte Skript-Ausgaben
+backend/scripts/out/
