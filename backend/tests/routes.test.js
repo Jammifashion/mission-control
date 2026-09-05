@@ -138,8 +138,12 @@ describe('POST /api/partner/:id/eigenauftrag', () => {
         return { data: { values: [['Partner-ID']] } };
       }
       if (range.startsWith('Partner_Interne_Bestellungen!')) {
-        // Kanal-Spalte bereits vorhanden → kein batchUpdate nötig
-        return { data: { values: [['Partner-ID', 'Datum', 'Bezeichnung', 'Anzahl', 'Status', 'Kanal']] } };
+        // Kanal- UND Fulfillment-Spalte vorhanden → kein batchUpdate nötig.
+        // Fehlt Fulfillment, laeuft die Route in den Nachruest-Zweig und ruft
+        // values.batchUpdate, das dieser Mock nicht kennt → 500.
+        return { data: { values: [[
+          'Partner-ID', 'Datum', 'Bezeichnung', 'Anzahl', 'Status', 'Kanal', 'Fulfillment',
+        ]] } };
       }
       // Partner-Tab: enthält die gesuchte Partner-ID
       return { data: { values: [['Partner-ID', 'Name'], [partnerId, 'Test Partner']] } };
@@ -160,8 +164,11 @@ describe('POST /api/partner/:id/eigenauftrag', () => {
       .send(VALID_BODY);
     expect(res.status).toBe(201);
     expect(res.body.partnerId).toBe('P-001');
-    expect(res.body.status).toBe('Neu');
+    // Portal-Eigenauftraege starten direkt auf 'offen'; mit 'Neu' flossen sie
+    // nie in Saldo/Abrechnung ein (Bugfix, siehe partnerPortal.js).
+    expect(res.body.status).toBe('offen');
     expect(res.body.kanal).toBe('Portal');
+    expect(res.body.fulfillment).toBe('Beauftragt');
   });
 
   test('artikel fehlt → 400', async () => {
