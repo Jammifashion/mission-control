@@ -20,6 +20,7 @@ export const SECRET_KEYS = [
   'TURNSTILE_SECRET_KEY',
   'WP_APP_PASSWORD',
   'WP_APP_PASSWORD_HONK',
+  'GCHAT_WEBHOOK_URL',
 ];
 
 function getSmClient() {

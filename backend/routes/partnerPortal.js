@@ -4,6 +4,7 @@ import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient as wcClientForShop, getShopConfig } from '../lib/shopConfig.js';
 import { berechnePartnerAnteil, parseKonfiguration } from '../utils/partner-kalkulation.js';
 import { toFloat, toDE, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, buildStornoRows } from '../utils/sync-logic.js';
+import { notify, buildPartnerNachricht } from '../lib/chatNotify.js';
 
 const router = Router();
 
@@ -67,15 +68,27 @@ function colLetter(idx) {
 
 // Prüft, ob eine Partner-ID in 'Partner' ODER 'FP_Partner' existiert.
 // (Eigenaufträge kommen sowohl aus partner.html als auch partner-festpreis.html.)
-async function partnerIdExists(sheets, sheetId, partnerId) {
+// Liefert { partnerId, name } oder null. Ersetzt die reine Existenzpruefung,
+// damit der Partnername fuer die Chat-Nachricht bereitsteht - ohne einen
+// zweiten Sheet-Aufruf.
+async function findPartner(sheets, sheetId, partnerId) {
   for (const tab of ['Partner', 'FP_Partner']) {
     try {
       const { header, rows } = await readTab(sheets, sheetId, tab);
       const idx = header.indexOf('Partner-ID');
-      if (idx !== -1 && rows.some(r => (r[idx] ?? '') === partnerId)) return true;
+      if (idx === -1) continue;
+      const row = rows.find(r => (r[idx] ?? '') === partnerId);
+      if (row) {
+        const nameIdx = header.indexOf('Name');
+        return { partnerId, name: nameIdx !== -1 ? (row[nameIdx] ?? '') : '' };
+      }
     } catch { /* Tab evtl. nicht vorhanden – ignorieren */ }
   }
-  return false;
+  return null;
+}
+
+async function partnerIdExists(sheets, sheetId, partnerId) {
+  return (await findPartner(sheets, sheetId, partnerId)) !== null;
 }
 
 // WC-Status: VERKAUF = processing/completed/on-hold, STORNO = refunded/cancelled
@@ -603,8 +616,9 @@ router.post('/:id/eigenauftrag', async (req, res, next) => {
     if (!artikelTrim || !variantenTrim || !(mengeNum > 0))
       return res.status(400).json({ error: 'Artikel, Menge und Varianten sind Pflichtfelder.' });
 
-    const sheets = await getSheets();
-    if (!(await partnerIdExists(sheets, sheetId, partnerId)))
+    const sheets  = await getSheets();
+    const partner = await findPartner(sheets, sheetId, partnerId);
+    if (!partner)
       return res.status(404).json({ error: 'Partner nicht gefunden.' });
 
     // Eigenauftrag-Details in die Bezeichnung komponieren (bestehende Admin-/Abrechnungs-
@@ -685,6 +699,13 @@ router.post('/:id/eigenauftrag', async (req, res, next) => {
       insertDataOption: 'INSERT_ROWS',
       requestBody: { values: [rowArr] },
     });
+
+    // Mit await vor der Antwort, siehe anfragen.js. Eine Summe gibt es hier
+    // bewusst noch nicht - Einzelpreis/Summe pflegt der Admin spaeter nach.
+    await notify(buildPartnerNachricht({
+      partnerName: partner.name || partnerId,
+      anzahl:      mengeNum,
+    }));
 
     res.status(201).json({
       partnerId, bezeichnung, anzahl: mengeNum,

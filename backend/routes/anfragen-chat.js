@@ -4,6 +4,7 @@ import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getAgentSystemPrompt } from '../lib/agentWissenHelper.js';
 import { loadRecentAnfragen, callChatAgent } from '../lib/chatCore.js';
 import rateLimit from 'express-rate-limit';
+import { notify, buildAnfrageNachricht } from '../lib/chatNotify.js';
 
 const router = Router();
 
@@ -120,6 +121,16 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
               ]],
             },
           });
+
+          // Genau hier, nicht pro Chat-Nachricht: es gibt jetzt eine Zeile.
+          // Mit await, vor der Antwort - Cloud Run drosselt die CPU nach dem
+          // Response, ein danach laufender fetch geht verloren.
+          await notify(buildAnfrageNachricht({
+            anfrageId,
+            kundeName:    merged.kundeName,
+            menge:        merged.menge,
+            beschreibung: merged.produktBeschreibung,
+          }));
         }
       } catch (err) {
         console.error('Chat-Anfrage Erstellung fehlgeschlagen:', err.message);

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
+import { notify, buildAnfrageNachricht } from '../lib/chatNotify.js';
 
 const router = Router();
 
@@ -133,6 +134,15 @@ router.post('/neu', async (req, res, next) => {
       insertDataOption: 'INSERT_ROWS',
       requestBody: { values: [newRow] },
     });
+
+    // Bewusst mit await, vor der Antwort: Cloud Run drosselt die CPU, sobald
+    // die Antwort raus ist ("CPU only during request"). Ein danach noch
+    // laufender fetch wird nicht zuverlaessig beendet - bei wenigen Ereignissen
+    // pro Tag ist die lange Stille danach der Regelfall. notify() wirft nie und
+    // deckelt bei 5s, das Risiko ist allein etwas Antwortzeit.
+    await notify(buildAnfrageNachricht({
+      anfrageId, kundeName, menge, beschreibung: produktBeschreibung,
+    }));
 
     res.status(201).json({
       anfrageId,

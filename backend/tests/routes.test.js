@@ -30,6 +30,16 @@ jest.unstable_mockModule('../lib/chatCore.js', () => ({
   callChatAgent: jest.fn(),
 }));
 
+// partnerPortal.js und anfragen-chat.js benachrichtigen seit dem Google-Chat-
+// Sprint. chatNotify zieht ueber secrets.js den Secret-Manager-Client in den
+// Modulgraph - hier nicht aufloesbar und fuer diese Suite auch ohne Belang.
+// Was wo benachrichtigt wird, prueft chat-notify-hooks.test.js.
+jest.unstable_mockModule('../lib/chatNotify.js', () => ({
+  notify:                jest.fn().mockResolvedValue(true),
+  buildAnfrageNachricht: jest.fn(() => 'anfrage'),
+  buildPartnerNachricht: jest.fn(() => 'partner'),
+}));
+
 jest.unstable_mockModule('express-rate-limit', () => ({
   default: jest.fn(() => (_req, _res, next) => next()),
 }));
