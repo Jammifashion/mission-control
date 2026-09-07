@@ -2,6 +2,7 @@ import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getModel } from '../lib/modelConfig.js';
+import { sanitizeJsonControlChars } from '../utils/json-parse.js';
 
 const router = Router();
 
@@ -11,51 +12,6 @@ Antworte präzise und auf Deutsch. Wenn du Zahlen oder Bestellinformationen nenn
 
 const MAX_HISTORY = 10;
 const conversationHistory = new Map();
-
-// Gemini gibt gelegentlich rohe Steuerzeichen (echte \n, \r, \t) innerhalb von
-// JSON-String-Werten zurück statt sie zu escapen – JSON.parse bricht dann mit
-// "Bad control character in string literal" ab. Diese Funktion läuft den Text
-// zeichenweise durch, erkennt anhand unescapter " ob sie sich gerade innerhalb
-// eines String-Literals befindet, und escapt Steuerzeichen NUR dort – das
-// JSON-Grundgerüst (Klammern, Kommas etc.) bleibt unangetastet.
-function sanitizeJsonControlChars(str) {
-  let result = '';
-  let inString = false;
-  let escaped = false;
-  for (let i = 0; i < str.length; i++) {
-    const ch = str[i];
-    if (inString) {
-      if (escaped) {
-        result += ch;
-        escaped = false;
-        continue;
-      }
-      if (ch === '\\') {
-        result += ch;
-        escaped = true;
-        continue;
-      }
-      if (ch === '"') {
-        result += ch;
-        inString = false;
-        continue;
-      }
-      const code = str.charCodeAt(i);
-      if (code < 0x20) {
-        if (ch === '\n') result += '\\n';
-        else if (ch === '\r') result += '\\r';
-        else if (ch === '\t') result += '\\t';
-        else result += '\\u' + code.toString(16).padStart(4, '0');
-        continue;
-      }
-      result += ch;
-    } else {
-      if (ch === '"') inString = true;
-      result += ch;
-    }
-  }
-  return result;
-}
 
 // POST /api/claude/chat
 router.post('/chat', async (req, res, next) => {

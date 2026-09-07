@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 import { getModel } from './modelConfig.js';
+import { sanitizeJsonControlChars, stripCodeFence } from '../utils/json-parse.js';
 
 const TAB_ANFRAGEN = 'Kundenanfragen';
 
@@ -63,7 +64,9 @@ export function buildSystemBlocks(kbBase, history, sessionData) {
       type: 'text',
       text: `Beantworte immer nur eine Frage pro Nachricht. Wenn die erste Nutzernachricht "__init__" lautet, starte direkt mit einer herzlichen Begrüßung.${stateStr}
 
-ANTWORTFORMAT – Antworte AUSSCHLIESSLICH mit einem JSON-Objekt, kein Text außerhalb:
+ANTWORTFORMAT – Antworte NUR mit dem JSON-Objekt, ohne Präambel und ohne
+Markdown-Codeblock. Kein Text außerhalb, keine \`\`\` davor oder danach. Das
+erste Zeichen deiner Antwort ist {, das letzte }.
 {
   "reply": "<Deine Antwort – darf einfaches Markdown enthalten>",
   "sessionData": {
@@ -86,30 +89,71 @@ Behalte ALLE bereits gesammelten sessionData-Werte – überschreibe sie nie mit
   ];
 }
 
-// Returns { reply, sessionData, completed } or null on parse failure
+// Antworttext zu einem Objekt machen. Ohne den frueheren Assistant-Prefill
+// ist nicht mehr garantiert, dass die Antwort mit "{" beginnt - deshalb erst
+// einen etwaigen Markdown-Zaun abstreifen, dann das aeusserste Objekt suchen
+// und rohe Steuerzeichen in String-Literalen escapen.
+function parseAgentAntwort(rawText) {
+  const versuche = [];
+  const ohneZaun = stripCodeFence(rawText);
+  versuche.push(ohneZaun);
+
+  const m = ohneZaun.match(/\{[\s\S]*\}/);
+  if (m) versuche.push(m[0]);
+
+  for (const kandidat of versuche) {
+    for (const text of [kandidat, sanitizeJsonControlChars(kandidat)]) {
+      try {
+        const obj = JSON.parse(text);
+        if (obj && typeof obj === 'object') return obj;
+      } catch { /* naechster Versuch */ }
+    }
+  }
+  return null;
+}
+
+// Returns { reply, sessionData, completed }.
+// Wirft, wenn die Antwort nicht als JSON lesbar ist - frueher wurde in dem
+// Fall still null geliefert, was als "Agent konnte nicht antworten" durchging
+// und die eigentliche Ursache verdeckt hat.
 export async function callChatAgent({ messages, sessionData, kbBase, history }) {
   const systemBlocks = buildSystemBlocks(kbBase, history, sessionData);
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const apiMessages = [...messages, { role: 'assistant', content: '{' }];
+
+  // Kein Assistant-Prefill mehr: claude-sonnet-5 lehnt eine Konversation ab,
+  // die nicht mit einer User-Nachricht endet ("does not support assistant
+  // message prefill"). Das JSON-Format erzwingt jetzt allein der Prompt.
+  const modell = await getModel('chat-kunde');
 
   const claudeRes = await anthropic.messages.create({
-    model:      await getModel('chat-kunde'),
+    model:      modell,
     max_tokens: 1536,
     system:     systemBlocks,
-    messages:   apiMessages,
+    messages,
   });
 
-  const rawText = '{' + (claudeRes.content[0]?.text ?? '');
+  // Nicht content[0] nehmen: sonnet-5 stellt der Antwort bei laengeren Prompts
+  // einen thinking-Block voran, der Text steht dann erst dahinter.
+  const rawText = (claudeRes.content ?? [])
+    .filter(b => b.type === 'text')
+    .map(b => b.text ?? '')
+    .join('');
+  const parsed  = parseAgentAntwort(rawText);
 
-  let parsed;
-  try {
-    parsed = JSON.parse(rawText);
-  } catch {
-    const m = rawText.match(/\{[\s\S]*\}/);
-    try { parsed = m ? JSON.parse(m[0]) : null; } catch { parsed = null; }
+  if (!parsed?.reply) {
+    // Rohantwort ins Log, sonst ist der Fall nicht nachvollziehbar.
+    console.error(
+      `[chatCore] Antwort von ${modell} nicht als JSON lesbar. Rohantwort:`,
+      rawText,
+    );
+    const err = new Error(
+      `Antwort des Chat-Agenten (${modell}) war kein gueltiges JSON-Objekt mit "reply".`,
+    );
+    err.status = 502;   // wie bisher nach aussen: Fehler stammt vom Upstream
+    throw err;
   }
 
-  if (!parsed?.reply) return null;
+  console.log(`[chatCore] Rolle chat-kunde -> Modell ${modell}, Antwort geparst (${rawText.length} Zeichen)`);
 
   const merged  = { kanal: 'Homepage', ...sessionData };
   const updated = parsed.sessionData ?? {};
