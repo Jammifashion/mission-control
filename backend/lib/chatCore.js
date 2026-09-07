@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 import { getModel } from './modelConfig.js';
-import { sanitizeJsonControlChars, stripCodeFence } from '../utils/json-parse.js';
+import { sanitizeJsonControlChars, stripCodeFence, collectText } from '../utils/json-parse.js';
 
 const TAB_ANFRAGEN = 'Kundenanfragen';
 
@@ -132,12 +132,9 @@ export async function callChatAgent({ messages, sessionData, kbBase, history }) 
     messages,
   });
 
-  // Nicht content[0] nehmen: sonnet-5 stellt der Antwort bei laengeren Prompts
-  // einen thinking-Block voran, der Text steht dann erst dahinter.
-  const rawText = (claudeRes.content ?? [])
-    .filter(b => b.type === 'text')
-    .map(b => b.text ?? '')
-    .join('');
+  // Nicht content[0] nehmen: sonnet-5 stellt der Antwort je nach Aufgabe einen
+  // thinking-Block voran, der Text steht dann erst dahinter.
+  const rawText = collectText(claudeRes);
   const parsed  = parseAgentAntwort(rawText);
 
   if (!parsed?.reply) {

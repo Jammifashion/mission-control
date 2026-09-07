@@ -1,9 +1,21 @@
-// Gemeinsame JSON-Aufbereitung fuer LLM-Antworten.
+// Gemeinsame Aufbereitung von LLM-Antworten.
 //
-// Genutzt von routes/claude.js (Gemini) und lib/chatCore.js (Chat-Agent).
-// Seit dem Wegfall des Assistant-Prefills in chatCore ist die Antwort dort
-// nicht mehr garantiert ein nacktes JSON-Objekt, deshalb liegen beide
-// Hilfsfunktionen zentral.
+// Genutzt von routes/claude.js und lib/chatCore.js.
+
+// Text aus einer Anthropic-Antwort einsammeln.
+//
+// claude-sonnet-5 stellt der Antwort je nach Aufgabe einen thinking-Block
+// voran; content[0].text ist dann undefined und die Antwort scheinbar leer.
+// Das haengt nicht an der Prompt-Laenge, sondern daran, wie das Modell die
+// Aufgabe einschaetzt - dieselbe Route kann mal mit und mal ohne
+// thinking-Block antworten. Deshalb nie content[0] nehmen, sondern alle
+// text-Bloecke einsammeln.
+export function collectText(response) {
+  return (response?.content ?? [])
+    .filter(b => b.type === 'text')
+    .map(b => b.text ?? '')
+    .join('');
+}
 
 // Gemini gibt gelegentlich rohe Steuerzeichen (echte \n, \r, \t) innerhalb von
 // JSON-String-Werten zurück statt sie zu escapen – JSON.parse bricht dann mit

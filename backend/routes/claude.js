@@ -2,7 +2,7 @@ import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getModel } from '../lib/modelConfig.js';
-import { sanitizeJsonControlChars } from '../utils/json-parse.js';
+import { sanitizeJsonControlChars, collectText } from '../utils/json-parse.js';
 
 const router = Router();
 
@@ -44,7 +44,12 @@ router.post('/chat', async (req, res, next) => {
       messages: trimmed,
     });
 
-    const reply = response.content[0]?.text ?? '';
+    const reply = collectText(response);
+    if (!reply) {
+      console.error('[claude/chat] Leere Antwort vom Modell, content-Typen:',
+        (response.content ?? []).map(b => b.type).join(',') || '(keine)');
+      return res.status(502).json({ error: 'Modell lieferte eine leere Antwort.' });
+    }
     trimmed.push({ role: 'assistant', content: reply });
     conversationHistory.set(session_id, trimmed);
 
@@ -98,7 +103,11 @@ Gib nur das JSON-Array zurück, keinen weiteren Text.`;
         messages: [{ role: 'user', content: variantPrompt }],
       });
 
-      const raw = response.content[0]?.text ?? '';
+      const raw = collectText(response);
+      if (!raw) {
+        console.error('[generate_variants] Leere Antwort vom Modell, content-Typen:',
+          (response.content ?? []).map(b => b.type).join(',') || '(keine)');
+      }
       let variants;
       try {
         const jsonMatch = raw.match(/\[[\s\S]*\]/);
@@ -229,9 +238,14 @@ Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock):
           system: SEO_SYSTEM,
           messages: [{ role: 'user', content: userPrompt }],
         });
-        raw = response.content[0]?.text ?? '';
+        raw = collectText(response);
       } else {
         return res.status(503).json({ error: 'Weder GEMINI_API_KEY noch ANTHROPIC_API_KEY konfiguriert.' });
+      }
+
+      if (!raw || !raw.trim()) {
+        console.error('[seo_description] Leere Antwort vom Modell - nichts zu parsen.');
+        return res.status(502).json({ error: 'Modell lieferte eine leere Antwort.' });
       }
 
       let parsed;
@@ -302,7 +316,11 @@ Gib nur das JSON zurück, keinen weiteren Text.`;
       messages: [{ role: 'user', content: prompt }],
     });
 
-    const raw = response.content[0]?.text ?? '';
+    const raw = collectText(response);
+    if (!raw) {
+      console.error('[generate_description] Leere Antwort vom Modell, content-Typen:',
+        (response.content ?? []).map(b => b.type).join(',') || '(keine)');
+    }
 
     let parsed;
     try {
