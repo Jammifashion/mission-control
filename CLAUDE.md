@@ -35,7 +35,9 @@ Neue Sektionen immer mit Anker versehen:
 - backend/routes/anfragen-chat.js – Chat-Widget public endpoint (POST /chat, kein API-Key) – vor requireApiKey
 - frontend/anfrage.html – Standalone Chat-Widget für Kunden (GitHub Pages, kein MC-Design)
 - backend/utils/partner-kalkulation.js – berechnePartnerAnteil() Helper
-- docs/SEO Beschreibungs-Framework.md – SEO Prompt Vorlage
+- backend/lib/seo-prompt.js – SEO-Prompt: User-Template, MODUS-Enum, Materialfilter.
+  Die Regeln stehen hier, das ist die Quelle. Begründungen und Historie liegen im
+  Claude-Projekt unter METHODE/SEO_Beschreibungs_Framework.md (nicht im Repo).
 
 ## Deprecated
 - Sheet-Spalten `Versand-Modell` und `PayPal-Modell` im Partner-Reiter sind seit Sprint 4.2 deprecated.

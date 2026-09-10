@@ -1148,6 +1148,10 @@
                 <textarea id="seo-hinweise" class="form-input" rows="6" style="resize:vertical;min-height:120px;font-family:inherit;" placeholder="z.B. Zielgruppe, besondere Merkmale, Tonalität..."></textarea>
               </div>
               <div class="form-field" style="margin-bottom:0.75rem;">
+                <label>Motiv (was ist auf dem Textil zu sehen?)</label>
+                <textarea id="seo-motiv" class="form-input" rows="3" style="resize:vertical;font-family:inherit;" placeholder="z.B. Fünf Weihnachtsfiguren von hinten, Schriftzug &quot;We wish you nothing butt a merry Christmas&quot;"></textarea>
+              </div>
+              <div class="form-field" style="margin-bottom:0.75rem;">
                 <label>Eigenschaften (Grammatur, Schnitt, Passform, etc.)</label>
                 <textarea id="seo-eigenschaften" class="form-input" rows="4" style="resize:vertical;font-family:inherit;" placeholder="Zeilenweise eingeben, z.B.&#10;Grammatur: 280 g/m²&#10;Schnitt: Regular Fit&#10;Passform: Unisex"></textarea>
               </div>
@@ -4078,6 +4082,12 @@
       let wcEditProductId = null;    // WC-ID des geladenen Produkts im Ändern-Modus
       let seoCurrentItem  = null;    // aktuell gewählter SEO-Artikel
       let seoPendingList  = [];      // Liste aller ausstehenden SEO-Artikel
+      let seoKategorien   = '';      // Kategorienamen des geladenen WC-Produkts
+
+      // Alles, was im Shop steht, ist fertig bedruckt – auch Vereinsartikel.
+      // Kein Bedienelement: der Modus ist hier konstant. "auftrag" (mit
+      // Freigabe-Hinweis) tritt in diesem Flow derzeit nicht auf.
+      const SEO_MODUS = 'kollektion';
 
       const modeBtnNew      = document.getElementById('mode-btn-new');
       const modeBtnSeo      = document.getElementById('mode-btn-seo');
@@ -4212,8 +4222,10 @@
         document.getElementById('seo-instagram').value     = '';
         document.getElementById('seo-tiktok').value        = '';
         document.getElementById('seo-hinweise').value      = '';
+        document.getElementById('seo-motiv').value         = '';
         document.getElementById('seo-eigenschaften').value = '';
         document.getElementById('seo-status-msg').textContent = '';
+        seoKategorien = '';
 
         initSeoQuillEditors();
         quillSeoShort.root.innerHTML = '';
@@ -4232,6 +4244,8 @@
               .then(async p => {
                 quillSeoShort.root.innerHTML = p.short_description || '';
                 quillSeoFull.root.innerHTML  = p.description || '';
+                // Kategorien für den SEO-Prompt merken (nicht nur die erste)
+                seoKategorien = (p.categories ?? []).map(c => c.name).filter(Boolean).join(', ');
                 // Try to load social media for the first category
                 const catId = p.categories?.[0]?.id;
                 if (catId) {
@@ -4265,17 +4279,27 @@
               produktname:   seoCurrentItem.produktname,
               artikelnummer: seoCurrentItem.artikelnummer,
               lshopNr:       seoCurrentItem.lshopNr  || '',
-              kategorien:    '',
+              kategorien:    seoKategorien,
               eigenschaften: document.getElementById('seo-eigenschaften').value,
               instagram:     document.getElementById('seo-instagram').value,
               tiktok:        document.getElementById('seo-tiktok').value,
               hinweise:      document.getElementById('seo-hinweise').value,
+              motiv:         document.getElementById('seo-motiv').value,
+              modus:         SEO_MODUS,
             }),
           });
           const data = await res.json();
           if (!res.ok || data.error) throw new Error(data.error || 'Fehler');
           quillSeoShort.root.innerHTML = data.short_description || '';
           quillSeoFull.root.innerHTML  = data.full_description  || '';
+          // Backend meldet einen unklaren MODUS – nicht verschlucken, davon
+          // hängt ab, ob im Text eine Freigabe versprochen wird.
+          if (data.hinweis) {
+            statusMsg.textContent = data.hinweis;
+            statusMsg.style.color = 'var(--danger)';
+            showToast(data.hinweis, 'error');
+            return;
+          }
           statusMsg.textContent = '';
         } catch (e) {
           statusMsg.textContent = `Fehler: ${e.message}`;

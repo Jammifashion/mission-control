@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getModel } from '../lib/modelConfig.js';
 import { sanitizeJsonControlChars, collectText } from '../utils/json-parse.js';
+import { buildSeoUserPrompt, resolveModus } from '../lib/seo-prompt.js';
 
 const router = Router();
 
@@ -164,60 +165,69 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
     }
 
     if (action === 'seo_description') {
-      const { produktname, artikelnummer, lshopNr, kategorien, eigenschaften, hinweise } = req.body;
+      const { produktname, kategorien, eigenschaften, hinweise, motiv, modus, farben } = req.body;
       if (!produktname) return res.status(400).json({ error: 'produktname ist erforderlich.' });
 
-      const SEO_SYSTEM = `Du bist SEO-Texter für jammifashion.de. Der Artikel ist ein FERTIG BEDRUCKTES Textil – genau so wird er verkauft.
+      const SEO_SYSTEM = `Du bist SEO-Texter für jammifashion.de. Der Artikel ist ein FERTIG BEDRUCKTES
+Textil – genau so wird er verkauft.
 
 WICHTIG:
-- NICHT schreiben: "individuell bedruckbar", "eigenes Design", "personalisierbar", "jetzt selbst gestalten"
-- Schreibe als würdest du einen fertigen Markenartikel beschreiben – der Druck IST der Artikel
-- Ton passt sich an: Verein=sportlich/motivierend, Party=locker/spaßig, Künstler=kreativ/einzigartig
-- Faserzusammensetzung MUSS enthalten sein (EU-Textilkennzeichnungsverordnung)
-- Wenn Material unbekannt: "[Material: bitte ergänzen]"
-- HTML nur: <h1>, <h2>, <p>, <ul>, <li>, <strong> – KEIN Markdown, KEIN Codeblock
-- JSON-Output MUSS valides JSON sein: Zeilenumbrüche in Strings als \n, Anführungszeichen in HTML escapen
-- KEINE echten/rohen Zeilenumbrüche, Tabs oder Steuerzeichen innerhalb der JSON-Strings – ausschließlich escaped (\n, \r, \t)
+- NICHT schreiben: "individuell bedruckbar", "personalisierbar",
+  "jetzt selbst gestalten"
+- Schreibe als würdest du einen fertigen Markenartikel beschreiben –
+  der Druck IST der Artikel
+- Beschreibe das MOTIV: was ist darauf zu sehen. Bei einem fertig bedruckten
+  Artikel ist das Motiv das Produkt, nicht der Stoff.
+- Ton: duzen, norddeutsch-direkt, trocken. Zielgruppe aus den Hinweisen ableiten.
+- VERBOTENE FLOSKELN, nie verwenden: "Must-have", "Party-Kracher",
+  "absoluter Hingucker", "Blickfang", "hochwertige Qualität",
+  "maximaler Tragekomfort", "schnell und zuverlässig", "sichere dir jetzt",
+  "Lieblings-". Prüfung: Lässt sich ein Satz streichen, ohne dass Information
+  verloren geht, gehört er gestrichen.
+- Höchstens ein Ausrufezeichen im ganzen Text, lieber keins.
+- Konkrete Zahlen schlagen Adjektive: "280 g/m², innen angeraut" statt
+  "kuschelig warm".
+
+MATERIAL – Rechtspflicht (EU-Verordnung 1007/2011):
+- Faserzusammensetzung MUSS enthalten sein, mit Prozentangaben und nur mit
+  offiziellen Faserbezeichnungen
+- Übernimm NUR Angaben zu Farben, die unter FARBEN gelistet sind.
+  Farbspezifische Ausnahmen für nicht angebotene Farben werden weggelassen.
+- Übernimm keine Herstellerkatalogfelder, die diesen Artikel nicht beschreiben
+  (z.B. "Farbigkeit: 1-farbig, Meliert, Pastell")
+- Wenn Material unbekannt: "[Material: bitte ergänzen]". Niemals raten,
+  niemals plausibel ergänzen.
+
+WEITERES:
+- Keine AGB erwähnen – es gibt bewusst keine
+- Keine konkreten Liefer- oder Bestellschlussdaten. Lieferzeit nur als Spanne.
+- Keine fremden Marken, Filmtitel oder geschützten Figuren, auch nicht
+  nachempfunden oder angedeutet
+- HTML nur: <h2>, <h3>, <p>, <ul>, <li>, <strong> – KEIN <h1>, KEIN Markdown,
+  KEIN Codeblock
+- JSON-Output MUSS valides JSON sein: Zeilenumbrüche und Anführungszeichen in
+  HTML escapen
+- KEINE echten/rohen Zeilenumbrüche, Tabs oder Steuerzeichen innerhalb der
+  JSON-Strings – ausschließlich escaped (\\n, \\r, \\t)
 - Antworte NUR mit dem JSON-Objekt`;
 
-      // Größen und Farben aus eigenschaften extrahieren
-      const eigenschaftenLines = eigenschaften ? eigenschaften.split('\n').filter(Boolean) : [];
-      const groessen = eigenschaftenLines.filter(l => /größe|size/i.test(l)).join(', ') || 'XS – 3XL';
-      const farben   = eigenschaftenLines.filter(l => /farbe|color/i.test(l)).join(', ') || 'siehe Varianten';
+      // MODUS entscheidet, ob der Freigabe-Satz im Text landet. Ein stiller
+      // Fallback würde dem Kunden einen Prozess versprechen, den es für einen
+      // Kollektionsartikel nicht gibt – also laut melden.
+      const { modus: modusWert, warnung: modusWarnung } = resolveModus(modus);
+      if (modusWarnung) {
+        console.warn(`[seo_description] ${modusWarnung} (empfangen: ${JSON.stringify(modus)})`);
+      }
 
-      const userPrompt = `Erstelle Beschreibungen für folgenden FERTIGEN bedruckten Artikel:
-
-KONTEXT & HINWEISE (PRIMÄR):
-${hinweise || 'Keine besonderen Hinweise'}
-
-PRODUKTDATEN:
-- Artikelname: ${produktname}
-- Kategorie: ${kategorien || 'Textilien'}
-- Material: ${eigenschaftenLines.find(l => /material|baumwolle|polyester/i.test(l))?.trim() || '[Material: bitte ergänzen]'}
-${eigenschaften ? `- Weitere Eigenschaften: ${eigenschaften}` : ''}
-
-STRUKTUR der produktbeschreibung (EXAKT einhalten):
-
-<h1>[Artikelbezeichnung] – [passender Slogan basierend auf Kontext]</h1>
-
-<p>[Einleitung: 2-3 Sätze. WER trägt das + WANN/WARUM. Stimmung/Anlass aus Kontext oben. Basiere Ton auf den Hinweisen.]</p>
-
-<h2>Produktdetails</h2>
-<ul>
-<li><strong>Material:</strong> ${eigenschaftenLines.find(l => /material|baumwolle|polyester/i.test(l))?.trim() || '[Material: bitte ergänzen]'}</li>
-${eigenschaftenLines.filter(l => !/material|baumwolle|polyester/i.test(l)).slice(0, 5).map(p => `<li>${p.trim()}</li>`).join('\n')}
-</ul>
-
-<p>[Abschluss: 2 Sätze. Was macht diesen Artikel besonders? Direkte Kaufaufforderung – passend zur Stimmung aus den Hinweisen.]</p>
-
-kurzbeschreibung: Plain Text, max. 160 Zeichen. Artikel + Highlight + CTA.
-NICHT "individuell" oder "personalisierbar".
-
-Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock):
-{
-  "kurzbeschreibung": "...",
-  "produktbeschreibung": "Valides HTML wie oben definiert"
-}`;
+      const userPrompt = buildSeoUserPrompt({
+        produktname,
+        kategorien,
+        eigenschaften,
+        hinweise,
+        motiv,
+        modus: modusWert,
+        farben,
+      });
 
       let raw;
       if (process.env.GEMINI_API_KEY) {
@@ -282,6 +292,8 @@ Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock):
       return res.json({
         short_description: parsed.kurzbeschreibung || '',
         full_description:  parsed.produktbeschreibung || '',
+        modus:             modusWert,
+        hinweis:           modusWarnung,
       });
     }
 
