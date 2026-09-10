@@ -4087,6 +4087,13 @@
       // Alles, was im Shop steht, ist fertig bedruckt – auch Vereinsartikel.
       // Kein Bedienelement: der Modus ist hier konstant. "auftrag" (mit
       // Freigabe-Hinweis) tritt in diesem Flow derzeit nicht auf.
+      //
+      // Die Vorbelegung ist bewusst still: "fehlend" ist hier der Normalfall,
+      // nur "unbekannt" ist ein Ereignis – eine Warnung bei jedem Lauf liest
+      // nach drei Tagen niemand mehr. Sobald es ein MODUS-Bedienelement im
+      // Frontend gibt, wird "fehlend" wieder bedeutungsvoll — dann ist es kein
+      // Normalfall mehr, sondern ein nicht ausgefülltes Feld. Dann diese Zeile
+      // wieder aufmachen.
       const SEO_MODUS = 'kollektion';
 
       const modeBtnNew      = document.getElementById('mode-btn-new');

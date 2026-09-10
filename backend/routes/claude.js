@@ -69,11 +69,15 @@ router.delete('/chat/:session_id', (req, res) => {
 // POST /api/claude/generate-product
 router.post('/generate-product', async (req, res, next) => {
   try {
-    if (!process.env.ANTHROPIC_API_KEY) {
+    const { action, name, keywords, shop, properties, rules } = req.body;
+
+    // seo_description und suggest_variants wählen ihren Anbieter selbst (Rolle
+    // im Config-Sheet) und prüfen den passenden Key dort. Der pauschale Guard
+    // hätte den Gemini-Pfad blockiert, obwohl er keinen Anthropic-Key braucht.
+    const brauchtAnthropic = action !== 'seo_description' && action !== 'suggest_variants';
+    if (brauchtAnthropic && !process.env.ANTHROPIC_API_KEY) {
       return res.status(503).json({ error: 'ANTHROPIC_API_KEY nicht konfiguriert.' });
     }
-
-    const { action, name, keywords, shop, properties, rules } = req.body;
 
     if (action === 'generate_variants') {
       if (!name || !properties) {
@@ -229,28 +233,41 @@ WEITERES:
         farben,
       });
 
+      // Der Anbieter folgt der Modell-ID aus dem Config-Sheet, nicht dem
+      // zufällig gesetzten API-Key. Sonst läuft lokal ohne GEMINI_API_KEY eine
+      // andere Rolle als in Produktion, und man schließt vom falschen Ergebnis
+      // auf den Live-Betrieb.
+      const modellId = await getModel('seo-text');
+      console.log(`seo_description: Rolle seo-text -> ${modellId}`);
+
       let raw;
-      if (process.env.GEMINI_API_KEY) {
-        const genAI  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const modellId = await getModel('seo-text');
-        console.log(`seo_description: Rolle seo-text -> ${modellId}`);
+      if (modellId.startsWith('gemini-')) {
+        if (!process.env.GEMINI_API_KEY) {
+          return res.status(503).json({
+            error: `Rolle seo-text ist auf ${modellId} konfiguriert, aber GEMINI_API_KEY fehlt.`,
+          });
+        }
+        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
         const geminiModel = genAI.getGenerativeModel({
           model: modellId,
           systemInstruction: SEO_SYSTEM,
         });
         const geminiResult = await geminiModel.generateContent(userPrompt);
         raw = geminiResult.response.text();
-      } else if (process.env.ANTHROPIC_API_KEY) {
+      } else {
+        if (!process.env.ANTHROPIC_API_KEY) {
+          return res.status(503).json({
+            error: `Rolle seo-text ist auf ${modellId} konfiguriert, aber ANTHROPIC_API_KEY fehlt.`,
+          });
+        }
         const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
         const response = await client.messages.create({
-          model: await getModel('agent-intern'),
+          model: modellId,
           max_tokens: 2048,
           system: SEO_SYSTEM,
           messages: [{ role: 'user', content: userPrompt }],
         });
         raw = collectText(response);
-      } else {
-        return res.status(503).json({ error: 'Weder GEMINI_API_KEY noch ANTHROPIC_API_KEY konfiguriert.' });
       }
 
       if (!raw || !raw.trim()) {
