@@ -132,10 +132,19 @@ describe('GET /api/partner/auth', () => {
 // ── Eigenauftrag ──────────────────────────────────────────────────────────────
 
 describe('POST /api/partner/:id/eigenauftrag', () => {
-  function setupPartnerExists(partnerId) {
+  const TOKEN    = 'valid-token';
+  const FP_TOKEN = 'fp-token';
+
+  // Partner-Tab traegt P-001 mit TOKEN, FP_Partner-Tab P-FP-1 mit FP_TOKEN.
+  // Der Eigenauftrag wird von beiden Portalseiten aufgerufen, die Token-
+  // Aufloesung muss daher beide Tabs abdecken.
+  function setupSheets() {
     mockValues.get.mockImplementation(async ({ range }) => {
       if (range.startsWith('FP_Partner!')) {
-        return { data: { values: [['Partner-ID']] } };
+        return { data: { values: [
+          ['Partner-ID', 'Name', 'Token', 'Aktiv'],
+          ['P-FP-1', 'Festpreis Partner', FP_TOKEN, 'ja'],
+        ] } };
       }
       if (range.startsWith('Partner_Interne_Bestellungen!')) {
         // Kanal- UND Fulfillment-Spalte vorhanden → kein batchUpdate nötig.
@@ -145,23 +154,30 @@ describe('POST /api/partner/:id/eigenauftrag', () => {
           'Partner-ID', 'Datum', 'Bezeichnung', 'Anzahl', 'Status', 'Kanal', 'Fulfillment',
         ]] } };
       }
-      // Partner-Tab: enthält die gesuchte Partner-ID
-      return { data: { values: [['Partner-ID', 'Name'], [partnerId, 'Test Partner']] } };
+      return { data: { values: [
+        ['Partner-ID', 'Name', 'Token', 'Aktiv'],
+        ['P-001', 'Test Partner', TOKEN, 'ja'],
+      ] } };
     });
-  }
-
-  function setupPartnerNotExists() {
-    // Alle Tabs liefern nur Header, keine Daten-Zeilen
-    mockValues.get.mockResolvedValue({ data: { values: [['Partner-ID']] } });
   }
 
   const VALID_BODY = { artikel: 'T-Shirt', menge: 10, varianten: 'S, M, L' };
 
+  const post = (id, token) => {
+    const req = request(partnerApp).post(`/api/partner/${id}/eigenauftrag`);
+    return token ? req.set('Authorization', `Bearer ${token}`) : req;
+  };
+
+  beforeEach(() => {
+    setupSheets();
+    // Der globale beforeEach setzt nur den Rueckgabewert neu, nicht die
+    // Aufrufhistorie - ohne dieses Clear zaehlen die 201-Tests in den
+    // "kein Schreibzugriff"-Erwartungen der Auth-Tests mit.
+    mockValues.append.mockClear();
+  });
+
   test('alle Pflichtfelder vorhanden → 201', async () => {
-    setupPartnerExists('P-001');
-    const res = await request(partnerApp)
-      .post('/api/partner/P-001/eigenauftrag')
-      .send(VALID_BODY);
+    const res = await post('P-001', TOKEN).send(VALID_BODY);
     expect(res.status).toBe(201);
     expect(res.body.partnerId).toBe('P-001');
     // Portal-Eigenauftraege starten direkt auf 'offen'; mit 'Neu' flossen sie
@@ -171,38 +187,67 @@ describe('POST /api/partner/:id/eigenauftrag', () => {
     expect(res.body.fulfillment).toBe('Beauftragt');
   });
 
+  // partner-festpreis.html nutzt denselben Endpunkt mit einem FP_Partner-Token.
+  test('Festpreis-Partner mit FP_Partner-Token → 201', async () => {
+    const res = await post('P-FP-1', FP_TOKEN).send(VALID_BODY);
+    expect(res.status).toBe(201);
+    expect(res.body.partnerId).toBe('P-FP-1');
+  });
+
+  test('ohne Token → 401', async () => {
+    const res = await post('P-001', null).send(VALID_BODY);
+    expect(res.status).toBe(401);
+    expect(mockValues.append).not.toHaveBeenCalled();
+  });
+
+  test('unbekannter Token → 401', async () => {
+    const res = await post('P-001', 'wrong-token').send(VALID_BODY);
+    expect(res.status).toBe(401);
+    expect(mockValues.append).not.toHaveBeenCalled();
+  });
+
+  test('fremde Partner-ID im Pfad → 403', async () => {
+    const res = await post('P-999', TOKEN).send(VALID_BODY);
+    expect(res.status).toBe(403);
+    expect(mockValues.append).not.toHaveBeenCalled();
+  });
+
+  // Ein Lizenz-Token darf nicht auf einen Festpreis-Partner zeigen.
+  test('gueltiger Token, aber Partner-ID aus dem anderen Tab → 403', async () => {
+    const res = await post('P-FP-1', TOKEN).send(VALID_BODY);
+    expect(res.status).toBe(403);
+    expect(mockValues.append).not.toHaveBeenCalled();
+  });
+
+  test('inaktiver Partner → 403', async () => {
+    mockValues.get.mockImplementation(async ({ range }) => {
+      if (range.startsWith('FP_Partner!')) return { data: { values: [['Partner-ID', 'Token']] } };
+      return { data: { values: [
+        ['Partner-ID', 'Name', 'Token', 'Aktiv'],
+        ['P-001', 'Test Partner', TOKEN, 'nein'],
+      ] } };
+    });
+    const res = await post('P-001', TOKEN).send(VALID_BODY);
+    expect(res.status).toBe(403);
+    expect(mockValues.append).not.toHaveBeenCalled();
+  });
+
   test('artikel fehlt → 400', async () => {
-    const res = await request(partnerApp)
-      .post('/api/partner/P-001/eigenauftrag')
-      .send({ menge: 5, varianten: 'M' });
+    const res = await post('P-001', TOKEN).send({ menge: 5, varianten: 'M' });
     expect(res.status).toBe(400);
   });
 
   test('menge fehlt oder 0 → 400', async () => {
-    const res1 = await request(partnerApp)
-      .post('/api/partner/P-001/eigenauftrag')
-      .send({ artikel: 'Shirt', varianten: 'M' });
+    const res1 = await post('P-001', TOKEN).send({ artikel: 'Shirt', varianten: 'M' });
     expect(res1.status).toBe(400);
 
-    const res2 = await request(partnerApp)
-      .post('/api/partner/P-001/eigenauftrag')
-      .send({ artikel: 'Shirt', menge: 0, varianten: 'M' });
+    const res2 = await post('P-001', TOKEN).send({ artikel: 'Shirt', menge: 0, varianten: 'M' });
     expect(res2.status).toBe(400);
   });
 
   test('varianten fehlt → 400', async () => {
-    const res = await request(partnerApp)
-      .post('/api/partner/P-001/eigenauftrag')
-      .send({ artikel: 'Shirt', menge: 5 });
+    const res = await post('P-001', TOKEN).send({ artikel: 'Shirt', menge: 5 });
     expect(res.status).toBe(400);
-  });
-
-  test('unbekannte Partner-ID → 404', async () => {
-    setupPartnerNotExists();
-    const res = await request(partnerApp)
-      .post('/api/partner/UNKNOWN/eigenauftrag')
-      .send(VALID_BODY);
-    expect(res.status).toBe(404);
   });
 });
 

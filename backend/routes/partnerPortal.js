@@ -66,29 +66,42 @@ function colLetter(idx) {
   return s;
 }
 
-// Prüft, ob eine Partner-ID in 'Partner' ODER 'FP_Partner' existiert.
-// (Eigenaufträge kommen sowohl aus partner.html als auch partner-festpreis.html.)
-// Liefert { partnerId, name } oder null. Ersetzt die reine Existenzpruefung,
-// damit der Partnername fuer die Chat-Nachricht bereitsteht - ohne einen
-// zweiten Sheet-Aufruf.
-async function findPartner(sheets, sheetId, partnerId) {
-  for (const tab of ['Partner', 'FP_Partner']) {
-    try {
-      const { header, rows } = await readTab(sheets, sheetId, tab);
-      const idx = header.indexOf('Partner-ID');
-      if (idx === -1) continue;
-      const row = rows.find(r => (r[idx] ?? '') === partnerId);
-      if (row) {
-        const nameIdx = header.indexOf('Name');
-        return { partnerId, name: nameIdx !== -1 ? (row[nameIdx] ?? '') : '' };
-      }
-    } catch { /* Tab evtl. nicht vorhanden – ignorieren */ }
-  }
-  return null;
-}
+// Token-Aufloesung ueber BEIDE Partner-Tabs.
+//
+// resolvePartner() weiter unten liest nur 'Partner' und bleibt so - es bedient
+// das Lizenz-Portal. Der Eigenauftrag wird aber auch von
+// partner-festpreis.html aufgerufen, und Festpreis-Partner stehen
+// ausschliesslich in 'FP_Partner'. Nur gegen 'Partner' zu pruefen wuerde sie
+// aussperren (derselbe Fehler wie seinerzeit bei loadPartner(), siehe
+// bugfix.md 2026-06-09).
+//
+// Wirft 401 bei unbekanntem Token, 403 bei inaktivem Partner.
+async function resolvePartnerAnyTab(token) {
+  const sheetId = process.env.BUSINESS_SHEET_ID;
+  if (!sheetId) throw Object.assign(new Error('BUSINESS_SHEET_ID nicht konfiguriert.'), { status: 503 });
 
-async function partnerIdExists(sheets, sheetId, partnerId) {
-  return (await findPartner(sheets, sheetId, partnerId)) !== null;
+  const sheets = await getSheets();
+  for (const tab of ['Partner', 'FP_Partner']) {
+    let header, rows;
+    try {
+      ({ header, rows } = await readTab(sheets, sheetId, tab));
+    } catch { continue; }        // Tab evtl. nicht vorhanden
+
+    const tokenIdx = header.indexOf('Token');
+    const idIdx    = header.indexOf('Partner-ID');
+    if (tokenIdx === -1 || idIdx === -1) continue;
+
+    const row = rows.find(r => (r[tokenIdx] ?? '') === token);
+    if (!row) continue;
+
+    const aktivIdx = header.indexOf('Aktiv');
+    if (aktivIdx !== -1 && (row[aktivIdx] ?? '').toLowerCase() !== 'ja')
+      throw Object.assign(new Error('Partner ist nicht aktiv.'), { status: 403 });
+
+    const nameIdx = header.indexOf('Name');
+    return { partnerId: row[idIdx] ?? '', name: nameIdx !== -1 ? (row[nameIdx] ?? '') : '' };
+  }
+  throw Object.assign(new Error('Ungültiger Token.'), { status: 401 });
 }
 
 // WC-Status: VERKAUF = processing/completed/on-hold, STORNO = refunded/cancelled
@@ -596,17 +609,29 @@ router.get('/abrechnungen', async (req, res, next) => {
 });
 
 // ── POST /api/partner/:id/eigenauftrag ───────────────────────────────────────
-// Öffentlich (kein API-Key): Partner stellt einen Eigenauftrag direkt im Portal.
-// Die Partner-ID wird zuvor über die Token-Auth der Portalseite ermittelt und hier
-// im Pfad mitgegeben. Schreibt nach Partner_Interne_Bestellungen mit Status 'Neu'
-// und Kanal 'Portal'. Preis/Summe bleiben leer und werden später vom Admin gepflegt.
+// Kein MC_API_KEY, aber Token-Auth: der Partner weist sich mit dem Bearer-Token
+// seiner Portalseite aus (partner.html oder partner-festpreis.html).
+// Die ID im Pfad muss zu diesem Token gehoeren - frueher wurde sie ungeprueft
+// uebernommen und nur auf Existenz getestet, womit jeder mit einer bekannten
+// Partner-ID ohne Token ins Sheet schreiben konnte.
+// Schreibt nach Partner_Interne_Bestellungen mit Status 'offen' und Kanal
+// 'Portal'. Preis/Summe bleiben leer und werden später vom Admin gepflegt.
 // Pflichtfelder: artikel, menge, varianten.
 router.post('/:id/eigenauftrag', async (req, res, next) => {
   try {
     const sheetId = process.env.BUSINESS_SHEET_ID;
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
 
+    const token = extractToken(req);
+    if (!token) return res.status(401).json({ error: 'token fehlt.' });
+    // Wirft 401 (unbekannter Token) bzw. 403 (inaktiv) über den Error-Handler.
+    const partner = await resolvePartnerAnyTab(token);
+
+    // Der Pfadparameter darf nicht auf einen fremden Partner zeigen.
     const partnerId = req.params.id;
+    if (partnerId !== partner.partnerId)
+      return res.status(403).json({ error: 'Partner-ID gehört nicht zu diesem Token.' });
+
     const { artikel, menge, varianten, lieferTyp,
             lieferName, lieferStrasse, lieferPlzOrt, wunschtermin, anmerkungen } = req.body;
 
@@ -616,10 +641,9 @@ router.post('/:id/eigenauftrag', async (req, res, next) => {
     if (!artikelTrim || !variantenTrim || !(mengeNum > 0))
       return res.status(400).json({ error: 'Artikel, Menge und Varianten sind Pflichtfelder.' });
 
-    const sheets  = await getSheets();
-    const partner = await findPartner(sheets, sheetId, partnerId);
-    if (!partner)
-      return res.status(404).json({ error: 'Partner nicht gefunden.' });
+    // Kein Existenz-Check mehr: ein aufgeloester Token belegt bereits, dass es
+    // die Partner-Zeile gibt, und resolvePartnerAnyTab liefert den Namen mit.
+    const sheets = await getSheets();
 
     // Eigenauftrag-Details in die Bezeichnung komponieren (bestehende Admin-/Abrechnungs-
     // Ansichten lesen nur Bezeichnung – so bleiben alle Felder ohne Schemaänderung sichtbar).

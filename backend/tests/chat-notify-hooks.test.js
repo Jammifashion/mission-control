@@ -166,15 +166,20 @@ describe('Testendpunkt /api/agent-wissen/prompt/test', () => {
 // ── Partnerbestellung ───────────────────────────────────────────────────────
 
 describe('Partnerbestellung', () => {
+  const TOKEN = 'valid-token';
+
   function sheetMitPartner(partnerId) {
     mockValues.get.mockImplementation(async ({ range }) => {
-      if (range.startsWith('FP_Partner!')) return { data: { values: [['Partner-ID']] } };
+      if (range.startsWith('FP_Partner!')) return { data: { values: [['Partner-ID', 'Token']] } };
       if (range.startsWith('Partner_Interne_Bestellungen!')) {
         return { data: { values: [[
           'Partner-ID', 'Datum', 'Bezeichnung', 'Anzahl', 'Status', 'Kanal', 'Fulfillment',
         ]] } };
       }
-      return { data: { values: [['Partner-ID', 'Name'], [partnerId, 'Hamburg Crocodiles']] } };
+      return { data: { values: [
+        ['Partner-ID', 'Name', 'Token', 'Aktiv'],
+        [partnerId, 'Hamburg Crocodiles', TOKEN, 'ja'],
+      ] } };
     });
   }
 
@@ -185,6 +190,7 @@ describe('Partnerbestellung', () => {
 
     const res = await request(partnerApp)
       .post('/api/partner/P-001/eigenauftrag')
+      .set('Authorization', `Bearer ${TOKEN}`)
       .send({ artikel: 'T-Shirt', menge: 3, varianten: 'S, M, L' });
 
     expect(res.status).toBe(201);
@@ -194,13 +200,24 @@ describe('Partnerbestellung', () => {
     );
   });
 
-  test('unbekannter Partner: 404, keine Benachrichtigung', async () => {
-    mockValues.get.mockResolvedValue({ data: { values: [['Partner-ID']] } });
+  test('ohne Token: 401, keine Benachrichtigung', async () => {
+    sheetMitPartner('P-001');
     const res = await request(partnerApp)
-      .post('/api/partner/P-999/eigenauftrag')
+      .post('/api/partner/P-001/eigenauftrag')
       .send({ artikel: 'T-Shirt', menge: 3, varianten: 'S' });
 
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(401);
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  test('fremde Partner-ID: 403, keine Benachrichtigung', async () => {
+    sheetMitPartner('P-001');
+    const res = await request(partnerApp)
+      .post('/api/partner/P-999/eigenauftrag')
+      .set('Authorization', `Bearer ${TOKEN}`)
+      .send({ artikel: 'T-Shirt', menge: 3, varianten: 'S' });
+
+    expect(res.status).toBe(403);
     expect(notify).not.toHaveBeenCalled();
   });
 
@@ -208,6 +225,7 @@ describe('Partnerbestellung', () => {
     sheetMitPartner('P-001');
     const res = await request(partnerApp)
       .post('/api/partner/P-001/eigenauftrag')
+      .set('Authorization', `Bearer ${TOKEN}`)
       .send({ menge: 3 });
 
     expect(res.status).toBe(400);
