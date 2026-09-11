@@ -41,6 +41,7 @@ jest.unstable_mockModule('express-rate-limit', () => ({
 
 let request, chatApp, agentApp, partnerApp;
 let mockValues, mockCallChatAgent, notify;
+let issueSessionToken;
 
 // Ein abgeschlossener Dialog: genau der Fall, in dem der Kundenchat eine
 // Zeile schreibt und benachrichtigt.
@@ -59,6 +60,11 @@ const FERTIGES_ERGEBNIS = {
 beforeAll(async () => {
   process.env.BUSINESS_SHEET_ID = 'test-sheet-id';
   process.env.TURNSTILE_SECRET_KEY = '';
+  // Diese Suite prueft die Benachrichtigungs-Hooks, nicht den Zugang. Sie
+  // weist sich deshalb mit einem gueltigen Session-Token aus und umgeht
+  // Turnstile - dessen Verhalten deckt routes.test.js ab.
+  process.env.CHAT_SESSION_SECRET = 'test-hmac-key';
+  ({ issueSessionToken } = await import('../lib/chatSession.js'));
 
   const { default: supertest } = await import('supertest');
   request = supertest;
@@ -113,7 +119,7 @@ describe('Kundenanfrage', () => {
     mockCallChatAgent.mockResolvedValue(FERTIGES_ERGEBNIS);
     const res = await request(chatApp)
       .post('/api/anfragen/chat')
-      .send({ messages: [{ role: 'user', content: 'Hallo' }] });
+      .send({ messages: [{ role: 'user', content: 'Hallo' }], chatSession: issueSessionToken() });
 
     expect(res.status).toBe(200);
     expect(mockValues.append).toHaveBeenCalledTimes(1);
@@ -126,7 +132,7 @@ describe('Kundenanfrage', () => {
     });
     await request(chatApp)
       .post('/api/anfragen/chat')
-      .send({ messages: [{ role: 'user', content: 'Hallo' }] });
+      .send({ messages: [{ role: 'user', content: 'Hallo' }], chatSession: issueSessionToken() });
 
     expect(mockValues.append).not.toHaveBeenCalled();
     expect(notify).not.toHaveBeenCalled();
@@ -141,7 +147,7 @@ describe('Kundenanfrage', () => {
     for (const t of ['eins', 'zwei', 'drei']) {
       await request(chatApp)
         .post('/api/anfragen/chat')
-        .send({ messages: [{ role: 'user', content: t }] });
+        .send({ messages: [{ role: 'user', content: t }], chatSession: issueSessionToken() });
     }
     expect(notify).toHaveBeenCalledTimes(1);
   });

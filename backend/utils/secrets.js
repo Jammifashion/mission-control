@@ -21,6 +21,7 @@ export const SECRET_KEYS = [
   'WP_APP_PASSWORD',
   'WP_APP_PASSWORD_HONK',
   'GCHAT_WEBHOOK_URL',
+  'CHAT_SESSION_SECRET',
 ];
 
 function getSmClient() {

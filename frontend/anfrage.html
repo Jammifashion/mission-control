@@ -412,6 +412,7 @@
            data-sitekey="0x4AAAAAADgQUyewbZXs9Ucc"
            data-theme="dark"
            data-callback="onTurnstileSuccess"
+           data-error-callback="onTurnstileError"
            data-expired-callback="onTurnstileExpired"></div>
     </div>
 
@@ -449,23 +450,85 @@
     let isWaiting          = false;
     let isComplete         = false;
     let _turnstileToken    = null;   // gesetzt von onTurnstileSuccess
-    let _turnstileVerified = false;  // true nachdem Backend-Verifikation durchgelaufen
+    let _chatSession       = null;   // signierter Session-Token vom Backend
+    let _booted            = false;  // __init__ wurde bereits ausgeloest
+    let _fallbackGezeigt   = false;
+    let _turnstileTimer    = null;
+
+    // Kontaktdaten aus dem Agent_Wissen-Reiter (Schluessel 'kontakt_fallback'
+    // bzw. ERREICHBARKEIT in der Wissensbasis) - hier gespiegelt, weil dieser
+    // Pfad gerade dann greift, wenn das Backend nicht erreichbar ist.
+    const KONTAKT = {
+      telefon:   '0179 903 73 61',
+      telHref:   '+491799037361',
+      email:     'info@jammifashion.de',
+      zeiten:    'Montag bis Freitag, 9–16 Uhr',
+    };
+
+    // Turnstile darf den Kundenkanal nicht stumm schliessen: wenn nach 10 s
+    // kein Token da ist (Skript blockiert, Netz weg, CDN nicht erreichbar),
+    // bekommt der Kunde die Telefonnummer statt eines toten Chats.
+    const TURNSTILE_TIMEOUT_MS = 10000;
 
     // Turnstile-Callbacks (globale Funktionen, vom Widget aufgerufen)
     function onTurnstileSuccess(token) {
       _turnstileToken = token;
-      // Sende-Button freischalten sobald Text getippt wurde
+      clearTimeout(_turnstileTimer);
       updateSendBtn();
+      // Erst jetzt begruessen: vorher gibt es keinen Token, und der Server
+      // verlangt ihn fuer den ersten Request ausnahmslos.
+      if (!_booted) {
+        _booted = true;
+        callChat('__init__', true);
+      }
+    }
+    function onTurnstileError() {
+      zeigeKontaktFallback('Die Sicherheitsprüfung ließ sich nicht laden.');
     }
     function onTurnstileExpired() {
       _turnstileToken = null;
-      sendBtn.disabled = true;
+      // Mit gueltiger Session ist der abgelaufene Turnstile-Token egal -
+      // weitergechattet wird dann ueber _chatSession.
+      updateSendBtn();
     }
 
-    // Sende-Button ist aktiv wenn: Text eingegeben + nicht wartend + Turnstile OK
+    // Sende-Button ist aktiv wenn: Text eingegeben + nicht wartend + Zugang da
     function updateSendBtn() {
       sendBtn.disabled = !inputEl?.value?.trim() || isWaiting || isComplete
-                      || (!_turnstileVerified && !_turnstileToken);
+                      || (!_chatSession && !_turnstileToken);
+    }
+
+    // ── Kontakt-Fallback ────────────────────────────────────────────────────
+    // Ersetzt den Chat durch einen freundlichen Hinweis mit Telefon und Mail.
+    function zeigeKontaktFallback(grund) {
+      if (_fallbackGezeigt) return;
+      _fallbackGezeigt = true;
+      clearTimeout(_turnstileTimer);
+
+      const tw = document.getElementById('turnstile-wrap');
+      if (tw) tw.style.display = 'none';
+      inputBar.style.display = 'none';
+      setStatus('error');
+
+      const card = document.createElement('div');
+      card.className = 'success-card';
+      card.innerHTML = `
+        <div class="success-icon" style="background:#FFF4E5;">☎️</div>
+        <h2>Schreib oder ruf uns direkt an</h2>
+        <p class="sub">
+          ${String(grund).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}<br>
+          Kein Problem – bei uns geht ein Mensch ans Telefon.
+        </p>
+        <p class="sub" style="margin-top:14px;">
+          <strong><a href="tel:${KONTAKT.telHref}">${KONTAKT.telefon}</a></strong><br>
+          Telefon und WhatsApp, ${KONTAKT.zeiten}
+        </p>
+        <p class="sub" style="margin-top:10px;">
+          <strong><a href="mailto:${KONTAKT.email}">${KONTAKT.email}</a></strong>
+        </p>
+      `;
+      messagesEl.appendChild(card);
+      scrollDown();
     }
 
     // ── DOM ─────────────────────────────────────────────────────────────────
@@ -637,8 +700,9 @@
       showTyping();
 
       try {
-        // Turnstile-Token einmalig bei der ersten (oder solange noch nicht verifiziert) Nachricht mitsenden
-        const tokenToSend = _turnstileVerified ? undefined : (_turnstileToken || undefined);
+        // Solange es keine Session gibt, geht der Turnstile-Token mit. Danach
+        // weist sich der Client nur noch ueber die Session aus.
+        const tokenToSend = _chatSession ? undefined : (_turnstileToken || undefined);
 
         const res = await fetch(`${API_URL}/api/anfragen/chat`, {
           method:  'POST',
@@ -647,7 +711,8 @@
             messages,
             sessionData,
             website: document.getElementById('hp-website')?.value ?? '',
-            ...(tokenToSend ? { cfTurnstileToken: tokenToSend } : {}),
+            ...(tokenToSend   ? { cfTurnstileToken: tokenToSend } : {}),
+            ...(_chatSession  ? { chatSession: _chatSession }     : {}),
           }),
         });
 
@@ -658,11 +723,15 @@
 
         const data = await res.json();
 
-        // Turnstile-Widget nach erster erfolgreicher Verifikation ausblenden
-        if (tokenToSend && !_turnstileVerified) {
-          _turnstileVerified = true;
-          const tw = document.getElementById('turnstile-wrap');
-          if (tw) tw.style.display = 'none';
+        // Session uebernehmen (der Server stellt bei jeder Antwort einen
+        // frischen Token mit 30 min Laufzeit aus) und das Widget ausblenden.
+        if (data.chatSession) {
+          const ersteSession = !_chatSession;
+          _chatSession = data.chatSession;
+          if (ersteSession) {
+            const tw = document.getElementById('turnstile-wrap');
+            if (tw) tw.style.display = 'none';
+          }
         }
 
         sessionData = data.sessionData ?? sessionData;
@@ -677,8 +746,14 @@
       } catch (err) {
         hideTyping();
         console.error('[chat]', err);
-        appendError('Verbindungsfehler – bitte Seite neu laden und erneut versuchen.');
-        setStatus('error');
+        // Scheitert schon der erste Request, gibt es keinen Chat, in dem eine
+        // Fehlerblase helfen wuerde - dann direkt die Kontaktdaten zeigen.
+        if (!_chatSession) {
+          zeigeKontaktFallback('Der Chat lässt sich gerade nicht starten.');
+        } else {
+          appendError('Verbindungsfehler – bitte Seite neu laden und erneut versuchen.');
+          setStatus('error');
+        }
       }
 
       isWaiting = false;
@@ -716,7 +791,13 @@
     sendBtn.addEventListener('click', handleSend);
 
     // ── Boot ────────────────────────────────────────────────────────────────
-    callChat('__init__', true);
+    // Die Begruessung laeuft in onTurnstileSuccess - der erste Request braucht
+    // zwingend einen Turnstile-Token. Kommt binnen 10 s keiner, bekommt der
+    // Kunde statt eines toten Chats die Kontaktdaten.
+    _turnstileTimer = setTimeout(
+      () => zeigeKontaktFallback('Die Sicherheitsprüfung antwortet gerade nicht.'),
+      TURNSTILE_TIMEOUT_MS,
+    );
   </script>
 </body>
 </html>

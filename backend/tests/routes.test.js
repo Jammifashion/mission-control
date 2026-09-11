@@ -48,9 +48,15 @@ jest.unstable_mockModule('express-rate-limit', () => ({
 
 let request, partnerApp, chatApp;
 let mockValues, mockCallChatAgent;
+let issueSessionToken, SESSION_TTL_MS;
 
 beforeAll(async () => {
-  process.env.BUSINESS_SHEET_ID = 'test-sheet-id';
+  process.env.BUSINESS_SHEET_ID    = 'test-sheet-id';
+  // Der Chat-Endpunkt verlangt jetzt Zugang: gueltige Session ODER Turnstile.
+  process.env.CHAT_SESSION_SECRET  = 'test-hmac-key';
+  process.env.TURNSTILE_SECRET_KEY = 'test-turnstile-secret';
+
+  ({ issueSessionToken, SESSION_TTL_MS } = await import('../lib/chatSession.js'));
 
   const { default: supertest } = await import('supertest');
   request = supertest;
@@ -93,6 +99,11 @@ beforeEach(() => {
   mockValues.get.mockResolvedValue({ data: { values: [] } });
   mockValues.append.mockResolvedValue({ data: {} });
   mockCallChatAgent.mockReset();
+
+  // Cloudflare-Siteverify: standardmaessig erfolgreich. Der Chat-Endpunkt ist
+  // der einzige Nutzer von global.fetch in dieser Suite (chatNotify und
+  // chatCore sind gemockt).
+  global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ success: true }) }));
 });
 
 // ── Partner Auth ──────────────────────────────────────────────────────────────
@@ -254,9 +265,12 @@ describe('POST /api/partner/:id/eigenauftrag', () => {
 // ── Chat Agent ────────────────────────────────────────────────────────────────
 
 describe('POST /api/anfragen/chat', () => {
+  // Der erste Request weist sich mit einem Turnstile-Token aus, danach
+  // uebernimmt der Session-Token.
   const INIT_BODY = {
     messages: [{ role: 'user', content: '__init__' }],
     sessionData: {},
+    cfTurnstileToken: 'cf-token',
   };
 
   test('__init__ → 200 mit reply + sessionData + completed', async () => {
@@ -283,7 +297,8 @@ describe('POST /api/anfragen/chat', () => {
     });
     const res8 = await request(chatApp)
       .post('/api/anfragen/chat')
-      .send({ messages: [{ role: 'user', content: 'Ja, sieht gut aus.' }], sessionData: { step: 8 } });
+      .send({ messages: [{ role: 'user', content: 'Ja, sieht gut aus.' }], sessionData: { step: 8 },
+              chatSession: issueSessionToken() });
     expect(res8.body.completed).toBe(false);
 
     // Schritt 9: Bestätigung → completed: true
@@ -294,7 +309,8 @@ describe('POST /api/anfragen/chat', () => {
     });
     const res9 = await request(chatApp)
       .post('/api/anfragen/chat')
-      .send({ messages: [{ role: 'user', content: 'Bestätigen' }], sessionData: { step: 9 } });
+      .send({ messages: [{ role: 'user', content: 'Bestätigen' }], sessionData: { step: 9 },
+              chatSession: issueSessionToken() });
     expect(res9.body.completed).toBe(true);
   });
 
@@ -306,5 +322,90 @@ describe('POST /api/anfragen/chat', () => {
     });
     const res = await request(chatApp).post('/api/anfragen/chat').send(INIT_BODY);
     expect(res.body.reply).not.toMatch(/\{\{[A-Z_]+\}\}/);
+  });
+});
+
+// ── Chat-Zugang: Turnstile + Sitzungs-Token ──────────────────────────────────
+
+describe('POST /api/anfragen/chat – Zugang', () => {
+  const ANTWORT = {
+    reply: 'Moin! Wie kann ich helfen?',
+    sessionData: { step: 1, kanal: 'Homepage' },
+    completed: false,
+  };
+  const MSGS = [{ role: 'user', content: '__init__' }];
+  const send = body => request(chatApp).post('/api/anfragen/chat').send(body);
+
+  beforeEach(() => mockCallChatAgent.mockResolvedValue(ANTWORT));
+
+  test('ohne Turnstile- und ohne Session-Token → 403, kein Modellaufruf', async () => {
+    const res = await send({ messages: MSGS, sessionData: {} });
+    expect(res.status).toBe(403);
+    expect(mockCallChatAgent).not.toHaveBeenCalled();
+  });
+
+  test('gültiger Turnstile-Token → 200 und liefert einen Session-Token', async () => {
+    const res = await send({ messages: MSGS, sessionData: {}, cfTurnstileToken: 'cf-token' });
+    expect(res.status).toBe(200);
+    expect(res.body.chatSession).toMatch(/^\d+\.[0-9a-f]{32}\.[0-9a-f]{64}$/);
+    // Cloudflare wurde tatsaechlich gefragt
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  test('von Cloudflare abgelehnter Turnstile-Token → 403', async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ success: false }) }));
+    const res = await send({ messages: MSGS, sessionData: {}, cfTurnstileToken: 'gefaelscht' });
+    expect(res.status).toBe(403);
+    expect(mockCallChatAgent).not.toHaveBeenCalled();
+  });
+
+  test('Folge-Request mit Session-Token → 200, ohne Cloudflare zu fragen', async () => {
+    const erst = await send({ messages: MSGS, sessionData: {}, cfTurnstileToken: 'cf-token' });
+    global.fetch.mockClear();
+
+    const res = await send({
+      messages: [...MSGS, { role: 'assistant', content: 'Moin!' },
+                 { role: 'user', content: '30 Hoodies' }],
+      sessionData: {},
+      chatSession: erst.body.chatSession,
+    });
+    expect(res.status).toBe(200);
+    expect(global.fetch).not.toHaveBeenCalled();
+    // Gleitendes Fenster: es kommt ein frischer Token zurueck
+    expect(res.body.chatSession).toBeTruthy();
+    expect(res.body.chatSession).not.toBe(erst.body.chatSession);
+  });
+
+  test('abgelaufener Session-Token → 403', async () => {
+    const alt = issueSessionToken(Date.now() - SESSION_TTL_MS - 1000);
+    const res = await send({ messages: MSGS, sessionData: {}, chatSession: alt });
+    expect(res.status).toBe(403);
+    expect(mockCallChatAgent).not.toHaveBeenCalled();
+  });
+
+  test('manipulierter Session-Token → 403', async () => {
+    const [exp, nonce, sig] = issueSessionToken().split('.');
+    const kaputt = `${exp}.${nonce}.${sig.slice(0, -1)}${sig.at(-1) === 'a' ? 'b' : 'a'}`;
+    const res = await send({ messages: MSGS, sessionData: {}, chatSession: kaputt });
+    expect(res.status).toBe(403);
+    expect(mockCallChatAgent).not.toHaveBeenCalled();
+  });
+
+  // Der Kern von A4: frueher haette eine erfundene Historie die Pruefung
+  // umgangen, weil nur bei der "ersten" Nachricht verifiziert wurde.
+  test('aufgefüllte Historie ohne Token → 403', async () => {
+    const res = await send({
+      messages: [
+        { role: 'user',      content: 'Hallo' },
+        { role: 'assistant', content: 'Moin!' },
+        { role: 'user',      content: 'Ich brauche 500 Shirts' },
+      ],
+      sessionData: { step: 3 },
+    });
+    expect(res.status).toBe(403);
+    expect(mockCallChatAgent).not.toHaveBeenCalled();
   });
 });

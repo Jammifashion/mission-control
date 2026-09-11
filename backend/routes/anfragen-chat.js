@@ -5,6 +5,7 @@ import { getAgentSystemPrompt } from '../lib/agentWissenHelper.js';
 import { loadRecentAnfragen, callChatAgent } from '../lib/chatCore.js';
 import rateLimit from 'express-rate-limit';
 import { notify, buildAnfrageNachricht } from '../lib/chatNotify.js';
+import { issueSessionToken, verifySessionToken } from '../lib/chatSession.js';
 
 const router = Router();
 
@@ -40,7 +41,8 @@ function getSheets() {
 // ── POST /chat ────────────────────────────────────────────────────────────────
 router.post('/chat', chatLimiter, async (req, res, next) => {
   try {
-    const { messages = [], sessionData = {}, website = '', cfTurnstileToken } = req.body ?? {};
+    const { messages = [], sessionData = {}, website = '',
+            cfTurnstileToken, chatSession } = req.body ?? {};
 
     // Honeypot: verstecktes Feld 'website' wird nur von Bots ausgefüllt.
     if (typeof website === 'string' && website.trim() !== '') {
@@ -51,8 +53,20 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
       return res.status(400).json({ error: 'Ungültige Anfrage.' });
     }
 
-    // Turnstile-Verifikation: nur bei der ersten Nachricht (token wird einmalig mitgeschickt)
-    if (cfTurnstileToken) {
+    // ── Zugang ────────────────────────────────────────────────────────────
+    // Entweder eine gueltige Session ODER eine frische Turnstile-Pruefung.
+    // Bewusst OHNE Ausnahme fuer __init__ und ohne Blick auf messages.length:
+    // die Laenge kommt vom Client, ein Bot haette sonst nur eine erfundene
+    // Historie mitschicken muessen, um an der Pruefung vorbeizukommen.
+    let sessionToken;
+    if (verifySessionToken(chatSession)) {
+      // Gleitendes Fenster: jede Antwort traegt einen frischen Token, damit
+      // ein laufendes Gespraech nicht nach 30 min abreisst.
+      sessionToken = issueSessionToken();
+    } else {
+      if (!cfTurnstileToken) {
+        return res.status(403).json({ error: 'Bot-Verifikation erforderlich. Bitte Seite neu laden.' });
+      }
       const tsSecret = process.env.TURNSTILE_SECRET_KEY;
       if (!tsSecret) {
         return res.status(500).json({ error: 'Turnstile nicht konfiguriert.' });
@@ -66,6 +80,7 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
       if (!tsData.success) {
         return res.status(403).json({ error: 'Bot-Verifikation fehlgeschlagen. Bitte Seite neu laden.' });
       }
+      sessionToken = issueSessionToken();
     }
 
     const validMsgs = messages
@@ -141,6 +156,7 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
       reply,
       sessionData: merged,
       completed,
+      chatSession: sessionToken,
       ...(anfrageId ? { anfrageId } : {}),
     });
 
