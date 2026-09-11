@@ -116,6 +116,56 @@ describe('weiterhin 502', () => {
   });
 });
 
+// ── Upstream-Fehler ─────────────────────────────────────────────────────────
+//
+// Der Ausfall vom 04.-07.09. kam als HTTP 400 im Browser an, weil der Status
+// der Anthropic-API ungefiltert durchgereicht wurde. Der Stoerungsalarm
+// schlaegt nur bei 5xx an - ohne dieses Mapping bliebe ein Upstream-Ausfall
+// unsichtbar.
+
+describe('Fehler der Anthropic-API werden auf 502 abgebildet', () => {
+  const upstream = status => Object.assign(
+    new Error('messages: at least one message is required'), { status },
+  );
+
+  test('400 wird zu 502', async () => {
+    mockCreate.mockRejectedValue(upstream(400));
+    await expect(ruf()).rejects.toMatchObject({ status: 502 });
+  });
+
+  test('401 und 429 ebenfalls - das sind unsere Probleme, nicht die des Kunden', async () => {
+    for (const s of [401, 403, 404, 429]) {
+      mockCreate.mockRejectedValue(upstream(s));
+      await expect(ruf()).rejects.toMatchObject({ status: 502 });
+    }
+  });
+
+  test('5xx bleibt 5xx', async () => {
+    mockCreate.mockRejectedValue(upstream(529));
+    await expect(ruf()).rejects.toMatchObject({ status: 502 });
+  });
+
+  test('Fehler ohne Status wird zu 502', async () => {
+    mockCreate.mockRejectedValue(new Error('socket hang up'));
+    await expect(ruf()).rejects.toMatchObject({ status: 502 });
+  });
+
+  test('urspruenglicher Fehler bleibt als cause erhalten und wird geloggt', async () => {
+    const orig = upstream(400);
+    mockCreate.mockRejectedValue(orig);
+    await expect(ruf()).rejects.toMatchObject({ cause: orig });
+    expect(console.error).toHaveBeenCalledWith(
+      expect.stringContaining('Upstream-Status 400'),
+      expect.anything(),
+    );
+  });
+
+  test('Meldung nennt Modell und Ursache', async () => {
+    mockCreate.mockRejectedValue(upstream(400));
+    await expect(ruf()).rejects.toThrow(/claude-sonnet-5.*at least one message/);
+  });
+});
+
 describe('Structured Outputs', () => {
   // Der Prompt beschreibt die Antwortform, das Schema erzwingt sie. Ohne
   // Schema faellt Sonnet 5 bei allgemeinen Fragen in rund der Haelfte der

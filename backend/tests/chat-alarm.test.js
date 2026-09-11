@@ -44,12 +44,11 @@ describe('alarmWuerdig', () => {
     for (const s of [500, 502, 503, 504]) expect(alarmWuerdig(s)).toBe(true);
   });
 
-  test('4xx ja, ausser 403 und 429', () => {
-    for (const s of [400, 401, 404, 422]) expect(alarmWuerdig(s)).toBe(true);
-    // 403 ist der Normalfall bei Bots, 429 das Rate-Limit bei der Arbeit -
-    // beides ist das System, das funktioniert, keine Stoerung.
-    expect(alarmWuerdig(403)).toBe(false);
-    expect(alarmWuerdig(429)).toBe(false);
+  // Jeder 4xx sagt etwas ueber den Aufrufer, nicht ueber uns: Honeypot,
+  // zu lange Nachrichtenliste, fehlender oder abgelehnter Turnstile-Token,
+  // abgelaufene Sitzung, Rate-Limit. Davon kommen im Betrieb dauernd welche.
+  test('kein 4xx - das sind Client-Fehler, keine Stoerungen', () => {
+    for (const s of [400, 401, 403, 404, 422, 429]) expect(alarmWuerdig(s)).toBe(false);
   });
 
   test('2xx und 3xx nie', () => {

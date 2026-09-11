@@ -34,7 +34,7 @@ jest.unstable_mockModule('../lib/chatNotify.js', () => ({
   buildAnfrageNachricht:  jest.fn(() => 'ANFRAGE-NACHRICHT'),
   buildPartnerNachricht:  jest.fn(() => 'PARTNER-NACHRICHT'),
   notifyFehler:           jest.fn().mockResolvedValue(true),
-  alarmWuerdig:           jest.fn(s => s >= 500 || (s >= 400 && s !== 403 && s !== 429)),
+  alarmWuerdig:           jest.fn(s => s >= 500),
 }));
 
 jest.unstable_mockModule('express-rate-limit', () => ({

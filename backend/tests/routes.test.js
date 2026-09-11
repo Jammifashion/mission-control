@@ -42,7 +42,7 @@ jest.unstable_mockModule('../lib/chatNotify.js', () => ({
   // genauso entscheidet wie in Produktion; was tatsaechlich rausgeht, prueft
   // chat-alarm.test.js.
   notifyFehler:          jest.fn().mockResolvedValue(true),
-  alarmWuerdig:          jest.fn(s => s >= 500 || (s >= 400 && s !== 403 && s !== 429)),
+  alarmWuerdig:          jest.fn(s => s >= 500),
 }));
 
 jest.unstable_mockModule('express-rate-limit', () => ({
@@ -342,13 +342,25 @@ describe('POST /api/anfragen/chat – Stoerungsalarm', () => {
     notifyFehler.mockClear();
   });
 
-  test('400 loest Alarm aus', async () => {
-    // Honeypot gefuellt
+  // 4xx sagt etwas ueber den Aufrufer, nicht ueber uns.
+  test('Honeypot (400) loest KEINEN Alarm aus', async () => {
     const res = await send({ messages: MSGS, website: 'bot', cfTurnstileToken: 'cf' });
     expect(res.status).toBe(400);
-    expect(notifyFehler).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 400, art: 'HTTP 400' }),
-    );
+    expect(notifyFehler).not.toHaveBeenCalled();
+  });
+
+  test('zu lange Nachrichtenliste (400) loest KEINEN Alarm aus', async () => {
+    const viele = Array.from({ length: 21 }, () => ({ role: 'user', content: 'x' }));
+    const res = await send({ messages: viele, cfTurnstileToken: 'cf' });
+    expect(res.status).toBe(400);
+    expect(notifyFehler).not.toHaveBeenCalled();
+  });
+
+  test('abgelaufener Session-Token (403) loest KEINEN Alarm aus', async () => {
+    const alt = issueSessionToken(Date.now() - SESSION_TTL_MS - 1000);
+    const res = await send({ messages: MSGS, chatSession: alt });
+    expect(res.status).toBe(403);
+    expect(notifyFehler).not.toHaveBeenCalled();
   });
 
   test('403 loest KEINEN Alarm aus – das ist der Normalfall bei Bots', async () => {

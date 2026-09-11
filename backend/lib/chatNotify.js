@@ -137,11 +137,18 @@ export async function notifyFehler({ art, status, text }) {
   }
 }
 
-// Welche Statuscodes einen Alarm wert sind: alles ab 500, dazu 4xx ausser
-// 403 (Bot-Verifikation - der Normalfall bei Bots) und 429 (Rate-Limit, das
-// ist das System bei der Arbeit, keine Stoerung).
+// Welche Statuscodes einen Alarm wert sind: ausschliesslich 5xx.
+//
+// Jeder 4xx sagt etwas ueber den Aufrufer, nicht ueber uns - Honeypot,
+// zu lange Nachrichtenliste, fehlender oder abgelehnter Turnstile-Token,
+// abgelaufene Sitzung, Rate-Limit. Davon kommen im Betrieb dauernd welche,
+// und jede einzelne waere ein Fehlalarm.
+//
+// Damit das traegt, darf kein Upstream-Fehler seinen Status durchreichen:
+// ein Ausfall der Anthropic-API kam als 400 beim Browser an und waere hier
+// unsichtbar. callChatAgent bildet solche Fehler deshalb auf 502 ab.
 export function alarmWuerdig(status) {
-  return status >= 500 || (status >= 400 && status !== 403 && status !== 429);
+  return status >= 500;
 }
 
 // Nur fuer Tests: Drosselung zuruecksetzen.

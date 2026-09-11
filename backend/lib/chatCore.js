@@ -163,15 +163,31 @@ export async function callChatAgent({ messages, sessionData, kbBase, history }) 
   // message prefill"). Das JSON-Format erzwingt jetzt allein der Prompt.
   const modell = await getModel('chat-kunde');
 
-  const claudeRes = await anthropic.messages.create({
-    model:      modell,
-    max_tokens: 1536,
-    system:     systemBlocks,
-    messages,
-    // Erzwingt die Antwortform serverseitig. Adaptives Denken bleibt an - das
-    // Modell darf weiter denken, nur nicht mehr aus dem Format fallen.
-    output_config: { format: { type: 'json_schema', schema: ANTWORT_SCHEMA } },
-  });
+  let claudeRes;
+  try {
+    claudeRes = await anthropic.messages.create({
+      model:      modell,
+      max_tokens: 1536,
+      system:     systemBlocks,
+      messages,
+      // Erzwingt die Antwortform serverseitig. Adaptives Denken bleibt an - das
+      // Modell darf weiter denken, nur nicht mehr aus dem Format fallen.
+      output_config: { format: { type: 'json_schema', schema: ANTWORT_SCHEMA } },
+    });
+  } catch (err) {
+    // Upstream-Status NICHT durchreichen. Ein 400 der Anthropic-API ist fuer
+    // unseren Aufrufer kein Client-Fehler, sondern ein Ausfall stromaufwaerts.
+    // Beim Vorfall vom 04.-07.09. kam genau so ein 400 im Browser an und haette
+    // den Stoerungsalarm nie ausgeloest, weil der nur auf 5xx anschlaegt.
+    console.error(
+      `[chatCore] Anthropic-Aufruf fehlgeschlagen (${modell}), Upstream-Status `
+      + `${err?.status ?? '-'}:`, err?.message ?? err,
+    );
+    const e = new Error(`Chat-Agent (${modell}) nicht erreichbar: ${err?.message ?? err}`);
+    e.status = 502;
+    e.cause  = err;
+    throw e;
+  }
 
   // Nicht content[0] nehmen: sonnet-5 stellt der Antwort je nach Aufgabe einen
   // thinking-Block voran, der Text steht dann erst dahinter.
