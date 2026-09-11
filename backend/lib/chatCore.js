@@ -138,6 +138,29 @@ export async function callChatAgent({ messages, sessionData, kbBase, history }) 
   const parsed  = parseAgentAntwort(rawText);
 
   if (!parsed?.reply) {
+    // Sonnet 5 denkt adaptiv. Stellt es der Antwort einen thinking-Block voran,
+    // laesst es die per Prompt geforderte JSON-Huelle gelegentlich ganz weg und
+    // antwortet in Fliesstext - inhaltlich richtig, nur nicht im Format. Das war
+    // bisher ein 502, der Kunde sah einen Fehler statt einer brauchbaren
+    // Antwort. Solchen Text reichen wir jetzt durch.
+    const text = stripCodeFence(rawText).trim();
+
+    // Nur echten Fliesstext. Faengt die Antwort mit '{' an, war JSON gemeint und
+    // ist kaputt - Bruchstuecke davon gehoeren nicht in ein Kundenfenster.
+    if (text && !text.startsWith('{')) {
+      console.warn(
+        `[chat-fallback] ${modell} antwortete ohne JSON-Huelle, Text wird als reply durchgereicht ` +
+        `(${text.length} Zeichen). sessionData bleibt unveraendert, completed=false.`,
+      );
+      return {
+        reply:       text,
+        // Unveraendert: ohne geparstes sessionData gibt es nichts zu uebernehmen.
+        // Dieselbe Basis wie im Normalfall, damit 'kanal' gesetzt bleibt.
+        sessionData: { kanal: 'Homepage', ...sessionData },
+        completed:   false,
+      };
+    }
+
     // Rohantwort ins Log, sonst ist der Fall nicht nachvollziehbar.
     console.error(
       `[chatCore] Antwort von ${modell} nicht als JSON lesbar. Rohantwort:`,

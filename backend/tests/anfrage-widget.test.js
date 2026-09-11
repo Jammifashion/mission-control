@@ -98,9 +98,18 @@ describe('Kontakt-Fallback', () => {
     expect(fn[1]).toContain('if (_fallbackGezeigt) return;');
   });
 
-  test('greift auch, wenn schon der erste Request scheitert', () => {
-    // Ohne Session gibt es keinen Chat, in dem eine Fehlerblase helfen wuerde.
-    expect(html).toMatch(/if\s*\(!_chatSession\)\s*\{\s*\n\s*zeigeKontaktFallback/);
+  test('greift bei JEDEM Fehler, nicht nur beim ersten Request', () => {
+    const fn = html.match(/\} catch \(err\) \{([\s\S]*?)\n      \}/);
+    expect(fn).not.toBeNull();
+    expect(fn[1]).toContain('zeigeKontaktFallback');
+    // Keine Fehlerblase mehr, die den Kunden ohne Telefonnummer zuruecklaesst.
+    expect(fn[1]).not.toContain('appendError');
+    expect(fn[1]).not.toMatch(/if\s*\(!_chatSession\)/);
+  });
+
+  test('appendError existiert nicht mehr', () => {
+    expect(html).not.toContain('function appendError');
+    expect(html).not.toContain('appendError(');
   });
 });
 

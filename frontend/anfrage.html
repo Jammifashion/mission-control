@@ -608,21 +608,6 @@
       scrollDown();
     }
 
-    function appendError(text) {
-      const row = document.createElement('div');
-      row.className = 'msg-row agent';
-      const av = document.createElement('div');
-      av.className = 'avatar';
-      av.style.cssText = 'background:#FFE0E0; font-size:14px;';
-      av.textContent = '!';
-      const bbl = document.createElement('div');
-      bbl.className = 'error-bubble';
-      bbl.innerHTML  = renderMd(text);
-      row.appendChild(av);
-      row.appendChild(bbl);
-      messagesEl.appendChild(row);
-      scrollDown();
-    }
 
     // ── Typing indicator ────────────────────────────────────────────────────
     let typingEl = null;
@@ -746,14 +731,13 @@
       } catch (err) {
         hideTyping();
         console.error('[chat]', err);
-        // Scheitert schon der erste Request, gibt es keinen Chat, in dem eine
-        // Fehlerblase helfen wuerde - dann direkt die Kontaktdaten zeigen.
-        if (!_chatSession) {
-          zeigeKontaktFallback('Der Chat lässt sich gerade nicht starten.');
-        } else {
-          appendError('Verbindungsfehler – bitte Seite neu laden und erneut versuchen.');
-          setStatus('error');
-        }
+        // Jeder Fehler endet im Kontakt-Hinweis, nicht in einer Fehlerblase:
+        // ein Kunde, dessen Chat klemmt, soll nie ohne Telefonnummer dastehen.
+        // Der bisherige Gespraechsverlauf bleibt sichtbar, die Karte kommt
+        // darunter.
+        zeigeKontaktFallback(_chatSession
+          ? 'Da ist im Chat gerade etwas schiefgelaufen.'
+          : 'Der Chat lässt sich gerade nicht starten.');
       }
 
       isWaiting = false;
