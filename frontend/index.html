@@ -7821,11 +7821,13 @@
       }
 
       // ── SECTION: Fixkosten-Konfiguration sicherstellen (Zeile 4810) ──
-      // Garantiert, dass die Standard-Konfigurations-Positionen im Sheet existieren.
+      // Die Positionen, die berechnet werden - identisch zur POSITION_MAP in
+      // backend/utils/partner-kalkulation.js. Nebenkosten, Versandanteil und
+      // PayPal-Anteil standen hier frueher mit drin, obwohl sie in keiner
+      // POSITION_MAP vorkommen: das Frontend legte sie nach jedem Loeschen im
+      // Sheet wieder an, und sie sahen in der Tabelle pflegbar aus, ohne je in
+      // eine Berechnung einzugehen.
       const FIXKOSTEN_DEFAULTS = [
-        { position: 'Nebenkosten',             einheit: 'EUR/Artikel' },
-        { position: 'Versandanteil',           einheit: 'EUR/Artikel' },
-        { position: 'PayPal-Anteil',           einheit: '%/VK' },
         { position: 'Versandnebenkosten B',    einheit: 'EUR/Bestellung' },
         { position: 'Versandnebenkosten P',    einheit: 'EUR/Bestellung' },
         { position: 'Herstellungsnebenkosten', einheit: 'EUR/Artikel' },
