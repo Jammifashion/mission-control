@@ -310,6 +310,39 @@ B7  ID-Vergabe ohne Sperre - doppelte Abrechnungs- und Anfrage-IDs moeglich
     beide zwischen 00:00 und 01:00 MEZ unterschiedliche Jahrespraefixe.
 
 
+B10 Fixkosten-Positionen im Sheet, die von keinem Code gelesen werden
+    Reiter Kalkulation_Fixkosten vs. POSITION_MAP in
+    backend/utils/partner-kalkulation.js
+
+    Drei der 15 Zeilen stehen in keiner POSITION_MAP und werden von
+    parseKonfiguration stillschweigend uebergangen:
+
+        Nebenkosten      0,8    EUR/Artikel    ab 01.01.2022, bis 12.05.2026
+        Versandanteil    1,75   EUR/Artikel    ab 01.01.2022
+        PayPal-Anteil    0,66   %/VK           ab 01.01.2022
+
+    Gelesen werden stattdessen die gleichnamigen Gegenstuecke
+    Herstellungsnebenkosten, Versandnebenkosten B/P und PayPal Prozent.
+
+    Auffaellig ist die vierte Zeile: "Nebenkosten" wurde am 13.05.2026 neu
+    angelegt (Gueltig_ab 13.05.2026), unmittelbar nachdem die alte Zeile am
+    12.05.2026 auslief. Jemand hat sie also aktiv gepflegt - in der Annahme,
+    sie wirke. Dieselbe Pflege ist am selben Tag auch bei
+    "Herstellungsnebenkosten" passiert, und nur die hat Wirkung.
+
+    Das ist kein Rechenfehler: die Betraege stimmen zufaellig ueberein (beide
+    0,8). Es ist eine Falle fuer den naechsten, der einen der beiden Werte
+    aendert und sich wundert, dass nichts passiert - oder schlimmer, den
+    falschen aendert und es nicht merkt.
+
+    Seit B9 meldet parseKonfiguration solche Zeilen einmal pro Prozess als
+    "[kalkulation] unbekannte Position ignoriert: ...". Das macht den Zustand
+    sichtbar, raeumt ihn aber nicht auf.
+
+    Empfehlung: die drei Zeilen im Sheet als Altlast kennzeichnen oder
+    entfernen - eine Entscheidung fuer den Sheet-Eigentuemer, nicht fuer den
+    Code. Am Code ist nichts zu tun.
+
 B8  netto und brutto werden unabhaengig gerundet und driften auseinander
     backend/utils/partner-kalkulation.js:174,186-187
 
