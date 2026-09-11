@@ -17,7 +17,6 @@ import auftragsmonitorRouter from './routes/auftragsmonitor.js';
 import backupRouter from './routes/backup.js';
 import systemRoutes from './routes/system.js';
 import kalkulationRouter from './routes/kalkulation.js';
-import partnerViewRouter from './routes/partnerView.js';
 import partnerPortalRouter from './routes/partnerPortal.js';
 import partnerArtikelRouter from './routes/partner-artikel.js';
 import anfragenRouter from './routes/anfragen.js';
@@ -47,7 +46,6 @@ app.use(express.json({ limit: '256kb' }));
 
 // ── Rate limiting → Auth (Reihenfolge: rateLimiter → requireApiKey → Router) ──
 app.use('/api/', apiRateLimiter);
-app.use('/api/partner-view', partnerViewRouter); // legacy, bleibt erhalten
 app.use('/api/partner',      partnerPortalRouter); // Token-Auth oder eigene Key-Prüfung
 app.use('/api/anfragen',           anfragenChatRouter);   // public: nur /chat (kein API-Key nötig)
 app.use('/api/festpreis-public',   festpreisPublicRouter); // public: Token-Auth (kein API-Key)
