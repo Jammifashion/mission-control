@@ -35,6 +35,109 @@ afterEach(() => {
   delete process.env.GCHAT_WEBHOOK_URL;
 });
 
+// ── Webhook-URL: Form, nicht Inhalt ─────────────────────────────────────────
+//
+// Anlass: Google antwortete mit 400 "Missing or malformed token", waehrend
+// dieselbe URL per PowerShell 200 lieferte. chatNotify veraendert die URL
+// nicht - der gespeicherte Wert muss sich also vom erwarteten unterscheiden.
+// Die Pruefung sagt, WAS fehlt, ohne den Wert preiszugeben.
+
+describe('Webhook-URL wird nicht veraendert', () => {
+  test('geht unveraendert an fetch - keine Parameter, keine Verkettung', async () => {
+    await notify('x');
+    expect(fetchMock.mock.calls[0][0]).toBe(ECHTE_URL);
+  });
+
+  test('fuehrende und nachgestellte Leerzeichen werden entfernt', async () => {
+    process.env.GCHAT_WEBHOOK_URL = `  ${ECHTE_URL}\n`;
+    await notify('x');
+    expect(fetchMock.mock.calls[0][0]).toBe(ECHTE_URL);
+  });
+
+  test('eingebettete Steuerzeichen werden ausgeraeumt', async () => {
+    // new URL() entfernt CR/LF/TAB; roh an fetch gereicht wuerden sie die
+    // Anfrage zerlegen.
+    const mitBruch = ECHTE_URL.replace('?key=', '?key\n=');
+    process.env.GCHAT_WEBHOOK_URL = mitBruch;
+    await notify('x');
+    expect(fetchMock.mock.calls[0][0]).not.toMatch(/[\r\n\t]/);
+  });
+});
+
+describe('Formpruefung meldet, was fehlt', () => {
+  const letzterFehler = () => errorSpy.mock.calls.at(-1).join(' ');
+  const hatGemeldet = () =>
+    errorSpy.mock.calls.some(c => c.join(' ').includes('Webhook-URL unvollständig'));
+
+  test('vollstaendige URL meldet nichts', async () => {
+    await notify('x');
+    expect(hatGemeldet()).toBe(false);
+  });
+
+  test('fehlender token-Parameter', async () => {
+    process.env.GCHAT_WEBHOOK_URL = 'https://chat.googleapis.com/v1/spaces/AAA/messages?key=k';
+    await notify('x');
+    expect(letzterFehler()).toContain('Parameter token fehlt');
+  });
+
+  test('fehlender key-Parameter', async () => {
+    process.env.GCHAT_WEBHOOK_URL = 'https://chat.googleapis.com/v1/spaces/AAA/messages?token=t';
+    await notify('x');
+    expect(letzterFehler()).toContain('Parameter key fehlt');
+  });
+
+  test('falscher Host', async () => {
+    process.env.GCHAT_WEBHOOK_URL = 'https://example.com/v1/spaces/AAA/messages?key=k&token=t';
+    await notify('x');
+    expect(letzterFehler()).toContain('chat.googleapis.com');
+  });
+
+  // Der wahrscheinlichste Fall: aus einer gerenderten Seite kopiert.
+  test('&amp; statt & wird benannt', async () => {
+    process.env.GCHAT_WEBHOOK_URL =
+      'https://chat.googleapis.com/v1/spaces/AAA/messages?key=k&amp;token=t';
+    await notify('x');
+    const log = letzterFehler();
+    expect(log).toContain('&amp;');
+    // Folgefehler: der zweite Parameter heisst dann "amp;token".
+    expect(log).toContain('Parameter token fehlt');
+  });
+
+  test('kein gueltiges URL-Format wird gemeldet, ohne zu werfen', async () => {
+    process.env.GCHAT_WEBHOOK_URL = 'https://';
+    await expect(notify('x')).resolves.toBe(false);
+    expect(errorSpy.mock.calls.some(c => c.join(' ').includes('kein gültiges URL-Format')))
+      .toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  test('der Wert selbst taucht nirgends im Log auf', async () => {
+    const GEHEIM = 'https://chat.googleapis.com/v1/spaces/AAA/messages?key=SUPERGEHEIM';
+    process.env.GCHAT_WEBHOOK_URL = GEHEIM;
+    await notify('x');
+    const alles = [...errorSpy.mock.calls, ...warnSpy.mock.calls].map(c => c.join(' ')).join('\n');
+    expect(alles).not.toContain('SUPERGEHEIM');
+    expect(alles).not.toContain(GEHEIM);
+  });
+
+  test('nur beim ersten Senden, danach still', async () => {
+    process.env.GCHAT_WEBHOOK_URL = 'https://chat.googleapis.com/v1/spaces/AAA/messages?key=k';
+    await notify('x');
+    const nachErstem = errorSpy.mock.calls.length;
+    await notify('y');
+    await notify('z');
+    expect(errorSpy.mock.calls.length).toBe(nachErstem);
+  });
+
+  test('eine unvollstaendige URL wird trotzdem gesendet', async () => {
+    // Die Pruefung diagnostiziert, sie blockiert nicht - vielleicht kennt
+    // Google ein Format, das wir hier nicht abbilden.
+    process.env.GCHAT_WEBHOOK_URL = 'https://chat.googleapis.com/v1/spaces/AAA/messages?key=k';
+    await notify('x');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
 // ── Zustellung ───────────────────────────────────────────────────────────────
 
 describe('notify – Zustellung', () => {

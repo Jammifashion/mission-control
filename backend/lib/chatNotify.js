@@ -18,6 +18,7 @@ const LINK       = `<${MC_URL}|→ Mission Control öffnen>`;
 
 // Nur einmal warnen, danach still - sonst flutet jede Anfrage das Log.
 let fehlendGemeldet = false;
+let formGeprueft    = false;
 
 // ── Textaufbereitung ────────────────────────────────────────────────────────
 
@@ -182,8 +183,20 @@ export async function notify(text) {
     return false;
   }
 
+  // Ueber new URL() statt roh: das raeumt eingebettete Steuerzeichen weg und
+  // ist die einzige Stelle, an der Parameter jemals angehaengt wuerden - dann
+  // ueber searchParams, nie per String-Verkettung.
+  let ziel;
   try {
-    const res = await fetch(url, {
+    ziel = new URL(url);
+  } catch {
+    console.error('[chatNotify] Webhook-URL unvollständig: kein gültiges URL-Format');
+    return false;
+  }
+  pruefeForm(url, ziel);
+
+  try {
+    const res = await fetch(ziel.toString(), {
       method:  'POST',
       headers: { 'Content-Type': 'application/json; charset=UTF-8' },
       body:    JSON.stringify({ text }),
@@ -211,7 +224,41 @@ export async function notify(text) {
   }
 }
 
-// Nur fuer Tests: den Einmal-Warnhinweis zuruecksetzen.
+// Nur fuer Tests: die Einmal-Hinweise zuruecksetzen.
 export function _resetWarnung() {
   fehlendGemeldet = false;
+  formGeprueft    = false;
+}
+
+// Einmalige Formpruefung der Webhook-URL.
+//
+// Anlass: Google antwortete mit 400 "Missing or malformed token", waehrend
+// dieselbe URL per PowerShell 200 lieferte. chatNotify veraendert die URL
+// nicht - der gespeicherte Wert muss sich also vom erwarteten unterscheiden.
+// Der haeufigste Fall ist ein HTML-escaptes &amp; statt &: der zweite
+// Parameter heisst dann "amp;token", und Google sieht kein Token.
+//
+// Geprueft wird nur die FORM. Der Wert selbst wird nie ausgegeben - er ist das
+// Geheimnis.
+function pruefeForm(roh, u) {
+  if (formGeprueft) return;
+  formGeprueft = true;
+
+  const maengel = [];
+  if (u.hostname !== 'chat.googleapis.com') {
+    maengel.push(`Host ist "${u.hostname}", erwartet "chat.googleapis.com"`);
+  }
+  if (!u.searchParams.get('key'))   maengel.push('Parameter key fehlt');
+  if (!u.searchParams.get('token')) maengel.push('Parameter token fehlt');
+  // Konkreter Hinweis statt Raetselraten.
+  if (roh.includes('&amp;')) {
+    maengel.push('URL enthaelt "&amp;" statt "&" (HTML-escaped kopiert?)');
+  }
+  if (/[\r\n\t]/.test(roh)) {
+    maengel.push('URL enthaelt einen Zeilenumbruch oder Tabulator');
+  }
+
+  if (maengel.length) {
+    console.error(`[chatNotify] Webhook-URL unvollständig: ${maengel.join('; ')}`);
+  }
 }
