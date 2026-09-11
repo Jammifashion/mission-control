@@ -56,6 +56,64 @@ const POSITION_MAP = {
   'MwSt':                    'mwstProzent',
 };
 
+// ── Porto-Modelle ───────────────────────────────────────────────────────────
+//
+// Die Aufteilung des Porto-Saldos haengt an einem Freitext aus dem Sheet. Vor
+// der Normalisierung entschied ein exakter Vergleich: jeder abweichende Wert
+// bedeutete still 50/50. Ein nachgestelltes Leerzeichen oder eine andere
+// Unicode-Normalform des "ä" (NFD statt NFC - entsteht beim Kopieren aus macOS
+// oder manchen PDFs) sieht im Tabellenblatt identisch aus, halbiert aber den
+// Porto-Anteil des Partners.
+export const PORTO_MODELL_DEFAULT = 'geteilt-50-50';
+const PORTO_MODELLE = new Set(['partner-trägt', PORTO_MODELL_DEFAULT]);
+
+// Einmal-Warnungen. Sie sollen auffallen, aber bei einem Sync ueber hunderte
+// Zeilen nicht das Log fluten.
+const gemeldetePortoModelle = new Set();
+let positionenGemeldet = false;
+
+// Nur fuer Tests.
+export function _resetWarnungen() {
+  gemeldetePortoModelle.clear();
+  positionenGemeldet = false;
+}
+
+export function normalisierePortoModell(wert) {
+  const roh = String(wert ?? '').trim();
+  // Leer ist kein Fehler, sondern der dokumentierte Default.
+  if (roh === '') return PORTO_MODELL_DEFAULT;
+
+  const norm = roh.normalize('NFC').toLowerCase();
+  if (PORTO_MODELLE.has(norm)) return norm;
+
+  if (!gemeldetePortoModelle.has(roh)) {
+    gemeldetePortoModelle.add(roh);
+    console.warn(
+      `[kalkulation] unbekanntes Porto-Modell ignoriert: "${roh}" - es gilt `
+      + `${PORTO_MODELL_DEFAULT}. Erlaubt sind: ${[...PORTO_MODELLE].join(', ')}.`,
+    );
+  }
+  return PORTO_MODELL_DEFAULT;
+}
+
+// Positionen im Fixkosten-Reiter, die in keiner POSITION_MAP stehen, werden
+// ignoriert. Das ist richtig, soll aber nicht lautlos passieren: wer sie
+// pflegt, nimmt sonst an, sie wirkten.
+function meldeUnbekanntePositionen(rows, header) {
+  if (positionenGemeldet) return;
+  const posIdx = findHeader(header, 'Position');
+  if (posIdx === -1) return;
+
+  const bekannt = new Set(Object.keys(POSITION_MAP));
+  const unbekannt = [...new Set(
+    rows.map(r => String(r[posIdx] ?? '').trim()).filter(p => p && !bekannt.has(p)),
+  )];
+  if (!unbekannt.length) return;
+
+  positionenGemeldet = true;
+  console.warn(`[kalkulation] unbekannte Position ignoriert: ${unbekannt.join(', ')}`);
+}
+
 /**
  * Liefert den gültigen Wert einer Fixkosten-Position zum angegebenen Datum.
  * Unterstützt das neue Schema (Wert | Gültig_ab | Gültig_bis).
@@ -102,6 +160,7 @@ export function parseKonfiguration(rows, header, datum = new Date()) {
     const val = getKostenSatz(rows, header, pos, datum);
     if (val !== null) result[key] = val;
   }
+  meldeUnbekanntePositionen(rows, header);
   return result;
 }
 
@@ -176,7 +235,7 @@ export function berechnePartnerAnteil({
   //   partner-trägt   → Partner bekommt 100 % des Saldos
   //   geteilt-50-50   → Partner bekommt 50 % des Saldos
   const portoSaldoArtikel   = (portoEinnahmeAnteil || 0) - portoKostenAnteil; // (netto)
-  const portoSaldoPartner   = portoModell === 'partner-trägt'
+  const portoSaldoPartner   = normalisierePortoModell(portoModell) === 'partner-trägt'
     ? portoSaldoArtikel
     : portoSaldoArtikel / 2;
   const portoSaldoPlattform = portoSaldoArtikel - portoSaldoPartner;
