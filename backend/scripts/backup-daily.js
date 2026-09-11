@@ -12,6 +12,23 @@ const SCOPES = [
   'https://www.googleapis.com/auth/drive',
 ];
 
+// ── Was gesichert wird ──────────────────────────────────────────────────────
+//
+// Befund B18: hier stand nur GOOGLE_SHEET_ID, also das SSOT-Sheet
+// (JF_Master_Inventur_SSoT). Das Business-Sheet war in keinem einzigen Backup -
+// weder Partner_Verkäufe noch Partner_Abrechnungen, Partner, Partner_Artikel
+// oder Kalkulation_Fixkosten. Aufgefallen ist es, als in HK_Partner_Verkäufe
+// 66 Zeilen fehlten und es nichts gab, woraus man sie hätte holen können.
+//
+// Beide Spreadsheets werden jetzt je in eine eigene Datei gesichert, am Präfix
+// unterscheidbar. Fehlt eine der IDs, bricht der Lauf ab, bevor irgendetwas
+// hochgeladen wird - ein halbes Backup, das wie ein vollständiges aussieht, ist
+// schlimmer als keines.
+export const ZIELE = [
+  { praefix: 'SSOT',     envKey: 'GOOGLE_SHEET_ID' },
+  { praefix: 'BUSINESS', envKey: 'BUSINESS_SHEET_ID' },
+];
+
 // ── Retention ───────────────────────────────────────────────────────────────
 const DAILY_RETENTION_DAYS   = 14;
 const MONTHLY_RETENTION_MONTHS = 12;
@@ -46,26 +63,14 @@ function getAuth() {
   return new google.auth.GoogleAuth({ scopes: SCOPES });
 }
 
-// ── Backup-Logik (exportiert für Route-Wiederverwendung) ──────────────────────
-export async function runBackup() {
-  // Env-Vars hier lesen (nicht auf Top-Level) damit sie beim Import via Express schon gesetzt sind
-  const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
-  const SHARED_DRIVE   = process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID;
-  const DAILY_FOLDER   = process.env.GOOGLE_DRIVE_BACKUP_DAILY_ID;
-  const MONTHLY_FOLDER = process.env.GOOGLE_DRIVE_BACKUP_MONTHLY_ID;
-
-  if (!SPREADSHEET_ID) throw new Error('GOOGLE_SHEET_ID fehlt in .env');
-  if (!SHARED_DRIVE)   throw new Error('GOOGLE_DRIVE_SHARED_DRIVE_ID fehlt in .env');
-  if (!DAILY_FOLDER)   throw new Error('GOOGLE_DRIVE_BACKUP_DAILY_ID fehlt in .env');
-  if (!MONTHLY_FOLDER) throw new Error('GOOGLE_DRIVE_BACKUP_MONTHLY_ID fehlt in .env');
-
-  const auth   = getAuth();
-  const sheets = google.sheets({ version: 'v4', auth });
-  const drive  = google.drive({ version: 'v3', auth });
+// ── Ein Spreadsheet sichern ─────────────────────────────────────────────────
+async function sichereSpreadsheet(sheets, drive, ziel, ctx) {
+  const { praefix, id } = ziel;
+  const { now, dailyFolder, monthlyFolder } = ctx;
 
   // ── Alle Reiter ermitteln ─────────────────────────────────────────────────
   const { data: meta } = await sheets.spreadsheets.get({
-    spreadsheetId: SPREADSHEET_ID,
+    spreadsheetId: id,
     fields: 'properties.title,sheets.properties',
   });
   const sheetName = meta.properties?.title ?? '';
@@ -75,36 +80,35 @@ export async function runBackup() {
   const tabData = {};
   await Promise.all(tabTitles.map(async title => {
     const { data } = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
+      spreadsheetId: id,
       range: `${title}`,
     });
     tabData[title] = data.values ?? [];
   }));
 
   // ── JSON bauen + komprimieren ─────────────────────────────────────────────
-  const now     = new Date();
   const payload = {
     exportedAt: now.toISOString(),
-    sheetId:    SPREADSHEET_ID,
+    sheetId:    id,
     sheetName,
     tabCount:   tabTitles.length,
     tabs:       tabData,
   };
-  const jsonBuf  = Buffer.from(JSON.stringify(payload), 'utf8');
-  const gzipBuf  = gzipSync(jsonBuf);
-  const sizeKB   = Math.round(gzipBuf.length / 1024);
+  const jsonBuf = Buffer.from(JSON.stringify(payload), 'utf8');
+  const gzipBuf = gzipSync(jsonBuf);
+  const sizeKB  = Math.round(gzipBuf.length / 1024);
 
   // ── Dateinamen ────────────────────────────────────────────────────────────
-  const dateStr  = now.toISOString().slice(0, 10);            // YYYY-MM-DD
-  const monthStr = now.toISOString().slice(0, 7);             // YYYY-MM
-  const dailyName   = `MC-Backup-${dateStr}.json.gz`;
-  const monthlyName = `MC-Backup-${monthStr}.json.gz`;
+  const dateStr     = now.toISOString().slice(0, 10);   // YYYY-MM-DD
+  const monthStr    = now.toISOString().slice(0, 7);    // YYYY-MM
+  const dailyName   = `${praefix}_Backup-${dateStr}.json.gz`;
+  const monthlyName = `${praefix}_Backup-${monthStr}.json.gz`;
 
   // ── In Daily-Ordner hochladen ─────────────────────────────────────────────
   const dailyFile = await drive.files.create({
     requestBody: {
       name:     dailyName,
-      parents:  [DAILY_FOLDER],
+      parents:  [dailyFolder],
       mimeType: 'application/gzip',
     },
     media: {
@@ -114,14 +118,14 @@ export async function runBackup() {
     supportsAllDrives: true,
     fields: 'id,name,size',
   });
-  console.log(`✓ Daily-Backup hochgeladen: ${dailyName} (${sizeKB} KB, ${tabTitles.length} Reiter)`);
+  console.log(`✓ Daily-Backup hochgeladen: ${dailyName} (${sizeKB} KB, ${tabTitles.length} Reiter, "${sheetName}")`);
 
   // ── Monthly-Backup (nur am 1. des Monats) ─────────────────────────────────
   if (now.getDate() === 1) {
     await drive.files.create({
       requestBody: {
         name:     monthlyName,
-        parents:  [MONTHLY_FOLDER],
+        parents:  [monthlyFolder],
         mimeType: 'application/gzip',
       },
       media: {
@@ -132,6 +136,58 @@ export async function runBackup() {
       fields: 'id,name',
     });
     console.log(`✓ Monthly-Backup hochgeladen: ${monthlyName}`);
+  }
+
+  return {
+    praefix,
+    spreadsheetId: id,
+    sheetName,
+    fileName:      dailyName,
+    sizeKB,
+    tabCount:      tabTitles.length,
+    fileId:        dailyFile.data.id,
+  };
+}
+
+// ── Backup-Logik (exportiert für Route-Wiederverwendung) ──────────────────────
+export async function runBackup() {
+  // Env-Vars hier lesen (nicht auf Top-Level) damit sie beim Import via Express schon gesetzt sind
+  const SHARED_DRIVE   = process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID;
+  const DAILY_FOLDER   = process.env.GOOGLE_DRIVE_BACKUP_DAILY_ID;
+  const MONTHLY_FOLDER = process.env.GOOGLE_DRIVE_BACKUP_MONTHLY_ID;
+
+  // Alle Spreadsheet-IDs zuerst, gesammelt: wer zwei Sheets sichern soll und nur
+  // eine ID hat, darf nicht mit einem grünen Lauf und einer Datei enden.
+  const ziele   = ZIELE.map(z => ({ ...z, id: process.env[z.envKey] }));
+  const fehlend = ziele.filter(z => !z.id || !String(z.id).trim()).map(z => z.envKey);
+  if (fehlend.length)
+    throw new Error(
+      `Spreadsheet-ID fehlt: ${fehlend.join(', ')} – kein Backup geschrieben. `
+      + `Erwartet werden alle: ${ZIELE.map(z => z.envKey).join(', ')}.`,
+    );
+
+  if (!SHARED_DRIVE)   throw new Error('GOOGLE_DRIVE_SHARED_DRIVE_ID fehlt in .env');
+  if (!DAILY_FOLDER)   throw new Error('GOOGLE_DRIVE_BACKUP_DAILY_ID fehlt in .env');
+  if (!MONTHLY_FOLDER) throw new Error('GOOGLE_DRIVE_BACKUP_MONTHLY_ID fehlt in .env');
+
+  const auth   = getAuth();
+  const sheets = google.sheets({ version: 'v4', auth });
+  const drive  = google.drive({ version: 'v3', auth });
+
+  const now = new Date();
+  const ctx = { now, dailyFolder: DAILY_FOLDER, monthlyFolder: MONTHLY_FOLDER };
+
+  // Beide Ziele versuchen, auch wenn eines scheitert: die Datei, die sich
+  // schreiben laesst, ist besser als keine. Der Lauf endet danach trotzdem rot.
+  const backups = [];
+  const fehler  = [];
+  for (const ziel of ziele) {
+    try {
+      backups.push(await sichereSpreadsheet(sheets, drive, ziel, ctx));
+    } catch (err) {
+      fehler.push(`${ziel.praefix} (${ziel.envKey}=${ziel.id}): ${err.message ?? err}`);
+      console.error(`FEHLER bei ${ziel.praefix}: ${err.message ?? err}`);
+    }
   }
 
   // ── Cleanup Daily (> DAILY_RETENTION_DAYS) ────────────────────────────────
@@ -154,7 +210,10 @@ export async function runBackup() {
     console.warn(`WARNUNG: Monthly-Cleanup fehlgeschlagen, wird beim nächsten Lauf nachgeholt: ${err.message ?? err}`);
   }
 
-  return { fileName: dailyName, sizeKB, tabCount: tabTitles.length, fileId: dailyFile.data.id };
+  if (fehler.length)
+    throw new Error(`Backup unvollständig – ${fehler.length} von ${ziele.length} fehlgeschlagen: ${fehler.join(' | ')}`);
+
+  return { backups, dateien: backups.length };
 }
 
 async function cleanupFolder(drive, folderId, cutoff, label) {
@@ -199,6 +258,11 @@ const __filename = fileURLToPath(import.meta.url);
 if (process.argv[1] && (process.argv[1] === __filename || __filename.endsWith(process.argv[1].replace(/\\/g, '/')))) {
   console.log('== Mission Control Backup ==');
   runBackup()
-    .then(r => console.log(`\nFertig: ${r.fileName} | ${r.sizeKB} KB | ${r.tabCount} Reiter`))
+    .then(r => {
+      console.log(`\nFertig: ${r.dateien} Datei(en)`);
+      for (const b of r.backups) {
+        console.log(`  ${b.fileName} | ${b.sizeKB} KB | ${b.tabCount} Reiter | "${b.sheetName}"`);
+      }
+    })
     .catch(err => { console.error('FEHLER:', err.message ?? err); process.exit(1); });
 }

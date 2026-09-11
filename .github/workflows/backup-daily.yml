@@ -11,7 +11,7 @@ on:
 
 jobs:
   backup:
-    name: Backup Google Sheet → Drive
+    name: Backup Google Sheets → Drive
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -32,9 +32,13 @@ jobs:
       - name: Write Google credentials
         run: echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > google-credentials.json
 
+      # BUSINESS_SHEET_ID muss mit durchgereicht werden, sonst bricht der Lauf
+      # ab (Befund B18): das Skript verlangt beide Spreadsheet-IDs und schreibt
+      # ohne die zweite gar kein Backup mehr, statt still nur das SSOT zu sichern.
       - name: Run backup
         env:
           GOOGLE_SHEET_ID:                ${{ secrets.GOOGLE_SHEET_ID }}
+          BUSINESS_SHEET_ID:              ${{ secrets.BUSINESS_SHEET_ID }}
           GOOGLE_DRIVE_SHARED_DRIVE_ID:   ${{ secrets.GOOGLE_DRIVE_SHARED_DRIVE_ID }}
           GOOGLE_DRIVE_BACKUP_FOLDER_ID:  ${{ secrets.GOOGLE_DRIVE_BACKUP_FOLDER_ID }}
           GOOGLE_DRIVE_BACKUP_DAILY_ID:   ${{ secrets.GOOGLE_DRIVE_BACKUP_DAILY_ID }}
