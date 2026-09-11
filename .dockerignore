@@ -1,6 +1,18 @@
+# Muster ohne Pfadanteil greifen nur auf oberster Ebene des Build-Kontexts.
+# `google-credentials.json` allein liess backend/google-credentials.json durch,
+# und COPY backend/ ./backend/ hat den Service-Account-Key damit ins Image
+# kopiert. In CI blieb das folgenlos (actions/checkout holt nur versionierte
+# Dateien, .gitignore schliesst *-credentials.json aus), ein lokaler
+# docker build aus einem Arbeitsverzeichnis mit Key aber nicht.
+**/google-credentials.json
+**/*-credentials.json
+**/.env
+
 node_modules
-.env
-google-credentials.json
+**/node_modules
 .git
 frontend
 *.md
+
+# Wegwerf-Diagnoseskripte, siehe .gitignore
+**/_tmp-*
