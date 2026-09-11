@@ -13,6 +13,11 @@
 //   PayPal Pauschale          EUR/Bestellung
 //   MwSt                      %
 
+import { requireHeader, findHeader } from './sheet-headers.js';
+
+// Kontext fuer die Fehlermeldung, wenn eine Pflichtspalte fehlt.
+const KONTEXT = 'Kalkulation_Fixkosten';
+
 function _parseDate(str) {
   if (!str) return null;
   if (/^\d{2}\.\d{2}\.\d{4}$/.test(str)) {
@@ -58,10 +63,18 @@ const POSITION_MAP = {
  */
 export function getKostenSatz(rows, header, position, datum) {
   const d = datum instanceof Date ? datum : (_parseDate(datum) ?? new Date());
-  const posIdx  = header.indexOf('Position');
-  const wertIdx = header.indexOf('Wert');
-  const abIdx   = header.indexOf('Gültig_ab');
-  const bisIdx  = header.indexOf('Gültig_bis');
+
+  // Pflichtspalten werfen, statt auf -1 zu laufen. Sonst liest r[-1] undefined,
+  // kein Eintrag trifft, die Funktion liefert null - und parseKonfiguration
+  // nimmt DEFAULT_KONFIG mit lauter Nullen. Der Partneranteil faellt dann zu
+  // hoch aus, ohne Fehler, ohne Log, mit HTTP 200. Ein 500er ist hier deutlich
+  // billiger als eine stille Fehlberechnung.
+  const posIdx  = requireHeader(header, 'Position',   KONTEXT);
+  const wertIdx = requireHeader(header, 'Wert',       KONTEXT);
+  const abIdx   = requireHeader(header, 'Gültig_ab',  KONTEXT);
+  // Gültig_bis ist optional: eine Fixkostenzeile ohne Enddatum ist der
+  // Normalfall, und den Reiter gab es frueher ganz ohne diese Spalte.
+  const bisIdx  = findHeader(header, 'Gültig_bis');
 
   const matches = [];
   for (const r of rows) {
