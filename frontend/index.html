@@ -1931,15 +1931,6 @@
 
       <section id="panel-settings" class="panel">
         <div class="card">
-          <h2>Backend-URL</h2>
-          <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
-            <input id="api-url" type="url" placeholder="https://api.example.com"
-              style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.6rem 0.8rem;color:var(--text);font-size:0.9rem;" />
-            <button class="btn" id="save-url">Speichern</button>
-          </div>
-          <p id="url-saved" style="color:var(--success);font-size:0.8rem;margin-top:0.5rem;display:none;">Gespeichert.</p>
-        </div>
-        <div class="card">
           <h2>API Key</h2>
           <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
             <input id="api-key" type="password" placeholder="MC_API_KEY"
@@ -2077,7 +2068,14 @@
 
     <script type="module">
       // ── Config ──────────────────────────────────────────────────────────
-      const API_BASE = () => localStorage.getItem('mc_api_url') || 'https://mission-control-backend-181760755456.europe-west1.run.app';
+      // Backend-URL steht fest im Code. Frueher kam sie aus
+      // localStorage['mc_api_url'] - denselben Key konnte partner.html ueber
+      // ?api= setzen. Da beide Seiten auf derselben Origin liegen, liess sich
+      // damit ueber einen praeparierten Partner-Link das Dashboard auf einen
+      // fremden Host umbiegen, an den apiFetch() dann den X-API-Key schickte.
+      const API_BASE = () => 'https://mission-control-backend-181760755456.europe-west1.run.app';
+      // Altlast aus frueheren Links einmalig wegraeumen.
+      try { localStorage.removeItem('mc_api_url'); } catch { /* Storage gesperrt */ }
 
       function getApiKey() {
         let key = localStorage.getItem('mc_api_key');
@@ -5630,17 +5628,6 @@
       });
 
       // ── SECTION: Settings (Zeile 3604) ──
-      const urlInput = document.getElementById('api-url');
-      urlInput.value = localStorage.getItem('mc_api_url') || '';
-      document.getElementById('save-url').addEventListener('click', () => {
-        localStorage.setItem('mc_api_url', urlInput.value.trim().replace(/\/$/, ''));
-        const saved = document.getElementById('url-saved');
-        saved.style.display = 'block';
-        setTimeout(() => saved.style.display = 'none', 2000);
-        checkStatus();
-        loadSsotData();
-      });
-
       const keyInput = document.getElementById('api-key');
       keyInput.value = localStorage.getItem('mc_api_key') || '';
       document.getElementById('save-key').addEventListener('click', () => {
@@ -6138,9 +6125,9 @@
             btn.addEventListener('click', async () => {
               const p = _ppPartners.find(x => x.id === btn.dataset.ppCopy);
               if (!p?.token) return;
-              const apiUrl = window.API_BASE();
+              // Kein &api= mehr: die Partnerseiten haben die Backend-URL fest im Code.
               const shopParam = p.shop === 'honk' ? '&shop=honk' : '';
-              const link = `https://jammifashion.github.io/mission-control/partner.html?token=${encodeURIComponent(p.token)}${apiUrl ? '&api=' + encodeURIComponent(apiUrl) : ''}${shopParam}`;
+              const link = `https://jammifashion.github.io/mission-control/partner.html?token=${encodeURIComponent(p.token)}${shopParam}`;
               try {
                 await navigator.clipboard.writeText(link);
                 window.showToast('Partner-Link kopiert!');
@@ -7953,7 +7940,8 @@
               btn.addEventListener('click', async () => {
                 const p = _fpPartners.find(x => x['Partner-ID'] === btn.dataset.fpCopy);
                 if (!p?.Token) return;
-                const link = `https://jammifashion.github.io/mission-control/partner-festpreis.html?token=${encodeURIComponent(p['Token'])}&api=${encodeURIComponent(FP())}`;
+                // Kein &api= mehr: die Partnerseiten haben die Backend-URL fest im Code.
+                const link = `https://jammifashion.github.io/mission-control/partner-festpreis.html?token=${encodeURIComponent(p['Token'])}`;
                 try {
                   await navigator.clipboard.writeText(link);
                   window.showToast('Festpreis-Partner-Link kopiert!');

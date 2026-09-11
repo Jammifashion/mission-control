@@ -107,16 +107,20 @@
   <script>
     const params   = new URLSearchParams(location.search);
     const TOKEN    = params.get('token') || '';
-    const apiParam = params.get('api');
 
-    if (apiParam) localStorage.setItem('mc_api_url', apiParam.replace(/\/$/, ''));
-    let API_BASE = localStorage.getItem('mc_api_url') || '';
+    // Backend-URL steht fest im Code. Frueher war sie ueber ?api= setzbar und
+    // landete in localStorage['mc_api_url'] - dieser Key wird von allen drei
+    // Seiten auf dieser Origin geteilt, ein praeparierter Portal-Link konnte
+    // damit auch das Admin-Dashboard auf einen fremden Host umbiegen und
+    // dessen X-API-Key dorthin schicken. Parameter und Key sind entfernt.
+    const API_BASE = 'https://mission-control-backend-181760755456.europe-west1.run.app';
+    // Altlast aus frueheren Links einmalig wegraeumen.
+    try { localStorage.removeItem('mc_api_url'); } catch { /* Storage gesperrt */ }
     let PARTNER_ID = '';
 
     const main = document.getElementById('main-content');
 
     async function apiFetch(path) {
-      if (!API_BASE) throw new Error('Backend-URL nicht konfiguriert.');
       const r = await fetch(`${API_BASE}${path}`, {
         headers: TOKEN ? { 'Authorization': `Bearer ${TOKEN}` } : {},
       });
@@ -130,7 +134,6 @@
     }
 
     async function apiPost(path, body) {
-      if (!API_BASE) throw new Error('Backend-URL nicht konfiguriert.');
       const r = await fetch(`${API_BASE}${path}`, {
         method: 'POST',
         headers: {
@@ -154,23 +157,6 @@
 
     function showError(msg) {
       main.innerHTML = `<div class="error-box" style="max-width:480px;margin:3rem auto;"><p>${msg}</p></div>`;
-    }
-
-    function showApiConfig() {
-      main.innerHTML = `
-        <div class="api-cfg">
-          <label>Backend-URL:</label>
-          <input id="api-url-input" type="url" placeholder="https://backend.run.app" value="${API_BASE}">
-          <button class="btn" id="api-save-btn">Laden</button>
-        </div>
-        <p style="font-size:0.84rem;color:var(--muted);margin-top:0.5rem;">Bitte Backend-URL eingeben (wird gespeichert).</p>`;
-      document.getElementById('api-save-btn').onclick = () => {
-        const val = document.getElementById('api-url-input').value.trim().replace(/\/$/, '');
-        if (!val) return;
-        localStorage.setItem('mc_api_url', val);
-        API_BASE = val;
-        init();
-      };
     }
 
     // ── Verkäufe ─────────────────────────────────────────────────────────────
@@ -408,7 +394,6 @@
         showError('Kein Token in der URL.<br>Bitte nutze den Link deines Ansprechpartners bei JammiFashion.');
         return;
       }
-      if (!API_BASE) { showApiConfig(); return; }
 
       main.innerHTML = '<div class="skeleton" style="height:60px;border-radius:8px;"></div>';
       try {
