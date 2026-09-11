@@ -54,6 +54,10 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker europe-west1-docker.pkg.dev
 
+      # :latest wird weiter mitgeschoben (bequem fuer "was laeuft ungefaehr"),
+      # deployt wird aber der Commit-Tag - sonst ist bei zwei kurz
+      # aufeinanderfolgenden Pushes nicht festgelegt, welcher Stand laeuft,
+      # und ein Rollback ueber einen Re-Run des alten Workflows greift ins Leere.
       - name: Build and push Docker image
         run: |
           IMAGE=europe-west1-docker.pkg.dev/mission-control-495711/mission-control/backend
@@ -64,7 +68,7 @@ jobs:
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy mission-control-backend \
-            --image europe-west1-docker.pkg.dev/mission-control-495711/mission-control/backend:latest \
+            --image europe-west1-docker.pkg.dev/mission-control-495711/mission-control/backend:${{ github.sha }} \
             --region europe-west1 \
             --platform managed \
             --allow-unauthenticated \
