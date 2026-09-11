@@ -5661,6 +5661,25 @@
 
       // ── Service Worker ───────────────────────────────────────────────────
       if ('serviceWorker' in navigator) {
+        // Ob dieser Tab beim Laden schon von einem Worker kontrolliert wurde.
+        // Die Unterscheidung ist der Schutz gegen die Reload-Schleife: bei der
+        // Erstinstallation feuert clients.claim() ebenfalls controllerchange,
+        // ein Reload waere da aber nur Laerm - die Seite laeuft schon mit dem
+        // Code, den der neue Worker ausliefern wuerde.
+        const hatteController = !!navigator.serviceWorker.controller;
+        let neugeladen = false;
+
+        // Uebernimmt ein neuer Worker die Kontrolle, laeuft dieser Tab noch mit
+        // dem alten JS aus der alten index.html. Genau einmal neu laden, damit
+        // Markup und Skript wieder zum Worker passen. Eine Schleife ist danach
+        // nicht moeglich: der neu geladene Tab hat den neuen Worker von Anfang
+        // an als controller, es aktiviert also keiner mehr.
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (!hatteController || neugeladen) return;
+          neugeladen = true;
+          location.reload();
+        });
+
         navigator.serviceWorker.register('./sw.js').catch(console.error);
       }
 

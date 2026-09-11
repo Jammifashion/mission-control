@@ -34,6 +34,18 @@ jobs:
         with:
           node-version: 24
 
+      # Der Service-Worker-Cache-Name muss sich bei jedem Deploy aendern, sonst
+      # bleibt der alte Cache gueltig und die Geraete behalten die alte
+      # index.html (Befund C10). Handnummern wurden vergessen - darum der SHA.
+      - name: Cache-Version stempeln
+        run: |
+          sed -i "s/__BUILD_VERSION__/${GITHUB_SHA}/" frontend/sw.js
+          if grep -q "__BUILD_VERSION__" frontend/sw.js; then
+            echo "::error::Platzhalter __BUILD_VERSION__ steht noch in frontend/sw.js"
+            exit 1
+          fi
+          grep -n "const BUILD_VERSION" frontend/sw.js
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
