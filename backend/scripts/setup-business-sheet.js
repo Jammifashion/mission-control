@@ -28,14 +28,15 @@ const TABS = [
     ],
   },
   {
+    // Kein Seed mehr: die drei alten Zeilen (Nebenkosten, Versandanteil,
+    // PayPal-Anteil) stehen in keiner POSITION_MAP und wurden nie gerechnet -
+    // dieses Skript legte sie bei jedem Lauf neu an. Die Positionen, die
+    // wirklich zaehlen, seedet setup-fixkosten-historie.js, und zwar im
+    // aktuellen Schema (Wert | Gültig_ab | Gültig_bis) statt im alten hier.
     name: 'Kalkulation_Fixkosten',
     header: ['Position', 'Betrag', 'Einheit', 'Gültig-Ab'],
     widths: [180, 100, 140, 110],
-    seedData: [
-      ['Nebenkosten',   '0.70', 'EUR/Artikel', '01.01.2026'],
-      ['Versandanteil', '1.75', 'EUR/Artikel', '01.01.2026'],
-      ['PayPal-Anteil', '0.66', '%/VK',        '01.01.2026'],
-    ],
+    seedData: [],
   },
   {
     name: 'Kalkulation_Verkaufspreise',

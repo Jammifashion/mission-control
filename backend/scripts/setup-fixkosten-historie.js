@@ -11,10 +11,11 @@ const TAB_NAME       = 'Kalkulation_Fixkosten';
 const HEADER = ['Position', 'Wert', 'Einheit', 'Gültig_ab', 'Gültig_bis'];
 const WIDTHS  = [200, 80, 140, 110, 110];
 
+// Nur Positionen, die auch gerechnet werden - deckungsgleich mit der
+// POSITION_MAP in backend/utils/partner-kalkulation.js. Nebenkosten,
+// Versandanteil und PayPal-Anteil standen hier mit drin, obwohl sie in keine
+// Berechnung eingehen; ein Lauf dieses Skripts legte sie wieder an.
 const SEED_DATA = [
-  ['Nebenkosten',             '0.8',  'EUR/Artikel',    '01.01.2022', ''],
-  ['Versandanteil',           '1.75', 'EUR/Artikel',    '01.01.2022', ''],
-  ['PayPal-Anteil',           '0.66', '%/VK',           '01.01.2022', ''],
   ['Versandnebenkosten B',    '0.9',  'EUR/Bestellung', '01.01.2022', ''],
   ['Versandnebenkosten P',    '1.41', 'EUR/Bestellung', '01.01.2022', ''],
   ['Herstellungsnebenkosten', '0.8',  'EUR/Artikel',    '01.01.2022', ''],
