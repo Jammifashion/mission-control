@@ -190,7 +190,18 @@ export async function notify(text) {
       signal:  AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!res.ok) {
-      console.error(`[chatNotify] Google Chat antwortete mit HTTP ${res.status}`);
+      // Der Antworttext traegt die eigentliche Begruendung: 404 heisst
+      // Webhook geloescht oder rotiert, 403 fehlende Rechte im Space, 400
+      // Payload. Ohne ihn steht im Log nur eine Zahl, und man raet.
+      // Durch sauber(): redact() gegen Personendaten, die Google in einer
+      // Fehlerantwort zitieren koennte, plus Kuerzung auf 300 Zeichen.
+      let detail;
+      try {
+        detail = sauber(await res.text(), 300) || '(leere Antwort)';
+      } catch {
+        detail = '(Antworttext nicht lesbar)';
+      }
+      console.error(`[chatNotify] Google Chat antwortete mit HTTP ${res.status}: ${detail}`);
       return false;
     }
     return true;

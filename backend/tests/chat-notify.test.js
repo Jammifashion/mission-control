@@ -73,6 +73,74 @@ describe('notify – wirft nie', () => {
     expect(errorSpy).toHaveBeenCalled();
   });
 
+  // Ohne den Antworttext steht im Log nur eine Zahl. Die Unterscheidung
+  // 404 (Webhook weg) / 403 (Space-Rechte) / 400 (Payload) steckt im Text.
+  describe('Antworttext von Google landet im Log', () => {
+    const letzterFehler = () => errorSpy.mock.calls.at(-1).join(' ');
+
+    test('Status UND Begruendung, mit Praefix', async () => {
+      fetchMock.mockResolvedValue({
+        ok: false, status: 404,
+        text: async () => '{"error":{"code":404,"message":"Requested entity was not found."}}',
+      });
+      await expect(notify('x')).resolves.toBe(false);
+      const log = letzterFehler();
+      expect(log).toContain('[chatNotify]');
+      expect(log).toContain('HTTP 404');
+      expect(log).toContain('Requested entity was not found.');
+    });
+
+    test('auf 300 Zeichen gekuerzt', async () => {
+      fetchMock.mockResolvedValue({
+        ok: false, status: 400, text: async () => 'y'.repeat(900),
+      });
+      await notify('x');
+      const teil = letzterFehler().split('HTTP 400: ')[1];
+      expect(teil.length).toBeLessThanOrEqual(300);
+      expect(teil.endsWith('…')).toBe(true);
+    });
+
+    test('Personendaten in der Antwort werden entfernt', async () => {
+      fetchMock.mockResolvedValue({
+        ok: false, status: 400,
+        text: async () => 'Invalid argument bei max@example.de / 0179 903 73 61',
+      });
+      await notify('x');
+      const log = letzterFehler();
+      expect(log).not.toContain('max@example.de');
+      expect(log).not.toContain('0179 903 73 61');
+      expect(log).toContain('[E-Mail entfernt]');
+      expect(log).toContain('[Telefon entfernt]');
+    });
+
+    test('unlesbarer Antworttext wirft nicht', async () => {
+      fetchMock.mockResolvedValue({
+        ok: false, status: 500, text: async () => { throw new Error('stream weg'); },
+      });
+      await expect(notify('x')).resolves.toBe(false);
+      expect(letzterFehler()).toContain('nicht lesbar');
+    });
+
+    test('fehlende text()-Funktion wirft nicht', async () => {
+      fetchMock.mockResolvedValue({ ok: false, status: 502 });
+      await expect(notify('x')).resolves.toBe(false);
+      expect(letzterFehler()).toContain('HTTP 502');
+    });
+
+    test('leere Antwort wird als solche benannt', async () => {
+      fetchMock.mockResolvedValue({ ok: false, status: 403, text: async () => '' });
+      await notify('x');
+      expect(letzterFehler()).toContain('(leere Antwort)');
+    });
+
+    test('bei 2xx wird der Text nicht gelesen', async () => {
+      const text = jest.fn();
+      fetchMock.mockResolvedValue({ ok: true, status: 200, text });
+      await expect(notify('x')).resolves.toBe(true);
+      expect(text).not.toHaveBeenCalled();
+    });
+  });
+
   test('Timeout wird geschluckt', async () => {
     fetchMock.mockRejectedValue(Object.assign(new Error('The operation was aborted'), { name: 'TimeoutError' }));
     await expect(notify('x')).resolves.toBe(false);
