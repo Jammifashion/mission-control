@@ -243,7 +243,12 @@ export function berechnePartnerAnteil({
   const partnerAnteil = partnerAnteilVomGewinn + portoSaldoPartner; // (netto)
   const eigenAnteil   = (gewinnNetto - partnerAnteilVomGewinn) + portoSaldoPlattform; // (netto)
 
-  const partnerAnteilBrutto = round2(partnerAnteil * (1 + k.mwstProzent / 100)); // (brutto)
+  // Brutto folgt aus dem netto, das auch ausgewiesen wird - nicht aus dem
+  // ungerundeten Zwischenwert. Sonst gilt nicht durchgaengig
+  // brutto === round2(netto * (1 + MwSt)), und auf einer Abrechnung, die beide
+  // Spalten nebeneinander zeigt, kommt jeder Nachrechnende auf eine andere Zahl.
+  const partnerAnteilNetto  = round2(partnerAnteil);
+  const partnerAnteilBrutto = round2(partnerAnteilNetto * (1 + k.mwstProzent / 100)); // (brutto)
 
   return {
     herstellungspreis:   round2(herstellungspreis),
@@ -253,9 +258,9 @@ export function berechnePartnerAnteil({
     portoSaldoPartner:   round2(portoSaldoPartner),
     paypalKosten:        round2(paypalKosten),
     gewinnNetto:         round2(gewinnNetto),
-    partnerAnteil:       round2(partnerAnteil),
+    partnerAnteil:       partnerAnteilNetto,
     eigenAnteil:         round2(eigenAnteil),
-    netto:               round2(partnerAnteil),
+    netto:               partnerAnteilNetto,
     brutto:              partnerAnteilBrutto,
   };
 }
