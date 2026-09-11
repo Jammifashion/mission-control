@@ -2,7 +2,11 @@ name: Daily Backup
 
 on:
   schedule:
-    - cron: '0 3 * * *'   # täglich 03:00 UTC = 04:00/05:00 deutscher Zeit
+    # 02:00 UTC, eine Stunde vor dem Partner-Sync (sync-partner-daily.yml,
+    # 03:00 UTC). Liefen beide zur selben Minute, sicherte das Backup einen
+    # Stand, in den der Sync gerade Verkaufszeilen und Storno-Gegenbuchungen
+    # schrieb - also genau dann unbrauchbar, wenn man es braucht.
+    - cron: '0 2 * * *'   # täglich 02:00 UTC = 03:00/04:00 deutscher Zeit
   workflow_dispatch:        # manueller Trigger über GitHub UI
 
 jobs:
