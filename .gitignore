@@ -55,3 +55,10 @@ backend/scripts/push-secrets-to-gcp.js
 
 # Generierte Skript-Ausgaben
 backend/scripts/out/
+
+# Wegwerf-Diagnoseskripte. Liegen bewusst im Projekt statt im Systemtemp,
+# weil Node sonst node_modules nicht aufloest, und werden nach Gebrauch
+# geloescht - der Eintrag verhindert, dass eines versehentlich mitcommittet
+# wird.
+_tmp-*
+**/_tmp-*
