@@ -792,6 +792,9 @@
       .aw-badge { font-size:0.7rem; text-transform:uppercase; letter-spacing:0.05em; font-weight:700; padding:0.18rem 0.55rem; border-radius:999px; white-space:nowrap; }
       .aw-badge.override { background:rgba(232,196,74,0.16); color:var(--accent); border:1px solid var(--accent); }
       .aw-badge.standard { background:rgba(255,255,255,0.05); color:var(--muted); border:1px solid var(--border); }
+      /* Fixkosten: fehlende Rechen-Position */
+      .fk-warn { padding:0.6rem 0.85rem; border:1px solid var(--danger); border-radius:6px; font-size:0.82rem; color:var(--text); background:rgba(224,82,82,0.08); margin-bottom:0.85rem; }
+      .fk-warn strong { color:var(--danger); }
       /* Prompt-Test-Chat */
       .aw-test-banner { padding:0.6rem 0.85rem; border:1px solid var(--accent); border-radius:6px; font-size:0.82rem; color:var(--text); background:rgba(232,196,74,0.06); margin-bottom:0.85rem; }
       .aw-chat-messages { height:300px; overflow-y:auto; display:flex; flex-direction:column; gap:0.6rem; padding:0.85rem; background:var(--bg); border:1px solid var(--border); border-radius:8px; }
@@ -1499,6 +1502,7 @@
           </div>
           <div class="card">
             <h2>Fixkosten</h2>
+            <div id="fixkosten-warn"></div>
             <div id="fixkosten-table-wrap"><div class="skeleton" style="height:60px;"></div></div>
           </div>
           <div class="card">
@@ -7838,28 +7842,38 @@
         { position: 'MwSt',                    einheit: '%' },
       ];
 
-      async function ensureFixkostenDefaults() {
+      // Eine fehlende Position wird gemeldet, nicht angelegt.
+      //
+      // Frueher schrieb diese Funktion jede fehlende Position mit betrag 0 ins
+      // Sheet. Das ist genau der Fehler, den B1 abstellen sollte: getKostenSatz()
+      // liefert fuer eine fehlende Position null, parseKonfiguration() laesst
+      // dann den DEFAULT_KONFIG-Wert stehen - also 0 - und rechnet ohne Fehler,
+      // ohne Log, mit HTTP 200 weiter. Eine 0 im Sheet sieht danach aus wie eine
+      // Entscheidung und nicht wie eine Luecke, und der Partneranteil faellt
+      // dauerhaft zu hoch aus. Lieber sichtbar klemmen als still falsch rechnen.
+      async function pruefeFixkostenPositionen() {
+        const box = document.getElementById('fixkosten-warn');
+        if (!box) return [];
         try {
           const rows = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/fixkosten`).then(r => r.json());
           const existing = new Set(rows.map(r => r.position));
-          const missing  = FIXKOSTEN_DEFAULTS.filter(d => !existing.has(d.position));
-          if (!missing.length) return 0;
-          await Promise.all(missing.map(d =>
-            window.apiFetch(`${window.API_BASE()}/api/kalkulation/fixkosten`, {
-              method: 'POST', headers: {'Content-Type':'application/json'},
-              body: JSON.stringify({ position: d.position, betrag: 0, einheit: d.einheit, gueltigAb: '01.01.2022', gueltigBis: '' }),
-            })
-          ));
-          return missing.length;
-        } catch { return 0; }
+          const missing  = FIXKOSTEN_DEFAULTS.filter(d => !existing.has(d.position)).map(d => d.position);
+          if (!missing.length) { box.innerHTML = ''; return []; }
+          box.innerHTML = `<div class="fk-warn">
+            ${missing.map(p => `<strong>Position ${p} fehlt – Partneranteile werden falsch berechnet.</strong>`).join('<br>')}
+            <br>Fehlende Positionen werden als 0 gerechnet, nicht als Fehler. Bitte im
+            Reiter <code>Kalkulation_Fixkosten</code> mit dem richtigen Wert anlegen –
+            eine 0 hier ist keine Lösung.
+          </div>`;
+          return missing;
+        } catch { box.innerHTML = ''; return []; }
       }
 
-      // Beim Kalkulations-Tab-Wechsel die Defaults sicherstellen
+      // Beim Kalkulations-Tab-Wechsel die Rechen-Positionen pruefen
       document.querySelector('[data-ptab="kalkulation"]')?.addEventListener('click', async () => {
-        const added = await ensureFixkostenDefaults();
-        if (added > 0) {
-          window.showToast(`${added} Konfigurations-Felder ergänzt.`);
-          loadFixkostenTable();
+        const missing = await pruefeFixkostenPositionen();
+        if (missing.length) {
+          window.showToast(`${missing.length} Fixkosten-Position fehlt – siehe Hinweis.`, 'toast-error');
         }
       });
 
