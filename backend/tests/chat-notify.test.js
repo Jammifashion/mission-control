@@ -64,6 +64,83 @@ describe('Webhook-URL wird nicht veraendert', () => {
   });
 });
 
+describe('Fingerabdruck beim ersten Senden', () => {
+  let logSpy;
+  beforeEach(() => { logSpy = jest.spyOn(console, 'log').mockImplementation(() => {}); });
+
+  const abdruck = () =>
+    logSpy.mock.calls.map(c => c.join(' ')).find(z => z.includes('Webhook-Fingerabdruck')) ?? '';
+
+  test('nennt Laenge, Host, key- und token-Laenge', async () => {
+    await notify('x');
+    const a = abdruck();
+    expect(a).toContain('[chatNotify]');
+    expect(a).toContain(`Laenge ${ECHTE_URL.length}`);
+    expect(a).toContain('Host chat.googleapis.com');
+    expect(a).toContain('key 1 Zeichen');     // ECHTE_URL hat key=k
+    expect(a).toContain('token 1 Zeichen');   // und token=t
+  });
+
+  test('zeigt die letzten vier Zeichen des Tokens', async () => {
+    process.env.GCHAT_WEBHOOK_URL =
+      'https://chat.googleapis.com/v1/spaces/AAA/messages?key=k&token=ABCDEFGHIJKLMNOP';
+    await notify('x');
+    expect(abdruck()).toContain('endet auf MNOP');
+  });
+
+  test('verschweigt das Ende bei auffaellig kurzem Token', async () => {
+    process.env.GCHAT_WEBHOOK_URL =
+      'https://chat.googleapis.com/v1/spaces/AAA/messages?key=k&token=ABCD';
+    await notify('x');
+    expect(abdruck()).toContain('zu kurz, nicht gezeigt');
+    expect(abdruck()).not.toContain('ABCD');
+  });
+
+  test('meldet "keine", wenn alles ASCII ist', async () => {
+    await notify('x');
+    expect(abdruck()).toContain('Nicht-ASCII: keine');
+  });
+
+  test('benennt Nicht-ASCII-Zeichen als Codepunkte', async () => {
+    // Ein Auslassungszeichen aus einer abgeschnittenen Anzeige und ein
+    // geschuetztes Leerzeichen aus einem Dokument.
+    process.env.GCHAT_WEBHOOK_URL =
+      'https://chat.googleapis.com/v1/spaces/AAA/messages?key=k…&token=t x';
+    await notify('x');
+    const a = abdruck();
+    expect(a).toContain('U+2026');
+    expect(a).toContain('U+00A0');
+    expect(a).toContain('2 verschieden');
+    // Und als Mangel gemeldet, nicht nur im Fingerabdruck.
+    expect(errorSpy.mock.calls.map(c => c.join(' ')).join('\n'))
+      .toContain('Nicht-ASCII-Zeichen');
+  });
+
+  test('gibt weder die URL noch key oder token preis', async () => {
+    const KEY = 'SUPERGEHEIMERKEY';
+    const TOKEN = 'SUPERGEHEIMESTOKEN';
+    process.env.GCHAT_WEBHOOK_URL =
+      `https://chat.googleapis.com/v1/spaces/AAA/messages?key=${KEY}&token=${TOKEN}`;
+    await notify('x');
+    const alles = [...logSpy.mock.calls, ...errorSpy.mock.calls, ...warnSpy.mock.calls]
+      .map(c => c.join(' ')).join('\n');
+    expect(alles).not.toContain(KEY);
+    expect(alles).not.toContain(TOKEN);
+    expect(alles).not.toContain(process.env.GCHAT_WEBHOOK_URL);
+    // Die letzten vier Zeichen sind der bewusst zugelassene Teil.
+    expect(alles).toContain('endet auf OKEN');
+  });
+
+  test('nur einmal, nicht bei jedem Senden', async () => {
+    await notify('x');
+    await notify('y');
+    await notify('z');
+    const treffer = logSpy.mock.calls
+      .map(c => c.join(' ')).filter(z => z.includes('Webhook-Fingerabdruck'));
+    expect(treffer).toHaveLength(1);
+  });
+});
+
 describe('Formpruefung meldet, was fehlt', () => {
   const letzterFehler = () => errorSpy.mock.calls.at(-1).join(' ');
   const hatGemeldet = () =>

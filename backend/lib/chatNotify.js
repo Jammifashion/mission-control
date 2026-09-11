@@ -240,9 +240,40 @@ export function _resetWarnung() {
 //
 // Geprueft wird nur die FORM. Der Wert selbst wird nie ausgegeben - er ist das
 // Geheimnis.
+// Nicht-ASCII-Zeichen als Codepunkte benennen. Eine Webhook-URL ist reines
+// ASCII; alles andere ist eine Anomalie und meist der Grund, warum derselbe
+// Wert von Hand kopiert funktioniert und aus dem Secret nicht: ein "…"
+// (U+2026) aus einer abgeschnittenen Anzeige, ein geschuetztes Leerzeichen
+// (U+00A0) aus einem Dokument, ein Soft Hyphen (U+00AD).
+function nichtAscii(roh) {
+  const codes = new Set();
+  for (const z of roh) {
+    const cp = z.codePointAt(0);
+    if (cp > 0x7f) codes.add('U+' + cp.toString(16).toUpperCase().padStart(4, '0'));
+  }
+  return [...codes];
+}
+
 function pruefeForm(roh, u) {
   if (formGeprueft) return;
   formGeprueft = true;
+
+  // ── Fingerabdruck ─────────────────────────────────────────────────────────
+  // Genug, um den geladenen Wert mit dem erwarteten zu vergleichen, ohne ihn
+  // preiszugeben. Vom Token gehen die letzten vier Zeichen mit - sie
+  // identifizieren die Version, verraten aber nichts Brauchbares. Bei einem
+  // auffaellig kurzen Token entfaellt auch das, weil vier Zeichen dort ein
+  // grosser Anteil waeren.
+  const key   = u.searchParams.get('key')   ?? '';
+  const token = u.searchParams.get('token') ?? '';
+  const tokenEnde = token.length > 8 ? token.slice(-4) : '(zu kurz, nicht gezeigt)';
+  const fremd = nichtAscii(roh);
+
+  console.log(
+    `[chatNotify] Webhook-Fingerabdruck: Laenge ${roh.length}, Host ${u.hostname}, `
+    + `key ${key.length} Zeichen, token ${token.length} Zeichen (endet auf ${tokenEnde}), `
+    + `Nicht-ASCII: ${fremd.length ? `${fremd.length} verschieden (${fremd.slice(0, 5).join(', ')})` : 'keine'}`,
+  );
 
   const maengel = [];
   if (u.hostname !== 'chat.googleapis.com') {
@@ -256,6 +287,9 @@ function pruefeForm(roh, u) {
   }
   if (/[\r\n\t]/.test(roh)) {
     maengel.push('URL enthaelt einen Zeilenumbruch oder Tabulator');
+  }
+  if (fremd.length) {
+    maengel.push(`URL enthaelt Nicht-ASCII-Zeichen (${fremd.slice(0, 5).join(', ')})`);
   }
 
   if (maengel.length) {
