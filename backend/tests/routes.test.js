@@ -235,6 +235,27 @@ describe('POST /api/partner/:id/eigenauftrag', () => {
     expect(mockValues.append).not.toHaveBeenCalled();
   });
 
+  // Im Sheet steht "Ja" mit Grossbuchstaben; ein nachgestelltes Leerzeichen
+  // sieht man im Tabellenblatt nicht und wuerde den Partner still aussperren.
+  test.each(['Ja', 'ja', 'JA', 'Ja ', ' ja', ' Ja '])(
+    'Aktiv=%p wird als aktiv gelesen', async (wert) => {
+      mockValues.get.mockImplementation(async ({ range }) => {
+        if (range.startsWith('FP_Partner!')) return { data: { values: [['Partner-ID', 'Token']] } };
+        if (range.startsWith('Partner_Interne_Bestellungen!')) {
+          return { data: { values: [[
+            'Partner-ID', 'Datum', 'Bezeichnung', 'Anzahl', 'Status', 'Kanal', 'Fulfillment',
+          ]] } };
+        }
+        return { data: { values: [
+          ['Partner-ID', 'Name', 'Token', 'Aktiv'],
+          ['P-001', 'Test Partner', TOKEN, wert],
+        ] } };
+      });
+      const res = await post('P-001', TOKEN).send(VALID_BODY);
+      expect(res.status).toBe(201);
+    },
+  );
+
   test('inaktiver Partner → 403', async () => {
     mockValues.get.mockImplementation(async ({ range }) => {
       if (range.startsWith('FP_Partner!')) return { data: { values: [['Partner-ID', 'Token']] } };

@@ -94,8 +94,10 @@ async function resolvePartnerAnyTab(token) {
     const row = rows.find(r => (r[tokenIdx] ?? '') === token);
     if (!row) continue;
 
+    // trim(): ein versehentliches Leerzeichen im Sheet wuerde den Partner sonst
+    // still auf 403 setzen - im Tabellenblatt ist das nicht zu sehen.
     const aktivIdx = header.indexOf('Aktiv');
-    if (aktivIdx !== -1 && (row[aktivIdx] ?? '').toLowerCase() !== 'ja')
+    if (aktivIdx !== -1 && String(row[aktivIdx] ?? '').trim().toLowerCase() !== 'ja')
       throw Object.assign(new Error('Partner ist nicht aktiv.'), { status: 403 });
 
     const nameIdx = header.indexOf('Name');
