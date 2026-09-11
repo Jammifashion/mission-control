@@ -35,8 +35,15 @@ router.post('/chat', async (req, res, next) => {
     const history = conversationHistory.get(session_id) || [];
     history.push({ role: 'user', content: message.trim() });
 
-    // Keep only last N turns to control token usage
+    // Keep only last N turns to control token usage.
+    //
+    // Der Schnitt muss auf einer user-Nachricht aufsetzen: die Messages-API
+    // verlangt das an erster Stelle. Bei geradem MAX_HISTORY faellt der Schnitt
+    // ab Runde 6 genau so, dass eine assistant-Nachricht vorne steht
+    // ([u,a,…,u] mit 11 Eintraegen → slice(-10) beginnt bei a) - der Aufruf
+    // scheiterte dann mit 400, und zwar ab da in jeder weiteren Runde.
     const trimmed = history.slice(-MAX_HISTORY);
+    while (trimmed.length && trimmed[0].role !== 'user') trimmed.shift();
 
     const response = await client.messages.create({
       model: await getModel('agent-intern'),
