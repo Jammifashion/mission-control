@@ -17,8 +17,14 @@ export const STORNO_MARKER     = 'Storniert/Rückerstattet';
 
 /**
  * Erzeugt negative Gegeneinträge für bestehende Verkaufs-Zeilen, deren Order in WC
- * auf refunded/cancelled steht. Spalten-Layout fix (identisch zum Append A:N).
- * NEG_COLS: Stückzahl(5), VK(6), Lizenz(7), gewinn(10), lizenzAnteil(11), portoSaldo(12), brutto(13)
+ * auf refunded/cancelled steht.
+ *
+ * Alle Spalten werden über vh() aus der Kopfzeile aufgelöst - eine eingefügte
+ * Spalte verschiebt die Gegenbuchung damit nicht mehr. Fehlt eine Pflichtspalte,
+ * bricht die Funktion ab, statt in falsche Zellen zu schreiben.
+ *
+ * Negiert werden: Stückzahl, VK-Preis-Brutto, Lizenzgebühr, Gewinn-netto,
+ * Lizenz-Anteil, Porto-Saldo, Anteil-Brutto.
  */
 export function buildStornoRows(vRows, vh, stornoOrders, partnerFilter) {
   const ordIdx = vh('Order-ID');
@@ -31,10 +37,37 @@ export function buildStornoRows(vRows, vh, stornoOrders, partnerFilter) {
     stornoOrders.map(o => [String(o.id), toDE(new Date(o.date_modified || o.date_created))])
   );
 
-  const NEG_COLS   = [5, 6, 7, 10, 11, 12, 13];
-  const STATUS_COL = 8;
-  const DATE_COL   = 1;
-  const STORNO_COL = 14;
+  // Alle Spalten ueber die Kopfzeile aufloesen, nicht nur die vier oben.
+  // Fest verdrahtete Indizes und vh()-Lookups nebeneinander halten nur,
+  // solange die Kopfzeile unveraendert bleibt: kommt eine Spalte dazu, wandern
+  // die Lookups mit, die Zahlen nicht - die Gegenbuchung negiert dann fremde
+  // Zellen, Status und Marker landen falsch, und die Duplikaterkennung liest
+  // ins Leere, wodurch Stornos doppelt gebucht werden.
+  const pflicht = (name) => {
+    const i = vh(name);
+    if (i === -1) {
+      throw Object.assign(
+        new Error(`Spalte "${name}" fehlt in der Kopfzeile der Verkaeufe - `
+                + 'Storno-Gegenbuchung abgebrochen, um keine falschen Zellen zu schreiben.'),
+        { status: 500 },
+      );
+    }
+    return i;
+  };
+
+  // Betragsspalten, die in der Gegenbuchung negiert werden.
+  const NEG_COLS = [
+    'Stückzahl', 'VK-Preis-Brutto', 'Lizenzgebühr',
+    'Gewinn-netto', 'Lizenz-Anteil', 'Porto-Saldo', 'Anteil-Brutto',
+  ].map(pflicht);
+  const STATUS_COL = pflicht('Status');
+  const DATE_COL   = pflicht('Datum');
+  const STORNO_COL = pflicht('Storno-Status');
+
+  // Breite der Gegenbuchung: so weit, wie die Kopfzeile reicht.
+  const BREITE = Math.max(
+    STORNO_COL, STATUS_COL, DATE_COL, ordIdx, artIdx, varIdx, pIdx, ...NEG_COLS,
+  ) + 1;
 
   const stornoDone = new Set();
   for (const r of vRows) {
@@ -54,7 +87,7 @@ export function buildStornoRows(vRows, vh, stornoOrders, partnerFilter) {
     stornoDone.add(dupKey);
 
     const counter = [];
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < BREITE; i++) {
       let v = r[i] ?? '';
       if (NEG_COLS.includes(i) && v !== '' && v !== null) v = -toFloat(v);
       counter[i] = v;

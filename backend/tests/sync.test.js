@@ -2,12 +2,19 @@ import { buildStornoRows, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER } f
 
 // ── Spalten-Layout (A:O, identisch zum Append in partnerPortal) ───────────────
 // 0=Partner-ID, 1=Datum, 2=Order-ID, 3=Artikelnummer, 4=Variante,
-// 5=Stückzahl, 6=VK-Netto, 7=Lizenzgebühr, 8=Status, 9=Produkt-ID,
-// 10=GewinnNetto, 11=LizenzAnteil, 12=PortoSaldo, 13=Brutto, 14=Storno-Status
+// Exakt die Kopfzeile von Partner_Verkäufe, gegen das Sheet geprueft.
+// Die Fixture trug frueher Namen, die es dort nie gab (VK-Netto, GewinnNetto,
+// LizenzAnteil, PortoSaldo, Brutto). Das fiel nicht auf, solange
+// buildStornoRows die Betragsspalten ueber feste Indizes ansprach - der Test
+// pruefte damit Positionen, nicht Bedeutungen.
+// 5=Stückzahl, 6=VK-Preis-Brutto, 7=Lizenzgebühr, 8=Status, 9=Produkt-ID,
+// 10=Gewinn-netto, 11=Lizenz-Anteil, 12=Porto-Saldo, 13=Anteil-Brutto,
+// 14=Storno-Status
 const HEADER = [
   'Partner-ID', 'Datum', 'Order-ID', 'Artikelnummer', 'Variante',
-  'Stückzahl', 'VK-Netto', 'Lizenzgebühr', 'Status', 'Produkt-ID',
-  'GewinnNetto', 'LizenzAnteil', 'PortoSaldo', 'Brutto', 'Storno-Status',
+  'Stückzahl', 'VK-Preis-Brutto', 'Lizenzgebühr', 'Status', 'Produkt-ID',
+  'Gewinn-netto', 'Lizenz-Anteil', 'Porto-Saldo', 'Anteil-Brutto',
+  'Storno-Status',
 ];
 const vh = col => HEADER.indexOf(col);
 
