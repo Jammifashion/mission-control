@@ -4,7 +4,7 @@ import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getAgentSystemPrompt } from '../lib/agentWissenHelper.js';
 import { loadRecentAnfragen, callChatAgent } from '../lib/chatCore.js';
 import rateLimit from 'express-rate-limit';
-import { notify, buildAnfrageNachricht } from '../lib/chatNotify.js';
+import { notify, buildAnfrageNachricht, notifyFehler, alarmWuerdig } from '../lib/chatNotify.js';
 import { issueSessionToken, verifySessionToken } from '../lib/chatSession.js';
 
 const router = Router();
@@ -38,6 +38,16 @@ function getSheets() {
   return getGoogleAuth().then(auth => google.sheets({ version: 'v4', auth }));
 }
 
+// Fehlerantwort mit Alarm. Der Alarm geht mit await raus, VOR der Antwort -
+// Cloud Run drosselt die CPU danach, ein spaeter laufender fetch ginge verloren
+// (dieselbe Begruendung wie bei den Anfrage-Benachrichtigungen weiter unten).
+async function fehler(res, status, meldung) {
+  if (alarmWuerdig(status)) {
+    await notifyFehler({ art: `HTTP ${status}`, status, text: meldung });
+  }
+  return res.status(status).json({ error: meldung });
+}
+
 // ── POST /chat ────────────────────────────────────────────────────────────────
 router.post('/chat', chatLimiter, async (req, res, next) => {
   try {
@@ -46,11 +56,11 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
 
     // Honeypot: verstecktes Feld 'website' wird nur von Bots ausgefüllt.
     if (typeof website === 'string' && website.trim() !== '') {
-      return res.status(400).json({ error: 'Ungültige Anfrage.' });
+      return fehler(res, 400, 'Ungültige Anfrage.');
     }
 
     if (!Array.isArray(messages) || messages.length > 20) {
-      return res.status(400).json({ error: 'Ungültige Anfrage.' });
+      return fehler(res, 400, 'Ungültige Anfrage.');
     }
 
     // ── Zugang ────────────────────────────────────────────────────────────
@@ -65,11 +75,11 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
       sessionToken = issueSessionToken();
     } else {
       if (!cfTurnstileToken) {
-        return res.status(403).json({ error: 'Bot-Verifikation erforderlich. Bitte Seite neu laden.' });
+        return fehler(res, 403, 'Bot-Verifikation erforderlich. Bitte Seite neu laden.');
       }
       const tsSecret = process.env.TURNSTILE_SECRET_KEY;
       if (!tsSecret) {
-        return res.status(500).json({ error: 'Turnstile nicht konfiguriert.' });
+        return fehler(res, 500, 'Turnstile nicht konfiguriert.');
       }
       const tsRes = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
         method: 'POST',
@@ -78,7 +88,7 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
       });
       const tsData = await tsRes.json();
       if (!tsData.success) {
-        return res.status(403).json({ error: 'Bot-Verifikation fehlgeschlagen. Bitte Seite neu laden.' });
+        return fehler(res, 403, 'Bot-Verifikation fehlgeschlagen. Bitte Seite neu laden.');
       }
       sessionToken = issueSessionToken();
     }
@@ -91,11 +101,24 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
     const result = await callChatAgent({ messages: validMsgs, sessionData, kbBase, history });
 
     if (!result) {
-      return res.status(502).json({ error: 'Agent konnte keine Antwort generieren.' });
+      return fehler(res, 502, 'Agent konnte keine Antwort generieren.');
     }
 
     const { reply, sessionData: merged, completed } = result;
     let anfrageId = null;
+
+    // Das Modell hat die JSON-Huelle weggelassen; chatCore hat den Fliesstext
+    // gerettet. Der Kunde merkt nichts, wir sollen es trotzdem erfahren -
+    // sonst laeuft so etwas wieder wochenlang unbemerkt.
+    if (result.fallback) {
+      await notifyFehler({
+        art:  'Antwort ohne JSON-Huelle',
+        // Bewusst ohne Modelltext: der koennte Kundenangaben zitieren. Die
+        // vollstaendige Rohantwort steht im Log unter [chat-fallback].
+        text: `${result.fallback.modell} antwortete in Fliesstext `
+            + `(${result.fallback.zeichen} Zeichen). Details im Log unter [chat-fallback].`,
+      });
+    }
 
     if (completed && merged.kundeName && merged.kundeEmail) {
       try {
@@ -160,7 +183,13 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
       ...(anfrageId ? { anfrageId } : {}),
     });
 
-  } catch (err) { next(err); }
+  } catch (err) {
+    const status = err.status ?? 500;
+    if (alarmWuerdig(status)) {
+      await notifyFehler({ art: `HTTP ${status}`, status, text: err.message });
+    }
+    next(err);
+  }
 });
 
 export default router;

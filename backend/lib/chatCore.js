@@ -199,6 +199,10 @@ export async function callChatAgent({ messages, sessionData, kbBase, history }) 
         // Dieselbe Basis wie im Normalfall, damit 'kanal' gesetzt bleibt.
         sessionData: { kanal: 'Homepage', ...sessionData },
         completed:   false,
+        // Signal fuer die Route: von hier geht der Stoerungsalarm raus.
+        // chatCore bleibt damit frei von der Benachrichtigungs-Abhaengigkeit,
+        // und alles Melden liegt an einer Stelle.
+        fallback:    { modell, zeichen: text.length },
       };
     }
 

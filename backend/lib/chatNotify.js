@@ -89,6 +89,66 @@ export function buildPartnerNachricht({ partnerName, anzahl, summe }) {
   ].filter(Boolean).join('\n');
 }
 
+// ── Stoerungsalarm ──────────────────────────────────────────────────────────
+//
+// Der Kundenchat ist der einzige Kanal, bei dem ein Ausfall niemandem auffaellt:
+// der Kunde geht weg, es bleibt keine Zeile im Sheet. Der 502 durch die
+// fehlende JSON-Huelle lief so drei Wochen unbemerkt. Deshalb meldet sich der
+// Chat jetzt selbst, wenn er klemmt.
+//
+// Gedrosselt auf eine Meldung je Fehlerart und Stunde: bei einer Stoerung
+// laufen sonst 20 Requests pro Viertelstunde in denselben Alarm. Der Speicher
+// ist prozesslokal - bei zwei Cloud-Run-Instanzen koennen also zwei Meldungen
+// derselben Art kommen. Das ist gewollt einfach; ein gemeinsamer Zustand waere
+// hier mehr Aufwand als Nutzen.
+
+const ALARM_TTL_MS = 60 * 60 * 1000;
+const letzterAlarm = new Map(); // art → Zeitstempel
+
+export function buildFehlerNachricht({ art, status, text }) {
+  return [
+    `🔴 Chat-Stoerung · ${art}`,
+    status ? `HTTP ${status}` : '',
+    // sauber() = redact() + kuerzen. Der Text kommt aus Fehlermeldungen, nicht
+    // aus Kundeneingaben - die Redaktion ist die zweite Sicherung.
+    text ? sauber(text, 200) : '',
+    LINK,
+  ].filter(Boolean).join('\n');
+}
+
+/**
+ * Meldet eine Stoerung, hoechstens einmal je Art und Stunde.
+ * Rueckgabe: true wenn gesendet, false wenn gedrosselt oder nicht zustellbar.
+ * Wirft nie - ein fehlgeschlagener Alarm darf den Fehlerweg nicht kapern.
+ */
+export async function notifyFehler({ art, status, text }) {
+  try {
+    const jetzt   = Date.now();
+    const zuletzt = letzterAlarm.get(art);
+    if (zuletzt !== undefined && jetzt - zuletzt < ALARM_TTL_MS) return false;
+
+    // Zeitstempel VOR dem Senden setzen: sonst laufen bei einem haengenden
+    // Webhook alle parallelen Requests in denselben Alarm.
+    letzterAlarm.set(art, jetzt);
+    return await notify(buildFehlerNachricht({ art, status, text }));
+  } catch (err) {
+    console.error('[chatNotify] Alarm fehlgeschlagen:', err?.message ?? err);
+    return false;
+  }
+}
+
+// Welche Statuscodes einen Alarm wert sind: alles ab 500, dazu 4xx ausser
+// 403 (Bot-Verifikation - der Normalfall bei Bots) und 429 (Rate-Limit, das
+// ist das System bei der Arbeit, keine Stoerung).
+export function alarmWuerdig(status) {
+  return status >= 500 || (status >= 400 && status !== 403 && status !== 429);
+}
+
+// Nur fuer Tests: Drosselung zuruecksetzen.
+export function _resetAlarme() {
+  letzterAlarm.clear();
+}
+
 // ── Versand ─────────────────────────────────────────────────────────────────
 
 /**

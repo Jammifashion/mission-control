@@ -38,6 +38,11 @@ jest.unstable_mockModule('../lib/chatNotify.js', () => ({
   notify:                jest.fn().mockResolvedValue(true),
   buildAnfrageNachricht: jest.fn(() => 'anfrage'),
   buildPartnerNachricht: jest.fn(() => 'partner'),
+  // Stoerungsalarm. alarmWuerdig bekommt die echte Logik, damit die Route hier
+  // genauso entscheidet wie in Produktion; was tatsaechlich rausgeht, prueft
+  // chat-alarm.test.js.
+  notifyFehler:          jest.fn().mockResolvedValue(true),
+  alarmWuerdig:          jest.fn(s => s >= 500 || (s >= 400 && s !== 403 && s !== 429)),
 }));
 
 jest.unstable_mockModule('express-rate-limit', () => ({
@@ -322,6 +327,94 @@ describe('POST /api/anfragen/chat', () => {
     });
     const res = await request(chatApp).post('/api/anfragen/chat').send(INIT_BODY);
     expect(res.body.reply).not.toMatch(/\{\{[A-Z_]+\}\}/);
+  });
+});
+
+// ── Chat-Stoerungsalarm ──────────────────────────────────────────────────────
+
+describe('POST /api/anfragen/chat – Stoerungsalarm', () => {
+  const MSGS = [{ role: 'user', content: 'Hallo' }];
+  const send = body => request(chatApp).post('/api/anfragen/chat').send(body);
+  let notifyFehler;
+
+  beforeEach(async () => {
+    ({ notifyFehler } = await import('../lib/chatNotify.js'));
+    notifyFehler.mockClear();
+  });
+
+  test('400 loest Alarm aus', async () => {
+    // Honeypot gefuellt
+    const res = await send({ messages: MSGS, website: 'bot', cfTurnstileToken: 'cf' });
+    expect(res.status).toBe(400);
+    expect(notifyFehler).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 400, art: 'HTTP 400' }),
+    );
+  });
+
+  test('403 loest KEINEN Alarm aus – das ist der Normalfall bei Bots', async () => {
+    const res = await send({ messages: MSGS });          // ohne jeden Token
+    expect(res.status).toBe(403);
+    expect(notifyFehler).not.toHaveBeenCalled();
+  });
+
+  test('abgelehnter Turnstile-Token loest ebenfalls keinen Alarm aus', async () => {
+    global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ success: false }) }));
+    const res = await send({ messages: MSGS, cfTurnstileToken: 'gefaelscht' });
+    expect(res.status).toBe(403);
+    expect(notifyFehler).not.toHaveBeenCalled();
+  });
+
+  test('502 aus dem Agenten loest Alarm aus', async () => {
+    mockCallChatAgent.mockRejectedValue(
+      Object.assign(new Error('Antwort war kein gueltiges JSON'), { status: 502 }),
+    );
+    const res = await send({ messages: MSGS, cfTurnstileToken: 'cf' });
+    expect(res.status).toBe(502);
+    expect(notifyFehler).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 502, art: 'HTTP 502' }),
+    );
+  });
+
+  test('unerwarteter Fehler (500) loest Alarm aus', async () => {
+    mockCallChatAgent.mockRejectedValue(new Error('irgendwas'));
+    const res = await send({ messages: MSGS, cfTurnstileToken: 'cf' });
+    expect(res.status).toBe(500);
+    expect(notifyFehler).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 500, art: 'HTTP 500' }),
+    );
+  });
+
+  test('erfolgreiche Antwort loest keinen Alarm aus', async () => {
+    mockCallChatAgent.mockResolvedValue({
+      reply: 'Moin!', sessionData: { step: 1 }, completed: false,
+    });
+    const res = await send({ messages: MSGS, cfTurnstileToken: 'cf' });
+    expect(res.status).toBe(200);
+    expect(notifyFehler).not.toHaveBeenCalled();
+  });
+
+  test('[chat-fallback] loest Alarm aus, ohne Modelltext mitzuschicken', async () => {
+    mockCallChatAgent.mockResolvedValue({
+      reply:       'Standard sind 7–10 Werktage, Kunde Max Muster fragte danach.',
+      sessionData: { step: 1 },
+      completed:   false,
+      fallback:    { modell: 'claude-sonnet-5', zeichen: 61 },
+    });
+    const res = await send({ messages: MSGS, cfTurnstileToken: 'cf' });
+
+    // Der Kunde bekommt seine Antwort ganz normal.
+    expect(res.status).toBe(200);
+    expect(res.body.reply).toContain('7–10 Werktage');
+
+    expect(notifyFehler).toHaveBeenCalledTimes(1);
+    const arg = notifyFehler.mock.calls[0][0];
+    expect(arg.art).toBe('Antwort ohne JSON-Huelle');
+    expect(arg.status).toBeUndefined();       // kein HTTP-Fehler
+    expect(arg.text).toContain('claude-sonnet-5');
+    expect(arg.text).toContain('61 Zeichen');
+    // Der Modelltext koennte Kundenangaben zitieren - er gehoert nicht in den Space.
+    expect(arg.text).not.toContain('Max Muster');
+    expect(arg.text).not.toContain('Werktage');
   });
 });
 
