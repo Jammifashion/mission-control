@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getShopConfig } from '../lib/shopConfig.js';
-import { berechnePartnerAnteil, parseKonfiguration, getKostenSatz } from '../utils/partner-kalkulation.js';
+import { berechnePartnerAnteil, parseKonfiguration, getKostenSatz, istBekanntePosition } from '../utils/partner-kalkulation.js';
 
 const router = Router();
 
@@ -979,13 +979,20 @@ router.get('/fixkosten', async (req, res, next) => {
     const abIdx   = h('Gültig_ab') !== -1 ? h('Gültig_ab') : h('Gültig-Ab');
     const bisIdx  = h('Gültig_bis');
 
-    res.json(rows.map(r => ({
-      position:   r[h('Position')]    ?? '',
-      betrag:     toFloat(r[wertIdx]),
-      einheit:    r[h('Einheit')]     ?? '',
-      gueltigAb:  r[abIdx]            ?? null,
-      gueltigBis: bisIdx !== -1 ? (r[bisIdx] ?? null) : null,
-    })));
+    // bekannt sagt, ob die Position in eine Berechnung eingeht. Die Wahrheit
+    // dazu ist die POSITION_MAP in utils/partner-kalkulation.js - das Frontend
+    // soll die Namen nicht ein zweites Mal fuehren.
+    res.json(rows.map(r => {
+      const position = r[h('Position')] ?? '';
+      return {
+        position,
+        betrag:     toFloat(r[wertIdx]),
+        einheit:    r[h('Einheit')]     ?? '',
+        gueltigAb:  r[abIdx]            ?? null,
+        gueltigBis: bisIdx !== -1 ? (r[bisIdx] ?? null) : null,
+        bekannt:    istBekanntePosition(position),
+      };
+    }));
   } catch (err) { next(err); }
 });
 

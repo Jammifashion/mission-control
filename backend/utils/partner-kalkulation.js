@@ -45,7 +45,11 @@ const DEFAULT_KONFIG = {
   mwstProzent:             19,
 };
 
-const POSITION_MAP = {
+// Exportiert, damit die Fixkosten-API pro Zeile sagen kann, ob die Position
+// ueberhaupt in eine Berechnung eingeht (Feld "bekannt"). Ohne das muesste das
+// Frontend eine zweite Liste derselben Namen pflegen - und die waere genau die
+// Quelle, aus der die wirkungslosen Zeilen ueberhaupt entstanden sind.
+export const POSITION_MAP = {
   'Herstellungsnebenkosten': 'herstellungsnebenkosten',
   'Versandnebenkosten B':    'versandnebenkostenB',
   'Versandnebenkosten P':    'versandnebenkostenP',
@@ -96,6 +100,13 @@ export function normalisierePortoModell(wert) {
   return PORTO_MODELL_DEFAULT;
 }
 
+// Prueft, ob eine Position aus dem Sheet in eine Berechnung eingeht.
+export function istBekanntePosition(position) {
+  return Object.prototype.hasOwnProperty.call(
+    POSITION_MAP, String(position ?? '').trim(),
+  );
+}
+
 // Positionen im Fixkosten-Reiter, die in keiner POSITION_MAP stehen, werden
 // ignoriert. Das ist richtig, soll aber nicht lautlos passieren: wer sie
 // pflegt, nimmt sonst an, sie wirkten.
@@ -104,9 +115,9 @@ function meldeUnbekanntePositionen(rows, header) {
   const posIdx = findHeader(header, 'Position');
   if (posIdx === -1) return;
 
-  const bekannt = new Set(Object.keys(POSITION_MAP));
   const unbekannt = [...new Set(
-    rows.map(r => String(r[posIdx] ?? '').trim()).filter(p => p && !bekannt.has(p)),
+    rows.map(r => String(r[posIdx] ?? '').trim())
+        .filter(p => p && !istBekanntePosition(p)),
   )];
   if (!unbekannt.length) return;
 

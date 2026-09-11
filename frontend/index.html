@@ -6449,12 +6449,17 @@
           _fkRows = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/fixkosten`).then(r => r.json());
           const anzeigen = _fkHistorie ? _fkRows : _fkRows.filter(r => !r.gueltigBis);
           if (!anzeigen.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Einträge.</p>'; return; }
+          const hatWirkungslose = anzeigen.some(r => r.bekannt === false);
+          const legende = [
+            _fkHistorie      ? 'abgelaufen'          : null,
+            hatWirkungslose  ? 'wird nicht gerechnet' : null,
+          ].filter(Boolean).join(' oder ');
           wrap.innerHTML = `
             <div style="margin-bottom:0.6rem;display:flex;align-items:center;gap:0.75rem;">
               <button class="btn-secondary btn-xs" id="fk-hist-toggle">
                 ${_fkHistorie ? 'Aktive anzeigen' : 'Historie anzeigen'}
               </button>
-              ${_fkHistorie ? '<span style="font-size:0.78rem;color:var(--muted);">Ausgegraut = abgelaufen</span>' : ''}
+              ${legende ? `<span style="font-size:0.78rem;color:var(--muted);">Ausgegraut = ${legende}</span>` : ''}
             </div>
             <div style="overflow-x:auto;"><table class="orders-table">
               <thead><tr>
@@ -6463,12 +6468,20 @@
               </tr></thead>
               <tbody>${anzeigen.map(r => {
                 const abgelaufen = !!r.gueltigBis;
+                // bekannt kommt aus der POSITION_MAP im Backend. Eine Zeile, die
+                // in keine Berechnung eingeht, darf nicht aussehen wie eine, die
+                // wirkt - sonst pflegt man sie weiter und wundert sich.
+                const wirkungslos = r.bekannt === false;
                 const origI = _fkRows.indexOf(r);
-                return `<tr${abgelaufen ? ' style="opacity:0.42;"' : ''}>
-                  <td>${r.position}</td><td>${r.betrag}</td><td>${r.einheit}</td>
+                const dimmen = abgelaufen || wirkungslos;
+                return `<tr${dimmen ? ' style="opacity:0.42;"' : ''}>
+                  <td>${r.position}${wirkungslos
+                    ? ' <span style="font-size:0.72rem;color:var(--muted);white-space:nowrap;">· wird nicht gerechnet</span>'
+                    : ''}</td>
+                  <td>${r.betrag}</td><td>${r.einheit}</td>
                   <td>${r.gueltigAb || '–'}</td>
                   ${_fkHistorie ? `<td>${r.gueltigBis || '–'}</td>` : ''}
-                  <td>${abgelaufen ? '' : `<button class="btn-secondary btn-xs" data-fk-i="${origI}">Bearbeiten</button>`}</td>
+                  <td>${dimmen ? '' : `<button class="btn-secondary btn-xs" data-fk-i="${origI}">Bearbeiten</button>`}</td>
                 </tr>`;
               }).join('')}</tbody>
             </table></div>`;
