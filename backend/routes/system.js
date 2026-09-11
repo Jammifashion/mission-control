@@ -24,15 +24,37 @@ async function checkSheet() {
   return { ok: true, ms: Date.now() - t0 };
 }
 
+// Der Claude-Check kostet einen echten Modellaufruf. Ungecacht und im
+// Minutentakt des Dashboards waren das rund 1440 Aufrufe pro Tag und offenem
+// Tab - fuer einen Statuspunkt. Das Ergebnis wird deshalb gehalten:
+// Erfolg lange, Fehler kurz, damit eine Erholung schnell sichtbar wird.
+const CLAUDE_TTL_OK_MS     = 10 * 60 * 1000;
+const CLAUDE_TTL_FEHLER_MS =      60 * 1000;
+let _claudeCache = null;   // { wert, at, ttl }
+
+export function _resetClaudeCache() { _claudeCache = null; }
+
 async function checkClaude() {
-  const t0     = Date.now();
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  await client.messages.create({
-    model:      await getModel('agent-intern'),
-    max_tokens: 10,
-    messages:   [{ role: 'user', content: 'ping' }],
-  });
-  return { ok: true, ms: Date.now() - t0 };
+  if (_claudeCache && Date.now() - _claudeCache.at < _claudeCache.ttl) {
+    return { ..._claudeCache.wert, cached: true };
+  }
+
+  const t0 = Date.now();
+  try {
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    await client.messages.create({
+      model:      await getModel('agent-intern'),
+      max_tokens: 10,
+      messages:   [{ role: 'user', content: 'ping' }],
+    });
+    const wert = { ok: true, ms: Date.now() - t0 };
+    _claudeCache = { wert, at: Date.now(), ttl: CLAUDE_TTL_OK_MS };
+    return wert;
+  } catch (err) {
+    const wert = { ok: false, ms: Date.now() - t0, error: err.message };
+    _claudeCache = { wert, at: Date.now(), ttl: CLAUDE_TTL_FEHLER_MS };
+    return wert;
+  }
 }
 
 // ── GET /api/health/full ──────────────────────────────────────────────────────

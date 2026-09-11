@@ -2213,7 +2213,9 @@
         }
       }
       checkStatus();
-      setInterval(checkStatus, 60_000);
+      // 5 Minuten statt 60 Sekunden: der Statuspunkt muss nicht minuetlich
+      // WooCommerce, Sheets und das Modell abfragen.
+      setInterval(checkStatus, 5 * 60_000);
 
       // ── SECTION: Helpers (Zeile 1104) ──
       function statusBadge(s) {
