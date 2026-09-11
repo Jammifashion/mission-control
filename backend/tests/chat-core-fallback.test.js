@@ -116,6 +116,43 @@ describe('weiterhin 502', () => {
   });
 });
 
+describe('Structured Outputs', () => {
+  // Der Prompt beschreibt die Antwortform, das Schema erzwingt sie. Ohne
+  // Schema faellt Sonnet 5 bei allgemeinen Fragen in rund der Haelfte der
+  // Faelle aus dem Format (gemessen, 2 von 4) - mit Schema in keinem.
+  test('output_config mit rohem JSON-Schema geht mit', async () => {
+    mockCreate.mockResolvedValue(antwort(text('{"reply":"x","sessionData":{},"completed":false}')));
+    await ruf();
+
+    const arg = mockCreate.mock.calls[0][0];
+    expect(arg.output_config.format.type).toBe('json_schema');
+
+    const s = arg.output_config.format.schema;
+    expect(s.additionalProperties).toBe(false);
+    expect(s.required).toEqual(['reply', 'sessionData', 'completed']);
+    expect(s.properties.reply.type).toBe('string');
+    expect(s.properties.completed.type).toBe('boolean');
+
+    const sd = s.properties.sessionData;
+    expect(sd.additionalProperties).toBe(false);
+    expect(sd.properties.step.type).toBe('integer');
+    // Ohne Ober-/Untergrenze: das Sheet-Geruest zaehlt bis 9, der Vorgabetext
+    // bis 8 - eine harte Grenze wuerde die Generierung brechen.
+    expect(sd.properties.step.minimum).toBeUndefined();
+    expect(sd.properties.step.maximum).toBeUndefined();
+    for (const f of ['kundeName', 'kundeEmail', 'menge', 'kanal']) {
+      expect(sd.properties[f].type).toBe('string');
+      expect(sd.required).toContain(f);
+    }
+  });
+
+  test('adaptives Denken bleibt an (kein thinking-Parameter)', async () => {
+    mockCreate.mockResolvedValue(antwort(text('{"reply":"x","sessionData":{},"completed":false}')));
+    await ruf();
+    expect(mockCreate.mock.calls[0][0]).not.toHaveProperty('thinking');
+  });
+});
+
 describe('Normalfall bleibt unveraendert', () => {
   test('gueltiges JSON wird geparst und sessionData zusammengefuehrt', async () => {
     mockCreate.mockResolvedValue(antwort(text(JSON.stringify({

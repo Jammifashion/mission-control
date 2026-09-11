@@ -89,6 +89,44 @@ Behalte ALLE bereits gesammelten sessionData-Werte – überschreibe sie nie mit
   ];
 }
 
+// Antwortschema fuer Structured Outputs.
+//
+// Deckt sich mit dem ANTWORTFORMAT-Block in buildSystemBlocks - der Prompt
+// beschreibt die Form, dieses Schema erzwingt sie. Ein Prompt allein reicht
+// nicht: sobald Sonnet 5 adaptiv denkt, laesst es die JSON-Huelle gelegentlich
+// weg und antwortet in Fliesstext (siehe [chat-fallback] weiter unten).
+//
+// Alle sessionData-Felder sind Pflicht, weil der Prompt ohnehin verlangt, den
+// kompletten Stand zurueckzugeben ("Behalte ALLE bereits gesammelten Werte").
+// Noch nicht erhobene Felder kommen als leerer String - genau so verhaelt sich
+// das Modell auch ohne Schema.
+const SESSION_FELDER = [
+  'produktBeschreibung', 'menge', 'varianten', 'partnerId',
+  'kundeName', 'kundeEmail', 'preisvorschlag', 'anmerkungenKunde', 'kanal',
+];
+
+const ANTWORT_SCHEMA = {
+  type: 'object',
+  properties: {
+    reply: { type: 'string' },
+    sessionData: {
+      type: 'object',
+      properties: {
+        // Ohne Ober-/Untergrenze: das Prompt-Geruest aus dem Agent_Wissen-Sheet
+        // zaehlt bis 9, der Vorgabetext hier bis 8. Eine harte Grenze wuerde
+        // die Generierung brechen, sobald jemand einen Schritt ergaenzt.
+        step: { type: 'integer' },
+        ...Object.fromEntries(SESSION_FELDER.map(f => [f, { type: 'string' }])),
+      },
+      required: ['step', ...SESSION_FELDER],
+      additionalProperties: false,
+    },
+    completed: { type: 'boolean' },
+  },
+  required: ['reply', 'sessionData', 'completed'],
+  additionalProperties: false,
+};
+
 // Antworttext zu einem Objekt machen. Ohne den frueheren Assistant-Prefill
 // ist nicht mehr garantiert, dass die Antwort mit "{" beginnt - deshalb erst
 // einen etwaigen Markdown-Zaun abstreifen, dann das aeusserste Objekt suchen
@@ -130,6 +168,9 @@ export async function callChatAgent({ messages, sessionData, kbBase, history }) 
     max_tokens: 1536,
     system:     systemBlocks,
     messages,
+    // Erzwingt die Antwortform serverseitig. Adaptives Denken bleibt an - das
+    // Modell darf weiter denken, nur nicht mehr aus dem Format fallen.
+    output_config: { format: { type: 'json_schema', schema: ANTWORT_SCHEMA } },
   });
 
   // Nicht content[0] nehmen: sonnet-5 stellt der Antwort je nach Aufgabe einen
