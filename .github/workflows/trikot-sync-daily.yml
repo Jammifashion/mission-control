@@ -1,0 +1,60 @@
+name: Trikot-Sync täglich
+
+on:
+  # Zeitplan erst aktivieren, wenn ein manueller Lauf (workflow_dispatch) sauber
+  # durchgelaufen ist. 05:00 UTC liegt hinter Backup (02:00) und Partner-Sync (03:00).
+  # schedule:
+  #   - cron: '0 5 * * *'   # täglich 05:00 UTC = 06:00/07:00 deutscher Zeit
+  workflow_dispatch:
+    inputs:
+      after:
+        description: 'Startdatum YYYY-MM-DD (nur erster Lauf; leer = jüngstes Bestelldatum im Reiter)'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry Run – nichts ins Sheet schreiben'
+        type: boolean
+        required: false
+        default: true
+
+jobs:
+  sync:
+    name: WC-Bestellungen → Business-Sheet "Trikots"
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: backend
+
+      # backend/lib/googleAuth.js löst GOOGLE_APPLICATION_CREDENTIALS relativ zu
+      # backend/ auf (nicht zum Workspace-Root) – Datei muss daher dort liegen.
+      - name: Write Google credentials
+        run: echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
+        working-directory: backend
+
+      - name: Run trikot sync
+        env:
+          BUSINESS_SHEET_ID:              ${{ secrets.BUSINESS_SHEET_ID }}
+          WC_URL:                         ${{ secrets.WC_URL }}
+          WC_KEY:                         ${{ secrets.WC_KEY }}
+          WC_SECRET:                      ${{ secrets.WC_SECRET }}
+          GOOGLE_APPLICATION_CREDENTIALS: ./credentials.json
+          INPUT_AFTER:                    ${{ inputs.after }}
+          INPUT_DRY_RUN:                  ${{ inputs.dry_run }}
+        run: |
+          set -e
+          args=()
+          if [ -n "$INPUT_AFTER" ]; then args+=("--after=$INPUT_AFTER"); fi
+          if [ "$INPUT_DRY_RUN" = "true" ]; then args+=("--dry-run"); fi
+          node backend/scripts/sync-trikot.js "${args[@]}"
