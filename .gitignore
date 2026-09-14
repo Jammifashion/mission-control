@@ -62,6 +62,3 @@ backend/scripts/out/
 # wird.
 _tmp-*
 **/_tmp-*
-
-# Service-Account-Datei, die trikot-sync-daily.yml in backend/ schreibt
-backend/credentials.json

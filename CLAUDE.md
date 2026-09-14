@@ -35,6 +35,12 @@ Neue Sektionen immer mit Anker versehen:
 - backend/routes/anfragen-chat.js – Chat-Widget public endpoint (POST /chat, kein API-Key) – vor requireApiKey
 - frontend/anfrage.html – Standalone Chat-Widget für Kunden (GitHub Pages, kein MC-Design)
 - backend/utils/partner-kalkulation.js – berechnePartnerAnteil() Helper
+- backend/routes/trikot.js – POST /api/trikot/sync (hinter requireApiKey), Body optional
+  `{ after, dryRun }`; Aufrufer ist `.github/workflows/trikot-sync-daily.yml` per curl
+- backend/lib/trikotSync.js – einzige Implementierung des Trikot-Sync (WC + Sheets);
+  `backend/scripts/sync-trikot.js` ist nur der lokale Aufrufer. Reine Logik in
+  `backend/utils/trikot-logic.js`, Reiter-Setup in `backend/scripts/setup-trikot-reiter.js`.
+  Grundsatz: API-Aufrufe an externe Dienste liegen in `lib/`, nicht in `routes/`.
 - backend/lib/seo-prompt.js – SEO-Prompt: User-Template, MODUS-Enum, Materialfilter.
   Die Regeln stehen hier, das ist die Quelle. Begründungen und Historie liegen im
   Claude-Projekt unter METHODE/SEO_Beschreibungs_Framework.md (nicht im Repo).

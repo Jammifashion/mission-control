@@ -3,12 +3,13 @@ name: Trikot-Sync täglich
 on:
   # Zeitplan erst aktivieren, wenn ein manueller Lauf (workflow_dispatch) sauber
   # durchgelaufen ist. 05:00 UTC liegt hinter Backup (02:00) und Partner-Sync (03:00).
+  # Ein Schedule-Lauf hat keine Inputs: after leer, dry_run leer → echter Lauf.
   # schedule:
   #   - cron: '0 5 * * *'   # täglich 05:00 UTC = 06:00/07:00 deutscher Zeit
   workflow_dispatch:
     inputs:
       after:
-        description: 'Startdatum YYYY-MM-DD (nur erster Lauf; leer = jüngstes Bestelldatum im Reiter)'
+        description: 'Startdatum YYYY-MM-DD (leer = jüngstes Bestelldatum im Reiter)'
         required: false
         default: ''
       dry_run:
@@ -19,44 +20,42 @@ on:
 
 jobs:
   sync:
-    name: WC-Bestellungen → Business-Sheet "Trikots"
+    name: Trigger Trikot-Sync (POST /api/trikot/sync)
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js 24
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Install dependencies
-        run: npm install
-        working-directory: backend
-
-      # backend/lib/googleAuth.js löst GOOGLE_APPLICATION_CREDENTIALS relativ zu
-      # backend/ auf (nicht zum Workspace-Root) – Datei muss daher dort liegen.
-      - name: Write Google credentials
-        run: echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > credentials.json
-        working-directory: backend
-
-      - name: Run trikot sync
+      - name: POST /api/trikot/sync
         env:
-          BUSINESS_SHEET_ID:              ${{ secrets.BUSINESS_SHEET_ID }}
-          # Im Repo heissen die WC-Secrets WOO_CONSUMER_*_JFN (es gibt kein WC_KEY/WC_SECRET);
-          # die Shop-URL ist nicht geheim.
-          WC_URL:                         https://www.jammifashion.de
-          WC_KEY:                         ${{ secrets.WOO_CONSUMER_KEY_JFN }}
-          WC_SECRET:                      ${{ secrets.WOO_CONSUMER_SECRET_JFN }}
-          GOOGLE_APPLICATION_CREDENTIALS: ./credentials.json
-          INPUT_AFTER:                    ${{ inputs.after }}
-          INPUT_DRY_RUN:                  ${{ inputs.dry_run }}
+          API_URL:       ${{ secrets.BACKEND_URL }}
+          API_KEY:       ${{ secrets.MC_API_KEY }}
+          INPUT_AFTER:   ${{ inputs.after }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          set -e
-          args=()
-          if [ -n "$INPUT_AFTER" ]; then args+=("--after=$INPUT_AFTER"); fi
-          if [ "$INPUT_DRY_RUN" = "true" ]; then args+=("--dry-run"); fi
-          node backend/scripts/sync-trikot.js "${args[@]}"
+          set -euo pipefail
+          if [ -z "$API_URL" ] || [ -z "$API_KEY" ]; then
+            echo "::error::BACKEND_URL oder MC_API_KEY fehlt in GitHub Secrets."
+            exit 1
+          fi
+
+          dry=false
+          if [ "$INPUT_DRY_RUN" = "true" ]; then dry=true; fi
+          # jq baut das JSON, damit der after-Input nicht roh im Body landet.
+          payload=$(jq -cn --arg after "$INPUT_AFTER" --argjson dryRun "$dry" \
+            '{dryRun: $dryRun} + (if $after == "" then {} else {after: $after} end)')
+          echo "Triggere Trikot-Sync gegen $API_URL mit $payload"
+
+          rc=0
+          http=$(curl -sS --fail-with-body --max-time 300 -X POST \
+            -H "X-API-Key: $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            -o response.json -w '%{http_code}' \
+            "$API_URL/api/trikot/sync") || rc=$?
+
+          echo "HTTP ${http:-?}"
+          jq . response.json 2>/dev/null || cat response.json 2>/dev/null || true
+
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::Trikot-Sync fehlgeschlagen (HTTP ${http:-?}, curl exit $rc)"
+            exit 1
+          fi
