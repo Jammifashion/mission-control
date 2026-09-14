@@ -46,9 +46,11 @@ jobs:
       - name: Run trikot sync
         env:
           BUSINESS_SHEET_ID:              ${{ secrets.BUSINESS_SHEET_ID }}
-          WC_URL:                         ${{ secrets.WC_URL }}
-          WC_KEY:                         ${{ secrets.WC_KEY }}
-          WC_SECRET:                      ${{ secrets.WC_SECRET }}
+          # Im Repo heissen die WC-Secrets WOO_CONSUMER_*_JFN (es gibt kein WC_KEY/WC_SECRET);
+          # die Shop-URL ist nicht geheim.
+          WC_URL:                         https://www.jammifashion.de
+          WC_KEY:                         ${{ secrets.WOO_CONSUMER_KEY_JFN }}
+          WC_SECRET:                      ${{ secrets.WOO_CONSUMER_SECRET_JFN }}
           GOOGLE_APPLICATION_CREDENTIALS: ./credentials.json
           INPUT_AFTER:                    ${{ inputs.after }}
           INPUT_DRY_RUN:                  ${{ inputs.dry_run }}
