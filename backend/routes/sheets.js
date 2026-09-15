@@ -248,7 +248,7 @@ router.get('/erfassung/by-wc-id', async (req, res, next) => {
     const sheets = await getSheets();
     const { data } = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId(),
-      range: 'Erfassungsmaske!A1:BZ2000',
+      range: 'Erfassungsmaske!1:2000',
     });
     const rows    = data.values ?? [];
     const headers = rows[0] ?? [];
@@ -277,7 +277,7 @@ router.get('/erfassung/list', async (req, res, next) => {
     const sheets = await getSheets();
     const { data } = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId(),
-      range: 'Erfassungsmaske!A1:BZ2000',
+      range: 'Erfassungsmaske!1:2000',
     });
     const rows    = data.values ?? [];
     const headers = rows[0] ?? [];
@@ -312,7 +312,7 @@ router.get('/erfassung/seo-pending', async (req, res, next) => {
     const sheets = await getSheets();
     const { data } = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId(),
-      range: 'Erfassungsmaske!A1:BZ2000',
+      range: 'Erfassungsmaske!1:2000',
     });
     const rows    = data.values ?? [];
     const headers = rows[0] ?? [];
@@ -356,7 +356,7 @@ router.post('/erfassung', async (req, res, next) => {
 
     const { data: sheetData } = await sheets.spreadsheets.values.get({
       spreadsheetId,
-      range: 'Erfassungsmaske!A1:BZ2000',
+      range: 'Erfassungsmaske!1:2000',
     });
     const rows    = sheetData.values ?? [];
     const headers = rows[0] ?? [];
@@ -426,7 +426,7 @@ router.post('/erfassung/overwrite', async (req, res, next) => {
     // Bestandszeile mitlesen: alles, wozu der Body nichts sagt, bleibt stehen.
     const [headerResp, rowResp] = await Promise.all([
       sheets.spreadsheets.values.get({ spreadsheetId, range: 'Erfassungsmaske!1:1' }),
-      sheets.spreadsheets.values.get({ spreadsheetId, range: `Erfassungsmaske!A${rowNum}:BZ${rowNum}` }),
+      sheets.spreadsheets.values.get({ spreadsheetId, range: `Erfassungsmaske!${rowNum}:${rowNum}` }),
     ]);
     const headers    = headerResp.data.values?.[0] ?? [];
     const currentRow = rowResp.data.values?.[0]   ?? [];
@@ -460,7 +460,7 @@ router.post('/erfassung/patch-fields', async (req, res, next) => {
 
     const [headerResp, rowResp] = await Promise.all([
       sheets.spreadsheets.values.get({ spreadsheetId, range: 'Erfassungsmaske!1:1' }),
-      sheets.spreadsheets.values.get({ spreadsheetId, range: `Erfassungsmaske!A${rowNum}:BZ${rowNum}` }),
+      sheets.spreadsheets.values.get({ spreadsheetId, range: `Erfassungsmaske!${rowNum}:${rowNum}` }),
     ]);
 
     const headers    = headerResp.data.values?.[0] ?? [];

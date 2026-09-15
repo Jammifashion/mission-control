@@ -52,7 +52,7 @@ router.get('/lshop/offen', async (req, res, next) => {
     const [psResp, varResp, erfResp, wcPending, wcProcessing, wcOnHold] = await Promise.all([
       sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_PS}!A1:J5000` }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_VAR}!A1:L2000` }),
-      sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_ERF}!A1:BZ2000` }),
+      sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_ERF}!1:2000` }),
       wc.get('orders', { status: 'pending',    per_page: 100 }),
       wc.get('orders', { status: 'processing', per_page: 100 }),
       wc.get('orders', { status: 'on-hold',    per_page: 100 }),
@@ -297,7 +297,7 @@ router.get('/dtf/offen', async (req, res, next) => {
     const [psResp, varResp, erfResp, wcPending, wcProcessing, wcOnHold] = await Promise.all([
       sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_PS}!A1:J5000` }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_VAR}!A1:L2000` }),
-      sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_ERF}!A1:BZ2000` }),
+      sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_ERF}!1:2000` }),
       wc.get('orders', { status: 'pending',    per_page: 100 }),
       wc.get('orders', { status: 'processing', per_page: 100 }),
       wc.get('orders', { status: 'on-hold',    per_page: 100 }),

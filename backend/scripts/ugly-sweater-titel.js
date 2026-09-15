@@ -89,7 +89,7 @@ async function ladeSsotMap() {
 
   const { data } = await sheets.spreadsheets.values.get({
     spreadsheetId: process.env.GOOGLE_SHEET_ID,
-    range:         `${TAB_ERF}!A1:BZ2000`,
+    range:         `${TAB_ERF}!1:2000`,
   });
 
   const rows    = data.values ?? [];

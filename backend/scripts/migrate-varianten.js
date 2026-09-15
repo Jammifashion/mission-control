@@ -26,7 +26,7 @@ async function main() {
   // ── Erfassungsmaske lesen ─────────────────────────────────────────────────
   const { data: erfData } = await sheets.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
-    range:         `${TAB_ERFASSUNG}!A1:BZ2000`,
+    range:         `${TAB_ERFASSUNG}!1:2000`,
   });
   const erfRows    = erfData.values ?? [];
   const erfHeaders = erfRows[0] ?? [];
