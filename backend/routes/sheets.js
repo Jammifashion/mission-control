@@ -3,6 +3,13 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { findHeader, requireHeader, requireHeaderAny } from '../utils/sheet-headers.js';
 import { buildRow, mergeRow } from '../utils/sheet-rows.js';
+import { sichereSpalte } from '../utils/sheet-spalten.js';
+
+// Spalten der Erfassungsmaske, die bei Bedarf angelegt werden, sobald ein
+// Schreibaufruf sie mitbringt. Optional: gelesen wird nur ueber findHeader,
+// fehlt die Spalte, bleibt das Feld leer. Bestandszeilen bleiben LEER.
+//   Marke – Markenname aus der WooCommerce-Antwort beim Anlegen (honk: leer)
+const ERF_SPALTEN_BEI_BEDARF = ['Marke'];
 
 const router = Router();
 
@@ -430,6 +437,16 @@ router.post('/erfassung/overwrite', async (req, res, next) => {
     ]);
     const headers    = headerResp.data.values?.[0] ?? [];
     const currentRow = rowResp.data.values?.[0]   ?? [];
+
+    // Fehlende Bei-Bedarf-Spalte anhaengen, wenn der Body sie mitbringt - sonst
+    // wuerde mergeRow den Wert still verwerfen. Die Kopfzeile ist ungekuerzt
+    // gelesen ('1:1'), header.length zeigt also auf die erste freie Spalte.
+    const bodyKeys = Object.keys(body);
+    for (const name of ERF_SPALTEN_BEI_BEDARF) {
+      if (findHeader(bodyKeys, name) >= 0)
+        await sichereSpalte(sheets, spreadsheetId, 'Erfassungsmaske', headers, name);
+    }
+
     const rowData    = mergeRow(headers, body, ssotId, currentRow);
 
     await sheets.spreadsheets.values.update({

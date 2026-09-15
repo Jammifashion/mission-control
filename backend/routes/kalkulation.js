@@ -7,6 +7,7 @@ import {
   verkaufsZeilenDerAbrechnung, interneZeilenDerAbrechnung,
 } from '../utils/abrechnung-zeilen.js';
 import { requireHeader, findHeader } from '../utils/sheet-headers.js';
+import { colLetter, sichereSpalte } from '../utils/sheet-spalten.js';
 import { berechnePartnerAnteil, parseKonfiguration, getKostenSatz, istBekanntePosition, baueLizenzSaetze, lizenzSatzAusZeile, parseVertragAb, baueVertragsbeginne } from '../utils/partner-kalkulation.js';
 
 const router = Router();
@@ -75,36 +76,12 @@ function toFloat(val, fallback = 0) {
   return Number.isNaN(n) ? fallback : n;
 }
 
-// Liefert Spaltenbuchstaben für Index (0=A, 25=Z, 26=AA …)
-function colLetter(idx) {
-  let s = ''; idx++;
-  while (idx > 0) { idx--; s = String.fromCharCode(65 + (idx % 26)) + s; idx = Math.floor(idx / 26); }
-  return s;
-}
-
 // Vertrag-ab aus dem Request: undefined = nicht angegeben, '' = leeren,
 // sonst TT.MM.JJJJ. Ungueltig → 400, bevor irgendetwas geschrieben wird.
 function normalisiereVertragAb(wert, partnerId) {
   if (wert === undefined || wert === null) return undefined;
   const d = parseVertragAb(wert, partnerId, 400);
   return d ? toDE(d) : '';
-}
-
-// Legt eine Spalte am Ende der Kopfzeile an, falls es sie noch nicht gibt
-// (Muster Kanal/Fulfillment in partnerPortal.js). Mutiert header, damit die
-// folgenden Index-Lookups die neue Spalte sehen.
-async function sichereSpalte(sheets, sheetId, tab, header, name) {
-  const idx = findHeader(header, name);
-  if (idx !== -1) return idx;
-  const neu = header.length;
-  await sheets.spreadsheets.values.update({
-    spreadsheetId: sheetId,
-    range: `${tab}!${colLetter(neu)}1`,
-    valueInputOption: 'RAW',
-    requestBody: { values: [[name]] },
-  });
-  header.push(name);
-  return neu;
 }
 
 // Abrechnung: offene Verkaufszeilen vor Vertrag-ab des Partners? Dann Fehler

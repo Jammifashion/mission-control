@@ -5273,6 +5273,9 @@
                 'Status':      'Im Shop',
                 'Status Shop': wcStatusLabel(wcStatus),
                 'SEO_Status':  'Ausstehend',
+                // Marke so, wie WooCommerce sie beim Anlegen zurueckgemeldet hat
+                // (Backend setzt sie je Shop; honk: leer). Nicht aus dem Formular.
+                'Marke':       data1.marke ?? '',
               }),
             });
           }
