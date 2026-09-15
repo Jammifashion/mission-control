@@ -78,7 +78,8 @@ Werte aus `process.env`, also aus der Root-`.env`. **Jeder** Key aus
 ANTHROPIC_API_KEY, WC_KEY, WC_SECRET, WC_URL, WC_KEY_HONK, WC_SECRET_HONK,
 WC_URL_HONK, GOOGLE_SHEET_ID, BUSINESS_SHEET_ID, GEMINI_API_KEY, MC_API_KEY,
 CORS_ORIGIN, TURNSTILE_SECRET_KEY, WP_APP_PASSWORD, WP_APP_PASSWORD_HONK,
-CHAT_SESSION_SECRET
+CHAT_SESSION_SECRET, GOOGLE_DRIVE_SHARED_DRIVE_ID, GOOGLE_DRIVE_BACKUP_DAILY_ID,
+GOOGLE_DRIVE_BACKUP_MONTHLY_ID
 
 Ein leerer Wert zählt als fehlend. Für lokal ungenutzte Dienste (HonkShop,
 Turnstile, WP-Upload) reicht ein Platzhalter wie `unused` – Hauptsache nicht
