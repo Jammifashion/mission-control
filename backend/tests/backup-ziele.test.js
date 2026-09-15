@@ -280,6 +280,37 @@ describe('Aufbewahrung: Papierkorb statt Loeschen', () => {
     expect(filesUpdate).not.toHaveBeenCalled();
   });
 
+  test('aufgeraeumt zaehlt verschobene Dateien je Ordner', async () => {
+    filesList.mockImplementation(async ({ q }) => ({
+      data: { files: q.includes('daily-folder')
+        ? [{ id: 'd1', name: 'SSOT_Backup-2020-01-01.json.gz', createdTime: alt },
+           { id: 'd2', name: 'MC-Backup-2020-01-02.json.gz',   createdTime: alt },
+           { id: 'd3', name: 'SSOT_Backup-heute.json.gz',      createdTime: neu() }]
+        : [{ id: 'm1', name: 'MC-Backup-2020-01.json.gz',      createdTime: alt }] },
+    }));
+    const r = await runBackup();
+    expect(r.aufgeraeumt).toEqual({ daily: 2, monthly: 1 });
+  });
+
+  test('aufgeraeumt: nichts faellig → 0/0; 404 zaehlt nicht; Abbruch behaelt Teilstand', async () => {
+    expect((await runBackup()).aufgeraeumt).toEqual({ daily: 0, monthly: 0 });
+
+    filesList.mockImplementation(async ({ q }) => ({
+      data: { files: q.includes('daily-folder')
+        ? [{ id: 'a', name: 'MC-Backup-2020-01-01.json.gz', createdTime: alt },
+           { id: 'b', name: 'MC-Backup-2020-01-02.json.gz', createdTime: alt },
+           { id: 'c', name: 'MC-Backup-2020-01-03.json.gz', createdTime: alt }]
+        : [] },
+    }));
+    filesUpdate.mockReset()
+      .mockResolvedValueOnce({ data: {} })
+      .mockRejectedValueOnce(Object.assign(new Error('gone'), { code: 404 }))
+      .mockRejectedValueOnce(Object.assign(new Error('Insufficient permissions'), { code: 403 }));
+    const r = await runBackup();
+    expect(r.aufgeraeumt).toEqual({ daily: 1, monthly: 0 });
+    expect(r.cleanupWarnungen).toHaveLength(1);
+  });
+
   test('Rate limit: Backoff, dann erneuter Versuch', async () => {
     filesList.mockImplementation(async ({ q }) => ({
       data: { files: q.includes('daily-folder')

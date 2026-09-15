@@ -43,6 +43,10 @@ jobs:
             jq 'if .error then {error}
                 else {
                   backups: [(.backups // [])[] | {fileName, sizeKB, tabCount}],
+                  aufgeraeumt: {
+                    daily:   (.aufgeraeumt.daily   // 0 | tonumber),
+                    monthly: (.aufgeraeumt.monthly // 0 | tonumber)
+                  },
                   cleanupWarnungen: (.cleanupWarnungen // [])
                 } end' response.json
             jq -r '(.cleanupWarnungen // [])[] | "::warning::Cleanup: " + .' response.json

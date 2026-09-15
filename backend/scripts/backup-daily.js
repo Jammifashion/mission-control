@@ -223,10 +223,13 @@ export async function runBackup() {
   // Fehler in der Bereinigung lassen den Lauf nicht scheitern - der nächste
   // Lauf holt das nach. Sie gehen als cleanupWarnungen an den Aufrufer.
   const cleanupWarnungen = [];
+  // Gezählt wird jede tatsächlich verschobene Datei - auch wenn der Ordner
+  // danach mit einem Fehler abbricht.
+  const aufgeraeumt = { daily: 0, monthly: 0 };
   const cutoffDaily = new Date(now);
   cutoffDaily.setDate(cutoffDaily.getDate() - DAILY_RETENTION_DAYS);
   try {
-    await cleanupFolder(drive, DAILY_FOLDER, cutoffDaily, 'Daily');
+    await cleanupFolder(drive, DAILY_FOLDER, cutoffDaily, 'Daily', () => aufgeraeumt.daily++);
   } catch (err) {
     const msg = `Daily-Cleanup fehlgeschlagen: ${ohneIds(err.message ?? err)}`;
     cleanupWarnungen.push(msg);
@@ -237,7 +240,7 @@ export async function runBackup() {
   const cutoffMonthly = new Date(now);
   cutoffMonthly.setMonth(cutoffMonthly.getMonth() - MONTHLY_RETENTION_MONTHS);
   try {
-    await cleanupFolder(drive, MONTHLY_FOLDER, cutoffMonthly, 'Monthly');
+    await cleanupFolder(drive, MONTHLY_FOLDER, cutoffMonthly, 'Monthly', () => aufgeraeumt.monthly++);
   } catch (err) {
     const msg = `Monthly-Cleanup fehlgeschlagen: ${ohneIds(err.message ?? err)}`;
     cleanupWarnungen.push(msg);
@@ -247,10 +250,10 @@ export async function runBackup() {
   if (fehler.length)
     throw new Error(`Backup unvollständig – ${fehler.length} von ${ziele.length} fehlgeschlagen: ${fehler.join(' | ')}`);
 
-  return { backups, dateien: backups.length, cleanupWarnungen };
+  return { backups, dateien: backups.length, cleanupWarnungen, aufgeraeumt };
 }
 
-async function cleanupFolder(drive, folderId, cutoff, label) {
+async function cleanupFolder(drive, folderId, cutoff, label, zaehle) {
   // PFLICHT: "trashed = false" bleibt in der Abfrage. Seit dem Umstieg auf den
   // Papierkorb liegen verschobene Dateien weiter im Ordner - ohne den Filter
   // werden sie bei jedem Lauf erneut gelistet und erneut verschoben. Genau das
@@ -268,7 +271,7 @@ async function cleanupFolder(drive, folderId, cutoff, label) {
     .filter(f => istBackupDatei(f.name))
     .filter(f => new Date(f.createdTime) < cutoff);
   for (const f of toTrash) {
-    await trashWithRetry(drive, f, label);
+    if (await trashWithRetry(drive, f, label)) zaehle();
     await sleep(DELETE_DELAY_MS);
   }
   if (toTrash.length === 0) console.log(`  – ${label} Cleanup: nichts aufzuräumen`);
@@ -282,10 +285,11 @@ async function trashWithRetry(drive, f, label, attempt = 0) {
       requestBody:       { trashed: true },
     });
     console.log(`  ✗ ${label} in Papierkorb: ${f.name} (${String(f.createdTime).slice(0,10)})`);
+    return true;
   } catch (err) {
     if (err.code === 404) {
       console.log(`  – Nicht mehr vorhanden, übersprungen: ${f.name}`);
-      return;
+      return false;
     }
     if (isRateLimitError(err) && attempt < MAX_DELETE_RETRIES) {
       const backoffMs = 1000 * 2 ** attempt; // 1s, 2s, 4s
@@ -307,6 +311,7 @@ if (process.argv[1] && (process.argv[1] === __filename || __filename.endsWith(pr
       for (const b of r.backups) {
         console.log(`  ${b.fileName} | ${b.sizeKB} KB | ${b.tabCount} Reiter | "${b.sheetName}"`);
       }
+      console.log(`  Aufgeräumt: daily ${r.aufgeraeumt.daily}, monthly ${r.aufgeraeumt.monthly}`);
       for (const w of r.cleanupWarnungen) console.log(`  WARNUNG: ${w}`);
     })
     .catch(err => { console.error('FEHLER:', err.message ?? err); process.exit(1); });
