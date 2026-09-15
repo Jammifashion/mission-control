@@ -129,4 +129,17 @@ describe('PUT /products/:id – unveraendert, ohne Marke', () => {
     expect(clients.jfn.put.mock.calls[0][1]).not.toHaveProperty('brands');
     expect(clients.jfn.get).not.toHaveBeenCalled();
   });
+
+  test.each([
+    ['jfn',  [{ id: 4711 }]],
+    ['jfn',  []],
+    ['honk', [3]],
+  ])('%s: brands im Body (%j) geht nicht an WooCommerce', async (shop, brands) => {
+    const res = await request(app).put(`/api/woocommerce/products/100?shop=${shop}`)
+      .send({ name: 'Neu', brands });
+    expect(res.status).toBe(200);
+    expect(clients[shop].put).toHaveBeenCalledWith('products/100', { name: 'Neu' });
+    expect(clients[shop].put.mock.calls[0][1]).not.toHaveProperty('brands');
+    expect(clients[shop].get).not.toHaveBeenCalled();
+  });
 });

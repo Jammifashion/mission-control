@@ -319,10 +319,12 @@ router.post('/products', async (req, res, next) => {
 });
 
 // PUT /api/woocommerce/products/:id
+// Schickt nie brands: ein nicht leeres Array ersetzt in WooCommerce alle
+// vorhandenen Marken (wp_set_object_terms ohne append) - auch von Hand gesetzte.
 router.put('/products/:id', async (req, res, next) => {
   try {
     const wc = getClient(req);
-    const { variations, ...payload } = req.body;
+    const { variations, brands: _brandsAusBody, ...payload } = req.body;
     const { data: productRaw } = await wc.put(`products/${req.params.id}`, payload);
     const product = Array.isArray(productRaw) ? productRaw[0] : productRaw;
 
