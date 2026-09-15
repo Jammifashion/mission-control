@@ -165,6 +165,102 @@ describe('B16 – Lizenzsatz aus dem Partner-Reiter (JFN)', () => {
   });
 });
 
+describe('HonkShop – EK, Druck, Versandart aus HK_Partner_Artikel', () => {
+  const HK_ORDER = {
+    id: 9001, status: 'processing', date_created: '2026-08-21T10:00:00',
+    shipping_total: '0.00',
+    line_items: [
+      { name: 'Honk Hoodie - L', product_id: 700, variation_id: 701, quantity: 2, total: '80.00' },
+      { name: 'Unbekannt - M',   product_id: 999, variation_id: 0,   quantity: 1, total: '20.00' },
+    ],
+  };
+  const HK_ARTIKEL_HEADER = ['Produkt-ID', 'Artikelname', 'EK-Preis-Netto', 'Druckkosten', 'Versandart'];
+
+  beforeEach(() => {
+    tabs.Partner = [
+      PARTNER_HEADER,
+      ['P-004', 'Honk', 't4', 'Ja', '45', 'geteilt-50-50', 'honk'],
+    ];
+    tabs.HK_Partner_Artikel = [
+      HK_ARTIKEL_HEADER,
+      ['700', 'Honk Hoodie', '12', '4,5', 'P'],
+    ];
+    tabs['HK_Partner_Verkäufe'] = [VERKAEUFE_HEADER];
+    mockWcGet.mockImplementation(async (_path, params) => ({
+      data: params.status === 'processing' ? [HK_ORDER] : [],
+    }));
+  });
+
+  const honk = () => sync('?shop=honk&after=2026-08-01T00:00:00');
+
+  test('bekannter Artikel: rechnet mit EK/Druck × Stückzahl und 45 % aus Partner', async () => {
+    const { berechnePartnerAnteil, parseKonfiguration } = await import('../utils/partner-kalkulation.js');
+    const res = await honk();
+    expect(res.status).toBe(200);
+    expect(res.body.synced).toBe(1);
+
+    const [row] = geschrieben();
+    expect(mockValues.append.mock.calls[0][0].range).toMatch(/^HK_Partner_Verkäufe!/);
+    const erwartet = berechnePartnerAnteil({
+      vkNetto: 80, ekPreis: 12, druckkosten: 4.5, versandart: 'P',
+      portoModell: 'geteilt-50-50', bestellungsAnteil: 0.8, stueckzahl: 2,
+      lizenzProzent: 45, portoEinnahmeAnteil: 0,
+      konfiguration: parseKonfiguration(FIXKOSTEN.slice(1), FIXKOSTEN[0]),
+    });
+    expect(erwartet.herstellungspreis).toBe(34.6);            // (12 + 4,5 + 0,8) × 2
+    expect(row[col('Gewinn-netto')]).toBe(erwartet.gewinnNetto);
+    expect(row[col('Lizenzgebühr')]).toBe(erwartet.partnerAnteil);
+    expect(row[col('Lizenz-Anteil')] / row[col('Gewinn-netto')]).toBeCloseTo(0.45, 3);
+  });
+
+  test('fehlender Artikel: Zeile nicht geschrieben, in Antwort und Log gemeldet', async () => {
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const res = await honk();
+    expect(res.body.uebersprungen).toEqual([
+      expect.objectContaining({ orderId: 9001, produktId: 999, artikel: 'Unbekannt - M' }),
+    ]);
+    expect(res.body.message).toMatch(/1 übersprungen/);
+    expect(geschrieben()).toHaveLength(1);
+    expect(geschrieben()[0][col('Produkt-ID')]).toBe(700);
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/Order 9001 \/ Produkt-ID 999/));
+    warn.mockRestore();
+  });
+
+  test('übersprungene Position wird beim nächsten Sync nachgeholt, wenn der Artikel da ist', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    await honk();
+    const erstLauf = geschrieben();
+    tabs['HK_Partner_Verkäufe'] = [VERKAEUFE_HEADER, ...erstLauf.map(r => r.map(String))];
+    tabs.HK_Partner_Artikel.push(['999', 'Nachgetragen', '5', '1', 'P']);
+    mockValues.append.mockClear();
+
+    const res = await honk();
+    expect(res.body.synced).toBe(1);
+    expect(res.body.uebersprungen).toEqual([]);
+    expect(geschrieben()[0][col('Produkt-ID')]).toBe(999);
+    console.warn.mockRestore();
+  });
+
+  test('alle Positionen unbekannt: nichts geschrieben, alle gemeldet', async () => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    tabs.HK_Partner_Artikel = [HK_ARTIKEL_HEADER];
+    const res = await honk();
+    expect(res.status).toBe(200);
+    expect(res.body.synced).toBe(0);
+    expect(res.body.uebersprungen).toHaveLength(2);
+    expect(mockValues.append).not.toHaveBeenCalled();
+    console.warn.mockRestore();
+  });
+
+  test('HonkShop-Partner ohne Lizenzsatz → Fehler mit Partner-ID', async () => {
+    tabs.Partner[1][PARTNER_HEADER.indexOf('Lizenz-%')] = '';
+    const res = await honk();
+    expect(res.status).toBe(500);
+    expect(res.body.error).toContain('P-004');
+    expect(mockWcGet).not.toHaveBeenCalled();
+  });
+});
+
 describe('baueLizenzSaetze', () => {
   let baueLizenzSaetze;
   beforeAll(async () => {

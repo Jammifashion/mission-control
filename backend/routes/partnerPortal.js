@@ -5,6 +5,7 @@ import { getWcClient as wcClientForShop, getShopConfig } from '../lib/shopConfig
 import { berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze } from '../utils/partner-kalkulation.js';
 import { toFloat, toDE, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, buildStornoRows } from '../utils/sync-logic.js';
 import { notify, buildPartnerNachricht } from '../lib/chatNotify.js';
+import { requireHeader } from '../utils/sheet-headers.js';
 
 const router = Router();
 
@@ -109,6 +110,28 @@ async function resolvePartnerAnyTab(token) {
 // WC-Status: VERKAUF = processing/completed/on-hold, STORNO = refunded/cancelled
 // (importiert aus sync-logic.js)
 
+const TAB_HK_ARTIKEL = 'HK_Partner_Artikel';
+
+// HK_Partner_Artikel → Map Produkt-ID → { ekPreis, druckkosten, versandart }.
+// Pflichtspalten werfen: ohne EK-Spalte wuerde toFloat(undefined) still 0 liefern.
+function baueHkArtikelMap(header, rows) {
+  const idIdx    = requireHeader(header, 'Produkt-ID',     TAB_HK_ARTIKEL);
+  const ekIdx    = requireHeader(header, 'EK-Preis-Netto', TAB_HK_ARTIKEL);
+  const druckIdx = requireHeader(header, 'Druckkosten',    TAB_HK_ARTIKEL);
+  const vaIdx    = requireHeader(header, 'Versandart',     TAB_HK_ARTIKEL);
+  const map = new Map();
+  for (const r of rows) {
+    const id = String(r[idIdx] ?? '').trim();
+    if (!id || map.has(id)) continue;
+    map.set(id, {
+      ekPreis:     toFloat(r[ekIdx]),
+      druckkosten: toFloat(r[druckIdx]),
+      versandart:  String(r[vaIdx] ?? 'P').trim().toUpperCase() === 'B' ? 'B' : 'P',
+    });
+  }
+  return map;
+}
+
 function buildSyncMessage(neu, storniert) {
   if (!neu && !storniert) return 'Alle Einträge bereits vorhanden – nichts Neues.';
   const parts = [];
@@ -175,7 +198,9 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
   const shopCfg = getShopConfig(shop);
   const TAB_VERKAEUFE = shopCfg.tabVerkaeufe;
 
-  // HonkShop: kein Partner_Artikel Lookup – alle Items gehen an den einzigen honk-Partner.
+  // HonkShop: alle Items gehen an den einzigen honk-Partner. EK, Druck und
+  // Versandart kommen aus HK_Partner_Artikel (Produkt-ID). Frueher rechnete der
+  // Sync hier mit EK 0 / Druck 0 - der Partner bekam die Marge vom vollen VK.
   if (shop === 'honk') {
     const { header: pH, rows: pRows } = await readTab(sheets, sheetId, 'Partner');
     const ph = col => pH.indexOf(col);
@@ -193,6 +218,10 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
 
     const { header: kH, rows: kRows } = await readTab(sheets, sheetId, 'Kalkulation_Fixkosten');
     const konfiguration = parseKonfiguration(kRows, kH);
+
+    // HK_Partner_Artikel → Map Produkt-ID → { ekPreis, druckkosten, versandart }
+    const { header: aH, rows: aRows } = await readTab(sheets, sheetId, TAB_HK_ARTIKEL);
+    const artikelMap = baueHkArtikelMap(aH, aRows);
 
     const { header: vH, rows: vRows } = await readTab(sheets, sheetId, TAB_VERKAEUFE);
     const vh = col => vH.indexOf(col);
@@ -218,11 +247,18 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     const stornoOrders = await fetchOrders(wc, WC_STATES_STORNO, null);
 
     const toWrite = [];
+    const uebersprungen = [];
     const artikelName = item => item.name || item.sku || String(item.product_id);
     for (const order of orders) {
       const orderDate = toDE(new Date(order.date_created));
       const shippingNetto = toFloat(order.shipping_total);
+      // Wertanteil bleibt ueber ALLE Positionen der Bestellung - auch ueber
+      // die uebersprungenen. Sonst wuerde eine fehlende Position ihren Anteil
+      // an Porto und PayPal auf die uebrigen abwaelzen.
       const orderNetto = order.line_items.reduce((s, i) => s + toFloat(i.total), 0);
+      // Versandart wie beim JFN-Sync: P, sobald ein bekannter Artikel P ist.
+      const bekannte = order.line_items.map(i => artikelMap.get(String(i.product_id ?? ''))).filter(Boolean);
+      const orderVersandart = bekannte.length && bekannte.every(a => a.versandart === 'B') ? 'B' : 'P';
 
       for (const item of order.line_items) {
         const itemNetto = toFloat(item.total);
@@ -232,10 +268,23 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
         const variationId = String(item.variation_id || 0);
         const key = `${order.id}|${artKey}|${variationId}|${honkPartnerId}`;
         if (existingKeys.has(key)) continue;
+
+        const artikel = artikelMap.get(String(item.product_id ?? ''));
+        if (!artikel) {
+          // Nicht schreiben und nicht in existingKeys aufnehmen: sobald der
+          // Artikel in HK_Partner_Artikel steht, holt der naechste Sync die
+          // Zeile nach (mit after auf das Bestelldatum).
+          uebersprungen.push({
+            orderId: order.id, datum: orderDate, produktId: item.product_id,
+            artikel: artKey, grund: `Produkt-ID ${item.product_id} fehlt in ${TAB_HK_ARTIKEL}`,
+          });
+          continue;
+        }
         existingKeys.add(key);
 
         const calc = berechnePartnerAnteil({
-          vkNetto: itemNetto, ekPreis: 0, druckkosten: 0, versandart: 'P',
+          vkNetto: itemNetto, ekPreis: artikel.ekPreis, druckkosten: artikel.druckkosten,
+          versandart: orderVersandart,
           portoModell, bestellungsAnteil: anteil, stueckzahl: item.quantity,
           lizenzProzent, portoEinnahmeAnteil, konfiguration,
         });
@@ -261,9 +310,18 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
       });
     }
 
+    if (uebersprungen.length) {
+      console.warn(
+        `[sync honk] ${uebersprungen.length} Position(en) übersprungen, Artikel fehlt in ${TAB_HK_ARTIKEL}: `
+        + uebersprungen.map(u => `Order ${u.orderId} / Produkt-ID ${u.produktId} (${u.artikel})`).join('; '),
+      );
+    }
+
+    const message = buildSyncMessage(toWrite.length, stornoRows.length)
+      + (uebersprungen.length ? ` ${uebersprungen.length} übersprungen (Artikel fehlt in ${TAB_HK_ARTIKEL}).` : '');
     return {
       synced: toWrite.length, storniert: stornoRows.length, orders: orders.length, afterParam: afterParam || null,
-      message: buildSyncMessage(toWrite.length, stornoRows.length),
+      uebersprungen, message,
     };
   }
 
@@ -472,6 +530,7 @@ router.post('/verkaeufe/sync-all', async (req, res, next) => {
       storniert:    result?.storniert ?? 0,
       orders:       result?.orders ?? 0,
       afterParam:   result?.afterParam ?? null,
+      uebersprungen: result?.uebersprungen ?? [],
       errors,
       message:      result?.message ?? (errors.length ? 'Sync mit Fehlern' : 'Sync fertig'),
     });
