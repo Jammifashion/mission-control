@@ -22,12 +22,13 @@ const valuesGet = jest.fn();
 const filesCreate = jest.fn();
 const filesList = jest.fn();
 const filesDelete = jest.fn();
+const filesUpdate = jest.fn();
 
 jest.unstable_mockModule('googleapis', () => ({
   google: {
     auth: { GoogleAuth: class { constructor(o) { this.o = o; } } },
     sheets: jest.fn(() => ({ spreadsheets: { get: sheetsGet, values: { get: valuesGet } } })),
-    drive:  jest.fn(() => ({ files: { create: filesCreate, list: filesList, delete: filesDelete } })),
+    drive:  jest.fn(() => ({ files: { create: filesCreate, list: filesList, delete: filesDelete, update: filesUpdate } })),
   },
 }));
 
@@ -59,6 +60,8 @@ beforeEach(() => {
   filesCreate.mockReset();
   filesList.mockReset();
   filesDelete.mockReset();
+  filesUpdate.mockReset();
+  filesUpdate.mockResolvedValue({ data: {} });
 
   sheetsGet.mockImplementation(async ({ spreadsheetId }) => ({
     data: spreadsheetId === 'ssot-id'
@@ -168,6 +171,106 @@ describe('ein scheiterndes Ziel macht den Lauf rot', () => {
     expect(err.message).toContain('BUSINESS');
     expect(namen()).toHaveLength(1);
     expect(namen()[0]).toMatch(/^SSOT_Backup-/);
+  });
+
+  // Das Actions-Log ist oeffentlich: die Meldung nennt Praefix und envKey,
+  // aber nie die Spreadsheet-ID.
+  test('Fehlermeldung enthaelt keine Spreadsheet-ID', async () => {
+    const langeId = '1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcd';
+    process.env.BUSINESS_SHEET_ID = langeId;
+    sheetsGet.mockImplementation(async ({ spreadsheetId }) => {
+      if (spreadsheetId === langeId) throw new Error(`Requested entity was not found: ${langeId}`);
+      return { data: { properties: { title: 'SSoT' }, sheets: [{ properties: { title: 'Erfassungsmaske' } }] } };
+    });
+    const err = await runBackup().catch(e => e);
+    expect(err.message).toContain('BUSINESS');
+    expect(err.message).toContain('BUSINESS_SHEET_ID');
+    expect(err.message).not.toContain(langeId);
+    expect(err.message).not.toContain('ssot-id');
+  });
+});
+
+// Befund B19: das Cloud-Run-Konto ist nur Content-Manager, files.delete geht
+// nicht. Alte Backups wandern per files.update in den Papierkorb.
+describe('Aufbewahrung: Papierkorb statt Loeschen', () => {
+  const alt = '2020-01-01T00:00:00.000Z';
+  const neu = () => new Date().toISOString();
+
+  test('Abfrage filtert "trashed = false" - sonst Papierkorb-Dateien bei jedem Lauf erneut', async () => {
+    await runBackup();
+    expect(filesList).toHaveBeenCalledTimes(2);
+    for (const c of filesList.mock.calls) {
+      expect(c[0].q).toContain('trashed = false');
+      expect(c[0].supportsAllDrives).toBe(true);
+    }
+  });
+
+  test('alte Backup-Dateien: files.update {trashed:true}, nie files.delete', async () => {
+    filesList.mockImplementation(async ({ q }) => ({
+      data: { files: q.includes('daily-folder')
+        ? [{ id: 'f1', name: 'SSOT_Backup-2020-01-01.json.gz', createdTime: alt },
+           { id: 'f2', name: 'BUSINESS_Backup-2020-01-01.json.gz', createdTime: alt }]
+        : [] },
+    }));
+    const r = await runBackup();
+    expect(filesDelete).not.toHaveBeenCalled();
+    expect(filesUpdate.mock.calls.map(c => c[0])).toEqual([
+      { fileId: 'f1', supportsAllDrives: true, requestBody: { trashed: true } },
+      { fileId: 'f2', supportsAllDrives: true, requestBody: { trashed: true } },
+    ]);
+    expect(r.cleanupWarnungen).toEqual([]);
+  });
+
+  test('fremde Dateien und junge Backups bleiben unberuehrt', async () => {
+    filesList.mockResolvedValue({ data: { files: [
+      { id: 'x1', name: 'Notizen.txt', createdTime: alt },
+      { id: 'x2', name: 'backup-SSOT_Backup-2020.json.gz', createdTime: alt },
+      { id: 'x3', name: 'HONK_Backup-2020-01-01.json.gz', createdTime: alt },
+      { id: 'x4', name: 'SSOT_Backup-heute.json.gz', createdTime: neu() },
+    ] } });
+    await runBackup();
+    expect(filesUpdate).not.toHaveBeenCalled();
+    expect(filesDelete).not.toHaveBeenCalled();
+  });
+
+  test('Rate limit: Backoff, dann erneuter Versuch', async () => {
+    filesList.mockImplementation(async ({ q }) => ({
+      data: { files: q.includes('daily-folder')
+        ? [{ id: 'f1', name: 'SSOT_Backup-2020-01-01.json.gz', createdTime: alt }]
+        : [] },
+    }));
+    filesUpdate
+      .mockRejectedValueOnce(Object.assign(new Error('User rate limit exceeded'), { code: 403 }))
+      .mockResolvedValue({ data: {} });
+    const r = await runBackup();
+    expect(filesUpdate).toHaveBeenCalledTimes(2);
+    expect(r.cleanupWarnungen).toEqual([]);
+  });
+
+  test('Fehler beim Aufraeumen: nicht fatal, als cleanupWarnungen ohne IDs zurueck', async () => {
+    const ordnerId = '0AbCdEfGhIjKlMnOpQrStUvWxYz012345';
+    filesList.mockImplementation(async ({ q }) => {
+      if (q.includes('daily-folder')) throw new Error(`File not found: ${ordnerId}.`);
+      return { data: { files: [] } };
+    });
+    const r = await runBackup();
+    expect(r.dateien).toBe(2);
+    expect(r.cleanupWarnungen).toHaveLength(1);
+    expect(r.cleanupWarnungen[0]).toMatch(/^Daily-Cleanup fehlgeschlagen/);
+    expect(r.cleanupWarnungen[0]).not.toContain(ordnerId);
+  });
+
+  test('scheitert das Verschieben einer Datei, nennt die Warnung den Dateinamen', async () => {
+    filesList.mockImplementation(async ({ q }) => ({
+      data: { files: q.includes('monthly-folder')
+        ? [{ id: 'f9', name: 'BUSINESS_Backup-2020-01.json.gz', createdTime: alt }]
+        : [] },
+    }));
+    filesUpdate.mockRejectedValue(Object.assign(new Error('Insufficient permissions'), { code: 403 }));
+    const r = await runBackup();
+    expect(r.cleanupWarnungen).toEqual([
+      'Monthly-Cleanup fehlgeschlagen: BUSINESS_Backup-2020-01.json.gz: Insufficient permissions',
+    ]);
   });
 });
 

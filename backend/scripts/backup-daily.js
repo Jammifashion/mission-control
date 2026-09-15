@@ -33,12 +33,26 @@ export const ZIELE = [
 const DAILY_RETENTION_DAYS   = 14;
 const MONTHLY_RETENTION_MONTHS = 12;
 
-// ── Rate-Limit-Schutz für Cleanup-Deletes ──────────────────────────────────
+// Befund B19: Cloud Run laeuft als Dienstkonto mit Rolle Content-Manager auf
+// der geteilten Ablage. files.delete verlangt Manager - alte Backups werden
+// darum per files.update {trashed:true} in den Papierkorb verschoben.
+//
+// Angefasst werden nur Dateien, die dieses Skript selbst schreibt.
+const BACKUP_PRAEFIXE = ZIELE.map(z => `${z.praefix}_Backup-`);
+const istBackupDatei  = name => BACKUP_PRAEFIXE.some(p => String(name ?? '').startsWith(p));
+
+// ── Rate-Limit-Schutz für Cleanup ───────────────────────────────────────────
 const DELETE_DELAY_MS   = 400;
 const MAX_DELETE_RETRIES = 3;
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Fehlermeldungen landen im oeffentlichen Actions-Log. Drive- und
+// Spreadsheet-IDs sind lange Tokens ohne Punkt - die werden ersetzt.
+export function ohneIds(text) {
+  return String(text ?? '').replace(/[A-Za-z0-9_-]{25,}/g, '<id>');
 }
 
 function isRateLimitError(err) {
@@ -185,20 +199,26 @@ export async function runBackup() {
     try {
       backups.push(await sichereSpreadsheet(sheets, drive, ziel, ctx));
     } catch (err) {
-      fehler.push(`${ziel.praefix} (${ziel.envKey}=${ziel.id}): ${err.message ?? err}`);
-      console.error(`FEHLER bei ${ziel.praefix}: ${err.message ?? err}`);
+      // Keine Spreadsheet-ID in der Meldung: sie geht als error-Text ins
+      // oeffentliche Actions-Log. Praefix und envKey reichen zum Zuordnen.
+      const msg = ohneIds(err.message ?? err);
+      fehler.push(`${ziel.praefix} (${ziel.envKey}): ${msg}`);
+      console.error(`FEHLER bei ${ziel.praefix}: ${msg}`);
     }
   }
 
   // ── Cleanup Daily (> DAILY_RETENTION_DAYS) ────────────────────────────────
-  // Upload war erfolgreich (siehe oben) – Fehler in der Bereinigung dürfen den
-  // Prozess nicht mehr scheitern lassen, der nächste Lauf holt das nach.
+  // Fehler in der Bereinigung lassen den Lauf nicht scheitern - der nächste
+  // Lauf holt das nach. Sie gehen als cleanupWarnungen an den Aufrufer.
+  const cleanupWarnungen = [];
   const cutoffDaily = new Date(now);
   cutoffDaily.setDate(cutoffDaily.getDate() - DAILY_RETENTION_DAYS);
   try {
     await cleanupFolder(drive, DAILY_FOLDER, cutoffDaily, 'Daily');
   } catch (err) {
-    console.warn(`WARNUNG: Daily-Cleanup fehlgeschlagen, wird beim nächsten Lauf nachgeholt: ${err.message ?? err}`);
+    const msg = `Daily-Cleanup fehlgeschlagen: ${ohneIds(err.message ?? err)}`;
+    cleanupWarnungen.push(msg);
+    console.warn(`WARNUNG: ${msg} – wird beim nächsten Lauf nachgeholt`);
   }
 
   // ── Cleanup Monthly (> MONTHLY_RETENTION_MONTHS) ─────────────────────────
@@ -207,16 +227,22 @@ export async function runBackup() {
   try {
     await cleanupFolder(drive, MONTHLY_FOLDER, cutoffMonthly, 'Monthly');
   } catch (err) {
-    console.warn(`WARNUNG: Monthly-Cleanup fehlgeschlagen, wird beim nächsten Lauf nachgeholt: ${err.message ?? err}`);
+    const msg = `Monthly-Cleanup fehlgeschlagen: ${ohneIds(err.message ?? err)}`;
+    cleanupWarnungen.push(msg);
+    console.warn(`WARNUNG: ${msg} – wird beim nächsten Lauf nachgeholt`);
   }
 
   if (fehler.length)
     throw new Error(`Backup unvollständig – ${fehler.length} von ${ziele.length} fehlgeschlagen: ${fehler.join(' | ')}`);
 
-  return { backups, dateien: backups.length };
+  return { backups, dateien: backups.length, cleanupWarnungen };
 }
 
 async function cleanupFolder(drive, folderId, cutoff, label) {
+  // PFLICHT: "trashed = false" bleibt in der Abfrage. Seit dem Umstieg auf den
+  // Papierkorb liegen verschobene Dateien weiter im Ordner - ohne den Filter
+  // werden sie bei jedem Lauf erneut gelistet und erneut verschoben. Genau das
+  // hat im September den täglichen Lauf in "User rate limit exceeded" geschickt.
   const { data } = await drive.files.list({
     q:                         `'${folderId}' in parents and trashed = false`,
     fields:                    'files(id,name,createdTime)',
@@ -226,30 +252,36 @@ async function cleanupFolder(drive, folderId, cutoff, label) {
     includeItemsFromAllDrives: true,
     corpora:                   'allDrives',
   });
-  const toDelete = (data.files ?? []).filter(f => new Date(f.createdTime) < cutoff);
-  for (const f of toDelete) {
-    await deleteWithRetry(drive, f, label);
+  const toTrash = (data.files ?? [])
+    .filter(f => istBackupDatei(f.name))
+    .filter(f => new Date(f.createdTime) < cutoff);
+  for (const f of toTrash) {
+    await trashWithRetry(drive, f, label);
     await sleep(DELETE_DELAY_MS);
   }
-  if (toDelete.length === 0) console.log(`  – ${label} Cleanup: nichts zu löschen`);
+  if (toTrash.length === 0) console.log(`  – ${label} Cleanup: nichts aufzuräumen`);
 }
 
-async function deleteWithRetry(drive, f, label, attempt = 0) {
+async function trashWithRetry(drive, f, label, attempt = 0) {
   try {
-    await drive.files.delete({ fileId: f.id, supportsAllDrives: true });
-    console.log(`  ✗ ${label} gelöscht: ${f.name} (${f.createdTime.slice(0,10)})`);
+    await drive.files.update({
+      fileId:            f.id,
+      supportsAllDrives: true,
+      requestBody:       { trashed: true },
+    });
+    console.log(`  ✗ ${label} in Papierkorb: ${f.name} (${String(f.createdTime).slice(0,10)})`);
   } catch (err) {
     if (err.code === 404) {
-      console.log(`  – Bereits gelöscht, übersprungen: ${f.name}`);
+      console.log(`  – Nicht mehr vorhanden, übersprungen: ${f.name}`);
       return;
     }
     if (isRateLimitError(err) && attempt < MAX_DELETE_RETRIES) {
       const backoffMs = 1000 * 2 ** attempt; // 1s, 2s, 4s
-      console.warn(`  … Rate limit beim Löschen von ${f.name}, Retry in ${backoffMs}ms (Versuch ${attempt + 1}/${MAX_DELETE_RETRIES})`);
+      console.warn(`  … Rate limit bei ${f.name}, Retry in ${backoffMs}ms (Versuch ${attempt + 1}/${MAX_DELETE_RETRIES})`);
       await sleep(backoffMs);
-      return deleteWithRetry(drive, f, label, attempt + 1);
+      return trashWithRetry(drive, f, label, attempt + 1);
     }
-    throw err;
+    throw new Error(`${f.name}: ${err.message ?? err}`);
   }
 }
 
@@ -263,6 +295,7 @@ if (process.argv[1] && (process.argv[1] === __filename || __filename.endsWith(pr
       for (const b of r.backups) {
         console.log(`  ${b.fileName} | ${b.sizeKB} KB | ${b.tabCount} Reiter | "${b.sheetName}"`);
       }
+      for (const w of r.cleanupWarnungen) console.log(`  WARNUNG: ${w}`);
     })
     .catch(err => { console.error('FEHLER:', err.message ?? err); process.exit(1); });
 }
