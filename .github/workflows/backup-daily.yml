@@ -9,39 +9,48 @@ on:
     - cron: '0 2 * * *'   # täglich 02:00 UTC = 03:00/04:00 deutscher Zeit
   workflow_dispatch:        # manueller Trigger über GitHub UI
 
+# Das Backup laeuft im Backend (Cloud Run, eigenes Dienstkonto). Der Workflow
+# stoesst es nur an. Bis 2026-09-15 lief es hier mit GOOGLE_CREDENTIALS_JSON -
+# jenes Dienstkonto hat keinen Zugriff mehr auf die geteilte Ablage.
 jobs:
   backup:
-    name: Backup Google Sheets → Drive
+    name: Trigger Backup (POST /api/backup/manual)
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js 24
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Install dependencies
-        run: npm install
-        working-directory: backend
-
-      - name: Write Google credentials
-        run: echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > google-credentials.json
-
-      # BUSINESS_SHEET_ID muss mit durchgereicht werden, sonst bricht der Lauf
-      # ab (Befund B18): das Skript verlangt beide Spreadsheet-IDs und schreibt
-      # ohne die zweite gar kein Backup mehr, statt still nur das SSOT zu sichern.
-      - name: Run backup
+      - name: POST /api/backup/manual
         env:
-          GOOGLE_SHEET_ID:                ${{ secrets.GOOGLE_SHEET_ID }}
-          BUSINESS_SHEET_ID:              ${{ secrets.BUSINESS_SHEET_ID }}
-          GOOGLE_DRIVE_SHARED_DRIVE_ID:   ${{ secrets.GOOGLE_DRIVE_SHARED_DRIVE_ID }}
-          GOOGLE_DRIVE_BACKUP_FOLDER_ID:  ${{ secrets.GOOGLE_DRIVE_BACKUP_FOLDER_ID }}
-          GOOGLE_DRIVE_BACKUP_DAILY_ID:   ${{ secrets.GOOGLE_DRIVE_BACKUP_DAILY_ID }}
-          GOOGLE_DRIVE_BACKUP_MONTHLY_ID: ${{ secrets.GOOGLE_DRIVE_BACKUP_MONTHLY_ID }}
-          GOOGLE_APPLICATION_CREDENTIALS: ./google-credentials.json
-        run: node backend/scripts/backup-daily.js
+          API_URL: ${{ secrets.BACKEND_URL }}
+          API_KEY: ${{ secrets.MC_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$API_URL" ] || [ -z "$API_KEY" ]; then
+            echo "::error::BACKEND_URL oder MC_API_KEY fehlt in GitHub Secrets."
+            exit 1
+          fi
+
+          rc=0
+          http=$(curl -sS --fail-with-body --max-time 300 -X POST \
+            -H "X-API-Key: $API_KEY" \
+            -o response.json -w '%{http_code}' \
+            "$API_URL/api/backup/manual") || rc=$?
+
+          echo "HTTP ${http:-?}"
+
+          # Das Log ist oeffentlich: nur freigegebene Felder ausgeben, nie die
+          # ganze Antwort (sie enthaelt fileId, spreadsheetId, sheetName).
+          if jq -e . response.json >/dev/null 2>&1; then
+            jq 'if .error then {error}
+                else {
+                  backups: [(.backups // [])[] | {fileName, sizeKB, tabCount}],
+                  cleanupWarnungen: (.cleanupWarnungen // [])
+                } end' response.json
+            jq -r '(.cleanupWarnungen // [])[] | "::warning::Cleanup: " + .' response.json
+          else
+            echo "(Antwort ist kein JSON - nicht ausgegeben)"
+          fi
+
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::Backup fehlgeschlagen (HTTP ${http:-?}, curl exit $rc)"
+            exit 1
+          fi

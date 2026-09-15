@@ -5,35 +5,48 @@ on:
     - cron: '0 4 * * 1'   # wöchentlich montags 04:00 UTC = 05:00/06:00 deutscher Zeit
   workflow_dispatch:        # manueller Trigger über GitHub UI
 
+# Der Check laeuft im Backend (Cloud Run). Der Workflow stoesst ihn nur an.
+# Bis 2026-09-15 lief er hier mit GOOGLE_CREDENTIALS_JSON - jenes Dienstkonto
+# hat keinen Zugriff mehr. Status: 200 alles gueltig, 422 Modell fehlt,
+# 500 Sheet- oder API-Fehler.
 jobs:
   check-models:
-    name: Anthropic Modell-IDs gegen Models API prüfen
+    name: Trigger Modell-Check (POST /api/system/modell-check)
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js 24
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-
-      - name: Install dependencies
-        run: npm install
-        working-directory: backend
-
-      # backend/lib/googleAuth.js löst GOOGLE_APPLICATION_CREDENTIALS relativ zu
-      # backend/ auf (nicht zum Workspace-Root) – Datei muss daher dort liegen.
-      - name: Write Google credentials
-        run: echo '${{ secrets.GOOGLE_CREDENTIALS_JSON }}' > google-credentials.json
-        working-directory: backend
-
-      - name: Run model check
+      - name: POST /api/system/modell-check
         env:
-          BUSINESS_SHEET_ID:              ${{ secrets.BUSINESS_SHEET_ID }}
-          ANTHROPIC_API_KEY:               ${{ secrets.ANTHROPIC_API_KEY }}
-          GOOGLE_APPLICATION_CREDENTIALS:  ./google-credentials.json
-        run: node backend/scripts/check-models.js
+          API_URL: ${{ secrets.BACKEND_URL }}
+          API_KEY: ${{ secrets.MC_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$API_URL" ] || [ -z "$API_KEY" ]; then
+            echo "::error::BACKEND_URL oder MC_API_KEY fehlt in GitHub Secrets."
+            exit 1
+          fi
+
+          rc=0
+          http=$(curl -sS --fail-with-body --max-time 300 -X POST \
+            -H "X-API-Key: $API_KEY" \
+            -o response.json -w '%{http_code}' \
+            "$API_URL/api/system/modell-check") || rc=$?
+
+          echo "HTTP ${http:-?}"
+
+          # Nur freigegebene Felder ausgeben, nie die ganze Antwort.
+          if jq -e . response.json >/dev/null 2>&1; then
+            jq 'if .error then {error}
+                else {gueltig, fehlend, neu} end' response.json
+          else
+            echo "(Antwort ist kein JSON - nicht ausgegeben)"
+          fi
+
+          if [ "${http:-}" = "422" ]; then
+            echo "::error::Mindestens eine konfigurierte Modell-ID existiert nicht mehr (HTTP 422)"
+            exit 1
+          fi
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::Modell-Check fehlgeschlagen (HTTP ${http:-?}, curl exit $rc)"
+            exit 1
+          fi
