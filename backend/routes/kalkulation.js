@@ -580,7 +580,7 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
         const calc = berechnePartnerAnteil({
           vkNetto: vkBrutto, ekPreis: artikel.ekPreis, druckkosten: artikel.druckkosten,
           versandart: artikel.versandart, portoModell: partnerInfo.portoModell,
-          bestellungsAnteil: 1, lizenzProzent: artikel.lizenzProzent,
+          bestellungsAnteil: 1, stueckzahl: toFloat(row[stkIdx], 1), lizenzProzent: artikel.lizenzProzent,
           portoEinnahmeAnteil: 0, konfiguration,
         });
         detail = {

@@ -103,6 +103,7 @@ async function run() {
               versandart: 'B',
               portoModell: partnerInfoMap[e.partnerId]?.portoModell ?? 'geteilt-50-50',
               bestellungsAnteil: anteil,
+              stueckzahl: item.quantity,
               lizenzProzent: e.lizenzProzent,
               portoEinnahmeAnteil,
               konfiguration,

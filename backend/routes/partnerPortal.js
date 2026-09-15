@@ -235,7 +235,8 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
 
         const calc = berechnePartnerAnteil({
           vkNetto: itemNetto, ekPreis: 0, druckkosten: 0, versandart: 'P',
-          portoModell, bestellungsAnteil: anteil, lizenzProzent, portoEinnahmeAnteil, konfiguration,
+          portoModell, bestellungsAnteil: anteil, stueckzahl: item.quantity,
+          lizenzProzent, portoEinnahmeAnteil, konfiguration,
         });
         const lizenzAnteilVomGewinn = calc.gewinnNetto * (lizenzProzent || 0) / 100;
         toWrite.push([
@@ -361,6 +362,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
           versandart:         orderVersandart,
           portoModell:        partnerInfoMap[e.partnerId]?.portoModell ?? 'geteilt-50-50',
           bestellungsAnteil:  anteil,
+          stueckzahl:         item.quantity,
           lizenzProzent:      e.lizenzProzent,
           portoEinnahmeAnteil,
           konfiguration,

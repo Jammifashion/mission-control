@@ -201,6 +201,11 @@ function round2(n) { return Math.round(n * 100) / 100; }
  * @param {number}  [input.bestellungsAnteil]        Anteil dieses Artikels an der Bestellung
  *                                                   (0..1, z.B. item.total / order.total).
  *                                                   Überschreibt 1/anzahlArtikelInBestellung.
+ * @param {number}  [input.stueckzahl]              Stückzahl der Zeile (WC item.quantity), Default 1.
+ *                                                   vkNetto ist der Zeilenwert (item.total), also
+ *                                                   gehen EK, Druck und Herstellungsnebenkosten
+ *                                                   ebenfalls je Stück ein. Versandnebenkosten,
+ *                                                   Porto und PayPal bleiben beim Wertanteil.
  * @param {number}  input.lizenzProzent              Lizenz-% des Partners (z.B. 30)
  * @param {number}  [input.portoEinnahmeAnteil]      Anteilige Porto-Einnahme aus WC shipping_total
  *                                                   für DIESEN Artikel (default 0 für Preview)
@@ -212,7 +217,7 @@ function round2(n) { return Math.round(n * 100) / 100; }
  */
 export function berechnePartnerAnteil({
   vkNetto, ekPreis, druckkosten, versandart,
-  portoModell, anzahlArtikelInBestellung, bestellungsAnteil,
+  portoModell, anzahlArtikelInBestellung, bestellungsAnteil, stueckzahl = 1,
   lizenzProzent, portoEinnahmeAnteil = 0, konfiguration,
 }) {
   const k = { ...DEFAULT_KONFIG, ...(konfiguration ?? {}) };
@@ -225,8 +230,16 @@ export function berechnePartnerAnteil({
     ? bestellungsAnteil
     : (1 / anzahl);
 
+  // B15: vkNetto ist der Wert der ganzen Zeile (item.total = Stückpreis × Menge).
+  // Die Herstellung wurde frueher nur einmal abgezogen - bei 3 Stueck zahlte der
+  // Partner also nur ein Shirt, die Lizenz fiel zu hoch aus. Negativ ist erlaubt
+  // (Storno-Zeilen tragen -Stückzahl), nur ein fehlender Wert faellt auf 1.
+  const menge = Number.isFinite(Number(stueckzahl)) && stueckzahl !== null && stueckzahl !== ''
+    ? Number(stueckzahl)
+    : 1;
+
   // WC item.total ist Netto – kein MwSt-Abzug erforderlich
-  const herstellungspreis = (ekPreis || 0) + (druckkosten || 0) + k.herstellungsnebenkosten; // (netto)
+  const herstellungspreis = ((ekPreis || 0) + (druckkosten || 0) + k.herstellungsnebenkosten) * menge; // (netto)
 
   const versandnebenkostenTotal = va === 'B' ? k.versandnebenkostenB : k.versandnebenkostenP;
   const versandnebenkosten      = versandnebenkostenTotal * anteil; // (netto)

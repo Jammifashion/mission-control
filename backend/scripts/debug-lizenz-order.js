@@ -212,7 +212,7 @@ async function run() {
     // ── Berechnung ──────────────────────────────────────────────────────────
     const calc = berechnePartnerAnteil({
       vkNetto, ekPreis, druckkosten, versandart,
-      portoModell, anzahlArtikelInBestellung: 1, bestellungsAnteil: 1,
+      portoModell, anzahlArtikelInBestellung: 1, bestellungsAnteil: 1, stueckzahl,
       lizenzProzent, portoEinnahmeAnteil: 0, konfiguration: konfig,
     });
 

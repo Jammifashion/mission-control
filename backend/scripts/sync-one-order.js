@@ -139,7 +139,7 @@ async function run() {
         vkNetto: itemNetto, ekPreis: e.ekPreis, druckkosten: e.druckkosten,
         versandart: orderVersandart,
         portoModell: partnerInfoMap[e.partnerId]?.portoModell ?? 'geteilt-50-50',
-        bestellungsAnteil: anteil, lizenzProzent: e.lizenzProzent,
+        bestellungsAnteil: anteil, stueckzahl: item.quantity, lizenzProzent: e.lizenzProzent,
         portoEinnahmeAnteil, konfiguration,
       });
 

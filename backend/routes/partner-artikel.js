@@ -436,7 +436,8 @@ router.post('/kalkulation/preview', async (req, res, next) => {
       versandart:                req.body.versandart ?? 'P',
       portoModell:               req.body.portoModell ?? 'geteilt-50-50',
       anzahlArtikelInBestellung: parseInt(req.body.anzahlArtikelInBestellung ?? 1, 10),
-      lizenzProzent:             parseFloat(req.body.lizenzProzent ?? 0),
+      stueckzahl:                parseInt(req.body.stueckzahl ?? 1, 10),
+      lizenzProzent:            parseFloat(req.body.lizenzProzent ?? 0),
       portoEinnahmeAnteil:       parseFloat(req.body.portoEinnahmeAnteil ?? 0),
       konfiguration,
     });
