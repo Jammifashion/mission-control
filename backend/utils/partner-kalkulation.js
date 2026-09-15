@@ -215,6 +215,47 @@ export function baueLizenzSaetze(header, rows) {
   };
 }
 
+// ── Vertragsbeginn je Partner (Spalte Vertrag-ab) ──────────────────────────
+//
+// Ab wann gilt die Vereinbarung mit einem Partner? Bestellungen davor gehoeren
+// ihm nicht. Ohne diese Grenze holte ein Neu-Sync mit fruehem after die ganze
+// Shop-Historie (P-004: Bestellungen ab 2022, Vereinbarung ab 01.01.2025).
+//
+// Leer = keine Grenze. Fehlt die Spalte ganz, gilt fuer niemanden eine Grenze -
+// fuer bestehende Partner aendert sich damit nichts. Ein nicht leerer, aber
+// ungueltiger Wert ist ein Fehler: still "keine Grenze" waere genau der Fall,
+// den die Spalte verhindern soll.
+export function parseVertragAb(wert, partnerId = '', status = 400) {
+  const s = String(wert ?? '').trim();
+  if (s === '') return null;
+  let t, m, j, treffer;
+  if ((treffer = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/))) [, t, m, j] = treffer;
+  else if ((treffer = s.match(/^(\d{4})-(\d{2})-(\d{2})$/))) [, j, m, t] = treffer;
+  const d = treffer ? new Date(Date.UTC(+j, +m - 1, +t)) : null;
+  // 31.02.2025 wuerde Date still auf den 03.03. rollen - das ist kein gueltiges Datum.
+  if (!d || d.getUTCDate() !== +t || d.getUTCMonth() !== +m - 1) {
+    throw Object.assign(
+      new Error(`Vertrag-ab ist ungültig für Partner ${partnerId || '(unbekannt)'}: "${s}" (erwartet TT.MM.JJJJ).`),
+      { status },
+    );
+  }
+  return d;
+}
+
+export function baueVertragsbeginne(header, rows) {
+  const idIdx = requireHeader(header, 'Partner-ID', 'Partner');
+  const vIdx  = findHeader(header, 'Vertrag-ab');
+  const roh = new Map();
+  if (vIdx !== -1) {
+    for (const r of rows ?? []) {
+      const id = String(r[idIdx] ?? '').trim();
+      if (id) roh.set(id, r[vIdx]);
+    }
+  }
+  // Im Sync/Abrechnungs-Kontext ist ein kaputter Wert ein Serverfehler (500).
+  return partnerId => parseVertragAb(roh.get(String(partnerId ?? '').trim()), partnerId, 500);
+}
+
 // Welcher Satz steckt in einer gespeicherten Verkaufszeile? Abgeleitet aus
 // Lizenz-Anteil ÷ Gewinn-netto der Zeile selbst, nicht aus dem aktuellen
 // Partner-Satz: eine Zeile, die mit 50 % gerechnet wurde, zeigt auch nach der

@@ -6249,6 +6249,11 @@
                     <option value="honk"${(isEdit && partner.shop === 'honk') ? ' selected' : ''}>HonkShop (HONK)</option>
                   </select>
                 </div>
+                <div class="form-field">
+                  <label>Vertrag ab</label>
+                  <input class="form-input" id="pp-f-vertrag" value="${isEdit ? (partner.vertragAb || '') : ''}" placeholder="TT.MM.JJJJ – leer = keine Grenze"
+                    title="Bestellungen vor diesem Datum synchronisiert der Sync nicht für diesen Partner, und Abrechnungen mit solchen Zeilen werden abgelehnt.">
+                </div>
               </div>
               <div class="modal-actions" style="margin-top:1.25rem;">
                 <button class="btn-secondary" id="pp-f-cancel">Abbrechen</button>
@@ -6269,6 +6274,7 @@
             portoModell:   backdrop.querySelector('#pp-f-porto').value,
             aktiv:         backdrop.querySelector('#pp-f-aktiv').value === 'true',
             shop:          backdrop.querySelector('#pp-f-shop').value,
+            vertragAb:     backdrop.querySelector('#pp-f-vertrag').value.trim(),
           };
           const saveBtn = backdrop.querySelector('#pp-f-save');
           saveBtn.disabled = true; saveBtn.textContent = '...';

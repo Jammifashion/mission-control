@@ -6,8 +6,8 @@ import {
   parseDatum, zeitraeumeUeberlappen, verkaufsSpalten, istStornoZeile,
   verkaufsZeilenDerAbrechnung, interneZeilenDerAbrechnung,
 } from '../utils/abrechnung-zeilen.js';
-import { requireHeader } from '../utils/sheet-headers.js';
-import { berechnePartnerAnteil, parseKonfiguration, getKostenSatz, istBekanntePosition, baueLizenzSaetze, lizenzSatzAusZeile } from '../utils/partner-kalkulation.js';
+import { requireHeader, findHeader } from '../utils/sheet-headers.js';
+import { berechnePartnerAnteil, parseKonfiguration, getKostenSatz, istBekanntePosition, baueLizenzSaetze, lizenzSatzAusZeile, parseVertragAb } from '../utils/partner-kalkulation.js';
 
 const router = Router();
 
@@ -80,6 +80,31 @@ function colLetter(idx) {
   let s = ''; idx++;
   while (idx > 0) { idx--; s = String.fromCharCode(65 + (idx % 26)) + s; idx = Math.floor(idx / 26); }
   return s;
+}
+
+// Vertrag-ab aus dem Request: undefined = nicht angegeben, '' = leeren,
+// sonst TT.MM.JJJJ. Ungueltig → 400, bevor irgendetwas geschrieben wird.
+function normalisiereVertragAb(wert, partnerId) {
+  if (wert === undefined || wert === null) return undefined;
+  const d = parseVertragAb(wert, partnerId, 400);
+  return d ? toDE(d) : '';
+}
+
+// Legt eine Spalte am Ende der Kopfzeile an, falls es sie noch nicht gibt
+// (Muster Kanal/Fulfillment in partnerPortal.js). Mutiert header, damit die
+// folgenden Index-Lookups die neue Spalte sehen.
+async function sichereSpalte(sheets, sheetId, tab, header, name) {
+  const idx = findHeader(header, name);
+  if (idx !== -1) return idx;
+  const neu = header.length;
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: sheetId,
+    range: `${tab}!${colLetter(neu)}1`,
+    valueInputOption: 'RAW',
+    requestBody: { values: [[name]] },
+  });
+  header.push(name);
+  return neu;
 }
 
 // Nächste AB-YYYY-NNNN ID generieren
@@ -214,6 +239,7 @@ router.get('/partner', async (req, res, next) => {
     const portoIdx   = header.indexOf('Porto-Modell');
     const notizIdx   = header.indexOf('Notiz');
     const shopIdx    = header.indexOf('Shop');
+    const vertragIdx = findHeader(header, 'Vertrag-ab');
 
     const reqShop = req.query.shop === 'honk' ? 'honk' : 'jfn';
     const effectiveShop = r => {
@@ -231,6 +257,7 @@ router.get('/partner', async (req, res, next) => {
       portoModell:   r[portoIdx]   ?? 'geteilt-50-50',
       notiz:         r[notizIdx]   ?? '',
       shop:          effectiveShop(r),
+      vertragAb:     vertragIdx !== -1 ? String(r[vertragIdx] ?? '').trim() : '',
     })));
   } catch (err) { next(err); }
 });
@@ -247,9 +274,12 @@ router.post('/partner', async (req, res, next) => {
     } = req.body;
     const cleanShop = req.body.shop === 'honk' ? 'honk' : 'jfn';
     if (!name) return res.status(400).json({ error: 'name ist erforderlich.' });
+    // Vor jedem Sheet-Zugriff pruefen: ein ungueltiges Datum schreibt nichts.
+    const vertragAb = normalisiereVertragAb(req.body.vertragAb, 'neu');
 
     const sheets = await getSheets();
     const { header, rows } = await readTab(sheets, sheetId, 'Partner');
+    if (vertragAb) await sichereSpalte(sheets, sheetId, 'Partner', header, 'Vertrag-ab');
 
     const idIdx   = header.indexOf('Partner-ID');
     const shopIdx = header.indexOf('Shop');
@@ -280,6 +310,7 @@ router.post('/partner', async (req, res, next) => {
     put('Porto-Modell',   portoModell);
     put('Notiz',          notiz);
     put('Shop',           cleanShop);
+    if (vertragAb) put('Vertrag-ab', vertragAb);
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
@@ -289,7 +320,7 @@ router.post('/partner', async (req, res, next) => {
       requestBody: { values: [rowVals] },
     });
 
-    res.status(201).json({ id: partnerId, name, kategorie, aktiv, lizenzProzent, portoModell, notiz, shop: cleanShop });
+    res.status(201).json({ id: partnerId, name, kategorie, aktiv, lizenzProzent, portoModell, notiz, shop: cleanShop, vertragAb: vertragAb ?? '' });
   } catch (err) { next(err); }
 });
 
@@ -299,6 +330,9 @@ router.patch('/partner/:id', async (req, res, next) => {
     const sheetId = process.env.BUSINESS_SHEET_ID;
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
 
+    // Vor jedem Sheet-Zugriff pruefen: ein ungueltiges Datum schreibt nichts.
+    const vertragAb = normalisiereVertragAb(req.body.vertragAb, req.params.id);
+
     const sheets = await getSheets();
     const { header, rows } = await readTab(sheets, sheetId, 'Partner');
 
@@ -306,6 +340,10 @@ router.patch('/partner/:id', async (req, res, next) => {
     const rowIndex = rows.findIndex(r => r[idIdx] === req.params.id);
     if (rowIndex === -1)
       return res.status(404).json({ error: `Partner "${req.params.id}" nicht gefunden.` });
+
+    // Spalte erst anlegen, wenn wirklich ein Datum gesetzt wird - ein leerer
+    // Wert (Formular ohne Eingabe) soll das Sheet nicht veraendern.
+    if (vertragAb) await sichereSpalte(sheets, sheetId, 'Partner', header, 'Vertrag-ab');
 
     const { name, kategorie, lizenzProzent, portoModell, aktiv, notiz, token } = req.body;
     const patchShop = req.body.shop === 'honk' ? 'honk' : req.body.shop === 'jfn' ? 'jfn' : undefined;
@@ -330,6 +368,17 @@ router.patch('/partner/:id', async (req, res, next) => {
         values: [[value]],
       }));
 
+    // Vertrag-ab: '' leert (nur wenn die Spalte existiert), ein Datum wird als
+    // TT.MM.JJJJ geschrieben.
+    const vertragIdx = findHeader(header, 'Vertrag-ab');
+    if (vertragAb !== undefined && vertragIdx !== -1) {
+      data.push({
+        range: `Partner!${colLetter(vertragIdx)}${sheetRow}`,
+        majorDimension: 'ROWS',
+        values: [[vertragAb]],
+      });
+    }
+
     if (data.length > 0) {
       await sheets.spreadsheets.values.batchUpdate({
         spreadsheetId: sheetId,
@@ -337,7 +386,9 @@ router.patch('/partner/:id', async (req, res, next) => {
       });
     }
 
-    res.json({ id: req.params.id, updated: Object.keys(colMap).filter(k => colMap[k] !== undefined) });
+    const updated = Object.keys(colMap).filter(k => colMap[k] !== undefined);
+    if (vertragAb !== undefined && vertragIdx !== -1) updated.push('Vertrag-ab');
+    res.json({ id: req.params.id, updated });
   } catch (err) { next(err); }
 });
 
