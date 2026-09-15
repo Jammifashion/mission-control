@@ -16,3 +16,8 @@ frontend
 
 # Wegwerf-Diagnoseskripte, siehe .gitignore
 **/_tmp-*
+
+# Backups des Business-Sheets - enthalten Partnerdaten, Preise, Margen
+BUSINESS_Backup-*.json.gz
+SSOT_Backup-*.json.gz
+MC-Backup-*.json.gz
