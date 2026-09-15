@@ -7,8 +7,6 @@ import {
   verkaufsZeilenDerAbrechnung, interneZeilenDerAbrechnung,
 } from '../utils/abrechnung-zeilen.js';
 import { requireHeader, findHeader } from '../utils/sheet-headers.js';
-import { parseOptionen } from '../utils/vertragsbeginn-bereinigung.js';
-import { bereinigeVorVertragsbeginn } from '../lib/vertragsbeginnBereinigung.js';
 import { berechnePartnerAnteil, parseKonfiguration, getKostenSatz, istBekanntePosition, baueLizenzSaetze, lizenzSatzAusZeile, parseVertragAb, baueVertragsbeginne } from '../utils/partner-kalkulation.js';
 
 const router = Router();
@@ -1105,27 +1103,6 @@ router.delete('/abrechnung/:id', async (req, res, next) => {
     });
 
     res.json({ abrechnungId: req.params.id, deleted: true, zurueckgesetzt: resets.length });
-  } catch (err) { next(err); }
-});
-
-// ── POST /api/kalkulation/verkaeufe/vor-vertragsbeginn?shop=honk ─────────────
-// Entfernt Verkaufszeilen eines Partners mit Bestelldatum vor Vertrag-ab.
-// Body: { partnerId, loeschen?, erwarteteZeilen?, erwarteteSumme? }
-//   ohne loeschen:true  → Trockenlauf, 200, nichts geschrieben
-//   loeschen:true       → nur mit passender Erwartung und ohne abgerechnete
-//                         Zeilen; sonst 409 ohne Schreiben, mit den gefundenen Werten
-// Die Zeilenliste steht nur in der Antwort (Partner-Umsaetze, kein Log).
-router.post('/verkaeufe/vor-vertragsbeginn', async (req, res, next) => {
-  try {
-    const sheetId = process.env.BUSINESS_SHEET_ID;
-    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
-
-    const opts = parseOptionen(req.body);   // 400 vor jedem Sheet-Zugriff
-    const tab  = getShopConfig(req.query.shop).tabVerkaeufe;
-    const ergebnis = await bereinigeVorVertragsbeginn({ spreadsheetId: sheetId, tab, ...opts });
-
-    if (opts.loeschen && !ergebnis.geloescht) return res.status(409).json(ergebnis);
-    res.json(ergebnis);
   } catch (err) { next(err); }
 });
 
