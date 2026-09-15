@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getWcClient } from '../lib/shopConfig.js';
+import { markeFuerShop } from '../lib/shopMarke.js';
 
 const router = Router();
 
@@ -237,10 +238,17 @@ router.get('/stats', async (req, res, next) => {
 
 // POST /api/woocommerce/products
 // Schritt 1: Produkt anlegen (status: draft), Schritt 2: Varianten einzeln anlegen
+//
+// Marke: setzt das Backend selbst aus shopConfig.markenSlug - ein brands-Feld
+// aus dem Body wird verworfen. Existiert der Slug im Shop nicht, scheitert die
+// Anlage VOR dem Anlegen. Shop ohne Slug (honk): kein brands-Feld.
+// Die Antwort enthaelt den Markennamen aus der WooCommerce-Antwort.
 router.post('/products', async (req, res, next) => {
   try {
     const wc = getClient(req);
-    const { ssot_id, variations, ...payload } = req.body;
+    const { ssot_id, variations, brands: _brandsAusBody, ...rest } = req.body;
+    const marke   = await markeFuerShop(req.query.shop);
+    const payload = marke ? { ...rest, brands: [{ id: marke.id }] } : rest;
 
     // Schritt 1: Produkt anlegen (mit SKU-Fallback bei Duplikat)
     let productResponse;
@@ -290,9 +298,15 @@ router.post('/products', async (req, res, next) => {
     const errors       = variationResults.filter(r => !r.ok).map(r => r.error);
     const variationIds = variationResults.map(r => r.ok ? r.id : null);
 
+    // Markenname so, wie WooCommerce ihn zurueckmeldet - nicht angenommen.
+    const markeGesetzt = (product.brands ?? []).map(b => b.name).filter(Boolean).join(', ');
+    if (marke && !markeGesetzt)
+      console.warn(`Produkt ${productId}: Marke "${marke.slug}" gesendet, WooCommerce meldet keine Marke zurueck.`);
+
     res.status(201).json({
       id:                  productId,
       status:              product.status,
+      marke:               markeGesetzt,
       variations_created:  created,
       variations_failed:   failed,
       variation_errors:    errors,
