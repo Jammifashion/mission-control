@@ -330,6 +330,127 @@ describe('HonkShop – EK, Druck, Versandart aus HK_Partner_Artikel', () => {
   });
 });
 
+describe('Vertrag-ab – Sync schreibt nichts vor dem Vertragsbeginn', () => {
+  const MIT_VERTRAG = [...PARTNER_HEADER, 'Vertrag-ab'];
+  const partner = (id, shop, vertragAb) => [id, 'Partner', 't', 'Ja', '40', 'geteilt-50-50', shop, vertragAb];
+
+  describe('JFN', () => {
+    test('Bestellung vor Vertrag-ab → keine Zeilen, gezählt in vorVertragsbeginn', async () => {
+      tabs.Partner = [MIT_VERTRAG, partner('P-003', 'jfn', '21.08.2026')];   // 16941 ist vom 20.08.2026
+      const res = await sync('?after=2026-08-01T00:00:00');
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({ synced: 0, vorVertragsbeginn: 4 });
+      expect(mockValues.append).not.toHaveBeenCalled();
+    });
+
+    test('Bestellung am Stichtag gehört dazu', async () => {
+      tabs.Partner = [MIT_VERTRAG, partner('P-003', 'jfn', '20.08.2026')];
+      const res = await sync('?after=2026-08-01T00:00:00');
+      expect(res.body).toMatchObject({ synced: 4, vorVertragsbeginn: 0 });
+    });
+
+    test('leeres Vertrag-ab → keine Grenze (wie bisher)', async () => {
+      tabs.Partner = [MIT_VERTRAG, partner('P-003', 'jfn', '')];
+      const res = await sync('?after=2026-08-01T00:00:00');
+      expect(res.body).toMatchObject({ synced: 4, vorVertragsbeginn: 0 });
+    });
+
+    test('ein Produkt, zwei Partner: nur der Partner mit laufender Vereinbarung bekommt Zeilen', async () => {
+      tabs.Partner = [MIT_VERTRAG, partner('P-003', 'jfn', '01.01.2027'), partner('P-009', 'jfn', '')];
+      tabs.Partner_Artikel.push(['P-009', 'E3000 Dorflove', '5420', 'Dorflove Shirt', '3', '2,1', 'B', '', '01.08.2026']);
+      const res = await sync('?after=2026-08-01T00:00:00');
+      expect(res.body).toMatchObject({ synced: 4, vorVertragsbeginn: 4 });
+      expect(new Set(geschrieben().map(r => r[col('Partner-ID')]))).toEqual(new Set(['P-009']));
+    });
+
+    test('schon stornierte, bezahlte Bestellung vor Vertrag-ab → auch kein Paar', async () => {
+      tabs.Partner = [MIT_VERTRAG, partner('P-003', 'jfn', '01.01.2027')];
+      mockWcGet.mockImplementation(async (_path, params) => ({
+        data: params.status === 'refunded' ? [{
+          id: 16950, status: 'refunded', date_created: '2026-08-22T10:00:00', date_paid: '2026-08-22T10:05:00',
+          date_modified: '2026-08-25T09:00:00', shipping_total: '0.00',
+          line_items: [{ name: 'Dorflove Shirt - S', product_id: 5420, variation_id: 5428, quantity: 1, total: '21.00' }],
+        }] : [],
+      }));
+      const res = await sync('?after=2026-08-01T00:00:00');
+      expect(res.body).toMatchObject({ synced: 0, storniert: 0 });
+      expect(mockValues.append).not.toHaveBeenCalled();
+    });
+
+    test('ungültiges Vertrag-ab → 500 mit Partner-ID, nichts geschrieben', async () => {
+      tabs.Partner = [MIT_VERTRAG, partner('P-003', 'jfn', '31.02.2026')];
+      const res = await sync('?after=2026-08-01T00:00:00');
+      expect(res.status).toBe(500);
+      expect(res.body.error).toContain('P-003');
+      expect(mockValues.append).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('HonkShop', () => {
+    const HK_ORDER = (id, datum) => ({
+      id, status: 'completed', date_created: datum, shipping_total: '0.00',
+      line_items: [
+        { name: 'Honk Hoodie - L', product_id: 700, variation_id: 701, quantity: 1, total: '40.00' },
+        { name: 'Altartikel',      product_id: 354, variation_id: 0,   quantity: 1, total: '20.00' },
+      ],
+    });
+
+    beforeEach(() => {
+      tabs.HK_Partner_Artikel = [
+        ['Produkt-ID', 'Artikelname', 'EK-Preis-Netto', 'Druckkosten', 'Versandart'],
+        ['700', 'Honk Hoodie', '12', '4,5', 'P'],
+      ];
+      tabs['HK_Partner_Verkäufe'] = [VERKAEUFE_HEADER];
+      mockWcGet.mockImplementation(async (_path, params) => ({
+        data: params.status === 'completed'
+          ? [HK_ORDER(880, '2022-11-25T17:47:38'), HK_ORDER(2100, '2025-01-10T09:00:00')]
+          : [],
+      }));
+    });
+
+    test('Bestellungen vor 01.01.2025 fallen raus – auch nicht als übersprungen', async () => {
+      jest.spyOn(console, 'warn').mockImplementation(() => {});
+      tabs.Partner = [MIT_VERTRAG, partner('P-004', 'honk', '01.01.2025')];
+      const res = await sync('?shop=honk&after=2022-11-25T00:00:00');
+      expect(res.status).toBe(200);
+      expect(res.body.synced).toBe(1);                 // nur Hoodie aus 2100
+      expect(res.body.vorVertragsbeginn).toBe(2);      // beide Positionen aus 880
+      expect(res.body.uebersprungen.map(u => u.orderId)).toEqual([2100]);
+      expect(geschrieben().map(r => r[col('Order-ID')])).toEqual([2100]);
+      console.warn.mockRestore();
+    });
+
+    test('Nachweis: zweiter Lauf mit frühem after liefert 0 neue Zeilen', async () => {
+      jest.spyOn(console, 'warn').mockImplementation(() => {});
+      tabs.Partner = [MIT_VERTRAG, partner('P-004', 'honk', '01.01.2025')];
+      await sync('?shop=honk&after=2022-11-25T00:00:00');
+      tabs['HK_Partner_Verkäufe'] = [VERKAEUFE_HEADER, ...geschrieben().map(r => r.map(v => String(v ?? '')))];
+      mockValues.append.mockClear();
+
+      const res = await sync('?shop=honk&after=2022-11-25T00:00:00');
+      expect(res.body).toMatchObject({ synced: 0, storniert: 0, vorVertragsbeginn: 2 });
+      expect(mockValues.append).not.toHaveBeenCalled();
+      console.warn.mockRestore();
+    });
+
+    test('ohne Spalte Vertrag-ab: alte Bestellung wird wie bisher geschrieben', async () => {
+      jest.spyOn(console, 'warn').mockImplementation(() => {});
+      tabs.Partner = [PARTNER_HEADER, ['P-004', 'Honk', 't4', 'Ja', '40', 'geteilt-50-50', 'honk']];
+      const res = await sync('?shop=honk&after=2022-11-25T00:00:00');
+      expect(res.body).toMatchObject({ synced: 2, vorVertragsbeginn: 0 });
+      console.warn.mockRestore();
+    });
+
+    test('ungültiges Vertrag-ab → 500 mit Partner-ID vor jedem WC-Aufruf', async () => {
+      tabs.Partner = [MIT_VERTRAG, partner('P-004', 'honk', 'ab Januar')];
+      const res = await sync('?shop=honk&after=2022-11-25T00:00:00');
+      expect(res.status).toBe(500);
+      expect(res.body.error).toContain('P-004');
+      expect(mockWcGet).not.toHaveBeenCalled();
+    });
+  });
+});
+
 describe('baueLizenzSaetze', () => {
   let baueLizenzSaetze;
   beforeAll(async () => {

@@ -16,8 +16,9 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient, getShopConfig } from '../lib/shopConfig.js';
 import {
-  berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze, lizenzSatzAusZeile,
+  berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze, lizenzSatzAusZeile, baueVertragsbeginne,
 } from '../utils/partner-kalkulation.js';
+import { vorVertragsbeginn } from '../utils/sync-logic.js';
 
 const SHEET_ID     = process.env.BUSINESS_SHEET_ID;
 const ORDER_ID     = process.argv[2] || '17263';
@@ -153,6 +154,7 @@ function zeigeRechenweg({ vkNetto, stueckzahl, ekPreis, druckkosten, versandart,
 async function runAusWc({ artikelTab, hkArtikelTab, partnerTab, konfig }) {
   const { data: order } = await getWcClient(SHOP).get(`orders/${ORDER_ID}`);
   const lizenzSatz = baueLizenzSaetze(partnerTab.header, partnerTab.rows);
+  const vertragsbeginn = baueVertragsbeginne(partnerTab.header, partnerTab.rows);
   const ph = col => partnerTab.header.indexOf(col);
   const portoModellVon = id => partnerTab.rows.find(r => r[ph('Partner-ID')] === id)?.[ph('Porto-Modell')] ?? 'geteilt-50-50';
 
@@ -209,6 +211,10 @@ async function runAusWc({ artikelTab, hkArtikelTab, partnerTab, konfig }) {
     const vkNetto = toFloat(item.total);
     const anteil  = orderNetto > 0 ? vkNetto / orderNetto : 0;
     for (const e of entries) {
+      if (vorVertragsbeginn(order.date_created, vertragsbeginn(e.partnerId))) {
+        console.log(`  ⊘ Partner ${e.partnerId}: Bestellung vor Vertrag-ab – Sync schreibt keine Zeile.\n`);
+        continue;
+      }
       const lizenzProzent = lizenzSatz(e.partnerId);
       console.log(`  Partner ${e.partnerId}  ·  Stück ${item.quantity}  ·  Anteil ${(anteil * 100).toFixed(2)} %  ·  Lizenz ${lizenzProzent} % (Partner-Reiter)`);
       const calc = zeigeRechenweg({

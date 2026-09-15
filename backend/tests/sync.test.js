@@ -1,4 +1,29 @@
-import { buildStornoRows, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, ordersFuerVerkaufszeilen } from '../utils/sync-logic.js';
+import { buildStornoRows, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, ordersFuerVerkaufszeilen, vorVertragsbeginn } from '../utils/sync-logic.js';
+
+// ── vorVertragsbeginn ────────────────────────────────────────────────────────
+
+describe('vorVertragsbeginn – Bestelldatum gegen Vertrag-ab', () => {
+  const BEGINN = new Date(Date.UTC(2025, 0, 1));
+
+  test.each([
+    ['2024-12-31T23:59:59', true],   // letzter Tag davor, auch spaet abends
+    ['2025-01-01T00:00:00', false],  // Stichtag gehoert dazu
+    ['2025-01-01T08:15:00', false],
+    ['2022-11-25T17:47:38', true],
+    ['2026-09-03T10:00:00', false],
+  ])('%s → %p', (datum, erwartet) => {
+    expect(vorVertragsbeginn(datum, BEGINN)).toBe(erwartet);
+  });
+
+  test('ohne Vertragsbeginn keine Grenze', () => {
+    expect(vorVertragsbeginn('2000-01-01T00:00:00', null)).toBe(false);
+  });
+
+  test('unlesbares Datum schliesst nichts aus', () => {
+    expect(vorVertragsbeginn('', BEGINN)).toBe(false);
+    expect(vorVertragsbeginn(undefined, BEGINN)).toBe(false);
+  });
+});
 
 // ── ordersFuerVerkaufszeilen ─────────────────────────────────────────────────
 

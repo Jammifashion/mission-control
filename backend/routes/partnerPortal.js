@@ -2,8 +2,8 @@ import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient as wcClientForShop, getShopConfig } from '../lib/shopConfig.js';
-import { berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze } from '../utils/partner-kalkulation.js';
-import { toFloat, toDE, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, buildStornoRows, ordersFuerVerkaufszeilen } from '../utils/sync-logic.js';
+import { berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze, baueVertragsbeginne } from '../utils/partner-kalkulation.js';
+import { toFloat, toDE, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, buildStornoRows, ordersFuerVerkaufszeilen, vorVertragsbeginn } from '../utils/sync-logic.js';
 import { notify, buildPartnerNachricht } from '../lib/chatNotify.js';
 import { requireHeader } from '../utils/sheet-headers.js';
 
@@ -214,6 +214,9 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     const honkPartnerId  = honkRow[ph('Partner-ID')] ?? '';
     // Wirft mit Partner-ID, wenn der Satz fehlt - vor jedem WC- oder Schreibzugriff.
     const lizenzProzent  = baueLizenzSaetze(pH, pRows)(honkPartnerId);
+    // Vertrag-ab: Bestellungen davor gehoeren nicht zur Vereinbarung. Wirft
+    // bei einem ungueltigen Wert, ebenfalls vor jedem WC- oder Schreibzugriff.
+    const vertragsbeginn = baueVertragsbeginne(pH, pRows)(honkPartnerId);
     const portoModell    = honkRow[ph('Porto-Modell')] ?? 'geteilt-50-50';
 
     const { header: kH, rows: kRows } = await readTab(sheets, sheetId, 'Kalkulation_Fixkosten');
@@ -250,8 +253,15 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
 
     const toWrite = [];
     const uebersprungen = [];
+    let vorVertrag = 0; // Positionen vor Vertrag-ab - weder geschrieben noch als uebersprungen gemeldet
     const artikelName = item => item.name || item.sku || String(item.product_id);
     for (const order of verkaufsOrders) {
+      // Vor dem Vertragsbeginn: die ganze Bestellung faellt raus, auch aus
+      // "uebersprungen" - fuer diese Artikel muss niemand etwas nachtragen.
+      if (vorVertragsbeginn(order.date_created, vertragsbeginn)) {
+        vorVertrag += order.line_items.length;
+        continue;
+      }
       const orderDate = toDE(new Date(order.date_created));
       const shippingNetto = toFloat(order.shipping_total);
       // Wertanteil bleibt ueber ALLE Positionen der Bestellung - auch ueber
@@ -326,6 +336,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     return {
       synced: toWrite.length, storniert: stornoRows.length, orders: orders.length, afterParam: afterParam || null,
       stornoNachgeholt: verkaufsOrders.length - orders.length,
+      vorVertragsbeginn: vorVertrag,
       uebersprungen, message,
     };
   }
@@ -354,6 +365,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
   // 1b. Partner → Porto-Modell + Lizenzsatz
   const { header: pH, rows: pRows } = await readTab(sheets, sheetId, 'Partner');
   const lizenzSatz = baueLizenzSaetze(pH, pRows);
+  const vertragsbeginn = baueVertragsbeginne(pH, pRows);
   const ph = col => pH.indexOf(col);
   const partnerInfoMap = {};
   for (const r of pRows) {
@@ -394,6 +406,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
 
   // 4. Iterieren → Sheet-Zeilen sammeln
   const toWrite = [];
+  let vorVertrag = 0; // Positionen vor Vertrag-ab des jeweiligen Partners
   const artikelName = (item) => item.name || item.sku || String(item.product_id);
 
   for (const order of verkaufsOrders) {
@@ -404,8 +417,13 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     const matching = [];
     let orderVersandart = 'B';
     for (const item of order.line_items) {
-      const entries = partnerArtikelMap[String(item.product_id || '')];
-      if (!entries) continue;
+      const alle = partnerArtikelMap[String(item.product_id || '')];
+      if (!alle) continue;
+      // Vertrag-ab gilt je Partner: ein Produkt kann mehreren Partnern gehoeren,
+      // und nur fuer die, deren Vereinbarung schon lief, entsteht eine Zeile.
+      const entries = alle.filter(e => !vorVertragsbeginn(order.date_created, vertragsbeginn(e.partnerId)));
+      vorVertrag += alle.length - entries.length;
+      if (!entries.length) continue;
       matching.push({ item, entries });
       if (entries.some(e => e.versandart === 'P')) orderVersandart = 'P';
     }
@@ -476,6 +494,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     storniert:  stornoRows.length,
     orders:     orders.length,
     stornoNachgeholt: verkaufsOrders.length - orders.length,
+    vorVertragsbeginn: vorVertrag,
     afterParam: afterParam || null,
     message:    buildSyncMessage(toWrite.length, stornoRows.length),
   };

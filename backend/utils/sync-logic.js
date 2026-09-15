@@ -16,6 +16,21 @@ export const WC_STATES_STORNO  = ['refunded', 'cancelled'];
 export const STORNO_MARKER     = 'Storniert/Rückerstattet';
 
 /**
+ * Liegt eine Bestellung vor dem Vertragsbeginn des Partners (Spalte Vertrag-ab)?
+ *
+ * Verglichen wird der Kalendertag aus date_created (WC liefert Shop-Ortszeit
+ * ohne Zeitzone, "2024-12-31T23:10:00" ist also der 31.12.). Bestellungen am
+ * Stichtag selbst gehoeren zur Vereinbarung. Ohne Vertragsbeginn (null) gibt
+ * es keine Grenze.
+ */
+export function vorVertragsbeginn(dateCreated, beginn) {
+  if (!beginn) return false;
+  const m = String(dateCreated ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return false;
+  return Date.UTC(+m[1], +m[2] - 1, +m[3]) < beginn.getTime();
+}
+
+/**
  * Bestellungen, fuer die der Sync Verkaufszeilen schreibt.
  *
  * Neben den laufenden Verkaeufen (processing/completed/on-hold) auch

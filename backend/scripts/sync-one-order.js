@@ -7,7 +7,8 @@ dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.e
 import { google } from 'googleapis';
 import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
 import { getGoogleAuth } from '../lib/googleAuth.js';
-import { berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze } from '../utils/partner-kalkulation.js';
+import { berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze, baueVertragsbeginne } from '../utils/partner-kalkulation.js';
+import { vorVertragsbeginn } from '../utils/sync-logic.js';
 
 const SHEET_ID = process.env.BUSINESS_SHEET_ID;
 const ORDER_ID = process.argv[2];
@@ -67,6 +68,7 @@ async function run() {
   // Partner → Porto-Modell + Lizenzsatz
   const ph = col => pTab.header.indexOf(col);
   const lizenzSatz = baueLizenzSaetze(pTab.header, pTab.rows);
+  const vertragsbeginn = baueVertragsbeginne(pTab.header, pTab.rows);
   const partnerInfoMap = {};
   for (const r of pTab.rows) {
     const id = r[ph('Partner-ID')] ?? '';
@@ -102,14 +104,21 @@ async function run() {
   const matching = [];
   for (const item of order.line_items) {
     const pid = String(item.product_id || '');
-    const entries = partnerArtikelMap[pid];
+    const alle = partnerArtikelMap[pid];
     console.log(`\nItem: Produkt-ID ${pid}`);
     console.log(`  Name: "${item.name}" (SKU: ${item.sku || '–'})`);
     console.log(`  Quantity: ${item.quantity}, Total netto: ${item.total}€`);
-    if (!entries) {
+    if (!alle) {
       console.log(`  ⚠ NICHT GEFUNDEN in Partner_Artikel`);
       continue;
     }
+    // Vertrag-ab je Partner, wie im Sync
+    const entries = alle.filter(e => {
+      const vor = vorVertragsbeginn(order.date_created, vertragsbeginn(e.partnerId));
+      if (vor) console.log(`  ⊘ Partner ${e.partnerId}: Bestellung vor Vertrag-ab – wird nicht geschrieben`);
+      return !vor;
+    });
+    if (!entries.length) continue;
     console.log(`  ✓ GEFUNDEN: ${entries.length} Eintrag(e)`);
     for (const e of entries) {
       console.log(`    - Partner ${e.partnerId}: ${e.artikelname || '(keine Beschreibung)'}, EK ${e.ekPreis}€, Druck ${e.druckkosten}€, Versand ${e.versandart}`);
