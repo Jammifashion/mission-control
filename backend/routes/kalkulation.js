@@ -7,7 +7,7 @@ import {
   verkaufsZeilenDerAbrechnung, interneZeilenDerAbrechnung,
 } from '../utils/abrechnung-zeilen.js';
 import { requireHeader, findHeader } from '../utils/sheet-headers.js';
-import { berechnePartnerAnteil, parseKonfiguration, getKostenSatz, istBekanntePosition, baueLizenzSaetze, lizenzSatzAusZeile, parseVertragAb } from '../utils/partner-kalkulation.js';
+import { berechnePartnerAnteil, parseKonfiguration, getKostenSatz, istBekanntePosition, baueLizenzSaetze, lizenzSatzAusZeile, parseVertragAb, baueVertragsbeginne } from '../utils/partner-kalkulation.js';
 
 const router = Router();
 
@@ -105,6 +105,29 @@ async function sichereSpalte(sheets, sheetId, tab, header, name) {
   });
   header.push(name);
   return neu;
+}
+
+// Abrechnung: offene Verkaufszeilen vor Vertrag-ab des Partners? Dann Fehler
+// statt stiller Mitberechnung - solche Zeilen gehoeren nicht zur Vereinbarung
+// und wuerden sonst ausgezahlt (Anlass: P-004, Zeilen ab 2022, Vertrag ab 2025).
+// Liefert null oder den Fehler-Body fuer 409.
+function pruefeVertragsbeginn(partnerTab, partnerId, zeilen, datumVon) {
+  const beginn = baueVertragsbeginne(partnerTab.header, partnerTab.rows)(partnerId); // wirft 500 bei kaputtem Wert
+  if (!beginn) return null;
+  const davor = zeilen.filter(row => {
+    const d = parseDatum(datumVon(row));
+    return d && d < beginn;
+  });
+  if (!davor.length) return null;
+  const fruehestes = davor.map(r => datumVon(r)).sort((a, b) => parseDatum(a) - parseDatum(b))[0];
+  return {
+    error: `Partner ${partnerId}: ${davor.length} offene Verkaufszeile(n) liegen vor Vertrag-ab ${toDE(beginn)} `
+         + `(früheste ${fruehestes}). Nicht mitgerechnet – Zeilen entfernen oder Zeitraum ab ${toDE(beginn)} wählen.`,
+    partnerId,
+    vertragAb: toDE(beginn),
+    anzahlVorVertragsbeginn: davor.length,
+    fruehestesDatum: fruehestes,
+  };
 }
 
 // Nächste AB-YYYY-NNNN ID generieren
@@ -486,20 +509,27 @@ router.post('/abrechnung/vorschau', async (req, res, next) => {
 
     const sheets = await getSheets();
     const tabVerkaeufe = getShopConfig(req.query.shop).tabVerkaeufe;
-    const [verkäufeTab, internTab, konfigTab] = await Promise.all([
+    const [verkäufeTab, internTab, konfigTab, partnerTab] = await Promise.all([
       readTab(sheets, sheetId, tabVerkaeufe),
       readTab(sheets, sheetId, 'Partner_Interne_Bestellungen'),
       readTab(sheets, sheetId, 'Kalkulation_Fixkosten'),
+      readTab(sheets, sheetId, 'Partner'),
     ]);
 
     const vh = col => verkäufeTab.header.indexOf(col);
-    const verkaeufe = verkäufeTab.rows
-      .filter(row => {
-        if (row[vh('Partner-ID')] !== partnerId) return false;
-        if ((row[vh('Status')] ?? '') !== 'offen') return false;
-        const d = parseDate(row[vh('Datum')] ?? '');
-        return d && d >= vonDatum && d <= bisDatum;
-      })
+    const offeneImZeitraum = verkäufeTab.rows.filter(row => {
+      if (row[vh('Partner-ID')] !== partnerId) return false;
+      if ((row[vh('Status')] ?? '') !== 'offen') return false;
+      const d = parseDate(row[vh('Datum')] ?? '');
+      return d && d >= vonDatum && d <= bisDatum;
+    });
+
+    // Vorschau und Anlegen pruefen gleich - sonst zeigt die Vorschau eine
+    // Summe, die das Anlegen danach ablehnt.
+    const vertragsFehler = pruefeVertragsbeginn(partnerTab, partnerId, offeneImZeitraum, row => row[vh('Datum')] ?? '');
+    if (vertragsFehler) return res.status(409).json(vertragsFehler);
+
+    const verkaeufe = offeneImZeitraum
       .map(row => ({
         datum:       row[vh('Datum')]        ?? '',
         orderId:     row[vh('Order-ID')]     ?? '',
@@ -624,6 +654,12 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
 
     if (!offene.length)
       return res.status(404).json({ error: `Keine offenen Verkäufe für Partner "${partnerId}" im Zeitraum.` });
+
+    // Zeilen vor Vertrag-ab → Fehler, nichts wird angelegt.
+    {
+      const fehler = pruefeVertragsbeginn(partnerTab, partnerId, offene.map(o => o.row), row => row[datIdx] ?? '');
+      if (fehler) return res.status(409).json(fehler);
+    }
 
     // Kein zweiter Entwurf mit ueberlappendem Zeitraum: beide wuerden dieselben
     // offenen Zeilen enthalten, und nach der Freigabe des einen koennte das

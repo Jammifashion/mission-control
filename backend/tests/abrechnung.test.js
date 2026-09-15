@@ -290,6 +290,86 @@ describe('B17 – Freigabe ordnet über Inhalt zu, nicht über rowIndex', () => 
   });
 });
 
+describe('Vertrag-ab – Abrechnung mit Zeilen vor dem Vertragsbeginn wird abgelehnt', () => {
+  const zeile = (datum, order) =>
+    ['P-001', datum, order, 'Shirt', '0', '1', '21', '5', 'offen', '1', '12,5', '5', '0', '5,95', ''];
+
+  const mitVertrag = wert => {
+    tabs.Partner = [
+      ['Partner-ID', 'Name', 'Aktiv', 'Lizenz-%', 'Porto-Modell', 'Vertrag-ab'],
+      ['P-001', 'Test', 'Ja', '40', 'geteilt-50-50', wert],
+    ];
+  };
+
+  beforeEach(() => {
+    tabs['Partner_Verkäufe'].push(
+      zeile('01.06.2026', '300'),
+      zeile('02.06.2026', '301'),
+      zeile('03.06.2026', '302'),
+      zeile('20.06.2026', '303'),
+    );
+  });
+
+  const vorschau = (von = '01.06.2026', bis = '30.06.2026') => request(app)
+    .post('/api/kalkulation/abrechnung/vorschau')
+    .send({ partnerId: 'P-001', zeitraumVon: von, zeitraumBis: bis });
+
+  test('Zeitraum enthält Zeilen vor Vertrag-ab → 409 mit Partner-ID und Datum, nichts angelegt', async () => {
+    mitVertrag('03.06.2026');
+    const res = await erstellen('01.06.2026', '30.06.2026');
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({
+      partnerId: 'P-001', vertragAb: '03.06.2026', anzahlVorVertragsbeginn: 2, fruehestesDatum: '01.06.2026',
+    });
+    expect(res.body.error).toMatch(/P-001/);
+    expect(res.body.error).toMatch(/03\.06\.2026/);
+    expect(values.append).not.toHaveBeenCalled();
+    expect(values.batchUpdate).not.toHaveBeenCalled();
+  });
+
+  test('Zeitraum ab Vertrag-ab → 201, Stichtag gehört dazu', async () => {
+    mitVertrag('03.06.2026');
+    const res = await erstellen('03.06.2026', '30.06.2026');
+    expect(res.status).toBe(201);
+    expect(res.body.anzahlVerkäufe).toBe(2);   // 03.06. und 20.06.
+  });
+
+  test('Zeitraum beginnt vor Vertrag-ab, aber ohne Zeilen davor → 201', async () => {
+    mitVertrag('03.06.2026');
+    tabs['Partner_Verkäufe'] = [VH, zeile('03.06.2026', '302'), zeile('20.06.2026', '303')];
+    const res = await erstellen('01.01.2026', '30.06.2026');
+    expect(res.status).toBe(201);
+  });
+
+  test('leeres Vertrag-ab → keine Grenze', async () => {
+    mitVertrag('');
+    const res = await erstellen('01.06.2026', '30.06.2026');
+    expect(res.status).toBe(201);
+    expect(res.body.anzahlVerkäufe).toBe(4);
+  });
+
+  test('Vorschau lehnt genauso ab', async () => {
+    mitVertrag('03.06.2026');
+    const res = await vorschau();
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ partnerId: 'P-001', anzahlVorVertragsbeginn: 2 });
+  });
+
+  test('Vorschau ohne Grenze liefert weiter die Summe', async () => {
+    const res = await vorschau();
+    expect(res.status).toBe(200);
+    expect(res.body.verkaeufe).toHaveLength(4);
+  });
+
+  test('ungültiges Vertrag-ab → 500 mit Partner-ID, nichts angelegt', async () => {
+    mitVertrag('31.02.2026');
+    const res = await erstellen('01.06.2026', '30.06.2026');
+    expect(res.status).toBe(500);
+    expect(res.body.error).toMatch(/P-001/);
+    expect(values.append).not.toHaveBeenCalled();
+  });
+});
+
 describe('abrechnung-zeilen – Helfer', () => {
   test('parseDatum: zweistellig, einstellig, ISO, Unsinn', () => {
     const { parseDatum } = abrZeilen;
