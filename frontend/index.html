@@ -6747,7 +6747,6 @@
                 <td style="${numStyle}">${r.vkPreisBrutto.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</td>
                 <td class="liz-cell"
                     data-vk-brutto="${r.vkPreisBrutto}"
-                    data-lizenz-pct="${_ppPartners.find(p=>p.id===r.partnerId)?.lizenzProzent||0}"
                     data-lizenz="${r.lizenzgebuehr}"
                     data-gewinn-netto="${r.gewinnNetto || ''}"
                     data-lizenz-anteil="${r.lizenzAnteil || ''}"
@@ -7568,12 +7567,17 @@
 
       function showLizTooltipVerkauf(cell) {
         const vkBrutto      = parseFloat(cell.dataset.vkBrutto)      || 0;
-        const lizenzPct     = parseFloat(cell.dataset.lizenzPct)     || 0;
         const lizenzNetto   = parseFloat(cell.dataset.lizenz)        || 0;  // = partnerAnteil netto
         const gewinnNetto   = parseFloat(cell.dataset.gewinnNetto)   || 0;
         const lizenzAnteil  = parseFloat(cell.dataset.lizenzAnteil)  || 0;
         const portoSaldo    = parseFloat(cell.dataset.portoSaldo)    || 0;
         const anteilBrutto  = parseFloat(cell.dataset.anteilBrutto)  || 0;
+
+        // Satz aus den gespeicherten Werten der Zeile (Lizenz-Anteil ÷ Gewinn netto),
+        // nicht aus dem aktuellen Partner-Satz: eine mit 50 % gerechnete Zeile zeigt
+        // weiter 50 %. Gleiche Regel wie lizenzSatzAusZeile() im Backend.
+        const hatBreakdown = Math.abs(gewinnNetto) >= 0.005;
+        const lizenzPct = hatBreakdown ? Math.round((lizenzAnteil / gewinnNetto) * 1000) / 10 : null;
 
         const fmt  = n => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
         const pad  = s => s.padEnd(22);
@@ -7581,22 +7585,24 @@
 
         const lines = [];
 
-        // Wenn Breakdown-Daten vorhanden: vollständige Anzeige
-        if (gewinnNetto > 0.001) {
+        // Wenn Breakdown-Daten vorhanden: vollständige Anzeige (auch Storno und
+        // negativer Gewinn - frueher fielen die still in den Fallback)
+        if (hatBreakdown) {
           lines.push(pad('Gewinn netto:') + padR(gewinnNetto));
-          lines.push(pad(`× Lizenz ${lizenzPct}%:`) + padR(lizenzAnteil));
+          lines.push(pad(`× Lizenz ${lizenzPct.toLocaleString('de-DE')}%:`) + padR(lizenzAnteil));
           if (Math.abs(portoSaldo) > 0.001) {
             lines.push(pad(`+ Porto-Saldo:`) + padR(portoSaldo));
           }
           lines.push('─'.repeat(32));
           lines.push(pad('= Partner-Anteil (netto):') + padR(lizenzNetto));
-          if (anteilBrutto > 0.001) {
+          if (Math.abs(anteilBrutto) > 0.001) {
             lines.push(pad('× (1 + 19% MwSt):') + padR(anteilBrutto));
           }
         } else {
-          // Fallback für alte Syncs ohne Breakdown-Daten
+          // Alte Syncs ohne Breakdown-Daten: der Satz ist aus der Zeile nicht
+          // ableitbar, also wird keiner behauptet.
           lines.push(pad('VK Netto:') + padR(vkBrutto));
-          lines.push(pad(`× Lizenz ${lizenzPct}%:`) + padR(lizenzNetto));
+          lines.push(pad('Lizenz-Satz:') + 'nicht gespeichert'.padStart(10));
           lines.push('─'.repeat(32));
           lines.push(pad('= Partner-Anteil (netto):') + padR(lizenzNetto));
         }

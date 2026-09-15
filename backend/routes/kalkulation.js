@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getShopConfig } from '../lib/shopConfig.js';
-import { berechnePartnerAnteil, parseKonfiguration, getKostenSatz, istBekanntePosition, baueLizenzSaetze } from '../utils/partner-kalkulation.js';
+import { berechnePartnerAnteil, parseKonfiguration, getKostenSatz, istBekanntePosition, baueLizenzSaetze, lizenzSatzAusZeile } from '../utils/partner-kalkulation.js';
 
 const router = Router();
 
@@ -554,6 +554,8 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
     const vkIdx   = verkäufeTab.header.indexOf('VK-Preis-Brutto');
     const lizIdx  = verkäufeTab.header.indexOf('Lizenzgebühr');
     const stIdx   = verkäufeTab.header.indexOf('Status');
+    const gewIdx  = verkäufeTab.header.indexOf('Gewinn-netto');
+    const lanIdx  = verkäufeTab.header.indexOf('Lizenz-Anteil');
 
     const offene = verkäufeTab.rows
       .map((row) => ({ row, rowIndex: row._sheetRow }))
@@ -593,7 +595,9 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
           paypalKosten:       calc.paypalKosten,
           gewinnNetto:        calc.gewinnNetto,
           portoSaldoPartner:  calc.portoSaldoPartner,
-          lizenzProzent:      partnerLizenzProzent,
+          // Satz, mit dem die Zeile gerechnet wurde - nicht der heutige
+          // Partner-Satz. Fallback nur fuer Altzeilen ohne Aufschluesselung.
+          lizenzProzent:      lizenzSatzAusZeile(row[gewIdx], row[lanIdx]) ?? partnerLizenzProzent,
           versandart:         artikel.versandart,
         };
       }

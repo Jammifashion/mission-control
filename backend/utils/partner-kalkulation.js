@@ -215,6 +215,20 @@ export function baueLizenzSaetze(header, rows) {
   };
 }
 
+// Welcher Satz steckt in einer gespeicherten Verkaufszeile? Abgeleitet aus
+// Lizenz-Anteil ÷ Gewinn-netto der Zeile selbst, nicht aus dem aktuellen
+// Partner-Satz: eine Zeile, die mit 50 % gerechnet wurde, zeigt auch nach der
+// Umstellung auf 40 % weiter 50 %. null, wenn die Zeile das nicht hergibt
+// (Altzeilen ohne Aufschluesselung, Gewinn 0).
+export function lizenzSatzAusZeile(gewinnNetto, lizenzAnteil) {
+  // Sheet liefert deutsch formatierte Strings ("7,5"); Number("7,5") waere NaN.
+  const zahl = v => (typeof v === 'number' ? v : Number(String(v ?? '').trim().replace(',', '.')));
+  const g = zahl(gewinnNetto);
+  const a = zahl(lizenzAnteil);
+  if (!Number.isFinite(g) || !Number.isFinite(a) || Math.abs(g) < 0.005) return null;
+  return Math.round((a / g) * 1000) / 10; // eine Nachkommastelle
+}
+
 function round2(n) { return Math.round(n * 100) / 100; }
 
 /**
