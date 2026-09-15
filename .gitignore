@@ -62,3 +62,9 @@ backend/scripts/out/
 # wird.
 _tmp-*
 **/_tmp-*
+
+# Sheet-Backups. Das Repo ist oeffentlich, diese Dateien enthalten
+# Partnerdaten, Einkaufspreise und Margen.
+BUSINESS_Backup-*.json.gz
+SSOT_Backup-*.json.gz
+MC-Backup-*.json.gz
