@@ -70,7 +70,11 @@ async function loadAnthropicModels() {
 const isAnthropicId = wert => /^claude-/i.test(wert);
 const pad = (str, len) => String(str).padEnd(len, ' ');
 
-// ── Report + Exit-Code (exportiert für Tests/Wiederverwendung) ────────────────
+// ── Report + Ergebnis (exportiert für Route und Tests) ───────────────────────
+// Liefert { geprueft, gueltig[], fehlend[], neu[] }:
+//   gueltig/fehlend – { rolle, modell } je konfigurierter Anthropic-Rolle
+//   neu             – IDs aus der Models API, die in keiner Rolle stehen
+// Sheet- oder API-Fehler werden geworfen, nicht als Ergebnis verpackt.
 export async function runCheck() {
   console.log('== Mission Control – Modell-Check (Anthropic) ==');
   console.log(`Zeitpunkt: ${new Date().toISOString()}`);
@@ -79,7 +83,7 @@ export async function runCheck() {
   const entries = await loadModelRows();
   if (entries.length === 0) {
     console.log(`Keine "${PREFIX}*"-Zeilen im Config-Sheet gefunden. Nichts zu prüfen.`);
-    return 0;
+    return { geprueft: 0, gueltig: [], fehlend: [], neu: [] };
   }
 
   const anthropicEntries = entries.filter(e => isAnthropicId(e.wert));
@@ -96,13 +100,14 @@ export async function runCheck() {
   console.log(`Anthropic Models API: ${liveModels.length} Modelle verfügbar.\n`);
 
   console.log('── Konfigurierte Anthropic-Modelle ' + '─'.repeat(35));
-  let missingCount = 0;
+  const gueltig = [];
+  const fehlend = [];
   if (anthropicEntries.length === 0) {
     console.log('  (keine Anthropic-Einträge im Sheet)');
   }
   anthropicEntries.forEach(({ rolle, wert }) => {
     const ok = liveIds.has(wert);
-    if (!ok) missingCount++;
+    (ok ? gueltig : fehlend).push({ rolle, modell: wert });
     console.log(`  ${ok ? '✓' : '✗'} ${pad(rolle, 20)} ${pad(wert, 28)} ${ok ? 'OK' : 'FEHLT in Anthropic Models API!'}`);
   });
 
@@ -125,22 +130,30 @@ export async function runCheck() {
   }
 
   console.log('\n' + '='.repeat(70));
-  console.log(`Zusammenfassung: ${anthropicEntries.length - missingCount}/${anthropicEntries.length} konfigurierte Anthropic-Modelle gültig, ${newModels.length} neue Modelle noch ungenutzt.`);
+  console.log(`Zusammenfassung: ${gueltig.length}/${anthropicEntries.length} konfigurierte Anthropic-Modelle gültig, ${newModels.length} neue Modelle noch ungenutzt.`);
 
-  if (missingCount > 0) {
-    console.log(`FEHLER: ${missingCount} konfigurierte Modell-ID(s) existieren nicht mehr in der Anthropic Models API.`);
-    return 1;
+  const ergebnis = {
+    geprueft: anthropicEntries.length,
+    gueltig,
+    fehlend,
+    neu: newModels.map(m => m.id),
+  };
+
+  if (fehlend.length > 0) {
+    console.log(`FEHLER: ${fehlend.length} konfigurierte Modell-ID(s) existieren nicht mehr in der Anthropic Models API.`);
+    return ergebnis;
   }
 
   console.log('Alle konfigurierten Anthropic-Modelle sind aktuell gültig.');
-  return 0;
+  return ergebnis;
 }
 
 // ── Direktausführung (node backend/scripts/check-models.js) ──────────────────
+// Exit-Codes wie bisher: 0 alles gültig, 1 Modell fehlt, 2 Sheet-/API-Fehler.
 const __filename = fileURLToPath(import.meta.url);
 if (process.argv[1] && (process.argv[1] === __filename || __filename.endsWith(process.argv[1].replace(/\\/g, '/')))) {
   runCheck()
-    .then(code => process.exit(code))
+    .then(r => process.exit(r.fehlend.length > 0 ? 1 : 0))
     .catch(err => {
       console.error('FEHLER:', err.message ?? err);
       process.exit(2);

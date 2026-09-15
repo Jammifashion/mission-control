@@ -4,6 +4,7 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient } from '../lib/shopConfig.js';
 import { getModel } from '../lib/modelConfig.js';
+import { runCheck } from '../scripts/check-models.js';
 
 const router = Router();
 
@@ -82,6 +83,19 @@ router.get('/full', async (req, res, next) => {
     }
 
     res.status(ok ? 200 : 503).json({ ok, services: { woocommerce, sheet, claude } });
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/system/modell-check  (hinter requireApiKey) ────────────────────
+// Konfigurierte Anthropic-Modell-IDs (Business-Sheet, Reiter Config) gegen die
+// Models API. 200 alles gültig, 422 mindestens ein Modell fehlt, 500 bei
+// Sheet- oder API-Fehler (über den Error-Handler).
+// Aufrufer: .github/workflows/modell-check.yml
+router.post('/modell-check', async (_req, res, next) => {
+  try {
+    const r = await runCheck();
+    const ok = r.fehlend.length === 0;
+    res.status(ok ? 200 : 422).json({ ok, ...r });
   } catch (err) { next(err); }
 });
 
