@@ -39,9 +39,9 @@ const VERKAEUFE_HEADER = [
 const FIXKOSTEN = [
   ['Position', 'Wert', 'Einheit', 'Gültig_ab', 'Gültig_bis'],
   ['Herstellungsnebenkosten', '0,8',  'EUR/Artikel',    '01.01.2022', ''],
-  ['Versandnebenkosten B',    '0,9',  'EUR/Bestellung', '01.01.2022', ''],
+  ['Versandnebenkosten B',    '1',    'EUR/Bestellung', '01.01.2022', ''],
   ['Versandnebenkosten P',    '1,41', 'EUR/Bestellung', '01.01.2022', ''],
-  ['Porto B',                 '3',    'EUR/Bestellung', '01.01.2022', ''],
+  ['Porto B',                 '2,51', 'EUR/Bestellung', '01.01.2022', ''],
   ['Porto P',                 '6',    'EUR/Bestellung', '01.01.2022', ''],
   ['PayPal Prozent',          '2,49', '%',              '01.01.2022', ''],
   ['PayPal Pauschale',        '0,35', 'EUR/Bestellung', '01.01.2022', ''],
@@ -97,7 +97,7 @@ beforeEach(() => {
     ],
     Partner_Artikel: [
       ['Partner-ID', 'Artikelnummer', 'Produkt-ID', 'Artikelname', 'EK-Preis-Netto', 'Druckkosten', 'Versandart', 'Lizenz-%', 'Letzte-Synchro'],
-      ['P-003', 'E3000 Dorflove', '5420', 'Dorflove Shirt', '3', '2,1', 'P', '50', '01.08.2026'],
+      ['P-003', 'E3000 Dorflove', '5420', 'Dorflove Shirt', '3', '2,1', 'B', '50', '01.08.2026'],
     ],
     Kalkulation_Fixkosten: FIXKOSTEN,
     'Partner_Verkäufe': [VERKAEUFE_HEADER],
@@ -126,7 +126,7 @@ describe('B16 – Lizenzsatz aus dem Partner-Reiter (JFN)', () => {
     expect(res.body.synced).toBe(4);
 
     const rows = geschrieben();
-    expect(rows.map(r => r[col('Lizenzgebühr')])).toEqual([5.26, 10.52, 15.79, 5.26]);
+    expect(rows.map(r => r[col('Lizenzgebühr')])).toEqual([5.53, 11.07, 16.60, 5.53]);
     for (const r of rows) {
       expect(r[col('Lizenz-Anteil')] / r[col('Gewinn-netto')]).toBeCloseTo(0.40, 3);
     }

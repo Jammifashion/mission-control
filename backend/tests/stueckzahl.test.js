@@ -6,15 +6,16 @@
 // Herstellung von einem Shirt.
 //
 // Fixture: Order 16941 (JFN, Produkt 5420), vier Zeilen zum Stückpreis 21,00 €
-// netto mit den Mengen 1, 2, 3 und 1. EK 3,00, Druck 2,10, Lizenz 40 %,
-// kostenloser Versand. Fixkosten wie im Business-Sheet.
+// netto mit den Mengen 1, 2, 3 und 1. EK 3,00, Druck 2,10, Versandart B
+// (Partner_Artikel), Lizenz 40 % (Partner-Reiter), kostenloser Versand.
+// Fixkosten B/HNK/PayPal/MwSt live aus dem Business-Sheet, Stand 15.09.2026.
 
 import { berechnePartnerAnteil } from '../utils/partner-kalkulation.js';
 
 const KONFIG = {
   herstellungsnebenkosten: 0.80,
-  versandnebenkostenB: 0.90, versandnebenkostenP: 1.41,
-  portoB: 3, portoP: 6,
+  versandnebenkostenB: 1.00, versandnebenkostenP: 1.41,
+  portoB: 2.51, portoP: 6,
   paypalProzent: 2.49, paypalPauschale: 0.35,
   mwstProzent: 19,
 };
@@ -24,7 +25,7 @@ const ORDER_16941 = [1, 2, 3, 1].map(menge => ({ menge, total: STUECKPREIS * men
 const ORDER_NETTO = ORDER_16941.reduce((s, z) => s + z.total, 0); // 147,00
 
 const zeile = ({ menge, total }, over = {}) => berechnePartnerAnteil({
-  vkNetto: total, ekPreis: 3.00, druckkosten: 2.10, versandart: 'P',
+  vkNetto: total, ekPreis: 3.00, druckkosten: 2.10, versandart: 'B',
   portoModell: 'geteilt-50-50',
   bestellungsAnteil: total / ORDER_NETTO,
   stueckzahl: menge,
@@ -37,10 +38,10 @@ function erwartet(menge) {
   const vk      = STUECKPREIS * menge;
   const anteil  = vk / ORDER_NETTO;
   const herst   = (3.00 + 2.10 + 0.80) * menge;
-  const vnk     = 1.41 * anteil;
+  const vnk     = 1.00 * anteil;
   const paypal  = vk * 1.19 * 0.0249 + 0.35 * anteil;
   const gewinn  = vk - herst - vnk - paypal;
-  const porto   = (0 - 6 * anteil) / 2;
+  const porto   = (0 - 2.51 * anteil) / 2;
   return { herst, gewinn, partner: gewinn * 0.40 + porto };
 }
 
@@ -56,7 +57,8 @@ describe('B15 – Herstellung je Stück (Order 16941)', () => {
 
   test('konkrete Werte je Zeile', () => {
     const werte = ORDER_16941.map(z => zeile(z).partnerAnteil);
-    expect(werte).toEqual([5.26, 10.52, 15.79, 5.26]);
+    // = Ausgabe debug-lizenz-order.js 16941 mit Live-Werten
+    expect(werte).toEqual([5.53, 11.07, 16.60, 5.53]);
   });
 
   // Alles in der Formel ist proportional zur Menge: Stückkosten direkt,
@@ -77,7 +79,7 @@ describe('B15 – Herstellung je Stück (Order 16941)', () => {
 
   test('Summe der Order über alle vier Zeilen', () => {
     const summe = round2(ORDER_16941.reduce((s, z) => s + zeile(z).partnerAnteil, 0));
-    expect(summe).toBe(36.83);
+    expect(summe).toBe(38.73);
   });
 });
 
