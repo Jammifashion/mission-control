@@ -32,7 +32,7 @@ jest.unstable_mockModule('googleapis', () => ({
   },
 }));
 
-let runBackup, ZIELE;
+let runBackup, ZIELE, ohneIds;
 
 const ENV_KEYS = [
   'GOOGLE_SHEET_ID', 'BUSINESS_SHEET_ID', 'GOOGLE_DRIVE_SHARED_DRIVE_ID',
@@ -42,7 +42,26 @@ const ENV_KEYS = [
 let gesichert = {};
 
 beforeAll(async () => {
-  ({ runBackup, ZIELE } = await import('../scripts/backup-daily.js'));
+  ({ runBackup, ZIELE, ohneIds } = await import('../scripts/backup-daily.js'));
+});
+
+describe('ohneIds()', () => {
+  const sheetId  = '1AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-abcd';
+  const ordnerId = '1fAkEoRdNeRiD0123456789abcdefXYZ';
+
+  test('IDs werden geschwaerzt', () => {
+    expect(ohneIds(`not found: ${sheetId} in ${ordnerId}.`)).toBe('not found: <id> in <id>.');
+  });
+
+  test.each([
+    'BUSINESS_Backup-2026-09-15.json.gz',
+    'SSOT_Backup-2026-09-15.json.gz',
+    'BUSINESS_Backup-2026-09.json.gz',
+    'MC-Backup-2026-08-03.json.gz',
+  ])('Backup-Dateiname %s bleibt lesbar', name => {
+    expect(ohneIds(`${name}: Insufficient permissions (${sheetId})`))
+      .toBe(`${name}: Insufficient permissions (<id>)`);
+  });
 });
 
 beforeEach(() => {

@@ -60,8 +60,11 @@ function sleep(ms) {
 
 // Fehlermeldungen landen im oeffentlichen Actions-Log. Drive- und
 // Spreadsheet-IDs sind lange Tokens ohne Punkt - die werden ersetzt.
+// Backup-Dateinamen bleiben lesbar: "BUSINESS_Backup-2026-09-15" hat selbst
+// 26 Zeichen und wurde sonst ebenfalls zu <id>.
 export function ohneIds(text) {
-  return String(text ?? '').replace(/[A-Za-z0-9_-]{25,}/g, '<id>');
+  return String(text ?? '').replace(/[A-Za-z0-9_-]{25,}/g,
+    token => AUFRAEUM_PRAEFIXE.some(p => token.startsWith(p)) ? token : '<id>');
 }
 
 function isRateLimitError(err) {
