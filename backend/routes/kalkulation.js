@@ -2,6 +2,11 @@ import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getShopConfig } from '../lib/shopConfig.js';
+import {
+  parseDatum, zeitraeumeUeberlappen, verkaufsSpalten, istStornoZeile,
+  verkaufsZeilenDerAbrechnung, interneZeilenDerAbrechnung,
+} from '../utils/abrechnung-zeilen.js';
+import { requireHeader } from '../utils/sheet-headers.js';
 import { berechnePartnerAnteil, parseKonfiguration, getKostenSatz, istBekanntePosition, baueLizenzSaetze, lizenzSatzAusZeile } from '../utils/partner-kalkulation.js';
 
 const router = Router();
@@ -569,6 +574,24 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
     if (!offene.length)
       return res.status(404).json({ error: `Keine offenen Verkäufe für Partner "${partnerId}" im Zeitraum.` });
 
+    // Kein zweiter Entwurf mit ueberlappendem Zeitraum: beide wuerden dieselben
+    // offenen Zeilen enthalten, und nach der Freigabe des einen koennte das
+    // Verwerfen des anderen bereits abgerechnete Zeilen wieder oeffnen.
+    {
+      const aH = abrechnungenTab.header;
+      const h = col => aH.indexOf(col);
+      const konflikt = abrechnungenTab.rows.find(r =>
+        (r[h('Partner-ID')] ?? '') === partnerId
+        && (r[h('Status')] ?? '') === 'entwurf'
+        && zeitraeumeUeberlappen(vonDatum, bisDatum, parseDatum(r[h('Zeitraum-Von')]), parseDatum(r[h('Zeitraum-Bis')])));
+      if (konflikt)
+        return res.status(409).json({
+          error: `Für Partner "${partnerId}" gibt es schon den Entwurf ${konflikt[h('Abrechnungs-ID')]} `
+               + `(${konflikt[h('Zeitraum-Von')]}–${konflikt[h('Zeitraum-Bis')]}) mit überlappendem Zeitraum. `
+               + 'Erst freigeben oder verwerfen.',
+        });
+    }
+
     const lizenzSumme = offene.reduce((s, { row }) => s + toFloat(row[lizIdx]), 0);
 
     // Pro Verkauf: Kalkulationsdetail re-berechnen (für Anzeige im Detail-View).
@@ -602,11 +625,14 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
         };
       }
       return {
+        // rowIndex nur noch zur Information - Freigabe und Verwerfen ordnen
+        // ueber den Inhalt zu (B17, utils/abrechnung-zeilen.js).
         rowIndex,
         datum:       row[datIdx] ?? '',
         orderId:     row[ordIdx] ?? '',
         artikelname,
         variationId: row[varIdx] ?? '',
+        storno:      istStornoZeile(row, verkaufsSpalten(verkäufeTab.header)),
         stueckzahl:  toFloat(row[stkIdx]),
         vkBrutto,
         lizenz,
@@ -809,9 +835,49 @@ router.patch('/abrechnung/:id/status', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── Entwurf laden (Freigabe + Verwerfen) ─────────────────────────────────────
+// Liest die Abrechnungszeile frisch und prueft Status 'entwurf'. Liefert
+// Partner, Zeitraum und Positionen - oder { fehler: [status, body] }.
+function ladeEntwurf(abrechnungenTab, id) {
+  const aH = abrechnungenTab.header;
+  const K  = 'Abrechnungen';
+  const idx = {
+    id:      requireHeader(aH, 'Abrechnungs-ID', K),
+    partner: requireHeader(aH, 'Partner-ID',     K),
+    von:     requireHeader(aH, 'Zeitraum-Von',   K),
+    bis:     requireHeader(aH, 'Zeitraum-Bis',   K),
+    status:  requireHeader(aH, 'Status',         K),
+    pos:     requireHeader(aH, 'Positionen',     K),
+  };
+  const row = abrechnungenTab.rows.find(r => r[idx.id] === id);
+  if (!row) return { fehler: [404, { error: `Abrechnung "${id}" nicht gefunden.` }] };
+
+  const status = row[idx.status] ?? '';
+  if (status !== 'entwurf')
+    return { fehler: [400, { error: `Nur Entwürfe können freigegeben oder verworfen werden (aktueller Status: ${status}).` }] };
+
+  let positionen = null;
+  try { positionen = JSON.parse(row[idx.pos] ?? ''); } catch {}
+  if (!positionen)
+    return { fehler: [400, { error: 'Positionen-Daten fehlen oder sind ungültig.' }] };
+
+  const von = parseDatum(row[idx.von]);
+  const bis = parseDatum(row[idx.bis]);
+  if (!von || !bis)
+    return { fehler: [400, { error: `Zeitraum der Abrechnung ist nicht lesbar ("${row[idx.von]}"–"${row[idx.bis]}").` }] };
+
+  return { row, statusCol: idx.status, partnerId: row[idx.partner] ?? '', von, bis, positionen };
+}
+
 // ── POST /api/kalkulation/abrechnung/:id/freigeben ───────────────────────────
-// Setzt Entwurf auf 'freigegeben' und markiert alle zugehörigen Verkäufe +
-// Internen Bestellungen als 'abgerechnet' (rowIndices aus Positionen-JSON).
+// Setzt den Entwurf auf 'freigegeben' und markiert die zugehoerigen Verkaeufe
+// und internen Bestellungen als 'abgerechnet'.
+//
+// B17: nie ueber den gespeicherten rowIndex. Die Zeilen werden frisch gelesen,
+// ueber Partner + Zeitraum + Status 'offen' eingegrenzt und ueber den Inhalt
+// den Positionen des Entwurfs zugeordnet (Muster festpreis-portal.js). Fehlt
+// eine Position, wird nichts geschrieben: die Abrechnungssumme stimmt dann
+// nicht mehr mit dem Sheet ueberein.
 router.post('/abrechnung/:id/freigeben', async (req, res, next) => {
   try {
     const sheetId = process.env.BUSINESS_SHEET_ID;
@@ -825,46 +891,45 @@ router.post('/abrechnung/:id/freigeben', async (req, res, next) => {
       readTab(sheets, sheetId, 'Partner_Interne_Bestellungen'),
     ]);
 
-    const aH = abrechnungenTab.header;
-    const abIdIdx = aH.indexOf('Abrechnungs-ID');
-    const stIdx   = aH.indexOf('Status');
-    const posIdx  = aH.indexOf('Positionen');
-    const rowIdx  = abrechnungenTab.rows.findIndex(r => r[abIdIdx] === req.params.id);
-    if (rowIdx === -1)
-      return res.status(404).json({ error: `Abrechnung "${req.params.id}" nicht gefunden.` });
+    const entwurf = ladeEntwurf(abrechnungenTab, req.params.id);
+    if (entwurf.fehler) return res.status(entwurf.fehler[0]).json(entwurf.fehler[1]);
+    const { partnerId, von, bis, positionen } = entwurf;
 
-    const row = abrechnungenTab.rows[rowIdx];
-    if ((row[stIdx] ?? '') !== 'entwurf')
-      return res.status(400).json({ error: `Nur Entwürfe können freigegeben werden (aktueller Status: ${row[stIdx]}).` });
+    const offen = s => s === 'offen';
+    const v = verkaufsZeilenDerAbrechnung({
+      header: verkäufeTab.header, rows: verkäufeTab.rows,
+      partnerId, von, bis, positionen: positionen.verkaeufe || [], statusPasst: offen,
+    });
+    const i = interneZeilenDerAbrechnung({
+      header: internTab.header, rows: internTab.rows,
+      partnerId, von, bis, positionen: positionen.intern || [], statusPasst: offen,
+    });
 
-    let positionen = null;
-    try { positionen = JSON.parse(row[posIdx] ?? ''); } catch {}
-    if (!positionen)
-      return res.status(400).json({ error: 'Positionen-Daten fehlen oder sind ungültig.' });
+    if (v.fehlend.length || i.fehlend.length) {
+      return res.status(409).json({
+        error: `${v.fehlend.length + i.fehlend.length} Position(en) des Entwurfs sind nicht mehr als offene Zeile `
+             + 'im Sheet zu finden (gelöscht, geändert oder schon abgerechnet). Nichts markiert – '
+             + 'Entwurf verwerfen und neu erstellen.',
+        fehlendVerkaeufe: v.fehlend.map(p => ({ datum: p.datum, orderId: p.orderId, artikelname: p.artikelname, variationId: p.variationId })),
+        fehlendIntern:    i.fehlend.map(p => ({ datum: p.datum, bezeichnung: p.bezeichnung, summe: p.summe })),
+      });
+    }
 
-    // Markiere Verkäufe + Interne als 'abgerechnet'
-    const vStCol = colLetter(verkäufeTab.header.indexOf('Status'));
-    const iStCol = colLetter(internTab.header.indexOf('Status'));
-    const markRequests = [
-      ...(positionen.verkaeufe || []).map(p => ({
-        range: `${shopCfg.tabVerkaeufe}!${vStCol}${p.rowIndex}`,
-        majorDimension: 'ROWS', values: [['abgerechnet']],
-      })),
-      ...(positionen.intern || []).map(p => ({
-        range: `Partner_Interne_Bestellungen!${iStCol}${p.rowIndex}`,
-        majorDimension: 'ROWS', values: [['abgerechnet']],
-      })),
-    ];
-
-    // Status der Abrechnung + Markierungen in einem batch
-    const stColLetter = colLetter(stIdx);
-    const sheetRow    = abrechnungenTab.rows[rowIdx]._sheetRow;
+    const vStCol = colLetter(v.spalten.status);
+    const iStCol = colLetter(i.spalten.status);
     const allRequests = [
       {
-        range: `${shopCfg.tabAbrechnungen}!${stColLetter}${sheetRow}`,
+        range: `${shopCfg.tabAbrechnungen}!${colLetter(entwurf.statusCol)}${entwurf.row._sheetRow}`,
         majorDimension: 'ROWS', values: [['freigegeben']],
       },
-      ...markRequests,
+      ...v.treffer.map(r => ({
+        range: `${shopCfg.tabVerkaeufe}!${vStCol}${r._sheetRow}`,
+        majorDimension: 'ROWS', values: [['abgerechnet']],
+      })),
+      ...i.treffer.map(r => ({
+        range: `Partner_Interne_Bestellungen!${iStCol}${r._sheetRow}`,
+        majorDimension: 'ROWS', values: [['abgerechnet']],
+      })),
     ];
 
     await sheets.spreadsheets.values.batchUpdate({
@@ -875,33 +940,57 @@ router.post('/abrechnung/:id/freigeben', async (req, res, next) => {
     res.json({
       abrechnungId:    req.params.id,
       status:          'freigegeben',
-      anzahlVerkäufe:  (positionen.verkaeufe || []).length,
-      anzahlInterne:   (positionen.intern || []).length,
+      anzahlVerkäufe:  v.treffer.length,
+      anzahlInterne:   i.treffer.length,
     });
   } catch (err) { next(err); }
 });
 
 // ── DELETE /api/kalkulation/abrechnung/:id ───────────────────────────────────
-// Verwirft einen Entwurf. Löscht die Zeile aus Partner_Abrechnungen.
-// Berührt KEINE Verkäufe oder interne Bestellungen (waren nie auf 'abgerechnet').
+// Verwirft einen Entwurf: setzt die zugehoerigen Verkaeufe und internen
+// Bestellungen, die nicht (mehr) offen sind, zurueck auf 'offen' und loescht
+// die Zeile aus den Abrechnungen. Zuordnung wie bei der Freigabe ueber
+// Partner + Zeitraum + Inhalt, nie ueber den gespeicherten rowIndex.
+// Im Normalfall ist nichts zurueckzusetzen - ein Entwurf markiert nichts.
 router.delete('/abrechnung/:id', async (req, res, next) => {
   try {
     const sheetId = process.env.BUSINESS_SHEET_ID;
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
 
     const sheets = await getSheets();
-    const tabAbrechnungen = getShopConfig(req.query.shop).tabAbrechnungen;
-    const { header, rows } = await readTab(sheets, sheetId, tabAbrechnungen);
+    const shopCfg = getShopConfig(req.query.shop);
+    const tabAbrechnungen = shopCfg.tabAbrechnungen;
+    const [abrechnungenTab, verkäufeTab, internTab] = await Promise.all([
+      readTab(sheets, sheetId, tabAbrechnungen),
+      readTab(sheets, sheetId, shopCfg.tabVerkaeufe),
+      readTab(sheets, sheetId, 'Partner_Interne_Bestellungen'),
+    ]);
 
-    const abIdIdx = header.indexOf('Abrechnungs-ID');
-    const stIdx   = header.indexOf('Status');
-    const rowIdx  = rows.findIndex(r => r[abIdIdx] === req.params.id);
-    if (rowIdx === -1)
-      return res.status(404).json({ error: `Abrechnung "${req.params.id}" nicht gefunden.` });
+    const entwurf = ladeEntwurf(abrechnungenTab, req.params.id);
+    if (entwurf.fehler) return res.status(entwurf.fehler[0]).json(entwurf.fehler[1]);
+    const { partnerId, von, bis, positionen } = entwurf;
+    const rows = abrechnungenTab.rows;
+    const rowIdx = rows.indexOf(entwurf.row);
 
-    const status = rows[rowIdx][stIdx] ?? '';
-    if (status !== 'entwurf')
-      return res.status(400).json({ error: `Nur Entwürfe können verworfen werden (aktueller Status: ${status}).` });
+    const nichtOffen = s => s === 'abgerechnet';
+    const v = verkaufsZeilenDerAbrechnung({
+      header: verkäufeTab.header, rows: verkäufeTab.rows,
+      partnerId, von, bis, positionen: positionen.verkaeufe || [], statusPasst: nichtOffen,
+    });
+    const i = interneZeilenDerAbrechnung({
+      header: internTab.header, rows: internTab.rows,
+      partnerId, von, bis, positionen: positionen.intern || [], statusPasst: nichtOffen,
+    });
+    const resets = [
+      ...v.treffer.map(r => ({ range: `${shopCfg.tabVerkaeufe}!${colLetter(v.spalten.status)}${r._sheetRow}`, values: [['offen']] })),
+      ...i.treffer.map(r => ({ range: `Partner_Interne_Bestellungen!${colLetter(i.spalten.status)}${r._sheetRow}`, values: [['offen']] })),
+    ];
+    if (resets.length) {
+      await sheets.spreadsheets.values.batchUpdate({
+        spreadsheetId: sheetId,
+        requestBody: { valueInputOption: 'RAW', data: resets },
+      });
+    }
 
     // sheetId (numerisch) für deleteDimension holen
     const meta = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: 'sheets.properties' });
@@ -926,7 +1015,7 @@ router.delete('/abrechnung/:id', async (req, res, next) => {
       },
     });
 
-    res.json({ abrechnungId: req.params.id, deleted: true });
+    res.json({ abrechnungId: req.params.id, deleted: true, zurueckgesetzt: resets.length });
   } catch (err) { next(err); }
 });
 

@@ -7036,14 +7036,23 @@
       async function abrFreigeben(id, btn) {
         const confirmed = await window.showConfirm(
           'Abrechnung freigeben?',
-          `<strong>${id}</strong>: alle Verkäufe und interne Bestellungen werden auf <strong>abgerechnet</strong> gesetzt.`,
+          `<strong>${id}</strong>: die Verkäufe und internen Bestellungen dieses Entwurfs werden auf <strong>abgerechnet</strong> gesetzt. Das Sheet wird dafür frisch gelesen – fehlt eine Position, wird nichts markiert.`,
           'Freigeben'
         );
         if (!confirmed) return;
         btn.disabled = true; btn.textContent = '...';
         try {
           const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/abrechnung/${id}/freigeben`, { method: 'POST' });
-          if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
+          if (!r.ok) {
+            const body = await r.json().catch(() => ({}));
+            // 409: Positionen des Entwurfs fehlen im Sheet – die ersten nennen.
+            const fehlend = [
+              ...(body.fehlendVerkaeufe || []).map(p => `${p.datum} #${p.orderId} ${p.artikelname}`),
+              ...(body.fehlendIntern || []).map(p => `${p.datum} ${p.bezeichnung}`),
+            ];
+            const liste = fehlend.length ? ` Fehlend: ${fehlend.slice(0, 3).join('; ')}${fehlend.length > 3 ? ' …' : ''}` : '';
+            throw new Error((body.error ?? r.statusText) + liste);
+          }
           window.showToast(`Abrechnung ${id} freigegeben.`);
           loadAbrechnungenTable();
         } catch (e) {
@@ -7055,7 +7064,7 @@
       async function abrVerwerfen(id, btn) {
         const confirmed = await window.showConfirm(
           'Entwurf verwerfen?',
-          `<strong>${id}</strong> wird gelöscht. Verkäufe und interne Bestellungen bleiben offen.`,
+          `<strong>${id}</strong> wird gelöscht. Verkäufe und interne Bestellungen dieses Entwurfs sind danach offen.`,
           'Verwerfen'
         );
         if (!confirmed) return;
