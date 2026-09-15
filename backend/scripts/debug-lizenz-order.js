@@ -1,28 +1,32 @@
+// Lizenz-Berechnungsweg einer Order nachvollziehen.
+//
+// Verwendung:
+//   node backend/scripts/debug-lizenz-order.js <ORDER_ID> [--shop=honk] [--show-partner] [--raw-wc]
+//
+// Stehen zur Order Zeilen im Verkaeufe-Reiter, wird je Zeile nachgerechnet und
+// mit dem gespeicherten Wert verglichen. Stehen keine da (z.B. nach dem
+// Loeschen fuer einen Neu-Sync), rechnet das Skript je WC-Position so, wie der
+// Sync sie schreiben wuerde: Stückzahl, Wertanteil, Lizenzsatz aus dem
+// Partner-Reiter, EK/Druck aus Partner_Artikel bzw. HK_Partner_Artikel.
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import dotenv from 'dotenv';
 dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.env') });
 import { google } from 'googleapis';
-import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
 import { getGoogleAuth } from '../lib/googleAuth.js';
-import { berechnePartnerAnteil, parseKonfiguration } from '../utils/partner-kalkulation.js';
+import { getWcClient, getShopConfig } from '../lib/shopConfig.js';
+import {
+  berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze, lizenzSatzAusZeile,
+} from '../utils/partner-kalkulation.js';
 
 const SHEET_ID     = process.env.BUSINESS_SHEET_ID;
 const ORDER_ID     = process.argv[2] || '17263';
 const SHOW_PARTNER = process.argv.includes('--show-partner');
 const RAW_WC       = process.argv.includes('--raw-wc');
-
-function getWcClient() {
-  if (!process.env.WC_URL || !process.env.WC_KEY || !process.env.WC_SECRET)
-    throw new Error('WooCommerce-Zugangsdaten fehlen (WC_URL, WC_KEY, WC_SECRET).');
-  return new WooCommerceRestApi.default({
-    url: process.env.WC_URL, consumerKey: process.env.WC_KEY,
-    consumerSecret: process.env.WC_SECRET, version: 'wc/v3', queryStringAuth: false,
-  });
-}
+const SHOP         = process.argv.find(a => a.startsWith('--shop='))?.slice(7) ?? 'jfn';
 
 async function runRawWc() {
-  const wc = getWcClient();
+  const wc = getWcClient(SHOP);
   const { data: order } = await wc.get(`orders/${ORDER_ID}`);
 
   const sep = '─'.repeat(62);
@@ -101,178 +105,209 @@ function fmt(n) {
 }
 
 function line(label, value, prefix = '') {
-  console.log(`  ${prefix}${label.padEnd(30)} ${fmt(value)}`);
+  console.log(`  ${prefix}${label.padEnd(34)} ${fmt(value)}`);
 }
 
+function zeigeFixkosten(konfig, versandart) {
+  const vnkKey   = versandart === 'B' ? 'versandnebenkostenB' : 'versandnebenkostenP';
+  const portoKey = versandart === 'B' ? 'portoB' : 'portoP';
+  console.log(' Verwendete Fixkosten:');
+  console.log(`   MwSt:                  ${konfig.mwstProzent}%`);
+  console.log(`   Herstellungsnebenk.:   ${fmt(konfig.herstellungsnebenkosten)} je Stück`);
+  console.log(`   Versandnebenkosten ${versandart}: ${fmt(konfig[vnkKey])} je Bestellung`);
+  console.log(`   PayPal Prozent:        ${konfig.paypalProzent}%`);
+  console.log(`   PayPal Pauschale:      ${fmt(konfig.paypalPauschale)} je Bestellung`);
+  console.log(`   Porto ${versandart}:           ${fmt(konfig[portoKey])} je Bestellung`);
+  console.log('');
+}
+
+// Rechenweg einer Position, wie der Sync sie schreibt.
+function zeigeRechenweg({ vkNetto, stueckzahl, ekPreis, druckkosten, versandart, anteil,
+                          portoEinnahmeAnteil, portoModell, lizenzProzent, konfig }) {
+  const calc = berechnePartnerAnteil({
+    vkNetto, ekPreis, druckkosten, versandart, portoModell,
+    bestellungsAnteil: anteil, stueckzahl, lizenzProzent, portoEinnahmeAnteil, konfiguration: konfig,
+  });
+  const vnkKey   = versandart === 'B' ? 'versandnebenkostenB' : 'versandnebenkostenP';
+  const portoKey = versandart === 'B' ? 'portoB' : 'portoP';
+
+  line('VK netto (item.total):', vkNetto);
+  line(`− EK ${fmt(ekPreis)} × ${stueckzahl}:`, ekPreis * stueckzahl);
+  line(`− Druck ${fmt(druckkosten)} × ${stueckzahl}:`, druckkosten * stueckzahl);
+  line(`− HNK ${fmt(konfig.herstellungsnebenkosten)} × ${stueckzahl}:`, konfig.herstellungsnebenkosten * stueckzahl);
+  line('= Herstellungspreis:', calc.herstellungspreis);
+  line(`− Versand-NK ${versandart} × ${(anteil * 100).toFixed(1)} %:`, calc.versandnebenkosten);
+  line(`− PayPal (${konfig.paypalProzent} % v. brutto + Pauschale × Anteil):`, calc.paypalKosten);
+  line('= Gewinn netto:', calc.gewinnNetto);
+  line(`× Lizenz ${lizenzProzent} %:`, calc.gewinnNetto * lizenzProzent / 100);
+  line(`  Porto-Einnahme × Anteil:`, portoEinnahmeAnteil);
+  line(`  Porto-Kosten ${versandart} × Anteil:`, -(konfig[portoKey] * anteil));
+  line(`+ Porto-Saldo (${portoModell}):`, calc.portoSaldoPartner);
+  line('= PARTNER-ANTEIL netto:', calc.netto);
+  line(`  brutto (+${konfig.mwstProzent} % MwSt):`, calc.brutto);
+  void vnkKey;
+  return calc;
+}
+
+// ── Keine Sheet-Zeilen: je WC-Position rechnen ───────────────────────────────
+async function runAusWc({ artikelTab, hkArtikelTab, partnerTab, konfig }) {
+  const { data: order } = await getWcClient(SHOP).get(`orders/${ORDER_ID}`);
+  const lizenzSatz = baueLizenzSaetze(partnerTab.header, partnerTab.rows);
+  const ph = col => partnerTab.header.indexOf(col);
+  const portoModellVon = id => partnerTab.rows.find(r => r[ph('Partner-ID')] === id)?.[ph('Porto-Modell')] ?? 'geteilt-50-50';
+
+  // Artikel-Lookup je Produkt-ID → [{ partnerId, ekPreis, druckkosten, versandart }]
+  const lookup = new Map();
+  if (SHOP === 'honk') {
+    const honk = partnerTab.rows.find(r => String(r[ph('Shop')] ?? '').trim().toLowerCase() === 'honk'
+                                        && String(r[ph('Aktiv')] ?? '').trim().toLowerCase() === 'ja');
+    const ah = col => hkArtikelTab.header.indexOf(col);
+    for (const r of hkArtikelTab.rows) {
+      const pid = String(r[ah('Produkt-ID')] ?? '').trim();
+      if (pid && !lookup.has(pid)) lookup.set(pid, [{
+        partnerId: honk?.[ph('Partner-ID')] ?? '?', ekPreis: toFloat(r[ah('EK-Preis-Netto')]),
+        druckkosten: toFloat(r[ah('Druckkosten')]),
+        versandart: String(r[ah('Versandart')] ?? 'P').toUpperCase() === 'B' ? 'B' : 'P',
+      }]);
+    }
+  } else {
+    const ah = col => artikelTab.header.indexOf(col);
+    for (const r of artikelTab.rows) {
+      const pid = String(r[ah('Produkt-ID')] ?? '').trim();
+      const partnerId = r[ah('Partner-ID')] ?? '';
+      if (!pid || !partnerId) continue;
+      if (!lookup.has(pid)) lookup.set(pid, []);
+      lookup.get(pid).push({
+        partnerId, ekPreis: toFloat(r[ah('EK-Preis-Netto')]), druckkosten: toFloat(r[ah('Druckkosten')]),
+        versandart: String(r[ah('Versandart')] ?? 'P').toUpperCase() === 'B' ? 'B' : 'P',
+      });
+    }
+  }
+
+  const orderNetto    = order.line_items.reduce((s, i) => s + toFloat(i.total), 0);
+  const shippingNetto = toFloat(order.shipping_total);
+  const bekannte      = order.line_items.flatMap(i => lookup.get(String(i.product_id)) ?? []);
+  const versandart    = SHOP === 'honk'
+    ? (bekannte.length && bekannte.every(e => e.versandart === 'B') ? 'B' : 'P')
+    : (bekannte.some(e => e.versandart === 'P') ? 'P' : 'B');
+
+  console.log(`\n${'═'.repeat(62)}`);
+  console.log(` Lizenz-Berechnung aus WC  ·  Order ${order.id}  ·  ${getShopConfig(SHOP).label}`);
+  console.log(` Status ${order.status}  ·  Order netto ${fmt(orderNetto)}  ·  Versand netto ${fmt(shippingNetto)}`);
+  console.log(` (keine Zeilen in ${getShopConfig(SHOP).tabVerkaeufe} – so würde der Sync schreiben)`);
+  console.log(`${'═'.repeat(62)}\n`);
+
+  let summe = 0;
+  const tabelle = [];
+  for (const [idx, item] of order.line_items.entries()) {
+    const entries = lookup.get(String(item.product_id));
+    console.log(`── Position ${idx + 1} / ${order.line_items.length}: ${item.name}  (Variation ${item.variation_id || 0})`);
+    if (!entries) {
+      console.log(`  ⚠ Produkt-ID ${item.product_id} nicht im Artikel-Reiter – Sync überspringt.\n`);
+      continue;
+    }
+    const vkNetto = toFloat(item.total);
+    const anteil  = orderNetto > 0 ? vkNetto / orderNetto : 0;
+    for (const e of entries) {
+      const lizenzProzent = lizenzSatz(e.partnerId);
+      console.log(`  Partner ${e.partnerId}  ·  Stück ${item.quantity}  ·  Anteil ${(anteil * 100).toFixed(2)} %  ·  Lizenz ${lizenzProzent} % (Partner-Reiter)`);
+      const calc = zeigeRechenweg({
+        vkNetto, stueckzahl: item.quantity, ekPreis: e.ekPreis, druckkosten: e.druckkosten, versandart,
+        anteil, portoEinnahmeAnteil: shippingNetto * anteil, portoModell: portoModellVon(e.partnerId),
+        lizenzProzent, konfig,
+      });
+      summe += calc.netto;
+      tabelle.push({ pos: idx + 1, stueck: item.quantity, vk: vkNetto, gewinn: calc.gewinnNetto, netto: calc.netto });
+      console.log('');
+    }
+  }
+
+  console.log(`${'─'.repeat(62)}`);
+  console.log('  Pos  Stück   VK netto     Gewinn    Partner netto');
+  for (const t of tabelle)
+    console.log(`  ${String(t.pos).padStart(3)}  ${String(t.stueck).padStart(5)}  ${fmt(t.vk).padStart(10)} ${fmt(t.gewinn).padStart(10)}  ${fmt(t.netto).padStart(12)}`);
+  line('Summe Partner-Anteil netto:', Math.round(summe * 100) / 100);
+  console.log('');
+  zeigeFixkosten(konfig, versandart);
+}
+
+// ── Sheet-Zeilen vorhanden: je Zeile nachrechnen ─────────────────────────────
 async function run() {
   const auth   = await getGoogleAuth();
   const sheets = google.sheets({ version: 'v4', auth });
+  const shopCfg = getShopConfig(SHOP);
 
-  const [verkäufeTab, artikelTab, fixkostenTab, partnerTab] = await Promise.all([
-    readTab(sheets, 'Partner_Verkäufe'),
+  const [verkäufeTab, artikelTab, hkArtikelTab, fixkostenTab, partnerTab] = await Promise.all([
+    readTab(sheets, shopCfg.tabVerkaeufe),
     readTab(sheets, 'Partner_Artikel'),
+    SHOP === 'honk' ? readTab(sheets, 'HK_Partner_Artikel') : Promise.resolve({ header: [], rows: [] }),
     readTab(sheets, 'Kalkulation_Fixkosten'),
     readTab(sheets, 'Partner'),
   ]);
+  const konfig = parseKonfiguration(fixkostenTab.rows, fixkostenTab.header);
 
-  // ── Verkauf finden ────────────────────────────────────────────────────────
   const vh = col => verkäufeTab.header.indexOf(col);
   const verkaufRows = verkäufeTab.rows.filter(r => (r[vh('Order-ID')] ?? '') === ORDER_ID);
 
   if (!verkaufRows.length) {
-    console.error(`Keine Zeilen für Order-ID "${ORDER_ID}" gefunden.`);
-    process.exit(1);
+    return runAusWc({ artikelTab, hkArtikelTab, partnerTab, konfig });
   }
 
   console.log(`\n${'═'.repeat(62)}`);
-  console.log(` Lizenz-Berechnungsweg  ·  Order-ID: ${ORDER_ID}`);
+  console.log(` Lizenz-Berechnungsweg  ·  Order-ID: ${ORDER_ID}  ·  ${shopCfg.tabVerkaeufe}`);
   console.log(`${'═'.repeat(62)}\n`);
+
+  const lizenzSatz = baueLizenzSaetze(partnerTab.header, partnerTab.rows);
+  const ph = col => partnerTab.header.indexOf(col);
 
   for (const [idx, vRow] of verkaufRows.entries()) {
     const partnerId   = vRow[vh('Partner-ID')]      ?? '';
-    const datum       = vRow[vh('Datum')]            ?? '';
     const artikelname = vRow[vh('Artikelnummer')]    ?? '';
-    const variante    = vRow[vh('Variante')]         ?? '';
     const stueckzahl  = parseInt(vRow[vh('Stückzahl')] ?? '1', 10);
     const vkNetto     = toFloat(vRow[vh('VK-Preis-Brutto')]); // WC item.total ist netto
     const lizenzSheet = toFloat(vRow[vh('Lizenzgebühr')]);
-    const status      = vRow[vh('Status')]           ?? '';
+    const satzZeile   = lizenzSatzAusZeile(vRow[vh('Gewinn-netto')], vRow[vh('Lizenz-Anteil')]);
 
     if (verkaufRows.length > 1)
-      console.log(`── Artikel ${idx + 1} / ${verkaufRows.length} ─────────────────────────────────────`);
+      console.log(`── Zeile ${idx + 1} / ${verkaufRows.length} ─────────────────────────────────────`);
+    console.log(` Partner-ID:  ${partnerId}  ·  Datum ${vRow[vh('Datum')] ?? ''}  ·  Status ${vRow[vh('Status')] ?? ''}`);
+    console.log(` Artikel:     ${artikelname}  ·  Stückzahl ${stueckzahl}`);
 
-    console.log(` Partner-ID:  ${partnerId}`);
-    console.log(` Datum:       ${datum}`);
-    console.log(` Artikelname: ${artikelname}${variante ? '  ·  Variante: ' + variante : ''}`);
-    console.log(` Stückzahl:   ${stueckzahl}`);
-    console.log(` Status:      ${status}`);
-    console.log('');
-
-    // ── Partner-Daten ───────────────────────────────────────────────────────
-    const ph    = col => partnerTab.header.indexOf(col);
-    const pRow  = partnerTab.rows.find(r => (r[ph('Partner-ID')] ?? '') === partnerId);
-    const lizenzProzent = pRow ? toFloat(pRow[ph('Lizenz-%')]) : 0;
-    const portoModell   = pRow ? (pRow[ph('Porto-Modell')] ?? 'geteilt-50-50') : 'geteilt-50-50';
-    const partnerName   = pRow ? (pRow[ph('Name')] ?? partnerId) : partnerId;
-
-    console.log(` Partner:     ${partnerName}  |  Lizenz: ${lizenzProzent}%  |  Porto-Modell: ${portoModell}`);
-
+    const pRow = partnerTab.rows.find(r => (r[ph('Partner-ID')] ?? '') === partnerId);
+    const portoModell = pRow ? (pRow[ph('Porto-Modell')] ?? 'geteilt-50-50') : 'geteilt-50-50';
+    const lizenzProzent = lizenzSatz(partnerId);
+    console.log(` Satz:        Partner-Reiter ${lizenzProzent} %  ·  in der Zeile gespeichert ${satzZeile ?? '–'} %`);
     if (SHOW_PARTNER && pRow) {
-      console.log('');
-      console.log(' ┌─ Partner-Zeile (alle Spalten) ───────────────────────────');
-      partnerTab.header.forEach((col, i) => {
-        const val = pRow[i] ?? '(leer)';
-        console.log(` │  ${col.padEnd(22)} ${val}`);
-      });
-      console.log(' └──────────────────────────────────────────────────────────');
-    } else if (SHOW_PARTNER && !pRow) {
-      console.log(' ⚠  Kein Partner-Eintrag für ID "' + partnerId + '" gefunden.');
+      partnerTab.header.forEach((col, i) => console.log(`   ${col.padEnd(22)} ${pRow[i] ?? '(leer)'}`));
+    }
+
+    const produktId = String(vRow[vh('Produkt-ID')] ?? '');
+    let ekPreis = 0, druckkosten = 0, versandart = 'P';
+    if (SHOP === 'honk') {
+      const ah = col => hkArtikelTab.header.indexOf(col);
+      const a = hkArtikelTab.rows.find(r => String(r[ah('Produkt-ID')] ?? '') === produktId);
+      if (a) { ekPreis = toFloat(a[ah('EK-Preis-Netto')]); druckkosten = toFloat(a[ah('Druckkosten')]); versandart = String(a[ah('Versandart')] ?? 'P').toUpperCase() === 'B' ? 'B' : 'P'; }
+      else console.log(` ⚠  Produkt-ID ${produktId} nicht in HK_Partner_Artikel → EK/Druck = 0`);
+    } else {
+      const ah = col => artikelTab.header.indexOf(col);
+      const a = artikelTab.rows.find(r => (r[ah('Partner-ID')] ?? '') === partnerId && String(r[ah('Produkt-ID')] ?? '') === produktId);
+      if (a) { ekPreis = toFloat(a[ah('EK-Preis-Netto')]); druckkosten = toFloat(a[ah('Druckkosten')]); versandart = String(a[ah('Versandart')] ?? 'P').toUpperCase() === 'B' ? 'B' : 'P'; }
+      else console.log(` ⚠  Produkt-ID ${produktId} nicht in Partner_Artikel → EK/Druck = 0`);
     }
     console.log('');
-
-    // ── Artikel-Daten (Lookup: Partner-ID + Produkt-ID, mit Fallback) ────────
-    const ah  = col => artikelTab.header.indexOf(col);
-    const produktId = vRow[vh('Produkt-ID')] ?? '';  // Produkt-ID aus synced row (neu)
-
-    let aRow = null;
-    let matchMethod = '';
-
-    // Primäre Methode: Produkt-ID (neu)
-    if (produktId) {
-      aRow = artikelTab.rows.find(r =>
-        (r[ah('Partner-ID')] ?? '') === partnerId &&
-        (r[ah('Produkt-ID')] ?? '') === produktId
-      );
-      matchMethod = `Prod-ID ${produktId}`;
-    }
-
-    // Fallback: Artikelname (alt, ignoriert Varianten-Suffix wie "-XL", "-M", etc.)
-    if (!aRow) {
-      // Entferne Varianten-Suffix (z.B. " - XL", " - L", " - M", etc.)
-      const baseArtikelname = artikelname.replace(/\s*-\s*[A-Z0-9]+\s*$/, '').trim();
-      aRow = artikelTab.rows.find(r => {
-        const sheetArtikel = r[ah('Artikelname')] ?? '';
-        return (r[ah('Partner-ID')] ?? '') === partnerId &&
-               (sheetArtikel === baseArtikelname || sheetArtikel === artikelname || artikelname.startsWith(sheetArtikel));
-      });
-      matchMethod = `Artikelname "${baseArtikelname}"`;
-    }
-
-    const ekPreis      = aRow ? toFloat(aRow[ah('EK-Preis-Netto')]) : 0;
-    const druckkosten  = aRow ? toFloat(aRow[ah('Druckkosten')])     : 0;
-    const versandart   = aRow ? ((aRow[ah('Versandart')] ?? 'P').toString().toUpperCase() === 'B' ? 'B' : 'P') : 'P';
-    const matchedArtikelname = aRow ? (aRow[ah('Artikelname')] ?? '–') : '–';
-
-    if (!aRow) console.log(` ⚠  Kein Eintrag in Partner_Artikel (${matchMethod}) → EK/Druck = 0\n`);
-    else console.log(` ℹ  Match (${matchMethod}): ${matchedArtikelname}, EK ${fmt(ekPreis)}, Druck ${fmt(druckkosten)}\n`);
-
-    // ── Konfiguration ───────────────────────────────────────────────────────
-    const konfig = parseKonfiguration(fixkostenTab.rows, fixkostenTab.header);
-
-    // ── Berechnung ──────────────────────────────────────────────────────────
-    const calc = berechnePartnerAnteil({
-      vkNetto, ekPreis, druckkosten, versandart,
-      portoModell, anzahlArtikelInBestellung: 1, bestellungsAnteil: 1, stueckzahl,
-      lizenzProzent, portoEinnahmeAnteil: 0, konfiguration: konfig,
+    console.log(' KALKULATION (Anteil = 1, ohne Porto-Einnahme – Anteil/Porto der Order kennt die Zeile nicht)\n');
+    const calc = zeigeRechenweg({
+      vkNetto, stueckzahl, ekPreis, druckkosten, versandart, anteil: 1,
+      portoEinnahmeAnteil: 0, portoModell, lizenzProzent, konfig,
     });
-
-    console.log(`${'─'.repeat(62)}`);
-    console.log(' KALKULATION (bestellungsAnteil = 1, kein Porto-Einnahme-Anteil)\n');
-
-    line('VK Netto (aus WC item.total):', vkNetto);
     console.log('');
-    line('− EK-Preis (netto):',       ekPreis,     '');
-    line('− Druckkosten:',            druckkosten, '');
-    line('− Herstellungsnebenkosten:',konfig.herstellungsnebenkosten, '');
-    line(`= Herstellungspreis:`,      calc.herstellungspreis, '');
-    console.log('');
-    const vnkKey = versandart === 'B' ? 'versandnebenkostenB' : 'versandnebenkostenP';
-    line(`− Versandnebenkosten (${versandart}):`, konfig[vnkKey], '');
-    console.log('');
-    const paypalProzent  = konfig.paypalProzent;
-    const paypalPauschale = konfig.paypalPauschale;
-    line(`− PayPal (${vkNetto}×${paypalProzent}% + ${fmt(paypalPauschale)}):`, calc.paypalKosten, '');
-    console.log('');
-    line('= Gewinn netto:',            calc.gewinnNetto);
-    line(`× Lizenz ${lizenzProzent}%:`, calc.gewinnNetto * lizenzProzent / 100);
-    console.log('');
-
-    const portoKey   = versandart === 'B' ? 'portoB' : 'portoP';
-    const portoKosten = konfig[portoKey];
-    line(`  Porto-Kosten (${versandart}, Anteil 1):`, -portoKosten);
-    line('  Porto-Einnahme (kein WC-Sync-Wert):',     0);
-    if (portoModell === 'geteilt-50-50') {
-      line('  Porto-Saldo ÷ 2 (geteilt-50-50):', calc.portoSaldoPartner);
-    } else {
-      line('  Porto-Saldo 100% (partner-trägt):', calc.portoSaldoPartner);
-    }
-    console.log('');
-    line('= PARTNER-ANTEIL netto:',      calc.netto);
-    line(`  × (1 + ${konfig.mwstProzent}% MwSt) brutto:`, calc.brutto);
-    console.log('');
-    console.log(`${'─'.repeat(62)}`);
-    line(' Sheet-Lizenzgebühr (gespeichert):', lizenzSheet);
-    if (stueckzahl > 1) {
-      line(` × ${stueckzahl} Stück (Sheet speichert Gesamtwert):`, lizenzSheet * stueckzahl);
-    }
-    console.log('');
-
+    line('Sheet-Lizenzgebühr (gespeichert):', lizenzSheet);
     const diff = Math.abs(calc.partnerAnteil - lizenzSheet);
-    if (diff < 0.02) {
-      console.log(' ✓  Berechneter Wert stimmt mit Sheet-Wert überein.');
-    } else {
-      console.log(` ⚠  Abweichung: ${fmt(diff)} (Ursache: anderer Porto-Anteil beim Sync, abweichende EK-Daten oder Stückzahl-Splitting)`);
-    }
+    console.log(diff < 0.02
+      ? ' ✓  Berechneter Wert stimmt mit Sheet-Wert überein.'
+      : ` ⚠  Abweichung: ${fmt(diff)} (Wertanteil/Porto der Order, anderer Satz beim Sync oder alte Rechnung ohne × Stückzahl)`);
     console.log('');
-
-    console.log(' Verwendete Fixkosten:');
-    console.log(`   MwSt:                  ${konfig.mwstProzent}%`);
-    console.log(`   Herstellungsnebenk.:   ${fmt(konfig.herstellungsnebenkosten)}`);
-    console.log(`   Versandnebenkosten ${versandart}: ${fmt(konfig[vnkKey])}`);
-    console.log(`   PayPal Prozent:        ${konfig.paypalProzent}%`);
-    console.log(`   PayPal Pauschale:      ${fmt(konfig.paypalPauschale)}`);
-    console.log(`   Porto ${versandart}:           ${fmt(konfig[portoKey])}`);
-    console.log('');
+    zeigeFixkosten(konfig, versandart);
   }
 
   console.log(`${'═'.repeat(62)}\n`);
