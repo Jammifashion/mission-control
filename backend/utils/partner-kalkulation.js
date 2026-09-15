@@ -175,6 +175,46 @@ export function parseKonfiguration(rows, header, datum = new Date()) {
   return result;
 }
 
+// ── Lizenzsatz (B16) ────────────────────────────────────────────────────────
+//
+// Der Satz gilt je Partner und steht im Partner-Reiter. Partner_Artikel hat
+// ebenfalls eine Spalte Lizenz-% - die wurde beim Import einmal aus dem Partner
+// kopiert und danach nie nachgezogen. Sie lief deshalb auseinander (50 % im
+// Artikel, 40 % beim Partner) und der Sync rechnete mit dem veralteten Wert.
+// Partner_Artikel.Lizenz-% wird nicht mehr gelesen.
+//
+// Ein fehlender Satz ist ein Fehler, keine 0: toFloat('') ergab frueher 0 %,
+// der Partner bekam dann nur seinen Porto-Saldo, mit HTTP 200.
+export function baueLizenzSaetze(header, rows) {
+  const idIdx  = requireHeader(header, 'Partner-ID', 'Partner');
+  const lizIdx = requireHeader(header, 'Lizenz-%',   'Partner');
+  const roh = new Map();
+  for (const r of rows ?? []) {
+    const id = String(r[idIdx] ?? '').trim();
+    if (id) roh.set(id, r[lizIdx]);
+  }
+
+  return function lizenzSatz(partnerId) {
+    const id = String(partnerId ?? '').trim();
+    if (!roh.has(id)) {
+      throw Object.assign(
+        new Error(`Lizenzsatz fehlt: Partner ${id || '(leer)'} steht nicht im Partner-Reiter.`),
+        { status: 500 },
+      );
+    }
+    const s = String(roh.get(id) ?? '').trim().replace('%', '').trim().replace(',', '.');
+    const n = s === '' ? NaN : Number(s);
+    if (!Number.isFinite(n) || n < 0 || n > 100) {
+      throw Object.assign(
+        new Error(`Lizenzsatz fehlt oder ist ungueltig für Partner ${id}: `
+                + `Lizenz-% im Partner-Reiter ist "${roh.get(id) ?? ''}".`),
+        { status: 500 },
+      );
+    }
+    return n;
+  };
+}
+
 function round2(n) { return Math.round(n * 100) / 100; }
 
 /**

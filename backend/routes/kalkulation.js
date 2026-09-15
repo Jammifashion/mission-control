@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getShopConfig } from '../lib/shopConfig.js';
-import { berechnePartnerAnteil, parseKonfiguration, getKostenSatz, istBekanntePosition } from '../utils/partner-kalkulation.js';
+import { berechnePartnerAnteil, parseKonfiguration, getKostenSatz, istBekanntePosition, baueLizenzSaetze } from '../utils/partner-kalkulation.js';
 
 const router = Router();
 
@@ -527,7 +527,9 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
       const row = partnerTab.rows.find(r => r[ph('Partner-ID')] === partnerId);
       return row ? { portoModell: row[ph('Porto-Modell')] ?? 'geteilt-50-50' } : { portoModell: 'geteilt-50-50' };
     })();
-    const artLookup = {}; // partnerId|artikelname → { ekPreis, druckkosten, versandart, lizenzProzent }
+    // Lizenzsatz aus dem Partner-Reiter (B16) - wirft mit Partner-ID, wenn er fehlt.
+    const partnerLizenzProzent = baueLizenzSaetze(partnerTab.header, partnerTab.rows)(partnerId);
+    const artLookup = {}; // partnerId|artikelname → { ekPreis, druckkosten, versandart }
     {
       const h = col => artikelTab.header.indexOf(col);
       for (const r of artikelTab.rows) {
@@ -538,7 +540,6 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
           ekPreis:       toFloat(r[h('EK-Preis-Netto')]),
           druckkosten:   toFloat(r[h('Druckkosten')]),
           versandart:    ((r[h('Versandart')] ?? 'P').toString().toUpperCase() === 'B') ? 'B' : 'P',
-          lizenzProzent: toFloat(r[h('Lizenz-%')]),
         };
       }
     }
@@ -580,7 +581,7 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
         const calc = berechnePartnerAnteil({
           vkNetto: vkBrutto, ekPreis: artikel.ekPreis, druckkosten: artikel.druckkosten,
           versandart: artikel.versandart, portoModell: partnerInfo.portoModell,
-          bestellungsAnteil: 1, stueckzahl: toFloat(row[stkIdx], 1), lizenzProzent: artikel.lizenzProzent,
+          bestellungsAnteil: 1, stueckzahl: toFloat(row[stkIdx], 1), lizenzProzent: partnerLizenzProzent,
           portoEinnahmeAnteil: 0, konfiguration,
         });
         detail = {
@@ -592,7 +593,7 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
           paypalKosten:       calc.paypalKosten,
           gewinnNetto:        calc.gewinnNetto,
           portoSaldoPartner:  calc.portoSaldoPartner,
-          lizenzProzent:      artikel.lizenzProzent,
+          lizenzProzent:      partnerLizenzProzent,
           versandart:         artikel.versandart,
         };
       }

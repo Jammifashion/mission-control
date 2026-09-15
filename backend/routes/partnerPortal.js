@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient as wcClientForShop, getShopConfig } from '../lib/shopConfig.js';
-import { berechnePartnerAnteil, parseKonfiguration } from '../utils/partner-kalkulation.js';
+import { berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze } from '../utils/partner-kalkulation.js';
 import { toFloat, toDE, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, buildStornoRows } from '../utils/sync-logic.js';
 import { notify, buildPartnerNachricht } from '../lib/chatNotify.js';
 
@@ -187,7 +187,8 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     if (!honkRow) return { synced: 0, orders: 0, afterParam: null, message: 'Kein aktiver HonkShop-Partner gefunden.' };
 
     const honkPartnerId  = honkRow[ph('Partner-ID')] ?? '';
-    const lizenzProzent  = toFloat(honkRow[ph('Lizenz-%')]);
+    // Wirft mit Partner-ID, wenn der Satz fehlt - vor jedem WC- oder Schreibzugriff.
+    const lizenzProzent  = baueLizenzSaetze(pH, pRows)(honkPartnerId);
     const portoModell    = honkRow[ph('Porto-Modell')] ?? 'geteilt-50-50';
 
     const { header: kH, rows: kRows } = await readTab(sheets, sheetId, 'Kalkulation_Fixkosten');
@@ -266,7 +267,9 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     };
   }
 
-  // JFN: Partner_Artikel Lookup → Map: productId → [{ partnerId, lizenzProzent, ek, druck, versandart }]
+  // JFN: Partner_Artikel Lookup → Map: productId → [{ partnerId, ek, druck, versandart }]
+  // Lizenz-% aus Partner_Artikel wird bewusst nicht gelesen (B16), der Satz
+  // kommt aus dem Partner-Reiter.
   const { header: aH, rows: aRows } = await readTab(sheets, sheetId, 'Partner_Artikel');
   const ah = col => aH.indexOf(col);
   const partnerArtikelMap = {};
@@ -274,20 +277,20 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     const partnerId  = r[ah('Partner-ID')] ?? '';
     if (partnerFilter && !partnerFilter.has(partnerId)) continue;
     const pid        = (r[ah('Produkt-ID')] ?? '').toString().trim();
-    const lizenzProzent = toFloat(r[ah('Lizenz-%')]);
     const ekPreis     = toFloat(r[ah('EK-Preis-Netto')]);
     const druckkosten = toFloat(r[ah('Druckkosten')]);
     const versandart  = ((r[ah('Versandart')] ?? 'P').toString().toUpperCase() === 'B') ? 'B' : 'P';
     if (!pid || !partnerId) continue;
     if (!partnerArtikelMap[pid]) partnerArtikelMap[pid] = [];
-    partnerArtikelMap[pid].push({ partnerId, lizenzProzent, ekPreis, druckkosten, versandart });
+    partnerArtikelMap[pid].push({ partnerId, ekPreis, druckkosten, versandart });
   }
 
   if (!Object.keys(partnerArtikelMap).length)
     return { synced: 0, orders: 0, afterParam: null, message: 'Keine passenden Partner-Artikel.' };
 
-  // 1b. Partner → Porto-Modell
+  // 1b. Partner → Porto-Modell + Lizenzsatz
   const { header: pH, rows: pRows } = await readTab(sheets, sheetId, 'Partner');
+  const lizenzSatz = baueLizenzSaetze(pH, pRows);
   const ph = col => pH.indexOf(col);
   const partnerInfoMap = {};
   for (const r of pRows) {
@@ -355,6 +358,10 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
         if (existingKeys.has(key)) continue;
         existingKeys.add(key);
 
+        // Wirft mit Partner-ID, wenn der Satz fehlt. Geschrieben wird erst nach
+        // der Schleife, ein Fehler hinterlaesst also keine halben Zeilen.
+        const lizenzProzent = lizenzSatz(e.partnerId);
+
         const calc = berechnePartnerAnteil({
           vkNetto:            itemNetto,
           ekPreis:            e.ekPreis,
@@ -363,13 +370,13 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
           portoModell:        partnerInfoMap[e.partnerId]?.portoModell ?? 'geteilt-50-50',
           bestellungsAnteil:  anteil,
           stueckzahl:         item.quantity,
-          lizenzProzent:      e.lizenzProzent,
+          lizenzProzent,
           portoEinnahmeAnteil,
           konfiguration,
         });
 
         // Berechnung Breakdown für Tooltip
-        const lizenzAnteilVomGewinn = calc.gewinnNetto * (e.lizenzProzent || 0) / 100;
+        const lizenzAnteilVomGewinn = calc.gewinnNetto * lizenzProzent / 100;
 
         toWrite.push([
           e.partnerId, orderDate, order.id,

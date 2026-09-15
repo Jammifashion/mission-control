@@ -386,13 +386,17 @@ router.patch('/:id/artikel/:artikelnummer', async (req, res, next) => {
     if (rowIdx === -1)
       return res.status(404).json({ error: 'Artikel nicht gefunden.' });
 
+    // Lizenz-% wird hier nicht mehr geschrieben (B16): der Satz gilt je Partner
+    // und steht im Partner-Reiter. Die Spalte bleibt im Sheet, wird aber weder
+    // gelesen noch gepflegt.
     const { ekPreis, druckkosten, versandart, lizenzProzent } = req.body;
     const colMap = {
       'EK-Preis-Netto': ekPreis,
       'Druckkosten':    druckkosten,
       'Versandart':     versandart ? versandart.toUpperCase() : undefined,
-      'Lizenz-%':       lizenzProzent,
     };
+    if (lizenzProzent !== undefined && Object.values(colMap).every(v => v === undefined))
+      return res.status(400).json({ error: 'Lizenz-% wird nicht je Artikel gerechnet – Satz im Partner-Reiter pflegen.' });
 
     const sheetRow = rows[rowIdx]._sheetRow;
     const data = Object.entries(colMap)

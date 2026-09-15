@@ -7,7 +7,7 @@ dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.e
 import { google } from 'googleapis';
 import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
 import { getGoogleAuth } from '../lib/googleAuth.js';
-import { berechnePartnerAnteil, parseKonfiguration } from '../utils/partner-kalkulation.js';
+import { berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze } from '../utils/partner-kalkulation.js';
 
 const SHEET_ID = process.env.BUSINESS_SHEET_ID;
 const ORDER_ID = process.argv[2];
@@ -44,7 +44,8 @@ async function run() {
     readTab(sheets, 'Partner_Verkäufe'),
   ]);
 
-  // Partner_Artikel → Map productId → Einträge
+  // Partner_Artikel → Map productId → Einträge.
+  // Lizenz-% aus Partner_Artikel wird nicht gelesen (B16), der Satz kommt aus dem Partner-Reiter.
   const ah = col => aTab.header.indexOf(col);
   const partnerArtikelMap = {};
   console.log(`\n━━ Partner_Artikel-Lookup aufgebaut ━━`);
@@ -52,20 +53,20 @@ async function run() {
   for (const r of aTab.rows) {
     const partnerId    = r[ah('Partner-ID')] ?? '';
     const pid          = (r[ah('Produkt-ID')] ?? '').toString().trim();
-    const lizenzProzent = toFloat(r[ah('Lizenz-%')]);
     const ekPreis       = toFloat(r[ah('EK-Preis-Netto')]);
     const druckkosten   = toFloat(r[ah('Druckkosten')]);
     const versandart    = ((r[ah('Versandart')] ?? 'P').toString().toUpperCase() === 'B') ? 'B' : 'P';
     const artikelname   = r[ah('Artikelname')] ?? '';
     if (!pid || !partnerId) { console.log(`  ⊘ Zeile übersprungen: pid="${pid}" partnerId="${partnerId}"`); continue; }
     if (!partnerArtikelMap[pid]) partnerArtikelMap[pid] = [];
-    partnerArtikelMap[pid].push({ partnerId, lizenzProzent, ekPreis, druckkosten, versandart, artikelname });
-    console.log(`  ✓ Produkt-ID ${pid}: Partner ${partnerId}, ${artikelname}, Lizenz ${lizenzProzent}%, EK ${ekPreis}€, Druck ${druckkosten}€`);
+    partnerArtikelMap[pid].push({ partnerId, ekPreis, druckkosten, versandart, artikelname });
+    console.log(`  ✓ Produkt-ID ${pid}: Partner ${partnerId}, ${artikelname}, EK ${ekPreis}€, Druck ${druckkosten}€`);
   }
   console.log(`→ ${Object.keys(partnerArtikelMap).length} unterschiedliche Produkt-IDs registriert\n`);
 
-  // Partner → Porto-Modell
+  // Partner → Porto-Modell + Lizenzsatz
   const ph = col => pTab.header.indexOf(col);
+  const lizenzSatz = baueLizenzSaetze(pTab.header, pTab.rows);
   const partnerInfoMap = {};
   for (const r of pTab.rows) {
     const id = r[ph('Partner-ID')] ?? '';
@@ -111,7 +112,7 @@ async function run() {
     }
     console.log(`  ✓ GEFUNDEN: ${entries.length} Eintrag(e)`);
     for (const e of entries) {
-      console.log(`    - Partner ${e.partnerId}: ${e.artikelname || '(keine Beschreibung)'}, Lizenz ${e.lizenzProzent}%, EK ${e.ekPreis}€, Druck ${e.druckkosten}€, Versand ${e.versandart}`);
+      console.log(`    - Partner ${e.partnerId}: ${e.artikelname || '(keine Beschreibung)'}, EK ${e.ekPreis}€, Druck ${e.druckkosten}€, Versand ${e.versandart}`);
     }
     matching.push({ item, entries });
     if (entries.some(e => e.versandart === 'P')) orderVersandart = 'P';
@@ -134,18 +135,20 @@ async function run() {
     for (const e of entries) {
       const key = `${order.id}|${artKey}|${variationId}|${e.partnerId}`;
       const isDuplicate = existingKeys.has(key);
+      // Wirft mit Partner-ID, wenn der Satz im Partner-Reiter fehlt.
+      const lizenzProzent = lizenzSatz(e.partnerId);
 
       const calc = berechnePartnerAnteil({
         vkNetto: itemNetto, ekPreis: e.ekPreis, druckkosten: e.druckkosten,
         versandart: orderVersandart,
         portoModell: partnerInfoMap[e.partnerId]?.portoModell ?? 'geteilt-50-50',
-        bestellungsAnteil: anteil, stueckzahl: item.quantity, lizenzProzent: e.lizenzProzent,
+        bestellungsAnteil: anteil, stueckzahl: item.quantity, lizenzProzent,
         portoEinnahmeAnteil, konfiguration,
       });
 
       console.log(`\n  Artikel:  ${artKey}  (Variation ${variationId})`);
-      console.log(`  Partner:  ${e.partnerId}  |  Lizenz: ${e.lizenzProzent}%`);
-      console.log(`  vkNetto:  ${itemNetto.toFixed(2)} €  |  anteil: ${(anteil*100).toFixed(1)}%`);
+      console.log(`  Partner:  ${e.partnerId}  |  Lizenz: ${lizenzProzent}% (Partner-Reiter)`);
+      console.log(`  vkNetto:  ${itemNetto.toFixed(2)} €  |  Stück: ${item.quantity}  |  anteil: ${(anteil*100).toFixed(1)}%`);
       console.log(`  portoEinnahmeAnteil: ${portoEinnahmeAnteil.toFixed(4)} €`);
       console.log(`  gewinnNetto: ${calc.gewinnNetto} €  |  partnerAnteil (netto): ${calc.netto} €  (brutto: ${calc.brutto} €)`);
       console.log(`  Duplikat: ${isDuplicate ? '⚠ JA – wird übersprungen' : 'nein'}`);
@@ -153,7 +156,7 @@ async function run() {
       if (!isDuplicate) {
         existingKeys.add(key);
         // Berechnung Breakdown für Tooltip
-        const lizenzAnteilVomGewinn = calc.gewinnNetto * (e.lizenzProzent || 0) / 100;
+        const lizenzAnteilVomGewinn = calc.gewinnNetto * lizenzProzent / 100;
 
         toWrite.push([
           e.partnerId, orderDate, order.id,

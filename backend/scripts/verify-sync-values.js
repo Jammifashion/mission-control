@@ -6,7 +6,7 @@ dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.e
 import { google } from 'googleapis';
 import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
 import { getGoogleAuth } from '../lib/googleAuth.js';
-import { berechnePartnerAnteil, parseKonfiguration } from '../utils/partner-kalkulation.js';
+import { berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze } from '../utils/partner-kalkulation.js';
 
 const SHEET_ID = process.env.BUSINESS_SHEET_ID;
 const ORDER_IDS = [17084, 17075];
@@ -41,17 +41,17 @@ async function run() {
   for (const r of aRows) {
     const partnerId  = r[ah('Partner-ID')] ?? '';
     const pid        = (r[ah('Produkt-ID')] ?? '').toString().trim();
-    const lizenzProzent = toFloat(r[ah('Lizenz-%')]);
     const ekPreis     = toFloat(r[ah('EK-Preis-Netto')]);
     const druckkosten = toFloat(r[ah('Druckkosten')]);
     const versandart  = ((r[ah('Versandart')] ?? 'P').toString().toUpperCase() === 'B') ? 'B' : 'P';
     if (!pid || !partnerId) continue;
     if (!partnerArtikelMap[pid]) partnerArtikelMap[pid] = [];
-    partnerArtikelMap[pid].push({ partnerId, lizenzProzent, ekPreis, druckkosten, versandart });
+    partnerArtikelMap[pid].push({ partnerId, ekPreis, druckkosten, versandart });
   }
 
-  // Load Partner info
+  // Load Partner info – Lizenzsatz aus dem Partner-Reiter (B16)
   const { header: pH, rows: pRows } = await readTab(sheets, 'Partner');
+  const lizenzSatz = baueLizenzSaetze(pH, pRows);
   const ph = col => pH.indexOf(col);
   const partnerInfoMap = {};
   for (const r of pRows) {
@@ -92,9 +92,10 @@ async function run() {
           const portoEinnahmeAnteil = shippingNetto * anteil;
 
           for (const e of entries) {
+            const lizenzProzent = lizenzSatz(e.partnerId);
             console.log(`\n   Artikel: ${item.name} (Produkt-ID: ${pid})`);
             console.log(`   Partner: ${e.partnerId}`);
-            console.log(`   Lizenz: ${e.lizenzProzent}%`);
+            console.log(`   Lizenz: ${lizenzProzent}%`);
 
             const calc = berechnePartnerAnteil({
               vkNetto: itemNetto,
@@ -104,12 +105,12 @@ async function run() {
               portoModell: partnerInfoMap[e.partnerId]?.portoModell ?? 'geteilt-50-50',
               bestellungsAnteil: anteil,
               stueckzahl: item.quantity,
-              lizenzProzent: e.lizenzProzent,
+              lizenzProzent,
               portoEinnahmeAnteil,
               konfiguration,
             });
 
-            const lizenzAnteilVomGewinn = calc.gewinnNetto * (e.lizenzProzent || 0) / 100;
+            const lizenzAnteilVomGewinn = calc.gewinnNetto * lizenzProzent / 100;
 
             console.log(`   Gewinn-netto: ${calc.gewinnNetto.toFixed(2)}€`);
             console.log(`   Lizenz-Anteil: ${lizenzAnteilVomGewinn.toFixed(2)}€`);

@@ -7466,6 +7466,7 @@
 
         const vk = _artikelState.vkVorschau;
         const konfig = _artikelState.konfig;
+        const satz = partnerLizenzSatz();
         wrap.innerHTML = `
           <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
             <label style="font-size:0.82rem;color:var(--muted);">VK-Brutto (Vorschau):</label>
@@ -7479,13 +7480,13 @@
               <th style="text-align:right;">EK €</th>
               <th style="text-align:right;">Druck €</th>
               <th>B/P</th>
-              <th style="text-align:right;">Lizenz %</th>
-              <th style="text-align:right;cursor:help;" title="Vorschau bei 1 Artikel ohne Porto-Saldo. Genaue Lizenz siehe Verkäufe-Tab nach Sync.">Lizenz/Stück (bei VK ${vk}€) <span style="opacity:0.6;font-size:0.8em;">ⓘ</span></th>
+              <th style="text-align:right;color:var(--muted);opacity:0.6;font-weight:normal;" title="wird nicht gerechnet – Satz im Partner-Reiter">Lizenz % (Artikel)<br><span style="font-size:0.7rem;">wird nicht gerechnet – Satz im Partner-Reiter</span></th>
+              <th style="text-align:right;cursor:help;" title="Vorschau bei 1 Artikel ohne Porto-Saldo, mit dem Lizenzsatz aus dem Partner-Reiter. Genaue Lizenz siehe Verkäufe-Tab nach Sync.">Lizenz/Stück (bei VK ${vk}€, ${satz}%) <span style="opacity:0.6;font-size:0.8em;">ⓘ</span></th>
             </tr></thead>
             <tbody>${artikel.map((a, i) => {
               const det = berechneLizenzDetail({
                 vkBrutto: vk, ekPreis: a.ekPreis, druckkosten: a.druckkosten,
-                versandart: a.versandart, lizenzProzent: a.lizenzProzent, konfig,
+                versandart: a.versandart, lizenzProzent: satz, konfig,
               });
               const lizColor = det.lizenz < 0 ? 'color:var(--danger);' : '';
               return `<tr data-art-i="${i}">
@@ -7497,7 +7498,7 @@
                   <option value="B"${a.versandart === 'B' ? ' selected' : ''}>B</option>
                   <option value="P"${a.versandart === 'P' ? ' selected' : ''}>P</option>
                 </select></td>
-                <td style="text-align:right;"><input class="form-input art-edit" data-field="lizenzProzent" type="number" step="0.1" min="0" max="100" value="${a.lizenzProzent}" style="width:70px;text-align:right;font-size:0.82rem;padding:0.22rem 0.4rem;"></td>
+                <td style="text-align:right;color:var(--muted);opacity:0.5;" title="wird nicht gerechnet – Satz im Partner-Reiter">${a.lizenzProzent}%</td>
                 <td class="liz-cell" style="text-align:right;font-weight:600;${lizColor}" data-cell="liz">${det.lizenz.toFixed(2)} €</td>
               </tr>`;
             }).join('')}</tbody>
@@ -7525,7 +7526,7 @@
         const det = berechneLizenzDetail({
           vkBrutto: _artikelState.vkVorschau,
           ekPreis: a.ekPreis, druckkosten: a.druckkosten,
-          versandart: a.versandart, lizenzProzent: a.lizenzProzent,
+          versandart: a.versandart, lizenzProzent: partnerLizenzSatz(),
           konfig: _artikelState.konfig,
         });
         const fmt   = n => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
@@ -7613,24 +7614,31 @@
         tip.style.left = `${left}px`;
       }
 
+      // B16: Der Lizenzsatz gilt je Partner (Partner-Reiter). Partner_Artikel.Lizenz-%
+      // wird nur noch ausgegraut angezeigt und geht in keine Rechnung ein.
+      function partnerLizenzSatz() {
+        return _ppPartners.find(p => p.id === _artikelState.partnerId)?.lizenzProzent ?? 0;
+      }
+
       function recomputeLizenzCells() {
         if (window.currentShop?.() === 'honk') return;
         const vk = _artikelState.vkVorschau;
         const konfig = _artikelState.konfig;
+        const satz = partnerLizenzSatz();
         document.querySelectorAll('#artikel-list-wrap tr[data-art-i]').forEach(tr => {
           const i = +tr.dataset.artI;
           const a = _artikelState.artikel[i];
           if (!a) return;
           const liz = berechneLizenzVorschau({
             vkBrutto: vk, ekPreis: a.ekPreis, druckkosten: a.druckkosten,
-            versandart: a.versandart, lizenzProzent: a.lizenzProzent, konfig,
+            versandart: a.versandart, lizenzProzent: satz, konfig,
           });
           const cell = tr.querySelector('[data-cell="liz"]');
           cell.textContent = liz.toFixed(2) + ' €';
           cell.style.color = liz < 0 ? 'var(--danger)' : '';
         });
         document.querySelector('#artikel-list-wrap th:last-child').innerHTML =
-          `Lizenz/Stück (bei VK ${vk}€) <span style="opacity:0.6;font-size:0.8em;">ⓘ</span>`;
+          `Lizenz/Stück (bei VK ${vk}€, ${satz}%) <span style="opacity:0.6;font-size:0.8em;">ⓘ</span>`;
         hideLizTooltip(); // Tooltip schließen, da Werte sich geändert haben
       }
 
