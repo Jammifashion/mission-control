@@ -19,6 +19,10 @@ const SHOPS = {
     wpAppPassword: () => process.env.WP_APP_PASSWORD,
     tabVerkaeufe:   'Partner_Verkäufe',
     tabAbrechnungen: 'Partner_Abrechnungen',
+    // Marke (Taxonomie product_brand), die jedes neu angelegte Produkt bekommt.
+    // Slug statt Term-ID: die ID wird zur Laufzeit ermittelt (lib/shopMarke.js)
+    // und unterscheidet sich je Shop.
+    markenSlug: 'jammifashion',
   },
   honk: {
     shop: 'honk',
@@ -30,6 +34,7 @@ const SHOPS = {
     wpAppPassword: () => process.env.WP_APP_PASSWORD_HONK,
     tabVerkaeufe:   'HK_Partner_Verkäufe',
     tabAbrechnungen: 'HK_Partner_Abrechnungen',
+    markenSlug: null,   // vorerst keine Marke
   },
 };
 
@@ -50,6 +55,7 @@ export function getShopConfig(shop) {
     wpAppPassword: def.wpAppPassword(),
     tabVerkaeufe:    def.tabVerkaeufe,
     tabAbrechnungen: def.tabAbrechnungen,
+    markenSlug:      def.markenSlug,
   };
 }
 
