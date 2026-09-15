@@ -37,9 +37,18 @@ const MONTHLY_RETENTION_MONTHS = 12;
 // der geteilten Ablage. files.delete verlangt Manager - alte Backups werden
 // darum per files.update {trashed:true} in den Papierkorb verschoben.
 //
-// Angefasst werden nur Dateien, die dieses Skript selbst schreibt.
+// Angefasst werden nur Dateien, die dieses Skript schreibt oder geschrieben hat.
 const BACKUP_PRAEFIXE = ZIELE.map(z => `${z.praefix}_Backup-`);
-const istBackupDatei  = name => BACKUP_PRAEFIXE.some(p => String(name ?? '').startsWith(p));
+
+// Altlast, NUR für die Aufräumung: bis a3b9a1b (2026-09-11) hiessen die Dateien
+// MC-Backup-<Datum>.json.gz (daily) und MC-Backup-<Monat>.json.gz (monthly).
+// Geschrieben wird dieses Präfix nicht mehr - ohne diesen Eintrag lägen die
+// alten Dateien aber für immer im Ordner, entgegen der Absicht von a3b9a1b.
+// Kann raus, sobald keine MC-Backup-Datei mehr in daily/monthly liegt.
+const ALTLAST_PRAEFIXE = ['MC-Backup-'];
+
+export const AUFRAEUM_PRAEFIXE = [...BACKUP_PRAEFIXE, ...ALTLAST_PRAEFIXE];
+const istBackupDatei = name => AUFRAEUM_PRAEFIXE.some(p => String(name ?? '').startsWith(p));
 
 // ── Rate-Limit-Schutz für Cleanup ───────────────────────────────────────────
 const DELETE_DELAY_MS   = 400;

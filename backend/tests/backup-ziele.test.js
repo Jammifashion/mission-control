@@ -233,6 +233,34 @@ describe('Aufbewahrung: Papierkorb statt Loeschen', () => {
     expect(filesDelete).not.toHaveBeenCalled();
   });
 
+  // Altlast vor a3b9a1b: MC-Backup-<Datum> / MC-Backup-<Monat>.
+  test('MC-Backup-Altlast: aelter als Cutoff wird verschoben, juengere nicht', async () => {
+    filesList.mockImplementation(async ({ q }) => ({
+      data: { files: q.includes('daily-folder')
+        ? [{ id: 'm1', name: 'MC-Backup-2026-08-03.json.gz', createdTime: alt },
+           { id: 'm2', name: 'MC-Backup-heute.json.gz',      createdTime: neu() }]
+        : [{ id: 'm3', name: 'MC-Backup-2020-01.json.gz',    createdTime: alt }] },
+    }));
+    await runBackup();
+    expect(filesUpdate.mock.calls.map(c => c[0].fileId)).toEqual(['m1', 'm3']);
+    expect(filesDelete).not.toHaveBeenCalled();
+  });
+
+  test('MC-Backup- wird nie geschrieben, nur aufgeraeumt', async () => {
+    await runBackup();
+    expect(namen().some(n => n.startsWith('MC-Backup-'))).toBe(false);
+  });
+
+  test('fremde Dateien nie, auch nicht mit aehnlichem Namen', async () => {
+    filesList.mockResolvedValue({ data: { files: [
+      { id: 'y1', name: 'MC-Notizen.json.gz',           createdTime: alt },
+      { id: 'y2', name: 'Kopie von MC-Backup-2020.gz',  createdTime: alt },
+      { id: 'y3', name: 'mc-backup-2020-01-01.json.gz', createdTime: alt },
+    ] } });
+    await runBackup();
+    expect(filesUpdate).not.toHaveBeenCalled();
+  });
+
   test('Rate limit: Backoff, dann erneuter Versuch', async () => {
     filesList.mockImplementation(async ({ q }) => ({
       data: { files: q.includes('daily-folder')
