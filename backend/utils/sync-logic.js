@@ -16,6 +16,28 @@ export const WC_STATES_STORNO  = ['refunded', 'cancelled'];
 export const STORNO_MARKER     = 'Storniert/Rückerstattet';
 
 /**
+ * Bestellungen, fuer die der Sync Verkaufszeilen schreibt.
+ *
+ * Neben den laufenden Verkaeufen (processing/completed/on-hold) auch
+ * Bestellungen, die beim ersten Sync schon storniert/erstattet sind. Frueher
+ * entstand fuer die gar nichts: keine Verkaufszeile, also auch keine
+ * Gegenbuchung, weil buildStornoRows nur vorhandene Zeilen negiert. Nach
+ * einem Neu-Sync fehlten damit alle Paare, die es gab, solange der Sync
+ * rechtzeitig lief. Jetzt entstehen Verkauf und Gegenbuchung in derselben
+ * Runde (Summe 0).
+ *
+ * Nur bezahlte Bestellungen (date_paid gesetzt): eine nie bezahlte, abgebrochene
+ * Bestellung war nie ein Verkauf. Und nur nach afterParam angelegte - die
+ * Stornos werden voll-historisch geladen, der Verkaufszeitraum aber nicht.
+ */
+export function ordersFuerVerkaufszeilen(orders, stornoOrders, afterParam) {
+  const ab = afterParam ? new Date(afterParam) : null;
+  const nachgeholt = (stornoOrders ?? []).filter(o =>
+    o.date_paid && (!ab || new Date(o.date_created) > ab));
+  return [...(orders ?? []), ...nachgeholt];
+}
+
+/**
  * Erzeugt negative Gegeneinträge für bestehende Verkaufs-Zeilen, deren Order in WC
  * auf refunded/cancelled steht.
  *

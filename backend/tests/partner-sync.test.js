@@ -165,6 +165,75 @@ describe('B16 – Lizenzsatz aus dem Partner-Reiter (JFN)', () => {
   });
 });
 
+describe('Neu-Sync – schon stornierte Bestellungen entstehen als Paar', () => {
+  const STORNO_MARKER = 'Storniert/Rückerstattet';
+  const ERSTATTET = {
+    id: 16950, status: 'refunded', date_created: '2026-08-22T10:00:00', date_paid: '2026-08-22T10:05:00',
+    date_modified: '2026-08-25T09:00:00', shipping_total: '0.00',
+    line_items: [{ name: 'Dorflove Shirt - S, Schwarz', product_id: 5420, variation_id: 5428, quantity: 2, total: '42.00' }],
+  };
+  const NIE_BEZAHLT = { ...ERSTATTET, id: 16951, status: 'cancelled', date_paid: null };
+  const ZU_ALT      = { ...ERSTATTET, id: 16800, date_created: '2026-07-01T10:00:00' };
+
+  beforeEach(() => {
+    mockWcGet.mockImplementation(async (_path, params) => ({
+      data: params.status === 'processing' ? [ORDER_16941]
+          : params.status === 'refunded'   ? [ERSTATTET, ZU_ALT]
+          : params.status === 'cancelled'  ? [NIE_BEZAHLT]
+          : [],
+    }));
+  });
+
+  test('erstattete, bezahlte Bestellung: Verkauf + Gegenbuchung in einem Lauf, Summe 0', async () => {
+    const res = await sync('?after=2026-08-01T00:00:00');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ synced: 5, storniert: 1, stornoNachgeholt: 1 });
+
+    const paar = geschrieben().filter(r => String(r[col('Order-ID')]) === '16950');
+    expect(paar).toHaveLength(2);
+    const [verkauf, gegen] = paar;
+    expect(verkauf[col('Stückzahl')]).toBe(2);
+    expect(gegen[col('Stückzahl')]).toBe(-2);
+    expect(gegen[col('Storno-Status')]).toBe(STORNO_MARKER);
+    expect(gegen[col('Datum')]).toBe('25.08.2026');
+    expect(verkauf[col('Status')]).toBe('offen');
+    expect(gegen[col('Status')]).toBe('offen');
+    expect(verkauf[col('Lizenzgebühr')] + gegen[col('Lizenzgebühr')]).toBeCloseTo(0, 10);
+    // Verkauf steht vor der Gegenbuchung
+    expect(geschrieben().indexOf(verkauf)).toBeLessThan(geschrieben().indexOf(gegen));
+  });
+
+  test('nie bezahlte und vor after angelegte Stornos erzeugen nichts', async () => {
+    await sync('?after=2026-08-01T00:00:00');
+    const ids = geschrieben().map(r => String(r[col('Order-ID')]));
+    expect(ids).not.toContain('16951');
+    expect(ids).not.toContain('16800');
+  });
+
+  test('zweiter Lauf erzeugt keine Dubletten', async () => {
+    await sync('?after=2026-08-01T00:00:00');
+    tabs['Partner_Verkäufe'] = [VERKAEUFE_HEADER, ...geschrieben().map(r => r.map(v => String(v ?? '')))];
+    mockValues.append.mockClear();
+
+    const res = await sync('?after=2026-08-01T00:00:00');
+    expect(res.body).toMatchObject({ synced: 0, storniert: 0 });
+    expect(mockValues.append).not.toHaveBeenCalled();
+  });
+
+  test('HonkShop: gleiches Verhalten', async () => {
+    tabs.Partner = [PARTNER_HEADER, ['P-004', 'Honk', 't4', 'Ja', '45', 'geteilt-50-50', 'honk']];
+    tabs.HK_Partner_Artikel = [
+      ['Produkt-ID', 'Artikelname', 'EK-Preis-Netto', 'Druckkosten', 'Versandart'],
+      ['5420', 'Dorflove', '3', '2,1', 'P'],
+    ];
+    tabs['HK_Partner_Verkäufe'] = [VERKAEUFE_HEADER];
+    const res = await sync('?shop=honk&after=2026-08-01T00:00:00');
+    expect(res.body).toMatchObject({ synced: 5, storniert: 1 });
+    const paar = geschrieben().filter(r => String(r[col('Order-ID')]) === '16950');
+    expect(paar.map(r => r[col('Stückzahl')])).toEqual([2, -2]);
+  });
+});
+
 describe('HonkShop – EK, Druck, Versandart aus HK_Partner_Artikel', () => {
   const HK_ORDER = {
     id: 9001, status: 'processing', date_created: '2026-08-21T10:00:00',

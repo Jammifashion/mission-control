@@ -3,7 +3,7 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient as wcClientForShop, getShopConfig } from '../lib/shopConfig.js';
 import { berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze } from '../utils/partner-kalkulation.js';
-import { toFloat, toDE, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, buildStornoRows } from '../utils/sync-logic.js';
+import { toFloat, toDE, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, buildStornoRows, ordersFuerVerkaufszeilen } from '../utils/sync-logic.js';
 import { notify, buildPartnerNachricht } from '../lib/chatNotify.js';
 import { requireHeader } from '../utils/sheet-headers.js';
 
@@ -245,11 +245,13 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     const orders = await fetchOrders(wc, WC_STATES_VERKAUF, afterParam);
     // Stornos voll-historisch (ohne after-Filter) – fängt auch ältere Refunds.
     const stornoOrders = await fetchOrders(wc, WC_STATES_STORNO, null);
+    // Schon stornierte, bezahlte Bestellungen bekommen Verkauf + Gegenbuchung.
+    const verkaufsOrders = ordersFuerVerkaufszeilen(orders, stornoOrders, afterParam);
 
     const toWrite = [];
     const uebersprungen = [];
     const artikelName = item => item.name || item.sku || String(item.product_id);
-    for (const order of orders) {
+    for (const order of verkaufsOrders) {
       const orderDate = toDE(new Date(order.date_created));
       const shippingNetto = toFloat(order.shipping_total);
       // Wertanteil bleibt ueber ALLE Positionen der Bestellung - auch ueber
@@ -298,7 +300,9 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
       }
     }
 
-    const stornoRows = buildStornoRows(vRows, vh, stornoOrders, null);
+    // Auch die gerade gebauten Zeilen: sonst bekaeme ein nachgeholter Verkauf
+    // seine Gegenbuchung erst im naechsten Lauf.
+    const stornoRows = buildStornoRows([...vRows, ...toWrite], vh, stornoOrders, null);
     const allRows = [...toWrite, ...stornoRows];
     if (allRows.length > 0) {
       await sheets.spreadsheets.values.append({
@@ -321,6 +325,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
       + (uebersprungen.length ? ` ${uebersprungen.length} übersprungen (Artikel fehlt in ${TAB_HK_ARTIKEL}).` : '');
     return {
       synced: toWrite.length, storniert: stornoRows.length, orders: orders.length, afterParam: afterParam || null,
+      stornoNachgeholt: verkaufsOrders.length - orders.length,
       uebersprungen, message,
     };
   }
@@ -384,12 +389,14 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
   const orders = await fetchOrders(wc, WC_STATES_VERKAUF, afterParam);
   // Stornos voll-historisch (ohne after-Filter) – fängt auch ältere Refunds.
   const stornoOrders = await fetchOrders(wc, WC_STATES_STORNO, null);
+  // Schon stornierte, bezahlte Bestellungen bekommen Verkauf + Gegenbuchung.
+  const verkaufsOrders = ordersFuerVerkaufszeilen(orders, stornoOrders, afterParam);
 
   // 4. Iterieren → Sheet-Zeilen sammeln
   const toWrite = [];
   const artikelName = (item) => item.name || item.sku || String(item.product_id);
 
-  for (const order of orders) {
+  for (const order of verkaufsOrders) {
     const orderDate      = toDE(new Date(order.date_created));
     const shippingNetto  = toFloat(order.shipping_total); // net from WC
     const orderNetto     = order.line_items.reduce((s, i) => s + toFloat(i.total), 0);
@@ -450,7 +457,9 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     }
   }
 
-  const stornoRows = buildStornoRows(vRows, vh, stornoOrders, partnerFilter);
+  // Auch die gerade gebauten Zeilen: sonst bekaeme ein nachgeholter Verkauf
+  // seine Gegenbuchung erst im naechsten Lauf.
+  const stornoRows = buildStornoRows([...vRows, ...toWrite], vh, stornoOrders, partnerFilter);
   const allRows = [...toWrite, ...stornoRows];
   if (allRows.length > 0) {
     await sheets.spreadsheets.values.append({
@@ -466,6 +475,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     synced:     toWrite.length,
     storniert:  stornoRows.length,
     orders:     orders.length,
+    stornoNachgeholt: verkaufsOrders.length - orders.length,
     afterParam: afterParam || null,
     message:    buildSyncMessage(toWrite.length, stornoRows.length),
   };

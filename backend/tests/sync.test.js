@@ -1,4 +1,27 @@
-import { buildStornoRows, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER } from '../utils/sync-logic.js';
+import { buildStornoRows, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, ordersFuerVerkaufszeilen } from '../utils/sync-logic.js';
+
+// ── ordersFuerVerkaufszeilen ─────────────────────────────────────────────────
+
+describe('ordersFuerVerkaufszeilen – schon stornierte Bestellungen nachholen', () => {
+  const laufend = [{ id: 1, date_created: '2026-06-02T10:00:00', date_paid: '2026-06-02T10:01:00' }];
+  const erstattet     = { id: 2, date_created: '2026-06-03T10:00:00', date_paid: '2026-06-03T10:01:00' };
+  const nieBezahlt    = { id: 3, date_created: '2026-06-04T10:00:00', date_paid: null };
+  const vorDemZeitraum = { id: 4, date_created: '2026-05-20T10:00:00', date_paid: '2026-05-20T10:01:00' };
+
+  test('bezahlte Stornos nach after kommen dazu, laufende bleiben', () => {
+    const r = ordersFuerVerkaufszeilen(laufend, [erstattet, nieBezahlt, vorDemZeitraum], '2026-06-01T00:00:00');
+    expect(r.map(o => o.id)).toEqual([1, 2]);
+  });
+
+  test('ohne after: alle bezahlten Stornos', () => {
+    const r = ordersFuerVerkaufszeilen([], [erstattet, nieBezahlt, vorDemZeitraum], null);
+    expect(r.map(o => o.id)).toEqual([2, 4]);
+  });
+
+  test('leere Eingaben', () => {
+    expect(ordersFuerVerkaufszeilen(undefined, undefined, null)).toEqual([]);
+  });
+});
 
 // ── Spalten-Layout (A:O, identisch zum Append in partnerPortal) ───────────────
 // 0=Partner-ID, 1=Datum, 2=Order-ID, 3=Artikelnummer, 4=Variante,
