@@ -2,7 +2,11 @@
 
 import {
   filterMaterialFarben,
+  filterEigenschaften,
   parseFarben,
+  parseGroessen,
+  hauptKeyword,
+  pruefeSeoText,
   buildSeoUserPrompt,
   resolveModus,
   MATERIAL_PLACEHOLDER,
@@ -215,5 +219,229 @@ describe('buildSeoUserPrompt', () => {
     const prompt = buildSeoUserPrompt(basis);
 
     expect(prompt).not.toMatch(/<strong>Material:<\/strong> Material:/);
+  });
+
+  test('Farben stehen als eigene Zeile in der Detailliste', () => {
+    expect(buildSeoUserPrompt(basis)).toContain('<li><strong>Farben:</strong> Navy, Schwarz</li>');
+  });
+
+  test('Strukturvorgabe verlangt keinen Titel und keinen Slogan in der <h2>', () => {
+    const prompt = buildSeoUserPrompt(basis);
+
+    expect(prompt).not.toMatch(/\[Artikelbezeichnung\]/);
+    expect(prompt).not.toMatch(/Slogan basierend auf Kontext/);
+    expect(prompt).toMatch(/NICHT der Produkttitel/);
+  });
+
+  test('Regel gegen erfundene Fakten steht im Prompt', () => {
+    const prompt = buildSeoUserPrompt(basis);
+
+    expect(prompt).toMatch(/keine Orte/);
+    expect(prompt).toMatch(/Bestellschlussdaten/);
+  });
+});
+
+describe('filterEigenschaften – Sperrliste vor dem Prompt', () => {
+  test('Sperrbegriffe fliegen zeilenweise raus', () => {
+    const lines = [
+      'Farbigkeit: 1-farbig, Meliert, Pastell',
+      'Veredelungsangabe: Siebdruck möglich',
+      'Verarbeitung: doppelt vernäht',
+      'Grammatur: 280 g/m²',
+    ];
+
+    expect(filterEigenschaften(lines)).toEqual(['Grammatur: 280 g/m²']);
+  });
+
+  test('Größenzeilen aus dem Katalog fliegen raus, auch "Größenlauf"', () => {
+    const lines = ['Größen: S bis 5XL', 'Größenlauf: S-XXL', 'Sizes: S-XL', 'Schnitt: Regular Fit'];
+
+    expect(filterEigenschaften(lines)).toEqual(['Schnitt: Regular Fit']);
+  });
+
+  test('eine Zeile, die Größe nur im Wert erwähnt, bleibt stehen', () => {
+    expect(filterEigenschaften(['Passform: fällt eine Größe kleiner aus']))
+      .toEqual(['Passform: fällt eine Größe kleiner aus']);
+  });
+});
+
+describe('Sperrliste im fertigen Prompt – beide Eintrittsstellen', () => {
+  // Nicht nur die Filterfunktion prüfen: gefilterte Zeilen tauchen sonst über
+  // das Sammelfeld "Weitere Eigenschaften" wieder im Prompt auf.
+  const eigenschaften = [
+    'Material: 100% Baumwolle',
+    'Farbigkeit: 1-farbig, Meliert, Pastell',
+    'Veredelungsangabe: Siebdruck',
+    'Verarbeitung: doppelt vernäht',
+    'Grammatur: 280 g/m²',
+  ].join('\n');
+
+  test('weder im Sammelfeld noch in der <li>-Liste', () => {
+    const prompt = buildSeoUserPrompt({ produktname: 'Shirt', eigenschaften });
+
+    expect(prompt).not.toMatch(/Farbigkeit/i);
+    expect(prompt).not.toMatch(/Veredelungsangabe/i);
+    expect(prompt).not.toMatch(/Verarbeitung/i);
+    expect(prompt).toContain('Grammatur: 280 g/m²');
+  });
+});
+
+describe('Größen kommen nur aus der Variantenauswahl', () => {
+  const eigenschaften = 'Material: 100% Baumwolle\nGrößen: S bis 5XL';
+
+  test('Variantengrößen stehen im Prompt, die Katalogzeile nicht', () => {
+    const prompt = buildSeoUserPrompt({ produktname: 'Shirt', eigenschaften, groessen: ['M', 'L'] });
+
+    expect(prompt).toContain('- GRÖSSEN: M, L');
+    expect(prompt).toContain('<li><strong>Größen:</strong> M, L</li>');
+    expect(prompt).not.toMatch(/5XL/);
+  });
+
+  test('ohne Größen-Variante keine Größenzeile', () => {
+    const prompt = buildSeoUserPrompt({ produktname: 'Shirt', eigenschaften });
+
+    expect(prompt).not.toMatch(/- GRÖSSEN:/);
+    expect(prompt).not.toMatch(/<strong>Größen:<\/strong>/);
+    expect(prompt).not.toMatch(/5XL/);
+    expect(prompt).toMatch(/NENNE KEINE Größen/);
+  });
+
+  test('parseGroessen liest Array, Label-Zeile und Dubletten weg', () => {
+    expect(parseGroessen(['M', 'L'])).toEqual(['M', 'L']);
+    expect(parseGroessen('Größen: M, L')).toEqual(['M', 'L']);
+    expect(parseGroessen('M, m, M')).toEqual(['M']);
+    expect(parseGroessen('')).toEqual([]);
+  });
+});
+
+describe('hauptKeyword', () => {
+  test('gesetzte Keyphrase gewinnt', () => {
+    const k = hauptKeyword({ keyphrase: 'Weihnachtspullover Herren', produktname: 'Ugly Sweater' });
+
+    expect(k.text).toBe('Weihnachtspullover Herren');
+    expect(k.ausTitel).toBe(false);
+    expect(k.woerter).toEqual(['weihnachtspullover', 'herren']);
+  });
+
+  test('leere Keyphrase: Produkttitel ohne Farbe und Größe', () => {
+    const k = hauptKeyword({
+      keyphrase: '',
+      produktname: 'Ugly Sweater Rentier Navy XL',
+      farben: ['Navy'],
+      groessen: ['XL'],
+    });
+
+    expect(k.text).toBe('Ugly Sweater Rentier');
+    expect(k.ausTitel).toBe(true);
+  });
+
+  test('nur Leerzeichen zählt als leer', () => {
+    expect(hauptKeyword({ keyphrase: '   ', produktname: 'Shirt' }).ausTitel).toBe(true);
+  });
+
+  test('Keyphrase steht im Prompt, sonst die Ableitung aus dem Titel', () => {
+    expect(buildSeoUserPrompt({ produktname: 'Shirt', keyphrase: 'Weihnachtspullover Herren' }))
+      .toContain('FOKUS-KEYPHRASE: Weihnachtspullover Herren');
+    expect(buildSeoUserPrompt({ produktname: 'Ugly Sweater Navy', farben: ['Navy'] }))
+      .toContain('FOKUS-KEYPHRASE (aus dem Produkttitel abgeleitet): Ugly Sweater');
+  });
+});
+
+describe('pruefeSeoText', () => {
+  const gut = {
+    keyphrase:   'Weihnachtspullover Herren',
+    produktname: 'Ugly Sweater Rentier Herren',
+    kurzbeschreibung: 'Weihnachtspullover Herren mit Rentier – jetzt bestellen.',
+    produktbeschreibung:
+      '<h2>Schnitt und Material</h2><p>Der Weihnachtspullover Herren sitzt locker.</p>',
+  };
+
+  test('alles erfüllt → keine Meldung', () => {
+    expect(pruefeSeoText(gut)).toEqual([]);
+  });
+
+  test('Keyphrase fehlt im ersten Satz → Meldung', () => {
+    const meldungen = pruefeSeoText({
+      ...gut,
+      produktbeschreibung:
+        '<h2>Schnitt und Material</h2><p>Der Pulli sitzt locker. Weihnachtspullover Herren kommen später.</p>',
+    });
+
+    expect(meldungen).toHaveLength(1);
+    expect(meldungen[0]).toMatch(/ersten Satz/);
+    expect(meldungen[0]).toContain('Weihnachtspullover Herren');
+  });
+
+  test('Keyphrase zu spät in der Kurzbeschreibung → Meldung', () => {
+    const meldungen = pruefeSeoText({
+      ...gut,
+      kurzbeschreibung: 'Eins zwei drei vier fünf sechs sieben acht neun zehn Weihnachtspullover Herren.',
+    });
+
+    expect(meldungen.some(m => /ersten 10 Wörtern/.test(m))).toBe(true);
+  });
+
+  test('<h2> mit dem Produkttitel → Meldung', () => {
+    const meldungen = pruefeSeoText({
+      ...gut,
+      produktbeschreibung:
+        '<h2>Ugly Sweater Rentier Herren</h2><p>Der Weihnachtspullover Herren sitzt locker.</p>',
+    });
+
+    expect(meldungen.some(m => /enthält den Produkttitel/.test(m))).toBe(true);
+  });
+
+  test('<h2> mit dem Titel ohne Zielgruppe → Meldung', () => {
+    const meldungen = pruefeSeoText({
+      ...gut,
+      produktbeschreibung:
+        '<h2>ugly sweater rentier</h2><p>Der Weihnachtspullover Herren sitzt locker.</p>',
+    });
+
+    expect(meldungen.some(m => /enthält den Produkttitel/.test(m))).toBe(true);
+  });
+
+  test('<h2> mit mehr als 8 Wörtern → Meldung', () => {
+    const meldungen = pruefeSeoText({
+      ...gut,
+      produktbeschreibung:
+        '<h2>Eins zwei drei vier fünf sechs sieben acht neun</h2>' +
+        '<p>Der Weihnachtspullover Herren sitzt locker.</p>',
+    });
+
+    expect(meldungen.some(m => /höchstens 8/.test(m))).toBe(true);
+  });
+
+  test('fehlende <h2> wird gemeldet', () => {
+    const meldungen = pruefeSeoText({
+      ...gut,
+      produktbeschreibung: '<p>Der Weihnachtspullover Herren sitzt locker.</p>',
+    });
+
+    expect(meldungen.some(m => /keine <h2>/.test(m))).toBe(true);
+  });
+
+  test('leere Keyphrase: geprüft wird gegen den Titel ohne Farbe/Größe', () => {
+    const meldungen = pruefeSeoText({
+      keyphrase:   '',
+      produktname: 'Ugly Sweater Rentier Navy',
+      farben:      ['Navy'],
+      kurzbeschreibung:    'Schickes Teil für die Feier.',
+      produktbeschreibung: '<h2>Schnitt und Material</h2><p>Sitzt locker.</p>',
+    });
+
+    expect(meldungen.some(m => /Hauptkeyword \(aus dem Titel\)/.test(m))).toBe(true);
+    expect(meldungen.some(m => m.includes('Ugly Sweater Rentier'))).toBe(true);
+    expect(meldungen.every(m => !m.includes('Navy'))).toBe(true);
+  });
+
+  test('Groß/Klein und Umlaute sind egal, verglichen wird auf ganzen Wörtern', () => {
+    expect(pruefeSeoText({
+      ...gut,
+      keyphrase: 'WEIHNACHTSPULLOVER HERREN',
+    })).toEqual([]);
+
+    // "pullover" darf nicht als Teilstring in "Weihnachtspullover" treffen.
+    expect(pruefeSeoText({ ...gut, keyphrase: 'Pullover' }).length).toBeGreaterThan(0);
   });
 });

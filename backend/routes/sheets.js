@@ -9,7 +9,9 @@ import { sichereSpalte } from '../utils/sheet-spalten.js';
 // Schreibaufruf sie mitbringt. Optional: gelesen wird nur ueber findHeader,
 // fehlt die Spalte, bleibt das Feld leer. Bestandszeilen bleiben LEER.
 //   Marke – Markenname aus der WooCommerce-Antwort beim Anlegen (honk: leer)
-const ERF_SPALTEN_BEI_BEDARF = ['Marke'];
+//   Fokus_Keyphrase – SEO-Keyphrase aus dem Reiter "SEO Daten", optional.
+//     Wird NICHT nach WooCommerce/Yoast geschrieben, das ist ein eigener Schritt.
+const ERF_SPALTEN_BEI_BEDARF = ['Marke', 'Fokus_Keyphrase'];
 
 const router = Router();
 
@@ -334,6 +336,7 @@ router.get('/erfassung/seo-pending', async (req, res, next) => {
     const wcIdIdx      = requireHeader(headers, 'Produkt-ID', CTX);
     const lshopIdx     = findHeader(headers, 'L-Shop-Artikelnummer');
     const lshopUrlIdx  = findHeader(headers, 'L-Shop URL');
+    const keyphraseIdx = findHeader(headers, 'Fokus_Keyphrase');
 
     const pending = [];
     rows.slice(1).forEach((row, i) => {
@@ -347,6 +350,7 @@ router.get('/erfassung/seo-pending', async (req, res, next) => {
         wcId:          row[wcIdIdx]       ?? '',
         lshopNr:       lshopIdx    >= 0 ? (row[lshopIdx]    ?? '') : '',
         lshopUrl:      lshopUrlIdx >= 0 ? (row[lshopUrlIdx] ?? '') : '',
+        keyphrase:     keyphraseIdx >= 0 ? (row[keyphraseIdx] ?? '') : '',
       });
     });
 
@@ -482,6 +486,14 @@ router.post('/erfassung/patch-fields', async (req, res, next) => {
 
     const headers    = headerResp.data.values?.[0] ?? [];
     const currentRow = rowResp.data.values?.[0]   ?? [];
+
+    // Wie in /erfassung/overwrite: fehlende Bei-Bedarf-Spalte anhaengen, sonst
+    // faellt der Wert unter den Tisch - headers.map() kennt die Spalte nicht.
+    const feldKeys = Object.keys(fields);
+    for (const name of ERF_SPALTEN_BEI_BEDARF) {
+      if (findHeader(feldKeys, name) >= 0)
+        await sichereSpalte(sheets, spreadsheetId, 'Erfassungsmaske', headers, name);
+    }
 
     const updatedRow = headers.map((h, i) => {
       if (fields[h] !== undefined) return String(fields[h]);

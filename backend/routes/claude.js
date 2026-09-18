@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getModel } from '../lib/modelConfig.js';
 import { sanitizeJsonControlChars, collectText } from '../utils/json-parse.js';
-import { buildSeoUserPrompt, resolveModus } from '../lib/seo-prompt.js';
+import { buildSeoUserPrompt, resolveModus, pruefeSeoText } from '../lib/seo-prompt.js';
 
 const router = Router();
 
@@ -176,7 +176,10 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
     }
 
     if (action === 'seo_description') {
-      const { produktname, kategorien, eigenschaften, hinweise, motiv, modus, farben } = req.body;
+      const {
+        produktname, kategorien, eigenschaften, hinweise, motiv, modus, farben,
+        groessen, keyphrase,
+      } = req.body;
       if (!produktname) return res.status(400).json({ error: 'produktname ist erforderlich.' });
 
       const SEO_SYSTEM = `Du bist SEO-Texter für jammifashion.de. Der Artikel ist ein FERTIG BEDRUCKTES
@@ -238,6 +241,8 @@ WEITERES:
         motiv,
         modus: modusWert,
         farben,
+        groessen,
+        keyphrase,
       });
 
       // Der Anbieter folgt der Modell-ID aus dem Config-Sheet, nicht dem
@@ -313,11 +318,29 @@ WEITERES:
         return res.status(502).json({ error: 'KI-Antwort konnte nicht geparst werden: ' + e.message, raw: raw.substring(0, 500) });
       }
 
+      // Regeln, die nur im Prompt stehen, bricht das Modell still. Also im Code
+      // nachprüfen – und das Ergebnis melden, statt es durchzulassen. Der Text
+      // geht trotzdem raus: er ist meist brauchbar und wird von Hand
+      // nachgezogen.
+      const kurzbeschreibung   = parsed.kurzbeschreibung   || '';
+      const produktbeschreibung = parsed.produktbeschreibung || '';
+      const meldungen = pruefeSeoText({
+        kurzbeschreibung,
+        produktbeschreibung,
+        keyphrase,
+        produktname,
+        farben,
+        groessen,
+      });
+
+      const alleHinweise = [modusWarnung, ...meldungen].filter(Boolean);
+
       return res.json({
-        short_description: parsed.kurzbeschreibung || '',
-        full_description:  parsed.produktbeschreibung || '',
+        short_description: kurzbeschreibung,
+        full_description:  produktbeschreibung,
         modus:             modusWert,
-        hinweis:           modusWarnung,
+        hinweis:           alleHinweise.length ? alleHinweise.join(' ') : null,
+        hinweise:          alleHinweise,
       });
     }
 

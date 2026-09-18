@@ -1147,6 +1147,10 @@
             <div class="card" style="margin-bottom:1rem;">
               <div class="form-section-title">Beschreibungen</div>
               <div class="form-field" style="margin-bottom:0.75rem;">
+                <label>Fokus-Keyphrase <span class="field-note">(optional – leer: Produkttitel ohne Farbe/Größe)</span></label>
+                <input id="seo-keyphrase" type="text" class="form-input" placeholder="z.B. Weihnachtspullover Herren" />
+              </div>
+              <div class="form-field" style="margin-bottom:0.75rem;">
                 <label>Eigene Hinweise / Ideen für die KI (optional)</label>
                 <textarea id="seo-hinweise" class="form-input" rows="6" style="resize:vertical;min-height:120px;font-family:inherit;" placeholder="z.B. Zielgruppe, besondere Merkmale, Tonalität..."></textarea>
               </div>
@@ -4087,6 +4091,7 @@
       let seoCurrentItem  = null;    // aktuell gewählter SEO-Artikel
       let seoPendingList  = [];      // Liste aller ausstehenden SEO-Artikel
       let seoKategorien   = '';      // Kategorienamen des geladenen WC-Produkts
+      let seoVarianten    = [];      // Varianten-Zeilen des Artikels (Farben/Größen)
 
       // Alles, was im Shop steht, ist fertig bedruckt – auch Vereinsartikel.
       // Kein Bedienelement: der Modus ist hier konstant. "auftrag" (mit
@@ -4099,6 +4104,25 @@
       // Normalfall mehr, sondern ein nicht ausgefülltes Feld. Dann diese Zeile
       // wieder aufmachen.
       const SEO_MODUS = 'kollektion';
+
+      // Farben und Größen kommen aus der Variantenauswahl, nicht aus dem
+      // Eigenschaften-Freitext: dort steht der Größenlauf der Baureihe
+      // ("S bis 5XL"), nicht das, was für diesen Artikel angelegt ist.
+      // Angeboten = aktive Varianten; ist keine als aktiv markiert, zählen alle.
+      function seoVariantenWerte(re) {
+        const aktive = seoVarianten.filter(v => v.aktiv);
+        const quelle = aktive.length ? aktive : seoVarianten;
+        const out = [];
+        for (const v of quelle) {
+          for (const [name, wert] of [[v.e1, v.v1], [v.e2, v.v2], [v.e3, v.v3]]) {
+            if (!name || !wert || !re.test(name)) continue;
+            if (!out.some(x => x.toLowerCase() === String(wert).toLowerCase())) out.push(String(wert));
+          }
+        }
+        return out;
+      }
+      const seoFarben   = () => seoVariantenWerte(/farbe|colou?r/i);
+      const seoGroessen = () => seoVariantenWerte(/gr(ö|oe)ss?e|size/i);
 
       const modeBtnNew      = document.getElementById('mode-btn-new');
       const modeBtnSeo      = document.getElementById('mode-btn-seo');
@@ -4235,8 +4259,10 @@
         document.getElementById('seo-hinweise').value      = '';
         document.getElementById('seo-motiv').value         = '';
         document.getElementById('seo-eigenschaften').value = '';
+        document.getElementById('seo-keyphrase').value     = seoCurrentItem.keyphrase || '';
         document.getElementById('seo-status-msg').textContent = '';
         seoKategorien = '';
+        seoVarianten  = [];
 
         initSeoQuillEditors();
         quillSeoShort.root.innerHTML = '';
@@ -4272,6 +4298,16 @@
           );
         }
 
+        // Varianten-Reiter → Farben und Größen für den Prompt
+        if (seoCurrentItem.ssotId) {
+          loadPromises.push(
+            apiFetch(`${API_BASE()}/api/sheets/varianten?ssotId=${encodeURIComponent(seoCurrentItem.ssotId)}`)
+              .then(r => r.json())
+              .then(v => { seoVarianten = v.varianten ?? []; })
+              .catch(() => { seoVarianten = []; })
+          );
+        }
+
         await Promise.all(loadPromises);
         document.getElementById('seo-status-msg').textContent = '';
       });
@@ -4297,14 +4333,18 @@
               hinweise:      document.getElementById('seo-hinweise').value,
               motiv:         document.getElementById('seo-motiv').value,
               modus:         SEO_MODUS,
+              keyphrase:     document.getElementById('seo-keyphrase').value.trim(),
+              farben:        seoFarben(),
+              groessen:      seoGroessen(),
             }),
           });
           const data = await res.json();
           if (!res.ok || data.error) throw new Error(data.error || 'Fehler');
           quillSeoShort.root.innerHTML = data.short_description || '';
           quillSeoFull.root.innerHTML  = data.full_description  || '';
-          // Backend meldet einen unklaren MODUS – nicht verschlucken, davon
-          // hängt ab, ob im Text eine Freigabe versprochen wird.
+          // Backend meldet einen unklaren MODUS oder eine gerissene Regel
+          // (Keyphrase fehlt, <h2> trägt den Titel). Nicht verschlucken: der
+          // Text steht schon oben und wird von Hand nachgezogen.
           if (data.hinweis) {
             statusMsg.textContent = data.hinweis;
             statusMsg.style.color = 'var(--danger)';
@@ -4346,7 +4386,8 @@
             body: JSON.stringify({
               row: seoCurrentItem.row,
               fields: {
-                'SEO_Status': 'Erledigt',
+                'SEO_Status':      'Erledigt',
+                'Fokus_Keyphrase': document.getElementById('seo-keyphrase').value.trim(),
               },
             }),
           });

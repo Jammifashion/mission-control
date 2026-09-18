@@ -25,9 +25,13 @@ jest.unstable_mockModule('@anthropic-ai/sdk', () => ({
 
 let request, app;
 
+// Die Antwort muss die Nachprüfung aus pruefeSeoText() bestehen, sonst steht in
+// jedem Testfall ein Hinweis und diese Tests prüfen nicht mehr die Modellwahl.
+// Ohne Fokus-Keyphrase ist das Hauptkeyword der Produkttitel ("Testshirt").
 const ANTWORT = JSON.stringify({
-  kurzbeschreibung:   'Kurz.',
-  produktbeschreibung: '<h2>Lang</h2>',
+  kurzbeschreibung:   'Testshirt mit Motiv, jetzt bestellen.',
+  produktbeschreibung:
+    '<h2>Schnitt und Material</h2><p>Testshirt aus Baumwolle für den Alltag.</p>',
 });
 
 beforeAll(async () => {
