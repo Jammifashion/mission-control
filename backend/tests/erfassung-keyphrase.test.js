@@ -137,12 +137,13 @@ describe('Frontend: SEO-Flow reicht Keyphrase, Farben und Größen durch', () =>
     expect(genStart).toBeGreaterThan(0);
     expect(genBlock).toMatch(/keyphrase:\s*document\.getElementById\('seo-keyphrase'\)\.value\.trim\(\)/);
     expect(genBlock).toMatch(/farben:\s*seoFarben\(\)/);
-    expect(genBlock).toMatch(/groessen:\s*seoGroessen\(\)/);
+    expect(genBlock).toMatch(/groessen:\s*gr\.groessen/);
   });
 
   test('Größen kommen aus dem Varianten-Reiter, nicht aus den Eigenschaften', () => {
+    // Die Quellenwahl selbst liegt in seo-groessen.test.js.
     expect(html).toMatch(/seoVarianten\s*=\s*v\.varianten/);
-    expect(html).toMatch(/const seoGroessen = \(\) => seoVariantenWerte/);
+    expect(html).toMatch(/seoGroessenQuelle\(seoVarianten, seoWcProdukt, seoQuellenOk\)/);
   });
 
   test('Speichern schreibt Fokus_Keyphrase ins Sheet', () => {

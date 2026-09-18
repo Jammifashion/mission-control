@@ -4092,6 +4092,8 @@
       let seoPendingList  = [];      // Liste aller ausstehenden SEO-Artikel
       let seoKategorien   = '';      // Kategorienamen des geladenen WC-Produkts
       let seoVarianten    = [];      // Varianten-Zeilen des Artikels (Farben/Größen)
+      let seoWcProdukt    = null;    // geladenes WC-Produkt (Größen-Fallback)
+      let seoQuellenOk    = { varianten: false, wc: false }; // was liess sich lesen?
 
       // Alles, was im Shop steht, ist fertig bedruckt – auch Vereinsartikel.
       // Kein Bedienelement: der Modus ist hier konstant. "auftrag" (mit
@@ -4105,13 +4107,25 @@
       // wieder aufmachen.
       const SEO_MODUS = 'kollektion';
 
+      // ── SEO-Größenquelle: Anfang (reine Logik, backend/tests/seo-groessen.test.js) ──
+      // Dieser Block darf NICHTS aus dem Seitenkontext benutzen – kein document,
+      // keine Modul-Variablen. Der Test schneidet ihn heraus und führt ihn aus;
+      // jeder Zugriff nach draußen würde ihn unausführbar machen.
+      //
+      // "Größe" enthält ein ß – EIN Zeichen, nicht "ss". Ein Muster wie
+      // /gr(ö|oe)ss?e/ trifft "Grösse", aber nicht "Größe" – und genau so heißt
+      // das Attribut im Shop. Darum der eigene ß-Zweig.
+      const GROESSEN_ATTR_RE = /gr(?:ö|oe)(?:ß|ss|s)?e|sizes?/i;
+      const FARB_ATTR_RE     = /farbe|colou?r/i;
+
       // Farben und Größen kommen aus der Variantenauswahl, nicht aus dem
       // Eigenschaften-Freitext: dort steht der Größenlauf der Baureihe
       // ("S bis 5XL"), nicht das, was für diesen Artikel angelegt ist.
       // Angeboten = aktive Varianten; ist keine als aktiv markiert, zählen alle.
-      function seoVariantenWerte(re) {
-        const aktive = seoVarianten.filter(v => v.aktiv);
-        const quelle = aktive.length ? aktive : seoVarianten;
+      function seoWerteAusVarianten(varianten, re) {
+        const alle   = Array.isArray(varianten) ? varianten : [];
+        const aktive = alle.filter(v => v.aktiv);
+        const quelle = aktive.length ? aktive : alle;
         const out = [];
         for (const v of quelle) {
           for (const [name, wert] of [[v.e1, v.v1], [v.e2, v.v2], [v.e3, v.v3]]) {
@@ -4121,8 +4135,47 @@
         }
         return out;
       }
-      const seoFarben   = () => seoVariantenWerte(/farbe|colou?r/i);
-      const seoGroessen = () => seoVariantenWerte(/gr(ö|oe)ss?e|size/i);
+
+      // Aggregierte Attribute des WooCommerce-Produkts: [{ name, options: [] }].
+      function seoWerteAusWcProdukt(produkt, re) {
+        const attrs = Array.isArray(produkt && produkt.attributes) ? produkt.attributes : [];
+        const out = [];
+        for (const a of attrs) {
+          if (!a || !a.name || !re.test(a.name)) continue;
+          for (const opt of (Array.isArray(a.options) ? a.options : [])) {
+            const wert = String(opt == null ? '' : opt).trim();
+            if (!wert) continue;
+            if (!out.some(x => x.toLowerCase() === wert.toLowerCase())) out.push(wert);
+          }
+        }
+        return out;
+      }
+
+      // Reihenfolge: Varianten-Reiter, dann WooCommerce, dann "wirklich keine".
+      // Der Unterschied zwischen den letzten beiden ist der Punkt: ein Artikel
+      // ohne Größen (Schal, Puck) ist etwas anderes als eine Größenliste, die
+      // niemand laden konnte. Nur wenn KEINE der beiden Quellen lesbar war, ist
+      // das Ergebnis unbekannt und muss gemeldet werden.
+      function seoGroessenQuelle(varianten, wcProdukt, lesbar) {
+        const ausVarianten = seoWerteAusVarianten(varianten, GROESSEN_ATTR_RE);
+        if (ausVarianten.length) return { groessen: ausVarianten, quelle: 'varianten' };
+
+        const ausWc = seoWerteAusWcProdukt(wcProdukt, GROESSEN_ATTR_RE);
+        if (ausWc.length) return { groessen: ausWc, quelle: 'woocommerce' };
+
+        if (lesbar && (lesbar.varianten || lesbar.wc)) return { groessen: [], quelle: 'ohne' };
+        return { groessen: [], quelle: 'unbekannt' };
+      }
+
+      const SEO_GROESSEN_TEXT = {
+        varianten:   'Größen aus Varianten',
+        woocommerce: 'Größen aus WooCommerce',
+        ohne:        'Artikel ohne Größen',
+        unbekannt:   'Größen konnten nicht ermittelt werden – bitte im Text prüfen',
+      };
+      // ── SEO-Größenquelle: Ende ──
+
+      const seoFarben = () => seoWerteAusVarianten(seoVarianten, FARB_ATTR_RE);
 
       const modeBtnNew      = document.getElementById('mode-btn-new');
       const modeBtnSeo      = document.getElementById('mode-btn-seo');
@@ -4263,6 +4316,8 @@
         document.getElementById('seo-status-msg').textContent = '';
         seoKategorien = '';
         seoVarianten  = [];
+        seoWcProdukt  = null;
+        seoQuellenOk  = { varianten: false, wc: false };
 
         initSeoQuillEditors();
         quillSeoShort.root.innerHTML = '';
@@ -4281,6 +4336,10 @@
               .then(async p => {
                 quillSeoShort.root.innerHTML = p.short_description || '';
                 quillSeoFull.root.innerHTML  = p.description || '';
+                // Fuer den Groessen-Fallback merken. Gelesen ist es nur, wenn
+                // wirklich ein Produkt kam - eine Fehlerantwort hat keine id.
+                seoWcProdukt     = p;
+                seoQuellenOk.wc  = !!(p && p.id);
                 // Kategorien für den SEO-Prompt merken (nicht nur die erste)
                 seoKategorien = (p.categories ?? []).map(c => c.name).filter(Boolean).join(', ');
                 // Try to load social media for the first category
@@ -4303,8 +4362,13 @@
           loadPromises.push(
             apiFetch(`${API_BASE()}/api/sheets/varianten?ssotId=${encodeURIComponent(seoCurrentItem.ssotId)}`)
               .then(r => r.json())
-              .then(v => { seoVarianten = v.varianten ?? []; })
-              .catch(() => { seoVarianten = []; })
+              .then(v => {
+                seoVarianten = v.varianten ?? [];
+                // Nur ein echtes Array heisst "gelesen" – eine Fehlerantwort
+                // ({error}) ist kein leerer Reiter.
+                seoQuellenOk.varianten = Array.isArray(v.varianten);
+              })
+              .catch(() => { seoVarianten = []; seoQuellenOk.varianten = false; })
           );
         }
 
@@ -4317,6 +4381,9 @@
         const statusMsg = document.getElementById('seo-status-msg');
         statusMsg.style.color = 'var(--muted)';
         statusMsg.textContent = 'Beschreibung wird generiert…';
+        // Groessen: erst Varianten-Reiter, dann WooCommerce. Die Quelle wird
+        // unten angezeigt, damit sichtbar ist, woher sie kamen.
+        const gr = seoGroessenQuelle(seoVarianten, seoWcProdukt, seoQuellenOk);
         try {
           const res = await apiFetch(`${API_BASE()}/api/claude/generate-product`, {
             method: 'POST',
@@ -4335,7 +4402,7 @@
               modus:         SEO_MODUS,
               keyphrase:     document.getElementById('seo-keyphrase').value.trim(),
               farben:        seoFarben(),
-              groessen:      seoGroessen(),
+              groessen:      gr.groessen,
             }),
           });
           const data = await res.json();
@@ -4344,14 +4411,14 @@
           quillSeoFull.root.innerHTML  = data.full_description  || '';
           // Backend meldet einen unklaren MODUS oder eine gerissene Regel
           // (Keyphrase fehlt, <h2> trägt den Titel). Nicht verschlucken: der
-          // Text steht schon oben und wird von Hand nachgezogen.
-          if (data.hinweis) {
-            statusMsg.textContent = data.hinweis;
-            statusMsg.style.color = 'var(--danger)';
-            showToast(data.hinweis, 'error');
-            return;
-          }
-          statusMsg.textContent = '';
+          // Text steht schon oben und wird von Hand nachgezogen. Dazu immer die
+          // Größenquelle – stille Größen sind genau das Problem.
+          const quelleText = SEO_GROESSEN_TEXT[gr.quelle];
+          const gemeldet   = gr.quelle === 'unbekannt';
+          statusMsg.textContent = [data.hinweis, quelleText].filter(Boolean).join(' · ');
+          statusMsg.style.color = (data.hinweis || gemeldet) ? 'var(--danger)' : 'var(--muted)';
+          if (gemeldet)     showToast(SEO_GROESSEN_TEXT.unbekannt, 'error');
+          if (data.hinweis) showToast(data.hinweis, 'error');
         } catch (e) {
           statusMsg.textContent = `Fehler: ${e.message}`;
           statusMsg.style.color = 'var(--danger)';
