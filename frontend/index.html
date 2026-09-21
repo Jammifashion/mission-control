@@ -1291,6 +1291,16 @@
               <label>WooCommerce Product ID <span class="field-note">(nach Anlage)</span></label>
               <input id="pf-wc-id" type="text" class="form-input" readonly placeholder="—" />
             </div>
+            <div class="form-field form-col-full">
+              <label>Hauptbild (Artikelbild) <span class="field-note">(optional)</span></label>
+              <div class="variant-imgref-row">
+                <img id="pf-hauptbild-thumb" alt="" style="display:none;height:44px;width:44px;object-fit:cover;border-radius:4px;" />
+                <input type="file" accept="image/*" id="pf-hauptbild-file" class="variant-file-inp" />
+                <button type="button" class="btn-secondary variant-upload-btn" id="pf-hauptbild-upload" disabled>Hochladen</button>
+                <span class="variant-upload-status" id="pf-hauptbild-status"></span>
+              </div>
+              <div class="field-note" style="margin-top:0.25rem;">Gilt für alle Varianten ohne eigenes Bild.</div>
+            </div>
             <div id="pf-desc-edit-wrap" style="display:none;grid-column:1/-1;">
               <div class="form-field form-col-full">
                 <label>Kurzbeschreibung</label>
@@ -3949,6 +3959,63 @@
         renderExistingVariations();
       });
 
+      // ── Hauptbild (Artikelbild) ──────────────────────────────────────────
+      // Optional. Bleibt das Feld leer, faellt das Hauptbild wie bisher auf das
+      // erste Variantenbild zurueck - "leer lassen" aendert also nichts.
+      // Variantenbilder werden hier NIE angefasst und nicht automatisch
+      // befuellt: WooCommerce zeigt fuer eine Variante ohne eigenes Bild
+      // ohnehin das Hauptbild des Elternartikels.
+      function setzeHauptbild(id, url) {
+        hauptbildId  = id ?? null;
+        hauptbildUrl = url ?? '';
+        const thumb = document.getElementById('pf-hauptbild-thumb');
+        const btn   = document.getElementById('pf-hauptbild-upload');
+        if (thumb) {
+          thumb.src = hauptbildUrl;
+          thumb.style.display = hauptbildUrl ? '' : 'none';
+        }
+        if (btn) btn.textContent = hauptbildId ? '✓ Bild' : 'Hochladen';
+      }
+
+      document.getElementById('pf-hauptbild-file').addEventListener('change', () => {
+        const fileInp = document.getElementById('pf-hauptbild-file');
+        const file    = fileInp.files?.[0];
+        const thumb   = document.getElementById('pf-hauptbild-thumb');
+        const btn     = document.getElementById('pf-hauptbild-upload');
+        document.getElementById('pf-hauptbild-status').textContent = '';
+        if (!file) { btn.disabled = true; return; }
+        thumb.src = URL.createObjectURL(file);
+        thumb.style.display = '';
+        btn.disabled = false;
+        btn.textContent = 'Hochladen';
+      });
+
+      document.getElementById('pf-hauptbild-upload').addEventListener('click', async () => {
+        const fileInp  = document.getElementById('pf-hauptbild-file');
+        const btn      = document.getElementById('pf-hauptbild-upload');
+        const statusEl = document.getElementById('pf-hauptbild-status');
+        const file     = fileInp.files?.[0];
+        if (!file) return;
+
+        btn.disabled = true;
+        statusEl.textContent = 'Lädt hoch…';
+        statusEl.style.color = 'var(--muted)';
+        try {
+          const fd = new FormData();
+          fd.append('file', file);
+          const res  = await apiFetch(`${API_BASE()}/api/artikel/media-upload`, { method: 'POST', body: fd });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+          setzeHauptbild(data.attachmentId, data.sourceUrl);
+          statusEl.textContent = '';
+        } catch (e) {
+          showToast(`Hauptbild-Upload fehlgeschlagen: ${e.message}`, 'error');
+          statusEl.textContent = 'Fehler';
+          statusEl.style.color = 'var(--danger)';
+          btn.disabled = false;
+        }
+      });
+
       document.getElementById('imgref-file-inp').addEventListener('change', () => {
         const fileInp   = document.getElementById('imgref-file-inp');
         const uploadBtn = document.getElementById('imgref-upload-btn');
@@ -4156,6 +4223,8 @@
       // ── Modus-Steuerung ──────────────────────────────────────────────────
       let wcEditProductId = null;    // WC-ID des geladenen Produkts im Ändern-Modus
       let wcEditSkuOriginal = '';    // SKU so, wie sie im Shop stand (S2b-Vergleich)
+      let hauptbildId  = null;       // ausdruecklich gewaehltes Artikelbild (optional)
+      let hauptbildUrl = '';
       let seoCurrentItem  = null;    // aktuell gewählter SEO-Artikel
       let seoPendingList  = [];      // Liste aller ausstehenden SEO-Artikel
       let seoKategorien   = '';      // Kategorienamen des geladenen WC-Produkts
@@ -4283,6 +4352,11 @@
         document.getElementById('prod-push-status').textContent = '';
         existingVariations = [];
         document.getElementById('existing-variants-block').style.display = 'none';
+        const hbFile = document.getElementById('pf-hauptbild-file');
+        if (hbFile) hbFile.value = '';
+        document.getElementById('pf-hauptbild-status').textContent = '';
+        document.getElementById('pf-hauptbild-upload').disabled = true;
+        setzeHauptbild(null, '');
       }
 
       function setMode(edit) {
@@ -4933,6 +5007,10 @@
             document.getElementById('pf-short-name').value = rest.join('/').trim();
           }
 
+          // Vorhandenes Hauptbild anzeigen - ersetzbar ueber das Feld.
+          const wcHauptbild = (p.images || [])[0];
+          setzeHauptbild(wcHauptbild?.id ?? null, wcHauptbild?.src ?? '');
+
           // Kategorien
           selectedCats.clear();
           (p.categories || []).forEach(c => selectedCats.set(String(c.id), c.name));
@@ -5063,10 +5141,11 @@
           attrMap[a.name].add(a.value);
         }));
 
-        // Hauptprodukt-Bild: erstes Varianten-Bild, das hochgeladen wurde (kein
-        // separater Haupt-Upload nötig – dieselbe attachmentId kann mehrfach
-        // verwendet werden, kein Re-Upload).
-        const mainImageId = activeVariants.find(v => v.imageId)?.imageId;
+        // Hauptbild im Aenderungspfad: ausdrueckliches Feld gewinnt, sonst wie
+        // bisher das erste Variantenbild. Beim Laden wurde das vorhandene
+        // Hauptbild aus p.images[0] uebernommen, es bleibt also stehen, solange
+        // niemand ein neues hochlaedt. Variantenbilder bleiben unberuehrt.
+        const mainImageId = hauptbildId ?? activeVariants.find(v => v.imageId)?.imageId;
 
         try {
           const selectedShopStatus = statusShopSel.value;
@@ -5435,9 +5514,11 @@
           ...(v.imageId ? { image: { id: v.imageId } } : {}),
         }));
 
-        // Hauptprodukt-Bild: erstes Varianten-Bild, das hochgeladen wurde – dieselbe
-        // attachmentId kann mehrfach verwendet werden, kein Re-Upload nötig.
-        const mainImageId = activeVariants.find(v => v.imageId)?.imageId;
+        // Hauptbild: das ausdrueckliche Feld gewinnt. Ist es leer, bleibt es beim
+        // bisherigen Verhalten (erstes Variantenbild) - "leer lassen" aendert also
+        // nichts. Die Varianten werden dabei nicht angefasst; eine Variante ohne
+        // eigenes Bild zeigt in WooCommerce ohnehin das Hauptbild.
+        const mainImageId = hauptbildId ?? activeVariants.find(v => v.imageId)?.imageId;
 
         try {
           // Schritt 1: Produkt anlegen
