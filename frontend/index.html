@@ -4557,7 +4557,12 @@
           // Größenquelle – stille Größen sind genau das Problem.
           const quelleText = SEO_GROESSEN_TEXT[gr.quelle];
           const gemeldet   = gr.quelle === 'unbekannt';
-          statusMsg.textContent = [data.hinweis, quelleText].filter(Boolean).join(' · ');
+          // Ein zweiter Versuch ist kein Fehler: hat die <h2>-Nachprüfung im
+          // ersten Lauf angeschlagen und der Wiederholungslauf war sauber, steht
+          // das neutral im Statustext – nicht rot. Rot bleibt allein dem
+          // Verstoß vorbehalten, der auch nach dem zweiten Lauf steht.
+          const versuchText = data.versuch === 2 ? 'im zweiten Versuch erzeugt' : '';
+          statusMsg.textContent = [data.hinweis, versuchText, quelleText].filter(Boolean).join(' · ');
           statusMsg.style.color = (data.hinweis || gemeldet) ? 'var(--danger)' : 'var(--muted)';
           if (gemeldet)     showToast(SEO_GROESSEN_TEXT.unbekannt, 'error');
           if (data.hinweis) showToast(data.hinweis, 'error');

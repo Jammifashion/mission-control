@@ -3,15 +3,128 @@
 import {
   filterMaterialFarben,
   filterEigenschaften,
+  farbenAusEigenschaften,
   parseFarben,
   parseGroessen,
   hauptKeyword,
   pruefeSeoText,
+  pruefeH2,
+  h2KorrekturBlock,
   buildSeoUserPrompt,
   resolveModus,
   MATERIAL_PLACEHOLDER,
   MODUS_KOLLEKTION,
 } from '../lib/seo-prompt.js';
+
+// ── Doppelte Farbzeile (Befund 21.09.) ──────────────────────────────────────
+// In der Detailliste stand "Farben: Farbe(n): Schwarz" und darunter noch einmal
+// "Farbe(n): Schwarz". Zwei Ursachen: das Label "Farbe(n):" wurde vom alten
+// Muster nicht abgeschnitten und blieb im Wert stehen, und dieselbe Zeile lief
+// zusaetzlich ueber "Weitere Eigenschaften" durch.
+describe('Farbzeile aus den Eigenschaften', () => {
+  test.each([
+    ['Farbe(n): Schwarz'],
+    ['Farbe: Schwarz'],
+    ['Farben: Schwarz'],
+    ['Verfügbare Farben: Schwarz'],
+  ])('%s – Wert wird sauber ausgelesen', (zeile) => {
+    expect(farbenAusEigenschaften([zeile])).toEqual(['Schwarz']);
+  });
+
+  test('mehrere Farben und Trennzeichen', () => {
+    expect(farbenAusEigenschaften(['Farbe(n): Schwarz, Navy / Grau meliert']))
+      .toEqual(['Schwarz', 'Navy', 'Grau meliert']);
+  });
+
+  test('"Farbigkeit" ist keine Farbzeile – die faellt ueber die Sperrliste', () => {
+    expect(farbenAusEigenschaften(['Farbigkeit: 1-farbig, Meliert'])).toEqual([]);
+  });
+
+  test('filterEigenschaften entfernt die Farbzeile, Singular wie Plural', () => {
+    for (const zeile of ['Farbe(n): Schwarz', 'Farbe: Schwarz', 'Farben: Schwarz']) {
+      expect(filterEigenschaften([zeile, 'Grammatur: 280 g/m²'])).toEqual(['Grammatur: 280 g/m²']);
+    }
+  });
+
+  test.each([
+    ['Farbe(n): Schwarz'],
+    ['Farbe: Schwarz'],
+  ])('fertiger Prompt mit "%s": Farbe genau einmal, Liste kommt an', (farbZeile) => {
+    const prompt = buildSeoUserPrompt({
+      produktname: 'Shirt',
+      eigenschaften: `Material: 100% Baumwolle\n${farbZeile}\nGrammatur: 280 g/m²`,
+    });
+
+    // Die Farbliste ist trotz Entfernen der Zeile angekommen.
+    expect(prompt).toContain('- FARBEN: Schwarz');
+    expect(prompt).toContain('<li><strong>Farben:</strong> Schwarz</li>');
+
+    // Kein doppeltes Label und keine zweite Zeile – beide Eintrittsstellen.
+    expect(prompt).not.toMatch(/Farben:\s*Farbe/);
+    expect(prompt).not.toContain('<li>Farbe(n): Schwarz</li>');
+    expect(prompt).not.toContain('<li>Farbe: Schwarz</li>');
+    const weitere = prompt.split('\n').find(z => z.startsWith('- Weitere Eigenschaften:'));
+    expect(weitere).toBeDefined();
+    expect(weitere).not.toMatch(/Farbe/);
+    expect(weitere).toContain('Grammatur: 280 g/m²');
+
+    // "Schwarz" steht genau zweimal: FARBEN-Zeile und <li>.
+    expect(prompt.match(/Schwarz/g)).toHaveLength(2);
+  });
+
+  test('die Farbliste erreicht filterMaterialFarben', () => {
+    const prompt = buildSeoUserPrompt({
+      produktname: 'Shirt',
+      eigenschaften: 'Material: 100% Baumwolle (Ash: 99% Baumwolle)\nFarbe(n): Schwarz',
+    });
+
+    // Ash ist nicht angeboten -> die Ausnahme muss verschwinden. Das gelingt
+    // nur, wenn die Farbliste trotz entfernter Zeile bekannt ist.
+    expect(prompt).not.toMatch(/Ash/);
+    expect(prompt).toContain('- Material: 100% Baumwolle');
+  });
+});
+
+describe('pruefeH2 – eigene Funktion fuer den Wiederholungslauf', () => {
+  const lang = h2 => `<h2>${h2}</h2><p>Text.</p>`;
+
+  test('sauber: keine Meldung', () => {
+    expect(pruefeH2(lang('Schnitt und Material'), 'Ugly Sweater Rentier')).toEqual([]);
+  });
+
+  test('Titel in der <h2>', () => {
+    const m = pruefeH2(lang('Ugly Sweater Rentier für den Alltag'), 'Ugly Sweater Rentier');
+    expect(m.some(x => /enthält den Produkttitel/.test(x))).toBe(true);
+  });
+
+  test('zu lang', () => {
+    expect(pruefeH2(lang('Eins zwei drei vier fünf sechs sieben acht neun'), 'Shirt')
+      .some(x => /höchstens 8/.test(x))).toBe(true);
+  });
+
+  test('fehlende <h2>', () => {
+    expect(pruefeH2('<p>Nur Text.</p>', 'Shirt').some(x => /keine <h2>/.test(x))).toBe(true);
+  });
+
+  test('pruefeSeoText enthaelt dieselben Meldungen weiterhin', () => {
+    const meldungen = pruefeSeoText({
+      kurzbeschreibung: 'Ugly Sweater Rentier, jetzt bestellen.',
+      produktbeschreibung: '<h2>Ugly Sweater Rentier</h2><p>Ugly Sweater Rentier aus Baumwolle.</p>',
+      produktname: 'Ugly Sweater Rentier',
+    });
+    expect(meldungen.some(x => /enthält den Produkttitel/.test(x))).toBe(true);
+  });
+});
+
+describe('h2KorrekturBlock', () => {
+  test('nennt den Verstoss und beide Beispiele', () => {
+    const block = h2KorrekturBlock(['Die <h2> enthält den Produkttitel ("X für alle").']);
+    expect(block).toContain('KORREKTUR');
+    expect(block).toContain('X für alle');
+    expect(block).toContain('falsch:  "Das <Produkttitel> für den Alltag"');
+    expect(block).toContain('richtig: "Mehrfarbiger Brustdruck auf schwarzem Jersey"');
+  });
+});
 
 describe('filterMaterialFarben', () => {
   test('(a) Ausnahmen für nicht gewählte Farben verschwinden', () => {

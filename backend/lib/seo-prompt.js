@@ -56,7 +56,11 @@ const NON_COLOR_LABELS = new Set([
 ]);
 
 const MATERIAL_LINE_RE  = /material|baumwolle|polyester/i;
-const FARB_LABEL_RE     = /^\s*(farben?|colou?rs?)\s*:\s*/i;
+// "Farben:", "Farbe:", "Farbe(n):" – die beiden letzten Schreibweisen traf das
+// alte Muster nicht, weil nach "farbe" sofort ein ":" verlangt wurde. Folge:
+// das Label blieb im Wert stehen und landete als "Farben: Farbe(n): Schwarz"
+// in der Detailliste.
+const FARB_LABEL_RE     = /^\s*(?:farbe\(n\)|farben|farbe|colou?r\(s\)|colou?rs|colou?r)\s*:\s*/i;
 // Schreibweisen des Labels: "Größen:", "Grössen:", "Groessen:", "Size(s):".
 // Das ß braucht einen eigenen Zweig – es ist EIN Zeichen, kein "ss".
 const GROESSEN_LABEL_RE = /^\s*(gr(?:ö|oe)(?:ß|ss|s)?en?|sizes?)\s*:\s*/i;
@@ -193,6 +197,39 @@ export function parseFarben(input) {
 }
 
 /**
+ * Ist das eine Farbzeile aus dem Eigenschaften-Freitext?
+ * Erkannt wird am LABEL vor dem Doppelpunkt, nicht am ganzen Text – sonst
+ * träfe es auch "Farbigkeit: 1-farbig" (die steht auf der Sperrliste) oder
+ * jeden Satz, in dem das Wort Farbe vorkommt.
+ */
+function istFarbZeile(zeile) {
+  const text = String(zeile ?? '');
+  const i = text.indexOf(':');
+  if (i <= 0) return false;
+  const label = normalize(text.slice(0, i));      // "Farbe(n)" → "farbe n"
+  if (label.includes('farbigkeit')) return false; // eigener Zweig: Sperrliste
+  return /\bfarben?\b|\bcolou?rs?\b/.test(label);
+}
+
+/**
+ * Farbliste aus den ROHEN Eigenschaften-Zeilen lesen.
+ *
+ * ⚠️ Muss VOR filterEigenschaften() laufen: die entfernt die Farbzeile, damit
+ * sie nicht ein zweites Mal in der Detailliste landet. Ohne diesen Schritt
+ * ginge die Farbliste für filterMaterialFarben verloren und der Prompt zeigte
+ * "siehe Varianten" statt der echten Farben.
+ *
+ * Abgeschnitten wird am Doppelpunkt, nicht am Label-Muster – damit auch
+ * "Verfügbare Farben: Schwarz" den Wert sauber hergibt.
+ */
+export function farbenAusEigenschaften(lines) {
+  const werte = (lines ?? [])
+    .filter(istFarbZeile)
+    .map(z => String(z).slice(String(z).indexOf(':') + 1));
+  return parseFarben(werte);
+}
+
+/**
  * Größenliste aus der Variantenauswahl lesen. Gleiches Format wie parseFarben.
  * @returns {string[]} Größen in Originalschreibweise, ohne Dubletten.
  */
@@ -209,6 +246,10 @@ export function parseGroessen(input) {
  *  - Zeilen mit einem Sperrbegriff (Farbigkeit, Veredelungsangabe, Verarbeitung)
  *  - Zeilen, deren Label eine Größe benennt ("Größen: S–5XL", "Größenlauf: …").
  *    Größen kommen ausschließlich aus der Variantenauswahl.
+ *  - Farbzeilen ("Farbe: …", "Farbe(n): …", "Farben: …"). Der Generator baut
+ *    seit der Größen-Änderung selbst eine Zeile "Farben: …" in die Detailliste;
+ *    blieb die handgetippte Zeile stehen, stand die Farbe zweimal da.
+ *    ⚠️ Die Farbliste vorher mit farbenAusEigenschaften() auslesen.
  *
  * @param {string[]} lines Rohzeilen aus dem Eigenschaften-Freitext.
  * @returns {string[]}
@@ -218,6 +259,7 @@ export function filterEigenschaften(lines) {
     const ganzeZeile = normalize(zeile);
     if (!ganzeZeile) return false;
     if (SPERR_BEGRIFFE.some(b => ganzeZeile.includes(b))) return false;
+    if (istFarbZeile(zeile)) return false;
 
     const trenner = String(zeile).indexOf(':');
     if (trenner > 0) {
@@ -298,30 +340,61 @@ export function pruefeSeoText({
     }
   }
 
+  return [...meldungen, ...pruefeH2(produktbeschreibung, produktname)];
+}
+
+/**
+ * Nur die <h2>-Regel. Eigene Funktion, weil ausschließlich SIE einen zweiten
+ * Modellaufruf auslöst: die Keyphrase-Prüfung ist laut Framework ein Hinweis,
+ * kein Fehler, und darf nichts wiederholen.
+ *
+ * @returns {string[]} Meldungen, leer wenn die <h2> in Ordnung ist.
+ */
+export function pruefeH2(produktbeschreibung, produktname) {
+  const meldungen = [];
   const h2 = h2Inhalt(produktbeschreibung);
+
   if (h2 === null) {
     meldungen.push('Die Produktbeschreibung enthält keine <h2>.');
-  } else {
-    const h2Woerter    = woerterVon(h2);
-    const titelWoerter = woerterVon(produktname);
-    const ohneZielgruppe = titelWoerter.filter(w => !ZIELGRUPPEN.has(w));
+    return meldungen;
+  }
 
-    if (titelWoerter.length &&
-        (enthaeltWortfolge(h2Woerter, titelWoerter) ||
-         (ohneZielgruppe.length && enthaeltWortfolge(h2Woerter, ohneZielgruppe)))) {
-      meldungen.push(
-        `Die <h2> enthält den Produkttitel ("${h2}") – sie soll eine kurze, sachliche ` +
-        'Zwischenüberschrift sein, die H1 der Seite ist bereits der Titel.'
-      );
-    }
-    if (h2Woerter.length > H2_MAX_WOERTER) {
-      meldungen.push(
-        `Die <h2> hat ${h2Woerter.length} Wörter (höchstens ${H2_MAX_WOERTER}): "${h2}".`
-      );
-    }
+  const h2Woerter      = woerterVon(h2);
+  const titelWoerter   = woerterVon(produktname);
+  const ohneZielgruppe = titelWoerter.filter(w => !ZIELGRUPPEN.has(w));
+
+  if (titelWoerter.length &&
+      (enthaeltWortfolge(h2Woerter, titelWoerter) ||
+       (ohneZielgruppe.length && enthaeltWortfolge(h2Woerter, ohneZielgruppe)))) {
+    meldungen.push(
+      `Die <h2> enthält den Produkttitel ("${h2}") – sie soll eine kurze, sachliche ` +
+      'Zwischenüberschrift sein, die H1 der Seite ist bereits der Titel.'
+    );
+  }
+  if (h2Woerter.length > H2_MAX_WOERTER) {
+    meldungen.push(
+      `Die <h2> hat ${h2Woerter.length} Wörter (höchstens ${H2_MAX_WOERTER}): "${h2}".`
+    );
   }
 
   return meldungen;
+}
+
+/**
+ * Korrekturblock für den EINEN Wiederholungslauf. Nennt den konkreten Verstoß,
+ * nicht nur die Regel – der erste Lauf hatte die Regel ja schon im Prompt.
+ */
+export function h2KorrekturBlock(meldungen) {
+  return [
+    'KORREKTUR – der erste Entwurf hat die <h2>-Regel verletzt:',
+    ...(meldungen ?? []).map(m => `- ${m}`),
+    '',
+    'Schreibe den Text neu. Die <h2> enthält NICHT den Produkttitel,',
+    `höchstens ${H2_MAX_WOERTER} Wörter, kein Slogan – sie benennt sachlich,`,
+    'worum es im Abschnitt geht.',
+    'falsch:  "Das <Produkttitel> für den Alltag"',
+    'richtig: "Mehrfarbiger Brustdruck auf schwarzem Jersey"',
+  ].join('\n');
 }
 
 // Eine Klausel innerhalb der Klammer: "Grau meliert: 60% Baumwolle".
@@ -424,6 +497,11 @@ export function buildSeoUserPrompt({
   keyphrase,
 } = {}) {
   const rohLines = eigenschaften ? String(eigenschaften).split('\n').filter(Boolean) : [];
+  // ⚠️ Reihenfolge: erst auslesen, dann entfernen. filterEigenschaften() wirft
+  // die Farbzeile raus (sonst steht die Farbe doppelt in der Detailliste) –
+  // die Liste selbst wird aber weiter gebraucht, für FARBEN und für
+  // filterMaterialFarben.
+  const farbenAusZeilen = farbenAusEigenschaften(rohLines);
   // Einzige Filterstelle. Alles darunter arbeitet nur noch auf den sauberen
   // Zeilen – Material, <li>-Liste und "Weitere Eigenschaften" gleichermaßen.
   const eigenschaftenLines = filterEigenschaften(rohLines);
@@ -435,7 +513,7 @@ export function buildSeoUserPrompt({
   const farbListe = parseFarben(
     farben && (Array.isArray(farben) ? farben.length : String(farben).trim())
       ? farben
-      : eigenschaftenLines.filter(l => /farbe|colou?r/i.test(l))
+      : farbenAusZeilen
   );
 
   // Größen kommen NUR aus der Variantenauswahl. Kein Fallback auf die
@@ -497,10 +575,16 @@ export function buildSeoUserPrompt({
       `- Die <h2> ist eine kurze, sachliche Zwischenüberschrift (höchstens ${H2_MAX_WOERTER} Wörter),`,
       '  die sagt, worum es im Abschnitt geht. Sie enthält NICHT den Produkttitel',
       '  und KEINEN Werbeslogan – die H1 der Seite ist bereits der Produkttitel.',
+      '  falsch:  "Das <Produkttitel> für den Alltag"',
+      '  richtig: "Mehrfarbiger Brustdruck auf schwarzem Jersey"',
       '- Nenne KEINE Fakten, die nicht in dieser Eingabe stehen: keine Orte, keine',
       '  Hallen, keine Vereinsgeschichte, keine Zertifikate, keine Liefer- oder',
       '  Bestellschlussdaten. Solche Angaben dürfen ausschließlich aus KONTEXT &',
       '  HINWEISE oder den Eigenschaften stammen.',
+      '- Eigenschaften dürfen GENANNT, aber nicht in eine Wirkung oder einen',
+      '  Vorteil umgedeutet werden, wenn die Eingabe das nicht hergibt.',
+      '  "Seitennähte" und "60 °C waschbar" sind Angaben – daraus wird NICHT',
+      '  "sorgt für eine beständige Passform nach dem Waschen".',
       groessenText
         ? '- Größen: nenne ausschließlich die unter GRÖSSEN gelisteten.'
         : '- Größen: NENNE KEINE Größen, für diesen Artikel gibt es keine Größen-Variante.',

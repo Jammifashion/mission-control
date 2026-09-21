@@ -3,7 +3,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getModel } from '../lib/modelConfig.js';
 import { sanitizeJsonControlChars, collectText } from '../utils/json-parse.js';
-import { buildSeoUserPrompt, resolveModus, pruefeSeoText } from '../lib/seo-prompt.js';
+import {
+  buildSeoUserPrompt, resolveModus, pruefeSeoText, pruefeH2, h2KorrekturBlock,
+} from '../lib/seo-prompt.js';
 
 const router = Router();
 
@@ -252,44 +254,51 @@ WEITERES:
       const modellId = await getModel('seo-text');
       console.log(`seo_description: Rolle seo-text -> ${modellId}`);
 
-      let raw;
-      if (modellId.startsWith('gemini-')) {
-        if (!process.env.GEMINI_API_KEY) {
-          return res.status(503).json({
-            error: `Rolle seo-text ist auf ${modellId} konfiguriert, aber GEMINI_API_KEY fehlt.`,
-          });
-        }
-        const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const geminiModel = genAI.getGenerativeModel({
-          model: modellId,
-          systemInstruction: SEO_SYSTEM,
+      const istGemini = modellId.startsWith('gemini-');
+      if (istGemini && !process.env.GEMINI_API_KEY) {
+        return res.status(503).json({
+          error: `Rolle seo-text ist auf ${modellId} konfiguriert, aber GEMINI_API_KEY fehlt.`,
         });
-        const geminiResult = await geminiModel.generateContent(userPrompt);
-        raw = geminiResult.response.text();
-      } else {
-        if (!process.env.ANTHROPIC_API_KEY) {
-          return res.status(503).json({
-            error: `Rolle seo-text ist auf ${modellId} konfiguriert, aber ANTHROPIC_API_KEY fehlt.`,
+      }
+      if (!istGemini && !process.env.ANTHROPIC_API_KEY) {
+        return res.status(503).json({
+          error: `Rolle seo-text ist auf ${modellId} konfiguriert, aber ANTHROPIC_API_KEY fehlt.`,
+        });
+      }
+
+      // Ein Modellaufruf. Wird hoechstens ZWEIMAL benutzt: regulaer, und einmal
+      // als Wiederholung, wenn die <h2>-Nachpruefung angeschlagen hat.
+      async function modellAufruf(prompt) {
+        if (istGemini) {
+          const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+          const geminiModel = genAI.getGenerativeModel({
+            model: modellId,
+            systemInstruction: SEO_SYSTEM,
           });
+          const geminiResult = await geminiModel.generateContent(prompt);
+          return geminiResult.response.text();
         }
         const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
         const response = await client.messages.create({
           model: modellId,
           max_tokens: 2048,
           system: SEO_SYSTEM,
-          messages: [{ role: 'user', content: userPrompt }],
+          messages: [{ role: 'user', content: prompt }],
         });
-        raw = collectText(response);
+        return collectText(response);
       }
+
+      const raw = await modellAufruf(userPrompt);
 
       if (!raw || !raw.trim()) {
         console.error('[seo_description] Leere Antwort vom Modell - nichts zu parsen.');
         return res.status(502).json({ error: 'Modell lieferte eine leere Antwort.' });
       }
 
-      let parsed;
-      try {
-        let cleaned = raw.trim();
+      // Eigene Funktion, weil der Wiederholungslauf dieselbe Aufbereitung
+      // braucht. Wirft bei unbrauchbarer Antwort.
+      function parseAntwort(rohText) {
+        let cleaned = String(rohText).trim();
         console.log('SEO raw response:', cleaned.substring(0, 200));
 
         // Markdown-Codeblock entfernen falls vorhanden (json ... oder ... oder ```json)
@@ -304,15 +313,21 @@ WEITERES:
 
         let jsonStr = sanitizeJsonControlChars(jsonMatch[0]);
         try {
-          parsed = JSON.parse(jsonStr);
+          return JSON.parse(jsonStr);
         } catch (parseErr) {
           // Fallback: Versuche, ungültige Anführungszeichen in HTML-Strings zu escapen
           console.warn('JSON Parse failed, attempting cleanup:', parseErr.message);
           // Vereinfachter Fix: ersetze unescapte Anführungszeichen INNERHALB von HTML-Tags
           jsonStr = jsonStr.replace(/(<[^>]*)"([^>]*>)/g, '$1\\"$2');
-          parsed = JSON.parse(jsonStr);
-          console.log('SEO parsed after cleanup:', Object.keys(parsed));
+          const zweiterVersuch = JSON.parse(jsonStr);
+          console.log('SEO parsed after cleanup:', Object.keys(zweiterVersuch));
+          return zweiterVersuch;
         }
+      }
+
+      let parsed;
+      try {
+        parsed = parseAntwort(raw);
       } catch (e) {
         console.error('SEO parsing error:', e.message, 'raw:', raw.substring(0, 500));
         return res.status(502).json({ error: 'KI-Antwort konnte nicht geparst werden: ' + e.message, raw: raw.substring(0, 500) });
@@ -322,8 +337,36 @@ WEITERES:
       // nachprüfen – und das Ergebnis melden, statt es durchzulassen. Der Text
       // geht trotzdem raus: er ist meist brauchbar und wird von Hand
       // nachgezogen.
-      const kurzbeschreibung   = parsed.kurzbeschreibung   || '';
-      const produktbeschreibung = parsed.produktbeschreibung || '';
+      let kurzbeschreibung    = parsed.kurzbeschreibung    || '';
+      let produktbeschreibung = parsed.produktbeschreibung || '';
+      let versuch = 1;
+
+      // Genau EIN zweiter Versuch, und nur fuer die <h2>-Regel. Die Keyphrase
+      // ist laut Framework ein Hinweis, kein Fehler - sie loest nichts aus.
+      // Der zweite Lauf bekommt den konkreten Verstoss in den Prompt; er wird
+      // nur uebernommen, wenn er die Regel dann auch einhaelt. Kein dritter.
+      const h2Erst = pruefeH2(produktbeschreibung, produktname);
+      if (h2Erst.length) {
+        console.warn(`[seo_description] <h2> verletzt die Regel - ein Wiederholungslauf: ${h2Erst.join(' ')}`);
+        try {
+          const roh2 = await modellAufruf(`${userPrompt}\n\n${h2KorrekturBlock(h2Erst)}`);
+          if (roh2 && roh2.trim()) {
+            const parsed2 = parseAntwort(roh2);
+            const kurz2 = parsed2.kurzbeschreibung    || '';
+            const lang2 = parsed2.produktbeschreibung || '';
+            if (pruefeH2(lang2, produktname).length === 0) {
+              kurzbeschreibung    = kurz2;
+              produktbeschreibung = lang2;
+              versuch = 2;
+            } else {
+              console.warn('[seo_description] Wiederholungslauf haelt die <h2>-Regel auch nicht ein - erster Entwurf bleibt.');
+            }
+          }
+        } catch (e) {
+          console.warn(`[seo_description] Wiederholungslauf fehlgeschlagen (${e.message}) - erster Entwurf bleibt.`);
+        }
+      }
+
       const meldungen = pruefeSeoText({
         kurzbeschreibung,
         produktbeschreibung,
@@ -339,6 +382,7 @@ WEITERES:
         short_description: kurzbeschreibung,
         full_description:  produktbeschreibung,
         modus:             modusWert,
+        versuch,
         hinweis:           alleHinweise.length ? alleHinweise.join(' ') : null,
         hinweise:          alleHinweise,
       });
