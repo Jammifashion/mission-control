@@ -603,14 +603,11 @@ function entferneFreieKlauseln(text, angeboten) {
 
 /**
  * Entfernt farbspezifische Ausnahmen aus dem Materialstring, deren Farbe für
- * diesen Artikel nicht angeboten wird – und meldet, wenn dabei die
- * Pflichtangabe verloren ginge.
+ * diesen Artikel nicht angeboten wird – und meldet, wenn danach keine
+ * vollständige Faserangabe mehr dasteht.
  *
- * Die Faserzusammensetzung ist eine gesetzliche Pflichtangabe. Nachbedingung
- * (Punkt 1): Stand im Ausgangswert eine Faserangabe und im Ergebnis keine
- * mehr, dann gilt der UNGEFILTERTE Ausgangswert und es gibt eine Meldung.
- * Lieber eine fremde Farbe im Text, die auffällt, als eine fehlende
- * Pflichtangabe, die niemand bemerkt.
+ * Die Nachbedingung MELDET nur, sie stellt nichts wieder her. Das gefilterte
+ * Ergebnis bleibt stehen, auch wenn es unvollständig ist.
  *
  * @param {string}   material Rohstring aus dem Katalog/Sheet.
  * @param {string[]} farben   Angebotene Farben (Variantenauswahl).
@@ -660,18 +657,25 @@ export function filterMaterialFarbenMitMeldung(material, farben) {
   const sauber =
     aufraeumen(entferneFreieKlauseln(aufraeumen(bereinigt), angeboten)) || MATERIAL_PLACEHOLDER;
 
-  // Nachbedingung (Punkt 1). Fängt "nichts mehr übrig", nicht "das Falsche
-  // entfernt" – gegen den zweiten Fall steht die Sachlabel-Prüfung.
-  if (hatFaserangabe(text) && !hatFaserangabe(sauber)) {
-    return {
-      material: text,
-      meldung:
-        'Der Farbfilter hätte die Faserzusammensetzung aus der Materialangabe entfernt – ' +
-        `ungefilterter Wert verwendet, Material bitte prüfen: "${text}"`,
-    };
-  }
+  // Nachbedingung: MELDEN, nicht wiederherstellen.
+  //
+  // Ihre Auslösemenge ist genau die Menge, in der der Filter KORREKT
+  // gearbeitet hat: die einzige Faserangabe gehörte zu einer nicht
+  // angebotenen Farbe. Den ungefilterten Ausgangswert zurückzuholen brächte
+  // dort fremdes Material in den Prompt – genau die Falle, gegen die dieser
+  // Filter gebaut ist. Und der Fall, für den die Prüfung ursprünglich gedacht
+  // war (eine von zwei Angaben gelöscht), löst sie nie aus: dann bleibt ja
+  // eine vollständige Angabe stehen. Gegen den steht die Sachlabel-Prüfung.
+  //
+  // Das gefilterte Ergebnis bleibt also stehen, auch unvollständig. Der
+  // Platzhalter greift nur, wenn gar nichts übrig bleibt – das erledigt oben
+  // das `|| MATERIAL_PLACEHOLDER`.
+  const meldung = hatFaserangabe(text) && !hatFaserangabe(sauber)
+    ? 'Nach dem Filtern steht keine vollständige Faserangabe mit Prozentwerten ' +
+      'mehr im Material — bitte prüfen.'
+    : null;
 
-  return { material: sauber, meldung: null };
+  return { material: sauber, meldung };
 }
 
 /**
@@ -738,8 +742,8 @@ export function buildSeoUserPrompt({
   // dieses Artikels.
   const groessenListe = parseGroessen(groessen);
 
-  // Die Form MIT Meldung, nicht der Wrapper: die Meldung sagt, dass der
-  // Filter eine gesetzliche Pflichtangabe entfernt hätte.
+  // Die Form MIT Meldung, nicht der Wrapper: die Meldung sagt, dass im
+  // Material keine vollständige Faserangabe mehr steht.
   const { material, meldung: materialMeldung } =
     filterMaterialFarbenMitMeldung(materialRoh, farbListe);
   const farbenText  = farbListe.length ? farbListe.join(', ') : 'siehe Varianten';

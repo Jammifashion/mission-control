@@ -216,16 +216,15 @@ describe('filterMaterialFarben', () => {
     expect(filterMaterialFarben('100% Baumwolle (Weiss: 100% Baumwolle)', ['Weiß'])).toMatch(/Weiss/);
   });
 
-  // GEAENDERTES VERHALTEN (Punkt 1): frueher ergab dieser Fall den
-  // Platzhalter. Die Faserzusammensetzung ist eine gesetzliche Pflichtangabe –
-  // haette der Filter sie entfernt, gilt der ungefilterte Wert PLUS Meldung.
-  // Ein Platzhalter saehe sauber aus und verloere die Angabe still.
-  test('Material, das nur aus einer fremden Ausnahme besteht: ungefiltert + Meldung', () => {
+  // Bleibt nach dem Filtern gar nichts uebrig, greift der Platzhalter – das
+  // Verhalten von vor 12f2ea5. Dazu kommt nur die Meldung; der ungefilterte
+  // Wert wird NICHT wiederhergestellt.
+  test('Material, das nur aus einer fremden Ausnahme besteht: Platzhalter + Meldung', () => {
     const { material, meldung } = filterMaterialFarbenMitMeldung('(Ash: 99% Baumwolle)', ['Navy']);
 
-    expect(material).toBe('(Ash: 99% Baumwolle)');
-    expect(meldung).toMatch(/Faserzusammensetzung/);
-    expect(material).not.toBe(MATERIAL_PLACEHOLDER);
+    expect(material).toBe(MATERIAL_PLACEHOLDER);
+    expect(meldung).toMatch(/keine vollständige Faserangabe/);
+    expect(material).not.toMatch(/Ash/);
   });
 
   test('wirklich leeres Material ergibt weiterhin den Platzhalter, ohne Meldung', () => {
@@ -236,26 +235,52 @@ describe('filterMaterialFarben', () => {
   });
 });
 
-// ── Nachbedingung: die Pflichtangabe darf der Filter nicht wegnehmen ────────
-describe('Punkt 1 – Nachbedingung und Wrapper-Bremse', () => {
-  test('greift die Faserangabe vorher, aber nicht nachher: ungefiltert + Meldung', () => {
+// ── Nachbedingung: melden, nicht wiederherstellen ───────────────────────────
+// Die Auslesemenge der Nachbedingung ist genau die Menge, in der der Filter
+// KORREKT gearbeitet hat: die einzige Faserangabe gehoerte zu einer nicht
+// angebotenen Farbe. Den ungefilterten Wert wiederherzustellen holte dort
+// fremdes Material zurueck – genau die Falle, gegen die der Filter gebaut ist.
+describe('Punkt 1 – Nachbedingung meldet, ohne wiederherzustellen', () => {
+  test('einzige Faserangabe gehoert zu nicht angebotener Farbe: gefiltert + Meldung', () => {
+    const roh = 'Baumwolle mit Elasthan (Ash: 99% Baumwolle)';
+    const { material, meldung } = filterMaterialFarbenMitMeldung(roh, ['Navy']);
+
+    // Das GEFILTERTE Ergebnis bleibt stehen, auch wenn es unvollstaendig ist.
+    expect(material).toBe('Baumwolle mit Elasthan');
+    expect(meldung).toMatch(/keine vollständige Faserangabe/);
+
+    // Der ungefilterte Rohwert taucht im Ergebnis NICHT auf.
+    expect(material).not.toBe(roh);
+    expect(material).not.toMatch(/Ash|99%/);
+  });
+
+  test('nach dem Filtern gar nichts mehr uebrig: Platzhalter', () => {
     const { material, meldung } = filterMaterialFarbenMitMeldung(
       '(Ash: 80% Baumwolle / 20% Polyester)', ['Navy']);
 
-    expect(material).toBe('(Ash: 80% Baumwolle / 20% Polyester)');
-    expect(meldung).toMatch(/Material bitte pr/);
+    expect(material).toBe(MATERIAL_PLACEHOLDER);
+    expect(meldung).toMatch(/keine vollständige Faserangabe/);
   });
 
-  test('normaler Fall: Faserangabe bleibt stehen, keine Meldung', () => {
+  test('Regression: eine von zwei Angaben entfernt, eine vollstaendige bleibt – keine Meldung', () => {
     expect(filterMaterialFarbenMitMeldung(
       '100% Baumwolle (Ash: 99% Baumwolle)', ['Navy'],
     )).toEqual({ material: '100% Baumwolle', meldung: null });
   });
 
+  test('die Meldung behauptet keine Wiederherstellung', () => {
+    const { meldung } = filterMaterialFarbenMitMeldung('(Ash: 99% Baumwolle)', ['Navy']);
+
+    expect(meldung).toBe(
+      'Nach dem Filtern steht keine vollständige Faserangabe mit Prozentwerten ' +
+      'mehr im Material — bitte prüfen.');
+    expect(meldung).not.toMatch(/ungefiltert|wiederhergestellt|verwendet/i);
+  });
+
   test('der Wrapper VERWIRFT die Meldung – darum gehoert er nicht in den Produktionspfad', () => {
     const roh = '(Ash: 80% Baumwolle / 20% Polyester)';
 
-    expect(filterMaterialFarben(roh, ['Navy'])).toBe(roh);              // nur der String
+    expect(filterMaterialFarben(roh, ['Navy'])).toBe(MATERIAL_PLACEHOLDER);   // nur der String
     expect(filterMaterialFarbenMitMeldung(roh, ['Navy']).meldung).toBeTruthy();
   });
 
@@ -267,9 +292,11 @@ describe('Punkt 1 – Nachbedingung und Wrapper-Bremse', () => {
       eigenschaften: 'Material: (Ash: 99% Baumwolle)\nFarbe(n): Navy',
     });
 
-    expect(meldung).toMatch(/Faserzusammensetzung/);
-    expect(prompt).toContain('- Material: (Ash: 99% Baumwolle)');
-    expect(prompt).not.toContain(MATERIAL_PLACEHOLDER);
+    expect(meldung).toMatch(/keine vollständige Faserangabe/);
+    expect(prompt).toContain(`- Material: ${MATERIAL_PLACEHOLDER}`);
+    // Zweite Eintrittsstelle: der Rohwert darf auch nicht ueber "Weitere
+    // Eigenschaften" in den Prompt zurueckkommen.
+    expect(prompt).not.toMatch(/Ash/);
   });
 
   test('ohne Befund bleibt die Meldung null', () => {

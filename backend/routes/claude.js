@@ -235,9 +235,9 @@ WEITERES:
         console.warn(`[seo_description] ${modusWarnung} (empfangen: ${JSON.stringify(modus)})`);
       }
 
-      // materialMeldung sagt, dass der Farbfilter eine gesetzliche
-      // Pflichtangabe (die Faserzusammensetzung) entfernt haette und darum der
-      // ungefilterte Materialwert im Prompt steht. Das gehoert in die Hinweise
+      // materialMeldung sagt, dass im gefilterten Material keine
+      // vollstaendige Faserangabe mehr steht. Der Filter stellt dabei nichts
+      // wieder her - die Angabe ist zu pruefen. Das gehoert in die Hinweise
       // der Antwort, nicht nur ins Log - sonst sieht es niemand.
       const { prompt: userPrompt, meldung: materialMeldung } = buildSeoUserPrompt({
         produktname,
