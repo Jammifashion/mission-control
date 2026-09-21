@@ -4155,6 +4155,7 @@
 
       // ── Modus-Steuerung ──────────────────────────────────────────────────
       let wcEditProductId = null;    // WC-ID des geladenen Produkts im Ändern-Modus
+      let wcEditSkuOriginal = '';    // SKU so, wie sie im Shop stand (S2b-Vergleich)
       let seoCurrentItem  = null;    // aktuell gewählter SEO-Artikel
       let seoPendingList  = [];      // Liste aller ausstehenden SEO-Artikel
       let seoKategorien   = '';      // Kategorienamen des geladenen WC-Produkts
@@ -4922,6 +4923,9 @@
 
           // SKU → Artikelnummer + Teile
           const sku = p.sku || '';
+          // Shop-Stand merken: nur gegen ihn entscheidet sich, ob eine
+          // regelwidrige Alt-Nummer unveraendert durchgeht (S2b).
+          wcEditSkuOriginal = sku;
           document.getElementById('pf-article-nr').value = sku;
           if (sku.includes('/')) {
             const [lshop, ...rest] = sku.split('/');
@@ -4991,30 +4995,65 @@
         pushStatus.textContent = 'Wird gespeichert…';
         pushStatus.style.color = 'var(--muted)';
 
-        // S2: gleiche Regel im Aenderungspfad. Bewusste Folge: ein Bestands-
-        // artikel mit langer Alt-SKU laesst sich erst wieder speichern, wenn
-        // seine Artikelnummer gekuerzt ist – migriert wird nichts.
+        // S2b: milder als die Anlage. Eine regelwidrige Alt-Nummer blockiert
+        // das Speichern nicht mehr, solange sie UNVERAENDERT bleibt – sonst
+        // erzwaenge eine reine Preisaenderung die Migration, die S2 Punkt 7
+        // ausschliesst. Wird sie angefasst, gelten die vollen Regeln.
         const artNrUpd   = document.getElementById('pf-article-nr').value.trim();
         const updFehler  = skuBaueArtikelnummer(
           document.getElementById('pf-lshop-nr').value,
           document.getElementById('pf-short-name').value,
         ).fehler;
-        const varSkusUpd = updFehler
-          ? { fehler: updFehler }
-          : skuBaueVariantenSkus(artNrUpd, activeVariants);
-        if (varSkusUpd.fehler) {
-          pushStatus.textContent = `Nicht gespeichert: ${varSkusUpd.fehler}`;
+        const unveraendert = artNrUpd === String(wcEditSkuOriginal || '').trim();
+
+        let varSkusUpd = { skus: null };
+        if (updFehler && unveraendert) {
+          // Sichtbar, aber nicht rot und ohne Abbruch. Der Toast steht extra
+          // daneben, weil der Statustext nach dem Speichern ueberschrieben wird.
+          const text = `Hinweis: ${updFehler} Artikelnummer unverändert übernommen – `
+                     + 'beim nächsten Anfassen bitte kürzen. Varianten-SKUs bleiben leer.';
+          pushStatus.textContent = text;
+          pushStatus.style.color = 'var(--warning, orange)';
+          showToast(text, 'info', 12000);
+        } else if (updFehler) {
+          pushStatus.textContent = `Nicht gespeichert: ${updFehler}`;
           pushStatus.style.color = 'var(--danger)';
-          showToast(varSkusUpd.fehler, 'error', 8000);
+          showToast(updFehler, 'error', 8000);
           btnUpdateWc.disabled = false;
           return;
+        } else {
+          varSkusUpd = skuBaueVariantenSkus(artNrUpd, activeVariants);
+          if (varSkusUpd.fehler) {
+            pushStatus.textContent = `Nicht gespeichert: ${varSkusUpd.fehler}`;
+            pushStatus.style.color = 'var(--danger)';
+            showToast(varSkusUpd.fehler, 'error', 8000);
+            btnUpdateWc.disabled = false;
+            return;
+          }
+          // Die Artikelnummer ist der Upsert-Schluessel der Erfassungsmaske.
+          // Wird sie geaendert, findet der Upsert die alte Zeile nicht mehr.
+          if (!unveraendert && wcEditSkuOriginal) {
+            const weiter = await showConfirm(
+              'Artikelnummer geändert',
+              'Die Artikelnummer ist der Upsert-Schlüssel. Nach dem Speichern entsteht eine ' +
+              'zweite Zeile in der Erfassungsmaske, die alte muss geprüft und entfernt werden.' +
+              `<br><br>Alt: <strong>${wcEditSkuOriginal}</strong><br>Neu: <strong>${artNrUpd}</strong>`,
+              'Trotzdem speichern',
+            );
+            if (!weiter) {
+              pushStatus.textContent = 'Abgebrochen – Artikelnummer unverändert lassen oder Zeile vorbereiten.';
+              pushStatus.style.color = 'var(--muted)';
+              btnUpdateWc.disabled = false;
+              return;
+            }
+          }
         }
 
         const wcVariations = activeVariants.map((v, i) => ({
           id:            v.wcVariationId || undefined,
           attributes:    v.attrs.map(a => ({ name: a.name, option: a.value })),
           regular_price: String(v.price),
-          sku:           varSkusUpd.skus[i],
+          ...(varSkusUpd.skus ? { sku: varSkusUpd.skus[i] } : {}),
           ...(v.imageId ? { image: { id: v.imageId } } : {}),
         }));
 

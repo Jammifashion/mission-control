@@ -354,16 +354,53 @@ router.put('/products/:id', async (req, res, next) => {
     const wc = getClient(req);
     const { variations, brands: _brandsAusBody, ...payload } = req.body;
 
-    // Dieselben Regeln wie beim Anlegen. Achtung, bewusste Folge: ein
-    // Bestandsartikel mit langer Alt-SKU laesst sich erst wieder speichern,
-    // wenn seine Artikelnummer gekuerzt ist. Migriert wird nichts (S2, Punkt 7).
+    // S2b: der Aenderungspfad ist milder als die Anlage.
+    //
+    // S2 hat hier dieselbe Strenge angelegt wie beim Anlegen - mit der Folge,
+    // dass sich kein Bestandsartikel mehr speichern liess, auch nicht fuer eine
+    // reine Preisaenderung. Damit haette der Alltag genau die Migration
+    // erzwungen, die S2 Punkt 7 ausschliesst; und weil die Artikelnummer der
+    // Upsert-Schluessel der Erfassungsmaske ist, legt jede SKU-Aenderung dort
+    // eine zweite Zeile an.
+    //
+    // Unveraendert gegenueber dem SHOP-Stand: durchlassen und melden.
+    // Geaendert: volle Regeln, 400 mit Feldname - wer sie anfasst, macht sie
+    // richtig. Der Anlage-Pfad bleibt unveraendert streng.
+    let skuHinweis = null;
+    let varSkus    = { skus: null };
+
     if (payload.sku !== undefined) {
       const artNrFehler = pruefeArtikelnummer(payload.sku);
-      if (artNrFehler) return res.status(400).json({ error: artNrFehler.fehler, feld: artNrFehler.feld });
+
+      if (!artNrFehler) {
+        varSkus = baueVariantenSkus(payload.sku, variations ?? []);
+        if (varSkus.fehler) return res.status(400).json({ error: varSkus.fehler, feld: varSkus.feld });
+      } else {
+        // Ob die Nummer "unveraendert" ist, entscheidet allein der Shop-Stand,
+        // nicht der Body. Der GET kostet nur in diesem Zweig eine Anfrage.
+        let shopSku = null;
+        try {
+          const { data: alt } = await wc.get(`products/${req.params.id}`);
+          const altProdukt = Array.isArray(alt) ? alt[0] : alt;
+          shopSku = String(altProdukt?.sku ?? '').trim();
+        } catch (e) {
+          // Ohne Shop-Stand laesst sich "unveraendert" nicht belegen - dann
+          // bleibt es streng, statt eine kaputte Nummer durchzuwinken.
+          console.warn(`PUT /products/${req.params.id}: Shop-SKU nicht lesbar (${e.message}) – strenge Pruefung.`);
+        }
+
+        if (shopSku !== null && shopSku === String(payload.sku).trim()) {
+          // Punkt 3: Varianten-SKUs bleiben unangetastet. Aus einer
+          // 67-Zeichen-SKU liessen sich sonst nur Varianten-SKUs bauen, die
+          // die 50 reissen und das Speichern wieder blockieren.
+          skuHinweis = `Artikelnummer "${payload.sku}" entspricht nicht den Regeln: ${artNrFehler.fehler} `
+                     + 'Unveraendert uebernommen – bitte beim naechsten Anfassen kuerzen. '
+                     + 'Varianten-SKUs wurden deshalb nicht gesetzt.';
+        } else {
+          return res.status(400).json({ error: artNrFehler.fehler, feld: artNrFehler.feld });
+        }
+      }
     }
-    const varSkus = baueVariantenSkus(payload.sku ?? '', variations ?? []);
-    if (payload.sku !== undefined && varSkus.fehler)
-      return res.status(400).json({ error: varSkus.fehler, feld: varSkus.feld });
 
     const { data: productRaw } = await wc.put(`products/${req.params.id}`, payload);
     const product = Array.isArray(productRaw) ? productRaw[0] : productRaw;
@@ -395,7 +432,9 @@ router.put('/products/:id', async (req, res, next) => {
       }
     }
 
-    res.json({ id: product.id });
+    // hinweis ist gesetzt, wenn eine regelwidrige Alt-Nummer unveraendert
+    // durchgelassen wurde (S2b). Der Aufrufer zeigt ihn an - still bleibt er nicht.
+    res.json({ id: product.id, hinweis: skuHinweis });
   } catch (err) { next(err); }
 });
 
