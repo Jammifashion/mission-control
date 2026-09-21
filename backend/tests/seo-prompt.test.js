@@ -2,6 +2,7 @@
 
 import {
   filterMaterialFarben,
+  filterMaterialFarbenMitMeldung,
   filterEigenschaften,
   farbenAusEigenschaften,
   parseFarben,
@@ -15,6 +16,22 @@ import {
   MATERIAL_PLACEHOLDER,
   MODUS_KOLLEKTION,
 } from '../lib/seo-prompt.js';
+
+// buildSeoUserPrompt liefert seit Punkt 1 { prompt, meldung }. Die meisten
+// Tests hier pruefen nur den Text – dieser Helfer haelt sie schlank. Dass die
+// Meldung wirklich nach oben gereicht wird, prueft ein eigener Block unten.
+const promptVon = (args) => buildSeoUserPrompt(args).prompt;
+
+// Die Materialangabe so, wie sie im FERTIGEN Prompt beim Modell ankommt.
+// Geprueft wird der fertige Prompt, nicht nur die Filterfunktion: ein
+// gefilterter Wert, der ueber ein Sammelfeld doch wieder hineinlaeuft, faellt
+// sonst nicht auf.
+const PRAEFIX = '- Material: ';
+const materialImPrompt = (materialZeile, farben) =>
+  promptVon({ produktname: 'Shirt', eigenschaften: materialZeile, farben })
+    .split('\n')
+    .find(z => z.startsWith(PRAEFIX))
+    ?.slice(PRAEFIX.length);
 
 // ── Doppelte Farbzeile (Befund 21.09.) ──────────────────────────────────────
 // In der Detailliste stand "Farben: Farbe(n): Schwarz" und darunter noch einmal
@@ -50,7 +67,7 @@ describe('Farbzeile aus den Eigenschaften', () => {
     ['Farbe(n): Schwarz'],
     ['Farbe: Schwarz'],
   ])('fertiger Prompt mit "%s": Farbe genau einmal, Liste kommt an', (farbZeile) => {
-    const prompt = buildSeoUserPrompt({
+    const prompt = promptVon({
       produktname: 'Shirt',
       eigenschaften: `Material: 100% Baumwolle\n${farbZeile}\nGrammatur: 280 g/m²`,
     });
@@ -73,7 +90,7 @@ describe('Farbzeile aus den Eigenschaften', () => {
   });
 
   test('die Farbliste erreicht filterMaterialFarben', () => {
-    const prompt = buildSeoUserPrompt({
+    const prompt = promptVon({
       produktname: 'Shirt',
       eigenschaften: 'Material: 100% Baumwolle (Ash: 99% Baumwolle)\nFarbe(n): Schwarz',
     });
@@ -199,8 +216,195 @@ describe('filterMaterialFarben', () => {
     expect(filterMaterialFarben('100% Baumwolle (Weiss: 100% Baumwolle)', ['Weiß'])).toMatch(/Weiss/);
   });
 
-  test('Material, das nur aus einer fremden Ausnahme besteht, ergibt den Platzhalter', () => {
-    expect(filterMaterialFarben('(Ash: 99% Baumwolle)', ['Navy'])).toBe(MATERIAL_PLACEHOLDER);
+  // GEAENDERTES VERHALTEN (Punkt 1): frueher ergab dieser Fall den
+  // Platzhalter. Die Faserzusammensetzung ist eine gesetzliche Pflichtangabe –
+  // haette der Filter sie entfernt, gilt der ungefilterte Wert PLUS Meldung.
+  // Ein Platzhalter saehe sauber aus und verloere die Angabe still.
+  test('Material, das nur aus einer fremden Ausnahme besteht: ungefiltert + Meldung', () => {
+    const { material, meldung } = filterMaterialFarbenMitMeldung('(Ash: 99% Baumwolle)', ['Navy']);
+
+    expect(material).toBe('(Ash: 99% Baumwolle)');
+    expect(meldung).toMatch(/Faserzusammensetzung/);
+    expect(material).not.toBe(MATERIAL_PLACEHOLDER);
+  });
+
+  test('wirklich leeres Material ergibt weiterhin den Platzhalter, ohne Meldung', () => {
+    // Die Nachbedingung spannt sich nur auf, wenn im AUSGANGSWERT eine
+    // Faserangabe stand. Bei leerer Eingabe gab es nichts zu verlieren.
+    expect(filterMaterialFarbenMitMeldung('', ['Navy']))
+      .toEqual({ material: MATERIAL_PLACEHOLDER, meldung: null });
+  });
+});
+
+// ── Nachbedingung: die Pflichtangabe darf der Filter nicht wegnehmen ────────
+describe('Punkt 1 – Nachbedingung und Wrapper-Bremse', () => {
+  test('greift die Faserangabe vorher, aber nicht nachher: ungefiltert + Meldung', () => {
+    const { material, meldung } = filterMaterialFarbenMitMeldung(
+      '(Ash: 80% Baumwolle / 20% Polyester)', ['Navy']);
+
+    expect(material).toBe('(Ash: 80% Baumwolle / 20% Polyester)');
+    expect(meldung).toMatch(/Material bitte pr/);
+  });
+
+  test('normaler Fall: Faserangabe bleibt stehen, keine Meldung', () => {
+    expect(filterMaterialFarbenMitMeldung(
+      '100% Baumwolle (Ash: 99% Baumwolle)', ['Navy'],
+    )).toEqual({ material: '100% Baumwolle', meldung: null });
+  });
+
+  test('der Wrapper VERWIRFT die Meldung – darum gehoert er nicht in den Produktionspfad', () => {
+    const roh = '(Ash: 80% Baumwolle / 20% Polyester)';
+
+    expect(filterMaterialFarben(roh, ['Navy'])).toBe(roh);              // nur der String
+    expect(filterMaterialFarbenMitMeldung(roh, ['Navy']).meldung).toBeTruthy();
+  });
+
+  // Ohne diesen Test greift beim naechsten Umbau jemand zum kuerzeren Namen
+  // und die Meldung erreicht niemanden mehr.
+  test('buildSeoUserPrompt reicht die Meldung nach oben', () => {
+    const { prompt, meldung } = buildSeoUserPrompt({
+      produktname: 'Shirt',
+      eigenschaften: 'Material: (Ash: 99% Baumwolle)\nFarbe(n): Navy',
+    });
+
+    expect(meldung).toMatch(/Faserzusammensetzung/);
+    expect(prompt).toContain('- Material: (Ash: 99% Baumwolle)');
+    expect(prompt).not.toContain(MATERIAL_PLACEHOLDER);
+  });
+
+  test('ohne Befund bleibt die Meldung null', () => {
+    const { prompt, meldung } = buildSeoUserPrompt({
+      produktname: 'Shirt',
+      eigenschaften: 'Material: 100% Baumwolle (Ash: 99% Baumwolle)\nFarbe(n): Navy',
+    });
+
+    expect(meldung).toBeNull();
+    expect(prompt).toContain('- Material: 100% Baumwolle');
+  });
+});
+
+// ── Punkt 2 – Sachlabels auf Wortgrenzen ────────────────────────────────────
+describe('Punkt 2 – Sachlabel ohne blindes Teilstring-Matching', () => {
+  test('"Materialzusammensetzung" faellt ueber den zusammengesetzten Kopf unter Material', () => {
+    const roh = '(Materialzusammensetzung: 80% Baumwolle / 20% Polyester)';
+    expect(filterMaterialFarbenMitMeldung(roh, ['Navy']))
+      .toEqual({ material: roh, meldung: null });
+  });
+
+  test('"Black Smoke" wird nicht dadurch zum Sachlabel, dass es "Stoff"-aehnlich klingt', () => {
+    expect(filterMaterialFarben('100% Baumwolle (Black Smoke: 70% Baumwolle)', ['Navy']))
+      .toBe('100% Baumwolle');
+  });
+
+  test('zwei Netze: Punkt 2 haelt, was Punkt 1 nicht faengt', () => {
+    // KONSTRUIERT – so existiert kein Artikel. Der Punkt: waere die
+    // Sachlabel-Pruefung nicht da, loeschte der Filter hier die Angabe eines
+    // BAUTEILS und liesse die des Produkts stehen. Die Nachbedingung
+    // schwiege, weil eine Faserangabe uebrig bleibt.
+    const roh = '80% Baumwolle / 20% Polyester (Bündchen: 95% Baumwolle / 5% Elasthan)';
+    expect(filterMaterialFarbenMitMeldung(roh, ['Navy']))
+      .toEqual({ material: roh, meldung: null });
+  });
+});
+
+// ── Punkte 3 und 4 an echten Shop-Texten ────────────────────────────────────
+// Quelle: mc-wc-backup/material-rest-2026-09-21T20-04-45-409Z.json
+// Materialzeilen aus der Sicherung, nicht abgetippt.
+describe('echte Shop-Texte – verschachtelte Klammern (Punkt 3)', () => {
+  test('13270 – "(Charcoal (Heather): …)" wird entfernt', () => {
+    // ⚠️ Die Grundangabe lautet im Shop "0% Baumwolle" – ein echter
+    // Datenfehler, am 21.09. korrigiert. Testdaten aus der Sicherung, damit
+    // der Test nicht mit dem Shop wandert.
+    const roh =
+      '0% Baumwolle / 20% Polyester (Charcoal (Heather): 52% Baumwolle / 48% Polyester), ' +
+      '(Heather Grey: 75% Baumwolle / 25% Polyester), (Black Smoke: 70% Baumwolle / 30% Polyester)';
+    const { material, meldung } = filterMaterialFarbenMitMeldung(roh, ['Anthrazit', 'Navy']);
+
+    expect(material).toBe('0% Baumwolle / 20% Polyester');
+    expect(meldung).toBeNull();
+    expect(materialImPrompt(roh, ['Anthrazit', 'Navy'])).toBe('0% Baumwolle / 20% Polyester');
+  });
+
+  test('18390 – zwei Klammerklauseln, Normalfall: beide entfernt', () => {
+    const roh =
+      'Material: 80% Baumwolle / 20% Polyester (Heather Grey: 75% Baumwolle / 21% Polyester / ' +
+      '4% Viskose), (Heather Mid Grey: 60% Baumwolle / 40% Polyester)';
+
+    expect(materialImPrompt(roh, ['Schwarz', 'Weiß'])).toBe('80% Baumwolle / 20% Polyester');
+  });
+
+  test('16951 – verschachtelte Klammer mitten im Fliesstext', () => {
+    const roh =
+      'Stil und Bequemlichkeit : Arenal Asozial Jogginghose Zertifizierung Vegan Faire ' +
+      'Arbeitsbedingungen OEKO-TEX® STANDARD 100 Grammatur in g/m² 280 g/m² ' +
+      'Materialzusammensetzung 80% Baumwolle / 20% Polyester (Charcoal (Heather): 52% Baumwolle / ' +
+      '48% Polyester), (Heather Grey: 75% Baumwolle / 25% Polyester) OEKO-TEX® OEKO-TEX® ' +
+      'STANDARD 100: 23.HPK.70888 Hohenstein Polybeutel Nein Farbigkeit 1-farbig Meliert ' +
+      'Hosen (Art) Jogginghosen Einsatzgebiet Sport Beine Lange Hose mit Bündchen ' +
+      'Pflegehinweis 30 °C waschbar Trockner geeignet Bügeln erlaubt Passform Regular ' +
+      '(normal geschnitten) Verarbeitung Innen angeraut';
+    const { material, meldung } = filterMaterialFarbenMitMeldung(roh, ['Weiß', 'Bunt']);
+
+    expect(material).not.toMatch(/Charcoal|Heather/);
+    expect(material).toContain('80% Baumwolle / 20% Polyester');
+    expect(material).toContain('(Art)');                    // Klammer ohne Farbbezug bleibt
+    expect(material).toContain('(normal geschnitten)');
+    expect(meldung).toBeNull();
+  });
+});
+
+describe('echte Shop-Texte – freie Klauseln (Punkt 4)', () => {
+  test('13251 – freie Klausel UND unbalancierte Klammer: entfernt', () => {
+    const roh = '70% Baumwolle / 30% Polyester (Heather Grey: 65% Baumwolle / 35% Polyester';
+    const { material, meldung } = filterMaterialFarbenMitMeldung(roh, ['Anthrazit', 'Navy']);
+
+    expect(material).toBe('70% Baumwolle / 30% Polyester');
+    expect(material).not.toMatch(/\(/);                     // die offene Klammer ist mit weg
+    expect(meldung).toBeNull();
+    expect(materialImPrompt(roh, ['Anthrazit', 'Navy'])).toBe('70% Baumwolle / 30% Polyester');
+  });
+
+  test('19192 – die freie Klausel IST die Pflichtangabe und bleibt stehen', () => {
+    // ⚠️ Das fuehrende "Material:" schuetzt NICHTS – "Sports Grey:" erfuellt
+    // (a) und (b). Diesen Artikel rettet AUSSCHLIESSLICH (c), die
+    // Nachbedingung. Er ist NICHT doppelt geschuetzt.
+    const ohneLabel = 'Sports Grey: 85% Baumwolle / 15% Viskose';
+
+    expect(filterMaterialFarbenMitMeldung(ohneLabel, ['Schwarz']))
+      .toEqual({ material: ohneLabel, meldung: null });
+    expect(materialImPrompt(`Material: ${ohneLabel}`, ['Schwarz'])).toBe(ohneLabel);
+  });
+
+  test('19192 – mit der echten (leeren) Farbliste greift schon die alte Regel', () => {
+    // In der Sicherung steht angeboten: []. Dann wird ohnehin nichts entfernt.
+    const roh = 'Material: Sports Grey: 85% Baumwolle / 15% Viskose';
+    expect(materialImPrompt(roh, [])).toBe('Sports Grey: 85% Baumwolle / 15% Viskose');
+  });
+
+  test('5831 – Sachlabel mit gueltiger Angabe in Klammern: nichts wird entfernt', () => {
+    // Der Audit hatte 5831 als Befund gefuehrt – Fehlalarm des Audit-Parsers,
+    // der ueber eine Satzgrenze gelesen hat.
+    const roh =
+      'Hochwertige Materialien: Unsere Kapuzen-Sweat-Jacke besteht aus einem weichen und ' +
+      'strapazierfähigen Baumwoll-Polyester-Gemisch (80% Baumwolle / 20% Polyester), das sich ' +
+      'angenehm auf der Haut anfühlt und gleichzeitig langlebig ist.';
+    const { material, meldung } = filterMaterialFarbenMitMeldung(
+      roh, ['Grün', 'Navy', 'Pink', 'Schwarz', 'Royal']);
+
+    expect(material).toBe(roh);
+    expect(meldung).toBeNull();
+  });
+
+  test('7963 – Farbe hinter dem Sachlabel bleibt unangetastet', () => {
+    const roh =
+      'Füllung Ausführung: Kissenbezug Farbe: Off-White Materialzusammensetzung: 100 % Polyester ' +
+      'Naht: gekändelt Oberfläche: Flauschig-weich Waschbar: bei 30 °C Zertifizierung: ' +
+      'Entspricht REACH Verordnung (EG) Nr.';
+    const { material, meldung } = filterMaterialFarbenMitMeldung(
+      roh, ['Weiß', 'Schwarze Rückseite']);
+
+    expect(material).toBe(roh);
+    expect(meldung).toBeNull();
   });
 });
 
@@ -255,41 +459,41 @@ describe('buildSeoUserPrompt', () => {
   };
 
   test('(d) MODUS "kollektion" erzeugt keinen Freigabe-Hinweis', () => {
-    const prompt = buildSeoUserPrompt({ ...basis, modus: 'kollektion' });
+    const prompt = promptVon({ ...basis, modus: 'kollektion' });
 
     expect(prompt).toContain('MODUS: kollektion');
     expect(prompt).not.toMatch(/Freigabe/i);
   });
 
   test('MODUS "auftrag" erzeugt den Freigabe-Hinweis', () => {
-    const prompt = buildSeoUserPrompt({ ...basis, modus: 'auftrag' });
+    const prompt = promptVon({ ...basis, modus: 'auftrag' });
 
     expect(prompt).toContain('MODUS: auftrag');
     expect(prompt).toMatch(/FREIGABE:/);
   });
 
   test('ohne MODUS gilt kollektion – kein Freigabe-Hinweis', () => {
-    const prompt = buildSeoUserPrompt(basis);
+    const prompt = promptVon(basis);
 
     expect(prompt).toContain('MODUS: kollektion');
     expect(prompt).not.toMatch(/Freigabe/i);
   });
 
   test('unbekannter MODUS verspricht keine Freigabe, sondern fällt auf kollektion', () => {
-    const prompt = buildSeoUserPrompt({ ...basis, modus: 'Auftraggeber' });
+    const prompt = promptVon({ ...basis, modus: 'Auftraggeber' });
 
     expect(prompt).toContain('MODUS: kollektion');
     expect(prompt).not.toMatch(/Freigabe/i);
   });
 
   test('MOTIV wird übernommen, sonst Platzhalter statt Erfindung', () => {
-    expect(buildSeoUserPrompt({ ...basis, motiv: 'Rentier mit Sonnenbrille' }))
+    expect(promptVon({ ...basis, motiv: 'Rentier mit Sonnenbrille' }))
       .toContain('- MOTIV: Rentier mit Sonnenbrille');
-    expect(buildSeoUserPrompt(basis)).toMatch(/- MOTIV: keine Angabe – Motiv nicht erfinden/);
+    expect(promptVon(basis)).toMatch(/- MOTIV: keine Angabe – Motiv nicht erfinden/);
   });
 
   test('Material wird vor dem Prompt gefiltert, FARBEN werden gelistet', () => {
-    const prompt = buildSeoUserPrompt(basis);
+    const prompt = promptVon(basis);
 
     expect(prompt).toContain('- FARBEN: Navy, Schwarz');
     expect(prompt).toContain('- Material: 100% Baumwolle');
@@ -298,7 +502,7 @@ describe('buildSeoUserPrompt', () => {
   });
 
   test('"Weitere Eigenschaften" reicht den ungefilterten Materialstring nicht durch', () => {
-    const prompt = buildSeoUserPrompt(basis);
+    const prompt = promptVon(basis);
     const weitere = prompt.split('\n').find(z => z.startsWith('- Weitere Eigenschaften:'));
 
     expect(weitere).toBeDefined();
@@ -307,21 +511,21 @@ describe('buildSeoUserPrompt', () => {
   });
 
   test('farben aus dem Request schlagen die Eigenschaften-Zeile', () => {
-    const prompt = buildSeoUserPrompt({ ...basis, farben: ['Ash'] });
+    const prompt = promptVon({ ...basis, farben: ['Ash'] });
 
     expect(prompt).toContain('- FARBEN: Ash');
     expect(prompt).toContain('(Ash: 99% Baumwolle, 1% Viskose)');
   });
 
   test('fehlendes Material ergibt den Platzhalter im Prompt und im <li>', () => {
-    const prompt = buildSeoUserPrompt({ produktname: 'Shirt', eigenschaften: 'Farben: Navy' });
+    const prompt = promptVon({ produktname: 'Shirt', eigenschaften: 'Farben: Navy' });
 
     expect(prompt).toContain(`- Material: ${MATERIAL_PLACEHOLDER}`);
     expect(prompt).toContain(`<li><strong>Material:</strong> ${MATERIAL_PLACEHOLDER}</li>`);
   });
 
   test('kein <h1> in der Strukturvorgabe', () => {
-    const prompt = buildSeoUserPrompt(basis);
+    const prompt = promptVon(basis);
 
     expect(prompt).not.toContain('<h1>');
     expect(prompt).toContain('<h2>');
@@ -329,17 +533,17 @@ describe('buildSeoUserPrompt', () => {
   });
 
   test('Material-Label wird im <li> nicht doppelt gesetzt', () => {
-    const prompt = buildSeoUserPrompt(basis);
+    const prompt = promptVon(basis);
 
     expect(prompt).not.toMatch(/<strong>Material:<\/strong> Material:/);
   });
 
   test('Farben stehen als eigene Zeile in der Detailliste', () => {
-    expect(buildSeoUserPrompt(basis)).toContain('<li><strong>Farben:</strong> Navy, Schwarz</li>');
+    expect(promptVon(basis)).toContain('<li><strong>Farben:</strong> Navy, Schwarz</li>');
   });
 
   test('Strukturvorgabe verlangt keinen Titel und keinen Slogan in der <h2>', () => {
-    const prompt = buildSeoUserPrompt(basis);
+    const prompt = promptVon(basis);
 
     expect(prompt).not.toMatch(/\[Artikelbezeichnung\]/);
     expect(prompt).not.toMatch(/Slogan basierend auf Kontext/);
@@ -347,7 +551,7 @@ describe('buildSeoUserPrompt', () => {
   });
 
   test('Regel gegen erfundene Fakten steht im Prompt', () => {
-    const prompt = buildSeoUserPrompt(basis);
+    const prompt = promptVon(basis);
 
     expect(prompt).toMatch(/keine Orte/);
     expect(prompt).toMatch(/Bestellschlussdaten/);
@@ -390,7 +594,7 @@ describe('Sperrliste im fertigen Prompt – beide Eintrittsstellen', () => {
   ].join('\n');
 
   test('weder im Sammelfeld noch in der <li>-Liste', () => {
-    const prompt = buildSeoUserPrompt({ produktname: 'Shirt', eigenschaften });
+    const prompt = promptVon({ produktname: 'Shirt', eigenschaften });
 
     expect(prompt).not.toMatch(/Farbigkeit/i);
     expect(prompt).not.toMatch(/Veredelungsangabe/i);
@@ -403,7 +607,7 @@ describe('Größen kommen nur aus der Variantenauswahl', () => {
   const eigenschaften = 'Material: 100% Baumwolle\nGrößen: S bis 5XL';
 
   test('Variantengrößen stehen im Prompt, die Katalogzeile nicht', () => {
-    const prompt = buildSeoUserPrompt({ produktname: 'Shirt', eigenschaften, groessen: ['M', 'L'] });
+    const prompt = promptVon({ produktname: 'Shirt', eigenschaften, groessen: ['M', 'L'] });
 
     expect(prompt).toContain('- GRÖSSEN: M, L');
     expect(prompt).toContain('<li><strong>Größen:</strong> M, L</li>');
@@ -411,7 +615,7 @@ describe('Größen kommen nur aus der Variantenauswahl', () => {
   });
 
   test('ohne Größen-Variante keine Größenzeile', () => {
-    const prompt = buildSeoUserPrompt({ produktname: 'Shirt', eigenschaften });
+    const prompt = promptVon({ produktname: 'Shirt', eigenschaften });
 
     expect(prompt).not.toMatch(/- GRÖSSEN:/);
     expect(prompt).not.toMatch(/<strong>Größen:<\/strong>/);
@@ -453,9 +657,9 @@ describe('hauptKeyword', () => {
   });
 
   test('Keyphrase steht im Prompt, sonst die Ableitung aus dem Titel', () => {
-    expect(buildSeoUserPrompt({ produktname: 'Shirt', keyphrase: 'Weihnachtspullover Herren' }))
+    expect(promptVon({ produktname: 'Shirt', keyphrase: 'Weihnachtspullover Herren' }))
       .toContain('FOKUS-KEYPHRASE: Weihnachtspullover Herren');
-    expect(buildSeoUserPrompt({ produktname: 'Ugly Sweater Navy', farben: ['Navy'] }))
+    expect(promptVon({ produktname: 'Ugly Sweater Navy', farben: ['Navy'] }))
       .toContain('FOKUS-KEYPHRASE (aus dem Produkttitel abgeleitet): Ugly Sweater');
   });
 });

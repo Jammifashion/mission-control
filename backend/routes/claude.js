@@ -235,7 +235,11 @@ WEITERES:
         console.warn(`[seo_description] ${modusWarnung} (empfangen: ${JSON.stringify(modus)})`);
       }
 
-      const userPrompt = buildSeoUserPrompt({
+      // materialMeldung sagt, dass der Farbfilter eine gesetzliche
+      // Pflichtangabe (die Faserzusammensetzung) entfernt haette und darum der
+      // ungefilterte Materialwert im Prompt steht. Das gehoert in die Hinweise
+      // der Antwort, nicht nur ins Log - sonst sieht es niemand.
+      const { prompt: userPrompt, meldung: materialMeldung } = buildSeoUserPrompt({
         produktname,
         kategorien,
         eigenschaften,
@@ -246,6 +250,9 @@ WEITERES:
         groessen,
         keyphrase,
       });
+      if (materialMeldung) {
+        console.warn(`[seo_description] ${materialMeldung}`);
+      }
 
       // Der Anbieter folgt der Modell-ID aus dem Config-Sheet, nicht dem
       // zufällig gesetzten API-Key. Sonst läuft lokal ohne GEMINI_API_KEY eine
@@ -376,7 +383,7 @@ WEITERES:
         groessen,
       });
 
-      const alleHinweise = [modusWarnung, ...meldungen].filter(Boolean);
+      const alleHinweise = [modusWarnung, materialMeldung, ...meldungen].filter(Boolean);
 
       return res.json({
         short_description: kurzbeschreibung,

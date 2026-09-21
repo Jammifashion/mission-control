@@ -48,12 +48,53 @@ const FREIGABE_HINWEIS =
 // Labels vor einem Doppelpunkt, die keine Farbe benennen. Ohne diese Liste
 // würde "(Pflege: 30°C Schonwaschgang)" als Ausnahme für eine unbekannte Farbe
 // namens "Pflege" gelesen und stillschweigend gelöscht.
+// "farbe"/"farben" stehen mit drin: das Label FÜHRT eine Farbe ein, es IST
+// keine – "Farbe: Off-White" darf nicht als Ausnahme für "Off-White" gelten.
 const NON_COLOR_LABELS = new Set([
   'material', 'materialien', 'pflege', 'pflegehinweis', 'hinweis', 'hinweise',
-  'achtung', 'farbigkeit', 'gewicht', 'grammatur', 'groesse', 'groessen',
-  'qualitaet', 'stoff', 'art', 'passform', 'schnitt', 'druck', 'drucktechnik',
-  'herkunft', 'zusammensetzung', 'futter', 'einfassung',
+  'achtung', 'farbigkeit', 'farbe', 'farben', 'gewicht', 'grammatur',
+  'groesse', 'groessen', 'qualitaet', 'stoff', 'art', 'passform', 'schnitt',
+  'druck', 'drucktechnik', 'herkunft', 'zusammensetzung', 'futter',
+  'einfassung',
 ]);
+
+// Zusammengesetzte Köpfe: ein Label ist auch dann ein Sachlabel, wenn eines
+// seiner Wörter DARAUF ENDET. "Materialzusammensetzung" fällt so unter
+// Material, ohne dass die Liste jede Zusammensetzung einzeln kennen muss.
+//
+// ⚠️ Geprüft wird auf ganzen Wörtern der normalisierten Form, nie als
+// Teilstring irgendwo in der Zeile: "Black Smoke" darf nicht dadurch zum
+// Sachlabel werden, dass anderswo "Stoff" vorkommt.
+const SACHLABEL_KOEPFE = ['zusammensetzung', 'stoff', 'buendchen', 'panel'];
+
+// Farbwörter für FREIE Klauseln (Punkt 4). In der Klammer reicht die
+// Umkehrprobe "kein Sachlabel" – dort ist die Form schon ein Indiz. Mitten im
+// Fließtext ist sie es nicht, deshalb wird hier POSITIV verlangt, dass das
+// Label wie eine Farbe liest. Lieber eine fremde Farbe stehen lassen als eine
+// Pflichtangabe löschen.
+const FARB_WOERTER = new Set([
+  'grey', 'gray', 'grau', 'heather', 'charcoal', 'black', 'schwarz', 'white',
+  'weiss', 'navy', 'blau', 'blue', 'rot', 'red', 'gruen', 'green', 'smoke',
+  'ash', 'melange', 'meliert', 'anthrazit', 'beige', 'braun', 'brown', 'gelb',
+  'yellow', 'pink', 'lila', 'purple', 'orange', 'silber', 'silver', 'gold',
+  'natur', 'natural', 'creme', 'cream', 'royal', 'bordeaux', 'petrol',
+  'tuerkis', 'khaki', 'oliv', 'sand', 'marine', 'denim', 'stone',
+]);
+
+// Faserbezeichnung mit Prozentwert – "85% Baumwolle", "100 % Polyester",
+// auch "0% Baumwolle" (der Datenfehler bei 13270 ist trotzdem eine Angabe).
+// Bewusst generisch statt Faserliste: eine Liste kennt Tencel oder Modal
+// irgendwann nicht, und dann SPANNT SICH DAS NETZ AUS PUNKT 1 GAR NICHT ERST
+// AUF. Die generische Form spannt es für jede Materialangabe auf, die
+// überhaupt nach Zusammensetzung aussieht.
+const FASER_RE = /\d{1,3}\s*%\s*[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß-]{2,}/;
+
+// "Name: 85% Baumwolle …" – eine freie Klausel ÜBERALL in der Zeile, nicht nur
+// am Anfang (sonst entgeht 13251). Das Label umfasst höchstens vier Wörter und
+// kann keinen Doppelpunkt überspringen, der Wert muss DIREKT mit einer
+// Faserangabe beginnen (Bedingung (b)).
+const FREIE_KLAUSEL_RE =
+  /([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß0-9®\-]*(?:\s+[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß0-9®\-]*){0,3})\s*:\s*(\d{1,3}\s*%[^:]*)/g;
 
 const MATERIAL_LINE_RE  = /material|baumwolle|polyester/i;
 // "Farben:", "Farbe:", "Farbe(n):" – die beiden letzten Schreibweisen traf das
@@ -397,6 +438,47 @@ export function h2KorrekturBlock(meldungen) {
   ].join('\n');
 }
 
+/**
+ * Benennt das Label eine Sache statt einer Farbe?
+ *
+ * Verglichen wird auf ganzen Wörtern der normalisierten Form – ein blindes
+ * Teilstring-Matching würde "Black Smoke" zum Sachlabel machen, sobald
+ * irgendwo "Stoff" auftaucht. Zusätzlich zählt ein zusammengesetzter Kopf:
+ * "Materialzusammensetzung" endet auf "zusammensetzung" und fällt damit unter
+ * Material, ohne dass die Liste jede Wortbildung einzeln kennen muss.
+ */
+function istSachlabel(label) {
+  const woerter = woerterVon(label);
+  return woerter.some(w =>
+    NON_COLOR_LABELS.has(w) || SACHLABEL_KOEPFE.some(kopf => w.endsWith(kopf)));
+}
+
+/**
+ * Liest das Label wie ein Farbname? Ein Wort genügt: "Sports Grey" ist über
+ * "grey" eine Farbe, "Heather Grey" über beide.
+ *
+ * Nur für FREIE Klauseln gedacht. In der Klammer bleibt es bei der Umkehrprobe
+ * "kein Sachlabel", sonst verlöre der Filter die Katalog-Ausnahmen mit
+ * ausgefallenen Farbnamen, die dort seit jeher zuverlässig erkannt werden.
+ */
+function istFarbname(label) {
+  return woerterVon(label).some(w => FARB_WOERTER.has(w));
+}
+
+/**
+ * Steht in dem Text eine Faserbezeichnung mit Prozentwert?
+ *
+ * Grundlage der Nachbedingung aus Punkt 1: Die Faserzusammensetzung ist eine
+ * gesetzliche Pflichtangabe. Greift diese Prüfung beim Ausgangswert, aber
+ * nicht mehr beim gefilterten Ergebnis, hat der Filter die Pflichtangabe
+ * entfernt – dann gilt der ungefilterte Wert und es gibt eine Meldung.
+ *
+ * Nicht exportiert: eine Heuristik als Netz, kein Parser für Materialangaben.
+ */
+function hatFaserangabe(text) {
+  return FASER_RE.test(String(text ?? ''));
+}
+
 // Eine Klausel innerhalb der Klammer: "Grau meliert: 60% Baumwolle".
 // Rückgabe: null = keine farbspezifische Ausnahme (unverändert behalten),
 // sonst { farben, rest } mit den benannten Farben.
@@ -414,7 +496,7 @@ function parseAusnahme(klausel) {
     .filter(Boolean);
 
   if (!namen.length) return null;
-  if (namen.some(n => NON_COLOR_LABELS.has(normalizeFarbe(n).replace(/\s+/g, '')))) return null;
+  if (namen.some(istSachlabel)) return null;
 
   return { namen, rest };
 }
@@ -431,23 +513,122 @@ function sameFarbe(a, b) {
   return x.includes(y) || y.includes(x);
 }
 
+// Klammergruppen mit Tiefenzählung. Das alte Muster \(([^()]*)\) traf
+// "(Charcoal (Heather): 52% …)" nicht: die verschachtelte Klammer beendete den
+// Treffer zu früh, die Klausel blieb stehen.
+//
+// ENTSCHIEDEN: Eine offene Klammer ohne schließende gilt bis Zeilenende als
+// Klauselinhalt. Bei 13251 ist das das richtige Ergebnis, und eine verirrte
+// Klammer im Fließtext richtet wenig an, weil zusätzlich Label-Prüfung,
+// Faserangabe und die Nachbedingung greifen müssen.
+function klammerGruppen(text) {
+  const gruppen = [];
+  let tiefe = 0;
+  let start = -1;
+
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '(') {
+      if (tiefe === 0) start = i;
+      tiefe++;
+    } else if (text[i] === ')' && tiefe > 0) {
+      tiefe--;
+      if (tiefe === 0) {
+        gruppen.push({ start, ende: i + 1, inhalt: text.slice(start + 1, i) });
+        start = -1;
+      }
+    }
+  }
+  // Unbalanciert: der Rest der Zeile ist der Klauselinhalt.
+  if (tiefe > 0 && start >= 0) {
+    gruppen.push({ start, ende: text.length, inhalt: text.slice(start + 1) });
+  }
+  return gruppen;
+}
+
+// Reste aufräumen: doppelte Leerzeichen und Trennzeichen, die nur noch die
+// entfernte Klammer angebunden haben. Mehrere entfernte Klauseln hinterlassen
+// Ketten wie ", ," – die werden erst zusammengezogen, sonst bliebe ein
+// einzelnes Komma am Ende stehen.
+function aufraeumen(text) {
+  return text
+    .replace(/\s{2,}/g, ' ')
+    .replace(/\s+([,;.])/g, '$1')
+    .replace(/([,;])(?:\s*[,;])+/g, '$1')
+    .replace(/^\s*[,;]\s*/, '')
+    .replace(/[,;]\s*$/, '')
+    .trim();
+}
+
+// Freie Klauseln (Punkt 4), konservativ. Entfernt wird nur, wenn
+//   (a) das Label ein Farbname und kein Sachlabel ist,
+//   (b) direkt eine Faserangabe mit Prozent folgt (verlangt FREIE_KLAUSEL_RE),
+//   (c) die Nachbedingung aus Punkt 1 danach noch greift.
+//
+// ⚠️ Bei 19192 lautet die Materialangabe "Material: Sports Grey: 85% Baumwolle
+// / 15% Viskose". Das führende "Material:" schützt NICHTS – "Sports Grey:"
+// erfüllt (a) und (b). Diesen Artikel rettet AUSSCHLIESSLICH (c). Er ist
+// NICHT doppelt geschützt: wer (c) später lockert, nimmt ihm die
+// Pflichtangabe.
+function entferneFreieKlauseln(text, angeboten) {
+  // Ohne bekannte Variantenauswahl wird nichts entfernt – dieselbe Regel wie
+  // in der Klammer.
+  if (!angeboten.length) return text;
+
+  let aktuell = text;
+
+  // Je Runde höchstens eine Klausel, danach neu suchen: die Indizes ändern
+  // sich mit jedem Schnitt.
+  for (let runde = 0; runde < 10; runde++) {
+    let entfernt = false;
+
+    for (const treffer of [...aktuell.matchAll(FREIE_KLAUSEL_RE)]) {
+      const label = treffer[1];
+      if (istSachlabel(label)) continue;                        // (a)
+      if (!istFarbname(label)) continue;                        // (a)
+      if (angeboten.some(f => sameFarbe(f, label))) continue;   // angebotene Farbe bleibt
+
+      const ohne = aufraeumen(
+        aktuell.slice(0, treffer.index) + aktuell.slice(treffer.index + treffer[0].length));
+      if (!hatFaserangabe(ohne)) continue;                      // (c)
+
+      aktuell = ohne;
+      entfernt = true;
+      break;
+    }
+
+    if (!entfernt) return aktuell;
+  }
+  return aktuell;
+}
+
 /**
  * Entfernt farbspezifische Ausnahmen aus dem Materialstring, deren Farbe für
- * diesen Artikel nicht angeboten wird.
+ * diesen Artikel nicht angeboten wird – und meldet, wenn dabei die
+ * Pflichtangabe verloren ginge.
+ *
+ * Die Faserzusammensetzung ist eine gesetzliche Pflichtangabe. Nachbedingung
+ * (Punkt 1): Stand im Ausgangswert eine Faserangabe und im Ergebnis keine
+ * mehr, dann gilt der UNGEFILTERTE Ausgangswert und es gibt eine Meldung.
+ * Lieber eine fremde Farbe im Text, die auffällt, als eine fehlende
+ * Pflichtangabe, die niemand bemerkt.
  *
  * @param {string}   material Rohstring aus dem Katalog/Sheet.
  * @param {string[]} farben   Angebotene Farben (Variantenauswahl).
- * @returns {string} Bereinigter String, oder MATERIAL_PLACEHOLDER wenn leer.
+ * @returns {{ material: string, meldung: string|null }}
  */
-export function filterMaterialFarben(material, farben) {
+export function filterMaterialFarbenMitMeldung(material, farben) {
   const text = String(material ?? '').trim();
-  if (!text) return MATERIAL_PLACEHOLDER;
+  if (!text) return { material: MATERIAL_PLACEHOLDER, meldung: null };
 
   const angeboten = parseFarben(farben);
 
-  const bereinigt = text.replace(/\(([^()]*)\)/g, (ganzeKlammer, inhalt) => {
-    const klauseln = inhalt.split(';').map(k => k.trim()).filter(Boolean);
+  // Von hinten nach vorn ersetzen, damit die Indizes der noch offenen Gruppen
+  // gültig bleiben.
+  let bereinigt = text;
+  for (const gruppe of klammerGruppen(text).reverse()) {
+    const klauseln = gruppe.inhalt.split(';').map(k => k.trim()).filter(Boolean);
     const behalten = [];
+    let geaendert  = false;
 
     for (const klausel of klauseln) {
       const ausnahme = parseAusnahme(klausel);
@@ -462,28 +643,64 @@ export function filterMaterialFarben(material, farben) {
         continue;
       }
       const passende = ausnahme.namen.filter(n => angeboten.some(f => sameFarbe(f, n)));
-      if (passende.length) {
-        behalten.push(`${passende.join(', ')}: ${ausnahme.rest}`);
+      if (passende.length === ausnahme.namen.length) {
+        behalten.push(klausel);          // alle genannten Farben angeboten
+        continue;
       }
+      geaendert = true;
+      if (passende.length) behalten.push(`${passende.join(', ')}: ${ausnahme.rest}`);
     }
 
-    return behalten.length ? `(${behalten.join('; ')})` : '';
-  });
+    // Unangetastete Gruppen behalten ihren Wortlaut – auch die unbalancierte.
+    if (!geaendert) continue;
+    const ersatz = behalten.length ? `(${behalten.join('; ')})` : '';
+    bereinigt = bereinigt.slice(0, gruppe.start) + ersatz + bereinigt.slice(gruppe.ende);
+  }
 
-  // Reste aufräumen: doppelte Leerzeichen und Trennzeichen, die nur noch die
-  // entfernte Klammer angebunden haben.
-  const sauber = bereinigt
-    .replace(/\s{2,}/g, ' ')
-    .replace(/\s+([,;.])/g, '$1')
-    .replace(/[,;]\s*$/, '')
-    .trim();
+  const sauber =
+    aufraeumen(entferneFreieKlauseln(aufraeumen(bereinigt), angeboten)) || MATERIAL_PLACEHOLDER;
 
-  return sauber || MATERIAL_PLACEHOLDER;
+  // Nachbedingung (Punkt 1). Fängt "nichts mehr übrig", nicht "das Falsche
+  // entfernt" – gegen den zweiten Fall steht die Sachlabel-Prüfung.
+  if (hatFaserangabe(text) && !hatFaserangabe(sauber)) {
+    return {
+      material: text,
+      meldung:
+        'Der Farbfilter hätte die Faserzusammensetzung aus der Materialangabe entfernt – ' +
+        `ungefilterter Wert verwendet, Material bitte prüfen: "${text}"`,
+    };
+  }
+
+  return { material: sauber, meldung: null };
+}
+
+/**
+ * Dünner Wrapper mit der alten Signatur.
+ *
+ * ⚠️ VERWIRFT DIE MELDUNG und gehört damit NICHT in den Produktionspfad. Er
+ * existiert nur, weil bestehende Tests und der Audit-Code an der alten
+ * Signatur hängen. Im Prompt-Pfad steht filterMaterialFarbenMitMeldung(), und
+ * buildSeoUserPrompt reicht die Meldung nach oben. Wer hier zum kürzeren Namen
+ * greift, nimmt dem Nutzer den Hinweis, dass eine gesetzliche Pflichtangabe
+ * geprüft werden muss.
+ *
+ * @param {string}   material Rohstring aus dem Katalog/Sheet.
+ * @param {string[]} farben   Angebotene Farben (Variantenauswahl).
+ * @returns {string} Bereinigter String, oder MATERIAL_PLACEHOLDER wenn leer.
+ */
+export function filterMaterialFarben(material, farben) {
+  return filterMaterialFarbenMitMeldung(material, farben).material;
 }
 
 /**
  * Baut den User-Prompt für die SEO-Generierung.
  * Der System-Prompt liegt in backend/routes/claude.js (SEO_SYSTEM).
+ *
+ * Gibt neben dem Prompt die Material-Meldung zurück (Punkt 1). Die Route
+ * hängt sie an die Hinweise der Antwort – eine Meldung, die hier verschluckt
+ * würde, erreicht niemanden.
+ *
+ * @returns {{ prompt: string, meldung: string|null }}
  */
 export function buildSeoUserPrompt({
   produktname,
@@ -521,7 +738,10 @@ export function buildSeoUserPrompt({
   // dieses Artikels.
   const groessenListe = parseGroessen(groessen);
 
-  const material    = filterMaterialFarben(materialRoh, farbListe);
+  // Die Form MIT Meldung, nicht der Wrapper: die Meldung sagt, dass der
+  // Filter eine gesetzliche Pflichtangabe entfernt hätte.
+  const { material, meldung: materialMeldung } =
+    filterMaterialFarbenMitMeldung(materialRoh, farbListe);
   const farbenText  = farbListe.length ? farbListe.join(', ') : 'siehe Varianten';
   const groessenText = groessenListe.join(', ');
   // Defensiv: die Route löst den Modus schon auf, hier darf trotzdem nie ein
@@ -615,5 +835,5 @@ export function buildSeoUserPrompt({
     'Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock):\n{\n  "kurzbeschreibung": "...",\n  "produktbeschreibung": "Valides HTML wie oben definiert"\n}',
   ];
 
-  return bloecke.filter(Boolean).join('\n\n');
+  return { prompt: bloecke.filter(Boolean).join('\n\n'), meldung: materialMeldung };
 }
