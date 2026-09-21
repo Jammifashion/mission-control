@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getWcClient } from '../lib/shopConfig.js';
 import { markeFuerShop } from '../lib/shopMarke.js';
+import { pruefeArtikelnummer, baueVariantenSkus } from '../lib/sku.js';
 
 const router = Router();
 
@@ -247,17 +248,33 @@ router.post('/products', async (req, res, next) => {
   try {
     const wc = getClient(req);
     const { ssot_id, variations, brands: _brandsAusBody, ...rest } = req.body;
+
+    // S2: die SKU-Regeln gelten hier, nicht nur im Frontend. Ein Admin-Endpunkt
+    // scheitert laut, statt eine 67-Zeichen-SKU oder eine leere durchzulassen.
+    const artNrFehler = pruefeArtikelnummer(rest.sku);
+    if (artNrFehler) return res.status(400).json({ error: artNrFehler.fehler, feld: artNrFehler.feld });
+
+    // Varianten-SKUs VOR dem Anlegen pruefen: sonst bricht WooCommerce mitten
+    // im Anlegen ab und hinterlaesst ein halb bestuecktes Produkt.
+    const vorabSkus = baueVariantenSkus(rest.sku, variations ?? []);
+    if (vorabSkus.fehler) return res.status(400).json({ error: vorabSkus.fehler, feld: vorabSkus.feld });
+
     const marke   = await markeFuerShop(req.query.shop);
     const payload = marke ? { ...rest, brands: [{ id: marke.id }] } : rest;
 
     // Schritt 1: Produkt anlegen (mit SKU-Fallback bei Duplikat)
     let productResponse;
+    let skuHinweis = null;
     try {
       productResponse = await wc.post('products', { ...payload, status: 'draft' });
     } catch (skuErr) {
       if (skuErr.response?.data?.code === 'product_invalid_sku') {
         const fallbackSku = (payload.sku || '') + '-v2';
         console.warn(`SKU "${payload.sku}" bereits vergeben – Retry mit "${fallbackSku}"`);
+        // Nicht mehr still: der Aufrufer bekommt den Hinweis in der Antwort und
+        // zeigt ihn im Statustext. Sonst merkt niemand, dass die Nummer im Shop
+        // eine andere ist als in der Erfassungsmaske.
+        skuHinweis = `SKU "${payload.sku}" war bereits vergeben – angelegt als "${fallbackSku}".`;
         try {
           productResponse = await wc.post('products', { ...payload, sku: fallbackSku, status: 'draft' });
         } catch (retryErr) {
@@ -275,13 +292,22 @@ router.post('/products', async (req, res, next) => {
     const product = Array.isArray(productRaw) ? productRaw[0] : productRaw;
     const productId = product.id;
 
-    // Schritt 2: Varianten einzeln anlegen
+    // Schritt 2: Varianten einzeln anlegen - jede mit eigener SKU.
+    // Gebaut wird aus der TATSAECHLICH vergebenen Eltern-SKU: hat der Fallback
+    // oben auf "-v2" gedreht, muessen die Varianten mitwandern.
+    const effektiveSku = product.sku || payload.sku;
+    const nachSkus     = baueVariantenSkus(effektiveSku, variations ?? []);
+    if (nachSkus.fehler) {
+      // Das Produkt steht schon - hier nicht mehr abbrechen, sondern melden.
+      skuHinweis = [skuHinweis, `Varianten-SKUs nicht vergeben: ${nachSkus.fehler}`].filter(Boolean).join(' ');
+    }
     const variationResults = [];
     if (Array.isArray(variations) && variations.length) {
-      for (const variation of variations) {
+      for (const [vi, variation] of variations.entries()) {
         try {
           const varResponse = await wc.post(`products/${productId}/variations`, {
             ...variation,
+            ...(nachSkus.skus ? { sku: nachSkus.skus[vi] } : {}),
             status: 'publish',
           });
           const varRaw = varResponse.data;
@@ -307,6 +333,8 @@ router.post('/products', async (req, res, next) => {
       id:                  productId,
       status:              product.status,
       marke:               markeGesetzt,
+      sku:                 product.sku ?? '',
+      hinweis:             skuHinweis,
       variations_created:  created,
       variations_failed:   failed,
       variation_errors:    errors,
@@ -325,20 +353,38 @@ router.put('/products/:id', async (req, res, next) => {
   try {
     const wc = getClient(req);
     const { variations, brands: _brandsAusBody, ...payload } = req.body;
+
+    // Dieselben Regeln wie beim Anlegen. Achtung, bewusste Folge: ein
+    // Bestandsartikel mit langer Alt-SKU laesst sich erst wieder speichern,
+    // wenn seine Artikelnummer gekuerzt ist. Migriert wird nichts (S2, Punkt 7).
+    if (payload.sku !== undefined) {
+      const artNrFehler = pruefeArtikelnummer(payload.sku);
+      if (artNrFehler) return res.status(400).json({ error: artNrFehler.fehler, feld: artNrFehler.feld });
+    }
+    const varSkus = baueVariantenSkus(payload.sku ?? '', variations ?? []);
+    if (payload.sku !== undefined && varSkus.fehler)
+      return res.status(400).json({ error: varSkus.fehler, feld: varSkus.feld });
+
     const { data: productRaw } = await wc.put(`products/${req.params.id}`, payload);
     const product = Array.isArray(productRaw) ? productRaw[0] : productRaw;
 
     if (Array.isArray(variations) && variations.length) {
+      const skuVon = v => {
+        const i = variations.indexOf(v);
+        return varSkus.skus && varSkus.skus[i] ? { sku: varSkus.skus[i] } : {};
+      };
       const toUpdate = variations.filter(v => v.id).map(v => ({
         id:            v.id,
         attributes:    v.attributes,
         regular_price: v.regular_price,
+        ...skuVon(v),
         ...(v.image ? { image: v.image } : {}),
       }));
       const toCreate = variations.filter(v => !v.id).map(v => ({
         attributes:    v.attributes,
         regular_price: v.regular_price,
         status:        'publish',
+        ...skuVon(v),
         ...(v.image ? { image: v.image } : {}),
       }));
       if (toUpdate.length || toCreate.length) {

@@ -1275,8 +1275,9 @@
               <input id="pf-lshop-nr" type="text" class="form-input" placeholder="z. B. HS-001" />
             </div>
             <div class="form-field">
-              <label>Artikelkurzbezeichnung</label>
-              <input id="pf-short-name" type="text" class="form-input" placeholder="z. B. HoodieHardtekk" />
+              <label>Artikelkurzbezeichnung <span class="field-note">(Pflicht: 3–20 Zeichen, nur A–Z a–z 0–9 und -)</span></label>
+              <input id="pf-short-name" type="text" class="form-input" placeholder="z. B. UglySw01" />
+              <div id="pf-short-name-hint" style="font-size:0.78rem;margin-top:0.25rem;"></div>
             </div>
             <div class="form-field">
               <label>Artikelnummer <span class="field-note">(auto)</span></label>
@@ -3615,26 +3616,92 @@
         }
       }
 
-      // Auto Artikelnummer
+      // ── SKU-Regeln: Anfang (reine Logik, backend/tests/sku.test.js) ──
+      // Spiegelt backend/lib/sku.js. Der Block darf NICHTS aus dem Seitenkontext
+      // benutzen – kein document, keine Modul-Variablen: der Test schneidet ihn
+      // heraus und fuehrt ihn aus. Massgeblich bleibt das Backend, das die
+      // gleichen Regeln erzwingt; hier stehen sie nur, damit der Fehler am Feld
+      // sichtbar wird und nicht erst beim Push.
+      const SKU_KURZ_MIN = 3, SKU_KURZ_MAX = 20, SKU_ARTNR_MAX = 30, SKU_MAX_LEN = 50;
+      const SKU_KURZ_RE  = /^[A-Za-z0-9-]+$/;
+
+      function skuNormalisiereTeil(wert) {
+        return String(wert ?? '')
+          .toLowerCase()
+          .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+          .replace(/\s+/g, '-')
+          .replace(/[^a-z0-9-]/g, '')
+          .replace(/-{2,}/g, '-')
+          .replace(/^-+|-+$/g, '');
+      }
+
+      function skuPruefeKurz(kurz) {
+        const k = String(kurz ?? '').trim();
+        if (!k) return 'Artikelkurzbezeichnung fehlt (Pflichtfeld).';
+        if (k.length < SKU_KURZ_MIN || k.length > SKU_KURZ_MAX)
+          return `Artikelkurzbezeichnung muss ${SKU_KURZ_MIN}–${SKU_KURZ_MAX} Zeichen haben (ist ${k.length}).`;
+        if (!SKU_KURZ_RE.test(k))
+          return 'Artikelkurzbezeichnung darf nur A–Z, a–z, 0–9 und Bindestrich enthalten.';
+        return null;
+      }
+
+      function skuBaueArtikelnummer(lshop, kurz) {
+        const l = String(lshop ?? '').trim();
+        if (!l) return { fehler: 'L-Shop-Artikelnummer fehlt – ohne sie wird nicht gespeichert.' };
+        const kf = skuPruefeKurz(kurz);
+        if (kf) return { fehler: kf };
+        const artikelnummer = `${l}/${String(kurz).trim()}`;
+        if (artikelnummer.length > SKU_ARTNR_MAX)
+          return { fehler: `Artikelnummer ist ${artikelnummer.length} Zeichen, erlaubt sind ${SKU_ARTNR_MAX}.` };
+        return { artikelnummer };
+      }
+
+      // Varianten-SKU aus den tatsaechlich vorhandenen Achsen, in Reihenfolge
+      // des Varianten-Reiters. Kein Platzhalter, keine Annahme Farbe-dann-Groesse.
+      function skuBaueVariantenSku(artNr, attrs) {
+        const teile = (Array.isArray(attrs) ? attrs : [])
+          .map(a => skuNormalisiereTeil(a && (a.value ?? a.option ?? a.wert)))
+          .filter(Boolean);
+        return teile.length ? `${artNr}-${teile.join('-')}` : String(artNr ?? '');
+      }
+
+      function skuBaueVariantenSkus(artNr, varianten) {
+        const skus = [], gesehen = new Map();
+        const liste = Array.isArray(varianten) ? varianten : [];
+        for (let i = 0; i < liste.length; i++) {
+          const sku = skuBaueVariantenSku(artNr, (liste[i] || {}).attrs || (liste[i] || {}).attributes);
+          if (sku.length > SKU_MAX_LEN)
+            return { fehler: `Varianten-SKU "${sku}" ist ${sku.length} Zeichen, erlaubt sind ${SKU_MAX_LEN}.` };
+          if (gesehen.has(sku))
+            return { fehler: `Varianten ${gesehen.get(sku) + 1} und ${i + 1} ergeben dieselbe SKU "${sku}".` };
+          gesehen.set(sku, i);
+          skus.push(sku);
+        }
+        return { skus };
+      }
+      // ── SKU-Regeln: Ende ──
+
+      // Auto Artikelnummer – mit sichtbarer Regelmeldung am Feld.
       function updateArticleNr() {
         const lshop = document.getElementById('pf-lshop-nr').value.trim();
-        const short  = document.getElementById('pf-short-name').value.trim().replace(/\s+/g, '-');
-        document.getElementById('pf-article-nr').value = lshop && short ? `${lshop}/${short}` : '';
+        const kurz  = document.getElementById('pf-short-name').value.trim();
+        const hint  = document.getElementById('pf-short-name-hint');
+        const r     = skuBaueArtikelnummer(lshop, kurz);
+
+        document.getElementById('pf-article-nr').value = r.artikelnummer ?? '';
+        if (hint) {
+          hint.textContent = r.fehler ?? '';
+          hint.style.color = 'var(--danger)';
+        }
+        return r;
       }
       document.getElementById('pf-lshop-nr').addEventListener('input', updateArticleNr);
-      document.getElementById('pf-short-name').addEventListener('input', updateArticleNr);
 
-      // Produktname → Artikelkurzbezeichnung spiegeln (nur solange nicht manuell überschrieben)
+      // Die Spiegelung Produktname → Kurzbezeichnung ist ersatzlos entfallen:
+      // aus ihr entstanden die langen Titel-SKUs (67 Zeichen im Bestand). Die
+      // Kurzbezeichnung ist Pflichtfeld, es gibt bewusst keinen Fallback.
       const pfName      = document.getElementById('pf-name');
       const pfShortName = document.getElementById('pf-short-name');
-      pfName.addEventListener('input', () => {
-        if (!kurzbezManuallyEdited &&
-            (!pfShortName.value || pfShortName.value === pfName._lastMirrored)) {
-          pfShortName.value    = pfName.value;
-          pfName._lastMirrored = pfName.value;
-          updateArticleNr();
-        }
-      });
       pfShortName.addEventListener('input', () => {
         kurzbezManuallyEdited = true;
         updateArticleNr();
@@ -4924,10 +4991,30 @@
         pushStatus.textContent = 'Wird gespeichert…';
         pushStatus.style.color = 'var(--muted)';
 
-        const wcVariations = activeVariants.map(v => ({
+        // S2: gleiche Regel im Aenderungspfad. Bewusste Folge: ein Bestands-
+        // artikel mit langer Alt-SKU laesst sich erst wieder speichern, wenn
+        // seine Artikelnummer gekuerzt ist – migriert wird nichts.
+        const artNrUpd   = document.getElementById('pf-article-nr').value.trim();
+        const updFehler  = skuBaueArtikelnummer(
+          document.getElementById('pf-lshop-nr').value,
+          document.getElementById('pf-short-name').value,
+        ).fehler;
+        const varSkusUpd = updFehler
+          ? { fehler: updFehler }
+          : skuBaueVariantenSkus(artNrUpd, activeVariants);
+        if (varSkusUpd.fehler) {
+          pushStatus.textContent = `Nicht gespeichert: ${varSkusUpd.fehler}`;
+          pushStatus.style.color = 'var(--danger)';
+          showToast(varSkusUpd.fehler, 'error', 8000);
+          btnUpdateWc.disabled = false;
+          return;
+        }
+
+        const wcVariations = activeVariants.map((v, i) => ({
           id:            v.wcVariationId || undefined,
           attributes:    v.attrs.map(a => ({ name: a.name, option: a.value })),
           regular_price: String(v.price),
+          sku:           varSkusUpd.skus[i],
           ...(v.imageId ? { image: { id: v.imageId } } : {}),
         }));
 
@@ -5087,6 +5174,15 @@
       async function saveDraft(showButton = true) {
         const btn = showButton ? document.getElementById('btn-save-draft') : null;
         const artikelnummer = document.getElementById('pf-article-nr').value.trim();
+
+        // S2: ohne gueltige Kurzbezeichnung und L-Shop-Nummer wird nicht
+        // gespeichert. Frueher entstand hier eine leere Artikelnummer und damit
+        // eine leere SKU im Shop.
+        const skuPruefung = updateArticleNr();
+        if (skuPruefung.fehler) {
+          showToast(skuPruefung.fehler, 'error', 8000);
+          return;
+        }
 
         if (variants.length > 0 && variants.slice(0, 50).some(v => !v.price)) {
           showToast('Bitte alle Variantenpreise ausfüllen', 'error');
@@ -5273,9 +5369,29 @@
           name, options: [...vals], variation: true, visible: true,
         }));
 
-        const wcVariations = activeVariants.map(v => ({
+        // S2: jede Variante bekommt eine eigene SKU. Laenge und Dubletten VOR
+        // dem Push pruefen – sonst bricht WooCommerce mittendrin ab und laesst
+        // ein halb bestuecktes Produkt stehen.
+        const artNrPush   = document.getElementById('pf-article-nr').value.trim();
+        const artNrFehler = skuBaueArtikelnummer(
+          document.getElementById('pf-lshop-nr').value,
+          document.getElementById('pf-short-name').value,
+        ).fehler;
+        const varSkusPush = artNrFehler
+          ? { fehler: artNrFehler }
+          : skuBaueVariantenSkus(artNrPush, activeVariants);
+        if (varSkusPush.fehler) {
+          pushStatus.textContent = `Nicht angelegt: ${varSkusPush.fehler}`;
+          pushStatus.style.color = 'var(--danger)';
+          showToast(varSkusPush.fehler, 'error', 8000);
+          createWcBtn.disabled = false;
+          return;
+        }
+
+        const wcVariations = activeVariants.map((v, i) => ({
           attributes:    v.attrs.map(a => ({ name: a.name, option: a.value })),
           regular_price: String(v.price || defaultPrice || ''),
+          sku:           varSkusPush.skus[i],
           status:        'publish',
           ...(v.imageId ? { image: { id: v.imageId } } : {}),
         }));
@@ -5391,9 +5507,16 @@
           const varMsg = failed
             ? `${created}/${created + failed} Varianten angelegt`
             : `${created} Variante${created !== 1 ? 'n' : ''} angelegt`;
-          pushStatus.textContent = `Angelegt – WooCommerce ID: ${wcId}, ${varMsg}`;
-          pushStatus.style.color = failed ? 'var(--warning, orange)' : 'var(--success)';
+          // Der SKU-Fallback des Backends (-v2) war bisher still. Er darf
+          // bleiben, aber er muss sichtbar sein: sonst steht im Shop eine
+          // andere Nummer als in der Erfassungsmaske und niemand weiss es.
+          const skuHinweis = data1.hinweis ? ` · ${data1.hinweis}` : '';
+          pushStatus.textContent = `Angelegt – WooCommerce ID: ${wcId}, ${varMsg}${skuHinweis}`;
+          pushStatus.style.color = data1.hinweis
+            ? 'var(--danger)'
+            : (failed ? 'var(--warning, orange)' : 'var(--success)');
           showToast(`Produkt angelegt – WC-ID: ${wcId}, ${varMsg}`, failed ? 'info' : 'success');
+          if (data1.hinweis) showToast(data1.hinweis, 'error', 8000);
 
           // Formular zurücksetzen für nächsten Artikel
           resetForm();

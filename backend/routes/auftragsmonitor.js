@@ -37,6 +37,48 @@ function normBool(v) {
   return s === 'TRUE' || s === 'WAHR';
 }
 
+/**
+ * Welche Produktions_Status-Zeilen gehoeren zu dieser Bestellung?
+ *
+ * 1. Mit {orderId, wcItemId}-Paaren: exakt, wie bisher.
+ * 2. Ohne Paare wurde frueher der ARTIKELNAME per Teilstring gegen den Teil
+ *    hinter dem "/" der Artikelnummer geprueft:
+ *      artikelname.includes(artikelnummer.split('/').pop())
+ *    Das setzte voraus, dass hinter dem "/" der Produkttitel steht - genau das
+ *    Schema, das S2 abschafft. Mit "JH030/UglySw01" traefe der Vergleich nie
+ *    mehr, und ein kurzes Kuerzel koennte zufaellig fremde Zeilen treffen.
+ *    Neu: exakt gegen die SKU-Spalte, die bereits die volle Artikelnummer
+ *    fuehrt. Der alte Namensvergleich greift nur noch, wo diese Spalte LEER
+ *    ist - also fuer Altzeilen, die sonst nicht mehr gefunden wuerden.
+ */
+export function psZeilenFinden(psRows, { orderIds = [], artikelnummer = '', wcItemIds = [] }) {
+  const treffer = [];
+
+  if (Array.isArray(wcItemIds) && wcItemIds.length > 0) {
+    const pairSet = new Set(wcItemIds.map(({ orderId, wcItemId }) => `${orderId}|${wcItemId}`));
+    psRows.slice(1).forEach((r, i) => {
+      const key = `${(r[PI.orderId] ?? '').trim()}|${(r[PI.wcItemId] ?? '').trim()}`;
+      if (pairSet.has(key)) treffer.push(i + 2); // +1 Header, +1 1-Basierung
+    });
+    return treffer;
+  }
+
+  const orderIdSet = new Set(orderIds.map(String));
+  const artNr = String(artikelnummer ?? '').trim();
+  const kurz  = artNr.split('/').pop();
+
+  psRows.slice(1).forEach((r, i) => {
+    if (!orderIdSet.has((r[PI.orderId] ?? '').trim())) return;
+    const rowSku = (r[PI.sku] ?? '').trim();
+    if (rowSku) {
+      if (rowSku === artNr) treffer.push(i + 2);
+      return;
+    }
+    if (kurz && (r[PI.artikelname] ?? '').trim().includes(kurz)) treffer.push(i + 2);
+  });
+  return treffer;
+}
+
 function buildVariante(v1, v2, v3) {
   return [v1, v2, v3].filter(Boolean).join('·');
 }
@@ -252,26 +294,7 @@ router.post('/lshop/bestellen', async (req, res, next) => {
     const psRows = psData.values ?? [];
 
     // Welche Zeilen updaten?
-    const updateRows = [];
-    if (wcItemIds.length > 0) {
-      // Präzise: {orderId, wcItemId} Paare aus Frontend
-      const pairSet = new Set(wcItemIds.map(({ orderId, wcItemId }) => `${orderId}|${wcItemId}`));
-      psRows.slice(1).forEach((r, i) => {
-        const key = `${(r[PI.orderId] ?? '').trim()}|${(r[PI.wcItemId] ?? '').trim()}`;
-        if (pairSet.has(key)) updateRows.push(i + 2); // i+2: 0-basiert + 1 für Header + 1 für 1-Basierung
-      });
-    } else {
-      // Fallback: alle Items der orderIds mit passendem Artikelnamen
-      const orderIdSet = new Set(orderIds.map(String));
-      psRows.slice(1).forEach((r, i) => {
-        if (
-          orderIdSet.has((r[PI.orderId] ?? '').trim()) &&
-          (r[PI.artikelname] ?? '').trim().includes(artikelnummer.split('/').pop())
-        ) {
-          updateRows.push(i + 2);
-        }
-      });
-    }
+    const updateRows = psZeilenFinden(psRows, { orderIds, artikelnummer, wcItemIds });
 
     if (updateRows.length > 0) {
       await sheets.spreadsheets.values.batchUpdate({
@@ -486,24 +509,7 @@ router.post('/dtf/bestellen', async (req, res, next) => {
     });
     const psRows = psData.values ?? [];
 
-    const updateRows = [];
-    if (wcItemIds.length > 0) {
-      const pairSet = new Set(wcItemIds.map(({ orderId, wcItemId }) => `${orderId}|${wcItemId}`));
-      psRows.slice(1).forEach((r, i) => {
-        const key = `${(r[PI.orderId] ?? '').trim()}|${(r[PI.wcItemId] ?? '').trim()}`;
-        if (pairSet.has(key)) updateRows.push(i + 2);
-      });
-    } else {
-      const orderIdSet = new Set(orderIds.map(String));
-      psRows.slice(1).forEach((r, i) => {
-        if (
-          orderIdSet.has((r[PI.orderId] ?? '').trim()) &&
-          (r[PI.artikelname] ?? '').trim().includes(artikelnummer.split('/').pop())
-        ) {
-          updateRows.push(i + 2);
-        }
-      });
-    }
+    const updateRows = psZeilenFinden(psRows, { orderIds, artikelnummer, wcItemIds });
 
     if (updateRows.length > 0) {
       await sheets.spreadsheets.values.batchUpdate({
@@ -571,22 +577,7 @@ router.post('/lshop/bestellen-bulk', async (req, res, next) => {
           ]] },
         });
 
-        const updateRows = [];
-        if (wcItemIds.length > 0) {
-          const pairSet = new Set(wcItemIds.map(({ orderId, wcItemId }) => `${orderId}|${wcItemId}`));
-          psRows.slice(1).forEach((r, i) => {
-            const key = `${(r[PI.orderId] ?? '').trim()}|${(r[PI.wcItemId] ?? '').trim()}`;
-            if (pairSet.has(key)) updateRows.push(i + 2);
-          });
-        } else {
-          const orderIdSet = new Set(orderIds.map(String));
-          psRows.slice(1).forEach((r, i) => {
-            if (
-              orderIdSet.has((r[PI.orderId] ?? '').trim()) &&
-              (r[PI.artikelname] ?? '').trim().includes(artikelnummer.split('/').pop())
-            ) updateRows.push(i + 2);
-          });
-        }
+        const updateRows = psZeilenFinden(psRows, { orderIds, artikelnummer, wcItemIds });
         if (updateRows.length > 0) {
           await sheets.spreadsheets.values.batchUpdate({
             spreadsheetId,
@@ -658,22 +649,7 @@ router.post('/dtf/bestellen-bulk', async (req, res, next) => {
           ]] },
         });
 
-        const updateRows = [];
-        if (wcItemIds.length > 0) {
-          const pairSet = new Set(wcItemIds.map(({ orderId, wcItemId }) => `${orderId}|${wcItemId}`));
-          psRows.slice(1).forEach((r, i) => {
-            const key = `${(r[PI.orderId] ?? '').trim()}|${(r[PI.wcItemId] ?? '').trim()}`;
-            if (pairSet.has(key)) updateRows.push(i + 2);
-          });
-        } else {
-          const orderIdSet = new Set(orderIds.map(String));
-          psRows.slice(1).forEach((r, i) => {
-            if (
-              orderIdSet.has((r[PI.orderId] ?? '').trim()) &&
-              (r[PI.artikelname] ?? '').trim().includes(artikelnummer.split('/').pop())
-            ) updateRows.push(i + 2);
-          });
-        }
+        const updateRows = psZeilenFinden(psRows, { orderIds, artikelnummer, wcItemIds });
         if (updateRows.length > 0) {
           await sheets.spreadsheets.values.batchUpdate({
             spreadsheetId,

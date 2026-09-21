@@ -47,7 +47,10 @@ beforeEach(() => {
 
 afterEach(() => jest.restoreAllMocks());
 
-const BASIS = { name: 'Shirt', sku: 'JF-1', type: 'variable', ssot_id: 'JFN-2026-0001' };
+// sku muss seit S2 die Form <L-Shop-Nummer>/<Kurzbezeichnung> haben und wird
+// vom Endpunkt geprueft - "JF-1" waere jetzt ein 400 und diese Suite wuerde
+// die Markenlogik gar nicht mehr erreichen.
+const BASIS = { name: 'Shirt', sku: 'JF/Shirt-01', type: 'variable', ssot_id: 'JFN-2026-0001' };
 const produktPost = shop => clients[shop].post.mock.calls.filter(c => c[0] === 'products');
 
 describe('POST /products – Marke', () => {
@@ -99,7 +102,7 @@ describe('POST /products – Marke', () => {
     expect(res.status).toBe(201);
     const calls = produktPost('jfn');
     expect(calls).toHaveLength(2);
-    expect(calls[1][1]).toMatchObject({ sku: 'JF-1-v2', brands: [{ id: 4711 }] });
+    expect(calls[1][1]).toMatchObject({ sku: 'JF/Shirt-01-v2', brands: [{ id: 4711 }] });
   });
 
   test('marke kommt aus der WooCommerce-Antwort, nicht aus der Annahme', async () => {
