@@ -136,7 +136,12 @@ describe('Frontend: Yoast-Schreibweg', () => {
   });
 
   test('beim Laden wird das Feld aus dem Sheet gefuellt', () => {
-    expect(html).toMatch(/getElementById\('seo-synonyme'\)\.value\s*=\s*seoCurrentItem\.synonyme/);
+    // GEAENDERT mit dem Yoast-Format: der Wert laeuft jetzt durch
+    // synonymeAusYoast(), damit in der Maske eine lesbare Zeile steht statt
+    // rohem JSON. Die Quelle bleibt seoCurrentItem.synonyme - beides haelt
+    // dieses Muster fest. Die Umwandlung selbst liegt in yoast-synonyme.test.js.
+    expect(html).toMatch(
+      /getElementById\('seo-synonyme'\)\.value\s*=\s*synonymeAusYoast\(seoCurrentItem\.synonyme\)/);
   });
 
   test('Speichern schreibt Fokus_Synonyme ins Sheet', () => {

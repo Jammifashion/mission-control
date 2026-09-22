@@ -3749,6 +3749,59 @@
       }
       // ── Farbachsen-Regel: Ende ──
 
+      // ── Keyphrase-Synonyme: Anfang (reine Logik, backend/tests/yoast-synonyme.test.js) ──
+      // Gleiche Bedingung wie bei den anderen Regelbloecken: NICHTS aus dem
+      // Seitenkontext – der Test schneidet ihn heraus und fuehrt ihn AUS.
+      //
+      // ⚠️ GEMESSEN am 22.09. an 20996 (BCWW03Q/CH-Skyline), von Hand in Yoast
+      // gepflegt. Yoast legt ab:
+      //     ["Synonym eins, Synonym zwei, Synonym drei"]
+      // Ein JSON-Array mit GENAU EINEM String-Element, in dem die Synonyme
+      // kommagetrennt stehen – NICHT ["eins","zwei","drei"]. Alle sieben
+      // gepflegten Skyline-Artikel sehen so aus, JSON.parse ergibt durchweg ein
+      // Array der Laenge 1. Wer das auf ein Element je Synonym umbaut, schreibt
+      // ein Format, das im Shop nirgends vorkommt – dann bitte vorher neu
+      // messen, nicht raten.
+      //
+      // 79e1ccd schrieb die nackte Zeichenkette ohne Klammern. Der Wert stand
+      // im Feld, die REST las ihn zurueck, und die Yoast-Oberflaeche zeigte das
+      // Feld trotzdem LEER.
+
+      // Eingabe der Maske -> Liste sauberer Einzelsynonyme.
+      function synonymeTeile(eingabe) {
+        return String(eingabe ?? '').split(',').map(s => s.trim()).filter(Boolean);
+      }
+
+      // Liste -> genau das gemessene Yoast-Format.
+      // null, wenn nach dem Trimmen nichts uebrig bleibt: dann wird NICHT
+      // geschrieben und ein vorhandener Yoast-Wert bleibt stehen.
+      function synonymeZuYoast(eingabe) {
+        const teile = synonymeTeile(eingabe);
+        return teile.length ? JSON.stringify([teile.join(', ')]) : null;
+      }
+
+      // Yoast-Wert -> lesbare Zeile fuer die Maske.
+      // ⚠️ Muss BEIDE Formen verkraften: das Array-Format und die alte nackte
+      // Zeichenkette aus 79e1ccd. Im Shop liegt beides nebeneinander.
+      function synonymeAusYoast(roh) {
+        const s = String(roh ?? '').trim();
+        if (!s) return '';
+        if (s.startsWith('[')) {
+          try {
+            const arr = JSON.parse(s);
+            if (Array.isArray(arr)) return synonymeTeile(arr.join(', ')).join(', ');
+          } catch (e) { /* kaputtes JSON: unten als Zeichenkette behandeln, nicht werfen */ }
+        }
+        return synonymeTeile(s).join(', ');
+      }
+
+      // Wie viele Synonyme stehen drin? Zaehlt die KOMMA-TEILE, nicht die
+      // Array-Laenge – die ist im gemessenen Format immer 1 und damit nutzlos.
+      function synonymeAnzahl(roh) {
+        return synonymeTeile(synonymeAusYoast(roh)).length;
+      }
+      // ── Keyphrase-Synonyme: Ende ──
+
       // Meldung am Eigenschaften-Feld. Bewusst AUSSERHALB des Regelblocks:
       // der darf das DOM nicht anfassen.
       function zeigeAchsenRegel(text) {
@@ -4527,7 +4580,10 @@
         document.getElementById('seo-motiv').value         = '';
         document.getElementById('seo-eigenschaften').value = '';
         document.getElementById('seo-keyphrase').value     = seoCurrentItem.keyphrase || '';
-        document.getElementById('seo-synonyme').value      = seoCurrentItem.synonyme  || '';
+        // Aus dem Sheet kann beides kommen: Yoast-Format oder die alte
+        // Zeichenkette. Die Maske zeigt immer die lesbare Zeile – rohes JSON
+        // im Eingabefeld waere keine Maske.
+        document.getElementById('seo-synonyme').value      = synonymeAusYoast(seoCurrentItem.synonyme);
         document.getElementById('seo-status-msg').textContent = '';
         seoKategorien = '';
         seoVarianten  = [];
@@ -4695,7 +4751,10 @@
           // vorhandene Werte, ein leeres Feld loeschte also die von Hand
           // gepflegte Keyphrase still.
           const yoastKeyphrase = document.getElementById('seo-keyphrase').value.trim();
-          const yoastSynonyme  = document.getElementById('seo-synonyme').value.trim();
+          // Ins GEMESSENE Yoast-Format bringen: ["eins, zwei, drei"]. Liefert
+          // null, wenn nach dem Trimmen nichts uebrig bleibt – dann wird nicht
+          // geschrieben und der vorhandene Yoast-Wert bleibt stehen.
+          const yoastSynonyme  = synonymeZuYoast(document.getElementById('seo-synonyme').value);
           const yoastMeta = [];
           if (yoastKeyphrase) yoastMeta.push({ key: '_yoast_wpseo_focuskw',         value: yoastKeyphrase });
           if (yoastSynonyme)  yoastMeta.push({ key: '_yoast_wpseo_keywordsynonyms', value: yoastSynonyme });
@@ -4720,8 +4779,12 @@
               const nach = await apiJson(
                 await apiFetch(`${API_BASE()}/api/woocommerce/products/${seoCurrentItem.wcId}`));
               const ausYoast = k => ((nach.meta_data || []).find(m => m.key === k) || {}).value ?? '';
+              // Synonyme lesbar melden, nicht als rohes JSON – und mit ANZAHL.
+              // Eine 0 faellt auf, eine Zeichenkette nicht.
+              const synRoh    = ausYoast('_yoast_wpseo_keywordsynonyms');
+              const synAnzahl = synonymeAnzahl(synRoh);
               yoastText = `In Yoast steht jetzt – Keyphrase: "${ausYoast('_yoast_wpseo_focuskw')}"`
-                        + `, Synonyme: "${ausYoast('_yoast_wpseo_keywordsynonyms')}"`;
+                        + `, ${synAnzahl} Synonym${synAnzahl === 1 ? '' : 'e'}: "${synonymeAusYoast(synRoh)}"`;
             } catch (e) {
               // Sheet-Stand bleibt: er ist bereits geschrieben und die Quelle.
               yoastText = `Yoast NICHT geschrieben (${e.message}) – der Sheet-Eintrag bleibt erhalten.`;
