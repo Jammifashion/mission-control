@@ -5,7 +5,11 @@
 // muss patch-fields sie anlegen, sonst laeuft headers.map() an ihr vorbei und
 // der Wert verschwindet still. Gelesen wird sie optional ueber findHeader.
 //
-// Nach WooCommerce/Yoast wird die Keyphrase bewusst NICHT geschrieben.
+// GEAENDERT mit dem Yoast-Schreibweg: die Keyphrase geht jetzt zusaetzlich
+// nach WooCommerce - aber in einem EIGENEN PUT mit ausschliesslich meta_data
+// und erst NACH patch-fields. Nicht im selben Body wie die Beschreibungen.
+// Der Test unten haelt genau diese Trennung fest; der Zuschnitt des
+// Yoast-Bodys und die Leer-Regel liegen in yoast-keyphrase.test.js.
 
 import { jest } from '@jest/globals';
 import { readFileSync } from 'fs';
@@ -150,7 +154,11 @@ describe('Frontend: SEO-Flow reicht Keyphrase, Farben und Größen durch', () =>
     expect(saveBlock).toMatch(/'Fokus_Keyphrase':\s*document\.getElementById\('seo-keyphrase'\)\.value\.trim\(\)/);
   });
 
-  test('die Keyphrase geht NICHT an WooCommerce', () => {
+  test('der Beschreibungs-PUT traegt keine Keyphrase und kein Yoast-Feld', () => {
+    // Die Schutzabsicht dieses Tests bleibt unveraendert gueltig und wird mit
+    // dem Yoast-Schreibweg sogar wichtiger: Keyphrase und Synonyme gehoeren
+    // NICHT in den Body, der short_description/description schreibt. Sie gehen
+    // in einem eigenen PUT, der ausschliesslich meta_data enthaelt.
     const wcPut = saveBlock.slice(0, saveBlock.indexOf('erfassung/patch-fields'));
     expect(wcPut).not.toMatch(/keyphrase|yoast/i);
   });

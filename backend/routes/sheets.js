@@ -10,8 +10,12 @@ import { sichereSpalte } from '../utils/sheet-spalten.js';
 // fehlt die Spalte, bleibt das Feld leer. Bestandszeilen bleiben LEER.
 //   Marke – Markenname aus der WooCommerce-Antwort beim Anlegen (honk: leer)
 //   Fokus_Keyphrase – SEO-Keyphrase aus dem Reiter "SEO Daten", optional.
-//     Wird NICHT nach WooCommerce/Yoast geschrieben, das ist ein eigener Schritt.
-const ERF_SPALTEN_BEI_BEDARF = ['Marke', 'Fokus_Keyphrase'];
+//   Fokus_Synonyme – Keyphrase-Synonyme, kommagetrennter Freitext, optional.
+//     Beide gehen seit dem Yoast-Schreibweg zusaetzlich nach WooCommerce, aber
+//     in einem EIGENEN PUT mit ausschliesslich meta_data – nicht im selben
+//     Body wie die Beschreibungen. Das Sheet bleibt die Quelle, Yoast die
+//     Kopie: schlaegt der Yoast-PUT fehl, steht der Sheet-Wert trotzdem.
+const ERF_SPALTEN_BEI_BEDARF = ['Marke', 'Fokus_Keyphrase', 'Fokus_Synonyme'];
 
 const router = Router();
 
@@ -337,6 +341,7 @@ router.get('/erfassung/seo-pending', async (req, res, next) => {
     const lshopIdx     = findHeader(headers, 'L-Shop-Artikelnummer');
     const lshopUrlIdx  = findHeader(headers, 'L-Shop URL');
     const keyphraseIdx = findHeader(headers, 'Fokus_Keyphrase');
+    const synonymeIdx  = findHeader(headers, 'Fokus_Synonyme');
 
     const pending = [];
     rows.slice(1).forEach((row, i) => {
@@ -351,6 +356,7 @@ router.get('/erfassung/seo-pending', async (req, res, next) => {
         lshopNr:       lshopIdx    >= 0 ? (row[lshopIdx]    ?? '') : '',
         lshopUrl:      lshopUrlIdx >= 0 ? (row[lshopUrlIdx] ?? '') : '',
         keyphrase:     keyphraseIdx >= 0 ? (row[keyphraseIdx] ?? '') : '',
+        synonyme:      synonymeIdx  >= 0 ? (row[synonymeIdx]  ?? '') : '',
       });
     });
 

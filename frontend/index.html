@@ -1151,6 +1151,10 @@
                 <input id="seo-keyphrase" type="text" class="form-input" placeholder="z.B. Weihnachtspullover Herren" />
               </div>
               <div class="form-field" style="margin-bottom:0.75rem;">
+                <label>Keyphrase-Synonyme <span class="field-note">(optional – kommagetrennt)</span></label>
+                <input id="seo-synonyme" type="text" class="form-input" placeholder="z.B. Ugly Sweater Herren, Weihnachtssweater Herren" />
+              </div>
+              <div class="form-field" style="margin-bottom:0.75rem;">
                 <label>Eigene Hinweise / Ideen für die KI (optional)</label>
                 <textarea id="seo-hinweise" class="form-input" rows="6" style="resize:vertical;min-height:120px;font-family:inherit;" placeholder="z.B. Zielgruppe, besondere Merkmale, Tonalität..."></textarea>
               </div>
@@ -4523,6 +4527,7 @@
         document.getElementById('seo-motiv').value         = '';
         document.getElementById('seo-eigenschaften').value = '';
         document.getElementById('seo-keyphrase').value     = seoCurrentItem.keyphrase || '';
+        document.getElementById('seo-synonyme').value      = seoCurrentItem.synonyme  || '';
         document.getElementById('seo-status-msg').textContent = '';
         seoKategorien = '';
         seoVarianten  = [];
@@ -4670,9 +4675,62 @@
               fields: {
                 'SEO_Status':      'Erledigt',
                 'Fokus_Keyphrase': document.getElementById('seo-keyphrase').value.trim(),
+                'Fokus_Synonyme':  document.getElementById('seo-synonyme').value.trim(),
               },
             }),
           });
+
+          // ── Yoast-Schreibweg ────────────────────────────────────────────
+          // NACH dem Sheet-Schreiben, in eigenem try/catch: das Sheet ist die
+          // Quelle, Yoast die Kopie. Liefe der PUT davor und wuerfe, bliebe der
+          // Sheet-Stand ungeschrieben – genau andersherum als gewollt.
+          //
+          // ⚠️ Der Body enthaelt AUSSCHLIESSLICH meta_data. Genau dieser
+          // Zuschnitt ist an 21031 gemessen: kein sku, keine attributes, keine
+          // variations, kein status – und vor allem KEIN brands. Ein nicht
+          // leeres brands-Array ersetzt in WooCommerce alle Marken. Wer hier
+          // Felder dazulegt, misst neu.
+          //
+          // Leere Felder werden NICHT geschrieben: der PUT ueberschreibt
+          // vorhandene Werte, ein leeres Feld loeschte also die von Hand
+          // gepflegte Keyphrase still.
+          const yoastKeyphrase = document.getElementById('seo-keyphrase').value.trim();
+          const yoastSynonyme  = document.getElementById('seo-synonyme').value.trim();
+          const yoastMeta = [];
+          if (yoastKeyphrase) yoastMeta.push({ key: '_yoast_wpseo_focuskw',         value: yoastKeyphrase });
+          if (yoastSynonyme)  yoastMeta.push({ key: '_yoast_wpseo_keywordsynonyms', value: yoastSynonyme });
+          const yoastLeer = [
+            yoastKeyphrase ? null : 'Fokus-Keyphrase',
+            yoastSynonyme  ? null : 'Synonyme',
+          ].filter(Boolean);
+
+          let yoastText = '';
+          if (yoastMeta.length) {
+            try {
+              const yRes = await apiFetch(`${API_BASE()}/api/woocommerce/products/${seoCurrentItem.wcId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ meta_data: yoastMeta }),
+              });
+              if (!yRes.ok) throw new Error(`HTTP ${yRes.status}`);
+
+              // Beleg ist der REST-Ruecklesewert, nicht die PUT-Antwort: Yoast
+              // Premium ist abgelaufen, das Synonymfeld zeigt die Oberflaeche
+              // womoeglich gar nicht an.
+              const nach = await apiJson(
+                await apiFetch(`${API_BASE()}/api/woocommerce/products/${seoCurrentItem.wcId}`));
+              const ausYoast = k => ((nach.meta_data || []).find(m => m.key === k) || {}).value ?? '';
+              yoastText = `In Yoast steht jetzt – Keyphrase: "${ausYoast('_yoast_wpseo_focuskw')}"`
+                        + `, Synonyme: "${ausYoast('_yoast_wpseo_keywordsynonyms')}"`;
+            } catch (e) {
+              // Sheet-Stand bleibt: er ist bereits geschrieben und die Quelle.
+              yoastText = `Yoast NICHT geschrieben (${e.message}) – der Sheet-Eintrag bleibt erhalten.`;
+            }
+          }
+          if (yoastLeer.length) {
+            yoastText = [yoastText, `${yoastLeer.join(' und ')} leer – in Yoast nicht überschrieben.`]
+              .filter(Boolean).join(' · ');
+          }
 
           seoPendingList = seoPendingList.filter(item => item.row !== seoCurrentItem.row);
           seoCurrentItem = null;
@@ -4688,8 +4746,24 @@
               ).join('');
           }
 
-          statusMsg.textContent = '';
-          showToast('✓ SEO gespeichert – Artikel aus Liste entfernt');
+          // Nicht nur "gespeichert": die Rueckmeldung sagt, was tatsaechlich in
+          // Yoast angekommen ist – zurueckgelesen, nicht angenommen. Und wenn
+          // wegen eines leeren Feldes bewusst nichts geschrieben wurde, steht
+          // auch das da, statt still zu bleiben.
+          //
+          // ⚠️ seo-status-msg liegt INNERHALB von seo-article-panel, und das
+          // wurde ein paar Zeilen weiter oben auf display:none gesetzt. Der
+          // Statustext allein waere also unsichtbar – die Meldung muss in den
+          // Toast, der unabhaengig vom Panel steht. Der Statustext wird
+          // trotzdem gefuellt, falls das Panel spaeter einmal offen bleibt.
+          const yoastFehler = /NICHT geschrieben/.test(yoastText);
+          statusMsg.textContent = yoastText;
+          statusMsg.style.color = yoastFehler ? 'var(--danger)' : 'var(--muted)';
+          showToast(
+            ['✓ SEO gespeichert – Artikel aus Liste entfernt', yoastText].filter(Boolean).join(' · '),
+            yoastFehler ? 'error' : 'success',
+            yoastFehler ? 12000 : 8000,
+          );
         } catch (e) {
           statusMsg.textContent = `Fehler: ${e.message}`;
           statusMsg.style.color = 'var(--danger)';
