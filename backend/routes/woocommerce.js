@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getWcClient } from '../lib/shopConfig.js';
 import { markeFuerShop } from '../lib/shopMarke.js';
 import { pruefeArtikelnummer, baueVariantenSkus } from '../lib/sku.js';
+import { achsenVon, achsenGleich, pruefeFarbAchse } from '../lib/varianten-achsen.js';
 
 const router = Router();
 
@@ -259,6 +260,12 @@ router.post('/products', async (req, res, next) => {
     const vorabSkus = baueVariantenSkus(rest.sku, variations ?? []);
     if (vorabSkus.fehler) return res.status(400).json({ error: vorabSkus.fehler, feld: vorabSkus.feld });
 
+    // Hat der Artikel Achsen, muss eine davon "Farbe" sein. Im Anlagepfad
+    // streng: wer neu anlegt, legt vollstaendig an. Ohne Achse greift die Regel
+    // nicht - Puck und Kuscheltier bleiben gueltig.
+    const achsenFehler = pruefeFarbAchse(achsenVon({ attribute: rest.attributes, varianten: variations }));
+    if (achsenFehler) return res.status(400).json({ error: achsenFehler.fehler, feld: achsenFehler.feld });
+
     const marke   = await markeFuerShop(req.query.shop);
     const payload = marke ? { ...rest, brands: [{ id: marke.id }] } : rest;
 
@@ -402,6 +409,45 @@ router.put('/products/:id', async (req, res, next) => {
       }
     }
 
+    // Farbachse im Aenderungspfad - dasselbe Muster wie oben bei der SKU (S2b).
+    //
+    // Mindestens fuenf Artikel im Shop haben heute keine Farbachse. Eine strenge
+    // Pruefung legte sie bei der naechsten Preisaenderung still, und das waere
+    // wieder die Migration, die ausgeschlossen ist. Also: Achsen unveraendert
+    // gegenueber dem SHOP-Stand -> durchlassen und melden. Achsen angefasst ->
+    // volle Regel mit 400.
+    //
+    // Verglichen wird gegen den Shop, nicht gegen die Erfassungsmaske: die
+    // fuehrt gar keine Achsenspalte, die Achsen liegen im Varianten-Reiter.
+    let achsenHinweis = null;
+    const neueAchsen  = achsenVon({ attribute: payload.attributes, varianten: variations });
+
+    // Ohne Achsen im Body ist nichts zu pruefen - ein Teil-Update (nur Preis,
+    // nur Status) darf nicht an einer Regel scheitern, deren Daten es gar nicht
+    // mitschickt.
+    if (neueAchsen.length) {
+      const achsenFehler = pruefeFarbAchse(neueAchsen);
+      if (achsenFehler) {
+        let shopAchsen = null;
+        try {
+          const { data: alt } = await wc.get(`products/${req.params.id}`);
+          const altProdukt = Array.isArray(alt) ? alt[0] : alt;
+          shopAchsen = achsenVon({ attribute: altProdukt?.attributes });
+        } catch (e) {
+          // Ohne Shop-Stand laesst sich "unveraendert" nicht belegen - dann
+          // bleibt es streng, statt eine Achsenaenderung durchzuwinken.
+          console.warn(`PUT /products/${req.params.id}: Shop-Achsen nicht lesbar (${e.message}) – strenge Pruefung.`);
+        }
+
+        if (shopAchsen !== null && achsenGleich(shopAchsen, neueAchsen)) {
+          achsenHinweis = `${achsenFehler.fehler} Achsen unveraendert uebernommen – `
+                        + 'bitte beim naechsten Anfassen die Farbachse ergaenzen.';
+        } else {
+          return res.status(400).json({ error: achsenFehler.fehler, feld: achsenFehler.feld });
+        }
+      }
+    }
+
     const { data: productRaw } = await wc.put(`products/${req.params.id}`, payload);
     const product = Array.isArray(productRaw) ? productRaw[0] : productRaw;
 
@@ -432,9 +478,13 @@ router.put('/products/:id', async (req, res, next) => {
       }
     }
 
-    // hinweis ist gesetzt, wenn eine regelwidrige Alt-Nummer unveraendert
-    // durchgelassen wurde (S2b). Der Aufrufer zeigt ihn an - still bleibt er nicht.
-    res.json({ id: product.id, hinweis: skuHinweis });
+    // hinweis ist gesetzt, wenn eine regelwidrige Alt-Nummer oder fehlende
+    // Farbachse unveraendert durchgelassen wurde (S2b-Muster). Beide koennen
+    // gleichzeitig zutreffen - der Aufrufer zeigt sie an, still bleibt nichts.
+    res.json({
+      id:      product.id,
+      hinweis: [skuHinweis, achsenHinweis].filter(Boolean).join(' ') || null,
+    });
   } catch (err) { next(err); }
 });
 

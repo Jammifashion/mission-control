@@ -1390,6 +1390,8 @@
             <button class="btn-secondary" id="btn-add-new-variants" style="display:none;font-size:0.82rem;padding:0.42rem 0.85rem;">Neue Varianten anlegen</button>
             <span id="new-variants-status" style="font-size:0.82rem;color:var(--muted);align-self:center;"></span>
           </div>
+          <!-- Farbachsen-Regel: sichtbar am Feld, nicht erst beim Push. -->
+          <div id="properties-rule-hint" style="display:none;font-size:0.82rem;color:var(--danger);margin-top:0.4rem;"></div>
           <div id="variants-section" class="variants-section" style="display:none;">
             <div class="variants-section-title" id="variants-section-title">Varianten &amp; Preise</div>
             <div class="variant-imgref-block" id="variant-imgref-block">
@@ -3691,6 +3693,67 @@
       }
       // ── SKU-Regeln: Ende ──
 
+      // ── Farbachsen-Regel: Anfang (reine Logik, backend/tests/farbachse.test.js) ──
+      // Spiegelt backend/lib/varianten-achsen.js. Gleiche Bedingung wie beim
+      // SKU-Block: NICHTS aus dem Seitenkontext – der Test schneidet ihn heraus
+      // und fuehrt ihn aus. Massgeblich bleibt das Backend.
+      //
+      // Hat ein Artikel Achsen, muss eine davon "Farbe" sein. Ohne Achse greift
+      // die Regel nicht (Puck, Kuscheltier, Fan-Schal bleiben gueltig).
+      //
+      // ⚠️ EXAKTER Vergleich. Die SSOT fuehrt vier Eigenschaften mit "farbe" im
+      // Namen – Farbe, Druckfarbe, Farbe des Wunschnamens, Schriftfarbe – aber
+      // nur die erste ist die Artikelfarbe. Ein Teilstring-Vergleich liesse
+      // "Groesse + Druckfarbe" bestehen, obwohl die Artikelfarbe fehlt.
+      const FARB_ACHSE = 'Farbe';
+
+      function achsenVergleichsform(name) {
+        return String(name ?? '').trim().toLowerCase();
+      }
+
+      function istFarbAchse(name) {
+        return achsenVergleichsform(name) === achsenVergleichsform(FARB_ACHSE);
+      }
+
+      function achsenAusVarianten(varianten) {
+        const namen = [];
+        for (const v of Array.isArray(varianten) ? varianten : []) {
+          for (const a of ((v && (v.attrs || v.attributes)) || [])) {
+            const name = String((a && a.name) ?? '').trim();
+            if (name && !namen.some(x => achsenVergleichsform(x) === achsenVergleichsform(name)))
+              namen.push(name);
+          }
+        }
+        return namen;
+      }
+
+      function achsenGleich(a, b) {
+        const x = (Array.isArray(a) ? a : []).map(achsenVergleichsform).filter(Boolean).sort();
+        const y = (Array.isArray(b) ? b : []).map(achsenVergleichsform).filter(Boolean).sort();
+        return x.length === y.length && x.every((w, i) => w === y[i]);
+      }
+
+      function pruefeFarbAchse(achsen) {
+        const namen = (Array.isArray(achsen) ? achsen : [])
+          .map(n => String(n ?? '').trim()).filter(Boolean);
+        if (!namen.length) return null;
+        if (namen.some(istFarbAchse)) return null;
+        return `Der Artikel hat Variantenachsen (${namen.join(', ')}), aber keine davon ist `
+             + `"${FARB_ACHSE}". Farbe wird als Achse geführt, auch bei nur einer Farbe: die `
+             + 'L-Shop-Nummer hängt an Modell + Farbe + Größe, das Bild an der Farbe. '
+             + 'Achtung: Druckfarbe, Schriftfarbe und Farbe des Wunschnamens zählen NICHT.';
+      }
+      // ── Farbachsen-Regel: Ende ──
+
+      // Meldung am Eigenschaften-Feld. Bewusst AUSSERHALB des Regelblocks:
+      // der darf das DOM nicht anfassen.
+      function zeigeAchsenRegel(text) {
+        const el = document.getElementById('properties-rule-hint');
+        if (!el) return;
+        el.textContent = text || '';
+        el.style.display = text ? '' : 'none';
+      }
+
       // Auto Artikelnummer – mit sichtbarer Regelmeldung am Feld.
       function updateArticleNr() {
         const lshop = document.getElementById('pf-lshop-nr').value.trim();
@@ -4253,6 +4316,11 @@
       // /gr(ö|oe)ss?e/ trifft "Grösse", aber nicht "Größe" – und genau so heißt
       // das Attribut im Shop. Darum der eigene ß-Zweig.
       const GROESSEN_ATTR_RE = /gr(?:ö|oe)(?:ß|ss|s)?e|sizes?/i;
+      // ⚠️ NUR fuer den SEO-Prompt – fuer Validierung UNGEEIGNET und dafuer
+      // auch nicht zu erweitern. Das Muster trifft als Teilstring auch
+      // "Druckfarbe", "Farbe des Wunschnamens" und "Schriftfarbe"; keine davon
+      // ist die Artikelfarbe. Fuer Regeln gibt es die exakte Erkennung
+      // istFarbAchse() im Block "Farbachsen-Regel" weiter oben.
       const FARB_ATTR_RE     = /farbe|colou?r/i;
 
       // Farben und Größen kommen aus der Variantenauswahl, nicht aus dem
@@ -5132,6 +5200,41 @@
           }
         }
 
+        // Farbachse im Aenderungspfad – dasselbe Muster wie oben bei der SKU.
+        // Achsen unveraendert gegenueber dem SHOP-Stand: Hinweis, kein Abbruch.
+        // Mindestens fuenf Bestandsartikel haben keine Farbachse; eine strenge
+        // Pruefung legte sie bei der naechsten Preisaenderung still.
+        // Angefasst: volle Regel.
+        //
+        // Verglichen wird gegen existingVariations – den Shop-Stand aus
+        // GET products/:id/variations – NICHT gegen die Erfassungsmaske, die
+        // gar keine Achsenspalte fuehrt.
+        const achsenJetzt     = achsenAusVarianten(activeVariants);
+        const achsenShop      = achsenAusVarianten(existingVariations);
+        const achsenUnveraend = achsenGleich(achsenShop, achsenJetzt);
+        const achsenFehlerUpd = pruefeFarbAchse(achsenJetzt);
+
+        zeigeAchsenRegel(achsenFehlerUpd && !achsenUnveraend ? achsenFehlerUpd : null);
+        if (achsenFehlerUpd && !achsenUnveraend) {
+          pushStatus.textContent = `Nicht gespeichert: ${achsenFehlerUpd}`;
+          pushStatus.style.color = 'var(--danger)';
+          showToast(achsenFehlerUpd, 'error', 10000);
+          btnUpdateWc.disabled = false;
+          return;
+        }
+        if (achsenFehlerUpd) {
+          const achsenText = `Hinweis: ${achsenFehlerUpd} Achsen unverändert übernommen – `
+                           + 'bitte beim nächsten Anfassen die Farbachse ergänzen.';
+          // In den Statustext, nicht nur als Toast. Einen bereits stehenden
+          // SKU-Hinweis (S2b) dabei erhalten: beide koennen gleichzeitig
+          // zutreffen, und der zweite darf den ersten nicht verdraengen.
+          const bisher = pushStatus.textContent.startsWith('Hinweis:')
+            ? `${pushStatus.textContent} ` : '';
+          pushStatus.textContent = `${bisher}${achsenText}`;
+          pushStatus.style.color = 'var(--warning, orange)';
+          showToast(achsenText, 'info', 12000);
+        }
+
         const wcVariations = activeVariants.map((v, i) => ({
           id:            v.wcVariationId || undefined,
           attributes:    v.attrs.map(a => ({ name: a.name, option: a.value })),
@@ -5491,6 +5594,19 @@
         const aggregatedAttributes = Object.entries(attrMap).map(([name, vals]) => ({
           name, options: [...vals], variation: true, visible: true,
         }));
+
+        // Farbachsen-Regel, streng im Anlagepfad: wer neu anlegt, legt
+        // vollstaendig an. Das Backend erzwingt dieselbe Regel – hier steht sie,
+        // damit der Fehler am Feld sichtbar wird und nicht erst beim Push.
+        const achsenFehlerPush = pruefeFarbAchse(achsenAusVarianten(activeVariants));
+        zeigeAchsenRegel(achsenFehlerPush);
+        if (achsenFehlerPush) {
+          pushStatus.textContent = `Nicht angelegt: ${achsenFehlerPush}`;
+          pushStatus.style.color = 'var(--danger)';
+          showToast(achsenFehlerPush, 'error', 10000);
+          createWcBtn.disabled = false;
+          return;
+        }
 
         // S2: jede Variante bekommt eine eigene SKU. Laenge und Dubletten VOR
         // dem Push pruefen – sonst bricht WooCommerce mittendrin ab und laesst
