@@ -5568,37 +5568,32 @@
         statusEl.textContent = 'Wird angelegt…';
         statusEl.style.color = 'var(--muted)';
 
-        // Attribut-Aggregation für Produkt-Update
-        const attrMap = {};
-        toCreate.forEach(v => v.attrs.forEach(a => {
-          if (!attrMap[a.name]) attrMap[a.name] = new Set();
-          attrMap[a.name].add(a.value);
-        }));
-
-        // Produkt-Attribute aktualisieren
-        await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            attributes: Object.entries(attrMap).map(([name, vals]) => ({
-              name, options: [...vals], variation: true, visible: true,
-            })),
-          }),
-        });
-
+        // Befehl V: EIN Aufruf. Das Backend vereinigt die Optionen mit dem
+        // Shop-Stand (frueher ersetzte ein PUT mit nur den neuen Werten alle
+        // Optionen), setzt "-1", menu_order und Varianten-SKU und laesst
+        // bestehende Variationen unangetastet.
         let added = 0;
-        for (const v of toCreate) {
-          try {
-            await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
+        try {
+          const r = await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variationen-ergaenzen`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              variations: toCreate.map(v => ({
                 attributes: v.attrs.map(a => ({ name: a.name, option: a.value })),
                 ...(v.price ? { regular_price: String(v.price) } : {}),
-              }),
-            });
-            added++;
-          } catch { /* einzelne Fehler ignorieren */ }
+                ...(v.imageId ? { image: { id: v.imageId } } : {}),
+              })),
+            }),
+          });
+          const d = await apiJson(r);
+          added = d.angelegt ?? 0;
+          if (d.fehler?.length) showToast(`Nicht angelegt: ${d.fehler.join(' · ')}`, 'error', 12000);
+          if (d.hinweis) showToast(d.hinweis, 'info', 12000);
+        } catch (e) {
+          statusEl.textContent = `Fehler: ${e.message}`;
+          statusEl.style.color = 'var(--danger)';
+          showToast(`Neue Varianten nicht angelegt: ${e.message}`, 'error', 12000);
+          return;
         }
 
         // Tabelle neu laden

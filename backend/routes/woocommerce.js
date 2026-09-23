@@ -13,6 +13,21 @@ const router = Router();
 // shop-Slug aus req.query.shop ziehen (Default 'jfn' wird in getWcClient erzwungen).
 const getClient = (req) => getWcClient(req?.query?.shop);
 
+// Body einer NEU anzulegenden Variation im Aenderungspfad - eine Stelle fuer
+// "Artikel aendern/Speichern" (PUT) und "Neue Varianten anlegen" (ergaenzen):
+// "-1" = Lieferzeit wie Elternartikel, menu_order nach Befehl R, SKU nach sku.js.
+function neueVariation(v, { menuOrder, sku } = {}) {
+  return {
+    menu_order:    menuOrder,
+    attributes:    v.attributes,
+    regular_price: v.regular_price,
+    meta_data:     mitLieferzeit(v.meta_data, LIEFERZEIT_WIE_ELTERN),
+    status:        'publish',
+    ...(sku ? { sku } : {}),
+    ...(v.image ? { image: v.image } : {}),
+  };
+}
+
 // ── N2: In-Memory Cache für selten ändernde WC-Stammdaten ────────────────────
 const _wcCache = new Map(); // `${shop}:${key}` → { data, at }
 const WC_CACHE_TTL = 30 * 60 * 1000; // 30 min
@@ -535,15 +550,8 @@ router.put('/products/:id', async (req, res, next) => {
       // (Farbe, dann Groesse). Bestehende (toUpdate) bekommen weder meta_data
       // noch menu_order.
       const platz = new Map(variantenReihenfolge(variations, payload.attributes).map((vi, pos) => [vi, pos + 1]));
-      const toCreate = variations.filter(v => !v.id).map(v => ({
-        menu_order:    platz.get(variations.indexOf(v)),
-        attributes:    v.attributes,
-        regular_price: v.regular_price,
-        meta_data:     mitLieferzeit(v.meta_data, LIEFERZEIT_WIE_ELTERN),
-        status:        'publish',
-        ...skuVon(v),
-        ...(v.image ? { image: v.image } : {}),
-      }));
+      const toCreate = variations.filter(v => !v.id).map(v =>
+        neueVariation(v, { menuOrder: platz.get(variations.indexOf(v)), sku: skuVon(v).sku }));
       if (toUpdate.length || toCreate.length) {
         await wc.post(`products/${req.params.id}/variations/batch`, {
           ...(toUpdate.length ? { update: toUpdate } : {}),
@@ -567,6 +575,92 @@ router.put('/products/:id', async (req, res, next) => {
             status: lzShop === lieferzeit ? 'gesetzt' : 'abweichend',
             grund:  lzShop === lieferzeit ? null
                   : `WooCommerce meldet "${lzShop ?? '(kein Wert)'}" statt "${lieferzeit}"` },
+    });
+  } catch (err) { next(err); }
+});
+
+// POST /api/woocommerce/products/:id/variationen-ergaenzen
+// Body: { variations: [{ attributes: [{ name, option }], regular_price, image? }] }
+//
+// "Neue Varianten anlegen" (Befehl V). Frueher schickte der Knopf per PUT nur
+// die Werte der NEUEN Varianten als Attribute - WooCommerce ersetzt damit alle
+// Optionen (gemessen 23.09. an einem Entwurf: [S, M] + L -> [L]). Jetzt:
+//  - Optionen = Shop-Optionen VEREINIGT mit den neuen, Groesse sortiert.
+//  - Neue Variationen wie im PUT-Pfad (neueVariation): "-1", menu_order nach
+//    Platz in der Gesamtliste, Varianten-SKU aus der Shop-Artikelnummer.
+//  - Bestehende Variationen werden NICHT angefasst - kein update im Batch.
+router.post('/products/:id/variationen-ergaenzen', async (req, res, next) => {
+  try {
+    const wc   = getClient(req);
+    const neu  = Array.isArray(req.body?.variations) ? req.body.variations : [];
+    if (!neu.length) return res.status(400).json({ error: 'Keine neuen Varianten übergeben.', feld: 'variations' });
+
+    const [{ data: pRaw }, { data: vRaw }] = await Promise.all([
+      wc.get(`products/${req.params.id}`),
+      wc.get(`products/${req.params.id}/variations`, { per_page: 100 }),
+    ]);
+    const produkt   = Array.isArray(pRaw) ? pRaw[0] : pRaw;
+    const bestehend = Array.isArray(vRaw) ? vRaw : [];
+
+    // Kombinationen, die es schon gibt, nicht doppelt anlegen.
+    const schluessel = attrs => (attrs ?? [])
+      .map(a => `${String(a.name).trim().toLowerCase()}=${String(a.option).trim().toLowerCase()}`).sort().join('|');
+    const vorhanden  = new Set(bestehend.map(v => schluessel(v.attributes)));
+    const anzulegen  = neu.filter(v => !vorhanden.has(schluessel(v.attributes)));
+    const doppelt    = neu.length - anzulegen.length;
+
+    // Optionen vereinigen: Shop-Stand zuerst, neue Werte dazu, dann sortieren.
+    // Globale Attribute behalten ihre id, andere Felder bleiben wie im Shop.
+    const attributes = (produkt.attributes ?? []).map(a => ({ ...a, options: [...(a.options ?? [])] }));
+    for (const v of anzulegen) {
+      for (const { name, option } of v.attributes ?? []) {
+        let a = attributes.find(x => String(x.name).trim().toLowerCase() === String(name).trim().toLowerCase());
+        if (!a) { a = { name, options: [], variation: true, visible: true }; attributes.push(a); }
+        if (!a.options.includes(option)) a.options.push(option);
+      }
+    }
+    const sortiert = sortiereAttributOptionen(attributes);
+
+    // Varianten-SKUs ueber die GESAMTliste bauen (Dubletten-Pruefung gegen den
+    // Bestand), vergeben nur an die neuen. Regelwidrige Alt-Nummer: keine SKU,
+    // aber Hinweis (S2b-Muster) statt Abbruch.
+    const alle     = [...bestehend.map(v => ({ attributes: v.attributes })), ...anzulegen];
+    let skuHinweis = null;
+    let skus       = null;
+    const artNr    = String(produkt.sku ?? '').trim();
+    const artNrFehler = pruefeArtikelnummer(artNr);
+    if (artNrFehler) {
+      skuHinweis = `Artikelnummer "${artNr}" entspricht nicht den Regeln: ${artNrFehler.fehler} `
+                 + 'Varianten-SKUs der neuen Varianten wurden deshalb nicht gesetzt.';
+    } else {
+      const r = baueVariantenSkus(artNr, alle);
+      if (r.fehler) return res.status(400).json({ error: r.fehler, feld: r.feld });
+      skus = r.skus;
+    }
+
+    let angelegt = 0;
+    let fehler   = [];
+    if (anzulegen.length) {
+      await wc.put(`products/${req.params.id}`, { attributes: sortiert.attributes });
+
+      const platz  = new Map(variantenReihenfolge(alle, sortiert.attributes).map((vi, pos) => [vi, pos + 1]));
+      const create = anzulegen.map((v, i) => {
+        const vi = bestehend.length + i;
+        return neueVariation(v, { menuOrder: platz.get(vi), sku: skus ? skus[vi] : null });
+      });
+      const { data: batch } = await wc.post(`products/${req.params.id}/variations/batch`, { create });
+      angelegt = (batch?.create ?? []).filter(c => c && c.id && !c.error).length;
+      fehler   = (batch?.create ?? []).filter(c => c?.error).map(c => c.error.message ?? String(c.error));
+    }
+
+    res.status(anzulegen.length ? 201 : 200).json({
+      id:               produkt.id,
+      angelegt,
+      doppelt,
+      fehler,
+      optionen:         sortiert.attributes.map(a => ({ name: a.name, options: a.options })),
+      hinweis:          [skuHinweis, sortiert.hinweis].filter(Boolean).join(' ') || null,
+      groessen_hinweis: sortiert.hinweis,
     });
   } catch (err) { next(err); }
 });
