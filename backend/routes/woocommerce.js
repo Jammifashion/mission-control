@@ -403,6 +403,7 @@ router.post('/products', async (req, res, next) => {
       status:              product.status,
       marke:               markeGesetzt,
       lieferzeit:          lieferzeitStand,
+      galerie:             (product.images ?? []).length,
       sku:                 product.sku ?? '',
       hinweis:             [skuHinweis, groessen.hinweis].filter(Boolean).join(' ') || null,
       variations_created:  created,
@@ -569,6 +570,7 @@ router.put('/products/:id', async (req, res, next) => {
       hinweis: [skuHinweis, achsenHinweis, groessenHinweis].filter(Boolean).join(' ') || null,
       // Eigenes Feld: SKU- und Achsen-Hinweis zeigt das Frontend schon vor dem Speichern.
       groessen_hinweis: groessenHinweis,
+      galerie: (product.images ?? []).length,
       lieferzeit: lieferzeit === undefined
         ? { gesendet: null, gesetzt: lzShop, status: 'unveraendert' }
         : { gesendet: lieferzeit, gesetzt: lzShop,

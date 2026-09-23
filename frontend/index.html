@@ -3613,6 +3613,7 @@
               const res  = await apiFetch(`${API_BASE()}/api/artikel/media-upload`, { method: 'POST', body: fd });
               const data = await res.json();
               if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+              hochgeladeneBilder.push(data.attachmentId);
               variants[realIdx].imageId      = data.attachmentId;
               variants[realIdx].imageUrl     = data.sourceUrl;
               variants[realIdx]._imageManual = true; // manuelles Bild – automatische Zuordnung überschreibt es nie
@@ -3928,6 +3929,53 @@
         return { aktiv: true, grund: '' };
       }
       // ── Artikel-ID: Ende ──
+
+      // ── Galerie: Anfang (reine Logik, backend/tests/galerie.test.js) ──
+      // Befehl GAL. ⚠️ In der WooCommerce-REST ERSETZT ein images-Array die
+      // ganze Bildliste (gemessen 23.09.: [A,B,C] + PUT [A] -> [A]). Ohne
+      // images im Body bleibt sie stehen. images[0] ist das Hauptbild.
+      function galerieIds(liste) {
+        const out = [];
+        for (const x of Array.isArray(liste) ? liste : []) {
+          const id = Number(x && typeof x === 'object' ? x.id : x);
+          if (id && !out.includes(id)) out.push(id);
+        }
+        return out;
+      }
+
+      // Genutzte Bilder in Upload-Reihenfolge; nicht (mehr) genutzte Uploads
+      // fallen weg, genutzte ohne Upload-Eintrag (geladen) haengen hinten an.
+      function galerieNachUpload(genutzt, hochgeladen) {
+        const g = galerieIds(genutzt);
+        const h = galerieIds(hochgeladen);
+        return [...h.filter(id => g.includes(id)), ...g.filter(id => !h.includes(id))];
+      }
+
+      // Anlage: Hauptbild zuerst, danach alle uebrigen genutzten Bilder
+      // (Variantenbilder eingeschlossen), ohne Dubletten, in Upload-Reihenfolge.
+      function galerieAnlage({ hauptbild, variantenBilder, hochgeladen } = {}) {
+        const rest = galerieNachUpload(variantenBilder, hochgeladen);
+        return galerieIds([hauptbild, ...rest]);
+      }
+
+      // Aenderung: nur ERGAENZEN. Vorhandene Galerie bleibt in ihrer
+      // Reihenfolge, neue Bilder kommen hinten dazu. Ein neues Hauptbild rueckt
+      // nach vorn (Hauptbild-Regel aus 374097c), es faellt nichts weg.
+      // "Neu" heisst: in dieser Sitzung hochgeladen und genutzt - alte
+      // Variantenbilder eines Bestandsartikels wandern nicht ungefragt hinein.
+      // null = nichts zu tun -> images gar nicht mitschicken.
+      function galerieAenderung({ vorhanden, hauptbild, variantenBilder, hochgeladen } = {}) {
+        const alt  = galerieIds(vorhanden);
+        const hoch = galerieIds(hochgeladen);
+        const neu  = galerieNachUpload(variantenBilder, hoch)
+          .filter(id => hoch.includes(id) && !alt.includes(id));
+        const main = galerieIds([hauptbild])[0];
+        let liste  = [...alt, ...neu];
+        if (main && liste[0] !== main) liste = [main, ...liste.filter(id => id !== main)];
+        const gleich = liste.length === alt.length && liste.every((id, i) => id === alt[i]);
+        return gleich ? null : liste;
+      }
+      // ── Galerie: Ende ──
 
       // ── Farbachsen-Regel: Anfang (reine Logik, backend/tests/farbachse.test.js) ──
       // Spiegelt backend/lib/varianten-achsen.js. Gleiche Bedingung wie beim
@@ -4432,6 +4480,7 @@
           const res  = await apiFetch(`${API_BASE()}/api/artikel/media-upload`, { method: 'POST', body: fd });
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+          hochgeladeneBilder.push(data.attachmentId);
           setzeHauptbild(data.attachmentId, data.sourceUrl);
           statusEl.textContent = '';
         } catch (e) {
@@ -4468,6 +4517,7 @@
           const data = await res.json();
           if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
+          hochgeladeneBilder.push(data.attachmentId);
           variantImageMap[wert] = { imageId: data.attachmentId, imageUrl: data.sourceUrl };
           applyAutoImages(variants);
           applyAutoImages(existingVariations);
@@ -4649,6 +4699,8 @@
       let wcEditProductId = null;    // WC-ID des geladenen Produkts im Ändern-Modus
       let wcEditSkuOriginal = '';    // SKU so, wie sie im Shop stand (S2b-Vergleich)
       let hauptbildId  = null;       // ausdruecklich gewaehltes Artikelbild (optional)
+      let hochgeladeneBilder = [];   // Befehl GAL: Attachment-IDs in Upload-Reihenfolge
+      let wcGalerieGeladen   = [];   // Befehl GAL: images des geladenen Shop-Produkts
       let hauptbildUrl = '';
       let seoCurrentItem  = null;    // aktuell gewählter SEO-Artikel
       let seoPendingList  = [];      // Liste aller ausstehenden SEO-Artikel
@@ -5073,6 +5125,8 @@
         document.getElementById('pf-hauptbild-status').textContent = '';
         document.getElementById('pf-hauptbild-upload').disabled = true;
         setzeHauptbild(null, '');
+        hochgeladeneBilder = [];
+        wcGalerieGeladen   = [];
         aktualisiereAid();
       }
 
@@ -5620,6 +5674,7 @@
               const res  = await apiFetch(`${API_BASE()}/api/artikel/media-upload`, { method: 'POST', body: fd });
               const data = await res.json();
               if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+              hochgeladeneBilder.push(data.attachmentId);
               const ev = existingVariations.find(x => x.id === v.id);
               if (ev) { ev.imageId = data.attachmentId; ev.imageUrl = data.sourceUrl; ev._imageManual = true; }
               thumb.src = data.sourceUrl;
@@ -5854,6 +5909,9 @@
           // Vorhandenes Hauptbild anzeigen - ersetzbar ueber das Feld.
           const wcHauptbild = (p.images || [])[0];
           setzeHauptbild(wcHauptbild?.id ?? null, wcHauptbild?.src ?? '');
+          // Befehl GAL: die ganze Bildliste merken - der Aenderungspfad ergaenzt nur.
+          wcGalerieGeladen = galerieIds(p.images || []);
+          hochgeladeneBilder = [];
 
           // Kategorien
           selectedCats.clear();
@@ -6032,6 +6090,13 @@
         // Hauptbild aus p.images[0] uebernommen, es bleibt also stehen, solange
         // niemand ein neues hochlaedt. Variantenbilder bleiben unberuehrt.
         const mainImageId = hauptbildId ?? activeVariants.find(v => v.imageId)?.imageId;
+        // Befehl GAL: nur ergaenzen, nie verkleinern. null -> images bleibt weg.
+        const galerieUpd = galerieAenderung({
+          vorhanden:       wcGalerieGeladen,
+          hauptbild:       mainImageId,
+          variantenBilder: [...activeVariants, ...existingVariations].map(v => v.imageId),
+          hochgeladen:     hochgeladeneBilder,
+        });
 
         // Lieferzeit nur schicken, wenn der Nutzer die Auswahl geaendert hat.
         const lieferzeitNeu = lzZuSenden(lieferzeitGeladen, document.getElementById('pf-lieferzeit').value);
@@ -6054,7 +6119,7 @@
               shipping_class: document.getElementById('pf-shipping').value,
               ...(lieferzeitNeu !== undefined ? { lieferzeit: lieferzeitNeu } : {}),
               variations:     wcVariations,
-              ...(mainImageId ? { images: [{ id: mainImageId }] } : {}),
+              ...(galerieUpd ? { images: galerieUpd.map(id => ({ id })) } : {}),
             }),
           });
           const data = await res.json();
@@ -6065,6 +6130,10 @@
             showToast(m.text, m.typ, m.typ === 'error' ? 12000 : 5000);
             // Der Shop-Stand ist ab jetzt der Vergleichswert.
             if (data.lieferzeit && data.lieferzeit.status === 'gesetzt') { lieferzeitGeladen = data.lieferzeit.gesetzt; populateLieferzeit(); }
+          }
+          if (galerieUpd) {
+            showToast(`Galerie: ${data.galerie ?? galerieUpd.length} Bilder`, 'info', 6000);
+            wcGalerieGeladen = galerieUpd;
           }
           // Nicht einsortierbare Groesse: kommt nur vom Backend, darum hier melden.
           if (data.groessen_hinweis) showToast(data.groessen_hinweis, 'info', 12000);
@@ -6444,6 +6513,12 @@
         // nichts. Die Varianten werden dabei nicht angefasst; eine Variante ohne
         // eigenes Bild zeigt in WooCommerce ohnehin das Hauptbild.
         const mainImageId = hauptbildId ?? activeVariants.find(v => v.imageId)?.imageId;
+        // Befehl GAL: Hauptbild zuerst, dann alle uebrigen Bilder der Varianten.
+        const galerieNeu = galerieAnlage({
+          hauptbild:       mainImageId,
+          variantenBilder: activeVariants.map(v => v.imageId),
+          hochgeladen:     hochgeladeneBilder,
+        });
 
         // Lieferzeit ist Pflicht bei der Anlage. Ohne lesbaren Reiter gibt es
         // keinen Wert - dann nicht anlegen, statt ohne _lieferzeit.
@@ -6476,7 +6551,7 @@
               shipping_class:    document.getElementById('pf-shipping').value,
               lieferzeit:        lieferzeitAnlage,
               variations:        wcVariations,
-              ...(mainImageId ? { images: [{ id: mainImageId }] } : {}),
+              ...(galerieNeu.length ? { images: galerieNeu.map(id => ({ id })) } : {}),
             }),
           });
           const data1 = await res1.json();
@@ -6484,6 +6559,7 @@
 
           const wcId      = data1.id;
           const wcStatus  = data1.status ?? 'draft';
+          if (galerieNeu.length) showToast(`Galerie: ${data1.galerie ?? galerieNeu.length} Bilder`, 'info', 6000);
 
           // Lieferzeit-Rueckmeldung als Toast (nicht im Statustext).
           {
