@@ -3,6 +3,9 @@ import { getWcClient } from '../lib/shopConfig.js';
 import { markeFuerShop } from '../lib/shopMarke.js';
 import { pruefeArtikelnummer, baueVariantenSkus } from '../lib/sku.js';
 import { achsenVon, achsenGleich, pruefeFarbAchse } from '../lib/varianten-achsen.js';
+import {
+  LIEFERZEIT_WIE_ELTERN, pruefeLieferzeitWert, lieferzeitAusMetaData, mitLieferzeit,
+} from '../lib/lieferzeiten.js';
 
 const router = Router();
 
@@ -248,7 +251,15 @@ router.get('/stats', async (req, res, next) => {
 router.post('/products', async (req, res, next) => {
   try {
     const wc = getClient(req);
-    const { ssot_id, variations, brands: _brandsAusBody, ...rest } = req.body;
+    const { ssot_id, variations, brands: _brandsAusBody, lieferzeit, ...rest } = req.body;
+
+    // _lieferzeit am Elternartikel: Term-ID als String. Ein kaputter Wert
+    // scheitert VOR dem Anlegen. Fehlt das Feld, wird nichts gesetzt und die
+    // Antwort sagt es (lieferzeit.status) - der Aufrufer meldet es per Toast.
+    if (lieferzeit !== undefined) {
+      const lzFehler = pruefeLieferzeitWert(lieferzeit);
+      if (lzFehler) return res.status(400).json({ error: lzFehler, feld: 'lieferzeit' });
+    }
 
     // S2: die SKU-Regeln gelten hier, nicht nur im Frontend. Ein Admin-Endpunkt
     // scheitert laut, statt eine 67-Zeichen-SKU oder eine leere durchzulassen.
@@ -267,7 +278,11 @@ router.post('/products', async (req, res, next) => {
     if (achsenFehler) return res.status(400).json({ error: achsenFehler.fehler, feld: achsenFehler.feld });
 
     const marke   = await markeFuerShop(req.query.shop);
-    const payload = marke ? { ...rest, brands: [{ id: marke.id }] } : rest;
+    const payload = {
+      ...rest,
+      ...(marke ? { brands: [{ id: marke.id }] } : {}),
+      ...(lieferzeit !== undefined ? { meta_data: mitLieferzeit(rest.meta_data, lieferzeit) } : {}),
+    };
 
     // Schritt 1: Produkt anlegen (mit SKU-Fallback bei Duplikat)
     let productResponse;
@@ -312,14 +327,17 @@ router.post('/products', async (req, res, next) => {
     if (Array.isArray(variations) && variations.length) {
       for (const [vi, variation] of variations.entries()) {
         try {
+          // Jede neue Variation bekommt "-1" = wie Elternartikel. Nie leer
+          // (erbt nicht), nie "'-1" (blockiert die Anzeige).
           const varResponse = await wc.post(`products/${productId}/variations`, {
             ...variation,
             ...(nachSkus.skus ? { sku: nachSkus.skus[vi] } : {}),
+            meta_data: mitLieferzeit(variation.meta_data, LIEFERZEIT_WIE_ELTERN),
             status: 'publish',
           });
           const varRaw = varResponse.data;
           const v = Array.isArray(varRaw) ? varRaw[0] : varRaw;
-          variationResults.push({ ok: true, id: v.id });
+          variationResults.push({ ok: true, id: v.id, lieferzeit: lieferzeitAusMetaData(v.meta_data) });
         } catch (varErr) {
           variationResults.push({ ok: false, error: varErr.message ?? String(varErr) });
         }
@@ -336,10 +354,28 @@ router.post('/products', async (req, res, next) => {
     if (marke && !markeGesetzt)
       console.warn(`Produkt ${productId}: Marke "${marke.slug}" gesendet, WooCommerce meldet keine Marke zurueck.`);
 
+    // Lieferzeit so, wie WooCommerce sie zurueckmeldet - nicht angenommen.
+    const lzEltern  = lieferzeitAusMetaData(product.meta_data);
+    const lzVarOk   = variationResults.filter(r => r.ok && r.lieferzeit === LIEFERZEIT_WIE_ELTERN).length;
+    const lzVarAb   = variationResults.filter(r => r.ok && r.lieferzeit !== LIEFERZEIT_WIE_ELTERN)
+                        .map(r => ({ id: r.id, wert: r.lieferzeit }));
+    const lieferzeitStand = {
+      gesendet:    lieferzeit ?? null,
+      gesetzt:     lzEltern,
+      status:      lieferzeit === undefined           ? 'nicht gesetzt'
+                 : lzEltern === lieferzeit            ? 'gesetzt'
+                 :                                      'abweichend',
+      grund:       lieferzeit === undefined           ? 'keine Lieferzeit übergeben'
+                 : lzEltern === lieferzeit            ? null
+                 : `WooCommerce meldet "${lzEltern ?? '(kein Wert)'}" statt "${lieferzeit}"`,
+      variationen: { wie_eltern: lzVarOk, abweichend: lzVarAb },
+    };
+
     res.status(201).json({
       id:                  productId,
       status:              product.status,
       marke:               markeGesetzt,
+      lieferzeit:          lieferzeitStand,
       sku:                 product.sku ?? '',
       hinweis:             skuHinweis,
       variations_created:  created,
@@ -359,7 +395,16 @@ router.post('/products', async (req, res, next) => {
 router.put('/products/:id', async (req, res, next) => {
   try {
     const wc = getClient(req);
-    const { variations, brands: _brandsAusBody, ...payload } = req.body;
+    const { variations, brands: _brandsAusBody, lieferzeit, ...payload } = req.body;
+
+    // _lieferzeit im Aenderungspfad: nur wenn der Aufrufer sie ausdruecklich
+    // mitschickt (Nutzer hat die Auswahl geaendert). Ohne Feld bleibt der
+    // Shop-Wert unangetastet. Nur Elternartikel - Variationen nie.
+    if (lieferzeit !== undefined) {
+      const lzFehler = pruefeLieferzeitWert(lieferzeit);
+      if (lzFehler) return res.status(400).json({ error: lzFehler, feld: 'lieferzeit' });
+      payload.meta_data = mitLieferzeit(payload.meta_data, lieferzeit);
+    }
 
     // S2b: der Aenderungspfad ist milder als die Anlage.
     //
@@ -481,9 +526,16 @@ router.put('/products/:id', async (req, res, next) => {
     // hinweis ist gesetzt, wenn eine regelwidrige Alt-Nummer oder fehlende
     // Farbachse unveraendert durchgelassen wurde (S2b-Muster). Beide koennen
     // gleichzeitig zutreffen - der Aufrufer zeigt sie an, still bleibt nichts.
+    const lzShop = lieferzeitAusMetaData(product.meta_data);
     res.json({
       id:      product.id,
       hinweis: [skuHinweis, achsenHinweis].filter(Boolean).join(' ') || null,
+      lieferzeit: lieferzeit === undefined
+        ? { gesendet: null, gesetzt: lzShop, status: 'unveraendert' }
+        : { gesendet: lieferzeit, gesetzt: lzShop,
+            status: lzShop === lieferzeit ? 'gesetzt' : 'abweichend',
+            grund:  lzShop === lieferzeit ? null
+                  : `WooCommerce meldet "${lzShop ?? '(kein Wert)'}" statt "${lieferzeit}"` },
     });
   } catch (err) { next(err); }
 });

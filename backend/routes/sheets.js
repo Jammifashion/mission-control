@@ -4,6 +4,7 @@ import { getGoogleAuth } from '../lib/googleAuth.js';
 import { findHeader, requireHeader, requireHeaderAny } from '../utils/sheet-headers.js';
 import { buildRow, mergeRow } from '../utils/sheet-rows.js';
 import { sichereSpalte } from '../utils/sheet-spalten.js';
+import { ladeLieferzeiten } from '../lib/lieferzeiten.js';
 
 // Spalten der Erfassungsmaske, die bei Bedarf angelegt werden, sobald ein
 // Schreibaufruf sie mitbringt. Optional: gelesen wird nur ueber findHeader,
@@ -145,6 +146,15 @@ router.get('/lieferzeiten', async (req, res, next) => {
     const objects = rowsToObjects(rows);
     const key = objects[0] ? Object.keys(objects[0]).find(k => k.toLowerCase().includes('lieferzeit')) ?? Object.keys(objects[0])[0] : 'Lieferzeit';
     res.json(objects.map(r => r[key]).filter(Boolean));
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/sheets/struktur-lieferzeiten ────────────────────────────────────
+// German-Market-Terme fuer _lieferzeit: [{ id: "21", name, slug }]. Die erste
+// Zeile ist der Standard fuer die Anlage. Scheitert laut mit Spaltenname.
+router.get('/struktur-lieferzeiten', async (req, res, next) => {
+  try {
+    res.json(await ladeLieferzeiten());
   } catch (err) { next(err); }
 });
 

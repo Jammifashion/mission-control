@@ -1380,6 +1380,12 @@
               <a class="link-new" id="link-new-shipping">+ Neu anlegen</a>
             </div>
             <div class="form-field">
+              <label>Lieferzeit</label>
+              <select id="pf-lieferzeit" class="form-select">
+                <option value="">Wird geladen…</option>
+              </select>
+            </div>
+            <div class="form-field">
               <label>Regulärer Preis (€) <span class="field-note">*</span></label>
               <input id="pf-price-regular" type="number" class="form-input" placeholder="z. B. 49.99" step="0.01" min="0" />
             </div>
@@ -3228,9 +3234,79 @@
           } catch { /* bleibt leer */ }
         }
 
+        // Lieferzeiten: Reiter Struktur_Lieferzeiten. Kein Fallback – scheitert
+        // das Lesen, steht der Fehler (mit Spaltenname) im Feld und als Toast.
+        try {
+          const r = await apiFetch(`${base}/api/sheets/struktur-lieferzeiten`, { signal: AbortSignal.timeout(8000) });
+          ssot.lieferzeiten      = await apiJson(r);
+          ssot.lieferzeitFehler  = '';
+        } catch (e) {
+          ssot.lieferzeiten      = [];
+          ssot.lieferzeitFehler  = e.message;
+        }
+
         populateShipping();
         populateCategories();
+        populateLieferzeit();
         renderProperties();
+      }
+
+      // ── Lieferzeit: Anfang (reine Logik, backend/tests/lieferzeit.test.js) ──
+      // _lieferzeit (German Market) als Term-ID-String. Die erste Zeile des
+      // Reiters ist der Standard fuer die Anlage – keine IDs im Code.
+      const LZ_UNBEKANNT = '__unbekannt__';
+
+      function lzWertAusMeta(metaData) {
+        const e = (Array.isArray(metaData) ? metaData : []).find(m => m && m.key === '_lieferzeit');
+        if (!e || e.value === null || e.value === undefined || typeof e.value === 'object') return null;
+        return String(e.value).trim();
+      }
+
+      // Optionen fuer das Auswahlfeld. geladen === undefined: Anlage (Standard
+      // = erste Zeile). Sonst Aenderungspfad: Shop-Wert (null = kein Eintrag).
+      function lzOptionen(liste, geladen) {
+        const opts = (liste || []).map(l => ({ value: String(l.id), text: l.name, selected: false }));
+        if (geladen === undefined) {
+          if (opts.length) opts[0].selected = true;
+          return opts;
+        }
+        const treffer = opts.find(o => o.value === geladen);
+        if (treffer) { treffer.selected = true; return opts; }
+        return [{ value: LZ_UNBEKANNT, text: `unbekannt (Wert ${geladen === null ? 'leer' : geladen})`, selected: true }, ...opts];
+      }
+
+      // Aenderungspfad: gesendet wird nur, wenn der Nutzer auf einen Term aus
+      // dem Reiter umgestellt hat. "unbekannt" oder unveraendert -> nichts.
+      function lzZuSenden(geladen, gewaehlt) {
+        if (!gewaehlt || gewaehlt === LZ_UNBEKANNT) return undefined;
+        if (gewaehlt === geladen) return undefined;
+        return String(gewaehlt);
+      }
+
+      // Toast-Text aus der lieferzeit-Antwort des Backends.
+      function lzMeldung(stand, liste) {
+        const name = id => ((liste || []).find(l => String(l.id) === id) || {}).name;
+        const txt  = id => id == null ? '(kein Wert)' : (name(id) ? `${name(id)} (${id})` : id);
+        if (!stand) return { typ: 'error', text: 'Lieferzeit: keine Rückmeldung vom Backend.' };
+        if (stand.status === 'gesetzt')      return { typ: 'success', text: `Lieferzeit gesetzt: ${txt(stand.gesetzt)}` };
+        if (stand.status === 'unveraendert') return { typ: 'info',    text: `Lieferzeit unverändert: ${txt(stand.gesetzt)}` };
+        return { typ: 'error', text: `Lieferzeit nicht gesetzt: ${stand.grund || stand.status}` };
+      }
+      // ── Lieferzeit: Ende ──
+
+      // Wert, der beim Laden eines Bestandsartikels im Shop stand.
+      // undefined = Anlage-Modus, null = kein _lieferzeit am Artikel.
+      let lieferzeitGeladen = undefined;
+
+      function populateLieferzeit() {
+        const sel = document.getElementById('pf-lieferzeit');
+        if (ssot.lieferzeitFehler) { setSelectError(sel, `Lieferzeit: ${ssot.lieferzeitFehler}`); return; }
+        sel.innerHTML = '';
+        lzOptionen(ssot.lieferzeiten, lieferzeitGeladen).forEach(o => {
+          const opt = document.createElement('option');
+          opt.value = o.value; opt.textContent = o.text; opt.selected = o.selected;
+          sel.appendChild(opt);
+        });
       }
 
       // Hilfsfunktion: ID / Slug / Name → WC-Slug
@@ -4792,6 +4868,8 @@
         document.getElementById('pf-article-nr').value = '';
         _pendingShipping = '';
         document.getElementById('pf-shipping').value = '';
+        lieferzeitGeladen = undefined;   // Anlage: Standard = erste Zeile des Reiters
+        populateLieferzeit();
         document.getElementById('pf-price-regular').value = '';
         document.getElementById('prod-short-desc').value = '';
         document.getElementById('prod-full-desc-raw').value = '';
@@ -5608,6 +5686,11 @@
           _pendingShipping = _wcShipping;
           document.getElementById('pf-shipping').value = _wcShipping;
 
+          // Lieferzeit: Shop-Wert anzeigen, nie still ueberschreiben. Nicht im
+          // Reiter (z. B. -1, 92, leer) -> "unbekannt (Wert X)".
+          lieferzeitGeladen = lzWertAusMeta(p.meta_data);
+          populateLieferzeit();
+
           // Bestehende Varianten für Tabelle + Vergleich speichern
           existingVariations = (Array.isArray(vars) ? vars : []).map(v => ({
             id:            v.id,
@@ -5769,6 +5852,9 @@
         // niemand ein neues hochlaedt. Variantenbilder bleiben unberuehrt.
         const mainImageId = hauptbildId ?? activeVariants.find(v => v.imageId)?.imageId;
 
+        // Lieferzeit nur schicken, wenn der Nutzer die Auswahl geaendert hat.
+        const lieferzeitNeu = lzZuSenden(lieferzeitGeladen, document.getElementById('pf-lieferzeit').value);
+
         try {
           const selectedShopStatus = statusShopSel.value;
           const res = await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}`, {
@@ -5785,12 +5871,20 @@
                 name, options: [...vals], variation: true, visible: true,
               })),
               shipping_class: document.getElementById('pf-shipping').value,
+              ...(lieferzeitNeu !== undefined ? { lieferzeit: lieferzeitNeu } : {}),
               variations:     wcVariations,
               ...(mainImageId ? { images: [{ id: mainImageId }] } : {}),
             }),
           });
           const data = await res.json();
           if (!res.ok || data.error) throw new Error(data.error || 'Update fehlgeschlagen');
+
+          {
+            const m = lzMeldung(data.lieferzeit, ssot.lieferzeiten);
+            showToast(m.text, m.typ, m.typ === 'error' ? 12000 : 5000);
+            // Der Shop-Stand ist ab jetzt der Vergleichswert.
+            if (data.lieferzeit && data.lieferzeit.status === 'gesetzt') { lieferzeitGeladen = data.lieferzeit.gesetzt; populateLieferzeit(); }
+          }
 
           // Sheet-Writeback wenn Zeile bekannt
           if (currentDraftRow) {
@@ -6155,6 +6249,18 @@
         // eigenes Bild zeigt in WooCommerce ohnehin das Hauptbild.
         const mainImageId = hauptbildId ?? activeVariants.find(v => v.imageId)?.imageId;
 
+        // Lieferzeit ist Pflicht bei der Anlage. Ohne lesbaren Reiter gibt es
+        // keinen Wert - dann nicht anlegen, statt ohne _lieferzeit.
+        const lieferzeitAnlage = document.getElementById('pf-lieferzeit').value;
+        if (ssot.lieferzeitFehler || !/^\d+$/.test(lieferzeitAnlage)) {
+          const grund = ssot.lieferzeitFehler || 'keine Lieferzeit gewählt';
+          pushStatus.textContent = 'Nicht angelegt: Lieferzeit fehlt.';
+          pushStatus.style.color = 'var(--danger)';
+          showToast(`Lieferzeit nicht gesetzt: ${grund}`, 'error', 12000);
+          createWcBtn.disabled = false;
+          return;
+        }
+
         try {
           // Schritt 1: Produkt anlegen
           pushStatus.textContent = 'Schritt 1/3: Produkt wird angelegt…';
@@ -6172,6 +6278,7 @@
               categories:        [...selectedCats.keys()].map(id => ({ id: Number(id) })),
               attributes:        aggregatedAttributes,
               shipping_class:    document.getElementById('pf-shipping').value,
+              lieferzeit:        lieferzeitAnlage,
               variations:        wcVariations,
               ...(mainImageId ? { images: [{ id: mainImageId }] } : {}),
             }),
@@ -6181,6 +6288,17 @@
 
           const wcId      = data1.id;
           const wcStatus  = data1.status ?? 'draft';
+
+          // Lieferzeit-Rueckmeldung als Toast (nicht im Statustext).
+          {
+            const m   = lzMeldung(data1.lieferzeit, ssot.lieferzeiten);
+            const ab  = data1.lieferzeit?.variationen?.abweichend ?? [];
+            if (ab.length) {
+              showToast(`Lieferzeit an ${ab.length} Variante(n) nicht "-1": `
+                + ab.map(a => `${a.id}=${a.wert ?? '(kein Wert)'}`).join(', '), 'error', 12000);
+            }
+            showToast(m.text, m.typ, m.typ === 'error' ? 12000 : 5000);
+          }
           const created   = data1.variations_created ?? 0;
           const failed    = data1.variations_failed  ?? 0;
 

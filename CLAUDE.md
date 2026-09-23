@@ -51,6 +51,12 @@ Neue Sektionen immer mit Anker versehen:
   `POST /api/seo/meta-eingaben` (backend/routes/seo-meta.js), weil
   filterMaterialFarben nur im Backend lebt.
 
+- backend/lib/lieferzeiten.js – German-Market-Lieferzeit (`_lieferzeit`, Term-ID als
+  String). Quelle: SSOT-Reiter `Struktur_Lieferzeiten` (Term_ID | Name | Slug), erste
+  Zeile = Standard bei der Anlage. Kein Fallback, keine IDs im Code. Variationen bekommen
+  bei der Anlage `"-1"` (wie Elternartikel). Aenderungspfad schreibt nur bei geaenderter
+  Auswahl, nur am Elternartikel. Frontend-Spiegel: Block `Lieferzeit: Anfang/Ende`.
+
 ## Deprecated
 - Sheet-Spalten `Versand-Modell` und `PayPal-Modell` im Partner-Reiter sind seit Sprint 4.2 deprecated.
   Der Kalkulations-Helper nutzt zentrale Fixkosten + `Porto-Modell`. Spalten bleiben im Sheet, werden
