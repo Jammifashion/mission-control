@@ -231,14 +231,20 @@ export { faserOhneLabel };
  * Faserangabe (NACH filterMaterialFarben, unveraendert) und Grammatur.
  * Der Platzhalter "[Material: bitte ergänzen]" ist keine Faserangabe.
  *
- * @returns {{ faserangabe: string|null, faserMeldung: string|null, grammatur: string|null }}
+ * faserHinweis: Faserangabe mit Prozent fehlt ganz (Befehl F2) - dieselbe
+ * Pruefung wie im SEO-Prompt, sie steht in materialAusEigenschaften.
+ *
+ * @returns {{ faserangabe: string|null, faserMeldung: string|null, grammatur: string|null,
+ *             faserHinweis: string|null }}
  */
-export function metaEingaben({ eigenschaften, farben } = {}) {
-  const { material, meldung } = materialAusEigenschaften(eigenschaften, farben);
+export function metaEingaben({ eigenschaften, farben, groessen } = {}) {
+  const { material, meldung, faserHinweis } = materialAusEigenschaften(eigenschaften, farben, { groessen });
   const faser = material && material !== MATERIAL_PLACEHOLDER ? material : null;
   return {
     faserangabe:  faser,
     faserMeldung: faser ? meldung : null,
     grammatur:    grammaturAusEigenschaften(eigenschaften),
+    // Nur wenn gesetzt - die Antwort bleibt fuer alle anderen Faelle wie bisher.
+    ...(faserHinweis ? { faserHinweis } : {}),
   };
 }

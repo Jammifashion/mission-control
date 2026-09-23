@@ -18,6 +18,14 @@
 //    darum im Code, und das Ergebnis wird gemeldet, nicht verschluckt.
 
 export const MATERIAL_PLACEHOLDER = '[Material: bitte ergänzen]';
+
+// Befehl F2: sichtbarer Hinweis, wenn eine Faserangabe mit Prozent GANZ fehlt.
+// Die Nachbedingung in filterMaterialFarbenMitMeldung meldet nur, wenn der
+// Filter eine vorhandene Prozentangabe entfernt hat - wo nie eine war, schwieg
+// sie bisher.
+export const FASER_FEHLT_HINWEIS =
+  'Keine Faserangabe mit Prozent gefunden – Pflichtangabe bei Textilien. '
+  + 'Bitte im Feld Eigenschaften ergänzen (z. B. 100 % Baumwolle).';
 export const MOTIV_PLACEHOLDER    = 'keine Angabe – Motiv nicht erfinden';
 
 // MODUS ist ein fester Enum, kein Freitext.
@@ -809,7 +817,7 @@ export function entferneLeereLi(html) {
  * @returns {{ eigenschaftenLines: string[], farbListe: string[],
  *             materialRoh: string, material: string, meldung: string|null }}
  */
-export function materialAusEigenschaften(eigenschaften, farben) {
+export function materialAusEigenschaften(eigenschaften, farben, { groessen } = {}) {
   const rohLines = eigenschaften ? String(eigenschaften).split('\n').filter(Boolean) : [];
   // ⚠️ Reihenfolge: erst auslesen, dann entfernen. filterEigenschaften() wirft
   // die Farbzeile raus (sonst steht die Farbe doppelt in der Detailliste) –
@@ -851,7 +859,15 @@ export function materialAusEigenschaften(eigenschaften, farben) {
   // Die Form MIT Meldung, nicht der Wrapper: die Meldung sagt, dass im
   // Material keine vollständige Faserangabe mehr steht.
   const { material, meldung } = filterMaterialFarbenMitMeldung(materialRoh, farbListe);
-  return { eigenschaftenLines, detailLines, farbListe, materialRoh, material, meldung };
+
+  // Faserangabe fehlt ganz? Nur bei Textilien melden: der Artikel hat eine
+  // Groessen-Achse ODER die Eigenschaften nennen Material ohne Prozent
+  // ("Material: Jersey"). Puck, Fruehstuecksbrett, Thermobecher bleiben still.
+  // Hat die Nachbedingung schon gemeldet, kein zweiter Hinweis.
+  const textil = parseGroessen(groessen).length > 0 || materialZeilen.length > 0;
+  const faserHinweis = !meldung && !hatFaserangabe(material) && textil ? FASER_FEHLT_HINWEIS : null;
+
+  return { eigenschaftenLines, detailLines, farbListe, materialRoh, material, meldung, faserHinweis };
 }
 
 /**
@@ -862,7 +878,7 @@ export function materialAusEigenschaften(eigenschaften, farben) {
  * hängt sie an die Hinweise der Antwort – eine Meldung, die hier verschluckt
  * würde, erreicht niemanden.
  *
- * @returns {{ prompt: string, meldung: string|null }}
+ * @returns {{ prompt: string, meldung: string|null, faserHinweis: string|null }}
  */
 export function buildSeoUserPrompt({
   produktname,
@@ -876,8 +892,8 @@ export function buildSeoUserPrompt({
   keyphrase,
 } = {}) {
   const {
-    detailLines, farbListe, material, meldung: materialMeldung,
-  } = materialAusEigenschaften(eigenschaften, farben);
+    detailLines, farbListe, material, meldung: materialMeldung, faserHinweis,
+  } = materialAusEigenschaften(eigenschaften, farben, { groessen });
 
   // Größen kommen NUR aus der Variantenauswahl. Kein Fallback auf die
   // Eigenschaften: dort steht der Größenlauf der Baureihe, nicht die Auswahl
@@ -980,5 +996,5 @@ export function buildSeoUserPrompt({
     'Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock):\n{\n  "kurzbeschreibung": "...",\n  "produktbeschreibung": "Valides HTML wie oben definiert"\n}',
   ];
 
-  return { prompt: bloecke.filter(Boolean).join('\n\n'), meldung: materialMeldung };
+  return { prompt: bloecke.filter(Boolean).join('\n\n'), meldung: materialMeldung, faserHinweis };
 }

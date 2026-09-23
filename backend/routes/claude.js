@@ -240,7 +240,7 @@ WEITERES:
       // vollstaendige Faserangabe mehr steht. Der Filter stellt dabei nichts
       // wieder her - die Angabe ist zu pruefen. Das gehoert in die Hinweise
       // der Antwort, nicht nur ins Log - sonst sieht es niemand.
-      const { prompt: userPrompt, meldung: materialMeldung } = buildSeoUserPrompt({
+      const { prompt: userPrompt, meldung: materialMeldung, faserHinweis } = buildSeoUserPrompt({
         produktname,
         kategorien,
         eigenschaften,
@@ -404,6 +404,9 @@ WEITERES:
         versuch,
         hinweis:           alleHinweise.length ? alleHinweise.join(' ') : null,
         hinweise:          alleHinweise,
+        // Eigenes Feld, nicht in hinweis: das Frontend zeigt es als Warn-Toast,
+        // der Text wird trotzdem erzeugt (Befehl F2).
+        faser_hinweis:     faserHinweis,
       });
     }
 

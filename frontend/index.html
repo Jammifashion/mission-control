@@ -470,6 +470,7 @@
       .toast.success { border-color: var(--success); color: var(--success); }
       .toast.error   { border-color: var(--danger);  color: var(--danger); }
       .toast.info    { border-color: var(--muted);   color: var(--text); }
+      .toast.warn    { border-color: var(--warning, orange); color: var(--warning, orange); }
       @keyframes toast-in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
       /* ── Modal ── */
       .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 9000; display: flex; align-items: center; justify-content: center; }
@@ -4800,6 +4801,8 @@
             body: JSON.stringify({
               eigenschaften: document.getElementById('seo-eigenschaften').value,
               farben:        seoMetaFarben(),
+              // Groessen-Achse: Ausloeser fuer den Faser-Hinweis (Befehl F2).
+              groessen:      seoGroessenQuelle(seoVarianten, seoWcProdukt, seoQuellenOk).groessen,
             }),
           });
           seoMetaEingabenStand = await apiJson(r);
@@ -4853,7 +4856,10 @@
         return {
           titel: { wert: titel, vorhanden: titelVorh, aktion: titelEnt.aktion, grund: titelGrund },
           desc:  { wert: desc.text, laenge: desc.laenge, weggelassen: desc.weggelassen,
-                   hinweise: desc.hinweise, vorhanden: descVorh, aktion: descEnt.aktion, grund: descGrund },
+                   hinweise: desc.hinweise, vorhanden: descVorh, aktion: descEnt.aktion, grund: descGrund,
+                   // Befehl F2: keine Faserangabe mit Prozent -> Pflicht-Hinweis. Auch
+                   // wenn die Meta "Jersey" an dieser Stelle traegt: das ist keine.
+                   faserHinweis: ein.faserHinweis || null },
         };
       }
 
@@ -4879,6 +4885,7 @@
 
         const weg = st.desc.weggelassen.length ? `, gekürzt: ${st.desc.weggelassen.join(', ')} weggelassen` : '';
         const dZeilen = zeige('desc', st.desc, weg);
+        if (st.desc.faserHinweis) dZeilen.push(st.desc.faserHinweis);
         for (const h of st.desc.hinweise) if (!dZeilen.includes(h)) dZeilen.push(h);
         if (st.desc.grund && !dZeilen.includes(st.desc.grund)) dZeilen.push(st.desc.grund);
         const el = document.getElementById('seo-meta-desc-hinweis');
@@ -5165,6 +5172,9 @@
           statusMsg.style.color = (data.hinweis || gemeldet) ? 'var(--danger)' : 'var(--muted)';
           if (gemeldet)     showToast(SEO_GROESSEN_TEXT.unbekannt, 'error');
           if (data.hinweis) showToast(data.hinweis, 'error');
+          // Faserangabe fehlt: Warn-Toast, nicht im Statustext (das Panel geht
+          // beim Speichern auf display:none). Der Text ist trotzdem erzeugt.
+          if (data.faser_hinweis) showToast(data.faser_hinweis, 'warn', 15000);
         } catch (e) {
           statusMsg.textContent = `Fehler: ${e.message}`;
           statusMsg.style.color = 'var(--danger)';

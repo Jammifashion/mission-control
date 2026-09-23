@@ -13,10 +13,11 @@ import { metaEingaben } from '../lib/seo-meta.js';
 const router = Router();
 
 router.post('/meta-eingaben', (req, res) => {
-  const { eigenschaften = '', farben = [] } = req.body ?? {};
+  const { eigenschaften = '', farben = [], groessen = [] } = req.body ?? {};
   res.json(metaEingaben({
     eigenschaften: String(eigenschaften ?? ''),
-    farben: Array.isArray(farben) ? farben.map(f => String(f ?? '')) : [],
+    farben:   Array.isArray(farben)   ? farben.map(f => String(f ?? ''))   : [],
+    groessen: Array.isArray(groessen) ? groessen.map(g => String(g ?? '')) : [],
   }));
 });
 
