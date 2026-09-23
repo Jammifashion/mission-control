@@ -212,6 +212,18 @@ describe('Groessenspanne', () => {
     expect(groessenSpanne(['3XL', 'XXL']).text).toBe('Größen XXL bis 3XL');
     expect(groessenSpanne(['128', '104', '116']).text).toBe('Größen 104 bis 128');
   });
+  test('Kindergroessen mit Schraegstrich, auch ungeordnet', () => {
+    const kinder = ['110/116', '122/128', '134/140', '146/152', '158/164'];
+    expect(groessenSpanne(kinder)).toEqual({ text: 'Größen 110/116 bis 158/164', hinweis: null });
+    expect(groessenSpanne(['146/152', '110/116', '158/164', '122/128', '134/140']).text)
+      .toBe('Größen 110/116 bis 158/164');
+    expect(fe.seoMetaGroessenSpanne(kinder)).toEqual(groessenSpanne(kinder));
+  });
+  test('XS bis 5XL, gemischt geordnet und XXL neben 3XL', () => {
+    const g = ['XL', '5XL', 'S', 'XS', '3XL', 'M', 'XXL', 'L', '4XL'];
+    expect(groessenSpanne(g)).toEqual({ text: 'Größen XS bis 5XL', hinweis: null });
+    expect(fe.seoMetaGroessenSpanne(g)).toEqual(groessenSpanne(g));
+  });
   test('eine Groesse', () => {
     expect(groessenSpanne(['M']).text).toBe('Größe M');
   });
