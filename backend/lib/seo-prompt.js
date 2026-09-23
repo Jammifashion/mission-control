@@ -697,26 +697,14 @@ export function filterMaterialFarben(material, farben) {
 }
 
 /**
- * Baut den User-Prompt für die SEO-Generierung.
- * Der System-Prompt liegt in backend/routes/claude.js (SEO_SYSTEM).
+ * Materialangabe aus dem Eigenschaften-Freitext, gefiltert nach den
+ * angebotenen Farben. Einzige Stelle für diesen Weg: der SEO-Prompt und die
+ * Meta-Beschreibung (lib/seo-meta.js) sehen damit dieselbe Faserangabe.
  *
- * Gibt neben dem Prompt die Material-Meldung zurück (Punkt 1). Die Route
- * hängt sie an die Hinweise der Antwort – eine Meldung, die hier verschluckt
- * würde, erreicht niemanden.
- *
- * @returns {{ prompt: string, meldung: string|null }}
+ * @returns {{ eigenschaftenLines: string[], farbListe: string[],
+ *             materialRoh: string, material: string, meldung: string|null }}
  */
-export function buildSeoUserPrompt({
-  produktname,
-  kategorien,
-  eigenschaften,
-  hinweise,
-  motiv,
-  modus,
-  farben,
-  groessen,
-  keyphrase,
-} = {}) {
+export function materialAusEigenschaften(eigenschaften, farben) {
   const rohLines = eigenschaften ? String(eigenschaften).split('\n').filter(Boolean) : [];
   // ⚠️ Reihenfolge: erst auslesen, dann entfernen. filterEigenschaften() wirft
   // die Farbzeile raus (sonst steht die Farbe doppelt in der Detailliste) –
@@ -737,15 +725,42 @@ export function buildSeoUserPrompt({
       : farbenAusZeilen
   );
 
+  // Die Form MIT Meldung, nicht der Wrapper: die Meldung sagt, dass im
+  // Material keine vollständige Faserangabe mehr steht.
+  const { material, meldung } = filterMaterialFarbenMitMeldung(materialRoh, farbListe);
+  return { eigenschaftenLines, farbListe, materialRoh, material, meldung };
+}
+
+/**
+ * Baut den User-Prompt für die SEO-Generierung.
+ * Der System-Prompt liegt in backend/routes/claude.js (SEO_SYSTEM).
+ *
+ * Gibt neben dem Prompt die Material-Meldung zurück (Punkt 1). Die Route
+ * hängt sie an die Hinweise der Antwort – eine Meldung, die hier verschluckt
+ * würde, erreicht niemanden.
+ *
+ * @returns {{ prompt: string, meldung: string|null }}
+ */
+export function buildSeoUserPrompt({
+  produktname,
+  kategorien,
+  eigenschaften,
+  hinweise,
+  motiv,
+  modus,
+  farben,
+  groessen,
+  keyphrase,
+} = {}) {
+  const {
+    eigenschaftenLines, farbListe, material, meldung: materialMeldung,
+  } = materialAusEigenschaften(eigenschaften, farben);
+
   // Größen kommen NUR aus der Variantenauswahl. Kein Fallback auf die
   // Eigenschaften: dort steht der Größenlauf der Baureihe, nicht die Auswahl
   // dieses Artikels.
   const groessenListe = parseGroessen(groessen);
 
-  // Die Form MIT Meldung, nicht der Wrapper: die Meldung sagt, dass im
-  // Material keine vollständige Faserangabe mehr steht.
-  const { material, meldung: materialMeldung } =
-    filterMaterialFarbenMitMeldung(materialRoh, farbListe);
   const farbenText  = farbListe.length ? farbListe.join(', ') : 'siehe Varianten';
   const groessenText = groessenListe.join(', ');
   // Defensiv: die Route löst den Modus schon auf, hier darf trotzdem nie ein

@@ -25,6 +25,7 @@ import festpreisRouter from './routes/festpreis-portal.js';
 import festpreisPublicRouter from './routes/festpreis-public.js';
 import agentWissenRouter from './routes/agent-wissen.js';
 import trikotRouter from './routes/trikot.js';
+import seoMetaRouter from './routes/seo-meta.js';
 
 // Secrets vor Express-Setup laden – stellt sicher dass process.env.CORS_ORIGIN
 // (und alle anderen Secrets) bereits gesetzt sind wenn die Middleware konfiguriert wird.
@@ -68,6 +69,7 @@ app.use('/api/anfragen',    anfragenRouter);
 app.use('/api/festpreis',      festpreisRouter);
 app.use('/api/agent-wissen',  agentWissenRouter);
 app.use('/api/trikot',        trikotRouter);        // POST /sync – täglicher Trikot-Sync
+app.use('/api/seo',           seoMetaRouter);       // POST /meta-eingaben – Yoast-Meta ohne Modell
 app.use('/api/health', systemRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
