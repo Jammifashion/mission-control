@@ -6,7 +6,8 @@
 //  3. POST/PUT /api/woocommerce/products - was wirklich an WooCommerce geht
 //
 // Kopfzeile des Reiters Struktur_Lieferzeiten WOERTLICH (gelesen 23.09.,
-// UNFORMATTED_VALUE - Term_ID kommt als Zahl):
+// UNFORMATTED_VALUE - Term_ID kommt als Zahl), dazu die Spalte "Standard"
+// aus dem Nachtrag (im Sheet beim Lesen noch nicht vorhanden):
 
 import { jest } from '@jest/globals';
 import { readFileSync } from 'fs';
@@ -14,12 +15,13 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const REITER = [
-  ['Term_ID', 'Name', 'Slug'],
-  [21,  'ca. 5-6 Werktage', 'ca-5-6-werktage'],
-  [22,  'ca. 14 Werktage', 'ca-14-werktage'],
+  ['Term_ID', 'Name', 'Slug', 'Standard'],
+  [21,  'ca. 5-6 Werktage', 'ca-5-6-werktage', 'ja'],
+  [22,  'ca. 14 Werktage', 'ca-14-werktage', ''],
   [20,  'ca. 3-4 Werktage', 'ca-3-4-werktage'],
-  [666, 'ca. 5-6 Wochen (externe Dienstleistung)', 'ca-5-6-wochen-externe-dienstleistung'],
+  [666, 'ca. 5-6 Wochen (externe Dienstleistung)', 'ca-5-6-wochen-externe-dienstleistung', 'nein'],
 ];
+const OHNE_STANDARD_SPALTE = REITER.map(r => r.slice(0, 3));   // wie am 23.09. gelesen
 
 // ── Mocks: Sheets-API und WooCommerce ───────────────────────────────────────
 let sheetAntwort;
@@ -89,17 +91,45 @@ const lzVon       = body => (body.meta_data ?? []).filter(m => m.key === '_liefe
 describe('Reiter Struktur_Lieferzeiten lesen', () => {
   test('echte Kopfzeile -> Term-IDs als String, Reihenfolge wie im Reiter', () => {
     expect(lib.parseLieferzeiten(REITER)).toEqual([
-      { id: '21',  name: 'ca. 5-6 Werktage', slug: 'ca-5-6-werktage' },
-      { id: '22',  name: 'ca. 14 Werktage', slug: 'ca-14-werktage' },
-      { id: '20',  name: 'ca. 3-4 Werktage', slug: 'ca-3-4-werktage' },
-      { id: '666', name: 'ca. 5-6 Wochen (externe Dienstleistung)', slug: 'ca-5-6-wochen-externe-dienstleistung' },
+      { id: '21',  name: 'ca. 5-6 Werktage', slug: 'ca-5-6-werktage', standard: true },
+      { id: '22',  name: 'ca. 14 Werktage', slug: 'ca-14-werktage', standard: false },
+      { id: '20',  name: 'ca. 3-4 Werktage', slug: 'ca-3-4-werktage', standard: false },
+      { id: '666', name: 'ca. 5-6 Wochen (externe Dienstleistung)', slug: 'ca-5-6-wochen-externe-dienstleistung', standard: false },
     ]);
   });
 
-  test.each(['Term_ID', 'Name'])('fehlende Pflichtspalte %s -> lauter Fehler mit Spaltenname', spalte => {
+  test('Kopfzeile wie am 23.09. gelesen (ohne "Standard") -> lauter Fehler', () => {
+    expect(() => lib.parseLieferzeiten(OHNE_STANDARD_SPALTE)).toThrow(/Spalte "Standard" fehlt/);
+  });
+
+  test.each(['Term_ID', 'Name', 'Standard'])('fehlende Pflichtspalte %s -> lauter Fehler mit Spaltenname', spalte => {
     const i    = REITER[0].indexOf(spalte);
     const rows = REITER.map(r => r.filter((_, k) => k !== i));
     expect(() => lib.parseLieferzeiten(rows)).toThrow(new RegExp(`Spalte "${spalte}" fehlt`));
+  });
+
+  test('Standard: kein "ja" -> Fehler', () => {
+    const rows = REITER.map((r, i) => (i === 1 ? [...r.slice(0, 3), ''] : r));
+    expect(() => lib.parseLieferzeiten(rows)).toThrow(/Spalte "Standard" hat keine Zeile mit "ja"/);
+  });
+
+  test('Standard: zwei "ja" -> Fehler mit Zeilennummern', () => {
+    const rows = REITER.map((r, i) => (i === 4 ? [...r.slice(0, 3), 'ja'] : r));
+    expect(() => lib.parseLieferzeiten(rows)).toThrow(/2 Zeilen mit "ja" \(Zeilen 2, 5\)/);
+  });
+
+  test('Standard: "ja" ist Gross/Klein egal und getrimmt', () => {
+    for (const ja of ['JA', ' Ja ', 'jA']) {
+      const rows = REITER.map((r, i) => (i === 1 ? [...r.slice(0, 3), ''] : i === 3 ? [...r.slice(0, 3), ja] : r));
+      expect(lib.parseLieferzeiten(rows).filter(l => l.standard).map(l => l.id)).toEqual(['20']);
+    }
+  });
+
+  test('GET: Standard-Spalte fehlt -> 500 mit Spaltenname', async () => {
+    sheetAntwort = async () => ({ data: { values: OHNE_STANDARD_SPALTE } });
+    const res = await request(app).get('/api/sheets/struktur-lieferzeiten');
+    expect(res.status).toBe(500);
+    expect(res.body.error).toMatch(/Spalte "Standard" fehlt/);
   });
 
   test('leerer Reiter, leere ID, kaputte ID, doppelte ID -> Fehler', () => {
@@ -135,10 +165,25 @@ describe('Reiter Struktur_Lieferzeiten lesen', () => {
 describe('Anlagepfad', () => {
   const LISTE = () => lib.parseLieferzeiten(REITER);
 
-  test('ohne Aenderung vorbelegt mit der ersten Zeile (21)', () => {
+  test('ohne Aenderung vorbelegt mit der Standard-Zeile (21)', () => {
     const opts = fe.lzOptionen(LISTE(), undefined);
     expect(opts.filter(o => o.selected).map(o => o.value)).toEqual(['21']);
     expect(opts.map(o => o.text)).toContain('ca. 5-6 Wochen (externe Dienstleistung)');
+  });
+
+  test('Umsortieren der Zeilen aendert den Standard nicht', () => {
+    const [kopf, ...zeilen] = REITER;
+    for (const reihe of [[3, 2, 1, 0], [1, 0, 3, 2], [2, 3, 0, 1]]) {
+      const liste = lib.parseLieferzeiten([kopf, ...reihe.map(i => zeilen[i])]);
+      expect(liste.filter(l => l.standard).map(l => l.id)).toEqual(['21']);
+      expect(fe.lzOptionen(liste, undefined).filter(o => o.selected).map(o => o.value)).toEqual(['21']);
+    }
+  });
+
+  test('Liste ohne Standard (Frontend) -> "Bitte wählen…", keine still gewaehlte Option', () => {
+    const liste = LISTE().map(l => ({ ...l, standard: false }));
+    const opts  = fe.lzOptionen(liste, undefined);
+    expect(opts.filter(o => o.selected)).toEqual([{ value: '', text: 'Bitte wählen…', selected: true }]);
   });
 
   test('Anlage ohne Aenderung -> "21" am Eltern, "-1" an allen Variationen', async () => {
@@ -244,6 +289,26 @@ describe('Aenderungspfad', () => {
     expect(batch.update[0].meta_data).toBeUndefined();
     expect(res.body.lieferzeit).toMatchObject({ status: 'gesetzt', gesetzt: '666' });
     expect(fe.lzMeldung(res.body.lieferzeit, LISTE()).text).toBe('Lieferzeit gesetzt: ca. 5-6 Wochen (externe Dienstleistung) (666)');
+  });
+
+  test('neue Variation im Aenderungspfad -> "-1", bestehende unveraendert', async () => {
+    const res = await request(app).put('/api/woocommerce/products/100').send({
+      ...PUT_BASIS,
+      variations: [
+        { id: 5, attributes: [{ name: 'Farbe', option: 'Rot' }],  regular_price: '20' },
+        {        attributes: [{ name: 'Farbe', option: 'Gruen' }], regular_price: '20' },
+        {        attributes: [{ name: 'Farbe', option: 'Gelb' }],  regular_price: '20',
+                 meta_data: [{ key: '_lieferzeit', value: "'-1" }] },
+      ],
+    });
+    expect(res.status).toBe(200);
+    const batch = wc.post.mock.calls.find(c => c[0].endsWith('/variations/batch'))[1];
+    expect(batch.update).toHaveLength(1);
+    expect(batch.update[0].meta_data).toBeUndefined();
+    expect(batch.create).toHaveLength(2);
+    for (const v of batch.create) expect(lzVon(v)).toEqual([{ key: '_lieferzeit', value: '-1' }]);
+    // Eltern bleibt unangetastet, weil die Auswahl nicht geaendert wurde
+    expect(wc.put.mock.calls[0][1].meta_data).toBeUndefined();
   });
 
   test('PUT mit kaputtem Wert -> 400, nichts geschrieben', async () => {

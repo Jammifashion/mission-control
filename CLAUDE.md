@@ -52,10 +52,11 @@ Neue Sektionen immer mit Anker versehen:
   filterMaterialFarben nur im Backend lebt.
 
 - backend/lib/lieferzeiten.js – German-Market-Lieferzeit (`_lieferzeit`, Term-ID als
-  String). Quelle: SSOT-Reiter `Struktur_Lieferzeiten` (Term_ID | Name | Slug), erste
-  Zeile = Standard bei der Anlage. Kein Fallback, keine IDs im Code. Variationen bekommen
-  bei der Anlage `"-1"` (wie Elternartikel). Aenderungspfad schreibt nur bei geaenderter
-  Auswahl, nur am Elternartikel. Frontend-Spiegel: Block `Lieferzeit: Anfang/Ende`.
+  String). Quelle: SSOT-Reiter `Struktur_Lieferzeiten` (Term_ID | Name | Slug | Standard),
+  genau eine Zeile mit "ja" in `Standard` = Vorbelegung bei der Anlage. Kein Fallback,
+  keine IDs im Code. Neu angelegte Variationen bekommen `"-1"` (wie Elternartikel), in
+  Anlage- und Aenderungspfad. Aenderungspfad schreibt `_lieferzeit` nur bei geaenderter
+  Auswahl, nur am Elternartikel; bestehende Variationen nie. Frontend-Spiegel: Block `Lieferzeit: Anfang/Ende`.
 
 ## Deprecated
 - Sheet-Spalten `Versand-Modell` und `PayPal-Modell` im Partner-Reiter sind seit Sprint 4.2 deprecated.

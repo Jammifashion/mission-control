@@ -1,13 +1,15 @@
 // German-Market-Lieferzeit (_lieferzeit) fuer die Artikelanlage.
 //
 // Quelle der waehlbaren Terme ist der Reiter "Struktur_Lieferzeiten" im
-// SSOT-Sheet. Kopfzeile (gelesen 23.09.): Term_ID | Name | Slug.
+// SSOT-Sheet. Kopfzeile (gelesen 23.09.): Term_ID | Name | Slug, dazu die
+// Pflichtspalte "Standard" (Nachtrag zu Befehl L, im Sheet noch anzulegen).
 // Term_ID steht im Sheet als ZAHL - geschrieben wird immer der String ("21"),
 // so wie German Market ihn in meta_data ablegt.
 //
 // Keine IDs im Code: fehlt der Reiter oder eine Pflichtspalte, scheitert das
 // Lesen laut - es gibt keinen fest verdrahteten Ersatzwert. Der Standard fuer
-// die Anlage ist die ERSTE Datenzeile des Reiters (heute 21).
+// die Anlage ist die Zeile mit "ja" in der Spalte "Standard" - genau eine,
+// sonst Fehler. Die Reihenfolge der Zeilen spielt keine Rolle.
 //
 // An Variationen heisst "-1" "wie Elternartikel". Das ist ein WooCommerce-/
 // German-Market-Sentinel, kein Term - er steht deshalb hier und nicht im Reiter.
@@ -24,9 +26,10 @@ export const LIEFERZEIT_WIE_ELTERN = '-1';
 const CTX = `Reiter "${TAB_LIEFERZEITEN}"`;
 
 /**
- * Zeilen des Reiters (inkl. Kopfzeile) -> [{ id, name, slug }].
+ * Zeilen des Reiters (inkl. Kopfzeile) -> [{ id, name, slug, standard }].
  * id ist immer ein String aus Ziffern. Wirft laut bei fehlender Pflichtspalte,
- * leerem Reiter, Zeile ohne Term_ID/Name, nicht-numerischer oder doppelter ID.
+ * leerem Reiter, Zeile ohne Term_ID/Name, nicht-numerischer oder doppelter ID
+ * und wenn nicht GENAU eine Zeile "ja" in "Standard" hat.
  */
 export function parseLieferzeiten(rows) {
   if (!Array.isArray(rows) || rows.length === 0)
@@ -35,6 +38,7 @@ export function parseLieferzeiten(rows) {
   const [headers, ...daten] = rows;
   const idIdx   = requireHeader(headers, 'Term_ID', CTX);
   const nameIdx = requireHeader(headers, 'Name', CTX);
+  const stdIdx  = requireHeader(headers, 'Standard', CTX);
   const slugIdx = findHeader(headers, 'Slug');
 
   const liste = [];
@@ -50,11 +54,19 @@ export function parseLieferzeiten(rows) {
       throw fehler(`${CTX}, Zeile ${zeile}: Term_ID "${id}" ist keine Zahl.`);
     if (liste.some(l => l.id === id))
       throw fehler(`${CTX}, Zeile ${zeile}: Term_ID "${id}" doppelt.`);
-    liste.push({ id, name, slug: zelle(slugIdx) });
+    liste.push({ id, name, slug: zelle(slugIdx), standard: zelle(stdIdx).toLowerCase() === 'ja', zeile });
   });
 
   if (!liste.length) throw fehler(`${CTX} enthaelt keine Lieferzeiten.`);
-  return liste;
+
+  const standard = liste.filter(l => l.standard);
+  if (standard.length === 0)
+    throw fehler(`${CTX}: Spalte "Standard" hat keine Zeile mit "ja" – genau eine erwartet.`);
+  if (standard.length > 1)
+    throw fehler(`${CTX}: Spalte "Standard" hat ${standard.length} Zeilen mit "ja" `
+               + `(Zeilen ${standard.map(l => l.zeile).join(', ')}) – genau eine erwartet.`);
+
+  return liste.map(({ zeile: _z, ...l }) => l);
 }
 
 /** Term-ID fuer _lieferzeit am Elternartikel: String aus Ziffern, sonst Fehlertext. */

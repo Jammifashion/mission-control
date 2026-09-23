@@ -3252,8 +3252,8 @@
       }
 
       // ── Lieferzeit: Anfang (reine Logik, backend/tests/lieferzeit.test.js) ──
-      // _lieferzeit (German Market) als Term-ID-String. Die erste Zeile des
-      // Reiters ist der Standard fuer die Anlage – keine IDs im Code.
+      // _lieferzeit (German Market) als Term-ID-String. Standard fuer die
+      // Anlage ist die Zeile mit "ja" in der Spalte "Standard" – keine IDs im Code.
       const LZ_UNBEKANNT = '__unbekannt__';
 
       function lzWertAusMeta(metaData) {
@@ -3263,12 +3263,15 @@
       }
 
       // Optionen fuer das Auswahlfeld. geladen === undefined: Anlage (Standard
-      // = erste Zeile). Sonst Aenderungspfad: Shop-Wert (null = kein Eintrag).
+      // = Zeile mit standard: true). Sonst Aenderungspfad: Shop-Wert (null =
+      // kein Eintrag). Ohne Standard bleibt "Bitte wählen…" stehen - der
+      // Browser soll nicht still die erste Option nehmen.
       function lzOptionen(liste, geladen) {
         const opts = (liste || []).map(l => ({ value: String(l.id), text: l.name, selected: false }));
         if (geladen === undefined) {
-          if (opts.length) opts[0].selected = true;
-          return opts;
+          const std = (liste || []).findIndex(l => l.standard === true);
+          if (std >= 0) { opts[std].selected = true; return opts; }
+          return [{ value: '', text: 'Bitte wählen…', selected: true }, ...opts];
         }
         const treffer = opts.find(o => o.value === geladen);
         if (treffer) { treffer.selected = true; return opts; }
@@ -4868,7 +4871,7 @@
         document.getElementById('pf-article-nr').value = '';
         _pendingShipping = '';
         document.getElementById('pf-shipping').value = '';
-        lieferzeitGeladen = undefined;   // Anlage: Standard = erste Zeile des Reiters
+        lieferzeitGeladen = undefined;   // Anlage: Standard = Spalte "Standard" im Reiter
         populateLieferzeit();
         document.getElementById('pf-price-regular').value = '';
         document.getElementById('prod-short-desc').value = '';

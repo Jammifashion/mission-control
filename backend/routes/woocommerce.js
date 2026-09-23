@@ -399,7 +399,8 @@ router.put('/products/:id', async (req, res, next) => {
 
     // _lieferzeit im Aenderungspfad: nur wenn der Aufrufer sie ausdruecklich
     // mitschickt (Nutzer hat die Auswahl geaendert). Ohne Feld bleibt der
-    // Shop-Wert unangetastet. Nur Elternartikel - Variationen nie.
+    // Shop-Wert unangetastet. Nur Elternartikel; bestehende Variationen nie,
+    // neu angelegte bekommen unten "-1".
     if (lieferzeit !== undefined) {
       const lzFehler = pruefeLieferzeitWert(lieferzeit);
       if (lzFehler) return res.status(400).json({ error: lzFehler, feld: 'lieferzeit' });
@@ -508,9 +509,12 @@ router.put('/products/:id', async (req, res, next) => {
         ...skuVon(v),
         ...(v.image ? { image: v.image } : {}),
       }));
+      // Neu angelegte Variationen bekommen "-1" (wie Elternartikel), genau
+      // wie im Anlagepfad. Bestehende (toUpdate) bekommen nie meta_data.
       const toCreate = variations.filter(v => !v.id).map(v => ({
         attributes:    v.attributes,
         regular_price: v.regular_price,
+        meta_data:     mitLieferzeit(v.meta_data, LIEFERZEIT_WIE_ELTERN),
         status:        'publish',
         ...skuVon(v),
         ...(v.image ? { image: v.image } : {}),
