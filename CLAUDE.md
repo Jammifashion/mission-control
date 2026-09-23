@@ -58,6 +58,11 @@ Neue Sektionen immer mit Anker versehen:
   Anlage- und Aenderungspfad. Aenderungspfad schreibt `_lieferzeit` nur bei geaenderter
   Auswahl, nur am Elternartikel; bestehende Variationen nie. Frontend-Spiegel: Block `Lieferzeit: Anfang/Ende`.
 
+- backend/lib/groessen.js – Groessen-Rang und -Sortierung (XXS … 8XL, Kindergroessen
+  numerisch, Unbekanntes ans Ende mit Hinweis). Einzige Stelle; seo-meta.js nutzt den Rang,
+  woocommerce.js sortiert damit die Optionen der Achse "Größe" und die Variationen (Farbe,
+  dann Groesse, menu_order). Frontend-Spiegel: Block `Groessen: Anfang/Ende`.
+
 ## Deprecated
 - Sheet-Spalten `Versand-Modell` und `PayPal-Modell` im Partner-Reiter sind seit Sprint 4.2 deprecated.
   Der Kalkulations-Helper nutzt zentrale Fixkosten + `Porto-Modell`. Spalten bleiben im Sheet, werden

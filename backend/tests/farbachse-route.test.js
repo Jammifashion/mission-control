@@ -28,11 +28,13 @@ let request, app;
 const SKU = 'JH30F/UglySw01';
 
 // Varianten in WooCommerce-Form, wie das Frontend sie schickt.
+// Platzhalter "M" statt "x": seit Befehl R meldet der Aenderungspfad eine nicht
+// einsortierbare Groesse ("x") im hinweis - das ist hier nicht Gegenstand.
 const varianten = (...namen) => [{
-  attributes:    namen.map(n => ({ name: n, option: 'x' })),
+  attributes:    namen.map(n => ({ name: n, option: 'M' })),
   regular_price: '39.90',
 }];
-const attribute = (...namen) => namen.map(n => ({ name: n, options: ['x'], variation: true }));
+const attribute = (...namen) => namen.map(n => ({ name: n, options: ['M'], variation: true }));
 
 beforeAll(async () => {
   const { default: supertest } = await import('supertest');

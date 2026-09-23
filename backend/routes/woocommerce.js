@@ -6,6 +6,7 @@ import { achsenVon, achsenGleich, pruefeFarbAchse } from '../lib/varianten-achse
 import {
   LIEFERZEIT_WIE_ELTERN, pruefeLieferzeitWert, lieferzeitAusMetaData, mitLieferzeit,
 } from '../lib/lieferzeiten.js';
+import { sortiereAttributOptionen, variantenReihenfolge } from '../lib/groessen.js';
 
 const router = Router();
 
@@ -277,9 +278,14 @@ router.post('/products', async (req, res, next) => {
     const achsenFehler = pruefeFarbAchse(achsenVon({ attribute: rest.attributes, varianten: variations }));
     if (achsenFehler) return res.status(400).json({ error: achsenFehler.fehler, feld: achsenFehler.feld });
 
+    // Groessen aufsteigend: Optionen der Groessen-Achse sortiert schicken. Das
+    // Auswahlfeld im Shop folgt bei lokalen Attributen dieser Reihenfolge.
+    const groessen = sortiereAttributOptionen(rest.attributes);
+
     const marke   = await markeFuerShop(req.query.shop);
     const payload = {
       ...rest,
+      ...(Array.isArray(rest.attributes) ? { attributes: groessen.attributes } : {}),
       ...(marke ? { brands: [{ id: marke.id }] } : {}),
       ...(lieferzeit !== undefined ? { meta_data: mitLieferzeit(rest.meta_data, lieferzeit) } : {}),
     };
@@ -323,9 +329,14 @@ router.post('/products', async (req, res, next) => {
       // Das Produkt steht schon - hier nicht mehr abbrechen, sondern melden.
       skuHinweis = [skuHinweis, `Varianten-SKUs nicht vergeben: ${nachSkus.fehler}`].filter(Boolean).join(' ');
     }
+    // Variationen in sortierter Reihenfolge anlegen (Farbe, dann Groesse
+    // aufsteigend) und menu_order danach setzen. Ergebnisse bleiben am INDEX
+    // der Eingabe: variation_ids und die Varianten-SKUs sind index-gebunden.
     const variationResults = [];
     if (Array.isArray(variations) && variations.length) {
-      for (const [vi, variation] of variations.entries()) {
+      const reihenfolge = variantenReihenfolge(variations, groessen.attributes);
+      for (const [pos, vi] of reihenfolge.entries()) {
+        const variation = variations[vi];
         try {
           // Jede neue Variation bekommt "-1" = wie Elternartikel. Nie leer
           // (erbt nicht), nie "'-1" (blockiert die Anzeige).
@@ -333,13 +344,14 @@ router.post('/products', async (req, res, next) => {
             ...variation,
             ...(nachSkus.skus ? { sku: nachSkus.skus[vi] } : {}),
             meta_data: mitLieferzeit(variation.meta_data, LIEFERZEIT_WIE_ELTERN),
+            menu_order: pos + 1,
             status: 'publish',
           });
           const varRaw = varResponse.data;
           const v = Array.isArray(varRaw) ? varRaw[0] : varRaw;
-          variationResults.push({ ok: true, id: v.id, lieferzeit: lieferzeitAusMetaData(v.meta_data) });
+          variationResults[vi] = { ok: true, id: v.id, lieferzeit: lieferzeitAusMetaData(v.meta_data) };
         } catch (varErr) {
-          variationResults.push({ ok: false, error: varErr.message ?? String(varErr) });
+          variationResults[vi] = { ok: false, error: varErr.message ?? String(varErr) };
         }
       }
     }
@@ -377,7 +389,7 @@ router.post('/products', async (req, res, next) => {
       marke:               markeGesetzt,
       lieferzeit:          lieferzeitStand,
       sku:                 product.sku ?? '',
-      hinweis:             skuHinweis,
+      hinweis:             [skuHinweis, groessen.hinweis].filter(Boolean).join(' ') || null,
       variations_created:  created,
       variations_failed:   failed,
       variation_errors:    errors,
@@ -494,6 +506,15 @@ router.put('/products/:id', async (req, res, next) => {
       }
     }
 
+    // Groessen-Optionen immer sortiert schreiben, wenn Attribute mitkommen -
+    // der Aufrufer baut sie aus der Variationsliste (neueste zuerst).
+    let groessenHinweis = null;
+    if (Array.isArray(payload.attributes)) {
+      const g = sortiereAttributOptionen(payload.attributes);
+      payload.attributes = g.attributes;
+      groessenHinweis    = g.hinweis;
+    }
+
     const { data: productRaw } = await wc.put(`products/${req.params.id}`, payload);
     const product = Array.isArray(productRaw) ? productRaw[0] : productRaw;
 
@@ -510,8 +531,12 @@ router.put('/products/:id', async (req, res, next) => {
         ...(v.image ? { image: v.image } : {}),
       }));
       // Neu angelegte Variationen bekommen "-1" (wie Elternartikel), genau
-      // wie im Anlagepfad. Bestehende (toUpdate) bekommen nie meta_data.
+      // wie im Anlagepfad, und menu_order = Platz in der sortierten Gesamtliste
+      // (Farbe, dann Groesse). Bestehende (toUpdate) bekommen weder meta_data
+      // noch menu_order.
+      const platz = new Map(variantenReihenfolge(variations, payload.attributes).map((vi, pos) => [vi, pos + 1]));
       const toCreate = variations.filter(v => !v.id).map(v => ({
+        menu_order:    platz.get(variations.indexOf(v)),
         attributes:    v.attributes,
         regular_price: v.regular_price,
         meta_data:     mitLieferzeit(v.meta_data, LIEFERZEIT_WIE_ELTERN),
@@ -533,7 +558,9 @@ router.put('/products/:id', async (req, res, next) => {
     const lzShop = lieferzeitAusMetaData(product.meta_data);
     res.json({
       id:      product.id,
-      hinweis: [skuHinweis, achsenHinweis].filter(Boolean).join(' ') || null,
+      hinweis: [skuHinweis, achsenHinweis, groessenHinweis].filter(Boolean).join(' ') || null,
+      // Eigenes Feld: SKU- und Achsen-Hinweis zeigt das Frontend schon vor dem Speichern.
+      groessen_hinweis: groessenHinweis,
       lieferzeit: lieferzeit === undefined
         ? { gesendet: null, gesetzt: lzShop, status: 'unveraendert' }
         : { gesendet: lieferzeit, gesetzt: lzShop,

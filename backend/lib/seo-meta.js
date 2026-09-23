@@ -16,6 +16,7 @@
 // Kein Aufruf an seo-text oder agent-intern, kein Modell - absichtlich.
 
 import { materialAusEigenschaften, MATERIAL_PLACEHOLDER } from './seo-prompt.js';
+import { groessenRang } from './groessen.js';
 
 export const META_MAX          = 160;   // Zeichen, nicht Bytes
 export const TITEL_VORLAGE     = '%%sep%% %%sitename%%';
@@ -54,23 +55,7 @@ export function farbenText(farben) {
   return `in ${liste.length} Farben`;
 }
 
-// Rang einer Groesse. Buchstaben: S=3, M=4, L=5, XL=6, 2XL/XXL=7 …, XS=2,
-// 2XS/XXS=1. Zahlen (Kinder, Konfektion): eigene Klasse. Alles andere
-// ("One Size", "Einheitsgröße") ist nicht sortierbar -> null.
-function groessenRang(wert) {
-  const g = String(wert ?? '').trim().toUpperCase().replace(/\s+/g, '');
-  if (g === 'M') return { klasse: 'buchstabe', rang: 4 };
-  // "4XL" = Ziffer + X, "XXL" = X-Folge; beide zaehlen die X.
-  let t = g.match(/^(?:(\d+)X|(X*))(S|L)$/);
-  if (t) {
-    const n = t[1] ? Number(t[1]) : t[2].length;
-    if (t[1] && n < 2) return null;                       // "1XL" gibt es nicht
-    return { klasse: 'buchstabe', rang: t[3] === 'L' ? 5 + n : 3 - n };
-  }
-  t = g.match(/^(\d{1,3})(?:[/-]\d{1,3})?$/);
-  if (t) return { klasse: 'zahl', rang: Number(t[1]) };
-  return null;
-}
+// Rang einer Groesse: lib/groessen.js (eine Stelle, auch fuer die Shop-Sortierung).
 
 /**
  * Kleinste und groesste Groesse der Variantenauswahl.

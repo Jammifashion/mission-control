@@ -3450,9 +3450,11 @@
         if (!valid.length) { variants = []; return; }
         // Cartesian product
         let combos = [[]];
-        valid.forEach(prop =>
-          combos = combos.flatMap(c => prop.tags.map(t => [...c, { name: prop.name, value: t }]))
-        );
+        // Groessen-Achse aufsteigend kombinieren (XS … 5XL), Eingabe bleibt stehen.
+        valid.forEach(prop => {
+          const tags = grIstGroessenAchse(prop.name) ? grSortiere(prop.tags).sortiert : prop.tags;
+          combos = combos.flatMap(c => tags.map(t => [...c, { name: prop.name, value: t }]));
+        });
         const priceMap = new Map(variants.map(v => [
           v.attrs.map(a => `${a.name}=${a.value}`).join('|'),
           {
@@ -3764,6 +3766,48 @@
           btn.disabled = false;
         }
       }
+
+      // ── Groessen: Anfang (reine Logik, backend/tests/groessen.test.js) ──
+      // Spiegelt backend/lib/groessen.js. Massgeblich ist das Backend, das die
+      // Optionen beim Speichern selbst sortiert; hier nur fuer die Anzeige.
+      const GR_ACHSEN  = ['größe', 'groesse', 'grösse'];
+      const GR_KLASSEN = ['buchstabe', 'zahl'];
+
+      function grIstGroessenAchse(name) {
+        return GR_ACHSEN.includes(String(name ?? '').trim().toLowerCase());
+      }
+
+      function grRang(wert) {
+        const g = String(wert ?? '').trim().toUpperCase().replace(/\s+/g, '');
+        if (g === 'M') return { klasse: 'buchstabe', rang: 4 };
+        let t = g.match(/^(?:(\d+)X|(X*))(S|L)$/);
+        if (t) {
+          const n = t[1] ? Number(t[1]) : t[2].length;
+          if (t[1] && n < 2) return null;
+          return { klasse: 'buchstabe', rang: t[3] === 'L' ? 5 + n : 3 - n };
+        }
+        t = g.match(/^(\d{1,3})(?:[/-]\d{1,3})?$/);
+        if (t) return { klasse: 'zahl', rang: Number(t[1]) };
+        return null;
+      }
+
+      function grSortiere(werte) {
+        const liste = (Array.isArray(werte) ? werte : []).map(w => String(w ?? ''));
+        const bekannt = [], unbekannt = [];
+        liste.forEach((g, i) => {
+          const r = grRang(g);
+          (r ? bekannt : unbekannt).push({ g, r, i });
+        });
+        bekannt.sort((a, b) =>
+          (GR_KLASSEN.indexOf(a.r.klasse) - GR_KLASSEN.indexOf(b.r.klasse)) || (a.r.rang - b.r.rang) || (a.i - b.i));
+        const unb = unbekannt.map(x => x.g);
+        return {
+          sortiert:  [...bekannt.map(x => x.g), ...unb],
+          unbekannt: unb,
+          hinweis:   unb.length ? `Größe nicht einsortierbar (${unb.join(', ')}) – ans Ende gestellt.` : null,
+        };
+      }
+      // ── Groessen: Ende ──
 
       // ── SKU-Regeln: Anfang (reine Logik, backend/tests/sku.test.js) ──
       // Spiegelt backend/lib/sku.js. Der Block darf NICHTS aus dem Seitenkontext
@@ -5721,7 +5765,9 @@
               if (!propMap[a.name].includes(a.value)) propMap[a.name].push(a.value);
             })
           );
-          properties = Object.entries(propMap).map(([name, tags]) => ({ name, tags }));
+          // Variationen kommen neueste zuerst - Groessen darum aufsteigend ordnen.
+          properties = Object.entries(propMap).map(([name, tags]) =>
+            ({ name, tags: grIstGroessenAchse(name) ? grSortiere(tags).sortiert : tags }));
           variants = loadedVariants;
           renderProperties();
           kurzbezManuallyEdited = true;
@@ -5888,6 +5934,8 @@
             // Der Shop-Stand ist ab jetzt der Vergleichswert.
             if (data.lieferzeit && data.lieferzeit.status === 'gesetzt') { lieferzeitGeladen = data.lieferzeit.gesetzt; populateLieferzeit(); }
           }
+          // Nicht einsortierbare Groesse: kommt nur vom Backend, darum hier melden.
+          if (data.groessen_hinweis) showToast(data.groessen_hinweis, 'info', 12000);
 
           // Sheet-Writeback wenn Zeile bekannt
           if (currentDraftRow) {
