@@ -210,19 +210,26 @@ export function resolveModus(input) {
   };
 }
 
-// Gemeinsame Zerlegung für Farb- und Größenlisten: Array, mehrzeiliger String
-// oder "Farben: Schwarz, Navy".
+// Gemeinsame Zerlegung für Farb- und Größenlisten.
+//
+// Array = Variantenauswahl, und die ist die Wahrheit: jeder Eintrag ist EIN
+// Wert, es wird nicht weiter getrennt – nur getrimmt, Leeres und Dubletten
+// fallen weg. "Weiß/Pink" ist eine Farbe, "110/116" eine Kindergröße.
+//
+// Text (mehrzeilig oder "Farben: Schwarz, Navy") wird nur an "," und ";"
+// getrennt. "/" und "|" gehören zum Namen bzw. zur Größe – früher zerfiel hier
+// "Weiß/Pink" in zwei Farben und "110/116" in zwei Zahlen.
 function parseListe(input, labelRe) {
-  const roh = Array.isArray(input) ? input : String(input ?? '').split('\n');
+  const teile = Array.isArray(input)
+    ? input.map(e => String(e ?? '').trim())
+    : String(input ?? '').split('\n')
+        .flatMap(zeile => zeile.replace(labelRe, '').split(/[,;]/))
+        .map(teil => teil.trim().replace(/[.\s]+$/, ''));
   const out = [];
-  for (const eintrag of roh) {
-    const ohneLabel = String(eintrag ?? '').replace(labelRe, '');
-    for (const teil of ohneLabel.split(/[,;/|]/)) {
-      const name = teil.trim().replace(/[.\s]+$/, '');
-      if (!name) continue;
-      if (!out.some(vorhanden => normalize(vorhanden) === normalize(name))) {
-        out.push(name);
-      }
+  for (const name of teile) {
+    if (!name) continue;
+    if (!out.some(vorhanden => normalize(vorhanden) === normalize(name))) {
+      out.push(name);
     }
   }
   return out;
@@ -267,7 +274,9 @@ export function farbenAusEigenschaften(lines) {
   const werte = (lines ?? [])
     .filter(istFarbZeile)
     .map(z => String(z).slice(String(z).indexOf(':') + 1));
-  return parseFarben(werte);
+  // Als TEXT weiterreichen, nicht als Array: die Zeile ist Freitext und wird
+  // an "," und ";" getrennt ("Weiß/Pink, Schwarz" -> zwei Farben).
+  return parseFarben(werte.join('\n'));
 }
 
 /**

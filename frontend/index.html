@@ -3699,6 +3699,7 @@
         return String(wert ?? '')
           .toLowerCase()
           .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+          .replace(/\s*[/|]\s*/g, '')
           .replace(/\s+/g, '-')
           .replace(/[^a-z0-9-]/g, '')
           .replace(/-{2,}/g, '-')

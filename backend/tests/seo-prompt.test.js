@@ -49,8 +49,16 @@ describe('Farbzeile aus den Eigenschaften', () => {
   });
 
   test('mehrere Farben und Trennzeichen', () => {
+    // F1: getrennt wird nur an "," und ";" - "/" gehoert zum Namen.
     expect(farbenAusEigenschaften(['Farbe(n): Schwarz, Navy / Grau meliert']))
-      .toEqual(['Schwarz', 'Navy', 'Grau meliert']);
+      .toEqual(['Schwarz', 'Navy / Grau meliert']);
+    expect(farbenAusEigenschaften(['Farbe(n): Schwarz; Navy']))
+      .toEqual(['Schwarz', 'Navy']);
+  });
+
+  test('F1: "Farbe(n): Weiß/Pink, Schwarz" sind zwei Farben', () => {
+    expect(farbenAusEigenschaften(['Farbe(n): Weiß/Pink, Schwarz']))
+      .toEqual(['Weiß/Pink', 'Schwarz']);
   });
 
   test('"Farbigkeit" ist keine Farbzeile – die faellt ueber die Sperrliste', () => {
@@ -467,10 +475,31 @@ describe('resolveModus', () => {
 describe('parseFarben', () => {
   test('liest Array, Label-Zeile und Trennzeichen', () => {
     expect(parseFarben(['Schwarz', 'Navy'])).toEqual(['Schwarz', 'Navy']);
+    // F1: getrennt wird nur an "," und ";" - "/" gehoert zum Namen.
     expect(parseFarben('Farben: Schwarz, Navy / Grau meliert')).toEqual([
-      'Schwarz', 'Navy', 'Grau meliert',
+      'Schwarz', 'Navy / Grau meliert',
     ]);
     expect(parseFarben('')).toEqual([]);
+  });
+
+  test('F1: ein Array wird nicht weiter getrennt – die Variantenauswahl ist die Wahrheit', () => {
+    expect(parseFarben(['Weiß/Pink'])).toEqual(['Weiß/Pink']);
+    expect(parseFarben(['Weiß | Pink'])).toEqual(['Weiß | Pink']);
+    expect(parseFarben([' Weiß/Pink ', '', '  ', 'Schwarz'])).toEqual(['Weiß/Pink', 'Schwarz']);
+  });
+
+  test('F1: im Text trennen "/" und "|" nicht mehr', () => {
+    expect(parseFarben('Weiß/Pink, Schwarz')).toEqual(['Weiß/Pink', 'Schwarz']);
+    expect(parseFarben('Weiß|Pink; Schwarz')).toEqual(['Weiß|Pink', 'Schwarz']);
+  });
+
+  test('F1: SEO-Prompt enthaelt "FARBEN: Weiß/Pink"', () => {
+    const prompt = promptVon({
+      produktname: 'Oldschool Hoodie', eigenschaften: 'Material: 100% Baumwolle',
+      farben: ['Weiß/Pink'], groessen: ['XL'],
+    });
+    expect(prompt).toContain('- FARBEN: Weiß/Pink');
+    expect(prompt).toContain('<li><strong>Farben:</strong> Weiß/Pink</li>');
   });
 
   test('entfernt Dubletten unabhängig von der Schreibweise', () => {
@@ -655,6 +684,17 @@ describe('Größen kommen nur aus der Variantenauswahl', () => {
     expect(parseGroessen('Größen: M, L')).toEqual(['M', 'L']);
     expect(parseGroessen('M, m, M')).toEqual(['M']);
     expect(parseGroessen('')).toEqual([]);
+  });
+
+  // F1: vorher zerfiel "110/116" in "110" und "116" - aus zwei Kindergroessen
+  // wurden vier Zahlen, und der Prompt nannte Groessen, die es nicht gibt.
+  test('F1: Kindergroessen bleiben ganz – zwei Groessen, nicht vier', () => {
+    expect(parseGroessen(['110/116', '146/152'])).toEqual(['110/116', '146/152']);
+    expect(parseGroessen('Größen: 110/116, 146/152')).toEqual(['110/116', '146/152']);
+
+    const prompt = promptVon({ produktname: 'Kinder Hoodie', eigenschaften, groessen: ['110/116', '146/152'] });
+    expect(prompt).toContain('- GRÖSSEN: 110/116, 146/152');
+    expect(prompt).toContain('<li><strong>Größen:</strong> 110/116, 146/152</li>');
   });
 });
 

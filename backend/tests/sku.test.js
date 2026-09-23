@@ -122,8 +122,21 @@ describe('Normalisierung der Variantenteile', () => {
     expect(normalisiereTeil('5XL')).toBe('5xl');
   });
 
+  // F1: jede Schreibweise mit "/" oder "|" gibt dieselbe SKU. Vorher wurde
+  // "Weiß / Pink" zu "weiss-pink", "Weiß/Pink" aber zu "weisspink".
+  test.each(['Weiß/Pink', 'Weiß / Pink', 'Weiß | Pink', 'Weiß|Pink'])(
+    '%s -> weisspink', (w) => {
+      expect(normalisiereTeil(w)).toBe('weisspink');
+    });
+
+  test('Varianten-SKU mit Schraegstrich-Farbe', () => {
+    expect(baueVariantenSku('BCWU02K/CH-Oldschool', attrs('Weiß/Pink', 'XL')))
+      .toBe('BCWU02K/CH-Oldschool-weisspink-xl');
+  });
+
   test('Frontend normalisiert identisch', () => {
-    for (const w of ['Grün', 'Größe', 'Weiß', 'Grau meliert', '5XL', 'S/M', 'Ärmel']) {
+    for (const w of ['Grün', 'Größe', 'Weiß', 'Grau meliert', '5XL', 'S/M', 'Ärmel',
+                     'Weiß/Pink', 'Weiß / Pink', 'Weiß | Pink', 'Weiß|Pink']) {
       expect(fe.skuNormalisiereTeil(w)).toBe(normalisiereTeil(w));
     }
   });

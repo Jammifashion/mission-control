@@ -25,11 +25,14 @@ export const KURZ_RE = /^[A-Za-z0-9-]+$/;
  * Vergleichs- und Bauform fuer einen Variantenwert:
  * klein, Umlaute aufgeloest, Leerzeichen zu Bindestrich, Rest faellt weg.
  * "Grau meliert" -> "grau-meliert", "Größe XL" -> "groesse-xl", "5XL" -> "5xl".
+ * "/" und "|" entfallen samt umgebender Leerzeichen, damit jede Schreibweise
+ * dieselbe SKU ergibt: "Weiß/Pink", "Weiß / Pink", "Weiß | Pink" -> "weisspink".
  */
 export function normalisiereTeil(wert) {
   return String(wert ?? '')
     .toLowerCase()
     .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+    .replace(/\s*[/|]\s*/g, '')
     .replace(/\s+/g, '-')
     .replace(/[^a-z0-9-]/g, '')
     .replace(/-{2,}/g, '-')
