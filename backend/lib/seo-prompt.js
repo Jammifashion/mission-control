@@ -17,6 +17,8 @@
 //    nur im Prompt stehen, werden vom Modell still gebrochen – geprüft wird
 //    darum im Code, und das Ergebnis wird gemeldet, nicht verschluckt.
 
+import { sortiereGroessen } from './groessen.js';
+
 export const MATERIAL_PLACEHOLDER = '[Material: bitte ergänzen]';
 
 // Befehl F2: sichtbarer Hinweis, wenn eine Faserangabe mit Prozent GANZ fehlt.
@@ -294,6 +296,47 @@ export function parseGroessen(input) {
   return parseListe(input, GROESSEN_LABEL_RE);
 }
 
+/** Groessen fuer Prompt und Pruefung: zerlegt und aufsteigend (groessen.js). */
+export function groessenFuerText(input) {
+  return sortiereGroessen(parseGroessen(input)).sortiert;
+}
+
+/**
+ * Stehen die Groessen im fertigen Text aufsteigend? Die Zeile "Größen: …"
+ * schreibt das Modell (nach der Vorlage im Prompt) - also nachpruefen.
+ * Geprueft werden die <li> mit "Größe(n):" und jede Spanne "X bis Y" in
+ * Kurz- und Produktbeschreibung. Nur bekannte Groessen zaehlen.
+ *
+ * @returns {string[]} Meldungen, leer wenn alles passt.
+ */
+export function pruefeGroessenReihenfolge({ kurzbeschreibung, produktbeschreibung, groessen } = {}) {
+  const soll = groessenFuerText(groessen);
+  if (soll.length < 2) return [];
+  const rang = w => soll.findIndex(g => g.toLowerCase() === String(w).trim().toLowerCase());
+  const meldungen = [];
+
+  for (const [, inhalt] of String(produktbeschreibung ?? '').matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)) {
+    const text = stripHtml(inhalt);
+    const t = text.match(/^\s*gr(?:ö|oe)(?:ß|ss)en?\s*:\s*(.*)$/i);
+    if (!t) continue;
+    const ist = t[1].split(/\s*(?:,|;|\bund\b)\s*/).map(x => x.trim().replace(/\.$/, '')).filter(x => rang(x) >= 0);
+    const r = ist.map(rang);
+    if (r.some((x, i) => i > 0 && x < r[i - 1])) {
+      meldungen.push(`Größen im Text nicht aufsteigend ("${ist.join(', ')}") – erwartet: ${soll.join(', ')}. Bitte prüfen.`);
+    }
+  }
+
+  for (const html of [kurzbeschreibung, produktbeschreibung]) {
+    for (const [, von, bis] of stripHtml(html).matchAll(/(\S+)\s+bis\s+(\S+)/gi)) {
+      const a = rang(von), b = rang(bis.replace(/[.,;]$/, ''));
+      if (a >= 0 && b >= 0 && b < a) {
+        meldungen.push(`Größenspanne "${von} bis ${bis.replace(/[.,;]$/, '')}" ist absteigend – erwartet aufsteigend. Bitte prüfen.`);
+      }
+    }
+  }
+  return meldungen;
+}
+
 /**
  * Eigenschaften-Zeilen säubern, BEVOR daraus Material, <li>-Liste und
  * "Weitere Eigenschaften" gebaut werden. Genau eine Filterstelle: ein Filter
@@ -362,6 +405,7 @@ export function hauptKeyword({ keyphrase, produktname, farben, groessen } = {}) 
  *  1. Keyphrase in den ersten zehn Wörtern der Kurzbeschreibung
  *  2. Keyphrase im ersten Satz der Produktbeschreibung
  *  3. <h2> ohne Produkttitel (auch ohne Zielgruppe) und höchstens 8 Wörter
+ *  4. Größen aufsteigend (Befehl G)
  *
  * @returns {string[]} Meldungen, leer wenn alles passt.
  */
@@ -397,7 +441,13 @@ export function pruefeSeoText({
     }
   }
 
-  return [...meldungen, ...pruefeH2(produktbeschreibung, produktname)];
+  // Groessen-Reihenfolge: Hinweis wie Keyphrase, KEIN zweiter Lauf (der
+  // haengt allein an pruefeH2).
+  return [
+    ...meldungen,
+    ...pruefeGroessenReihenfolge({ kurzbeschreibung, produktbeschreibung, groessen }),
+    ...pruefeH2(produktbeschreibung, produktname),
+  ];
 }
 
 /**
@@ -898,7 +948,11 @@ export function buildSeoUserPrompt({
   // Größen kommen NUR aus der Variantenauswahl. Kein Fallback auf die
   // Eigenschaften: dort steht der Größenlauf der Baureihe, nicht die Auswahl
   // dieses Artikels.
-  const groessenListe = parseGroessen(groessen);
+  // Befehl G: aufsteigend sortiert, an DIESER einen Stelle - fuer alle
+  // Quellen (Varianten-Reiter, WooCommerce-Fallback). Der Reiter liefert nach
+  // einem Aenderungspfad-Speichern oft 3XL … XS, WooCommerce die Reihenfolge
+  // seiner Optionen. Sortierung aus lib/groessen.js, keine zweite Logik.
+  const groessenListe = groessenFuerText(groessen);
 
   const farbenText  = farbListe.length ? farbListe.join(', ') : 'siehe Varianten';
   const groessenText = groessenListe.join(', ');
@@ -967,7 +1021,7 @@ export function buildSeoUserPrompt({
       '  "Seitennähte" und "60 °C waschbar" sind Angaben – daraus wird NICHT',
       '  "sorgt für eine beständige Passform nach dem Waschen".',
       groessenText
-        ? '- Größen: nenne ausschließlich die unter GRÖSSEN gelisteten.'
+        ? '- Größen: nenne ausschließlich die unter GRÖSSEN gelisteten, in GENAU dieser Reihenfolge (aufsteigend).'
         : '- Größen: NENNE KEINE Größen, für diesen Artikel gibt es keine Größen-Variante.',
     ].join('\n'),
 
