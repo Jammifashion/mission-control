@@ -706,6 +706,23 @@ export function filterMaterialFarben(material, farben) {
 }
 
 /**
+ * Zeile in Label und Wert zerlegen. Trenner ist der ERSTE Doppelpunkt ODER
+ * Tabulator - "Grammatur in g/m²<TAB>180 g/m²" (L-Shop-Datenblatt, kopiert)
+ * genauso wie "Grammatur: 180 g/m²".
+ *
+ * Ein Label beginnt mit einem Buchstaben und enthaelt kein "%" und keine
+ * Klammer. Sonst wuerde der Doppelpunkt in "100% Baumwolle (Grau: 60% …)" als
+ * Trenner gelesen und die Faserangabe verloere ihren Anfang.
+ *
+ * @returns {{ label: string, wert: string }|null} null, wenn kein Label.
+ */
+export function labelUndWert(zeile) {
+  const t = String(zeile ?? '').match(/^\s*([A-Za-zÄÖÜäöüß][^:\t%()]{0,39}?)\s*(?::|\t)\s*(.*?)\s*$/);
+  if (!t || !t[1].trim() || !t[2]) return null;
+  return { label: t[1].trim(), wert: t[2] };
+}
+
+/**
  * Materialangabe aus dem Eigenschaften-Freitext, gefiltert nach den
  * angebotenen Farben. Einzige Stelle für diesen Weg: der SEO-Prompt und die
  * Meta-Beschreibung (lib/seo-meta.js) sehen damit dieselbe Faserangabe.

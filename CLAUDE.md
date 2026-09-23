@@ -49,7 +49,9 @@ Neue Sektionen immer mit Anker versehen:
   (kein Modell). Einzige Quelle; index.html spiegelt den Bau-Teil im Block
   `SEO-Meta: Anfang/Ende`. Faserangabe + Grammatur liefert
   `POST /api/seo/meta-eingaben` (backend/routes/seo-meta.js), weil
-  filterMaterialFarben nur im Backend lebt.
+  filterMaterialFarben nur im Backend lebt. Faserangabe und Grammatur gehen OHNE
+  Label hinein; Label = Teil vor dem ersten Doppelpunkt oder Tab (`labelUndWert()`
+  in seo-prompt.js, L-Shop-Datenblaetter sind Tab-getrennt).
 
 - backend/lib/lieferzeiten.js – German-Market-Lieferzeit (`_lieferzeit`, Term-ID als
   String). Quelle: SSOT-Reiter `Struktur_Lieferzeiten` (Term_ID | Name | Slug | Standard),
