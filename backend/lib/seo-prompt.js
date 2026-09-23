@@ -705,9 +705,10 @@ export function filterMaterialFarben(material, farben) {
 }
 
 /**
- * Zeile in Label und Wert zerlegen. Trenner ist der ERSTE Doppelpunkt ODER
- * Tabulator - "Grammatur in g/m²<TAB>180 g/m²" (L-Shop-Datenblatt, kopiert)
- * genauso wie "Grammatur: 180 g/m²".
+ * Zeile in Label und Wert zerlegen. Trenner ist der ERSTE Doppelpunkt, Tab
+ * oder eine Folge von ZWEI oder mehr Leerzeichen - "Grammatur in g/m²<TAB>180
+ * g/m²" (L-Shop-Datenblatt, kopiert) genauso wie "Grammatur: 180 g/m²".
+ * Ein einzelnes Leerzeichen trennt nie.
  *
  * Ein Label beginnt mit einem Buchstaben, enthaelt kein "%" und Klammern nur
  * geschlossen ("Farbe(n)"). Sonst wuerde der Doppelpunkt in
@@ -717,17 +718,26 @@ export function filterMaterialFarben(material, farben) {
  * @returns {{ label: string, wert: string }|null} null, wenn kein Label.
  */
 export function labelUndWert(zeile) {
-  const t = String(zeile ?? '')
-    .match(/^\s*([A-Za-zÄÖÜäöüß](?:[^:\t%()]|\([^():\t%]*\))*?)\s*(?::|\t)\s*(.*?)\s*$/);
-  if (!t || !t[1].trim() || t[1].length > 40 || !t[2]) return null;
-  return { label: t[1].trim(), wert: t[2] };
+  const z = zerlege(zeile);
+  return z ? { label: z.label, wert: z.wert } : null;
 }
 
-/** Steht vor dem ersten Doppelpunkt ein Tab? Dann ist es das L-Shop-Format. */
+// Wie labelUndWert, dazu der Trenner: ':' oder 'tab' (Tab / zwei und mehr
+// Leerzeichen - so kommt ein L-Shop-Datenblatt aus der Zwischenablage).
+// Ein EINZELNES Leerzeichen trennt nie. Der erste Trenner gewinnt:
+// "Pflege: 30  Grad" hat das Label "Pflege".
+function zerlege(zeile) {
+  const t = String(zeile ?? '')
+    .match(/^\s*([A-Za-zÄÖÜäöüß](?:[^:\t%()]|\([^():\t%]*\))*?)[ \t]*?(:|\t| {2,})\s*(.*?)\s*$/);
+  if (!t) return null;
+  const label = t[1].trim();
+  if (!label || label.length > 40 || !t[3]) return null;
+  return { label, wert: t[3], trenner: t[2] === ':' ? ':' : 'tab' };
+}
+
+/** L-Shop-Format: Label und Wert durch Tab oder mehrere Leerzeichen getrennt. */
 function tabGetrennt(zeile) {
-  const z = String(zeile ?? '');
-  const tab = z.indexOf('\t'), dp = z.indexOf(':');
-  return tab >= 0 && (dp < 0 || tab < dp);
+  return zerlege(zeile)?.trenner === 'tab';
 }
 
 // Labels, die eine Grammatur einleiten. Entscheidend ist das ERSTE Wort:
@@ -747,6 +757,13 @@ export function grammaturAusZeile(zeile) {
  * "Material: …"). Ein Label "Material" faellt immer, jedes andere nur, wenn
  * der Rest mit einer Prozentangabe beginnt - sonst bleibt der Text stehen.
  */
+// Beginnt der Wert (ohne Label) mit einer Prozentangabe? "100% Baumwolle",
+// "Materialzusammensetzung<TAB>100 % Baumwolle" ja, "Material: Jersey" nein.
+function beginntMitProzent(zeile) {
+  const wert = labelUndWert(zeile)?.wert ?? String(zeile ?? '');
+  return /^\s*\d{1,3}\s*%/.test(wert);
+}
+
 export function faserOhneLabel(text) {
   const lw = labelUndWert(text);
   if (!lw) return text;
@@ -755,8 +772,9 @@ export function faserOhneLabel(text) {
 
 /**
  * Zeile fuer die Detailliste. Doppelpunkt-Zeilen bleiben wie sie sind.
- * Tab-Zeilen (L-Shop) werden zu "Label: Wert"; eine Grammatur-Zeile mit dem
- * L-Shop-Label "Grammatur in g/m²" wird zu "Grammatur: 180 g/m²".
+ * Tab-/Leerzeichen-Zeilen (L-Shop) werden zu "Label: Wert"; eine
+ * Grammatur-Zeile mit dem L-Shop-Label "Grammatur in g/m²" wird zu
+ * "Grammatur: 180 g/m²".
  */
 function detailZeile(zeile) {
   const text = String(zeile ?? '').trim();
@@ -802,11 +820,27 @@ export function materialAusEigenschaften(eigenschaften, farben) {
   // Zeilen – Material, <li>-Liste und "Weitere Eigenschaften" gleichermaßen.
   const eigenschaftenLines = filterEigenschaften(rohLines);
 
-  const materialZeile = eigenschaftenLines.find(l => MATERIAL_LINE_RE.test(l))?.trim() || '';
+  // Faserangabe: unter allen Material-Zeilen gewinnt die, deren Wert mit einer
+  // Prozentangabe beginnt - unabhaengig von der Reihenfolge. "Material<TAB>
+  // Jersey" vor "Materialzusammensetzung<TAB>100% Baumwolle" machte sonst
+  // "Jersey" zur Faserangabe, und die Pflichtangabe fiel still weg.
+  // Die uebrigen Material-Zeilen gehen als "Material: Jersey" in die
+  // Detailliste - nie als Faserangabe. Ohne Zeile mit Prozentangabe bleibt es
+  // beim Bisherigen: die erste Material-Zeile, die anderen fallen weg, und die
+  // Nachbedingung in filterMaterialFarbenMitMeldung meldet es.
+  const materialZeilen = eigenschaftenLines.filter(l => MATERIAL_LINE_RE.test(l));
+  const faserZeile     = materialZeilen.find(l => beginntMitProzent(l));
+  const materialZeile  = (faserZeile ?? materialZeilen[0])?.trim() || '';
   // Führendes Label abschneiden – "Material:" wie bisher, dazu jedes Label vor
-  // Doppelpunkt oder Tab, hinter dem die Prozentangabe beginnt
-  // ("Materialzusammensetzung<TAB>100% …"). Das Label steht schon im <li>.
+  // Doppelpunkt, Tab oder Leerzeichenfolge, hinter dem die Prozentangabe
+  // beginnt ("Materialzusammensetzung<TAB>100% …"). Das Label steht im <li>.
   const materialRoh    = faserOhneLabel(materialZeile);
+
+  // Detailliste in Eingabereihenfolge: Nicht-Material-Zeilen wie bisher,
+  // weitere Material-Zeilen nur, wenn eine Faserzeile gefunden wurde.
+  const detailLines = eigenschaftenLines
+    .filter(l => !MATERIAL_LINE_RE.test(l) || (faserZeile && l !== faserZeile))
+    .map(detailZeile);
 
   const farbListe = parseFarben(
     farben && (Array.isArray(farben) ? farben.length : String(farben).trim())
@@ -817,7 +851,7 @@ export function materialAusEigenschaften(eigenschaften, farben) {
   // Die Form MIT Meldung, nicht der Wrapper: die Meldung sagt, dass im
   // Material keine vollständige Faserangabe mehr steht.
   const { material, meldung } = filterMaterialFarbenMitMeldung(materialRoh, farbListe);
-  return { eigenschaftenLines, farbListe, materialRoh, material, meldung };
+  return { eigenschaftenLines, detailLines, farbListe, materialRoh, material, meldung };
 }
 
 /**
@@ -842,7 +876,7 @@ export function buildSeoUserPrompt({
   keyphrase,
 } = {}) {
   const {
-    eigenschaftenLines, farbListe, material, meldung: materialMeldung,
+    detailLines, farbListe, material, meldung: materialMeldung,
   } = materialAusEigenschaften(eigenschaften, farben);
 
   // Größen kommen NUR aus der Variantenauswahl. Kein Fallback auf die
@@ -862,8 +896,10 @@ export function buildSeoUserPrompt({
   // Material-Zeilen fliegen aus dem Rest raus: Material hat ein eigenes,
   // gefiltertes Feld. Sonst käme der ungefilterte Rohstring über
   // "Weitere Eigenschaften" doch wieder beim Modell an.
-  // Tab-Zeilen als "Label: Wert", die L-Shop-Grammatur als "Grammatur: …".
-  const weitereLines = eigenschaftenLines.filter(l => !MATERIAL_LINE_RE.test(l)).map(detailZeile);
+  // Aus materialAusEigenschaften: die Faserzeile fehlt, weitere Material-
+  // Zeilen stehen als "Material: …" drin, Tab-Zeilen als "Label: Wert", die
+  // L-Shop-Grammatur als "Grammatur: …".
+  const weitereLines = detailLines;
 
   const weitereLi = weitereLines
     .slice(0, 5)

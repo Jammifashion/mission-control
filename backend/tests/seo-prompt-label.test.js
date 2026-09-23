@@ -40,15 +40,19 @@ afterEach(() => jest.restoreAllMocks());
 // ── Eigenschaftstext des Oldschool-Shirts (E3000), L-Shop-Datenblatt ─────────
 // ECHT: abgeschrieben aus dem Screenshot der Maske vom 23.09. Der Trenner
 // zwischen Label und Wert war optisch ein Tab - getestet werden Tab UND
-// mehrere Leerzeichen (letzteres wird heute NICHT als Trenner erkannt).
+// mehrere Leerzeichen (seit M3 beides ein Trenner), dazu die umgekehrte
+// Reihenfolge von Material und Zusammensetzung (Jersey zuerst).
 const TAB = '\t';
-const oldschool = (t = TAB) => [
-  `Materialzusammensetzung${t}100% Baumwolle (Sports Grey: 85% Baumwolle / 15% Viskose)`,
-  `Material${t}Jersey`,
-  `Grammatur in g/m²${t}180 g/m²`,
-  `Größenlauf${t}XS, S, M, L, XL, XXL, 3XL, 4XL, 5XL, 6XL, 7XL, 8XL`,
-  `Farbigkeit${t}1-farbig`,
-].join('\n');
+const oldschool = (t = TAB, jerseyZuerst = false) => {
+  const zusammensetzung = `Materialzusammensetzung${t}100% Baumwolle (Sports Grey: 85% Baumwolle / 15% Viskose)`;
+  const jersey          = `Material${t}Jersey`;
+  return [
+    ...(jerseyZuerst ? [jersey, zusammensetzung] : [zusammensetzung, jersey]),
+    `Grammatur in g/m²${t}180 g/m²`,
+    `Größenlauf${t}XS, S, M, L, XL, XXL, 3XL, 4XL, 5XL, 6XL, 7XL, 8XL`,
+    `Farbigkeit${t}1-farbig`,
+  ].join('\n');
+};
 const OLDSCHOOL = oldschool();
 // Der echte Text hat keine Farbzeile. Fuer die Farb-Tests eine eigene,
 // ausdruecklich NACHGEBAUTE Zeile im selben Format.
@@ -70,28 +74,24 @@ describe('Oldschool-Text im Tab-Format', () => {
     expect(p).not.toMatch(/Materialzusammensetzung|Sports Grey|Viskose/);
   });
 
-  test('"Material<TAB>Jersey" wird keine Faserangabe und konkurriert nicht', () => {
+  test('"Material<TAB>Jersey" wird keine Faserangabe, steht als "Material: Jersey" in der Detailliste', () => {
     const r = lib.materialAusEigenschaften(OLDSCHOOL, FARBEN);
     expect(r.material).toBe('100% Baumwolle');
     expect(r.meldung).toBeNull();
-    // Stand heute: die Zeile faellt ganz weg (alle Material-Zeilen verlassen
-    // die Detailliste), sie steht auch nicht als "Material: Jersey" da.
-    // Geprueft werden Produktdaten und Detailliste - das feste Regel-Beispiel
-    // im Prompt ("… auf schwarzem Jersey") zaehlt nicht.
-    const daten = prompt().split('\n').filter(z => z.startsWith('- ') || z.startsWith('<li>'));
-    expect(daten.filter(z => /Jersey/.test(z))).toEqual([]);
+    expect(prompt()).toContain('<li>Material: Jersey</li>');
   });
 
   test('Prompt-Zeilen des echten Textes, genau', () => {
     const zeilen = prompt().split('\n');
     expect(zeilen.filter(z => z.startsWith('- Material:') || z.startsWith('- Weitere'))).toEqual([
       '- Material: 100% Baumwolle',
-      '- Weitere Eigenschaften: Grammatur: 180 g/m²',
+      '- Weitere Eigenschaften: Material: Jersey; Grammatur: 180 g/m²',
     ]);
     expect(zeilen.filter(z => z.startsWith('<li>'))).toEqual([
       '<li><strong>Material:</strong> 100% Baumwolle</li>',
       '<li><strong>Farben:</strong> Rot, Schwarz</li>',
       '<li><strong>Größen:</strong> XS, S, M, L, XL, 2XL, 3XL, 4XL, 5XL</li>',
+      '<li>Material: Jersey</li>',
       '<li>Grammatur: 180 g/m²</li>',
     ]);
   });
@@ -99,7 +99,7 @@ describe('Oldschool-Text im Tab-Format', () => {
   test('Grammatur in der Detailliste als "Grammatur: 180 g/m²"', () => {
     const p = prompt();
     expect(p).toContain('<li>Grammatur: 180 g/m²</li>');
-    expect(p).toContain('- Weitere Eigenschaften: Grammatur: 180 g/m²');
+    expect(p).toContain('Grammatur: 180 g/m²');
     expect(p).not.toMatch(/Grammatur in g\/m²/);
   });
 
@@ -149,26 +149,80 @@ describe('Oldschool-Text im Tab-Format', () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
-// Nur Bestandsaufnahme (Befehl M2-Nachtrag, Punkt 3): mehrere Leerzeichen sind
-// KEIN Trenner. Bewusst nicht erweitert - ein Test, der das aendert, braucht
-// eine Entscheidung.
-describe('Stand: mehrere Leerzeichen statt Tab werden nicht erkannt', () => {
-  const LEER = oldschool('   ');
+// Befehl M3: Tab UND Leerzeichen, jeweils Jersey vor und nach der
+// Zusammensetzung. Ergebnis immer gleich.
+describe.each([
+  ['Tab', TAB, false], ['Tab', TAB, true],
+  ['3 Leerzeichen', '   ', false], ['3 Leerzeichen', '   ', true],
+  ['2 Leerzeichen', '  ', false], ['2 Leerzeichen', '  ', true],
+])('echter Oldschool-Text, Trenner %s, Jersey zuerst: %s', (_name, trenner, jerseyZuerst) => {
+  const text = oldschool(trenner, jerseyZuerst);
 
-  test('kein Label: Material, Grammatur und Groessenlauf bleiben roh', () => {
-    expect(lib.labelUndWert('Grammatur in g/m²   180 g/m²')).toBeNull();
-    const p = prompt({ eigenschaften: LEER });
-    expect(p).toContain('- Material: Materialzusammensetzung 100% Baumwolle\n');
-    expect(p).toContain('<li>Grammatur in g/m²   180 g/m²</li>');
-    expect(p).toMatch(/Größenlauf {3}XS/);
-    expect(p).not.toMatch(/Farbigkeit/);          // Sperrliste prueft die ganze Zeile
+  test('Faserangabe immer "100% Baumwolle", keine Meldung', () => {
+    const r = lib.materialAusEigenschaften(text, FARBEN);
+    expect(r.material).toBe('100% Baumwolle');
+    expect(r.meldung).toBeNull();
   });
 
-  test('Meta: Label bleibt stehen, Grammatur fehlt', async () => {
-    const { metaEingaben } = await import('../lib/seo-meta.js');
-    expect(metaEingaben({ eigenschaften: LEER, farben: FARBEN })).toEqual({
-      faserangabe: 'Materialzusammensetzung 100% Baumwolle', faserMeldung: null, grammatur: null,
-    });
+  test('Prompt: Material, "Material: Jersey", Grammatur; Groessenlauf und Farbigkeit fallen', () => {
+    const p = prompt({ eigenschaften: text });
+    expect(p).toContain('- Material: 100% Baumwolle\n');
+    expect(p).toContain('<li><strong>Material:</strong> 100% Baumwolle</li>');
+    expect(p).toContain('<li>Material: Jersey</li>');
+    expect(p).toContain('<li>Grammatur: 180 g/m²</li>');
+    expect(p).not.toMatch(/Größenlauf|8XL|Farbigkeit|1-farbig|Materialzusammensetzung|Sports Grey/);
+    expect(p).not.toContain(TAB);
+    // "Jersey" steht nie als Faserangabe
+    expect(p).not.toMatch(/- Material: Jersey|<strong>Material:<\/strong> Jersey/);
+  });
+
+  test('Meta zeichengenau wie bisher', async () => {
+    const { metaEingaben, baueMetaBeschreibung } = await import('../lib/seo-meta.js');
+    const e = metaEingaben({ eigenschaften: text, farben: FARBEN });
+    expect(e).toEqual({ faserangabe: '100% Baumwolle', faserMeldung: null, grammatur: '180 g/m²' });
+    expect(baueMetaBeschreibung({
+      keyphrase: 'Crocodiles Hamburg Oldschool T-Shirt Herren', farben: FARBEN, ...e,
+      groessen: GROESSEN, lieferzeit: '21',
+    }).text).toBe(
+      'Crocodiles Hamburg Oldschool T-Shirt Herren in Rot und Schwarz, 100% Baumwolle, 180 g/m². '
+      + 'Größen XS bis 5XL, gedruckt nach Bestellung in Wrist.');
+  });
+});
+
+describe('Trenner: Leerzeichen', () => {
+  test('ein einzelnes Leerzeichen trennt nie', () => {
+    expect(lib.labelUndWert('Grammatur 180 g/m²')).toBeNull();
+    expect(lib.labelUndWert('Material Jersey')).toBeNull();
+  });
+
+  test('zwei und mehr Leerzeichen trennen, wenn links ein Label steht', () => {
+    expect(lib.labelUndWert('Grammatur in g/m²  180 g/m²')).toEqual({ label: 'Grammatur in g/m²', wert: '180 g/m²' });
+    expect(lib.labelUndWert('Material     Jersey')).toEqual({ label: 'Material', wert: 'Jersey' });
+    expect(lib.labelUndWert('Farbe(n)  Schwarz')).toEqual({ label: 'Farbe(n)', wert: 'Schwarz' });
+  });
+
+  test('kein Label links: Prozent, Ziffer am Anfang, offene Klammer, ueber 40 Zeichen', () => {
+    expect(lib.labelUndWert('100%  Baumwolle')).toBeNull();
+    expect(lib.labelUndWert('180  g/m²')).toBeNull();
+    expect(lib.labelUndWert('Baumwolle (Grau meliert  60% Baumwolle)')).toBeNull();
+    expect(lib.labelUndWert(`${'a'.repeat(41)}  Wert`)).toBeNull();
+  });
+
+  test('erster Trenner gewinnt: Doppelpunkt vor Leerzeichenfolge', () => {
+    expect(lib.labelUndWert('Pflege: 30 °C  Schonwaschgang'))
+      .toEqual({ label: 'Pflege', wert: '30 °C  Schonwaschgang' });
+  });
+
+  test('ohne Faserzeile: bisheriges Verhalten, Material-Zeile als Material, Meldung der Nachbedingung', () => {
+    const r = lib.materialAusEigenschaften(`Material${TAB}Jersey\nMaterial: Baumwolle gekämmt`, FARBEN);
+    expect(r.material).toBe('Jersey');
+    expect(r.detailLines).toEqual([]);            // weitere Material-Zeilen fallen weg wie bisher
+  });
+
+  test('Faserzeile ohne Label gewinnt ebenfalls', () => {
+    const r = lib.materialAusEigenschaften(`Material${TAB}Jersey\n80 % Baumwolle, 20 % Polyester`, FARBEN);
+    expect(r.material).toBe('80 % Baumwolle, 20 % Polyester');
+    expect(r.detailLines).toEqual(['Material: Jersey']);
   });
 });
 
