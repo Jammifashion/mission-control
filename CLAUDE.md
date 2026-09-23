@@ -8,6 +8,7 @@ grep "SECTION" frontend/index.html
 
 Aktuelle Sektionen:
 - Navigation (Zeile 1072)
+- Stand-Anzeige (Zeile ~2276)
 - Helpers (Zeile 1104)
 - Auftragsmonitor (Zeile 1207)
 - Auftragsmonitor: Shop Orders (Zeile 1801)
@@ -113,6 +114,14 @@ eine neue Revision entsteht nur über einen Push, der die Pfad-Filter trifft.
 In Cloud Run gesetzt sind nur `NODE_ENV=production` und
 `GOOGLE_PROJECT_ID=mission-control-495711`; alle übrigen Werte kommen aus dem
 Secret Manager.
+
+Welcher Code laeuft, zeigt die Fusszeile im Dashboard: "Stand: Oberflaeche <sha> · Backend <sha>".
+Backend: `GET /health` (offen) gibt `commit` (7 Zeichen) und `gebaut` (ISO) aus
+(`backend/utils/stand.js`). Die Werte kommen als Build-Arg `MC_COMMIT`/`MC_GEBAUT` ins Image
+(Dockerfile ARG -> ENV, gesetzt in `deploy-backend.yml`), nicht als Service-Variable.
+Oberflaeche: Meta-Tags `mc-commit`/`mc-gebaut` in `index.html`, Platzhalter `__MC_COMMIT__`/
+`__MC_GEBAUT__` stempelt `deploy.yml` (Schritt "Stand stempeln"); im Repo bleiben sie stehen,
+lokal zeigt die Fusszeile "lokal". Unterschiedliche Kennungen sind normal.
 
 Ladereihenfolge der Konfiguration: **Env-Var → `.env` → GCP Secret Manager**
 (Secret Manager greift in production, siehe `getSecret()` in

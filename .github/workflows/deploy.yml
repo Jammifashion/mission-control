@@ -46,6 +46,20 @@ jobs:
           fi
           grep -n "const BUILD_VERSION" frontend/sw.js
 
+      # Stand der Oberflaeche fuer die Fusszeile (index.html, Meta-Tags
+      # mc-commit/mc-gebaut). Nur diese zwei Platzhalter - das Repo und die
+      # Actions-Logs sind oeffentlich, hier gehoert nichts anderes hinein.
+      - name: Stand stempeln
+        run: |
+          MC_COMMIT="${GITHUB_SHA::7}"
+          MC_GEBAUT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          sed -i "s/__MC_COMMIT__/${MC_COMMIT}/; s/__MC_GEBAUT__/${MC_GEBAUT}/" frontend/index.html
+          if grep -q "__MC_" frontend/index.html; then
+            echo "::error::Platzhalter __MC_ steht noch in frontend/index.html"
+            exit 1
+          fi
+          grep -n 'name="mc-' frontend/index.html
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
 

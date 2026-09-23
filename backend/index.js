@@ -9,6 +9,7 @@ import helmet from 'helmet';
 
 import { loadAllSecrets } from './utils/secrets.js';
 import { apiRateLimiter, requireApiKey } from './middleware/auth.js';
+import { healthHandler } from './utils/stand.js';
 import woocommerceRouter from './routes/woocommerce.js';
 import artikelRouter from './routes/artikel.js';
 import claudeRouter from './routes/claude.js';
@@ -54,7 +55,8 @@ app.use('/api/festpreis-public',   festpreisPublicRouter); // public: Token-Auth
 app.use(requireApiKey);
 
 // ── Routes ────────────────────────────────────────────────────────────────────
-app.get('/health', (_req, res) => res.json({ status: 'ok', ts: Date.now() }));
+// Liveness-Probe plus Stand des laufenden Codes (commit, gebaut) - siehe utils/stand.js.
+app.get('/health', healthHandler);
 
 app.use('/api/woocommerce', woocommerceRouter);
 app.use('/api/artikel', artikelRouter);

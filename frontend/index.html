@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0f0f0f" />
     <meta name="description" content="Mission Control – JammiFashion Dashboard" />
+    <!-- Stand der Oberflaeche. Die Platzhalter ersetzt deploy.yml ("Stand stempeln"); im Repo bleiben sie stehen. -->
+    <meta name="mc-commit" content="__MC_COMMIT__" />
+    <meta name="mc-gebaut" content="__MC_GEBAUT__" />
     <title>Mission Control</title>
     <link rel="manifest" href="manifest.json" />
     <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -947,6 +950,11 @@
         font-size: 0.75rem;
         color: var(--muted);
         text-align: center;
+      }
+      footer .mc-stand {
+        margin-top: 0.2rem;
+        font-size: 0.7rem;
+        opacity: 0.7;
       }
     </style>
   </head>
@@ -2106,7 +2114,10 @@
       </div>
     </div>
 
-    <footer>JammiFashion &mdash; Mission Control v0.1</footer>
+    <footer>
+      JammiFashion &mdash; Mission Control v0.1
+      <div class="mc-stand" id="mc-stand">Stand: Oberfläche … · Backend …</div>
+    </footer>
 
     <div id="liz-tooltip" aria-hidden="true"></div>
 
@@ -2260,6 +2271,30 @@
       // 5 Minuten statt 60 Sekunden: der Statuspunkt muss nicht minuetlich
       // WooCommerce, Sheets und das Modell abfragen.
       setInterval(checkStatus, 5 * 60_000);
+
+      // ── SECTION: Stand-Anzeige ──
+      // Welcher Code laeuft, ohne Entwicklerwerkzeuge: Oberflaeche aus dem
+      // Meta-Tag (deploy.yml stempelt es), Backend aus GET /health (offen, kein
+      // API-Key). Unterschiedliche Kennungen sind normal - Frontend und Backend
+      // werden getrennt deployt. Darum keine Warnung, und bei Ausfall kein Toast.
+      function kurzCommit(wert) {
+        return /^[0-9a-f]{7}$/.test(wert ?? '') ? wert : null;
+      }
+      async function zeigeStand() {
+        const el = document.getElementById('mc-stand');
+        if (!el) return;
+        const ui = kurzCommit(document.querySelector('meta[name="mc-commit"]')?.content) ?? 'lokal';
+        let backend;
+        try {
+          const res  = await fetch(`${API_BASE()}/health`, { signal: AbortSignal.timeout(10000) });
+          const data = res.ok ? await res.json() : null;
+          backend = data ? `Backend ${kurzCommit(data.commit) ?? 'unbekannt'}` : 'Backend nicht erreichbar';
+        } catch {
+          backend = 'Backend nicht erreichbar';
+        }
+        el.textContent = `Stand: Oberfläche ${ui} · ${backend}`;
+      }
+      zeigeStand();
 
       // ── SECTION: Helpers (Zeile 1104) ──
       function statusBadge(s) {

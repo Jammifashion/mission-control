@@ -58,10 +58,16 @@ jobs:
       # deployt wird aber der Commit-Tag - sonst ist bei zwei kurz
       # aufeinanderfolgenden Pushes nicht festgelegt, welcher Stand laeuft,
       # und ein Rollback ueber einen Re-Run des alten Workflows greift ins Leere.
+      # MC_COMMIT/MC_GEBAUT landen per Build-Arg im Image und erscheinen in
+      # GET /health (backend/utils/stand.js). Kein Env-Var am Service - das
+      # --set-env-vars unten wuerde sie ohnehin bei jedem Deploy ersetzen.
       - name: Build and push Docker image
         run: |
           IMAGE=europe-west1-docker.pkg.dev/mission-control-495711/mission-control/backend
-          docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest .
+          MC_COMMIT="${GITHUB_SHA::7}"
+          MC_GEBAUT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "Stand: $MC_COMMIT gebaut $MC_GEBAUT"
+          docker build             --build-arg MC_COMMIT="$MC_COMMIT"             --build-arg MC_GEBAUT="$MC_GEBAUT"             -t $IMAGE:${{ github.sha }} -t $IMAGE:latest .
           docker push $IMAGE:${{ github.sha }}
           docker push $IMAGE:latest
 
