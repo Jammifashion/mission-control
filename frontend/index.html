@@ -1478,6 +1478,7 @@
         <div class="panel-actions">
           <button class="btn-secondary" id="btn-save-draft">Entwurf speichern</button>
           <button class="btn" id="btn-create-wc" disabled>In WooCommerce anlegen</button>
+          <span id="btn-create-wc-grund" class="field-note" style="align-self:center;"></span>
           <button class="btn" id="btn-update-wc" style="display:none;">Änderungen speichern</button>
           <span id="prod-push-status" style="font-size:0.82rem;color:var(--muted);align-self:center;"></span>
         </div>
@@ -3314,6 +3315,7 @@
           opt.value = o.value; opt.textContent = o.text; opt.selected = o.selected;
           sel.appendChild(opt);
         });
+        aktualisiereAnlage();
       }
 
       // Hilfsfunktion: ID / Slug / Name → WC-Slug
@@ -3643,6 +3645,7 @@
           warn.textContent = `Nur die ersten 50 Varianten werden angelegt. Aktuell: ${displayVariants.length}`;
           table.appendChild(warn);
         }
+        aktualisiereAnlage();   // Varianten/Preise geaendert -> Freigabe neu
       }
 
       // ── Bild-Referenz-Eigenschaft: Dropdowns + Zuordnungsliste neu aufbauen ──────
@@ -3906,6 +3909,24 @@
           return laufend;
         };
       }
+      // Befehl AID2: "In WooCommerce anlegen" braucht nicht mehr den Status
+      // "Bereit zur Anlage", sondern die Artikel-ID und dieselben
+      // Pflichtpruefungen wie beim Klick (Varianten/Preise, Farbachse,
+      // Lieferzeit, SKU). Die Fehlertexte kommen aus den Pruefungen selbst.
+      function anlageZustand({ editMode, laeuft, ssotId, variantenAnzahl, aktiveAnzahl, preiseFehlen,
+                               achsenFehler, lieferzeitFehler, skuFehler } = {}) {
+        if (editMode) return { aktiv: false, grund: '' };
+        if (laeuft)   return { aktiv: false, grund: '' };
+        if (!String(ssotId ?? '').trim())
+          return { aktiv: false, grund: 'Artikel-ID fehlt – zuerst „Artikel-ID anlegen“.' };
+        if (variantenAnzahl > 0 && aktiveAnzahl === 0)
+          return { aktiv: false, grund: 'Bitte mindestens eine Variante auswählen.' };
+        if (preiseFehlen)     return { aktiv: false, grund: 'Bitte alle Variantenpreise ausfüllen.' };
+        if (achsenFehler)     return { aktiv: false, grund: achsenFehler };
+        if (lieferzeitFehler) return { aktiv: false, grund: `Lieferzeit: ${lieferzeitFehler}` };
+        if (skuFehler)        return { aktiv: false, grund: skuFehler };
+        return { aktiv: true, grund: '' };
+      }
       // ── Artikel-ID: Ende ──
 
       // ── Farbachsen-Regel: Anfang (reine Logik, backend/tests/farbachse.test.js) ──
@@ -4056,8 +4077,37 @@
         const grund = document.getElementById('btn-aid-grund');
         grund.textContent   = z.sichtbar ? z.grund : '';
         grund.style.display = z.sichtbar && z.grund ? '' : 'none';
+        aktualisiereAnlage();
       }
       document.getElementById('pf-name').addEventListener('input', aktualisiereAid);
+
+      // ── Freigabe "In WooCommerce anlegen" (Befehl AID2) ────────────────
+      let anlageLaeuft = false;
+      function aktualisiereAnlage() {
+        const btn = document.getElementById('btn-create-wc');
+        if (!btn) return;
+        const aktive = variants.filter(v => v._checked !== false);
+        const artNr  = skuBaueArtikelnummer(
+          document.getElementById('pf-lshop-nr').value, document.getElementById('pf-short-name').value);
+        const lz     = document.getElementById('pf-lieferzeit').value;
+        const z = anlageZustand({
+          editMode, laeuft: anlageLaeuft,
+          ssotId:           document.getElementById('pf-ssot-id').value,
+          variantenAnzahl:  variants.length,
+          aktiveAnzahl:     aktive.length,
+          preiseFehlen:     aktive.some(v => !v.price),
+          achsenFehler:     pruefeFarbAchse(achsenAusVarianten(aktive)),
+          lieferzeitFehler: ssot.lieferzeitFehler || (/^\d+$/.test(lz) ? null : 'keine Lieferzeit gewählt'),
+          skuFehler:        artNr.fehler || skuBaueVariantenSkus(artNr.artikelnummer, aktive).fehler || null,
+        });
+        btn.disabled = !z.aktiv;
+        document.getElementById('btn-create-wc-grund').textContent = z.grund;
+      }
+      // Jede Eingabe im Formular kann die Freigabe aendern (Preise, Lieferzeit,
+      // Kopfdaten, Haekchen der Varianten).
+      document.getElementById('product-form-area').addEventListener('input',  aktualisiereAnlage);
+      document.getElementById('product-form-area').addEventListener('change', aktualisiereAnlage);
+
       aktualisiereAid();   // Anfangszustand: gesperrt, Grund sichtbar
 
       // Derselbe Speicherweg wie "Entwurf speichern" (saveDraft), kein zweiter.
@@ -4115,9 +4165,8 @@
         return s === 'publish' ? 'Veröffentlicht' : s === 'draft' ? 'Entwurf' : s || '';
       }
 
-      prodStatusSel.addEventListener('change', () => {
-        createWcBtn.disabled = prodStatusSel.value !== 'ready';
-      });
+      // Befehl AID2: der Status gibt "In WooCommerce anlegen" nicht mehr frei -
+      // das macht aktualisiereAnlage() (Artikel-ID + Pflichtpruefungen).
       seoStatusSel.addEventListener('change', () => {
         seoStatusSel.classList.toggle('accent', seoStatusSel.value === 'ready');
         seoBlock.classList.toggle('visible', seoStatusSel.value === 'ready');
@@ -4530,7 +4579,6 @@
         // ── Status ───────────────────────────────────────────────────────
         const statusRaw = (d.data['Status'] || '').toLowerCase();
         prodStatusSel.value = statusRaw === 'bereit zur anlage' ? 'ready' : 'draft';
-        createWcBtn.disabled = prodStatusSel.value !== 'ready';
 
         // ── Shop-Einstellungen ───────────────────────────────────────────
         const _sv = shippingSlug(d.data['Versandklasse'] || '');
@@ -5063,7 +5111,7 @@
         if (edit) initQuillEditors();
 
         resetForm();
-        if (!edit) btnCreateWc.disabled = true;
+        if (!edit) aktualisiereAnlage();
       }
 
       function setSeoMode() {
@@ -6317,7 +6365,8 @@
         }
 
         const pushStatus   = document.getElementById('prod-push-status');
-        createWcBtn.disabled = true;
+        anlageLaeuft = true;
+        aktualisiereAnlage();
         pushStatus.style.color = 'var(--muted)';
 
         let ssotId = document.getElementById('pf-ssot-id').value;
@@ -6333,7 +6382,7 @@
           } catch (e) {
             pushStatus.textContent = `Fehler beim Entwurf-Save: ${e.message}`;
             pushStatus.style.color = 'var(--danger)';
-            createWcBtn.disabled = false;
+            anlageLaeuft = false; aktualisiereAnlage();
             showToast(`Fehler: ${e.message}`, 'error', 5000);
             return;
           }
@@ -6359,7 +6408,7 @@
           pushStatus.textContent = `Nicht angelegt: ${achsenFehlerPush}`;
           pushStatus.style.color = 'var(--danger)';
           showToast(achsenFehlerPush, 'error', 10000);
-          createWcBtn.disabled = false;
+          anlageLaeuft = false; aktualisiereAnlage();
           return;
         }
 
@@ -6378,7 +6427,7 @@
           pushStatus.textContent = `Nicht angelegt: ${varSkusPush.fehler}`;
           pushStatus.style.color = 'var(--danger)';
           showToast(varSkusPush.fehler, 'error', 8000);
-          createWcBtn.disabled = false;
+          anlageLaeuft = false; aktualisiereAnlage();
           return;
         }
 
@@ -6404,7 +6453,7 @@
           pushStatus.textContent = 'Nicht angelegt: Lieferzeit fehlt.';
           pushStatus.style.color = 'var(--danger)';
           showToast(`Lieferzeit nicht gesetzt: ${grund}`, 'error', 12000);
-          createWcBtn.disabled = false;
+          anlageLaeuft = false; aktualisiereAnlage();
           return;
         }
 
@@ -6542,7 +6591,7 @@
           resetForm();
           renderVariants();
           prodStatusSel.value = 'draft';
-          createWcBtn.disabled = true;
+          anlageLaeuft = false; aktualisiereAnlage();
           seoStatusSel.value = 'pending';
           seoStatusSel.classList.remove('accent');
           seoBlock.classList.remove('visible');
@@ -6554,7 +6603,7 @@
         } catch (e) {
           pushStatus.textContent = `Fehler: ${e.message}`;
           pushStatus.style.color = 'var(--danger)';
-          createWcBtn.disabled = false;
+          anlageLaeuft = false; aktualisiereAnlage();
         }
       });
 

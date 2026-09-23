@@ -47,7 +47,7 @@ const html  = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../
 const block = (a, e) => html.slice(html.indexOf(a), html.indexOf(e));
 const SKU   = block('// ── SKU-Regeln: Anfang', '// ── SKU-Regeln: Ende ──');
 const AID   = block('// ── Artikel-ID: Anfang', '// ── Artikel-ID: Ende ──');
-const fe    = new Function(`${SKU}\n${AID}\n return { aidZustand, einmalGleichzeitig };`)();
+const fe    = new Function(`${SKU}\n${AID}\n return { aidZustand, einmalGleichzeitig, anlageZustand };`)();
 
 const GUT = { name: 'Oldschool T-Shirt Herren', lshop: 'E3000', kurz: 'CH-Oldschool', ssotId: '', editMode: false, laeuft: false };
 
@@ -158,5 +158,58 @@ describe('Anbindung in index.html', () => {
     const von = html.indexOf("getElementById('btn-create-wc').addEventListener");
     const handler = html.slice(von, von + 2500);
     expect(handler).toMatch(/let ssotId = document\.getElementById\('pf-ssot-id'\)\.value;\s*\n\s*\/\/[^\n]*\n\s*if \(!ssotId\) \{/);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// Nachtrag AID2: "In WooCommerce anlegen" verlangt nicht mehr den Status
+// "Bereit zur Anlage", sondern Artikel-ID + dieselben Pflichtpruefungen.
+describe('Freigabe "In WooCommerce anlegen"', () => {
+  const OK = {
+    editMode: false, laeuft: false, ssotId: 'JFN-2026-0042', variantenAnzahl: 2, aktiveAnzahl: 2,
+    preiseFehlen: false, achsenFehler: null, lieferzeitFehler: null, skuFehler: null,
+  };
+
+  test('ID vorhanden + Pflichtfelder gueltig -> aktiv', () => {
+    expect(fe.anlageZustand(OK)).toEqual({ aktiv: true, grund: '' });
+  });
+
+  test('Artikel ohne Varianten (Puck) mit ID -> aktiv', () => {
+    expect(fe.anlageZustand({ ...OK, variantenAnzahl: 0, aktiveAnzahl: 0 })).toEqual({ aktiv: true, grund: '' });
+  });
+
+  test('ID fehlt -> gesperrt mit Grund', () => {
+    expect(fe.anlageZustand({ ...OK, ssotId: '' }))
+      .toEqual({ aktiv: false, grund: 'Artikel-ID fehlt – zuerst „Artikel-ID anlegen“.' });
+  });
+
+  test.each([
+    ['keine Variante ausgewaehlt', { aktiveAnzahl: 0 },                                'Bitte mindestens eine Variante auswählen.'],
+    ['Preis fehlt',                { preiseFehlen: true },                             'Bitte alle Variantenpreise ausfüllen.'],
+    ['Farbachse fehlt',            { achsenFehler: 'Variantenachse "Farbe" fehlt.' },  'Variantenachse "Farbe" fehlt.'],
+    ['Lieferzeit fehlt',           { lieferzeitFehler: 'keine Lieferzeit gewählt' },   'Lieferzeit: keine Lieferzeit gewählt'],
+    ['SKU ungueltig',              { skuFehler: 'Varianten-SKU zu lang.' },            'Varianten-SKU zu lang.'],
+  ])('Pflichtfeld ungueltig (%s) -> gesperrt mit Grund', (_n, aenderung, grund) => {
+    expect(fe.anlageZustand({ ...OK, ...aenderung })).toEqual({ aktiv: false, grund });
+  });
+
+  test('waehrend der Anlage und im Aenderungspfad gesperrt, ohne Grund', () => {
+    expect(fe.anlageZustand({ ...OK, laeuft: true })).toEqual({ aktiv: false, grund: '' });
+    expect(fe.anlageZustand({ ...OK, editMode: true })).toEqual({ aktiv: false, grund: '' });
+  });
+
+  test('echte SKU-Pruefung: zu lange Varianten-SKU sperrt', () => {
+    const skuFe = new Function(`${SKU}\n return { skuBaueArtikelnummer, skuBaueVariantenSkus };`)();
+    const art = skuFe.skuBaueArtikelnummer('E3000', 'CH-Oldschool').artikelnummer;
+    const lang = [{ attrs: [{ name: 'Farbe', value: 'Sehr sehr sehr lange Farbbezeichnung mit Zusatz' }] }];
+    const fehler = skuFe.skuBaueVariantenSkus(art, lang).fehler;
+    expect(fehler).toBeTruthy();
+    expect(fe.anlageZustand({ ...OK, skuFehler: fehler }).aktiv).toBe(false);
+  });
+
+  test('Status "Bereit zur Anlage" gibt den Knopf nicht mehr frei', () => {
+    expect(html).not.toMatch(/createWcBtn\.disabled = prodStatusSel\.value !== 'ready'/);
+    expect(html).not.toMatch(/createWcBtn\.disabled = (true|false)/);
+    expect(html).toContain("document.getElementById('product-form-area').addEventListener('input',  aktualisiereAnlage);");
   });
 });
