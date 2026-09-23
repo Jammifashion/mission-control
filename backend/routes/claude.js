@@ -5,6 +5,7 @@ import { getModel } from '../lib/modelConfig.js';
 import { sanitizeJsonControlChars, collectText } from '../utils/json-parse.js';
 import {
   buildSeoUserPrompt, resolveModus, pruefeSeoText, pruefeH2, h2KorrekturBlock,
+  entferneLeereLi,
 } from '../lib/seo-prompt.js';
 
 const router = Router();
@@ -374,6 +375,17 @@ WEITERES:
         }
       }
 
+      // Leere Listenpunkte raus, in Beschreibung UND Kurzbeschreibung. Beim
+      // Oldschool-Shirt standen zwei leere <li> unter "Produktdetails" - das
+      // Modell hatte Zeilen geleert, die im Prompt standen, obwohl sie gegen
+      // die Regeln verstiessen. Gemeldet wird es trotzdem.
+      const kurzLi = entferneLeereLi(kurzbeschreibung);
+      const langLi = entferneLeereLi(produktbeschreibung);
+      kurzbeschreibung    = kurzLi.html;
+      produktbeschreibung = langLi.html;
+      const leereLi = kurzLi.entfernt + langLi.entfernt;
+      const liHinweis = leereLi ? `${leereLi} leere${leereLi === 1 ? 'r' : ''} Listenpunkt${leereLi === 1 ? '' : 'e'} entfernt.` : null;
+
       const meldungen = pruefeSeoText({
         kurzbeschreibung,
         produktbeschreibung,
@@ -383,7 +395,7 @@ WEITERES:
         groessen,
       });
 
-      const alleHinweise = [modusWarnung, materialMeldung, ...meldungen].filter(Boolean);
+      const alleHinweise = [modusWarnung, materialMeldung, liHinweis, ...meldungen].filter(Boolean);
 
       return res.json({
         short_description: kurzbeschreibung,

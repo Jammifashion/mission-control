@@ -251,10 +251,9 @@ export function parseFarben(input) {
  * jeden Satz, in dem das Wort Farbe vorkommt.
  */
 function istFarbZeile(zeile) {
-  const text = String(zeile ?? '');
-  const i = text.indexOf(':');
-  if (i <= 0) return false;
-  const label = normalize(text.slice(0, i));      // "Farbe(n)" → "farbe n"
+  const lw = labelUndWert(zeile);                 // Doppelpunkt ODER Tab
+  if (!lw) return false;
+  const label = normalize(lw.label);              // "Farbe(n)" → "farbe n"
   if (label.includes('farbigkeit')) return false; // eigener Zweig: Sperrliste
   return /\bfarben?\b|\bcolou?rs?\b/.test(label);
 }
@@ -267,13 +266,13 @@ function istFarbZeile(zeile) {
  * ginge die Farbliste für filterMaterialFarben verloren und der Prompt zeigte
  * "siehe Varianten" statt der echten Farben.
  *
- * Abgeschnitten wird am Doppelpunkt, nicht am Label-Muster – damit auch
- * "Verfügbare Farben: Schwarz" den Wert sauber hergibt.
+ * Abgeschnitten wird am ersten Doppelpunkt oder Tab (labelUndWert), nicht am
+ * Label-Muster – damit auch "Verfügbare Farben: Schwarz" den Wert sauber hergibt.
  */
 export function farbenAusEigenschaften(lines) {
   const werte = (lines ?? [])
     .filter(istFarbZeile)
-    .map(z => String(z).slice(String(z).indexOf(':') + 1));
+    .map(z => labelUndWert(z).wert);
   // Als TEXT weiterreichen, nicht als Array: die Zeile ist Freitext und wird
   // an "," und ";" getrennt ("Weiß/Pink, Schwarz" -> zwei Farben).
   return parseFarben(werte.join('\n'));
@@ -294,7 +293,7 @@ export function parseGroessen(input) {
  *
  * Entfernt werden
  *  - Zeilen mit einem Sperrbegriff (Farbigkeit, Veredelungsangabe, Verarbeitung)
- *  - Zeilen, deren Label eine Größe benennt ("Größen: S–5XL", "Größenlauf: …").
+ *  - Zeilen, deren Label eine Größe benennt ("Größen: S–5XL", "Größenlauf<TAB>…").
  *    Größen kommen ausschließlich aus der Variantenauswahl.
  *  - Farbzeilen ("Farbe: …", "Farbe(n): …", "Farben: …"). Der Generator baut
  *    seit der Größen-Änderung selbst eine Zeile "Farben: …" in die Detailliste;
@@ -311,11 +310,11 @@ export function filterEigenschaften(lines) {
     if (SPERR_BEGRIFFE.some(b => ganzeZeile.includes(b))) return false;
     if (istFarbZeile(zeile)) return false;
 
-    const trenner = String(zeile).indexOf(':');
-    if (trenner > 0) {
-      const label = normalize(String(zeile).slice(0, trenner));
-      if (/groesse|size/.test(label)) return false;
-    }
+    // Label am ersten Doppelpunkt ODER Tab: "Größenlauf<TAB>XS - 8XL" aus dem
+    // L-Shop-Datenblatt faellt genauso raus wie "Größen: S–5XL". normalize()
+    // macht aus ß und ö "ss"/"oe" - Größe, Grösse, Groesse treffen alle.
+    const lw = labelUndWert(zeile);
+    if (lw && /groesse|size/.test(normalize(lw.label))) return false;
     return true;
   });
 }
@@ -710,16 +709,78 @@ export function filterMaterialFarben(material, farben) {
  * Tabulator - "Grammatur in g/m²<TAB>180 g/m²" (L-Shop-Datenblatt, kopiert)
  * genauso wie "Grammatur: 180 g/m²".
  *
- * Ein Label beginnt mit einem Buchstaben und enthaelt kein "%" und keine
- * Klammer. Sonst wuerde der Doppelpunkt in "100% Baumwolle (Grau: 60% …)" als
+ * Ein Label beginnt mit einem Buchstaben, enthaelt kein "%" und Klammern nur
+ * geschlossen ("Farbe(n)"). Sonst wuerde der Doppelpunkt in
+ * "100% Baumwolle (Grau: 60% …)" oder "Baumwolle (Grau meliert: 60% …)" als
  * Trenner gelesen und die Faserangabe verloere ihren Anfang.
  *
  * @returns {{ label: string, wert: string }|null} null, wenn kein Label.
  */
 export function labelUndWert(zeile) {
-  const t = String(zeile ?? '').match(/^\s*([A-Za-zÄÖÜäöüß][^:\t%()]{0,39}?)\s*(?::|\t)\s*(.*?)\s*$/);
-  if (!t || !t[1].trim() || !t[2]) return null;
+  const t = String(zeile ?? '')
+    .match(/^\s*([A-Za-zÄÖÜäöüß](?:[^:\t%()]|\([^():\t%]*\))*?)\s*(?::|\t)\s*(.*?)\s*$/);
+  if (!t || !t[1].trim() || t[1].length > 40 || !t[2]) return null;
   return { label: t[1].trim(), wert: t[2] };
+}
+
+/** Steht vor dem ersten Doppelpunkt ein Tab? Dann ist es das L-Shop-Format. */
+function tabGetrennt(zeile) {
+  const z = String(zeile ?? '');
+  const tab = z.indexOf('\t'), dp = z.indexOf(':');
+  return tab >= 0 && (dp < 0 || tab < dp);
+}
+
+// Labels, die eine Grammatur einleiten. Entscheidend ist das ERSTE Wort:
+// "Grammatur in g/m²" (L-Shop-Datenblatt) zaehlt mit.
+const GRAMMATUR_LABELS = ['grammatur', 'stoffgewicht', 'flächengewicht', 'flaechengewicht'];
+
+/** Grammatur-Wert einer Zeile ohne Label, oder null. Nur ueber das Label. */
+export function grammaturAusZeile(zeile) {
+  const lw = labelUndWert(zeile);
+  if (!lw) return null;
+  const erstesWort = lw.label.toLowerCase().split(/\s+/)[0];
+  return GRAMMATUR_LABELS.includes(erstesWort) && /\d/.test(lw.wert) ? lw.wert : null;
+}
+
+/**
+ * Faserangabe ohne fuehrendes Label ("Materialzusammensetzung<TAB>100% …",
+ * "Material: …"). Ein Label "Material" faellt immer, jedes andere nur, wenn
+ * der Rest mit einer Prozentangabe beginnt - sonst bleibt der Text stehen.
+ */
+export function faserOhneLabel(text) {
+  const lw = labelUndWert(text);
+  if (!lw) return text;
+  return normalize(lw.label) === 'material' || /^\d{1,3}\s*%/.test(lw.wert) ? lw.wert : text;
+}
+
+/**
+ * Zeile fuer die Detailliste. Doppelpunkt-Zeilen bleiben wie sie sind.
+ * Tab-Zeilen (L-Shop) werden zu "Label: Wert"; eine Grammatur-Zeile mit dem
+ * L-Shop-Label "Grammatur in g/m²" wird zu "Grammatur: 180 g/m²".
+ */
+function detailZeile(zeile) {
+  const text = String(zeile ?? '').trim();
+  const lw   = labelUndWert(text);
+  if (!lw) return text;
+  const erstesWort = lw.label.toLowerCase().split(/\s+/)[0];
+  if (erstesWort === 'grammatur' && grammaturAusZeile(text) && lw.label.toLowerCase() !== 'grammatur')
+    return `Grammatur: ${lw.wert}`;
+  return tabGetrennt(text) ? `${lw.label}: ${lw.wert}` : text;
+}
+
+/**
+ * Leere Listenpunkte entfernen ("<li></li>", "<li> </li>", "<li><br></li>",
+ * "<li><strong></strong></li>"), danach leer gewordene <ul>. Gilt fuer
+ * Beschreibung UND Kurzbeschreibung.
+ *
+ * @returns {{ html: string, entfernt: number }}
+ */
+export function entferneLeereLi(html) {
+  let entfernt = 0;
+  const leer = /<li\b[^>]*>(?:\s|&nbsp;|&#160;|<br\s*\/?>|<(strong|b|em|i|span)\b[^>]*>(?:\s|&nbsp;|&#160;)*<\/\1>)*<\/li>[ \t]*\n?/gi;
+  let out = String(html ?? '').replace(leer, () => { entfernt++; return ''; });
+  out = out.replace(/<ul\b[^>]*>\s*<\/ul>[ \t]*\n?/gi, '');
+  return { html: out, entfernt };
 }
 
 /**
@@ -742,8 +803,10 @@ export function materialAusEigenschaften(eigenschaften, farben) {
   const eigenschaftenLines = filterEigenschaften(rohLines);
 
   const materialZeile = eigenschaftenLines.find(l => MATERIAL_LINE_RE.test(l))?.trim() || '';
-  // Führendes "Material:" abschneiden – das Label steht schon im <li>.
-  const materialRoh    = materialZeile.replace(/^\s*material\s*:\s*/i, '');
+  // Führendes Label abschneiden – "Material:" wie bisher, dazu jedes Label vor
+  // Doppelpunkt oder Tab, hinter dem die Prozentangabe beginnt
+  // ("Materialzusammensetzung<TAB>100% …"). Das Label steht schon im <li>.
+  const materialRoh    = faserOhneLabel(materialZeile);
 
   const farbListe = parseFarben(
     farben && (Array.isArray(farben) ? farben.length : String(farben).trim())
@@ -799,7 +862,8 @@ export function buildSeoUserPrompt({
   // Material-Zeilen fliegen aus dem Rest raus: Material hat ein eigenes,
   // gefiltertes Feld. Sonst käme der ungefilterte Rohstring über
   // "Weitere Eigenschaften" doch wieder beim Modell an.
-  const weitereLines = eigenschaftenLines.filter(l => !MATERIAL_LINE_RE.test(l));
+  // Tab-Zeilen als "Label: Wert", die L-Shop-Grammatur als "Grammatur: …".
+  const weitereLines = eigenschaftenLines.filter(l => !MATERIAL_LINE_RE.test(l)).map(detailZeile);
 
   const weitereLi = weitereLines
     .slice(0, 5)

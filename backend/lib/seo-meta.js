@@ -15,7 +15,9 @@
 //
 // Kein Aufruf an seo-text oder agent-intern, kein Modell - absichtlich.
 
-import { materialAusEigenschaften, labelUndWert, MATERIAL_PLACEHOLDER } from './seo-prompt.js';
+import {
+  materialAusEigenschaften, grammaturAusZeile, faserOhneLabel, MATERIAL_PLACEHOLDER,
+} from './seo-prompt.js';
 import { groessenRang } from './groessen.js';
 
 export const META_MAX          = 160;   // Zeichen, nicht Bytes
@@ -208,34 +210,22 @@ export function yoastEntscheidung({ neu, vorhanden, ueberschreiben = false } = {
 
 // ── Nur Backend: Eingaben aus dem Eigenschaften-Freitext ────────────────────
 
-// Labels, die eine Grammatur einleiten. Das Label darf weitergehen:
-// "Grammatur in g/m²" (L-Shop-Datenblatt) zaehlt, entscheidend ist das erste Wort.
-const GRAMMATUR_LABELS = ['grammatur', 'stoffgewicht', 'flächengewicht', 'flaechengewicht'];
-
 /**
  * Grammatur aus einer Zeile "Grammatur: 280 g/m²" oder
  * "Grammatur in g/m²<TAB>180 g/m²" - ausgegeben OHNE Label.
  * Nur ueber das Label - eine Zahl mit "g" irgendwo im Text ist keine Angabe.
+ * Die Label-Regel steht in seo-prompt.js (grammaturAusZeile).
  */
 export function grammaturAusEigenschaften(eigenschaften) {
   for (const zeile of String(eigenschaften ?? '').split('\n')) {
-    const lw = labelUndWert(zeile);
-    if (!lw) continue;
-    const erstesWort = lw.label.toLowerCase().split(/\s+/)[0];
-    if (GRAMMATUR_LABELS.includes(erstesWort) && /\d/.test(lw.wert)) return teil(lw.wert);
+    const g = grammaturAusZeile(zeile);
+    if (g) return teil(g);
   }
   return null;
 }
 
-/**
- * Faserangabe ohne fuehrendes Label ("Materialzusammensetzung<TAB>100% …",
- * "Zusammensetzung: 100% …"). Abgeschnitten wird nur, wenn der Rest mit einer
- * Prozentangabe beginnt - sonst bleibt der Text, wie er ist.
- */
-export function faserOhneLabel(text) {
-  const lw = labelUndWert(text);
-  return lw && /^\d{1,3}\s*%/.test(lw.wert) ? lw.wert : text;
-}
+// Faser ohne Label: seit M2 schon in materialAusEigenschaften (seo-prompt.js).
+export { faserOhneLabel };
 
 /**
  * Faserangabe (NACH filterMaterialFarben, unveraendert) und Grammatur.
@@ -245,7 +235,7 @@ export function faserOhneLabel(text) {
  */
 export function metaEingaben({ eigenschaften, farben } = {}) {
   const { material, meldung } = materialAusEigenschaften(eigenschaften, farben);
-  const faser = material && material !== MATERIAL_PLACEHOLDER ? faserOhneLabel(material) : null;
+  const faser = material && material !== MATERIAL_PLACEHOLDER ? material : null;
   return {
     faserangabe:  faser,
     faserMeldung: faser ? meldung : null,

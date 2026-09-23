@@ -51,7 +51,8 @@ Neue Sektionen immer mit Anker versehen:
   `POST /api/seo/meta-eingaben` (backend/routes/seo-meta.js), weil
   filterMaterialFarben nur im Backend lebt. Faserangabe und Grammatur gehen OHNE
   Label hinein; Label = Teil vor dem ersten Doppelpunkt oder Tab (`labelUndWert()`
-  in seo-prompt.js, L-Shop-Datenblaetter sind Tab-getrennt).
+  in seo-prompt.js, L-Shop-Datenblaetter sind Tab-getrennt). Dieselbe Funktion nutzt
+  der SEO-Prompt fuer Farb-, Groessen- und Materialzeilen; keine zweite Label-Logik.
 
 - backend/lib/lieferzeiten.js – German-Market-Lieferzeit (`_lieferzeit`, Term-ID als
   String). Quelle: SSOT-Reiter `Struktur_Lieferzeiten` (Term_ID | Name | Slug | Standard),
