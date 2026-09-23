@@ -1318,6 +1318,9 @@
             <div class="form-field">
               <label>SSOT-ID <span class="field-note">(auto)</span></label>
               <input id="pf-ssot-id" type="text" class="form-input accent" readonly placeholder="wird automatisch vergeben" />
+              <button type="button" class="btn-secondary" id="btn-aid-anlegen" disabled
+                      style="margin-top:0.4rem;font-size:0.82rem;padding:0.42rem 0.85rem;">Artikel-ID anlegen</button>
+              <div id="btn-aid-grund" class="field-note" style="margin-top:0.25rem;"></div>
             </div>
             <div class="form-field form-col-full">
               <label>WooCommerce Product ID <span class="field-note">(nach Anlage)</span></label>
@@ -3876,6 +3879,35 @@
       }
       // ── SKU-Regeln: Ende ──
 
+      // ── Artikel-ID: Anfang (reine Logik, backend/tests/artikel-id.test.js) ──
+      // Befehl AID: die SSOT-ID bewusst anlegen, sobald die Kopfdaten stehen.
+      // Nutzt skuBaueArtikelnummer aus dem SKU-Block (dieselbe Pruefung wie
+      // "Entwurf speichern"). Kein document, keine Modul-Variablen.
+      function aidZustand({ name, lshop, kurz, ssotId, editMode, laeuft } = {}) {
+        if (editMode) return { sichtbar: false, aktiv: false, text: 'Artikel-ID anlegen', grund: '' };
+        const id = String(ssotId ?? '').trim();
+        if (id)      return { sichtbar: true, aktiv: false, text: `Artikel-ID ${id} vorhanden`, grund: '' };
+        if (laeuft)  return { sichtbar: true, aktiv: false, text: 'Wird angelegt…', grund: '' };
+        if (!String(name ?? '').trim())
+          return { sichtbar: true, aktiv: false, text: 'Artikel-ID anlegen', grund: 'Produktname fehlt.' };
+        const sku = skuBaueArtikelnummer(lshop, kurz);
+        if (sku.fehler) return { sichtbar: true, aktiv: false, text: 'Artikel-ID anlegen', grund: sku.fehler };
+        return { sichtbar: true, aktiv: true, text: 'Artikel-ID anlegen', grund: '' };
+      }
+
+      // Ein Aufruf zur Zeit: solange die erste Anfrage laeuft, bekommt jeder
+      // weitere Aufruf dasselbe Versprechen zurueck - statt eine zweite Anfrage
+      // (und damit eine zweite Sheet-Zeile) zu starten.
+      function einmalGleichzeitig(fn) {
+        let laufend = null;
+        return (...args) => {
+          if (laufend) return laufend;
+          laufend = Promise.resolve().then(() => fn(...args)).finally(() => { laufend = null; });
+          return laufend;
+        };
+      }
+      // ── Artikel-ID: Ende ──
+
       // ── Farbachsen-Regel: Anfang (reine Logik, backend/tests/farbachse.test.js) ──
       // Spiegelt backend/lib/varianten-achsen.js. Gleiche Bedingung wie beim
       // SKU-Block: NICHTS aus dem Seitenkontext – der Test schneidet ihn heraus
@@ -4002,8 +4034,54 @@
           hint.textContent = r.fehler ?? '';
           hint.style.color = 'var(--danger)';
         }
+        aktualisiereAid();
         return r;
       }
+
+      // ── Knopf "Artikel-ID anlegen" (Befehl AID) ─────────────────────────
+      let aidLaeuft = false;
+      function aktualisiereAid() {
+        const btn = document.getElementById('btn-aid-anlegen');
+        if (!btn) return;
+        const z = aidZustand({
+          name:     document.getElementById('pf-name').value,
+          lshop:    document.getElementById('pf-lshop-nr').value,
+          kurz:     document.getElementById('pf-short-name').value,
+          ssotId:   document.getElementById('pf-ssot-id').value,
+          editMode, laeuft: aidLaeuft,
+        });
+        btn.style.display = z.sichtbar ? '' : 'none';
+        btn.disabled      = !z.aktiv;
+        btn.textContent   = z.text;
+        const grund = document.getElementById('btn-aid-grund');
+        grund.textContent   = z.sichtbar ? z.grund : '';
+        grund.style.display = z.sichtbar && z.grund ? '' : 'none';
+      }
+      document.getElementById('pf-name').addEventListener('input', aktualisiereAid);
+      aktualisiereAid();   // Anfangszustand: gesperrt, Grund sichtbar
+
+      // Derselbe Speicherweg wie "Entwurf speichern" (saveDraft), kein zweiter.
+      document.getElementById('btn-aid-anlegen').addEventListener('click', async () => {
+        const vorhanden = document.getElementById('pf-ssot-id').value.trim();
+        if (vorhanden) {                        // idempotent: keine neue Zeile
+          showToast(`Artikel-ID ${vorhanden} besteht bereits`, 'info');
+          aktualisiereAid();
+          return;
+        }
+        if (aidLaeuft) return;                  // Doppelklick waehrend der Anfrage
+        aidLaeuft = true;
+        aktualisiereAid();
+        try {
+          await saveDraft(false);
+          const id = document.getElementById('pf-ssot-id').value.trim();
+          if (id) showToast(`Artikel-ID ${id} angelegt`, 'success');
+        } catch (e) {
+          showToast(`Artikel-ID nicht angelegt: ${e.message}`, 'error', 8000);
+        } finally {
+          aidLaeuft = false;
+          aktualisiereAid();
+        }
+      });
       document.getElementById('pf-lshop-nr').addEventListener('input', updateArticleNr);
 
       // Die Spiegelung Produktname → Kurzbezeichnung ist ersatzlos entfallen:
@@ -4947,6 +5025,7 @@
         document.getElementById('pf-hauptbild-status').textContent = '';
         document.getElementById('pf-hauptbild-upload').disabled = true;
         setzeHauptbild(null, '');
+        aktualisiereAid();
       }
 
       function setMode(edit) {
@@ -6061,7 +6140,14 @@
       }
 
       // Save draft → localStorage + Google Sheet (mit Duplikat-Prüfung)
-      async function saveDraft(showButton = true) {
+      //
+      // Befehl AID: nur EIN Speichern zur Zeit. "Entwurf speichern", "Artikel-ID
+      // anlegen" und der Anlagepfad (Schritt 0) laufen alle hier durch; ein
+      // zweiter Aufruf waehrend der ersten Anfrage bekommt deren Ergebnis, statt
+      // eine zweite Zeile anzulegen. Die ID-Vergabe im Backend hat keine Sperre
+      // (maxSeq + 1, siehe routes/sheets.js) - darum hier.
+      const saveDraft = einmalGleichzeitig(saveDraftEinmal);
+      async function saveDraftEinmal(showButton = true) {
         const btn = showButton ? document.getElementById('btn-save-draft') : null;
         const artikelnummer = document.getElementById('pf-article-nr').value.trim();
 
@@ -6107,6 +6193,7 @@
           document.getElementById('pf-ssot-id').value = ssotId;
           draft.ssotId = ssotId;
           localStorage.setItem('mc_product_draft', JSON.stringify(draft));
+          aktualisiereAid();
         };
 
         const resetBtn = () => {
@@ -6151,8 +6238,12 @@
           }
 
           // ── Zweiter Call: Zeile überschreiben ─────────────────────────────
-          btn.disabled    = true;
-          btn.textContent = 'Wird überschrieben…';
+          // btn ist null, wenn saveDraft(false) aus "Artikel-ID anlegen" oder
+          // dem Anlagepfad kommt - dann gibt es keinen Knopf zu sperren.
+          if (btn) {
+            btn.disabled    = true;
+            btn.textContent = 'Wird überschrieben…';
+          }
 
           // Produkt-ID ausdruecklich mitschicken, wie in den beiden anderen
           // overwrite-Aufrufen. Ohne Wert bleibt der Key weg, damit die
