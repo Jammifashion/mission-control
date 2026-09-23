@@ -1208,6 +1208,25 @@
                 </div>
               </div>
             </div>
+            <div class="card" style="margin-bottom:1rem;">
+              <div class="form-section-title">Yoast: SEO-Titel und Meta-Beschreibung <span class="field-note">(ohne KI, aus Keyphrase, Farben, Eigenschaften, Größen)</span></div>
+              <div class="form-field" style="margin-bottom:0.75rem;">
+                <label>SEO-Titel <span id="seo-meta-titel-info" class="field-note"></span></label>
+                <div id="seo-meta-titel" class="form-input" style="min-height:2.2rem;white-space:pre-wrap;"></div>
+                <div id="seo-meta-titel-hinweis" style="font-size:0.8rem;color:var(--muted);margin-top:0.25rem;"></div>
+                <label id="seo-meta-titel-ueber-wrap" style="display:none;font-size:0.8rem;margin-top:0.25rem;">
+                  <input type="checkbox" id="seo-meta-titel-ueber" /> überschreiben
+                </label>
+              </div>
+              <div class="form-field">
+                <label>Meta-Beschreibung <span id="seo-meta-desc-info" class="field-note"></span></label>
+                <div id="seo-meta-desc" class="form-input" style="min-height:3.2rem;white-space:pre-wrap;"></div>
+                <div id="seo-meta-desc-hinweis" style="font-size:0.8rem;color:var(--muted);margin-top:0.25rem;"></div>
+                <label id="seo-meta-desc-ueber-wrap" style="display:none;font-size:0.8rem;margin-top:0.25rem;">
+                  <input type="checkbox" id="seo-meta-desc-ueber" /> überschreiben
+                </label>
+              </div>
+            </div>
             <div class="panel-actions">
               <button class="btn-secondary" id="btn-seo-generate">Beschreibung generieren</button>
               <button class="btn" id="btn-seo-save">SEO Speichern</button>
@@ -4437,7 +4456,285 @@
       };
       // ── SEO-Größenquelle: Ende ──
 
+      // ── SEO-Meta: Anfang (reine Logik, backend/tests/seo-meta.test.js) ──
+      // Spiegelt den Bau-Teil von backend/lib/seo-meta.js. Massgeblich bleibt
+      // die Backend-Datei; der Test prueft beide auf gleiche Ergebnisse. Der
+      // Block darf NICHTS aus dem Seitenkontext benutzen – der Test schneidet
+      // ihn heraus und fuehrt ihn aus.
+      //
+      // Kein Sprachmodell. Titel = "<Keyphrase> %%sep%% %%sitename%%" – die
+      // Platzhalter WOERTLICH (M1, 23.09.: Yoast loest sie auf, Trennzeichen
+      // global |). Meta-Beschreibung hoechstens 160 Zeichen, gekuerzt wird in
+      // fester Reihenfolge: Grammatur, dann Groessenspanne. Reicht das nicht,
+      // wird nicht geschrieben – abgeschnitten wird nie.
+      const SEO_META_MAX          = 160;
+      const SEO_META_TITEL_VORL   = '%%sep%% %%sitename%%';
+      const SEO_META_WRIST        = 'gedruckt nach Bestellung in Wrist';
+      const SEO_META_LZ_SELBST    = '21';
+      const SEO_META_LZ_KEY       = '_lieferzeit';
+
+      function seoMetaLaenge(text) {
+        return [...String(text ?? '')].length;
+      }
+
+      function seoMetaTitel(keyphrase) {
+        const k = String(keyphrase ?? '').trim();
+        return k ? `${k} ${SEO_META_TITEL_VORL}` : null;
+      }
+
+      function seoMetaFarbenText(farben) {
+        const liste = [];
+        for (const f of Array.isArray(farben) ? farben : []) {
+          const w = String(f ?? '').trim();
+          if (w && !liste.some(x => x.toLowerCase() === w.toLowerCase())) liste.push(w);
+        }
+        if (!liste.length) return '';
+        if (liste.length === 1) return `in ${liste[0]}`;
+        if (liste.length <= 3) return `in ${liste.slice(0, -1).join(', ')} und ${liste[liste.length - 1]}`;
+        return `in ${liste.length} Farben`;
+      }
+
+      function seoMetaGroessenRang(wert) {
+        const g = String(wert ?? '').trim().toUpperCase().replace(/\s+/g, '');
+        if (g === 'M') return { klasse: 'buchstabe', rang: 4 };
+        // "4XL" = Ziffer + X, "XXL" = X-Folge; beide zaehlen die X.
+        let t = g.match(/^(?:(\d+)X|(X*))(S|L)$/);
+        if (t) {
+          const n = t[1] ? Number(t[1]) : t[2].length;
+          if (t[1] && n < 2) return null;
+          return { klasse: 'buchstabe', rang: t[3] === 'L' ? 5 + n : 3 - n };
+        }
+        t = g.match(/^(\d{1,3})(?:[/-]\d{1,3})?$/);
+        if (t) return { klasse: 'zahl', rang: Number(t[1]) };
+        return null;
+      }
+
+      function seoMetaGroessenSpanne(groessen) {
+        const liste = (Array.isArray(groessen) ? groessen : [])
+          .map(g => String(g ?? '').trim()).filter(Boolean);
+        if (!liste.length) return { text: null, hinweis: null };
+        const raenge = liste.map(g => ({ g, r: seoMetaGroessenRang(g) }));
+        const unklar = raenge.filter(x => !x.r).map(x => x.g);
+        if (unklar.length || new Set(raenge.map(x => x.r.klasse)).size > 1) {
+          return {
+            text: null,
+            hinweis: `Größen nicht sortierbar (${liste.join(', ')}) – Größenspanne weggelassen.`,
+          };
+        }
+        const sortiert = [...raenge].sort((a, b) => a.r.rang - b.r.rang);
+        const von = sortiert[0].g;
+        const bis = sortiert[sortiert.length - 1].g;
+        if (sortiert[0].r.rang === sortiert[sortiert.length - 1].r.rang) {
+          return { text: `Größe ${von}`, hinweis: null };
+        }
+        return { text: `Größen ${von} bis ${bis}`, hinweis: null };
+      }
+
+      function seoMetaLieferzeit(metaData) {
+        const eintrag = (Array.isArray(metaData) ? metaData : []).find(m => m && m.key === SEO_META_LZ_KEY);
+        if (!eintrag || eintrag.value == null) return null;
+        if (typeof eintrag.value === 'object') return null;
+        const w = String(eintrag.value).trim();
+        return w || null;
+      }
+
+      function seoMetaTeil(text) {
+        return String(text ?? '').trim().replace(/[\s.,;]+$/, '');
+      }
+
+      function seoMetaSatz(text) {
+        const t = seoMetaTeil(text);
+        if (!t) return '';
+        return t.charAt(0).toLocaleUpperCase('de-DE') + t.slice(1) + '.';
+      }
+
+      function seoMetaBeschreibung(e = {}) {
+        const hinweise = [];
+        const k = seoMetaTeil(e.keyphrase);
+        if (!k) {
+          return {
+            text: null, laenge: 0, schreiben: false, weggelassen: [],
+            hinweise: ['Keine Fokus-Keyphrase – keine Meta-Beschreibung.'],
+          };
+        }
+        const farben = seoMetaFarbenText(e.farben);
+        let faser = seoMetaTeil(e.faserangabe);
+        if (e.faserMeldung) {
+          hinweise.push(`Faserangabe weggelassen: ${e.faserMeldung}`);
+          faser = '';
+        } else if (!faser) {
+          hinweise.push('Keine Faserangabe – Teil weggelassen.');
+        }
+        const grammatur = seoMetaTeil(e.grammatur);
+        const spanne = seoMetaGroessenSpanne(e.groessen);
+        if (spanne.hinweis) hinweise.push(spanne.hinweis);
+        const lz = String(e.lieferzeit ?? '').trim();
+        const wrist = lz === SEO_META_LZ_SELBST;
+        if (!wrist) {
+          hinweise.push(lz
+            ? `_lieferzeit ist "${lz}", nicht ${SEO_META_LZ_SELBST} (nicht selbst bedruckt) – „${SEO_META_WRIST}“ weggelassen.`
+            : `_lieferzeit nicht lesbar – „${SEO_META_WRIST}“ weggelassen.`);
+        }
+        const bauen = (mitGrammatur, mitGroessen) => {
+          const erster  = [[k, farben].filter(Boolean).join(' '), faser, mitGrammatur ? grammatur : '']
+            .filter(Boolean).join(', ');
+          const zweiter = [mitGroessen ? spanne.text : '', wrist ? SEO_META_WRIST : '']
+            .filter(Boolean).join(', ');
+          return [seoMetaSatz(erster), seoMetaSatz(zweiter)].filter(Boolean).join(' ');
+        };
+        const weggelassen = [];
+        let mitGrammatur = !!grammatur;
+        let mitGroessen  = !!spanne.text;
+        let text = bauen(mitGrammatur, mitGroessen);
+        if (seoMetaLaenge(text) > SEO_META_MAX && mitGrammatur) {
+          mitGrammatur = false;
+          weggelassen.push('Grammatur');
+          text = bauen(mitGrammatur, mitGroessen);
+        }
+        if (seoMetaLaenge(text) > SEO_META_MAX && mitGroessen) {
+          mitGroessen = false;
+          weggelassen.push('Größenspanne');
+          text = bauen(mitGrammatur, mitGroessen);
+        }
+        const laenge = seoMetaLaenge(text);
+        const schreiben = laenge <= SEO_META_MAX;
+        if (!schreiben) {
+          hinweise.push(`Meta-Beschreibung hat auch gekürzt ${laenge} Zeichen (max. ${SEO_META_MAX}) – nicht geschrieben.`);
+        }
+        return { text, laenge, schreiben, weggelassen, hinweise };
+      }
+
+      function seoMetaEntscheidung({ neu, vorhanden, ueberschreiben = false } = {}) {
+        const n = String(neu ?? '').trim();
+        const v = String(vorhanden ?? '').trim();
+        if (!n) return { aktion: 'kein-wert' };
+        if (!v) return { aktion: 'schreiben' };
+        if (v === n) return { aktion: 'unveraendert' };
+        return { aktion: ueberschreiben ? 'schreiben' : 'behalten' };
+      }
+      // ── SEO-Meta: Ende ──
+
       const seoFarben = () => seoWerteAusVarianten(seoVarianten, FARB_ATTR_RE);
+
+      // ── SEO-Meta: Seitenanbindung ────────────────────────────────────────
+      // Farben fuer die Meta-Beschreibung aus der FARBACHSE – exakt "Farbe",
+      // nicht FARB_ATTR_RE: das traefe auch Druckfarbe und Schriftfarbe.
+      // Erst Varianten-Reiter, sonst das geladene WooCommerce-Produkt.
+      const SEO_META_FARBACHSE = { test: istFarbAchse };
+      function seoMetaFarben() {
+        const v = seoWerteAusVarianten(seoVarianten, SEO_META_FARBACHSE);
+        return v.length ? v : seoWerteAusWcProdukt(seoWcProdukt, SEO_META_FARBACHSE);
+      }
+      function seoMetaVorhanden(key) {
+        const m = ((seoWcProdukt && seoWcProdukt.meta_data) || []).find(x => x && x.key === key);
+        return m && typeof m.value === 'string' ? m.value : '';
+      }
+
+      // Faserangabe (NACH filterMaterialFarben) und Grammatur rechnet das
+      // Backend – der Materialfilter wird nicht ins Frontend gespiegelt.
+      let seoMetaEingabenStand = null;  // { faserangabe, faserMeldung, grammatur } | { fehler }
+      async function seoMetaEingabenLaden() {
+        try {
+          const r = await apiFetch(`${API_BASE()}/api/seo/meta-eingaben`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              eigenschaften: document.getElementById('seo-eigenschaften').value,
+              farben:        seoMetaFarben(),
+            }),
+          });
+          seoMetaEingabenStand = await apiJson(r);
+        } catch (e) {
+          seoMetaEingabenStand = { fehler: e.message };
+        }
+        return seoMetaEingabenStand;
+      }
+
+      // Berechnet Titel und Meta-Beschreibung samt Schreibentscheidung.
+      // Keine Seiteneffekte ausser dem Lesen der Maske.
+      function seoMetaStand() {
+        const keyphrase = document.getElementById('seo-keyphrase').value.trim();
+        const wcLesbar  = !!(seoQuellenOk && seoQuellenOk.wc);
+        const ein       = seoMetaEingabenStand || {};
+
+        const titel = seoMetaTitel(keyphrase);
+        const titelVorh = seoMetaVorhanden('_yoast_wpseo_title');
+        const titelEnt  = seoMetaEntscheidung({
+          neu: titel, vorhanden: titelVorh,
+          ueberschreiben: document.getElementById('seo-meta-titel-ueber').checked,
+        });
+        let titelGrund = titel ? '' : 'Keine Fokus-Keyphrase – kein SEO-Titel, die Yoast-Vorlage greift.';
+
+        const desc = seoMetaBeschreibung({
+          keyphrase,
+          farben:       seoMetaFarben(),
+          faserangabe:  ein.faserangabe,
+          faserMeldung: ein.faserMeldung,
+          grammatur:    ein.grammatur,
+          groessen:     seoGroessenQuelle(seoVarianten, seoWcProdukt, seoQuellenOk).groessen,
+          lieferzeit:   seoMetaLieferzeit(seoWcProdukt && seoWcProdukt.meta_data),
+        });
+        const descVorh = seoMetaVorhanden('_yoast_wpseo_metadesc');
+        let descEnt = seoMetaEntscheidung({
+          neu: desc.schreiben ? desc.text : null, vorhanden: descVorh,
+          ueberschreiben: document.getElementById('seo-meta-desc-ueber').checked,
+        });
+        let descGrund = desc.schreiben ? '' : (desc.hinweise[desc.hinweise.length - 1] || 'kein Wert');
+        if (ein.fehler) {
+          descEnt = { aktion: 'kein-wert' };
+          descGrund = `Faserangabe/Grammatur nicht ermittelbar (${ein.fehler})`;
+        }
+        // Ohne gelesenes Shop-Produkt ist unbekannt, was in Yoast steht – dann
+        // wird nichts geschrieben, sonst ginge ein gepflegter Wert still verloren.
+        if (!wcLesbar) {
+          const grund = 'Shop-Produkt nicht lesbar, vorhandener Wert unbekannt';
+          if (titelEnt.aktion !== 'kein-wert') { titelEnt.aktion = 'kein-wert'; titelGrund = grund; }
+          if (descEnt.aktion  !== 'kein-wert') { descEnt.aktion  = 'kein-wert'; descGrund  = grund; }
+        }
+        return {
+          titel: { wert: titel, vorhanden: titelVorh, aktion: titelEnt.aktion, grund: titelGrund },
+          desc:  { wert: desc.text, laenge: desc.laenge, weggelassen: desc.weggelassen,
+                   hinweise: desc.hinweise, vorhanden: descVorh, aktion: descEnt.aktion, grund: descGrund },
+        };
+      }
+
+      function seoMetaVorschau() {
+        if (!seoCurrentItem) return;
+        const st = seoMetaStand();
+        const zeige = (id, feld, zusatz) => {
+          document.getElementById(`seo-meta-${id}`).textContent = feld.wert || '—';
+          document.getElementById(`seo-meta-${id}-info`).textContent =
+            feld.wert ? `(${seoMetaLaenge(feld.wert)} Zeichen${zusatz || ''})` : '';
+          const behalten = feld.aktion === 'behalten'
+            || (feld.aktion === 'schreiben' && feld.vorhanden && feld.vorhanden.trim() !== String(feld.wert).trim());
+          document.getElementById(`seo-meta-${id}-ueber-wrap`).style.display = behalten ? '' : 'none';
+          const zeilen = [];
+          if (feld.aktion === 'behalten') zeilen.push(`Vorhandener Wert bleibt: "${feld.vorhanden}"`);
+          if (feld.aktion === 'schreiben' && behalten) zeilen.push(`Vorhandener Wert wird überschrieben: "${feld.vorhanden}"`);
+          if (feld.aktion === 'unveraendert') zeilen.push('Steht so schon in Yoast – unverändert.');
+          return zeilen;
+        };
+        const tZeilen = zeige('titel', st.titel);
+        if (st.titel.grund) tZeilen.push(st.titel.grund);
+        document.getElementById('seo-meta-titel-hinweis').textContent = tZeilen.join(' · ');
+
+        const weg = st.desc.weggelassen.length ? `, gekürzt: ${st.desc.weggelassen.join(', ')} weggelassen` : '';
+        const dZeilen = zeige('desc', st.desc, weg);
+        for (const h of st.desc.hinweise) if (!dZeilen.includes(h)) dZeilen.push(h);
+        if (st.desc.grund && !dZeilen.includes(st.desc.grund)) dZeilen.push(st.desc.grund);
+        const el = document.getElementById('seo-meta-desc-hinweis');
+        el.textContent = dZeilen.join(' · ');
+        el.style.color = st.desc.aktion === 'kein-wert' && st.desc.wert ? 'var(--danger)' : 'var(--muted)';
+      }
+
+      let seoMetaTimer = null;
+      document.getElementById('seo-keyphrase').addEventListener('input', seoMetaVorschau);
+      document.getElementById('seo-meta-titel-ueber').addEventListener('change', seoMetaVorschau);
+      document.getElementById('seo-meta-desc-ueber').addEventListener('change', seoMetaVorschau);
+      document.getElementById('seo-eigenschaften').addEventListener('input', () => {
+        clearTimeout(seoMetaTimer);
+        seoMetaTimer = setTimeout(async () => { await seoMetaEingabenLaden(); seoMetaVorschau(); }, 400);
+      });
 
       const modeBtnNew      = document.getElementById('mode-btn-new');
       const modeBtnSeo      = document.getElementById('mode-btn-seo');
@@ -4589,6 +4886,16 @@
         seoVarianten  = [];
         seoWcProdukt  = null;
         seoQuellenOk  = { varianten: false, wc: false };
+        // Yoast-Meta: Haekchen "ueberschreiben" je Artikel standardmaessig AUS.
+        seoMetaEingabenStand = null;
+        document.getElementById('seo-meta-titel-ueber').checked = false;
+        document.getElementById('seo-meta-desc-ueber').checked  = false;
+        for (const id of ['titel', 'desc']) {
+          document.getElementById(`seo-meta-${id}`).textContent = '';
+          document.getElementById(`seo-meta-${id}-info`).textContent = '';
+          document.getElementById(`seo-meta-${id}-hinweis`).textContent = '';
+          document.getElementById(`seo-meta-${id}-ueber-wrap`).style.display = 'none';
+        }
 
         initSeoQuillEditors();
         quillSeoShort.root.innerHTML = '';
@@ -4645,6 +4952,8 @@
 
         await Promise.all(loadPromises);
         document.getElementById('seo-status-msg').textContent = '';
+        await seoMetaEingabenLaden();
+        seoMetaVorschau();
       });
 
       document.getElementById('btn-seo-generate').addEventListener('click', async () => {
@@ -4758,12 +5067,25 @@
           const yoastMeta = [];
           if (yoastKeyphrase) yoastMeta.push({ key: '_yoast_wpseo_focuskw',         value: yoastKeyphrase });
           if (yoastSynonyme)  yoastMeta.push({ key: '_yoast_wpseo_keywordsynonyms', value: yoastSynonyme });
+
+          // SEO-Titel und Meta-Beschreibung: deterministisch (Block "SEO-Meta"),
+          // selber Weg, selber schmaler Body. Eingaben frisch holen – die
+          // Eigenschaften koennen sich seit der letzten Vorschau geaendert haben.
+          // Ein abweichender Shop-Wert bleibt stehen, ausser das Haekchen
+          // "ueberschreiben" ist gesetzt; ein leerer wird geschrieben.
+          await seoMetaEingabenLaden();
+          const metaStand = seoMetaStand();
+          if (metaStand.titel.aktion === 'schreiben')
+            yoastMeta.push({ key: '_yoast_wpseo_title',    value: metaStand.titel.wert });
+          if (metaStand.desc.aktion === 'schreiben')
+            yoastMeta.push({ key: '_yoast_wpseo_metadesc', value: metaStand.desc.wert });
           const yoastLeer = [
             yoastKeyphrase ? null : 'Fokus-Keyphrase',
             yoastSynonyme  ? null : 'Synonyme',
           ].filter(Boolean);
 
           let yoastText = '';
+          let yoastNach = null;   // zurueckgelesenes Produkt, falls geschrieben
           if (yoastMeta.length) {
             try {
               const yRes = await apiFetch(`${API_BASE()}/api/woocommerce/products/${seoCurrentItem.wcId}`, {
@@ -4778,6 +5100,7 @@
               // womoeglich gar nicht an.
               const nach = await apiJson(
                 await apiFetch(`${API_BASE()}/api/woocommerce/products/${seoCurrentItem.wcId}`));
+              yoastNach = nach;
               const ausYoast = k => ((nach.meta_data || []).find(m => m.key === k) || {}).value ?? '';
               // Synonyme lesbar melden, nicht als rohes JSON – und mit ANZAHL.
               // Eine 0 faellt auf, eine Zeichenkette nicht.
@@ -4794,6 +5117,24 @@
             yoastText = [yoastText, `${yoastLeer.join(' und ')} leer – in Yoast nicht überschrieben.`]
               .filter(Boolean).join(' · ');
           }
+
+          // Rueckmeldung Titel / Meta-Beschreibung: geschrieben (zurueckgelesen),
+          // unveraendert, oder nicht geschrieben mit Grund.
+          const metaMeldung = (name, feld, key) => {
+            if (feld.aktion === 'unveraendert') return `${name}: unverändert`;
+            if (feld.aktion === 'behalten')     return `${name}: nicht geschrieben – vorhandener Wert bleibt`;
+            if (feld.aktion === 'kein-wert')    return `${name}: nicht geschrieben – ${feld.grund || 'kein Wert'}`;
+            if (!yoastNach)                     return `${name}: nicht geschrieben – PUT fehlgeschlagen`;
+            const steht = ((yoastNach.meta_data || []).find(m => m.key === key) || {}).value ?? '';
+            return steht === feld.wert
+              ? `${name}: geschrieben${key === '_yoast_wpseo_metadesc' ? ` (${seoMetaLaenge(steht)} Zeichen)` : ''}`
+              : `${name}: nicht geschrieben – im Shop steht "${steht}"`;
+          };
+          yoastText = [
+            yoastText,
+            metaMeldung('SEO-Titel',        metaStand.titel, '_yoast_wpseo_title'),
+            metaMeldung('Meta-Beschreibung', metaStand.desc,  '_yoast_wpseo_metadesc'),
+          ].filter(Boolean).join(' · ');
 
           seoPendingList = seoPendingList.filter(item => item.row !== seoCurrentItem.row);
           seoCurrentItem = null;
