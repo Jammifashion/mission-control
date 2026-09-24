@@ -75,10 +75,20 @@ export function fanartSerien(hinweise) {
   const out = [];
   for (const m of String(hinweise ?? '').matchAll(FANART_RE)) {
     const titel = m[1].trim();
+    if (!istSerienTitel(titel)) continue;
     const wendung = `Fanart zur Serie ${titel}`;
-    if (titel && !out.some(x => x.wendung === wendung)) out.push({ wendung, titel });
+    if (!out.some(x => x.wendung === wendung)) out.push({ wendung, titel });
   }
   return out;
+}
+
+// SP3: Platzhalter sind kein Titel. GEMESSEN (BL7 Lauf 3, 24.09.): der
+// Kategoriehinweis 'Serien nur als „Fanart zur Serie …“ nennen' ergab den
+// Titel '…“ nennen' – und damit einen FANART-SERIE-Block fuer JEDEN Artikel.
+// Ein Titel beginnt mit Buchstabe, Ziffer oder oeffnendem Anfuehrungszeichen
+// und enthaelt mindestens ein Wort mit zwei Buchstaben.
+function istSerienTitel(titel) {
+  return /^[\p{L}\p{N}„"]/u.test(titel) && /\p{L}{2,}/u.test(titel);
 }
 
 /**

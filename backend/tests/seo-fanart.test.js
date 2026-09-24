@@ -37,7 +37,33 @@ describe('fanartSerien', () => {
   });
 
   test('mehrere Serien, Dubletten nur einmal', () => {
-    expect(fanartSerien('Fanart zur Serie A\nFanart zur Serie B\nFanart zur Serie A').map(s => s.titel)).toEqual(['A', 'B']);
+    // SP3: Einbuchstaben-Titel sind Platzhalter – darum echte Namen.
+    expect(fanartSerien('Fanart zur Serie Alpha\nFanart zur Serie Beta\nFanart zur Serie Alpha').map(s => s.titel)).toEqual(['Alpha', 'Beta']);
+  });
+
+  // SP3: Platzhalter sind kein Titel.
+  test('Kategoriehinweis aus BL7 Lauf 3 -> keine Serie, kein Block', () => {
+    const satz = 'Serien nur als „Fanart zur Serie …“ nennen, wenn im Motivfeld angegeben.';
+    expect(fanartSerien(satz)).toEqual([]);
+    expect(fanartBlock(satz)).toBe('');
+    expect(buildSeoUserPrompt({ ...basis, hinweise: `Kategorie: ${satz}` }).prompt).not.toContain('FANART-SERIE');
+  });
+
+  test.each(['…', '...', '<Titel>', '[Titel]', 'X', '„…“', '"..."', '- Titel', '123'])(
+    'Platzhalter "%s" wird verworfen', p => {
+      expect(fanartSerien(`Fanart zur Serie ${p}`)).toEqual([]);
+    });
+
+  test('echte Titel bleiben: Buchstabe, Ziffer oder Anfuehrungszeichen am Anfang', () => {
+    expect(fanartSerien('Fanart zur Serie Jack & Joker').map(s => s.titel)).toEqual(['Jack & Joker']);
+    expect(fanartSerien('Fanart zur Serie 2gether').map(s => s.titel)).toEqual(['2gether']);
+    expect(fanartSerien('Fanart zur Serie „A tale of 1000 stars“').map(s => s.titel)).toEqual(['„A tale of 1000 stars“']);
+    expect(fanartSerien('Fanart zur Serie "Bad Buddy"').map(s => s.titel)).toEqual(['"Bad Buddy"']);
+  });
+
+  test('Platzhalter-Hinweis neben echter Serie: nur die echte zaehlt', () => {
+    const h = 'Serie/Kontext: Fanart zur Serie Jack & Joker\nKategorie: Serien nur als „Fanart zur Serie …“ nennen, wenn im Motivfeld angegeben.';
+    expect(fanartSerien(h).map(s => s.titel)).toEqual(['Jack & Joker']);
   });
 
   test('ohne woertliche Wendung: nichts', () => {
