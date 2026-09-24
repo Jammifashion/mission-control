@@ -59,7 +59,7 @@ const html  = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../
 const block = (a, e) => html.slice(html.indexOf(a), html.indexOf(e));
 const SYN   = block('// ── Keyphrase-Synonyme: Anfang', '// ── Keyphrase-Synonyme: Ende ──');
 const SE    = block('// ── SEO-Daten aendern: Anfang', '// ── SEO-Daten aendern: Ende ──');
-const fe    = new Function(`${SYN}\n${SE}\n return { seAenderungen, seErgebnis, seMetaWert, synonymeZuYoast, synonymeAusYoast };`)();
+const fe    = new Function(`${SYN}\n${SE}\n return { seAenderungen, seErgebnis, seMetaWert, seSheetFelder, synonymeZuYoast, synonymeAusYoast };`)();
 const aend  = (metaData, eingabe) => fe.seAenderungen({ metaData, eingabe, zuYoast: fe.synonymeZuYoast, ausYoast: fe.synonymeAusYoast });
 
 // Artikel OHNE SSOT-Zeile, Stand im Shop
@@ -229,10 +229,13 @@ describe('Derselbe Baustein, derselbe Schreibweg, kein Sheet', () => {
     expect(seTeil).not.toMatch(/method:\s*'PUT'/);
   });
 
-  test('SEO_Status unveraendert: der Reiter schreibt nichts ins Sheet', () => {
+  test('SEO_Status unveraendert: kein SEO_Status, kein overwrite; ins Sheet nur patch-fields (SE1b)', () => {
     // Nur Code pruefen - der Warnkommentar nennt SEO_Status ausdruecklich.
     const code = seTeil.split('\n').filter(z => !z.trim().startsWith('//')).join('\n');
-    expect(code).not.toMatch(/SEO_Status|patch-fields|erfassung\/overwrite|method:\s*'POST'/);
+    expect(code).not.toMatch(/SEO_Status|erfassung\/overwrite/);
+    // genau EIN Sheet-Schreibaufruf, und das ist patch-fields
+    expect([...code.matchAll(/method:\s*'POST'/g)]).toHaveLength(1);
+    expect([...code.matchAll(/\/api\/sheets\/erfassung\/patch-fields/g)]).toHaveLength(1);
   });
 
   test('keine Texte und kein Sprachmodell', () => {
@@ -241,5 +244,55 @@ describe('Derselbe Baustein, derselbe Schreibweg, kein Sheet', () => {
 
   test('Reiter-Knopf steht neben "Artikel ändern"', () => {
     expect(html).toMatch(/id="mode-btn-edit">✏️ Artikel ändern<\/button>\s*\n\s*<button class="mode-btn" id="mode-btn-seoedit">/);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// Nachtrag SE1b: mit SSOT-Zeile ziehen Fokus_Keyphrase und Fokus_Synonyme im
+// Sheet mit (patch-fields). Ohne SSOT-Zeile: nur Yoast. SEO_Status nie.
+describe('SE1b: Sheet mitziehen', () => {
+  const handler = (() => {
+    const von = html.indexOf("getElementById('se-speichern').addEventListener");
+    return html.slice(von, html.indexOf('\n      });', von));
+  })();
+
+  test('Felder: nur was in Yoast geschrieben wurde, mit dem Ruecklesewert, nie SEO_Status', () => {
+    const nach = [
+      { key: '_yoast_wpseo_focuskw',         value: 'Crocodiles Hamburg Oldschool T-Shirt Herren' },
+      { key: '_yoast_wpseo_keywordsynonyms', value: '["Oldschool Shirt, Retro T-Shirt"]' },
+    ];
+    const ergebnis = [
+      { name: 'Fokus-Keyphrase', ok: true }, { name: 'Synonyme', ok: true }, { name: 'SEO-Titel', ok: true },
+    ];
+    expect(fe.seSheetFelder(ergebnis, nach, fe.synonymeAusYoast)).toEqual({
+      Fokus_Keyphrase: 'Crocodiles Hamburg Oldschool T-Shirt Herren',
+      Fokus_Synonyme:  'Oldschool Shirt, Retro T-Shirt',
+    });
+  });
+
+  test('nur Titel/Meta geaendert oder Yoast gescheitert -> kein Sheet-Aufruf', () => {
+    expect(fe.seSheetFelder([{ name: 'SEO-Titel', ok: true }], [], fe.synonymeAusYoast)).toBeNull();
+    expect(fe.seSheetFelder([{ name: 'Fokus-Keyphrase', ok: false }], [], fe.synonymeAusYoast)).toBeNull();
+    expect(fe.seSheetFelder([], [], fe.synonymeAusYoast)).toBeNull();
+  });
+
+  test('ohne SSOT-Zeile kein Sheet-Aufruf: nur mit ssotRow, und die kommt nur mit ssotId', () => {
+    expect(html).toContain('ssotRow: (ssot && ssot.ssotId && ssot.row) || null');
+    expect(handler).toContain('const sheetFelder = nach && seStand.ssotRow ? seSheetFelder(');
+    expect(handler).toMatch(/if \(sheetFelder\) \{[\s\S]*?\/api\/sheets\/erfassung\/patch-fields/);
+  });
+
+  test('Reihenfolge: erst Yoast schreiben und zuruecklesen, dann das Sheet', () => {
+    expect(handler.indexOf('await yoastSchreiben(')).toBeGreaterThan(-1);
+    expect(handler.indexOf('/api/sheets/erfassung/patch-fields'))
+      .toBeGreaterThan(handler.indexOf('await yoastSchreiben('));
+    expect(handler).toContain('body: JSON.stringify({ row: seStand.ssotRow, fields: sheetFelder })');
+  });
+
+  test('Sheet-Fehler -> Toast "Yoast geschrieben, Sheet nicht", Yoast bleibt', () => {
+    expect(handler).toMatch(/catch \(e\) \{\s*\n\s*showToast\(`Yoast geschrieben, Sheet nicht \(\$\{e\.message\}\)`, 'error'/);
+    // kein Zuruecknehmen von Yoast im Fehlerzweig
+    const fehlerZweig = handler.slice(handler.indexOf('Yoast geschrieben, Sheet nicht'));
+    expect(fehlerZweig.slice(0, 200)).not.toMatch(/yoastSchreiben|method:\s*'PUT'/);
   });
 });

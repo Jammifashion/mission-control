@@ -4182,6 +4182,19 @@
             : { name: f.name, ok: false, text: `${f.name}: nicht geschrieben – im Shop steht "${steht}"` };
         });
       }
+      // SE1b: Mit SSOT-Zeile ziehen Fokus_Keyphrase und Fokus_Synonyme im Sheet
+      // mit - aber nur, was in Yoast tatsaechlich GESCHRIEBEN wurde, und mit
+      // dem zurueckgelesenen Wert. SEO_Status steht hier nie drin.
+      // -> { 'Fokus_Keyphrase'?: string, 'Fokus_Synonyme'?: string } | null
+      function seSheetFelder(ergebnis, nachMetaData, ausYoast) {
+        const ok = new Set((ergebnis || []).filter(r => r.ok).map(r => r.name));
+        const felder = {};
+        if (ok.has('Fokus-Keyphrase'))
+          felder['Fokus_Keyphrase'] = seMetaWert(nachMetaData, '_yoast_wpseo_focuskw').trim();
+        if (ok.has('Synonyme'))
+          felder['Fokus_Synonyme']  = ausYoast(seMetaWert(nachMetaData, '_yoast_wpseo_keywordsynonyms'));
+        return Object.keys(felder).length ? felder : null;
+      }
       // ── SEO-Daten aendern: Ende ──
 
       // Befehl SE1: EIN Yoast-Schreibweg fuer den SEO-Reiter und "SEO-Daten
@@ -5409,7 +5422,9 @@
               quellenOk.varianten = Array.isArray(v.varianten);
             } catch (_) { /* Shop-Fallback bleibt */ }
           }
-          seStand = { produkt, varianten, quellenOk, quellen: seoMetaQuellen(varianten, produkt, quellenOk) };
+          seStand = { produkt, varianten, quellenOk, quellen: seoMetaQuellen(varianten, produkt, quellenOk),
+                      // SE1b: Zeile der Erfassungsmaske, falls es eine gibt.
+                      ssotRow: (ssot && ssot.ssotId && ssot.row) || null };
 
           const md = produkt.meta_data || [];
           document.getElementById('se-name').value = produkt.name || '';
@@ -5508,8 +5523,27 @@
         } catch (e) {
           fehler = e.message;
         }
-        for (const r of seErgebnis(schreiben, nach && nach.meta_data, fehler))
+        const ergebnis = seErgebnis(schreiben, nach && nach.meta_data, fehler);
+        for (const r of ergebnis)
           showToast(r.text, r.ok ? 'success' : 'error', r.ok ? 6000 : 12000);
+
+        // SE1b: ERST Yoast (geschrieben und zurueckgelesen), DANN das Sheet -
+        // gleicher Weg wie der SEO-Reiter (patch-fields, header-basiert).
+        // Nur mit SSOT-Zeile, nie SEO_Status. Scheitert das Sheet: laut melden.
+        const sheetFelder = nach && seStand.ssotRow ? seSheetFelder(ergebnis, nach.meta_data, synonymeAusYoast) : null;
+        if (sheetFelder) {
+          try {
+            await apiJson(await apiFetch(`${API_BASE()}/api/sheets/erfassung/patch-fields`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ row: seStand.ssotRow, fields: sheetFelder }),
+            }));
+            showToast(`Sheet: ${Object.keys(sheetFelder).join(' und ')} aktualisiert`, 'success', 6000);
+          } catch (e) {
+            showToast(`Yoast geschrieben, Sheet nicht (${e.message})`, 'error', 15000);
+          }
+        }
+
         if (nach) {
           seStand.produkt = nach;              // naechster Vergleich gegen den neuen Stand
           status.textContent = '';
