@@ -1,7 +1,8 @@
 import {
   parseArtikel, matchItem, extractFields, extractVarianteNameNummer, bestimmeQuelle, buildRohtext,
   buildRowsForOrder, resolveTrikotColumns, toSheetRow, existingIds,
-  juengstesBestelldatum, SCRIPT_COLUMNS, MANUAL_COLUMNS,
+  juengstesBestelldatum, startOhneAfter, SCRIPT_COLUMNS, MANUAL_COLUMNS,
+  SCRIPT_COLUMNS_NACH_MANUELL, TRIKOT_HEADER, WC_STATES_TRIKOT, UEBERLAPPUNG_TAGE,
 } from '../utils/trikot-logic.js';
 import { MissingHeaderError } from '../utils/sheet-headers.js';
 
@@ -13,12 +14,12 @@ const ART_VALUES = [
   ['TRK-SKU', '', '', 'TRUE'],
 ];
 
-const TRIKOT_HEADER = [...SCRIPT_COLUMNS, ...MANUAL_COLUMNS];
-
 // Struktur wie in echten Bestellungen (Stand 09/2026), Werte anonymisiert.
 const ORDER = {
   id: 20626,
   date_created: '2026-09-09T12:33:43',
+  status: 'on-hold',
+  payment_method_title: 'Vorkasse',
   customer_note: 'Bitte bis Freitag',
   billing: { first_name: 'Max', last_name: 'Muster', company: '' },
   line_items: [
@@ -140,18 +141,57 @@ describe('buildRowsForOrder', () => {
     expect(rows[0]['Bestelldatum']).toBe('2026-09-09T12:33:43');
     expect(rows[3]['Quelle']).toBe('notiz');
   });
+
+  test('Zahlart = payment_method_title unverändert, in jeder Zeile', () => {
+    expect(rows.every(r => r['Zahlart'] === 'Vorkasse')).toBe(true);
+    const paypal = buildRowsForOrder({ ...ORDER, payment_method_title: 'PayPal' }, parseArtikel(ART_VALUES), 'x');
+    expect(paypal[0]['Zahlart']).toBe('PayPal');
+  });
+
+  test('Zahlart leer, wenn nicht vorhanden – nichts abgeleitet', () => {
+    const { payment_method_title, ...ohne } = ORDER;
+    const r = buildRowsForOrder({ ...ohne, payment_method: 'bacs' }, parseArtikel(ART_VALUES), 'x');
+    expect(r[0]['Zahlart']).toBe('');
+  });
+});
+
+describe('Status und Startdatum', () => {
+  test('on-hold und processing werden gelesen, pending und cancelled nicht', () => {
+    expect(WC_STATES_TRIKOT).toEqual(expect.arrayContaining(['processing', 'on-hold']));
+    expect(WC_STATES_TRIKOT).not.toContain('pending');
+    expect(WC_STATES_TRIKOT).not.toContain('cancelled');
+  });
+
+  test(`ohne after: jüngstes Bestelldatum minus ${UEBERLAPPUNG_TAGE} Tage, auch über Monatsgrenzen`, () => {
+    expect(UEBERLAPPUNG_TAGE).toBe(3);
+    expect(startOhneAfter([TRIKOT_HEADER, ['a', '', '2026-09-09T12:00:00']])).toBe('2026-09-06');
+    expect(startOhneAfter([TRIKOT_HEADER, ['a', '', '2026-10-02T08:00:00']])).toBe('2026-09-29');
+    expect(startOhneAfter([TRIKOT_HEADER])).toBeNull();
+  });
 });
 
 describe('toSheetRow – manuelle Spalten bleiben unberührt', () => {
-  test('Standardlayout: genau A–O, keine P–T', () => {
+  test('Kopfzeile: A–O Skript, P–T manuell, U Zahlart', () => {
+    expect(TRIKOT_HEADER.slice(15, 20)).toEqual(MANUAL_COLUMNS);
+    expect(TRIKOT_HEADER[20]).toBe('Zahlart');
+    expect(SCRIPT_COLUMNS_NACH_MANUELL).toEqual(['Zahlart']);
+  });
+
+  test('Standardlayout: A–O und U geschrieben, P–T null', () => {
     const cols = resolveTrikotColumns(TRIKOT_HEADER);
-    const row = toSheetRow(cols, { 'Zeilen-ID': '1|2|1', 'Stueck': 1 });
-    expect(row).toHaveLength(15);
+    const row = toSheetRow(cols, { 'Zeilen-ID': '1|2|1', 'Stueck': 1, 'Zahlart': 'PayPal' });
+    expect(row).toHaveLength(21);
     expect(row[0]).toBe('1|2|1');
+    expect(row.slice(15, 20)).toEqual([null, null, null, null, null]);
+    expect(row[20]).toBe('PayPal');
+  });
+
+  test('fehlende Zahlart-Spalte wirft (Pflichtspalte)', () => {
+    expect(() => resolveTrikotColumns([...SCRIPT_COLUMNS, ...MANUAL_COLUMNS])).toThrow(MissingHeaderError);
   });
 
   test('manuelle Spalte zwischen Skriptspalten bekommt null (= übersprungen)', () => {
-    const header = [...SCRIPT_COLUMNS.slice(0, 5), 'Notiz', ...SCRIPT_COLUMNS.slice(5)];
+    const header = [...SCRIPT_COLUMNS.slice(0, 5), 'Notiz', ...SCRIPT_COLUMNS.slice(5), 'Zahlart'];
     const row = toSheetRow(resolveTrikotColumns(header), { 'Kunde': 'X' });
     expect(row[5]).toBeNull();
     expect(row[6]).toBe('X');

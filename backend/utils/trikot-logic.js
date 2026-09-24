@@ -8,15 +8,25 @@
 //    Freitext wird nichts geraten: keine Regex auf die Kundennotiz, keine KI.
 //  - Der Rohtext hält alles fest, was zum Item bekannt ist, damit ein Mensch
 //    nachlesen kann, was die Synonyme nicht erfasst haben.
-//  - Das Skript schreibt nur SCRIPT_COLUMNS. Alle anderen Spalten (insbesondere
-//    MANUAL_COLUMNS) bekommen im Append null – die Sheets-API überspringt die Zelle.
+//  - Das Skript schreibt nur SCRIPT_COLUMNS und SCRIPT_COLUMNS_NACH_MANUELL. Alle
+//    anderen Spalten (insbesondere MANUAL_COLUMNS) bekommen im Append null – die
+//    Sheets-API überspringt die Zelle.
 
 import { requireHeader, findHeader } from './sheet-headers.js';
 
 export const TAB_TRIKOTS = 'Trikots';
 export const TAB_ARTIKEL = 'Trikot_Artikel';
 
+// on-hold: Vorkasse-Bestellungen am Bestelltag erfassen, den Zahlungseingang prüft
+//   der Inhaber selbst.
+// completed: Absicherung, falls eine Bestellung vor dem Sync abgeschlossen wird.
+// pending und cancelled bewusst nicht.
 export const WC_STATES_TRIKOT = ['processing', 'on-hold', 'completed'];
+
+// Ohne after startet der Sync so viele Tage vor dem jüngsten Bestelldatum im Reiter.
+// Puffer für Statuswechsel über die Tagesgrenze (z.B. pending → processing am
+// Folgetag); die Dedup über Zeilen-ID verhindert doppelte Zeilen.
+export const UEBERLAPPUNG_TAGE = 3;
 
 export const SCRIPT_COLUMNS = [
   'Zeilen-ID', 'Erfasst_Am', 'Bestelldatum', 'Order-ID', 'Order-Item-ID',
@@ -24,6 +34,10 @@ export const SCRIPT_COLUMNS = [
   'Name', 'Nummer', 'Stueck', 'Quelle', 'Rohtext',
 ];
 export const MANUAL_COLUMNS = ['Charge', 'Bestellt_Am', 'Geliefert_Am', 'Status', 'Notiz'];
+// Skriptspalten, die nachträglich kamen: stehen HINTER den manuellen (ab U), damit
+// P–T ihren Platz behalten. Zahlart = order.payment_method_title, unverändert.
+export const SCRIPT_COLUMNS_NACH_MANUELL = ['Zahlart'];
+export const TRIKOT_HEADER = [...SCRIPT_COLUMNS, ...MANUAL_COLUMNS, ...SCRIPT_COLUMNS_NACH_MANUELL];
 
 export const ARTIKEL_COLUMNS = ['Artikelnummer', 'Produkt-ID', 'Produktname', 'Aktiv'];
 
@@ -155,6 +169,10 @@ export function zeilenId(orderId, orderItemId, laufnummer) {
   return `${orderId}|${orderItemId}|${laufnummer}`;
 }
 
+function zahlartAus(order) {
+  return typeof order.payment_method_title === 'string' ? order.payment_method_title : '';
+}
+
 function kundeAus(order) {
   const b = order.billing ?? {};
   return `${b.first_name ?? ''} ${b.last_name ?? ''}`.trim() || String(b.company ?? '').trim();
@@ -195,6 +213,7 @@ export function buildRowsForOrder(order, artikel, erfasstAm) {
       'Stueck':        individuell ? 1 : menge,
       'Quelle':        quelle,
       'Rohtext':       buildRohtext(item, order),
+      'Zahlart':       zahlartAus(order),
     };
     for (let lauf = 1; lauf <= anzahl; lauf++) {
       rows.push({ 'Zeilen-ID': zeilenId(order.id, item.id, lauf), ...basis });
@@ -203,10 +222,12 @@ export function buildRowsForOrder(order, artikel, erfasstAm) {
   return rows;
 }
 
-// Spaltenindex je SCRIPT_COLUMN, header-basiert. Fehlt eine, wirft es.
+// Spaltenindex je Skriptspalte, header-basiert. Fehlt eine, wirft es.
 export function resolveTrikotColumns(headers) {
   const ctx = `Reiter ${TAB_TRIKOTS}`;
-  return Object.fromEntries(SCRIPT_COLUMNS.map(c => [c, requireHeader(headers, c, ctx)]));
+  return Object.fromEntries(
+    [...SCRIPT_COLUMNS, ...SCRIPT_COLUMNS_NACH_MANUELL].map(c => [c, requireHeader(headers, c, ctx)])
+  );
 }
 
 // Objekt → Array für values.append. Nicht-Skript-Spalten bleiben null (= Zelle
@@ -237,4 +258,13 @@ export function juengstesBestelldatum(values) {
     if (/^\d{4}-\d{2}-\d{2}$/.test(d) && (max === null || d > max)) max = d;
   }
   return max;
+}
+
+// Starttag ohne after: jüngstes Bestelldatum minus UEBERLAPPUNG_TAGE, null bei leerem Reiter.
+export function startOhneAfter(values) {
+  const juengstes = juengstesBestelldatum(values);
+  if (!juengstes) return null;
+  const d = new Date(`${juengstes}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - UEBERLAPPUNG_TAGE);
+  return d.toISOString().slice(0, 10);
 }

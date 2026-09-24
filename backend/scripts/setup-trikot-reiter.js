@@ -11,7 +11,7 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { findHeader } from '../utils/sheet-headers.js';
 import {
-  TAB_TRIKOTS, TAB_ARTIKEL, SCRIPT_COLUMNS, MANUAL_COLUMNS, ARTIKEL_COLUMNS,
+  TAB_TRIKOTS, TAB_ARTIKEL, SCRIPT_COLUMNS, MANUAL_COLUMNS, TRIKOT_HEADER, ARTIKEL_COLUMNS,
 } from '../utils/trikot-logic.js';
 
 const SPREADSHEET_ID = process.env.BUSINESS_SHEET_ID;
@@ -19,12 +19,13 @@ const SPREADSHEET_ID = process.env.BUSINESS_SHEET_ID;
 const TABS = [
   {
     name:   TAB_TRIKOTS,
-    header: [...SCRIPT_COLUMNS, ...MANUAL_COLUMNS],   // A–O Skript, P–T manuell
+    header: TRIKOT_HEADER,   // A–O Skript, P–T manuell, U Skript (Zahlart)
     //        A    B    C    D    E    F    G    H    I   J   K    L   M   N   O
     widths: [150, 150, 150, 80, 100, 180, 150, 240, 70, 90, 140, 70, 60, 80, 320,
-    //        P    Q    R    S    T
-             100, 110, 110, 110, 220],
+    //        P    Q    R    S    T    U
+             100, 110, 110, 110, 220, 140],
     manualFrom: SCRIPT_COLUMNS.length,
+    manualTo:   SCRIPT_COLUMNS.length + MANUAL_COLUMNS.length,
     seed: [],
   },
   {
@@ -83,7 +84,8 @@ async function createTab(sheets, tab) {
   const dunkel  = { red: 0.15, green: 0.15, blue: 0.15 };
   const manuell = { red: 0.45, green: 0.33, blue: 0.10 };   // manuelle Spalten optisch absetzen
   const requests = tab.manualFrom
-    ? [headerFormat(0, tab.manualFrom, dunkel), headerFormat(tab.manualFrom, tab.header.length, manuell)]
+    ? [headerFormat(0, tab.manualFrom, dunkel), headerFormat(tab.manualFrom, tab.manualTo, manuell),
+       headerFormat(tab.manualTo, tab.header.length, dunkel)]
     : [headerFormat(0, tab.header.length, dunkel)];
 
   await sheets.spreadsheets.batchUpdate({

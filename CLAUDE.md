@@ -43,6 +43,12 @@ Neue Sektionen immer mit Anker versehen:
   `backend/scripts/sync-trikot.js` ist nur der lokale Aufrufer. Reine Logik in
   `backend/utils/trikot-logic.js`, Reiter-Setup in `backend/scripts/setup-trikot-reiter.js`.
   Grundsatz: API-Aufrufe an externe Dienste liegen in `lib/`, nicht in `routes/`.
+  Reiter "Trikots" (Business-Sheet), Schreiben header-basiert: A–O Skript (Zeilen-ID …
+  Rohtext), P–T manuell (Charge, Bestellt_Am, Geliefert_Am, Status, Notiz – Sync schreibt
+  null), U Skript `Zahlart` (= `payment_method_title` unveraendert, sonst leer; Pflichtspalte).
+  Neue Skriptspalten nur hinten anfuegen (`SCRIPT_COLUMNS_NACH_MANUELL`), nie zwischen O und P.
+  Status `processing`, `on-hold` (Vorkasse), `completed`; ohne `after` Start 3 Tage vor dem
+  juengsten Bestelldatum (`UEBERLAPPUNG_TAGE`). Bestandszeilen werden nie geaendert.
 - backend/lib/seo-prompt.js – SEO-Prompt: User-Template, MODUS-Enum, Materialfilter.
   Die Regeln stehen hier, das ist die Quelle. Begründungen und Historie liegen im
   Claude-Projekt unter METHODE/SEO_Beschreibungs_Framework.md (nicht im Repo).

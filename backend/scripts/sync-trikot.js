@@ -2,7 +2,7 @@
 // backend/lib/trikotSync.js – derselbe Code läuft hinter POST /api/trikot/sync.
 //
 // Aufruf:
-//   node backend/scripts/sync-trikot.js                     # ab jüngstem Bestelldatum im Reiter
+//   node backend/scripts/sync-trikot.js                     # ab jüngstem Bestelldatum im Reiter minus 3 Tage
 //   node backend/scripts/sync-trikot.js --after=2026-09-01  # erster Lauf / expliziter Start
 //   node backend/scripts/sync-trikot.js --dry-run           # nichts schreiben, nur zählen
 
@@ -36,6 +36,8 @@ async function main() {
   console.log(`Neue Zeilen:             ${r.neu}${r.dryRun ? ' (nicht geschrieben)' : ''}`);
   console.log(`Übersprungene Dubletten: ${r.dubletten}`);
   console.log(`Quellen:                 addon ${r.quellen.addon}, variante ${r.quellen.variante}, notiz ${r.quellen.notiz}`);
+  const zahlarten = Object.entries(r.zahlarten).map(([z, n]) => `${z || '(leer)'} ${n}`).join(', ');
+  console.log(`Zahlarten:               ${zahlarten || '-'}`);
 }
 
 main().catch(err => {

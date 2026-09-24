@@ -8,8 +8,9 @@
 // Bestellung wird (Zeilen, Quelle, Dedup-Schlüssel), steht in utils/trikot-logic.js.
 //
 // Bestehende Zeilen werden nie aktualisiert, nur neue angehängt (Dedup über
-// Zeilen-ID = orderId|orderItemId|laufnummer). Die manuellen Spalten
-// Charge..Notiz schreibt der Sync nicht.
+// Zeilen-ID = orderId|orderItemId|laufnummer): kein Nachtragen der Zahlart, kein
+// Update bei späterer Stornierung. Die manuellen Spalten Charge..Notiz (P–T)
+// schreibt der Sync nicht.
 
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
@@ -17,7 +18,7 @@ import { getWcClient } from './shopConfig.js';
 import {
   TAB_TRIKOTS, TAB_ARTIKEL, WC_STATES_TRIKOT,
   parseArtikel, buildRowsForOrder, resolveTrikotColumns, toSheetRow,
-  existingIds, juengstesBestelldatum,
+  existingIds, startOhneAfter,
 } from '../utils/trikot-logic.js';
 
 const APPEND_CHUNK = 500;
@@ -64,14 +65,16 @@ async function loadOrders(wc, afterDate) {
       per_page: 100,
       page,
     });
-    orders.push(...res.data);
+    // Doppelt abgesichert: nur die freigegebenen Status, auch wenn die API den Filter ignoriert.
+    orders.push(...res.data.filter(o => WC_STATES_TRIKOT.includes(o.status)));
     const totalPages = parseInt(res.headers?.['x-wp-totalpages'] ?? '1', 10) || 1;
     if (page >= totalPages || res.data.length === 0) break;
   }
   return orders;
 }
 
-// Liefert { gelesen, neu, dubletten, quellen, ab, dryRun, zeilen }.
+// Liefert { gelesen, neu, dubletten, quellen, zahlarten, ab, dryRun, zeilen }.
+// zahlarten: neue Zeilen je Zahlart ('' = keine Angabe).
 // zeilen: die neuen Zeilen als Objekte (für die Ausgabe des lokalen Skripts).
 export async function runTrikotSync(opts = {}) {
   const { after, dryRun } = parseSyncOptions(opts);
@@ -100,7 +103,7 @@ export async function runTrikotSync(opts = {}) {
   const cols      = resolveTrikotColumns(trkValues[0] ?? []);
   const bestand   = existingIds(trkValues);
 
-  const ab = after ?? juengstesBestelldatum(trkValues);
+  const ab = after ?? startOhneAfter(trkValues);
   if (!ab) {
     throw new TrikotSyncError(`"${TAB_TRIKOTS}" enthält noch kein Bestelldatum – erster Lauf braucht after (YYYY-MM-DD).`);
   }
@@ -110,6 +113,7 @@ export async function runTrikotSync(opts = {}) {
 
   const zeilen  = [];
   const quellen = { addon: 0, variante: 0, notiz: 0 };
+  const zahlarten = {};
   let dubletten = 0;
   for (const order of orders) {
     for (const obj of buildRowsForOrder(order, artikel, erfasstAm)) {
@@ -118,6 +122,7 @@ export async function runTrikotSync(opts = {}) {
       bestand.add(id);
       zeilen.push(obj);
       quellen[obj['Quelle']] = (quellen[obj['Quelle']] ?? 0) + 1;
+      zahlarten[obj['Zahlart']] = (zahlarten[obj['Zahlart']] ?? 0) + 1;
     }
   }
 
@@ -139,6 +144,7 @@ export async function runTrikotSync(opts = {}) {
     neu:      zeilen.length,
     dubletten,
     quellen,
+    zahlarten,
     ab,
     dryRun,
     zeilen,

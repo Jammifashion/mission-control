@@ -12,9 +12,10 @@ router.post('/sync', async (req, res, next) => {
     const r = await runTrikotSync({ after: body.after, dryRun: body.dryRun });
     console.log(
       `Trikot-Sync ab ${r.ab}${r.dryRun ? ' (DRY RUN)' : ''}: ` +
-      `gelesen=${r.gelesen} neu=${r.neu} dubletten=${r.dubletten} quellen=${JSON.stringify(r.quellen)}`
+      `gelesen=${r.gelesen} neu=${r.neu} dubletten=${r.dubletten} quellen=${JSON.stringify(r.quellen)} ` +
+      `zahlarten=${JSON.stringify(r.zahlarten)}`
     );
-    res.json({ ok: true, gelesen: r.gelesen, neu: r.neu, dubletten: r.dubletten, quellen: r.quellen });
+    res.json({ ok: true, gelesen: r.gelesen, neu: r.neu, dubletten: r.dubletten, quellen: r.quellen, zahlarten: r.zahlarten });
   } catch (err) {
     next(err);
   }
