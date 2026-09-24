@@ -31,3 +31,23 @@ export async function sichereSpalte(sheets, sheetId, tab, header, name) {
   header.push(name);
   return neu;
 }
+
+// Wie sichereSpalte, setzt beim ANLEGEN zusaetzlich das Zahlenformat Text (@)
+// fuer die ganze Spalte ab Zeile 2. Fuer Nummern, die Sheets sonst als Zahl
+// deutet (L-Shop-ArticleNr: 10 Ziffern, beim Import einst zu E+12 gekuerzt).
+// Eine bereits vorhandene Spalte bleibt unangetastet.
+// tabSheetId = numerische sheetId des Reiters (nicht die Spreadsheet-ID).
+export async function sichereTextSpalte(sheets, sheetId, tab, tabSheetId, header, name) {
+  const vorhanden = findHeader(header, name);
+  if (vorhanden !== -1) return vorhanden;
+  const idx = await sichereSpalte(sheets, sheetId, tab, header, name);
+  await sheets.spreadsheets.batchUpdate({
+    spreadsheetId: sheetId,
+    requestBody: { requests: [{ repeatCell: {
+      range:  { sheetId: tabSheetId, startRowIndex: 1, startColumnIndex: idx, endColumnIndex: idx + 1 },
+      cell:   { userEnteredFormat: { numberFormat: { type: 'TEXT' } } },
+      fields: 'userEnteredFormat.numberFormat',
+    } }] },
+  });
+  return idx;
+}

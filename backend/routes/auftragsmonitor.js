@@ -3,6 +3,7 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient } from '../lib/shopConfig.js';
 import { requireHeader, requireHeaderAny } from '../utils/sheet-headers.js';
+import { wcVariationMap } from '../utils/varianten-zeilen.js';
 
 const router = Router();
 
@@ -29,7 +30,7 @@ const TAB_ERF = 'Erfassungsmaske';
 // Spalten-Indizes Produktions_Status (0-basiert)
 const PI = { orderId: 0, wcItemId: 1, artikelname: 2, sku: 3, menge: 4, lshop: 5, dtf: 6 };
 // Spalten-Indizes Varianten (0-basiert)
-const VI = { ssotId: 0, e1: 2, v1: 3, e2: 4, v2: 5, e3: 6, v3: 7, wcVarId: 10 };
+// Varianten: nur über Spaltennamen (utils/varianten-zeilen.js → wcVariationMap).
 
 function normBool(v) {
   if (typeof v === 'boolean') return v;
@@ -93,7 +94,7 @@ router.get('/lshop/offen', async (req, res, next) => {
     // Alle Datenquellen parallel laden
     const [psResp, varResp, erfResp, wcPending, wcProcessing, wcOnHold] = await Promise.all([
       sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_PS}!A1:J5000` }),
-      sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_VAR}!A1:L2000` }),
+      sheets.spreadsheets.values.get({ spreadsheetId, range: TAB_VAR }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_ERF}!1:2000` }),
       wc.get('orders', { status: 'pending',    per_page: 100 }),
       wc.get('orders', { status: 'processing', per_page: 100 }),
@@ -101,7 +102,6 @@ router.get('/lshop/offen', async (req, res, next) => {
     ]);
 
     const psRows   = (psResp.data.values  ?? []).slice(1);
-    const varRows  = (varResp.data.values ?? []).slice(1);
     const erfRows  = erfResp.data.values ?? [];
     const erfHdr   = erfRows[0] ?? [];
     const wcOrders = [
@@ -111,18 +111,7 @@ router.get('/lshop/offen', async (req, res, next) => {
     ];
 
     // WC_Variation_ID → {ssotId, e1-v3}
-    const varMap = {};
-    varRows.forEach(r => {
-      const wcVarId = (r[VI.wcVarId] ?? '').trim();
-      if (wcVarId && wcVarId !== '0') {
-        varMap[wcVarId] = {
-          ssotId: (r[VI.ssotId] ?? '').trim(),
-          e1: r[VI.e1] ?? '', v1: r[VI.v1] ?? '',
-          e2: r[VI.e2] ?? '', v2: r[VI.v2] ?? '',
-          e3: r[VI.e3] ?? '', v3: r[VI.v3] ?? '',
-        };
-      }
-    });
+    const varMap = wcVariationMap(varResp.data.values, `${req.method} ${req.baseUrl}${req.path}`);
 
     // SSOT-ID → {artikelnummer, produktname}
     // Exakter Vergleich: /artikelnummer/i traf als Teilstring die Spalte
@@ -319,7 +308,7 @@ router.get('/dtf/offen', async (req, res, next) => {
 
     const [psResp, varResp, erfResp, wcPending, wcProcessing, wcOnHold] = await Promise.all([
       sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_PS}!A1:J5000` }),
-      sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_VAR}!A1:L2000` }),
+      sheets.spreadsheets.values.get({ spreadsheetId, range: TAB_VAR }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_ERF}!1:2000` }),
       wc.get('orders', { status: 'pending',    per_page: 100 }),
       wc.get('orders', { status: 'processing', per_page: 100 }),
@@ -327,7 +316,6 @@ router.get('/dtf/offen', async (req, res, next) => {
     ]);
 
     const psRows   = (psResp.data.values  ?? []).slice(1);
-    const varRows  = (varResp.data.values ?? []).slice(1);
     const erfRows  = erfResp.data.values ?? [];
     const erfHdr   = erfRows[0] ?? [];
     const wcOrders = [
@@ -336,18 +324,7 @@ router.get('/dtf/offen', async (req, res, next) => {
       ...(Array.isArray(wcOnHold.data)     ? wcOnHold.data     : []),
     ];
 
-    const varMap = {};
-    varRows.forEach(r => {
-      const wcVarId = (r[VI.wcVarId] ?? '').trim();
-      if (wcVarId && wcVarId !== '0') {
-        varMap[wcVarId] = {
-          ssotId: (r[VI.ssotId] ?? '').trim(),
-          e1: r[VI.e1] ?? '', v1: r[VI.v1] ?? '',
-          e2: r[VI.e2] ?? '', v2: r[VI.v2] ?? '',
-          e3: r[VI.e3] ?? '', v3: r[VI.v3] ?? '',
-        };
-      }
-    });
+    const varMap = wcVariationMap(varResp.data.values, `${req.method} ${req.baseUrl}${req.path}`);
 
     // Exakter Vergleich + Pflichtspalten, siehe lshop/offen-Handler oben.
     const CTX_D   = 'GET /api/auftragsmonitor/dtf/offen';

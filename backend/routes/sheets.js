@@ -3,8 +3,12 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { findHeader, requireHeader, requireHeaderAny } from '../utils/sheet-headers.js';
 import { buildRow, mergeRow } from '../utils/sheet-rows.js';
-import { sichereSpalte } from '../utils/sheet-spalten.js';
+import { sichereSpalte, sichereTextSpalte, colLetter as spaltenBuchstabe } from '../utils/sheet-spalten.js';
 import { ladeLieferzeiten } from '../lib/lieferzeiten.js';
+import {
+  TAB_VARIANTEN, LSHOP_SPALTE, variantenSpalten, pruefeVariantenPayload,
+  payloadHatLShop, baueVariantenZeilen, varianteAusZeile,
+} from '../utils/varianten-zeilen.js';
 
 // Spalten der Erfassungsmaske, die bei Bedarf angelegt werden, sobald ein
 // Schreibaufruf sie mitbringt. Optional: gelesen wird nur ueber findHeader,
@@ -19,14 +23,6 @@ import { ladeLieferzeiten } from '../lib/lieferzeiten.js';
 const ERF_SPALTEN_BEI_BEDARF = ['Marke', 'Fokus_Keyphrase', 'Fokus_Synonyme'];
 
 const router = Router();
-
-const TAB_VARIANTEN    = 'Varianten';
-const VARIANTEN_COLS   = [
-  'SSOT-ID', 'Varianten-Nr', 'E1', 'V1', 'E2', 'V2', 'E3', 'V3',
-  'Preis', 'Aktiv', 'WC_Variation_ID', 'Google_Farbe',
-];
-// 0-basierte Spalten-Indizes im Varianten-Reiter
-const VI = Object.fromEntries(VARIANTEN_COLS.map((c, i) => [c, i]));
 
 function sheetId() {
   if (!process.env.GOOGLE_SHEET_ID) {
@@ -50,11 +46,6 @@ function rowsToObjects(rows) {
 
 function norm(s) { return String(s).toLowerCase().replace(/[\s\-_]+/g, ''); }
 
-function normalizeAktiv(val) {
-  if (typeof val === 'boolean') return val;
-  const s = String(val).toUpperCase().trim();
-  return s === 'TRUE' || s === 'WAHR';
-}
 
 async function readRange(tab, range = 'A1:Z1000') {
   const sheets = await getSheets();
@@ -76,25 +67,43 @@ async function getVariantenSheetId(sheets, spreadsheetId) {
   return sheet.properties.sheetId;
 }
 
-// Löscht alle bestehenden Varianten-Zeilen für eine SSOT-ID und schreibt neue
+// Ganzer Reiter Varianten (alle Zeilen, alle Spalten), Zeile 0 = Kopf.
+async function leseVarianten(sheets, spreadsheetId) {
+  const { data } = await sheets.spreadsheets.values.get({ spreadsheetId, range: TAB_VARIANTEN });
+  return data.values ?? [];
+}
+
+// Löscht alle bestehenden Varianten-Zeilen für eine SSOT-ID und schreibt neue.
+// Die neuen Zeilen entstehen aus der Kopfzeile: Payload-Felder über den Namen,
+// alle übrigen Spalten (z. B. LShop_ArticleNr) aus der alten Zeile mit
+// demselben Varianten-Schlüssel (utils/varianten-zeilen.js).
 async function writeVariantenForSsotId(sheets, spreadsheetId, ssotId, varianten) {
   if (!Array.isArray(varianten) || varianten.length === 0) return;
+  const CTX = `Varianten schreiben (${ssotId})`;
+
+  // Erst prüfen, dann schreiben: doppelte Schlüssel / falsche L-Shop-Nummer
+  // brechen ab, bevor eine Zeile gelöscht ist.
+  pruefeVariantenPayload(ssotId, varianten);
 
   const [tabSheetId, varRows] = await Promise.all([
     getVariantenSheetId(sheets, spreadsheetId),
-    sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: `${TAB_VARIANTEN}!A1:L2000`,
-    }).then(r => r.data.values ?? []),
+    leseVarianten(sheets, spreadsheetId),
   ]);
+  const header = varRows[0] ?? [];
+  const ssotIdx = variantenSpalten(header, CTX).ssot;
 
   // Zeilen-Indizes (0-basiert) mit dieser SSOT-ID finden (Index 0 = Header → überspringen)
   const toDelete = [];
   for (let i = 1; i < varRows.length; i++) {
-    if ((varRows[i][VI['SSOT-ID']] ?? '').trim() === ssotId) {
+    if (String(varRows[i][ssotIdx] ?? '').trim() === ssotId) {
       toDelete.push(i);
     }
   }
+
+  // Zeilen bauen, BEVOR gelöscht wird: doppelte Schlüssel im Bestand werfen hier.
+  if (payloadHatLShop(varianten))
+    await sichereTextSpalte(sheets, spreadsheetId, TAB_VARIANTEN, tabSheetId, header, LSHOP_SPALTE);
+  const newRows = baueVariantenZeilen(header, ssotId, varianten, toDelete.map(i => varRows[i]), CTX);
 
   // Absteigend löschen damit Indizes nicht verrutschen
   if (toDelete.length > 0) {
@@ -116,19 +125,6 @@ async function writeVariantenForSsotId(sheets, spreadsheetId, ssotId, varianten)
       requestBody: { requests: deleteRequests },
     });
   }
-
-  // Neue Zeilen aufbauen
-  const newRows = varianten.map((v, i) => [
-    ssotId,
-    v.nr ?? (i + 1),
-    v.e1 ?? '', v.v1 ?? '',
-    v.e2 ?? '', v.v2 ?? '',
-    v.e3 ?? '', v.v3 ?? '',
-    v.preis ?? '',
-    typeof v.aktiv === 'boolean' ? v.aktiv : true,
-    v.wcVariationId ?? '',
-    v.googleFarbe   ?? '',
-  ]);
 
   await sheets.spreadsheets.values.append({
     spreadsheetId,
@@ -237,25 +233,14 @@ router.get('/varianten', async (req, res, next) => {
     const ssotId = (req.query.ssotId ?? '').trim();
     if (!ssotId) return res.status(400).json({ error: 'ssotId fehlt' });
 
-    const rows = await readRange(TAB_VARIANTEN, 'A1:L2000');
+    const rows = await leseVarianten(await getSheets(), sheetId());
     if (!rows.length) return res.json({ ssotId, varianten: [] });
 
+    const idx = variantenSpalten(rows[0], 'GET /api/sheets/varianten');
     const varianten = rows
       .slice(1)
-      .filter(r => (r[VI['SSOT-ID']] ?? '').trim() === ssotId)
-      .map(r => ({
-        nr:           parseInt(r[VI['Varianten-Nr']] ?? '0', 10) || 0,
-        e1:           r[VI['E1']]  ?? '',
-        v1:           r[VI['V1']]  ?? '',
-        e2:           r[VI['E2']]  ?? '',
-        v2:           r[VI['V2']]  ?? '',
-        e3:           r[VI['E3']]  ?? '',
-        v3:           r[VI['V3']]  ?? '',
-        preis:        parseFloat(r[VI['Preis']] ?? '') || 0,
-        aktiv:        normalizeAktiv(r[VI['Aktiv']] ?? ''),
-        wcVariationId: parseInt(r[VI['WC_Variation_ID']] ?? '', 10) || null,
-        googleFarbe:  r[VI['Google_Farbe']] ?? '',
-      }))
+      .filter(r => String(r[idx.ssot] ?? '').trim() === ssotId)
+      .map(r => varianteAusZeile(r, idx))
       .sort((a, b) => a.nr - b.nr);
 
     res.json({ ssotId, varianten });
@@ -531,7 +516,9 @@ router.post('/erfassung/patch-fields', async (req, res, next) => {
 
 // ── PUT /api/sheets/varianten/:ssotId ────────────────────────────────────────
 // Schreibt Varianten-Zeilen für eine SSOT-ID komplett neu (inkl. WC-IDs)
-// Body: { varianten: [{ nr, e1, v1, e2, v2, e3, v3, preis, aktiv, wcVariationId, googleFarbe }] }
+// Body: { varianten: [{ nr, e1, v1, e2, v2, e3, v3, preis, aktiv, wcVariationId, googleFarbe,
+//                       lshopArticleNr? }] }
+// lshopArticleNr fehlt = Bestandswert bleibt; '' = leeren; sonst genau 10 Ziffern.
 router.put('/varianten/:ssotId', async (req, res, next) => {
   try {
     const ssotId   = req.params.ssotId;
@@ -559,24 +546,22 @@ router.put('/varianten/:ssotId/wc-ids', async (req, res, next) => {
     const sheets        = await getSheets();
     const spreadsheetId = sheetId();
 
-    const { data } = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: `${TAB_VARIANTEN}!A1:L2000`,
-    });
-    const rows = data.values ?? [];
-
-    // Baut Range-Wert-Paare für batchUpdate auf
-    // Spalte K (Index 10) = WC_Variation_ID, 1-basierte Zeilennummer = i + 1 (da i=0 ist Header)
-    const colLetter = 'K'; // Index 10 = Spalte K
+    const rows   = await leseVarianten(sheets, spreadsheetId);
+    const header = rows[0] ?? [];
+    const CTX    = 'PUT /api/sheets/varianten/:ssotId/wc-ids';
+    const ssotIdx = requireHeader(header, 'SSOT-ID', CTX);
+    const nrIdx   = requireHeader(header, 'Varianten-Nr', CTX);
+    // Spalte über den Namen, egal wo sie steht; 1-basierte Zeilennummer = i + 1.
+    const wcSpalte = spaltenBuchstabe(requireHeader(header, 'WC_Variation_ID', CTX));
     const data2Update = [];
 
     mappings.forEach(({ variantenNr, wcVariationId }) => {
       for (let i = 1; i < rows.length; i++) {
-        const rowSsot = (rows[i][VI['SSOT-ID']]      ?? '').trim();
-        const rowNr   = parseInt(rows[i][VI['Varianten-Nr']] ?? '', 10);
+        const rowSsot = String(rows[i][ssotIdx] ?? '').trim();
+        const rowNr   = parseInt(rows[i][nrIdx] ?? '', 10);
         if (rowSsot === ssotId && rowNr === variantenNr) {
           data2Update.push({
-            range:  `${TAB_VARIANTEN}!${colLetter}${i + 1}`,
+            range:  `${TAB_VARIANTEN}!${wcSpalte}${i + 1}`,
             values: [[wcVariationId ?? '']],
           });
           break;

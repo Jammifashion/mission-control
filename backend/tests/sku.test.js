@@ -17,6 +17,7 @@ import {
   KURZ_MIN, KURZ_MAX, ARTNR_MAX, SKU_MAX,
 } from '../lib/sku.js';
 import { psZeilenFinden } from '../routes/auftragsmonitor.js';
+import { pruefeVariantenPayload } from '../utils/varianten-zeilen.js';
 
 const html = readFileSync(
   resolve(dirname(fileURLToPath(import.meta.url)), '../../frontend/index.html'), 'utf8',
@@ -305,12 +306,14 @@ describe('Punkt 8: keine 1:1-Annahme SKU zu Lieferantennummer', () => {
     expect(a.split('/')[0]).toBe(b.split('/')[0]);
   });
 
-  test('der Varianten-Reiter hat noch kein Lieferantenfeld', () => {
-    const sheets = readFileSync(
-      resolve(dirname(fileURLToPath(import.meta.url)), '../routes/sheets.js'), 'utf8',
-    );
-    const cols = sheets.match(/const VARIANTEN_COLS\s*=\s*\[([\s\S]*?)\]/);
-    expect(cols).not.toBeNull();
-    expect(cols[1]).not.toMatch(/L-Shop|Lieferant/i);
+  // Seit VR1 fuehrt der Varianten-Reiter LShop_ArticleNr. Die Nummer haengt an
+  // Modell + Farbe + Groesse, nicht an der SKU: verschiedene Varianten duerfen
+  // dieselbe Nummer tragen (Beispiel BoysLove: "mit Namen = Ja/Nein" auf
+  // demselben Rohling). Es darf also keine Eindeutigkeitspruefung geben.
+  test('zwei Varianten derselben SSOT-ID duerfen dieselbe L-Shop-Nummer tragen', () => {
+    expect(() => pruefeVariantenPayload('JFN-2026-0001', [
+      { e1: 'Größe', v1: 'M', e2: 'mit Namen', v2: 'Ja',   lshopArticleNr: '1000311706' },
+      { e1: 'Größe', v1: 'M', e2: 'mit Namen', v2: 'Nein', lshopArticleNr: '1000311706' },
+    ])).not.toThrow();
   });
 });

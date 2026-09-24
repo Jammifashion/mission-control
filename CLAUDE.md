@@ -70,6 +70,14 @@ Neue Sektionen immer mit Anker versehen:
   Anlage- und Aenderungspfad. Aenderungspfad schreibt `_lieferzeit` nur bei geaenderter
   Auswahl, nur am Elternartikel; bestehende Variationen nie. Frontend-Spiegel: Block `Lieferzeit: Anfang/Ende`.
 
+- backend/utils/varianten-zeilen.js – Reiter `Varianten` (SSOT), nur ueber Spaltennamen, ganze
+  Zeilen lesen. Speichern loescht die Zeilen einer SSOT-ID und haengt neue an; Spalten, die der
+  Payload nicht kennt, kommen aus der alten Zeile mit gleichem Schluessel (Menge Achse=Wert,
+  trim/klein/ß=ss, reihenfolgeunabhaengig; doppelter Schluessel -> Fehler, nichts geschrieben).
+  `LShop_ArticleNr`: genau 10 Ziffern als String, Spalte Textformat (`sichereTextSpalte`), wird
+  erst angelegt, wenn ein Payload sie mitbringt. Mehrere Varianten duerfen dieselbe Nummer tragen.
+  `scripts/migrate-varianten.js` ist historisch index-basiert – nicht wiederverwenden.
+
 - backend/lib/groessen.js – Groessen-Rang und -Sortierung (XXS … 8XL, Kindergroessen
   numerisch, Unbekanntes ans Ende mit Hinweis). Einzige Stelle; seo-meta.js nutzt den Rang,
   woocommerce.js sortiert damit die Optionen der Achse "Größe" und die Variationen (Farbe,

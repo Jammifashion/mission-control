@@ -1,3 +1,7 @@
+// HISTORISCH, index-basiert, nicht wiederverwenden. Liest und schreibt den
+// Reiter Varianten ueber feste Positionen (A1:L, r[0]). Der Reiter ist seit VR1
+// header-basiert und kann Spalten hinter L tragen (LShop_ArticleNr) – Zugriffe
+// nur noch ueber backend/utils/varianten-zeilen.js.
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import dotenv from 'dotenv';
