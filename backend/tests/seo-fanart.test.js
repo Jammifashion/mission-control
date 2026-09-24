@@ -1,0 +1,93 @@
+// Befehl SP1: Serientitel als Fanart zulassen – nur mit woertlicher Wendung
+// "Fanart zur Serie <Titel>" im Hinweisblock. Anlass BL7 (24.09.): Jack & Joker
+// fiel bei 5 von 6 Artikeln aus dem Text, Keiju blieb trotz Verbot stehen.
+
+import {
+  SEO_SYSTEM_PROMPT, buildSeoUserPrompt, fanartSerien, fanartBlock,
+} from '../lib/seo-prompt.js';
+
+const basis = {
+  produktname: 'Jack/Joker T-Shirt',
+  kategorien: 'BoysLove (BL)',
+  eigenschaften: 'Material: 100% Baumwolle\nGrammatur: 180 g/m²',
+  motiv: 'Zwei Hände mit verhakten kleinen Fingern',
+  modus: 'kollektion',
+  farben: ['Weiß'],
+  groessen: ['S', 'M'],
+  keyphrase: 'Jack Joker Fanart T-Shirt',
+};
+const prompt = hinweise => buildSeoUserPrompt({ ...basis, hinweise }).prompt;
+
+describe('fanartSerien', () => {
+  test('Titel ohne Anfuehrungszeichen bis Zeilenende', () => {
+    expect(fanartSerien('Serie/Kontext: Fanart zur Serie Jack & Joker\nKategorie: x'))
+      .toEqual([{ wendung: 'Fanart zur Serie Jack & Joker', titel: 'Jack & Joker' }]);
+  });
+
+  test('Titel in „…“ bleibt samt Anfuehrungszeichen, Rest nach Gedankenstrich faellt weg', () => {
+    expect(fanartSerien('Fanart zur Serie „A tale of 1000 stars“ – Gemälde von Keiju'))
+      .toEqual([{ wendung: 'Fanart zur Serie „A tale of 1000 stars“', titel: '„A tale of 1000 stars“' }]);
+  });
+
+  test('Titel endet an Komma, Semikolon, Punkt, " - "', () => {
+    expect(fanartSerien('Fanart zur Serie Jack & Joker, Motiv vorne').map(s => s.titel)).toEqual(['Jack & Joker']);
+    expect(fanartSerien('Fanart zur Serie Jack & Joker; Rücken').map(s => s.titel)).toEqual(['Jack & Joker']);
+    expect(fanartSerien('Fanart zur Serie Jack & Joker. Sonst nichts').map(s => s.titel)).toEqual(['Jack & Joker']);
+    expect(fanartSerien('Fanart zur Serie Jack & Joker - Druck vorne').map(s => s.titel)).toEqual(['Jack & Joker']);
+  });
+
+  test('mehrere Serien, Dubletten nur einmal', () => {
+    expect(fanartSerien('Fanart zur Serie A\nFanart zur Serie B\nFanart zur Serie A').map(s => s.titel)).toEqual(['A', 'B']);
+  });
+
+  test('ohne woertliche Wendung: nichts', () => {
+    expect(fanartSerien('Serie Jack & Joker, Fanart')).toEqual([]);
+    expect(fanartSerien('Merch zur Serie Jack & Joker')).toEqual([]);
+    expect(fanartSerien('')).toEqual([]);
+    expect(fanartSerien(undefined)).toEqual([]);
+  });
+});
+
+describe('User-Prompt', () => {
+  test('Titel im Hinweis -> Block FANART-SERIE mit der Wendung in genau dieser Schreibweise', () => {
+    const p = prompt('Serie/Kontext: Fanart zur Serie Jack & Joker');
+    expect(p).toContain('FANART-SERIE:');
+    expect(p).toContain('- Nenne die Serie genau in dieser Form und Schreibweise: Fanart zur Serie Jack & Joker');
+    expect(p).toContain('sonst keine Aussage zu Lizenz oder Herkunft');
+    expect(p).toContain('Keine Figurennamen, keine Handlung, keine Schauspieler:innen.');
+  });
+
+  test('Block steht nach KONTEXT & HINWEISE und vor PRODUKTDATEN', () => {
+    const p = prompt('Fanart zur Serie Jack & Joker');
+    const k = p.indexOf('KONTEXT & HINWEISE'), f = p.indexOf('FANART-SERIE:'), d = p.indexOf('PRODUKTDATEN:');
+    expect(k).toBeGreaterThanOrEqual(0);
+    expect(k).toBeLessThan(f);
+    expect(f).toBeLessThan(d);
+  });
+
+  test('Titel NICHT im Hinweis -> kein Block, das Verbot im Systemprompt gilt', () => {
+    for (const h of ['Serie/Kontext: BL-Insider-Spruch', 'Serie Jack & Joker', '', undefined]) {
+      expect(prompt(h)).not.toContain('FANART-SERIE');
+      expect(fanartBlock(h)).toBe('');
+    }
+  });
+});
+
+describe('Systemprompt', () => {
+  test('Verbot bleibt, Ausnahme nur ueber den Block FANART-SERIE', () => {
+    expect(SEO_SYSTEM_PROMPT).toMatch(/Keine fremden Marken, Filmtitel oder geschützten Figuren/);
+    expect(SEO_SYSTEM_PROMPT).toMatch(/Einzige Ausnahme: Steht im Block FANART-SERIE/);
+    expect(SEO_SYSTEM_PROMPT).toMatch(/Gibt es keinen Block FANART-SERIE, gilt das Verbot ohne\s+Ausnahme/);
+  });
+
+  test('"offiziell" steht in keinem Prompt-Text (auch nicht verneint)', () => {
+    expect(SEO_SYSTEM_PROMPT).not.toMatch(/offiziell/i);
+    expect(prompt('Fanart zur Serie Jack & Joker')).not.toMatch(/offiziell/i);
+    expect(prompt('')).not.toMatch(/offiziell/i);
+    expect(buildSeoUserPrompt({ ...basis, hinweise: 'x', modus: 'auftrag' }).prompt).not.toMatch(/offiziell/i);
+  });
+
+  test('JSON-Escape-Zeile unveraendert: im Prompt steht Backslash-n, kein echter Umbruch', () => {
+    expect(SEO_SYSTEM_PROMPT).toContain('ausschließlich escaped (\\n, \\r, \\t)');
+  });
+});

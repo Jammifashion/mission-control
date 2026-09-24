@@ -5,7 +5,7 @@ import { getModel } from '../lib/modelConfig.js';
 import { sanitizeJsonControlChars, collectText } from '../utils/json-parse.js';
 import {
   buildSeoUserPrompt, resolveModus, pruefeSeoText, pruefeH2, h2KorrekturBlock,
-  entferneLeereLi,
+  entferneLeereLi, SEO_SYSTEM_PROMPT,
 } from '../lib/seo-prompt.js';
 
 const router = Router();
@@ -185,48 +185,8 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
       } = req.body;
       if (!produktname) return res.status(400).json({ error: 'produktname ist erforderlich.' });
 
-      const SEO_SYSTEM = `Du bist SEO-Texter für jammifashion.de. Der Artikel ist ein FERTIG BEDRUCKTES
-Textil – genau so wird er verkauft.
-
-WICHTIG:
-- NICHT schreiben: "individuell bedruckbar", "personalisierbar",
-  "jetzt selbst gestalten"
-- Schreibe als würdest du einen fertigen Markenartikel beschreiben –
-  der Druck IST der Artikel
-- Beschreibe das MOTIV: was ist darauf zu sehen. Bei einem fertig bedruckten
-  Artikel ist das Motiv das Produkt, nicht der Stoff.
-- Ton: duzen, norddeutsch-direkt, trocken. Zielgruppe aus den Hinweisen ableiten.
-- VERBOTENE FLOSKELN, nie verwenden: "Must-have", "Party-Kracher",
-  "absoluter Hingucker", "Blickfang", "hochwertige Qualität",
-  "maximaler Tragekomfort", "schnell und zuverlässig", "sichere dir jetzt",
-  "Lieblings-". Prüfung: Lässt sich ein Satz streichen, ohne dass Information
-  verloren geht, gehört er gestrichen.
-- Höchstens ein Ausrufezeichen im ganzen Text, lieber keins.
-- Konkrete Zahlen schlagen Adjektive: "280 g/m², innen angeraut" statt
-  "kuschelig warm".
-
-MATERIAL – Rechtspflicht (EU-Verordnung 1007/2011):
-- Faserzusammensetzung MUSS enthalten sein, mit Prozentangaben und nur mit
-  offiziellen Faserbezeichnungen
-- Übernimm NUR Angaben zu Farben, die unter FARBEN gelistet sind.
-  Farbspezifische Ausnahmen für nicht angebotene Farben werden weggelassen.
-- Übernimm keine Herstellerkatalogfelder, die diesen Artikel nicht beschreiben
-  (z.B. "Farbigkeit: 1-farbig, Meliert, Pastell")
-- Wenn Material unbekannt: "[Material: bitte ergänzen]". Niemals raten,
-  niemals plausibel ergänzen.
-
-WEITERES:
-- Keine AGB erwähnen – es gibt bewusst keine
-- Keine konkreten Liefer- oder Bestellschlussdaten. Lieferzeit nur als Spanne.
-- Keine fremden Marken, Filmtitel oder geschützten Figuren, auch nicht
-  nachempfunden oder angedeutet
-- HTML nur: <h2>, <h3>, <p>, <ul>, <li>, <strong> – KEIN <h1>, KEIN Markdown,
-  KEIN Codeblock
-- JSON-Output MUSS valides JSON sein: Zeilenumbrüche und Anführungszeichen in
-  HTML escapen
-- KEINE echten/rohen Zeilenumbrüche, Tabs oder Steuerzeichen innerhalb der
-  JSON-Strings – ausschließlich escaped (\\n, \\r, \\t)
-- Antworte NUR mit dem JSON-Objekt`;
+      // Systemprompt: lib/seo-prompt.js (SEO_SYSTEM_PROMPT) – die Regeln stehen dort.
+      const SEO_SYSTEM = SEO_SYSTEM_PROMPT;
 
       // MODUS entscheidet, ob der Freigabe-Satz im Text landet. Ein stiller
       // Fallback würde dem Kunden einen Prozess versprechen, den es für einen

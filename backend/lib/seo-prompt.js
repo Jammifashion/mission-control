@@ -55,6 +55,95 @@ const FREIGABE_HINWEIS =
   'Schließe mit einem Satz in <p>, dass wir das Layout vor dem Druck zur ' +
   'Freigabe schicken. Keine Datumsangaben, keine Lieferzusagen.';
 
+// Befehl SP1 (24.09.): Fanart darf den Serientitel nennen – aber NUR, wenn er
+// woertlich als "Fanart zur Serie <Titel>" im Hinweisblock steht, und dann in
+// genau dieser Form. Ohne diese Wendung gilt das Titelverbot unveraendert.
+//
+// ⚠️ Das Wort "offiziell" (auch verneint) steht absichtlich NICHT im Prompt.
+// GEMESSEN (BL7, 24.09.): jedes "nie offiziell" in der Eingabe kam als "kein
+// offizielles Merch" / "inoffizielle Fanart" im Text an. Darum nur positiv:
+// "als Fanart kennzeichnen, sonst keine Aussage zu Lizenz oder Herkunft".
+const FANART_RE = /Fanart zur Serie\s+(„[^“]+“|"[^"]+"|[^\n–—;.,]+?)(?=\s*(?:[–—;.,]|\s-\s|\n|$))/g;
+
+/**
+ * Alle Wendungen "Fanart zur Serie <Titel>" aus dem Hinweisblock, woertlich.
+ * Titel in „…“ oder "…" bleiben samt Anfuehrungszeichen; sonst endet der Titel
+ * am ersten Gedankenstrich, Komma, Semikolon, Punkt oder Zeilenende.
+ * @returns {{ wendung: string, titel: string }[]}
+ */
+export function fanartSerien(hinweise) {
+  const out = [];
+  for (const m of String(hinweise ?? '').matchAll(FANART_RE)) {
+    const titel = m[1].trim();
+    const wendung = `Fanart zur Serie ${titel}`;
+    if (titel && !out.some(x => x.wendung === wendung)) out.push({ wendung, titel });
+  }
+  return out;
+}
+
+/** Block FANART-SERIE fuer den User-Prompt – oder '' ohne Wendung im Hinweis. */
+export function fanartBlock(hinweise) {
+  const serien = fanartSerien(hinweise);
+  if (!serien.length) return '';
+  return [
+    'FANART-SERIE:',
+    ...serien.map(s => `- Nenne die Serie genau in dieser Form und Schreibweise: ${s.wendung}`),
+    '- Den Artikel als Fanart kennzeichnen, sonst keine Aussage zu Lizenz oder Herkunft.',
+    '- Keine Figurennamen, keine Handlung, keine Schauspieler:innen.',
+  ].join('\n');
+}
+
+// Systemprompt fuer action=seo_description. Hier, nicht in routes/claude.js,
+// damit die Regeln an einer Stelle stehen und testbar sind.
+export const SEO_SYSTEM_PROMPT = `Du bist SEO-Texter für jammifashion.de. Der Artikel ist ein FERTIG BEDRUCKTES
+Textil – genau so wird er verkauft.
+
+WICHTIG:
+- NICHT schreiben: "individuell bedruckbar", "personalisierbar",
+  "jetzt selbst gestalten"
+- Schreibe als würdest du einen fertigen Markenartikel beschreiben –
+  der Druck IST der Artikel
+- Beschreibe das MOTIV: was ist darauf zu sehen. Bei einem fertig bedruckten
+  Artikel ist das Motiv das Produkt, nicht der Stoff.
+- Ton: duzen, norddeutsch-direkt, trocken. Zielgruppe aus den Hinweisen ableiten.
+- VERBOTENE FLOSKELN, nie verwenden: "Must-have", "Party-Kracher",
+  "absoluter Hingucker", "Blickfang", "hochwertige Qualität",
+  "maximaler Tragekomfort", "schnell und zuverlässig", "sichere dir jetzt",
+  "Lieblings-". Prüfung: Lässt sich ein Satz streichen, ohne dass Information
+  verloren geht, gehört er gestrichen.
+- Höchstens ein Ausrufezeichen im ganzen Text, lieber keins.
+- Konkrete Zahlen schlagen Adjektive: "280 g/m², innen angeraut" statt
+  "kuschelig warm".
+
+MATERIAL – Rechtspflicht (EU-Verordnung 1007/2011):
+- Faserzusammensetzung MUSS enthalten sein, mit Prozentangaben und nur mit
+  den Faserbezeichnungen dieser Verordnung (z.B. Baumwolle, Polyester, Viskose)
+- Übernimm NUR Angaben zu Farben, die unter FARBEN gelistet sind.
+  Farbspezifische Ausnahmen für nicht angebotene Farben werden weggelassen.
+- Übernimm keine Herstellerkatalogfelder, die diesen Artikel nicht beschreiben
+  (z.B. "Farbigkeit: 1-farbig, Meliert, Pastell")
+- Wenn Material unbekannt: "[Material: bitte ergänzen]". Niemals raten,
+  niemals plausibel ergänzen.
+
+WEITERES:
+- Keine AGB erwähnen – es gibt bewusst keine
+- Keine konkreten Liefer- oder Bestellschlussdaten. Lieferzeit nur als Spanne.
+- Keine fremden Marken, Filmtitel oder geschützten Figuren, auch nicht
+  nachempfunden oder angedeutet.
+  Einzige Ausnahme: Steht im Block FANART-SERIE eine Wendung "Fanart zur
+  Serie <Titel>", darfst du genau diese Wendung in genau dieser Schreibweise
+  übernehmen. Den Artikel dann als Fanart kennzeichnen, sonst keine Aussage
+  zu Lizenz oder Herkunft. Keine Figurennamen, keine Handlung, keine
+  Schauspieler:innen. Gibt es keinen Block FANART-SERIE, gilt das Verbot ohne
+  Ausnahme.
+- HTML nur: <h2>, <h3>, <p>, <ul>, <li>, <strong> – KEIN <h1>, KEIN Markdown,
+  KEIN Codeblock
+- JSON-Output MUSS valides JSON sein: Zeilenumbrüche und Anführungszeichen in
+  HTML escapen
+- KEINE echten/rohen Zeilenumbrüche, Tabs oder Steuerzeichen innerhalb der
+  JSON-Strings – ausschließlich escaped (\\n, \\r, \\t)
+- Antworte NUR mit dem JSON-Objekt`;
+
 // Labels vor einem Doppelpunkt, die keine Farbe benennen. Ohne diese Liste
 // würde "(Pflege: 30°C Schonwaschgang)" als Ausnahme für eine unbekannte Farbe
 // namens "Pflege" gelesen und stillschweigend gelöscht.
@@ -993,6 +1082,9 @@ export function buildSeoUserPrompt({
       : '',
 
     `KONTEXT & HINWEISE (PRIMÄR):\n${hinweise || 'Keine besonderen Hinweise'}`,
+
+    // Nur mit woertlicher Wendung im Hinweis – sonst leer, Verbot gilt (SP1).
+    fanartBlock(hinweise),
 
     [
       'PRODUKTDATEN:',

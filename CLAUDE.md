@@ -49,7 +49,10 @@ Neue Sektionen immer mit Anker versehen:
   Neue Skriptspalten nur hinten anfuegen (`SCRIPT_COLUMNS_NACH_MANUELL`), nie zwischen O und P.
   Status `processing`, `on-hold` (Vorkasse), `completed`; ohne `after` Start 3 Tage vor dem
   juengsten Bestelldatum (`UEBERLAPPUNG_TAGE`). Bestandszeilen werden nie geaendert.
-- backend/lib/seo-prompt.js – SEO-Prompt: User-Template, MODUS-Enum, Materialfilter.
+- backend/lib/seo-prompt.js – SEO-Prompt: Systemprompt (`SEO_SYSTEM_PROMPT`), User-Template,
+  MODUS-Enum, Materialfilter. Serientitel nur als Fanart: steht im Hinweisblock woertlich
+  "Fanart zur Serie <Titel>", kommt der Block FANART-SERIE dazu, sonst gilt das Titelverbot.
+  Das Wort "offiziell" (auch verneint) nie in Prompt-Texte – es landet sonst im Text.
   Die Regeln stehen hier, das ist die Quelle. Begründungen und Historie liegen im
   Claude-Projekt unter METHODE/SEO_Beschreibungs_Framework.md (nicht im Repo).
 - backend/lib/seo-meta.js – Yoast SEO-Titel und Meta-Beschreibung, deterministisch
