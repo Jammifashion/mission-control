@@ -7,6 +7,7 @@ import {
   LIEFERZEIT_WIE_ELTERN, pruefeLieferzeitWert, lieferzeitAusMetaData, mitLieferzeit,
 } from '../lib/lieferzeiten.js';
 import { sortiereAttributOptionen, variantenReihenfolge } from '../lib/groessen.js';
+import { merkeKeyphrase } from '../lib/seo-artikel.js';
 
 const router = Router();
 
@@ -533,6 +534,10 @@ router.put('/products/:id', async (req, res, next) => {
 
     const { data: productRaw } = await wc.put(`products/${req.params.id}`, payload);
     const product = Array.isArray(productRaw) ? productRaw[0] : productRaw;
+
+    // Befehl SE1: geschriebene Keyphrase im Dubletten-Speicher nachziehen.
+    const kwNeu = (payload.meta_data ?? []).find(m => m?.key === '_yoast_wpseo_focuskw');
+    if (kwNeu) merkeKeyphrase(req.params.id, product?.name, kwNeu.value);
 
     if (Array.isArray(variations) && variations.length) {
       const skuVon = v => {

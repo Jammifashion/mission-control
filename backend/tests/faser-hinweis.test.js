@@ -169,6 +169,10 @@ describe('Frontend-Anbindung', () => {
   test('Meta-Vorschau zeigt den Hinweis, meta-eingaben bekommt die Groessen', () => {
     expect(html).toContain('if (st.desc.faserHinweis) dZeilen.push(st.desc.faserHinweis);');
     expect(html).toContain('faserHinweis: ein.faserHinweis || null');
-    expect(html).toMatch(/groessen:\s+seoGroessenQuelle\(seoVarianten, seoWcProdukt, seoQuellenOk\)\.groessen,\s*\n\s*\}\),/);
+    // Seit SE1 im gemeinsamen Baustein: seoMetaQuellen liefert die Groessen,
+    // seoMetaEingabenHolen schickt sie mit, der SEO-Reiter nutzt beides.
+    expect(html).toContain('groessen:   seoGroessenQuelle(varianten, wcProdukt, quellenOk).groessen,');
+    expect(html).toContain('body: JSON.stringify({ eigenschaften, farben: quellen.farben, groessen: quellen.groessen }),');
+    expect(html).toContain('seoMetaQuellen(seoVarianten, seoWcProdukt, seoQuellenOk));');
   });
 });

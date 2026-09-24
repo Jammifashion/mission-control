@@ -155,10 +155,17 @@ describe('Frontend: Yoast-Schreibweg', () => {
 
   // Der Kern: genau dieser Body-Zuschnitt ist an 21031 gemessen.
   test('der PUT-Body enthaelt AUSSCHLIESSLICH meta_data', () => {
+    // Seit SE1 liegt der PUT in yoastSchreiben() - EIN Schreibweg fuer den
+    // SEO-Reiter und "SEO-Daten aendern". Der Yoast-Block muss ihn aufrufen,
+    // und die Funktion selbst darf nur meta_data schicken.
     const code = ohneKommentare(yoastBlock);
-    expect(code).toMatch(/body:\s*JSON\.stringify\(\{\s*meta_data:\s*yoastMeta\s*\}\)/);
+    expect(code).toMatch(/await yoastSchreiben\(seoCurrentItem\.wcId, yoastMeta\)/);
+    const fnStart = html.indexOf('async function yoastSchreiben(');
+    const fn = ohneKommentare(html.slice(fnStart, html.indexOf('\n      }', fnStart)));
+    expect(fn).toMatch(/body:\s*JSON\.stringify\(\{\s*meta_data:\s*yoastMeta\s*\}\)/);
     for (const verboten of [/\bsku\b/, /\battributes\b/, /\bvariations\b/, /\bbrands\b/, /\bstatus:/]) {
       expect(code).not.toMatch(verboten);
+      expect(fn).not.toMatch(verboten);
     }
   });
 

@@ -14,6 +14,7 @@ Aktuelle Sektionen:
 - Auftragsmonitor: Shop Orders (Zeile 1801)
 - Artikelerfassung (Zeile 1978)
 - SEO-Flow (Zeile 2664)
+- SEO-Daten aendern (Zeile ~5300, Befehl SE1: Yoast-Felder jedes veroeffentlichten Artikels; nutzt seoMetaBau und yoastSchreiben des SEO-Flows, schreibt nichts ins Sheet)
 - Kundenanfragen Extern (Zeile 4222)
 - Settings (Zeile 3604)
 - Partnerportal (Zeile 3724)

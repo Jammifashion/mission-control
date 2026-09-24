@@ -1121,6 +1121,59 @@
           <button class="mode-btn active" id="mode-btn-new">＋ Neu anlegen</button>
           <button class="mode-btn" id="mode-btn-seo">🔍 SEO Daten</button>
           <button class="mode-btn" id="mode-btn-edit">✏️ Artikel ändern</button>
+          <button class="mode-btn" id="mode-btn-seoedit">🔎 SEO-Daten ändern</button>
+        </div>
+
+        <!-- SEO-Daten aendern (Befehl SE1): jeder veroeffentlichte Artikel, auch ohne SSOT-Zeile -->
+        <div id="seoedit-panel" style="display:none;">
+          <div class="card" style="margin-bottom:1rem;">
+            <div class="form-section-title">Artikel suchen <span class="field-note">(Name, SKU oder Produkt-ID – nur veröffentlichte)</span></div>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+              <input id="se-suche" type="text" class="form-input" style="flex:1;min-width:12rem;" placeholder="z. B. Oldschool, E3000/CH-Oldschool oder 21044" />
+              <button class="btn-secondary" id="se-suchen">Suchen</button>
+            </div>
+            <select id="se-treffer" class="form-select" style="margin-top:0.5rem;display:none;"></select>
+          </div>
+          <div id="se-artikel" style="display:none;">
+            <div class="card" style="margin-bottom:1rem;">
+              <div class="form-section-title">Artikel</div>
+              <div class="form-grid">
+                <div class="form-field"><label>Produktname</label><input id="se-name" class="form-input accent" readonly /></div>
+                <div class="form-field"><label>SKU</label><input id="se-sku" class="form-input accent" readonly /></div>
+                <div class="form-field"><label>Produkt-ID</label><input id="se-id" class="form-input accent" readonly /></div>
+                <div class="form-field"><label>SSOT-ID</label><input id="se-ssot" class="form-input accent" readonly /></div>
+              </div>
+            </div>
+            <div class="card" style="margin-bottom:1rem;">
+              <div class="form-section-title">Yoast <span class="field-note">(aktueller Stand aus dem Shop – frei bearbeitbar, kein Sprachmodell)</span></div>
+              <div class="form-field" style="margin-bottom:0.75rem;">
+                <label>Fokus-Keyphrase</label>
+                <input id="se-keyphrase" type="text" class="form-input" />
+              </div>
+              <div class="form-field" style="margin-bottom:0.75rem;">
+                <label>Keyphrase-Synonyme <span class="field-note">(kommagetrennt – leer lässt den Bestand stehen)</span></label>
+                <input id="se-synonyme" type="text" class="form-input" />
+              </div>
+              <div class="form-field" style="margin-bottom:0.75rem;">
+                <label>SEO-Titel <span id="se-titel-info" class="field-note"></span></label>
+                <input id="se-titel" type="text" class="form-input" />
+              </div>
+              <div class="form-field" style="margin-bottom:0.75rem;">
+                <label>Meta-Beschreibung <span id="se-meta-info" class="field-note"></span></label>
+                <textarea id="se-meta" class="form-input" rows="3" style="resize:vertical;font-family:inherit;"></textarea>
+                <div id="se-meta-hinweis" style="font-size:0.8rem;color:var(--muted);margin-top:0.25rem;"></div>
+              </div>
+              <div class="form-field">
+                <label>Eigenschaften <span class="field-note">(optional – nur für „neu bauen“: Faserangabe und Grammatur, wie im SEO-Reiter)</span></label>
+                <textarea id="se-eigenschaften" class="form-input" rows="3" style="resize:vertical;font-family:inherit;" placeholder="z. B. Materialzusammensetzung&#9;100% Baumwolle"></textarea>
+              </div>
+            </div>
+            <div class="panel-actions">
+              <button class="btn-secondary" id="se-neu-bauen">Titel und Meta neu bauen</button>
+              <button class="btn" id="se-speichern">Yoast-Daten speichern</button>
+              <span id="se-status" style="font-size:0.82rem;color:var(--muted);align-self:center;"></span>
+            </div>
+          </div>
         </div>
 
         <!-- SEO Modus Panel -->
@@ -4082,6 +4135,69 @@
       }
       // ── Keyphrase-Synonyme: Ende ──
 
+      // ── SEO-Daten aendern: Anfang (reine Logik, backend/tests/seo-daten-aendern.test.js) ──
+      // Befehl SE1. Nur GEAENDERTE Felder schreiben, leere nie (Leerfall wie
+      // 849c65b: ein leeres Feld loeschte sonst den Bestand still).
+      // zuYoast/ausYoast = synonymeZuYoast/synonymeAusYoast (Block oben).
+      const SE_FELDER = [
+        { feld: 'keyphrase', key: '_yoast_wpseo_focuskw',         name: 'Fokus-Keyphrase' },
+        { feld: 'synonyme',  key: '_yoast_wpseo_keywordsynonyms', name: 'Synonyme' },
+        { feld: 'titel',     key: '_yoast_wpseo_title',           name: 'SEO-Titel' },
+        { feld: 'metadesc',  key: '_yoast_wpseo_metadesc',        name: 'Meta-Beschreibung' },
+      ];
+
+      function seMetaWert(metaData, key) {
+        const e = (Array.isArray(metaData) ? metaData : []).find(m => m && m.key === key);
+        return e && typeof e.value === 'string' ? e.value : '';
+      }
+
+      // -> { schreiben: [{key, name, wert}], meldungen: [{name, text}] }
+      function seAenderungen({ metaData, eingabe, zuYoast, ausYoast }) {
+        const schreiben = [], meldungen = [];
+        for (const f of SE_FELDER) {
+          const alt = seMetaWert(metaData, f.key);
+          const roh = String(eingabe[f.feld] ?? '');
+          let wert, gleich;
+          if (f.feld === 'synonyme') {
+            wert   = zuYoast(roh);                                    // null bei leer
+            gleich = wert !== null && ausYoast(wert) === ausYoast(alt);
+          } else {
+            wert   = roh.trim() || null;
+            gleich = wert !== null && wert === alt.trim();
+          }
+          if (wert === null)  meldungen.push({ name: f.name, text: `${f.name}: nicht geschrieben – Feld leer, Bestand bleibt` });
+          else if (gleich)    meldungen.push({ name: f.name, text: `${f.name}: unverändert` });
+          else                schreiben.push({ key: f.key, name: f.name, wert });
+        }
+        return { schreiben, meldungen };
+      }
+
+      // Nach dem Schreiben gegen den Ruecklesewert pruefen, je Feld eine Zeile.
+      function seErgebnis(schreiben, nachMetaData, fehler) {
+        return schreiben.map(f => {
+          if (fehler) return { name: f.name, ok: false, text: `${f.name}: nicht geschrieben – ${fehler}` };
+          const steht = seMetaWert(nachMetaData, f.key);
+          return steht === f.wert
+            ? { name: f.name, ok: true,  text: `${f.name}: geschrieben` }
+            : { name: f.name, ok: false, text: `${f.name}: nicht geschrieben – im Shop steht "${steht}"` };
+        });
+      }
+      // ── SEO-Daten aendern: Ende ──
+
+      // Befehl SE1: EIN Yoast-Schreibweg fuer den SEO-Reiter und "SEO-Daten
+      // aendern". ⚠️ Der Body enthaelt AUSSCHLIESSLICH meta_data (an 21031
+      // gemessen; ein brands-Array ersetzte alle Marken). Beleg ist der
+      // REST-Ruecklesewert, nicht die PUT-Antwort.
+      async function yoastSchreiben(wcId, yoastMeta) {
+        const r = await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ meta_data: yoastMeta }),
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return apiJson(await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcId}`));
+      }
+
       // Meldung am Eigenschaften-Feld. Bewusst AUSSERHALB des Regelblocks:
       // der darf das DOM nicht anfassen.
       function zeigeAchsenRegel(text) {
@@ -4959,9 +5075,50 @@
       // nicht FARB_ATTR_RE: das traefe auch Druckfarbe und Schriftfarbe.
       // Erst Varianten-Reiter, sonst das geladene WooCommerce-Produkt.
       const SEO_META_FARBACHSE = { test: istFarbAchse };
+
+      // Befehl SE1: EIN Baustein fuer den SEO-Reiter und "SEO-Daten aendern".
+      // Quellen: Farben erst Varianten-Reiter, sonst WooCommerce; Groessen
+      // ebenso (seoGroessenQuelle); _lieferzeit aus dem Shop-Produkt.
+      function seoMetaQuellen(varianten, wcProdukt, quellenOk) {
+        const v = seoWerteAusVarianten(varianten, SEO_META_FARBACHSE);
+        return {
+          farben:     v.length ? v : seoWerteAusWcProdukt(wcProdukt, SEO_META_FARBACHSE),
+          groessen:   seoGroessenQuelle(varianten, wcProdukt, quellenOk).groessen,
+          lieferzeit: seoMetaLieferzeit(wcProdukt && wcProdukt.meta_data),
+        };
+      }
+      // Faserangabe/Grammatur (+ Faser-Hinweis F2) rechnet das Backend.
+      async function seoMetaEingabenHolen(eigenschaften, quellen) {
+        try {
+          const r = await apiFetch(`${API_BASE()}/api/seo/meta-eingaben`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ eigenschaften, farben: quellen.farben, groessen: quellen.groessen }),
+          });
+          return await apiJson(r);
+        } catch (e) {
+          return { fehler: e.message };
+        }
+      }
+      // Titel und Meta-Beschreibung aus Keyphrase, Quellen und Eingaben.
+      function seoMetaBau({ keyphrase, quellen, ein }) {
+        const e = ein || {};
+        return {
+          titel: seoMetaTitel(keyphrase),
+          desc:  seoMetaBeschreibung({
+            keyphrase,
+            farben:       quellen.farben,
+            faserangabe:  e.faserangabe,
+            faserMeldung: e.faserMeldung,
+            grammatur:    e.grammatur,
+            groessen:     quellen.groessen,
+            lieferzeit:   quellen.lieferzeit,
+          }),
+        };
+      }
+
       function seoMetaFarben() {
-        const v = seoWerteAusVarianten(seoVarianten, SEO_META_FARBACHSE);
-        return v.length ? v : seoWerteAusWcProdukt(seoWcProdukt, SEO_META_FARBACHSE);
+        return seoMetaQuellen(seoVarianten, seoWcProdukt, seoQuellenOk).farben;
       }
       function seoMetaVorhanden(key) {
         const m = ((seoWcProdukt && seoWcProdukt.meta_data) || []).find(x => x && x.key === key);
@@ -4972,21 +5129,10 @@
       // Backend – der Materialfilter wird nicht ins Frontend gespiegelt.
       let seoMetaEingabenStand = null;  // { faserangabe, faserMeldung, grammatur } | { fehler }
       async function seoMetaEingabenLaden() {
-        try {
-          const r = await apiFetch(`${API_BASE()}/api/seo/meta-eingaben`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              eigenschaften: document.getElementById('seo-eigenschaften').value,
-              farben:        seoMetaFarben(),
-              // Groessen-Achse: Ausloeser fuer den Faser-Hinweis (Befehl F2).
-              groessen:      seoGroessenQuelle(seoVarianten, seoWcProdukt, seoQuellenOk).groessen,
-            }),
-          });
-          seoMetaEingabenStand = await apiJson(r);
-        } catch (e) {
-          seoMetaEingabenStand = { fehler: e.message };
-        }
+        // Groessen-Achse geht mit: Ausloeser fuer den Faser-Hinweis (Befehl F2).
+        seoMetaEingabenStand = await seoMetaEingabenHolen(
+          document.getElementById('seo-eigenschaften').value,
+          seoMetaQuellen(seoVarianten, seoWcProdukt, seoQuellenOk));
         return seoMetaEingabenStand;
       }
 
@@ -4997,7 +5143,9 @@
         const wcLesbar  = !!(seoQuellenOk && seoQuellenOk.wc);
         const ein       = seoMetaEingabenStand || {};
 
-        const titel = seoMetaTitel(keyphrase);
+        // Derselbe Baustein wie in "SEO-Daten aendern" (Befehl SE1).
+        const bau   = seoMetaBau({ keyphrase, quellen: seoMetaQuellen(seoVarianten, seoWcProdukt, seoQuellenOk), ein });
+        const titel = bau.titel;
         const titelVorh = seoMetaVorhanden('_yoast_wpseo_title');
         const titelEnt  = seoMetaEntscheidung({
           neu: titel, vorhanden: titelVorh,
@@ -5005,15 +5153,7 @@
         });
         let titelGrund = titel ? '' : 'Keine Fokus-Keyphrase – kein SEO-Titel, die Yoast-Vorlage greift.';
 
-        const desc = seoMetaBeschreibung({
-          keyphrase,
-          farben:       seoMetaFarben(),
-          faserangabe:  ein.faserangabe,
-          faserMeldung: ein.faserMeldung,
-          grammatur:    ein.grammatur,
-          groessen:     seoGroessenQuelle(seoVarianten, seoWcProdukt, seoQuellenOk).groessen,
-          lieferzeit:   seoMetaLieferzeit(seoWcProdukt && seoWcProdukt.meta_data),
-        });
+        const desc = bau.desc;
         const descVorh = seoMetaVorhanden('_yoast_wpseo_metadesc');
         let descEnt = seoMetaEntscheidung({
           neu: desc.schreiben ? desc.text : null, vorhanden: descVorh,
@@ -5083,6 +5223,9 @@
       const modeBtnNew      = document.getElementById('mode-btn-new');
       const modeBtnSeo      = document.getElementById('mode-btn-seo');
       const modeBtnEdit     = document.getElementById('mode-btn-edit');
+      const modeBtnSeoEdit  = document.getElementById('mode-btn-seoedit');
+      const seoEditPanel    = document.getElementById('seoedit-panel');
+      let seAendernModus    = false;
       const entwurfBlock    = document.getElementById('pf-entwurf-block');
       const searchBlock     = document.getElementById('pf-search-block');
       const btnCreateWc     = document.getElementById('btn-create-wc');
@@ -5139,6 +5282,9 @@
         modeBtnNew.classList.toggle('active', !edit);
         modeBtnSeo.classList.remove('active');
         modeBtnEdit.classList.toggle('active', edit);
+        modeBtnSeoEdit.classList.remove('active');
+        seoEditPanel.style.display = 'none';
+        seAendernModus = false;
 
         entwurfBlock.style.display   = edit ? 'none' : '';
         searchBlock.style.display    = edit ? '' : 'none';
@@ -5177,14 +5323,202 @@
         modeBtnNew.classList.remove('active');
         modeBtnEdit.classList.remove('active');
         modeBtnSeo.classList.add('active');
+        modeBtnSeoEdit.classList.remove('active');
+        seoEditPanel.style.display = 'none';
+        seAendernModus = false;
 
         resetForm();
         loadSeoPendingList();
       }
 
-      modeBtnNew.addEventListener('click',  () => { if (editMode || seoMode) setMode(false); });
+      modeBtnNew.addEventListener('click',  () => { if (editMode || seoMode || seAendernModus) setMode(false); });
       modeBtnSeo.addEventListener('click',  () => { if (!seoMode) setSeoMode(); });
-      modeBtnEdit.addEventListener('click', () => { if (!editMode || seoMode) setMode(true); });
+      modeBtnEdit.addEventListener('click', () => { if (!editMode || seoMode || seAendernModus) setMode(true); });
+      modeBtnSeoEdit.addEventListener('click', () => { if (!seAendernModus) setSeAendernModus(); });
+
+      // ── SECTION: SEO-Daten aendern (Befehl SE1) ──
+      // Jeder veroeffentlichte Artikel, auch ohne SSOT-Zeile. Schreibt NUR
+      // Yoast-meta_data ueber yoastSchreiben - keine Texte, kein Modell, und
+      // NICHTS ins Sheet (SEO_Status bleibt, wie er ist).
+      let seStand = null;   // { produkt, quellen }
+
+      function setSeAendernModus() {
+        seAendernModus = true;
+        seoMode  = false;
+        editMode = false;
+        productFormArea.style.display = 'none';
+        seoModePanel.style.display    = 'none';
+        seoEditPanel.style.display    = '';
+        modeBtnNew.classList.remove('active');
+        modeBtnEdit.classList.remove('active');
+        modeBtnSeo.classList.remove('active');
+        modeBtnSeoEdit.classList.add('active');
+        resetForm();
+        seStand = null;
+        document.getElementById('se-artikel').style.display = 'none';
+        document.getElementById('se-treffer').style.display = 'none';
+        document.getElementById('se-status').textContent = '';
+      }
+
+      function seZaehler() {
+        const t = document.getElementById('se-titel').value;
+        const m = document.getElementById('se-meta').value;
+        document.getElementById('se-titel-info').textContent = t ? `(${seoMetaLaenge(t)} Zeichen)` : '';
+        document.getElementById('se-meta-info').textContent  = m ? `(${seoMetaLaenge(m)} Zeichen, max. 160)` : '';
+      }
+      document.getElementById('se-titel').addEventListener('input', seZaehler);
+      document.getElementById('se-meta').addEventListener('input', seZaehler);
+
+      async function seSuchen() {
+        const q   = document.getElementById('se-suche').value.trim();
+        const sel = document.getElementById('se-treffer');
+        if (!q) return;
+        sel.style.display = '';
+        sel.innerHTML = '<option value="">Wird gesucht…</option>';
+        try {
+          const liste = await apiJson(await apiFetch(`${API_BASE()}/api/seo/artikel-suche?q=${encodeURIComponent(q)}`));
+          sel.innerHTML = liste.length
+            ? '<option value="">— Artikel auswählen —</option>' + liste.map(a =>
+                `<option value="${a.id}">${a.id} – ${a.sku ? a.sku + ' – ' : ''}${a.name}</option>`).join('')
+            : '<option value="">Kein veröffentlichter Artikel gefunden</option>';
+        } catch (e) {
+          setSelectError(sel, e.message);
+        }
+      }
+      document.getElementById('se-suchen').addEventListener('click', seSuchen);
+      document.getElementById('se-suche').addEventListener('keydown', e => { if (e.key === 'Enter') seSuchen(); });
+
+      async function seLaden(id) {
+        const status = document.getElementById('se-status');
+        status.style.color = 'var(--muted)';
+        status.textContent = 'Wird geladen…';
+        document.getElementById('se-artikel').style.display = 'none';
+        try {
+          const [produkt, ssot] = await Promise.all([
+            apiJson(await apiFetch(`${API_BASE()}/api/woocommerce/products/${id}`)),
+            apiFetch(`${API_BASE()}/api/sheets/erfassung/by-wc-id?id=${id}`).then(r => r.json()).catch(() => ({})),
+          ]);
+          // Mit SSOT-Zeile: Varianten-Reiter wie im SEO-Reiter (gleiches
+          // Ergebnis fuer denselben Artikel). Ohne: nur der Shop.
+          let varianten = [], quellenOk = { varianten: false, wc: !!(produkt && produkt.id) };
+          if (ssot && ssot.ssotId) {
+            try {
+              const v = await apiJson(await apiFetch(
+                `${API_BASE()}/api/sheets/varianten?ssotId=${encodeURIComponent(ssot.ssotId)}`));
+              varianten = v.varianten ?? [];
+              quellenOk.varianten = Array.isArray(v.varianten);
+            } catch (_) { /* Shop-Fallback bleibt */ }
+          }
+          seStand = { produkt, varianten, quellenOk, quellen: seoMetaQuellen(varianten, produkt, quellenOk) };
+
+          const md = produkt.meta_data || [];
+          document.getElementById('se-name').value = produkt.name || '';
+          document.getElementById('se-sku').value  = produkt.sku || '';
+          document.getElementById('se-id').value   = produkt.id;
+          document.getElementById('se-ssot').value = (ssot && ssot.ssotId) || 'keine SSOT-Zeile';
+          document.getElementById('se-keyphrase').value = seMetaWert(md, '_yoast_wpseo_focuskw');
+          document.getElementById('se-synonyme').value  = synonymeAusYoast(seMetaWert(md, '_yoast_wpseo_keywordsynonyms'));
+          document.getElementById('se-titel').value     = seMetaWert(md, '_yoast_wpseo_title');
+          document.getElementById('se-meta').value      = seMetaWert(md, '_yoast_wpseo_metadesc');
+          document.getElementById('se-eigenschaften').value = '';
+          document.getElementById('se-meta-hinweis').textContent = '';
+          seZaehler();
+          document.getElementById('se-artikel').style.display = '';
+          status.textContent = '';
+        } catch (e) {
+          seStand = null;
+          status.textContent = `Fehler: ${e.message}`;
+          status.style.color = 'var(--danger)';
+        }
+      }
+      document.getElementById('se-treffer').addEventListener('change', function () {
+        if (this.value) seLaden(this.value);
+      });
+
+      // Derselbe Baustein wie der SEO-Reiter: seoMetaBau + seoMetaEingabenHolen.
+      document.getElementById('se-neu-bauen').addEventListener('click', async () => {
+        if (!seStand) return;
+        const keyphrase = document.getElementById('se-keyphrase').value.trim();
+        const ein = await seoMetaEingabenHolen(document.getElementById('se-eigenschaften').value, seStand.quellen);
+        const bau = seoMetaBau({ keyphrase, quellen: seStand.quellen, ein });
+        const zeilen = [];
+        if (ein.fehler) zeilen.push(`Faserangabe/Grammatur nicht ermittelbar (${ein.fehler})`);
+        if (ein.faserHinweis) { zeilen.push(ein.faserHinweis); showToast(ein.faserHinweis, 'warn', 15000); }
+        if (bau.titel) document.getElementById('se-titel').value = bau.titel;
+        else zeilen.push('Keine Fokus-Keyphrase – kein SEO-Titel gebaut.');
+        if (bau.desc.schreiben) document.getElementById('se-meta').value = bau.desc.text;
+        for (const h of bau.desc.hinweise) if (!zeilen.includes(h)) zeilen.push(h);
+        if (bau.desc.weggelassen.length) zeilen.push(`gekürzt: ${bau.desc.weggelassen.join(', ')} weggelassen`);
+        if (!bau.desc.schreiben) zeilen.push('Meta-Beschreibung nicht übernommen – Feld unverändert.');
+        document.getElementById('se-meta-hinweis').textContent = zeilen.join(' · ');
+        seZaehler();
+      });
+
+      document.getElementById('se-speichern').addEventListener('click', async () => {
+        if (!seStand) return;
+        const btn    = document.getElementById('se-speichern');
+        const status = document.getElementById('se-status');
+        const p      = seStand.produkt;
+        const { schreiben, meldungen } = seAenderungen({
+          metaData: p.meta_data,
+          eingabe: {
+            keyphrase: document.getElementById('se-keyphrase').value,
+            synonyme:  document.getElementById('se-synonyme').value,
+            titel:     document.getElementById('se-titel').value,
+            metadesc:  document.getElementById('se-meta').value,
+          },
+          zuYoast: synonymeZuYoast, ausYoast: synonymeAusYoast,
+        });
+
+        // Keyphrase-Dublette: nur schreiben nach Bestaetigung.
+        const kw = schreiben.find(f => f.key === '_yoast_wpseo_focuskw');
+        if (kw) {
+          let dubletten = [];
+          try {
+            dubletten = await apiJson(await apiFetch(
+              `${API_BASE()}/api/seo/keyphrase-dubletten?kw=${encodeURIComponent(kw.wert)}&ausser=${p.id}`));
+          } catch (e) {
+            showToast(`Dubletten-Prüfung fehlgeschlagen (${e.message}) – nichts geschrieben.`, 'error', 10000);
+            return;
+          }
+          if (dubletten.length) {
+            const ok = await showConfirm(
+              'Keyphrase schon vergeben',
+              `„${kw.wert}“ hängt schon an:<br>` +
+              dubletten.map(d => `<strong>${d.id}</strong> – ${d.name}`).join('<br>') +
+              '<br><br>Trotzdem schreiben?',
+              'Trotzdem schreiben',
+            );
+            if (!ok) {
+              showToast('Nicht geschrieben – Keyphrase-Dublette nicht bestätigt.', 'info', 8000);
+              return;
+            }
+          }
+        }
+
+        for (const m of meldungen) showToast(m.text, 'info', 6000);
+        if (!schreiben.length) { status.textContent = 'Nichts geändert.'; return; }
+
+        btn.disabled = true;
+        status.style.color = 'var(--muted)';
+        status.textContent = 'Wird gespeichert…';
+        let nach = null, fehler = null;
+        try {
+          nach = await yoastSchreiben(p.id, schreiben.map(f => ({ key: f.key, value: f.wert })));
+        } catch (e) {
+          fehler = e.message;
+        }
+        for (const r of seErgebnis(schreiben, nach && nach.meta_data, fehler))
+          showToast(r.text, r.ok ? 'success' : 'error', r.ok ? 6000 : 12000);
+        if (nach) {
+          seStand.produkt = nach;              // naechster Vergleich gegen den neuen Stand
+          status.textContent = '';
+        } else {
+          status.textContent = `Fehler: ${fehler}`;
+          status.style.color = 'var(--danger)';
+        }
+        btn.disabled = false;
+      });
 
       // ── SECTION: SEO-Flow (Zeile 2664) ──
       async function loadSeoPendingList() {
@@ -5440,18 +5774,11 @@
           let yoastNach = null;   // zurueckgelesenes Produkt, falls geschrieben
           if (yoastMeta.length) {
             try {
-              const yRes = await apiFetch(`${API_BASE()}/api/woocommerce/products/${seoCurrentItem.wcId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ meta_data: yoastMeta }),
-              });
-              if (!yRes.ok) throw new Error(`HTTP ${yRes.status}`);
-
-              // Beleg ist der REST-Ruecklesewert, nicht die PUT-Antwort: Yoast
-              // Premium ist abgelaufen, das Synonymfeld zeigt die Oberflaeche
-              // womoeglich gar nicht an.
-              const nach = await apiJson(
-                await apiFetch(`${API_BASE()}/api/woocommerce/products/${seoCurrentItem.wcId}`));
+              // Gemeinsamer Schreibweg (yoastSchreiben). Beleg ist der
+              // REST-Ruecklesewert, nicht die PUT-Antwort: Yoast Premium ist
+              // abgelaufen, das Synonymfeld zeigt die Oberflaeche womoeglich
+              // gar nicht an.
+              const nach = await yoastSchreiben(seoCurrentItem.wcId, yoastMeta);
               yoastNach = nach;
               const ausYoast = k => ((nach.meta_data || []).find(m => m.key === k) || {}).value ?? '';
               // Synonyme lesbar melden, nicht als rohes JSON – und mit ANZAHL.

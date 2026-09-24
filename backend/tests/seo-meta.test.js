@@ -397,7 +397,9 @@ describe('Frontend: Vorschau und Schreibweg', () => {
   test('Titel und Meta-Beschreibung gehen in denselben meta_data-Body', () => {
     expect(saveBlock).toMatch(/yoastMeta\.push\(\{ key: '_yoast_wpseo_title',\s*value: metaStand\.titel\.wert \}\)/);
     expect(saveBlock).toMatch(/yoastMeta\.push\(\{ key: '_yoast_wpseo_metadesc',\s*value: metaStand\.desc\.wert \}\)/);
-    expect(saveBlock).toMatch(/body:\s*JSON\.stringify\(\{\s*meta_data:\s*yoastMeta\s*\}\)/);
+    // Seit SE1 ueber den gemeinsamen Schreibweg yoastSchreiben().
+    expect(saveBlock).toMatch(/await yoastSchreiben\(seoCurrentItem\.wcId, yoastMeta\)/);
+    expect(html).toMatch(/async function yoastSchreiben\(wcId, yoastMeta\)[\s\S]*?body:\s*JSON\.stringify\(\{\s*meta_data:\s*yoastMeta\s*\}\)/);
   });
 
   test('geschrieben wird nur bei aktion === "schreiben"', () => {
