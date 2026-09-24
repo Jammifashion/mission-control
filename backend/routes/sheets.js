@@ -100,39 +100,66 @@ async function writeVariantenForSsotId(sheets, spreadsheetId, ssotId, varianten)
     }
   }
 
-  // Zeilen bauen, BEVOR gelöscht wird: doppelte Schlüssel im Bestand werfen hier.
-  if (payloadHatLShop(varianten))
+  // Zeilen bauen, BEVOR irgendetwas geschrieben wird: doppelte Schlüssel im
+  // Bestand werfen hier. Fehlt die Spalte LShop_ArticleNr, wird sie erst nach
+  // dieser Prüfung angelegt und die Zeilen mit der neuen Kopfzeile neu gebaut.
+  const alteZeilen = toDelete.map(i => varRows[i]);
+  let newRows = baueVariantenZeilen(header, ssotId, varianten, alteZeilen, CTX);
+  if (payloadHatLShop(varianten) && findHeader(header, LSHOP_SPALTE) < 0) {
     await sichereTextSpalte(sheets, spreadsheetId, TAB_VARIANTEN, tabSheetId, header, LSHOP_SPALTE);
-  const newRows = baueVariantenZeilen(header, ssotId, varianten, toDelete.map(i => varRows[i]), CTX);
-
-  // Absteigend löschen damit Indizes nicht verrutschen
-  if (toDelete.length > 0) {
-    const deleteRequests = toDelete
-      .sort((a, b) => b - a)
-      .map(rowIndex => ({
-        deleteDimension: {
-          range: {
-            sheetId:    tabSheetId,
-            dimension:  'ROWS',
-            startIndex: rowIndex,
-            endIndex:   rowIndex + 1,
-          },
-        },
-      }));
-
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId,
-      requestBody: { requests: deleteRequests },
-    });
+    newRows = baueVariantenZeilen(header, ssotId, varianten, alteZeilen, CTX);
   }
 
-  await sheets.spreadsheets.values.append({
+  // Erst ANHÄNGEN, dann die alten Zeilen löschen. Scheitert das Anhängen, ist
+  // nichts gelöscht; scheitert das Löschen, stehen die Varianten doppelt – das
+  // ist reparierbar, ein Verlust nicht.
+  const { data: appendData } = await sheets.spreadsheets.values.append({
     spreadsheetId,
     range:            `${TAB_VARIANTEN}!A1`,
     valueInputOption: 'USER_ENTERED',
     insertDataOption: 'INSERT_ROWS',
     requestBody:      { values: newRows },
   });
+  if (toDelete.length === 0) return;
+
+  // INSERT_ROWS fügt hinter der erkannten Tabelle ein. Liegen alte Zeilen
+  // dahinter (Leerzeile im Reiter), rutschen sie um die eingefügte Anzahl.
+  const start = Number(/!\D+(\d+)/.exec(appendData?.updates?.updatedRange ?? '')?.[1] ?? 0) - 1;
+  const alt = toDelete
+    .map(i => (start > 0 && i >= start ? i + newRows.length : i))
+    .sort((a, b) => b - a);   // absteigend, damit Indizes nicht verrutschen
+
+  try {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: alt.map(rowIndex => ({
+          deleteDimension: {
+            range: { sheetId: tabSheetId, dimension: 'ROWS', startIndex: rowIndex, endIndex: rowIndex + 1 },
+          },
+        })),
+      },
+    });
+  } catch (err) {
+    const e = new Error(
+      `Varianten ${ssotId}: neue Zeilen angehängt, alte Zeilen NICHT gelöscht – Zeilen doppelt. `
+      + `Alte Zeilen ${zeilenBereiche(alt.map(i => i + 1))} von Hand löschen. (${err.message})`);
+    e.status = 500;
+    throw e;
+  }
+}
+
+// [5,6,7,12] -> "5–7, 12" (Sheet-Zeilennummern, 1-basiert)
+function zeilenBereiche(nummern) {
+  const s = [...nummern].sort((a, b) => a - b);
+  const teile = [];
+  for (let i = 0; i < s.length; i++) {
+    let j = i;
+    while (j + 1 < s.length && s[j + 1] === s[j] + 1) j++;
+    teile.push(i === j ? `${s[i]}` : `${s[i]}–${s[j]}`);
+    i = j;
+  }
+  return teile.join(', ');
 }
 
 // ── GET /api/sheets/lieferzeiten ─────────────────────────────────────────────

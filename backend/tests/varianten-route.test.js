@@ -55,8 +55,10 @@ beforeEach(() => {
     return { data: {} };
   });
   values.append.mockReset().mockImplementation(async ({ requestBody }) => {
+    const erste = tab.length + 1;
     tab.push(...requestBody.values.map(r => r.map(c => (typeof c === 'boolean' ? String(c).toUpperCase() : String(c)))));
-    return { data: {} };
+    // Wie die echte API: updates.updatedRange nennt die eingefuegten Zeilen.
+    return { data: { updates: { updatedRange: `Varianten!A${erste}:N${tab.length}` } } };
   });
   values.batchUpdate.mockReset().mockResolvedValue({ data: {} });
 });
@@ -164,6 +166,76 @@ describe('PUT /api/sheets/varianten/:ssotId', () => {
     await speichern('JFN-B', [{ nr: 1, e1: 'Größe', v1: 'S' }]);
     expect(tab[0]).not.toContain('LShop_ArticleNr');
     expect(values.update).not.toHaveBeenCalled();
+  });
+});
+
+describe('Reihenfolge: erst anhaengen, dann alte Zeilen loeschen', () => {
+  const PAYLOAD_A = [
+    { nr: 1, e1: 'Farbe', v1: 'Schwarz', e2: 'Größe', v2: 'M', preis: '22', aktiv: true },
+    { nr: 2, e1: 'Farbe', v1: 'Schwarz', e2: 'Größe', v2: 'L', preis: '22', aktiv: true },
+  ];
+
+  test('Normalfall: append vor delete, Ergebnis wie bisher', async () => {
+    setzeTab(BESTAND);
+    const res = await speichern('JFN-A', PAYLOAD_A);
+    expect(res.status).toBe(200);
+    const appendNr = values.append.mock.invocationCallOrder[0];
+    const deleteNr = spreadsheets.batchUpdate.mock.invocationCallOrder[0];
+    expect(appendNr).toBeLessThan(deleteNr);
+    // Geloescht wurden genau die alten JFN-A-Zeilen (Index 3 und 1, absteigend)
+    expect(spreadsheets.batchUpdate.mock.calls[0][0].requestBody.requests
+      .map(r => r.deleteDimension.range.startIndex)).toEqual([3, 1]);
+    expect(tab).toEqual([
+      KOPF,
+      BESTAND[2],
+      z({ 'SSOT-ID': 'JFN-A', 'Varianten-Nr': '1', E1: 'Farbe', V1: 'Schwarz', E2: 'Größe', V2: 'M',
+        Preis: '22', Aktiv: 'TRUE', LShop_ArticleNr: '1000311706', Notiz: 'n1' }),
+      z({ 'SSOT-ID': 'JFN-A', 'Varianten-Nr': '2', E1: 'Farbe', V1: 'Schwarz', E2: 'Größe', V2: 'L',
+        Preis: '22', Aktiv: 'TRUE' }),
+    ]);
+  });
+
+  test('Anhaengen wirft -> Reiter unveraendert, nichts geloescht', async () => {
+    setzeTab(BESTAND);
+    values.append.mockRejectedValueOnce(new Error('quota'));
+    const res = await speichern('JFN-A', PAYLOAD_A);
+    expect(res.status).toBe(500);
+    expect(spreadsheets.batchUpdate).not.toHaveBeenCalled();
+    expect(tab).toEqual(BESTAND);
+  });
+
+  test('Loeschen wirft -> neue Zeilen stehen, Fehler nennt SSOT-ID und die alten Zeilen', async () => {
+    setzeTab(BESTAND);
+    spreadsheets.batchUpdate.mockRejectedValueOnce(new Error('timeout'));
+    const res = await speichern('JFN-A', PAYLOAD_A);
+    expect(res.status).toBe(500);
+    expect(res.body.error).toMatch(/JFN-A/);
+    expect(res.body.error).toMatch(/Zeilen doppelt/);
+    expect(res.body.error).toMatch(/Alte Zeilen 2, 4 von Hand löschen/);
+    expect(zeilenVon('JFN-A')).toHaveLength(4);   // 2 alt + 2 neu
+  });
+
+  test('zusammenhaengende alte Zeilen erscheinen als Bereich X–Y', async () => {
+    setzeTab([KOPF, BESTAND[1], BESTAND[3], BESTAND[2]]);   // JFN-A in Zeile 2 und 3
+    spreadsheets.batchUpdate.mockRejectedValueOnce(new Error('timeout'));
+    const res = await speichern('JFN-A', PAYLOAD_A);
+    expect(res.body.error).toMatch(/Alte Zeilen 2–3 von Hand löschen/);
+  });
+
+  test('API fuegt vor alten Zeilen ein -> alte Indizes werden verschoben, richtige Zeilen geloescht', async () => {
+    // Leerzeile nach Zeile 2: die API erkennt die Tabelle nur bis dort und fuegt
+    // dahinter ein - die JFN-A-Zeile weiter unten rutscht nach unten.
+    setzeTab([KOPF, BESTAND[1], KOPF.map(() => ''), BESTAND[3]]);
+    values.append.mockImplementationOnce(async ({ requestBody }) => {
+      tab.splice(2, 0, ...requestBody.values.map(r => r.map(String)));
+      return { data: { updates: { updatedRange: `Varianten!A3:N${2 + requestBody.values.length}` } } };
+    });
+    const res = await speichern('JFN-A', PAYLOAD_A);
+    expect(res.status).toBe(200);
+    // Alte Zeilen: Index 1 (vor der Einfuegung) und 3 -> 3 + 2 = 5
+    expect(spreadsheets.batchUpdate.mock.calls[0][0].requestBody.requests
+      .map(r => r.deleteDimension.range.startIndex)).toEqual([5, 1]);
+    expect(zeilenVon('JFN-A').map(r => wert(r, 'V2'))).toEqual(['M', 'L']);
   });
 });
 
