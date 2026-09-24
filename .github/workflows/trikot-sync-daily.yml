@@ -1,11 +1,10 @@
 name: Trikot-Sync täglich
 
 on:
-  # Zeitplan erst aktivieren, wenn ein manueller Lauf (workflow_dispatch) sauber
-  # durchgelaufen ist. 05:00 UTC liegt hinter Backup (02:00) und Partner-Sync (03:00).
+  # 05:00 UTC liegt hinter Backup (02:00) und Partner-Sync (03:00).
   # Ein Schedule-Lauf hat keine Inputs: after leer, dry_run leer → echter Lauf.
-  # schedule:
-  #   - cron: '0 5 * * *'   # täglich 05:00 UTC = 06:00/07:00 deutscher Zeit
+  schedule:
+    - cron: '0 5 * * *'   # täglich 05:00 UTC = 07:00 Sommer / 06:00 Winter Berlin
   workflow_dispatch:
     inputs:
       after:
