@@ -51,7 +51,7 @@ describe('fanartSerien', () => {
 describe('User-Prompt', () => {
   test('Titel im Hinweis -> Block FANART-SERIE mit der Wendung in genau dieser Schreibweise', () => {
     const p = prompt('Serie/Kontext: Fanart zur Serie Jack & Joker');
-    expect(p).toContain('FANART-SERIE:');
+    expect(p).toContain('FANART-SERIE (Ausnahme vom Titelverbot');
     expect(p).toContain('- Nenne die Serie genau in dieser Form und Schreibweise: Fanart zur Serie Jack & Joker');
     expect(p).toContain('sonst keine Aussage zu Lizenz oder Herkunft');
     expect(p).toContain('Keine Figurennamen, keine Handlung, keine Schauspieler:innen.');
@@ -59,7 +59,7 @@ describe('User-Prompt', () => {
 
   test('Block steht nach KONTEXT & HINWEISE und vor PRODUKTDATEN', () => {
     const p = prompt('Fanart zur Serie Jack & Joker');
-    const k = p.indexOf('KONTEXT & HINWEISE'), f = p.indexOf('FANART-SERIE:'), d = p.indexOf('PRODUKTDATEN:');
+    const k = p.indexOf('KONTEXT & HINWEISE'), f = p.indexOf('FANART-SERIE ('), d = p.indexOf('PRODUKTDATEN:');
     expect(k).toBeGreaterThanOrEqual(0);
     expect(k).toBeLessThan(f);
     expect(f).toBeLessThan(d);
@@ -74,10 +74,24 @@ describe('User-Prompt', () => {
 });
 
 describe('Systemprompt', () => {
-  test('Verbot bleibt, Ausnahme nur ueber den Block FANART-SERIE', () => {
+  // SP2: die Ausnahme steht nur noch im Block, der Systemprompt traegt allein das Verbot.
+  test('Verbot bleibt, der Systemprompt kennt weder die Wendung noch den Block', () => {
     expect(SEO_SYSTEM_PROMPT).toMatch(/Keine fremden Marken, Filmtitel oder geschützten Figuren/);
-    expect(SEO_SYSTEM_PROMPT).toMatch(/Einzige Ausnahme: Steht im Block FANART-SERIE/);
-    expect(SEO_SYSTEM_PROMPT).toMatch(/Gibt es keinen Block FANART-SERIE, gilt das Verbot ohne\s+Ausnahme/);
+    expect(SEO_SYSTEM_PROMPT).not.toMatch(/Fanart zur Serie/i);
+    expect(SEO_SYSTEM_PROMPT).not.toMatch(/FANART-SERIE/);
+  });
+
+  test('ohne Serie steht "Fanart zur Serie" in keinem Prompt-Teil', () => {
+    const p = prompt('Serie/Kontext: BL-Insider-Spruch');
+    expect(`${SEO_SYSTEM_PROMPT}\n${p}`).not.toMatch(/Fanart zur Serie/i);
+  });
+
+  test('mit Serie steht die Wendung nur im Block (und im Hinweis selbst)', () => {
+    const hinweis = 'Serie/Kontext: Fanart zur Serie Jack & Joker';
+    const p = prompt(hinweis);
+    const ohneHinweisUndBlock = p.replace(hinweis, '').replace(fanartBlock(hinweis), '');
+    expect(ohneHinweisUndBlock).not.toMatch(/Fanart zur Serie/i);
+    expect(fanartBlock(hinweis)).toContain('Fanart zur Serie Jack & Joker');
   });
 
   test('"offiziell" steht in keinem Prompt-Text (auch nicht verneint)', () => {

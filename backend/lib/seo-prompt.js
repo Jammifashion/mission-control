@@ -81,14 +81,19 @@ export function fanartSerien(hinweise) {
   return out;
 }
 
-/** Block FANART-SERIE fuer den User-Prompt – oder '' ohne Wendung im Hinweis. */
+/**
+ * Block FANART-SERIE fuer den User-Prompt – oder '' ohne Wendung im Hinweis.
+ * SP2: Die Ausnahme vom Titelverbot steht NUR hier, nicht im Systemprompt.
+ * GEMESSEN (BL7 Lauf 2): stand die Wendung im Systemprompt, schrieb das Modell
+ * auch bei Artikeln ohne Serie "Fanart zur Serie." – ohne Titel.
+ */
 export function fanartBlock(hinweise) {
   const serien = fanartSerien(hinweise);
   if (!serien.length) return '';
   return [
-    'FANART-SERIE:',
+    'FANART-SERIE (Ausnahme vom Titelverbot, nur für diesen Artikel):',
     ...serien.map(s => `- Nenne die Serie genau in dieser Form und Schreibweise: ${s.wendung}`),
-    '- Den Artikel als Fanart kennzeichnen, sonst keine Aussage zu Lizenz oder Herkunft.',
+    '- Nur diesen Titel, keinen anderen. Den Artikel als Fanart kennzeichnen, sonst keine Aussage zu Lizenz oder Herkunft.',
     '- Keine Figurennamen, keine Handlung, keine Schauspieler:innen.',
   ].join('\n');
 }
@@ -129,13 +134,7 @@ WEITERES:
 - Keine AGB erwähnen – es gibt bewusst keine
 - Keine konkreten Liefer- oder Bestellschlussdaten. Lieferzeit nur als Spanne.
 - Keine fremden Marken, Filmtitel oder geschützten Figuren, auch nicht
-  nachempfunden oder angedeutet.
-  Einzige Ausnahme: Steht im Block FANART-SERIE eine Wendung "Fanart zur
-  Serie <Titel>", darfst du genau diese Wendung in genau dieser Schreibweise
-  übernehmen. Den Artikel dann als Fanart kennzeichnen, sonst keine Aussage
-  zu Lizenz oder Herkunft. Keine Figurennamen, keine Handlung, keine
-  Schauspieler:innen. Gibt es keinen Block FANART-SERIE, gilt das Verbot ohne
-  Ausnahme.
+  nachempfunden oder angedeutet
 - HTML nur: <h2>, <h3>, <p>, <ul>, <li>, <strong> – KEIN <h1>, KEIN Markdown,
   KEIN Codeblock
 - JSON-Output MUSS valides JSON sein: Zeilenumbrüche und Anführungszeichen in
@@ -260,13 +259,38 @@ function stripHtml(html) {
     .trim();
 }
 
-// Der Einleitungstext: das erste <p>. Die <h2> zählt ausdrücklich NICHT als
-// erster Satz – sie darf den Titel ja gerade nicht tragen.
+// Der Einleitungstext: das erste <p> NACH der <h2> (SP2). Die <h2> zählt
+// ausdrücklich NICHT als erster Satz – sie darf den Titel ja gerade nicht
+// tragen. Loser Text VOR der <h2> zählt auch nicht (BL7 Lauf 2: das Modell
+// zog den Keyphrase-Satz vor die Überschrift).
 function einleitung(html) {
   const text = String(html ?? '');
-  const p = text.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+  const h2Ende = text.search(/<\/h2>/i);
+  const nachH2 = h2Ende >= 0 ? text.slice(h2Ende + 5) : text;
+  const p = nachH2.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
   if (p) return stripHtml(p[1]);
-  return stripHtml(text.replace(/<h[1-6][^>]*>[\s\S]*?<\/h[1-6]>/gi, ' '));
+  return stripHtml(nachH2.replace(/<h[1-6][^>]*>[\s\S]*?<\/h[1-6]>/gi, ' '));
+}
+
+// Titelvergleich fuer pruefeH2: "/", "&", Bindestriche, Mehrfach-Leerzeichen
+// macht normalize() schon gleich; "und"/"and" fallen zusaetzlich weg, damit
+// "Jack & Joker", "Jack und Joker" und "Jack/Joker" dieselben Woerter ergeben.
+const titelWoerterVon = text => woerterVon(text).filter(w => w !== 'und' && w !== 'and');
+
+// Stehen alle Woerter von `needle` in dieser Reihenfolge in `hay`, mit
+// hoechstens `luecke` fremden Woertern dazwischen? Faengt "Jack Joker FANART
+// T-Shirt" gegen den Titel "Jack/Joker T-Shirt" (BL7 Lauf 2, 12623).
+function enthaeltInReihenfolge(hay, needle, luecke) {
+  for (let start = 0; start < hay.length; start++) {
+    if (hay[start] !== needle[0]) continue;
+    let j = 1, fremd = 0;
+    for (let i = start + 1; i < hay.length && j < needle.length; i++) {
+      if (hay[i] === needle[j]) j++;
+      else if (++fremd > luecke) break;
+    }
+    if (j === needle.length) return true;
+  }
+  return false;
 }
 
 function ersterSatz(text) {
@@ -524,7 +548,7 @@ export function pruefeSeoText({
     const fehlendSatz  = keyword.woerter.filter(w => !satzWoerter.includes(w));
     if (fehlendSatz.length) {
       meldungen.push(
-        `${quelle} "${keyword.text}" fehlt im ersten Satz der Produktbeschreibung ` +
+        `${quelle} "${keyword.text}" fehlt im ersten Satz der Produktbeschreibung (erstes <p> nach der <h2>) ` +
         `(fehlt: ${fehlendSatz.join(', ')}).`
       );
     }
@@ -555,21 +579,28 @@ export function pruefeH2(produktbeschreibung, produktname) {
     return meldungen;
   }
 
-  const h2Woerter      = woerterVon(h2);
-  const titelWoerter   = woerterVon(produktname);
-  const ohneZielgruppe = titelWoerter.filter(w => !ZIELGRUPPEN.has(w));
+  // SP2: vor der <h2> steht nichts. Teil DIESER Pruefung, damit beide
+  // Verstoesse denselben einen Wiederholungslauf teilen.
+  if (!/^<h2[\s>]/i.test(String(produktbeschreibung ?? '').trim())) {
+    meldungen.push('Die Produktbeschreibung beginnt nicht mit <h2> – davor steht Text.');
+  }
 
-  if (titelWoerter.length &&
-      (enthaeltWortfolge(h2Woerter, titelWoerter) ||
-       (ohneZielgruppe.length && enthaeltWortfolge(h2Woerter, ohneZielgruppe)))) {
+  const h2Woerter      = titelWoerterVon(h2);
+  const titelWoerter   = titelWoerterVon(produktname);
+  const ohneZielgruppe = titelWoerter.filter(w => !ZIELGRUPPEN.has(w));
+  // Ab zwei Titelwoertern auch mit bis zu zwei eingeschobenen Woertern.
+  const traf = w => w.length && (enthaeltWortfolge(h2Woerter, w) || (w.length >= 2 && enthaeltInReihenfolge(h2Woerter, w, 2)));
+
+  if (titelWoerter.length && (traf(titelWoerter) || traf(ohneZielgruppe))) {
     meldungen.push(
       `Die <h2> enthält den Produkttitel ("${h2}") – sie soll eine kurze, sachliche ` +
       'Zwischenüberschrift sein, die H1 der Seite ist bereits der Titel.'
     );
   }
-  if (h2Woerter.length > H2_MAX_WOERTER) {
+  const h2Anzahl = woerterVon(h2).length;   // zaehlt wie bisher, "und" eingeschlossen
+  if (h2Anzahl > H2_MAX_WOERTER) {
     meldungen.push(
-      `Die <h2> hat ${h2Woerter.length} Wörter (höchstens ${H2_MAX_WOERTER}): "${h2}".`
+      `Die <h2> hat ${h2Anzahl} Wörter (höchstens ${H2_MAX_WOERTER}): "${h2}".`
     );
   }
 
@@ -585,7 +616,9 @@ export function h2KorrekturBlock(meldungen) {
     'KORREKTUR – der erste Entwurf hat die <h2>-Regel verletzt:',
     ...(meldungen ?? []).map(m => `- ${m}`),
     '',
-    'Schreibe den Text neu. Die <h2> enthält NICHT den Produkttitel,',
+    'Schreibe den Text neu. Die produktbeschreibung beginnt mit <h2>, davor steht nichts.',
+    'Die Keyphrase steht im ersten Satz des ersten <p> nach der <h2>.',
+    'Die <h2> enthält NICHT den Produkttitel,',
     `höchstens ${H2_MAX_WOERTER} Wörter, kein Slogan – sie benennt sachlich,`,
     'worum es im Abschnitt geht.',
     'falsch:  "Das <Produkttitel> für den Alltag"',
@@ -1076,7 +1109,7 @@ export function buildSeoUserPrompt({
             ? `FOKUS-KEYPHRASE (aus dem Produkttitel abgeleitet): ${keyword.text}`
             : `FOKUS-KEYPHRASE: ${keyword.text}`,
           `- Die Kurzbeschreibung enthält ALLE Wörter der Keyphrase in den ersten ${KEYPHRASE_FENSTER} Wörtern.`,
-          '- Der ERSTE SATZ der produktbeschreibung enthält ALLE Wörter der Keyphrase.',
+          '- Der ERSTE SATZ des ersten <p> NACH der <h2> enthält ALLE Wörter der Keyphrase.',
           '- Die Keyphrase wörtlich verwenden, nicht umschreiben.',
         ].join('\n')
       : '',
@@ -1119,6 +1152,8 @@ export function buildSeoUserPrompt({
 
     [
       'STRUKTUR der produktbeschreibung (EXAKT einhalten):',
+      'Die produktbeschreibung beginnt IMMER mit <h2>. Vor der <h2> steht nichts.',
+      'Die Keyphrase steht im ersten Satz des ersten <p> NACH der <h2>.',
       '',
       `<h2>[kurze sachliche Zwischenüberschrift, höchstens ${H2_MAX_WOERTER} Wörter – NICHT der Produkttitel, kein Slogan]</h2>`,
       '',

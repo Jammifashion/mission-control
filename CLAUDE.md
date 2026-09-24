@@ -52,7 +52,10 @@ Neue Sektionen immer mit Anker versehen:
 - backend/lib/seo-prompt.js – SEO-Prompt: Systemprompt (`SEO_SYSTEM_PROMPT`), User-Template,
   MODUS-Enum, Materialfilter. Serientitel nur als Fanart: steht im Hinweisblock woertlich
   "Fanart zur Serie <Titel>", kommt der Block FANART-SERIE dazu, sonst gilt das Titelverbot.
+  Die Ausnahme steht NUR im Block, nie im Systemprompt (sonst "Fanart zur Serie." ohne Titel).
   Das Wort "offiziell" (auch verneint) nie in Prompt-Texte – es landet sonst im Text.
+  Die Beschreibung beginnt mit <h2>; `pruefeH2` prueft das mit (ein gemeinsamer
+  Wiederholungslauf), die Keyphrase wird im ersten <p> NACH der <h2> gemessen.
   Die Regeln stehen hier, das ist die Quelle. Begründungen und Historie liegen im
   Claude-Projekt unter METHODE/SEO_Beschreibungs_Framework.md (nicht im Repo).
 - backend/lib/seo-meta.js – Yoast SEO-Titel und Meta-Beschreibung, deterministisch
