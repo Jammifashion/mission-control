@@ -134,6 +134,55 @@ export function pruefeGeneratorText(e = {}) {
 }
 
 /**
+ * Regeln 1-3 (Nur_intern, Marke/Modellnummer, feste Liste) auf EINEN kurzen
+ * Text, z. B. ein Schlagwort (M8). Dieselben Muster wie pruefeGeneratorText.
+ * @returns {string[]} Treffer als Kurztext, leer = in Ordnung.
+ */
+export function sperrTreffer(wert, e = {}) {
+  const s = text(wert);
+  const raus = [];
+  const erlaubt = new Set([...woerter(e.produktname), ...woerter(e.keyphrase)]);
+  for (const wendung of String(e.nurIntern ?? '').split(/[,;\n]/).map(x => x.trim()).filter(Boolean)) {
+    if (begriffRe(wendung).test(s)) { raus.push(`Nur_intern "${wendung}"`); continue; }
+    for (const w of wendung.split(/\s+/).filter(x => x.length >= 4 && !erlaubt.has(x.toLowerCase())))
+      if (begriffRe(w).test(s)) raus.push(`Nur_intern "${w}"`);
+  }
+  for (const m of new Set((e.marken ?? []).map(x => String(x).trim()).filter(Boolean)))
+    if (begriffRe(m).test(s)) raus.push(`Marke "${m}"`);
+  for (const n of new Set((e.modellnummern ?? []).map(x => String(x).trim()).filter(x => x.length >= 3)))
+    if (begriffRe(n).test(s)) raus.push(`Modellnummer "${n}"`);
+  for (const b of VERBOTENE_BEGRIFFE) if (begriffRe(b).test(s)) raus.push(`Begriff "${b}"`);
+  return raus;
+}
+
+/**
+ * Pruefkontext (Nur_intern, Marken, Modellnummern) aus der SSOT lesen - fuer
+ * sperrTreffer (Schlagwoerter). Lesefehler -> leerer Teil plus Hinweis.
+ * @returns {Promise<{ kontext: object, hinweise: string[] }>}
+ */
+export async function sperrKontext({ artikelkurz, lshopNr, motivZeile, produktname, keyphrase } = {}) {
+  const hinweise = [];
+  let motiv = motivZeile ?? null;
+  if (motiv === null && String(artikelkurz ?? '').trim()) {
+    try { motiv = await motivFuer(artikelkurz); } catch (err) { hinweise.push(`Reiter Motive nicht lesbar (${err.message}).`); }
+  }
+  let rohling = null;
+  if (String(lshopNr ?? '').trim()) {
+    try { rohling = await lshopFuerArtikel(lshopNr); }
+    catch (err) { if (err.status !== 404) hinweise.push(`SKU_LShop nicht lesbar (${err.message}).`); }
+  }
+  return {
+    kontext: {
+      produktname, keyphrase,
+      nurIntern:     motiv?.nurIntern,
+      marken:        rohling?.marken,
+      modellnummern: rohling ? [rohling.catalogNr, ...(rohling.herstellerNummern ?? [])] : [],
+    },
+    hinweise,
+  };
+}
+
+/**
  * Pruefung mit den SSOT-Daten des Artikels - EINE Stelle fuer Generator
  * (routes/claude.js, nach der Generierung) und SEO-Reiter (POST
  * /api/seo/text-pruefung, nach dem Speichern gegen den gespeicherten Text).

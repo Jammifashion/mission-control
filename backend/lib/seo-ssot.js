@@ -30,6 +30,8 @@ const SPALTEN_MOTIVE = {
 };
 const SPALTEN_KATEGORIEN = { nr: 'Kategorienummer', hinweis: 'SEO_Hinweis' };
 const SPALTEN_SEO_KARTE  = { typ: 'Typ', name: 'Name', wcId: 'WC_ID', ist: 'Ist_Keyphrase', soll: 'Soll_Keyphrase' };
+// M8: Synonyme zaehlen fuer Kollisionen mit (optional - fehlt die Spalte, ohne).
+const SPALTEN_SEO_KARTE_OPT = { syn: 'Ist_Synonyme' };
 
 const t    = v => String(v ?? '').trim();
 const norm = v => t(v).toLowerCase().replace(/\s+/g, ' ');
@@ -71,8 +73,20 @@ export function hinweisVorlage(zeilen, kategorieIds) {
 }
 
 /**
+ * Ist_Synonyme in eine Liste: Yoast-Format `["a, b, c"]` oder schlichter
+ * Text "a, b, c".
+ */
+export function synonymeListe(roh) {
+  let s = t(roh);
+  if (!s) return [];
+  try { const j = JSON.parse(s); if (Array.isArray(j)) s = j.join(','); } catch { /* kein JSON */ }
+  return s.split(',').map(x => t(x)).filter(Boolean);
+}
+
+/**
  * Keyphrase gegen SEO_Karte. Eintraege mit derselben WC_ID wie der Artikel
- * selbst zaehlen nicht.
+ * selbst zaehlen nicht. M8: auch gleich einem Ist_Synonym eines anderen
+ * Eintrags ist eine Kollision (Feld "Ist_Synonyme").
  * @returns {{ kollisionen: object[], teiltreffer: object[] }}
  *   je Treffer { typ, name, wcId, feld: 'Soll_Keyphrase'|'Ist_Keyphrase', wert }
  */
@@ -92,6 +106,9 @@ export function keyphrasePruefung(zeilen, keyphrase, { wcId } = {}) {
       if (w === k) kollisionen.push(treffer);
       else if (w.includes(k)) teiltreffer.push(treffer);
     }
+    for (const syn of synonymeListe(z.syn)) {
+      if (norm(syn) === k) kollisionen.push({ typ: t(z.typ), name: t(z.name), wcId: t(z.wcId), feld: 'Ist_Synonyme', wert: syn });
+    }
   }
   return { kollisionen, teiltreffer };
 }
@@ -110,9 +127,9 @@ export function keyphraseMeldungen(keyphrase, { kollisionen, teiltreffer } = {})
 const cache = reiterCache();
 export function _resetSeoSsotCache() { cache.leeren(); }
 
-const lade = (tab, spalten, o = {}) =>
+const lade = (tab, spalten, o = {}, optional) =>
   cache.hole(`${tab}|${o.spreadsheetId ?? process.env.GOOGLE_SHEET_ID}`,
-    () => leseReiterSpalten({ tab, spalten, ...o }));
+    () => leseReiterSpalten({ tab, spalten, optional, ...o }));
 
 /** Motiv-Zeile (inkl. nurIntern - nur fuer die Pruefung). */
 export async function motivFuer(kurz, o) {
@@ -124,5 +141,15 @@ export async function seoHinweisVorlage(kategorieIds, o) {
 }
 
 export async function keyphraseGegenKarte(keyphrase, { wcId, ...o } = {}) {
-  return keyphrasePruefung(await lade(TAB_SEO_KARTE, SPALTEN_SEO_KARTE, o), keyphrase, { wcId });
+  return keyphrasePruefung(await lade(TAB_SEO_KARTE, SPALTEN_SEO_KARTE, o, SPALTEN_SEO_KARTE_OPT), keyphrase, { wcId });
+}
+
+/**
+ * M8: mehrere Vorschlaege (Keyphrase, Synonyme) gegen SEO_Karte.
+ * @returns {Promise<{ wert: string, kollisionen: object[] }[]>}
+ */
+export async function werteGegenKarte(werte, { wcId, ...o } = {}) {
+  const zeilen = await lade(TAB_SEO_KARTE, SPALTEN_SEO_KARTE, o, SPALTEN_SEO_KARTE_OPT);
+  return (werte ?? []).map(w => t(w)).filter(Boolean)
+    .map(wert => ({ wert, kollisionen: keyphrasePruefung(zeilen, wert, { wcId }).kollisionen }));
 }

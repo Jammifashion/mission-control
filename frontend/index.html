@@ -1216,6 +1216,12 @@
               <div class="form-field" style="margin-bottom:0.75rem;">
                 <label>Keyphrase-Synonyme <span class="field-note">(optional – kommagetrennt)</span></label>
                 <input id="seo-synonyme" type="text" class="form-input" placeholder="z.B. Ugly Sweater Herren, Weihnachtssweater Herren" />
+                <div id="seo-synonyme-info" class="field-note" style="margin-top:0.25rem;"></div>
+              </div>
+              <div class="form-field" style="margin-bottom:0.75rem;">
+                <label>Schlagwörter <span class="field-note">(3–5; „neu“ wird erst beim Speichern angelegt)</span></label>
+                <div id="seo-tags" class="tag-wrap"><input id="seo-tag-input" class="tag-input" placeholder="Schlagwort, Enter…" /></div>
+                <div id="seo-tags-info" class="field-note" style="margin-top:0.25rem;"></div>
               </div>
               <div class="form-field" style="margin-bottom:0.75rem;">
                 <label>Eigene Hinweise / Ideen für die KI (optional)</label>
@@ -1366,6 +1372,7 @@
               <label>Artikelkurzbezeichnung <span class="field-note">(Pflicht: 3–20 Zeichen, nur A–Z a–z 0–9 und -)</span></label>
               <input id="pf-short-name" type="text" class="form-input" placeholder="z. B. UglySw01" />
               <div id="pf-short-name-hint" style="font-size:0.78rem;margin-top:0.25rem;"></div>
+              <div id="pf-short-name-vorschlag" class="field-note" style="margin-top:0.2rem;"></div>
             </div>
             <div class="form-field">
               <label>Artikelnummer <span class="field-note">(auto)</span></label>
@@ -1438,6 +1445,7 @@
                 <option value="">Wird geladen…</option>
               </select>
               <a class="link-new" id="link-new-shipping">+ Neu anlegen</a>
+              <div id="pf-shipping-hint" class="field-note" style="margin-top:0.25rem;"></div>
             </div>
             <div class="form-field">
               <label>Lieferzeit</label>
@@ -3455,6 +3463,7 @@
               cb.addEventListener('change', () => {
                 cb.checked ? selectedCats.set(cb.value, item.name) : selectedCats.delete(cb.value);
                 updateCatLabel();
+                maskeVorschlaegeLaden();   // M8
               });
               label.appendChild(cb);
               label.append(' ' + item.name);
@@ -4240,6 +4249,67 @@
       }
       // ── Generator-Eingaben: Ende ──
 
+      // ── Vorschlaege: Anfang (reine Logik, backend/tests/vorschlaege.test.js) ──
+      // Befehl M8. Vorschlaege ueberschreiben nie Getipptes: ein Feld wird nur
+      // gesetzt, wenn es leer ist oder noch genau den letzten Vorschlag traegt.
+      // Rueckgabe: neuer Wert, oder null = Feld nicht anfassen.
+      function vorschlagSetzen(aktuell, letzterVorschlag, neu) {
+        const a = String(aktuell ?? '');
+        if (!neu) return null;
+        if (!a.trim() || a === String(letzterVorschlag ?? '')) return String(neu);
+        return null;
+      }
+      // Chips aus den Schlagwoertern des Produkts (WooCommerce tags).
+      function schlagwortChipsStart(tags) {
+        return (Array.isArray(tags) ? tags : []).map(x => ({ id: x.id, name: String(x.name ?? ''), neu: false }));
+      }
+      // Vorschlaege dazu: vorausgewaehlte, noch nicht vorhandene. Gesperrte
+      // (Pruefung schlaegt an) kommen NICHT in die Chips, sondern in "gesperrt".
+      function schlagwortChipsMischen(chips, vorschlaege) {
+        const raus = [...(chips || [])];
+        const gesperrt = [];
+        const gleich = (a, b) => String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+        for (const v of vorschlaege || []) {
+          if ((v.pruefung || []).length) { gesperrt.push(v); continue; }
+          if (raus.some(c => (v.id && c.id === v.id) || gleich(c.name, v.name))) continue;
+          raus.push({ id: v.id || null, name: v.name, neu: !!v.neu });
+        }
+        return { chips: raus, gesperrt };
+      }
+      // tags fuer den WooCommerce-PUT - IMMER die ganze Liste, weil das Array
+      // alle Schlagwoerter ersetzt. Spiegel von tagsFuerPut (lib/schlagwoerter.js).
+      function tagsFuerPut(auswahl) {
+        const raus = [];
+        const norm = v => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+        for (const x of auswahl || []) {
+          const name = String(x?.name ?? '').trim();
+          if (x?.id) { if (!raus.some(r => r.id === x.id)) raus.push({ id: x.id }); }
+          else if (name && !raus.some(r => r.name && norm(r.name) === norm(name))) raus.push({ name });
+        }
+        return raus;
+      }
+      // Keyphrase-/Synonym-Vorschlag: nur ohne Kollision uebernehmen.
+      function kollisionText(v) {
+        return (v.kollisionen || []).map(k => `${k.typ || 'Eintrag'} "${k.name}" (${k.feld})`).join(', ');
+      }
+      function keyphraseVorschlag(aktuell, v) {
+        if (!v || !v.wert) return { wert: null, meldung: '' };
+        if (String(aktuell ?? '').trim()) return { wert: null, meldung: '' };
+        if (v.ungeprueft) return { wert: null, meldung: `Vorschlag "${v.wert}" ungeprüft (SEO_Karte nicht lesbar) – nicht übernommen.` };
+        if ((v.kollisionen || []).length)
+          return { wert: null, meldung: `Vorschlag "${v.wert}" kollidiert mit ${kollisionText(v)} – nicht übernommen.` };
+        return { wert: v.wert, meldung: `Keyphrase vorgeschlagen: "${v.wert}".` };
+      }
+      function synonymeVorschlag(aktuell, liste) {
+        if (!Array.isArray(liste) || !liste.length || String(aktuell ?? '').trim()) return { wert: null, meldungen: [] };
+        const frei = liste.filter(v => !v.ungeprueft && !(v.kollisionen || []).length).map(v => v.wert);
+        const meldungen = liste.filter(v => v.ungeprueft || (v.kollisionen || []).length)
+          .map(v => v.ungeprueft ? `Synonym "${v.wert}" ungeprüft – nicht übernommen.`
+                                 : `Synonym "${v.wert}" kollidiert mit ${kollisionText(v)} – nicht übernommen.`);
+        return { wert: frei.length ? frei.join(', ') : null, meldungen };
+      }
+      // ── Vorschlaege: Ende ──
+
       // ── Keyphrase-Synonyme: Anfang (reine Logik, backend/tests/yoast-synonyme.test.js) ──
       // Gleiche Bedingung wie bei den anderen Regelbloecken: NICHTS aus dem
       // Seitenkontext – der Test schneidet ihn heraus und fuehrt ihn AUS.
@@ -4511,6 +4581,44 @@
         aktualisiereAnlage();
       }
       document.getElementById('pf-lshop-nr').addEventListener('change', lshopLaden);
+
+      // M8: Kurzbezeichnung und Versandklasse vorschlagen (GET /api/sheets/vorschlaege,
+      // lib/vorschlaege.js). Nur Anlage; nie Getipptes ueberschreiben.
+      let kurzVorschlagStand = '';
+      let versandVorschlagStand = '';
+      async function maskeVorschlaegeLaden() {
+        if (editMode) return;
+        const name = document.getElementById('pf-name').value.trim();
+        const kats = [...selectedCats.keys()].join(',');
+        const lshop = document.getElementById('pf-lshop-nr').value.trim();
+        if (!name && !lshop) return;
+        try {
+          const q = new URLSearchParams(Object.entries({ name, kategorien: kats, lshopNr: lshop }).filter(([, v]) => v));
+          const d = await apiJson(await apiFetch(`${API_BASE()}/api/sheets/vorschlaege?${q}`));
+          const kurzFeld = document.getElementById('pf-short-name');
+          const kurzInfo = document.getElementById('pf-short-name-vorschlag');
+          if (d.kurz && d.kurz.wert) {
+            const neu = vorschlagSetzen(kurzFeld.value, kurzVorschlagStand, d.kurz.wert);
+            if (neu !== null) { kurzFeld.value = neu; kurzVorschlagStand = neu; updateArticleNr(); }
+            kurzInfo.textContent = `Vorschlag ${d.kurz.wert} – ${d.kurz.quelle}. Frei änderbar.`;
+          } else if (d.kurz) {
+            kurzInfo.textContent = d.kurz.hinweis || d.kurz.fehler || '';
+          }
+          const vFeld = document.getElementById('pf-shipping');
+          if (d.versand && d.versand.klasse) {
+            const neu = vorschlagSetzen(vFeld.value, versandVorschlagStand, d.versand.klasse);
+            if (neu !== null && [...vFeld.options].some(o => o.value === neu)) {
+              vFeld.value = neu; versandVorschlagStand = neu;
+            }
+            document.getElementById('pf-shipping-hint').textContent = `Vorschlag "${d.versand.klasse}": ${d.versand.quelle}`;
+          }
+          aktualisiereAnlage();
+        } catch (e) {
+          showToast(`Vorschläge nicht lesbar: ${e.message}`, 'warn', 8000);
+        }
+      }
+      document.getElementById('pf-name').addEventListener('change', maskeVorschlaegeLaden);
+      document.getElementById('pf-lshop-nr').addEventListener('change', maskeVorschlaegeLaden);
 
       // Die Spiegelung Produktname → Kurzbezeichnung ist ersatzlos entfallen:
       // aus ihr entstanden die langen Titel-SKUs (67 Zeichen im Bestand). Die
@@ -5500,6 +5608,9 @@
         document.getElementById('pf-lshop-nr').value = '';
         lshopModell = null;
         document.getElementById('pf-lshop-hint').textContent = '';
+        kurzVorschlagStand = ''; versandVorschlagStand = '';
+        document.getElementById('pf-short-name-vorschlag').textContent = '';
+        document.getElementById('pf-shipping-hint').textContent = '';
         document.getElementById('pf-ssot-id').value = '';
         document.getElementById('pf-wc-id').value = '';
         document.getElementById('pf-article-nr').value = '';
@@ -5829,6 +5940,44 @@
 
       // M4: Generator-Eingaben aus der SSOT (Motiv, SEO_Hinweis, Keyphrase-Pruefung).
       let seoHinweisVorlageStand = '';
+
+      // M8: Schlagwoerter des Artikels als Chips. seoTagsGeladen = die tags des
+      // Produkts sind gelesen - nur dann geht beim Speichern ein tags-Array mit
+      // (sonst wuerde ein leeres Array alle Schlagwoerter loeschen).
+      let seoTags = [];
+      let seoTagsGeladen = false;
+      function seoTagsZeigen() {
+        const wrap = document.getElementById('seo-tags');
+        const input = document.getElementById('seo-tag-input');
+        wrap.querySelectorAll('.tag-item').forEach(el => el.remove());
+        seoTags.forEach((c, i) => {
+          const span = document.createElement('span');
+          span.className = 'tag-item';
+          span.append(c.name);
+          if (c.neu) {
+            const b = document.createElement('small');
+            b.textContent = ' neu';
+            b.style.color = 'var(--warning, orange)';
+            span.append(b);
+          }
+          const rm = document.createElement('button');
+          rm.className = 'tag-remove';
+          rm.innerHTML = '&#x2715;';
+          rm.addEventListener('click', () => { seoTags.splice(i, 1); seoTagsZeigen(); });
+          span.append(rm);
+          wrap.insertBefore(span, input);
+        });
+      }
+      document.getElementById('seo-tag-input').addEventListener('keydown', e => {
+        const inp = e.target;
+        if ((e.key === 'Enter' || e.key === ',') && inp.value.trim()) {
+          e.preventDefault();
+          const name = inp.value.trim().replace(/,$/, '');
+          if (!seoTags.some(c => c.name.toLowerCase() === name.toLowerCase())) seoTags.push({ id: null, name, neu: true });
+          inp.value = '';
+          seoTagsZeigen();
+        }
+      });
       function seoKeyphraseZeigen(kp) {
         const info = document.getElementById('seo-keyphrase-info');
         info.textContent = '';
@@ -5895,6 +6044,9 @@
         document.getElementById('seo-motiv-info').textContent    = '';
         document.getElementById('seo-keyphrase-info').textContent = '';
         seoHinweisVorlageStand = '';
+        seoTags = []; seoTagsGeladen = false; seoTagsZeigen();
+        document.getElementById('seo-tags-info').textContent = '';
+        document.getElementById('seo-synonyme-info').textContent = '';
         document.getElementById('seo-eigenschaften').value = '';
         document.getElementById('seo-keyphrase').value     = seoCurrentItem.keyphrase || '';
         // Aus dem Sheet kann beides kommen: Yoast-Format oder die alte
@@ -5937,6 +6089,8 @@
                 // Fuer den Groessen-Fallback merken. Gelesen ist es nur, wenn
                 // wirklich ein Produkt kam - eine Fehlerantwort hat keine id.
                 seoWcProdukt     = p;
+                // M8: vorhandene Schlagwoerter als Chips (werden beim Speichern mitgeschickt).
+                if (p && p.id) { seoTags = schlagwortChipsStart(p.tags); seoTagsGeladen = true; seoTagsZeigen(); }
                 seoQuellenOk.wc  = !!(p && p.id);
                 // Kategorien für den SEO-Prompt merken (nicht nur die erste)
                 seoKategorien = (p.categories ?? []).map(c => c.name).filter(Boolean).join(', ');
@@ -5977,6 +6131,34 @@
         seoMetaVorschau();
       });
 
+      // M8: Vorschlaege aus der Generierung in die Felder (nie Getipptes ueberschreiben).
+      function seoVorschlaegeAnwenden(v) {
+        if (!v) return;
+        if (Array.isArray(v.schlagwoerter)) {
+          const m = schlagwortChipsMischen(seoTags, v.schlagwoerter);
+          seoTags = m.chips;
+          seoTagsZeigen();
+          document.getElementById('seo-tags-info').textContent = m.gesperrt.length
+            ? `Nicht übernommen: ${m.gesperrt.map(g => `${g.name} (${g.pruefung.join(', ')})`).join(' · ')}`
+            : '';
+          if (m.gesperrt.length) showToast(document.getElementById('seo-tags-info').textContent, 'warn', 12000);
+        }
+        const kf = document.getElementById('seo-keyphrase');
+        const kv = keyphraseVorschlag(kf.value, v.keyphrase);
+        if (kv.wert) { kf.value = kv.wert; kf.dispatchEvent(new Event('change')); }
+        if (kv.meldung) {
+          const info = document.getElementById('seo-keyphrase-info');
+          info.textContent = [info.textContent, kv.meldung].filter(Boolean).join(' · ');
+          if (!kv.wert) showToast(kv.meldung, 'warn', 12000);
+        }
+        const sf = document.getElementById('seo-synonyme');
+        const sv = synonymeVorschlag(sf.value, v.synonyme);
+        if (sv.wert) sf.value = sv.wert;
+        document.getElementById('seo-synonyme-info').textContent =
+          [sv.wert ? `Synonyme vorgeschlagen.` : '', ...sv.meldungen].filter(Boolean).join(' · ');
+        for (const m of sv.meldungen) showToast(m, 'warn', 12000);
+      }
+
       document.getElementById('btn-seo-generate').addEventListener('click', async () => {
         if (!seoCurrentItem) return;
         const statusMsg = document.getElementById('seo-status-msg');
@@ -5996,6 +6178,13 @@
               lshopNr:       seoCurrentItem.lshopNr  || '',
               // M4: Schluessel fuer Motiv-Zeile (Reiter Motive) und Pruefung danach.
               artikelkurz:   artikelKurzAus(seoCurrentItem.artikelnummer),
+              // M8: Schlagwoerter immer, Keyphrase/Synonyme nur fuer leere Felder.
+              wcId:          seoCurrentItem.wcId || '',
+              vorschlagen:   {
+                schlagwoerter: true,
+                keyphrase:     !document.getElementById('seo-keyphrase').value.trim(),
+                synonyme:      !document.getElementById('seo-synonyme').value.trim(),
+              },
               kategorien:    seoKategorien,
               eigenschaften: document.getElementById('seo-eigenschaften').value,
               instagram:     document.getElementById('seo-instagram').value,
@@ -6035,6 +6224,7 @@
           // Faserangabe fehlt: Warn-Toast, nicht im Statustext (das Panel geht
           // beim Speichern auf display:none). Der Text ist trotzdem erzeugt.
           if (data.faser_hinweis) showToast(data.faser_hinweis, 'warn', 15000);
+          seoVorschlaegeAnwenden(data.vorschlaege);
         } catch (e) {
           statusMsg.textContent = `Fehler: ${e.message}`;
           statusMsg.style.color = 'var(--danger)';
@@ -6076,6 +6266,9 @@
             body: JSON.stringify({
               short_description: quillSeoShort.root.innerHTML,
               description:       quillSeoFull.root.innerHTML,
+              // M8: ganze Schlagwort-Liste (ein tags-Array ersetzt alle). Nur wenn
+              // die vorhandenen gelesen wurden - sonst gar kein tags-Feld.
+              ...(seoTagsGeladen ? { tags: tagsFuerPut(seoTags) } : {}),
             }),
           });
           if (!wcRes.ok) throw new Error('WooCommerce-Update fehlgeschlagen');

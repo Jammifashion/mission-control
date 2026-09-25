@@ -8,7 +8,9 @@ import {
   entferneLeereLi, SEO_SYSTEM_PROMPT,
 } from '../lib/seo-prompt.js';
 import { motivFuer, motivFuerPrompt } from '../lib/seo-ssot.js';
-import { pruefeTextMitSsot } from '../lib/seo-pruefung.js';
+import { pruefeTextMitSsot, sperrKontext } from '../lib/seo-pruefung.js';
+import { ladeSchlagwoerter, promptListe, schlagwortVorschlaege } from '../lib/schlagwoerter.js';
+import { werteGegenKarte } from '../lib/seo-ssot.js';
 
 const router = Router();
 
@@ -183,7 +185,7 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
     if (action === 'seo_description') {
       const {
         produktname, kategorien, eigenschaften, hinweise, motiv, modus, farben,
-        groessen, keyphrase, strukturiert, artikelkurz, lshopNr,
+        groessen, keyphrase, strukturiert, artikelkurz, lshopNr, vorschlagen, wcId,
       } = req.body;
       if (!produktname) return res.status(400).json({ error: 'produktname ist erforderlich.' });
 
@@ -198,6 +200,22 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
         catch (e) { ssotHinweise.push(`Reiter Motive nicht lesbar (${e.message}) – ohne Motiv-Daten erzeugt.`); }
       }
       const motivPrompt = motivFuerPrompt(motivZeile);
+
+      // M8: Vorschlaege nur auf Anfrage des SEO-Reiters. Schlagwort-Liste aus
+      // dem Shop; ist sie nicht lesbar, ohne Liste (Hinweis), nie abbrechen.
+      let vorhandeneTags = [];
+      let vorschlagWunsch = null;
+      if (vorschlagen && typeof vorschlagen === 'object') {
+        if (vorschlagen.schlagwoerter) {
+          try { vorhandeneTags = await ladeSchlagwoerter(req.query?.shop); }
+          catch (e) { ssotHinweise.push(`Schlagwörter nicht lesbar (${e.message}) – ohne Liste vorgeschlagen.`); }
+        }
+        vorschlagWunsch = {
+          schlagwoerter: vorschlagen.schlagwoerter ? promptListe(vorhandeneTags) : null,
+          keyphrase: !!vorschlagen.keyphrase,
+          synonyme:  !!vorschlagen.synonyme,
+        };
+      }
 
       // Systemprompt: lib/seo-prompt.js (SEO_SYSTEM_PROMPT) – die Regeln stehen dort.
       const SEO_SYSTEM = SEO_SYSTEM_PROMPT;
@@ -229,6 +247,8 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
         strukturiert,
         // M4: Druckposition, Druckfarben, Serie_Kontext - ohne Nur_intern.
         druck: motivPrompt,
+        // M8: Schlagwoerter / Keyphrase / Synonyme vorschlagen lassen.
+        vorschlagen: vorschlagWunsch,
       });
       if (materialMeldung) {
         console.warn(`[seo_description] ${materialMeldung}`);
@@ -327,6 +347,7 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
       let kurzbeschreibung    = parsed.kurzbeschreibung    || '';
       let produktbeschreibung = parsed.produktbeschreibung || '';
       let versuch = 1;
+      let vorschlagQuelle = parsed;           // M8: Vorschlaege aus dem verwendeten Lauf
 
       // Genau EIN zweiter Versuch, und nur fuer die <h2>-Regel. Die Keyphrase
       // ist laut Framework ein Hinweis, kein Fehler - sie loest nichts aus.
@@ -345,6 +366,7 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
               kurzbeschreibung    = kurz2;
               produktbeschreibung = lang2;
               versuch = 2;
+              vorschlagQuelle = parsed2;
             } else {
               console.warn('[seo_description] Wiederholungslauf haelt die <h2>-Regel auch nicht ein - erster Entwurf bleibt.');
             }
@@ -378,6 +400,34 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
 
       // M4: deterministische Pruefung, kein zweiter Modelllauf. Eigenes Feld -
       // das Frontend zeigt es zusammen mit hinweis an.
+      // M8: Vorschlaege aufbereiten. Schlagwoerter: vorhandene Schreibweise/ID
+      // oder "neu", Regeln 1-3 der Pruefung je Wort. Keyphrase/Synonyme: gegen
+      // SEO_Karte (Soll/Ist_Keyphrase und Ist_Synonyme), Kollision markiert.
+      let vorschlaege = null;
+      if (vorschlagWunsch) {
+        vorschlaege = { schlagwoerter: null, keyphrase: null, synonyme: null };
+        const { kontext, hinweise: kh } = await sperrKontext({ lshopNr, motivZeile, produktname, keyphrase });
+        ssotHinweise.push(...kh);
+        if (vorschlagWunsch.schlagwoerter)
+          vorschlaege.schlagwoerter = schlagwortVorschlaege(vorschlagQuelle.schlagwoerter, vorhandeneTags, kontext);
+        const kp  = vorschlagWunsch.keyphrase ? String(vorschlagQuelle.keyphrase ?? '').trim() : '';
+        const syn = vorschlagWunsch.synonyme
+          ? (Array.isArray(vorschlagQuelle.synonyme) ? vorschlagQuelle.synonyme : String(vorschlagQuelle.synonyme ?? '').split(','))
+              .map(s => String(s).trim()).filter(Boolean).slice(0, 3)
+          : [];
+        try {
+          const geprueft = await werteGegenKarte([kp, ...syn].filter(Boolean), { wcId });
+          const zu = w => geprueft.find(g => g.wert === w) ?? { wert: w, kollisionen: [] };
+          if (kp) vorschlaege.keyphrase = zu(kp);
+          if (syn.length) vorschlaege.synonyme = syn.map(zu);
+        } catch (e) {
+          ssotHinweise.push(`SEO_Karte nicht lesbar (${e.message}) – Vorschläge ungeprüft, nicht übernommen.`);
+          const ungeprueft = w => ({ wert: w, kollisionen: [], ungeprueft: true });
+          if (kp) vorschlaege.keyphrase = ungeprueft(kp);
+          if (syn.length) vorschlaege.synonyme = syn.map(ungeprueft);
+        }
+      }
+
       // M4b: dieselbe Stelle wie beim Speichern im SEO-Reiter.
       const pruefhinweise = [
         ...ssotHinweise,
@@ -398,6 +448,7 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
         // der Text wird trotzdem erzeugt (Befehl F2).
         faser_hinweis:     faserHinweis,
         pruefhinweise,
+        vorschlaege,
       });
     }
 

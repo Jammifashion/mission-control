@@ -6,6 +6,7 @@ import { buildRow, mergeRow } from '../utils/sheet-rows.js';
 import { sichereSpalte, sichereTextSpalte, colLetter as spaltenBuchstabe } from '../utils/sheet-spalten.js';
 import { ladeLieferzeiten } from '../lib/lieferzeiten.js';
 import { lshopFuerArtikel } from '../lib/lshop.js';
+import { maskenVorschlaege } from '../lib/vorschlaege.js';
 import {
   TAB_VARIANTEN, LSHOP_SPALTE, variantenSpalten, pruefeVariantenPayload,
   payloadHatLShop, baueVariantenZeilen, varianteAusZeile,
@@ -265,6 +266,20 @@ router.get('/lshop/:catalogNr', async (req, res, next) => {
     const farben = (Array.isArray(roh) ? roh : String(roh ?? '').split(','))
       .map(f => String(f).trim()).filter(Boolean);
     res.json(await lshopFuerArtikel(req.params.catalogNr, { farben }));
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/sheets/vorschlaege?name=&kategorien=686,556&lshopNr= ────────────
+// Befehl M8: Kurzbezeichnung und Versandklasse fuer "Neu anlegen" vorschlagen
+// (lib/vorschlaege.js). Nur lesen; die Maske ueberschreibt nie Getipptes.
+router.get('/vorschlaege', async (req, res, next) => {
+  try {
+    res.json(await maskenVorschlaege({
+      name:         String(req.query.name ?? ''),
+      kategorieIds: String(req.query.kategorien ?? '').split(',').map(x => x.trim()).filter(Boolean),
+      lshopNr:      String(req.query.lshopNr ?? ''),
+      shop:         req.query.shop,
+    }));
   } catch (err) { next(err); }
 });
 

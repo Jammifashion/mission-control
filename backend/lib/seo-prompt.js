@@ -1093,6 +1093,33 @@ export function materialAusEigenschaften(eigenschaften, farben, { groessen, stru
   return { eigenschaftenLines, detailLines, farbListe, materialRoh, material, meldung, faserHinweis };
 }
 
+// ── M8: Vorschlaege fuer Schlagwoerter, Keyphrase, Synonyme ─────────────────
+// vorschlagen = { schlagwoerter: string[]|null (vorhandene Liste), keyphrase: bool, synonyme: bool }
+function vorschlagBlock(v) {
+  if (!v) return '';
+  const zeilen = [];
+  if (Array.isArray(v.schlagwoerter)) {
+    zeilen.push('- "schlagwoerter": 3 bis 5 Schlagwörter (je ein bis drei Wörter), die Kunden zu diesem Artikel führen. '
+      + 'Bevorzugt aus dieser Liste vorhandener Schlagwörter, Schreibweise genau übernehmen: '
+      + (v.schlagwoerter.length ? v.schlagwoerter.join(', ') : '(keine vorhanden)') + '.');
+  }
+  if (v.keyphrase) {
+    zeilen.push('- "keyphrase": eine Fokus-Keyphrase in der Schreibweise des Shops (Verein/Motiv + Artikel), 2 bis 6 Wörter.');
+  }
+  if (v.synonyme) {
+    zeilen.push('- "synonyme": genau 3 Synonyme der Keyphrase als Liste, jedes 2 bis 6 Wörter.');
+  }
+  return zeilen.length ? ['VORSCHLÄGE (zusätzliche Felder im JSON):', ...zeilen].join('\n') : '';
+}
+
+function antwortFormat(v) {
+  const felder = ['  "kurzbeschreibung": "..."', '  "produktbeschreibung": "Valides HTML wie oben definiert"'];
+  if (v && Array.isArray(v.schlagwoerter)) felder.push('  "schlagwoerter": ["...", "..."]');
+  if (v && v.keyphrase) felder.push('  "keyphrase": "..."');
+  if (v && v.synonyme) felder.push('  "synonyme": ["...", "...", "..."]');
+  return `Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock):\n{\n${felder.join(',\n')}\n}`;
+}
+
 /**
  * Baut den User-Prompt für die SEO-Generierung.
  * Der System-Prompt liegt in backend/routes/claude.js (SEO_SYSTEM).
@@ -1115,6 +1142,7 @@ export function buildSeoUserPrompt({
   keyphrase,
   strukturiert,
   druck,
+  vorschlagen,
 } = {}) {
   const {
     detailLines, farbListe, material, meldung: materialMeldung, faserHinweis,
@@ -1232,7 +1260,11 @@ export function buildSeoUserPrompt({
 
     'kurzbeschreibung: Plain Text, max. 160 Zeichen. Artikel + Highlight + CTA.\nNICHT "individuell" oder "personalisierbar".',
 
-    'Antworte NUR mit diesem JSON (KEIN Markdown-Codeblock):\n{\n  "kurzbeschreibung": "...",\n  "produktbeschreibung": "Valides HTML wie oben definiert"\n}',
+    // M8: Vorschlaege nur auf Anfrage. Positiv formuliert - keine Verbots-
+    // woerter im Prompt (die Pruefung danach steht im Code).
+    vorschlagBlock(vorschlagen),
+
+    antwortFormat(vorschlagen),
   ];
 
   return { prompt: bloecke.filter(Boolean).join('\n\n'), meldung: materialMeldung, faserHinweis };

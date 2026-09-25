@@ -124,6 +124,19 @@ Neue Sektionen immer mit Anker versehen:
   h2/Keyphrase/Groessen bleiben in seo-prompt.js (pruefeSeoText). Frontend-Spiegel der
   Anzeige-Logik: Block `Generator-Eingaben: Anfang/Ende`.
 
+- backend/lib/vorschlaege.js – Maske "Neu anlegen" (M8), deterministisch: Kurzbezeichnung =
+  haeufigstes Praefix der Hauptkategorie (Erfassungsmaske, z. B. "CH-") + erstes kennzeichnendes
+  Wort des Namens (ohne Kategorie-/Vereinswoerter), CamelCase, sku.js-Regeln, eindeutig gegen
+  Erfassungsmaske und Motive (sonst Ziffer). Versandklasse = Mehrheit der veroeffentlichten
+  Artikel mit derselben L-Shop-Nummer (SKU vor "/"), sonst "paket". `GET /api/sheets/vorschlaege`.
+  Vorschlaege setzen ein Feld nur, wenn es leer ist oder noch den letzten Vorschlag traegt.
+- backend/lib/schlagwoerter.js – Schlagwoerter (product_tag) fuer den SEO-Generator (M8):
+  vorhandene bevorzugt (Liste im Prompt), neue als "neu", Pruefung je Wort (`sperrTreffer`).
+  ⚠️ Ein `tags`-Array im WooCommerce-PUT ERSETZT alle Schlagwoerter: `tagsFuerPut` schickt immer
+  die ganze Liste; der SEO-Reiter schickt `tags` nur, wenn die vorhandenen gelesen sind.
+  Keyphrase/Synonym-Vorschlaege laufen gegen SEO_Karte inkl. Ist_Synonyme (`werteGegenKarte`),
+  Kollision -> markiert, nicht uebernommen. Schlagwort-Archive stehen auf noindex, follow.
+
 - backend/lib/groessen.js – Groessen-Rang und -Sortierung (XXS … 8XL, Kindergroessen
   numerisch, Unbekanntes ans Ende mit Hinweis). Einzige Stelle; seo-meta.js nutzt den Rang,
   woocommerce.js sortiert damit die Optionen der Achse "Größe" und die Variationen (Farbe,
