@@ -8,8 +8,7 @@ import {
   entferneLeereLi, SEO_SYSTEM_PROMPT,
 } from '../lib/seo-prompt.js';
 import { motivFuer, motivFuerPrompt } from '../lib/seo-ssot.js';
-import { lshopFuerArtikel } from '../lib/lshop.js';
-import { pruefeGeneratorText } from '../lib/seo-pruefung.js';
+import { pruefeTextMitSsot } from '../lib/seo-pruefung.js';
 
 const router = Router();
 
@@ -198,11 +197,6 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
         try { motivZeile = await motivFuer(artikelkurz); }
         catch (e) { ssotHinweise.push(`Reiter Motive nicht lesbar (${e.message}) – ohne Motiv-Daten erzeugt.`); }
       }
-      let rohling = null;
-      if (String(lshopNr ?? '').trim()) {
-        try { rohling = await lshopFuerArtikel(lshopNr); }
-        catch (e) { if (e.status !== 404) ssotHinweise.push(`SKU_LShop nicht lesbar (${e.message}) – Marke nicht geprüft.`); }
-      }
       const motivPrompt = motivFuerPrompt(motivZeile);
 
       // Systemprompt: lib/seo-prompt.js (SEO_SYSTEM_PROMPT) – die Regeln stehen dort.
@@ -384,17 +378,12 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
 
       // M4: deterministische Pruefung, kein zweiter Modelllauf. Eigenes Feld -
       // das Frontend zeigt es zusammen mit hinweis an.
+      // M4b: dieselbe Stelle wie beim Speichern im SEO-Reiter.
       const pruefhinweise = [
         ...ssotHinweise,
-        ...pruefeGeneratorText({
-          kurzbeschreibung,
-          produktbeschreibung,
-          produktname,
-          keyphrase,
-          nurIntern:     motivZeile?.nurIntern,
-          marken:        rohling?.marken,
-          modellnummern: rohling ? [rohling.catalogNr, ...(rohling.herstellerNummern ?? [])] : [],
-          druck:         !!(motivPrompt && (motivPrompt.druckfarben || motivPrompt.druckposition)),
+        ...await pruefeTextMitSsot({
+          kurzbeschreibung, produktbeschreibung, produktname, keyphrase,
+          lshopNr, motivZeile,
         }),
       ];
 

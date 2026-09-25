@@ -18,8 +18,16 @@
 //     CatNrManufacturer).
 //  3. Feste Liste VERBOTENE_BEGRIFFE.
 //  4. Zeitangabe mit Zahl (Werktage, Tage, Wochen mit Ziffer davor).
+//     M4b: auch Zahlwoerter (ein/eine/…, zwei … zwoelf, "wenigen") und Spannen
+//     ("drei bis fuenf", "fuenf-sechs"); dazu JEDES "Lieferzeit",
+//     "Lieferung erfolgt" und "geliefert in" - Lieferzeiten stehen im Shop
+//     (German Market), nie im Text. Anlass Echttest Cap 25.09.: "Die Lieferung
+//     erfolgt in drei bis fuenf Werktagen." blieb ungemeldet.
 //  5. <h1> im HTML.
 //  6. "bestickt"/"Stick…", wenn das Motiv einen Druck beschreibt.
+
+import { motivFuer } from './seo-ssot.js';
+import { lshopFuerArtikel } from './lshop.js';
 
 // Feste Liste (Entscheidung Otto 25.09.). "Jammi Fashion" nur getrennt
 // geschrieben - "JammiFashion" ist der Markenname und erlaubt.
@@ -48,7 +56,16 @@ function text(html) {
     .trim();
 }
 
-const ZEIT_RE   = /(?<![A-Za-z0-9])\d+(?:\s*[-–]\s*\d+)?\s*(?:Werktage?n?|Arbeitstage?n?|Tage?n?|Wochen?)(?![A-Za-zÄÖÜäöüß])/i;
+// Zahl vor der Zeiteinheit: Ziffern oder Zahlwort. "ein Tag am Eis" meldet
+// bewusst mit (Grenzfall, M4b): ein Hinweis blockiert nichts, eine uebersehene
+// Lieferzusage waere rechtlich relevant.
+const ZAHLWORT = '(?:ein|eine|einem|einen|einer|zwei|drei|vier|fünf|fuenf|sechs|sieben|acht|neun|zehn|elf|zwölf|zwoelf|wenigen)';
+const ZAHL     = `(?:\\d+|${ZAHLWORT})`;
+const ZEIT_RE  = new RegExp(
+  `(?<![A-Za-zÄÖÜäöüß0-9])${ZAHL}(?:\\s*(?:[-–]|bis)\\s*${ZAHL})?\\s*(?:Werktage?n?|Arbeitstage?n?|Tage?n?|Wochen?)(?![A-Za-zÄÖÜäöüß])`,
+  'i');
+// Lieferangaben ohne Zahl: jedes Vorkommen meldet.
+const LIEFER_RE = /(?<![A-Za-zÄÖÜäöüß])(?:Lieferzeit(?:en)?|Lieferung\s+erfolgt|geliefert\s+in)(?![A-Za-zÄÖÜäöüß])/i;
 const STICK_RE  = /(?<![A-Za-zÄÖÜäöüß])(?:be|ge)?stick(?:t|te|ten|en|erei|ereien)?(?![A-Za-zÄÖÜäöüß])/i;
 const H1_RE     = /<h1[\s>]/i;
 
@@ -96,10 +113,14 @@ export function pruefeGeneratorText(e = {}) {
   // 3. Feste Liste
   for (const b of VERBOTENE_BEGRIFFE) melde(begriffRe(b), `Begriff "${b}"`);
 
-  // 4. Zeitangabe mit Zahl
+  // 4. Zeitangabe mit Zahl (Ziffer oder Zahlwort, auch Spanne), Lieferangaben
   for (const [n, html] of teile) {
     const m = ZEIT_RE.exec(text(html));
     if (m) hinweise.push(`Zeitangabe "${m[0]}" in ${n} – keine Liefer- oder Bearbeitungszeiten nennen.`);
+  }
+  for (const [n, html] of teile) {
+    const m = LIEFER_RE.exec(text(html));
+    if (m) hinweise.push(`Lieferangabe "${m[0]}" in ${n} – Lieferzeiten stehen im Shop, nicht im Text.`);
   }
 
   // 5. <h1>
@@ -110,4 +131,39 @@ export function pruefeGeneratorText(e = {}) {
   if (e.druck) melde(STICK_RE, 'Das Motiv ist gedruckt, der Text spricht von Stick/bestickt');
 
   return hinweise;
+}
+
+/**
+ * Pruefung mit den SSOT-Daten des Artikels - EINE Stelle fuer Generator
+ * (routes/claude.js, nach der Generierung) und SEO-Reiter (POST
+ * /api/seo/text-pruefung, nach dem Speichern gegen den gespeicherten Text).
+ * Liest Motiv-Zeile (Nur_intern, Druck) und Rohling (Marke, Modellnummern);
+ * ein Lesefehler blockiert nicht, er steht als Hinweis vorne.
+ *
+ * @param {object} e  wie pruefeGeneratorText, dazu artikelkurz, lshopNr und
+ *                    optional motivZeile (schon gelesen, spart den Abruf)
+ * @returns {Promise<string[]>}
+ */
+export async function pruefeTextMitSsot({ artikelkurz, lshopNr, motivZeile, ...e } = {}) {
+  const hinweise = [];
+  let motiv = motivZeile ?? null;
+  if (motiv === null && String(artikelkurz ?? '').trim()) {
+    try { motiv = await motivFuer(artikelkurz); }
+    catch (err) { hinweise.push(`Reiter Motive nicht lesbar (${err.message}) – Nur_intern nicht geprüft.`); }
+  }
+  let rohling = null;
+  if (String(lshopNr ?? '').trim()) {
+    try { rohling = await lshopFuerArtikel(lshopNr); }
+    catch (err) { if (err.status !== 404) hinweise.push(`SKU_LShop nicht lesbar (${err.message}) – Marke nicht geprüft.`); }
+  }
+  return [
+    ...hinweise,
+    ...pruefeGeneratorText({
+      ...e,
+      nurIntern:     motiv?.nurIntern,
+      marken:        rohling?.marken,
+      modellnummern: rohling ? [rohling.catalogNr, ...(rohling.herstellerNummern ?? [])] : [],
+      druck:         !!(motiv && (motiv.druckfarben || motiv.druckposition)),
+    }),
+  ];
 }

@@ -117,7 +117,10 @@ Neue Sektionen immer mit Anker versehen:
 - backend/lib/seo-pruefung.js – deterministische Pruefung nach der Generierung
   (`pruefeGeneratorText`, Antwortfeld `pruefhinweise`, kein zweiter Modelllauf): Nur_intern,
   Marke/Modellnummern des Rohlings (SKU_LShop Brand, CatalogNr, CatNrManufacturer), feste Liste
-  `VERBOTENE_BEGRIFFE` (nur im Code, nie im Prompt), Zeitangabe mit Zahl, <h1>, Stick bei Druck.
+  `VERBOTENE_BEGRIFFE` (nur im Code, nie im Prompt), Zeitangabe mit Zahl (Ziffer oder Zahlwort,
+  auch Spanne; M4b) und jedes "Lieferzeit"/"Lieferung erfolgt"/"geliefert in", <h1>, Stick bei Druck.
+  `pruefeTextMitSsot` = eine Stelle mit SSOT-Daten: nach der Generierung und nach dem Speichern im
+  SEO-Reiter (`POST /api/seo/text-pruefung`, Shop-Stand zurueckgelesen, nur Warn-Toast).
   h2/Keyphrase/Groessen bleiben in seo-prompt.js (pruefeSeoText). Frontend-Spiegel der
   Anzeige-Logik: Block `Generator-Eingaben: Anfang/Ende`.
 

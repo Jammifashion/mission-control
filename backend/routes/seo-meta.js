@@ -14,6 +14,7 @@ import { sucheArtikel, keyphraseDubletten } from '../lib/seo-artikel.js';
 import {
   motivFuer, motivFuerPrompt, seoHinweisVorlage, keyphraseGegenKarte, keyphraseMeldungen,
 } from '../lib/seo-ssot.js';
+import { pruefeTextMitSsot } from '../lib/seo-pruefung.js';
 
 const router = Router();
 
@@ -69,6 +70,25 @@ router.get('/generator-eingaben', async (req, res) => {
     keyphrase:      kp ? { ...kp, ...keyphraseMeldungen(keyphrase, kp) } : null,
     fehler,
   });
+});
+
+// ── Befehl M4b: Pruefung nach dem Speichern ───────────────────────────────
+// POST /api/seo/text-pruefung { kurzbeschreibung, produktbeschreibung,
+//   produktname, keyphrase, artikelkurz, lshopNr } -> { pruefhinweise }
+// Der SEO-Reiter schickt den TATSAECHLICH gespeicherten Text (WooCommerce-
+// Antwort nach dem PUT, also auch nach Handbearbeitung). Nur lesen, blockiert nie.
+router.post('/text-pruefung', async (req, res, next) => {
+  try {
+    const b = req.body ?? {};
+    res.json({ pruefhinweise: await pruefeTextMitSsot({
+      kurzbeschreibung:    String(b.kurzbeschreibung ?? ''),
+      produktbeschreibung: String(b.produktbeschreibung ?? ''),
+      produktname:         String(b.produktname ?? ''),
+      keyphrase:           String(b.keyphrase ?? ''),
+      artikelkurz:         String(b.artikelkurz ?? ''),
+      lshopNr:             String(b.lshopNr ?? ''),
+    }) });
+  } catch (err) { next(err); }
 });
 
 export default router;

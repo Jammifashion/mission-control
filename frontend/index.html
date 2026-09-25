@@ -4224,6 +4224,20 @@
         const d = data || {};
         return [d.hinweis, ...(Array.isArray(d.pruefhinweise) ? d.pruefhinweise : [])].filter(Boolean);
       }
+      // M4b: Body fuer POST /api/seo/text-pruefung - der Text kommt aus dem
+      // zurueckgelesenen WooCommerce-Produkt (tatsaechlich gespeichert, auch nach
+      // Handbearbeitung), nicht aus dem Editor.
+      function textPruefungBody(item, produkt, keyphrase) {
+        const i = item || {}, w = produkt || {};
+        return {
+          kurzbeschreibung:    String(w.short_description ?? ''),
+          produktbeschreibung: String(w.description ?? ''),
+          produktname:         String(w.name || i.produktname || ''),
+          keyphrase:           String(keyphrase ?? '').trim(),
+          artikelkurz:         artikelKurzAus(i.artikelnummer),
+          lshopNr:             String(i.lshopNr ?? ''),
+        };
+      }
       // ── Generator-Eingaben: Ende ──
 
       // ── Keyphrase-Synonyme: Anfang (reine Logik, backend/tests/yoast-synonyme.test.js) ──
@@ -6027,6 +6041,23 @@
         }
       });
 
+      // M4b: nach dem Speichern den Shop-Stand zuruecklesen und pruefen
+      // (lib/seo-pruefung.js, pruefeTextMitSsot). Nur Warn-Toast, blockiert nie.
+      async function seoTextNachSpeichernPruefen(item, keyphrase) {
+        try {
+          const produkt = await apiJson(await apiFetch(`${API_BASE()}/api/woocommerce/products/${item.wcId}`));
+          const d = await apiJson(await apiFetch(`${API_BASE()}/api/seo/text-pruefung`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(textPruefungBody(item, produkt, keyphrase)),
+          }));
+          const h = d.pruefhinweise || [];
+          if (h.length) showToast(`Gespeicherter Text: ${h.join(' · ')}`, 'warn', 20000);
+        } catch (e) {
+          showToast(`Prüfung nach dem Speichern nicht möglich: ${e.message}`, 'warn', 10000);
+        }
+      }
+
       document.getElementById('btn-seo-save').addEventListener('click', async () => {
         if (!seoCurrentItem) return;
         if (!seoCurrentItem.wcId) {
@@ -6061,6 +6092,10 @@
               },
             }),
           });
+
+          // M4b: Pruefung gegen den gespeicherten Text (Shop-Stand zurueckgelesen),
+          // nicht blockierend. Bewusst NACH dem Beschreibungs-PUT und dem Sheet.
+          seoTextNachSpeichernPruefen(seoCurrentItem, document.getElementById('seo-keyphrase').value);
 
           // ── Yoast-Schreibweg ────────────────────────────────────────────
           // NACH dem Sheet-Schreiben, in eigenem try/catch: das Sheet ist die
