@@ -84,6 +84,16 @@ Neue Sektionen immer mit Anker versehen:
   erst angelegt, wenn ein Payload sie mitbringt. Mehrere Varianten duerfen dieselbe Nummer tragen.
   `scripts/migrate-varianten.js` ist historisch index-basiert – nicht wiederverwenden.
 
+- backend/lib/lshop.js – Reiter `SKU_LShop` lesen (nur lesen, header-basiert ueber die ganze
+  Breite per batchGet, nicht readRange A1:Z1000; ArticleNr als String; 5 min Cache).
+  `GET /api/sheets/lshop/:catalogNr?farben=…` liefert Farben ("color1/color2", englisch wie
+  L-Shop), Groessen, ArticleNr je Variante, Faser, Grammatur, Hinweise. Faser/Grammatur laufen
+  durch filterMaterialFarbenMitMeldung mit allen gewaehlten Farben; je Farbe ungleich -> kein
+  Wert + Hinweis; Faser muss je Abschnitt auf 100 % aufgehen; Grammatur leer = kein Wert, kein
+  Hinweis. Als `strukturiert: { faser, grammatur }` an `/api/seo/meta-eingaben` und
+  `seo_description` hat sie Vorrang vor dem Eigenschaften-Freitext (`strukturierteEingabe()` in
+  seo-prompt.js; Schluessel `grammatur` vorhanden = gilt, auch leer).
+
 - backend/lib/groessen.js – Groessen-Rang und -Sortierung (XXS … 8XL, Kindergroessen
   numerisch, Unbekanntes ans Ende mit Hinweis). Einzige Stelle; seo-meta.js nutzt den Rang,
   woocommerce.js sortiert damit die Optionen der Achse "Größe" und die Variationen (Farbe,

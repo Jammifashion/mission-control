@@ -181,7 +181,7 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
     if (action === 'seo_description') {
       const {
         produktname, kategorien, eigenschaften, hinweise, motiv, modus, farben,
-        groessen, keyphrase,
+        groessen, keyphrase, strukturiert,
       } = req.body;
       if (!produktname) return res.status(400).json({ error: 'produktname ist erforderlich.' });
 
@@ -210,6 +210,8 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
         farben,
         groessen,
         keyphrase,
+        // Befehl M1: { faser, grammatur } aus den L-Shop-Stammdaten, Vorrang vor dem Freitext.
+        strukturiert,
       });
       if (materialMeldung) {
         console.warn(`[seo_description] ${materialMeldung}`);

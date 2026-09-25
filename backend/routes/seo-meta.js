@@ -15,11 +15,13 @@ import { sucheArtikel, keyphraseDubletten } from '../lib/seo-artikel.js';
 const router = Router();
 
 router.post('/meta-eingaben', (req, res) => {
-  const { eigenschaften = '', farben = [], groessen = [] } = req.body ?? {};
+  const { eigenschaften = '', farben = [], groessen = [], strukturiert } = req.body ?? {};
   res.json(metaEingaben({
     eigenschaften: String(eigenschaften ?? ''),
     farben:   Array.isArray(farben)   ? farben.map(f => String(f ?? ''))   : [],
     groessen: Array.isArray(groessen) ? groessen.map(g => String(g ?? '')) : [],
+    // Befehl M1: { faser, grammatur } aus GET /api/sheets/lshop/:catalogNr.
+    strukturiert,
   }));
 });
 

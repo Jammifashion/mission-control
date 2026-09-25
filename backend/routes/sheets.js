@@ -5,6 +5,7 @@ import { findHeader, requireHeader, requireHeaderAny } from '../utils/sheet-head
 import { buildRow, mergeRow } from '../utils/sheet-rows.js';
 import { sichereSpalte, sichereTextSpalte, colLetter as spaltenBuchstabe } from '../utils/sheet-spalten.js';
 import { ladeLieferzeiten } from '../lib/lieferzeiten.js';
+import { lshopFuerArtikel } from '../lib/lshop.js';
 import {
   TAB_VARIANTEN, LSHOP_SPALTE, variantenSpalten, pruefeVariantenPayload,
   payloadHatLShop, baueVariantenZeilen, varianteAusZeile,
@@ -251,6 +252,19 @@ router.get('/attribute', async (req, res, next) => {
     res.json(
       Object.entries(grouped).map(([eigenschaft, begriffe]) => ({ eigenschaft, begriffe }))
     );
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/sheets/lshop/:catalogNr?farben=Black/Red&farben=Black/White ────
+// Befehl M1: Farben, Groessen, ArticleNr je Variante, Faser, Grammatur und
+// Hinweise aus dem Reiter SKU_LShop. Logik in lib/lshop.js. Farben als
+// wiederholter Parameter oder kommagetrennt; ohne Farben = alle.
+router.get('/lshop/:catalogNr', async (req, res, next) => {
+  try {
+    const roh = req.query.farben;
+    const farben = (Array.isArray(roh) ? roh : String(roh ?? '').split(','))
+      .map(f => String(f).trim()).filter(Boolean);
+    res.json(await lshopFuerArtikel(req.params.catalogNr, { farben }));
   } catch (err) { next(err); }
 });
 

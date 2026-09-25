@@ -17,6 +17,7 @@
 
 import {
   materialAusEigenschaften, grammaturAusZeile, faserOhneLabel, MATERIAL_PLACEHOLDER,
+  strukturierteEingabe,
 } from './seo-prompt.js';
 import { groessenRang } from './groessen.js';
 
@@ -234,16 +235,22 @@ export { faserOhneLabel };
  * faserHinweis: Faserangabe mit Prozent fehlt ganz (Befehl F2) - dieselbe
  * Pruefung wie im SEO-Prompt, sie steht in materialAusEigenschaften.
  *
+ * Befehl M1: `strukturiert` ({ faser, grammatur } aus lib/lshop.js) hat Vorrang
+ * vor dem Freitext. Die Regeln stehen in strukturierteEingabe() (seo-prompt.js).
+ * Ohne strukturierte Eingabe bleibt alles wie bisher.
+ *
  * @returns {{ faserangabe: string|null, faserMeldung: string|null, grammatur: string|null,
  *             faserHinweis: string|null }}
  */
-export function metaEingaben({ eigenschaften, farben, groessen } = {}) {
-  const { material, meldung, faserHinweis } = materialAusEigenschaften(eigenschaften, farben, { groessen });
+export function metaEingaben({ eigenschaften, farben, groessen, strukturiert } = {}) {
+  const struktur = strukturierteEingabe(strukturiert);
+  const { material, meldung, faserHinweis } =
+    materialAusEigenschaften(eigenschaften, farben, { groessen, strukturiert });
   const faser = material && material !== MATERIAL_PLACEHOLDER ? material : null;
   return {
     faserangabe:  faser,
     faserMeldung: faser ? meldung : null,
-    grammatur:    grammaturAusEigenschaften(eigenschaften),
+    grammatur:    struktur?.grammaturGesetzt ? struktur.grammatur : grammaturAusEigenschaften(eigenschaften),
     // Nur wenn gesetzt - die Antwort bleibt fuer alle anderen Faelle wie bisher.
     ...(faserHinweis ? { faserHinweis } : {}),
   };

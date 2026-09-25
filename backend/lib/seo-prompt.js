@@ -719,7 +719,7 @@ function sameFarbe(a, b) {
 // Klauselinhalt. Bei 13251 ist das das richtige Ergebnis, und eine verirrte
 // Klammer im Fließtext richtet wenig an, weil zusätzlich Label-Prüfung,
 // Faserangabe und die Nachbedingung greifen müssen.
-function klammerGruppen(text) {
+export function klammerGruppen(text) {
   const gruppen = [];
   let tiefe = 0;
   let start = -1;
@@ -992,6 +992,29 @@ export function entferneLeereLi(html) {
 }
 
 /**
+ * Strukturierte Material-Eingabe aus den L-Shop-Stammdaten (Befehl M1,
+ * lib/lshop.js) in EINE Form bringen - fuer SEO-Prompt und Meta-Beschreibung.
+ *
+ *  - faser: nicht leerer String -> hat Vorrang vor dem Freitext. Fehlt sie oder
+ *    ist sie leer (z. B. nicht auf 100 % aufgegangen), gilt der Freitext.
+ *  - grammatur: ist der SCHLUESSEL da, gilt der Wert, auch leer/null -> dann
+ *    gibt es keine Grammatur und keinen Freitext-Ersatz (Entscheidung Inhaber
+ *    25.09.). Fehlt der Schluessel, gilt der Freitext.
+ *
+ * @returns {{ faser: string|null, grammaturGesetzt: boolean, grammatur: string|null }|null}
+ *          null = keine strukturierte Eingabe, alles wie bisher.
+ */
+export function strukturierteEingabe(eingabe) {
+  if (!eingabe || typeof eingabe !== 'object' || Array.isArray(eingabe)) return null;
+  const faser = typeof eingabe.faser === 'string' && eingabe.faser.trim() ? eingabe.faser.trim() : null;
+  const grammaturGesetzt = Object.prototype.hasOwnProperty.call(eingabe, 'grammatur');
+  const grammatur = grammaturGesetzt && eingabe.grammatur != null && String(eingabe.grammatur).trim()
+    ? String(eingabe.grammatur).trim()
+    : null;
+  return { faser, grammaturGesetzt, grammatur };
+}
+
+/**
  * Materialangabe aus dem Eigenschaften-Freitext, gefiltert nach den
  * angebotenen Farben. Einzige Stelle für diesen Weg: der SEO-Prompt und die
  * Meta-Beschreibung (lib/seo-meta.js) sehen damit dieselbe Faserangabe.
@@ -999,7 +1022,8 @@ export function entferneLeereLi(html) {
  * @returns {{ eigenschaftenLines: string[], farbListe: string[],
  *             materialRoh: string, material: string, meldung: string|null }}
  */
-export function materialAusEigenschaften(eigenschaften, farben, { groessen } = {}) {
+export function materialAusEigenschaften(eigenschaften, farben, { groessen, strukturiert } = {}) {
+  const struktur = strukturierteEingabe(strukturiert);
   const rohLines = eigenschaften ? String(eigenschaften).split('\n').filter(Boolean) : [];
   // ⚠️ Reihenfolge: erst auslesen, dann entfernen. filterEigenschaften() wirft
   // die Farbzeile raus (sonst steht die Farbe doppelt in der Detailliste) –
@@ -1028,15 +1052,32 @@ export function materialAusEigenschaften(eigenschaften, farben, { groessen } = {
 
   // Detailliste in Eingabereihenfolge: Nicht-Material-Zeilen wie bisher,
   // weitere Material-Zeilen nur, wenn eine Faserzeile gefunden wurde.
-  const detailLines = eigenschaftenLines
+  let detailLines = eigenschaftenLines
     .filter(l => !MATERIAL_LINE_RE.test(l) || (faserZeile && l !== faserZeile))
     .map(detailZeile);
+
+  // Befehl M1: Grammatur aus den L-Shop-Stammdaten ersetzt die Grammatur-Zeile
+  // des Freitexts - auch wenn sie leer ist (dann gar keine Grammatur).
+  if (struktur?.grammaturGesetzt) {
+    detailLines = detailLines.filter(l => !grammaturAusZeile(l));
+    if (struktur.grammatur) detailLines.unshift(`Grammatur: ${struktur.grammatur}`);
+  }
 
   const farbListe = parseFarben(
     farben && (Array.isArray(farben) ? farben.length : String(farben).trim())
       ? farben
       : farbenAusZeilen
   );
+
+  // Befehl M1: eine Faserangabe aus den L-Shop-Stammdaten hat Vorrang. Sie ist
+  // dort schon mit den gewaehlten Farben gefiltert und auf 100 % geprueft
+  // (lib/lshop.js) - kein zweiter Filterlauf, keine Meldung.
+  if (struktur?.faser) {
+    return {
+      eigenschaftenLines, detailLines, farbListe, materialRoh,
+      material: struktur.faser, meldung: null, faserHinweis: null,
+    };
+  }
 
   // Die Form MIT Meldung, nicht der Wrapper: die Meldung sagt, dass im
   // Material keine vollständige Faserangabe mehr steht.
@@ -1072,10 +1113,11 @@ export function buildSeoUserPrompt({
   farben,
   groessen,
   keyphrase,
+  strukturiert,
 } = {}) {
   const {
     detailLines, farbListe, material, meldung: materialMeldung, faserHinweis,
-  } = materialAusEigenschaften(eigenschaften, farben, { groessen });
+  } = materialAusEigenschaften(eigenschaften, farben, { groessen, strukturiert });
 
   // Größen kommen NUR aus der Variantenauswahl. Kein Fallback auf die
   // Eigenschaften: dort steht der Größenlauf der Baureihe, nicht die Auswahl
