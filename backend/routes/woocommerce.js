@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { getWcClient } from '../lib/shopConfig.js';
 import { markeFuerShop } from '../lib/shopMarke.js';
 import { pruefeArtikelnummer, baueVariantenSkus } from '../lib/sku.js';
-import { achsenVon, achsenGleich, pruefeFarbAchse } from '../lib/varianten-achsen.js';
+import { achsenVon, achsenGleich, pruefeFarbAchse, mitGoogleFarbe } from '../lib/varianten-achsen.js';
 import {
   LIEFERZEIT_WIE_ELTERN, pruefeLieferzeitWert, lieferzeitAusMetaData, mitLieferzeit,
 } from '../lib/lieferzeiten.js';
@@ -10,6 +10,13 @@ import { sortiereAttributOptionen, variantenReihenfolge } from '../lib/groessen.
 import { merkeKeyphrase } from '../lib/seo-artikel.js';
 
 const router = Router();
+
+// M3: Versandklasse (Slug). Anlage: Pflicht. Aenderung: nur Hinweis (S2b-Muster).
+function pruefeVersandklasse(slug) {
+  return String(slug ?? '').trim()
+    ? null
+    : 'Versandklasse fehlt – bei der Anlage Pflicht (brief, grossbrief, paket …).';
+}
 
 // shop-Slug aus req.query.shop ziehen (Default 'jfn' wird in getWcClient erzwungen).
 const getClient = (req) => getWcClient(req?.query?.shop);
@@ -22,7 +29,8 @@ function neueVariation(v, { menuOrder, sku } = {}) {
     menu_order:    menuOrder,
     attributes:    v.attributes,
     regular_price: v.regular_price,
-    meta_data:     mitLieferzeit(v.meta_data, LIEFERZEIT_WIE_ELTERN),
+    // M3: _wc_gla_color = Farbwert 1:1, nur an neuen Variationen.
+    meta_data:     mitGoogleFarbe(mitLieferzeit(v.meta_data, LIEFERZEIT_WIE_ELTERN), v.attributes),
     status:        'publish',
     ...(sku ? { sku } : {}),
     ...(v.image ? { image: v.image } : {}),
@@ -294,6 +302,11 @@ router.post('/products', async (req, res, next) => {
     const achsenFehler = pruefeFarbAchse(achsenVon({ attribute: rest.attributes, varianten: variations }));
     if (achsenFehler) return res.status(400).json({ error: achsenFehler.fehler, feld: achsenFehler.feld });
 
+    // M3: Versandklasse ist bei der Anlage Pflicht. Ohne Klasse legt WooCommerce
+    // den Artikel ohne Klasse an (so entstanden die vier Oldschool-Artikel).
+    const versandFehler = pruefeVersandklasse(rest.shipping_class);
+    if (versandFehler) return res.status(400).json({ error: versandFehler, feld: 'shipping_class' });
+
     // Groessen aufsteigend: Optionen der Groessen-Achse sortiert schicken. Das
     // Auswahlfeld im Shop folgt bei lokalen Attributen dieser Reihenfolge.
     const groessen = sortiereAttributOptionen(rest.attributes);
@@ -359,7 +372,8 @@ router.post('/products', async (req, res, next) => {
           const varResponse = await wc.post(`products/${productId}/variations`, {
             ...variation,
             ...(nachSkus.skus ? { sku: nachSkus.skus[vi] } : {}),
-            meta_data: mitLieferzeit(variation.meta_data, LIEFERZEIT_WIE_ELTERN),
+            // M3: _wc_gla_color = Farbwert 1:1 (Entscheidung Inhaber 25.09.).
+            meta_data: mitGoogleFarbe(mitLieferzeit(variation.meta_data, LIEFERZEIT_WIE_ELTERN), variation.attributes),
             menu_order: pos + 1,
             status: 'publish',
           });
@@ -526,6 +540,12 @@ router.put('/products/:id', async (req, res, next) => {
     // Groessen-Optionen immer sortiert schreiben, wenn Attribute mitkommen -
     // der Aufrufer baut sie aus der Variationsliste (neueste zuerst).
     let groessenHinweis = null;
+
+    // M3, S2b-Muster: im Aenderungspfad speichert ein Artikel ohne Versandklasse
+    // weiter (Bestand), der Aufrufer bekommt aber einen Hinweis.
+    const versandHinweis = payload.shipping_class !== undefined && pruefeVersandklasse(payload.shipping_class)
+      ? 'Hinweis: keine Versandklasse gesetzt – bitte ergänzen.'
+      : null;
     if (Array.isArray(payload.attributes)) {
       const g = sortiereAttributOptionen(payload.attributes);
       payload.attributes = g.attributes;
@@ -572,7 +592,7 @@ router.put('/products/:id', async (req, res, next) => {
     const lzShop = lieferzeitAusMetaData(product.meta_data);
     res.json({
       id:      product.id,
-      hinweis: [skuHinweis, achsenHinweis, groessenHinweis].filter(Boolean).join(' ') || null,
+      hinweis: [skuHinweis, achsenHinweis, groessenHinweis, versandHinweis].filter(Boolean).join(' ') || null,
       // Eigenes Feld: SKU- und Achsen-Hinweis zeigt das Frontend schon vor dem Speichern.
       groessen_hinweis: groessenHinweis,
       galerie: (product.images ?? []).length,

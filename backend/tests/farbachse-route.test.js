@@ -57,7 +57,7 @@ beforeEach(() => {
 
 afterEach(() => jest.restoreAllMocks());
 
-const post = (body) => request(app).post('/api/woocommerce/products?shop=jfn').send(body);
+const post = (body) => request(app).post('/api/woocommerce/products?shop=jfn').send({ shipping_class: 'paket', ...body });
 const put  = (body) => request(app).put('/api/woocommerce/products/100?shop=jfn').send(body);
 
 // ── Anlagepfad: streng ──────────────────────────────────────────────────────

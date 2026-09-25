@@ -75,7 +75,7 @@ describe('Anlage', () => {
 
   test('Route: images geht so an WooCommerce, Variationen behalten ihr image, Antwort nennt die Anzahl', async () => {
     const res = await request(app).post('/api/woocommerce/products').send({
-      name: 'Shirt', sku: 'E3000/CH-Oldschool', type: 'variable', lieferzeit: '21',
+      name: 'Shirt', sku: 'E3000/CH-Oldschool', type: 'variable', lieferzeit: '21', shipping_class: 'grossbrief',
       attributes: [{ name: 'Farbe', options: ['Rot', 'Schwarz'], variation: true }],
       images: [{ id: 11 }, { id: 22 }],
       variations: [

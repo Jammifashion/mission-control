@@ -93,6 +93,18 @@ Neue Sektionen immer mit Anker versehen:
   Hinweis. Als `strukturiert: { faser, grammatur }` an `/api/seo/meta-eingaben` und
   `seo_description` hat sie Vorrang vor dem Eigenschaften-Freitext (`strukturierteEingabe()` in
   seo-prompt.js; Schluessel `grammatur` vorhanden = gilt, auch leer).
+  Maske (M3, nur Anlagepfad): Feld "L-Shop Artikelnummer" laedt beim Verlassen das Modell;
+  gefunden -> Farben NUR aus dem Modell (L-Shop-Schreibweise), Groessen aus den Zeilen der
+  gewaehlten Farben (eine Groesse = keine Groessenachse), `lshopArticleNr` je Variante; 404 ->
+  freie Eingabe (Fremdware), nie gemischt. Frontend-Spiegel: Block `L-Shop-Modell: Anfang/Ende`.
+  SEO-Flow schickt `strukturiert` nur, wenn ALLE Farben Modellfarben sind (Bestand: Freitext).
+
+- Anlage (M3): Versandklasse ist Pflicht (Frontend anlageZustand + Backend 400 `feld:
+  shipping_class`); Aenderungspfad speichert ohne Klasse weiter, mit Hinweis (S2b). Jede NEU
+  angelegte Variation bekommt `_wc_gla_color` = Farbwert 1:1 (`mitGoogleFarbe` in
+  varianten-achsen.js), Bestand nie; Google_Farbe im Reiter Varianten gleich. Schritt 10 der
+  Anlage (POST /erfassung/overwrite) schickt KEINE `varianten` (`erfassungNachAnlage`) - sonst
+  leert er die in Schritt 9 geschriebenen WC_Variation_IDs.
 
 - backend/lib/groessen.js – Groessen-Rang und -Sortierung (XXS … 8XL, Kindergroessen
   numerisch, Unbekanntes ans Ende mit Hinweis). Einzige Stelle; seo-meta.js nutzt den Rang,

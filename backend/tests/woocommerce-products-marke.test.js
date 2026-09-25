@@ -50,7 +50,7 @@ afterEach(() => jest.restoreAllMocks());
 // sku muss seit S2 die Form <L-Shop-Nummer>/<Kurzbezeichnung> haben und wird
 // vom Endpunkt geprueft - "JF-1" waere jetzt ein 400 und diese Suite wuerde
 // die Markenlogik gar nicht mehr erreichen.
-const BASIS = { name: 'Shirt', sku: 'JF/Shirt-01', type: 'variable', ssot_id: 'JFN-2026-0001' };
+const BASIS = { name: 'Shirt', sku: 'JF/Shirt-01', type: 'variable', ssot_id: 'JFN-2026-0001', shipping_class: 'paket' };
 const produktPost = shop => clients[shop].post.mock.calls.filter(c => c[0] === 'products');
 
 describe('POST /products – Marke', () => {

@@ -1358,6 +1358,7 @@
             <div class="form-field">
               <label>L-Shop Artikelnummer</label>
               <input id="pf-lshop-nr" type="text" class="form-input" placeholder="z. B. HS-001" />
+              <div id="pf-lshop-hint" class="field-note" style="margin-top:0.25rem;"></div>
             </div>
             <div class="form-field">
               <label>Artikelkurzbezeichnung <span class="field-note">(Pflicht: 3–20 Zeichen, nur A–Z a–z 0–9 und -)</span></label>
@@ -3487,6 +3488,14 @@
       // Variant combinations: [{ attrs: [{name, value}], price: '' }]
       let variants = [];
 
+      // M3: L-Shop-Modell der Anlage (Antwort von GET /api/sheets/lshop/:nr) oder
+      // null = freie Eingabe (Fremdware, Aenderungspfad). Nie gemischt.
+      let lshopModell = null;
+      function lshopGewaehlteFarben() {
+        const p = properties.find(x => istFarbAchse(x.name));
+        return p ? p.tags : [];
+      }
+
       // ── Bild-Referenz-Eigenschaft (automatische Varianten-Bild-Zuordnung) ────────
       let imageRefProperty = null; // z.B. "Farbe" – aktuell gewählte Referenz-Eigenschaft
       let variantImageMap  = {};   // { [wert]: { imageId, imageUrl } } je Wert der Referenz-Eigenschaft
@@ -3505,7 +3514,15 @@
       }
 
       function recomputeVariants() {
-        const valid = properties.filter(p => p.name && p.tags.length);
+        // M3: mit L-Shop-Modell kommen Farbe (Auswahl) und Groesse (aus den
+        // Zeilen der gewaehlten Farben) aus dem Modell; weitere Eigenschaften
+        // bleiben. Eine eigene Groessen-Eigenschaft zaehlt dann nicht.
+        const mitModell = !!lshopModell && !editMode;
+        const quelle = mitModell
+          ? [...lshopEigenschaften(lshopModell, lshopGewaehlteFarben()),
+             ...properties.filter(p => !istFarbAchse(p.name) && !grIstGroessenAchse(p.name))]
+          : properties;
+        const valid = quelle.filter(p => p.name && p.tags.length);
         if (!valid.length) { variants = []; return; }
         // Cartesian product
         let combos = [[]];
@@ -3521,11 +3538,14 @@
             imageId: v.imageId ?? null, imageUrl: v.imageUrl ?? null, _imageManual: v._imageManual ?? false,
           },
         ]));
+        // Mit Modell: nur Kombinationen, die es im L-Shop gibt (ArticleNr).
+        if (mitModell) combos = combos.filter(attrs => lshopArticleNr(lshopModell, attrs));
         variants = combos.map(attrs => {
           const key      = attrs.map(a => `${a.name}=${a.value}`).join('|');
           const existing = priceMap.get(key);
           return {
             attrs,
+            ...(mitModell ? { lshopArticleNr: lshopArticleNr(lshopModell, attrs) } : {}),
             price:       existing?.price       ?? '',
             _autoFilled: existing?._autoFilled ?? false,
             _checked:    existing?._checked    ?? true,
@@ -3967,8 +3987,9 @@
       // "Bereit zur Anlage", sondern die Artikel-ID und dieselben
       // Pflichtpruefungen wie beim Klick (Varianten/Preise, Farbachse,
       // Lieferzeit, SKU). Die Fehlertexte kommen aus den Pruefungen selbst.
+      // M3: dazu Versandklasse (Pflicht bei der Anlage) und L-Shop-Farben.
       function anlageZustand({ editMode, laeuft, ssotId, variantenAnzahl, aktiveAnzahl, preiseFehlen,
-                               achsenFehler, lieferzeitFehler, skuFehler } = {}) {
+                               achsenFehler, lieferzeitFehler, skuFehler, versandFehler, lshopFehler } = {}) {
         if (editMode) return { aktiv: false, grund: '' };
         if (laeuft)   return { aktiv: false, grund: '' };
         if (!String(ssotId ?? '').trim())
@@ -3977,7 +3998,9 @@
           return { aktiv: false, grund: 'Bitte mindestens eine Variante auswählen.' };
         if (preiseFehlen)     return { aktiv: false, grund: 'Bitte alle Variantenpreise ausfüllen.' };
         if (achsenFehler)     return { aktiv: false, grund: achsenFehler };
+        if (lshopFehler)      return { aktiv: false, grund: lshopFehler };
         if (lieferzeitFehler) return { aktiv: false, grund: `Lieferzeit: ${lieferzeitFehler}` };
+        if (versandFehler)    return { aktiv: false, grund: `Versandklasse: ${versandFehler}` };
         if (skuFehler)        return { aktiv: false, grund: skuFehler };
         return { aktiv: true, grund: '' };
       }
@@ -4081,6 +4104,90 @@
              + 'Achtung: Druckfarbe, Schriftfarbe und Farbe des Wunschnamens zählen NICHT.';
       }
       // ── Farbachsen-Regel: Ende ──
+
+      // ── L-Shop-Modell: Anfang (reine Logik, backend/tests/lshop-maske.test.js) ──
+      // Befehl M3. Quelle: GET /api/sheets/lshop/:catalogNr (backend/lib/lshop.js),
+      // ohne Farben abgefragt = alle Farben, Groessen und ArticleNr des Modells.
+      // Farben in L-Shop-Schreibweise ("Black/Kelly Green"), keine Uebersetzung.
+      // Groessen kommen aus den Zeilen der gewaehlten Farben; gibt es nur eine
+      // ("One Size"), entsteht KEINE Groessenachse.
+      // Nichts aus dem Seitenkontext ausser FARB_ACHSE/istFarbAchse (Block oben).
+      const LSHOP_GROESSE = 'Größe';
+
+      function lshopGleich(a, b) {
+        return String(a ?? '').trim().toLowerCase() === String(b ?? '').trim().toLowerCase();
+      }
+      // Farbe in der Schreibweise des Modells, oder null.
+      function lshopFarbe(daten, farbe) {
+        return ((daten && daten.alleFarben) || []).find(f => lshopGleich(f, farbe)) || null;
+      }
+      // Groessen der gewaehlten Farben, in der Reihenfolge des Modells.
+      function lshopGroessen(daten, farben) {
+        const gew = (farben || []).map(f => lshopFarbe(daten, f)).filter(Boolean);
+        const da  = new Set(((daten && daten.varianten) || []).filter(v => gew.includes(v.farbe)).map(v => v.groesse));
+        return ((daten && daten.groessen) || []).filter(g => da.has(g));
+      }
+      // Achsen fuer die Maske: Farbe, dazu Groesse nur bei mehr als einer Groesse.
+      function lshopEigenschaften(daten, farben) {
+        const gew = [];
+        for (const f of farben || []) { const x = lshopFarbe(daten, f); if (x && !gew.includes(x)) gew.push(x); }
+        const gr = lshopGroessen(daten, gew);
+        return [{ name: FARB_ACHSE, tags: gew }, ...(gr.length > 1 ? [{ name: LSHOP_GROESSE, tags: gr }] : [])];
+      }
+      // ArticleNr (String) fuer die Attribute einer Variante, oder null.
+      function lshopArticleNr(daten, attrs) {
+        const liste = attrs || [];
+        const f = liste.find(a => istFarbAchse(a && a.name));
+        if (!f) return null;
+        const farbe = lshopFarbe(daten, f.value ?? f.option);
+        const g = liste.find(a => a && lshopGleich(a.name, LSHOP_GROESSE));
+        const gr = (daten && daten.groessen) || [];
+        const groesse = g ? String(g.value ?? g.option ?? '') : (gr.length === 1 ? gr[0] : null);
+        const treffer = ((daten && daten.varianten) || []).find(v => v.farbe === farbe && v.groesse === groesse);
+        return treffer ? String(treffer.articleNr) : null;
+      }
+      // Anlage sperren, wenn gewaehlte Farben nicht zum Modell passen (nicht mischen).
+      function lshopFarbFehler(daten, farben) {
+        if (!daten) return null;
+        const fremd = (farben || []).filter(f => !lshopFarbe(daten, f));
+        return fremd.length
+          ? `Farbe ${fremd.map(f => `"${f}"`).join(', ')} gehört nicht zum L-Shop-Modell ${daten.catalogNr} – nur dessen Farben wählen.`
+          : null;
+      }
+      // Wert der Farbachse einer Variante (fuer Google_Farbe), oder ''.
+      function variantenFarbwert(attrs) {
+        const f = (attrs || []).find(a => istFarbAchse(a && a.name));
+        return f ? String(f.value ?? f.option ?? '').trim() : '';
+      }
+      // Eine Zeile des Varianten-Payloads (PUT /api/sheets/varianten, /erfassung).
+      // lshopArticleNr nur, wenn die Variante eine traegt - sonst bleibt der
+      // Bestandswert im Reiter stehen (undefined = keine Aussage).
+      function variantenZeile(v, i, { wcVariationId, googleFarbe } = {}) {
+        const a = v.attrs || [];
+        return {
+          nr:            v._nr ?? (i + 1),
+          e1:            a[0]?.name  ?? '',
+          v1:            a[0]?.value ?? '',
+          e2:            a[1]?.name  ?? '',
+          v2:            a[1]?.value ?? '',
+          e3:            a[2]?.name  ?? '',
+          v3:            a[2]?.value ?? '',
+          preis:         v.price ?? '',
+          aktiv:         v._checked !== false,
+          wcVariationId: wcVariationId !== undefined ? wcVariationId : (v.wcVariationId ?? null),
+          googleFarbe:   googleFarbe !== undefined ? googleFarbe : (v.googleFarbe ?? ''),
+          ...(v.lshopArticleNr ? { lshopArticleNr: String(v.lshopArticleNr) } : {}),
+        };
+      }
+      // Schritt 10 der Anlage (Erfassungsmaske-Zeile) OHNE Varianten: Schritt 9
+      // hat den Reiter Varianten mit den WC_Variation_IDs geschrieben; ein
+      // zweites Schreiben aus dem Formularzustand (IDs noch null) leerte sie
+      // wieder (Befund M1). Stammdaten und Varianten haben je EINEN Schreiber.
+      function erfassungNachAnlage(sheetPayload) {
+        const { varianten: _ohne, ...rest } = sheetPayload || {};
+        return rest;
+      }
+      // ── L-Shop-Modell: Ende ──
 
       // ── Keyphrase-Synonyme: Anfang (reine Logik, backend/tests/yoast-synonyme.test.js) ──
       // Gleiche Bedingung wie bei den anderen Regelbloecken: NICHTS aus dem
@@ -4276,6 +4383,8 @@
           achsenFehler:     pruefeFarbAchse(achsenAusVarianten(aktive)),
           lieferzeitFehler: ssot.lieferzeitFehler || (/^\d+$/.test(lz) ? null : 'keine Lieferzeit gewählt'),
           skuFehler:        artNr.fehler || skuBaueVariantenSkus(artNr.artikelnummer, aktive).fehler || null,
+          versandFehler:    document.getElementById('pf-shipping').value ? null : 'keine Versandklasse gewählt',
+          lshopFehler:      lshopModell ? lshopFarbFehler(lshopModell, lshopGewaehlteFarben()) : null,
         });
         btn.disabled = !z.aktiv;
         document.getElementById('btn-create-wc-grund').textContent = z.grund;
@@ -4310,6 +4419,47 @@
         }
       });
       document.getElementById('pf-lshop-nr').addEventListener('input', updateArticleNr);
+
+      // M3: L-Shop-Modell laden (nur Anlage). Gefunden -> Farben nur aus dem
+      // Modell, Groessen automatisch. 404 -> freie Eingabe wie bisher (Fremdware).
+      async function lshopLaden() {
+        const feld = document.getElementById('pf-lshop-nr');
+        const hint = document.getElementById('pf-lshop-hint');
+        const nr   = feld.value.trim();
+        lshopModell = null;
+        hint.textContent = '';
+        if (nr && !editMode) {
+          try {
+            const r = await apiFetch(`${API_BASE()}/api/sheets/lshop/${encodeURIComponent(nr)}`);
+            if (feld.value.trim() !== nr) return;            // inzwischen geaendert
+            if (r.status === 404) {
+              hint.textContent = 'Kein L-Shop-Modell – Farben frei eingeben (Fremdware).';
+            } else {
+              const d = await apiJson(r);
+              lshopModell = d;
+              // Farbe: nur gueltige Werte behalten, in Modell-Schreibweise.
+              // Eigene Groessen-Eigenschaft entfaellt (kommt aus dem Modell).
+              const alt   = lshopGewaehlteFarben();
+              const farben = [...new Set(alt.map(f => lshopFarbe(d, f)).filter(Boolean))];
+              const weg   = alt.filter(f => !lshopFarbe(d, f));
+              const rest  = properties.filter(x => x.name && !istFarbAchse(x.name) && !grIstGroessenAchse(x.name));
+              properties  = [{ name: FARB_ACHSE, tags: farben }, ...rest];
+              const gr = d.groessen || [];
+              hint.textContent = `L-Shop-Modell ${d.catalogNr}: ${(d.alleFarben || []).length} Farben, `
+                + (gr.length === 1 ? `eine Größe (${gr[0]}) – keine Größenachse.` : `Größen ${gr.join(', ')}.`);
+              if (weg.length) showToast(`Nicht im L-Shop-Modell, entfernt: ${weg.join(', ')}`, 'warn', 10000);
+              // Faser-/Grammatur-Hinweise hier NICHT: sie gelten fuer alle Farben des
+              // Modells. Gemeldet wird im SEO-Flow fuer die gewaehlten Farben.
+            }
+          } catch (e) {
+            hint.textContent = '';
+            showToast(`L-Shop-Modell nicht lesbar: ${e.message}`, 'warn', 10000);
+          }
+        }
+        renderProperties();
+        aktualisiereAnlage();
+      }
+      document.getElementById('pf-lshop-nr').addEventListener('change', lshopLaden);
 
       // Die Spiegelung Produktname → Kurzbezeichnung ist ersatzlos entfallen:
       // aus ihr entstanden die langen Titel-SKUs (67 Zeichen im Bestand). Die
@@ -4409,7 +4559,16 @@
           tagInput.addEventListener('keydown', e => {
             if ((e.key === 'Enter' || e.key === ',') && tagInput.value.trim()) {
               e.preventDefault();
-              const val = tagInput.value.trim().replace(/,$/, '');
+              let val = tagInput.value.trim().replace(/,$/, '');
+              // M3: mit L-Shop-Modell nur dessen Farben (Schreibweise des Modells).
+              if (lshopModell && !editMode && istFarbAchse(prop.name)) {
+                const treffer = lshopFarbe(lshopModell, val);
+                if (!treffer) {
+                  showToast(`"${val}" ist keine Farbe des L-Shop-Modells ${lshopModell.catalogNr}.`, 'error', 8000);
+                  return;
+                }
+                val = treffer;
+              }
               if (!prop.tags.includes(val)) prop.tags.push(val);
               tagInput.value = '';
               renderTagChips();
@@ -4423,7 +4582,11 @@
           mid.appendChild(tagWrap);
 
           // SSOT suggest dropdown (only when SSOT has terms for this property)
-          const ssotAttr = ssot.attribute.find(a => a.eigenschaft === prop.name);
+          // M3: mit L-Shop-Modell kommen die Farben aus dem Modell, nicht aus den
+          // Shop-Attributen.
+          const ssotAttr = (lshopModell && !editMode && istFarbAchse(prop.name))
+            ? { eigenschaft: prop.name, begriffe: lshopModell.alleFarben || [] }
+            : ssot.attribute.find(a => a.eigenschaft === prop.name);
           if (ssotAttr?.begriffe?.length) {
             const suggestWrap = document.createElement('div');
             suggestWrap.className = 'prop-suggest-wrap';
@@ -5100,13 +5263,44 @@
           lieferzeit: seoMetaLieferzeit(wcProdukt && wcProdukt.meta_data),
         };
       }
+      // M3: Faser/Grammatur aus dem L-Shop-Modell (backend/lib/lshop.js) als
+      // `strukturiert`, aber nur wenn ALLE Farben des Artikels Farben des Modells
+      // sind (neue Artikel, L-Shop-Schreibweise). Bestand mit deutschen Farben:
+      // null - dann gilt der Eigenschaften-Freitext wie bisher, ohne Meldung.
+      // Hinweise (z. B. 100-%-Regel) einmal je Artikel/Farbauswahl als Toast.
+      const seoLshopCache = new Map();
+      async function seoLshopStruktur(lshopNr, farben) {
+        const nr = String(lshopNr ?? '').trim();
+        const f  = (Array.isArray(farben) ? farben : []).map(x => String(x ?? '').trim()).filter(Boolean);
+        if (!nr || !f.length) return null;
+        const key = `${nr}|${f.join('|')}`;
+        if (seoLshopCache.has(key)) return seoLshopCache.get(key);
+        let erg = null;
+        try {
+          const q = f.map(x => `farben=${encodeURIComponent(x)}`).join('&');
+          const r = await apiFetch(`${API_BASE()}/api/sheets/lshop/${encodeURIComponent(nr)}?${q}`);
+          if (r.ok) {
+            const d = await r.json();
+            if ((d.farben || []).length === f.length) {
+              erg = { faser: d.faser ?? null, grammatur: d.grammatur ?? null };
+              for (const h of d.hinweise || []) showToast(h, 'warn', 12000);
+            }
+          }
+        } catch { /* ohne Modell: Freitext wie bisher */ }
+        seoLshopCache.set(key, erg);
+        return erg;
+      }
+
       // Faserangabe/Grammatur (+ Faser-Hinweis F2) rechnet das Backend.
-      async function seoMetaEingabenHolen(eigenschaften, quellen) {
+      async function seoMetaEingabenHolen(eigenschaften, quellen, strukturiert) {
         try {
           const r = await apiFetch(`${API_BASE()}/api/seo/meta-eingaben`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ eigenschaften, farben: quellen.farben, groessen: quellen.groessen }),
+            body: JSON.stringify({
+              eigenschaften, farben: quellen.farben, groessen: quellen.groessen,
+              ...(strukturiert ? { strukturiert } : {}),
+            }),
           });
           return await apiJson(r);
         } catch (e) {
@@ -5143,9 +5337,11 @@
       let seoMetaEingabenStand = null;  // { faserangabe, faserMeldung, grammatur } | { fehler }
       async function seoMetaEingabenLaden() {
         // Groessen-Achse geht mit: Ausloeser fuer den Faser-Hinweis (Befehl F2).
+        const quellen = seoMetaQuellen(seoVarianten, seoWcProdukt, seoQuellenOk);
         seoMetaEingabenStand = await seoMetaEingabenHolen(
           document.getElementById('seo-eigenschaften').value,
-          seoMetaQuellen(seoVarianten, seoWcProdukt, seoQuellenOk));
+          quellen,
+          await seoLshopStruktur(seoCurrentItem?.lshopNr, quellen.farben));
         return seoMetaEingabenStand;
       }
 
@@ -5251,6 +5447,8 @@
         pfName.value = '';
         pfShortName.value = '';
         document.getElementById('pf-lshop-nr').value = '';
+        lshopModell = null;
+        document.getElementById('pf-lshop-hint').textContent = '';
         document.getElementById('pf-ssot-id').value = '';
         document.getElementById('pf-wc-id').value = '';
         document.getElementById('pf-article-nr').value = '';
@@ -5288,6 +5486,7 @@
 
       function setMode(edit) {
         editMode = edit;
+        if (edit) { lshopModell = null; document.getElementById('pf-lshop-hint').textContent = ''; }
         seoMode  = false;
         seoModePanel.style.display    = 'none';
         productFormArea.style.display = '';
@@ -5700,6 +5899,8 @@
               keyphrase:     document.getElementById('seo-keyphrase').value.trim(),
               farben:        seoFarben(),
               groessen:      gr.groessen,
+              // M3: Faser/Grammatur aus dem L-Shop-Modell, Vorrang vor dem Freitext.
+              strukturiert:  (await seoLshopStruktur(seoCurrentItem.lshopNr, seoFarben())) ?? undefined,
             }),
           });
           const data = await res.json();
@@ -6498,6 +6699,9 @@
           }
           // Nicht einsortierbare Groesse: kommt nur vom Backend, darum hier melden.
           if (data.groessen_hinweis) showToast(data.groessen_hinweis, 'info', 12000);
+          // M3, S2b-Muster: Bestand ohne Versandklasse speichert weiter, mit Hinweis.
+          if (!document.getElementById('pf-shipping').value)
+            showToast('Gespeichert, aber ohne Versandklasse – bitte ergänzen.', 'warn', 12000);
 
           // Sheet-Writeback wenn Zeile bekannt
           if (currentDraftRow) {
@@ -6601,19 +6805,8 @@
           'Kategorien':             [...selectedCats.values()].join(', '),
           'Kurzbeschreibung':       draft.shortDesc,
           'Produktbeschreibung':    draft.fullDesc,
-          varianten:                variants.map((v, i) => ({
-            nr:            v._nr ?? (i + 1),
-            e1:            v.attrs[0]?.name  ?? '',
-            v1:            v.attrs[0]?.value ?? '',
-            e2:            v.attrs[1]?.name  ?? '',
-            v2:            v.attrs[1]?.value ?? '',
-            e3:            v.attrs[2]?.name  ?? '',
-            v3:            v.attrs[2]?.value ?? '',
-            preis:         v.price ?? '',
-            aktiv:         v._checked !== false,
-            wcVariationId: v.wcVariationId ?? null,
-            googleFarbe:   v.googleFarbe   ?? '',
-          })),
+          // M3: eine Stelle fuer die Zeile (Block "L-Shop-Modell"), inkl. lshopArticleNr.
+          varianten:                variants.map((v, i) => variantenZeile(v, i)),
         };
       }
 
@@ -6881,6 +7074,24 @@
           hochgeladen:     hochgeladeneBilder,
         });
 
+        // M3: Versandklasse ist Pflicht bei der Anlage (Backend: 400, feld shipping_class).
+        if (!document.getElementById('pf-shipping').value) {
+          pushStatus.textContent = 'Nicht angelegt: Versandklasse fehlt.';
+          pushStatus.style.color = 'var(--danger)';
+          showToast('Versandklasse wählen – bei der Anlage Pflicht.', 'error', 10000);
+          anlageLaeuft = false; aktualisiereAnlage();
+          return;
+        }
+        // M3: mit L-Shop-Modell nur dessen Farben.
+        const lshopFehlerPush = lshopModell ? lshopFarbFehler(lshopModell, lshopGewaehlteFarben()) : null;
+        if (lshopFehlerPush) {
+          pushStatus.textContent = `Nicht angelegt: ${lshopFehlerPush}`;
+          pushStatus.style.color = 'var(--danger)';
+          showToast(lshopFehlerPush, 'error', 10000);
+          anlageLaeuft = false; aktualisiereAnlage();
+          return;
+        }
+
         // Lieferzeit ist Pflicht bei der Anlage. Ohne lesbaren Reiter gibt es
         // keinen Wert - dann nicht anlegen, statt ohne _lieferzeit.
         const lieferzeitAnlage = document.getElementById('pf-lieferzeit').value;
@@ -6949,22 +7160,16 @@
           // Varianten-Reiter aktualisieren (immer, wenn ssotId vorhanden)
           if (ssotId) {
             try {
+              // M3: WC_Variation_ID und Google_Farbe (= Farbwert 1:1, wie
+              // _wc_gla_color im Shop) fuer die angelegten Varianten.
               const variantenPayload = variants.map((v, i) => {
                 const activeIdx = activeVariants.indexOf(v);
                 const wcVarId   = activeIdx >= 0 ? (data1.variation_ids?.[activeIdx] ?? null) : null;
-                return {
-                  nr:            v._nr ?? (i + 1),
-                  e1:            v.attrs[0]?.name  ?? '',
-                  v1:            v.attrs[0]?.value ?? '',
-                  e2:            v.attrs[1]?.name  ?? '',
-                  v2:            v.attrs[1]?.value ?? '',
-                  e3:            v.attrs[2]?.name  ?? '',
-                  v3:            v.attrs[2]?.value ?? '',
-                  preis:         v.price ?? '',
-                  aktiv:         v._checked !== false,
+                if (wcVarId) v.wcVariationId = wcVarId;
+                return variantenZeile(v, i, {
                   wcVariationId: wcVarId,
-                  googleFarbe:   v.googleFarbe ?? '',
-                };
+                  googleFarbe:   activeIdx >= 0 ? variantenFarbwert(v.attrs) : (v.googleFarbe ?? ''),
+                });
               });
               await apiFetch(`${API_BASE()}/api/sheets/varianten/${encodeURIComponent(ssotId)}`, {
                 method:  'PUT',
@@ -6999,7 +7204,9 @@
                 row:           currentDraftRow,
                 ssotId,
                 'Produkt-ID':  String(wcId),
-                ...sheetPayload,
+                // M3: ohne varianten - sonst leert dieser Aufruf die in Schritt 9
+                // geschriebenen WC_Variation_IDs (Befund M1).
+                ...erfassungNachAnlage(sheetPayload),
                 'Status':      'Im Shop',
                 'Status Shop': wcStatusLabel(wcStatus),
                 'SEO_Status':  'Ausstehend',

@@ -124,7 +124,7 @@ const kurz     = b => b.attributes.map(a => a.option).join('-');
 
 describe('Anlagepfad', () => {
   const EINGABE = {
-    name: 'Shirt', sku: 'E3000/CH-Oldschool', type: 'variable', lieferzeit: '21',
+    name: 'Shirt', sku: 'E3000/CH-Oldschool', type: 'variable', lieferzeit: '21', shipping_class: 'grossbrief',
     attributes: [
       { name: 'Farbe', options: ['Schwarz', 'Rot'], variation: true },
       { name: 'Größe', options: ['4XL', 'M', 'XS', 'L'], variation: true },
@@ -215,7 +215,11 @@ describe('Aenderungspfad (Oldschool + 5XL)', () => {
 
     // Rot zuerst (Farb-Optionen), je XS … 5XL: Rot-5XL = 9, Schwarz-5XL = 18
     expect(batch.create.map(b => [kurz(b), b.menu_order])).toEqual([['Rot-5XL', 9], ['Schwarz-5XL', 18]]);
-    for (const b of batch.create) expect(b.meta_data).toEqual([{ key: '_lieferzeit', value: '-1' }]);
+    // M3: neue Variationen tragen _wc_gla_color = Farbwert 1:1.
+    for (const b of batch.create) expect(b.meta_data).toEqual([
+      { key: '_lieferzeit', value: '-1' },
+      { key: '_wc_gla_color', value: b.attributes.find(a => a.name === 'Farbe').option },
+    ]);
 
     expect(batch.update).toHaveLength(16);
     for (const b of batch.update) {

@@ -123,3 +123,33 @@ export function pruefeFarbAchse(achsen) {
           + 'Achtung: Druckfarbe, Schriftfarbe und Farbe des Wunschnamens zaehlen NICHT.',
   };
 }
+
+// ── Google-Farbe (Befehl M3) ────────────────────────────────────────────────
+//
+// Entscheidung Inhaber 25.09.: die Google-Feed-Farbe ist der Farbwert der
+// Variation 1:1 ("Black/Kelly Green"), keine Zuordnungstabelle. Geschrieben
+// wird sie als meta_data "_wc_gla_color" (Schluessel gemessen an 16157, Plugin
+// "Google for WooCommerce") - NUR beim Anlegen einer Variation, Bestand nie.
+
+export const GOOGLE_FARBE_KEY = '_wc_gla_color';
+
+/**
+ * Wert der Farbachse aus den Attributen einer Variation, getrimmt, oder null.
+ * Schreibweisen wie in sku.js: {option} (WooCommerce), {value} (Frontend).
+ */
+export function farbwertVon(attributes) {
+  const a = (Array.isArray(attributes) ? attributes : []).find(x => istFarbAchse(x?.name));
+  const w = String(a?.option ?? a?.value ?? '').trim();
+  return w || null;
+}
+
+/**
+ * meta_data einer NEUEN Variation mit "_wc_gla_color" = Farbwert. Ohne
+ * Farbachse bleibt meta_data unveraendert (kein leerer Eintrag).
+ */
+export function mitGoogleFarbe(metaData, attributes) {
+  const liste = Array.isArray(metaData) ? metaData : [];
+  const farbe = farbwertVon(attributes);
+  if (!farbe) return liste;
+  return [...liste.filter(m => m?.key !== GOOGLE_FARBE_KEY), { key: GOOGLE_FARBE_KEY, value: farbe }];
+}

@@ -172,7 +172,11 @@ describe('Frontend-Anbindung', () => {
     // Seit SE1 im gemeinsamen Baustein: seoMetaQuellen liefert die Groessen,
     // seoMetaEingabenHolen schickt sie mit, der SEO-Reiter nutzt beides.
     expect(html).toContain('groessen:   seoGroessenQuelle(varianten, wcProdukt, quellenOk).groessen,');
-    expect(html).toContain('body: JSON.stringify({ eigenschaften, farben: quellen.farben, groessen: quellen.groessen }),');
-    expect(html).toContain('seoMetaQuellen(seoVarianten, seoWcProdukt, seoQuellenOk));');
+    // M3: der Body traegt zusaetzlich `strukturiert` (L-Shop-Faser/Grammatur), wenn vorhanden.
+    expect(html).toContain('eigenschaften, farben: quellen.farben, groessen: quellen.groessen,');
+    expect(html).toContain('...(strukturiert ? { strukturiert } : {}),');
+    // M3: die Quellen gehen als Variable mit, dazu die L-Shop-Struktur.
+    expect(html).toContain('const quellen = seoMetaQuellen(seoVarianten, seoWcProdukt, seoQuellenOk);');
+    expect(html).toContain('await seoLshopStruktur(seoCurrentItem?.lshopNr, quellen.farben));');
   });
 });

@@ -76,7 +76,7 @@ const fe    = new Function(`${html.slice(von, bis)}
   return { LZ_UNBEKANNT, lzWertAusMeta, lzOptionen, lzZuSenden, lzMeldung };`)();
 
 const BASIS = {
-  name: 'Shirt', sku: 'JF/Shirt-01', type: 'variable',
+  name: 'Shirt', sku: 'JF/Shirt-01', type: 'variable', shipping_class: 'paket',
   attributes: [{ name: 'Farbe', options: ['Rot', 'Blau'], variation: true }],
   variations: [
     { attributes: [{ name: 'Farbe', option: 'Rot'  }], regular_price: '20' },

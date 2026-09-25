@@ -133,7 +133,11 @@ describe('Oldschool: Farbe x Groesse, Shop-Optionen unsortiert, + 5XL', () => {
         ['Rot-5XL', 9, 'E3000/CH-Oldschool-rot-5xl'],
         ['Schwarz-5XL', 18, 'E3000/CH-Oldschool-schwarz-5xl'],
       ]);
-    for (const c of batchBody().create) expect(c.meta_data).toEqual([{ key: '_lieferzeit', value: '-1' }]);
+    // M3: neue Variationen tragen _wc_gla_color = Farbwert 1:1.
+    for (const c of batchBody().create) expect(c.meta_data).toEqual([
+      { key: '_lieferzeit', value: '-1' },
+      { key: '_wc_gla_color', value: c.attributes.find(a => a.name === 'Farbe').option },
+    ]);
   });
 });
 

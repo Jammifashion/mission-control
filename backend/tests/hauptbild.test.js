@@ -44,7 +44,7 @@ beforeEach(() => {
 afterEach(() => jest.restoreAllMocks());
 
 const anlegen = (body) => request(app).post('/api/woocommerce/products?shop=jfn')
-  .send({ name: 'Hoodie', sku: SKU, type: 'variable', ...body });
+  .send({ name: 'Hoodie', sku: SKU, type: 'variable', shipping_class: 'paket', ...body });
 
 const produktPayload = () => clients.jfn.post.mock.calls.find(c => c[0] === 'products')?.[1];
 const variantenPayloads = () => clients.jfn.post.mock.calls
