@@ -408,8 +408,11 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
         vorschlaege = { schlagwoerter: null, keyphrase: null, synonyme: null };
         const { kontext, hinweise: kh } = await sperrKontext({ lshopNr, motivZeile, produktname, keyphrase });
         ssotHinweise.push(...kh);
-        if (vorschlagWunsch.schlagwoerter)
-          vorschlaege.schlagwoerter = schlagwortVorschlaege(vorschlagQuelle.schlagwoerter, vorhandeneTags, kontext);
+        if (vorschlagWunsch.schlagwoerter) {
+          const sw = schlagwortVorschlaege(vorschlagQuelle.schlagwoerter, vorhandeneTags, kontext);
+          vorschlaege.schlagwoerter = sw.liste;
+          vorschlaege.schlagwortHinweise = sw.hinweise;
+        }
         const kp  = vorschlagWunsch.keyphrase ? String(vorschlagQuelle.keyphrase ?? '').trim() : '';
         const syn = vorschlagWunsch.synonyme
           ? (Array.isArray(vorschlagQuelle.synonyme) ? vorschlagQuelle.synonyme : String(vorschlagQuelle.synonyme ?? '').split(','))

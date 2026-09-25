@@ -18,6 +18,8 @@ import { sperrTreffer } from './seo-pruefung.js';
 
 export const SCHLAGWORT_MIN = 3;
 export const SCHLAGWORT_MAX = 5;
+// Nachtrag M8 (antwort-M8-1): hoechstens 2 NEUE je Artikel, vorhandene bis zusammen 5.
+export const SCHLAGWORT_NEU_MAX = 2;
 export const PROMPT_LISTE_MAX = 80;
 
 const t = v => String(v ?? '').trim();
@@ -37,26 +39,39 @@ export function promptListe(vorhandene, max = PROMPT_LISTE_MAX) {
  * @param {string[]} roh           Vorschlaege aus der Modellantwort
  * @param {object[]} vorhandene    [{ id, name, slug }]
  * @param {object}   pruefKontext  wie sperrTreffer (nurIntern, marken, modellnummern, …)
- * @returns {{ name: string, id: number|null, neu: boolean, pruefung: string[], vorausgewaehlt: boolean }[]}
+ * Gesperrte (Pruefung schlaegt an) stehen zur Anzeige in der Liste, zaehlen
+ * aber nicht mit. Zaehlt: hoechstens SCHLAGWORT_NEU_MAX neue, zusammen
+ * hoechstens SCHLAGWORT_MAX. Weitere fallen weg und stehen in `hinweise`.
+ *
+ * @returns {{ liste: { name: string, id: number|null, neu: boolean, pruefung: string[], vorausgewaehlt: boolean }[],
+ *             hinweise: string[] }}
  */
 export function schlagwortVorschlaege(roh, vorhandene, pruefKontext = {}) {
-  const liste = Array.isArray(roh) ? roh : String(roh ?? '').split(',');
-  const raus = [];
-  for (const r of liste) {
+  const eingang = Array.isArray(roh) ? roh : String(roh ?? '').split(',');
+  const liste = [];
+  const weg = [];
+  let gueltig = 0, neue = 0;
+  for (const r of eingang) {
     const name = t(r);
-    if (!name || raus.some(x => norm(x.name) === norm(name))) continue;
+    if (!name || liste.some(x => norm(x.name) === norm(name)) || weg.some(x => norm(x.name) === norm(name))) continue;
     const treffer = (vorhandene ?? []).find(v => norm(v.name) === norm(name) || norm(v.slug) === norm(name));
     const pruefung = sperrTreffer(name, pruefKontext);
-    raus.push({
+    const eintrag = {
       name: treffer ? t(treffer.name) : name,
       id: treffer ? treffer.id : null,
       neu: !treffer,
       pruefung,
       vorausgewaehlt: pruefung.length === 0,
-    });
-    if (raus.length >= SCHLAGWORT_MAX) break;
+    };
+    if (pruefung.length) { liste.push(eintrag); continue; }
+    if (gueltig >= SCHLAGWORT_MAX) { weg.push({ ...eintrag, grund: `mehr als ${SCHLAGWORT_MAX}` }); continue; }
+    if (eintrag.neu && neue >= SCHLAGWORT_NEU_MAX) { weg.push({ ...eintrag, grund: `mehr als ${SCHLAGWORT_NEU_MAX} neue` }); continue; }
+    liste.push(eintrag);
+    gueltig++;
+    if (eintrag.neu) neue++;
   }
-  return raus;
+  const hinweise = weg.map(x => `Schlagwort "${x.name}" weggelassen (${x.grund}).`);
+  return { liste, hinweise };
 }
 
 /**

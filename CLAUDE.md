@@ -126,12 +126,14 @@ Neue Sektionen immer mit Anker versehen:
 
 - backend/lib/vorschlaege.js – Maske "Neu anlegen" (M8), deterministisch: Kurzbezeichnung =
   haeufigstes Praefix der Hauptkategorie (Erfassungsmaske, z. B. "CH-") + erstes kennzeichnendes
-  Wort des Namens (ohne Kategorie-/Vereinswoerter), CamelCase, sku.js-Regeln, eindeutig gegen
+  Wort des Namens (ohne Kategorie-/Vereinswoerter; unter 6 Buchstaben + zweites Wort klein, z. B.
+  "CH-Matchday"), CamelCase, sku.js-Regeln, eindeutig gegen
   Erfassungsmaske und Motive (sonst Ziffer). Versandklasse = Mehrheit der veroeffentlichten
   Artikel mit derselben L-Shop-Nummer (SKU vor "/"), sonst "paket". `GET /api/sheets/vorschlaege`.
   Vorschlaege setzen ein Feld nur, wenn es leer ist oder noch den letzten Vorschlag traegt.
 - backend/lib/schlagwoerter.js – Schlagwoerter (product_tag) fuer den SEO-Generator (M8):
-  vorhandene bevorzugt (Liste im Prompt), neue als "neu", Pruefung je Wort (`sperrTreffer`).
+  vorhandene bevorzugt (Liste im Prompt), neue als "neu" (hoechstens 2 neue, zusammen 5),
+  Pruefung je Wort (`sperrTreffer`).
   ⚠️ Ein `tags`-Array im WooCommerce-PUT ERSETZT alle Schlagwoerter: `tagsFuerPut` schickt immer
   die ganze Liste; der SEO-Reiter schickt `tags` nur, wenn die vorhandenen gelesen sind.
   Keyphrase/Synonym-Vorschlaege laufen gegen SEO_Karte inkl. Ist_Synonyme (`werteGegenKarte`),

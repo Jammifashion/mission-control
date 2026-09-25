@@ -66,13 +66,23 @@ describe('Praefix je Hauptkategorie (aus der Erfassungsmaske)', () => {
 describe('Kurzbezeichnung', () => {
   const croco = { praefix: 'CH-', ausschluss: ['Crocodiles Hamburg', 'Accessoires', 'Kollektion 26/27'] };
 
-  test('"Match Day Cap Crocodiles Hamburg" in Crocodiles -> "CH-Match"', () => {
-    expect(v.kurzVorschlag({ name: 'Match Day Cap Crocodiles Hamburg', ...croco, belegt: ['CH-Matchday'] }))
-      .toEqual({ wert: 'CH-Match', hinweis: null });
+  // Nachtrag M8 (antwort-M8-1): erstes Wort unter 6 Buchstaben -> zweites klein dazu.
+  test('"Match Day Cap Crocodiles Hamburg" in Crocodiles -> "CH-Matchday"', () => {
+    expect(v.kurzVorschlag({ name: 'Match Day Cap Crocodiles Hamburg', ...croco }))
+      .toEqual({ wert: 'CH-Matchday', hinweis: null });
   });
-  test('Kollision (Gross/Klein egal) -> Ziffer', () => {
-    expect(v.kurzVorschlag({ name: 'Match Day Cap Crocodiles Hamburg', ...croco, belegt: ['ch-match', 'CH-Match2'] }).wert)
-      .toBe('CH-Match3');
+  test('bei existierendem CH-Matchday -> "CH-Matchday2"', () => {
+    expect(v.kurzVorschlag({ name: 'Match Day Cap Crocodiles Hamburg', ...croco, belegt: ['CH-Matchday'] }).wert)
+      .toBe('CH-Matchday2');
+  });
+  test('Kollision (Gross/Klein egal) -> naechste Ziffer', () => {
+    expect(v.kurzVorschlag({ name: 'Match Day Cap Crocodiles Hamburg', ...croco, belegt: ['ch-matchday', 'CH-Matchday2'] }).wert)
+      .toBe('CH-Matchday3');
+  });
+  test('erstes Wort ab 6 Buchstaben bleibt allein; kurzes ohne zweites Wort bleibt allein', () => {
+    expect(v.kurzVorschlag({ name: 'Skyline Hoodie', praefix: 'CH-' }).wert).toBe('CH-Skyline');
+    expect(v.kurzVorschlag({ name: 'Cap', praefix: 'CH-' }).wert).toBe('CH-Cap');
+    expect(v.kurzVorschlag({ name: 'Retro Puck Shirt', praefix: 'CH-' }).wert).toBe('CH-Retropuck');
   });
   test('Vereinsname und Fuellwoerter fallen weg, CamelCase, Umlaute', () => {
     expect(v.kurzVorschlag({ name: 'Crocodiles Hamburg – Trainingsjacke Herren', ...croco }).wert).toBe('CH-Trainingsjacke');
@@ -82,7 +92,8 @@ describe('Kurzbezeichnung', () => {
   test('SKU-Regeln: hoechstens 20 Zeichen, mindestens 3', () => {
     const lang = v.kurzVorschlag({ name: 'Donaudampfschifffahrtsgesellschaftskapitaen', praefix: 'CH-' }).wert;
     expect(lang).toHaveLength(20);
-    expect(v.kurzVorschlag({ name: 'Ab Cd', praefix: '' }).wert).toBe('AbCd');
+    expect(v.kurzVorschlag({ name: 'Ab Cd', praefix: '' }).wert).toBe('Abcd');
+    expect(v.kurzVorschlag({ name: 'Sehrlangeswort Zweitwort', praefix: 'CH-' }).wert).toBe('CH-Sehrlangeswort');
   });
   test('nichts Kennzeichnendes -> kein Wert, Hinweis', () => {
     expect(v.kurzVorschlag({ name: 'Crocodiles Hamburg', ...croco })).toEqual({
@@ -124,8 +135,8 @@ describe('GET /api/sheets/vorschlaege', () => {
     const res = await request(app).get('/api/sheets/vorschlaege')
       .query({ name: 'Match Day Cap Crocodiles Hamburg', kategorien: '686,556', lshopNr: 'CB166R' });
     expect(res.status).toBe(200);
-    // "CH-Match" ist in der Erfassungsmaske belegt -> "CH-Match2"
-    expect(res.body.kurz).toMatchObject({ wert: 'CH-Match2', praefix: 'CH-', hauptkategorie: 'Crocodiles Hamburg' });
+    // "CH-Matchday" steht im Reiter Motive -> "CH-Matchday2"
+    expect(res.body.kurz).toMatchObject({ wert: 'CH-Matchday2', praefix: 'CH-', hauptkategorie: 'Crocodiles Hamburg' });
     expect(res.body.versand.klasse).toBe('paket');
   });
   test('Modell mit Artikeln -> deren Klasse', async () => {

@@ -5,6 +5,9 @@
 //    des Namens (ohne Woerter aus Haupt-/gewaehlten Kategorien und Fuellwoerter),
 //    CamelCase, Regeln aus lib/sku.js (3-20 Zeichen, A-Z a-z 0-9 -). Eindeutig
 //    gegen Erfassungsmaske und Motive, bei Kollision Ziffer anhaengen.
+//    Nachtrag M8 (antwort-M8-1): ist das erste Wort kuerzer als 6 Buchstaben,
+//    kommt das zweite klein und ohne Bindestrich dazu - "Match Day Cap" ->
+//    "Matchday" (so hat der Inhaber die Cap selbst benannt).
 //  - Versandklasse: die Klasse, die die meisten veroeffentlichten Artikel mit
 //    derselben L-Shop-Modellnummer (SKU vor "/") tragen; ohne Treffer "paket".
 //    Gleichstand: "paket", falls darunter, sonst alphabetisch erste.
@@ -17,6 +20,7 @@ import { KURZ_MIN, KURZ_MAX, KURZ_RE } from './sku.js';
 
 export const VERSAND_STANDARD = 'paket';
 const PRAEFIX_RE = /^([A-Z]{2,4})-/;
+export const KURZ_ERSTES_WORT_MIN = 6;
 const FUELL = new Set(['der', 'die', 'das', 'und', 'mit', 'für', 'fuer', 'von', 'im', 'in', 'am', 'the', 'a', '&', '–', '-', '+']);
 
 const t = v => String(v ?? '').trim();
@@ -80,11 +84,11 @@ export function kurzVorschlag({ name, praefix = '', ausschluss = [], belegt = []
   const weg = new Set(ausschluss.flatMap(a => String(a).toLowerCase().split(/[\s>/,]+/)).filter(Boolean));
   const woerter = String(name ?? '').split(/\s+/).map(s => s.trim()).filter(Boolean)
     .filter(w => !FUELL.has(w.toLowerCase()) && !weg.has(w.toLowerCase()));
-  let basis = '';
-  for (const w of woerter) {
-    basis += camel(w);
-    if ((praefix + basis).length >= KURZ_MIN) break;
-  }
+  let basis = camel(woerter[0] ?? '');
+  // Kurzes erstes Wort: zweites Wort klein anhaengen ("Match" + "day").
+  if (basis && basis.length < KURZ_ERSTES_WORT_MIN && woerter[1]) basis += camel(woerter[1]).toLowerCase();
+  // Immer noch unter der SKU-Mindestlaenge: weitere Woerter wie bisher.
+  for (let i = 2; basis && (praefix + basis).length < KURZ_MIN && i < woerter.length; i++) basis += camel(woerter[i]);
   if (!basis) return { wert: null, hinweis: 'Kein kennzeichnendes Wort im Namen – Kurzbezeichnung bitte selbst setzen.' };
   let kern = (praefix + basis).slice(0, KURZ_MAX);
   const frei = new Set([...belegt].map(b => t(b).toLowerCase()));

@@ -67,18 +67,32 @@ const { _resetLShopCache } = await import('../lib/lshop.js');
 const KONTEXT = { nurIntern: 'Carbon Cap', marken: ['Beechfield'], modellnummern: ['CB166R', 'B166R'], produktname: 'Match Day Cap Crocodiles Hamburg' };
 
 describe('schlagwortVorschlaege', () => {
-  test('vorhandene: Schreibweise und ID; neue: "neu"; hoechstens 5; Dubletten weg', () => {
+  test('vorhandene: Schreibweise und ID; neue: "neu", hoechstens 2 (Nachtrag M8); Dubletten weg', () => {
     const r = sw.schlagwortVorschlaege(['crocodiles hamburg', 'Eishockey', 'Match Day', 'Eishockey', 'Fanartikel', 'Basecap', 'Sechstes'], TAGS, KONTEXT);
-    expect(r).toEqual([
+    expect(r.liste).toEqual([
       { name: 'Crocodiles Hamburg', id: 11, neu: false, pruefung: [], vorausgewaehlt: true },
       { name: 'Eishockey', id: 12, neu: false, pruefung: [], vorausgewaehlt: true },
       { name: 'Match Day', id: null, neu: true, pruefung: [], vorausgewaehlt: true },
       { name: 'Fanartikel', id: null, neu: true, pruefung: [], vorausgewaehlt: true },
-      { name: 'Basecap', id: null, neu: true, pruefung: [], vorausgewaehlt: true },
+    ]);
+    expect(r.hinweise).toEqual([
+      'Schlagwort "Basecap" weggelassen (mehr als 2 neue).',
+      'Schlagwort "Sechstes" weggelassen (mehr als 2 neue).',
     ]);
   });
+  test('vorhandene bis zusammen 5; danach auch vorhandene weg', () => {
+    const viele = ['A', 'B', 'C', 'D', 'E', 'F'].map((n, i) => ({ id: 100 + i, name: n, slug: n.toLowerCase(), count: 1 }));
+    const r = sw.schlagwortVorschlaege(['A', 'Neu1', 'B', 'C', 'D', 'E', 'F'], viele, KONTEXT);
+    expect(r.liste.map(x => x.name)).toEqual(['A', 'Neu1', 'B', 'C', 'D']);
+    expect(r.hinweise).toEqual(['Schlagwort "E" weggelassen (mehr als 5).', 'Schlagwort "F" weggelassen (mehr als 5).']);
+  });
+  test('gesperrte zaehlen nicht mit (stehen nur zur Anzeige da)', () => {
+    const r = sw.schlagwortVorschlaege(['Carbon', 'Neu1', 'Beechfield', 'Neu2'], TAGS, KONTEXT);
+    expect(r.liste.map(x => [x.name, x.vorausgewaehlt])).toEqual([['Carbon', false], ['Neu1', true], ['Beechfield', false], ['Neu2', true]]);
+    expect(r.hinweise).toEqual([]);
+  });
   test('Pruefung aus M4 laeuft ueber jedes Schlagwort', () => {
-    const r = sw.schlagwortVorschlaege(['Carbon', 'Beechfield', 'CB166R', 'offiziell', 'Cap'], TAGS, KONTEXT);
+    const r = sw.schlagwortVorschlaege(['Carbon', 'Beechfield', 'CB166R', 'offiziell', 'Cap'], TAGS, KONTEXT).liste;
     expect(r.map(x => [x.name, x.pruefung, x.vorausgewaehlt])).toEqual([
       ['Carbon', ['Nur_intern "Carbon"'], false],
       ['Beechfield', ['Marke "Beechfield"'], false],
@@ -106,7 +120,7 @@ describe('tagsFuerPut: ganze Liste, sonst gehen vorhandene verloren', () => {
     const a = html.indexOf('// ── Vorschlaege: Anfang'), e = html.indexOf('// ── Vorschlaege: Ende ──');
     const fe = new Function(`${html.slice(a, e)}\n return { tagsFuerPut, schlagwortChipsStart, schlagwortChipsMischen };`)();
     const start = fe.schlagwortChipsStart([{ id: 11, name: 'Crocodiles Hamburg' }, { id: 99, name: 'Alt' }]);
-    const m = fe.schlagwortChipsMischen(start, sw.schlagwortVorschlaege(['Crocodiles Hamburg', 'Match Day', 'Carbon'], TAGS, KONTEXT));
+    const m = fe.schlagwortChipsMischen(start, sw.schlagwortVorschlaege(['Crocodiles Hamburg', 'Match Day', 'Carbon'], TAGS, KONTEXT).liste);
     expect(m.gesperrt.map(g => g.name)).toEqual(['Carbon']);
     expect(fe.tagsFuerPut(m.chips)).toEqual([{ id: 11 }, { id: 99 }, { name: 'Match Day' }]);
     expect(fe.tagsFuerPut(m.chips)).toEqual(sw.tagsFuerPut(m.chips));
@@ -180,6 +194,7 @@ describe('seo_description mit vorschlagen', () => {
     expect(v.schlagwoerter.map(x => [x.name, x.neu, x.pruefung])).toEqual([
       ['Crocodiles Hamburg', false, []], ['Match Day', true, []], ['Beechfield', true, ['Marke "Beechfield"']],
     ]);
+    expect(v.schlagwortHinweise).toEqual([]);
     expect(v.keyphrase.kollisionen.map(k => k.wcId)).toEqual(['16157']);   // Soll = Ist, einmal gemeldet
     expect(v.synonyme.map(s => [s.wert, s.kollisionen.length])).toEqual([
       ['Crocodiles Cap', 1], ['Eishockey Cap Hamburg', 0], ['Crocodiles Match Day Mütze', 0],

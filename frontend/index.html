@@ -6138,9 +6138,10 @@
           const m = schlagwortChipsMischen(seoTags, v.schlagwoerter);
           seoTags = m.chips;
           seoTagsZeigen();
-          document.getElementById('seo-tags-info').textContent = m.gesperrt.length
-            ? `Nicht übernommen: ${m.gesperrt.map(g => `${g.name} (${g.pruefung.join(', ')})`).join(' · ')}`
-            : '';
+          document.getElementById('seo-tags-info').textContent = [
+            m.gesperrt.length ? `Nicht übernommen: ${m.gesperrt.map(g => `${g.name} (${g.pruefung.join(', ')})`).join(' · ')}` : '',
+            ...(v.schlagwortHinweise || []),   // Nachtrag M8: hoechstens 2 neue
+          ].filter(Boolean).join(' · ');
           if (m.gesperrt.length) showToast(document.getElementById('seo-tags-info').textContent, 'warn', 12000);
         }
         const kf = document.getElementById('seo-keyphrase');
