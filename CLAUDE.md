@@ -106,6 +106,21 @@ Neue Sektionen immer mit Anker versehen:
   Anlage (POST /erfassung/overwrite) schickt KEINE `varianten` (`erfassungNachAnlage`) - sonst
   leert er die in Schritt 9 geschriebenen WC_Variation_IDs.
 
+- backend/lib/ssot-reiter.js – gemeinsamer Leser fuer SSOT-Reiter: Kopfzeile, dann nur die
+  benoetigten Spalten per batchGet (ganze Hoehe/Breite, FORMATTED_VALUE), Pflicht- und optionale
+  Spalten ueber den Namen. Nutzer: lshop.js, seo-ssot.js.
+- backend/lib/seo-ssot.js – Generator-Eingaben (M4): Motive je Artikelkurzbezeichnung,
+  SEO_Hinweis je Kategorienummer (Vorlage "Eigene Hinweise": Kategorie-Reihenfolge, leere und
+  doppelte weg), SEO_Karte (Keyphrase gleich fremder Soll/Ist -> Warnung, Teilstring -> Info,
+  nie blockieren). `Nur_intern` geht NIE in den Prompt und nie ans Frontend (`motivFuerPrompt`
+  laesst es weg); nur in die Pruefung. Route: `GET /api/seo/generator-eingaben`.
+- backend/lib/seo-pruefung.js – deterministische Pruefung nach der Generierung
+  (`pruefeGeneratorText`, Antwortfeld `pruefhinweise`, kein zweiter Modelllauf): Nur_intern,
+  Marke/Modellnummern des Rohlings (SKU_LShop Brand, CatalogNr, CatNrManufacturer), feste Liste
+  `VERBOTENE_BEGRIFFE` (nur im Code, nie im Prompt), Zeitangabe mit Zahl, <h1>, Stick bei Druck.
+  h2/Keyphrase/Groessen bleiben in seo-prompt.js (pruefeSeoText). Frontend-Spiegel der
+  Anzeige-Logik: Block `Generator-Eingaben: Anfang/Ende`.
+
 - backend/lib/groessen.js – Groessen-Rang und -Sortierung (XXS … 8XL, Kindergroessen
   numerisch, Unbekanntes ans Ende mit Hinweis). Einzige Stelle; seo-meta.js nutzt den Rang,
   woocommerce.js sortiert damit die Optionen der Achse "Größe" und die Variationen (Farbe,

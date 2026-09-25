@@ -27,10 +27,7 @@
 //    "Ash: 98% Baumwolle / 15% Viskose" = 113 %). Sonst kein Wert, Hinweis.
 //  - Grammatur leer: kein Wert, KEIN Hinweis (Entscheidung Inhaber 25.09.).
 
-import { google } from 'googleapis';
-import { getGoogleAuth } from './googleAuth.js';
-import { requireHeader } from '../utils/sheet-headers.js';
-import { colLetter } from '../utils/sheet-spalten.js';
+import { leseReiterSpalten } from './ssot-reiter.js';
 import { filterMaterialFarbenMitMeldung, klammerGruppen, MATERIAL_PLACEHOLDER } from './seo-prompt.js';
 import { sortiereGroessen } from './groessen.js';
 
@@ -46,6 +43,12 @@ const SPALTEN = {
   size:        'Size',
   consistence: 'Consistence',
   grammage:    'Grammage',
+};
+// M4: fuer die Pruefung nach der Generierung (Marke und Modellnummer duerfen
+// nicht im Text stehen). Optional - fehlen sie, bleibt das Feld leer.
+const SPALTEN_OPTIONAL = {
+  marke:       'Brand',
+  herstellerNr: 'CatNrManufacturer',
 };
 
 const CTX = `Reiter "${TAB_LSHOP}"`;
@@ -197,8 +200,15 @@ export function lshopAuswertung(zeilen, { farben } = {}) {
     grammatur = g.wert;
   }
 
+  // M4: Marke und Hersteller-Nummer des Rohlings - fuer die Pruefung nach der
+  // Generierung (duerfen nicht im Text stehen). "3000/3099" -> zwei Nummern.
+  const marken = [...new Set(liste.map(z => t(z.marke)).filter(Boolean))];
+  const herstellerNummern = [...new Set(liste.flatMap(z => t(z.herstellerNr).split(/[/,;]/)).map(t).filter(Boolean))];
+
   return {
     catalogNr: t(liste[0]?.catalogNr),
+    marken,
+    herstellerNummern,
     farben: gewaehlt,
     alleFarben,
     groessen,
@@ -214,39 +224,18 @@ export function lshopAuswertung(zeilen, { farben } = {}) {
 let _cache = null;   // { spreadsheetId, zeit, zeilen }
 export function _resetLShopCache() { _cache = null; }
 
-async function sheetsClient() {
-  return google.sheets({ version: 'v4', auth: await getGoogleAuth() });
-}
-
 /**
- * Alle Zeilen des Reiters als Objekte (nur die Felder aus SPALTEN), 5 min Cache.
+ * Alle Zeilen des Reiters als Objekte (Felder aus SPALTEN, dazu marke und
+ * herstellerNr, falls die Spalten da sind), 5 min Cache.
  */
 export async function ladeLShopZeilen({ sheets, spreadsheetId = process.env.GOOGLE_SHEET_ID } = {}) {
   if (!spreadsheetId) throw fehler('GOOGLE_SHEET_ID fehlt.', 500);
   if (_cache && _cache.spreadsheetId === spreadsheetId && Date.now() - _cache.zeit < CACHE_MS)
     return _cache.zeilen;
 
-  const api = sheets ?? await sheetsClient();
-  const { data: kopf } = await api.spreadsheets.values.get({ spreadsheetId, range: `${TAB_LSHOP}!1:1` });
-  const header = kopf.values?.[0] ?? [];
-  if (!header.length) throw fehler(`${CTX} fehlt oder hat keine Kopfzeile.`, 500);
-
-  const felder = Object.entries(SPALTEN).map(([feld, name]) => ({ feld, idx: requireHeader(header, name, CTX) }));
-  const { data } = await api.spreadsheets.values.batchGet({
-    spreadsheetId,
-    ranges: felder.map(({ idx }) => `${TAB_LSHOP}!${colLetter(idx)}2:${colLetter(idx)}`),
-    majorDimension: 'COLUMNS',
-    valueRenderOption: 'FORMATTED_VALUE',
-  });
-  const spalten = (data.valueRanges ?? []).map(vr => vr.values?.[0] ?? []);
-  const anzahl  = Math.max(0, ...spalten.map(s => s.length));
-
-  const zeilen = [];
-  for (let i = 0; i < anzahl; i++) {
-    const z = {};
-    felder.forEach(({ feld }, j) => { z[feld] = t(spalten[j]?.[i]); });
-    if (z.catalogNr || z.articleNr) zeilen.push(z);
-  }
+  const zeilen = (await leseReiterSpalten({
+    tab: TAB_LSHOP, spalten: SPALTEN, optional: SPALTEN_OPTIONAL, sheets, spreadsheetId,
+  })).filter(z => z.catalogNr || z.articleNr);
   _cache = { spreadsheetId, zeit: Date.now(), zeilen };
   return zeilen;
 }

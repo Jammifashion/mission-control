@@ -11,6 +11,9 @@ import { Router } from 'express';
 import { metaEingaben } from '../lib/seo-meta.js';
 import { getWcClient } from '../lib/shopConfig.js';
 import { sucheArtikel, keyphraseDubletten } from '../lib/seo-artikel.js';
+import {
+  motivFuer, motivFuerPrompt, seoHinweisVorlage, keyphraseGegenKarte, keyphraseMeldungen,
+} from '../lib/seo-ssot.js';
 
 const router = Router();
 
@@ -39,6 +42,33 @@ router.get('/keyphrase-dubletten', async (req, res, next) => {
   try {
     res.json(await keyphraseDubletten(getWcClient(req.query.shop), req.query.kw, req.query.ausser));
   } catch (err) { next(err); }
+});
+
+// ── Befehl M4: Generator-Eingaben aus der SSOT ──────────────────────────────
+// GET /api/seo/generator-eingaben?kurz=CH-Matchday&kategorien=686,556&keyphrase=…&wcId=…
+// Liefert NUR, was der SEO-Reiter anzeigen darf: Motiv-Felder OHNE Nur_intern,
+// die Vorlage fuer "Eigene Hinweise" (SEO_Hinweis der Kategorien) und die
+// Keyphrase-Pruefung gegen SEO_Karte. Jeder Teil fuer sich: ein Lesefehler
+// steht in `fehler`, die anderen Teile kommen trotzdem.
+router.get('/generator-eingaben', async (req, res) => {
+  const q = req.query ?? {};
+  const kurz      = String(q.kurz ?? '').trim();
+  const kategorien = String(q.kategorien ?? '').split(',').map(s => s.trim()).filter(Boolean);
+  const keyphrase = String(q.keyphrase ?? '').trim();
+  const fehler = [];
+  const teil = async (name, f) => { try { return await f(); } catch (e) { fehler.push(`${name}: ${e.message}`); return null; } };
+
+  const [motiv, hinweisVorlage, kp] = await Promise.all([
+    kurz ? teil('Motive', async () => motivFuerPrompt(await motivFuer(kurz))) : null,
+    kategorien.length ? teil('Struktur_Kategorien', () => seoHinweisVorlage(kategorien)) : '',
+    keyphrase ? teil('SEO_Karte', () => keyphraseGegenKarte(keyphrase, { wcId: q.wcId })) : null,
+  ]);
+  res.json({
+    motiv:          motiv ?? null,
+    hinweisVorlage: hinweisVorlage ?? '',
+    keyphrase:      kp ? { ...kp, ...keyphraseMeldungen(keyphrase, kp) } : null,
+    fehler,
+  });
 });
 
 export default router;

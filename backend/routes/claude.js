@@ -7,6 +7,9 @@ import {
   buildSeoUserPrompt, resolveModus, pruefeSeoText, pruefeH2, h2KorrekturBlock,
   entferneLeereLi, SEO_SYSTEM_PROMPT,
 } from '../lib/seo-prompt.js';
+import { motivFuer, motivFuerPrompt } from '../lib/seo-ssot.js';
+import { lshopFuerArtikel } from '../lib/lshop.js';
+import { pruefeGeneratorText } from '../lib/seo-pruefung.js';
 
 const router = Router();
 
@@ -181,9 +184,26 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
     if (action === 'seo_description') {
       const {
         produktname, kategorien, eigenschaften, hinweise, motiv, modus, farben,
-        groessen, keyphrase, strukturiert,
+        groessen, keyphrase, strukturiert, artikelkurz, lshopNr,
       } = req.body;
       if (!produktname) return res.status(400).json({ error: 'produktname ist erforderlich.' });
+
+      // Befehl M4: Motiv-Zeile (Reiter Motive) je Artikelkurzbezeichnung und
+      // Marke/Modellnummern des Rohlings (SKU_LShop). Nur wenn der Aufrufer die
+      // Schluessel schickt; ein Lesefehler verhindert die Generierung nicht,
+      // er steht in den Pruefhinweisen. Nur_intern bleibt hier im Backend.
+      const ssotHinweise = [];
+      let motivZeile = null;
+      if (String(artikelkurz ?? '').trim()) {
+        try { motivZeile = await motivFuer(artikelkurz); }
+        catch (e) { ssotHinweise.push(`Reiter Motive nicht lesbar (${e.message}) – ohne Motiv-Daten erzeugt.`); }
+      }
+      let rohling = null;
+      if (String(lshopNr ?? '').trim()) {
+        try { rohling = await lshopFuerArtikel(lshopNr); }
+        catch (e) { if (e.status !== 404) ssotHinweise.push(`SKU_LShop nicht lesbar (${e.message}) – Marke nicht geprüft.`); }
+      }
+      const motivPrompt = motivFuerPrompt(motivZeile);
 
       // Systemprompt: lib/seo-prompt.js (SEO_SYSTEM_PROMPT) – die Regeln stehen dort.
       const SEO_SYSTEM = SEO_SYSTEM_PROMPT;
@@ -205,13 +225,16 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
         kategorien,
         eigenschaften,
         hinweise,
-        motiv,
+        // M4: getipptes Motiv gewinnt, sonst das Motiv aus dem Reiter.
+        motiv: String(motiv ?? '').trim() || motivPrompt?.motiv || '',
         modus: modusWert,
         farben,
         groessen,
         keyphrase,
         // Befehl M1: { faser, grammatur } aus den L-Shop-Stammdaten, Vorrang vor dem Freitext.
         strukturiert,
+        // M4: Druckposition, Druckfarben, Serie_Kontext - ohne Nur_intern.
+        druck: motivPrompt,
       });
       if (materialMeldung) {
         console.warn(`[seo_description] ${materialMeldung}`);
@@ -359,6 +382,22 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
 
       const alleHinweise = [modusWarnung, materialMeldung, liHinweis, ...meldungen].filter(Boolean);
 
+      // M4: deterministische Pruefung, kein zweiter Modelllauf. Eigenes Feld -
+      // das Frontend zeigt es zusammen mit hinweis an.
+      const pruefhinweise = [
+        ...ssotHinweise,
+        ...pruefeGeneratorText({
+          kurzbeschreibung,
+          produktbeschreibung,
+          produktname,
+          keyphrase,
+          nurIntern:     motivZeile?.nurIntern,
+          marken:        rohling?.marken,
+          modellnummern: rohling ? [rohling.catalogNr, ...(rohling.herstellerNummern ?? [])] : [],
+          druck:         !!(motivPrompt && (motivPrompt.druckfarben || motivPrompt.druckposition)),
+        }),
+      ];
+
       return res.json({
         short_description: kurzbeschreibung,
         full_description:  produktbeschreibung,
@@ -369,6 +408,7 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
         // Eigenes Feld, nicht in hinweis: das Frontend zeigt es als Warn-Toast,
         // der Text wird trotzdem erzeugt (Befehl F2).
         faser_hinweis:     faserHinweis,
+        pruefhinweise,
       });
     }
 

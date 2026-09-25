@@ -1211,6 +1211,7 @@
               <div class="form-field" style="margin-bottom:0.75rem;">
                 <label>Fokus-Keyphrase <span class="field-note">(optional – leer: Produkttitel ohne Farbe/Größe)</span></label>
                 <input id="seo-keyphrase" type="text" class="form-input" placeholder="z.B. Weihnachtspullover Herren" />
+                <div id="seo-keyphrase-info" class="field-note" style="margin-top:0.25rem;"></div>
               </div>
               <div class="form-field" style="margin-bottom:0.75rem;">
                 <label>Keyphrase-Synonyme <span class="field-note">(optional – kommagetrennt)</span></label>
@@ -1223,6 +1224,7 @@
               <div class="form-field" style="margin-bottom:0.75rem;">
                 <label>Motiv (was ist auf dem Textil zu sehen?)</label>
                 <textarea id="seo-motiv" class="form-input" rows="3" style="resize:vertical;font-family:inherit;" placeholder="z.B. Fünf Weihnachtsfiguren von hinten, Schriftzug &quot;We wish you nothing butt a merry Christmas&quot;"></textarea>
+                <div id="seo-motiv-info" class="field-note" style="margin-top:0.25rem;"></div>
               </div>
               <div class="form-field" style="margin-bottom:0.75rem;">
                 <label>Eigenschaften (Grammatur, Schnitt, Passform, etc.)</label>
@@ -4189,6 +4191,41 @@
       }
       // ── L-Shop-Modell: Ende ──
 
+      // ── Generator-Eingaben: Anfang (reine Logik, backend/tests/seo-generator.test.js) ──
+      // Befehl M4. Quelle: GET /api/seo/generator-eingaben (backend/lib/seo-ssot.js).
+      // Nur_intern kommt dort nie an; die Pruefung danach macht das Backend.
+      // "CB166R/CH-Matchday" -> "CH-Matchday" (Schluessel im Reiter Motive).
+      function artikelKurzAus(artikelnummer) {
+        const s = String(artikelnummer ?? '');
+        const i = s.indexOf('/');
+        return i >= 0 ? s.slice(i + 1).trim() : '';
+      }
+      // Vorbelegung "Eigene Hinweise": nur wenn das Feld leer ist oder noch genau
+      // der vorigen Vorlage entspricht - Getipptes wird nie ueberschrieben.
+      // Rueckgabe: neuer Feldwert, oder null = Feld nicht anfassen.
+      function hinweisVorbelegen(aktuell, alteVorlage, neueVorlage) {
+        const a = String(aktuell ?? '');
+        if (!a.trim() || a === String(alteVorlage ?? '')) return String(neueVorlage ?? '');
+        return null;
+      }
+      // Zeile unter dem Motiv-Feld: was aus dem Reiter Motive mitgeht.
+      function motivInfo(m) {
+        if (!m) return '';
+        const teile = [
+          m.druckposition ? `Druckposition: ${m.druckposition}` : '',
+          m.druckfarben   ? `Druckfarben: ${m.druckfarben}` : '',
+          m.serieKontext  ? `Kontext: ${m.serieKontext}` : '',
+        ].filter(Boolean);
+        return teile.length ? `Aus dem Reiter Motive: ${teile.join(' · ')}` : '';
+      }
+      // Alle Meldungen einer Generierung zusammen: bestehende Pruefungen (hinweis)
+      // und die deterministische Pruefung (pruefhinweise).
+      function generatorMeldungen(data) {
+        const d = data || {};
+        return [d.hinweis, ...(Array.isArray(d.pruefhinweise) ? d.pruefhinweise : [])].filter(Boolean);
+      }
+      // ── Generator-Eingaben: Ende ──
+
       // ── Keyphrase-Synonyme: Anfang (reine Logik, backend/tests/yoast-synonyme.test.js) ──
       // Gleiche Bedingung wie bei den anderen Regelbloecken: NICHTS aus dem
       // Seitenkontext – der Test schneidet ihn heraus und fuehrt ihn AUS.
@@ -5776,6 +5813,56 @@
         }
       }
 
+      // M4: Generator-Eingaben aus der SSOT (Motiv, SEO_Hinweis, Keyphrase-Pruefung).
+      let seoHinweisVorlageStand = '';
+      function seoKeyphraseZeigen(kp) {
+        const info = document.getElementById('seo-keyphrase-info');
+        info.textContent = '';
+        info.style.color = '';
+        if (!kp) return;
+        for (const w of kp.warnungen || []) showToast(w, 'warn', 12000);
+        for (const i of kp.infos || []) showToast(i, 'info', 8000);
+        info.textContent = [...(kp.warnungen || []), ...(kp.infos || [])].join(' · ');
+        if ((kp.warnungen || []).length) info.style.color = 'var(--warning, orange)';
+      }
+      async function seoGeneratorEingaben(teile) {
+        const q = new URLSearchParams(Object.entries(teile).filter(([, v]) => v));
+        return apiJson(await apiFetch(`${API_BASE()}/api/seo/generator-eingaben?${q}`));
+      }
+      async function seoGeneratorEingabenLaden() {
+        if (!seoCurrentItem) return;
+        try {
+          const d = await seoGeneratorEingaben({
+            kurz:       artikelKurzAus(seoCurrentItem.artikelnummer),
+            kategorien: ((seoWcProdukt && seoWcProdukt.categories) || []).map(c => c.id).join(','),
+            keyphrase:  document.getElementById('seo-keyphrase').value.trim(),
+            wcId:       seoCurrentItem.wcId || '',
+          });
+          const mf = document.getElementById('seo-motiv');
+          if (d.motiv && d.motiv.motiv && !mf.value.trim()) mf.value = d.motiv.motiv;
+          document.getElementById('seo-motiv-info').textContent = motivInfo(d.motiv);
+          const hf  = document.getElementById('seo-hinweise');
+          const neu = hinweisVorbelegen(hf.value, seoHinweisVorlageStand, d.hinweisVorlage);
+          if (neu !== null) hf.value = neu;
+          seoHinweisVorlageStand = d.hinweisVorlage || '';
+          seoKeyphraseZeigen(d.keyphrase);
+          for (const f of d.fehler || []) showToast(`SSOT: ${f}`, 'warn', 10000);
+        } catch (e) {
+          showToast(`Generator-Eingaben nicht lesbar: ${e.message}`, 'warn', 10000);
+        }
+      }
+      document.getElementById('seo-keyphrase').addEventListener('change', async () => {
+        if (!seoCurrentItem) return;
+        const kp = document.getElementById('seo-keyphrase').value.trim();
+        if (!kp) { seoKeyphraseZeigen(null); return; }
+        try {
+          const d = await seoGeneratorEingaben({ keyphrase: kp, wcId: seoCurrentItem.wcId || '' });
+          seoKeyphraseZeigen(d.keyphrase);
+        } catch (e) {
+          showToast(`Keyphrase-Prüfung nicht möglich: ${e.message}`, 'warn', 8000);
+        }
+      });
+
       document.getElementById('seo-article-select').addEventListener('change', async function () {
         const idx = this.value;
         if (idx === '') {
@@ -5791,6 +5878,9 @@
         document.getElementById('seo-tiktok').value        = '';
         document.getElementById('seo-hinweise').value      = '';
         document.getElementById('seo-motiv').value         = '';
+        document.getElementById('seo-motiv-info').textContent    = '';
+        document.getElementById('seo-keyphrase-info').textContent = '';
+        seoHinweisVorlageStand = '';
         document.getElementById('seo-eigenschaften').value = '';
         document.getElementById('seo-keyphrase').value     = seoCurrentItem.keyphrase || '';
         // Aus dem Sheet kann beides kommen: Yoast-Format oder die alte
@@ -5868,6 +5958,7 @@
 
         await Promise.all(loadPromises);
         document.getElementById('seo-status-msg').textContent = '';
+        await seoGeneratorEingabenLaden();
         await seoMetaEingabenLaden();
         seoMetaVorschau();
       });
@@ -5889,6 +5980,8 @@
               produktname:   seoCurrentItem.produktname,
               artikelnummer: seoCurrentItem.artikelnummer,
               lshopNr:       seoCurrentItem.lshopNr  || '',
+              // M4: Schluessel fuer Motiv-Zeile (Reiter Motive) und Pruefung danach.
+              artikelkurz:   artikelKurzAus(seoCurrentItem.artikelnummer),
               kategorien:    seoKategorien,
               eigenschaften: document.getElementById('seo-eigenschaften').value,
               instagram:     document.getElementById('seo-instagram').value,
@@ -5918,8 +6011,11 @@
           // das neutral im Statustext – nicht rot. Rot bleibt allein dem
           // Verstoß vorbehalten, der auch nach dem zweiten Lauf steht.
           const versuchText = data.versuch === 2 ? 'im zweiten Versuch erzeugt' : '';
-          statusMsg.textContent = [data.hinweis, versuchText, quelleText].filter(Boolean).join(' · ');
-          statusMsg.style.color = (data.hinweis || gemeldet) ? 'var(--danger)' : 'var(--muted)';
+          // M4: bestehende Pruefungen und deterministische Pruefung zusammen.
+          const meldungenAlle = generatorMeldungen(data);
+          statusMsg.textContent = [...meldungenAlle, versuchText, quelleText].filter(Boolean).join(' · ');
+          statusMsg.style.color = (meldungenAlle.length || gemeldet) ? 'var(--danger)' : 'var(--muted)';
+          if ((data.pruefhinweise || []).length) showToast(data.pruefhinweise.join(' · '), 'warn', 15000);
           if (gemeldet)     showToast(SEO_GROESSEN_TEXT.unbekannt, 'error');
           if (data.hinweis) showToast(data.hinweis, 'error');
           // Faserangabe fehlt: Warn-Toast, nicht im Statustext (das Panel geht

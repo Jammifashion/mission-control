@@ -1114,6 +1114,7 @@ export function buildSeoUserPrompt({
   groessen,
   keyphrase,
   strukturiert,
+  druck,
 } = {}) {
   const {
     detailLines, farbListe, material, meldung: materialMeldung, faserHinweis,
@@ -1176,6 +1177,11 @@ export function buildSeoUserPrompt({
       `- Artikelname: ${produktname ?? ''}`,
       `- Kategorie: ${kategorien || 'Textilien'}`,
       `- MOTIV: ${motiv || MOTIV_PLACEHOLDER}`,
+      // M4: Felder aus dem Reiter Motive (lib/seo-ssot.js, motivFuerPrompt).
+      // Nur_intern kommt hier nie an - es steht gar nicht im Objekt.
+      druck?.druckposition ? `- DRUCKPOSITION: ${druck.druckposition}` : '',
+      druck?.druckfarben   ? `- DRUCKFARBEN: ${druck.druckfarben}` : '',
+      druck?.serieKontext  ? `- KONTEXT: ${druck.serieKontext}` : '',
       `- FARBEN: ${farbenText}`,
       groessenText ? `- GRÖSSEN: ${groessenText}` : '',
       `- Material: ${material}`,
