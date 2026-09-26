@@ -286,3 +286,34 @@ export async function artikelAbgleich({ sheets, sheetId, wcFuer, ssotSheets, jet
     },
   };
 }
+
+// ── Chat nach dem Abgleich (PA2/PA6) ────────────────────────────────────────
+
+export const CHAT = {
+  GESENDET:      'gesendet',
+  NICHTS:        'nichts zu melden',
+  FEHLGESCHLAGEN: 'fehlgeschlagen',
+  LEBENSZEICHEN: 'lebenszeichen gesendet',
+};
+
+// Uhr des Abgleichs. Tests setzen uhr.jetzt fest; im Code steht kein Datum.
+export const uhr = { jetzt: () => new Date() };
+
+/** Montag in Europe/Berlin (Sonntag 23:30 UTC im Sommer ist dort schon Montag). */
+export function istMontagBerlin(jetzt = uhr.jetzt()) {
+  return new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Berlin', weekday: 'short' }).format(jetzt) === 'Mon';
+}
+
+/**
+ * Meldung nach dem Abgleich. Befund -> normale Meldung (ersetzt das
+ * Lebenszeichen). Nichts zu melden -> montags ein Lebenszeichen, sonst nichts.
+ * @param {object} o { bericht, notify, baueMeldung, baueLebenszeichen, jetzt }
+ * @returns {Promise<string>} einer der CHAT-Werte
+ */
+export async function abgleichMelden({ bericht, notify, baueMeldung, baueLebenszeichen, jetzt = uhr.jetzt() }) {
+  const text = baueMeldung(bericht);
+  if (text) return (await notify(text)) ? CHAT.GESENDET : CHAT.FEHLGESCHLAGEN;
+  if (!istMontagBerlin(jetzt)) return CHAT.NICHTS;
+  return (await notify(baueLebenszeichen(bericht?.summen?.partner ?? (bericht?.partner ?? []).length)))
+    ? CHAT.LEBENSZEICHEN : CHAT.FEHLGESCHLAGEN;
+}

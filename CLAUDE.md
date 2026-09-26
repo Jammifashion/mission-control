@@ -38,7 +38,10 @@ Neue Sektionen immer mit Anker versehen:
   aendern, EK/Druck LEER statt 0 (leer = fehlt, 0 = bewusst), kein Lizenz-%, EK aus L-Shop nur
   bei LShop_ArticleNr je Variante (kleinster 10CartonsPrice ueber Groessen + angebotene Farben),
   Spalte `EK_Quelle` additiv am Ende. Nur aktive Lizenz-Partner + HonkShop, nie Festpreis.
-  Chat: `buildArtikelAbgleichNachricht` in chatNotify.js, derselbe `notify()`.
+  Chat: `buildArtikelAbgleichNachricht` in chatNotify.js, derselbe `notify()`. Antwortfeld `chat`
+  (PA6): "gesendet" | "nichts zu melden" | "fehlgeschlagen" | "lebenszeichen gesendet"; ohne Befund
+  montags (Europe/Berlin, `istMontagBerlin`, Uhr `uhr.jetzt` im Test setzbar) ein Lebenszeichen.
+  Workflow warnt bei "fehlgeschlagen" (::warning::), bricht den Sync nicht ab.
   Sperre (PA2 Teil B, routes/partnerPortal.js): fehlt EK oder Druck (LEER, 0 ist erlaubt), schreibt
   der Sync die Verkaufszeile mit Status "gesperrt", Spalte "Sperre" (additiv am Ende) = Grund und
   LEEREN Betraegen. Erster Schritt jedes Sync-Laufs: `entsperren()` rechnet gesperrte Zeilen, deren

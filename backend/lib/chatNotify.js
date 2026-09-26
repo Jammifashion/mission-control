@@ -116,6 +116,13 @@ export function buildArtikelAbgleichNachricht({ partner } = {}) {
   return ['🧾 Partnerartikel-Abgleich', ...zeilen, LINK].join('\n');
 }
 
+// PA6: Wochen-Lebenszeichen, wenn der Abgleich montags nichts zu melden hat -
+// sonst ist "keine Nachricht" nicht von "Lauf kaputt" zu unterscheiden.
+export function buildAbgleichLebenszeichen(anzahlPartner) {
+  const n = Number(anzahlPartner);
+  return `Partner-Abgleich: nichts Neues (${Number.isFinite(n) ? n : 0} Partner geprüft)`;
+}
+
 // ── Stoerungsalarm ──────────────────────────────────────────────────────────
 //
 // Der Kundenchat ist der einzige Kanal, bei dem ein Ausfall niemandem auffaellt:

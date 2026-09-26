@@ -72,7 +72,7 @@ jest.unstable_mockModule('../lib/shopConfig.js', () => ({
 process.env.GOOGLE_SHEET_ID = 'ssot';
 process.env.BUSINESS_SHEET_ID = 'business';
 const pa = await import('../lib/partnerArtikel.js');
-const { buildArtikelAbgleichNachricht } = await import('../lib/chatNotify.js');
+const { buildArtikelAbgleichNachricht, buildAbgleichLebenszeichen } = await import('../lib/chatNotify.js');
 
 const PA_KOPF = ['Partner-ID', 'Artikelnummer', 'Produkt-ID', 'Artikelname', 'EK-Preis-Netto', 'Druckkosten', 'Versandart', 'Lizenz-%', 'Letzte-Synchro'];
 const HK_KOPF = ['Produkt-ID', 'Artikelname', 'EK-Preis-Netto', 'Druckkosten', 'Versandart'];
@@ -323,11 +323,22 @@ describe('Routen', () => {
     app.use('/api/partner', (await import('../routes/partner-artikel.js')).default);
   });
 
-  test('POST /artikel/abgleich -> Bericht + chat (Webhook lokal aus = false)', async () => {
+  test('POST /artikel/abgleich -> Bericht + chat (Befund, Webhook lokal aus = "fehlgeschlagen")', async () => {
     const res = await request(app).post('/api/partner/artikel/abgleich');
     expect(res.status).toBe(200);
     expect(res.body.summen.neu).toBe(3);
-    expect(res.body.chat).toBe(false);
+    expect(res.body.chat).toBe('fehlgeschlagen');
+  });
+
+  test('POST /artikel/abgleich ohne Befund an einem Dienstag -> "nichts zu melden"', async () => {
+    tabs.Partner_Artikel = [[...PA_KOPF]];
+    tabs.Partner = [tabs.Partner[0]];                       // keine aktiven Partner -> nichts
+    const alt = pa.uhr.jetzt;
+    pa.uhr.jetzt = () => new Date('2026-09-29T10:00:00Z');  // Dienstag
+    try {
+      const res = await request(app).post('/api/partner/artikel/abgleich');
+      expect(res.body.chat).toBe('nichts zu melden');
+    } finally { pa.uhr.jetzt = alt; }
   });
 
   test('POST /:id/artikel/import nutzt die Lib (Produkt-ID-Dedup), Meldung nennt fehlende EK', async () => {
@@ -346,6 +357,50 @@ describe('Routen', () => {
   });
 });
 
+// ── PA6: eindeutiges chat-Feld, Wochen-Lebenszeichen ────────────────────────
+
+describe('abgleichMelden (PA6)', () => {
+  const MONTAG   = new Date('2026-09-28T08:00:00Z');
+  const DIENSTAG = new Date('2026-09-29T08:00:00Z');
+  const leer = { partner: [{ id: 'P-001', neu: [] }], summen: { partner: 9 } };
+  const befund = { partner: [{ id: 'P-006', neu: [{ produktId: '1', name: 'X' }] }], summen: { partner: 9 } };
+  const lauf = (bericht, jetzt, ok = true) => {
+    const notify = jest.fn(async () => ok);
+    return pa.abgleichMelden({ bericht, notify, baueMeldung: buildArtikelAbgleichNachricht, baueLebenszeichen: buildAbgleichLebenszeichen, jetzt })
+      .then(chat => ({ chat, notify }));
+  };
+
+  test('Befund -> "gesendet", nur die Befund-Meldung (auch montags)', async () => {
+    const { chat, notify } = await lauf(befund, MONTAG);
+    expect(chat).toBe('gesendet');
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify.mock.calls[0][0]).toMatch(/^🧾 Partnerartikel-Abgleich/);
+  });
+  test('Montag, nichts -> Lebenszeichen mit Partnerzahl', async () => {
+    const { chat, notify } = await lauf(leer, MONTAG);
+    expect(chat).toBe('lebenszeichen gesendet');
+    expect(notify).toHaveBeenCalledWith('Partner-Abgleich: nichts Neues (9 Partner geprüft)');
+  });
+  test('Dienstag, nichts -> kein notify, "nichts zu melden"', async () => {
+    const { chat, notify } = await lauf(leer, DIENSTAG);
+    expect(chat).toBe('nichts zu melden');
+    expect(notify).not.toHaveBeenCalled();
+  });
+  test('notify schlaegt fehl -> "fehlgeschlagen" (Befund und Lebenszeichen)', async () => {
+    expect((await lauf(befund, DIENSTAG, false)).chat).toBe('fehlgeschlagen');
+    expect((await lauf(leer, MONTAG, false)).chat).toBe('fehlgeschlagen');
+  });
+  test('Zeitzone Berlin: Sonntag 23:30 UTC ist dort Montag, Montag 23:30 UTC schon Dienstag', () => {
+    expect(pa.istMontagBerlin(new Date('2026-09-27T23:30:00Z'))).toBe(true);
+    expect(pa.istMontagBerlin(new Date('2026-09-28T23:30:00Z'))).toBe(false);
+    expect(pa.istMontagBerlin(new Date('2026-12-27T23:30:00Z'))).toBe(true);   // Winterzeit
+    expect(pa.istMontagBerlin(new Date('2026-09-27T21:30:00Z'))).toBe(false);  // Sonntag 23:30 Berlin
+  });
+  test('Lebenszeichen-Text', () => {
+    expect(buildAbgleichLebenszeichen(9)).toBe('Partner-Abgleich: nichts Neues (9 Partner geprüft)');
+  });
+});
+
 // ── Workflow ────────────────────────────────────────────────────────────────
 
 describe('sync-partner-daily.yml', () => {
@@ -354,6 +409,13 @@ describe('sync-partner-daily.yml', () => {
     const a = yml.indexOf('/api/partner/artikel/abgleich'), s = yml.indexOf('/api/partner/verkaeufe/sync-all');
     expect(a).toBeGreaterThan(0);
     expect(a).toBeLessThan(s);
+  });
+  test('PA6: chat = "fehlgeschlagen" -> ::warning::, kein Abbruch; chat-Wert im Log', () => {
+    const schritt = yml.slice(yml.indexOf('/api/partner/artikel/abgleich'), yml.indexOf('/api/partner/verkaeufe/sync-all'));
+    expect(schritt).toMatch(/chat: \(\.chat \/\/ ""\)/);
+    const warn = schritt.slice(schritt.indexOf('= "fehlgeschlagen"'));
+    expect(warn).toMatch(/::warning::/);
+    expect(warn.slice(0, warn.indexOf('fi'))).not.toMatch(/exit/);
   });
   test('Log nur Zaehler: keine ungefilterte Antwort, keine partnerIds/uebersprungen-Details', () => {
     expect(yml).not.toMatch(/jq \.\s*\|\|/);

@@ -36,7 +36,12 @@ jobs:
           echo "HTTP ${http:-?}"
           if jq -e . response.json >/dev/null 2>&1; then
             jq 'if .error then {error: "Abgleich fehlgeschlagen"}
-                else {summen: (.summen // {}), chat: (.chat // false)} end' response.json
+                else {summen: (.summen // {}), chat: (.chat // "")} end' response.json
+            # PA6: chat = "gesendet" | "nichts zu melden" | "fehlgeschlagen" | "lebenszeichen gesendet".
+            # Eine fehlgeschlagene Chat-Meldung warnt sichtbar, bricht den Sync aber nicht ab.
+            if [ "$(jq -r '.chat // ""' response.json)" = "fehlgeschlagen" ]; then
+              echo "::warning::Chat-Meldung des Artikel-Abgleichs fehlgeschlagen (Cloud-Run-Log [chatNotify] pruefen)."
+            fi
           else
             echo "(Antwort ist kein JSON - nicht ausgegeben)"
           fi

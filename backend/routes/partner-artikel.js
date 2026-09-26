@@ -3,8 +3,8 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient as wcClientForShop } from '../lib/shopConfig.js';
 import { berechnePartnerAnteil, parseKonfiguration } from '../utils/partner-kalkulation.js';
-import { importiereFuerPartner, artikelAbgleich } from '../lib/partnerArtikel.js';
-import { notify, buildArtikelAbgleichNachricht } from '../lib/chatNotify.js';
+import { importiereFuerPartner, artikelAbgleich, abgleichMelden } from '../lib/partnerArtikel.js';
+import { notify, buildArtikelAbgleichNachricht, buildAbgleichLebenszeichen } from '../lib/chatNotify.js';
 
 const router = Router();
 
@@ -244,8 +244,10 @@ router.post('/artikel/abgleich', async (req, res, next) => {
     const sheetId = requireSheetId(res); if (!sheetId) return;
     const sheets  = await getSheets();
     const bericht = await artikelAbgleich({ sheets, sheetId, wcFuer: shop => wcClientForShop(shop) });
-    const text = buildArtikelAbgleichNachricht(bericht);
-    const chat = text ? await notify(text) : false;
+    // PA6: chat = "gesendet" | "nichts zu melden" | "fehlgeschlagen" | "lebenszeichen gesendet".
+    const chat = await abgleichMelden({
+      bericht, notify, baueMeldung: buildArtikelAbgleichNachricht, baueLebenszeichen: buildAbgleichLebenszeichen,
+    });
     res.json({ ...bericht, chat });
   } catch (err) { next(err); }
 });
