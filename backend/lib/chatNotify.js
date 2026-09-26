@@ -90,6 +90,32 @@ export function buildPartnerNachricht({ partnerName, anzahl, summe }) {
   ].filter(Boolean).join('\n');
 }
 
+// Befehl PA2: Meldung nach dem taeglichen Partnerartikel-Abgleich
+// (lib/partnerArtikel.js). Nur Partner-IDs und Artikelnamen, keine Betraege.
+// null = nichts Neues und nichts Offenes -> keine Nachricht.
+const ABGLEICH_NAMEN_MAX = 5;
+export function buildArtikelAbgleichNachricht({ partner } = {}) {
+  const zeilen = [];
+  for (const e of partner ?? []) {
+    const teile = [];
+    const neu = e.neu ?? [];
+    if (neu.length) {
+      const namen = neu.slice(0, ABGLEICH_NAMEN_MAX).map(n => `${sauber(n.name, 60) || n.produktId}${n.entwurf ? ' (Entwurf)' : ''}`);
+      const rest = neu.length - namen.length;
+      teile.push(`${neu.length} neu: ${namen.join(', ')}${rest > 0 ? ` +${rest} weitere` : ''}`);
+    }
+    if (e.ekFehlt)           teile.push(`EK fehlt ${e.ekFehlt}`);
+    if (e.druckFehlt)        teile.push(`Druck fehlt ${e.druckFehlt}`);
+    if (e.farbenVerschieden) teile.push(`Farben mit verschiedenem EK ${e.farbenVerschieden}`);
+    if (e.vertragAbLeer)     teile.push('Vertrag-ab leer');
+    if (e.gesperrt)          teile.push(`${e.gesperrt} Verkaufszeile(n) gesperrt`);
+    if (e.fehler)            teile.push(`Fehler: ${sauber(e.fehler, 80)}`);
+    if (teile.length) zeilen.push(`${sauber(e.id, 12)}: ${teile.join(' · ')}`);
+  }
+  if (!zeilen.length) return null;
+  return ['🧾 Partnerartikel-Abgleich', ...zeilen, LINK].join('\n');
+}
+
 // ── Stoerungsalarm ──────────────────────────────────────────────────────────
 //
 // Der Kundenchat ist der einzige Kanal, bei dem ein Ausfall niemandem auffaellt:

@@ -5,32 +5,68 @@ on:
     - cron: '0 3 * * *'   # täglich 03:00 UTC
   workflow_dispatch:        # manueller Trigger über GitHub UI
 
+# Das Actions-Log ist oeffentlich: jeder Schritt gibt nur Zaehler aus (jq-Filter
+# wie backup-daily.yml), nie Namen, Partner-IDs, Produkt- oder Order-IDs.
+
 jobs:
   sync:
-    name: Trigger Partner-Sync (sync-all)
+    name: Artikel-Abgleich, dann Partner-Sync (sync-all)
     runs-on: ubuntu-latest
 
     steps:
+      # PA2: ZUERST fehlende Partnerartikel anlegen. Der Sync ueberspringt
+      # Positionen ohne Partner_Artikel-Zeile still und holt sie nie nach
+      # (bericht-PA0/PA1). Schlaegt der Abgleich fehl, laeuft kein Sync -
+      # der naechste Lauf holt den Tag nach (after = juengstes Datum).
+      - name: POST /api/partner/artikel/abgleich
+        env:
+          API_URL: ${{ secrets.BACKEND_URL }}
+          API_KEY: ${{ secrets.MC_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$API_URL" ] || [ -z "$API_KEY" ]; then
+            echo "::error::BACKEND_URL oder MC_API_KEY fehlt in GitHub Secrets."
+            exit 1
+          fi
+          rc=0
+          http=$(curl -sS --fail-with-body --max-time 300 -X POST \
+            -H "x-api-key: $API_KEY" \
+            -o response.json -w '%{http_code}' \
+            "$API_URL/api/partner/artikel/abgleich") || rc=$?
+          echo "HTTP ${http:-?}"
+          if jq -e . response.json >/dev/null 2>&1; then
+            jq 'if .error then {error: "Abgleich fehlgeschlagen"}
+                else {summen: (.summen // {}), chat: (.chat // false)} end' response.json
+          else
+            echo "(Antwort ist kein JSON - nicht ausgegeben)"
+          fi
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::Artikel-Abgleich fehlgeschlagen (HTTP ${http:-?}, curl exit $rc)"
+            exit 1
+          fi
+
       - name: POST /api/partner/verkaeufe/sync-all (jfn)
         env:
           API_URL: ${{ secrets.BACKEND_URL }}
           API_KEY: ${{ secrets.MC_API_KEY }}
         run: |
-          set -e
-          if [ -z "$API_URL" ] || [ -z "$API_KEY" ]; then
-            echo "::error::BACKEND_URL oder MC_API_KEY fehlt in GitHub Secrets."
-            exit 1
-          fi
-          echo "Triggere Partner-Sync (jfn) gegen $API_URL"
-          response=$(curl -sS -w "\n%{http_code}" -X POST \
+          set -euo pipefail
+          rc=0
+          http=$(curl -sS --fail-with-body --max-time 300 -X POST \
             -H "x-api-key: $API_KEY" \
-            "$API_URL/api/partner/verkaeufe/sync-all?shop=jfn")
-          body=$(echo "$response" | head -n -1)
-          status=$(echo "$response" | tail -n1)
-          echo "HTTP $status"
-          echo "$body" | jq . || echo "$body"
-          if [ "$status" != "200" ]; then
-            echo "::error::Sync (jfn) fehlgeschlagen mit HTTP $status"
+            -o response.json -w '%{http_code}' \
+            "$API_URL/api/partner/verkaeufe/sync-all?shop=jfn") || rc=$?
+          echo "HTTP ${http:-?}"
+          if jq -e . response.json >/dev/null 2>&1; then
+            jq 'if .error then {error: "Sync fehlgeschlagen"}
+                else {partner, neueVerkaeufe: .["neueVerkäufe"], storniert, orders,
+                      uebersprungen: ((.uebersprungen // []) | length),
+                      fehler: ((.errors // []) | length)} end' response.json
+          else
+            echo "(Antwort ist kein JSON - nicht ausgegeben)"
+          fi
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::Sync (jfn) fehlgeschlagen mit HTTP ${http:-?}"
             exit 1
           fi
 
@@ -39,16 +75,22 @@ jobs:
           API_URL: ${{ secrets.BACKEND_URL }}
           API_KEY: ${{ secrets.MC_API_KEY }}
         run: |
-          set -e
-          echo "Triggere Partner-Sync (honk) gegen $API_URL"
-          response=$(curl -sS -w "\n%{http_code}" -X POST \
+          set -euo pipefail
+          rc=0
+          http=$(curl -sS --fail-with-body --max-time 300 -X POST \
             -H "x-api-key: $API_KEY" \
-            "$API_URL/api/partner/verkaeufe/sync-all?shop=honk")
-          body=$(echo "$response" | head -n -1)
-          status=$(echo "$response" | tail -n1)
-          echo "HTTP $status"
-          echo "$body" | jq . || echo "$body"
-          if [ "$status" != "200" ]; then
-            echo "::error::Sync (honk) fehlgeschlagen mit HTTP $status"
+            -o response.json -w '%{http_code}' \
+            "$API_URL/api/partner/verkaeufe/sync-all?shop=honk") || rc=$?
+          echo "HTTP ${http:-?}"
+          if jq -e . response.json >/dev/null 2>&1; then
+            jq 'if .error then {error: "Sync fehlgeschlagen"}
+                else {partner, neueVerkaeufe: .["neueVerkäufe"], storniert, orders,
+                      uebersprungen: ((.uebersprungen // []) | length),
+                      fehler: ((.errors // []) | length)} end' response.json
+          else
+            echo "(Antwort ist kein JSON - nicht ausgegeben)"
+          fi
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::Sync (honk) fehlgeschlagen mit HTTP ${http:-?}"
             exit 1
           fi

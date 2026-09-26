@@ -3,6 +3,8 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient as wcClientForShop } from '../lib/shopConfig.js';
 import { berechnePartnerAnteil, parseKonfiguration } from '../utils/partner-kalkulation.js';
+import { importiereFuerPartner, artikelAbgleich } from '../lib/partnerArtikel.js';
+import { notify, buildArtikelAbgleichNachricht } from '../lib/chatNotify.js';
 
 const router = Router();
 
@@ -158,6 +160,8 @@ function requireSheetId(res) {
 }
 
 const isHonk = req => req.query.shop === 'honk';
+// PA2: leer = fehlt (null), 0 = bewusst 0. Frueher lieferte toFloat fuer leer 0.
+const zahlOderNull = v => (v === null || v === undefined || String(v).trim() === '') ? null : toFloat(v);
 const TAB_HK_ARTIKEL = 'HK_Partner_Artikel';
 
 // ── GET /:id/artikel ─────────────────────────────────────────────────────────
@@ -172,8 +176,8 @@ router.get('/:id/artikel', async (req, res, next) => {
       return res.json(rows.map(r => ({
         produktId:   r[h('Produkt-ID')]   ?? '',
         artikelname: r[h('Artikelname')]  ?? '',
-        ekPreis:     toFloat(r[h('EK-Preis-Netto')]),
-        druckkosten: toFloat(r[h('Druckkosten')]),
+        ekPreis:     zahlOderNull(r[h('EK-Preis-Netto')]),
+        druckkosten: zahlOderNull(r[h('Druckkosten')]),
         versandart:  (r[h('Versandart')] ?? 'P').toUpperCase(),
       })));
     }
@@ -186,8 +190,8 @@ router.get('/:id/artikel', async (req, res, next) => {
         artikelnummer: r[h('Artikelnummer')] ?? '',
         produktId:     r[h('Produkt-ID')]    ?? '',
         artikelname:   r[h('Artikelname')]   ?? '',
-        ekPreis:       toFloat(r[h('EK-Preis-Netto')]),
-        druckkosten:   toFloat(r[h('Druckkosten')]),
+        ekPreis:       zahlOderNull(r[h('EK-Preis-Netto')]),
+        druckkosten:   zahlOderNull(r[h('Druckkosten')]),
         versandart:    (r[h('Versandart')] ?? 'P').toUpperCase(),
         lizenzProzent: toFloat(r[h('Lizenz-%')]),
         letzteSynchro: r[h('Letzte-Synchro')] ?? '',
@@ -196,147 +200,53 @@ router.get('/:id/artikel', async (req, res, next) => {
 });
 
 // ── POST /:id/artikel/import ─────────────────────────────────────────────────
-// JFN: Holt alle WC-Produkte unter Partner.Hauptkategorie (inkl. Unterkategorien via
-// Parent-Kette) und legt fehlende Zeilen in Partner_Artikel mit Defaults an.
-// HonkShop: Holt alle WC-Produkte (keine Kategorie-Filter), speichert in HK_Partner_Artikel.
+// Knopf "Aus WC importieren". Logik in lib/partnerArtikel.js (PA2): Dubletten
+// ueber die Produkt-ID, EK/Druck leer statt 0, EK aus L-Shop wo moeglich.
+// JFN: Hauptkategorie des Partners + Unterkategorien, alle Status.
+// HonkShop (?shop=honk): alle veroeffentlichten Produkte -> HK_Partner_Artikel.
 router.post('/:id/artikel/import', async (req, res, next) => {
   try {
     const sheetId = requireSheetId(res); if (!sheetId) return;
     const sheets  = await getSheets();
-
+    let partner;
     if (isHonk(req)) {
-      const wc = getWcClient(req);
-      const products = [];
-      for (let page = 1; ; page++) {
-        const { data: prods } = await wc.get('products', { per_page: 100, page, status: 'publish' });
-        products.push(...prods);
-        if (prods.length < 100) break;
-      }
-
-      const { header: aH, rows: aRows } = await readTab(sheets, sheetId, TAB_HK_ARTIKEL);
-      const ah = col => aH.indexOf(col);
-      const existingIds = new Set(aRows.map(r => (r[ah('Produkt-ID')] ?? '').toString()));
-
-      const toWrite = [];
-      for (const p of products) {
-        if (existingIds.has(String(p.id))) continue;
-        existingIds.add(String(p.id));
-        toWrite.push([String(p.id), p.name, 0, 0, 'P']);
-      }
-
-      if (toWrite.length > 0) {
-        await sheets.spreadsheets.values.append({
-          spreadsheetId: sheetId,
-          range: `${TAB_HK_ARTIKEL}!A:E`,
-          valueInputOption: 'USER_ENTERED',
-          insertDataOption: 'INSERT_ROWS',
-          requestBody: { values: toWrite },
-        });
-      }
-
-      return res.json({
-        neu:       toWrite.length,
-        vorhanden: products.length - toWrite.length,
-        message:   toWrite.length
-          ? `${toWrite.length} neue Artikel importiert.`
-          : 'Keine neuen Artikel – alle bereits vorhanden.',
-      });
+      partner = { id: req.params.id, shop: 'honk' };
+    } else {
+      const p = await loadPartner(sheets, sheetId, req.params.id);
+      if (!p) return res.status(404).json({ error: 'Partner nicht gefunden.' });
+      partner = { id: p.id, hauptkategorie: p.hauptkategorie, shop: 'jfn' };
     }
-
-    const partner = await loadPartner(sheets, sheetId, req.params.id);
-    if (!partner) return res.status(404).json({ error: 'Partner nicht gefunden.' });
-    if (!partner.hauptkategorie)
-      return res.status(400).json({ error: 'Partner hat keine Hauptkategorie konfiguriert.' });
-
-    // 1. WC-Kategorien laden, Hauptkategorie + alle Nachkommen ermitteln
-    const wc = getWcClient(req);
-    const catMap = {}; // id → { name, parentId }
-    for (let page = 1; ; page++) {
-      const { data: cats } = await wc.get('products/categories', { per_page: 100, page });
-      cats.forEach(c => { catMap[c.id] = { name: c.name.toLowerCase(), parentId: c.parent ?? 0 }; });
-      if (cats.length < 100) break;
-    }
-
-    const hauptLower = partner.hauptkategorie.toLowerCase();
-    const rootIds = Object.entries(catMap)
-      .filter(([, c]) => c.name === hauptLower)
-      .map(([id]) => parseInt(id, 10));
-    if (!rootIds.length)
-      return res.status(404).json({ error: `WC-Kategorie "${partner.hauptkategorie}" nicht gefunden.` });
-
-    // Alle Nachkommen-IDs einsammeln (BFS)
-    const allIds = new Set(rootIds);
-    let frontier = [...rootIds];
-    while (frontier.length) {
-      const next = [];
-      for (const [id, c] of Object.entries(catMap)) {
-        const idNum = parseInt(id, 10);
-        if (!allIds.has(idNum) && frontier.includes(c.parentId)) {
-          allIds.add(idNum);
-          next.push(idNum);
-        }
-      }
-      frontier = next;
-    }
-
-    // 2. WC-Produkte aller relevanten Kategorien holen
-    const products = [];
-    for (const catId of allIds) {
-      for (let page = 1; ; page++) {
-        const { data: prods } = await wc.get('products', { category: catId, per_page: 100, page });
-        products.push(...prods);
-        if (prods.length < 100) break;
-      }
-    }
-    // De-Duplizieren (ein Produkt kann in mehreren Kategorien sein)
-    const uniqueProducts = [...new Map(products.map(p => [p.id, p])).values()];
-
-    // 3. Bereits vorhandene Artikelnummern für den Partner laden
-    const { header: aH, rows: aRows } = await readTab(sheets, sheetId, 'Partner_Artikel');
-    const ah = col => aH.indexOf(col);
-    const existingSkus = new Set(
-      aRows.filter(r => (r[ah('Partner-ID')] ?? '') === partner.id)
-           .map(r => r[ah('Artikelnummer')] ?? '')
-    );
-
-    // 4. Neue Zeilen schreiben
-    const today = todayDE();
-    const toWrite = [];
-    for (const p of uniqueProducts) {
-      const sku = p.sku || String(p.id);
-      if (existingSkus.has(sku)) continue;
-      existingSkus.add(sku);
-      toWrite.push([
-        partner.id,
-        sku,
-        String(p.id),
-        p.name,
-        0,                       // EK-Preis-Netto Default
-        0,                       // Druckkosten Default
-        'P',                     // Versandart Default
-        partner.lizenzProzent,   // Lizenz-% aus Partner
-        today,
-      ]);
-    }
-
-    if (toWrite.length > 0) {
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: sheetId,
-        range: 'Partner_Artikel!A:I',
-        valueInputOption: 'USER_ENTERED',
-        insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: toWrite },
-      });
-    }
-
+    const r = await importiereFuerPartner({ sheets, sheetId, partner, wc: getWcClient(req) });
+    const ohneEk = r.neu.filter(n => n.ekFehlt).length;
     res.json({
-      neu:        toWrite.length,
-      vorhanden:  uniqueProducts.length - toWrite.length,
-      kategorien: allIds.size,
-      message:    toWrite.length
-        ? `${toWrite.length} neue Artikel aus ${allIds.size} Kategorie(n) importiert.`
+      neu:       r.neu.length,
+      vorhanden: r.vorhanden,
+      ...(r.kategorien ? { kategorien: r.kategorien } : {}),
+      ohneEk,
+      message:   r.neu.length
+        ? `${r.neu.length} neue Artikel importiert${r.kategorien ? ` aus ${r.kategorien} Kategorie(n)` : ''}.`
+          + (ohneEk ? ` ${ohneEk} ohne EK (bitte eintragen).` : '') + ' Druckkosten bitte eintragen.'
         : 'Keine neuen Artikel – alle bereits vorhanden.',
     });
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+// ── POST /artikel/abgleich ───────────────────────────────────────────────────
+// Taeglicher Abgleich (sync-partner-daily.yml, VOR sync-all): fehlende
+// Partnerartikel fuer alle aktiven Lizenz-Partner + HonkShop anlegen, danach
+// eine Meldung in den Google-Chat-Space der Partnerbestellungen, wenn es
+// Neues oder Offenes gibt. Nie Festpreis-Partner, nie eine vorhandene Zeile.
+router.post('/artikel/abgleich', async (req, res, next) => {
+  try {
+    const sheetId = requireSheetId(res); if (!sheetId) return;
+    const sheets  = await getSheets();
+    const bericht = await artikelAbgleich({ sheets, sheetId, wcFuer: shop => wcClientForShop(shop) });
+    const text = buildArtikelAbgleichNachricht(bericht);
+    const chat = text ? await notify(text) : false;
+    res.json({ ...bericht, chat });
   } catch (err) { next(err); }
 });
 

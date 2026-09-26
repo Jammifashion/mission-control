@@ -32,6 +32,14 @@ Neue Sektionen immer mit Anker versehen:
 - backend/middleware/auth.js – X-API-Key Auth + Rate Limiting
 - backend/routes/kalkulation.js – Partner CRUD, Druck-/Fixkosten, Abrechnungen
 - backend/routes/partner-artikel.js – Partner_Artikel + Interne Bestellungen (Admin, MC_API_KEY)
+- backend/lib/partnerArtikel.js – einziger Anleger von Zeilen in Partner_Artikel / HK_Partner_Artikel
+  (PA2): Knopf "Aus WC importieren" und `POST /api/partner/artikel/abgleich` (erster Schritt in
+  sync-partner-daily.yml, VOR sync-all). Dubletten ueber Produkt-ID, nie eine vorhandene Zeile
+  aendern, EK/Druck LEER statt 0 (leer = fehlt, 0 = bewusst), kein Lizenz-%, EK aus L-Shop nur
+  bei LShop_ArticleNr je Variante (kleinster 10CartonsPrice ueber Groessen + angebotene Farben),
+  Spalte `EK_Quelle` additiv am Ende. Nur aktive Lizenz-Partner + HonkShop, nie Festpreis.
+  Chat: `buildArtikelAbgleichNachricht` in chatNotify.js, derselbe `notify()`.
+  ⚠️ Der Sync liest leeren EK heute noch als 0 (toFloat) - Teil A nie ohne die Sperre (Teil B) pushen.
 - backend/routes/partnerPortal.js – Token-Auth für partner.html + WC-Sync
 - backend/routes/anfragen.js – Kundenanfragen Admin (POST /neu, GET /, PATCH /:id/status) – hinter requireApiKey
 - backend/routes/anfragen-chat.js – Chat-Widget public endpoint (POST /chat, kein API-Key) – vor requireApiKey
