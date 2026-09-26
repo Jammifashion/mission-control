@@ -59,7 +59,7 @@ jobs:
           echo "HTTP ${http:-?}"
           if jq -e . response.json >/dev/null 2>&1; then
             jq 'if .error then {error: "Sync fehlgeschlagen"}
-                else {partner, neueVerkaeufe: .["neueVerkäufe"], storniert, orders,
+                else {partner, neueVerkaeufe: .["neueVerkäufe"], storniert, orders, gesperrt, entsperrt, nochGesperrt,
                       uebersprungen: ((.uebersprungen // []) | length),
                       fehler: ((.errors // []) | length)} end' response.json
           else
@@ -84,7 +84,7 @@ jobs:
           echo "HTTP ${http:-?}"
           if jq -e . response.json >/dev/null 2>&1; then
             jq 'if .error then {error: "Sync fehlgeschlagen"}
-                else {partner, neueVerkaeufe: .["neueVerkäufe"], storniert, orders,
+                else {partner, neueVerkaeufe: .["neueVerkäufe"], storniert, orders, gesperrt, entsperrt, nochGesperrt,
                       uebersprungen: ((.uebersprungen // []) | length),
                       fehler: ((.errors // []) | length)} end' response.json
           else

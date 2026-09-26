@@ -39,7 +39,15 @@ Neue Sektionen immer mit Anker versehen:
   bei LShop_ArticleNr je Variante (kleinster 10CartonsPrice ueber Groessen + angebotene Farben),
   Spalte `EK_Quelle` additiv am Ende. Nur aktive Lizenz-Partner + HonkShop, nie Festpreis.
   Chat: `buildArtikelAbgleichNachricht` in chatNotify.js, derselbe `notify()`.
-  ⚠️ Der Sync liest leeren EK heute noch als 0 (toFloat) - Teil A nie ohne die Sperre (Teil B) pushen.
+  Sperre (PA2 Teil B, routes/partnerPortal.js): fehlt EK oder Druck (LEER, 0 ist erlaubt), schreibt
+  der Sync die Verkaufszeile mit Status "gesperrt", Spalte "Sperre" (additiv am Ende) = Grund und
+  LEEREN Betraegen. Erster Schritt jedes Sync-Laufs: `entsperren()` rechnet gesperrte Zeilen, deren
+  Eintrag jetzt vollstaendig ist, genau einmal (WC-Bestellung neu gelesen, `verkaufsBetraege` in
+  partner-kalkulation.js = dieselbe Rechnung wie der Sync), Zeile vorher ueber den Inhalt geprueft.
+  Storno einer gesperrten Zeile = ebenfalls gesperrt. Abrechnung waehlt nur "offen" und meldet
+  gesperrte Zeilen im Zeitraum + offene Nachzuegler vor dem Zeitraum (`abrechnungHinweise`,
+  sync-logic.js), kein 409. Partnerportal zeigt gesperrt als "in Prüfung", ohne Betrag/Grund.
+  `scripts/sync-one-order.js`: Trockenlauf Standard, `--write`, `--partner P-00x`.
 - backend/routes/partnerPortal.js – Token-Auth für partner.html + WC-Sync
 - backend/routes/anfragen.js – Kundenanfragen Admin (POST /neu, GET /, PATCH /:id/status) – hinter requireApiKey
 - backend/routes/anfragen-chat.js – Chat-Widget public endpoint (POST /chat, kein API-Key) – vor requireApiKey

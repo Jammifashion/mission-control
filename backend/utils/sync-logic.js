@@ -15,6 +15,50 @@ export const WC_STATES_VERKAUF = ['processing', 'completed', 'on-hold'];
 export const WC_STATES_STORNO  = ['refunded', 'cancelled'];
 export const STORNO_MARKER     = 'Storniert/Rückerstattet';
 
+// ── PA2 Teil B: Sperre ──────────────────────────────────────────────────────
+// Fehlt fuer einen Partner-Eintrag EK oder Druck (LEER; 0 ist erlaubt), wird
+// der Verkauf trotzdem erfasst: Status "gesperrt", Spalte "Sperre" = Grund,
+// Betragsspalten leer. Nichts geht verloren, nichts wird mit 0 gerechnet.
+// Die Abrechnung waehlt nur Status "offen" und laesst gesperrte Zeilen damit aus.
+export const STATUS_GESPERRT = 'gesperrt';
+export const SPALTE_SPERRE   = 'Sperre';
+// Spalten, die eine gesperrte Zeile leer laesst und das Entsperren fuellt.
+export const BETRAG_SPALTEN  = ['Lizenzgebühr', 'Gewinn-netto', 'Lizenz-Anteil', 'Porto-Saldo', 'Anteil-Brutto'];
+
+export const leerWert = v => v === null || v === undefined || String(v).trim() === '';
+
+/** Grund der Sperre fuer einen Artikel-Eintrag { ekLeer, druckLeer }, oder null. */
+export function sperrGrund(e) {
+  if (!e) return null;
+  if (e.ekLeer && e.druckLeer) return 'EK und Druck fehlen';
+  if (e.ekLeer)   return 'EK fehlt';
+  if (e.druckLeer) return 'Druck fehlt';
+  return null;
+}
+
+/**
+ * Hinweise fuer Vorschau und Erstellen einer Abrechnung: gesperrte Zeilen im
+ * Zeitraum (werden nicht abgerechnet) und Nachzuegler (offene Zeilen VOR dem
+ * Zeitraumbeginn, sonst fallen spaet erfasste oder entsperrte Verkaeufe raus).
+ * @param {object} o { header, rows, partnerId, von: Date, bis: Date, parseDate }
+ */
+export function abrechnungHinweise({ header, rows, partnerId, von, bis, parseDate }) {
+  const h = c => header.indexOf(c);
+  const eigene = (rows ?? []).filter(r => r[h('Partner-ID')] === partnerId);
+  const datum = r => parseDate(r[h('Datum')] ?? '');
+  const gesperrt = eigene.filter(r => (r[h('Status')] ?? '') === STATUS_GESPERRT)
+    .filter(r => { const d = datum(r); return d && d >= von && d <= bis; });
+  const nach = eigene.filter(r => (r[h('Status')] ?? '') === 'offen')
+    .filter(r => { const d = datum(r); return d && d < von; });
+  const fruehest = nach.map(r => r[h('Datum')]).sort((a, b) => parseDate(a) - parseDate(b))[0] ?? null;
+  const hinweise = [];
+  if (gesperrt.length)
+    hinweise.push(`${gesperrt.length} Zeile(n) im Zeitraum gesperrt (EK/Druck fehlt), nicht abgerechnet.`);
+  if (nach.length)
+    hinweise.push(`${nach.length} offene Zeile(n) vor dem Zeitraumbeginn (früheste ${fruehest}) – nicht in dieser Abrechnung, Zeitraum früher beginnen lassen.`);
+  return { gesperrtImZeitraum: gesperrt.length, nachzuegler: nach.length, fruehesterNachzuegler: fruehest, hinweise };
+}
+
 /**
  * Liegt eine Bestellung vor dem Vertragsbeginn des Partners (Spalte Vertrag-ab)?
  *
@@ -100,10 +144,13 @@ export function buildStornoRows(vRows, vh, stornoOrders, partnerFilter) {
   const STATUS_COL = pflicht('Status');
   const DATE_COL   = pflicht('Datum');
   const STORNO_COL = pflicht('Storno-Status');
+  // PA2 Teil B: optional. Die Gegenbuchung einer gesperrten Zeile ist ebenfalls
+  // gesperrt, mit demselben Grund und leeren Betraegen (das Entsperren rechnet beide).
+  const SPERRE_COL = vh(SPALTE_SPERRE);
 
   // Breite der Gegenbuchung: so weit, wie die Kopfzeile reicht.
   const BREITE = Math.max(
-    STORNO_COL, STATUS_COL, DATE_COL, ordIdx, artIdx, varIdx, pIdx, ...NEG_COLS,
+    STORNO_COL, STATUS_COL, DATE_COL, ordIdx, artIdx, varIdx, pIdx, SPERRE_COL, ...NEG_COLS,
   ) + 1;
 
   const stornoDone = new Set();
@@ -126,11 +173,12 @@ export function buildStornoRows(vRows, vh, stornoOrders, partnerFilter) {
     const counter = [];
     for (let i = 0; i < BREITE; i++) {
       let v = r[i] ?? '';
-      if (NEG_COLS.includes(i) && v !== '' && v !== null) v = -toFloat(v);
+      // Leer bleibt leer (gesperrte Zeile), 0 bleibt 0 - nie -0.
+      if (NEG_COLS.includes(i) && !leerWert(v)) { const x = toFloat(v); v = x === 0 ? 0 : -x; }
       counter[i] = v;
     }
     counter[DATE_COL]   = refundDate.get(oid) || r[DATE_COL] || toDE(new Date());
-    counter[STATUS_COL] = 'offen';
+    counter[STATUS_COL] = (r[STATUS_COL] ?? '') === STATUS_GESPERRT ? STATUS_GESPERRT : 'offen';
     counter[STORNO_COL] = STORNO_MARKER;
     out.push(counter);
   }

@@ -10,6 +10,7 @@
 import { buildStornoRows, STORNO_MARKER } from '../utils/sync-logic.js';
 
 // Das echte Layout von Partner_Verkäufe (15 Spalten, gegen das Sheet geprueft).
+// PA2 Teil B haengt bei Bedarf die Spalte "Sperre" als 16. an (Test unten).
 const HEADER = [
   'Partner-ID', 'Datum', 'Order-ID', 'Artikelnummer', 'Variante', 'Stückzahl',
   'VK-Preis-Brutto', 'Lizenzgebühr', 'Status', 'Produkt-ID', 'Gewinn-netto',
@@ -128,5 +129,36 @@ describe('fehlende Pflichtspalte', () => {
     const ohneStorno = HEADER.filter(h => h !== 'Storno-Status');
     expect(() => laufen(ohneStorno, [zeile(ohneStorno, { ...VERKAUF, 'Storno-Status': undefined })]))
       .toThrow(/Storno-Status/);
+  });
+});
+
+// ── PA2 Teil B: Spalte "Sperre" (16. Spalte) ────────────────────────────────
+
+describe('Layout mit Spalte "Sperre"', () => {
+  const MIT_SPERRE = [...HEADER, 'Sperre'];
+  const GESPERRT = {
+    ...VERKAUF, 'Lizenzgebühr': '', 'Gewinn-netto': '', 'Lizenz-Anteil': '', 'Porto-Saldo': '', 'Anteil-Brutto': '',
+    'Status': 'gesperrt', 'Sperre': 'Druck fehlt',
+  };
+
+  test('Gegenbuchung einer gesperrten Zeile: gesperrt, gleicher Grund, Betraege leer', () => {
+    const [gegen] = laufen(MIT_SPERRE, [zeile(MIT_SPERRE, GESPERRT)]);
+    expect(feld(MIT_SPERRE, gegen, 'Status')).toBe('gesperrt');
+    expect(feld(MIT_SPERRE, gegen, 'Sperre')).toBe('Druck fehlt');
+    for (const sp of ['Lizenzgebühr', 'Gewinn-netto', 'Lizenz-Anteil', 'Porto-Saldo', 'Anteil-Brutto'])
+      expect(feld(MIT_SPERRE, gegen, sp)).toBe('');
+    expect(feld(MIT_SPERRE, gegen, 'Stückzahl')).toBe(-2);
+    expect(gegen).toHaveLength(MIT_SPERRE.length);
+  });
+
+  test('normale Zeile bleibt offen, leere Sperre bleibt leer', () => {
+    const [gegen] = laufen(MIT_SPERRE, [zeile(MIT_SPERRE, { ...VERKAUF, 'Sperre': '' })]);
+    expect(feld(MIT_SPERRE, gegen, 'Status')).toBe('offen');
+    expect(feld(MIT_SPERRE, gegen, 'Sperre')).toBe('');
+  });
+
+  test('0 bleibt 0, nie -0', () => {
+    const [gegen] = laufen(HEADER, [zeile(HEADER, { ...VERKAUF, 'Porto-Saldo': '0' })]);
+    expect(Object.is(feld(HEADER, gegen, 'Porto-Saldo'), 0)).toBe(true);
   });
 });

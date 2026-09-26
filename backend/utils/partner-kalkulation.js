@@ -383,3 +383,42 @@ export function berechnePartnerAnteil({
     brutto:              partnerAnteilBrutto,
   };
 }
+
+// ── Betraege einer Verkaufszeile (PA2 Teil B) ───────────────────────────────
+//
+// EINE Rechnung fuer den Sync (neue Zeile) und das Entsperren (erste Rechnung
+// einer gesperrten Zeile): dieselben Eingaben aus der WC-Bestellung, damit eine
+// spaet gerechnete Zeile genau so aussieht, als haette der Sync sie gleich
+// gerechnet. toFloat hier mit Komma, wie in sync-logic.js.
+const _num = v => { if (v === null || v === undefined || v === '') return 0; const n = parseFloat(String(v).replace(',', '.')); return Number.isNaN(n) ? 0 : n; };
+
+/**
+ * @param {object} o
+ * @param {object} o.order  WC-Bestellung (line_items, shipping_total)
+ * @param {object} o.item   Position der Bestellung
+ * @param {object} o.eintrag { ekPreis, druckkosten }
+ * @param {'B'|'P'} o.versandart  Versandart der Bestellung
+ * @param {string} o.portoModell
+ * @param {number} o.lizenzProzent
+ * @param {object} o.konfiguration
+ * @returns {{ vkNetto, lizenz, gewinnNetto, lizenzAnteil, portoSaldo, brutto }}
+ */
+export function verkaufsBetraege({ order, item, eintrag, versandart, portoModell, lizenzProzent, konfiguration }) {
+  const shippingNetto = _num(order.shipping_total);
+  const orderNetto    = (order.line_items ?? []).reduce((s, i) => s + _num(i.total), 0);
+  const vkNetto       = _num(item.total);
+  const anteil        = orderNetto > 0 ? vkNetto / orderNetto : 0;
+  const calc = berechnePartnerAnteil({
+    vkNetto, ekPreis: eintrag.ekPreis, druckkosten: eintrag.druckkosten, versandart,
+    portoModell, bestellungsAnteil: anteil, stueckzahl: item.quantity,
+    lizenzProzent, portoEinnahmeAnteil: shippingNetto * anteil, konfiguration,
+  });
+  return {
+    vkNetto,
+    lizenz:       calc.partnerAnteil,
+    gewinnNetto:  calc.gewinnNetto,
+    lizenzAnteil: calc.gewinnNetto * (lizenzProzent || 0) / 100,
+    portoSaldo:   calc.portoSaldoPartner,
+    brutto:       calc.brutto,
+  };
+}

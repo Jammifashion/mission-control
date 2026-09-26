@@ -2,8 +2,10 @@ import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient as wcClientForShop, getShopConfig } from '../lib/shopConfig.js';
-import { berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze, baueVertragsbeginne } from '../utils/partner-kalkulation.js';
-import { toFloat, toDE, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, buildStornoRows, ordersFuerVerkaufszeilen, vorVertragsbeginn } from '../utils/sync-logic.js';
+import { berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze, baueVertragsbeginne, verkaufsBetraege } from '../utils/partner-kalkulation.js';
+import { toFloat, toDE, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, buildStornoRows, ordersFuerVerkaufszeilen, vorVertragsbeginn,
+  STATUS_GESPERRT, SPALTE_SPERRE, leerWert, sperrGrund } from '../utils/sync-logic.js';
+import { sichereSpalte } from '../utils/sheet-spalten.js';
 import { notify, buildPartnerNachricht } from '../lib/chatNotify.js';
 import { requireHeader } from '../utils/sheet-headers.js';
 
@@ -126,6 +128,9 @@ function baueHkArtikelMap(header, rows) {
     map.set(id, {
       ekPreis:     toFloat(r[ekIdx]),
       druckkosten: toFloat(r[druckIdx]),
+      // PA2 Teil B: leer = fehlt (Verkauf wird gesperrt), 0 = bewusst 0.
+      ekLeer:      leerWert(r[ekIdx]),
+      druckLeer:   leerWert(r[druckIdx]),
       versandart:  String(r[vaIdx] ?? 'P').trim().toUpperCase() === 'B' ? 'B' : 'P',
     });
   }
@@ -189,6 +194,108 @@ router.get('/auth', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── PA2 Teil B: gesperrte Verkaufszeilen ────────────────────────────────────
+//
+// Fehlt EK oder Druck (leer), schreibt der Sync die Zeile mit Schluessel und
+// Mengen, Status "gesperrt", Spalte "Sperre" = Grund und LEEREN Betraegen.
+// Zu Beginn jedes Laufs rechnet entsperren() jede gesperrte Zeile, deren
+// Eintrag jetzt EK und Druck hat, zum ersten Mal - mit derselben Rechnung wie
+// der Sync (verkaufsBetraege) aus der neu gelesenen WC-Bestellung. Gerechnete
+// Zeilen fasst das nie an.
+
+const varKeyOf = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
+const artikelNameOf = item => item.name || item.sku || String(item.product_id);
+
+// Zeile im Positionsformat des Syncs, Betraege leer; den Grund traegt
+// sperreFertig() nach, sobald die Spalte sicher existiert.
+function gesperrteZeile({ partnerId, orderDate, order, item, grund }) {
+  const row = [
+    partnerId, orderDate, order.id,
+    artikelNameOf(item), item.variation_id || 0, item.quantity,
+    toFloat(item.total), '', STATUS_GESPERRT,
+    item.product_id, '', '', '', '',
+  ];
+  row._sperre = grund;
+  return row;
+}
+
+// Spalte "Sperre" additiv am Ende anlegen (nur wenn gebraucht) und den Grund
+// in die gesperrten Zeilen eintragen.
+async function sperreFertig(sheets, sheetId, tab, vH, rows) {
+  const gesperrt = rows.filter(r => r._sperre);
+  if (!gesperrt.length) return;
+  const i = await sichereSpalte(sheets, sheetId, tab, vH, SPALTE_SPERRE);
+  const storno = vH.indexOf('Storno-Status');
+  for (const r of gesperrt) {
+    while (r.length <= Math.max(i, storno)) r.push('');
+    r[i] = r._sperre;
+  }
+}
+
+/**
+ * Gesperrte Zeilen erstmals rechnen.
+ * @param {object} o
+ * @param {function(string,string):object|null} o.eintragFuer  (Produkt-ID, Partner-ID) -> Artikel-Eintrag
+ * @param {function(object):'B'|'P'} o.versandartFuer          Bestellung -> Versandart wie im Sync
+ * @returns {Promise<{ entsperrt: number, nochGesperrt: number }>}
+ */
+async function entsperren({ sheets, sheetId, tab, vH, vRows, wc, eintragFuer, versandartFuer, satzFuer, portoFuer, konfiguration, partnerFilter }) {
+  const h = c => vH.indexOf(c);
+  if (h(SPALTE_SPERRE) < 0) return { entsperrt: 0, nochGesperrt: 0 };
+  const schluessel = r => `${r[h('Order-ID')] ?? ''}|${r[h('Artikelnummer')] ?? ''}|${varKeyOf(r[h('Variante')])}|${r[h('Partner-ID')] ?? ''}|${r[h('Storno-Status')] ?? ''}`;
+  const kandidaten = vRows.filter(r => (r[h('Status')] ?? '') === STATUS_GESPERRT
+    && (!partnerFilter || partnerFilter.has(r[h('Partner-ID')])));
+  const bereit = kandidaten.filter(r => {
+    const e = eintragFuer(String(r[h('Produkt-ID')] ?? '').trim(), r[h('Partner-ID')] ?? '');
+    return e && !sperrGrund(e);
+  });
+  if (!bereit.length) return { entsperrt: 0, nochGesperrt: kandidaten.length };
+
+  // Zeile ueber den Inhalt wiederfinden: direkt vor dem Schreiben pruefen, dass
+  // unter der Zeilennummer noch genau diese gesperrte Zeile steht.
+  const ende = colLetter(vH.length - 1);
+  const { data: jetzt } = await sheets.spreadsheets.values.batchGet({
+    spreadsheetId: sheetId, ranges: bereit.map(r => `${tab}!A${r._sheetRow}:${ende}${r._sheetRow}`),
+  });
+  const orders = new Map();
+  const data = [];
+  let n = 0;
+  for (const [k, r] of bereit.entries()) {
+    const aktuell = jetzt.valueRanges?.[k]?.values?.[0] ?? [];
+    if (schluessel(aktuell) !== schluessel(r) || (aktuell[h('Status')] ?? '') !== STATUS_GESPERRT) continue;
+    const oid = String(r[h('Order-ID')] ?? '');
+    if (!orders.has(oid)) {
+      try { orders.set(oid, (await wc.get(`orders/${oid}`)).data); } catch { orders.set(oid, null); }
+    }
+    const order = orders.get(oid);
+    if (!order) continue;
+    const pid = String(r[h('Produkt-ID')] ?? '').trim();
+    const item = (order.line_items ?? []).find(i => String(i.product_id) === pid
+      && varKeyOf(i.variation_id || 0) === varKeyOf(r[h('Variante')]) && artikelNameOf(i) === (r[h('Artikelnummer')] ?? ''));
+    if (!item) continue;
+    const partnerId = r[h('Partner-ID')] ?? '';
+    const b = verkaufsBetraege({
+      order, item, eintrag: eintragFuer(pid, partnerId), versandart: versandartFuer(order),
+      portoModell: portoFuer(partnerId), lizenzProzent: satzFuer(partnerId), konfiguration,
+    });
+    // Gegenbuchung einer gesperrten Zeile: dieselben Betraege negiert.
+    const storno = (r[h('Storno-Status')] ?? '') !== '';
+    const vz = x => (storno ? (x === 0 ? 0 : -x) : x);
+    const werte = {
+      'Lizenzgebühr': vz(b.lizenz), 'Gewinn-netto': vz(b.gewinnNetto), 'Lizenz-Anteil': vz(b.lizenzAnteil),
+      'Porto-Saldo': vz(b.portoSaldo), 'Anteil-Brutto': vz(b.brutto), 'Status': 'offen', [SPALTE_SPERRE]: '',
+    };
+    for (const [spalte, w] of Object.entries(werte)) {
+      data.push({ range: `${tab}!${colLetter(h(spalte))}${r._sheetRow}`, values: [[w]] });
+      r[h(spalte)] = w;
+    }
+    n++;
+  }
+  if (data.length)
+    await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: sheetId, requestBody: { valueInputOption: 'RAW', data } });
+  return { entsperrt: n, nochGesperrt: kandidaten.length - n };
+}
+
 // ── Sync-Kern (wiederverwendbar für /sync und /sync-all) ─────────────────────
 // opts.after          – ISO-Datum (z.B. '2026-05-01T00:00:00') als WC after-Filter
 // opts.partnerFilter  – Set<Partner-ID>, wenn gesetzt: nur diese Partner berücksichtigen
@@ -232,6 +339,18 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     const existingKeys = new Set(
       vRows.map(r => `${r[vh('Order-ID')] ?? ''}|${r[vh('Artikelnummer')] ?? ''}|${varKey(r[vh('Variante')])}|${r[vh('Partner-ID')] ?? ''}`)
     );
+    const wc = getWcClient(shop);
+
+    // PA2 Teil B, erster Schritt: gesperrte Zeilen mit jetzt vollstaendigem Eintrag rechnen.
+    const hkVersandart = order => {
+      const bek = order.line_items.map(i => artikelMap.get(String(i.product_id ?? ''))).filter(Boolean);
+      return bek.length && bek.every(a => a.versandart === 'B') ? 'B' : 'P';
+    };
+    const ent = await entsperren({
+      sheets, sheetId, tab: TAB_VERKAEUFE, vH, vRows, wc,
+      eintragFuer: pid => artikelMap.get(pid) ?? null, versandartFuer: hkVersandart,
+      satzFuer: () => lizenzProzent, portoFuer: () => portoModell, konfiguration, partnerFilter: null,
+    });
 
     let afterParam = after || null;
     if (!afterParam && vRows.length) {
@@ -244,7 +363,6 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
       if (newest) afterParam = newest.toISOString().slice(0, 19);
     }
 
-    const wc = getWcClient(shop);
     const orders = await fetchOrders(wc, WC_STATES_VERKAUF, afterParam);
     // Stornos voll-historisch (ohne after-Filter) – fängt auch ältere Refunds.
     const stornoOrders = await fetchOrders(wc, WC_STATES_STORNO, null);
@@ -252,6 +370,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     const verkaufsOrders = ordersFuerVerkaufszeilen(orders, stornoOrders, afterParam);
 
     const toWrite = [];
+    let gesperrt = 0;
     const uebersprungen = [];
     let vorVertrag = 0; // Positionen vor Vertrag-ab - weder geschrieben noch als uebersprungen gemeldet
     const artikelName = item => item.name || item.sku || String(item.product_id);
@@ -294,6 +413,14 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
         }
         existingKeys.add(key);
 
+        // PA2 Teil B: EK oder Druck leer -> erfassen, aber sperren (nicht mit 0 rechnen).
+        const grund = sperrGrund(artikel);
+        if (grund) {
+          toWrite.push(gesperrteZeile({ partnerId: honkPartnerId, orderDate, order, item, grund }));
+          gesperrt++;
+          continue;
+        }
+
         const calc = berechnePartnerAnteil({
           vkNetto: itemNetto, ekPreis: artikel.ekPreis, druckkosten: artikel.druckkosten,
           versandart: orderVersandart,
@@ -312,12 +439,13 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
 
     // Auch die gerade gebauten Zeilen: sonst bekaeme ein nachgeholter Verkauf
     // seine Gegenbuchung erst im naechsten Lauf.
+    await sperreFertig(sheets, sheetId, TAB_VERKAEUFE, vH, toWrite);
     const stornoRows = buildStornoRows([...vRows, ...toWrite], vh, stornoOrders, null);
     const allRows = [...toWrite, ...stornoRows];
     if (allRows.length > 0) {
       await sheets.spreadsheets.values.append({
         spreadsheetId: sheetId,
-        range: `${TAB_VERKAEUFE}!A:O`,
+        range: `${TAB_VERKAEUFE}!A:${colLetter(Math.max(vH.length - 1, 14))}`,
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
         requestBody: { values: allRows },
@@ -335,6 +463,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
       + (uebersprungen.length ? ` ${uebersprungen.length} übersprungen (Artikel fehlt in ${TAB_HK_ARTIKEL}).` : '');
     return {
       synced: toWrite.length, storniert: stornoRows.length, orders: orders.length, afterParam: afterParam || null,
+      gesperrt, entsperrt: ent.entsperrt, nochGesperrt: ent.nochGesperrt,
       stornoNachgeholt: verkaufsOrders.length - orders.length,
       vorVertragsbeginn: vorVertrag,
       uebersprungen, message,
@@ -354,9 +483,12 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     const ekPreis     = toFloat(r[ah('EK-Preis-Netto')]);
     const druckkosten = toFloat(r[ah('Druckkosten')]);
     const versandart  = ((r[ah('Versandart')] ?? 'P').toString().toUpperCase() === 'B') ? 'B' : 'P';
+    // PA2 Teil B: leer = fehlt (Verkauf wird gesperrt), 0 = bewusst 0.
+    const ekLeer      = leerWert(r[ah('EK-Preis-Netto')]);
+    const druckLeer   = leerWert(r[ah('Druckkosten')]);
     if (!pid || !partnerId) continue;
     if (!partnerArtikelMap[pid]) partnerArtikelMap[pid] = [];
-    partnerArtikelMap[pid].push({ partnerId, ekPreis, druckkosten, versandart });
+    partnerArtikelMap[pid].push({ partnerId, ekPreis, druckkosten, versandart, ekLeer, druckLeer });
   }
 
   if (!Object.keys(partnerArtikelMap).length)
@@ -385,6 +517,25 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     vRows.map(r => `${r[vh('Order-ID')] ?? ''}|${r[vh('Artikelnummer')] ?? ''}|${varKey(r[vh('Variante')])}|${r[vh('Partner-ID')] ?? ''}`)
   );
 
+  const wc = getWcClient(shop);
+
+  // PA2 Teil B, erster Schritt: gesperrte Zeilen mit jetzt vollstaendigem Eintrag rechnen.
+  // Versandart wie in der Schleife unten: P, sobald ein Eintrag der Bestellung P ist.
+  const jfnVersandart = order => {
+    for (const item of order.line_items ?? []) {
+      const entries = (partnerArtikelMap[String(item.product_id || '')] ?? [])
+        .filter(e => !vorVertragsbeginn(order.date_created, vertragsbeginn(e.partnerId)));
+      if (entries.some(e => e.versandart === 'P')) return 'P';
+    }
+    return 'B';
+  };
+  const ent = await entsperren({
+    sheets, sheetId, tab: TAB_VERKAEUFE, vH, vRows, wc,
+    eintragFuer: (pid, partnerId) => (partnerArtikelMap[pid] ?? []).find(e => e.partnerId === partnerId) ?? null,
+    versandartFuer: jfnVersandart, satzFuer: id => lizenzSatz(id),
+    portoFuer: id => partnerInfoMap[id]?.portoModell ?? 'geteilt-50-50', konfiguration, partnerFilter,
+  });
+
   let afterParam = after || null;
   if (!afterParam && vRows.length) {
     const datIdx = vh('Datum');
@@ -397,7 +548,6 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
   }
 
   // 3. WC Bestellungen laden (shop-spezifische Credentials)
-  const wc = getWcClient(shop);
   const orders = await fetchOrders(wc, WC_STATES_VERKAUF, afterParam);
   // Stornos voll-historisch (ohne after-Filter) – fängt auch ältere Refunds.
   const stornoOrders = await fetchOrders(wc, WC_STATES_STORNO, null);
@@ -406,6 +556,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
 
   // 4. Iterieren → Sheet-Zeilen sammeln
   const toWrite = [];
+  let gesperrt = 0;
   let vorVertrag = 0; // Positionen vor Vertrag-ab des jeweiligen Partners
   const artikelName = (item) => item.name || item.sku || String(item.product_id);
 
@@ -440,6 +591,14 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
         const key = `${order.id}|${artKey}|${variationId}|${e.partnerId}`;
         if (existingKeys.has(key)) continue;
         existingKeys.add(key);
+
+        // PA2 Teil B: EK oder Druck leer -> erfassen, aber sperren (nicht mit 0 rechnen).
+        const grund = sperrGrund(e);
+        if (grund) {
+          toWrite.push(gesperrteZeile({ partnerId: e.partnerId, orderDate, order, item, grund }));
+          gesperrt++;
+          continue;
+        }
 
         // Wirft mit Partner-ID, wenn der Satz fehlt. Geschrieben wird erst nach
         // der Schleife, ein Fehler hinterlaesst also keine halben Zeilen.
@@ -477,12 +636,13 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
 
   // Auch die gerade gebauten Zeilen: sonst bekaeme ein nachgeholter Verkauf
   // seine Gegenbuchung erst im naechsten Lauf.
+  await sperreFertig(sheets, sheetId, TAB_VERKAEUFE, vH, toWrite);
   const stornoRows = buildStornoRows([...vRows, ...toWrite], vh, stornoOrders, partnerFilter);
   const allRows = [...toWrite, ...stornoRows];
   if (allRows.length > 0) {
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
-      range: `${TAB_VERKAEUFE}!A:O`,
+      range: `${TAB_VERKAEUFE}!A:${colLetter(Math.max(vH.length - 1, 14))}`,
       valueInputOption: 'RAW',
       insertDataOption: 'INSERT_ROWS',
       requestBody: { values: allRows },
@@ -493,6 +653,9 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     synced:     toWrite.length,
     storniert:  stornoRows.length,
     orders:     orders.length,
+    gesperrt,
+    entsperrt:  ent.entsperrt,
+    nochGesperrt: ent.nochGesperrt,
     stornoNachgeholt: verkaufsOrders.length - orders.length,
     vorVertragsbeginn: vorVertrag,
     afterParam: afterParam || null,
@@ -558,6 +721,9 @@ router.post('/verkaeufe/sync-all', async (req, res, next) => {
       neueVerkäufe,
       storniert:    result?.storniert ?? 0,
       orders:       result?.orders ?? 0,
+      gesperrt:     result?.gesperrt ?? 0,
+      entsperrt:    result?.entsperrt ?? 0,
+      nochGesperrt: result?.nochGesperrt ?? 0,
       afterParam:   result?.afterParam ?? null,
       uebersprungen: result?.uebersprungen ?? [],
       errors,
@@ -589,7 +755,9 @@ router.get('/verkaeufe', async (req, res, next) => {
         artikelname: r[h('Artikelnummer')] ?? '',
         stueckzahl:  parseInt(r[h('Stückzahl')] ?? '1', 10),
         datum:       r[h('Datum')]       ?? '',
-        status:      r[h('Status')]      ?? '',
+        // PA2 Teil B (Inhaber 26.09.): gesperrte Zeilen sichtbar als "in Prüfung",
+        // ohne Betrag und ohne Grund (Spalte "Sperre" bleibt intern).
+        status:      (r[h('Status')] ?? '') === STATUS_GESPERRT ? 'in Prüfung' : (r[h('Status')] ?? ''),
         storno:      r[stornoIdx]        ?? '',
       }))
       .sort((a, b) => parseDE(b.datum) - parseDE(a.datum)));

@@ -8,6 +8,7 @@ import {
 } from '../utils/abrechnung-zeilen.js';
 import { requireHeader, findHeader } from '../utils/sheet-headers.js';
 import { colLetter, sichereSpalte } from '../utils/sheet-spalten.js';
+import { abrechnungHinweise } from '../utils/sync-logic.js';
 import { berechnePartnerAnteil, parseKonfiguration, getKostenSatz, istBekanntePosition, baueLizenzSaetze, lizenzSatzAusZeile, parseVertragAb, baueVertragsbeginne } from '../utils/partner-kalkulation.js';
 
 const router = Router();
@@ -506,6 +507,10 @@ router.post('/abrechnung/vorschau', async (req, res, next) => {
     const vertragsFehler = pruefeVertragsbeginn(partnerTab, partnerId, offeneImZeitraum, row => row[vh('Datum')] ?? '');
     if (vertragsFehler) return res.status(409).json(vertragsFehler);
 
+    // PA2 Teil B: gesperrte Zeilen im Zeitraum werden uebersprungen (Status-Filter
+    // oben) und gemeldet; dazu offene Zeilen vor dem Zeitraumbeginn (Nachzuegler).
+    const hinweis = abrechnungHinweise({ header: verkäufeTab.header, rows: verkäufeTab.rows, partnerId, von: vonDatum, bis: bisDatum, parseDate });
+
     const verkaeufe = offeneImZeitraum
       .map(row => ({
         datum:       row[vh('Datum')]        ?? '',
@@ -553,6 +558,9 @@ router.post('/abrechnung/vorschau', async (req, res, next) => {
       interneSumme: round2(interneSumme),
       saldoNetto,
       saldo:        saldoBrutto,            // Saldo jetzt brutto
+      hinweise:            hinweis.hinweise,
+      gesperrtImZeitraum:  hinweis.gesperrtImZeitraum,
+      nachzuegler:         hinweis.nachzuegler,
     });
   } catch (err) { next(err); }
 });
@@ -629,8 +637,13 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
         return d && d >= vonDatum && d <= bisDatum;
       });
 
+    const hinweis = abrechnungHinweise({ header: verkäufeTab.header, rows: verkäufeTab.rows, partnerId, von: vonDatum, bis: bisDatum, parseDate });
     if (!offene.length)
-      return res.status(404).json({ error: `Keine offenen Verkäufe für Partner "${partnerId}" im Zeitraum.` });
+      return res.status(404).json({
+        error: `Keine offenen Verkäufe für Partner "${partnerId}" im Zeitraum.`
+          + (hinweis.hinweise.length ? ` ${hinweis.hinweise.join(' ')}` : ''),
+        hinweise: hinweis.hinweise,
+      });
 
     // Zeilen vor Vertrag-ab → Fehler, nichts wird angelegt.
     {
@@ -783,6 +796,7 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
       lizenzSumme: round2(lizenzSumme), lizenzBrutto, mwstProzent,
       anzahlInterne: offeneIntern.length, interneSumme: round2(interneSumme),
       saldo, status: 'entwurf',
+      hinweise: hinweis.hinweise, gesperrtImZeitraum: hinweis.gesperrtImZeitraum, nachzuegler: hinweis.nachzuegler,
     });
   } catch (err) { next(err); }
 });

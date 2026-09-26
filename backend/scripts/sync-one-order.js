@@ -1,5 +1,13 @@
 // Sync eines einzelnen WC-Auftrags direkt in Partner_Verkäufe.
-// Verwendung: NODE_TLS_REJECT_UNAUTHORIZED=0 node backend/scripts/sync-one-order.js <ORDER_ID>
+//
+// Verwendung:
+//   node backend/scripts/sync-one-order.js <ORDER_ID> [--partner P-001] [--write]
+//
+// Standard ist ein TROCKENLAUF: zeigt, welche Zeilen entstuenden, schreibt nichts.
+// Erst --write haengt sie an. --partner beschraenkt auf einen Partner (Befund
+// PA3: ohne Filter schrieb das Skript fuer alle Partner der Bestellung).
+// Rechnung wie der Sync (verkaufsBetraege); fehlt EK oder Druck (leer), wird die
+// Zeile wie im Sync "gesperrt" geschrieben (PA2 Teil B). Ausgabe ohne Betraege.
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import dotenv from 'dotenv';
@@ -7,194 +15,121 @@ dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.e
 import { google } from 'googleapis';
 import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
 import { getGoogleAuth } from '../lib/googleAuth.js';
-import { berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze, baueVertragsbeginne } from '../utils/partner-kalkulation.js';
-import { vorVertragsbeginn } from '../utils/sync-logic.js';
+import { parseKonfiguration, baueLizenzSaetze, baueVertragsbeginne, verkaufsBetraege } from '../utils/partner-kalkulation.js';
+import { vorVertragsbeginn, toFloat, toDE, leerWert, sperrGrund, STATUS_GESPERRT, SPALTE_SPERRE } from '../utils/sync-logic.js';
+import { colLetter, sichereSpalte } from '../utils/sheet-spalten.js';
 
 const SHEET_ID = process.env.BUSINESS_SHEET_ID;
-const ORDER_ID = process.argv[2];
-if (!ORDER_ID) { console.error('Verwendung: node sync-one-order.js <ORDER_ID>'); process.exit(1); }
+const args     = process.argv.slice(2);
+const ORDER_ID = args.find(a => /^\d+$/.test(a));
+const WRITE    = args.includes('--write');
+const pi       = args.indexOf('--partner');
+const PARTNER  = pi >= 0 ? args[pi + 1] : null;
+if (!ORDER_ID) { console.error('Verwendung: node sync-one-order.js <ORDER_ID> [--partner P-001] [--write]'); process.exit(1); }
 
-function toFloat(val) {
-  if (!val && val !== 0) return 0;
-  const n = parseFloat(val.toString().replace(',', '.'));
-  return isNaN(n) ? 0 : n;
-}
-function toDE(date) {
-  const d = new Date(date);
-  return `${String(d.getUTCDate()).padStart(2,'0')}.${String(d.getUTCMonth()+1).padStart(2,'0')}.${d.getUTCFullYear()}`;
-}
 async function readTab(sheets, tabName) {
-  const { data } = await sheets.spreadsheets.values.get({
-    spreadsheetId: SHEET_ID, range: `${tabName}!A1:Z`,
-  });
+  const { data } = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: `${tabName}!A1:Z` });
   const [header, ...rows] = data.values ?? [];
   return { header: header ?? [], rows: rows.filter(r => r.some(c => c)) };
 }
 
 async function run() {
   if (!SHEET_ID) { console.error('BUSINESS_SHEET_ID fehlt.'); process.exit(1); }
+  const sheets = google.sheets({ version: 'v4', auth: await getGoogleAuth() });
 
-  const auth   = await getGoogleAuth();
-  const sheets = google.sheets({ version: 'v4', auth });
-
-  // Sheets laden
   const [aTab, kTab, pTab, vTab] = await Promise.all([
-    readTab(sheets, 'Partner_Artikel'),
-    readTab(sheets, 'Kalkulation_Fixkosten'),
-    readTab(sheets, 'Partner'),
-    readTab(sheets, 'Partner_Verkäufe'),
+    readTab(sheets, 'Partner_Artikel'), readTab(sheets, 'Kalkulation_Fixkosten'),
+    readTab(sheets, 'Partner'), readTab(sheets, 'Partner_Verkäufe'),
   ]);
 
-  // Partner_Artikel → Map productId → Einträge.
-  // Lizenz-% aus Partner_Artikel wird nicht gelesen (B16), der Satz kommt aus dem Partner-Reiter.
+  // Partner_Artikel -> Map Produkt-ID -> Eintraege (Lizenz-% kommt aus dem Partner-Reiter, B16).
   const ah = col => aTab.header.indexOf(col);
-  const partnerArtikelMap = {};
-  console.log(`\n━━ Partner_Artikel-Lookup aufgebaut ━━`);
-  console.log(`Header: ${aTab.header.join(' | ')}`);
+  const map = {};
   for (const r of aTab.rows) {
-    const partnerId    = r[ah('Partner-ID')] ?? '';
-    const pid          = (r[ah('Produkt-ID')] ?? '').toString().trim();
-    const ekPreis       = toFloat(r[ah('EK-Preis-Netto')]);
-    const druckkosten   = toFloat(r[ah('Druckkosten')]);
-    const versandart    = ((r[ah('Versandart')] ?? 'P').toString().toUpperCase() === 'B') ? 'B' : 'P';
-    const artikelname   = r[ah('Artikelname')] ?? '';
-    if (!pid || !partnerId) { console.log(`  ⊘ Zeile übersprungen: pid="${pid}" partnerId="${partnerId}"`); continue; }
-    if (!partnerArtikelMap[pid]) partnerArtikelMap[pid] = [];
-    partnerArtikelMap[pid].push({ partnerId, ekPreis, druckkosten, versandart, artikelname });
-    console.log(`  ✓ Produkt-ID ${pid}: Partner ${partnerId}, ${artikelname}, EK ${ekPreis}€, Druck ${druckkosten}€`);
+    const partnerId = r[ah('Partner-ID')] ?? '';
+    const pid = (r[ah('Produkt-ID')] ?? '').toString().trim();
+    if (!pid || !partnerId) continue;
+    (map[pid] ??= []).push({
+      partnerId,
+      ekPreis: toFloat(r[ah('EK-Preis-Netto')]), druckkosten: toFloat(r[ah('Druckkosten')]),
+      ekLeer: leerWert(r[ah('EK-Preis-Netto')]), druckLeer: leerWert(r[ah('Druckkosten')]),
+      versandart: ((r[ah('Versandart')] ?? 'P').toString().toUpperCase() === 'B') ? 'B' : 'P',
+    });
   }
-  console.log(`→ ${Object.keys(partnerArtikelMap).length} unterschiedliche Produkt-IDs registriert\n`);
-
-  // Partner → Porto-Modell + Lizenzsatz
   const ph = col => pTab.header.indexOf(col);
   const lizenzSatz = baueLizenzSaetze(pTab.header, pTab.rows);
   const vertragsbeginn = baueVertragsbeginne(pTab.header, pTab.rows);
-  const partnerInfoMap = {};
-  for (const r of pTab.rows) {
-    const id = r[ph('Partner-ID')] ?? '';
-    if (id) partnerInfoMap[id] = { portoModell: r[ph('Porto-Modell')] ?? 'geteilt-50-50' };
-  }
-
-  // Konfiguration
+  const porto = {};
+  for (const r of pTab.rows) { const id = r[ph('Partner-ID')] ?? ''; if (id) porto[id] = r[ph('Porto-Modell')] ?? 'geteilt-50-50'; }
   const konfiguration = parseKonfiguration(kTab.rows, kTab.header);
 
-  // Duplikat-Set aus vorhandenen Verkäufen
   const vh = col => vTab.header.indexOf(col);
   const varKey = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
-  const existingKeys = new Set(
-    vTab.rows.map(r => `${r[vh('Order-ID')]??''}|${r[vh('Artikelnummer')]??''}|${varKey(r[vh('Variante')])}|${r[vh('Partner-ID')]??''}`)
-  );
+  const existing = new Set(vTab.rows.map(r => `${r[vh('Order-ID')] ?? ''}|${r[vh('Artikelnummer')] ?? ''}|${varKey(r[vh('Variante')])}|${r[vh('Partner-ID')] ?? ''}`));
 
-  // WC-Order direkt laden
   const wc = new WooCommerceRestApi.default({
     url: process.env.WC_URL, consumerKey: process.env.WC_KEY,
     consumerSecret: process.env.WC_SECRET, version: 'wc/v3', queryStringAuth: false,
   });
   const { data: order } = await wc.get(`orders/${ORDER_ID}`);
-  console.log(`\nOrder ${order.id} · Status: ${order.status} · ${order.date_created}`);
+  console.log(`Order ${order.id} · ${order.status} · ${order.date_created} · ${order.line_items.length} Position(en)`
+    + `${PARTNER ? ` · nur ${PARTNER}` : ''} · ${WRITE ? 'SCHREIBEN' : 'Trockenlauf'}`);
 
-  // Sync-Logik (identisch zu runVerkaeufeSync)
+  // Versandart wie im Sync: ueber ALLE Partner der Bestellung (nach Vertrag-ab).
   const artikelName = item => item.name || item.sku || String(item.product_id);
-  const orderDate   = toDE(new Date(order.date_created));
-  const shippingNetto = toFloat(order.shipping_total);
-  const orderNetto    = order.line_items.reduce((s, i) => s + toFloat(i.total), 0);
-
-  console.log(`\n━━ WC-Order-Items vs. Partner_Artikel-Lookup ━━`);
-  let orderVersandart = 'B';
+  const orderDate = toDE(new Date(order.date_created));
+  let versandart = 'B';
   const matching = [];
   for (const item of order.line_items) {
-    const pid = String(item.product_id || '');
-    const alle = partnerArtikelMap[pid];
-    console.log(`\nItem: Produkt-ID ${pid}`);
-    console.log(`  Name: "${item.name}" (SKU: ${item.sku || '–'})`);
-    console.log(`  Quantity: ${item.quantity}, Total netto: ${item.total}€`);
-    if (!alle) {
-      console.log(`  ⚠ NICHT GEFUNDEN in Partner_Artikel`);
-      continue;
-    }
-    // Vertrag-ab je Partner, wie im Sync
-    const entries = alle.filter(e => {
-      const vor = vorVertragsbeginn(order.date_created, vertragsbeginn(e.partnerId));
-      if (vor) console.log(`  ⊘ Partner ${e.partnerId}: Bestellung vor Vertrag-ab – wird nicht geschrieben`);
-      return !vor;
-    });
+    const alle = map[String(item.product_id || '')];
+    if (!alle) continue;
+    const entries = alle.filter(e => !vorVertragsbeginn(order.date_created, vertragsbeginn(e.partnerId)));
     if (!entries.length) continue;
-    console.log(`  ✓ GEFUNDEN: ${entries.length} Eintrag(e)`);
-    for (const e of entries) {
-      console.log(`    - Partner ${e.partnerId}: ${e.artikelname || '(keine Beschreibung)'}, EK ${e.ekPreis}€, Druck ${e.druckkosten}€, Versand ${e.versandart}`);
-    }
     matching.push({ item, entries });
-    if (entries.some(e => e.versandart === 'P')) orderVersandart = 'P';
-  }
-  console.log(`\n→ ${matching.length} passende Artikel gefunden\n`);
-
-  if (!matching.length) {
-    console.log('Keine passenden Partner-Artikel gefunden – nichts zu schreiben.');
-    process.exit(0);
+    if (entries.some(e => e.versandart === 'P')) versandart = 'P';
   }
 
   const toWrite = [];
   for (const { item, entries } of matching) {
-    const itemNetto = toFloat(item.total);
-    const anteil    = orderNetto > 0 ? (itemNetto / orderNetto) : 0;
-    const portoEinnahmeAnteil = shippingNetto * anteil;
-    const artKey    = artikelName(item);
-    const variationId = String(item.variation_id || 0);
-
     for (const e of entries) {
-      const key = `${order.id}|${artKey}|${variationId}|${e.partnerId}`;
-      const isDuplicate = existingKeys.has(key);
-      // Wirft mit Partner-ID, wenn der Satz im Partner-Reiter fehlt.
-      const lizenzProzent = lizenzSatz(e.partnerId);
-
-      const calc = berechnePartnerAnteil({
-        vkNetto: itemNetto, ekPreis: e.ekPreis, druckkosten: e.druckkosten,
-        versandart: orderVersandart,
-        portoModell: partnerInfoMap[e.partnerId]?.portoModell ?? 'geteilt-50-50',
-        bestellungsAnteil: anteil, stueckzahl: item.quantity, lizenzProzent,
-        portoEinnahmeAnteil, konfiguration,
-      });
-
-      console.log(`\n  Artikel:  ${artKey}  (Variation ${variationId})`);
-      console.log(`  Partner:  ${e.partnerId}  |  Lizenz: ${lizenzProzent}% (Partner-Reiter)`);
-      console.log(`  vkNetto:  ${itemNetto.toFixed(2)} €  |  Stück: ${item.quantity}  |  anteil: ${(anteil*100).toFixed(1)}%`);
-      console.log(`  portoEinnahmeAnteil: ${portoEinnahmeAnteil.toFixed(4)} €`);
-      console.log(`  gewinnNetto: ${calc.gewinnNetto} €  |  partnerAnteil (netto): ${calc.netto} €  (brutto: ${calc.brutto} €)`);
-      console.log(`  Duplikat: ${isDuplicate ? '⚠ JA – wird übersprungen' : 'nein'}`);
-
-      if (!isDuplicate) {
-        existingKeys.add(key);
-        // Berechnung Breakdown für Tooltip
-        const lizenzAnteilVomGewinn = calc.gewinnNetto * lizenzProzent / 100;
-
-        toWrite.push([
-          e.partnerId, orderDate, order.id,
-          artKey, item.variation_id || 0, item.quantity,
-          itemNetto, calc.partnerAnteil, 'offen',
-          item.product_id,
-          calc.gewinnNetto,
-          lizenzAnteilVomGewinn,
-          calc.portoSaldoPartner,
-          calc.brutto,
-        ]);
+      if (PARTNER && e.partnerId !== PARTNER) continue;
+      const key = `${order.id}|${artikelName(item)}|${String(item.variation_id || 0)}|${e.partnerId}`;
+      const dup = existing.has(key);
+      const grund = sperrGrund(e);
+      console.log(`  Produkt ${item.product_id} · Variation ${item.variation_id || 0} · ${e.partnerId}`
+        + ` -> ${dup ? 'schon vorhanden, uebersprungen' : grund ? `gesperrt (${grund})` : 'neue Zeile'}`);
+      if (dup) continue;
+      existing.add(key);
+      if (grund) {
+        const row = [e.partnerId, orderDate, order.id, artikelName(item), item.variation_id || 0, item.quantity,
+          toFloat(item.total), '', STATUS_GESPERRT, item.product_id, '', '', '', ''];
+        row._sperre = grund;
+        toWrite.push(row);
+        continue;
       }
+      const b = verkaufsBetraege({ order, item, eintrag: e, versandart, portoModell: porto[e.partnerId] ?? 'geteilt-50-50',
+        lizenzProzent: lizenzSatz(e.partnerId), konfiguration });
+      toWrite.push([e.partnerId, orderDate, order.id, artikelName(item), item.variation_id || 0, item.quantity,
+        b.vkNetto, b.lizenz, 'offen', item.product_id, b.gewinnNetto, b.lizenzAnteil, b.portoSaldo, b.brutto]);
     }
   }
 
-  if (!toWrite.length) {
-    console.log('\nAlle Einträge bereits vorhanden – Sheet unverändert.');
-    process.exit(0);
-  }
+  console.log(`-> ${toWrite.length} Zeile(n)${WRITE ? '' : ' wuerden entstehen (Trockenlauf, nichts geschrieben)'}.`);
+  if (!WRITE || !toWrite.length) return;
 
-  console.log(`\n→ Schreibe ${toWrite.length} Zeile(n) in Partner_Verkäufe …`);
+  const header = [...vTab.header];
+  if (toWrite.some(r => r._sperre)) {
+    const i = await sichereSpalte(sheets, SHEET_ID, 'Partner_Verkäufe', header, SPALTE_SPERRE);
+    for (const r of toWrite.filter(x => x._sperre)) { while (r.length <= i) r.push(''); r[i] = r._sperre; }
+  }
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: 'Partner_Verkäufe!A:N',
+    range: `Partner_Verkäufe!A:${colLetter(Math.max(header.length - 1, 14))}`,
     valueInputOption: 'RAW',
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values: toWrite },
   });
-  console.log('✓ Fertig.\n');
+  console.log('Geschrieben.');
 }
 
-run().catch(e => { console.error(e); process.exit(1); });
+run().catch(e => { console.error(e.message ?? e); process.exit(1); });

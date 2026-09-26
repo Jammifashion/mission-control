@@ -9537,6 +9537,7 @@
         const bd = document.createElement('div'); bd.className = 'modal-backdrop';
         bd.innerHTML = `<div class="modal-box" style="max-width:880px;width:96%;max-height:90vh;overflow-y:auto;">
           <div class="modal-title">Vorschau – ${partnerName} (${data.zeitraumVon} – ${data.zeitraumBis})</div>
+          ${(data.hinweise || []).length ? `<div style="margin-top:0.8rem;padding:0.6rem 0.8rem;border:1px solid var(--warning, orange);border-radius:6px;font-size:0.82rem;color:var(--warning, orange);">${data.hinweise.map(h => `<div>⚠ ${h}</div>`).join('')}</div>` : ''}
           <div style="margin-top:1rem;">
             <h3 style="font-size:0.92rem;margin:0 0 0.4rem;">Shop-Verkäufe (Lizenz-Einnahmen)</h3>
             <div style="overflow-x:auto;border:1px solid var(--border);border-radius:6px;">
@@ -9613,6 +9614,7 @@
             bd.remove();
             const internInfo = result.anzahlInterne ? ` − ${result.anzahlInterne} Intern` : '';
             window.showToast(`Abrechnung ${result.abrechnungId} erstellt: ${result.anzahlVerkäufe} Verkäufe${internInfo} → Saldo ${fmt(result.saldo)}`);
+            for (const h of result.hinweise || []) window.showToast(h, 'warn', 12000);
             loadAbrechnungenTable();
           } catch (e) {
             window.showToast(`Fehler: ${e.message}`, 'toast-error');
