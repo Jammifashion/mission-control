@@ -1,7 +1,7 @@
 // Befehl M4: Generator-Eingaben aus der SSOT.
 //
 //  - Leser (lib/seo-ssot.js) gegen Platzhalter-Reiter im Reiterformat:
-//    Motive, Struktur_Kategorien, SEO_Karte (dazu SKU_LShop fuer die Marke).
+//    Motive, Struktur_Kategorien, SEO_Karte (dazu LShop_Modelle fuer die Marke).
 //  - Hinweis-Vorlage aus zwei Kategorien, Keyphrase-Kollision und Teilstring.
 //  - GET /api/seo/generator-eingaben: nie Nur_intern.
 //  - seo_description: Motiv-Felder im Prompt, Nur_intern NIE im Prompttext,
@@ -38,9 +38,11 @@ const TABS = {
     ['Artikel', 'Crocodiles Hamburg Wintermütze', 'Crocodiles Hamburg > Accessoires', '', 'crocodiles hamburg wintermütze',
       '', '', '', '', '15110', '', '', '', 'Crocodiles Hamburg Wintermütze', '', '', '', 'geschrieben', '', ''],
   ],
-  SKU_LShop: [
+  LShop_Modelle: [
     ['ArticleNr', 'CatalogNr', 'color1', 'color2', 'Size', 'Brand', 'Consistence', 'Grammage', 'CatNrManufacturer'],
     ['1000412880', 'CB166R', 'Black', 'Kelly Green', 'One Size', 'Beechfield', '100% Polyester', '', 'B166R'],
+    // LS2: CatNrManufacturer mit fuehrender Null (LShop_Modelle schreibt Text).
+    ['1000311706', 'L03581', 'White', '', '3XL', 'SOL´S', '100% Baumwolle', '150 g/m²', '03581'],
   ],
 };
 
@@ -223,6 +225,17 @@ describe('seo_description', () => {
       'Das Motiv ist gedruckt, der Text spricht von Stick/bestickt in Produktbeschreibung.',
     ]);
     expect(generateContent).toHaveBeenCalledTimes(1);          // kein zweiter Modelllauf dafuer
+  });
+
+  test('LS2: Herstellernummer mit fuehrender Null (03581) wird erkannt', async () => {
+    const { pruefeTextMitSsot } = await import('../lib/seo-pruefung.js');
+    const h = await pruefeTextMitSsot({
+      lshopNr: 'L03581',
+      kurzbeschreibung: 'Shirt von SOL´S',
+      produktbeschreibung: '<h2>Shirt</h2><p>Basis ist das Modell 03581.</p>',
+    });
+    expect(h).toContain('Modellnummer "03581" in Produktbeschreibung.');
+    expect(h).toContain('Marke des Rohlings "SOL´S" in Kurzbeschreibung.');
   });
 
   test('ohne artikelkurz/lshopNr: kein SSOT-Lesen, feste Regeln gelten trotzdem', async () => {

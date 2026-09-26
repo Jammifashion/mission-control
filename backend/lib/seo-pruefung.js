@@ -14,7 +14,7 @@
 //  1. Nur_intern des Motivs (Wendung, dazu jedes eigene Wort ab 4 Zeichen, das
 //     nicht im Produktnamen/der Keyphrase steht - "Carbon Cap" meldet "Carbon",
 //     nicht "Cap").
-//  2. Marke und Modellnummern des Rohlings (SKU_LShop: Brand, CatalogNr,
+//  2. Marke und Modellnummern des Rohlings (LShop_Modelle: Brand, CatalogNr,
 //     CatNrManufacturer).
 //  3. Feste Liste VERBOTENE_BEGRIFFE.
 //  4. Zeitangabe mit Zahl (Werktage, Tage, Wochen mit Ziffer davor).
@@ -78,7 +78,7 @@ const woerter = s => String(s ?? '').toLowerCase().split(/[^a-zäöüß0-9]+/i).
  * @param {string}   [e.produktname]
  * @param {string}   [e.keyphrase]
  * @param {string}   [e.nurIntern]      Motive.Nur_intern (nie im Prompt)
- * @param {string[]} [e.marken]         SKU_LShop.Brand
+ * @param {string[]} [e.marken]         LShop_Modelle.Brand
  * @param {string[]} [e.modellnummern]  CatalogNr + CatNrManufacturer
  * @param {boolean}  [e.druck]          Motiv beschreibt einen Druck
  * @returns {string[]} Hinweise, leer wenn alles in Ordnung.
@@ -169,7 +169,7 @@ export async function sperrKontext({ artikelkurz, lshopNr, motivZeile, produktna
   let rohling = null;
   if (String(lshopNr ?? '').trim()) {
     try { rohling = await lshopFuerArtikel(lshopNr); }
-    catch (err) { if (err.status !== 404) hinweise.push(`SKU_LShop nicht lesbar (${err.message}).`); }
+    catch (err) { if (err.status !== 404) hinweise.push(`LShop_Modelle nicht lesbar (${err.message}).`); }
   }
   return {
     kontext: {
@@ -203,7 +203,7 @@ export async function pruefeTextMitSsot({ artikelkurz, lshopNr, motivZeile, ...e
   let rohling = null;
   if (String(lshopNr ?? '').trim()) {
     try { rohling = await lshopFuerArtikel(lshopNr); }
-    catch (err) { if (err.status !== 404) hinweise.push(`SKU_LShop nicht lesbar (${err.message}) – Marke nicht geprüft.`); }
+    catch (err) { if (err.status !== 404) hinweise.push(`LShop_Modelle nicht lesbar (${err.message}) – Marke nicht geprüft.`); }
   }
   return [
     ...hinweise,

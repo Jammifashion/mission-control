@@ -8,7 +8,7 @@
 // "1000412880"). Zeilen werden ueber den Index zusammengefuehrt - alle Spalten
 // stammen aus demselben Abruf. Ganz leere Zeilen fallen weg.
 //
-// Benutzt von lib/lshop.js (SKU_LShop) und lib/seo-ssot.js (Motive,
+// Benutzt von lib/lshop.js (LShop_Modelle) und lib/seo-ssot.js (Motive,
 // Struktur_Kategorien, SEO_Karte).
 
 import { google } from 'googleapis';

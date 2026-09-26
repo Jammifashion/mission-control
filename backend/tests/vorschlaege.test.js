@@ -29,7 +29,7 @@ const TABS = {
   ],
   Motive: [['Artikelkurzbezeichnung', 'Motiv'], ['CH-Matchday', 'Vereinslogo']],
   // M8b: Katalog fuer modellAusSku (nur die Pflichtspalten von lib/lshop.js).
-  SKU_LShop: [
+  LShop_Modelle: [
     ['ArticleNr', 'CatalogNr', 'color1', 'color2', 'Size', 'Consistence', 'Grammage'],
     ['1000030393', 'BG42', 'Black', '', '38 x 14 x 8 cm', '100% Polyester', ''],
     ['9000000001', 'E3000', 'Black', '', 'M', '100% Baumwolle', ''],
@@ -216,7 +216,7 @@ describe('GET /api/sheets/vorschlaege', () => {
     expect(res.body.kurz).toMatchObject({ wert: 'CH-Matchday2', praefix: 'CH-', hauptkategorie: 'Crocodiles Hamburg' });
     expect(res.body.versand.klasse).toBe('paket');
   });
-  test('M8b: BG42 ueber den Katalog aus SKU_LShop -> grossbrief', async () => {
+  test('M8b: BG42 ueber den Katalog aus LShop_Modelle -> grossbrief', async () => {
     const res = await request(app).get('/api/sheets/vorschlaege').query({ lshopNr: 'BG42' });
     expect(res.body.versand).toMatchObject({ klasse: 'grossbrief', verteilung: { grossbrief: 2 } });
   });

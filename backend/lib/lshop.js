@@ -1,4 +1,12 @@
-// L-Shop-Stammdaten aus dem Reiter "SKU_LShop" (SSOT-Sheet) - nur lesen.
+// L-Shop-Stammdaten aus dem Reiter "LShop_Modelle" (SSOT-Sheet) - nur lesen.
+//
+// Befehl LS2: Quelle ist LShop_Modelle, geschrieben von lib/lshopStammdaten.js
+// aus der L-Shop-Stammdatei (vorher der von Hand gepflegte Reiter SKU_LShop,
+// der als Altbestand stehen bleibt und nicht mehr gelesen wird). Gleiche
+// Spaltennamen wie die CSV, dazu Status: "ausgelaufen" = Nummer steht nicht
+// mehr in der Datei. Solche Zeilen behandelt lshopAuswertung wie Discontinued
+// 3/6 (nicht waehlbar, in `gesperrt`); Marke/Modellnummern (Pruefung) und der
+// EK (partnerArtikel.js) lesen sie weiter.
 //
 // Befehl M1: Faserangabe und Grammatur kommen fuer einen neuen Artikel aus den
 // Stammdaten der gewaehlten Farben, nicht mehr aus dem Eigenschaften-Freitext.
@@ -40,8 +48,11 @@ import { leseReiterSpalten } from './ssot-reiter.js';
 import { filterMaterialFarbenMitMeldung, klammerGruppen, MATERIAL_PLACEHOLDER } from './seo-prompt.js';
 import { sortiereGroessen } from './groessen.js';
 
-export const TAB_LSHOP = 'SKU_LShop';
+export const TAB_LSHOP = 'LShop_Modelle';
 export const CACHE_MS  = 5 * 60 * 1000;
+// Status-Werte des Reiters (Schreiber: lib/lshopStammdaten.js).
+export const STATUS_AKTIV       = 'aktiv';
+export const STATUS_AUSGELAUFEN = 'ausgelaufen';
 
 // Feld -> Spaltenname im Reiter. Alle Pflicht: fehlt eine, wirft das Lesen.
 const SPALTEN = {
@@ -60,6 +71,8 @@ const SPALTEN_OPTIONAL = {
   herstellerNr: 'CatNrManufacturer',
   // M8b: fehlt die Spalte, gilt jede Zeile als normal (0).
   discontinued: 'Discontinued',
+  // LS2: fehlt die Spalte oder ist sie leer, gilt die Zeile als aktiv.
+  status: 'Status',
 };
 
 // Discontinued-Werte, die eine Variante sperren.
@@ -171,10 +184,20 @@ export function lshopAuswertung(zeilen, { farben } = {}) {
   const liste = Array.isArray(zeilen) ? zeilen : [];
   const hinweise = [];
 
-  const mitFarbe = liste.map(z => ({ ...z, farbe: farbwert(z.color1, z.color2), disc: discontinuedWert(z.discontinued) }));
   // M8b: gesperrte Zeilen (Discontinued 3/6) sind fuer die Auswahl nicht da.
-  const waehlbar = mitFarbe.filter(z => !DISCONTINUED_GESPERRT.has(z.disc));
-  const gesperrtZeilen = mitFarbe.filter(z => DISCONTINUED_GESPERRT.has(z.disc));
+  // LS2: ebenso Status "ausgelaufen" (nicht mehr in der Stammdatei); `sperre`
+  // ist dann "ausgelaufen", sonst der Discontinued-Wert.
+  const mitFarbe = liste.map(z => {
+    const disc = discontinuedWert(z.discontinued);
+    const aus  = vergleich(z.status) === STATUS_AUSGELAUFEN;
+    return { ...z, farbe: farbwert(z.color1, z.color2), disc, gesperrt: aus || DISCONTINUED_GESPERRT.has(disc), sperre: aus ? STATUS_AUSGELAUFEN : disc };
+  });
+  // Wortlaut fuer Discontinued unveraendert seit M8b; "ausgelaufen" eigener Text.
+  const sperrText = (z, { satz = false } = {}) => (z.sperre === STATUS_AUSGELAUFEN
+    ? `${satz ? 'steht ' : ''}nicht mehr in der L-Shop-Stammdatei (ausgelaufen)`
+    : `${satz ? 'ist ' : ''}im L-Shop gesperrt (Discontinued ${z.sperre})`);
+  const waehlbar = mitFarbe.filter(z => !z.gesperrt);
+  const gesperrtZeilen = mitFarbe.filter(z => z.gesperrt);
   const alleFarben = [...new Set(waehlbar.map(z => z.farbe).filter(Boolean))];
 
   const gewuenscht = (Array.isArray(farben) ? farben : []).map(t).filter(Boolean);
@@ -184,7 +207,7 @@ export function lshopAuswertung(zeilen, { farben } = {}) {
     for (const f of gewuenscht) {
       const treffer = alleFarben.find(a => vergleich(a) === vergleich(f));
       const gesperrt = !treffer && gesperrtZeilen.find(z => vergleich(z.farbe) === vergleich(f));
-      if (gesperrt) hinweise.push(`Farbe "${gesperrt.farbe}" ist im L-Shop gesperrt (Discontinued ${gesperrt.disc}) – nicht wählbar.`);
+      if (gesperrt) hinweise.push(`Farbe "${gesperrt.farbe}" ${sperrText(gesperrt, { satz: true })} – nicht wählbar.`);
       else if (!treffer) hinweise.push(`Farbe "${f}" gibt es im L-Shop für diese Nummer nicht.`);
       else if (!gewaehlt.includes(treffer)) gewaehlt.push(treffer);
     }
@@ -195,7 +218,7 @@ export function lshopAuswertung(zeilen, { farben } = {}) {
   // Einzelne gesperrte Groessen einer gewaehlten Farbe: Hinweis, Variante fehlt.
   for (const z of gesperrtZeilen) {
     if (gewaehlt.includes(z.farbe))
-      hinweise.push(`${z.farbe} / ${t(z.size)}: im L-Shop gesperrt (Discontinued ${z.disc}) – nicht wählbar.`);
+      hinweise.push(`${z.farbe} / ${t(z.size)}: ${sperrText(z)} – nicht wählbar.`);
   }
 
   const auswahl = waehlbar.filter(z => gewaehlt.includes(z.farbe));
@@ -252,7 +275,7 @@ export function lshopAuswertung(zeilen, { farben } = {}) {
     grammatur,
     hinweise,
     // M8b: ganzes Modell, fuer die Markierung in der Maske.
-    gesperrt:   gesperrtZeilen.map(z => ({ farbe: z.farbe, groesse: t(z.size), articleNr: t(z.articleNr), wert: z.disc })),
+    gesperrt:   gesperrtZeilen.map(z => ({ farbe: z.farbe, groesse: t(z.size), articleNr: t(z.articleNr), wert: z.sperre })),
     auslaufend: waehlbar.filter(z => z.disc !== 0).map(z => ({ farbe: z.farbe, groesse: t(z.size), wert: z.disc })),
   };
 }

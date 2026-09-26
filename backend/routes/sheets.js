@@ -258,7 +258,7 @@ router.get('/attribute', async (req, res, next) => {
 
 // ── GET /api/sheets/lshop/:catalogNr?farben=Black/Red&farben=Black/White ────
 // Befehl M1: Farben, Groessen, ArticleNr je Variante, Faser, Grammatur und
-// Hinweise aus dem Reiter SKU_LShop. Logik in lib/lshop.js. Farben als
+// Hinweise aus dem Reiter LShop_Modelle. Logik in lib/lshop.js. Farben als
 // wiederholter Parameter oder kommagetrennt; ohne Farben = alle.
 router.get('/lshop/:catalogNr', async (req, res, next) => {
   try {

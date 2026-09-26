@@ -11,13 +11,13 @@ import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-// Platzhalter-Reiter fuer die Route (Motive + SKU_LShop).
+// Platzhalter-Reiter fuer die Route (Motive + LShop_Modelle).
 const TABS = {
   Motive: [
     ['Artikelkurzbezeichnung', 'Motiv', 'Druckposition', 'Druckfarben', 'Serie_Kontext', 'Nur_intern'],
     ['CH-Matchday', 'Vereinslogo', 'Front Mitte', 'mehrfarbig', 'Kollektion 26/27', 'Carbon Cap'],
   ],
-  SKU_LShop: [
+  LShop_Modelle: [
     ['ArticleNr', 'CatalogNr', 'color1', 'color2', 'Size', 'Brand', 'Consistence', 'Grammage', 'CatNrManufacturer'],
     ['1000412880', 'CB166R', 'Black', 'Kelly Green', 'One Size', 'Beechfield', '100% Polyester', '', 'B166R'],
   ],

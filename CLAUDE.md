@@ -104,7 +104,7 @@ Neue Sektionen immer mit Anker versehen:
   erst angelegt, wenn ein Payload sie mitbringt. Mehrere Varianten duerfen dieselbe Nummer tragen.
   `scripts/migrate-varianten.js` ist historisch index-basiert – nicht wiederverwenden.
 
-- backend/lib/lshop.js – Reiter `SKU_LShop` lesen (nur lesen, header-basiert ueber die ganze
+- backend/lib/lshop.js – Reiter `LShop_Modelle` lesen (seit LS2; `SKU_LShop` ist Altbestand, wird nicht mehr gelesen; nur lesen, header-basiert ueber die ganze
   Breite per batchGet, nicht readRange A1:Z1000; ArticleNr als String; 5 min Cache).
   `GET /api/sheets/lshop/:catalogNr?farben=…` liefert Farben ("color1/color2", englisch wie
   L-Shop), Groessen, ArticleNr je Variante, Faser, Grammatur, Hinweise. Faser/Grammatur laufen
@@ -143,7 +143,9 @@ Neue Sektionen immer mit Anker versehen:
   `POST /api/lshop/stammdaten` (routes/lshop.js) `{ modus: "trockenlauf" | "uebernehmen", datei }`:
   Trockenlauf schreibt nie; Uebernehmen verweigert (409), wenn `datei` nicht mehr die neueste ist.
   Chat: `buildLShopStammdatenNachricht` (chatNotify.js). Log/Antwort: nur Zaehler und CatalogNr,
-  nie Preise. Die Leser (lshop.js TAB_LSHOP, partnerArtikel.js) lesen noch SKU_LShop (Umstellung LS2).
+  nie Preise. Leser (seit LS2): lshop.js (TAB_LSHOP, dort auch STATUS_*), partnerArtikel.js. Status "ausgelaufen" = in
+  lshopAuswertung wie Discontinued 3/6 (nicht waehlbar, `gesperrt` mit wert "ausgelaufen"); Marke,
+  Modellnummern und EK lesen ausgelaufene Zeilen weiter. Nachtraege von Hand: Reiter `Modelle_Zusatz`.
 - backend/lib/ssot-reiter.js – gemeinsamer Leser fuer SSOT-Reiter: Kopfzeile, dann nur die
   benoetigten Spalten per batchGet (ganze Hoehe/Breite, FORMATTED_VALUE), Pflicht- und optionale
   Spalten ueber den Namen. Nutzer: lshop.js, seo-ssot.js.
@@ -162,7 +164,7 @@ Neue Sektionen immer mit Anker versehen:
   Frontend-Spiegel der Toasts: Block `SEO-Karte: Anfang/Ende`.
 - backend/lib/seo-pruefung.js – deterministische Pruefung nach der Generierung
   (`pruefeGeneratorText`, Antwortfeld `pruefhinweise`, kein zweiter Modelllauf): Nur_intern,
-  Marke/Modellnummern des Rohlings (SKU_LShop Brand, CatalogNr, CatNrManufacturer), feste Liste
+  Marke/Modellnummern des Rohlings (LShop_Modelle Brand, CatalogNr, CatNrManufacturer - mit fuehrender Null, z. B. 03581), feste Liste
   `VERBOTENE_BEGRIFFE` (nur im Code, nie im Prompt), Zeitangabe mit Zahl (Ziffer oder Zahlwort,
   auch Spanne; M4b) und jedes "Lieferzeit"/"Lieferung erfolgt"/"geliefert in", <h1>, Stick bei Druck.
   `pruefeTextMitSsot` = eine Stelle mit SSOT-Daten: nach der Generierung und nach dem Speichern im
@@ -177,7 +179,7 @@ Neue Sektionen immer mit Anker versehen:
   "CH-Matchday"), CamelCase, sku.js-Regeln, eindeutig gegen
   Erfassungsmaske und Motive (sonst Ziffer). Versandklasse = Mehrheit der veroeffentlichten
   Artikel mit derselben L-Shop-Nummer, sonst "paket". Modell der SKU: "SKU vor '/'" ODER
-  `modellAusSku` (Token bis / _ - Leerzeichen, KING/Queen davor weg, nur CatalogNr aus SKU_LShop).
+  `modellAusSku` (Token bis / _ - Leerzeichen, KING/Queen davor weg, nur CatalogNr aus LShop_Modelle).
   `GET /api/sheets/vorschlaege`.
   Vorschlaege setzen ein Feld nur, wenn es leer ist oder noch den letzten Vorschlag traegt.
 - backend/lib/schlagwoerter.js – Schlagwoerter (product_tag) fuer den SEO-Generator (M8):

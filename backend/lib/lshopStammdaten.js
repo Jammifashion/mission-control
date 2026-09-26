@@ -28,8 +28,8 @@
 //  - Partner_Artikel und Verkaufszeilen werden nie beruehrt: EK wirkt nie
 //    rueckwirkend.
 //
-// Die Leser (lshop.js TAB_LSHOP, partnerArtikel.js) lesen noch SKU_LShop; die
-// Umstellung ist LS2.
+// Leser: lib/lshop.js (TAB_LSHOP = dieser Reiter, seit LS2) und partnerArtikel.js.
+// Reitername und Status-Werte stehen in lshop.js (eine Quelle).
 //
 // Datenschutz/Geheimhaltung: nichts aus der Datei geht ins Log oder in die
 // Antwort ausser Zaehlern, CatalogNr und (bei der Stichprobe) ArticleNr.
@@ -40,8 +40,11 @@ import { getGoogleAuth } from './googleAuth.js';
 import { getWcClient } from './shopConfig.js';
 import { leseReiterSpalten } from './ssot-reiter.js';
 import { colLetter } from '../utils/sheet-spalten.js';
+import { TAB_LSHOP, STATUS_AKTIV, STATUS_AUSGELAUFEN } from './lshop.js';
 
-export const TAB_ZIEL   = 'LShop_Modelle';
+export { STATUS_AKTIV, STATUS_AUSGELAUFEN };
+
+export const TAB_ZIEL   = TAB_LSHOP;
 export const TAB_ZUSATZ = 'Modelle_Zusatz';
 
 export const CSV_SPALTEN = [
@@ -55,8 +58,6 @@ export const TEXT_SPALTEN = ['ArticleNr', 'EAN', 'CatNrManufacturer'];
 export const PREIS_SPALTE = '10CartonsPrice';
 const ZAHL_SPALTEN = ['Discontinued', 'QtyCarton'];
 
-export const STATUS_AKTIV       = 'aktiv';
-export const STATUS_AUSGELAUFEN = 'ausgelaufen';
 
 export const DATEI_RE = /^DE_Standard_DE_EUR_(\d{2})\.(\d{2})\.(\d{4})\.csv$/;
 const SCHREIB_BLOCK = 5000;

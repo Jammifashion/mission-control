@@ -106,11 +106,12 @@ function basis() {
       ['JFN-2026-0132', '2', 'TRUE', '1000030398'],
       ['JFN-2026-0132', '3', 'TRUE', '1000030402'],
     ],
-    SKU_LShop: [
-      ['ArticleNr', 'CatalogNr', 'color1', 'color2', 'Size', '10CartonsPrice'],
-      ['1000030393', 'BG42', 'Black', '', 'One', '2,10'],
-      ['1000030398', 'BG42', 'Fuchsia', '', 'One', '2,40'],
-      ['1000030402', 'BG42', 'White', '', 'One', '2,10'],
+    LShop_Modelle: [
+      ['ArticleNr', 'CatalogNr', 'color1', 'color2', 'Size', '10CartonsPrice', 'Status'],
+      ['1000030393', 'BG42', 'Black', '', 'One', '2,10', 'aktiv'],
+      // LS2: ausgelaufen zaehlt fuer den EK einer vorhandenen Variante weiter.
+      ['1000030398', 'BG42', 'Fuchsia', '', 'One', '2,40', 'ausgelaufen'],
+      ['1000030402', 'BG42', 'White', '', 'One', '2,10', 'aktiv'],
     ],
   };
 }
@@ -157,8 +158,12 @@ describe('ekAusLShop (V1)', () => {
   test('fehlende LShop_ArticleNr oder unbekannte Nummer -> kein EK, Grund', () => {
     expect(pa.ekAusLShop([], L).ek).toBeNull();
     expect(pa.ekAusLShop(['1', ''], L)).toMatchObject({ ek: null, grund: 'nicht jede Variante hat eine LShop_ArticleNr' });
-    expect(pa.ekAusLShop(['9'], L)).toMatchObject({ ek: null, grund: 'ArticleNr 9 steht nicht in SKU_LShop' });
+    expect(pa.ekAusLShop(['9'], L)).toMatchObject({ ek: null, grund: 'ArticleNr 9 steht nicht in LShop_Modelle' });
     expect(pa.ekAusLShop(['1'], [{ ...L[0], preis: '' }])).toMatchObject({ ek: null });
+  });
+  test('LS2: Status ausgelaufen spielt fuer den EK keine Rolle', () => {
+    const aus = L.map(z => ({ ...z, status: 'ausgelaufen' }));
+    expect(pa.ekAusLShop(['1', '4'], aus)).toEqual(pa.ekAusLShop(['1', '4'], L));
   });
   test('preisZahl: deutsches Format', () => {
     expect(pa.preisZahl('3,45')).toBe(3.45);

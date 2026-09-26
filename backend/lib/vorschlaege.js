@@ -20,9 +20,9 @@
 //    Gleichstand: "paket", falls darunter, sonst alphabetisch erste.
 //    Modell der SKU (M8b, modellAusSku): fuehrender Token bis zum ersten "/",
 //    "_", "-" oder Leerzeichen, Altpraefix "KING"/"Queen" davor uebersprungen;
-//    zaehlt nur, wenn der Token eine CatalogNr in SKU_LShop ist ("BG42_Delfin",
+//    zaehlt nur, wenn der Token eine CatalogNr in LShop_Modelle ist ("BG42_Delfin",
 //    "BG42 Deutsches ECK", "BG42-SCALA"). Die alte Regel "SKU vor '/'" gilt
-//    daneben weiter, damit Modelle, die noch nicht in SKU_LShop stehen, nicht
+//    daneben weiter, damit Modelle, die noch nicht in LShop_Modelle stehen, nicht
 //    verloren gehen (JC092, JH030 ...).
 //
 // Nur Vorschlaege: die Maske ueberschreibt nie Getipptes.
@@ -181,7 +181,7 @@ const ALTPRAEFIX_RE = /^(king|queen)[\s/_-]+/i;
  * Leerzeichen, "KING "/"Queen " davor uebersprungen. Nur ein Token, der als
  * CatalogNr im Katalog steht, zaehlt.
  * @param {string} sku
- * @param {Iterable<string>} katalog CatalogNr aus SKU_LShop
+ * @param {Iterable<string>} katalog CatalogNr aus LShop_Modelle
  * @returns {string|null} CatalogNr in Katalog-Schreibweise
  */
 export function modellAusSku(sku, katalog) {
@@ -196,7 +196,7 @@ export function modellAusSku(sku, katalog) {
  * @param {object[]} produkte [{ sku, shipping_class }]
  * @param {string} modell     L-Shop-Nummer, z. B. "CB166R"
  * @param {object} [o]
- * @param {Iterable<string>} [o.katalog] CatalogNr aus SKU_LShop; ohne nur "SKU vor '/'"
+ * @param {Iterable<string>} [o.katalog] CatalogNr aus LShop_Modelle; ohne nur "SKU vor '/'"
  * @returns {{ klasse: string, quelle: string, verteilung: object }}
  */
 export function versandVorschlag(produkte, modell, { katalog } = {}) {

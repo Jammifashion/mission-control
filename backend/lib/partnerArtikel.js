@@ -26,7 +26,7 @@
 
 import { getWcClient } from './shopConfig.js';
 import { leseReiterSpalten } from './ssot-reiter.js';
-import { farbwert } from './lshop.js';
+import { farbwert, TAB_LSHOP } from './lshop.js';
 import { findHeader, requireHeader } from '../utils/sheet-headers.js';
 import { colLetter, sichereSpalte } from '../utils/sheet-spalten.js';
 
@@ -59,7 +59,7 @@ export function preisZahl(v) {
 /**
  * EK aus L-Shop fuer die angebotenen Varianten eines Artikels (V1).
  * @param {string[]} articleNrs  LShop_ArticleNr der aktiven Varianten ('' = fehlt)
- * @param {object[]} lshop       SKU_LShop [{ articleNr, catalogNr, color1, color2, size, preis }]
+ * @param {object[]} lshop       LShop_Modelle [{ articleNr, catalogNr, color1, color2, size, preis }]
  * @returns {{ ek: number|null, grund: string|null, farbenVerschieden: boolean }}
  */
 export function ekAusLShop(articleNrs, lshop) {
@@ -71,7 +71,7 @@ export function ekAusLShop(articleNrs, lshop) {
   const farben = new Map();                        // catalogNr|farbe -> { catalogNr, farbe }
   for (const n of new Set(nrs)) {
     const z = byNr.get(n);
-    if (!z) return { ek: null, grund: `ArticleNr ${n} steht nicht in SKU_LShop`, farbenVerschieden: false };
+    if (!z) return { ek: null, grund: `ArticleNr ${n} steht nicht in ${TAB_LSHOP}`, farbenVerschieden: false };
     farben.set(`${t(z.catalogNr)}|${z.farbe}`, { catalogNr: t(z.catalogNr), farbe: z.farbe });
   }
   const mins = [];
@@ -172,7 +172,9 @@ const heute = (jetzt = new Date()) => {
   return { heuteIso: iso, heuteDe: `${d}.${m}.${y}` };
 };
 
-// EK aus L-Shop fuer eine Liste Produkt-IDs (SSOT: Erfassungsmaske -> Varianten -> SKU_LShop).
+// EK aus L-Shop fuer eine Liste Produkt-IDs (SSOT: Erfassungsmaske -> Varianten -> LShop_Modelle).
+// LS2: auch Zeilen mit Status "ausgelaufen" zaehlen - der EK einer vorhandenen
+// Variante bleibt lesbar.
 async function ekFuerProdukte(pids, { ssotSheets } = {}) {
   const ergebnis = new Map();
   if (!pids.length) return ergebnis;
@@ -180,7 +182,7 @@ async function ekFuerProdukte(pids, { ssotSheets } = {}) {
   const [erf, varianten, lshop] = await Promise.all([
     leseReiterSpalten({ tab: 'Erfassungsmaske', spalten: { ssot: 'ID', pid: 'Produkt-ID' }, ...o }),
     leseReiterSpalten({ tab: 'Varianten', spalten: { ssot: 'SSOT-ID', aktiv: 'Aktiv' }, optional: { nr: 'LShop_ArticleNr' }, ...o }),
-    leseReiterSpalten({ tab: 'SKU_LShop', spalten: { articleNr: 'ArticleNr', catalogNr: 'CatalogNr', color1: 'color1', color2: 'color2', size: 'Size', preis: '10CartonsPrice' }, ...o }),
+    leseReiterSpalten({ tab: TAB_LSHOP, spalten: { articleNr: 'ArticleNr', catalogNr: 'CatalogNr', color1: 'color1', color2: 'color2', size: 'Size', preis: '10CartonsPrice' }, ...o }),
   ]);
   const ssotVon = new Map(erf.filter(z => z.pid).map(z => [z.pid, z.ssot]));
   for (const pid of pids) {

@@ -190,7 +190,7 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
       if (!produktname) return res.status(400).json({ error: 'produktname ist erforderlich.' });
 
       // Befehl M4: Motiv-Zeile (Reiter Motive) je Artikelkurzbezeichnung und
-      // Marke/Modellnummern des Rohlings (SKU_LShop). Nur wenn der Aufrufer die
+      // Marke/Modellnummern des Rohlings (LShop_Modelle). Nur wenn der Aufrufer die
       // Schluessel schickt; ein Lesefehler verhindert die Generierung nicht,
       // er steht in den Pruefhinweisen. Nur_intern bleibt hier im Backend.
       const ssotHinweise = [];

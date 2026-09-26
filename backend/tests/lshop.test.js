@@ -1,4 +1,4 @@
-// Befehl M1: Faser und Grammatur aus dem Reiter SKU_LShop (lib/lshop.js).
+// Befehl M1: Faser und Grammatur aus dem Reiter LShop_Modelle (lib/lshop.js).
 //
 // Testdaten sind Platzhalter-Fixtures im Format des Reiters, keine Kopie der
 // Stammdatei. Die Werte fuer CB166R und die Consistence-Texte fuer E3000 und
@@ -217,6 +217,31 @@ describe('Discontinued (M8b)', () => {
     ]);
     expect(r.gesperrt.map(g => `${g.farbe}/${g.groesse}=${g.wert}`)).toEqual(['Black/L=6', 'Red/M=3', 'Red/L=3']);
     expect(r.auslaufend).toEqual([{ farbe: 'Blue', groesse: 'M', wert: 2 }]);
+  });
+
+  // LS2: Status "ausgelaufen" (Nummer nicht mehr in der Stammdatei) wie
+  // Discontinued 3/6: nicht anbieten, aber Marke/Modellnummer bleiben lesbar.
+  test('Status ausgelaufen: nicht waehlbar, eigener Hinweis, Pruefdaten bleiben', () => {
+    const z = [
+      { ...zeile('9000000001', 'X2', 'Black', '', 'M', '100% Baumwolle', ''), status: 'aktiv', marke: 'Marke A', herstellerNr: '03581' },
+      { ...zeile('9000000002', 'X2', 'Black', '', 'L', '100% Baumwolle', ''), status: 'ausgelaufen', discontinued: '2' },
+      { ...zeile('9000000003', 'X2', 'Red', '', 'M', '100% Baumwolle', ''), status: 'Ausgelaufen', marke: 'Marke A', herstellerNr: '03581' },
+      { ...zeile('9000000004', 'X2', 'Blue', '', 'M', '100% Baumwolle', ''), status: '' },
+    ];
+    const r = lshopAuswertung(z, { farben: ['Black', 'Red', 'Blue'] });
+    expect(r.alleFarben).toEqual(['Black', 'Blue']);
+    expect(r.varianten).toEqual([
+      { farbe: 'Black', groesse: 'M', articleNr: '9000000001' },
+      { farbe: 'Blue', groesse: 'M', articleNr: '9000000004' },
+    ]);
+    expect(r.hinweise).toEqual([
+      'Farbe "Red" steht nicht mehr in der L-Shop-Stammdatei (ausgelaufen) – nicht wählbar.',
+      'Black / L: nicht mehr in der L-Shop-Stammdatei (ausgelaufen) – nicht wählbar.',
+    ]);
+    expect(r.gesperrt.map(g => `${g.farbe}/${g.groesse}=${g.wert}`)).toEqual(['Black/L=ausgelaufen', 'Red/M=ausgelaufen']);
+    expect(r.auslaufend).toEqual([]);                      // Discontinued 2 der ausgelaufenen Zeile zaehlt nicht
+    expect(r.marken).toEqual(['Marke A']);
+    expect(r.herstellerNummern).toEqual(['03581']);        // fuehrende Null bleibt
   });
 
   test('ohne Spalte oder leer: normal', () => {

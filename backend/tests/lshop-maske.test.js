@@ -143,6 +143,12 @@ describe('Block L-Shop-Modell: Discontinued (M8b)', () => {
     expect(fe.lshopModellHinweis(X1))
       .toBe('Gesperrt, nicht wählbar: Black L (Wert 6), Red (Wert 3). Achtung: Blue läuft aus (Wert 2, nur M).');
   });
+  test('LS2: Status ausgelaufen wird als "ausgelaufen" genannt, nicht als Wert', () => {
+    const X2 = { ...X1, gesperrt: [...X1.gesperrt, { farbe: 'Green', groesse: 'M', articleNr: '9000000007', wert: 'ausgelaufen' }], auslaufend: [] };
+    expect(fe.lshopGesperrteFarbe(X2, 'green')).toEqual({ farbe: 'Green', wert: 'ausgelaufen' });
+    expect(fe.lshopModellHinweis(X2))
+      .toBe('Gesperrt, nicht wählbar: Black L (Wert 6), Red (Wert 3), Green (ausgelaufen).');
+  });
   test('ohne Befund oder ohne Modell: leer', () => {
     expect(fe.lshopModellHinweis(CB166R)).toBe('');
     expect(fe.lshopModellHinweis(null)).toBe('');
