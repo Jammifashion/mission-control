@@ -15,6 +15,7 @@ import {
   motivFuer, motivFuerPrompt, seoHinweisVorlage, keyphraseGegenKarte, keyphraseMeldungen,
 } from '../lib/seo-ssot.js';
 import { pruefeTextMitSsot } from '../lib/seo-pruefung.js';
+import { seoKarteNachziehen } from '../lib/seo-karte.js';
 
 const router = Router();
 
@@ -89,6 +90,19 @@ router.post('/text-pruefung', async (req, res, next) => {
       lshopNr:             String(b.lshopNr ?? ''),
     }) });
   } catch (err) { next(err); }
+});
+
+// ── POST /api/seo/karte  Body: { wcId } ──────────────────────────────────────
+// Befehl M9: SEO_Karte-Zeile des Artikels nach dem Yoast-Speichern nachziehen.
+// Logik in lib/seo-karte.js; der Artikel wird dort neu aus dem Shop gelesen.
+// 409 = WC_ID mehrfach in der Karte, nichts geschrieben.
+router.post('/karte', async (req, res, next) => {
+  try {
+    res.json(await seoKarteNachziehen(String(req.body?.wcId ?? '')));
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
 });
 
 export default router;

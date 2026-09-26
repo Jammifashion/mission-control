@@ -126,6 +126,8 @@ export function keyphraseMeldungen(keyphrase, { kollisionen, teiltreffer } = {})
 
 const cache = reiterCache();
 export function _resetSeoSsotCache() { cache.leeren(); }
+// M9: nach dem Schreiben der SEO_Karte (lib/seo-karte.js) neu lesen.
+export function karteVergessen() { cache.leeren(); }
 
 const lade = (tab, spalten, o = {}, optional) =>
   cache.hole(`${tab}|${o.spreadsheetId ?? process.env.GOOGLE_SHEET_ID}`,

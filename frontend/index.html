@@ -4454,6 +4454,22 @@
       }
       // ── SEO-Daten aendern: Ende ──
 
+      // ── SEO-Karte: Anfang (reine Logik, backend/tests/seo-karte.test.js) ──
+      // Befehl M9: Toasts zur Antwort von POST /api/seo/karte.
+      // -> [{ text, typ: 'success'|'warn'|'error' }]
+      function seoKarteMeldungen(antwort, fehler) {
+        if (fehler) return [{ text: `SEO_Karte nicht aktualisiert: ${fehler}`, typ: 'error' }];
+        if (!antwort) return [];
+        const raus = [];
+        if ((antwort.abweichungen || []).length)
+          raus.push({ text: `SEO_Karte nicht aktualisiert: Zeile ${antwort.zeile} weicht nach dem Schreiben ab (${antwort.abweichungen.join('; ')})`, typ: 'error' });
+        else if ((antwort.geschrieben || []).length)
+          raus.push({ text: antwort.aktion === 'neu' ? `SEO_Karte: neue Zeile ${antwort.zeile}` : `SEO_Karte: Zeile ${antwort.zeile} aktualisiert`, typ: 'success' });
+        for (const h of antwort.hinweise || []) raus.push({ text: `SEO_Karte: ${h}`, typ: 'warn' });
+        return raus;
+      }
+      // ── SEO-Karte: Ende ──
+
       // Befehl SE1: EIN Yoast-Schreibweg fuer den SEO-Reiter und "SEO-Daten
       // aendern". ⚠️ Der Body enthaelt AUSSCHLIESSLICH meta_data (an 21031
       // gemessen; ein brands-Array ersetzte alle Marken). Beleg ist der
@@ -4465,7 +4481,25 @@
           body: JSON.stringify({ meta_data: yoastMeta }),
         });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return apiJson(await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcId}`));
+        const nach = await apiJson(await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcId}`));
+        // M9: erst Yoast gespeichert und zurueckgelesen, DANN die SEO_Karte.
+        // Ein Fehler dort macht das Yoast-Speichern nicht rueckgaengig.
+        await seoKarteNachziehen(wcId);
+        return nach;
+      }
+
+      // M9: SEO_Karte-Zeile nachziehen (POST /api/seo/karte, lib/seo-karte.js).
+      // Wirft nie; Ergebnis nur als Toast.
+      async function seoKarteNachziehen(wcId) {
+        let antwort = null, fehler = null;
+        try {
+          antwort = await apiJson(await apiFetch(`${API_BASE()}/api/seo/karte`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ wcId: String(wcId) }),
+          }));
+        } catch (e) { fehler = e.message || String(e); }
+        for (const m of seoKarteMeldungen(antwort, fehler)) showToast(m.text, m.typ, m.typ === 'success' ? 4000 : 10000);
       }
 
       // Meldung am Eigenschaften-Feld. Bewusst AUSSERHALB des Regelblocks:

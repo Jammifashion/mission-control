@@ -117,6 +117,14 @@ Neue Sektionen immer mit Anker versehen:
   doppelte weg), SEO_Karte (Keyphrase gleich fremder Soll/Ist -> Warnung, Teilstring -> Info,
   nie blockieren). `Nur_intern` geht NIE in den Prompt und nie ans Frontend (`motivFuerPrompt`
   laesst es weg); nur in die Pruefung. Route: `GET /api/seo/generator-eingaben`.
+- backend/lib/seo-karte.js – SEO_Karte-Zeile nach dem Yoast-Speichern (M9), einziger Schreiber der
+  Karte. Frontend `yoastSchreiben` (SEO-Reiter + SE1) ruft nach dem Zuruecklesen `POST /api/seo/karte`
+  { wcId }; Fehler dort = Toast, Yoast bleibt. Nur Typ "Artikel", Schluessel WC_ID, Werte aus dem
+  neu gelesenen Shop-Stand. Neu: Ist_*, Soll = Ist (Synonyme ohne ["…"]), Typ/Status "Artikel"/
+  "geschrieben", Pfad = WC-Namenskette der EINEN Blattkategorie (mehrere -> leer + Hinweis),
+  Oberkategorie = erster Teil. Vorhanden: Ist_* + Stand; Soll nur wenn leer oder = altes Ist.
+  Mehrfach -> 409, nichts. Schreibt nur geaenderte Zellen (RAW), liest zurueck.
+  Frontend-Spiegel der Toasts: Block `SEO-Karte: Anfang/Ende`.
 - backend/lib/seo-pruefung.js – deterministische Pruefung nach der Generierung
   (`pruefeGeneratorText`, Antwortfeld `pruefhinweise`, kein zweiter Modelllauf): Nur_intern,
   Marke/Modellnummern des Rohlings (SKU_LShop Brand, CatalogNr, CatNrManufacturer), feste Liste
