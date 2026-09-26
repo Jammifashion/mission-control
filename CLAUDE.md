@@ -138,7 +138,8 @@ Neue Sektionen immer mit Anker versehen:
   + CatalogNr der Varianten.LShop_ArticleNr (zweiter Durchlauf). Ziel Reiter `LShop_Modelle`
   (SSOT): 15 CSV-Spalten + Status/Quelle_Datei/Quelle_Datum/Stand, Schluessel ArticleNr; fehlt
   eine Nummer in der Datei -> Status "ausgelaufen", Zeile bleibt. ArticleNr/EAN/CatNrManufacturer
-  als Text (Format + RAW-String; sonst 03581 -> 3581, EAN -> E+12), Preis als Zahl.
+  als Text (RAW-String, Format TEXT erst NACH dem Schreiben setzen - values.update loescht
+  es auf beschriebenen Zellen, Befund LS2; sonst 03581 -> 3581, EAN -> E+12), Preis als Zahl.
   `POST /api/lshop/stammdaten` (routes/lshop.js) `{ modus: "trockenlauf" | "uebernehmen", datei }`:
   Trockenlauf schreibt nie; Uebernehmen verweigert (409), wenn `datei` nicht mehr die neueste ist.
   Chat: `buildLShopStammdatenNachricht` (chatNotify.js). Log/Antwort: nur Zaehler und CatalogNr,

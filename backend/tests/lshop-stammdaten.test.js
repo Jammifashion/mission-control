@@ -6,7 +6,10 @@ import { jest } from '@jest/globals';
 import { Readable } from 'stream';
 
 // ── In-Memory-Sheet (SSOT- und Business-Reiter, Namen eindeutig) ────────────
-let tabs, calls;
+// formate: Zellformat je Reiter ("zeile,spalte" -> Typ), 0-basiert. Wie im
+// echten Sheet beobachtet (Befund LS2): values.update loescht das Format der
+// beschriebenen Zellen, repeatCell setzt es fuer die ganze Spalte ab Startzeile.
+let tabs, calls, formate, ids;
 const colIdx = b => [...b].reduce((n, c) => n * 26 + (c.charCodeAt(0) - 64), 0) - 1;
 const nichtDa = r => Object.assign(new Error(`Unable to parse range: ${r}`), { status: 400 });
 const values = {
@@ -28,7 +31,7 @@ const values = {
     requestBody.values.forEach((row, i) => {
       const z = Number(nr) - 1 + i;
       while (tabs[tab].length <= z) tabs[tab].push([]);
-      row.forEach((v, j) => { tabs[tab][z][colIdx(sp) + j] = v; });
+      row.forEach((v, j) => { tabs[tab][z][colIdx(sp) + j] = v; delete (formate[tab] ?? {})[`${z},${colIdx(sp) + j}`]; });
     });
     return { data: {} };
   }),
@@ -42,12 +45,30 @@ const values = {
 };
 const spreadsheets = {
   values,
-  get: jest.fn(async () => ({ data: { sheets: Object.keys(tabs).map((title, i) => ({ properties: { title, sheetId: 100 + i, gridProperties: { rowCount: 1000, columnCount: 26 } } })) } })),
+  get: jest.fn(async ({ ranges, includeGridData }) => {
+    if (includeGridData) {
+      // Je Range (eine Zelle, "'Reiter'!K2") ein GridData mit dem Zellformat.
+      return { data: { sheets: [{ data: ranges.map(r => {
+        const [, tab, sp, nr] = /^'?([^'!]+)'?!([A-Z]+)(\d+)$/.exec(r);
+        const typ = formate[tab]?.[`${Number(nr) - 1},${colIdx(sp)}`];
+        return { rowData: [{ values: [typ ? { userEnteredFormat: { numberFormat: { type: typ } } } : {}] }] };
+      }) }] } };
+    }
+    return { data: { sheets: Object.keys(tabs).map(title => ({ properties: { title, sheetId: (ids[title] ??= 100 + Object.keys(ids).length), gridProperties: { rowCount: 1000, columnCount: 26 } } })) } };
+  }),
   batchUpdate: jest.fn(async ({ requestBody }) => {
     calls.push({ art: 'batchUpdate', requests: requestBody.requests });
     const replies = requestBody.requests.map(r => {
+      if (r.repeatCell) {
+        const { sheetId, startRowIndex, startColumnIndex } = r.repeatCell.range;
+        const tab = Object.keys(ids).find(k => ids[k] === sheetId);
+        formate[tab] ??= {};
+        for (let z = startRowIndex; z < tabs[tab].length + 100; z++)
+          formate[tab][`${z},${startColumnIndex}`] = r.repeatCell.cell.userEnteredFormat.numberFormat.type;
+      }
       if (!r.addSheet) return {};
       tabs[r.addSheet.properties.title] = [];
+      ids[r.addSheet.properties.title] = 999;
       return { addSheet: { properties: { ...r.addSheet.properties, sheetId: 999 } } };
     });
     return { data: { replies } };
@@ -119,6 +140,8 @@ function basis() {
     Modelle_Zusatz: [['CatalogNr'], ['XT903']],
   };
   calls = [];
+  formate = {};
+  ids = {};
   streamAufrufe = 0;
   csvText = baueCsv(BASIS);
   dateien = [
@@ -367,6 +390,44 @@ describe('stammdatenLauf', () => {
     for (const p of PREISTEXTE) {
       expect(text).not.toContain(p);
       expect(JSON.stringify(r)).not.toContain(p);
+    }
+  });
+
+  test('Befund LS2: Textformat NACH dem Schreiben, danach TEXT auch auf beschriebenen Zeilen', async () => {
+    const r = await lauf({ modus: 'uebernehmen', datei: 'DE_Standard_DE_EUR_07.09.2026.csv' });
+    const letztesSchreiben = calls.map(c => c.art).lastIndexOf('update');
+    const format = calls.findIndex(c => c.art === 'batchUpdate' && c.requests.some(q => q.repeatCell));
+    expect(format).toBeGreaterThan(letztesSchreiben);
+
+    const n = tabs.LShop_Modelle.length;                      // Kopf + Datenzeilen
+    for (const sp of ['ArticleNr', 'EAN', 'CatNrManufacturer']) {
+      const c = ls.KOPF.indexOf(sp);
+      for (let z = 1; z < n; z++) expect(formate.LShop_Modelle[`${z},${c}`]).toBe('TEXT');
+      expect(formate.LShop_Modelle[`0,${c}`]).toBeUndefined();   // Kopfzeile bleibt
+    }
+    expect(r.rueckgelesen.textformat).toEqual({ ok: true, geprueft: 6, text: 6 });
+    expect(r.rueckgelesen.ok).toBe(true);
+
+    // Zweiter Lauf auf den vorhandenen Reiter: Format wieder da, obwohl update es loescht.
+    calls = [];
+    const r2 = await lauf({ modus: 'uebernehmen', datei: 'DE_Standard_DE_EUR_07.09.2026.csv' });
+    expect(r2.rueckgelesen.textformat.ok).toBe(true);
+    expect(formate.LShop_Modelle[`1,${ls.KOPF.indexOf('CatNrManufacturer')}`]).toBe('TEXT');
+  });
+
+  test('Textformat fehlt nach dem Lauf -> rueckgelesen.ok false', async () => {
+    const orig = spreadsheets.batchUpdate.getMockImplementation();
+    spreadsheets.batchUpdate.mockImplementation(async (arg) => {
+      // repeatCell "verschlucken"
+      const ohne = { requestBody: { requests: arg.requestBody.requests.filter(q => !q.repeatCell) } };
+      return ohne.requestBody.requests.length ? orig(ohne) : { data: { replies: [] } };
+    });
+    try {
+      const r = await lauf({ modus: 'uebernehmen', datei: 'DE_Standard_DE_EUR_07.09.2026.csv' });
+      expect(r.rueckgelesen.textformat.ok).toBe(false);
+      expect(r.rueckgelesen.ok).toBe(false);
+    } finally {
+      spreadsheets.batchUpdate.mockImplementation(orig);
     }
   });
 

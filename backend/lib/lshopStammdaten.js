@@ -513,7 +513,13 @@ export async function stammdatenLauf({
   // ── Uebernehmen ──
   const sheetId = await sichereReiter({ sheets, ssotId, zeilenBedarf: zeilen.length + 1 });
   await schreibeZeilen({ sheets, ssotId, zeilen, zeilenVorher: bestand.zeilen.length });
+  // Textformat NACH dem Schreiben (Befund LS2): values.update setzt das Format
+  // der beschriebenen Zellen zurueck - vorher gesetzt, stand es nur noch auf den
+  // leeren Zeilen darunter.
+  await setzeTextformat({ sheets, ssotId, sheetId });
   antwort.rueckgelesen = await pruefeRueck({ sheets, ssotId, zeilen });
+  antwort.rueckgelesen.textformat = await pruefeTextformat({ sheets, ssotId, zeilen: zeilen.length });
+  antwort.rueckgelesen.ok = antwort.rueckgelesen.ok && antwort.rueckgelesen.textformat.ok;
   antwort.reiter.sheetId = sheetId;
 
   if (notify && baueMeldung) {
@@ -529,9 +535,8 @@ export async function stammdatenLauf({
   return antwort;
 }
 
-// Reiter anlegen (Kopfzeile + Textformat) bzw. Raster vergroessern. Textformat
-// wird jedes Mal gesetzt (idempotent), damit ein von Hand umformatierter
-// Reiter nicht wieder Zahlen aus Nummern macht.
+// Reiter anlegen (Kopfzeile) bzw. Raster vergroessern. Das Textformat setzt
+// setzeTextformat() erst nach dem Schreiben.
 async function sichereReiter({ sheets, ssotId, zeilenBedarf }) {
   const { data } = await sheets.spreadsheets.get({ spreadsheetId: ssotId, fields: 'sheets.properties(sheetId,title,gridProperties)' });
   let tab = (data.sheets ?? []).find(s => s.properties?.title === TAB_ZIEL)?.properties;
@@ -547,16 +552,36 @@ async function sichereReiter({ sheets, ssotId, zeilenBedarf }) {
   } else if ((tab.gridProperties?.rowCount ?? 0) < zeilenBedarf) {
     requests.push({ appendDimension: { sheetId: tab.sheetId, dimension: 'ROWS', length: zeilenBedarf - tab.gridProperties.rowCount + 100 } });
   }
-  for (const n of TEXT_SPALTEN) {
+  if (requests.length) await sheets.spreadsheets.batchUpdate({ spreadsheetId: ssotId, requestBody: { requests } });
+  return tab.sheetId;
+}
+
+// Textformat (TEXT) fuer ArticleNr, EAN, CatNrManufacturer ab Zeile 2, ganze
+// Spalte - auch auf den eben beschriebenen Zeilen. Jedes Mal (idempotent),
+// damit eine von Hand getippte Nummer nicht wieder zur Zahl wird (03581 -> 3581).
+async function setzeTextformat({ sheets, ssotId, sheetId }) {
+  const requests = TEXT_SPALTEN.map(n => {
     const i = KOPF.indexOf(n);
-    requests.push({ repeatCell: {
-      range: { sheetId: tab.sheetId, startRowIndex: 1, startColumnIndex: i, endColumnIndex: i + 1 },
+    return { repeatCell: {
+      range: { sheetId, startRowIndex: 1, startColumnIndex: i, endColumnIndex: i + 1 },
       cell: { userEnteredFormat: { numberFormat: { type: 'TEXT' } } },
       fields: 'userEnteredFormat.numberFormat',
-    } });
-  }
+    } };
+  });
   await sheets.spreadsheets.batchUpdate({ spreadsheetId: ssotId, requestBody: { requests } });
-  return tab.sheetId;
+}
+
+// Format zuruecklesen: erste und letzte Datenzeile, die drei Textspalten.
+async function pruefeTextformat({ sheets, ssotId, zeilen }) {
+  if (!zeilen) return { ok: true, geprueft: 0 };
+  const reihen = [...new Set([2, zeilen + 1])];
+  const ranges = reihen.flatMap(r => TEXT_SPALTEN.map(n => `'${TAB_ZIEL}'!${colLetter(KOPF.indexOf(n))}${r}`));
+  const { data } = await sheets.spreadsheets.get({
+    spreadsheetId: ssotId, ranges, includeGridData: true,
+    fields: 'sheets(data(rowData(values(userEnteredFormat(numberFormat)))))',
+  });
+  const typen = (data.sheets ?? []).flatMap(s => (s.data ?? []).map(d => d.rowData?.[0]?.values?.[0]?.userEnteredFormat?.numberFormat?.type ?? null));
+  return { ok: typen.length === ranges.length && typen.every(x => x === 'TEXT'), geprueft: ranges.length, text: typen.filter(x => x === 'TEXT').length };
 }
 
 // Erst ueberschreiben, dann den Rest leeren - nie erst leeren (bricht der Lauf

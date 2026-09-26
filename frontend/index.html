@@ -8038,7 +8038,8 @@
           }
           if (r.rueckgelesen) {
             const rk = r.rueckgelesen;
-            zeile(`Zurückgelesen: ${rk.zeilen} von ${rk.erwartet} Zeilen, Stichprobe ${rk.stichprobe.filter(s => s.ok).length}/${rk.stichprobe.length} ok`,
+            zeile(`Zurückgelesen: ${rk.zeilen} von ${rk.erwartet} Zeilen, Stichprobe ${rk.stichprobe.filter(s => s.ok).length}/${rk.stichprobe.length} ok`
+              + (rk.textformat ? ` · Textformat ${rk.textformat.ok ? 'ok' : `fehlt (${rk.textformat.text}/${rk.textformat.geprueft})`}` : ''),
               rk.ok ? 'var(--success)' : 'var(--danger)');
           }
           if (r.chat) zeile(`Chat: ${r.chat}`);
