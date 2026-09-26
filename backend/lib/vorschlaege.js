@@ -1,7 +1,14 @@
 // Vorschlaege fuer die Erfassungsmaske (Befehl M8) - deterministisch, kein Modell.
 //
-//  - Kurzbezeichnung: Praefix = haeufigstes Praefix ("CH-", "BL-") der
-//    Hauptkategorie in der Erfassungsmaske, dazu das erste kennzeichnende Wort
+//  - Kurzbezeichnung: Praefix = haeufigstes Praefix ("CH-", "BL-") in der
+//    Erfassungsmaske, zuerst je DIREKTER Kategorie des Artikels (M8b: unter
+//    "Kuenstler und Marken" hat jeder Kuenstler sein eigenes). Erst wenn dort
+//    keins steht, das der Hauptkategorie - aber nur, wenn es dort fuer die
+//    ganze Hauptkategorie gilt: es steht an der Hauptkategorie selbst oder in
+//    mindestens zwei ihrer Unterkategorien. Ein Praefix, das nur in 670 Malle
+//    Prinz vorkommt, gilt damit nicht fuer einen anderen Kuenstler. Doppelte
+//    Kategorienamen zaehlen nicht als direkte Kategorie (die Erfassungsmaske
+//    speichert Namen, keine Nummern). Dazu das erste kennzeichnende Wort
 //    des Namens (ohne Woerter aus Haupt-/gewaehlten Kategorien und Fuellwoerter),
 //    CamelCase, Regeln aus lib/sku.js (3-20 Zeichen, A-Z a-z 0-9 -). Eindeutig
 //    gegen Erfassungsmaske und Motive, bei Kollision Ziffer anhaengen.
@@ -9,14 +16,21 @@
 //    kommt das zweite klein und ohne Bindestrich dazu - "Match Day Cap" ->
 //    "Matchday" (so hat der Inhaber die Cap selbst benannt).
 //  - Versandklasse: die Klasse, die die meisten veroeffentlichten Artikel mit
-//    derselben L-Shop-Modellnummer (SKU vor "/") tragen; ohne Treffer "paket".
+//    derselben L-Shop-Modellnummer tragen; ohne Treffer "paket".
 //    Gleichstand: "paket", falls darunter, sonst alphabetisch erste.
+//    Modell der SKU (M8b, modellAusSku): fuehrender Token bis zum ersten "/",
+//    "_", "-" oder Leerzeichen, Altpraefix "KING"/"Queen" davor uebersprungen;
+//    zaehlt nur, wenn der Token eine CatalogNr in SKU_LShop ist ("BG42_Delfin",
+//    "BG42 Deutsches ECK", "BG42-SCALA"). Die alte Regel "SKU vor '/'" gilt
+//    daneben weiter, damit Modelle, die noch nicht in SKU_LShop stehen, nicht
+//    verloren gehen (JC092, JH030 ...).
 //
 // Nur Vorschlaege: die Maske ueberschreibt nie Getipptes.
 
 import { leseReiterSpalten, reiterCache } from './ssot-reiter.js';
 import { getWcClient } from './shopConfig.js';
 import { KURZ_MIN, KURZ_MAX, KURZ_RE } from './sku.js';
+import { ladeLShopZeilen } from './lshop.js';
 
 export const VERSAND_STANDARD = 'paket';
 const PRAEFIX_RE = /^([A-Z]{2,4})-/;
@@ -39,25 +53,83 @@ export function hauptkategorieVon(pfad) {
  * @returns {Map<string, {praefix: string, anzahl: number}>}
  */
 export function praefixeJeHauptkategorie(erfassung, kategorien) {
-  const pfadVonName = new Map((kategorien ?? []).map(k => [t(k.name).toLowerCase(), t(k.pfad)]));
-  const zaehler = new Map();                       // haupt -> Map(praefix -> n)
-  for (const z of erfassung ?? []) {
-    const m = PRAEFIX_RE.exec(t(z.kurz));
-    if (!m) continue;
-    const haupt = new Set(String(z.kategorien ?? '').split(',').map(s => t(s)).filter(Boolean)
-      .map(n => hauptkategorieVon(pfadVonName.get(n.toLowerCase()) ?? n)));
-    for (const h of haupt) {
-      if (!zaehler.has(h)) zaehler.set(h, new Map());
-      const zm = zaehler.get(h);
-      zm.set(m[1] + '-', (zm.get(m[1] + '-') ?? 0) + 1);
-    }
-  }
   const raus = new Map();
-  for (const [h, zm] of zaehler) {
-    const [praefix, anzahl] = [...zm].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  for (const [h, zm] of praefixZaehlung(erfassung, kategorien).haupt) {
+    const [praefix, { anzahl }] = [...zm].sort((a, b) => b[1].anzahl - a[1].anzahl || a[0].localeCompare(b[0]))[0];
     raus.set(h, { praefix, anzahl });
   }
   return raus;
+}
+
+// Zeilen mit Praefix zaehlen: je Hauptkategorie (mit den direkten Kategorien,
+// in denen es vorkommt) und je direkter Kategorie (Name klein).
+function praefixZaehlung(erfassung, kategorien) {
+  const pfadVonName = new Map((kategorien ?? []).map(k => [t(k.name).toLowerCase(), t(k.pfad)]));
+  const haupt  = new Map();                        // haupt -> Map(praefix -> { anzahl, direkt: Set })
+  const direkt = new Map();                        // name klein -> Map(praefix -> n)
+  for (const z of erfassung ?? []) {
+    const m = PRAEFIX_RE.exec(t(z.kurz));
+    if (!m) continue;
+    const p = m[1] + '-';
+    const namen = [...new Set(String(z.kategorien ?? '').split(',').map(s => t(s)).filter(Boolean))];
+    const jeHaupt = new Map();                     // haupt -> Set(direkte Namen dieser Zeile)
+    for (const n of namen) {
+      const h = hauptkategorieVon(pfadVonName.get(n.toLowerCase()) ?? n);
+      if (!jeHaupt.has(h)) jeHaupt.set(h, new Set());
+      jeHaupt.get(h).add(n);
+      const k = n.toLowerCase();
+      if (!direkt.has(k)) direkt.set(k, new Map());
+      direkt.get(k).set(p, (direkt.get(k).get(p) ?? 0) + 1);
+    }
+    for (const [h, dn] of jeHaupt) {
+      if (!haupt.has(h)) haupt.set(h, new Map());
+      const e = haupt.get(h).get(p) ?? { anzahl: 0, direkt: new Set() };
+      e.anzahl++;
+      for (const n of dn) e.direkt.add(n);
+      haupt.get(h).set(p, e);
+    }
+  }
+  return { haupt, direkt };
+}
+
+const bestes = eintraege => [...eintraege].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+
+/**
+ * Praefix fuer die gewaehlten Kategorien (M8b): erst je direkter Kategorie,
+ * dann die Hauptkategorie - nur wenn das Praefix dort fuer die ganze
+ * Hauptkategorie gilt (an ihr selbst oder in mindestens zwei Unterkategorien).
+ * @param {object[]} erfassung  [{ kurz, kategorien: "Name, Name" }]
+ * @param {object[]} kategorien [{ nr, pfad, name }] (Struktur_Kategorien)
+ * @param {object[]} gewaehlt   die Kategorien des Artikels, gleiche Form
+ * @returns {{ praefix: string, anzahl: number, ebene: 'kategorie'|'hauptkategorie', in: string }|null}
+ */
+export function praefixFuerKategorien(erfassung, kategorien, gewaehlt) {
+  const { haupt, direkt } = praefixZaehlung(erfassung, kategorien);
+  const namenZahl = new Map();
+  for (const k of kategorien ?? []) { const n = t(k.name).toLowerCase(); namenZahl.set(n, (namenZahl.get(n) ?? 0) + 1); }
+
+  const summe = new Map(), inNamen = new Map();
+  for (const k of gewaehlt ?? []) {
+    const n = t(k.name).toLowerCase();
+    if (namenZahl.get(n) !== 1) continue;          // doppelter Name: nicht eindeutig
+    for (const [p, a] of direkt.get(n) ?? []) {
+      summe.set(p, (summe.get(p) ?? 0) + a);
+      if (!inNamen.has(p)) inNamen.set(p, []);
+      inNamen.get(p).push(t(k.name));
+    }
+  }
+  if (summe.size) {
+    const [praefix, anzahl] = bestes(summe);
+    return { praefix, anzahl, ebene: 'kategorie', in: inNamen.get(praefix).join(', ') };
+  }
+
+  const h = (gewaehlt ?? []).map(k => hauptkategorieVon(k.pfad)).find(Boolean) ?? '';
+  const zm = haupt.get(h);
+  if (!zm) return null;
+  const gilt = [...zm].filter(([, e]) => [...e.direkt].some(n => n.toLowerCase() === h.toLowerCase()) || e.direkt.size >= 2);
+  if (!gilt.length) return null;
+  const [praefix, anzahl] = bestes(gilt.map(([p, e]) => [p, e.anzahl]));
+  return { praefix, anzahl, ebene: 'hauptkategorie', in: h };
 }
 
 // "T-Shirt" -> "TShirt", "Größe" -> "Groesse"; nur A-Z a-z 0-9.
@@ -102,20 +174,40 @@ export function kurzVorschlag({ name, praefix = '', ausschluss = [], belegt = []
   return { wert, hinweis: null };
 }
 
+const ALTPRAEFIX_RE = /^(king|queen)[\s/_-]+/i;
+
+/**
+ * L-Shop-Modell aus einer SKU (M8b): fuehrender Token bis "/", "_", "-" oder
+ * Leerzeichen, "KING "/"Queen " davor uebersprungen. Nur ein Token, der als
+ * CatalogNr im Katalog steht, zaehlt.
+ * @param {string} sku
+ * @param {Iterable<string>} katalog CatalogNr aus SKU_LShop
+ * @returns {string|null} CatalogNr in Katalog-Schreibweise
+ */
+export function modellAusSku(sku, katalog) {
+  const token = t(sku).replace(ALTPRAEFIX_RE, '').split(/[\s/_-]/)[0].toLowerCase();
+  if (!token) return null;
+  for (const c of katalog ?? []) if (t(c).toLowerCase() === token) return t(c);
+  return null;
+}
+
 /**
  * Versandklasse je L-Shop-Modell aus veroeffentlichten Artikeln.
  * @param {object[]} produkte [{ sku, shipping_class }]
  * @param {string} modell     L-Shop-Nummer, z. B. "CB166R"
+ * @param {object} [o]
+ * @param {Iterable<string>} [o.katalog] CatalogNr aus SKU_LShop; ohne nur "SKU vor '/'"
  * @returns {{ klasse: string, quelle: string, verteilung: object }}
  */
-export function versandVorschlag(produkte, modell) {
+export function versandVorschlag(produkte, modell, { katalog } = {}) {
   const m = t(modell).toLowerCase();
   const verteilung = {};
   if (m) {
     for (const p of produkte ?? []) {
       const sku = t(p.sku);
       const i = sku.indexOf('/');
-      if (i < 1 || sku.slice(0, i).trim().toLowerCase() !== m) continue;
+      const alt = i >= 1 && sku.slice(0, i).trim().toLowerCase() === m;
+      if (!alt && (modellAusSku(sku, katalog) ?? '').toLowerCase() !== m) continue;
       const k = t(p.shipping_class);
       if (k) verteilung[k] = (verteilung[k] ?? 0) + 1;
     }
@@ -179,21 +271,26 @@ export async function maskenVorschlaege({ name, kategorieIds = [], lshopNr, shop
       const [erf, kat, mot] = await Promise.all([ladeErfassung(), ladeKategorien(), ladeMotivKurz()]);
       const gewaehlt = kategorieIds.map(id => kat.find(k => t(k.nr) === t(id))).filter(Boolean);
       const haupt = gewaehlt.map(k => hauptkategorieVon(k.pfad)).find(Boolean) ?? '';
-      const p = praefixeJeHauptkategorie(erf, kat).get(haupt);
+      const p = praefixFuerKategorien(erf, kat, gewaehlt);
       const ausschluss = [haupt, ...gewaehlt.map(k => k.name)];
       const v = kurzVorschlag({
         name, praefix: p?.praefix ?? '', ausschluss,
         belegt: [...erf.map(z => z.kurz), ...mot.map(z => z.kurz)],
       });
+      const direkt = gewaehlt.map(k => k.name).join(', ');
       raus.kurz = {
-        ...v, hauptkategorie: haupt, praefix: p?.praefix ?? '',
-        quelle: p ? `Präfix ${p.praefix} (${p.anzahl}× in ${haupt})` : `Kein Präfix für ${haupt || 'die Kategorie'}`,
+        ...v, hauptkategorie: haupt, praefix: p?.praefix ?? '', praefixEbene: p?.ebene ?? null,
+        quelle: p ? `Präfix ${p.praefix} (${p.anzahl}× in ${p.in})`
+                  : `Kein Präfix für ${direkt || haupt || 'die Kategorie'}${haupt && haupt !== direkt ? ` / ${haupt}` : ''}`,
       };
     } catch (e) { raus.kurz = { wert: null, fehler: e.message }; }
   }
 
   try {
-    raus.versand = versandVorschlag(await ladeProdukte(shop), lshopNr);
+    // Ohne lesbaren Katalog nur die alte Regel "SKU vor '/'" (kein Abbruch).
+    let katalog = null;
+    try { katalog = new Set((await ladeLShopZeilen()).map(z => z.catalogNr).filter(Boolean)); } catch { /* s. o. */ }
+    raus.versand = versandVorschlag(await ladeProdukte(shop), lshopNr, { katalog });
   } catch (e) { raus.versand = { klasse: VERSAND_STANDARD, quelle: `Shop nicht lesbar – Standard "${VERSAND_STANDARD}".`, fehler: e.message }; }
 
   return raus;

@@ -4157,6 +4157,35 @@
         const treffer = ((daten && daten.varianten) || []).find(v => v.farbe === farbe && v.groesse === groesse);
         return treffer ? String(treffer.articleNr) : null;
       }
+      // M8b: Discontinued. Gesperrte Varianten (3/6) liefert das Backend gar nicht
+      // erst in alleFarben/varianten; hier nur Markierung und Meldungen.
+      // Ganz gesperrte Farbe (keine waehlbare Variante mehr) -> { farbe, wert } oder null.
+      function lshopGesperrteFarbe(daten, farbe) {
+        if (!daten || lshopFarbe(daten, farbe)) return null;
+        const z = ((daten && daten.gesperrt) || []).find(g => lshopGleich(g.farbe, farbe));
+        return z ? { farbe: z.farbe, wert: z.wert } : null;
+      }
+      // "läuft aus (Wert 1)" fuer eine waehlbare Farbe, mit Groessen, wenn nicht alle betroffen.
+      function lshopAuslauf(daten, farbe) {
+        const f = lshopFarbe(daten, farbe);
+        if (!f) return null;
+        const z = ((daten && daten.auslaufend) || []).filter(a => a.farbe === f);
+        if (!z.length) return null;
+        const werte = [...new Set(z.map(a => a.wert))].join('/');
+        const alle  = ((daten && daten.varianten) || []).filter(v => v.farbe === f).length;
+        const teil  = alle > z.length ? `, nur ${z.map(a => a.groesse).join(', ')}` : '';
+        return `läuft aus (Wert ${werte}${teil})`;
+      }
+      // Zusatz fuer den Hinweis beim Laden des Modells, '' ohne Befund.
+      function lshopModellHinweis(daten) {
+        const gesperrt = [...new Set(((daten && daten.gesperrt) || []).map(g =>
+          lshopFarbe(daten, g.farbe) ? `${g.farbe} ${g.groesse} (Wert ${g.wert})` : `${g.farbe} (Wert ${g.wert})`))];
+        const aus = ((daten && daten.alleFarben) || []).map(f => { const a = lshopAuslauf(daten, f); return a ? `${f} ${a}` : null; }).filter(Boolean);
+        return [
+          gesperrt.length ? `Gesperrt, nicht wählbar: ${gesperrt.join(', ')}.` : '',
+          aus.length ? `Achtung: ${aus.join('; ')}.` : '',
+        ].filter(Boolean).join(' ');
+      }
       // Anlage sperren, wenn gewaehlte Farben nicht zum Modell passen (nicht mischen).
       function lshopFarbFehler(daten, farben) {
         if (!daten) return null;
@@ -4567,7 +4596,8 @@
               properties  = [{ name: FARB_ACHSE, tags: farben }, ...rest];
               const gr = d.groessen || [];
               hint.textContent = `L-Shop-Modell ${d.catalogNr}: ${(d.alleFarben || []).length} Farben, `
-                + (gr.length === 1 ? `eine Größe (${gr[0]}) – keine Größenachse.` : `Größen ${gr.join(', ')}.`);
+                + (gr.length === 1 ? `eine Größe (${gr[0]}) – keine Größenachse.` : `Größen ${gr.join(', ')}.`)
+                + (lshopModellHinweis(d) ? ` ${lshopModellHinweis(d)}` : '');
               if (weg.length) showToast(`Nicht im L-Shop-Modell, entfernt: ${weg.join(', ')}`, 'warn', 10000);
               // Faser-/Grammatur-Hinweise hier NICHT: sie gelten fuer alle Farben des
               // Modells. Gemeldet wird im SEO-Flow fuer die gewaehlten Farben.
@@ -4703,7 +4733,10 @@
               rm.className = 'tag-remove';
               rm.innerHTML = '&#x2715;';
               rm.addEventListener('click', () => { prop.tags.splice(ti, 1); renderTagChips(); });
-              span.append(t, rm);
+              // M8b: auslaufende L-Shop-Farbe sichtbar markieren.
+              const auslauf = (lshopModell && !editMode && istFarbAchse(prop.name)) ? lshopAuslauf(lshopModell, t) : null;
+              if (auslauf) { span.title = auslauf; span.style.outline = '1px dashed var(--warning, orange)'; }
+              span.append(auslauf ? `${t} – ${auslauf}` : t, rm);
               tagWrap.insertBefore(span, tagInput);
             });
             // Sync checkboxes in open SSOT dropdown
@@ -4723,7 +4756,10 @@
               if (lshopModell && !editMode && istFarbAchse(prop.name)) {
                 const treffer = lshopFarbe(lshopModell, val);
                 if (!treffer) {
-                  showToast(`"${val}" ist keine Farbe des L-Shop-Modells ${lshopModell.catalogNr}.`, 'error', 8000);
+                  const gesperrt = lshopGesperrteFarbe(lshopModell, val);
+                  showToast(gesperrt
+                    ? `"${gesperrt.farbe}" ist im L-Shop gesperrt (Discontinued ${gesperrt.wert}) – nicht wählbar.`
+                    : `"${val}" ist keine Farbe des L-Shop-Modells ${lshopModell.catalogNr}.`, 'error', 8000);
                   return;
                 }
                 val = treffer;
@@ -4794,7 +4830,8 @@
                   renderTagChips();
                 });
                 label.appendChild(cb);
-                label.append(' ' + b);
+                const auslauf = (lshopModell && !editMode && istFarbAchse(prop.name)) ? lshopAuslauf(lshopModell, b) : null;
+                label.append(' ' + b + (auslauf ? ` – ${auslauf}` : ''));
                 listEl.appendChild(label);
               });
             }

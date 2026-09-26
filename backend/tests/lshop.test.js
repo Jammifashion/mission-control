@@ -164,6 +164,69 @@ describe('ungleiche Werte je Farbe', () => {
   });
 });
 
+// ── M8b: Discontinued ───────────────────────────────────────────────────────
+
+// BG42 wie im Reiter (gemessen 25.09.): 12 Farben, eine Groesse, Jungle Camo
+// und Fluorescent Yellow mit Discontinued 1. ArticleNr Platzhalter.
+const BG42_FARBEN = ['Black', 'Bright Royal', 'Classic Red', 'French Navy', 'Fuchsia', 'Graphite Grey',
+  'Lime Green', 'Orange', 'White', 'Burgundy', 'Jungle Camo', 'Fluorescent Yellow'];
+const BG42 = BG42_FARBEN.map((f, i) => ({
+  ...zeile(`10000304${String(i).padStart(2, '0')}`, 'BG42', f, '', '38 x 14 x 8 cm', '100% Polyester', ''),
+  discontinued: ['Jungle Camo', 'Fluorescent Yellow'].includes(f) ? '1' : '0',
+}));
+
+describe('Discontinued (M8b)', () => {
+  test('BG42: Wert 1 bleibt waehlbar, ist als auslaufend markiert, kein Hinweis', () => {
+    const r = lshopAuswertung(BG42, {});
+    expect(r.alleFarben).toEqual(BG42_FARBEN);
+    expect(r.gesperrt).toEqual([]);
+    expect(r.auslaufend).toEqual([
+      { farbe: 'Jungle Camo', groesse: '38 x 14 x 8 cm', wert: 1 },
+      { farbe: 'Fluorescent Yellow', groesse: '38 x 14 x 8 cm', wert: 1 },
+    ]);
+    expect(r.varianten.find(v => v.farbe === 'Jungle Camo')).toMatchObject({ auslauf: 1 });
+    expect(r.varianten.find(v => v.farbe === 'Black')).not.toHaveProperty('auslauf');
+    expect(r.hinweise).toEqual([]);
+  });
+
+  test('BG42 White, Black, Pink: Pink gibt es nicht, Auswahl sonst wie bisher', () => {
+    const r = lshopAuswertung(BG42, { farben: ['White', 'Black', 'Pink'] });
+    expect(r.farben).toEqual(['White', 'Black']);
+    expect(r.hinweise).toEqual(['Farbe "Pink" gibt es im L-Shop für diese Nummer nicht.']);
+  });
+
+  test('3 und 6: Farbe/Variante nicht waehlbar, mit Hinweis', () => {
+    const z = [
+      { ...zeile('9000000001', 'X1', 'Black', '', 'M', '100% Baumwolle', ''), discontinued: '0' },
+      { ...zeile('9000000002', 'X1', 'Black', '', 'L', '100% Baumwolle', ''), discontinued: '6' },
+      { ...zeile('9000000003', 'X1', 'Red', '', 'M', '100% Baumwolle', ''), discontinued: '3' },
+      { ...zeile('9000000004', 'X1', 'Red', '', 'L', '100% Baumwolle', ''), discontinued: '3' },
+      { ...zeile('9000000005', 'X1', 'Blue', '', 'M', '100% Baumwolle', ''), discontinued: '2' },
+    ];
+    const r = lshopAuswertung(z, { farben: ['Black', 'Red', 'Blue'] });
+    expect(r.alleFarben).toEqual(['Black', 'Blue']);
+    expect(r.farben).toEqual(['Black', 'Blue']);
+    expect(r.varianten).toEqual([
+      { farbe: 'Black', groesse: 'M', articleNr: '9000000001' },
+      { farbe: 'Blue', groesse: 'M', articleNr: '9000000005', auslauf: 2 },
+    ]);
+    expect(r.groessen).toEqual(['M']);
+    expect(r.hinweise).toEqual([
+      'Farbe "Red" ist im L-Shop gesperrt (Discontinued 3) – nicht wählbar.',
+      'Black / L: im L-Shop gesperrt (Discontinued 6) – nicht wählbar.',
+    ]);
+    expect(r.gesperrt.map(g => `${g.farbe}/${g.groesse}=${g.wert}`)).toEqual(['Black/L=6', 'Red/M=3', 'Red/L=3']);
+    expect(r.auslaufend).toEqual([{ farbe: 'Blue', groesse: 'M', wert: 2 }]);
+  });
+
+  test('ohne Spalte oder leer: normal', () => {
+    const r = lshopAuswertung(CB166R, {});
+    expect(r.gesperrt).toEqual([]);
+    expect(r.auslaufend).toEqual([]);
+    expect(r.alleFarben).toHaveLength(5);
+  });
+});
+
 // ── Lesen: header-basiert, ganze Breite, ArticleNr als String ───────────────
 
 function sheetsMock(kopf, spalten) {

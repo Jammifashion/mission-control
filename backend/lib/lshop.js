@@ -26,6 +26,15 @@
 //  - Faser: jeder Abschnitt mit Prozentwerten muss auf 100 % aufgehen (L03581,
 //    "Ash: 98% Baumwolle / 15% Viskose" = 113 %). Sonst kein Wert, Hinweis.
 //  - Grammatur leer: kein Wert, KEIN Hinweis (Entscheidung Inhaber 25.09.).
+//
+// Discontinued (Befehl M8b), je Zeile = je Farbe x Groesse:
+//  - 0 oder leer: normal.
+//  - 3 und 6: NICHT waehlbar (nie bestellen; Merkposten EDI 4d). Die Zeile
+//    faellt aus Farben, Groessen und Varianten heraus, steht in `gesperrt`, und
+//    fuer die gewaehlten Farben gibt es einen Hinweis.
+//  - jeder andere Wert: waehlbar, aber "laeuft aus (Wert n)" - Variante traegt
+//    `auslauf`, die Liste `auslaufend` gilt fuers ganze Modell (Markierung in
+//    der Maske). Kein Hinweis: der SEO-Flow zeigt Hinweise als Warnung an.
 
 import { leseReiterSpalten } from './ssot-reiter.js';
 import { filterMaterialFarbenMitMeldung, klammerGruppen, MATERIAL_PLACEHOLDER } from './seo-prompt.js';
@@ -49,7 +58,12 @@ const SPALTEN = {
 const SPALTEN_OPTIONAL = {
   marke:       'Brand',
   herstellerNr: 'CatNrManufacturer',
+  // M8b: fehlt die Spalte, gilt jede Zeile als normal (0).
+  discontinued: 'Discontinued',
 };
+
+// Discontinued-Werte, die eine Variante sperren.
+export const DISCONTINUED_GESPERRT = new Set([3, 6]);
 
 const CTX = `Reiter "${TAB_LSHOP}"`;
 
@@ -112,6 +126,14 @@ export function pruefeHundertProzent(faser) {
     + ' – nicht übernommen, bitte prüfen.';
 }
 
+/** Discontinued als Zahl; leer/0 -> 0, kein Zahlwert -> der Text selbst. */
+export function discontinuedWert(v) {
+  const s = t(v);
+  if (s === '') return 0;
+  const n = Number(s.replace(',', '.'));
+  return Number.isFinite(n) ? n : s;
+}
+
 // Ein Wert (Faser oder Grammatur) ueber alle gewaehlten Farben: filtern, dann
 // muessen alle Farben dasselbe Ergebnis haben.
 function einheitlich(zeilenJeFarbe, feld, farbwerte, name) {
@@ -141,15 +163,19 @@ function einheitlich(zeilenJeFarbe, feld, farbwerte, name) {
  * @param {object}   o
  * @param {string[]} o.farben Gewaehlte Farbwerte ("Black/Kelly Green"). Leer = alle.
  * @returns {{ catalogNr: string, farben: string[], alleFarben: string[], groessen: string[],
- *             varianten: {farbe: string, groesse: string, articleNr: string}[],
- *             faser: string|null, grammatur: string|null, hinweise: string[] }}
+ *             varianten: {farbe: string, groesse: string, articleNr: string, auslauf?: number|string}[],
+ *             faser: string|null, grammatur: string|null, hinweise: string[],
+ *             gesperrt: {farbe, groesse, articleNr, wert}[], auslaufend: {farbe, groesse, wert}[] }}
  */
 export function lshopAuswertung(zeilen, { farben } = {}) {
   const liste = Array.isArray(zeilen) ? zeilen : [];
   const hinweise = [];
 
-  const mitFarbe = liste.map(z => ({ ...z, farbe: farbwert(z.color1, z.color2) }));
-  const alleFarben = [...new Set(mitFarbe.map(z => z.farbe).filter(Boolean))];
+  const mitFarbe = liste.map(z => ({ ...z, farbe: farbwert(z.color1, z.color2), disc: discontinuedWert(z.discontinued) }));
+  // M8b: gesperrte Zeilen (Discontinued 3/6) sind fuer die Auswahl nicht da.
+  const waehlbar = mitFarbe.filter(z => !DISCONTINUED_GESPERRT.has(z.disc));
+  const gesperrtZeilen = mitFarbe.filter(z => DISCONTINUED_GESPERRT.has(z.disc));
+  const alleFarben = [...new Set(waehlbar.map(z => z.farbe).filter(Boolean))];
 
   const gewuenscht = (Array.isArray(farben) ? farben : []).map(t).filter(Boolean);
   let gewaehlt;
@@ -157,14 +183,22 @@ export function lshopAuswertung(zeilen, { farben } = {}) {
     gewaehlt = [];
     for (const f of gewuenscht) {
       const treffer = alleFarben.find(a => vergleich(a) === vergleich(f));
-      if (!treffer) hinweise.push(`Farbe "${f}" gibt es im L-Shop für diese Nummer nicht.`);
+      const gesperrt = !treffer && gesperrtZeilen.find(z => vergleich(z.farbe) === vergleich(f));
+      if (gesperrt) hinweise.push(`Farbe "${gesperrt.farbe}" ist im L-Shop gesperrt (Discontinued ${gesperrt.disc}) – nicht wählbar.`);
+      else if (!treffer) hinweise.push(`Farbe "${f}" gibt es im L-Shop für diese Nummer nicht.`);
       else if (!gewaehlt.includes(treffer)) gewaehlt.push(treffer);
     }
   } else {
     gewaehlt = alleFarben;
   }
 
-  const auswahl = mitFarbe.filter(z => gewaehlt.includes(z.farbe));
+  // Einzelne gesperrte Groessen einer gewaehlten Farbe: Hinweis, Variante fehlt.
+  for (const z of gesperrtZeilen) {
+    if (gewaehlt.includes(z.farbe))
+      hinweise.push(`${z.farbe} / ${t(z.size)}: im L-Shop gesperrt (Discontinued ${z.disc}) – nicht wählbar.`);
+  }
+
+  const auswahl = waehlbar.filter(z => gewaehlt.includes(z.farbe));
   const zeilenJeFarbe = new Map(gewaehlt.map(f => [f, auswahl.filter(z => z.farbe === f)]));
 
   // Groessen in L-Shop-Schreibweise, sortiert ueber lib/groessen.js. Eine
@@ -183,7 +217,8 @@ export function lshopAuswertung(zeilen, { farben } = {}) {
       const nummern = [...new Set(treffer.map(z => t(z.articleNr)))];
       if (nummern.length > 1)
         hinweise.push(`${farbe} / ${groesse}: mehrere ArticleNr (${nummern.join(', ')}) – erste genommen.`);
-      varianten.push({ farbe, groesse, articleNr: nummern[0] });
+      const auslauf = treffer[0].disc;
+      varianten.push({ farbe, groesse, articleNr: nummern[0], ...(auslauf !== 0 ? { auslauf } : {}) });
     }
   }
 
@@ -216,6 +251,9 @@ export function lshopAuswertung(zeilen, { farben } = {}) {
     faser,
     grammatur,
     hinweise,
+    // M8b: ganzes Modell, fuer die Markierung in der Maske.
+    gesperrt:   gesperrtZeilen.map(z => ({ farbe: z.farbe, groesse: t(z.size), articleNr: t(z.articleNr), wert: z.disc })),
+    auslaufend: waehlbar.filter(z => z.disc !== 0).map(z => ({ farbe: z.farbe, groesse: t(z.size), wert: z.disc })),
   };
 }
 

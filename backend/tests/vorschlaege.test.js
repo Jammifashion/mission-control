@@ -28,6 +28,12 @@ const TABS = {
     ['900', 'Kawaii', 'Kawaii', ''],
   ],
   Motive: [['Artikelkurzbezeichnung', 'Motiv'], ['CH-Matchday', 'Vereinslogo']],
+  // M8b: Katalog fuer modellAusSku (nur die Pflichtspalten von lib/lshop.js).
+  SKU_LShop: [
+    ['ArticleNr', 'CatalogNr', 'color1', 'color2', 'Size', 'Consistence', 'Grammage'],
+    ['1000030393', 'BG42', 'Black', '', '38 x 14 x 8 cm', '100% Polyester', ''],
+    ['9000000001', 'E3000', 'Black', '', 'M', '100% Baumwolle', ''],
+  ],
 };
 const idx = b => [...b].reduce((n, c) => n * 26 + (c.charCodeAt(0) - 64), 0) - 1;
 const values = {
@@ -43,6 +49,7 @@ const PRODUKTE = [
   { id: 1, sku: 'JC092/A', shipping_class: 'paket' }, { id: 2, sku: 'JC092/B', shipping_class: 'paket' },
   { id: 3, sku: 'JC092/C', shipping_class: 'grossbrief' }, { id: 4, sku: 'E3000/X', shipping_class: 'grossbrief' },
   { id: 5, sku: 'ohne-schraegstrich', shipping_class: 'brief' },
+  { id: 6, sku: 'BG42_Delfin', shipping_class: 'grossbrief' }, { id: 7, sku: 'BG42 Deutsches ECK', shipping_class: 'grossbrief' },
 ];
 const wcGet = jest.fn(async () => ({ data: PRODUKTE }));
 jest.unstable_mockModule('../lib/shopConfig.js', () => ({
@@ -121,6 +128,76 @@ describe('Versandklasse je L-Shop-Modell', () => {
   });
 });
 
+// ── M8b ─────────────────────────────────────────────────────────────────────
+
+describe('Modell aus der SKU (M8b)', () => {
+  const KATALOG = ['BG42', 'BCWU02K', 'BCWW02Q', 'E3000'];
+  test('fuehrender Token bis "/", "_", "-", Leerzeichen; KING/Queen uebersprungen', () => {
+    for (const sku of ['BG42_Delfin', 'BG42_torpedo', 'BG42', 'BG42-SCALA', 'BG42 Deutsches ECK', 'bg42/Test'])
+      expect(v.modellAusSku(sku, KATALOG)).toBe('BG42');
+    expect(v.modellAusSku('KING BCWU02K/Hoodie-Malle-Prinz-Ultras', KATALOG)).toBe('BCWU02K');
+    expect(v.modellAusSku('Queen BCWW02Q/Damenhoodie', KATALOG)).toBe('BCWW02Q');
+  });
+  test('Token nicht im Katalog -> kein Modell', () => {
+    expect(v.modellAusSku('King/Tobi-Torpedo', KATALOG)).toBeNull();
+    expect(v.modellAusSku('Zipper Crocodiles', KATALOG)).toBeNull();
+    expect(v.modellAusSku('JC092/Badelatschen', KATALOG)).toBeNull();
+    expect(v.modellAusSku('', KATALOG)).toBeNull();
+  });
+  test('BG42-Bestand (5 SKU-Formen, alle grossbrief) -> grossbrief', () => {
+    const p = ['BG42_Delfin', 'BG42_torpedo', 'BG42', 'BG42-SCALA', 'BG42 Deutsches ECK']
+      .map((sku, i) => ({ id: i, sku, shipping_class: 'grossbrief' }));
+    const r = v.versandVorschlag(p, 'BG42', { katalog: KATALOG });
+    expect(r).toMatchObject({ klasse: 'grossbrief', verteilung: { grossbrief: 5 } });
+    // ohne Katalog: nur die alte Regel "SKU vor '/'", keiner der fuenf zaehlt
+    expect(v.versandVorschlag(p, 'BG42').klasse).toBe('paket');
+  });
+  test('alte Regel "SKU vor /" gilt weiter fuer Modelle ausserhalb des Katalogs', () => {
+    expect(v.versandVorschlag(PRODUKTE, 'JC092', { katalog: KATALOG }))
+      .toMatchObject({ klasse: 'paket', verteilung: { paket: 2, grossbrief: 1 } });
+  });
+});
+
+describe('Praefix je direkter Kategorie (M8b)', () => {
+  const KAT = [
+    ...TABS.Struktur_Kategorien.slice(1).map(([nr, pfad, name]) => ({ nr, pfad, name })),
+    { nr: '67', pfad: 'Künstler und Marken', name: 'Künstler und Marken' },
+    { nr: '670', pfad: 'Künstler und Marken > Malle Prinz', name: 'Malle Prinz' },
+    { nr: '671', pfad: 'Künstler und Marken > Kati Zucker', name: 'Kati Zucker' },
+  ];
+  const ERF = [
+    ...TABS.Erfassungsmaske.slice(1).map(([, kurz, kategorien]) => ({ kurz, kategorien })),
+    { kurz: 'MP-Ultras', kategorien: 'Malle Prinz' },
+    { kurz: 'Hoodie Malle Prinz Ultras', kategorien: 'Malle Prinz' },
+    { kurz: 'Kati Zucker Badelatschen', kategorien: 'Kati Zucker' },
+  ];
+  const kat = nr => KAT.find(k => k.nr === nr);
+
+  test('Crocodiles weiter CH- (direkt aus Kollektion 26/27 bzw. Accessoires)', () => {
+    expect(v.praefixFuerKategorien(ERF, KAT, [kat('686'), kat('556')]))
+      .toMatchObject({ praefix: 'CH-', ebene: 'kategorie' });
+  });
+  test('Crocodiles ohne eigenes Praefix in der Unterkategorie -> Hauptkategorie (in mehreren Unterkategorien)', () => {
+    expect(v.praefixFuerKategorien(ERF, KAT, [kat('702')]))
+      .toMatchObject({ praefix: 'CH-', ebene: 'hauptkategorie', in: 'Crocodiles Hamburg' });
+  });
+  test('Praefix an der Hauptkategorie selbst gilt (BL-)', () => {
+    expect(v.praefixFuerKategorien(ERF, KAT, [kat('800')])).toMatchObject({ praefix: 'BL-' });
+  });
+  test('670 Malle Prinz -> MP-', () => {
+    expect(v.praefixFuerKategorien(ERF, KAT, [kat('670')]))
+      .toEqual({ praefix: 'MP-', anzahl: 1, ebene: 'kategorie', in: 'Malle Prinz' });
+  });
+  test('Praefix aus 670 gilt nicht fuer einen anderen Kuenstler', () => {
+    expect(v.praefixFuerKategorien(ERF, KAT, [kat('671')])).toBeNull();
+    expect(v.kurzVorschlag({ name: 'Kati Zucker Bauchtasche', praefix: '', ausschluss: ['Künstler und Marken', 'Kati Zucker'] }).wert)
+      .toBe('Bauchtasche');
+  });
+  test('Kategorie ohne Zeilen -> null', () => {
+    expect(v.praefixFuerKategorien(ERF, KAT, [kat('900')])).toBeNull();
+  });
+});
+
 describe('GET /api/sheets/vorschlaege', () => {
   let request, app;
   beforeAll(async () => {
@@ -138,6 +215,10 @@ describe('GET /api/sheets/vorschlaege', () => {
     // "CH-Matchday" steht im Reiter Motive -> "CH-Matchday2"
     expect(res.body.kurz).toMatchObject({ wert: 'CH-Matchday2', praefix: 'CH-', hauptkategorie: 'Crocodiles Hamburg' });
     expect(res.body.versand.klasse).toBe('paket');
+  });
+  test('M8b: BG42 ueber den Katalog aus SKU_LShop -> grossbrief', async () => {
+    const res = await request(app).get('/api/sheets/vorschlaege').query({ lshopNr: 'BG42' });
+    expect(res.body.versand).toMatchObject({ klasse: 'grossbrief', verteilung: { grossbrief: 2 } });
   });
   test('Modell mit Artikeln -> deren Klasse', async () => {
     const res = await request(app).get('/api/sheets/vorschlaege').query({ lshopNr: 'E3000' });

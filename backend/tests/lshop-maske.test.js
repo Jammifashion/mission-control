@@ -73,7 +73,8 @@ const SKU   = block('// ── SKU-Regeln: Anfang', '// ── SKU-Regeln: Ende 
 const AID   = block('// ── Artikel-ID: Anfang', '// ── Artikel-ID: Ende ──');
 const fe = new Function(`${FARB}\n${LSHOP}\n${SKU}\n${AID}\n return {
   lshopFarbe, lshopGroessen, lshopEigenschaften, lshopArticleNr, lshopFarbFehler,
-  variantenFarbwert, variantenZeile, erfassungNachAnlage, anlageZustand };`)();
+  variantenFarbwert, variantenZeile, erfassungNachAnlage, anlageZustand,
+  lshopGesperrteFarbe, lshopAuslauf, lshopModellHinweis };`)();
 
 // Antwort von GET /api/sheets/lshop/CB166R (ohne Farben = alle).
 const CB166R = {
@@ -101,6 +102,53 @@ const E3000 = {
 
 const DREI = ['Black/Kelly Green', 'Black/Red', 'Black/White'];
 const attrs = (...paare) => paare.map(([name, value]) => ({ name, value }));
+
+// M8b: Antwort fuer BG42 (Auszug) und ein Modell mit gesperrten Varianten.
+const BG42 = {
+  catalogNr: 'BG42',
+  alleFarben: ['Black', 'White', 'Fuchsia', 'Jungle Camo', 'Fluorescent Yellow'],
+  groessen: ['38 x 14 x 8 cm'],
+  varianten: [
+    ['Black', '1000030393'], ['White', '1000030402'], ['Fuchsia', '1000030398'],
+    ['Jungle Camo', '1000231408', 1], ['Fluorescent Yellow', '1000292385', 1],
+  ].map(([farbe, articleNr, auslauf]) => ({ farbe, groesse: '38 x 14 x 8 cm', articleNr, ...(auslauf ? { auslauf } : {}) })),
+  gesperrt: [],
+  auslaufend: [{ farbe: 'Jungle Camo', groesse: '38 x 14 x 8 cm', wert: 1 }, { farbe: 'Fluorescent Yellow', groesse: '38 x 14 x 8 cm', wert: 1 }],
+  faser: '100% Polyester', grammatur: null, hinweise: [],
+};
+const X1 = {
+  catalogNr: 'X1', alleFarben: ['Black', 'Blue'], groessen: ['M', 'L'],
+  varianten: [{ farbe: 'Black', groesse: 'M', articleNr: '9000000001' }, { farbe: 'Blue', groesse: 'M', articleNr: '9000000005', auslauf: 2 },
+    { farbe: 'Blue', groesse: 'L', articleNr: '9000000006' }],
+  gesperrt: [{ farbe: 'Black', groesse: 'L', articleNr: '9000000002', wert: 6 }, { farbe: 'Red', groesse: 'M', articleNr: '9000000003', wert: 3 }],
+  auslaufend: [{ farbe: 'Blue', groesse: 'M', wert: 2 }],
+};
+
+describe('Block L-Shop-Modell: Discontinued (M8b)', () => {
+  test('BG42: auslaufende Farben markiert, andere nicht', () => {
+    expect(fe.lshopAuslauf(BG42, 'jungle camo')).toBe('läuft aus (Wert 1)');
+    expect(fe.lshopAuslauf(BG42, 'Black')).toBeNull();
+    expect(fe.lshopAuslauf(BG42, 'Pink')).toBeNull();
+    expect(fe.lshopModellHinweis(BG42))
+      .toBe('Achtung: Jungle Camo läuft aus (Wert 1); Fluorescent Yellow läuft aus (Wert 1).');
+    // waehlbar: ArticleNr kommt wie bei jeder Farbe
+    expect(fe.lshopArticleNr(BG42, attrs(['Farbe', 'Jungle Camo']))).toBe('1000231408');
+  });
+  test('gesperrte Farbe nicht waehlbar, mit eigenem Grund; nur teilweise auslaufend -> Groessen genannt', () => {
+    expect(fe.lshopGesperrteFarbe(X1, 'red')).toEqual({ farbe: 'Red', wert: 3 });
+    expect(fe.lshopGesperrteFarbe(X1, 'Black')).toBeNull();          // Black ist in M waehlbar
+    expect(fe.lshopFarbFehler(X1, ['Red'])).toMatch(/gehört nicht zum L-Shop-Modell X1/);
+    expect(fe.lshopArticleNr(X1, attrs(['Farbe', 'Black'], ['Größe', 'L']))).toBeNull();
+    expect(fe.lshopAuslauf(X1, 'Blue')).toBe('läuft aus (Wert 2, nur M)');
+    expect(fe.lshopModellHinweis(X1))
+      .toBe('Gesperrt, nicht wählbar: Black L (Wert 6), Red (Wert 3). Achtung: Blue läuft aus (Wert 2, nur M).');
+  });
+  test('ohne Befund oder ohne Modell: leer', () => {
+    expect(fe.lshopModellHinweis(CB166R)).toBe('');
+    expect(fe.lshopModellHinweis(null)).toBe('');
+    expect(fe.lshopAuslauf(null, 'Black')).toBeNull();
+  });
+});
 
 describe('Block L-Shop-Modell: CB166R', () => {
   test('3 Farben, eine Groesse -> nur Farbachse, keine Groessenachse', () => {

@@ -98,6 +98,9 @@ Neue Sektionen immer mit Anker versehen:
   gewaehlten Farben (eine Groesse = keine Groessenachse), `lshopArticleNr` je Variante; 404 ->
   freie Eingabe (Fremdware), nie gemischt. Frontend-Spiegel: Block `L-Shop-Modell: Anfang/Ende`.
   SEO-Flow schickt `strukturiert` nur, wenn ALLE Farben Modellfarben sind (Bestand: Freitext).
+  Discontinued (M8b): 0/leer normal; 3 und 6 = Variante nicht waehlbar (fehlt in Farben/Groessen/
+  Varianten, steht in `gesperrt`, Hinweis fuer gewaehlte Farben); jeder andere Wert waehlbar, aber
+  `auslauf` an der Variante + Liste `auslaufend` (Maske markiert "läuft aus (Wert n)", kein Hinweis).
 
 - Anlage (M3): Versandklasse ist Pflicht (Frontend anlageZustand + Backend 400 `feld:
   shipping_class`); Aenderungspfad speichert ohne Klasse weiter, mit Hinweis (S2b). Jede NEU
@@ -125,11 +128,14 @@ Neue Sektionen immer mit Anker versehen:
   Anzeige-Logik: Block `Generator-Eingaben: Anfang/Ende`.
 
 - backend/lib/vorschlaege.js – Maske "Neu anlegen" (M8), deterministisch: Kurzbezeichnung =
-  haeufigstes Praefix der Hauptkategorie (Erfassungsmaske, z. B. "CH-") + erstes kennzeichnendes
+  haeufigstes Praefix der DIREKTEN Kategorie (M8b), sonst der Hauptkategorie, wenn es dort an ihr
+  selbst oder in mind. 2 Unterkategorien steht (Erfassungsmaske, z. B. "CH-") + erstes kennzeichnendes
   Wort des Namens (ohne Kategorie-/Vereinswoerter; unter 6 Buchstaben + zweites Wort klein, z. B.
   "CH-Matchday"), CamelCase, sku.js-Regeln, eindeutig gegen
   Erfassungsmaske und Motive (sonst Ziffer). Versandklasse = Mehrheit der veroeffentlichten
-  Artikel mit derselben L-Shop-Nummer (SKU vor "/"), sonst "paket". `GET /api/sheets/vorschlaege`.
+  Artikel mit derselben L-Shop-Nummer, sonst "paket". Modell der SKU: "SKU vor '/'" ODER
+  `modellAusSku` (Token bis / _ - Leerzeichen, KING/Queen davor weg, nur CatalogNr aus SKU_LShop).
+  `GET /api/sheets/vorschlaege`.
   Vorschlaege setzen ein Feld nur, wenn es leer ist oder noch den letzten Vorschlag traegt.
 - backend/lib/schlagwoerter.js – Schlagwoerter (product_tag) fuer den SEO-Generator (M8):
   vorhandene bevorzugt (Liste im Prompt), neue als "neu" (hoechstens 2 neue, zusammen 5),
