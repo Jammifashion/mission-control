@@ -17,6 +17,7 @@ Aktuelle Sektionen:
 - SEO-Daten aendern (Zeile ~5300, Befehl SE1: Yoast-Felder jedes veroeffentlichten Artikels; nutzt seoMetaBau und yoastSchreiben des SEO-Flows, schreibt nichts ins Sheet)
 - Kundenanfragen Extern (Zeile 4222)
 - Settings (Zeile 3604)
+- L-Shop-Stammdaten (im Settings-Block, Befehl LS1: Knoepfe Pruefen/Uebernehmen)
 - Partnerportal (Zeile 3724)
 - Partner-Artikel-Tab (Zeile ~4532)
 - Interne-Bestellungen-Tab (Zeile ~4710)
@@ -128,6 +129,20 @@ Neue Sektionen immer mit Anker versehen:
   Anlage (POST /erfassung/overwrite) schickt KEINE `varianten` (`erfassungNachAnlage`) - sonst
   leert er die in Schritt 9 geschriebenen WC_Variation_IDs.
 
+- backend/lib/lshopStammdaten.js – L-Shop-Stammdaten-Update (LS1), einzige Quelle, kein Modell.
+  Neueste `DE_Standard_DE_EUR_<TT.MM.JJJJ>.csv` (nach NAMENSdatum) aus der geteilten Ablage
+  (Drive-API, supportsAllDrives) wird gestreamt, nie gespeichert; Parser: BOM, CRLF, Semikolon,
+  Anfuehrungszeichen; Spalten nur ueber den exakten Namen (fehlt/doppelt -> 422, nichts
+  geschrieben). Gebrauchte Modelle = `modellAus()` ueber Shop-SKUs JFN+HonkShop (status any),
+  Partner_Artikel, Erfassungsmaske, Reiter `Modelle_Zusatz` (CatalogNr, von Hand, fehlt = leer)
+  + CatalogNr der Varianten.LShop_ArticleNr (zweiter Durchlauf). Ziel Reiter `LShop_Modelle`
+  (SSOT): 15 CSV-Spalten + Status/Quelle_Datei/Quelle_Datum/Stand, Schluessel ArticleNr; fehlt
+  eine Nummer in der Datei -> Status "ausgelaufen", Zeile bleibt. ArticleNr/EAN/CatNrManufacturer
+  als Text (Format + RAW-String; sonst 03581 -> 3581, EAN -> E+12), Preis als Zahl.
+  `POST /api/lshop/stammdaten` (routes/lshop.js) `{ modus: "trockenlauf" | "uebernehmen", datei }`:
+  Trockenlauf schreibt nie; Uebernehmen verweigert (409), wenn `datei` nicht mehr die neueste ist.
+  Chat: `buildLShopStammdatenNachricht` (chatNotify.js). Log/Antwort: nur Zaehler und CatalogNr,
+  nie Preise. Die Leser (lshop.js TAB_LSHOP, partnerArtikel.js) lesen noch SKU_LShop (Umstellung LS2).
 - backend/lib/ssot-reiter.js – gemeinsamer Leser fuer SSOT-Reiter: Kopfzeile, dann nur die
   benoetigten Spalten per batchGet (ganze Hoehe/Breite, FORMATTED_VALUE), Pflicht- und optionale
   Spalten ueber den Namen. Nutzer: lshop.js, seo-ssot.js.

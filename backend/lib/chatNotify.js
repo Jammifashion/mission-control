@@ -123,6 +123,30 @@ export function buildAbgleichLebenszeichen(anzahlPartner) {
   return `Partner-Abgleich: nichts Neues (${Number.isFinite(n) ? n : 0} Partner geprüft)`;
 }
 
+// LS1: Meldung nach "Übernehmen" der L-Shop-Stammdaten (lib/lshopStammdaten.js).
+// Nur Zaehler und CatalogNr - nie Preise.
+export const LSHOP_OHNE_TREFFER_MAX = 10;
+
+export function buildLShopStammdatenNachricht({ datum, modelle, neu, geaendert, ausgelaufen, preisAenderungen, ohneTreffer } = {}) {
+  const n = v => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  const liste = (ohneTreffer ?? []).map(x => sauber(x, 20)).filter(Boolean);
+  // Datum nicht durch sauber(): redact() haelt "07.09.2026" fuer eine
+  // Telefonnummer. Es kommt aus dem Dateinamen - nur das Format wird geprueft.
+  const d = String(datum ?? '').trim();
+  const zeilen = [
+    `📦 L-Shop-Stammdaten übernommen · Datei vom ${/^\d{2}\.\d{2}\.\d{4}$/.test(d) ? d : '?'}`,
+    `${n(modelle)} Modelle · Zeilen: ${n(neu)} neu, ${n(geaendert)} geändert, ${n(ausgelaufen)} ausgelaufen`,
+    `Preisänderungen: ${n(preisAenderungen)}`,
+  ];
+  if (liste.length) {
+    const kurz = liste.slice(0, LSHOP_OHNE_TREFFER_MAX);
+    const rest = liste.length - kurz.length;
+    zeilen.push(`Ohne Treffer in der Datei (${liste.length}): ${kurz.join(', ')}${rest > 0 ? ` +${rest} weitere` : ''}`);
+  }
+  zeilen.push(LINK);
+  return zeilen.join('\n');
+}
+
 // ── Stoerungsalarm ──────────────────────────────────────────────────────────
 //
 // Der Kundenchat ist der einzige Kanal, bei dem ein Ausfall niemandem auffaellt:

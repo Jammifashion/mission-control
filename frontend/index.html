@@ -2071,6 +2071,19 @@
           <button class="btn btn-ghost" id="install-btn" style="display:none;">Zum Startbildschirm hinzufügen</button>
           <p id="install-hint" style="color:var(--muted);font-size:0.85rem;">App bereits installiert oder Browser unterstützt keine Installation.</p>
         </div>
+        <div class="card" id="lshop-stamm-card">
+          <h2>L-Shop-Stammdaten</h2>
+          <p style="color:var(--muted);font-size:0.85rem;margin-top:0.25rem;">
+            Neueste Datei „DE_Standard_DE_EUR_TT.MM.JJJJ.csv“ aus der geteilten Ablage → Reiter LShop_Modelle.
+            „Prüfen“ schreibt nichts; „Übernehmen“ nur nach einer Prüfung derselben Datei.
+          </p>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
+            <button class="btn" id="lshop-stamm-pruefen">Prüfen</button>
+            <button class="btn btn-ghost" id="lshop-stamm-uebernehmen" disabled>Übernehmen</button>
+          </div>
+          <p id="lshop-stamm-status" style="color:var(--muted);font-size:0.85rem;margin-top:0.5rem;"></p>
+          <div id="lshop-stamm-ergebnis" style="font-size:0.85rem;margin-top:0.5rem;"></div>
+        </div>
       </section>
     </main>
 
@@ -7986,6 +7999,95 @@
         setTimeout(() => saved.style.display = 'none', 2000);
         loadSsotData();
       });
+
+      // ── SECTION: L-Shop-Stammdaten (Befehl LS1) ──
+      // Knopf "Prüfen" = POST /api/lshop/stammdaten { modus: "trockenlauf" }
+      // (schreibt nichts), danach "Übernehmen" mit dem Dateinamen der Prüfung.
+      // Logik komplett im Backend (lib/lshopStammdaten.js). Es kommen nur
+      // Zaehler und CatalogNr zurueck, keine Preise. Anzeige nur ueber
+      // textContent (kein innerHTML mit Serverwerten).
+      {
+        const btnPruefen = document.getElementById('lshop-stamm-pruefen');
+        const btnUebernehmen = document.getElementById('lshop-stamm-uebernehmen');
+        const status = document.getElementById('lshop-stamm-status');
+        const ziel = document.getElementById('lshop-stamm-ergebnis');
+        let geprueft = null;   // Dateiname der letzten erfolgreichen Prüfung
+
+        const zeile = (text, farbe) => {
+          const p = document.createElement('div');
+          p.textContent = text;
+          if (farbe) p.style.color = farbe;
+          ziel.appendChild(p);
+        };
+
+        function zeigen(r) {
+          ziel.textContent = '';
+          const z = r.zeilen;
+          zeile(`Datei: ${r.datei.name} (Stand ${r.datei.datum})`);
+          zeile(`Modelle: ${r.modelle.gefunden} von ${r.modelle.gebraucht} gefunden, ${r.modelle.ohneTreffer} ohne Treffer`);
+          zeile(`Zeilen: ${z.gesamt} gesamt · ${z.neu} neu · ${z.geaendert} geändert · ${z.unveraendert} unverändert · ${z.ausgelaufen} ausgelaufen`
+            + (z.reaktiviert ? ` · ${z.reaktiviert} wieder aktiv` : '') + (z.bleibtAusgelaufen ? ` · ${z.bleibtAusgelaufen} bleiben ausgelaufen` : ''));
+          const spalten = Object.entries(r.geaendertJeSpalte || {}).map(([n, a]) => `${n} ${a}`).join(', ');
+          zeile(`Preisänderungen (10CartonsPrice): ${r.preisAenderungen}` + (spalten ? ` · geänderte Spalten: ${spalten}` : ''));
+          if (r.discontinuedGesperrt) zeile(`${r.discontinuedGesperrt} aktive Zeile(n) mit Discontinued 3/6 (nicht wählbar)`);
+          for (const h of r.hinweise || []) zeile(`Hinweis: ${h}`, 'var(--muted)');
+          if (r.nichtTreffer?.length) {
+            zeile('Ohne Treffer in der Datei (Modell · Quelle · ähnliche Nummern):');
+            for (const n of r.nichtTreffer)
+              zeile(`– ${n.catalogNr} · ${n.quellen.join(', ')}${n.kandidaten.length ? ` · ${n.kandidaten.join(', ')}` : ''}`, 'var(--muted)');
+          }
+          if (r.rueckgelesen) {
+            const rk = r.rueckgelesen;
+            zeile(`Zurückgelesen: ${rk.zeilen} von ${rk.erwartet} Zeilen, Stichprobe ${rk.stichprobe.filter(s => s.ok).length}/${rk.stichprobe.length} ok`,
+              rk.ok ? 'var(--success)' : 'var(--danger)');
+          }
+          if (r.chat) zeile(`Chat: ${r.chat}`);
+        }
+
+        async function lauf(modus) {
+          btnPruefen.disabled = true;
+          btnUebernehmen.disabled = true;
+          status.textContent = modus === 'trockenlauf'
+            ? 'Prüfe … (Datei wird gelesen, ca. 30 s)'
+            : 'Übernehme … (schreibt LShop_Modelle, ca. 1 min)';
+          try {
+            const res = await apiFetch(`${API_BASE()}/api/lshop/stammdaten`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(modus === 'uebernehmen' ? { modus, datei: geprueft } : { modus }),
+              signal: AbortSignal.timeout(290000),
+            });
+            const r = await apiJson(res);
+            zeigen(r);
+            if (modus === 'trockenlauf') {
+              geprueft = r.datei.name;
+              status.textContent = 'Geprüft – nichts geschrieben.';
+              showToast('L-Shop-Stammdaten geprüft', 'success');
+            } else {
+              geprueft = null;
+              const ok = r.rueckgelesen?.ok;
+              status.textContent = ok ? 'Übernommen und zurückgelesen.' : 'Übernommen – Rücklese-Prüfung mit Abweichung, bitte Reiter prüfen.';
+              showToast(ok ? 'L-Shop-Stammdaten übernommen' : 'Übernommen, aber Rücklese-Prüfung abweichend', ok ? 'success' : 'error', ok ? 3500 : 10000);
+            }
+          } catch (err) {
+            geprueft = null;
+            status.textContent = `Fehler: ${err.message}`;
+            showToast(err.message, 'error', 10000);
+          } finally {
+            btnPruefen.disabled = false;
+            btnUebernehmen.disabled = !geprueft;
+          }
+        }
+
+        btnPruefen.addEventListener('click', () => lauf('trockenlauf'));
+        btnUebernehmen.addEventListener('click', async () => {
+          // Dateiname hat das Backend gegen DATEI_RE geprueft (nur Ziffern/Punkte) - ok fuer den Dialog.
+          if (!geprueft || !/^DE_Standard_DE_EUR_\d{2}\.\d{2}\.\d{4}\.csv$/.test(geprueft)) return;
+          const ok = await showConfirm('L-Shop-Stammdaten übernehmen',
+            `Daten aus ${geprueft} in den Reiter LShop_Modelle schreiben?`, 'Übernehmen');
+          if (ok) lauf('uebernehmen');
+        });
+      }
 
       // ── PWA install prompt ───────────────────────────────────────────────
       let deferredPrompt;
