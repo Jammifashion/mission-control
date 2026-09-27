@@ -8,6 +8,7 @@ import {
 } from '../lib/lieferzeiten.js';
 import { sortiereAttributOptionen, variantenReihenfolge } from '../lib/groessen.js';
 import { merkeKeyphrase } from '../lib/seo-artikel.js';
+import { wcAttributePaare } from '../lib/wc-variation-ids.js';
 
 const router = Router();
 
@@ -379,7 +380,11 @@ router.post('/products', async (req, res, next) => {
           });
           const varRaw = varResponse.data;
           const v = Array.isArray(varRaw) ? varRaw[0] : varRaw;
-          variationResults[vi] = { ok: true, id: v.id, lieferzeit: lieferzeitAusMetaData(v.meta_data) };
+          // VR2: Attribute der angelegten Variation (WC-Antwort; ohne Feld die gesendeten -
+          // ein POST je Variation, also dieselbe). Zuordnung zur Varianten-Zeile ueber
+          // die Kombination (lib/wc-variation-ids.js), nicht ueber den Index.
+          variationResults[vi] = { ok: true, id: v.id, lieferzeit: lieferzeitAusMetaData(v.meta_data),
+            attributes: wcAttributePaare(v.attributes ?? variation.attributes) };
         } catch (varErr) {
           variationResults[vi] = { ok: false, error: varErr.message ?? String(varErr) };
         }
@@ -425,6 +430,8 @@ router.post('/products', async (req, res, next) => {
       variations_failed:   failed,
       variation_errors:    errors,
       variation_ids:       variationIds,
+      // VR2: je angelegte Variation id + Attribute (Fehler: id 0 + error).
+      variationen:         variationResults.filter(Boolean).map(r => (r.ok ? { id: r.id, attributes: r.attributes } : { id: 0, error: r.error })),
     });
   } catch (err) {
     console.error('WC Error Response:', err.response?.data);
@@ -559,6 +566,7 @@ router.put('/products/:id', async (req, res, next) => {
     const kwNeu = (payload.meta_data ?? []).find(m => m?.key === '_yoast_wpseo_focuskw');
     if (kwNeu) merkeKeyphrase(req.params.id, product?.name, kwNeu.value);
 
+    let variationenNeu = [];
     if (Array.isArray(variations) && variations.length) {
       const skuVon = v => {
         const i = variations.indexOf(v);
@@ -579,10 +587,15 @@ router.put('/products/:id', async (req, res, next) => {
       const toCreate = variations.filter(v => !v.id).map(v =>
         neueVariation(v, { menuOrder: platz.get(variations.indexOf(v)), sku: skuVon(v).sku }));
       if (toUpdate.length || toCreate.length) {
-        await wc.post(`products/${req.params.id}/variations/batch`, {
+        // VR2: Antwort nicht mehr verwerfen. WooCommerce (REST V3 batch_items) liefert
+        // je create-Eintrag das angelegte Objekt (id, attributes) oder { id: 0, error }.
+        const { data: batch } = await wc.post(`products/${req.params.id}/variations/batch`, {
           ...(toUpdate.length ? { update: toUpdate } : {}),
           ...(toCreate.length ? { create: toCreate } : {}),
         });
+        variationenNeu = (batch?.create ?? []).map(c => (c && c.id && !c.error
+          ? { id: c.id, attributes: wcAttributePaare(c.attributes) }
+          : { id: 0, error: c?.error?.message ?? String(c?.error ?? 'unbekannt') }));
       }
     }
 
@@ -596,6 +609,8 @@ router.put('/products/:id', async (req, res, next) => {
       // Eigenes Feld: SKU- und Achsen-Hinweis zeigt das Frontend schon vor dem Speichern.
       groessen_hinweis: groessenHinweis,
       galerie: (product.images ?? []).length,
+      // VR2: neu angelegte Variationen (id + Attribute) fuer die WC_Variation_ID.
+      variationen_neu: variationenNeu,
       lieferzeit: lieferzeit === undefined
         ? { gesendet: null, gesetzt: lzShop, status: 'unveraendert' }
         : { gesendet: lieferzeit, gesetzt: lzShop,

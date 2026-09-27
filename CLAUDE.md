@@ -146,6 +146,15 @@ Neue Sektionen immer mit Anker versehen:
   nie Preise. Leser (seit LS2): lshop.js (TAB_LSHOP, dort auch STATUS_*), partnerArtikel.js. Status "ausgelaufen" = in
   lshopAuswertung wie Discontinued 3/6 (nicht waehlbar, `gesperrt` mit wert "ausgelaufen"); Marke,
   Modellnummern und EK lesen ausgelaufene Zeilen weiter. Nachtraege von Hand: Reiter `Modelle_Zusatz`.
+- backend/lib/wc-variation-ids.js – WC_Variation_ID zurueckschreiben (VR2), eine Quelle; Frontend-Spiegel
+  Block `WC-IDs: Anfang/Ende` (Test vergleicht beide). Zuordnung neue WC-Variation -> Varianten-Zeile NUR
+  ueber die Attributkombination (VR1-Schluessel + ae/oe/ue), nie ueber die Position. Nur LEERE IDs fuellen;
+  abweichende ID, 0 oder >1 Treffer -> nichts, Hinweis. Backend liefert `variationen` (POST /products) bzw.
+  `variationen_neu` (PUT /products/:id, aus der Batch-Antwort) mit id + attributes. Anlage- und
+  Aenderungspfad nutzen denselben Helfer; geschrieben wird im normalen Varianten-Writeback.
+  Bestand: `scripts/fill-wc-variation-ids.js` (Trockenlauf Standard, `--ssot`, `--csv`, `--write` schreibt
+  nur leere Zellen WC_Variation_ID nach erneutem Lesen). `PUT /api/sheets/varianten/:ssotId/wc-ids` hat
+  keinen Aufrufer.
 - backend/lib/ssot-reiter.js – gemeinsamer Leser fuer SSOT-Reiter: Kopfzeile, dann nur die
   benoetigten Spalten per batchGet (ganze Hoehe/Breite, FORMATTED_VALUE), Pflicht- und optionale
   Spalten ueber den Namen. Nutzer: lshop.js, seo-ssot.js.

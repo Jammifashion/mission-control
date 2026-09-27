@@ -4247,6 +4247,69 @@
       }
       // ── L-Shop-Modell: Ende ──
 
+      // ── WC-IDs: Anfang (Spiegel von backend/lib/wc-variation-ids.js, Test: backend/tests/wc-variation-ids.test.js) ──
+      // Befehl VR2: neue WooCommerce-Variation -> Varianten-Zeile NUR ueber die
+      // Attributkombination (nie ueber die Position). Schluessel wie VR1
+      // (Paare Achse=Wert, reihenfolgeunabhaengig, trim, klein, ß=ss) plus
+      // ä/ö/ü -> ae/oe/ue. Nur LEERE IDs fuellen; abweichende ID, 0 oder >1
+      // Treffer -> nichts, Hinweis. Ein Helfer fuer Anlage- und Aenderungspfad.
+      function wcFalte(s) {
+        return String(s ?? '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue');
+      }
+      function wcNorm(s) { return String(s ?? '').trim().toLowerCase().replace(/ß/g, 'ss'); }
+      function wcSchluessel(paare) {
+        return (paare || []).map(([e, v]) => [wcFalte(e), wcFalte(v)])
+          .filter(([e]) => wcNorm(e))
+          .map(([e, v]) => `${wcNorm(e)}=${wcNorm(v)}`)
+          .sort()
+          .join('|');
+      }
+      function wcLesbar(paare) {
+        return (paare || []).filter(([e]) => String(e ?? '').trim())
+          .map(([e, w]) => `${String(e).trim()}=${String(w ?? '').trim()}`).join(', ') || '(ohne Achsen)';
+      }
+      function ordneWcIdsZu(zeilen, wcVariationen, { ssotId = '' } = {}) {
+        const liste = Array.isArray(zeilen) ? zeilen : [];
+        const schluessel = liste.map(z => wcSchluessel(z.paare));
+        const vergebene = new Set(liste.map(z => String(z.wcVariationId ?? '').trim()).filter(Boolean));
+        const vor = ssotId ? `${ssotId}: ` : '';
+        const r = { zuordnung: [], schonGefuellt: 0, ohneTreffer: 0, mehrdeutig: 0, konflikt: 0, fehlerWc: 0, hinweise: [], details: [] };
+        for (const w of wcVariationen || []) {
+          const id = String(w?.id ?? '').trim();
+          if (!id || id === '0' || w?.error) { r.fehlerWc++; r.details.push({ id, ergebnis: 'fehler' }); continue; }
+          const paare = (w.attributes || []).map(a => [a?.name, a?.option]);
+          const k = wcSchluessel(paare);
+          const treffer = schluessel.map((s, i) => (s === k ? i : -1)).filter(i => i >= 0);
+          if (!treffer.length) { r.ohneTreffer++; r.details.push({ id, kombination: wcLesbar(paare), ergebnis: 'ohne Treffer' }); r.hinweise.push(`${vor}Variation ${id} (${wcLesbar(paare)}) passt auf keine Varianten-Zeile – nicht geschrieben.`); continue; }
+          if (treffer.length > 1) { r.mehrdeutig++; r.details.push({ id, kombination: wcLesbar(paare), ergebnis: 'mehrdeutig' }); r.hinweise.push(`${vor}Variation ${id} (${wcLesbar(paare)}) passt auf ${treffer.length} Zeilen – nicht geschrieben.`); continue; }
+          const i = treffer[0];
+          const alt = String(liste[i].wcVariationId ?? '').trim();
+          if (alt === id) { r.schonGefuellt++; r.details.push({ id, kombination: wcLesbar(paare), ergebnis: 'schon gefuellt', index: i }); continue; }
+          if (alt) { r.konflikt++; r.details.push({ id, kombination: wcLesbar(paare), ergebnis: 'konflikt', index: i, alt }); r.hinweise.push(`${vor}${wcLesbar(liste[i].paare)} hat schon WC_Variation_ID ${alt}, Shop meldet ${id} – nicht überschrieben.`); continue; }
+          if (vergebene.has(id)) { r.konflikt++; r.details.push({ id, kombination: wcLesbar(paare), ergebnis: 'konflikt', index: i, alt: '(ID an anderer Zeile)' }); r.hinweise.push(`${vor}Variation ${id} steht schon an einer anderen Zeile – nicht doppelt vergeben.`); continue; }
+          vergebene.add(id);
+          r.zuordnung.push({ index: i, id });
+          r.details.push({ id, kombination: wcLesbar(paare), ergebnis: 'zuordenbar', index: i });
+        }
+        return r;
+      }
+      function wcIdsMeldung(r) {
+        const ohne = r.ohneTreffer + r.mehrdeutig + r.konflikt;
+        return `${r.zuordnung.length} Variations-IDs zurückgeschrieben, ${ohne} ohne Zuordnung`;
+      }
+      // Formularzustand (variants: [{ attrs: [{name, value}], wcVariationId }])
+      // mit den angelegten WC-Variationen abgleichen; setzt wcVariationId nur an
+      // den eindeutig zugeordneten Zeilen mit leerer ID.
+      function wcIdsUebernehmen(variantenListe, wcVariationen, ssotId) {
+        const zeilen = (variantenListe || []).map(v => ({
+          paare: (v.attrs || []).map(a => [a.name, a.value]), wcVariationId: v.wcVariationId ?? '',
+        }));
+        const r = ordneWcIdsZu(zeilen, wcVariationen, { ssotId });
+        for (const { index, id } of r.zuordnung) variantenListe[index].wcVariationId = /^\d+$/.test(id) ? Number(id) : id;
+        return r;
+      }
+      // ── WC-IDs: Ende ──
+
       // ── Generator-Eingaben: Anfang (reine Logik, backend/tests/seo-generator.test.js) ──
       // Befehl M4. Quelle: GET /api/seo/generator-eingaben (backend/lib/seo-ssot.js).
       // Nur_intern kommt dort nie an; die Pruefung danach macht das Backend.
@@ -7117,7 +7180,19 @@
           if (!document.getElementById('pf-shipping').value)
             showToast('Gespeichert, aber ohne Versandklasse – bitte ergänzen.', 'warn', 12000);
 
+          // VR2: IDs der eben angelegten Variationen ueber die Attributkombination
+          // in den Formularzustand; das Writeback unten schreibt sie mit den
+          // Varianten-Zeilen (nur leere IDs werden gefuellt).
+          const neueOhneId = activeVariants.filter(v => !v.wcVariationId).length;
+          const zuordUpd = Array.isArray(data.variationen_neu) && data.variationen_neu.length
+            ? wcIdsUebernehmen(variants, data.variationen_neu, document.getElementById('pf-ssot-id').value)
+            : null;
+          if (!zuordUpd && neueOhneId && !Array.isArray(data.variationen_neu))
+            showToast('Variations-IDs nicht zurückgeschrieben: Backend liefert keine Variationen (Seite neu laden?).', 'warn', 12000);
+
           // Sheet-Writeback wenn Zeile bekannt
+          if (!currentDraftRow && zuordUpd && zuordUpd.zuordnung.length)
+            showToast('Variations-IDs nicht zurückgeschrieben: keine Zeile in der Erfassungsmaske.', 'warn', 12000);
           if (currentDraftRow) {
             const ssotId      = document.getElementById('pf-ssot-id').value;
             const artikelnummer = document.getElementById('pf-article-nr').value.trim();
@@ -7133,7 +7208,7 @@
               shortDesc:  document.getElementById('prod-short-desc').value,
               fullDesc:   document.getElementById('prod-full-desc-raw').value,
             };
-            await apiFetch(`${API_BASE()}/api/sheets/erfassung/overwrite`, {
+            const resOw = await apiFetch(`${API_BASE()}/api/sheets/erfassung/overwrite`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -7144,6 +7219,12 @@
                 'Status Shop': wcStatusLabel(selectedShopStatus),
               }),
             });
+            if (zuordUpd) {
+              const ohne = zuordUpd.ohneTreffer + zuordUpd.mehrdeutig + zuordUpd.konflikt;
+              if (!resOw.ok) showToast('Variations-IDs nicht zurückgeschrieben: Erfassungsmaske-Writeback fehlgeschlagen.', 'error', 12000);
+              else showToast(wcIdsMeldung(zuordUpd), ohne ? 'warn' : 'info', ohne ? 12000 : 5000);
+              if (zuordUpd.hinweise.length) showToast(zuordUpd.hinweise.join(' · '), 'warn', 15000);
+            }
           }
 
           // Geänderte Varianten-Preise + neu hochgeladene Varianten-Bilder einzeln aktualisieren
@@ -7576,20 +7657,25 @@
             try {
               // M3: WC_Variation_ID und Google_Farbe (= Farbwert 1:1, wie
               // _wc_gla_color im Shop) fuer die angelegten Varianten.
-              const variantenPayload = variants.map((v, i) => {
-                const activeIdx = activeVariants.indexOf(v);
-                const wcVarId   = activeIdx >= 0 ? (data1.variation_ids?.[activeIdx] ?? null) : null;
-                if (wcVarId) v.wcVariationId = wcVarId;
-                return variantenZeile(v, i, {
-                  wcVariationId: wcVarId,
-                  googleFarbe:   activeIdx >= 0 ? variantenFarbwert(v.attrs) : (v.googleFarbe ?? ''),
-                });
-              });
+              // VR2: IDs ueber die Attributkombination (Block "WC-IDs"), nicht
+              // mehr ueber den Index von variation_ids.
+              const zuordAnl = Array.isArray(data1.variationen)
+                ? wcIdsUebernehmen(variants, data1.variationen, ssotId) : null;
+              const variantenPayload = variants.map((v, i) => variantenZeile(v, i, {
+                googleFarbe: activeVariants.includes(v) ? variantenFarbwert(v.attrs) : (v.googleFarbe ?? ''),
+              }));
               await apiFetch(`${API_BASE()}/api/sheets/varianten/${encodeURIComponent(ssotId)}`, {
                 method:  'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body:    JSON.stringify({ varianten: variantenPayload }),
               });
+              if (zuordAnl) {
+                const ohne = zuordAnl.ohneTreffer + zuordAnl.mehrdeutig + zuordAnl.konflikt;
+                showToast(wcIdsMeldung(zuordAnl), ohne ? 'warn' : 'info', ohne ? 12000 : 5000);
+                if (zuordAnl.hinweise.length) showToast(zuordAnl.hinweise.join(' · '), 'warn', 15000);
+              } else {
+                showToast('Variations-IDs nicht zurückgeschrieben: Backend liefert keine Variationen (Seite neu laden?).', 'warn', 12000);
+              }
             } catch (e) {
               console.warn('Varianten-Sheet Writeback fehlgeschlagen:', e.message);
             }
