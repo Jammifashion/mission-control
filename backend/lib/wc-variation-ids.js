@@ -153,8 +153,8 @@ export function sperreDoppelte(neu, bestehend) {
 /** Hinweistext zur Sperre fuer die Antwort (null, wenn nichts zu melden). */
 export function sperreHinweis(s) {
   const teile = [];
-  if (s.vorhanden.length) teile.push(`${s.vorhanden.length} Varianten existierten bereits – nicht doppelt angelegt (${s.vorhanden.map(v => v.kombination).join('; ')}).`);
-  if (s.doppelt.length) teile.push(`${s.doppelt.length} Varianten standen doppelt in der Anfrage – nur einmal angelegt (${s.doppelt.map(v => v.kombination).join('; ')}).`);
+  if (s.vorhanden.length) teile.push(`${s.vorhanden.length === 1 ? '1 Variante existierte' : `${s.vorhanden.length} Varianten existierten`} bereits – nicht doppelt angelegt (${s.vorhanden.map(v => v.kombination).join('; ')}).`);
+  if (s.doppelt.length) teile.push(`${s.doppelt.length === 1 ? '1 Variante stand' : `${s.doppelt.length} Varianten standen`} doppelt in der Anfrage – nur einmal angelegt (${s.doppelt.map(v => v.kombination).join('; ')}).`);
   return teile.join(' ') || null;
 }
 

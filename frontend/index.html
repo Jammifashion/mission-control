@@ -7211,9 +7211,9 @@
             ? wcIdsUebernehmen(variants, wcAntwortUpd, document.getElementById('pf-ssot-id').value)
             : null;
           if (vorhandenUpd.length)
-            showToast(`${vorhandenUpd.length} Varianten existierten bereits – nicht doppelt angelegt`, 'warn', 12000);
+            showToast(`${vorhandenUpd.length === 1 ? '1 Variante existierte' : `${vorhandenUpd.length} Varianten existierten`} bereits – nicht doppelt angelegt`, 'warn', 12000);
           if (Array.isArray(data.doppelt_im_request) && data.doppelt_im_request.length)
-            showToast(`${data.doppelt_im_request.length} Varianten standen doppelt im Formular – nur einmal angelegt`, 'warn', 12000);
+            showToast(`${data.doppelt_im_request.length === 1 ? '1 Variante stand' : `${data.doppelt_im_request.length} Varianten standen`} doppelt im Formular – nur einmal angelegt`, 'warn', 12000);
           if (!zuordUpd && neueOhneId && !Array.isArray(data.variationen_neu))
             showToast('Variations-IDs nicht zurückgeschrieben: Backend liefert keine Variationen (Seite neu laden?).', 'warn', 12000);
 

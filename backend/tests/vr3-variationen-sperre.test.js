@@ -95,7 +95,7 @@ describe('sperreDoppelte (lib)', () => {
     const s = lib.sperreDoppelte([neuG('L'), neuG('l'), neuG('M')], []);
     expect(s.anlegen).toEqual([0, 2]);
     expect(s.doppelt).toEqual([{ index: 1, kombination: 'Größe=l' }]);
-    expect(lib.sperreHinweis(s)).toBe('1 Varianten standen doppelt in der Anfrage – nur einmal angelegt (Größe=l).');
+    expect(lib.sperreHinweis(s)).toBe('1 Variante stand doppelt in der Anfrage – nur einmal angelegt (Größe=l).');
   });
 
   test('leseAlleVariationen: alle Seiten; keine Liste -> Fehler', async () => {
@@ -213,7 +213,7 @@ describe('POST /products/:id/variationen-ergaenzen - wcSchluessel', () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ angelegt: 0, doppelt: 1 });
     expect(res.body.vorhanden).toEqual([{ kombination: 'Groesse=m', id: 20999, attributes: [{ name: 'Größe', option: 'M' }] }]);
-    expect(res.body.hinweis).toMatch(/1 Varianten existierten bereits – nicht doppelt angelegt/);
+    expect(res.body.hinweis).toMatch(/1 Variante existierte bereits – nicht doppelt angelegt/);
     expect(batchBodies()).toEqual([]);
     expect(wc.put).not.toHaveBeenCalled();
   });
