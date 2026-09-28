@@ -40,6 +40,8 @@ beforeEach(() => {
   jest.spyOn(console, 'warn').mockImplementation(() => {});
   varId = 900;
   wc.get.mockReset(); wc.post.mockReset(); wc.put.mockReset();
+  // VR3: der Speichern-Pfad liest vor dem create die Shop-Variationen (hier: keine).
+  wc.get.mockImplementation(async pfad => ({ data: pfad.endsWith('/variations') ? [] : undefined }));
   wc.post.mockImplementation(async (pfad, body) => pfad === 'products'
     ? { data: { id: 100, status: 'draft', sku: body.sku, meta_data: body.meta_data ?? [] } }
     : pfad.endsWith('/variations/batch') ? { data: {} }

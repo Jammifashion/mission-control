@@ -151,6 +151,11 @@ Neue Sektionen immer mit Anker versehen:
   ueber die Attributkombination (VR1-Schluessel + ae/oe/ue), nie ueber die Position. Nur LEERE IDs fuellen;
   abweichende ID, 0 oder >1 Treffer -> nichts, Hinweis. Mehrere Shop-Variationen auf DERSELBEN Zeile
   (Dubletten im Shop) -> Zeile mehrdeutig, keine davon geschrieben (Zaehler mehrdeutigZeile/mehrdeutigShop).
+  Sperre gegen doppelte Variationen (VR3): `PUT /products/:id` liest vor jedem create die Shop-Variationen
+  (`leseAlleVariationen`, alle Seiten, NACH dem Produkt-PUT) und prueft mit `sperreDoppelte` (wcSchluessel);
+  vorhandene Kombination -> nicht angelegt, Antwort `vorhanden` [{kombination, id, attributes}], die Maske
+  uebernimmt die ID ueber wcIdsUebernehmen; Doppel im Request -> einmal (`doppelt_im_request`). Liste nicht
+  lesbar -> nichts anlegen, 502 mit Grund (update laeuft). `variationen-ergaenzen` nutzt dieselbe Sperre.
   Backend liefert `variationen` (POST /products) bzw.
   `variationen_neu` (PUT /products/:id, aus der Batch-Antwort) mit id + attributes. Anlage- und
   Aenderungspfad nutzen denselben Helfer; geschrieben wird im normalen Varianten-Writeback.

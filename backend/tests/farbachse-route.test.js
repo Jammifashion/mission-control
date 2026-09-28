@@ -52,7 +52,8 @@ beforeEach(() => {
   clients.jfn = neuerClient();
   clients.jfn.post.mockResolvedValue({ data: { id: 555, sku: SKU } });
   clients.jfn.put.mockResolvedValue({ data: { id: 100, sku: SKU } });
-  clients.jfn.get.mockResolvedValue({ data: { id: 100, sku: SKU, attributes: attribute('Größe') } });
+  // VR3: GET .../variations = Shop-Variationen vor dem create (hier: keine).
+  clients.jfn.get.mockImplementation(async pfad => ({ data: pfad.endsWith('/variations') ? [] : { id: 100, sku: SKU, attributes: attribute('Größe') } }));
 });
 
 afterEach(() => jest.restoreAllMocks());

@@ -7200,10 +7200,20 @@
           // VR2: IDs der eben angelegten Variationen ueber die Attributkombination
           // in den Formularzustand; das Writeback unten schreibt sie mit den
           // Varianten-Zeilen (nur leere IDs werden gefuellt).
+          // VR3: Kombinationen, die es im Shop schon gab, legt das Backend nicht an,
+          // sondern meldet sie in `vorhanden` - deren ID wird ueber denselben Helfer
+          // uebernommen (nur leere IDs).
           const neueOhneId = activeVariants.filter(v => !v.wcVariationId).length;
-          const zuordUpd = Array.isArray(data.variationen_neu) && data.variationen_neu.length
-            ? wcIdsUebernehmen(variants, data.variationen_neu, document.getElementById('pf-ssot-id').value)
+          const vorhandenUpd = Array.isArray(data.vorhanden) ? data.vorhanden : [];
+          const wcAntwortUpd = [...(Array.isArray(data.variationen_neu) ? data.variationen_neu : []),
+            ...vorhandenUpd.map(v => ({ id: v.id, attributes: v.attributes }))];
+          const zuordUpd = wcAntwortUpd.length
+            ? wcIdsUebernehmen(variants, wcAntwortUpd, document.getElementById('pf-ssot-id').value)
             : null;
+          if (vorhandenUpd.length)
+            showToast(`${vorhandenUpd.length} Varianten existierten bereits – nicht doppelt angelegt`, 'warn', 12000);
+          if (Array.isArray(data.doppelt_im_request) && data.doppelt_im_request.length)
+            showToast(`${data.doppelt_im_request.length} Varianten standen doppelt im Formular – nur einmal angelegt`, 'warn', 12000);
           if (!zuordUpd && neueOhneId && !Array.isArray(data.variationen_neu))
             showToast('Variations-IDs nicht zurückgeschrieben: Backend liefert keine Variationen (Seite neu laden?).', 'warn', 12000);
 

@@ -101,6 +101,63 @@ export function wcIdsMeldung(r) {
 export const wcAttributePaare = attributes =>
   (Array.isArray(attributes) ? attributes : []).map(a => ({ name: String(a?.name ?? ''), option: String(a?.option ?? '') }));
 
+// ── Sperre gegen doppelte Variationen (Befehl VR3) ───────────────────────────
+// Vor jedem create: die Variationen des Produkts im Shop lesen (alle Seiten) und
+// neue Kombinationen ueber wcSchluessel dagegen pruefen. Befund VR2 Stufe 3: der
+// Speichern-Pfad legte jede Variante ohne id an - nach Wegfall einer Achse
+// entstand bei 20996 ein zweiter Satz. Kein stiller Rueckfall: ist die Liste
+// nicht lesbar, wirft leseAlleVariationen, und der Aufrufer legt nichts an.
+
+/**
+ * Alle Variationen eines Produkts (per_page 100, alle Seiten). Wirft bei jedem Fehler.
+ * @returns {Promise<object[]>} WooCommerce-Variationen (volle Objekte)
+ */
+export async function leseAlleVariationen(wc, productId) {
+  const alle = [];
+  for (let page = 1; ; page++) {
+    const { data } = await wc.get(`products/${productId}/variations`, { per_page: 100, page });
+    if (!Array.isArray(data)) throw new Error(`Antwort ohne Liste (Seite ${page})`);
+    alle.push(...data);
+    if (data.length < 100) return alle;
+  }
+}
+
+/**
+ * Teilt neue Variationen [{ attributes: [{ name, option }] }] gegen den Shop-Stand auf.
+ * @returns {{ anlegen: number[], vorhanden: {index: number, kombination: string, id: number, attributes: object[]}[],
+ *             doppelt: {index: number, kombination: string}[] }}
+ *   anlegen = Indizes in `neu`, die angelegt werden duerfen; vorhanden = Kombination gibt es
+ *   im Shop schon (mit deren id); doppelt = Kombination kommt im Request mehrfach vor (nur
+ *   die erste wird angelegt).
+ */
+export function sperreDoppelte(neu, bestehend) {
+  const imShop = new Map();
+  for (const b of bestehend ?? []) {
+    const k = wcSchluessel(paareAusWc(b?.attributes));
+    if (!imShop.has(k)) imShop.set(k, b);
+  }
+  const gesehen = new Set();
+  const r = { anlegen: [], vorhanden: [], doppelt: [] };
+  (neu ?? []).forEach((v, index) => {
+    const paare = paareAusWc(v?.attributes);
+    const k = wcSchluessel(paare);
+    const b = imShop.get(k);
+    if (b) { r.vorhanden.push({ index, kombination: lesbar(paare), id: b.id, attributes: wcAttributePaare(b.attributes) }); return; }
+    if (gesehen.has(k)) { r.doppelt.push({ index, kombination: lesbar(paare) }); return; }
+    gesehen.add(k);
+    r.anlegen.push(index);
+  });
+  return r;
+}
+
+/** Hinweistext zur Sperre fuer die Antwort (null, wenn nichts zu melden). */
+export function sperreHinweis(s) {
+  const teile = [];
+  if (s.vorhanden.length) teile.push(`${s.vorhanden.length} Varianten existierten bereits – nicht doppelt angelegt (${s.vorhanden.map(v => v.kombination).join('; ')}).`);
+  if (s.doppelt.length) teile.push(`${s.doppelt.length} Varianten standen doppelt in der Anfrage – nur einmal angelegt (${s.doppelt.map(v => v.kombination).join('; ')}).`);
+  return teile.join(' ') || null;
+}
+
 // ── Nachtrag fuer den Bestand (Teil B, scripts/fill-wc-variation-ids.js) ─────
 // Liest Varianten + Erfassungsmaske (SSOT-ID -> Produkt-ID) und je SSOT-ID die
 // Shop-Variationen (nur GET), ordnet mit ordneWcIdsZu zu. Schreiben nur mit

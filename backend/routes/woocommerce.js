@@ -8,7 +8,7 @@ import {
 } from '../lib/lieferzeiten.js';
 import { sortiereAttributOptionen, variantenReihenfolge } from '../lib/groessen.js';
 import { merkeKeyphrase } from '../lib/seo-artikel.js';
-import { wcAttributePaare } from '../lib/wc-variation-ids.js';
+import { wcAttributePaare, leseAlleVariationen, sperreDoppelte, sperreHinweis } from '../lib/wc-variation-ids.js';
 
 const router = Router();
 
@@ -567,6 +567,8 @@ router.put('/products/:id', async (req, res, next) => {
     if (kwNeu) merkeKeyphrase(req.params.id, product?.name, kwNeu.value);
 
     let variationenNeu = [];
+    let sperre = null;         // VR3: Ergebnis von sperreDoppelte
+    let sperreFehler = null;   // VR3: Shop-Liste nicht lesbar -> nichts angelegt
     if (Array.isArray(variations) && variations.length) {
       const skuVon = v => {
         const i = variations.indexOf(v);
@@ -584,7 +586,24 @@ router.put('/products/:id', async (req, res, next) => {
       // (Farbe, dann Groesse). Bestehende (toUpdate) bekommen weder meta_data
       // noch menu_order.
       const platz = new Map(variantenReihenfolge(variations, payload.attributes).map((vi, pos) => [vi, pos + 1]));
-      const toCreate = variations.filter(v => !v.id).map(v =>
+      const neu = variations.filter(v => !v.id);
+
+      // VR3: vor dem create die Shop-Variationen lesen (NACH dem Produkt-PUT: faellt
+      // eine Achse weg, meldet WooCommerce die Bestandsvariationen erst dann ohne sie)
+      // und schon vorhandene Kombinationen nicht noch einmal anlegen. Bestand, der im
+      // selben Batch ein update bekommt, zaehlt mit seinen NEUEN Attributen.
+      if (neu.length) {
+        try {
+          const imShop = await leseAlleVariationen(wc, req.params.id);
+          const updAttr = new Map(toUpdate.map(u => [String(u.id), u.attributes]));
+          sperre = sperreDoppelte(neu, imShop.map(b => (updAttr.has(String(b.id)) ? { ...b, attributes: updAttr.get(String(b.id)) } : b)));
+        } catch (e) {
+          sperreFehler = `Neue Varianten nicht angelegt: Variationen im Shop nicht lesbar (${e.response?.status ?? e.message}). `
+                       + 'Artikel und bestehende Varianten sind gespeichert – bitte erneut speichern.';
+        }
+      }
+      const anlegen = sperre ? sperre.anlegen.map(i => neu[i]) : [];
+      const toCreate = anlegen.map(v =>
         neueVariation(v, { menuOrder: platz.get(variations.indexOf(v)), sku: skuVon(v).sku }));
       if (toUpdate.length || toCreate.length) {
         // VR2: Antwort nicht mehr verwerfen. WooCommerce (REST V3 batch_items) liefert
@@ -599,6 +618,9 @@ router.put('/products/:id', async (req, res, next) => {
       }
     }
 
+    // VR3: kein stiller Rueckfall - ohne lesbare Shop-Liste wurde nichts angelegt.
+    if (sperreFehler) return res.status(502).json({ error: sperreFehler, variationen_neu: [] });
+
     // hinweis ist gesetzt, wenn eine regelwidrige Alt-Nummer oder fehlende
     // Farbachse unveraendert durchgelassen wurde (S2b-Muster). Beide koennen
     // gleichzeitig zutreffen - der Aufrufer zeigt sie an, still bleibt nichts.
@@ -611,6 +633,11 @@ router.put('/products/:id', async (req, res, next) => {
       galerie: (product.images ?? []).length,
       // VR2: neu angelegte Variationen (id + Attribute) fuer die WC_Variation_ID.
       variationen_neu: variationenNeu,
+      // VR3: Kombinationen, die es im Shop schon gab (nicht angelegt, id zum Uebernehmen),
+      // und Doppel im Request (nur einmal angelegt).
+      vorhanden: (sperre?.vorhanden ?? []).map(({ kombination, id, attributes }) => ({ kombination, id, attributes })),
+      doppelt_im_request: (sperre?.doppelt ?? []).map(({ kombination }) => ({ kombination })),
+      variationen_hinweis: sperre ? sperreHinweis(sperre) : null,
       lieferzeit: lieferzeit === undefined
         ? { gesendet: null, gesetzt: lzShop, status: 'unveraendert' }
         : { gesendet: lieferzeit, gesetzt: lzShop,
@@ -637,19 +664,21 @@ router.post('/products/:id/variationen-ergaenzen', async (req, res, next) => {
     const neu  = Array.isArray(req.body?.variations) ? req.body.variations : [];
     if (!neu.length) return res.status(400).json({ error: 'Keine neuen Varianten übergeben.', feld: 'variations' });
 
-    const [{ data: pRaw }, { data: vRaw }] = await Promise.all([
-      wc.get(`products/${req.params.id}`),
-      wc.get(`products/${req.params.id}/variations`, { per_page: 100 }),
-    ]);
+    const { data: pRaw } = await wc.get(`products/${req.params.id}`);
     const produkt   = Array.isArray(pRaw) ? pRaw[0] : pRaw;
-    const bestehend = Array.isArray(vRaw) ? vRaw : [];
+    // VR3: alle Seiten; nicht lesbar -> nichts anlegen, Fehler mit Grund.
+    let bestehend;
+    try {
+      bestehend = await leseAlleVariationen(wc, req.params.id);
+    } catch (e) {
+      return res.status(502).json({ error: `Keine Varianten angelegt: Variationen im Shop nicht lesbar (${e.response?.status ?? e.message}).` });
+    }
 
-    // Kombinationen, die es schon gibt, nicht doppelt anlegen.
-    const schluessel = attrs => (attrs ?? [])
-      .map(a => `${String(a.name).trim().toLowerCase()}=${String(a.option).trim().toLowerCase()}`).sort().join('|');
-    const vorhanden  = new Set(bestehend.map(v => schluessel(v.attributes)));
-    const anzulegen  = neu.filter(v => !vorhanden.has(schluessel(v.attributes)));
-    const doppelt    = neu.length - anzulegen.length;
+    // Kombinationen, die es schon gibt oder die im Request doppelt stehen, nicht
+    // doppelt anlegen - Schluessel wie VR2 (wcSchluessel: Umlaute, ß, Gross/Klein).
+    const sperre    = sperreDoppelte(neu, bestehend);
+    const anzulegen = sperre.anlegen.map(i => neu[i]);
+    const doppelt   = sperre.vorhanden.length;
 
     // Optionen vereinigen: Shop-Stand zuerst, neue Werte dazu, dann sortieren.
     // Globale Attribute behalten ihre id, andere Felder bleiben wie im Shop.
@@ -700,8 +729,11 @@ router.post('/products/:id/variationen-ergaenzen', async (req, res, next) => {
       angelegt,
       doppelt,
       fehler,
+      // VR3: wie PUT /products/:id
+      vorhanden:        sperre.vorhanden.map(({ kombination, id, attributes }) => ({ kombination, id, attributes })),
+      doppelt_im_request: sperre.doppelt.map(({ kombination }) => ({ kombination })),
       optionen:         sortiert.attributes.map(a => ({ name: a.name, options: a.options })),
-      hinweis:          [skuHinweis, sortiert.hinweis].filter(Boolean).join(' ') || null,
+      hinweis:          [skuHinweis, sortiert.hinweis, sperreHinweis(sperre)].filter(Boolean).join(' ') || null,
       groessen_hinweis: sortiert.hinweis,
     });
   } catch (err) { next(err); }

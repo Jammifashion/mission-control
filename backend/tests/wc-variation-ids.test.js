@@ -182,6 +182,7 @@ describe('Routen liefern die angelegten Variationen', () => {
 
   test('PUT /products/:id: variationen_neu aus der Batch-Antwort (Reihenfolge egal, Fehler als id 0)', async () => {
     wc.put.mockResolvedValue({ data: { id: 100, meta_data: [] } });
+    wc.get.mockResolvedValue({ data: [] });   // VR3: Shop-Liste vor dem create
     wc.post.mockResolvedValue({ data: {
       update: [{ id: 501 }],
       create: [
