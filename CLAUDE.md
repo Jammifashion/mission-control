@@ -153,8 +153,8 @@ Neue Sektionen immer mit Anker versehen:
   `variationen_neu` (PUT /products/:id, aus der Batch-Antwort) mit id + attributes. Anlage- und
   Aenderungspfad nutzen denselben Helfer; geschrieben wird im normalen Varianten-Writeback.
   Bestand: `scripts/fill-wc-variation-ids.js` (Trockenlauf Standard, `--ssot`, `--csv`, `--write` schreibt
-  nur leere Zellen WC_Variation_ID nach erneutem Lesen). `PUT /api/sheets/varianten/:ssotId/wc-ids` hat
-  keinen Aufrufer.
+  nur leere Zellen WC_Variation_ID nach erneutem Lesen). Die alte Route `PUT /api/sheets/varianten/:ssotId/wc-ids`
+  (Zuordnung ueber Varianten-Nr) ist entfernt.
 - backend/lib/ssot-reiter.js – gemeinsamer Leser fuer SSOT-Reiter: Kopfzeile, dann nur die
   benoetigten Spalten per batchGet (ganze Hoehe/Breite, FORMATTED_VALUE), Pflicht- und optionale
   Spalten ueber den Namen. Nutzer: lshop.js, seo-ssot.js.

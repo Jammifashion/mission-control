@@ -3,7 +3,7 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { findHeader, requireHeader, requireHeaderAny } from '../utils/sheet-headers.js';
 import { buildRow, mergeRow } from '../utils/sheet-rows.js';
-import { sichereSpalte, sichereTextSpalte, colLetter as spaltenBuchstabe } from '../utils/sheet-spalten.js';
+import { sichereSpalte, sichereTextSpalte } from '../utils/sheet-spalten.js';
 import { ladeLieferzeiten } from '../lib/lieferzeiten.js';
 import { lshopFuerArtikel } from '../lib/lshop.js';
 import { maskenVorschlaege } from '../lib/vorschlaege.js';
@@ -585,59 +585,6 @@ router.put('/varianten/:ssotId', async (req, res, next) => {
     const sheets = await getSheets();
     await writeVariantenForSsotId(sheets, sheetId(), ssotId, varianten);
     res.json({ success: true, written: varianten.length });
-  } catch (err) { next(err); }
-});
-
-// ── PUT /api/sheets/varianten/:ssotId/wc-ids ─────────────────────────────────
-// Schreibt nach WC-Push die WC_Variation_IDs zurück in den Varianten-Reiter
-// Body: { mappings: [{ variantenNr: 1, wcVariationId: 12345 }, ...] }
-router.put('/varianten/:ssotId/wc-ids', async (req, res, next) => {
-  try {
-    const ssotId   = req.params.ssotId;
-    const mappings = req.body.mappings;
-    if (!Array.isArray(mappings) || mappings.length === 0) {
-      return res.status(400).json({ error: 'mappings Array fehlt oder leer' });
-    }
-
-    const sheets        = await getSheets();
-    const spreadsheetId = sheetId();
-
-    const rows   = await leseVarianten(sheets, spreadsheetId);
-    const header = rows[0] ?? [];
-    const CTX    = 'PUT /api/sheets/varianten/:ssotId/wc-ids';
-    const ssotIdx = requireHeader(header, 'SSOT-ID', CTX);
-    const nrIdx   = requireHeader(header, 'Varianten-Nr', CTX);
-    // Spalte über den Namen, egal wo sie steht; 1-basierte Zeilennummer = i + 1.
-    const wcSpalte = spaltenBuchstabe(requireHeader(header, 'WC_Variation_ID', CTX));
-    const data2Update = [];
-
-    mappings.forEach(({ variantenNr, wcVariationId }) => {
-      for (let i = 1; i < rows.length; i++) {
-        const rowSsot = String(rows[i][ssotIdx] ?? '').trim();
-        const rowNr   = parseInt(rows[i][nrIdx] ?? '', 10);
-        if (rowSsot === ssotId && rowNr === variantenNr) {
-          data2Update.push({
-            range:  `${TAB_VARIANTEN}!${wcSpalte}${i + 1}`,
-            values: [[wcVariationId ?? '']],
-          });
-          break;
-        }
-      }
-    });
-
-    if (data2Update.length === 0) {
-      return res.status(404).json({ error: 'Keine passenden Varianten-Zeilen gefunden' });
-    }
-
-    await sheets.spreadsheets.values.batchUpdate({
-      spreadsheetId,
-      requestBody: {
-        valueInputOption: 'USER_ENTERED',
-        data:             data2Update,
-      },
-    });
-
-    res.json({ success: true, updated: data2Update.length });
   } catch (err) { next(err); }
 });
 

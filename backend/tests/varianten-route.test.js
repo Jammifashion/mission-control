@@ -248,22 +248,3 @@ describe('GET /api/sheets/varianten', () => {
       .toEqual([[1, 'M', '1000311706'], [2, '5XL', '1000000999']]);
   });
 });
-
-describe('PUT /api/sheets/varianten/:ssotId/wc-ids', () => {
-  test('schreibt in die Spalte namens WC_Variation_ID, egal wo sie steht', async () => {
-    setzeTab(BESTAND);   // WC_Variation_ID = Spalte A, JFN-A Nr 2 = Zeile 4
-    const res = await request(app).put('/api/sheets/varianten/JFN-A/wc-ids')
-      .send({ mappings: [{ variantenNr: 2, wcVariationId: 4711 }] });
-    expect(res.status).toBe(200);
-    expect(values.batchUpdate.mock.calls[0][0].requestBody.data)
-      .toEqual([{ range: 'Varianten!A4', values: [[4711]] }]);
-  });
-
-  test('Spalte weiter hinten -> Buchstabe folgt dem Namen', async () => {
-    const k2 = [...KOPF.filter(h => h !== 'WC_Variation_ID'), 'WC_Variation_ID'];   // Spalte N
-    setzeTab([k2, k2.map(h => ({ 'SSOT-ID': 'JFN-A', 'Varianten-Nr': '1' }[h] ?? ''))]);
-    await request(app).put('/api/sheets/varianten/JFN-A/wc-ids')
-      .send({ mappings: [{ variantenNr: 1, wcVariationId: 1 }] });
-    expect(values.batchUpdate.mock.calls[0][0].requestBody.data[0].range).toBe('Varianten!N2');
-  });
-});
