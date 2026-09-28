@@ -149,7 +149,9 @@ Neue Sektionen immer mit Anker versehen:
 - backend/lib/wc-variation-ids.js – WC_Variation_ID zurueckschreiben (VR2), eine Quelle; Frontend-Spiegel
   Block `WC-IDs: Anfang/Ende` (Test vergleicht beide). Zuordnung neue WC-Variation -> Varianten-Zeile NUR
   ueber die Attributkombination (VR1-Schluessel + ae/oe/ue), nie ueber die Position. Nur LEERE IDs fuellen;
-  abweichende ID, 0 oder >1 Treffer -> nichts, Hinweis. Backend liefert `variationen` (POST /products) bzw.
+  abweichende ID, 0 oder >1 Treffer -> nichts, Hinweis. Mehrere Shop-Variationen auf DERSELBEN Zeile
+  (Dubletten im Shop) -> Zeile mehrdeutig, keine davon geschrieben (Zaehler mehrdeutigZeile/mehrdeutigShop).
+  Backend liefert `variationen` (POST /products) bzw.
   `variationen_neu` (PUT /products/:id, aus der Batch-Antwort) mit id + attributes. Anlage- und
   Aenderungspfad nutzen denselben Helfer; geschrieben wird im normalen Varianten-Writeback.
   Bestand: `scripts/fill-wc-variation-ids.js` (Trockenlauf Standard, `--ssot`, `--csv`, `--write` schreibt

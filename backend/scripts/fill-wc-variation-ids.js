@@ -7,6 +7,8 @@
 // Produkt-ID) und je SSOT-ID die Shop-Variationen (nur GET, 1 Anfrage/Sek.),
 // ordnet ueber die Attributkombination zu (lib/wc-variation-ids.js) und zaehlt
 // zuordenbar / schon gefuellt / ohne Treffer / mehrdeutig / Konflikt.
+// mehrdeutig getrennt: mehrdeutigZeile (Zeile -> mehrere Shop-Variationen, je Zeile)
+// und mehrdeutigShop (Variation -> mehrere Zeilen, je Variation).
 // Erst --write schreibt - und dann NUR die leeren Zellen WC_Variation_ID der
 // eindeutig zugeordneten Zeilen (vorher neu gelesen und geprueft).
 // --csv schreibt die Details je Shop-Variation (keine Preise).
@@ -41,17 +43,18 @@ async function run() {
   const { plaene, anfragen } = await planeNachtrag({ sheets, wc: getWcClient('jfn'), nurSsot: SSOT, drossel });
   const zaehler = plaene.map(nachtragZaehler);
   const summe = {};
-  for (const z of zaehler) for (const k of ['zeilen', 'zuordenbar', 'schonGefuellt', 'ohneTreffer', 'mehrdeutig', 'konflikt', 'leerVorher', 'leerDanach'])
+  for (const z of zaehler) for (const k of ['zeilen', 'zuordenbar', 'schonGefuellt', 'ohneTreffer', 'mehrdeutig', 'mehrdeutigShop', 'mehrdeutigZeile', 'konflikt', 'leerVorher', 'leerDanach'])
     summe[k] = (summe[k] ?? 0) + (Number(z[k]) || 0);
   summe.ssotIds = zaehler.length;
   summe.ohneProduktId = zaehler.filter(z => z.fehlt === 'ohne Produkt-ID').length;
   summe.shopNichtLesbar = zaehler.filter(z => z.fehlt.startsWith('Shop nicht lesbar')).length;
 
-  for (const z of zaehler) {
-    if (z.fehlt) { console.log(`${z.ssot}: ${z.fehlt}`); continue; }
+  zaehler.forEach((z, n) => {
+    if (z.fehlt) { console.log(`${z.ssot}: ${z.fehlt}`); return; }
     if (z.zuordenbar || z.ohneTreffer || z.mehrdeutig || z.konflikt)
-      console.log(`${z.ssot} (${z.pid}): zuordenbar ${z.zuordenbar}, schon gefuellt ${z.schonGefuellt}, ohne Treffer ${z.ohneTreffer}, mehrdeutig ${z.mehrdeutig}, Konflikt ${z.konflikt}`);
-  }
+      console.log(`${z.ssot} (${z.pid}): zuordenbar ${z.zuordenbar}, schon gefuellt ${z.schonGefuellt}, ohne Treffer ${z.ohneTreffer}, mehrdeutig ${z.mehrdeutig} (Zeile->n Shop: ${z.mehrdeutigZeile} Zeilen, Shop->n Zeilen: ${z.mehrdeutigShop} Variationen), Konflikt ${z.konflikt}`);
+    if (z.mehrdeutigZeile) for (const h of plaene[n].r.hinweise.filter(t => t.includes('Shop-Variationen ('))) console.log(`  ${h}`);
+  });
   console.log(`Summe: ${JSON.stringify(summe)} · WC-Anfragen ${anfragen} · ${Math.round((Date.now() - t0) / 1000)} s`);
 
   if (CSV) {

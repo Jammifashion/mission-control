@@ -98,6 +98,34 @@ describe.each([['lib', lib], ['Frontend-Block', fe]])('ordneWcIdsZu (%s)', (_nam
     const r = m.ordneWcIdsZu(zeilen, wcv);
     expect(r.zuordnung.sort((a, b) => a.index - b.index)).toEqual([{ index: 0, id: '21118' }, { index: 1, id: '21119' }, { index: 2, id: '21120' }]);
   });
+
+  // Befund Stufe 2: Shop hat jede Groesse doppelt (Produkt 20996, 20997-21003 und 21021-21027).
+  const G7 = ['3XL', '2XL', 'XL', 'L', 'M', 'S', 'XS'];
+  const nurGroesse = (id, g) => ({ id, attributes: [{ name: 'Größe', option: g }] });
+  test('Dubletten im Shop (Fall 20996): mehrere Variationen auf derselben Zeile -> nichts, Hinweis je Zeile', () => {
+    const zeilen = G7.map((g, i) => ({ paare: [['Größe', g]], wcVariationId: '', sheetZeile: 1345 + i }));
+    const wcv = [...G7.map((g, i) => nurGroesse(21003 - i, g)), ...G7.map((g, i) => nurGroesse(21027 - i, g))];
+    const r = m.ordneWcIdsZu(zeilen, wcv, { ssotId: 'JFN-2026-0089' });
+    expect(r.zuordnung).toEqual([]);
+    expect(r).toMatchObject({ mehrdeutig: 14, mehrdeutigZeile: 7, mehrdeutigShop: 0, schonGefuellt: 0, konflikt: 0 });
+    expect(r.hinweise).toHaveLength(7);
+    expect(r.hinweise[0]).toBe('JFN-2026-0089: Zeile 1345 (Größe=3XL): 2 Shop-Variationen (21003, 21027) – nicht geschrieben.');
+    expect(r.details.filter(d => d.ergebnis === 'mehrdeutig')).toHaveLength(14);
+    expect(m.wcIdsMeldung(r)).toBe('0 Variations-IDs zurückgeschrieben, 14 ohne Zuordnung');
+  });
+
+  test('Mischfall: eine Groesse doppelt im Shop, Rest eindeutig -> Rest wird zugeordnet', () => {
+    const r = m.ordneWcIdsZu(BESTAND(), [w(601, 'Schwarz', 'XL'), w(602, 'Schwarz', '2XL'), w(603, 'schwarz', 'xl')], { ssotId: 'JFN-1' });
+    expect(r.zuordnung).toEqual([{ index: 4, id: '602' }]);
+    expect(r).toMatchObject({ mehrdeutig: 2, mehrdeutigZeile: 1, mehrdeutigShop: 0 });
+    expect(r.hinweise).toEqual(['JFN-1: (Farbe=Schwarz, Größe=XL): 2 Shop-Variationen (601, 603) – nicht geschrieben.']);
+  });
+
+  test('Dublette im Shop auch bei schon gefuellter Zeile -> mehrdeutig, nichts ueberschrieben', () => {
+    const r = m.ordneWcIdsZu([z('Schwarz', 'S', 501)], [w(501, 'Schwarz', 'S'), w(511, 'Schwarz', 'S')]);
+    expect(r.zuordnung).toEqual([]);
+    expect(r).toMatchObject({ mehrdeutig: 2, mehrdeutigZeile: 1, schonGefuellt: 0, konflikt: 0 });
+  });
 });
 
 describe('Frontend: Formularzustand und Varianten-Zeilen (Regel 6)', () => {
@@ -223,6 +251,7 @@ describe('Spiegel: Lib und Frontend-Block rechnen identisch (inkl. details)', ()
     [BESTAND(), [w(602, 'Schwarz', '2XL'), w(601, 'Schwarz', 'XL'), w(501, 'Schwarz', 'S'), w(777, 'Blau', 'S')]],
     [[z('Schwarz', 'XL'), z('schwarz', 'xl'), z('Rot', 'M', 9)], [w(1, 'Schwarz', 'XL'), w(2, 'Rot', 'M'), { id: 0, error: 'x' }]],
     [[{ paare: [['Größe', 'M']], wcVariationId: '' }], [{ id: 5, attributes: [{ name: 'Groesse', option: 'm' }] }]],
+    [BESTAND().map((r, i) => ({ ...r, sheetZeile: 10 + i })), [w(601, 'Schwarz', 'XL'), w(602, 'Schwarz', '2XL'), w(603, 'Schwarz', 'XL'), w(501, 'Schwarz', 'S'), w(511, 'Schwarz', 'S')]],
   ];
   test.each(faelle.map((f, i) => [i, ...f]))('Fall %i', (_i, zeilen, wcv) => {
     expect(fe.ordneWcIdsZu(zeilen, wcv, { ssotId: 'S' })).toEqual(lib.ordneWcIdsZu(zeilen, wcv, { ssotId: 'S' }));
@@ -242,6 +271,8 @@ describe('Nachtrag Bestand (Teil B): planeNachtrag / schreibeNachtrag', () => {
       { id: 601, attributes: [{ name: 'Farbe', option: 'Schwarz' }, { name: 'Größe', option: 'XL' }] },
       { id: 999, attributes: [{ name: 'Farbe', option: 'Schwarz' }, { name: 'Größe', option: 'M' }] }],
     200: [{ id: 700, attributes: [{ name: 'Farbe', option: 'Rot' }] }],
+    300: [{ id: 801, attributes: [{ name: 'Größe', option: 'M' }] }, { id: 802, attributes: [{ name: 'Größe', option: 'L' }] },
+      { id: 811, attributes: [{ name: 'Größe', option: 'M' }] }],
   };
   const wcMock = { get: jest.fn(async (pfad) => ({ data: shop[/products\/(\d+)\//.exec(pfad)[1]] ?? [] })) };
   beforeEach(() => {
@@ -291,5 +322,18 @@ describe('Nachtrag Bestand (Teil B): planeNachtrag / schreibeNachtrag', () => {
     const w2 = await lib.schreibeNachtrag({ sheets, spreadsheetId: 'x', plaene });
     expect(w2.geschrieben).toBe(0);
     expect(w2.uebersprungen).toEqual(['JFN-1 Zeile 4: WC_Variation_ID inzwischen gefuellt', 'JFN-2 Zeile 5: Zeile hat sich geaendert']);
+  });
+
+  test('Dubletten im Shop: mehrdeutige Zeile bleibt leer, eindeutige Zeile wird geschrieben, Zaehler je Richtung', async () => {
+    tabs.Varianten.push(['JFN-4', 1, 'Größe', 'M', '', '', '', '', 20, true, '', '', ''],
+      ['JFN-4', 2, 'Größe', 'L', '', '', '', '', 20, true, '', '', '']);
+    tabs.Erfassungsmaske.push(['JFN-4', 300]);
+    const { plaene } = await lib.planeNachtrag({ sheets, wc: wcMock, spreadsheetId: 'x', nurSsot: 'JFN-4' });
+    expect(lib.nachtragZaehler(plaene[0])).toMatchObject({ zuordenbar: 1, mehrdeutig: 2, mehrdeutigZeile: 1, mehrdeutigShop: 0, leerVorher: 2, leerDanach: 1 });
+    expect(plaene[0].r.hinweise).toEqual(['JFN-4: Zeile 7 (Größe=M): 2 Shop-Variationen (801, 811) – nicht geschrieben.']);
+    const w2 = await lib.schreibeNachtrag({ sheets, spreadsheetId: 'x', plaene });
+    expect(w2).toEqual({ geschrieben: 1, uebersprungen: [] });
+    expect(updates[0].data).toEqual([{ range: "'Varianten'!K8", values: [[802]] }]);
+    expect(tabs.Varianten[6][10]).toBe('');
   });
 });

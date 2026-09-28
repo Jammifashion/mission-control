@@ -11,6 +11,11 @@
 //  - nur LEERE WC_Variation_ID fuellen; vorhandene gleiche ID = "schon gefuellt";
 //    vorhandene ABWEICHENDE ID = Konflikt, nichts schreiben, Hinweis.
 //  - passt eine WC-Variation auf 0 oder mehr als 1 Zeile: nichts schreiben, Hinweis.
+//  - passen MEHRERE WC-Variationen auf dieselbe Zeile (Dubletten im Shop): die Zeile
+//    ist mehrdeutig, keine dieser Variationen wird geschrieben, Hinweis (Befund VR2
+//    Stufe 2, JFN-2026-0089). Zaehler getrennt: mehrdeutigShop (Variation -> n
+//    Zeilen, je Variation), mehrdeutigZeile (Zeile -> n Variationen, je Zeile);
+//    mehrdeutig = alle nicht geschriebenen Variationen beider Richtungen.
 //  - eine ID, die schon an einer anderen Zeile steht, wird nicht doppelt vergeben.
 //
 // Nutzer: Frontend (Anlage- und Aenderungspfad, Spiegel-Block "WC-IDs: Anfang/Ende"
@@ -35,12 +40,13 @@ const lesbar = paare => (paare ?? []).filter(([e]) => String(e ?? '').trim())
   .map(([e, w]) => `${String(e).trim()}=${String(w ?? '').trim()}`).join(', ') || '(ohne Achsen)';
 
 /**
- * @param {object[]} zeilen  Varianten-Zeilen [{ paare: [[e, v], ...], wcVariationId }]
+ * @param {object[]} zeilen  Varianten-Zeilen [{ paare: [[e, v], ...], wcVariationId, sheetZeile? }]
  * @param {object[]} wcVariationen  [{ id, attributes: [{ name, option }], error? }]
  * @param {object}  [o]
  * @param {string}  [o.ssotId]  nur fuer die Hinweistexte
  * @returns {{ zuordnung: {index: number, id: string}[], schonGefuellt: number,
- *             ohneTreffer: number, mehrdeutig: number, konflikt: number,
+ *             ohneTreffer: number, mehrdeutig: number, mehrdeutigShop: number,
+ *             mehrdeutigZeile: number, konflikt: number,
  *             fehlerWc: number, hinweise: string[] }}
  */
 export function ordneWcIdsZu(zeilen, wcVariationen, { ssotId = '' } = {}) {
@@ -48,17 +54,32 @@ export function ordneWcIdsZu(zeilen, wcVariationen, { ssotId = '' } = {}) {
   const schluessel = liste.map(z => wcSchluessel(z.paare));
   const vergebene = new Set(liste.map(z => String(z.wcVariationId ?? '').trim()).filter(Boolean));
   const vor = ssotId ? `${ssotId}: ` : '';
-  const r = { zuordnung: [], schonGefuellt: 0, ohneTreffer: 0, mehrdeutig: 0, konflikt: 0, fehlerWc: 0, hinweise: [], details: [] };
+  const r = { zuordnung: [], schonGefuellt: 0, ohneTreffer: 0, mehrdeutig: 0, mehrdeutigShop: 0, mehrdeutigZeile: 0, konflikt: 0, fehlerWc: 0, hinweise: [], details: [] };
 
+  // Erst alle Treffer sammeln: nur so faellt auf, wenn mehrere Variationen auf dieselbe Zeile zeigen.
+  const kandidaten = [];
+  const jeZeile = new Map();   // Zeilenindex -> IDs der Variationen mit genau diesem einen Treffer
   for (const w of wcVariationen ?? []) {
     const id = String(w?.id ?? '').trim();
     if (!id || id === '0' || w?.error) { r.fehlerWc++; r.details.push({ id, ergebnis: 'fehler' }); continue; }   // WC-Batch: Fehler = { id: 0, error }
     const paare = paareAusWc(w.attributes);
     const k = wcSchluessel(paare);
     const treffer = schluessel.map((s, i) => (s === k ? i : -1)).filter(i => i >= 0);
+    kandidaten.push({ id, paare, treffer });
+    if (treffer.length === 1) jeZeile.set(treffer[0], [...(jeZeile.get(treffer[0]) ?? []), id]);
+  }
+  for (const [i, ids] of jeZeile) {
+    if (ids.length < 2) continue;
+    r.mehrdeutigZeile++;
+    const nr = liste[i].sheetZeile ? `Zeile ${liste[i].sheetZeile} ` : '';
+    r.hinweise.push(`${vor}${nr}(${lesbar(liste[i].paare)}): ${ids.length} Shop-Variationen (${ids.join(', ')}) – nicht geschrieben.`);
+  }
+
+  for (const { id, paare, treffer } of kandidaten) {
     if (!treffer.length) { r.ohneTreffer++; r.details.push({ id, kombination: lesbar(paare), ergebnis: 'ohne Treffer' }); r.hinweise.push(`${vor}Variation ${id} (${lesbar(paare)}) passt auf keine Varianten-Zeile – nicht geschrieben.`); continue; }
-    if (treffer.length > 1) { r.mehrdeutig++; r.details.push({ id, kombination: lesbar(paare), ergebnis: 'mehrdeutig' }); r.hinweise.push(`${vor}Variation ${id} (${lesbar(paare)}) passt auf ${treffer.length} Zeilen – nicht geschrieben.`); continue; }
+    if (treffer.length > 1) { r.mehrdeutig++; r.mehrdeutigShop++; r.details.push({ id, kombination: lesbar(paare), ergebnis: 'mehrdeutig' }); r.hinweise.push(`${vor}Variation ${id} (${lesbar(paare)}) passt auf ${treffer.length} Zeilen – nicht geschrieben.`); continue; }
     const i = treffer[0];
+    if (jeZeile.get(i).length > 1) { r.mehrdeutig++; r.details.push({ id, kombination: lesbar(paare), ergebnis: 'mehrdeutig', index: i }); continue; }
     const alt = String(liste[i].wcVariationId ?? '').trim();
     if (alt === id) { r.schonGefuellt++; r.details.push({ id, kombination: lesbar(paare), ergebnis: 'schon gefuellt', index: i }); continue; }
     if (alt) { r.konflikt++; r.details.push({ id, kombination: lesbar(paare), ergebnis: 'konflikt', index: i, alt }); r.hinweise.push(`${vor}${lesbar(liste[i].paare)} hat schon WC_Variation_ID ${alt}, Shop meldet ${id} – nicht überschrieben.`); continue; }
@@ -188,7 +209,7 @@ export function nachtragZaehler(p) {
   return {
     ssot: p.ssot, pid: p.pid, zeilen: p.zeilen.length, shopVariationen: p.shopVariationen ?? '',
     zuordenbar: r?.zuordnung.length ?? 0, schonGefuellt: r?.schonGefuellt ?? 0, ohneTreffer: r?.ohneTreffer ?? 0,
-    mehrdeutig: r?.mehrdeutig ?? 0, konflikt: r?.konflikt ?? 0, leerVorher,
+    mehrdeutig: r?.mehrdeutig ?? 0, mehrdeutigShop: r?.mehrdeutigShop ?? 0, mehrdeutigZeile: r?.mehrdeutigZeile ?? 0, konflikt: r?.konflikt ?? 0, leerVorher,
     leerDanach: leerVorher - (r?.zuordnung.length ?? 0), fehlt: p.fehlt ?? '',
   };
 }

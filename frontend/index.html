@@ -4252,7 +4252,8 @@
       // Attributkombination (nie ueber die Position). Schluessel wie VR1
       // (Paare Achse=Wert, reihenfolgeunabhaengig, trim, klein, ß=ss) plus
       // ä/ö/ü -> ae/oe/ue. Nur LEERE IDs fuellen; abweichende ID, 0 oder >1
-      // Treffer -> nichts, Hinweis. Ein Helfer fuer Anlage- und Aenderungspfad.
+      // Treffer -> nichts, Hinweis. Mehrere Shop-Variationen auf derselben Zeile
+      // (Dubletten) -> Zeile mehrdeutig, nichts. Ein Helfer fuer Anlage- und Aenderungspfad.
       function wcFalte(s) {
         return String(s ?? '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue');
       }
@@ -4273,16 +4274,32 @@
         const schluessel = liste.map(z => wcSchluessel(z.paare));
         const vergebene = new Set(liste.map(z => String(z.wcVariationId ?? '').trim()).filter(Boolean));
         const vor = ssotId ? `${ssotId}: ` : '';
-        const r = { zuordnung: [], schonGefuellt: 0, ohneTreffer: 0, mehrdeutig: 0, konflikt: 0, fehlerWc: 0, hinweise: [], details: [] };
+        const r = { zuordnung: [], schonGefuellt: 0, ohneTreffer: 0, mehrdeutig: 0, mehrdeutigShop: 0, mehrdeutigZeile: 0, konflikt: 0, fehlerWc: 0, hinweise: [], details: [] };
+
+        // Erst alle Treffer sammeln: nur so faellt auf, wenn mehrere Variationen auf dieselbe Zeile zeigen.
+        const kandidaten = [];
+        const jeZeile = new Map();   // Zeilenindex -> IDs der Variationen mit genau diesem einen Treffer
         for (const w of wcVariationen || []) {
           const id = String(w?.id ?? '').trim();
-          if (!id || id === '0' || w?.error) { r.fehlerWc++; r.details.push({ id, ergebnis: 'fehler' }); continue; }
+          if (!id || id === '0' || w?.error) { r.fehlerWc++; r.details.push({ id, ergebnis: 'fehler' }); continue; }   // WC-Batch: Fehler = { id: 0, error }
           const paare = (w.attributes || []).map(a => [a?.name, a?.option]);
           const k = wcSchluessel(paare);
           const treffer = schluessel.map((s, i) => (s === k ? i : -1)).filter(i => i >= 0);
+          kandidaten.push({ id, paare, treffer });
+          if (treffer.length === 1) jeZeile.set(treffer[0], [...(jeZeile.get(treffer[0]) || []), id]);
+        }
+        for (const [i, ids] of jeZeile) {
+          if (ids.length < 2) continue;
+          r.mehrdeutigZeile++;
+          const nr = liste[i].sheetZeile ? `Zeile ${liste[i].sheetZeile} ` : '';
+          r.hinweise.push(`${vor}${nr}(${wcLesbar(liste[i].paare)}): ${ids.length} Shop-Variationen (${ids.join(', ')}) – nicht geschrieben.`);
+        }
+
+        for (const { id, paare, treffer } of kandidaten) {
           if (!treffer.length) { r.ohneTreffer++; r.details.push({ id, kombination: wcLesbar(paare), ergebnis: 'ohne Treffer' }); r.hinweise.push(`${vor}Variation ${id} (${wcLesbar(paare)}) passt auf keine Varianten-Zeile – nicht geschrieben.`); continue; }
-          if (treffer.length > 1) { r.mehrdeutig++; r.details.push({ id, kombination: wcLesbar(paare), ergebnis: 'mehrdeutig' }); r.hinweise.push(`${vor}Variation ${id} (${wcLesbar(paare)}) passt auf ${treffer.length} Zeilen – nicht geschrieben.`); continue; }
+          if (treffer.length > 1) { r.mehrdeutig++; r.mehrdeutigShop++; r.details.push({ id, kombination: wcLesbar(paare), ergebnis: 'mehrdeutig' }); r.hinweise.push(`${vor}Variation ${id} (${wcLesbar(paare)}) passt auf ${treffer.length} Zeilen – nicht geschrieben.`); continue; }
           const i = treffer[0];
+          if (jeZeile.get(i).length > 1) { r.mehrdeutig++; r.details.push({ id, kombination: wcLesbar(paare), ergebnis: 'mehrdeutig', index: i }); continue; }
           const alt = String(liste[i].wcVariationId ?? '').trim();
           if (alt === id) { r.schonGefuellt++; r.details.push({ id, kombination: wcLesbar(paare), ergebnis: 'schon gefuellt', index: i }); continue; }
           if (alt) { r.konflikt++; r.details.push({ id, kombination: wcLesbar(paare), ergebnis: 'konflikt', index: i, alt }); r.hinweise.push(`${vor}${wcLesbar(liste[i].paare)} hat schon WC_Variation_ID ${alt}, Shop meldet ${id} – nicht überschrieben.`); continue; }
