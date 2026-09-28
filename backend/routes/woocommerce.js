@@ -165,16 +165,6 @@ router.get('/products/:id/variations', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// POST /api/woocommerce/products/:id/variations
-router.post('/products/:id/variations', async (req, res, next) => {
-  try {
-    const wc = getClient(req);
-    const { data: raw } = await wc.post(`products/${req.params.id}/variations`, { ...req.body, status: 'publish' });
-    const v = Array.isArray(raw) ? raw[0] : raw;
-    res.status(201).json({ id: v.id });
-  } catch (err) { next(err); }
-});
-
 // PUT /api/woocommerce/products/:id/variations/:varId
 router.put('/products/:id/variations/:varId', async (req, res, next) => {
   try {
