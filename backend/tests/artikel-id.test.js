@@ -47,7 +47,7 @@ const html  = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../
 const block = (a, e) => html.slice(html.indexOf(a), html.indexOf(e));
 const SKU   = block('// ── SKU-Regeln: Anfang', '// ── SKU-Regeln: Ende ──');
 const AID   = block('// ── Artikel-ID: Anfang', '// ── Artikel-ID: Ende ──');
-const fe    = new Function(`${SKU}\n${AID}\n return { aidZustand, einmalGleichzeitig, anlageZustand };`)();
+const fe    = new Function(`${SKU}\n${AID}\n return { aidZustand, einmalGleichzeitig, anlageZustand, speicherStatus, SPEICHER_STATUS_TEXT };`)();
 
 const GUT = { name: 'Oldschool T-Shirt Herren', lshop: 'E3000', kurz: 'CH-Oldschool', ssotId: '', editMode: false, laeuft: false };
 
@@ -145,7 +145,7 @@ describe('Anbindung in index.html', () => {
   test('derselbe Speicherweg: der Knopf ruft saveDraft, kein eigener fetch', () => {
     const von = html.indexOf("getElementById('btn-aid-anlegen').addEventListener");
     const handler = html.slice(von, html.indexOf('\n      });', von));
-    expect(handler).toContain('await saveDraft(false)');
+    expect(handler).toContain("await saveDraft(false, 'aid')");
     expect(handler).not.toMatch(/apiFetch|\/api\/sheets/);
     expect(handler).toContain('Artikel-ID ${id} angelegt');
   });
@@ -211,5 +211,50 @@ describe('Freigabe "In WooCommerce anlegen"', () => {
     expect(html).not.toMatch(/createWcBtn\.disabled = prodStatusSel\.value !== 'ready'/);
     expect(html).not.toMatch(/createWcBtn\.disabled = (true|false)/);
     expect(html).toContain("document.getElementById('product-form-area').addEventListener('input',  aktualisiereAnlage);");
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// "Entwurf speichern" schreibt immer "Entwurf", egal was im Statusfeld steht.
+// Nur der Anlagepfad uebernimmt die Auswahl ("Bereit zur Anlage").
+describe('Status beim Speichern', () => {
+  test.each([
+    ['entwurf', 'ready', 'draft'],
+    ['entwurf', 'draft', 'draft'],
+    ['aid',     'ready', 'draft'],
+    ['anlage',  'ready', 'ready'],
+    ['anlage',  'draft', 'draft'],
+  ])('Weg %s, Auswahl %s -> %s', (weg, auswahl, soll) => {
+    expect(fe.speicherStatus(weg, auswahl)).toBe(soll);
+  });
+
+  test('Auswahl "Bereit zur Anlage" + "Entwurf speichern" -> Zeile steht in /erfassung/list', async () => {
+    const status = fe.SPEICHER_STATUS_TEXT[fe.speicherStatus('entwurf', 'ready')];
+    expect(status).toBe('Entwurf');
+    const d = await request(app).post('/api/sheets/erfassung').send({
+      'Produktname': GUT.name, 'L-Shop-Artikelnummer': GUT.lshop, 'Artikelkurzbezeichnung': GUT.kurz,
+      'Artikelnummer': `${GUT.lshop}/${GUT.kurz}`, 'Status': status,
+    });
+    expect(d.body).toMatchObject({ success: true, exists: false });
+    const liste = await request(app).get('/api/sheets/erfassung/list');
+    expect(liste.body.map(x => x.artikelnummer)).toContain('E3000/CH-Oldschool');
+  });
+
+  test('Gegenprobe: mit "Bereit zur Anlage" faellt die Zeile aus der Liste (bisheriges Verhalten)', async () => {
+    await request(app).post('/api/sheets/erfassung').send({
+      'Produktname': GUT.name, 'L-Shop-Artikelnummer': GUT.lshop, 'Artikelkurzbezeichnung': GUT.kurz,
+      'Artikelnummer': `${GUT.lshop}/${GUT.kurz}`, 'Status': fe.SPEICHER_STATUS_TEXT.ready,
+    });
+    const liste = await request(app).get('/api/sheets/erfassung/list');
+    expect(liste.body.map(x => x.artikelnummer)).not.toContain('E3000/CH-Oldschool');
+  });
+
+  test('Anbindung: jeder Aufruf nennt seinen Weg, das Statusfeld geht nur ueber speicherStatus', () => {
+    expect(html).toContain("await saveDraft(true, 'entwurf');");
+    expect(html).toContain("await saveDraft(false, 'aid');");
+    expect(html).toContain("await saveDraft(false, 'anlage');");
+    expect(html).not.toMatch(/await saveDraft\((true|false)\);/);
+    expect(html).toContain('status:       speicherStatus(weg, prodStatusSel.value),');
+    expect(html).not.toMatch(/status:\s+prodStatusSel\.value/);
   });
 });

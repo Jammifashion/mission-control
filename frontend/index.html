@@ -1446,6 +1446,10 @@
               </select>
               <a class="link-new" id="link-new-shipping">+ Neu anlegen</a>
               <div id="pf-shipping-hint" class="field-note" style="margin-top:0.25rem;"></div>
+              <div id="pf-shipping-status" class="field-note" style="margin-top:0.25rem;color:var(--danger);display:none;">
+                <span id="pf-shipping-status-text"></span>
+                <button type="button" class="btn-secondary" id="btn-shipping-reload" style="display:none;margin-left:0.5rem;">Neu laden</button>
+              </div>
             </div>
             <div class="form-field">
               <label>Lieferzeit</label>
@@ -2333,7 +2337,11 @@
           document.getElementById(`panel-${btn.dataset.panel}`).classList.add('active');
           if (btn.dataset.panel === 'dashboard')     loadDashboard();
           if (btn.dataset.panel === 'orders')        loadOrders();
-          if (btn.dataset.panel === 'products')      ssot.kategorien.length ? populateCategories() : loadSsotData();
+          if (btn.dataset.panel === 'products') {
+            ssot.kategorien.length ? populateCategories() : loadSsotData();
+            // Versandklassen einzeln nachladen, wenn sie fehlen (loadSsotData laedt sie ohnehin)
+            if (ssot.kategorien.length && !ssot.versandGeladen) ladeVersandklassen();
+          }
           if (btn.dataset.panel === 'anfragen')      loadAnfragen();
           if (btn.dataset.panel === 'agent-wissen') { loadAgentWissen(); loadAgentPrompt(); }
           if (btn.dataset.panel === 'partnerportal') loadPartnerportal();
@@ -3292,14 +3300,14 @@
       async function loadSsotData() {
         const base = API_BASE();
         await Promise.allSettled([
-          ['wcShippingClasses', `${base}/api/woocommerce/shipping-classes`],
-          ['kategorien',        `${base}/api/sheets/kategorien`],
-        ].map(async ([key, url]) => {
-          try {
-            const r = await apiFetch(url, { signal: AbortSignal.timeout(8000) });
-            if (r.ok) ssot[key] = await r.json();
-          } catch { /* Fallback: Array bleibt leer */ }
-        }));
+          ladeVersandklassen(),
+          (async () => {
+            try {
+              const r = await apiFetch(`${base}/api/sheets/kategorien`, { signal: AbortSignal.timeout(8000) });
+              if (r.ok) ssot.kategorien = await r.json();
+            } catch { /* Fallback: Array bleibt leer */ }
+          })(),
+        ]);
 
         // Attribute: WC-API (globale Attribute) primär, Sheets als Fallback
         try {
@@ -3395,27 +3403,124 @@
         aktualisiereAnlage();
       }
 
-      // Hilfsfunktion: ID / Slug / Name → WC-Slug
-      function shippingSlug(idOrSlugOrName) {
-        if (!idOrSlugOrName) return '';
-        const val = String(idOrSlugOrName);
-        const match = ssot.wcShippingClasses.find(
-          s => String(s.id) === val || s.slug === val || s.name === val
-        );
-        return match ? match.slug : val;
+      // ── Versandklasse: Anfang (reine Logik, backend/tests/versandklasse.test.js) ──
+      // Die Liste kommt aus GET /api/woocommerce/shipping-classes. Scheitert das
+      // Laden (Fehlerstatus, Zeitueberschreitung, leere Liste), steht der Grund
+      // sichtbar am Feld, mit Knopf "Neu laden" - frueher blieb das Feld stumm leer.
+      const VK_TIMEOUT_MS = 8000;
+
+      // Grund, warum die Liste nicht brauchbar ist, oder null.
+      function vkLadeFehler({ status, daten, fehler } = {}) {
+        if (fehler) {
+          const n = fehler.name;
+          if (n === 'TimeoutError' || n === 'AbortError') return `Zeitüberschreitung nach ${VK_TIMEOUT_MS / 1000} s`;
+          return `nicht erreichbar (${fehler.message || fehler})`;
+        }
+        if (!(status >= 200 && status < 300)) return `HTTP ${status}${daten && daten.error ? ` – ${daten.error}` : ''}`;
+        if (!Array.isArray(daten)) return 'Antwort ist keine Liste';
+        if (!daten.length) return 'keine Versandklassen im Shop gefunden';
+        return null;
       }
+
+      // ID / Slug / Name -> Slug. '' = kein Wert, null = nicht im Shop.
+      function vkSlug(klassen, wert) {
+        if (!wert) return '';
+        const v = String(wert);
+        const m = (klassen || []).find(s => String(s.id) === v || s.slug === v || s.name === v);
+        return m ? m.slug : null;
+      }
+
+      // Was nach dem Befuellen im Feld steht.
+      // gespeichert: Wert aus der Zeile, dem Shop oder der bisherigen Auswahl.
+      // vorschlag:   Vorschlag, der ankam, bevor die Liste da war.
+      // Solange die Liste fehlt, bleiben beide offen (offen / vorschlagOffen).
+      function vkAuswahl({ klassen, geladen, gespeichert, vorschlag } = {}) {
+        const leer = { wert: '', offen: '', vorschlagOffen: '', vorschlagGesetzt: '', hinweis: '' };
+        if (!geladen) return { ...leer, offen: gespeichert || '', vorschlagOffen: vorschlag || '' };
+        if (gespeichert) {
+          const s = vkSlug(klassen, gespeichert);
+          if (s) return { ...leer, wert: s };
+          return { ...leer, hinweis: `Gespeicherte Versandklasse „${gespeichert}“ gibt es im Shop nicht mehr – bitte neu wählen.` };
+        }
+        if (vorschlag) {
+          const s = vkSlug(klassen, vorschlag);
+          if (s) return { ...leer, wert: s, vorschlagGesetzt: s };
+        }
+        return leer;
+      }
+      // ── Versandklasse: Ende ──
+
+      // Hilfsfunktion: ID / Slug / Name → WC-Slug (unbekannt: Wert unveraendert)
+      function shippingSlug(idOrSlugOrName) {
+        const s = vkSlug(ssot.wcShippingClasses, idOrSlugOrName);
+        return s === null ? String(idOrSlugOrName) : s;
+      }
+
+      ssot.versandGeladen = false;
+      ssot.versandFehler  = '';
+      let _vkVorschlagOffen = '';
+
+      function vkZeigeStatus(text, mitKnopf) {
+        document.getElementById('pf-shipping-status').style.display = text ? '' : 'none';
+        document.getElementById('pf-shipping-status-text').textContent = text || '';
+        document.getElementById('btn-shipping-reload').style.display = mitKnopf ? '' : 'none';
+      }
+
+      async function ladeVersandklassenEinmal() {
+        ssot.versandFehler = '';
+        if (!ssot.versandGeladen) populateShipping();   // "Wird geladen…"
+        let status, daten, fehler;
+        try {
+          const r = await apiFetch(`${API_BASE()}/api/woocommerce/shipping-classes`, { signal: AbortSignal.timeout(VK_TIMEOUT_MS) });
+          status = r.status;
+          daten  = await r.json().catch(() => null);
+        } catch (e) { fehler = e; }
+        const grund = vkLadeFehler({ status, daten, fehler });
+        if (grund) {
+          ssot.versandFehler = grund;
+          console.warn(`Versandklassen nicht geladen: ${grund}`);
+          if (!ssot.wcShippingClasses.length) showToast(`Versandklassen nicht geladen: ${grund}`, 'error', 12000);
+        } else {
+          ssot.wcShippingClasses = daten;
+        }
+        ssot.versandGeladen = ssot.wcShippingClasses.length > 0;
+        populateShipping();
+      }
+      // Ein Laden zur Zeit (Seitenstart, Reiterwechsel, Knopf "Neu laden").
+      const ladeVersandklassen = einmalGleichzeitig(ladeVersandklassenEinmal);
 
       function populateShipping() {
         const sel = document.getElementById('pf-shipping');
-        const current = sel.value || _pendingShipping;
-        _pendingShipping = '';
+        const a = vkAuswahl({ klassen: ssot.wcShippingClasses, geladen: ssot.versandGeladen,
+                              gespeichert: sel.value || _pendingShipping, vorschlag: _vkVorschlagOffen });
+        _pendingShipping  = a.offen;
+        _vkVorschlagOffen = a.vorschlagOffen;
+        if (!ssot.versandGeladen) {
+          sel.innerHTML = ssot.versandFehler
+            ? '<option value="">Fehler: Versandklassen nicht geladen</option>'
+            : '<option value="">Wird geladen…</option>';
+          vkZeigeStatus(ssot.versandFehler ? `Versandklassen nicht geladen: ${ssot.versandFehler}` : '', !!ssot.versandFehler);
+          aktualisiereAnlage();
+          return;
+        }
         sel.innerHTML = '<option value="">Bitte wählen…</option>';
         ssot.wcShippingClasses.forEach(({ slug, name }) => {
           const opt = document.createElement('option');
           opt.value = slug; opt.textContent = name;
           sel.appendChild(opt);
         });
-        if (current) sel.value = shippingSlug(current);
+        sel.value = a.wert;
+        if (a.vorschlagGesetzt) versandVorschlagStand = a.vorschlagGesetzt;
+        vkZeigeStatus(a.hinweis, false);
+        aktualisiereAnlage();
+      }
+
+      // Einen gespeicherten Wert (Zeile oder Shop) ins Feld bringen - mit
+      // Hinweis, wenn es die Klasse im Shop nicht mehr gibt.
+      function versandSetzen(wert) {
+        document.getElementById('pf-shipping').value = '';
+        _pendingShipping = wert || '';
+        populateShipping();
       }
 
       function populateCategories() {
@@ -4006,6 +4111,14 @@
           laufend = Promise.resolve().then(() => fn(...args)).finally(() => { laufend = null; });
           return laufend;
         };
+      }
+      // Welcher Status beim Speichern ins Sheet geht. "Entwurf speichern" und
+      // "Artikel-ID anlegen" schreiben immer "Entwurf", egal was im Statusfeld
+      // steht - sonst faellt die Zeile aus /erfassung/list (liest nur Entwuerfe).
+      // Nur der Anlagepfad ("In WooCommerce anlegen", Schritt 0) uebernimmt die Auswahl.
+      const SPEICHER_STATUS_TEXT = { draft: 'Entwurf', ready: 'Bereit zur Anlage' };
+      function speicherStatus(weg, auswahl) {
+        return weg === 'anlage' ? auswahl : 'draft';
       }
       // Befehl AID2: "In WooCommerce anlegen" braucht nicht mehr den Status
       // "Bereit zur Anlage", sondern die Artikel-ID und dieselben
@@ -4690,7 +4803,7 @@
         aidLaeuft = true;
         aktualisiereAid();
         try {
-          await saveDraft(false);
+          await saveDraft(false, 'aid');
           const id = document.getElementById('pf-ssot-id').value.trim();
           if (id) showToast(`Artikel-ID ${id} angelegt`, 'success');
         } catch (e) {
@@ -4771,6 +4884,8 @@
             const neu = vorschlagSetzen(vFeld.value, versandVorschlagStand, d.versand.klasse);
             if (neu !== null && [...vFeld.options].some(o => o.value === neu)) {
               vFeld.value = neu; versandVorschlagStand = neu;
+            } else if (neu !== null && !ssot.versandGeladen) {
+              _vkVorschlagOffen = neu;   // Liste fehlt noch: populateShipping setzt ihn danach
             }
             document.getElementById('pf-shipping-hint').textContent = `Vorschlag "${d.versand.klasse}": ${d.versand.quelle}`;
           }
@@ -5173,6 +5288,8 @@
       }
 
       // "+ Neu anlegen" placeholder
+      document.getElementById('btn-shipping-reload').addEventListener('click', () => ladeVersandklassen());
+
       ['link-new-shipping','link-new-cat'].forEach(id =>
         document.getElementById(id)?.addEventListener('click', () =>
           alert('SSOT-Anbindung folgt — Wert direkt im Dropdown ergänzen.')));
@@ -5251,9 +5368,7 @@
         prodStatusSel.value = statusRaw === 'bereit zur anlage' ? 'ready' : 'draft';
 
         // ── Shop-Einstellungen ───────────────────────────────────────────
-        const _sv = shippingSlug(d.data['Versandklasse'] || '');
-        _pendingShipping = _sv;
-        document.getElementById('pf-shipping').value = _sv;
+        versandSetzen(d.data['Versandklasse'] || '');
 
         // ── Kategorien ───────────────────────────────────────────────────
         selectedCats.clear();
@@ -5783,8 +5898,8 @@
         document.getElementById('pf-ssot-id').value = '';
         document.getElementById('pf-wc-id').value = '';
         document.getElementById('pf-article-nr').value = '';
-        _pendingShipping = '';
-        document.getElementById('pf-shipping').value = '';
+        _vkVorschlagOffen = '';
+        versandSetzen('');
         lieferzeitGeladen = undefined;   // Anlage: Standard = Spalte "Standard" im Reiter
         populateLieferzeit();
         document.getElementById('pf-price-regular').value = '';
@@ -6975,9 +7090,7 @@
           updateCatLabel();
 
           // Versandklasse (slug direkt aus WC)
-          const _wcShipping = p.shipping_class || '';
-          _pendingShipping = _wcShipping;
-          document.getElementById('pf-shipping').value = _wcShipping;
+          versandSetzen(p.shipping_class || '');
 
           // Lieferzeit: Shop-Wert anzeigen, nie still ueberschreiben. Nicht im
           // Reiter (z. B. -1, 92, leer) -> "unbekannt (Wert X)".
@@ -7320,7 +7433,7 @@
           'Artikelnummer':          artikelnummer,
           'L-Shop-Artikelnummer':   draft.lshopNr,
           'Artikelkurzbezeichnung': draft.shortName,
-          'Status':                 ({ draft: 'Entwurf', ready: 'Bereit zur Anlage' })[draft.status] || draft.status,
+          'Status':                 SPEICHER_STATUS_TEXT[draft.status] || draft.status,
           'Status Shop':            draft.statusShop || '',
           'SEO_Status':             ({ pending: 'Ausstehend', ready: 'Bereit' })[draft.seoStatus] || draft.seoStatus || '',
           'Versandklasse':          draft.shipping,
@@ -7340,7 +7453,8 @@
       // eine zweite Zeile anzulegen. Die ID-Vergabe im Backend hat keine Sperre
       // (maxSeq + 1, siehe routes/sheets.js) - darum hier.
       const saveDraft = einmalGleichzeitig(saveDraftEinmal);
-      async function saveDraftEinmal(showButton = true) {
+      // weg: 'entwurf' (Knopf), 'aid' (Artikel-ID anlegen), 'anlage' (Schritt 0)
+      async function saveDraftEinmal(showButton = true, weg = 'entwurf') {
         const btn = showButton ? document.getElementById('btn-save-draft') : null;
         const artikelnummer = document.getElementById('pf-article-nr').value.trim();
 
@@ -7364,7 +7478,7 @@
         }
 
         const draft = {
-          status:       prodStatusSel.value,
+          status:       speicherStatus(weg, prodStatusSel.value),
           seoStatus:    seoStatusSel.value,
           name:         document.getElementById('pf-name').value,
           lshopNr:      document.getElementById('pf-lshop-nr').value,
@@ -7409,6 +7523,7 @@
           if (!data.exists) {
             // Neue Zeile angelegt
             applyId(data.ssotId);
+            prodStatusSel.value = draft.status;   // Feld zeigt, was im Sheet steht
             if (data.row) currentDraftRow = data.row;
             resetBtn();
             if (showButton) showToast(`Gespeichert – SSOT-ID: ${data.ssotId}`, 'success');
@@ -7456,6 +7571,7 @@
           if (!res2.ok || !data2.success) throw new Error(data2.error || 'Overwrite-Fehler');
 
           applyId(data2.ssotId);
+          prodStatusSel.value = draft.status;
           if (data.row) currentDraftRow = data.row;
           resetBtn();
           if (showButton) showToast(`Überschrieben – SSOT-ID: ${data2.ssotId}`, 'success');
@@ -7468,7 +7584,7 @@
       }
 
       document.getElementById('btn-save-draft').addEventListener('click', async () => {
-        await saveDraft(true);
+        await saveDraft(true, 'entwurf');
       });
 
       // SSOT-ID generator: JFN-YYYY-NNNN (counter persisted in localStorage per year)
@@ -7520,7 +7636,7 @@
         if (!ssotId) {
           try {
             pushStatus.textContent = 'Schritt 0/4: Entwurf wird gespeichert…';
-            await saveDraft(false);
+            await saveDraft(false, 'anlage');
             ssotId = document.getElementById('pf-ssot-id').value;
             if (!ssotId) throw new Error('SSOT-ID konnte nicht generiert werden');
             pushStatus.textContent = 'Schritt 0/4: Entwurf gespeichert. Artikel wird angelegt…';
