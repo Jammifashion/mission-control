@@ -617,6 +617,9 @@ router.put('/products/:id', async (req, res, next) => {
     const lzShop = lieferzeitAusMetaData(product.meta_data);
     res.json({
       id:      product.id,
+      // SS1: tatsaechlicher Shop-Status nach dem Speichern (auch wenn status nicht
+      // gesendet wurde) - die Erfassungsmaske schreibt "Status Shop" daraus.
+      status:  product.status ?? null,
       hinweis: [skuHinweis, achsenHinweis, groessenHinweis, versandHinweis].filter(Boolean).join(' ') || null,
       // Eigenes Feld: SKU- und Achsen-Hinweis zeigt das Frontend schon vor dem Speichern.
       groessen_hinweis: groessenHinweis,

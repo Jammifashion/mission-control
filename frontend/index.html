@@ -4928,6 +4928,50 @@
         return s === 'publish' ? 'Veröffentlicht' : s === 'draft' ? 'Entwurf' : s || '';
       }
 
+      // ── Shop-Status: Anfang (reine Logik, backend/tests/shop-status.test.js) ──
+      // Befehl SS1: Im Aendern-Modus geht "status" nur an WooCommerce, wenn der
+      // Nutzer das Feld "Status Shop" gegenueber dem geladenen Shop-Wert umstellt
+      // (wie die Lieferzeit). Frueher wurde jeder Status ausser publish im Feld zu
+      // "Entwurf" und beim Speichern zu draft - ein privater, ausstehender oder
+      // geplanter Artikel waere so still auf Entwurf gefallen.
+      const SS_UNVERAENDERT = '__unveraendert__';
+      const SS_LABEL = { publish: 'Veröffentlicht', draft: 'Entwurf', pending: 'Ausstehend', private: 'Privat', future: 'Geplant' };
+
+      function ssLabel(s) {
+        return SS_LABEL[s] || String(s ?? '');
+      }
+
+      // Optionen fuer das Feld. draft/publish: normal ausgewaehlt. Jeder andere
+      // (oder fehlende) Wert: eigene Zeile "<Status> (unverändert)", ausgewaehlt.
+      function ssOptionen(geladen) {
+        const g = String(geladen ?? '');
+        const opts = [
+          { value: 'draft',   text: 'Entwurf',        selected: g === 'draft' },
+          { value: 'publish', text: 'Veröffentlicht', selected: g === 'publish' },
+        ];
+        if (g === 'draft' || g === 'publish') return opts;
+        return [{ value: SS_UNVERAENDERT, text: `${ssLabel(g) || 'unbekannt'} (unverändert)`, selected: true }, ...opts];
+      }
+
+      // Gesendet wird nur eine echte Umstellung. undefined = kein "status" im PUT.
+      function ssZuSenden(geladen, gewaehlt) {
+        if (!gewaehlt || gewaehlt === SS_UNVERAENDERT) return undefined;
+        if (gewaehlt === geladen) return undefined;
+        return String(gewaehlt);
+      }
+      // ── Shop-Status: Ende ──
+
+      // Shop-Status des geladenen Artikels (Aendern-Modus), null = keiner geladen.
+      let shopStatusGeladen = null;
+      function populateShopStatus(geladen) {
+        statusShopSel.innerHTML = '';
+        ssOptionen(geladen).forEach(o => {
+          const opt = document.createElement('option');
+          opt.value = o.value; opt.textContent = o.text; opt.selected = o.selected;
+          statusShopSel.appendChild(opt);
+        });
+      }
+
       // Befehl AID2: der Status gibt "In WooCommerce anlegen" nicht mehr frei -
       // das macht aktualisiereAnlage() (Artikel-ID + Pflichtpruefungen).
       seoStatusSel.addEventListener('change', () => {
@@ -5915,7 +5959,8 @@
         currentDraftRow = null;
         wcEditProductId = null;
         renderProperties();
-        statusShopSel.value = 'draft';
+        shopStatusGeladen = null;
+        populateShopStatus('draft');
         document.getElementById('prod-status-text').textContent = '';
         document.getElementById('prod-push-status').textContent = '';
         existingVariations = [];
@@ -7049,7 +7094,9 @@
 
           wcEditProductId = p.id;
           document.getElementById('pf-wc-id').value = p.id;
-          statusShopSel.value = (p.status === 'publish') ? 'publish' : 'draft';
+          // SS1: Shop-Status 1:1 merken; private/pending/future bleiben "(unverändert)".
+          shopStatusGeladen = p.status ?? null;
+          populateShopStatus(shopStatusGeladen);
 
           // SSOT-ID + Zeilennummer aus Sheet
           if (ssotData.ssotId) {
@@ -7271,7 +7318,8 @@
         const lieferzeitNeu = lzZuSenden(lieferzeitGeladen, document.getElementById('pf-lieferzeit').value);
 
         try {
-          const selectedShopStatus = statusShopSel.value;
+          // SS1: status nur bei echter Umstellung senden.
+          const statusNeu = ssZuSenden(shopStatusGeladen, statusShopSel.value);
           const res = await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -7280,7 +7328,7 @@
               short_description: quillShort ? quillShort.root.innerHTML : '',
               description:       quillFull  ? quillFull.root.innerHTML  : '',
               sku:               document.getElementById('pf-article-nr').value,
-              status:            selectedShopStatus,
+              ...(statusNeu !== undefined ? { status: statusNeu } : {}),
               categories:        [...selectedCats.keys()].map(id => ({ id: Number(id) })),
               attributes:        Object.entries(attrMap).map(([name, vals]) => ({
                 name, options: [...vals], variation: true, visible: true,
@@ -7293,6 +7341,12 @@
           });
           const data = await res.json();
           if (!res.ok || data.error) throw new Error(data.error || 'Update fehlgeschlagen');
+
+          // SS1: der tatsaechliche Shop-Status aus der Antwort ist ab jetzt der
+          // Vergleichswert und steht so in der Erfassungsmaske.
+          const statusIst = data.status ?? statusNeu ?? shopStatusGeladen;
+          shopStatusGeladen = statusIst;
+          populateShopStatus(statusIst);
 
           {
             const m = lzMeldung(data.lieferzeit, ssot.lieferzeiten);
@@ -7338,7 +7392,7 @@
             const artikelnummer = document.getElementById('pf-article-nr').value.trim();
             const draft = {
               status:     'Im Shop',
-              statusShop: wcStatusLabel(selectedShopStatus),
+              statusShop: ssLabel(statusIst),
               seoStatus:  seoStatusSel.value,
               name:       pfName.value,
               lshopNr:    document.getElementById('pf-lshop-nr').value,
@@ -7356,7 +7410,7 @@
                 ssotId,
                 'Produkt-ID':  String(wcEditProductId),
                 ...buildSheetPayload(draft, artikelnummer),
-                'Status Shop': wcStatusLabel(selectedShopStatus),
+                'Status Shop': ssLabel(statusIst),
               }),
             });
             if (zuordUpd) {
@@ -7785,7 +7839,8 @@
           const failed    = data1.variations_failed  ?? 0;
 
           // Status Shop anzeigen + Wert aus API-Response setzen
-          statusShopSel.value          = wcStatus;
+          shopStatusGeladen            = wcStatus;
+          populateShopStatus(wcStatus);
           statusShopWrap.style.display = '';
 
           // Schritt 2: Status-Update
