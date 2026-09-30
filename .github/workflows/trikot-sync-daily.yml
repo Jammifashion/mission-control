@@ -23,6 +23,39 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Kaltstart abfangen: Cloud Run faehrt die Instanz nach Leerlauf herunter; der erste
+      # Aufruf kann waehrenddessen mit 500 scheitern (sync-partner-daily, Lauf #142, 30.09.).
+      # GET /health ist offen und harmlos und darf wiederholt werden, der POST danach bleibt
+      # ein einziger Versuch (kein --retry). Kommt binnen 60 s kein 200, bricht der Lauf ab.
+      - name: Backend aufwecken (GET /health)
+        env:
+          API_URL: ${{ secrets.BACKEND_URL }}
+        run: |
+          set -uo pipefail
+          if [ -z "$API_URL" ]; then
+            echo "::error::BACKEND_URL fehlt in GitHub Secrets."
+            exit 1
+          fi
+          start=$SECONDS
+          http="000"
+          while :; do
+            http=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$API_URL/health" || true)
+            echo "GET /health -> HTTP ${http:-000} (nach $((SECONDS - start)) s)"
+            [ "$http" = "200" ] && exit 0
+            [ $((SECONDS - start)) -ge 60 ] && break
+            sleep 5
+          done
+          echo "::error::Backend antwortet nicht mit HTTP 200 auf GET /health (60 s, zuletzt HTTP ${http:-000})."
+          exit 1
+
+      # Fehlerausgabe (oeffentliches Actions-Log): HTTP-Code plus Fehlertext, maskiert und auf
+      # 300 Zeichen gekuerzt (.github/scripts/antwort-fehler.mjs, Test antwort-fehler.test.js).
+      - name: Hilfsskript holen
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+          sparse-checkout-cone-mode: false
+
       - name: POST /api/trikot/sync
         env:
           API_URL:       ${{ secrets.BACKEND_URL }}
@@ -55,6 +88,7 @@ jobs:
           jq . response.json 2>/dev/null || cat response.json 2>/dev/null || true
 
           if [ "$rc" -ne 0 ]; then
+            node .github/scripts/antwort-fehler.mjs response.json "${http:-?}" || true
             echo "::error::Trikot-Sync fehlgeschlagen (HTTP ${http:-?}, curl exit $rc)"
             exit 1
           fi
