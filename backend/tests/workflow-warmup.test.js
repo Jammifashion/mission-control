@@ -14,10 +14,7 @@ const WORKFLOWS = [
   ['sync-partner-daily.yml', 3],
   ['trikot-sync-daily.yml', 1],
   ['backup-daily.yml', 1],
-].filter(([name]) => {
-  // Workflows, die noch nicht umgestellt sind, werden erst mit ihrem Commit geprueft.
-  return /aufwecken/i.test(readFileSync(resolve(dir, name), 'utf8'));
-});
+];
 
 describe.each(WORKFLOWS)('%s', (name, anzahlPosts) => {
   const s = schritte(name);
@@ -63,8 +60,4 @@ describe('sync-partner-daily.yml: Reihenfolge', () => {
     const abgleich = s.findIndex(x => /artikel\/abgleich/.test(x.name));
     expect(abgleich).toBeGreaterThan(s.findIndex(x => /aufwecken/i.test(x.name)));
   });
-});
-
-test('mindestens sync-partner-daily.yml ist umgestellt (Pruefung laeuft nicht leer)', () => {
-  expect(WORKFLOWS.map(w => w[0])).toContain('sync-partner-daily.yml');
 });
