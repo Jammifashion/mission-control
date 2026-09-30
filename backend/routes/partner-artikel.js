@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
+import { sheetsMitWiederholung } from '../lib/googleRetry.js';
 import { getWcClient as wcClientForShop } from '../lib/shopConfig.js';
 import { berechnePartnerAnteil, parseKonfiguration } from '../utils/partner-kalkulation.js';
 import { importiereFuerPartner, artikelAbgleich, abgleichMelden } from '../lib/partnerArtikel.js';
@@ -11,7 +12,8 @@ const router = Router();
 // ── Hilfsfunktionen ──────────────────────────────────────────────────────────
 
 function getSheets() {
-  return getGoogleAuth().then(auth => google.sheets({ version: 'v4', auth }));
+  // Wiederholung nur fuer Lesen + values.batchUpdate bei 429/5xx (lib/googleRetry.js); append nie.
+  return getGoogleAuth().then(auth => sheetsMitWiederholung(google.sheets({ version: 'v4', auth })));
 }
 
 const getWcClient = (req) => wcClientForShop(req?.query?.shop);
