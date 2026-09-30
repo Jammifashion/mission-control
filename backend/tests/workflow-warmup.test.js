@@ -38,4 +38,12 @@ describe('sync-partner-daily.yml: Warm-up', () => {
   test('kein --retry an irgendeinem POST', () => {
     for (const x of s) expect(x.run ?? '').not.toMatch(/--retry/);
   });
+
+  test('Fehlerausgabe: Hilfsskript wird geholt und in jedem POST-Schritt bei Fehler aufgerufen', () => {
+    const checkout = s.find(x => /actions\/checkout/.test(x.uses ?? ''));
+    expect(checkout.with['sparse-checkout']).toBe('.github/scripts');
+    const posts = s.filter(x => /-X POST/.test(x.run ?? ''));
+    expect(posts).toHaveLength(3);
+    for (const p of posts) expect(p.run).toMatch(/antwort-fehler\.mjs response\.json "\$\{http:-\?\}" \|\| true/);
+  });
 });
