@@ -1,0 +1,41 @@
+// Kaltstart-Schutz der Workflows: GET /health als eigener Schritt vor dem ersten POST.
+// Bericht 30.09.: Lauf #142 scheiterte mit 500, bevor die App den Request sah.
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
+import yaml from 'js-yaml';
+
+const dir = resolve(dirname(fileURLToPath(import.meta.url)), '../../.github/workflows');
+const lade = name => yaml.load(readFileSync(resolve(dir, name), 'utf8'));
+const schritte = name => Object.values(lade(name).jobs).flatMap(j => j.steps);
+
+describe('sync-partner-daily.yml: Warm-up', () => {
+  const s = schritte('sync-partner-daily.yml');
+  const warm = s.findIndex(x => /aufwecken/i.test(x.name));
+  const abgleich = s.findIndex(x => /artikel\/abgleich/.test(x.name));
+
+  test('Warm-up ist der erste Schritt, vor dem Abgleich', () => {
+    expect(warm).toBe(0);
+    expect(abgleich).toBeGreaterThan(warm);
+  });
+
+  test('ruft GET /health (nicht /health/full) und pollt alle 5 s bis 60 s', () => {
+    const run = s[warm].run;
+    expect(run).toMatch(/"\$API_URL\/health"/);
+    expect(run).not.toMatch(/health\/full/);
+    expect(run).not.toMatch(/-X POST/);
+    expect(run).toMatch(/sleep 5/);
+    expect(run).toMatch(/-ge 60/);
+    expect(run).toMatch(/\[ "\$http" = "200" \] && exit 0/);
+  });
+
+  test('ohne 200 wird der Lauf rot mit klarer Meldung', () => {
+    const run = s[warm].run;
+    expect(run).toMatch(/::error::Backend antwortet nicht mit HTTP 200/);
+    expect(run).toMatch(/exit 1/);
+  });
+
+  test('kein --retry an irgendeinem POST', () => {
+    for (const x of s) expect(x.run ?? '').not.toMatch(/--retry/);
+  });
+});

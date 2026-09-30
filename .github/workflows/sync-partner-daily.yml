@@ -14,6 +14,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Kaltstart abfangen: Cloud Run faehrt die Instanz nach Leerlauf herunter; der erste
+      # Aufruf kann waehrenddessen mit 500 scheitern (Lauf #142, 30.09.). GET /health ist
+      # offen und harmlos und darf wiederholt werden, der POST danach bleibt ein einziger
+      # Versuch (kein --retry). Kommt binnen 60 s kein 200, bricht der Lauf hier ab.
+      - name: Backend aufwecken (GET /health)
+        env:
+          API_URL: ${{ secrets.BACKEND_URL }}
+        run: |
+          set -uo pipefail
+          if [ -z "$API_URL" ]; then
+            echo "::error::BACKEND_URL fehlt in GitHub Secrets."
+            exit 1
+          fi
+          start=$SECONDS
+          http="000"
+          while :; do
+            http=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$API_URL/health" || true)
+            echo "GET /health -> HTTP ${http:-000} (nach $((SECONDS - start)) s)"
+            [ "$http" = "200" ] && exit 0
+            [ $((SECONDS - start)) -ge 60 ] && break
+            sleep 5
+          done
+          echo "::error::Backend antwortet nicht mit HTTP 200 auf GET /health (60 s, zuletzt HTTP ${http:-000}). Kein Abgleich, kein Sync."
+          exit 1
+
       # PA2: ZUERST fehlende Partnerartikel anlegen. Der Sync ueberspringt
       # Positionen ohne Partner_Artikel-Zeile still und holt sie nie nach
       # (bericht-PA0/PA1). Schlaegt der Abgleich fehl, laeuft kein Sync -
