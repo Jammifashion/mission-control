@@ -68,3 +68,7 @@ _tmp-*
 BUSINESS_Backup-*.json.gz
 SSOT_Backup-*.json.gz
 MC-Backup-*.json.gz
+
+# Hilfsskripte (Einmal-Laeufe gegen den Shop, ueber getWcClient). Nie committen,
+# nach dem Lauf loeschen.
+_ed*.mjs
