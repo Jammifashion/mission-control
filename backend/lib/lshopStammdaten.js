@@ -38,6 +38,7 @@
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 import { getWcClient } from './shopConfig.js';
+import { seitenGrenze, seitenListe } from './hosterPruefseite.js';
 import { leseReiterSpalten } from './ssot-reiter.js';
 import { colLetter } from '../utils/sheet-spalten.js';
 import { TAB_LSHOP, STATUS_AKTIV, STATUS_AUSGELAUFEN } from './lshop.js';
@@ -369,8 +370,9 @@ async function dateiStream({ drive, id }) {
 async function wcSkus(wc) {
   const out = [];
   for (let page = 1; ; page++) {
+    seitenGrenze(page, { wc, pfad: 'products' });
     const { data } = await wc.get('products', { status: 'any', per_page: 100, page, _fields: 'id,sku' });
-    const liste = Array.isArray(data) ? data : [];
+    const liste = seitenListe(data, { wc, pfad: 'products' });
     out.push(...liste.map(p => t(p.sku)).filter(Boolean));
     if (liste.length < 100) break;
   }

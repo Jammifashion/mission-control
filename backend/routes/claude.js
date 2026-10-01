@@ -11,6 +11,7 @@ import { motivFuer, motivFuerPrompt } from '../lib/seo-ssot.js';
 import { pruefeTextMitSsot, sperrKontext } from '../lib/seo-pruefung.js';
 import { ladeSchlagwoerter, promptListe, schlagwortVorschlaege } from '../lib/schlagwoerter.js';
 import { werteGegenKarte } from '../lib/seo-ssot.js';
+import { wirfWennPruefseite } from '../lib/hosterPruefseite.js';
 
 const router = Router();
 
@@ -208,7 +209,7 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
       if (vorschlagen && typeof vorschlagen === 'object') {
         if (vorschlagen.schlagwoerter) {
           try { vorhandeneTags = await ladeSchlagwoerter(req.query?.shop); }
-          catch (e) { ssotHinweise.push(`Schlagwörter nicht lesbar (${e.message}) – ohne Liste vorgeschlagen.`); }
+          catch (e) { wirfWennPruefseite(e); ssotHinweise.push(`Schlagwörter nicht lesbar (${e.message}) – ohne Liste vorgeschlagen.`); }
         }
         vorschlagWunsch = {
           schlagwoerter: vorschlagen.schlagwoerter ? promptListe(vorhandeneTags) : null,

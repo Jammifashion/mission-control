@@ -29,6 +29,7 @@
 
 import { leseReiterSpalten, reiterCache } from './ssot-reiter.js';
 import { getWcClient } from './shopConfig.js';
+import { seitenGrenze, seitenListe, wirfWennPruefseite } from './hosterPruefseite.js';
 import { KURZ_MIN, KURZ_MAX, KURZ_RE } from './sku.js';
 import { ladeLShopZeilen } from './lshop.js';
 
@@ -251,9 +252,12 @@ const ladeProdukte = (shop) => cache.hole(`wc|${shop ?? 'jfn'}`, async () => {
   const wc = getWcClient(shop);
   const out = [];
   for (let page = 1; ; page++) {
+    seitenGrenze(page, { wc, pfad: 'products' });
     const { data } = await wc.get('products', { status: 'publish', per_page: 100, page, _fields: 'id,sku,shipping_class' });
-    out.push(...(Array.isArray(data) ? data : []));
-    if (!Array.isArray(data) || data.length < 100) break;
+    // Keine Liste -> HosterPruefseiteError; der Speicher (cache.hole) bleibt dann leer.
+    const liste = seitenListe(data, { wc, pfad: 'products' });
+    out.push(...liste);
+    if (liste.length < 100) break;
   }
   return out;
 });
@@ -283,7 +287,7 @@ export async function maskenVorschlaege({ name, kategorieIds = [], lshopNr, shop
         quelle: p ? `Präfix ${p.praefix} (${p.anzahl}× in ${p.in})`
                   : `Kein Präfix für ${direkt || haupt || 'die Kategorie'}${haupt && haupt !== direkt ? ` / ${haupt}` : ''}`,
       };
-    } catch (e) { raus.kurz = { wert: null, fehler: e.message }; }
+    } catch (e) { wirfWennPruefseite(e); raus.kurz = { wert: null, fehler: e.message }; }
   }
 
   try {
@@ -291,7 +295,7 @@ export async function maskenVorschlaege({ name, kategorieIds = [], lshopNr, shop
     let katalog = null;
     try { katalog = new Set((await ladeLShopZeilen()).map(z => z.catalogNr).filter(Boolean)); } catch { /* s. o. */ }
     raus.versand = versandVorschlag(await ladeProdukte(shop), lshopNr, { katalog });
-  } catch (e) { raus.versand = { klasse: VERSAND_STANDARD, quelle: `Shop nicht lesbar – Standard "${VERSAND_STANDARD}".`, fehler: e.message }; }
+  } catch (e) { wirfWennPruefseite(e); raus.versand = { klasse: VERSAND_STANDARD, quelle: `Shop nicht lesbar – Standard "${VERSAND_STANDARD}".`, fehler: e.message }; }
 
   return raus;
 }

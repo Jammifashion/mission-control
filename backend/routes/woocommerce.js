@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getWcClient } from '../lib/shopConfig.js';
-import { seitenGrenze, seitenListe, wirfWennPruefseite } from '../lib/hosterPruefseite.js';
+import { seitenGrenze, seitenListe, wirfWennPruefseite, HosterPruefseiteError } from '../lib/hosterPruefseite.js';
 import { markeFuerShop } from '../lib/shopMarke.js';
 import { pruefeArtikelnummer, baueVariantenSkus } from '../lib/sku.js';
 import { achsenVon, achsenGleich, pruefeFarbAchse, mitGoogleFarbe } from '../lib/varianten-achsen.js';
@@ -48,6 +48,9 @@ async function wcCached(shop, key, fetcher) {
   const hit = _wcCache.get(cacheKey);
   if (hit && Date.now() - hit.at < WC_CACHE_TTL) return hit.data;
   const data = await fetcher();
+  // Nur eine gueltige Liste bzw. ein Objekt speichern - nie HTML-Text oder
+  // undefined (Hoster-Pruefseite), sonst haelt der Speicher sie 30 min fest.
+  if (data === null || typeof data !== 'object') throw new HosterPruefseiteError({ shop: shop ?? 'jfn', pfad: key });
   _wcCache.set(cacheKey, { data, at: Date.now() });
   return data;
 }
@@ -104,7 +107,7 @@ router.get('/shipping-classes', async (req, res, next) => {
     const wc = getClient(req);
     const result = await wcCached(req.query.shop, 'shipping-classes', async () => {
       const { data } = await wc.get('products/shipping_classes', { per_page: 100 });
-      return (Array.isArray(data) ? data : [data]).map(s => ({ id: s.id, slug: s.slug, name: s.name }));
+      return seitenListe(data, { wc, pfad: 'products/shipping_classes' }).map(s => ({ id: s.id, slug: s.slug, name: s.name }));
     });
     res.json(result);
   } catch (err) { next(err); }
@@ -116,7 +119,7 @@ router.get('/categories', async (req, res, next) => {
     const wc = getClient(req);
     const result = await wcCached(req.query.shop, 'categories', async () => {
       const { data } = await wc.get('products/categories', { per_page: 100, hide_empty: false });
-      const list = Array.isArray(data) ? data : [data];
+      const list = seitenListe(data, { wc, pfad: 'products/categories' });
       const byId = Object.fromEntries(list.map(c => [c.id, c.name]));
       return list.map(c => ({
         Kategorienummer: String(c.id),
@@ -134,11 +137,14 @@ router.get('/attributes', async (req, res, next) => {
     const wc = getClient(req);
     const result = await wcCached(req.query.shop, 'attributes', async () => {
       const { data: attrs } = await wc.get('products/attributes', { per_page: 100 });
-      const list = Array.isArray(attrs) ? attrs : [attrs];
-      return Promise.all(list.map(async a => {
+      const list = seitenListe(attrs, { wc, pfad: 'products/attributes' });
+      // Nacheinander, nicht gleichzeitig: bei der Hoster-Pruefseite bleibt es bei einem Abruf.
+      const out = [];
+      for (const a of list) {
         const { data: terms } = await wc.get(`products/attributes/${a.id}/terms`, { per_page: 100 });
-        return { eigenschaft: a.name, begriffe: (Array.isArray(terms) ? terms : [terms]).map(t => t.name) };
-      }));
+        out.push({ eigenschaft: a.name, begriffe: seitenListe(terms, { wc, pfad: 'products/attributes/terms' }).map(t => t.name) });
+      }
+      return out;
     });
     res.json(result);
   } catch (err) { next(err); }

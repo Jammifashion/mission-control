@@ -31,6 +31,7 @@
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 import { getWcClient } from './shopConfig.js';
+import { seitenGrenze, seitenListe } from './hosterPruefseite.js';
 import { requireHeader } from '../utils/sheet-headers.js';
 import { colLetter } from '../utils/sheet-spalten.js';
 import { synonymeListe, karteVergessen } from './seo-ssot.js';
@@ -166,9 +167,12 @@ async function wcKategorien(wc) {
   if (_katCache && Date.now() - _katCache.zeit < 10 * 60 * 1000) return _katCache.liste;
   const liste = [];
   for (let page = 1; ; page++) {
+    seitenGrenze(page, { wc, pfad: 'products/categories' });
     const { data } = await wc.get('products/categories', { per_page: 100, page, _fields: 'id,name,parent' });
-    liste.push(...(Array.isArray(data) ? data : []));
-    if (!Array.isArray(data) || data.length < 100) break;
+    // Keine Liste -> HosterPruefseiteError; _katCache bleibt dann unberuehrt.
+    const seite = seitenListe(data, { wc, pfad: 'products/categories' });
+    liste.push(...seite);
+    if (seite.length < 100) break;
   }
   _katCache = { zeit: Date.now(), liste };
   return liste;

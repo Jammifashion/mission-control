@@ -13,6 +13,7 @@
 // an /produkt-schlagwort/shirt|crocodiles-hamburg|hoodie/).
 
 import { getWcClient } from './shopConfig.js';
+import { seitenGrenze, seitenListe } from './hosterPruefseite.js';
 import { reiterCache } from './ssot-reiter.js';
 import { sperrTreffer } from './seo-pruefung.js';
 
@@ -99,9 +100,12 @@ export function ladeSchlagwoerter(shop) {
     const wc = getWcClient(shop);
     const out = [];
     for (let page = 1; ; page++) {
+      seitenGrenze(page, { wc, pfad: 'products/tags' });
       const { data } = await wc.get('products/tags', { per_page: 100, page });
-      out.push(...(Array.isArray(data) ? data : []).map(x => ({ id: x.id, name: x.name, slug: x.slug, count: x.count })));
-      if (!Array.isArray(data) || data.length < 100) break;
+      // Keine Liste -> HosterPruefseiteError; der Speicher (cache.hole) bleibt dann leer.
+      const liste = seitenListe(data, { wc, pfad: 'products/tags' });
+      out.push(...liste.map(x => ({ id: x.id, name: x.name, slug: x.slug, count: x.count })));
+      if (liste.length < 100) break;
     }
     return out;
   });

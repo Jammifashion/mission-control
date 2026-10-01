@@ -9,6 +9,8 @@
 // ~0,57 MB statt ~2,4 MB; 572 Artikel = 6 Seiten. Ergebnis 10 Minuten im
 // Speicher, nach jedem Schreiben wird der eine Eintrag nachgezogen.
 
+import { seitenGrenze, seitenListe } from './hosterPruefseite.js';
+
 const SEITE     = 100;
 const CACHE_TTL = 10 * 60 * 1000;
 const KW_KEY    = '_yoast_wpseo_focuskw';
@@ -28,13 +30,16 @@ async function ladeKeyphrasen(wc) {
   if (_cache && Date.now() - _cache.at < CACHE_TTL) return _cache.eintraege;
   const eintraege = new Map();
   for (let page = 1; ; page++) {
+    seitenGrenze(page, { wc, pfad: 'products' });
     const { data, headers } = await wc.get('products', {
       status: 'publish', per_page: SEITE, page, _fields: 'id,name,meta_data',
     });
-    for (const p of Array.isArray(data) ? data : []) {
+    // Keine Liste -> HosterPruefseiteError; _cache bleibt dann unberuehrt.
+    const liste = seitenListe(data, { wc, pfad: 'products' });
+    for (const p of liste) {
       eintraege.set(p.id, { id: p.id, name: p.name, keyphrase: keyphraseAus(p.meta_data) });
     }
-    if (page >= Number(headers?.['x-wp-totalpages'] || 1) || !data?.length) break;
+    if (page >= Number(headers?.['x-wp-totalpages'] || 1) || !liste.length) break;
   }
   _cache = { at: Date.now(), eintraege };
   return eintraege;
@@ -82,6 +87,6 @@ export async function sucheArtikel(wc, q) {
     wc.get('products', { search: text, status: 'publish', per_page: 40 }),
     wc.get('products', { sku: text, status: 'publish', per_page: 40 }),
   ]);
-  for (const p of [...(nachSku.data ?? []), ...(nachName.data ?? [])]) nimm(p);
+  for (const p of [...seitenListe(nachSku.data, { wc, pfad: 'products' }), ...seitenListe(nachName.data, { wc, pfad: 'products' })]) nimm(p);
   return [...treffer.values()];
 }
