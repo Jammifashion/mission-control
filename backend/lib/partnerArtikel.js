@@ -25,6 +25,7 @@
 //    (FP_Partner/FP_Artikel) wird nie angefasst.
 
 import { getWcClient } from './shopConfig.js';
+import { seitenGrenze, seitenListe } from './hosterPruefseite.js';
 import { leseReiterSpalten } from './ssot-reiter.js';
 import { farbwert, TAB_LSHOP } from './lshop.js';
 import { findHeader, requireHeader } from '../utils/sheet-headers.js';
@@ -158,8 +159,9 @@ async function readTab(sheets, sheetId, tab) {
 async function alleSeiten(wc, pfad, params) {
   const out = [];
   for (let page = 1; ; page++) {
+    seitenGrenze(page, { wc, pfad });
     const { data } = await wc.get(pfad, { per_page: 100, page, ...params });
-    const liste = Array.isArray(data) ? data : [];
+    const liste = seitenListe(data, { wc, pfad });
     out.push(...liste);
     if (liste.length < 100) break;
   }

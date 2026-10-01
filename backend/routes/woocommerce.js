@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getWcClient } from '../lib/shopConfig.js';
+import { seitenGrenze, seitenListe } from '../lib/hosterPruefseite.js';
 import { markeFuerShop } from '../lib/shopMarke.js';
 import { pruefeArtikelnummer, baueVariantenSkus } from '../lib/sku.js';
 import { achsenVon, achsenGleich, pruefeFarbAchse, mitGoogleFarbe } from '../lib/varianten-achsen.js';
@@ -63,13 +64,15 @@ router.get('/orders', async (req, res, next) => {
     if (status && status.includes(',')) {
       const statuses = status.split(',').map(s => s.trim());
       const all = [];
-      await Promise.all(statuses.map(async s => {
+      // Nacheinander, nicht gleichzeitig: bei der Hoster-Pruefseite bleibt es bei einem Abruf.
+      for (const s of statuses) {
         for (let p = 1; ; p++) {
-          const { data } = await wc.get('orders', { per_page: 100, page: p, status: s });
+          seitenGrenze(p, { wc, pfad: 'orders' });
+          const data = seitenListe((await wc.get('orders', { per_page: 100, page: p, status: s })).data, { wc, pfad: 'orders' });
           all.push(...data);
           if (data.length < 100) break;
         }
-      }));
+      }
       all.sort((a, b) => new Date(b.date_created) - new Date(a.date_created));
       const start = (Number(page) - 1) * perPage;
       return res.json(all.slice(start, start + perPage));

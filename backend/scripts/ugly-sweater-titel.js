@@ -22,6 +22,7 @@ dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.e
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient } from '../lib/shopConfig.js';
+import { seitenListe } from '../lib/hosterPruefseite.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -67,7 +68,7 @@ async function findKategorieId(wc) {
 async function ladeProdukte(wc, categoryId) {
   const alle = [];
   for (let page = 1; page <= 20; page++) {
-    const { data } = await wc.get('products', {
+    const { data: roh } = await wc.get('products', {
       category: categoryId,
       per_page: 100,
       page,
@@ -75,7 +76,8 @@ async function ladeProdukte(wc, categoryId) {
       orderby: 'id',
       order:   'asc',
     });
-    if (!data?.length) break;
+    const data = seitenListe(roh, { wc, pfad: 'products' });
+    if (!data.length) break;
     alle.push(...data);
     if (data.length < 100) break;
   }

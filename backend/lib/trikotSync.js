@@ -15,6 +15,7 @@
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 import { getWcClient } from './shopConfig.js';
+import { seitenGrenze, seitenListe } from './hosterPruefseite.js';
 import {
   TAB_TRIKOTS, TAB_ARTIKEL, WC_STATES_TRIKOT,
   parseArtikel, buildRowsForOrder, resolveTrikotColumns, toSheetRow,
@@ -57,6 +58,7 @@ function jetztBerlin() {
 async function loadOrders(wc, afterDate) {
   const orders = [];
   for (let page = 1; ; page++) {
+    seitenGrenze(page, { wc, pfad: 'orders' });
     const res = await wc.get('orders', {
       after:    `${afterDate}T00:00:00`,
       status:   WC_STATES_TRIKOT.join(','),
@@ -66,9 +68,10 @@ async function loadOrders(wc, afterDate) {
       page,
     });
     // Doppelt abgesichert: nur die freigegebenen Status, auch wenn die API den Filter ignoriert.
-    orders.push(...res.data.filter(o => WC_STATES_TRIKOT.includes(o.status)));
+    const liste = seitenListe(res.data, { wc, pfad: 'orders' });
+    orders.push(...liste.filter(o => WC_STATES_TRIKOT.includes(o.status)));
     const totalPages = parseInt(res.headers?.['x-wp-totalpages'] ?? '1', 10) || 1;
-    if (page >= totalPages || res.data.length === 0) break;
+    if (page >= totalPages || liste.length === 0) break;
   }
   return orders;
 }

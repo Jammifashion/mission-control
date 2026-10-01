@@ -102,7 +102,8 @@ describe('sperreDoppelte (lib)', () => {
     shopVariationen = Array.from({ length: 150 }, (_, i) => nurGroesse(i + 1, `G${i}`));
     expect(await lib.leseAlleVariationen(wc, 1)).toHaveLength(150);
     wc.get.mockResolvedValueOnce({ data: { message: 'x' } });
-    await expect(lib.leseAlleVariationen(wc, 1)).rejects.toThrow('Antwort ohne Liste');
+    // Keine Liste = Hoster-Pruefseite (lib/hosterPruefseite.js): werfen, nicht weiterblaettern.
+    await expect(lib.leseAlleVariationen(wc, 1)).rejects.toMatchObject({ code: 'hoster_pruefseite' });
   });
 });
 

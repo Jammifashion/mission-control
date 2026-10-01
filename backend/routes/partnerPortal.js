@@ -3,6 +3,7 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { sheetsMitWiederholung } from '../lib/googleRetry.js';
 import { getWcClient as wcClientForShop, getShopConfig } from '../lib/shopConfig.js';
+import { seitenGrenze, seitenListe } from '../lib/hosterPruefseite.js';
 import { berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze, baueVertragsbeginne, verkaufsBetraege } from '../utils/partner-kalkulation.js';
 import { toFloat, toDE, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, buildStornoRows, ordersFuerVerkaufszeilen, vorVertragsbeginn,
   STATUS_GESPERRT, SPALTE_SPERRE, leerWert, sperrGrund } from '../utils/sync-logic.js';
@@ -148,16 +149,20 @@ function buildSyncMessage(neu, storniert) {
 }
 
 // Lädt WC-Bestellungen für mehrere Status paginiert. afterParam optional (ISO).
+// Status nacheinander, nicht gleichzeitig: bei der Hoster-Pruefseite bleibt es
+// bei einem Abruf (lib/hosterPruefseite.js), und die Abrufe kommen nicht im Paket.
 async function fetchOrders(wc, statuses, afterParam) {
   const all = [];
   for (let page = 1; ; page++) {
-    const results = await Promise.all(statuses.map(status => {
+    seitenGrenze(page, { wc, pfad: 'orders' });
+    const listen = [];
+    for (const status of statuses) {
       const params = { per_page: 100, page, status };
       if (afterParam) params.after = afterParam;
-      return wc.get('orders', params);
-    }));
-    for (const r of results) all.push(...r.data);
-    if (results.every(r => r.data.length < 100)) break;
+      listen.push(seitenListe((await wc.get('orders', params)).data, { wc, pfad: 'orders' }));
+    }
+    for (const l of listen) all.push(...l);
+    if (listen.every(l => l.length < 100)) break;
   }
   return all;
 }

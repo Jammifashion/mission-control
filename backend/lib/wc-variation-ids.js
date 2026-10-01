@@ -25,6 +25,7 @@
 import { variantenSchluessel } from '../utils/varianten-zeilen.js';
 import { requireHeader } from '../utils/sheet-headers.js';
 import { colLetter } from '../utils/sheet-spalten.js';
+import { seitenGrenze, seitenListe } from './hosterPruefseite.js';
 
 const falte = s => String(s ?? '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue');
 
@@ -115,9 +116,9 @@ export const wcAttributePaare = attributes =>
 export async function leseAlleVariationen(wc, productId) {
   const alle = [];
   for (let page = 1; ; page++) {
+    seitenGrenze(page, { wc, pfad: 'products/variations' });
     const { data } = await wc.get(`products/${productId}/variations`, { per_page: 100, page });
-    if (!Array.isArray(data)) throw new Error(`Antwort ohne Liste (Seite ${page})`);
-    alle.push(...data);
+    alle.push(...seitenListe(data, { wc, pfad: 'products/variations' }));
     if (data.length < 100) return alle;
   }
 }
@@ -218,9 +219,10 @@ export async function planeNachtrag({ sheets, wc, spreadsheetId = process.env.GO
     const variationen = [];
     try {
       for (let page = 1; ; page++) {
+        seitenGrenze(page, { wc, pfad: 'products/variations' });
         await drossel(); anfragen++;
         const { data } = await wc.get(`products/${pid}/variations`, { per_page: 100, page, _fields: 'id,attributes' });
-        const liste = Array.isArray(data) ? data : [];
+        const liste = seitenListe(data, { wc, pfad: 'products/variations' });
         variationen.push(...liste.map(v => ({ id: v.id, attributes: wcAttributePaare(v.attributes) })));
         if (liste.length < 100) break;
       }

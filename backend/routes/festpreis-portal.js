@@ -5,6 +5,7 @@ import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient } from '../lib/shopConfig.js';
+import { seitenGrenze, seitenListe } from '../lib/hosterPruefseite.js';
 import { berechneFestpreisAnteil } from '../utils/festpreis-kalkulation.js';
 import { parseKonfiguration } from '../utils/partner-kalkulation.js';
 
@@ -24,16 +25,20 @@ const FP_STATES_STORNO  = ['refunded', 'cancelled'];
 const FP_STORNO_MARKER  = 'Storniert/Rückerstattet';
 
 // Lädt WC-Bestellungen für mehrere Status paginiert. afterParam optional (ISO).
+// Status nacheinander, nicht gleichzeitig: bei der Hoster-Pruefseite bleibt es
+// bei einem Abruf (lib/hosterPruefseite.js), und die Abrufe kommen nicht im Paket.
 async function fetchFpOrders(wc, statuses, afterParam) {
   const all = [];
   for (let page = 1; ; page++) {
-    const results = await Promise.all(statuses.map(status => {
+    seitenGrenze(page, { wc, pfad: 'orders' });
+    const listen = [];
+    for (const status of statuses) {
       const params = { per_page: 100, page, status };
       if (afterParam) params.after = afterParam;
-      return wc.get('orders', params);
-    }));
-    for (const r of results) all.push(...r.data);
-    if (results.every(r => r.data.length < 100)) break;
+      listen.push(seitenListe((await wc.get('orders', params)).data, { wc, pfad: 'orders' }));
+    }
+    for (const l of listen) all.push(...l);
+    if (listen.every(l => l.length < 100)) break;
   }
   return all;
 }
@@ -405,7 +410,8 @@ router.post('/artikel/:partnerId/import', async (req, res, next) => {
     if (kategorienIds.length > 0) {
       const allCats = [];
       for (let page = 1; ; page++) {
-        const { data } = await wc.get('products/categories', { per_page: 100, page });
+        seitenGrenze(page, { wc, pfad: 'products/categories' });
+        const data = seitenListe((await wc.get('products/categories', { per_page: 100, page })).data, { wc, pfad: 'products/categories' });
         allCats.push(...data);
         if (data.length < 100) break;
       }
@@ -435,7 +441,8 @@ router.post('/artikel/:partnerId/import', async (req, res, next) => {
     if (targetCatIds.length > 0) {
       for (const catId of targetCatIds) {
         for (let page = 1; ; page++) {
-          const { data } = await wc.get('products', { status: 'any', per_page: 100, page, category: catId });
+          seitenGrenze(page, { wc, pfad: 'products' });
+          const data = seitenListe((await wc.get('products', { status: 'any', per_page: 100, page, category: catId })).data, { wc, pfad: 'products' });
           for (const p of data) {
             if (!seenIds.has(p.id)) { seenIds.add(p.id); allProducts.push(p); }
           }
@@ -444,7 +451,8 @@ router.post('/artikel/:partnerId/import', async (req, res, next) => {
       }
     } else {
       for (let page = 1; ; page++) {
-        const { data } = await wc.get('products', { status: 'any', per_page: 100, page });
+        seitenGrenze(page, { wc, pfad: 'products' });
+        const data = seitenListe((await wc.get('products', { status: 'any', per_page: 100, page })).data, { wc, pfad: 'products' });
         allProducts.push(...data);
         if (data.length < 100) break;
       }
