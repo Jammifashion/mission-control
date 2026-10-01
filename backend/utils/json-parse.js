@@ -4,7 +4,7 @@
 
 // Text aus einer Anthropic-Antwort einsammeln.
 //
-// claude-sonnet-5 stellt der Antwort je nach Aufgabe einen thinking-Block
+// claude-sonnet-5-5 stellt der Antwort je nach Aufgabe einen thinking-Block
 // voran; content[0].text ist dann undefined und die Antwort scheinbar leer.
 // Das haengt nicht an der Prompt-Laenge, sondern daran, wie das Modell die
 // Aufgabe einschaetzt - dieselbe Route kann mal mit und mal ohne

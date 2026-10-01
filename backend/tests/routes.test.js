@@ -431,7 +431,7 @@ describe('POST /api/anfragen/chat – Stoerungsalarm', () => {
       reply:       'Standard sind 7–10 Werktage, Kunde Max Muster fragte danach.',
       sessionData: { step: 1 },
       completed:   false,
-      fallback:    { modell: 'claude-sonnet-5', zeichen: 61 },
+      fallback:    { modell: 'claude-sonnet-5-5', zeichen: 61 },
     });
     const res = await send({ messages: MSGS, cfTurnstileToken: 'cf' });
 
@@ -443,7 +443,7 @@ describe('POST /api/anfragen/chat – Stoerungsalarm', () => {
     const arg = notifyFehler.mock.calls[0][0];
     expect(arg.art).toBe('Antwort ohne JSON-Huelle');
     expect(arg.status).toBeUndefined();       // kein HTTP-Fehler
-    expect(arg.text).toContain('claude-sonnet-5');
+    expect(arg.text).toContain('claude-sonnet-5-5');
     expect(arg.text).toContain('61 Zeichen');
     // Der Modelltext koennte Kundenangaben zitieren - er gehoert nicht in den Space.
     expect(arg.text).not.toContain('Max Muster');

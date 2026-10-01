@@ -26,7 +26,7 @@ jest.unstable_mockModule('../lib/googleAuth.js', () => ({
 }));
 
 jest.unstable_mockModule('../lib/modelConfig.js', () => ({
-  getModel: jest.fn().mockResolvedValue('claude-sonnet-5'),
+  getModel: jest.fn().mockResolvedValue('claude-sonnet-5-5'),
 }));
 
 let callChatAgent;
@@ -162,7 +162,7 @@ describe('Fehler der Anthropic-API werden auf 502 abgebildet', () => {
 
   test('Meldung nennt Modell und Ursache', async () => {
     mockCreate.mockRejectedValue(upstream(400));
-    await expect(ruf()).rejects.toThrow(/claude-sonnet-5.*at least one message/);
+    await expect(ruf()).rejects.toThrow(/claude-sonnet-5-5.*at least one message/);
   });
 });
 

@@ -36,7 +36,7 @@ jest.unstable_mockModule('../lib/shopConfig.js', () => ({
 }));
 
 jest.unstable_mockModule('../lib/modelConfig.js', () => ({
-  getModel: jest.fn().mockResolvedValue('claude-sonnet-5'),
+  getModel: jest.fn().mockResolvedValue('claude-sonnet-5-5'),
 }));
 
 jest.unstable_mockModule('../utils/secrets.js', () => ({
@@ -47,7 +47,7 @@ jest.unstable_mockModule('../utils/secrets.js', () => ({
 
 const CONFIG = [
   ['Schlüssel', 'Wert', 'Beschreibung'],
-  ['modell.chat-kunde',      'claude-sonnet-5'],
+  ['modell.chat-kunde',      'claude-sonnet-5-5'],
   ['modell.seo-text',        'claude-opus-5'],
   ['modell.klassifizierung', 'gemini-2.5-flash'],
 ];
@@ -83,7 +83,7 @@ beforeEach(() => {
   jest.spyOn(console, 'log').mockImplementation(() => {});
   mockValuesGet.mockReset().mockResolvedValue({ data: { values: CONFIG } });
   mockModelsList.mockReset().mockImplementation(
-    liveModels(['claude-sonnet-5', 'claude-opus-5', 'claude-fable-5-1']),
+    liveModels(['claude-sonnet-5-5', 'claude-opus-5', 'claude-fable-5-1']),
   );
 });
 
@@ -97,7 +97,7 @@ describe('runCheck() Ergebnisobjekt', () => {
     expect(r).toEqual({
       geprueft: 2,
       gueltig: [
-        { rolle: 'chat-kunde', modell: 'claude-sonnet-5' },
+        { rolle: 'chat-kunde', modell: 'claude-sonnet-5-5' },
         { rolle: 'seo-text',   modell: 'claude-opus-5' },
       ],
       fehlend: [],
@@ -106,7 +106,7 @@ describe('runCheck() Ergebnisobjekt', () => {
   });
 
   test('fehlendes Modell landet in fehlend[]', async () => {
-    mockModelsList.mockImplementation(liveModels(['claude-sonnet-5']));
+    mockModelsList.mockImplementation(liveModels(['claude-sonnet-5-5']));
     const r = await runCheck();
     expect(r.fehlend).toEqual([{ rolle: 'seo-text', modell: 'claude-opus-5' }]);
     expect(r.gueltig).toHaveLength(1);
@@ -139,7 +139,7 @@ describe('POST /api/system/modell-check', () => {
   });
 
   test('Modell fehlt → 422 mit fehlend[]', async () => {
-    mockModelsList.mockImplementation(liveModels(['claude-sonnet-5']));
+    mockModelsList.mockImplementation(liveModels(['claude-sonnet-5-5']));
     const res = await post();
     expect(res.status).toBe(422);
     expect(res.body.ok).toBe(false);

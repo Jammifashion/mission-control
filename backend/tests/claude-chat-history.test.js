@@ -19,7 +19,7 @@ jest.unstable_mockModule('@google/generative-ai', () => ({
 }));
 
 jest.unstable_mockModule('../lib/modelConfig.js', () => ({
-  getModel: jest.fn().mockResolvedValue('claude-sonnet-5'),
+  getModel: jest.fn().mockResolvedValue('claude-sonnet-5-5'),
 }));
 
 let request, app;

@@ -158,7 +158,7 @@ export async function callChatAgent({ messages, sessionData, kbBase, history }) 
   const systemBlocks = buildSystemBlocks(kbBase, history, sessionData);
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-  // Kein Assistant-Prefill mehr: claude-sonnet-5 lehnt eine Konversation ab,
+  // Kein Assistant-Prefill mehr: claude-sonnet-5-5 lehnt eine Konversation ab,
   // die nicht mit einer User-Nachricht endet ("does not support assistant
   // message prefill"). Das JSON-Format erzwingt jetzt allein der Prompt.
   const modell = await getModel('chat-kunde');
@@ -189,7 +189,7 @@ export async function callChatAgent({ messages, sessionData, kbBase, history }) 
     throw e;
   }
 
-  // Nicht content[0] nehmen: sonnet-5 stellt der Antwort je nach Aufgabe einen
+  // Nicht content[0] nehmen: sonnet-5-5 stellt der Antwort je nach Aufgabe einen
   // thinking-Block voran, der Text steht dann erst dahinter.
   const rawText = collectText(claudeRes);
   const parsed  = parseAgentAntwort(rawText);

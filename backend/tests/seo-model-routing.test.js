@@ -73,7 +73,7 @@ describe('seo_description – Modellwahl', () => {
   });
 
   test('Claude-Modell aus dem Sheet geht an Anthropic – nicht an agent-intern', async () => {
-    getModel.mockResolvedValue('claude-sonnet-5');
+    getModel.mockResolvedValue('claude-sonnet-5-5');
 
     const res = await post();
 
@@ -81,7 +81,7 @@ describe('seo_description – Modellwahl', () => {
     expect(getModel).toHaveBeenCalledWith('seo-text');
     expect(getModel).not.toHaveBeenCalledWith('agent-intern');
     expect(messagesCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'claude-sonnet-5' }),
+      expect.objectContaining({ model: 'claude-sonnet-5-5' }),
     );
     expect(getGenerativeModel).not.toHaveBeenCalled();
   });
@@ -89,7 +89,7 @@ describe('seo_description – Modellwahl', () => {
   test('der Anbieter folgt der Modell-ID, nicht dem vorhandenen API-Key', async () => {
     // Beide Keys gesetzt, Sheet sagt Claude -> es darf NICHT Gemini gewinnen,
     // nur weil GEMINI_API_KEY zufällig da ist.
-    getModel.mockResolvedValue('claude-sonnet-5');
+    getModel.mockResolvedValue('claude-sonnet-5-5');
 
     await post();
 
@@ -111,12 +111,12 @@ describe('seo_description – Modellwahl', () => {
 
   test('Claude-Modell ohne ANTHROPIC_API_KEY: 503 mit Modellname', async () => {
     delete process.env.ANTHROPIC_API_KEY;
-    getModel.mockResolvedValue('claude-sonnet-5');
+    getModel.mockResolvedValue('claude-sonnet-5-5');
 
     const res = await post();
 
     expect(res.status).toBe(503);
-    expect(res.body.error).toContain('claude-sonnet-5');
+    expect(res.body.error).toContain('claude-sonnet-5-5');
     expect(res.body.error).toContain('ANTHROPIC_API_KEY');
     expect(getGenerativeModel).not.toHaveBeenCalled();
   });

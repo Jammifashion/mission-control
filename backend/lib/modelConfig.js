@@ -10,10 +10,10 @@ const VALID_MODEL_RE = /^(claude|gemini)-[a-z0-9.\-]+$/;
 // erreichbar ist, keinen Eintrag für die Rolle hat, oder der Eintrag
 // nicht gegen VALID_MODEL_RE matcht.
 export const DEFAULT_MODELS = {
-  'chat-kunde':      'claude-sonnet-5',
-  'klassifizierung': 'gemini-3.1-flash-lite',
+  'chat-kunde':      'claude-sonnet-5-5',
+  'klassifizierung': 'gemini-3.5-flash-lite',
   'seo-text':        'gemini-3.5-flash-lite',
-  'agent-intern':    'claude-sonnet-5',
+  'agent-intern':    'claude-sonnet-5-5',
 };
 
 // Generischer Fallback für Rollen, die nicht in DEFAULT_MODELS bekannt sind.

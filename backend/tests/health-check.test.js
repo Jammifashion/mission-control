@@ -29,7 +29,7 @@ jest.unstable_mockModule('../lib/shopConfig.js', () => ({
 }));
 
 jest.unstable_mockModule('../lib/modelConfig.js', () => ({
-  getModel: jest.fn().mockResolvedValue('claude-sonnet-5'),
+  getModel: jest.fn().mockResolvedValue('claude-sonnet-5-5'),
 }));
 
 jest.unstable_mockModule('../utils/secrets.js', () => ({
