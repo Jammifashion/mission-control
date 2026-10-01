@@ -4,7 +4,8 @@ import { dirname, resolve } from 'path';
 import dotenv from 'dotenv';
 dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.env') });
 import { google } from 'googleapis';
-import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
+import { getWcClient } from '../lib/shopConfig.js';
+import { wirfWennPruefseite } from '../lib/hosterPruefseite.js';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze } from '../utils/partner-kalkulation.js';
 
@@ -64,10 +65,7 @@ async function run() {
   const konfiguration = parseKonfiguration(kRows, kH);
 
   // Get WC orders
-  const wc = new WooCommerceRestApi.default({
-    url: process.env.WC_URL, consumerKey: process.env.WC_KEY,
-    consumerSecret: process.env.WC_SECRET, version: 'wc/v3', queryStringAuth: false,
-  });
+  const wc = getWcClient('jfn');   // geprueft auf die Hoster-Pruefseite
 
   console.log('━━ Verifikation der Sync-Werte ━━\n');
 
@@ -120,6 +118,7 @@ async function run() {
         }
       }
     } catch (e) {
+      wirfWennPruefseite(e);   // Pruefseite: Lauf stoppen, nicht mit der naechsten Order weiter
       console.log(`\n⚠️  Fehler bei Order ${orderId}: ${e.message}`);
     }
   }

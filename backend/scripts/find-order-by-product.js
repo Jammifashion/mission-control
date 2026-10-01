@@ -2,21 +2,21 @@ import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import dotenv from 'dotenv';
 dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.env') });
-import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
+import { getWcClient } from '../lib/shopConfig.js';
+import { seitenListe } from '../lib/hosterPruefseite.js';
 
 const SEARCH_TERM = process.argv[2] || 'Sorry Mama';
 
-const wc = new WooCommerceRestApi.default({
-  url: process.env.WC_URL, consumerKey: process.env.WC_KEY,
-  consumerSecret: process.env.WC_SECRET, version: 'wc/v3', queryStringAuth: false,
-});
+// Ueber getWcClient: jeder Abruf wird auf die Hoster-Pruefseite geprueft.
+const wc = getWcClient('jfn');
 
 async function findOrders() {
   console.log(`\nSuche nach Orders mit "${SEARCH_TERM}"...\n`);
   let found = 0;
 
   for (let page = 1; page <= 5; page++) {
-    const { data: orders } = await wc.get('orders', { per_page: 100, page, status: 'completed' });
+    const { data } = await wc.get('orders', { per_page: 100, page, status: 'completed' });
+    const orders = seitenListe(data, { wc, pfad: 'orders' });
     if (!orders.length) break;
 
     for (const order of orders) {

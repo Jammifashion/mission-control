@@ -13,7 +13,7 @@ import { dirname, resolve } from 'path';
 import dotenv from 'dotenv';
 dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.env') });
 import { google } from 'googleapis';
-import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
+import { getWcClient } from '../lib/shopConfig.js';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { parseKonfiguration, baueLizenzSaetze, baueVertragsbeginne, verkaufsBetraege } from '../utils/partner-kalkulation.js';
 import { vorVertragsbeginn, toFloat, toDE, leerWert, sperrGrund, STATUS_GESPERRT, SPALTE_SPERRE } from '../utils/sync-logic.js';
@@ -67,10 +67,7 @@ async function run() {
   const varKey = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
   const existing = new Set(vTab.rows.map(r => `${r[vh('Order-ID')] ?? ''}|${r[vh('Artikelnummer')] ?? ''}|${varKey(r[vh('Variante')])}|${r[vh('Partner-ID')] ?? ''}`));
 
-  const wc = new WooCommerceRestApi.default({
-    url: process.env.WC_URL, consumerKey: process.env.WC_KEY,
-    consumerSecret: process.env.WC_SECRET, version: 'wc/v3', queryStringAuth: false,
-  });
+  const wc = getWcClient('jfn');   // geprueft auf die Hoster-Pruefseite
   const { data: order } = await wc.get(`orders/${ORDER_ID}`);
   console.log(`Order ${order.id} · ${order.status} · ${order.date_created} · ${order.line_items.length} Position(en)`
     + `${PARTNER ? ` · nur ${PARTNER}` : ''} · ${WRITE ? 'SCHREIBEN' : 'Trockenlauf'}`);

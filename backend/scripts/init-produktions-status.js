@@ -2,7 +2,8 @@ import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import dotenv from 'dotenv';
 dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.env') });
-import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
+import { getWcClient } from '../lib/shopConfig.js';
+import { seitenGrenze, seitenListe } from '../lib/hosterPruefseite.js';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 
@@ -13,29 +14,18 @@ const PS_COLS        = [
   'L-Shop_bestellt', 'DTF_bestellt', 'Gedruckt', 'Versendet', 'Notiz',
 ];
 
-function getWcClient() {
-  if (!process.env.WC_URL || !process.env.WC_KEY || !process.env.WC_SECRET) {
-    throw new Error('WooCommerce-Zugangsdaten fehlen (WC_URL, WC_KEY, WC_SECRET).');
-  }
-  return new WooCommerceRestApi.default({
-    url:             process.env.WC_URL,
-    consumerKey:     process.env.WC_KEY,
-    consumerSecret:  process.env.WC_SECRET,
-    version:         'wc/v3',
-    queryStringAuth: false,
-  });
-}
-
 async function fetchAllOrders(wc) {
   const orders = [];
   let page = 1;
   while (true) {
-    const { data } = await wc.get('orders', {
+    seitenGrenze(page, { wc, pfad: 'orders' });
+    const { data: roh } = await wc.get('orders', {
       status:   'pending,processing',
       per_page: 100,
       page,
     });
-    if (!Array.isArray(data) || data.length === 0) break;
+    const data = seitenListe(roh, { wc, pfad: 'orders' });
+    if (data.length === 0) break;
     orders.push(...data);
     if (data.length < 100) break;
     page++;
@@ -49,7 +39,7 @@ async function main() {
     process.exit(1);
   }
 
-  const wc     = getWcClient();
+  const wc     = getWcClient('jfn');   // geprueft auf die Hoster-Pruefseite (lib/shopConfig.js)
   const auth   = await getGoogleAuth();
   const sheets = google.sheets({ version: 'v4', auth });
 
