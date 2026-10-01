@@ -29,6 +29,21 @@ Neue Sektionen immer mit Anker versehen:
 ```
 
 ## Wichtige Dateien
+- backend/lib/hosterPruefseite.js – Hoster-Pruefseite (ESTUGO, 01.10.2026): nach ~11 schnellen
+  Abrufen JS-Pruefseite ("One moment, please...", openresty, **Status 200**), nach >100 nicht
+  geloesten Pruefseiten IP-Sperre; jede Wiederholung zaehlt mit. HTML statt JSON (Content-Type
+  ohne json oder Body beginnt mit "<") -> `HosterPruefseiteError` (503, Code `hoster_pruefseite`),
+  sofort, ohne Wiederholung. Meldung: Shop, Pfad, Uhrzeit - nie Query, nie Schluessel.
+  **Regel: Jeder neue WooCommerce- oder WordPress-Zugriff laeuft ueber `getWcClient`
+  (lib/shopConfig.js, Pruefung haengt an jedem Request) oder die gemeinsame Pruefung
+  `pruefeFetchAntwort` (WordPress-fetch).** Nie ein eigener `WooCommerceRestApi`, nie ein
+  roher fetch auf `/wp-json` (Test `wc-zugriff-regel.test.js`). Seitenschleifen: `seitenGrenze`
+  vor, `seitenListe` nach jedem Abruf (max. 200 Seiten, keine Liste = Pruefseite), Status
+  nacheinander statt `Promise.all`. Jedes catch, das mit dem naechsten Element weitermacht,
+  ruft zuerst `wirfWennPruefseite(err)`. Zwischenspeicher nur mit gueltiger Liste/Objekt.
+  `middleware/hosterPruefseite.js` (vor dem allgemeinen Fehlerhandler): 503 + Code +
+  `notifyHosterPruefseite` (gedrosselt 1/h); Workflows werden rot. Frontend:
+  `istHosterPruefseite(res)` beendet Schleifen.
 - backend/utils/secrets.js – Secret Manager, loadAllSecrets()
 - backend/middleware/auth.js – X-API-Key Auth + Rate Limiting
 - backend/routes/kalkulation.js – Partner CRUD, Druck-/Fixkosten, Abrechnungen
