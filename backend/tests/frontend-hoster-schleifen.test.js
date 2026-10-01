@@ -1,6 +1,7 @@
 // Frontend: Schleifen ueber mehrere WC-Aufrufe (Varianten loeschen, Varianten-
-// Preise/-Bilder aendern) brechen bei 503 "hoster_pruefseite" ab, statt mit
-// der naechsten Variante weiterzumachen.
+// Preise/-Bilder aendern) brechen bei einem Laufstopp ab - 503
+// "hoster_pruefseite" oder 504 "shop_timeout" -, statt mit der naechsten
+// Variante weiterzumachen.
 
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
@@ -17,13 +18,18 @@ function schleife(kopf) {
   return HTML.slice(i, ende);
 }
 
-test('Helfer istHosterPruefseite prueft 503 + Code', () => {
-  expect(HTML).toMatch(/async function istHosterPruefseite\(res\)[\s\S]{0,200}res\.status !== 503[\s\S]{0,200}code === 'hoster_pruefseite'/);
+test('Helfer laufStopp erkennt 503 hoster_pruefseite und 504 shop_timeout', () => {
+  const i = HTML.indexOf('async function laufStopp(res)');
+  expect(i).toBeGreaterThan(-1);
+  const koerper = HTML.slice(i, HTML.indexOf('\n      }', i));
+  expect(koerper).toMatch(/res\.status !== 503 && res\.status !== 504/);
+  expect(koerper).toContain("json?.code === 'hoster_pruefseite'");
+  expect(koerper).toContain("json?.code === 'shop_timeout'");
 });
 
 test.each([
   ['Varianten loeschen', 'for (const id of ids) {'],
   ['Varianten-Preise/-Bilder', 'for (const v of changedVars) {'],
-])('%s: Abbruch bei der Pruefseite', (_name, kopf) => {
-  expect(schleife(kopf)).toMatch(/if \(await istHosterPruefseite\(\w+\)\) \{ \w+ = true; break; \}/);
+])('%s: Abbruch beim Laufstopp', (_name, kopf) => {
+  expect(schleife(kopf)).toMatch(/const stopp = await laufStopp\(\w+\);\s*if \(stopp\) \{ \w+ = stopp; break; \}/);
 });

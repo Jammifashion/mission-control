@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { getShopConfig } from '../lib/shopConfig.js';
-import { pruefeFetchAntwort } from '../lib/hosterPruefseite.js';
+import { pruefeFetchAntwort, fetchMitZeitlimit } from '../lib/hosterPruefseite.js';
 
 const router = Router();
 
@@ -37,7 +37,8 @@ router.post('/media-upload', (req, res, next) => {
     const filename = (req.file.originalname || 'upload.jpg').replace(/"/g, '');
     const baseUrl = cfg.wcUrl.replace(/\/$/, '');
 
-    const wpRes = await fetch(`${baseUrl}/wp-json/wp/v2/media`, {
+    // Zeitlimit 60 s (Schreiben); Ablauf -> ShopZeitueberschreitungError, Ergebnis unklar.
+    const wpRes = await fetchMitZeitlimit(`${baseUrl}/wp-json/wp/v2/media`, {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${auth}`,
@@ -45,7 +46,7 @@ router.post('/media-upload', (req, res, next) => {
         'Content-Disposition': `attachment; filename="${filename}"`,
       },
       body: req.file.buffer,
-    });
+    }, { shop: cfg.label, pfad: '/wp-json/wp/v2/media' });
 
     if (wpRes.status === 401)
       return res.status(401).json({ error: 'WordPress-Anmeldung fehlgeschlagen (Application Password prüfen).' });

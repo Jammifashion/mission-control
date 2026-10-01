@@ -68,6 +68,60 @@ export class SeitenGrenzeError extends Error {
   }
 }
 
+// ── Zeitlimit je Zugriff ────────────────────────────────────────────────────
+// Ohne Limit wartete ein Abruf, auf den der Shop nicht antwortet (z. B. IP auf
+// der nft-Blacklist des Hosters: Pakete werden still verworfen), bis Cloud Run
+// ihn nach 300 s abschiesst. Lesen 15 s, Schreiben (POST/PUT/DELETE) und alles
+// mit /batch 60 s. Bei Ablauf: ShopZeitueberschreitungError, ohne Wiederholung,
+// durchgereicht wie die Pruefseite. Ein abgelaufener Schreibzugriff ist NICHT
+// gescheitert, sondern unklar (der Shop kann ihn ausgefuehrt haben): nichts
+// wird wiederholt oder zurueckgerollt.
+
+export const ZEITLIMIT_LESEN_MS     = 15_000;
+export const ZEITLIMIT_SCHREIBEN_MS = 60_000;
+export const SHOP_TIMEOUT_CODE      = 'shop_timeout';
+export const SHOP_TIMEOUT_TEXT_LESEN     = 'Shop hat nicht rechtzeitig geantwortet, Lauf gestoppt';
+export const SHOP_TIMEOUT_TEXT_SCHREIBEN = 'Shop hat nicht rechtzeitig geantwortet, Ergebnis unklar, bitte nachlesen.';
+
+const LESEND = new Set(['get', 'head', 'options']);
+
+/** Zeitlimit in ms fuer einen Zugriff: GET 15 s; POST/PUT/DELETE und /batch 60 s. */
+export function zeitlimitFuer(methode, pfad) {
+  const m = String(methode ?? '').toLowerCase();
+  if (/(^|\/)batch$/.test(pfadOhneQuery(pfad))) return ZEITLIMIT_SCHREIBEN_MS;
+  return LESEND.has(m) ? ZEITLIMIT_LESEN_MS : ZEITLIMIT_SCHREIBEN_MS;
+}
+
+export class ShopZeitueberschreitungError extends Error {
+  constructor({ shop = 'unbekannt', methode = 'get', pfad = '', limitMs, zeit = new Date() } = {}) {
+    const iso = (zeit instanceof Date ? zeit : new Date(zeit)).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const m = String(methode).toUpperCase();
+    const schreibend = !LESEND.has(m.toLowerCase());
+    const teile = [`Shop ${shop}`, `${m} ${pfadOhneQuery(pfad)}`,
+      Number.isFinite(limitMs) ? `nach ${Math.round(limitMs / 1000)} s` : null, iso];
+    super(schreibend
+      ? `${SHOP_TIMEOUT_TEXT_SCHREIBEN} (${teile.filter(Boolean).join(', ')})`
+      : `${SHOP_TIMEOUT_TEXT_LESEN} (${teile.filter(Boolean).join(', ')}).`);
+    this.name           = 'ShopZeitueberschreitungError';
+    this.code           = SHOP_TIMEOUT_CODE;
+    this.status         = 504;
+    this.shop           = shop;
+    this.methode        = m;
+    this.pfad           = pfadOhneQuery(pfad);
+    this.limitMs        = Number.isFinite(limitMs) ? limitMs : null;
+    this.schreibend     = schreibend;
+    this.ergebnisUnklar = schreibend;
+    this.zeit           = iso;
+  }
+}
+
+/** axios-Fehler einer Zeitueberschreitung (eigenes Limit oder TCP-Timeout), ohne Antwort. */
+export function istZeitueberschreitung(err) {
+  if (!err || err.response) return false;
+  if (err.code === 'ETIMEDOUT') return true;
+  return err.code === 'ECONNABORTED' && /timeout/i.test(String(err.message ?? ''));
+}
+
 // Nur der Pfad: alles ab "?" oder "#" faellt weg, ebenso Schema und Host.
 export function pfadOhneQuery(pfad) {
   let p = String(pfad ?? '');
@@ -101,24 +155,47 @@ function headerWert(headers, name) {
 /**
  * Haengt die Pruefung an einen WooCommerceRestApi-Client: jeder get/post/put/
  * delete/options laeuft ueber _request. Gilt fuer Erfolg UND Fehlerantwort
- * (eine HTML-Seite mit 403/503 ist dieselbe Sperre). Netzwerkfehler ohne
- * Antwort bleiben unveraendert.
+ * (eine HTML-Seite mit 403/503 ist dieselbe Sperre). Dazu das Zeitlimit je
+ * Zugriff (zeitlimitFuer); Ablauf -> ShopZeitueberschreitungError. Andere
+ * Netzwerkfehler ohne Antwort bleiben unveraendert.
  */
 export function mitPruefung(client, shopLabel) {
   const orig = client._request.bind(client);
   client.shopLabel = shopLabel;
-  client._request = (method, endpoint, ...rest) => orig(method, endpoint, ...rest).then(
-    res => {
-      pruefeAntwort({ shop: shopLabel, pfad: endpoint, status: res?.status, contentType: headerWert(res?.headers, 'content-type'), body: res?.data });
-      return res;
-    },
-    err => {
-      const r = err?.response;
-      if (r) pruefeAntwort({ shop: shopLabel, pfad: endpoint, status: r.status, contentType: headerWert(r.headers, 'content-type'), body: r.data });
-      throw err;
-    },
-  );
+  client._request = (method, endpoint, ...rest) => {
+    const limitMs = zeitlimitFuer(method, endpoint);
+    // _request liest this.timeout synchron beim Bau der axios-Optionen, also
+    // gilt der Wert genau fuer diesen Aufruf (auch bei parallelen Aufrufen).
+    client.timeout = limitMs;
+    return orig(method, endpoint, ...rest).then(
+      res => {
+        pruefeAntwort({ shop: shopLabel, pfad: endpoint, status: res?.status, contentType: headerWert(res?.headers, 'content-type'), body: res?.data });
+        return res;
+      },
+      err => {
+        if (istZeitueberschreitung(err)) throw new ShopZeitueberschreitungError({ shop: shopLabel, methode: method, pfad: endpoint, limitMs });
+        const r = err?.response;
+        if (r) pruefeAntwort({ shop: shopLabel, pfad: endpoint, status: r.status, contentType: headerWert(r.headers, 'content-type'), body: r.data });
+        throw err;
+      },
+    );
+  };
   return client;
+}
+
+/**
+ * fetch mit Zeitlimit (WordPress): Ablauf -> ShopZeitueberschreitungError.
+ * methode bestimmt das Limit wie bei WooCommerce (Upload = Schreiben, 60 s).
+ */
+export async function fetchMitZeitlimit(url, optionen = {}, { shop, pfad } = {}) {
+  const methode = optionen.method ?? 'GET';
+  const limitMs = zeitlimitFuer(methode, pfad ?? url);
+  try {
+    return await fetch(url, { ...optionen, signal: AbortSignal.timeout(limitMs) });
+  } catch (err) {
+    if (err?.name === 'TimeoutError') throw new ShopZeitueberschreitungError({ shop, methode, pfad: pfad ?? url, limitMs });
+    throw err;
+  }
 }
 
 /**
@@ -134,12 +211,17 @@ export async function pruefeFetchAntwort(res, { shop, pfad }) {
 
 /**
  * Fuer jedes catch, das sonst weitermacht (naechste Variante, naechster
- * Partner, naechste Bestellung): die Pruefseite sofort weiterwerfen, alle
- * anderen Fehler behandelt der Aufrufer wie bisher.
+ * Partner, naechste Bestellung): Pruefseite und Zeitueberschreitung sofort
+ * weiterwerfen, alle anderen Fehler behandelt der Aufrufer wie bisher.
  *   } catch (err) { wirfWennPruefseite(err); …bisherige Behandlung… }
  */
 export function wirfWennPruefseite(err) {
-  if (err instanceof HosterPruefseiteError) throw err;
+  if (istLaufStopp(err)) throw err;
+}
+
+/** true fuer die Fehler, die einen Lauf sofort und ohne Wiederholung beenden. */
+export function istLaufStopp(err) {
+  return err instanceof HosterPruefseiteError || err instanceof ShopZeitueberschreitungError;
 }
 
 // Zweites Netz fuer Seitenschleifen (falls ein Client an mitPruefung vorbeilaeuft):

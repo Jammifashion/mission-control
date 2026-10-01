@@ -66,3 +66,23 @@ describe('hosterPruefseiteHandler', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe('Zeitueberschreitung', () => {
+  test('504 shop_timeout mit ergebnisUnklar, eine gedrosselte Chat-Meldung', async () => {
+    const { ShopZeitueberschreitungError } = await import('../lib/hosterPruefseite.js');
+    const app = express();
+    app.put('/schreiben', (_req, _res, next) => next(new ShopZeitueberschreitungError({ shop: 'JammiFashion', methode: 'put', pfad: 'products/1?x=1', limitMs: 60_000 })));
+    app.use(hosterPruefseiteHandler);
+    const r = await request(app).put('/schreiben');
+    expect(r.status).toBe(504);
+    expect(r.body).toMatchObject({ code: 'shop_timeout', ergebnisUnklar: true });
+    expect(r.body.error).toContain('Ergebnis unklar, bitte nachlesen.');
+    expect(r.body.error).not.toContain('x=1');
+    const text = gesendeterText();
+    expect(text).toContain('Shop antwortet nicht (Zeitüberschreitung), Lauf gestoppt');
+    expect(text).toContain('PUT products/1 · nach 60 s');
+    expect(text).toContain('Ergebnis unklar, bitte im Shop nachlesen');
+    await request(app).put('/schreiben');
+    expect(fetchMock).toHaveBeenCalledTimes(1);          // gedrosselt
+  });
+});

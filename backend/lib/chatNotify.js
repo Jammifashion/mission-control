@@ -223,6 +223,35 @@ export async function notifyHosterPruefseite({ ablauf, shop, pfad, httpStatus, t
   }
 }
 
+/**
+ * Shop hat nicht rechtzeitig geantwortet (ShopZeitueberschreitungError): ein
+ * Lauf wurde gestoppt. Gedrosselt wie notifyHosterPruefseite, eigene Art.
+ * Schreibzugriff: Ergebnis unklar, nichts wiederholt oder zurueckgerollt.
+ * Wirft nie.
+ */
+export async function notifyShopZeitueberschreitung({ ablauf, shop, methode, pfad, limitMs, ergebnisUnklar, zeit } = {}) {
+  const art = 'shop_timeout';
+  try {
+    const jetzt   = Date.now();
+    const zuletzt = letzterAlarm.get(art);
+    if (zuletzt !== undefined && jetzt - zuletzt < ALARM_TTL_MS) return false;
+    letzterAlarm.set(art, jetzt);
+    return await notify([
+      '🔴 Shop antwortet nicht (Zeitüberschreitung), Lauf gestoppt',
+      [...[ablauf, shop && `Shop ${shop}`, pfad && `${methode ?? ''} ${pfad}`.trim(),
+        Number.isFinite(limitMs) && `nach ${Math.round(limitMs / 1000)} s`].filter(Boolean).map(t => sauber(String(t), 90)),
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(zeit ?? '') ? zeit : null].filter(Boolean).join(' · '),
+      ergebnisUnklar
+        ? 'Schreibzugriff: Ergebnis unklar, bitte im Shop nachlesen. Nichts wiederholt oder zurückgerollt.'
+        : 'Keine Wiederholung. Nächster Versuch frühestens beim nächsten geplanten Lauf.',
+      LINK,
+    ].filter(Boolean).join('\n'));
+  } catch (err) {
+    console.error('[chatNotify] Zeitueberschreitungs-Meldung fehlgeschlagen:', err?.message ?? err);
+    return false;
+  }
+}
+
 // Welche Statuscodes einen Alarm wert sind: ausschliesslich 5xx.
 //
 // Jeder 4xx sagt etwas ueber den Aufrufer, nicht ueber uns - Honeypot,

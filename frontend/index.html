@@ -2285,15 +2285,19 @@
         return json;
       }
 
-      // Hoster-Pruefseite (backend/lib/hosterPruefseite.js): 503 mit Code
-      // "hoster_pruefseite". Schleifen ueber mehrere Aufrufe brechen dann ab,
-      // statt mit dem naechsten Element weiterzumachen - jeder weitere Aufruf
-      // zaehlt beim Hoster als weiteres gescheitertes Captcha.
+      // Laufstopp (backend/lib/hosterPruefseite.js): 503 "hoster_pruefseite"
+      // (Captcha-Seite des Hosters) oder 504 "shop_timeout" (Shop hat nicht
+      // rechtzeitig geantwortet; bei Schreibzugriffen Ergebnis unklar).
+      // Schleifen ueber mehrere Aufrufe brechen dann ab, statt mit dem naechsten
+      // Element weiterzumachen - jeder weitere Aufruf zaehlt beim Hoster mit.
+      // Rueckgabe: Meldung fuer den Nutzer oder null.
       const HOSTER_PRUEFSEITE_MELDUNG = 'Hoster-Prüfseite (Captcha) erhalten, Lauf gestoppt. Bitte später erneut versuchen.';
-      async function istHosterPruefseite(res) {
-        if (!res || res.status !== 503) return false;
+      async function laufStopp(res) {
+        if (!res || (res.status !== 503 && res.status !== 504)) return null;
         const json = await res.clone().json().catch(() => null);
-        return json?.code === 'hoster_pruefseite';
+        if (json?.code === 'hoster_pruefseite') return HOSTER_PRUEFSEITE_MELDUNG;
+        if (json?.code === 'shop_timeout') return json.error || 'Shop hat nicht rechtzeitig geantwortet, Lauf gestoppt.';
+        return null;
       }
 
       // Fehler in einem <select> anzeigen und zusaetzlich als langer Toast,
@@ -6958,17 +6962,18 @@
         const bulkBtn = document.getElementById('ev-bulk-delete-btn');
         bulkBtn.disabled = true;
         let deleted = 0;
-        let gestoppt = false;
+        let gestoppt = null;
         for (const id of ids) {
           try {
             const r = await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations/${id}`, { method: 'DELETE' });
-            if (await istHosterPruefseite(r)) { gestoppt = true; break; }   // nicht mit der naechsten weiter
+            const stopp = await laufStopp(r);
+            if (stopp) { gestoppt = stopp; break; }   // nicht mit der naechsten weiter
             if (r.ok) { existingVariations = existingVariations.filter(x => x.id !== id); deleted++; }
           } catch { /* weiter */ }
         }
         bulkBtn.disabled = false;
         renderExistingVariations();
-        if (gestoppt) showToast(`${HOSTER_PRUEFSEITE_MELDUNG} ${deleted} von ${n} gelöscht.`, 'error', 15000);
+        if (gestoppt) showToast(`${gestoppt} ${deleted} von ${n} sicher gelöscht.`, 'error', 15000);
         else showToast(`${deleted} Variante${deleted !== 1 ? 'n' : ''} gelöscht`, deleted ? 'success' : 'error');
       });
 
@@ -7438,7 +7443,7 @@
           // Geänderte Varianten-Preise + neu hochgeladene Varianten-Bilder einzeln aktualisieren
           const changedVars = existingVariations.filter(v =>
             v.price !== v._origPrice || v.imageId !== v._origImageId);
-          let hosterGestoppt = false;
+          let hosterGestoppt = null;
           for (const v of changedVars) {
             try {
               const rVar = await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations/${v.id}`, {
@@ -7449,16 +7454,17 @@
                   ...(v.imageId ? { image: { id: v.imageId } } : {}),
                 }),
               });
-              // Hoster-Pruefseite: Schleife beenden, nicht mit der naechsten Variante weiter.
-              if (await istHosterPruefseite(rVar)) { hosterGestoppt = true; break; }
+              // Laufstopp (Pruefseite, Zeitueberschreitung): Schleife beenden, nicht mit der naechsten Variante weiter.
+              const stopp = await laufStopp(rVar);
+              if (stopp) { hosterGestoppt = stopp; break; }
               v._origPrice   = v.price;
               v._origImageId = v.imageId;
             } catch { /* Einzelfehler loggen aber nicht abbrechen */ }
           }
           if (hosterGestoppt) {
-            pushStatus.textContent = `${HOSTER_PRUEFSEITE_MELDUNG} Artikel gespeichert, Varianten-Preise/-Bilder nicht vollständig.`;
+            pushStatus.textContent = `${hosterGestoppt} Artikel gespeichert, Varianten-Preise/-Bilder nicht vollständig.`;
             pushStatus.style.color = 'var(--danger)';
-            showToast(HOSTER_PRUEFSEITE_MELDUNG, 'error', 15000);
+            showToast(hosterGestoppt, 'error', 15000);
             btnUpdateWc.disabled = false;
             return;
           }

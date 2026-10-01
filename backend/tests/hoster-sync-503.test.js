@@ -14,6 +14,7 @@ jest.unstable_mockModule('../lib/shopConfig.js', () => ({
 jest.unstable_mockModule('../lib/chatNotify.js', () => ({
   notify: jest.fn().mockResolvedValue(true),
   notifyHosterPruefseite: jest.fn().mockResolvedValue(true),
+  notifyShopZeitueberschreitung: jest.fn().mockResolvedValue(true),
   buildPartnerNachricht: jest.fn(() => 'partner'),
   buildArtikelAbgleichNachricht: jest.fn(() => 'abgleich'),
   buildAbgleichLebenszeichen: jest.fn(() => 'lebenszeichen'),

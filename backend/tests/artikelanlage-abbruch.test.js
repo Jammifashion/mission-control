@@ -71,3 +71,16 @@ test('anderer Fehler bei einer Variation -> wie bisher: gemeldet, die anderen we
   expect(variationsPosts()).toHaveLength(3);
   expect(res.body).toMatchObject({ variations_created: 2, variations_failed: 1, variation_errors: ['invalid sku'] });
 });
+
+test('Zeitueberschreitung bei der ersten Variation -> 504, Ergebnis unklar, keine weitere Variation', async () => {
+  const { ShopZeitueberschreitungError } = await import('../lib/hosterPruefseite.js');
+  wc.post.mockImplementation(async pfad => {
+    if (pfad === 'products') return { data: { id: 100, status: 'draft' } };
+    throw new ShopZeitueberschreitungError({ shop: 'HonkShop', methode: 'post', pfad, limitMs: 60_000 });
+  });
+  const res = await anlegen();
+  expect(res.status).toBe(504);
+  expect(res.body).toMatchObject({ code: 'shop_timeout' });
+  expect(res.body.error).toMatch(/^Shop hat nicht rechtzeitig geantwortet, Ergebnis unklar, bitte nachlesen\./);
+  expect(variationsPosts()).toHaveLength(1);
+});
