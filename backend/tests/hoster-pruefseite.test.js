@@ -4,7 +4,7 @@
 import { jest } from '@jest/globals';
 import {
   HosterPruefseiteError, istPruefseite, pruefeFetchAntwort, pfadOhneQuery,
-  HOSTER_PRUEFSEITE_CODE, HOSTER_PRUEFSEITE_TEXT,
+  HOSTER_PRUEFSEITE_CODE, HOSTER_PRUEFSEITE_TEXT, titelAus,
 } from '../lib/hosterPruefseite.js';
 import { getWcClient } from '../lib/shopConfig.js';
 
@@ -59,6 +59,44 @@ describe('HosterPruefseiteError', () => {
   });
   test('pfadOhneQuery: URL -> nur Pfad', () => {
     expect(pfadOhneQuery('https://shop.test/wp-json/wp/v2/media?x=1#a')).toBe('/wp-json/wp/v2/media');
+  });
+});
+
+describe('Diagnose: HTTP-Status und <title> in der Meldung', () => {
+  test('Captcha-Seite (200): HTTP 200 + Titel, kein Body', async () => {
+    const body = '<!DOCTYPE html><html><head><title>One moment, please...</title></head><body>token=geheim consumer_key</body></html>';
+    const { wc } = clientMit({ status: 200, headers: { 'content-type': 'text/html' }, data: body });
+    const e = await wc.get('orders', { after: 'x' }).catch(x => x);
+    expect(e).toBeInstanceOf(HosterPruefseiteError);
+    expect(e.message).toContain('HTTP 200, Titel "One moment, please..."');
+    expect(e).toMatchObject({ httpStatus: 200, titel: 'One moment, please...' });
+    expect(e.message).not.toMatch(/token|geheim|consumer|body|after/);
+  });
+
+  test('Plesk-403: HTTP 403 + Titel', async () => {
+    const { wc } = clientMit({ fehler: true, status: 403, headers: { 'content-type': 'text/html' },
+      data: '<HTML>\n<HEAD>\n<TITLE>403 Forbidden</TITLE>\n</HEAD><BODY>You do not have permission</BODY></HTML>' });
+    const e = await wc.get('orders').catch(x => x);
+    expect(e.message).toContain('HTTP 403, Titel "403 Forbidden"');
+  });
+
+  test('nginx-502 ohne <title>: nur der Status', async () => {
+    const { wc } = clientMit({ fehler: true, status: 502, headers: { 'content-type': 'text/html' }, data: '<html><body><h1>502 Bad Gateway</h1></body></html>' });
+    const e = await wc.get('orders').catch(x => x);
+    expect(e.message).toContain('HTTP 502,');
+    expect(e.message).not.toContain('Titel');
+  });
+
+  test('Titel auf 80 Zeichen gekuerzt, Whitespace und Entitaeten bereinigt', () => {
+    expect(titelAus(`<title>${'x'.repeat(120)}</title>`)).toHaveLength(80);
+    expect(titelAus('<title>\n  A &amp; B\t&#8211; C </title>')).toBe('A & B – C');
+    expect(titelAus('<html>kein Titel</html>')).toBe('');
+  });
+
+  test('seitenListe kennt keine Antwort: Meldung ohne HTTP und Titel', () => {
+    const e = new HosterPruefseiteError({ shop: 'X', pfad: 'orders' });
+    expect(e.message).not.toMatch(/HTTP|Titel/);
+    expect(e.httpStatus).toBeNull();
   });
 });
 

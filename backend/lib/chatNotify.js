@@ -199,9 +199,9 @@ export async function notifyFehler({ art, status, text }) {
  * Hoster-Pruefseite (lib/hosterPruefseite.js): ein Lauf wurde gestoppt.
  * Gedrosselt wie der Chat-Alarm (dieselbe Tabelle, eigene Art): hoechstens
  * eine Meldung je Stunde und Instanz. Wirft nie.
- * @param {{ ablauf?: string, shop?: string, pfad?: string, zeit?: string }} o
+ * @param {{ ablauf?: string, shop?: string, pfad?: string, httpStatus?: number, titel?: string, zeit?: string }} o
  */
-export async function notifyHosterPruefseite({ ablauf, shop, pfad, zeit } = {}) {
+export async function notifyHosterPruefseite({ ablauf, shop, pfad, httpStatus, titel, zeit } = {}) {
   const art = 'hoster_pruefseite';
   try {
     const jetzt   = Date.now();
@@ -211,7 +211,8 @@ export async function notifyHosterPruefseite({ ablauf, shop, pfad, zeit } = {}) 
     return await notify([
       '🔴 Hoster-Prüfseite, Lauf gestoppt',
       // Uhrzeit ist selbst erzeugt (ISO); redact() hielte sie fuer eine Telefonnummer.
-      [...[ablauf, shop && `Shop ${shop}`, pfad && `Pfad ${pfad}`].filter(Boolean).map(t => sauber(String(t), 80)),
+      [...[ablauf, shop && `Shop ${shop}`, pfad && `Pfad ${pfad}`,
+        Number.isInteger(httpStatus) && `HTTP ${httpStatus}`, titel && `Titel "${titel}"`].filter(Boolean).map(t => sauber(String(t), 90)),
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(zeit ?? '') ? zeit : null].filter(Boolean).join(' · '),
       'Keine Wiederholung. Nächster Versuch frühestens beim nächsten geplanten Lauf.',
       LINK,

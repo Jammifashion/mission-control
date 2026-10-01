@@ -8,7 +8,9 @@
 // (HosterPruefseiteError). Jeder WC-Zugriff laeuft ueber getWcClient (dort
 // haengt die Pruefung an jedem Request), WordPress-fetch ueber pruefeFetchAntwort.
 //
-// Die Meldung nennt Shop, Pfad und Uhrzeit - nie Abfrageparameter, nie Schluessel.
+// Die Meldung nennt Shop, Pfad, HTTP-Status, <title> der Seite (max. 80 Zeichen)
+// und Uhrzeit - nie Body, nie Abfrageparameter, nie Schluessel. Status + Titel
+// zeigen, welche Seite es war (Captcha-Seite, Plesk-403, nginx-502 …).
 
 export const HOSTER_PRUEFSEITE_CODE = 'hoster_pruefseite';
 export const HOSTER_PRUEFSEITE_TEXT = 'Hoster-Prüfseite (Captcha) erhalten, Lauf gestoppt';
@@ -16,17 +18,46 @@ export const HOSTER_PRUEFSEITE_TEXT = 'Hoster-Prüfseite (Captcha) erhalten, Lau
 // Harte Obergrenze je Seitenschleife (per_page 100 -> 20.000 Eintraege).
 export const MAX_SEITEN = 200;
 
+export const TITEL_MAX = 80;
+
 export class HosterPruefseiteError extends Error {
-  constructor({ shop = 'unbekannt', pfad = '', zeit = new Date() } = {}) {
+  /**
+   * @param {{ shop?: string, pfad?: string, httpStatus?: number, titel?: string, zeit?: Date|string }} o
+   * httpStatus/titel: aus der Antwort, sofern es eine gab (seitenListe kennt sie nicht).
+   */
+  constructor({ shop = 'unbekannt', pfad = '', httpStatus, titel, zeit = new Date() } = {}) {
     const iso = (zeit instanceof Date ? zeit : new Date(zeit)).toISOString().replace(/\.\d{3}Z$/, 'Z');
-    super(`${HOSTER_PRUEFSEITE_TEXT} (Shop ${shop}, Pfad ${pfadOhneQuery(pfad)}, ${iso}).`);
-    this.name   = 'HosterPruefseiteError';
-    this.code   = HOSTER_PRUEFSEITE_CODE;
-    this.status = 503;
-    this.shop   = shop;
-    this.pfad   = pfadOhneQuery(pfad);
-    this.zeit   = iso;
+    const t   = kuerzeTitel(titel);
+    const teile = [`Shop ${shop}`, `Pfad ${pfadOhneQuery(pfad)}`,
+      Number.isInteger(httpStatus) ? `HTTP ${httpStatus}` : null, t ? `Titel "${t}"` : null, iso];
+    super(`${HOSTER_PRUEFSEITE_TEXT} (${teile.filter(Boolean).join(', ')}).`);
+    this.name       = 'HosterPruefseiteError';
+    this.code       = HOSTER_PRUEFSEITE_CODE;
+    this.status     = 503;          // Antwort von Mission Control, nicht die des Shops
+    this.shop       = shop;
+    this.pfad       = pfadOhneQuery(pfad);
+    this.httpStatus = Number.isInteger(httpStatus) ? httpStatus : null;
+    this.titel      = t;
+    this.zeit       = iso;
   }
+}
+
+function kuerzeTitel(titel) {
+  const t = String(titel ?? '').replace(/\s+/g, ' ').trim();
+  return t.length > TITEL_MAX ? `${t.slice(0, TITEL_MAX - 1)}…` : t;
+}
+
+const ENTITAETEN = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+
+/** Inhalt von <title> aus einem HTML-Text (ohne Tags, Entitaeten aufgeloest), sonst ''. */
+export function titelAus(body) {
+  if (typeof body !== 'string') return '';
+  const m = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(body);
+  if (!m) return '';
+  return kuerzeTitel(m[1].replace(/<[^>]*>/g, '')
+    .replace(/&(#\d+|#x[0-9a-f]+|\w+);/gi, (x, e) => (e[0] === '#'
+      ? String.fromCodePoint(e[1].toLowerCase() === 'x' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10))
+      : ENTITAETEN[e.toLowerCase()] ?? x)));
 }
 
 export class SeitenGrenzeError extends Error {
@@ -57,7 +88,8 @@ export function istPruefseite({ status, contentType, body } = {}) {
 
 /** Wirft HosterPruefseiteError, wenn istPruefseite. */
 export function pruefeAntwort({ shop, pfad, status, contentType, body }) {
-  if (istPruefseite({ status, contentType, body })) throw new HosterPruefseiteError({ shop, pfad });
+  if (istPruefseite({ status, contentType, body }))
+    throw new HosterPruefseiteError({ shop, pfad, httpStatus: status, titel: titelAus(body) });
 }
 
 function headerWert(headers, name) {
@@ -97,7 +129,7 @@ export async function pruefeFetchAntwort(res, { shop, pfad }) {
   const text = await res.text();
   pruefeAntwort({ shop, pfad: pfad ?? res.url, status: res.status, contentType: headerWert(res.headers, 'content-type'), body: text });
   if (!text) return {};
-  try { return JSON.parse(text); } catch { throw new HosterPruefseiteError({ shop, pfad: pfad ?? res.url }); }
+  try { return JSON.parse(text); } catch { throw new HosterPruefseiteError({ shop, pfad: pfad ?? res.url, httpStatus: res.status }); }
 }
 
 /**
