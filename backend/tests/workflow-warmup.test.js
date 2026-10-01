@@ -69,3 +69,20 @@ describe('oeffentliches Actions-Log: keine ungefilterte Antwortausgabe', () => {
     expect(text('backup-daily.yml')).not.toMatch(/then \{error\}/);
   });
 });
+
+describe('Trikot-Sync: Ausgabe nur als Zaehler', () => {
+  const text = readFileSync(resolve(dir, 'trikot-sync-daily.yml'), 'utf8');
+
+  test.each(['sync-partner-daily.yml', 'trikot-sync-daily.yml', 'backup-daily.yml'])(
+    '%s gibt die Antwort nie ungefiltert aus (kein jq . und kein cat response.json)', name => {
+      const t = readFileSync(resolve(dir, name), 'utf8');
+      expect(t).not.toMatch(/jq\s+\.\s/);
+      expect(t).not.toMatch(/cat\s+response\.json/);
+    });
+
+  test('Trikot: nur Zaehlerfelder, keine Zahlart-Namen, kein Zeilen-/Namensfeld', () => {
+    expect(text).toMatch(/\{gelesen, neu, dubletten, quellen,/);
+    expect(text).toMatch(/zahlarten: \(\(\.zahlarten \/\/ \{\}\) \| length\)/);
+    expect(text).not.toMatch(/\.zeilen|\.name|Name|Nummer/);
+  });
+});

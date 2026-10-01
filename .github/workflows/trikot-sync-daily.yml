@@ -85,7 +85,15 @@ jobs:
             "$API_URL/api/trikot/sync") || rc=$?
 
           echo "HTTP ${http:-?}"
-          jq . response.json 2>/dev/null || cat response.json 2>/dev/null || true
+          # Das Log ist oeffentlich: nur Zaehler ausgeben, nie die ganze Antwort. Fehlertext nur
+          # ueber die maskierte Zeile unten (antwort-fehler.mjs). Zahlarten nur als Anzahl.
+          if jq -e . response.json >/dev/null 2>&1; then
+            jq 'if .error then {error: "Trikot-Sync fehlgeschlagen"}
+                else {gelesen, neu, dubletten, quellen,
+                      zahlarten: ((.zahlarten // {}) | length)} end' response.json
+          else
+            echo "(Antwort ist kein JSON - nicht ausgegeben)"
+          fi
 
           if [ "$rc" -ne 0 ]; then
             node .github/scripts/antwort-fehler.mjs response.json "${http:-?}" || true
