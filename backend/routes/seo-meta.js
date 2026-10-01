@@ -16,6 +16,7 @@ import {
 } from '../lib/seo-ssot.js';
 import { pruefeTextMitSsot } from '../lib/seo-pruefung.js';
 import { seoKarteNachziehen } from '../lib/seo-karte.js';
+import { HosterPruefseiteError } from '../lib/hosterPruefseite.js';
 
 const router = Router();
 
@@ -100,7 +101,8 @@ router.post('/karte', async (req, res, next) => {
   try {
     res.json(await seoKarteNachziehen(String(req.body?.wcId ?? '')));
   } catch (err) {
-    if (err.status) return res.status(err.status).json({ error: err.message });
+    // Hoster-Pruefseite an den zentralen Handler (503 + Code + Chat), nicht hier beantworten.
+    if (err.status && !(err instanceof HosterPruefseiteError)) return res.status(err.status).json({ error: err.message });
     next(err);
   }
 });

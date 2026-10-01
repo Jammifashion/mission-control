@@ -195,6 +195,33 @@ export async function notifyFehler({ art, status, text }) {
   }
 }
 
+/**
+ * Hoster-Pruefseite (lib/hosterPruefseite.js): ein Lauf wurde gestoppt.
+ * Gedrosselt wie der Chat-Alarm (dieselbe Tabelle, eigene Art): hoechstens
+ * eine Meldung je Stunde und Instanz. Wirft nie.
+ * @param {{ ablauf?: string, shop?: string, pfad?: string, zeit?: string }} o
+ */
+export async function notifyHosterPruefseite({ ablauf, shop, pfad, zeit } = {}) {
+  const art = 'hoster_pruefseite';
+  try {
+    const jetzt   = Date.now();
+    const zuletzt = letzterAlarm.get(art);
+    if (zuletzt !== undefined && jetzt - zuletzt < ALARM_TTL_MS) return false;
+    letzterAlarm.set(art, jetzt);
+    return await notify([
+      '🔴 Hoster-Prüfseite, Lauf gestoppt',
+      // Uhrzeit ist selbst erzeugt (ISO); redact() hielte sie fuer eine Telefonnummer.
+      [...[ablauf, shop && `Shop ${shop}`, pfad && `Pfad ${pfad}`].filter(Boolean).map(t => sauber(String(t), 80)),
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(zeit ?? '') ? zeit : null].filter(Boolean).join(' · '),
+      'Keine Wiederholung. Nächster Versuch frühestens beim nächsten geplanten Lauf.',
+      LINK,
+    ].filter(Boolean).join('\n'));
+  } catch (err) {
+    console.error('[chatNotify] Hoster-Meldung fehlgeschlagen:', err?.message ?? err);
+    return false;
+  }
+}
+
 // Welche Statuscodes einen Alarm wert sind: ausschliesslich 5xx.
 //
 // Jeder 4xx sagt etwas ueber den Aufrufer, nicht ueber uns - Honeypot,

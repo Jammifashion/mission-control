@@ -9,6 +9,7 @@ import helmet from 'helmet';
 
 import { loadAllSecrets } from './utils/secrets.js';
 import { apiRateLimiter, requireApiKey } from './middleware/auth.js';
+import { hosterPruefseiteHandler } from './middleware/hosterPruefseite.js';
 import { healthHandler } from './utils/stand.js';
 import woocommerceRouter from './routes/woocommerce.js';
 import artikelRouter from './routes/artikel.js';
@@ -80,6 +81,8 @@ app.use('/api/health', systemRoutes);
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
 
 // ── Error handler ─────────────────────────────────────────────────────────────
+// Hoster-Pruefseite zuerst: 503 + Code "hoster_pruefseite" + Chat (gedrosselt).
+app.use(hosterPruefseiteHandler);
 app.use((err, _req, res, _next) => {
   console.error(err);
   const message = process.env.NODE_ENV === 'production'

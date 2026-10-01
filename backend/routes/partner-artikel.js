@@ -5,6 +5,7 @@ import { sheetsMitWiederholung } from '../lib/googleRetry.js';
 import { getWcClient as wcClientForShop } from '../lib/shopConfig.js';
 import { berechnePartnerAnteil, parseKonfiguration } from '../utils/partner-kalkulation.js';
 import { importiereFuerPartner, artikelAbgleich, abgleichMelden } from '../lib/partnerArtikel.js';
+import { HosterPruefseiteError } from '../lib/hosterPruefseite.js';
 import { notify, buildArtikelAbgleichNachricht, buildAbgleichLebenszeichen } from '../lib/chatNotify.js';
 
 const router = Router();
@@ -231,7 +232,8 @@ router.post('/:id/artikel/import', async (req, res, next) => {
         : 'Keine neuen Artikel – alle bereits vorhanden.',
     });
   } catch (err) {
-    if (err.status) return res.status(err.status).json({ error: err.message });
+    // Hoster-Pruefseite an den zentralen Handler (503 + Code + Chat), nicht hier beantworten.
+    if (err.status && !(err instanceof HosterPruefseiteError)) return res.status(err.status).json({ error: err.message });
     next(err);
   }
 });
