@@ -64,7 +64,14 @@ describe('ohneIds()', () => {
   });
 });
 
+// Feste Uhr (nur Date): am Monatsersten legt runBackup zusaetzlich Monatsdateien an; Tests, die
+// das echte Tagesdatum benutzen, scheiterten dann (Lauf 01.10.2026). Timer bleiben echt.
+const NUR_DATUM = ['hrtime', 'nextTick', 'performance', 'queueMicrotask', 'requestAnimationFrame', 'cancelAnimationFrame',
+  'requestIdleCallback', 'cancelIdleCallback', 'setImmediate', 'clearImmediate', 'setInterval', 'clearInterval',
+  'setTimeout', 'clearTimeout'];
+
 beforeEach(() => {
+  jest.useFakeTimers({ now: new Date('2026-05-12T02:00:00Z'), doNotFake: NUR_DATUM });
   gesichert = {};
   for (const k of ENV_KEYS) { gesichert[k] = process.env[k]; delete process.env[k]; }
 
@@ -96,6 +103,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  jest.useRealTimers();
   for (const k of ENV_KEYS) {
     if (gesichert[k] === undefined) delete process.env[k];
     else process.env[k] = gesichert[k];
