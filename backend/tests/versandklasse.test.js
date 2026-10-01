@@ -31,8 +31,8 @@ describe('(a) Ladefehler erkennen', () => {
     ['Fehlerstatus ohne Meldung',       { status: 401, daten: null },              'HTTP 401'],
     ['leere Liste',                     { status: 200, daten: [] },                'keine Versandklassen im Shop gefunden'],
     ['keine Liste',                     { status: 200, daten: { x: 1 } },          'Antwort ist keine Liste'],
-    ['Zeitueberschreitung',             { fehler: Object.assign(new Error('t'), { name: 'TimeoutError' }) }, 'Zeitüberschreitung nach 8 s'],
-    ['Abbruch',                         { fehler: Object.assign(new Error('a'), { name: 'AbortError' }) },   'Zeitüberschreitung nach 8 s'],
+    ['Zeitueberschreitung',             { fehler: Object.assign(new Error('t'), { name: 'TimeoutError' }) }, 'Zeitüberschreitung nach 20 s'],
+    ['Abbruch',                         { fehler: Object.assign(new Error('a'), { name: 'AbortError' }) },   'Zeitüberschreitung nach 20 s'],
     ['Netzfehler',                      { fehler: new TypeError('Failed to fetch') },                        'nicht erreichbar (Failed to fetch)'],
   ])('%s -> "%s"', (_n, eingabe, soll) => {
     expect(fe.vkLadeFehler(eingabe)).toBe(soll);

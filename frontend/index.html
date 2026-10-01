@@ -2300,6 +2300,12 @@
         return null;
       }
 
+      // Zeitlimit fuer Lese-Abrufe der Maske (Stammdaten, Status). Liegt ueber
+      // dem Backend-Limit fuer Lesen beim Shop (15 s, lib/hosterPruefseite.js),
+      // damit der echte Grund (504 shop_timeout) ankommt statt eines Abbruchs
+      // im Browser. Versandklassen: VK_TIMEOUT_MS (gleicher Wert, eigener Block).
+      const LESE_TIMEOUT_MS = 20000;
+
       // Fehler in einem <select> anzeigen und zusaetzlich als langer Toast,
       // weil die Meldung fuer eine Option-Zeile zu lang ist.
       function setSelectError(sel, msg) {
@@ -2368,7 +2374,7 @@
         const dot = document.getElementById('status-dot');
         if (!dot) return;
         try {
-          const data = await apiFetch(`${API_BASE()}/api/health/full`, { signal: AbortSignal.timeout(10000) }).then(r => r.json());
+          const data = await apiFetch(`${API_BASE()}/api/health/full`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) }).then(r => r.json());
           const s = data.services ?? {};
           const label = svc => s[svc]?.ok ? '✓' : '✗';
           dot.title     = `WC ${label('woocommerce')} | Sheet ${label('sheet')} | Claude ${label('claude')}`;
@@ -3318,7 +3324,7 @@
           ladeVersandklassen(),
           (async () => {
             try {
-              const r = await apiFetch(`${base}/api/sheets/kategorien`, { signal: AbortSignal.timeout(8000) });
+              const r = await apiFetch(`${base}/api/sheets/kategorien`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
               if (r.ok) ssot.kategorien = await r.json();
             } catch { /* Fallback: Array bleibt leer */ }
           })(),
@@ -3326,7 +3332,7 @@
 
         // Attribute: WC-API (globale Attribute) primär, Sheets als Fallback
         try {
-          const r = await apiFetch(`${base}/api/woocommerce/attributes`, { signal: AbortSignal.timeout(8000) });
+          const r = await apiFetch(`${base}/api/woocommerce/attributes`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
           if (r.ok) {
             const data = await r.json();
             ssot.attribute = data.length ? data : ssot.attribute;
@@ -3334,7 +3340,7 @@
         } catch { /* bleibt leer */ }
         if (!ssot.attribute.length) {
           try {
-            const r = await apiFetch(`${base}/api/sheets/attribute`, { signal: AbortSignal.timeout(8000) });
+            const r = await apiFetch(`${base}/api/sheets/attribute`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
             if (r.ok) ssot.attribute = await r.json();
           } catch { /* bleibt leer */ }
         }
@@ -3342,7 +3348,7 @@
         // Lieferzeiten: Reiter Struktur_Lieferzeiten. Kein Fallback – scheitert
         // das Lesen, steht der Fehler (mit Spaltenname) im Feld und als Toast.
         try {
-          const r = await apiFetch(`${base}/api/sheets/struktur-lieferzeiten`, { signal: AbortSignal.timeout(8000) });
+          const r = await apiFetch(`${base}/api/sheets/struktur-lieferzeiten`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
           ssot.lieferzeiten      = await apiJson(r);
           ssot.lieferzeitFehler  = '';
         } catch (e) {
@@ -3422,7 +3428,8 @@
       // Die Liste kommt aus GET /api/woocommerce/shipping-classes. Scheitert das
       // Laden (Fehlerstatus, Zeitueberschreitung, leere Liste), steht der Grund
       // sichtbar am Feld, mit Knopf "Neu laden" - frueher blieb das Feld stumm leer.
-      const VK_TIMEOUT_MS = 8000;
+      // Ueber dem Backend-Limit fuer Lesen beim Shop (15 s), = LESE_TIMEOUT_MS.
+      const VK_TIMEOUT_MS = 20000;
 
       // Grund, warum die Liste nicht brauchbar ist, oder null.
       function vkLadeFehler({ status, daten, fehler } = {}) {
@@ -8753,6 +8760,7 @@
       // ── Helpers global verfügbar für non-module Scripts (Partnerportal etc.) ──
       window.API_BASE     = API_BASE;
       window.apiFetch     = apiFetch;
+      window.LESE_TIMEOUT_MS = LESE_TIMEOUT_MS;
       window.showToast    = showToast;
       window.showConfirm  = showConfirm;
       window.currentShop  = currentShop;
@@ -8852,7 +8860,7 @@
       async function loadPartnerportal() {
         if (!window.ssot?.kategorien?.length) {
           try {
-            const r = await window.apiFetch(`${window.API_BASE()}/api/sheets/kategorien`, { signal: AbortSignal.timeout(8000) });
+            const r = await window.apiFetch(`${window.API_BASE()}/api/sheets/kategorien`, { signal: AbortSignal.timeout(window.LESE_TIMEOUT_MS ?? 20000) });
             if (r.ok) {
               const kategorien = await r.json();
               if (window.ssot) window.ssot.kategorien = kategorien;
