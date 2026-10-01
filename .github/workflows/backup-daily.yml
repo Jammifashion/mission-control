@@ -73,7 +73,7 @@ jobs:
           # Das Log ist oeffentlich: nur freigegebene Felder ausgeben, nie die
           # ganze Antwort (sie enthaelt fileId, spreadsheetId, sheetName).
           if jq -e . response.json >/dev/null 2>&1; then
-            jq 'if .error then {error}
+            jq 'if .error then {error: "Backup fehlgeschlagen"}
                 else {
                   backups: [(.backups // [])[] | {fileName, sizeKB, tabCount}],
                   aufgeraeumt: {

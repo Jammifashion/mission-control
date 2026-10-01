@@ -61,3 +61,11 @@ describe('sync-partner-daily.yml: Reihenfolge', () => {
     expect(abgleich).toBeGreaterThan(s.findIndex(x => /aufwecken/i.test(x.name)));
   });
 });
+
+describe('oeffentliches Actions-Log: keine ungefilterte Antwortausgabe', () => {
+  const text = name => readFileSync(resolve(dir, name), 'utf8');
+
+  test('backup-daily.yml gibt den Fehlertext der Antwort nicht roh aus', () => {
+    expect(text('backup-daily.yml')).not.toMatch(/then \{error\}/);
+  });
+});
