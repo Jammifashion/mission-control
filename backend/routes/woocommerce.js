@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getWcClient } from '../lib/shopConfig.js';
-import { seitenGrenze, seitenListe } from '../lib/hosterPruefseite.js';
+import { seitenGrenze, seitenListe, wirfWennPruefseite } from '../lib/hosterPruefseite.js';
 import { markeFuerShop } from '../lib/shopMarke.js';
 import { pruefeArtikelnummer, baueVariantenSkus } from '../lib/sku.js';
 import { achsenVon, achsenGleich, pruefeFarbAchse, mitGoogleFarbe } from '../lib/varianten-achsen.js';
@@ -341,7 +341,15 @@ router.post('/products', async (req, res, next) => {
     }
     const productRaw = productResponse.data;
     const product = Array.isArray(productRaw) ? productRaw[0] : productRaw;
-    const productId = product.id;
+    const productId = product?.id;
+    // Ohne Produkt-ID keine Variationen: sonst gingen sie an "products/undefined/
+    // variations" - je Variante ein Aufruf ins Leere (und bei der Hoster-Pruefseite
+    // je einer mehr). Abbruch, egal warum die ID fehlt.
+    if (!productId) {
+      const e = new Error('WooCommerce hat keine Produkt-ID zurückgegeben – keine Variationen angelegt. Bitte im Shop prüfen, ob der Artikel als Entwurf entstanden ist.');
+      e.status = 502;
+      throw e;
+    }
 
     // Schritt 2: Varianten einzeln anlegen - jede mit eigener SKU.
     // Gebaut wird aus der TATSAECHLICH vergebenen Eltern-SKU: hat der Fallback
@@ -379,6 +387,7 @@ router.post('/products', async (req, res, next) => {
           variationResults[vi] = { ok: true, id: v.id, lieferzeit: lieferzeitAusMetaData(v.meta_data),
             attributes: wcAttributePaare(v.attributes ?? variation.attributes) };
         } catch (varErr) {
+          wirfWennPruefseite(varErr);
           variationResults[vi] = { ok: false, error: varErr.message ?? String(varErr) };
         }
       }
@@ -480,6 +489,7 @@ router.put('/products/:id', async (req, res, next) => {
           const altProdukt = Array.isArray(alt) ? alt[0] : alt;
           shopSku = String(altProdukt?.sku ?? '').trim();
         } catch (e) {
+          wirfWennPruefseite(e);
           // Ohne Shop-Stand laesst sich "unveraendert" nicht belegen - dann
           // bleibt es streng, statt eine kaputte Nummer durchzuwinken.
           console.warn(`PUT /products/${req.params.id}: Shop-SKU nicht lesbar (${e.message}) – strenge Pruefung.`);
@@ -523,6 +533,7 @@ router.put('/products/:id', async (req, res, next) => {
           const altProdukt = Array.isArray(alt) ? alt[0] : alt;
           shopAchsen = achsenVon({ attribute: altProdukt?.attributes });
         } catch (e) {
+          wirfWennPruefseite(e);
           // Ohne Shop-Stand laesst sich "unveraendert" nicht belegen - dann
           // bleibt es streng, statt eine Achsenaenderung durchzuwinken.
           console.warn(`PUT /products/${req.params.id}: Shop-Achsen nicht lesbar (${e.message}) – strenge Pruefung.`);
@@ -591,6 +602,7 @@ router.put('/products/:id', async (req, res, next) => {
           const updAttr = new Map(toUpdate.map(u => [String(u.id), u.attributes]));
           sperre = sperreDoppelte(neu, imShop.map(b => (updAttr.has(String(b.id)) ? { ...b, attributes: updAttr.get(String(b.id)) } : b)));
         } catch (e) {
+          wirfWennPruefseite(e);
           sperreFehler = `Neue Varianten nicht angelegt: Variationen im Shop nicht lesbar (${e.response?.status ?? e.message}). `
                        + 'Artikel und bestehende Varianten sind gespeichert – bitte erneut speichern.';
         }
@@ -667,6 +679,7 @@ router.post('/products/:id/variationen-ergaenzen', async (req, res, next) => {
     try {
       bestehend = await leseAlleVariationen(wc, req.params.id);
     } catch (e) {
+      wirfWennPruefseite(e);
       return res.status(502).json({ error: `Keine Varianten angelegt: Variationen im Shop nicht lesbar (${e.response?.status ?? e.message}).` });
     }
 

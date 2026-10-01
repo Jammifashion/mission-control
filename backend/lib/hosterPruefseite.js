@@ -100,6 +100,16 @@ export async function pruefeFetchAntwort(res, { shop, pfad }) {
   try { return JSON.parse(text); } catch { throw new HosterPruefseiteError({ shop, pfad: pfad ?? res.url }); }
 }
 
+/**
+ * Fuer jedes catch, das sonst weitermacht (naechste Variante, naechster
+ * Partner, naechste Bestellung): die Pruefseite sofort weiterwerfen, alle
+ * anderen Fehler behandelt der Aufrufer wie bisher.
+ *   } catch (err) { wirfWennPruefseite(err); …bisherige Behandlung… }
+ */
+export function wirfWennPruefseite(err) {
+  if (err instanceof HosterPruefseiteError) throw err;
+}
+
 // Zweites Netz fuer Seitenschleifen (falls ein Client an mitPruefung vorbeilaeuft):
 //   for (let page = 1; ; page++) {
 //     seitenGrenze(page, { wc, pfad });                       // vor dem Abruf

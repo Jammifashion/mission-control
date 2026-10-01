@@ -25,7 +25,7 @@
 //    (FP_Partner/FP_Artikel) wird nie angefasst.
 
 import { getWcClient } from './shopConfig.js';
-import { seitenGrenze, seitenListe } from './hosterPruefseite.js';
+import { seitenGrenze, seitenListe, wirfWennPruefseite } from './hosterPruefseite.js';
 import { leseReiterSpalten } from './ssot-reiter.js';
 import { farbwert, TAB_LSHOP } from './lshop.js';
 import { findHeader, requireHeader } from '../utils/sheet-headers.js';
@@ -263,7 +263,7 @@ export async function artikelAbgleich({ sheets, sheetId, wcFuer, ssotSheets, jet
     try {
       const r = await importiereFuerPartner({ sheets, sheetId, partner: p, wc: wcFuer?.(e.shop), ssotSheets, jetzt });
       e.neu = r.neu;
-    } catch (err) { e.fehler = err.message; }
+    } catch (err) { wirfWennPruefseite(err); e.fehler = err.message; }
     bericht.push(e);
   }
 

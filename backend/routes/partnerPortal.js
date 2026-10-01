@@ -3,7 +3,7 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { sheetsMitWiederholung } from '../lib/googleRetry.js';
 import { getWcClient as wcClientForShop, getShopConfig } from '../lib/shopConfig.js';
-import { seitenGrenze, seitenListe } from '../lib/hosterPruefseite.js';
+import { seitenGrenze, seitenListe, wirfWennPruefseite } from '../lib/hosterPruefseite.js';
 import { berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze, baueVertragsbeginne, verkaufsBetraege } from '../utils/partner-kalkulation.js';
 import { toFloat, toDE, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, buildStornoRows, ordersFuerVerkaufszeilen, vorVertragsbeginn,
   STATUS_GESPERRT, SPALTE_SPERRE, leerWert, sperrGrund } from '../utils/sync-logic.js';
@@ -272,7 +272,7 @@ async function entsperren({ sheets, sheetId, tab, vH, vRows, wc, eintragFuer, ve
     if (schluessel(aktuell) !== schluessel(r) || (aktuell[h('Status')] ?? '') !== STATUS_GESPERRT) continue;
     const oid = String(r[h('Order-ID')] ?? '');
     if (!orders.has(oid)) {
-      try { orders.set(oid, (await wc.get(`orders/${oid}`)).data); } catch { orders.set(oid, null); }
+      try { orders.set(oid, (await wc.get(`orders/${oid}`)).data); } catch (e) { wirfWennPruefseite(e); orders.set(oid, null); }
     }
     const order = orders.get(oid);
     if (!order) continue;
@@ -719,6 +719,7 @@ router.post('/verkaeufe/sync-all', async (req, res, next) => {
       result = await runVerkaeufeSync(sheets, sheetId, { partnerFilter: new Set(aktivePartner), shop: req.query.shop });
       neueVerkäufe = result.synced;
     } catch (err) {
+      wirfWennPruefseite(err);   // -> 503 hoster_pruefseite, Workflow rot
       errors.push(err.message ?? String(err));
     }
 

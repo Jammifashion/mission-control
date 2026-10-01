@@ -25,7 +25,7 @@
 import { variantenSchluessel } from '../utils/varianten-zeilen.js';
 import { requireHeader } from '../utils/sheet-headers.js';
 import { colLetter } from '../utils/sheet-spalten.js';
-import { seitenGrenze, seitenListe } from './hosterPruefseite.js';
+import { seitenGrenze, seitenListe, wirfWennPruefseite } from './hosterPruefseite.js';
 
 const falte = s => String(s ?? '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue');
 
@@ -227,6 +227,7 @@ export async function planeNachtrag({ sheets, wc, spreadsheetId = process.env.GO
         if (liste.length < 100) break;
       }
     } catch (err) {
+      wirfWennPruefseite(err);
       plaene.push({ ssot, pid, zeilen, fehlt: `Shop nicht lesbar (${err?.response?.status ?? err.message})` });
       continue;
     }

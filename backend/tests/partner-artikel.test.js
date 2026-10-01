@@ -252,6 +252,25 @@ describe('importiereFuerPartner (HonkShop)', () => {
 describe('artikelAbgleich', () => {
   const lauf = () => pa.artikelAbgleich({ sheets, sheetId: 'business', wcFuer, jetzt: JETZT });
 
+  test('Hoster-Pruefseite beim ersten Partner: Lauf stoppt, kein weiterer Partner abgerufen', async () => {
+    const { HosterPruefseiteError } = await import('../lib/hosterPruefseite.js');
+    const wcPruef = shop => ({ get: jest.fn(async pfad => {
+      wcCalls.push({ shop, pfad });
+      throw new HosterPruefseiteError({ shop, pfad });
+    }) });
+    await expect(pa.artikelAbgleich({ sheets, sheetId: 'business', wcFuer: wcPruef, jetzt: JETZT }))
+      .rejects.toBeInstanceOf(HosterPruefseiteError);
+    expect(wcCalls).toHaveLength(1);
+    expect(values.append).not.toHaveBeenCalled();
+  });
+
+  test('anderer Fehler beim ersten Partner: wie bisher im Bericht, die anderen laufen weiter', async () => {
+    const wcKaputt = shop => (shop === 'jfn' ? { get: jest.fn(async () => { throw new Error('kaputt'); }) } : wcFuer(shop));
+    const r = await pa.artikelAbgleich({ sheets, sheetId: 'business', wcFuer: wcKaputt, jetzt: JETZT });
+    expect(r.partner.find(e => e.id === 'P-006').fehler).toBe('kaputt');
+    expect(r.partner.find(e => e.id === 'P-004').fehler).toBeNull();
+  });
+
   test('nur aktive Lizenz-Partner + HonkShop, Festpreis unberuehrt', async () => {
     const r = await lauf();
     expect(r.partner.map(e => e.id)).toEqual(['P-006', 'P-007', 'P-004']);

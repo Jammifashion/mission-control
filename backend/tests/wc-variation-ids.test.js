@@ -300,6 +300,23 @@ describe('Nachtrag Bestand (Teil B): planeNachtrag / schreibeNachtrag', () => {
     expect(sheets.spreadsheets.values.batchUpdate).not.toHaveBeenCalled();
   });
 
+  test('Hoster-Pruefseite: Lauf stoppt beim ersten Abruf, keine weitere SSOT-ID', async () => {
+    const { HosterPruefseiteError } = await import('../lib/hosterPruefseite.js');
+    const wc = { get: jest.fn(async pfad => { throw new HosterPruefseiteError({ shop: 'JammiFashion', pfad }); }) };
+    await expect(lib.planeNachtrag({ sheets, wc, spreadsheetId: 'x' })).rejects.toBeInstanceOf(HosterPruefseiteError);
+    expect(wc.get).toHaveBeenCalledTimes(1);
+  });
+
+  test('anderer Fehler: wie bisher "Shop nicht lesbar", naechste SSOT-ID laeuft', async () => {
+    const wc = { get: jest.fn(async pfad => {
+      if (pfad.startsWith('products/100/')) throw Object.assign(new Error('x'), { response: { status: 500 } });
+      return wcMock.get(pfad);
+    }) };
+    const { plaene } = await lib.planeNachtrag({ sheets, wc, spreadsheetId: 'x' });
+    expect(plaene.find(p => p.ssot === 'JFN-1').fehlt).toBe('Shop nicht lesbar (500)');
+    expect(lib.nachtragZaehler(plaene.find(p => p.ssot === 'JFN-2'))).toMatchObject({ zuordenbar: 1 });
+  });
+
   test('--write: nur die leeren WC_Variation_ID-Zellen, alle anderen Zellen unveraendert', async () => {
     const vorher = tabs.Varianten.map(r => [...r]);
     const { plaene } = await lib.planeNachtrag({ sheets, wc: wcMock, spreadsheetId: 'x' });
