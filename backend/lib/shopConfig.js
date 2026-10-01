@@ -1,4 +1,5 @@
 import WooCommerceRestApi from '@woocommerce/woocommerce-rest-api';
+import { mitPruefung } from './hosterPruefseite.js';
 
 // Sprint 5.4 – Multi-Shop Support
 // Mapping shop-Slug → WC-Credentials + shop-spezifische Sheet-Tabs.
@@ -65,11 +66,13 @@ export function getWcClient(shop) {
     const suffix = cfg.shop === 'honk' ? '_HONK' : '';
     throw new Error(`WooCommerce-Zugangsdaten fehlen (WC_URL${suffix}, WC_KEY${suffix}, WC_SECRET${suffix}).`);
   }
-  return new WooCommerceRestApi.default({
+  // Jeder Request wird geprueft: HTML statt JSON (Hoster-Pruefseite, auch mit
+  // Status 200) -> HosterPruefseiteError, ohne Wiederholung (lib/hosterPruefseite.js).
+  return mitPruefung(new WooCommerceRestApi.default({
     url:            cfg.wcUrl,
     consumerKey:    cfg.wcKey,
     consumerSecret: cfg.wcSecret,
     version:        'wc/v3',
     queryStringAuth: false,
-  });
+  }), cfg.label);
 }

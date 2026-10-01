@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { getShopConfig } from '../lib/shopConfig.js';
+import { pruefeFetchAntwort } from '../lib/hosterPruefseite.js';
 
 const router = Router();
 
@@ -51,7 +52,8 @@ router.post('/media-upload', (req, res, next) => {
     if (wpRes.status === 413)
       return res.status(413).json({ error: 'WordPress hat die Datei als zu groß abgelehnt.' });
 
-    const data = await wpRes.json().catch(() => ({}));
+    // HTML statt JSON (Hoster-Pruefseite, auch mit 200) -> HosterPruefseiteError, keine Wiederholung.
+    const data = await pruefeFetchAntwort(wpRes, { shop: cfg.label, pfad: '/wp-json/wp/v2/media' });
     if (!wpRes.ok)
       return res.status(wpRes.status).json({ error: data?.message || `WordPress-Upload fehlgeschlagen (HTTP ${wpRes.status}).` });
 
