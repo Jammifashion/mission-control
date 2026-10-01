@@ -15,6 +15,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Fehlerausgabe (oeffentliches Actions-Log): HTTP-Code plus Fehlertext, maskiert und auf
+      # 300 Zeichen gekuerzt (.github/scripts/antwort-fehler.mjs, Test antwort-fehler.test.js).
+      - name: Hilfsskript holen
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+          sparse-checkout-cone-mode: false
+
       - name: POST /api/system/modell-check
         env:
           API_URL: ${{ secrets.BACKEND_URL }}
@@ -36,7 +44,7 @@ jobs:
 
           # Nur freigegebene Felder ausgeben, nie die ganze Antwort.
           if jq -e . response.json >/dev/null 2>&1; then
-            jq 'if .error then {error}
+            jq 'if .error then {error: "Modell-Check fehlgeschlagen"}
                 else {gueltig, fehlend, neu} end' response.json
           else
             echo "(Antwort ist kein JSON - nicht ausgegeben)"
@@ -47,6 +55,7 @@ jobs:
             exit 1
           fi
           if [ "$rc" -ne 0 ]; then
+            node .github/scripts/antwort-fehler.mjs response.json "${http:-?}" || true
             echo "::error::Modell-Check fehlgeschlagen (HTTP ${http:-?}, curl exit $rc)"
             exit 1
           fi

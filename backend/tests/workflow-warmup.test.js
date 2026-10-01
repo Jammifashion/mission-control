@@ -86,3 +86,25 @@ describe('Trikot-Sync: Ausgabe nur als Zaehler', () => {
     expect(text).not.toMatch(/\.zeilen|\.name|Name|Nummer/);
   });
 });
+
+describe('modell-check.yml: Fehlerausgabe', () => {
+  const name = 'modell-check.yml';
+  const s = schritte(name);
+  const text = readFileSync(resolve(dir, name), 'utf8');
+
+  test('Fehlertext nicht roh: fester Text statt {error}, keine ungefilterte Ausgabe', () => {
+    expect(text).not.toMatch(/then \{error\}/);
+    expect(text).toMatch(/then \{error: "Modell-Check fehlgeschlagen"\}/);
+    expect(text).not.toMatch(/jq\s+\.\s/);
+    expect(text).not.toMatch(/cat\s+response\.json/);
+  });
+
+  test('Hilfsskript wird geholt, der POST ruft bei Fehler die maskierte Zeile auf, kein --retry', () => {
+    const checkout = s.find(x => /actions\/checkout/.test(x.uses ?? ''));
+    expect(checkout.with['sparse-checkout']).toBe('.github/scripts');
+    const posts = s.filter(x => /-X POST/.test(x.run ?? ''));
+    expect(posts).toHaveLength(1);
+    expect(posts[0].run).toMatch(/antwort-fehler\.mjs response\.json "\$\{http:-\?\}" \|\| true/);
+    for (const x of s) expect(x.run ?? '').not.toMatch(/--retry/);
+  });
+});
