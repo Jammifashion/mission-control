@@ -46,6 +46,8 @@ app.use(helmet());
 app.use(cors({
   origin: (process.env.CORS_ORIGIN || 'https://jammifashion.github.io').split(',').map(s => s.trim()),
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  // X-MC-Stand: letzter guter Stand der WC-Stammdaten (routes/woocommerce.js wcCached)
+  exposedHeaders: ['X-MC-Stand'],
 }));
 app.use(express.json({ limit: '256kb' }));
 

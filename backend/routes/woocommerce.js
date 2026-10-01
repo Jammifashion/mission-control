@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getWcClient } from '../lib/shopConfig.js';
-import { seitenGrenze, seitenListe, wirfWennPruefseite, HosterPruefseiteError } from '../lib/hosterPruefseite.js';
+import { seitenGrenze, seitenListe, wirfWennPruefseite, HosterPruefseiteError, ShopZeitueberschreitungError } from '../lib/hosterPruefseite.js';
+import { notifyHosterPruefseite, notifyShopZeitueberschreitung } from '../lib/chatNotify.js';
 import { markeFuerShop } from '../lib/shopMarke.js';
 import { pruefeArtikelnummer, baueVariantenSkus } from '../lib/sku.js';
 import { achsenVon, achsenGleich, pruefeFarbAchse, mitGoogleFarbe } from '../lib/varianten-achsen.js';
@@ -40,19 +41,61 @@ function neueVariation(v, { menuOrder, sku } = {}) {
 }
 
 // ── N2: In-Memory Cache für selten ändernde WC-Stammdaten ────────────────────
-const _wcCache = new Map(); // `${shop}:${key}` → { data, at }
+const _wcCache = new Map(); // `${shop}:${key}` → { data, at, stand }
 const WC_CACHE_TTL = 30 * 60 * 1000; // 30 min
 
-async function wcCached(shop, key, fetcher) {
+// Letzter guter Stand - NUR fuer Stammdaten, die sich selten aendern
+// (Versandklassen, Attribute + Begriffe, Kategorien; nie Bestellungen oder
+// Bestaende). Scheitert der Abruf (Pruefseite, Zeitueberschreitung, Fehler),
+// liefert die Route die letzte gueltige Liste mit Header X-MC-Stand (ISO-Zeit
+// des Abrufs); die Maske zeigt "Stand von …". Danach fruehestens nach
+// WC_WIEDERHOLPAUSE_MS wieder beim Shop fragen, nicht bei jedem Aufruf.
+const _wcLetzterStand = new Map(); // `${shop}:${key}` → { data, at }
+const WC_WIEDERHOLPAUSE_MS = 5 * 60 * 1000;
+
+/** @returns {Promise<{ data: any, stand: string|null }>} stand = ISO-Zeit, wenn es der letzte gute Stand ist */
+async function wcCached(shop, key, fetcher, { letzterStand = false } = {}) {
   const cacheKey = `${shop ?? 'jfn'}:${key}`;
   const hit = _wcCache.get(cacheKey);
-  if (hit && Date.now() - hit.at < WC_CACHE_TTL) return hit.data;
-  const data = await fetcher();
-  // Nur eine gueltige Liste bzw. ein Objekt speichern - nie HTML-Text oder
-  // undefined (Hoster-Pruefseite), sonst haelt der Speicher sie 30 min fest.
-  if (data === null || typeof data !== 'object') throw new HosterPruefseiteError({ shop: shop ?? 'jfn', pfad: key });
-  _wcCache.set(cacheKey, { data, at: Date.now() });
-  return data;
+  if (hit && Date.now() - hit.at < WC_CACHE_TTL) return { data: hit.data, stand: hit.stand ?? null };
+  let data;
+  try {
+    data = await fetcher();
+    // Nur eine gueltige Liste bzw. ein Objekt speichern - nie HTML-Text oder
+    // undefined (Hoster-Pruefseite), sonst haelt der Speicher sie 30 min fest.
+    if (data === null || typeof data !== 'object') throw new HosterPruefseiteError({ shop: shop ?? 'jfn', pfad: key });
+  } catch (err) {
+    const alt = letzterStand ? _wcLetzterStand.get(cacheKey) : null;
+    if (!alt) throw err;
+    const stand = new Date(alt.at).toISOString().replace(/\.\d{3}Z$/, 'Z');
+    console.warn(`[wcCached] ${cacheKey}: Abruf gescheitert (${err.code ?? err.message}) – letzter Stand von ${stand} geliefert.`);
+    await meldeLaufStopp(err, `GET /api/woocommerce/${key} (letzter Stand geliefert)`);
+    _wcCache.set(cacheKey, { data: alt.data, at: Date.now() - WC_CACHE_TTL + WC_WIEDERHOLPAUSE_MS, stand });
+    return { data: alt.data, stand };
+  }
+  _wcCache.set(cacheKey, { data, at: Date.now(), stand: null });
+  if (letzterStand) _wcLetzterStand.set(cacheKey, { data, at: Date.now() });
+  return { data, stand: null };
+}
+
+// Pruefseite/Zeitueberschreitung beim Rueckfall auf den letzten Stand trotzdem
+// melden (gedrosselt) - der Lauf geht weiter, die Ursache soll sichtbar sein.
+async function meldeLaufStopp(err, ablauf) {
+  if (err instanceof HosterPruefseiteError)
+    await notifyHosterPruefseite({ ablauf, shop: err.shop, pfad: err.pfad, httpStatus: err.httpStatus, titel: err.titel, zeit: err.zeit });
+  else if (err instanceof ShopZeitueberschreitungError)
+    await notifyShopZeitueberschreitung({ ablauf, shop: err.shop, methode: err.methode, pfad: err.pfad, limitMs: err.limitMs, ergebnisUnklar: err.ergebnisUnklar, zeit: err.zeit });
+}
+
+function sendeMitStand(res, { data, stand }) {
+  if (stand) res.set('X-MC-Stand', stand);
+  res.json(data);
+}
+
+// Nur fuer Tests: frischen Speicher vergessen (letzter guter Stand bleibt) bzw. alles.
+export function _wcCacheVergessen({ auchLetztenStand = false } = {}) {
+  _wcCache.clear();
+  if (auchLetztenStand) _wcLetzterStand.clear();
 }
 
 // GET /api/woocommerce/orders
@@ -108,8 +151,8 @@ router.get('/shipping-classes', async (req, res, next) => {
     const result = await wcCached(req.query.shop, 'shipping-classes', async () => {
       const { data } = await wc.get('products/shipping_classes', { per_page: 100 });
       return seitenListe(data, { wc, pfad: 'products/shipping_classes' }).map(s => ({ id: s.id, slug: s.slug, name: s.name }));
-    });
-    res.json(result);
+    }, { letzterStand: true });
+    sendeMitStand(res, result);
   } catch (err) { next(err); }
 });
 
@@ -126,8 +169,8 @@ router.get('/categories', async (req, res, next) => {
         Kategoriename:   c.name,
         Kategorien:      c.parent ? `${byId[c.parent] ?? ''} > ${c.name}` : c.name,
       }));
-    });
-    res.json(result);
+    }, { letzterStand: true });
+    sendeMitStand(res, result);
   } catch (err) { next(err); }
 });
 
@@ -145,8 +188,8 @@ router.get('/attributes', async (req, res, next) => {
         out.push({ eigenschaft: a.name, begriffe: seitenListe(terms, { wc, pfad: 'products/attributes/terms' }).map(t => t.name) });
       }
       return out;
-    });
-    res.json(result);
+    }, { letzterStand: true });
+    sendeMitStand(res, result);
   } catch (err) { next(err); }
 });
 

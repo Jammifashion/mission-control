@@ -2306,6 +2306,18 @@
       // im Browser. Versandklassen: VK_TIMEOUT_MS (gleicher Wert, eigener Block).
       const LESE_TIMEOUT_MS = 20000;
 
+      // Letzter guter Stand (backend/routes/woocommerce.js wcCached): Versand-
+      // klassen, Attribute, Kategorien. Scheitert der Abruf beim Shop, liefert
+      // das Backend die letzte gueltige Liste mit Header X-MC-Stand (ISO-Zeit).
+      // Rueckgabe: Hinweistext "Stand von …" oder ''.
+      function standHinweis(res) {
+        const iso = res?.headers?.get?.('X-MC-Stand');
+        if (!iso) return '';
+        const d = new Date(iso);
+        const wann = Number.isNaN(d.getTime()) ? iso : d.toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' });
+        return `Stand von ${wann} – Shop gerade nicht erreichbar, zuletzt geladene Liste.`;
+      }
+
       // Fehler in einem <select> anzeigen und zusaetzlich als langer Toast,
       // weil die Meldung fuer eine Option-Zeile zu lang ist.
       function setSelectError(sel, msg) {
@@ -3336,6 +3348,8 @@
           if (r.ok) {
             const data = await r.json();
             ssot.attribute = data.length ? data : ssot.attribute;
+            const st = standHinweis(r);
+            if (st) showToast(`Attribute: ${st}`, 'warn', 12000);
           }
         } catch { /* bleibt leer */ }
         if (!ssot.attribute.length) {
@@ -3480,6 +3494,7 @@
 
       ssot.versandGeladen = false;
       ssot.versandFehler  = '';
+      ssot.versandStand   = '';   // "Stand von …", wenn das Backend den letzten guten Stand liefert
       let _vkVorschlagOffen = '';
 
       function vkZeigeStatus(text, mitKnopf) {
@@ -3496,6 +3511,7 @@
           const r = await apiFetch(`${API_BASE()}/api/woocommerce/shipping-classes`, { signal: AbortSignal.timeout(VK_TIMEOUT_MS) });
           status = r.status;
           daten  = await r.json().catch(() => null);
+          ssot.versandStand = standHinweis(r);
         } catch (e) { fehler = e; }
         const grund = vkLadeFehler({ status, daten, fehler });
         if (grund) {
@@ -3533,7 +3549,9 @@
         });
         sel.value = a.wert;
         if (a.vorschlagGesetzt) versandVorschlagStand = a.vorschlagGesetzt;
-        vkZeigeStatus(a.hinweis, false);
+        // Hinweis zur gespeicherten Klasse geht vor; sonst "Stand von …" mit Neu-laden-Knopf.
+        if (a.hinweis) vkZeigeStatus(a.hinweis, false);
+        else vkZeigeStatus(ssot.versandStand ? `Versandklassen: ${ssot.versandStand}` : '', !!ssot.versandStand);
         aktualisiereAnlage();
       }
 
@@ -8761,6 +8779,7 @@
       window.API_BASE     = API_BASE;
       window.apiFetch     = apiFetch;
       window.LESE_TIMEOUT_MS = LESE_TIMEOUT_MS;
+      window.standHinweis = standHinweis;
       window.showToast    = showToast;
       window.showConfirm  = showConfirm;
       window.currentShop  = currentShop;
@@ -10826,8 +10845,11 @@
         async function loadFpKategorien(shop) {
           if (_fpKatCache[shop]) return _fpKatCache[shop];
           try {
-            const list = await window.apiFetch(`${FP()}/api/woocommerce/categories?shop=${shop}`).then(r => r.json());
+            const r = await window.apiFetch(`${FP()}/api/woocommerce/categories?shop=${shop}`);
+            const list = await r.json();
             _fpKatCache[shop] = list.map(c => ({ id: c.Kategorienummer, name: c.Kategoriename, label: c.Kategorien }));
+            const st = window.standHinweis?.(r);
+            if (st) window.showToast(`Kategorien: ${st}`, 'warn', 12000);
           } catch { _fpKatCache[shop] = []; }
           return _fpKatCache[shop];
         }
