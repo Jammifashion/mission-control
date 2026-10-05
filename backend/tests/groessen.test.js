@@ -98,6 +98,25 @@ describe('Sortierfunktion (Backend = Frontend)', () => {
     expect(beide(['128', 'M', 'XS']).sortiert).toEqual(['XS', 'M', '128']);
   });
 
+  // ED58: L-Shop-Kindergroessen der Just-Hoods-Kindermodelle (JH001K, JH050K).
+  test('L-Shop-Kindergroessen nach erster Zahl, ohne Hinweis', () => {
+    const r = beide(['12/13 (XL)', '5/6 (S)', '9/11 (L)', '7/8 (M)', '3/4 (XS)', '1/2 (XXS)']);
+    expect(r.sortiert).toEqual(['1/2 (XXS)', '3/4 (XS)', '5/6 (S)', '7/8 (M)', '9/11 (L)', '12/13 (XL)']);
+    expect(r.hinweis).toBeNull();
+  });
+
+  test('L-Shop-Kindergroessen hinter Zahlen und Buchstaben', () => {
+    expect(beide(['5/6 (S)', '164', 'XS', '116', 'XXS', '12/13 (XL)']).sortiert)
+      .toEqual(['XXS', 'XS', '116', '164', '5/6 (S)', '12/13 (XL)']);
+  });
+
+  test('Kindergroesse: Rang = erste Zahl, Klasse "kinder"', () => {
+    expect(lib.groessenRang('9/11 (L)')).toEqual({ klasse: 'kinder', rang: 9 });
+    expect(fe.grRang('9/11 (L)')).toEqual({ klasse: 'kinder', rang: 9 });
+    expect(lib.groessenRang('5/6(S)')).toEqual({ klasse: 'kinder', rang: 5 });
+    expect(lib.groessenRang('5/6 (Q)')).toBeNull();
+  });
+
   test('Achsenname exakt: Größe/Groesse ja, Schuhgröße nein', () => {
     for (const n of ['Größe', 'größe', ' Groesse ', 'GRÖSSE']) {
       expect(lib.istGroessenAchse(n)).toBe(true);

@@ -22,10 +22,14 @@ export function istGroessenAchse(name) {
 
 // Rang einer Groesse. Buchstaben: S=3, M=4, L=5, XL=6, 2XL/XXL=7 …, XS=2,
 // 2XS/XXS=1. Zahlen (Kinder, Konfektion): eigene Klasse, "110/116" zaehlt mit
-// der ersten Zahl. Alles andere ("One Size", "Einheitsgröße") -> null.
+// der ersten Zahl. L-Shop-Kindergroessen "5/6 (S)" … "12/13 (XL)" (Just Hoods
+// JH001K/JH050K, ED58): eigene Klasse hinter den Zahlen, Rang = erste Zahl.
+// Alles andere ("One Size", "Einheitsgröße") -> null.
 export function groessenRang(wert) {
   const g = String(wert ?? '').trim().toUpperCase().replace(/\s+/g, '');
   if (g === 'M') return { klasse: 'buchstabe', rang: 4 };
+  const k = g.match(/^(\d{1,2})\/\d{1,2}\((?:\d?X*S|M|\d?X*L)\)$/);
+  if (k) return { klasse: 'kinder', rang: Number(k[1]) };
   // "4XL" = Ziffer + X, "XXL" = X-Folge; beide zaehlen die X.
   let t = g.match(/^(?:(\d+)X|(X*))(S|L)$/);
   if (t) {
@@ -38,10 +42,11 @@ export function groessenRang(wert) {
   return null;
 }
 
-const KLASSEN = ['buchstabe', 'zahl'];
+const KLASSEN = ['buchstabe', 'zahl', 'kinder'];
 
 /**
- * Groessen aufsteigend: Buchstaben (XXS … 8XL), dann Zahlen (110/116 …).
+ * Groessen aufsteigend: Buchstaben (XXS … 8XL), dann Zahlen (110/116 …),
+ * dann L-Shop-Kindergroessen (1/2 (XXS) … 12/13 (XL)).
  * Gleicher Rang (2XL und XXL) und Unbekanntes behalten die Eingabereihenfolge;
  * Unbekanntes steht am Ende und wird gemeldet.
  *

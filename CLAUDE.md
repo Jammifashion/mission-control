@@ -222,7 +222,8 @@ Neue Sektionen immer mit Anker versehen:
   Kollision -> markiert, nicht uebernommen. Schlagwort-Archive stehen auf noindex, follow.
 
 - backend/lib/groessen.js – Groessen-Rang und -Sortierung (XXS … 8XL, Kindergroessen
-  numerisch, Unbekanntes ans Ende mit Hinweis). Einzige Stelle; seo-meta.js nutzt den Rang,
+  numerisch, dahinter L-Shop-Kindergroessen „1/2 (XXS)“ … „12/13 (XL)“ nach erster Zahl,
+  Unbekanntes ans Ende mit Hinweis). Einzige Stelle; seo-meta.js nutzt den Rang,
   woocommerce.js sortiert damit die Optionen der Achse "Größe" und die Variationen (Farbe,
   dann Groesse, menu_order). Frontend-Spiegel: Block `Groessen: Anfang/Ende`.
 

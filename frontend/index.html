@@ -4021,7 +4021,7 @@
       // Spiegelt backend/lib/groessen.js. Massgeblich ist das Backend, das die
       // Optionen beim Speichern selbst sortiert; hier nur fuer die Anzeige.
       const GR_ACHSEN  = ['größe', 'groesse', 'grösse'];
-      const GR_KLASSEN = ['buchstabe', 'zahl'];
+      const GR_KLASSEN = ['buchstabe', 'zahl', 'kinder'];
 
       function grIstGroessenAchse(name) {
         return GR_ACHSEN.includes(String(name ?? '').trim().toLowerCase());
@@ -4030,6 +4030,8 @@
       function grRang(wert) {
         const g = String(wert ?? '').trim().toUpperCase().replace(/\s+/g, '');
         if (g === 'M') return { klasse: 'buchstabe', rang: 4 };
+        const k = g.match(/^(\d{1,2})\/\d{1,2}\((?:\d?X*S|M|\d?X*L)\)$/);
+        if (k) return { klasse: 'kinder', rang: Number(k[1]) };
         let t = g.match(/^(?:(\d+)X|(X*))(S|L)$/);
         if (t) {
           const n = t[1] ? Number(t[1]) : t[2].length;
