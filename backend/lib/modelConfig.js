@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
+import { anbieterPasst } from './modellAufruf.js';
 
 const TAB_CONFIG = 'Config';
 const TTL_MS      = 5 * 60 * 1000;
@@ -49,6 +50,9 @@ async function loadModelsFromSheet() {
   const h = col => header.indexOf(col);
   const iSchluessel = h('Schlüssel');
   const iWert       = h('Wert');
+  // Spalte C "Anbieter" ist nur Information: der Anbieter folgt dem Praefix der
+  // Modell-ID (lib/modellAufruf.js). Passt sie nicht, nur eine Warnung ins Log.
+  const iAnbieter   = h('Anbieter');
   if (iSchluessel === -1 || iWert === -1) return {};
 
   const rows = rawRows.filter(r => r.some(c => c) && !(r[0] ?? '').startsWith('//'));
@@ -60,6 +64,9 @@ async function loadModelsFromSheet() {
     const rolle = schluessel.slice(PREFIX.length).trim();
     if (!rolle) return;
     models[rolle] = String(r[iWert] ?? '').trim();
+    if (iAnbieter !== -1 && models[rolle] && !anbieterPasst(models[rolle], r[iAnbieter])) {
+      console.warn(`modelConfig: Spalte "Anbieter" (${String(r[iAnbieter]).trim()}) passt nicht zu ${schluessel} = ${models[rolle]} – maßgeblich ist die Modell-ID.`);
+    }
   });
 
   return models;

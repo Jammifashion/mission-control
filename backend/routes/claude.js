@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import Anthropic from '@anthropic-ai/sdk';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getModel } from '../lib/modelConfig.js';
 import { sanitizeJsonControlChars, collectText } from '../utils/json-parse.js';
 import {
@@ -12,6 +11,7 @@ import { pruefeTextMitSsot, sperrKontext } from '../lib/seo-pruefung.js';
 import { ladeSchlagwoerter, promptListe, schlagwortVorschlaege } from '../lib/schlagwoerter.js';
 import { werteGegenKarte } from '../lib/seo-ssot.js';
 import { wirfWennPruefseite } from '../lib/hosterPruefseite.js';
+import { textAufruf, schluesselFehlt, KiAbgeschnittenError, KiAbgelehntError } from '../lib/modellAufruf.js';
 
 const router = Router();
 
@@ -144,9 +144,11 @@ Gib nur das JSON-Array zurück, keinen weiteren Text.`;
       if (!name || !Array.isArray(combos) || !combos.length) {
         return res.status(400).json({ error: 'name und combos sind erforderlich.' });
       }
-      if (!process.env.GEMINI_API_KEY) {
-        return res.status(503).json({ error: 'GEMINI_API_KEY nicht konfiguriert.' });
-      }
+      // Anbieter folgt der Modell-ID (lib/modellAufruf.js), nicht mehr fest Gemini.
+      const modellId = await getModel('klassifizierung');
+      console.log(`suggest_variants: Rolle klassifizierung -> ${modellId}`);
+      const schluesselFehler = schluesselFehlt(modellId, 'klassifizierung');
+      if (schluesselFehler) return res.status(503).json({ error: schluesselFehler });
 
       const SUGGEST_SYSTEM = `Du analysierst Produktvarianten für einen deutschen Modeshop und erkennst unübliche Kombinationen.
 Antworte ausschließlich als JSON: { "unusual": ["key1", "key2"] }
@@ -161,23 +163,21 @@ Welche dieser Kombinationen sind für dieses Produkt in einem deutschen Modeshop
 Antworte als JSON: { "unusual": ["key1", "key2", ...] }
 Gib nur die Keys zurück, keinen weiteren Text.`;
 
-      const genAI  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-      const modellId = await getModel('klassifizierung');
-      console.log(`suggest_variants: Rolle klassifizierung -> ${modellId}`);
-      const geminiModel = genAI.getGenerativeModel({
-        model: modellId,
-        systemInstruction: SUGGEST_SYSTEM,
-      });
-
-      const geminiResult = await geminiModel.generateContent(userPrompt);
-      const raw = geminiResult.response.text();
+      let raw;
+      try {
+        raw = (await textAufruf({ modellId, system: SUGGEST_SYSTEM, prompt: userPrompt, art: 'klassifizierung' })).text;
+      } catch (e) {
+        if (e instanceof KiAbgeschnittenError || e instanceof KiAbgelehntError)
+          return res.status(502).json({ error: e.message, code: e.code });
+        throw e;
+      }
 
       let parsed;
       try {
         const jsonMatch = raw.match(/\{[\s\S]*\}/);
         parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
       } catch {
-        return res.status(502).json({ error: 'Gemini-Antwort konnte nicht geparst werden.', raw });
+        return res.status(502).json({ error: 'KI-Antwort konnte nicht geparst werden.', raw });
       }
 
       return res.json({ unusual: Array.isArray(parsed.unusual) ? parsed.unusual : [] });
@@ -262,41 +262,25 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
       const modellId = await getModel('seo-text');
       console.log(`seo_description: Rolle seo-text -> ${modellId}`);
 
-      const istGemini = modellId.startsWith('gemini-');
-      if (istGemini && !process.env.GEMINI_API_KEY) {
-        return res.status(503).json({
-          error: `Rolle seo-text ist auf ${modellId} konfiguriert, aber GEMINI_API_KEY fehlt.`,
-        });
-      }
-      if (!istGemini && !process.env.ANTHROPIC_API_KEY) {
-        return res.status(503).json({
-          error: `Rolle seo-text ist auf ${modellId} konfiguriert, aber ANTHROPIC_API_KEY fehlt.`,
-        });
-      }
+      const schluesselFehler = schluesselFehlt(modellId, 'seo-text');
+      if (schluesselFehler) return res.status(503).json({ error: schluesselFehler });
 
-      // Ein Modellaufruf. Wird hoechstens ZWEIMAL benutzt: regulaer, und einmal
-      // als Wiederholung, wenn die <h2>-Nachpruefung angeschlagen hat.
-      async function modellAufruf(prompt) {
-        if (istGemini) {
-          const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-          const geminiModel = genAI.getGenerativeModel({
-            model: modellId,
-            systemInstruction: SEO_SYSTEM,
-          });
-          const geminiResult = await geminiModel.generateContent(prompt);
-          return geminiResult.response.text();
+      // Ein Modellaufruf (lib/modellAufruf.js, Art "seo": Parameter und
+      // stop_reason-Pruefung dort). Wird hoechstens ZWEIMAL benutzt: regulaer,
+      // und einmal als Wiederholung, wenn die <h2>-Nachpruefung angeschlagen hat.
+      const modellAufruf = async prompt =>
+        (await textAufruf({ modellId, system: SEO_SYSTEM, prompt, art: 'seo', rolle: 'seo-text' })).text;
+
+      let raw;
+      try {
+        raw = await modellAufruf(userPrompt);
+      } catch (e) {
+        if (e instanceof KiAbgeschnittenError || e instanceof KiAbgelehntError) {
+          console.error(`[seo_description] ${e.message}`);
+          return res.status(502).json({ error: e.message, code: e.code });
         }
-        const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-        const response = await client.messages.create({
-          model: modellId,
-          max_tokens: 2048,
-          system: SEO_SYSTEM,
-          messages: [{ role: 'user', content: prompt }],
-        });
-        return collectText(response);
+        throw e;
       }
-
-      const raw = await modellAufruf(userPrompt);
 
       if (!raw || !raw.trim()) {
         console.error('[seo_description] Leere Antwort vom Modell - nichts zu parsen.');

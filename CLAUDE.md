@@ -340,6 +340,16 @@ Gelesen von `backend/lib/modelConfig.js` (`getModel(rolle)`, 5 min Cache).
 Fallback auf `DEFAULT_MODELS`, wenn das Sheet nicht erreichbar ist oder der
 Wert nicht auf `claude-*` / `gemini-*` passt.
 
+Aufruf (KI2): `backend/lib/modellAufruf.js` (`textAufruf({ modellId, system, prompt, art })`)
+fuer `seo_description` (Art `seo`) und `suggest_variants` (Art `klassifizierung`). Anbieter NUR
+ueber das Praefix der Modell-ID; Spalte C "Anbieter" ist Info, modelConfig warnt bei Abweichung.
+Anthropic-Parameter je Art zentral in `ARTEN`: seo = Effort low + `max_tokens` 16000 (Denken an),
+klassifizierung = `thinking: disabled` + 1024. Haiku/Sonnet 5.5 denken standardmaessig - ein
+kleines `max_tokens` ohne Denken-Steuerung schneidet die Antwort ab (KI1: 4/6 ohne JSON).
+`stop_reason` "max_tokens"/"refusal" -> 502 mit `code` `ki_abgeschnitten`/`ki_abgelehnt`.
+Chat (chatCore), agent-intern-Routen und Health-Ping rufen noch selbst auf (nicht umgebaut).
+Floskeln prueft `seo-pruefung.js` (Regel 7, `FLOSKELN`); neue Wendungen nur dort, nie im Prompt.
+
 ## Script-Scope Problem (gelöst)
 index.html hat zwei Script-Blöcke:
 - `<script type="module">` (Zeile 1031) – Hauptcode

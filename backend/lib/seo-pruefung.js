@@ -25,6 +25,10 @@
 //     erfolgt in drei bis fuenf Werktagen." blieb ungemeldet.
 //  5. <h1> im HTML.
 //  6. "bestickt"/"Stick…", wenn das Motiv einen Druck beschreibt.
+//  7. Floskeln (FLOSKELN): die Liste aus dem Systemprompt (SEO_SYSTEM_PROMPT,
+//     dort seit jeher genannt) plus Grenzfaelle aus KI1 ("Jetzt in deiner
+//     Groesse sichern", "sofort einsatzbereit") - die neuen NUR hier, nicht im
+//     Prompt (Regel oben).
 
 import { motivFuer } from './seo-ssot.js';
 import { lshopFuerArtikel } from './lshop.js';
@@ -32,6 +36,14 @@ import { lshopFuerArtikel } from './lshop.js';
 // Feste Liste (Entscheidung Otto 25.09.). "Jammi Fashion" nur getrennt
 // geschrieben - "JammiFashion" ist der Markenname und erlaubt.
 export const VERBOTENE_BEGRIFFE = ['L-Shop', 'Printequipment', 'Sublistar', 'OEKO-TEX', 'offiziell', 'Jammi Fashion'];
+
+// Floskeln (Regel 7). "Lieblings-" als Wortanfang (Lieblingsshirt, Lieblings-Hoodie).
+export const FLOSKELN = [
+  'Must-have', 'Party-Kracher', 'absoluter Hingucker', 'Blickfang', 'hochwertige Qualität',
+  'maximaler Tragekomfort', 'schnell und zuverlässig', 'sichere dir jetzt', 'Lieblings-',
+  'individuell bedruckbar', 'personalisierbar', 'jetzt selbst gestalten',
+  'in deiner Größe sichern', 'sofort einsatzbereit',
+];
 
 const BUCHST = 'A-Za-zÄÖÜäöüß0-9';
 const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -45,6 +57,14 @@ function begriffRe(begriff) {
   const kern = b.split('-').map(escape).join('[-\\s]?');
   const ende = /^offiziell$/i.test(b) ? '' : `(?![${BUCHST}])`;
   return new RegExp(`(?<![${BUCHST}])${kern}${ende}`, 'i');
+}
+
+// Floskel als Regex: Woerter mit beliebigem Leerraum, Bindestrich auch als
+// Leerzeichen/nichts; "…-" am Ende = Wortanfang.
+function floskelRe(f) {
+  const praefix = f.endsWith('-');
+  const kern = f.replace(/-$/, '').split(/\s+/).map(w => w.split('-').map(escape).join('[-\\s]?')).join('\\s+');
+  return new RegExp(`(?<![${BUCHST}])${kern}${praefix ? '' : `(?![${BUCHST}])`}`, 'i');
 }
 
 function text(html) {
@@ -129,6 +149,9 @@ export function pruefeGeneratorText(e = {}) {
 
   // 6. Stick bei Druck
   if (e.druck) melde(STICK_RE, 'Das Motiv ist gedruckt, der Text spricht von Stick/bestickt');
+
+  // 7. Floskeln
+  for (const f of FLOSKELN) melde(floskelRe(f), `Floskel "${f.replace(/-$/, '…')}"`);
 
   return hinweise;
 }
