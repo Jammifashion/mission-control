@@ -236,7 +236,13 @@ Neue Sektionen immer mit Anker versehen:
   variations/batch <= 50, Pruefseite/Zeitlimit/502 -> `AnlageStopp`; erneuter Lauf findet
   Produkt (SKU) und Variationen (Kombination) und legt nur Fehlendes an. Sheets erst nach
   vollstaendiger Shop-Anlage (RAW). Preise nur aus `backend/scripts/.preise-halloween.json`
-  (gitignored), nie in Ausgabe/CSV.
+  (gitignored), nie in Ausgabe/CSV. HW3: 4 Artikel (JH180 entfaellt), Bilder ueber `--bilder <ordner>`
+  (mockups/ + sammelbild-<Modell>.jpg), Zuordnung Datei -> Motiv ueber Schluesselwoerter (`ordneMockups`,
+  sonst Stopp), Galerie Sammelbild + 8 Motive, Variationsbild ueber "Motiv"; Upload-Zustand in
+  `backend/scripts/.halloween-medien.json` (gitignored, kein Doppel-Upload). `--pruefen` liest zurueck.
+- backend/lib/wpMedien.js – Upload in die WordPress-Mediathek (`ladeMedienHoch`, `setzeMedienText`),
+  eine Stelle fuer `POST /api/artikel/media-upload` und das Halloween-Skript (fetchMitZeitlimit +
+  pruefeFetchAntwort; Titel/ALT als Abfrageparameter).
 
 ## Deprecated
 - Sheet-Spalten `Versand-Modell` und `PayPal-Modell` im Partner-Reiter sind seit Sprint 4.2 deprecated.

@@ -75,3 +75,5 @@ _ed*.mjs
 
 # Lokale Preise fuer scripts/anlage-halloween.js (Inhaber setzt sie). Nie committen.
 backend/scripts/.preise-halloween.json
+# Upload-Zustand (Medien-IDs) fuer scripts/anlage-halloween.js. Nie committen.
+backend/scripts/.halloween-medien.json

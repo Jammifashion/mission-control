@@ -34,7 +34,7 @@
 // AnlageStopp mit Stand; der naechste Lauf findet Produkt und Variationen ueber
 // SKU und Kombination wieder und legt nur Fehlendes an.
 
-import { baueArtikelnummer, baueVariantenSkus } from './sku.js';
+import { baueArtikelnummer, baueVariantenSkus, normalisiereTeil } from './sku.js';
 import { achsenVon, pruefeFarbAchse, mitGoogleFarbe, FARB_ACHSE } from './varianten-achsen.js';
 import { LIEFERZEIT_WIE_ELTERN, mitLieferzeit, parseLieferzeiten } from './lieferzeiten.js';
 import { lshopAuswertung } from './lshop.js';
@@ -57,30 +57,41 @@ export const BLOCK_MAX   = 50;
 export const TEXT_PLATZHALTER = '<p>Text folgt (SEO-Flow).</p>';
 
 // Reihenfolge = Reihenfolge der Auswahl im Shop. sku = SKU-Teil (normalisiert).
+// aufdruck = Text auf dem Mockup (HW3), bild = was zu sehen ist. Alle 8 sind
+// eigene Motive: kein Werk- oder Figurenname (Entscheidung Inhaber 10.10., HW3).
+// mockup = Schluesselwort im Dateinamen der Mockups (klein geschrieben).
 export const MOTIVE = [
-  { titel: 'There the Dog',                    sku: 'dog',       bild: 'Mops in der Pfanne' },
-  { titel: 'There the Otter',                  sku: 'otter',     bild: 'Otter in der Pfanne' },
-  { titel: 'Free Hugs',                        sku: 'freehugs',  bild: 'Sensenmann' },
-  { titel: "Trust me, I'm a Doctor",           sku: 'doctor',    bild: 'Pestdoktor' },
-  { titel: 'Vertrau mir, ich bin Arzt',        sku: 'arzt',      bild: 'Pestdoktor, deutscher Text' },
-  { titel: 'Ich will doch nur spielen',        sku: 'clown',     bild: 'Horror-Clown' },
-  { titel: 'Stay alive – Challenge accepted',  sku: 'stayalive', bild: 'Zombie-T-Rex' },
-  { titel: 'Ich bin wegen des Kuchens hier',   sku: 'kuchen',    bild: 'Maskierter mit Axt' },
+  { titel: 'There the Dog',                    sku: 'dog',       bild: 'Mops in der Pfanne',
+    aufdruck: 'There the Dog – in the pan becomes crazy!', mockup: ['dog'] },
+  { titel: 'There the Otter',                  sku: 'otter',     bild: 'Otter in der Pfanne',
+    aufdruck: 'There the Otter – in the pan becomes crazy!', mockup: ['otter'] },
+  { titel: 'Free Hugs',                        sku: 'freehugs',  bild: 'Sensenmann',
+    aufdruck: 'Free Hugs', mockup: ['free_hugs'] },
+  { titel: "Trust me, I'm a Doctor",           sku: 'doctor',    bild: 'Pestdoktor',
+    aufdruck: "Trust me, I'm a Doctor", mockup: ['trust_me', 'trus_me'] },
+  { titel: 'Vertrau mir, ich bin Arzt',        sku: 'arzt',      bild: 'Zombie-Arzt im Kittel',
+    aufdruck: 'Vertrau mir, ich bin Arzt!', mockup: ['vertrau_mir'] },
+  { titel: 'Ich will doch nur spielen',        sku: 'clown',     bild: 'Horror-Clown mit Kettensäge',
+    aufdruck: 'Ich will doch nur spielen!', mockup: ['spielen'] },
+  { titel: 'Stay alive – Challenge accepted',  sku: 'stayalive', bild: 'Zombie-T-Rex',
+    aufdruck: 'Stay alive – Challenge accepted!', mockup: ['stay_alive'] },
+  { titel: 'Ich bin wegen des Kuchens hier',   sku: 'kuchen',    bild: 'Maskierter mit Axt',
+    aufdruck: 'Ich bin wegen des Kuchens hier!', mockup: ['kuchens'] },
 ];
 
-// Groessen: von/bis in L-Shop-Schreibweise; null = alle waehlbaren (JH180 nach LS1).
-// farbe null = aus LS1: genau eine Modellfarbe mit "wash" und "black".
+// Groessen: von/bis in L-Shop-Schreibweise; null = alle waehlbaren.
+// farbe null = aus LShop_Modelle: genau eine Modellfarbe mit "wash" und "black"
+// (fuer JH180 gebaut; JH180 entfaellt laut Inhaber 10.10., Logik bleibt getestet).
+// mockupPraefix = Anfang der Mockup-Dateinamen dieses Artikels.
 export const ARTIKEL = [
-  { titel: 'Halloween Shirt Herren',   modell: 'E3000',  farbe: 'Black',      von: 'XS', bis: '5XL', versand: 'grossbrief',
+  { titel: 'Halloween Shirt Herren',   modell: 'E3000',  farbe: 'Black',      von: 'XS', bis: '5XL', versand: 'grossbrief', mockupPraefix: 'E3000 ',
     keyphrase: 'Halloween Shirt Herren',   synonyme: ['Halloween T-Shirt Herren', 'Horror Shirt Herren', 'Grusel Shirt'] },
-  { titel: 'Halloween Shirt Damen',    modell: 'E3005',  farbe: 'Black',      von: 'XS', bis: '3XL', versand: 'grossbrief',
+  { titel: 'Halloween Shirt Damen',    modell: 'E3005',  farbe: 'Black',      von: 'XS', bis: '3XL', versand: 'grossbrief', mockupPraefix: 'E3005 ',
     keyphrase: 'Halloween Shirt Damen',    synonyme: ['Halloween T-Shirt Damen', 'Horror Shirt Damen'] },
-  { titel: 'Halloween Pullover Herren', modell: 'JH030', farbe: 'Deep Black', von: 'XS', bis: '5XL', versand: 'paket',
+  { titel: 'Halloween Pullover Herren', modell: 'JH030', farbe: 'Deep Black', von: 'XS', bis: '5XL', versand: 'paket', mockupPraefix: 'JH030_',
     keyphrase: 'Halloween Pullover Herren', synonyme: ['Halloween Sweatshirt Herren', 'Horror Pullover'] },
-  { titel: 'Halloween Pullover Damen', modell: 'JH030F', farbe: 'Deep Black', von: 'XS', bis: 'XXL', versand: 'paket',
+  { titel: 'Halloween Pullover Damen', modell: 'JH030F', farbe: 'Deep Black', von: 'XS', bis: 'XXL', versand: 'paket', mockupPraefix: 'JH030F_',
     keyphrase: 'Halloween Pullover Damen', synonyme: ['Halloween Sweatshirt Damen'] },
-  { titel: 'Halloween Hoodie Vintage', modell: 'JH180',  farbe: null,         von: null, bis: null,  versand: 'paket',
-    keyphrase: 'Halloween Hoodie',         synonyme: ['Vintage Hoodie Halloween', 'Washed Hoodie Horror'] },
 ];
 
 export const KATEGORIE_KARTE = {
@@ -93,15 +104,17 @@ export const KATEGORIE_SEO_HINWEIS =
   'Halloween von JammiFashion: bedruckte Shirts, Pullover und Hoodies mit Halloween-Motiven, '
   + 'gedruckt nach Bestellung in Wrist. Herren im geraden Schnitt, Damen tailliert. '
   + 'Das Motiv wird am Artikel ausgewählt.';
+// Freigegeben vom Inhaber 10.10. (HW3): volle Aufdrucke laut Mockups, keine
+// Werk- oder Figurennamen, "Offen" leer.
 export const MOTIV_ZEILE = {
   motiv: `Halloween-Kollektion mit ${MOTIVE.length} Motiven zur Auswahl: `
-    + MOTIVE.map(m => `„${m.titel}“ (${m.bild})`).join('; '),
-  druckposition: '',
-  druckfarben: '',
+    + MOTIVE.map(m => `„${m.aufdruck}“ (${m.bild})`).join('; '),
+  druckposition: 'Front, großflächig',
+  druckfarben: 'vollfarbig',
   druckfarbeJeTextilfarbe: 'nein, fest',
   serieKontext: 'Halloween-Kollektion 2026',
   nurIntern: '',
-  offen: 'Druckposition, Druckfarben, Fanart-Hinweis je Motiv (Inhaber)',
+  offen: '',
 };
 
 const t = v => String(v ?? '').trim();
@@ -266,9 +279,11 @@ export function variationsAttribute(v, attrIds = {}) {
  * @param {object} plan  aus planeArtikel (status bereit)
  * @param {object} o  { kategorieId, attrIds: {farbe, groesse}, markeId, lieferzeit }
  */
-export function produktPayload(plan, { kategorieId, attrIds, markeId, lieferzeit }) {
+export function produktPayload(plan, { kategorieId, attrIds, markeId, lieferzeit, bilder }) {
   if (!attrIds?.farbe || !attrIds?.groesse) throw new Error('Attribut-IDs fuer Farbe/Größe fehlen.');
   return {
+    // HW3: Galerie = Sammelbild vorn, dann die 8 Motive in Motiv-Reihenfolge.
+    ...(bilder ? { images: galerie(bilder) } : {}),
     name: plan.artikel.titel,
     type: 'variable',
     status: 'draft',
@@ -292,7 +307,7 @@ export function produktPayload(plan, { kategorieId, attrIds, markeId, lieferzeit
  * Bodies fuer variations/batch create, sortiert (Farbe, Groesse, dann Motiv-
  * Reihenfolge) mit menu_order. Jede Variation: "-1" Lieferzeit, _wc_gla_color.
  */
-export function variationsPayloads(plan, attrIds) {
+export function variationsPayloads(plan, attrIds, bilder) {
   const roh = plan.varianten.map(v => ({ v, attributes: variationsAttribute(v, attrIds) }));
   const reihenfolge = variantenReihenfolge(roh.map(r => ({ attributes: r.attributes })),
     [{ name: FARB_ACHSE, options: [plan.farbe] }]);
@@ -305,8 +320,93 @@ export function variationsPayloads(plan, attrIds) {
       menu_order: pos + 1,
       attributes,
       meta_data: mitGoogleFarbe(mitLieferzeit([], LIEFERZEIT_WIE_ELTERN), attributes),
+      // HW3: Variationsbild ueber "Motiv".
+      ...(bilder ? { image: { id: motivBild(bilder, v.motiv) } } : {}),
     };
   });
+}
+
+// ── Bilder (HW3) ────────────────────────────────────────────────────────────
+// Mockups vom Inhaber (Postfach halloween/mockups, Namen bleiben), je Artikel
+// 8 Stueck; Sammelbild sammelbild-<Modell>.jpg (4 x 2) lokal gebaut. Hochgeladen
+// wird mit SEO-Dateiname, Titel = ALT. Zustand der Uploads lokal (Datei, nicht
+// im Repo): ein erneuter Lauf laedt nichts doppelt.
+
+export const sammelbildDatei = modell => `sammelbild-${modell}.jpg`;
+
+/**
+ * Mockup-Dateien -> { zuordnung: { <Modell>: { <Motivtitel>: datei } }, fehler: string[] }.
+ * Jede Datei genau einem Artikel (Praefix) und genau einem Motiv (Schluesselwort);
+ * je Artikel genau 8 Dateien, jedes Motiv genau einmal. Sonst Fehler (= Stopp).
+ */
+export function ordneMockups(dateinamen, artikelListe = ARTIKEL) {
+  const fehler = [];
+  const zuordnung = Object.fromEntries(artikelListe.map(a => [a.modell, {}]));
+  for (const datei of dateinamen ?? []) {
+    if (!/.jpe?g$/i.test(datei)) continue;
+    const artikel = artikelListe.filter(a => a.mockupPraefix && datei.startsWith(a.mockupPraefix));
+    if (artikel.length !== 1) { fehler.push(`${datei}: ${artikel.length ? 'mehrere Artikel' : 'kein Artikel'} (Präfix)`); continue; }
+    const name = datei.toLowerCase();
+    const motive = MOTIVE.filter(m => m.mockup.some(k => name.includes(k)));
+    if (motive.length !== 1) { fehler.push(`${datei}: ${motive.length ? `mehrere Motive (${motive.map(m => m.titel).join(', ')})` : 'kein Motiv'}`); continue; }
+    const z = zuordnung[artikel[0].modell];
+    if (z[motive[0].titel]) { fehler.push(`${artikel[0].modell}: Motiv "${motive[0].titel}" doppelt (${z[motive[0].titel]}, ${datei})`); continue; }
+    z[motive[0].titel] = datei;
+  }
+  for (const a of artikelListe) {
+    const n = Object.keys(zuordnung[a.modell]).length;
+    const fehlt = MOTIVE.filter(m => !zuordnung[a.modell][m.titel]).map(m => m.titel);
+    if (n !== MOTIVE.length) fehler.push(`${a.modell}: ${n} Mockups statt ${MOTIVE.length}${fehlt.length ? ` (fehlt: ${fehlt.join(', ')})` : ''}`);
+  }
+  return { zuordnung, fehler };
+}
+
+/** Upload-Liste eines Artikels: Sammelbild, dann 8 Motive (Reihenfolge MOTIVE). */
+export function bildListe(artikel, mockups) {
+  const basis = normalisiereTeil(artikel.titel);
+  return [
+    { schluessel: 'sammel', quelle: sammelbildDatei(artikel.modell), dateiname: `${basis}-alle-motive.jpg`,
+      titel: `${artikel.titel} alle Motive` },
+    ...MOTIVE.map(m => ({
+      schluessel: m.titel, quelle: `mockups/${mockups[m.titel]}`, dateiname: `${basis}-${normalisiereTeil(m.titel)}.jpg`,
+      titel: `${artikel.titel} ${m.titel}`,
+    })),
+  ];
+}
+
+/** Bild-IDs eines Artikels aus dem Upload-Zustand: { sammel, motive: { titel: id } } oder null. */
+export function bilderAusZustand(liste, zustand) {
+  const id = b => zustand?.[b.dateiname]?.id ?? null;
+  const ids = liste.map(id);
+  if (ids.some(x => !x)) return null;
+  return { sammel: ids[0], motive: Object.fromEntries(liste.slice(1).map((b, i) => [b.schluessel, ids[i + 1]])) };
+}
+
+export const galerie = bilder => [{ id: bilder.sammel }, ...MOTIVE.map(m => ({ id: motivBild(bilder, m.titel) }))];
+
+function motivBild(bilder, motiv) {
+  const id = bilder?.motive?.[motiv];
+  if (!id) throw new Error(`Bild für Motiv "${motiv}" fehlt.`);
+  return id;
+}
+
+/**
+ * Bilder eines Artikels hochladen (nur --write), fehlende nur.
+ * @param {object[]} liste  aus bildListe
+ * @param {object}   o  { zustand, speichere(zustand), lade({ datei, dateiname, titel }) -> { id, src, titel, alt }, log }
+ * @returns {Promise<{ bilder: object, neu: number, vorhanden: number }>}
+ */
+export async function ladeBilderHoch(liste, { zustand, speichere, lade, log = () => {} }) {
+  let neu = 0, vorhanden = 0;
+  for (const b of liste) {
+    if (zustand[b.dateiname]?.id) { vorhanden++; continue; }
+    const r = await lade(b);
+    zustand[b.dateiname] = { id: r.id, src: r.src, titel: r.titel, alt: r.alt };
+    speichere(zustand);
+    neu++;
+    log(`  Bild ${b.dateiname} -> ${r.id}`);
+  }
+  return { bilder: bilderAusZustand(liste, zustand), neu, vorhanden };
 }
 
 /** Payload fuer den Reiter Varianten (utils/varianten-zeilen.js) mit WC-IDs. */
@@ -452,11 +552,11 @@ export function karteZeile(header, kategorieId, heute) {
  * Anzahl Shop-Aufrufe fuer --write (Planung, ohne Zuruecklesen von Fehlern).
  * Je Artikel: GET sku + POST Produkt + Bloecke + Zuruecklesen (100 je Seite).
  */
-export function geplanteAufrufe(plaene, { kategorieFehlt = true, neueTerme = 0 } = {}) {
+export function geplanteAufrufe(plaene, { kategorieFehlt = true, neueTerme = 0, bilderJeArtikel = 0 } = {}) {
   const bereit = plaene.filter(p => p.status === 'bereit');
   const jeArtikel = bereit.map(p => {
     const n = p.varianten.length;
-    return 2 + teileInBloecke(p.varianten, BLOCK_MAX).length + Math.max(1, Math.ceil((n + 1) / 100));
+    return bilderJeArtikel + 2 + teileInBloecke(p.varianten, BLOCK_MAX).length + Math.max(1, Math.ceil((n + 1) / 100));
   });
   const vorlauf = 5;   // attributes, terms Farbe, terms Groesse, shipping_classes, brands
   const summe = vorlauf + (kategorieFehlt ? 2 : 0) + neueTerme + jeArtikel.reduce((a, b) => a + b, 0);
@@ -491,7 +591,9 @@ export function getakteterClient(wc, { taktMs = TAKT_MS, warte = ms => new Promi
     letzte = jetzt();
   };
   const mach = m => async (...args) => { await takt(); zaehler[m]++; return wc[m](...args); };
-  return { get: mach('get'), post: mach('post'), put: mach('put'), zaehler, shopLabel: wc.shopLabel };
+  // Andere Shop-Aufrufe (WordPress-Upload) im selben Takt und Zaehler.
+  const getaktet = (art, fn) => async (...args) => { await takt(); zaehler[art] = (zaehler[art] ?? 0) + 1; return fn(...args); };
+  return { get: mach('get'), post: mach('post'), put: mach('put'), getaktet, zaehler, shopLabel: wc.shopLabel };
 }
 
 /** Globale Attribut-IDs ueber den Namen (Farbe, Größe). Fehlt eins -> Fehler. */
@@ -562,7 +664,7 @@ export async function legeArtikelAn(wc, plan, kontext, { log = () => {} } = {}) 
     }
     stand.produktId = produkt.id;
 
-    const neu = variationsPayloads(plan, kontext.attrIds);
+    const neu = variationsPayloads(plan, kontext.attrIds, kontext.bilder);
     const bestehend = stand.produktNeu ? [] : await leseAlleVariationen(wc, produkt.id);
     const sperre = sperreDoppelte(neu, bestehend);
     stand.vorhanden = sperre.vorhanden.length;

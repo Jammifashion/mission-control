@@ -1,8 +1,14 @@
-// Halloween-Kollektion 2026 anlegen (Auftrag HW2): Kategorie "Halloween" +
-// 5 variable Artikel als Entwurf. Logik: backend/lib/anlageHalloween.js.
+// Halloween-Kollektion 2026 anlegen (Auftraege HW2/HW3): Kategorie "Halloween"
+// + 4 variable Artikel als Entwurf. Logik: backend/lib/anlageHalloween.js.
 //
 // Verwendung:
-//   node backend/scripts/anlage-halloween.js [--csv <pfad>] [--nur <Modell>] [--write]
+//   node backend/scripts/anlage-halloween.js --bilder <ordner> [--csv <pfad>] [--nur <Modell>] [--write | --pruefen]
+//
+// --bilder: Ordner mit mockups/ (32 Mockups, Namen vom Inhaber) und den lokal
+// gebauten sammelbild-<Modell>.jpg. Fuer --write Pflicht.
+// --pruefen: nur lesen - die angelegten Entwuerfe zuruecklesen und pruefen.
+// Uploads (Medien-IDs je Dateiname) stehen in scripts/.halloween-medien.json
+// (gitignored); ein erneuter Lauf laedt nichts doppelt.
 //
 // Standard ist ein TROCKENLAUF: liest SSOT-Reiter und Shop (nur GET, 1 Aufruf
 // je 2 s), plant je Artikel Variationen, SKUs, LShop_ArticleNr, Maske- und
@@ -18,7 +24,8 @@
 // Stand; ein erneuter Lauf ergaenzt nur Fehlendes (SKU + Kombination).
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, readdirSync } from 'fs';
+import { join } from 'path';
 import dotenv from 'dotenv';
 dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.env') });
 import { google } from 'googleapis';
@@ -26,8 +33,12 @@ import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient, getShopConfig } from '../lib/shopConfig.js';
 import { ladeLShopZeilen } from '../lib/lshop.js';
 import { heuteBerlin } from '../lib/seo-karte.js';
+import { ladeMedienHoch, setzeMedienText, medienTitel } from '../lib/wpMedien.js';
+import { leseAlleVariationen } from '../lib/wc-variation-ids.js';
+import { lieferzeitAusMetaData } from '../lib/lieferzeiten.js';
 import {
-  ARTIKEL, KATEGORIE, MOTIVE, KURZ, TAKT_MS, AnlageStopp,
+  ARTIKEL, KATEGORIE, MOTIVE, KURZ, TAKT_MS, AnlageStopp, istStoppFehler,
+  ordneMockups, bildListe, bilderAusZustand, ladeBilderHoch, sammelbildDatei, galerie,
   planeArtikel, planeSheets, geplanteAufrufe, preisVorlage, getakteterClient, leseShopStand,
   findeProdukt, legeArtikelAn, schreibeArtikelSheets, haengeZeileAn, standardLieferzeit, kategorieZeile, karteZeile,
 } from '../lib/anlageHalloween.js';
@@ -37,7 +48,12 @@ const WRITE = args.includes('--write');
 const wert  = name => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : null; };
 const CSV   = wert('--csv');
 const NUR   = wert('--nur');
+const BILDER = wert('--bilder');
+const PRUEFEN = args.includes('--pruefen');
 const PREISDATEI = resolve(dirname(fileURLToPath(import.meta.url)), '.preise-halloween.json');
+const MEDIENDATEI = resolve(dirname(fileURLToPath(import.meta.url)), '.halloween-medien.json');
+const leseMedien = () => (existsSync(MEDIENDATEI) ? JSON.parse(readFileSync(MEDIENDATEI, 'utf8')) : {});
+const speichereMedien = z => writeFileSync(MEDIENDATEI, JSON.stringify(z, null, 2) + '\n');
 const TABS = ['Erfassungsmaske', 'Varianten', 'Motive', 'Struktur_Kategorien', 'SEO_Karte', 'Struktur_Lieferzeiten'];
 
 const esc = v => { const s = String(v ?? ''); return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
@@ -78,7 +94,20 @@ async function run() {
   const sp = planeSheets(reiter, plaene, { kategorieId: shop.kategorie?.id ?? '', heute });
   const neueFarbTerme = [...new Set(plaene.filter(p => p.status === 'bereit' && !shop.farbTerme.some(f => f.toLowerCase() === p.farbe.toLowerCase())).map(p => p.farbe))];
   const neueGroessen = [...new Set(plaene.flatMap(p => p.groessen.filter(g => g.neuTerm).map(g => g.shop)))];
-  const aufrufe = geplanteAufrufe(plaene, { kategorieFehlt: !shop.kategorie, neueTerme: neueFarbTerme.length + neueGroessen.length });
+  // Bilder: Zuordnung pruefen (Stopp bei Fehler), Sammelbilder vorhanden?
+  const medien = leseMedien();
+  const bilderJe = {};
+  if (BILDER) {
+    const m = ordneMockups(readdirSync(join(BILDER, 'mockups')), artikelListe);
+    if (m.fehler.length) throw new Error(`Mockups passen nicht – Stopp:\n  ${m.fehler.join('\n  ')}`);
+    for (const a of artikelListe) {
+      if (!existsSync(join(BILDER, sammelbildDatei(a.modell)))) throw new Error(`Sammelbild fehlt: ${sammelbildDatei(a.modell)}`);
+      bilderJe[a.modell] = bildListe(a, m.zuordnung[a.modell]);
+    }
+  } else if (WRITE) throw new Error('--bilder <ordner> fehlt – ohne Bilder wird nicht angelegt.');
+  const offeneBilder = Object.values(bilderJe).flat().filter(b => !medien[b.dateiname]?.id).length;
+  const aufrufe = geplanteAufrufe(plaene, { kategorieFehlt: !shop.kategorie, neueTerme: neueFarbTerme.length + neueGroessen.length,
+    bilderJeArtikel: BILDER ? Math.ceil(offeneBilder / Math.max(1, artikelListe.length)) : 0 });
 
   // ── Ausgabe (ohne Preise) ──
   log(`\n${WRITE ? 'SCHREIBLAUF' : 'TROCKENLAUF'} Halloween – ${heute}`);
@@ -102,13 +131,15 @@ async function run() {
       log(`  SKU längste: ${Math.max(...p.varianten.map(v => v.sku.length))} Zeichen · Preise fehlen: ${ohnePreis}`);
       log(`  Sheets: ${a.vorhanden ? `Maske vorhanden (${a.ssot}, Z${a.maskeZeile})` : `SSOT ${a.ssot}, Maske Z${a.maskeZeile}, Varianten Z${a.variantenVon}–Z${a.variantenBis}`}`);
       log(`  Shop: ${p.imShop ? `Produkt ${p.imShop.id} schon da (${p.imShop.status}) – nur Fehlendes` : 'neu'} · Aufrufe --write: ${aufrufe.jeArtikel[plaene.filter(x => x.status === 'bereit').indexOf(p)]}`);
+      const bl = bilderJe[p.artikel.modell] ?? [];
+      if (bl.length) log(`  Bilder: ${bl.length} (${bl.filter(b => medien[b.dateiname]?.id).length} schon hochgeladen), Galerie: ${bl.map(b => b.dateiname).join(', ')}`);
     }
     for (const h of p.hinweise) log(`  Hinweis: ${h}`);
     if (p.status !== 'bereit') { csv.push([p.artikel.titel, p.status, '', '', '', p.artikelnummer, p.artikel.versand, '', '', '', '', '', '', '', '', '', '', p.hinweise.join(' | ')]); continue; }
     p.varianten.forEach((v, j) => csv.push([p.artikel.titel, p.status, a.ssot, a.maskeZeile, a.variantenVon ? a.variantenVon + j : '', p.artikelnummer, p.artikel.versand,
       'Farbe (global) / Größe (global) / Motiv (lokal)', j + 1, v.sku, v.sku.length, v.farbe, v.groesse, v.lshopGroesse, v.motiv, v.articleNr, v.preis ? 'ja' : 'nein', '']));
   }
-  log(`\nShop-Aufrufe fuer --write: ${aufrufe.summe} (2-s-Takt: ca. ${Math.ceil(aufrufe.sekunden / 60)} min)`);
+  log(`\nBilder hochzuladen: ${offeneBilder} · Shop-Aufrufe fuer --write: ${aufrufe.summe} (2-s-Takt: ca. ${Math.ceil(aufrufe.sekunden / 60)} min, ohne Nachtrag Titel/ALT)`);
   log(`Shop-Aufrufe dieses Laufs: ${wc.zaehler.get} GET, ${wc.zaehler.post} POST · ${Math.round((Date.now() - t0) / 1000)} s`);
 
   if (CSV) {
@@ -116,6 +147,7 @@ async function run() {
     log(`CSV: ${csv.length - 1} Zeilen -> ${CSV}`);
   }
 
+  if (PRUEFEN) { await pruefeAnlage({ wc, plaene, reiter, medien, bilderJe, kategorieId: shop.kategorie?.id }); return; }
   if (!WRITE) { log('TROCKENLAUF – nichts geschrieben. Schreiben mit --write (erst nach Freigabe).'); return; }
 
   // ── Schreiblauf ──
@@ -141,9 +173,24 @@ async function run() {
     if (!sp.karte.vorhanden) await haengeZeileAn(sheets, spreadsheetId, 'SEO_Karte', karteZeile(reiter.SEO_Karte[0], kategorieId, heute));
     if (!sp.motive.vorhanden) await haengeZeileAn(sheets, spreadsheetId, 'Motive', sp.motive.werte);
 
-    const kontext = { kategorieId, attrIds: shop.attrIds, markeId: shop.marke.id, lieferzeit: lieferzeit.id };
+    const hoch = wc.getaktet('upload', ladeMedienHoch);
+    const text = wc.getaktet('upload', setzeMedienText);
+    const lade = async b => {
+      const r = await hoch({ shop: 'jfn', buffer: readFileSync(join(BILDER, b.quelle)), dateiname: b.dateiname, mimetype: 'image/jpeg', titel: b.titel, alt: b.titel });
+      if (!r.ok) throw Object.assign(new Error(`Upload ${b.dateiname}: HTTP ${r.status} ${r.data?.message ?? ''}`), { response: { status: r.status } });
+      let titel = medienTitel(r.data), alt = r.data.alt_text ?? '';
+      if (titel !== b.titel || alt !== b.titel) {
+        const tx = await text({ shop: 'jfn', id: r.data.id, titel: b.titel, alt: b.titel });
+        if (tx.ok) { titel = medienTitel(tx.data); alt = tx.data.alt_text ?? ''; }
+      }
+      return { id: r.data.id, src: r.data.source_url, titel, alt };
+    };
+    const kontextBasis = { kategorieId, attrIds: shop.attrIds, markeId: shop.marke.id, lieferzeit: lieferzeit.id };
     for (const p of bereit) {
       log(`\n[${p.artikel.modell}] ${p.artikel.titel}`);
+      const b = await ladeBilderHoch(bilderJe[p.artikel.modell], { zustand: medien, speichere: speichereMedien, lade, log });
+      log(`  Bilder: ${b.neu} hochgeladen, ${b.vorhanden} vorhanden`);
+      const kontext = { ...kontextBasis, bilder: b.bilder };
       const r = await legeArtikelAn(wc, p, kontext, { log });
       if (r.fehler.length || r.fehlend) {
         log(`  UNVOLLSTÄNDIG: ${r.fehlend} Kombinationen fehlen, ${r.fehler.length} Fehler – Sheets nicht geschrieben, Lauf hält an.`);
@@ -154,7 +201,9 @@ async function run() {
       const s = await schreibeArtikelSheets(sheets, spreadsheetId, p, { produktId: r.produktId, marke: shop.marke.name, wcIds: r.wcIds });
       log(`  Produkt ${r.produktId}: ${r.angelegt} angelegt, ${r.vorhanden} vorhanden · ${s.ssot}: Maske ${s.maskeNeu ? 'neu' : 'vorhanden'}, Varianten ${s.variantenNeu}${s.hinweis ? ` · ${s.hinweis}` : ''}`);
     }
-  } catch (err) {
+  } catch (fehler) {
+    let err = fehler;
+    if (!(err instanceof AnlageStopp) && istStoppFehler(err)) err = new AnlageStopp(err.message, { hinweis: 'bei Kategorie, Termen oder Bild-Upload' }, err);
     if (err instanceof AnlageStopp) {
       log(`\nSTOPP: ${err.message}`);
       log(`Stand: ${JSON.stringify(err.stand)}`);
@@ -164,8 +213,49 @@ async function run() {
     }
     throw err;
   } finally {
-    log(`Shop-Aufrufe: ${wc.zaehler.get} GET, ${wc.zaehler.post} POST, Takt ${TAKT_MS / 1000} s`);
+    log(`Shop-Aufrufe: ${wc.zaehler.get} GET, ${wc.zaehler.post} POST, ${wc.zaehler.upload ?? 0} Upload, Takt ${TAKT_MS / 1000} s`);
   }
+}
+
+// ── --pruefen: angelegte Entwuerfe zuruecklesen (nur GET) ──
+async function pruefeAnlage({ wc, plaene, reiter, medien, bilderJe, kategorieId }) {
+  const E = reiter.Erfassungsmaske, V = reiter.Varianten;
+  const ec = n => E[0].indexOf(n), vc = n => V[0].indexOf(n);
+  const zeilen = [];
+  for (const p of plaene.filter(x => x.status === 'bereit')) {
+    const f = [];
+    const kurz = await findeProdukt(wc, p.artikelnummer);
+    if (!kurz) { zeilen.push({ artikel: p.artikel.modell, fehler: 'Produkt fehlt' }); continue; }
+    const { data: prod } = await wc.get(`products/${kurz.id}`);
+    const vars = await leseAlleVariationen(wc, kurz.id);
+    const bilder = bilderAusZustand(bilderJe[p.artikel.modell] ?? [], medien);
+    if (prod.status !== 'draft') f.push(`Status ${prod.status}`);
+    if (!prod.categories?.some(c => c.id === kategorieId)) f.push('Kategorie Halloween fehlt');
+    if (prod.shipping_class !== p.artikel.versand) f.push(`Versandklasse ${prod.shipping_class}`);
+    if (prod.reviews_allowed !== true) f.push('reviews_allowed nicht true');
+    const ids = (prod.images ?? []).map(i => i.id);
+    if (bilder && JSON.stringify(ids) !== JSON.stringify(galerie(bilder).map(i => i.id))) f.push(`Galerie ${ids.join(',')}`);
+    const ax = Object.fromEntries((prod.attributes ?? []).map(a => [a.name, a.id]));
+    if (!ax.Farbe || !ax['Größe'] || ax.Motiv !== 0) f.push(`Attribute ${JSON.stringify(ax)}`);
+    const motivAus = v => v.attributes.find(a => a.name === 'Motiv')?.option;
+    const skuSoll = new Set(p.varianten.map(v => v.sku));
+    const m = E.slice(1).find(r => r[ec('Artikelnummer')] === p.artikelnummer);
+    const ssot = m?.[ec('ID')] ?? '';
+    const vz = V.slice(1).filter(r => r[0] === ssot);
+    const vIds = new Set(vars.map(v => String(v.id)));
+    zeilen.push({
+      artikel: p.artikel.modell, id: kurz.id, status: prod.status, variationen: `${vars.length}/${p.varianten.length}`,
+      ohnePreis: vars.filter(v => !v.regular_price).length,
+      ohneGla: vars.filter(v => (v.meta_data ?? []).find(x => x.key === '_wc_gla_color')?.value !== p.farbe).length,
+      ohneLz: vars.filter(v => lieferzeitAusMetaData(v.meta_data) !== '-1').length,
+      bildFalsch: bilder ? vars.filter(v => v.image?.id !== bilder.motive[motivAus(v)]).length : 'ohne Zustand',
+      skuFalsch: vars.filter(v => !skuSoll.has(v.sku)).length, galerie: ids.length,
+      maske: m ? `${ssot} / ${m[ec('Produkt-ID')]}` : 'fehlt',
+      varianten: `${vz.filter(r => vIds.has(String(r[vc('WC_Variation_ID')]))).length}/${vz.length}`,
+      fehler: f.join('; '),
+    });
+  }
+  console.table(zeilen);
 }
 
 run().catch(err => { console.error(err?.message ?? err); if (err?.stand) console.error(`Stand: ${JSON.stringify(err.stand)}`); process.exit(1); });

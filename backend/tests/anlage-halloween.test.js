@@ -3,8 +3,10 @@
 // Blockteilung, Payloads (Farbe/Groesse global mit id, Motiv lokal),
 // Abbruch bei Pruefseite und Fortsetzen ohne Doppelanlage, Takt.
 
+import { jest } from '@jest/globals';
 import {
   ARTIKEL, MOTIVE, KURZ, BLOCK_MAX, AnlageStopp,
+  ordneMockups, bildListe, ladeBilderHoch, bilderAusZustand, MOTIV_ZEILE,
   teileInBloecke, shopGroesse, groessenImBereich, preisFuer, preisVorlage, planeArtikel,
   produktPayload, variationsPayloads, variantenSheetPayload, maskeBody, naechsteSsotIds, planeSheets,
   geplanteAufrufe, getakteterClient, legeArtikelAn, fehlendeKombinationen, attributIds,
@@ -30,8 +32,10 @@ const LSHOP = [
 ];
 const JH180 = zeilen('JH180', 'Washed Black', ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL']);
 
+// JH180 entfaellt (Inhaber 10.10.); die Farbwahl aus LShop_Modelle bleibt mit diesem Testartikel abgedeckt.
+const JH180_ARTIKEL = { titel: 'Test Hoodie', modell: 'JH180', farbe: null, von: null, bis: null, versand: 'paket', keyphrase: 'Test Hoodie', synonyme: [] };
 const plan = (modell, { lshop = LSHOP, preise } = {}) =>
-  planeArtikel({ artikel: ARTIKEL.find(a => a.modell === modell), lshopZeilen: lshop, groessenTerme: GROESSEN_TERME, preise });
+  planeArtikel({ artikel: modell === 'JH180' ? JH180_ARTIKEL : ARTIKEL.find(a => a.modell === modell), lshopZeilen: lshop, groessenTerme: GROESSEN_TERME, preise });
 
 describe('Festlegungen', () => {
   test('8 Motive in der Reihenfolge der Entscheidung, SKU-Teile eindeutig', () => {
@@ -42,19 +46,19 @@ describe('Festlegungen', () => {
     expect(new Set(MOTIVE.map(m => m.sku)).size).toBe(8);
     for (const m of MOTIVE) expect(m.sku).toMatch(/^[a-z0-9-]+$/);
   });
-  test('5 Artikel, gemeinsame Kurzbezeichnung', () => {
-    expect(ARTIKEL.map(a => a.modell)).toEqual(['E3000', 'E3005', 'JH030', 'JH030F', 'JH180']);
+  test('4 Artikel (JH180 entfaellt), gemeinsame Kurzbezeichnung', () => {
+    expect(ARTIKEL.map(a => a.modell)).toEqual(['E3000', 'E3005', 'JH030', 'JH030F']);
     expect(KURZ).toBe('HW-Halloween');
   });
 });
 
 describe('SKU-Bildung', () => {
   const alle = [...LSHOP, ...JH180];
-  const plaene = ARTIKEL.map(a => plan(a.modell, { lshop: alle }));
+  const plaene = [...ARTIKEL.map(a => a.modell), 'JH180'].map(m => plan(m, { lshop: alle }));
 
   test('alle Artikel bereit, Artikelnummer <Modell>/HW-Halloween', () => {
     expect(plaene.map(p => p.status)).toEqual(['bereit', 'bereit', 'bereit', 'bereit', 'bereit']);
-    expect(plaene.map(p => p.artikelnummer)).toEqual(ARTIKEL.map(a => `${a.modell}/HW-Halloween`));
+    expect(plaene.map(p => p.artikelnummer)).toEqual([...ARTIKEL.map(a => a.modell), 'JH180'].map(m => `${m}/HW-Halloween`));
   });
 
   test(`jede Variations-SKU <= ${SKU_MAX} Zeichen, eindeutig ueber alle Artikel`, () => {
@@ -344,5 +348,89 @@ describe('Takt', () => {
     await wc.get('a'); uhr += 500; await wc.get('b'); await wc.post('c');
     expect(gewartet).toEqual([1500, 2000]);
     expect(wc.zaehler).toEqual({ get: 2, post: 1, put: 0 });
+  });
+});
+
+// ── HW3: Bilder, Motivtexte, Upload ─────────────────────────────────────────
+
+describe('HW3: Mockups und Bilder', () => {
+  // Echte Dateinamen aus dem Postfach (halloween/mockups), Stand 10.10.
+  const MOCKUPS = [
+    'E3000 Halloween_free_hugs.jpg', 'E3000 Halloween_ich_will_doch_nur_spielen.jpg', 'E3000 Halloween_stay_alive.jpg',
+    'E3000 Halloween_ther_the_otter.jpg', 'E3000 Halloween_there_the_dog.jpg', 'E3000 Halloween_trust_me.jpg',
+    'E3000 Halloween_vertrau_mir.jpg', 'E3000 Halloween_wegen_kuchens.jpg',
+    'E3005 Halloween_free_hugs.jpg', 'E3005 Halloween_ich_will_doch_nur_spielen.jpg', 'E3005 Halloween_stay_alive.jpg',
+    'E3005 Halloween_ther_the_otter.jpg', 'E3005 Halloween_there_the_dog.jpg', 'E3005 Halloween_trust_me.jpg',
+    'E3005 Halloween_vertrau_mir.jpg', 'E3005 Halloween_wegen_kuchens.jpg',
+    ...['JH030F', 'JH030'].flatMap(p => [
+      `${p}_Deep_black_Halloween Kuchens.jpg`, `${p}_Deep_black_Halloween free_hugsjpg.jpg`, `${p}_Deep_black_Halloween nur_spielen.jpg`,
+      `${p}_Deep_black_Halloween vertrau_mir.jpg`, `${p}_Deep_black_Halloween_stay_alive.jpg`, `${p}_Deep_black_Halloween_there_the_dog.jpg`,
+      `${p}_Deep_black_Halloween_there_the_otter.jpg`, `${p}_Deep_black_Halloween_trus_me.jpg`]),
+  ];
+
+  test('32 Mockups: je Artikel 8, jedes Motiv genau einmal, JH030 und JH030F getrennt', () => {
+    const { zuordnung, fehler } = ordneMockups(MOCKUPS);
+    expect(fehler).toEqual([]);
+    for (const a of ARTIKEL) expect(Object.keys(zuordnung[a.modell]).sort()).toEqual(MOTIVE.map(m => m.titel).sort());
+    expect(zuordnung.JH030["Trust me, I'm a Doctor"]).toBe('JH030_Deep_black_Halloween_trus_me.jpg');
+    expect(zuordnung.JH030F['Ich bin wegen des Kuchens hier']).toBe('JH030F_Deep_black_Halloween Kuchens.jpg');
+    expect(zuordnung.E3000['There the Otter']).toBe('E3000 Halloween_ther_the_otter.jpg');
+  });
+
+  test('Fehler = Stopp: fehlendes Motiv, doppeltes Motiv, unbekannte Datei', () => {
+    expect(ordneMockups(MOCKUPS.filter(d => d !== 'E3000 Halloween_trust_me.jpg')).fehler)
+      .toEqual(["E3000: 7 Mockups statt 8 (fehlt: Trust me, I'm a Doctor)"]);
+    expect(ordneMockups([...MOCKUPS, 'E3000 Halloween_trust_me_2.jpg']).fehler[0]).toMatch(/doppelt/);
+    expect(ordneMockups([...MOCKUPS, 'BY102 Halloween_dog.jpg']).fehler).toEqual(['BY102 Halloween_dog.jpg: kein Artikel (Präfix)']);
+  });
+
+  test('Upload-Liste: Sammelbild vorn, 8 Motive, SEO-Dateinamen, Titel = ALT', () => {
+    const { zuordnung } = ordneMockups(MOCKUPS);
+    const l = bildListe(ARTIKEL[0], zuordnung.E3000);
+    expect(l).toHaveLength(9);
+    expect(l[0]).toEqual({ schluessel: 'sammel', quelle: 'sammelbild-E3000.jpg', dateiname: 'halloween-shirt-herren-alle-motive.jpg', titel: 'Halloween Shirt Herren alle Motive' });
+    expect(l[1]).toMatchObject({ dateiname: 'halloween-shirt-herren-there-the-dog.jpg', titel: 'Halloween Shirt Herren There the Dog', quelle: 'mockups/E3000 Halloween_there_the_dog.jpg' });
+    expect(l[4].dateiname).toBe('halloween-shirt-herren-trust-me-im-a-doctor.jpg');
+    expect(l[7].dateiname).toBe('halloween-shirt-herren-stay-alive-challenge-accepted.jpg');
+    expect(new Set(l.map(b => b.dateiname)).size).toBe(9);
+  });
+
+  test('Galerie und Variationsbild ueber Motiv', () => {
+    const p = plan('E3005', { preise: { E3005: { basis: 27 } } });
+    const bilder = { sammel: 900, motive: Object.fromEntries(MOTIVE.map((m, i) => [m.titel, 901 + i])) };
+    const b = produktPayload(p, { kategorieId: 1, attrIds: ATTR_IDS, markeId: 7, lieferzeit: '21', bilder });
+    expect(b.images.map(i => i.id)).toEqual([900, 901, 902, 903, 904, 905, 906, 907, 908]);
+    const v = variationsPayloads(p, ATTR_IDS, bilder);
+    for (const x of v) expect(x.image.id).toBe(bilder.motive[x.attributes[2].option]);
+    expect(() => variationsPayloads(p, ATTR_IDS, { sammel: 1, motive: {} })).toThrow(/Bild für Motiv/);
+  });
+
+  test('Upload: nur Fehlende, Zustand nach jedem Bild gespeichert (Fortsetzen ohne Doppel-Upload)', async () => {
+    const { zuordnung } = ordneMockups(MOCKUPS);
+    const l = bildListe(ARTIKEL[1], zuordnung.E3005);
+    const zustand = { [l[0].dateiname]: { id: 500 } };
+    let n = 600; const gespeichert = [];
+    const lade = jest.fn(async b => ({ id: n++, src: `x/${b.dateiname}`, titel: b.titel, alt: b.titel }));
+    const r = await ladeBilderHoch(l, { zustand, speichere: z => gespeichert.push(Object.keys(z).length), lade });
+    expect(lade).toHaveBeenCalledTimes(8);
+    expect(r).toMatchObject({ neu: 8, vorhanden: 1 });
+    expect(r.bilder.sammel).toBe(500);
+    expect(gespeichert).toEqual([2, 3, 4, 5, 6, 7, 8, 9]);
+    const r2 = await ladeBilderHoch(l, { zustand, speichere: () => {}, lade });
+    expect(lade).toHaveBeenCalledTimes(8);
+    expect(r2.neu).toBe(0);
+    expect(bilderAusZustand(l, {})).toBeNull();
+  });
+});
+
+describe('HW3: Motive-Zeile (freigegeben)', () => {
+  test('volle Aufdrucke, Zombie-Arzt statt Pestdoktor, Druck vollfarbig, Offen leer, kein Werkname', () => {
+    expect(MOTIV_ZEILE.motiv).toContain('„There the Dog – in the pan becomes crazy!“ (Mops in der Pfanne)');
+    expect(MOTIV_ZEILE.motiv).toContain('„Vertrau mir, ich bin Arzt!“ (Zombie-Arzt im Kittel)');
+    expect(MOTIV_ZEILE.motiv).toContain("„Trust me, I'm a Doctor“ (Pestdoktor)");
+    expect(MOTIV_ZEILE.motiv).toContain('Horror-Clown mit Kettensäge');
+    expect(MOTIV_ZEILE.motiv.match(/Pestdoktor/g)).toHaveLength(1);
+    expect(MOTIV_ZEILE).toMatchObject({ druckposition: 'Front, großflächig', druckfarben: 'vollfarbig', offen: '' });
+    expect(MOTIV_ZEILE.motiv).not.toMatch(/fanart|serie/i);
   });
 });

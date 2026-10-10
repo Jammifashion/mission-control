@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
-import { getShopConfig } from '../lib/shopConfig.js';
-import { pruefeFetchAntwort, fetchMitZeitlimit } from '../lib/hosterPruefseite.js';
+import { ladeMedienHoch } from '../lib/wpMedien.js';
 
 const router = Router();
 
@@ -29,34 +28,19 @@ router.post('/media-upload', (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Keine Datei hochgeladen (Feld "file" fehlt).' });
 
-    const cfg = getShopConfig(req.query.shop);
-    if (!cfg.wcUrl || !cfg.wpAppUser || !cfg.wpAppPassword)
+    // lib/wpMedien.js: Zeitlimit 60 s (Schreiben), Pruefseite -> HosterPruefseiteError.
+    const { ok, status, data, fehlt } = await ladeMedienHoch({
+      shop: req.query.shop, buffer: req.file.buffer,
+      dateiname: req.file.originalname, mimetype: req.file.mimetype,
+    });
+    if (fehlt)
       return res.status(503).json({ error: 'WordPress-Zugangsdaten nicht konfiguriert (WC_URL/WP_APP_PASSWORD).' });
-
-    const auth = Buffer.from(`${cfg.wpAppUser}:${cfg.wpAppPassword}`).toString('base64');
-    const filename = (req.file.originalname || 'upload.jpg').replace(/"/g, '');
-    const baseUrl = cfg.wcUrl.replace(/\/$/, '');
-
-    // Zeitlimit 60 s (Schreiben); Ablauf -> ShopZeitueberschreitungError, Ergebnis unklar.
-    const wpRes = await fetchMitZeitlimit(`${baseUrl}/wp-json/wp/v2/media`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Basic ${auth}`,
-        'Content-Type': req.file.mimetype || 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-      },
-      body: req.file.buffer,
-    }, { shop: cfg.label, pfad: '/wp-json/wp/v2/media' });
-
-    if (wpRes.status === 401)
+    if (status === 401)
       return res.status(401).json({ error: 'WordPress-Anmeldung fehlgeschlagen (Application Password prüfen).' });
-    if (wpRes.status === 413)
+    if (status === 413)
       return res.status(413).json({ error: 'WordPress hat die Datei als zu groß abgelehnt.' });
-
-    // HTML statt JSON (Hoster-Pruefseite, auch mit 200) -> HosterPruefseiteError, keine Wiederholung.
-    const data = await pruefeFetchAntwort(wpRes, { shop: cfg.label, pfad: '/wp-json/wp/v2/media' });
-    if (!wpRes.ok)
-      return res.status(wpRes.status).json({ error: data?.message || `WordPress-Upload fehlgeschlagen (HTTP ${wpRes.status}).` });
+    if (!ok)
+      return res.status(status).json({ error: data?.message || `WordPress-Upload fehlgeschlagen (HTTP ${status}).` });
 
     res.status(201).json({ attachmentId: data.id, sourceUrl: data.source_url });
   } catch (err) { next(err); }
