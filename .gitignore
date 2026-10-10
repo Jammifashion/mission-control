@@ -72,3 +72,6 @@ MC-Backup-*.json.gz
 # Hilfsskripte (Einmal-Laeufe gegen den Shop, ueber getWcClient). Nie committen,
 # nach dem Lauf loeschen.
 _ed*.mjs
+
+# Lokale Preise fuer scripts/anlage-halloween.js (Inhaber setzt sie). Nie committen.
+backend/scripts/.preise-halloween.json

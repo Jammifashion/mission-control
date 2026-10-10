@@ -227,6 +227,17 @@ Neue Sektionen immer mit Anker versehen:
   woocommerce.js sortiert damit die Optionen der Achse "Größe" und die Variationen (Farbe,
   dann Groesse, menu_order). Frontend-Spiegel: Block `Groessen: Anfang/Ende`.
 
+- backend/lib/anlageHalloween.js – Anlage Halloween 2026 (HW2) per Skript statt Maske
+  (`scripts/anlage-halloween.js`, Trockenlauf Standard, `--write` erst nach Freigabe). Kategorie
+  "Halloween" + 5 Entwuerfe `<Modell>/HW-Halloween`, Achsen Farbe + Groesse GLOBAL (mit `id`,
+  ueber den Namen aus products/attributes) und Motiv LOKAL (ohne id). WC REST: `name` ohne `id`
+  = lokales Attribut - die Maske sendet nie eine id. Variations-SKU mit Motiv-Kurzteil (volle
+  Titel > 50 Zeichen). L-Shop "XXL" -> Shop-Term "2XL" ueber den Groessenrang. Takt 2 s,
+  variations/batch <= 50, Pruefseite/Zeitlimit/502 -> `AnlageStopp`; erneuter Lauf findet
+  Produkt (SKU) und Variationen (Kombination) und legt nur Fehlendes an. Sheets erst nach
+  vollstaendiger Shop-Anlage (RAW). Preise nur aus `backend/scripts/.preise-halloween.json`
+  (gitignored), nie in Ausgabe/CSV.
+
 ## Deprecated
 - Sheet-Spalten `Versand-Modell` und `PayPal-Modell` im Partner-Reiter sind seit Sprint 4.2 deprecated.
   Der Kalkulations-Helper nutzt zentrale Fixkosten + `Porto-Modell`. Spalten bleiben im Sheet, werden
