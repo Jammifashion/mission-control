@@ -2,7 +2,11 @@
 // + 4 variable Artikel als Entwurf. Logik: backend/lib/anlageHalloween.js.
 //
 // Verwendung:
-//   node backend/scripts/anlage-halloween.js --bilder <ordner> [--csv <pfad>] [--nur <Modell>] [--write | --pruefen]
+//   node backend/scripts/anlage-halloween.js --bilder <ordner> [--kollektion halloween|ch-halloween] [--csv <pfad>] [--nur <Modell>] [--write | --pruefen]
+//
+// --kollektion (HW4): halloween (Standard, 8 Motive, Sammelbild) oder ch-halloween
+// (Crocodiles Hamburg Kinder, ohne Motiv-Achse, ein Bild je Artikel aus <ordner>,
+// feste Kategorien, FP_Artikel-Zeile fuer den Festpreis-Partner).
 //
 // --bilder: Ordner mit mockups/ (32 Mockups, Namen vom Inhaber) und den lokal
 // gebauten sammelbild-<Modell>.jpg. Fuer --write Pflicht.
@@ -37,7 +41,7 @@ import { ladeMedienHoch, setzeMedienText, medienTitel } from '../lib/wpMedien.js
 import { leseAlleVariationen } from '../lib/wc-variation-ids.js';
 import { lieferzeitAusMetaData } from '../lib/lieferzeiten.js';
 import {
-  ARTIKEL, KATEGORIE, MOTIVE, KURZ, TAKT_MS, AnlageStopp, istStoppFehler,
+  KOLLEKTIONEN, MOTIVE, TAKT_MS, AnlageStopp, istStoppFehler, fpArtikelZeile,
   ordneMockups, bildListe, bilderAusZustand, ladeBilderHoch, sammelbildDatei, galerie,
   planeArtikel, planeSheets, geplanteAufrufe, preisVorlage, getakteterClient, leseShopStand,
   findeProdukt, legeArtikelAn, schreibeArtikelSheets, haengeZeileAn, standardLieferzeit, kategorieZeile, karteZeile,
@@ -49,6 +53,8 @@ const wert  = name => { const i = args.indexOf(name); return i >= 0 ? args[i + 1
 const CSV   = wert('--csv');
 const NUR   = wert('--nur');
 const BILDER = wert('--bilder');
+const K = KOLLEKTIONEN[wert('--kollektion') ?? 'halloween'];
+if (!K) throw new Error(`Unbekannte Kollektion "${wert('--kollektion')}" (${Object.keys(KOLLEKTIONEN).join(', ')}).`);
 const PRUEFEN = args.includes('--pruefen');
 const PREISDATEI = resolve(dirname(fileURLToPath(import.meta.url)), '.preise-halloween.json');
 const MEDIENDATEI = resolve(dirname(fileURLToPath(import.meta.url)), '.halloween-medien.json');
@@ -75,29 +81,35 @@ async function run() {
   const lieferzeit = standardLieferzeit(reiter.Struktur_Lieferzeiten);
 
   const wc = getakteterClient(getWcClient('jfn'));
-  const shop = await leseShopStand(wc, { markenSlug: getShopConfig('jfn').markenSlug });
+  const shop = await leseShopStand(wc, { markenSlug: getShopConfig('jfn').markenSlug, k: K });
+  if (shop.kategorienFehlen?.length) throw new Error(`Kategorien fehlen im Shop: ${shop.kategorienFehlen.join(', ')} – Stopp.`);
 
   let preise = lesePreise();
-  const artikelListe = ARTIKEL.filter(a => !NUR || a.modell === NUR);
-  let plaene = artikelListe.map(artikel => planeArtikel({ artikel, lshopZeilen, groessenTerme: shop.groessenTerme, preise }));
+  const artikelListe = K.artikel.filter(a => !NUR || a.modell === NUR);
+  let plaene = artikelListe.map(artikel => planeArtikel({ artikel, lshopZeilen, groessenTerme: shop.groessenTerme, preise, k: K }));
   if (!preise) {
     writeFileSync(PREISDATEI, JSON.stringify(preisVorlage(plaene), null, 2) + '\n');
     log(`Preisdatei fehlte – Vorlage mit leeren Werten angelegt: ${PREISDATEI}`);
     preise = lesePreise();
-    plaene = artikelListe.map(artikel => planeArtikel({ artikel, lshopZeilen, groessenTerme: shop.groessenTerme, preise }));
+    plaene = artikelListe.map(artikel => planeArtikel({ artikel, lshopZeilen, groessenTerme: shop.groessenTerme, preise, k: K }));
   }
 
   // Vorhandene Produkte (Fortsetzen): nur GET ueber die SKU.
   for (const p of plaene.filter(x => x.status === 'bereit')) p.imShop = await findeProdukt(wc, p.artikelnummer);
 
   const heute = heuteBerlin();
-  const sp = planeSheets(reiter, plaene, { kategorieId: shop.kategorie?.id ?? '', heute });
+  const sp = planeSheets(reiter, plaene, { kategorieId: shop.kategorie?.id ?? '', heute, k: K });
   const neueFarbTerme = [...new Set(plaene.filter(p => p.status === 'bereit' && !shop.farbTerme.some(f => f.toLowerCase() === p.farbe.toLowerCase())).map(p => p.farbe))];
   const neueGroessen = [...new Set(plaene.flatMap(p => p.groessen.filter(g => g.neuTerm).map(g => g.shop)))];
   // Bilder: Zuordnung pruefen (Stopp bei Fehler), Sammelbilder vorhanden?
   const medien = leseMedien();
   const bilderJe = {};
-  if (BILDER) {
+  if (BILDER && !K.motive) {
+    for (const a of artikelListe) {
+      if (!existsSync(join(BILDER, a.bilddatei))) throw new Error(`Bild fehlt: ${a.bilddatei}`);
+      bilderJe[a.modell] = bildListe(a, null, K);
+    }
+  } else if (BILDER) {
     const m = ordneMockups(readdirSync(join(BILDER, 'mockups')), artikelListe);
     if (m.fehler.length) throw new Error(`Mockups passen nicht – Stopp:\n  ${m.fehler.join('\n  ')}`);
     for (const a of artikelListe) {
@@ -113,10 +125,20 @@ async function run() {
   log(`\n${WRITE ? 'SCHREIBLAUF' : 'TROCKENLAUF'} Halloween – ${heute}`);
   log(`Zaehler: SSOT zuletzt ${sp.zaehler.ssotZuletzt}, Maske Z${sp.zaehler.maskeZuletzt}, Varianten Z${sp.zaehler.variantenZuletzt}, Motive Z${sp.zaehler.motiveZuletzt}, Struktur_Kategorien Z${sp.zaehler.kategorienZuletzt}, SEO_Karte Z${sp.zaehler.karteZuletzt}`);
   log(`Shop: Attribute Farbe=${shop.attrIds.farbe}, Größe=${shop.attrIds.groesse} (global, mit id); Motiv lokal (globales "Motiv": ${shop.motivGlobal ? `JA, id ${shop.motivGlobal}` : 'nein'})`);
-  log(`Kategorie "${KATEGORIE.name}": ${shop.kategorie ? `vorhanden (id ${shop.kategorie.id})` : 'fehlt – wird mit --write angelegt (parent 0)'}`);
+  log(K.kategorie
+    ? `Kategorie "${K.kategorie.name}": ${shop.kategorie ? `vorhanden (id ${shop.kategorie.id})` : 'fehlt – wird mit --write angelegt (parent 0)'}`
+    : `Kategorien (fest, im Shop vorhanden): ${shop.kategorie.ids.map((id, i) => `${id} ${shop.kategorie.namen[i]}`).join(' · ')}`);
+  log(`Kollektion ${K.schluessel}: Kurzbezeichnung ${K.kurz}, ${K.motive ? `${K.motive.length} Motive (Achse "Motiv")` : 'ohne Motiv-Achse'}`);
+  if (K.fp) {
+    const fp = await leseFpArtikel();
+    for (const p of plaene.filter(x => x.status === 'bereit')) {
+      const da = fp.rows.some(r => r[fp.header.indexOf('Partner-ID')] === K.fp.partnerId && r[fp.header.indexOf('Artikelname')] === p.artikel.titel);
+      log(`FP_Artikel ${K.fp.partnerId}: ${p.artikel.titel} – ${da ? 'Zeile vorhanden' : `neue Zeile ${JSON.stringify(fpArtikelZeile(fp.header, p, '<Produkt-ID>'))}`}`);
+    }
+  }
   log(`Marke: ${shop.marke ? shop.marke.name : 'FEHLT'} · Lieferzeit Standard: ${lieferzeit.name} (${lieferzeit.id}), Variationen "-1"`);
   log(`Farbterme neu: ${neueFarbTerme.join(', ') || '–'} · Größen-Terme neu: ${neueGroessen.join(', ') || '–'}`);
-  log(`Motive Z${sp.motive.zeile ?? '-'} ${sp.motive.vorhanden ? '(vorhanden)' : `"${KURZ}"`} · Struktur_Kategorien ${sp.kategorie.vorhanden ? 'vorhanden' : `Z${sp.kategorie.zeile}`} · SEO_Karte ${sp.karte.vorhanden ? 'vorhanden' : `Z${sp.karte.zeile}`}`);
+  log(`Motive Z${sp.motive.zeile ?? '-'} ${sp.motive.vorhanden ? '(vorhanden)' : `"${K.kurz}"`} · Struktur_Kategorien ${sp.kategorie.vorhanden ? 'vorhanden' : `Z${sp.kategorie.zeile}`} · SEO_Karte ${sp.karte.vorhanden ? 'vorhanden' : `Z${sp.karte.zeile}`}`);
 
   const csv = [['Artikel', 'Status', 'SSOT-ID (geplant)', 'Maske-Zeile', 'Varianten-Zeile', 'Artikelnummer', 'Versandklasse',
     'Achsen', 'Nr', 'Variations-SKU', 'SKU-Laenge', 'Farbe', 'Größe (Shop)', 'Größe (L-Shop)', 'Motiv', 'LShop_ArticleNr', 'Preis vorhanden', 'Hinweis']];
@@ -126,7 +148,7 @@ async function run() {
     const versandOk = shop.versandklassen.includes(p.artikel.versand);
     log(`\n[${p.artikel.modell}] ${p.artikel.titel} – ${p.status}`);
     if (p.status === 'bereit') {
-      log(`  Artikelnummer ${p.artikelnummer} · Farbe ${p.farbe} · ${p.groessen.length} Größen × ${MOTIVE.length} Motive = ${p.varianten.length} Variationen · Versand ${p.artikel.versand}${versandOk ? '' : ' (FEHLT im Shop)'}`);
+      log(`  Artikelnummer ${p.artikelnummer} · Farbe ${p.farbe} · ${p.groessen.length} Größen${K.motive ? ` × ${K.motive.length} Motive` : ""} = ${p.varianten.length} Variationen · Versand ${p.artikel.versand}${versandOk ? '' : ' (FEHLT im Shop)'}`);
       log(`  Größen/ArticleNr: ${p.groessen.map(g => `${g.shop}${g.shop !== g.lshop ? `(${g.lshop})` : ''}=${g.articleNr}`).join(' ')}`);
       log(`  SKU längste: ${Math.max(...p.varianten.map(v => v.sku.length))} Zeichen · Preise fehlen: ${ohnePreis}`);
       log(`  Sheets: ${a.vorhanden ? `Maske vorhanden (${a.ssot}, Z${a.maskeZeile})` : `SSOT ${a.ssot}, Maske Z${a.maskeZeile}, Varianten Z${a.variantenVon}–Z${a.variantenBis}`}`);
@@ -147,7 +169,7 @@ async function run() {
     log(`CSV: ${csv.length - 1} Zeilen -> ${CSV}`);
   }
 
-  if (PRUEFEN) { await pruefeAnlage({ wc, plaene, reiter, medien, bilderJe, kategorieId: shop.kategorie?.id }); return; }
+  if (PRUEFEN) { await pruefeAnlage({ wc, plaene, reiter, medien, bilderJe, kategorieIds: K.kategorieIds ?? [shop.kategorie?.id] }); return; }
   if (!WRITE) { log('TROCKENLAUF – nichts geschrieben. Schreiben mit --write (erst nach Freigabe).'); return; }
 
   // ── Schreiblauf ──
@@ -160,8 +182,8 @@ async function run() {
 
   try {
     let kategorieId = shop.kategorie?.id;
-    if (!kategorieId) {
-      const { data: k } = await wc.post('products/categories', { name: KATEGORIE.name, slug: KATEGORIE.slug, parent: KATEGORIE.parent });
+    if (K.kategorie && !kategorieId) {
+      const { data: k } = await wc.post('products/categories', { name: K.kategorie.name, slug: K.kategorie.slug, parent: K.kategorie.parent });
       kategorieId = k?.id;
       if (!kategorieId) throw new Error('Kategorie: keine ID zurück.');
       log(`Kategorie angelegt: ${kategorieId}`);
@@ -169,8 +191,8 @@ async function run() {
     for (const name of neueFarbTerme) { await wc.post(`products/attributes/${shop.attrIds.farbe}/terms`, { name }); log(`Farbterm angelegt: ${name}`); }
     for (const name of neueGroessen) { await wc.post(`products/attributes/${shop.attrIds.groesse}/terms`, { name }); log(`Größen-Term angelegt: ${name}`); }
 
-    if (!sp.kategorie.vorhanden) await haengeZeileAn(sheets, spreadsheetId, 'Struktur_Kategorien', kategorieZeile(reiter.Struktur_Kategorien[0], kategorieId));
-    if (!sp.karte.vorhanden) await haengeZeileAn(sheets, spreadsheetId, 'SEO_Karte', karteZeile(reiter.SEO_Karte[0], kategorieId, heute));
+    if (!sp.kategorie.vorhanden) await haengeZeileAn(sheets, spreadsheetId, 'Struktur_Kategorien', kategorieZeile(reiter.Struktur_Kategorien[0], kategorieId, K));
+    if (!sp.karte.vorhanden) await haengeZeileAn(sheets, spreadsheetId, 'SEO_Karte', karteZeile(reiter.SEO_Karte[0], kategorieId, heute, K));
     if (!sp.motive.vorhanden) await haengeZeileAn(sheets, spreadsheetId, 'Motive', sp.motive.werte);
 
     const hoch = wc.getaktet('upload', ladeMedienHoch);
@@ -199,6 +221,12 @@ async function run() {
         return;
       }
       const s = await schreibeArtikelSheets(sheets, spreadsheetId, p, { produktId: r.produktId, marke: shop.marke.name, wcIds: r.wcIds });
+      if (K.fp) {
+        const fp = await leseFpArtikel();
+        const da = fp.rows.some(x => x[fp.header.indexOf('Produkt-ID')] === String(r.produktId));
+        if (!da) await haengeZeileAn(sheets, process.env.BUSINESS_SHEET_ID, 'FP_Artikel', fpArtikelZeile(fp.header, p, r.produktId));
+        log(`  FP_Artikel ${K.fp.partnerId}: ${da ? 'Zeile vorhanden' : 'Zeile angelegt'}`);
+      }
       log(`  Produkt ${r.produktId}: ${r.angelegt} angelegt, ${r.vorhanden} vorhanden · ${s.ssot}: Maske ${s.maskeNeu ? 'neu' : 'vorhanden'}, Varianten ${s.variantenNeu}${s.hinweis ? ` · ${s.hinweis}` : ''}`);
     }
   } catch (fehler) {
@@ -217,8 +245,16 @@ async function run() {
   }
 }
 
+// FP_Artikel (Business-Sheet) lesen - fuer die Festpreis-Zeile (nur Kollektionen mit fp).
+async function leseFpArtikel() {
+  const sheets = google.sheets({ version: 'v4', auth: await getGoogleAuth() });
+  const { data } = await sheets.spreadsheets.values.get({ spreadsheetId: process.env.BUSINESS_SHEET_ID, range: "'FP_Artikel'" });
+  const [header = [], ...rows] = data.values ?? [];
+  return { header, rows };
+}
+
 // ── --pruefen: angelegte Entwuerfe zuruecklesen (nur GET) ──
-async function pruefeAnlage({ wc, plaene, reiter, medien, bilderJe, kategorieId }) {
+async function pruefeAnlage({ wc, plaene, reiter, medien, bilderJe, kategorieIds }) {
   const E = reiter.Erfassungsmaske, V = reiter.Varianten;
   const ec = n => E[0].indexOf(n), vc = n => V[0].indexOf(n);
   const zeilen = [];
@@ -230,13 +266,14 @@ async function pruefeAnlage({ wc, plaene, reiter, medien, bilderJe, kategorieId 
     const vars = await leseAlleVariationen(wc, kurz.id);
     const bilder = bilderAusZustand(bilderJe[p.artikel.modell] ?? [], medien);
     if (prod.status !== 'draft') f.push(`Status ${prod.status}`);
-    if (!prod.categories?.some(c => c.id === kategorieId)) f.push('Kategorie Halloween fehlt');
+    const fehltKat = kategorieIds.filter(id => !prod.categories?.some(c => c.id === id));
+    if (fehltKat.length) f.push(`Kategorie fehlt: ${fehltKat.join(',')}`);
     if (prod.shipping_class !== p.artikel.versand) f.push(`Versandklasse ${prod.shipping_class}`);
     if (prod.reviews_allowed !== true) f.push('reviews_allowed nicht true');
     const ids = (prod.images ?? []).map(i => i.id);
-    if (bilder && JSON.stringify(ids) !== JSON.stringify(galerie(bilder).map(i => i.id))) f.push(`Galerie ${ids.join(',')}`);
+    if (bilder && JSON.stringify(ids) !== JSON.stringify(galerie(bilder, K).map(i => i.id))) f.push(`Galerie ${ids.join(',')}`);
     const ax = Object.fromEntries((prod.attributes ?? []).map(a => [a.name, a.id]));
-    if (!ax.Farbe || !ax['Größe'] || ax.Motiv !== 0) f.push(`Attribute ${JSON.stringify(ax)}`);
+    if (!ax.Farbe || !ax['Größe'] || (K.motive ? ax.Motiv !== 0 : 'Motiv' in ax)) f.push(`Attribute ${JSON.stringify(ax)}`);
     const motivAus = v => v.attributes.find(a => a.name === 'Motiv')?.option;
     const skuSoll = new Set(p.varianten.map(v => v.sku));
     const m = E.slice(1).find(r => r[ec('Artikelnummer')] === p.artikelnummer);
@@ -248,7 +285,7 @@ async function pruefeAnlage({ wc, plaene, reiter, medien, bilderJe, kategorieId 
       ohnePreis: vars.filter(v => !v.regular_price).length,
       ohneGla: vars.filter(v => (v.meta_data ?? []).find(x => x.key === '_wc_gla_color')?.value !== p.farbe).length,
       ohneLz: vars.filter(v => lieferzeitAusMetaData(v.meta_data) !== '-1').length,
-      bildFalsch: bilder ? vars.filter(v => v.image?.id !== bilder.motive[motivAus(v)]).length : 'ohne Zustand',
+      bildFalsch: bilder ? vars.filter(v => v.image?.id !== (K.motive ? bilder.motive[motivAus(v)] : bilder.einzel)).length : 'ohne Zustand',
       skuFalsch: vars.filter(v => !skuSoll.has(v.sku)).length, galerie: ids.length,
       maske: m ? `${ssot} / ${m[ec('Produkt-ID')]}` : 'fehlt',
       varianten: `${vz.filter(r => vIds.has(String(r[vc('WC_Variation_ID')]))).length}/${vz.length}`,

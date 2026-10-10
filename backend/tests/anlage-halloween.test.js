@@ -7,6 +7,7 @@ import { jest } from '@jest/globals';
 import {
   ARTIKEL, MOTIVE, KURZ, BLOCK_MAX, AnlageStopp,
   ordneMockups, bildListe, ladeBilderHoch, bilderAusZustand, MOTIV_ZEILE,
+  KOLLEKTIONEN, fpArtikelZeile, KI_SATZ, mitKiSatz,
   teileInBloecke, shopGroesse, groessenImBereich, preisFuer, preisVorlage, planeArtikel,
   produktPayload, variationsPayloads, variantenSheetPayload, maskeBody, naechsteSsotIds, planeSheets,
   geplanteAufrufe, getakteterClient, legeArtikelAn, fehlendeKombinationen, attributIds,
@@ -432,5 +433,97 @@ describe('HW3: Motive-Zeile (freigegeben)', () => {
     expect(MOTIV_ZEILE.motiv.match(/Pestdoktor/g)).toHaveLength(1);
     expect(MOTIV_ZEILE).toMatchObject({ druckposition: 'Front, großflächig', druckfarben: 'vollfarbig', offen: '' });
     expect(MOTIV_ZEILE.motiv).not.toMatch(/fanart|serie/i);
+  });
+});
+
+// ── HW4: Kollektion Crocodiles Hamburg Halloween Kinder ─────────────────────
+
+describe('HW4: Kollektion ch-halloween (ohne Motiv-Achse)', () => {
+  const K = KOLLEKTIONEN['ch-halloween'];
+  const LS = [
+    ...zeilen('BY185', 'Black', ['110/116', '122/128', '134/140', '146/152', '158/164']),
+    ...zeilen('E399', 'Black', ['92', '98', '104', '116', '128', '140', '152', '164']),
+  ];
+  const TERME = [...GROESSEN_TERME, '110/116', '122/128', '134/140', '146/152', '158/164', '92', '116', '128', '140', '152', '164'];
+  const p = (modell, preise = { BY185: { basis: 50 }, E399: { basis: 25 } }) =>
+    planeArtikel({ artikel: K.artikel.find(a => a.modell === modell), lshopZeilen: LS, groessenTerme: TERME, preise, k: K });
+  const bilder = { einzel: 4711 };
+
+  test('Hoodie BY185 (nicht BY188), Shirt E399, Kurzbezeichnung CH-Halloween', () => {
+    expect(K.artikel.map(a => a.modell)).toEqual(['BY185', 'E399']);
+    expect(p('BY185').artikelnummer).toBe('BY185/CH-Halloween');
+    expect(p('E399').artikelnummer).toBe('E399/CH-Halloween');
+  });
+
+  test('eine Variante je Groesse, alle Groessen, SKU wie Bestand (BY185/CH-Logo-black-110116)', () => {
+    const h = p('BY185');
+    expect(h.varianten.map(v => v.sku)).toEqual(['110116', '122128', '134140', '146152', '158164'].map(g => `BY185/CH-Halloween-black-${g}`));
+    expect(p('E399').varianten).toHaveLength(8);
+    for (const v of h.varianten) expect(v.motiv).toBeNull();
+  });
+
+  test('Produkt: feste Kategorien, keine Motiv-Achse, ein Bild', () => {
+    const b = produktPayload(p('E399'), { attrIds: ATTR_IDS, markeId: 7, lieferzeit: '21', bilder });
+    expect(b.categories).toEqual([549, 589, 686, 703, 776].map(id => ({ id })));
+    expect(b.attributes.map(a => a.id ?? a.name)).toEqual([3, 2]);
+    expect(b.images).toEqual([{ id: 4711 }]);
+    expect(b.shipping_class).toBe('grossbrief');
+    expect(produktPayload(p('BY185'), { attrIds: ATTR_IDS, bilder }).shipping_class).toBe('paket');
+  });
+
+  test('Variationen: nur Farbe + Groesse, Bild = Artikelbild, "-1", _wc_gla_color', () => {
+    const v = variationsPayloads(p('BY185'), ATTR_IDS, bilder);
+    expect(v[0].attributes).toEqual([{ id: 3, name: 'Farbe', option: 'Black' }, { id: 2, name: 'Größe', option: '110/116' }]);
+    for (const x of v) {
+      expect(x.image).toEqual({ id: 4711 });
+      expect(x.regular_price).toBe('50.00');
+      expect(x.meta_data).toEqual(expect.arrayContaining([{ key: '_lieferzeit', value: '-1' }, { key: '_wc_gla_color', value: 'Black' }]));
+    }
+  });
+
+  test('Varianten-Reiter ohne E3/V3, Maske mit Kurzbezeichnung und Kategorienamen', () => {
+    const z = variantenSheetPayload(p('E399'), [1]);
+    expect(z[0]).toMatchObject({ e1: 'Farbe', e2: 'Größe', v2: '92', e3: '', v3: '' });
+    expect(maskeBody(p('E399'))).toMatchObject({
+      'Artikelkurzbezeichnung': 'CH-Halloween', 'Artikelnummer': 'E399/CH-Halloween',
+      'Kategorien': 'Crocodiles Hamburg, Kinder, Kollektion 26/27, Kinder 26/27, Halloween',
+      'Fokus_Keyphrase': 'Crocodiles Hamburg Halloween T-Shirt Kinder',
+    });
+  });
+
+  test('Bildliste: ein Bild, SEO-Dateiname, Titel = Produkttitel', () => {
+    const l = bildListe(K.artikel[0], null, K);
+    expect(l).toEqual([{ schluessel: 'einzel', quelle: 'BY188_black_suesses_oder_es_scheppert.jpg',
+      dateiname: 'crocodiles-hamburg-halloween-hoodie-kinder.jpg', titel: 'Crocodiles Hamburg Halloween Hoodie Kinder' }]);
+    expect(bilderAusZustand(l, { 'crocodiles-hamburg-halloween-hoodie-kinder.jpg': { id: 9 } })).toEqual({ einzel: 9 });
+  });
+
+  test('Sheet-Plan: Motive-Zeile CH-Halloween, keine neue Kategorie/Karte', () => {
+    const reiter = {
+      Erfassungsmaske: [['ID', 'Artikelnummer'], ['JFN-2026-0423', 'JH030F/HW-Halloween']],
+      Varianten: [['SSOT-ID']], Motive: [['Artikelkurzbezeichnung', 'Motiv', 'Druckposition', 'Druckfarben', 'Serie_Kontext', 'Offen']],
+      Struktur_Kategorien: [['Kategoriename']], SEO_Karte: [['Typ', 'Name']],
+    };
+    const sp = planeSheets(reiter, [p('BY185'), p('E399')], { heute: '2026-10-10', k: K });
+    expect(sp.kategorie).toEqual({ vorhanden: true });
+    expect(sp.karte).toEqual({ vorhanden: true });
+    expect(sp.motive.werte).toEqual(['CH-Halloween', K.motivZeile.motiv, 'Front, großflächig', 'vollfarbig', 'Crocodiles Hamburg Halloween 2026', '']);
+    expect(K.motivZeile.motiv).toMatch(/^„Süßes oder es scheppert!“/);
+  });
+
+  test('FP_Artikel-Zeile nach Bestandsmuster (FP-001, 0/0, B/P, Artikelkategorie)', () => {
+    const h = ['Partner-ID', 'Produkt-ID', 'Artikelname', 'Festpreis-EK-Netto', 'Handling-Gebühr', 'Versandart', 'WC-Kategorie', 'Artikelkategorie'];
+    expect(fpArtikelZeile(h, p('BY185'), 21600)).toEqual(['FP-001', '21600', 'Crocodiles Hamburg Halloween Hoodie Kinder', 0, 0, 'P', 'Crocodiles Hamburg', 'Kinderhoodie']);
+    expect(fpArtikelZeile(h, p('E399'), 1)[5]).toBe('B');
+    expect(fpArtikelZeile(h, plan('E3000'), 1)).toBeNull();
+  });
+});
+
+describe('HW4: KI-Satz', () => {
+  test('ans Ende der Langbeschreibung, nur einmal', () => {
+    expect(KI_SATZ).toBe('Das Druckmotiv wurde mit KI gestaltet.');
+    const a = mitKiSatz('<h2>X</h2><p>Text.</p>');
+    expect(a).toBe('<h2>X</h2><p>Text.</p>\n<p>Das Druckmotiv wurde mit KI gestaltet.</p>');
+    expect(mitKiSatz(a)).toBe(a);
   });
 });

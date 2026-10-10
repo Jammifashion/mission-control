@@ -117,6 +117,58 @@ export const MOTIV_ZEILE = {
   offen: '',
 };
 
+// ── Kollektionen (HW4) ──────────────────────────────────────────────────────
+// Eine Kollektion = Kurzbezeichnung, Artikel, Kategorien, Motive-Zeile, Bilder.
+// motive null = keine Motiv-Achse (ein Motiv, ein Bild je Artikel, Datei bilddatei).
+// kategorie = neu anzulegende Oberkategorie; kategorieIds = feste, vorhandene IDs
+// (gemessen, beim Lauf im Shop nachgeprueft). fp = Festpreis-Partner (FP_Artikel).
+export const HALLOWEEN = {
+  schluessel: 'halloween', kurz: KURZ, motive: MOTIVE, artikel: ARTIKEL,
+  kategorie: KATEGORIE, kategorieIds: null, kategorienText: KATEGORIE.name,
+  motivZeile: MOTIV_ZEILE, kategorieSeoHinweis: KATEGORIE_SEO_HINWEIS, kategorieKarte: KATEGORIE_KARTE, fp: null,
+};
+
+// Crocodiles Hamburg Halloween Kinder (HW4, Entscheidungen Inhaber 10.10.): Partner
+// mit vollen Rechten, Motiv "Suesses oder es scheppert!". Hoodie = BY185 (Inhaber:
+// BY188 ist im Bestand die Kinderjacke), Shirt = E399, Black, alle Groessen.
+// Kategorien wie die Kinderartikel der Kollektion 26/27 (gemessen an 20882, 19343)
+// plus Halloween: 549 Crocodiles Hamburg, 589 Kinder, 686 Kollektion 26/27,
+// 703 Kinder 26/27, 776 Halloween.
+export const CH_HALLOWEEN = {
+  schluessel: 'ch-halloween', kurz: 'CH-Halloween', motive: null,
+  artikel: [
+    { titel: 'Crocodiles Hamburg Halloween Hoodie Kinder', modell: 'BY185', farbe: 'Black', von: null, bis: null, versand: 'paket',
+      bilddatei: 'BY188_black_suesses_oder_es_scheppert.jpg', fpArtikelkategorie: 'Kinderhoodie', fpVersandart: 'P',
+      keyphrase: 'Crocodiles Hamburg Halloween Hoodie Kinder', synonyme: ['Crocodiles Kinderhoodie Halloween', 'Halloween Hoodie Kinder Eishockey'] },
+    { titel: 'Crocodiles Hamburg Halloween T-Shirt Kinder', modell: 'E399', farbe: 'Black', von: null, bis: null, versand: 'grossbrief',
+      bilddatei: 'E399black_suesses_oder_es_scheppert.jpg', fpArtikelkategorie: 'Kindershirts', fpVersandart: 'B',
+      keyphrase: 'Crocodiles Hamburg Halloween T-Shirt Kinder', synonyme: ['Crocodiles Kindershirt Halloween', 'Halloween T-Shirt Kinder Eishockey'] },
+  ],
+  kategorie: null, kategorieIds: [549, 589, 686, 703, 776],
+  kategorienText: 'Crocodiles Hamburg, Kinder, Kollektion 26/27, Kinder 26/27, Halloween',
+  motivZeile: {
+    motiv: '„Süßes oder es scheppert!“: grimmiges Krokodil im Crocodiles-Trikot mit Eishockeyschläger, '
+      + 'Schriftzug „Crocodiles Hamburg“, Halloween-Flammen, Fledermäuse und Spinnennetz',
+    druckposition: 'Front, großflächig', druckfarben: 'vollfarbig', druckfarbeJeTextilfarbe: 'nein, fest',
+    serieKontext: 'Crocodiles Hamburg Halloween 2026', nurIntern: '', offen: '',
+  },
+  kategorieSeoHinweis: null, kategorieKarte: null,
+  fp: { partnerId: 'FP-001', wcKategorie: 'Crocodiles Hamburg' },
+};
+
+export const KOLLEKTIONEN = { [HALLOWEEN.schluessel]: HALLOWEEN, [CH_HALLOWEEN.schluessel]: CH_HALLOWEEN };
+
+// Satz zur KI-Gestaltung des Druckmotivs (HW4): ans Ende der Langbeschreibung.
+// Im Bestand gab es keinen (73 Crocodiles-Artikel gelesen) - Vorschlag aus dem Auftrag.
+export const KI_SATZ = 'Das Druckmotiv wurde mit KI gestaltet.';
+export const KI_ABSATZ = `<p>${KI_SATZ}</p>`;
+
+/** Langbeschreibung mit KI-Satz am Ende (einmal). */
+export function mitKiSatz(html) {
+  const h = String(html ?? '').trimEnd();
+  return h.includes(KI_SATZ) ? h : `${h}${h ? '\n' : ''}${KI_ABSATZ}`;
+}
+
 const t = v => String(v ?? '').trim();
 const klein = v => t(v).toLowerCase();
 
@@ -201,12 +253,12 @@ export function preisVorlage(plaene) {
  * @returns {{ artikel, status: 'bereit'|'wartet auf LS1'|'fehler', artikelnummer, farbe,
  *             groessen: {lshop, shop, articleNr}[], varianten: object[], hinweise: string[] }}
  */
-export function planeArtikel({ artikel, lshopZeilen, groessenTerme, preise }) {
+export function planeArtikel({ artikel, lshopZeilen, groessenTerme, preise, k = HALLOWEEN }) {
   const hinweise = [];
-  const plan = { artikel, status: 'bereit', artikelnummer: '', farbe: artikel.farbe, groessen: [], varianten: [], hinweise };
+  const plan = { artikel, k, status: 'bereit', artikelnummer: '', farbe: artikel.farbe, groessen: [], varianten: [], hinweise };
   const fehler = (msg, status = 'fehler') => { hinweise.push(msg); plan.status = status; return plan; };
 
-  const nr = baueArtikelnummer(artikel.modell, KURZ);
+  const nr = baueArtikelnummer(artikel.modell, k.kurz);
   if (nr.fehler) return fehler(nr.fehler);
   plan.artikelnummer = nr.artikelnummer;
 
@@ -243,17 +295,18 @@ export function planeArtikel({ artikel, lshopZeilen, groessenTerme, preise }) {
     plan.groessen.push({ lshop: g, shop: shop ?? g, articleNr: v.articleNr, neuTerm: !shop });
   }
 
-  // Varianten: Groesse aufsteigend, je Groesse die Motive in fester Reihenfolge.
+  // Varianten: Groesse aufsteigend, je Groesse die Motive in fester Reihenfolge
+  // (ohne Motiv-Achse: eine Variante je Groesse).
   for (const g of plan.groessen) {
-    for (const m of MOTIVE) {
+    for (const m of k.motive ?? [null]) {
       plan.varianten.push({
-        farbe, groesse: g.shop, lshopGroesse: g.lshop, motiv: m.titel, motivSku: m.sku,
+        farbe, groesse: g.shop, lshopGroesse: g.lshop, motiv: m?.titel ?? null, motivSku: m?.sku ?? null,
         articleNr: g.articleNr, preis: preisFuer(preise, artikel.modell, g.shop),
       });
     }
   }
   const skus = baueVariantenSkus(plan.artikelnummer,
-    plan.varianten.map(v => ({ attrs: [{ value: v.farbe }, { value: v.groesse }, { value: v.motivSku }] })));
+    plan.varianten.map(v => ({ attrs: [{ value: v.farbe }, { value: v.groesse }, ...(v.motivSku ? [{ value: v.motivSku }] : [])] })));
   if (skus.fehler) return fehler(skus.fehler);
   plan.varianten.forEach((v, i) => { v.sku = skus.skus[i]; });
 
@@ -270,7 +323,7 @@ export function variationsAttribute(v, attrIds = {}) {
   return [
     { ...(attrIds.farbe ? { id: attrIds.farbe } : {}), name: FARB_ACHSE, option: v.farbe },
     { ...(attrIds.groesse ? { id: attrIds.groesse } : {}), name: GROESSE_ACHSE, option: v.groesse },
-    { name: MOTIV_ACHSE, option: v.motiv },
+    ...(v.motiv ? [{ name: MOTIV_ACHSE, option: v.motiv }] : []),
   ];
 }
 
@@ -283,7 +336,7 @@ export function produktPayload(plan, { kategorieId, attrIds, markeId, lieferzeit
   if (!attrIds?.farbe || !attrIds?.groesse) throw new Error('Attribut-IDs fuer Farbe/Größe fehlen.');
   return {
     // HW3: Galerie = Sammelbild vorn, dann die 8 Motive in Motiv-Reihenfolge.
-    ...(bilder ? { images: galerie(bilder) } : {}),
+    ...(bilder ? { images: galerie(bilder, plan.k) } : {}),
     name: plan.artikel.titel,
     type: 'variable',
     status: 'draft',
@@ -292,13 +345,13 @@ export function produktPayload(plan, { kategorieId, attrIds, markeId, lieferzeit
     short_description: '',
     reviews_allowed: true,
     shipping_class: plan.artikel.versand,
-    categories: kategorieId ? [{ id: kategorieId }] : [],
+    categories: plan.k?.kategorieIds ? plan.k.kategorieIds.map(id => ({ id })) : (kategorieId ? [{ id: kategorieId }] : []),
     ...(markeId ? { brands: [{ id: markeId }] } : {}),
     meta_data: mitLieferzeit([], lieferzeit),
     attributes: [
       { id: attrIds.farbe,   position: 0, visible: true, variation: true, options: [plan.farbe] },
       { id: attrIds.groesse, position: 1, visible: true, variation: true, options: plan.groessen.map(g => g.shop) },
-      { name: MOTIV_ACHSE,   position: 2, visible: true, variation: true, options: MOTIVE.map(m => m.titel) },
+      ...((plan.k ?? HALLOWEEN).motive ? [{ name: MOTIV_ACHSE, position: 2, visible: true, variation: true, options: (plan.k ?? HALLOWEEN).motive.map(m => m.titel) }] : []),
     ],
   };
 }
@@ -321,7 +374,7 @@ export function variationsPayloads(plan, attrIds, bilder) {
       attributes,
       meta_data: mitGoogleFarbe(mitLieferzeit([], LIEFERZEIT_WIE_ELTERN), attributes),
       // HW3: Variationsbild ueber "Motiv".
-      ...(bilder ? { image: { id: motivBild(bilder, v.motiv) } } : {}),
+      ...(bilder ? { image: { id: v.motiv ? motivBild(bilder, v.motiv) : einzelBild(bilder) } } : {}),
     };
   });
 }
@@ -362,8 +415,9 @@ export function ordneMockups(dateinamen, artikelListe = ARTIKEL) {
 }
 
 /** Upload-Liste eines Artikels: Sammelbild, dann 8 Motive (Reihenfolge MOTIVE). */
-export function bildListe(artikel, mockups) {
+export function bildListe(artikel, mockups, k = HALLOWEEN) {
   const basis = normalisiereTeil(artikel.titel);
+  if (!k.motive) return [{ schluessel: 'einzel', quelle: artikel.bilddatei, dateiname: `${basis}.jpg`, titel: artikel.titel }];
   return [
     { schluessel: 'sammel', quelle: sammelbildDatei(artikel.modell), dateiname: `${basis}-alle-motive.jpg`,
       titel: `${artikel.titel} alle Motive` },
@@ -378,11 +432,19 @@ export function bildListe(artikel, mockups) {
 export function bilderAusZustand(liste, zustand) {
   const id = b => zustand?.[b.dateiname]?.id ?? null;
   const ids = liste.map(id);
-  if (ids.some(x => !x)) return null;
+  if (!ids.length || ids.some(x => !x)) return null;
+  if (liste[0].schluessel === 'einzel') return { einzel: ids[0] };
   return { sammel: ids[0], motive: Object.fromEntries(liste.slice(1).map((b, i) => [b.schluessel, ids[i + 1]])) };
 }
 
-export const galerie = bilder => [{ id: bilder.sammel }, ...MOTIVE.map(m => ({ id: motivBild(bilder, m.titel) }))];
+export const galerie = (bilder, k = HALLOWEEN) => (k.motive
+  ? [{ id: bilder.sammel }, ...k.motive.map(m => ({ id: motivBild(bilder, m.titel) }))]
+  : [{ id: einzelBild(bilder) }]);
+
+function einzelBild(bilder) {
+  if (!bilder?.einzel) throw new Error('Artikelbild fehlt.');
+  return bilder.einzel;
+}
 
 function motivBild(bilder, motiv) {
   const id = bilder?.motive?.[motiv];
@@ -415,7 +477,7 @@ export function variantenSheetPayload(plan, wcIds = []) {
     nr: i + 1,
     e1: FARB_ACHSE, v1: v.farbe,
     e2: GROESSE_ACHSE, v2: v.groesse,
-    e3: MOTIV_ACHSE, v3: v.motiv,
+    e3: v.motiv ? MOTIV_ACHSE : '', v3: v.motiv ?? '',
     preis: v.preis !== null && v.preis !== undefined && v.preis !== '' ? Number(v.preis) : '',
     aktiv: true,
     wcVariationId: wcIds[i] ? Number(wcIds[i]) : '',
@@ -434,10 +496,10 @@ export function maskeBody(plan, { produktId = '', marke = '' } = {}) {
     'Produktname': plan.artikel.titel,
     'Produktart': 'Variabel',
     'L-Shop-Artikelnummer': plan.artikel.modell,
-    'Artikelkurzbezeichnung': KURZ,
+    'Artikelkurzbezeichnung': plan.k?.kurz ?? KURZ,
     'Artikelnummer': plan.artikelnummer,
     'Versandklasse': plan.artikel.versand,
-    'Kategorien': KATEGORIE.name,
+    'Kategorien': plan.k?.kategorienText ?? KATEGORIE.name,
     'Marke': marke,
     'Fokus_Keyphrase': plan.artikel.keyphrase,
     'Fokus_Synonyme': plan.artikel.synonyme.join(', '),
@@ -470,7 +532,7 @@ export function letzteZeile(werte) {
  * @param {object} reiter  { Erfassungsmaske, Varianten, Motive, Struktur_Kategorien, SEO_Karte } (Werte inkl. Kopf)
  * @param {object[]} plaene  aus planeArtikel
  */
-export function planeSheets(reiter, plaene, { kategorieId = '', heute } = {}) {
+export function planeSheets(reiter, plaene, { kategorieId = '', heute, k = HALLOWEEN } = {}) {
   const E = reiter.Erfassungsmaske ?? [[]], V = reiter.Varianten ?? [[]], M = reiter.Motive ?? [[]];
   const K = reiter.Struktur_Kategorien ?? [[]], S = reiter.SEO_Karte ?? [[]];
   const eh = E[0] ?? [];
@@ -494,13 +556,13 @@ export function planeSheets(reiter, plaene, { kategorieId = '', heute } = {}) {
 
   const mh = M[0] ?? [];
   const mKurz = requireHeader(mh, 'Artikelkurzbezeichnung', 'Motive');
-  const motivDa = M.slice(1).some(r => t(r[mKurz]) === KURZ);
+  const motivDa = M.slice(1).some(r => t(r[mKurz]) === k.kurz);
   const kh = K[0] ?? [];
   const kName = requireHeader(kh, 'Kategoriename', 'Struktur_Kategorien');
-  const kategorieDa = K.slice(1).some(r => klein(r[kName]) === klein(KATEGORIE.name));
+  const kategorieDa = !k.kategorie || K.slice(1).some(r => klein(r[kName]) === klein(k.kategorie.name));
   const sh = S[0] ?? [];
   const sTyp = requireHeader(sh, 'Typ', 'SEO_Karte'), sName = requireHeader(sh, 'Name', 'SEO_Karte');
-  const karteDa = S.slice(1).some(r => t(r[sTyp]) === 'Kategorie' && klein(r[sName]) === klein(KATEGORIE.name));
+  const karteDa = !k.kategorie || S.slice(1).some(r => t(r[sTyp]) === 'Kategorie' && klein(r[sName]) === klein(k.kategorie.name));
 
   return {
     artikel,
@@ -509,9 +571,9 @@ export function planeSheets(reiter, plaene, { kategorieId = '', heute } = {}) {
       maskeZuletzt: letzteZeile(E), variantenZuletzt: letzteZeile(V), motiveZuletzt: letzteZeile(M),
       kategorienZuletzt: letzteZeile(K), karteZuletzt: letzteZeile(S),
     },
-    motive:     motivDa ? { vorhanden: true } : { zeile: letzteZeile(M) + 1, werte: motivZeile(mh, heute) },
-    kategorie:  kategorieDa ? { vorhanden: true } : { zeile: letzteZeile(K) + 1, werte: kategorieZeile(kh, kategorieId) },
-    karte:      karteDa ? { vorhanden: true } : { zeile: letzteZeile(S) + 1, werte: karteZeile(sh, kategorieId, heute) },
+    motive:     motivDa ? { vorhanden: true } : { zeile: letzteZeile(M) + 1, werte: motivZeile(mh, heute, k) },
+    kategorie:  kategorieDa ? { vorhanden: true } : { zeile: letzteZeile(K) + 1, werte: kategorieZeile(kh, kategorieId, k) },
+    karte:      karteDa ? { vorhanden: true } : { zeile: letzteZeile(S) + 1, werte: karteZeile(sh, kategorieId, heute, k) },
   };
 }
 
@@ -524,26 +586,27 @@ function zeileNachKopf(header, felder) {
   return header.map(h => { const k = Object.keys(felder).find(n => findHeader([h], n) === 0); return k ? felder[k] : ''; });
 }
 
-export function motivZeile(header, heute) {
+export function motivZeile(header, heute, k = HALLOWEEN) {
+  const z = k.motivZeile;
   return zeileNachKopf(header, {
-    Artikelkurzbezeichnung: KURZ, Motiv: MOTIV_ZEILE.motiv, Druckposition: MOTIV_ZEILE.druckposition,
-    Druckfarben: MOTIV_ZEILE.druckfarben, Druckfarbe_je_Textilfarbe: MOTIV_ZEILE.druckfarbeJeTextilfarbe,
-    Serie_Kontext: MOTIV_ZEILE.serieKontext, Nur_intern: MOTIV_ZEILE.nurIntern, Offen: MOTIV_ZEILE.offen, Stand: heute ?? '',
+    Artikelkurzbezeichnung: k.kurz, Motiv: z.motiv, Druckposition: z.druckposition,
+    Druckfarben: z.druckfarben, Druckfarbe_je_Textilfarbe: z.druckfarbeJeTextilfarbe,
+    Serie_Kontext: z.serieKontext, Nur_intern: z.nurIntern, Offen: z.offen, Stand: heute ?? '',
   });
 }
 
-export function kategorieZeile(header, kategorieId) {
+export function kategorieZeile(header, kategorieId, k = HALLOWEEN) {
   return zeileNachKopf(header, {
-    Kategorienummer: kategorieId ? String(kategorieId) : '', Kategorien: KATEGORIE.name,
-    Kategoriename: KATEGORIE.name, SEO_Hinweis: KATEGORIE_SEO_HINWEIS,
+    Kategorienummer: kategorieId ? String(kategorieId) : '', Kategorien: k.kategorie.name,
+    Kategoriename: k.kategorie.name, SEO_Hinweis: k.kategorieSeoHinweis,
   });
 }
 
-export function karteZeile(header, kategorieId, heute) {
+export function karteZeile(header, kategorieId, heute, k = HALLOWEEN) {
   return zeileNachKopf(header, {
-    Typ: 'Kategorie', Name: KATEGORIE.name, Pfad: KATEGORIE.name, WC_ID: kategorieId ? String(kategorieId) : '',
-    Oberkategorie: KATEGORIE.name, Soll_Keyphrase: KATEGORIE_KARTE.keyphrase,
-    Soll_Synonyme: KATEGORIE_KARTE.synonyme.join(', '), Status: 'Vorschlag', Stand: heute ?? '',
+    Typ: 'Kategorie', Name: k.kategorie.name, Pfad: k.kategorie.name, WC_ID: kategorieId ? String(kategorieId) : '',
+    Oberkategorie: k.kategorie.name, Soll_Keyphrase: k.kategorieKarte.keyphrase,
+    Soll_Synonyme: k.kategorieKarte.synonyme.join(', '), Status: 'Vorschlag', Stand: heute ?? '',
     Notiz: 'HW2: vorbereitet, Yoast-Werte folgen',
   });
 }
@@ -617,20 +680,29 @@ export async function leseTerme(wc, attributId) {
 }
 
 /** Shop-Vorlauf (nur GET): Attribute, Terme, Versandklassen, Kategorie, Marke. */
-export async function leseShopStand(wc, { markenSlug = 'jammifashion' } = {}) {
+export async function leseShopStand(wc, { markenSlug = 'jammifashion', k = HALLOWEEN } = {}) {
   const attrListe = seitenListe((await wc.get('products/attributes', { per_page: 100 })).data, { wc, pfad: 'products/attributes' });
   const ids = attributIds(attrListe);
   const farbTerme = await leseTerme(wc, ids.farbe);
   const groessenTerme = await leseTerme(wc, ids.groesse);
   const klassen = seitenListe((await wc.get('products/shipping_classes', { per_page: 100 })).data, { wc, pfad: 'products/shipping_classes' });
-  const kats = seitenListe((await wc.get('products/categories', { search: KATEGORIE.name, per_page: 100 })).data, { wc, pfad: 'products/categories' });
-  const kategorie = kats.find(k => klein(k.name) === klein(KATEGORIE.name) && Number(k.parent) === 0) ?? null;
+  let kategorie = null, kategorienFehlen = [];
+  if (k.kategorie) {
+    const kats = seitenListe((await wc.get('products/categories', { search: k.kategorie.name, per_page: 100 })).data, { wc, pfad: 'products/categories' });
+    kategorie = kats.find(x => klein(x.name) === klein(k.kategorie.name) && Number(x.parent) === 0) ?? null;
+  } else {
+    // Feste Kategorien: nur ueber die IDs nachpruefen (include).
+    const kats = seitenListe((await wc.get('products/categories', { include: k.kategorieIds.join(','), per_page: 100 })).data, { wc, pfad: 'products/categories' });
+    kategorienFehlen = k.kategorieIds.filter(id => !kats.some(x => x.id === id));
+    kategorie = { ids: k.kategorieIds, namen: k.kategorieIds.map(id => kats.find(x => x.id === id)?.name ?? '?') };
+  }
   const marken = (await wc.get('products/brands', { slug: markenSlug })).data;
   const marke = (Array.isArray(marken) ? marken : [marken]).find(m => m?.slug === markenSlug) ?? null;
   return {
     attrIds: { farbe: ids.farbe, groesse: ids.groesse }, motivGlobal: ids.motivGlobal,
     farbTerme: farbTerme.map(x => x.name), groessenTerme: groessenTerme.map(x => x.name),
-    versandklassen: klassen.map(k => k.slug), kategorie: kategorie ? { id: kategorie.id, count: kategorie.count } : null,
+    versandklassen: klassen.map(x => x.slug),
+    kategorie: kategorie?.ids ? kategorie : (kategorie ? { id: kategorie.id, count: kategorie.count } : null), kategorienFehlen,
     marke: marke ? { id: marke.id, name: marke.name } : null,
   };
 }
@@ -735,6 +807,17 @@ export async function schreibeArtikelSheets(sheets, spreadsheetId, plan, { produ
     requestBody: { values: zeilen },
   });
   return { ssot, maskeNeu, variantenNeu: zeilen.length, hinweis: null };
+}
+
+/** FP_Artikel-Zeile (Business-Sheet) fuer einen Festpreis-Partner, Muster der Bestandszeilen. */
+export function fpArtikelZeile(header, plan, produktId) {
+  const fp = plan.k?.fp;
+  if (!fp) return null;
+  return zeileNachKopf(header, {
+    'Partner-ID': fp.partnerId, 'Produkt-ID': String(produktId ?? ''), Artikelname: plan.artikel.titel,
+    'Festpreis-EK-Netto': 0, 'Handling-Gebühr': 0, Versandart: plan.artikel.fpVersandart,
+    'WC-Kategorie': fp.wcKategorie, Artikelkategorie: plan.artikel.fpArtikelkategorie,
+  });
 }
 
 /** Eine fertige Zeile anhaengen (Motive, Struktur_Kategorien, SEO_Karte), RAW. */
