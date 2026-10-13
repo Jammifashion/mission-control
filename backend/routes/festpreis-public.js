@@ -5,7 +5,7 @@
 import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
-import { aggregateFpVerkaeufe, loadOffeneInterne } from './festpreis-portal.js';
+import { aggregateFpVerkaeufe, loadOffeneInterne, ladeVerpackung } from './festpreis-portal.js';
 import { parseKonfiguration } from '../utils/partner-kalkulation.js';
 
 const router = Router();
@@ -138,15 +138,27 @@ router.get('/saldo', async (req, res, next) => {
     const mwstProzent = parseKonfiguration(kRows, kH).mwstProzent;
     const interne = await loadOffeneInterne(sheets, sheetId, partnerId, null, null);
 
+    // Verpackungspauschale (VP1) über alle offenen Zeilen inkl. Storno-Gegenbuchungen,
+    // wie die Abrechnung. Fehlt der Wert: nicht abziehen, Portal zeigt "in Prüfung".
+    const offeneMitStorno = rows.filter(r =>
+      (r[vh('Partner-ID')] ?? '') === partnerId &&
+      (r[vh('Status Abrechnung')] ?? '').toLowerCase() === 'offen'
+    );
+    const v = await ladeVerpackung(sheets, sheetId, partnerId, offeneMitStorno, rows, vh);
+    const verpackung = v.status === 'keine' ? null
+      : v.status === 'ok' ? { status: 'ok', anzahl: v.anzahl, betrag: v.betrag, summe: v.summe }
+      : { status: 'in_pruefung' };   // Grund und Bestellnummern nur intern
+
     const auszahlungNetto  = round2(summen.auszahlung);
     const auszahlungBrutto = round2(auszahlungNetto * (1 + mwstProzent / 100));
-    const saldoBrutto      = round2(auszahlungBrutto - interne.summe);
+    const saldoBrutto      = round2(auszahlungBrutto - interne.summe - (verpackung?.summe ?? 0));
     const saldoNetto       = round2(saldoBrutto / (1 + mwstProzent / 100));
 
     res.json({
       mwstProzent,
       auszahlungNetto, auszahlungBrutto,
       interneSumme: interne.summe,
+      verpackung,
       saldoNetto, saldoBrutto,
     });
   } catch (err) { next(err); }

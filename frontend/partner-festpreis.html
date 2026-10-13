@@ -251,6 +251,15 @@
             <span>Direkte Bestellungen (brutto)</span>
             <span class="amount saldo-negative">−${fmt(d.interneSumme)}</span>
           </div>
+          ${d.verpackung?.status === 'ok' ? `
+          <div class="saldo-row">
+            <span>Verpackungspauschale: ${d.verpackung.anzahl} Bestellungen × ${fmt(d.verpackung.betrag)} (brutto)</span>
+            <span class="amount saldo-negative">−${fmt(d.verpackung.summe)}</span>
+          </div>` : d.verpackung ? `
+          <div class="saldo-row muted">
+            <span>Verpackungspauschale</span>
+            <span class="amount">in Prüfung</span>
+          </div>` : ''}
           <hr class="saldo-divider">
           <div class="saldo-row saldo-final">
             <span>${label}</span>

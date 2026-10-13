@@ -11213,7 +11213,13 @@
             if (!r.ok) throw new Error(d.error ?? r.statusText);
             statusEl.style.color = 'var(--success)';
             const internTxt = d.interne ? `, ${d.interne} interne (−${Number(d.interneSumme).toFixed(2)} € brutto)` : '';
-            statusEl.textContent = `Abrechnung ${d.abrechnungsId} erstellt – ${d.positionen} Pos.${internTxt}, ${Number(d.gesamtBrutto).toFixed(2)} € brutto Auszahlung`;
+            const verpOk = d.verpackung?.status === 'ok';
+            const verpTxt = verpOk ? `, Verpackung ${d.verpackung.anzahl} × ${Number(d.verpackung.betrag).toFixed(2)} € (−${Number(d.verpackung.summe).toFixed(2)} € brutto)` : '';
+            statusEl.textContent = `Abrechnung ${d.abrechnungsId} erstellt – ${d.positionen} Pos.${internTxt}${verpTxt}, ${Number(d.gesamtBrutto).toFixed(2)} € brutto Auszahlung`;
+            if (d.verpackung && !verpOk) {
+              statusEl.style.color = 'var(--danger)';
+              statusEl.textContent += ` – ⚠ OHNE Verpackungspauschale: ${(d.verpackung.hinweise || []).join(' ')}`;
+            }
             loadFpAbrechnungen();
           } catch (e) {
             statusEl.style.color = 'var(--danger)'; statusEl.textContent = `Fehler: ${e.message}`;
@@ -11254,7 +11260,7 @@
                 try {
                   const pos = JSON.parse(r['Positionen'] || '');
                   if (pos && pos.produkteGruppen?.length)
-                    detailCell = `<td colspan="8" style="padding:0.5rem 0.6rem;background:rgba(255,255,255,0.02);"><div style="overflow-x:auto;">${fpSummaryTableHTML(pos)}</div></td>`;
+                    detailCell = `<td colspan="8" style="padding:0.5rem 0.6rem;background:rgba(255,255,255,0.02);"><div style="overflow-x:auto;">${fpSummaryTableHTML(pos)}</div>${fpVerpackungHTML(pos.verpackung)}</td>`;
                 } catch {}
                 return `<tr>
                 <td style="font-size:0.82rem;font-weight:600;cursor:pointer;" data-abr-detail="${idSafe}"><span class="fp-abr-caret">▸</span> ${abrId}</td>
@@ -11473,6 +11479,18 @@
           </table>`;
         }
 
+        // Verpackungspauschale (VP1): eigene Zeile "N Bestellungen × Betrag = Summe (brutto)".
+        // Fehlt der Wert im Sheet (FP_Partner), laut melden statt 0 rechnen.
+        function fpVerpackungHTML(v) {
+          if (!v || v.status === 'keine') return '';
+          const fmt = x => Number(x || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          const hinweise = (v.hinweise || []).map(h => `<div style="color:var(--muted);font-size:0.78rem;">${h}</div>`).join('');
+          if (v.status !== 'ok') return `<div style="padding:0.3rem 0;color:var(--danger);font-weight:600;">⚠ ${(v.hinweise || []).join(' ') || 'Verpackungspauschale nicht berechnet.'} Die Abrechnung enthält dann KEINE Pauschale.</div>`;
+          return `<div style="display:flex;justify-content:space-between;padding:0.15rem 0;color:var(--danger);">
+              <span>− Verpackungspauschale: ${v.anzahl} Bestellungen × ${fmt(v.betrag)} € (brutto)</span><span>−${fmt(v.summe)} €</span></div>
+            <div style="color:var(--muted);font-size:0.78rem;">nicht gezählt: ${v.abholung || 0} Abholung, ${v.vorAb || 0} vor ${v.ab || '–'}</div>${hinweise}`;
+        }
+
         // Interne-Bestellungen-Block + finale Auszahlungs-Aufstellung für das Vorschau-Modal.
         function fpInterneBlockHTML(d) {
           const fmt = v => Number(v || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -11501,6 +11519,7 @@
                 <span>Auszahlung brutto</span><span>${fmt(d.auszahlungBrutto)} €</span></div>
               <div style="display:flex;justify-content:space-between;padding:0.15rem 0;color:var(--danger);">
                 <span>− Interne Bestellungen (brutto)</span><span>−${fmt(d.interneSumme)} €</span></div>
+              ${fpVerpackungHTML(d.verpackung)}
               <div style="display:flex;justify-content:space-between;padding:0.4rem 0 0.1rem;font-weight:700;font-size:1rem;border-top:2px solid var(--border);margin-top:0.3rem;">
                 <span>Auszahlbetrag brutto</span><span>${fmt(d.gesamtBrutto)} €</span></div>
               <div style="display:flex;justify-content:space-between;padding:0.1rem 0;color:var(--muted);font-size:0.8rem;">

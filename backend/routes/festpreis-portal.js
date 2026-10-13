@@ -8,6 +8,9 @@ import { getWcClient } from '../lib/shopConfig.js';
 import { seitenGrenze, seitenListe } from '../lib/hosterPruefseite.js';
 import { berechneFestpreisAnteil } from '../utils/festpreis-kalkulation.js';
 import { parseKonfiguration } from '../utils/partner-kalkulation.js';
+import {
+  berechneVerpackung, verpackungsKondition, versandmethodeAus, VERSANDMETHODE,
+} from '../utils/festpreis-verpackung.js';
 
 const router = Router();
 
@@ -49,7 +52,8 @@ async function fetchFpOrders(wc, statuses, afterParam) {
 //   5=Stückzahl, 6=Festpreis-EK, 7=Handling, 8=Porto-Einnahme, 9=Porto-Kosten,
 //   10=Versandnk, 11=PayPal, 12=Gesamt-Netto, 13=Gesamt-Brutto,
 //   14=Status Abrechnung, 15=Produkt-ID, 16=Storno-Status (Q),
-//   17=Artikelkategorie (R), 18=Festpreis (S), 19=Mehrkosten (T)
+//   17=Artikelkategorie (R), 18=Festpreis (S), 19=Mehrkosten (T),
+//   20=VK-Netto (U), 21=Handlingskosten (V), 22=Versandmethode (W, VP1)
 function buildFpStornoRows(vRows, stornoOrders) {
   const ORD_COL    = 2;
   const ART_COL    = 3;
@@ -83,7 +87,7 @@ function buildFpStornoRows(vRows, stornoOrders) {
     stornoDone.add(dupKey);
 
     const counter = [];
-    for (let i = 0; i < 22; i++) {
+    for (let i = 0; i < 23; i++) {
       let v = r[i] ?? '';
       if (NEG_COLS.has(i) && v !== '') v = -toFloat(v);
       counter[i] = v;
@@ -221,6 +225,16 @@ async function loadOffeneInterne(sheets, sheetId, partnerId, von, bis) {
   const summe = Math.round(positionen.reduce((s, p) => s + p.summe, 0) * 100) / 100;
   const statusCol = h('Status') !== -1 ? String.fromCharCode(65 + h('Status')) : null;
   return { positionen, summe, statusCol };
+}
+
+// Verpackungspauschale (VP1) für die Zeilen einer Abrechnung: Kondition aus
+// FP_Partner, Bestelldatum/Versandmethode der Stornos aus allen Partner-Zeilen.
+async function ladeVerpackung(sheets, sheetId, partnerId, zeilen, alleZeilen, vh) {
+  const { header, rows } = await readTab(sheets, sheetId, TAB_FP_PARTNER);
+  const row = rows.find(r => (r[header.indexOf('Partner-ID')] ?? '') === partnerId);
+  const kondition = verpackungsKondition(row ? rowToObj(header, row) : {});
+  const partnerZeilen = alleZeilen.filter(r => (r[vh('Partner-ID')] ?? '') === partnerId);
+  return berechneVerpackung(zeilen, vh, kondition, partnerZeilen);
 }
 
 // ── GET /api/festpreis/partner ───────────────────────────────────────────────
@@ -553,9 +567,21 @@ router.get('/verkaeufe/summary', async (req, res, next) => {
     const mwstProzent = parseKonfiguration(kRows, kH).mwstProzent;
     const interne = partnerId ? await loadOffeneInterne(sheets, sheetId, partnerId, von, bis) : { positionen: [], summe: 0 };
 
+    // Verpackungspauschale (brutto) über DIESELBEN Zeilen wie POST /abrechnungen
+    // (inkl. Storno-Gegenbuchungen), nur mit Partner.
+    const verpackung = partnerId
+      ? await ladeVerpackung(sheets, sheetId, partnerId, rows.filter(r => {
+          if ((r[vh('Partner-ID')] ?? '') !== partnerId) return false;
+          if ((r[vh('Status Abrechnung')] ?? '').toLowerCase() !== statusFilter.toLowerCase()) return false;
+          const d = parseDate(r[vh('Datum')] ?? '');
+          return d && (!von || d >= von) && (!bis || d <= bis);
+        }), rows, vh)
+      : null;
+    const verpackungSumme = verpackung?.status === 'ok' ? verpackung.summe : 0;
+
     const auszahlungNetto = summen.auszahlung;
     const auszahlungBrutto = Math.round(auszahlungNetto * (1 + mwstProzent / 100) * 100) / 100;
-    const gesamtBrutto = Math.round((auszahlungBrutto - interne.summe) * 100) / 100;
+    const gesamtBrutto = Math.round((auszahlungBrutto - interne.summe - verpackungSumme) * 100) / 100;
     const gesamtNetto  = Math.round((gesamtBrutto / (1 + mwstProzent / 100)) * 100) / 100;
 
     res.json({
@@ -563,6 +589,7 @@ router.get('/verkaeufe/summary', async (req, res, next) => {
       mwstProzent,
       intern: interne.positionen,
       interneSumme: interne.summe,
+      verpackung,
       auszahlungNetto, auszahlungBrutto,
       gesamtNetto, gesamtBrutto,
     });
@@ -738,6 +765,7 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
               0,                     // T 19 Mehrkosten (manuell, default 0)
               Math.round(itemNetto * 100) / 100, // U 20 VK-Netto
               handlingskosten,       // V 21 Handlingskosten (aus FP_Artikel_Kategorie)
+              versandmethodeAus(order), // W 22 Versandmethode (VP1, method_id)
             ]);
           }
         }
@@ -750,9 +778,21 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
 
     const allRows = [...toWrite, ...stornoRows];
     if (allRows.length > 0) {
+      // Spalte W "Versandmethode" (VP1): additiv, beim ersten Schreiben anlegen. Der
+      // Sync schreibt positionsfest A:W - steht sie woanders, nichts schreiben.
+      if (vh(VERSANDMETHODE) === -1) {
+        if (vH.length !== 22)
+          return res.status(409).json({ error: `FP_Verkäufe: ${vH.length} Spalten statt 22, ${VERSANDMETHODE} nicht angelegt, nichts geschrieben.` });
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: sheetId, range: `${TAB_FP_VERKAEUFE}!W1`,
+          valueInputOption: 'RAW', requestBody: { values: [[VERSANDMETHODE]] },
+        });
+      } else if (vh(VERSANDMETHODE) !== 22) {
+        return res.status(409).json({ error: `FP_Verkäufe: ${VERSANDMETHODE} steht nicht in Spalte W, nichts geschrieben.` });
+      }
       await sheets.spreadsheets.values.append({
         spreadsheetId: sheetId,
-        range: `${TAB_FP_VERKAEUFE}!A:V`,
+        range: `${TAB_FP_VERKAEUFE}!A:W`,
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
         requestBody: { values: allRows },
@@ -833,12 +873,21 @@ router.post('/abrechnungen', async (req, res, next) => {
     const { header: kH, rows: kRows } = await readTab(sheets, sheetId, TAB_FIXKOSTEN);
     const mwstProzent = parseKonfiguration(kRows, kH).mwstProzent;
 
+    // Verpackungspauschale (VP1) über genau die abzurechnenden Zeilen. Fehlt der
+    // Wert oder eine Versandmethode: Abrechnung ohne Pauschale (Inhaber VP1, keine
+    // Sperre), aber laut - Antwort und Positionen-JSON tragen status 'fehlt'.
+    const verpackung = await ladeVerpackung(sheets, sheetId, partnerId, offene, vRows, vh);
+    const verpackungSumme = verpackung.status === 'ok' ? verpackung.summe : 0;
+
     // Offene interne Bestellungen (brutto) im Zeitraum von der Brutto-Auszahlung abziehen.
     const interne = await loadOffeneInterne(sheets, sheetId, partnerId, von, bis);
     const auszahlungBrutto = Math.round(summen.auszahlung * (1 + mwstProzent / 100) * 100) / 100;
-    const gesamtBrutto = Math.round((auszahlungBrutto - interne.summe) * 100) / 100;
+    const gesamtBrutto = Math.round((auszahlungBrutto - interne.summe - verpackungSumme) * 100) / 100;
     const gesamtNetto  = Math.round((gesamtBrutto / (1 + mwstProzent / 100)) * 100) / 100;
-    const positionenJson = JSON.stringify({ produkteGruppen, summen, intern: interne.positionen, interneSumme: interne.summe });
+    const positionenJson = JSON.stringify({
+      produkteGruppen, summen, intern: interne.positionen, interneSumme: interne.summe,
+      ...(verpackung.status !== 'keine' ? { verpackung } : {}),
+    });
 
     // Abrechnungs-ID generieren
     const { header: abH, rows: abRows } = await readTab(sheets, sheetId, TAB_FP_ABRECHNUNGEN);
@@ -881,6 +930,7 @@ router.post('/abrechnungen', async (req, res, next) => {
     res.status(201).json({
       abrechnungsId, partnerId, gesamtNetto, gesamtBrutto,
       positionen: offene.length, interne: interne.positionen.length, interneSumme: interne.summe,
+      verpackung: verpackung.status !== 'keine' ? verpackung : null,
     });
   } catch (err) { next(err); }
 });
@@ -1100,6 +1150,6 @@ router.patch('/verkaeufe-eintrag/:rowId', async (req, res, next) => {
 
 // Für die Partner-Sicht (festpreis-public.js) wiederverwendbar – identische
 // Auszahlungs-Aggregation + Interne-Verrechnung wie im Admin.
-export { aggregateFpVerkaeufe, loadOffeneInterne };
+export { aggregateFpVerkaeufe, loadOffeneInterne, ladeVerpackung };
 
 export default router;

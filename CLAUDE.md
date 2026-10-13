@@ -67,6 +67,15 @@ Neue Sektionen immer mit Anker versehen:
   gesperrte Zeilen im Zeitraum + offene Nachzuegler vor dem Zeitraum (`abrechnungHinweise`,
   sync-logic.js), kein 409. Partnerportal zeigt gesperrt als "in Prüfung", ohne Betrag/Grund.
   `scripts/sync-one-order.js`: Trockenlauf Standard, `--write`, `--partner P-00x`.
+- backend/utils/festpreis-verpackung.js – Verpackungspauschale je Bestellung (VP1), Festpreis.
+  Kondition NUR im Sheet: FP_Partner `Verpackung_je_Bestellung` (brutto, "nein" = keine, 0 = bewusst 0,
+  leer = fehlt) + `Verpackung_ab` (TT.MM.JJJJ); nie im Code/Log/Postfach. Je Bestell-ID einmal (gemischt = 1),
+  nur versendet (`local_pickup*`/`pickup_location` = Abholung), Bestelldatum >= ab, Storno = −1 (gleicher
+  Zeitraum = 0). Abzug vom Brutto wie interne Bestellungen, in summary, POST /abrechnungen (Positionen-JSON
+  `verpackung`) und Portal-Saldo ("in Prüfung" ohne Grund). Fehlt Wert oder Versandmethode: Abrechnung
+  OHNE Pauschale, `verpackung.status` "fehlt" + Hinweis (Inhaber: keine Sperre). FP_Verkäufe Spalte W
+  `Versandmethode` (method_id, additiv) schreibt der Sync; Bestand: `scripts/fill-fp-versandmethode.js`
+  (Trockenlauf Standard, `--write` nur leere Zellen).
 - backend/routes/partnerPortal.js – Token-Auth für partner.html + WC-Sync
 - backend/routes/anfragen.js – Kundenanfragen Admin (POST /neu, GET /, PATCH /:id/status) – hinter requireApiKey
 - backend/routes/anfragen-chat.js – Chat-Widget public endpoint (POST /chat, kein API-Key) – vor requireApiKey
