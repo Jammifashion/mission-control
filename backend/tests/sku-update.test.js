@@ -164,3 +164,25 @@ describe('Der Anlage-Pfad bleibt streng', () => {
     expect(res.body.feld).toBe('sku');
   });
 });
+
+// KZ1 - Bestand mit gesperrtem Teil bleibt speicherbar, solange die SKU gleich bleibt.
+describe('gesperrter Kuerzel-Teil im Bestand', () => {
+  const KZ_SKU = 'E3000/KZ-Logo';
+
+  test('unveraenderte SKU mit "KZ": 200 mit Hinweis', async () => {
+    clients.jfn.get.mockResolvedValue({ data: { id: 100, sku: KZ_SKU } });
+    clients.jfn.put.mockResolvedValue({ data: { id: 100, sku: KZ_SKU } });
+    const res = await put({ sku: KZ_SKU, regular_price: '39.90' });
+    expect(res.status).toBe(200);
+  });
+
+  test('neue SKU mit "KZ" wird abgelehnt, "KaZu" geht durch', async () => {
+    clients.jfn.get.mockResolvedValue({ data: { id: 100, sku: ALT_SKU } });
+    const nein = await put({ sku: 'E3000/KZ-Neu', regular_price: '39.90' });
+    expect(nein.status).toBe(400);
+    expect(nein.body.feld).toBe('sku');
+    clients.jfn.put.mockResolvedValue({ data: { id: 100, sku: 'E3000/KaZu-Logo' } });
+    const ja = await put({ sku: 'E3000/KaZu-Logo', regular_price: '39.90' });
+    expect(ja.status).toBe(200);
+  });
+});

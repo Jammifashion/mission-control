@@ -30,11 +30,14 @@
 import { leseReiterSpalten, reiterCache } from './ssot-reiter.js';
 import { getWcClient } from './shopConfig.js';
 import { seitenGrenze, seitenListe, wirfWennPruefseite } from './hosterPruefseite.js';
-import { KURZ_MIN, KURZ_MAX, KURZ_RE } from './sku.js';
+import { KURZ_MIN, KURZ_MAX, pruefeKurzbezeichnung, gesperrterTeil } from './sku.js';
 import { ladeLShopZeilen } from './lshop.js';
 
 export const VERSAND_STANDARD = 'paket';
-const PRAEFIX_RE = /^([A-Z]{2,4})-/;
+// Praefix = 2-4 Buchstaben mit mindestens zwei Grossbuchstaben ("CH-", "GSW-",
+// "KaZu-"); ein normales Wort wie "Ugly-" zaehlt nicht. Gesperrte Teile
+// (sku.js, KZ1) werden nie vorgeschlagen.
+const PRAEFIX_RE = /^((?=[A-Za-z]*[A-Z][a-z]*[A-Z])[A-Za-z]{2,4})-/;
 export const KURZ_ERSTES_WORT_MIN = 6;
 const FUELL = new Set(['der', 'die', 'das', 'und', 'mit', 'für', 'fuer', 'von', 'im', 'in', 'am', 'the', 'a', '&', '–', '-', '+']);
 
@@ -70,7 +73,7 @@ function praefixZaehlung(erfassung, kategorien) {
   const direkt = new Map();                        // name klein -> Map(praefix -> n)
   for (const z of erfassung ?? []) {
     const m = PRAEFIX_RE.exec(t(z.kurz));
-    if (!m) continue;
+    if (!m || gesperrterTeil(m[1])) continue;
     const p = m[1] + '-';
     const namen = [...new Set(String(z.kategorien ?? '').split(',').map(s => t(s)).filter(Boolean))];
     const jeHaupt = new Map();                     // haupt -> Set(direkte Namen dieser Zeile)
@@ -170,7 +173,7 @@ export function kurzVorschlag({ name, praefix = '', ausschluss = [], belegt = []
     const zusatz = String(n++);
     wert = kern.slice(0, KURZ_MAX - zusatz.length) + zusatz;
   }
-  if (wert.length < KURZ_MIN || !KURZ_RE.test(wert))
+  if (pruefeKurzbezeichnung(wert))
     return { wert: null, hinweis: `Vorschlag "${wert}" verletzt die SKU-Regeln – bitte selbst setzen.` };
   return { wert, hinweis: null };
 }

@@ -203,9 +203,17 @@ Neue Sektionen immer mit Anker versehen:
   h2/Keyphrase/Groessen bleiben in seo-prompt.js (pruefeSeoText). Frontend-Spiegel der
   Anzeige-Logik: Block `Generator-Eingaben: Anfang/Ende`.
 
+- backend/lib/sku.js – Regeln fuer Kurzbezeichnung, Artikelnummer und Variations-SKU, einzige
+  Stelle; Frontend-Spiegel: Block `SKU-Regeln: Anfang/Ende` (sku.test.js vergleicht beide).
+  Gesperrte Kuerzel-Teile (KZ1): `GESPERRTE_TEILE` = KZ, SS, NZ, SA - ganze Bindestrich-Teile,
+  Gross/Klein egal ("Santa", "Sapphire" erlaubt). Streng bei Anlage und geaenderter SKU;
+  eine unveraenderte Bestands-SKU laesst `PUT /products/:id` mit Hinweis durch.
+  Kati Zucker heisst seit KZ1 `KaZu-` (vorher `KZ-`).
+
 - backend/lib/vorschlaege.js – Maske "Neu anlegen" (M8), deterministisch: Kurzbezeichnung =
   haeufigstes Praefix der DIREKTEN Kategorie (M8b), sonst der Hauptkategorie, wenn es dort an ihr
-  selbst oder in mind. 2 Unterkategorien steht (Erfassungsmaske, z. B. "CH-") + erstes kennzeichnendes
+  selbst oder in mind. 2 Unterkategorien steht (Erfassungsmaske, z. B. "CH-"; Praefix = 2-4 Buchstaben
+  mit mind. zwei Grossbuchstaben, z. B. "KaZu-", gesperrte Teile nie) + erstes kennzeichnendes
   Wort des Namens (ohne Kategorie-/Vereinswoerter; unter 6 Buchstaben + zweites Wort klein, z. B.
   "CH-Matchday"), CamelCase, sku.js-Regeln, eindeutig gegen
   Erfassungsmaske und Motive (sonst Ziffer). Versandklasse = Mehrheit der veroeffentlichten

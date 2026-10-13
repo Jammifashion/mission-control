@@ -256,3 +256,21 @@ describe('Frontend-Block Vorschlaege: nie Getipptes ueberschreiben', () => {
     expect(fe.synonymeVorschlag('schon da', [{ wert: 'A', kollisionen: [] }])).toEqual({ wert: null, meldungen: [] });
   });
 });
+
+// KZ1 - Praefix mit Kleinbuchstaben ("KaZu-") zaehlt, gesperrte Teile nie.
+describe('Praefix KaZu und Sperrliste', () => {
+  const kat = [{ nr: '1', pfad: 'Kati Zucker', name: 'Kati Zucker' }];
+  test('"KaZu-" wird als Praefix erkannt, "Ugly-" nicht', () => {
+    const erf = [{ kurz: 'KaZu-Logo', kategorien: 'Kati Zucker' }, { kurz: 'KaZu-KeineParty', kategorien: 'Kati Zucker' }, { kurz: 'Ugly-Sw01', kategorien: 'Kati Zucker' }];
+    expect(v.praefixeJeHauptkategorie(erf, kat).get('Kati Zucker')).toEqual({ praefix: 'KaZu-', anzahl: 2 });
+  });
+  test('ein gesperrtes Praefix ("KZ-") wird nie vorgeschlagen', () => {
+    const erf = [{ kurz: 'KZ-Logo', kategorien: 'Kati Zucker' }, { kurz: 'KZ-KeineParty', kategorien: 'Kati Zucker' }];
+    expect(v.praefixeJeHauptkategorie(erf, kat).has('Kati Zucker')).toBe(false);
+  });
+  test('kurzVorschlag liefert keinen Wert mit gesperrtem Teil', () => {
+    expect(v.kurzVorschlag({ name: 'Logo Shirt', praefix: 'SA-' }).wert).toBeNull();
+    expect(v.kurzVorschlag({ name: 'SA Logo Shirt', praefix: '' }).wert).toBe('SAlogo');
+    expect(v.kurzVorschlag({ name: 'Santa Shirt', praefix: 'KaZu-' }).wert).toBe('KaZu-Santashirt');
+  });
+});

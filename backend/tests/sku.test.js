@@ -317,3 +317,33 @@ describe('Punkt 8: keine 1:1-Annahme SKU zu Lieferantennummer', () => {
     ])).not.toThrow();
   });
 });
+
+// KZ1 - gesperrte Kuerzel-Teile KZ, SS, NZ, SA (ganze Teile, Gross/Klein egal)
+describe('Sperrliste KZ/SS/NZ/SA', () => {
+  const abgelehnt = ['KZ-Motiv', 'UCS-SS', 'sa-Logo', 'Logo-nz', 'kz-Logo', 'A-Ss-B'];
+  const erlaubt   = ['KaZu-Motiv', 'KaZu-Logo', 'Santa', 'Sapphire', 'SAS-Logo', 'KZZ-Logo', 'Kiss-Me', 'Glass01'];
+
+  test('gesperrte Teile werden in Backend und Frontend abgelehnt', () => {
+    for (const k of abgelehnt) {
+      expect(pruefeKurzbezeichnung(k)?.fehler).toMatch(/gesperrten Teil/);
+      expect(fe.skuPruefeKurz(k)).toMatch(/gesperrten Teil/);
+    }
+    expect(pruefeKurzbezeichnung('UCS-SS').fehler).toMatch(/"SS"/);
+  });
+
+  test('ganze Woerter mit diesen Buchstaben bleiben erlaubt', () => {
+    for (const k of erlaubt) {
+      expect(pruefeKurzbezeichnung(k)).toBeNull();
+      expect(fe.skuPruefeKurz(k)).toBeNull();
+    }
+  });
+
+  test('Artikelnummer und Anlage scheitern am gesperrten Teil', () => {
+    expect(baueArtikelnummer('E3000', 'KZ-Logo')).toHaveProperty('fehler');
+    expect(baueArtikelnummer('E3000', 'KaZu-Logo')).toEqual({ artikelnummer: 'E3000/KaZu-Logo' });
+    expect(pruefeArtikelnummer('E3000/KZ-Logo')).not.toBeNull();
+    expect(pruefeArtikelnummer('E3000/KaZu-Logo')).toBeNull();
+    expect(fe.skuBaueArtikelnummer('E3000', 'KZ-Logo')).toHaveProperty('fehler');
+    expect(fe.skuBaueArtikelnummer('E3000', 'KaZu-Logo')).toEqual({ artikelnummer: 'E3000/KaZu-Logo' });
+  });
+});

@@ -4069,6 +4069,13 @@
       // sichtbar wird und nicht erst beim Push.
       const SKU_KURZ_MIN = 3, SKU_KURZ_MAX = 20, SKU_ARTNR_MAX = 30, SKU_MAX_LEN = 50;
       const SKU_KURZ_RE  = /^[A-Za-z0-9-]+$/;
+      const SKU_GESPERRTE_TEILE = ['KZ', 'SS', 'NZ', 'SA'];
+
+      function skuGesperrterTeil(kurz) {
+        return String(kurz ?? '').split('-')
+          .map(teil => teil.trim().toUpperCase())
+          .find(teil => SKU_GESPERRTE_TEILE.includes(teil)) ?? null;
+      }
 
       function skuNormalisiereTeil(wert) {
         return String(wert ?? '')
@@ -4088,6 +4095,9 @@
           return `Artikelkurzbezeichnung muss ${SKU_KURZ_MIN}–${SKU_KURZ_MAX} Zeichen haben (ist ${k.length}).`;
         if (!SKU_KURZ_RE.test(k))
           return 'Artikelkurzbezeichnung darf nur A–Z, a–z, 0–9 und Bindestrich enthalten.';
+        const gesperrt = skuGesperrterTeil(k);
+        if (gesperrt)
+          return `Artikelkurzbezeichnung enthält den gesperrten Teil „${gesperrt}“ (nicht erlaubt: ${SKU_GESPERRTE_TEILE.join(', ')}).`;
         return null;
       }
 

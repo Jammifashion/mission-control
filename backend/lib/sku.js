@@ -21,6 +21,20 @@ export const SKU_MAX   = 50;
 // fuer Dateinamen, URLs und EDI-Exporte.
 export const KURZ_RE = /^[A-Za-z0-9-]+$/;
 
+// Gesperrte Kuerzel-Teile (Inhaber 13.10.2026, KZ1): kein durch Bindestrich
+// getrennter Teil der Kurzbezeichnung darf so lauten, Gross/Klein egal.
+// Nur ganze Teile - "Santa", "Sapphire" bleiben erlaubt. Bestand mit einem
+// solchen Teil bleibt im Aenderungspfad speicherbar, solange die SKU gleich
+// bleibt (PUT /products/:id laesst eine unveraenderte ungueltige SKU durch).
+export const GESPERRTE_TEILE = ['KZ', 'SS', 'NZ', 'SA'];
+
+/** Erster gesperrter Teil der Kurzbezeichnung (gross) oder null. */
+export function gesperrterTeil(kurz) {
+  return String(kurz ?? '').split('-')
+    .map(teil => teil.trim().toUpperCase())
+    .find(teil => GESPERRTE_TEILE.includes(teil)) ?? null;
+}
+
 /**
  * Vergleichs- und Bauform fuer einen Variantenwert:
  * klein, Umlaute aufgeloest, Leerzeichen zu Bindestrich, Rest faellt weg.
@@ -50,6 +64,9 @@ export function pruefeKurzbezeichnung(kurz) {
     return { feld, fehler: `Artikelkurzbezeichnung muss ${KURZ_MIN}-${KURZ_MAX} Zeichen haben (ist ${k.length}).` };
   if (!KURZ_RE.test(k))
     return { feld, fehler: 'Artikelkurzbezeichnung darf nur A-Z, a-z, 0-9 und Bindestrich enthalten.' };
+  const gesperrt = gesperrterTeil(k);
+  if (gesperrt)
+    return { feld, fehler: `Artikelkurzbezeichnung enthält den gesperrten Teil "${gesperrt}" (nicht erlaubt: ${GESPERRTE_TEILE.join(', ')}).` };
   return null;
 }
 
