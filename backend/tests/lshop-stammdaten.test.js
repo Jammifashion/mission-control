@@ -260,6 +260,13 @@ describe('gebrauchte Modelle', () => {
     expect(ls.modellAus('387')).toBeNull();
   });
 
+  test('Modellnummern mit 6 Ziffern zaehlen (MBW160969, ED83)', () => {
+    expect(ls.modellAus('MBW160969')).toBe('MBW160969');
+    expect(ls.modellAus('MBW160969 Elch Radeln')).toBe('MBW160969');
+    expect(ls.modellAus('AT538/RGB-Logo')).toBe('AT538');
+    expect(ls.modellAus('AB1234567')).toBeNull();
+  });
+
   test('Quellen je Modell, inkl. Modelle_Zusatz', () => {
     const m = ls.gebrauchteModelle({ 'Shop JFN': ['E3000/A', 'Tasse'], Modelle_Zusatz: ['xt903', 'E3000'] });
     expect([...m.keys()].sort()).toEqual(['E3000', 'XT903']);

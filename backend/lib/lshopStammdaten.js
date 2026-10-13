@@ -170,7 +170,8 @@ const ganzzahl = v => (/^-?\d+$/.test(t(v)) ? Number(t(v)) : t(v));
 
 // ── Gebrauchte Modelle ──────────────────────────────────────────────────────
 
-const MODELL_RE = /^[A-Z]{1,5}\d{2,5}[A-Z]{0,2}$/;
+// Bis 6 Ziffern: L-Shop fuehrt z. B. "MBW160969" (Plueschtier, ED83).
+const MODELL_RE = /^[A-Z]{1,5}\d{2,6}[A-Z]{0,2}$/;
 const ALTPRAEFIX_RE = /^(KING|QUEEN)[\s_-]+/i;
 
 /**
