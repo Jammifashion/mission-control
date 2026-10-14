@@ -383,3 +383,9 @@ Helpers sind via window.* exponiert:
 - window.showToast
 - window.API_BASE
 - window.showConfirm
+
+Löschen: Claude Code löscht nie endgültig (Variationen haben keinen Papierkorb). Eine Löschliste im
+Bericht, die der Inhaber im Terminal mit „Freigabe Löschliste“ freigibt, setzt Claude Code auf
+**privat** (unsichtbar, nicht kaufbar, umkehrbar) — vorher Sicherung, danach Nachmessung; Varianten-Zeilen
+`Aktiv` FALSE. Das endgültige Löschen macht der Inhaber (auf Wunsch per vorbereitetem Skript,
+Trockenlauf Standard, `--write`, das er selbst startet). Artikel, Kategorien, Terme, Sheet-Zeilen nie löschen.
