@@ -1027,6 +1027,16 @@
           </div>
         </div>
         <div class="card">
+          <h2>Trikot-Sync</h2>
+          <p style="color:var(--muted);font-size:0.85rem;">
+            Holt neue Trikot-Bestellungen aus dem JammiFashion-Shop in den Reiter „Trikots“. Vorhandene Zeilen bleiben unverändert.
+          </p>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
+            <button class="btn" id="trikot-sync-btn">Trikot-Sync jetzt</button>
+          </div>
+          <p id="trikot-sync-status" style="color:var(--muted);font-size:0.85rem;margin-top:0.5rem;"></p>
+        </div>
+        <div class="card">
           <h2>Letzte Bestellungen</h2>
           <div id="recent-orders"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
         </div>
@@ -2527,6 +2537,50 @@
             `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
         }
       }
+
+      // Trikot-Sync von Hand: dieselbe Route wie trikot-sync-daily.yml. Der Sync
+      // haengt nur Zeilen mit neuer Zeilen-ID an, ein erneuter Lauf ist also
+      // ohne Dubletten. Knopf bleibt gesperrt, bis die Antwort da ist.
+      (function trikotSyncKnopf() {
+        const btn    = document.getElementById('trikot-sync-btn');
+        const status = document.getElementById('trikot-sync-status');
+        let laeuft = false;
+        btn.addEventListener('click', async () => {
+          if (laeuft) return;
+          laeuft = true;
+          btn.disabled = true;
+          btn.textContent = 'Läuft …';
+          status.style.color = 'var(--muted)';
+          status.textContent = 'Trikot-Sync läuft (kann bis zu einigen Minuten dauern) …';
+          try {
+            const res = await apiFetch(`${API_BASE()}/api/trikot/sync`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: '{}',
+              signal: AbortSignal.timeout(290000),
+            });
+            const r = await apiJson(res);
+            const neu = Number(r?.neu) || 0;
+            const text = neu === 0
+              ? 'Trikot-Sync: nichts Neues'
+              : `Trikot-Sync: ${neu} neue Zeile${neu === 1 ? '' : 'n'}`;
+            status.style.color = 'var(--success)';
+            status.textContent = `${text} (${r?.gelesen ?? 0} Bestellungen gelesen, ${new Date().toLocaleTimeString('de-DE')}).`;
+            showToast(text, 'success');
+          } catch (err) {
+            const msg = err.name === 'TimeoutError'
+              ? 'Zeitüberschreitung – Ergebnis unklar, bitte Reiter „Trikots“ prüfen.'
+              : err.message;
+            status.style.color = 'var(--danger)';
+            status.textContent = `Fehler: ${msg}`;
+            showToast(`Trikot-Sync fehlgeschlagen: ${msg}`, 'error', 10000);
+          } finally {
+            laeuft = false;
+            btn.disabled = false;
+            btn.textContent = 'Trikot-Sync jetzt';
+          }
+        });
+      })();
 
       // ── SECTION: Auftragsmonitor (Zeile 1207) ──
       document.querySelectorAll('#panel-orders .sub-tab:not(:disabled)').forEach(btn => {
