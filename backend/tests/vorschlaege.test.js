@@ -54,6 +54,7 @@ const PRODUKTE = [
 const wcGet = jest.fn(async () => ({ data: PRODUKTE }));
 jest.unstable_mockModule('../lib/shopConfig.js', () => ({
   getWcClient: () => ({ get: wcGet }), getShopConfig: () => ({ shop: 'jfn' }),
+  normalizeShop: s => (String(s ?? '').toLowerCase() === 'honk' ? 'honk' : 'jfn'),   // NAV3: routes/sheets.js -> utils/shop-spalte.js
 }));
 
 process.env.GOOGLE_SHEET_ID = 'ssot-test';

@@ -34,6 +34,7 @@ const wc = { get: jest.fn(), post: jest.fn(), put: jest.fn() };
 jest.unstable_mockModule('../lib/shopConfig.js', () => ({
   getShopConfig: jest.fn(() => ({ shop: 'jfn', label: 'JammiFashion', markenSlug: null })),
   getWcClient:   jest.fn(() => wc),
+  normalizeShop: s => (String(s ?? '').toLowerCase() === 'honk' ? 'honk' : 'jfn'),   // NAV3: routes/sheets.js -> utils/shop-spalte.js
 }));
 
 let lib, request, app;

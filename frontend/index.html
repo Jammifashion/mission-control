@@ -2174,6 +2174,13 @@
         b.title = (shop === 'honk' ? 'HonkShop' : 'JammiFashion') + ' – Klick zum Wechseln';
         const ordersLabel = document.getElementById('nav-orders-label');
         if (ordersLabel) ordersLabel.textContent = shop === 'honk' ? 'HonkShop' : 'JammiFashion Shop';
+        // NAV3: Unterreiter zeigen, fuer welchen Shop sie gelten (Produktions_Status,
+        // DTF-/L-Shop-Protokoll sind je Shop getrennt).
+        const kurz = shop === 'honk' ? 'HONK' : 'JFN';
+        const sub = (k, text) => { const el = document.querySelector(`[data-subtab="${k}"]`); if (el) el.textContent = text; };
+        sub('tab-jfn-shop', shop === 'honk' ? 'HonkShop' : 'Jammifashion Shop');
+        sub('tab-dtf',      `DTF Bestellungen (${kurz})`);
+        sub('tab-lshop',    `L-Shop Bestellungen (${kurz})`);
         const artikelTab = document.querySelector('[data-ptab="artikel"]');
         if (artikelTab) artikelTab.style.display = '';
       }

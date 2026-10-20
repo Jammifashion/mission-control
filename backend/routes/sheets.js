@@ -7,6 +7,7 @@ import { sichereSpalte, sichereTextSpalte } from '../utils/sheet-spalten.js';
 import { ladeLieferzeiten } from '../lib/lieferzeiten.js';
 import { lshopFuerArtikel } from '../lib/lshop.js';
 import { maskenVorschlaege } from '../lib/vorschlaege.js';
+import { shopSpalte, gleicherShop, zeileMitShop, normalizeShop } from '../utils/shop-spalte.js';
 import {
   TAB_VARIANTEN, LSHOP_SPALTE, variantenSpalten, pruefeVariantenPayload,
   payloadHatLShop, baueVariantenZeilen, varianteAusZeile,
@@ -593,6 +594,24 @@ function normalizeBool(val) {
   return s === 'TRUE' || s === 'WAHR';
 }
 
+// NAV3: Zeilen gehoeren einem Shop (Spalte "Shop" hinten, utils/shop-spalte.js).
+// Bereich ueber die ganze Breite, damit die Spalte mitkommt; feste Positionen
+// A-J bleiben, nur "Shop" wird ueber den Namen gesucht.
+const PS_BEREICH = 'A1:Z5000';
+
+// Zeilenindex (in rows, 0 = Kopf) fuer Shop + Bestellung + Position oder -1.
+function psZeileIndex(rows, shop, orderId, wcItemId) {
+  const si = shopSpalte(rows[0]);
+  for (let i = 1; i < rows.length; i++) {
+    if (
+      (rows[i][PI['WC_Order_ID']] ?? '').trim() === String(orderId) &&
+      (rows[i][PI['WC_Item_ID']]  ?? '').trim() === String(wcItemId) &&
+      gleicherShop(rows[i], si, shop)
+    ) return i;
+  }
+  return -1;
+}
+
 function psRowToItem(row) {
   return {
     wcItemId:      (row[PI['WC_Item_ID']]       ?? '').trim(),
@@ -613,13 +632,15 @@ router.get('/produktions-status', async (req, res, next) => {
     const orderId = (req.query.orderId ?? '').trim();
     if (!orderId) return res.status(400).json({ error: 'orderId fehlt' });
 
-    const rows = await readRange(TAB_PS, 'A1:J5000');
+    const shop = normalizeShop(req.query.shop);
+    const rows = await readRange(TAB_PS, PS_BEREICH);
+    const si   = shopSpalte(rows[0]);
     const items = rows
       .slice(1)
-      .filter(r => (r[PI['WC_Order_ID']] ?? '').trim() === orderId)
+      .filter(r => (r[PI['WC_Order_ID']] ?? '').trim() === orderId && gleicherShop(r, si, shop))
       .map(psRowToItem);
 
-    res.json({ orderId, items });
+    res.json({ orderId, shop, items });
   } catch (err) { next(err); }
 });
 
@@ -631,14 +652,17 @@ router.post('/produktions-status/init', async (req, res, next) => {
       return res.status(400).json({ error: 'orderId und items erforderlich' });
     }
 
-    const rows = await readRange(TAB_PS, 'A1:J5000');
-    const existing = rows.slice(1).filter(r => (r[PI['WC_Order_ID']] ?? '').trim() === orderId);
+    const shop = normalizeShop(req.query.shop);
+    const rows = await readRange(TAB_PS, PS_BEREICH);
+    const si   = shopSpalte(rows[0]);
+    const existing = rows.slice(1).filter(r =>
+      (r[PI['WC_Order_ID']] ?? '').trim() === String(orderId) && gleicherShop(r, si, shop));
 
     if (existing.length > 0) {
       return res.json({ created: false, itemCount: existing.length });
     }
 
-    const newRows = items.map(item => [
+    const newRows = items.map(item => zeileMitShop([
       orderId,
       String(item.wcItemId ?? ''),
       item.artikelname ?? '',
@@ -646,7 +670,7 @@ router.post('/produktions-status/init', async (req, res, next) => {
       item.menge       ?? 1,
       false, false, false, false, // L-Shop_bestellt, DTF_bestellt, Gedruckt, Versendet
       '',                         // Notiz
-    ]);
+    ], si, shop));
 
     const sheets = await getSheets();
     await sheets.spreadsheets.values.append({
@@ -674,17 +698,8 @@ router.put('/produktions-status', async (req, res, next) => {
       return res.status(400).json({ error: `Unbekanntes field: ${field}` });
     }
 
-    const rows = await readRange(TAB_PS, 'A1:J5000');
-    let targetRowIndex = -1;
-    for (let i = 1; i < rows.length; i++) {
-      if (
-        (rows[i][PI['WC_Order_ID']] ?? '').trim() === String(orderId) &&
-        (rows[i][PI['WC_Item_ID']]  ?? '').trim() === String(wcItemId)
-      ) {
-        targetRowIndex = i;
-        break;
-      }
-    }
+    const rows = await readRange(TAB_PS, PS_BEREICH);
+    const targetRowIndex = psZeileIndex(rows, req.query.shop, orderId, wcItemId);
     if (targetRowIndex < 0) {
       return res.status(404).json({ error: 'Zeile nicht gefunden' });
     }
@@ -714,17 +729,8 @@ router.put('/produktions-status/notiz', async (req, res, next) => {
       return res.status(400).json({ error: 'orderId und wcItemId erforderlich' });
     }
 
-    const rows = await readRange(TAB_PS, 'A1:J5000');
-    let targetRowIndex = -1;
-    for (let i = 1; i < rows.length; i++) {
-      if (
-        (rows[i][PI['WC_Order_ID']] ?? '').trim() === String(orderId) &&
-        (rows[i][PI['WC_Item_ID']]  ?? '').trim() === String(wcItemId)
-      ) {
-        targetRowIndex = i;
-        break;
-      }
-    }
+    const rows = await readRange(TAB_PS, PS_BEREICH);
+    const targetRowIndex = psZeileIndex(rows, req.query.shop, orderId, wcItemId);
     if (targetRowIndex < 0) {
       return res.status(404).json({ error: 'Zeile nicht gefunden' });
     }

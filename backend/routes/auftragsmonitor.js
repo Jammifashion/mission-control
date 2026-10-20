@@ -4,6 +4,7 @@ import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient } from '../lib/shopConfig.js';
 import { requireHeader, requireHeaderAny } from '../utils/sheet-headers.js';
 import { wcVariationMap } from '../utils/varianten-zeilen.js';
+import { shopSpalte, shopDerZeile, shopWert, gleicherShop, zeileMitShop } from '../utils/shop-spalte.js';
 
 const router = Router();
 
@@ -27,7 +28,9 @@ const TAB_DTF = 'DTF_Bestellungen';
 const TAB_VAR = 'Varianten';
 const TAB_ERF = 'Erfassungsmaske';
 
-// Spalten-Indizes Produktions_Status (0-basiert)
+// Spalten-Indizes Produktions_Status (0-basiert). Die Spalte "Shop" (NAV3)
+// haengt hinten und wird ueber den Namen gefunden (utils/shop-spalte.js);
+// deshalb lesen alle Zugriffe die ganze Breite (A1:Z).
 const PI = { orderId: 0, wcItemId: 1, artikelname: 2, sku: 3, menge: 4, lshop: 5, dtf: 6 };
 // Spalten-Indizes Varianten (0-basiert)
 // Varianten: nur über Spaltennamen (utils/varianten-zeilen.js → wcVariationMap).
@@ -52,12 +55,15 @@ function normBool(v) {
  *    fuehrt. Der alte Namensvergleich greift nur noch, wo diese Spalte LEER
  *    ist - also fuer Altzeilen, die sonst nicht mehr gefunden wuerden.
  */
-export function psZeilenFinden(psRows, { orderIds = [], artikelnummer = '', wcItemIds = [] }) {
+export function psZeilenFinden(psRows, { orderIds = [], artikelnummer = '', wcItemIds = [], shop }) {
   const treffer = [];
+  // NAV3: nur Zeilen des Shops der Anfrage (leer/ohne Spalte = JFN).
+  const si = shopSpalte(psRows[0]);
 
   if (Array.isArray(wcItemIds) && wcItemIds.length > 0) {
     const pairSet = new Set(wcItemIds.map(({ orderId, wcItemId }) => `${orderId}|${wcItemId}`));
     psRows.slice(1).forEach((r, i) => {
+      if (!gleicherShop(r, si, shop)) return;
       const key = `${(r[PI.orderId] ?? '').trim()}|${(r[PI.wcItemId] ?? '').trim()}`;
       if (pairSet.has(key)) treffer.push(i + 2); // +1 Header, +1 1-Basierung
     });
@@ -69,6 +75,7 @@ export function psZeilenFinden(psRows, { orderIds = [], artikelnummer = '', wcIt
   const kurz  = artNr.split('/').pop();
 
   psRows.slice(1).forEach((r, i) => {
+    if (!gleicherShop(r, si, shop)) return;
     if (!orderIdSet.has((r[PI.orderId] ?? '').trim())) return;
     const rowSku = (r[PI.sku] ?? '').trim();
     if (rowSku) {
@@ -93,7 +100,7 @@ router.get('/lshop/offen', async (req, res, next) => {
 
     // Alle Datenquellen parallel laden
     const [psResp, varResp, erfResp, wcPending, wcProcessing, wcOnHold] = await Promise.all([
-      sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_PS}!A1:J5000` }),
+      sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_PS}!A1:Z5000` }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: TAB_VAR }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_ERF}!1:2000` }),
       wc.get('orders', { status: 'pending',    per_page: 100 }),
@@ -101,7 +108,9 @@ router.get('/lshop/offen', async (req, res, next) => {
       wc.get('orders', { status: 'on-hold',    per_page: 100 }),
     ]);
 
-    const psRows   = (psResp.data.values  ?? []).slice(1);
+    const psAlle   = psResp.data.values ?? [];
+    const psSi     = shopSpalte(psAlle[0]);
+    const psRows   = psAlle.slice(1).filter(r => gleicherShop(r, psSi, req.query.shop));
     const erfRows  = erfResp.data.values ?? [];
     const erfHdr   = erfRows[0] ?? [];
     const wcOrders = [
@@ -208,16 +217,19 @@ router.get('/lshop/protokoll', async (req, res, next) => {
     const sheets = await getSheets();
     const { data } = await sheets.spreadsheets.values.get({
       spreadsheetId: sid(),
-      range: `${TAB_LSB}!A1:H5000`,
+      range: `${TAB_LSB}!A1:Z5000`,
     });
     const rows   = data.values ?? [];
     if (rows.length <= 1) return res.json([]);
+    const si     = shopSpalte(rows[0]);
 
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
 
     const result = rows.slice(1)
+      .filter(r => gleicherShop(r, si, req.query.shop))
       .map(r => ({
+        shop:             shopWert(shopDerZeile(r, si)),
         bestellId:        (r[0] ?? '').trim(),
         bestelldatum:     (r[1] ?? '').trim(),
         ssotId:           (r[2] ?? '').trim(),
@@ -252,7 +264,7 @@ router.post('/lshop/bestellen', async (req, res, next) => {
 
     // ── Bestell-ID generieren (LSB-YYYY-NNNN) ────────────────────────────
     const { data: lsbData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_LSB}!A1:A5000`,
+      spreadsheetId, range: `${TAB_LSB}!A1:Z5000`,
     });
     const year   = new Date().getFullYear();
     const prefix = `LSB-${year}-`;
@@ -270,20 +282,20 @@ router.post('/lshop/bestellen', async (req, res, next) => {
     await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: `${TAB_LSB}!A1`, valueInputOption: 'USER_ENTERED', insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [[
+      requestBody: { values: [zeileMitShop([
         bestellId, new Date().toISOString(), ssotId, artikelnummer,
         variante, stueck ?? 0, kw, orderIds.map(String).join(', '),
-      ]] },
+      ], shopSpalte(lsbData.values?.[0]), req.query.shop)] },
     });
 
     // ── L-Shop_bestellt = TRUE in Produktions_Status ──────────────────────
     const { data: psData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_PS}!A1:J5000`,
+      spreadsheetId, range: `${TAB_PS}!A1:Z5000`,
     });
     const psRows = psData.values ?? [];
 
     // Welche Zeilen updaten?
-    const updateRows = psZeilenFinden(psRows, { orderIds, artikelnummer, wcItemIds });
+    const updateRows = psZeilenFinden(psRows, { orderIds, artikelnummer, wcItemIds, shop: req.query.shop });
 
     if (updateRows.length > 0) {
       await sheets.spreadsheets.values.batchUpdate({
@@ -307,7 +319,7 @@ router.get('/dtf/offen', async (req, res, next) => {
     const spreadsheetId = sid();
 
     const [psResp, varResp, erfResp, wcPending, wcProcessing, wcOnHold] = await Promise.all([
-      sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_PS}!A1:J5000` }),
+      sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_PS}!A1:Z5000` }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: TAB_VAR }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_ERF}!1:2000` }),
       wc.get('orders', { status: 'pending',    per_page: 100 }),
@@ -315,7 +327,9 @@ router.get('/dtf/offen', async (req, res, next) => {
       wc.get('orders', { status: 'on-hold',    per_page: 100 }),
     ]);
 
-    const psRows   = (psResp.data.values  ?? []).slice(1);
+    const psAlle   = psResp.data.values ?? [];
+    const psSi     = shopSpalte(psAlle[0]);
+    const psRows   = psAlle.slice(1).filter(r => gleicherShop(r, psSi, req.query.shop));
     const erfRows  = erfResp.data.values ?? [];
     const erfHdr   = erfRows[0] ?? [];
     const wcOrders = [
@@ -413,16 +427,19 @@ router.get('/dtf/protokoll', async (req, res, next) => {
     const sheets = await getSheets();
     const { data } = await sheets.spreadsheets.values.get({
       spreadsheetId: sid(),
-      range: `${TAB_DTF}!A1:G5000`,
+      range: `${TAB_DTF}!A1:Z5000`,
     });
     const rows = data.values ?? [];
     if (rows.length <= 1) return res.json([]);
+    const si   = shopSpalte(rows[0]);
 
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - days);
 
     const result = rows.slice(1)
+      .filter(r => gleicherShop(r, si, req.query.shop))
       .map(r => ({
+        shop:             shopWert(shopDerZeile(r, si)),
         bestellId:        (r[0] ?? '').trim(),
         bestelldatum:     (r[1] ?? '').trim(),
         ssotId:           (r[2] ?? '').trim(),
@@ -456,7 +473,7 @@ router.post('/dtf/bestellen', async (req, res, next) => {
 
     // ── Bestell-ID generieren (DTFB-YYYY-NNNN) ──────────────────────────────
     const { data: dtfData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_DTF}!A1:A5000`,
+      spreadsheetId, range: `${TAB_DTF}!A1:Z5000`,
     });
     const year   = new Date().getFullYear();
     const prefix = `DTFB-${year}-`;
@@ -474,19 +491,19 @@ router.post('/dtf/bestellen', async (req, res, next) => {
     await sheets.spreadsheets.values.append({
       spreadsheetId,
       range: `${TAB_DTF}!A1`, valueInputOption: 'USER_ENTERED', insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [[
+      requestBody: { values: [zeileMitShop([
         bestellId, new Date().toISOString(), ssotId, artikelnummer,
         variante, stueck ?? 0, orderIds.map(String).join(', '),
-      ]] },
+      ], shopSpalte(dtfData.values?.[0]), req.query.shop)] },
     });
 
     // ── DTF_bestellt = TRUE in Produktions_Status (Spalte G) ─────────────────
     const { data: psData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_PS}!A1:J5000`,
+      spreadsheetId, range: `${TAB_PS}!A1:Z5000`,
     });
     const psRows = psData.values ?? [];
 
-    const updateRows = psZeilenFinden(psRows, { orderIds, artikelnummer, wcItemIds });
+    const updateRows = psZeilenFinden(psRows, { orderIds, artikelnummer, wcItemIds, shop: req.query.shop });
 
     if (updateRows.length > 0) {
       await sheets.spreadsheets.values.batchUpdate({
@@ -518,7 +535,7 @@ router.post('/lshop/bestellen-bulk', async (req, res, next) => {
 
     // Sequenz einmalig lesen, dann lokal inkrementieren
     const { data: lsbData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_LSB}!A1:A5000`,
+      spreadsheetId, range: `${TAB_LSB}!A1:Z5000`,
     });
     let maxSeq = 0;
     (lsbData.values ?? []).slice(1).forEach(r => {
@@ -531,7 +548,7 @@ router.post('/lshop/bestellen-bulk', async (req, res, next) => {
 
     // Produktions_Status einmalig lesen
     const { data: psData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_PS}!A1:J5000`,
+      spreadsheetId, range: `${TAB_PS}!A1:Z5000`,
     });
     const psRows = psData.values ?? [];
 
@@ -548,13 +565,13 @@ router.post('/lshop/bestellen-bulk', async (req, res, next) => {
         await sheets.spreadsheets.values.append({
           spreadsheetId,
           range: `${TAB_LSB}!A1`, valueInputOption: 'USER_ENTERED', insertDataOption: 'INSERT_ROWS',
-          requestBody: { values: [[
+          requestBody: { values: [zeileMitShop([
             bestellId, new Date().toISOString(), ssotId, artikelnummer,
             variante, stueck ?? 0, kw, orderIds.map(String).join(', '),
-          ]] },
+          ], shopSpalte(lsbData.values?.[0]), req.query.shop)] },
         });
 
-        const updateRows = psZeilenFinden(psRows, { orderIds, artikelnummer, wcItemIds });
+        const updateRows = psZeilenFinden(psRows, { orderIds, artikelnummer, wcItemIds, shop: req.query.shop });
         if (updateRows.length > 0) {
           await sheets.spreadsheets.values.batchUpdate({
             spreadsheetId,
@@ -591,7 +608,7 @@ router.post('/dtf/bestellen-bulk', async (req, res, next) => {
     const prefix        = `DTFB-${year}-`;
 
     const { data: dtfData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_DTF}!A1:A5000`,
+      spreadsheetId, range: `${TAB_DTF}!A1:Z5000`,
     });
     let maxSeq = 0;
     (dtfData.values ?? []).slice(1).forEach(r => {
@@ -603,7 +620,7 @@ router.post('/dtf/bestellen-bulk', async (req, res, next) => {
     });
 
     const { data: psData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_PS}!A1:J5000`,
+      spreadsheetId, range: `${TAB_PS}!A1:Z5000`,
     });
     const psRows = psData.values ?? [];
 
@@ -620,13 +637,13 @@ router.post('/dtf/bestellen-bulk', async (req, res, next) => {
         await sheets.spreadsheets.values.append({
           spreadsheetId,
           range: `${TAB_DTF}!A1`, valueInputOption: 'USER_ENTERED', insertDataOption: 'INSERT_ROWS',
-          requestBody: { values: [[
+          requestBody: { values: [zeileMitShop([
             bestellId, new Date().toISOString(), ssotId, artikelnummer,
             variante, stueck ?? 0, orderIds.map(String).join(', '),
-          ]] },
+          ], shopSpalte(dtfData.values?.[0]), req.query.shop)] },
         });
 
-        const updateRows = psZeilenFinden(psRows, { orderIds, artikelnummer, wcItemIds });
+        const updateRows = psZeilenFinden(psRows, { orderIds, artikelnummer, wcItemIds, shop: req.query.shop });
         if (updateRows.length > 0) {
           await sheets.spreadsheets.values.batchUpdate({
             spreadsheetId,
