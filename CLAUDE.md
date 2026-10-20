@@ -6,26 +6,28 @@ Vor jeder Änderung erst Struktur prüfen:
 grep "SECTION" frontend/index.html
 ```
 
-Aktuelle Sektionen:
-- Navigation (Zeile 1072)
-- Stand-Anzeige (Zeile ~2276)
-- Helpers (Zeile 1104)
-- Auftragsmonitor (Zeile 1207)
-- Auftragsmonitor: Shop Orders (Zeile 1801)
-- Artikelerfassung (Zeile 1978)
-- SEO-Flow (Zeile 2664)
-- SEO-Daten aendern (Zeile ~5300, Befehl SE1: Yoast-Felder jedes veroeffentlichten Artikels; nutzt seoMetaBau und yoastSchreiben des SEO-Flows, schreibt nichts ins Sheet)
-- Kundenanfragen Extern (Zeile 4222)
-- Settings (Zeile 3604)
+Aktuelle Sektionen (Reihenfolge in der Datei; Zeilennummern per `grep -n "SECTION"`,
+im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
+- Navigation
+- Stand-Anzeige
+- Helpers (darin: Dashboard inkl. Knopf "Trikot-Sync jetzt")
+- Auftragsmonitor, Auftragsmonitor Dual-Source; darunter "Auftragsmonitor: Shop Orders" (kein SECTION-Anker)
+- Artikelerfassung
+- SEO-Daten aendern (Befehl SE1: Yoast-Felder jedes veroeffentlichten Artikels; nutzt seoMetaBau und yoastSchreiben des SEO-Flows, schreibt nichts ins Sheet)
+- SEO-Flow
+- Kundenanfragen Extern
+- Settings
 - L-Shop-Stammdaten (im Settings-Block, Befehl LS1: Knoepfe Pruefen/Uebernehmen)
-- Partnerportal (Zeile 3724)
-- Partner-Artikel-Tab (Zeile ~4532)
-- Interne-Bestellungen-Tab (Zeile ~4710)
-- Fixkosten-Konfiguration (Zeile ~4810)
+- Agent-Wissen
+- Partnerportal (zweiter Script-Block)
+- Partner-Artikel-Tab
+- Interne-Bestellungen-Tab
+- Fixkosten-Konfiguration sicherstellen
+- Festpreis-Tab
 
 Neue Sektionen immer mit Anker versehen:
 ```javascript
-// ── SECTION: NAME (Zeile XXX) ──
+// ── SECTION: NAME ──
 ```
 
 ## Wichtige Dateien
@@ -370,13 +372,15 @@ Anthropic-Parameter je Art zentral in `ARTEN`: seo = Effort low + `max_tokens` 1
 klassifizierung = `thinking: disabled` + 1024. Haiku/Sonnet 5.5 denken standardmaessig - ein
 kleines `max_tokens` ohne Denken-Steuerung schneidet die Antwort ab (KI1: 4/6 ohne JSON).
 `stop_reason` "max_tokens"/"refusal" -> 502 mit `code` `ki_abgeschnitten`/`ki_abgelehnt`.
-Chat (chatCore), agent-intern-Routen und Health-Ping rufen noch selbst auf (nicht umgebaut).
+Kunden-Chat (chatCore) und Health-Ping rufen noch selbst auf (nicht umgebaut). Der interne
+Claude-Chat (POST/DELETE /api/claude/chat) und die Aktionen generate_description/generate_variants
+sind seit NAV2 entfernt; generate-product kennt nur noch seo_description und suggest_variants.
 Floskeln prueft `seo-pruefung.js` (Regel 7, `FLOSKELN`); neue Wendungen nur dort, nie im Prompt.
 
 ## Script-Scope Problem (gelöst)
 index.html hat zwei Script-Blöcke:
-- `<script type="module">` (Zeile 1031) – Hauptcode
-- `<script>` (Zeile ~3676) – Partnerportal
+- `<script type="module">` – Hauptcode (Navigation bis Agent-Wissen)
+- `<script>` – ab SECTION Partnerportal
 
 Helpers sind via window.* exponiert:
 - window.apiFetch

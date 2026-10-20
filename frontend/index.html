@@ -2281,7 +2281,7 @@
         openShopModal();
       }
 
-      // ── SECTION: Navigation (Zeile 1072) ──
+      // ── SECTION: Navigation ──
       document.querySelectorAll('nav button').forEach(btn => {
         btn.addEventListener('click', () => {
           document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
@@ -2345,7 +2345,7 @@
       }
       zeigeStand();
 
-      // ── SECTION: Helpers (Zeile 1104) ──
+      // ── SECTION: Helpers ──
       function statusBadge(s) {
         const map = { processing: 'In Bearbeitung', completed: 'Abgeschlossen', pending: 'Wartend', cancelled: 'Storniert' };
         return `<span class="badge badge-${s}">${map[s] || s}</span>`;
@@ -2500,7 +2500,7 @@
         });
       })();
 
-      // ── SECTION: Auftragsmonitor (Zeile 1207) ──
+      // ── SECTION: Auftragsmonitor ──
       document.querySelectorAll('#panel-orders .sub-tab:not(:disabled)').forEach(btn => {
         btn.addEventListener('click', () => {
           const panel = document.getElementById(btn.dataset.subtab);
@@ -3261,7 +3261,7 @@
         }
       }
 
-      // ── Auftragsmonitor: Shop Orders (Zeile 1801) ──
+      // ── Auftragsmonitor: Shop Orders ──
       async function loadOrders() {
         const el = document.getElementById('jfn-orders-list');
         const summaryEl = document.getElementById('jfn-orders-summary');
@@ -3617,7 +3617,7 @@
         updateCatLabel();
       }
 
-      // ── SECTION: Artikelerfassung (Zeile 1978) ──
+      // ── SECTION: Artikelerfassung ──
       const PROP_NAMES = ['Farbe', 'Größe', 'Druckfarbe']; // Fallback bis SSOT geladen
       let properties = [{ name: '', tags: [] }];
       let kurzbezManuallyEdited = false; // verhindert Auto-Sync nach manuellem Laden
@@ -6236,7 +6236,7 @@
         btn.disabled = false;
       });
 
-      // ── SECTION: SEO-Flow (Zeile 2664) ──
+      // ── SECTION: SEO-Flow ──
       async function loadSeoPendingList() {
         const sel = document.getElementById('seo-article-select');
         document.getElementById('seo-article-panel').style.display = 'none';
@@ -8240,7 +8240,7 @@
         }
       });
 
-      // ── SECTION: Settings (Zeile 3604) ──
+      // ── SECTION: Settings ──
       const keyInput = document.getElementById('api-key');
       keyInput.value = localStorage.getItem('mc_api_key') || '';
       document.getElementById('save-key').addEventListener('click', () => {
@@ -8764,7 +8764,7 @@
         quillSeoFull  = makeRichEditor('rich-seo-full');
       }
 
-      // ── SECTION: Partnerportal (Zeile 3724) ──
+      // ── SECTION: Partnerportal ──
       document.querySelectorAll('#panel-partnerportal .sub-tab').forEach(btn => {
         btn.addEventListener('click', () => {
           document.querySelectorAll('#panel-partnerportal .sub-tab').forEach(b => b.classList.remove('active'));
@@ -9979,7 +9979,7 @@
         };
       }
 
-      // ── SECTION: Partner-Artikel-Tab (Zeile 4532) ──
+      // ── SECTION: Partner-Artikel-Tab ──
       let _artikelState = { konfig: null, partnerId: '', artikel: [], vkVorschau: 25 };
 
       function parseKonfigClient(rows) {
@@ -10400,7 +10400,7 @@
         }
       }
 
-      // ── SECTION: Interne-Bestellungen-Tab (Zeile 4710) ──
+      // ── SECTION: Interne-Bestellungen-Tab ──
       let _internState = { partnerId: '', rows: [] };
 
       async function loadInternTab() {
@@ -10586,7 +10586,7 @@
         };
       }
 
-      // ── SECTION: Fixkosten-Konfiguration sicherstellen (Zeile 4810) ──
+      // ── SECTION: Fixkosten-Konfiguration sicherstellen ──
       // Die Positionen, die berechnet werden - identisch zur POSITION_MAP in
       // backend/utils/partner-kalkulation.js. Nebenkosten, Versandanteil und
       // PayPal-Anteil standen hier frueher mit drin, obwohl sie in keiner
