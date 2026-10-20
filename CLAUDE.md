@@ -78,6 +78,13 @@ Neue Sektionen immer mit Anker versehen:
   OHNE Pauschale, `verpackung.status` "fehlt" + Hinweis (Inhaber: keine Sperre). FP_Verkäufe Spalte W
   `Versandmethode` (method_id, additiv) schreibt der Sync; Bestand: `scripts/fill-fp-versandmethode.js`
   (Trockenlauf Standard, `--write` nur leere Zellen).
+- backend/utils/shop-spalte.js – Spalte "Shop" (NAV3) in den SSOT-Reitern mit Bestellbezug:
+  Produktions_Status (K), LShop_Bestellungen (I), DTF_Bestellungen (H), hinten angehaengt, nur ueber
+  den Namen. Werte JFN/HONK aus `?shop=` (apiFetch haengt ihn immer an); leere Zelle = JFN; fehlt die
+  Spalte, filtert nichts (wie vor NAV3). Schluessel = Shop + Bestellnummer (+ Position), weil JFN- und
+  HONK-Bestellnummern Beitrags-IDs zweier WordPress-Installationen sind und gleich sein koennen.
+  Neue Leser dieser Reiter lesen die ganze Breite (A1:Z), nie A1:J. Kein Shop-Feld: Partner_Interne_
+  Bestellungen (Shop am Partner), Trikots (nur JFN), Partner_/HK_/FP_Verkaeufe (schon je Shop).
 - backend/routes/partnerPortal.js – Token-Auth für partner.html + WC-Sync
 - backend/routes/anfragen.js – Kundenanfragen Admin (POST /neu, GET /, PATCH /:id/status) – hinter requireApiKey
 - backend/routes/anfragen-chat.js – Chat-Widget public endpoint (POST /chat, kein API-Key) – vor requireApiKey
