@@ -157,7 +157,7 @@
       .dash-greeting { margin-bottom: 1.5rem; padding-bottom: 1.1rem; border-bottom: 1px solid var(--border); }
       .dash-greeting-text { font-size: 1.45rem; font-weight: 700; color: var(--accent); }
       .dash-greeting-date { font-size: 0.82rem; color: var(--muted); margin-top: 0.25rem; }
-      .dash-stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+      .dash-stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
       .dash-stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.1rem 1.25rem; }
       .dash-stat-clickable { cursor: pointer; transition: border-color 0.2s; }
       .dash-stat-clickable:hover { border-color: var(--accent); }
@@ -172,14 +172,6 @@
       .donut-wrap { display: flex; flex-direction: column; align-items: center; gap: 0.55rem; }
       .donut-svg { width: 100%; max-width: 120px; }
       .donut-legend { font-size: 0.72rem; color: var(--muted); text-align: center; line-height: 1.8; }
-      .dash-placeholder { color: var(--muted); font-size: 0.85rem; padding: 0.25rem 0; }
-      .cost-rows { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.85rem; }
-      .cost-item { display: flex; justify-content: space-between; font-size: 0.87rem; }
-      .cost-item-label { color: var(--muted); }
-      .cost-item-value { font-weight: 500; }
-      .cost-budget-meta { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--muted); margin-bottom: 0.4rem; }
-      .cost-bar-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
-      .cost-bar-fill { height: 100%; background: var(--accent); border-radius: 3px; width: 0%; }
 
       /* ── Orders table ── */
       .orders-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -1012,6 +1004,10 @@
             <div class="skeleton" style="height:2.2rem;margin-bottom:0.35rem;border-radius:4px;"></div>
             <div class="dash-stat-label">Offen ↗</div>
           </div>
+          <div class="dash-stat-card">
+            <div class="skeleton" style="height:2.2rem;margin-bottom:0.35rem;border-radius:4px;"></div>
+            <div class="dash-stat-label">Umsatz heute</div>
+          </div>
         </div>
         <div class="card">
           <h2>Umsatz letzte 7 Tage</h2>
@@ -1039,30 +1035,6 @@
         <div class="card">
           <h2>Letzte Bestellungen</h2>
           <div id="recent-orders"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
-        </div>
-        <div class="card">
-          <h2>Kalender</h2>
-          <div class="dash-placeholder">Kalender wird in Session 6 angebunden</div>
-        </div>
-        <div class="card">
-          <h2>Kosten / Budget</h2>
-          <div class="cost-rows">
-            <div class="cost-item">
-              <span class="cost-item-label">Google Cloud</span>
-              <span class="cost-item-value" id="cost-gcloud">0,00 EUR</span>
-            </div>
-            <div class="cost-item">
-              <span class="cost-item-label">Claude API</span>
-              <span class="cost-item-value" id="cost-claude">0,00 EUR</span>
-            </div>
-          </div>
-          <div class="cost-budget-meta">
-            <span>Budget: 200 EUR / Monat</span>
-            <span id="cost-pct">0 %</span>
-          </div>
-          <div class="cost-bar-track">
-            <div class="cost-bar-fill" id="cost-bar-fill"></div>
-          </div>
         </div>
       </section>
 
@@ -2475,14 +2447,22 @@
           ]);
 
           // Stat cards
+          const umsatz = parseFloat(stats.revenue_today);
+          const umsatzHeute = Number.isFinite(umsatz)
+            ? umsatz.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })
+            : '–';
           document.getElementById('dash-stats-row').innerHTML = `
             <div class="dash-stat-card">
               <div class="dash-stat-value">${stats.orders_today ?? '–'}</div>
               <div class="dash-stat-label">Bestellungen heute</div>
             </div>
-            <div class="dash-stat-card dash-stat-clickable" id="stat-open">
-              <div class="dash-stat-value">${stats.pending ?? '–'}</div>
+            <div class="dash-stat-card dash-stat-clickable" id="stat-open" title="In Bearbeitung + Wartestellung">
+              <div class="dash-stat-value">${stats.offen ?? '–'}</div>
               <div class="dash-stat-label">Offen ↗</div>
+            </div>
+            <div class="dash-stat-card">
+              <div class="dash-stat-value">${umsatzHeute}</div>
+              <div class="dash-stat-label">Umsatz heute</div>
             </div>`;
           document.getElementById('stat-open')?.addEventListener('click', () =>
             document.querySelector('nav button[data-panel="orders"]')?.click());

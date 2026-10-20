@@ -246,22 +246,6 @@ router.get('/products/:id', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// GET /api/woocommerce/products
-router.get('/products', async (req, res, next) => {
-  try {
-    const wc = getClient(req);
-    const { per_page = 20, page = 1, status = 'publish' } = req.query;
-    const { data } = await wc.get('products', {
-      per_page: Math.min(Number(per_page), 100),
-      page: Number(page),
-      status,
-    });
-    res.json(data);
-  } catch (err) {
-    next(err);
-  }
-});
-
 // GET /api/woocommerce/stats  – today's summary + 7-day revenue
 router.get('/stats', async (req, res, next) => {
   try {
@@ -278,9 +262,12 @@ router.get('/stats', async (req, res, next) => {
       wc.get('orders', { after: weekStart.toISOString(), per_page: 100 }),
     ]);
 
-    const revenueToday = ordersToday.data
-      .filter(o => o.status !== 'cancelled' && o.status !== 'refunded')
-      .reduce((sum, o) => sum + parseFloat(o.total), 0);
+    // Storniert, erstattet und fehlgeschlagen zaehlen weder als Bestellung noch
+    // als Umsatz (Dashboard-Kacheln "Bestellungen heute" / "Umsatz heute").
+    const zaehltNicht = new Set(['cancelled', 'refunded', 'failed']);
+    const zaehlt = o => !zaehltNicht.has(o.status);
+    const heute = ordersToday.data.filter(zaehlt);
+    const revenueToday = heute.reduce((sum, o) => sum + parseFloat(o.total), 0);
 
     // Build 7-day revenue map (last 7 days including today)
     const dayMap = {};
@@ -290,17 +277,22 @@ router.get('/stats', async (req, res, next) => {
       dayMap[key] = { date: d.toLocaleDateString('de-DE', { weekday: 'short' }), revenue: 0 };
     }
     ordersWeek.data
-      .filter(o => o.status !== 'cancelled' && o.status !== 'refunded')
+      .filter(zaehlt)
       .forEach(o => {
         const key = o.date_created?.slice(0, 10);
         if (key && dayMap[key]) dayMap[key].revenue += parseFloat(o.total);
       });
 
+    // "pending" enthaelt historisch die Zahl on-hold (Donut im Dashboard);
+    // "offen" = processing + on-hold fuer die Kachel "Offen".
+    const onHold     = parseInt(pendingOrders.headers['x-wp-total']    ?? '0', 10);
+    const processing = parseInt(processingOrders.headers['x-wp-total'] ?? '0', 10);
     res.json({
-      orders_today:    ordersToday.data.length,
+      orders_today:    heute.length,
       revenue_today:   revenueToday.toFixed(2),
-      pending:         parseInt(pendingOrders.headers['x-wp-total']    ?? '0', 10),
-      processing:      parseInt(processingOrders.headers['x-wp-total'] ?? '0', 10),
+      pending:         onHold,
+      processing,
+      offen:           processing + onHold,
       products_active: parseInt(activeProducts.headers['x-wp-total'] ?? '0', 10),
       revenue_7days:   Object.values(dayMap).map(d => ({ date: d.date, revenue: parseFloat(d.revenue.toFixed(2)) })),
     });
