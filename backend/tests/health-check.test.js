@@ -55,7 +55,7 @@ beforeAll(async () => {
   app = express();
   app.use(express.json());
   app.use(requireApiKey);
-  app.use('/api/health', systemRoutes.default);
+  app.use('/api/health', systemRoutes.healthRouter);
   app.use((err, _req, res, _next) => res.status(err.status ?? 500).json({ error: err.message }));
 });
 
@@ -147,5 +147,15 @@ describe('Claude-Check wird gehalten', () => {
       await hole('geheim');
       expect(mockCreate).toHaveBeenCalledTimes(2);
     } finally { Date.now = echt; }
+  });
+});
+
+// ── NAV2: /api/health ist nur noch der Health-Router ─────────────────────────
+describe('Router getrennt', () => {
+  test('/api/health kennt modell-check und log nicht mehr', async () => {
+    const mc = await request(app).post('/api/health/modell-check').set('X-API-Key', 'geheim');
+    const lg = await request(app).post('/api/health/log').set('X-API-Key', 'geheim').send({ message: 'x' });
+    expect(mc.status).toBe(404);
+    expect(lg.status).toBe(404);
   });
 });

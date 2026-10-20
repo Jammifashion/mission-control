@@ -9,7 +9,7 @@ import {
 import { requireHeader, findHeader } from '../utils/sheet-headers.js';
 import { colLetter, sichereSpalte } from '../utils/sheet-spalten.js';
 import { abrechnungHinweise } from '../utils/sync-logic.js';
-import { berechnePartnerAnteil, parseKonfiguration, getKostenSatz, istBekanntePosition, baueLizenzSaetze, lizenzSatzAusZeile, parseVertragAb, baueVertragsbeginne } from '../utils/partner-kalkulation.js';
+import { berechnePartnerAnteil, parseKonfiguration, istBekanntePosition, baueLizenzSaetze, lizenzSatzAusZeile, parseVertragAb, baueVertragsbeginne } from '../utils/partner-kalkulation.js';
 
 const router = Router();
 
@@ -31,31 +31,6 @@ function parseDate(str) {
 function toDE(date) {
   const d = new Date(date);
   return `${String(d.getUTCDate()).padStart(2,'0')}.${String(d.getUTCMonth()+1).padStart(2,'0')}.${d.getUTCFullYear()}`;
-}
-
-// Aus Zeilen den Eintrag wählen, dessen Gültig-Ab/Gültig_ab <= datum ist — bei mehreren den neuesten.
-// Unterstützt auch Gültig_bis (neues Fixkosten-Schema): Zeile wird ignoriert wenn bis < datum.
-function findGueltig(rows, header, datum, keyFn) {
-  const abIdx = header.indexOf('Gültig-Ab') !== -1
-    ? header.indexOf('Gültig-Ab')
-    : header.indexOf('Gültig_ab');
-  if (abIdx === -1) return rows;
-  const bisIdx = header.indexOf('Gültig_bis');
-  return rows
-    .map(row => ({ row, gueltigAb: parseDate(row[abIdx] ?? '') }))
-    .filter(({ row, gueltigAb }) => {
-      if (!gueltigAb || gueltigAb > datum) return false;
-      if (bisIdx !== -1 && row[bisIdx] && row[bisIdx].trim() !== '') {
-        const bis = parseDate(row[bisIdx]);
-        if (bis && bis < datum) return false;
-      }
-      return true;
-    })
-    .reduce((best, cur) => {
-      const key = keyFn(cur.row);
-      if (!best[key] || cur.gueltigAb > best[key].gueltigAb) best[key] = cur;
-      return best;
-    }, {});
 }
 
 async function readTab(sheets, sheetId, tabName) {
@@ -120,108 +95,6 @@ function nextAbrechnungId(existingRows, idIdx) {
     .reduce((m, n) => Math.max(m, n), 0);
   return `${prefix}${String(max + 1).padStart(4, '0')}`;
 }
-
-// ── POST /api/kalkulation/berechnen ─────────────────────────────────────────
-router.post('/berechnen', async (req, res, next) => {
-  try {
-    const sheetId = process.env.BUSINESS_SHEET_ID;
-    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
-
-    const { lshopNr, druckpositionen = [], menge = 1, bestelldatum } = req.body;
-    if (!lshopNr) return res.status(400).json({ error: 'lshopNr ist erforderlich.' });
-
-    const datum  = bestelldatum ? new Date(bestelldatum) : new Date();
-    const sheets = await getSheets();
-
-    const [artikel, druckpreise, fixkosten, verkaufspreise] = await Promise.all([
-      readTab(sheets, sheetId, 'Kalkulation_Artikel'),
-      readTab(sheets, sheetId, 'Kalkulation_Druckpreise'),
-      readTab(sheets, sheetId, 'Kalkulation_Fixkosten'),
-      readTab(sheets, sheetId, 'Kalkulation_Verkaufspreise'),
-    ]);
-
-    // EK-Preis
-    const artLshopIdx = artikel.header.indexOf('L-Shop-Nr');
-    const artEkIdx    = artikel.header.indexOf('EK-Preis-Netto');
-    const artKatIdx   = artikel.header.indexOf('Kategorie');
-    const artNameIdx  = artikel.header.indexOf('Artikelname');
-
-    const gArtikel = findGueltig(artikel.rows, artikel.header, datum, r => r[artLshopIdx] ?? '');
-    const artEntry = gArtikel[lshopNr];
-    if (!artEntry) return res.status(404).json({ error: `Kein gültiger EK-Preis für "${lshopNr}" zum ${datum.toISOString().slice(0,10)}.` });
-
-    const ekPreis    = parseFloat(artEntry.row[artEkIdx] ?? '0');
-    const kategorie  = artEntry.row[artKatIdx] ?? '';
-    const artikelname = artEntry.row[artNameIdx] ?? '';
-
-    // Druckpreise
-    const dPosIdx  = druckpreise.header.indexOf('Druckposition');
-    const dGroeIdx = druckpreise.header.indexOf('Größe');
-    const dPreisIdx = druckpreise.header.indexOf('Preis-Netto');
-
-    const druckGesamt = druckpositionen.reduce((sum, { position, groesse }) => {
-      const gD = findGueltig(druckpreise.rows, druckpreise.header, datum,
-        r => `${r[dPosIdx]??''}|${r[dGroeIdx]??''}`);
-      const e = gD[`${position}|${groesse}`];
-      return sum + (e ? parseFloat(e.row[dPreisIdx] ?? '0') : 0);
-    }, 0);
-
-    // Fixkosten – Wert-Spalte: neues Schema 'Wert', Fallback auf altes 'Betrag'
-    const fPosIdx    = fixkosten.header.indexOf('Position');
-    const fWertIdx   = fixkosten.header.indexOf('Wert') !== -1
-      ? fixkosten.header.indexOf('Wert')
-      : fixkosten.header.indexOf('Betrag');
-    const fEinheitIdx = fixkosten.header.indexOf('Einheit');
-
-    const gFix = findGueltig(fixkosten.rows, fixkosten.header, datum, r => r[fPosIdx] ?? '');
-    let fixGesamt = 0;
-    const fixDetail = [];
-    for (const { row: r } of Object.values(gFix)) {
-      const betrag  = toFloat(r[fWertIdx]);
-      const einheit = r[fEinheitIdx] ?? '';
-      fixDetail.push({ position: r[fPosIdx], betrag, einheit });
-      if (einheit === 'EUR/Artikel') fixGesamt += betrag;
-    }
-
-    // VK-Preis (Mengenstaffel)
-    const vkTypIdx   = verkaufspreise.header.indexOf('Produkttyp');
-    const vkMengeIdx = verkaufspreise.header.indexOf('Ab-Menge');
-    const vkPreisIdx = verkaufspreise.header.indexOf('VK-Brutto');
-
-    const gVk = findGueltig(verkaufspreise.rows, verkaufspreise.header, datum,
-      r => `${r[vkTypIdx]??''}|${r[vkMengeIdx]??''}`);
-
-    const vkEintraege = Object.values(gVk)
-      .map(({ row: r }) => ({
-        typ: r[vkTypIdx] ?? '', abMenge: parseInt(r[vkMengeIdx] ?? '1', 10),
-        vkBrutto: toFloat(r[vkPreisIdx]),
-      }))
-      .filter(e => parseInt(menge, 10) >= e.abMenge)
-      .sort((a, b) => b.abMenge - a.abMenge);
-
-    const vkPreis = vkEintraege[0]?.vkBrutto ?? null;
-
-    const paypalEntry  = fixDetail.find(f => f.einheit === '%/VK');
-    const paypalAnteil = vkPreis && paypalEntry
-      ? parseFloat(((vkPreis * paypalEntry.betrag) / 100).toFixed(2)) : 0;
-
-    const gesamtkostenNetto = parseFloat((ekPreis + druckGesamt + fixGesamt + paypalAnteil).toFixed(2));
-    const deckungsbeitrag   = vkPreis !== null
-      ? parseFloat(((vkPreis / 1.19) - gesamtkostenNetto).toFixed(2)) : null;
-
-    res.json({
-      bestelldatum: datum.toISOString().slice(0, 10), lshopNr, artikelname, kategorie,
-      menge: parseInt(menge, 10), ekPreis,
-      druckGesamt:     parseFloat(druckGesamt.toFixed(2)),
-      fixkostenGesamt: parseFloat(fixGesamt.toFixed(2)),
-      paypalAnteil, gesamtkostenNetto,
-      vkPreisBrutto: vkPreis,
-      vkPreisNetto:  vkPreis !== null ? parseFloat((vkPreis / 1.19).toFixed(2)) : null,
-      deckungsbeitrag,
-      details: { druckpositionen, fixkosten: fixDetail },
-    });
-  } catch (err) { next(err); }
-});
 
 // ── GET /api/kalkulation/partner ─────────────────────────────────────────────
 router.get('/partner', async (req, res, next) => {
@@ -431,42 +304,6 @@ router.post('/partner-verkauf', async (req, res, next) => {
     });
 
     res.status(201).json({ partnerId, orderId, lizenzgebühr, status: 'offen' });
-  } catch (err) { next(err); }
-});
-
-// ── GET /api/kalkulation/partner/:id/verkäufe ────────────────────────────────
-// Offene Verkäufe eines Partners abrufen
-router.get('/partner/:id/verkaeufe', async (req, res, next) => {
-  try {
-    const sheetId = process.env.BUSINESS_SHEET_ID;
-    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
-
-    const { id } = req.params;
-    const { status } = req.query; // optional: ?status=offen
-
-    const sheets = await getSheets();
-    const tabVerkaeufe = getShopConfig(req.query.shop).tabVerkaeufe;
-    const { header, rows } = await readTab(sheets, sheetId, tabVerkaeufe);
-
-    const pIdx  = header.indexOf('Partner-ID');
-    const stIdx = header.indexOf('Status');
-
-    const filtered = rows
-      .filter(r => r[pIdx] === id && (!status || r[stIdx] === status))
-      .map(r => ({
-        partnerId:    r[header.indexOf('Partner-ID')]      ?? '',
-        datum:        r[header.indexOf('Datum')]           ?? '',
-        orderId:      r[header.indexOf('Order-ID')]        ?? '',
-        artikelnummer: r[header.indexOf('Artikelnummer')]  ?? '',
-        variante:     r[header.indexOf('Variante')]        ?? '',
-        stueckzahl:   parseInt(r[header.indexOf('Stückzahl')] ?? '1', 10),
-        vkPreisBrutto: toFloat(r[header.indexOf('VK-Preis-Brutto')]),
-        lizenzgebühr:  toFloat(r[header.indexOf('Lizenzgebühr')]),
-        status:       r[header.indexOf('Status')] ?? '',
-      }));
-
-    const summe = filtered.reduce((s, v) => s + v.lizenzgebühr, 0);
-    res.json({ partnerId: id, anzahl: filtered.length, lizenzSumme: parseFloat(summe.toFixed(2)), verkäufe: filtered });
   } catch (err) { next(err); }
 });
 

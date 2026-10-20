@@ -6,7 +6,12 @@ import { getWcClient } from '../lib/shopConfig.js';
 import { getModel } from '../lib/modelConfig.js';
 import { runCheck } from '../scripts/check-models.js';
 
+// Zwei Router statt einem, der doppelt eingehaengt war (/api/system und
+// /api/health): so gab es auch /api/system/full und /api/health/modell-check.
+// healthRouter -> /api/health  (GET /full, Statuspunkt im Dashboard)
+// default      -> /api/system  (POST /modell-check, Workflow modell-check.yml)
 const router = Router();
+export const healthRouter = Router();
 
 async function checkWooCommerce(shop) {
   const t0 = Date.now();
@@ -59,7 +64,7 @@ async function checkClaude() {
 }
 
 // ── GET /api/health/full ──────────────────────────────────────────────────────
-router.get('/full', async (req, res, next) => {
+healthRouter.get('/full', async (req, res, next) => {
   try {
     const [woocommerce, sheet, claude] = await Promise.all([
       checkWooCommerce(req.query.shop).catch(err => ({ ok: false, ms: 0, error: err.message })),
@@ -96,32 +101,6 @@ router.post('/modell-check', async (_req, res, next) => {
     const r = await runCheck();
     const ok = r.fehlend.length === 0;
     res.status(ok ? 200 : 422).json({ ok, ...r });
-  } catch (err) { next(err); }
-});
-
-// ── POST /api/system/log ──────────────────────────────────────────────────────
-router.post('/log', async (req, res, next) => {
-  try {
-    const { level = 'INFO', service = '', message = '', details = '' } = req.body;
-    if (!message) return res.status(400).json({ error: 'message erforderlich' });
-
-    const auth   = await getGoogleAuth();
-    const sheets = google.sheets({ version: 'v4', auth });
-    await sheets.spreadsheets.values.append({
-      spreadsheetId:    process.env.GOOGLE_SHEET_ID,
-      range:            'System_Log!A1',
-      valueInputOption: 'USER_ENTERED',
-      insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [[
-        new Date().toISOString(),
-        String(level).toUpperCase(),
-        service,
-        message,
-        typeof details === 'object' ? JSON.stringify(details) : String(details),
-      ]] },
-    });
-
-    res.json({ ok: true });
   } catch (err) { next(err); }
 });
 

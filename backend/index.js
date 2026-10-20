@@ -17,7 +17,7 @@ import claudeRouter from './routes/claude.js';
 import sheetsRouter from './routes/sheets.js';
 import auftragsmonitorRouter from './routes/auftragsmonitor.js';
 import backupRouter from './routes/backup.js';
-import systemRoutes from './routes/system.js';
+import systemRoutes, { healthRouter } from './routes/system.js';
 import kalkulationRouter from './routes/kalkulation.js';
 import partnerPortalRouter from './routes/partnerPortal.js';
 import partnerArtikelRouter from './routes/partner-artikel.js';
@@ -77,7 +77,7 @@ app.use('/api/agent-wissen',  agentWissenRouter);
 app.use('/api/trikot',        trikotRouter);        // POST /sync – täglicher Trikot-Sync
 app.use('/api/seo',           seoMetaRouter);       // POST /meta-eingaben – Yoast-Meta ohne Modell
 app.use('/api/lshop',         lshopRouter);         // POST /stammdaten – L-Shop-Stammdaten (LS1)
-app.use('/api/health', systemRoutes);
+app.use('/api/health', healthRouter);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((_req, res) => res.status(404).json({ error: 'Not found' }));

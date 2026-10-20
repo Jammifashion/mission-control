@@ -164,32 +164,12 @@ function zeilenBereiche(nummern) {
   return teile.join(', ');
 }
 
-// ── GET /api/sheets/lieferzeiten ─────────────────────────────────────────────
-router.get('/lieferzeiten', async (req, res, next) => {
-  try {
-    const rows = await readRange('Lieferzeit');
-    const objects = rowsToObjects(rows);
-    const key = objects[0] ? Object.keys(objects[0]).find(k => k.toLowerCase().includes('lieferzeit')) ?? Object.keys(objects[0])[0] : 'Lieferzeit';
-    res.json(objects.map(r => r[key]).filter(Boolean));
-  } catch (err) { next(err); }
-});
-
 // ── GET /api/sheets/struktur-lieferzeiten ────────────────────────────────────
 // German-Market-Terme fuer _lieferzeit: [{ id: "21", name, slug }]. Die erste
 // Zeile ist der Standard fuer die Anlage. Scheitert laut mit Spaltenname.
 router.get('/struktur-lieferzeiten', async (req, res, next) => {
   try {
     res.json(await ladeLieferzeiten());
-  } catch (err) { next(err); }
-});
-
-// ── GET /api/sheets/versandklassen ───────────────────────────────────────────
-router.get('/versandklassen', async (req, res, next) => {
-  try {
-    const rows = await readRange('Versandklasse');
-    const objects = rowsToObjects(rows);
-    const key = objects[0] ? Object.keys(objects[0]).find(k => k.toLowerCase().includes('versand')) ?? Object.keys(objects[0])[0] : 'Versandklasse';
-    res.json(objects.map(r => r[key]).filter(Boolean));
   } catch (err) { next(err); }
 });
 

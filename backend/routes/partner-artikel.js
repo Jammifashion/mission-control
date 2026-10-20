@@ -3,7 +3,6 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { sheetsMitWiederholung } from '../lib/googleRetry.js';
 import { getWcClient as wcClientForShop } from '../lib/shopConfig.js';
-import { berechnePartnerAnteil, parseKonfiguration } from '../utils/partner-kalkulation.js';
 import { importiereFuerPartner, artikelAbgleich, abgleichMelden } from '../lib/partnerArtikel.js';
 import { istLaufStopp } from '../lib/hosterPruefseite.js';
 import { notify, buildArtikelAbgleichNachricht, buildAbgleichLebenszeichen } from '../lib/chatNotify.js';
@@ -146,11 +145,6 @@ async function migrateNeuStatus(sheets, sheetId, header, rows) {
     },
   });
   betroffen.forEach(r => { r[stIdx] = 'offen'; });
-}
-
-async function loadKonfiguration(sheets, sheetId) {
-  const { header, rows } = await readTab(sheets, sheetId, 'Kalkulation_Fixkosten');
-  return parseKonfiguration(rows, header);
 }
 
 function requireSheetId(res) {
@@ -336,33 +330,6 @@ router.patch('/:id/artikel/:artikelnummer', async (req, res, next) => {
       artikelnummer: req.params.artikelnummer,
       updated:       Object.keys(colMap).filter(k => colMap[k] !== undefined),
     });
-  } catch (err) { next(err); }
-});
-
-// ── POST /kalkulation/preview ────────────────────────────────────────────────
-// Body: { vkBrutto, ekPreis, druckkosten, versandart, portoModell,
-//         anzahlArtikelInBestellung, lizenzProzent }
-// Konfiguration wird serverseitig aus Kalkulation_Fixkosten gezogen.
-router.post('/kalkulation/preview', async (req, res, next) => {
-  try {
-    const sheetId = requireSheetId(res); if (!sheetId) return;
-    const sheets  = await getSheets();
-    const konfiguration = await loadKonfiguration(sheets, sheetId);
-
-    const result = berechnePartnerAnteil({
-      vkNetto:                   parseFloat(req.body.vkBrutto ?? 0),
-      ekPreis:                   parseFloat(req.body.ekPreis ?? 0),
-      druckkosten:               parseFloat(req.body.druckkosten ?? 0),
-      versandart:                req.body.versandart ?? 'P',
-      portoModell:               req.body.portoModell ?? 'geteilt-50-50',
-      anzahlArtikelInBestellung: parseInt(req.body.anzahlArtikelInBestellung ?? 1, 10),
-      stueckzahl:                parseInt(req.body.stueckzahl ?? 1, 10),
-      lizenzProzent:            parseFloat(req.body.lizenzProzent ?? 0),
-      portoEinnahmeAnteil:       parseFloat(req.body.portoEinnahmeAnteil ?? 0),
-      konfiguration,
-    });
-
-    res.json({ ...result, konfiguration });
   } catch (err) { next(err); }
 });
 
