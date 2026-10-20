@@ -31,7 +31,8 @@ const SPALTEN_MOTIVE = {
 const SPALTEN_KATEGORIEN = { nr: 'Kategorienummer', hinweis: 'SEO_Hinweis' };
 const SPALTEN_SEO_KARTE  = { typ: 'Typ', name: 'Name', wcId: 'WC_ID', ist: 'Ist_Keyphrase', soll: 'Soll_Keyphrase' };
 // M8: Synonyme zaehlen fuer Kollisionen mit (optional - fehlt die Spalte, ohne).
-const SPALTEN_SEO_KARTE_OPT = { syn: 'Ist_Synonyme' };
+// NAV3: Status mitlesen - Zeilen mit Status "entfernt" (ST1) zaehlen nicht.
+const SPALTEN_SEO_KARTE_OPT = { syn: 'Ist_Synonyme', status: 'Status' };
 
 const t    = v => String(v ?? '').trim();
 const norm = v => t(v).toLowerCase().replace(/\s+/g, ' ');
@@ -86,7 +87,8 @@ export function synonymeListe(roh) {
 /**
  * Keyphrase gegen SEO_Karte. Eintraege mit derselben WC_ID wie der Artikel
  * selbst zaehlen nicht. M8: auch gleich einem Ist_Synonym eines anderen
- * Eintrags ist eine Kollision (Feld "Ist_Synonyme").
+ * Eintrags ist eine Kollision (Feld "Ist_Synonyme"). Zeilen mit Status
+ * "entfernt" werden uebersprungen (Artikel gibt es nicht mehr, ST1).
  * @returns {{ kollisionen: object[], teiltreffer: object[] }}
  *   je Treffer { typ, name, wcId, feld: 'Soll_Keyphrase'|'Ist_Keyphrase', wert }
  */
@@ -97,6 +99,7 @@ export function keyphrasePruefung(zeilen, keyphrase, { wcId } = {}) {
   const eigen = t(wcId);
   for (const z of zeilen ?? []) {
     if (eigen && t(z.wcId) === eigen) continue;
+    if (norm(z.status) === 'entfernt') continue;
     const gesehen = new Set();
     for (const [feld, wert] of [['Soll_Keyphrase', z.soll], ['Ist_Keyphrase', z.ist]]) {
       const w = norm(wert);
