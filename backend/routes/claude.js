@@ -1,7 +1,6 @@
 import { Router } from 'express';
-import Anthropic from '@anthropic-ai/sdk';
 import { getModel } from '../lib/modelConfig.js';
-import { sanitizeJsonControlChars, collectText } from '../utils/json-parse.js';
+import { sanitizeJsonControlChars } from '../utils/json-parse.js';
 import {
   buildSeoUserPrompt, resolveModus, pruefeSeoText, pruefeH2, h2KorrekturBlock,
   entferneLeereLi, SEO_SYSTEM_PROMPT,
@@ -15,129 +14,10 @@ import { textAufruf, schluesselFehlt, KiAbgeschnittenError, KiAbgelehntError } f
 
 const router = Router();
 
-const SYSTEM_PROMPT = `Du bist der KI-Assistent für das Mission Control Dashboard von JammiFashion.
-Du hilfst dem Team bei Fragen zu Bestellungen, Produkten, Shop-Analysen und operativen Aufgaben.
-Antworte präzise und auf Deutsch. Wenn du Zahlen oder Bestellinformationen nennst, formatiere sie übersichtlich.`;
-
-const MAX_HISTORY = 10;
-const conversationHistory = new Map();
-
-// POST /api/claude/chat
-router.post('/chat', async (req, res, next) => {
-  try {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return res.status(503).json({ error: 'ANTHROPIC_API_KEY nicht konfiguriert.' });
-    }
-
-    const { message, session_id = 'default' } = req.body;
-
-    if (!message || typeof message !== 'string' || message.trim().length === 0) {
-      return res.status(400).json({ error: 'Nachricht darf nicht leer sein.' });
-    }
-    if (message.length > 4000) {
-      return res.status(400).json({ error: 'Nachricht zu lang (max. 4000 Zeichen).' });
-    }
-
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    const history = conversationHistory.get(session_id) || [];
-    history.push({ role: 'user', content: message.trim() });
-
-    // Keep only last N turns to control token usage.
-    //
-    // Der Schnitt muss auf einer user-Nachricht aufsetzen: die Messages-API
-    // verlangt das an erster Stelle. Bei geradem MAX_HISTORY faellt der Schnitt
-    // ab Runde 6 genau so, dass eine assistant-Nachricht vorne steht
-    // ([u,a,…,u] mit 11 Eintraegen → slice(-10) beginnt bei a) - der Aufruf
-    // scheiterte dann mit 400, und zwar ab da in jeder weiteren Runde.
-    const trimmed = history.slice(-MAX_HISTORY);
-    while (trimmed.length && trimmed[0].role !== 'user') trimmed.shift();
-
-    const response = await client.messages.create({
-      model: await getModel('agent-intern'),
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages: trimmed,
-    });
-
-    const reply = collectText(response);
-    if (!reply) {
-      console.error('[claude/chat] Leere Antwort vom Modell, content-Typen:',
-        (response.content ?? []).map(b => b.type).join(',') || '(keine)');
-      return res.status(502).json({ error: 'Modell lieferte eine leere Antwort.' });
-    }
-    trimmed.push({ role: 'assistant', content: reply });
-    conversationHistory.set(session_id, trimmed);
-
-    res.json({ reply, session_id });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// DELETE /api/claude/chat/:session_id  – clear history
-router.delete('/chat/:session_id', (req, res) => {
-  conversationHistory.delete(req.params.session_id);
-  res.json({ cleared: true });
-});
-
 // POST /api/claude/generate-product
 router.post('/generate-product', async (req, res, next) => {
   try {
-    const { action, name, keywords, shop, properties, rules } = req.body;
-
-    // seo_description und suggest_variants wählen ihren Anbieter selbst (Rolle
-    // im Config-Sheet) und prüfen den passenden Key dort. Der pauschale Guard
-    // hätte den Gemini-Pfad blockiert, obwohl er keinen Anthropic-Key braucht.
-    const brauchtAnthropic = action !== 'seo_description' && action !== 'suggest_variants';
-    if (brauchtAnthropic && !process.env.ANTHROPIC_API_KEY) {
-      return res.status(503).json({ error: 'ANTHROPIC_API_KEY nicht konfiguriert.' });
-    }
-
-    if (action === 'generate_variants') {
-      if (!name || !properties) {
-        return res.status(400).json({ error: 'Felder name und properties sind erforderlich.' });
-      }
-
-      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-      const variantPrompt = `Erstelle alle Varianten für folgendes WooCommerce-Produkt:
-
-Produktname: ${name}
-Eigenschaften:
-${properties}
-${rules ? `\nVariantenregeln:\n${rules}` : ''}
-
-Antworte ausschließlich als valides JSON-Array. Jedes Element repräsentiert eine Variante:
-[
-  {"attributes": [{"name": "Farbe", "option": "Rot"}, {"name": "Größe", "option": "S"}]},
-  {"attributes": [{"name": "Farbe", "option": "Rot"}, {"name": "Größe", "option": "M"}]}
-]
-
-Bilde alle sinnvollen Kombinationen der Eigenschaften. Berücksichtige Variantenregeln falls angegeben.
-Gib nur das JSON-Array zurück, keinen weiteren Text.`;
-
-      const response = await client.messages.create({
-        model: await getModel('agent-intern'),
-        max_tokens: 2048,
-        messages: [{ role: 'user', content: variantPrompt }],
-      });
-
-      const raw = collectText(response);
-      if (!raw) {
-        console.error('[generate_variants] Leere Antwort vom Modell, content-Typen:',
-          (response.content ?? []).map(b => b.type).join(',') || '(keine)');
-      }
-      let variants;
-      try {
-        const jsonMatch = raw.match(/\[[\s\S]*\]/);
-        variants = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
-      } catch {
-        return res.status(502).json({ error: 'Claude-Antwort konnte nicht als JSON geparst werden.', raw });
-      }
-
-      return res.json({ variants });
-    }
+    const { action } = req.body;
 
     if (action === 'suggest_variants') {
       const { name, combos } = req.body;
@@ -440,59 +320,7 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
       });
     }
 
-    if (action !== 'generate_description') {
-      return res.status(400).json({ error: 'Unbekannte action. Erwartet: generate_description, seo_description oder generate_variants' });
-    }
-    if (!name || !keywords || !shop) {
-      return res.status(400).json({ error: 'Felder name, keywords und shop sind erforderlich.' });
-    }
-
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    const prompt = `Erstelle eine verkaufsstarke WooCommerce-Produktbeschreibung für folgenden Artikel:
-
-Produktname: ${name}
-Keywords / Eigenschaften: ${keywords}
-Shop / Marke: ${shop}
-
-Antworte ausschließlich als valides JSON-Objekt mit diesen zwei Feldern:
-- "short_description": Ein einzelner, knackiger Einleitungssatz (max. 20 Wörter), der das Produkt emotional und prägnant beschreibt. Kein HTML.
-- "full_description": Eine vollständige HTML-Produktbeschreibung mit:
-  1. Einem kurzen emotionalen Einleitungssatz als <p>
-  2. Einer <ul>-Liste mit 4–6 prägnanten Highlight-Bulletpoints (<li>)
-  3. Einem abschließenden SEO-Absatz als <p> (~100 Wörter) mit natürlicher Keyword-Integration
-
-Ton: selbstbewusst, urban, zielgruppenorientiert (Streetwear/Fanmerch). Sprache: Deutsch.
-Gib nur das JSON zurück, keinen weiteren Text.`;
-
-    const response = await client.messages.create({
-      model: await getModel('agent-intern'),
-      max_tokens: 1024,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const raw = collectText(response);
-    if (!raw) {
-      console.error('[generate_description] Leere Antwort vom Modell, content-Typen:',
-        (response.content ?? []).map(b => b.type).join(',') || '(keine)');
-    }
-
-    let parsed;
-    try {
-      const jsonMatch = raw.match(/\{[\s\S]*\}/);
-      parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
-    } catch {
-      return res.status(502).json({ error: 'Claude-Antwort konnte nicht als JSON geparst werden.', raw });
-    }
-
-    if (!parsed.short_description || !parsed.full_description) {
-      return res.status(502).json({ error: 'Antwort enthält nicht alle erwarteten Felder.', raw: parsed });
-    }
-
-    res.json({
-      short_description: parsed.short_description,
-      full_description: parsed.full_description,
-    });
+    return res.status(400).json({ error: 'Unbekannte action. Erwartet: seo_description oder suggest_variants' });
   } catch (err) {
     next(err);
   }

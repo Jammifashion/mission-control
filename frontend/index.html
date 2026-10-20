@@ -401,7 +401,6 @@
       .desc-output.html-preview { overflow-x: auto; }
 
       .product-actions { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.5rem; }
-      #prod-status-badge { font-size: 0.78rem; padding: 0.25em 0.65em; }
 
       /* ── Artikelerfassung ── */
       .status-bar { display: flex; gap: 1rem; margin-bottom: 1.25rem; flex-wrap: wrap; }
@@ -739,8 +738,6 @@
       .prop-suggest-dropdown { display: none; position: absolute; top: calc(100% + 3px); left: 0; min-width: 200px; max-width: 280px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; z-index: 200; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
       .prop-suggest-dropdown.open { display: block; }
 
-      .seo-block { display: none; }
-      .seo-block.visible { display: block; }
 
       .panel-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; padding-top: 1rem; border-top: 1px solid var(--border); margin-top: 0.25rem; }
       .mode-toggle { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
@@ -803,41 +800,6 @@
       .aw-chat-input-row textarea { flex:1; background:var(--surface); border:1px solid var(--border); border-radius:6px; color:var(--text); padding:0.55rem 0.75rem; font-size:0.86rem; resize:none; min-height:40px; max-height:120px; box-sizing:border-box; }
       .aw-chat-input-row textarea:focus { outline:1px solid var(--accent); }
 
-      /* ── Claude chat ── */
-      #chat-messages {
-        height: 340px;
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-        gap: 0.75rem;
-        margin-bottom: 1rem;
-      }
-      .msg {
-        max-width: 80%;
-        padding: 0.65rem 0.9rem;
-        border-radius: 8px;
-        font-size: 0.9rem;
-        line-height: 1.45;
-        white-space: pre-wrap;
-      }
-      .msg.user      { align-self: flex-end; background: var(--accent); color: #111; }
-      .msg.assistant { align-self: flex-start; background: var(--surface); border: 1px solid var(--border); }
-      .msg.thinking  { color: var(--muted); font-style: italic; }
-
-      .chat-input-row { display: flex; gap: 0.5rem; }
-      .chat-input-row textarea {
-        flex: 1;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 6px;
-        color: var(--text);
-        padding: 0.65rem 0.8rem;
-        font-size: 0.9rem;
-        resize: none;
-        min-height: 44px;
-        max-height: 120px;
-      }
-      .chat-input-row textarea:focus { outline: 1px solid var(--accent); }
       .btn {
         padding: 0.65rem 1.1rem;
         border: none;
@@ -982,7 +944,6 @@
       <button data-panel="products">Produkte</button>
       <button data-panel="anfragen">Kundenanfragen Extern</button>
       <button data-panel="agent-wissen">Agent-Wissen</button>
-      <button data-panel="claude">Claude</button>
       <button data-panel="partnerportal">Partnerportal</button>
       <button data-panel="festpreis">Festpreis</button>
       <button data-panel="settings">Einstellungen</button>
@@ -1507,21 +1468,12 @@
           </div>
         </div>
 
-        <!-- Block 5: SEO (nur sichtbar wenn SEO-Status = Bereit) -->
-        <div class="card seo-block" id="seo-block" style="margin-bottom:1rem;">
-          <div class="form-section-title">5 — SEO &amp; Beschreibungen</div>
-          <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-bottom:0.85rem;">
-            <button class="btn" id="btn-generate-desc">Beschreibung generieren</button>
-            <span class="badge badge-idle" id="prod-status-badge">Bereit</span>
-          </div>
-          <div class="form-field" style="margin-bottom:0.75rem;">
-            <label>Kurzbeschreibung</label>
-            <textarea id="prod-short-desc" class="form-input" rows="2" readonly placeholder="wird generiert..." style="resize:none;"></textarea>
-          </div>
-          <div class="form-field">
-            <label>Produktbeschreibung (HTML)</label>
-            <textarea id="prod-full-desc-raw" class="form-input" rows="7" readonly placeholder="wird generiert..." style="resize:vertical;"></textarea>
-          </div>
+        <!-- Kurz- und Langbeschreibung als versteckte Datentraeger: Artikel ändern
+             liest sie hier ein, Entwurf speichern, WC-Anlage und Sheet-Abgleich
+             schicken sie mit. Geschrieben werden die Texte im SEO-Flow. -->
+        <div hidden>
+          <textarea id="prod-short-desc"></textarea>
+          <textarea id="prod-full-desc-raw"></textarea>
         </div>
 
         <!-- Bottom Actions -->
@@ -1534,20 +1486,6 @@
         </div>
         </div><!-- /product-form-area -->
 
-      </section>
-
-      <!-- Claude -->
-      <section id="panel-claude" class="panel">
-        <div class="card">
-          <h2>Claude – KI-Assistent</h2>
-          <div id="chat-messages">
-            <div class="msg assistant">Hallo! Ich bin Claude, dein KI-Assistent für Mission Control. Ich kann dir bei Bestellungen, Produkten und Shopanalysen helfen. Was möchtest du wissen?</div>
-          </div>
-          <div class="chat-input-row">
-            <textarea id="chat-input" placeholder="Frage stellen…" rows="1"></textarea>
-            <button class="btn" id="chat-send">Senden</button>
-          </div>
-        </div>
       </section>
 
       <!-- Partnerportal -->
@@ -5007,7 +4945,6 @@
       const seoStatusSel   = document.getElementById('prod-seo-status');
       const statusShopSel  = document.getElementById('prod-status-shop');
       const statusShopWrap = document.getElementById('pf-status-shop-wrap');
-      const seoBlock       = document.getElementById('seo-block');
       const createWcBtn    = document.getElementById('btn-create-wc');
 
       function wcStatusLabel(s) {
@@ -5062,7 +4999,6 @@
       // das macht aktualisiereAnlage() (Artikel-ID + Pflichtpruefungen).
       seoStatusSel.addEventListener('change', () => {
         seoStatusSel.classList.toggle('accent', seoStatusSel.value === 'ready');
-        seoBlock.classList.toggle('visible', seoStatusSel.value === 'ready');
       });
 
       // Property rows
@@ -5424,38 +5360,6 @@
         document.getElementById(id)?.addEventListener('click', () =>
           alert('SSOT-Anbindung folgt — Wert direkt im Dropdown ergänzen.')));
 
-
-      // Generate description (Block 5)
-      const statusBadgeEl = document.getElementById('prod-status-badge');
-      function setProdDescStatus(state) {
-        const map = { idle: ['Bereit','badge-idle'], loading: ['Generiert…','badge-pending'], ready: ['Bereit','badge-ready'], error: ['Fehler','badge-cancelled'] };
-        const [label, cls] = map[state] ?? map.idle;
-        statusBadgeEl.textContent = label;
-        statusBadgeEl.className = `badge ${cls}`;
-        document.getElementById('btn-generate-desc').disabled = state === 'loading';
-      }
-
-      document.getElementById('btn-generate-desc').addEventListener('click', async () => {
-        const name     = document.getElementById('pf-name').value.trim();
-        const keywords = properties.flatMap(p => p.tags).join(', ') || document.getElementById('pf-short-name').value.trim();
-        if (!name) { alert('Bitte zuerst den Produktnamen eintragen.'); return; }
-        setProdDescStatus('loading');
-        try {
-          const res = await apiFetch(`${API_BASE()}/api/claude/generate-product`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'generate_description', name, keywords, shop: 'JFN' }),
-          });
-          const data = await res.json();
-          if (!res.ok || data.error) throw new Error(data.error || 'Fehler');
-          document.getElementById('prod-short-desc').value = data.short_description;
-          document.getElementById('prod-full-desc-raw').value = data.full_description;
-          setProdDescStatus('ready');
-        } catch (e) {
-          setProdDescStatus('error');
-          statusBadgeEl.title = e.message;
-        }
-      });
 
       // ── Entwurf laden ────────────────────────────────────────────────────
       async function loadEntwuerfe() {
@@ -8037,7 +7941,6 @@
           anlageLaeuft = false; aktualisiereAnlage();
           seoStatusSel.value = 'pending';
           seoStatusSel.classList.remove('accent');
-          seoBlock.classList.remove('visible');
           statusShopWrap.style.display = 'none';
           document.getElementById('ai-suggest-status').textContent = '';
           localStorage.removeItem('mc_product_draft');
@@ -8050,51 +7953,7 @@
         }
       });
 
-      // ── Claude chat ──────────────────────────────────────────────────────
-      const chatEl    = document.getElementById('chat-messages');
-      const inputEl   = document.getElementById('chat-input');
-      const sendBtn   = document.getElementById('chat-send');
-
-      function appendMsg(role, text) {
-        const div = document.createElement('div');
-        div.className = `msg ${role}`;
-        div.textContent = text;
-        chatEl.appendChild(div);
-        chatEl.scrollTop = chatEl.scrollHeight;
-        return div;
-      }
-
-      async function sendMessage() {
-        const text = inputEl.value.trim();
-        if (!text) return;
-        inputEl.value = '';
-        sendBtn.disabled = true;
-        appendMsg('user', text);
-        const thinking = appendMsg('assistant thinking', '…');
-        try {
-          const res = await apiFetch(`${API_BASE()}/api/claude/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: text }),
-          });
-          const data = await res.json();
-          thinking.className = 'msg assistant';
-          thinking.textContent = data.reply ?? data.error ?? 'Keine Antwort.';
-        } catch (e) {
-          thinking.className = 'msg assistant';
-          thinking.textContent = `Fehler: ${e.message}`;
-        } finally {
-          sendBtn.disabled = false;
-          inputEl.focus();
-        }
-      }
-
-      sendBtn.addEventListener('click', sendMessage);
-      inputEl.addEventListener('keydown', e => {
-        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-      });
-
-      // ── SECTION: Kundenanfragen Extern (Zeile 4222) ──
+      // ── SECTION: Kundenanfragen Extern ──
       const ANF_ACTIVE_STATES = ['Geprüft', 'Angebot-gesendet', 'Bestätigt', 'In-Produktion'];
       let anfCache = [];          // alle vom Server geladenen Anfragen
       let anfCurrentId = null;    // aktuell im Side-Panel geöffnete Anfrage-ID
