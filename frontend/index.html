@@ -3243,10 +3243,12 @@
       // ── Bestellung als erledigt markieren ────────────────────────────────
       async function completeOrder(orderId) {
         try {
-          await apiFetch(`${API_BASE()}/api/woocommerce/orders/${orderId}/status`, {
+          const res = await apiFetch(`${API_BASE()}/api/woocommerce/orders/${orderId}/status`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ status: 'completed' }),
           });
+          // HTTP-Fehler (auch Hoster-Prüfseite) wirft hier; Karte bleibt stehen.
+          await apiJson(res);
           document.getElementById(`order-card-${orderId}`)?.remove();
           showToast(`Bestellung #${orderId} als erledigt markiert ✓`);
           const remaining = document.querySelectorAll('.order-card').length;
