@@ -11,6 +11,7 @@ import {
 import { sortiereAttributOptionen, variantenReihenfolge } from '../lib/groessen.js';
 import { merkeKeyphrase } from '../lib/seo-artikel.js';
 import { wcAttributePaare, leseAlleVariationen, sperreDoppelte, sperreHinweis } from '../lib/wc-variation-ids.js';
+import { letzteTageBerlin, wochentagKurz } from '../utils/berlin-tag.js';
 
 const router = Router();
 
@@ -251,31 +252,28 @@ router.get('/stats', async (req, res, next) => {
   try {
     const wc = getClient(req);
 
-    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-    const weekStart  = new Date(); weekStart.setDate(weekStart.getDate() - 6); weekStart.setHours(0, 0, 0, 0);
+    // Tage nach Europe/Berlin (utils/berlin-tag.js), nicht nach Serverzeit (UTC).
+    // after ohne Zeitzone = Ortszeit des Shops, wie date_created.
+    const tage = letzteTageBerlin(7);
+    const heuteDatum = tage[6];
 
     const [ordersToday, pendingOrders, processingOrders, activeProducts, ordersWeek] = await Promise.all([
-      wc.get('orders', { after: todayStart.toISOString(), per_page: 100 }),
+      wc.get('orders', { after: `${heuteDatum}T00:00:00`, per_page: 100 }),
       wc.get('orders', { status: 'on-hold',    per_page: 1 }),
       wc.get('orders', { status: 'processing', per_page: 1 }),
       wc.get('products', { status: 'publish',  per_page: 1 }),
-      wc.get('orders', { after: weekStart.toISOString(), per_page: 100 }),
+      wc.get('orders', { after: `${tage[0]}T00:00:00`, per_page: 100 }),
     ]);
 
     // Storniert, erstattet und fehlgeschlagen zaehlen weder als Bestellung noch
     // als Umsatz (Dashboard-Kacheln "Bestellungen heute" / "Umsatz heute").
     const zaehltNicht = new Set(['cancelled', 'refunded', 'failed']);
     const zaehlt = o => !zaehltNicht.has(o.status);
-    const heute = ordersToday.data.filter(zaehlt);
+    const heute = ordersToday.data.filter(o => zaehlt(o) && o.date_created?.slice(0, 10) === heuteDatum);
     const revenueToday = heute.reduce((sum, o) => sum + parseFloat(o.total), 0);
 
     // Build 7-day revenue map (last 7 days including today)
-    const dayMap = {};
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(); d.setDate(d.getDate() - (6 - i));
-      const key = d.toISOString().slice(0, 10);
-      dayMap[key] = { date: d.toLocaleDateString('de-DE', { weekday: 'short' }), revenue: 0 };
-    }
+    const dayMap = Object.fromEntries(tage.map(t => [t, { date: wochentagKurz(t), revenue: 0 }]));
     ordersWeek.data
       .filter(zaehlt)
       .forEach(o => {
