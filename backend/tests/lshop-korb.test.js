@@ -226,6 +226,71 @@ describe('buendele / leseKorb', () => {
     expect((await leseKorb({ shop: 'honk', sheets })).summen.positionen).toBe(0);
     expect((await leseKorb({ shop: 'jfn', sheets: machSheets(grundTabs({ mitKorb: false })).sheets })).reiterFehlt).toBe(true);
   });
+
+  // BO3c: Hersteller je Buendel, Bestelldatum nur auf Wunsch (?mit=bestelldatum).
+  test('buendele gibt die Marke des L-Shop-Modells mit (leer, wenn unbekannt)', () => {
+    const z = { Schluessel: 'JFN:1:1', Shop: 'JFN', Herkunft: 'shop', Bestellnummer: '1', Position: '1', LShop_ArticleNr: NR, Menge: '1', Status: STATUS.OFFEN };
+    expect(buendele([z], new Map([[NR, { catalogNr: 'JH030F', marke: 'Just Hoods' }]]))[0].marke).toBe('Just Hoods');
+    expect(buendele([{ ...z, LShop_ArticleNr: NR2 }], new Map())[0].marke).toBe('');
+  });
+
+  describe('leseKorb mit=bestelldatum', () => {
+    const eigeneZeile = () => KORB_SPALTEN.map(s => ({
+      Schluessel: 'EIGEN:2026-0001', Shop: 'JFN', Herkunft: 'eigen', Referenz: 'Lager', LShop_ArticleNr: NR2,
+      Menge: '2', Status: STATUS.OFFEN, Angelegt: '2026-10-20T22:30:00.000Z',
+    }[s] ?? ''));
+    async function aufbau() {
+      const tabs = grundTabs();
+      const { sheets } = machSheets(tabs);
+      await runKorbAbgleich({ sheets, wcFuer: () => machWc([bestellung(5, 'processing', [pos(9, 100, 501)])]), jetzt: () => new Date() });
+      tabs[TAB_KORB].push(eigeneZeile());
+      const wc = machWc([], { alle: [{ id: 5, date_created: '2026-10-14T23:40:00' }] });
+      return { sheets, wc };
+    }
+    const positionen = r => r.buendel.flatMap(b => b.positionen);
+
+    beforeEach(async () => {
+      const { _bestelldatumCacheLeeren } = await import('../lib/lshopKorb.js');
+      _bestelldatumCacheLeeren();
+    });
+
+    test('ohne Schalter: kein Shop-Aufruf, kein Feld bestelldatum', async () => {
+      const { sheets, wc } = await aufbau();
+      const r = await leseKorb({ shop: 'jfn', sheets, wcFuer: () => wc });
+      expect(wc.get).not.toHaveBeenCalled();
+      expect(positionen(r).every(p => !('bestelldatum' in p))).toBe(true);
+    });
+
+    test('mit Schalter: eine Anfrage nur mit id,date_created; Tag der Bestellung; eigene = Angelegt (Berlin)', async () => {
+      const { sheets, wc } = await aufbau();
+      const r = await leseKorb({ shop: 'jfn', mit: 'bestelldatum', sheets, wcFuer: () => wc });
+      expect(wc.get).toHaveBeenCalledTimes(1);
+      expect(wc.get).toHaveBeenCalledWith('orders', expect.objectContaining({ include: '5', status: 'any', _fields: 'id,date_created' }));
+      const p = positionen(r);
+      expect(p.find(x => x.herkunft === 'shop').bestelldatum).toBe('2026-10-14');
+      expect(p.find(x => x.herkunft === 'eigen').bestelldatum).toBe('2026-10-21');   // 22:30 UTC = 00:30 Berlin
+      expect(JSON.stringify(r)).not.toMatch(/billing|first_name|email/);
+    });
+
+    test('Zwischenspeicher: zweiter Aufruf fragt den Shop nicht erneut', async () => {
+      const { sheets, wc } = await aufbau();
+      await leseKorb({ shop: 'jfn', mit: 'bestelldatum', sheets, wcFuer: () => wc });
+      await leseKorb({ shop: 'jfn', mit: 'bestelldatum', sheets, wcFuer: () => wc });
+      expect(wc.get).toHaveBeenCalledTimes(1);
+    });
+
+    test('Bestellung nicht im Shop -> bestelldatum null', async () => {
+      const { sheets } = await aufbau();
+      const r = await leseKorb({ shop: 'jfn', mit: 'bestelldatum', sheets, wcFuer: () => machWc([]) });
+      expect(positionen(r).find(x => x.herkunft === 'shop').bestelldatum).toBeNull();
+    });
+
+    test('Hoster-Pruefseite statt Liste -> Fehler hoster_pruefseite, kein stilles Weitermachen', async () => {
+      const { sheets } = await aufbau();
+      const wc = { get: jest.fn(async () => ({ data: '<html>One moment, please...</html>' })) };
+      await expect(leseKorb({ shop: 'jfn', mit: 'bestelldatum', sheets, wcFuer: () => wc })).rejects.toMatchObject({ code: 'hoster_pruefseite' });
+    });
+  });
 });
 
 describe('abgleichPlan', () => {

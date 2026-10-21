@@ -25,7 +25,14 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   Hinweis (`vorschlag` false) zaehlt nicht ("+n gesperrt"), unbezahlt zaehlt mit (Punkt); Groessen ueber
   `grSortiere`, ohne Rang ans Ende; Modelle mit genau einer Zelle unter "Einzelne Artikel". Aktionen nur
   ueber die BO3-Wege, die eine Leiste `#korb-leiste` wandert ins sichtbare Panel (`korbLeisteParken`).
-  Zaehlliste hell, ohne Bestellnummern, Haekchen nie gespeichert; Druck nur mit `body.druck-zaehlliste`.)
+  Zaehlliste hell, ohne Bestellnummern, Haekchen nie gespeichert; Druck nur mit `body.druck-zaehlliste`.
+  BO3c "Gruppieren nach" Modell · Hersteller · Dringlichkeit (keine Druckart - es gibt keine Quelle):
+  Block `Gruppen: Anfang/Ende` (`gruppiere`, Test bestellgruppen.test.js) baut je Gruppe `baueMatrix` nur
+  aus deren Positionen (eine Matrix in mehreren Gruppen moeglich), Gesamtsumme oben aus einem baueMatrix
+  ueber alles. Hersteller = `marke` (LShop_Modelle.Brand, wie L-Shop schreibt). Dringlichkeit: Stufen
+  > 30 · > 7 (8-30) · 3-7 · < 3 Kalendertage Europe/Berlin, dann "ohne Datum"; "wartet seit" = aelteste
+  Position. Wahl in `localStorage` `mc_uebersicht_gruppe` (nicht in der Adresse), Aufklappen nie gespeichert.
+  Das Bestelldatum laedt `loadLShopKorb` nur, wenn die Uebersicht nach Dringlichkeit sichtbar ist.)
 - Artikelerfassung
 - SEO-Daten aendern (Befehl SE1: Yoast-Felder jedes veroeffentlichten Artikels; nutzt seoMetaBau und yoastSchreiben des SEO-Flows, schreibt nichts ins Sheet)
 - SEO-Flow
@@ -112,7 +119,10 @@ Neue Sektionen immer mit Anker versehen:
   `values.append`:** erste freie Zeile, Nachbarzeile + Zielbereich zuruecklesen, `values.update`,
   zuruecklesen; Hinweise per batchUpdate nach Pruefung von Schluessel + altem Hinweis.
   `GET /api/bestellen/lshop-korb?shop=` liest nur den Reiter, gebuendelt nach ArticleNr, ohne
-  Kundennamen. Reiter anlegen: `scripts/setup-lshop-korb-reiter.js` (Trockenlauf Standard, `--write`).
+  Kundennamen; je Buendel auch `marke` (BO3c). Nur mit `&mit=bestelldatum` (BO3c, Dringlichkeit) liest
+  er zusaetzlich WooCommerce: offene Shop-Positionen, `ladeBestellungenNachId` mit `_fields: id,date_created`,
+  1 Anfrage je 100, 10 min Zwischenspeicher je Shop+Bestellnummer, Pruefseite -> 503; je Position
+  `bestelldatum` = Tag (JJJJ-MM-TT), eigene Positionen = `Angelegt` als Tag in Europe/Berlin. Reiter anlegen: `scripts/setup-lshop-korb-reiter.js` (Trockenlauf Standard, `--write`).
   BO3 (bearbeiten in MC): `POST .../lshop-korb/status` `{ auswahl: [{schluessel, status}], ziel, grund, notiz }`
   nur offen <-> abgewählt (Grund aus `GRUENDE` Pflicht), alles oder nichts: Zeile frisch lesen,
   Schluessel + mitgeschickten Status pruefen (sonst 409), batchUpdate nur Status/Grund/Notiz/

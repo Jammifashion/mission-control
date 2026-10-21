@@ -62,11 +62,13 @@ router.post('/lshop-korb/eigen', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/bestellen/lshop-korb?shop=jfn|honk ──────────────────────────────
+// ── GET /api/bestellen/lshop-korb?shop=jfn|honk[&mit=bestelldatum] ───────────
 // Liest NUR den Reiter Warenkorb_LShop, gebuendelt nach LShop_ArticleNr, ohne Kundennamen.
+// BO3c: mit=bestelldatum liest zusaetzlich das Bestelldatum (nur der Tag) der offenen
+// Shop-Positionen aus WooCommerce - fuer "Gruppieren nach Dringlichkeit".
 router.get('/lshop-korb', async (req, res, next) => {
   try {
-    res.json(await leseKorb({ shop: req.query.shop }));
+    res.json(await leseKorb({ shop: req.query.shop, mit: req.query.mit }));
   } catch (err) { next(err); }
 });
 

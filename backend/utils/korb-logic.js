@@ -298,6 +298,7 @@ export function buendele(zeilen, modelle = new Map(), namen = {}, jetzt = new Da
       const m = modelle.get(nr) ?? {};
       gruppen.set(nr, {
         articleNr: nr, catalogNr: t(m.catalogNr), bezeichnung: t(m.bezeichnung),
+        marke: t(m.marke),   // BO3c: Hersteller (LShop_Modelle.Brand) fuer "Gruppieren nach Hersteller"
         farbe: [t(m.color1), t(m.color2)].filter(Boolean).join('/'), groesse: t(m.size),
         lshopText: lshopText(nr, m), zuBestellen: 0, unbezahlt: 0, positionen: [],
       });

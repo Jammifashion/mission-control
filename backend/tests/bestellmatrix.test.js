@@ -145,8 +145,10 @@ describe('Einbindung in index.html', () => {
     expect(sec).not.toMatch(/apiFetch|\/api\//);
   });
 
-  test('Zaehlliste speichert keine Haekchen (kein localStorage)', () => {
+  test('Zaehlliste speichert keine Haekchen (localStorage nur fuer die Gruppierung, BO3c)', () => {
     const sec = block('// ── SECTION: L-Shop-Bestellübersicht ──', '// ── SECTION: Artikelerfassung ──');
-    expect(sec).not.toMatch(/localStorage|sessionStorage/);
+    expect(sec).not.toMatch(/sessionStorage/);
+    const zugriffe = [...sec.matchAll(/localStorage\.(\w+)\(([^,)]*)/g)].map(m => [m[1], m[2].trim()]);
+    expect(zugriffe).toEqual([['getItem', 'UEBERSICHT_GRUPPE_KEY'], ['setItem', 'UEBERSICHT_GRUPPE_KEY']]);
   });
 });

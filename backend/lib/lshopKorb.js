@@ -25,7 +25,7 @@ import { wcVariationMap } from '../utils/varianten-zeilen.js';
 import { colLetter } from '../utils/sheet-spalten.js';
 import { normalizeShop } from '../utils/shop-spalte.js';
 import {
-  TAB_KORB, KORB_SHOPS, KORB_STATUS_SHOP, korbSchluessel,
+  TAB_KORB, KORB_SHOPS, KORB_STATUS_SHOP, korbSchluessel, STATUS, HERKUNFT,
   korbZeilen, alsSheetZeile, baueKontext, abgleichPlan, nachzulesendeBestellungen,
   ersteFreieZeile, bereichLeer, vergleicheZurueck, buendele, korbZaehler,
   GRUENDE, statusPlan, naechsteEigenNummer, eigeneZeile, sucheModelle, NICHT_IM_BESTAND,
@@ -71,12 +71,12 @@ export async function ladeKorbBestellungen(wc) {
 
 // Bestellungen ueber IDs (Hinweise fuer Zeilen, deren Bestellung nicht mehr offen ist).
 // Nicht zurueckgegeben (geloescht/Papierkorb) -> null.
-export async function ladeBestellungenNachId(wc, ids) {
+export async function ladeBestellungenNachId(wc, ids, felder = ORDER_FELDER) {
   const map = new Map(ids.map(id => [String(id), null]));
   for (let i = 0; i < ids.length; i += BLOCK) {
     const teil = ids.slice(i, i + BLOCK);
     const liste = seitenListe((await wc.get('orders', {
-      include: teil.join(','), status: 'any', per_page: BLOCK, _fields: ORDER_FELDER,
+      include: teil.join(','), status: 'any', per_page: BLOCK, _fields: felder,
     })).data, { wc, pfad: 'orders' });
     for (const o of liste) map.set(String(o.id), o);
   }
@@ -357,7 +357,38 @@ export async function legeEigenePositionAn({ eingabe, sheets: s, jetzt = () => n
 
 // ── Anzeige ─────────────────────────────────────────────────────────────────
 
-export async function leseKorb({ shop, sheets: s, jetzt = () => new Date() } = {}) {
+// ── Bestelldatum fuer die Dringlichkeit (BO3c) ────────────────────────────────
+// Nur auf Wunsch (GET ...?mit=bestelldatum): der Korb selbst liest weiter nur Sheets.
+// Eine Shop-Anfrage je 100 Bestellungen, nur id + date_created, 10 min Zwischenspeicher
+// je Shop und Bestellnummer. Eine Hoster-Pruefseite bricht ab (503 ueber seitenListe).
+const DATUM_MS = 10 * 60 * 1000;
+const datumCache = new Map();   // "<shop>:<id>" -> { datum, zeit }
+export function _bestelldatumCacheLeeren() { datumCache.clear(); }
+
+// Kalendertag in Europe/Berlin als JJJJ-MM-TT.
+const tagBerlin = iso => {
+  const d = new Date(iso);
+  return isNaN(d) ? null : d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+};
+
+async function bestelldatenFuer(zeilen, shop, wcFuer) {
+  const s = normalizeShop(shop);
+  const ids = [...new Set(zeilen.filter(z => z.Herkunft !== HERKUNFT.EIGEN && z.Status === STATUS.OFFEN)
+    .map(z => String(z.Bestellnummer ?? '').trim()).filter(Boolean))];
+  const nun = Date.now();
+  const fehlt = ids.filter(id => !(datumCache.get(`${s}:${id}`)?.zeit > nun - DATUM_MS));
+  if (fehlt.length) {
+    const map = await ladeBestellungenNachId(wcFuer(s), fehlt, 'id,date_created');
+    for (const [id, o] of map) {
+      // WooCommerce liefert date_created in der Zeitzone des Shops (Europe/Berlin): der Tag steht vorn.
+      const datum = /^\d{4}-\d{2}-\d{2}/.test(o?.date_created ?? '') ? o.date_created.slice(0, 10) : null;
+      if (datum) datumCache.set(`${s}:${id}`, { datum, zeit: nun });
+    }
+  }
+  return new Map(ids.map(id => [id, datumCache.get(`${s}:${id}`)?.datum ?? null]));
+}
+
+export async function leseKorb({ shop, mit, sheets: s, wcFuer = getWcClient, jetzt = () => new Date() } = {}) {
   const spreadsheetId = process.env.GOOGLE_SHEET_ID;
   if (!spreadsheetId) throw fehler('GOOGLE_SHEET_ID fehlt.', 503);
   const sheets = s ?? await sheetsClient();
@@ -370,6 +401,13 @@ export async function leseKorb({ shop, sheets: s, jetzt = () => new Date() } = {
   const maske = await leseReiterSpalten({ tab: TAB_MASKE, spalten: { id: 'ID', name: 'Produktname' }, sheets, spreadsheetId });
   const nun = jetzt();
   const buendel = buendele(meine, new Map(lshop.map(z => [z.articleNr, z])), Object.fromEntries(maske.map(m => [m.id, m.name])), nun);
+  if (String(mit ?? '').split(',').map(x => x.trim()).includes('bestelldatum')) {
+    const daten = await bestelldatenFuer(meine, shop, wcFuer);
+    for (const p of buendel.flatMap(b => b.positionen)) {
+      // Eigene Positionen haben keine Bestellung: es zaehlt der Tag, an dem sie angelegt wurden.
+      p.bestelldatum = p.herkunft === HERKUNFT.EIGEN ? tagBerlin(p.angelegt) : (daten.get(String(p.bestellnummer ?? '').trim()) ?? null);
+    }
+  }
   return {
     reiterFehlt: false,
     buendel,

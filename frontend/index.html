@@ -357,6 +357,20 @@
       }
       .bm-einzeln > span:first-child { min-width: 0; overflow-wrap: anywhere; }
       .bm-einzeln-stueck { margin-left: auto; display: inline-flex; gap: 0.25rem; align-items: baseline; }
+      /* BO3c: Umschalter "Gruppieren nach" und aufklappbare Gruppen */
+      .bm-umschalter { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.5rem; margin: 0.2rem 0 0.4rem; }
+      .bm-umschalter .korb-zaehler { margin: 0; }
+      .bm-umschalter .korb-filter { flex-wrap: wrap; }
+      .bm-gruppe { margin-bottom: 0.6rem; }
+      .bm-gruppe-kopf {
+        width: 100%; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0.2rem 0.8rem;
+        background: rgba(74, 158, 255, 0.08); border: 1px solid var(--border); border-radius: 7px; color: var(--text);
+        padding: 0.5rem 0.7rem; cursor: pointer; font-size: 0.9rem; text-align: left;
+      }
+      .bm-gruppe-summe { color: var(--muted); font-size: 0.8rem; }
+      .bm-gruppe-inhalt { padding-top: 0.5rem; }
+      .bm-wartet { color: var(--muted); font-size: 0.72rem; }
+      .zl-gruppe { font-weight: 700; font-size: 1rem; border-bottom: 2px solid #111; padding: 0.6rem 0 0.2rem; break-after: avoid; }
       @media (max-width: 600px) {
         .bm-tabelle-wrap { display: none; }
         .bm-liste { display: block; }
@@ -1219,6 +1233,14 @@
                 <button class="btn-secondary korb-klein" id="uebersicht-eigen-link" type="button" title="Eigene Positionen legt der L-Shop-Warenkorb an">+ Eigene Position im Warenkorb</button>
                 <button class="btn-secondary korb-klein" id="uebersicht-zaehlliste-btn" type="button">Zählliste</button>
                 <button class="btn-lshop-bestellen" id="uebersicht-abgleich-btn" title="Neue L-Shop-bestellfähige Positionen aus dem Shop übernehmen">↻ Abgleich jetzt</button>
+              </span>
+            </div>
+            <div class="bm-umschalter">
+              <span class="korb-zaehler">Gruppieren nach</span>
+              <span class="korb-filter" id="uebersicht-gruppe" role="group" aria-label="Gruppieren nach">
+                <button type="button" data-gruppe="modell" aria-pressed="true">Modell</button>
+                <button type="button" data-gruppe="hersteller" aria-pressed="false">Hersteller</button>
+                <button type="button" data-gruppe="dringlichkeit" aria-pressed="false">Dringlichkeit</button>
               </span>
             </div>
             <div id="uebersicht-zaehler" class="korb-zaehler"></div>
@@ -4075,7 +4097,10 @@
         };
         anzeigen('<div class="skeleton"></div><div class="skeleton"></div>');
         try {
-          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb`);
+          // BO3c: das Bestelldatum (eine Shop-Anfrage) nur fuer die Uebersicht nach Dringlichkeit.
+          const mitDatum = uebersichtBrauchtDatum();
+          korbZustand.laedt = true;
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb${mitDatum ? '?mit=bestelldatum' : ''}`);
           const stopp = await laufStopp(res);
           if (stopp) { anzeigen(`<p style="color:var(--danger);font-size:0.83rem;">${korbEsc(stopp)}</p>`); return; }
           const d = await apiJson(res);
@@ -4085,7 +4110,9 @@
             anzeigen('<p style="color:var(--muted);font-size:0.84rem;">Reiter „Warenkorb_LShop“ ist noch nicht angelegt.</p>');
             return;
           }
+          d.mitBestelldatum = mitDatum;
           korbZustand.daten = d;
+          korbZustand.laedt = false;
           // Auswahl nur behalten, was noch offen und bearbeitbar ist (neuer Stand vom Server).
           const offen = new Map(d.buendel.flatMap(b => b.positionen).filter(p => p.status === 'offen' && p.bearbeitbar).map(p => [p.schluessel, p]));
           for (const s of [...korbZustand.auswahl.keys()]) {
@@ -4094,6 +4121,8 @@
           korbZeichnen();
         } catch (e) {
           anzeigen(`<p style="color:var(--danger);font-size:0.83rem;">Fehler: ${korbEsc(e.message)}</p>`);
+        } finally {
+          korbZustand.laedt = false;
         }
       }
 
@@ -4386,8 +4415,89 @@
       }
       // ── Matrix: Ende ──
 
-      const uebersichtZustand = { offen: null, zaehlliste: false };
+      // ── Gruppen: Anfang (reine Logik, backend/tests/bestellgruppen.test.js) ──
+      // BO3c: Gruppieren nach Modell | Hersteller | Dringlichkeit. Die Matrix je Modell bleibt die
+      // kleinste Einheit: je Gruppe baut baueMatrix (Block "Matrix") nur aus den Positionen dieser
+      // Gruppe - eine Matrix kann so in mehreren Gruppen stehen. Die Gesamtsumme oben kommt aus
+      // einem baueMatrix ueber alles, nichts wird doppelt gezaehlt. Darf nichts aus dem
+      // Seitenkontext benutzen; "heute" (JJJJ-MM-TT, Europe/Berlin) und die Sortierung kommen rein.
+      const GRUPPEN_ARTEN = ['modell', 'hersteller', 'dringlichkeit'];
+      // Kalendertage seit der Bestellung; 3 und 7 gehoeren zur mittleren Stufe (Inhaber 21.10.).
+      const DRINGLICH_STUFEN = [
+        { id: 'ueber30', name: '> 30 Tage', ab: 31 },
+        { id: 'ueber7',  name: '> 7 Tage',  ab: 8 },
+        { id: 'mitte',   name: '3–7 Tage',  ab: 3 },
+        { id: 'frisch',  name: '< 3 Tage',  ab: -Infinity },
+      ];
+      const GR_OHNE_DATUM = { id: 'ohne-datum', name: 'ohne Datum' };
+      const GR_OHNE_HERSTELLER = 'ohne Hersteller';
+
+      function tageSeit(datum, heute) {
+        const tag = /^\d{4}-\d{2}-\d{2}$/;
+        if (!tag.test(String(datum ?? '')) || !tag.test(String(heute ?? ''))) return null;
+        return Math.round((Date.parse(`${heute}T00:00:00Z`) - Date.parse(`${datum}T00:00:00Z`)) / 864e5);
+      }
+      const dringlichStufe = tage => tage == null ? GR_OHNE_DATUM : DRINGLICH_STUFEN.find(s => tage >= s.ab);
+
+      function gruppiere(buendel, art, { heute, sortiere } = {}) {
+        const liste = buendel ?? [];
+        if (art !== 'hersteller' && art !== 'dringlichkeit') return [{ id: 'alle', name: null, ...baueMatrix(liste, sortiere) }];
+
+        // Je Gruppe die Buendel mit genau den Positionen, die in diese Gruppe fallen.
+        const teile = new Map();
+        const dazu = (id, name, b, positionen) => {
+          if (!teile.has(id)) teile.set(id, { id, name, buendel: [] });
+          teile.get(id).buendel.push({ ...b, positionen });
+        };
+        for (const b of liste) {
+          const offen = (b.positionen ?? []).filter(p => p.status === 'offen');
+          if (!offen.length) continue;
+          if (art === 'hersteller') {
+            const name = String(b.marke ?? '').trim() || GR_OHNE_HERSTELLER;
+            dazu(name, name, b, offen);
+            continue;
+          }
+          const jeStufe = new Map();
+          for (const p of offen) {
+            const s = dringlichStufe(tageSeit(p.bestelldatum, heute));
+            if (!jeStufe.has(s.id)) jeStufe.set(s.id, { s, positionen: [] });
+            jeStufe.get(s.id).positionen.push(p);
+          }
+          for (const { s, positionen } of jeStufe.values()) dazu(s.id, s.name, b, positionen);
+        }
+
+        const gruppen = [...teile.values()].map(g => ({ id: g.id, name: g.name, ...baueMatrix(g.buendel, sortiere) }));
+        if (art === 'hersteller') {
+          const ohne = g => g.name === GR_OHNE_HERSTELLER;
+          return gruppen.sort((a, b) => ohne(a) - ohne(b) || b.stueck - a.stueck || a.name.localeCompare(b.name, 'de'));
+        }
+        // Dringlichkeit: Stufen in fester Reihenfolge, darin aelteste zuerst; "wartet" je Zelle/Modell.
+        const rang = [...DRINGLICH_STUFEN, GR_OHNE_DATUM].map(s => s.id);
+        const max = werte => werte.reduce((a, b) => (b != null && (a == null || b > a) ? b : a), null);
+        for (const g of gruppen) {
+          for (const m of [...g.matrizen, ...g.einzeln]) {
+            for (const z of m.zellen) z.wartet = max(z.positionen.map(p => tageSeit(p.bestelldatum, heute)));
+            m.wartet = max(m.zellen.map(z => z.wartet));
+          }
+          const aelter = (a, b) => (b.wartet ?? -1) - (a.wartet ?? -1) || b.stueck - a.stueck || a.modell.localeCompare(b.modell, 'de');
+          g.matrizen.sort(aelter);
+          g.einzeln.sort(aelter);
+        }
+        return gruppen.sort((a, b) => rang.indexOf(a.id) - rang.indexOf(b.id));
+      }
+      // ── Gruppen: Ende ──
+
+      // Gruppierung merkt sich der Browser (wie der Korb-Filter); fehlt der Speicher, gilt "modell".
+      const UEBERSICHT_GRUPPE_KEY = 'mc_uebersicht_gruppe';
+      const uebersichtGruppeLesen = () => {
+        try { const g = localStorage.getItem(UEBERSICHT_GRUPPE_KEY); return GRUPPEN_ARTEN.includes(g) ? g : 'modell'; } catch { return 'modell'; }
+      };
+      // zu: zugeklappte Gruppen - nur bis zum Neuladen, nicht gespeichert (Inhaber 21.10.).
+      const uebersichtZustand = { offen: null, zaehlliste: false, gruppe: uebersichtGruppeLesen(), zu: new Set() };
       const uebersichtAktiv = () => document.getElementById('tab-lshop-uebersicht')?.classList.contains('active');
+      // Bestelldatum laedt der Server nur fuer die Dringlichkeit nach (?mit=bestelldatum, eine Shop-Anfrage).
+      const uebersichtBrauchtDatum = () => uebersichtAktiv() && uebersichtZustand.gruppe === 'dringlichkeit';
+      const heuteBerlin = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
 
       // Die eine Aktionsleiste steht im jeweils sichtbaren Panel (Korb oder Uebersicht).
       const korbLeisteHeim = document.getElementById('korb-leiste')?.parentNode ?? null;
@@ -4397,85 +4507,113 @@
         if (leiste && ziel && leiste.parentNode !== ziel) ziel.appendChild(leiste);
       }
 
+      const bmTage = n => `${n} Tag${n !== 1 ? 'en' : ''}`;
       function bmMarken(z) {
         return (z.unbezahlt ? `<span class="bm-punkt" title="davon ${z.unbezahlt} unbezahlt">•</span>` : '')
-          + (z.gesperrt ? `<small class="bm-gesperrt">+${z.gesperrt} gesperrt</small>` : '');
+          + (z.gesperrt ? `<small class="bm-gesperrt">+${z.gesperrt} gesperrt</small>` : '')
+          + (z.wartet != null ? `<small class="bm-wartet" title="wartet seit ${bmTage(z.wartet)}">⏱${z.wartet}</small>` : '');
       }
 
-      function bmZellKnopf(z, mitGroesse) {
-        const auf = uebersichtZustand.offen === z.schluessel;
-        const titel = `${z.farbe} · ${z.groesse}: ${z.positionen.length} Position${z.positionen.length !== 1 ? 'en' : ''}`;
-        return `<button type="button" class="bm-zelle${auf ? ' bm-auf' : ''}" data-zelle="${korbEsc(z.schluessel)}" aria-expanded="${auf}" title="${korbEsc(titel)}">`
+      // Offene Zelle = Gruppe + Zelle: dieselbe Zelle kann in mehreren Gruppen stehen.
+      const bmOffenKey = (gid, z) => `${gid}|${z.schluessel}`;
+
+      function bmZellKnopf(gid, z, mitGroesse) {
+        const key = bmOffenKey(gid, z);
+        const auf = uebersichtZustand.offen === key;
+        const titel = `${z.farbe} · ${z.groesse}: ${z.positionen.length} Position${z.positionen.length !== 1 ? 'en' : ''}`
+          + (z.wartet != null ? ` · wartet seit ${bmTage(z.wartet)}` : '');
+        return `<button type="button" class="bm-zelle${auf ? ' bm-auf' : ''}" data-zelle="${korbEsc(key)}" aria-expanded="${auf}" title="${korbEsc(titel)}">`
           + (mitGroesse ? `<span class="bm-gr">${korbEsc(z.groesse)}</span> ` : '')
           + `<strong>${z.stueck || ''}</strong>${bmMarken(z)}</button>`;
       }
 
-      function bmPositionen(m) {
-        const z = m.zellen.find(x => x.schluessel === uebersichtZustand.offen);
+      function bmPositionen(gid, m) {
+        const z = m.zellen.find(x => bmOffenKey(gid, x) === uebersichtZustand.offen);
         if (!z) return '';
         return `<div class="bm-positionen"><div class="korb-zaehler">${korbEsc(z.farbe)} · ${korbEsc(z.groesse)} · ${z.stueck} Stk`
-          + `${z.gesperrt ? ` · ${z.gesperrt} gesperrt` : ''}</div>${z.positionen.map(korbPositionZeile).join('')}</div>`;
+          + `${z.gesperrt ? ` · ${z.gesperrt} gesperrt` : ''}${z.wartet != null ? ` · wartet seit ${bmTage(z.wartet)}` : ''}</div>`
+          + `${z.positionen.map(korbPositionZeile).join('')}</div>`;
       }
 
       const bmKopf = m => `<span><span class="korb-kopf-nr">${korbEsc(m.modell)}</span>`
         + (m.bezeichnung ? ` · <span class="korb-kopf-name">${korbEsc(m.bezeichnung)}</span>` : '') + '</span>';
 
-      function bmMatrixKarte(m) {
+      function bmMatrixKarte(gid, m) {
         const kopf = `<tr><th></th>${m.groessen.map(g => `<th>${korbEsc(g)}</th>`).join('')}<th class="bm-summe">Σ</th></tr>`;
         const zeilen = m.farben.map((f, i) => `<tr><th class="bm-farbe">${korbEsc(f)}</th>`
-          + m.raster[i].map(z => z ? `<td>${bmZellKnopf(z, false)}</td>` : '<td class="bm-leer"></td>').join('')
+          + m.raster[i].map(z => z ? `<td>${bmZellKnopf(gid, z, false)}</td>` : '<td class="bm-leer"></td>').join('')
           + `<td class="bm-summe">${m.zeilenSumme[i]}</td></tr>`).join('');
         const fuss = `<tr><th class="bm-farbe">Σ</th>${m.spaltenSumme.map(n => `<td class="bm-summe">${n || ''}</td>`).join('')}<td class="bm-summe"><strong>${m.stueck}</strong></td></tr>`;
         // Unter 600 px dieselben Zellen als Liste (je Farbe eine Zeile), ohne Querscrollen.
         const liste = m.farben.map((f, i) => `<div class="bm-listzeile"><span class="bm-farbname">${korbEsc(f)}</span>`
-          + `<span class="bm-felder">${m.raster[i].filter(Boolean).map(z => bmZellKnopf(z, true)).join('')}</span></div>`).join('');
+          + `<span class="bm-felder">${m.raster[i].filter(Boolean).map(z => bmZellKnopf(gid, z, true)).join('')}</span></div>`).join('');
+        const wartet = m.wartet != null ? ` <small class="bm-wartet">wartet seit ${bmTage(m.wartet)}</small>` : '';
         return `<div class="bm-karte">
-          <div class="lshop-card-title korb-titel">${bmKopf(m)}<span class="lshop-stueck">${m.stueck} Stk</span></div>
+          <div class="lshop-card-title korb-titel">${bmKopf(m)}<span class="lshop-stueck">${m.stueck} Stk${wartet}</span></div>
           <div class="bm-tabelle-wrap"><table class="bm-tabelle"><thead>${kopf}</thead><tbody>${zeilen}</tbody><tfoot>${fuss}</tfoot></table></div>
           <div class="bm-liste">${liste}</div>
-          ${bmPositionen(m)}
+          ${bmPositionen(gid, m)}
         </div>`;
       }
 
-      function bmEinzelZeile(m) {
+      function bmEinzelZeile(gid, m) {
         const z = m.zellen[0];
-        const auf = uebersichtZustand.offen === z.schluessel;
-        return `<div class="bm-einzeln-zeile"><button type="button" class="bm-einzeln${auf ? ' bm-auf' : ''}" data-zelle="${korbEsc(z.schluessel)}" aria-expanded="${auf}">`
+        const key = bmOffenKey(gid, z);
+        const auf = uebersichtZustand.offen === key;
+        return `<div class="bm-einzeln-zeile"><button type="button" class="bm-einzeln${auf ? ' bm-auf' : ''}" data-zelle="${korbEsc(key)}" aria-expanded="${auf}">`
           + `${bmKopf(m)} · <span class="korb-kopf-variante">${korbEsc(z.farbe)} · ${korbEsc(z.groesse)}</span>`
-          + `<span class="bm-einzeln-stueck"><strong>${z.stueck || ''}</strong>${bmMarken(z)}</span></button>${bmPositionen(m)}</div>`;
+          + `<span class="bm-einzeln-stueck"><strong>${z.stueck || ''}</strong>${bmMarken(z)}</span></button>${bmPositionen(gid, m)}</div>`;
       }
 
-      function zaehllisteHtml(mx) {
+      const bmInhalt = g => g.matrizen.map(m => bmMatrixKarte(g.id, m)).join('')
+        + (g.einzeln.length ? `<div class="bm-karte"><div class="lshop-card-title">Einzelne Artikel (${g.einzeln.length})</div>${g.einzeln.map(m => bmEinzelZeile(g.id, m)).join('')}</div>` : '');
+      const bmGruppenText = g => `${g.stueck} Stück · ${g.modelle} Modell${g.modelle !== 1 ? 'e' : ''} · ${g.positionen} Position${g.positionen !== 1 ? 'en' : ''}`;
+
+      function zaehllisteHtml(mx, gruppen) {
         const jetzt = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-        const modelle = [...mx.matrizen, ...mx.einzeln].filter(m => m.stueck > 0);
         const block = m => `<div class="zl-modell"><div class="zl-titel">${korbEsc(m.modell)}${m.bezeichnung ? ` · ${korbEsc(m.bezeichnung)}` : ''} · <strong>${m.stueck}</strong></div>`
           + m.farben.map((f, i) => {
             const felder = m.raster[i].filter(z => z?.stueck)
               .map(z => `<label class="zl-feld"><input type="checkbox"> ${korbEsc(z.groesse)} <strong>${z.stueck}</strong></label>`).join('');
             return felder ? `<div class="zl-farbe"><span class="zl-farbname">${korbEsc(f)}</span><span class="zl-felder">${felder}</span></div>` : '';
           }).join('') + '</div>';
+        // Die Zaehlliste uebernimmt die Gruppierung: je Gruppe eine Zwischenueberschrift.
+        const inhalt = gruppen.map(g => {
+          const modelle = [...g.matrizen, ...g.einzeln].filter(m => m.stueck > 0);
+          if (!modelle.length) return '';
+          return (g.name ? `<div class="zl-gruppe">${korbEsc(g.name)} · ${g.stueck} Stück</div>` : '') + modelle.map(block).join('');
+        }).join('');
         return `<div class="zaehlliste">
           <div class="zl-kopf"><span><strong>Zählliste</strong> · Stand ${korbEsc(jetzt)} · ${mx.stueck} Stück</span>
             <span class="zl-knoepfe"><button type="button" class="zl-knopf" id="zl-drucken">Drucken</button><button type="button" class="zl-knopf" id="zl-zurueck">Zurück zur Matrix</button></span></div>
-          ${modelle.map(block).join('') || '<p>Keine offenen Positionen.</p>'}
+          ${inhalt || '<p>Keine offenen Positionen.</p>'}
         </div>`;
       }
 
       function uebersichtZeichnen() {
         const el = document.getElementById('uebersicht-liste');
         if (!el) return;
+        document.querySelectorAll('#uebersicht-gruppe [data-gruppe]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.gruppe === uebersichtZustand.gruppe)));
         const d = korbZustand.daten;
         document.body.classList.toggle('druck-zaehlliste', !!(uebersichtZustand.zaehlliste && uebersichtAktiv()));
         if (!d) return;
+        // Dringlichkeit ohne Bestelldatum in den Daten: einmal mit ?mit=bestelldatum nachladen.
+        if (uebersichtBrauchtDatum() && !d.mitBestelldatum) { if (!korbZustand.laedt) loadLShopKorb(); return; }
         const mx = baueMatrix(d.buendel, grSortiere);
+        const gruppen = gruppiere(d.buendel, uebersichtZustand.gruppe, { heute: heuteBerlin(), sortiere: grSortiere });
         const extra = [mx.unbezahlt ? `davon ${mx.unbezahlt} unbezahlt` : '', mx.gesperrt ? `${mx.gesperrt} gesperrt (nicht gezählt)` : ''].filter(Boolean).join(' · ');
         document.getElementById('uebersicht-summe').textContent =
           `Bestellübersicht · ${mx.stueck} Stück · ${mx.modelle} Modell${mx.modelle !== 1 ? 'e' : ''} · ${mx.positionen} Position${mx.positionen !== 1 ? 'en' : ''}`;
         document.getElementById('uebersicht-zaehler').textContent = extra;
-        if (uebersichtZustand.zaehlliste) { el.innerHTML = zaehllisteHtml(mx); korbLeisteParken(); return; }
+        if (uebersichtZustand.zaehlliste) { el.innerHTML = zaehllisteHtml(mx, gruppen); korbLeisteParken(); return; }
         if (!mx.modelle) { el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Keine offenen Positionen.</p>'; korbLeisteParken(); return; }
-        el.innerHTML = mx.matrizen.map(bmMatrixKarte).join('')
-          + (mx.einzeln.length ? `<div class="bm-karte"><div class="lshop-card-title">Einzelne Artikel (${mx.einzeln.length})</div>${mx.einzeln.map(bmEinzelZeile).join('')}</div>` : '');
+        el.innerHTML = gruppen.map(g => {
+          if (!g.name) return bmInhalt(g);   // Modell: keine Obergruppe, wie in BO3b
+          const zu = uebersichtZustand.zu.has(g.id);
+          return `<div class="bm-gruppe"><button type="button" class="bm-gruppe-kopf" data-gruppe-auf="${korbEsc(g.id)}" aria-expanded="${!zu}">`
+            + `<span>${zu ? '▸' : '▾'} <strong>${korbEsc(g.name)}</strong></span><span class="bm-gruppe-summe">${bmGruppenText(g)}</span></button>`
+            + (zu ? '' : `<div class="bm-gruppe-inhalt">${bmInhalt(g)}</div>`) + '</div>';
+        }).join('');
         korbLeisteParken();
       }
 
@@ -4483,9 +4621,24 @@
       document.getElementById('uebersicht-liste')?.addEventListener('click', ev => {
         if (ev.target.closest('#zl-drucken')) { window.print(); return; }
         if (ev.target.closest('#zl-zurueck')) { uebersichtZustand.zaehlliste = false; uebersichtZeichnen(); return; }
+        const gid = ev.target.closest('[data-gruppe-auf]')?.dataset.gruppeAuf;
+        if (gid) {
+          if (uebersichtZustand.zu.has(gid)) uebersichtZustand.zu.delete(gid); else uebersichtZustand.zu.add(gid);
+          uebersichtZeichnen();
+          return;
+        }
         const zelle = ev.target.closest('[data-zelle]')?.dataset.zelle;
         if (!zelle) return;
         uebersichtZustand.offen = uebersichtZustand.offen === zelle ? null : zelle;
+        uebersichtZeichnen();
+      });
+      document.getElementById('uebersicht-gruppe')?.addEventListener('click', ev => {
+        const g = ev.target.closest('[data-gruppe]')?.dataset.gruppe;
+        if (!GRUPPEN_ARTEN.includes(g) || g === uebersichtZustand.gruppe) return;
+        uebersichtZustand.gruppe = g;
+        uebersichtZustand.offen = null;
+        uebersichtZustand.zu.clear();   // beim Wechsel sind wieder alle Gruppen offen
+        try { localStorage.setItem(UEBERSICHT_GRUPPE_KEY, g); } catch { /* ohne Speicher gilt die Wahl bis zum Neuladen */ }
         uebersichtZeichnen();
       });
       document.getElementById('uebersicht-zaehlliste-btn')?.addEventListener('click', () => {
