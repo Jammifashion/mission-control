@@ -309,6 +309,7 @@
       .korb-pos-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
       .korb-pos .korb-link { flex: none; }
       .korb-pos-raus { opacity: 0.55; }
+      .korb-menge-viel { color: var(--danger); font-weight: 700; }   /* BO3d: Menge > 1 */
       .korb-link { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.78rem; padding: 0.15rem 0; text-decoration: underline; }
       .korb-leiste {
         position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center;
@@ -3963,12 +3964,21 @@
       const korbFilterPasst = p => korbZustand.filter === 'alle'
         || (korbZustand.filter === 'raus' ? p.status === 'abgewählt' && (p.rausAktuell || korbZustand.rausAeltere) : p.status === 'offen');
 
+      // ── Korb-Menge: Anfang (reine Logik, backend/tests/korb-menge.test.js) ──
+      // BO3d: Menge > 1 rot, damit "×2" neben "JFN #Nr · Pos." nicht untergeht; ×1 bleibt schlicht.
+      function korbMengeHtml(menge) {
+        const n = Number(menge);
+        const text = `×${String(menge ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`)}`;
+        return Number.isFinite(n) && n > 1 ? `<span class="korb-menge-viel">${text}</span>` : text;
+      }
+      // ── Korb-Menge: Ende ──
+
       function korbPositionZeile(p) {
         const herkunft = p.herkunft === 'eigen' ? `Eigen · ${korbEsc(p.referenz)}` : `${korbEsc(p.shop)} #${korbEsc(p.bestellnummer)} · Pos. ${korbEsc(p.position)}`;
         const hinweis  = p.hinweis ? ` · <span style="color:${p.vorschlag ? 'var(--accent)' : 'var(--danger)'};">⚠ ${korbEsc(p.hinweis)}</span>` : '';
         const notiz    = p.notiz ? ` · <em>${korbEsc(p.notiz)}</em>` : '';
         // Position: JFN #Nr · Pos. · Menge · unser Artikelname. Die L-Shop-Angaben stehen nur im Buendelkopf.
-        const text     = `${herkunft} ×${p.menge}${p.produktname ? ` · ${korbEsc(p.produktname)}` : ''}`;
+        const text     = `${herkunft} ${korbMengeHtml(p.menge)}${p.produktname ? ` · ${korbEsc(p.produktname)}` : ''}`;
         if (p.status === 'abgewählt') {
           return `<div class="korb-pos korb-pos-raus"><span class="korb-pos-text">${text} · <strong>herausgenommen</strong>`
             + ` ${korbEsc(korbDatum(p.statusDatum))} (${korbEsc(p.grund)})${notiz}${hinweis}</span>`
