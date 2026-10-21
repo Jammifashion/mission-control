@@ -17,7 +17,8 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
 - Stand-Anzeige
 - Helpers (darin: Dashboard inkl. Knopf "Trikot-Sync jetzt")
 - Auftragsmonitor, Auftragsmonitor Dual-Source; darunter "Auftragsmonitor: Shop Orders" (kein SECTION-Anker)
-- L-Shop-Warenkorb (BO2: Unterpunkt `bestellen/lshop-korb`, Anzeige + Knopf "Abgleich jetzt")
+- L-Shop-Warenkorb (BO2: Unterpunkt `bestellen/lshop-korb`, Anzeige + Knopf "Abgleich jetzt"; der alte
+  Unterreiter "L-Shop Bestellungen" ist seitdem ausgeblendet, nicht entfernt)
 - Artikelerfassung
 - SEO-Daten aendern (Befehl SE1: Yoast-Felder jedes veroeffentlichten Artikels; nutzt seoMetaBau und yoastSchreiben des SEO-Flows, schreibt nichts ins Sheet)
 - SEO-Flow
