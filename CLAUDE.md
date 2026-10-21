@@ -19,6 +19,13 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
 - Auftragsmonitor, Auftragsmonitor Dual-Source; darunter "Auftragsmonitor: Shop Orders" (kein SECTION-Anker)
 - L-Shop-Warenkorb (BO2: Unterpunkt `bestellen/lshop-korb`, Anzeige + Knopf "Abgleich jetzt"; der alte
   Unterreiter "L-Shop Bestellungen" ist seitdem ausgeblendet, nicht entfernt)
+- L-Shop-Bestellübersicht (BO3b: Unterpunkt `bestellen/lshop-uebersicht`, direkt hinter dem Korb. Nur eine
+  Ansicht auf `korbZustand.daten` - kein eigener Abruf, kein Endpunkt; `korbZeichnen()` zeichnet beide.
+  Block `Matrix: Anfang/Ende` (`baueMatrix`, Test bestellmatrix.test.js): nur Status offen, sperrender
+  Hinweis (`vorschlag` false) zaehlt nicht ("+n gesperrt"), unbezahlt zaehlt mit (Punkt); Groessen ueber
+  `grSortiere`, ohne Rang ans Ende; Modelle mit genau einer Zelle unter "Einzelne Artikel". Aktionen nur
+  ueber die BO3-Wege, die eine Leiste `#korb-leiste` wandert ins sichtbare Panel (`korbLeisteParken`).
+  Zaehlliste hell, ohne Bestellnummern, Haekchen nie gespeichert; Druck nur mit `body.druck-zaehlliste`.)
 - Artikelerfassung
 - SEO-Daten aendern (Befehl SE1: Yoast-Felder jedes veroeffentlichten Artikels; nutzt seoMetaBau und yoastSchreiben des SEO-Flows, schreibt nichts ins Sheet)
 - SEO-Flow
