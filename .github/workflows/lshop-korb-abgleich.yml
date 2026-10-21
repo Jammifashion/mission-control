@@ -1,10 +1,10 @@
 name: L-Shop-Warenkorb Abgleich
 
 on:
-  # Stündlich - ERST NACH DER ERSTBEFÜLLUNG einschalten (BO2 Teil 2): die zwei
-  # Zeilen unten auskommentiert lassen, bis der Inhaber die Erstbefüllung abgenommen hat.
-  # schedule:
-  #   - cron: '17 * * * *'   # jede Stunde zur Minute 17 (nicht auf :00, da laufen Backup/Sync)
+  # Stündlich, seit der Erstbefüllung (BO2 Teil 2, Lauf GH-39593176457, abgenommen 21.10.).
+  # Ein Schedule-Lauf hat keine Inputs: dry_run leer → echter Lauf.
+  schedule:
+    - cron: '17 * * * *'   # jede Stunde zur Minute 17 (nicht auf :00, da laufen Backup/Sync)
   workflow_dispatch:
     inputs:
       dry_run:
