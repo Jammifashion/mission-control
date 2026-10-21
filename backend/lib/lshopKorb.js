@@ -27,7 +27,8 @@ import { normalizeShop } from '../utils/shop-spalte.js';
 import {
   TAB_KORB, KORB_SHOPS, KORB_STATUS_SHOP, korbSchluessel,
   korbZeilen, alsSheetZeile, baueKontext, abgleichPlan, nachzulesendeBestellungen,
-  ersteFreieZeile, bereichLeer, vergleicheZurueck, buendele,
+  ersteFreieZeile, bereichLeer, vergleicheZurueck, buendele, korbZaehler,
+  GRUENDE, statusPlan, naechsteEigenNummer, bestellbareVarianten, eigeneZeile,
 } from '../utils/korb-logic.js';
 import { LIEFERZEIT_META_KEY } from './lieferzeiten.js';
 
@@ -194,7 +195,15 @@ async function schreibeHinweise({ sheets, spreadsheetId, idx, hinweise }) {
 
 // ── Abgleich ────────────────────────────────────────────────────────────────
 
-let laeuft = false;
+// Eine Sperre fuer alle Schreiber des Reiters in dieser Instanz (Abgleich, Status,
+// eigene Position). Instanzuebergreifend schuetzen die Pruefungen vor dem Schreiben.
+let laeuft = null;
+export const BESCHAEFTIGT = 'Der Warenkorb wird gerade aktualisiert (Abgleich läuft) - bitte gleich noch einmal.';
+async function mitSperre(was, fn) {
+  if (laeuft) throw fehler(BESCHAEFTIGT, 409);
+  laeuft = was;
+  try { return await fn(); } finally { laeuft = null; }
+}
 
 /**
  * @param {object} o
@@ -204,9 +213,7 @@ let laeuft = false;
  */
 export async function runKorbAbgleich({ dryRun = false, quelle = 'workflow', laufId, sheets: s, wcFuer = getWcClient, jetzt = () => new Date() } = {}) {
   if (typeof dryRun !== 'boolean') throw fehler('dryRun erwartet true oder false.', 400);
-  if (laeuft) throw fehler('Ein Abgleich läuft schon - bitte gleich noch einmal.', 409);
-  laeuft = true;
-  try {
+  return mitSperre('abgleich', async () => {
     const spreadsheetId = process.env.GOOGLE_SHEET_ID;
     if (!spreadsheetId) throw fehler('GOOGLE_SHEET_ID fehlt.', 503);
     const sheets = s ?? await sheetsClient();
@@ -254,9 +261,120 @@ export async function runKorbAbgleich({ dryRun = false, quelle = 'workflow', lau
       neu: neuAlle.map(z => ({ schluessel: z.Schluessel, articleNr: z.LShop_ArticleNr, menge: z.Menge, hinweis: z.Hinweis })),
       hinweise: hinweiseAlle.map(h => ({ schluessel: h.schluessel, alt: h.alt, neu: h.neu })),
     };
-  } finally {
-    laeuft = false;
-  }
+  });
+}
+
+// ── BO3: Status aendern ─────────────────────────────────────────────────────
+
+/**
+ * Herausnehmen (abgewählt + Grund) oder zurueck auf offen, alles oder nichts.
+ * Zeilen frisch lesen, Schluessel + bisherigen Status pruefen (statusPlan), dann
+ * values.batchUpdate NUR auf Status/Grund/Notiz/Status_Datum/Stand, zuruecklesen.
+ * @param {object} o { auswahl: [{schluessel, status}], ziel, grund, notiz }
+ */
+export async function setzeStatus({ auswahl, ziel, grund, notiz, sheets: s, jetzt = () => new Date() } = {}) {
+  return mitSperre('status', async () => {
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+    if (!spreadsheetId) throw fehler('GOOGLE_SHEET_ID fehlt.', 503);
+    const sheets = s ?? await sheetsClient();
+    if (!await reiterInfo(sheets, spreadsheetId)) throw fehler(`Reiter "${TAB_KORB}" fehlt.`, 409);
+    const { idx, zeilen } = korbZeilen(await leseKorbWerte(sheets, spreadsheetId));
+    const plan = statusPlan({ zeilen, auswahl, ziel, grund, notiz, jetzt: jetzt().toISOString() });
+
+    const data = plan.flatMap(p => Object.entries(p.werte).map(([spalte, wert]) => ({
+      range: `${q(TAB_KORB)}!${colLetter(idx[spalte])}${p.zeile}`, values: [[wert]],
+    })));
+    await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: 'RAW', data } });
+
+    // Zuruecklesen: jede geaenderte Zeile, Schluessel und neue Werte.
+    const { data: zurueck } = await sheets.spreadsheets.values.batchGet({
+      spreadsheetId, ranges: plan.map(p => `${q(TAB_KORB)}!${p.zeile}:${p.zeile}`), valueRenderOption: 'FORMATTED_VALUE',
+    });
+    const abweichend = plan.filter((p, i) => {
+      const r = zurueck.valueRanges?.[i]?.values?.[0] ?? [];
+      const wert = sp => String(r[idx[sp]] ?? '').trim();
+      return wert('Schluessel') !== p.schluessel || Object.entries(p.werte).some(([sp, w]) => wert(sp) !== w);
+    });
+    if (abweichend.length) {
+      throw fehler(`${TAB_KORB}: Rücklesen weicht ab bei ${abweichend.map(p => p.schluessel).join(', ')} - bitte neu laden und prüfen.`, 500);
+    }
+    return { ok: true, geaendert: plan.length, ziel, schluessel: plan.map(p => p.schluessel) };
+  });
+}
+
+// ── BO3: eigene Positionen ──────────────────────────────────────────────────
+
+async function variantenObjekte(sheets, spreadsheetId) {
+  const werte = await cache.hole(`var|${spreadsheetId}`, async () =>
+    (await sheets.spreadsheets.values.get({ spreadsheetId, range: q(TAB_VARIANTEN) })).data.values ?? []);
+  const [h = [], ...z] = werte;
+  return z.map(r => Object.fromEntries(h.map((k, i) => [String(k).trim(), String(r[i] ?? '').trim()])));
+}
+
+async function maskeArtikel(sheets, spreadsheetId) {
+  return leseReiterSpalten({
+    tab: TAB_MASKE, spalten: { id: 'ID', pid: 'Produkt-ID', name: 'Produktname', artikelnummer: 'Artikelnummer' }, sheets, spreadsheetId,
+  });
+}
+
+async function variantenDesArtikels(sheets, spreadsheetId, ssotId) {
+  const alle = await variantenObjekte(sheets, spreadsheetId);
+  const lshop = await ladeLShopZeilen({ sheets, spreadsheetId });
+  return bestellbareVarianten(alle.filter(v => v['SSOT-ID'] === ssotId), new Map(lshop.map(z => [z.articleNr, z])));
+}
+
+const SUCHE_MAX = 30;
+
+/** Artikel fuer die Auswahl: nur synchronisiert (Produkt-ID), Suche in Name, Artikelnummer, SSOT-ID. */
+export async function sucheArtikel({ q: suche, sheets: s } = {}) {
+  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+  const sheets = s ?? await sheetsClient();
+  const n = String(suche ?? '').trim().toLowerCase();
+  if (n.length < 2) return { artikel: [], mehr: false };
+  const treffer = (await maskeArtikel(sheets, spreadsheetId))
+    .filter(a => a.pid && [a.name, a.artikelnummer, a.id].some(x => x.toLowerCase().includes(n)));
+  const alle = await variantenObjekte(sheets, spreadsheetId);
+  const lshop = new Map((await ladeLShopZeilen({ sheets, spreadsheetId })).map(z => [z.articleNr, z]));
+  const artikel = treffer.slice(0, SUCHE_MAX).map(a => ({
+    ssotId: a.id, produktname: a.name, artikelnummer: a.artikelnummer,
+    bestellbar: bestellbareVarianten(alle.filter(v => v['SSOT-ID'] === a.id), lshop).length,
+  }));
+  return { artikel, mehr: treffer.length > SUCHE_MAX };
+}
+
+/** Bestellbare Varianten eines Artikels (Farbe, Rest der Achsen, ArticleNr). */
+export async function artikelVarianten({ ssotId, sheets: s } = {}) {
+  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+  const sheets = s ?? await sheetsClient();
+  const id = String(ssotId ?? '').trim();
+  const artikel = (await maskeArtikel(sheets, spreadsheetId)).find(a => a.id === id);
+  if (!artikel || !artikel.pid) throw fehler('Artikel nicht gefunden oder nicht synchronisiert - im SSOT nachpflegen.', 404);
+  return { ssotId: id, produktname: artikel.name, varianten: await variantenDesArtikels(sheets, spreadsheetId, id) };
+}
+
+/**
+ * Eigene Position anlegen. Nummer EIGEN:<Jahr>-NNNN serverseitig aus dem Reiter,
+ * Schreiben wie im Abgleich ueber vorher bestimmte Zielzeilen (nie values.append).
+ */
+export async function legeEigenePositionAn({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
+  return mitSperre('eigen', async () => {
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+    if (!spreadsheetId) throw fehler('GOOGLE_SHEET_ID fehlt.', 503);
+    const sheets = s ?? await sheetsClient();
+    const info = await reiterInfo(sheets, spreadsheetId);
+    if (!info) throw fehler(`Reiter "${TAB_KORB}" fehlt.`, 409);
+    const zeit = jetzt();
+    const { idx, zeilen } = korbZeilen(await leseKorbWerte(sheets, spreadsheetId));
+    const ssotId = String(eingabe?.ssotId ?? '').trim();
+    const artikel = (await maskeArtikel(sheets, spreadsheetId)).find(a => a.id === ssotId);
+    const varianten = artikel ? await variantenDesArtikels(sheets, spreadsheetId, ssotId) : [];
+    const schluessel = naechsteEigenNummer(zeilen, zeit.getUTCFullYear());
+    const zeile = eigeneZeile({ eingabe, artikel, varianten, schluessel, jetzt: zeit.toISOString() });
+
+    const r = await schreibeNeueZeilen({ sheets, spreadsheetId, info, idx, zeilen: [zeile] });
+    if (r.geschrieben !== 1) throw fehler(BESCHAEFTIGT, 409);   // Nummer inzwischen vergeben
+    return { ok: true, schluessel, zeile: r.startZeile, articleNr: zeile.LShop_ArticleNr, menge: zeile.Menge };
+  });
 }
 
 // ── Anzeige ─────────────────────────────────────────────────────────────────
@@ -266,7 +384,7 @@ export async function leseKorb({ shop, sheets: s } = {}) {
   if (!spreadsheetId) throw fehler('GOOGLE_SHEET_ID fehlt.', 503);
   const sheets = s ?? await sheetsClient();
   const info = await reiterInfo(sheets, spreadsheetId);
-  if (!info) return { reiterFehlt: true, buendel: [], summen: { positionen: 0, zuBestellen: 0, artikelnummern: 0 } };
+  if (!info) return { reiterFehlt: true, buendel: [], gruende: GRUENDE, summen: { positionen: 0, zuBestellen: 0, artikelnummern: 0, offen: 0, herausgenommen: 0, mitHinweis: 0 } };
 
   const { zeilen } = korbZeilen(await leseKorbWerte(sheets, spreadsheetId));
   const meine = zeilen.filter(z => normalizeShop(z.Shop || 'jfn') === normalizeShop(shop));
@@ -276,10 +394,12 @@ export async function leseKorb({ shop, sheets: s } = {}) {
   return {
     reiterFehlt: false,
     buendel,
+    gruende: GRUENDE,
     summen: {
       positionen: meine.length,
       zuBestellen: buendel.reduce((n, b) => n + b.zuBestellen, 0),
       artikelnummern: buendel.filter(b => b.zuBestellen > 0).length,
+      ...korbZaehler(meine),
     },
   };
 }

@@ -106,6 +106,15 @@ Neue Sektionen immer mit Anker versehen:
   zuruecklesen; Hinweise per batchUpdate nach Pruefung von Schluessel + altem Hinweis.
   `GET /api/bestellen/lshop-korb?shop=` liest nur den Reiter, gebuendelt nach ArticleNr, ohne
   Kundennamen. Reiter anlegen: `scripts/setup-lshop-korb-reiter.js` (Trockenlauf Standard, `--write`).
+  BO3 (bearbeiten in MC): `POST .../lshop-korb/status` `{ auswahl: [{schluessel, status}], ziel, grund, notiz }`
+  nur offen <-> abgewählt (Grund aus `GRUENDE` Pflicht), alles oder nichts: Zeile frisch lesen,
+  Schluessel + mitgeschickten Status pruefen (sonst 409), batchUpdate nur Status/Grund/Notiz/
+  Status_Datum/Stand, zuruecklesen. Eigene Position `POST .../lshop-korb/eigen` (Auswahl ueber
+  `GET .../artikel?q=` und `.../artikel/:ssotId/varianten`: nur Maske mit Produkt-ID, Varianten Aktiv +
+  gueltige ArticleNr, nicht ausgelaufen/3/6), Schluessel `EIGEN:<Jahr>-NNNN` vergibt der SERVER
+  (hoechste + 1 aus dem Reiter), Referenz Pflicht (nie Klarnamen). Der Abgleich fasst Herkunft
+  `eigen` und Status ausser offen/bestellt nie an. Eine Sperre je Instanz fuer alle Schreiber -> 409
+  "gleich noch einmal". Kein Loeschen; bestellt/geliefert setzt erst BO4.
 - backend/routes/partnerPortal.js – Token-Auth für partner.html + WC-Sync
 - backend/routes/anfragen.js – Kundenanfragen Admin (POST /neu, GET /, PATCH /:id/status) – hinter requireApiKey
 - backend/routes/anfragen-chat.js – Chat-Widget public endpoint (POST /chat, kein API-Key) – vor requireApiKey

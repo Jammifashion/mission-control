@@ -282,6 +282,32 @@
       .btn-lshop-bestellen:hover { background: #1f4525; }
       .btn-lshop-bestellen:disabled { opacity: 0.5; cursor: not-allowed; }
 
+      /* ── L-Shop-Warenkorb (BO3) ── */
+      .korb-kopf { flex-wrap: wrap; gap: 0.5rem; }
+      .korb-knoepfe { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+      .korb-klein { padding: 0.3rem 0.65rem; font-size: 0.8rem; }
+      .korb-titel { display: flex; justify-content: space-between; gap: 0.5rem; align-items: baseline; }
+      .korb-zaehler { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
+      .korb-schalter { font-size: 0.8rem; color: var(--muted); display: inline-flex; gap: 0.35rem; align-items: center; margin-bottom: 0.6rem; }
+      .korb-pos { display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.25rem 0; }
+      .korb-pos input[type=checkbox], .korb-schalter input, .korb-buendel-cb { width: 1.15rem; height: 1.15rem; flex: none; margin-top: 0.1rem; }
+      .korb-pos-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+      .korb-pos .korb-link { flex: none; }
+      .korb-pos-raus { opacity: 0.55; }
+      .korb-link { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.78rem; padding: 0.15rem 0; text-decoration: underline; }
+      .korb-leiste {
+        position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center;
+        background: var(--surface); border-top: 1px solid var(--border); padding: 0.6rem 0; margin-top: 0.5rem;
+      }
+      .korb-leiste .form-select, .korb-leiste .form-input { flex: 1 1 10rem; min-width: 0; font-size: 0.85rem; }
+      .korb-eigen { border: 1px dashed var(--border); border-radius: 7px; padding: 0.7rem; margin-bottom: 0.8rem; display: flex; flex-direction: column; gap: 0.5rem; }
+      .korb-eigen .form-input, .korb-eigen .form-select { width: 100%; box-sizing: border-box; font-size: 0.85rem; }
+      .korb-reihe { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+      .korb-reihe .form-select { flex: 1 1 8rem; min-width: 0; }
+      .korb-menge { flex: 0 0 5rem; }
+      .korb-treffer button { display: block; width: 100%; text-align: left; background: none; border: none; border-bottom: 1px solid var(--border); color: var(--text); padding: 0.45rem 0.2rem; cursor: pointer; font-size: 0.84rem; }
+      .korb-treffer button:disabled { opacity: 0.5; cursor: not-allowed; }
+
       /* ── L-Shop Protokoll ── */
       .lshop-proto-row {
         display: grid; grid-template-columns: 130px 1fr auto;
@@ -1061,12 +1087,48 @@
 
         <div id="tab-lshop-korb" class="sub-tab-panel">
           <div class="card">
-            <div class="lshop-offen-header">
+            <div class="lshop-offen-header korb-kopf">
               <span id="korb-summe">L-Shop-Warenkorb</span>
-              <button class="btn-lshop-bestellen" id="korb-abgleich-btn" title="Neue L-Shop-bestellfähige Positionen aus dem Shop übernehmen">↻ Abgleich jetzt</button>
+              <span class="korb-knoepfe">
+                <button class="btn-secondary korb-klein" id="korb-eigen-btn" type="button">+ Eigene Position</button>
+                <button class="btn-lshop-bestellen" id="korb-abgleich-btn" title="Neue L-Shop-bestellfähige Positionen aus dem Shop übernehmen">↻ Abgleich jetzt</button>
+              </span>
             </div>
+            <div id="korb-zaehler" class="korb-zaehler"></div>
+            <label class="korb-schalter"><input type="checkbox" id="korb-alle"> auch herausgenommene zeigen</label>
             <div id="korb-lauf" class="lshop-card-bedarf" style="display:none;"></div>
+
+            <!-- Eigene Position (BO3): Artikel -> Farbe -> Groesse -> Menge -> Referenz -> Notiz -->
+            <div id="korb-eigen" class="korb-eigen" style="display:none;">
+              <input id="korb-eigen-suche" type="search" class="form-input" placeholder="Artikel suchen: Name, Artikelnummer oder SSOT-ID" autocomplete="off" />
+              <div id="korb-eigen-treffer" class="korb-treffer"></div>
+              <div id="korb-eigen-form" style="display:none;">
+                <div id="korb-eigen-artikel" class="lshop-card-title"></div>
+                <div class="korb-reihe">
+                  <select id="korb-eigen-farbe" class="form-select"></select>
+                  <select id="korb-eigen-groesse" class="form-select"></select>
+                  <input id="korb-eigen-menge" type="number" class="form-input korb-menge" min="1" max="999" step="1" value="1" inputmode="numeric" aria-label="Menge" />
+                </div>
+                <input id="korb-eigen-referenz" type="text" class="form-input" maxlength="80" placeholder="Referenz (Pflicht)" aria-describedby="korb-eigen-referenz-hilfe" />
+                <div id="korb-eigen-referenz-hilfe" class="korb-zaehler">z. B. „Lager“, „Muster“, „Verein X Auftrag 12“ – nie Namen von Privatpersonen.</div>
+                <input id="korb-eigen-notiz" type="text" class="form-input" maxlength="200" placeholder="Notiz (optional)" />
+                <div class="korb-reihe">
+                  <button class="btn-lshop-bestellen" id="korb-eigen-speichern" type="button">In den Korb</button>
+                  <button class="btn-secondary korb-klein" id="korb-eigen-abbrechen" type="button">Abbrechen</button>
+                </div>
+              </div>
+            </div>
+
             <div id="korb-liste"><div class="skeleton"></div><div class="skeleton"></div></div>
+
+            <!-- Aktionsleiste: erscheint, sobald Positionen angehakt sind -->
+            <div id="korb-leiste" class="korb-leiste" style="display:none;">
+              <span id="korb-leiste-anzahl" class="bulk-count"></span>
+              <select id="korb-grund" class="form-select" aria-label="Grund"></select>
+              <input id="korb-notiz" type="text" class="form-input" maxlength="200" placeholder="Notiz (optional)" />
+              <button class="btn-lshop-bestellen" id="korb-herausnehmen" type="button">Herausnehmen</button>
+              <button class="btn-secondary korb-klein" id="korb-auswahl-weg" type="button">Auswahl aufheben</button>
+            </div>
           </div>
         </div>
 
@@ -3788,19 +3850,85 @@
       // BO2: stehender Bestand im Reiter Warenkorb_LShop (lib/lshopKorb.js). Die Anzeige
       // liest NUR den Reiter (GET /api/bestellen/lshop-korb), gebuendelt nach
       // LShop_ArticleNr. "Abgleich jetzt" haengt neue Positionen an und setzt Hinweise;
-      // er aendert nie einen Status. Aktionen (entfernen, eigene Position) kommen mit BO3.
+      // er aendert nie einen Status.
+      // BO3: herausnehmen (abgewählt + Grund) und zurueck auf offen, einzeln oder per
+      // Haekchen; eigene Positionen aus dem SSOT. Der Browser schickt je Position den
+      // Status mit, den er gesehen hat - weicht die Zeile ab, antwortet der Server 409.
+      // Kein Loeschen; bestellt/geliefert setzt erst BO4.
       const korbEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const korbDatum = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('de-DE'); };
+      const korbZustand = { daten: null, auswahl: new Map() };   // auswahl: Schluessel -> Position
 
       function korbPositionZeile(p) {
-        const herkunft = p.herkunft === 'eigen' ? `Eigen ${korbEsc(p.referenz)}` : `${korbEsc(p.shop)} #${korbEsc(p.bestellnummer)} · Pos. ${korbEsc(p.position)}`;
-        const status   = p.status === 'offen' ? '' : ` · <strong>${korbEsc(p.status)}</strong>${p.grund ? ` (${korbEsc(p.grund)})` : ''}`;
+        const herkunft = p.herkunft === 'eigen' ? `Eigen · ${korbEsc(p.referenz)}` : `${korbEsc(p.shop)} #${korbEsc(p.bestellnummer)} · Pos. ${korbEsc(p.position)}`;
         const hinweis  = p.hinweis ? ` · <span style="color:${p.vorschlag ? 'var(--accent)' : 'var(--danger)'};">⚠ ${korbEsc(p.hinweis)}</span>` : '';
-        return `<div style="${p.vorschlag ? '' : 'opacity:0.55;'}">${herkunft} ×${p.menge}${p.produktname ? ` · ${korbEsc(p.produktname)}` : ''}${status}${hinweis}</div>`;
+        const notiz    = p.notiz ? ` · <em>${korbEsc(p.notiz)}</em>` : '';
+        const text     = `${herkunft} ×${p.menge}${p.produktname ? ` · ${korbEsc(p.produktname)}` : ''}`;
+        if (p.status === 'abgewählt') {
+          return `<div class="korb-pos korb-pos-raus"><span class="korb-pos-text">${text} · <strong>herausgenommen</strong>`
+            + ` ${korbEsc(korbDatum(p.statusDatum))} (${korbEsc(p.grund)})${notiz}${hinweis}</span>`
+            + `<button class="korb-link" type="button" data-zurueck="${korbEsc(p.schluessel)}">zurück auf offen</button></div>`;
+        }
+        if (p.status !== 'offen' || !p.bearbeitbar) {
+          return `<div class="korb-pos korb-pos-raus"><span class="korb-pos-text">${text} · <strong>${korbEsc(p.status)}</strong>${notiz}${hinweis}</span></div>`;
+        }
+        const an = korbZustand.auswahl.has(p.schluessel) ? 'checked' : '';
+        return `<label class="korb-pos" style="${p.vorschlag ? '' : 'opacity:0.7;'}"><input type="checkbox" data-pos="${korbEsc(p.schluessel)}" ${an}>`
+          + `<span class="korb-pos-text">${text}${notiz}${hinweis}</span></label>`;
+      }
+
+      function korbLeisteAktualisieren() {
+        const leiste = document.getElementById('korb-leiste');
+        const n = korbZustand.auswahl.size;
+        leiste.style.display = n ? '' : 'none';
+        if (!n) return;
+        document.getElementById('korb-leiste-anzahl').textContent = `${n} Position${n !== 1 ? 'en' : ''} gewählt`;
+        const sel = document.getElementById('korb-grund');
+        const gruende = korbZustand.daten?.gruende ?? [];
+        const vorschlaege = [...new Set([...korbZustand.auswahl.values()].map(p => p.grundVorschlag || ''))];
+        const vorbelegt = vorschlaege.length === 1 ? vorschlaege[0] : '';
+        // Eine Auswahl des Nutzers bleibt; eine Vorbelegung gilt nur, solange alle gewaehlten
+        // Positionen denselben Vorschlag haben.
+        const bisher = korbZustand.grundVomNutzer ? sel.value : '';
+        sel.innerHTML = `<option value="">Grund wählen …</option>` + gruende.map(g => `<option>${korbEsc(g)}</option>`).join('');
+        sel.value = bisher && gruende.includes(bisher) ? bisher : vorbelegt;
+      }
+      document.getElementById('korb-grund')?.addEventListener('change', ev => { korbZustand.grundVomNutzer = !!ev.target.value; });
+
+      function korbZeichnen() {
+        const d = korbZustand.daten;
+        const el = document.getElementById('korb-liste');
+        if (!d) return;
+        const z = d.summen;
+        document.getElementById('korb-summe').textContent =
+          `L-Shop-Warenkorb · ${z.zuBestellen} Stück zu bestellen · ${z.artikelnummern} Artikelnummer${z.artikelnummern !== 1 ? 'n' : ''}`;
+        document.getElementById('korb-zaehler').textContent = `${z.offen} offen · ${z.herausgenommen} herausgenommen · ${z.mitHinweis} mit Hinweis`;
+        const alle = document.getElementById('korb-alle').checked;
+        const sichtbar = d.buendel
+          .map(b => ({ ...b, zeigen: b.positionen.filter(p => alle || p.status !== 'abgewählt') }))
+          .filter(b => b.zeigen.length);
+        if (!sichtbar.length) {
+          el.innerHTML = `<p style="color:var(--muted);font-size:0.84rem;">${d.buendel.length ? 'Keine offenen Positionen.' : 'Der Korb ist leer.'}</p>`;
+        } else {
+          el.innerHTML = sichtbar.map(b => {
+            const waehlbar = b.zeigen.filter(p => p.status === 'offen' && p.bearbeitbar);
+            const alleAn = waehlbar.length && waehlbar.every(p => korbZustand.auswahl.has(p.schluessel));
+            return `
+            <div class="lshop-card" style="grid-template-columns: auto 1fr;">
+              <div class="card-cb-wrap">${waehlbar.length ? `<input type="checkbox" class="korb-buendel-cb" data-buendel="${korbEsc(b.articleNr)}" ${alleAn ? 'checked' : ''} aria-label="ganzes Bündel wählen">` : ''}</div>
+              <div class="lshop-card-info">
+                <div class="lshop-card-title korb-titel"><span>${korbEsc(b.articleNr)}${b.catalogNr ? ` · ${korbEsc(b.catalogNr)}` : ''}</span><span class="lshop-stueck">${b.zuBestellen} Stk</span></div>
+                <div class="lshop-card-variante">${korbEsc(b.farbe || '–')} · ${korbEsc(b.groesse || '–')}${b.unbezahlt ? ` <span class="lshop-card-bedarf">· davon ${b.unbezahlt} unbezahlt</span>` : ''}</div>
+                <div class="lshop-card-orders">${b.zeigen.map(korbPositionZeile).join('')}</div>
+              </div>
+            </div>`;
+          }).join('');
+        }
+        korbLeisteAktualisieren();
       }
 
       async function loadLShopKorb() {
         const el = document.getElementById('korb-liste');
-        const summe = document.getElementById('korb-summe');
         el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
         try {
           const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb`);
@@ -3808,31 +3936,193 @@
           if (stopp) { el.innerHTML = `<p style="color:var(--danger);font-size:0.83rem;">${korbEsc(stopp)}</p>`; return; }
           const d = await apiJson(res);
           if (d.reiterFehlt) {
-            summe.textContent = 'L-Shop-Warenkorb';
+            korbZustand.daten = null;
+            document.getElementById('korb-summe').textContent = 'L-Shop-Warenkorb';
             el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Reiter „Warenkorb_LShop“ ist noch nicht angelegt.</p>';
             return;
           }
-          summe.textContent = `L-Shop-Warenkorb · ${d.summen.zuBestellen} Stück zu bestellen · ${d.summen.artikelnummern} Artikelnummer${d.summen.artikelnummern !== 1 ? 'n' : ''} · ${d.summen.positionen} Position${d.summen.positionen !== 1 ? 'en' : ''}`;
-          if (!d.buendel.length) {
-            el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Der Korb ist leer.</p>';
-            return;
+          korbZustand.daten = d;
+          // Auswahl nur behalten, was noch offen und bearbeitbar ist (neuer Stand vom Server).
+          const offen = new Map(d.buendel.flatMap(b => b.positionen).filter(p => p.status === 'offen' && p.bearbeitbar).map(p => [p.schluessel, p]));
+          for (const s of [...korbZustand.auswahl.keys()]) {
+            if (offen.has(s)) korbZustand.auswahl.set(s, offen.get(s)); else korbZustand.auswahl.delete(s);
           }
-          el.innerHTML = d.buendel.map(b => `
-            <div class="lshop-card" style="grid-template-columns: 1fr auto;">
-              <div class="lshop-card-info">
-                <div class="lshop-card-title">${korbEsc(b.articleNr)}${b.catalogNr ? ` · ${korbEsc(b.catalogNr)}` : ''}</div>
-                <div class="lshop-card-variante">${korbEsc(b.farbe || '–')} · ${korbEsc(b.groesse || '–')}</div>
-                <div class="lshop-card-orders">${b.positionen.map(korbPositionZeile).join('')}</div>
-              </div>
-              <div class="lshop-card-right">
-                <span class="lshop-stueck">${b.zuBestellen} Stk</span>
-                ${b.unbezahlt ? `<span class="lshop-card-bedarf">davon ${b.unbezahlt} unbezahlt</span>` : ''}
-              </div>
-            </div>`).join('');
+          korbZeichnen();
         } catch (e) {
           el.innerHTML = `<p style="color:var(--danger);font-size:0.83rem;">Fehler: ${korbEsc(e.message)}</p>`;
         }
       }
+
+      const korbPositionen = () => (korbZustand.daten?.buendel ?? []).flatMap(b => b.positionen);
+
+      // Status aendern. 409 = Zeile hat sich geaendert oder ein Abgleich laeuft -> Meldung, neu laden.
+      async function korbStatusSenden(auswahl, ziel, grund, notiz) {
+        const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/status`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ auswahl, ziel, grund, notiz }),
+        });
+        const stopp = await laufStopp(res);
+        if (stopp) { showToast(stopp, 'error'); return false; }
+        if (res.status === 409) {
+          const j = await res.json().catch(() => null);
+          showToast(j?.error || 'Der Korb hat sich gerade geändert - bitte gleich noch einmal.', 'error');
+          await loadLShopKorb();
+          return false;
+        }
+        await apiJson(res);
+        return true;
+      }
+
+      document.getElementById('korb-liste')?.addEventListener('change', ev => {
+        const t = ev.target;
+        if (t.dataset.pos) {
+          const p = korbPositionen().find(x => x.schluessel === t.dataset.pos);
+          if (t.checked && p) korbZustand.auswahl.set(p.schluessel, p); else korbZustand.auswahl.delete(t.dataset.pos);
+          korbZeichnen();
+        } else if (t.dataset.buendel) {
+          const b = korbZustand.daten.buendel.find(x => x.articleNr === t.dataset.buendel);
+          for (const p of b.positionen.filter(x => x.status === 'offen' && x.bearbeitbar)) {
+            if (t.checked) korbZustand.auswahl.set(p.schluessel, p); else korbZustand.auswahl.delete(p.schluessel);
+          }
+          korbZeichnen();
+        }
+      });
+
+      document.getElementById('korb-liste')?.addEventListener('click', async ev => {
+        const s = ev.target.dataset?.zurueck;
+        if (!s) return;
+        ev.target.disabled = true;
+        try {
+          if (await korbStatusSenden([{ schluessel: s, status: 'abgewählt' }], 'offen')) {
+            showToast('Position ist wieder offen');
+            await loadLShopKorb();
+          }
+        } catch (e) { showToast(`Fehler: ${e.message}`, 'error'); }
+        finally { ev.target.disabled = false; }
+      });
+
+      document.getElementById('korb-alle')?.addEventListener('change', korbZeichnen);
+      document.getElementById('korb-auswahl-weg')?.addEventListener('click', () => { korbZustand.auswahl.clear(); korbZustand.grundVomNutzer = false; korbZeichnen(); });
+
+      document.getElementById('korb-herausnehmen')?.addEventListener('click', async ev => {
+        const grund = document.getElementById('korb-grund').value;
+        if (!grund) { showToast('Bitte einen Grund wählen', 'error'); return; }
+        const notizEl = document.getElementById('korb-notiz');
+        const auswahl = [...korbZustand.auswahl.values()].map(p => ({ schluessel: p.schluessel, status: p.status }));
+        const btn = ev.currentTarget;
+        btn.disabled = true;
+        try {
+          if (await korbStatusSenden(auswahl, 'abgewählt', grund, notizEl.value.trim() || undefined)) {
+            showToast(`${auswahl.length} Position${auswahl.length !== 1 ? 'en' : ''} herausgenommen`);
+            korbZustand.auswahl.clear();
+            korbZustand.grundVomNutzer = false;
+            notizEl.value = '';
+            await loadLShopKorb();
+          }
+        } catch (e) { showToast(`Fehler: ${e.message}`, 'error'); }
+        finally { btn.disabled = false; }
+      });
+
+      // ── Eigene Position: Artikel -> Farbe -> Groesse -> Menge -> Referenz ──
+      const korbEigen = { artikel: null, varianten: [], timer: null };
+
+      function korbEigenZuruecksetzen() {
+        korbEigen.artikel = null; korbEigen.varianten = [];
+        document.getElementById('korb-eigen-suche').value = '';
+        document.getElementById('korb-eigen-treffer').innerHTML = '';
+        document.getElementById('korb-eigen-form').style.display = 'none';
+        for (const id of ['korb-eigen-referenz', 'korb-eigen-notiz']) document.getElementById(id).value = '';
+        document.getElementById('korb-eigen-menge').value = '1';
+      }
+
+      document.getElementById('korb-eigen-btn')?.addEventListener('click', () => {
+        const box = document.getElementById('korb-eigen');
+        const zu = box.style.display === 'none';
+        box.style.display = zu ? '' : 'none';
+        if (zu) { korbEigenZuruecksetzen(); document.getElementById('korb-eigen-suche').focus(); }
+      });
+      document.getElementById('korb-eigen-abbrechen')?.addEventListener('click', () => {
+        korbEigenZuruecksetzen();
+        document.getElementById('korb-eigen').style.display = 'none';
+      });
+
+      document.getElementById('korb-eigen-suche')?.addEventListener('input', ev => {
+        clearTimeout(korbEigen.timer);
+        const q = ev.target.value.trim();
+        const box = document.getElementById('korb-eigen-treffer');
+        if (q.length < 2) { box.innerHTML = ''; return; }
+        korbEigen.timer = setTimeout(async () => {
+          try {
+            const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/artikel?q=${encodeURIComponent(q)}`);
+            const stopp = await laufStopp(res);
+            if (stopp) { box.innerHTML = `<p style="color:var(--danger);font-size:0.8rem;">${korbEsc(stopp)}</p>`; return; }
+            const d = await apiJson(res);
+            if (!d.artikel.length) {
+              box.innerHTML = '<p style="color:var(--muted);font-size:0.8rem;">Nichts gefunden – Artikel im SSOT nachpflegen (nur synchronisierte Artikel sind wählbar).</p>';
+              return;
+            }
+            box.innerHTML = d.artikel.map(a => `<button type="button" data-ssot="${korbEsc(a.ssotId)}" ${a.bestellbar ? '' : 'disabled'}>`
+              + `${korbEsc(a.produktname)} · ${korbEsc(a.artikelnummer)}`
+              + `${a.bestellbar ? ` · ${a.bestellbar} Variante${a.bestellbar !== 1 ? 'n' : ''}` : ' · keine L-Shop-bestellbare Variante – im SSOT nachpflegen'}</button>`).join('')
+              + (d.mehr ? '<p style="color:var(--muted);font-size:0.78rem;">Weitere Treffer – Suche genauer eingrenzen.</p>' : '');
+          } catch (e) { box.innerHTML = `<p style="color:var(--danger);font-size:0.8rem;">Fehler: ${korbEsc(e.message)}</p>`; }
+        }, 300);
+      });
+
+      function korbEigenGroessen() {
+        const farbe = document.getElementById('korb-eigen-farbe').value;
+        const passend = korbEigen.varianten.filter(v => v.farbe === farbe);
+        document.getElementById('korb-eigen-groesse').innerHTML = passend
+          .map(v => `<option value="${korbEsc(v.wcVariationId)}">${korbEsc(v.rest || '–')}</option>`).join('');
+      }
+
+      document.getElementById('korb-eigen-treffer')?.addEventListener('click', async ev => {
+        const ssot = ev.target.closest('button')?.dataset.ssot;
+        if (!ssot) return;
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/artikel/${encodeURIComponent(ssot)}/varianten`);
+          const stopp = await laufStopp(res);
+          if (stopp) { showToast(stopp, 'error'); return; }
+          const d = await apiJson(res);
+          if (!d.varianten.length) { showToast('Keine L-Shop-bestellbare Variante – im SSOT nachpflegen', 'error'); return; }
+          korbEigen.artikel = d; korbEigen.varianten = d.varianten;
+          document.getElementById('korb-eigen-treffer').innerHTML = '';
+          document.getElementById('korb-eigen-artikel').textContent = d.produktname;
+          const farben = [...new Set(d.varianten.map(v => v.farbe))];
+          document.getElementById('korb-eigen-farbe').innerHTML = farben.map(f => `<option value="${korbEsc(f)}">${korbEsc(f || '(ohne Farbe)')}</option>`).join('');
+          korbEigenGroessen();
+          document.getElementById('korb-eigen-form').style.display = '';
+        } catch (e) { showToast(`Fehler: ${e.message}`, 'error'); }
+      });
+      document.getElementById('korb-eigen-farbe')?.addEventListener('change', korbEigenGroessen);
+
+      document.getElementById('korb-eigen-speichern')?.addEventListener('click', async ev => {
+        const referenz = document.getElementById('korb-eigen-referenz').value.trim();
+        if (!korbEigen.artikel) return;
+        if (!referenz) { showToast('Referenz fehlt (z. B. Lager, Muster, Verein X Auftrag 12)', 'error'); return; }
+        const btn = ev.currentTarget;
+        btn.disabled = true;
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/eigen`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ssotId: korbEigen.artikel.ssotId,
+              wcVariationId: document.getElementById('korb-eigen-groesse').value,
+              menge: Number(document.getElementById('korb-eigen-menge').value),
+              referenz,
+              notiz: document.getElementById('korb-eigen-notiz').value.trim(),
+            }),
+          });
+          const stopp = await laufStopp(res);
+          if (stopp) { showToast(stopp, 'error'); return; }
+          const r = await apiJson(res);
+          showToast(`Eigene Position ${r.schluessel} im Korb`);
+          korbEigenZuruecksetzen();
+          document.getElementById('korb-eigen').style.display = 'none';
+          await loadLShopKorb();
+        } catch (e) { showToast(`Fehler: ${e.message}`, 'error'); }
+        finally { btn.disabled = false; }
+      });
 
       document.getElementById('korb-abgleich-btn')?.addEventListener('click', async ev => {
         const btn = ev.currentTarget;

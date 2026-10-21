@@ -301,8 +301,153 @@ export function buendele(zeilen, modelle = new Map(), namen = {}) {
     g.positionen.push({
       schluessel: z.Schluessel, shop: z.Shop || 'JFN', herkunft: z.Herkunft, bestellnummer: z.Bestellnummer,
       position: z.Position, referenz: z.Referenz, ssotId: z['SSOT-ID'], produktname: namen[z['SSOT-ID']] ?? '',
-      menge, status: z.Status, grund: z.Grund, hinweis: z.Hinweis, vorschlag, angelegt: z.Angelegt,
+      menge, status: z.Status, grund: z.Grund, notiz: z.Notiz, hinweis: z.Hinweis, vorschlag,
+      angelegt: z.Angelegt, statusDatum: z.Status_Datum,
+      // BO3: nur offen <-> abgewaehlt ist in MC bearbeitbar; bestellt/geliefert/Lager setzt erst BO4.
+      bearbeitbar: z.Status === STATUS.OFFEN || z.Status === STATUS.ABGEWAEHLT,
+      grundVorschlag: grundVorschlag(z.Hinweis),
     });
   }
   return [...gruppen.values()].sort((a, b) => b.zuBestellen - a.zuBestellen || a.articleNr.localeCompare(b.articleNr));
+}
+
+/** Zaehler oben in der Ansicht: offen / herausgenommen / offen mit Hinweis. */
+export function korbZaehler(zeilen) {
+  const offen = zeilen.filter(z => z.Status === STATUS.OFFEN);
+  return {
+    offen: offen.length,
+    herausgenommen: zeilen.filter(z => z.Status === STATUS.ABGEWAEHLT).length,
+    mitHinweis: offen.filter(z => t(z.Hinweis)).length,
+  };
+}
+
+// ── BO3: Status aendern (herausnehmen / zurueck auf offen) ───────────────────
+
+// Werteliste "Grund" (antwort-BO1 Frage 5).
+export const GRUENDE = ['Ware da / Lager', 'schon bestellt', 'Bestellung storniert', 'Sonstiges'];
+export const ZIEL_STATUS_BO3 = [STATUS.ABGEWAEHLT, STATUS.OFFEN];
+const NOTIZ_MAX = 200;
+
+/**
+ * Vorbelegung fuer den Grund aus dem Hinweis des Laufs. Sperrende Hinweise, bei
+ * denen die Bestellung weg ist -> "Bestellung storniert"; abgeschlossen (die
+ * Ware ging also schon raus) -> "schon bestellt". Sonst keine Vorbelegung.
+ */
+export function grundVorschlag(hinweis) {
+  const h = t(hinweis).split(TRENNER);
+  if (h.some(x => [HINWEIS.STORNIERT, HINWEIS.ERSTATTET, HINWEIS.NICHT_IM_SHOP, HINWEIS.POSITION_WEG].includes(x))) return 'Bestellung storniert';
+  if (h.includes(HINWEIS.ABGESCHLOSSEN)) return 'schon bestellt';
+  return '';
+}
+
+function fehler422(msg) { const e = new Error(msg); e.status = 422; return e; }
+function fehler409(msg) { const e = new Error(msg); e.status = 409; return e; }
+
+/**
+ * Plan fuer einen Statuswechsel mehrerer Zeilen - alles oder nichts.
+ * @param {object} o
+ * @param {object[]} o.zeilen     korbZeilen() aus einem FRISCHEN Lesen
+ * @param {{schluessel: string, status: string}[]} o.auswahl  Schluessel + Status, den der Browser gesehen hat
+ * @param {string} o.ziel         'abgewählt' | 'offen'
+ * @param {string} [o.grund]      Pflicht bei abgewählt, aus GRUENDE
+ * @param {string} [o.notiz]      optional; undefined = Notiz bleibt
+ * @param {string} o.jetzt        ISO
+ * @returns {{ zeile: number, schluessel: string, werte: object }[]}
+ */
+export function statusPlan({ zeilen, auswahl, ziel, grund, notiz, jetzt }) {
+  if (!ZIEL_STATUS_BO3.includes(ziel)) throw fehler422(`Status "${ziel}" ist hier nicht erlaubt (nur ${ZIEL_STATUS_BO3.join(' / ')}).`);
+  if (!Array.isArray(auswahl) || !auswahl.length) throw fehler422('Keine Position gewählt.');
+  if (ziel === STATUS.ABGEWAEHLT && !GRUENDE.includes(t(grund))) throw fehler422(`Grund fehlt oder ist nicht in der Liste (${GRUENDE.join(' · ')}).`);
+  if (notiz !== undefined && t(notiz).length > NOTIZ_MAX) throw fehler422(`Notiz ist länger als ${NOTIZ_MAX} Zeichen.`);
+  const doppelt = auswahl.map(a => t(a?.schluessel)).filter((s, i, l) => l.indexOf(s) !== i);
+  if (doppelt.length) throw fehler422(`Position doppelt gewählt: ${doppelt[0]}`);
+
+  const jeSchluessel = new Map();
+  for (const z of zeilen) {
+    if (jeSchluessel.has(z.Schluessel)) throw fehler409(`Schlüssel ${z.Schluessel} steht mehrfach im Reiter - nichts geändert.`);
+    jeSchluessel.set(z.Schluessel, z);
+  }
+  const von = ziel === STATUS.ABGEWAEHLT ? STATUS.OFFEN : STATUS.ABGEWAEHLT;
+  return auswahl.map(a => {
+    const s = t(a.schluessel);
+    const z = jeSchluessel.get(s);
+    if (!z) throw fehler409(`Position ${s} gibt es nicht (mehr) - nichts geändert.`);
+    if (z.Status !== t(a.status)) throw fehler409(`Position ${s} hat sich geändert (jetzt "${z.Status}") - nichts geändert. Bitte neu laden.`);
+    if (z.Status !== von) throw fehler422(`Position ${s} ist "${z.Status}" - von dort geht "${ziel}" nicht.`);
+    const werte = {
+      Status: ziel,
+      Grund: ziel === STATUS.ABGEWAEHLT ? t(grund) : '',
+      Status_Datum: jetzt,
+      Stand: jetzt,
+    };
+    if (notiz !== undefined) werte.Notiz = t(notiz);
+    return { zeile: z._zeile, schluessel: s, vorher: z, werte };
+  });
+}
+
+// ── BO3: eigene Positionen ──────────────────────────────────────────────────
+
+export const EIGEN_PRAEFIX = 'EIGEN:';
+const REFERENZ_MAX = 80;
+const MENGE_MAX = 999;
+
+/** Naechste Nummer EIGEN:<Jahr>-NNNN: hoechste vorhandene des Jahres + 1 (aus dem Reiter, nie aus dem Browser). */
+export function naechsteEigenNummer(zeilen, jahr) {
+  const praefix = `${EIGEN_PRAEFIX}${jahr}-`;
+  let max = 0;
+  for (const z of zeilen) {
+    const s = t(z.Schluessel);
+    if (!s.startsWith(praefix)) continue;
+    const n = Number(s.slice(praefix.length));
+    if (Number.isInteger(n) && n > max) max = n;
+  }
+  return `${praefix}${String(max + 1).padStart(4, '0')}`;
+}
+
+/**
+ * Bestellbare Varianten eines Artikels fuer die Auswahl (nur synchronisiert, Aktiv,
+ * gueltige ArticleNr, in LShop_Modelle, nicht ausgelaufen / Discontinued 3/6).
+ * @param {object[]} variantenZeilen  Reiter Varianten als Objekte (Spaltennamen)
+ * @param {Map<string,object>} modelle
+ */
+export function bestellbareVarianten(variantenZeilen, modelle) {
+  const aus = [];
+  for (const v of variantenZeilen) {
+    const aktiv = /^(true|wahr)$/i.test(t(v.Aktiv));
+    const wc = t(v.WC_Variation_ID);
+    const nr = t(v.LShop_ArticleNr);
+    if (!aktiv || !wc || wc === '0' || !/^\d{10}$/.test(nr)) continue;
+    const m = modelle.get(nr);
+    if (!m || t(m.status) === 'ausgelaufen' || gesperrtDisc(m.discontinued)) continue;
+    const achsen = [['E1', 'V1'], ['E2', 'V2'], ['E3', 'V3']]
+      .map(([e, w]) => [t(v[e]), t(v[w])]).filter(([e, w]) => e && w);
+    const farbe = achsen.find(([e]) => /^farbe$/i.test(e))?.[1] ?? '';
+    const rest  = achsen.filter(([e]) => !/^farbe$/i.test(e)).map(([, w]) => w).join(' · ');
+    aus.push({ wcVariationId: wc, farbe, rest, articleNr: nr });
+  }
+  return aus;
+}
+
+/**
+ * Neue eigene Zeile pruefen und bauen.
+ * @param {object} o  { eingabe: { ssotId, wcVariationId, menge, referenz, notiz }, artikel, varianten, schluessel, jetzt }
+ *   artikel: Maske-Zeile { id, pid } oder undefined; varianten: bestellbareVarianten() dieses Artikels
+ */
+export function eigeneZeile({ eingabe = {}, artikel, varianten, schluessel, jetzt }) {
+  if (!artikel || !t(artikel.pid)) throw fehler422('Artikel nicht gefunden oder nicht synchronisiert - im SSOT nachpflegen.');
+  const v = varianten.find(x => x.wcVariationId === t(eingabe.wcVariationId));
+  if (!v) throw fehler422('Variante ist nicht L-Shop-bestellbar (Aktiv, gültige LShop_ArticleNr, nicht ausgelaufen) - im SSOT nachpflegen.');
+  const menge = Number(eingabe.menge);
+  if (!Number.isInteger(menge) || menge < 1 || menge > MENGE_MAX) throw fehler422(`Menge muss eine ganze Zahl von 1 bis ${MENGE_MAX} sein.`);
+  const referenz = t(eingabe.referenz);
+  if (!referenz) throw fehler422('Referenz fehlt (z. B. "Lager", "Muster", "Verein X Auftrag 12").');
+  if (referenz.length > REFERENZ_MAX) throw fehler422(`Referenz ist länger als ${REFERENZ_MAX} Zeichen.`);
+  const notiz = t(eingabe.notiz);
+  if (notiz.length > NOTIZ_MAX) throw fehler422(`Notiz ist länger als ${NOTIZ_MAX} Zeichen.`);
+  return {
+    Schluessel: schluessel, Shop: 'JFN', Herkunft: HERKUNFT.EIGEN, Bestellnummer: '', Position: '',
+    Referenz: referenz, 'SSOT-ID': t(artikel.id), LShop_ArticleNr: v.articleNr, Menge: String(menge),
+    Status: STATUS.OFFEN, Grund: '', Hinweis: '', Status_Datum: jetzt, Bestell_ID: '', Notiz: notiz,
+    Angelegt: jetzt, Quelle_Lauf: 'Knopf', Stand: jetzt,
+  };
 }
