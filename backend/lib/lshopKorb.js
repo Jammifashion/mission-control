@@ -20,7 +20,7 @@ import { getWcClient } from './shopConfig.js';
 import { seitenGrenze, seitenListe } from './hosterPruefseite.js';
 import { sheetsMitWiederholung } from './googleRetry.js';
 import { leseReiterSpalten, reiterCache } from './ssot-reiter.js';
-import { ladeLShopZeilen } from './lshop.js';
+import { ladeLShopZeilen, lshopAuswertung } from './lshop.js';
 import { wcVariationMap } from '../utils/varianten-zeilen.js';
 import { colLetter } from '../utils/sheet-spalten.js';
 import { normalizeShop } from '../utils/shop-spalte.js';
@@ -28,7 +28,7 @@ import {
   TAB_KORB, KORB_SHOPS, KORB_STATUS_SHOP, korbSchluessel,
   korbZeilen, alsSheetZeile, baueKontext, abgleichPlan, nachzulesendeBestellungen,
   ersteFreieZeile, bereichLeer, vergleicheZurueck, buendele, korbZaehler,
-  GRUENDE, statusPlan, naechsteEigenNummer, bestellbareVarianten, eigeneZeile,
+  GRUENDE, statusPlan, naechsteEigenNummer, eigeneZeile, sucheModelle, NICHT_IM_BESTAND,
 } from '../utils/korb-logic.js';
 import { LIEFERZEIT_META_KEY } from './lieferzeiten.js';
 
@@ -304,52 +304,29 @@ export async function setzeStatus({ auswahl, ziel, grund, notiz, sheets: s, jetz
 
 // ── BO3: eigene Positionen ──────────────────────────────────────────────────
 
-async function variantenObjekte(sheets, spreadsheetId) {
-  const werte = await cache.hole(`var|${spreadsheetId}`, async () =>
-    (await sheets.spreadsheets.values.get({ spreadsheetId, range: q(TAB_VARIANTEN) })).data.values ?? []);
-  const [h = [], ...z] = werte;
-  return z.map(r => Object.fromEntries(h.map((k, i) => [String(k).trim(), String(r[i] ?? '').trim()])));
-}
+// Seit 21.10. (Inhaber): Auswahl NUR aus blanken L-Shop-Artikeln (LShop_Modelle), nie aus
+// unseren Shop-Artikeln. Die Stammdatei wird nie direkt gelesen, nur der Reiter.
 
-async function maskeArtikel(sheets, spreadsheetId) {
-  return leseReiterSpalten({
-    tab: TAB_MASKE, spalten: { id: 'ID', pid: 'Produkt-ID', name: 'Produktname', artikelnummer: 'Artikelnummer' }, sheets, spreadsheetId,
-  });
-}
-
-async function variantenDesArtikels(sheets, spreadsheetId, ssotId) {
-  const alle = await variantenObjekte(sheets, spreadsheetId);
-  const lshop = await ladeLShopZeilen({ sheets, spreadsheetId });
-  return bestellbareVarianten(alle.filter(v => v['SSOT-ID'] === ssotId), new Map(lshop.map(z => [z.articleNr, z])));
-}
-
-const SUCHE_MAX = 30;
-
-/** Artikel fuer die Auswahl: nur synchronisiert (Produkt-ID), Suche in Name, Artikelnummer, SSOT-ID. */
-export async function sucheArtikel({ q: suche, sheets: s } = {}) {
+/** Suche in LShop_Modelle (ArticleNr, Modell, L-Shop-Name, Hersteller) - eine Zeile. */
+export async function sucheLShopModelle({ q: suche, sheets: s } = {}) {
   const spreadsheetId = process.env.GOOGLE_SHEET_ID;
   const sheets = s ?? await sheetsClient();
-  const n = String(suche ?? '').trim().toLowerCase();
-  if (n.length < 2) return { artikel: [], mehr: false };
-  const treffer = (await maskeArtikel(sheets, spreadsheetId))
-    .filter(a => a.pid && [a.name, a.artikelnummer, a.id].some(x => x.toLowerCase().includes(n)));
-  const alle = await variantenObjekte(sheets, spreadsheetId);
-  const lshop = new Map((await ladeLShopZeilen({ sheets, spreadsheetId })).map(z => [z.articleNr, z]));
-  const artikel = treffer.slice(0, SUCHE_MAX).map(a => ({
-    ssotId: a.id, produktname: a.name, artikelnummer: a.artikelnummer,
-    bestellbar: bestellbareVarianten(alle.filter(v => v['SSOT-ID'] === a.id), lshop).length,
-  }));
-  return { artikel, mehr: treffer.length > SUCHE_MAX };
+  return sucheModelle(await ladeLShopZeilen({ sheets, spreadsheetId }), suche);
 }
 
-/** Bestellbare Varianten eines Artikels (Farbe, Rest der Achsen, ArticleNr). */
-export async function artikelVarianten({ ssotId, sheets: s } = {}) {
+/** Waehlbare Varianten eines Modells (Farbe -> Groesse) aus LShop_Modelle, ohne ausgelaufen / 3 / 6. */
+async function modellAuswertung(sheets, spreadsheetId, catalogNr) {
+  const nr = String(catalogNr ?? '').trim();
+  const zeilen = (await ladeLShopZeilen({ sheets, spreadsheetId })).filter(z => z.catalogNr === nr);
+  if (!zeilen.length) throw fehler(NICHT_IM_BESTAND, 404);
+  const a = lshopAuswertung(zeilen);
+  return { catalogNr: nr, bezeichnung: zeilen.find(z => z.bezeichnung)?.bezeichnung ?? '', marke: a.marken[0] ?? '', varianten: a.varianten };
+}
+
+export async function lshopModellVarianten({ catalogNr, sheets: s } = {}) {
   const spreadsheetId = process.env.GOOGLE_SHEET_ID;
   const sheets = s ?? await sheetsClient();
-  const id = String(ssotId ?? '').trim();
-  const artikel = (await maskeArtikel(sheets, spreadsheetId)).find(a => a.id === id);
-  if (!artikel || !artikel.pid) throw fehler('Artikel nicht gefunden oder nicht synchronisiert - im SSOT nachpflegen.', 404);
-  return { ssotId: id, produktname: artikel.name, varianten: await variantenDesArtikels(sheets, spreadsheetId, id) };
+  return modellAuswertung(sheets, spreadsheetId, catalogNr);
 }
 
 /**
@@ -365,11 +342,12 @@ export async function legeEigenePositionAn({ eingabe, sheets: s, jetzt = () => n
     if (!info) throw fehler(`Reiter "${TAB_KORB}" fehlt.`, 409);
     const zeit = jetzt();
     const { idx, zeilen } = korbZeilen(await leseKorbWerte(sheets, spreadsheetId));
-    const ssotId = String(eingabe?.ssotId ?? '').trim();
-    const artikel = (await maskeArtikel(sheets, spreadsheetId)).find(a => a.id === ssotId);
-    const varianten = artikel ? await variantenDesArtikels(sheets, spreadsheetId, ssotId) : [];
+    // Modell der ArticleNr aus LShop_Modelle; waehlbar ist nur, was lshopAuswertung liefert.
+    const nr = String(eingabe?.articleNr ?? '').trim();
+    const modell = (await ladeLShopZeilen({ sheets, spreadsheetId })).find(z => z.articleNr === nr)?.catalogNr;
+    const varianten = modell ? (await modellAuswertung(sheets, spreadsheetId, modell)).varianten : [];
     const schluessel = naechsteEigenNummer(zeilen, zeit.getUTCFullYear());
-    const zeile = eigeneZeile({ eingabe, artikel, varianten, schluessel, jetzt: zeit.toISOString() });
+    const zeile = eigeneZeile({ eingabe, varianten, schluessel, jetzt: zeit.toISOString() });
 
     const r = await schreibeNeueZeilen({ sheets, spreadsheetId, info, idx, zeilen: [zeile] });
     if (r.geschrieben !== 1) throw fehler(BESCHAEFTIGT, 409);   // Nummer inzwischen vergeben

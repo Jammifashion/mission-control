@@ -437,39 +437,57 @@ export function naechsteEigenNummer(zeilen, jahr) {
   return `${praefix}${String(max + 1).padStart(4, '0')}`;
 }
 
+// Eigene Positionen kommen seit 21.10. (Inhaber) NUR aus blanken L-Shop-Artikeln
+// (Reiter LShop_Modelle), nicht aus unseren Shop-Artikeln: SSOT-ID bleibt leer.
+export const NICHT_IM_BESTAND = 'Nicht im Bestand – direkt bei L-Shop bestellen oder Modell über Modelle_Zusatz/LS1 aufnehmen.';
+const MODELL_TREFFER_MAX = 30;
+const gesperrtZeile = z => t(z.status) === 'ausgelaufen' || gesperrtDisc(z.discontinued);
+
 /**
- * Bestellbare Varianten eines Artikels fuer die Auswahl (nur synchronisiert, Aktiv,
- * gueltige ArticleNr, in LShop_Modelle, nicht ausgelaufen / Discontinued 3/6).
- * @param {object[]} variantenZeilen  Reiter Varianten als Objekte (Spaltennamen)
- * @param {Map<string,object>} modelle
+ * Suche in LShop_Modelle mit EINER Zeile: 10-stellige ArticleNr (genau), sonst Teilwort
+ * (Gross/Klein egal) in Modell-/Katalognummer, L-Shop-Artikelname (Spalte Description,
+ * fehlt heute - siehe lib/lshop.js), Hersteller (Brand) und Hersteller-Nummer.
+ * Ergebnis je Modell: catalogNr, bezeichnung, marke, Zahl waehlbarer Varianten.
+ * @param {object[]} zeilen  ladeLShopZeilen()
  */
-export function bestellbareVarianten(variantenZeilen, modelle) {
-  const aus = [];
-  for (const v of variantenZeilen) {
-    const aktiv = /^(true|wahr)$/i.test(t(v.Aktiv));
-    const wc = t(v.WC_Variation_ID);
-    const nr = t(v.LShop_ArticleNr);
-    if (!aktiv || !wc || wc === '0' || !/^\d{10}$/.test(nr)) continue;
-    const m = modelle.get(nr);
-    if (!m || t(m.status) === 'ausgelaufen' || gesperrtDisc(m.discontinued)) continue;
-    const achsen = [['E1', 'V1'], ['E2', 'V2'], ['E3', 'V3']]
-      .map(([e, w]) => [t(v[e]), t(v[w])]).filter(([e, w]) => e && w);
-    const farbe = achsen.find(([e]) => /^farbe$/i.test(e))?.[1] ?? '';
-    const rest  = achsen.filter(([e]) => !/^farbe$/i.test(e)).map(([, w]) => w).join(' · ');
-    aus.push({ wcVariationId: wc, farbe, rest, articleNr: nr });
+export function sucheModelle(zeilen, suche) {
+  const q = t(suche).toLowerCase();
+  if (q.length < 2) return { modelle: [], mehr: false, hinweis: '' };
+  const artikelNr = /^\d{10}$/.test(q) ? q : '';
+  const passt = z => artikelNr
+    ? t(z.articleNr) === artikelNr
+    : [z.catalogNr, z.bezeichnung, z.marke, z.herstellerNr].some(x => t(x).toLowerCase().includes(q));
+  const jeModell = new Map();
+  for (const z of zeilen) {
+    const cat = t(z.catalogNr);
+    if (!cat) continue;
+    if (!jeModell.has(cat)) jeModell.set(cat, { catalogNr: cat, bezeichnung: '', marke: '', bestellbar: 0, treffer: false });
+    const m = jeModell.get(cat);
+    if (!m.bezeichnung && t(z.bezeichnung)) m.bezeichnung = t(z.bezeichnung);
+    if (!m.marke && t(z.marke)) m.marke = t(z.marke);
+    if (!gesperrtZeile(z)) m.bestellbar++;
+    if (passt(z)) m.treffer = true;
   }
-  return aus;
+  const treffer = [...jeModell.values()].filter(m => m.treffer)
+    .sort((a, b) => (b.catalogNr.toLowerCase() === q) - (a.catalogNr.toLowerCase() === q) || a.catalogNr.localeCompare(b.catalogNr))
+    .map(({ treffer: _t, ...m }) => (artikelNr ? { ...m, articleNr: artikelNr } : m));
+  return {
+    modelle: treffer.slice(0, MODELL_TREFFER_MAX),
+    mehr: treffer.length > MODELL_TREFFER_MAX,
+    hinweis: treffer.length ? '' : NICHT_IM_BESTAND,
+  };
 }
 
 /**
  * Neue eigene Zeile pruefen und bauen.
- * @param {object} o  { eingabe: { ssotId, wcVariationId, menge, referenz, notiz }, artikel, varianten, schluessel, jetzt }
- *   artikel: Maske-Zeile { id, pid } oder undefined; varianten: bestellbareVarianten() dieses Artikels
+ * @param {object} o  { eingabe: { articleNr, menge, referenz, notiz }, varianten, schluessel, jetzt }
+ *   varianten: waehlbare Varianten des Modells aus lshopAuswertung() (ohne ausgelaufen / 3 / 6)
  */
-export function eigeneZeile({ eingabe = {}, artikel, varianten, schluessel, jetzt }) {
-  if (!artikel || !t(artikel.pid)) throw fehler422('Artikel nicht gefunden oder nicht synchronisiert - im SSOT nachpflegen.');
-  const v = varianten.find(x => x.wcVariationId === t(eingabe.wcVariationId));
-  if (!v) throw fehler422('Variante ist nicht L-Shop-bestellbar (Aktiv, gültige LShop_ArticleNr, nicht ausgelaufen) - im SSOT nachpflegen.');
+export function eigeneZeile({ eingabe = {}, varianten = [], schluessel, jetzt }) {
+  const nr = t(eingabe.articleNr);
+  if (!/^\d{10}$/.test(nr)) throw fehler422('L-Shop-ArticleNr fehlt (10 Ziffern) - bitte Modell, Farbe und Größe wählen.');
+  const v = varianten.find(x => t(x.articleNr) === nr);
+  if (!v) throw fehler422(`ArticleNr ${nr} ist nicht wählbar (nicht in LShop_Modelle, ausgelaufen oder Discontinued 3/6). ${NICHT_IM_BESTAND}`);
   const menge = Number(eingabe.menge);
   if (!Number.isInteger(menge) || menge < 1 || menge > MENGE_MAX) throw fehler422(`Menge muss eine ganze Zahl von 1 bis ${MENGE_MAX} sein.`);
   const referenz = t(eingabe.referenz);
@@ -479,7 +497,7 @@ export function eigeneZeile({ eingabe = {}, artikel, varianten, schluessel, jetz
   if (notiz.length > NOTIZ_MAX) throw fehler422(`Notiz ist länger als ${NOTIZ_MAX} Zeichen.`);
   return {
     Schluessel: schluessel, Shop: 'JFN', Herkunft: HERKUNFT.EIGEN, Bestellnummer: '', Position: '',
-    Referenz: referenz, 'SSOT-ID': t(artikel.id), LShop_ArticleNr: v.articleNr, Menge: String(menge),
+    Referenz: referenz, 'SSOT-ID': '', LShop_ArticleNr: nr, Menge: String(menge),
     Status: STATUS.OFFEN, Grund: '', Hinweis: '', Status_Datum: jetzt, Bestell_ID: '', Notiz: notiz,
     Angelegt: jetzt, Quelle_Lauf: 'Knopf', Stand: jetzt,
   };

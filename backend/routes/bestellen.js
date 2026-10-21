@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import {
-  runKorbAbgleich, leseKorb, setzeStatus, sucheArtikel, artikelVarianten, legeEigenePositionAn,
+  runKorbAbgleich, leseKorb, setzeStatus, sucheLShopModelle, lshopModellVarianten, legeEigenePositionAn,
 } from '../lib/lshopKorb.js';
 import { notifyFehler } from '../lib/chatNotify.js';
 
@@ -40,18 +40,19 @@ router.post('/lshop-korb/status', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// ── GET /api/bestellen/lshop-korb/artikel?q=  (BO3, Auswahl eigene Position) ──
-router.get('/lshop-korb/artikel', async (req, res, next) => {
-  try { res.json(await sucheArtikel({ q: req.query.q })); } catch (err) { next(err); }
+// ── GET /api/bestellen/lshop-korb/modelle?q=  (BO3, Auswahl eigene Position) ──
+// Eine Suchzeile ueber LShop_Modelle: ArticleNr, Modell, L-Shop-Name, Hersteller.
+router.get('/lshop-korb/modelle', async (req, res, next) => {
+  try { res.json(await sucheLShopModelle({ q: req.query.q })); } catch (err) { next(err); }
 });
 
-// ── GET /api/bestellen/lshop-korb/artikel/:ssotId/varianten  (BO3) ───────────
-router.get('/lshop-korb/artikel/:ssotId/varianten', async (req, res, next) => {
-  try { res.json(await artikelVarianten({ ssotId: req.params.ssotId })); } catch (err) { next(err); }
+// ── GET /api/bestellen/lshop-korb/modelle/:catalogNr/varianten  (BO3) ────────
+router.get('/lshop-korb/modelle/:catalogNr/varianten', async (req, res, next) => {
+  try { res.json(await lshopModellVarianten({ catalogNr: req.params.catalogNr })); } catch (err) { next(err); }
 });
 
 // ── POST /api/bestellen/lshop-korb/eigen  (BO3) ──────────────────────────────
-// Body: { ssotId, wcVariationId, menge, referenz, notiz }. Nummer EIGEN:<Jahr>-NNNN vergibt der Server.
+// Body: { articleNr, menge, referenz, notiz }. SSOT-ID bleibt leer; Nummer EIGEN:<Jahr>-NNNN vergibt der Server.
 router.post('/lshop-korb/eigen', async (req, res, next) => {
   try {
     const r = await legeEigenePositionAn({ eingabe: req.body ?? {} });

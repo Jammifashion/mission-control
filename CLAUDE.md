@@ -109,9 +109,12 @@ Neue Sektionen immer mit Anker versehen:
   BO3 (bearbeiten in MC): `POST .../lshop-korb/status` `{ auswahl: [{schluessel, status}], ziel, grund, notiz }`
   nur offen <-> abgewählt (Grund aus `GRUENDE` Pflicht), alles oder nichts: Zeile frisch lesen,
   Schluessel + mitgeschickten Status pruefen (sonst 409), batchUpdate nur Status/Grund/Notiz/
-  Status_Datum/Stand, zuruecklesen. Eigene Position `POST .../lshop-korb/eigen` (Auswahl ueber
-  `GET .../artikel?q=` und `.../artikel/:ssotId/varianten`: nur Maske mit Produkt-ID, Varianten Aktiv +
-  gueltige ArticleNr, nicht ausgelaufen/3/6), Schluessel `EIGEN:<Jahr>-NNNN` vergibt der SERVER
+  Status_Datum/Stand, zuruecklesen. Eigene Position `POST .../lshop-korb/eigen` `{ articleNr, menge,
+  referenz, notiz }` NUR aus blanken L-Shop-Artikeln (Inhaber 21.10.): Suche `GET .../modelle?q=` in
+  LShop_Modelle (10-stellige ArticleNr genau, sonst Teilwort in CatalogNr, Description, Brand,
+  CatNrManufacturer), Farbe -> Groesse `.../modelle/:catalogNr/varianten` ueber `lshopAuswertung`
+  (ohne ausgelaufen/3/6); SSOT-ID bleibt leer; fehlt das Modell -> `NICHT_IM_BESTAND`, keine freie
+  Eingabe, Stammdatei nie direkt lesen. Schluessel `EIGEN:<Jahr>-NNNN` vergibt der SERVER
   (hoechste + 1 aus dem Reiter), Referenz Pflicht (nie Klarnamen). Der Abgleich fasst Herkunft
   `eigen` und Status ausser offen/bestellt nie an. Eine Sperre je Instanz fuer alle Schreiber -> 409
   "gleich noch einmal". Kein Loeschen; bestellt/geliefert setzt erst BO4.

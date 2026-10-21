@@ -1119,7 +1119,7 @@
 
             <!-- Eigene Position (BO3): Artikel -> Farbe -> Groesse -> Menge -> Referenz -> Notiz -->
             <div id="korb-eigen" class="korb-eigen" style="display:none;">
-              <input id="korb-eigen-suche" type="search" class="form-input" placeholder="Artikel suchen: Name, Artikelnummer oder SSOT-ID" autocomplete="off" />
+              <input id="korb-eigen-suche" type="search" class="form-input" placeholder="L-Shop-Artikel: ArticleNr, Modell, Name oder Hersteller" autocomplete="off" />
               <div id="korb-eigen-treffer" class="korb-treffer"></div>
               <div id="korb-eigen-form" style="display:none;">
                 <div id="korb-eigen-artikel" class="lshop-card-title"></div>
@@ -4079,8 +4079,9 @@
         finally { btn.disabled = false; }
       });
 
-      // ── Eigene Position: Artikel -> Farbe -> Groesse -> Menge -> Referenz ──
-      const korbEigen = { artikel: null, varianten: [], timer: null };
+      // ── Eigene Position: L-Shop-Modell -> Farbe -> Groesse -> Menge -> Referenz ──
+      // Nur blanke L-Shop-Artikel aus LShop_Modelle (nicht unsere Shop-Artikel); SSOT-ID bleibt leer.
+      const korbEigen = { artikel: null, varianten: [], timer: null, vorwahl: '' };
 
       function korbEigenZuruecksetzen() {
         korbEigen.artikel = null; korbEigen.varianten = [];
@@ -4109,17 +4110,20 @@
         if (q.length < 2) { box.innerHTML = ''; return; }
         korbEigen.timer = setTimeout(async () => {
           try {
-            const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/artikel?q=${encodeURIComponent(q)}`);
+            const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/modelle?q=${encodeURIComponent(q)}`);
             const stopp = await laufStopp(res);
             if (stopp) { box.innerHTML = `<p style="color:var(--danger);font-size:0.8rem;">${korbEsc(stopp)}</p>`; return; }
             const d = await apiJson(res);
-            if (!d.artikel.length) {
-              box.innerHTML = '<p style="color:var(--muted);font-size:0.8rem;">Nichts gefunden – Artikel im SSOT nachpflegen (nur synchronisierte Artikel sind wählbar).</p>';
+            if (!d.modelle.length) {
+              box.innerHTML = `<p style="color:var(--muted);font-size:0.8rem;">${korbEsc(d.hinweis)}</p>`;
               return;
             }
-            box.innerHTML = d.artikel.map(a => `<button type="button" data-ssot="${korbEsc(a.ssotId)}" ${a.bestellbar ? '' : 'disabled'}>`
-              + `${korbEsc(a.produktname)} · ${korbEsc(a.artikelnummer)}`
-              + `${a.bestellbar ? ` · ${a.bestellbar} Variante${a.bestellbar !== 1 ? 'n' : ''}` : ' · keine L-Shop-bestellbare Variante – im SSOT nachpflegen'}</button>`).join('')
+            // Treffer: Modell · Name (gelb) · Hersteller
+            box.innerHTML = d.modelle.map(m => `<button type="button" data-modell="${korbEsc(m.catalogNr)}" data-nr="${korbEsc(m.articleNr ?? '')}" ${m.bestellbar ? '' : 'disabled'}>`
+              + `<span class="korb-kopf-nr">${korbEsc(m.catalogNr)}</span>`
+              + (m.bezeichnung ? ` · <span class="korb-kopf-name">${korbEsc(m.bezeichnung)}</span>` : '')
+              + (m.marke ? ` · ${korbEsc(m.marke)}` : '')
+              + (m.bestellbar ? '' : ' · nur ausgelaufene Varianten') + '</button>').join('')
               + (d.mehr ? '<p style="color:var(--muted);font-size:0.78rem;">Weitere Treffer – Suche genauer eingrenzen.</p>' : '');
           } catch (e) { box.innerHTML = `<p style="color:var(--danger);font-size:0.8rem;">Fehler: ${korbEsc(e.message)}</p>`; }
         }, 300);
@@ -4128,25 +4132,32 @@
       function korbEigenGroessen() {
         const farbe = document.getElementById('korb-eigen-farbe').value;
         const passend = korbEigen.varianten.filter(v => v.farbe === farbe);
+        // Wert = ArticleNr: nach Farbe + Groesse steht sie fest.
         document.getElementById('korb-eigen-groesse').innerHTML = passend
-          .map(v => `<option value="${korbEsc(v.wcVariationId)}">${korbEsc(v.rest || '–')}</option>`).join('');
+          .map(v => `<option value="${korbEsc(v.articleNr)}">${korbEsc(v.groesse || '–')}${v.auslauf !== undefined ? ` (läuft aus, ${korbEsc(v.auslauf)})` : ''} · ${korbEsc(v.articleNr)}</option>`).join('');
       }
 
       document.getElementById('korb-eigen-treffer')?.addEventListener('click', async ev => {
-        const ssot = ev.target.closest('button')?.dataset.ssot;
-        if (!ssot) return;
+        const knopf = ev.target.closest('button');
+        const modell = knopf?.dataset.modell;
+        if (!modell) return;
         try {
-          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/artikel/${encodeURIComponent(ssot)}/varianten`);
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/modelle/${encodeURIComponent(modell)}/varianten`);
           const stopp = await laufStopp(res);
           if (stopp) { showToast(stopp, 'error'); return; }
           const d = await apiJson(res);
-          if (!d.varianten.length) { showToast('Keine L-Shop-bestellbare Variante – im SSOT nachpflegen', 'error'); return; }
+          if (!d.varianten.length) { showToast('Keine wählbare Variante (alle ausgelaufen)', 'error'); return; }
           korbEigen.artikel = d; korbEigen.varianten = d.varianten;
           document.getElementById('korb-eigen-treffer').innerHTML = '';
-          document.getElementById('korb-eigen-artikel').textContent = d.produktname;
+          document.getElementById('korb-eigen-artikel').innerHTML = `<span class="korb-kopf-nr">${korbEsc(d.catalogNr)}</span>`
+            + (d.bezeichnung ? ` · <span class="korb-kopf-name">${korbEsc(d.bezeichnung)}</span>` : '') + (d.marke ? ` · ${korbEsc(d.marke)}` : '');
           const farben = [...new Set(d.varianten.map(v => v.farbe))];
           document.getElementById('korb-eigen-farbe').innerHTML = farben.map(f => `<option value="${korbEsc(f)}">${korbEsc(f || '(ohne Farbe)')}</option>`).join('');
+          // Suche per 10-stelliger ArticleNr: Farbe und Groesse gleich vorwaehlen.
+          const vor = d.varianten.find(v => v.articleNr === knopf.dataset.nr);
+          if (vor) document.getElementById('korb-eigen-farbe').value = vor.farbe;
           korbEigenGroessen();
+          if (vor) document.getElementById('korb-eigen-groesse').value = vor.articleNr;
           document.getElementById('korb-eigen-form').style.display = '';
         } catch (e) { showToast(`Fehler: ${e.message}`, 'error'); }
       });
@@ -4162,8 +4173,7 @@
           const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/eigen`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              ssotId: korbEigen.artikel.ssotId,
-              wcVariationId: document.getElementById('korb-eigen-groesse').value,
+              articleNr: document.getElementById('korb-eigen-groesse').value,
               menge: Number(document.getElementById('korb-eigen-menge').value),
               referenz,
               notiz: document.getElementById('korb-eigen-notiz').value.trim(),

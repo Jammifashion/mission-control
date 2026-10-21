@@ -4,13 +4,13 @@
 
 import {
   KORB_SPALTEN, STATUS, HINWEIS, TAB_KORB, GRUENDE,
-  korbZeilen, statusPlan, grundVorschlag, naechsteEigenNummer, bestellbareVarianten, buendele, korbZaehler, lshopText, rausAktuell,
+  korbZeilen, statusPlan, grundVorschlag, naechsteEigenNummer, sucheModelle, NICHT_IM_BESTAND, buendele, korbZaehler, lshopText, rausAktuell,
 } from '../utils/korb-logic.js';
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import {
-  runKorbAbgleich, setzeStatus, legeEigenePositionAn, sucheArtikel, artikelVarianten, leseKorb, _korbCacheLeeren, BESCHAEFTIGT,
+  runKorbAbgleich, setzeStatus, legeEigenePositionAn, sucheLShopModelle, lshopModellVarianten, leseKorb, _korbCacheLeeren, BESCHAEFTIGT,
 } from '../lib/lshopKorb.js';
 import { _resetLShopCache } from '../lib/lshop.js';
 import { machSheets, grundTabs, machWc, pos, bestellung, NR, NR2, NR_AUS } from './hilfen/korb-sheet.js';
@@ -129,9 +129,20 @@ describe('grundVorschlag und Zaehler', () => {
   });
 });
 
-// ── Teil B ───────────────────────────────────────────────────────────────────
-describe('eigene Positionen', () => {
-  const eingabe = (o = {}) => ({ ssotId: '0001', wcVariationId: '501', menge: 3, referenz: 'Lager', notiz: '', ...o });
+// ── Teil B: eigene Positionen nur aus blanken L-Shop-Artikeln (LShop_Modelle) ───
+describe('eigene Positionen aus LShop_Modelle', () => {
+  const eingabe = (o = {}) => ({ articleNr: NR, menge: 3, referenz: 'Lager', notiz: '', ...o });
+  const Q1 = '2000000001', Q2 = '2000000002', Q_DISC = '2000000003';
+  // Zweites Modell mit L-Shop-Name (Spalte Description) und Hersteller; eine Variante Discontinued 6.
+  function mitQueen(tabs) {
+    const [kopf, ...rest] = tabs.LShop_Modelle;
+    tabs.LShop_Modelle = [[...kopf, 'Brand', 'CatNrManufacturer', 'Description'],
+      ...rest.map(r => [...r, 'James & Nicholson', 'JN030', '']),
+      [Q1, 'BCWW02Q', 'White', '', 'M', '', '', '0', 'aktiv', 'B&C', 'TW02Q', 'Queen Women T-Shirt'],
+      [Q2, 'BCWW02Q', 'White', '', 'S', '', '', '0', 'aktiv', 'B&C', 'TW02Q', 'Queen Women T-Shirt'],
+      [Q_DISC, 'BCWW02Q', 'Black', '', 'M', '', '', '6', 'aktiv', 'B&C', 'TW02Q', 'Queen Women T-Shirt']];
+    return tabs;
+  }
 
   test('Nummer fortlaufend je Jahr, aus dem Reiter', () => {
     const z = s => ({ Schluessel: s });
@@ -139,55 +150,65 @@ describe('eigene Positionen', () => {
     expect(naechsteEigenNummer([z('EIGEN:2026-0001'), z('EIGEN:2026-0007'), z('EIGEN:2025-0099'), z('JFN:1:2')], 2026)).toBe('EIGEN:2026-0008');
   });
 
-  test('Anlage: Zeile hinter der letzten, ohne append, Herkunft eigen, Shop JFN', async () => {
+  test('Suche in einer Zeile: ArticleNr, Modell, L-Shop-Name (Teilwort, Gross/Klein egal), Hersteller', () => {
+    const zeilen = [
+      { articleNr: NR, catalogNr: 'JH030F', marke: 'James & Nicholson', herstellerNr: 'JN030', bezeichnung: '', status: 'aktiv', discontinued: '0' },
+      { articleNr: Q1, catalogNr: 'BCWW02Q', marke: 'B&C', herstellerNr: 'TW02Q', bezeichnung: 'Queen Women T-Shirt', status: 'aktiv', discontinued: '0' },
+      { articleNr: Q_DISC, catalogNr: 'BCWW02Q', marke: 'B&C', herstellerNr: 'TW02Q', bezeichnung: 'Queen Women T-Shirt', status: 'aktiv', discontinued: '6' },
+    ];
+    const cat = s => sucheModelle(zeilen, s).modelle.map(m => m.catalogNr);
+    expect(cat('queen')).toEqual(['BCWW02Q']);
+    expect(cat('QUEEN wom')).toEqual(['BCWW02Q']);
+    expect(cat('bcww02q')).toEqual(['BCWW02Q']);
+    expect(cat('nicholson')).toEqual(['JH030F']);
+    expect(cat('tw02')).toEqual(['BCWW02Q']);
+    expect(sucheModelle(zeilen, Q1).modelle).toEqual([{ catalogNr: 'BCWW02Q', bezeichnung: 'Queen Women T-Shirt', marke: 'B&C', bestellbar: 1, articleNr: Q1 }]);
+    expect(sucheModelle(zeilen, 'q').modelle).toEqual([]);                          // unter 2 Zeichen
+    const leer = sucheModelle(zeilen, 'BCTW04T');
+    expect(leer.modelle).toEqual([]);
+    expect(leer.hinweis).toBe(NICHT_IM_BESTAND);
+    expect(NICHT_IM_BESTAND).toBe('Nicht im Bestand – direkt bei L-Shop bestellen oder Modell über Modelle_Zusatz/LS1 aufnehmen.');
+  });
+
+  test('Farbe -> Groesse nur aus LShop_Modelle, ohne ausgelaufen und Discontinued 3/6', async () => {
+    const { sheets } = machSheets(mitQueen(grundTabs()));
+    const j = await lshopModellVarianten({ sheets, catalogNr: 'JH030F' });
+    expect(j.varianten.map(v => v.articleNr).sort()).toEqual([NR2, NR, '1000888888'].sort());   // NR_AUS (ausgelaufen) fehlt
+    const q = await lshopModellVarianten({ sheets, catalogNr: 'BCWW02Q' });
+    expect(q).toMatchObject({ catalogNr: 'BCWW02Q', bezeichnung: 'Queen Women T-Shirt', marke: 'B&C' });
+    expect(q.varianten.map(v => [v.farbe, v.groesse, v.articleNr])).toEqual([['White', 'S', Q2], ['White', 'M', Q1]]);   // Black/M (Disc 6) fehlt
+    await expect(lshopModellVarianten({ sheets, catalogNr: 'BCTW04T' })).rejects.toMatchObject({ status: 404, message: NICHT_IM_BESTAND });
+    const s = await sucheLShopModelle({ sheets, q: 'queen' });
+    expect(s.modelle.map(m => [m.catalogNr, m.bezeichnung, m.marke, m.bestellbar])).toEqual([['BCWW02Q', 'Queen Women T-Shirt', 'B&C', 2]]);
+  });
+
+  test('Anlage: SSOT-ID leer, Herkunft eigen, Shop JFN, Zeile hinter der letzten, ohne append', async () => {
     const { tabs, sheets, aufrufe } = await gefuellt();
-    const r = await legeEigenePositionAn({ sheets, jetzt, eingabe: eingabe() });
-    expect(r).toMatchObject({ ok: true, schluessel: 'EIGEN:2026-0001', zeile: 5, articleNr: NR, menge: '3' });
+    mitQueen(tabs); _resetLShopCache();
+    const r = await legeEigenePositionAn({ sheets, jetzt, eingabe: eingabe({ articleNr: Q1 }) });
+    expect(r).toMatchObject({ ok: true, schluessel: 'EIGEN:2026-0001', zeile: 5, articleNr: Q1, menge: '3' });
     expect(aufrufe.append).toBe(0);
     expect(aufrufe.update).toEqual([`'${TAB_KORB}'!A5:R5`]);
-    const { zeilen } = korbZeilen(tabs[TAB_KORB]);
-    expect(zeilen.at(-1)).toMatchObject({ Schluessel: 'EIGEN:2026-0001', Shop: 'JFN', Herkunft: 'eigen', Bestellnummer: '', Position: '',
-      Referenz: 'Lager', 'SSOT-ID': '0001', LShop_ArticleNr: NR, Menge: '3', Status: 'offen', Quelle_Lauf: 'Knopf' });
-    const r2 = await legeEigenePositionAn({ sheets, jetzt, eingabe: eingabe({ wcVariationId: '502', referenz: 'Muster' }) });
+    expect(korbZeilen(tabs[TAB_KORB]).zeilen.at(-1)).toMatchObject({ Schluessel: 'EIGEN:2026-0001', Shop: 'JFN', Herkunft: 'eigen',
+      Bestellnummer: '', Position: '', Referenz: 'Lager', 'SSOT-ID': '', LShop_ArticleNr: Q1, Menge: '3', Status: 'offen', Quelle_Lauf: 'Knopf' });
+    const r2 = await legeEigenePositionAn({ sheets, jetzt, eingabe: eingabe({ articleNr: NR2, referenz: 'Muster' }) });
     expect(r2.schluessel).toBe('EIGEN:2026-0002');
-    expect(new Set(korbZeilen(tabs[TAB_KORB]).zeilen.map(z => z.Schluessel)).size).toBe(5);
   });
 
   test.each([
     ['ohne Referenz', { referenz: '  ' }],
     ['Menge 0', { menge: 0 }],
     ['Menge 1.5', { menge: 1.5 }],
-    ['ausgelaufene Variante', { wcVariationId: '503' }],
-    ['inaktive Variante', { wcVariationId: '504' }],
-    ['Variante ohne ArticleNr', { ssotId: '0002', wcVariationId: '601' }],
-    ['nicht synchronisierter Artikel', { ssotId: '0003', wcVariationId: '' }],
-    ['unbekannter Artikel', { ssotId: '9999' }],
-    ['Variante eines anderen Artikels', { ssotId: '0002', wcVariationId: '501' }],
+    ['ausgelaufene Variante', { articleNr: NR_AUS }],
+    ['Discontinued 6', { articleNr: '2000000003' }],
+    ['ArticleNr nicht in LShop_Modelle', { articleNr: '9999999999' }],
+    ['keine ArticleNr', { articleNr: '' }],
+    ['alte Eingabe ueber unseren Shop-Artikel', { articleNr: undefined, ssotId: '0001', wcVariationId: '501' }],
   ])('abgelehnt: %s -> 422, nichts geschrieben', async (_n, o) => {
-    const { sheets, aufrufe } = await gefuellt();
+    const { tabs, sheets, aufrufe } = await gefuellt();
+    mitQueen(tabs); _resetLShopCache();
     await expect(legeEigenePositionAn({ sheets, jetzt, eingabe: eingabe(o) })).rejects.toMatchObject({ status: 422 });
     expect(aufrufe.update).toHaveLength(0);
-  });
-
-  test('Auswahl: nur synchronisierte Artikel, nur bestellbare Varianten', async () => {
-    const { sheets } = machSheets(grundTabs());
-    const s = await sucheArtikel({ sheets, q: 'ugly' });
-    expect(s.artikel.map(a => [a.ssotId, a.bestellbar])).toEqual([['0001', 2]]);   // 0003 ohne Produkt-ID fehlt
-    expect((await sucheArtikel({ sheets, q: 'T1/' })).artikel.map(a => [a.ssotId, a.bestellbar])).toEqual([['0002', 0]]);
-    expect((await sucheArtikel({ sheets, q: 'u' })).artikel).toEqual([]);           // unter 2 Zeichen
-    const v = await artikelVarianten({ sheets, ssotId: '0001' });
-    expect(v.varianten).toEqual([
-      { wcVariationId: '501', farbe: 'Deep Black', rest: '2XL', articleNr: NR },
-      { wcVariationId: '502', farbe: 'Deep Black', rest: 'XL', articleNr: NR2 },
-    ]);
-    await expect(artikelVarianten({ sheets, ssotId: '0003' })).rejects.toMatchObject({ status: 404 });
-  });
-
-  test('bestellbareVarianten: Discontinued 3/6 gesperrt', () => {
-    const v = [{ Aktiv: 'TRUE', WC_Variation_ID: '1', LShop_ArticleNr: NR, E1: 'Farbe', V1: 'Rot' }];
-    expect(bestellbareVarianten(v, new Map([[NR, { status: 'aktiv', discontinued: '6' }]]))).toEqual([]);
-    expect(bestellbareVarianten(v, new Map([[NR_AUS, {}]]))).toEqual([]);
-    expect(bestellbareVarianten(v, new Map([[NR, { status: 'aktiv', discontinued: '0' }]]))).toHaveLength(1);
   });
 
   test('eigene Positionen erscheinen im Buendel neben Shop-Positionen', async () => {
@@ -195,7 +216,7 @@ describe('eigene Positionen', () => {
     await legeEigenePositionAn({ sheets, jetzt, eingabe: eingabe({ menge: 2 }) });
     const k = await leseKorb({ shop: 'jfn', sheets });
     const b = k.buendel.find(x => x.articleNr === NR);
-    expect(b.positionen.map(p => [p.herkunft, p.menge])).toEqual([['shop', 1], ['eigen', 2]]);
+    expect(b.positionen.map(p => [p.herkunft, p.menge, p.ssotId])).toEqual([['shop', 1, '0001'], ['eigen', 2, '']]);
     expect(b.zuBestellen).toBe(3);
     expect(k.summen).toMatchObject({ offen: 4, herausgenommen: 0 });
   });
@@ -321,5 +342,5 @@ describe('Abgleich nach BO3-Aktionen', () => {
     expect(aufrufe.append).toBe(0);
   });
 
-  function eingabe(o = {}) { return { ssotId: '0001', wcVariationId: '501', menge: 1, referenz: 'Lager', ...o }; }
+  function eingabe(o = {}) { return { articleNr: NR, menge: 1, referenz: 'Lager', ...o }; }
 });
