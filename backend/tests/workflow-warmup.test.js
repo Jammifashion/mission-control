@@ -14,6 +14,7 @@ const WORKFLOWS = [
   ['sync-partner-daily.yml', 3],
   ['trikot-sync-daily.yml', 1],
   ['backup-daily.yml', 1],
+  ['lshop-korb-abgleich.yml', 1],
 ];
 
 describe.each(WORKFLOWS)('%s', (name, anzahlPosts) => {

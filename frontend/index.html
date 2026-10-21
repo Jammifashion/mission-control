@@ -1018,6 +1018,7 @@
           <button class="sub-tab active" data-subtab="tab-jfn-shop">Bestellungen</button>
           <button class="sub-tab" data-subtab="tab-dtf">DTF Bestellungen</button>
           <button class="sub-tab" data-subtab="tab-lshop">L-Shop Bestellungen</button>
+          <button class="sub-tab" data-subtab="tab-lshop-korb">L-Shop-Warenkorb</button>
           <button class="sub-tab" data-subtab="tab-eingaenge">Anfragen &amp; Eigenaufträge<span id="sub-eingaenge-badge" class="nav-badge"></span></button>
         </div>
 
@@ -1054,6 +1055,17 @@
             <div id="lshop-protokoll" class="lshop-panel" style="display:none;">
               <div class="skeleton"></div><div class="skeleton"></div>
             </div>
+          </div>
+        </div>
+
+        <div id="tab-lshop-korb" class="sub-tab-panel">
+          <div class="card">
+            <div class="lshop-offen-header">
+              <span id="korb-summe">L-Shop-Warenkorb</span>
+              <button class="btn-lshop-bestellen" id="korb-abgleich-btn" title="Neue L-Shop-bestellfähige Positionen aus dem Shop übernehmen">↻ Abgleich jetzt</button>
+            </div>
+            <div id="korb-lauf" class="lshop-card-bedarf" style="display:none;"></div>
+            <div id="korb-liste"><div class="skeleton"></div><div class="skeleton"></div></div>
           </div>
         </div>
 
@@ -2192,6 +2204,7 @@
         sub('tab-jfn-shop', `Bestellungen (${kurz})`);
         sub('tab-dtf',      `DTF Bestellungen (${kurz})`);
         sub('tab-lshop',    `L-Shop Bestellungen (${kurz})`);
+        sub('tab-lshop-korb', `L-Shop-Warenkorb (${kurz})`);
         const artikelTab = document.querySelector('[data-ptab="artikel"]');
         if (artikelTab) artikelTab.style.display = '';
       }
@@ -2316,6 +2329,7 @@
           { id: 'bestellungen', panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-jfn-shop"]' },
           { id: 'dtf',          panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-dtf"]',       neuLaden: true },
           { id: 'lshop',        panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-lshop"]',     neuLaden: true },
+          { id: 'lshop-korb',   panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-lshop-korb"]', neuLaden: true },
           { id: 'anfragen',     panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-eingaenge"]', neuLaden: true },
         ] },
         artikel: { label: 'Artikel', shop: true, punkte: [
@@ -2662,6 +2676,7 @@
           btn.classList.add('active');
           panel.classList.add('active');
           if (btn.dataset.subtab === 'tab-lshop')     loadLShopOffen();
+          if (btn.dataset.subtab === 'tab-lshop-korb') loadLShopKorb();
           if (btn.dataset.subtab === 'tab-dtf')       loadDtfOffen();
           if (btn.dataset.subtab === 'tab-eingaenge') loadAuftragsMonitor();
         });
@@ -3767,6 +3782,83 @@
         dropdown._focusSearch = () => searchInput.focus();
         updateCatLabel();
       }
+
+      // ── SECTION: L-Shop-Warenkorb ──
+      // BO2: stehender Bestand im Reiter Warenkorb_LShop (lib/lshopKorb.js). Die Anzeige
+      // liest NUR den Reiter (GET /api/bestellen/lshop-korb), gebuendelt nach
+      // LShop_ArticleNr. "Abgleich jetzt" haengt neue Positionen an und setzt Hinweise;
+      // er aendert nie einen Status. Aktionen (entfernen, eigene Position) kommen mit BO3.
+      const korbEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+      function korbPositionZeile(p) {
+        const herkunft = p.herkunft === 'eigen' ? `Eigen ${korbEsc(p.referenz)}` : `${korbEsc(p.shop)} #${korbEsc(p.bestellnummer)} · Pos. ${korbEsc(p.position)}`;
+        const status   = p.status === 'offen' ? '' : ` · <strong>${korbEsc(p.status)}</strong>${p.grund ? ` (${korbEsc(p.grund)})` : ''}`;
+        const hinweis  = p.hinweis ? ` · <span style="color:${p.vorschlag ? 'var(--accent)' : 'var(--danger)'};">⚠ ${korbEsc(p.hinweis)}</span>` : '';
+        return `<div style="${p.vorschlag ? '' : 'opacity:0.55;'}">${herkunft} ×${p.menge}${p.produktname ? ` · ${korbEsc(p.produktname)}` : ''}${status}${hinweis}</div>`;
+      }
+
+      async function loadLShopKorb() {
+        const el = document.getElementById('korb-liste');
+        const summe = document.getElementById('korb-summe');
+        el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb`);
+          const stopp = await laufStopp(res);
+          if (stopp) { el.innerHTML = `<p style="color:var(--danger);font-size:0.83rem;">${korbEsc(stopp)}</p>`; return; }
+          const d = await apiJson(res);
+          if (d.reiterFehlt) {
+            summe.textContent = 'L-Shop-Warenkorb';
+            el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Reiter „Warenkorb_LShop“ ist noch nicht angelegt.</p>';
+            return;
+          }
+          summe.textContent = `L-Shop-Warenkorb · ${d.summen.zuBestellen} Stück zu bestellen · ${d.summen.artikelnummern} Artikelnummer${d.summen.artikelnummern !== 1 ? 'n' : ''} · ${d.summen.positionen} Position${d.summen.positionen !== 1 ? 'en' : ''}`;
+          if (!d.buendel.length) {
+            el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Der Korb ist leer.</p>';
+            return;
+          }
+          el.innerHTML = d.buendel.map(b => `
+            <div class="lshop-card" style="grid-template-columns: 1fr auto;">
+              <div class="lshop-card-info">
+                <div class="lshop-card-title">${korbEsc(b.articleNr)}${b.catalogNr ? ` · ${korbEsc(b.catalogNr)}` : ''}</div>
+                <div class="lshop-card-variante">${korbEsc(b.farbe || '–')} · ${korbEsc(b.groesse || '–')}</div>
+                <div class="lshop-card-orders">${b.positionen.map(korbPositionZeile).join('')}</div>
+              </div>
+              <div class="lshop-card-right">
+                <span class="lshop-stueck">${b.zuBestellen} Stk</span>
+                ${b.unbezahlt ? `<span class="lshop-card-bedarf">davon ${b.unbezahlt} unbezahlt</span>` : ''}
+              </div>
+            </div>`).join('');
+        } catch (e) {
+          el.innerHTML = `<p style="color:var(--danger);font-size:0.83rem;">Fehler: ${korbEsc(e.message)}</p>`;
+        }
+      }
+
+      document.getElementById('korb-abgleich-btn')?.addEventListener('click', async ev => {
+        const btn = ev.currentTarget;
+        const lauf = document.getElementById('korb-lauf');
+        btn.disabled = true;
+        btn.textContent = '↻ Abgleich läuft…';
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/abgleich`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dryRun: false, quelle: 'knopf' }),
+            signal: AbortSignal.timeout(300000),
+          });
+          const stopp = await laufStopp(res);
+          if (stopp) { showToast(stopp, 'error'); return; }
+          const r = await apiJson(res);
+          const nb = Object.values(r.shops ?? {}).reduce((n, s) => n + Object.values(s.nichtBestellfaehig ?? {}).reduce((a, b) => a + b, 0), 0);
+          lauf.style.display = '';
+          lauf.textContent = `Letzter Abgleich: ${r.schreiben.neu} neu · ${Object.values(r.shops ?? {}).reduce((n, s) => n + s.schonDa, 0)} schon da · ${r.schreiben.hinweise} Hinweis(e) gesetzt · ${nb} nicht L-Shop-bestellfähig`;
+          showToast(`Abgleich fertig: ${r.schreiben.neu} neue Position(en)`);
+          loadLShopKorb();
+        } catch (e) {
+          showToast(`Abgleich fehlgeschlagen: ${e.message}`, 'error');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '↻ Abgleich jetzt';
+        }
+      });
 
       // ── SECTION: Artikelerfassung ──
       const PROP_NAMES = ['Farbe', 'Größe', 'Druckfarbe']; // Fallback bis SSOT geladen

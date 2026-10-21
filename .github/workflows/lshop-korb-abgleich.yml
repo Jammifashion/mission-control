@@ -1,0 +1,95 @@
+name: L-Shop-Warenkorb Abgleich
+
+on:
+  # Stündlich - ERST NACH DER ERSTBEFÜLLUNG einschalten (BO2 Teil 2): die zwei
+  # Zeilen unten auskommentiert lassen, bis der Inhaber die Erstbefüllung abgenommen hat.
+  # schedule:
+  #   - cron: '17 * * * *'   # jede Stunde zur Minute 17 (nicht auf :00, da laufen Backup/Sync)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry Run – nichts ins Sheet schreiben'
+        type: boolean
+        required: false
+        default: true
+
+jobs:
+  abgleich:
+    name: Trigger Abgleich (POST /api/bestellen/lshop-korb/abgleich)
+    runs-on: ubuntu-latest
+
+    steps:
+      # Kaltstart abfangen wie trikot-sync-daily.yml: GET /health darf wiederholt werden,
+      # der POST danach bleibt ein einziger Versuch.
+      - name: Backend aufwecken (GET /health)
+        env:
+          API_URL: ${{ secrets.BACKEND_URL }}
+        run: |
+          set -uo pipefail
+          if [ -z "$API_URL" ]; then
+            echo "::error::BACKEND_URL fehlt in GitHub Secrets."
+            exit 1
+          fi
+          start=$SECONDS
+          http="000"
+          while :; do
+            http=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$API_URL/health" || true)
+            echo "GET /health -> HTTP ${http:-000} (nach $((SECONDS - start)) s)"
+            [ "$http" = "200" ] && exit 0
+            [ $((SECONDS - start)) -ge 60 ] && break
+            sleep 5
+          done
+          echo "::error::Backend antwortet nicht mit HTTP 200 auf GET /health (60 s, zuletzt HTTP ${http:-000})."
+          exit 1
+
+      - name: Hilfsskript holen
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+          sparse-checkout-cone-mode: false
+
+      - name: POST /api/bestellen/lshop-korb/abgleich
+        env:
+          API_URL:       ${{ secrets.BACKEND_URL }}
+          API_KEY:       ${{ secrets.MC_API_KEY }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+          RUN_ID:        ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "$API_URL" ] || [ -z "$API_KEY" ]; then
+            echo "::error::BACKEND_URL oder MC_API_KEY fehlt in GitHub Secrets."
+            exit 1
+          fi
+
+          # Schedule-Lauf hat keine Inputs: dry_run leer -> echter Lauf.
+          dry=false
+          if [ "$INPUT_DRY_RUN" = "true" ]; then dry=true; fi
+          payload=$(jq -cn --argjson dryRun "$dry" --arg laufId "GH-$RUN_ID" \
+            '{dryRun: $dryRun, quelle: "workflow", laufId: $laufId}')
+          echo "Triggere Abgleich mit $payload"
+
+          rc=0
+          http=$(curl -sS --fail-with-body --max-time 300 -X POST \
+            -H "X-API-Key: $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            -o response.json -w '%{http_code}' \
+            "$API_URL/api/bestellen/lshop-korb/abgleich") || rc=$?
+
+          echo "HTTP ${http:-?}"
+          # Das Log ist oeffentlich: nur das Laufprotokoll mit Zaehlern, keine Schluessel.
+          if jq -e . response.json >/dev/null 2>&1; then
+            jq 'if .error then {error: "Abgleich fehlgeschlagen"}
+                else {lauf, dryRun, vorhanden, shops, schreiben} end' response.json
+          else
+            echo "(Antwort ist kein JSON - nicht ausgegeben)"
+          fi
+
+          if [ "$rc" -ne 0 ]; then
+            node .github/scripts/antwort-fehler.mjs response.json "${http:-?}" || true
+            echo "::error::L-Shop-Korb-Abgleich fehlgeschlagen (HTTP ${http:-?}, curl exit $rc)"
+            exit 1
+          fi
+          if [ "$(jq -r '.schreiben.hinweisKonflikte // 0' response.json)" != "0" ]; then
+            echo "::warning::Hinweise nicht geschrieben (Zeile hat sich zwischen Lesen und Schreiben geaendert) - naechster Lauf holt es nach."
+          fi

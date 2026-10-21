@@ -17,6 +17,7 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
 - Stand-Anzeige
 - Helpers (darin: Dashboard inkl. Knopf "Trikot-Sync jetzt")
 - Auftragsmonitor, Auftragsmonitor Dual-Source; darunter "Auftragsmonitor: Shop Orders" (kein SECTION-Anker)
+- L-Shop-Warenkorb (BO2: Unterpunkt `bestellen/lshop-korb`, Anzeige + Knopf "Abgleich jetzt")
 - Artikelerfassung
 - SEO-Daten aendern (Befehl SE1: Yoast-Felder jedes veroeffentlichten Artikels; nutzt seoMetaBau und yoastSchreiben des SEO-Flows, schreibt nichts ins Sheet)
 - SEO-Flow
@@ -90,6 +91,20 @@ Neue Sektionen immer mit Anker versehen:
   HONK-Bestellnummern Beitrags-IDs zweier WordPress-Installationen sind und gleich sein koennen.
   Neue Leser dieser Reiter lesen die ganze Breite (A1:Z), nie A1:J. Kein Shop-Feld: Partner_Interne_
   Bestellungen (Shop am Partner), Trikots (nur JFN), Partner_/HK_/FP_Verkaeufe (schon je Shop).
+- backend/lib/lshopKorb.js – L-Shop-Warenkorb (BO2), Logik in `utils/korb-logic.js`. Reiter
+  `Warenkorb_LShop` (SSOT) ist ein STEHENDER Bestand: jede L-Shop-bestellfaehige Shop-Position eine
+  Zeile, Schluessel `JFN:<Bestellnummer>:<Position>`, Spalte Shop von Anfang an. Abgleich
+  (`POST /api/bestellen/lshop-korb/abgleich` `{ dryRun, quelle }`, Knopf + Workflow
+  `lshop-korb-abgleich.yml`) liest nur JFN, Status processing + on-hold, haengt nur NEUE Schluessel
+  an, aendert nie Status, loescht nie; schreibt nur `Hinweis` (noch nicht bezahlt / storniert /
+  erstattet / abgeschlossen / Menge geaendert / nicht mehr im Shop / Position weg) fuer Zeilen mit
+  Status offen oder bestellt. Bestellfaehig = Varianten-Zeile ueber WC_Variation_ID MIT Gegenprobe
+  Produkt-ID (`varianteDerPosition`, Varianten/Maske haben kein Shop-Feld), gueltige ArticleNr in
+  LShop_Modelle, nicht ausgelaufen/3/6; Trikot/Fremdware/einfach nur als Zaehler. **Kein
+  `values.append`:** erste freie Zeile, Nachbarzeile + Zielbereich zuruecklesen, `values.update`,
+  zuruecklesen; Hinweise per batchUpdate nach Pruefung von Schluessel + altem Hinweis.
+  `GET /api/bestellen/lshop-korb?shop=` liest nur den Reiter, gebuendelt nach ArticleNr, ohne
+  Kundennamen. Reiter anlegen: `scripts/setup-lshop-korb-reiter.js` (Trockenlauf Standard, `--write`).
 - backend/routes/partnerPortal.js – Token-Auth für partner.html + WC-Sync
 - backend/routes/anfragen.js – Kundenanfragen Admin (POST /neu, GET /, PATCH /:id/status) – hinter requireApiKey
 - backend/routes/anfragen-chat.js – Chat-Widget public endpoint (POST /chat, kein API-Key) – vor requireApiKey

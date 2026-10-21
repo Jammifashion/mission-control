@@ -29,6 +29,7 @@ import agentWissenRouter from './routes/agent-wissen.js';
 import trikotRouter from './routes/trikot.js';
 import seoMetaRouter from './routes/seo-meta.js';
 import lshopRouter from './routes/lshop.js';
+import bestellenRouter from './routes/bestellen.js';
 
 // Secrets vor Express-Setup laden – stellt sicher dass process.env.CORS_ORIGIN
 // (und alle anderen Secrets) bereits gesetzt sind wenn die Middleware konfiguriert wird.
@@ -77,6 +78,7 @@ app.use('/api/agent-wissen',  agentWissenRouter);
 app.use('/api/trikot',        trikotRouter);        // POST /sync – täglicher Trikot-Sync
 app.use('/api/seo',           seoMetaRouter);       // POST /meta-eingaben – Yoast-Meta ohne Modell
 app.use('/api/lshop',         lshopRouter);         // POST /stammdaten – L-Shop-Stammdaten (LS1)
+app.use('/api/bestellen',     bestellenRouter);     // L-Shop-Warenkorb: Abgleich + Anzeige (BO2)
 app.use('/api/health', healthRouter);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
