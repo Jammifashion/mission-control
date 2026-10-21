@@ -54,7 +54,7 @@ function sheetMitSpalte() {
     LShop_Bestellungen: [[...LSB_KOPF, 'Shop']],
     DTF_Bestellungen:   [[...DTF_KOPF, 'Shop']],
     Varianten:          [['SSOT-ID', 'E1', 'V1', 'E2', 'V2', 'E3', 'V3', 'WC_Variation_ID']],
-    Erfassungsmaske:    [['ID', 'Artikelnummer', 'Produktname']],
+    Erfassungsmaske:    [['ID', 'Artikelnummer', 'Produktname', 'Produkt-ID']],
   };
 }
 

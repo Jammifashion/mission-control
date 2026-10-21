@@ -2,8 +2,9 @@ import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient } from '../lib/shopConfig.js';
+import { seitenGrenze, seitenListe } from '../lib/hosterPruefseite.js';
 import { requireHeader, requireHeaderAny } from '../utils/sheet-headers.js';
-import { wcVariationMap } from '../utils/varianten-zeilen.js';
+import { wcVariationMap, varianteDerPosition } from '../utils/varianten-zeilen.js';
 import { shopSpalte, shopDerZeile, shopWert, gleicherShop, zeileMitShop } from '../utils/shop-spalte.js';
 
 const router = Router();
@@ -87,6 +88,23 @@ export function psZeilenFinden(psRows, { orderIds = [], artikelnummer = '', wcIt
   return treffer;
 }
 
+// Offene Bestellungen eines Shops: Status nacheinander, alle Seiten. Frueher drei
+// gleichzeitige Abrufe mit je 100 ohne Seitenschleife - bei der Hoster-Pruefseite
+// liefen alle drei in sie hinein, ab 100 offenen fehlten Positionen.
+const OFFEN_STATUS = ['pending', 'processing', 'on-hold'];
+export async function offeneBestellungen(wc) {
+  const alle = [];
+  for (const status of OFFEN_STATUS) {
+    for (let page = 1; ; page++) {
+      seitenGrenze(page, { wc, pfad: 'orders' });
+      const liste = seitenListe((await wc.get('orders', { status, per_page: 100, page })).data, { wc, pfad: 'orders' });
+      alle.push(...liste);
+      if (liste.length < 100) break;
+    }
+  }
+  return alle;
+}
+
 function buildVariante(v1, v2, v3) {
   return [v1, v2, v3].filter(Boolean).join('·');
 }
@@ -99,13 +117,12 @@ router.get('/lshop/offen', async (req, res, next) => {
     const spreadsheetId = sid();
 
     // Alle Datenquellen parallel laden
-    const [psResp, varResp, erfResp, wcPending, wcProcessing, wcOnHold] = await Promise.all([
+    // Sheets parallel; die Shop-Abrufe laufen in offeneBestellungen nacheinander.
+    const [psResp, varResp, erfResp, wcOrders] = await Promise.all([
       sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_PS}!A1:Z5000` }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: TAB_VAR }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_ERF}!1:2000` }),
-      wc.get('orders', { status: 'pending',    per_page: 100 }),
-      wc.get('orders', { status: 'processing', per_page: 100 }),
-      wc.get('orders', { status: 'on-hold',    per_page: 100 }),
+      offeneBestellungen(wc),
     ]);
 
     const psAlle   = psResp.data.values ?? [];
@@ -113,11 +130,6 @@ router.get('/lshop/offen', async (req, res, next) => {
     const psRows   = psAlle.slice(1).filter(r => gleicherShop(r, psSi, req.query.shop));
     const erfRows  = erfResp.data.values ?? [];
     const erfHdr   = erfRows[0] ?? [];
-    const wcOrders = [
-      ...(Array.isArray(wcPending.data)    ? wcPending.data    : []),
-      ...(Array.isArray(wcProcessing.data) ? wcProcessing.data : []),
-      ...(Array.isArray(wcOnHold.data)     ? wcOnHold.data     : []),
-    ];
 
     // WC_Variation_ID → {ssotId, e1-v3}
     const varMap = wcVariationMap(varResp.data.values, `${req.method} ${req.baseUrl}${req.path}`);
@@ -131,10 +143,14 @@ router.get('/lshop/offen', async (req, res, next) => {
     const ssotIdx  = requireHeaderAny(erfHdr, ['SSOT-ID', 'ID'], CTX_L);
     const artIdx   = requireHeader(erfHdr, 'Artikelnummer', CTX_L);
     const nameIdx  = requireHeader(erfHdr, 'Produktname', CTX_L);
+    const pidIdx   = requireHeader(erfHdr, 'Produkt-ID', CTX_L);
     const ssotArt  = {};
+    const produktIdJeSsot = {};
     erfRows.slice(1).forEach(r => {
       const id = (r[ssotIdx] ?? '').trim();
-      if (id) ssotArt[id] = { artikelnummer: r[artIdx] ?? '', produktname: r[nameIdx] ?? '' };
+      if (!id) return;
+      ssotArt[id] = { artikelnummer: r[artIdx] ?? '', produktname: r[nameIdx] ?? '' };
+      produktIdJeSsot[id] = r[pidIdx] ?? '';
     });
 
     // WC orderId → {billing, lineItemMap: {wcItemId → lineItem}}
@@ -163,7 +179,8 @@ router.get('/lshop/offen', async (req, res, next) => {
       if (!li) return;
 
       // Variante ermitteln: zuerst Varianten-Sheet, dann WC meta_data
-      const varInfo = varMap[String(li.variation_id ?? '')];
+      // Mit Gegenprobe der Produkt-ID: HONK-Variations-IDs koennen JFN-Zeilen treffen (BO1).
+      const varInfo = varianteDerPosition(varMap, produktIdJeSsot, li);
       let variante = '', varDetails = { e1: '', v1: '', e2: '', v2: '', e3: '', v3: '' };
       let ssotId = '';
 
@@ -318,13 +335,12 @@ router.get('/dtf/offen', async (req, res, next) => {
     const sheets        = await getSheets();
     const spreadsheetId = sid();
 
-    const [psResp, varResp, erfResp, wcPending, wcProcessing, wcOnHold] = await Promise.all([
+    // Sheets parallel; die Shop-Abrufe laufen in offeneBestellungen nacheinander.
+    const [psResp, varResp, erfResp, wcOrders] = await Promise.all([
       sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_PS}!A1:Z5000` }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: TAB_VAR }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_ERF}!1:2000` }),
-      wc.get('orders', { status: 'pending',    per_page: 100 }),
-      wc.get('orders', { status: 'processing', per_page: 100 }),
-      wc.get('orders', { status: 'on-hold',    per_page: 100 }),
+      offeneBestellungen(wc),
     ]);
 
     const psAlle   = psResp.data.values ?? [];
@@ -332,11 +348,6 @@ router.get('/dtf/offen', async (req, res, next) => {
     const psRows   = psAlle.slice(1).filter(r => gleicherShop(r, psSi, req.query.shop));
     const erfRows  = erfResp.data.values ?? [];
     const erfHdr   = erfRows[0] ?? [];
-    const wcOrders = [
-      ...(Array.isArray(wcPending.data)    ? wcPending.data    : []),
-      ...(Array.isArray(wcProcessing.data) ? wcProcessing.data : []),
-      ...(Array.isArray(wcOnHold.data)     ? wcOnHold.data     : []),
-    ];
 
     const varMap = wcVariationMap(varResp.data.values, `${req.method} ${req.baseUrl}${req.path}`);
 
@@ -345,10 +356,14 @@ router.get('/dtf/offen', async (req, res, next) => {
     const ssotIdx = requireHeaderAny(erfHdr, ['SSOT-ID', 'ID'], CTX_D);
     const artIdx  = requireHeader(erfHdr, 'Artikelnummer', CTX_D);
     const nameIdx = requireHeader(erfHdr, 'Produktname', CTX_D);
+    const pidIdx  = requireHeader(erfHdr, 'Produkt-ID', CTX_D);
     const ssotArt = {};
+    const produktIdJeSsot = {};
     erfRows.slice(1).forEach(r => {
       const id = (r[ssotIdx] ?? '').trim();
-      if (id) ssotArt[id] = { artikelnummer: r[artIdx] ?? '', produktname: r[nameIdx] ?? '' };
+      if (!id) return;
+      ssotArt[id] = { artikelnummer: r[artIdx] ?? '', produktname: r[nameIdx] ?? '' };
+      produktIdJeSsot[id] = r[pidIdx] ?? '';
     });
 
     const orderMap = {};
@@ -374,7 +389,8 @@ router.get('/dtf/offen', async (req, res, next) => {
       const li = ord.lim[wcItemId];
       if (!li) return;
 
-      const varInfo = varMap[String(li.variation_id ?? '')];
+      // Mit Gegenprobe der Produkt-ID: HONK-Variations-IDs koennen JFN-Zeilen treffen (BO1).
+      const varInfo = varianteDerPosition(varMap, produktIdJeSsot, li);
       let variante = '', varDetails = { e1: '', v1: '', e2: '', v2: '', e3: '', v3: '' };
       let ssotId = '';
 

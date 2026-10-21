@@ -184,3 +184,20 @@ export function wcVariationMap(werte, ctx) {
   }
   return map;
 }
+
+/**
+ * Varianten-Zeile einer Shop-Position, mit Gegenprobe der Produkt-ID (BO1).
+ * Varianten und Erfassungsmaske haben keine Spalte "Shop"; Variations-IDs von
+ * JFN und HONK stammen aus zwei WordPress-Installationen und koennen gleich
+ * sein. Ein Treffer zaehlt nur, wenn die Erfassungsmaske fuer die SSOT-ID der
+ * Zeile dieselbe Produkt-ID fuehrt wie die Position - sonst null.
+ * @param {object} varMap        aus wcVariationMap
+ * @param {object} produktIdJeSsot SSOT-ID -> Produkt-ID (Erfassungsmaske)
+ * @param {{ product_id, variation_id }} position WC-line_item
+ */
+export function varianteDerPosition(varMap, produktIdJeSsot, position) {
+  const v = varMap[String(position?.variation_id ?? '')];
+  if (!v) return null;
+  const pid = String(produktIdJeSsot[v.ssotId] ?? '').trim();
+  return pid && pid === String(position?.product_id ?? '').trim() ? v : null;
+}
