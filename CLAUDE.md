@@ -96,7 +96,7 @@ Neue Sektionen immer mit Anker versehen:
   `Warenkorb_LShop` (SSOT) ist ein STEHENDER Bestand: jede L-Shop-bestellfaehige Shop-Position eine
   Zeile, Schluessel `JFN:<Bestellnummer>:<Position>`, Spalte Shop von Anfang an. Abgleich
   (`POST /api/bestellen/lshop-korb/abgleich` `{ dryRun, quelle }`, Knopf + Workflow
-  `lshop-korb-abgleich.yml`) liest nur JFN, Status processing + on-hold, haengt nur NEUE Schluessel
+  `lshop-korb-abgleich.yml` von Hand, stuendlich Cloud Scheduler, CS1) liest nur JFN, Status processing + on-hold, haengt nur NEUE Schluessel
   an, aendert nie Status, loescht nie; schreibt nur `Hinweis` (noch nicht bezahlt / storniert /
   erstattet / abgeschlossen / Menge geaendert / nicht mehr im Shop / Position weg) fuer Zeilen mit
   Status offen oder bestellt. Bestellfaehig = Varianten-Zeile ueber WC_Variation_ID MIT Gegenprobe
@@ -381,6 +381,19 @@ lokal zeigt die Fusszeile "lokal". Unterschiedliche Kennungen sind normal.
 Ladereihenfolge der Konfiguration: **Env-Var → `.env` → GCP Secret Manager**
 (Secret Manager greift in production, siehe `getSecret()` in
 `backend/utils/secrets.js`).
+
+## Cloud Scheduler (CS1)
+Job `lshop-korb-abgleich` (Region `europe-west1`), Zeitplan `17 * * * *`, Zeitzone
+`Europe/Berlin`, POST auf `<BACKEND_URL>/api/intern/lshop-korb/abgleich`, Versuchsfrist 300 s,
+1 Wiederholung nach 10 min. Anmeldung per **OIDC-Token** des Dienstkontos
+`korb-scheduler@mission-control-495711.iam.gserviceaccount.com` (ohne Rollen; Cloud Run bleibt
+oeffentlich, das Backend prueft das Token selbst): `middleware/schedulerAuth.js`
+(`requireSchedulerOidc`, Sollwerte aus den Secrets `SCHEDULER_SA_EMAIL` und `SCHEDULER_AUDIENCE`,
+401 ohne Details, Log nur Grund + Pfad). `routes/intern.js` steht VOR `requireApiKey`; ein
+MC_API_KEY oeffnet `/api/intern` nicht. Body wird ignoriert (nie Trockenlauf), Lauf-ID `CS-<Zeit>`.
+Sperre "laeuft schon" -> 200 `uebersprungen`, 5xx bleibt 5xx (Chat-Meldung), 503 Pruefseite bleibt.
+Der Workflow `lshop-korb-abgleich.yml` hat kein `schedule` mehr, nur noch `workflow_dispatch`.
+Scheitert der Job selbst (401, Zeitlimit), meldet ein Log-Alarm in Cloud Monitoring per Mail.
 
 ## Neues Secret anlegen
 1. Secret im GCP Secret Manager anlegen (Browser, Account gbr@jammifashion.de)

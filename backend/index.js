@@ -30,6 +30,7 @@ import trikotRouter from './routes/trikot.js';
 import seoMetaRouter from './routes/seo-meta.js';
 import lshopRouter from './routes/lshop.js';
 import bestellenRouter from './routes/bestellen.js';
+import internRouter from './routes/intern.js';
 
 // Secrets vor Express-Setup laden – stellt sicher dass process.env.CORS_ORIGIN
 // (und alle anderen Secrets) bereits gesetzt sind wenn die Middleware konfiguriert wird.
@@ -57,6 +58,7 @@ app.use('/api/', apiRateLimiter);
 app.use('/api/partner',      partnerPortalRouter); // Token-Auth oder eigene Key-Prüfung
 app.use('/api/anfragen',           anfragenChatRouter);   // public: nur /chat (kein API-Key nötig)
 app.use('/api/festpreis-public',   festpreisPublicRouter); // public: Token-Auth (kein API-Key)
+app.use('/api/intern',             internRouter);          // Cloud Scheduler: OIDC-Token statt API-Key (CS1)
 app.use(requireApiKey);
 
 // ── Routes ────────────────────────────────────────────────────────────────────

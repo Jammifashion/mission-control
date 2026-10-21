@@ -8,7 +8,8 @@ const router = Router();
 
 // ── POST /api/bestellen/lshop-korb/abgleich  (hinter requireApiKey) ──────────
 // Body optional: { dryRun: true|false, quelle: "knopf"|"workflow", laufId }
-// Aufrufer: Knopf "Abgleich jetzt" und .github/workflows/lshop-korb-abgleich.yml
+// Aufrufer: Knopf "Abgleich jetzt" und .github/workflows/lshop-korb-abgleich.yml (von Hand);
+// stuendlich ruft Cloud Scheduler routes/intern.js auf (CS1, OIDC statt API-Key).
 // Fehler sind laut: Chat-Meldung (gedrosselt 1/h je Art), dann der Fehlerhandler.
 router.post('/lshop-korb/abgleich', async (req, res, next) => {
   try {
