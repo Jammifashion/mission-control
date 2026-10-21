@@ -312,7 +312,6 @@ export function buendele(zeilen, modelle = new Map(), namen = {}, jetzt = new Da
     g.positionen.push({
       schluessel: z.Schluessel, shop: z.Shop || 'JFN', herkunft: z.Herkunft, bestellnummer: z.Bestellnummer,
       position: z.Position, referenz: z.Referenz, ssotId: z['SSOT-ID'], produktname: namen[z['SSOT-ID']] ?? '',
-      lshopText: g.lshopText,
       menge, status: z.Status, grund: z.Grund, notiz: z.Notiz, hinweis: z.Hinweis, vorschlag,
       angelegt: z.Angelegt, statusDatum: z.Status_Datum,
       // Nur fuer abgewaehlte Zeilen von Bedeutung: in den letzten 14 Tagen (oder unbezahlt).

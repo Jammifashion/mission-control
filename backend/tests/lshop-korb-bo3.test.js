@@ -259,7 +259,9 @@ describe('L-Shop-Zeile je Buendel und Position', () => {
     const { tabs, sheets } = await gefuellt();
     let b = (await leseKorb({ shop: 'jfn', sheets })).buendel.find(x => x.articleNr === NR);
     expect(b.lshopText).toBe(`${NR} · JH030F · Deep Black · XXL`);
-    expect(b.positionen.every(p => p.lshopText === b.lshopText)).toBe(true);
+    // Positionen tragen keine eigene L-Shop-Zeile mehr (sie wiederholte nur den Buendelkopf).
+    expect(b.positionen.every(p => p.lshopText === undefined)).toBe(true);
+    expect(b).toMatchObject({ articleNr: NR, catalogNr: 'JH030F', bezeichnung: '', farbe: 'Deep Black', groesse: 'XXL' });
 
     tabs.LShop_Modelle = tabs.LShop_Modelle.map((z, i) => [...z, i === 0 ? 'Description' : 'Ugly Sweater Basic']);
     _resetLShopCache();
@@ -276,6 +278,16 @@ describe('Frontend: Filter Offen/Herausgenommen/Alle', () => {
     expect(css).toContain('var(--info)');
     expect(css).not.toMatch(/#[0-9a-f]{3,6}\b/i);
   });
+  test('Buendelkopf: Name gelb (--accent), Variante gruen (--success), keine feste Farbe; keine L-Shop-Zeile je Position', () => {
+    const regel = name => html.match(new RegExp(`\\.${name} \\{[^}]*\\}`))?.[0] ?? '';
+    expect(regel('korb-kopf-name')).toContain('var(--accent)');
+    expect(regel('korb-kopf-variante')).toContain('var(--success)');
+    expect(regel('korb-kopf-nr')).toContain('var(--text)');
+    for (const n of ['korb-kopf-name', 'korb-kopf-variante', 'korb-kopf-nr']) expect(regel(n)).not.toMatch(/#[0-9a-f]{3,6}\b/i);
+    expect(html).not.toContain('korb-lshop');
+    expect(html).not.toMatch(/\$\{hinweis\}\$\{lshop\}/);
+  });
+
   test('drei Filterknoepfe, alter Schalter entfernt, Filter wird gemerkt', () => {
     expect([...html.matchAll(/data-filter="(\w+)"/g)].map(m => m[1])).toEqual(['offen', 'raus', 'alle']);
     expect(html).not.toContain('id="korb-alle"');

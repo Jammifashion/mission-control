@@ -296,7 +296,11 @@
         .korb-knoepfe { justify-content: flex-start; margin-left: 0; }
         .korb-filter { order: 3; flex-basis: 100%; flex-wrap: wrap; }
       }
-      .korb-lshop { font-size: 0.75rem; color: var(--muted); }
+      /* Buendelkopf: Nummer · Modell (Text) · L-Shop-Artikelname (Akzent/gelb) · Farbe · Groesse (gruen) */
+      .korb-titel > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+      .korb-kopf-nr { color: var(--text); }
+      .korb-kopf-name { color: var(--accent); }
+      .korb-kopf-variante { color: var(--success); }
       .korb-klein { padding: 0.3rem 0.65rem; font-size: 0.8rem; }
       .korb-titel { display: flex; justify-content: space-between; gap: 0.5rem; align-items: baseline; }
       .korb-zaehler { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
@@ -3884,20 +3888,29 @@
         const herkunft = p.herkunft === 'eigen' ? `Eigen · ${korbEsc(p.referenz)}` : `${korbEsc(p.shop)} #${korbEsc(p.bestellnummer)} · Pos. ${korbEsc(p.position)}`;
         const hinweis  = p.hinweis ? ` · <span style="color:${p.vorschlag ? 'var(--accent)' : 'var(--danger)'};">⚠ ${korbEsc(p.hinweis)}</span>` : '';
         const notiz    = p.notiz ? ` · <em>${korbEsc(p.notiz)}</em>` : '';
+        // Position: JFN #Nr · Pos. · Menge · unser Artikelname. Die L-Shop-Angaben stehen nur im Buendelkopf.
         const text     = `${herkunft} ×${p.menge}${p.produktname ? ` · ${korbEsc(p.produktname)}` : ''}`;
-        // L-Shop-Zeile (Nummer · Modell · Kurzbezeichnung · Farbe · Groesse) unter der Position.
-        const lshop    = p.lshopText ? `<span class="korb-lshop" style="display:block;">${korbEsc(p.lshopText)}</span>` : '';
         if (p.status === 'abgewählt') {
           return `<div class="korb-pos korb-pos-raus"><span class="korb-pos-text">${text} · <strong>herausgenommen</strong>`
-            + ` ${korbEsc(korbDatum(p.statusDatum))} (${korbEsc(p.grund)})${notiz}${hinweis}${lshop}</span>`
+            + ` ${korbEsc(korbDatum(p.statusDatum))} (${korbEsc(p.grund)})${notiz}${hinweis}</span>`
             + `<button class="korb-link" type="button" data-zurueck="${korbEsc(p.schluessel)}">zurück auf offen</button></div>`;
         }
         if (p.status !== 'offen' || !p.bearbeitbar) {
-          return `<div class="korb-pos korb-pos-raus"><span class="korb-pos-text">${text} · <strong>${korbEsc(p.status)}</strong>${notiz}${hinweis}${lshop}</span></div>`;
+          return `<div class="korb-pos korb-pos-raus"><span class="korb-pos-text">${text} · <strong>${korbEsc(p.status)}</strong>${notiz}${hinweis}</span></div>`;
         }
         const an = korbZustand.auswahl.has(p.schluessel) ? 'checked' : '';
         return `<label class="korb-pos" style="${p.vorschlag ? '' : 'opacity:0.7;'}"><input type="checkbox" data-pos="${korbEsc(p.schluessel)}" ${an}>`
-          + `<span class="korb-pos-text">${text}${notiz}${hinweis}${lshop}</span></label>`;
+          + `<span class="korb-pos-text">${text}${notiz}${hinweis}</span></label>`;
+      }
+
+      // Buendelkopf "1000038284 · CB445 · <L-Shop-Artikelname> · Bottle Green · One Size".
+      // Der Artikelname fehlt, solange LShop_Modelle keine Namensspalte hat (bericht-BO3).
+      function korbKopfText(b) {
+        const nr = [b.articleNr, b.catalogNr].filter(Boolean).map(korbEsc).join(' · ');
+        const variante = [b.farbe, b.groesse].filter(Boolean).map(korbEsc).join(' · ');
+        return `<span class="korb-kopf-nr">${nr}</span>`
+          + (b.bezeichnung ? ` · <span class="korb-kopf-name">${korbEsc(b.bezeichnung)}</span>` : '')
+          + (variante ? ` · <span class="korb-kopf-variante">${variante}</span>` : '');
       }
 
       function korbLeisteAktualisieren() {
@@ -3952,7 +3965,7 @@
             <div class="lshop-card" style="grid-template-columns: auto 1fr;">
               <div class="card-cb-wrap">${waehlbar.length ? `<input type="checkbox" class="korb-buendel-cb" data-buendel="${korbEsc(b.articleNr)}" ${alleAn ? 'checked' : ''} aria-label="ganzes Bündel wählen">` : ''}</div>
               <div class="lshop-card-info">
-                <div class="lshop-card-title korb-titel"><span>${korbEsc(b.lshopText || b.articleNr)}</span><span class="lshop-stueck">${b.zuBestellen} Stk</span></div>
+                <div class="lshop-card-title korb-titel"><span>${korbKopfText(b)}</span><span class="lshop-stueck">${b.zuBestellen} Stk</span></div>
                 ${b.unbezahlt ? `<div class="lshop-card-bedarf">davon ${b.unbezahlt} unbezahlt</div>` : ''}
                 <div class="lshop-card-orders">${b.zeigen.map(korbPositionZeile).join('')}</div>
               </div>
