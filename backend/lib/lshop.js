@@ -73,6 +73,9 @@ const SPALTEN_OPTIONAL = {
   discontinued: 'Discontinued',
   // LS2: fehlt die Spalte oder ist sie leer, gilt die Zeile als aktiv.
   status: 'Status',
+  // BO3: L-Shop-Kurzbezeichnung fuer den Warenkorb. Steht (Stand 21.10.) NICHT im Reiter
+  // (LS1 importiert sie nicht); fehlt sie, zeigt der Korb nur Nummer, Modell, Farbe, Groesse.
+  bezeichnung: 'Description',
 };
 
 // Discontinued-Werte, die eine Variante sperren.

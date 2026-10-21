@@ -280,6 +280,16 @@ export function vergleicheZurueck(geschrieben, gelesen) {
  * @param {Map<string,object>} modelle  ArticleNr -> LShop_Modelle-Zeile
  * @param {object} namen      SSOT-ID -> Produktname
  */
+/**
+ * L-Shop-Zeile einer ArticleNr in L-Shop-Schreibweise:
+ * "1000386845 · MRS5004 · <Kurzbezeichnung> · White/Green · 37/41". Leere Teile fallen weg
+ * (heute fehlt die Kurzbezeichnung im Reiter, siehe lib/lshop.js).
+ */
+export function lshopText(nr, m = {}) {
+  const farbe = [t(m.color1), t(m.color2)].filter(Boolean).join('/');
+  return [t(nr), t(m.catalogNr), t(m.bezeichnung), farbe, t(m.size)].filter(Boolean).join(' · ');
+}
+
 export function buendele(zeilen, modelle = new Map(), namen = {}) {
   const gruppen = new Map();
   for (const z of zeilen) {
@@ -287,8 +297,9 @@ export function buendele(zeilen, modelle = new Map(), namen = {}) {
     if (!gruppen.has(nr)) {
       const m = modelle.get(nr) ?? {};
       gruppen.set(nr, {
-        articleNr: nr, catalogNr: t(m.catalogNr), farbe: [t(m.color1), t(m.color2)].filter(Boolean).join('/'),
-        groesse: t(m.size), zuBestellen: 0, unbezahlt: 0, positionen: [],
+        articleNr: nr, catalogNr: t(m.catalogNr), bezeichnung: t(m.bezeichnung),
+        farbe: [t(m.color1), t(m.color2)].filter(Boolean).join('/'), groesse: t(m.size),
+        lshopText: lshopText(nr, m), zuBestellen: 0, unbezahlt: 0, positionen: [],
       });
     }
     const g = gruppen.get(nr);
@@ -301,6 +312,7 @@ export function buendele(zeilen, modelle = new Map(), namen = {}) {
     g.positionen.push({
       schluessel: z.Schluessel, shop: z.Shop || 'JFN', herkunft: z.Herkunft, bestellnummer: z.Bestellnummer,
       position: z.Position, referenz: z.Referenz, ssotId: z['SSOT-ID'], produktname: namen[z['SSOT-ID']] ?? '',
+      lshopText: g.lshopText,
       menge, status: z.Status, grund: z.Grund, notiz: z.Notiz, hinweis: z.Hinweis, vorschlag,
       angelegt: z.Angelegt, statusDatum: z.Status_Datum,
       // BO3: nur offen <-> abgewaehlt ist in MC bearbeitbar; bestellt/geliefert/Lager setzt erst BO4.

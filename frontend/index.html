@@ -23,6 +23,7 @@
         --muted: #888;
         --danger: #e05252;
         --success: #52c97a;
+        --info: #4a9eff;   /* Blau fuer Filter/Info (Wert wie bisher fest in den Anfragen-Kacheln) */
       }
 
       body {
@@ -284,13 +285,23 @@
 
       /* ── L-Shop-Warenkorb (BO3) ── */
       .korb-kopf { flex-wrap: wrap; gap: 0.5rem; }
-      .korb-knoepfe { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+      .korb-knoepfe { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; justify-content: flex-end; margin-left: auto; }
+      .korb-filter { display: inline-flex; gap: 0.3rem; }
+      .korb-filter button {
+        background: none; border: 1px solid var(--info); color: var(--info); border-radius: 999px;
+        padding: 0.28rem 0.65rem; font-size: 0.78rem; cursor: pointer; white-space: nowrap;
+      }
+      .korb-filter button[aria-pressed="true"] { background: var(--info); color: var(--bg); font-weight: 600; }
+      @media (max-width: 520px) {
+        .korb-knoepfe { justify-content: flex-start; margin-left: 0; }
+        .korb-filter { order: 3; flex-basis: 100%; flex-wrap: wrap; }
+      }
+      .korb-lshop { font-size: 0.75rem; color: var(--muted); }
       .korb-klein { padding: 0.3rem 0.65rem; font-size: 0.8rem; }
       .korb-titel { display: flex; justify-content: space-between; gap: 0.5rem; align-items: baseline; }
       .korb-zaehler { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
-      .korb-schalter { font-size: 0.8rem; color: var(--muted); display: inline-flex; gap: 0.35rem; align-items: center; margin-bottom: 0.6rem; }
       .korb-pos { display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.25rem 0; }
-      .korb-pos input[type=checkbox], .korb-schalter input, .korb-buendel-cb { width: 1.15rem; height: 1.15rem; flex: none; margin-top: 0.1rem; }
+      .korb-pos input[type=checkbox], .korb-buendel-cb { width: 1.15rem; height: 1.15rem; flex: none; margin-top: 0.1rem; }
       .korb-pos-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
       .korb-pos .korb-link { flex: none; }
       .korb-pos-raus { opacity: 0.55; }
@@ -1090,12 +1101,16 @@
             <div class="lshop-offen-header korb-kopf">
               <span id="korb-summe">L-Shop-Warenkorb</span>
               <span class="korb-knoepfe">
+                <span class="korb-filter" id="korb-filter" role="group" aria-label="Positionen filtern">
+                  <button type="button" data-filter="offen" aria-pressed="true">Offen</button>
+                  <button type="button" data-filter="raus" aria-pressed="false">Herausgenommen</button>
+                  <button type="button" data-filter="alle" aria-pressed="false">Alle</button>
+                </span>
                 <button class="btn-secondary korb-klein" id="korb-eigen-btn" type="button">+ Eigene Position</button>
                 <button class="btn-lshop-bestellen" id="korb-abgleich-btn" title="Neue L-Shop-bestellfähige Positionen aus dem Shop übernehmen">↻ Abgleich jetzt</button>
               </span>
             </div>
             <div id="korb-zaehler" class="korb-zaehler"></div>
-            <label class="korb-schalter"><input type="checkbox" id="korb-alle"> auch herausgenommene zeigen</label>
             <div id="korb-lauf" class="lshop-card-bedarf" style="display:none;"></div>
 
             <!-- Eigene Position (BO3): Artikel -> Farbe -> Groesse -> Menge -> Referenz -> Notiz -->
@@ -3857,24 +3872,30 @@
       // Kein Loeschen; bestellt/geliefert setzt erst BO4.
       const korbEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
       const korbDatum = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('de-DE'); };
-      const korbZustand = { daten: null, auswahl: new Map() };   // auswahl: Schluessel -> Position
+      // Filter: offen | raus (abgewählt) | alle. Gemerkt je Browser; fehlt der Speicher, gilt "offen".
+      const KORB_FILTER_KEY = 'mc_korb_filter';
+      const korbFilterLesen = () => { try { const f = localStorage.getItem(KORB_FILTER_KEY); return ['offen', 'raus', 'alle'].includes(f) ? f : 'offen'; } catch { return 'offen'; } };
+      const korbZustand = { daten: null, auswahl: new Map(), filter: korbFilterLesen() };   // auswahl: Schluessel -> Position
+      const korbFilterPasst = p => korbZustand.filter === 'alle' || (korbZustand.filter === 'raus' ? p.status === 'abgewählt' : p.status === 'offen');
 
       function korbPositionZeile(p) {
         const herkunft = p.herkunft === 'eigen' ? `Eigen · ${korbEsc(p.referenz)}` : `${korbEsc(p.shop)} #${korbEsc(p.bestellnummer)} · Pos. ${korbEsc(p.position)}`;
         const hinweis  = p.hinweis ? ` · <span style="color:${p.vorschlag ? 'var(--accent)' : 'var(--danger)'};">⚠ ${korbEsc(p.hinweis)}</span>` : '';
         const notiz    = p.notiz ? ` · <em>${korbEsc(p.notiz)}</em>` : '';
         const text     = `${herkunft} ×${p.menge}${p.produktname ? ` · ${korbEsc(p.produktname)}` : ''}`;
+        // L-Shop-Zeile (Nummer · Modell · Kurzbezeichnung · Farbe · Groesse) unter der Position.
+        const lshop    = p.lshopText ? `<span class="korb-lshop" style="display:block;">${korbEsc(p.lshopText)}</span>` : '';
         if (p.status === 'abgewählt') {
           return `<div class="korb-pos korb-pos-raus"><span class="korb-pos-text">${text} · <strong>herausgenommen</strong>`
-            + ` ${korbEsc(korbDatum(p.statusDatum))} (${korbEsc(p.grund)})${notiz}${hinweis}</span>`
+            + ` ${korbEsc(korbDatum(p.statusDatum))} (${korbEsc(p.grund)})${notiz}${hinweis}${lshop}</span>`
             + `<button class="korb-link" type="button" data-zurueck="${korbEsc(p.schluessel)}">zurück auf offen</button></div>`;
         }
         if (p.status !== 'offen' || !p.bearbeitbar) {
-          return `<div class="korb-pos korb-pos-raus"><span class="korb-pos-text">${text} · <strong>${korbEsc(p.status)}</strong>${notiz}${hinweis}</span></div>`;
+          return `<div class="korb-pos korb-pos-raus"><span class="korb-pos-text">${text} · <strong>${korbEsc(p.status)}</strong>${notiz}${hinweis}${lshop}</span></div>`;
         }
         const an = korbZustand.auswahl.has(p.schluessel) ? 'checked' : '';
         return `<label class="korb-pos" style="${p.vorschlag ? '' : 'opacity:0.7;'}"><input type="checkbox" data-pos="${korbEsc(p.schluessel)}" ${an}>`
-          + `<span class="korb-pos-text">${text}${notiz}${hinweis}</span></label>`;
+          + `<span class="korb-pos-text">${text}${notiz}${hinweis}${lshop}</span></label>`;
       }
 
       function korbLeisteAktualisieren() {
@@ -3902,13 +3923,20 @@
         const z = d.summen;
         document.getElementById('korb-summe').textContent =
           `L-Shop-Warenkorb · ${z.zuBestellen} Stück zu bestellen · ${z.artikelnummern} Artikelnummer${z.artikelnummern !== 1 ? 'n' : ''}`;
-        document.getElementById('korb-zaehler').textContent = `${z.offen} offen · ${z.herausgenommen} herausgenommen · ${z.mitHinweis} mit Hinweis`;
-        const alle = document.getElementById('korb-alle').checked;
+        document.getElementById('korb-zaehler').textContent = z.mitHinweis ? `${z.mitHinweis} offene Position${z.mitHinweis !== 1 ? 'en' : ''} mit Hinweis` : '';
+        const zahl = { offen: z.offen, raus: z.herausgenommen, alle: z.positionen };
+        const name = { offen: 'Offen', raus: 'Herausgenommen', alle: 'Alle' };
+        document.querySelectorAll('#korb-filter [data-filter]').forEach(btn => {
+          const f = btn.dataset.filter;
+          btn.textContent = `${name[f]} (${zahl[f]})`;
+          btn.setAttribute('aria-pressed', String(f === korbZustand.filter));
+        });
         const sichtbar = d.buendel
-          .map(b => ({ ...b, zeigen: b.positionen.filter(p => alle || p.status !== 'abgewählt') }))
+          .map(b => ({ ...b, zeigen: b.positionen.filter(korbFilterPasst) }))
           .filter(b => b.zeigen.length);
         if (!sichtbar.length) {
-          el.innerHTML = `<p style="color:var(--muted);font-size:0.84rem;">${d.buendel.length ? 'Keine offenen Positionen.' : 'Der Korb ist leer.'}</p>`;
+          const leer = { offen: 'Keine offenen Positionen.', raus: 'Keine herausgenommenen Positionen.', alle: 'Der Korb ist leer.' };
+          el.innerHTML = `<p style="color:var(--muted);font-size:0.84rem;">${d.buendel.length ? leer[korbZustand.filter] : 'Der Korb ist leer.'}</p>`;
         } else {
           el.innerHTML = sichtbar.map(b => {
             const waehlbar = b.zeigen.filter(p => p.status === 'offen' && p.bearbeitbar);
@@ -3917,8 +3945,8 @@
             <div class="lshop-card" style="grid-template-columns: auto 1fr;">
               <div class="card-cb-wrap">${waehlbar.length ? `<input type="checkbox" class="korb-buendel-cb" data-buendel="${korbEsc(b.articleNr)}" ${alleAn ? 'checked' : ''} aria-label="ganzes Bündel wählen">` : ''}</div>
               <div class="lshop-card-info">
-                <div class="lshop-card-title korb-titel"><span>${korbEsc(b.articleNr)}${b.catalogNr ? ` · ${korbEsc(b.catalogNr)}` : ''}</span><span class="lshop-stueck">${b.zuBestellen} Stk</span></div>
-                <div class="lshop-card-variante">${korbEsc(b.farbe || '–')} · ${korbEsc(b.groesse || '–')}${b.unbezahlt ? ` <span class="lshop-card-bedarf">· davon ${b.unbezahlt} unbezahlt</span>` : ''}</div>
+                <div class="lshop-card-title korb-titel"><span>${korbEsc(b.lshopText || b.articleNr)}</span><span class="lshop-stueck">${b.zuBestellen} Stk</span></div>
+                ${b.unbezahlt ? `<div class="lshop-card-bedarf">davon ${b.unbezahlt} unbezahlt</div>` : ''}
                 <div class="lshop-card-orders">${b.zeigen.map(korbPositionZeile).join('')}</div>
               </div>
             </div>`;
@@ -4001,7 +4029,13 @@
         finally { ev.target.disabled = false; }
       });
 
-      document.getElementById('korb-alle')?.addEventListener('change', korbZeichnen);
+      document.getElementById('korb-filter')?.addEventListener('click', ev => {
+        const f = ev.target.closest('[data-filter]')?.dataset.filter;
+        if (!f) return;
+        korbZustand.filter = f;
+        try { localStorage.setItem(KORB_FILTER_KEY, f); } catch { /* ohne Speicher gilt der Filter bis zum Neuladen */ }
+        korbZeichnen();
+      });
       document.getElementById('korb-auswahl-weg')?.addEventListener('click', () => { korbZustand.auswahl.clear(); korbZustand.grundVomNutzer = false; korbZeichnen(); });
 
       document.getElementById('korb-herausnehmen')?.addEventListener('click', async ev => {

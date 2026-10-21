@@ -4,8 +4,11 @@
 
 import {
   KORB_SPALTEN, STATUS, HINWEIS, TAB_KORB, GRUENDE,
-  korbZeilen, statusPlan, grundVorschlag, naechsteEigenNummer, bestellbareVarianten, buendele, korbZaehler,
+  korbZeilen, statusPlan, grundVorschlag, naechsteEigenNummer, bestellbareVarianten, buendele, korbZaehler, lshopText,
 } from '../utils/korb-logic.js';
+import { readFileSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import {
   runKorbAbgleich, setzeStatus, legeEigenePositionAn, sucheArtikel, artikelVarianten, leseKorb, _korbCacheLeeren, BESCHAEFTIGT,
 } from '../lib/lshopKorb.js';
@@ -195,6 +198,43 @@ describe('eigene Positionen', () => {
     expect(b.positionen.map(p => [p.herkunft, p.menge])).toEqual([['shop', 1], ['eigen', 2]]);
     expect(b.zuBestellen).toBe(3);
     expect(k.summen).toMatchObject({ offen: 4, herausgenommen: 0 });
+  });
+});
+
+// ── UX: L-Shop-Zeile und Filter ───────────────────────────────────────────────
+describe('L-Shop-Zeile je Buendel und Position', () => {
+  test('mit Kurzbezeichnung, ohne Kurzbezeichnung, ohne Modellzeile', () => {
+    expect(lshopText('1000386845', { catalogNr: 'MRS5004', bezeichnung: 'Sport Socks', color1: 'White', color2: 'Green', size: '37/41' }))
+      .toBe('1000386845 · MRS5004 · Sport Socks · White/Green · 37/41');
+    expect(lshopText(NR, { catalogNr: 'JH030F', color1: 'Deep Black', size: 'XXL' })).toBe(`${NR} · JH030F · Deep Black · XXL`);
+    expect(lshopText(NR, undefined)).toBe(NR);
+  });
+
+  test('leseKorb: Bezeichnung aus LShop_Modelle.Description, wenn die Spalte da ist; jede Position traegt die Zeile', async () => {
+    const { tabs, sheets } = await gefuellt();
+    let b = (await leseKorb({ shop: 'jfn', sheets })).buendel.find(x => x.articleNr === NR);
+    expect(b.lshopText).toBe(`${NR} · JH030F · Deep Black · XXL`);
+    expect(b.positionen.every(p => p.lshopText === b.lshopText)).toBe(true);
+
+    tabs.LShop_Modelle = tabs.LShop_Modelle.map((z, i) => [...z, i === 0 ? 'Description' : 'Ugly Sweater Basic']);
+    _resetLShopCache();
+    b = (await leseKorb({ shop: 'jfn', sheets })).buendel.find(x => x.articleNr === NR);
+    expect(b.lshopText).toBe(`${NR} · JH030F · Ugly Sweater Basic · Deep Black · XXL`);
+  });
+});
+
+describe('Frontend: Filter Offen/Herausgenommen/Alle', () => {
+  const html = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../frontend/index.html'), 'utf8');
+  test('--info in :root, Filter-CSS nur ueber var(--info), keine feste Farbe', () => {
+    expect(html).toMatch(/:root\s*\{[^}]*--info:\s*#[0-9a-f]{6}/i);
+    const css = html.match(/\.korb-filter button[\s\S]*?\}\s*\.korb-filter button\[aria-pressed="true"\][^}]*\}/)[0];
+    expect(css).toContain('var(--info)');
+    expect(css).not.toMatch(/#[0-9a-f]{3,6}\b/i);
+  });
+  test('drei Filterknoepfe, alter Schalter entfernt, Filter wird gemerkt', () => {
+    expect([...html.matchAll(/data-filter="(\w+)"/g)].map(m => m[1])).toEqual(['offen', 'raus', 'alle']);
+    expect(html).not.toContain('id="korb-alle"');
+    expect(html).toMatch(/localStorage\.setItem\(KORB_FILTER_KEY/);
   });
 });
 
