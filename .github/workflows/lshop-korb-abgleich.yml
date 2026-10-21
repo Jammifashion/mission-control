@@ -1,10 +1,9 @@
 name: L-Shop-Warenkorb Abgleich
 
 on:
-  # Stündlich, seit der Erstbefüllung (BO2 Teil 2, Lauf GH-39593176457, abgenommen 21.10.).
-  # Ein Schedule-Lauf hat keine Inputs: dry_run leer → echter Lauf.
-  schedule:
-    - cron: '17 * * * *'   # jede Stunde zur Minute 17 (nicht auf :00, da laufen Backup/Sync)
+  # Nur noch von Hand (CS1): den stündlichen Lauf zur Minute 17 löst Google Cloud Scheduler
+  # aus (Job lshop-korb-abgleich, POST /api/intern/lshop-korb/abgleich, OIDC-Token).
+  # Kein schedule hier, sonst gäbe es zwei Auslöser.
   workflow_dispatch:
     inputs:
       dry_run:
@@ -61,7 +60,6 @@ jobs:
             exit 1
           fi
 
-          # Schedule-Lauf hat keine Inputs: dry_run leer -> echter Lauf.
           dry=false
           if [ "$INPUT_DRY_RUN" = "true" ]; then dry=true; fi
           payload=$(jq -cn --argjson dryRun "$dry" --arg laufId "GH-$RUN_ID" \
