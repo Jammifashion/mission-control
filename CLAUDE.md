@@ -202,7 +202,10 @@ Neue Sektionen immer mit Anker versehen:
   geschrieben). Gebrauchte Modelle = `modellAus()` ueber Shop-SKUs JFN+HonkShop (status any),
   Partner_Artikel, Erfassungsmaske, Reiter `Modelle_Zusatz` (CatalogNr, von Hand, fehlt = leer)
   + CatalogNr der Varianten.LShop_ArticleNr (zweiter Durchlauf). Ziel Reiter `LShop_Modelle`
-  (SSOT): 15 CSV-Spalten + Status/Quelle_Datei/Quelle_Datum/Stand, Schluessel ArticleNr; fehlt
+  (SSOT): 15 CSV-Spalten + Status/Quelle_Datei/Quelle_Datum/Stand + (LS2, 21.10.) `Description` =
+  L-Shop-Artikelname HINTEN (Spalte T; je Modell genau ein Wert, gemessen), nie in CSV_SPALTEN
+  einfuegen (sonst rutschen Status..Stand); erstmals ergaenzter Name zaehlt als `nameErgaenzt`,
+  ohne neuen Stand; die alte 19er-Kopfzeile wird einmal hinten ergaenzt. Schluessel ArticleNr; fehlt
   eine Nummer in der Datei -> Status "ausgelaufen", Zeile bleibt. ArticleNr/EAN/CatNrManufacturer
   als Text (RAW-String, Format TEXT erst NACH dem Schreiben setzen - values.update loescht
   es auf beschriebenen Zellen, Befund LS2; sonst 03581 -> 3581, EAN -> E+12), Preis als Zahl.

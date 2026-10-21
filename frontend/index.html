@@ -8877,7 +8877,8 @@
           zeile(`Datei: ${r.datei.name} (Stand ${r.datei.datum})`);
           zeile(`Modelle: ${r.modelle.gefunden} von ${r.modelle.gebraucht} gefunden, ${r.modelle.ohneTreffer} ohne Treffer`);
           zeile(`Zeilen: ${z.gesamt} gesamt · ${z.neu} neu · ${z.geaendert} geändert · ${z.unveraendert} unverändert · ${z.ausgelaufen} ausgelaufen`
-            + (z.reaktiviert ? ` · ${z.reaktiviert} wieder aktiv` : '') + (z.bleibtAusgelaufen ? ` · ${z.bleibtAusgelaufen} bleiben ausgelaufen` : ''));
+            + (z.reaktiviert ? ` · ${z.reaktiviert} wieder aktiv` : '') + (z.bleibtAusgelaufen ? ` · ${z.bleibtAusgelaufen} bleiben ausgelaufen` : '')
+            + (z.nameErgaenzt ? ` · Artikelname ergänzt: ${z.nameErgaenzt}` : ''));
           const spalten = Object.entries(r.geaendertJeSpalte || {}).map(([n, a]) => `${n} ${a}`).join(', ');
           zeile(`Preisänderungen (10CartonsPrice): ${r.preisAenderungen}` + (spalten ? ` · geänderte Spalten: ${spalten}` : ''));
           if (r.discontinuedGesperrt) zeile(`${r.discontinuedGesperrt} aktive Zeile(n) mit Discontinued 3/6 (nicht wählbar)`);

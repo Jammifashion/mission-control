@@ -54,7 +54,15 @@ export const CSV_SPALTEN = [
   '10CartonsPrice', 'EAN', 'QtyCarton',
 ];
 export const ZUSATZ_SPALTEN = ['Status', 'Quelle_Datei', 'Quelle_Datum', 'Stand'];
-export const KOPF = [...CSV_SPALTEN, ...ZUSATZ_SPALTEN];
+// LS2 (21.10.): L-Shop-Artikelname. Haengt am Modell (je CatalogNr genau ein Wert, gemessen),
+// steht aber wie alles hier je ArticleNr. HINTEN nach Stand - nie in CSV_SPALTEN, sonst
+// rutschen Status/Quelle_*/Stand nach rechts. Leser (lib/lshop.js) nimmt ihn ueber den Namen.
+export const NAME_SPALTE = 'Description';
+export const NACH_ZUSATZ_SPALTEN = [NAME_SPALTE];
+export const DATEI_SPALTEN = [...CSV_SPALTEN, NAME_SPALTE];   // aus der CSV gelesen
+export const KOPF = [...CSV_SPALTEN, ...ZUSATZ_SPALTEN, ...NACH_ZUSATZ_SPALTEN];
+// Kopfzeile vor LS2 (19 Spalten): wird beim naechsten Uebernehmen einmal um NAME_SPALTE ergaenzt.
+export const KOPF_ALT = [...CSV_SPALTEN, ...ZUSATZ_SPALTEN];
 export const TEXT_SPALTEN = ['ArticleNr', 'EAN', 'CatNrManufacturer'];
 export const PREIS_SPALTE = '10CartonsPrice';
 const ZAHL_SPALTEN = ['Discontinued', 'QtyCarton'];
@@ -245,7 +253,7 @@ export async function leseCsv(stream, { modelle, bestandNrs = new Set(), variant
   const gesehen = new Set();
 
   const parser = csvParser(felder => {
-    if (!idx) { idx = spaltenIndex(felder); breite = felder.length; return; }
+    if (!idx) { idx = spaltenIndex(felder, DATEI_SPALTEN); breite = felder.length; return; }
     z.dateiZeilen++;
     if (felder.length !== breite) z.falscheFeldzahl++;
     const art = t(felder[idx.ArticleNr]);
@@ -257,7 +265,7 @@ export async function leseCsv(stream, { modelle, bestandNrs = new Set(), variant
     if (gesehen.has(art)) { z.doppelteArticleNr++; return; }
     gesehen.add(art);
     const d = {};
-    for (const n of CSV_SPALTEN) d[n] = t(felder[idx[n]]);
+    for (const n of DATEI_SPALTEN) d[n] = t(felder[idx[n]]);
     zeilen.set(art, d);
   });
 
@@ -288,9 +296,12 @@ function vergleichswert(spalte, v) {
  * @returns {{ zeilen: object[], zaehler: object }}
  */
 export function abgleich({ bestand = [], csv = new Map(), datei, stand }) {
+  // nameErgaenzt (LS2): Name war leer und kommt jetzt aus der Datei. Zaehlt extra, setzt
+  // Stand NICHT neu und macht eine sonst gleiche Zeile nicht zu "geaendert" (Inhaber 21.10.).
+  // Ein spaeter GEAENDERTER Name (alt nicht leer) zaehlt normal als Spalten-Aenderung.
   const zaehler = {
     neu: 0, geaendert: 0, unveraendert: 0, ausgelaufen: 0, bleibtAusgelaufen: 0, reaktiviert: 0,
-    preisAenderungen: 0, spalten: {},
+    preisAenderungen: 0, nameErgaenzt: 0, spalten: {},
   };
   const nrs = new Set();
   const zeilen = [];
@@ -306,6 +317,9 @@ export function abgleich({ bestand = [], csv = new Map(), datei, stand }) {
       continue;
     }
     const diff = CSV_SPALTEN.filter(n => vergleichswert(n, alt[n]) !== vergleichswert(n, neu[n]));
+    const altName = t(alt[NAME_SPALTE]), neuName = t(neu[NAME_SPALTE]);
+    if (!altName && neuName) zaehler.nameErgaenzt++;
+    else if (altName !== neuName) diff.push(NAME_SPALTE);
     for (const n of diff) {
       if (n === PREIS_SPALTE) zaehler.preisAenderungen++;
       else zaehler.spalten[n] = (zaehler.spalten[n] ?? 0) + 1;
@@ -430,12 +444,16 @@ export async function leseBestand({ sheets, ssotId }) {
   }
   const kopf = (werte[0] ?? []).map(t);
   if (!kopf.length) return { fehlt: false, leer: true, zeilen: [] };
-  if (kopf.length !== KOPF.length || kopf.some((n, i) => n !== KOPF[i]))
+  const gleich = soll => kopf.length === soll.length && kopf.every((n, i) => n === soll[i]);
+  // LS2-Uebergang: die Kopfzeile von vorher (ohne NAME_SPALTE) gilt einmal noch; Uebernehmen
+  // ergaenzt sie hinten. Jede andere Abweichung bricht ab wie bisher.
+  const kopfAlt = !gleich(KOPF) && gleich(KOPF_ALT);
+  if (!gleich(KOPF) && !kopfAlt)
     throw fehler(`Kopfzeile von ${TAB_ZIEL} weicht ab (erwartet: ${KOPF.join(', ')}) – nichts geschrieben.`, 409);
   const zeilen = werte.slice(1)
     .filter(r => r.some(c => t(c)))
     .map(r => Object.fromEntries(KOPF.map((n, i) => [n, r[i] ?? ''])));
-  return { fehlt: false, zeilen };
+  return { fehlt: false, zeilen, kopfAlt };
 }
 
 // ── Lauf ────────────────────────────────────────────────────────────────────
@@ -499,6 +517,7 @@ export async function stammdatenLauf({
       gesamt: zeilen.length, aktiv: aktiv.length,
       neu: zaehler.neu, geaendert: zaehler.geaendert, unveraendert: zaehler.unveraendert,
       ausgelaufen: zaehler.ausgelaufen, bleibtAusgelaufen: zaehler.bleibtAusgelaufen, reaktiviert: zaehler.reaktiviert,
+      nameErgaenzt: zaehler.nameErgaenzt,
     },
     geaendertJeSpalte: zaehler.spalten,
     preisAenderungen: zaehler.preisAenderungen,
@@ -508,6 +527,7 @@ export async function stammdatenLauf({
     hinweise: [
       ...(q.zusatzFehlt ? [`Reiter ${TAB_ZUSATZ} fehlt – als leer behandelt.`] : []),
       ...(bestand.fehlt ? [`Reiter ${TAB_ZIEL} fehlt – wird beim Übernehmen angelegt.`] : []),
+      ...(bestand.kopfAlt ? [`Spalte ${NAME_SPALTE} fehlt noch – wird beim Übernehmen hinten angefügt (L-Shop-Artikelname).`] : []),
       ...(gelesen.zaehler.falscheFeldzahl ? [`${gelesen.zaehler.falscheFeldzahl} Zeile(n) der Datei mit abweichender Feldzahl.`] : []),
       ...(gelesen.zaehler.ungueltigeArticleNr ? [`${gelesen.zaehler.ungueltigeArticleNr} Zeile(n) ohne gültige ArticleNr (10 Ziffern) übersprungen.`] : []),
     ],
@@ -515,7 +535,7 @@ export async function stammdatenLauf({
   if (modus === 'trockenlauf') return antwort;
 
   // ── Uebernehmen ──
-  const sheetId = await sichereReiter({ sheets, ssotId, zeilenBedarf: zeilen.length + 1 });
+  const sheetId = await sichereReiter({ sheets, ssotId, zeilenBedarf: zeilen.length + 1, kopfErgaenzen: !!bestand.kopfAlt });
   await schreibeZeilen({ sheets, ssotId, zeilen, zeilenVorher: bestand.zeilen.length });
   // Textformat NACH dem Schreiben (Befund LS2): values.update setzt das Format
   // der beschriebenen Zellen zurueck - vorher gesetzt, stand es nur noch auf den
@@ -529,7 +549,7 @@ export async function stammdatenLauf({
   if (notify && baueMeldung) {
     const text = baueMeldung({
       datum: d.datum, modelle: gefunden, neu: zaehler.neu, geaendert: zaehler.geaendert,
-      ausgelaufen: zaehler.ausgelaufen, preisAenderungen: zaehler.preisAenderungen,
+      ausgelaufen: zaehler.ausgelaufen, preisAenderungen: zaehler.preisAenderungen, nameErgaenzt: zaehler.nameErgaenzt,
       ohneTreffer: nichtTreffer.map(n => n.catalogNr),
     });
     let ok = false;
@@ -541,7 +561,7 @@ export async function stammdatenLauf({
 
 // Reiter anlegen (Kopfzeile) bzw. Raster vergroessern. Das Textformat setzt
 // setzeTextformat() erst nach dem Schreiben.
-async function sichereReiter({ sheets, ssotId, zeilenBedarf }) {
+async function sichereReiter({ sheets, ssotId, zeilenBedarf, kopfErgaenzen = false }) {
   const { data } = await sheets.spreadsheets.get({ spreadsheetId: ssotId, fields: 'sheets.properties(sheetId,title,gridProperties)' });
   let tab = (data.sheets ?? []).find(s => s.properties?.title === TAB_ZIEL)?.properties;
   const requests = [];
@@ -553,10 +573,23 @@ async function sichereReiter({ sheets, ssotId, zeilenBedarf }) {
     await sheets.spreadsheets.values.update({
       spreadsheetId: ssotId, range: `${TAB_ZIEL}!A1`, valueInputOption: 'RAW', requestBody: { values: [KOPF] },
     });
-  } else if ((tab.gridProperties?.rowCount ?? 0) < zeilenBedarf) {
-    requests.push({ appendDimension: { sheetId: tab.sheetId, dimension: 'ROWS', length: zeilenBedarf - tab.gridProperties.rowCount + 100 } });
+  } else {
+    if ((tab.gridProperties?.rowCount ?? 0) < zeilenBedarf) {
+      requests.push({ appendDimension: { sheetId: tab.sheetId, dimension: 'ROWS', length: zeilenBedarf - tab.gridProperties.rowCount + 100 } });
+    }
+    // LS2: Raster braucht so viele Spalten wie KOPF, sonst scheitert values.update an der neuen Spalte.
+    if ((tab.gridProperties?.columnCount ?? 0) < KOPF.length) {
+      requests.push({ appendDimension: { sheetId: tab.sheetId, dimension: 'COLUMNS', length: KOPF.length - tab.gridProperties.columnCount } });
+    }
   }
   if (requests.length) await sheets.spreadsheets.batchUpdate({ spreadsheetId: ssotId, requestBody: { requests } });
+  // LS2-Uebergang: nur die neuen Kopfzellen hinten anfuegen (die alten 19 bleiben unberuehrt).
+  if (kopfErgaenzen) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: ssotId, range: `${TAB_ZIEL}!${colLetter(KOPF_ALT.length)}1`, valueInputOption: 'RAW',
+      requestBody: { values: [NACH_ZUSATZ_SPALTEN] },
+    });
+  }
   return tab.sheetId;
 }
 

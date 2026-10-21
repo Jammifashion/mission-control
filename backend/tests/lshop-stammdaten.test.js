@@ -467,6 +467,114 @@ describe('stammdatenLauf', () => {
   });
 });
 
+// ── LS2 (21.10.): L-Shop-Artikelname (Description) hinten an LShop_Modelle ───
+describe('LS2: Spalte Description', () => {
+  const KOPF_ALT = ls.KOPF.slice(0, -1);
+  const DATEI = 'DE_Standard_DE_EUR_07.09.2026.csv';
+
+  test('Position: hinten nach Stand, die 19 bisherigen Spalten unveraendert', () => {
+    expect(ls.KOPF.at(-1)).toBe('Description');
+    expect(ls.KOPF).toHaveLength(20);
+    expect(ls.KOPF_ALT).toEqual(KOPF_ALT);
+    expect(KOPF_ALT.slice(-4)).toEqual(['Status', 'Quelle_Datei', 'Quelle_Datum', 'Stand']);
+    expect(ls.CSV_SPALTEN).not.toContain('Description');
+  });
+
+  test('CSV: Name mit ";" und Anfuehrung, Sonderzeichen; fehlt die Spalte -> 422', async () => {
+    const mit = [{ ...BASIS[0], Description: 'QUEEN Hooded Sweat_° – Women´s' }];
+    const r = await ls.leseCsv(Readable.from([baueCsv(mit)]), { modelle: new Set(['E3000']) });
+    expect(r.zeilen.get('1000048353').Description).toBe('QUEEN Hooded Sweat_° – Women´s');
+    const r2 = await ls.leseCsv(Readable.from([baueCsv(BASIS)]), { modelle: new Set(['E3000']) });
+    expect(r2.zeilen.get('1000048353').Description).toBe('Shirt; weich, "neu"');
+    expect(r2.zeilen.get('1000048354').Description).toBe('');                       // leer bleibt leer
+    const ohne = CSV_KOPF.filter(n => n !== 'Description');
+    await expect(ls.leseCsv(Readable.from([baueCsv(BASIS, ohne)]), { modelle: new Set(['E3000']) }))
+      .rejects.toMatchObject({ status: 422, message: expect.stringMatching(/fehlt: Description/) });
+  });
+
+  describe('abgleich: Name ergaenzt zaehlt extra, ohne neuen Stand', () => {
+    const datei = { name: DATEI, datum: '07.09.2026' };
+    const alt = o => ({ ...Object.fromEntries(ls.KOPF.map(n => [n, ''])), ArticleNr: '1000000001', CatalogNr: 'E3000', color1: 'Black',
+      Status: 'aktiv', Quelle_Datei: 'alt.csv', Quelle_Datum: '01.08.2026', Stand: '2026-08-01 08:00', ...o });
+    const csvZeile = o => ({ ...Object.fromEntries(ls.DATEI_SPALTEN.map(n => [n, ''])), ArticleNr: '1000000001', CatalogNr: 'E3000', color1: 'Black', ...o });
+    const lauf1 = (a, c) => ls.abgleich({ bestand: [alt(a)], csv: new Map([['1000000001', csvZeile(c)]]), datei, stand: '2026-10-21 17:00' });
+
+    test('leer -> Name: nameErgaenzt, unveraendert, Stand bleibt, Name geschrieben', () => {
+      const { zeilen, zaehler } = lauf1({}, { Description: 'Original Patch Beanie' });
+      expect(zaehler).toMatchObject({ nameErgaenzt: 1, geaendert: 0, unveraendert: 1, spalten: {} });
+      expect(zeilen[0]).toMatchObject({ Description: 'Original Patch Beanie', Stand: '2026-08-01 08:00' });
+    });
+    test('Name ergaenzt UND andere Spalte geaendert: beides gezaehlt, Stand neu', () => {
+      const { zeilen, zaehler } = lauf1({}, { Description: 'Tennis Socks', color1: 'White' });
+      expect(zaehler).toMatchObject({ nameErgaenzt: 1, geaendert: 1, spalten: { color1: 1 } });
+      expect(zeilen[0].Stand).toBe('2026-10-21 17:00');
+    });
+    test('Name spaeter geaendert (alt nicht leer): normale Spalten-Aenderung, Stand neu', () => {
+      const { zeilen, zaehler } = lauf1({ Description: 'Alt' }, { Description: 'Neu' });
+      expect(zaehler).toMatchObject({ nameErgaenzt: 0, geaendert: 1, spalten: { Description: 1 } });
+      expect(zeilen[0].Stand).toBe('2026-10-21 17:00');
+    });
+    test('Name gleich bzw. beide leer: nichts', () => {
+      expect(lauf1({ Description: 'X' }, { Description: 'X' }).zaehler).toMatchObject({ nameErgaenzt: 0, geaendert: 0, unveraendert: 1 });
+      expect(lauf1({}, {}).zaehler).toMatchObject({ nameErgaenzt: 0, geaendert: 0, unveraendert: 1 });
+    });
+  });
+
+  describe('Uebergang: Reiter mit alter Kopfzeile (19 Spalten)', () => {
+    async function mitAltemReiter() {
+      await lauf({ modus: 'uebernehmen', datei: DATEI });                 // Reiter anlegen (neue Kopfzeile)
+      // ... auf den Stand vor LS2 zuruecksetzen: Spalte T (Description) und Kopfzelle weg
+      tabs.LShop_Modelle = tabs.LShop_Modelle.map(r => r.slice(0, 19));
+      calls = [];
+    }
+
+    test('Trockenlauf: kein 409, Hinweis, nameErgaenzt gezaehlt, nichts geschrieben', async () => {
+      await mitAltemReiter();
+      const r = await lauf({ modus: 'trockenlauf' });
+      expect(r.hinweise.join(' ')).toMatch(/Spalte Description fehlt noch/);
+      expect(r.zeilen.nameErgaenzt).toBe(1);                              // nur 1000048353 hat einen Namen
+      expect(r.zeilen.geaendert).toBe(0);
+      expect(schreibAufrufe()).toEqual([]);
+    });
+
+    test('Uebernehmen: nur T1 ergaenzt (A1:S1 unberuehrt), Spalten-Raster vergroessert, Namen geschrieben, Stand bleibt', async () => {
+      await mitAltemReiter();
+      const vorher = tabs.LShop_Modelle.map(r => [...r]);
+      spreadsheets.get.mockImplementationOnce(async () => ({ data: { sheets: Object.keys(tabs).map(title => ({
+        properties: { title, sheetId: (ids[title] ??= 100 + Object.keys(ids).length), gridProperties: { rowCount: 1000, columnCount: 19 } },
+      })) } }));
+      const r = await lauf({ modus: 'uebernehmen', datei: DATEI });
+      expect(tabs.LShop_Modelle[0]).toEqual(ls.KOPF);
+      const kopfUpdates = calls.filter(c => c.art === 'update' && /!([A-Z]+)1$/.test(c.range));
+      expect(kopfUpdates.map(c => c.range)).toEqual(['LShop_Modelle!T1']);
+      const spalten = calls.filter(c => c.art === 'batchUpdate').flatMap(c => c.requests).filter(q => q.appendDimension?.dimension === 'COLUMNS');
+      expect(spalten).toEqual([{ appendDimension: { sheetId: expect.any(Number), dimension: 'COLUMNS', length: 1 } }]);
+      const z = Object.fromEntries(zielZeilen().map(x => [x.ArticleNr, x]));
+      expect(z['1000048353'].Description).toBe('Shirt; weich, "neu"');
+      expect(z['1000048354'].Description).toBe('');
+      const standVorher = Object.fromEntries(vorher.slice(1).map(x => [x[0], x[ls.KOPF.indexOf('Stand')]]));
+      expect(z['1000048353'].Stand).toBe(standVorher['1000048353']);      // nur Name ergaenzt -> Stand bleibt
+      expect(r.zeilen).toMatchObject({ nameErgaenzt: 1, geaendert: 0 });
+      expect(r.rueckgelesen.ok).toBe(true);
+      // Danach gilt die neue Kopfzeile streng: zweiter Lauf ohne Hinweis
+      const r2 = await lauf({ modus: 'trockenlauf' });
+      expect(r2.hinweise.join(' ')).not.toMatch(/Description fehlt/);
+      expect(r2.zeilen.nameErgaenzt).toBe(0);
+    });
+
+    test('andere Kopfzeile (weder alt noch neu) -> weiter 409', async () => {
+      tabs.LShop_Modelle = [[...KOPF_ALT.slice(0, -1), 'Notiz']];
+      await expect(lauf({ modus: 'uebernehmen', datei: DATEI })).rejects.toMatchObject({ status: 409 });
+    });
+  });
+
+  test('Chat-Text nennt ergaenzte Namen nur, wenn es welche gibt', () => {
+    const basisText = { datum: '07.09.2026', modelle: 1, neu: 0, geaendert: 0, ausgelaufen: 0, preisAenderungen: 0 };
+    expect(buildLShopStammdatenNachricht({ ...basisText, nameErgaenzt: 13660 })).toContain('L-Shop-Artikelname ergänzt: 13660 Zeilen');
+    expect(buildLShopStammdatenNachricht({ ...basisText, nameErgaenzt: 0 })).not.toContain('Artikelname');
+  });
+});
+
 describe('Chat-Text', () => {
   test('hoechstens 10 Nicht-Treffer + "weitere", keine Preise', () => {
     const text = buildLShopStammdatenNachricht({
