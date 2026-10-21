@@ -4,7 +4,7 @@
 
 import {
   KORB_SPALTEN, STATUS, HINWEIS, TAB_KORB, GRUENDE,
-  korbZeilen, statusPlan, grundVorschlag, naechsteEigenNummer, bestellbareVarianten, buendele, korbZaehler, lshopText,
+  korbZeilen, statusPlan, grundVorschlag, naechsteEigenNummer, bestellbareVarianten, buendele, korbZaehler, lshopText, rausAktuell,
 } from '../utils/korb-logic.js';
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
@@ -124,7 +124,7 @@ describe('grundVorschlag und Zaehler', () => {
     expect(korbZaehler([
       { Status: 'offen', Hinweis: '' }, { Status: 'offen', Hinweis: HINWEIS.UNBEZAHLT },
       { Status: 'abgewählt', Hinweis: HINWEIS.STORNIERT }, { Status: 'bestellt', Hinweis: '' },
-    ])).toEqual({ offen: 2, herausgenommen: 1, mitHinweis: 1 });
+    ])).toEqual({ offen: 2, herausgenommen: 1, herausgenommenAktuell: 1, mitHinweis: 1 });   // ohne Datum = aktuell
     expect(GRUENDE).toEqual(['Ware da / Lager', 'schon bestellt', 'Bestellung storniert', 'Sonstiges']);
   });
 });
@@ -198,6 +198,51 @@ describe('eigene Positionen', () => {
     expect(b.positionen.map(p => [p.herkunft, p.menge])).toEqual([['shop', 1], ['eigen', 2]]);
     expect(b.zuBestellen).toBe(3);
     expect(k.summen).toMatchObject({ offen: 4, herausgenommen: 0 });
+  });
+});
+
+// ── UX: "Herausgenommen" nur 14 Tage (feste Uhr) ─────────────────────────────
+describe('Herausgenommen: 14-Tage-Grenze', () => {
+  const JETZT = new Date('2026-11-04T12:00:00.000Z');
+  const raus = (datum, hinweis = '') => ({ Status: 'abgewählt', Status_Datum: datum, Hinweis: hinweis });
+  test.each([
+    ['genau 14 Tage', '2026-10-21T12:00:00.000Z', true],
+    ['14 Tage + 1 ms', '2026-10-21T11:59:59.999Z', false],
+    ['gestern', '2026-11-03T12:00:00.000Z', true],
+    ['15 Tage', '2026-10-20T12:00:00.000Z', false],
+    ['Datum leer -> zeigen', '', true],
+    ['Datum unlesbar -> zeigen', 'kaputt', true],
+  ])('%s', (_n, datum, erwartet) => {
+    expect(rausAktuell(raus(datum), JETZT)).toBe(erwartet);
+  });
+
+  test('"noch nicht bezahlt" immer, auch alt und mit weiterem Hinweis', () => {
+    expect(rausAktuell(raus('2026-01-01T00:00:00.000Z', HINWEIS.UNBEZAHLT), JETZT)).toBe(true);
+    expect(rausAktuell(raus('2026-01-01T00:00:00.000Z', `${HINWEIS.UNBEZAHLT} · ${HINWEIS.MENGE}`), JETZT)).toBe(true);
+    expect(rausAktuell(raus('2026-01-01T00:00:00.000Z', HINWEIS.STORNIERT), JETZT)).toBe(false);
+  });
+
+  test('leseKorb mit fester Uhr: Zaehler sichtbar/gesamt, Flag je Position, nichts geloescht', async () => {
+    const { tabs, sheets } = await gefuellt();
+    const sp = n => KORB_SPALTEN.indexOf(n);
+    const setze = (s, status, datum, hinweis = '') => {
+      const z = zeileVon(tabs, s);
+      z[sp('Status')] = status; z[sp('Status_Datum')] = datum; z[sp('Hinweis')] = hinweis;
+    };
+    setze('JFN:21593:5512', 'abgewählt', '2026-11-01T08:00:00.000Z');                     // 3 Tage
+    setze('JFN:21593:5513', 'abgewählt', '2026-09-30T08:00:00.000Z');                     // alt
+    setze('JFN:21600:5600', 'abgewählt', '2026-09-01T08:00:00.000Z', HINWEIS.UNBEZAHLT);  // alt, unbezahlt
+    const k = await leseKorb({ shop: 'jfn', sheets, jetzt: () => JETZT });
+    expect(k.summen).toMatchObject({ herausgenommen: 3, herausgenommenAktuell: 2 });
+    const flag = Object.fromEntries(k.buendel.flatMap(b => b.positionen).map(p => [p.schluessel, p.rausAktuell]));
+    expect(flag).toEqual({ 'JFN:21593:5512': true, 'JFN:21593:5513': false, 'JFN:21600:5600': true });
+    expect(korbZeilen(tabs[TAB_KORB]).zeilen).toHaveLength(3);
+  });
+
+  test('Frontend: Link "ältere anzeigen (n)" und Gesamtzahl klein am Knopf', () => {
+    const html = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../frontend/index.html'), 'utf8');
+    expect(html).toContain('ältere anzeigen (${rausAelter})');
+    expect(html).toMatch(/raus: `\$\{rausSichtbar\} <small>\/ \$\{z\.herausgenommen\}<\/small>`/);
   });
 });
 

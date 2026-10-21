@@ -222,7 +222,7 @@ describe('buendele / leseKorb', () => {
     const tabs = grundTabs();
     const { sheets } = machSheets(tabs);
     await runKorbAbgleich({ sheets, wcFuer: () => machWc([bestellung(5, 'processing', [pos(9, 100, 501)])]), jetzt: () => new Date() });
-    expect((await leseKorb({ shop: 'jfn', sheets })).summen).toEqual({ positionen: 1, zuBestellen: 1, artikelnummern: 1, offen: 1, herausgenommen: 0, mitHinweis: 0 });
+    expect((await leseKorb({ shop: 'jfn', sheets })).summen).toEqual({ positionen: 1, zuBestellen: 1, artikelnummern: 1, offen: 1, herausgenommen: 0, herausgenommenAktuell: 0, mitHinweis: 0 });
     expect((await leseKorb({ shop: 'honk', sheets })).summen.positionen).toBe(0);
     expect((await leseKorb({ shop: 'jfn', sheets: machSheets(grundTabs({ mitKorb: false })).sheets })).reiterFehlt).toBe(true);
   });

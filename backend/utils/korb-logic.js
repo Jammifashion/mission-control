@@ -290,7 +290,7 @@ export function lshopText(nr, m = {}) {
   return [t(nr), t(m.catalogNr), t(m.bezeichnung), farbe, t(m.size)].filter(Boolean).join(' · ');
 }
 
-export function buendele(zeilen, modelle = new Map(), namen = {}) {
+export function buendele(zeilen, modelle = new Map(), namen = {}, jetzt = new Date()) {
   const gruppen = new Map();
   for (const z of zeilen) {
     const nr = z.LShop_ArticleNr;
@@ -315,6 +315,8 @@ export function buendele(zeilen, modelle = new Map(), namen = {}) {
       lshopText: g.lshopText,
       menge, status: z.Status, grund: z.Grund, notiz: z.Notiz, hinweis: z.Hinweis, vorschlag,
       angelegt: z.Angelegt, statusDatum: z.Status_Datum,
+      // Nur fuer abgewaehlte Zeilen von Bedeutung: in den letzten 14 Tagen (oder unbezahlt).
+      rausAktuell: z.Status === STATUS.ABGEWAEHLT && rausAktuell(z, jetzt),
       // BO3: nur offen <-> abgewaehlt ist in MC bearbeitbar; bestellt/geliefert/Lager setzt erst BO4.
       bearbeitbar: z.Status === STATUS.OFFEN || z.Status === STATUS.ABGEWAEHLT,
       grundVorschlag: grundVorschlag(z.Hinweis),
@@ -323,12 +325,32 @@ export function buendele(zeilen, modelle = new Map(), namen = {}) {
   return [...gruppen.values()].sort((a, b) => b.zuBestellen - a.zuBestellen || a.articleNr.localeCompare(b.articleNr));
 }
 
-/** Zaehler oben in der Ansicht: offen / herausgenommen / offen mit Hinweis. */
-export function korbZaehler(zeilen) {
+// Filter "Herausgenommen": standardmaessig nur die letzten 14 Tage (nach Status_Datum).
+export const RAUS_TAGE = 14;
+
+/**
+ * Gehoert eine abgewaehlte Zeile in die Standardansicht "Herausgenommen"?
+ * Ja, wenn Status_Datum hoechstens RAUS_TAGE zurueckliegt, oder wenn sie den Hinweis
+ * "noch nicht bezahlt" traegt (immer). Fehlt das Datum oder ist es unlesbar, ebenfalls
+ * ja - lieber zeigen als still verstecken. Gezaehlt wird in ms ab jetzt (fester
+ * 14x24h-Abstand, keine Kalendertage). Es wird nichts geloescht, aeltere blendet die
+ * Ansicht per Link ein.
+ */
+export function rausAktuell(z, jetzt) {
+  if (t(z.Hinweis).split(TRENNER).includes(HINWEIS.UNBEZAHLT)) return true;
+  const d = Date.parse(t(z.Status_Datum));
+  if (Number.isNaN(d)) return true;
+  return new Date(jetzt).getTime() - d <= RAUS_TAGE * 24 * 60 * 60 * 1000;
+}
+
+/** Zaehler oben in der Ansicht: offen / herausgenommen (davon aktuell) / offen mit Hinweis. */
+export function korbZaehler(zeilen, jetzt = new Date()) {
   const offen = zeilen.filter(z => z.Status === STATUS.OFFEN);
+  const raus  = zeilen.filter(z => z.Status === STATUS.ABGEWAEHLT);
   return {
     offen: offen.length,
-    herausgenommen: zeilen.filter(z => z.Status === STATUS.ABGEWAEHLT).length,
+    herausgenommen: raus.length,
+    herausgenommenAktuell: raus.filter(z => rausAktuell(z, jetzt)).length,
     mitHinweis: offen.filter(z => t(z.Hinweis)).length,
   };
 }

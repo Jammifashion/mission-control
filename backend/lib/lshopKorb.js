@@ -379,18 +379,19 @@ export async function legeEigenePositionAn({ eingabe, sheets: s, jetzt = () => n
 
 // ── Anzeige ─────────────────────────────────────────────────────────────────
 
-export async function leseKorb({ shop, sheets: s } = {}) {
+export async function leseKorb({ shop, sheets: s, jetzt = () => new Date() } = {}) {
   const spreadsheetId = process.env.GOOGLE_SHEET_ID;
   if (!spreadsheetId) throw fehler('GOOGLE_SHEET_ID fehlt.', 503);
   const sheets = s ?? await sheetsClient();
   const info = await reiterInfo(sheets, spreadsheetId);
-  if (!info) return { reiterFehlt: true, buendel: [], gruende: GRUENDE, summen: { positionen: 0, zuBestellen: 0, artikelnummern: 0, offen: 0, herausgenommen: 0, mitHinweis: 0 } };
+  if (!info) return { reiterFehlt: true, buendel: [], gruende: GRUENDE, summen: { positionen: 0, zuBestellen: 0, artikelnummern: 0, offen: 0, herausgenommen: 0, herausgenommenAktuell: 0, mitHinweis: 0 } };
 
   const { zeilen } = korbZeilen(await leseKorbWerte(sheets, spreadsheetId));
   const meine = zeilen.filter(z => normalizeShop(z.Shop || 'jfn') === normalizeShop(shop));
   const lshop = await ladeLShopZeilen({ sheets, spreadsheetId });
   const maske = await leseReiterSpalten({ tab: TAB_MASKE, spalten: { id: 'ID', name: 'Produktname' }, sheets, spreadsheetId });
-  const buendel = buendele(meine, new Map(lshop.map(z => [z.articleNr, z])), Object.fromEntries(maske.map(m => [m.id, m.name])));
+  const nun = jetzt();
+  const buendel = buendele(meine, new Map(lshop.map(z => [z.articleNr, z])), Object.fromEntries(maske.map(m => [m.id, m.name])), nun);
   return {
     reiterFehlt: false,
     buendel,
@@ -399,7 +400,7 @@ export async function leseKorb({ shop, sheets: s } = {}) {
       positionen: meine.length,
       zuBestellen: buendel.reduce((n, b) => n + b.zuBestellen, 0),
       artikelnummern: buendel.filter(b => b.zuBestellen > 0).length,
-      ...korbZaehler(meine),
+      ...korbZaehler(meine, nun),
     },
   };
 }

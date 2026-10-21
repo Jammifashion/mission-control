@@ -3876,7 +3876,9 @@
       const KORB_FILTER_KEY = 'mc_korb_filter';
       const korbFilterLesen = () => { try { const f = localStorage.getItem(KORB_FILTER_KEY); return ['offen', 'raus', 'alle'].includes(f) ? f : 'offen'; } catch { return 'offen'; } };
       const korbZustand = { daten: null, auswahl: new Map(), filter: korbFilterLesen() };   // auswahl: Schluessel -> Position
-      const korbFilterPasst = p => korbZustand.filter === 'alle' || (korbZustand.filter === 'raus' ? p.status === 'abgewählt' : p.status === 'offen');
+      // "Herausgenommen" zeigt nur die letzten 14 Tage (+ unbezahlt, rausAktuell vom Server), aeltere per Link.
+      const korbFilterPasst = p => korbZustand.filter === 'alle'
+        || (korbZustand.filter === 'raus' ? p.status === 'abgewählt' && (p.rausAktuell || korbZustand.rausAeltere) : p.status === 'offen');
 
       function korbPositionZeile(p) {
         const herkunft = p.herkunft === 'eigen' ? `Eigen · ${korbEsc(p.referenz)}` : `${korbEsc(p.shop)} #${korbEsc(p.bestellnummer)} · Pos. ${korbEsc(p.position)}`;
@@ -3924,19 +3926,24 @@
         document.getElementById('korb-summe').textContent =
           `L-Shop-Warenkorb · ${z.zuBestellen} Stück zu bestellen · ${z.artikelnummern} Artikelnummer${z.artikelnummern !== 1 ? 'n' : ''}`;
         document.getElementById('korb-zaehler').textContent = z.mitHinweis ? `${z.mitHinweis} offene Position${z.mitHinweis !== 1 ? 'en' : ''} mit Hinweis` : '';
-        const zahl = { offen: z.offen, raus: z.herausgenommen, alle: z.positionen };
+        // Herausgenommen: Zaehler = sichtbare Anzahl (14 Tage + unbezahlt, oder alle nach "ältere anzeigen"), klein die Gesamtzahl.
+        const rausSichtbar = korbZustand.rausAeltere ? z.herausgenommen : z.herausgenommenAktuell;
+        const rausAelter = z.herausgenommen - z.herausgenommenAktuell;
+        const zahl = { offen: `${z.offen}`, raus: `${rausSichtbar} <small>/ ${z.herausgenommen}</small>`, alle: `${z.positionen}` };
         const name = { offen: 'Offen', raus: 'Herausgenommen', alle: 'Alle' };
         document.querySelectorAll('#korb-filter [data-filter]').forEach(btn => {
           const f = btn.dataset.filter;
-          btn.textContent = `${name[f]} (${zahl[f]})`;
+          btn.innerHTML = `${name[f]} (${zahl[f]})`;
           btn.setAttribute('aria-pressed', String(f === korbZustand.filter));
         });
         const sichtbar = d.buendel
           .map(b => ({ ...b, zeigen: b.positionen.filter(korbFilterPasst) }))
           .filter(b => b.zeigen.length);
+        const aeltereLink = korbZustand.filter === 'raus' && !korbZustand.rausAeltere && rausAelter > 0
+          ? `<button class="korb-link" type="button" id="korb-aeltere">ältere anzeigen (${rausAelter})</button>` : '';
         if (!sichtbar.length) {
-          const leer = { offen: 'Keine offenen Positionen.', raus: 'Keine herausgenommenen Positionen.', alle: 'Der Korb ist leer.' };
-          el.innerHTML = `<p style="color:var(--muted);font-size:0.84rem;">${d.buendel.length ? leer[korbZustand.filter] : 'Der Korb ist leer.'}</p>`;
+          const leer = { offen: 'Keine offenen Positionen.', raus: 'Keine herausgenommenen Positionen in den letzten 14 Tagen.', alle: 'Der Korb ist leer.' };
+          el.innerHTML = `<p style="color:var(--muted);font-size:0.84rem;">${d.buendel.length ? leer[korbZustand.filter] : 'Der Korb ist leer.'}</p>${aeltereLink}`;
         } else {
           el.innerHTML = sichtbar.map(b => {
             const waehlbar = b.zeigen.filter(p => p.status === 'offen' && p.bearbeitbar);
@@ -3950,7 +3957,7 @@
                 <div class="lshop-card-orders">${b.zeigen.map(korbPositionZeile).join('')}</div>
               </div>
             </div>`;
-          }).join('');
+          }).join('') + aeltereLink;
         }
         korbLeisteAktualisieren();
       }
@@ -4017,6 +4024,7 @@
       });
 
       document.getElementById('korb-liste')?.addEventListener('click', async ev => {
+        if (ev.target.id === 'korb-aeltere') { korbZustand.rausAeltere = true; korbZeichnen(); return; }
         const s = ev.target.dataset?.zurueck;
         if (!s) return;
         ev.target.disabled = true;
@@ -4033,6 +4041,7 @@
         const f = ev.target.closest('[data-filter]')?.dataset.filter;
         if (!f) return;
         korbZustand.filter = f;
+        korbZustand.rausAeltere = false;   // "ältere anzeigen" gilt nur, bis der Filter wechselt
         try { localStorage.setItem(KORB_FILTER_KEY, f); } catch { /* ohne Speicher gilt der Filter bis zum Neuladen */ }
         korbZeichnen();
       });
