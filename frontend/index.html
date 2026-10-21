@@ -136,6 +136,17 @@
         color: var(--accent);
         border-bottom-color: var(--accent);
       }
+      /* NAV4: Langname am Desktop, Kurzname am Handy (6 Bereiche in einer Zeile). */
+      nav .kurz { display: none; }
+      @media (max-width: 720px) {
+        nav button { padding: 0.7rem 0.25rem; font-size: 0.8rem; }
+        nav .lang { display: none; }
+        nav .kurz { display: inline; }
+      }
+      /* Shop-Badge in Bereichen, in denen der Shop nicht wirkt */
+      #shop-badge.shop-inaktiv { opacity: 0.4; }
+      /* 2. Ebene fuer Bereiche mit mehreren Panels (Partner, Kunden & Jey) */
+      .bereich-leiste { padding: 0 1.5rem; margin-bottom: 0; }
 
       /* ── Main panels ── */
       main { overflow-y: auto; }
@@ -184,7 +195,9 @@
       .orders-table tr:last-child td { border-bottom: none; }
 
       /* ── Sub-tabs (Auftragsmonitor) ── */
-      .sub-tabs { display: flex; gap: 0; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); }
+      /* Jede Reiterzeile scrollt fuer sich waagrecht (Handy), nicht die ganze Seite. */
+      .sub-tabs { display: flex; gap: 0; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+      .sub-tab, .mode-btn, .lshop-tab, .dtf-tab { white-space: nowrap; flex-shrink: 0; }
       .sub-tab {
         background: none; border: none; border-bottom: 2px solid transparent;
         color: var(--muted); cursor: pointer; font-size: 0.85rem; font-weight: 500;
@@ -202,7 +215,7 @@
       .orders-summary strong { color: var(--fg); }
 
       /* ── L-Shop inner tabs ── */
-      .lshop-inner-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1rem; }
+      .lshop-inner-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1rem; overflow-x: auto; overflow-y: hidden; }
       .lshop-tab {
         background: none; border: none; border-bottom: 2px solid transparent;
         color: var(--muted); cursor: pointer; font-size: 0.82rem; font-weight: 500;
@@ -740,7 +753,7 @@
 
 
       .panel-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; padding-top: 1rem; border-top: 1px solid var(--border); margin-top: 0.25rem; }
-      .mode-toggle { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+      .mode-toggle { display: flex; gap: 0.5rem; margin-bottom: 1rem; overflow-x: auto; scrollbar-width: thin; }
       .mode-btn { padding: 0.5rem 1rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 0.88rem; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
       .mode-btn.active { background: var(--accent); color: #111; border-color: var(--accent); }
       .mode-btn:not(.active):hover { border-color: var(--accent); color: var(--accent); }
@@ -939,17 +952,17 @@
     </div>
 
     <nav>
-      <button class="active" data-panel="dashboard">Dashboard</button>
-      <button data-panel="orders"><span id="nav-orders-label">Auftragsmonitor</span><span id="nav-orders-badge" class="nav-badge"></span></button>
-      <button data-panel="products">Produkte</button>
-      <button data-panel="anfragen">Kundenanfragen Extern</button>
-      <button data-panel="agent-wissen">Agent-Wissen</button>
-      <button data-panel="partnerportal">Partnerportal</button>
-      <button data-panel="festpreis">Festpreis</button>
-      <button data-panel="settings">Einstellungen</button>
+      <button class="active" data-bereich="dashboard"><span class="lang">Dashboard</span><span class="kurz">Start</span></button>
+      <button data-bereich="bestellen"><span class="lang">Bestellen &amp; Produktion</span><span class="kurz">Bestellen</span><span id="nav-orders-badge" class="nav-badge"></span></button>
+      <button data-bereich="artikel"><span class="lang">Artikel</span><span class="kurz">Artikel</span></button>
+      <button data-bereich="partner"><span class="lang">Partner</span><span class="kurz">Partner</span></button>
+      <button data-bereich="kunden"><span class="lang">Kunden &amp; Jey</span><span class="kurz">Kunden</span></button>
+      <button data-bereich="system"><span class="lang">System</span><span class="kurz">System</span></button>
     </nav>
 
     <main>
+      <!-- NAV4: 2. Ebene fuer Partner und Kunden & Jey (baut oeffneAnsicht) -->
+      <div id="bereich-leiste" class="sub-tabs bereich-leiste" hidden></div>
       <!-- Dashboard -->
       <section id="panel-dashboard" class="panel active">
         <div class="dash-greeting">
@@ -1002,7 +1015,7 @@
       <!-- Auftragsmonitor -->
       <section id="panel-orders" class="panel">
         <div class="sub-tabs">
-          <button class="sub-tab active" data-subtab="tab-jfn-shop">Jammifashion Shop</button>
+          <button class="sub-tab active" data-subtab="tab-jfn-shop">Bestellungen</button>
           <button class="sub-tab" data-subtab="tab-dtf">DTF Bestellungen</button>
           <button class="sub-tab" data-subtab="tab-lshop">L-Shop Bestellungen</button>
           <button class="sub-tab" data-subtab="tab-eingaenge">Anfragen &amp; Eigenaufträge<span id="sub-eingaenge-badge" class="nav-badge"></span></button>
@@ -1062,8 +1075,8 @@
         <!-- Modus-Auswahl -->
         <div class="mode-toggle">
           <button class="mode-btn active" id="mode-btn-new">＋ Neu anlegen</button>
-          <button class="mode-btn" id="mode-btn-seo">🔍 SEO Daten</button>
           <button class="mode-btn" id="mode-btn-edit">✏️ Artikel ändern</button>
+          <button class="mode-btn" id="mode-btn-seo">🔍 SEO Daten</button>
           <button class="mode-btn" id="mode-btn-seoedit">🔎 SEO-Daten ändern</button>
         </div>
 
@@ -2172,13 +2185,11 @@
         b.textContent = shop === 'honk' ? 'HONK' : 'JFN';
         b.classList.toggle('shop-honk', shop === 'honk');
         b.title = (shop === 'honk' ? 'HonkShop' : 'JammiFashion') + ' – Klick zum Wechseln';
-        const ordersLabel = document.getElementById('nav-orders-label');
-        if (ordersLabel) ordersLabel.textContent = shop === 'honk' ? 'HonkShop' : 'JammiFashion Shop';
         // NAV3: Unterreiter zeigen, fuer welchen Shop sie gelten (Produktions_Status,
         // DTF-/L-Shop-Protokoll sind je Shop getrennt).
         const kurz = shop === 'honk' ? 'HONK' : 'JFN';
         const sub = (k, text) => { const el = document.querySelector(`[data-subtab="${k}"]`); if (el) el.textContent = text; };
-        sub('tab-jfn-shop', shop === 'honk' ? 'HonkShop' : 'Jammifashion Shop');
+        sub('tab-jfn-shop', `Bestellungen (${kurz})`);
         sub('tab-dtf',      `DTF Bestellungen (${kurz})`);
         sub('tab-lshop',    `L-Shop Bestellungen (${kurz})`);
         const artikelTab = document.querySelector('[data-ptab="artikel"]');
@@ -2272,9 +2283,8 @@
           if (!remember) localStorage.removeItem(SHOP_KEY);
           setCurrentShop(btn.dataset.shopChoice, remember);
           closeShopModal();
-          // Aktiven Panel neu laden, damit Daten zum neuen Shop kommen.
-          const active = document.querySelector('nav button.active');
-          active?.click();
+          // Aktuelle Ansicht neu laden, damit Daten zum neuen Shop kommen (NAV4).
+          oeffneAnsicht(aktuelleAnsicht.bereich, aktuelleAnsicht.punkt);
         });
       });
       document.getElementById('shop-badge')?.addEventListener('click', openShopModal);
@@ -2289,23 +2299,158 @@
       }
 
       // ── SECTION: Navigation ──
-      document.querySelectorAll('nav button').forEach(btn => {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
-          document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-          btn.classList.add('active');
-          document.getElementById(`panel-${btn.dataset.panel}`).classList.add('active');
-          if (btn.dataset.panel === 'dashboard')     loadDashboard();
-          if (btn.dataset.panel === 'orders')        loadOrders();
-          if (btn.dataset.panel === 'products') {
-            ssot.kategorien.length ? populateCategories() : loadSsotData();
-            // Versandklassen einzeln nachladen, wenn sie fehlen (loadSsotData laedt sie ohnehin)
-            if (ssot.kategorien.length && !ssot.versandGeladen) ladeVersandklassen();
-          }
-          if (btn.dataset.panel === 'anfragen')      loadAnfragen();
-          if (btn.dataset.panel === 'agent-wissen') { loadAgentWissen(); loadAgentPrompt(); }
-          if (btn.dataset.panel === 'partnerportal') loadPartnerportal();
-        });
+      // NAV4: 6 Bereiche oben, darunter die Unterpunkte. Panels, IDs, Unterreiter
+      // und Lade-Funktionen sind unveraendert; die Tabelle sagt nur, welcher
+      // Bereich/Unterpunkt welches Panel und welchen vorhandenen Knopf oeffnet.
+      // Adresse: #bereich/unterpunkt (Neuladen/Lesezeichen bleiben auf der Ansicht).
+      // ── Navigation-Tabelle: Anfang ──
+      // knopf:    vorhandener Unterreiter-/Modus-Knopf des Panels (wird geklickt).
+      // leiste:   Bereich mit mehreren Panels -> eigene 2. Ebene (#bereich-leiste).
+      // shop:     wirkt das Shop-Badge hier? (Unterpunkt vor Bereich)
+      // neuLaden: Knopf beim erneuten Oeffnen (z. B. Shop-Wechsel) noch einmal klicken.
+      const BEREICHE = {
+        dashboard: { label: 'Dashboard', shop: true, punkte: [
+          { id: 'start', panel: 'dashboard' },
+        ] },
+        bestellen: { label: 'Bestellen & Produktion', shop: true, punkte: [
+          { id: 'bestellungen', panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-jfn-shop"]' },
+          { id: 'dtf',          panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-dtf"]',       neuLaden: true },
+          { id: 'lshop',        panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-lshop"]',     neuLaden: true },
+          { id: 'anfragen',     panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-eingaenge"]', neuLaden: true },
+        ] },
+        artikel: { label: 'Artikel', shop: true, punkte: [
+          { id: 'neu',         panel: 'products', knopf: '#mode-btn-new' },
+          { id: 'aendern',     panel: 'products', knopf: '#mode-btn-edit' },
+          { id: 'seo',         panel: 'products', knopf: '#mode-btn-seo' },
+          { id: 'seo-aendern', panel: 'products', knopf: '#mode-btn-seoedit' },
+        ] },
+        partner: { label: 'Partner', leiste: true, punkte: [
+          { id: 'lizenz',    label: 'Lizenzpartner', panel: 'partnerportal', shop: true },
+          { id: 'festpreis', label: 'Festpreis',     panel: 'festpreis',     shop: false },   // Shop je Partner
+        ] },
+        kunden: { label: 'Kunden & Jey', leiste: true, shop: false, punkte: [
+          { id: 'anfragen', label: 'Kundenanfragen', panel: 'anfragen' },
+          { id: 'wissen',   label: 'Agent-Wissen',   panel: 'agent-wissen' },
+        ] },
+        system: { label: 'System', shop: false, punkte: [
+          { id: 'einstellungen', panel: 'settings' },
+        ] },
+      };
+
+      // Bereich + Unterpunkt pruefen; Unbekanntes faellt auf Dashboard bzw. "kein Unterpunkt".
+      function findeAnsicht(bereich, punkt) {
+        const b   = Object.hasOwn(BEREICHE, bereich) ? bereich : 'dashboard';
+        const def = BEREICHE[b];
+        const p   = def.punkte.find(x => x.id === punkt) ?? null;
+        return { bereich: b, punkt: p ? p.id : null, def, p };
+      }
+      // "#bestellen/dtf" -> Ansicht
+      function ansichtAusHash(hash) {
+        const [b = '', p = ''] = String(hash ?? '').replace(/^#\/?/, '').split('/');
+        let bd = b, pd = p;
+        try { bd = decodeURIComponent(b); pd = decodeURIComponent(p); } catch { /* kaputte Adresse -> roh */ }
+        return findeAnsicht(bd, pd);
+      }
+      const hashFuer = (bereich, punkt) => `#${bereich}${punkt ? `/${punkt}` : ''}`;
+      function shopWirkt(bereich, punkt) {
+        const a = findeAnsicht(bereich, punkt);
+        return a.p?.shop ?? a.def.shop ?? true;
+      }
+      // ── Navigation-Tabelle: Ende ──
+
+      const aktuelleAnsicht = { bereich: 'dashboard', punkt: 'start' };
+      const letzterPunkt = {};   // je Bereich mit eigener Leiste: zuletzt offener Unterpunkt
+
+      // Lader beim Oeffnen eines Panels - dieselben Aufrufe wie vor NAV4.
+      // Festpreis laedt im zweiten Script-Block (Ereignis mc:ansicht).
+      const PANEL_LADER = {
+        dashboard: () => loadDashboard(),
+        orders:    () => loadOrders(),
+        products:  () => {
+          ssot.kategorien.length ? populateCategories() : loadSsotData();
+          // Versandklassen einzeln nachladen, wenn sie fehlen (loadSsotData laedt sie ohnehin)
+          if (ssot.kategorien.length && !ssot.versandGeladen) ladeVersandklassen();
+        },
+        anfragen:       () => loadAnfragen(),
+        'agent-wissen': () => { loadAgentWissen(); loadAgentPrompt(); },
+        partnerportal:  () => loadPartnerportal(),
+      };
+
+      // Unterpunkt, dessen vorhandener Knopf gerade aktiv ist (Bestellen, Artikel).
+      function aktiverPunkt(bereich) {
+        const def = BEREICHE[bereich];
+        const p = def.punkte.find(x => x.knopf && document.querySelector(x.knopf)?.classList.contains('active'));
+        return p?.id ?? letzterPunkt[bereich] ?? def.punkte[0].id;
+      }
+
+      function merkeAnsicht(bereich, punkt) {
+        aktuelleAnsicht.bereich = bereich;
+        aktuelleAnsicht.punkt   = punkt;
+        const h = hashFuer(bereich, punkt);
+        if (location.hash !== h) history.replaceState(null, '', h);
+        const badge = document.getElementById('shop-badge');
+        if (badge) {
+          const wirkt = shopWirkt(bereich, punkt);
+          badge.classList.toggle('shop-inaktiv', !wirkt);
+          badge.title = (currentShop() === 'honk' ? 'HonkShop' : 'JammiFashion')
+            + (wirkt ? ' – Klick zum Wechseln' : ' – gilt in diesem Bereich nicht');
+        }
+      }
+
+      function zeigeBereichsleiste(bereich, punkt) {
+        const el  = document.getElementById('bereich-leiste');
+        const def = BEREICHE[bereich];
+        if (!def.leiste) { el.hidden = true; el.innerHTML = ''; return; }
+        el.hidden = false;
+        el.innerHTML = def.punkte.map(p =>
+          `<button class="sub-tab${p.id === punkt ? ' active' : ''}" data-punkt="${p.id}">${p.label}</button>`).join('');
+      }
+
+      // Oeffnet Bereich + Unterpunkt. Ohne Unterpunkt bleibt bei Bestellen/Artikel
+      // der zuletzt aktive Reiter stehen (wie vor NAV4 beim Klick auf den Reiter).
+      function oeffneAnsicht(bereich, punkt, { neuLaden = true } = {}) {
+        const a = findeAnsicht(bereich, punkt);
+        const b = a.bereich, def = a.def;
+        let p = a.p;
+        if (!p && def.leiste) p = def.punkte.find(x => x.id === letzterPunkt[b]) ?? def.punkte[0];
+        const panel = (p ?? def.punkte[0]).panel;
+
+        document.querySelectorAll('nav button[data-bereich]').forEach(x => x.classList.toggle('active', x.dataset.bereich === b));
+        document.querySelectorAll('main > .panel').forEach(x => x.classList.toggle('active', x.id === `panel-${panel}`));
+        zeigeBereichsleiste(b, p?.id);
+
+        if (neuLaden) PANEL_LADER[panel]?.();
+        if (p?.knopf) {
+          const k = document.querySelector(p.knopf);
+          if (k && (!k.classList.contains('active') || (neuLaden && p.neuLaden))) k.click();
+        }
+        if (p) letzterPunkt[b] = p.id;
+        merkeAnsicht(b, p?.id ?? aktiverPunkt(b));
+        document.dispatchEvent(new CustomEvent('mc:ansicht', { detail: { bereich: b, punkt: aktuelleAnsicht.punkt, panel } }));
+      }
+      window.oeffneAnsicht = oeffneAnsicht;
+
+      document.querySelectorAll('nav button[data-bereich]').forEach(btn =>
+        btn.addEventListener('click', () => oeffneAnsicht(btn.dataset.bereich)));
+      document.getElementById('bereich-leiste').addEventListener('click', e => {
+        const k = e.target.closest('[data-punkt]');
+        if (k) oeffneAnsicht(aktuelleAnsicht.bereich, k.dataset.punkt);
+      });
+      // Klick auf vorhandene Unterreiter/Modus-Knoepfe: Adresse nachziehen.
+      for (const [b, def] of Object.entries(BEREICHE)) {
+        for (const p of def.punkte) {
+          if (!p.knopf) continue;
+          document.querySelector(p.knopf)?.addEventListener('click', () => {
+            if (aktuelleAnsicht.bereich === b) merkeAnsicht(b, p.id);
+          });
+        }
+      }
+      // Adresse von Hand geaendert oder Zurueck-Taste
+      window.addEventListener('hashchange', () => {
+        const a = ansichtAusHash(location.hash);
+        if (a.bereich !== aktuelleAnsicht.bereich || (a.punkt && a.punkt !== aktuelleAnsicht.punkt)) {
+          oeffneAnsicht(a.bereich, a.punkt);
+        }
       });
 
       // ── Status dot ───────────────────────────────────────────────────────
@@ -2410,7 +2555,7 @@
               <div class="dash-stat-label">Umsatz heute</div>
             </div>`;
           document.getElementById('stat-open')?.addEventListener('click', () =>
-            document.querySelector('nav button[data-panel="orders"]')?.click());
+            oeffneAnsicht('bestellen', 'bestellungen'));
 
           // Revenue chart
           const days = stats.revenue_7days ?? [];
@@ -2653,8 +2798,7 @@
       }
 
       function monGoToMonitor() {
-        document.querySelector('nav button[data-panel="orders"]')?.click();
-        document.querySelector('#panel-orders .sub-tab[data-subtab="tab-eingaenge"]')?.click();
+        oeffneAnsicht('bestellen', 'anfragen');
       }
 
       function monShowLoginToast(count) {
@@ -8699,7 +8843,8 @@
       window.currentShop  = currentShop;
 
       // ── Init ─────────────────────────────────────────────────────────────
-      loadDashboard();
+      // Startansicht aus der Adresse (#bereich/unterpunkt), sonst Dashboard.
+      { const start = ansichtAusHash(location.hash); oeffneAnsicht(start.bereich, start.punkt); }
       loadSsotData();
       monInitOnLoad();
     </script>
@@ -11625,9 +11770,9 @@
         }
 
         // Panel-Aktivierung: Partner beim ersten Öffnen laden
-        const fpPanelBtn = document.querySelector('nav button[data-panel="festpreis"]');
-        fpPanelBtn?.addEventListener('click', () => {
-          if (!_fpPartners.length) loadFpPartner();
+        // NAV4: Ereignis aus oeffneAnsicht (Modul-Block) statt Klick auf den alten Nav-Knopf.
+        document.addEventListener('mc:ansicht', e => {
+          if (e.detail.panel === 'festpreis' && !_fpPartners.length) loadFpPartner();
         });
       }
 

@@ -8,7 +8,12 @@ grep "SECTION" frontend/index.html
 
 Aktuelle Sektionen (Reihenfolge in der Datei; Zeilennummern per `grep -n "SECTION"`,
 im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
-- Navigation
+- Navigation (NAV4: Tabelle `BEREICHE` im Block `Navigation-Tabelle: Anfang/Ende`, Test
+  navigation.test.js; `oeffneAnsicht(bereich, unterpunkt)` = einziger Weg, eine Ansicht zu oeffnen,
+  auch `window.oeffneAnsicht`; Adresse `#bereich/unterpunkt`; Ereignis `mc:ansicht` fuer den
+  zweiten Script-Block. Bereiche: dashboard · bestellen (Panel orders, Unterreiter) · artikel
+  (Panel products, Modus-Knoepfe) · partner (lizenz = partnerportal, festpreis) · kunden (anfragen,
+  agent-wissen) · system (settings). Neue Ansicht = Zeile in BEREICHE, nie `nav button.click()`.)
 - Stand-Anzeige
 - Helpers (darin: Dashboard inkl. Knopf "Trikot-Sync jetzt")
 - Auftragsmonitor, Auftragsmonitor Dual-Source; darunter "Auftragsmonitor: Shop Orders" (kein SECTION-Anker)

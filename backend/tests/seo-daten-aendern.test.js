@@ -242,8 +242,10 @@ describe('Derselbe Baustein, derselbe Schreibweg, kein Sheet', () => {
     expect(seTeil).not.toMatch(/short_description|description:|generate-product|\/api\/claude/);
   });
 
-  test('Reiter-Knopf steht neben "Artikel ändern"', () => {
-    expect(html).toMatch(/id="mode-btn-edit">✏️ Artikel ändern<\/button>\s*\n\s*<button class="mode-btn" id="mode-btn-seoedit">/);
+  // NAV4 (Frage 9): Reihenfolge Neu anlegen · Artikel ändern · SEO Daten · SEO-Daten ändern
+  test('Modus-Knoepfe in der Reihenfolge der Navigation', () => {
+    const ids = [...html.matchAll(/id="(mode-btn-[a-z]+)"/g)].map(m => m[1]);
+    expect(ids).toEqual(['mode-btn-new', 'mode-btn-edit', 'mode-btn-seo', 'mode-btn-seoedit']);
   });
 });
 
