@@ -4,6 +4,7 @@ import {
 } from '../lib/lshopKorb.js';
 import { notifyFehler } from '../lib/chatNotify.js';
 import { ediVorschau, ediErzeugen } from '../lib/lshopEdi.js';
+import { leseLShopBestellungen } from '../lib/lshopBestellungen.js';
 
 const router = Router();
 
@@ -94,6 +95,15 @@ router.post('/lshop-korb/edi/erzeugen', async (req, res, next) => {
 router.get('/lshop-korb', async (req, res, next) => {
   try {
     res.json(await leseKorb({ shop: req.query.shop, mit: req.query.mit }));
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/bestellen/lshop-bestellungen?shop=  (BO4d) ──────────────────────
+// Unterreiter "L-Shop-Bestellungen": je EDI-Bestellung (ab "gesendet") Kopf, Status, Positionen,
+// Lieferscheine mit Paketen/Tracking; dazu Portal-Sendungen. Nur lesen, nur Sheets, nur JFN.
+router.get('/lshop-bestellungen', async (req, res, next) => {
+  try {
+    res.json(await leseLShopBestellungen({ shop: req.query.shop }));
   } catch (err) { next(err); }
 });
 

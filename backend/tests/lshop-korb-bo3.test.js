@@ -309,9 +309,8 @@ describe('Frontend: Filter Offen/Herausgenommen/Alle', () => {
     expect(html).not.toMatch(/\$\{hinweis\}\$\{lshop\}/);
   });
 
-  test('Filterknoepfe (BO4b-2: "Bestellt" versteckt bis es bestellte gibt), alter Schalter entfernt, Filter wird gemerkt', () => {
-    expect([...html.matchAll(/data-filter="(\w+)"/g)].map(m => m[1])).toEqual(['offen', 'raus', 'bestellt', 'alle']);
-    expect(html).toMatch(/data-filter="bestellt"[^>]*hidden/);
+  test('drei Filterknoepfe (BO4d: kein "Bestellt" mehr), alter Schalter entfernt, Filter wird gemerkt', () => {
+    expect([...html.matchAll(/data-filter="(\w+)"/g)].map(m => m[1])).toEqual(['offen', 'raus', 'alle']);
     expect(html).not.toContain('id="korb-alle"');
     expect(html).toMatch(/localStorage\.setItem\(KORB_FILTER_KEY/);
   });

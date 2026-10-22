@@ -28,10 +28,9 @@ import {
   TAB_KORB, KORB_SHOPS, KORB_STATUS_SHOP, korbSchluessel, STATUS, HERKUNFT,
   korbZeilen, alsSheetZeile, baueKontext, abgleichPlan, nachzulesendeBestellungen,
   ersteFreieZeile, bereichLeer, vergleicheZurueck, buendele, korbZaehler,
-  GRUENDE, statusPlan, naechsteEigenNummer, eigeneZeile, sucheModelle, NICHT_IM_BESTAND,
+  GRUENDE, statusPlan, naechsteEigenNummer, eigeneZeile, sucheModelle, NICHT_IM_BESTAND, KORB_SICHTBAR,
 } from '../utils/korb-logic.js';
 import { LIEFERZEIT_META_KEY } from './lieferzeiten.js';
-import { SENDUNGEN_TAB, sendungenZeilen, sendungenNachOrder } from '../utils/lshop-belege.js';
 
 const TAB_VARIANTEN = 'Varianten';
 const TAB_MASKE     = 'Erfassungsmaske';
@@ -109,15 +108,6 @@ async function reiterInfo(sheets, spreadsheetId) {
 async function leseKorbWerte(sheets, spreadsheetId) {
   const { data } = await sheets.spreadsheets.values.get({ spreadsheetId, range: q(TAB_KORB), valueRenderOption: 'FORMATTED_VALUE' });
   return data.values ?? [];
-}
-
-// BO4b-2: Sendungen eigener Bestellungen je order_id fuer die Anzeige "versandt · DHL · n Pakete".
-// Nur Sheets (LShop_Sendungen), kein FTP. Fehlt der Reiter (noch nicht eingerichtet): keine Sendungen.
-async function leseSendungen(sheets, spreadsheetId) {
-  const { data } = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties(title)' });
-  if (!(data.sheets ?? []).some(s => s.properties?.title === SENDUNGEN_TAB)) return {};
-  const { data: w } = await sheets.spreadsheets.values.get({ spreadsheetId, range: q(SENDUNGEN_TAB), valueRenderOption: 'FORMATTED_VALUE' });
-  return sendungenNachOrder(sendungenZeilen(w.values ?? []));
 }
 
 async function ladeKontext(sheets, spreadsheetId) {
@@ -408,7 +398,9 @@ export async function leseKorb({ shop, mit, sheets: s, wcFuer = getWcClient, jet
   if (!info) return { reiterFehlt: true, buendel: [], gruende: GRUENDE, summen: { positionen: 0, zuBestellen: 0, artikelnummern: 0, offen: 0, herausgenommen: 0, herausgenommenAktuell: 0, mitHinweis: 0 } };
 
   const { zeilen } = korbZeilen(await leseKorbWerte(sheets, spreadsheetId));
-  const meine = zeilen.filter(z => normalizeShop(z.Shop || 'jfn') === normalizeShop(shop));
+  // BO4d: der Korb zeigt nur, was noch zu bestellen ist (offen, herausgenommen). Bestellt/geliefert/Lager
+  // stehen im Unterreiter "L-Shop-Bestellungen" (GET .../lshop-bestellungen); die Zeilen bleiben unveraendert.
+  const meine = zeilen.filter(z => normalizeShop(z.Shop || 'jfn') === normalizeShop(shop) && KORB_SICHTBAR.includes(z.Status));
   const lshop = await ladeLShopZeilen({ sheets, spreadsheetId });
   const maske = await leseReiterSpalten({ tab: TAB_MASKE, spalten: { id: 'ID', name: 'Produktname' }, sheets, spreadsheetId });
   const nun = jetzt();
@@ -423,7 +415,6 @@ export async function leseKorb({ shop, mit, sheets: s, wcFuer = getWcClient, jet
   return {
     reiterFehlt: false,
     buendel,
-    sendungen: await leseSendungen(sheets, spreadsheetId),   // BO4b-2: { order_id: { frachtfuehrer, pakete, offen } }
     gruende: GRUENDE,
     summen: {
       positionen: meine.length,

@@ -8,7 +8,7 @@ import {
   BELEGE_TAB, BELEGE_SPALTEN, ORDNER, ERGEBNIS, ART, dekodiere, findeOrderIds, orderIdAusDateiname, bewerteOrderDatei,
   bewerteAb, fehlerSerie, fehllaufMelden, eintragGeaendert, belegeSpalten, ftpZeit, orderLiegtZuLange, sha256,
   buildBelegeAlarmNachricht, buildFtpFehlerNachricht, SENDUNGEN_TAB, SENDUNGEN_SPALTEN, BelegFormatFehler,
-  leseLieferbestaetigung, bewertePaket, archivJahr, mimeFuer, sendungenNachOrder, istErstbestandsDatei, MAX_NEUE_BELEGE_JE_LAUF,
+  leseLieferbestaetigung, bewertePaket, archivJahr, mimeFuer, istErstbestandsDatei, MAX_NEUE_BELEGE_JE_LAUF,
 } from '../utils/lshop-belege.js';
 import { ArchivFehler, ArchivKonflikt } from '../lib/belegArchiv.js';
 import { runBelegeAbruf, richteBelegeEin, BELEGE_BESCHAEFTIGT } from '../lib/lshopBelege.js';
@@ -340,17 +340,6 @@ describe('leseLieferbestaetigung', () => {
     expect(archivJahr('rechnung.pdf', { modifiedAt: new Date('2026-12-31T23:30:00Z') })).toBe('2027');
     expect(mimeFuer('a.PDF')).toBe('application/pdf');
     expect(mimeFuer('a.xml')).toBe('application/xml');
-  });
-  test('Anzeige-Daten: nur eigene Bestellungen, Pakete und offene zaehlen', () => {
-    const z = [
-      { order_id: '', Paketnummer: NR1, Frachtfuehrer: 'DHL', Tracking_URL: 'https://textilelogistics.eu/a', LA: 'LA1', Wareneingang: '' },
-      { order_id: 'JFN-2026-0003', Paketnummer: NR2, Frachtfuehrer: 'DHL', Tracking_URL: 'https://textilelogistics.eu/b', LA: 'LA2', Wareneingang: '' },
-      { order_id: 'JFN-2026-0003', Paketnummer: NR3, Frachtfuehrer: 'DHL', Tracking_URL: 'javascript:alert(1)', LA: 'LA3', Wareneingang: '23.10.2026' },
-    ];
-    expect(sendungenNachOrder(z)).toEqual({ 'JFN-2026-0003': {
-      frachtfuehrer: ['DHL'], offen: 1,
-      pakete: [{ paketnummer: NR2, la: 'LA2', url: 'https://textilelogistics.eu/b' }, { paketnummer: NR3, la: 'LA3', url: '' }],
-    } });
   });
 });
 

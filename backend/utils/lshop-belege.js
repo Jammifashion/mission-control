@@ -379,18 +379,7 @@ export function gleicheSendung(alt, neu) {
   return alt.VA === neu.VA && alt.LA === neu.LA && alt.order_id === neu.order_id && alt.Tracking_URL === neu.Tracking_URL;
 }
 
-/** Sendungen eigener Bestellungen je order_id fuer die Anzeige (Portal-Sendungen fallen weg). */
-export function sendungenNachOrder(zeilen) {
-  const m = {};
-  for (const z of zeilen) {
-    if (!z.order_id) continue;
-    const o = (m[z.order_id] ??= { frachtfuehrer: [], pakete: [], offen: 0 });
-    if (z.Frachtfuehrer && !o.frachtfuehrer.includes(z.Frachtfuehrer)) o.frachtfuehrer.push(z.Frachtfuehrer);
-    o.pakete.push({ paketnummer: z.Paketnummer, la: z.LA, url: z.Tracking_URL.startsWith(TRACKING_PREFIX) ? z.Tracking_URL : '' });
-    if (!z.Wareneingang) o.offen++;
-  }
-  return m;
-}
+// Anzeige je Bestellung: utils/lshop-bestellungen.js (BO4d).
 
 /** Zeile fuer LShop_Sendungen in Kopfreihenfolge. */
 export function sendungZeile(idx, felder) {

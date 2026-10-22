@@ -353,9 +353,20 @@
       .korb-pos-raus { opacity: 0.55; }
       .korb-menge-viel { color: var(--danger); font-weight: 700; }   /* BO3d: Menge > 1 */
       /* BO4b-2: Sendung aus der Lieferbestaetigung, Block "Unterwegs von L-Shop" */
-      .korb-sendung { color: var(--success, #4caf50); }
-      .korb-sendung a { color: inherit; text-decoration: underline; }
-      .korb-unterwegs { margin-top: 0.75rem; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 0.84rem; display: grid; gap: 0.25rem; overflow-wrap: anywhere; }
+      .lb-karte, .lb-portal { border: 1px solid var(--border); border-radius: 8px; margin-top: 0.6rem; font-size: 0.84rem; overflow-wrap: anywhere; }
+      .lb-karte > summary, .lb-portal > summary { cursor: pointer; padding: 0.55rem 0.75rem; display: flex; flex-wrap: wrap; gap: 0.4rem 0.75rem; align-items: center; justify-content: space-between; }
+      .lb-inhalt { padding: 0 0.75rem 0.6rem; display: grid; gap: 0.3rem; }
+      .lb-pos { display: grid; gap: 0.1rem; padding: 0.3rem 0; border-top: 1px solid var(--border); }
+      .lb-pos-neben, .lb-leer, .lb-folgt { color: var(--muted); }
+      .lb-folgt { font-style: italic; }
+      .lb-abschnitt { margin-top: 0.4rem; font-weight: 600; }
+      .lb-ls a, .lb-portal a { color: var(--success); text-decoration: underline; padding: 0.15rem 0; display: inline-block; }
+      .lb-portal-va { padding: 0.35rem 0.75rem; border-top: 1px solid var(--border); }
+      .lb-portal .korb-link { margin: 0.4rem 0.75rem; }
+      .lb-status { border-radius: 999px; padding: 0.1rem 0.6rem; font-size: 0.78rem; border: 1px solid var(--border); white-space: nowrap; }
+      .lb-st-bestaetigt { border-color: var(--accent); color: var(--accent); }
+      .lb-st-versandt, .lb-st-teilweise { border-color: var(--success); color: var(--success); }
+      .lb-st-geliefert { background: var(--success); border-color: var(--success); color: #111; }
       .korb-link { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.78rem; padding: 0.15rem 0; text-decoration: underline; }
       .korb-leiste {
         position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center;
@@ -1202,6 +1213,7 @@
           <button class="sub-tab" data-subtab="tab-lshop" style="display:none;">L-Shop Bestellungen</button>
           <button class="sub-tab" data-subtab="tab-lshop-korb">L-Shop-Warenkorb</button>
           <button class="sub-tab" data-subtab="tab-lshop-uebersicht">Bestellübersicht</button>
+          <button class="sub-tab" data-subtab="tab-lshop-bestellungen">L-Shop-Bestellungen</button>
           <button class="sub-tab" data-subtab="tab-eingaenge">Anfragen &amp; Eigenaufträge<span id="sub-eingaenge-badge" class="nav-badge"></span></button>
         </div>
 
@@ -1252,7 +1264,6 @@
                 <span class="korb-filter" id="korb-filter" role="group" aria-label="Positionen filtern">
                   <button type="button" data-filter="offen" data-hilfe="filter-offen" aria-pressed="true">Offen</button>
                   <button type="button" data-filter="raus" data-hilfe="filter-raus" aria-pressed="false">Herausgenommen</button>
-                  <button type="button" data-filter="bestellt" data-hilfe="filter-bestellt" aria-pressed="false" hidden>Bestellt</button>
                   <button type="button" data-filter="alle" data-hilfe="filter-alle" aria-pressed="false">Alle</button>
                 </span>
               </div>
@@ -1334,8 +1345,30 @@
             <div id="hilfe-uebersicht" class="hilfe-legende" hidden></div>
             <div id="uebersicht-zaehler" class="korb-zaehler"></div>
             <div id="uebersicht-liste"><div class="skeleton"></div><div class="skeleton"></div></div>
-            <div id="uebersicht-unterwegs"></div>
             <div id="uebersicht-leiste-platz"></div>
+          </div>
+        </div>
+
+        <!-- BO4d: an L-Shop geschickte Bestellungen (EDI), je Bestellung mit Status, Positionen, Lieferscheinen -->
+        <div id="tab-lshop-bestellungen" class="sub-tab-panel">
+          <div class="card">
+            <div class="lshop-offen-header korb-kopf">
+              <span id="lb-summe">L-Shop-Bestellungen</span>
+            </div>
+            <div class="korb-bedienung">
+              <div class="korb-ansicht">
+                <span class="korb-filter" id="lb-filter" role="group" aria-label="Bestellungen filtern">
+                  <button type="button" data-bfilter="unterwegs" data-hilfe="lb-unterwegs" aria-pressed="true">Unterwegs</button>
+                  <button type="button" data-bfilter="geliefert" data-hilfe="lb-geliefert" aria-pressed="false">Geliefert</button>
+                  <button type="button" data-bfilter="alle" data-hilfe="lb-alle" aria-pressed="false">Alle</button>
+                </span>
+              </div>
+              <div class="korb-aktionen">
+                <button class="hilfe-i" type="button" data-hilfe-gruppe="bestellungen" aria-controls="hilfe-bestellungen" aria-expanded="false" aria-label="Was bedeuten die Knöpfe?">ⓘ</button>
+              </div>
+            </div>
+            <div id="hilfe-bestellungen" class="hilfe-legende" hidden></div>
+            <div id="lb-liste"><div class="skeleton"></div></div>
           </div>
         </div>
 
@@ -2499,6 +2532,7 @@
         sub('tab-lshop',    `L-Shop Bestellungen (${kurz})`);
         sub('tab-lshop-korb', `L-Shop-Warenkorb (${kurz})`);
         sub('tab-lshop-uebersicht', `Bestellübersicht (${kurz})`);
+        sub('tab-lshop-bestellungen', `L-Shop-Bestellungen (${kurz})`);
         const artikelTab = document.querySelector('[data-ptab="artikel"]');
         if (artikelTab) artikelTab.style.display = '';
       }
@@ -2622,9 +2656,12 @@
         bestellen: { label: 'Bestellen & Produktion', shop: true, punkte: [
           { id: 'bestellungen', panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-jfn-shop"]' },
           { id: 'dtf',          panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-dtf"]',       neuLaden: true },
-          { id: 'lshop',        panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-lshop"]',     neuLaden: true },
+          // BO4d: die alte Adresse (ausgeblendeter Vorgaenger des Warenkorbs, schreibt in LShop_Bestellungen)
+          // leitet auf den neuen Unterreiter um; das alte Panel bleibt im Code, ist aber nicht mehr erreichbar.
+          { id: 'lshop',        umleitung: 'lshop-bestellungen' },
           { id: 'lshop-korb',   panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-lshop-korb"]', neuLaden: true },
           { id: 'lshop-uebersicht', panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-lshop-uebersicht"]', neuLaden: true },
+          { id: 'lshop-bestellungen', panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-lshop-bestellungen"]', neuLaden: true },
           { id: 'anfragen',     panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-eingaenge"]', neuLaden: true },
         ] },
         artikel: { label: 'Artikel', shop: true, punkte: [
@@ -2650,7 +2687,8 @@
       function findeAnsicht(bereich, punkt) {
         const b   = Object.hasOwn(BEREICHE, bereich) ? bereich : 'dashboard';
         const def = BEREICHE[b];
-        const p   = def.punkte.find(x => x.id === punkt) ?? null;
+        const p0  = def.punkte.find(x => x.id === punkt) ?? null;
+        const p   = p0?.umleitung ? def.punkte.find(x => x.id === p0.umleitung) ?? null : p0;   // BO4d: alte Adressen
         return { bereich: b, punkt: p ? p.id : null, def, p };
       }
       // "#bestellen/dtf" -> Ansicht
@@ -2972,6 +3010,7 @@
           panel.classList.add('active');
           if (btn.dataset.subtab === 'tab-lshop')     loadLShopOffen();
           if (btn.dataset.subtab === 'tab-lshop-korb' || btn.dataset.subtab === 'tab-lshop-uebersicht') loadLShopKorb();
+          if (btn.dataset.subtab === 'tab-lshop-bestellungen') loadLShopBestellungen();
           korbLeisteParken();
           uebersichtZeichnen();   // setzt/entfernt die Druckklasse der Zaehlliste je nach sichtbarem Unterreiter
           if (btn.dataset.subtab === 'tab-dtf')       loadDtfOffen();
@@ -4091,38 +4130,83 @@
       // Kein Loeschen; bestellt/geliefert setzt erst BO4.
       const korbEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
       const korbDatum = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('de-DE'); };
-      // Filter: offen | raus (abgewählt) | bestellt (BO4b-2) | alle. Gemerkt je Browser; fehlt der Speicher, gilt "offen".
+      // Filter: offen | raus (abgewählt) | alle (= offen + herausgenommen; Bestelltes steht seit BO4d im
+      // Unterreiter "L-Shop-Bestellungen"). Gemerkt je Browser; fehlt der Speicher, gilt "offen".
       const KORB_FILTER_KEY = 'mc_korb_filter';
-      const korbFilterLesen = () => { try { const f = localStorage.getItem(KORB_FILTER_KEY); return ['offen', 'raus', 'bestellt', 'alle'].includes(f) ? f : 'offen'; } catch { return 'offen'; } };
+      const korbFilterLesen = () => { try { const f = localStorage.getItem(KORB_FILTER_KEY); return ['offen', 'raus', 'alle'].includes(f) ? f : 'offen'; } catch { return 'offen'; } };
       const korbZustand = { daten: null, auswahl: new Map(), filter: korbFilterLesen() };   // auswahl: Schluessel -> Position
       // "Herausgenommen" zeigt nur die letzten 14 Tage (+ unbezahlt, rausAktuell vom Server), aeltere per Link.
       const korbFilterPasst = p => korbZustand.filter === 'alle'
-        || (korbZustand.filter === 'bestellt' ? p.status === 'bestellt'
-          : korbZustand.filter === 'raus' ? p.status === 'abgewählt' && (p.rausAktuell || korbZustand.rausAeltere) : p.status === 'offen');
+        || (korbZustand.filter === 'raus' ? p.status === 'abgewählt' && (p.rausAktuell || korbZustand.rausAeltere) : p.status === 'offen');
 
-      // ── Sendung-Anzeige: Anfang (BO4b-2, Test lshop-sendungen.test.js) ──
-      // "versandt · DHL · 2 Pakete · Paket 1 · Paket 2" aus GET .../lshop-korb -> sendungen[order_id]
-      // (Quelle LShop_Sendungen, die der Beleg-Abruf aus den Lieferbestaetigungen fuellt). Links nur auf
-      // textilelogistics.eu, neuer Tab ohne Opener. Der Korb-Status bleibt "bestellt".
-      const SENDUNG_TRACKING = 'https://textilelogistics.eu/';
-      function sendungHtml(s) {
-        if (!s?.pakete?.length) return '';
-        const esc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
-        const n = s.pakete.length;
-        const fr = (s.frachtfuehrer ?? []).map(esc).join('/') || 'Versand';
-        const links = s.pakete.map((p, i) => String(p.url ?? '').startsWith(SENDUNG_TRACKING)
-          ? `<a href="${esc(p.url)}" target="_blank" rel="noopener noreferrer" data-hilfe="tracking">Paket ${i + 1}</a>` : '').filter(Boolean);
-        return `<span class="korb-sendung">versandt · ${fr} · ${n} Paket${n !== 1 ? 'e' : ''}${links.length ? ` · ${links.join(' · ')}` : ''}</span>`;
+      // ── L-Shop-Bestellungen: Anfang (BO4d, Test backend/tests/lshop-bestellungen.test.js) ──
+      // Reine Anzeige des Unterreiters "L-Shop-Bestellungen" aus GET /api/bestellen/lshop-bestellungen:
+      // je Bestellung eine aufklappbare Karte (Kopf, Positionen, Lieferscheine mit Paketen), darunter die
+      // Portalbestellungen. Links nur auf textilelogistics.eu, neuer Tab ohne Opener. Liefertermin (BO4b-4)
+      // und Wareneingang (BO4b-5) sind vorgesehen, aber noch ohne Funktion ("folgt").
+      const LB_TRACKING = 'https://textilelogistics.eu/';
+      const LB_FILTER = ['unterwegs', 'geliefert', 'alle'];
+      const lbEsc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+      const lbDatum = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' }); };
+      const lbMehrzahl = (n, eins, mehr) => `${n} ${n === 1 ? eins : mehr}`;
+      const LB_STATUS_KLASSE = { gesendet: 'gesendet', 'bestätigt': 'bestaetigt', versandt: 'versandt', 'teilweise geliefert': 'teilweise', geliefert: 'geliefert' };
+      function lbPaketLinks(pakete) {
+        return (pakete ?? []).map((p, i) => String(p.url ?? '').startsWith(LB_TRACKING)
+          ? `<a href="${lbEsc(p.url)}" target="_blank" rel="noopener noreferrer" data-hilfe="tracking">Paket ${i + 1}</a>`
+          : `Paket ${i + 1}`).join(' · ');
       }
-      // Bestelluebersicht: "Unterwegs von L-Shop" - je order_id mit noch nicht eingegangenen Paketen eine Zeile.
-      function unterwegsHtml(sendungen) {
-        const offen = Object.entries(sendungen ?? {}).filter(([, s]) => s.offen > 0).sort(([a], [b]) => a.localeCompare(b));
-        if (!offen.length) return '';
-        const esc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
-        return `<div class="korb-unterwegs"><strong>Unterwegs von L-Shop</strong>`
-          + offen.map(([id, s]) => `<div>${esc(id)} · ${sendungHtml(s)}</div>`).join('') + '</div>';
+      function lbStatusHtml(b) {
+        const text = b.status === 'versandt' ? `versandt · ${lbMehrzahl(b.pakete, 'Paket', 'Pakete')}` : b.status;
+        return `<span class="lb-status lb-st-${LB_STATUS_KLASSE[b.status] ?? 'gesendet'}">${lbEsc(text)}</span>`;
       }
-      // ── Sendung-Anzeige: Ende ──
+      function lbLieferscheinHtml(l) {
+        const eingang = l.pakete.length && l.pakete.every(p => p.wareneingang)
+          ? ' · <strong>eingegangen</strong>' : ' · <span class="lb-folgt">Wareneingang folgt</span>';
+        return `<div class="lb-ls">${lbEsc(l.la)}${l.datum ? ` · ${lbEsc(lbDatum(l.datum))}` : ''} · ${lbMehrzahl(l.pakete.length, 'Paket', 'Pakete')}`
+          + ` · ${lbPaketLinks(l.pakete)}${eingang}</div>`;
+      }
+      function lbPositionHtml(p) {
+        const modell = [p.catalogNr, p.bezeichnung, p.farbe, p.groesse].filter(Boolean).map(lbEsc).join(' · ') || lbEsc(p.articleNr);
+        const termin = p.liefertermin ? `Liefertermin ${lbEsc(p.liefertermin)}` : '<span class="lb-folgt">Liefertermin folgt</span>';
+        return `<div class="lb-pos"><span class="lb-pos-haupt">${modell} <strong>×${lbEsc(p.menge)}</strong></span>`
+          + `<span class="lb-pos-neben">${lbEsc(p.articleNr)} · ${lbEsc(p.reference)} · ${termin}</span></div>`;
+      }
+      function lbKarteHtml(b, offen) {
+        const datum = b.gesendet ? `gesendet ${lbEsc(lbDatum(b.gesendet))}` : `erstellt am ${lbEsc(lbDatum(b.erzeugt))}`;
+        const kopf = [`<strong>${lbEsc(b.orderId)}</strong>`, ...b.va.map(lbEsc), datum,
+          `${b.positionenZahl} Pos. / ${b.stueck} Stk`, b.commission ? lbEsc(b.commission) : ''].filter(Boolean).join(' · ');
+        const ls = b.lieferscheine.length
+          ? `<div class="lb-abschnitt">Lieferscheine</div>${b.lieferscheine.map(lbLieferscheinHtml).join('')}`
+          : '<div class="lb-abschnitt">Lieferscheine</div><div class="lb-leer">noch keine Lieferung</div>';
+        return `<details class="lb-karte" data-order="${lbEsc(b.orderId)}"${offen ? ' open' : ''}>`
+          + `<summary><span class="lb-kopf">${kopf}</span>${lbStatusHtml(b)}</summary>`
+          + `<div class="lb-inhalt">${b.positionen.map(lbPositionHtml).join('') || '<div class="lb-leer">keine Positionen gefunden</div>'}${ls}</div></details>`;
+      }
+      function lbPortalHtml(portal, zeigeAeltere) {
+        if (!portal?.length) return '';
+        const neu = portal.filter(p => !p.aelter);
+        const sicht = zeigeAeltere ? portal : neu;
+        const aelter = portal.length - neu.length;
+        const zeilen = sicht.map(p => `<div class="lb-portal-va"><strong>${lbEsc(p.va)}</strong>${p.datum ? ` · ${lbEsc(lbDatum(p.datum))}` : ''}`
+          + `${p.lieferscheine.map(lbLieferscheinHtml).join('')}</div>`).join('') || '<div class="lb-leer">keine in den letzten 30 Tagen</div>';
+        const mehr = !zeigeAeltere && aelter ? `<button class="korb-link" type="button" data-portal-aeltere="1" data-hilfe="portal-aeltere">ältere anzeigen (${aelter})</button>` : '';
+        const pakete = sicht.reduce((n, p) => n + p.pakete, 0);
+        return `<details class="lb-portal"><summary data-hilfe="portal">Portalbestellungen (${zeigeAeltere ? 'alle' : 'letzte 30 Tage'}: `
+          + `${lbMehrzahl(sicht.length, 'Lieferung', 'Lieferungen')}, ${lbMehrzahl(pakete, 'Paket', 'Pakete')})</summary>${zeilen}${mehr}</details>`;
+      }
+      /** Liste je Filter; Unterwegs-Karten offen, gelieferte zu. */
+      function lbListeHtml(d, filter, zeigeAeltere = false) {
+        if (d?.nurJfn) return '<p class="lb-leer">L-Shop-Bestellungen gibt es nur für JammiFashion (JFN).</p>';
+        const sicht = (d?.bestellungen ?? []).filter(b => filter === 'alle' || b.filter?.[filter]);
+        const leer = { unterwegs: 'Keine Bestellung unterwegs.', geliefert: 'In den letzten 14 Tagen nichts geliefert.', alle: 'Noch keine L-Shop-Bestellung gesendet.' };
+        const karten = sicht.length ? sicht.map(b => lbKarteHtml(b, b.filter?.unterwegs)).join('') : `<p class="lb-leer">${leer[filter] ?? ''}</p>`;
+        return karten + lbPortalHtml(d?.portal, zeigeAeltere);
+      }
+      function lbZaehler(d) {
+        const b = d?.bestellungen ?? [];
+        return { unterwegs: b.filter(x => x.filter?.unterwegs).length, geliefert: b.filter(x => x.filter?.geliefert).length, alle: b.length };
+      }
+      // ── L-Shop-Bestellungen: Ende ──
 
       // ── Knopf-Hilfe: Anfang (UX1, backend/tests/knopf-hilfe.test.js) ──
       // Erklaerungen fuer Warenkorb, Aktionsleiste und Bestelluebersicht - die Texte stehen NUR hier.
@@ -4133,12 +4217,10 @@
       const KNOPF_HILFE = {
         'filter-offen':         { name: 'Offen', text: 'Positionen, die noch bei L-Shop bestellt werden müssen.' },
         'filter-raus':          { name: 'Herausgenommen', text: 'Positionen, die nicht bestellt werden (z. B. Ware da, schon bestellt). Zeigt die letzten 14 Tage.' },
-        'filter-alle':          { name: 'Alle', text: 'Alle Positionen im Korb, egal welcher Status.' },
+        'filter-alle':          { name: 'Alle', text: 'Alles, was noch nicht bestellt ist: offen und herausgenommen.' },
         'eigen':                { name: '+ Eigene Position', text: 'Einen L-Shop-Artikel ohne Shop-Bestellung in den Korb legen, z. B. für Muster oder Vereinsaufträge.' },
         'abgleich':             { name: '↻ Abgleich jetzt', text: 'Holt neue Shop-Bestellungen sofort in den Korb. Läuft sonst automatisch jede Stunde.' },
         'belege':               { name: '📥 Belege abrufen', text: 'Holt neue Belege von L-Shop (Auftrags- und Lieferbestätigungen, Rechnungen) und legt sie ins Archiv. Läuft sonst alle 30 Minuten.' },
-        'filter-bestellt':      { name: 'Bestellt', text: 'Positionen, die bei L-Shop bestellt sind. Ist ein Paket unterwegs, steht hier der Link zur Sendungsverfolgung.' },
-        'tracking':             { name: 'Paket 1, 2 …', text: 'Öffnet die Sendungsverfolgung dieses Pakets in einem neuen Tab.' },
         'alle-offenen':         { name: 'alle offenen wählen', text: 'Hakt alle offenen Positionen an. Gesperrte (z. B. storniert, erstattet) bleiben weg.' },
         'zurueck':              { name: 'zurück auf offen', text: 'Legt die Position wieder auf „Offen“. Dann wird sie wieder mitbestellt.' },
         'grund':                { name: 'Grund', text: 'Warum die gewählten Positionen nicht bestellt werden. Pflicht beim Herausnehmen.' },
@@ -4153,12 +4235,20 @@
         'eigen-link':           { name: '+ Eigene Position im Warenkorb', text: 'Öffnet den Warenkorb. Dort legst du eigene Positionen an.' },
         'zl-drucken':           { name: 'Drucken', text: 'Druckt die Zählliste.' },
         'zl-zurueck':           { name: 'Zurück zur Matrix', text: 'Zurück zur Tabelle.' },
+        // BO4d: Unterreiter "L-Shop-Bestellungen"
+        'lb-unterwegs':         { name: 'Unterwegs', text: 'Bestellungen bei L-Shop, die noch nicht ganz bei dir angekommen sind.' },
+        'lb-geliefert':         { name: 'Geliefert', text: 'Bestellungen, die komplett angekommen sind. Zeigt die letzten 14 Tage.' },
+        'lb-alle':              { name: 'Alle', text: 'Alle an L-Shop geschickten Bestellungen, auch ältere.' },
+        'tracking':             { name: 'Paket 1, 2 …', text: 'Öffnet die Sendungsverfolgung dieses Pakets in einem neuen Tab.' },
+        'portal':               { name: 'Portalbestellungen', text: 'Lieferungen zu Bestellungen, die du direkt im L-Shop-Portal aufgegeben hast. Klick zum Aufklappen.' },
+        'portal-aeltere':       { name: 'ältere anzeigen', text: 'Zeigt auch Portallieferungen, die älter als 30 Tage sind.' },
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
-        korb:       ['filter-offen', 'filter-raus', 'filter-bestellt', 'filter-alle', 'eigen', 'abgleich', 'belege', 'alle-offenen', 'zurueck', 'tracking'],
+        korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'eigen', 'abgleich', 'belege', 'alle-offenen', 'zurueck'],
         leiste:     ['grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg'],
-        uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck', 'tracking'],
+        uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
+        bestellungen: ['lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
       function hilfeLegendeHtml(gruppe) {
@@ -4244,9 +4334,7 @@
             + `<button class="korb-link" type="button" data-zurueck="${korbEsc(p.schluessel)}" data-hilfe="zurueck">zurück auf offen</button></div>`;
         }
         if (p.status !== 'offen' || !p.bearbeitbar) {
-          const s = p.bestellId ? korbZustand.daten?.sendungen?.[p.bestellId] : null;
-          const sendung = s ? ` · ${sendungHtml(s)}` : '';
-          return `<div class="korb-pos korb-pos-raus"><span class="korb-pos-text">${text} · <strong>${korbEsc(p.status)}</strong>${sendung}${notiz}${hinweis}</span></div>`;
+          return `<div class="korb-pos korb-pos-raus"><span class="korb-pos-text">${text} · <strong>${korbEsc(p.status)}</strong>${notiz}${hinweis}</span></div>`;
         }
         const an = korbZustand.auswahl.has(p.schluessel) ? 'checked' : '';
         return `<label class="korb-pos" style="${p.vorschlag ? '' : 'opacity:0.7;'}"><input type="checkbox" data-pos="${korbEsc(p.schluessel)}" ${an}>`
@@ -4292,15 +4380,13 @@
         // Herausgenommen: Zaehler = sichtbare Anzahl (14 Tage + unbezahlt, oder alle nach "ältere anzeigen"), klein die Gesamtzahl.
         const rausSichtbar = korbZustand.rausAeltere ? z.herausgenommen : z.herausgenommenAktuell;
         const rausAelter = z.herausgenommen - z.herausgenommenAktuell;
-        const bestellt = d.buendel.reduce((n, b) => n + b.positionen.filter(p => p.status === 'bestellt').length, 0);
-        const zahl = { offen: `${z.offen}`, raus: `${rausSichtbar} <small>/ ${z.herausgenommen}</small>`, bestellt: `${bestellt}`, alle: `${z.positionen}` };
-        const name = { offen: 'Offen', raus: 'Herausgenommen', bestellt: 'Bestellt', alle: 'Alle' };
+        // BO4d: "Alle" = offen + herausgenommen (der Server liefert nur noch diese beiden Status).
+        const zahl = { offen: `${z.offen}`, raus: `${rausSichtbar} <small>/ ${z.herausgenommen}</small>`, alle: `${z.positionen}` };
+        const name = { offen: 'Offen', raus: 'Herausgenommen', alle: 'Alle' };
         document.querySelectorAll('#korb-filter [data-filter]').forEach(btn => {
           const f = btn.dataset.filter;
           btn.innerHTML = `${name[f]} (${zahl[f]})`;
           btn.setAttribute('aria-pressed', String(f === korbZustand.filter));
-          // "Bestellt" erst, wenn es bestellte Positionen gibt (BO4b-2) - oder wenn er gerade gewaehlt ist.
-          if (f === 'bestellt') btn.hidden = !bestellt && korbZustand.filter !== 'bestellt';
         });
         const sichtbar = d.buendel
           .map(b => ({ ...b, zeigen: b.positionen.filter(korbFilterPasst) }))
@@ -4308,7 +4394,7 @@
         const aeltereLink = korbZustand.filter === 'raus' && !korbZustand.rausAeltere && rausAelter > 0
           ? `<button class="korb-link" type="button" id="korb-aeltere">ältere anzeigen (${rausAelter})</button>` : '';
         if (!sichtbar.length) {
-          const leer = { offen: 'Keine offenen Positionen.', raus: 'Keine herausgenommenen Positionen in den letzten 14 Tagen.', bestellt: 'Keine bestellten Positionen.', alle: 'Der Korb ist leer.' };
+          const leer = { offen: 'Keine offenen Positionen.', raus: 'Keine herausgenommenen Positionen in den letzten 14 Tagen.', alle: 'Der Korb ist leer.' };
           el.innerHTML = `<p style="color:var(--muted);font-size:0.84rem;">${d.buendel.length ? leer[korbZustand.filter] : 'Der Korb ist leer.'}</p>${aeltereLink}`;
         } else {
           el.innerHTML = sichtbar.map(b => {
@@ -5047,8 +5133,6 @@
         if (!d) return;
         // Dringlichkeit ohne Bestelldatum in den Daten: einmal mit ?mit=bestelldatum nachladen.
         if (uebersichtBrauchtDatum() && !d.mitBestelldatum) { if (!korbZustand.laedt) loadLShopKorb(); return; }
-        const unterwegs = document.getElementById('uebersicht-unterwegs');
-        if (unterwegs) unterwegs.innerHTML = uebersichtZustand.zaehlliste ? '' : unterwegsHtml(d.sendungen);
         const mx = baueMatrix(d.buendel, grSortiere);
         const gruppen = gruppiere(d.buendel, uebersichtZustand.gruppe, { heute: heuteBerlin(), sortiere: grSortiere });
         const extra = [mx.unbezahlt ? `davon ${mx.unbezahlt} unbezahlt` : '', mx.gesperrt ? `${mx.gesperrt} gesperrt (nicht gezählt)` : ''].filter(Boolean).join(' · ');
@@ -5097,6 +5181,57 @@
       });
       document.getElementById('uebersicht-abgleich-btn')?.addEventListener('click', ev => korbAbgleichStarten(ev.currentTarget));
       document.getElementById('uebersicht-eigen-link')?.addEventListener('click', () => oeffneAnsicht('bestellen', 'lshop-korb'));
+
+      // ── SECTION: L-Shop-Bestellungen ──
+      // BO4d: Unterpunkt bestellen/lshop-bestellungen. Laedt GET /api/bestellen/lshop-bestellungen nur, wenn der
+      // Unterreiter geoeffnet wird (nur lesen). Anzeige ueber den Block "L-Shop-Bestellungen" (lbListeHtml).
+      // Filter in localStorage mc_lb_filter (wie der Korb), "ältere anzeigen" der Portalbestellungen nie gespeichert.
+      const LB_FILTER_KEY = 'mc_lb_filter';
+      const lbZustand = {
+        daten: null, laedt: false, portalAeltere: false,
+        filter: (() => { try { const f = localStorage.getItem(LB_FILTER_KEY); return LB_FILTER.includes(f) ? f : 'unterwegs'; } catch { return 'unterwegs'; } })(),
+      };
+      function lbZeichnen() {
+        const el = document.getElementById('lb-liste');
+        if (!el || !lbZustand.daten) return;
+        const z = lbZaehler(lbZustand.daten);
+        const name = { unterwegs: 'Unterwegs', geliefert: 'Geliefert', alle: 'Alle' };
+        document.querySelectorAll('#lb-filter [data-bfilter]').forEach(btn => {
+          const f = btn.dataset.bfilter;
+          btn.innerHTML = `${name[f]} (${z[f]})`;
+          btn.setAttribute('aria-pressed', String(f === lbZustand.filter));
+        });
+        document.getElementById('lb-summe').textContent = `L-Shop-Bestellungen · ${z.unterwegs} unterwegs · ${z.geliefert} geliefert (14 Tage)`;
+        el.innerHTML = lbListeHtml(lbZustand.daten, lbZustand.filter, lbZustand.portalAeltere);
+      }
+      async function loadLShopBestellungen() {
+        const el = document.getElementById('lb-liste');
+        if (!el || lbZustand.laedt) return;
+        lbZustand.laedt = true;
+        if (!lbZustand.daten) el.innerHTML = '<div class="skeleton"></div>';
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-bestellungen`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
+          lbZustand.daten = await apiJson(res);
+          lbZeichnen();
+        } catch (e) {
+          el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Bestellungen konnten nicht geladen werden: ${lbEsc(e.message)}</p>`;
+        } finally {
+          lbZustand.laedt = false;
+        }
+      }
+      document.getElementById('lb-filter')?.addEventListener('click', ev => {
+        const f = ev.target.closest('[data-bfilter]')?.dataset.bfilter;
+        if (!f || !LB_FILTER.includes(f)) return;
+        lbZustand.filter = f;
+        try { localStorage.setItem(LB_FILTER_KEY, f); } catch { /* ohne Speicher: nur fuer diese Sitzung */ }
+        lbZeichnen();
+      });
+      document.getElementById('lb-liste')?.addEventListener('click', ev => {
+        if (!ev.target.closest('[data-portal-aeltere]')) return;
+        lbZustand.portalAeltere = true;
+        lbZeichnen();
+        document.querySelector('#lb-liste .lb-portal')?.setAttribute('open', '');
+      });
 
       // ── SECTION: Artikelerfassung ──
       const PROP_NAMES = ['Farbe', 'Größe', 'Druckfarbe']; // Fallback bis SSOT geladen

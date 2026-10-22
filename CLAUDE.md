@@ -13,7 +13,8 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   auch `window.oeffneAnsicht`; Adresse `#bereich/unterpunkt`; Ereignis `mc:ansicht` fuer den
   zweiten Script-Block. Bereiche: dashboard · bestellen (Panel orders, Unterreiter) · artikel
   (Panel products, Modus-Knoepfe) · partner (lizenz = partnerportal, festpreis) · kunden (anfragen,
-  agent-wissen) · system (settings). Neue Ansicht = Zeile in BEREICHE, nie `nav button.click()`.)
+  agent-wissen) · system (settings). Neue Ansicht = Zeile in BEREICHE, nie `nav button.click()`.
+  Alte Adresse = Zeile mit `umleitung: '<unterpunkt>'` ohne panel/knopf (BO4d: `bestellen/lshop`).)
 - Stand-Anzeige
 - Helpers (darin: Dashboard inkl. Knopf "Trikot-Sync jetzt")
 - Auftragsmonitor, Auftragsmonitor Dual-Source; darunter "Auftragsmonitor: Shop Orders" (kein SECTION-Anker)
@@ -42,6 +43,16 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   > 30 · > 7 (8-30) · 3-7 · < 3 Kalendertage Europe/Berlin, dann "ohne Datum"; "wartet seit" = aelteste
   Position. Wahl in `localStorage` `mc_uebersicht_gruppe` (nicht in der Adresse), Aufklappen nie gespeichert.
   Das Bestelldatum laedt `loadLShopKorb` nur, wenn die Uebersicht nach Dringlichkeit sichtbar ist.)
+- L-Shop-Bestellungen (BO4d: Unterpunkt `bestellen/lshop-bestellungen`, direkt hinter der Uebersicht, Panel
+  `tab-lshop-bestellungen`. Laedt `GET /api/bestellen/lshop-bestellungen` nur beim Oeffnen. Block
+  `L-Shop-Bestellungen: Anfang/Ende` (Test lshop-bestellungen.test.js): je Bestellung `<details>`-Karte
+  (Kopf, Status-Etikett, Positionen, Lieferscheine mit "Paket 1…n" nur auf textilelogistics.eu), Filter
+  Unterwegs · Geliefert (14 Tage) · Alle (`data-bfilter`, `localStorage` `mc_lb_filter`), eingeklappte
+  "Portalbestellungen" (30 Tage, "ältere anzeigen" nie gespeichert). Hilfe-Gruppe `bestellungen`.
+  Die alte Adresse `#bestellen/lshop` (ausgeblendeter Vorgaenger des Warenkorbs, schreibt ueber
+  `/api/auftragsmonitor/lshop/*` in `LShop_Bestellungen`/`Produktions_Status`) leitet per `umleitung` in
+  BEREICHE hierher; Panel und Endpunkte stehen noch, Ausbau in eigenem Auftrag. Filter "Bestellt" und
+  Block "Unterwegs von L-Shop" aus BO4b-2 sind entfernt.)
 - Artikelerfassung
 - SEO-Daten aendern (Befehl SE1: Yoast-Felder jedes veroeffentlichten Artikels; nutzt seoMetaBau und yoastSchreiben des SEO-Flows, schreibt nichts ins Sheet)
 - SEO-Flow
@@ -199,10 +210,21 @@ Neue Sektionen immer mit Anker versehen:
   Ablauf je Datei: laden -> archivieren -> Sendungen -> EDI-Status -> Protokoll (`Drive_ID` hinten) ->
   Chat; jeder Schritt wiederholbar. Archiv-Fehler = Datei nicht verarbeitet + Zeile "Lauf"/"fehler"
   (gleiche Serie wie FTP); Archiv-Konflikt = Alarm, Datei verarbeitet ohne Drive_ID. Rechnungen XML/PDF:
-  nur Archiv, kein zweiter Weg nach Lexware. Anzeige: `GET .../lshop-korb` liefert `sendungen` je
-  order_id (Position traegt `bestellId` = Bestell_ID); Block `Sendung-Anzeige: Anfang/Ende` (Feld
-  "versandt · DHL · n Pakete" an bestellten Positionen, Filter "Bestellt" erst wenn es bestellte gibt,
-  "Unterwegs von L-Shop" unter der Bestelluebersicht).
+  nur Archiv, kein zweiter Weg nach Lexware. Anzeige der Sendungen seit BO4d im Unterreiter
+  "L-Shop-Bestellungen" (lib/lshopBestellungen.js), nicht mehr im Korb.
+- backend/lib/lshopBestellungen.js – Unterreiter "L-Shop-Bestellungen (JFN)" (BO4d), Logik in
+  `utils/lshop-bestellungen.js`. `GET /api/bestellen/lshop-bestellungen?shop=` NUR LESEN, nur Sheets
+  (LShop_EDI_Dateien, Warenkorb_LShop, LShop_Modelle, LShop_Sendungen), nur JFN (HONK -> `nurJfn`), fehlende
+  Reiter = leer. Bestellung = EDI-Zeile ab "gesendet" (Entwurf/Testdatei nie); Positionen ueber Korb
+  `Bestell_ID` = order_id, ersatzweise EDI `Korb_Schluessel`. Status aus den Daten (`bestellStatus`):
+  geliefert (alle Positionen geliefert) > teilweise geliefert (eine geliefert oder Paket mit Wareneingang)
+  > versandt (Pakete) > bestaetigt (EDI) > gesendet. Lieferscheine = Pakete nach LA. Je Bestellung
+  `filter.unterwegs` / `filter.geliefert` (geliefert in den letzten 14 Tagen, juengstes Status_Datum); der
+  Browser filtert nur ueber diese Kennzeichen. Portal-Sendungen (order_id leer) getrennt nach VA, `aelter` =
+  > 30 Tage. Datum bis BO4c "erstellt am" (Erzeugt), `gesendet` leer; Liefertermin (BO4b-4) und
+  Wareneingang (BO4b-5) nur "folgt", keine Knoepfe. Der Korb (`GET .../lshop-korb`) zeigt seit BO4d nur
+  `KORB_SICHTBAR` = offen + abgewählt (`summen.positionen` = beide), liefert keine `sendungen` mehr; die
+  Zeilen bleiben unveraendert.
 - backend/lib/belegArchiv.js – Archiv der L-Shop-Belege (BO4b-2), einzige Stelle mit Drive-SCHREIBEN
   ausser dem Backup. Geteilte Ablage "Mission Control" -> `L-Shop Belege/<Art>/<Jahr>/` (Art
   Lieferbestaetigung | Auftragsbestaetigung | Rechnung_XML | Rechnung_PDF; Jahr aus dem Dateinamen, sonst

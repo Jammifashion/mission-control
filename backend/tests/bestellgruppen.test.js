@@ -123,7 +123,7 @@ describe('gruppiere', () => {
 });
 
 describe('Einbindung in index.html', () => {
-  const sec = block('// ── SECTION: L-Shop-Bestellübersicht ──', '// ── SECTION: Artikelerfassung ──');
+  const sec = block('// ── SECTION: L-Shop-Bestellübersicht ──', '// ── SECTION: L-Shop-Bestellungen ──');
 
   test('Umschalter mit genau drei Arten, keine Druckart', () => {
     const knoepfe = [...html.matchAll(/data-gruppe="([a-z]+)"/g)].map(m => m[1]);

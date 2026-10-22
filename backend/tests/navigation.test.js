@@ -10,7 +10,10 @@ const html  = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../
 const block = html.slice(html.indexOf('// ── Navigation-Tabelle: Anfang ──'), html.indexOf('// ── Navigation-Tabelle: Ende ──'));
 const nav   = new Function(`${block}\n return { BEREICHE, findeAnsicht, ansichtAusHash, hashFuer, shopWirkt };`)();
 const { BEREICHE, ansichtAusHash, hashFuer, shopWirkt } = nav;
-const punkte = Object.entries(BEREICHE).flatMap(([b, def]) => def.punkte.map(p => ({ b, ...p })));
+// BO4d: Zeilen mit "umleitung" sind alte Adressen ohne eigene Ansicht (eigener Test unten).
+const alleZeilen = Object.entries(BEREICHE).flatMap(([b, def]) => def.punkte.map(p => ({ b, ...p })));
+const punkte = alleZeilen.filter(p => !p.umleitung);
+const umleitungen = alleZeilen.filter(p => p.umleitung);
 
 describe('Tabelle BEREICHE deckt alle vorhandenen Ansichten ab', () => {
   test('Hauptleiste = Bereiche der Tabelle, in derselben Reihenfolge', () => {
@@ -26,7 +29,8 @@ describe('Tabelle BEREICHE deckt alle vorhandenen Ansichten ab', () => {
   });
 
   test('jeder Unterreiter im Auftragsmonitor und jeder Artikel-Modus genau einmal', () => {
-    const subtabs = [...html.matchAll(/<button class="sub-tab[^"]*" data-subtab="([a-z-]+)"/g)].map(m => m[1]);
+    // tab-lshop: ausgeblendeter Vorgaenger des Warenkorbs, seit BO4d nicht mehr erreichbar (#bestellen/lshop leitet um).
+    const subtabs = [...html.matchAll(/<button class="sub-tab[^"]*" data-subtab="([a-z-]+)"/g)].map(m => m[1]).filter(t => t !== 'tab-lshop');
     const modi    = [...html.matchAll(/id="(mode-btn-[a-z]+)"/g)].map(m => m[1]);
     const knoepfe = punkte.filter(p => p.knopf).map(p => p.knopf);
     for (const t of subtabs) expect(knoepfe.filter(k => k.includes(`data-subtab="${t}"`))).toHaveLength(1);
@@ -54,6 +58,18 @@ describe('Adresse #bereich/unterpunkt', () => {
       const a = ansichtAusHash(hashFuer(p.b, p.id));
       expect([a.bereich, a.punkt]).toEqual([p.b, p.id]);
     }
+  });
+
+  test('alte Adresse #bestellen/lshop leitet auf L-Shop-Bestellungen um (BO4d); Umleitungen zeigen auf echte Ansichten', () => {
+    expect(ansichtAusHash('#bestellen/lshop')).toMatchObject({ bereich: 'bestellen', punkt: 'lshop-bestellungen' });
+    expect(umleitungen.map(u => `${u.b}/${u.id}->${u.umleitung}`)).toEqual(['bestellen/lshop->lshop-bestellungen']);
+    for (const u of umleitungen) {
+      expect(u.panel).toBeUndefined();
+      expect(u.knopf).toBeUndefined();
+      expect(punkte.some(p => p.b === u.b && p.id === u.umleitung)).toBe(true);
+    }
+    expect(html).not.toMatch(/knopf: '#panel-orders \.sub-tab\[data-subtab="tab-lshop"\]'/);
+    expect(html).toMatch(/<button class="sub-tab" data-subtab="tab-lshop-uebersicht">[^<]*<\/button>\s*<button class="sub-tab" data-subtab="tab-lshop-bestellungen">/);
   });
 
   test('nur Bereich -> Bereich ohne Unterpunkt', () => {

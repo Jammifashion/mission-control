@@ -26,6 +26,9 @@ export const KORB_SPALTEN = [
 
 export const STATUS = { OFFEN: 'offen', ABGEWAEHLT: 'abgewählt', BESTELLT: 'bestellt', GELIEFERT: 'geliefert', LAGER: 'Lager' };
 export const HERKUNFT = { SHOP: 'shop', EIGEN: 'eigen' };
+// BO4d: Diese Status zeigt der Warenkorb (GET .../lshop-korb). Alles andere (bestellt, geliefert, Lager)
+// steht im Unterreiter "L-Shop-Bestellungen".
+export const KORB_SICHTBAR = [STATUS.OFFEN, STATUS.ABGEWAEHLT];
 
 // Der Abgleich liest diese Status. Shop: nur JFN, bis HONK selbst EDI-bestellbar ist.
 export const KORB_STATUS_SHOP = ['processing', 'on-hold'];
