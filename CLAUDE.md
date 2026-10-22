@@ -18,7 +18,11 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
 - Helpers (darin: Dashboard inkl. Knopf "Trikot-Sync jetzt")
 - Auftragsmonitor, Auftragsmonitor Dual-Source; darunter "Auftragsmonitor: Shop Orders" (kein SECTION-Anker)
 - L-Shop-Warenkorb (BO2: Unterpunkt `bestellen/lshop-korb`, Anzeige + Knopf "Abgleich jetzt"; der alte
-  Unterreiter "L-Shop Bestellungen" ist seitdem ausgeblendet, nicht entfernt)
+  Unterreiter "L-Shop Bestellungen" ist seitdem ausgeblendet, nicht entfernt. BO4a am Ende der Sektion:
+  "EDI-Entwurf" - Knopf "EDI-Datei erzeugen (Entwurf)" in der Leiste, "alle offenen wählen" (ohne
+  gesperrte), Dialog `#edi-dialog` im Panel orders; Block `EDI-Pruefung: Anfang/Ende` (Test
+  edi-frontend.test.js): Knopf nur frei bei gruen + Browser-`DOMParser` ok, vor dem Download erneut;
+  nach dem Erzeugen gesperrt, bis neu geprueft wird. Nur Download, kein Versand.)
 - L-Shop-Bestellübersicht (BO3b: Unterpunkt `bestellen/lshop-uebersicht`, direkt hinter dem Korb. Nur eine
   Ansicht auf `korbZustand.daten` - kein eigener Abruf, kein Endpunkt; `korbZeichnen()` zeichnet beide.
   Block `Matrix: Anfang/Ende` (`baueMatrix`, Test bestellmatrix.test.js): nur Status offen, sperrender
@@ -135,6 +139,24 @@ Neue Sektionen immer mit Anker versehen:
   (hoechste + 1 aus dem Reiter), Referenz Pflicht (nie Klarnamen). Der Abgleich fasst Herkunft
   `eigen` und Status ausser offen/bestellt nie an. Eine Sperre je Instanz fuer alle Schreiber -> 409
   "gleich noch einmal". Kein Loeschen; bestellt/geliefert setzt erst BO4.
+- backend/lib/lshopEdi.js – L-Shop-EDI-Bestelldatei aus dem Warenkorb (BO4a), Logik in
+  `utils/edi-bestellung.js`. **Erzeugt nur, verschickt nichts:** kein FTP/SFTP, kein Shop, nur Sheets;
+  die Datei geht als Download an den Browser (nie in den FTP-Ordner `Order`, dort ist jede XML eine
+  echte Bestellung). `POST /api/bestellen/lshop-korb/edi/vorschau` schreibt nichts (order_id
+  `JFN-<Jahr>-____`); `.../edi/erzeugen` unter der Korb-Sperre (`mitKorbSperre`): Pruefbericht neu,
+  rot -> 422 + `pruefung`, sonst naechste order_id (`naechsteOrderId`, hoechste + 1 je Jahr, nie
+  wiederverwendet) und GENAU EINE Zeile im SSOT-Reiter `LShop_EDI_Dateien` (Status "Entwurf", Korb-
+  Schluessel), Schreibmuster des Korbs (kein append, zuruecklesen). Der Korb bleibt unveraendert.
+  Aufbau nach Guideline 1.4.1 wie die Testdatei JFN-2026-0001 (L-Shop 23.09. fehlerfrei): `order ->
+  orderheader -> orderitems -> item`, `additional_information` weg, **nie** `shippingaddress`/
+  `senderaddress`, Kopf `shipping_method` Standard, `partial_delivery` -1, `mail` info@, `printmode` 0,
+  `order_date` = `delivery_date` = Tag (Europe/Berlin, TT.MM.JJJJ). Eine Zeile je Korb-Position,
+  `reference` = `<Shop>-<Bestellnr>-<Pos>` bzw. die eigene Referenz. `customer_id` NUR aus Business
+  `Config` Schluessel `lshop.customer_id` (nie im Code/Log/Postfach; fehlt -> rot). Commission
+  Standard `JFN Sammelbestellung KW<KW>`, <= 30. Pruefregeln: `EDI_REGELN` (rot sperrt, "noch nicht
+  bezahlt" gelb, nach 14 Uhr Hinweis). XML-Pruefung ohne Paket: strenger Rueckleser `pruefeBestellXml`
+  (nur unser Aufbau) + `DOMParser` im Browser. Einrichtung: `scripts/setup-lshop-edi-reiter.js`
+  (Trockenlauf Standard, `--write`; Reiter + Zeile 0001 + Config-Zeile mit leerem Wert, idempotent).
 - backend/routes/partnerPortal.js – Token-Auth für partner.html + WC-Sync
 - backend/routes/anfragen.js – Kundenanfragen Admin (POST /neu, GET /, PATCH /:id/status) – hinter requireApiKey
 - backend/routes/anfragen-chat.js – Chat-Widget public endpoint (POST /chat, kein API-Key) – vor requireApiKey

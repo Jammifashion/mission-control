@@ -357,6 +357,28 @@
       }
       .bm-einzeln > span:first-child { min-width: 0; overflow-wrap: anywhere; }
       .bm-einzeln-stueck { margin-left: auto; display: inline-flex; gap: 0.25rem; align-items: baseline; }
+      /* BO4a: EDI-Entwurf (Dialog ueber Korb und Bestelluebersicht) */
+      .edi-dialog { position: fixed; inset: 0; z-index: 50; background: rgba(0, 0, 0, 0.6); display: flex; align-items: flex-start; justify-content: center; padding: 1rem; overflow-y: auto; }
+      .edi-dialog[hidden] { display: none; }
+      .edi-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; width: min(900px, 100%); display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; }
+      .edi-kopf { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; }
+      .edi-feld { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; }
+      .edi-feld .form-input { width: 100%; box-sizing: border-box; }
+      .edi-pruefung { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0.25rem 1rem; font-size: 0.82rem; }
+      .edi-punkt { display: flex; gap: 0.4rem; align-items: baseline; min-width: 0; overflow-wrap: anywhere; }
+      .edi-zeichen { flex: none; width: 1rem; text-align: center; font-weight: 700; }
+      .edi-ok .edi-zeichen { color: var(--success); }
+      .edi-ok { color: var(--muted); }
+      .edi-rot .edi-zeichen, .edi-rot { color: var(--danger); }
+      .edi-gelb .edi-zeichen, .edi-gelb { color: var(--accent); }
+      .edi-info .edi-zeichen { color: var(--info); }
+      .edi-treffer { font-size: 0.78rem; opacity: 0.9; }
+      .edi-tabelle { overflow-x: auto; }
+      .edi-tabelle table { border-collapse: collapse; font-size: 0.8rem; width: 100%; }
+      .edi-tabelle th, .edi-tabelle td { border-bottom: 1px solid var(--border); padding: 0.25rem 0.4rem; text-align: left; white-space: nowrap; }
+      .edi-xml pre { max-height: 18rem; overflow: auto; font-size: 0.75rem; background: var(--bg); padding: 0.5rem; border-radius: 6px; white-space: pre; }
+      #korb-alle-btn[hidden] { display: none; }
+
       /* BO3c: Umschalter "Gruppieren nach" und aufklappbare Gruppen */
       .bm-umschalter { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.5rem; margin: 0.2rem 0 0.4rem; }
       .bm-umschalter .korb-zaehler { margin: 0; }
@@ -1188,6 +1210,7 @@
               </span>
             </div>
             <div id="korb-zaehler" class="korb-zaehler"></div>
+            <button class="korb-link" id="korb-alle-btn" type="button" title="Wählt alle offenen Positionen ohne sperrenden Hinweis (storniert, erstattet …)">alle offenen wählen</button>
             <div id="korb-lauf" class="lshop-card-bedarf" style="display:none;"></div>
 
             <!-- Eigene Position (BO3): Artikel -> Farbe -> Groesse -> Menge -> Referenz -> Notiz -->
@@ -1219,6 +1242,7 @@
               <select id="korb-grund" class="form-select" aria-label="Grund"></select>
               <input id="korb-notiz" type="text" class="form-input" maxlength="200" placeholder="Notiz (optional)" />
               <button class="btn-lshop-bestellen" id="korb-herausnehmen" type="button">Herausnehmen</button>
+              <button class="btn-secondary korb-klein" id="korb-edi-btn" type="button" title="Erzeugt die L-Shop-Bestelldatei als Entwurf zum Herunterladen - es wird nichts an L-Shop geschickt">EDI-Datei erzeugen (Entwurf)</button>
               <button class="btn-secondary korb-klein" id="korb-auswahl-weg" type="button">Auswahl aufheben</button>
             </div>
           </div>
@@ -1246,6 +1270,29 @@
             <div id="uebersicht-zaehler" class="korb-zaehler"></div>
             <div id="uebersicht-liste"><div class="skeleton"></div><div class="skeleton"></div></div>
             <div id="uebersicht-leiste-platz"></div>
+          </div>
+        </div>
+
+        <!-- BO4a: EDI-Bestelldatei als Entwurf (Vorschau, Pruefbericht, Download). Kein Versand an L-Shop. -->
+        <div id="edi-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="edi-titel" hidden>
+          <div class="edi-box">
+            <div class="edi-kopf">
+              <strong id="edi-titel">EDI-Datei erzeugen (Entwurf)</strong>
+              <button type="button" class="korb-link" id="edi-schliessen">Schließen</button>
+            </div>
+            <div class="korb-zaehler">Die Datei wird nur heruntergeladen – <strong>nicht</strong> an L-Shop geschickt.</div>
+            <label class="edi-feld">Commission
+              <input id="edi-commission" type="text" class="form-input" maxlength="60" autocomplete="off" />
+              <small id="edi-commission-zahl" class="korb-zaehler"></small>
+            </label>
+            <div id="edi-pruefung" class="edi-pruefung"></div>
+            <div id="edi-tabelle" class="edi-tabelle"></div>
+            <details class="edi-xml"><summary>XML anzeigen</summary><pre id="edi-xml"></pre></details>
+            <div class="korb-reihe">
+              <button type="button" class="btn-secondary korb-klein" id="edi-pruefen">Neu prüfen</button>
+              <button type="button" class="btn-lshop-bestellen" id="edi-erzeugen" disabled>Erzeugen und herunterladen</button>
+            </div>
+            <div id="edi-ergebnis" class="korb-zaehler"></div>
           </div>
         </div>
 
@@ -4084,6 +4131,8 @@
           }).join('') + aeltereLink;
         }
         korbLeisteAktualisieren();
+        const alleBtn = document.getElementById('korb-alle-btn');
+        if (alleBtn) alleBtn.hidden = korbZustand.filter !== 'offen';
         uebersichtZeichnen();   // BO3b: dieselben Daten, zweite Ansicht
       }
 
@@ -4344,6 +4393,164 @@
         }
       }
       document.getElementById('korb-abgleich-btn')?.addEventListener('click', ev => korbAbgleichStarten(ev.currentTarget));
+
+      // ── EDI-Entwurf (BO4a) ──
+      // "EDI-Datei erzeugen (Entwurf)": Vorschau (POST .../edi/vorschau, schreibt nichts) und Erzeugen
+      // (POST .../edi/erzeugen, vergibt die order_id, eine Protokollzeile in LShop_EDI_Dateien). Der Korb
+      // bleibt unveraendert. Die Datei geht NUR als Download an den Browser - kein Versand an L-Shop.
+      // Vor dem Freigeben des Knopfs und vor dem Download liest der Browser das XML mit DOMParser.
+
+      // ── EDI-Pruefung: Anfang (reine Logik, backend/tests/edi-frontend.test.js) ──
+      // Darf nichts aus dem Seitenkontext benutzen; der Parser kommt als Argument (im Browser DOMParser).
+      function ediXmlImBrowserOk(xml, Parser) {
+        if (typeof xml !== 'string' || !xml.startsWith('<?xml version="1.0" encoding="UTF-8"?>\n')) return { ok: false, grund: 'erste Zeile ist nicht die XML-Deklaration' };
+        if (/shippingaddress|senderaddress/i.test(xml)) return { ok: false, grund: 'Adressblock enthalten' };
+        let doc;
+        try { doc = new Parser().parseFromString(xml, 'application/xml'); } catch (e) { return { ok: false, grund: `XML nicht lesbar: ${e.message}` }; }
+        if (doc.getElementsByTagName('parsererror').length) return { ok: false, grund: 'XML nicht lesbar (Parser-Fehler)' };
+        if (doc.documentElement?.nodeName !== 'order') return { ok: false, grund: 'Wurzel ist nicht <order>' };
+        if (!doc.getElementsByTagName('item').length) return { ok: false, grund: 'keine Position' };
+        return { ok: true, grund: '' };
+      }
+      function ediErzeugenFrei(vorschau, xmlPruefung) {
+        return !!(vorschau && vorschau.gruen && vorschau.xml && xmlPruefung?.ok);
+      }
+      // ── EDI-Pruefung: Ende ──
+
+      const ediZustand = { auswahl: [], vorschau: null, xmlOk: null, laeuft: false };
+      const EDI_ZEICHEN = { rot: '✗', gelb: '!', info: 'ⓘ' };
+
+      function ediPruefungZeichnen(punkte) {
+        document.getElementById('edi-pruefung').innerHTML = (punkte ?? []).map(p => {
+          const art = p.ok ? 'ok' : p.stufe;
+          const zeichen = p.ok ? '✓' : EDI_ZEICHEN[p.stufe] ?? '•';
+          const treffer = (p.treffer ?? []).map(t => `<div class="edi-treffer">${t.schluessel ? `${korbEsc(t.schluessel)}: ` : ''}${korbEsc(t.text)}</div>`).join('');
+          return `<div class="edi-punkt edi-${art}"><span class="edi-zeichen">${zeichen}</span><span>${korbEsc(p.titel)}${treffer}</span></div>`;
+        }).join('');
+      }
+
+      function ediZeichnen() {
+        const v = ediZustand.vorschau;
+        const com = document.getElementById('edi-commission');
+        document.getElementById('edi-commission-zahl').textContent = `${com.value.length}/30`;
+        if (!v) { document.getElementById('edi-pruefung').innerHTML = '<div class="skeleton"></div>'; return; }
+        const punkte = [...v.punkte];
+        if (v.xml && ediZustand.xmlOk && !ediZustand.xmlOk.ok) punkte.push({ regel: 'browser', stufe: 'rot', ok: false, titel: 'Browser liest das XML zurück', treffer: [{ text: ediZustand.xmlOk.grund }] });
+        ediPruefungZeichnen(punkte);
+        document.getElementById('edi-tabelle').innerHTML = v.items?.length
+          ? `<table><thead><tr><th>itemnumber</th><th>Modell · Farbe · Größe</th><th>reference</th><th>quantity</th></tr></thead><tbody>${v.items.map(i =>
+            `<tr><td>${korbEsc(i.itemnumber)}</td><td>${korbEsc([i.modell, i.farbe, i.groesse].filter(Boolean).join(' · '))}</td><td>${korbEsc(i.reference)}</td><td>${korbEsc(i.quantity)}</td></tr>`).join('')}</tbody></table>`
+            + `<div class="korb-zaehler">${v.items.length} Position${v.items.length !== 1 ? 'en' : ''} · ${v.stueck} Stück · order_id ${korbEsc(v.orderId)}</div>`
+          : '';
+        document.getElementById('edi-xml').textContent = v.xml ?? '(kein XML, solange der Prüfbericht rot ist)';
+        document.getElementById('edi-erzeugen').disabled = ediZustand.laeuft || !ediErzeugenFrei(v, ediZustand.xmlOk);
+      }
+
+      async function ediAnfrage(pfad) {
+        const com = document.getElementById('edi-commission').value;
+        return apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/edi/${pfad}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ auswahl: ediZustand.auswahl, commission: ediZustand.vorschau ? com : undefined }),
+        });
+      }
+
+      async function ediPruefen() {
+        ediZustand.laeuft = true;
+        document.getElementById('edi-ergebnis').textContent = '';
+        ediZeichnen();
+        try {
+          const res = await ediAnfrage('vorschau');
+          const stopp = await laufStopp(res);
+          if (stopp) { showToast(stopp, 'error'); return; }
+          const v = await apiJson(res);
+          if (!ediZustand.vorschau) document.getElementById('edi-commission').value = v.commission;   // Standardtext beim ersten Mal
+          ediZustand.vorschau = v;
+          ediZustand.xmlOk = v.xml ? ediXmlImBrowserOk(v.xml, DOMParser) : null;
+        } catch (e) {
+          showToast(`EDI-Vorschau fehlgeschlagen: ${e.message}`, 'error');
+        } finally {
+          ediZustand.laeuft = false;
+          ediZeichnen();
+        }
+      }
+
+      function ediHerunterladen(xml, dateiname) {
+        const url = URL.createObjectURL(new Blob([xml], { type: 'application/xml;charset=utf-8' }));
+        const a = document.createElement('a');
+        a.href = url; a.download = dateiname;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+
+      async function ediErzeugenKlick() {
+        if (!ediErzeugenFrei(ediZustand.vorschau, ediZustand.xmlOk)) return;
+        ediZustand.laeuft = true;
+        ediZeichnen();
+        try {
+          const res = await ediAnfrage('erzeugen');
+          const stopp = await laufStopp(res);
+          if (stopp) { showToast(stopp, 'error'); return; }
+          if (res.status === 422) {
+            const j = await res.json().catch(() => null);
+            ediZustand.vorschau = { ...ediZustand.vorschau, gruen: false, punkte: j?.pruefung?.punkte ?? ediZustand.vorschau.punkte };
+            showToast(j?.error || 'Prüfbericht rot - keine Datei erzeugt', 'error');
+            return;
+          }
+          if (res.status === 409) {
+            const j = await res.json().catch(() => null);
+            showToast(j?.error || 'Gerade beschäftigt - bitte gleich noch einmal.', 'error');
+            return;
+          }
+          const r = await apiJson(res);
+          const pruef = ediXmlImBrowserOk(r.xml, DOMParser);
+          if (!pruef.ok) {
+            // Die Nummer ist vergeben (Protokoll), die Datei aber nicht brauchbar: nicht herunterladen.
+            document.getElementById('edi-ergebnis').textContent = `${r.orderId} vergeben, aber der Browser liest das XML nicht (${pruef.grund}) - kein Download. Bitte melden.`;
+            showToast('EDI-Datei nicht heruntergeladen (XML ungültig)', 'error');
+            return;
+          }
+          ediHerunterladen(r.xml, r.dateiname);
+          // Anzeige = die erzeugte Datei; Knopf gesperrt, damit ein zweiter Klick keine weitere Nummer
+          // vergibt. Fuer eine neue Datei zuerst "Neu prüfen".
+          ediZustand.vorschau = { ...ediZustand.vorschau, xml: r.xml, orderId: r.orderId, gruen: false };
+          document.getElementById('edi-ergebnis').textContent = `${r.orderId} erzeugt (Entwurf) und als ${r.dateiname} heruntergeladen - nicht an L-Shop geschickt. Der Warenkorb ist unverändert.`;
+          showToast(`${r.orderId} heruntergeladen (Entwurf)`);
+        } catch (e) {
+          showToast(`EDI-Datei fehlgeschlagen: ${e.message}`, 'error');
+        } finally {
+          ediZustand.laeuft = false;
+          ediZeichnen();
+        }
+      }
+
+      function ediOeffnen() {
+        ediZustand.auswahl = [...korbZustand.auswahl.values()].map(p => ({ schluessel: p.schluessel, status: p.status }));
+        if (!ediZustand.auswahl.length) { showToast('Bitte zuerst Positionen wählen', 'error'); return; }
+        ediZustand.vorschau = null;
+        ediZustand.xmlOk = null;
+        document.getElementById('edi-commission').value = '';
+        document.getElementById('edi-tabelle').innerHTML = '';
+        document.getElementById('edi-xml').textContent = '';
+        document.getElementById('edi-ergebnis').textContent = '';
+        document.getElementById('edi-dialog').hidden = false;
+        ediPruefen();
+      }
+
+      document.getElementById('korb-edi-btn')?.addEventListener('click', ediOeffnen);
+      document.getElementById('edi-pruefen')?.addEventListener('click', ediPruefen);
+      document.getElementById('edi-erzeugen')?.addEventListener('click', ediErzeugenKlick);
+      document.getElementById('edi-schliessen')?.addEventListener('click', () => { document.getElementById('edi-dialog').hidden = true; });
+      document.getElementById('edi-commission')?.addEventListener('input', () => {
+        // Geaenderte Commission: erst neu pruefen, dann erzeugen.
+        if (ediZustand.vorschau) ediZustand.vorschau = { ...ediZustand.vorschau, gruen: false };
+        ediZeichnen();
+      });
+      document.getElementById('korb-alle-btn')?.addEventListener('click', () => {
+        for (const p of korbPositionen()) {
+          if (p.status === 'offen' && p.bearbeitbar && p.vorschlag !== false) korbZustand.auswahl.set(p.schluessel, p);
+        }
+        korbZeichnen();
+      });
 
       // ── SECTION: L-Shop-Bestellübersicht ──
       // BO3b: zweite Ansicht auf denselben Warenkorb. Kein eigener Abruf: loadLShopKorb()

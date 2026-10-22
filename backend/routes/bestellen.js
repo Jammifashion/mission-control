@@ -3,6 +3,7 @@ import {
   runKorbAbgleich, leseKorb, setzeStatus, sucheLShopModelle, lshopModellVarianten, legeEigenePositionAn,
 } from '../lib/lshopKorb.js';
 import { notifyFehler } from '../lib/chatNotify.js';
+import { ediVorschau, ediErzeugen } from '../lib/lshopEdi.js';
 
 const router = Router();
 
@@ -60,6 +61,30 @@ router.post('/lshop-korb/eigen', async (req, res, next) => {
     console.log(`L-Shop-Korb eigene Position ${r.schluessel} (Zeile ${r.zeile})`);
     res.json(r);
   } catch (err) { next(err); }
+});
+
+// ── POST /api/bestellen/lshop-korb/edi/vorschau  (BO4a) ──────────────────────
+// ── POST /api/bestellen/lshop-korb/edi/erzeugen  (BO4a) ──────────────────────
+// Body: { auswahl: [{ schluessel, status }], commission }. Erzeugt nur die EDI-Datei fuer den
+// Browser (Vorschau/Download) - es gibt hier keinen Versand an L-Shop. Vorschau schreibt nichts;
+// Erzeugen vergibt die order_id und schreibt eine Protokollzeile. Pruefbericht rot -> 422 + pruefung.
+router.post('/lshop-korb/edi/vorschau', async (req, res, next) => {
+  try {
+    const b = req.body ?? {};
+    res.json(await ediVorschau({ auswahl: b.auswahl, commission: b.commission }));
+  } catch (err) { next(err); }
+});
+
+router.post('/lshop-korb/edi/erzeugen', async (req, res, next) => {
+  try {
+    const b = req.body ?? {};
+    const r = await ediErzeugen({ auswahl: b.auswahl, commission: b.commission });
+    console.log(`EDI-Datei erzeugt: ${r.orderId} (${r.items.length} Positionen, ${r.stueck} Stueck, Protokollzeile ${r.protokollZeile})`);
+    res.json(r);
+  } catch (err) {
+    if (err?.status === 422 && err.pruefung) return res.status(422).json({ error: err.message, pruefung: err.pruefung });
+    next(err);
+  }
 });
 
 // ── GET /api/bestellen/lshop-korb?shop=jfn|honk[&mit=bestelldatum] ───────────

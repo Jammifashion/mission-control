@@ -204,6 +204,8 @@ async function mitSperre(was, fn) {
   laeuft = was;
   try { return await fn(); } finally { laeuft = null; }
 }
+// BO4a: "EDI-Datei erzeugen" liest den Korb und vergibt die order_id unter derselben Sperre.
+export const mitKorbSperre = mitSperre;
 
 /**
  * @param {object} o
