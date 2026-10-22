@@ -157,6 +157,29 @@ Neue Sektionen immer mit Anker versehen:
   bezahlt" gelb, nach 14 Uhr Hinweis). XML-Pruefung ohne Paket: strenger Rueckleser `pruefeBestellXml`
   (nur unser Aufbau) + `DOMParser` im Browser. Einrichtung: `scripts/setup-lshop-edi-reiter.js`
   (Trockenlauf Standard, `--write`; Reiter + Zeile 0001 + Config-Zeile mit leerem Wert, idempotent).
+- backend/lib/lshopFtp.js – L-Shop-FTP, **NUR LESEN** (BO4b-1), einzige Stelle mit `basic-ftp` (Test
+  lshop-ftp.test.js: kein anderer Import, am Client nur access/list/downloadTo/close, kein Schreibweg).
+  `mitLShopFtp(fn)` = EINE Verbindung, fn bekommt nur `{ liste, lade }`; feste Ordner (`ORDER` nur Liste,
+  nie laden), Dateiname ohne Pfad, 1 MB je Beleg, 30 s je Befehl. Fehler -> `LShopFtpFehler` (502,
+  `lshop_ftp`) ohne Host/IP/Benutzer. Das EDI-Konto DARF auf dem Server schreiben/loeschen - "nur lesen"
+  sichert allein dieser Code. Schreiben kommt erst mit BO4c: nur in `ORDER`, nur `<order_id>_…xml` aus
+  `LShop_EDI_Dateien`, nie loeschen/umbenennen. Secrets: `LSHOP_FTP_HOST` (gemeinsam, Port 21),
+  `LSHOP_EDI_FTP_USER/PASS` (Belege + Bestellen), `LSHOP_FTP_USER/PASS` (Bestandsdatei, ab BO4b-3).
+  Server unverschluesselt (Inhaber 22.10.) und wackelig: alles nacheinander, keine Wiederholung im Lauf.
+- backend/lib/lshopBelege.js – Belege-Abruf (BO4b-1), Logik in `utils/lshop-belege.js`. Scheduler
+  `POST /api/intern/lshop-belege/abruf` (Job `lshop-belege-abruf`, `7,37 * * * *`) und Knopf
+  `POST /api/bestellen/lshop-belege/abruf` (`routes/lshopBelege.js`, eigener Router, damit
+  routes/bestellen.js FTP-frei bleibt; `{ dryRun }`). Protokoll SSOT-Reiter `LShop_Belege` (eine Zeile je
+  verarbeiteter Datei, Schluessel Ordner+Datei, Schreibmuster des Korbs, nie loeschen; Einrichtung
+  `scripts/setup-lshop-belege-reiter.js`). Waechter: jede Datei in `ORDER`, die nicht `<order_id>_…xml`
+  mit Status "gesendet" ist -> Alarm (bis BO4c also jede); AB: order_id im Text suchen (`dekodiere` nach
+  BOM - Lieferbestaetigungen sind UTF-16 LE trotz `encoding="utf-8"`), fehlt/unbekannt/Entwurf/
+  Testdatei -> Alarm, sonst "AB eingegangen - Auswertung folgt" (BO4b-4). Gleicher Name, anderer Hash ->
+  Alarm "veraendert". Lieferbestaetigungen/Rechnungen nur gezaehlt (BO4b-2). Erst schreiben, dann Chat.
+  FTP-Fehler = 200 + Zeile Art "Lauf"/"fehler"; Chat ab 3 in Folge, 1/h (Zustand im Reiter, weil
+  Cloud-Run-Instanzen zwischen den Takten wegfallen); andere Fehler 5xx. Eigene Datei, die > 20 min in
+  `ORDER` liegt: `orderZuLange` (Alarm erst ab BO4c). Frontend: Knopf "Belege jetzt abrufen" im Korb,
+  Block `Belege-Abruf: Anfang/Ende`.
 - backend/routes/partnerPortal.js – Token-Auth für partner.html + WC-Sync
 - backend/routes/anfragen.js – Kundenanfragen Admin (POST /neu, GET /, PATCH /:id/status) – hinter requireApiKey
 - backend/routes/anfragen-chat.js – Chat-Widget public endpoint (POST /chat, kein API-Key) – vor requireApiKey
@@ -379,7 +402,8 @@ ANTHROPIC_API_KEY, WC_KEY, WC_SECRET, WC_URL, WC_KEY_HONK, WC_SECRET_HONK,
 WC_URL_HONK, GOOGLE_SHEET_ID, BUSINESS_SHEET_ID, GEMINI_API_KEY, MC_API_KEY,
 CORS_ORIGIN, TURNSTILE_SECRET_KEY, WP_APP_PASSWORD, WP_APP_PASSWORD_HONK,
 CHAT_SESSION_SECRET, GOOGLE_DRIVE_SHARED_DRIVE_ID, GOOGLE_DRIVE_BACKUP_DAILY_ID,
-GOOGLE_DRIVE_BACKUP_MONTHLY_ID
+GOOGLE_DRIVE_BACKUP_MONTHLY_ID, GCHAT_WEBHOOK_URL, SCHEDULER_SA_EMAIL,
+SCHEDULER_AUDIENCE, LSHOP_FTP_HOST, LSHOP_EDI_FTP_USER, LSHOP_EDI_FTP_PASS
 
 Ein leerer Wert zählt als fehlend. Für lokal ungenutzte Dienste (HonkShop,
 Turnstile, WP-Upload) reicht ein Platzhalter wie `unused` – Hauptsache nicht
@@ -433,6 +457,12 @@ MC_API_KEY oeffnet `/api/intern` nicht. Body wird ignoriert (nie Trockenlauf), L
 Sperre "laeuft schon" -> 200 `uebersprungen`, 5xx bleibt 5xx (Chat-Meldung), 503 Pruefseite bleibt.
 Der Workflow `lshop-korb-abgleich.yml` hat kein `schedule` mehr, nur noch `workflow_dispatch`.
 Scheitert der Job selbst (401, Zeitlimit), meldet ein Log-Alarm in Cloud Monitoring per Mail.
+
+Zweiter Job `lshop-belege-abruf` (BO4b-1): `7,37 * * * *` Europe/Berlin, POST auf
+`<BACKEND_URL>/api/intern/lshop-belege/abruf`, gleiches Dienstkonto, **gleiche Audience** wie CS1
+(`SCHEDULER_AUDIENCE` = URL des Korb-Endpunkts; die Audience ist nur ein Sollwert), Versuchsfrist
+300 s, keine Wiederholung (der naechste Takt holt nach). Lauf-ID `BA-<Zeit>`. FTP-Fehler sind 200;
+nur echte Fehler (Sheets, 401, Zeitlimit) machen den Versuch rot -> Log-Alarm (Kanal Mission Control Chat).
 
 ## Neues Secret anlegen
 1. Secret im GCP Secret Manager anlegen (Browser, Account gbr@jammifashion.de)

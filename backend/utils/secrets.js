@@ -27,6 +27,11 @@ export const SECRET_KEYS = [
   'GOOGLE_DRIVE_BACKUP_MONTHLY_ID',
   'SCHEDULER_SA_EMAIL',
   'SCHEDULER_AUDIENCE',
+  // L-Shop-FTP (BO4b): Host gemeinsam, EDI-Konto fuer Belege/Bestellen. Bestandskonto
+  // LSHOP_FTP_USER/PASS kommt mit BO4b-3 dazu.
+  'LSHOP_FTP_HOST',
+  'LSHOP_EDI_FTP_USER',
+  'LSHOP_EDI_FTP_PASS',
 ];
 
 function getSmClient() {
@@ -58,6 +63,9 @@ export async function getSecret(key) {
   cache.set(key, { val, at: Date.now() });
   return val;
 }
+
+// Nur fuer Tests: Zwischenspeicher leeren (sonst gilt der erste gelesene Wert 12 h).
+export function _secretCacheLeeren() { cache.clear(); }
 
 /**
  * loadAllSecrets()

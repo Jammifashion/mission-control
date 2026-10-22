@@ -1207,11 +1207,13 @@
                 </span>
                 <button class="btn-secondary korb-klein" id="korb-eigen-btn" type="button">+ Eigene Position</button>
                 <button class="btn-lshop-bestellen" id="korb-abgleich-btn" title="Neue L-Shop-bestellfähige Positionen aus dem Shop übernehmen">↻ Abgleich jetzt</button>
+                <button class="btn-secondary korb-klein" id="korb-belege-btn" type="button" title="Liest den L-Shop-FTP (nur lesen): Auftragsbestätigungen und fremde Dateien in ORDER prüfen. Läuft sonst alle 30 min von selbst.">📥 Belege jetzt abrufen</button>
               </span>
             </div>
             <div id="korb-zaehler" class="korb-zaehler"></div>
             <button class="korb-link" id="korb-alle-btn" type="button" title="Wählt alle offenen Positionen ohne sperrenden Hinweis (storniert, erstattet …)">alle offenen wählen</button>
             <div id="korb-lauf" class="lshop-card-bedarf" style="display:none;"></div>
+            <div id="korb-belege" class="lshop-card-bedarf" style="display:none;"></div>
 
             <!-- Eigene Position (BO3): Artikel -> Farbe -> Groesse -> Menge -> Referenz -> Notiz -->
             <div id="korb-eigen" class="korb-eigen" style="display:none;">
@@ -4393,6 +4395,48 @@
         }
       }
       document.getElementById('korb-abgleich-btn')?.addEventListener('click', ev => korbAbgleichStarten(ev.currentTarget));
+
+      // ── Belege-Abruf (BO4b-1) ──
+      // "Belege jetzt abrufen": POST /api/bestellen/lshop-belege/abruf. Das Backend liest den L-Shop-FTP nur
+      // (Auftragsbestaetigungen, fremde Dateien in ORDER) und protokolliert in LShop_Belege; sonst laeuft
+      // derselbe Abruf alle 30 min ueber Cloud Scheduler. Ein FTP-Fehler kommt als 200 mit ftp "fehler".
+      // Block Belege-Abruf: Anfang
+      function belegeZeile(r) {
+        if (r.ftp !== 'ok') return `L-Shop-FTP nicht erreichbar (${r.grund}) · ${r.inFolge}. Fehllauf in Folge`;
+        const o = r.ordner ?? {};
+        const teile = [
+          `Belege: ${o.ORDERCONFIRMATION ?? 0} Auftragsbestätigung(en)`, `${o.DELIVERYCONFIRMATION ?? 0} Lieferbestätigung(en)`,
+          `${o.ORDER ?? 0} Datei(en) in ORDER`, `${r.neueZeilen} neu protokolliert`,
+        ];
+        if (r.alarme?.length) teile.push(`⚠ ${r.alarme.length} Alarm(e) – siehe Chat`);
+        if (r.offen) teile.push(`${r.offen} beim nächsten Lauf`);
+        return teile.join(' · ');
+      }
+      async function belegeAbrufStarten(btn) {
+        const anzeige = document.getElementById('korb-belege');
+        btn.disabled = true;
+        btn.textContent = '📥 Abruf läuft…';
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-belege/abruf`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dryRun: false }),
+            signal: AbortSignal.timeout(300000),
+          });
+          const r = await apiJson(res);
+          anzeige.style.display = '';
+          anzeige.textContent = belegeZeile(r);
+          if (r.ftp !== 'ok') showToast('L-Shop-FTP nicht erreichbar – nächster Versuch in 30 min', 'error');
+          else if (r.alarme?.length) showToast(`${r.alarme.length} Beleg-Alarm(e) – siehe Chat`, 'error');
+          else showToast('Belege abgerufen');
+        } catch (e) {
+          showToast(`Beleg-Abruf fehlgeschlagen: ${e.message}`, 'error');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '📥 Belege jetzt abrufen';
+        }
+      }
+      // Block Belege-Abruf: Ende
+      document.getElementById('korb-belege-btn')?.addEventListener('click', ev => belegeAbrufStarten(ev.currentTarget));
 
       // ── EDI-Entwurf (BO4a) ──
       // "EDI-Datei erzeugen (Entwurf)": Vorschau (POST .../edi/vorschau, schreibt nichts) und Erzeugen

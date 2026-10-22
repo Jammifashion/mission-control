@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireSchedulerOidc } from '../middleware/schedulerAuth.js';
 import { runKorbAbgleich, BESCHAEFTIGT } from '../lib/lshopKorb.js';
 import { notifyFehler } from '../lib/chatNotify.js';
+import { runBelegeAbruf, BELEGE_BESCHAEFTIGT } from '../lib/lshopBelege.js';
 
 // Endpunkte fuer Google Cloud Scheduler (CS1). Stehen VOR requireApiKey und nur
 // hinter requireSchedulerOidc - ein MC_API_KEY oeffnet sie nicht.
@@ -29,6 +30,31 @@ router.post('/lshop-korb/abgleich', async (_req, res, next) => {
     }
     if (err?.code !== 'hoster_pruefseite' && (err?.status ?? 500) >= 500) {
       await notifyFehler({ art: 'L-Shop-Korb-Abgleich', status: err?.status ?? 500, text: err?.message });
+    }
+    next(err);
+  }
+});
+
+// ── POST /api/intern/lshop-belege/abruf  (Job lshop-belege-abruf, :07 und :37 Europe/Berlin, BO4b-1) ──
+// Body wird ignoriert. FTP-Fehler (Server wackelt) sind 200 mit ftp "fehler" - die Chat-Meldung
+// kommt erst ab 3 Fehllaeufen in Folge (lib/lshopBelege.js). Andere Fehler bleiben 5xx (Chat + Log-Alarm).
+router.post('/lshop-belege/abruf', async (_req, res, next) => {
+  const laufId = `BA-${new Date().toISOString().slice(0, 16)}Z`;
+  try {
+    const r = await runBelegeAbruf({ dryRun: false, quelle: 'scheduler', laufId });
+    console.log(
+      `L-Shop-Belege ${r.lauf}: ftp=${r.ftp}` +
+      (r.ftp === 'ok' ? ` ordner=${JSON.stringify(r.ordner)} neu=${r.neueZeilen} alarme=${r.alarme.length} ab=${r.abErkannt.length}`
+                      : ` grund="${r.grund}" inFolge=${r.inFolge} gemeldet=${r.gemeldet}`)
+    );
+    res.json(r);
+  } catch (err) {
+    if (err?.status === 409 && err?.message === BELEGE_BESCHAEFTIGT) {
+      console.log(`L-Shop-Belege ${laufId}: uebersprungen (laeuft schon)`);
+      return res.json({ uebersprungen: 'läuft schon', lauf: laufId });
+    }
+    if ((err?.status ?? 500) >= 500) {
+      await notifyFehler({ art: 'L-Shop-Belege', status: err?.status ?? 500, text: err?.message });
     }
     next(err);
   }

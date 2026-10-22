@@ -21,7 +21,7 @@ jest.unstable_mockModule('../lib/lshopKorb.js', () => ({
 }));
 
 const notifyFehler = jest.fn().mockResolvedValue(undefined);
-jest.unstable_mockModule('../lib/chatNotify.js', () => ({ notifyFehler }));
+jest.unstable_mockModule('../lib/chatNotify.js', () => ({ notifyFehler, notify: jest.fn() }));   // notify: lib/lshopBelege.js (BO4b-1)
 
 const AUD   = 'https://backend.example/api/intern/lshop-korb/abgleich';
 const KONTO = 'korb-scheduler@projekt.iam.gserviceaccount.com';
