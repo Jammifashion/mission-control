@@ -1,5 +1,7 @@
-// Richtet den Beleg-Abruf ein (BO4b-1): SSOT-Reiter "LShop_Belege" (Protokoll: was vom L-Shop-FTP
-// schon verarbeitet ist, Alarme, Fehllaeufe). Nur die Kopfzeile, keine Daten.
+// Richtet den Beleg-Abruf ein (BO4b-1, BO4b-2): SSOT-Reiter "LShop_Belege" (Protokoll: was vom
+// L-Shop-FTP schon verarbeitet ist, Alarme, Fehllaeufe; seit BO4b-2 mit Spalte Drive_ID hinten),
+// SSOT-Reiter "LShop_Sendungen" (eine Zeile je Paket) und in der geteilten Ablage die Archiv-Ordner
+// "L-Shop Belege/<Art>/<Jahr>". Nur Kopfzeilen und Ordner, keine Daten.
 //
 //   node backend/scripts/setup-lshop-belege-reiter.js           Trockenlauf (Standard): zeigt nur, was passieren wuerde
 //   node backend/scripts/setup-lshop-belege-reiter.js --write   legt an und liest zurueck

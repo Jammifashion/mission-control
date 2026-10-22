@@ -165,7 +165,7 @@ Neue Sektionen immer mit Anker versehen:
 - backend/lib/lshopFtp.js – L-Shop-FTP, **NUR LESEN** (BO4b-1), einzige Stelle mit `basic-ftp` (Test
   lshop-ftp.test.js: kein anderer Import, am Client nur access/list/downloadTo/close, kein Schreibweg).
   `mitLShopFtp(fn)` = EINE Verbindung, fn bekommt nur `{ liste, lade }`; feste Ordner (`ORDER` nur Liste,
-  nie laden), Dateiname ohne Pfad, 1 MB je Beleg, 30 s je Befehl. Fehler -> `LShopFtpFehler` (502,
+  nie laden), Dateiname ohne Pfad, 1 MB je Beleg (Rechnungs-PDF 10 MB), 30 s je Befehl. Fehler -> `LShopFtpFehler` (502,
   `lshop_ftp`) ohne Host/IP/Benutzer. Das EDI-Konto DARF auf dem Server schreiben/loeschen - "nur lesen"
   sichert allein dieser Code. Schreiben kommt erst mit BO4c: nur in `ORDER`, nur `<order_id>_…xml` aus
   `LShop_EDI_Dateien`, nie loeschen/umbenennen. Secrets: `LSHOP_FTP_HOST` (gemeinsam, Port 21),
@@ -180,11 +180,39 @@ Neue Sektionen immer mit Anker versehen:
   mit Status "gesendet" ist -> Alarm (bis BO4c also jede); AB: order_id im Text suchen (`dekodiere` nach
   BOM - Lieferbestaetigungen sind UTF-16 LE trotz `encoding="utf-8"`), fehlt/unbekannt/Entwurf/
   Testdatei -> Alarm, sonst "AB eingegangen - Auswertung folgt" (BO4b-4). Gleicher Name, anderer Hash ->
-  Alarm "veraendert". Lieferbestaetigungen/Rechnungen nur gezaehlt (BO4b-2). Erst schreiben, dann Chat.
+  Alarm "veraendert". Erst schreiben, dann Chat.
   FTP-Fehler = 200 + Zeile Art "Lauf"/"fehler"; Chat ab 3 in Folge, 1/h (Zustand im Reiter, weil
   Cloud-Run-Instanzen zwischen den Takten wegfallen); andere Fehler 5xx. Eigene Datei, die > 20 min in
   `ORDER` liegt: `orderZuLange` (Alarm erst ab BO4c). Frontend: Knopf "Belege abrufen" im Korb,
   Block `Belege-Abruf: Anfang/Ende`.
+  BO4b-2: **Lieferbestaetigung je PAKET** (`leseLieferbestaetigung`): eine Datei = Tagesstand aller Pakete
+  eines Abends, mehrere VA je Datei, ein VA in Teillieferungen (LA) ueber mehrere Tage. Gelesen werden NUR
+  Paketnummer, VorgangDE (VA/LA), KdBestellNrDE, Frachtfuehrer, Gewicht, Url (nur textilelogistics.eu) -
+  nie Kundennummer, Adressfelder, Mail, INETNummer, Kommission. SSOT-Reiter `LShop_Sendungen` (eine Zeile
+  je Paket, Schluessel Paketnummer, RAW-Text; gleiche Nummer gleicher Inhalt -> uebersprungen, anderer ->
+  Alarm, nie ueberschrieben). KdBestellNrDE leer = Portal (nur Sendung, kein Alarm); `JFN-…` mit Status
+  gesendet/bestaetigt/versandt/geliefert = eigen -> `LShop_EDI_Dateien` Status `versandt` (nur aus
+  gesendet/bestaetigt, nur die Zelle) + Chat "📦 L-Shop versandt: …" mit Tracking; unbekannt/Entwurf/fremd
+  -> Alarm. Korb-Status bleibt `bestellt`. Erstbestand still: keine Zeile "Lieferbestaetigung" im
+  Protokoll ODER Namensdatum <= `ERSTBESTAND_BIS` (20261022). Je Lauf hoechstens
+  `MAX_NEUE_BELEGE_JE_LAUF` (15) neue Belege (Scheduler-Frist), Rest = `offen`, naechster Takt.
+  Ablauf je Datei: laden -> archivieren -> Sendungen -> EDI-Status -> Protokoll (`Drive_ID` hinten) ->
+  Chat; jeder Schritt wiederholbar. Archiv-Fehler = Datei nicht verarbeitet + Zeile "Lauf"/"fehler"
+  (gleiche Serie wie FTP); Archiv-Konflikt = Alarm, Datei verarbeitet ohne Drive_ID. Rechnungen XML/PDF:
+  nur Archiv, kein zweiter Weg nach Lexware. Anzeige: `GET .../lshop-korb` liefert `sendungen` je
+  order_id (Position traegt `bestellId` = Bestell_ID); Block `Sendung-Anzeige: Anfang/Ende` (Feld
+  "versandt · DHL · n Pakete" an bestellten Positionen, Filter "Bestellt" erst wenn es bestellte gibt,
+  "Unterwegs von L-Shop" unter der Bestelluebersicht).
+- backend/lib/belegArchiv.js – Archiv der L-Shop-Belege (BO4b-2), einzige Stelle mit Drive-SCHREIBEN
+  ausser dem Backup. Geteilte Ablage "Mission Control" -> `L-Shop Belege/<Art>/<Jahr>/` (Art
+  Lieferbestaetigung | Auftragsbestaetigung | Rechnung_XML | Rechnung_PDF; Jahr aus dem Dateinamen, sonst
+  FTP-Zeit Berlin). Eigene Anmeldung mit Scope **`drive.file`** (`googleAuthMitScopes`): MC sieht nur, was
+  es selbst angelegt hat - deshalb legt MC die Ordner selbst an (Setup-Skript bzw. bei Bedarf); ein von
+  Hand angelegter Ordner gleichen Namens waere unsichtbar. Cloud Run und lokal = `mission-control-sa`
+  (sonst saehen sie gegenseitig ihre Ordner nicht). Datei unveraendert (Bytes, Name, keine Umwandlung),
+  nach Upload `size` + `md5Checksum` geprueft. Gleicher Name: gleiche MD5 -> vorhandene ID; andere MD5
+  oder mehrfach -> `ArchivKonflikt`. Nie loeschen, ueberschreiben, Papierkorb, Freigaben (Quelltext-Test
+  beleg-archiv.test.js).
 - backend/routes/partnerPortal.js – Token-Auth für partner.html + WC-Sync
 - backend/routes/anfragen.js – Kundenanfragen Admin (POST /neu, GET /, PATCH /:id/status) – hinter requireApiKey
 - backend/routes/anfragen-chat.js – Chat-Widget public endpoint (POST /chat, kein API-Key) – vor requireApiKey

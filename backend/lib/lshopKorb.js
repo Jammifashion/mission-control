@@ -31,6 +31,7 @@ import {
   GRUENDE, statusPlan, naechsteEigenNummer, eigeneZeile, sucheModelle, NICHT_IM_BESTAND,
 } from '../utils/korb-logic.js';
 import { LIEFERZEIT_META_KEY } from './lieferzeiten.js';
+import { SENDUNGEN_TAB, sendungenZeilen, sendungenNachOrder } from '../utils/lshop-belege.js';
 
 const TAB_VARIANTEN = 'Varianten';
 const TAB_MASKE     = 'Erfassungsmaske';
@@ -108,6 +109,15 @@ async function reiterInfo(sheets, spreadsheetId) {
 async function leseKorbWerte(sheets, spreadsheetId) {
   const { data } = await sheets.spreadsheets.values.get({ spreadsheetId, range: q(TAB_KORB), valueRenderOption: 'FORMATTED_VALUE' });
   return data.values ?? [];
+}
+
+// BO4b-2: Sendungen eigener Bestellungen je order_id fuer die Anzeige "versandt · DHL · n Pakete".
+// Nur Sheets (LShop_Sendungen), kein FTP. Fehlt der Reiter (noch nicht eingerichtet): keine Sendungen.
+async function leseSendungen(sheets, spreadsheetId) {
+  const { data } = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties(title)' });
+  if (!(data.sheets ?? []).some(s => s.properties?.title === SENDUNGEN_TAB)) return {};
+  const { data: w } = await sheets.spreadsheets.values.get({ spreadsheetId, range: q(SENDUNGEN_TAB), valueRenderOption: 'FORMATTED_VALUE' });
+  return sendungenNachOrder(sendungenZeilen(w.values ?? []));
 }
 
 async function ladeKontext(sheets, spreadsheetId) {
@@ -413,6 +423,7 @@ export async function leseKorb({ shop, mit, sheets: s, wcFuer = getWcClient, jet
   return {
     reiterFehlt: false,
     buendel,
+    sendungen: await leseSendungen(sheets, spreadsheetId),   // BO4b-2: { order_id: { frachtfuehrer, pakete, offen } }
     gruende: GRUENDE,
     summen: {
       positionen: meine.length,

@@ -352,6 +352,10 @@
       .korb-pos .korb-link { flex: none; }
       .korb-pos-raus { opacity: 0.55; }
       .korb-menge-viel { color: var(--danger); font-weight: 700; }   /* BO3d: Menge > 1 */
+      /* BO4b-2: Sendung aus der Lieferbestaetigung, Block "Unterwegs von L-Shop" */
+      .korb-sendung { color: var(--success, #4caf50); }
+      .korb-sendung a { color: inherit; text-decoration: underline; }
+      .korb-unterwegs { margin-top: 0.75rem; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 0.84rem; display: grid; gap: 0.25rem; overflow-wrap: anywhere; }
       .korb-link { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.78rem; padding: 0.15rem 0; text-decoration: underline; }
       .korb-leiste {
         position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center;
@@ -1248,6 +1252,7 @@
                 <span class="korb-filter" id="korb-filter" role="group" aria-label="Positionen filtern">
                   <button type="button" data-filter="offen" data-hilfe="filter-offen" aria-pressed="true">Offen</button>
                   <button type="button" data-filter="raus" data-hilfe="filter-raus" aria-pressed="false">Herausgenommen</button>
+                  <button type="button" data-filter="bestellt" data-hilfe="filter-bestellt" aria-pressed="false" hidden>Bestellt</button>
                   <button type="button" data-filter="alle" data-hilfe="filter-alle" aria-pressed="false">Alle</button>
                 </span>
               </div>
@@ -1329,6 +1334,7 @@
             <div id="hilfe-uebersicht" class="hilfe-legende" hidden></div>
             <div id="uebersicht-zaehler" class="korb-zaehler"></div>
             <div id="uebersicht-liste"><div class="skeleton"></div><div class="skeleton"></div></div>
+            <div id="uebersicht-unterwegs"></div>
             <div id="uebersicht-leiste-platz"></div>
           </div>
         </div>
@@ -4085,13 +4091,38 @@
       // Kein Loeschen; bestellt/geliefert setzt erst BO4.
       const korbEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
       const korbDatum = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('de-DE'); };
-      // Filter: offen | raus (abgewählt) | alle. Gemerkt je Browser; fehlt der Speicher, gilt "offen".
+      // Filter: offen | raus (abgewählt) | bestellt (BO4b-2) | alle. Gemerkt je Browser; fehlt der Speicher, gilt "offen".
       const KORB_FILTER_KEY = 'mc_korb_filter';
-      const korbFilterLesen = () => { try { const f = localStorage.getItem(KORB_FILTER_KEY); return ['offen', 'raus', 'alle'].includes(f) ? f : 'offen'; } catch { return 'offen'; } };
+      const korbFilterLesen = () => { try { const f = localStorage.getItem(KORB_FILTER_KEY); return ['offen', 'raus', 'bestellt', 'alle'].includes(f) ? f : 'offen'; } catch { return 'offen'; } };
       const korbZustand = { daten: null, auswahl: new Map(), filter: korbFilterLesen() };   // auswahl: Schluessel -> Position
       // "Herausgenommen" zeigt nur die letzten 14 Tage (+ unbezahlt, rausAktuell vom Server), aeltere per Link.
       const korbFilterPasst = p => korbZustand.filter === 'alle'
-        || (korbZustand.filter === 'raus' ? p.status === 'abgewählt' && (p.rausAktuell || korbZustand.rausAeltere) : p.status === 'offen');
+        || (korbZustand.filter === 'bestellt' ? p.status === 'bestellt'
+          : korbZustand.filter === 'raus' ? p.status === 'abgewählt' && (p.rausAktuell || korbZustand.rausAeltere) : p.status === 'offen');
+
+      // ── Sendung-Anzeige: Anfang (BO4b-2, Test lshop-sendungen.test.js) ──
+      // "versandt · DHL · 2 Pakete · Paket 1 · Paket 2" aus GET .../lshop-korb -> sendungen[order_id]
+      // (Quelle LShop_Sendungen, die der Beleg-Abruf aus den Lieferbestaetigungen fuellt). Links nur auf
+      // textilelogistics.eu, neuer Tab ohne Opener. Der Korb-Status bleibt "bestellt".
+      const SENDUNG_TRACKING = 'https://textilelogistics.eu/';
+      function sendungHtml(s) {
+        if (!s?.pakete?.length) return '';
+        const esc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+        const n = s.pakete.length;
+        const fr = (s.frachtfuehrer ?? []).map(esc).join('/') || 'Versand';
+        const links = s.pakete.map((p, i) => String(p.url ?? '').startsWith(SENDUNG_TRACKING)
+          ? `<a href="${esc(p.url)}" target="_blank" rel="noopener noreferrer" data-hilfe="tracking">Paket ${i + 1}</a>` : '').filter(Boolean);
+        return `<span class="korb-sendung">versandt · ${fr} · ${n} Paket${n !== 1 ? 'e' : ''}${links.length ? ` · ${links.join(' · ')}` : ''}</span>`;
+      }
+      // Bestelluebersicht: "Unterwegs von L-Shop" - je order_id mit noch nicht eingegangenen Paketen eine Zeile.
+      function unterwegsHtml(sendungen) {
+        const offen = Object.entries(sendungen ?? {}).filter(([, s]) => s.offen > 0).sort(([a], [b]) => a.localeCompare(b));
+        if (!offen.length) return '';
+        const esc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+        return `<div class="korb-unterwegs"><strong>Unterwegs von L-Shop</strong>`
+          + offen.map(([id, s]) => `<div>${esc(id)} · ${sendungHtml(s)}</div>`).join('') + '</div>';
+      }
+      // ── Sendung-Anzeige: Ende ──
 
       // ── Knopf-Hilfe: Anfang (UX1, backend/tests/knopf-hilfe.test.js) ──
       // Erklaerungen fuer Warenkorb, Aktionsleiste und Bestelluebersicht - die Texte stehen NUR hier.
@@ -4105,7 +4136,9 @@
         'filter-alle':          { name: 'Alle', text: 'Alle Positionen im Korb, egal welcher Status.' },
         'eigen':                { name: '+ Eigene Position', text: 'Einen L-Shop-Artikel ohne Shop-Bestellung in den Korb legen, z. B. für Muster oder Vereinsaufträge.' },
         'abgleich':             { name: '↻ Abgleich jetzt', text: 'Holt neue Shop-Bestellungen sofort in den Korb. Läuft sonst automatisch jede Stunde.' },
-        'belege':               { name: '📥 Belege abrufen', text: 'Schaut bei L-Shop nach neuen Belegen, z. B. Auftragsbestätigungen. Läuft sonst automatisch alle 30 Minuten.' },
+        'belege':               { name: '📥 Belege abrufen', text: 'Holt neue Belege von L-Shop (Auftrags- und Lieferbestätigungen, Rechnungen) und legt sie ins Archiv. Läuft sonst alle 30 Minuten.' },
+        'filter-bestellt':      { name: 'Bestellt', text: 'Positionen, die bei L-Shop bestellt sind. Ist ein Paket unterwegs, steht hier der Link zur Sendungsverfolgung.' },
+        'tracking':             { name: 'Paket 1, 2 …', text: 'Öffnet die Sendungsverfolgung dieses Pakets in einem neuen Tab.' },
         'alle-offenen':         { name: 'alle offenen wählen', text: 'Hakt alle offenen Positionen an. Gesperrte (z. B. storniert, erstattet) bleiben weg.' },
         'zurueck':              { name: 'zurück auf offen', text: 'Legt die Position wieder auf „Offen“. Dann wird sie wieder mitbestellt.' },
         'grund':                { name: 'Grund', text: 'Warum die gewählten Positionen nicht bestellt werden. Pflicht beim Herausnehmen.' },
@@ -4123,9 +4156,9 @@
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
-        korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'eigen', 'abgleich', 'belege', 'alle-offenen', 'zurueck'],
+        korb:       ['filter-offen', 'filter-raus', 'filter-bestellt', 'filter-alle', 'eigen', 'abgleich', 'belege', 'alle-offenen', 'zurueck', 'tracking'],
         leiste:     ['grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg'],
-        uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
+        uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck', 'tracking'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
       function hilfeLegendeHtml(gruppe) {
@@ -4211,7 +4244,9 @@
             + `<button class="korb-link" type="button" data-zurueck="${korbEsc(p.schluessel)}" data-hilfe="zurueck">zurück auf offen</button></div>`;
         }
         if (p.status !== 'offen' || !p.bearbeitbar) {
-          return `<div class="korb-pos korb-pos-raus"><span class="korb-pos-text">${text} · <strong>${korbEsc(p.status)}</strong>${notiz}${hinweis}</span></div>`;
+          const s = p.bestellId ? korbZustand.daten?.sendungen?.[p.bestellId] : null;
+          const sendung = s ? ` · ${sendungHtml(s)}` : '';
+          return `<div class="korb-pos korb-pos-raus"><span class="korb-pos-text">${text} · <strong>${korbEsc(p.status)}</strong>${sendung}${notiz}${hinweis}</span></div>`;
         }
         const an = korbZustand.auswahl.has(p.schluessel) ? 'checked' : '';
         return `<label class="korb-pos" style="${p.vorschlag ? '' : 'opacity:0.7;'}"><input type="checkbox" data-pos="${korbEsc(p.schluessel)}" ${an}>`
@@ -4257,12 +4292,15 @@
         // Herausgenommen: Zaehler = sichtbare Anzahl (14 Tage + unbezahlt, oder alle nach "ältere anzeigen"), klein die Gesamtzahl.
         const rausSichtbar = korbZustand.rausAeltere ? z.herausgenommen : z.herausgenommenAktuell;
         const rausAelter = z.herausgenommen - z.herausgenommenAktuell;
-        const zahl = { offen: `${z.offen}`, raus: `${rausSichtbar} <small>/ ${z.herausgenommen}</small>`, alle: `${z.positionen}` };
-        const name = { offen: 'Offen', raus: 'Herausgenommen', alle: 'Alle' };
+        const bestellt = d.buendel.reduce((n, b) => n + b.positionen.filter(p => p.status === 'bestellt').length, 0);
+        const zahl = { offen: `${z.offen}`, raus: `${rausSichtbar} <small>/ ${z.herausgenommen}</small>`, bestellt: `${bestellt}`, alle: `${z.positionen}` };
+        const name = { offen: 'Offen', raus: 'Herausgenommen', bestellt: 'Bestellt', alle: 'Alle' };
         document.querySelectorAll('#korb-filter [data-filter]').forEach(btn => {
           const f = btn.dataset.filter;
           btn.innerHTML = `${name[f]} (${zahl[f]})`;
           btn.setAttribute('aria-pressed', String(f === korbZustand.filter));
+          // "Bestellt" erst, wenn es bestellte Positionen gibt (BO4b-2) - oder wenn er gerade gewaehlt ist.
+          if (f === 'bestellt') btn.hidden = !bestellt && korbZustand.filter !== 'bestellt';
         });
         const sichtbar = d.buendel
           .map(b => ({ ...b, zeigen: b.positionen.filter(korbFilterPasst) }))
@@ -4270,7 +4308,7 @@
         const aeltereLink = korbZustand.filter === 'raus' && !korbZustand.rausAeltere && rausAelter > 0
           ? `<button class="korb-link" type="button" id="korb-aeltere">ältere anzeigen (${rausAelter})</button>` : '';
         if (!sichtbar.length) {
-          const leer = { offen: 'Keine offenen Positionen.', raus: 'Keine herausgenommenen Positionen in den letzten 14 Tagen.', alle: 'Der Korb ist leer.' };
+          const leer = { offen: 'Keine offenen Positionen.', raus: 'Keine herausgenommenen Positionen in den letzten 14 Tagen.', bestellt: 'Keine bestellten Positionen.', alle: 'Der Korb ist leer.' };
           el.innerHTML = `<p style="color:var(--muted);font-size:0.84rem;">${d.buendel.length ? leer[korbZustand.filter] : 'Der Korb ist leer.'}</p>${aeltereLink}`;
         } else {
           el.innerHTML = sichtbar.map(b => {
@@ -4563,6 +4601,9 @@
           `Belege: ${o.ORDERCONFIRMATION ?? 0} Auftragsbestätigung(en)`, `${o.DELIVERYCONFIRMATION ?? 0} Lieferbestätigung(en)`,
           `${o.ORDER ?? 0} Datei(en) in ORDER`, `${r.neueZeilen} neu protokolliert`,
         ];
+        if (r.sendungenNeu) teile.push(`${r.sendungenNeu} Paket(e) neu`);
+        if (r.archiv?.neu) teile.push(`${r.archiv.neu} archiviert`);
+        if (r.archiv?.fehler) teile.push(`⚠ ${r.archiv.fehler} nicht archiviert (nächster Lauf)`);
         if (r.alarme?.length) teile.push(`⚠ ${r.alarme.length} Alarm(e) – siehe Chat`);
         if (r.offen) teile.push(`${r.offen} beim nächsten Lauf`);
         return teile.join(' · ');
@@ -5006,6 +5047,8 @@
         if (!d) return;
         // Dringlichkeit ohne Bestelldatum in den Daten: einmal mit ?mit=bestelldatum nachladen.
         if (uebersichtBrauchtDatum() && !d.mitBestelldatum) { if (!korbZustand.laedt) loadLShopKorb(); return; }
+        const unterwegs = document.getElementById('uebersicht-unterwegs');
+        if (unterwegs) unterwegs.innerHTML = uebersichtZustand.zaehlliste ? '' : unterwegsHtml(d.sendungen);
         const mx = baueMatrix(d.buendel, grSortiere);
         const gruppen = gruppiere(d.buendel, uebersichtZustand.gruppe, { heute: heuteBerlin(), sortiere: grSortiere });
         const extra = [mx.unbezahlt ? `davon ${mx.unbezahlt} unbezahlt` : '', mx.gesperrt ? `${mx.gesperrt} gesperrt (nicht gezählt)` : ''].filter(Boolean).join(' · ');

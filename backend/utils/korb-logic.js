@@ -315,6 +315,7 @@ export function buendele(zeilen, modelle = new Map(), namen = {}, jetzt = new Da
       position: z.Position, referenz: z.Referenz, ssotId: z['SSOT-ID'], produktname: namen[z['SSOT-ID']] ?? '',
       menge, status: z.Status, grund: z.Grund, notiz: z.Notiz, hinweis: z.Hinweis, vorschlag,
       angelegt: z.Angelegt, statusDatum: z.Status_Datum,
+      bestellId: z.Bestell_ID,   // BO4b-2: order_id der EDI-Bestellung, Schluessel fuer die Sendungen
       // Nur fuer abgewaehlte Zeilen von Bedeutung: in den letzten 14 Tagen (oder unbezahlt).
       rausAktuell: z.Status === STATUS.ABGEWAEHLT && rausAktuell(z, jetzt),
       // BO3: nur offen <-> abgewaehlt ist in MC bearbeitbar; bestellt/geliefert/Lager setzt erst BO4.

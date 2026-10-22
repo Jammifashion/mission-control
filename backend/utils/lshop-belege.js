@@ -11,7 +11,11 @@
 //    sie unbekannt oder in LShop_EDI_Dateien nur Entwurf/Testdatei -> Alarm (Bestellung nicht von uns?).
 //    Sonst: "AB eingegangen - Auswertung folgt" (die Auswertung baut BO4b-4).
 //  - Gleicher Dateiname mit anderem Inhalt (Hash) -> Alarm "Datei veraendert", nicht neu verarbeitet.
-// Lieferbestaetigungen und Rechnungen werden in BO4b-1 nur gezaehlt (Auswertung ab BO4b-2).
+// BO4b-2: Lieferbestaetigungen je PAKET auswerten (eine Datei = Tagesstand aller Pakete eines Abends,
+// mehrere VA moeglich, ein VA kommt in Teillieferungen/LA ueber mehrere Tage) -> LShop_Sendungen.
+// Jede neu verarbeitete Belegdatei geht unveraendert ins Archiv (lib/belegArchiv.js, Drive).
+// Aus der Lieferbestaetigung werden NUR Paketnummer, VA/LA, KdBestellNrDE, Frachtfuehrer, Gewicht und
+// Url gelesen - Kundennummer, Adressfelder, Mail, INETNummer und Kommission nie.
 
 import { createHash } from 'crypto';
 import { normHeader } from './sheet-headers.js';
@@ -19,6 +23,7 @@ import { normHeader } from './sheet-headers.js';
 export const BELEGE_TAB = 'LShop_Belege';
 export const BELEGE_SPALTEN = [
   'Ordner', 'Datei', 'Groesse', 'Hash', 'Geaendert_FTP', 'Gelesen', 'Art', 'order_id', 'VA', 'LA', 'Ergebnis', 'Hinweis', 'Lauf',
+  'Drive_ID',   // BO4b-2, hinten angehaengt
 ];
 
 // Ordner auf dem EDI-FTP (gemessen 22.10.2026, Grossschreibung wie dort).
@@ -30,15 +35,20 @@ export const ORDNER = {
   RE_PDF: 'INVOICE/PDF',
 };
 
-export const ART = { ORDER: 'Order', AB: 'Auftragsbestätigung', LAUF: 'Lauf' };
+export const ART = { ORDER: 'Order', AB: 'Auftragsbestätigung', LB: 'Lieferbestätigung', RE: 'Rechnung', LAUF: 'Lauf' };
 export const ERGEBNIS = {
-  EIGEN: 'eigen', ALARM: 'alarm', ERKANNT: 'erkannt', VERAENDERT: 'verändert',
+  EIGEN: 'eigen', ALARM: 'alarm', ERKANNT: 'erkannt', VERAENDERT: 'verändert', PORTAL: 'portal', ARCHIVIERT: 'archiviert',
   FEHLER: 'fehler', FEHLER_GEMELDET: 'fehler (gemeldet)', OK_NACH_FEHLERN: 'ok nach Fehlern',
 };
 
 // Status in LShop_EDI_Dateien, die NICHT an L-Shop gegangen sind (AB dazu = Alarm).
 export const EDI_NICHT_GESENDET = ['Entwurf', 'Testdatei'];
 export const EDI_GESENDET = 'gesendet';
+// Status, ab denen eine Bestellung bei L-Shop ist (Lieferbestaetigung dazu = eigene Sendung).
+export const EDI_BEI_LSHOP = ['gesendet', 'bestätigt', 'versandt', 'geliefert'];
+export const EDI_VERSANDT = 'versandt';
+// Nur aus diesen Status wird bei der ersten Sendung auf "versandt" gesetzt (Teillieferung zaehlt mit).
+export const EDI_VOR_VERSAND = ['gesendet', 'bestätigt'];
 
 export const ORDER_LIEGT_MAX_MIN = 8;      // laut Inhaber holt L-Shop nach spaetestens ~8 min ab
 export const ORDER_ZU_LANGE_MIN = 20;      // "deutlich laenger" - Alarm erst ab BO4c
@@ -238,5 +248,162 @@ export function buildAbErkanntNachricht(erkannt) {
 }
 
 export function buildFtpFehlerNachricht({ inFolge, grund }) {
-  return [`🔴 L-Shop-FTP nicht erreichbar · ${inFolge} Läufe in Folge`, grund, 'Nächster Versuch beim nächsten Takt (alle 30 min).'].filter(Boolean).join('\n');
+  return [`🔴 L-Shop-Belege kommen nicht an · ${inFolge} Läufe in Folge`, grund, 'Nächster Versuch beim nächsten Takt (alle 30 min).'].filter(Boolean).join('\n');
+}
+
+// ── BO4b-2: Lieferbestaetigung, Sendungen, Archiv ────────────────────────────
+
+export const SENDUNGEN_TAB = 'LShop_Sendungen';
+export const SENDUNGEN_SPALTEN = [
+  'Paketnummer', 'VA', 'LA', 'order_id', 'Frachtfuehrer', 'Gewicht', 'Tracking_URL', 'Datei', 'Gelesen', 'Wareneingang', 'Notiz',
+];
+export const TRACKING_PREFIX = 'https://textilelogistics.eu/';
+
+// Archiv-Ordner je FTP-Ordner (Drive: L-Shop Belege/<Art>/<Jahr>/). Die Bestandsdatei nie.
+export const ARCHIV_ART = {
+  [ORDNER.LB]: 'Lieferbestaetigung',
+  [ORDNER.AB]: 'Auftragsbestaetigung',
+  [ORDNER.RE_XML]: 'Rechnung_XML',
+  [ORDNER.RE_PDF]: 'Rechnung_PDF',
+};
+export const BELEG_ART = { [ORDNER.LB]: ART.LB, [ORDNER.AB]: ART.AB, [ORDNER.RE_XML]: ART.RE, [ORDNER.RE_PDF]: ART.RE };
+export const MAX_PDF_BYTES = 10 * 1024 * 1024;
+
+export class BelegFormatFehler extends Error {
+  constructor(message) { super(message); this.name = 'BelegFormatFehler'; }
+}
+
+const ORDER_ID_GANZ = /^JFN-\d{4}-\d{4}$/;
+
+/** Ein CDATA- oder Textfeld eines dataset, getrimmt; fehlt das Feld -> null. */
+function feld(block, name) {
+  const m = new RegExp(`<${name}>\\s*(?:<!\\[CDATA\\[([\\s\\S]*?)\\]\\]>|([^<]*))\\s*</${name}>`).exec(block);
+  if (!m) return null;
+  return String(m[1] ?? m[2] ?? '').trim();
+}
+
+/**
+ * Lieferbestaetigung lesen: je dataset (Paket) nur die benoetigten Felder.
+ * -> [{ paketnummer, va, la, orderIdRoh, frachtfuehrer, gewicht, url, hinweise[] }]
+ * Kein dataset, keine Paketnummer oder VorgangDE nicht "VA... / LA..." -> BelegFormatFehler.
+ */
+export function leseLieferbestaetigung(buf) {
+  const text = dekodiere(buf);
+  const bloecke = [...text.matchAll(/<dataset>([\s\S]*?)<\/dataset>/g)].map(m => m[1]);
+  if (!bloecke.length) throw new BelegFormatFehler('keine Pakete (dataset) gefunden');
+  return bloecke.map((b, i) => {
+    const hinweise = [];
+    const paketnummer = feld(b, 'Paketnummer') ?? '';
+    if (!/^[0-9A-Za-z]{6,40}$/.test(paketnummer)) throw new BelegFormatFehler(`Paket ${i + 1}: Paketnummer fehlt oder ungültig`);
+    const vorgang = /^(VA\d{4,12}) \/ (LA\d{4,12})$/.exec(feld(b, 'VorgangDE') ?? '');
+    if (!vorgang) throw new BelegFormatFehler(`Paket ${i + 1}: VorgangDE nicht "VA... / LA..."`);
+    let url = feld(b, 'Url') ?? '';
+    if (url && !url.startsWith(TRACKING_PREFIX)) { hinweise.push('Tracking-Link nicht von textilelogistics.eu - weggelassen'); url = ''; }
+    let gewicht = feld(b, 'Gewicht') ?? '';
+    if (gewicht && !/^\d+(\.\d+)?$/.test(gewicht)) { hinweise.push('Gewicht unlesbar'); gewicht = ''; }
+    return {
+      paketnummer, va: vorgang[1], la: vorgang[2], orderIdRoh: feld(b, 'KdBestellNrDE') ?? '',
+      frachtfuehrer: (feld(b, 'Frachtfuehrer') ?? '').slice(0, 30), gewicht, url, hinweise,
+    };
+  });
+}
+
+/**
+ * Paket zuordnen -> { art: portal|eigen|alarm, orderId, hinweis }.
+ * Leer = Portalbestellung; JFN-... mit Status bei L-Shop = eigen; sonst Alarm.
+ */
+export function bewertePaket(paket, ediStatus) {
+  const roh = t(paket.orderIdRoh);
+  if (!roh) return { art: ERGEBNIS.PORTAL, orderId: '', hinweis: '' };
+  if (!ORDER_ID_GANZ.test(roh)) return { art: ERGEBNIS.ALARM, orderId: '', hinweis: `Bestellnummer "${roh.slice(0, 40)}" nicht von MC` };
+  const st = ediStatus.get(roh);
+  if (st === undefined) return { art: ERGEBNIS.ALARM, orderId: roh, hinweis: `${roh} nicht in LShop_EDI_Dateien` };
+  if (!EDI_BEI_LSHOP.includes(st)) return { art: ERGEBNIS.ALARM, orderId: roh, hinweis: `${roh} ist nur "${st}"` };
+  return { art: ERGEBNIS.EIGEN, orderId: roh, hinweis: '' };
+}
+
+/** Archiv-Jahr: aus dem Dateinamen (_JJJJMMTT...), sonst FTP-Zeit (Europe/Berlin), sonst jetzt. */
+export function archivJahr(name, eintrag, jetzt = new Date()) {
+  const m = /(20\d{2})(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])/.exec(String(name ?? ''));
+  if (m) return m[1];
+  const d = eintrag?.modifiedAt instanceof Date && !Number.isNaN(eintrag.modifiedAt.getTime()) ? eintrag.modifiedAt : jetzt;
+  return d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' }).slice(0, 4);
+}
+
+export function mimeFuer(name) {
+  if (/\.pdf$/i.test(String(name))) return 'application/pdf';
+  if (/\.xml$/i.test(String(name))) return 'application/xml';
+  return 'application/octet-stream';
+}
+
+/** Erstbestand: solange keine Zeile Art "Lieferbestaetigung" im Protokoll steht, bleibt der Lauf still. */
+export function istErstbestand(zeilen) {
+  return !zeilen.some(z => z.Art === ART.LB);
+}
+
+// Die 29 Lieferbestaetigungen, die bei BO4b-2 schon auf dem FTP lagen, tragen im Namen ein Datum bis
+// 22.10.2026. Sie bleiben still, auch wenn ihre Verarbeitung (MAX_NEUE_BELEGE_JE_LAUF) auf mehrere
+// Laeufe verteilt wird und das Protokoll schon Zeilen "Lieferbestaetigung" hat.
+export const ERSTBESTAND_BIS = '20261022';
+export function istErstbestandsDatei(name) {
+  const m = /_(20\d{6})\d{6}\.xml$/i.exec(String(name ?? ''));
+  return Boolean(m) && m[1] <= ERSTBESTAND_BIS;
+}
+
+// Je Lauf hoechstens so viele neue Belege laden/archivieren (Scheduler-Frist 300 s; ein Upload nach
+// Drive dauert ~1-3 s). Der Rest kommt im naechsten Takt (Antwortfeld "offen").
+export const MAX_NEUE_BELEGE_JE_LAUF = 15;
+
+/** Spaltenindizes LShop_Sendungen ueber den Namen; fehlende Spalte -> 422. */
+export function sendungenSpalten(header) {
+  const norm = (header ?? []).map(normHeader);
+  const idx = {};
+  const fehlt = [];
+  for (const n of SENDUNGEN_SPALTEN) { const i = norm.indexOf(normHeader(n)); if (i < 0) fehlt.push(n); else idx[n] = i; }
+  if (fehlt.length) {
+    const e = new Error(`Reiter "${SENDUNGEN_TAB}": Spalte(n) fehlen: ${fehlt.join(', ')}`);
+    e.status = 422;
+    throw e;
+  }
+  return idx;
+}
+
+export function sendungenZeilen(werte) {
+  const [kopf = [], ...rest] = werte ?? [];
+  const idx = sendungenSpalten(kopf);
+  return rest.filter(r => r.some(v => t(v))).map(r => Object.fromEntries(SENDUNGEN_SPALTEN.map(n => [n, t(r[idx[n]])])));
+}
+
+/** Ist eine vorhandene Sendung inhaltlich dieselbe (VA, LA, order_id, Tracking)? */
+export function gleicheSendung(alt, neu) {
+  return alt.VA === neu.VA && alt.LA === neu.LA && alt.order_id === neu.order_id && alt.Tracking_URL === neu.Tracking_URL;
+}
+
+/** Sendungen eigener Bestellungen je order_id fuer die Anzeige (Portal-Sendungen fallen weg). */
+export function sendungenNachOrder(zeilen) {
+  const m = {};
+  for (const z of zeilen) {
+    if (!z.order_id) continue;
+    const o = (m[z.order_id] ??= { frachtfuehrer: [], pakete: [], offen: 0 });
+    if (z.Frachtfuehrer && !o.frachtfuehrer.includes(z.Frachtfuehrer)) o.frachtfuehrer.push(z.Frachtfuehrer);
+    o.pakete.push({ paketnummer: z.Paketnummer, la: z.LA, url: z.Tracking_URL.startsWith(TRACKING_PREFIX) ? z.Tracking_URL : '' });
+    if (!z.Wareneingang) o.offen++;
+  }
+  return m;
+}
+
+/** Zeile fuer LShop_Sendungen in Kopfreihenfolge. */
+export function sendungZeile(idx, felder) {
+  const zeile = Array(Math.max(...Object.values(idx)) + 1).fill('');
+  for (const n of SENDUNGEN_SPALTEN) zeile[idx[n]] = felder[n] == null ? '' : String(felder[n]);
+  return zeile;
+}
+
+export function buildVersandtNachricht({ orderId, pakete }) {
+  const fr = [...new Set(pakete.map(p => p.frachtfuehrer).filter(Boolean))].join('/') || 'Versand';
+  const links = pakete.map(p => p.url).filter(Boolean);
+  return [
+    `📦 L-Shop versandt: ${orderId} · ${pakete.length} Paket${pakete.length !== 1 ? 'e' : ''} (${fr})`,
+    links.length ? `Tracking: ${links.join(' · ')}` : '',
+  ].filter(Boolean).join('\n');
 }

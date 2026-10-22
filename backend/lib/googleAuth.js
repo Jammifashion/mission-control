@@ -20,23 +20,29 @@ let cachedAuth = null;
  */
 export async function getGoogleAuth() {
   if (cachedAuth) return cachedAuth;
+  cachedAuth = googleAuthMitScopes(SCOPES);
+  return cachedAuth;
+}
 
+/**
+ * Dieselbe Anmeldung (gleiche Reihenfolge der Quellen) mit eigenen Scopes. Fuer Stellen, die mehr
+ * oder weniger als SCOPES brauchen - z. B. das Beleg-Archiv (BO4b-2) mit drive.file.
+ */
+export function googleAuthMitScopes(scopes) {
   if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
     const __dirname = fileURLToPath(new URL('.', import.meta.url));
     const keyPath = resolve(__dirname, '..', process.env.GOOGLE_APPLICATION_CREDENTIALS);
     const credentials = JSON.parse(readFileSync(keyPath, 'utf8'));
-    cachedAuth = new google.auth.GoogleAuth({ credentials, scopes: SCOPES });
-  } else if (process.env.GOOGLE_CREDENTIALS_JSON) {
+    return new google.auth.GoogleAuth({ credentials, scopes });
+  }
+  if (process.env.GOOGLE_CREDENTIALS_JSON) {
     let credentials;
     try {
       credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_JSON);
     } catch {
       throw new Error('GOOGLE_CREDENTIALS_JSON ist kein gültiges JSON.');
     }
-    cachedAuth = new google.auth.GoogleAuth({ credentials, scopes: SCOPES });
-  } else {
-    cachedAuth = new google.auth.GoogleAuth({ scopes: SCOPES });
+    return new google.auth.GoogleAuth({ credentials, scopes });
   }
-
-  return cachedAuth;
+  return new google.auth.GoogleAuth({ scopes });
 }

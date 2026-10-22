@@ -61,7 +61,7 @@ describe('Knoepfe tragen data-hilfe', () => {
 
   test('jeder Filter- und Gruppieren-Knopf', () => {
     const filter = [...html.matchAll(/<button[^>]*data-(filter|gruppe)="[^"]+"[^>]*>/g)].map(m => m[0]);
-    expect(filter.length).toBe(6);
+    expect(filter.length).toBe(7);   // BO4b-2: Filter "Bestellt" dazu
     for (const t of filter) expect(t).toMatch(/data-hilfe="[^"]+"/);
   });
 

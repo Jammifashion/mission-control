@@ -23,7 +23,7 @@ export const MAX_BELEG_BYTES = 1024 * 1024;
 
 // Was gelesen werden darf. ORDER nur als Liste (fremde Dateien erkennen), nie geladen.
 export const ERLAUBT_LISTE = new Set(['ORDER', 'ORDERCONFIRMATION', 'DELIVERYCONFIRMATION', 'INVOICE/XML', 'INVOICE/PDF']);
-export const ERLAUBT_LADEN = new Set(['ORDERCONFIRMATION', 'DELIVERYCONFIRMATION', 'INVOICE/XML']);
+export const ERLAUBT_LADEN = new Set(['ORDERCONFIRMATION', 'DELIVERYCONFIRMATION', 'INVOICE/XML', 'INVOICE/PDF']);   // PDF seit BO4b-2 (Archiv)
 const DATEINAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,150}$/;
 
 export class LShopFtpFehler extends Error {
