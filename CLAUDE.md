@@ -22,7 +22,12 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   "EDI-Entwurf" - Knopf "EDI-Datei erzeugen (Entwurf)" in der Leiste, "alle offenen wählen" (ohne
   gesperrte), Dialog `#edi-dialog` im Panel orders; Block `EDI-Pruefung: Anfang/Ende` (Test
   edi-frontend.test.js): Knopf nur frei bei gruen + Browser-`DOMParser` ok, vor dem Download erneut;
-  nach dem Erzeugen gesperrt, bis neu geprueft wird. Nur Download, kein Versand.)
+  nach dem Erzeugen gesperrt, bis neu geprueft wird. Nur Download, kein Versand.
+  UX1: Bedienleiste `.korb-bedienung` = links Ansicht (Segment-Filter), rechts Aktionen (`.korb-aktion`
+  haupt/ruhig), ebenso in der Bestelluebersicht. Erklaerungen NUR im Block `Knopf-Hilfe: Anfang/Ende`
+  (`KNOPF_HILFE`, `HILFE_GRUPPEN`, Test knopf-hilfe.test.js): `data-hilfe="<schluessel>"` = Tooltip bei Maus
+  und Tastatur-Fokus, kein `title`; ⓘ (`data-hilfe-gruppe`) blendet die Liste ein (Handy). Neuer Knopf =
+  Text + Schluessel dort.)
 - L-Shop-Bestellübersicht (BO3b: Unterpunkt `bestellen/lshop-uebersicht`, direkt hinter dem Korb. Nur eine
   Ansicht auf `korbZustand.daten` - kein eigener Abruf, kein Endpunkt; `korbZeichnen()` zeichnet beide.
   Block `Matrix: Anfang/Ende` (`baueMatrix`, Test bestellmatrix.test.js): nur Status offen, sperrender
@@ -178,7 +183,7 @@ Neue Sektionen immer mit Anker versehen:
   Alarm "veraendert". Lieferbestaetigungen/Rechnungen nur gezaehlt (BO4b-2). Erst schreiben, dann Chat.
   FTP-Fehler = 200 + Zeile Art "Lauf"/"fehler"; Chat ab 3 in Folge, 1/h (Zustand im Reiter, weil
   Cloud-Run-Instanzen zwischen den Takten wegfallen); andere Fehler 5xx. Eigene Datei, die > 20 min in
-  `ORDER` liegt: `orderZuLange` (Alarm erst ab BO4c). Frontend: Knopf "Belege jetzt abrufen" im Korb,
+  `ORDER` liegt: `orderZuLange` (Alarm erst ab BO4c). Frontend: Knopf "Belege abrufen" im Korb,
   Block `Belege-Abruf: Anfang/Ende`.
 - backend/routes/partnerPortal.js – Token-Auth für partner.html + WC-Sync
 - backend/routes/anfragen.js – Kundenanfragen Admin (POST /neu, GET /, PATCH /:id/status) – hinter requireApiKey

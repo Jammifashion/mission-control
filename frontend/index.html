@@ -285,17 +285,59 @@
 
       /* ── L-Shop-Warenkorb (BO3) ── */
       .korb-kopf { flex-wrap: wrap; gap: 0.5rem; }
-      .korb-knoepfe { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; justify-content: flex-end; margin-left: auto; }
-      .korb-filter { display: inline-flex; gap: 0.3rem; }
+      /* UX1: Bedienleiste = links Ansicht (Segment-Gruppe), rechts Aktionen; unter 600 px untereinander */
+      .korb-bedienung { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 0.5rem 1rem; margin-bottom: 0.5rem; }
+      .korb-ansicht, .korb-aktionen { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; min-width: 0; }
+      .korb-aktionen { margin-left: auto; justify-content: flex-end; }
+      .korb-paar { display: inline-flex; gap: 0.4rem; flex-wrap: wrap; }
+      .korb-filter { display: inline-flex; flex-wrap: wrap; }
       .korb-filter button {
-        background: none; border: 1px solid var(--info); color: var(--info); border-radius: 999px;
-        padding: 0.28rem 0.65rem; font-size: 0.78rem; cursor: pointer; white-space: nowrap;
+        background: none; border: 1px solid var(--info); color: var(--info); border-radius: 0; margin-left: -1px;
+        height: 2rem; padding: 0 0.7rem; font-size: 0.8rem; cursor: pointer; white-space: nowrap;
       }
+      .korb-filter button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
+      .korb-filter button:last-child { border-radius: 0 6px 6px 0; }
       .korb-filter button[aria-pressed="true"] { background: var(--info); color: var(--bg); font-weight: 600; }
-      @media (max-width: 520px) {
-        .korb-knoepfe { justify-content: flex-start; margin-left: 0; }
-        .korb-filter { order: 3; flex-basis: 100%; flex-wrap: wrap; }
+      .korb-aktion {
+        height: 2rem; padding: 0 0.75rem; font-size: 0.8rem; font-weight: 500; border-radius: 6px; cursor: pointer;
+        white-space: nowrap; display: inline-flex; align-items: center; gap: 0.3rem; transition: background 0.15s;
       }
+      .korb-aktion:disabled { opacity: 0.5; cursor: not-allowed; }
+      .korb-aktion-haupt { background: none; border: 1px solid var(--accent); color: var(--accent); font-weight: 600; }
+      .korb-aktion-haupt:hover:not(:disabled) { background: #2a220a; }
+      .korb-aktion-ruhig { background: var(--bg); border: 1px solid var(--border); color: var(--text); }
+      .korb-aktion-ruhig:hover:not(:disabled) { border-color: var(--muted); }
+      .korb-aktion[aria-pressed="true"] { border-color: var(--info); color: var(--info); }
+      .korb-filter button:focus-visible, .korb-aktion:focus-visible, .hilfe-i:focus-visible, .korb-link:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+      @media (max-width: 600px) {
+        /* Handy: Ansicht oben (Segmente in einer Zeile), darunter Hauptaktion + ⓘ, dann das Aktualisieren-Paar */
+        .korb-bedienung { flex-direction: column; align-items: stretch; }
+        .korb-filter { flex-wrap: nowrap; flex: 1 1 100%; }
+        .korb-filter button { flex: 1 1 auto; padding: 0 0.4rem; min-width: 0; }
+        .korb-aktionen { margin-left: 0; justify-content: flex-start; }
+        .korb-aktion-haupt { flex: 1 1 auto; justify-content: center; }
+        .korb-aktionen .hilfe-i { order: 1; }
+        .korb-paar { order: 2; flex: 1 1 100%; }
+        .korb-paar .korb-aktion { flex: 1 1 0; justify-content: center; }
+      }
+      /* UX1: Erklaerungen - Tooltip (Maus/Tastatur) und ⓘ-Liste (Handy) */
+      .hilfe-i {
+        background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 999px;
+        width: 2rem; height: 2rem; font-size: 0.95rem; line-height: 1; cursor: pointer; flex: none;
+      }
+      .hilfe-i[aria-expanded="true"] { border-color: var(--info); color: var(--info); }
+      .hilfe-legende { border: 1px solid var(--border); border-radius: 7px; padding: 0.5rem 0.7rem; margin: 0 0 0.6rem; font-size: 0.8rem; }
+      .hilfe-legende[hidden] { display: none; }
+      .hilfe-legende dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.8rem; }
+      .hilfe-legende dt { color: var(--text); font-weight: 600; }
+      .hilfe-legende dd { margin: 0; color: var(--muted); }
+      @media (max-width: 600px) { .hilfe-legende dl { grid-template-columns: 1fr; } .hilfe-legende dd { margin-bottom: 0.3rem; } }
+      .mc-tip {
+        position: fixed; z-index: 60; max-width: min(18rem, calc(100vw - 16px)); pointer-events: none;
+        background: var(--surface); color: var(--text); border: 1px solid var(--info); border-radius: 6px;
+        padding: 0.4rem 0.55rem; font-size: 0.78rem; line-height: 1.35; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+      }
+      .mc-tip[hidden] { display: none; }
       /* Buendelkopf: Nummer · Modell (Text) · L-Shop-Artikelname (Akzent/gelb) · Farbe · Groesse (gruen) */
       .korb-titel > span:first-child { min-width: 0; overflow-wrap: anywhere; }
       .korb-kopf-nr { color: var(--text); }
@@ -1199,19 +1241,28 @@
           <div class="card">
             <div class="lshop-offen-header korb-kopf">
               <span id="korb-summe">L-Shop-Warenkorb</span>
-              <span class="korb-knoepfe">
-                <span class="korb-filter" id="korb-filter" role="group" aria-label="Positionen filtern">
-                  <button type="button" data-filter="offen" aria-pressed="true">Offen</button>
-                  <button type="button" data-filter="raus" aria-pressed="false">Herausgenommen</button>
-                  <button type="button" data-filter="alle" aria-pressed="false">Alle</button>
-                </span>
-                <button class="btn-secondary korb-klein" id="korb-eigen-btn" type="button">+ Eigene Position</button>
-                <button class="btn-lshop-bestellen" id="korb-abgleich-btn" title="Neue L-Shop-bestellfähige Positionen aus dem Shop übernehmen">↻ Abgleich jetzt</button>
-                <button class="btn-secondary korb-klein" id="korb-belege-btn" type="button" title="Liest den L-Shop-FTP (nur lesen): Auftragsbestätigungen und fremde Dateien in ORDER prüfen. Läuft sonst alle 30 min von selbst.">📥 Belege jetzt abrufen</button>
-              </span>
             </div>
+            <!-- UX1: links Ansicht, rechts Aktionen; Erklaerungen aus KNOPF_HILFE (data-hilfe) -->
+            <div class="korb-bedienung">
+              <div class="korb-ansicht">
+                <span class="korb-filter" id="korb-filter" role="group" aria-label="Positionen filtern">
+                  <button type="button" data-filter="offen" data-hilfe="filter-offen" aria-pressed="true">Offen</button>
+                  <button type="button" data-filter="raus" data-hilfe="filter-raus" aria-pressed="false">Herausgenommen</button>
+                  <button type="button" data-filter="alle" data-hilfe="filter-alle" aria-pressed="false">Alle</button>
+                </span>
+              </div>
+              <div class="korb-aktionen">
+                <button class="korb-aktion korb-aktion-haupt" id="korb-eigen-btn" type="button" data-hilfe="eigen">+ Eigene Position</button>
+                <span class="korb-paar">
+                  <button class="korb-aktion korb-aktion-ruhig" id="korb-abgleich-btn" type="button" data-hilfe="abgleich">↻ Abgleich jetzt</button>
+                  <button class="korb-aktion korb-aktion-ruhig" id="korb-belege-btn" type="button" data-hilfe="belege">📥 Belege abrufen</button>
+                </span>
+                <button class="hilfe-i" type="button" data-hilfe-gruppe="korb" aria-controls="hilfe-korb" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+              </div>
+            </div>
+            <div id="hilfe-korb" class="hilfe-legende" hidden></div>
             <div id="korb-zaehler" class="korb-zaehler"></div>
-            <button class="korb-link" id="korb-alle-btn" type="button" title="Wählt alle offenen Positionen ohne sperrenden Hinweis (storniert, erstattet …)">alle offenen wählen</button>
+            <button class="korb-link" id="korb-alle-btn" type="button" data-hilfe="alle-offenen">alle offenen wählen</button>
             <div id="korb-lauf" class="lshop-card-bedarf" style="display:none;"></div>
             <div id="korb-belege" class="lshop-card-bedarf" style="display:none;"></div>
 
@@ -1241,11 +1292,13 @@
             <!-- Aktionsleiste: erscheint, sobald Positionen angehakt sind -->
             <div id="korb-leiste" class="korb-leiste" style="display:none;">
               <span id="korb-leiste-anzahl" class="bulk-count"></span>
-              <select id="korb-grund" class="form-select" aria-label="Grund"></select>
-              <input id="korb-notiz" type="text" class="form-input" maxlength="200" placeholder="Notiz (optional)" />
-              <button class="btn-lshop-bestellen" id="korb-herausnehmen" type="button">Herausnehmen</button>
-              <button class="btn-secondary korb-klein" id="korb-edi-btn" type="button" title="Erzeugt die L-Shop-Bestelldatei als Entwurf zum Herunterladen - es wird nichts an L-Shop geschickt">EDI-Datei erzeugen (Entwurf)</button>
-              <button class="btn-secondary korb-klein" id="korb-auswahl-weg" type="button">Auswahl aufheben</button>
+              <select id="korb-grund" class="form-select" aria-label="Grund" data-hilfe="grund"></select>
+              <input id="korb-notiz" type="text" class="form-input" maxlength="200" placeholder="Notiz (optional)" data-hilfe="notiz" />
+              <button class="korb-aktion korb-aktion-haupt" id="korb-herausnehmen" type="button" data-hilfe="herausnehmen">Herausnehmen</button>
+              <button class="korb-aktion korb-aktion-ruhig" id="korb-edi-btn" type="button" data-hilfe="edi">EDI-Datei erzeugen (Entwurf)</button>
+              <button class="korb-aktion korb-aktion-ruhig" id="korb-auswahl-weg" type="button" data-hilfe="auswahl-weg">Auswahl aufheben</button>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="leiste" aria-controls="hilfe-leiste" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+              <div id="hilfe-leiste" class="hilfe-legende" style="flex-basis:100%;margin:0;" hidden></div>
             </div>
           </div>
         </div>
@@ -1255,20 +1308,25 @@
           <div class="card">
             <div class="lshop-offen-header korb-kopf">
               <span id="uebersicht-summe">Bestellübersicht</span>
-              <span class="korb-knoepfe">
-                <button class="btn-secondary korb-klein" id="uebersicht-eigen-link" type="button" title="Eigene Positionen legt der L-Shop-Warenkorb an">+ Eigene Position im Warenkorb</button>
-                <button class="btn-secondary korb-klein" id="uebersicht-zaehlliste-btn" type="button">Zählliste</button>
-                <button class="btn-lshop-bestellen" id="uebersicht-abgleich-btn" title="Neue L-Shop-bestellfähige Positionen aus dem Shop übernehmen">↻ Abgleich jetzt</button>
-              </span>
             </div>
-            <div class="bm-umschalter">
-              <span class="korb-zaehler">Gruppieren nach</span>
-              <span class="korb-filter" id="uebersicht-gruppe" role="group" aria-label="Gruppieren nach">
-                <button type="button" data-gruppe="modell" aria-pressed="true">Modell</button>
-                <button type="button" data-gruppe="hersteller" aria-pressed="false">Hersteller</button>
-                <button type="button" data-gruppe="dringlichkeit" aria-pressed="false">Dringlichkeit</button>
-              </span>
+            <!-- UX1: links Ansicht (Gruppieren, Zaehlliste), rechts Aktionen - wie im Warenkorb -->
+            <div class="korb-bedienung">
+              <div class="korb-ansicht bm-umschalter">
+                <span class="korb-zaehler">Gruppieren nach</span>
+                <span class="korb-filter" id="uebersicht-gruppe" role="group" aria-label="Gruppieren nach">
+                  <button type="button" data-gruppe="modell" data-hilfe="gruppe-modell" aria-pressed="true">Modell</button>
+                  <button type="button" data-gruppe="hersteller" data-hilfe="gruppe-hersteller" aria-pressed="false">Hersteller</button>
+                  <button type="button" data-gruppe="dringlichkeit" data-hilfe="gruppe-dringlichkeit" aria-pressed="false">Dringlichkeit</button>
+                </span>
+                <button class="korb-aktion korb-aktion-ruhig" id="uebersicht-zaehlliste-btn" type="button" data-hilfe="zaehlliste" aria-pressed="false">Zählliste</button>
+              </div>
+              <div class="korb-aktionen">
+                <button class="korb-aktion korb-aktion-haupt" id="uebersicht-eigen-link" type="button" data-hilfe="eigen-link">+ Eigene Position im Warenkorb</button>
+                <button class="korb-aktion korb-aktion-ruhig" id="uebersicht-abgleich-btn" type="button" data-hilfe="abgleich">↻ Abgleich jetzt</button>
+                <button class="hilfe-i" type="button" data-hilfe-gruppe="uebersicht" aria-controls="hilfe-uebersicht" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+              </div>
             </div>
+            <div id="hilfe-uebersicht" class="hilfe-legende" hidden></div>
             <div id="uebersicht-zaehler" class="korb-zaehler"></div>
             <div id="uebersicht-liste"><div class="skeleton"></div><div class="skeleton"></div></div>
             <div id="uebersicht-leiste-platz"></div>
@@ -4035,6 +4093,103 @@
       const korbFilterPasst = p => korbZustand.filter === 'alle'
         || (korbZustand.filter === 'raus' ? p.status === 'abgewählt' && (p.rausAktuell || korbZustand.rausAeltere) : p.status === 'offen');
 
+      // ── Knopf-Hilfe: Anfang (UX1, backend/tests/knopf-hilfe.test.js) ──
+      // Erklaerungen fuer Warenkorb, Aktionsleiste und Bestelluebersicht - die Texte stehen NUR hier.
+      // Ein Element mit data-hilfe="<schluessel>" bekommt den Text als Tooltip bei Maus (nur Geraete mit
+      // hover) und bei Tastatur-Fokus (:focus-visible), aria-describedby solange er sichtbar ist. Kein
+      // title, sonst zeigt der Browser denselben Text ein zweites Mal. Auf dem Handy oeffnet das ⓘ
+      // (data-hilfe-gruppe) die Liste der Gruppe. Neuer Knopf = Text hier + Schluessel in HILFE_GRUPPEN.
+      const KNOPF_HILFE = {
+        'filter-offen':         { name: 'Offen', text: 'Positionen, die noch bei L-Shop bestellt werden müssen.' },
+        'filter-raus':          { name: 'Herausgenommen', text: 'Positionen, die nicht bestellt werden (z. B. Ware da, schon bestellt). Zeigt die letzten 14 Tage.' },
+        'filter-alle':          { name: 'Alle', text: 'Alle Positionen im Korb, egal welcher Status.' },
+        'eigen':                { name: '+ Eigene Position', text: 'Einen L-Shop-Artikel ohne Shop-Bestellung in den Korb legen, z. B. für Muster oder Vereinsaufträge.' },
+        'abgleich':             { name: '↻ Abgleich jetzt', text: 'Holt neue Shop-Bestellungen sofort in den Korb. Läuft sonst automatisch jede Stunde.' },
+        'belege':               { name: '📥 Belege abrufen', text: 'Schaut bei L-Shop nach neuen Belegen, z. B. Auftragsbestätigungen. Läuft sonst automatisch alle 30 Minuten.' },
+        'alle-offenen':         { name: 'alle offenen wählen', text: 'Hakt alle offenen Positionen an. Gesperrte (z. B. storniert, erstattet) bleiben weg.' },
+        'zurueck':              { name: 'zurück auf offen', text: 'Legt die Position wieder auf „Offen“. Dann wird sie wieder mitbestellt.' },
+        'grund':                { name: 'Grund', text: 'Warum die gewählten Positionen nicht bestellt werden. Pflicht beim Herausnehmen.' },
+        'notiz':                { name: 'Notiz', text: 'Freier Hinweis für später. Kannst du leer lassen.' },
+        'herausnehmen':         { name: 'Herausnehmen', text: 'Die gewählten Positionen werden nicht bestellt. Du findest sie unter „Herausgenommen“.' },
+        'edi':                  { name: 'EDI-Datei erzeugen (Entwurf)', text: 'Erstellt die Bestelldatei für L-Shop zum Herunterladen. Es wird noch nichts verschickt.' },
+        'auswahl-weg':          { name: 'Auswahl aufheben', text: 'Nimmt alle Häkchen weg. Am Korb ändert sich nichts.' },
+        'gruppe-modell':        { name: 'Modell', text: 'Eine Tabelle je Modell: Farben und Größen auf einen Blick.' },
+        'gruppe-hersteller':    { name: 'Hersteller', text: 'Fasst die Modelle je Hersteller zusammen.' },
+        'gruppe-dringlichkeit': { name: 'Dringlichkeit', text: 'Ordnet nach Wartezeit: was am längsten wartet, steht oben.' },
+        'zaehlliste':           { name: 'Zählliste', text: 'Helle Liste zum Abhaken und Drucken. Noch einmal drücken: zurück zur Tabelle.' },
+        'eigen-link':           { name: '+ Eigene Position im Warenkorb', text: 'Öffnet den Warenkorb. Dort legst du eigene Positionen an.' },
+        'zl-drucken':           { name: 'Drucken', text: 'Druckt die Zählliste.' },
+        'zl-zurueck':           { name: 'Zurück zur Matrix', text: 'Zurück zur Tabelle.' },
+      };
+      // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
+      const HILFE_GRUPPEN = {
+        korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'eigen', 'abgleich', 'belege', 'alle-offenen', 'zurueck'],
+        leiste:     ['grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg'],
+        uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
+      };
+      const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
+      function hilfeLegendeHtml(gruppe) {
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+        return '<dl>' + (HILFE_GRUPPEN[gruppe] ?? []).filter(k => hilfeText(k))
+          .map(k => `<dt>${esc(KNOPF_HILFE[k].name)}</dt><dd>${esc(hilfeText(k))}</dd>`).join('') + '</dl>';
+      }
+      // doc/win als Parameter, damit der Test ohne Browser laeuft.
+      function hilfeEinrichten(doc, win) {
+        const tip = doc.createElement('div');
+        tip.id = 'mc-tip';
+        tip.className = 'mc-tip';
+        tip.setAttribute('role', 'tooltip');
+        tip.hidden = true;
+        doc.body.appendChild(tip);
+        let aktuell = null, quelle = '';   // quelle: 'maus' | 'tastatur'
+        const kannHover = () => { try { return win.matchMedia('(hover: hover)').matches; } catch { return true; } };
+        const perTastatur = el => { try { return el.matches(':focus-visible'); } catch { return true; } };
+        function zeigen(el, von = 'tastatur') {
+          const text = hilfeText(el?.dataset?.hilfe);
+          if (!text) return false;
+          if (aktuell && aktuell !== el) aktuell.removeAttribute('aria-describedby');
+          aktuell = el;
+          quelle = von;
+          tip.textContent = text;
+          tip.hidden = false;
+          el.setAttribute('aria-describedby', 'mc-tip');
+          // Unter dem Element, sonst darueber; nie ueber den Rand (8 px).
+          const r = el.getBoundingClientRect();
+          const b = tip.offsetWidth, h = tip.offsetHeight;
+          const unten = r.bottom + 6 + h <= win.innerHeight;
+          tip.style.top = `${Math.max(8, unten ? r.bottom + 6 : r.top - 6 - h)}px`;
+          tip.style.left = `${Math.max(8, Math.min(r.left, win.innerWidth - b - 8))}px`;
+          return true;
+        }
+        function verbergen() {
+          tip.hidden = true;
+          if (aktuell) aktuell.removeAttribute('aria-describedby');
+          aktuell = null;
+          quelle = '';
+        }
+        const ziel = ev => ev.target?.closest?.('[data-hilfe]') ?? null;
+        // Ein Fokus-Tooltip bleibt, bis der Fokus geht - auch wenn die Liste darunter neu gezeichnet wird.
+        doc.addEventListener('mouseover', ev => { const el = ziel(ev); if (el && el !== aktuell && quelle !== 'tastatur' && kannHover()) zeigen(el, 'maus'); });
+        doc.addEventListener('mouseout', ev => { if (quelle === 'maus' && !aktuell.contains(ev.relatedTarget)) verbergen(); });
+        doc.addEventListener('focusin', ev => { const el = ziel(ev); if (el && perTastatur(el)) zeigen(el); else verbergen(); });
+        doc.addEventListener('focusout', () => verbergen());
+        doc.addEventListener('keydown', ev => { if (ev.key === 'Escape') verbergen(); });
+        doc.addEventListener('scroll', () => { if (quelle === 'maus') verbergen(); else if (aktuell) zeigen(aktuell); }, true);
+        doc.addEventListener('click', ev => {
+          const knopf = ev.target?.closest?.('[data-hilfe-gruppe]');
+          if (!knopf) return;
+          const liste = doc.getElementById(knopf.getAttribute('aria-controls'));
+          if (!liste) return;
+          const auf = knopf.getAttribute('aria-expanded') !== 'true';
+          if (auf) liste.innerHTML = hilfeLegendeHtml(knopf.dataset.hilfeGruppe);
+          liste.hidden = !auf;
+          knopf.setAttribute('aria-expanded', String(auf));
+        });
+        return { zeigen, verbergen, tip };
+      }
+      // ── Knopf-Hilfe: Ende ──
+      hilfeEinrichten(document, window);
+
       // ── Korb-Menge: Anfang (reine Logik, backend/tests/korb-menge.test.js) ──
       // BO3d: Menge > 1 rot, damit "×2" neben "JFN #Nr · Pos." nicht untergeht; ×1 bleibt schlicht.
       function korbMengeHtml(menge) {
@@ -4053,7 +4208,7 @@
         if (p.status === 'abgewählt') {
           return `<div class="korb-pos korb-pos-raus"><span class="korb-pos-text">${text} · <strong>herausgenommen</strong>`
             + ` ${korbEsc(korbDatum(p.statusDatum))} (${korbEsc(p.grund)})${notiz}${hinweis}</span>`
-            + `<button class="korb-link" type="button" data-zurueck="${korbEsc(p.schluessel)}">zurück auf offen</button></div>`;
+            + `<button class="korb-link" type="button" data-zurueck="${korbEsc(p.schluessel)}" data-hilfe="zurueck">zurück auf offen</button></div>`;
         }
         if (p.status !== 'offen' || !p.bearbeitbar) {
           return `<div class="korb-pos korb-pos-raus"><span class="korb-pos-text">${text} · <strong>${korbEsc(p.status)}</strong>${notiz}${hinweis}</span></div>`;
@@ -4397,7 +4552,7 @@
       document.getElementById('korb-abgleich-btn')?.addEventListener('click', ev => korbAbgleichStarten(ev.currentTarget));
 
       // ── Belege-Abruf (BO4b-1) ──
-      // "Belege jetzt abrufen": POST /api/bestellen/lshop-belege/abruf. Das Backend liest den L-Shop-FTP nur
+      // "Belege abrufen": POST /api/bestellen/lshop-belege/abruf. Das Backend liest den L-Shop-FTP nur
       // (Auftragsbestaetigungen, fremde Dateien in ORDER) und protokolliert in LShop_Belege; sonst laeuft
       // derselbe Abruf alle 30 min ueber Cloud Scheduler. Ein FTP-Fehler kommt als 200 mit ftp "fehler".
       // Block Belege-Abruf: Anfang
@@ -4432,7 +4587,7 @@
           showToast(`Beleg-Abruf fehlgeschlagen: ${e.message}`, 'error');
         } finally {
           btn.disabled = false;
-          btn.textContent = '📥 Belege jetzt abrufen';
+          btn.textContent = '📥 Belege abrufen';
         }
       }
       // Block Belege-Abruf: Ende
@@ -4836,7 +4991,7 @@
         }).join('');
         return `<div class="zaehlliste">
           <div class="zl-kopf"><span><strong>Zählliste</strong> · Stand ${korbEsc(jetzt)} · ${mx.stueck} Stück</span>
-            <span class="zl-knoepfe"><button type="button" class="zl-knopf" id="zl-drucken">Drucken</button><button type="button" class="zl-knopf" id="zl-zurueck">Zurück zur Matrix</button></span></div>
+            <span class="zl-knoepfe"><button type="button" class="zl-knopf" id="zl-drucken" data-hilfe="zl-drucken">Drucken</button><button type="button" class="zl-knopf" id="zl-zurueck" data-hilfe="zl-zurueck">Zurück zur Matrix</button></span></div>
           ${inhalt || '<p>Keine offenen Positionen.</p>'}
         </div>`;
       }
@@ -4845,6 +5000,7 @@
         const el = document.getElementById('uebersicht-liste');
         if (!el) return;
         document.querySelectorAll('#uebersicht-gruppe [data-gruppe]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.gruppe === uebersichtZustand.gruppe)));
+        document.getElementById('uebersicht-zaehlliste-btn')?.setAttribute('aria-pressed', String(!!uebersichtZustand.zaehlliste));
         const d = korbZustand.daten;
         document.body.classList.toggle('druck-zaehlliste', !!(uebersichtZustand.zaehlliste && uebersichtAktiv()));
         if (!d) return;
