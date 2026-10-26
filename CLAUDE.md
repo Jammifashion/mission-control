@@ -244,6 +244,12 @@ Neue Sektionen immer mit Anker versehen:
   (lueckenlos ab 1, `versandstaffel`/`staffelStand`; fehlt -> grauer Hinweis). Anzeige im Erzeugen- und
   Sende-Dialog und live in `#korb-leiste` (`GET .../lshop-korb` liefert `ek` je Buendel + `staffel`);
   Frontend-Spiegel Block `Netto-Staffel: Anfang/Ende`. Keine Betraege in Code, Tests (erfunden), Log.
+  BO4f: Dialog "L-Shop-Bestellung" (Leistenknopf "L-Shop-Bestellung …") hat "An L-Shop senden …" (erzeugt den
+  Entwurf OHNE Download, schliesst den Dialog, oeffnet den Bestaetigungsdialog fuer diese order_id - erst dort wird
+  gesendet; Abbruch = Entwurf bleibt) und "Nur Entwurf + herunterladen" (Download + Link auf Entwuerfe). Beide
+  gesperrt ueber aria-disabled (Erklaerung "edi-gesperrt" beim Darueberfahren), nie zweiter Entwurf ohne "Neu
+  pruefen". Express-Zeilen (express, express_spaet, express_senden) zeigen beide Dialoge nur bei Versandart EX…
+  (`ediPunkteSichtbar`, Block `EDI-Pruefung: Anfang/Ende`, Test edi-frontend.test.js); die Pruefung selbst bleibt.
 - backend/lib/lshopBelege.js – Belege-Abruf (BO4b-1), Logik in `utils/lshop-belege.js`. Scheduler
   `POST /api/intern/lshop-belege/abruf` (Job `lshop-belege-abruf`, `7,37 * * * *`) und Knopf
   `POST /api/bestellen/lshop-belege/abruf` (`routes/lshopBelege.js`, eigener Router, damit

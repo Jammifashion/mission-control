@@ -282,6 +282,8 @@
       }
       .btn-lshop-bestellen:hover { background: #1f4525; }
       .btn-lshop-bestellen:disabled { opacity: 0.5; cursor: not-allowed; }
+      /* BO4f: gesperrt ueber aria-disabled statt disabled, damit die Erklaerung beim Darueberfahren erscheint */
+      .edi-box [aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
 
       /* ── L-Shop-Warenkorb (BO3) ── */
       .korb-kopf { flex-wrap: wrap; gap: 0.5rem; }
@@ -1366,7 +1368,7 @@
               <select id="korb-grund" class="form-select" aria-label="Grund" data-hilfe="grund"></select>
               <input id="korb-notiz" type="text" class="form-input" maxlength="200" placeholder="Notiz (optional)" data-hilfe="notiz" />
               <button class="korb-aktion korb-aktion-haupt" id="korb-herausnehmen" type="button" data-hilfe="herausnehmen">Herausnehmen</button>
-              <button class="korb-aktion korb-aktion-ruhig" id="korb-edi-btn" type="button" data-hilfe="edi">EDI-Datei erzeugen (Entwurf)</button>
+              <button class="korb-aktion korb-aktion-ruhig" id="korb-edi-btn" type="button" data-hilfe="edi">L-Shop-Bestellung …</button>
               <button class="korb-aktion korb-aktion-ruhig" id="korb-auswahl-weg" type="button" data-hilfe="auswahl-weg">Auswahl aufheben</button>
               <button class="hilfe-i" type="button" data-hilfe-gruppe="leiste" aria-controls="hilfe-leiste" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
               <div id="hilfe-leiste" class="hilfe-legende" style="flex-basis:100%;margin:0;" hidden></div>
@@ -1427,14 +1429,19 @@
           </div>
         </div>
 
-        <!-- BO4a: EDI-Bestelldatei als Entwurf (Vorschau, Pruefbericht, Download). Kein Versand an L-Shop. -->
+        <!-- BO4a: EDI-Bestelldatei (Vorschau, Pruefbericht). BO4f: von hier "An L-Shop senden …" (legt den Entwurf an und
+             oeffnet den Bestaetigungsdialog aus BO4c - erst dort wird gesendet) oder "Nur Entwurf + herunterladen". -->
         <div id="edi-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="edi-titel" hidden>
           <div class="edi-box">
             <div class="edi-kopf">
-              <strong id="edi-titel">EDI-Datei erzeugen (Entwurf)</strong>
-              <button type="button" class="korb-link" id="edi-schliessen">Schließen</button>
+              <strong id="edi-titel">L-Shop-Bestellung</strong>
+              <span class="korb-reihe">
+                <button class="hilfe-i" type="button" data-hilfe-gruppe="edi-dialog" aria-controls="hilfe-edi-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+                <button type="button" class="korb-link" id="edi-schliessen">Schließen</button>
+              </span>
             </div>
-            <div class="korb-zaehler">Die Datei wird nur heruntergeladen – <strong>nicht</strong> an L-Shop geschickt.</div>
+            <div class="korb-zaehler">Erst prüfen. Dann <strong>an L-Shop senden</strong> (mit Rückfrage) oder nur einen Entwurf speichern.</div>
+            <div id="hilfe-edi-dialog" class="hilfe-legende" hidden></div>
             <label class="edi-feld">Versandart
               <select id="edi-versandart" class="form-select" data-hilfe="versandart"></select>
             </label>
@@ -1446,8 +1453,9 @@
             <div id="edi-tabelle" class="edi-tabelle"></div>
             <details class="edi-xml"><summary>XML anzeigen</summary><pre id="edi-xml"></pre></details>
             <div class="korb-reihe">
-              <button type="button" class="btn-secondary korb-klein" id="edi-pruefen">Neu prüfen</button>
-              <button type="button" class="btn-lshop-bestellen" id="edi-erzeugen" disabled>Erzeugen und herunterladen</button>
+              <button type="button" class="btn-lshop-bestellen" id="edi-senden" data-hilfe="edi-senden" aria-disabled="true">An L-Shop senden …</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="edi-erzeugen" data-hilfe="edi-entwurf" aria-disabled="true">Nur Entwurf + herunterladen</button>
+              <button type="button" class="btn-secondary korb-klein" id="edi-pruefen" data-hilfe="edi-pruefen">Neu prüfen</button>
             </div>
             <div id="edi-ergebnis" class="korb-zaehler"></div>
           </div>
@@ -4410,7 +4418,7 @@
         'grund':                { name: 'Grund', text: 'Warum die gewählten Positionen nicht bestellt werden. Pflicht beim Herausnehmen.' },
         'notiz':                { name: 'Notiz', text: 'Freier Hinweis für später. Kannst du leer lassen.' },
         'herausnehmen':         { name: 'Herausnehmen', text: 'Die gewählten Positionen werden nicht bestellt. Du findest sie unter „Herausgenommen“.' },
-        'edi':                  { name: 'EDI-Datei erzeugen (Entwurf)', text: 'Erstellt die Bestelldatei für L-Shop zum Herunterladen. Es wird noch nichts verschickt.' },
+        'edi':                  { name: 'L-Shop-Bestellung …', text: 'Gewählte Positionen prüfen und als Bestellung an L-Shop senden oder als Entwurf speichern.' },
         'auswahl-weg':          { name: 'Auswahl aufheben', text: 'Nimmt alle Häkchen weg. Am Korb ändert sich nichts.' },
         'gruppe-modell':        { name: 'Modell', text: 'Eine Tabelle je Modell: Farben und Größen auf einen Blick.' },
         'gruppe-hersteller':    { name: 'Hersteller', text: 'Fasst die Modelle je Hersteller zusammen.' },
@@ -4430,6 +4438,11 @@
         'versandart':           { name: 'Versandart', text: 'Wie L-Shop die Ware schickt. Express nur bis 13:30 Uhr und mit Zusatzkosten. Vorgabe aus der Config.' },
         'entwuerfe':            { name: 'Entwürfe', text: 'Erzeugte EDI-Dateien, die noch nicht als gesendet markiert sind.' },
         'als-gesendet':         { name: 'Als gesendet markieren', text: 'Erst klicken, wenn die Datei in ORDER bei L-Shop liegt. Die Positionen gehen dann auf „bestellt“.' },
+        // BO4f: Knoepfe im Dialog "L-Shop-Bestellung"
+        'edi-senden':           { name: 'An L-Shop senden …', text: 'Legt die Bestellung an und fragt noch einmal nach. Erst nach der Bestätigung geht sie an L-Shop – echte Bestellung.' },
+        'edi-entwurf':          { name: 'Nur Entwurf + herunterladen', text: 'Speichert einen Entwurf und lädt die Datei herunter. Nichts geht an L-Shop. Senden später unter L-Shop-Bestellungen → Entwürfe.' },
+        'edi-gesperrt':         { name: 'gesperrt', text: 'Geht erst, wenn der Prüfbericht grün ist und nach einer Änderung neu geprüft wurde.' },
+        'edi-pruefen':          { name: 'Neu prüfen', text: 'Prüft die Auswahl nach einer Änderung erneut.' },
         // BO4c
         'an-lshop-senden':      { name: 'An L-Shop senden', text: 'Schickt die Bestellung jetzt echt an L-Shop: Die Ware wird gepackt, versandt und berechnet. Nur einmal klicken.' },
         'zurueck-entwurf':      { name: 'zurück auf Entwurf', text: 'Nur, wenn sicher keine Auftragsbestätigung kam. Sonst „Als gesendet markieren“.' },
@@ -4449,6 +4462,7 @@
         leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
         uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
         bestellungen: ['entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
+        'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
@@ -5004,6 +5018,25 @@
       function ediErzeugenFrei(vorschau, xmlPruefung) {
         return !!(vorschau && vorschau.gruen && vorschau.xml && xmlPruefung?.ok);
       }
+      // BO4f: Express-Zeilen nur bei Versandart EX… (sonst sind sie immer erfuellt und machen den Bericht lang).
+      // Nur Anzeige - die Pruefung im Backend bleibt unveraendert.
+      const EDI_EXPRESS_REGELN = ['express', 'express_spaet', 'express_senden'];
+      function ediPunkteSichtbar(punkte, versandart) {
+        const express = /^EX\d{3}$/.test(String(versandart ?? '').trim());
+        return (punkte ?? []).filter(p => express || !EDI_EXPRESS_REGELN.includes(p.regel));
+      }
+      // BO4f: Zustand der zwei Knoepfe "An L-Shop senden …" / "Nur Entwurf + herunterladen". Gesperrt ueber
+      // aria-disabled (Erklaerung beim Darueberfahren bleibt), dann mit dem Hilfetext "edi-gesperrt".
+      function ediKnoepfe(vorschau, xmlPruefung, laeuft) {
+        const frei = !laeuft && ediErzeugenFrei(vorschau, xmlPruefung);
+        return { frei, hilfeSenden: frei ? 'edi-senden' : 'edi-gesperrt', hilfeEntwurf: frei ? 'edi-entwurf' : 'edi-gesperrt' };
+      }
+      // BO4f: was nach dem Erzeugen passiert. Senden: kein Download, EDI-Dialog zu, Bestaetigungsdialog (BO4c) fuer
+      // genau diese order_id - erst dort wird gesendet. Entwurf: Download + Hinweis auf "Entwürfe".
+      function ediNachErzeugen(modus, r) {
+        if (modus === 'senden') return { download: false, schliessen: true, sendenFuer: r.orderId, hinweis: '' };
+        return { download: true, schliessen: false, sendenFuer: null, hinweis: `Entwurf ${r.orderId} liegt in L-Shop-Bestellungen → Entwürfe, dort senden.` };
+      }
       // ── EDI-Pruefung: Ende ──
 
       const ediZustand = { auswahl: [], vorschau: null, xmlOk: null, laeuft: false };
@@ -5026,7 +5059,7 @@
         if (!v) { document.getElementById('edi-pruefung').innerHTML = '<div class="skeleton"></div>'; return; }
         const punkte = [...v.punkte];
         if (v.xml && ediZustand.xmlOk && !ediZustand.xmlOk.ok) punkte.push({ regel: 'browser', stufe: 'rot', ok: false, titel: 'Browser liest das XML zurück', treffer: [{ text: ediZustand.xmlOk.grund }] });
-        ediPruefungZeichnen(punkte);
+        ediPruefungZeichnen(ediPunkteSichtbar(punkte, v.versandart));
         // BO4c: mit EK netto x Menge, Summe und Versandstaffel (nsNettoHtml); ohne netto wie bisher.
         document.getElementById('edi-tabelle').innerHTML = v.items?.length
           ? (v.netto ? nsNettoHtml(v.netto, v.items)
@@ -5035,7 +5068,17 @@
             + `<div class="korb-zaehler">${v.items.length} Position${v.items.length !== 1 ? 'en' : ''} · ${v.stueck} Stück · order_id ${korbEsc(v.orderId)}</div>`
           : '';
         document.getElementById('edi-xml').textContent = v.xml ?? '(kein XML, solange der Prüfbericht rot ist)';
-        document.getElementById('edi-erzeugen').disabled = ediZustand.laeuft || !ediErzeugenFrei(v, ediZustand.xmlOk);
+        ediKnoepfeSetzen();
+      }
+
+      function ediKnoepfeSetzen() {
+        const k = ediKnoepfe(ediZustand.vorschau, ediZustand.xmlOk, ediZustand.laeuft);
+        const senden = document.getElementById('edi-senden');
+        const entwurf = document.getElementById('edi-erzeugen');
+        senden.setAttribute('aria-disabled', String(!k.frei));
+        entwurf.setAttribute('aria-disabled', String(!k.frei));
+        senden.dataset.hilfe = k.hilfeSenden;
+        entwurf.dataset.hilfe = k.hilfeEntwurf;
       }
 
       async function ediAnfrage(pfad) {
@@ -5084,8 +5127,10 @@
         setTimeout(() => URL.revokeObjectURL(url), 1000);
       }
 
-      async function ediErzeugenKlick() {
-        if (!ediErzeugenFrei(ediZustand.vorschau, ediZustand.xmlOk)) return;
+      // BO4f: modus 'senden' (Hauptknopf) oder 'entwurf' (Nebenknopf). Beide erzeugen genau EINEN Entwurf; danach ist
+      // der Pruefbericht verbraucht (gruen false) - ein zweiter Klick erzeugt nichts, erst "Neu prüfen".
+      async function ediErzeugenKlick(modus = 'entwurf') {
+        if (ediZustand.laeuft || !ediKnoepfe(ediZustand.vorschau, ediZustand.xmlOk, ediZustand.laeuft).frei) return;
         ediZustand.laeuft = true;
         ediZeichnen();
         try {
@@ -5111,12 +5156,18 @@
             showToast('EDI-Datei nicht heruntergeladen (XML ungültig)', 'error');
             return;
           }
-          ediHerunterladen(r.xml, r.dateiname);
-          // Anzeige = die erzeugte Datei; Knopf gesperrt, damit ein zweiter Klick keine weitere Nummer
+          // Anzeige = die erzeugte Datei; Knoepfe gesperrt, damit ein zweiter Klick keine weitere Nummer
           // vergibt. Fuer eine neue Datei zuerst "Neu prüfen".
           ediZustand.vorschau = { ...ediZustand.vorschau, xml: r.xml, orderId: r.orderId, gruen: false };
-          document.getElementById('edi-ergebnis').textContent = `${r.orderId} erzeugt (Entwurf) und als ${r.dateiname} heruntergeladen - nicht an L-Shop geschickt. Der Warenkorb ist unverändert.`;
-          showToast(`${r.orderId} heruntergeladen (Entwurf)`);
+          const nach = ediNachErzeugen(modus, r);
+          if (nach.download) {
+            ediHerunterladen(r.xml, r.dateiname);
+            document.getElementById('edi-ergebnis').innerHTML = `${korbEsc(r.orderId)} als ${korbEsc(r.dateiname)} heruntergeladen – nicht an L-Shop geschickt. `
+              + `<a href="#bestellen/lshop-bestellungen" data-edi-zu-entwuerfen="1">${korbEsc(nach.hinweis)}</a>`;
+            showToast(`${r.orderId} heruntergeladen (Entwurf)`);
+          }
+          if (nach.schliessen) document.getElementById('edi-dialog').hidden = true;
+          if (nach.sendenFuer) sendenOeffnen(nach.sendenFuer);   // erst die Bestaetigung dort sendet
         } catch (e) {
           showToast(`EDI-Datei fehlgeschlagen: ${e.message}`, 'error');
         } finally {
@@ -5141,7 +5192,14 @@
 
       document.getElementById('korb-edi-btn')?.addEventListener('click', ediOeffnen);
       document.getElementById('edi-pruefen')?.addEventListener('click', ediPruefen);
-      document.getElementById('edi-erzeugen')?.addEventListener('click', ediErzeugenKlick);
+      document.getElementById('edi-erzeugen')?.addEventListener('click', () => ediErzeugenKlick('entwurf'));
+      document.getElementById('edi-senden')?.addEventListener('click', () => ediErzeugenKlick('senden'));
+      document.getElementById('edi-ergebnis')?.addEventListener('click', ev => {
+        if (!ev.target.closest('[data-edi-zu-entwuerfen]')) return;
+        ev.preventDefault();
+        document.getElementById('edi-dialog').hidden = true;
+        oeffneAnsicht('bestellen', 'lshop-bestellungen');
+      });
       document.getElementById('edi-schliessen')?.addEventListener('click', () => { document.getElementById('edi-dialog').hidden = true; });
       document.getElementById('edi-commission')?.addEventListener('input', () => {
         // Geaenderte Commission: erst neu pruefen, dann erzeugen.
@@ -5607,7 +5665,7 @@
         }
         document.getElementById('senden-kopf').textContent = [v.orderId, `${v.items.length} Pos. / ${v.stueck} Stk`,
           v.commission, `Versand ${v.versandart}`].filter(Boolean).join(' · ');
-        ediPruefungZeichnenIn('senden-pruefung', v.punkte);
+        ediPruefungZeichnenIn('senden-pruefung', ediPunkteSichtbar(v.punkte, v.versandart));
         document.getElementById('senden-tabelle').innerHTML = nsNettoHtml(v.netto, v.items);
         knopf.disabled = sendenZustand.laeuft || sendenZustand.gesendet || !v.gruen;
       }
