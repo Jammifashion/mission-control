@@ -1,0 +1,2 @@
+# Zeilenenden: im Repo und im Arbeitsordner immer LF (auch unter Windows mit core.autocrlf).
+* text=auto eol=lf
