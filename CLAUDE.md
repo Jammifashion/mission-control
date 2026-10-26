@@ -1,5 +1,10 @@
 # Claude Code – Arbeitshinweise Mission Control
 
+## Arbeitsweise
+- Jeder Auftrag aus dem Postfach wird in einem eigenen Worktree unter `.claude/worktrees/<auftrag>` von
+  `origin/main` gebaut, nie direkt auf `main` im Hauptordner.
+- Nach `git pull` im Hauptordner: `cd backend && npm ci`.
+
 ## frontend/index.html (große Datei)
 Vor jeder Änderung erst Struktur prüfen:
 ```bash
