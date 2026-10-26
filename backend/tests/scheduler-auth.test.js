@@ -18,6 +18,7 @@ jest.unstable_mockModule('../lib/lshopKorb.js', () => ({
   leseKorb: jest.fn(), setzeStatus: jest.fn(), sucheLShopModelle: jest.fn(),
   lshopModellVarianten: jest.fn(), legeEigenePositionAn: jest.fn(),
   mitKorbSperre: jest.fn(),   // BO4a: lib/lshopEdi.js (ueber routes/bestellen.js) braucht den Export
+  ladeKontext: jest.fn(), ladeProdukte: jest.fn(),   // PS1: lib/produktionStand.js (ueber routes/bestellen.js)
 }));
 
 const notifyFehler = jest.fn().mockResolvedValue(undefined);

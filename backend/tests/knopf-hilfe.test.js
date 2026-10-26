@@ -60,8 +60,8 @@ describe('Knoepfe tragen data-hilfe', () => {
   });
 
   test('jeder Filter- und Gruppieren-Knopf', () => {
-    const filter = [...html.matchAll(/<button[^>]*data-(filter|gruppe|bfilter)="[^"]+"[^>]*>/g)].map(m => m[0]);
-    expect(filter.length).toBe(9);   // Korb 3, Uebersicht 3, BO4d L-Shop-Bestellungen 3
+    const filter = [...html.matchAll(/<button[^>]*data-(filter|gruppe|bfilter|pfilter)="[^"]+"[^>]*>/g)].map(m => m[0]);
+    expect(filter.length).toBe(11);   // Korb 3, Uebersicht 3, BO4d L-Shop-Bestellungen 3, PS1 Bestellansicht 2
     for (const t of filter) expect(t).toMatch(/data-hilfe="[^"]+"/);
   });
 

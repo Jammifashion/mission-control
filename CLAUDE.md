@@ -17,7 +17,8 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   Alte Adresse = Zeile mit `umleitung: '<unterpunkt>'` ohne panel/knopf (BO4d: `bestellen/lshop`).)
 - Stand-Anzeige
 - Helpers (darin: Dashboard inkl. Knopf "Trikot-Sync jetzt")
-- Auftragsmonitor, Auftragsmonitor Dual-Source; darunter "Auftragsmonitor: Shop Orders" (kein SECTION-Anker)
+- Auftragsmonitor, Auftragsmonitor Dual-Source; darunter "Auftragsmonitor: Shop Orders" (kein SECTION-Anker) mit der
+  Bestellansicht "Bestellungen (JFN)" (PS1, Block `Produktion-Stand: Anfang/Ende`, Test produktion-stand.test.js)
 - L-Shop-Warenkorb (BO2: Unterpunkt `bestellen/lshop-korb`, Anzeige + Knopf "Abgleich jetzt"; der alte
   Unterreiter "L-Shop Bestellungen" ist seitdem ausgeblendet, nicht entfernt. BO4a am Ende der Sektion:
   "EDI-Entwurf" - Knopf "EDI-Datei erzeugen (Entwurf)" in der Leiste, "alle offenen wählen" (ohne
@@ -126,6 +127,23 @@ Neue Sektionen immer mit Anker versehen:
   HONK-Bestellnummern Beitrags-IDs zweier WordPress-Installationen sind und gleich sein koennen.
   Neue Leser dieser Reiter lesen die ganze Breite (A1:Z), nie A1:J. Kein Shop-Feld: Partner_Interne_
   Bestellungen (Shop am Partner), Trikots (nur JFN), Partner_/HK_/FP_Verkaeufe (schon je Shop).
+- backend/lib/produktionStand.js – Bestellansicht "Bestellungen (JFN)" (PS1), Logik in `utils/produktion-stand.js`.
+  `POST /api/bestellen/produktion/stand?shop=` `{ bestellungen: [{ id, date_created, line_items }] }` (der Browser
+  schickt die Bestellungen, die er schon hat; nur lesen, ohne Kundennamen): je Artikel L-Shop-Stand aus
+  `Warenkorb_LShop` ueber den Korb-Schluessel `JFN:<Bestellnummer>:<line_item.id>` (= WC_Item_ID in
+  Produktions_Status) - im Korb offen · herausgenommen: Grund · bestellt JFN-… (+ versandt · GLS · Paket 1 aus
+  BO4d) · geliefert; ohne Korbzeile die Einstufung des Abgleichs (`stufeEin`, Kontext `ladeKontext` + Produkttypen
+  nur fuer diese Positionen): bestellbar = "nicht im Korb", Trikot/Fremdware/einfach/ohne Varianten-Zeile =
+  "kein L-Shop-Artikel", Nummer fehlt/falsch/unbekannt/ausgelaufen/fremdes Produkt = gelb "L-Shop-Nummer fehlt";
+  HONK "nur JFN". Klick: Korb bzw. L-Shop-Bestellungen (`lbSpringeZu` oeffnet die Karte). Haekchen je Artikel:
+  Fertig (im Karton) · DTF bestellt · Versendet + Notiz. **"L-Shop_bestellt" (F) ist nicht mehr schreibbar**
+  (PUT 400), nur Altstand "von Hand markiert (alt)", wo der Korb nichts weiss; "Gedruckt" (H) wird nicht mehr
+  gezeigt (Spalten bleiben). Neu hinten in Produktions_Status: `Fertig` + `Fertig_Am` (ISO), nur ueber den Namen;
+  PUT `field: fertig` schreibt genau diese zwei Zellen RAW, liest zurueck, 409 ohne Spalten
+  (`scripts/setup-produktion-fertig.js`, Trockenlauf Standard, `--write` nur die zwei Kopfzellen). Versendet zaehlt
+  als fertig. Kopf: "2/3 fertig · 1/3 versendet · wartet auf: …"; Filter "wartet auf Teile" = mind. 1 fertig und
+  mind. 1 nicht, aelteste zuerst nach fruehestem Fertig_Am (sonst Bestelldatum), "wartet seit" Kalendertage
+  Europe/Berlin; Filter in localStorage `mc_bestellungen_filter`. Liste laedt seitenweise (100, max. 5 Seiten).
 - backend/lib/lshopKorb.js – L-Shop-Warenkorb (BO2), Logik in `utils/korb-logic.js`. Reiter
   `Warenkorb_LShop` (SSOT) ist ein STEHENDER Bestand: jede L-Shop-bestellfaehige Shop-Position eine
   Zeile, Schluessel `JFN:<Bestellnummer>:<Position>`, Spalte Shop von Anfang an. Abgleich

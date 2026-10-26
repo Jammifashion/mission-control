@@ -110,7 +110,8 @@ async function leseKorbWerte(sheets, spreadsheetId) {
   return data.values ?? [];
 }
 
-async function ladeKontext(sheets, spreadsheetId) {
+// Auch fuer die Bestellansicht (PS1, lib/produktionStand.js): dieselbe Einstufung wie der Abgleich.
+export async function ladeKontext(sheets, spreadsheetId) {
   const varianten = await cache.hole(`var|${spreadsheetId}`, async () =>
     (await sheets.spreadsheets.values.get({ spreadsheetId, range: q(TAB_VARIANTEN) })).data.values ?? []);
   const lshop  = await ladeLShopZeilen({ sheets, spreadsheetId });

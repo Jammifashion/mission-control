@@ -531,6 +531,30 @@
         color: var(--fg); padding: 0.28rem 0.5rem; font-size: 0.8rem;
       }
       .prod-notiz-input:focus { outline: none; border-color: var(--accent); }
+      /* PS1: L-Shop-Stand je Artikel (aus dem Warenkorb), Zusammenfassung im Kopf, Filter "wartet auf Teile" */
+      .prod-lshop { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.15rem 0.4rem; font-size: 0.8rem; margin: 0.15rem 0 0.35rem; }
+      .prod-lshop-label { color: var(--muted); }
+      .prod-lshop a, .prod-lshop .prod-lshop-wert { color: var(--info); text-decoration: none; }
+      .prod-lshop a:hover { text-decoration: underline; }
+      .prod-lshop a:focus-visible { outline: 2px solid var(--info); outline-offset: 2px; }
+      .prod-lshop.ps-kein .prod-lshop-wert { color: var(--muted); }
+      .prod-lshop.ps-pruefen .prod-lshop-wert, .prod-lshop.ps-nicht-im-korb a { color: var(--accent); }
+      .prod-lshop-grund, .prod-lshop-alt { color: var(--muted); font-size: 0.75rem; }
+      .order-zf { font-size: 0.76rem; color: var(--muted); flex-basis: 100%; min-width: 0; }
+      .order-zf.ps-wartet { color: var(--accent); }
+      .order-zf.ps-fertig { color: var(--success); }
+      .ps-wartet-seit { display: inline-block; font-size: 0.75rem; font-weight: 600; padding: 0.1em 0.45em; border-radius: 4px; background: #4a3a10; color: var(--accent); white-space: nowrap; }
+      .ps-bedienung { margin-bottom: 0.6rem; }
+      @media (max-width: 600px) {
+        .prod-checks { grid-template-columns: 1fr; gap: 0.15rem; }
+        .prod-check-label { min-height: 40px; font-size: 0.88rem; }
+        .prod-check-label input[type=checkbox] { width: 20px; height: 20px; }
+        .prod-notiz-input { min-height: 36px; font-size: 0.88rem; }
+        .order-card-header { padding: 0.7rem 0.75rem; flex-wrap: wrap; row-gap: 0.4rem; }
+        .order-card-meta { flex-basis: calc(100% - 1.5rem); }
+        .ps-wartet-seit { order: 3; }   /* eigene Zeile unter der Zusammenfassung */
+        .order-card-body { padding: 0.75rem; }
+      }
       .btn-complete-order {
         margin-top: 0.8rem; width: 100%; background: #1a3a20; color: #4caf50;
         border: 1px solid #2a5a30; border-radius: 6px; padding: 0.48rem;
@@ -1224,6 +1248,19 @@
         <div id="tab-jfn-shop" class="sub-tab-panel active">
           <div class="card">
             <div id="jfn-orders-summary" class="orders-summary" style="display:none;"></div>
+            <!-- PS1: Filter "wartet auf Teile" (Nicoles Packliste); Erklaerungen aus KNOPF_HILFE -->
+            <div class="korb-bedienung ps-bedienung">
+              <div class="korb-ansicht">
+                <span class="korb-filter" id="ps-filter" role="group" aria-label="Bestellungen filtern">
+                  <button type="button" data-pfilter="alle" data-hilfe="ps-alle" aria-pressed="true">Alle</button>
+                  <button type="button" data-pfilter="wartet" data-hilfe="ps-wartet" aria-pressed="false">wartet auf Teile</button>
+                </span>
+              </div>
+              <div class="korb-aktionen">
+                <button class="hilfe-i" type="button" data-hilfe-gruppe="produktion" aria-controls="hilfe-produktion" aria-expanded="false" aria-label="Was bedeuten die Knöpfe?">ⓘ</button>
+              </div>
+            </div>
+            <div id="hilfe-produktion" class="hilfe-legende" hidden></div>
             <div id="jfn-orders-list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
           </div>
         </div>
@@ -3592,72 +3629,103 @@
       }
 
 
-      // ── Fortschritts-Badge ────────────────────────────────────────────────
-      function progressBadge(items) {
-        if (!items || items.length === 0) return '<span class="order-progress prog-none">–</span>';
-        const done  = items.filter(i => i.versendet).length;
-        const total = items.length;
-        if (done === total) return `<span class="order-progress prog-done">${done}/${total} versendet ✓</span>`;
-        if (done > 0)       return `<span class="order-progress prog-partial">${done}/${total} versendet</span>`;
-        return `<span class="order-progress prog-none">0/${total} versendet</span>`;
+      // ── Produktion-Stand: Anfang (PS1, Test backend/tests/produktion-stand.test.js) ──
+      // Reine Anzeige der Bestellansicht "Bestellungen (JFN)" aus POST /api/bestellen/produktion/stand:
+      // je Artikel der L-Shop-Stand aus dem Warenkorb (Anzeige, kein Haekchen; Klick -> Korb bzw.
+      // L-Shop-Bestellung), Haekchen Fertig (im Karton) · DTF bestellt · Versendet und Notiz; im Kopf jeder
+      // Karte die Zusammenfassung ("2/3 fertig · wartet auf: …"), im Filter "wartet auf Teile" dazu
+      // "wartet seit". "L-Shop bestellt" und "Gedruckt" sind keine Haekchen mehr (Spalten bleiben im Sheet).
+      const PS_FILTER = ['alle', 'wartet'];
+      const PS_FELDER = ['fertig', 'dtfBestellt', 'versendet'];   // Haekchen je Artikel (Felder im PUT)
+      const psEsc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+      /** Varianten-Text aus den meta_data einer Shop-Position (interne Schluessel mit _ weg). */
+      const psVariante = li => (li?.meta_data ?? [])
+        .filter(m => m.display_key && m.display_value && !String(m.key ?? '').startsWith('_'))
+        .map(m => `${m.display_key}: ${m.display_value}`).join(' · ');
+      function psLshopHtml(l) {
+        if (!l) return '';
+        const wert = l.ziel
+          ? `<a href="#bestellen/${psEsc(l.ziel)}" data-ps-ziel="${psEsc(l.ziel)}" data-ps-bestellung="${psEsc(l.bestellId ?? '')}" data-hilfe="prod-lshop">${psEsc(l.text)}</a>`
+          : `<span class="prod-lshop-wert" tabindex="0" data-hilfe="prod-lshop">${psEsc(l.text)}</span>`;
+        const grund = l.grund ? ` <span class="prod-lshop-grund">(${psEsc(l.grund)})</span>` : '';
+        const alt = l.alt ? ' <span class="prod-lshop-alt">· von Hand markiert (alt)</span>' : '';
+        return `<div class="prod-lshop ps-${psEsc(l.art)}"><span class="prod-lshop-label">L-Shop:</span>${wert}${grund}${alt}</div>`;
       }
-
-      // ── Produktions-Artikel rendern ───────────────────────────────────────
-      function renderProdItems(orderId, items) {
-        if (!items.length) return '<p style="color:var(--muted);font-size:0.83rem;">Keine Artikel gefunden.</p>';
-        const FIELDS = [
-          { key: 'lshopBestellt', label: 'L-Shop bestellt' },
-          { key: 'dtfBestellt',   label: 'DTF bestellt' },
-          { key: 'gedruckt',      label: 'Gedruckt' },
-          { key: 'versendet',     label: 'Versendet' },
-        ];
-        return items.map(item => `
-          <div class="prod-item">
-            <div class="prod-item-name">
-              ${item.menge}× ${item.artikelname}
-              <span class="prod-item-sku">(${item.sku || '–'})</span>
-            </div>
-            ${item.variante ? `<div class="prod-item-variant">${item.variante}</div>` : ''}
-            <div class="prod-checks">
-              ${FIELDS.map(f => `
-                <label class="prod-check-label">
-                  <input type="checkbox"
-                    data-order="${orderId}" data-item="${item.wcItemId}" data-field="${f.key}"
-                    ${item[f.key] ? 'checked' : ''}>
-                  ${f.label}
-                </label>`).join('')}
-            </div>
-            <input class="prod-notiz-input" type="text" placeholder="Notiz…"
-              value="${(item.notiz || '').replace(/"/g, '&quot;')}"
-              data-order="${orderId}" data-item="${item.wcItemId}">
-          </div>`).join('');
+      const psTage = n => (n === 0 ? 'seit heute' : `seit ${n} ${n === 1 ? 'Tag' : 'Tagen'}`);
+      /** Kopf einer Karte: Zusammenfassung (eigene Zeile) und - nur bei "wartet auf Teile" - "wartet seit". */
+      function psKopfHtml(z) {
+        if (!z) return { zeile: '<span class="order-zf">Stand wird geladen…</span>', rechts: '' };
+        const cls = z.allesVersendet ? ' ps-fertig' : z.wartetAufTeile ? ' ps-wartet' : '';
+        return {
+          zeile: `<span class="order-zf${cls}">${psEsc(z.text)}</span>`,
+          rechts: z.wartetAufTeile && Number.isFinite(z.wartetTage) ? `<span class="ps-wartet-seit">wartet ${psEsc(psTage(z.wartetTage))}</span>` : '',
+        };
       }
+      /** Ein Artikel. a = Stand aus dem Backend, li = Shop-Position (SKU, Varianten). */
+      function psArtikelHtml(orderId, a, li, { fertigSpalte = true } = {}) {
+        const variante = psVariante(li);
+        // Ohne Zeile in Produktions_Status (Karte noch nie offen) oder ohne Spalte "Fertig": nicht klickbar.
+        const box = key => `<input type="checkbox" data-order="${psEsc(orderId)}" data-item="${psEsc(a.wcItemId)}" data-field="${key}"`
+          + `${a[key] ? ' checked' : ''}${!a.imSheet || (key === 'fertig' && !fertigSpalte) ? ' disabled' : ''}>`;
+        const haken = `<label class="prod-check-label" data-hilfe="prod-fertig">${box('fertig')} Fertig (im Karton)</label>`
+          + `<label class="prod-check-label" data-hilfe="prod-dtf">${box('dtfBestellt')} DTF bestellt</label>`
+          + `<label class="prod-check-label" data-hilfe="prod-versendet">${box('versendet')} Versendet</label>`;
+        const ohneSpalte = !fertigSpalte ? '<div class="prod-lshop-grund">„Fertig“ ist noch nicht eingerichtet.</div>' : '';
+        return `<div class="prod-item">`
+          + `<div class="prod-item-name">${psEsc(a.menge)}× ${psEsc(a.name)} <span class="prod-item-sku">(${psEsc(li?.sku || '–')})</span></div>`
+          + (variante ? `<div class="prod-item-variant">${psEsc(variante)}</div>` : '')
+          + psLshopHtml(a.lshop)
+          + `<div class="prod-checks">${haken}</div>${ohneSpalte}`
+          + `<input class="prod-notiz-input" type="text" placeholder="Notiz…" value="${psEsc(a.notiz)}" data-hilfe="prod-notiz"`
+          + ` data-order="${psEsc(orderId)}" data-item="${psEsc(a.wcItemId)}"${a.imSheet ? '' : ' disabled'}></div>`;
+      }
+      /** Sichtbare Bestellungen je Filter: alle wie geladen (neueste zuerst), "wartet" in der Reihenfolge des Backends. */
+      function psSicht(orders, standDaten, filter) {
+        if (filter !== 'wartet') return orders;
+        const je = new Map(orders.map(o => [String(o.id), o]));
+        return (standDaten?.wartetAufTeile ?? []).map(id => je.get(String(id))).filter(Boolean);
+      }
+      const psZaehler = (orders, standDaten) => ({ alle: orders.length, wartet: psSicht(orders, standDaten, 'wartet').length });
+      /** Reihenfolge "wartet auf Teile" (wie utils/produktion-stand.js wartetAufTeile): aelteste zuerst. */
+      const psWartetReihenfolge = stand => [...stand].filter(b => b.zusammenfassung?.wartetAufTeile)
+        .sort((a, b) => (Date.parse(a.zusammenfassung.wartetSeit) || Infinity) - (Date.parse(b.zusammenfassung.wartetSeit) || Infinity)
+          || String(a.id).localeCompare(String(b.id), 'de', { numeric: true }))
+        .map(b => b.id);
+      // ── Produktion-Stand: Ende ──
 
       // ── Bestellkarten rendern ─────────────────────────────────────────────
-      function renderOrderCards(orders) {
-        if (!orders?.length) return '<p style="color:var(--muted);font-size:0.85rem;">Keine offenen Bestellungen.</p>';
+      function renderOrderCards(orders, { stand, offen, fertigSpalte, filter }) {
+        if (!orders?.length) {
+          return `<p style="color:var(--muted);font-size:0.85rem;">${filter === 'wartet' ? 'Kein Auftrag wartet auf Teile.' : 'Keine offenen Bestellungen.'}</p>`;
+        }
         return orders.map(o => {
           const name    = `${o.billing?.first_name ?? ''} ${o.billing?.last_name ?? ''}`.trim();
           const city    = o.billing?.city ?? '';
           const date    = new Date(o.date_created).toLocaleDateString('de-DE');
           const amount  = parseFloat(o.total).toLocaleString('de-DE', { style: 'currency', currency: o.currency || 'EUR' });
           const payment = o.payment_method_title ?? '';
+          const s = stand.get(String(o.id));
+          const kopf = psKopfHtml(s?.zusammenfassung);
+          const istOffen = offen.has(String(o.id));
+          const liJe = new Map((o.line_items ?? []).map(li => [String(li.id), li]));
+          const artikel = !s ? '<div class="skeleton"></div>'
+            : s.artikel.length ? s.artikel.map(a => psArtikelHtml(o.id, a, liJe.get(a.wcItemId), { fertigSpalte })).join('')
+            : '<p style="color:var(--muted);font-size:0.83rem;">Keine Artikel gefunden.</p>';
           return `
-            <div class="order-card" id="order-card-${o.id}">
+            <div class="order-card${istOffen ? ' open' : ''}" id="order-card-${o.id}">
               <div class="order-card-header" data-order-id="${o.id}">
                 <div class="order-card-meta">
                   <span class="order-card-id">#${o.id}</span>
-                  <span class="order-card-customer">${name}${city ? ' · ' + city : ''}</span>
-                  <span class="order-card-detail">${date} · ${amount}${payment ? ' · ' + payment : ''}</span>
+                  <span class="order-card-customer">${psEsc(name)}${city ? ' · ' + psEsc(city) : ''}</span>
+                  <span class="order-card-detail">${date} · ${amount}${payment ? ' · ' + psEsc(payment) : ''}</span>
                   ${statusBadge(o.status)}
+                  ${kopf.zeile}
                 </div>
-                <span id="order-progress-${o.id}">${progressBadge(null)}</span>
+                ${kopf.rechts}
                 <span class="order-card-toggle">▼</span>
               </div>
               <div class="order-card-body">
-                <div id="order-items-${o.id}">
-                  <div class="skeleton"></div><div class="skeleton"></div>
-                </div>
+                <div id="order-items-${o.id}">${istOffen ? artikel : ''}</div>
                 <button class="btn-complete-order" data-order-id="${o.id}">
                   Als erledigt markieren (WC Status → completed)
                 </button>
@@ -3666,88 +3734,173 @@
         }).join('');
       }
 
-      // ── Produktions-Status laden (lazy beim Aufklappen) ───────────────────
-      async function loadOrderItems(orderId) {
-        const el = document.getElementById(`order-items-${orderId}`);
+      // ── Auftragsmonitor: Shop Orders ──
+      // PS1: Liste seitenweise vollstaendig (sonst fehlen im Filter still die aeltesten), danach EIN Abruf
+      // des Stands fuer alle Karten (POST /api/bestellen/produktion/stand mit den Positionen, die der
+      // Browser schon hat). Filter in localStorage mc_bestellungen_filter, aufgeklappte Karten nie gespeichert.
+      const PS_FILTER_KEY = 'mc_bestellungen_filter';
+      const PS_MAX_SEITEN = 5;
+      const psZustand = {
+        orders: [], daten: null, stand: new Map(), offen: new Set(), fehler: '',
+        filter: (() => { try { const f = localStorage.getItem(PS_FILTER_KEY); return PS_FILTER.includes(f) ? f : 'alle'; } catch { return 'alle'; } })(),
+      };
+      const psSchlank = o => ({
+        id: o.id, date_created: o.date_created,
+        line_items: (o.line_items ?? []).map(li => ({ id: li.id, name: li.name, quantity: li.quantity, product_id: li.product_id, variation_id: li.variation_id, sku: li.sku })),
+      });
+      async function psStandHolen(orders) {
+        const res = await apiFetch(`${API_BASE()}/api/bestellen/produktion/stand`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bestellungen: orders.map(psSchlank) }), signal: AbortSignal.timeout(60000),
+        });
+        return apiJson(res);
+      }
+      /** Stand fuer eine Bestellung neu holen und einsetzen (nach Haekchen, nach Anlegen der Zeilen). */
+      async function psEinzelnNeu(orderId) {
+        const o = psZustand.orders.find(x => String(x.id) === String(orderId));
+        if (!o) return;
+        const d = await psStandHolen([o]);
+        const neu = d.bestellungen?.[0];
+        if (!neu) return;
+        psZustand.stand.set(String(orderId), neu);
+        psZustand.daten = { ...(psZustand.daten ?? {}), fertigSpalte: d.fertigSpalte, wartetAufTeile: psWartetReihenfolge(psZustand.stand.values()) };
+      }
+      function psZeichnen() {
+        const el = document.getElementById('jfn-orders-list');
+        if (!el) return;
+        const z = psZaehler(psZustand.orders, psZustand.daten);
+        const name = { alle: 'Alle', wartet: 'wartet auf Teile' };
+        document.querySelectorAll('#ps-filter [data-pfilter]').forEach(btn => {
+          const f = btn.dataset.pfilter;
+          btn.textContent = psZustand.daten ? `${name[f]} (${z[f]})` : name[f];
+          btn.setAttribute('aria-pressed', String(f === psZustand.filter));
+        });
+        const sicht = psSicht(psZustand.orders, psZustand.daten, psZustand.filter);
+        const fehler = psZustand.fehler
+          ? `<p style="color:var(--danger);font-size:0.84rem;">Stand konnte nicht geladen werden: ${psEsc(psZustand.fehler)}</p>` : '';
+        el.innerHTML = fehler + renderOrderCards(sicht, {
+          stand: psZustand.stand, offen: psZustand.offen, fertigSpalte: psZustand.daten?.fertigSpalte !== false, filter: psZustand.filter,
+        });
+      }
+      async function loadOrders() {
+        const el = document.getElementById('jfn-orders-list');
+        const summaryEl = document.getElementById('jfn-orders-summary');
+        el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+        summaryEl.style.display = 'none';
         try {
-          // WC-Bestellung und Sheet-Status parallel laden
-          const [order, resp] = await Promise.all([
-            apiFetch(`${API_BASE()}/api/woocommerce/orders/${orderId}`).then(r => r.json()),
-            apiFetch(`${API_BASE()}/api/sheets/produktions-status?orderId=${orderId}`).then(r => r.json()),
-          ]);
-
-          // Varianten-Attribute aus WC meta_data extrahieren (interne Keys mit _ überspringen)
-          const wcItemMap = {};
-          (order.line_items ?? []).forEach(item => {
-            const attrs = (item.meta_data ?? [])
-              .filter(m => m.display_key && m.display_value && !m.key.startsWith('_'))
-              .map(m => `${m.display_key}: ${m.display_value}`)
-              .join(' · ');
-            wcItemMap[String(item.id)] = attrs;
-          });
-
-          // Init wenn noch keine Sheet-Zeilen vorhanden
-          let items = resp.items ?? [];
-          if (items.length === 0) {
-            const initItems = (order.line_items ?? []).map(item => ({
-              wcItemId: String(item.id), artikelname: item.name, sku: item.sku || '', menge: item.quantity,
-            }));
-            await apiFetch(`${API_BASE()}/api/sheets/produktions-status/init`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ orderId: String(orderId), items: initItems }),
-            });
-            const fresh = await apiFetch(`${API_BASE()}/api/sheets/produktions-status?orderId=${orderId}`).then(r => r.json());
-            items = fresh.items ?? [];
+          const orders = [];
+          for (let page = 1; page <= PS_MAX_SEITEN; page++) {
+            const res = await apiFetch(`${API_BASE()}/api/woocommerce/orders?per_page=100&page=${page}&status=pending,processing,on-hold`);
+            const stopp = await laufStopp(res);
+            if (stopp) throw new Error(stopp);
+            const liste = await apiJson(res);
+            if (!Array.isArray(liste)) throw new Error('Keine Liste vom Shop erhalten.');
+            orders.push(...liste);
+            if (liste.length < 100) break;
           }
-
-          // Varianten-Info einbetten
-          const enriched = items.map(item => ({ ...item, variante: wcItemMap[item.wcItemId] || '' }));
-
-          el.innerHTML = renderProdItems(orderId, enriched);
-          document.getElementById(`order-progress-${orderId}`).innerHTML = progressBadge(enriched);
-          attachItemListeners(orderId);
+          const count = orders.length;
+          const total = orders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
+          summaryEl.innerHTML = `<strong>${count}</strong> offene Bestellung${count !== 1 ? 'en' : ''} &nbsp;·&nbsp; EUR <strong>${total.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> Umsatz`;
+          summaryEl.style.display = '';
+          psZustand.orders = orders;
+          psZustand.stand = new Map();
+          psZustand.daten = null;
+          psZustand.fehler = '';
+          psZeichnen();
+          try {
+            const d = await psStandHolen(orders);
+            psZustand.daten = d;
+            psZustand.stand = new Map((d.bestellungen ?? []).map(b => [String(b.id), b]));
+          } catch (e) {
+            psZustand.fehler = e.message;
+          }
+          psZeichnen();
         } catch (e) {
-          el.innerHTML = `<p style="color:var(--danger);font-size:0.83rem;">Fehler: ${e.message}</p>`;
+          summaryEl.style.display = 'none';
+          el.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${psEsc(e.message)}</p>`;
         }
       }
 
-      // ── Event-Listener für Checkboxen + Notiz ────────────────────────────
-      function attachItemListeners(orderId) {
-        const card = document.getElementById(`order-card-${orderId}`);
-        if (!card) return;
-
-        card.querySelectorAll('input[type=checkbox]').forEach(cb => {
-          cb.addEventListener('change', async () => {
-            const { order, item, field } = cb.dataset;
-            const newVal = cb.checked;
-            try {
-              await apiFetch(`${API_BASE()}/api/sheets/produktions-status`, {
-                method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ orderId: order, wcItemId: item, field, value: newVal }),
-              });
-              const updated = await apiFetch(`${API_BASE()}/api/sheets/produktions-status?orderId=${order}`).then(r => r.json());
-              document.getElementById(`order-progress-${order}`).innerHTML = progressBadge(updated.items ?? []);
-            } catch {
-              cb.checked = !newVal;
-              showToast('Fehler beim Speichern', 'error');
-            }
-          });
+      // ── Produktions-Zeilen anlegen (beim ersten Aufklappen, wie bisher) ──
+      async function psZeilenAnlegen(orderId) {
+        const s = psZustand.stand.get(String(orderId));
+        const o = psZustand.orders.find(x => String(x.id) === String(orderId));
+        if (!s || !o || s.artikel.every(a => a.imSheet)) return;
+        const initItems = (o.line_items ?? []).map(item => ({
+          wcItemId: String(item.id), artikelname: item.name, sku: item.sku || '', menge: item.quantity,
+        }));
+        const res = await apiFetch(`${API_BASE()}/api/sheets/produktions-status/init`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: String(orderId), items: initItems }),
         });
-
-        card.querySelectorAll('.prod-notiz-input').forEach(input => {
-          input.addEventListener('blur', async () => {
-            const { order, item } = input.dataset;
-            try {
-              await apiFetch(`${API_BASE()}/api/sheets/produktions-status/notiz`, {
-                method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ orderId: order, wcItemId: item, notiz: input.value }),
-              });
-            } catch {
-              showToast('Fehler beim Speichern der Notiz', 'error');
-            }
-          });
-        });
+        await apiJson(res);
+        await psEinzelnNeu(orderId);
       }
+
+      // ── Ereignisse (einmal am Container, die Karten werden neu gezeichnet) ──
+      document.getElementById('ps-filter')?.addEventListener('click', ev => {
+        const f = ev.target.closest('[data-pfilter]')?.dataset.pfilter;
+        if (!f || !PS_FILTER.includes(f)) return;
+        psZustand.filter = f;
+        try { localStorage.setItem(PS_FILTER_KEY, f); } catch { /* ohne Speicher: nur fuer diese Sitzung */ }
+        psZeichnen();
+      });
+      document.getElementById('jfn-orders-list')?.addEventListener('click', async ev => {
+        const link = ev.target.closest('a[data-ps-ziel]');
+        if (link) {
+          ev.preventDefault();
+          if (link.dataset.psBestellung) lbSpringeZu(link.dataset.psBestellung);
+          oeffneAnsicht('bestellen', link.dataset.psZiel);
+          return;
+        }
+        const erledigt = ev.target.closest('.btn-complete-order');
+        if (erledigt) { ev.stopPropagation(); completeOrder(erledigt.dataset.orderId); return; }
+        const header = ev.target.closest('.order-card-header');
+        if (!header) return;
+        const id = header.dataset.orderId;
+        if (psZustand.offen.has(id)) psZustand.offen.delete(id); else psZustand.offen.add(id);
+        psZeichnen();
+        if (psZustand.offen.has(id)) {
+          try { await psZeilenAnlegen(id); psZeichnen(); }
+          catch (e) { showToast(`Zeilen konnten nicht angelegt werden: ${e.message}`, 'error'); }
+        }
+      });
+      document.getElementById('jfn-orders-list')?.addEventListener('change', async ev => {
+        const cb = ev.target.closest('input[type=checkbox][data-field]');
+        if (cb) {
+          const { order, item, field } = cb.dataset;
+          const newVal = cb.checked;
+          cb.disabled = true;
+          try {
+            const res = await apiFetch(`${API_BASE()}/api/sheets/produktions-status`, {
+              method: 'PUT', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ orderId: order, wcItemId: item, field, value: newVal }),
+            });
+            await apiJson(res);
+            await psEinzelnNeu(order);
+            psZeichnen();
+          } catch (e) {
+            cb.checked = !newVal;
+            cb.disabled = false;
+            showToast(`Fehler beim Speichern: ${e.message}`, 'error');
+          }
+          return;
+        }
+        const input = ev.target.closest('.prod-notiz-input');
+        if (!input) return;
+        const { order, item } = input.dataset;
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/sheets/produktions-status/notiz`, {
+            method: 'PUT', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ orderId: order, wcItemId: item, notiz: input.value }),
+          });
+          await apiJson(res);
+          const a = psZustand.stand.get(String(order))?.artikel.find(x => x.wcItemId === String(item));
+          if (a) a.notiz = input.value;
+        } catch (e) {
+          showToast(`Fehler beim Speichern der Notiz: ${e.message}`, 'error');
+        }
+      });
 
       // ── Bestellung als erledigt markieren ────────────────────────────────
       async function completeOrder(orderId) {
@@ -3758,53 +3911,13 @@
           });
           // HTTP-Fehler (auch Hoster-Prüfseite) wirft hier; Karte bleibt stehen.
           await apiJson(res);
-          document.getElementById(`order-card-${orderId}`)?.remove();
+          psZustand.orders = psZustand.orders.filter(o => String(o.id) !== String(orderId));
+          psZustand.stand.delete(String(orderId));
+          if (psZustand.daten?.wartetAufTeile) psZustand.daten.wartetAufTeile = psZustand.daten.wartetAufTeile.filter(id => String(id) !== String(orderId));
           showToast(`Bestellung #${orderId} als erledigt markiert ✓`);
-          const remaining = document.querySelectorAll('.order-card').length;
-          if (remaining === 0) {
-            document.getElementById('jfn-orders-list').innerHTML =
-              '<p style="color:var(--muted);font-size:0.85rem;">Keine offenen Bestellungen.</p>';
-          }
+          psZeichnen();
         } catch (e) {
           showToast(`Fehler: ${e.message}`, 'error');
-        }
-      }
-
-      // ── Auftragsmonitor: Shop Orders ──
-      async function loadOrders() {
-        const el = document.getElementById('jfn-orders-list');
-        const summaryEl = document.getElementById('jfn-orders-summary');
-        el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
-        summaryEl.style.display = 'none';
-        try {
-          const orders = await apiFetch(`${API_BASE()}/api/woocommerce/orders?per_page=50&status=pending,processing,on-hold`).then(r => r.json());
-          const count = Array.isArray(orders) ? orders.length : 0;
-          const total = (Array.isArray(orders) ? orders : []).reduce((s, o) => s + parseFloat(o.total || 0), 0);
-          summaryEl.innerHTML = `<strong>${count}</strong> offene Bestellung${count !== 1 ? 'en' : ''} &nbsp;·&nbsp; EUR <strong>${total.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> Umsatz`;
-          summaryEl.style.display = '';
-          el.innerHTML = renderOrderCards(orders);
-
-          // Karten-Toggle
-          document.querySelectorAll('.order-card-header').forEach(header => {
-            header.addEventListener('click', () => {
-              const card = document.getElementById(`order-card-${header.dataset.orderId}`);
-              const wasOpen = card.classList.contains('open');
-              card.classList.toggle('open');
-              if (!wasOpen) loadOrderItems(header.dataset.orderId);
-            });
-          });
-
-          // Erledigt-Buttons
-          document.querySelectorAll('.btn-complete-order').forEach(btn => {
-            btn.addEventListener('click', e => {
-              e.stopPropagation();
-              completeOrder(btn.dataset.orderId);
-            });
-          });
-
-        } catch (e) {
-          summaryEl.style.display = 'none';
-          el.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
         }
       }
 
@@ -4272,6 +4385,14 @@
         'versandart':           { name: 'Versandart', text: 'Wie L-Shop die Ware schickt. Express nur bis 13:30 Uhr und mit Zusatzkosten. Vorgabe aus der Config.' },
         'entwuerfe':            { name: 'Entwürfe', text: 'Erzeugte EDI-Dateien, die noch nicht als gesendet markiert sind.' },
         'als-gesendet':         { name: 'Als gesendet markieren', text: 'Erst klicken, wenn die Datei in ORDER bei L-Shop liegt. Die Positionen gehen dann auf „bestellt“.' },
+        // PS1: Bestellansicht "Bestellungen (JFN)"
+        'ps-alle':              { name: 'Alle', text: 'Alle offenen Shop-Bestellungen, neueste zuerst.' },
+        'ps-wartet':            { name: 'wartet auf Teile', text: 'Aufträge, bei denen schon etwas fertig ist und noch etwas fehlt – deine Packliste, älteste zuerst.' },
+        'prod-lshop':           { name: 'L-Shop', text: 'Kommt aus dem L-Shop-Warenkorb, du musst hier nichts abhaken. Tippen öffnet den Korb bzw. die L-Shop-Bestellung.' },
+        'prod-fertig':          { name: 'Fertig (im Karton)', text: 'Hak an, wenn der Artikel bedruckt und gepackt im Karton liegt, der Auftrag aber noch nicht komplett ist.' },
+        'prod-dtf':             { name: 'DTF bestellt', text: 'Hak an, wenn du den Druck für diesen Artikel bei DTF bestellt hast.' },
+        'prod-versendet':       { name: 'Versendet', text: 'Hak an, wenn dieser Artikel an den Kunden raus ist – auch bei einer Teillieferung. Zählt als fertig.' },
+        'prod-notiz':           { name: 'Notiz', text: 'Freier Hinweis zu diesem Artikel. Wird gespeichert, sobald du das Feld verlässt.' },
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
@@ -4279,6 +4400,7 @@
         leiste:     ['grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
         uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
         bestellungen: ['entwuerfe', 'als-gesendet', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
+        produktion: ['ps-alle', 'ps-wartet', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
       function hilfeLegendeHtml(gruppe) {
@@ -5234,7 +5356,7 @@
       // Filter in localStorage mc_lb_filter (wie der Korb), "ältere anzeigen" der Portalbestellungen nie gespeichert.
       const LB_FILTER_KEY = 'mc_lb_filter';
       const lbZustand = {
-        daten: null, laedt: false, portalAeltere: false,
+        daten: null, laedt: false, portalAeltere: false, springe: '',
         filter: (() => { try { const f = localStorage.getItem(LB_FILTER_KEY); return LB_FILTER.includes(f) ? f : 'unterwegs'; } catch { return 'unterwegs'; } })(),
       };
       function lbZeichnen() {
@@ -5249,6 +5371,26 @@
         });
         document.getElementById('lb-summe').textContent = `L-Shop-Bestellungen · ${z.unterwegs} unterwegs · ${z.geliefert} geliefert (14 Tage)`;
         el.innerHTML = lbListeHtml(lbZustand.daten, lbZustand.filter, lbZustand.portalAeltere);
+        lbSprungAusfuehren(el);
+      }
+      // PS1: Sprung aus der Bestellansicht ("bestellt JFN-2026-NNNN"): Karte offen und im Blick. Steht sie im
+      // gewaehlten Filter nicht, auf "Alle" stellen (nicht gespeichert). Wirkt nach dem naechsten Zeichnen.
+      function lbSpringeZu(orderId) { lbZustand.springe = String(orderId ?? ''); }
+      function lbSprungAusfuehren(el) {
+        const id = lbZustand.springe;
+        if (!id) return;
+        const sel = `details.lb-karte[data-order="${CSS.escape(id)}"]`;
+        const karte = el.querySelector(sel);
+        if (!karte && lbZustand.filter !== 'alle' && (lbZustand.daten?.bestellungen ?? []).some(b => b.orderId === id)) {
+          lbZustand.filter = 'alle';   // nur fuer jetzt, nicht in localStorage
+          lbZeichnen();                // zeichnet neu und springt dann
+          return;
+        }
+        lbZustand.springe = '';
+        if (!karte) { showToast(`${id} ist in den L-Shop-Bestellungen nicht zu finden.`, 'error'); return; }
+        karte.open = true;
+        karte.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        karte.querySelector('summary')?.focus({ preventScroll: true });
       }
       async function loadLShopBestellungen() {
         const el = document.getElementById('lb-liste');

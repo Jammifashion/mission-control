@@ -5,6 +5,7 @@ import {
 import { notifyFehler } from '../lib/chatNotify.js';
 import { ediVorschau, ediErzeugen, ediAlsGesendet } from '../lib/lshopEdi.js';
 import { leseLShopBestellungen } from '../lib/lshopBestellungen.js';
+import { leseProduktionStand } from '../lib/produktionStand.js';
 
 const router = Router();
 
@@ -119,6 +120,17 @@ router.get('/lshop-korb', async (req, res, next) => {
 router.get('/lshop-bestellungen', async (req, res, next) => {
   try {
     res.json(await leseLShopBestellungen({ shop: req.query.shop }));
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/bestellen/produktion/stand?shop=  (PS1) ────────────────────────
+// Bestellansicht "Bestellungen (JFN)": je Artikel L-Shop-Stand aus dem Warenkorb, Fertig/Versendet/
+// DTF/Notiz aus Produktions_Status, je Bestellung Zusammenfassung und "wartet auf Teile".
+// Body { bestellungen: [{ id, date_created, line_items: [{ id, name, quantity, product_id, variation_id, sku }] }] }.
+// Nur lesen.
+router.post('/produktion/stand', async (req, res, next) => {
+  try {
+    res.json(await leseProduktionStand({ shop: req.query.shop, bestellungen: req.body?.bestellungen }));
   } catch (err) { next(err); }
 });
 

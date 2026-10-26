@@ -3,7 +3,8 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { findHeader, requireHeader, requireHeaderAny } from '../utils/sheet-headers.js';
 import { buildRow, mergeRow } from '../utils/sheet-rows.js';
-import { sichereSpalte, sichereTextSpalte } from '../utils/sheet-spalten.js';
+import { sichereSpalte, sichereTextSpalte, colLetter } from '../utils/sheet-spalten.js';
+import { PS_FERTIG, PS_FERTIG_AM } from '../utils/produktion-stand.js';
 import { ladeLieferzeiten } from '../lib/lieferzeiten.js';
 import { lshopFuerArtikel } from '../lib/lshop.js';
 import { maskenVorschlaege } from '../lib/vorschlaege.js';
@@ -581,8 +582,10 @@ const PS_COLS = [
 const PI = Object.fromEntries(PS_COLS.map((c, i) => [c, i]));
 
 // Felder-Map: JS-Name → Spalten-Header
+// PS1: "L-Shop_bestellt" ist nicht mehr schreibbar - der Stand kommt aus dem Warenkorb
+// (lib/produktionStand.js); die Spalte bleibt als Altstand stehen. "fertig" schreibt die
+// Spalten "Fertig" + "Fertig_Am" hinten (ueber den Namen, eigener Weg unten).
 const PS_FIELD_MAP = {
-  lshopBestellt: 'L-Shop_bestellt',
   dtfBestellt:   'DTF_bestellt',
   gedruckt:      'Gedruckt',
   versendet:     'Versendet',
@@ -693,6 +696,10 @@ router.put('/produktions-status', async (req, res, next) => {
     if (!orderId || !wcItemId || !field) {
       return res.status(400).json({ error: 'orderId, wcItemId und field erforderlich' });
     }
+    if (field === 'lshopBestellt') {
+      return res.status(400).json({ error: '„L-Shop bestellt“ wird aus dem Warenkorb gelesen und ist nicht mehr von Hand setzbar.' });
+    }
+    if (field === 'fertig') return await psFertigSetzen(req, res);
     const colHeader = PS_FIELD_MAP[field];
     if (!colHeader) {
       return res.status(400).json({ error: `Unbekanntes field: ${field}` });
@@ -719,6 +726,41 @@ router.put('/produktions-status', async (req, res, next) => {
     res.json({ success: true });
   } catch (err) { next(err); }
 });
+
+// PS1: "Fertig (im Karton)" - schreibt genau "Fertig" + "Fertig_Am" der einen Zeile (RAW), liest
+// die Zeile zurueck und prueft Schluessel und Werte. Abhaken leert Fertig_Am. Fehlen die Spalten,
+// 409 (erst scripts/setup-produktion-fertig.js --write).
+async function psFertigSetzen(req, res) {
+  const { orderId, wcItemId, value } = req.body;
+  if (typeof value !== 'boolean') return res.status(400).json({ error: 'value erwartet true oder false' });
+  const rows = await readRange(TAB_PS, PS_BEREICH);
+  const iF = findHeader(rows[0] ?? [], PS_FERTIG);
+  const iA = findHeader(rows[0] ?? [], PS_FERTIG_AM);
+  if (iF < 0 || iA < 0) {
+    return res.status(409).json({ error: `Spalten „${PS_FERTIG}“/„${PS_FERTIG_AM}“ fehlen in ${TAB_PS} – erst einrichten (scripts/setup-produktion-fertig.js).` });
+  }
+  const idx = psZeileIndex(rows, req.query.shop, orderId, wcItemId);
+  if (idx < 0) return res.status(404).json({ error: 'Zeile nicht gefunden' });
+
+  const sheetRow = idx + 1;
+  const fertigAm = value ? new Date().toISOString() : '';
+  const sheets = await getSheets();
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: sheetId(),
+    requestBody: { valueInputOption: 'RAW', data: [
+      { range: `${TAB_PS}!${colLetter(iF)}${sheetRow}`, values: [[value]] },
+      { range: `${TAB_PS}!${colLetter(iA)}${sheetRow}`, values: [[fertigAm]] },
+    ] },
+  });
+
+  const [zurueck = []] = await readRange(TAB_PS, `A${sheetRow}:Z${sheetRow}`);
+  const ok = (zurueck[PI['WC_Order_ID']] ?? '').trim() === String(orderId)
+    && (zurueck[PI['WC_Item_ID']] ?? '').trim() === String(wcItemId)
+    && normalizeBool(zurueck[iF] ?? false) === value
+    && String(zurueck[iA] ?? '').trim() === fertigAm;
+  if (!ok) return res.status(500).json({ error: 'Fertig gespeichert, aber das Zurücklesen weicht ab – bitte Zeile prüfen.' });
+  return res.json({ success: true, fertig: value, fertigAm });
+}
 
 // ── PUT /api/sheets/produktions-status/notiz ──────────────────────────────────
 // Body: { orderId, wcItemId, notiz }
