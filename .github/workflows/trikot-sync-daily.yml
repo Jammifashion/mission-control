@@ -89,8 +89,14 @@ jobs:
           # ueber die maskierte Zeile unten (antwort-fehler.mjs). Zahlarten nur als Anzahl.
           if jq -e . response.json >/dev/null 2>&1; then
             jq 'if .error then {error: "Trikot-Sync fehlgeschlagen"}
-                else {gelesen, neu, dubletten, quellen,
-                      zahlarten: ((.zahlarten // {}) | length)} end' response.json
+                else {gelesen, neu, dubletten, quellen, ab,
+                      zahlarten: ((.zahlarten // {}) | length),
+                      hinweise: ((.hinweise // []) | length)} end' response.json
+            # Shop-Zeile mit Bestelldatum in der Zukunft (TK1): nur Anzahl, Text im Cloud-Run-Log.
+            n_hinweise=$(jq -r '(.hinweise // []) | length' response.json 2>/dev/null || echo 0)
+            if [ "${n_hinweise:-0}" -gt 0 ]; then
+              echo "::warning::Trikot-Sync: ${n_hinweise} Shop-Zeile(n) mit Bestelldatum in der Zukunft ignoriert - Reiter Trikots pruefen."
+            fi
           else
             echo "(Antwort ist kein JSON - nicht ausgegeben)"
           fi

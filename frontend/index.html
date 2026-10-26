@@ -3028,6 +3028,8 @@
             status.style.color = 'var(--success)';
             status.textContent = `${text} (${r?.gelesen ?? 0} Bestellungen gelesen, ${new Date().toLocaleTimeString('de-DE')}).`;
             showToast(text, 'success');
+            // TK1: Shop-Zeile mit Bestelldatum in der Zukunft, fuer den Startpunkt ignoriert.
+            for (const h of r?.hinweise ?? []) showToast(`Trikot-Sync: ${h}`, 'warn', 10000);
           } catch (err) {
             const msg = err.name === 'TimeoutError'
               ? 'Zeitüberschreitung – Ergebnis unklar, bitte Reiter „Trikots“ prüfen.'

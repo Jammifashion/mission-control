@@ -23,10 +23,11 @@ export const TAB_ARTIKEL = 'Trikot_Artikel';
 // pending und cancelled bewusst nicht.
 export const WC_STATES_TRIKOT = ['processing', 'on-hold', 'completed'];
 
-// Ohne after startet der Sync so viele Tage vor dem jüngsten Bestelldatum im Reiter.
-// Puffer für Statuswechsel über die Tagesgrenze (z.B. pending → processing am
-// Folgetag); die Dedup über Zeilen-ID verhindert doppelte Zeilen.
-export const UEBERLAPPUNG_TAGE = 3;
+// Ohne after startet der Sync so viele Tage vor dem jüngsten Bestelldatum der
+// Shop-Zeilen. Puffer für späte Statuswechsel (z.B. Vorkasse, die erst nach Tagen
+// bezahlt wird: pending → processing); die Dedup über Zeilen-ID verhindert doppelte
+// Zeilen. 14 Tage seit TK1 (vorher 3).
+export const UEBERLAPPUNG_TAGE = 14;
 
 export const SCRIPT_COLUMNS = [
   'Zeilen-ID', 'Erfasst_Am', 'Bestelldatum', 'Order-ID', 'Order-Item-ID',
@@ -247,24 +248,47 @@ export function existingIds(values) {
   return new Set(rows.map(r => String(r[idx] ?? '').trim()).filter(Boolean));
 }
 
-// Jüngstes Bestelldatum als YYYY-MM-DD, oder null bei leerem Reiter.
-export function juengstesBestelldatum(values) {
+// Zeilen-ID, wie der Sync sie schreibt (zeilenId): Order-ID|Order-Item-ID|Laufnummer.
+// Alles andere (Handzeilen INT-JJJJ-NNNN, leer) ist keine Shop-Zeile.
+const SYNC_ID = /^\d+\|\d+\|\d+$/;
+export const istSyncZeilenId = id => SYNC_ID.test(String(id ?? '').trim());
+
+// Bestelldaten der Shop-Zeilen (nur Sync-IDs, siehe istSyncZeilenId). heute = YYYY-MM-DD
+// in Europe/Berlin. Ein Datum nach heute (Tippfehler von Hand) zählt nicht und landet
+// in zukunft [{ zeilenId, datum }]. Handzeilen zählen nie - auch nicht für zukunft.
+export function shopBestelldaten(values, heute) {
   const [headers = [], ...rows] = values ?? [];
-  const idx = findHeader(headers, 'Bestelldatum');
-  if (idx < 0) return null;
-  let max = null;
+  const iDatum = findHeader(headers, 'Bestelldatum');
+  const iId    = findHeader(headers, 'Zeilen-ID');
+  const out = { juengstes: null, zukunft: [] };
+  if (iDatum < 0 || iId < 0) return out;
   for (const r of rows) {
-    const d = String(r[idx] ?? '').trim().slice(0, 10);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(d) && (max === null || d > max)) max = d;
+    const zeilenId = String(r[iId] ?? '').trim();
+    if (!istSyncZeilenId(zeilenId)) continue;
+    const d = String(r[iDatum] ?? '').trim().slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
+    if (heute && d > heute) { out.zukunft.push({ zeilenId, datum: d }); continue; }
+    if (out.juengstes === null || d > out.juengstes) out.juengstes = d;
   }
-  return max;
+  return out;
 }
 
-// Starttag ohne after: jüngstes Bestelldatum minus UEBERLAPPUNG_TAGE, null bei leerem Reiter.
-export function startOhneAfter(values) {
-  const juengstes = juengstesBestelldatum(values);
+// Jüngstes Bestelldatum der Shop-Zeilen als YYYY-MM-DD, oder null ohne Shop-Zeile.
+export function juengstesBestelldatum(values, heute) {
+  return shopBestelldaten(values, heute).juengstes;
+}
+
+// Starttag ohne after: jüngstes Bestelldatum minus UEBERLAPPUNG_TAGE, null ohne Shop-Zeile.
+export function startOhneAfter(values, heute) {
+  const juengstes = juengstesBestelldatum(values, heute);
   if (!juengstes) return null;
   const d = new Date(`${juengstes}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() - UEBERLAPPUNG_TAGE);
   return d.toISOString().slice(0, 10);
+}
+
+// Hinweise für das Lauf-Ergebnis (nur Zeilen-ID und Datum, nie Kunde).
+export function zukunftsHinweise(zukunft) {
+  return zukunft.map(z =>
+    `Shop-Zeile ${z.zeilenId} mit Bestelldatum ${z.datum} in der Zukunft - für den Startpunkt ignoriert.`);
 }

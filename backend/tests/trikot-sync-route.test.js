@@ -97,6 +97,7 @@ describe('POST /api/trikot/sync', () => {
       ok: true, gelesen: 1, neu: 4, dubletten: 0,
       quellen: { addon: 2, variante: 1, notiz: 1 },
       zahlarten: { PayPal: 4 },
+      ab: '2026-09-01', hinweise: [],
     });
     expect(mockValues.append).not.toHaveBeenCalled();
     expect(mockWcGet).toHaveBeenCalledWith('orders', expect.objectContaining({
@@ -148,12 +149,12 @@ describe('POST /api/trikot/sync', () => {
     expect(zeilen.map(r => [r[0], r[20]])).toEqual([['301|1|1', 'Vorkasse'], ['302|1|1', 'PayPal']]);
   });
 
-  test('ohne after: 3 Tage vor jüngstem Bestelldatum, vorhandene Zeilen sind Dubletten', async () => {
+  test('ohne after: 14 Tage vor jüngstem Bestelldatum, vorhandene Zeilen sind Dubletten', async () => {
     trikotRows = [HEADER, ['100|1|1', '', '2026-09-09T10:00:00'], ['100|2|1', '', '2026-09-09T10:00:00']];
     const res = await request(app).post('/api/trikot/sync').send({});
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ neu: 2, dubletten: 2 });
-    expect(mockWcGet.mock.calls[0][1].after).toBe('2026-09-06T00:00:00');
+    expect(mockWcGet.mock.calls[0][1].after).toBe('2026-08-26T00:00:00');
   });
 
   test('explizites after hat Vorrang vor der Überlappung', async () => {
@@ -162,7 +163,7 @@ describe('POST /api/trikot/sync', () => {
     expect(mockWcGet.mock.calls[0][1].after).toBe('2026-09-08T00:00:00');
   });
 
-  test('3 Tage Überlappung: alles schon im Reiter → 0 neue Zeilen, kein Append', async () => {
+  test('14 Tage Überlappung: alles schon im Reiter → 0 neue Zeilen, kein Append', async () => {
     // Bestand: alle Zeilen der Bestellung 100 plus eine jüngere Bestellung; WC liefert 100 erneut.
     trikotRows = [
       HEADER,
@@ -171,7 +172,7 @@ describe('POST /api/trikot/sync', () => {
       ['105|1|1', '', '2026-09-11T08:00:00'],
     ];
     const res = await request(app).post('/api/trikot/sync').send({});
-    expect(mockWcGet.mock.calls[0][1].after).toBe('2026-09-08T00:00:00');
+    expect(mockWcGet.mock.calls[0][1].after).toBe('2026-08-28T00:00:00');
     expect(res.body).toMatchObject({ gelesen: 1, neu: 0, dubletten: 4 });
     expect(mockValues.append).not.toHaveBeenCalled();
   });
@@ -188,6 +189,28 @@ describe('POST /api/trikot/sync', () => {
     const neu = mockValues.append.mock.calls[0][0].requestBody.values.map(r => r[0]);
     expect(neu).not.toContain('100|1|1');
     delete mockValues.update; delete mockValues.batchUpdate;
+  });
+
+  test('Handzeilen (TK1): Startpunkt nur aus Shop-Zeilen, angehängt werden nur Shop-Zeilen', async () => {
+    trikotRows = [
+      HEADER,
+      ['100|1|1', '', '2026-09-09T10:00:00'],
+      ['INT-2026-0001', '', '2026-10-20', '', '', 'Verein', '', 'Trikot', 'L', '', 'X', '7', 1, 'intern', ''],
+      ['INT-2026-0002', '', '2099-01-01'],
+    ];
+    const res = await request(app).post('/api/trikot/sync').send({});
+    expect(mockWcGet.mock.calls[0][1].after).toBe('2026-08-26T00:00:00');
+    expect(res.body).toMatchObject({ neu: 3, dubletten: 1, hinweise: [] });
+    const neu = mockValues.append.mock.calls[0][0].requestBody.values.map(r => r[0]);
+    expect(neu).toEqual(['100|1|2', '100|2|1', '100|3|1']);
+  });
+
+  test('Shop-Zeile mit Zukunftsdatum: ignoriert und als Hinweis gemeldet', async () => {
+    trikotRows = [HEADER, ['100|1|1', '', '2026-09-09T10:00:00'], ['999|1|1', '', '2099-01-01T10:00:00']];
+    const res = await request(app).post('/api/trikot/sync').send({ dryRun: true });
+    expect(mockWcGet.mock.calls[0][1].after).toBe('2026-08-26T00:00:00');
+    expect(res.body.ab).toBe('2026-08-26');
+    expect(res.body.hinweise).toEqual([expect.stringContaining('999|1|1')]);
   });
 
   test('ohne Body funktioniert wie {}', async () => {

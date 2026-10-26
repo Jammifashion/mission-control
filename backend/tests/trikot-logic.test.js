@@ -1,7 +1,8 @@
 import {
   parseArtikel, matchItem, extractFields, extractVarianteNameNummer, bestimmeQuelle, buildRohtext,
   buildRowsForOrder, resolveTrikotColumns, toSheetRow, existingIds,
-  juengstesBestelldatum, startOhneAfter, SCRIPT_COLUMNS, MANUAL_COLUMNS,
+  juengstesBestelldatum, startOhneAfter, shopBestelldaten, zukunftsHinweise, istSyncZeilenId,
+  zeilenId, SCRIPT_COLUMNS, MANUAL_COLUMNS,
   SCRIPT_COLUMNS_NACH_MANUELL, TRIKOT_HEADER, WC_STATES_TRIKOT, UEBERLAPPUNG_TAGE,
 } from '../utils/trikot-logic.js';
 import { MissingHeaderError } from '../utils/sheet-headers.js';
@@ -163,10 +164,57 @@ describe('Status und Startdatum', () => {
   });
 
   test(`ohne after: jüngstes Bestelldatum minus ${UEBERLAPPUNG_TAGE} Tage, auch über Monatsgrenzen`, () => {
-    expect(UEBERLAPPUNG_TAGE).toBe(3);
-    expect(startOhneAfter([TRIKOT_HEADER, ['a', '', '2026-09-09T12:00:00']])).toBe('2026-09-06');
-    expect(startOhneAfter([TRIKOT_HEADER, ['a', '', '2026-10-02T08:00:00']])).toBe('2026-09-29');
+    expect(UEBERLAPPUNG_TAGE).toBe(14);
+    expect(startOhneAfter([TRIKOT_HEADER, ['1|2|1', '', '2026-09-09T12:00:00']])).toBe('2026-08-26');
+    expect(startOhneAfter([TRIKOT_HEADER, ['1|2|1', '', '2026-10-02T08:00:00']])).toBe('2026-09-18');
     expect(startOhneAfter([TRIKOT_HEADER])).toBeNull();
+  });
+});
+
+describe('Handzeilen (TK1): Startpunkt nur aus Shop-Zeilen', () => {
+  const HEUTE = '2026-10-26';
+  const shop  = ['20626|900|1', '', '2026-10-01T12:33:43'];
+
+  test('Sync-ID erkannt, Handzeilen und Leeres nicht', () => {
+    expect(istSyncZeilenId(zeilenId(20626, 900, 1))).toBe(true);
+    for (const id of ['INT-2026-0001', 'TRK-2026-0001', '', null, '1|2', '1|2|x', 'a|2|1']) {
+      expect(istSyncZeilenId(id)).toBe(false);
+    }
+  });
+
+  test('Handzeile mit heutigem Datum ändert den Startpunkt nicht', () => {
+    const values = [TRIKOT_HEADER, shop, ['INT-2026-0001', '', '2026-10-26', '', '', 'Verein']];
+    expect(startOhneAfter(values, HEUTE)).toBe('2026-09-17');
+    expect(startOhneAfter([TRIKOT_HEADER, shop], HEUTE)).toBe('2026-09-17');
+  });
+
+  test('Handzeile mit Zukunftsdatum ändert nichts und wird nicht gemeldet', () => {
+    const values = [TRIKOT_HEADER, shop, ['INT-2026-0002', '', '2027-10-26']];
+    expect(shopBestelldaten(values, HEUTE)).toEqual({ juengstes: '2026-10-01', zukunft: [] });
+  });
+
+  test('nur Handzeilen: kein Startpunkt (erster Lauf braucht after)', () => {
+    expect(startOhneAfter([TRIKOT_HEADER, ['INT-2026-0001', '', '2026-10-26']], HEUTE)).toBeNull();
+  });
+
+  test('Shop-Zeile mit Zukunftsdatum wird ignoriert und gemeldet', () => {
+    const values = [TRIKOT_HEADER, shop, ['20700|1|1', '', '2027-10-02T08:00:00']];
+    const r = shopBestelldaten(values, HEUTE);
+    expect(r).toEqual({ juengstes: '2026-10-01', zukunft: [{ zeilenId: '20700|1|1', datum: '2027-10-02' }] });
+    expect(startOhneAfter(values, HEUTE)).toBe('2026-09-17');
+    expect(zukunftsHinweise(r.zukunft)).toEqual([expect.stringContaining('20700|1|1')]);
+    expect(zukunftsHinweise(r.zukunft)[0]).toContain('2027-10-02');
+  });
+
+  test('heute selbst zählt noch', () => {
+    expect(juengstesBestelldatum([TRIKOT_HEADER, ['1|1|1', '', '2026-10-26T09:00:00']], HEUTE)).toBe('2026-10-26');
+  });
+
+  test('Dedup unverändert: Handzeilen-IDs stehen im Bestand, kollidieren nie mit Sync-IDs', () => {
+    const ids = existingIds([TRIKOT_HEADER, shop, ['INT-2026-0001', '', '2026-10-26']]);
+    expect(ids).toEqual(new Set(['20626|900|1', 'INT-2026-0001']));
+    const neu = buildRowsForOrder(ORDER, parseArtikel(ART_VALUES), 'x').map(r => r['Zeilen-ID']);
+    expect(neu.every(istSyncZeilenId)).toBe(true);
   });
 });
 

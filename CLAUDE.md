@@ -285,8 +285,16 @@ Neue Sektionen immer mit Anker versehen:
   Rohtext), P–T manuell (Charge, Bestellt_Am, Geliefert_Am, Status, Notiz – Sync schreibt
   null), U Skript `Zahlart` (= `payment_method_title` unveraendert, sonst leer; Pflichtspalte).
   Neue Skriptspalten nur hinten anfuegen (`SCRIPT_COLUMNS_NACH_MANUELL`), nie zwischen O und P.
-  Status `processing`, `on-hold` (Vorkasse), `completed`; ohne `after` Start 3 Tage vor dem
-  juengsten Bestelldatum (`UEBERLAPPUNG_TAGE`). Bestandszeilen werden nie geaendert.
+  Status `processing`, `on-hold` (Vorkasse), `completed`; ohne `after` Start 14 Tage (TK1, vorher 3)
+  vor dem juengsten Bestelldatum (`UEBERLAPPUNG_TAGE`). Bestandszeilen werden nie geaendert.
+  Zeilen-ID des Syncs = `Order-ID|Order-Item-ID|Laufnummer` (keine fortlaufende Nummer). Den Startpunkt
+  bestimmen NUR Shop-Zeilen (`istSyncZeilenId`, `shopBestelldaten`); ein Bestelldatum nach heute
+  (Europe/Berlin) zaehlt nicht und steht als `hinweise` in der Antwort (Workflow ::warning::, Knopf-Toast).
+  Handzeilen (TK1, intern/Telefon/Verein): ID `INT-JJJJ-NNNN` (Nummer vergibt der Inhaber), Quelle
+  `intern`, Order-ID und Order-Item-ID leer; Bestelldatum als Text `JJJJ-MM-TT`; Kunde/Artikelnummer/
+  Produktname/Groesse/Farbe/Name/Nummer/Stueck frei, Referenz in Rohtext; P–T wie immer, U leer. Sie
+  zaehlen fuer Dedup (eigene ID) und werden nie angefasst. Merker: "+ Interne Trikotbestellung" kommt
+  spaeter mit einem Trikot-Reiter in MC (Abbild des Sheets fuer den Wareneingang), noch nicht gebaut.
 - backend/lib/seo-prompt.js – SEO-Prompt: Systemprompt (`SEO_SYSTEM_PROMPT`), User-Template,
   MODUS-Enum, Materialfilter. Serientitel nur als Fanart: steht im Hinweisblock woertlich
   "Fanart zur Serie <Titel>", kommt der Block FANART-SERIE dazu, sonst gilt das Titelverbot.

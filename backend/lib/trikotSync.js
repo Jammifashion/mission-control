@@ -19,8 +19,9 @@ import { seitenGrenze, seitenListe } from './hosterPruefseite.js';
 import {
   TAB_TRIKOTS, TAB_ARTIKEL, WC_STATES_TRIKOT,
   parseArtikel, buildRowsForOrder, resolveTrikotColumns, toSheetRow,
-  existingIds, startOhneAfter,
+  existingIds, startOhneAfter, shopBestelldaten, zukunftsHinweise,
 } from '../utils/trikot-logic.js';
+import { uhr, berlinDatum } from '../utils/berlin-tag.js';
 
 const APPEND_CHUNK = 500;
 
@@ -76,7 +77,8 @@ async function loadOrders(wc, afterDate) {
   return orders;
 }
 
-// Liefert { gelesen, neu, dubletten, quellen, zahlarten, ab, dryRun, zeilen }.
+// Liefert { gelesen, neu, dubletten, quellen, zahlarten, ab, dryRun, hinweise, zeilen }.
+// hinweise: Texte zu ignorierten Shop-Zeilen (Bestelldatum in der Zukunft).
 // zahlarten: neue Zeilen je Zahlart ('' = keine Angabe).
 // zeilen: die neuen Zeilen als Objekte (für die Ausgabe des lokalen Skripts).
 export async function runTrikotSync(opts = {}) {
@@ -106,9 +108,13 @@ export async function runTrikotSync(opts = {}) {
   const cols      = resolveTrikotColumns(trkValues[0] ?? []);
   const bestand   = existingIds(trkValues);
 
-  const ab = after ?? startOhneAfter(trkValues);
+  // Startpunkt nur aus Shop-Zeilen (Sync-ID); Handzeilen (INT-…) und Zukunftsdaten
+  // verschieben ihn nicht. Dedup und Anhängen bleiben wie gehabt.
+  const heute    = berlinDatum(uhr.jetzt());
+  const hinweise = zukunftsHinweise(shopBestelldaten(trkValues, heute).zukunft);
+  const ab = after ?? startOhneAfter(trkValues, heute);
   if (!ab) {
-    throw new TrikotSyncError(`"${TAB_TRIKOTS}" enthält noch kein Bestelldatum – erster Lauf braucht after (YYYY-MM-DD).`);
+    throw new TrikotSyncError(`"${TAB_TRIKOTS}" enthält noch keine Shop-Zeile mit Bestelldatum – erster Lauf braucht after (YYYY-MM-DD).`);
   }
 
   const orders    = await loadOrders(wc, ab);
@@ -150,6 +156,7 @@ export async function runTrikotSync(opts = {}) {
     zahlarten,
     ab,
     dryRun,
+    hinweise,
     zeilen,
   };
 }
