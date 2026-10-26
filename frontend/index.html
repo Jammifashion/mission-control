@@ -198,7 +198,7 @@
       /* ── Sub-tabs (Auftragsmonitor) ── */
       /* Jede Reiterzeile scrollt fuer sich waagrecht (Handy), nicht die ganze Seite. */
       .sub-tabs { display: flex; gap: 0; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
-      .sub-tab, .mode-btn, .lshop-tab, .dtf-tab { white-space: nowrap; flex-shrink: 0; }
+      .sub-tab, .mode-btn, .dtf-tab { white-space: nowrap; flex-shrink: 0; }
       .sub-tab {
         background: none; border: none; border-bottom: 2px solid transparent;
         color: var(--muted); cursor: pointer; font-size: 0.85rem; font-weight: 500;
@@ -215,17 +215,8 @@
       }
       .orders-summary strong { color: var(--fg); }
 
-      /* ── L-Shop inner tabs ── */
+      /* ── Innere Reiterzeile (DTF) ── */
       .lshop-inner-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1rem; overflow-x: auto; overflow-y: hidden; }
-      .lshop-tab {
-        background: none; border: none; border-bottom: 2px solid transparent;
-        color: var(--muted); cursor: pointer; font-size: 0.82rem; font-weight: 500;
-        padding: 0.4rem 0.9rem; margin-bottom: -1px; transition: color 0.15s;
-      }
-      .lshop-tab:hover { color: var(--fg); }
-      .lshop-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-      .lshop-panel { display: none; }
-      .lshop-panel.active { display: block; }
 
       /* ── DTF inner tabs ── */
       .dtf-tab {
@@ -1237,8 +1228,6 @@
         <div class="sub-tabs">
           <button class="sub-tab active" data-subtab="tab-jfn-shop">Bestellungen</button>
           <button class="sub-tab" data-subtab="tab-dtf">DTF Bestellungen</button>
-          <!-- BO2: abgeloest durch den L-Shop-Warenkorb, ausgeblendet (nicht entfernt; #bestellen/lshop oeffnet ihn weiter). -->
-          <button class="sub-tab" data-subtab="tab-lshop" style="display:none;">L-Shop Bestellungen</button>
           <button class="sub-tab" data-subtab="tab-lshop-korb">L-Shop-Warenkorb</button>
           <button class="sub-tab" data-subtab="tab-lshop-uebersicht">Bestellübersicht</button>
           <button class="sub-tab" data-subtab="tab-lshop-bestellungen">L-Shop-Bestellungen</button>
@@ -1275,20 +1264,6 @@
               <div class="skeleton"></div><div class="skeleton"></div>
             </div>
             <div id="dtf-protokoll" class="dtf-panel" style="display:none;">
-              <div class="skeleton"></div><div class="skeleton"></div>
-            </div>
-          </div>
-        </div>
-        <div id="tab-lshop" class="sub-tab-panel">
-          <div class="card">
-            <div class="lshop-inner-tabs">
-              <button class="lshop-tab active" data-lshoptab="lshop-offen">Offen</button>
-              <button class="lshop-tab" data-lshoptab="lshop-protokoll">Protokoll</button>
-            </div>
-            <div id="lshop-offen" class="lshop-panel active">
-              <div class="skeleton"></div><div class="skeleton"></div>
-            </div>
-            <div id="lshop-protokoll" class="lshop-panel" style="display:none;">
               <div class="skeleton"></div><div class="skeleton"></div>
             </div>
           </div>
@@ -2573,7 +2548,6 @@
         const sub = (k, text) => { const el = document.querySelector(`[data-subtab="${k}"]`); if (el) el.textContent = text; };
         sub('tab-jfn-shop', `Bestellungen (${kurz})`);
         sub('tab-dtf',      `DTF Bestellungen (${kurz})`);
-        sub('tab-lshop',    `L-Shop Bestellungen (${kurz})`);
         sub('tab-lshop-korb', `L-Shop-Warenkorb (${kurz})`);
         sub('tab-lshop-uebersicht', `Bestellübersicht (${kurz})`);
         sub('tab-lshop-bestellungen', `L-Shop-Bestellungen (${kurz})`);
@@ -3052,7 +3026,6 @@
           document.querySelectorAll('#panel-orders .sub-tab-panel').forEach(p => p.classList.remove('active'));
           btn.classList.add('active');
           panel.classList.add('active');
-          if (btn.dataset.subtab === 'tab-lshop')     loadLShopOffen();
           if (btn.dataset.subtab === 'tab-lshop-korb' || btn.dataset.subtab === 'tab-lshop-uebersicht') loadLShopKorb();
           if (btn.dataset.subtab === 'tab-lshop-bestellungen') loadLShopBestellungen();
           korbLeisteParken();
@@ -3238,19 +3211,6 @@
         });
       });
 
-      // ── L-Shop inner Tab-Wechsel ──────────────────────────────────────────
-      document.querySelectorAll('.lshop-tab').forEach(btn => {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.lshop-tab').forEach(b => b.classList.remove('active'));
-          document.querySelectorAll('.lshop-panel').forEach(p => { p.classList.remove('active'); p.style.display = 'none'; });
-          btn.classList.add('active');
-          const panel = document.getElementById(btn.dataset.lshoptab);
-          panel.classList.add('active');
-          panel.style.display = 'block';
-          if (btn.dataset.lshoptab === 'lshop-protokoll') loadLShopProtokoll();
-        });
-      });
-
       // ── DTF: Offen laden ─────────────────────────────────────────────────
       async function loadDtfOffen() {
         const el = document.getElementById('dtf-offen');
@@ -3426,199 +3386,6 @@
                 <span class="lshop-proto-detail">
                   ${r.artikelnummer}${r.variante ? ' · ' + r.variante : ''}
                   · <strong>${r.stueck} Stk</strong>
-                </span>
-                <span class="lshop-proto-meta">${d}<br>${r.betroffeneOrders ? '#' + r.betroffeneOrders.replace(/,\s*/g,' #') : ''}</span>
-              </div>`;
-          }).join('');
-        } catch (e) {
-          el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Fehler: ${e.message}</p>`;
-        }
-      }
-
-      // ── L-Shop: Offen laden ───────────────────────────────────────────────
-      async function loadLShopOffen() {
-        const el = document.getElementById('lshop-offen');
-        el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
-        try {
-          const items = await apiFetch(`${API_BASE()}/api/auftragsmonitor/lshop/offen`).then(apiJson);
-          if (!Array.isArray(items) || items.length === 0) {
-            el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Keine offenen L-Shop Bestellungen.</p>';
-            return;
-          }
-          el.innerHTML = `
-            <div class="lshop-offen-header">
-              <span>🔴 OFFEN (${items.length} Variante${items.length !== 1 ? 'n' : ''})</span>
-              <label class="bulk-all-label"><input type="checkbox" class="select-cb" id="lshop-select-all"> Alle</label>
-            </div>
-            <div class="bulk-bar" id="lshop-bulk-bar" style="display:none;">
-              <span class="bulk-count" id="lshop-bulk-count"></span>
-              <button class="btn-lshop-bestellen" id="lshop-bulk-btn">📦 Ausgewählte bestellen</button>
-            </div>` + items.map(item => {
-            const orderLines = item.betroffeneOrders
-              .map(o => `#${o.orderId} ${o.kunde} ×${o.stueck}`)
-              .join(' &nbsp;·&nbsp; ');
-            const varLabel = item.variante || '–';
-            const safeKey  = item.groupKey.replace(/[^a-z0-9]/gi, '_');
-            const safeAttr = item.groupKey.replace(/"/g, '');
-            return `
-              <div class="lshop-card" id="lshop-card-${safeKey}">
-                <div class="card-cb-wrap">
-                  <input type="checkbox" class="select-cb lshop-select-cb" data-groupkey="${safeAttr}">
-                </div>
-                <div class="lshop-card-info">
-                  <div class="lshop-card-title">${item.artikelnummer}</div>
-                  <div class="lshop-card-variante">${varLabel}</div>
-                  <div class="lshop-card-bedarf">Bedarf: <strong>${item.stueck} Stück</strong> · ${item.betroffeneOrders.length} Bestellung${item.betroffeneOrders.length !== 1 ? 'en' : ''}</div>
-                  <div class="lshop-card-orders">${orderLines}</div>
-                </div>
-                <div class="lshop-card-right">
-                  <span class="lshop-stueck">${item.stueck} Stk</span>
-                  <input class="lshop-kw-input" type="text" placeholder="KW…"
-                    data-groupkey="${safeAttr}" title="Lieferwoche eingeben">
-                  <button class="btn-lshop-bestellen" data-groupkey="${safeAttr}">📦 Beim L-Shop bestellt</button>
-                </div>
-              </div>`;
-          }).join('');
-
-          window._lshopOffenData = Object.fromEntries(items.map(i => [i.groupKey, i]));
-
-          function updateLShopBulkBar() {
-            const cbs     = el.querySelectorAll('.lshop-select-cb');
-            const checked = el.querySelectorAll('.lshop-select-cb:checked');
-            const n = checked.length;
-            const bar = el.querySelector('#lshop-bulk-bar');
-            const bulkBtn = el.querySelector('#lshop-bulk-btn');
-            const cnt = el.querySelector('#lshop-bulk-count');
-            const all = el.querySelector('#lshop-select-all');
-            if (bar) bar.style.display = n > 0 ? 'flex' : 'none';
-            if (bulkBtn) bulkBtn.textContent = `📦 ${n} ausgewählte bestellen`;
-            if (cnt) cnt.textContent = `${n} von ${cbs.length} ausgewählt`;
-            if (all) { all.checked = n === cbs.length && cbs.length > 0; all.indeterminate = n > 0 && n < cbs.length; }
-          }
-
-          el.querySelector('#lshop-select-all')?.addEventListener('change', e => {
-            el.querySelectorAll('.lshop-select-cb').forEach(cb => cb.checked = e.target.checked);
-            updateLShopBulkBar();
-          });
-          el.querySelectorAll('.lshop-select-cb').forEach(cb => cb.addEventListener('change', updateLShopBulkBar));
-          el.querySelector('#lshop-bulk-btn')?.addEventListener('click', () => lshopBestellenBulk(el));
-          el.querySelectorAll('.btn-lshop-bestellen[data-groupkey]').forEach(btn => {
-            btn.addEventListener('click', () => lshopBestellen(btn.dataset.groupkey, el));
-          });
-        } catch (e) {
-          el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Fehler: ${monEsc(e.message)}</p>`;
-        }
-      }
-
-      // ── L-Shop: Bestellen ─────────────────────────────────────────────────
-      async function lshopBestellen(groupKey, listEl) {
-        const item = window._lshopOffenData?.[groupKey];
-        if (!item) return;
-
-        const cardId = `lshop-card-${groupKey.replace(/[^a-z0-9]/gi,'_')}`;
-        const card   = document.getElementById(cardId);
-        const btn    = card?.querySelector('.btn-lshop-bestellen');
-        const kwInput = card?.querySelector('.lshop-kw-input');
-        if (btn) btn.disabled = true;
-
-        const kw         = kwInput?.value?.trim() ?? '';
-        const orderIds   = item.betroffeneOrders.map(o => o.orderId);
-        const wcItemIds  = item.betroffeneOrders.flatMap(o =>
-          o.wcItemIds.map(wid => ({ orderId: o.orderId, wcItemId: wid }))
-        );
-
-        try {
-          const resp = await apiFetch(`${API_BASE()}/api/auftragsmonitor/lshop/bestellen`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ssotId:        item.ssotId,
-              artikelnummer: item.artikelnummer,
-              variante:      item.variante,
-              stueck:        item.stueck,
-              kw,
-              orderIds,
-              wcItemIds,
-            }),
-          }).then(r => r.json());
-
-          if (!resp.ok) throw new Error(resp.error ?? 'Unbekannter Fehler');
-          card?.remove();
-          showToast(`${item.artikelnummer} · ${item.variante || '–'} als bestellt markiert (${resp.bestellId})`);
-
-          if (!listEl.querySelector('.lshop-card')) {
-            listEl.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Alle Artikel bestellt.</p>';
-          }
-          loadLShopOffen();
-          loadLShopProtokoll();
-        } catch (e) {
-          if (btn) btn.disabled = false;
-          showToast(`Fehler: ${e.message}`, 'error');
-        }
-      }
-
-      // ── L-Shop: Sammelbestellung ──────────────────────────────────────────
-      async function lshopBestellenBulk(listEl) {
-        const checked = [...listEl.querySelectorAll('.lshop-select-cb:checked')];
-        if (checked.length === 0) return;
-        const btn = listEl.querySelector('#lshop-bulk-btn');
-        if (btn) btn.disabled = true;
-
-        const bestellungen = checked.map(cb => {
-          const item = window._lshopOffenData?.[cb.dataset.groupkey];
-          if (!item) return null;
-          const card = listEl.querySelector(`#lshop-card-${cb.dataset.groupkey.replace(/[^a-z0-9]/gi, '_')}`);
-          const kw   = card?.querySelector('.lshop-kw-input')?.value?.trim() ?? '';
-          return {
-            ssotId:        item.ssotId,
-            artikelnummer: item.artikelnummer,
-            variante:      item.variante,
-            stueck:        item.stueck,
-            kw,
-            orderIds:      item.betroffeneOrders.map(o => o.orderId),
-            wcItemIds:     item.betroffeneOrders.flatMap(o =>
-              o.wcItemIds.map(wid => ({ orderId: o.orderId, wcItemId: wid }))
-            ),
-          };
-        }).filter(Boolean);
-
-        try {
-          const resp = await apiFetch(`${API_BASE()}/api/auftragsmonitor/lshop/bestellen-bulk`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bestellungen }),
-          }).then(r => r.json());
-
-          if (resp.errors?.length) {
-            showToast(`${resp.totalOrdered} bestellt · ${resp.errors.length} Fehler`, 'error');
-          } else {
-            showToast(`${resp.totalOrdered} Artikel beim L-Shop bestellt`);
-          }
-          loadLShopOffen();
-          loadLShopProtokoll();
-        } catch (e) {
-          if (btn) btn.disabled = false;
-          showToast(`Fehler: ${e.message}`, 'error');
-        }
-      }
-
-      // ── L-Shop: Protokoll laden ───────────────────────────────────────────
-      async function loadLShopProtokoll() {
-        const el = document.getElementById('lshop-protokoll');
-        el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
-        try {
-          const rows = await apiFetch(`${API_BASE()}/api/auftragsmonitor/lshop/protokoll?days=7`).then(r => r.json());
-          if (!Array.isArray(rows) || rows.length === 0) {
-            el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Keine Einträge in den letzten 7 Tagen.</p>';
-            return;
-          }
-          el.innerHTML = rows.map(r => {
-            const d = new Date(r.bestelldatum).toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'2-digit' });
-            return `
-              <div class="lshop-proto-row">
-                <span class="lshop-proto-id">${r.bestellId}</span>
-                <span class="lshop-proto-detail">
-                  ${r.artikelnummer}${r.variante ? ' · ' + r.variante : ''}
-                  · <strong>${r.stueck} Stk</strong>
-                  ${r.kw ? ' · ' + r.kw : ''}
                 </span>
                 <span class="lshop-proto-meta">${d}<br>${r.betroffeneOrders ? '#' + r.betroffeneOrders.replace(/,\s*/g,' #') : ''}</span>
               </div>`;

@@ -259,7 +259,6 @@ describe('R3 – fehlender Header wirft statt still zu leeren', () => {
   // Der Auftragsmonitor faellt jetzt ebenfalls laut aus: ein Monitor, der
   // stumm die L-Shop-Nummer zeigt, erzeugt Fehlbestellungen.
   test.each([
-    'GET /api/auftragsmonitor/lshop/offen',
     'GET /api/auftragsmonitor/dtf/offen',
   ])('Auftragsmonitor %s wirft bei fehlender Artikelnummer', (ctx) => {
     const ohne = ERF_HEADER.filter(h => h !== 'Artikelnummer');
@@ -268,7 +267,7 @@ describe('R3 – fehlender Header wirft statt still zu leeren', () => {
   });
 
   test('Auftragsmonitor-Pflichtspalten loesen gegen die echte Kopfzeile auf', () => {
-    const ctx = 'GET /api/auftragsmonitor/lshop/offen';
+    const ctx = 'GET /api/auftragsmonitor/dtf/offen';
     expect(requireHeaderAny(ERF_HEADER, ['SSOT-ID', 'ID'], ctx)).toBe(0);
     expect(requireHeader(ERF_HEADER, 'Artikelnummer', ctx)).toBe(9);
     expect(requireHeader(ERF_HEADER, 'Produktname', ctx)).toBe(5);

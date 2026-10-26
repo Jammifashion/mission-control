@@ -1,4 +1,4 @@
-// BO2-Fix: lshop/offen und dtf/offen lesen die offenen Bestellungen nacheinander
+// BO2-Fix: dtf/offen liest die offenen Bestellungen nacheinander
 // mit Seitenschleife und pruefen die Produkt-ID der Varianten-Zeile gegen
 // (HONK-Variations-IDs koennen JFN-Zeilen treffen, Befund BO1).
 
@@ -66,16 +66,16 @@ describe('offeneBestellungen', () => {
 
   test('Pruefseite (HTML) -> genau ein Abruf, 503', async () => {
     wcGet.mockResolvedValue({ data: '<html>One moment, please...</html>' });
-    const res = await request(app).get('/api/auftragsmonitor/lshop/offen?shop=honk');
+    const res = await request(app).get('/api/auftragsmonitor/dtf/offen?shop=honk');
     expect(res.status).toBe(503);
     expect(wcGet).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('Produkt-ID-Gegenprobe', () => {
-  test.each(['lshop', 'dtf'])('%s/offen: HONK-Position mit gleicher Variations-ID bekommt keine JFN-Daten', async (art) => {
+  test('dtf/offen: HONK-Position mit gleicher Variations-ID bekommt keine JFN-Daten', async () => {
     wcGet.mockImplementation(async (_p, q) => ({ data: q.status === 'on-hold' ? [bestellung(900, 222, 555)] : [] }));
-    const res = await request(app).get(`/api/auftragsmonitor/${art}/offen?shop=honk`);
+    const res = await request(app).get('/api/auftragsmonitor/dtf/offen?shop=honk');
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(1);
     expect(res.body[0].ssotId).toBe('');
@@ -85,8 +85,29 @@ describe('Produkt-ID-Gegenprobe', () => {
   test('gleiche Produkt-ID -> Varianten-Zeile wird genutzt', async () => {
     tabs.Produktions_Status[1][10] = 'JFN';
     wcGet.mockImplementation(async (_p, q) => ({ data: q.status === 'processing' ? [bestellung(900, 111, 555)] : [] }));
-    const res = await request(app).get('/api/auftragsmonitor/lshop/offen?shop=jfn');
+    const res = await request(app).get('/api/auftragsmonitor/dtf/offen?shop=jfn');
     expect(res.body[0].ssotId).toBe('0001');
     expect(res.body[0].variante).toBe('Schwarz·M');
+  });
+});
+
+// Der alte L-Shop-Weg ist entfernt: keine Route /lshop/ mehr, kein Schreiben auf
+// Produktions_Status!F (L-Shop_bestellt, nur noch Altstand) und LShop_Bestellungen.
+describe('alter L-Shop-Weg entfernt', () => {
+  test('Quelltext ohne /lshop/-Routen und ohne Schreibweg auf Spalte F', async () => {
+    const { readFileSync } = await import('fs');
+    const src = readFileSync(new URL('../routes/auftragsmonitor.js', import.meta.url), 'utf8');
+    expect(src).not.toMatch(/router\.(get|post|put|patch|delete)\(\s*['"`]\/lshop\//);
+    expect(src).not.toMatch(/!F\$\{/);
+    expect(src).not.toMatch(/['"`]LShop_Bestellungen['"`]/);
+  });
+
+  test.each([
+    ['get', '/lshop/offen'], ['get', '/lshop/protokoll'],
+    ['post', '/lshop/bestellen'], ['post', '/lshop/bestellen-bulk'],
+  ])('%s %s -> 404', async (methode, pfad) => {
+    const res = await request(app)[methode](`/api/auftragsmonitor${pfad}?shop=jfn`);
+    expect(res.status).toBe(404);
+    expect(wcGet).not.toHaveBeenCalled();
   });
 });

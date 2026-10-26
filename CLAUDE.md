@@ -20,7 +20,7 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
 - Auftragsmonitor, Auftragsmonitor Dual-Source; darunter "Auftragsmonitor: Shop Orders" (kein SECTION-Anker) mit der
   Bestellansicht "Bestellungen (JFN)" (PS1, Block `Produktion-Stand: Anfang/Ende`, Test produktion-stand.test.js)
 - L-Shop-Warenkorb (BO2: Unterpunkt `bestellen/lshop-korb`, Anzeige + Knopf "Abgleich jetzt"; der alte
-  Unterreiter "L-Shop Bestellungen" ist seitdem ausgeblendet, nicht entfernt. BO4a am Ende der Sektion:
+  Unterreiter "L-Shop Bestellungen" ist entfernt (s. L-Shop-Bestellungen). BO4a am Ende der Sektion:
   "EDI-Entwurf" - Knopf "EDI-Datei erzeugen (Entwurf)" in der Leiste, "alle offenen wählen" (ohne
   gesperrte), Dialog `#edi-dialog` im Panel orders; Block `EDI-Pruefung: Anfang/Ende` (Test
   edi-frontend.test.js): Knopf nur frei bei gruen + Browser-`DOMParser` ok, vor dem Download erneut;
@@ -50,9 +50,10 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   (Kopf, Status-Etikett, Positionen, Lieferscheine mit "Paket 1…n" nur auf textilelogistics.eu), Filter
   Unterwegs · Geliefert (14 Tage) · Alle (`data-bfilter`, `localStorage` `mc_lb_filter`), eingeklappte
   "Portalbestellungen" (30 Tage, "ältere anzeigen" nie gespeichert). Hilfe-Gruppe `bestellungen`.
-  Die alte Adresse `#bestellen/lshop` (ausgeblendeter Vorgaenger des Warenkorbs, schreibt ueber
-  `/api/auftragsmonitor/lshop/*` in `LShop_Bestellungen`/`Produktions_Status`) leitet per `umleitung` in
-  BEREICHE hierher; Panel und Endpunkte stehen noch, Ausbau in eigenem Auftrag. Filter "Bestellt" und
+  Die alte Adresse `#bestellen/lshop` leitet per `umleitung` in BEREICHE hierher (Zeile bleibt). Ihr
+  Vorgaenger (Panel `tab-lshop`, Routen `/api/auftragsmonitor/lshop/*`, schrieb `LShop_Bestellungen` und
+  `Produktions_Status` F) ist entfernt; die Reiter und ihre Zeilen bleiben, `routes/auftragsmonitor.js`
+  hat nur noch DTF, nichts schreibt mehr Spalte F (Test auftragsmonitor-offen.test.js). Filter "Bestellt" und
   Block "Unterwegs von L-Shop" aus BO4b-2 sind entfernt.)
 - Artikelerfassung
 - SEO-Daten aendern (Befehl SE1: Yoast-Felder jedes veroeffentlichten Artikels; nutzt seoMetaBau und yoastSchreiben des SEO-Flows, schreibt nichts ins Sheet)

@@ -29,8 +29,7 @@ describe('Tabelle BEREICHE deckt alle vorhandenen Ansichten ab', () => {
   });
 
   test('jeder Unterreiter im Auftragsmonitor und jeder Artikel-Modus genau einmal', () => {
-    // tab-lshop: ausgeblendeter Vorgaenger des Warenkorbs, seit BO4d nicht mehr erreichbar (#bestellen/lshop leitet um).
-    const subtabs = [...html.matchAll(/<button class="sub-tab[^"]*" data-subtab="([a-z-]+)"/g)].map(m => m[1]).filter(t => t !== 'tab-lshop');
+    const subtabs = [...html.matchAll(/<button class="sub-tab[^"]*" data-subtab="([a-z-]+)"/g)].map(m => m[1]);
     const modi    = [...html.matchAll(/id="(mode-btn-[a-z]+)"/g)].map(m => m[1]);
     const knoepfe = punkte.filter(p => p.knopf).map(p => p.knopf);
     for (const t of subtabs) expect(knoepfe.filter(k => k.includes(`data-subtab="${t}"`))).toHaveLength(1);
@@ -69,6 +68,9 @@ describe('Adresse #bereich/unterpunkt', () => {
       expect(punkte.some(p => p.b === u.b && p.id === u.umleitung)).toBe(true);
     }
     expect(html).not.toMatch(/knopf: '#panel-orders \.sub-tab\[data-subtab="tab-lshop"\]'/);
+    // Der alte Unterreiter tab-lshop (Vorgaenger des Warenkorbs) ist entfernt: kein Knopf, kein Panel.
+    expect(html).not.toMatch(/data-subtab="tab-lshop"/);
+    expect(html).not.toMatch(/id="tab-lshop"/);
     expect(html).toMatch(/<button class="sub-tab" data-subtab="tab-lshop-uebersicht">[^<]*<\/button>\s*<button class="sub-tab" data-subtab="tab-lshop-bestellungen">/);
   });
 

@@ -9,6 +9,10 @@ import { shopSpalte, shopDerZeile, shopWert, gleicherShop, zeileMitShop } from '
 
 const router = Router();
 
+// Der alte L-Shop-Weg (/lshop/offen, /protokoll, /bestellen, /bestellen-bulk; schrieb
+// LShop_Bestellungen und Produktions_Status!F) ist entfernt - L-Shop laeuft ueber den
+// Warenkorb (lib/lshopKorb.js, BO2) und die EDI-Bestellung (BO4). Hier bleibt nur DTF.
+
 // ── Clients ───────────────────────────────────────────────────────────────────
 const getWc = (req) => getWcClient(req?.query?.shop);
 
@@ -24,7 +28,6 @@ async function getSheets() {
 
 // ── Tabellen-Konstanten ────────────────────────────────────────────────────────
 const TAB_PS  = 'Produktions_Status';
-const TAB_LSB = 'LShop_Bestellungen';
 const TAB_DTF = 'DTF_Bestellungen';
 const TAB_VAR = 'Varianten';
 const TAB_ERF = 'Erfassungsmaske';
@@ -109,225 +112,6 @@ function buildVariante(v1, v2, v3) {
   return [v1, v2, v3].filter(Boolean).join('·');
 }
 
-// ── GET /api/auftragsmonitor/lshop/offen ──────────────────────────────────────
-router.get('/lshop/offen', async (req, res, next) => {
-  try {
-    const wc            = getWc(req);
-    const sheets        = await getSheets();
-    const spreadsheetId = sid();
-
-    // Alle Datenquellen parallel laden
-    // Sheets parallel; die Shop-Abrufe laufen in offeneBestellungen nacheinander.
-    const [psResp, varResp, erfResp, wcOrders] = await Promise.all([
-      sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_PS}!A1:Z5000` }),
-      sheets.spreadsheets.values.get({ spreadsheetId, range: TAB_VAR }),
-      sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_ERF}!1:2000` }),
-      offeneBestellungen(wc),
-    ]);
-
-    const psAlle   = psResp.data.values ?? [];
-    const psSi     = shopSpalte(psAlle[0]);
-    const psRows   = psAlle.slice(1).filter(r => gleicherShop(r, psSi, req.query.shop));
-    const erfRows  = erfResp.data.values ?? [];
-    const erfHdr   = erfRows[0] ?? [];
-
-    // WC_Variation_ID → {ssotId, e1-v3}
-    const varMap = wcVariationMap(varResp.data.values, `${req.method} ${req.baseUrl}${req.path}`);
-
-    // SSOT-ID → {artikelnummer, produktname}
-    // Exakter Vergleich: /artikelnummer/i traf als Teilstring die Spalte
-    // "L-Shop-Artikelnummer", weil die im Sheet vor "Artikelnummer" steht.
-    // Pflichtspalten werfen: ein Monitor, der stumm die falsche Nummer zeigt,
-    // erzeugt Fehlbestellungen - der laute Ausfall ist der billigere Fehler.
-    const CTX_L    = 'GET /api/auftragsmonitor/lshop/offen';
-    const ssotIdx  = requireHeaderAny(erfHdr, ['SSOT-ID', 'ID'], CTX_L);
-    const artIdx   = requireHeader(erfHdr, 'Artikelnummer', CTX_L);
-    const nameIdx  = requireHeader(erfHdr, 'Produktname', CTX_L);
-    const pidIdx   = requireHeader(erfHdr, 'Produkt-ID', CTX_L);
-    const ssotArt  = {};
-    const produktIdJeSsot = {};
-    erfRows.slice(1).forEach(r => {
-      const id = (r[ssotIdx] ?? '').trim();
-      if (!id) return;
-      ssotArt[id] = { artikelnummer: r[artIdx] ?? '', produktname: r[nameIdx] ?? '' };
-      produktIdJeSsot[id] = r[pidIdx] ?? '';
-    });
-
-    // WC orderId → {billing, lineItemMap: {wcItemId → lineItem}}
-    const orderMap = {};
-    wcOrders.forEach(o => {
-      const lim = {};
-      (o.line_items ?? []).forEach(li => { lim[String(li.id)] = li; });
-      orderMap[String(o.id)] = { billing: o.billing, lim };
-    });
-
-    // Aggregation: nur Zeilen mit L-Shop_bestellt=FALSE
-    const groups = {};
-    psRows.forEach(r => {
-      if (normBool(r[PI.lshop] ?? false)) return;
-
-      const orderId  = (r[PI.orderId]  ?? '').trim();
-      const wcItemId = (r[PI.wcItemId] ?? '').trim();
-      const sku      = (r[PI.sku]      ?? '').trim();
-      const menge    = parseInt(r[PI.menge] ?? '1', 10) || 1;
-      const artName  = (r[PI.artikelname] ?? '').trim();
-
-      const ord = orderMap[orderId];
-      if (!ord) return; // Bestellung nicht mehr offen
-
-      const li = ord.lim[wcItemId];
-      if (!li) return;
-
-      // Variante ermitteln: zuerst Varianten-Sheet, dann WC meta_data
-      // Mit Gegenprobe der Produkt-ID: HONK-Variations-IDs koennen JFN-Zeilen treffen (BO1).
-      const varInfo = varianteDerPosition(varMap, produktIdJeSsot, li);
-      let variante = '', varDetails = { e1: '', v1: '', e2: '', v2: '', e3: '', v3: '' };
-      let ssotId = '';
-
-      if (varInfo) {
-        ssotId    = varInfo.ssotId;
-        varDetails = { e1: varInfo.e1, v1: varInfo.v1, e2: varInfo.e2, v2: varInfo.v2, e3: varInfo.e3, v3: varInfo.v3 };
-        variante  = buildVariante(varInfo.v1, varInfo.v2, varInfo.v3);
-      } else {
-        // Fallback: WC meta_data display values
-        variante = (li.meta_data ?? [])
-          .filter(m => !m.key.startsWith('_') && m.display_value)
-          .map(m => m.display_value).join('·');
-      }
-
-      const art       = ssotArt[ssotId] ?? {};
-      const groupKey  = `${ssotId || sku}__${variante}`;
-      const kunde     = `${ord.billing?.first_name ?? ''} ${ord.billing?.last_name ?? ''}`.trim();
-
-      if (!groups[groupKey]) {
-        groups[groupKey] = {
-          groupKey,
-          ssotId,
-          artikelnummer:  art.artikelnummer || sku,
-          produktname:    art.produktname   || artName,
-          variante,
-          varianteDetails: varDetails,
-          stueck:          0,
-          betroffeneOrders: [],
-        };
-      }
-
-      groups[groupKey].stueck += menge;
-
-      const existing = groups[groupKey].betroffeneOrders.find(o => o.orderId === orderId);
-      if (existing) {
-        existing.stueck += menge;
-        existing.wcItemIds.push(wcItemId);
-      } else {
-        groups[groupKey].betroffeneOrders.push({ orderId, kunde, stueck: menge, wcItemIds: [wcItemId] });
-      }
-    });
-
-    res.json(Object.values(groups).sort((a, b) => b.stueck - a.stueck));
-  } catch (err) { next(err); }
-});
-
-// ── GET /api/auftragsmonitor/lshop/protokoll?days=7 ──────────────────────────
-router.get('/lshop/protokoll', async (req, res, next) => {
-  try {
-    const days   = Math.min(parseInt(req.query.days ?? '7', 10), 365);
-    const sheets = await getSheets();
-    const { data } = await sheets.spreadsheets.values.get({
-      spreadsheetId: sid(),
-      range: `${TAB_LSB}!A1:Z5000`,
-    });
-    const rows   = data.values ?? [];
-    if (rows.length <= 1) return res.json([]);
-    const si     = shopSpalte(rows[0]);
-
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - days);
-
-    const result = rows.slice(1)
-      .filter(r => gleicherShop(r, si, req.query.shop))
-      .map(r => ({
-        shop:             shopWert(shopDerZeile(r, si)),
-        bestellId:        (r[0] ?? '').trim(),
-        bestelldatum:     (r[1] ?? '').trim(),
-        ssotId:           (r[2] ?? '').trim(),
-        artikelnummer:    (r[3] ?? '').trim(),
-        variante:         (r[4] ?? '').trim(),
-        stueck:           parseInt(r[5] ?? '0', 10) || 0,
-        kw:               (r[6] ?? '').trim(),
-        betroffeneOrders: (r[7] ?? '').trim(),
-      }))
-      .filter(e => {
-        if (!e.bestellId) return false;
-        const d = new Date(e.bestelldatum);
-        return !isNaN(d.getTime()) && d >= cutoff;
-      })
-      .reverse();
-
-    res.json(result);
-  } catch (err) { next(err); }
-});
-
-// ── POST /api/auftragsmonitor/lshop/bestellen ─────────────────────────────────
-// Body: { ssotId, artikelnummer, variante, stueck, kw, orderIds, wcItemIds: [{orderId, wcItemId}] }
-router.post('/lshop/bestellen', async (req, res, next) => {
-  try {
-    const { ssotId = '', artikelnummer, variante = '', stueck, kw = '', orderIds = [], wcItemIds = [] } = req.body;
-    if (!artikelnummer || !Array.isArray(orderIds) || orderIds.length === 0) {
-      return res.status(400).json({ error: 'artikelnummer und orderIds erforderlich' });
-    }
-
-    const sheets        = await getSheets();
-    const spreadsheetId = sid();
-
-    // ── Bestell-ID generieren (LSB-YYYY-NNNN) ────────────────────────────
-    const { data: lsbData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_LSB}!A1:Z5000`,
-    });
-    const year   = new Date().getFullYear();
-    const prefix = `LSB-${year}-`;
-    let maxSeq   = 0;
-    (lsbData.values ?? []).slice(1).forEach(r => {
-      const val = (r[0] ?? '').trim();
-      if (val.startsWith(prefix)) {
-        const n = parseInt(val.slice(prefix.length), 10);
-        if (!isNaN(n) && n > maxSeq) maxSeq = n;
-      }
-    });
-    const bestellId = `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
-
-    // ── Protokoll-Zeile schreiben ─────────────────────────────────────────
-    await sheets.spreadsheets.values.append({
-      spreadsheetId,
-      range: `${TAB_LSB}!A1`, valueInputOption: 'USER_ENTERED', insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [zeileMitShop([
-        bestellId, new Date().toISOString(), ssotId, artikelnummer,
-        variante, stueck ?? 0, kw, orderIds.map(String).join(', '),
-      ], shopSpalte(lsbData.values?.[0]), req.query.shop)] },
-    });
-
-    // ── L-Shop_bestellt = TRUE in Produktions_Status ──────────────────────
-    const { data: psData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_PS}!A1:Z5000`,
-    });
-    const psRows = psData.values ?? [];
-
-    // Welche Zeilen updaten?
-    const updateRows = psZeilenFinden(psRows, { orderIds, artikelnummer, wcItemIds, shop: req.query.shop });
-
-    if (updateRows.length > 0) {
-      await sheets.spreadsheets.values.batchUpdate({
-        spreadsheetId,
-        requestBody: {
-          valueInputOption: 'USER_ENTERED',
-          data: updateRows.map(row => ({ range: `${TAB_PS}!F${row}`, values: [[true]] })),
-        },
-      });
-    }
-
-    res.json({ ok: true, bestellId, updated: updateRows.length });
-  } catch (err) { next(err); }
-});
-
 // ── GET /api/auftragsmonitor/dtf/offen ───────────────────────────────────────
 router.get('/dtf/offen', async (req, res, next) => {
   try {
@@ -351,7 +135,11 @@ router.get('/dtf/offen', async (req, res, next) => {
 
     const varMap = wcVariationMap(varResp.data.values, `${req.method} ${req.baseUrl}${req.path}`);
 
-    // Exakter Vergleich + Pflichtspalten, siehe lshop/offen-Handler oben.
+    // SSOT-ID -> {artikelnummer, produktname}
+    // Exakter Vergleich: /artikelnummer/i traf als Teilstring die Spalte
+    // "L-Shop-Artikelnummer", weil die im Sheet vor "Artikelnummer" steht.
+    // Pflichtspalten werfen: ein Monitor, der stumm die falsche Nummer zeigt,
+    // erzeugt Fehlbestellungen - der laute Ausfall ist der billigere Fehler.
     const CTX_D   = 'GET /api/auftragsmonitor/dtf/offen';
     const ssotIdx = requireHeaderAny(erfHdr, ['SSOT-ID', 'ID'], CTX_D);
     const artIdx  = requireHeader(erfHdr, 'Artikelnummer', CTX_D);
@@ -532,80 +320,6 @@ router.post('/dtf/bestellen', async (req, res, next) => {
     }
 
     res.json({ ok: true, bestellId, updated: updateRows.length });
-  } catch (err) { next(err); }
-});
-
-// ── POST /api/auftragsmonitor/lshop/bestellen-bulk ───────────────────────────
-// Body: { bestellungen: [{ ssotId, artikelnummer, variante, stueck, kw, orderIds[], wcItemIds? }] }
-router.post('/lshop/bestellen-bulk', async (req, res, next) => {
-  try {
-    const { bestellungen } = req.body;
-    if (!Array.isArray(bestellungen) || bestellungen.length === 0) {
-      return res.status(400).json({ error: 'bestellungen Array erforderlich' });
-    }
-
-    const sheets        = await getSheets();
-    const spreadsheetId = sid();
-    const year          = new Date().getFullYear();
-    const prefix        = `LSB-${year}-`;
-
-    // Sequenz einmalig lesen, dann lokal inkrementieren
-    const { data: lsbData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_LSB}!A1:Z5000`,
-    });
-    let maxSeq = 0;
-    (lsbData.values ?? []).slice(1).forEach(r => {
-      const val = (r[0] ?? '').trim();
-      if (val.startsWith(prefix)) {
-        const n = parseInt(val.slice(prefix.length), 10);
-        if (!isNaN(n) && n > maxSeq) maxSeq = n;
-      }
-    });
-
-    // Produktions_Status einmalig lesen
-    const { data: psData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_PS}!A1:Z5000`,
-    });
-    const psRows = psData.values ?? [];
-
-    const results = [];
-    for (const b of bestellungen) {
-      const { ssotId = '', artikelnummer, variante = '', stueck, kw = '', orderIds = [], wcItemIds = [] } = b;
-      if (!artikelnummer || !Array.isArray(orderIds) || orderIds.length === 0) {
-        results.push({ ok: false, error: 'artikelnummer und orderIds erforderlich', artikelnummer });
-        continue;
-      }
-      maxSeq++;
-      const bestellId = `${prefix}${String(maxSeq).padStart(4, '0')}`;
-      try {
-        await sheets.spreadsheets.values.append({
-          spreadsheetId,
-          range: `${TAB_LSB}!A1`, valueInputOption: 'USER_ENTERED', insertDataOption: 'INSERT_ROWS',
-          requestBody: { values: [zeileMitShop([
-            bestellId, new Date().toISOString(), ssotId, artikelnummer,
-            variante, stueck ?? 0, kw, orderIds.map(String).join(', '),
-          ], shopSpalte(lsbData.values?.[0]), req.query.shop)] },
-        });
-
-        const updateRows = psZeilenFinden(psRows, { orderIds, artikelnummer, wcItemIds, shop: req.query.shop });
-        if (updateRows.length > 0) {
-          await sheets.spreadsheets.values.batchUpdate({
-            spreadsheetId,
-            requestBody: {
-              valueInputOption: 'USER_ENTERED',
-              data: updateRows.map(row => ({ range: `${TAB_PS}!F${row}`, values: [[true]] })),
-            },
-          });
-        }
-        results.push({ ok: true, bestellId, updated: updateRows.length, artikelnummer });
-      } catch (err) {
-        results.push({ ok: false, error: err.message ?? String(err), artikelnummer });
-      }
-    }
-
-    const totalOrdered = results.filter(r => r.ok).length;
-    const errors       = results.filter(r => !r.ok).map(r => ({ artikelnummer: r.artikelnummer, error: r.error }));
-    res.json({ ok: errors.length === 0, totalOrdered, results, errors });
   } catch (err) { next(err); }
 });
 
