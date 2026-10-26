@@ -1,4 +1,5 @@
-// BO4a: L-Shop-EDI-Bestelldatei - reine Logik (utils/edi-bestellung.js).
+// BO4a/BO4e: L-Shop-EDI-Bestelldatei - reine Logik (utils/edi-bestellung.js). BO4e: Versandart, CDATA immer,
+// kein delivery_date, Plan fuer "Als gesendet markieren", Entwuerfe.
 // Aufbau, Pflichtfelder, CDATA/Sonderzeichen, Feldlaengen an der Grenze, keine Adressbloecke,
 // Pruefbericht je Regel rot/gruen, order_id-Zaehler, Datum/Dateiname/KW in Europe/Berlin,
 // strenger Rueckleser. Alle Nummern sind Platzhalter.
@@ -9,7 +10,7 @@ import { fileURLToPath } from 'url';
 import {
   baueBestellXml, leseBestellXml, pruefeBestellXml, xmlText, ediPruefung, naechsteOrderId, platzhalterOrderId,
   ediDatum, ediDateiname, kalenderwoche, standardCommission, nachBestellschluss, referenzFuer, ediSpalten,
-  EDI_REGELN, EDI_SPALTEN, EDI_KOPF_FEST,
+  EDI_REGELN, EDI_SPALTEN, EDI_KOPF_FEST, VERSANDARTEN, versandartVorgabe, nachExpressSchluss, cdata, gesendetPlan, entwuerfeAus,
 } from '../utils/edi-bestellung.js';
 
 const hier = dirname(fileURLToPath(import.meta.url));
@@ -17,7 +18,7 @@ const NR = '1000000001', NR2 = '1000000002', NR_AUS = '1000000003', NR_DISC = '1
 const VORMITTAG = new Date('2026-10-22T08:00:00Z');   // 10:00 Berlin
 const NACHMITTAG = new Date('2026-10-22T13:30:00Z');  // 15:30 Berlin
 
-const kopf = (o = {}) => ({ customer_id: '00000000', order_date: '22.10.2026', delivery_date: '22.10.2026', order_id: 'JFN-2026-0002', commission: 'JFN Sammelbestellung KW43', ...o });
+const kopf = (o = {}) => ({ customer_id: '00000000', order_date: '22.10.2026', order_id: 'JFN-2026-0002', commission: 'JFN Sammelbestellung KW43', shipping_method: 'Standard', ...o });
 const item = (o = {}) => ({ itemnumber: NR, reference: 'JFN-10001-1', quantity: '1', ...o });
 
 const modelle = new Map([
@@ -31,7 +32,7 @@ const zeile = (o = {}) => ({ Schluessel: `JFN:${10000 + ++n}:1`, Shop: 'JFN', He
   Referenz: '', LShop_ArticleNr: NR, Menge: '1', Status: 'offen', Hinweis: '', ...o });
 const pruefe = (zeilen, o = {}) => ediPruefung({
   auswahl: zeilen.map(z => ({ schluessel: z.Schluessel, status: z.Status })), zeilen, modelle,
-  customerId: '00000000', commission: 'JFN Sammelbestellung KW43', orderId: 'JFN-2026-0002', jetzt: VORMITTAG, ...o,
+  customerId: '00000000', commission: 'JFN Sammelbestellung KW43', orderId: 'JFN-2026-0002', versandart: 'Standard', jetzt: VORMITTAG, ...o,
 });
 const rot = (r, regel) => r.punkte.find(p => p.regel === regel);
 
@@ -43,10 +44,10 @@ describe('baueBestellXml', () => {
     expect(w.name).toBe('order');
     expect(w.kinder.map(k => k.name)).toEqual(['orderheader', 'orderitems']);
     expect(w.kinder[0].kinder.map(k => k.name)).toEqual(
-      ['customer_id', 'order_date', 'delivery_date', 'order_id', 'commission', 'shipping_method', 'partial_delivery', 'mail', 'printmode']);
+      ['customer_id', 'order_date', 'order_id', 'commission', 'shipping_method', 'partial_delivery', 'mail', 'printmode']);   // BO4e: ohne delivery_date
     const wert = name => w.kinder[0].kinder.find(k => k.name === name).text;
     expect([wert('shipping_method'), wert('partial_delivery'), wert('mail'), wert('printmode')]).toEqual(['Standard', '-1', 'info@jammifashion.de', '0']);
-    expect(wert('order_date')).toBe(wert('delivery_date'));
+    expect(wert('order_date')).toBe('22.10.2026');
     expect(w.kinder[1].kinder.map(i => i.kinder.map(k => `${k.name}=${k.text}`))).toEqual([
       [`itemnumber=${NR}`, 'reference=JFN-10001-1', 'quantity=1'], [`itemnumber=${NR2}`, 'reference=JFN-10002-1', 'quantity=3'],
     ]);
@@ -97,7 +98,7 @@ describe('leseBestellXml / pruefeBestellXml (strenger Rueckleser)', () => {
     ['ohne Deklaration', x => x.replace(/^<\?xml[^\n]*\n/, '')],
     ['falsches End-Tag', x => x.replace('</order>', '</orders>')],
     ['offenes Tag', x => x.replace('</orderitems>', '')],
-    ['unmaskiertes &', x => x.replace('JFN-10001-1', 'A & B')],
+    ['unmaskiertes &', x => x.replace('<printmode>0', '<printmode>A & B')],
     ['Inhalt nach der Wurzel', x => `${x}<x></x>`],
     ['Attribut', x => x.replace('<order>', '<order a="1">')],
   ])('%s -> Fehler', (_n, kaputt) => {
@@ -213,6 +214,127 @@ describe('order_id, Datum, Dateiname, Kalenderwoche', () => {
   test('Protokoll-Spalten nur ueber den Namen; fehlende -> 422', () => {
     expect(ediSpalten([...EDI_SPALTEN].reverse()).order_id).toBe(EDI_SPALTEN.length - 1);
     expect(() => ediSpalten(['order_id'])).toThrow(expect.objectContaining({ status: 422 }));
-    expect(EDI_KOPF_FEST).toEqual({ shipping_method: 'Standard', partial_delivery: '-1', mail: 'info@jammifashion.de', printmode: '0' });
+    expect(EDI_KOPF_FEST).toEqual({ partial_delivery: '-1', mail: 'info@jammifashion.de', printmode: '0' });   // BO4e: Versandart waehlbar
+  });
+});
+
+// ── BO4e ─────────────────────────────────────────────────────────────────────
+
+describe('BO4e: Versandart', () => {
+  test('nur Codes der Guideline, max. 15 Zeichen; Vorgabe aus Config: leer -> Standard, unbekannt -> Standard + Hinweis', () => {
+    expect(VERSANDARTEN.map(v => v.code)).toEqual(['Standard', 'Abholung', 'DHL', 'GLS', 'DPD', 'UPS', 'EX007', 'EX011', 'EX008', 'EX009', 'EX010']);
+    expect(VERSANDARTEN.every(v => v.code.length <= 15 && v.name)).toBe(true);
+    expect(versandartVorgabe('')).toEqual({ code: 'Standard', hinweis: '' });
+    expect(versandartVorgabe(' GLS ')).toEqual({ code: 'GLS', hinweis: '' });
+    expect(versandartVorgabe('gls').code).toBe('Standard');
+    expect(versandartVorgabe('Hermes').hinweis).toMatch(/lshop\.shipping_method = "Hermes" ist unbekannt/);
+  });
+
+  test('unbekannter Code -> rot; Vorgabe-Hinweis -> gelb, sperrt nicht', () => {
+    for (const va of ['Hermes', '', 'standard', 'EX012']) {
+      const r = pruefe([zeile()], { versandart: va });
+      expect(rot(r, 'versandart')).toMatchObject({ ok: false, stufe: 'rot' });
+      expect(r.gruen).toBe(false);
+    }
+    const g = pruefe([zeile()], { versandartHinweis: 'Config lshop.shipping_method = "x" ist unbekannt' });
+    expect(rot(g, 'versandart_config')).toMatchObject({ ok: false, stufe: 'gelb' });
+    expect(g.gruen).toBe(true);
+  });
+
+  test('Express: vor 13:30 Berlin Hinweis, ab 13:30 gelb (Sommer- und Winterzeit); Abholung gelb', () => {
+    const um = iso => pruefe([zeile()], { versandart: 'EX007', jetzt: new Date(iso) });
+    expect(rot(um('2026-10-22T11:29:00Z'), 'express')).toMatchObject({ ok: false, stufe: 'info' });   // 13:29 MESZ
+    expect(rot(um('2026-10-22T11:29:00Z'), 'express_spaet').ok).toBe(true);
+    expect(rot(um('2026-10-22T11:30:00Z'), 'express_spaet')).toMatchObject({ ok: false, stufe: 'gelb' }); // 13:30 MESZ
+    expect(rot(um('2026-11-02T12:29:00Z'), 'express_spaet').ok).toBe(true);                            // 13:29 MEZ
+    expect(rot(um('2026-11-02T12:30:00Z'), 'express_spaet').ok).toBe(false);
+    expect(um('2026-11-02T12:30:00Z').gruen).toBe(true);
+    expect(nachExpressSchluss(new Date('2026-10-22T11:30:00Z'))).toBe(true);
+    const a = pruefe([zeile()], { versandart: 'Abholung' });
+    expect(rot(a, 'abholung')).toMatchObject({ ok: false, stufe: 'gelb' });
+    expect(a.gruen).toBe(true);
+    expect(rot(pruefe([zeile()], { versandart: 'DHL' }), 'express').ok).toBe(true);
+  });
+
+  test('Code in die Datei, ohne CDATA; ungueltiger Code wirft', () => {
+    const xml = baueBestellXml({ kopf: kopf({ shipping_method: 'EX009' }), items: [item()] });
+    expect(xml).toContain('<shipping_method>EX009</shipping_method>');
+    expect(() => baueBestellXml({ kopf: kopf({ shipping_method: 'UPS Express' }), items: [item()] })).toThrow(/shipping_method/);
+    expect(pruefeBestellXml(xml.replace('EX009', 'Hermes'))).toEqual(expect.arrayContaining(['shipping_method "Hermes" nicht erlaubt']));
+  });
+});
+
+describe('BO4e: CDATA und delivery_date', () => {
+  test('order_id, commission, reference, mail immer in CDATA - auch ohne Sonderzeichen', () => {
+    const xml = baueBestellXml({ kopf: kopf(), items: [item()] });
+    expect(xml).toContain('<order_id><![CDATA[JFN-2026-0002]]></order_id>');
+    expect(xml).toContain('<commission><![CDATA[JFN Sammelbestellung KW43]]></commission>');
+    expect(xml).toContain('<reference><![CDATA[JFN-10001-1]]></reference>');
+    expect(xml).toContain('<mail><![CDATA[info@jammifashion.de]]></mail>');
+    for (const roh of ['<customer_id>00000000<', '<order_date>22.10.2026<', '<shipping_method>Standard<', '<partial_delivery>-1<', '<printmode>0<', `<itemnumber>${NR}<`, '<quantity>1<']) {
+      expect(xml).toContain(roh);
+    }
+  });
+
+  test('&, <, ä und ]]> in allen vier Textfeldern; Rueckleser liefert den Text unveraendert', () => {
+    const txt = 'A]]>B & <ä>';
+    const xml = baueBestellXml({ kopf: kopf({ order_id: txt, commission: txt }), items: [item({ reference: txt })] });
+    expect(xml).toContain('<![CDATA[A]]]]><![CDATA[>B & <ä>]]>');
+    const w = leseBestellXml(xml);
+    const k = name => w.kinder[0].kinder.find(x => x.name === name).text;
+    expect([k('order_id'), k('commission'), w.kinder[1].kinder[0].kinder.find(x => x.name === 'reference').text]).toEqual([txt, txt, txt]);
+    expect(cdata('x')).toBe('<![CDATA[x]]>');
+    expect(() => cdata('a\nb')).toThrow(/Steuerzeichen/);
+  });
+
+  test('kein delivery_date: nicht in der Datei, nicht im Builder, Rueckleser meldet es', () => {
+    const xml = baueBestellXml({ kopf: kopf({ delivery_date: '22.10.2026' }), items: [item()] });
+    expect(xml).not.toContain('delivery_date');
+    const code = readFileSync(resolve(hier, '../utils/edi-bestellung.js'), 'utf8');
+    const builder = code.slice(code.indexOf('export function baueBestellXml'), code.indexOf('export function leseBestellXml'));
+    expect(builder.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')).not.toContain("'delivery_date'");
+    expect(pruefeBestellXml(xml.replace('<order_id>', '<delivery_date>22.10.2026</delivery_date>\n    <order_id>'))).toEqual(
+      expect.arrayContaining(['delivery_date enthalten (seit BO4e weggelassen)']));
+  });
+});
+
+describe('BO4e: Als gesendet markieren (Plan)', () => {
+  const kopfEdi = EDI_SPALTEN;
+  const ediZ = (id, status, schluessel) => kopfEdi.map(n => ({ order_id: id, Status: status, Korb_Schluessel: schluessel, Positionen: '2', Stueck: '3', Erzeugt: '2026-10-26T10:00:00Z', Versandart: 'GLS' }[n] ?? ''));
+  const ediWerte = [kopfEdi, ediZ('JFN-2026-0001', 'Testdatei', ''), ediZ('JFN-2026-0002', 'Entwurf', 'JFN:1:1 JFN:2:1'), ediZ('JFN-2026-0003', 'gesendet', 'JFN:3:1')];
+  const kz = (s, st, z) => ({ Schluessel: s, Status: st, _zeile: z });
+  const JETZT = '2026-10-26T12:00:00.000Z';
+
+  test('Entwurf mit offenen Positionen -> genau EDI Status/Gesendet + je Position Status/Bestell_ID/Status_Datum/Stand', () => {
+    const p = gesendetPlan({ ediWerte, korbZeilen: [kz('JFN:1:1', 'offen', 5), kz('JFN:2:1', 'offen', 9), kz('JFN:9:9', 'offen', 12)], orderId: 'JFN-2026-0002', jetzt: JETZT });
+    expect(p.ediZeile).toBe(3);
+    expect(p.edi).toEqual({ Status: 'gesendet', Gesendet: JETZT });
+    expect(p.korb).toEqual([
+      { zeile: 5, schluessel: 'JFN:1:1', werte: { Status: 'bestellt', Bestell_ID: 'JFN-2026-0002', Status_Datum: JETZT, Stand: JETZT } },
+      { zeile: 9, schluessel: 'JFN:2:1', werte: { Status: 'bestellt', Bestell_ID: 'JFN-2026-0002', Status_Datum: JETZT, Stand: JETZT } },
+    ]);
+  });
+
+  test('nur Entwurf; Position nicht offen oder weg -> Fehler mit Liste, kein Plan', () => {
+    const korb = [kz('JFN:1:1', 'offen', 5), kz('JFN:2:1', 'abgewählt', 9)];
+    expect(() => gesendetPlan({ ediWerte, korbZeilen: korb, orderId: 'JFN-2026-0003', jetzt: JETZT })).toThrow(expect.objectContaining({ status: 409 }));
+    expect(() => gesendetPlan({ ediWerte, korbZeilen: korb, orderId: 'JFN-2026-0001', jetzt: JETZT })).toThrow(/Testdatei/);
+    expect(() => gesendetPlan({ ediWerte, korbZeilen: korb, orderId: 'JFN-2026-0099', jetzt: JETZT })).toThrow(expect.objectContaining({ status: 404 }));
+    let e;
+    try { gesendetPlan({ ediWerte, korbZeilen: korb, orderId: 'JFN-2026-0002', jetzt: JETZT }); } catch (x) { e = x; }
+    expect(e).toMatchObject({ status: 422, probleme: [{ schluessel: 'JFN:2:1', text: 'Status "abgewählt" statt offen' }] });
+    try { gesendetPlan({ ediWerte, korbZeilen: [korb[0]], orderId: 'JFN-2026-0002', jetzt: JETZT }); } catch (x) { e = x; }
+    expect(e.probleme).toEqual([{ schluessel: 'JFN:2:1', text: 'nicht mehr im Korb' }]);
+    const doppelt = [...ediWerte, ediZ('JFN-2026-0002', 'Entwurf', 'JFN:1:1')];
+    expect(() => gesendetPlan({ ediWerte: doppelt, korbZeilen: korb, orderId: 'JFN-2026-0002', jetzt: JETZT })).toThrow(/mehrfach/);
+  });
+
+  test('Entwuerfe fuer die Anzeige: offen, teilweise und ganz ueberholt; Testdatei und gesendete nie', () => {
+    const w = [...ediWerte, ediZ('JFN-2026-0004', 'Entwurf', 'JFN:1:1'), ediZ('JFN-2026-0005', 'Entwurf', 'JFN:4:1 JFN:5:1')];
+    const korb = [kz('JFN:1:1', 'offen'), kz('JFN:2:1', 'bestellt'), kz('JFN:4:1', 'abgewählt'), kz('JFN:5:1', 'bestellt')];
+    expect(entwuerfeAus(w, korb).map(e => [e.orderId, e.offen, e.ueberholt, e.ganzUeberholt, e.versandart])).toEqual([
+      ['JFN-2026-0005', 0, true, true, 'GLS'], ['JFN-2026-0004', 1, false, false, 'GLS'], ['JFN-2026-0002', 1, true, false, 'GLS'],
+    ]);
+    expect(entwuerfeAus([], korb)).toEqual([]);
   });
 });

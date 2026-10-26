@@ -165,14 +165,28 @@ Neue Sektionen immer mit Anker versehen:
   Schluessel), Schreibmuster des Korbs (kein append, zuruecklesen). Der Korb bleibt unveraendert.
   Aufbau nach Guideline 1.4.1 wie die Testdatei JFN-2026-0001 (L-Shop 23.09. fehlerfrei): `order ->
   orderheader -> orderitems -> item`, `additional_information` weg, **nie** `shippingaddress`/
-  `senderaddress`, Kopf `shipping_method` Standard, `partial_delivery` -1, `mail` info@, `printmode` 0,
-  `order_date` = `delivery_date` = Tag (Europe/Berlin, TT.MM.JJJJ). Eine Zeile je Korb-Position,
+  `senderaddress`, Kopf `shipping_method` (BO4e: waehlbar, s. u.), `partial_delivery` -1, `mail` info@,
+  `printmode` 0, `order_date` = Tag (Europe/Berlin, TT.MM.JJJJ), **kein `delivery_date`** (BO4e: laut
+  Guideline Datum fuer VERSPAETETE Lieferung). Eine Zeile je Korb-Position,
   `reference` = `<Shop>-<Bestellnr>-<Pos>` bzw. die eigene Referenz. `customer_id` NUR aus Business
   `Config` Schluessel `lshop.customer_id` (nie im Code/Log/Postfach; fehlt -> rot). Commission
   Standard `JFN Sammelbestellung KW<KW>`, <= 30. Pruefregeln: `EDI_REGELN` (rot sperrt, "noch nicht
   bezahlt" gelb, nach 14 Uhr Hinweis). XML-Pruefung ohne Paket: strenger Rueckleser `pruefeBestellXml`
   (nur unser Aufbau) + `DOMParser` im Browser. Einrichtung: `scripts/setup-lshop-edi-reiter.js`
   (Trockenlauf Standard, `--write`; Reiter + Zeile 0001 + Config-Zeile mit leerem Wert, idempotent).
+  BO4e: **Versandart** nur aus `VERSANDARTEN` (Standard, Abholung, DHL, GLS, DPD, UPS, EX007-EX011; in die
+  Datei nur der Code, ohne CDATA; sonst rot). Vorgabe Business `Config` `lshop.shipping_method` (leer ->
+  Standard, unbekannt -> Standard + gelb `versandart_config`), Auswahl `#edi-versandart` im Dialog (Liste vom
+  Server), Body `versandart`. Express: vor 13:30 Berlin Hinweis, ab 13:30 gelb (`nachExpressSchluss`);
+  Abholung gelb. Textfelder `order_id`, `commission`, `reference`, `mail` **immer CDATA** (`cdata()`),
+  Zahlen/Datum/`shipping_method` roh. Protokoll `LShop_EDI_Dateien` hat hinten `Versandart`, `Gesendet`.
+  **"Als gesendet markieren"** (Bruecke bis BO4c): `POST .../edi/gesendet` `{ orderId }` -> `ediAlsGesendet`
+  unter der Korb-Sperre, Plan `gesendetPlan` (nur Status Entwurf; JEDE `Korb_Schluessel`-Position vorhanden
+  und offen, sonst 422 + `probleme`, nichts geschrieben), dann EIN `values.batchUpdate` ueber beide Reiter:
+  EDI `Status = gesendet` + `Gesendet` (Klickzeit) und je Position `Status = bestellt`, `Bestell_ID`,
+  `Status_Datum`, `Stand`; alles zurueckgelesen. Kein FTP, keine Uebertragung. Knopf im Abschnitt
+  "Entwuerfe" des Unterreiters L-Shop-Bestellungen (`entwuerfeAus`: Entwurf mit nicht mehr offenen
+  Positionen = ueberholt, ohne Knopf; Testdatei nie), mit `showConfirm`.
 - backend/lib/lshopFtp.js – L-Shop-FTP, **NUR LESEN** (BO4b-1), einzige Stelle mit `basic-ftp` (Test
   lshop-ftp.test.js: kein anderer Import, am Client nur access/list/downloadTo/close, kein Schreibweg).
   `mitLShopFtp(fn)` = EINE Verbindung, fn bekommt nur `{ liste, lade }`; feste Ordner (`ORDER` nur Liste,
@@ -221,7 +235,10 @@ Neue Sektionen immer mit Anker versehen:
   > versandt (Pakete) > bestaetigt (EDI) > gesendet. Lieferscheine = Pakete nach LA. Je Bestellung
   `filter.unterwegs` / `filter.geliefert` (geliefert in den letzten 14 Tagen, juengstes Status_Datum); der
   Browser filtert nur ueber diese Kennzeichen. Portal-Sendungen (order_id leer) getrennt nach VA, `aelter` =
-  > 30 Tage. Datum bis BO4c "erstellt am" (Erzeugt), `gesendet` leer; Liefertermin (BO4b-4) und
+  > 30 Tage. Datum: `gesendet` aus Spalte `Gesendet` (BO4e, Klick "Als gesendet markieren"), sonst
+  "erstellt am" (Erzeugt); dazu `versandart` und `entwuerfe` (BO4e). Tracking-Links nur aus `TRACKING_HOSTS`
+  (utils/lshop-belege.js, Spiegel `LB_TRACKING` im Frontend; heute nur textilelogistics.eu - ein weiterer
+  Host, z. B. GLS, erst nach Messung an einer echten Lieferbestaetigung). Liefertermin (BO4b-4) und
   Wareneingang (BO4b-5) nur "folgt", keine Knoepfe. Der Korb (`GET .../lshop-korb`) zeigt seit BO4d nur
   `KORB_SICHTBAR` = offen + abgewählt (`summen.positionen` = beide), liefert keine `sendungen` mehr; die
   Zeilen bleiben unveraendert.

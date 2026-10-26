@@ -363,6 +363,10 @@
       .lb-ls a, .lb-portal a { color: var(--success); text-decoration: underline; padding: 0.15rem 0; display: inline-block; }
       .lb-portal-va { padding: 0.35rem 0.75rem; border-top: 1px solid var(--border); }
       .lb-portal .korb-link { margin: 0.4rem 0.75rem; }
+      /* BO4e: Entwuerfe oben im Unterreiter */
+      .lb-entwuerfe { border: 1px dashed var(--accent); border-radius: 8px; padding: 0.4rem 0.75rem 0.6rem; margin-top: 0.6rem; font-size: 0.84rem; overflow-wrap: anywhere; }
+      .lb-entwurf { display: flex; flex-wrap: wrap; gap: 0.4rem 0.75rem; align-items: center; justify-content: space-between; padding: 0.35rem 0; border-top: 1px solid var(--border); }
+      .lb-ueberholt { opacity: 0.6; }
       .lb-status { border-radius: 999px; padding: 0.1rem 0.6rem; font-size: 0.78rem; border: 1px solid var(--border); white-space: nowrap; }
       .lb-st-bestaetigt { border-color: var(--accent); color: var(--accent); }
       .lb-st-versandt, .lb-st-teilweise { border-color: var(--success); color: var(--success); }
@@ -1380,6 +1384,9 @@
               <button type="button" class="korb-link" id="edi-schliessen">Schließen</button>
             </div>
             <div class="korb-zaehler">Die Datei wird nur heruntergeladen – <strong>nicht</strong> an L-Shop geschickt.</div>
+            <label class="edi-feld">Versandart
+              <select id="edi-versandart" class="form-select" data-hilfe="versandart"></select>
+            </label>
             <label class="edi-feld">Commission
               <input id="edi-commission" type="text" class="form-input" maxlength="60" autocomplete="off" />
               <small id="edi-commission-zahl" class="korb-zaehler"></small>
@@ -4144,14 +4151,16 @@
       // je Bestellung eine aufklappbare Karte (Kopf, Positionen, Lieferscheine mit Paketen), darunter die
       // Portalbestellungen. Links nur auf textilelogistics.eu, neuer Tab ohne Opener. Liefertermin (BO4b-4)
       // und Wareneingang (BO4b-5) sind vorgesehen, aber noch ohne Funktion ("folgt").
-      const LB_TRACKING = 'https://textilelogistics.eu/';
+      // Spiegel von TRACKING_HOSTS (backend/utils/lshop-belege.js) - ein neuer Host erst nach Messung (BO4e).
+      const LB_TRACKING = ['https://textilelogistics.eu/'];
+      const lbIstTracking = url => LB_TRACKING.some(h => String(url ?? '').startsWith(h));
       const LB_FILTER = ['unterwegs', 'geliefert', 'alle'];
       const lbEsc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
       const lbDatum = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin' }); };
       const lbMehrzahl = (n, eins, mehr) => `${n} ${n === 1 ? eins : mehr}`;
       const LB_STATUS_KLASSE = { gesendet: 'gesendet', 'bestätigt': 'bestaetigt', versandt: 'versandt', 'teilweise geliefert': 'teilweise', geliefert: 'geliefert' };
       function lbPaketLinks(pakete) {
-        return (pakete ?? []).map((p, i) => String(p.url ?? '').startsWith(LB_TRACKING)
+        return (pakete ?? []).map((p, i) => lbIstTracking(p.url)
           ? `<a href="${lbEsc(p.url)}" target="_blank" rel="noopener noreferrer" data-hilfe="tracking">Paket ${i + 1}</a>`
           : `Paket ${i + 1}`).join(' · ');
       }
@@ -4174,7 +4183,8 @@
       function lbKarteHtml(b, offen) {
         const datum = b.gesendet ? `gesendet ${lbEsc(lbDatum(b.gesendet))}` : `erstellt am ${lbEsc(lbDatum(b.erzeugt))}`;
         const kopf = [`<strong>${lbEsc(b.orderId)}</strong>`, ...b.va.map(lbEsc), datum,
-          `${b.positionenZahl} Pos. / ${b.stueck} Stk`, b.commission ? lbEsc(b.commission) : ''].filter(Boolean).join(' · ');
+          `${b.positionenZahl} Pos. / ${b.stueck} Stk`, b.commission ? lbEsc(b.commission) : '',
+          b.versandart ? `Versand ${lbEsc(b.versandart)}` : ''].filter(Boolean).join(' · ');
         const ls = b.lieferscheine.length
           ? `<div class="lb-abschnitt">Lieferscheine</div>${b.lieferscheine.map(lbLieferscheinHtml).join('')}`
           : '<div class="lb-abschnitt">Lieferscheine</div><div class="lb-leer">noch keine Lieferung</div>';
@@ -4194,13 +4204,29 @@
         return `<details class="lb-portal"><summary data-hilfe="portal">Portalbestellungen (${zeigeAeltere ? 'alle' : 'letzte 30 Tage'}: `
           + `${lbMehrzahl(sicht.length, 'Lieferung', 'Lieferungen')}, ${lbMehrzahl(pakete, 'Paket', 'Pakete')})</summary>${zeilen}${mehr}</details>`;
       }
-      /** Liste je Filter; Unterwegs-Karten offen, gelieferte zu. */
+      // BO4e: Entwuerfe (erzeugt, noch nicht gesendet). Knopf "Als gesendet markieren" nur, wenn noch JEDE
+      // Position der Datei offen ist; sonst ueberholt (ausgegraut, ohne Knopf). Kein Versand an L-Shop.
+      function lbEntwurfHtml(e) {
+        const kopf = [`<strong>${lbEsc(e.orderId)}</strong>`, `erstellt am ${lbEsc(lbDatum(e.erzeugt))}`,
+          `${e.positionen} Pos. / ${e.stueck} Stk`, `Versand ${lbEsc(e.versandart)}`, e.commission ? lbEsc(e.commission) : ''].filter(Boolean).join(' · ');
+        let rechts;
+        if (e.ganzUeberholt) rechts = '<span class="lb-folgt">überholt – keine offene Position</span>';
+        else if (e.ueberholt) rechts = `<span class="lb-folgt">teilweise überholt: ${lbEsc(e.offen)} von ${lbEsc(e.positionen)} Positionen offen – nicht markierbar</span>`;
+        else rechts = `<button class="korb-aktion korb-aktion-haupt" type="button" data-gesendet="${lbEsc(e.orderId)}" data-hilfe="als-gesendet">Als gesendet markieren</button>`;
+        return `<div class="lb-entwurf${e.ueberholt ? ' lb-ueberholt' : ''}"><span class="lb-kopf">${kopf}</span>${rechts}</div>`;
+      }
+      function lbEntwuerfeHtml(entwuerfe) {
+        if (!entwuerfe?.length) return '';
+        return `<div class="lb-entwuerfe"><div class="lb-abschnitt" data-hilfe="entwuerfe" tabindex="0">Entwürfe – noch nicht gesendet</div>`
+          + `${entwuerfe.map(lbEntwurfHtml).join('')}</div>`;
+      }
+      /** Liste je Filter; Unterwegs-Karten offen, gelieferte zu. Entwuerfe stehen oben, unabhaengig vom Filter. */
       function lbListeHtml(d, filter, zeigeAeltere = false) {
         if (d?.nurJfn) return '<p class="lb-leer">L-Shop-Bestellungen gibt es nur für JammiFashion (JFN).</p>';
         const sicht = (d?.bestellungen ?? []).filter(b => filter === 'alle' || b.filter?.[filter]);
         const leer = { unterwegs: 'Keine Bestellung unterwegs.', geliefert: 'In den letzten 14 Tagen nichts geliefert.', alle: 'Noch keine L-Shop-Bestellung gesendet.' };
         const karten = sicht.length ? sicht.map(b => lbKarteHtml(b, b.filter?.unterwegs)).join('') : `<p class="lb-leer">${leer[filter] ?? ''}</p>`;
-        return karten + lbPortalHtml(d?.portal, zeigeAeltere);
+        return lbEntwuerfeHtml(d?.entwuerfe) + karten + lbPortalHtml(d?.portal, zeigeAeltere);
       }
       function lbZaehler(d) {
         const b = d?.bestellungen ?? [];
@@ -4242,13 +4268,17 @@
         'tracking':             { name: 'Paket 1, 2 …', text: 'Öffnet die Sendungsverfolgung dieses Pakets in einem neuen Tab.' },
         'portal':               { name: 'Portalbestellungen', text: 'Lieferungen zu Bestellungen, die du direkt im L-Shop-Portal aufgegeben hast. Klick zum Aufklappen.' },
         'portal-aeltere':       { name: 'ältere anzeigen', text: 'Zeigt auch Portallieferungen, die älter als 30 Tage sind.' },
+        // BO4e
+        'versandart':           { name: 'Versandart', text: 'Wie L-Shop die Ware schickt. Express nur bis 13:30 Uhr und mit Zusatzkosten. Vorgabe aus der Config.' },
+        'entwuerfe':            { name: 'Entwürfe', text: 'Erzeugte EDI-Dateien, die noch nicht als gesendet markiert sind.' },
+        'als-gesendet':         { name: 'Als gesendet markieren', text: 'Erst klicken, wenn die Datei in ORDER bei L-Shop liegt. Die Positionen gehen dann auf „bestellt“.' },
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
         korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'eigen', 'abgleich', 'belege', 'alle-offenen', 'zurueck'],
-        leiste:     ['grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg'],
+        leiste:     ['grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
         uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
-        bestellungen: ['lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
+        bestellungen: ['entwuerfe', 'als-gesendet', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
       function hilfeLegendeHtml(gruppe) {
@@ -4774,10 +4804,19 @@
 
       async function ediAnfrage(pfad) {
         const com = document.getElementById('edi-commission').value;
+        // BO4e: Versandart erst nach der ersten Vorschau mitschicken; davor gilt die Vorgabe aus Config.
+        const va = document.getElementById('edi-versandart').value;
         return apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/edi/${pfad}`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ auswahl: ediZustand.auswahl, commission: ediZustand.vorschau ? com : undefined }),
+          body: JSON.stringify({ auswahl: ediZustand.auswahl, commission: ediZustand.vorschau ? com : undefined, versandart: ediZustand.vorschau ? va : undefined }),
         });
+      }
+      // Auswahl der Versandart aus der Liste des Servers (nur dort steht, welche Codes erlaubt sind).
+      function ediVersandartenFuellen(v) {
+        const sel = document.getElementById('edi-versandart');
+        if (!v?.versandarten?.length) return;
+        sel.innerHTML = v.versandarten.map(a => `<option value="${korbEsc(a.code)}">${korbEsc(a.name)}${a.code === v.versandartVorgabe ? ' (Vorgabe)' : ''}</option>`).join('');
+        sel.value = v.versandart;
       }
 
       async function ediPruefen() {
@@ -4790,6 +4829,7 @@
           if (stopp) { showToast(stopp, 'error'); return; }
           const v = await apiJson(res);
           if (!ediZustand.vorschau) document.getElementById('edi-commission').value = v.commission;   // Standardtext beim ersten Mal
+          ediVersandartenFuellen(v);
           ediZustand.vorschau = v;
           ediZustand.xmlOk = v.xml ? ediXmlImBrowserOk(v.xml, DOMParser) : null;
         } catch (e) {
@@ -4855,6 +4895,7 @@
         ediZustand.vorschau = null;
         ediZustand.xmlOk = null;
         document.getElementById('edi-commission').value = '';
+        document.getElementById('edi-versandart').innerHTML = '';
         document.getElementById('edi-tabelle').innerHTML = '';
         document.getElementById('edi-xml').textContent = '';
         document.getElementById('edi-ergebnis').textContent = '';
@@ -4870,6 +4911,11 @@
         // Geaenderte Commission: erst neu pruefen, dann erzeugen.
         if (ediZustand.vorschau) ediZustand.vorschau = { ...ediZustand.vorschau, gruen: false };
         ediZeichnen();
+      });
+      // BO4e: andere Versandart = neuer Pruefbericht (Express-Zeit, Abholung), sofort neu pruefen.
+      document.getElementById('edi-versandart')?.addEventListener('change', () => {
+        if (ediZustand.vorschau) ediZustand.vorschau = { ...ediZustand.vorschau, gruen: false };
+        ediPruefen();
       });
       document.getElementById('korb-alle-btn')?.addEventListener('click', () => {
         for (const p of korbPositionen()) {
@@ -5227,11 +5273,41 @@
         lbZeichnen();
       });
       document.getElementById('lb-liste')?.addEventListener('click', ev => {
+        const knopf = ev.target.closest('[data-gesendet]');
+        if (knopf) { lbAlsGesendet(knopf); return; }
         if (!ev.target.closest('[data-portal-aeltere]')) return;
         lbZustand.portalAeltere = true;
         lbZeichnen();
         document.querySelector('#lb-liste .lb-portal')?.setAttribute('open', '');
       });
+      // BO4e: "Als gesendet markieren" - POST .../edi/gesendet nach Bestaetigung; der Server prueft neu
+      // (nur Entwurf, jede Position offen) und schreibt Datei-Status + Korb-Positionen in einem Zug.
+      async function lbAlsGesendet(knopf) {
+        const id = knopf.dataset.gesendet;
+        const ok = await showConfirm(`${lbEsc(id)} als gesendet markieren?`,
+          'Erst klicken, wenn die Datei im L-Shop-Ordner ORDER liegt. Die Positionen gehen auf „bestellt“. '
+          + 'MC schickt dabei nichts an L-Shop.', 'Als gesendet markieren');
+        if (!ok) return;
+        knopf.disabled = true;
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/edi/gesendet`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: id }),
+          });
+          const j = await res.json().catch(() => null);
+          if (!res.ok) {
+            const liste = (j?.probleme ?? []).slice(0, 5).map(p => `${p.schluessel}: ${p.text}`).join(' · ');
+            showToast(`${j?.error || `HTTP ${res.status}`}${liste ? ` (${liste})` : ''}`, 'error');
+            return;
+          }
+          showToast(`${j.orderId} als gesendet markiert · ${j.positionen} Position(en) bestellt`);
+          korbZustand.daten = null;   // Korb neu laden, wenn er das naechste Mal offen ist
+          await loadLShopBestellungen();
+        } catch (e) {
+          showToast(`Markieren fehlgeschlagen: ${e.message}`, 'error');
+        } finally {
+          knopf.disabled = false;
+        }
+      }
 
       // ── SECTION: Artikelerfassung ──
       const PROP_NAMES = ['Farbe', 'Größe', 'Druckfarbe']; // Fallback bis SSOT geladen

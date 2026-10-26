@@ -13,7 +13,7 @@
 
 import { normHeader } from './sheet-headers.js';
 import { referenzFuer } from './edi-bestellung.js';
-import { EDI_BEI_LSHOP, TRACKING_PREFIX } from './lshop-belege.js';
+import { EDI_BEI_LSHOP, istTrackingUrl } from './lshop-belege.js';
 
 export const BESTELL_STATUS = {
   GESENDET: 'gesendet', BESTAETIGT: 'bestätigt', VERSANDT: 'versandt', TEILWEISE: 'teilweise geliefert', GELIEFERT: 'geliefert',
@@ -32,7 +32,10 @@ export function ediBestellZeilen(werte) {
   const [kopf = [], ...rest] = werte;
   const norm = kopf.map(normHeader);
   const sp = n => norm.indexOf(normHeader(n));
-  const i = { id: sp('order_id'), erzeugt: sp('Erzeugt'), status: sp('Status'), pos: sp('Positionen'), stueck: sp('Stueck'), com: sp('Commission'), schl: sp('Korb_Schluessel') };
+  const i = {
+    id: sp('order_id'), erzeugt: sp('Erzeugt'), status: sp('Status'), pos: sp('Positionen'), stueck: sp('Stueck'), com: sp('Commission'),
+    schl: sp('Korb_Schluessel'), versandart: sp('Versandart'), gesendet: sp('Gesendet'),   // BO4e (fehlen sie: leer)
+  };
   if (i.id < 0 || i.status < 0) {
     const e = new Error('Reiter "LShop_EDI_Dateien": Spalten order_id/Status fehlen.');
     e.status = 422;
@@ -43,6 +46,7 @@ export function ediBestellZeilen(werte) {
     .map(r => ({
       orderId: w(r, 'id'), erzeugt: w(r, 'erzeugt'), ediStatus: w(r, 'status'), positionen: w(r, 'pos'),
       stueck: w(r, 'stueck'), commission: w(r, 'com'), korbSchluessel: w(r, 'schl').split(/\s+/).filter(Boolean),
+      versandart: w(r, 'versandart'), gesendet: w(r, 'gesendet'),
     }))
     .filter(b => b.orderId && EDI_BEI_LSHOP.includes(b.ediStatus));
 }
@@ -68,7 +72,7 @@ export function lieferscheine(sendungen) {
     if (!m.has(la)) m.set(la, { la, va: t(s.VA), datum: datumAusDatei(s.Datei), pakete: [] });
     m.get(la).pakete.push({
       paketnummer: t(s.Paketnummer), frachtfuehrer: t(s.Frachtfuehrer),
-      url: t(s.Tracking_URL).startsWith(TRACKING_PREFIX) ? t(s.Tracking_URL) : '', wareneingang: t(s.Wareneingang),
+      url: istTrackingUrl(t(s.Tracking_URL)) ? t(s.Tracking_URL) : '', wareneingang: t(s.Wareneingang),
     });
   }
   return [...m.values()];
@@ -118,7 +122,8 @@ export function baueBestellungen({ edi, korb, modelle, sendungen, jetzt = new Da
         unterwegs: status !== BESTELL_STATUS.GELIEFERT,
         geliefert: status === BESTELL_STATUS.GELIEFERT && Boolean(geliefertSeit) && jetzt.getTime() - Date.parse(geliefertSeit) <= GELIEFERT_TAGE * TAG_MS,
       },
-      orderId: b.orderId, erzeugt: b.erzeugt, gesendet: '',   // Sendedatum: BO4c
+      orderId: b.orderId, erzeugt: b.erzeugt, gesendet: b.gesendet,   // BO4e: Spalte Gesendet ("Als gesendet markieren")
+      versandart: b.versandart,
       va: [...new Set(ls.map(l => l.va).filter(Boolean))], commission: b.commission,
       positionenZahl: positionen.length || Number(b.positionen) || 0,
       stueck: positionen.length ? positionen.reduce((n, p) => n + p.menge, 0) : Number(b.stueck) || 0,

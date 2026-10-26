@@ -3,7 +3,7 @@ import {
   runKorbAbgleich, leseKorb, setzeStatus, sucheLShopModelle, lshopModellVarianten, legeEigenePositionAn,
 } from '../lib/lshopKorb.js';
 import { notifyFehler } from '../lib/chatNotify.js';
-import { ediVorschau, ediErzeugen } from '../lib/lshopEdi.js';
+import { ediVorschau, ediErzeugen, ediAlsGesendet } from '../lib/lshopEdi.js';
 import { leseLShopBestellungen } from '../lib/lshopBestellungen.js';
 
 const router = Router();
@@ -66,24 +66,39 @@ router.post('/lshop-korb/eigen', async (req, res, next) => {
 
 // ── POST /api/bestellen/lshop-korb/edi/vorschau  (BO4a) ──────────────────────
 // ── POST /api/bestellen/lshop-korb/edi/erzeugen  (BO4a) ──────────────────────
-// Body: { auswahl: [{ schluessel, status }], commission }. Erzeugt nur die EDI-Datei fuer den
-// Browser (Vorschau/Download) - es gibt hier keinen Versand an L-Shop. Vorschau schreibt nichts;
+// Body: { auswahl: [{ schluessel, status }], commission, versandart }. Erzeugt nur die EDI-Datei fuer
+// den Browser (Vorschau/Download) - es gibt hier keinen Versand an L-Shop. Vorschau schreibt nichts;
 // Erzeugen vergibt die order_id und schreibt eine Protokollzeile. Pruefbericht rot -> 422 + pruefung.
+// versandart fehlt -> Vorgabe aus Config (BO4e).
 router.post('/lshop-korb/edi/vorschau', async (req, res, next) => {
   try {
     const b = req.body ?? {};
-    res.json(await ediVorschau({ auswahl: b.auswahl, commission: b.commission }));
+    res.json(await ediVorschau({ auswahl: b.auswahl, commission: b.commission, versandart: b.versandart }));
   } catch (err) { next(err); }
 });
 
 router.post('/lshop-korb/edi/erzeugen', async (req, res, next) => {
   try {
     const b = req.body ?? {};
-    const r = await ediErzeugen({ auswahl: b.auswahl, commission: b.commission });
+    const r = await ediErzeugen({ auswahl: b.auswahl, commission: b.commission, versandart: b.versandart });
     console.log(`EDI-Datei erzeugt: ${r.orderId} (${r.items.length} Positionen, ${r.stueck} Stueck, Protokollzeile ${r.protokollZeile})`);
     res.json(r);
   } catch (err) {
     if (err?.status === 422 && err.pruefung) return res.status(422).json({ error: err.message, pruefung: err.pruefung });
+    next(err);
+  }
+});
+
+// ── POST /api/bestellen/lshop-korb/edi/gesendet  (BO4e) ──────────────────────
+// Body: { orderId }. Markiert einen Entwurf als gesendet (von Hand in ORDER gelegt): EDI-Status + Korb-
+// Positionen in einem Schreibaufruf. Keine Uebertragung an L-Shop. Position nicht offen -> 422 + probleme.
+router.post('/lshop-korb/edi/gesendet', async (req, res, next) => {
+  try {
+    const r = await ediAlsGesendet({ orderId: req.body?.orderId });
+    console.log(`EDI-Datei als gesendet markiert: ${r.orderId} (${r.positionen} Positionen)`);
+    res.json(r);
+  } catch (err) {
+    if (err?.status === 422 && err.probleme) return res.status(422).json({ error: err.message, probleme: err.probleme });
     next(err);
   }
 });

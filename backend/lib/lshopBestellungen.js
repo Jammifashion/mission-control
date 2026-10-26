@@ -8,7 +8,7 @@ import { sheetsMitWiederholung } from './googleRetry.js';
 import { ladeLShopZeilen } from './lshop.js';
 import { normalizeShop } from '../utils/shop-spalte.js';
 import { TAB_KORB, korbZeilen } from '../utils/korb-logic.js';
-import { EDI_TAB } from '../utils/edi-bestellung.js';
+import { EDI_TAB, entwuerfeAus } from '../utils/edi-bestellung.js';
 import { SENDUNGEN_TAB, sendungenZeilen } from '../utils/lshop-belege.js';
 import { ediBestellZeilen, baueBestellungen } from '../utils/lshop-bestellungen.js';
 
@@ -27,18 +27,21 @@ async function werteOderLeer(sheets, spreadsheetId, tab, titel) {
 
 export async function leseLShopBestellungen({ shop, sheets: s, jetzt = () => new Date() } = {}) {
   // EDI-Bestellungen gibt es nur fuer JFN (wie Warenkorb und EDI-Datei).
-  if (normalizeShop(shop) !== 'jfn') return { nurJfn: true, bestellungen: [], portal: [] };
+  if (normalizeShop(shop) !== 'jfn') return { nurJfn: true, bestellungen: [], portal: [], entwuerfe: [] };
   const spreadsheetId = process.env.GOOGLE_SHEET_ID;
   if (!spreadsheetId) { const e = new Error('GOOGLE_SHEET_ID fehlt.'); e.status = 503; throw e; }
   const sheets = s ?? await sheetsClient();
   const { data } = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties(title)' });
   const titel = new Set((data.sheets ?? []).map(x => x.properties?.title));
 
-  const edi = ediBestellZeilen(await werteOderLeer(sheets, spreadsheetId, EDI_TAB, titel));
+  const ediWerte = await werteOderLeer(sheets, spreadsheetId, EDI_TAB, titel);
+  const edi = ediBestellZeilen(ediWerte);
   const korbWerte = await werteOderLeer(sheets, spreadsheetId, TAB_KORB, titel);
   const korb = korbWerte.length ? korbZeilen(korbWerte).zeilen.filter(z => normalizeShop(z.Shop || 'jfn') === 'jfn') : [];
   const sWerte = await werteOderLeer(sheets, spreadsheetId, SENDUNGEN_TAB, titel);
   const sendungen = sWerte.length ? sendungenZeilen(sWerte) : [];
   const modelle = new Map((await ladeLShopZeilen({ sheets, spreadsheetId })).map(z => [z.articleNr, z]));
-  return { nurJfn: false, ...baueBestellungen({ edi, korb, modelle, sendungen, jetzt: jetzt() }) };
+  // BO4e: Entwuerfe (noch nicht gesendet) fuer den Knopf "Als gesendet markieren"; Testdatei nie.
+  const entwuerfe = entwuerfeAus(ediWerte, korb);
+  return { nurJfn: false, ...baueBestellungen({ edi, korb, modelle, sendungen, jetzt: jetzt() }), entwuerfe };
 }

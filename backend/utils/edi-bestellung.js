@@ -12,12 +12,46 @@ import { shopWert } from './shop-spalte.js';
 
 // Protokoll und Zaehler der erzeugten Dateien (SSOT). Kopf legt scripts/setup-lshop-edi-reiter.js an.
 export const EDI_TAB = 'LShop_EDI_Dateien';
-export const EDI_SPALTEN = ['order_id', 'Erzeugt', 'Status', 'Positionen', 'Stueck', 'Commission', 'Dateiname', 'Korb_Schluessel', 'Notiz'];
-export const EDI_STATUS = { ENTWURF: 'Entwurf' };
+export const EDI_SPALTEN = [
+  'order_id', 'Erzeugt', 'Status', 'Positionen', 'Stueck', 'Commission', 'Dateiname', 'Korb_Schluessel', 'Notiz',
+  'Versandart', 'Gesendet',   // BO4e, hinten angehaengt (scripts/setup-lshop-edi-reiter.js)
+];
+export const EDI_STATUS = { ENTWURF: 'Entwurf', GESENDET: 'gesendet', TESTDATEI: 'Testdatei' };
 // Business-Sheet, Reiter Config: Debitorennummer bei L-Shop. Nie im Code, nie im Log.
 export const CONFIG_CUSTOMER_ID = 'lshop.customer_id';
+// BO4e: Vorgabe der Versandart (Code aus VERSANDARTEN); leer -> Standard.
+export const CONFIG_SHIPPING = 'lshop.shipping_method';
 
-export const EDI_KOPF_FEST = { shipping_method: 'Standard', partial_delivery: '-1', mail: 'info@jammifashion.de', printmode: '0' };
+// Versandarten laut Guideline 1.4.1 (Feld shipping_method, Pflicht, max. 15 Zeichen). In die Datei kommt
+// NUR der Code; alles andere ist rot. Reihenfolge = Auswahl im Dialog (Express nach Dringlichkeit).
+export const VERSANDARTEN = [
+  { code: 'Standard', name: 'Standard laut L-Shop-Konto (bei uns GLS)' },
+  { code: 'Abholung', name: 'Abholung im L-Shop-Lager' },
+  { code: 'DHL', name: 'DHL' },
+  { code: 'GLS', name: 'GLS' },
+  { code: 'DPD', name: 'DPD' },
+  { code: 'UPS', name: 'UPS' },
+  { code: 'EX007', name: 'UPS Express: morgen bis 10:30' },
+  { code: 'EX011', name: 'UPS Express: morgen bis 14:00' },
+  { code: 'EX008', name: 'UPS Express: morgen bis Tagesende' },
+  { code: 'EX009', name: 'UPS Express: Samstag bis 14:00' },
+  { code: 'EX010', name: 'UPS Express EU: meist nächster Werktag' },
+];
+export const VERSANDART_STANDARD = 'Standard';
+export const istVersandart = code => VERSANDARTEN.some(v => v.code === t(code));
+export const istExpress = code => /^EX\d{3}$/.test(t(code));
+// Express nur bei fehlerfreier Uebermittlung bis 13:30 Uhr (Berlin).
+export const EXPRESS_SCHLUSS = { stunde: 13, minute: 30 };
+
+/** Vorgabe aus Config: leer -> Standard; unbekannt -> Standard + Hinweis (nicht rot, sonst blockiert ein Tippfehler alles). */
+export function versandartVorgabe(configWert) {
+  const w = t(configWert);
+  if (!w) return { code: VERSANDART_STANDARD, hinweis: '' };
+  if (istVersandart(w)) return { code: w, hinweis: '' };
+  return { code: VERSANDART_STANDARD, hinweis: `Config ${CONFIG_SHIPPING} = "${w.slice(0, 20)}" ist unbekannt - Standard vorbelegt.` };
+}
+
+export const EDI_KOPF_FEST = { partial_delivery: '-1', mail: 'info@jammifashion.de', printmode: '0' };
 export const EDI_LAENGEN = { customer_id: 8, order_id: 30, commission: 30, reference: 65, quantity: 8, shipping_method: 15, mail: 65 };
 export const BESTELLSCHLUSS_STUNDE = 14;   // Versand am selben Tag nur bis 14:00 (Berlin)
 const ZONE = 'Europe/Berlin';
@@ -34,7 +68,10 @@ export function berlinTeile(jetzt = new Date()) {
   return { jahr: teile.year, monat: teile.month, tag: teile.day, stunde: teile.hour, minute: teile.minute };
 }
 
-/** TT.MM.JJJJ - order_date und delivery_date (= Tag des Erzeugens, Ware geht sofort raus). */
+/**
+ * TT.MM.JJJJ - order_date (= Tag des Erzeugens). delivery_date gibt es seit BO4e nicht mehr: laut
+ * Guideline ist es das Warenausgangsdatum fuer eine VERSPAETETE Lieferung.
+ */
 export function ediDatum(jetzt = new Date()) {
   const b = berlinTeile(jetzt);
   return `${b.tag}.${b.monat}.${b.jahr}`;
@@ -53,6 +90,12 @@ export function kalenderwoche(jetzt = new Date()) {
 export const standardCommission = (jetzt = new Date()) => `${PRAEFIX} Sammelbestellung KW${kalenderwoche(jetzt)}`;
 
 export const nachBestellschluss = (jetzt = new Date()) => Number(berlinTeile(jetzt).stunde) >= BESTELLSCHLUSS_STUNDE;
+
+/** Ab 13:30 Uhr Berlin klappt Express nicht mehr zum zugesagten Termin. */
+export function nachExpressSchluss(jetzt = new Date()) {
+  const b = berlinTeile(jetzt);
+  return Number(b.stunde) * 60 + Number(b.minute) >= EXPRESS_SCHLUSS.stunde * 60 + EXPRESS_SCHLUSS.minute;
+}
 
 /** <order_id>_<JJJJMMTT-HHMM>.xml, Zeit Europe/Berlin. */
 export function ediDateiname(orderId, jetzt = new Date()) {
@@ -103,7 +146,12 @@ export const EDI_REGELN = [
   { id: 'reference',   stufe: 'rot',  titel: `Referenz vorhanden, höchstens ${EDI_LAENGEN.reference} Zeichen` },
   { id: 'commission',  stufe: 'rot',  titel: `Commission höchstens ${EDI_LAENGEN.commission} Zeichen, ohne @ und Zeilenumbruch` },
   { id: 'order_id',    stufe: 'rot',  titel: `order_id höchstens ${EDI_LAENGEN.order_id} Zeichen, nur ASCII` },
+  { id: 'versandart',  stufe: 'rot',  titel: 'Versandart aus der Liste der Guideline' },
   { id: 'unbezahlt',   stufe: 'gelb', titel: 'Position noch nicht bezahlt' },
+  { id: 'versandart_config', stufe: 'gelb', titel: `Vorgabe der Versandart (Config ${CONFIG_SHIPPING}) bekannt` },
+  { id: 'express_spaet', stufe: 'gelb', titel: 'Express: nach 13:30 Uhr klappt der Termin nicht mehr, Zusatzkosten fallen trotzdem an' },
+  { id: 'abholung',    stufe: 'gelb', titel: 'Abholung im L-Shop-Lager: die Ware wird nicht verschickt' },
+  { id: 'express',     stufe: 'info', titel: 'Express: Datei muss bis 13:30 Uhr bei L-Shop sein, Zusatzkosten' },
   { id: 'bestellschluss', stufe: 'info', titel: `nach ${BESTELLSCHLUSS_STUNDE}:00 Uhr geht die Ware erst am nächsten Werktag raus` },
 ];
 
@@ -125,9 +173,11 @@ export function referenzFuer(z) {
  * @param {string} o.customerId    aus Config
  * @param {string} o.commission
  * @param {string} o.orderId       vergeben oder Platzhalter
+ * @param {string} o.versandart    Code aus VERSANDARTEN (BO4e)
+ * @param {string} [o.versandartHinweis]  Hinweis zur Vorgabe aus Config (unbekannter Wert)
  * @param {Date} o.jetzt
  */
-export function ediPruefung({ auswahl, zeilen, modelle, customerId, commission, orderId, jetzt = new Date() }) {
+export function ediPruefung({ auswahl, zeilen, modelle, customerId, commission, orderId, versandart, versandartHinweis = '', jetzt = new Date() }) {
   const treffer = [];
   const melde = (regel, text, schluessel) => treffer.push({ regel, text, schluessel });
 
@@ -180,7 +230,17 @@ export function ediPruefung({ auswahl, zeilen, modelle, customerId, commission, 
   const oid = t(orderId);
   if (!oid || oid.length > EDI_LAENGEN.order_id || !/^[\x20-\x7e]+$/.test(oid)) melde('order_id', `"${oid}"`);
 
-  if (nachBestellschluss(jetzt)) melde('bestellschluss', `jetzt ${berlinTeile(jetzt).stunde}:${berlinTeile(jetzt).minute} Uhr`);
+  const va = t(versandart);
+  if (!istVersandart(va)) melde('versandart', `"${va.slice(0, 20)}" ist keine erlaubte Versandart`);
+  if (versandartHinweis) melde('versandart_config', versandartHinweis);
+  const uhr = `${berlinTeile(jetzt).stunde}:${berlinTeile(jetzt).minute} Uhr`;
+  if (istExpress(va) && istVersandart(va)) {
+    if (nachExpressSchluss(jetzt)) melde('express_spaet', `jetzt ${uhr}`);
+    else melde('express', 'bis 13:30 Uhr fehlerfrei übermitteln');
+  }
+  if (va === 'Abholung') melde('abholung', 'bitte selbst im L-Shop-Lager abholen');
+
+  if (nachBestellschluss(jetzt)) melde('bestellschluss', `jetzt ${uhr}`);
 
   const punkte = EDI_REGELN.map(r => {
     const f = treffer.filter(x => x.regel === r.id);
@@ -197,7 +257,17 @@ const EINFACH = /^[A-Za-z0-9 ._@+-]*$/;
 export function xmlText(v) {
   const s = String(v ?? '');
   if (STEUERZEICHEN.test(s)) { const e = new Error('XML: Steuerzeichen im Text.'); e.status = 422; throw e; }
-  return EINFACH.test(s) ? s : `<![CDATA[${s.split(']]>').join(']]]]><![CDATA[>')}]]>`;
+  return EINFACH.test(s) ? s : cdata(s);
+}
+
+/**
+ * Immer CDATA (BO4e) - fuer die Textfelder order_id, commission, reference, mail, wie im Beispiel der
+ * Guideline ("Textfelder, die Sonderzeichen enthalten koennten, muessen zwingend in CDATA"). "]]>" wird geteilt.
+ */
+export function cdata(v) {
+  const s = String(v ?? '');
+  if (STEUERZEICHEN.test(s)) { const e = new Error('XML: Steuerzeichen im Text.'); e.status = 422; throw e; }
+  return `<![CDATA[${s.split(']]>').join(']]]]><![CDATA[>')}]]>`;
 }
 
 function zahl(feld, v, muster) {
@@ -208,31 +278,33 @@ function zahl(feld, v, muster) {
 
 /**
  * Bestell-XML als Zeichenkette (UTF-8, erste Zeile die XML-Deklaration).
- * kopf: { customer_id, order_date, delivery_date, order_id, commission }
+ * kopf: { customer_id, order_date, order_id, commission, shipping_method }
  * items: [{ itemnumber, reference, quantity }]
+ * BO4e: Textfelder order_id/commission/reference/mail immer in CDATA; kein delivery_date (siehe ediDatum);
+ * shipping_method nur ein Code aus VERSANDARTEN, ohne CDATA wie im Beispiel der Guideline.
  */
 export function baueBestellXml({ kopf, items }) {
   const z = [];
   const feld = (ebene, name, inhalt) => z.push(`${'  '.repeat(ebene)}<${name}>${inhalt}</${name}>`);
+  if (!istVersandart(kopf.shipping_method)) { const e = new Error(`XML: shipping_method "${t(kopf.shipping_method)}" ungültig.`); e.status = 422; throw e; }
   z.push('<?xml version="1.0" encoding="UTF-8"?>');
   z.push('<order>');
   z.push('  <orderheader>');
   feld(2, 'customer_id', xmlText(kopf.customer_id));
   feld(2, 'order_date', zahl('order_date', kopf.order_date, /^\d{2}\.\d{2}\.\d{4}$/));
-  feld(2, 'delivery_date', zahl('delivery_date', kopf.delivery_date, /^\d{2}\.\d{2}\.\d{4}$/));
-  feld(2, 'order_id', xmlText(kopf.order_id));
-  if (t(kopf.commission)) feld(2, 'commission', xmlText(kopf.commission));
+  feld(2, 'order_id', cdata(kopf.order_id));
+  if (t(kopf.commission)) feld(2, 'commission', cdata(kopf.commission));
   // additional_information bleibt weg: Text darin prueft L-Shop von Hand (verzoegert den Versand).
-  feld(2, 'shipping_method', xmlText(EDI_KOPF_FEST.shipping_method));
+  feld(2, 'shipping_method', t(kopf.shipping_method));
   feld(2, 'partial_delivery', EDI_KOPF_FEST.partial_delivery);
-  feld(2, 'mail', xmlText(EDI_KOPF_FEST.mail));
+  feld(2, 'mail', cdata(EDI_KOPF_FEST.mail));
   feld(2, 'printmode', EDI_KOPF_FEST.printmode);
   z.push('  </orderheader>');
   z.push('  <orderitems>');
   for (const i of items ?? []) {
     z.push('    <item>');
     feld(3, 'itemnumber', zahl('itemnumber', i.itemnumber, /^\d{10}$/));
-    if (t(i.reference)) feld(3, 'reference', xmlText(i.reference));
+    if (t(i.reference)) feld(3, 'reference', cdata(i.reference));
     feld(3, 'quantity', zahl('quantity', i.quantity, /^[1-9]\d{0,7}$/));
     z.push('    </item>');
   }
@@ -300,6 +372,9 @@ export function pruefeBestellXml(xml) {
   const kopf = w.kinder.find(k => k.name === 'orderheader');
   const pflicht = ['customer_id', 'order_id', 'shipping_method', 'partial_delivery', 'printmode'];
   for (const p of pflicht) if (!kopf?.kinder.some(k => k.name === p && t(k.text))) f.push(`Pflichtfeld ${p} fehlt`);
+  if (kopf?.kinder.some(k => k.name === 'delivery_date')) f.push('delivery_date enthalten (seit BO4e weggelassen)');
+  const sm = kopf?.kinder.find(k => k.name === 'shipping_method');
+  if (sm && t(sm.text) && !istVersandart(sm.text)) f.push(`shipping_method "${t(sm.text)}" nicht erlaubt`);
   const items = w.kinder.find(k => k.name === 'orderitems')?.kinder ?? [];
   if (!items.length) f.push('keine Position');
   items.forEach((it, n) => {
@@ -309,4 +384,64 @@ export function pruefeBestellXml(xml) {
     if (!/^[1-9]\d{0,7}$/.test(wert('quantity'))) f.push(`Position ${n + 1}: quantity ungültig`);
   });
   return f;
+}
+
+// ── "Als gesendet markieren" (BO4e, Bruecke bis BO4c) ───────────────────────
+
+/**
+ * Plan fuer EINEN Schreibaufruf: EDI-Zeile Entwurf -> gesendet (+ Gesendet), jede Korb-Position der Datei
+ * offen -> bestellt mit Bestell_ID, Status_Datum, Stand. Wirft (nichts geschrieben), wenn die Datei kein
+ * Entwurf ist oder eine Position fehlt bzw. nicht mehr offen ist (fehler.probleme = Liste).
+ * @param {object} o
+ * @param {string[][]} o.ediWerte   LShop_EDI_Dateien inkl. Kopf, frisch gelesen
+ * @param {object} o.korbIdx        korbZeilen(...).idx
+ * @param {object[]} o.korbZeilen   korbZeilen(...).zeilen (mit _zeile)
+ * @param {string} o.orderId
+ * @param {string} o.jetzt          ISO
+ * -> { ediZeile, korb: [{ zeile, schluessel, werte }], edi: { Status, Gesendet } }
+ */
+export function gesendetPlan({ ediWerte, korbZeilen: zeilen, orderId, jetzt }) {
+  const fehl = (msg, status, probleme) => { const e = new Error(msg); e.status = status; if (probleme) e.probleme = probleme; return e; };
+  const [kopf = [], ...rest] = ediWerte ?? [];
+  const idx = ediSpalten(kopf);
+  const id = t(orderId);
+  const treffer = rest.map((r, i) => ({ r, zeile: i + 2 })).filter(({ r }) => t(r[idx.order_id]) === id);
+  if (!treffer.length) throw fehl(`${id || '(leer)'} steht nicht in ${EDI_TAB}.`, 404);
+  if (treffer.length > 1) throw fehl(`${id} steht mehrfach in ${EDI_TAB} - bitte von Hand prüfen, nichts geändert.`, 409);
+  const { r, zeile: ediZeile } = treffer[0];
+  const status = t(r[idx.Status]);
+  if (status !== EDI_STATUS.ENTWURF) throw fehl(`${id} ist "${status}", nur Entwürfe lassen sich als gesendet markieren - nichts geändert.`, 409);
+  const schluessel = t(r[idx.Korb_Schluessel]).split(/\s+/).filter(Boolean);
+  if (!schluessel.length) throw fehl(`${id} hat keine Korb-Positionen - nichts geändert.`, 422);
+
+  const jeSchluessel = new Map((zeilen ?? []).map(z => [z.Schluessel, z]));
+  const probleme = [];
+  const korb = [];
+  for (const s of new Set(schluessel)) {
+    const z = jeSchluessel.get(s);
+    if (!z) { probleme.push({ schluessel: s, text: 'nicht mehr im Korb' }); continue; }
+    if (z.Status !== STATUS.OFFEN) { probleme.push({ schluessel: s, text: `Status "${z.Status}" statt offen` }); continue; }
+    korb.push({ zeile: z._zeile, schluessel: s, werte: { Status: STATUS.BESTELLT, Bestell_ID: id, Status_Datum: jetzt, Stand: jetzt } });
+  }
+  if (probleme.length) throw fehl(`${probleme.length} Position(en) nicht offen oder nicht mehr im Korb - nichts geändert.`, 422, probleme);
+  return { ediZeile, ediIdx: idx, edi: { Status: EDI_STATUS.GESENDET, Gesendet: jetzt }, korb };
+}
+
+/** Entwuerfe fuer die Anzeige: offen = mind. eine Position noch offen; sonst ueberholt (kein Knopf). */
+export function entwuerfeAus(ediWerte, korbZeilen) {
+  if (!ediWerte?.length) return [];
+  const [kopf, ...rest] = ediWerte;
+  const norm = kopf.map(normHeader);
+  const sp = n => norm.indexOf(normHeader(n));
+  const w = (r, n) => (sp(n) < 0 ? '' : t(r[sp(n)]));
+  const jeSchluessel = new Map((korbZeilen ?? []).map(z => [z.Schluessel, z]));
+  return rest.filter(r => w(r, 'Status') === EDI_STATUS.ENTWURF && w(r, 'order_id')).map(r => {
+    const schluessel = w(r, 'Korb_Schluessel').split(/\s+/).filter(Boolean);
+    const offen = schluessel.filter(s => jeSchluessel.get(s)?.Status === STATUS.OFFEN).length;
+    return {
+      orderId: w(r, 'order_id'), erzeugt: w(r, 'Erzeugt'), positionen: Number(w(r, 'Positionen')) || schluessel.length,
+      stueck: Number(w(r, 'Stueck')) || 0, commission: w(r, 'Commission'), versandart: w(r, 'Versandart') || VERSANDART_STANDARD,
+      dateiname: w(r, 'Dateiname'), offen, ueberholt: offen < schluessel.length, ganzUeberholt: offen === 0,
+    };
+  }).sort((a, b) => b.orderId.localeCompare(a.orderId));
 }

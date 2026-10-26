@@ -257,7 +257,12 @@ export const SENDUNGEN_TAB = 'LShop_Sendungen';
 export const SENDUNGEN_SPALTEN = [
   'Paketnummer', 'VA', 'LA', 'order_id', 'Frachtfuehrer', 'Gewicht', 'Tracking_URL', 'Datei', 'Gelesen', 'Wareneingang', 'Notiz',
 ];
-export const TRACKING_PREFIX = 'https://textilelogistics.eu/';
+// Erlaubte Tracking-Links (nur https, nur diese Hosts). BO4e: als Liste vorbereitet; ein weiterer Host
+// (z. B. fuer GLS) kommt erst dazu, wenn er an einer echten Lieferbestaetigung gemessen ist. Frontend-Spiegel:
+// LB_TRACKING im Block "L-Shop-Bestellungen" (Test lshop-bestellungen.test.js vergleicht beide).
+export const TRACKING_HOSTS = ['https://textilelogistics.eu/'];
+export const TRACKING_PREFIX = TRACKING_HOSTS[0];
+export const istTrackingUrl = url => TRACKING_HOSTS.some(h => String(url ?? '').startsWith(h));
 
 // Archiv-Ordner je FTP-Ordner (Drive: L-Shop Belege/<Art>/<Jahr>/). Die Bestandsdatei nie.
 export const ARCHIV_ART = {
@@ -298,7 +303,10 @@ export function leseLieferbestaetigung(buf) {
     const vorgang = /^(VA\d{4,12}) \/ (LA\d{4,12})$/.exec(feld(b, 'VorgangDE') ?? '');
     if (!vorgang) throw new BelegFormatFehler(`Paket ${i + 1}: VorgangDE nicht "VA... / LA..."`);
     let url = feld(b, 'Url') ?? '';
-    if (url && !url.startsWith(TRACKING_PREFIX)) { hinweise.push('Tracking-Link nicht von textilelogistics.eu - weggelassen'); url = ''; }
+    if (url && !istTrackingUrl(url)) {
+      hinweise.push(`Tracking-Link nicht freigegeben (${(/^https?:\/\/[^/]+/.exec(url) ?? ['?'])[0]}) - weggelassen`);
+      url = '';
+    }
     let gewicht = feld(b, 'Gewicht') ?? '';
     if (gewicht && !/^\d+(\.\d+)?$/.test(gewicht)) { hinweise.push('Gewicht unlesbar'); gewicht = ''; }
     return {

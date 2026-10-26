@@ -12,7 +12,7 @@ import { leseKorb } from '../lib/lshopKorb.js';
 import { _resetLShopCache } from '../lib/lshop.js';
 import { KORB_SPALTEN, TAB_KORB, korbZeilen } from '../utils/korb-logic.js';
 import { EDI_TAB, EDI_SPALTEN } from '../utils/edi-bestellung.js';
-import { SENDUNGEN_TAB, SENDUNGEN_SPALTEN, sendungenZeilen } from '../utils/lshop-belege.js';
+import { SENDUNGEN_TAB, SENDUNGEN_SPALTEN, sendungenZeilen, TRACKING_HOSTS } from '../utils/lshop-belege.js';
 import { machSheets, grundTabs, NR, NR2 } from './hilfen/korb-sheet.js';
 
 const hier = dirname(fileURLToPath(import.meta.url));
@@ -117,9 +117,9 @@ describe('leseLShopBestellungen (nur lesen)', () => {
 
   test('HONK: nur JFN, nichts gelesen; fehlende Reiter: leer, kein Fehler', async () => {
     const { sheets } = aufbau();
-    expect(await leseLShopBestellungen({ shop: 'honk', sheets })).toEqual({ nurJfn: true, bestellungen: [], portal: [] });
+    expect(await leseLShopBestellungen({ shop: 'honk', sheets })).toEqual({ nurJfn: true, bestellungen: [], portal: [], entwuerfe: [] });
     const leer = machSheets({ LShop_Modelle: grundTabs().LShop_Modelle });
-    expect(await leseLShopBestellungen({ shop: 'jfn', sheets: leer.sheets, jetzt: () => JETZT })).toEqual({ nurJfn: false, bestellungen: [], portal: [] });
+    expect(await leseLShopBestellungen({ shop: 'jfn', sheets: leer.sheets, jetzt: () => JETZT })).toEqual({ nurJfn: false, bestellungen: [], portal: [], entwuerfe: [] });
   });
 
   test('Quelltext: nur Sheets lesen, kein Schreiben, kein FTP, kein Shop', () => {
@@ -218,7 +218,43 @@ describe('Frontend-Block L-Shop-Bestellungen', () => {
     expect(html).toMatch(/if \(btn\.dataset\.subtab === 'tab-lshop-bestellungen'\) loadLShopBestellungen\(\);/);
     expect(html).toContain("sub('tab-lshop-bestellungen', `L-Shop-Bestellungen (${kurz})`);");
     expect(html).toMatch(/\/api\/bestellen\/lshop-bestellungen`/);
-    expect(html).toMatch(/bestellungen: \['lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'\]/);
+    expect(html).toMatch(/bestellungen: \['entwuerfe', 'als-gesendet', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'\]/);
     expect(html).toContain("'filter-alle':          { name: 'Alle', text: 'Alles, was noch nicht bestellt ist: offen und herausgenommen.' }");
+  });
+});
+
+// ── BO4e ─────────────────────────────────────────────────────────────────────
+
+describe('BO4e: Entwuerfe, Tracking-Liste, Versandart im Dialog', () => {
+  const von = html.indexOf('// ── L-Shop-Bestellungen: Anfang');
+  const bis = html.indexOf('// ── L-Shop-Bestellungen: Ende ──');
+  const { lbListeHtml, lbEntwuerfeHtml, LB_TRACKING } = new Function(`${html.slice(von, bis)}\nreturn { lbListeHtml, lbEntwuerfeHtml, LB_TRACKING };`)();
+  const e = o => ({ orderId: 'JFN-2026-0004', erzeugt: '2026-10-26T10:00:00Z', positionen: 2, stueck: 3, commission: 'KW44', versandart: 'GLS',
+    offen: 2, ueberholt: false, ganzUeberholt: false, ...o });
+
+  test('Knopf nur, wenn jede Position offen ist; ueberholt ohne Knopf; Abschnitt nur mit Entwuerfen', () => {
+    const h = lbEntwuerfeHtml([e(), e({ orderId: 'JFN-2026-0002', offen: 0, ueberholt: true, ganzUeberholt: true }), e({ orderId: 'JFN-2026-0003', offen: 1, ueberholt: true })]);
+    expect(h).toContain('Entwürfe – noch nicht gesendet');
+    expect(h.match(/data-gesendet=/g)).toHaveLength(1);
+    expect(h).toContain('data-gesendet="JFN-2026-0004" data-hilfe="als-gesendet">Als gesendet markieren</button>');
+    expect(h).toContain('überholt – keine offene Position');
+    expect(h).toContain('teilweise überholt: 1 von 2 Positionen offen – nicht markierbar');
+    expect(h).toContain('Versand GLS');
+    expect(lbEntwuerfeHtml([])).toBe('');
+    expect(lbListeHtml({ bestellungen: [], portal: [], entwuerfe: [e()] }, 'unterwegs')).toMatch(/^<div class="lb-entwuerfe">/);
+    expect(lbEntwuerfeHtml([e({ orderId: '<b>x</b>' })])).not.toContain('<b>x');
+  });
+
+  test('Tracking-Liste im Browser = TRACKING_HOSTS im Backend (kein Host ohne Messung)', () => {
+    expect(LB_TRACKING).toEqual(TRACKING_HOSTS);
+    expect(TRACKING_HOSTS).toEqual(['https://textilelogistics.eu/']);
+  });
+
+  test('EDI-Dialog: Auswahl Versandart, Liste vom Server, Wechsel prueft neu; Knopf ruft .../edi/gesendet mit Bestaetigung', () => {
+    expect(html).toContain('<select id="edi-versandart" class="form-select" data-hilfe="versandart"></select>');
+    expect(html).toMatch(/versandart: ediZustand\.vorschau \? va : undefined/);
+    expect(html).toMatch(/getElementById\('edi-versandart'\)\?\.addEventListener\('change'/);
+    expect(html).toMatch(/\/api\/bestellen\/lshop-korb\/edi\/gesendet`/);
+    expect(html).toMatch(/const ok = await showConfirm\(/);
   });
 });

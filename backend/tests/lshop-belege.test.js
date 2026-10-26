@@ -321,7 +321,7 @@ describe('leseLieferbestaetigung', () => {
   });
   test('fremder Tracking-Link weggelassen (Hinweis); unlesbar -> BelegFormatFehler', () => {
     const [p] = leseLieferbestaetigung(lb({ nr: NR1, url: 'https://boese.example/x' }));
-    expect(p).toMatchObject({ url: '', hinweise: ['Tracking-Link nicht von textilelogistics.eu - weggelassen'] });
+    expect(p).toMatchObject({ url: '', hinweise: ['Tracking-Link nicht freigegeben (https://boese.example) - weggelassen'] });   // BO4e: Host steht im Hinweis
     expect(() => leseLieferbestaetigung(utf16('<root></root>'))).toThrow(BelegFormatFehler);
     expect(() => leseLieferbestaetigung(utf16('<root><dataset><Paketnummer>x</Paketnummer></dataset></root>'))).toThrow(/Paketnummer/);
     expect(() => leseLieferbestaetigung(lb({ nr: NR1, va: 'XX1' }))).toThrow(/VorgangDE/);
