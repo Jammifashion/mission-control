@@ -15,8 +15,11 @@ export const EDI_TAB = 'LShop_EDI_Dateien';
 export const EDI_SPALTEN = [
   'order_id', 'Erzeugt', 'Status', 'Positionen', 'Stueck', 'Commission', 'Dateiname', 'Korb_Schluessel', 'Notiz',
   'Versandart', 'Gesendet',   // BO4e, hinten angehaengt (scripts/setup-lshop-edi-reiter.js)
+  'Abgeholt', 'Drive_ID', 'Sende_Hinweis', 'Sendeversuch',   // BO4c, hinten angehaengt
 ];
-export const EDI_STATUS = { ENTWURF: 'Entwurf', GESENDET: 'gesendet', TESTDATEI: 'Testdatei' };
+// BO4c: "wird gesendet" (Upload laeuft, sperrt auch ueber Instanzen) und "unklar" (nicht sicher, ob die Datei
+// bei L-Shop ist - nie erneut senden). Beide zaehlen im Waechter als eigen.
+export const EDI_STATUS = { ENTWURF: 'Entwurf', GESENDET: 'gesendet', TESTDATEI: 'Testdatei', WIRD_GESENDET: 'wird gesendet', UNKLAR: 'unklar' };
 // Business-Sheet, Reiter Config: Debitorennummer bei L-Shop. Nie im Code, nie im Log.
 export const CONFIG_CUSTOMER_ID = 'lshop.customer_id';
 // BO4e: Vorgabe der Versandart (Code aus VERSANDARTEN); leer -> Standard.
@@ -150,6 +153,8 @@ export const EDI_REGELN = [
   { id: 'unbezahlt',   stufe: 'gelb', titel: 'Position noch nicht bezahlt' },
   { id: 'versandart_config', stufe: 'gelb', titel: `Vorgabe der Versandart (Config ${CONFIG_SHIPPING}) bekannt` },
   { id: 'express_spaet', stufe: 'gelb', titel: 'Express: nach 13:30 Uhr klappt der Termin nicht mehr, Zusatzkosten fallen trotzdem an' },
+  // BO4c: beim SENDEN ist Express nach 13:30 rot (beim Erzeugen nur gelb, oben). Nur mit senden: true im Bericht.
+  { id: 'express_senden', stufe: 'rot', titel: 'Express nach 13:30 Uhr nicht senden - Versandart ändern (neu erzeugen) oder morgen senden', nurSenden: true },
   { id: 'abholung',    stufe: 'gelb', titel: 'Abholung im L-Shop-Lager: die Ware wird nicht verschickt' },
   { id: 'express',     stufe: 'info', titel: 'Express: Datei muss bis 13:30 Uhr bei L-Shop sein, Zusatzkosten' },
   { id: 'bestellschluss', stufe: 'info', titel: `nach ${BESTELLSCHLUSS_STUNDE}:00 Uhr geht die Ware erst am nächsten Werktag raus` },
@@ -177,7 +182,7 @@ export function referenzFuer(z) {
  * @param {string} [o.versandartHinweis]  Hinweis zur Vorgabe aus Config (unbekannter Wert)
  * @param {Date} o.jetzt
  */
-export function ediPruefung({ auswahl, zeilen, modelle, customerId, commission, orderId, versandart, versandartHinweis = '', jetzt = new Date() }) {
+export function ediPruefung({ auswahl, zeilen, modelle, customerId, commission, orderId, versandart, versandartHinweis = '', jetzt = new Date(), senden = false }) {
   const treffer = [];
   const melde = (regel, text, schluessel) => treffer.push({ regel, text, schluessel });
 
@@ -235,14 +240,14 @@ export function ediPruefung({ auswahl, zeilen, modelle, customerId, commission, 
   if (versandartHinweis) melde('versandart_config', versandartHinweis);
   const uhr = `${berlinTeile(jetzt).stunde}:${berlinTeile(jetzt).minute} Uhr`;
   if (istExpress(va) && istVersandart(va)) {
-    if (nachExpressSchluss(jetzt)) melde('express_spaet', `jetzt ${uhr}`);
+    if (nachExpressSchluss(jetzt)) melde(senden ? 'express_senden' : 'express_spaet', `jetzt ${uhr}`);
     else melde('express', 'bis 13:30 Uhr fehlerfrei übermitteln');
   }
   if (va === 'Abholung') melde('abholung', 'bitte selbst im L-Shop-Lager abholen');
 
   if (nachBestellschluss(jetzt)) melde('bestellschluss', `jetzt ${uhr}`);
 
-  const punkte = EDI_REGELN.map(r => {
+  const punkte = EDI_REGELN.filter(r => senden || !r.nurSenden).map(r => {
     const f = treffer.filter(x => x.regel === r.id);
     return { regel: r.id, stufe: r.stufe, titel: r.titel, ok: !f.length, treffer: f.map(({ text, schluessel }) => ({ text, schluessel })) };
   });
@@ -400,17 +405,15 @@ export function pruefeBestellXml(xml) {
  * @param {string} o.jetzt          ISO
  * -> { ediZeile, korb: [{ zeile, schluessel, werte }], edi: { Status, Gesendet } }
  */
-export function gesendetPlan({ ediWerte, korbZeilen: zeilen, orderId, jetzt }) {
+export function gesendetPlan({ ediWerte, korbZeilen: zeilen, orderId, jetzt, erlaubt }) {
   const fehl = (msg, status, probleme) => { const e = new Error(msg); e.status = status; if (probleme) e.probleme = probleme; return e; };
-  const [kopf = [], ...rest] = ediWerte ?? [];
-  const idx = ediSpalten(kopf);
+  const { r, zeile: ediZeile, idx } = ediZeileZu(ediWerte, orderId);
   const id = t(orderId);
-  const treffer = rest.map((r, i) => ({ r, zeile: i + 2 })).filter(({ r }) => t(r[idx.order_id]) === id);
-  if (!treffer.length) throw fehl(`${id || '(leer)'} steht nicht in ${EDI_TAB}.`, 404);
-  if (treffer.length > 1) throw fehl(`${id} steht mehrfach in ${EDI_TAB} - bitte von Hand prüfen, nichts geändert.`, 409);
-  const { r, zeile: ediZeile } = treffer[0];
+  // BO4c: von Hand markieren geht aus Entwurf, "unklar" und haengendem "wird gesendet"; das Senden selbst
+  // uebergibt erlaubt = ["wird gesendet"].
   const status = t(r[idx.Status]);
-  if (status !== EDI_STATUS.ENTWURF) throw fehl(`${id} ist "${status}", nur Entwürfe lassen sich als gesendet markieren - nichts geändert.`, 409);
+  const darf = erlaubt ? erlaubt.includes(status) : markierbar(r, idx, new Date(jetzt));
+  if (!darf) throw fehl(`${id} ist "${status}", so lässt sich die Datei nicht als gesendet markieren - nichts geändert.`, 409);
   const schluessel = t(r[idx.Korb_Schluessel]).split(/\s+/).filter(Boolean);
   if (!schluessel.length) throw fehl(`${id} hat keine Korb-Positionen - nichts geändert.`, 422);
 
@@ -427,21 +430,197 @@ export function gesendetPlan({ ediWerte, korbZeilen: zeilen, orderId, jetzt }) {
   return { ediZeile, ediIdx: idx, edi: { Status: EDI_STATUS.GESENDET, Gesendet: jetzt }, korb };
 }
 
-/** Entwuerfe fuer die Anzeige: offen = mind. eine Position noch offen; sonst ueberholt (kein Knopf). */
-export function entwuerfeAus(ediWerte, korbZeilen) {
+// ── BO4c: Senden ────────────────────────────────────────────────────────────
+
+export const ENTWURF_MAX_STUNDEN = 24;   // aelter -> "neu erzeugen" (Commission/KW, Preise, Korb)
+export const HAENGT_MIN = 10;            // "wird gesendet" laenger -> wie unklar (Instanz abgebrochen)
+const STUNDE_MS = 60 * 60 * 1000;
+
+/** Die eine Zeile der order_id (404 / 409 bei mehrfach). */
+export function ediZeileZu(ediWerte, orderId) {
+  const fehl = (msg, status) => { const e = new Error(msg); e.status = status; return e; };
+  const [kopf = [], ...rest] = ediWerte ?? [];
+  const idx = ediSpalten(kopf);
+  const id = t(orderId);
+  const treffer = rest.map((r, i) => ({ r, zeile: i + 2 })).filter(({ r }) => t(r[idx.order_id]) === id);
+  if (!treffer.length) throw fehl(`${id || '(leer)'} steht nicht in ${EDI_TAB}.`, 404);
+  if (treffer.length > 1) throw fehl(`${id} steht mehrfach in ${EDI_TAB} - bitte von Hand prüfen, nichts geändert.`, 409);
+  return { ...treffer[0], idx };
+}
+
+/** "wird gesendet" seit mehr als HAENGT_MIN (Spalte Sendeversuch) - oder ohne lesbaren Zeitpunkt. */
+export function haengt(r, idx, jetzt) {
+  if (t(r[idx.Status]) !== EDI_STATUS.WIRD_GESENDET) return false;
+  const seit = Date.parse(t(r[idx.Sendeversuch]));
+  return !Number.isFinite(seit) || jetzt.getTime() - seit > HAENGT_MIN * 60 * 1000;
+}
+/** Zeilen, die wie "unklar" behandelt werden (Rueckwege, Hinweis "Nicht nochmal senden"). */
+export const wieUnklar = (r, idx, jetzt) => t(r[idx.Status]) === EDI_STATUS.UNKLAR || haengt(r, idx, jetzt);
+/** "Als gesendet markieren" (BO4e) ist erlaubt aus Entwurf und allem, was wie unklar gilt. */
+export const markierbar = (r, idx, jetzt) => t(r[idx.Status]) === EDI_STATUS.ENTWURF || wieUnklar(r, idx, jetzt);
+
+/**
+ * Kann ein Entwurf gesendet werden? Nur Status, Alter und Korb - den Pruefbericht baut lib/lshopEdi.js.
+ * -> { sendbar, grund, schluessel, alterStunden }
+ */
+export function sendbarkeit(r, idx, korbZeilen, jetzt) {
+  const status = t(r[idx.Status]);
+  const schluessel = t(r[idx.Korb_Schluessel]).split(/\s+/).filter(Boolean);
+  const erzeugt = Date.parse(t(r[idx.Erzeugt]));
+  const alterStunden = Number.isFinite(erzeugt) ? (jetzt.getTime() - erzeugt) / STUNDE_MS : null;
+  const nein = grund => ({ sendbar: false, grund, schluessel, alterStunden });
+  if (status === EDI_STATUS.TESTDATEI) return nein('Testdatei - wird nie gesendet.');
+  if (status !== EDI_STATUS.ENTWURF) return nein(`Status "${status}" - nur Entwürfe lassen sich senden.`);
+  if (!schluessel.length) return nein('keine Korb-Positionen in der Datei');
+  const jeSchluessel = new Map((korbZeilen ?? []).map(z => [z.Schluessel, z]));
+  const offen = schluessel.filter(s => jeSchluessel.get(s)?.Status === STATUS.OFFEN).length;
+  if (offen < schluessel.length) return nein(`überholt: nur ${offen} von ${schluessel.length} Positionen noch offen - neu erzeugen.`);
+  if (alterStunden === null || alterStunden > ENTWURF_MAX_STUNDEN) return nein(`älter als ${ENTWURF_MAX_STUNDEN} Stunden - bitte neu erzeugen.`);
+  return { sendbar: true, grund: '', schluessel, alterStunden };
+}
+
+/**
+ * Start des Sendens: Entwurf frisch pruefen (sonst 409/422, nichts geschrieben).
+ * -> { ediZeile, idx, auswahl, commission, versandart }
+ */
+export function sendenStartPlan({ ediWerte, korbZeilen, orderId, jetzt }) {
+  const { r, zeile: ediZeile, idx } = ediZeileZu(ediWerte, orderId);
+  const b = sendbarkeit(r, idx, korbZeilen, jetzt);
+  if (!b.sendbar) {
+    const e = new Error(`${t(orderId)} nicht gesendet: ${b.grund}`);
+    e.status = t(r[idx.Status]) === EDI_STATUS.ENTWURF ? 422 : 409;
+    throw e;
+  }
+  return {
+    ediZeile, idx, auswahl: b.schluessel.map(schluessel => ({ schluessel, status: STATUS.OFFEN })),
+    commission: t(r[idx.Commission]), versandart: t(r[idx.Versandart]) || VERSANDART_STANDARD,
+  };
+}
+
+/** Zurueck auf Entwurf: nur aus "unklar" oder haengendem "wird gesendet" (der Korb ist dabei noch offen). */
+export function zurueckPlan({ ediWerte, orderId, jetzt }) {
+  const { r, zeile: ediZeile, idx } = ediZeileZu(ediWerte, orderId);
+  if (!wieUnklar(r, idx, jetzt)) {
+    const e = new Error(`${t(orderId)} ist "${t(r[idx.Status])}" - zurück auf Entwurf geht nur aus "unklar" oder einem hängenden Senden.`);
+    e.status = 409;
+    throw e;
+  }
+  return {
+    ediZeile, idx, alt: t(r[idx.Status]),
+    edi: { Status: EDI_STATUS.ENTWURF, Sende_Hinweis: `von Hand zurück auf Entwurf ${jetzt.toISOString()}` },
+  };
+}
+
+// ── BO4c: Netto-Warenwert und Versandstaffel (nur MC-Oberflaeche; nie XML, Chat, Log, Postfach) ──
+
+export const CONFIG_STUFE = /^lshop\.versandstufe\.(\d+)\.(ab|kosten)$/;
+export const CONFIG_STUFE_BESCHREIBUNG = {
+  ab: 'Versandstaffel L-Shop (BO4c): Netto-Warenwert in Euro, ab dem diese Stufe gilt. Weitere Stufen: lshop.versandstufe.2.ab usw., lückenlos ab 1.',
+  kosten: 'Versandstaffel L-Shop (BO4c): Versandkosten netto in Euro für diese Stufe, 0 = frei.',
+};
+
+/** Euro-Zahl aus Sheet-Text ("1.234,50", "12,5", "12.5", 12.5) -> Number; leer/kaputt -> null. */
+export function euro(v) {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  let x = t(v).replace(/[€\s]/g, '');
+  if (!x) return null;
+  if (x.includes(',')) x = x.replace(/\./g, '').replace(',', '.');
+  const n = Number(x);
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Stufen aus den Config-Zeilen [[schluessel, wert], ...]. Lueckenlos ab 1, je Stufe ab + kosten, ab steigend;
+ * sonst { stufen: [], fehler } (grauer Hinweis, nie sperrend). Keine Zeile oder alles leer -> fehler ''.
+ */
+export function versandstaffel(paare) {
+  const m = new Map();
+  for (const [k, w] of paare ?? []) {
+    const r = CONFIG_STUFE.exec(t(k));
+    if (!r) continue;
+    const n = Number(r[1]);
+    (m.get(n) ?? m.set(n, {}).get(n))[r[2]] = euro(w);
+  }
+  if (!m.size || [...m.values()].every(s => (s.ab ?? null) === null && (s.kosten ?? null) === null)) return { stufen: [], fehler: '' };
+  const stufen = [];
+  for (let n = 1; m.has(n); n++) {
+    const s = m.get(n);
+    if ((s.ab ?? null) === null || (s.kosten ?? null) === null) return { stufen: [], fehler: `Stufe ${n}: Wert fehlt` };
+    if (stufen.length && s.ab <= stufen[stufen.length - 1].ab) return { stufen: [], fehler: `Stufe ${n}: "ab" muss größer sein als bei Stufe ${n - 1}` };
+    stufen.push({ nr: n, ab: s.ab, kosten: s.kosten });
+  }
+  if (stufen.length !== m.size) return { stufen: [], fehler: 'Stufen nicht lückenlos ab 1' };
+  return { stufen, fehler: '' };
+}
+
+// ── BO4c: Chat (nur order_id, Zaehler, Versandart - keine Preise, keine Namen) ──
+
+export function buildGesendetNachricht({ orderId, positionen, stueck, versandart, sofortAbgeholt = false, archivHinweis = '' }) {
+  return [`📤 L-Shop gesendet: ${orderId} · ${positionen} Pos. / ${stueck} Stk · ${versandart}`,
+    sofortAbgeholt ? 'Von L-Shop sofort abgeholt.' : '', archivHinweis ? `⚠️ ${archivHinweis}` : ''].filter(Boolean).join('\n');
+}
+
+export function buildSendenAlarmNachricht({ orderId, positionen, stueck, versandart, grund, art }) {
+  const kopf = art === 'sheet'
+    ? `🔴 L-Shop: ${orderId} ist bei L-Shop, aber Status/Korb nicht geschrieben`
+    : `🔴 L-Shop: unklar, ob ${orderId} angekommen ist`;
+  return [kopf, `${positionen} Pos. / ${stueck} Stk · ${versandart}`, grund,
+    'Nicht nochmal senden. Prüfen, ob eine AB kommt; dann in MC „Als gesendet markieren“ oder „zurück auf Entwurf“.'].filter(Boolean).join('\n');
+}
+
+/** Stand zur Summe: aktuelle Stufe (oder unter der ersten), naechste Stufe und Abstand. Ohne Stufen null. */
+export function staffelStand(summe, stufen) {
+  if (!stufen?.length) return null;
+  const aktuell = [...stufen].reverse().find(s => summe >= s.ab) ?? null;
+  const naechste = stufen.find(s => s.ab > summe) ?? null;
+  return {
+    stufe: aktuell, unterErster: !aktuell, hoechste: !naechste,
+    naechste, fehlt: naechste ? Math.round((naechste.ab - summe) * 100) / 100 : 0,
+  };
+}
+
+/**
+ * Netto je Position (EK = 10CartonsPrice der ArticleNr x Menge) und Summe.
+ * @param {{ schluessel, itemnumber, quantity }[]} items
+ * @param {Map<string, any>} ekJeNr  ArticleNr -> Preis (Text oder Zahl)
+ */
+export function nettoSummen(items, ekJeNr) {
+  const positionen = (items ?? []).map(i => {
+    const ek = euro(ekJeNr?.get(t(i.itemnumber)));
+    const menge = Number(i.quantity) || 0;
+    return { schluessel: i.schluessel, itemnumber: t(i.itemnumber), menge, ek, zeile: ek === null ? null : Math.round(ek * menge * 100) / 100 };
+  });
+  const summe = Math.round(positionen.reduce((n, p) => n + (p.zeile ?? 0), 0) * 100) / 100;
+  return { positionen, summe, ekFehlt: positionen.filter(p => p.ek === null).length };
+}
+
+/**
+ * Entwuerfe fuer die Anzeige: offen = mind. eine Position noch offen; sonst ueberholt (kein Knopf).
+ * BO4c: dazu sendbar/grund, und Zeilen "wird gesendet"/"unklar" (unklar oder haengend -> Rueckwege).
+ */
+export function entwuerfeAus(ediWerte, korbZeilen, jetzt = new Date()) {
   if (!ediWerte?.length) return [];
   const [kopf, ...rest] = ediWerte;
   const norm = kopf.map(normHeader);
   const sp = n => norm.indexOf(normHeader(n));
   const w = (r, n) => (sp(n) < 0 ? '' : t(r[sp(n)]));
   const jeSchluessel = new Map((korbZeilen ?? []).map(z => [z.Schluessel, z]));
-  return rest.filter(r => w(r, 'Status') === EDI_STATUS.ENTWURF && w(r, 'order_id')).map(r => {
+  // Spalten fuer sendbarkeit/haengt: fehlt eine (vor der Einrichtung), ist der Wert leer.
+  const idx = Object.fromEntries(['Status', 'Sendeversuch', 'Korb_Schluessel', 'Erzeugt'].map(n => [n, sp(n)]));
+  const gezeigt = [EDI_STATUS.ENTWURF, EDI_STATUS.WIRD_GESENDET, EDI_STATUS.UNKLAR];
+  return rest.filter(r => gezeigt.includes(w(r, 'Status')) && w(r, 'order_id')).map(r => {
     const schluessel = w(r, 'Korb_Schluessel').split(/\s+/).filter(Boolean);
     const offen = schluessel.filter(s => jeSchluessel.get(s)?.Status === STATUS.OFFEN).length;
+    const status = w(r, 'Status');
+    const b = status === EDI_STATUS.ENTWURF ? sendbarkeit(r, idx, korbZeilen, jetzt) : { sendbar: false, grund: '' };
     return {
       orderId: w(r, 'order_id'), erzeugt: w(r, 'Erzeugt'), positionen: Number(w(r, 'Positionen')) || schluessel.length,
       stueck: Number(w(r, 'Stueck')) || 0, commission: w(r, 'Commission'), versandart: w(r, 'Versandart') || VERSANDART_STANDARD,
       dateiname: w(r, 'Dateiname'), offen, ueberholt: offen < schluessel.length, ganzUeberholt: offen === 0,
+      status, sendbar: b.sendbar, grund: b.grund,
+      unklar: status !== EDI_STATUS.ENTWURF && wieUnklar(r, idx, jetzt),
+      wirdGesendet: status === EDI_STATUS.WIRD_GESENDET && !haengt(r, idx, jetzt),
+      sendeHinweis: w(r, 'Sende_Hinweis'),
     };
   }).sort((a, b) => b.orderId.localeCompare(a.orderId));
 }

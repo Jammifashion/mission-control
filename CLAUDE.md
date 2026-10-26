@@ -216,22 +216,51 @@ Neue Sektionen immer mit Anker versehen:
   nie laden), Dateiname ohne Pfad, 1 MB je Beleg (Rechnungs-PDF 10 MB), 30 s je Befehl. Fehler -> `LShopFtpFehler` (502,
   `lshop_ftp`) ohne Host/IP/Benutzer. Das EDI-Konto DARF auf dem Server schreiben/loeschen - "nur lesen"
   sichert allein dieser Code. Schreiben kommt erst mit BO4c: nur in `ORDER`, nur `<order_id>_…xml` aus
-  `LShop_EDI_Dateien`, nie loeschen/umbenennen. Secrets: `LSHOP_FTP_HOST` (gemeinsam, Port 21),
+  `LShop_EDI_Dateien`, nie loeschen/umbenennen - das macht seit BO4c NUR `lib/lshopFtpSenden.js` (exportiert
+  von hier nur `zugang`/`ohneZugang`). Secrets: `LSHOP_FTP_HOST` (gemeinsam, Port 21),
   `LSHOP_EDI_FTP_USER/PASS` (Belege + Bestellen), `LSHOP_FTP_USER/PASS` (Bestandsdatei, ab BO4b-3).
   Server unverschluesselt (Inhaber 22.10.) und wackelig: alles nacheinander, keine Wiederholung im Lauf.
+- backend/lib/lshopFtpSenden.js – **einziger Schreibweg** zum L-Shop-FTP (BO4c), `sendeBestellung({ dateiname,
+  inhalt })`: nur `ORDER`, nur `JFN-JJJJ-NNNN_JJJJMMTT-HHMM.xml`, <= 1 MB, EINE Verbindung, genau EIN `uploadFrom`,
+  nie remove/rename/ensureDir/Wiederholung (Test edi-senden.test.js: nur hier `uploadFrom`, basic-ftp nur hier und
+  in lshopFtp.js). Liegt der Name oder dieselbe order_id schon in ORDER -> nicht senden, `unklar`. Ergebnis
+  `liegt` (2xx + Groesse stimmt) · `abgeholt` (2xx, Datei schon weg) · `nicht-da` NUR vor Beginn der
+  Uebertragung (Zugang, Anmeldung, erste Liste, oder Fehlercode >= 400, bevor die Quelle gelesen wurde -
+  basic-ftp liest sie erst nach 150/125) · sonst `unklar`. Jede XML in ORDER ist eine echte Bestellung
+  (L-Shop holt nach ~8 min), kein Testordner: Tests nur mit Client-Attrappe.
+  Ablauf `ediSenden` (lib/lshopEdi.js, `POST /api/bestellen/lshop-korb/edi/senden` `{ orderId }`, Vorschau
+  `.../edi/senden/vorschau`, schreibt nichts): unter der Korb-Sperre frisch pruefen (nur `Entwurf`, <= 24 h ab
+  `Erzeugt`, jede Position offen, Pruefbericht gruen; **Express nach 13:30 Berlin beim Senden rot**,
+  Regel `express_senden`); Datei NEU gebaut (der Entwurf ist nirgends gespeichert), `order_date` = Sendetag,
+  Name mit Sendezeit. Status `wird gesendet` + `Sendeversuch` (sperrt ueber Instanzen) -> Upload -> liegt/
+  abgeholt: EIN batchUpdate wie "Als gesendet markieren" (+ `Dateiname`, `Sende_Hinweis`, ggf. `Abgeholt`),
+  Archiv Drive `L-Shop Belege/Bestellung/<Jahr>` (`Drive_ID`), Chat "📤 L-Shop gesendet: …" (nie Preise);
+  nicht-da -> zurueck `Entwurf` (502); unklar -> Status `unklar` + Chat-Alarm (502), **nie erneut hochladen**;
+  Datei liegt, Sheet scheitert -> Chat-Alarm (500). Rueckwege aus `unklar` oder haengendem `wird gesendet`
+  (> `HAENGT_MIN` 10 min): "Als gesendet markieren" und `POST .../edi/zurueck` (zurueck auf Entwurf).
+  `LShop_EDI_Dateien` hinten seit BO4c: `Abgeholt`, `Drive_ID`, `Sende_Hinweis`, `Sendeversuch`.
+  **Netto/Staffel** (nur MC-Oberflaeche, nie XML/Chat/Log/Zaehlliste/Postfach): EK = `10CartonsPrice` der
+  ArticleNr x Menge (`nettoSummen`), Staffel aus Business `Config` `lshop.versandstufe.<n>.ab` / `.kosten`
+  (lueckenlos ab 1, `versandstaffel`/`staffelStand`; fehlt -> grauer Hinweis). Anzeige im Erzeugen- und
+  Sende-Dialog und live in `#korb-leiste` (`GET .../lshop-korb` liefert `ek` je Buendel + `staffel`);
+  Frontend-Spiegel Block `Netto-Staffel: Anfang/Ende`. Keine Betraege in Code, Tests (erfunden), Log.
 - backend/lib/lshopBelege.js – Belege-Abruf (BO4b-1), Logik in `utils/lshop-belege.js`. Scheduler
   `POST /api/intern/lshop-belege/abruf` (Job `lshop-belege-abruf`, `7,37 * * * *`) und Knopf
   `POST /api/bestellen/lshop-belege/abruf` (`routes/lshopBelege.js`, eigener Router, damit
   routes/bestellen.js FTP-frei bleibt; `{ dryRun }`). Protokoll SSOT-Reiter `LShop_Belege` (eine Zeile je
   verarbeiteter Datei, Schluessel Ordner+Datei, Schreibmuster des Korbs, nie loeschen; Einrichtung
   `scripts/setup-lshop-belege-reiter.js`). Waechter: jede Datei in `ORDER`, die nicht `<order_id>_…xml`
-  mit Status "gesendet" ist -> Alarm (bis BO4c also jede); AB: order_id im Text suchen (`dekodiere` nach
+  mit Status aus `EDI_EIGEN_ORDER` ist (BO4c: wird gesendet, gesendet, unklar, bestaetigt, versandt,
+  geliefert) -> Alarm; AB: order_id im Text suchen (`dekodiere` nach
   BOM - Lieferbestaetigungen sind UTF-16 LE trotz `encoding="utf-8"`), fehlt/unbekannt/Entwurf/
   Testdatei -> Alarm, sonst "AB eingegangen - Auswertung folgt" (BO4b-4). Gleicher Name, anderer Hash ->
   Alarm "veraendert". Erst schreiben, dann Chat.
   FTP-Fehler = 200 + Zeile Art "Lauf"/"fehler"; Chat ab 3 in Folge, 1/h (Zustand im Reiter, weil
   Cloud-Run-Instanzen zwischen den Takten wegfallen); andere Fehler 5xx. Eigene Datei, die > 20 min in
-  `ORDER` liegt: `orderZuLange` (Alarm erst ab BO4c). Frontend: Knopf "Belege abrufen" im Korb,
+  `ORDER` liegt: Chat einmal je Datei (Merker im Hinweis der Protokollzeile). BO4c: per Knopf gesendete Datei
+  (Sendeversuch gesetzt) nicht mehr in ORDER -> `Abgeholt` = Laufzeit ("spaetestens", `abgeholtPlan`);
+  `wird gesendet` > 10 min -> Chat einmal (Merker in `Sende_Hinweis`, `haengendPlan`), Status nie geaendert.
+  Frontend: Knopf "Belege abrufen" im Korb,
   Block `Belege-Abruf: Anfang/Ende`.
   BO4b-2: **Lieferbestaetigung je PAKET** (`leseLieferbestaetigung`): eine Datei = Tagesstand aller Pakete
   eines Abends, mehrere VA je Datei, ein VA in Teillieferungen (LA) ueber mehrere Tage. Gelesen werden NUR

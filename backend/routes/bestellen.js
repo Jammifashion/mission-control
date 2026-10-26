@@ -3,7 +3,7 @@ import {
   runKorbAbgleich, leseKorb, setzeStatus, sucheLShopModelle, lshopModellVarianten, legeEigenePositionAn,
 } from '../lib/lshopKorb.js';
 import { notifyFehler } from '../lib/chatNotify.js';
-import { ediVorschau, ediErzeugen, ediAlsGesendet } from '../lib/lshopEdi.js';
+import { ediVorschau, ediErzeugen, ediAlsGesendet, ediSendenVorschau, ediSenden, ediZurueckAufEntwurf } from '../lib/lshopEdi.js';
 import { leseLShopBestellungen } from '../lib/lshopBestellungen.js';
 import { leseProduktionStand } from '../lib/produktionStand.js';
 
@@ -102,6 +102,38 @@ router.post('/lshop-korb/edi/gesendet', async (req, res, next) => {
     if (err?.status === 422 && err.probleme) return res.status(422).json({ error: err.message, probleme: err.probleme });
     next(err);
   }
+});
+
+// ── BO4c: an L-Shop senden ───────────────────────────────────────────────────
+// POST .../edi/senden/vorschau { orderId }: Pruefbericht, Netto, Staffel fuer den Dialog (schreibt nichts).
+// POST .../edi/senden { orderId }: EINMAL nach ORDER hochladen, dann Status/Korb (lib/lshopEdi.js ediSenden).
+//   422 + pruefung (rot) · 409 (Status/Doppelklick) · 502 + ergebnis "nicht-da"/"unklar" · 500 + ergebnis "sheet".
+// POST .../edi/zurueck { orderId }: "unklar"/haengend -> Entwurf. Nie Preise ins Log.
+router.post('/lshop-korb/edi/senden/vorschau', async (req, res, next) => {
+  try {
+    res.json(await ediSendenVorschau({ orderId: req.body?.orderId }));
+  } catch (err) { next(err); }
+});
+
+router.post('/lshop-korb/edi/senden', async (req, res, next) => {
+  try {
+    const r = await ediSenden({ orderId: req.body?.orderId });
+    console.log(`EDI-Datei an L-Shop gesendet: ${r.orderId} (${r.positionen} Positionen, ${r.stueck} Stueck, ${r.ergebnis})`);
+    res.json(r);
+  } catch (err) {
+    if (err?.status === 422 && err.pruefung) return res.status(422).json({ error: err.message, pruefung: err.pruefung });
+    if (err?.ergebnis) {
+      console.error(`EDI-Senden ${String(req.body?.orderId ?? '').slice(0, 20)}: ${err.ergebnis}`);
+      return res.status(err.status ?? 502).json({ error: err.message, ergebnis: err.ergebnis });
+    }
+    next(err);
+  }
+});
+
+router.post('/lshop-korb/edi/zurueck', async (req, res, next) => {
+  try {
+    res.json(await ediZurueckAufEntwurf({ orderId: req.body?.orderId }));
+  } catch (err) { next(err); }
 });
 
 // ── GET /api/bestellen/lshop-korb?shop=jfn|honk[&mit=bestelldatum] ───────────

@@ -25,7 +25,7 @@ import { notify } from './chatNotify.js';
 import { colLetter } from '../utils/sheet-spalten.js';
 import { normHeader } from '../utils/sheet-headers.js';
 import { ersteFreieZeile, bereichLeer, vergleicheZurueck } from '../utils/korb-logic.js';
-import { EDI_TAB } from '../utils/edi-bestellung.js';
+import { EDI_TAB, HAENGT_MIN } from '../utils/edi-bestellung.js';
 import {
   BELEGE_TAB, BELEGE_SPALTEN, ORDNER, ART, ERGEBNIS, belegeSpalten, belegeZeilen, protokollNachDatei, dekodiere, sha256,
   ediStatusMap, ftpZeit, bewerteOrderDatei, bewerteAb, eintragGeaendert, fehlerSerie, fehllaufMelden, belegZeile,
@@ -33,6 +33,7 @@ import {
   SENDUNGEN_TAB, SENDUNGEN_SPALTEN, ARCHIV_ART, BELEG_ART, MAX_PDF_BYTES, EDI_VERSANDT, EDI_VOR_VERSAND,
   BelegFormatFehler, leseLieferbestaetigung, bewertePaket, archivJahr, mimeFuer, istErstbestand, istErstbestandsDatei, MAX_NEUE_BELEGE_JE_LAUF,
   sendungenSpalten, sendungenZeilen, gleicheSendung, sendungZeile, buildVersandtNachricht,
+  abgeholtPlan, haengendPlan, buildZuLangeNachricht, buildHaengtNachricht, MERKER_ZU_LANGE,
 } from '../utils/lshop-belege.js';
 
 export const LAUF_ZEITLIMIT_MS = 240_000;   // Scheduler-Versuchsfrist 300 s
@@ -121,6 +122,26 @@ async function setzeEdiVersandt({ sheets, spreadsheetId, orderIds }) {
   return gesetzt;
 }
 
+/**
+ * BO4c: einzelne Zellen (Plan aus abgeholtPlan/haengendPlan bzw. Belege-Hinweise) schreiben: Reiter frisch
+ * lesen, je Zelle Kennung (order_id bzw. Datei) und alten Wert pruefen, sonst auslassen; EIN batchUpdate RAW,
+ * zuruecklesen. -> Anzahl geschrieben.
+ */
+async function setzeZellenSicher({ sheets, spreadsheetId, tab, kennSpalte, plan }) {
+  if (!plan.length) return 0;
+  const w = await werte(sheets, spreadsheetId, tab);
+  const norm = (w[0] ?? []).map(normHeader);
+  const sp = n => norm.indexOf(normHeader(n));
+  const ok = plan.filter(p => sp(p.spalte) >= 0 && t(w[p.zeile - 1]?.[sp(kennSpalte)]) === p.kennung && t(w[p.zeile - 1]?.[sp(p.spalte)]) === p.alt);
+  if (!ok.length) return 0;
+  const data = ok.map(p => ({ range: `${q(tab)}!${colLetter(sp(p.spalte))}${p.zeile}`, values: [[p.neu]] }));
+  await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: 'RAW', data } });
+  const { data: z } = await sheets.spreadsheets.values.batchGet({ spreadsheetId, ranges: data.map(d => d.range), valueRenderOption: 'FORMATTED_VALUE' });
+  const abweichend = ok.filter((p, n) => t(z.valueRanges?.[n]?.values?.[0]?.[0]) !== p.neu);
+  if (abweichend.length) throw fehler(`${tab}: Rücklesen weicht ab (${abweichend.map(p => p.kennung).join(', ')}).`, 500);
+  return ok.length;
+}
+
 /** FTP-Teil: eine Verbindung, Listen + Laden der neuen/geaenderten Belege. */
 async function holeVomFtp(ftp, protokoll, deadline) {
   const listen = {};
@@ -164,7 +185,8 @@ export async function runBelegeAbruf({
     const idx = belegeSpalten(alt[0]);
     const zeilen = belegeZeilen(alt);
     const protokoll = protokollNachDatei(zeilen);
-    const ediStatus = ediStatusMap(await werte(sheets, spreadsheetId, EDI_TAB));
+    const ediWerte = await werte(sheets, spreadsheetId, EDI_TAB);
+    const ediStatus = ediStatusMap(ediWerte);
     const sAlt = await werte(sheets, spreadsheetId, SENDUNGEN_TAB);
     const sIdx = sendungenSpalten(sAlt[0]);
     const sendungen = new Map(sendungenZeilen(sAlt).map(z => [z.Paketnummer, z]));
@@ -199,6 +221,8 @@ export async function runBelegeAbruf({
     const alarme = [];             // { ordner, datei, hinweis, lb? }
     const abErkannt = [];
     const orderZuLange = [];
+    const zuLangeMelden = [];      // BO4c: einmal je Datei (Merker im Hinweis der Protokollzeile)
+    const belegHinweise = [];      // Plan fuer setzeZellenSicher (vorhandene Protokollzeilen)
     const versandt = [];           // { orderId, datei, pakete[] } fuer den Chat
     const archivFehler = [];
     const archivZaehler = { neu: 0, vorhanden: 0, wuerdeAngelegt: 0, konflikt: 0 };
@@ -206,11 +230,19 @@ export async function runBelegeAbruf({
 
     for (const e of listen[ORDNER.ORDER]) {
       const b = bewerteOrderDatei(e, ediStatus, nun);
-      if (b.zuLange) orderZuLange.push({ datei: e.name, hinweis: b.hinweis });   // Alarm erst ab BO4c
-      if (protokoll.has(`${ORDNER.ORDER}/${e.name}`)) continue;
+      const p = protokoll.get(`${ORDNER.ORDER}/${e.name}`);
+      if (b.zuLange) {
+        orderZuLange.push({ datei: e.name, hinweis: b.hinweis });
+        if (!String(p?.Hinweis ?? '').includes(MERKER_ZU_LANGE)) {
+          zuLangeMelden.push({ datei: e.name, hinweis: b.hinweis });
+          if (p) belegHinweise.push({ zeile: p.zeile, kennung: e.name, spalte: 'Hinweis', alt: p.Hinweis, neu: [p.Hinweis, MERKER_ZU_LANGE].filter(Boolean).join(' · ') });
+        }
+      }
+      if (p) continue;
       neu.push(zeile({
         Ordner: ORDNER.ORDER, Datei: e.name, Groesse: e.size, Geaendert_FTP: ftpZeit(e), Art: ART.ORDER,
-        order_id: b.orderId, Ergebnis: b.ergebnis, Hinweis: b.hinweis,
+        order_id: b.orderId, Ergebnis: b.ergebnis,
+        Hinweis: [b.hinweis, b.zuLange ? MERKER_ZU_LANGE : ''].filter(Boolean).join(' · '),
       }));
       if (b.ergebnis === ERGEBNIS.ALARM) alarme.push({ ordner: ORDNER.ORDER, datei: e.name, hinweis: b.hinweis });
     }
@@ -323,16 +355,25 @@ export async function runBelegeAbruf({
       neu.push(zeile({ Art: ART.LAUF, Ergebnis: ERGEBNIS.OK_NACH_FEHLERN, Hinweis: `nach ${serie.inFolge} Fehllauf/-läufen` }));
     }
 
+    // BO4c: Abgeholt (von MC gesendete Datei nicht mehr in ORDER) und haengendes "wird gesendet".
+    const abgeholt = abgeholtPlan({ ediWerte, orderListe: listen[ORDNER.ORDER], jetzt: nun });
+    const haengend = haengendPlan({ ediWerte, jetzt: nun, haengtMin: HAENGT_MIN });
+
     // ── Schreiben (Sendungen -> EDI-Status -> Protokoll), erst danach melden ──
     let geschrieben = null;
     let ediVersandt = [];
-    const gemeldet = { alarm: false, ab: false, versandt: 0, fehler: false };
+    const gemeldet = { alarm: false, ab: false, versandt: 0, fehler: false, zuLange: false, haengt: false };
     // Erstbestand: Lieferbestaetigungen still (Alarme und Infos dazu); ORDER und AB melden wie immer.
     const zuMelden = alarme.filter(a => !a.still);
     if (!dryRun) {
       const sGeschrieben = await haengeAn({ sheets, spreadsheetId, tab: SENDUNGEN_TAB, info: sInfo, alt: sAlt, zeilen: neueSendungen });
       ediVersandt = await setzeEdiVersandt({ sheets, spreadsheetId, orderIds: [...new Set(versandt.map(v => v.orderId))] });
       geschrieben = { belege: await haengeAn({ sheets, spreadsheetId, tab: BELEGE_TAB, info, alt, zeilen: neu }), sendungen: sGeschrieben };
+      geschrieben.edi = await setzeZellenSicher({ sheets, spreadsheetId, tab: EDI_TAB, kennSpalte: 'order_id',
+        plan: [...abgeholt, ...haengend].map(x => ({ ...x, kennung: x.orderId })) });
+      geschrieben.belegHinweise = await setzeZellenSicher({ sheets, spreadsheetId, tab: BELEGE_TAB, kennSpalte: 'Datei', plan: belegHinweise });
+      if (zuLangeMelden.length) gemeldet.zuLange = await melde(buildZuLangeNachricht(zuLangeMelden));
+      if (haengend.length) gemeldet.haengt = await melde(buildHaengtNachricht(haengend));
       if (zuMelden.length) gemeldet.alarm = await melde(buildBelegeAlarmNachricht(zuMelden));
       if (abErkannt.length) gemeldet.ab = await melde(buildAbErkanntNachricht(abErkannt));
       for (const v of versandt) if (!v.still && await melde(buildVersandtNachricht(v))) gemeldet.versandt++;
@@ -346,6 +387,7 @@ export async function runBelegeAbruf({
       neueZeilen: neu.length, sendungenNeu: neueSendungen.length,
       archiv: { ...archivZaehler, fehler: archivFehler.length },
       alarme: alarme.map(({ still, ...a }) => a), abErkannt, orderZuLange, offen,
+      abgeholt: abgeholt.map(a => a.orderId), haengend: haengend.map(h => h.orderId),
       versandt: versandt.map(v => ({ orderId: v.orderId, datei: v.datei, pakete: v.pakete.length })), ediVersandt,
       geschrieben, gemeldet,
     };

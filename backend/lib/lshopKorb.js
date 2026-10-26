@@ -20,7 +20,9 @@ import { getWcClient } from './shopConfig.js';
 import { seitenGrenze, seitenListe } from './hosterPruefseite.js';
 import { sheetsMitWiederholung } from './googleRetry.js';
 import { leseReiterSpalten, reiterCache } from './ssot-reiter.js';
-import { ladeLShopZeilen, lshopAuswertung } from './lshop.js';
+import { ladeLShopZeilen, lshopAuswertung, TAB_LSHOP } from './lshop.js';
+import { normHeader } from '../utils/sheet-headers.js';
+import { versandstaffel, euro } from '../utils/edi-bestellung.js';
 import { wcVariationMap } from '../utils/varianten-zeilen.js';
 import { colLetter } from '../utils/sheet-spalten.js';
 import { normalizeShop } from '../utils/shop-spalte.js';
@@ -36,6 +38,7 @@ const TAB_VARIANTEN = 'Varianten';
 const TAB_MASKE     = 'Erfassungsmaske';
 const TAB_EXTERN    = 'SKU_Extern';
 const TAB_TRIKOT    = 'Trikot_Artikel';
+const TAB_CONFIG    = 'Config';   // Business-Sheet
 const ORDER_FELDER  = 'id,status,line_items';
 const BLOCK         = 100;
 
@@ -199,6 +202,24 @@ async function schreibeHinweise({ sheets, spreadsheetId, idx, hinweise }) {
 // Eine Sperre fuer alle Schreiber des Reiters in dieser Instanz (Abgleich, Status,
 // eigene Position). Instanzuebergreifend schuetzen die Pruefungen vor dem Schreiben.
 let laeuft = null;
+// BO4c: Versandstaffel aus Config (alle Zeilen lshop.versandstufe.*), ohne Zwischenspeicher - ein neu
+// eingetragener Wert wirkt beim naechsten Laden. Werte nie ins Log.
+export async function leseStaffel({ sheets, spreadsheetId = process.env.BUSINESS_SHEET_ID } = {}) {
+  if (!spreadsheetId) return { stufen: [], fehler: '' };
+  const { data } = await sheets.spreadsheets.values.get({ spreadsheetId, range: q(TAB_CONFIG), valueRenderOption: 'FORMATTED_VALUE' });
+  const [kopf = [], ...rest] = data.values ?? [];
+  const norm = kopf.map(normHeader);
+  const iS = norm.indexOf(normHeader('Schlüssel')), iW = norm.indexOf(normHeader('Wert'));
+  if (iS < 0 || iW < 0) return { stufen: [], fehler: '' };
+  return versandstaffel(rest.map(r => [r[iS], r[iW]]));
+}
+
+/** BO4c: EK je ArticleNr (10CartonsPrice, LShop_Modelle). Fehlt die Spalte, ist jeder EK leer. */
+export async function leseEk({ sheets, spreadsheetId = process.env.GOOGLE_SHEET_ID } = {}) {
+  const zeilen = await leseReiterSpalten({ tab: TAB_LSHOP, spalten: { articleNr: 'ArticleNr' }, optional: { preis: '10CartonsPrice' }, sheets, spreadsheetId });
+  return new Map(zeilen.map(z => [String(z.articleNr ?? '').trim(), z.preis]));
+}
+
 export const BESCHAEFTIGT = 'Der Warenkorb wird gerade aktualisiert (Abgleich läuft) - bitte gleich noch einmal.';
 async function mitSperre(was, fn) {
   if (laeuft) throw fehler(BESCHAEFTIGT, 409);
@@ -413,9 +434,18 @@ export async function leseKorb({ shop, mit, sheets: s, wcFuer = getWcClient, jet
       p.bestelldatum = p.herkunft === HERKUNFT.EIGEN ? tagBerlin(p.angelegt) : (daten.get(String(p.bestellnummer ?? '').trim()) ?? null);
     }
   }
+  // BO4c: EK je Buendel (eine ArticleNr) und die Versandstaffel fuer die Live-Summe der Auswahl - nur hier
+  // im Browser hinter dem API-Key, nie in Zaehlliste, Druck, Log.
+  // Scheitert das Lesen, zeigt der Korb trotzdem alles - nur ohne Summe ("EK fehlt") bzw. Staffel.
+  let ekJe = new Map();
+  try { ekJe = await leseEk({ sheets, spreadsheetId }); } catch { /* ohne EK */ }
+  for (const b of buendel) b.ek = euro(ekJe.get(String(b.articleNr ?? '').trim()));
+  let staffel;
+  try { staffel = await leseStaffel({ sheets }); } catch { staffel = { stufen: [], fehler: 'Versandstaffel nicht lesbar' }; }
   return {
     reiterFehlt: false,
     buendel,
+    staffel,
     gruende: GRUENDE,
     summen: {
       positionen: meine.length,

@@ -438,6 +438,19 @@
       .edi-tabelle table { border-collapse: collapse; font-size: 0.8rem; width: 100%; }
       .edi-tabelle th, .edi-tabelle td { border-bottom: 1px solid var(--border); padding: 0.25rem 0.4rem; text-align: left; white-space: nowrap; }
       .edi-xml pre { max-height: 18rem; overflow: auto; font-size: 0.75rem; background: var(--bg); padding: 0.5rem; border-radius: 6px; white-space: pre; }
+      /* BO4c: Netto-Summen und Versandstaffel (nur hier, nie im Druck), Senden an L-Shop */
+      .edi-tabelle td.ns-zahl, .edi-tabelle th.ns-zahl { text-align: right; font-variant-numeric: tabular-nums; }
+      .ns-fehlt { color: var(--accent); }
+      .ns-staffel { font-size: 0.82rem; }
+      .ns-staffel.ns-gelb { color: var(--accent); }
+      .ns-staffel.ns-grau, .ns-grau { color: var(--muted); }
+      .korb-leiste .ns-leiste { font-size: 0.8rem; color: var(--muted); flex-basis: 100%; }
+      .korb-leiste .ns-leiste.ns-gelb { color: var(--accent); }
+      .senden-warnung { border: 1px solid var(--danger); border-radius: 7px; padding: 0.5rem 0.7rem; font-size: 0.85rem; color: var(--text); }
+      .senden-ergebnis.senden-rot { color: var(--danger); font-weight: 600; }
+      .lb-unklar { border-left: 3px solid var(--danger); padding-left: 0.5rem; }
+      .lb-unklar-text { color: var(--danger); font-weight: 600; }
+      .lb-knoepfe { display: inline-flex; flex-wrap: wrap; gap: 0.4rem; }
       #korb-alle-btn[hidden] { display: none; }
 
       /* BO3c: Umschalter "Gruppieren nach" und aufklappbare Gruppen */
@@ -1349,6 +1362,7 @@
             <!-- Aktionsleiste: erscheint, sobald Positionen angehakt sind -->
             <div id="korb-leiste" class="korb-leiste" style="display:none;">
               <span id="korb-leiste-anzahl" class="bulk-count"></span>
+              <span id="korb-leiste-summe" class="ns-leiste" tabindex="0" data-hilfe="netto-summe"></span>
               <select id="korb-grund" class="form-select" aria-label="Grund" data-hilfe="grund"></select>
               <input id="korb-notiz" type="text" class="form-input" maxlength="200" placeholder="Notiz (optional)" data-hilfe="notiz" />
               <button class="korb-aktion korb-aktion-haupt" id="korb-herausnehmen" type="button" data-hilfe="herausnehmen">Herausnehmen</button>
@@ -1436,6 +1450,24 @@
               <button type="button" class="btn-lshop-bestellen" id="edi-erzeugen" disabled>Erzeugen und herunterladen</button>
             </div>
             <div id="edi-ergebnis" class="korb-zaehler"></div>
+          </div>
+        </div>
+
+        <!-- BO4c: An L-Shop senden (echte Bestellung). Inhalt aus POST .../edi/senden/vorschau, Senden POST .../edi/senden. -->
+        <div id="senden-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="senden-titel" hidden>
+          <div class="edi-box">
+            <div class="edi-kopf">
+              <strong id="senden-titel">An L-Shop senden</strong>
+              <button type="button" class="korb-link" id="senden-schliessen">Abbrechen</button>
+            </div>
+            <div id="senden-kopf" class="korb-zaehler"></div>
+            <div class="senden-warnung"><strong>Das ist eine echte Bestellung bei L-Shop.</strong> Sie wird gepackt, versandt und berechnet.</div>
+            <div id="senden-pruefung" class="edi-pruefung"></div>
+            <div id="senden-tabelle" class="edi-tabelle"></div>
+            <div class="korb-reihe">
+              <button type="button" class="btn-lshop-bestellen" id="senden-los" data-hilfe="an-lshop-senden" disabled>Jetzt an L-Shop senden</button>
+            </div>
+            <div id="senden-ergebnis" class="korb-zaehler senden-ergebnis"></div>
           </div>
         </div>
 
@@ -4321,13 +4353,24 @@
       }
       // BO4e: Entwuerfe (erzeugt, noch nicht gesendet). Knopf "Als gesendet markieren" nur, wenn noch JEDE
       // Position der Datei offen ist; sonst ueberholt (ausgegraut, ohne Knopf). Kein Versand an L-Shop.
+      // BO4c: "An L-Shop senden" nur, wenn der Server sendbar meldet; sonst der Grund. "unklar" oder haengendes
+      // Senden: "Nicht nochmal senden" mit den zwei Rueckwegen. Waehrend des Sendens keine Knoepfe.
       function lbEntwurfHtml(e) {
         const kopf = [`<strong>${lbEsc(e.orderId)}</strong>`, `erstellt am ${lbEsc(lbDatum(e.erzeugt))}`,
           `${e.positionen} Pos. / ${e.stueck} Stk`, `Versand ${lbEsc(e.versandart)}`, e.commission ? lbEsc(e.commission) : ''].filter(Boolean).join(' · ');
+        const markieren = `<button class="korb-aktion korb-aktion-ruhig" type="button" data-gesendet="${lbEsc(e.orderId)}" data-hilfe="als-gesendet">Als gesendet markieren</button>`;
         let rechts;
+        if (e.unklar) {
+          rechts = `<span class="lb-unklar-text">Unklar, ob die Datei bei L-Shop ist. Nicht nochmal senden. Prüfen, ob eine AB kommt.</span>`
+            + (e.sendeHinweis ? ` <span class="lb-folgt">${lbEsc(e.sendeHinweis)}</span>` : '')
+            + ` <span class="lb-knoepfe">${markieren}<button class="korb-aktion korb-aktion-ruhig" type="button" data-zurueck-entwurf="${lbEsc(e.orderId)}" data-hilfe="zurueck-entwurf">zurück auf Entwurf</button></span>`;
+          return `<div class="lb-entwurf lb-unklar"><span class="lb-kopf">${kopf}</span>${rechts}</div>`;
+        }
+        if (e.wirdGesendet) return `<div class="lb-entwurf"><span class="lb-kopf">${kopf}</span><span class="lb-folgt">wird gerade an L-Shop gesendet …</span></div>`;
         if (e.ganzUeberholt) rechts = '<span class="lb-folgt">überholt – keine offene Position</span>';
         else if (e.ueberholt) rechts = `<span class="lb-folgt">teilweise überholt: ${lbEsc(e.offen)} von ${lbEsc(e.positionen)} Positionen offen – nicht markierbar</span>`;
-        else rechts = `<button class="korb-aktion korb-aktion-haupt" type="button" data-gesendet="${lbEsc(e.orderId)}" data-hilfe="als-gesendet">Als gesendet markieren</button>`;
+        else if (e.sendbar) rechts = `<span class="lb-knoepfe"><button class="korb-aktion korb-aktion-haupt" type="button" data-senden="${lbEsc(e.orderId)}" data-hilfe="an-lshop-senden">An L-Shop senden</button>${markieren}</span>`;
+        else rechts = `${e.grund ? `<span class="lb-folgt">${lbEsc(e.grund)}</span> ` : ''}${markieren}`;
         return `<div class="lb-entwurf${e.ueberholt ? ' lb-ueberholt' : ''}"><span class="lb-kopf">${kopf}</span>${rechts}</div>`;
       }
       function lbEntwuerfeHtml(entwuerfe) {
@@ -4387,6 +4430,10 @@
         'versandart':           { name: 'Versandart', text: 'Wie L-Shop die Ware schickt. Express nur bis 13:30 Uhr und mit Zusatzkosten. Vorgabe aus der Config.' },
         'entwuerfe':            { name: 'Entwürfe', text: 'Erzeugte EDI-Dateien, die noch nicht als gesendet markiert sind.' },
         'als-gesendet':         { name: 'Als gesendet markieren', text: 'Erst klicken, wenn die Datei in ORDER bei L-Shop liegt. Die Positionen gehen dann auf „bestellt“.' },
+        // BO4c
+        'an-lshop-senden':      { name: 'An L-Shop senden', text: 'Schickt die Bestellung jetzt echt an L-Shop: Die Ware wird gepackt, versandt und berechnet. Nur einmal klicken.' },
+        'zurueck-entwurf':      { name: 'zurück auf Entwurf', text: 'Nur, wenn sicher keine Auftragsbestätigung kam. Sonst „Als gesendet markieren“.' },
+        'netto-summe':          { name: 'Summe netto', text: 'Einkaufswert der Auswahl (EK × Menge) und wie viel noch bis zur nächsten Versandstufe fehlt.' },
         // PS1: Bestellansicht "Bestellungen (JFN)"
         'ps-alle':              { name: 'Alle', text: 'Alle offenen Shop-Bestellungen, neueste zuerst.' },
         'ps-wartet':            { name: 'wartet auf Teile', text: 'Aufträge, bei denen schon etwas fertig ist und noch etwas fehlt – deine Packliste, älteste zuerst.' },
@@ -4399,9 +4446,9 @@
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
         korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'eigen', 'abgleich', 'belege', 'alle-offenen', 'zurueck'],
-        leiste:     ['grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
+        leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
         uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
-        bestellungen: ['entwuerfe', 'als-gesendet', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
+        bestellungen: ['entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
         produktion: ['ps-alle', 'ps-wartet', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
@@ -4511,6 +4558,12 @@
         leiste.style.display = n ? '' : 'none';
         if (!n) return;
         document.getElementById('korb-leiste-anzahl').textContent = `${n} Position${n !== 1 ? 'en' : ''} gewählt`;
+        // BO4c: Netto der Auswahl + Versandstufe (nur Anzeige; nie in Zaehlliste/Druck)
+        const ns = nsAuswahlSumme([...korbZustand.auswahl.values()], korbZustand.daten?.buendel);
+        const st = nsStaffelText(ns.summe, korbZustand.daten?.staffel, ns.ekFehlt);
+        const summeEl = document.getElementById('korb-leiste-summe');
+        summeEl.className = `ns-leiste ${st.klasse}`;
+        summeEl.textContent = `Auswahl ${ns.ekFehlt ? 'mindestens ' : ''}${nsEuro(ns.summe)} netto${ns.ekFehlt ? ` (${ns.ekFehlt}× EK fehlt)` : ''} · ${st.text}`;
         const sel = document.getElementById('korb-grund');
         const gruende = korbZustand.daten?.gruende ?? [];
         const vorschlaege = [...new Set([...korbZustand.auswahl.values()].map(p => p.grundVorschlag || ''))];
@@ -4874,6 +4927,62 @@
       // Block Belege-Abruf: Ende
       document.getElementById('korb-belege-btn')?.addEventListener('click', ev => belegeAbrufStarten(ev.currentTarget));
 
+      // ── Netto-Staffel: Anfang (BO4c, Test backend/tests/edi-senden.test.js) ──
+      // Netto-Warenwert (EK = 10CartonsPrice x Menge) und Versandstaffel - NUR Anzeige hier hinter dem
+      // API-Key, nie in Zaehlliste/Druck. nsStaffelStand spiegelt staffelStand aus utils/edi-bestellung.js.
+      const nsEsc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+      const nsEuro = n => Number(n).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+      function nsStaffelStand(summe, stufen) {
+        if (!stufen?.length) return null;
+        const aktuell = [...stufen].reverse().find(s => summe >= s.ab) ?? null;
+        const naechste = stufen.find(s => s.ab > summe) ?? null;
+        return { stufe: aktuell, unterErster: !aktuell, hoechste: !naechste, naechste, fehlt: naechste ? Math.round((naechste.ab - summe) * 100) / 100 : 0 };
+      }
+      /** Ein Satz zur Staffel: Stufe, "noch X € bis zur naechsten", gelb unter der ersten; ohne Staffel grau. */
+      function nsStaffelText(summe, staffel, ekFehlt = 0) {
+        const mind = ekFehlt ? 'mindestens ' : '';
+        if (!staffel?.stufen?.length) {
+          return { klasse: 'ns-grau', text: staffel?.fehler ? `Versandstaffel nicht nutzbar (${staffel.fehler})` : 'Versandstaffel nicht hinterlegt' };
+        }
+        const st = nsStaffelStand(summe, staffel.stufen);
+        const kosten = s => (s.kosten === 0 ? 'versandkostenfrei' : `Versand ${nsEuro(s.kosten)}`);
+        if (st.unterErster) return { klasse: 'ns-gelb', text: `unter der ersten Versandstufe – noch ${nsEuro(st.fehlt)} bis Stufe 1 (${kosten(st.naechste)})` };
+        const jetzt = `Stufe ${st.stufe.nr} (${kosten(st.stufe)})`;
+        if (st.hoechste) return { klasse: '', text: `${mind}${jetzt} · höchste Stufe erreicht` };
+        return { klasse: '', text: `${mind}${jetzt} · noch ${nsEuro(st.fehlt)} bis Stufe ${st.naechste.nr} (${kosten(st.naechste)})` };
+      }
+      /** Summe der Auswahl im Korb: EK je Buendel x Menge der gewaehlten Positionen. */
+      function nsAuswahlSumme(auswahl, buendel) {
+        const ekJe = new Map();
+        for (const b of buendel ?? []) for (const p of b.positionen ?? []) ekJe.set(p.schluessel, b.ek ?? null);
+        let summe = 0, ekFehlt = 0;
+        for (const p of auswahl ?? []) {
+          const ek = ekJe.get(p.schluessel);
+          if (ek === null || ek === undefined) { ekFehlt++; continue; }
+          summe += ek * (Number(p.menge) || 0);
+        }
+        return { summe: Math.round(summe * 100) / 100, ekFehlt };
+      }
+      /** Tabelle EK netto x Menge = Zeilensumme, Summe, Staffel (Erzeugen- und Sende-Dialog). */
+      function nsNettoHtml(netto, items) {
+        if (!netto?.positionen?.length) return '';
+        const jeS = new Map((items ?? []).map(i => [i.schluessel, i]));
+        const zeilen = netto.positionen.map(p => {
+          const i = jeS.get(p.schluessel) ?? {};
+          const modell = [i.modell, i.farbe, i.groesse].filter(Boolean).join(' · ');
+          return `<tr><td>${nsEsc(p.itemnumber)}</td><td>${nsEsc(modell)}</td><td>${nsEsc(i.reference ?? '')}</td>`
+            + (p.ek === null
+              ? `<td class="ns-zahl">${nsEsc(p.menge)}</td><td class="ns-zahl ns-fehlt">EK fehlt</td><td class="ns-zahl ns-fehlt">–</td></tr>`
+              : `<td class="ns-zahl">${nsEsc(p.menge)}</td><td class="ns-zahl">${nsEuro(p.ek)}</td><td class="ns-zahl">${nsEuro(p.zeile)}</td></tr>`);
+        }).join('');
+        const st = nsStaffelText(netto.summe, netto.staffel, netto.ekFehlt);
+        return `<table><thead><tr><th>itemnumber</th><th>Modell · Farbe · Größe</th><th>reference</th><th class="ns-zahl">Menge</th>`
+          + `<th class="ns-zahl">EK netto</th><th class="ns-zahl">Zeile</th></tr></thead><tbody>${zeilen}</tbody>`
+          + `<tfoot><tr><th colspan="5">Summe netto${netto.ekFehlt ? ` (mindestens – ${netto.ekFehlt}× EK fehlt)` : ''}</th><th class="ns-zahl">${nsEuro(netto.summe)}</th></tr></tfoot></table>`
+          + `<div class="ns-staffel ${st.klasse}">${nsEsc(st.text)}</div>`;
+      }
+      // ── Netto-Staffel: Ende ──
+
       // ── EDI-Entwurf (BO4a) ──
       // "EDI-Datei erzeugen (Entwurf)": Vorschau (POST .../edi/vorschau, schreibt nichts) und Erzeugen
       // (POST .../edi/erzeugen, vergibt die order_id, eine Protokollzeile in LShop_EDI_Dateien). Der Korb
@@ -4900,8 +5009,9 @@
       const ediZustand = { auswahl: [], vorschau: null, xmlOk: null, laeuft: false };
       const EDI_ZEICHEN = { rot: '✗', gelb: '!', info: 'ⓘ' };
 
-      function ediPruefungZeichnen(punkte) {
-        document.getElementById('edi-pruefung').innerHTML = (punkte ?? []).map(p => {
+      function ediPruefungZeichnen(punkte) { ediPruefungZeichnenIn('edi-pruefung', punkte); }
+      function ediPruefungZeichnenIn(id, punkte) {
+        document.getElementById(id).innerHTML = (punkte ?? []).map(p => {
           const art = p.ok ? 'ok' : p.stufe;
           const zeichen = p.ok ? '✓' : EDI_ZEICHEN[p.stufe] ?? '•';
           const treffer = (p.treffer ?? []).map(t => `<div class="edi-treffer">${t.schluessel ? `${korbEsc(t.schluessel)}: ` : ''}${korbEsc(t.text)}</div>`).join('');
@@ -4917,9 +5027,11 @@
         const punkte = [...v.punkte];
         if (v.xml && ediZustand.xmlOk && !ediZustand.xmlOk.ok) punkte.push({ regel: 'browser', stufe: 'rot', ok: false, titel: 'Browser liest das XML zurück', treffer: [{ text: ediZustand.xmlOk.grund }] });
         ediPruefungZeichnen(punkte);
+        // BO4c: mit EK netto x Menge, Summe und Versandstaffel (nsNettoHtml); ohne netto wie bisher.
         document.getElementById('edi-tabelle').innerHTML = v.items?.length
-          ? `<table><thead><tr><th>itemnumber</th><th>Modell · Farbe · Größe</th><th>reference</th><th>quantity</th></tr></thead><tbody>${v.items.map(i =>
-            `<tr><td>${korbEsc(i.itemnumber)}</td><td>${korbEsc([i.modell, i.farbe, i.groesse].filter(Boolean).join(' · '))}</td><td>${korbEsc(i.reference)}</td><td>${korbEsc(i.quantity)}</td></tr>`).join('')}</tbody></table>`
+          ? (v.netto ? nsNettoHtml(v.netto, v.items)
+            : `<table><thead><tr><th>itemnumber</th><th>Modell · Farbe · Größe</th><th>reference</th><th>quantity</th></tr></thead><tbody>${v.items.map(i =>
+              `<tr><td>${korbEsc(i.itemnumber)}</td><td>${korbEsc([i.modell, i.farbe, i.groesse].filter(Boolean).join(' · '))}</td><td>${korbEsc(i.reference)}</td><td>${korbEsc(i.quantity)}</td></tr>`).join('')}</tbody></table>`)
             + `<div class="korb-zaehler">${v.items.length} Position${v.items.length !== 1 ? 'en' : ''} · ${v.stueck} Stück · order_id ${korbEsc(v.orderId)}</div>`
           : '';
         document.getElementById('edi-xml').textContent = v.xml ?? '(kein XML, solange der Prüfbericht rot ist)';
@@ -5419,6 +5531,10 @@
       document.getElementById('lb-liste')?.addEventListener('click', ev => {
         const knopf = ev.target.closest('[data-gesendet]');
         if (knopf) { lbAlsGesendet(knopf); return; }
+        const senden = ev.target.closest('[data-senden]');
+        if (senden) { sendenOeffnen(senden.dataset.senden); return; }
+        const zurueck = ev.target.closest('[data-zurueck-entwurf]');
+        if (zurueck) { lbZurueckAufEntwurf(zurueck); return; }
         if (!ev.target.closest('[data-portal-aeltere]')) return;
         lbZustand.portalAeltere = true;
         lbZeichnen();
@@ -5452,6 +5568,103 @@
           knopf.disabled = false;
         }
       }
+
+      // BO4c: "unklar"/haengend zurueck auf Entwurf (der Server prueft neu). Danach ist der Entwurf wieder sendbar,
+      // wenn er nicht zu alt ist - vorher pruefen, ob eine AB kam!
+      async function lbZurueckAufEntwurf(knopf) {
+        const id = knopf.dataset.zurueckEntwurf;
+        const ok = await showConfirm(`${lbEsc(id)} zurück auf Entwurf?`,
+          'Nur, wenn sicher ist, dass die Datei NICHT bei L-Shop angekommen ist (keine Auftragsbestätigung). Sonst „Als gesendet markieren“.',
+          'Zurück auf Entwurf');
+        if (!ok) return;
+        knopf.disabled = true;
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/edi/zurueck`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: id }),
+          });
+          await apiJson(res);
+          showToast(`${id} ist wieder ein Entwurf`);
+          await loadLShopBestellungen();
+        } catch (e) {
+          showToast(`Zurücksetzen fehlgeschlagen: ${e.message}`, 'error');
+        } finally {
+          knopf.disabled = false;
+        }
+      }
+
+      // ── SECTION: An L-Shop senden (BO4c) ──
+      // Dialog: Vorschau (POST .../edi/senden/vorschau, schreibt nichts) mit Pruefbericht, Netto, Staffel; Senden
+      // POST .../edi/senden genau einmal - der Knopf bleibt danach gesperrt, auch bei Fehler (nie zweimal senden).
+      const sendenZustand = { orderId: '', vorschau: null, laeuft: false, gesendet: false };
+      function sendenZeichnen() {
+        const v = sendenZustand.vorschau;
+        const knopf = document.getElementById('senden-los');
+        if (!v) {
+          document.getElementById('senden-pruefung').innerHTML = '<div class="skeleton"></div>';
+          document.getElementById('senden-tabelle').innerHTML = '';
+          knopf.disabled = true;
+          return;
+        }
+        document.getElementById('senden-kopf').textContent = [v.orderId, `${v.items.length} Pos. / ${v.stueck} Stk`,
+          v.commission, `Versand ${v.versandart}`].filter(Boolean).join(' · ');
+        ediPruefungZeichnenIn('senden-pruefung', v.punkte);
+        document.getElementById('senden-tabelle').innerHTML = nsNettoHtml(v.netto, v.items);
+        knopf.disabled = sendenZustand.laeuft || sendenZustand.gesendet || !v.gruen;
+      }
+      async function sendenOeffnen(orderId) {
+        Object.assign(sendenZustand, { orderId, vorschau: null, laeuft: false, gesendet: false });
+        document.getElementById('senden-kopf').textContent = orderId;
+        const erg = document.getElementById('senden-ergebnis');
+        erg.textContent = ''; erg.classList.remove('senden-rot');
+        document.getElementById('senden-dialog').hidden = false;
+        sendenZeichnen();
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/edi/senden/vorschau`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId }),
+          });
+          sendenZustand.vorschau = await apiJson(res);
+          if (!sendenZustand.vorschau.gruen) { erg.textContent = 'Prüfbericht rot – so wird nichts gesendet.'; erg.classList.add('senden-rot'); }
+        } catch (e) {
+          erg.textContent = `Nicht sendbar: ${e.message}`;
+          erg.classList.add('senden-rot');
+        }
+        sendenZeichnen();
+      }
+      async function sendenLos() {
+        const v = sendenZustand.vorschau;
+        if (!v?.gruen || sendenZustand.laeuft || sendenZustand.gesendet) return;
+        sendenZustand.laeuft = true;
+        sendenZustand.gesendet = true;   // ab jetzt nie ein zweiter Klick in diesem Dialog
+        sendenZeichnen();
+        const erg = document.getElementById('senden-ergebnis');
+        erg.textContent = 'Wird gesendet …';
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/edi/senden`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: v.orderId }),
+          });
+          const j = await res.json().catch(() => null);
+          if (res.ok) {
+            erg.textContent = `${j.orderId} an L-Shop gesendet${j.ergebnis === 'abgeholt' ? ' (sofort abgeholt)' : ''}. Die Positionen stehen auf „bestellt“.${j.archivHinweis ? ` ⚠️ ${j.archivHinweis}` : ''}`;
+            showToast(`${j.orderId} an L-Shop gesendet`);
+          } else {
+            erg.classList.add('senden-rot');
+            if (res.status === 422 && j?.pruefung) { sendenZustand.vorschau = { ...v, gruen: false, punkte: j.pruefung.punkte }; }
+            // nicht-da: sicher nichts gesendet - der Entwurf bleibt und kann nach Pruefung erneut gesendet werden.
+            erg.textContent = j?.error || `HTTP ${res.status}`;
+            showToast(j?.ergebnis === 'unklar' ? 'Unklar, ob gesendet – nicht nochmal senden' : (j?.error || 'Senden fehlgeschlagen'), 'error');
+          }
+        } catch (e) {
+          erg.classList.add('senden-rot');
+          erg.textContent = `Antwort fehlt (${e.message}). Nicht nochmal senden – Status in „L-Shop-Bestellungen“ prüfen.`;
+        } finally {
+          sendenZustand.laeuft = false;
+          sendenZeichnen();
+          korbZustand.daten = null;   // Korb neu laden, wenn er das naechste Mal offen ist
+          await loadLShopBestellungen();
+        }
+      }
+      document.getElementById('senden-los')?.addEventListener('click', sendenLos);
+      document.getElementById('senden-schliessen')?.addEventListener('click', () => { document.getElementById('senden-dialog').hidden = true; });
 
       // ── SECTION: Artikelerfassung ──
       const PROP_NAMES = ['Farbe', 'Größe', 'Druckfarbe']; // Fallback bis SSOT geladen

@@ -42,6 +42,6 @@ export async function leseLShopBestellungen({ shop, sheets: s, jetzt = () => new
   const sendungen = sWerte.length ? sendungenZeilen(sWerte) : [];
   const modelle = new Map((await ladeLShopZeilen({ sheets, spreadsheetId })).map(z => [z.articleNr, z]));
   // BO4e: Entwuerfe (noch nicht gesendet) fuer den Knopf "Als gesendet markieren"; Testdatei nie.
-  const entwuerfe = entwuerfeAus(ediWerte, korb);
+  const entwuerfe = entwuerfeAus(ediWerte, korb, jetzt());
   return { nurJfn: false, ...baueBestellungen({ edi, korb, modelle, sendungen, jetzt: jetzt() }), entwuerfe };
 }

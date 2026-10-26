@@ -3,10 +3,13 @@
 //
 // Waechter:
 //  - ORDER: jede Datei, die nicht von uns stammt, ist ein Alarm. "Von uns" = Name
-//    <order_id>_<JJJJMMTT-HHMM>.xml und die order_id steht in LShop_EDI_Dateien mit Status "gesendet"
-//    (den setzt erst BO4c - bis dahin ist also jede Datei in ORDER fremd).
-//    Eine eigene Datei liegt dort hoechstens ~8 min (L-Shop holt ab); liegt sie deutlich laenger,
-//    meldet `orderLiegtZuLange` das. Alarm darauf erst ab BO4c.
+//    <order_id>_<JJJJMMTT-HHMM>.xml und die order_id steht in LShop_EDI_Dateien mit einem Status aus
+//    EDI_EIGEN_ORDER (BO4c: auch "wird gesendet" und "unklar" - die Datei kann gerade erst gesendet sein).
+//    Eine eigene Datei liegt dort hoechstens ~8 min (L-Shop holt ab); liegt sie laenger als
+//    ORDER_ZU_LANGE_MIN, meldet der Lauf das einmal je Datei (BO4c).
+//  - BO4c: Ist eine von MC gesendete Datei (Sendeversuch gesetzt) nicht mehr in ORDER, setzt der Lauf
+//    `Abgeholt` = Laufzeit ("spaetestens"). Haengt "wird gesendet" laenger als HAENGT_MIN, meldet er das
+//    einmal (Merker in Sende_Hinweis); den Status aendert er nie.
 //  - ORDERCONFIRMATION: jede neue AB wird geladen und nach unserer order_id durchsucht. Fehlt sie, ist
 //    sie unbekannt oder in LShop_EDI_Dateien nur Entwurf/Testdatei -> Alarm (Bestellung nicht von uns?).
 //    Sonst: "AB eingegangen - Auswertung folgt" (die Auswertung baut BO4b-4).
@@ -51,7 +54,11 @@ export const EDI_VERSANDT = 'versandt';
 export const EDI_VOR_VERSAND = ['gesendet', 'bestätigt'];
 
 export const ORDER_LIEGT_MAX_MIN = 8;      // laut Inhaber holt L-Shop nach spaetestens ~8 min ab
-export const ORDER_ZU_LANGE_MIN = 20;      // "deutlich laenger" - Alarm erst ab BO4c
+export const ORDER_ZU_LANGE_MIN = 20;      // "deutlich laenger" - Alarm seit BO4c, einmal je Datei
+// BO4c: Status, bei denen eine Datei in ORDER von uns ist (gerade gesendet, unklar oder spaeter).
+export const EDI_EIGEN_ORDER = ['wird gesendet', 'gesendet', 'unklar', 'bestätigt', 'versandt', 'geliefert'];
+export const MERKER_ZU_LANGE = 'zu lange in ORDER – gemeldet';
+export const MERKER_HAENGT = 'hängt – gemeldet';
 export const FEHLLAEUFE_BIS_MELDUNG = 3;
 export const MELDUNG_DROSSEL_MS = 60 * 60 * 1000;
 
@@ -162,7 +169,7 @@ export function liegtSeitMinuten(eintrag, jetzt) {
   return Math.max(0, Math.floor((jetzt.getTime() - d.getTime()) / 60000));
 }
 
-/** Eigene Datei in ORDER, die L-Shop nicht abholt (Alarm erst ab BO4c, hier nur vorgesehen). */
+/** Eigene Datei in ORDER, die L-Shop nicht abholt (Alarm einmal je Datei, BO4c). */
 export function orderLiegtZuLange(eintrag, jetzt, grenzeMin = ORDER_ZU_LANGE_MIN) {
   const min = liegtSeitMinuten(eintrag, jetzt);
   return min !== null && min > grenzeMin;
@@ -175,14 +182,14 @@ export function orderLiegtZuLange(eintrag, jetzt, grenzeMin = ORDER_ZU_LANGE_MIN
 export function bewerteOrderDatei(eintrag, ediStatus, jetzt) {
   const orderId = orderIdAusDateiname(eintrag?.name);
   const status = orderId ? ediStatus.get(orderId) : undefined;
-  if (orderId && status === EDI_GESENDET) {
+  if (orderId && EDI_EIGEN_ORDER.includes(status)) {
     const zuLange = orderLiegtZuLange(eintrag, jetzt);
     return { ergebnis: ERGEBNIS.EIGEN, orderId, zuLange, hinweis: zuLange ? `liegt seit ${liegtSeitMinuten(eintrag, jetzt)} min` : '' };
   }
   let hinweis;
   if (!orderId) hinweis = 'Datei nicht von MC (Name passt nicht zu <order_id>_<Zeit>.xml)';
   else if (status === undefined) hinweis = `order_id ${orderId} nicht in LShop_EDI_Dateien`;
-  else hinweis = `order_id ${orderId} ist "${status}", nicht gesendet`;
+  else hinweis = `order_id ${orderId} ist "${status}", nicht gesendet`;   // Entwurf, Testdatei
   return { ergebnis: ERGEBNIS.ALARM, orderId: orderId ?? '', zuLange: false, hinweis };
 }
 
@@ -245,6 +252,60 @@ export function buildBelegeAlarmNachricht(alarme) {
 
 export function buildAbErkanntNachricht(erkannt) {
   return ['📄 L-Shop: Auftragsbestätigung eingegangen', ...erkannt.map(a => `• ${a.orderIds.join(', ')} (${a.datei})`), 'Auswertung folgt mit BO4b-4.'].join('\n');
+}
+
+// ── BO4c: Abgeholt, zu lange in ORDER, haengendes Senden ─────────────────────
+
+/**
+ * EDI-Zeilen, deren von MC gesendete Datei nicht mehr in ORDER liegt -> Abgeholt setzen.
+ * Nur mit Sendeversuch (per Knopf gesendet; von Hand gesendete wie JFN-2026-0003 nie), Abgeholt leer,
+ * Status gesendet/unklar oder spaeter (nicht "wird gesendet": der Upload kann noch laufen).
+ * -> [{ orderId, zeile, spalte: 'Abgeholt', alt: '', neu }]
+ */
+export function abgeholtPlan({ ediWerte, orderListe, jetzt }) {
+  const [kopf = [], ...rest] = ediWerte ?? [];
+  const norm = kopf.map(normHeader);
+  const sp = n => norm.indexOf(normHeader(n));
+  const i = { id: sp('order_id'), st: sp('Status'), ab: sp('Abgeholt'), sv: sp('Sendeversuch') };
+  if (Object.values(i).some(x => x < 0)) return [];
+  const inOrder = new Set((orderListe ?? []).map(e => orderIdAusDateiname(e.name)).filter(Boolean));
+  return rest.map((r, n) => ({ r, zeile: n + 2 }))
+    .filter(({ r }) => t(r[i.id]) && t(r[i.sv]) && !t(r[i.ab])
+      && EDI_EIGEN_ORDER.includes(t(r[i.st])) && t(r[i.st]) !== 'wird gesendet' && !inOrder.has(t(r[i.id])))
+    .map(({ r, zeile }) => ({ orderId: t(r[i.id]), zeile, spalte: 'Abgeholt', alt: '', neu: jetzt.toISOString() }));
+}
+
+/**
+ * "wird gesendet" laenger als haengtMin -> einmal melden (Merker hinten an Sende_Hinweis).
+ * -> [{ orderId, zeile, spalte: 'Sende_Hinweis', alt, neu, seitMin }]
+ */
+export function haengendPlan({ ediWerte, jetzt, haengtMin }) {
+  const [kopf = [], ...rest] = ediWerte ?? [];
+  const norm = kopf.map(normHeader);
+  const sp = n => norm.indexOf(normHeader(n));
+  const i = { id: sp('order_id'), st: sp('Status'), sh: sp('Sende_Hinweis'), sv: sp('Sendeversuch') };
+  if (Object.values(i).some(x => x < 0)) return [];
+  return rest.map((r, n) => ({ r, zeile: n + 2 }))
+    .filter(({ r }) => t(r[i.st]) === 'wird gesendet' && !t(r[i.sh]).includes(MERKER_HAENGT))
+    .map(({ r, zeile }) => {
+      const seit = Date.parse(t(r[i.sv]));
+      return { r, zeile, seitMin: Number.isFinite(seit) ? Math.floor((jetzt.getTime() - seit) / 60000) : null };
+    })
+    .filter(x => x.seitMin === null || x.seitMin > haengtMin)
+    .map(({ r, zeile, seitMin }) => {
+      const alt = t(r[i.sh]);
+      return { orderId: t(r[i.id]), zeile, spalte: 'Sende_Hinweis', alt, neu: [alt, MERKER_HAENGT].filter(Boolean).join(' · '), seitMin };
+    });
+}
+
+export function buildZuLangeNachricht(dateien) {
+  return ['🟠 L-Shop: eigene Bestelldatei liegt zu lange in ORDER', ...dateien.map(d => `• ${d.datei}: ${d.hinweis}`),
+    `L-Shop holt sonst nach höchstens ${ORDER_LIEGT_MAX_MIN} min ab. Bitte bei L-Shop nachfragen.`].join('\n');
+}
+
+export function buildHaengtNachricht(zeilen) {
+  return ['🟠 L-Shop: Senden hängt', ...zeilen.map(z => `• ${z.orderId}: "wird gesendet" seit ${z.seitMin ?? '?'} min`),
+    'Nicht nochmal senden. Prüfen, ob eine AB kommt; dann in MC „Als gesendet markieren“ oder „zurück auf Entwurf“.'].join('\n');
 }
 
 export function buildFtpFehlerNachricht({ inFolge, grund }) {

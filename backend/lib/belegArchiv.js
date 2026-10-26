@@ -18,7 +18,7 @@ import { googleAuthMitScopes } from './googleAuth.js';
 
 export const ARCHIV_SCOPES = ['https://www.googleapis.com/auth/drive.file'];
 export const WURZEL = 'L-Shop Belege';
-export const ARTEN = ['Lieferbestaetigung', 'Auftragsbestaetigung', 'Rechnung_XML', 'Rechnung_PDF'];
+export const ARTEN = ['Lieferbestaetigung', 'Auftragsbestaetigung', 'Rechnung_XML', 'Rechnung_PDF', 'Bestellung'];   // Bestellung: BO4c (gesendete EDI-Datei)
 const ORDNER_MIME = 'application/vnd.google-apps.folder';
 
 /** Drive nicht erreichbar oder Ruecklesen weicht ab -> Datei gilt als nicht verarbeitet. */

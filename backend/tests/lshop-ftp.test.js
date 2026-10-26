@@ -122,7 +122,8 @@ describe('Quelltext-Regeln', () => {
     }
   });
 
-  test('basic-ftp wird nur in lib/lshopFtp.js importiert', () => {
+  // BO4c: dazu lib/lshopFtpSenden.js (einziger Schreibweg, eigene Regeln in edi-senden.test.js).
+  test('basic-ftp wird nur in lib/lshopFtp.js und lib/lshopFtpSenden.js importiert', () => {
     const treffer = [];
     const lauf = dir => {
       for (const n of readdirSync(dir)) {
@@ -135,6 +136,6 @@ describe('Quelltext-Regeln', () => {
       }
     };
     lauf(backend);
-    expect(treffer).toEqual(['lib/lshopFtp.js']);
+    expect(treffer.sort()).toEqual(['lib/lshopFtp.js', 'lib/lshopFtpSenden.js']);
   });
 });

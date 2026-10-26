@@ -119,7 +119,7 @@ describe('ediPruefung', () => {
     expect(r.items.map(i => [i.itemnumber, i.reference, i.quantity])).toEqual([[NR, `JFN-${z[0].Bestellnummer}-1`, '1'], [NR2, `JFN-${z[1].Bestellnummer}-1`, '3']]);
     expect(r.items[1]).toMatchObject({ modell: 'MRS5004', farbe: 'White/Green', groesse: '32/36' });
     expect(r.stueck).toBe(4);
-    expect(r.punkte.map(p => p.regel)).toEqual(EDI_REGELN.map(x => x.id));
+    expect(r.punkte.map(p => p.regel)).toEqual(EDI_REGELN.filter(x => !x.nurSenden).map(x => x.id));   // BO4c: express_senden nur beim Senden
   });
 
   test.each([

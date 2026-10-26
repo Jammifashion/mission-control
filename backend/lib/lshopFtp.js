@@ -3,8 +3,8 @@
 // Angeboten werden nur liste(ordner) und lade(ordner, datei). Der Client verlaesst dieses Modul nie;
 // es gibt keinen Weg zum Hochladen, Loeschen, Umbenennen oder Anlegen (Test prueft den Quelltext).
 // Das EDI-Konto auf dem Server DARF schreiben - "nur lesen" sichert allein dieser Code.
-// Schreiben in ORDER kommt erst mit BO4c, und dann nur dort: Dateien <order_id>_…xml aus
-// LShop_EDI_Dateien, nie loeschen oder umbenennen.
+// Schreiben in ORDER: nur lib/lshopFtpSenden.js (BO4c) - eine Datei <order_id>_…xml, nie loeschen
+// oder umbenennen. Dieses Modul bleibt nur lesend.
 //
 // Zugang aus dem Secret Manager (nie Code, Log, Postfach, Testdaten):
 //   LSHOP_FTP_HOST          gemeinsamer Host (Bestand + Belege), Port 21 Standard, "host:port" moeglich
@@ -35,15 +35,16 @@ export class LShopFtpFehler extends Error {
   }
 }
 
-// Nur der Fehlercode oder die FTP-Antwort ohne Adressen.
-function ohneZugang(err, geheim) {
+// Nur der Fehlercode oder die FTP-Antwort ohne Adressen. Auch fuer lib/lshopFtpSenden.js (BO4c).
+export function ohneZugang(err, geheim) {
   let s = String(err?.code && typeof err.code === 'string' ? `${err.code} ${err.message ?? ''}` : err?.message ?? err);
   for (const g of geheim) if (g) s = s.split(g).join('<…>');
   s = s.replace(/\b\d{1,3}(?:\.\d{1,3}){3}(?::\d+)?\b/g, '<ip>').replace(/\[[0-9a-f:]+\](?::\d+)?/gi, '<ip>');
   return s.replace(/\s+/g, ' ').trim().slice(0, 140);
 }
 
-async function zugang(konto) {
+// Auch fuer lib/lshopFtpSenden.js (BO4c): Zugang nur an dieser Stelle.
+export async function zugang(konto) {
   if (konto !== 'edi') throw new LShopFtpFehler(`Unbekanntes FTP-Konto "${konto}".`);
   const [hostRoh, user, password] = await Promise.all([
     getSecret('LSHOP_FTP_HOST'), getSecret('LSHOP_EDI_FTP_USER'), getSecret('LSHOP_EDI_FTP_PASS'),

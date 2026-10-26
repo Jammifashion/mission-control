@@ -95,7 +95,7 @@ describe('ediErzeugen', () => {
     expect(r.orderId).toBe('JFN-2026-0002');
     expect(r.dateiname).toBe('JFN-2026-0002_20261022-1000.xml');
     expect(leseBestellXml(r.xml).kinder[0].kinder.find(k => k.name === 'order_id').text).toBe('JFN-2026-0002');
-    expect(aufrufe.update).toEqual([`'${EDI_TAB}'!A3:K3`]);   // BO4e: + Versandart, Gesendet
+    expect(aufrufe.update).toEqual([`'${EDI_TAB}'!A3:O3`]);   // BO4e: + Versandart, Gesendet; BO4c: + Abgeholt, Drive_ID, Sende_Hinweis, Sendeversuch
     expect(JSON.stringify(tabs[TAB_KORB])).toBe(korbVorher);
     const z = Object.fromEntries(EDI_SPALTEN.map((n, i) => [n, tabs[EDI_TAB][2][i]]));
     expect(z).toMatchObject({ order_id: 'JFN-2026-0002', Status: 'Entwurf', Positionen: '3', Stueck: '6', Commission: 'JFN Sammelbestellung KW43',
@@ -136,10 +136,13 @@ describe('ediErzeugen', () => {
 });
 
 describe('Quelltext: nur Sheets, kein Versand', () => {
-  test('lib/lshopEdi.js und die Routen nutzen weder Shop noch Netz noch FTP', () => {
+  // BO4c: lshopEdi.js sendet NUR ueber lib/lshopFtpSenden.js (sendeBestellung); kein Shop, kein eigenes Netz.
+  test('lib/lshopEdi.js nutzt FTP nur ueber lshopFtpSenden.js, die Routen gar nicht', () => {
     const code = f => readFileSync(resolve(hier, f), 'utf8').split('\n').filter(z => !z.trim().startsWith('//')).join('\n');
-    expect(code('../lib/lshopEdi.js')).not.toMatch(/getWcClient|fetch\(|ftp|https?:\/\/|import .*(http|net|ssh)/i);
-    expect(code('../routes/bestellen.js')).not.toMatch(/ftp|senden|upload/i);
+    const edi = code('../lib/lshopEdi.js');
+    expect(edi).not.toMatch(/getWcClient|fetch\(|https?:\/\/|import .*(http|net|ssh)|basic-ftp|lshopFtp\.js|uploadFrom/i);
+    expect([...edi.matchAll(/from '([^']+)'/g)].map(m => m[1]).filter(m => /ftp/i.test(m))).toEqual(['./lshopFtpSenden.js']);
+    expect(code('../routes/bestellen.js')).not.toMatch(/ftp|upload/i);
   });
 });
 
@@ -167,7 +170,9 @@ describe('richteEdiEin', () => {
   test('gesetzter customer_id-Wert wird nie angefasst und nie ausgegeben', async () => {
     const { tabs, sheets, aufrufe } = aufbau({ cid: '12345678' });
     const r = await richteEdiEin({ write: true, sheets, jetzt: JETZT() });
-    expect(aufrufe.update).toEqual(["'Config'!A4:E4"]);   // nur die neue Zeile lshop.shipping_method (BO4e)
+    // nur neue Zeilen: lshop.shipping_method (BO4e) und Stufe 1 der Versandstaffel (BO4c, Werte leer)
+    expect(aufrufe.update).toEqual(["'Config'!A4:E4", "'Config'!A5:E5", "'Config'!A6:E6"]);
+    expect(tabs.Config.slice(4).map(z => [z[0], z[1]])).toEqual([['lshop.versandstufe.1.ab', ''], ['lshop.versandstufe.1.kosten', '']]);
     expect(tabs.Config[2][1]).toBe('12345678');
     expect(r.log.join('\n')).toMatch(/Wert gesetzt - nicht angefasst/);
     expect(r.log.join('\n')).not.toContain('12345678');
@@ -280,13 +285,14 @@ describe('BO4e: Einrichtung haengt Versandart/Gesendet an', () => {
     const getAlt = sheets.spreadsheets.get;
     sheets.spreadsheets.get = async o => { const r = await getAlt(o); r.data.sheets.forEach(s => { if (s.properties.title === EDI_TAB) s.properties.gridProperties.columnCount = 9; }); return r; };
     const t = await richteEdiEin({ write: false, sheets, jetzt: JETZT() });
-    expect(t.log.join('\n')).toMatch(/Versandart, Gesendet fehlen -> wuerden angehaengt \(J1:K1\)/);
+    // BO4c: dazu Abgeholt, Drive_ID, Sende_Hinweis, Sendeversuch - alles hinten, in einem Schritt
+    expect(t.log.join('\n')).toMatch(/Versandart, Gesendet, Abgeholt, Drive_ID, Sende_Hinweis, Sendeversuch fehlen -> wuerden angehaengt \(J1:O1\)/);
     expect(aufrufe.update).toEqual([]);
     const w = await richteEdiEin({ write: true, sheets, jetzt: JETZT() });
-    expect(w.log.join('\n')).toMatch(/✓ Versandart, Gesendet angehaengt/);
-    expect(struktur).toEqual([{ appendDimension: { sheetId: expect.any(Number), dimension: 'COLUMNS', length: 2 } }]);
+    expect(w.log.join('\n')).toMatch(/✓ Versandart, Gesendet, Abgeholt, Drive_ID, Sende_Hinweis, Sendeversuch angehaengt/);
+    expect(struktur).toEqual([{ appendDimension: { sheetId: expect.any(Number), dimension: 'COLUMNS', length: 6 } }]);
     expect(tabs[EDI_TAB][0]).toEqual(EDI_SPALTEN);
     expect(tabs[EDI_TAB][1]).toEqual(['JFN-2026-0001', '2026-09-21', 'Testdatei']);
-    expect(aufrufe.update).toEqual([`'${EDI_TAB}'!J1:K1`]);
+    expect(aufrufe.update.filter(r => r.startsWith(`'${EDI_TAB}'`))).toEqual([`'${EDI_TAB}'!J1:O1`]);
   });
 });
