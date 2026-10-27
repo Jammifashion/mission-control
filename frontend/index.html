@@ -450,6 +450,12 @@
       .korb-leiste .ns-leiste.ns-gelb { color: var(--accent); }
       .senden-warnung { border: 1px solid var(--danger); border-radius: 7px; padding: 0.5rem 0.7rem; font-size: 0.85rem; color: var(--text); }
       .senden-ergebnis.senden-rot { color: var(--danger); font-weight: 600; }
+      .senden-box { border-radius: 8px; padding: 0.7rem 0.85rem; font-size: 0.95rem; line-height: 1.4; border: 2px solid; }
+      .senden-box-gruen { border-color: var(--success); background: rgba(82, 201, 122, 0.14); }
+      .senden-box-rot { border-color: var(--danger); background: rgba(224, 82, 82, 0.14); }
+      .senden-box-gelb { border-color: var(--warning, #d4a017); background: rgba(212, 160, 23, 0.14); }
+      .senden-box small { display: block; margin-top: 0.3rem; color: var(--muted); }
+      .senden-spinner { display: inline-block; width: 0.9em; height: 0.9em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: anf-spin 0.8s linear infinite; vertical-align: -0.1em; margin-right: 0.35rem; }
       .lb-unklar { border-left: 3px solid var(--danger); padding-left: 0.5rem; }
       .lb-unklar-text { color: var(--danger); font-weight: 600; }
       .lb-knoepfe { display: inline-flex; flex-wrap: wrap; gap: 0.4rem; }
@@ -1529,8 +1535,9 @@
               <strong id="senden-titel">An L-Shop senden</strong>
               <button type="button" class="korb-link" id="senden-schliessen">Abbrechen</button>
             </div>
+            <div id="senden-box" class="senden-box" role="status" aria-live="polite" hidden></div>
             <div id="senden-kopf" class="korb-zaehler"></div>
-            <div class="senden-warnung"><strong>Das ist eine echte Bestellung bei L-Shop.</strong> Sie wird gepackt, versandt und berechnet.</div>
+            <div class="senden-warnung" id="senden-warnung"><strong>Das ist eine echte Bestellung bei L-Shop.</strong> Sie wird gepackt, versandt und berechnet.</div>
             <div id="senden-pruefung" class="edi-pruefung"></div>
             <div id="senden-tabelle" class="edi-tabelle"></div>
             <div class="korb-reihe">
@@ -4555,7 +4562,7 @@
         'we-buchen':            { name: 'Als geliefert buchen', text: 'Setzt die angehakten Positionen auf „geliefert“. Nicht angehakte bleiben „bestellt“.' },
         'we-zurueck':           { name: 'zurück auf bestellt', text: 'Nimmt einen versehentlich gebuchten Eingang zurück. Die Position gilt wieder als unterwegs.' },
         // BO4c
-        'an-lshop-senden':      { name: 'An L-Shop senden', text: 'Schickt die Bestellung jetzt echt an L-Shop: Die Ware wird gepackt, versandt und berechnet. Nur einmal klicken.' },
+        'an-lshop-senden':      { name: 'An L-Shop senden', text: 'Schickt die Bestellung echt an L-Shop. Nur einmal klicken. Grün oben = gesendet, der Dialog schließt sich dann selbst.' },
         'zurueck-entwurf':      { name: 'zurück auf Entwurf', text: 'Nur, wenn sicher keine Auftragsbestätigung kam. Sonst „Als gesendet markieren“.' },
         'netto-summe':          { name: 'Summe netto', text: 'Einkaufswert der Auswahl (EK × Menge) und wie viel noch bis zur nächsten Versandstufe fehlt.' },
         // PS1: Bestellansicht "Bestellungen (JFN)"
@@ -5765,9 +5772,29 @@
       }
 
       // ── SECTION: An L-Shop senden (BO4c) ──
+      // ── Senden-Ergebnis: Anfang (BO4h, Test backend/tests/senden-dialog.test.js) ──
+      // Antwort von POST .../edi/senden -> was der Dialog zeigt. Erfolg (liegt/abgeholt): gruene Box oben, Sende-Knopf
+      // weg, nach SENDEN_SCHLIESSEN_MS zu. unklar: rot "Nicht nochmal senden". nicht-da: gelb, sicher nichts gesendet.
+      // Alles andere rot. Der Dialog sendet danach nie ein zweites Mal (sendenZustand.gesendet bleibt true).
+      const SENDEN_SCHLIESSEN_MS = 5000;
+      function sendenAusgang({ ok, status, j, fehler }) {
+        if (fehler) return { box: 'rot', titel: 'Antwort fehlt – nicht nochmal senden.', text: `Status in „L-Shop-Bestellungen“ prüfen. (${fehler})`, schliessen: false, knopfWeg: true };
+        if (ok) {
+          return {
+            box: 'gruen', titel: `${j?.orderId ?? ''} an L-Shop gesendet.`,
+            text: `Positionen stehen auf „bestellt“.${j?.ergebnis === 'abgeholt' ? ' L-Shop hat die Datei schon abgeholt.' : ''}${j?.archivHinweis ? ` ⚠️ ${j.archivHinweis}` : ''}`,
+            schliessen: true, knopfWeg: true,
+          };
+        }
+        if (j?.ergebnis === 'unklar') return { box: 'rot', titel: 'Unklar, ob die Datei bei L-Shop ist. Nicht nochmal senden.', text: j.error || '', schliessen: false, knopfWeg: true };
+        if (j?.ergebnis === 'nicht-da') return { box: 'gelb', titel: 'Nicht gesendet – die Datei ist nicht bei L-Shop.', text: j.error || 'Der Entwurf bleibt in „L-Shop-Bestellungen“.', schliessen: false, knopfWeg: true };
+        if (status === 422 && j?.pruefung) return { box: 'rot', titel: 'Prüfbericht rot – nichts gesendet.', text: j.error || '', schliessen: false, knopfWeg: true, pruefung: j.pruefung };
+        return { box: 'rot', titel: 'Senden fehlgeschlagen.', text: j?.error || `HTTP ${status}`, schliessen: false, knopfWeg: true };
+      }
+      // ── Senden-Ergebnis: Ende ──
       // Dialog: Vorschau (POST .../edi/senden/vorschau, schreibt nichts) mit Pruefbericht, Netto, Staffel; Senden
       // POST .../edi/senden genau einmal - der Knopf bleibt danach gesperrt, auch bei Fehler (nie zweimal senden).
-      const sendenZustand = { orderId: '', vorschau: null, laeuft: false, gesendet: false };
+      const sendenZustand = { orderId: '', vorschau: null, laeuft: false, gesendet: false, ausgang: null, zuTimer: null };
       function sendenZeichnen() {
         const v = sendenZustand.vorschau;
         const knopf = document.getElementById('senden-los');
@@ -5783,8 +5810,34 @@
         document.getElementById('senden-tabelle').innerHTML = nsNettoHtml(v.netto, v.items);
         knopf.disabled = sendenZustand.laeuft || sendenZustand.gesendet || !v.gruen;
       }
+      // BO4h: Kopf-Knopf, Sende-Knopf (Spinner) und Box oben nach dem Zustand.
+      function sendenRahmen() {
+        const zu = document.getElementById('senden-schliessen');
+        const knopf = document.getElementById('senden-los');
+        const a = sendenZustand.ausgang;
+        zu.textContent = sendenZustand.gesendet && !sendenZustand.laeuft ? 'Schließen' : 'Abbrechen';
+        zu.disabled = sendenZustand.laeuft;
+        knopf.innerHTML = sendenZustand.laeuft ? '<span class="senden-spinner" aria-hidden="true"></span>wird gesendet …' : 'Jetzt an L-Shop senden';
+        knopf.hidden = !!a?.knopfWeg;
+        document.getElementById('senden-warnung').hidden = a?.box === 'gruen';
+        const box = document.getElementById('senden-box');
+        box.hidden = !a;
+        if (a) {
+          box.className = `senden-box senden-box-${a.box}`;
+          box.innerHTML = `<strong></strong>${a.text ? '<small></small>' : ''}`;
+          box.querySelector('strong').textContent = a.titel;
+          if (a.text) box.querySelector('small').textContent = a.text;
+        }
+      }
+      function sendenSchliessen() {
+        if (sendenZustand.laeuft) return;
+        clearTimeout(sendenZustand.zuTimer);
+        document.getElementById('senden-dialog').hidden = true;
+      }
       async function sendenOeffnen(orderId) {
-        Object.assign(sendenZustand, { orderId, vorschau: null, laeuft: false, gesendet: false });
+        clearTimeout(sendenZustand.zuTimer);
+        Object.assign(sendenZustand, { orderId, vorschau: null, laeuft: false, gesendet: false, ausgang: null, zuTimer: null });
+        sendenRahmen();
         document.getElementById('senden-kopf').textContent = orderId;
         const erg = document.getElementById('senden-ergebnis');
         erg.textContent = ''; erg.classList.remove('senden-rot');
@@ -5807,36 +5860,33 @@
         if (!v?.gruen || sendenZustand.laeuft || sendenZustand.gesendet) return;
         sendenZustand.laeuft = true;
         sendenZustand.gesendet = true;   // ab jetzt nie ein zweiter Klick in diesem Dialog
-        sendenZeichnen();
+        sendenZeichnen(); sendenRahmen();
         const erg = document.getElementById('senden-ergebnis');
-        erg.textContent = 'Wird gesendet …';
+        erg.textContent = ''; erg.classList.remove('senden-rot');
+        let a;
         try {
           const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/edi/senden`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: v.orderId }),
           });
           const j = await res.json().catch(() => null);
-          if (res.ok) {
-            erg.textContent = `${j.orderId} an L-Shop gesendet${j.ergebnis === 'abgeholt' ? ' (sofort abgeholt)' : ''}. Die Positionen stehen auf „bestellt“.${j.archivHinweis ? ` ⚠️ ${j.archivHinweis}` : ''}`;
-            showToast(`${j.orderId} an L-Shop gesendet`);
-          } else {
-            erg.classList.add('senden-rot');
-            if (res.status === 422 && j?.pruefung) { sendenZustand.vorschau = { ...v, gruen: false, punkte: j.pruefung.punkte }; }
-            // nicht-da: sicher nichts gesendet - der Entwurf bleibt und kann nach Pruefung erneut gesendet werden.
-            erg.textContent = j?.error || `HTTP ${res.status}`;
-            showToast(j?.ergebnis === 'unklar' ? 'Unklar, ob gesendet – nicht nochmal senden' : (j?.error || 'Senden fehlgeschlagen'), 'error');
-          }
+          a = sendenAusgang({ ok: res.ok, status: res.status, j });
+          if (a.pruefung) sendenZustand.vorschau = { ...v, gruen: false, punkte: a.pruefung.punkte };
+          showToast(res.ok ? `${j.orderId} an L-Shop gesendet` : a.titel, res.ok ? undefined : 'error');
         } catch (e) {
-          erg.classList.add('senden-rot');
-          erg.textContent = `Antwort fehlt (${e.message}). Nicht nochmal senden – Status in „L-Shop-Bestellungen“ prüfen.`;
+          a = sendenAusgang({ fehler: e.message });
         } finally {
           sendenZustand.laeuft = false;
-          sendenZeichnen();
+          sendenZustand.ausgang = a ?? sendenAusgang({ fehler: 'unbekannt' });
+          sendenZeichnen(); sendenRahmen();
           korbZustand.daten = null;   // Korb neu laden, wenn er das naechste Mal offen ist
+          if (sendenZustand.ausgang.schliessen) {
+            sendenZustand.zuTimer = setTimeout(sendenSchliessen, SENDEN_SCHLIESSEN_MS);
+          }
           await loadLShopBestellungen();
         }
       }
       document.getElementById('senden-los')?.addEventListener('click', sendenLos);
-      document.getElementById('senden-schliessen')?.addEventListener('click', () => { document.getElementById('senden-dialog').hidden = true; });
+      document.getElementById('senden-schliessen')?.addEventListener('click', sendenSchliessen);
 
       // ── SECTION: Wareneingang (BO4b-5) ──
       // "Ware angekommen" von Hand: Dialog mit den Positionen der L-Shop-Bestellung (bestellt vorgewaehlt). Der
