@@ -6,6 +6,7 @@ import { notifyFehler } from '../lib/chatNotify.js';
 import { ediVorschau, ediErzeugen, ediAlsGesendet, ediSendenVorschau, ediSenden, ediZurueckAufEntwurf } from '../lib/lshopEdi.js';
 import { leseLShopBestellungen } from '../lib/lshopBestellungen.js';
 import { wareneingangBuchen, wareneingangZurueck } from '../lib/wareneingang.js';
+import { kartonPruefen, kartonAngekommen } from '../lib/karton.js';
 import { leseProduktionStand } from '../lib/produktionStand.js';
 
 const router = Router();
@@ -153,6 +154,28 @@ for (const [pfad, fn] of [['/lshop-korb/wareneingang', wareneingangBuchen], ['/l
     }
   });
 }
+
+// ── BO4b-5 Schritt 2: Karton-Scan ────────────────────────────────────────────
+// POST .../karton/pruefen { link }: Karton-PDF lesen und gegen den Korb abgleichen, schreibt nichts.
+// POST .../karton/angekommen { link, auswahl }: PDF erneut lesen, archivieren, bestellt -> geliefert, LShop_Kartons.
+// ⚠️ link (mit Kundennummer) nie loggen und nie zurueckgeben - im Log nur Karton-ID und order_id.
+router.post('/lshop-korb/karton/pruefen', async (req, res, next) => {
+  try {
+    const r = await kartonPruefen({ link: req.body?.link });
+    console.log(`Karton geprueft: ${r.kartonId} -> ${r.orderId || 'ohne order_id'} (${r.ampel})`);
+    res.json(r);
+  } catch (err) { next(err); }
+});
+router.post('/lshop-korb/karton/angekommen', async (req, res, next) => {
+  try {
+    const r = await kartonAngekommen({ link: req.body?.link, auswahl: req.body?.auswahl });
+    console.log(`Karton angekommen: ${r.kartonId} -> ${r.orderId} (${r.positionen} Position(en), Archiv ${r.archiv}${r.paket ? `, ${r.paket}` : ''})`);
+    res.json(r);
+  } catch (err) {
+    if ((err?.status === 422 || err?.status === 409) && err.probleme) return res.status(err.status).json({ error: err.message, probleme: err.probleme });
+    next(err);
+  }
+});
 
 // ── GET /api/bestellen/lshop-korb?shop=jfn|honk[&mit=bestelldatum] ───────────
 // Liest NUR den Reiter Warenkorb_LShop, gebuendelt nach LShop_ArticleNr, ohne Kundennamen.

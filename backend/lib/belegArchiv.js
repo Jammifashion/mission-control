@@ -1,6 +1,6 @@
 // Archiv der L-Shop-Belege in der geteilten Ablage (BO4b-2) - die einzige Stelle, die in Drive SCHREIBT
 // (Test beleg-archiv.test.js). Ziel: <geteilte Ablage>/L-Shop Belege/<Art>/<Jahr>/<Dateiname>,
-// Art = Lieferbestaetigung | Auftragsbestaetigung | Rechnung_XML | Rechnung_PDF. Nie die Bestandsdatei.
+// Art = Lieferbestaetigung | Auftragsbestaetigung | Rechnung_XML | Rechnung_PDF | Bestellung | Karton. Nie die Bestandsdatei.
 //
 // Eigene Anmeldung mit dem engsten Scope drive.file: MC sieht und aendert nur Dateien und Ordner, die
 // es selbst angelegt hat (nicht Backups, nicht Stammdaten, nichts von Hand Abgelegtes). Deshalb legt
@@ -18,7 +18,7 @@ import { googleAuthMitScopes } from './googleAuth.js';
 
 export const ARCHIV_SCOPES = ['https://www.googleapis.com/auth/drive.file'];
 export const WURZEL = 'L-Shop Belege';
-export const ARTEN = ['Lieferbestaetigung', 'Auftragsbestaetigung', 'Rechnung_XML', 'Rechnung_PDF', 'Bestellung'];   // Bestellung: BO4c (gesendete EDI-Datei)
+export const ARTEN = ['Lieferbestaetigung', 'Auftragsbestaetigung', 'Rechnung_XML', 'Rechnung_PDF', 'Bestellung', 'Karton'];   // Bestellung: BO4c (gesendete EDI-Datei), Karton: BO4b-5 (Karton-PDF vom QR-Code)
 const ORDNER_MIME = 'application/vnd.google-apps.folder';
 
 /** Drive nicht erreichbar oder Ruecklesen weicht ab -> Datei gilt als nicht verarbeitet. */

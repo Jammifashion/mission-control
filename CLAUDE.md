@@ -258,6 +258,24 @@ Neue Sektionen immer mit Anker versehen:
   Status wie im Browser gesehen (sonst 409/422 + probleme, nichts geschrieben); EIN batchUpdate (Status,
   Status_Datum, Stand) + `LShop_Sendungen.Wareneingang` NUR bei genau einem Paket der Bestellung (Rueckweg
   leert ihn, wenn nichts mehr geliefert ist); zurueckgelesen. „geliefert/teilweise“ leitet `bestellStatus` ab.
+- backend/lib/karton.js – Karton-Scan (BO4b-5 Schritt 2), Logik `utils/karton.js`. QR auf dem L-Shop-Karton ->
+  `https://textilelogistics.eu/pdf/<2>/<2>/<Kundennr>_<Karton-ID>_<64 Hex>.pdf` (je KARTON eine PDF, ohne Anmeldung).
+  ⚠️ Der Link enthaelt die L-Shop-Kundennummer: nie speichern, loggen, zurueckgeben, nie in Fehlertexte, Tests nur
+  erfundene Werte; weitergegeben wird nur die Karton-ID. Abruf nur bei exakt `KARTON_LINK`, Kundennr still gegen Config
+  `lshop.customer_id` (sonst 422 vor dem Abruf), 15 s, <= 1 MB, `redirect: 'error'`, muss mit `%PDF-` beginnen.
+  PDF ohne Bibliothek (`leseKartonPdf`, Aufbau gemessen 27.10.): Kopf LA/VA/order_id, je Gruppe Referenzzeile links
+  vor der Kopfzeile Article-No|SKU|Color|Size|Ord.|Qty., Spalten ueber die x der Kopfzeile, Gruppen ueber Seiten.
+  Jede Datenzeile = 1 Stueck: Menge = Summe `Ord.` je reference + SKU, `Qty.` NIE benutzen. Abgleich `kartonAbgleich`
+  ueber `referenzFuer` + LShop_ArticleNr: ok (bestellt, Menge gleich, vorgewaehlt) · gelb Menge anders (waehlbar, ohne
+  Haken) · gelb schon geliefert / nicht im Korb / anderer Status (nicht waehlbar) · rot unbekannte order_id.
+  `POST /api/bestellen/lshop-korb/karton/pruefen { link }` schreibt nichts; `…/karton/angekommen { link, auswahl }`
+  liest die PDF NEU, unter der Korb-Sperre: Archiv `Karton/<Jahr>/<LA>_<Karton-ID>.pdf` (belegArchiv, Name + MD5)
+  -> `bucheEingangInSperre` (derselbe Weg wie „Ware angekommen“) -> Zeile im SSOT-Reiter `LShop_Kartons` (ohne append,
+  nur beim ersten Eingang; Karton_ID|LA|VA|order_id|Eingang|Quelle|Positionen|Abweichungen|Datei|Drive_ID|Stand, nie
+  Link/Kundennr). Doppelter Scan = gelb mit Datum, Rest buchbar. EDI-Status wird nicht gesetzt. Reiter + Archiv-Ordner:
+  `scripts/setup-lshop-belege-reiter.js` (Trockenlauf, `--write`). Frontend: Knopf „Karton scannen“ in
+  L-Shop-Bestellungen, Dialog `#ks-dialog` (Kamera + `BarcodeDetector`, sonst Link einfuegen), Anzeige `ksErgebnisHtml`
+  im Block `L-Shop-Bestellungen`; Link nur in `ksZustand.link`, nie Adresse/localStorage/Anzeige/Toast.
 - backend/lib/lshopBelege.js – Belege-Abruf (BO4b-1), Logik in `utils/lshop-belege.js`. Scheduler
   `POST /api/intern/lshop-belege/abruf` (Job `lshop-belege-abruf`, `7,37 * * * *`) und Knopf
   `POST /api/bestellen/lshop-belege/abruf` (`routes/lshopBelege.js`, eigener Router, damit

@@ -26,43 +26,50 @@ async function werte(sheets, spreadsheetId, tab) {
   return data.values ?? [];
 }
 
+/**
+ * Der Schreibweg selbst - OHNE Sperre. Nur fuer Aufrufer, die die Korb-Sperre schon halten (Karton-Scan,
+ * lib/karton.js); sonst wareneingangBuchen/-Zurueck.
+ */
+export async function bucheEingangInSperre({ orderId, auswahl, zurueck = false, sheets, spreadsheetId, nun }) {
+  const { idx: kIdx, zeilen } = korbZeilen(await werte(sheets, spreadsheetId, TAB_KORB));
+  const sWerte = await werte(sheets, spreadsheetId, SENDUNGEN_TAB);
+  const plan = eingangPlan({ korbZeilen: zeilen, sendungenWerte: sWerte, orderId, auswahl, jetzt: nun, zurueck });
+
+  const data = plan.korb.flatMap(p => Object.entries(p.werte).map(([sp, w]) => ({ range: `${q(TAB_KORB)}!${colLetter(kIdx[sp])}${p.zeile}`, values: [[w]] })));
+  let sIdx = null;
+  if (plan.paket) {
+    sIdx = sendungenSpalten(sWerte[0]);
+    data.push({ range: `${q(SENDUNGEN_TAB)}!${colLetter(sIdx.Wareneingang)}${plan.paket.zeile}`, values: [[plan.paket.neu]] });
+  }
+  await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: 'RAW', data } });
+
+  // Zuruecklesen: jede Korb-Zeile (Schluessel + neue Werte), ggf. die Paketzeile (order_id + Wareneingang).
+  const ranges = [...plan.korb.map(p => `${q(TAB_KORB)}!${p.zeile}:${p.zeile}`), ...(plan.paket ? [`${q(SENDUNGEN_TAB)}!${plan.paket.zeile}:${plan.paket.zeile}`] : [])];
+  const { data: z } = await sheets.spreadsheets.values.batchGet({ spreadsheetId, ranges, valueRenderOption: 'FORMATTED_VALUE' });
+  const zeile = i => z.valueRanges?.[i]?.values?.[0] ?? [];
+  const abweichend = [];
+  plan.korb.forEach((p, i) => {
+    const r = zeile(i);
+    if (t(r[kIdx.Schluessel]) !== p.schluessel || Object.entries(p.werte).some(([sp, w]) => t(r[kIdx[sp]]) !== w)) abweichend.push(p.schluessel);
+  });
+  if (plan.paket) {
+    const r = zeile(plan.korb.length);
+    if (t(r[sIdx.order_id]) !== t(orderId) || t(r[sIdx.Wareneingang]) !== plan.paket.neu) abweichend.push(`Paket Zeile ${plan.paket.zeile}`);
+  }
+  if (abweichend.length) throw fehler(`Rücklesen weicht ab bei ${abweichend.join(', ')} - bitte im Sheet prüfen.`, 500);
+  return {
+    ok: true, orderId: t(orderId), positionen: plan.korb.length, status: zurueck ? 'bestellt' : 'geliefert',
+    paket: plan.paket ? (plan.paket.neu ? 'Wareneingang gesetzt' : 'Wareneingang geleert') : '', hinweis: plan.hinweis,
+    zellen: data.map(d => d.range),
+  };
+}
+
 async function schreibe({ orderId, auswahl, zurueck, sheets: s, jetzt }) {
   return mitKorbSperre(zurueck ? 'wareneingang-zurueck' : 'wareneingang', async () => {
     const sheets = s ?? await sheetsClient();
     const spreadsheetId = process.env.GOOGLE_SHEET_ID;
     if (!spreadsheetId) throw fehler('GOOGLE_SHEET_ID fehlt.', 503);
-    const nun = jetzt().toISOString();
-    const { idx: kIdx, zeilen } = korbZeilen(await werte(sheets, spreadsheetId, TAB_KORB));
-    const sWerte = await werte(sheets, spreadsheetId, SENDUNGEN_TAB);
-    const plan = eingangPlan({ korbZeilen: zeilen, sendungenWerte: sWerte, orderId, auswahl, jetzt: nun, zurueck });
-
-    const data = plan.korb.flatMap(p => Object.entries(p.werte).map(([sp, w]) => ({ range: `${q(TAB_KORB)}!${colLetter(kIdx[sp])}${p.zeile}`, values: [[w]] })));
-    let sIdx = null;
-    if (plan.paket) {
-      sIdx = sendungenSpalten(sWerte[0]);
-      data.push({ range: `${q(SENDUNGEN_TAB)}!${colLetter(sIdx.Wareneingang)}${plan.paket.zeile}`, values: [[plan.paket.neu]] });
-    }
-    await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: 'RAW', data } });
-
-    // Zuruecklesen: jede Korb-Zeile (Schluessel + neue Werte), ggf. die Paketzeile (order_id + Wareneingang).
-    const ranges = [...plan.korb.map(p => `${q(TAB_KORB)}!${p.zeile}:${p.zeile}`), ...(plan.paket ? [`${q(SENDUNGEN_TAB)}!${plan.paket.zeile}:${plan.paket.zeile}`] : [])];
-    const { data: z } = await sheets.spreadsheets.values.batchGet({ spreadsheetId, ranges, valueRenderOption: 'FORMATTED_VALUE' });
-    const zeile = i => z.valueRanges?.[i]?.values?.[0] ?? [];
-    const abweichend = [];
-    plan.korb.forEach((p, i) => {
-      const r = zeile(i);
-      if (t(r[kIdx.Schluessel]) !== p.schluessel || Object.entries(p.werte).some(([sp, w]) => t(r[kIdx[sp]]) !== w)) abweichend.push(p.schluessel);
-    });
-    if (plan.paket) {
-      const r = zeile(plan.korb.length);
-      if (t(r[sIdx.order_id]) !== t(orderId) || t(r[sIdx.Wareneingang]) !== plan.paket.neu) abweichend.push(`Paket Zeile ${plan.paket.zeile}`);
-    }
-    if (abweichend.length) throw fehler(`Rücklesen weicht ab bei ${abweichend.join(', ')} - bitte im Sheet prüfen.`, 500);
-    return {
-      ok: true, orderId: t(orderId), positionen: plan.korb.length, status: zurueck ? 'bestellt' : 'geliefert',
-      paket: plan.paket ? (plan.paket.neu ? 'Wareneingang gesetzt' : 'Wareneingang geleert') : '', hinweis: plan.hinweis,
-      zellen: data.map(d => d.range),
-    };
+    return bucheEingangInSperre({ orderId, auswahl, zurueck, sheets, spreadsheetId, nun: jetzt().toISOString() });
   });
 }
 

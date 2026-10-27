@@ -53,7 +53,7 @@ async function sheetsClient() {
   return sheetsMitWiederholung(google.sheets({ version: 'v4', auth: await getGoogleAuth() }));
 }
 
-async function reiter(sheets, spreadsheetId, titel) {
+export async function reiter(sheets, spreadsheetId, titel) {
   const { data } = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties(title,sheetId,gridProperties)' });
   return (data.sheets ?? []).map(s => s.properties).find(p => p.title === titel) ?? null;
 }
@@ -72,7 +72,7 @@ export function _belegeSperreLoesen() { laeuft = false; }
  * Neue Zeilen ohne append (Muster des Korbs): erste freie Zeile, Nachbarzeile oben und Zielbereich
  * (plus eine Zeile darunter) pruefen, values.update RAW, zuruecklesen.
  */
-async function haengeAn({ sheets, spreadsheetId, tab, info, alt, zeilen }) {
+export async function haengeAn({ sheets, spreadsheetId, tab, info, alt, zeilen }) {
   if (!zeilen.length) return null;
   const breite = Math.max(...zeilen.map(z => z.length));
   const ende = colLetter(breite - 1);
@@ -398,7 +398,7 @@ export async function runBelegeAbruf({
 
 // ── Einrichtung (scripts/setup-lshop-belege-reiter.js) ──────────────────────
 
-async function legeReiterAn({ sheets, spreadsheetId, tab, spalten, textSpalten = [] }) {
+export async function legeReiterAn({ sheets, spreadsheetId, tab, spalten, textSpalten = [] }) {
   const { data: add } = await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: [
     { addSheet: { properties: { title: tab, gridProperties: { rowCount: 500, columnCount: spalten.length, frozenRowCount: 1 } } } },
   ] } });

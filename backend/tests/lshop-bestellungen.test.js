@@ -219,7 +219,7 @@ describe('Frontend-Block L-Shop-Bestellungen', () => {
     expect(html).toMatch(/if \(btn\.dataset\.subtab === 'tab-lshop-bestellungen'\) loadLShopBestellungen\(\);/);
     expect(html).toContain("sub('tab-lshop-bestellungen', `L-Shop-Bestellungen (${kurz})`);");
     expect(html).toMatch(/\/api\/bestellen\/lshop-bestellungen`/);
-    expect(html).toMatch(/bestellungen: \['entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'\]/);
+    expect(html).toMatch(/bestellungen: \['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'\]/);
     expect(html).toContain("'filter-alle':          { name: 'Alle', text: 'Alles, was noch nicht bestellt ist: offen und herausgenommen.' }");
   });
 });

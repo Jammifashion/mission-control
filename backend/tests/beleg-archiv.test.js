@@ -112,20 +112,21 @@ describe('archiviere', () => {
 });
 
 describe('richteArchivEin', () => {
-  test('Trockenlauf nichts, --write fuenf Art-Ordner (BO4c: + Bestellung) + Jahr, danach vorhanden', async () => {
+  test('Trockenlauf nichts, --write sechs Art-Ordner (BO4c: + Bestellung, BO4b-5: + Karton) + Jahr, danach vorhanden', async () => {
     const d = driveAttrappe();
     const t = await richteArchivEin({ jahr: '2026', drive: d.drive, driveId: DRIVE });
-    expect(t).toHaveLength(5);
+    expect(t).toHaveLength(6);
     expect(t[4]).toMatch(/Bestellung\/2026 fehlt/);
+    expect(t[5]).toMatch(/Karton\/2026 fehlt/);
     expect(t[0]).toMatch(/fehlt -> wuerde angelegt/);
     expect(d.aufrufe.create).toEqual([]);
     const w = await richteArchivEin({ write: true, jahr: '2026', drive: d.drive, driveId: DRIVE });
     expect(w.every(z => z.startsWith('✓'))).toBe(true);
-    expect(d.aufrufe.create).toHaveLength(1 + 5 + 5);
+    expect(d.aufrufe.create).toHaveLength(1 + 6 + 6);
     _archivCacheLeeren();
     const n = await richteArchivEin({ write: true, jahr: '2026', drive: d.drive, driveId: DRIVE });
     expect(n.every(z => z.includes('vorhanden - nicht angefasst'))).toBe(true);
-    expect(d.aufrufe.create).toHaveLength(11);
+    expect(d.aufrufe.create).toHaveLength(13);
   });
 });
 

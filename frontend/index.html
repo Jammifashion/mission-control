@@ -461,6 +461,13 @@
       .we-zeile input[type=checkbox] { width: 18px; height: 18px; flex: none; }
       .we-zeile.we-erledigt { color: var(--muted); }
       @media (max-width: 600px) { .we-zeile { min-height: 40px; } }
+      .ks-video { width: 100%; max-height: 50vh; background: #000; border-radius: 8px; object-fit: cover; }
+      .ks-ampel { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; }
+      .ks-ok { background: var(--success); } .ks-gelb { background: var(--warning, #d4a017); } .ks-rot { background: var(--danger, #c0392b); }
+      .ks-kopf { padding: 0.5rem 0; font-size: 0.9rem; }
+      .ks-kopf.ks-rot-text { color: var(--danger, #c0392b); font-weight: 600; }
+      .ks-link-feld { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+      .ks-link-feld input { flex: 1; min-width: 12rem; }
       #korb-alle-btn[hidden] { display: none; }
 
       /* BO3c: Umschalter "Gruppieren nach" und aufklappbare Gruppen */
@@ -1429,6 +1436,7 @@
                 </span>
               </div>
               <div class="korb-aktionen">
+                <button type="button" class="btn-lshop-bestellen korb-klein" id="ks-oeffnen" data-hilfe="karton-scannen">Karton scannen</button>
                 <button class="hilfe-i" type="button" data-hilfe-gruppe="bestellungen" aria-controls="hilfe-bestellungen" aria-expanded="false" aria-label="Was bedeuten die Knöpfe?">ⓘ</button>
               </div>
             </div>
@@ -1482,6 +1490,35 @@
               <button type="button" class="btn-lshop-bestellen" id="we-buchen" data-hilfe="we-buchen">Als geliefert buchen</button>
             </div>
             <div id="we-ergebnis" class="korb-zaehler"></div>
+          </div>
+        </div>
+
+        <!-- BO4b-5 Schritt 2: Karton-Scan. QR-Code per Kamera (BarcodeDetector) oder Link einfuegen. Der Link (enthaelt
+             die Kundennummer) bleibt nur im Speicher dieser Seite: nie in Adresse, localStorage, Toast oder Anzeige. -->
+        <div id="ks-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="ks-titel" hidden>
+          <div class="edi-box">
+            <div class="edi-kopf">
+              <strong id="ks-titel">Karton scannen</strong>
+              <span class="korb-reihe">
+                <button class="hilfe-i" type="button" data-hilfe-gruppe="karton" aria-controls="hilfe-karton" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+                <button type="button" class="korb-link" id="ks-schliessen">Schließen</button>
+              </span>
+            </div>
+            <div id="hilfe-karton" class="hilfe-legende" hidden></div>
+            <div id="ks-scan">
+              <video id="ks-video" class="ks-video" playsinline muted hidden></video>
+              <div id="ks-kamera-text" class="korb-zaehler">Halte den QR-Code vom Karton-Etikett vor die Kamera.</div>
+              <div class="ks-link-feld">
+                <input id="ks-link" type="url" class="form-input" placeholder="oder Link einfügen" autocomplete="off" spellcheck="false" />
+                <button type="button" class="btn-secondary korb-klein" id="ks-pruefen" data-hilfe="karton-pruefen">Prüfen</button>
+              </div>
+            </div>
+            <div id="ks-ergebnis"></div>
+            <div class="korb-reihe">
+              <button type="button" class="btn-lshop-bestellen" id="ks-buchen" data-hilfe="karton-angekommen" hidden>Karton angekommen</button>
+              <button type="button" class="korb-link" id="ks-neu" data-hilfe="karton-naechster" hidden>Nächsten Karton scannen</button>
+            </div>
+            <div id="ks-meldung" class="korb-zaehler"></div>
           </div>
         </div>
 
@@ -4445,6 +4482,25 @@
         const b = d?.bestellungen ?? [];
         return { unterwegs: b.filter(x => x.filter?.unterwegs).length, geliefert: b.filter(x => x.filter?.geliefert).length, alle: b.length };
       }
+      // BO4b-5 Schritt 2: Ergebnis des Karton-Scans (Antwort von POST .../karton/pruefen). ok vorgewaehlt, "Menge anders"
+      // waehlbar ohne Haken, alles andere nur zur Info. Rot (fremde/unbekannte Bestellung): keine Auswahl.
+      function ksErgebnisHtml(r) {
+        const ampel = a => `<span class="ks-ampel ks-${lbEsc(a)}" aria-label="${lbEsc(a)}"></span>`;
+        if (r.ampel === 'rot') return `<div class="ks-kopf ks-rot-text">${ampel('rot')} ${lbEsc(r.grund)}</div>`;
+        const kopf = `<div class="ks-kopf">${ampel(r.ampel)} <strong>${lbEsc(r.orderId)}</strong>`
+          + `${r.la ? ` · ${lbEsc(r.la)}` : ''} · Karton ${lbEsc(r.kartonId)} · ${lbMehrzahl(r.stueck, 'Stück', 'Stück')}`
+          + `${r.grund ? `<br><strong>${lbEsc(r.grund)}</strong>` : ''}`
+          + `${(r.hinweise ?? []).map(h => `<br>⚠ ${lbEsc(h)}`).join('')}</div>`;
+        const zeilen = r.positionen.map(p => {
+          const text = `${ampel(p.ampel)} ${[p.reference, p.articleNo, p.color, p.size].filter(Boolean).map(lbEsc).join(' · ')} <strong>×${lbEsc(p.ord)}</strong>`
+            + `${p.ampel === 'ok' ? '' : ` · <em>${lbEsc(p.text)}</em>`}`;
+          if (!p.waehlbar) return `<div class="we-zeile we-erledigt"><span style="flex:1">${text}</span></div>`;
+          return `<div class="we-zeile"><label><input type="checkbox" data-ks-pos="${lbEsc(p.schluessel)}"${p.vorgewaehlt ? ' checked' : ''}> <span>${text}</span></label></div>`;
+        }).join('') || '<div class="lb-leer">keine Positionen gelesen</div>';
+        const fehlt = (r.nichtImKarton ?? []).length
+          ? `<div class="korb-zaehler">Noch nicht in diesem Karton: ${r.nichtImKarton.map(p => `${lbEsc(p.reference)} ×${lbEsc(p.menge)}`).join(' · ')}</div>` : '';
+        return kopf + zeilen + fehlt;
+      }
       // ── L-Shop-Bestellungen: Ende ──
 
       // ── Knopf-Hilfe: Anfang (UX1, backend/tests/knopf-hilfe.test.js) ──
@@ -4492,6 +4548,10 @@
         'edi-pruefen':          { name: 'Neu prüfen', text: 'Prüft die Auswahl nach einer Änderung erneut.' },
         // BO4b-5: Wareneingang
         'ware-angekommen':      { name: 'Ware angekommen …', text: 'Öffnet die Liste dieser Bestellung. Dort hakst du ab, was im Paket war, und buchst es als geliefert.' },
+        'karton-scannen':       { name: 'Karton scannen', text: 'Öffnet die Kamera. Scanne den QR-Code auf dem L-Shop-Karton und sieh, was drin sein soll.' },
+        'karton-pruefen':       { name: 'Prüfen', text: 'Liest den eingefügten Karton-Link und vergleicht den Inhalt mit der Bestellung. Bucht noch nichts.' },
+        'karton-angekommen':    { name: 'Karton angekommen', text: 'Bucht die angehakten Positionen als geliefert und legt die Karton-PDF ins Archiv.' },
+        'karton-naechster':     { name: 'Nächsten Karton scannen', text: 'Leert die Anzeige und startet die Kamera für den nächsten Karton.' },
         'we-buchen':            { name: 'Als geliefert buchen', text: 'Setzt die angehakten Positionen auf „geliefert“. Nicht angehakte bleiben „bestellt“.' },
         'we-zurueck':           { name: 'zurück auf bestellt', text: 'Nimmt einen versehentlich gebuchten Eingang zurück. Die Position gilt wieder als unterwegs.' },
         // BO4c
@@ -4512,7 +4572,8 @@
         korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'eigen', 'abgleich', 'belege', 'alle-offenen', 'zurueck'],
         leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
         uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
-        bestellungen: ['entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
+        karton: ['karton-pruefen', 'karton-angekommen', 'karton-naechster'],
+        bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
       };
@@ -5836,6 +5897,104 @@
         weSenden('wareneingang/zurueck', [{ schluessel: k.dataset.weZurueck, status: 'geliefert' }], () => 'Position wieder auf bestellt');
       });
       document.getElementById('we-schliessen')?.addEventListener('click', () => { document.getElementById('we-dialog').hidden = true; });
+
+      // ── SECTION: Karton-Scan (BO4b-5) ──
+      // QR-Code des L-Shop-Kartons: Kamera + BarcodeDetector (Chrome/Android), sonst Link einfuegen. Der Server liest die
+      // Karton-PDF und gleicht ab; "Karton angekommen" schickt den Link erneut (der Server glaubt dem Browser nichts).
+      // ⚠️ Der Link enthaelt die L-Shop-Kundennummer: nur in ksZustand.link, beim Schliessen geleert, nie angezeigt.
+      const KS_MUSTER = /^https:\/\/textilelogistics\.eu\/pdf\//;
+      const ksZustand = { link: '', ergebnis: null, strom: null, laeuft: false, suche: 0 };
+      const ksEl = id => document.getElementById(id);
+      function ksKameraStopp() {
+        ksZustand.suche++;
+        ksZustand.strom?.getTracks().forEach(t => t.stop());
+        ksZustand.strom = null;
+        const v = ksEl('ks-video'); v.srcObject = null; v.hidden = true;
+      }
+      async function ksKameraStart() {
+        const text = ksEl('ks-kamera-text');
+        if (!('BarcodeDetector' in window) || !navigator.mediaDevices?.getUserMedia) {
+          text.textContent = 'Kamera-Scan geht in diesem Browser nicht – Link aus dem QR-Code unten einfügen.';
+          return;
+        }
+        try {
+          const erkenner = new BarcodeDetector({ formats: ['qr_code'] });
+          ksZustand.strom = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+          const v = ksEl('ks-video'); v.srcObject = ksZustand.strom; v.hidden = false; await v.play();
+          text.textContent = 'Halte den QR-Code vom Karton-Etikett vor die Kamera.';
+          const nr = ++ksZustand.suche;
+          const schritt = async () => {
+            if (nr !== ksZustand.suche) return;
+            try {
+              const treffer = (await erkenner.detect(v)).map(c => c.rawValue).find(w => KS_MUSTER.test(w));
+              if (treffer) { ksKameraStopp(); ksPruefen(treffer); return; }
+            } catch { /* naechstes Bild */ }
+            setTimeout(schritt, 250);
+          };
+          schritt();
+        } catch {
+          text.textContent = 'Kamera nicht freigegeben – Link aus dem QR-Code unten einfügen.';
+        }
+      }
+      function ksZuruecksetzen() {
+        ksZustand.link = ''; ksZustand.ergebnis = null;
+        ksEl('ks-link').value = '';
+        ksEl('ks-ergebnis').innerHTML = ''; ksEl('ks-meldung').textContent = '';
+        ksEl('ks-buchen').hidden = true; ksEl('ks-neu').hidden = true; ksEl('ks-scan').hidden = false;
+      }
+      async function ksAnfrage(pfad, body) {
+        const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/karton/${pfad}`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+        });
+        const j = await res.json().catch(() => null);
+        if (!res.ok) {
+          const liste = (j?.probleme ?? []).slice(0, 5).map(p => `${p.schluessel}: ${p.text}`).join(' · ');
+          throw new Error(`${j?.error || `HTTP ${res.status}`}${liste ? ` (${liste})` : ''}`);
+        }
+        return j;
+      }
+      async function ksPruefen(link) {
+        if (ksZustand.laeuft) return;
+        if (!KS_MUSTER.test(link)) { ksEl('ks-meldung').textContent = 'Das ist kein Karton-Link von L-Shop.'; return; }
+        ksZustand.laeuft = true; ksZustand.link = link;
+        ksEl('ks-link').value = '';
+        ksEl('ks-meldung').textContent = 'Karton wird gelesen …';
+        try {
+          const r = await ksAnfrage('pruefen', { link });
+          ksZustand.ergebnis = r;
+          ksEl('ks-scan').hidden = true;
+          ksEl('ks-ergebnis').innerHTML = ksErgebnisHtml(r);
+          ksEl('ks-buchen').hidden = r.ampel === 'rot' || !r.positionen.some(p => p.waehlbar);
+          ksEl('ks-neu').hidden = false;
+          ksEl('ks-meldung').textContent = '';
+        } catch (e) {
+          ksZustand.link = '';
+          ksEl('ks-meldung').textContent = e.message;
+        } finally { ksZustand.laeuft = false; }
+      }
+      ksEl('ks-oeffnen')?.addEventListener('click', () => { ksZuruecksetzen(); ksEl('ks-dialog').hidden = false; ksKameraStart(); });
+      ksEl('ks-pruefen')?.addEventListener('click', () => { ksKameraStopp(); ksPruefen(ksEl('ks-link').value.trim()); });
+      ksEl('ks-neu')?.addEventListener('click', () => { ksZuruecksetzen(); ksKameraStart(); });
+      ksEl('ks-schliessen')?.addEventListener('click', () => { ksKameraStopp(); ksZuruecksetzen(); ksEl('ks-dialog').hidden = true; });
+      ksEl('ks-buchen')?.addEventListener('click', async () => {
+        if (ksZustand.laeuft || !ksZustand.link) return;
+        const auswahl = [...document.querySelectorAll('#ks-ergebnis [data-ks-pos]:checked')].map(c => ({ schluessel: c.dataset.ksPos, status: 'bestellt' }));
+        if (!auswahl.length) { showToast('Keine Position angehakt', 'error'); return; }
+        ksZustand.laeuft = true;
+        const knopf = ksEl('ks-buchen'); knopf.disabled = true;
+        try {
+          const j = await ksAnfrage('angekommen', { link: ksZustand.link, auswahl });
+          const text = `${j.positionen} Position(en) als geliefert gebucht · Karton ${j.kartonId}${j.hinweis ? ` · ${j.hinweis}` : ''}`;
+          ksZustand.link = '';
+          ksEl('ks-meldung').textContent = text; showToast(text);
+          knopf.hidden = true;
+          ksEl('ks-ergebnis').querySelectorAll('input').forEach(i => { i.disabled = true; });
+          korbZustand.daten = null;
+          await loadLShopBestellungen();
+        } catch (e) {
+          ksEl('ks-meldung').textContent = e.message; showToast('Buchen fehlgeschlagen', 'error');
+        } finally { ksZustand.laeuft = false; knopf.disabled = false; }
+      });
 
       // ── SECTION: Artikelerfassung ──
       const PROP_NAMES = ['Farbe', 'Größe', 'Druckfarbe']; // Fallback bis SSOT geladen
