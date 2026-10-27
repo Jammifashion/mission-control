@@ -8,7 +8,7 @@ import {
   BELEGE_TAB, BELEGE_SPALTEN, ORDNER, ERGEBNIS, ART, dekodiere, findeOrderIds, orderIdAusDateiname, bewerteOrderDatei,
   bewerteAb, fehlerSerie, fehllaufMelden, eintragGeaendert, belegeSpalten, ftpZeit, orderLiegtZuLange, sha256,
   buildBelegeAlarmNachricht, buildFtpFehlerNachricht, SENDUNGEN_TAB, SENDUNGEN_SPALTEN, BelegFormatFehler,
-  leseLieferbestaetigung, bewertePaket, archivJahr, mimeFuer, istErstbestandsDatei, MAX_NEUE_BELEGE_JE_LAUF,
+  leseLieferbestaetigung, buildVersandtNachricht, bewertePaket, archivJahr, mimeFuer, istErstbestandsDatei, MAX_NEUE_BELEGE_JE_LAUF,
 } from '../utils/lshop-belege.js';
 import { ArchivFehler, ArchivKonflikt } from '../lib/belegArchiv.js';
 import { runBelegeAbruf, richteBelegeEin, BELEGE_BESCHAEFTIGT } from '../lib/lshopBelege.js';
@@ -154,13 +154,13 @@ const sendungenAb = tabs => tabs[SENDUNGEN_TAB].slice(1).map(r => Object.fromEnt
 
 // Lieferbestaetigung wie gemessen: UTF-16 LE mit BOM, Kopf "utf-8", je Paket ein dataset, CDATA, leere
 // Felder mit einem Leerzeichen. Adressfelder mit Platzhaltern - sie duerfen nirgends ankommen.
-const paket = ({ nr, va = 'VA00000001', la = 'LA00000001', kd = ' ', url } = {}) => `
+const paket = ({ nr, va = 'VA00000001', la = 'LA00000001', kd = ' ', url, fracht = 'DHL' } = {}) => `
 <dataset>
 <KundeDE><![CDATA[99999999]]></KundeDE>
 <VorgangDE><![CDATA[${va} / ${la}]]></VorgangDE>
 <KdBestellNrDE><![CDATA[${kd}]]></KdBestellNrDE>
 <Paketnummer><![CDATA[${nr}]]></Paketnummer>
-<Frachtfuehrer><![CDATA[DHL]]></Frachtfuehrer>
+<Frachtfuehrer><![CDATA[${fracht}]]></Frachtfuehrer>
 <Gewicht><![CDATA[5.54]]></Gewicht>
 <Name1><![CDATA[Platzhalter Firma]]></Name1>
 <Name2><![CDATA[Platzhalter Name]]></Name2>
@@ -308,6 +308,18 @@ describe('runBelegeAbruf (BO4b-1)', () => {
 // ── BO4b-2 ───────────────────────────────────────────────────────────────────
 
 describe('leseLieferbestaetigung', () => {
+  // BO4g: GLS wie gemessen 27.10. (JFN-2026-0003): 12-stellige Paketnummer, Link ebenfalls auf textilelogistics.eu.
+  test('GLS-Paket: Frachtfuehrer GLS, Tracking-Link bleibt, Chat nennt GLS', () => {
+    const nr = '000000009944';
+    const [p] = leseLieferbestaetigung(lb({ nr, kd: 'JFN-2026-0003', va: 'VA00000099', la: 'LA00000099', fracht: 'GLS' }));
+    expect(p).toMatchObject({ paketnummer: nr, frachtfuehrer: 'GLS', orderIdRoh: 'JFN-2026-0003', hinweise: [],
+      url: `https://textilelogistics.eu/tracking/de/${nr}/00000/VA00000099` });
+    const chat = buildVersandtNachricht({ orderId: 'JFN-2026-0003', pakete: [p] });
+    expect(chat).toContain('📦 L-Shop versandt: JFN-2026-0003 · 1 Paket (GLS)');
+    expect(chat).toContain(`Tracking: https://textilelogistics.eu/tracking/de/${nr}/`);
+    expect(chat).not.toMatch(/DHL/);
+  });
+
   test('1, 2 und 3 Pakete; zwei VA in einer Datei; getrimmt; leere Felder; nur die benoetigten Felder', () => {
     expect(leseLieferbestaetigung(lb({ nr: NR1 }))).toHaveLength(1);
     const drei = leseLieferbestaetigung(lb({ nr: NR1 }, { nr: NR2, va: 'VA00000002', la: 'LA00000005' }, { nr: NR3 }));

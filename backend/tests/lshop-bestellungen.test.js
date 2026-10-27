@@ -179,8 +179,8 @@ describe('Frontend-Block L-Shop-Bestellungen', () => {
     expect(h).toContain('<strong>JFN-2026-0005</strong> · VA00000005 · erstellt am 5.11.2026 · 1 Pos. / 1 Stk · KW45 5');
     expect(h).toContain('<span class="lb-status lb-st-versandt">versandt · 2 Pakete</span>');
     expect(h).toContain('JH030F · Deep Black · XL <strong>×1</strong>');
-    expect(h).toContain(`LA00000051 · 5.11.2026 · 1 Paket · <a href="${URL1}" target="_blank" rel="noopener noreferrer" data-hilfe="tracking">Paket 1</a>`);
-    expect(h).toContain('LA00000052 · 6.11.2026 · 1 Paket · Paket 1');   // kein Link fuer fremde URL
+    expect(h).toContain(`LA00000051 · 5.11.2026 · 1 Paket · DHL · <a href="${URL1}" target="_blank" rel="noopener noreferrer" data-hilfe="tracking">Paket 1</a>`);
+    expect(h).toContain('LA00000052 · 6.11.2026 · 1 Paket · DHL · Paket 1');   // kein Link fuer fremde URL; BO4g: Frachtfuehrer aus den Daten
     expect(h).not.toContain('javascript:');
     expect(h).toContain('<span class="lb-folgt">Liefertermin folgt</span>');
     expect(h).toContain('<span class="lb-folgt">Wareneingang folgt</span>');

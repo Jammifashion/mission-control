@@ -4326,8 +4326,10 @@
       function lbLieferscheinHtml(l) {
         const eingang = l.pakete.length && l.pakete.every(p => p.wareneingang)
           ? ' · <strong>eingegangen</strong>' : ' · <span class="lb-folgt">Wareneingang folgt</span>';
+        // BO4g: Frachtfuehrer aus der Lieferbestaetigung (z. B. DHL, GLS), nie fest.
+        const fracht = [...new Set(l.pakete.map(p => p.frachtfuehrer).filter(Boolean))].join('/');
         return `<div class="lb-ls">${lbEsc(l.la)}${l.datum ? ` · ${lbEsc(lbDatum(l.datum))}` : ''} · ${lbMehrzahl(l.pakete.length, 'Paket', 'Pakete')}`
-          + ` · ${lbPaketLinks(l.pakete)}${eingang}</div>`;
+          + `${fracht ? ` · ${lbEsc(fracht)}` : ''} · ${lbPaketLinks(l.pakete)}${eingang}</div>`;
       }
       function lbPositionHtml(p) {
         const modell = [p.catalogNr, p.bezeichnung, p.farbe, p.groesse].filter(Boolean).map(lbEsc).join(' · ') || lbEsc(p.articleNr);
