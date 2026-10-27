@@ -184,7 +184,8 @@ describe('Frontend-Block L-Shop-Bestellungen', () => {
     expect(h).not.toContain('javascript:');
     expect(h).toContain('<span class="lb-folgt">Liefertermin folgt</span>');
     expect(h).toContain('<span class="lb-folgt">Wareneingang folgt</span>');
-    expect(h).not.toMatch(/<button/);
+    // BO4b-5: einziger Knopf auf der Karte ist "Ware angekommen …"
+    expect(h.match(/<button[^>]*>/g)).toEqual([expect.stringContaining('data-eingang="JFN-2026-0005"')]);
     const teil = lbKarteHtml(daten.bestellungen.find(x => x.orderId === 'JFN-2026-0006'), false);
     expect(teil).toMatch(/^<details class="lb-karte" data-order="JFN-2026-0006">/);
     expect(teil).toContain('lb-st-teilweise');
@@ -218,7 +219,7 @@ describe('Frontend-Block L-Shop-Bestellungen', () => {
     expect(html).toMatch(/if \(btn\.dataset\.subtab === 'tab-lshop-bestellungen'\) loadLShopBestellungen\(\);/);
     expect(html).toContain("sub('tab-lshop-bestellungen', `L-Shop-Bestellungen (${kurz})`);");
     expect(html).toMatch(/\/api\/bestellen\/lshop-bestellungen`/);
-    expect(html).toMatch(/bestellungen: \['entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'\]/);
+    expect(html).toMatch(/bestellungen: \['entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'\]/);
     expect(html).toContain("'filter-alle':          { name: 'Alle', text: 'Alles, was noch nicht bestellt ist: offen und herausgenommen.' }");
   });
 });

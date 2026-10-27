@@ -453,6 +453,14 @@
       .lb-unklar { border-left: 3px solid var(--danger); padding-left: 0.5rem; }
       .lb-unklar-text { color: var(--danger); font-weight: 600; }
       .lb-knoepfe { display: inline-flex; flex-wrap: wrap; gap: 0.4rem; }
+      /* BO4b-5: Wareneingang */
+      .lb-aktionen { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0; }
+      .lb-geliefert { color: var(--success); font-weight: 600; }
+      .we-zeile { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+      .we-zeile label { display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0; cursor: pointer; }
+      .we-zeile input[type=checkbox] { width: 18px; height: 18px; flex: none; }
+      .we-zeile.we-erledigt { color: var(--muted); }
+      @media (max-width: 600px) { .we-zeile { min-height: 40px; } }
       #korb-alle-btn[hidden] { display: none; }
 
       /* BO3c: Umschalter "Gruppieren nach" und aufklappbare Gruppen */
@@ -1458,6 +1466,22 @@
               <button type="button" class="btn-secondary korb-klein" id="edi-pruefen" data-hilfe="edi-pruefen">Neu prüfen</button>
             </div>
             <div id="edi-ergebnis" class="korb-zaehler"></div>
+          </div>
+        </div>
+
+        <!-- BO4b-5: Wareneingang von Hand. Buchen POST .../wareneingang, Rueckweg POST .../wareneingang/zurueck. -->
+        <div id="we-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="we-titel" hidden>
+          <div class="edi-box">
+            <div class="edi-kopf">
+              <strong id="we-titel">Ware angekommen</strong>
+              <button type="button" class="korb-link" id="we-schliessen">Schließen</button>
+            </div>
+            <div class="korb-zaehler">Hak an, was im Paket war. Fehlt etwas, nimm das Häkchen weg – die Position bleibt „bestellt“.</div>
+            <div id="we-liste"></div>
+            <div class="korb-reihe">
+              <button type="button" class="btn-lshop-bestellen" id="we-buchen" data-hilfe="we-buchen">Als geliefert buchen</button>
+            </div>
+            <div id="we-ergebnis" class="korb-zaehler"></div>
           </div>
         </div>
 
@@ -4334,7 +4358,8 @@
       function lbPositionHtml(p) {
         const modell = [p.catalogNr, p.bezeichnung, p.farbe, p.groesse].filter(Boolean).map(lbEsc).join(' · ') || lbEsc(p.articleNr);
         const termin = p.liefertermin ? `Liefertermin ${lbEsc(p.liefertermin)}` : '<span class="lb-folgt">Liefertermin folgt</span>';
-        return `<div class="lb-pos"><span class="lb-pos-haupt">${modell} <strong>×${lbEsc(p.menge)}</strong></span>`
+        const geliefert = p.status === 'geliefert' ? ' · <span class="lb-geliefert">geliefert</span>' : '';
+        return `<div class="lb-pos"><span class="lb-pos-haupt">${modell} <strong>×${lbEsc(p.menge)}</strong>${geliefert}</span>`
           + `<span class="lb-pos-neben">${lbEsc(p.articleNr)} · ${lbEsc(p.reference)} · ${termin}</span></div>`;
       }
       function lbKarteHtml(b, offen) {
@@ -4347,7 +4372,27 @@
           : '<div class="lb-abschnitt">Lieferscheine</div><div class="lb-leer">noch keine Lieferung</div>';
         return `<details class="lb-karte" data-order="${lbEsc(b.orderId)}"${offen ? ' open' : ''}>`
           + `<summary><span class="lb-kopf">${kopf}</span>${lbStatusHtml(b)}</summary>`
-          + `<div class="lb-inhalt">${b.positionen.map(lbPositionHtml).join('') || '<div class="lb-leer">keine Positionen gefunden</div>'}${ls}</div></details>`;
+          + `<div class="lb-inhalt">${b.positionen.map(lbPositionHtml).join('') || '<div class="lb-leer">keine Positionen gefunden</div>'}`
+          + `${lbEingangKnopfHtml(b)}${ls}</div></details>`;
+      }
+      // BO4b-5: "Ware angekommen …" (offene Positionen) bzw. "Wareneingang …" (alles geliefert, nur Rueckweg).
+      function lbEingangKnopfHtml(b) {
+        const offen = b.positionen.filter(p => p.status === 'bestellt').length;
+        const geliefert = b.positionen.filter(p => p.status === 'geliefert').length;
+        if (!offen && !geliefert) return '';
+        return `<div class="lb-aktionen"><button class="korb-aktion ${offen ? 'korb-aktion-haupt' : 'korb-aktion-ruhig'}" type="button" data-eingang="${lbEsc(b.orderId)}" data-hilfe="ware-angekommen">`
+          + `${offen ? 'Ware angekommen …' : 'Wareneingang …'}</button></div>`;
+      }
+      /** Dialog-Liste: bestellt = Haekchen (vorgewaehlt), geliefert = grau mit "zurück auf bestellt". */
+      function lbEingangListeHtml(b) {
+        return b.positionen.filter(p => p.status === 'bestellt' || p.status === 'geliefert').map(p => {
+          const text = [p.reference, p.catalogNr, p.farbe, p.groesse].filter(Boolean).map(lbEsc).join(' · ') + ` <strong>×${lbEsc(p.menge)}</strong>`;
+          if (p.status === 'geliefert') {
+            return `<div class="we-zeile we-erledigt"><span style="flex:1">✓ ${text} · geliefert</span>`
+              + `<button class="korb-link" type="button" data-we-zurueck="${lbEsc(p.schluessel)}" data-hilfe="we-zurueck">zurück auf bestellt</button></div>`;
+          }
+          return `<div class="we-zeile"><label><input type="checkbox" data-we-pos="${lbEsc(p.schluessel)}" checked> <span>${text}</span></label></div>`;
+        }).join('') || '<div class="lb-leer">keine Positionen</div>';
       }
       function lbPortalHtml(portal, zeigeAeltere) {
         if (!portal?.length) return '';
@@ -4445,6 +4490,10 @@
         'edi-entwurf':          { name: 'Nur Entwurf + herunterladen', text: 'Speichert einen Entwurf und lädt die Datei herunter. Nichts geht an L-Shop. Senden später unter L-Shop-Bestellungen → Entwürfe.' },
         'edi-gesperrt':         { name: 'gesperrt', text: 'Geht erst, wenn der Prüfbericht grün ist und nach einer Änderung neu geprüft wurde.' },
         'edi-pruefen':          { name: 'Neu prüfen', text: 'Prüft die Auswahl nach einer Änderung erneut.' },
+        // BO4b-5: Wareneingang
+        'ware-angekommen':      { name: 'Ware angekommen …', text: 'Öffnet die Liste dieser Bestellung. Dort hakst du ab, was im Paket war, und buchst es als geliefert.' },
+        'we-buchen':            { name: 'Als geliefert buchen', text: 'Setzt die angehakten Positionen auf „geliefert“. Nicht angehakte bleiben „bestellt“.' },
+        'we-zurueck':           { name: 'zurück auf bestellt', text: 'Nimmt einen versehentlich gebuchten Eingang zurück. Die Position gilt wieder als unterwegs.' },
         // BO4c
         'an-lshop-senden':      { name: 'An L-Shop senden', text: 'Schickt die Bestellung jetzt echt an L-Shop: Die Ware wird gepackt, versandt und berechnet. Nur einmal klicken.' },
         'zurueck-entwurf':      { name: 'zurück auf Entwurf', text: 'Nur, wenn sicher keine Auftragsbestätigung kam. Sonst „Als gesendet markieren“.' },
@@ -4463,7 +4512,7 @@
         korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'eigen', 'abgleich', 'belege', 'alle-offenen', 'zurueck'],
         leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
         uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
-        bestellungen: ['entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
+        bestellungen: ['entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
       };
@@ -5595,6 +5644,8 @@
         if (senden) { sendenOeffnen(senden.dataset.senden); return; }
         const zurueck = ev.target.closest('[data-zurueck-entwurf]');
         if (zurueck) { lbZurueckAufEntwurf(zurueck); return; }
+        const eingang = ev.target.closest('[data-eingang]');
+        if (eingang) { weOeffnen(eingang.dataset.eingang); return; }
         if (!ev.target.closest('[data-portal-aeltere]')) return;
         lbZustand.portalAeltere = true;
         lbZeichnen();
@@ -5725,6 +5776,66 @@
       }
       document.getElementById('senden-los')?.addEventListener('click', sendenLos);
       document.getElementById('senden-schliessen')?.addEventListener('click', () => { document.getElementById('senden-dialog').hidden = true; });
+
+      // ── SECTION: Wareneingang (BO4b-5) ──
+      // "Ware angekommen" von Hand: Dialog mit den Positionen der L-Shop-Bestellung (bestellt vorgewaehlt). Der
+      // Server prueft frisch (nur bestellt -> geliefert) und schreibt Korb + ggf. Wareneingang am Paket in einem Zug.
+      const weZustand = { orderId: '', laeuft: false };
+      function weBestellung(id) { return (lbZustand.daten?.bestellungen ?? []).find(b => b.orderId === id); }
+      function weZeichnen() {
+        const b = weBestellung(weZustand.orderId);
+        document.getElementById('we-titel').textContent = `Ware angekommen · ${weZustand.orderId}`;
+        document.getElementById('we-liste').innerHTML = b ? lbEingangListeHtml(b) : '<div class="lb-leer">Bestellung nicht gefunden – neu laden.</div>';
+        const offen = b ? b.positionen.some(p => p.status === 'bestellt') : false;
+        document.getElementById('we-buchen').hidden = !offen;
+      }
+      function weOeffnen(orderId) {
+        weZustand.orderId = orderId;
+        document.getElementById('we-ergebnis').textContent = '';
+        document.getElementById('we-dialog').hidden = false;
+        weZeichnen();
+      }
+      async function weSenden(pfad, auswahl, erfolg) {
+        if (weZustand.laeuft) return;
+        weZustand.laeuft = true;
+        const knopf = document.getElementById('we-buchen');
+        knopf.disabled = true;
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/${pfad}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId: weZustand.orderId, auswahl }),
+          });
+          const j = await res.json().catch(() => null);
+          if (!res.ok) {
+            const liste = (j?.probleme ?? []).slice(0, 5).map(p => `${p.schluessel}: ${p.text}`).join(' · ');
+            document.getElementById('we-ergebnis').textContent = `${j?.error || `HTTP ${res.status}`}${liste ? ` (${liste})` : ''}`;
+            showToast(j?.error || 'Speichern fehlgeschlagen', 'error');
+            return;
+          }
+          document.getElementById('we-ergebnis').textContent = erfolg(j);
+          showToast(erfolg(j));
+          korbZustand.daten = null;
+          await loadLShopBestellungen();
+          weZeichnen();
+        } catch (e) {
+          showToast(`Speichern fehlgeschlagen: ${e.message}`, 'error');
+        } finally {
+          weZustand.laeuft = false;
+          knopf.disabled = false;
+        }
+      }
+      document.getElementById('we-buchen')?.addEventListener('click', () => {
+        const auswahl = [...document.querySelectorAll('#we-liste [data-we-pos]:checked')].map(c => ({ schluessel: c.dataset.wePos, status: 'bestellt' }));
+        if (!auswahl.length) { showToast('Keine Position angehakt', 'error'); return; }
+        weSenden('wareneingang', auswahl, j => `${j.positionen} Position(en) als geliefert gebucht${j.hinweis ? ` · ${j.hinweis}` : ''}`);
+      });
+      document.getElementById('we-liste')?.addEventListener('click', async ev => {
+        const k = ev.target.closest('[data-we-zurueck]');
+        if (!k) return;
+        const ok = await showConfirm('Zurück auf bestellt?', 'Die Position gilt dann wieder als nicht angekommen.', 'Zurück auf bestellt');
+        if (!ok) return;
+        weSenden('wareneingang/zurueck', [{ schluessel: k.dataset.weZurueck, status: 'geliefert' }], () => 'Position wieder auf bestellt');
+      });
+      document.getElementById('we-schliessen')?.addEventListener('click', () => { document.getElementById('we-dialog').hidden = true; });
 
       // ── SECTION: Artikelerfassung ──
       const PROP_NAMES = ['Farbe', 'Größe', 'Druckfarbe']; // Fallback bis SSOT geladen

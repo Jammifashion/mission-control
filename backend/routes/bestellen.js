@@ -5,6 +5,7 @@ import {
 import { notifyFehler } from '../lib/chatNotify.js';
 import { ediVorschau, ediErzeugen, ediAlsGesendet, ediSendenVorschau, ediSenden, ediZurueckAufEntwurf } from '../lib/lshopEdi.js';
 import { leseLShopBestellungen } from '../lib/lshopBestellungen.js';
+import { wareneingangBuchen, wareneingangZurueck } from '../lib/wareneingang.js';
 import { leseProduktionStand } from '../lib/produktionStand.js';
 
 const router = Router();
@@ -135,6 +136,23 @@ router.post('/lshop-korb/edi/zurueck', async (req, res, next) => {
     res.json(await ediZurueckAufEntwurf({ orderId: req.body?.orderId }));
   } catch (err) { next(err); }
 });
+
+// ── BO4b-5: Wareneingang ─────────────────────────────────────────────────────
+// POST .../wareneingang { orderId, auswahl: [{schluessel, status}] }: "Ware angekommen" (von Hand), nur
+// bestellt -> geliefert, Wareneingang am Paket bei genau einem Paket. POST .../wareneingang/zurueck: Rueckweg.
+// 422/409 + probleme, nichts geschrieben. Schreibweg lib/wareneingang.js.
+for (const [pfad, fn] of [['/lshop-korb/wareneingang', wareneingangBuchen], ['/lshop-korb/wareneingang/zurueck', wareneingangZurueck]]) {
+  router.post(pfad, async (req, res, next) => {
+    try {
+      const r = await fn({ orderId: req.body?.orderId, auswahl: req.body?.auswahl });
+      console.log(`Wareneingang ${r.status}: ${r.orderId} (${r.positionen} Position(en)${r.paket ? `, ${r.paket}` : ''})`);
+      res.json(r);
+    } catch (err) {
+      if ((err?.status === 422 || err?.status === 409) && err.probleme) return res.status(err.status).json({ error: err.message, probleme: err.probleme });
+      next(err);
+    }
+  });
+}
 
 // ── GET /api/bestellen/lshop-korb?shop=jfn|honk[&mit=bestelldatum] ───────────
 // Liest NUR den Reiter Warenkorb_LShop, gebuendelt nach LShop_ArticleNr, ohne Kundennamen.

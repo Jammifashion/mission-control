@@ -250,6 +250,14 @@ Neue Sektionen immer mit Anker versehen:
   gesperrt ueber aria-disabled (Erklaerung "edi-gesperrt" beim Darueberfahren), nie zweiter Entwurf ohne "Neu
   pruefen". Express-Zeilen (express, express_spaet, express_senden) zeigen beide Dialoge nur bei Versandart EX…
   (`ediPunkteSichtbar`, Block `EDI-Pruefung: Anfang/Ende`, Test edi-frontend.test.js); die Pruefung selbst bleibt.
+- backend/lib/wareneingang.js – Wareneingang (BO4b-5), Logik `utils/wareneingang.js`. Schritt 1 „Ware angekommen“
+  von Hand: Knopf auf jeder Karte in „L-Shop-Bestellungen“ (Block `L-Shop-Bestellungen`, `lbEingangKnopfHtml`),
+  Dialog `#we-dialog` mit den Positionen (bestellt vorgewaehlt, geliefert mit „zurück auf bestellt“).
+  `POST /api/bestellen/lshop-korb/wareneingang` bzw. `…/wareneingang/zurueck` `{ orderId, auswahl }` unter der
+  Korb-Sperre: nur Positionen mit `Bestell_ID` = order_id, nur `bestellt` -> `geliefert` (Rueckweg umgekehrt),
+  Status wie im Browser gesehen (sonst 409/422 + probleme, nichts geschrieben); EIN batchUpdate (Status,
+  Status_Datum, Stand) + `LShop_Sendungen.Wareneingang` NUR bei genau einem Paket der Bestellung (Rueckweg
+  leert ihn, wenn nichts mehr geliefert ist); zurueckgelesen. „geliefert/teilweise“ leitet `bestellStatus` ab.
 - backend/lib/lshopBelege.js – Belege-Abruf (BO4b-1), Logik in `utils/lshop-belege.js`. Scheduler
   `POST /api/intern/lshop-belege/abruf` (Job `lshop-belege-abruf`, `7,37 * * * *`) und Knopf
   `POST /api/bestellen/lshop-belege/abruf` (`routes/lshopBelege.js`, eigener Router, damit
