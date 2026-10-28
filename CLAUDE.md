@@ -577,6 +577,13 @@ Neue Sektionen immer mit Anker versehen:
   Farbe vor (`default_attributes`, Ruecklesen `pruefeVorblendung`), Bild-ALT = Titel + Farbe (`bildTitel`).
   Preise `.preise-fanmeet.json` (gitignored). Sheets **ohne `values.append`**: `schreibeNeueZeilen` (erste freie
   Zeile, Nachbar + Zielbereich pruefen, `values.update` RAW, UNFORMATTED zuruecklesen) auch fuer Maske/Varianten.
+  NEU1: `artikel.farben` = mehrere Farben je Artikel (gleiche Groessen je Farbe, sonst Stopp; ArticleNr je Farbe;
+  KEINE Vorblendung, `pruefeVorblendung(…, null)` erwartet leer), Bild je Farbe (`artikel.bilder`, Variationsbild
+  `farbBild`, Galerie in Farbreihenfolge); `artikel.kategorieIds`/`kategorienText` vor denen der Kollektion.
+  Kollektionen `ucs-lebkuchen` (Sweater 293 + 685/684, `ki`: KI_SATZ nach dem SEO-Text, Vermerk in Motive "Offen" -
+  nie Nur_intern, sonst meldet die Pruefung den KI-Satz) und `tt-fluffy` (P-002, Kat. 121, `motivAenderung` aendert
+  die vorhandene Motive-Zeile TT-Logo, alter Inhalt geprueft). Partner_Artikel legt der Import/Abgleich an, nie das Skript.
+  Preise `.preise-ucs-lebkuchen.json`, `.preise-tt-fluffy.json` (gitignored).
 - backend/lib/wpMedien.js – Upload in die WordPress-Mediathek (`ladeMedienHoch`, `setzeMedienText`),
   eine Stelle fuer `POST /api/artikel/media-upload` und das Halloween-Skript (fetchMitZeitlimit +
   pruefeFetchAntwort; Titel/ALT als Abfrageparameter).
