@@ -245,9 +245,83 @@ export const FANMEET_FORCELOVE = fanmeetKollektion({
   },
 });
 
+// NEU1 (Entscheidungen Inhaber 28.10., antwort-NEU1 + Terminal): Ugly Christmas Sweater
+// "Leb, Kuchen!" wie die Bestands-Sweater (Vorbild Rentier 21164/21175): nur Deep Black,
+// Kategorien je Artikel (293 + Herren 685 bzw. Damen 684), grossbrief, ein Preis fuer
+// alle Groessen. Motiv KI-erzeugt: KI_SATZ ans Ende der Beschreibung (ki), Vermerk in
+// "Offen" - nicht in Nur_intern, sonst meldet die Pruefung jedes Wort des KI-Satzes.
+export const UCS_LEBKUCHEN = {
+  schluessel: 'ucs-lebkuchen', kurz: 'UCS-LebKuchen', motive: null,
+  artikel: ['Herren', 'Damen'].map(art => ({
+    titel: `Leb, Kuchen! – Ugly Christmas Sweater ${art}`,
+    modell: art === 'Herren' ? 'JH030' : 'JH030F', farbe: 'Deep Black',
+    von: 'XS', bis: art === 'Herren' ? '5XL' : 'XXL', versand: 'grossbrief',
+    kategorieIds: [293, art === 'Herren' ? 685 : 684],
+    kategorienText: `Ugly Christmas Sweater, Ugly Christmas Sweater ${art}`,
+    bilddatei: `ugly-christmas-sweater-leb-kuchen-${art.toLowerCase()}-black-${art === 'Herren' ? 'Jh030' : 'Jh030F'}.jpg`,
+    bildName: `leb-kuchen-ugly-christmas-sweater-${art.toLowerCase()}-schwarz`,
+    bildTitel: `Leb, Kuchen! – Ugly Christmas Sweater ${art} Schwarz`,
+    keyphrase: `Leb Kuchen Sweater ${art}`,
+    synonyme: [`Lebkuchen Weihnachtspullover ${art}`, `Lebkuchenmann Ugly Christmas Sweater ${art}`, `lustiger Lebkuchen Pullover ${art}`],
+  })),
+  // Vereinigung - nur zum Nachpruefen im Shop; am Produkt gelten die IDs des Artikels.
+  kategorie: null, kategorieIds: [293, 684, 685], kategorienText: 'Ugly Christmas Sweater',
+  motivZeile: {
+    motiv: 'Zwei Lebkuchenmänner: einer liegt zerbrochen am Boden (Kreuzaugen), der andere mit Sanitäter-Mütze '
+      + '(rotes Kreuz) und grüner Fliege weint und hält Defibrillator-Paddles mit Blitzen an ihn; Sprechblase '
+      + '„LEB, KUCHEN!“ (Wortspiel „Leb, Kuchen!“); Schneeflocken, Zuckerstangen-Bonbons, Ilex, Streusel',
+    druckposition: 'Front, Brust', druckfarben: 'vollfarbig', druckfarbeJeTextilfarbe: 'nein, fest',
+    serieKontext: 'Ugly Christmas Sweater', nurIntern: '',
+    offen: 'Motiv mit KI gestaltet – KI-Satz am Ende der Beschreibung',
+  },
+  kategorieSeoHinweis: null, kategorieKarte: null, preise: 'ucs-lebkuchen', fp: null, ki: true,
+};
+
+// NEU1: Tobi Torpedo Fluffy Hoodies (Lizenzpartner P-002, Kat. 121), Logo-Motiv TT-Logo
+// (vorhanden), mehrere Farben je Artikel, Druckfarbe fest je Textilfarbe (am Mockup).
+// Partner_Artikel legt der Abgleich an (lib/partnerArtikel.js), nicht dieses Skript.
+const TT_FLUFFY_FARBEN = {
+  'Black':      { datei: 'black',      name: 'schwarz',    alt: 'Schwarz mit weißem Druck' },
+  'Beryl Blue': { datei: 'beryl-blue', name: 'beryl-blue', alt: 'Beryl Blue mit weißem Druck' },
+  'Soft Pink':  { datei: 'Soft-pink',  name: 'soft-pink',  alt: 'Soft Pink mit schwarzem Druck' },
+};
+function ttFluffy({ titel, modell, farben, synonyme }) {
+  return {
+    titel, modell, farben, von: 'XS', bis: '5XL', versand: 'grossbrief', keyphrase: titel, synonyme,
+    bilder: Object.fromEntries(farben.map(f => {
+      const b = TT_FLUFFY_FARBEN[f];
+      return [f, { datei: `${modell}-${b.datei}-tobi-torpedo.jpg`, name: b.name, alt: `${titel} ${b.alt}` }];
+    })),
+  };
+}
+export const TT_FLUFFY = {
+  schluessel: 'tt-fluffy', kurz: 'TT-Logo', motive: null,
+  artikel: [
+    ttFluffy({ titel: 'Tobi Torpedo Fluffy Hoodie', modell: 'BY284', farben: ['Black', 'Beryl Blue', 'Soft Pink'],
+      synonyme: ['Tobi Torpedo Teddy Hoodie', 'Tobi Torpedo Kuschelhoodie', 'Tobi Torpedo Fluffy Kapuzenpullover'] }),
+    ttFluffy({ titel: 'Tobi Torpedo Damen Fluffy Hoodie', modell: 'BY289', farben: ['Black', 'Soft Pink'],
+      synonyme: ['Tobi Torpedo Teddy Hoodie Damen', 'Tobi Torpedo Kuschelhoodie Damen', 'Tobi Torpedo Fluffy Kapuzenpullover Damen'] }),
+  ],
+  kategorie: null, kategorieIds: [121], kategorienText: 'Tobi Torpedo',
+  motivZeile: null,
+  // Vorhandene Motive-Zeile TT-Logo aendern (Inhaber 28.10., Frage 6): Rakete steckt im "O"
+  // (Mockups), Druckfarbe der Fluffys ergaenzen. Spalte -> (alt) => neu; wirft, wenn alt nicht passt.
+  motivAenderung: {
+    Motiv: alt => {
+      if (alt.includes('(Rakete im „O“)')) return alt;
+      if (!alt.includes('(Torpedo als „I“)')) throw new Error('Motive TT-Logo: "(Torpedo als „I“)" nicht gefunden – nichts geändert.');
+      return alt.replace('(Torpedo als „I“)', '(Rakete im „O“)');
+    },
+    Druckfarbe_je_Textilfarbe: alt => (alt.includes('Fluffy BY284/BY289') ? alt
+      : `${alt}; Fluffy BY284/BY289: weiß auf Black und Beryl Blue, schwarz auf Soft Pink`),
+  },
+  kategorieSeoHinweis: null, kategorieKarte: null, preise: 'tt-fluffy', fp: null,
+};
+
 export const KOLLEKTIONEN = {
   [HALLOWEEN.schluessel]: HALLOWEEN, [CH_HALLOWEEN.schluessel]: CH_HALLOWEEN,
   [FANMEET_TAYNEW.schluessel]: FANMEET_TAYNEW, [FANMEET_FORCELOVE.schluessel]: FANMEET_FORCELOVE,
+  [UCS_LEBKUCHEN.schluessel]: UCS_LEBKUCHEN, [TT_FLUFFY.schluessel]: TT_FLUFFY,
 };
 
 // Satz zur KI-Gestaltung des Druckmotivs (HW4): ans Ende der Langbeschreibung.
@@ -357,44 +431,54 @@ export function planeArtikel({ artikel, lshopZeilen, groessenTerme, preise, k = 
   const zeilen = (lshopZeilen ?? []).filter(z => klein(z.catalogNr) === klein(artikel.modell));
   if (!zeilen.length) return fehler(`${artikel.modell} steht nicht in LShop_Modelle – wartet auf LS1 (Modelle_Zusatz + Übernehmen).`, 'wartet auf LS1');
 
-  let farbe = artikel.farbe;
-  if (!farbe) {
+  // NEU1: artikel.farben = mehrere Farben (Achse Farbe mit allen), sonst genau artikel.farbe.
+  let farben = artikel.farben?.length ? [...artikel.farben] : [artikel.farbe];
+  if (!farben[0]) {
     const alle = lshopAuswertung(zeilen).alleFarben;
     const treffer = alle.filter(f => /wash/i.test(f) && /black/i.test(f));
     if (treffer.length !== 1)
       return fehler(`${artikel.modell}: gewaschene schwarze Farbe nicht eindeutig (${treffer.length ? treffer.join(', ') : 'keine'}; Modellfarben: ${alle.join(', ')}) – Inhaber legt fest.`);
-    farbe = treffer[0];
+    farben = [treffer[0]];
   }
-  plan.farbe = farbe;
+  plan.farben = farben;
+  plan.farbe = farben[0];
 
-  const aus = lshopAuswertung(zeilen, { farben: [farbe] });
-  hinweise.push(...aus.hinweise);
-  if (!aus.farben.length) return fehler(`${artikel.modell}: Farbe "${farbe}" nicht wählbar.`);
-  if (aus.auslaufend.some(a => a.farbe === farbe))
-    hinweise.push(`${artikel.modell} ${farbe}: läuft aus (${aus.auslaufend.filter(a => a.farbe === farbe).map(a => `${a.groesse}=${a.wert}`).join(', ')}).`);
+  // Je Farbe dieselben Groessen (sonst Stopp); plan.groessen aus der ersten Farbe.
+  for (const [i, farbe] of farben.entries()) {
+    const aus = lshopAuswertung(zeilen, { farben: [farbe] });
+    hinweise.push(...aus.hinweise);
+    if (!aus.farben.length) return fehler(`${artikel.modell}: Farbe "${farbe}" nicht wählbar.`);
+    if (aus.auslaufend.some(a => a.farbe === farbe))
+      hinweise.push(`${artikel.modell} ${farbe}: läuft aus (${aus.auslaufend.filter(a => a.farbe === farbe).map(a => `${a.groesse}=${a.wert}`).join(', ')}).`);
 
-  const imBereich = groessenImBereich(aus.groessen, artikel.von, artikel.bis);
-  if (artikel.von && artikel.bis) {
-    const fehlt = erwarteteRaenge(artikel.von, artikel.bis).filter(r => !imBereich.some(g => groessenRang(g)?.rang === r));
-    if (fehlt.length) return fehler(`${artikel.modell} ${farbe}: ${fehlt.length} Größe(n) zwischen ${artikel.von} und ${artikel.bis} nicht wählbar.`);
-  }
-  if (!imBereich.length) return fehler(`${artikel.modell} ${farbe}: keine wählbare Größe.`);
+    const imBereich = groessenImBereich(aus.groessen, artikel.von, artikel.bis);
+    if (artikel.von && artikel.bis) {
+      const fehlt = erwarteteRaenge(artikel.von, artikel.bis).filter(r => !imBereich.some(g => groessenRang(g)?.rang === r));
+      if (fehlt.length) return fehler(`${artikel.modell} ${farbe}: ${fehlt.length} Größe(n) zwischen ${artikel.von} und ${artikel.bis} nicht wählbar.`);
+    }
+    if (!imBereich.length) return fehler(`${artikel.modell} ${farbe}: keine wählbare Größe.`);
+    const sortiert = sortiereGroessen(imBereich).sortiert;
 
-  for (const g of sortiereGroessen(imBereich).sortiert) {
-    const v = aus.varianten.find(x => x.farbe === farbe && x.groesse === g);
-    const shop = shopGroesse(g, groessenTerme);
-    if (!shop) hinweise.push(`Größe "${g}" hat keinen Term in "Größe" – wird beim Anlegen neu angelegt.`);
-    plan.groessen.push({ lshop: g, shop: shop ?? g, articleNr: v.articleNr, neuTerm: !shop });
-  }
+    if (i === 0) {
+      for (const g of sortiert) {
+        const shop = shopGroesse(g, groessenTerme);
+        if (!shop) hinweise.push(`Größe "${g}" hat keinen Term in "Größe" – wird beim Anlegen neu angelegt.`);
+        plan.groessen.push({ lshop: g, shop: shop ?? g, articleNr: aus.varianten.find(x => x.farbe === farbe && x.groesse === g).articleNr, neuTerm: !shop });
+      }
+    } else if (sortiert.join('|') !== plan.groessen.map(g => g.lshop).join('|')) {
+      return fehler(`${artikel.modell}: Größen von "${farbe}" (${sortiert.join(', ')}) weichen von "${farben[0]}" ab.`);
+    }
 
-  // Varianten: Groesse aufsteigend, je Groesse die Motive in fester Reihenfolge
-  // (ohne Motiv-Achse: eine Variante je Groesse).
-  for (const g of plan.groessen) {
-    for (const m of k.motive ?? [null]) {
-      plan.varianten.push({
-        farbe, groesse: g.shop, lshopGroesse: g.lshop, motiv: m?.titel ?? null, motivSku: m?.sku ?? null,
-        articleNr: g.articleNr, preis: preisFuer(preise, artikel.modell, g.shop),
-      });
+    // Varianten: Farbe, dann Groesse aufsteigend, je Groesse die Motive in fester
+    // Reihenfolge (ohne Motiv-Achse: eine Variante je Groesse).
+    for (const g of plan.groessen) {
+      const v = aus.varianten.find(x => x.farbe === farbe && x.groesse === g.lshop);
+      for (const m of k.motive ?? [null]) {
+        plan.varianten.push({
+          farbe, groesse: g.shop, lshopGroesse: g.lshop, motiv: m?.titel ?? null, motivSku: m?.sku ?? null,
+          articleNr: v.articleNr, preis: preisFuer(preise, artikel.modell, g.shop),
+        });
+      }
     }
   }
   const skus = baueVariantenSkus(plan.artikelnummer,
@@ -437,35 +521,43 @@ export function produktPayload(plan, { kategorieId, attrIds, markeId, lieferzeit
     short_description: '',
     reviews_allowed: true,
     shipping_class: plan.artikel.versand,
-    categories: produktKategorien(plan.k, kategorieId).map(id => ({ id })),
+    categories: produktKategorien(plan.k, kategorieId, plan.artikel).map(id => ({ id })),
     ...(markeId ? { brands: [{ id: markeId }] } : {}),
     // FM2: genau eine Farbe -> vorgeblendet (Inhaber 12.10.), Groesse nie.
-    default_attributes: [{ id: attrIds.farbe, option: plan.farbe }],
+    // NEU1: mehrere Farben -> keine Vorblendung, der Kunde waehlt (Inhaber 28.10.).
+    default_attributes: farbenVon(plan).length === 1 ? [{ id: attrIds.farbe, option: plan.farbe }] : [],
     meta_data: mitLieferzeit([], lieferzeit),
     attributes: [
-      { id: attrIds.farbe,   position: 0, visible: true, variation: true, options: [plan.farbe] },
+      { id: attrIds.farbe,   position: 0, visible: true, variation: true, options: farbenVon(plan) },
       { id: attrIds.groesse, position: 1, visible: true, variation: true, options: plan.groessen.map(g => g.shop) },
       ...((plan.k ?? HALLOWEEN).motive ? [{ name: MOTIV_ACHSE, position: 2, visible: true, variation: true, options: (plan.k ?? HALLOWEEN).motive.map(m => m.titel) }] : []),
     ],
   };
 }
 
+/** Farben eines Plans (NEU1: mehrere; aeltere Plaene nur plan.farbe). */
+export const farbenVon = plan => (plan.farben?.length ? plan.farben : [plan.farbe]);
+
 /**
  * Ruecklese-Pruefung der Vorblendung (FM2): genau ein Eintrag, Attribut Farbe, Option
  * = Farbe (WooCommerce liefert den Namen oder den Slug zurueck). null = in Ordnung.
+ * farbe null (NEU1, mehrere Farben): es darf nichts vorgeblendet sein.
  */
 export function pruefeVorblendung(defaultAttributes, farbe, farbAttrId) {
   const def = defaultAttributes ?? [];
+  if (farbe === null) return def.length ? `default_attributes ${JSON.stringify(def)} statt leer (mehrere Farben)` : null;
   const soll = [klein(farbe), klein(farbe).replace(/\s+/g, '-')];
   if (def.length === 1 && Number(def[0].id) === Number(farbAttrId) && soll.includes(klein(def[0].option))) return null;
   return `default_attributes ${JSON.stringify(def)} statt Farbe "${farbe}"`;
 }
 
 /**
- * Kategorie-IDs am Produkt: feste IDs, sonst die zusaetzlichen festen (FM2: 320)
- * und die neue Kategorie. Reihenfolge = Reihenfolge der SEO_Hinweise im SEO-Flow.
+ * Kategorie-IDs am Produkt: die des Artikels (NEU1: Herren/Damen), sonst feste IDs,
+ * sonst die zusaetzlichen festen (FM2: 320) und die neue Kategorie. Reihenfolge =
+ * Reihenfolge der SEO_Hinweise im SEO-Flow.
  */
-export function produktKategorien(k, kategorieId) {
+export function produktKategorien(k, kategorieId, artikel = null) {
+  if (artikel?.kategorieIds) return [...artikel.kategorieIds];
   if (k?.kategorieIds) return [...k.kategorieIds];
   return [...(k?.kategorieIdsZusatz ?? []), ...(kategorieId ? [kategorieId] : [])];
 }
@@ -477,7 +569,7 @@ export function produktKategorien(k, kategorieId) {
 export function variationsPayloads(plan, attrIds, bilder) {
   const roh = plan.varianten.map(v => ({ v, attributes: variationsAttribute(v, attrIds) }));
   const reihenfolge = variantenReihenfolge(roh.map(r => ({ attributes: r.attributes })),
-    [{ name: FARB_ACHSE, options: [plan.farbe] }]);
+    [{ name: FARB_ACHSE, options: farbenVon(plan) }]);
   return reihenfolge.map((i, pos) => {
     const { v, attributes } = roh[i];
     return {
@@ -488,7 +580,8 @@ export function variationsPayloads(plan, attrIds, bilder) {
       attributes,
       meta_data: mitGoogleFarbe(mitLieferzeit([], LIEFERZEIT_WIE_ELTERN), attributes),
       // HW3: Variationsbild ueber "Motiv".
-      ...(bilder ? { image: { id: v.motiv ? motivBild(bilder, v.motiv) : einzelBild(bilder) } } : {}),
+      // NEU1: ohne Motiv das Bild der eigenen Farbe (sonst das einzige Bild).
+      ...(bilder ? { image: { id: v.motiv ? motivBild(bilder, v.motiv) : farbBild(bilder, v.farbe) } } : {}),
     };
   });
 }
@@ -531,8 +624,12 @@ export function ordneMockups(dateinamen, artikelListe = ARTIKEL) {
 /** Upload-Liste eines Artikels: Sammelbild, dann 8 Motive (Reihenfolge MOTIVE). */
 export function bildListe(artikel, mockups, k = HALLOWEEN) {
   const basis = normalisiereTeil(artikel.titel);
-  // FM2: Titel = ALT = Artikelname + Farbe (SE6), wo die Kollektion ihn vorgibt.
-  if (!k.motive) return [{ schluessel: 'einzel', quelle: artikel.bilddatei, dateiname: `${basis}.jpg`, titel: artikel.bildTitel ?? artikel.titel }];
+  // NEU1: ein Bild je Farbe (artikel.bilder), Reihenfolge = artikel.farben.
+  if (!k.motive && artikel.bilder) return artikel.farben.map(f => ({
+    schluessel: `farbe:${f}`, quelle: artikel.bilder[f].datei, dateiname: `${basis}-${artikel.bilder[f].name}.jpg`, titel: artikel.bilder[f].alt,
+  }));
+  // FM2: Titel = ALT = Artikelname + Farbe (SE6), wo die Kollektion ihn vorgibt; NEU1: bildName.
+  if (!k.motive) return [{ schluessel: 'einzel', quelle: artikel.bilddatei, dateiname: `${artikel.bildName ?? basis}.jpg`, titel: artikel.bildTitel ?? artikel.titel }];
   return [
     { schluessel: 'sammel', quelle: sammelbildDatei(artikel.modell), dateiname: `${basis}-alle-motive.jpg`,
       titel: `${artikel.titel} alle Motive` },
@@ -549,16 +646,27 @@ export function bilderAusZustand(liste, zustand) {
   const ids = liste.map(id);
   if (!ids.length || ids.some(x => !x)) return null;
   if (liste[0].schluessel === 'einzel') return { einzel: ids[0] };
+  if (liste[0].schluessel.startsWith('farbe:'))
+    return { einzel: ids[0], farben: Object.fromEntries(liste.map((b, i) => [b.schluessel.slice('farbe:'.length), ids[i]])) };
   return { sammel: ids[0], motive: Object.fromEntries(liste.slice(1).map((b, i) => [b.schluessel, ids[i + 1]])) };
 }
 
 export const galerie = (bilder, k = HALLOWEEN) => (k.motive
   ? [{ id: bilder.sammel }, ...k.motive.map(m => ({ id: motivBild(bilder, m.titel) }))]
+  : bilder.farben ? Object.values(bilder.farben).map(id => ({ id }))
   : [{ id: einzelBild(bilder) }]);
 
 function einzelBild(bilder) {
   if (!bilder?.einzel) throw new Error('Artikelbild fehlt.');
   return bilder.einzel;
+}
+
+/** Bild einer Farbe (NEU1); ohne Farbbilder das einzige Bild. */
+export function farbBild(bilder, farbe) {
+  if (!bilder?.farben) return einzelBild(bilder);
+  const id = bilder.farben[farbe];
+  if (!id) throw new Error(`Bild für Farbe "${farbe}" fehlt.`);
+  return id;
 }
 
 function motivBild(bilder, motiv) {
@@ -614,7 +722,7 @@ export function maskeBody(plan, { produktId = '', marke = '' } = {}) {
     'Artikelkurzbezeichnung': plan.k?.kurz ?? KURZ,
     'Artikelnummer': plan.artikelnummer,
     'Versandklasse': plan.artikel.versand,
-    'Kategorien': plan.k?.kategorienText ?? KATEGORIE.name,
+    'Kategorien': plan.artikel.kategorienText ?? plan.k?.kategorienText ?? KATEGORIE.name,
     'Marke': marke,
     'Fokus_Keyphrase': plan.artikel.keyphrase,
     'Fokus_Synonyme': plan.artikel.synonyme.join(', '),
@@ -664,7 +772,23 @@ export function planeSheets(reiter, plaene, { kategorieId = '', heute, k = HALLO
 
   const mh = M[0] ?? [];
   const mKurz = requireHeader(mh, 'Artikelkurzbezeichnung', 'Motive');
-  const motivDa = M.slice(1).some(r => t(r[mKurz]) === k.kurz);
+  const motivIdx = M.findIndex((r, i) => i > 0 && t(r[mKurz]) === k.kurz);
+  const motivDa = motivIdx > 0;
+  if (!motivDa && !k.motivZeile) throw new Error(`Motive: Zeile "${k.kurz}" fehlt und die Kollektion bringt keine mit – nichts geplant.`);
+  // NEU1: vorhandene Motive-Zeile aendern (nur geaenderte Spalten, alt wird beim Schreiben geprueft).
+  let motivAenderung = null;
+  if (k.motivAenderung) {
+    if (!motivDa) throw new Error(`Motive: Zeile "${k.kurz}" fehlt – Änderung nicht möglich.`);
+    const alt = M[motivIdx];
+    const neu = mh.map((_, j) => alt[j] ?? '');
+    const spalten = [];
+    for (const [name, fn] of Object.entries(k.motivAenderung)) {
+      const j = requireHeader(mh, name, 'Motive');
+      const wert = fn(t(alt[j]));
+      if (wert !== t(alt[j])) { neu[j] = wert; spalten.push({ spalte: name, alt: t(alt[j]), neu: wert }); }
+    }
+    motivAenderung = { zeile: motivIdx + 1, alt, neu, spalten, gleich: !spalten.length };
+  }
   const kh = K[0] ?? [];
   const kName = requireHeader(kh, 'Kategoriename', 'Struktur_Kategorien');
   const kNr = findHeader(kh, 'Kategorienummer');
@@ -692,6 +816,7 @@ export function planeSheets(reiter, plaene, { kategorieId = '', heute, k = HALLO
       kategorienZuletzt: letzteZeile(K), karteZuletzt: letzteZeile(S),
     },
     motive:     motivDa ? { vorhanden: true } : { zeile: letzteZeile(M) + 1, werte: motivZeile(mh, heute, k) },
+    motivAenderung,
     kategorie:  kategorieDa ? { vorhanden: true }
       : ersetzIdx > 0 ? { zeile: ersetzIdx + 1, ersetzt: K[ersetzIdx], werte: kategorieZeile(kh, kategorieId, k, K[ersetzIdx]) }
       : { zeile: letzteZeile(K) + 1, werte: kategorieZeile(kh, kategorieId, k) },

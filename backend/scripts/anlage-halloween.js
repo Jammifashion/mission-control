@@ -11,6 +11,10 @@
 // Struktur Z60 um und den SEO_Hinweis von 320, setzt das Kategoriebild) und
 // fanmeet-forcelove; je 6 Artikel ohne Motiv-Achse, in 320 + Fanmeet, Preise aus
 // .preise-fanmeet.json. Pilot: --kollektion fanmeet-taynew --nur E3000.
+// NEU1: ucs-lebkuchen (Sweater Herren/Damen, Kategorien je Artikel, KI-Satz; Bilder
+// aus Christmas-sweater/) und tt-fluffy (Tobi Torpedo, mehrere Farben je Artikel, ein
+// Bild je Farbe aus tobi-torpedo/, aendert die Motive-Zeile TT-Logo). Preise aus
+// .preise-ucs-lebkuchen.json bzw. .preise-tt-fluffy.json.
 //
 // --bilder: Ordner mit mockups/ (32 Mockups, Namen vom Inhaber) und den lokal
 // gebauten sammelbild-<Modell>.jpg. Fuer --write Pflicht.
@@ -49,7 +53,7 @@ import {
   ordneMockups, bildListe, bilderAusZustand, ladeBilderHoch, sammelbildDatei, galerie,
   planeArtikel, planeSheets, geplanteAufrufe, preisVorlage, getakteterClient, leseShopStand,
   findeProdukt, legeArtikelAn, schreibeArtikelSheets, haengeZeileAn, ersetzeZeile, standardLieferzeit, kategorieZeile, karteZeile,
-  produktKategorien, pruefeVorblendung,
+  produktKategorien, pruefeVorblendung, farbenVon, farbBild, KI_SATZ, TEXT_PLATZHALTER,
 } from '../lib/anlageHalloween.js';
 
 const args  = process.argv.slice(2);
@@ -105,15 +109,16 @@ async function run() {
 
   const heute = heuteBerlin();
   const sp = planeSheets(reiter, plaene, { kategorieId: shop.kategorie?.id ?? '', heute, k: K });
-  const neueFarbTerme = [...new Set(plaene.filter(p => p.status === 'bereit' && !shop.farbTerme.some(f => f.toLowerCase() === p.farbe.toLowerCase())).map(p => p.farbe))];
+  const neueFarbTerme = [...new Set(plaene.filter(p => p.status === 'bereit').flatMap(farbenVon)
+    .filter(farbe => !shop.farbTerme.some(f => f.toLowerCase() === farbe.toLowerCase())))];
   const neueGroessen = [...new Set(plaene.flatMap(p => p.groessen.filter(g => g.neuTerm).map(g => g.shop)))];
   // Bilder: Zuordnung pruefen (Stopp bei Fehler), Sammelbilder vorhanden?
   const medien = leseMedien();
   const bilderJe = {};
   if (BILDER && !K.motive) {
     for (const a of artikelListe) {
-      if (!existsSync(join(BILDER, a.bilddatei))) throw new Error(`Bild fehlt: ${a.bilddatei}`);
       bilderJe[a.modell] = bildListe(a, null, K);
+      for (const b of bilderJe[a.modell]) if (!existsSync(join(BILDER, b.quelle))) throw new Error(`Bild fehlt: ${b.quelle}`);
     }
   } else if (BILDER) {
     const m = ordneMockups(readdirSync(join(BILDER, 'mockups')), artikelListe);
@@ -147,6 +152,11 @@ async function run() {
   log(`Farbterme neu: ${neueFarbTerme.join(', ') || '–'} · Größen-Terme neu: ${neueGroessen.join(', ') || '–'}`);
   log(`Motive Z${sp.motive.zeile ?? '-'} ${sp.motive.vorhanden ? '(vorhanden)' : `"${K.kurz}"`} · Struktur_Kategorien ${sp.kategorie.vorhanden ? 'vorhanden' : `Z${sp.kategorie.zeile}${sp.kategorie.ersetzt ? ' (umgeschrieben)' : ''}`} · SEO_Karte ${sp.karte.vorhanden ? 'vorhanden' : `Z${sp.karte.zeile}`}`);
   if (!sp.motive.vorhanden) log(`  Motive neu: ${JSON.stringify(sp.motive.werte)}`);
+  // NEU1: Aenderung einer vorhandenen Motive-Zeile (TT-Logo).
+  if (sp.motivAenderung) log(`Motive Z${sp.motivAenderung.zeile} "${K.kurz}": ${sp.motivAenderung.gleich ? 'schon so'
+    : sp.motivAenderung.spalten.map(x => `
+  ${x.spalte} alt: ${x.alt}
+  ${x.spalte} neu: ${x.neu}`).join('')}`);
   if (sp.kategorie.ersetzt) log(`  Struktur heute: ${JSON.stringify(sp.kategorie.ersetzt)}`);
   if (!sp.kategorie.vorhanden) log(`  Struktur neu:   ${JSON.stringify(sp.kategorie.werte)}`);
   if (!sp.karte.vorhanden) log(`  SEO_Karte neu:  ${JSON.stringify(sp.karte.werte)}`);
@@ -163,7 +173,7 @@ async function run() {
     const versandOk = shop.versandklassen.includes(p.artikel.versand);
     log(`\n[${p.artikel.modell}] ${p.artikel.titel} – ${p.status}`);
     if (p.status === 'bereit') {
-      log(`  Artikelnummer ${p.artikelnummer} · Farbe ${p.farbe} · ${p.groessen.length} Größen${K.motive ? ` × ${K.motive.length} Motive` : ""} = ${p.varianten.length} Variationen · Versand ${p.artikel.versand}${versandOk ? '' : ' (FEHLT im Shop)'}`);
+      log(`  Artikelnummer ${p.artikelnummer} · Farbe ${farbenVon(p).join(', ')} · Kategorien ${produktKategorien(K, shop.kategorie?.id, p.artikel).join(', ')} · ${p.groessen.length} Größen${K.motive ? ` × ${K.motive.length} Motive` : ""} = ${p.varianten.length} Variationen · Versand ${p.artikel.versand}${versandOk ? '' : ' (FEHLT im Shop)'}`);
       log(`  Größen/ArticleNr: ${p.groessen.map(g => `${g.shop}${g.shop !== g.lshop ? `(${g.lshop})` : ''}=${g.articleNr}`).join(' ')}`);
       log(`  SKU längste: ${Math.max(...p.varianten.map(v => v.sku.length))} Zeichen · Preise fehlen: ${ohnePreis}`);
       log(`  Sheets: ${a.vorhanden ? `Maske vorhanden (${a.ssot}, Z${a.maskeZeile})` : `SSOT ${a.ssot}, Maske Z${a.maskeZeile}, Varianten Z${a.variantenVon}–Z${a.variantenBis}`}`);
@@ -184,7 +194,7 @@ async function run() {
     log(`CSV: ${csv.length - 1} Zeilen -> ${CSV}`);
   }
 
-  if (PRUEFEN) { await pruefeAnlage({ wc, plaene, reiter, medien, bilderJe, kategorieIds: produktKategorien(K, shop.kategorie?.id), shop }); return; }
+  if (PRUEFEN) { await pruefeAnlage({ wc, plaene, reiter, medien, bilderJe, kategorieId: shop.kategorie?.id, shop }); return; }
   if (!WRITE) { log('TROCKENLAUF – nichts geschrieben. Schreiben mit --write (erst nach Freigabe).'); return; }
 
   // ── Schreiblauf ──
@@ -221,6 +231,10 @@ async function run() {
     }
     if (!sp.karte.vorhanden) await haengeZeileAn(sheets, spreadsheetId, 'SEO_Karte', karteZeile(reiter.SEO_Karte[0], kategorieId, heute, K));
     if (!sp.motive.vorhanden) await haengeZeileAn(sheets, spreadsheetId, 'Motive', sp.motive.werte);
+    if (sp.motivAenderung && !sp.motivAenderung.gleich) {
+      await ersetzeZeile(sheets, spreadsheetId, 'Motive', sp.motivAenderung.zeile, sp.motivAenderung.alt, sp.motivAenderung.neu);
+      log(`Motive Z${sp.motivAenderung.zeile} (${K.kurz}) geändert: ${sp.motivAenderung.spalten.map(x => x.spalte).join(', ')}`);
+    }
 
     const hoch = wc.getaktet('upload', ladeMedienHoch);
     const text = wc.getaktet('upload', setzeMedienText);
@@ -287,7 +301,7 @@ async function leseFpArtikel() {
 }
 
 // ── --pruefen: angelegte Entwuerfe zuruecklesen (nur GET) ──
-async function pruefeAnlage({ wc, plaene, reiter, medien, bilderJe, kategorieIds, shop }) {
+async function pruefeAnlage({ wc, plaene, reiter, medien, bilderJe, kategorieId, shop }) {
   const E = reiter.Erfassungsmaske, V = reiter.Varianten;
   const ec = n => E[0].indexOf(n), vc = n => V[0].indexOf(n);
   const zeilen = [];
@@ -299,21 +313,27 @@ async function pruefeAnlage({ wc, plaene, reiter, medien, bilderJe, kategorieIds
     const vars = await leseAlleVariationen(wc, kurz.id);
     const bilder = bilderAusZustand(bilderJe[p.artikel.modell] ?? [], medien);
     if (prod.status !== 'draft') f.push(`Status ${prod.status}`);
-    const fehltKat = kategorieIds.filter(id => !prod.categories?.some(c => c.id === id));
+    const fehltKat = produktKategorien(K, kategorieId, p.artikel).filter(id => !prod.categories?.some(c => c.id === id));
     if (fehltKat.length) f.push(`Kategorie fehlt: ${fehltKat.join(',')}`);
     if (prod.shipping_class !== p.artikel.versand) f.push(`Versandklasse ${prod.shipping_class}`);
     if (prod.reviews_allowed !== true) f.push('reviews_allowed nicht true');
-    const vorblendung = pruefeVorblendung(prod.default_attributes, p.farbe, shop.attrIds.farbe);
+    const vorblendung = pruefeVorblendung(prod.default_attributes, farbenVon(p).length === 1 ? p.farbe : null, shop.attrIds.farbe);
     if (vorblendung) f.push(vorblendung);
-    if (bilderAusZustand(bilderJe[p.artikel.modell] ?? [], medien)?.einzel) {
-      const alt = prod.images?.[0]?.alt ?? '';
-      if (alt !== (p.artikel.bildTitel ?? p.artikel.titel)) f.push(`Bild-ALT "${alt}"`);
+    if (bilder?.einzel) {
+      // NEU1: ALT jedes Galeriebilds = Titel des Uploads (bei Farbbildern je Farbe).
+      (bilderJe[p.artikel.modell] ?? []).forEach((b, i) => {
+        const alt = prod.images?.[i]?.alt ?? '';
+        if (alt !== b.titel) f.push(`Bild-ALT ${i + 1} "${alt}"`);
+      });
     }
+    // NEU1: KI-Satz am Ende, sobald der SEO-Text steht.
+    if (K.ki && prod.description?.trim() !== TEXT_PLATZHALTER && !prod.description?.includes(KI_SATZ)) f.push('KI-Satz fehlt');
     const ids = (prod.images ?? []).map(i => i.id);
     if (bilder && JSON.stringify(ids) !== JSON.stringify(galerie(bilder, K).map(i => i.id))) f.push(`Galerie ${ids.join(',')}`);
     const ax = Object.fromEntries((prod.attributes ?? []).map(a => [a.name, a.id]));
     if (!ax.Farbe || !ax['Größe'] || (K.motive ? ax.Motiv !== 0 : 'Motiv' in ax)) f.push(`Attribute ${JSON.stringify(ax)}`);
     const motivAus = v => v.attributes.find(a => a.name === 'Motiv')?.option;
+    const farbeAus = v => v.attributes.find(a => a.name === 'Farbe')?.option;
     const skuSoll = new Set(p.varianten.map(v => v.sku));
     const m = E.slice(1).find(r => r[ec('Artikelnummer')] === p.artikelnummer);
     const ssot = m?.[ec('ID')] ?? '';
@@ -322,9 +342,9 @@ async function pruefeAnlage({ wc, plaene, reiter, medien, bilderJe, kategorieIds
     zeilen.push({
       artikel: p.artikel.modell, id: kurz.id, status: prod.status, variationen: `${vars.length}/${p.varianten.length}`,
       ohnePreis: vars.filter(v => !v.regular_price).length,
-      ohneGla: vars.filter(v => (v.meta_data ?? []).find(x => x.key === '_wc_gla_color')?.value !== p.farbe).length,
+      ohneGla: vars.filter(v => (v.meta_data ?? []).find(x => x.key === '_wc_gla_color')?.value !== farbeAus(v)).length,
       ohneLz: vars.filter(v => lieferzeitAusMetaData(v.meta_data) !== '-1').length,
-      bildFalsch: bilder ? vars.filter(v => v.image?.id !== (K.motive ? bilder.motive[motivAus(v)] : bilder.einzel)).length : 'ohne Zustand',
+      bildFalsch: bilder ? vars.filter(v => v.image?.id !== (K.motive ? bilder.motive[motivAus(v)] : farbBild(bilder, farbeAus(v)))).length : 'ohne Zustand',
       skuFalsch: vars.filter(v => !skuSoll.has(v.sku)).length, galerie: ids.length,
       maske: m ? `${ssot} / ${m[ec('Produkt-ID')]}` : 'fehlt',
       varianten: `${vz.filter(r => vIds.has(String(r[vc('WC_Variation_ID')]))).length}/${vz.length}`,
