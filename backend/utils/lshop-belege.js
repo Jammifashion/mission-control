@@ -12,7 +12,7 @@
 //    einmal (Merker in Sende_Hinweis); den Status aendert er nie.
 //  - ORDERCONFIRMATION: jede neue AB wird geladen und nach unserer order_id durchsucht. Fehlt sie, ist
 //    sie unbekannt oder in LShop_EDI_Dateien nur Entwurf/Testdatei -> Alarm (Bestellung nicht von uns?).
-//    Sonst: "AB eingegangen - Auswertung folgt" (die Auswertung baut BO4b-4).
+//    Sonst: "AB eingegangen" -> Auswertung (BO4i, utils/lshop-ab.js).
 //  - Gleicher Dateiname mit anderem Inhalt (Hash) -> Alarm "Datei veraendert", nicht neu verarbeitet.
 // BO4b-2: Lieferbestaetigungen je PAKET auswerten (eine Datei = Tagesstand aller Pakete eines Abends,
 // mehrere VA moeglich, ein VA kommt in Teillieferungen/LA ueber mehrere Tage) -> LShop_Sendungen.
@@ -42,6 +42,7 @@ export const ART = { ORDER: 'Order', AB: 'Auftragsbestätigung', LB: 'Lieferbest
 export const ERGEBNIS = {
   EIGEN: 'eigen', ALARM: 'alarm', ERKANNT: 'erkannt', VERAENDERT: 'verändert', PORTAL: 'portal', ARCHIVIERT: 'archiviert',
   FEHLER: 'fehler', FEHLER_GEMELDET: 'fehler (gemeldet)', OK_NACH_FEHLERN: 'ok nach Fehlern',
+  AUSGEWERTET: 'ausgewertet', ABWEICHUNG: 'Abweichung',   // BO4i: AB ausgewertet (utils/lshop-ab.js)
 };
 
 // Status in LShop_EDI_Dateien, die NICHT an L-Shop gegangen sind (AB dazu = Alarm).
@@ -207,7 +208,7 @@ export function bewerteAb(text, ediStatus) {
     else if (EDI_NICHT_GESENDET.includes(st)) probleme.push(`${id} ist nur "${st}"`);
   }
   if (probleme.length) return { ergebnis: ERGEBNIS.ALARM, orderIds, hinweis: probleme.join('; ') };
-  return { ergebnis: ERGEBNIS.ERKANNT, orderIds, hinweis: 'AB eingegangen - Auswertung folgt (BO4b-4)' };
+  return { ergebnis: ERGEBNIS.ERKANNT, orderIds, hinweis: 'AB eingegangen' };
 }
 
 /** Ist ein schon protokollierter Eintrag auf dem FTP anders (Groesse oder Zeitstempel)? */
@@ -248,10 +249,6 @@ export function buildBelegeAlarmNachricht(alarme) {
   const zeilen = alarme.slice(0, 10).map(a => `• ${a.ordner}/${a.datei}: ${a.hinweis}`);
   if (alarme.length > 10) zeilen.push(`• … und ${alarme.length - 10} weitere (Reiter ${BELEGE_TAB})`);
   return ['🔴 L-Shop-FTP: Beleg nicht von uns oder unerwartet', ...zeilen, 'Bitte prüfen, ob jemand anderes über unser Konto bestellt.'].join('\n');
-}
-
-export function buildAbErkanntNachricht(erkannt) {
-  return ['📄 L-Shop: Auftragsbestätigung eingegangen', ...erkannt.map(a => `• ${a.orderIds.join(', ')} (${a.datei})`), 'Auswertung folgt mit BO4b-4.'].join('\n');
 }
 
 // ── BO4c: Abgeholt, zu lange in ORDER, haengendes Senden ─────────────────────

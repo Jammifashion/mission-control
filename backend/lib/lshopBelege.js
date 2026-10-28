@@ -6,7 +6,7 @@
 //
 // Ablauf: Protokoll (LShop_Belege), LShop_EDI_Dateien, LShop_Sendungen lesen -> EINE FTP-Verbindung:
 // Ordner listen, nur neue/geaenderte Belege laden -> je Datei: (Lieferbestaetigung lesen) -> archivieren
-// -> bewerten -> Sendungen anhaengen -> EDI-Status "versandt" -> Protokollzeilen -> erst DANN Chat.
+// -> bewerten -> AB auswerten (BO4i) -> Sendungen anhaengen -> EDI-Status "versandt" -> Protokollzeilen -> erst DANN Chat.
 // Jeder Schritt ist wiederholbar (Drive: Name + MD5, Sendungen: Paketnummer, EDI: nur aus gesendet/
 // bestaetigt), damit ein Abbruch nach einem Schritt im naechsten Takt nichts doppelt anlegt.
 // Dateien auf dem FTP bleiben liegen. Erstbestand still: noch keine Zeile "Lieferbestaetigung" oder
@@ -20,8 +20,10 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 import { sheetsMitWiederholung } from './googleRetry.js';
 import { mitLShopFtp, LShopFtpFehler } from './lshopFtp.js';
+import { BESCHAEFTIGT } from './lshopKorb.js';
 import { archiviere, richteArchivEin, ArchivFehler, ArchivKonflikt } from './belegArchiv.js';
 import { notify } from './chatNotify.js';
+import { werteAbAus } from './lshopAb.js';
 import { colLetter } from '../utils/sheet-spalten.js';
 import { normHeader } from '../utils/sheet-headers.js';
 import { ersteFreieZeile, bereichLeer, vergleicheZurueck } from '../utils/korb-logic.js';
@@ -29,12 +31,13 @@ import { EDI_TAB, HAENGT_MIN } from '../utils/edi-bestellung.js';
 import {
   BELEGE_TAB, BELEGE_SPALTEN, ORDNER, ART, ERGEBNIS, belegeSpalten, belegeZeilen, protokollNachDatei, dekodiere, sha256,
   ediStatusMap, ftpZeit, bewerteOrderDatei, bewerteAb, eintragGeaendert, fehlerSerie, fehllaufMelden, belegZeile,
-  buildBelegeAlarmNachricht, buildAbErkanntNachricht, buildFtpFehlerNachricht,
+  buildBelegeAlarmNachricht, buildFtpFehlerNachricht,
   SENDUNGEN_TAB, SENDUNGEN_SPALTEN, ARCHIV_ART, BELEG_ART, MAX_PDF_BYTES, EDI_VERSANDT, EDI_VOR_VERSAND,
   BelegFormatFehler, leseLieferbestaetigung, bewertePaket, archivJahr, mimeFuer, istErstbestand, istErstbestandsDatei, MAX_NEUE_BELEGE_JE_LAUF,
   sendungenSpalten, sendungenZeilen, gleicheSendung, sendungZeile, buildVersandtNachricht,
   abgeholtPlan, haengendPlan, buildZuLangeNachricht, buildHaengtNachricht, MERKER_ZU_LANGE,
 } from '../utils/lshop-belege.js';
+import { leseAb, AbFormatFehler, buildAbNachricht } from '../utils/lshop-ab.js';
 
 export const LAUF_ZEITLIMIT_MS = 240_000;   // Scheduler-Versuchsfrist 300 s
 const q = tab => `'${tab}'`;
@@ -127,7 +130,7 @@ async function setzeEdiVersandt({ sheets, spreadsheetId, orderIds }) {
  * lesen, je Zelle Kennung (order_id bzw. Datei) und alten Wert pruefen, sonst auslassen; EIN batchUpdate RAW,
  * zuruecklesen. -> Anzahl geschrieben.
  */
-async function setzeZellenSicher({ sheets, spreadsheetId, tab, kennSpalte, plan }) {
+export async function setzeZellenSicher({ sheets, spreadsheetId, tab, kennSpalte, plan }) {
   if (!plan.length) return 0;
   const w = await werte(sheets, spreadsheetId, tab);
   const norm = (w[0] ?? []).map(normHeader);
@@ -220,6 +223,7 @@ export async function runBelegeAbruf({
     const neueSendungen = [];      // Zeilen LShop_Sendungen
     const alarme = [];             // { ordner, datei, hinweis, lb? }
     const abErkannt = [];
+    const abs = [];                // BO4i: { datei, ab, felder, anlass } - ausgewertet vor dem Protokoll
     const orderZuLange = [];
     const zuLangeMelden = [];      // BO4c: einmal je Datei (Merker im Hinweis der Protokollzeile)
     const belegHinweise = [];      // Plan fuer setzeZellenSicher (vorhandene Protokollzeilen)
@@ -259,6 +263,16 @@ export async function runBelegeAbruf({
         if (p) {
           if (p.Hash === hash) {
             neu.push(zeile({ ...basis, order_id: p.order_id, VA: p.VA, LA: p.LA, Ergebnis: p.Ergebnis, Drive_ID: p.Drive_ID, Hinweis: 'Zeitstempel/Größe neu, Inhalt gleich' }));
+          } else if (o === ORDNER.AB) {
+            // BO4i: geaenderte AB (gleicher Name, neuer Hash) -> neu auswerten und melden; Archiv bleibt die alte Datei.
+            const felder = { ...basis, order_id: p.order_id, Ergebnis: ERGEBNIS.VERAENDERT, Drive_ID: p.Drive_ID, Hinweis: 'AB verändert - neu ausgewertet' };
+            try {
+              abs.push({ datei: e.name, ab: leseAb(dekodiere(buf)), felder, anlass: 'geaendert', archivHinweis: '' });
+            } catch (err) {
+              if (!(err instanceof AbFormatFehler)) throw err;
+              neu.push(zeile({ ...felder, Hinweis: `AB verändert, unlesbar: ${err.message}` }));
+              alarme.push({ ordner: o, datei: e.name, hinweis: `AB verändert, unlesbar: ${err.message}` });
+            }
           } else {
             const hinweis = 'Datei verändert (gleicher Name, anderer Inhalt) - nicht neu verarbeitet';
             neu.push(zeile({ ...basis, order_id: p.order_id, Ergebnis: ERGEBNIS.VERAENDERT, Hinweis: hinweis }));
@@ -293,10 +307,21 @@ export async function runBelegeAbruf({
         }
 
         if (o === ORDNER.AB) {
-          const b = bewerteAb(dekodiere(buf), ediStatus);
-          neu.push(zeile({ ...basis, order_id: b.orderIds.join(' '), Ergebnis: b.ergebnis, Hinweis: [b.hinweis, archivHinweis].filter(Boolean).join('; '), Drive_ID: driveId }));
-          if (b.ergebnis === ERGEBNIS.ALARM) alarme.push({ ordner: o, datei: e.name, hinweis: b.hinweis });
-          else abErkannt.push({ datei: e.name, orderIds: b.orderIds });
+          const text = dekodiere(buf);
+          const b = bewerteAb(text, ediStatus);
+          const felder = { ...basis, order_id: b.orderIds.join(' '), Ergebnis: b.ergebnis, Hinweis: [b.hinweis, archivHinweis].filter(Boolean).join('; '), Drive_ID: driveId };
+          if (b.ergebnis === ERGEBNIS.ALARM) { neu.push(zeile(felder)); alarme.push({ ordner: o, datei: e.name, hinweis: b.hinweis }); continue; }
+          // BO4i: auswerten. Unlesbar oder order_id im Kopf passt nicht zum Waechter -> Alarm, Datei bleibt protokolliert.
+          let ab = null, problem = '';
+          try { ab = leseAb(text); } catch (err) { if (!(err instanceof AbFormatFehler)) throw err; problem = `AB unlesbar: ${err.message}`; }
+          if (ab && (b.orderIds.length !== 1 || ab.orderId !== b.orderIds[0])) problem = `IhreBestellung "${ab.orderId}" passt nicht zu ${b.orderIds.join(', ')}`;
+          if (problem) {
+            neu.push(zeile({ ...felder, Ergebnis: ERGEBNIS.ALARM, Hinweis: [problem, archivHinweis].filter(Boolean).join('; ') }));
+            alarme.push({ ordner: o, datei: e.name, hinweis: problem });
+            continue;
+          }
+          abErkannt.push({ datei: e.name, orderIds: b.orderIds });
+          abs.push({ datei: e.name, ab, felder, anlass: '', archivHinweis });
           continue;
         }
         if (o !== ORDNER.LB) {   // Rechnung XML/PDF: nur Archiv, keine Auswertung, kein zweiter Weg nach Lexware
@@ -362,9 +387,31 @@ export async function runBelegeAbruf({
     // ── Schreiben (Sendungen -> EDI-Status -> Protokoll), erst danach melden ──
     let geschrieben = null;
     let ediVersandt = [];
-    const gemeldet = { alarm: false, ab: false, versandt: 0, fehler: false, zuLange: false, haengt: false };
+    const gemeldet = { alarm: false, ab: 0, versandt: 0, fehler: false, zuLange: false, haengt: false };
     // Erstbestand: Lieferbestaetigungen still (Alarme und Infos dazu); ORDER und AB melden wie immer.
     const zuMelden = alarme.filter(a => !a.still);
+    // ── BO4i: AB auswerten (eigene Korb-Sperre). Belegt (409) -> Datei bleibt ohne Protokollzeile, naechster Takt. ──
+    const abAusgewertet = [];
+    const abMelden = [];
+    for (const a of abs) {
+      try {
+        const r = await werteAbAus({ ab: a.ab, sheets, spreadsheetId, nun, dryRun });
+        const anlass = a.anlass || r.anlass;
+        abAusgewertet.push({ datei: a.datei, orderId: r.orderId, status: r.statusNeu, kurz: r.kurz, abweichungen: r.abgleich.abweichungen, anlass, zellen: r.zellen });
+        const ergebnis = a.anlass ? ERGEBNIS.VERAENDERT : r.abgleich.abweichungen ? ERGEBNIS.ABWEICHUNG : ERGEBNIS.AUSGEWERTET;
+        neu.push(zeile({ ...a.felder, VA: r.va, Ergebnis: ergebnis, Hinweis: [a.anlass ? 'AB verändert - neu ausgewertet' : '', r.kurz, a.archivHinweis].filter(Boolean).join('; ') }));
+        if (r.abgleich.abweichungen || anlass) abMelden.push(buildAbNachricht({ orderId: r.orderId, abNr: r.abNr, abgleich: r.abgleich, referenzen: r.referenzen, anlass }));
+      } catch (err) {
+        if (err?.status === 409 && err.message === BESCHAEFTIGT) { abAusgewertet.push({ datei: a.datei, orderId: a.ab.orderId, offen: true }); continue; }
+        if (err?.status === 409 || err?.status === 422) {   // Spalten fehlen / EDI-Zeile nicht eindeutig -> Alarm, protokolliert
+          neu.push(zeile({ ...a.felder, Ergebnis: ERGEBNIS.ALARM, Hinweis: `AB nicht ausgewertet: ${err.message}` }));
+          alarme.push({ ordner: ORDNER.AB, datei: a.datei, hinweis: `AB nicht ausgewertet: ${err.message}` });
+          continue;
+        }
+        throw err;
+      }
+    }
+
     if (!dryRun) {
       const sGeschrieben = await haengeAn({ sheets, spreadsheetId, tab: SENDUNGEN_TAB, info: sInfo, alt: sAlt, zeilen: neueSendungen });
       ediVersandt = await setzeEdiVersandt({ sheets, spreadsheetId, orderIds: [...new Set(versandt.map(v => v.orderId))] });
@@ -375,7 +422,7 @@ export async function runBelegeAbruf({
       if (zuLangeMelden.length) gemeldet.zuLange = await melde(buildZuLangeNachricht(zuLangeMelden));
       if (haengend.length) gemeldet.haengt = await melde(buildHaengtNachricht(haengend));
       if (zuMelden.length) gemeldet.alarm = await melde(buildBelegeAlarmNachricht(zuMelden));
-      if (abErkannt.length) gemeldet.ab = await melde(buildAbErkanntNachricht(abErkannt));
+      for (const n of abMelden) if (await melde(n)) gemeldet.ab++;
       for (const v of versandt) if (!v.still && await melde(buildVersandtNachricht(v))) gemeldet.versandt++;
       if (fehlerLauf?.melden) gemeldet.fehler = await melde(fehlerLauf.nachricht);
     }
@@ -386,7 +433,7 @@ export async function runBelegeAbruf({
       ordner: Object.fromEntries([ORDNER.ORDER, ...BELEG_ORDNER].map(o => [o, anzahl(o)])),
       neueZeilen: neu.length, sendungenNeu: neueSendungen.length,
       archiv: { ...archivZaehler, fehler: archivFehler.length },
-      alarme: alarme.map(({ still, ...a }) => a), abErkannt, orderZuLange, offen,
+      alarme: alarme.map(({ still, ...a }) => a), abErkannt, abAusgewertet, orderZuLange, offen,
       abgeholt: abgeholt.map(a => a.orderId), haengend: haengend.map(h => h.orderId),
       versandt: versandt.map(v => ({ orderId: v.orderId, datei: v.datei, pakete: v.pakete.length })), ediVersandt,
       geschrieben, gemeldet,

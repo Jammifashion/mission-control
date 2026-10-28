@@ -100,7 +100,7 @@ describe('leseLShopBestellungen (nur lesen)', () => {
     expect(nach['JFN-2026-0005']).toMatchObject({ pakete: 2, va: ['VA00000005'], positionenZahl: 1, stueck: 1, gesendet: '' });
     expect(nach['JFN-2026-0005'].positionen[0]).toEqual({
       schluessel: 'JFN:3:1', articleNr: NR2, catalogNr: 'JH030F', bezeichnung: '', farbe: 'Deep Black', groesse: 'XL', menge: 1,
-      reference: 'JFN-3-1', status: 'bestellt', statusDatum: '', liefertermin: '',
+      reference: 'JFN-3-1', status: 'bestellt', statusDatum: '', liefertermin: '', abHinweis: '', abStufe: '',
     });
     expect(nach['JFN-2026-0003']).toMatchObject({ stueck: 2, commission: 'KW45 3', erzeugt: '2026-11-03T08:00:00.000Z' });
     expect(nach['JFN-2026-0009'].positionen.map(p => [p.schluessel, p.reference])).toEqual([['EIGEN:2026-0001', 'Muster']]);   // ueber Korb_Schluessel

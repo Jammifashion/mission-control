@@ -6,7 +6,7 @@
 //   geliefert           alle Positionen "geliefert"
 //   teilweise geliefert mind. eine Position "geliefert" oder ein Paket mit Wareneingang
 //   versandt            es gibt Pakete (Lieferbestaetigung)
-//   bestätigt           EDI-Status "bestätigt" (Auftragsbestaetigung, BO4b-4)
+//   bestätigt           EDI-Status "bestätigt" (Auftragsbestaetigung, BO4i)
 //   gesendet            sonst
 // Portal-Sendungen (order_id leer) stehen getrennt, nach VA gruppiert.
 // Nur lesen: hier wird nichts geschrieben.
@@ -14,6 +14,7 @@
 import { normHeader } from './sheet-headers.js';
 import { referenzFuer } from './edi-bestellung.js';
 import { EDI_BEI_LSHOP, istTrackingUrl } from './lshop-belege.js';
+import { abStufe } from './lshop-ab.js';
 
 export const BESTELL_STATUS = {
   GESENDET: 'gesendet', BESTAETIGT: 'bestätigt', VERSANDT: 'versandt', TEILWEISE: 'teilweise geliefert', GELIEFERT: 'geliefert',
@@ -35,6 +36,7 @@ export function ediBestellZeilen(werte) {
   const i = {
     id: sp('order_id'), erzeugt: sp('Erzeugt'), status: sp('Status'), pos: sp('Positionen'), stueck: sp('Stueck'), com: sp('Commission'),
     schl: sp('Korb_Schluessel'), versandart: sp('Versandart'), gesendet: sp('Gesendet'),   // BO4e (fehlen sie: leer)
+    abNr: sp('AB_Nr'), abDatum: sp('AB_Datum'), abHinweis: sp('AB_Hinweis'),   // BO4i (fehlen sie: leer)
   };
   if (i.id < 0 || i.status < 0) {
     const e = new Error('Reiter "LShop_EDI_Dateien": Spalten order_id/Status fehlen.');
@@ -47,6 +49,7 @@ export function ediBestellZeilen(werte) {
       orderId: w(r, 'id'), erzeugt: w(r, 'erzeugt'), ediStatus: w(r, 'status'), positionen: w(r, 'pos'),
       stueck: w(r, 'stueck'), commission: w(r, 'com'), korbSchluessel: w(r, 'schl').split(/\s+/).filter(Boolean),
       versandart: w(r, 'versandart'), gesendet: w(r, 'gesendet'),
+      ab: w(r, 'abNr') ? { nr: w(r, 'abNr'), datum: w(r, 'abDatum'), hinweis: w(r, 'abHinweis'), stufe: w(r, 'abHinweis') === 'ok' ? '' : (/Menge gekürzt|fehlt|unbekannt/.test(w(r, 'abHinweis')) ? 'rot' : 'gelb') } : null,
     }))
     .filter(b => b.orderId && EDI_BEI_LSHOP.includes(b.ediStatus));
 }
@@ -91,7 +94,9 @@ function position(z, modelle) {
     schluessel: z.Schluessel, articleNr: nr, catalogNr: t(m.catalogNr), bezeichnung: t(m.bezeichnung),
     farbe: [t(m.color1), t(m.color2)].filter(Boolean).join('/'), groesse: t(m.size),   // Farbe wie der Korb
     menge: Number(z.Menge) || 0, reference: referenzFuer(z),
-    status: z.Status, statusDatum: t(z.Status_Datum), liefertermin: '',   // Liefertermin: BO4b-4
+    status: z.Status, statusDatum: t(z.Status_Datum),
+    // BO4i: Liefertermin nur, wenn spaeter als sofort (JJJJ-MM-TT); AB-Hinweis je Position mit Stufe
+    liefertermin: t(z.Liefertermin), abHinweis: t(z.AB_Hinweis), abStufe: abStufe(z.AB_Hinweis),
   };
 }
 
@@ -123,7 +128,7 @@ export function baueBestellungen({ edi, korb, modelle, sendungen, jetzt = new Da
         geliefert: status === BESTELL_STATUS.GELIEFERT && Boolean(geliefertSeit) && jetzt.getTime() - Date.parse(geliefertSeit) <= GELIEFERT_TAGE * TAG_MS,
       },
       orderId: b.orderId, erzeugt: b.erzeugt, gesendet: b.gesendet,   // BO4e: Spalte Gesendet ("Als gesendet markieren")
-      versandart: b.versandart,
+      versandart: b.versandart, ab: b.ab,   // BO4i: { nr, datum, hinweis, stufe } oder null
       va: [...new Set(ls.map(l => l.va).filter(Boolean))], commission: b.commission,
       positionenZahl: positionen.length || Number(b.positionen) || 0,
       stueck: positionen.length ? positionen.reduce((n, p) => n + p.menge, 0) : Number(b.stueck) || 0,

@@ -14,12 +14,15 @@ import { ArchivFehler, ArchivKonflikt } from '../lib/belegArchiv.js';
 import { runBelegeAbruf, richteBelegeEin, BELEGE_BESCHAEFTIGT } from '../lib/lshopBelege.js';
 import { LShopFtpFehler } from '../lib/lshopFtp.js';
 import { EDI_TAB, EDI_SPALTEN } from '../utils/edi-bestellung.js';
+import { KORB_SPALTEN, TAB_KORB } from '../utils/korb-logic.js';
+import { AB_EDI_SPALTEN, AB_KORB_SPALTEN } from '../utils/lshop-ab.js';
 import { machSheets } from './hilfen/korb-sheet.js';
 
 const JETZT = () => new Date('2026-10-22T18:00:00Z');
 const utf16 = s => Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(s, 'utf16le')]);
 const utf8bom = s => Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from(s, 'utf8')]);
-const ab = id => `<?xml version="1.0" encoding="utf-8"?><Orderconfirmation><Kopf><![CDATA[${id}   ]]></Kopf></Orderconfirmation>`;
+// BO4i: Aufbau wie die echte AB-XML (gemessen 28.10.), ohne Positionen; Werte erfunden.
+const ab = id => `<?xml version="1.0" encoding="utf-8"?><OrderConfirmation><Header><Vorgang>VA00000003</Vorgang><Belegnummer>AB00000003</Belegnummer><IhreBestellung>${id}</IhreBestellung><Belegdatum>21.10.2026</Belegdatum><Bestelldatum>22.10.2026</Bestelldatum></Header><Items></Items></OrderConfirmation>`;
 const edi = new Map([['JFN-2026-0001', 'Testdatei'], ['JFN-2026-0002', 'Entwurf'], ['JFN-2026-0003', 'gesendet']]);
 const datei = (name, o = {}) => ({ name, size: 100, istDatei: true, modifiedAt: new Date('2026-10-22T17:58:00Z'), rawModifiedAt: '', ...o });
 
@@ -117,7 +120,8 @@ describe('Kleinteile', () => {
 function aufbau({ belege = [], ediZeilen, sendungen = [], ohneSendungen = false } = {}) {
   const tabs = {
     [BELEGE_TAB]: [BELEGE_SPALTEN, ...belege],
-    [EDI_TAB]: [EDI_SPALTEN, ...(ediZeilen ?? [['JFN-2026-0001', '2026-09-21', 'Testdatei'], ['JFN-2026-0002', '2026-10-22', 'Entwurf'], ['JFN-2026-0003', '2026-10-22', 'gesendet']])],
+    [TAB_KORB]: [[...KORB_SPALTEN, ...AB_KORB_SPALTEN]],
+    [EDI_TAB]: [[...EDI_SPALTEN, ...AB_EDI_SPALTEN], ...(ediZeilen ?? [['JFN-2026-0001', '2026-09-21', 'Testdatei'], ['JFN-2026-0002', '2026-10-22', 'Entwurf'], ['JFN-2026-0003', '2026-10-22', 'gesendet']])],
   };
   if (!ohneSendungen) tabs[SENDUNGEN_TAB] = [SENDUNGEN_SPALTEN, ...sendungen];
   return { tabs, ...machSheets(tabs) };
@@ -202,7 +206,7 @@ describe('runBelegeAbruf (BO4b-1)', () => {
     expect(meldungen).toHaveLength(1);
   });
 
-  test('AB zu Entwurf JFN-2026-0002 (UTF-16) -> Alarm; AB zu gesendeter order_id -> erkannt + Info; beide archiviert', async () => {
+  test('AB zu Entwurf JFN-2026-0002 (UTF-16) -> Alarm; AB zu gesendeter order_id -> ausgewertet, bestaetigt, kein Chat (BO4i); beide archiviert', async () => {
     const { tabs, sheets } = aufbau();
     const meldungen = [];
     const a = archivAttrappe();
@@ -214,15 +218,18 @@ describe('runBelegeAbruf (BO4b-1)', () => {
     expect(r.alarme).toEqual([{ ordner: ORDNER.AB, datei: 'AB_1.xml', hinweis: 'JFN-2026-0002 ist nur "Entwurf"' }]);
     expect(r.abErkannt).toEqual([{ datei: 'AB_2.xml', orderIds: ['JFN-2026-0003'] }]);
     const z = zeilenAb(tabs);
-    expect(z.map(x => [x.Datei, x.order_id, x.Ergebnis, x.Drive_ID])).toEqual([['AB_1.xml', 'JFN-2026-0002', 'alarm', 'drv-AB_1.xml'], ['AB_2.xml', 'JFN-2026-0003', 'erkannt', 'drv-AB_2.xml']]);
+    expect(z.map(x => [x.Datei, x.order_id, x.Ergebnis, x.Drive_ID])).toEqual([['AB_1.xml', 'JFN-2026-0002', 'alarm', 'drv-AB_1.xml'], ['AB_2.xml', 'JFN-2026-0003', 'ausgewertet', 'drv-AB_2.xml']]);
+    expect(z[1]).toMatchObject({ VA: 'VA00000003', Hinweis: 'ok' });
+    expect(tabs[EDI_TAB][3][EDI_SPALTEN.length + AB_EDI_SPALTEN.indexOf('AB_Nr')]).toBe('AB00000003');
+    expect(tabs[EDI_TAB][3][EDI_SPALTEN.indexOf('Status')]).toBe('bestätigt');
+    expect(r.abAusgewertet).toEqual([expect.objectContaining({ datei: 'AB_2.xml', orderId: 'JFN-2026-0003', status: 'bestätigt', kurz: 'ok', abweichungen: 0 })]);
     expect(z[0].Hash).toBe(sha256(utf16(ab('JFN-2026-0002'))));
     expect(a.abgelegt.map(x => [x.art, x.name, x.mime])).toEqual([['Auftragsbestaetigung', 'AB_1.xml', 'application/xml'], ['Auftragsbestaetigung', 'AB_2.xml', 'application/xml']]);
-    expect(meldungen).toHaveLength(2);
+    expect(meldungen).toHaveLength(1);   // nur der Alarm; "alles ok" meldet nichts
     expect(meldungen[0]).toMatch(/nicht von uns/);
-    expect(meldungen[1]).toMatch(/Auftragsbestätigung eingegangen/);
   });
 
-  test('protokollierte, unveraenderte AB wird nicht geladen; veraenderte (Hash) -> Alarm, nicht archiviert', async () => {
+  test('protokollierte, unveraenderte AB wird nicht geladen; veraenderte (Hash) -> neu ausgewertet + Chat, nicht archiviert (BO4i)', async () => {
     const buf = utf8bom(ab('JFN-2026-0003'));
     const e = datei('AB_2.xml', { size: buf.length });
     const alt = BELEGE_SPALTEN.map(n => ({
@@ -238,9 +245,11 @@ describe('runBelegeAbruf (BO4b-1)', () => {
     const anders = utf8bom(ab('JFN-2026-0003') + ' ');
     const { tabs: t2, sheets: s2 } = aufbau({ belege: [alt] });
     const a = archivAttrappe();
-    const r2 = await lauf({ sheets: s2, ftp: ftpAttrappe({ [ORDNER.AB]: { 'AB_2.xml': anders } }).ftp, archiv: a.archiv });
-    expect(r2.alarme[0].hinweis).toMatch(/Datei verändert/);
-    expect(zeilenAb(t2).at(-1)).toMatchObject({ Ergebnis: ERGEBNIS.VERAENDERT, Hash: sha256(anders) });
+    const meldungen = [];
+    const r2 = await lauf({ sheets: s2, ftp: ftpAttrappe({ [ORDNER.AB]: { 'AB_2.xml': anders } }).ftp, archiv: a.archiv, melde: async t => { meldungen.push(t); return true; } });
+    expect(r2.alarme).toEqual([]);
+    expect(zeilenAb(t2).at(-1)).toMatchObject({ Ergebnis: ERGEBNIS.VERAENDERT, Hash: sha256(anders), Hinweis: 'AB verändert - neu ausgewertet; ok' });
+    expect(meldungen).toEqual([expect.stringMatching(/^📄 L-Shop-AB JFN-2026-0003 geändert/)]);
     expect(a.abgelegt).toEqual([]);
   });
 

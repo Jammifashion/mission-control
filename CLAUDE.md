@@ -285,8 +285,8 @@ Neue Sektionen immer mit Anker versehen:
   mit Status aus `EDI_EIGEN_ORDER` ist (BO4c: wird gesendet, gesendet, unklar, bestaetigt, versandt,
   geliefert) -> Alarm; AB: order_id im Text suchen (`dekodiere` nach
   BOM - Lieferbestaetigungen sind UTF-16 LE trotz `encoding="utf-8"`), fehlt/unbekannt/Entwurf/
-  Testdatei -> Alarm, sonst "AB eingegangen - Auswertung folgt" (BO4b-4). Gleicher Name, anderer Hash ->
-  Alarm "veraendert". Erst schreiben, dann Chat.
+  Testdatei -> Alarm, sonst Auswertung (BO4i, `lib/lshopAb.js`). Gleicher Name, anderer Hash -> Alarm
+  "veraendert" (AB: neu ausgewertet + Chat "AB geändert", Archiv bleibt die alte Datei). Erst schreiben, dann Chat.
   FTP-Fehler = 200 + Zeile Art "Lauf"/"fehler"; Chat ab 3 in Folge, 1/h (Zustand im Reiter, weil
   Cloud-Run-Instanzen zwischen den Takten wegfallen); andere Fehler 5xx. Eigene Datei, die > 20 min in
   `ORDER` liegt: Chat einmal je Datei (Merker im Hinweis der Protokollzeile). BO4c: per Knopf gesendete Datei
@@ -322,10 +322,30 @@ Neue Sektionen immer mit Anker versehen:
   > 30 Tage. Datum: `gesendet` aus Spalte `Gesendet` (BO4e, Klick "Als gesendet markieren"), sonst
   "erstellt am" (Erzeugt); dazu `versandart` und `entwuerfe` (BO4e). Tracking-Links nur aus `TRACKING_HOSTS`
   (utils/lshop-belege.js, Spiegel `LB_TRACKING` im Frontend; heute nur textilelogistics.eu - ein weiterer
-  Host, z. B. GLS, erst nach Messung an einer echten Lieferbestaetigung). Liefertermin (BO4b-4) und
-  Wareneingang (BO4b-5) nur "folgt", keine Knoepfe. Der Korb (`GET .../lshop-korb`) zeigt seit BO4d nur
+  Host, z. B. GLS, erst nach Messung an einer echten Lieferbestaetigung). Liefertermin und AB-Abweichungen
+  aus der AB (BO4i): "AB vom …" je Karte, je Position "sofort" / gelb "Liefertermin …" / gelb-rot Hinweis;
+  ohne AB "Liefertermin folgt". Wareneingang seit BO4b-5 (lib/wareneingang.js, lib/karton.js). Der Korb (`GET .../lshop-korb`) zeigt seit BO4d nur
   `KORB_SICHTBAR` = offen + abgewählt (`summen.positionen` = beide), liefert keine `sendungen` mehr; die
   Zeilen bleiben unveraendert.
+- backend/lib/lshopAb.js – Auftragsbestaetigung (AB-XML) auswerten (BO4i), Logik `utils/lshop-ab.js`. **IDs:** im alten
+  Stufenplan (auftrag-BO4b) war "BO4b-4" der Wareneingang - erledigt als BO4b-5; die AB-Auswertung heisst BO4i.
+  AB kommt seit 27.10. nur noch als XML in `ORDERCONFIRMATION` (Mail aus), je VA. Gemessen 28.10.: UTF-8 ohne BOM;
+  `Header/IhreBestellung` = order_id, `Vorgang` = VA, `Belegnummer` = AB-Nr, Daten `TT.MM.JJJJ`; `Item`: Artikelnummer,
+  Menge, Liefertermin, `PositionFreiText` = unsere `reference`. Versandkosten-Zeile `Artikelnummer 9900000001` wird
+  ignoriert. Adressen, EPreis/GPreis/PayTerms, Kundennummer werden NIE gelesen (kein Preisvergleich - gehoert zur
+  Rechnung). Liefertermin "sofort" = L-Shop schreibt das Belegdatum (vor dem Bestelldatum); spaeter = nach dem
+  `Bestelldatum` der AB. `leseAb` -> `abAbgleich`: Zuordnung reference + Artikelnummer (gleiche in Dateifolge);
+  Abweichungen rot Menge gekuerzt / fehlt in AB / unbekannte AB-Zeile, gelb Menge mehr / Termin spaeter.
+  `werteAbAus` unter der Korb-Sperre (belegt -> Datei ohne Protokollzeile, naechster Takt), ein batchUpdate RAW nur
+  geaenderter Zellen, zurueckgelesen: EDI Status NUR gesendet -> `bestätigt` (versandt/geliefert bleiben, unklar
+  bleibt + Hinweis), hinten `AB_Nr`, `AB_VA`, `AB_Datum`, `AB_Eingang`, `AB_Hinweis` ("ok" oder Zaehler); Korb hinten
+  `Liefertermin` (JJJJ-MM-TT, leer = sofort) + `AB_Hinweis` je Position der Bestellung - Menge/Status bleiben. Spalten:
+  `scripts/setup-lshop-ab-spalten.js` (Trockenlauf, `--write`); fehlen sie, 409 + Alarm (Trockenlauf rechnet ohne).
+  Beleg-Abruf: Protokoll-Ergebnis `ausgewertet` / `Abweichung` / `verändert`; IhreBestellung muss zur gefundenen
+  order_id passen (sonst Alarm). **Chat nur bei Abweichung, geaenderter oder zweiter AB** (`buildAbNachricht`, ohne
+  Preise), "alles ok" still. Bestand: `scripts/ab-auswerten.js` (Trockenlauf, `--write`, `--order`; FTP nur lesend,
+  lokal mit NODE_ENV=production fuer die FTP-Secrets), setzt Protokoll "erkannt" -> ausgewertet. Anzeige: Felder `ab`
+  je Bestellung und `liefertermin`/`abHinweis`/`abStufe` je Position (utils/lshop-bestellungen.js).
 - backend/lib/belegArchiv.js – Archiv der L-Shop-Belege (BO4b-2), einzige Stelle mit Drive-SCHREIBEN
   ausser dem Backup. Geteilte Ablage "Mission Control" -> `L-Shop Belege/<Art>/<Jahr>/` (Art
   Lieferbestaetigung | Auftragsbestaetigung | Rechnung_XML | Rechnung_PDF; Jahr aus dem Dateinamen, sonst

@@ -458,6 +458,9 @@
       .senden-spinner { display: inline-block; width: 0.9em; height: 0.9em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: anf-spin 0.8s linear infinite; vertical-align: -0.1em; margin-right: 0.35rem; }
       .lb-unklar { border-left: 3px solid var(--danger); padding-left: 0.5rem; }
       .lb-unklar-text { color: var(--danger); font-weight: 600; }
+      .lb-ab-rot { color: var(--danger); font-weight: 600; }
+      .lb-ab-gelb { color: var(--warning, #d4a017); font-weight: 600; }
+      .lb-ab { font-size: 0.85rem; padding: 0.35rem 0 0.15rem; }
       .lb-knoepfe { display: inline-flex; flex-wrap: wrap; gap: 0.4rem; }
       /* BO4b-5: Wareneingang */
       .lb-aktionen { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0; }
@@ -4372,7 +4375,7 @@
       // ── L-Shop-Bestellungen: Anfang (BO4d, Test backend/tests/lshop-bestellungen.test.js) ──
       // Reine Anzeige des Unterreiters "L-Shop-Bestellungen" aus GET /api/bestellen/lshop-bestellungen:
       // je Bestellung eine aufklappbare Karte (Kopf, Positionen, Lieferscheine mit Paketen), darunter die
-      // Portalbestellungen. Links nur auf textilelogistics.eu, neuer Tab ohne Opener. Liefertermin (BO4b-4)
+      // Portalbestellungen. Links nur auf textilelogistics.eu, neuer Tab ohne Opener. Liefertermin + AB-Abweichungen (BO4i)
       // und Wareneingang (BO4b-5) sind vorgesehen, aber noch ohne Funktion ("folgt").
       // Spiegel von TRACKING_HOSTS (backend/utils/lshop-belege.js) - ein neuer Host erst nach Messung (BO4e).
       const LB_TRACKING = ['https://textilelogistics.eu/'];
@@ -4401,12 +4404,22 @@
       }
       function lbPositionHtml(p) {
         const modell = [p.catalogNr, p.bezeichnung, p.farbe, p.groesse].filter(Boolean).map(lbEsc).join(' · ') || lbEsc(p.articleNr);
-        const termin = p.liefertermin ? `Liefertermin ${lbEsc(p.liefertermin)}` : '<span class="lb-folgt">Liefertermin folgt</span>';
+        // BO4i: Termin aus der AB. Spaeter als sofort = gelb mit Datum; mit AB ohne Termin = sofort; ohne AB = folgt.
+        const termin = p.liefertermin ? `<span class="lb-ab-gelb">Liefertermin ${lbEsc(lbDatum(p.liefertermin))}</span>`
+          : (lbMitAb ? (/fehlt in AB/.test(p.abHinweis) ? '' : 'sofort') : '<span class="lb-folgt">Liefertermin folgt</span>');
+        const abw = p.abHinweis && !(p.liefertermin && /^Termin /.test(p.abHinweis)) ? ` · <span class="lb-ab-${p.abStufe === 'rot' ? 'rot' : 'gelb'}">${lbEsc(p.abHinweis)}</span>` : '';
         const geliefert = p.status === 'geliefert' ? ' · <span class="lb-geliefert">geliefert</span>' : '';
         return `<div class="lb-pos"><span class="lb-pos-haupt">${modell} <strong>×${lbEsc(p.menge)}</strong>${geliefert}</span>`
-          + `<span class="lb-pos-neben">${lbEsc(p.articleNr)} · ${lbEsc(p.reference)} · ${termin}</span></div>`;
+          + `<span class="lb-pos-neben">${[lbEsc(p.articleNr), lbEsc(p.reference), termin].filter(Boolean).join(' · ')}${abw}</span></div>`;
+      }
+      let lbMitAb = false;   // waehrend lbKarteHtml: Bestellung hat eine AB (fuer "sofort" je Position)
+      function lbAbHtml(ab) {
+        if (!ab) return '';
+        const text = `AB vom ${lbEsc(lbDatum(ab.datum))}${ab.hinweis && ab.hinweis !== 'ok' ? ` · ${lbEsc(ab.hinweis)}` : ' · alles bestätigt'}`;
+        return `<div class="lb-ab${ab.stufe ? ` lb-ab-${ab.stufe}` : ''}">${text}</div>`;
       }
       function lbKarteHtml(b, offen) {
+        lbMitAb = Boolean(b.ab);
         const datum = b.gesendet ? `gesendet ${lbEsc(lbDatum(b.gesendet))}` : `erstellt am ${lbEsc(lbDatum(b.erzeugt))}`;
         const kopf = [`<strong>${lbEsc(b.orderId)}</strong>`, ...b.va.map(lbEsc), datum,
           `${b.positionenZahl} Pos. / ${b.stueck} Stk`, b.commission ? lbEsc(b.commission) : '',
@@ -4416,7 +4429,7 @@
           : '<div class="lb-abschnitt">Lieferscheine</div><div class="lb-leer">noch keine Lieferung</div>';
         return `<details class="lb-karte" data-order="${lbEsc(b.orderId)}"${offen ? ' open' : ''}>`
           + `<summary><span class="lb-kopf">${kopf}</span>${lbStatusHtml(b)}</summary>`
-          + `<div class="lb-inhalt">${b.positionen.map(lbPositionHtml).join('') || '<div class="lb-leer">keine Positionen gefunden</div>'}`
+          + `<div class="lb-inhalt">${lbAbHtml(b.ab)}${b.positionen.map(lbPositionHtml).join('') || '<div class="lb-leer">keine Positionen gefunden</div>'}`
           + `${lbEingangKnopfHtml(b)}${ls}</div></details>`;
       }
       // BO4b-5: "Ware angekommen …" (offene Positionen) bzw. "Wareneingang …" (alles geliefert, nur Rueckweg).
