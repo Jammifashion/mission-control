@@ -695,7 +695,9 @@ Floskeln prueft `seo-pruefung.js` (Regel 7, `FLOSKELN`); neue Wendungen nur dort
 Seit FM2 dort auch Regel 8 `KNAPPHEIT` (Druck/Knappheit als Muster: "solange … da ist", "bevor andere",
 "zuschlagen", "jetzt … sichern", "nur noch", "begrenzt", "limitiert" - Druck auf Bestellung) und Regel 9
 "Faserangabe unvollständig" (Prozent-Faser im Text, aber nicht jede Faser der Artikel-Faserangabe genannt;
-Faser aus `strukturiert` der Generierung, beim SEO-Reiter aus LShop_Modelle ueber `lshopNr`; reine Stoffe nie).
+Faser aus `strukturiert` der Generierung, beim SEO-Reiter aus LShop_Modelle ueber `lshopNr` als `grundFaser` (ohne die
+Farb-Ausnahmen in Klammern, sonst 340 Fehlalarme im Bestand); reine Stoffe nie). Regel 8 meldet kein Fundwort, das im
+Produktnamen steht (Motivtitel "Rentier war ausverkauft"). Scan 28.10. ueber 569 Artikel: R8 7 Treffer, R9 1.
 
 ## Script-Scope Problem (gelöst)
 index.html hat zwei Script-Blöcke:

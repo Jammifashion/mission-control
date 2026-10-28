@@ -129,6 +129,18 @@ export function faserNamen(faser) {
   return [...namen.values()];
 }
 
+/**
+ * Grundfaser einer L-Shop-Faserangabe: alles vor der ersten Klammer, also ohne
+ * die Ausnahmen je Farbe ("100% Baumwolle (Sports Grey: 85% Baumwolle / 15% Viskose)"
+ * -> "100% Baumwolle"). Scan FM2 28.10.: mit den Ausnahmen 340 von 341 Treffern
+ * Fehlalarme, weil der Artikel die Ausnahmefarbe gar nicht fuehrt.
+ * @returns {string|null}
+ */
+export function grundFaser(faser) {
+  const g = String(faser ?? '').split('(')[0].trim().replace(/[\s,;]+$/, '');
+  return g || null;
+}
+
 const woerter = s => String(s ?? '').toLowerCase().split(/[^a-zäöüß0-9]+/i).filter(Boolean);
 
 /**
@@ -194,11 +206,15 @@ export function pruefeGeneratorText(e = {}) {
   // 7. Floskeln
   for (const f of FLOSKELN) melde(floskelRe(f), `Floskel "${f.replace(/-$/, '…')}"`);
 
-  // 8. Druck/Knappheit - je Teil mit der gefundenen Stelle
+  // 8. Druck/Knappheit - je Teil mit der gefundenen Stelle. Steht das Fundwort
+  // im Produktnamen, ist es Motivtitel, keine Floskel (Bestand: "Rentier war
+  // ausverkauft" - Scan FM2 28.10.).
+  const name = String(e.produktname ?? '').toLowerCase();
   for (const k of KNAPPHEIT) {
     for (const [n, html] of teile) {
       const m = k.re.exec(text(html));
-      if (m) hinweise.push(`Knappheitsfloskel "${m[0]}" in ${n} – wir drucken auf Bestellung, nichts ist knapp.`);
+      if (m && !name.includes(m[0].toLowerCase()))
+        hinweise.push(`Knappheitsfloskel "${m[0]}" in ${n} – wir drucken auf Bestellung, nichts ist knapp.`);
     }
   }
 
@@ -300,8 +316,9 @@ export async function pruefeTextMitSsot({ artikelkurz, lshopNr, motivZeile, stru
       modellnummern: rohling ? [rohling.catalogNr, ...(rohling.herstellerNummern ?? [])] : [],
       druck:         !!(motiv && (motiv.druckfarben || motiv.druckposition)),
       // Regel 9: Faser der Generierung (strukturiert, gewaehlte Farben), sonst
-      // die des Rohlings ueber alle Farben (SEO-Reiter nach dem Speichern).
-      faser:         e.faser ?? strukturierteEingabe(strukturiert)?.faser ?? rohling?.faser ?? null,
+      // die GRUNDFASER des Rohlings (SEO-Reiter nach dem Speichern kennt die
+      // Farben nicht; die Farb-Ausnahmen in Klammern gaeben sonst Fehlalarme).
+      faser:         e.faser ?? strukturierteEingabe(strukturiert)?.faser ?? grundFaser(rohling?.faser),
     }),
   ];
 }

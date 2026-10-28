@@ -2,7 +2,7 @@
 // in lib/seo-pruefung.js. Anlass: Haiku schrieb "80 % Baumwolle, 280 g/m²" fuer
 // einen 80/20-Hoodie und "bestell ihn, solange er da ist" - beides blieb ungemeldet.
 
-import { pruefeGeneratorText, KNAPPHEIT, faserNamen } from '../lib/seo-pruefung.js';
+import { pruefeGeneratorText, KNAPPHEIT, faserNamen, grundFaser } from '../lib/seo-pruefung.js';
 import { SEO_SYSTEM_PROMPT } from '../lib/seo-prompt.js';
 
 const lang = t => ({ kurzbeschreibung: '', produktbeschreibung: `<h2>Logo</h2><p>${t}</p>` });
@@ -45,6 +45,12 @@ describe('8. Knappheitsfloskeln', () => {
     'Ein Hoodie für alle Fans.',
   ])('%s -> still', satz => {
     expect(pruefeGeneratorText(lang(satz))).toEqual([]);
+  });
+
+  test('Fundwort im Produktnamen = Motivtitel -> still (Scan: "Rentier war ausverkauft")', () => {
+    const t = { ...lang('Der Rentier war ausverkauft Sweater in Deep Black.'), kurzbeschreibung: 'Rentier war ausverkauft Sweater.' };
+    expect(pruefeGeneratorText({ ...t, produktname: 'Rentier war ausverkauft – Ugly Christmas Sweater Damen' })).toEqual([]);
+    expect(pruefeGeneratorText({ ...t, produktname: 'Ugly Christmas Sweater' })).toHaveLength(2);
   });
 
   test('Muster stehen nicht im Systemprompt', () => {
@@ -90,5 +96,13 @@ describe('9. Faserangabe unvollstaendig', () => {
 
   test('ohne Faserangabe des Artikels -> still', () => {
     expect(pruefeGeneratorText(kurz('Aus 80 % Baumwolle.', undefined))).toEqual([]);
+  });
+
+  test('grundFaser: Farb-Ausnahmen in Klammern fallen weg (Scan: 340 Fehlalarme "fehlt Viskose")', () => {
+    expect(grundFaser('100% Baumwolle (Sports Grey: 85% Baumwolle / 15% Viskose)')).toBe('100% Baumwolle');
+    expect(grundFaser('80% Baumwolle / 20% Polyester (Heather Grey: 75% Baumwolle / 21% Polyester / 4% Viskose), (Heather Mid Grey: 60% Baumwolle / 40% Polyester)'))
+      .toBe('80% Baumwolle / 20% Polyester');
+    expect(grundFaser('')).toBeNull();
+    expect(grundFaser(null)).toBeNull();
   });
 });
