@@ -174,10 +174,10 @@ export const FANMEET_KATEGORIE = {
 export const FANMEET_SEO_HINWEIS =
   'Fanart von Fans für Fans. Zwei Motive: „TayNew“ mit dem Spruch „"Orca-nic chaos but beary much love!"“ (Eisbär und Orca) '
   + 'und „The FORCE of love. The BOOK of our hearts.“ (Fuchs mit Tomate). Sprüche wörtlich. '
-  + 'Schauspieler-Namen nur als Motivtext oder im Titel, Personen nie beschreiben. Kein Anlass, kein Ort, kein Datum. '
+  + 'Schauspieler-Namen nur als Motivtext oder im Titel, Personen nie beschreiben. '
   // FM2 Schritt 3 (Inhaber 28.10.): die Texte machten "Fanmeet" zum Anlass und setzten Knappheit/Zeitdruck.
   // Der Kategoriename steht bewusst NICHT im Hinweis (er kommt ohnehin ueber "kategorien" in den Prompt).
-  + 'Kein Anlass, kein Treffen, keine Veranstaltung. Kein Zeitdruck und keine Knappheit, gedruckt wird nach Bestellung.';
+  + 'Kein Anlass, kein Ort, kein Datum, kein Treffen, keine Veranstaltung. Kein Zeitdruck und keine Knappheit, gedruckt wird nach Bestellung.';
 export const BOYSLOVE_SEO_HINWEIS =
   'Fanart von Fans für Fans. Serien nur nennen, wenn das Motivfeld sie angibt. '
   + 'Schauspieler-Namen nur als Motivtext oder im Titel, Personen nie beschreiben; als Fanart kennzeichnen, '
