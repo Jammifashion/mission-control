@@ -156,7 +156,92 @@ export const CH_HALLOWEEN = {
   fp: { partnerId: 'FP-001', wcKategorie: 'Crocodiles Hamburg' },
 };
 
-export const KOLLEKTIONEN = { [HALLOWEEN.schluessel]: HALLOWEEN, [CH_HALLOWEEN.schluessel]: CH_HALLOWEEN };
+// Fanmeet BoysLove (FM1/FM2, Entscheidungen Inhaber 28.10.): 2 Motive x 6 Produkte,
+// je Artikel ein Motiv (wie der BL-Bestand, z. B. Jack/Joker), darum zwei Kollektionen
+// mit eigener Kurzbezeichnung und gemeinsamer NEUER Unterkategorie "Fanmeet" unter
+// BoysLove (320); die Artikel stehen in 320 + Fanmeet. Die erste Kollektion legt
+// Kategorie, Struktur- und Karte-Zeile an, die zweite findet sie vor.
+// Struktur_Kategorien: die tote Zeile der geloeschten 444 "Fanmeet Berlin" wird
+// umgeschrieben (Inhaber, Frage 8), dazu der SEO_Hinweis von 320 (Nachtrag 28.10.).
+// Groessen laut L-Shop bis 5XL (Shop-Terme enden bei 5XL), Farbe = L-Shop-Name.
+// Texte zeitlos: kein Anlass, Ort, Datum (Nur_intern, damit die Pruefung meldet).
+// Personen nie beschreiben; "offiziell" steht in keinem Prompt-Text (CLAUDE.md),
+// die Pruefung (VERBOTENE_BEGRIFFE) faengt es ab.
+export const FANMEET_KATEGORIE = {
+  name: 'Fanmeet', slug: 'fanmeet', parent: 320,
+  pfad: 'BoysLove (BL) > Fanmeet', oberkategorie: 'BoysLove (BL)',
+};
+export const FANMEET_SEO_HINWEIS =
+  'Fanart von Fans für Fans. Zwei Motive: „TayNew“ mit dem Spruch „"Orca-nic chaos but beary much love!"“ (Eisbär und Orca) '
+  + 'und „The FORCE of love. The BOOK of our hearts.“ (Fuchs mit Tomate). Sprüche wörtlich. '
+  + 'Schauspieler-Namen nur als Motivtext oder im Titel, Personen nie beschreiben. Kein Anlass, kein Ort, kein Datum.';
+export const BOYSLOVE_SEO_HINWEIS =
+  'Fanart von Fans für Fans. Serien nur nennen, wenn das Motivfeld sie angibt. '
+  + 'Schauspieler-Namen nur als Motivtext oder im Titel, Personen nie beschreiben; als Fanart kennzeichnen, '
+  + 'sonst keine Aussage zu Lizenz oder Herkunft. Keine Rechteinhaber. Du-Ansprache, locker.';
+const FANMEET_NUR_INTERN = 'Fantreffen; Berlin; 05.12.2026';
+
+// Produkte je Motiv. bilddatei = Mockup im Ordner --bilder (Namen vom Inhaber).
+const FANMEET_PRODUKTE = [
+  { modell: 'E3000',   art: 'T-Shirt',                        farbe: 'Black',      von: 'XS', bis: '5XL', versand: 'grossbrief', syn: ['Shirt', 'Shirt Herren'] },
+  { modell: 'E3005',   art: 'T-Shirt tailliert',              farbe: 'Black',      von: 'XS', bis: '3XL', versand: 'grossbrief', syn: ['Shirt Damen', 'Shirt tailliert'] },
+  { modell: 'BCWU02K', art: 'super weicher Hoodie',           farbe: 'Black Pure', von: 'XS', bis: '4XL', versand: 'paket',      syn: ['Hoodie', 'Hoodie Herren'] },
+  { modell: 'BCWW02Q', art: 'super weicher Hoodie tailliert', farbe: 'Black Pure', von: 'XS', bis: '3XL', versand: 'paket',      syn: ['Hoodie Damen', 'Hoodie tailliert'] },
+  { modell: 'BY284',   art: 'Fluffy Hoodie',                  farbe: 'Black',      von: 'XS', bis: '5XL', versand: 'grossbrief', syn: ['Teddy Hoodie', 'Fluffy Hoodie Unisex'] },
+  { modell: 'BY289',   art: 'Fluffy Hoodie Damen',            farbe: 'Black',      von: 'XS', bis: '5XL', versand: 'grossbrief', syn: ['Teddy Hoodie Damen', 'Fluffy Hoodie tailliert'] },
+];
+
+function fanmeetKollektion({ schluessel, kurz, name, syn1, spruch, bilder, motivZeile, ersteKollektion }) {
+  return {
+    schluessel, kurz, motive: null,
+    artikel: FANMEET_PRODUKTE.map(p => ({
+      titel: `${name} ${p.art}`, modell: p.modell, farbe: p.farbe, von: p.von, bis: p.bis, versand: p.versand,
+      bilddatei: bilder[p.modell], bildTitel: `${name} ${p.art} Schwarz`,
+      keyphrase: `${name} ${p.art}`,
+      synonyme: [`${syn1} ${p.syn[0]}`, `${name} Fanart ${p.syn[1]}`, `${spruch} ${p.syn[0]}`],
+    })),
+    kategorie: FANMEET_KATEGORIE, kategorieIds: null, kategorieIdsZusatz: [320],
+    kategorienText: 'BoysLove (BL), Fanmeet',
+    motivZeile: {
+      motiv: motivZeile, druckposition: 'Front, Brust', druckfarben: 'vollfarbig', druckfarbeJeTextilfarbe: 'nein, fest',
+      serieKontext: 'Fanmeet-Kollektion (BoysLove), Fanart', nurIntern: FANMEET_NUR_INTERN, offen: '',
+    },
+    kategorieSeoHinweis: FANMEET_SEO_HINWEIS,
+    kategorieKarte: { keyphrase: 'Tay New Fanart', synonyme: ['TayNew Fanart', 'BL Fanmeet Shirts', 'Fanmeet Hoodies'] },
+    karteNotiz: 'FM2: angelegt, Yoast-Werte laut fm1-kategorie.md (Inhaber)',
+    // Struktur_Kategorien: Zeile mit dieser Kategorienummer wird umgeschrieben statt angehaengt.
+    strukturErsetzt: '444',
+    // weitere SEO_Hinweise (Kategorienummer -> neuer Text), nur in der ersten Kollektion.
+    seoHinweiseNeu: ersteKollektion ? [{ nummer: '320', hinweis: BOYSLOVE_SEO_HINWEIS }] : [],
+    // Kategoriebild = Artikelbild dieses Modells (nur gesetzt, wenn die Kategorie noch keins hat).
+    kategorieBildModell: ersteKollektion ? 'E3000' : null,
+    preise: 'fanmeet', fp: null,
+  };
+}
+
+export const FANMEET_TAYNEW = fanmeetKollektion({
+  schluessel: 'fanmeet-taynew', kurz: 'BL-TayNew', name: 'Tay New', syn1: 'TayNew', spruch: 'Orca-nic chaos', ersteKollektion: true,
+  motivZeile: 'Fanart: Eisbär und Orca Rücken an Rücken zwischen Schneeflocken, darüber der Schriftzug „TayNew“, '
+    + 'darunter der Spruch „"Orca-nic chaos but beary much love!"“ in Weiß; kleine Signatur am Motiv',
+  bilder: {
+    E3000: 'E3000 black Tay New.jpg', E3005: 'E3005 black Tay new.jpg', BCWU02K: 'BCWU02K Black Tay new.jpg',
+    BCWW02Q: 'BCWW02Q Black Tay new.jpg', BY284: 'BY284 black Tay New.jpg', BY289: 'BY289 black Tay New.jpg',
+  },
+});
+export const FANMEET_FORCELOVE = fanmeetKollektion({
+  schluessel: 'fanmeet-forcelove', kurz: 'BL-ForceLove', name: 'Force of Love', syn1: 'ForceBook', spruch: 'Book of our hearts', ersteKollektion: false,
+  motivZeile: 'Fanart: Fuchs umarmt eine lächelnde Tomate, kleine Herzen, orange Glitzerspur; darüber der Spruch '
+    + '„The FORCE of love. The BOOK of our hearts.“ in Orange; kleine Signatur am Motiv',
+  bilder: {
+    E3000: 'E3000 black Force of Love.jpg', E3005: 'E3005 black Force of Love.jpg', BCWU02K: 'BCWU02K Force of Love.jpg',
+    BCWW02Q: 'BCWW02QForce of Love.jpg', BY284: 'BY284 black Force of Love.jpg', BY289: 'BY289 black Force of Love.jpg',
+  },
+});
+
+export const KOLLEKTIONEN = {
+  [HALLOWEEN.schluessel]: HALLOWEEN, [CH_HALLOWEEN.schluessel]: CH_HALLOWEEN,
+  [FANMEET_TAYNEW.schluessel]: FANMEET_TAYNEW, [FANMEET_FORCELOVE.schluessel]: FANMEET_FORCELOVE,
+};
 
 // Satz zur KI-Gestaltung des Druckmotivs (HW4): ans Ende der Langbeschreibung.
 // Im Bestand gab es keinen (73 Crocodiles-Artikel gelesen) - Vorschlag aus dem Auftrag.
@@ -345,8 +430,10 @@ export function produktPayload(plan, { kategorieId, attrIds, markeId, lieferzeit
     short_description: '',
     reviews_allowed: true,
     shipping_class: plan.artikel.versand,
-    categories: plan.k?.kategorieIds ? plan.k.kategorieIds.map(id => ({ id })) : (kategorieId ? [{ id: kategorieId }] : []),
+    categories: produktKategorien(plan.k, kategorieId).map(id => ({ id })),
     ...(markeId ? { brands: [{ id: markeId }] } : {}),
+    // FM2: genau eine Farbe -> vorgeblendet (Inhaber 12.10.), Groesse nie.
+    default_attributes: [{ id: attrIds.farbe, option: plan.farbe }],
     meta_data: mitLieferzeit([], lieferzeit),
     attributes: [
       { id: attrIds.farbe,   position: 0, visible: true, variation: true, options: [plan.farbe] },
@@ -354,6 +441,26 @@ export function produktPayload(plan, { kategorieId, attrIds, markeId, lieferzeit
       ...((plan.k ?? HALLOWEEN).motive ? [{ name: MOTIV_ACHSE, position: 2, visible: true, variation: true, options: (plan.k ?? HALLOWEEN).motive.map(m => m.titel) }] : []),
     ],
   };
+}
+
+/**
+ * Ruecklese-Pruefung der Vorblendung (FM2): genau ein Eintrag, Attribut Farbe, Option
+ * = Farbe (WooCommerce liefert den Namen oder den Slug zurueck). null = in Ordnung.
+ */
+export function pruefeVorblendung(defaultAttributes, farbe, farbAttrId) {
+  const def = defaultAttributes ?? [];
+  const soll = [klein(farbe), klein(farbe).replace(/\s+/g, '-')];
+  if (def.length === 1 && Number(def[0].id) === Number(farbAttrId) && soll.includes(klein(def[0].option))) return null;
+  return `default_attributes ${JSON.stringify(def)} statt Farbe "${farbe}"`;
+}
+
+/**
+ * Kategorie-IDs am Produkt: feste IDs, sonst die zusaetzlichen festen (FM2: 320)
+ * und die neue Kategorie. Reihenfolge = Reihenfolge der SEO_Hinweise im SEO-Flow.
+ */
+export function produktKategorien(k, kategorieId) {
+  if (k?.kategorieIds) return [...k.kategorieIds];
+  return [...(k?.kategorieIdsZusatz ?? []), ...(kategorieId ? [kategorieId] : [])];
 }
 
 /**
@@ -417,7 +524,8 @@ export function ordneMockups(dateinamen, artikelListe = ARTIKEL) {
 /** Upload-Liste eines Artikels: Sammelbild, dann 8 Motive (Reihenfolge MOTIVE). */
 export function bildListe(artikel, mockups, k = HALLOWEEN) {
   const basis = normalisiereTeil(artikel.titel);
-  if (!k.motive) return [{ schluessel: 'einzel', quelle: artikel.bilddatei, dateiname: `${basis}.jpg`, titel: artikel.titel }];
+  // FM2: Titel = ALT = Artikelname + Farbe (SE6), wo die Kollektion ihn vorgibt.
+  if (!k.motive) return [{ schluessel: 'einzel', quelle: artikel.bilddatei, dateiname: `${basis}.jpg`, titel: artikel.bildTitel ?? artikel.titel }];
   return [
     { schluessel: 'sammel', quelle: sammelbildDatei(artikel.modell), dateiname: `${basis}-alle-motive.jpg`,
       titel: `${artikel.titel} alle Motive` },
@@ -559,7 +667,19 @@ export function planeSheets(reiter, plaene, { kategorieId = '', heute, k = HALLO
   const motivDa = M.slice(1).some(r => t(r[mKurz]) === k.kurz);
   const kh = K[0] ?? [];
   const kName = requireHeader(kh, 'Kategoriename', 'Struktur_Kategorien');
+  const kNr = findHeader(kh, 'Kategorienummer');
+  const kHinweis = findHeader(kh, 'SEO_Hinweis');
   const kategorieDa = !k.kategorie || K.slice(1).some(r => klein(r[kName]) === klein(k.kategorie.name));
+  // FM2: tote Zeile (geloeschte Kategorie) umschreiben statt anhaengen.
+  const ersetzIdx = !kategorieDa && k.strukturErsetzt && kNr >= 0 ? K.findIndex((r, i) => i > 0 && t(r[kNr]) === t(k.strukturErsetzt)) : -1;
+  // FM2: weitere SEO_Hinweise je Kategorienummer (nur geaenderte).
+  const hinweiseNeu = (k.seoHinweiseNeu ?? []).map(h => {
+    const i = kNr >= 0 ? K.findIndex((r, j) => j > 0 && t(r[kNr]) === t(h.nummer)) : -1;
+    if (i < 0 || kHinweis < 0) return { nummer: h.nummer, fehler: `Struktur_Kategorien: Kategorie ${h.nummer} oder Spalte SEO_Hinweis fehlt.` };
+    const alt = K[i];
+    const neu = kh.map((_, j) => (j === kHinweis ? h.hinweis : alt[j] ?? ''));
+    return { nummer: h.nummer, zeile: i + 1, alt, neu, altHinweis: t(alt[kHinweis]), neuHinweis: h.hinweis, gleich: t(alt[kHinweis]) === t(h.hinweis) };
+  });
   const sh = S[0] ?? [];
   const sTyp = requireHeader(sh, 'Typ', 'SEO_Karte'), sName = requireHeader(sh, 'Name', 'SEO_Karte');
   const karteDa = !k.kategorie || S.slice(1).some(r => t(r[sTyp]) === 'Kategorie' && klein(r[sName]) === klein(k.kategorie.name));
@@ -572,8 +692,11 @@ export function planeSheets(reiter, plaene, { kategorieId = '', heute, k = HALLO
       kategorienZuletzt: letzteZeile(K), karteZuletzt: letzteZeile(S),
     },
     motive:     motivDa ? { vorhanden: true } : { zeile: letzteZeile(M) + 1, werte: motivZeile(mh, heute, k) },
-    kategorie:  kategorieDa ? { vorhanden: true } : { zeile: letzteZeile(K) + 1, werte: kategorieZeile(kh, kategorieId, k) },
+    kategorie:  kategorieDa ? { vorhanden: true }
+      : ersetzIdx > 0 ? { zeile: ersetzIdx + 1, ersetzt: K[ersetzIdx], werte: kategorieZeile(kh, kategorieId, k, K[ersetzIdx]) }
+      : { zeile: letzteZeile(K) + 1, werte: kategorieZeile(kh, kategorieId, k) },
     karte:      karteDa ? { vorhanden: true } : { zeile: letzteZeile(S) + 1, werte: karteZeile(sh, kategorieId, heute, k) },
+    hinweiseNeu,
   };
 }
 
@@ -595,19 +718,27 @@ export function motivZeile(header, heute, k = HALLOWEEN) {
   });
 }
 
-export function kategorieZeile(header, kategorieId, k = HALLOWEEN) {
-  return zeileNachKopf(header, {
-    Kategorienummer: kategorieId ? String(kategorieId) : '', Kategorien: k.kategorie.name,
+/**
+ * Zeile fuer Struktur_Kategorien. Pfad "Eltern > Name" fuer Unterkategorien (FM2).
+ * alt = umzuschreibende Zeile: Spalten, die hier nicht gesetzt werden (Instagram,
+ * TikTok), bleiben wie sie sind.
+ */
+export function kategorieZeile(header, kategorieId, k = HALLOWEEN, alt = null) {
+  const neu = zeileNachKopf(header, {
+    Kategorienummer: kategorieId ? String(kategorieId) : '', Kategorien: k.kategorie.pfad ?? k.kategorie.name,
     Kategoriename: k.kategorie.name, SEO_Hinweis: k.kategorieSeoHinweis,
   });
+  if (!alt) return neu;
+  const gesetzt = new Set(['Kategorienummer', 'Kategorien', 'Kategoriename', 'SEO_Hinweis'].map(n => findHeader(header, n)));
+  return header.map((_, j) => (gesetzt.has(j) ? neu[j] : alt[j] ?? ''));
 }
 
 export function karteZeile(header, kategorieId, heute, k = HALLOWEEN) {
   return zeileNachKopf(header, {
-    Typ: 'Kategorie', Name: k.kategorie.name, Pfad: k.kategorie.name, WC_ID: kategorieId ? String(kategorieId) : '',
-    Oberkategorie: k.kategorie.name, Soll_Keyphrase: k.kategorieKarte.keyphrase,
+    Typ: 'Kategorie', Name: k.kategorie.name, Pfad: k.kategorie.pfad ?? k.kategorie.name, WC_ID: kategorieId ? String(kategorieId) : '',
+    Oberkategorie: k.kategorie.oberkategorie ?? k.kategorie.name, Soll_Keyphrase: k.kategorieKarte.keyphrase,
     Soll_Synonyme: k.kategorieKarte.synonyme.join(', '), Status: 'Vorschlag', Stand: heute ?? '',
-    Notiz: 'HW2: vorbereitet, Yoast-Werte folgen',
+    Notiz: k.karteNotiz ?? 'HW2: vorbereitet, Yoast-Werte folgen',
   });
 }
 
@@ -689,7 +820,12 @@ export async function leseShopStand(wc, { markenSlug = 'jammifashion', k = HALLO
   let kategorie = null, kategorienFehlen = [];
   if (k.kategorie) {
     const kats = seitenListe((await wc.get('products/categories', { search: k.kategorie.name, per_page: 100 })).data, { wc, pfad: 'products/categories' });
-    kategorie = kats.find(x => klein(x.name) === klein(k.kategorie.name) && Number(x.parent) === 0) ?? null;
+    // FM2: Unterkategorie -> Eltern-ID aus der Kollektion (Halloween: 0).
+    kategorie = kats.find(x => klein(x.name) === klein(k.kategorie.name) && Number(x.parent) === Number(k.kategorie.parent ?? 0)) ?? null;
+    if (k.kategorieIdsZusatz?.length) {
+      const zus = seitenListe((await wc.get('products/categories', { include: k.kategorieIdsZusatz.join(','), per_page: 100 })).data, { wc, pfad: 'products/categories' });
+      kategorienFehlen = k.kategorieIdsZusatz.filter(id => !zus.some(x => x.id === id));
+    }
   } else {
     // Feste Kategorien: nur ueber die IDs nachpruefen (include).
     const kats = seitenListe((await wc.get('products/categories', { include: k.kategorieIds.join(','), per_page: 100 })).data, { wc, pfad: 'products/categories' });
@@ -702,7 +838,7 @@ export async function leseShopStand(wc, { markenSlug = 'jammifashion', k = HALLO
     attrIds: { farbe: ids.farbe, groesse: ids.groesse }, motivGlobal: ids.motivGlobal,
     farbTerme: farbTerme.map(x => x.name), groessenTerme: groessenTerme.map(x => x.name),
     versandklassen: klassen.map(x => x.slug),
-    kategorie: kategorie?.ids ? kategorie : (kategorie ? { id: kategorie.id, count: kategorie.count } : null), kategorienFehlen,
+    kategorie: kategorie?.ids ? kategorie : (kategorie ? { id: kategorie.id, count: kategorie.count, slug: kategorie.slug, bild: kategorie.image?.id ?? null } : null), kategorienFehlen,
     marke: marke ? { id: marke.id, name: marke.name } : null,
   };
 }
@@ -787,10 +923,7 @@ export async function schreibeArtikelSheets(sheets, spreadsheetId, plan, { produ
   if (da) ssot = t(da[eId]);
   else {
     ssot = naechsteSsotIds(E.slice(1).map(r => r[eId]), 1)[0];
-    await sheets.spreadsheets.values.append({
-      spreadsheetId, range: "'Erfassungsmaske'!A1", valueInputOption: 'RAW', insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [buildRow(eh, maskeBody(plan, { produktId, marke }), ssot)] },
-    });
+    await schreibeNeueZeilen(sheets, spreadsheetId, 'Erfassungsmaske', [buildRow(eh, maskeBody(plan, { produktId, marke }), ssot)]);
     maskeNeu = true;
   }
 
@@ -802,10 +935,7 @@ export async function schreibeArtikelSheets(sheets, spreadsheetId, plan, { produ
   pruefeVariantenPayload(ssot, payload);
   if (findHeader(vh, 'LShop_ArticleNr') < 0) throw new Error('Reiter Varianten: Spalte LShop_ArticleNr fehlt – nichts geschrieben.');
   const zeilen = baueVariantenZeilen(vh, ssot, payload, []);
-  await sheets.spreadsheets.values.append({
-    spreadsheetId, range: "'Varianten'!A1", valueInputOption: 'RAW', insertDataOption: 'INSERT_ROWS',
-    requestBody: { values: zeilen },
-  });
+  await schreibeNeueZeilen(sheets, spreadsheetId, 'Varianten', zeilen);
   return { ssot, maskeNeu, variantenNeu: zeilen.length, hinweis: null };
 }
 
@@ -820,12 +950,98 @@ export function fpArtikelZeile(header, plan, produktId) {
   });
 }
 
-/** Eine fertige Zeile anhaengen (Motive, Struktur_Kategorien, SEO_Karte), RAW. */
-export async function haengeZeileAn(sheets, spreadsheetId, tab, werte) {
-  await sheets.spreadsheets.values.append({
-    spreadsheetId, range: `'${tab}'!A1`, valueInputOption: 'RAW', insertDataOption: 'INSERT_ROWS',
-    requestBody: { values: [werte] },
+// ── Sheets schreiben ohne values.append (FM2, Muster des Korbs) ─────────────
+// Erste freie Zeile, Nachbarzeile oben und Zielbereich (plus eine Zeile darunter)
+// pruefen, values.update RAW, zuruecklesen (UNFORMATTED: Preise und Wahrheitswerte
+// kommen sonst formatiert zurueck). Abweichung -> Fehler, der Lauf haelt an.
+
+/** Zellwert fuer den Vergleich: Wahrheitswerte wie Sheets sie zeigen, sonst Text getrimmt. */
+export const zellText = v => (typeof v === 'boolean' ? (v ? 'TRUE' : 'FALSE') : String(v ?? '').trim());
+
+/** Abweichungen zwischen Geschriebenem und Gelesenem: [{ zeile, spalte, soll, ist }] (Index ab 0). */
+export function zeilenAbweichungen(soll, ist) {
+  const ab = [];
+  (soll ?? []).forEach((r, i) => (r ?? []).forEach((w, j) => {
+    const a = zellText(w), b = zellText(ist?.[i]?.[j]);
+    if (a !== b) ab.push({ zeile: i, spalte: j, soll: a, ist: b });
+  }));
+  return ab;
+}
+
+/** Spaltenbuchstabe zu Index ab 0 (0 -> A, 26 -> AA). */
+export function spalteBuchstabe(i) {
+  let s = '', n = i + 1;
+  while (n > 0) { const r = (n - 1) % 26; s = String.fromCharCode(65 + r) + s; n = Math.floor((n - 1) / 26); }
+  return s;
+}
+
+const istLeer = rows => !(rows ?? []).some(r => (r ?? []).some(z => zellText(z)));
+
+/**
+ * Neue Zeilen unter die letzte belegte Zeile schreiben (kein append).
+ * @returns {Promise<number>} erste geschriebene Zeile (1-basiert)
+ */
+export async function schreibeNeueZeilen(sheets, spreadsheetId, tab, zeilen) {
+  if (!zeilen?.length) return null;
+  const q = `'${tab}'`;
+  const alt = (await sheets.spreadsheets.values.get({ spreadsheetId, range: q, valueRenderOption: 'UNFORMATTED_VALUE' })).data.values ?? [];
+  const start = Math.max(letzteZeile(alt), 1) + 1;
+  const ende = start + zeilen.length - 1;
+  const spalte = spalteBuchstabe(Math.max(...zeilen.map(r => r.length), (alt[0] ?? []).length) - 1);
+  const { data: meta } = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties(title,sheetId,gridProperties)' });
+  const info = (meta.sheets ?? []).map(s => s.properties).find(p => p.title === tab);
+  if (!info) throw new Error(`Reiter ${tab} fehlt – nichts geschrieben.`);
+  const raster = info.gridProperties?.rowCount ?? 0;
+  if (raster < ende + 1) {
+    await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: [
+      { appendDimension: { sheetId: info.sheetId, dimension: 'ROWS', length: ende + 1 - raster } },
+    ] } });
+  }
+  const { data: um } = await sheets.spreadsheets.values.get({
+    spreadsheetId, range: `${q}!A${start - 1}:${spalte}${ende + 1}`, valueRenderOption: 'UNFORMATTED_VALUE',
   });
+  const umgebung = um.values ?? [];
+  if (zeilenAbweichungen([alt[start - 2] ?? []], [umgebung[0] ?? []]).length)
+    throw new Error(`${tab}: Zeile ${start - 1} hat sich seit dem Lesen geändert – nichts geschrieben.`);
+  if (!istLeer(umgebung.slice(1))) throw new Error(`${tab}: Zielbereich Z${start}–Z${ende + 1} ist nicht leer – nichts geschrieben.`);
+  const range = `${q}!A${start}:${spalte}${ende}`;
+  await sheets.spreadsheets.values.update({ spreadsheetId, range, valueInputOption: 'RAW', requestBody: { values: zeilen } });
+  const { data: zurueck } = await sheets.spreadsheets.values.get({ spreadsheetId, range, valueRenderOption: 'UNFORMATTED_VALUE' });
+  const ab = zeilenAbweichungen(zeilen, zurueck.values ?? []);
+  if (ab.length) throw new Error(`${tab}: Rücklesen Z${start}–Z${ende} weicht ab (${ab.length} Zellen, erste Z${start + ab[0].zeile} Spalte ${spalteBuchstabe(ab[0].spalte)}).`);
+  return start;
+}
+
+/** Eine fertige Zeile anhaengen (Motive, Struktur_Kategorien, SEO_Karte, FP_Artikel) – ohne append. */
+export async function haengeZeileAn(sheets, spreadsheetId, tab, werte) {
+  return schreibeNeueZeilen(sheets, spreadsheetId, tab, [werte]);
+}
+
+/**
+ * Bestehende Zeile ersetzen (FM2: Struktur_Kategorien Z60, SEO_Hinweis 320). Vorher
+ * wird die Zeile frisch gelesen und muss dem erwarteten alten Inhalt gleichen
+ * (sonst Fehler, nichts geschrieben); geschrieben werden nur geaenderte Zellen, RAW,
+ * danach zurueckgelesen.
+ * @returns {Promise<number>} Anzahl geaenderter Zellen (0 = schon so)
+ */
+export async function ersetzeZeile(sheets, spreadsheetId, tab, zeile, alt, neu) {
+  const q = `'${tab}'`;
+  const breite = Math.max(alt.length, neu.length);
+  const range = `${q}!A${zeile}:${spalteBuchstabe(breite - 1)}${zeile}`;
+  const lies = async () => ((await sheets.spreadsheets.values.get({ spreadsheetId, range, valueRenderOption: 'UNFORMATTED_VALUE' })).data.values ?? [[]])[0] ?? [];
+  const jetzt = await lies();
+  const altVoll = Array.from({ length: breite }, (_, i) => alt[i] ?? '');
+  if (zeilenAbweichungen([altVoll], [jetzt]).length) throw new Error(`${tab} Z${zeile} hat sich seit dem Lesen geändert – nichts geschrieben.`);
+  const daten = [];
+  neu.forEach((w, j) => {
+    if (zellText(w) !== zellText(jetzt[j])) daten.push({ range: `${q}!${spalteBuchstabe(j)}${zeile}`, values: [[w]] });
+  });
+  if (!daten.length) return 0;
+  await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: 'RAW', data: daten } });
+  const zurueck = await lies();
+  const ab = zeilenAbweichungen([neu], [zurueck]);
+  if (ab.length) throw new Error(`${tab} Z${zeile}: Rücklesen weicht ab (Spalte ${spalteBuchstabe(ab[0].spalte)}).`);
+  return daten.length;
 }
 
 /** Lieferzeit-Standard aus den Zeilen von Struktur_Lieferzeiten. */

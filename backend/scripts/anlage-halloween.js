@@ -7,6 +7,10 @@
 // --kollektion (HW4): halloween (Standard, 8 Motive, Sammelbild) oder ch-halloween
 // (Crocodiles Hamburg Kinder, ohne Motiv-Achse, ein Bild je Artikel aus <ordner>,
 // feste Kategorien, FP_Artikel-Zeile fuer den Festpreis-Partner).
+// FM2: fanmeet-taynew (zuerst: legt Kategorie "Fanmeet" unter 320 an, schreibt
+// Struktur Z60 um und den SEO_Hinweis von 320, setzt das Kategoriebild) und
+// fanmeet-forcelove; je 6 Artikel ohne Motiv-Achse, in 320 + Fanmeet, Preise aus
+// .preise-fanmeet.json. Pilot: --kollektion fanmeet-taynew --nur E3000.
 //
 // --bilder: Ordner mit mockups/ (32 Mockups, Namen vom Inhaber) und den lokal
 // gebauten sammelbild-<Modell>.jpg. Fuer --write Pflicht.
@@ -44,7 +48,8 @@ import {
   KOLLEKTIONEN, MOTIVE, TAKT_MS, AnlageStopp, istStoppFehler, fpArtikelZeile,
   ordneMockups, bildListe, bilderAusZustand, ladeBilderHoch, sammelbildDatei, galerie,
   planeArtikel, planeSheets, geplanteAufrufe, preisVorlage, getakteterClient, leseShopStand,
-  findeProdukt, legeArtikelAn, schreibeArtikelSheets, haengeZeileAn, standardLieferzeit, kategorieZeile, karteZeile,
+  findeProdukt, legeArtikelAn, schreibeArtikelSheets, haengeZeileAn, ersetzeZeile, standardLieferzeit, kategorieZeile, karteZeile,
+  produktKategorien, pruefeVorblendung,
 } from '../lib/anlageHalloween.js';
 
 const args  = process.argv.slice(2);
@@ -56,7 +61,8 @@ const BILDER = wert('--bilder');
 const K = KOLLEKTIONEN[wert('--kollektion') ?? 'halloween'];
 if (!K) throw new Error(`Unbekannte Kollektion "${wert('--kollektion')}" (${Object.keys(KOLLEKTIONEN).join(', ')}).`);
 const PRUEFEN = args.includes('--pruefen');
-const PREISDATEI = resolve(dirname(fileURLToPath(import.meta.url)), '.preise-halloween.json');
+// Preisdatei je Kollektion (FM2: .preise-fanmeet.json fuer beide Fanmeet-Motive, Schluessel = Modell).
+const PREISDATEI = resolve(dirname(fileURLToPath(import.meta.url)), `.preise-${K.preise ?? 'halloween'}.json`);
 const MEDIENDATEI = resolve(dirname(fileURLToPath(import.meta.url)), '.halloween-medien.json');
 const leseMedien = () => (existsSync(MEDIENDATEI) ? JSON.parse(readFileSync(MEDIENDATEI, 'utf8')) : {});
 const speichereMedien = z => writeFileSync(MEDIENDATEI, JSON.stringify(z, null, 2) + '\n');
@@ -122,11 +128,12 @@ async function run() {
     bilderJeArtikel: BILDER ? Math.ceil(offeneBilder / Math.max(1, artikelListe.length)) : 0 });
 
   // ── Ausgabe (ohne Preise) ──
-  log(`\n${WRITE ? 'SCHREIBLAUF' : 'TROCKENLAUF'} Halloween – ${heute}`);
+  log(`\n${WRITE ? 'SCHREIBLAUF' : 'TROCKENLAUF'} ${K.schluessel} – ${heute}`);
   log(`Zaehler: SSOT zuletzt ${sp.zaehler.ssotZuletzt}, Maske Z${sp.zaehler.maskeZuletzt}, Varianten Z${sp.zaehler.variantenZuletzt}, Motive Z${sp.zaehler.motiveZuletzt}, Struktur_Kategorien Z${sp.zaehler.kategorienZuletzt}, SEO_Karte Z${sp.zaehler.karteZuletzt}`);
   log(`Shop: Attribute Farbe=${shop.attrIds.farbe}, Größe=${shop.attrIds.groesse} (global, mit id); Motiv lokal (globales "Motiv": ${shop.motivGlobal ? `JA, id ${shop.motivGlobal}` : 'nein'})`);
   log(K.kategorie
-    ? `Kategorie "${K.kategorie.name}": ${shop.kategorie ? `vorhanden (id ${shop.kategorie.id})` : 'fehlt – wird mit --write angelegt (parent 0)'}`
+    ? `Kategorie "${K.kategorie.name}" (parent ${K.kategorie.parent ?? 0}, Slug ${K.kategorie.slug}): ${shop.kategorie ? `vorhanden (id ${shop.kategorie.id}, Bild ${shop.kategorie.bild ?? '–'})` : 'fehlt – wird mit --write angelegt'}`
+      + (K.kategorieIdsZusatz ? ` · Artikel zusätzlich in ${K.kategorieIdsZusatz.join(', ')}` : '')
     : `Kategorien (fest, im Shop vorhanden): ${shop.kategorie.ids.map((id, i) => `${id} ${shop.kategorie.namen[i]}`).join(' · ')}`);
   log(`Kollektion ${K.schluessel}: Kurzbezeichnung ${K.kurz}, ${K.motive ? `${K.motive.length} Motive (Achse "Motiv")` : 'ohne Motiv-Achse'}`);
   if (K.fp) {
@@ -138,7 +145,15 @@ async function run() {
   }
   log(`Marke: ${shop.marke ? shop.marke.name : 'FEHLT'} · Lieferzeit Standard: ${lieferzeit.name} (${lieferzeit.id}), Variationen "-1"`);
   log(`Farbterme neu: ${neueFarbTerme.join(', ') || '–'} · Größen-Terme neu: ${neueGroessen.join(', ') || '–'}`);
-  log(`Motive Z${sp.motive.zeile ?? '-'} ${sp.motive.vorhanden ? '(vorhanden)' : `"${K.kurz}"`} · Struktur_Kategorien ${sp.kategorie.vorhanden ? 'vorhanden' : `Z${sp.kategorie.zeile}`} · SEO_Karte ${sp.karte.vorhanden ? 'vorhanden' : `Z${sp.karte.zeile}`}`);
+  log(`Motive Z${sp.motive.zeile ?? '-'} ${sp.motive.vorhanden ? '(vorhanden)' : `"${K.kurz}"`} · Struktur_Kategorien ${sp.kategorie.vorhanden ? 'vorhanden' : `Z${sp.kategorie.zeile}${sp.kategorie.ersetzt ? ' (umgeschrieben)' : ''}`} · SEO_Karte ${sp.karte.vorhanden ? 'vorhanden' : `Z${sp.karte.zeile}`}`);
+  if (!sp.motive.vorhanden) log(`  Motive neu: ${JSON.stringify(sp.motive.werte)}`);
+  if (sp.kategorie.ersetzt) log(`  Struktur heute: ${JSON.stringify(sp.kategorie.ersetzt)}`);
+  if (!sp.kategorie.vorhanden) log(`  Struktur neu:   ${JSON.stringify(sp.kategorie.werte)}`);
+  if (!sp.karte.vorhanden) log(`  SEO_Karte neu:  ${JSON.stringify(sp.karte.werte)}`);
+  for (const h of sp.hinweiseNeu ?? []) {
+    log(h.fehler ? `SEO_Hinweis ${h.nummer}: ${h.fehler}`
+      : `SEO_Hinweis ${h.nummer} (Z${h.zeile}): ${h.gleich ? 'schon so' : `\n  alt: ${h.altHinweis}\n  neu: ${h.neuHinweis}`}`);
+  }
 
   const csv = [['Artikel', 'Status', 'SSOT-ID (geplant)', 'Maske-Zeile', 'Varianten-Zeile', 'Artikelnummer', 'Versandklasse',
     'Achsen', 'Nr', 'Variations-SKU', 'SKU-Laenge', 'Farbe', 'Größe (Shop)', 'Größe (L-Shop)', 'Motiv', 'LShop_ArticleNr', 'Preis vorhanden', 'Hinweis']];
@@ -169,7 +184,7 @@ async function run() {
     log(`CSV: ${csv.length - 1} Zeilen -> ${CSV}`);
   }
 
-  if (PRUEFEN) { await pruefeAnlage({ wc, plaene, reiter, medien, bilderJe, kategorieIds: K.kategorieIds ?? [shop.kategorie?.id] }); return; }
+  if (PRUEFEN) { await pruefeAnlage({ wc, plaene, reiter, medien, bilderJe, kategorieIds: produktKategorien(K, shop.kategorie?.id), shop }); return; }
   if (!WRITE) { log('TROCKENLAUF – nichts geschrieben. Schreiben mit --write (erst nach Freigabe).'); return; }
 
   // ── Schreiblauf ──
@@ -179,19 +194,31 @@ async function run() {
   const ohneVersand = bereit.filter(p => !shop.versandklassen.includes(p.artikel.versand));
   if (ohneVersand.length) throw new Error(`Versandklasse fehlt im Shop (${ohneVersand.map(p => p.artikel.versand).join(', ')}) – nichts geschrieben.`);
   if (!shop.marke) throw new Error('Marke fehlt im Shop – nichts geschrieben.');
+  const hinweisFehler = (sp.hinweiseNeu ?? []).filter(h => h.fehler);
+  if (hinweisFehler.length) throw new Error(`${hinweisFehler.map(h => h.fehler).join(' ')} – nichts geschrieben.`);
 
   try {
     let kategorieId = shop.kategorie?.id;
     if (K.kategorie && !kategorieId) {
-      const { data: k } = await wc.post('products/categories', { name: K.kategorie.name, slug: K.kategorie.slug, parent: K.kategorie.parent });
+      const { data: k } = await wc.post('products/categories', { name: K.kategorie.name, slug: K.kategorie.slug, parent: K.kategorie.parent ?? 0 });
       kategorieId = k?.id;
       if (!kategorieId) throw new Error('Kategorie: keine ID zurück.');
+      if (k.slug !== K.kategorie.slug || Number(k.parent) !== Number(K.kategorie.parent ?? 0))
+        throw new Error(`Kategorie ${kategorieId}: Slug "${k.slug}" / parent ${k.parent} statt "${K.kategorie.slug}" / ${K.kategorie.parent ?? 0} – Lauf hält an.`);
       log(`Kategorie angelegt: ${kategorieId}`);
     }
     for (const name of neueFarbTerme) { await wc.post(`products/attributes/${shop.attrIds.farbe}/terms`, { name }); log(`Farbterm angelegt: ${name}`); }
     for (const name of neueGroessen) { await wc.post(`products/attributes/${shop.attrIds.groesse}/terms`, { name }); log(`Größen-Term angelegt: ${name}`); }
 
-    if (!sp.kategorie.vorhanden) await haengeZeileAn(sheets, spreadsheetId, 'Struktur_Kategorien', kategorieZeile(reiter.Struktur_Kategorien[0], kategorieId, K));
+    // FM2: tote Zeile umschreiben (Inhalt vorher geprueft) statt anhaengen; weitere SEO_Hinweise.
+    if (!sp.kategorie.vorhanden && sp.kategorie.ersetzt)
+      await ersetzeZeile(sheets, spreadsheetId, 'Struktur_Kategorien', sp.kategorie.zeile, sp.kategorie.ersetzt,
+        kategorieZeile(reiter.Struktur_Kategorien[0], kategorieId, K, sp.kategorie.ersetzt));
+    else if (!sp.kategorie.vorhanden) await haengeZeileAn(sheets, spreadsheetId, 'Struktur_Kategorien', kategorieZeile(reiter.Struktur_Kategorien[0], kategorieId, K));
+    for (const h of (sp.hinweiseNeu ?? []).filter(x => !x.gleich)) {
+      await ersetzeZeile(sheets, spreadsheetId, 'Struktur_Kategorien', h.zeile, h.alt, h.neu);
+      log(`SEO_Hinweis ${h.nummer} (Z${h.zeile}) geschrieben`);
+    }
     if (!sp.karte.vorhanden) await haengeZeileAn(sheets, spreadsheetId, 'SEO_Karte', karteZeile(reiter.SEO_Karte[0], kategorieId, heute, K));
     if (!sp.motive.vorhanden) await haengeZeileAn(sheets, spreadsheetId, 'Motive', sp.motive.werte);
 
@@ -213,6 +240,12 @@ async function run() {
       const b = await ladeBilderHoch(bilderJe[p.artikel.modell], { zustand: medien, speichere: speichereMedien, lade, log });
       log(`  Bilder: ${b.neu} hochgeladen, ${b.vorhanden} vorhanden`);
       const kontext = { ...kontextBasis, bilder: b.bilder };
+      // FM2: Kategoriebild = Bild dieses Artikels, nur wenn die Kategorie noch keins hat.
+      if (K.kategorieBildModell === p.artikel.modell && kategorieId && !shop.kategorie?.bild && b.bilder?.einzel) {
+        const { data: kat } = await wc.put(`products/categories/${kategorieId}`, { image: { id: b.bilder.einzel } });
+        if (kat?.image?.id !== b.bilder.einzel) throw new Error(`Kategoriebild: Rücklesen ${kat?.image?.id ?? 'leer'} statt ${b.bilder.einzel}.`);
+        log(`  Kategoriebild gesetzt: ${b.bilder.einzel}`);
+      }
       const r = await legeArtikelAn(wc, p, kontext, { log });
       if (r.fehler.length || r.fehlend) {
         log(`  UNVOLLSTÄNDIG: ${r.fehlend} Kombinationen fehlen, ${r.fehler.length} Fehler – Sheets nicht geschrieben, Lauf hält an.`);
@@ -254,7 +287,7 @@ async function leseFpArtikel() {
 }
 
 // ── --pruefen: angelegte Entwuerfe zuruecklesen (nur GET) ──
-async function pruefeAnlage({ wc, plaene, reiter, medien, bilderJe, kategorieIds }) {
+async function pruefeAnlage({ wc, plaene, reiter, medien, bilderJe, kategorieIds, shop }) {
   const E = reiter.Erfassungsmaske, V = reiter.Varianten;
   const ec = n => E[0].indexOf(n), vc = n => V[0].indexOf(n);
   const zeilen = [];
@@ -270,6 +303,12 @@ async function pruefeAnlage({ wc, plaene, reiter, medien, bilderJe, kategorieIds
     if (fehltKat.length) f.push(`Kategorie fehlt: ${fehltKat.join(',')}`);
     if (prod.shipping_class !== p.artikel.versand) f.push(`Versandklasse ${prod.shipping_class}`);
     if (prod.reviews_allowed !== true) f.push('reviews_allowed nicht true');
+    const vorblendung = pruefeVorblendung(prod.default_attributes, p.farbe, shop.attrIds.farbe);
+    if (vorblendung) f.push(vorblendung);
+    if (bilderAusZustand(bilderJe[p.artikel.modell] ?? [], medien)?.einzel) {
+      const alt = prod.images?.[0]?.alt ?? '';
+      if (alt !== (p.artikel.bildTitel ?? p.artikel.titel)) f.push(`Bild-ALT "${alt}"`);
+    }
     const ids = (prod.images ?? []).map(i => i.id);
     if (bilder && JSON.stringify(ids) !== JSON.stringify(galerie(bilder, K).map(i => i.id))) f.push(`Galerie ${ids.join(',')}`);
     const ax = Object.fromEntries((prod.attributes ?? []).map(a => [a.name, a.id]));

@@ -548,6 +548,13 @@ Neue Sektionen immer mit Anker versehen:
   (mockups/ + sammelbild-<Modell>.jpg), Zuordnung Datei -> Motiv ueber Schluesselwoerter (`ordneMockups`,
   sonst Stopp), Galerie Sammelbild + 8 Motive, Variationsbild ueber "Motiv"; Upload-Zustand in
   `backend/scripts/.halloween-medien.json` (gitignored, kein Doppel-Upload). `--pruefen` liest zurueck.
+  FM2 (Fanmeet BoysLove): Kollektionen `fanmeet-taynew` (zuerst) und `fanmeet-forcelove`, je 6 Artikel ohne
+  Motiv-Achse, neue Unterkategorie "Fanmeet" (Slug `fanmeet`) unter 320 + feste 320 (`kategorieIdsZusatz`,
+  `produktKategorien`); Struktur-Zeile der geloeschten 444 wird umgeschrieben (`strukturErsetzt`, `ersetzeZeile`),
+  SEO_Hinweis 320 neu (`seoHinweiseNeu`), Kategoriebild = Bild des E3000-Artikels. Jede Anlage blendet die einzige
+  Farbe vor (`default_attributes`, Ruecklesen `pruefeVorblendung`), Bild-ALT = Titel + Farbe (`bildTitel`).
+  Preise `.preise-fanmeet.json` (gitignored). Sheets **ohne `values.append`**: `schreibeNeueZeilen` (erste freie
+  Zeile, Nachbar + Zielbereich pruefen, `values.update` RAW, UNFORMATTED zuruecklesen) auch fuer Maske/Varianten.
 - backend/lib/wpMedien.js – Upload in die WordPress-Mediathek (`ladeMedienHoch`, `setzeMedienText`),
   eine Stelle fuer `POST /api/artikel/media-upload` und das Halloween-Skript (fetchMitZeitlimit +
   pruefeFetchAntwort; Titel/ALT als Abfrageparameter).
