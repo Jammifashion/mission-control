@@ -205,7 +205,11 @@ describe('Spalte C "Anbieter" (modelConfig.js)', () => {
 describe('Floskeln (seo-pruefung, Regel 7)', () => {
   const lang = t => ({ kurzbeschreibung: '', produktbeschreibung: `<p>${t}</p>` });
   test('Grenzfaelle aus KI1 werden gemeldet', () => {
-    expect(pruefeGeneratorText(lang('Jetzt in deiner Größe sichern.'))).toEqual(['Floskel "in deiner Größe sichern" in Produktbeschreibung.']);
+    // FM2: "jetzt … sichern" meldet zusaetzlich als Knappheitsfloskel (Regel 8).
+    expect(pruefeGeneratorText(lang('Jetzt in deiner Größe sichern.'))).toEqual([
+      'Floskel "in deiner Größe sichern" in Produktbeschreibung.',
+      'Knappheitsfloskel "Jetzt in deiner Größe sichern" in Produktbeschreibung – wir drucken auf Bestellung, nichts ist knapp.',
+    ]);
     expect(pruefeGeneratorText(lang('Das Shirt ist sofort einsatzbereit.'))).toEqual(['Floskel "sofort einsatzbereit" in Produktbeschreibung.']);
   });
   test('Schreibweisen: Bindestrich/Leerzeichen, Wortanfang Lieblings', () => {

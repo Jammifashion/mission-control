@@ -29,9 +29,19 @@
 //     dort seit jeher genannt) plus Grenzfaelle aus KI1 ("Jetzt in deiner
 //     Groesse sichern", "sofort einsatzbereit") - die neuen NUR hier, nicht im
 //     Prompt (Regel oben).
+//  8. Druck- und Knappheitsfloskeln (KNAPPHEIT, FM2 28.10.): "solange er da
+//     ist", "bevor andere", "zuschlagen", "jetzt … sichern", "nur noch",
+//     "begrenzt", "limitiert" … - wir drucken auf Bestellung, Knappheit ist
+//     immer falsch. Muster statt fester Woerter, weil das Modell die Wendung
+//     jedes Mal anders baut. NUR hier, nie im Prompt.
+//  9. Faserangabe unvollstaendig (FM2): nennt ein Text eine Faser mit Prozent
+//     ("80 % Baumwolle"), muss jede Faser der Artikel-Faserangabe
+//     (strukturiert.faser bzw. LShop_Modelle Consistence) darin stehen.
+//     Reine Stoffe (eine Faser, z. B. 100 % Baumwolle) pruefen nichts.
 
 import { motivFuer } from './seo-ssot.js';
 import { lshopFuerArtikel } from './lshop.js';
+import { strukturierteEingabe } from './seo-prompt.js';
 
 // Feste Liste (Entscheidung Otto 25.09.). "Jammi Fashion" nur getrennt
 // geschrieben - "JammiFashion" ist der Markenname und erlaubt.
@@ -43,6 +53,24 @@ export const FLOSKELN = [
   'maximaler Tragekomfort', 'schnell und zuverlässig', 'sichere dir jetzt', 'Lieblings-',
   'individuell bedruckbar', 'personalisierbar', 'jetzt selbst gestalten',
   'in deiner Größe sichern', 'sofort einsatzbereit',
+];
+
+// Druck-/Knappheitsfloskeln (Regel 8). Name = Anzeige, re = Muster auf dem
+// Klartext (Gross/Klein egal, an Wortgrenzen). Bis 4 Woerter Abstand, damit
+// "solange er noch da ist" und "jetzt dein Exemplar sichern" greifen.
+const W  = '[A-Za-zÄÖÜäöüß]';
+const WL = '(?:\\s+[^\\s.!?]+){0,4}?';
+const knapp = (name, kern) => ({ name, re: new RegExp(`(?<!${W})${kern}(?!${W})`, 'i') });
+export const KNAPPHEIT = [
+  knapp('solange … da ist', `solange${WL}\\s+(?:da(?:\\s+(?:ist|sind))?|vorrätig|verfügbar|vorhanden|(?:der\\s+)?Vorrat\\s+reicht)`),
+  knapp('bevor andere',     'bevor\\s+(?:es\\s+)?andere'),
+  knapp('zuvorkommen',      'zuvor\\s*(?:kommen|kommst|kommt)'),
+  knapp('zuschlagen',       '(?:zuschlagen|schlag\\s+zu|greif\\s+zu|zugreifen)'),
+  knapp('jetzt … sichern',  `jetzt${WL}\\s+(?:sichern|sicher(?:e|t)?\\s+(?:dir|euch))`),
+  knapp('nur noch',         'nur\\s+noch'),
+  knapp('begrenzt',         `begrenzt${W}*`),
+  knapp('limitiert',        `(?:limitiert${W}*|limited)`),
+  knapp('ausverkauft',      'ausverkauft'),
 ];
 
 const BUCHST = 'A-Za-zÄÖÜäöüß0-9';
@@ -89,6 +117,18 @@ const LIEFER_RE = /(?<![A-Za-zÄÖÜäöüß])(?:Lieferzeit(?:en)?|Lieferung\s+e
 const STICK_RE  = /(?<![A-Za-zÄÖÜäöüß])(?:be|ge)?stick(?:t|te|ten|en|erei|ereien)?(?![A-Za-zÄÖÜäöüß])/i;
 const H1_RE     = /<h1[\s>]/i;
 
+// Regel 9: Fasern einer Faserangabe = das Wort direkt nach jeder Prozentzahl
+// ("80% Baumwolle / 20% Polyester" -> baumwolle, polyester), ohne Dubletten.
+const FASER_RE = /(\d{1,3}(?:[.,]\d+)?)\s*%\s*([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß-]*)/g;
+export function faserNamen(faser) {
+  const namen = new Map();
+  for (const m of String(faser ?? '').matchAll(FASER_RE)) {
+    const k = m[2].toLowerCase();
+    if (!namen.has(k)) namen.set(k, m[2]);
+  }
+  return [...namen.values()];
+}
+
 const woerter = s => String(s ?? '').toLowerCase().split(/[^a-zäöüß0-9]+/i).filter(Boolean);
 
 /**
@@ -101,6 +141,7 @@ const woerter = s => String(s ?? '').toLowerCase().split(/[^a-zäöüß0-9]+/i).
  * @param {string[]} [e.marken]         LShop_Modelle.Brand
  * @param {string[]} [e.modellnummern]  CatalogNr + CatNrManufacturer
  * @param {boolean}  [e.druck]          Motiv beschreibt einen Druck
+ * @param {string}   [e.faser]          Faserangabe des Artikels (Regel 9)
  * @returns {string[]} Hinweise, leer wenn alles in Ordnung.
  */
 export function pruefeGeneratorText(e = {}) {
@@ -152,6 +193,27 @@ export function pruefeGeneratorText(e = {}) {
 
   // 7. Floskeln
   for (const f of FLOSKELN) melde(floskelRe(f), `Floskel "${f.replace(/-$/, '…')}"`);
+
+  // 8. Druck/Knappheit - je Teil mit der gefundenen Stelle
+  for (const k of KNAPPHEIT) {
+    for (const [n, html] of teile) {
+      const m = k.re.exec(text(html));
+      if (m) hinweise.push(`Knappheitsfloskel "${m[0]}" in ${n} – wir drucken auf Bestellung, nichts ist knapp.`);
+    }
+  }
+
+  // 9. Faserangabe unvollstaendig
+  const fasern = faserNamen(e.faser);
+  if (fasern.length >= 2) {
+    for (const [n, html] of teile) {
+      const t = text(html);
+      const genannt = [...t.matchAll(FASER_RE)].map(m => m[0]);
+      if (!genannt.length) continue;
+      const fehlt = fasern.filter(f => !new RegExp(`(?<![${BUCHST}])${escape(f)}`, 'i').test(t));
+      if (fehlt.length)
+        hinweise.push(`Faserangabe unvollständig in ${n}: "${genannt.join(', ')}" – laut Artikel "${String(e.faser).trim()}", es fehlt ${fehlt.join(', ')}.`);
+    }
+  }
 
   return hinweise;
 }
@@ -212,11 +274,12 @@ export async function sperrKontext({ artikelkurz, lshopNr, motivZeile, produktna
  * Liest Motiv-Zeile (Nur_intern, Druck) und Rohling (Marke, Modellnummern);
  * ein Lesefehler blockiert nicht, er steht als Hinweis vorne.
  *
- * @param {object} e  wie pruefeGeneratorText, dazu artikelkurz, lshopNr und
- *                    optional motivZeile (schon gelesen, spart den Abruf)
+ * @param {object} e  wie pruefeGeneratorText, dazu artikelkurz, lshopNr,
+ *                    optional motivZeile (schon gelesen, spart den Abruf) und
+ *                    strukturiert ({ faser } der Generierung, Regel 9)
  * @returns {Promise<string[]>}
  */
-export async function pruefeTextMitSsot({ artikelkurz, lshopNr, motivZeile, ...e } = {}) {
+export async function pruefeTextMitSsot({ artikelkurz, lshopNr, motivZeile, strukturiert, ...e } = {}) {
   const hinweise = [];
   let motiv = motivZeile ?? null;
   if (motiv === null && String(artikelkurz ?? '').trim()) {
@@ -236,6 +299,9 @@ export async function pruefeTextMitSsot({ artikelkurz, lshopNr, motivZeile, ...e
       marken:        rohling?.marken,
       modellnummern: rohling ? [rohling.catalogNr, ...(rohling.herstellerNummern ?? [])] : [],
       druck:         !!(motiv && (motiv.druckfarben || motiv.druckposition)),
+      // Regel 9: Faser der Generierung (strukturiert, gewaehlte Farben), sonst
+      // die des Rohlings ueber alle Farben (SEO-Reiter nach dem Speichern).
+      faser:         e.faser ?? strukturierteEingabe(strukturiert)?.faser ?? rohling?.faser ?? null,
     }),
   ];
 }

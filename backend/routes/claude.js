@@ -301,7 +301,7 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
         ...ssotHinweise,
         ...await pruefeTextMitSsot({
           kurzbeschreibung, produktbeschreibung, produktname, keyphrase,
-          lshopNr, motivZeile,
+          lshopNr, motivZeile, strukturiert,
         }),
       ];
 

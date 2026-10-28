@@ -692,6 +692,10 @@ Kunden-Chat (chatCore) und Health-Ping rufen noch selbst auf (nicht umgebaut). D
 Claude-Chat (POST/DELETE /api/claude/chat) und die Aktionen generate_description/generate_variants
 sind seit NAV2 entfernt; generate-product kennt nur noch seo_description und suggest_variants.
 Floskeln prueft `seo-pruefung.js` (Regel 7, `FLOSKELN`); neue Wendungen nur dort, nie im Prompt.
+Seit FM2 dort auch Regel 8 `KNAPPHEIT` (Druck/Knappheit als Muster: "solange … da ist", "bevor andere",
+"zuschlagen", "jetzt … sichern", "nur noch", "begrenzt", "limitiert" - Druck auf Bestellung) und Regel 9
+"Faserangabe unvollständig" (Prozent-Faser im Text, aber nicht jede Faser der Artikel-Faserangabe genannt;
+Faser aus `strukturiert` der Generierung, beim SEO-Reiter aus LShop_Modelle ueber `lshopNr`; reine Stoffe nie).
 
 ## Script-Scope Problem (gelöst)
 index.html hat zwei Script-Blöcke:
