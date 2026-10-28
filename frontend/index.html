@@ -374,6 +374,20 @@
       .lb-st-versandt, .lb-st-teilweise { border-color: var(--success); color: var(--success); }
       .lb-st-geliefert { background: var(--success); border-color: var(--success); color: #111; }
       .korb-link { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.78rem; padding: 0.15rem 0; text-decoration: underline; }
+      /* LS4: Ansicht "L-Shop-Modelle" */
+      .lsm-liste { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.6rem; }
+      .lsm-zeile { border: 1px solid var(--border); border-left-width: 4px; border-radius: 7px; padding: 0.45rem 0.6rem; font-size: 0.85rem; }
+      .lsm-zeile.lsm-gruen { border-left-color: var(--success); }
+      .lsm-zeile.lsm-gelb  { border-left-color: var(--accent); }
+      .lsm-zeile.lsm-rot   { border-left-color: var(--danger); }
+      .lsm-zeile.lsm-grau  { border-left-color: var(--border); }
+      .lsm-kopf { display: flex; flex-wrap: wrap; gap: 0.3rem 0.6rem; align-items: baseline; justify-content: space-between; }
+      .lsm-nr { font-weight: 700; }
+      .lsm-stufe { color: var(--muted); }
+      .lsm-vorschau { color: var(--muted); font-size: 0.8rem; margin-top: 0.2rem; }
+      .lsm-vorschlaege { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.3rem; }
+      .lsm-vorschlaege button { font-size: 0.8rem; }
+      .lsm-auslauf { color: var(--accent); }
       .korb-leiste {
         position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center;
         background: var(--surface); border-top: 1px solid var(--border); padding: 0.6rem 0; margin-top: 0.5rem;
@@ -1571,6 +1585,7 @@
           <button class="mode-btn" id="mode-btn-edit">✏️ Artikel ändern</button>
           <button class="mode-btn" id="mode-btn-seo">🔍 SEO Daten</button>
           <button class="mode-btn" id="mode-btn-seoedit">🔎 SEO-Daten ändern</button>
+          <button class="mode-btn" id="mode-btn-lshopmodelle">🧵 L-Shop-Modelle</button>
         </div>
 
         <!-- SEO-Daten aendern (Befehl SE1): jeder veroeffentlichte Artikel, auch ohne SSOT-Zeile -->
@@ -1622,6 +1637,34 @@
               <button class="btn" id="se-speichern">Yoast-Daten speichern</button>
               <span id="se-status" style="font-size:0.82rem;color:var(--muted);align-self:center;"></span>
             </div>
+          </div>
+        </div>
+
+        <!-- L-Shop-Modelle (LS4): neue L-Shop-Modelle als Sammelliste aufnehmen -->
+        <div id="lsm-panel" style="display:none;">
+          <div class="card" style="margin-bottom:1rem;">
+            <div class="form-section-title">Neue L-Shop-Modelle
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="lshop-modelle" aria-controls="hilfe-lshop-modelle" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+            </div>
+            <div id="hilfe-lshop-modelle" class="hilfe-legende" hidden></div>
+            <p class="field-note" style="margin:0 0 0.5rem;">Modellnummer (z. B. BY289, auch ohne L-Shop-Kürzel wie „TU03T“) oder ein Wort aus dem Namen (z. B. „Fluffy“).
+              Erst „Prüfen“ sucht in der L-Shop-Stammdatei; geschrieben wird nur mit „Übernehmen“.</p>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+              <input id="lsm-eingabe" type="text" class="form-input" style="flex:1;min-width:9rem;" placeholder="Modell oder Name" autocomplete="off" />
+              <input id="lsm-notiz" type="text" class="form-input" style="flex:2;min-width:12rem;" placeholder="Notiz: wofür (optional, keine Kundendaten)" maxlength="80" data-hilfe="lsm-notiz" />
+              <button class="korb-aktion korb-aktion-haupt" id="lsm-hinzufuegen" type="button" data-hilfe="lsm-hinzufuegen">Zur Liste</button>
+            </div>
+            <div id="lsm-liste" class="lsm-liste"></div>
+            <p id="lsm-datei" class="field-note" style="margin-top:0.5rem;"></p>
+            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
+              <button class="korb-aktion korb-aktion-haupt" id="lsm-pruefen" type="button" data-hilfe="lsm-pruefen">Prüfen</button>
+              <button class="korb-aktion" id="lsm-uebernehmen" type="button" aria-disabled="true" data-hilfe="lsm-uebernehmen">Übernehmen</button>
+            </div>
+            <p id="lsm-status" class="field-note" style="margin-top:0.5rem;"></p>
+          </div>
+          <div class="card" style="margin-bottom:1rem;">
+            <div class="form-section-title">Schon aufgenommen <span class="field-note">(neueste zuerst)</span></div>
+            <div id="lsm-aufgenommen" class="lsm-liste"></div>
           </div>
         </div>
 
@@ -2824,6 +2867,7 @@
           { id: 'aendern',     panel: 'products', knopf: '#mode-btn-edit' },
           { id: 'seo',         panel: 'products', knopf: '#mode-btn-seo' },
           { id: 'seo-aendern', panel: 'products', knopf: '#mode-btn-seoedit' },
+          { id: 'lshop-modelle', panel: 'products', knopf: '#mode-btn-lshopmodelle', neuLaden: true },   // LS4
         ] },
         partner: { label: 'Partner', leiste: true, punkte: [
           { id: 'lizenz',    label: 'Lizenzpartner', panel: 'partnerportal', shop: true },
@@ -4586,6 +4630,15 @@
         'prod-dtf':             { name: 'DTF bestellt', text: 'Hak an, wenn du den Druck für diesen Artikel bei DTF bestellt hast.' },
         'prod-versendet':       { name: 'Versendet', text: 'Hak an, wenn dieser Artikel an den Kunden raus ist – auch bei einer Teillieferung. Zählt als fertig.' },
         'prod-notiz':           { name: 'Notiz', text: 'Freier Hinweis zu diesem Artikel. Wird gespeichert, sobald du das Feld verlässt.' },
+        // LS4: Ansicht "L-Shop-Modelle"
+        'lsm-notiz':            { name: 'Notiz', text: 'Wofür du das Modell brauchst, z. B. „Vereinshoodie“. Keine Kundennamen. Kannst du leer lassen.' },
+        'lsm-hinzufuegen':      { name: 'Zur Liste', text: 'Setzt das Modell auf deine Liste. Die Farbe zeigt sofort, ob es schon da ist. Gespeichert wird noch nichts.' },
+        'lsm-entfernen':        { name: '✕', text: 'Nimmt die Zeile wieder von deiner Liste. Gespeichert war sie noch nicht.' },
+        'lsm-meintest':         { name: 'meintest du …?', text: 'L-Shop schreibt das Modell anders. Tippe auf das richtige, dann steht es so auf der Liste.' },
+        'lsm-pruefen':          { name: 'Prüfen', text: 'Sucht alle Modelle der Liste bei L-Shop (ca. 40 Sekunden) und zeigt Name, Farben und Größen. Speichert nichts.' },
+        'lsm-uebernehmen':      { name: 'Übernehmen', text: 'Nimmt die grünen Modelle auf. Danach stehen sie in Warenkorb, Erfassung und Bestellung zur Wahl. Dauert ca. 1 Minute.' },
+        'lsm-zurueckziehen':    { name: 'zurückziehen', text: 'Für ein falsch aufgenommenes Modell: kommt von der Liste, gelöscht wird nichts.' },
+        'lsm-link':             { name: 'Neues L-Shop-Modell aufnehmen', text: 'Öffnet Artikel → L-Shop-Modelle. Dort nimmst du ein Modell auf, das noch fehlt.' },
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
@@ -4596,6 +4649,7 @@
         bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
+        'lshop-modelle': ['lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-zurueckziehen', 'lsm-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
       function hilfeLegendeHtml(gruppe) {
@@ -4925,7 +4979,8 @@
             if (stopp) { box.innerHTML = `<p style="color:var(--danger);font-size:0.8rem;">${korbEsc(stopp)}</p>`; return; }
             const d = await apiJson(res);
             if (!d.modelle.length) {
-              box.innerHTML = `<p style="color:var(--muted);font-size:0.8rem;">${korbEsc(d.hinweis)}</p>`;
+              box.innerHTML = `<p style="color:var(--muted);font-size:0.8rem;">${korbEsc(d.hinweis)}</p>`
+                + '<button type="button" class="korb-link" data-lsm-link data-hilfe="lsm-link">Neues L-Shop-Modell aufnehmen</button>';   // LS4
               return;
             }
             // Treffer: Modell · Name (gelb) · Hersteller
@@ -7296,7 +7351,15 @@
             const r = await apiFetch(`${API_BASE()}/api/sheets/lshop/${encodeURIComponent(nr)}`);
             if (feld.value.trim() !== nr) return;            // inzwischen geaendert
             if (r.status === 404) {
-              hint.textContent = 'Kein L-Shop-Modell – Farben frei eingeben (Fremdware).';
+              hint.textContent = 'Kein L-Shop-Modell – Farben frei eingeben (Fremdware). ';
+              // LS4: fehlt das Modell nur in der Liste, kann es hier aufgenommen werden.
+              const link = document.createElement('button');
+              link.type = 'button';
+              link.className = 'korb-link';
+              link.dataset.lsmLink = '';
+              link.dataset.hilfe = 'lsm-link';
+              link.textContent = 'Neues L-Shop-Modell aufnehmen';
+              hint.appendChild(link);
             } else {
               const d = await apiJson(r);
               lshopModell = d;
@@ -8356,6 +8419,7 @@
       const modeBtnSeoEdit  = document.getElementById('mode-btn-seoedit');
       const seoEditPanel    = document.getElementById('seoedit-panel');
       let seAendernModus    = false;
+      let lsmModus          = false;   // LS4: Ansicht "L-Shop-Modelle" (SECTION L-Shop-Modelle)
       const entwurfBlock    = document.getElementById('pf-entwurf-block');
       const searchBlock     = document.getElementById('pf-search-block');
       const btnCreateWc     = document.getElementById('btn-create-wc');
@@ -8422,6 +8486,7 @@
         modeBtnSeoEdit.classList.remove('active');
         seoEditPanel.style.display = 'none';
         seAendernModus = false;
+        lsmAus();
 
         entwurfBlock.style.display   = edit ? 'none' : '';
         searchBlock.style.display    = edit ? '' : 'none';
@@ -8463,15 +8528,294 @@
         modeBtnSeoEdit.classList.remove('active');
         seoEditPanel.style.display = 'none';
         seAendernModus = false;
+        lsmAus();
 
         resetForm();
         loadSeoPendingList();
       }
 
-      modeBtnNew.addEventListener('click',  () => { if (editMode || seoMode || seAendernModus) setMode(false); });
-      modeBtnSeo.addEventListener('click',  () => { if (!seoMode) setSeoMode(); });
-      modeBtnEdit.addEventListener('click', () => { if (!editMode || seoMode || seAendernModus) setMode(true); });
-      modeBtnSeoEdit.addEventListener('click', () => { if (!seAendernModus) setSeAendernModus(); });
+      modeBtnNew.addEventListener('click',  () => { if (editMode || seoMode || seAendernModus || lsmModus) setMode(false); });
+      modeBtnSeo.addEventListener('click',  () => { if (!seoMode || lsmModus) setSeoMode(); });
+      modeBtnEdit.addEventListener('click', () => { if (!editMode || seoMode || seAendernModus || lsmModus) setMode(true); });
+      modeBtnSeoEdit.addEventListener('click', () => { if (!seAendernModus || lsmModus) setSeAendernModus(); });
+
+      // ── SECTION: L-Shop-Modelle (LS4) ──
+      // Neue L-Shop-Modelle als Sammelliste aufnehmen (Nicole, Inhaber 28.10.). Logik im Backend
+      // (lib/lshopModelle.js): Ampel (nur Sheets) -> "Prüfen" (ein Lauf über die Stammdatei,
+      // schreibt nichts) -> "Übernehmen" (nur ohne Fremdänderungen). Die Liste liegt bis zum
+      // Übernehmen nur im Browser (localStorage, nur Eingabe + Notiz). Keine Preise.
+
+      // ── L-Shop-Modelle: Anfang (reine Logik, backend/tests/lshop-modelle-frontend.test.js) ──
+      const LSM_SPEICHER = 'mc_lsm_liste';
+      const LSM_MAX = 30;
+      const lsmEsc  = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+      const lsmNorm = s => String(s ?? '').trim().replace(/\s+/g, ' ');
+      // stufe: neu (noch ohne Ampel) · da · liste · zurueckgezogen · suchen (Ampel aus den Sheets)
+      //        gefunden · vorschlag · nicht (nach "Prüfen") · gewaehlt (Vorschlag angetippt)
+      const LSM_STUFEN = {
+        neu:            { farbe: 'grau',  text: 'wird geprüft …' },
+        suchen:         { farbe: 'grau',  text: 'noch nicht da – „Prüfen“ sucht es bei L-Shop' },
+        da:             { farbe: 'gruen', text: 'ist schon da – nichts zu tun' },
+        liste:          { farbe: 'gelb',  text: 'steht schon auf der Liste, Übernehmen steht noch aus' },
+        zurueckgezogen: { farbe: 'gelb',  text: 'war zurückgezogen – Übernehmen nimmt es wieder auf' },
+        gefunden:       { farbe: 'gruen', text: 'bei L-Shop gefunden – wird übernommen' },
+        gewaehlt:       { farbe: 'gruen', text: 'ausgewählt – wird übernommen' },
+        vorschlag:      { farbe: 'gelb',  text: 'so nicht gefunden – meintest du …?' },
+        nicht:          { farbe: 'rot',   text: 'nicht gefunden – bitte bei L-Shop prüfen' },
+      };
+      const lsmStufe = z => LSM_STUFEN[z?.stufe] ?? LSM_STUFEN.neu;
+      const LSM_WEG = { hersteller: 'Hersteller-Nummer', endet: 'Nummer endet so', name: 'im Namen', aehnlich: 'ähnliche Nummer' };
+
+      function lsmHinzufuegen(liste, eingabe, notiz) {
+        const text = lsmNorm(eingabe);
+        if (!text) return { liste, fehler: 'Bitte ein Modell oder ein Wort aus dem Namen eingeben.' };
+        if (liste.length >= LSM_MAX) return { liste, fehler: `Höchstens ${LSM_MAX} Modelle auf einmal.` };
+        if (liste.some(z => z.text.toUpperCase() === text.toUpperCase())) return { liste, fehler: `„${text}“ steht schon auf der Liste.` };
+        return { liste: [...liste, { text, notiz: [...lsmNorm(notiz)].slice(0, 80).join(''), stufe: 'neu' }], fehler: '' };
+      }
+      // Ampel aus den Sheets nur fuer Zeilen ohne Pruefergebnis.
+      function lsmMitAmpel(liste, ergebnisse) {
+        return liste.map(z => {
+          if (z.stufe !== 'neu') return z;
+          const e = (ergebnisse ?? []).find(x => x.eingabe.toUpperCase() === z.text.toUpperCase());
+          return e ? { ...z, stufe: e.stufe, catalogNr: e.stufe === 'da' ? e.modell : '', vorschau: e.vorschau ?? null } : z;
+        });
+      }
+      // Ergebnis von "Prüfen" fuer jede Zeile.
+      function lsmMitErgebnis(liste, ergebnisse) {
+        return liste.map(z => {
+          const e = (ergebnisse ?? []).find(x => x.eingabe.toUpperCase() === z.text.toUpperCase());
+          if (!e) return z;
+          return { ...z, stufe: e.stufe, catalogNr: e.catalogNr ?? '', vorschau: e.vorschau ?? null, vorschlaege: e.vorschlaege ?? [], mehr: !!e.mehr };
+        });
+      }
+      // Vorschlag antippen: Zeile wird zu diesem Modell (nie still - immer Nicoles Wahl).
+      function lsmWaehle(liste, index, catalogNr) {
+        return liste.map((z, i) => {
+          if (i !== index) return z;
+          const v = (z.vorschlaege ?? []).find(x => x.catalogNr === catalogNr);
+          if (!v) return z;
+          return { ...z, stufe: v.schonDa ? 'da' : 'gewaehlt', catalogNr: v.catalogNr, vorschau: v.vorschau ?? null };
+        });
+      }
+      // Was geht ins Übernehmen? Gefundene und gewaehlte Modelle, jedes einmal.
+      function lsmAuswahl(liste) {
+        const out = [], gesehen = new Set();
+        for (const z of liste) {
+          if (!['gefunden', 'gewaehlt'].includes(z.stufe) || !z.catalogNr || gesehen.has(z.catalogNr)) continue;
+          gesehen.add(z.catalogNr);
+          out.push({ catalogNr: z.catalogNr, notiz: z.notiz ?? '' });
+        }
+        return out;
+      }
+      function lsmVorschauText(v) {
+        if (!v) return '';
+        const teile = [v.name, v.marke, v.farben?.length ? `${v.farben.length} Farbe${v.farben.length === 1 ? '' : 'n'}` : '',
+          v.groessen?.length ? `Größen ${v.groessen.length > 1 ? `${v.groessen[0]}–${v.groessen[v.groessen.length - 1]}` : v.groessen[0]}` : ''];
+        return teile.filter(Boolean).join(' · ');
+      }
+      function lsmZeileHtml(z, i) {
+        const s = lsmStufe(z);
+        const nr = z.catalogNr && z.catalogNr.toUpperCase() !== z.text.toUpperCase() ? `${lsmEsc(z.text)} → <span class="lsm-nr">${lsmEsc(z.catalogNr)}</span>` : `<span class="lsm-nr">${lsmEsc(z.text)}</span>`;
+        const auslauf = z.vorschau?.auslaufend?.length ? ` · <span class="lsm-auslauf">läuft aus: ${lsmEsc(z.vorschau.auslaufend.join(', '))}</span>` : '';
+        const gesperrt = z.vorschau?.gesperrt?.length ? ` · <span class="lsm-auslauf">nicht wählbar: ${lsmEsc(z.vorschau.gesperrt.join(', '))}</span>` : '';
+        const vorschlaege = z.stufe === 'vorschlag'
+          ? `<div class="lsm-vorschlaege">${(z.vorschlaege ?? []).map(v => `<button type="button" class="korb-aktion korb-aktion-ruhig" data-lsm-waehle="${i}" data-modell="${lsmEsc(v.catalogNr)}" data-hilfe="lsm-meintest">`
+              + `${lsmEsc(v.catalogNr)}${v.vorschau?.name ? ` · ${lsmEsc(v.vorschau.name)}` : ''} <span class="lsm-stufe">(${lsmEsc(LSM_WEG[v.weg] ?? v.weg)}${v.schonDa ? ', schon da' : ''})</span></button>`).join('')}`
+            + `${z.mehr ? '<span class="lsm-stufe">weitere Treffer – genauer eingeben</span>' : ''}</div>`
+          : '';
+        return `<div class="lsm-zeile lsm-${s.farbe}"><div class="lsm-kopf"><span>${nr} · <span class="lsm-stufe">${lsmEsc(s.text)}</span></span>`
+          + `<button type="button" class="korb-link" data-lsm-entfernen="${i}" data-hilfe="lsm-entfernen" aria-label="Zeile entfernen">✕</button></div>`
+          + (z.vorschau ? `<div class="lsm-vorschau">${lsmEsc(lsmVorschauText(z.vorschau))}${auslauf}${gesperrt}</div>` : '')
+          + (z.notiz ? `<div class="lsm-vorschau">Notiz: ${lsmEsc(z.notiz)}</div>` : '')
+          + vorschlaege + '</div>';
+      }
+      // ── L-Shop-Modelle: Ende ──
+
+      const lsm = { liste: [], datei: null, darf: false, fremd: [], laeuft: false };
+      function lsmSpeichern() {
+        try { localStorage.setItem(LSM_SPEICHER, JSON.stringify(lsm.liste.map(z => ({ text: z.text, notiz: z.notiz })))); } catch { /* privat/voll */ }
+      }
+      function lsmLadenLokal() {
+        try {
+          const l = JSON.parse(localStorage.getItem(LSM_SPEICHER) || '[]');
+          lsm.liste = Array.isArray(l) ? l.filter(z => z && lsmNorm(z.text)).slice(0, LSM_MAX).map(z => ({ text: lsmNorm(z.text), notiz: lsmNorm(z.notiz), stufe: 'neu' })) : [];
+        } catch { lsm.liste = []; }
+      }
+      function lsmAus() {
+        lsmModus = false;
+        const p = document.getElementById('lsm-panel');
+        if (p) p.style.display = 'none';
+        document.getElementById('mode-btn-lshopmodelle')?.classList.remove('active');
+      }
+      function lsmKnoepfe() {
+        const n = lsmAuswahl(lsm.liste).length;
+        const frei = !lsm.laeuft && !!lsm.datei && lsm.darf && n > 0;
+        const ue = document.getElementById('lsm-uebernehmen');
+        ue.setAttribute('aria-disabled', String(!frei));
+        ue.classList.toggle('korb-aktion-haupt', frei);
+        ue.textContent = n ? `Übernehmen (${n})` : 'Übernehmen';
+        document.getElementById('lsm-pruefen').setAttribute('aria-disabled', String(lsm.laeuft || !lsm.liste.length));
+      }
+      function lsmZeichnen() {
+        const box = document.getElementById('lsm-liste');
+        box.innerHTML = lsm.liste.length ? lsm.liste.map(lsmZeileHtml).join('') : '<p class="field-note">Noch keine Modelle auf der Liste.</p>';
+        const d = document.getElementById('lsm-datei');
+        if (lsm.datei) {
+          const fehlt = lsm.liste.some(z => z.stufe === 'nicht');
+          d.textContent = `Stammdatei vom ${lsm.datei.datum}.` + (fehlt ? ' Was L-Shop seitdem neu führt, steht noch nicht darin – nicht gefundene Modelle gibt es vielleicht trotzdem.' : '');
+        } else d.textContent = '';
+        lsmKnoepfe();
+      }
+      async function lsmAmpel() {
+        const neu = lsm.liste.filter(z => z.stufe === 'neu');
+        if (!neu.length) return;
+        try {
+          const d = await apiJson(await apiFetch(`${API_BASE()}/api/lshop/modelle/ampel`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ eingaben: neu.map(z => z.text) }),
+          }));
+          lsm.liste = lsmMitAmpel(lsm.liste, d.ergebnisse);
+        } catch (e) {
+          lsm.liste = lsm.liste.map(z => (z.stufe === 'neu' ? { ...z, stufe: 'suchen' } : z));
+          showToast(`Ampel nicht lesbar: ${e.message}`, 'warn', 8000);
+        }
+        lsmZeichnen();
+      }
+      async function lsmAufgenommenLaden() {
+        const box = document.getElementById('lsm-aufgenommen');
+        box.innerHTML = '<div class="skeleton"></div>';
+        try {
+          const d = await apiJson(await apiFetch(`${API_BASE()}/api/lshop/modelle/liste`));
+          const hinweis = d.einrichtung?.length ? `<p class="field-note" style="color:var(--danger);">Einrichtung fehlt noch (Spalten ${lsmEsc(d.einrichtung.join(', '))}) – Übernehmen geht erst danach.</p>` : '';
+          box.innerHTML = hinweis + (d.eintraege.length ? d.eintraege.map(e => {
+            const zurueck = e.status === 'zurückgezogen';
+            return `<div class="lsm-zeile ${zurueck ? 'lsm-grau' : e.inBestand ? 'lsm-gruen' : 'lsm-gelb'}"><div class="lsm-kopf">`
+              + `<span><span class="lsm-nr">${lsmEsc(e.catalogNr)}</span> · <span class="lsm-stufe">${zurueck ? 'zurückgezogen' : e.inBestand ? 'aufgenommen' : 'Übernehmen steht noch aus'}`
+              + `${e.eingetragen ? ` · ${lsmEsc(e.eingetragen)}` : ''}</span></span>`
+              + (zurueck ? '' : `<button type="button" class="korb-link" data-lsm-zurueck="${lsmEsc(e.catalogNr)}" data-hilfe="lsm-zurueckziehen">zurückziehen</button>`)
+              + `</div>${e.notiz ? `<div class="lsm-vorschau">Notiz: ${lsmEsc(e.notiz)}</div>` : ''}</div>`;
+          }).join('') : '<p class="field-note">Noch nichts aufgenommen.</p>');
+        } catch (e) { box.innerHTML = `<p class="field-note" style="color:var(--danger);">Fehler: ${lsmEsc(e.message)}</p>`; }
+      }
+      function setLsmModus() {
+        lsmModus = true;
+        seoMode = false;
+        editMode = false;
+        seAendernModus = false;
+        productFormArea.style.display = 'none';
+        seoModePanel.style.display    = 'none';
+        seoEditPanel.style.display    = 'none';
+        document.getElementById('lsm-panel').style.display = '';
+        modeBtnNew.classList.remove('active');
+        modeBtnEdit.classList.remove('active');
+        modeBtnSeo.classList.remove('active');
+        modeBtnSeoEdit.classList.remove('active');
+        document.getElementById('mode-btn-lshopmodelle').classList.add('active');
+        resetForm();
+        if (!lsm.liste.length) lsmLadenLokal();
+        lsmZeichnen();
+        lsmAmpel();
+        lsmAufgenommenLaden();
+      }
+      document.getElementById('mode-btn-lshopmodelle').addEventListener('click', () => setLsmModus());
+
+      function lsmHinzu() {
+        const ein = document.getElementById('lsm-eingabe');
+        const notiz = document.getElementById('lsm-notiz');
+        const r = lsmHinzufuegen(lsm.liste, ein.value, notiz.value);
+        if (r.fehler) { showToast(r.fehler, 'warn'); return; }
+        lsm.liste = r.liste;
+        ein.value = ''; notiz.value = '';
+        ein.focus();
+        lsmSpeichern();
+        lsmZeichnen();
+        lsmAmpel();
+      }
+      document.getElementById('lsm-hinzufuegen').addEventListener('click', lsmHinzu);
+      document.getElementById('lsm-eingabe').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); lsmHinzu(); } });
+      document.getElementById('lsm-notiz').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); lsmHinzu(); } });
+
+      document.getElementById('lsm-liste').addEventListener('click', ev => {
+        const weg = ev.target.closest('[data-lsm-entfernen]');
+        if (weg) {
+          lsm.liste = lsm.liste.filter((_, i) => i !== Number(weg.dataset.lsmEntfernen));
+          lsmSpeichern(); lsmZeichnen();
+          return;
+        }
+        const w = ev.target.closest('[data-lsm-waehle]');
+        if (w) { lsm.liste = lsmWaehle(lsm.liste, Number(w.dataset.lsmWaehle), w.dataset.modell); lsmZeichnen(); }
+      });
+
+      document.getElementById('lsm-pruefen').addEventListener('click', async () => {
+        if (lsm.laeuft || !lsm.liste.length) return;
+        const status = document.getElementById('lsm-status');
+        lsm.laeuft = true; lsmKnoepfe();
+        status.textContent = 'Prüfe bei L-Shop … (ca. 40 Sekunden, nichts wird gespeichert)';
+        try {
+          const d = await apiJson(await apiFetch(`${API_BASE()}/api/lshop/modelle/pruefen`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ eingaben: lsm.liste.map(z => z.text) }), signal: AbortSignal.timeout(290000),
+          }));
+          lsm.liste = lsmMitErgebnis(lsm.liste, d.ergebnisse);
+          lsm.datei = d.datei; lsm.darf = d.darfUebernehmen; lsm.fremd = d.fremd ?? [];
+          status.textContent = lsm.darf
+            ? 'Geprüft – nichts gespeichert. Grüne Modelle kannst du jetzt übernehmen.'
+            : `Geprüft – Übernehmen geht gerade nicht: ${lsm.fremd.join('; ')}. Erst das Stammdaten-Update in den Einstellungen (Inhaber).`;
+        } catch (e) {
+          lsm.datei = null; lsm.darf = false;
+          status.textContent = `Fehler: ${e.message}`;
+          showToast(e.message, 'error', 10000);
+        } finally { lsm.laeuft = false; lsmZeichnen(); }
+      });
+
+      document.getElementById('lsm-uebernehmen').addEventListener('click', async () => {
+        const auswahl = lsmAuswahl(lsm.liste);
+        if (lsm.laeuft || !lsm.datei || !lsm.darf || !auswahl.length) return;
+        const ok = await showConfirm('L-Shop-Modelle übernehmen',
+          `Diese ${auswahl.length} Modell${auswahl.length === 1 ? '' : 'e'} aufnehmen?<br><strong>${auswahl.map(a => lsmEsc(a.catalogNr)).join(', ')}</strong><br>`
+          + `<span style="color:var(--muted);font-size:0.85rem;">Danach stehen sie in Warenkorb, Erfassung und Bestellung zur Wahl. Dauert ca. 1 Minute.</span>`, 'Übernehmen');
+        if (!ok) return;
+        const status = document.getElementById('lsm-status');
+        lsm.laeuft = true; lsmKnoepfe();
+        status.textContent = 'Übernehme … (ca. 1 Minute)';
+        try {
+          const d = await apiJson(await apiFetch(`${API_BASE()}/api/lshop/modelle/uebernehmen`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ auswahl, datei: lsm.datei.name }), signal: AbortSignal.timeout(290000),
+          }));
+          const fertig = new Set([...d.modelle, ...(d.schonDa ?? [])]);
+          lsm.liste = lsm.liste.filter(z => !(z.catalogNr && fertig.has(z.catalogNr)) && z.stufe !== 'da');
+          lsm.datei = null; lsm.darf = false;
+          lsmSpeichern();
+          status.textContent = `Aufgenommen: ${d.modelle.join(', ')}.` + (d.rueckgelesen ? '' : ' Rücklese-Prüfung mit Abweichung – bitte Inhaber Bescheid geben.');
+          showToast(`L-Shop-Modelle aufgenommen: ${d.modelle.join(', ')}`, d.rueckgelesen ? 'success' : 'error', d.rueckgelesen ? 5000 : 10000);
+          lsmAufgenommenLaden();
+        } catch (e) {
+          status.textContent = `Nicht übernommen: ${e.message}`;
+          showToast(e.message, 'error', 12000);
+        } finally { lsm.laeuft = false; lsmZeichnen(); }
+      });
+
+      document.getElementById('lsm-aufgenommen').addEventListener('click', async ev => {
+        const b = ev.target.closest('[data-lsm-zurueck]');
+        if (!b) return;
+        const nr = b.dataset.lsmZurueck;
+        const ok = await showConfirm('Modell zurückziehen', `<strong>${lsmEsc(nr)}</strong> von der Liste nehmen? Gelöscht wird nichts. `
+          + 'Das Modell bleibt in Warenkorb und Erfassung wählbar, wird aber nicht mehr als „gebraucht“ gezählt.', 'Zurückziehen');
+        if (!ok) return;
+        try {
+          await apiJson(await apiFetch(`${API_BASE()}/api/lshop/modelle/zurueckziehen`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ catalogNr: nr }),
+          }));
+          showToast(`${nr} zurückgezogen`, 'success');
+          lsmAufgenommenLaden();
+        } catch (e) { showToast(e.message, 'error', 10000); }
+      });
+
+      // Links aus Warenkorb ("Nicht im Bestand") und Erfassung (L-Shop-Nummer unbekannt).
+      document.addEventListener('click', ev => {
+        if (ev.target.closest?.('[data-lsm-link]')) { ev.preventDefault(); window.oeffneAnsicht('artikel', 'lshop-modelle'); }
+      });
 
       // ── SECTION: SEO-Daten aendern (Befehl SE1) ──
       // Jeder veroeffentlichte Artikel, auch ohne SSOT-Zeile. Schreibt NUR
@@ -8486,6 +8830,7 @@
         productFormArea.style.display = 'none';
         seoModePanel.style.display    = 'none';
         seoEditPanel.style.display    = '';
+        lsmAus();
         modeBtnNew.classList.remove('active');
         modeBtnEdit.classList.remove('active');
         modeBtnSeo.classList.remove('active');

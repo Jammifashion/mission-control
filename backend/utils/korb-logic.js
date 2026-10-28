@@ -444,7 +444,8 @@ export function naechsteEigenNummer(zeilen, jahr) {
 
 // Eigene Positionen kommen seit 21.10. (Inhaber) NUR aus blanken L-Shop-Artikeln
 // (Reiter LShop_Modelle), nicht aus unseren Shop-Artikeln: SSOT-ID bleibt leer.
-export const NICHT_IM_BESTAND = 'Nicht im Bestand – direkt bei L-Shop bestellen oder Modell über Modelle_Zusatz/LS1 aufnehmen.';
+// LS4: Aufnehmen geht jetzt ueber die Ansicht "L-Shop-Modelle" (Artikel).
+export const NICHT_IM_BESTAND = 'Nicht im Bestand – direkt bei L-Shop bestellen oder unter Artikel → L-Shop-Modelle aufnehmen.';
 const MODELL_TREFFER_MAX = 30;
 const gesperrtZeile = z => t(z.status) === 'ausgelaufen' || gesperrtDisc(z.discontinued);
 

@@ -59,7 +59,9 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   `/api/auftragsmonitor/lshop/*` in `LShop_Bestellungen`/`Produktions_Status`) leitet per `umleitung` in
   BEREICHE hierher; Panel und Endpunkte stehen noch, Ausbau in eigenem Auftrag. Filter "Bestellt" und
   Block "Unterwegs von L-Shop" aus BO4b-2 sind entfernt.)
-- Artikelerfassung
+- Artikelerfassung (dazu Modus-Knopf "🧵 L-Shop-Modelle", LS4: Unterpunkt `artikel/lshop-modelle`, Panel `#lsm-panel`,
+  SECTION L-Shop-Modelle mit Block `L-Shop-Modelle: Anfang/Ende`, Test lshop-modelle-frontend.test.js; Hilfe-Gruppe
+  `lshop-modelle`; Links `data-lsm-link` aus Warenkorb "Nicht im Bestand" und Maske "Kein L-Shop-Modell")
 - SEO-Daten aendern (Befehl SE1: Yoast-Felder jedes veroeffentlichten Artikels; nutzt seoMetaBau und yoastSchreiben des SEO-Flows, schreibt nichts ins Sheet)
 - SEO-Flow
 - Kundenanfragen Extern
@@ -461,6 +463,24 @@ Neue Sektionen immer mit Anker versehen:
   nie Preise. Leser (seit LS2): lshop.js (TAB_LSHOP, dort auch STATUS_*), partnerArtikel.js. Status "ausgelaufen" = in
   lshopAuswertung wie Discontinued 3/6 (nicht waehlbar, `gesperrt` mit wert "ausgelaufen"); Marke,
   Modellnummern und EK lesen ausgelaufene Zeilen weiter. Nachtraege von Hand: Reiter `Modelle_Zusatz`.
+  LS4: Ein Lauf zur Zeit je Instanz (`mitStammdatenSperre`, sonst 409 `laeuft_gerade`), auch `/stammdaten`.
+  `stammdatenLauf` kennt `zusatzModelle`, `beobachte` (je Dateizeile) und `vorSchreiben` (wirft = nichts
+  geschrieben); Antwort `neuJeModell`. `Modelle_Zusatz`-Zeilen mit Status "zurückgezogen" zaehlen nicht als gebraucht.
+- backend/lib/lshopModelle.js – Ansicht "L-Shop-Modelle" (LS4, Nicole), Logik `utils/lshop-modelle.js`. Sammelliste
+  im Browser (localStorage `mc_lsm_liste`, nur Eingabe + Notiz) -> `POST /api/lshop/modelle/ampel` (nur Sheets:
+  da / liste / zurueckgezogen / suchen) -> `.../pruefen` (EIN Stammdaten-Trockenlauf mit den Eingaben, Suche:
+  CatalogNr exakt = gefunden; Hersteller-Nummer `CatNrManufacturer` (auch "3000/3099"), "endet auf", Name, aehnliche
+  Nummer = Vorschlag, nie still uebernommen; Vorschau Name/Marke/Farben/Groessen/Auslauf, keine Preise) ->
+  `.../uebernehmen` { auswahl, datei }: nur Nummern, die `modellAus` erkennt; schon vorhandene raus; Stammdaten-Lauf
+  "uebernehmen" mit `vorSchreiben`: jedes Modell bringt neue Zeilen UND keine Fremdaenderung (geaendert/ausgelaufen/
+  Name/neue Zeilen anderer Modelle) - sonst 409, nichts geschrieben (Inhaber: dann erst das Update in den Einstellungen).
+  ERST DANACH `Modelle_Zusatz` (neue Zeilen ohne append ueber `lib/sheet-zeilen.js`, zurueckgezogene wieder aktiv),
+  Chat `buildLShopModelleNachricht` (nur Modellnummern). `.../zurueckziehen` setzt nur `Status` = "zurückgezogen"
+  (LShop_Modelle bleibt, Inhaber 28.10.), `GET .../liste`. Spalten `Notiz`, `Eingetragen`, `Status` hinten in
+  `Modelle_Zusatz` (ohne Namen der Person): `scripts/setup-modelle-zusatz-spalten.js` (Trockenlauf, `--write`); fehlen
+  sie, 409 `einrichtung` vor jedem Schreiben.
+- backend/lib/sheet-zeilen.js – Zeilen ohne `values.append` schreiben (`schreibeNeueZeilen`, `ersetzeZeile`), gemeinsam
+  fuer anlageHalloween.js (FM2) und lshopModelle.js (LS4).
 - backend/lib/wc-variation-ids.js – WC_Variation_ID zurueckschreiben (VR2), eine Quelle; Frontend-Spiegel
   Block `WC-IDs: Anfang/Ende` (Test vergleicht beide). Zuordnung neue WC-Variation -> Varianten-Zeile NUR
   ueber die Attributkombination (VR1-Schluessel + ae/oe/ue), nie ueber die Position. Nur LEERE IDs fuellen;

@@ -245,7 +245,7 @@ describe('Derselbe Baustein, derselbe Schreibweg, kein Sheet', () => {
   // NAV4 (Frage 9): Reihenfolge Neu anlegen · Artikel ändern · SEO Daten · SEO-Daten ändern
   test('Modus-Knoepfe in der Reihenfolge der Navigation', () => {
     const ids = [...html.matchAll(/id="(mode-btn-[a-z]+)"/g)].map(m => m[1]);
-    expect(ids).toEqual(['mode-btn-new', 'mode-btn-edit', 'mode-btn-seo', 'mode-btn-seoedit']);
+    expect(ids).toEqual(['mode-btn-new', 'mode-btn-edit', 'mode-btn-seo', 'mode-btn-seoedit', 'mode-btn-lshopmodelle']);   // LS4
   });
 });
 

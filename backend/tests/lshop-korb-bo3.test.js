@@ -167,7 +167,7 @@ describe('eigene Positionen aus LShop_Modelle', () => {
     const leer = sucheModelle(zeilen, 'BCTW04T');
     expect(leer.modelle).toEqual([]);
     expect(leer.hinweis).toBe(NICHT_IM_BESTAND);
-    expect(NICHT_IM_BESTAND).toBe('Nicht im Bestand – direkt bei L-Shop bestellen oder Modell über Modelle_Zusatz/LS1 aufnehmen.');
+    expect(NICHT_IM_BESTAND).toBe('Nicht im Bestand – direkt bei L-Shop bestellen oder unter Artikel → L-Shop-Modelle aufnehmen.');
   });
 
   test('Farbe -> Groesse nur aus LShop_Modelle, ohne ausgelaufen und Discontinued 3/6', async () => {

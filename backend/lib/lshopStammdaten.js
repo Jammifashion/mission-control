@@ -42,6 +42,7 @@ import { seitenGrenze, seitenListe } from './hosterPruefseite.js';
 import { leseReiterSpalten } from './ssot-reiter.js';
 import { colLetter } from '../utils/sheet-spalten.js';
 import { TAB_LSHOP, STATUS_AKTIV, STATUS_AUSGELAUFEN } from './lshop.js';
+import { istZurueckgezogen, QUELLE_NEU } from '../utils/lshop-modelle.js';
 
 export { STATUS_AKTIV, STATUS_AUSGELAUFEN };
 
@@ -244,7 +245,7 @@ export function kandidaten(modell, katalog, max = 5) {
  * @param {Set<string>} [o.bestandNrs]  ArticleNr aus LShop_Modelle
  * @param {Set<string>} [o.variantenNrs] ArticleNr aus Varianten
  */
-export async function leseCsv(stream, { modelle, bestandNrs = new Set(), variantenNrs = new Set() } = {}) {
+export async function leseCsv(stream, { modelle, bestandNrs = new Set(), variantenNrs = new Set(), beobachte = null } = {}) {
   const zeilen = new Map();                 // ArticleNr -> Datensatz (CSV-Spalten, Rohtext)
   const katalog = new Set();                // alle CatalogNr der Datei (gross)
   const variantenKatalog = new Map();       // ArticleNr -> CatalogNr (gross)
@@ -260,6 +261,14 @@ export async function leseCsv(stream, { modelle, bestandNrs = new Set(), variant
     const cat = U(felder[idx.CatalogNr]);
     if (cat) katalog.add(cat);
     if (!/^\d{10}$/.test(art)) { z.ungueltigeArticleNr++; return; }
+    // LS4: Suche nach Modellnummer/Hersteller-Nummer/Name ("L-Shop-Modelle"). Der Datensatz
+    // wird nur gebaut, wenn der Beobachter ihn will (Speicher: ~181.000 Zeilen).
+    if (beobachte && cat) {
+      beobachte({
+        articleNr: art, catalogNr: cat, hersteller: U(felder[idx.CatNrManufacturer]), name: t(felder[idx[NAME_SPALTE]]),
+        datensatz: () => Object.fromEntries(DATEI_SPALTEN.map(n => [n, t(felder[idx[n]])])),
+      });
+    }
     if (variantenNrs.has(art) && cat) variantenKatalog.set(art, cat);
     if (!modelle.has(cat) && !bestandNrs.has(art)) return;
     if (gesehen.has(art)) { z.doppelteArticleNr++; return; }
@@ -299,9 +308,11 @@ export function abgleich({ bestand = [], csv = new Map(), datei, stand }) {
   // nameErgaenzt (LS2): Name war leer und kommt jetzt aus der Datei. Zaehlt extra, setzt
   // Stand NICHT neu und macht eine sonst gleiche Zeile nicht zu "geaendert" (Inhaber 21.10.).
   // Ein spaeter GEAENDERTER Name (alt nicht leer) zaehlt normal als Spalten-Aenderung.
+  // neuJeModell (LS4): neue Zeilen je CatalogNr - die Ansicht "L-Shop-Modelle" darf nur
+  // uebernehmen, wenn alle neuen Zeilen zu den gerade aufgenommenen Modellen gehoeren.
   const zaehler = {
     neu: 0, geaendert: 0, unveraendert: 0, ausgelaufen: 0, bleibtAusgelaufen: 0, reaktiviert: 0,
-    preisAenderungen: 0, nameErgaenzt: 0, spalten: {},
+    preisAenderungen: 0, nameErgaenzt: 0, spalten: {}, neuJeModell: {},
   };
   const nrs = new Set();
   const zeilen = [];
@@ -336,6 +347,8 @@ export function abgleich({ bestand = [], csv = new Map(), datei, stand }) {
   neue.sort((a, b) => a.CatalogNr.localeCompare(b.CatalogNr));   // stabil: innerhalb Modell CSV-Reihenfolge
   for (const d of neue) {
     zaehler.neu++;
+    const cat = U(d.CatalogNr);
+    zaehler.neuJeModell[cat] = (zaehler.neuJeModell[cat] ?? 0) + 1;
     zeilen.push({ ...d, Status: STATUS_AKTIV, Quelle_Datei: datei.name, Quelle_Datum: datei.datum, Stand: stand });
   }
   return { zeilen, zaehler };
@@ -415,15 +428,17 @@ export async function sammleQuellen({ sheets, wcFuer, ssotId, businessId }) {
     leseReiterSpalten({ tab: 'Partner_Artikel', spalten: { nr: 'Artikelnummer' }, sheets, spreadsheetId: businessId }),
     leseReiterSpalten({ tab: 'Varianten', spalten: { ssot: 'SSOT-ID' }, optional: { nr: 'LShop_ArticleNr' }, ...o }),
     leseReiterSpalten({ tab: 'Erfassungsmaske', spalten: { nr: 'L-Shop-Artikelnummer' }, ...o }),
-    leseOptionalenReiter(() => leseReiterSpalten({ tab: TAB_ZUSATZ, spalten: { cat: 'CatalogNr' }, ...o })),
+    leseOptionalenReiter(() => leseReiterSpalten({ tab: TAB_ZUSATZ, spalten: { cat: 'CatalogNr' }, optional: { status: 'Status' }, ...o })),
   ]);
+  // LS4: zurueckgezogene Zeilen zaehlen nicht mehr als "gebraucht" (Zeile bleibt stehen).
+  const zusatzAktiv = zusatz.werte.filter(z => !istZurueckgezogen(z.status));
   return {
     quellen: {
       'Shop JFN': jfn,
       'Shop HonkShop': honk,
       Partner_Artikel: partner.map(z => z.nr),
       Erfassungsmaske: erfassung.map(z => z.nr),
-      [TAB_ZUSATZ]: zusatz.werte.map(z => z.cat),
+      [TAB_ZUSATZ]: zusatzAktiv.map(z => z.cat),
     },
     variantenNrs: new Set(varianten.map(z => t(z.nr)).filter(n => /^\d{10}$/.test(n))),
     zusatzFehlt: zusatz.fehlt,
@@ -456,6 +471,17 @@ export async function leseBestand({ sheets, ssotId }) {
   return { fehlt: false, zeilen, kopfAlt };
 }
 
+// ── Sperre (LS4) ────────────────────────────────────────────────────────────
+// Ein Stammdaten-Lauf zur Zeit je Instanz (Einstellungen "Pruefen/Uebernehmen" und
+// Ansicht "L-Shop-Modelle", auch zwei Personen): zweiter Aufruf -> 409. Wie die
+// Korb-Sperre nur je Cloud-Run-Instanz.
+let laufAktiv = null;
+export async function mitStammdatenSperre(art, fn) {
+  if (laufAktiv) throw fehler(`Ein L-Shop-Stammdaten-Lauf läuft gerade (${laufAktiv}) – gleich noch einmal versuchen.`, 409, { code: 'laeuft_gerade' });
+  laufAktiv = art;
+  try { return await fn(); } finally { laufAktiv = null; }
+}
+
 // ── Lauf ────────────────────────────────────────────────────────────────────
 
 function berlinStand(jetzt = new Date()) {
@@ -473,6 +499,10 @@ export async function stammdatenLauf({
   modus, datei, sheets, drive, wcFuer = getWcClient, notify = null, baueMeldung = null,
   ssotId = process.env.GOOGLE_SHEET_ID, businessId = process.env.BUSINESS_SHEET_ID,
   driveId = process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID, jetzt = new Date(), stream = dateiStream,
+  // LS4 ("L-Shop-Modelle"): zusaetzliche Modelle, die noch nicht in Modelle_Zusatz stehen;
+  // Beobachter je Dateizeile (nur erster Durchlauf); Pruefung direkt vor dem Schreiben
+  // (wirft -> nichts geschrieben).
+  zusatzModelle = [], beobachte = null, vorSchreiben = null,
 } = {}) {
   if (!['trockenlauf', 'uebernehmen'].includes(modus)) throw fehler('modus muss "trockenlauf" oder "uebernehmen" sein.');
   if (modus === 'uebernehmen' && !t(datei)) throw fehler('Übernehmen braucht den Dateinamen des Trockenlaufs (datei).');
@@ -486,10 +516,10 @@ export async function stammdatenLauf({
     sammleQuellen({ sheets, wcFuer, ssotId, businessId }),
     leseBestand({ sheets, ssotId }),
   ]);
-  const modelle = gebrauchteModelle(q.quellen);
+  const modelle = gebrauchteModelle({ ...q.quellen, ...(zusatzModelle.length ? { [QUELLE_NEU]: zusatzModelle } : {}) });
   const bestandNrs = new Set(bestand.zeilen.map(z => t(z.ArticleNr)));
 
-  let gelesen = await leseCsv(await stream({ drive, id: d.id }), { modelle: new Set(modelle.keys()), bestandNrs, variantenNrs: q.variantenNrs });
+  let gelesen = await leseCsv(await stream({ drive, id: d.id }), { modelle: new Set(modelle.keys()), bestandNrs, variantenNrs: q.variantenNrs, beobachte });
   // Modelle, die nur ueber Varianten.LShop_ArticleNr bekannt sind: zweiter Durchlauf.
   const nurVarianten = [...new Set(gelesen.variantenKatalog.values())].filter(c => !modelle.has(c));
   for (const c of nurVarianten) modelle.set(c, new Set(['Varianten']));
@@ -520,6 +550,7 @@ export async function stammdatenLauf({
       nameErgaenzt: zaehler.nameErgaenzt,
     },
     geaendertJeSpalte: zaehler.spalten,
+    neuJeModell: zaehler.neuJeModell,
     preisAenderungen: zaehler.preisAenderungen,
     discontinuedGesperrt: aktiv.filter(z => ['3', '6'].includes(t(z.Discontinued))).length,
     dateiZaehler: gelesen.zaehler,
@@ -535,6 +566,7 @@ export async function stammdatenLauf({
   if (modus === 'trockenlauf') return antwort;
 
   // ── Uebernehmen ──
+  if (vorSchreiben) await vorSchreiben(antwort);
   const sheetId = await sichereReiter({ sheets, ssotId, zeilenBedarf: zeilen.length + 1, kopfErgaenzen: !!bestand.kopfAlt });
   await schreibeZeilen({ sheets, ssotId, zeilen, zeilenVorher: bestand.zeilen.length });
   // Textformat NACH dem Schreiben (Befund LS2): values.update setzt das Format

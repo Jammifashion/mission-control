@@ -149,6 +149,17 @@ export function buildLShopStammdatenNachricht({ datum, modelle, neu, geaendert, 
   return zeilen.join('\n');
 }
 
+// LS4: Ansicht "L-Shop-Modelle" - kurz, nur Modellnummern, keine Preise.
+export function buildLShopModelleNachricht({ modelle, datum } = {}) {
+  const liste = (modelle ?? []).map(x => sauber(x, 20)).filter(Boolean);
+  const d = String(datum ?? '').trim();
+  return [
+    `🧵 Neue L-Shop-Modelle aufgenommen: ${liste.join(', ') || '–'}`,
+    `Stammdatei vom ${/^\d{2}\.\d{2}\.\d{4}$/.test(d) ? d : '?'} · stehen jetzt in Warenkorb, Erfassungsmaske und EDI zur Wahl`,
+    LINK,
+  ].join('\n');
+}
+
 // ── Stoerungsalarm ──────────────────────────────────────────────────────────
 //
 // Der Kundenchat ist der einzige Kanal, bei dem ein Ausfall niemandem auffaellt:
