@@ -61,7 +61,9 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   Block "Unterwegs von L-Shop" aus BO4b-2 sind entfernt.)
 - Artikelerfassung (dazu Modus-Knopf "🧵 L-Shop-Modelle", LS4: Unterpunkt `artikel/lshop-modelle`, Panel `#lsm-panel`,
   SECTION L-Shop-Modelle mit Block `L-Shop-Modelle: Anfang/Ende`, Test lshop-modelle-frontend.test.js; Hilfe-Gruppe
-  `lshop-modelle`; Links `data-lsm-link` aus Warenkorb "Nicht im Bestand" und Maske "Kein L-Shop-Modell")
+  `lshop-modelle`; Links `data-lsm-link` aus Warenkorb "Nicht im Bestand" und Maske "Kein L-Shop-Modell".
+  LS4-1: "Übernehmen" tut nie still nichts - `lsmUebernehmenGrund` liefert den Hilfe-Schluessel (`lsm-laeuft`,
+  `lsm-erst-pruefen`, `lsm-erst-waehlen`, `lsm-nichts-da`, `lsm-nichts-neu`, `lsm-erst-update`) fuer Tooltip und Meldung beim Klick)
 - SEO-Daten aendern (Befehl SE1: Yoast-Felder jedes veroeffentlichten Artikels; nutzt seoMetaBau und yoastSchreiben des SEO-Flows, schreibt nichts ins Sheet)
 - SEO-Flow
 - Kundenanfragen Extern

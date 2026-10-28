@@ -375,6 +375,7 @@
       .lb-st-geliefert { background: var(--success); border-color: var(--success); color: #111; }
       .korb-link { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 0.78rem; padding: 0.15rem 0; text-decoration: underline; }
       /* LS4: Ansicht "L-Shop-Modelle" */
+      #lsm-panel .korb-aktion[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
       .lsm-liste { display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.6rem; }
       .lsm-zeile { border: 1px solid var(--border); border-left-width: 4px; border-radius: 7px; padding: 0.45rem 0.6rem; font-size: 0.85rem; }
       .lsm-zeile.lsm-gruen { border-left-color: var(--success); }
@@ -4637,6 +4638,13 @@
         'lsm-meintest':         { name: 'meintest du …?', text: 'L-Shop schreibt das Modell anders. Tippe auf das richtige, dann steht es so auf der Liste.' },
         'lsm-pruefen':          { name: 'Prüfen', text: 'Sucht alle Modelle der Liste bei L-Shop (ca. 40 Sekunden) und zeigt Name, Farben und Größen. Speichert nichts.' },
         'lsm-uebernehmen':      { name: 'Übernehmen', text: 'Nimmt die grünen Modelle auf. Danach stehen sie in Warenkorb, Erfassung und Bestellung zur Wahl. Dauert ca. 1 Minute.' },
+        // LS4-1: Grund, wenn "Übernehmen" gerade nicht geht (Tooltip und Meldung beim Klick)
+        'lsm-laeuft':           { name: 'Übernehmen: läuft', text: 'Prüfen oder Übernehmen läuft gerade – bitte kurz warten.' },
+        'lsm-erst-pruefen':     { name: 'Übernehmen: erst prüfen', text: 'Erst Modelle eintragen und „Prüfen“ – danach kannst du übernehmen.' },
+        'lsm-erst-waehlen':     { name: 'Übernehmen: erst wählen', text: 'Noch nichts ausgewählt: Tippe bei „meintest du …?“ auf das richtige Modell.' },
+        'lsm-nichts-da':        { name: 'Übernehmen: alles schon da', text: 'Alle Modelle sind schon da – nichts zu übernehmen. Du findest sie schon in Warenkorb und Erfassung.' },
+        'lsm-nichts-neu':       { name: 'Übernehmen: nichts Neues', text: 'Nichts zu übernehmen: Grüne Modelle sind schon da, rote stehen nicht in der Stammdatei.' },
+        'lsm-erst-update':      { name: 'Übernehmen: erst Update', text: 'Geht gerade nicht: Erst das Stammdaten-Update in den Einstellungen (Inhaber).' },
         'lsm-zurueckziehen':    { name: 'zurückziehen', text: 'Für ein falsch aufgenommenes Modell: kommt von der Liste, gelöscht wird nichts.' },
         'lsm-link':             { name: 'Neues L-Shop-Modell aufnehmen', text: 'Öffnet Artikel → L-Shop-Modelle. Dort nimmst du ein Modell auf, das noch fehlt.' },
       };
@@ -4649,7 +4657,7 @@
         bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
-        'lshop-modelle': ['lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-zurueckziehen', 'lsm-link'],
+        'lshop-modelle': ['lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
       function hilfeLegendeHtml(gruppe) {
@@ -8608,6 +8616,16 @@
         }
         return out;
       }
+      // LS4-1: Warum "Übernehmen" gerade nicht geht - Schlüssel aus KNOPF_HILFE, '' = frei.
+      // Ein Klick tut nie "nichts": der Knopf zeigt den Grund beim Darüberfahren und beim Klick.
+      function lsmUebernehmenGrund({ liste, datei, darf, laeuft }) {
+        if (laeuft) return 'lsm-laeuft';
+        if (!liste.length || !datei) return 'lsm-erst-pruefen';
+        if (lsmAuswahl(liste).length) return darf ? '' : 'lsm-erst-update';
+        if (liste.some(z => ['neu', 'suchen', 'liste', 'zurueckgezogen'].includes(z.stufe))) return 'lsm-erst-pruefen';
+        if (liste.some(z => z.stufe === 'vorschlag')) return 'lsm-erst-waehlen';
+        return liste.every(z => z.stufe === 'da') ? 'lsm-nichts-da' : 'lsm-nichts-neu';
+      }
       function lsmVorschauText(v) {
         if (!v) return '';
         const teile = [v.name, v.marke, v.farben?.length ? `${v.farben.length} Farbe${v.farben.length === 1 ? '' : 'n'}` : '',
@@ -8650,9 +8668,11 @@
       }
       function lsmKnoepfe() {
         const n = lsmAuswahl(lsm.liste).length;
-        const frei = !lsm.laeuft && !!lsm.datei && lsm.darf && n > 0;
+        const grund = lsmUebernehmenGrund(lsm);
+        const frei = !grund;
         const ue = document.getElementById('lsm-uebernehmen');
         ue.setAttribute('aria-disabled', String(!frei));
+        ue.dataset.hilfe = grund || 'lsm-uebernehmen';
         ue.classList.toggle('korb-aktion-haupt', frei);
         ue.textContent = n ? `Übernehmen (${n})` : 'Übernehmen';
         document.getElementById('lsm-pruefen').setAttribute('aria-disabled', String(lsm.laeuft || !lsm.liste.length));
@@ -8747,7 +8767,7 @@
       });
 
       document.getElementById('lsm-pruefen').addEventListener('click', async () => {
-        if (lsm.laeuft || !lsm.liste.length) return;
+        if (lsm.laeuft || !lsm.liste.length) { showToast(hilfeText(lsm.laeuft ? 'lsm-laeuft' : 'lsm-erst-pruefen'), 'warn'); return; }
         const status = document.getElementById('lsm-status');
         lsm.laeuft = true; lsmKnoepfe();
         status.textContent = 'Prüfe bei L-Shop … (ca. 40 Sekunden, nichts wird gespeichert)';
@@ -8758,8 +8778,9 @@
           }));
           lsm.liste = lsmMitErgebnis(lsm.liste, d.ergebnisse);
           lsm.datei = d.datei; lsm.darf = d.darfUebernehmen; lsm.fremd = d.fremd ?? [];
+          const grund = lsmUebernehmenGrund({ ...lsm, laeuft: false });
           status.textContent = lsm.darf
-            ? 'Geprüft – nichts gespeichert. Grüne Modelle kannst du jetzt übernehmen.'
+            ? (grund ? `Geprüft – nichts gespeichert. ${hilfeText(grund)}` : 'Geprüft – nichts gespeichert. Grüne Modelle kannst du jetzt übernehmen.')
             : `Geprüft – Übernehmen geht gerade nicht: ${lsm.fremd.join('; ')}. Erst das Stammdaten-Update in den Einstellungen (Inhaber).`;
         } catch (e) {
           lsm.datei = null; lsm.darf = false;
@@ -8770,7 +8791,13 @@
 
       document.getElementById('lsm-uebernehmen').addEventListener('click', async () => {
         const auswahl = lsmAuswahl(lsm.liste);
-        if (lsm.laeuft || !lsm.datei || !lsm.darf || !auswahl.length) return;
+        const grund = lsmUebernehmenGrund(lsm);
+        if (grund) {
+          const text = hilfeText(grund) + (grund === 'lsm-erst-update' && lsm.fremd.length ? ` (${lsm.fremd.join('; ')})` : '');
+          if (grund !== 'lsm-laeuft') document.getElementById('lsm-status').textContent = text;
+          showToast(text, 'warn', 8000);
+          return;
+        }
         const ok = await showConfirm('L-Shop-Modelle übernehmen',
           `Diese ${auswahl.length} Modell${auswahl.length === 1 ? '' : 'e'} aufnehmen?<br><strong>${auswahl.map(a => lsmEsc(a.catalogNr)).join(', ')}</strong><br>`
           + `<span style="color:var(--muted);font-size:0.85rem;">Danach stehen sie in Warenkorb, Erfassung und Bestellung zur Wahl. Dauert ca. 1 Minute.</span>`, 'Übernehmen');

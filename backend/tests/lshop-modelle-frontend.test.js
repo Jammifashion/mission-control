@@ -9,7 +9,7 @@ const html = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../.
 const von = html.indexOf('// ── L-Shop-Modelle: Anfang');
 const bis = html.indexOf('// ── L-Shop-Modelle: Ende ──');
 const L = new Function(`${html.slice(von, bis)}
-return { LSM_MAX, LSM_STUFEN, lsmStufe, lsmHinzufuegen, lsmMitAmpel, lsmMitErgebnis, lsmWaehle, lsmAuswahl, lsmVorschauText, lsmZeileHtml };`)();
+return { LSM_MAX, LSM_STUFEN, lsmStufe, lsmHinzufuegen, lsmMitAmpel, lsmMitErgebnis, lsmWaehle, lsmAuswahl, lsmVorschauText, lsmZeileHtml, lsmUebernehmenGrund };`)();
 
 describe('Block L-Shop-Modelle', () => {
   test('gefunden', () => {
@@ -96,9 +96,40 @@ describe('Verdrahtung im HTML', () => {
 
   test('Uebernehmen nur nach Pruefen, mit Bestaetigung; keine Preise im Code der Ansicht', () => {
     const teil = html.slice(html.indexOf('// ── SECTION: L-Shop-Modelle (LS4) ──'), html.indexOf('// ── SECTION: SEO-Daten aendern (Befehl SE1) ──'));
-    expect(teil).toMatch(/!lsm\.datei \|\| !lsm\.darf/);
+    expect(teil).toMatch(/const grund = lsmUebernehmenGrund\(lsm\);\n        if \(grund\) \{/);
+    expect(teil).toMatch(/showToast\(text, 'warn', 8000\);\n          return;/);   // LS4-1: nie still
+    expect(teil).toMatch(/ue\.dataset\.hilfe = grund \|\| 'lsm-uebernehmen';/);
     expect(teil).toMatch(/showConfirm\('L-Shop-Modelle übernehmen'/);
     expect(teil).not.toMatch(/10CartonsPrice|\.preis\b|\bek\b/i);
     expect(teil).toMatch(/localStorage\.setItem\(LSM_SPEICHER, JSON\.stringify\(lsm\.liste\.map\(z => \(\{ text: z\.text, notiz: z\.notiz \}\)\)\)\)/);
+  });
+});
+
+// LS4-1 (Inhaber 28.10.): Modell schon in LShop_Modelle -> "Prüfen" faerbt die Zeile gruen "ist schon da",
+// "Übernehmen" hatte 0 Modelle und tat beim Klick nichts. Jetzt nennt der Knopf immer den Grund.
+describe('Übernehmen: Grund statt stillem Klick', () => {
+  const g = (liste, z = {}) => L.lsmUebernehmenGrund({ liste, datei: { name: 'd.csv' }, darf: true, laeuft: false, ...z });
+  test('der Fall des Inhabers: ein Modell, nach Prüfen "da"', () => {
+    expect(g([{ text: 'E3000', stufe: 'da', catalogNr: 'E3000' }])).toBe('lsm-nichts-da');
+  });
+  test('frei nur mit gefundenem oder gewähltem Modell und erlaubtem Lauf', () => {
+    const liste = [{ text: 'BY289', stufe: 'gefunden', catalogNr: 'BY289' }, { text: 'E3000', stufe: 'da', catalogNr: 'E3000' }];
+    expect(g(liste)).toBe('');
+    expect(g(liste, { darf: false })).toBe('lsm-erst-update');
+    expect(g(liste, { laeuft: true })).toBe('lsm-laeuft');
+    expect(g(liste, { datei: null })).toBe('lsm-erst-pruefen');
+    expect(g([])).toBe('lsm-erst-pruefen');
+  });
+  test('ohne Auswahl: erst prüfen, erst wählen, nichts Neues', () => {
+    expect(g([{ text: 'X', stufe: 'da' }, { text: 'NEU1', stufe: 'neu' }])).toBe('lsm-erst-pruefen');
+    expect(g([{ text: 'TU03T', stufe: 'vorschlag', vorschlaege: [{ catalogNr: 'BCTU03T' }] }])).toBe('lsm-erst-waehlen');
+    expect(g([{ text: 'E3000', stufe: 'da' }, { text: 'ZZ1', stufe: 'nicht' }])).toBe('lsm-nichts-neu');
+    expect(g([{ text: 'ZZ1', stufe: 'nicht' }])).toBe('lsm-nichts-neu');
+  });
+  test('jeder Grund hat einen Hilfetext (Tooltip und Meldung)', () => {
+    const teil = html.slice(html.indexOf('function lsmUebernehmenGrund('), html.indexOf('function lsmVorschauText('));
+    const schluessel = [...new Set([...teil.matchAll(/'(lsm-[a-z-]+)'/g)].map(m => m[1]))].sort();
+    expect(schluessel).toEqual(['lsm-erst-pruefen', 'lsm-erst-update', 'lsm-erst-waehlen', 'lsm-laeuft', 'lsm-nichts-da', 'lsm-nichts-neu']);
+    for (const k of schluessel) expect(html).toContain(`'${k}':`);
   });
 });
