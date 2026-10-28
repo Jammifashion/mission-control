@@ -72,7 +72,9 @@ describe('Kollektionen (Entscheidungen Inhaber 28.10.)', () => {
     }
     expect(BOYSLOVE_SEO_HINWEIS).toMatch(/Schauspieler-Namen nur als Motivtext oder im Titel, Personen nie beschreiben/);
     expect(BOYSLOVE_SEO_HINWEIS).not.toMatch(/Keine Schauspieler:innen/);
-    expect(FANMEET_TAYNEW.motivZeile.nurIntern).toBe('Fantreffen; Berlin; 05.12.2026');
+    expect(FANMEET_TAYNEW.motivZeile.nurIntern).toBe('Fantreffen; Fanmeet; Berlin; 05.12.2026');
+    expect(FANMEET_SEO_HINWEIS).toMatch(/Kein Zeitdruck und keine Knappheit/);
+    expect(FANMEET_SEO_HINWEIS).not.toMatch(/Fanmeet/);
   });
 });
 
@@ -190,7 +192,7 @@ describe('Sheet-Plan', () => {
   test('Motive-Zeilen Z149/Z150 wie freigegeben, Nur_intern gesetzt', () => {
     const sp = planeSheets(reiter(), [], { heute: '2026-10-28', k: FANMEET_TAYNEW });
     expect(sp.motive.werte).toEqual(['BL-TayNew', FANMEET_TAYNEW.motivZeile.motiv, 'Front, Brust', 'vollfarbig', 'nein, fest',
-      'Fanmeet-Kollektion (BoysLove), Fanart', 'Fantreffen; Berlin; 05.12.2026', '', '2026-10-28']);
+      'BoysLove-Fanart', 'Fantreffen; Fanmeet; Berlin; 05.12.2026', '', '2026-10-28']);
     expect(motivZeile(reiter().Motive[0], '', FANMEET_FORCELOVE)[0]).toBe('BL-ForceLove');
   });
 });
