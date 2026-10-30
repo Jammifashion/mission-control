@@ -59,6 +59,10 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   `/api/auftragsmonitor/lshop/*` in `LShop_Bestellungen`/`Produktions_Status`) leitet per `umleitung` in
   BEREICHE hierher; Panel und Endpunkte stehen noch, Ausbau in eigenem Auftrag. Filter "Bestellt" und
   Block "Unterwegs von L-Shop" aus BO4b-2 sind entfernt.)
+- Trikots (TR2: Unterpunkt `bestellen/trikots`, Unterreiter "Trikots (JFN)" hinter L-Shop-Bestellungen, `shop: false`;
+  Block `Trikots: Anfang/Ende` (Test trikot-ansicht-frontend.test.js), `TR_HINWEISE` = Spiegel von `HINWEISE` in
+  utils/trikot-ansicht.js; Hilfe-Gruppe `trikots`. Nur lesen. Klick auf die Bestellnummer: `psSpringeZu` + Bestellansicht,
+  Karte nur markiert (`tr-markiert`), nie aufgeklappt - das Aufklappen legt Produktions-Zeilen an.)
 - Artikelerfassung (dazu Modus-Knopf "🧵 L-Shop-Modelle", LS4: Unterpunkt `artikel/lshop-modelle`, Panel `#lsm-panel`,
   SECTION L-Shop-Modelle mit Block `L-Shop-Modelle: Anfang/Ende`, Test lshop-modelle-frontend.test.js; Hilfe-Gruppe
   `lshop-modelle`; Links `data-lsm-link` aus Warenkorb "Nicht im Bestand" und Maske "Kein L-Shop-Modell".
@@ -385,6 +389,16 @@ Neue Sektionen immer mit Anker versehen:
   Produktname/Groesse/Farbe/Name/Nummer/Stueck frei, Referenz in Rohtext; P–T wie immer, U leer. Sie
   zaehlen fuer Dedup (eigene ID) und werden nie angefasst. Merker: "+ Interne Trikotbestellung" kommt
   spaeter mit einem Trikot-Reiter in MC (Abbild des Sheets fuer den Wareneingang), noch nicht gebaut.
+- backend/lib/trikotAnsicht.js – Ansicht "Trikots (JFN)" (TR2), Logik `utils/trikot-ansicht.js`. `GET /api/bestellen/trikots`
+  NUR LESEN, nur Reiter `Trikots` im Business-Sheet, Spalten ueber den Namen, `Kunde` verlaesst das Backend nie.
+  Gruppen: "noch nicht beim Produzenten" (Charge leer) oben, dann Chargen numerisch absteigend; je Charge "x von y da",
+  Bestellt_Am, Lieferung = Bestellt_Am + 30 Tage (wie D2 im Formular). Zaehlregel (Inhaber 30.10.): Status `ok` =
+  geliefert; `ersetzt` = beim Produzenten da, beim Kunden nicht fertig, bis die Ersatzzeile `ok` hat. Ersatzzeile =
+  eigene Zeile (`INT-…`, Quelle `ersatz`), optionale Spalte `Ersetzt` hinten = Zeilen-ID des Originals; fehlt sie, keine
+  Verbindungen, kein Fehler. Kundenangabe = Zeilen aus `Rohtext`, nur Anzeige, nie nach Name/Nummer uebernommen.
+  Hinweise (gelb, nur Anzeige): Name/Nummer leer, Charge ohne Bestellt_Am, `Ersetzt` unbekannt, ersetzt ohne Ersatzzeile.
+  Produzenten-Formular (TR3, noch nicht gebaut): Heim -> "Trikot schwarz", Auswaerts -> "Trikot weiss", Material immer
+  "Heavy", Kragen/EXTRA leer, Nummer `2026/NN` nur im Formular (Charge im Sheet bleibt Zahl).
 - backend/lib/seo-prompt.js – SEO-Prompt: Systemprompt (`SEO_SYSTEM_PROMPT`), User-Template,
   MODUS-Enum, Materialfilter. Serientitel nur als Fanart: steht im Hinweisblock woertlich
   "Fanart zur Serie <Titel>", kommt der Block FANART-SERIE dazu, sonst gilt das Titelverbot.

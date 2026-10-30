@@ -5,6 +5,7 @@ import {
 import { notifyFehler } from '../lib/chatNotify.js';
 import { ediVorschau, ediErzeugen, ediAlsGesendet, ediSendenVorschau, ediSenden, ediZurueckAufEntwurf } from '../lib/lshopEdi.js';
 import { leseLShopBestellungen } from '../lib/lshopBestellungen.js';
+import { leseTrikotAnsicht } from '../lib/trikotAnsicht.js';
 import { wareneingangBuchen, wareneingangZurueck } from '../lib/wareneingang.js';
 import { kartonPruefen, kartonAngekommen } from '../lib/karton.js';
 import { leseProduktionStand } from '../lib/produktionStand.js';
@@ -193,6 +194,15 @@ router.get('/lshop-korb', async (req, res, next) => {
 router.get('/lshop-bestellungen', async (req, res, next) => {
   try {
     res.json(await leseLShopBestellungen({ shop: req.query.shop }));
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/bestellen/trikots  (TR2) ─────────────────────────────────────────
+// Unterreiter "Trikots (JFN)": Reiter "Trikots" gruppiert nach Produzenten-Bestellung (Charge), oben
+// "noch nicht beim Produzenten", je Charge "x von y da". Nur lesen, nur Sheets, ohne Kundennamen.
+router.get('/trikots', async (req, res, next) => {
+  try {
+    res.json(await leseTrikotAnsicht());
   } catch (err) { next(err); }
 });
 

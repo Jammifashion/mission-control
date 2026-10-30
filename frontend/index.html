@@ -480,6 +480,23 @@
       /* BO4b-5: Wareneingang */
       .lb-aktionen { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0; }
       .lb-geliefert { color: var(--success); font-weight: 600; }
+      /* TR2: Trikots (JFN) */
+      .tr-gruppe { border: 1px solid var(--border); border-radius: 8px; margin-top: 0.6rem; font-size: 0.84rem; overflow-wrap: anywhere; }
+      .tr-gruppe > summary { cursor: pointer; padding: 0.55rem 0.75rem; display: flex; flex-wrap: wrap; gap: 0.4rem 0.75rem; align-items: center; justify-content: space-between; }
+      .tr-gruppe-offen { border-color: var(--accent); }
+      .tr-zeilen { padding: 0 0.75rem 0.5rem; }
+      .tr-zeile { padding: 0.4rem 0; border-top: 1px solid var(--border); display: grid; gap: 0.2rem; }
+      .tr-zeile.tr-gelb { border-left: 3px solid var(--warning, #d4a017); padding-left: 0.5rem; }
+      .tr-kopf { display: flex; flex-wrap: wrap; gap: 0.25rem 0.6rem; align-items: center; }
+      .tr-nr { font-weight: 700; color: var(--accent); }
+      .tr-neben { color: var(--muted); }
+      .tr-hinweis { color: var(--warning, #d4a017); font-weight: 600; }
+      .tr-angabe > summary { cursor: pointer; color: var(--muted); font-size: 0.8rem; }
+      .tr-angabe-gelb > summary { color: var(--warning, #d4a017); font-weight: 600; }
+      .tr-angabe dl { margin: 0.2rem 0 0; display: grid; grid-template-columns: auto 1fr; gap: 0.1rem 0.6rem; }
+      .tr-angabe dt { color: var(--muted); }
+      .tr-angabe dd { margin: 0; }
+      .tr-markiert { outline: 2px solid var(--accent); outline-offset: 2px; }
       .we-zeile { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
       .we-zeile label { display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0; cursor: pointer; }
       .we-zeile input[type=checkbox] { width: 18px; height: 18px; flex: none; }
@@ -1296,6 +1313,7 @@
           <button class="sub-tab" data-subtab="tab-lshop-korb">L-Shop-Warenkorb</button>
           <button class="sub-tab" data-subtab="tab-lshop-uebersicht">Bestellübersicht</button>
           <button class="sub-tab" data-subtab="tab-lshop-bestellungen">L-Shop-Bestellungen</button>
+          <button class="sub-tab" data-subtab="tab-trikots">Trikots (JFN)</button>
           <button class="sub-tab" data-subtab="tab-eingaenge">Anfragen &amp; Eigenaufträge<span id="sub-eingaenge-badge" class="nav-badge"></span></button>
         </div>
 
@@ -1562,6 +1580,23 @@
               <button type="button" class="btn-lshop-bestellen" id="senden-los" data-hilfe="an-lshop-senden" disabled>Jetzt an L-Shop senden</button>
             </div>
             <div id="senden-ergebnis" class="korb-zaehler senden-ergebnis"></div>
+          </div>
+        </div>
+
+        <!-- TR2: Trikot-Bestellungen (Reiter "Trikots") je Produzenten-Bestellung, nur lesen -->
+        <div id="tab-trikots" class="sub-tab-panel">
+          <div class="card">
+            <div class="lshop-offen-header korb-kopf">
+              <span id="tr-summe">Trikots (JFN)</span>
+            </div>
+            <div class="korb-bedienung">
+              <div class="korb-ansicht"><span class="field-note">Nur Anzeige – geändert wird im Sheet.</span></div>
+              <div class="korb-aktionen">
+                <button class="hilfe-i" type="button" data-hilfe-gruppe="trikots" aria-controls="hilfe-trikots" aria-expanded="false" aria-label="Was bedeutet die Anzeige?">ⓘ</button>
+              </div>
+            </div>
+            <div id="hilfe-trikots" class="hilfe-legende" hidden></div>
+            <div id="tr-liste"><div class="skeleton"></div></div>
           </div>
         </div>
 
@@ -2861,6 +2896,7 @@
           { id: 'lshop-korb',   panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-lshop-korb"]', neuLaden: true },
           { id: 'lshop-uebersicht', panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-lshop-uebersicht"]', neuLaden: true },
           { id: 'lshop-bestellungen', panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-lshop-bestellungen"]', neuLaden: true },
+          { id: 'trikots',      panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-trikots"]', neuLaden: true, shop: false },   // TR2: nur JFN
           { id: 'anfragen',     panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-eingaenge"]', neuLaden: true },
         ] },
         artikel: { label: 'Artikel', shop: true, punkte: [
@@ -3213,6 +3249,7 @@
           if (btn.dataset.subtab === 'tab-lshop')     loadLShopOffen();
           if (btn.dataset.subtab === 'tab-lshop-korb' || btn.dataset.subtab === 'tab-lshop-uebersicht') loadLShopKorb();
           if (btn.dataset.subtab === 'tab-lshop-bestellungen') loadLShopBestellungen();
+          if (btn.dataset.subtab === 'tab-trikots') loadTrikots();
           korbLeisteParken();
           uebersichtZeichnen();   // setzt/entfernt die Druckklasse der Zaehlliste je nach sichtbarem Unterreiter
           if (btn.dataset.subtab === 'tab-dtf')       loadDtfOffen();
@@ -3899,7 +3936,7 @@
       const PS_FILTER_KEY = 'mc_bestellungen_filter';
       const PS_MAX_SEITEN = 5;
       const psZustand = {
-        orders: [], daten: null, stand: new Map(), offen: new Set(), fehler: '',
+        orders: [], daten: null, stand: new Map(), offen: new Set(), fehler: '', springe: '', markiert: null,
         filter: (() => { try { const f = localStorage.getItem(PS_FILTER_KEY); return PS_FILTER.includes(f) ? f : 'alle'; } catch { return 'alle'; } })(),
       };
       const psSchlank = o => ({
@@ -3939,6 +3976,30 @@
         el.innerHTML = fehler + renderOrderCards(sicht, {
           stand: psZustand.stand, offen: psZustand.offen, fertigSpalte: psZustand.daten?.fertigSpalte !== false, filter: psZustand.filter,
         });
+        // TR2: Markierung nach dem Sprung ueberlebt das zweite Zeichnen (nach dem Stand-Abruf).
+        const m = psZustand.markiert;
+        if (m && Date.now() < m.bis) document.getElementById(`order-card-${m.id}`)?.classList.add('tr-markiert');
+        psSprungAusfuehren();
+      }
+      // TR2: Sprung aus "Trikots (JFN)" zur Kundenbestellung - nur in den Blick holen und markieren, nicht
+      // aufklappen (das Aufklappen legt Produktions-Zeilen an). Wirkt beim naechsten Zeichnen mit Liste.
+      function psSpringeZu(orderId) { psZustand.springe = String(orderId ?? ''); }
+      function psSprungAusfuehren() {
+        const id = psZustand.springe;
+        if (!id || !psZustand.orders.length) return;
+        psZustand.springe = '';
+        const karte = document.getElementById(`order-card-${id}`);
+        if (!karte && psZustand.filter !== 'alle' && psZustand.orders.some(o => String(o.id) === id)) {
+          psZustand.filter = 'alle';   // nur fuer jetzt, nicht in localStorage
+          psZustand.springe = id;
+          psZeichnen();
+          return;
+        }
+        if (!karte) { showToast(`Bestellung #${id} ist nicht unter den offenen Bestellungen (schon abgeschlossen?).`, 'warn', 8000); return; }
+        karte.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        karte.classList.add('tr-markiert');
+        psZustand.markiert = { id, bis: Date.now() + 4000 };
+        setTimeout(() => document.getElementById(`order-card-${id}`)?.classList.remove('tr-markiert'), 4000);
       }
       async function loadOrders() {
         const el = document.getElementById('jfn-orders-list');
@@ -3975,6 +4036,7 @@
           psZeichnen();
         } catch (e) {
           summaryEl.style.display = 'none';
+          psZustand.springe = '';
           el.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${psEsc(e.message)}</p>`;
         }
       }
@@ -4631,6 +4693,13 @@
         'prod-dtf':             { name: 'DTF bestellt', text: 'Hak an, wenn du den Druck für diesen Artikel bei DTF bestellt hast.' },
         'prod-versendet':       { name: 'Versendet', text: 'Hak an, wenn dieser Artikel an den Kunden raus ist – auch bei einer Teillieferung. Zählt als fertig.' },
         'prod-notiz':           { name: 'Notiz', text: 'Freier Hinweis zu diesem Artikel. Wird gespeichert, sobald du das Feld verlässt.' },
+        // TR2: Ansicht "Trikots (JFN)"
+        'tr-offen':             { name: 'noch nicht beim Produzenten', text: 'Trikots ohne Bestellnummer (Charge). Die kommen in die nächste Bestellung beim Produzenten.' },
+        'tr-da':                { name: 'x von y da', text: 'Status „ok“ = geliefert. „ersetzt“ zählt auch als da (das Trikot kam), der Kunde wartet aber auf den Ersatz.' },
+        'tr-lieferung':         { name: 'Lieferung ca.', text: 'Bestellt am + 30 Tage, wie im Formular des Produzenten. Fehlt „Bestellt am“, steht hier nichts.' },
+        'tr-bestellung':        { name: 'Bestellnummer', text: 'Zeigt die Kundenbestellung unter „Bestellungen (JFN)“, solange sie dort noch offen ist.' },
+        'tr-kundenangabe':      { name: 'Kundenangabe', text: 'Was der Kunde im Shop eingegeben hat. Gelb und offen, wenn Name oder Nummer nicht übernommen wurden.' },
+        'tr-ersetzt':           { name: 'ersetzt / Ersatz für', text: 'Änderung nach der Bestellung: Das alte Trikot kam, das neue steht als eigene Zeile in einer späteren Bestellung.' },
         // LS4: Ansicht "L-Shop-Modelle"
         'lsm-notiz':            { name: 'Notiz', text: 'Wofür du das Modell brauchst, z. B. „Vereinshoodie“. Keine Kundennamen. Kannst du leer lassen.' },
         'lsm-hinzufuegen':      { name: 'Zur Liste', text: 'Setzt das Modell auf deine Liste. Die Farbe zeigt sofort, ob es schon da ist. Gespeichert wird noch nichts.' },
@@ -4657,6 +4726,7 @@
         bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
+        trikots: ['tr-offen', 'tr-da', 'tr-lieferung', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt'],
         'lshop-modelle': ['lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
@@ -6120,6 +6190,98 @@
         } catch (e) {
           ksEl('ks-meldung').textContent = e.message; showToast('Buchen fehlgeschlagen', 'error');
         } finally { ksZustand.laeuft = false; knopf.disabled = false; }
+      });
+
+      // ── SECTION: Trikots (TR2) ──
+      // Unterpunkt bestellen/trikots: Reiter "Trikots" je Produzenten-Bestellung (Charge), nur lesen.
+      // Laedt GET /api/bestellen/trikots beim Oeffnen. Ohne Kundennamen; Rueckennamen nur hier, nie im Log.
+
+      // ── Trikots: Anfang (reine Anzeige, Test backend/tests/trikot-ansicht-frontend.test.js) ──
+      // Spiegel von HINWEISE in backend/utils/trikot-ansicht.js (der Test vergleicht beide).
+      const TR_HINWEISE = {
+        name_leer:          'Name nicht übernommen',
+        nummer_leer:        'Nummer nicht übernommen',
+        ersetzt_unbekannt:  '„Ersetzt“ zeigt auf eine Zeile, die es nicht gibt',
+        ersatz_fehlt:       'ersetzt, aber keine Ersatzzeile',
+        ohne_bestellt_am:   'Bestellt_Am fehlt',
+      };
+      const trEsc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+      const trIstSync = id => /^\d+\|\d+\|\d+$/.test(String(id ?? ''));
+      function trStatusHtml(z) {
+        if (z.geliefert) return '<span class="lb-status lb-st-geliefert">da</span>';
+        if (z.ersetztStatus) return `<span class="lb-status" data-hilfe="tr-ersetzt">ersetzt${z.kundeFertig ? ' · Ersatz da' : ''}</span>`;
+        if (z.status) return `<span class="lb-status">${trEsc(z.status)}</span>`;
+        return z.charge ? '<span class="lb-status lb-st-bestaetigt">bestellt</span>' : '<span class="lb-status">offen</span>';
+      }
+      function trAngabeHtml(z) {
+        if (!z.kundenangabe?.length) return '';
+        const leer = ['name_leer', 'nummer_leer'].filter(h => z.hinweise.includes(h));
+        const titel = leer.length
+          ? `${leer.map(h => (h === 'name_leer' ? 'Name' : 'Nummer')).join('/')} nicht übernommen – Kundenangabe:`
+          : 'Kundenangabe';
+        return `<details class="tr-angabe${leer.length ? ' tr-angabe-gelb' : ''}"${leer.length ? ' open' : ''}><summary data-hilfe="tr-kundenangabe">${trEsc(titel)}</summary><dl>`
+          + z.kundenangabe.map(a => `<dt>${trEsc(a.feld || '–')}</dt><dd>${trEsc(a.wert)}</dd>`).join('') + '</dl></details>';
+      }
+      function trZeileHtml(z) {
+        // Name/Nummer leer steht schon als Titel der Kundenangabe - ohne Kundenangabe hier.
+        const andere = z.hinweise.filter(h => !['name_leer', 'nummer_leer'].includes(h) || !z.kundenangabe?.length);
+        const bezug = [
+          ...z.ersetztDurch.map(e => `ersetzt durch ${e.charge ? `Bestellung ${trEsc(e.charge)}` : 'noch nicht bestellt'} (${trEsc(e.id)})`),
+          z.ersatzFuer ? `Ersatz für Zeile ${z.ersatzFuer.zeile}${z.ersatzFuer.charge ? ` aus Bestellung ${trEsc(z.ersatzFuer.charge)}` : ''}` : '',
+        ].filter(Boolean);
+        const order = z.orderId
+          ? `<a href="#bestellen/bestellungen" class="tr-nr" data-tr-bestellung="${trEsc(z.orderId)}" data-hilfe="tr-bestellung">#${trEsc(z.orderId)}</a>`
+          : '<span class="tr-nr">ohne Bestellung</span>';
+        const neben = [z.geliefertAm ? `geliefert ${trEsc(z.geliefertAm)}` : '', trIstSync(z.id) ? '' : trEsc(z.id), `Zeile ${z.zeile}`]
+          .filter(Boolean).join(' · ');
+        return `<div class="tr-zeile${z.hinweise.length ? ' tr-gelb' : ''}"><div class="tr-kopf">${order}`
+          + `<span>${trEsc(z.produktKurz)} · ${trEsc(z.groesse || '–')}</span>`
+          + `<span><strong>${trEsc(z.name || '–')}</strong> · ${trEsc(z.nummer || '–')}</span>${trStatusHtml(z)}`
+          + `<span class="tr-neben">${neben}</span></div>`
+          + (bezug.length ? `<div class="tr-neben" data-hilfe="tr-ersetzt">${bezug.join(' · ')}</div>` : '')
+          + (z.notiz ? `<div>Notiz: ${trEsc(z.notiz)}</div>` : '')
+          + (andere.length ? `<div class="tr-hinweis">${andere.map(h => trEsc(TR_HINWEISE[h] ?? h)).join(' · ')}</div>` : '')
+          + trAngabeHtml(z) + '</div>';
+      }
+      function trGruppeHtml(g) {
+        const titel = g.offen ? 'noch nicht beim Produzenten' : `Bestellung ${trEsc(g.charge)}`;
+        const teile = g.offen ? [`${g.anzahl} Trikot${g.anzahl === 1 ? '' : 's'}`]
+          : [`<span data-hilfe="tr-da">${g.da} von ${g.anzahl} da</span>`,
+            g.bestelltAm.length ? `bestellt ${g.bestelltAm.map(trEsc).join(', ')}` : '',
+            g.lieferung ? `<span data-hilfe="tr-lieferung">Lieferung ca. ${trEsc(g.lieferung)}</span>` : ''];
+        const hinweis = g.hinweise.length ? `<span class="tr-hinweis">${g.hinweise.map(h => trEsc(TR_HINWEISE[h] ?? h)).join(' · ')}</span>` : '';
+        return `<details class="tr-gruppe${g.offen ? ' tr-gruppe-offen' : ''}" data-charge="${trEsc(g.charge)}"${g.offen && g.anzahl ? ' open' : ''}>`
+          + `<summary><strong${g.offen ? ' data-hilfe="tr-offen"' : ''}>${titel}</strong><span>${teile.filter(Boolean).join(' · ')}</span>${hinweis}</summary>`
+          + `<div class="tr-zeilen">${g.zeilen.length ? g.zeilen.map(trZeileHtml).join('') : '<p class="tr-neben">Keine.</p>'}</div></details>`;
+      }
+      const trListeHtml = d => (d?.gruppen ?? []).map(trGruppeHtml).join('');
+      const trSummeText = d => `Trikots (JFN) · ${d.summen.offen} noch nicht beim Produzenten · ${d.summen.chargen} Bestellung${d.summen.chargen === 1 ? '' : 'en'}`
+        + ` · ${d.summen.da} von ${d.summen.zeilen - d.summen.offen} da`;
+      // ── Trikots: Ende ──
+
+      const trZustand = { daten: null, laedt: false };
+      async function loadTrikots() {
+        const el = document.getElementById('tr-liste');
+        if (!el || trZustand.laedt) return;
+        trZustand.laedt = true;
+        if (!trZustand.daten) el.innerHTML = '<div class="skeleton"></div>';
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/trikots`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
+          trZustand.daten = await apiJson(res);
+          document.getElementById('tr-summe').textContent = trSummeText(trZustand.daten);
+          el.innerHTML = trListeHtml(trZustand.daten);
+        } catch (e) {
+          el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Trikots konnten nicht geladen werden: ${trEsc(e.message)}</p>`;
+        } finally {
+          trZustand.laedt = false;
+        }
+      }
+      document.getElementById('tr-liste')?.addEventListener('click', ev => {
+        const link = ev.target.closest('[data-tr-bestellung]');
+        if (!link) return;
+        ev.preventDefault();
+        psSpringeZu(link.dataset.trBestellung);
+        oeffneAnsicht('bestellen', 'bestellungen');
       });
 
       // ── SECTION: Artikelerfassung ──
