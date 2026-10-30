@@ -131,12 +131,12 @@ describe('leseLShopBestellungen (nur lesen)', () => {
 });
 
 describe('Warenkorb ohne Bestelltes (BO4d)', () => {
-  test('GET Korb zeigt nur offen + herausgenommen, Zaehler "Alle" = beide, keine sendungen mehr; Zeilen unveraendert', async () => {
+  test('GET Korb zeigt nur offen + herausgenommen (BO5-3: + Lager im Filter "Aus Lager"), Zaehler "Alle" = offen + herausgenommen, keine sendungen mehr; Zeilen unveraendert', async () => {
     const { tabs, sheets, aufrufe } = aufbau();
     const vorher = JSON.stringify(tabs[TAB_KORB]);
     const r = await leseKorb({ shop: 'jfn', sheets, jetzt: () => JETZT });
     const status = r.buendel.flatMap(b => b.positionen.map(p => p.status)).sort();
-    expect(status).toEqual(['abgewählt', 'offen']);
+    expect(status).toEqual(['Lager', 'abgewählt', 'offen']);   // BO5-3: Lager fuer den Rueckweg
     expect(r.summen.positionen).toBe(2);
     expect(r).not.toHaveProperty('sendungen');
     expect(JSON.stringify(tabs[TAB_KORB])).toBe(vorher);

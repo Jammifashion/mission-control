@@ -16,6 +16,7 @@ import { ladeLShopZeilen, farbwert, discontinuedWert, DISCONTINUED_GESPERRT, STA
 import { istGroessenAchse } from './groessen.js';
 import { schreibeNeueZeilen } from './sheet-zeilen.js';
 import { sucheModelle } from '../utils/korb-logic.js';
+import { rohlingBestandJeNr, korbAbgaenge } from '../utils/lager-korb.js';
 import {
   TAB_BUCHUNGEN, TAB_ARTIKEL, TAB_ORTE, BUCHUNG_SPALTEN, ARTIKEL_SPALTEN, ORTE_SPALTEN, WARENART, STATUS_AKTIV,
   buchungenAus, reiterZeilen, orteAus, aktiveOrte, artikelAus, warenartVon, planBuchung, planGegenbuchung,
@@ -62,7 +63,7 @@ const leseWerte = async (sheets, spreadsheetId, tab) =>
   (await sheets.spreadsheets.values.get({ spreadsheetId, range: q(tab), valueRenderOption: 'UNFORMATTED_VALUE' })).data.values ?? [];
 
 /** Alle drei Lager-Reiter frisch. Fehlt einer oder eine Spalte: einrichtung = Liste der Maengel. */
-async function leseLager(sheets, spreadsheetId) {
+export async function leseLager(sheets, spreadsheetId) {
   const titel = await reiterTitel(sheets, spreadsheetId);
   const einrichtung = [];
   const lies = async (tab, spalten) => {
@@ -268,7 +269,7 @@ export async function fremdAuswahl({ sheets: s } = {}) {
 
 let laeuft = false;
 export const BESCHAEFTIGT = 'Gerade wird schon gebucht - bitte gleich noch einmal.';
-async function mitLagerSperre(fn) {
+export async function mitLagerSperre(fn) {
   if (laeuft) throw fehler(BESCHAEFTIGT, 409, { code: 'laeuft_gerade' });
   laeuft = true;
   try { return await fn(); } finally { laeuft = false; }
@@ -365,4 +366,21 @@ export async function neuerArtikel({ eingabe, sheets: s } = {}) {
     lagerCacheLeeren();
     return { ok: true, laNr: plan.laNr, schluessel: `FREI:${plan.laNr}` };
   });
+}
+
+// ── BO5-3: Lager im Warenkorb (nur lesen) ─────────────────────────────────────
+
+/**
+ * Fuer GET .../lshop-korb: Rohling-Bestand je ArticleNr und offene Korb-Abgaenge je Korb-Schluessel. Fehlt das Lager
+ * oder ist es nicht lesbar, bleibt der Korb benutzbar (leere Maps + Hinweis).
+ */
+export async function leseLagerFuerKorb(sheets, spreadsheetId) {
+  try {
+    const l = await leseLager(sheets, spreadsheetId);
+    if (l.einrichtung.length) return { bestand: new Map(), abgaenge: new Map(), hinweis: '' };
+    return { bestand: rohlingBestandJeNr(l.buchungen), abgaenge: korbAbgaenge(l.buchungen), hinweis: '' };
+  } catch (err) {
+    console.warn(`Korb: Lager nicht lesbar (${err?.status ?? err?.code ?? 'Fehler'})`);
+    return { bestand: new Map(), abgaenge: new Map(), hinweis: 'Lager gerade nicht lesbar - ohne „im Lager“-Vorschläge.' };
+  }
 }

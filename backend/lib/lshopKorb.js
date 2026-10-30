@@ -33,6 +33,8 @@ import {
   GRUENDE, statusPlan, naechsteEigenNummer, eigeneZeile, eigeneZeilen, sucheModelle, NICHT_IM_BESTAND, KORB_SICHTBAR,
 } from '../utils/korb-logic.js';
 import { LIEFERZEIT_META_KEY } from './lieferzeiten.js';
+import { leseLagerFuerKorb } from './lager.js';
+import { korbVorschlaege } from '../utils/lager-korb.js';
 
 const TAB_VARIANTEN = 'Varianten';
 const TAB_MASKE     = 'Erfassungsmaske';
@@ -476,6 +478,10 @@ export async function leseKorb({ shop, mit, sheets: s, wcFuer = getWcClient, jet
   let ekJe = new Map();
   try { ekJe = await leseEk({ sheets, spreadsheetId }); } catch { /* ohne EK */ }
   for (const b of buendel) b.ek = euro(ekJe.get(String(b.articleNr ?? '').trim()));
+  // BO5-3: "im Lager: n" je offener Position (gleiche ArticleNr, ohne Doppelverplanung) und die Abgaenge der
+  // Lager-Positionen. Nur Anzeige - geaendert wird nichts (auch nicht im Abgleich).
+  const lager = await leseLagerFuerKorb(sheets, spreadsheetId);
+  korbVorschlaege(buendel, lager.bestand, lager.abgaenge);
   let staffel;
   try { staffel = await leseStaffel({ sheets }); } catch { staffel = { stufen: [], fehler: 'Versandstaffel nicht lesbar' }; }
   return {
@@ -483,8 +489,9 @@ export async function leseKorb({ shop, mit, sheets: s, wcFuer = getWcClient, jet
     buendel,
     staffel,
     gruende: GRUENDE,
+    lagerHinweis: lager.hinweis,
     summen: {
-      positionen: meine.length,
+      positionen: meine.filter(z => z.Status !== STATUS.LAGER).length,   // "Alle" = offen + herausgenommen
       zuBestellen: buendel.reduce((n, b) => n + b.zuBestellen, 0),
       artikelnummern: buendel.filter(b => b.zuBestellen > 0).length,
       ...korbZaehler(meine, nun),

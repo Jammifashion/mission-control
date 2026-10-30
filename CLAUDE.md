@@ -76,7 +76,11 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
 - Lager (BO5-1: Bereich `lager`, Unterpunkte `lager/bestand` und `lager/buchungen` im Panel `#panel-lager`, geladen ueber
   `mc:ansicht`; Block `Lager-Anzeige: Anfang/Ende` (Test lager-frontend.test.js, braucht grSortiere/grRang); Dialog
   `#lager-dialog` Einbuchen (Haken "Zählung / Startbestand" = Aktion start) · Ausbuchen · Umlagern · Korrektur (gezaehlt);
-  Raster je Warenart, "da: n" am gewaehlten Ort; Vorgangs-Kennung `lagerDlg.vorgang` erst nach Erfolg neu. Hilfe-Gruppe `lager`.)
+  Raster je Warenart, "da: n" am gewaehlten Ort; Vorgangs-Kennung `lagerDlg.vorgang` erst nach Erfolg neu. Hilfe-Gruppe `lager`.
+  BO5-3 im Warenkorb: Block `Korb-Lager: Anfang/Ende` (Test lager-korb.test.js) - "im Lager: n" (Orte im title) bzw. "n von m",
+  Knopf "aus Lager nehmen …" nur bei genug, Dialog `#korb-lager-dialog` (Vorbelegung meister Ort, hoechstens zwei), Filter
+  "Aus Lager" mit "zurück in den Korb", Hinweis `#korb-grund-lager` beim Grund "Ware da / Lager"; Verlauf verlinkt Korb-Position
+  (`korbSpringeZu`) und Bestellung (`psSpringeZu`); `lagerSpringeZu(articleNr)` filtert den Bestand.)
 - Artikelerfassung (dazu Modus-Knopf "🧵 L-Shop-Modelle", LS4: Unterpunkt `artikel/lshop-modelle`, Panel `#lsm-panel`,
   SECTION L-Shop-Modelle mit Block `L-Shop-Modelle: Anfang/Ende`, Test lshop-modelle-frontend.test.js; Hilfe-Gruppe
   `lshop-modelle`; Links `data-lsm-link` aus Warenkorb "Nicht im Bestand" und Maske "Kein L-Shop-Modell".
@@ -458,7 +462,20 @@ Neue Sektionen immer mit Anker versehen:
   alles oder nichts. Gleiche `vorgang`-Kennung = schon gebucht (Doppelklick), nichts doppelt. Bestand/Verlauf 60 s
   Zwischenspeicher, jede Buchung leert ihn; Stammdaten 5 min (Trikots aus dem Business-Sheet, nicht lesbar = Hinweis).
   Fehlen Reiter/Spalten -> 409 `einrichtung`. Einrichtung: `scripts/setup-lager-reiter.js` (Trockenlauf, `--write`, nur neue
-  Reiter; `Produkt_Inventar` ist eine Artikelliste, kein Bestand). Nicht in BO5-1: Korb-Vorschlag, Wareneingang, Retouren.
+  Reiter; `Produkt_Inventar` ist eine Artikelliste, kein Bestand). Noch nicht: Wareneingang (BO5-4), Retouren (BO5-6).
+- backend/lib/lagerKorb.js – Lager im L-Shop-Warenkorb (BO5-3), Logik `utils/lager-korb.js`. MC schlaegt vor, der Inhaber
+  bestaetigt; nichts automatisch, der Abgleich aendert nie einen Status. `GET .../lshop-korb` liefert je Buendel `lager`
+  ({ summe, orte }) und je offener, nicht gesperrter Position `lager` ({ n, genug }) - NUR gleiche ArticleNr (LS:), in
+  Positionsreihenfolge ohne Doppelverplanung (`korbVorschlaege`); Status `Lager` (Konstante STATUS.LAGER, gross, nicht
+  umbenennen) steht seit BO5-3 in `KORB_SICHTBAR` (Filter "Aus Lager", `summen.lager`; "Alle"/`summen.positionen` bleibt
+  offen + herausgenommen) mit `lagerAbgang`. Lager nicht lesbar -> Korb ohne Vorschlag + `lagerHinweis`.
+  `POST .../lshop-korb/aus-lager` { schluessel, status, verteilung: [{ort, menge}] (hoechstens 2 Orte, Summe = Menge),
+  vorgang } und `.../zurueck-aus-lager` { schluessel, vorgang }: unter Korb- UND Lager-Sperre, beide frisch gelesen,
+  Zielstrecke im Journal ueber `pruefeZielStrecke` (lib/sheet-zeilen.js), dann EIN values.batchUpdate ueber beide Reiter
+  (Korb Status/Grund leer/Status_Datum/Stand + neue Journal-Zeilen), beide zurueckgelesen. Abgang Art `abgang_shop` bzw.
+  `abgang_eigen`, Quelle `korb`, Bezug = Korb-Schluessel; Rueckweg = Status offen + Gegenbuchung (`Storno_von`). Korb-
+  Abgaenge sind im Lagerverlauf NICHT von Hand gegenbuchbar (sonst stimmt der Korb-Status nicht). Lager-Positionen gehen
+  nie in EDI (Regel `vorhanden` = offen) oder Matrix/Zaehlliste (nur offen). Teilen (Lager deckt nur einen Teil) gibt es nicht.
 - backend/lib/seo-prompt.js – SEO-Prompt: Systemprompt (`SEO_SYSTEM_PROMPT`), User-Template,
   MODUS-Enum, Materialfilter. Serientitel nur als Fanart: steht im Hinweisblock woertlich
   "Fanart zur Serie <Titel>", kommt der Block FANART-SERIE dazu, sonst gilt das Titelverbot.

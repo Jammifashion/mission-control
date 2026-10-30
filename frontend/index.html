@@ -315,6 +315,9 @@
         /* Handy: Ansicht oben (Segmente in einer Zeile), darunter Hauptaktion + ⓘ, dann das Aktualisieren-Paar */
         .korb-bedienung { flex-direction: column; align-items: stretch; }
         .korb-filter { flex-wrap: nowrap; flex: 1 1 100%; }
+        /* BO5-3: vier Filter im Korb - zwei Reihen statt seitlich hinaus */
+        #korb-filter { flex-wrap: wrap; row-gap: 0.3rem; }
+        #korb-filter button { flex: 1 1 40%; border-radius: 6px; margin-left: 0; }
         .korb-filter button { flex: 1 1 auto; padding: 0 0.4rem; min-width: 0; }
         .korb-aktionen { margin-left: 0; justify-content: flex-start; }
         .korb-aktion-haupt { flex: 1 1 auto; justify-content: center; }
@@ -403,6 +406,16 @@
       .korb-raster .korb-auslauf { color: var(--warning, #d4a017); font-size: 0.7rem; }
       .korb-raster input.korb-raster-fehler { border-color: var(--danger); }
       .korb-reihe { display: flex; gap: 0.45rem; flex-wrap: wrap; }
+      /* BO5-3: Lager im Korb */
+      .korb-lager { color: var(--info); font-weight: 600; }
+      button.korb-lager { text-decoration: none; font-size: inherit; }
+      .korb-klein.korb-aktion { height: 1.7rem; padding: 0 0.5rem; font-size: 0.75rem; margin-left: 0.3rem; }
+      .korb-grund-lager { color: var(--accent); font-size: 0.78rem; flex-basis: 100%; }
+      .korb-grund-lager[hidden] { display: none; }
+      .korb-lager-orte { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: 0.5rem; }
+      .korb-lager-ort { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.8rem; }
+      .korb-lager-ort input { min-height: 2.6rem; text-align: center; }
+      .korb-lager-fehler { color: var(--danger); }
       .korb-reihe .form-select { flex: 1 1 8rem; min-width: 0; }
       /* BO5-1: Lager */
       .lager-filter .form-select, .lager-filter .form-input { width: auto; min-width: 8.5rem; height: 2rem; padding: 0 0.5rem; font-size: 0.8rem; }
@@ -1442,6 +1455,7 @@
                   <button type="button" data-filter="offen" data-hilfe="filter-offen" aria-pressed="true">Offen</button>
                   <button type="button" data-filter="raus" data-hilfe="filter-raus" aria-pressed="false">Herausgenommen</button>
                   <button type="button" data-filter="alle" data-hilfe="filter-alle" aria-pressed="false">Alle</button>
+                  <button type="button" data-filter="lager" data-hilfe="filter-lager" aria-pressed="false">Aus Lager</button>
                 </span>
               </div>
               <div class="korb-aktionen">
@@ -1486,12 +1500,31 @@
               <span id="korb-leiste-anzahl" class="bulk-count"></span>
               <span id="korb-leiste-summe" class="ns-leiste" tabindex="0" data-hilfe="netto-summe"></span>
               <select id="korb-grund" class="form-select" aria-label="Grund" data-hilfe="grund"></select>
+              <span id="korb-grund-lager" class="korb-grund-lager" role="status" hidden></span>
               <input id="korb-notiz" type="text" class="form-input" maxlength="200" placeholder="Notiz (optional)" data-hilfe="notiz" />
               <button class="korb-aktion korb-aktion-haupt" id="korb-herausnehmen" type="button" data-hilfe="herausnehmen">Herausnehmen</button>
               <button class="korb-aktion korb-aktion-ruhig" id="korb-edi-btn" type="button" data-hilfe="edi">L-Shop-Bestellung …</button>
               <button class="korb-aktion korb-aktion-ruhig" id="korb-auswahl-weg" type="button" data-hilfe="auswahl-weg">Auswahl aufheben</button>
               <button class="hilfe-i" type="button" data-hilfe-gruppe="leiste" aria-controls="hilfe-leiste" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
               <div id="hilfe-leiste" class="hilfe-legende" style="flex-basis:100%;margin:0;" hidden></div>
+            </div>
+          </div>
+
+          <!-- BO5-3: aus Lager nehmen. Ort(e) wählen (höchstens zwei), Summe = Positionsmenge, dann EIN Schreibvorgang
+               (Korb-Status "Lager" + Abgang im Lager). -->
+          <div id="korb-lager-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="korb-lager-titel" hidden>
+            <div class="edi-box">
+              <div class="edi-kopf">
+                <strong id="korb-lager-titel">Aus Lager nehmen</strong>
+                <button type="button" class="korb-link" id="korb-lager-schliessen">Abbrechen</button>
+              </div>
+              <div id="korb-lager-position" class="korb-zaehler"></div>
+              <div id="korb-lager-orte" class="korb-lager-orte" role="group" aria-label="Menge je Ort"></div>
+              <div id="korb-lager-summe" class="korb-zaehler" aria-live="polite"></div>
+              <div class="korb-reihe">
+                <button type="button" class="btn-lshop-bestellen" id="korb-lager-buchen" data-hilfe="aus-lager-buchen">Aus Lager nehmen</button>
+              </div>
+              <div id="korb-lager-ergebnis" class="korb-zaehler" role="status" aria-live="polite"></div>
             </div>
           </div>
         </div>
@@ -4642,11 +4675,13 @@
       // Filter: offen | raus (abgewählt) | alle (= offen + herausgenommen; Bestelltes steht seit BO4d im
       // Unterreiter "L-Shop-Bestellungen"). Gemerkt je Browser; fehlt der Speicher, gilt "offen".
       const KORB_FILTER_KEY = 'mc_korb_filter';
-      const korbFilterLesen = () => { try { const f = localStorage.getItem(KORB_FILTER_KEY); return ['offen', 'raus', 'alle'].includes(f) ? f : 'offen'; } catch { return 'offen'; } };
+      const korbFilterLesen = () => { try { const f = localStorage.getItem(KORB_FILTER_KEY); return ['offen', 'raus', 'alle', 'lager'].includes(f) ? f : 'offen'; } catch { return 'offen'; } };
       const korbZustand = { daten: null, auswahl: new Map(), filter: korbFilterLesen() };   // auswahl: Schluessel -> Position
       // "Herausgenommen" zeigt nur die letzten 14 Tage (+ unbezahlt, rausAktuell vom Server), aeltere per Link.
-      const korbFilterPasst = p => korbZustand.filter === 'alle'
-        || (korbZustand.filter === 'raus' ? p.status === 'abgewählt' && (p.rausAktuell || korbZustand.rausAeltere) : p.status === 'offen');
+      // BO5-3: "Aus Lager" = Status Lager (Rueckweg "zurück in den Korb"); "Alle" bleibt offen + herausgenommen.
+      const korbFilterPasst = p => korbZustand.filter === 'lager' ? p.status === 'Lager'
+        : korbZustand.filter === 'alle' ? p.status === 'offen' || p.status === 'abgewählt'
+        : (korbZustand.filter === 'raus' ? p.status === 'abgewählt' && (p.rausAktuell || korbZustand.rausAeltere) : p.status === 'offen');
 
       // ── L-Shop-Bestellungen: Anfang (BO4d, Test backend/tests/lshop-bestellungen.test.js) ──
       // Reine Anzeige des Unterreiters "L-Shop-Bestellungen" aus GET /api/bestellen/lshop-bestellungen:
@@ -4809,6 +4844,12 @@
         'filter-offen':         { name: 'Offen', text: 'Positionen, die noch bei L-Shop bestellt werden müssen.' },
         'filter-raus':          { name: 'Herausgenommen', text: 'Positionen, die nicht bestellt werden (z. B. Ware da, schon bestellt). Zeigt die letzten 14 Tage.' },
         'filter-alle':          { name: 'Alle', text: 'Alles, was noch nicht bestellt ist: offen und herausgenommen.' },
+        // BO5-3: Lager im Korb
+        'filter-lager':         { name: 'Aus Lager', text: 'Positionen, die du aus dem Lager genommen hast. Dort geht es mit „zurück in den Korb“ zurück.' },
+        'korb-im-lager':        { name: 'im Lager: n', text: 'So viele Stück dieser Artikelnummer liegen im Lager (Orte beim Darüberfahren). Tippen öffnet den Bestand.' },
+        'aus-lager':            { name: 'aus Lager nehmen …', text: 'Nimmt die Position aus dem Lager statt sie zu bestellen. Du wählst den Ort und bestätigst.' },
+        'aus-lager-buchen':     { name: 'Aus Lager nehmen', text: 'Setzt die Position auf „Lager“ und bucht die Ware im Lager aus – beides in einem Schritt.' },
+        'zurueck-in-korb':      { name: 'zurück in den Korb', text: 'Doch bestellen? Die Position wird wieder offen, die Ware wieder im Lager eingebucht.' },
         // BO6: eigene Positionen mit Groessenraster
         'eigen-raster':         { name: 'Menge je Größe', text: 'Trag bei jeder Größe die Stückzahl ein. Leer oder 0 = nicht bestellen. Je Größe entsteht eine Position.' },
         'eigen-referenz':       { name: 'Referenz', text: 'Gilt für alle Größen dieses Schritts, z. B. „Lager“ oder „Verein X Auftrag 12“. Keine Namen von Privatpersonen.' },
@@ -4918,7 +4959,7 @@
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
-        korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'abgleich', 'belege', 'alle-offenen', 'zurueck'],
+        korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'abgleich', 'belege', 'alle-offenen', 'zurueck'],
         leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
         uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
         karton: ['karton-pruefen', 'karton-angekommen', 'karton-naechster'],
@@ -5001,12 +5042,63 @@
       }
       // ── Korb-Menge: Ende ──
 
-      function korbPositionZeile(p) {
+      // ── Korb-Lager: Anfang (BO5-3, reine Logik, Test backend/tests/lager-korb.test.js) ──
+      // "im Lager: n" an offenen Positionen (n vom Server, ohne Doppelverplanung), Orte im Mouse-over (title am Link,
+      // keine Erklaerung - die steht in KNOPF_HILFE), "aus Lager nehmen …" nur bei genug Bestand; bei Status Lager
+      // die Orte des Abgangs und "zurück in den Korb".
+      function korbLagerOrteText(orte) {
+        return (orte ?? []).map(o => `${o.ort}: ${o.menge}`).join(' · ');
+      }
+      function korbLagerHtml(p, b) {
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+        if (p.status === 'Lager') {
+          const ab = p.lagerAbgang ?? [];
+          return ` · <span class="korb-lager">aus Lager${ab.length ? ` (${esc(korbLagerOrteText(ab))})` : ''}</span>`
+            + ` <button class="korb-link" type="button" data-lager-zurueck="${esc(p.schluessel)}" data-hilfe="zurueck-in-korb">zurück in den Korb</button>`;
+        }
+        if (p.status !== 'offen' || !p.lager || !(p.lager.n > 0)) return '';
+        const text = p.lager.genug ? `im Lager: ${p.lager.n}` : `im Lager: ${p.lager.n} von ${p.menge}`;
+        return ` · <button class="korb-link korb-lager" type="button" data-lager-nr="${esc(b?.articleNr)}" data-hilfe="korb-im-lager"`
+          + ` title="${esc(korbLagerOrteText(b?.lager?.orte))}">${esc(text)}</button>`
+          + (p.lager.genug ? ` <button class="korb-aktion korb-aktion-ruhig korb-klein" type="button" data-aus-lager="${esc(p.schluessel)}" data-hilfe="aus-lager">aus Lager nehmen …</button>` : '');
+      }
+      /** Vorbelegung: Ort mit dem meisten Bestand zuerst, Rest auf den naechsten (hoechstens zwei Orte). */
+      function korbLagerVorbelegung(orte, menge) {
+        let rest = Number(menge) || 0;
+        return (orte ?? []).map((o, i) => {
+          const m = i < 2 ? Math.min(rest, o.menge) : 0;
+          rest -= m;
+          return { ort: o.ort, da: o.menge, menge: m };
+        });
+      }
+      /** Eingaben je Ort -> Verteilung fuer den Server; Fehler bei Unsinn, mehr als da, mehr als zwei Orte, falscher Summe. */
+      function korbLagerVerteilung(zeilen, menge) {
+        const verteilung = [], fehler = [];
+        for (const z of zeilen ?? []) {
+          const roh = String(z.eingabe ?? '').trim();
+          if (roh === '' || roh === '0') continue;
+          const n = Number(roh);
+          if (!Number.isInteger(n) || n < 0) { fehler.push(`${z.ort}: keine ganze Zahl`); continue; }
+          if (n > z.da) fehler.push(`${z.ort}: nur ${z.da} da`);
+          verteilung.push({ ort: z.ort, menge: n });
+        }
+        if (verteilung.length > 2) fehler.push('höchstens zwei Orte');
+        const summe = verteilung.reduce((a, v) => a + v.menge, 0);
+        if (!fehler.length && summe !== Number(menge)) fehler.push(`verteilt ${summe} von ${menge}`);
+        return { verteilung, fehler, summe };
+      }
+      // ── Korb-Lager: Ende ──
+
+      function korbPositionZeile(p, b) {
         const herkunft = p.herkunft === 'eigen' ? `Eigen · ${korbEsc(p.referenz)}` : `${korbEsc(p.shop)} #${korbEsc(p.bestellnummer)} · Pos. ${korbEsc(p.position)}`;
         const hinweis  = p.hinweis ? ` · <span style="color:${p.vorschlag ? 'var(--accent)' : 'var(--danger)'};">⚠ ${korbEsc(p.hinweis)}</span>` : '';
         const notiz    = p.notiz ? ` · <em>${korbEsc(p.notiz)}</em>` : '';
         // Position: JFN #Nr · Pos. · Menge · unser Artikelname. Die L-Shop-Angaben stehen nur im Buendelkopf.
         const text     = `${herkunft} ${korbMengeHtml(p.menge)}${p.produktname ? ` · ${korbEsc(p.produktname)}` : ''}`;
+        const lager    = korbLagerHtml(p, b);
+        if (p.status === 'Lager') {
+          return `<div class="korb-pos korb-pos-raus" data-korb-pos="${korbEsc(p.schluessel)}"><span class="korb-pos-text">${text} · ${korbEsc(korbDatum(p.statusDatum))}${notiz}${hinweis}${lager}</span></div>`;
+        }
         if (p.status === 'abgewählt') {
           return `<div class="korb-pos korb-pos-raus"><span class="korb-pos-text">${text} · <strong>herausgenommen</strong>`
             + ` ${korbEsc(korbDatum(p.statusDatum))} (${korbEsc(p.grund)})${notiz}${hinweis}</span>`
@@ -5016,8 +5108,8 @@
           return `<div class="korb-pos korb-pos-raus"><span class="korb-pos-text">${text} · <strong>${korbEsc(p.status)}</strong>${notiz}${hinweis}</span></div>`;
         }
         const an = korbZustand.auswahl.has(p.schluessel) ? 'checked' : '';
-        return `<label class="korb-pos" style="${p.vorschlag ? '' : 'opacity:0.7;'}"><input type="checkbox" data-pos="${korbEsc(p.schluessel)}" ${an}>`
-          + `<span class="korb-pos-text">${text}${notiz}${hinweis}</span></label>`;
+        return `<label class="korb-pos" data-korb-pos="${korbEsc(p.schluessel)}" style="${p.vorschlag ? '' : 'opacity:0.7;'}"><input type="checkbox" data-pos="${korbEsc(p.schluessel)}" ${an}>`
+          + `<span class="korb-pos-text">${text}${notiz}${hinweis}${lager}</span></label>`;
       }
 
       // Buendelkopf "1000038284 · CB445 · <L-Shop-Artikelname> · Bottle Green · One Size".
@@ -5051,6 +5143,7 @@
         const bisher = korbZustand.grundVomNutzer ? sel.value : '';
         sel.innerHTML = `<option value="">Grund wählen …</option>` + gruende.map(g => `<option>${korbEsc(g)}</option>`).join('');
         sel.value = bisher && gruende.includes(bisher) ? bisher : vorbelegt;
+        korbGrundLagerHinweis();   // BO5-3
       }
       document.getElementById('korb-grund')?.addEventListener('change', ev => { korbZustand.grundVomNutzer = !!ev.target.value; });
 
@@ -5066,8 +5159,8 @@
         const rausSichtbar = korbZustand.rausAeltere ? z.herausgenommen : z.herausgenommenAktuell;
         const rausAelter = z.herausgenommen - z.herausgenommenAktuell;
         // BO4d: "Alle" = offen + herausgenommen (der Server liefert nur noch diese beiden Status).
-        const zahl = { offen: `${z.offen}`, raus: `${rausSichtbar} <small>/ ${z.herausgenommen}</small>`, alle: `${z.positionen}` };
-        const name = { offen: 'Offen', raus: 'Herausgenommen', alle: 'Alle' };
+        const zahl = { offen: `${z.offen}`, raus: `${rausSichtbar} <small>/ ${z.herausgenommen}</small>`, alle: `${z.positionen}`, lager: `${z.lager ?? 0}` };
+        const name = { offen: 'Offen', raus: 'Herausgenommen', alle: 'Alle', lager: 'Aus Lager' };
         document.querySelectorAll('#korb-filter [data-filter]').forEach(btn => {
           const f = btn.dataset.filter;
           btn.innerHTML = `${name[f]} (${zahl[f]})`;
@@ -5079,7 +5172,7 @@
         const aeltereLink = korbZustand.filter === 'raus' && !korbZustand.rausAeltere && rausAelter > 0
           ? `<button class="korb-link" type="button" id="korb-aeltere">ältere anzeigen (${rausAelter})</button>` : '';
         if (!sichtbar.length) {
-          const leer = { offen: 'Keine offenen Positionen.', raus: 'Keine herausgenommenen Positionen in den letzten 14 Tagen.', alle: 'Der Korb ist leer.' };
+          const leer = { offen: 'Keine offenen Positionen.', raus: 'Keine herausgenommenen Positionen in den letzten 14 Tagen.', alle: 'Der Korb ist leer.', lager: 'Keine Position aus dem Lager genommen.' };
           el.innerHTML = `<p style="color:var(--muted);font-size:0.84rem;">${d.buendel.length ? leer[korbZustand.filter] : 'Der Korb ist leer.'}</p>${aeltereLink}`;
         } else {
           el.innerHTML = sichtbar.map(b => {
@@ -5091,7 +5184,7 @@
               <div class="lshop-card-info">
                 <div class="lshop-card-title korb-titel"><span>${korbKopfText(b)}</span><span class="lshop-stueck">${b.zuBestellen} Stk</span></div>
                 ${b.unbezahlt ? `<div class="lshop-card-bedarf">davon ${b.unbezahlt} unbezahlt</div>` : ''}
-                <div class="lshop-card-orders">${b.zeigen.map(korbPositionZeile).join('')}</div>
+                <div class="lshop-card-orders">${b.zeigen.map(p => korbPositionZeile(p, b)).join('')}</div>
               </div>
             </div>`;
           }).join('') + aeltereLink;
@@ -5100,6 +5193,7 @@
         const alleBtn = document.getElementById('korb-alle-btn');
         if (alleBtn) alleBtn.hidden = korbZustand.filter !== 'offen';
         uebersichtZeichnen();   // BO3b: dieselben Daten, zweite Ansicht
+        korbSprungAusfuehren();  // BO5-3: aus dem Lagerverlauf
       }
 
       async function loadLShopKorb() {
@@ -5191,6 +5285,129 @@
         } catch (e) { showToast(`Fehler: ${e.message}`, 'error'); }
         finally { ev.target.disabled = false; }
       });
+
+      // BO5-3: Sprung aus dem Lagerverlauf zur Korb-Position (Filter passend setzen, nach dem Zeichnen markieren).
+      function korbSpringeZu(schluessel, filter) {
+        korbZustand.springe = String(schluessel ?? '');
+        if (['offen', 'lager'].includes(filter)) korbZustand.filter = filter;
+        oeffneAnsicht('bestellen', 'lshop-korb');
+      }
+      function korbSprungAusfuehren() {
+        const s = korbZustand.springe;
+        if (!s) return;
+        const el = document.querySelector(`#korb-liste [data-korb-pos="${CSS.escape(s)}"]`);
+        if (!el) return;
+        korbZustand.springe = '';
+        el.classList.add('tr-markiert');
+        el.scrollIntoView({ block: 'center' });
+      }
+
+      // ── BO5-3: Lager im Korb ──
+      // "aus Lager nehmen …" -> Dialog (Ort(e) mit Menge, Vorbelegung = meister Bestand) -> POST .../aus-lager: Korb-Status
+      // "Lager" + Abgang im Lager in EINEM Schreibvorgang. "zurück in den Korb" -> POST .../zurueck-aus-lager (Gegenbuchung).
+      // Vorgangs-Kennung je Dialog; neu erst nach Erfolg (nach Netzfehler bucht ein zweiter Klick nichts doppelt).
+      const korbLager = { p: null, b: null, vorgang: '', laeuft: false };
+      const korbVorgang = () => (globalThis.crypto?.randomUUID?.() ?? `v-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`);
+      function korbLagerFinde(schluessel) {
+        for (const b of korbZustand.daten?.buendel ?? []) {
+          const p = b.positionen.find(x => x.schluessel === schluessel);
+          if (p) return { p, b };
+        }
+        return {};
+      }
+      function korbLagerZeilen() {
+        return [...document.querySelectorAll('#korb-lager-orte input[data-ort]')].map(i => ({ ort: i.dataset.ort, da: Number(i.dataset.da), eingabe: i.value }));
+      }
+      function korbLagerSummeZeichnen() {
+        const r = korbLagerVerteilung(korbLagerZeilen(), korbLager.p?.menge);
+        const el = document.getElementById('korb-lager-summe');
+        el.textContent = r.fehler.length ? `Bitte prüfen: ${r.fehler.join(' · ')}` : `${r.summe} von ${korbLager.p?.menge} Stück aus ${r.verteilung.map(v => v.ort).join(' + ')}`;
+        el.classList.toggle('korb-lager-fehler', r.fehler.length > 0);
+        return r;
+      }
+      function korbLagerOeffnen(schluessel) {
+        const { p, b } = korbLagerFinde(schluessel);
+        if (!p || !b?.lager) { showToast('Position nicht mehr da – bitte neu laden.', 'warn'); return; }
+        Object.assign(korbLager, { p, b, vorgang: korbVorgang(), laeuft: false });
+        const herkunft = p.herkunft === 'eigen' ? `Eigen · ${p.referenz}` : `${p.shop} #${p.bestellnummer} · Pos. ${p.position}`;
+        document.getElementById('korb-lager-position').textContent = `${herkunft} · ×${p.menge} · ${[b.articleNr, b.catalogNr, b.farbe, b.groesse].filter(Boolean).join(' · ')}`;
+        document.getElementById('korb-lager-orte').innerHTML = korbLagerVorbelegung(b.lager.orte, p.menge).map(o => `<label class="korb-lager-ort">`
+          + `<span>${korbEsc(o.ort)} <small>(da: ${o.da})</small></span><input type="number" class="form-input" min="0" max="${o.da}" step="1" inputmode="numeric" pattern="[0-9]*"`
+          + ` data-ort="${korbEsc(o.ort)}" data-da="${o.da}" value="${o.menge || ''}" placeholder="0" aria-label="Menge aus ${korbEsc(o.ort)}"></label>`).join('');
+        document.getElementById('korb-lager-ergebnis').textContent = '';
+        document.getElementById('korb-lager-buchen').disabled = false;
+        document.getElementById('korb-lager-dialog').hidden = false;
+        korbLagerSummeZeichnen();
+        document.getElementById('korb-lager-buchen').focus();
+      }
+      const korbLagerZu = () => { document.getElementById('korb-lager-dialog').hidden = true; };
+      async function korbLagerPost(pfad, body) {
+        const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/${pfad}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const j = await res.json().catch(() => null);
+        if (!res.ok) { const e = new Error(j?.error || `HTTP ${res.status}`); e.status = res.status; e.antwort = j; throw e; }
+        return j;
+      }
+      async function korbLagerBuchen() {
+        if (korbLager.laeuft || !korbLager.p) return;
+        const r = korbLagerSummeZeichnen();
+        if (r.fehler.length || !r.verteilung.length) { showToast(r.fehler.join(' · ') || 'Bitte einen Ort wählen.', 'warn'); return; }
+        korbLager.laeuft = true;
+        const btn = document.getElementById('korb-lager-buchen');
+        const erg = document.getElementById('korb-lager-ergebnis');
+        btn.disabled = true;
+        erg.textContent = 'Wird gebucht …';
+        try {
+          const j = await korbLagerPost('aus-lager', { schluessel: korbLager.p.schluessel, status: korbLager.p.status, verteilung: r.verteilung, vorgang: korbLager.vorgang });
+          showToast(j.schonGebucht ? 'War schon gebucht – nichts doppelt.' : `Aus Lager genommen (${j.buchungen.join(', ')})`, 'success');
+          korbLager.vorgang = korbVorgang();
+          korbZustand.auswahl.delete(korbLager.p.schluessel);
+          korbLagerZu();
+          await loadLShopKorb();
+        } catch (e) {
+          const liste = (e.antwort?.probleme ?? []).slice(1, 4).map(x => x.text).join(' · ');
+          erg.textContent = e.status ? `Nicht gebucht: ${e.message}${liste ? ` (${liste})` : ''}`
+            : `Unklar, ob gebucht (${e.message}). Noch einmal tippen – es wird nichts doppelt gebucht.`;
+          showToast(erg.textContent, 'error', 10000);
+        } finally { korbLager.laeuft = false; btn.disabled = false; }
+      }
+      async function korbLagerZurueck(schluessel, knopf) {
+        const { p } = korbLagerFinde(schluessel);
+        if (!p) return;
+        const ok = await showConfirm('Zurück in den Korb', `Position <strong>${korbEsc(p.herkunft === 'eigen' ? p.referenz : `#${p.bestellnummer}`)}</strong> (×${korbEsc(p.menge)}) wieder auf „offen“ setzen?`
+          + '<br>Die Ware wird im Lager wieder eingebucht (Gegenbuchung).', 'Zurück in den Korb');
+        if (!ok) return;
+        knopf.disabled = true;
+        try {
+          const j = await korbLagerPost('zurueck-aus-lager', { schluessel, vorgang: korbVorgang() });
+          showToast(j.schonGebucht ? 'War schon gebucht – nichts doppelt.' : 'Position ist wieder offen, Ware zurück im Lager', 'success');
+        } catch (e) {
+          showToast(`Nicht geändert: ${e.message}`, 'error', 10000);
+        } finally { await loadLShopKorb(); }
+      }
+      document.getElementById('korb-liste')?.addEventListener('click', ev => {
+        const aus = ev.target.closest('[data-aus-lager]');
+        const zur = ev.target.closest('[data-lager-zurueck]');
+        const nr = ev.target.closest('[data-lager-nr]');
+        if (!aus && !zur && !nr) return;
+        ev.preventDefault();   // die Knoepfe sitzen in der Zeile mit dem Haken - kein Anhaken
+        if (aus) korbLagerOeffnen(aus.dataset.ausLager);
+        else if (zur) korbLagerZurueck(zur.dataset.lagerZurueck, zur);
+        else lagerSpringeZu(nr.dataset.lagerNr);
+      });
+      document.getElementById('korb-lager-orte')?.addEventListener('input', korbLagerSummeZeichnen);
+      document.getElementById('korb-lager-buchen')?.addEventListener('click', korbLagerBuchen);
+      document.getElementById('korb-lager-schliessen')?.addEventListener('click', korbLagerZu);
+      document.getElementById('korb-lager-dialog')?.addEventListener('keydown', ev => { if (ev.key === 'Escape') korbLagerZu(); });
+      // Grund "Ware da / Lager": Hinweis, wenn eine gewaehlte Position Lager-Bestand hat (nur Hinweis, nicht gesperrt).
+      function korbGrundLagerHinweis() {
+        const el = document.getElementById('korb-grund-lager');
+        if (!el) return;
+        const zeigen = document.getElementById('korb-grund').value === 'Ware da / Lager'
+          && [...korbZustand.auswahl.values()].some(p => korbLagerFinde(p.schluessel).p?.lager?.n > 0);
+        el.hidden = !zeigen;
+        el.textContent = zeigen ? 'Lieber „aus Lager nehmen“ – dann stimmt der Bestand.' : '';
+      }
+      document.getElementById('korb-grund')?.addEventListener('change', korbGrundLagerHinweis);
 
       document.getElementById('korb-filter')?.addEventListener('click', ev => {
         const f = ev.target.closest('[data-filter]')?.dataset.filter;
@@ -6958,11 +7175,34 @@
           + `<span>${korbEsc(lagerDatum(b.datum))}</span><span>${korbEsc(b.artText)} · ${korbEsc(lagerText(b))} · ${korbEsc(b.ort)}</span>`
           + `<span class="${b.menge > 0 ? 'lager-plus' : 'lager-minus'}">${b.menge > 0 ? '+' : ''}${b.menge}</span>`
           + `<span class="lager-klein"><span>${korbEsc(b.id)}</span>${b.grund ? `<span>${korbEsc(b.grund)}</span>` : ''}${b.notiz ? `<em>${korbEsc(b.notiz)}</em>` : ''}`
+          + `${b.quelle === 'korb' && b.bezug ? lagerBezugHtml(b) : ''}`
           + `${b.stornoVon ? `<span>Gegenbuchung zu ${korbEsc(b.stornoVon)}</span>` : ''}${b.gegengebucht ? '<span>gegengebucht</span>' : ''}`
           + `${b.gegenbuchbar ? `<button type="button" class="korb-link" data-lager-gegen="${korbEsc(b.id)}" data-hilfe="lager-gegenbuchung">Gegenbuchung …</button>` : ''}</span></div>`).join('')
           + (d.verlauf.length >= 300 ? '<div class="korb-zaehler">Gezeigt werden die neuesten 300 Buchungen.</div>' : '')
           : `<div class="korb-zaehler">${d.verlauf.length ? 'Kein Treffer für diesen Filter.' : 'Noch keine Buchungen.'}</div>`;
       }
+
+      // BO5-3: Abgaenge aus dem Korb zeigen den Bezug als Link - zur Korb-Position und (bei Shop-Positionen) zur Bestellung.
+      function lagerBezugHtml(b) {
+        const s = String(b.bezug ?? '');
+        const shop = s.match(/^JFN:(\d+):/);
+        return `<button type="button" class="korb-link" data-lager-korb="${korbEsc(s)}" data-lager-korb-filter="${b.art.startsWith('abgang_') && !b.gegengebucht ? 'lager' : 'offen'}">`
+          + `Korb-Position ${korbEsc(shop ? `#${shop[1]}` : s)}</button>`
+          + (shop ? `<button type="button" class="korb-link" data-lager-bestellung="${korbEsc(shop[1])}">Bestellung #${korbEsc(shop[1])}</button>` : '');
+      }
+      // Aus dem Korb: Bestand auf eine ArticleNr gefiltert (Suche trifft den Schluessel LS:<ArticleNr>).
+      function lagerSpringeZu(articleNr) {
+        lagerEl('lager-f-warenart').value = '';
+        lagerEl('lager-f-ort').value = '';
+        lagerEl('lager-f-suche').value = String(articleNr ?? '');
+        oeffneAnsicht('lager', 'bestand');
+      }
+      lagerEl('lager-buchungen')?.addEventListener('click', ev => {
+        const k = ev.target.closest('[data-lager-korb]');
+        const o = ev.target.closest('[data-lager-bestellung]');
+        if (k) korbSpringeZu(k.dataset.lagerKorb, k.dataset.lagerKorbFilter);
+        else if (o) { psSpringeZu(o.dataset.lagerBestellung); oeffneAnsicht('bestellen', 'bestellungen'); }
+      });
 
       function lagerZeigen(punkt) {
         lagerZ.punkt = punkt === 'buchungen' ? 'buchungen' : 'bestand';

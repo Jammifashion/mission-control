@@ -124,7 +124,7 @@ describe('grundVorschlag und Zaehler', () => {
     expect(korbZaehler([
       { Status: 'offen', Hinweis: '' }, { Status: 'offen', Hinweis: HINWEIS.UNBEZAHLT },
       { Status: 'abgewählt', Hinweis: HINWEIS.STORNIERT }, { Status: 'bestellt', Hinweis: '' },
-    ])).toEqual({ offen: 2, herausgenommen: 1, herausgenommenAktuell: 1, mitHinweis: 1 });   // ohne Datum = aktuell
+    ])).toEqual({ offen: 2, herausgenommen: 1, herausgenommenAktuell: 1, mitHinweis: 1, lager: 0 });   // ohne Datum = aktuell
     expect(GRUENDE).toEqual(['Ware da / Lager', 'schon bestellt', 'Bestellung storniert', 'Sonstiges']);
   });
 });
@@ -309,8 +309,8 @@ describe('Frontend: Filter Offen/Herausgenommen/Alle', () => {
     expect(html).not.toMatch(/\$\{hinweis\}\$\{lshop\}/);
   });
 
-  test('drei Filterknoepfe (BO4d: kein "Bestellt" mehr), alter Schalter entfernt, Filter wird gemerkt', () => {
-    expect([...html.matchAll(/data-filter="(\w+)"/g)].map(m => m[1])).toEqual(['offen', 'raus', 'alle']);
+  test('vier Filterknoepfe (BO4d: kein "Bestellt" mehr, BO5-3: Aus Lager), alter Schalter entfernt, Filter wird gemerkt', () => {
+    expect([...html.matchAll(/data-filter="(\w+)"/g)].map(m => m[1])).toEqual(['offen', 'raus', 'alle', 'lager']);   // BO5-3: Aus Lager
     expect(html).not.toContain('id="korb-alle"');
     expect(html).toMatch(/localStorage\.setItem\(KORB_FILTER_KEY/);
   });

@@ -47,6 +47,22 @@ export async function schreibeNeueZeilen(sheets, spreadsheetId, tab, zeilen, { a
   if (!zeilen?.length) return null;
   const q = `'${tab}'`;
   const alt = vorgelesen ?? (await sheets.spreadsheets.values.get({ spreadsheetId, range: q, valueRenderOption: 'UNFORMATTED_VALUE' })).data.values ?? [];
+  const { start, ende, range } = await pruefeZielStrecke(sheets, spreadsheetId, tab, alt, zeilen);
+  await sheets.spreadsheets.values.update({ spreadsheetId, range, valueInputOption: 'RAW', requestBody: { values: zeilen } });
+  const { data: zurueck } = await sheets.spreadsheets.values.get({ spreadsheetId, range, valueRenderOption: 'UNFORMATTED_VALUE' });
+  const ab = zeilenAbweichungen(zeilen, zurueck.values ?? []);
+  if (ab.length) throw new Error(`${tab}: Rücklesen Z${start}–Z${ende} weicht ab (${ab.length} Zellen, erste Z${start + ab[0].zeile} Spalte ${spalteBuchstabe(ab[0].spalte)}).`);
+  return start;
+}
+
+/**
+ * Zielstrecke fuer neue Zeilen hinter der letzten belegten Zeile von `alt` bestimmen und pruefen (ohne zu schreiben):
+ * Raster bei Bedarf verlaengern, Nachbarzeile oben wie gelesen, Zielbereich (plus eine Zeile darunter) leer.
+ * BO5-3: auch fuer EINEN values.batchUpdate ueber zwei Reiter (Korb + Lager).
+ * @returns {Promise<{ start: number, ende: number, range: string }>}
+ */
+export async function pruefeZielStrecke(sheets, spreadsheetId, tab, alt, zeilen) {
+  const q = `'${tab}'`;
   const start = Math.max(letzteZeile(alt), 1) + 1;
   const ende = start + zeilen.length - 1;
   const spalte = spalteBuchstabe(Math.max(...zeilen.map(r => r.length), (alt[0] ?? []).length) - 1);
@@ -66,12 +82,7 @@ export async function schreibeNeueZeilen(sheets, spreadsheetId, tab, zeilen, { a
   if (zeilenAbweichungen([alt[start - 2] ?? []], [umgebung[0] ?? []]).length)
     throw new Error(`${tab}: Zeile ${start - 1} hat sich seit dem Lesen geändert – nichts geschrieben.`);
   if (!istLeer(umgebung.slice(1))) throw new Error(`${tab}: Zielbereich Z${start}–Z${ende + 1} ist nicht leer – nichts geschrieben.`);
-  const range = `${q}!A${start}:${spalte}${ende}`;
-  await sheets.spreadsheets.values.update({ spreadsheetId, range, valueInputOption: 'RAW', requestBody: { values: zeilen } });
-  const { data: zurueck } = await sheets.spreadsheets.values.get({ spreadsheetId, range, valueRenderOption: 'UNFORMATTED_VALUE' });
-  const ab = zeilenAbweichungen(zeilen, zurueck.values ?? []);
-  if (ab.length) throw new Error(`${tab}: Rücklesen Z${start}–Z${ende} weicht ab (${ab.length} Zellen, erste Z${start + ab[0].zeile} Spalte ${spalteBuchstabe(ab[0].spalte)}).`);
-  return start;
+  return { start, ende, range: `${q}!A${start}:${spalte}${ende}` };
 }
 
 /**

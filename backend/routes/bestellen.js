@@ -11,6 +11,7 @@ import { trikotWareneingang } from '../lib/trikotWareneingang.js';
 import { wareneingangBuchen, wareneingangZurueck } from '../lib/wareneingang.js';
 import { kartonPruefen, kartonAngekommen } from '../lib/karton.js';
 import { leseProduktionStand } from '../lib/produktionStand.js';
+import { ausLagerNehmen, zurueckAusLager } from '../lib/lagerKorb.js';
 
 const router = Router();
 
@@ -80,6 +81,24 @@ router.post('/lshop-korb/eigen/mehrere', async (req, res, next) => {
     res.json(r);
   } catch (err) { next(err); }
 });
+
+// ── POST /api/bestellen/lshop-korb/aus-lager  (BO5-3) ────────────────────────
+// Body { schluessel, status (wie gesehen), verteilung: [{ ort, menge }], vorgang }. Korb-Status "Lager" + Abgang im Lager
+// in EINEM Schreibaufruf; nie negativ, alles oder nichts; gleicher vorgang = schon gebucht.
+// ── POST /api/bestellen/lshop-korb/zurueck-aus-lager  (BO5-3) ────────────────
+// Body { schluessel, vorgang }. Status zurueck auf offen + Gegenbuchung der Lager-Abgaenge dieser Position.
+for (const [pfad, fn] of [['/lshop-korb/aus-lager', ausLagerNehmen], ['/lshop-korb/zurueck-aus-lager', zurueckAusLager]]) {
+  router.post(pfad, async (req, res, next) => {
+    try {
+      const r = await fn({ eingabe: req.body ?? {} });
+      console.log(`L-Shop-Korb ${pfad.split('/').pop()} ${r.schluessel}: ${r.schonGebucht ? 'schon gebucht' : `${r.buchungen.length} Lager-Zeile(n)`}`);
+      res.json(r);
+    } catch (err) {
+      if ([409, 422].includes(err?.status)) return res.status(err.status).json({ error: err.message, probleme: err.probleme ?? [], code: err.code });
+      next(err);
+    }
+  });
+}
 
 // ── POST /api/bestellen/lshop-korb/edi/vorschau  (BO4a) ──────────────────────
 // ── POST /api/bestellen/lshop-korb/edi/erzeugen  (BO4a) ──────────────────────

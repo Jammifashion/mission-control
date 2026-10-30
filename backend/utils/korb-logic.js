@@ -28,7 +28,8 @@ export const STATUS = { OFFEN: 'offen', ABGEWAEHLT: 'abgewählt', BESTELLT: 'bes
 export const HERKUNFT = { SHOP: 'shop', EIGEN: 'eigen' };
 // BO4d: Diese Status zeigt der Warenkorb (GET .../lshop-korb). Alles andere (bestellt, geliefert, Lager)
 // steht im Unterreiter "L-Shop-Bestellungen".
-export const KORB_SICHTBAR = [STATUS.OFFEN, STATUS.ABGEWAEHLT];
+// BO5-3: dazu Lager (Filter "Aus Lager" mit dem Rueckweg "zurück in den Korb"); "Alle" bleibt offen + herausgenommen.
+export const KORB_SICHTBAR = [STATUS.OFFEN, STATUS.ABGEWAEHLT, STATUS.LAGER];
 
 // Der Abgleich liest diese Status. Shop: nur JFN, bis HONK selbst EDI-bestellbar ist.
 export const KORB_STATUS_SHOP = ['processing', 'on-hold'];
@@ -356,6 +357,7 @@ export function korbZaehler(zeilen, jetzt = new Date()) {
     herausgenommen: raus.length,
     herausgenommenAktuell: raus.filter(z => rausAktuell(z, jetzt)).length,
     mitHinweis: offen.filter(z => t(z.Hinweis)).length,
+    lager: zeilen.filter(z => z.Status === STATUS.LAGER).length,   // BO5-3
   };
 }
 

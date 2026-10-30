@@ -54,8 +54,11 @@ export function machSheets(tabs, raster = {}) {
         aufrufe.batchUpdate.push(d.range);
         const b = bereich(d.range);
         const t = tabs[b.tab];
-        while (t.length <= b.r0) t.push([]);
-        t[b.r0][b.c0] = d.values[0][0];
+        // BO5-3: auch ganze Bereiche (neue Journal-Zeilen im selben batchUpdate wie die Korb-Zellen)
+        d.values.forEach((z, i) => {
+          while (t.length <= b.r0 + i) t.push([]);
+          z.forEach((w, j) => { t[b.r0 + i][b.c0 + j] = w; });
+        });
       });
       return {};
     },

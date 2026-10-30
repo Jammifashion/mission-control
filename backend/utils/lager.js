@@ -32,16 +32,17 @@ export const ARTIKEL_WARENARTEN = ['rohling', 'fertig', 'trikot', 'fremd', 'sons
 export const ART = {
   VORRAT: 'vorrat', UEBERSCHUSS: 'zugang_ueberschuss', RETOURE: 'retoure', STORNO: 'storno', INVENTUR: 'inventur',
   ABGANG_SHOP: 'abgang_shop', ABGANG_VORORT: 'abgang_vorort', ABGANG_AUFTRAG: 'abgang_auftrag', ABGANG_PARTNER: 'abgang_partner',
-  UMLAGERUNG: 'umlagerung', KORREKTUR: 'korrektur',
+  ABGANG_EIGEN: 'abgang_eigen', UMLAGERUNG: 'umlagerung', KORREKTUR: 'korrektur',
 };
 export const ART_TEXT = {
   vorrat: 'Vorratskauf', zugang_ueberschuss: 'Überschuss Wareneingang', retoure: 'Retoure', storno: 'Storno',
   inventur: 'Zählung', abgang_shop: 'Shop-Bestellung', abgang_vorort: 'Verkauf vor Ort / Event',
-  abgang_auftrag: 'eigener Auftrag', abgang_partner: 'Partner / Muster', umlagerung: 'Umlagerung', korrektur: 'Gegenbuchung',
+  abgang_auftrag: 'eigener Auftrag', abgang_partner: 'Partner / Muster', abgang_eigen: 'eigene Korb-Position', umlagerung: 'Umlagerung', korrektur: 'Gegenbuchung',
 };
 export const ZUGANG_ARTEN = [ART.VORRAT, ART.UEBERSCHUSS, ART.RETOURE, ART.STORNO];
 export const ABGANG_ARTEN = [ART.ABGANG_VORORT, ART.ABGANG_AUFTRAG, ART.ABGANG_PARTNER, ART.ABGANG_SHOP];
-export const QUELLE = { KNOPF: 'knopf', START: 'start', INVENTUR: 'inventur' };
+// BO5-3: Quelle korb = "aus Lager nehmen" bzw. "zurück in den Korb" im L-Shop-Warenkorb (Bezug = Korb-Schluessel).
+export const QUELLE = { KNOPF: 'knopf', START: 'start', INVENTUR: 'inventur', KORB: 'korb' };
 export const AKTIONEN = ['einbuchen', 'ausbuchen', 'umlagern', 'zaehlung', 'start'];
 
 export const MENGE_MAX = 9999;
@@ -253,6 +254,8 @@ export function planGegenbuchung({ buchungId: id, vorgang }, { buchungen, jetzt 
   const b = (buchungen ?? []).find(x => x.id === t(id));
   if (!b) return { zeilen: [], probleme: [fehlerText('fehlt', `Buchung ${t(id)} gibt es nicht.`)], status: 404 };
   if (b.art === ART.KORREKTUR || b.stornoVon) return { zeilen: [], probleme: [fehlerText('korrektur', 'Eine Gegenbuchung kann man nicht gegenbuchen.')] };
+  // BO5-3: Abgaenge aus dem Korb nur ueber "zurück in den Korb" - sonst stimmt der Korb-Status nicht mehr.
+  if (b.quelle === QUELLE.KORB) return { zeilen: [], probleme: [fehlerText('korb', 'Diese Buchung kam aus dem Warenkorb - bitte dort „zurück in den Korb“ nehmen.')] };
   const ziele = [b];
   if (b.art === ART.UMLAGERUNG) {
     const p = buchungen.find(x => x.id === b.bezug && x.bezug === b.id);
@@ -352,7 +355,7 @@ export function buchungsVerlauf(buchungen, beschreibe, { limit = 300 } = {}) {
   return [...buchungen].sort((a, b) => b.datum.localeCompare(a.datum) || b.id.localeCompare(a.id)).slice(0, limit).map(b => ({
     id: b.id, datum: b.datum, art: b.art, artText: ART_TEXT[b.art] ?? b.art, warenart: b.warenart, schluessel: b.schluessel,
     menge: b.menge, ort: b.ort, grund: b.grund, bezug: b.bezug, quelle: b.quelle, notiz: b.notiz, stornoVon: b.stornoVon,
-    gegengebucht: gegen.has(b.id), gegenbuchbar: !gegen.has(b.id) && b.art !== ART.KORREKTUR && !b.stornoVon,
+    gegengebucht: gegen.has(b.id), gegenbuchbar: !gegen.has(b.id) && b.art !== ART.KORREKTUR && !b.stornoVon && b.quelle !== QUELLE.KORB,
     ...beschreibe(b.schluessel),
   }));
 }
