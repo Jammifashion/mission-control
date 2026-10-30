@@ -11,7 +11,8 @@ const von = html.indexOf('// ── Trikots: Anfang');
 const bis = html.indexOf('// ── Trikots: Ende ──');
 const T = new Function(`${html.slice(von, bis)}
 return { TR_HINWEISE, trZeileHtml, trGruppeHtml, trListeHtml, trSummeText };`)();
-const sektion = html.slice(html.indexOf('// ── SECTION: Trikots (TR2) ──'), html.indexOf('// ── SECTION: Artikelerfassung ──'));
+// TR2-Teil der Sektion (bis zum TR3-Block "Trikot-Formular", der schreiben darf).
+const sektion = html.slice(html.indexOf('// ── SECTION: Trikots (TR2) ──'), html.indexOf('// ── Trikot-Formular: Anfang'));
 
 const KOPF = ['Zeilen-ID', 'Bestelldatum', 'Order-ID', 'Kunde', 'Produktname', 'Groesse', 'Name', 'Nummer', 'Quelle', 'Rohtext',
   'Charge', 'Bestellt_Am', 'Geliefert_Am', 'Status', 'Notiz', 'Ersetzt'];

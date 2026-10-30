@@ -6,6 +6,7 @@ import { notifyFehler } from '../lib/chatNotify.js';
 import { ediVorschau, ediErzeugen, ediAlsGesendet, ediSendenVorschau, ediSenden, ediZurueckAufEntwurf } from '../lib/lshopEdi.js';
 import { leseLShopBestellungen } from '../lib/lshopBestellungen.js';
 import { leseTrikotAnsicht } from '../lib/trikotAnsicht.js';
+import { formularVorschau, formularDatei, alsBestelltEintragen } from '../lib/trikotFormular.js';
 import { wareneingangBuchen, wareneingangZurueck } from '../lib/wareneingang.js';
 import { kartonPruefen, kartonAngekommen } from '../lib/karton.js';
 import { leseProduktionStand } from '../lib/produktionStand.js';
@@ -204,6 +205,37 @@ router.get('/trikots', async (req, res, next) => {
   try {
     res.json(await leseTrikotAnsicht());
   } catch (err) { next(err); }
+});
+
+// ── POST /api/bestellen/trikots/formular/*  (TR3) ────────────────────────────
+// Produzenten-Bestellung: Vorschau (schreibt nichts), .xlsx nur als Antwort (nirgends abgelegt), Eintragen
+// NUR Charge + Bestellt_Am der gewaehlten Zeilen (leere Zellen, Nummer frei, zurueckgelesen).
+router.post('/trikots/formular/vorschau', async (req, res, next) => {
+  try {
+    res.json(await formularVorschau({ auswahl: req.body?.auswahl }));
+  } catch (err) { next(err); }
+});
+router.post('/trikots/formular/datei', async (req, res, next) => {
+  try {
+    const { dateiname, buffer } = await formularDatei({ auswahl: req.body?.auswahl });
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${dateiname.replace(/[^\w. -]/g, '_')}"`,
+      'Cache-Control': 'no-store',
+    });
+    res.send(buffer);
+  } catch (err) {
+    if ((err?.status === 422 || err?.status === 409) && (err.probleme || err.code)) return res.status(err.status).json({ error: err.message, probleme: err.probleme ?? [], code: err.code });
+    next(err);
+  }
+});
+router.post('/trikots/formular/eintragen', async (req, res, next) => {
+  try {
+    res.json(await alsBestelltEintragen({ auswahl: req.body?.auswahl, charge: req.body?.charge }));
+  } catch (err) {
+    if ((err?.status === 422 || err?.status === 409) && (err.probleme || err.code)) return res.status(err.status).json({ error: err.message, probleme: err.probleme ?? [], code: err.code });
+    next(err);
+  }
 });
 
 // ── POST /api/bestellen/produktion/stand?shop=  (PS1) ────────────────────────

@@ -16,7 +16,9 @@ const benutzt = [...[...html.matchAll(/data-hilfe="([a-z0-9-]+)"/g)].map(m => m[
   // BO4f: Hilfetexte, die erst im Code gesetzt werden (gesperrter Knopf im Dialog "L-Shop-Bestellung")
   ...[...html.slice(html.indexOf('function ediKnoepfe('), html.indexOf('function ediNachErzeugen(')).matchAll(/'(edi-[a-z-]+)'/g)].map(m => m[1]),
   // LS4-1: Grund am Knopf "Übernehmen" (L-Shop-Modelle)
-  ...[...html.slice(html.indexOf('function lsmUebernehmenGrund('), html.indexOf('function lsmVorschauText(')).matchAll(/'(lsm-[a-z-]+)'/g)].map(m => m[1])];
+  ...[...html.slice(html.indexOf('function lsmUebernehmenGrund('), html.indexOf('function lsmVorschauText(')).matchAll(/'(lsm-[a-z-]+)'/g)].map(m => m[1]),
+  // TR3: "Als bestellt eintragen" (Trikots) - frei/gesperrt im Code gesetzt
+  ...[...(html.slice(html.indexOf('function trFormZeichnen('), html.indexOf('async function trVorschauHolen(')).match(/dataset\.hilfe = [^;]+;/)?.[0] ?? '').matchAll(/'(tr-[a-z-]+)'/g)].map(m => m[1])];
 // Oeffnendes Tag eines Elements mit dieser id (statisch im HTML).
 const tag = id => html.match(new RegExp(`<[a-z]+[^>]*\\bid="${id}"[^>]*>`))?.[0] ?? '';
 

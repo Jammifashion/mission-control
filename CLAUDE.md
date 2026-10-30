@@ -62,7 +62,10 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
 - Trikots (TR2: Unterpunkt `bestellen/trikots`, Unterreiter "Trikots (JFN)" hinter L-Shop-Bestellungen, `shop: false`;
   Block `Trikots: Anfang/Ende` (Test trikot-ansicht-frontend.test.js), `TR_HINWEISE` = Spiegel von `HINWEISE` in
   utils/trikot-ansicht.js; Hilfe-Gruppe `trikots`. Nur lesen. Klick auf die Bestellnummer: `psSpringeZu` + Bestellansicht,
-  Karte nur markiert (`tr-markiert`), nie aufgeklappt - das Aufklappen legt Produktions-Zeilen an.)
+  Karte nur markiert (`tr-markiert`), nie aufgeklappt - das Aufklappen legt Produktions-Zeilen an.
+  TR3 am Ende der Sektion: Knopf "Produzenten-Bestellung …", Dialog `#tr-dialog`, Block `Trikot-Formular: Anfang/Ende`
+  (Test trikot-formular-frontend.test.js): Vorwahl = offene Zeilen ohne Hinweis; "Als bestellt eintragen …" erst nach
+  dem Download GENAU dieser Auswahl (`trFormularGrund`), sonst Toast mit Grund (Hilfe `tr-erst-download`).)
 - Artikelerfassung (dazu Modus-Knopf "🧵 L-Shop-Modelle", LS4: Unterpunkt `artikel/lshop-modelle`, Panel `#lsm-panel`,
   SECTION L-Shop-Modelle mit Block `L-Shop-Modelle: Anfang/Ende`, Test lshop-modelle-frontend.test.js; Hilfe-Gruppe
   `lshop-modelle`; Links `data-lsm-link` aus Warenkorb "Nicht im Bestand" und Maske "Kein L-Shop-Modell".
@@ -400,8 +403,18 @@ Neue Sektionen immer mit Anker versehen:
   Verbindungen, kein Fehler. Kundenangabe = Zeilen aus `Rohtext`, nur Anzeige, nie nach Name/Nummer uebernommen.
   Hinweise (gelb, nur Anzeige): Name/Nummer leer, Charge ohne Bestellt_Am, `Ersetzt` unbekannt, ersetzt ohne Ersatzzeile,
   Zeilen-ID doppelt (dann wird keine Verbindung geraten).
-  Produzenten-Formular (TR3, noch nicht gebaut): Heim -> "Trikot schwarz", Auswaerts -> "Trikot weiss", Material immer
-  "Heavy", Kragen/EXTRA leer, Nummer `2026/NN` nur im Formular (Charge im Sheet bleibt Zahl).
+- backend/lib/trikotFormular.js – Produzenten-Bestellung (TR3), Logik `utils/trikot-formular.js`, `exceljs` 4.4.0 (gepinnt).
+  `POST /api/bestellen/trikots/formular/vorschau` (schreibt nichts), `.../datei` (.xlsx nur als Antwort, nirgends abgelegt),
+  `.../eintragen` `{ auswahl:[{id,zeile}], charge }`. ITEM/MATERIAL/COLLAR NUR aus `Trikot_Artikel` (`Formular_Artikel`,
+  `Formular_Material`, `Formular_Kragen`, `scripts/setup-trikot-formular-spalten.js`); Zuordnung Trikots.Produktname = Shop-Name
+  der Produkt-ID (getWcClient, 10 min Cache), nicht die SKU; ohne Zuordnung gelb + 422. Formular wie das Muster: Blatt
+  "Sheet1", A1-A5 Beschriftung (Wortlaut inkl. Leerzeichen), D1/D2 FESTES Datum (heute, +30, D:E verbunden), D3 Team,
+  D4 `JJJJ/NN` (Jahr des Bestelltags Berlin), D5 NO; Zeile 7 Kopf gold, ab 8 je Trikot QUANTITY 1, Calibri 8, Rahmen bis
+  249; Nummer als Text, Kindergroesse als Zahl. Reihenfolge Produkt (Zeilenfolge Trikot_Artikel), Groesse (Kinder cm,
+  dann S->4XL), Nummer. Team/Saison/NO/30 Tage in `FORMULAR`. Nummer im Download vorlaeufig; Eintragen: Sperre je
+  Instanz, frisch gelesen, Zeilen-ID gleich, P+Q leer, Charge = hoechste + 1 (sonst 409, nichts geschrieben); EIN
+  batchUpdate RAW: P = Zahl, Q = Datumswert (Seriennummer, Format dd.mm.yyyy wie der Bestand; fehlt das Format, nur
+  Format setzen); ganzer Reiter zurueckgelesen.
 - backend/lib/seo-prompt.js – SEO-Prompt: Systemprompt (`SEO_SYSTEM_PROMPT`), User-Template,
   MODUS-Enum, Materialfilter. Serientitel nur als Fanart: steht im Hinweisblock woertlich
   "Fanart zur Serie <Titel>", kommt der Block FANART-SERIE dazu, sonst gilt das Titelverbot.

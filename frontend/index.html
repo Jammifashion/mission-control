@@ -497,6 +497,18 @@
       .tr-angabe dt { color: var(--muted); }
       .tr-angabe dd { margin: 0; }
       .tr-markiert { outline: 2px solid var(--accent); outline-offset: 2px; }
+      /* TR3: Produzenten-Bestellung */
+      .tr-wahl { display: grid; gap: 0.15rem; max-height: 14rem; overflow-y: auto; margin: 0.4rem 0; font-size: 0.84rem; }
+      .tr-wahl label { display: flex; gap: 0.5rem; align-items: center; }
+      .tr-formular { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin-top: 0.4rem; }
+      .tr-formular th, .tr-formular td { border: 1px solid var(--border); padding: 0.15rem 0.35rem; text-align: center; }
+      .tr-formular th { background: #3d3410; }
+      .tr-formular-kopf td:first-child { text-align: left; color: var(--muted); }
+      .tr-formular-kopf td { text-align: left; border: none; padding: 0.05rem 0.35rem; }
+      .tr-formular tr.tr-gelb td { color: var(--warning, #d4a017); }
+      .tr-formular-wrap { overflow-x: auto; }
+      #tr-eintragen[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
+      #tr-vorschau p { font-size: 0.82rem; margin: 0.3rem 0; }
       .we-zeile { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
       .we-zeile label { display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0; cursor: pointer; }
       .we-zeile input[type=checkbox] { width: 18px; height: 18px; flex: none; }
@@ -1592,11 +1604,30 @@
             <div class="korb-bedienung">
               <div class="korb-ansicht"><span class="field-note">Nur Anzeige – geändert wird im Sheet.</span></div>
               <div class="korb-aktionen">
+                <button type="button" class="korb-aktion korb-aktion-haupt" id="tr-formular-oeffnen" data-hilfe="tr-formular">Produzenten-Bestellung …</button>
                 <button class="hilfe-i" type="button" data-hilfe-gruppe="trikots" aria-controls="hilfe-trikots" aria-expanded="false" aria-label="Was bedeutet die Anzeige?">ⓘ</button>
               </div>
             </div>
             <div id="hilfe-trikots" class="hilfe-legende" hidden></div>
             <div id="tr-liste"><div class="skeleton"></div></div>
+          </div>
+        </div>
+
+        <!-- TR3: Produzenten-Bestellung. Auswahl -> Vorschau -> .xlsx (nur Download) -> "Als bestellt eintragen" (nur Charge + Bestellt_Am) -->
+        <div id="tr-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="tr-titel" hidden>
+          <div class="edi-box">
+            <div class="edi-kopf">
+              <strong id="tr-titel">Produzenten-Bestellung</strong>
+              <button type="button" class="korb-link" id="tr-schliessen">Schließen</button>
+            </div>
+            <div class="korb-zaehler">Wähle die Trikots für die nächste Bestellung beim Produzenten. Gespeichert wird erst mit „Als bestellt eintragen“.</div>
+            <div id="tr-auswahl"></div>
+            <div id="tr-vorschau"></div>
+            <div class="korb-reihe">
+              <button type="button" class="btn-lshop-bestellen" id="tr-herunterladen" data-hilfe="tr-herunterladen">Formular herunterladen (.xlsx)</button>
+              <button type="button" class="korb-aktion" id="tr-eintragen" data-hilfe="tr-erst-download" aria-disabled="true">Als bestellt eintragen …</button>
+            </div>
+            <div id="tr-ergebnis" class="korb-zaehler"></div>
           </div>
         </div>
 
@@ -4699,6 +4730,11 @@
         'tr-lieferung':         { name: 'Lieferung ca.', text: 'Bestellt am + 30 Tage, wie im Formular des Produzenten. Fehlt „Bestellt am“, steht hier nichts.' },
         'tr-bestellung':        { name: 'Bestellnummer', text: 'Zeigt die Kundenbestellung unter „Bestellungen (JFN)“, solange sie dort noch offen ist.' },
         'tr-kundenangabe':      { name: 'Kundenangabe', text: 'Was der Kunde im Shop eingegeben hat. Gelb und offen, wenn Name oder Nummer nicht übernommen wurden.' },
+        // TR3: Produzenten-Bestellung
+        'tr-formular':          { name: 'Produzenten-Bestellung …', text: 'Wählt offene Trikots aus, zeigt das Formular des Produzenten und lädt es als Excel-Datei herunter.' },
+        'tr-herunterladen':     { name: 'Formular herunterladen', text: 'Excel-Datei wie das Formular des Produzenten. Die Nummer darin ist vorläufig, gespeichert wird nichts.' },
+        'tr-eintragen':         { name: 'Als bestellt eintragen …', text: 'Trägt bei den gewählten Trikots nur Bestellnummer (Charge) und Bestellt am ein. Erst jetzt ist die Nummer fest.' },
+        'tr-erst-download':     { name: 'Eintragen: erst herunterladen', text: 'Erst das Formular für genau diese Auswahl herunterladen – danach kannst du eintragen.' },
         'tr-ersetzt':           { name: 'ersetzt / Ersatz für', text: 'Änderung nach der Bestellung: Das alte Trikot kam, das neue steht als eigene Zeile in einer späteren Bestellung.' },
         // LS4: Ansicht "L-Shop-Modelle"
         'lsm-notiz':            { name: 'Notiz', text: 'Wofür du das Modell brauchst, z. B. „Vereinshoodie“. Keine Kundennamen. Kannst du leer lassen.' },
@@ -4726,7 +4762,7 @@
         bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
-        trikots: ['tr-offen', 'tr-da', 'tr-lieferung', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt'],
+        trikots: ['tr-offen', 'tr-da', 'tr-lieferung', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download'],
         'lshop-modelle': ['lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
@@ -6283,6 +6319,149 @@
         ev.preventDefault();
         psSpringeZu(link.dataset.trBestellung);
         oeffneAnsicht('bestellen', 'bestellungen');
+      });
+
+      // ── Trikot-Formular: Anfang (TR3, reine Anzeige, Test backend/tests/trikot-formular-frontend.test.js) ──
+      // Vorwahl: alle offenen Trikots ohne Hinweis; mit Hinweis (z. B. nur Nummer) nur bewusst dazu.
+      const trVorwahl = zeilen => new Set(zeilen.filter(z => !z.hinweise.length).map(z => z.zeile));
+      const trAuswahlListe = (zeilen, gew) => zeilen.filter(z => gew.has(z.zeile)).map(z => ({ id: z.id, zeile: z.zeile }));
+      const trAuswahlSchluessel = auswahl => auswahl.map(a => `${a.zeile}:${a.id}`).sort().join('|');
+      function trAuswahlHtml(zeilen, gew) {
+        if (!zeilen.length) return '<p class="tr-neben">Keine offenen Trikots.</p>';
+        return '<div class="tr-wahl">' + zeilen.map(z => `<label><input type="checkbox" data-tr-wahl="${z.zeile}"${gew.has(z.zeile) ? ' checked' : ''}>`
+          + `<span>${trEsc(z.produktKurz)} · ${trEsc(z.groesse || '–')} · <strong>${trEsc(z.name || '–')}</strong> · ${trEsc(z.nummer || '–')}`
+          + `${z.hinweise.length ? ` <span class="tr-hinweis">(${z.hinweise.map(h => trEsc(TR_HINWEISE[h] ?? h)).join(', ')})</span>` : ''}</span></label>`).join('') + '</div>';
+      }
+      function trVorschauHtml(v) {
+        if (!v) return '';
+        const kopf = [['DATE OF ORDER', v.kopf.bestelltAm], ['DELIVERY DATE', v.kopf.lieferung], ['TEAM NAME', v.kopf.team],
+          ['YOUR ORDER NUMBER', `${v.kopf.nummer} (vorläufig)`], ['REPEAT ORDER', v.kopf.wiederholung]];
+        const ohne = new Set(v.ohneZuordnung ?? []);
+        const zeilen = v.positionen.map(p => `<tr${ohne.has(p.zeile) ? ' class="tr-gelb"' : ''}><td>1</td><td>${trEsc(p.artikel || 'keine Zuordnung')}</td><td>${trEsc(p.kragen)}</td>`
+          + `<td>${trEsc(p.material)}</td><td>${trEsc(p.groesse)}</td><td>${trEsc(p.name)}</td><td>${trEsc(p.nummer)}</td><td></td></tr>`).join('');
+        const zaehler = (v.zaehler ?? []).map(z => `${trEsc(z.produkt)} ${trEsc(z.groesse)}: ${z.anzahl}`).join(' · ');
+        const warn = [
+          v.einrichtung?.length ? `Einrichtung fehlt: ${v.einrichtung.map(trEsc).join(', ')}` : '',
+          ohne.size ? `Ohne Zuordnung (nicht exportierbar): Zeile ${[...ohne].join(', ')}` : '',
+          ...(v.probleme ?? []).map(p => trEsc(p.text)),
+        ].filter(Boolean);
+        return `<table class="tr-formular tr-formular-kopf"><tbody>${kopf.map(([a, b]) => `<tr><td>${a}</td><td><strong>${trEsc(b)}</strong></td></tr>`).join('')}</tbody></table>`
+          + `<div class="tr-formular-wrap"><table class="tr-formular"><thead><tr><th>QUANTITY</th><th>ITEM</th><th>COLLAR</th><th>MATERIAL</th><th>SIZE</th><th>NAME</th><th>NUMBER</th><th>EXTRA</th></tr></thead>`
+          + `<tbody>${zeilen || '<tr><td colspan="8">Nichts gewählt.</td></tr>'}</tbody></table></div>`
+          + `<p class="tr-neben">${v.positionen.length} Trikot${v.positionen.length === 1 ? '' : 's'}${zaehler ? ` · ${zaehler}` : ''} · Datei: ${trEsc(v.dateiname)}</p>`
+          + (warn.length ? `<p class="tr-hinweis">${warn.join(' · ')}</p>` : '');
+      }
+      /** Grund, warum Herunterladen/Eintragen nicht geht ('' = frei). */
+      function trFormularGrund({ vorschau, auswahl, heruntergeladen, laeuft }) {
+        if (laeuft) return 'laeuft';
+        if (!auswahl.length || !vorschau || !vorschau.positionen.length) return 'leer';
+        if (vorschau.einrichtung?.length || vorschau.ohneZuordnung?.length || vorschau.probleme?.length) return 'gesperrt';
+        if (heruntergeladen !== trAuswahlSchluessel(auswahl)) return 'erst-download';
+        return '';
+      }
+      // ── Trikot-Formular: Ende ──
+
+      const trForm = { gew: new Set(), vorschau: null, heruntergeladen: '', laeuft: false, anfrage: 0 };
+      const trOffeneZeilen = () => trZustand.daten?.gruppen?.find(g => g.offen)?.zeilen ?? [];
+      function trFormZeichnen() {
+        const zeilen = trOffeneZeilen();
+        document.getElementById('tr-vorschau').innerHTML = trVorschauHtml(trForm.vorschau);
+        const auswahl = trAuswahlListe(zeilen, trForm.gew);
+        const grund = trFormularGrund({ ...trForm, auswahl });
+        const dl = document.getElementById('tr-herunterladen');
+        dl.disabled = trForm.laeuft || ['leer', 'gesperrt'].includes(grund);
+        const ein = document.getElementById('tr-eintragen');
+        ein.setAttribute('aria-disabled', String(!!grund));
+        ein.dataset.hilfe = grund ? 'tr-erst-download' : 'tr-eintragen';
+        ein.classList.toggle('korb-aktion-haupt', !grund);
+      }
+      async function trVorschauHolen() {
+        const auswahl = trAuswahlListe(trOffeneZeilen(), trForm.gew);
+        const nr = ++trForm.anfrage;
+        if (!auswahl.length) { trForm.vorschau = null; trFormZeichnen(); return; }
+        document.getElementById('tr-vorschau').innerHTML = '<div class="skeleton"></div>';
+        try {
+          const v = await apiJson(await apiFetch(`${API_BASE()}/api/bestellen/trikots/formular/vorschau`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ auswahl }),
+          }));
+          if (nr === trForm.anfrage) trForm.vorschau = v;
+        } catch (e) {
+          if (nr === trForm.anfrage) { trForm.vorschau = null; document.getElementById('tr-ergebnis').textContent = `Vorschau nicht möglich: ${e.message}`; }
+        }
+        if (nr === trForm.anfrage) trFormZeichnen();
+      }
+      function trFormOeffnen() {
+        const zeilen = trOffeneZeilen();
+        trForm.gew = trVorwahl(zeilen);
+        trForm.vorschau = null; trForm.heruntergeladen = '';
+        document.getElementById('tr-ergebnis').textContent = '';
+        document.getElementById('tr-auswahl').innerHTML = trAuswahlHtml(zeilen, trForm.gew);
+        document.getElementById('tr-dialog').hidden = false;
+        trFormZeichnen();
+        trVorschauHolen();
+      }
+      document.getElementById('tr-formular-oeffnen')?.addEventListener('click', () => {
+        if (!trZustand.daten) { showToast('Trikots werden noch geladen – gleich noch einmal.', 'warn'); return; }
+        trFormOeffnen();
+      });
+      document.getElementById('tr-schliessen')?.addEventListener('click', () => { document.getElementById('tr-dialog').hidden = true; });
+      document.getElementById('tr-auswahl')?.addEventListener('change', ev => {
+        const z = Number(ev.target?.dataset?.trWahl);
+        if (!z) return;
+        if (ev.target.checked) trForm.gew.add(z); else trForm.gew.delete(z);
+        trForm.heruntergeladen = '';
+        trVorschauHolen();
+      });
+      document.getElementById('tr-herunterladen')?.addEventListener('click', async () => {
+        const auswahl = trAuswahlListe(trOffeneZeilen(), trForm.gew);
+        if (trForm.laeuft || !auswahl.length) return;
+        trForm.laeuft = true; trFormZeichnen();
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/trikots/formular/datei`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ auswahl }),
+          });
+          if (!res.ok) { const j = await res.json().catch(() => null); throw new Error(j?.error || `HTTP ${res.status}`); }
+          const url = URL.createObjectURL(await res.blob());
+          const a = document.createElement('a');
+          a.href = url; a.download = trForm.vorschau?.dateiname || 'Trikot-Bestellung.xlsx';
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          trForm.heruntergeladen = trAuswahlSchluessel(auswahl);
+          document.getElementById('tr-ergebnis').textContent = `Heruntergeladen: ${trForm.vorschau?.dateiname ?? ''}. Nummer ${trForm.vorschau?.nummer ?? ''} ist noch vorläufig – nach dem Versand „Als bestellt eintragen“.`;
+        } catch (e) {
+          document.getElementById('tr-ergebnis').textContent = `Nicht heruntergeladen: ${e.message}`;
+          showToast(e.message, 'error', 8000);
+        } finally { trForm.laeuft = false; trFormZeichnen(); }
+      });
+      document.getElementById('tr-eintragen')?.addEventListener('click', async () => {
+        const auswahl = trAuswahlListe(trOffeneZeilen(), trForm.gew);
+        const grund = trFormularGrund({ ...trForm, auswahl });
+        if (grund) { showToast(grund === 'laeuft' ? 'Läuft gerade – bitte kurz warten.' : hilfeText('tr-erst-download'), 'warn', 8000); return; }
+        const v = trForm.vorschau;
+        const ok = await showConfirm('Als bestellt eintragen',
+          `Bestellung <strong>${trEsc(v.nummer)}</strong> mit <strong>${auswahl.length} Trikot${auswahl.length === 1 ? '' : 's'}</strong>, bestellt am <strong>${trEsc(v.kopf.bestelltAm)}</strong> eintragen?<br>`
+          + '<span style="color:var(--muted);font-size:0.85rem;">Geschrieben werden nur Charge und Bestellt am dieser Trikots.</span>', 'Eintragen');
+        if (!ok) return;
+        trForm.laeuft = true; trFormZeichnen();
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/trikots/formular/eintragen`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ auswahl, charge: v.charge }),
+          });
+          const j = await res.json().catch(() => null);
+          if (!res.ok) {
+            const liste = (j?.probleme ?? []).slice(0, 5).map(p => p.text).join(' · ');
+            document.getElementById('tr-ergebnis').textContent = `Nicht eingetragen: ${j?.error || `HTTP ${res.status}`}${liste && liste !== j?.error ? ` (${liste})` : ''}`;
+            showToast(j?.error || 'Nicht eingetragen', 'error', 10000);
+            return;
+          }
+          showToast(`Bestellung ${j.nummer} eingetragen: ${j.zeilen} Trikots`, j.rueckgelesen ? 'success' : 'error', j.rueckgelesen ? 5000 : 10000);
+          document.getElementById('tr-dialog').hidden = true;
+          trZustand.daten = null;
+          loadTrikots();
+        } catch (e) {
+          document.getElementById('tr-ergebnis').textContent = `Nicht eingetragen: ${e.message}`;
+          showToast(e.message, 'error', 10000);
+        } finally { trForm.laeuft = false; trFormZeichnen(); }
       });
 
       // ── SECTION: Artikelerfassung ──
