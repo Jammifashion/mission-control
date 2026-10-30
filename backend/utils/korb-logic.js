@@ -508,3 +508,23 @@ export function eigeneZeile({ eingabe = {}, varianten = [], schluessel, jetzt })
     Angelegt: jetzt, Quelle_Lauf: 'Knopf', Stand: jetzt,
   };
 }
+
+// BO6: mehrere Groessen eines Modells/einer Farbe in einem Schritt - je Groesse mit Menge > 0 eine Zeile,
+// alle mit derselben Referenz/Notiz, fortlaufende EIGEN-Nummern ab `ersterSchluessel`. Menge 0/leer wird
+// ignoriert; jede ArticleNr hoechstens einmal; alles oder nichts (ein Fehler -> 422, keine Zeile).
+export const EIGEN_MEHRERE_MAX = 40;
+export function eigeneZeilen({ eingabe = {}, varianten = [], ersterSchluessel, jetzt }) {
+  const liste = Array.isArray(eingabe.positionen) ? eingabe.positionen : [];
+  const mitMenge = liste.filter(p => !(p?.menge === '' || p?.menge === null || p?.menge === undefined || Number(p.menge) === 0));
+  if (!mitMenge.length) throw fehler422('Keine Menge eingetragen – mindestens eine Größe braucht eine Menge über 0.');
+  if (mitMenge.length > EIGEN_MEHRERE_MAX) throw fehler422(`Höchstens ${EIGEN_MEHRERE_MAX} Größen auf einmal.`);
+  const nummern = mitMenge.map(p => t(p.articleNr));
+  const doppelt = nummern.find((n, i) => nummern.indexOf(n) !== i);
+  if (doppelt) throw fehler422(`ArticleNr ${doppelt} steht doppelt in der Auswahl.`);
+  const m = String(ersterSchluessel ?? '').match(/^(.*-)(\d{4})$/);
+  if (!m) throw new Error('ersterSchluessel ungueltig.');
+  return mitMenge.map((p, i) => eigeneZeile({
+    eingabe: { articleNr: p.articleNr, menge: p.menge, referenz: eingabe.referenz, notiz: eingabe.notiz },
+    varianten, schluessel: `${m[1]}${String(Number(m[2]) + i).padStart(4, '0')}`, jetzt,
+  }));
+}

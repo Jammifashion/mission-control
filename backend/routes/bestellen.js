@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import {
-  runKorbAbgleich, leseKorb, setzeStatus, sucheLShopModelle, lshopModellVarianten, legeEigenePositionAn,
+  runKorbAbgleich, leseKorb, setzeStatus, sucheLShopModelle, lshopModellVarianten, legeEigenePositionAn, legeEigenePositionenAn,
 } from '../lib/lshopKorb.js';
 import { notifyFehler } from '../lib/chatNotify.js';
 import { ediVorschau, ediErzeugen, ediAlsGesendet, ediSendenVorschau, ediSenden, ediZurueckAufEntwurf } from '../lib/lshopEdi.js';
@@ -65,6 +65,17 @@ router.post('/lshop-korb/eigen', async (req, res, next) => {
   try {
     const r = await legeEigenePositionAn({ eingabe: req.body ?? {} });
     console.log(`L-Shop-Korb eigene Position ${r.schluessel} (Zeile ${r.zeile})`);
+    res.json(r);
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/bestellen/lshop-korb/eigen/mehrere  (BO6) ──────────────────────
+// Body: { positionen: [{ articleNr, menge }], referenz, notiz }. Groessenraster: je Groesse mit Menge > 0 eine Zeile,
+// alle mit derselben Referenz; alles oder nichts unter der Korb-Sperre, ohne values.append, zurueckgelesen.
+router.post('/lshop-korb/eigen/mehrere', async (req, res, next) => {
+  try {
+    const r = await legeEigenePositionenAn({ eingabe: req.body ?? {} });
+    console.log(`L-Shop-Korb eigene Positionen ${r.schluessel[0]}..${r.schluessel[r.schluessel.length - 1]} (${r.positionen}, ab Zeile ${r.startZeile})`);
     res.json(r);
   } catch (err) { next(err); }
 });

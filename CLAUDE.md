@@ -189,6 +189,14 @@ Neue Sektionen immer mit Anker versehen:
   (hoechste + 1 aus dem Reiter), Referenz Pflicht (nie Klarnamen). Der Abgleich fasst Herkunft
   `eigen` und Status ausser offen/bestellt nie an. Eine Sperre je Instanz fuer alle Schreiber -> 409
   "gleich noch einmal". Kein Loeschen; bestellt/geliefert setzt erst BO4.
+  BO6 (Groessenraster): Dialog "+ Eigene Position" = Modell -> Farbe -> je Groesse ein Mengenfeld (Block
+  `Eigene-Raster: Anfang/Ende`, Test korb-eigen-raster.test.js; nur Groessen mit ArticleNr aus `lshopAuswertung`,
+  Kindergroessen VORN, dann XS…; leer/0 = nicht bestellen) -> eine Referenz/Notiz fuer alle. `POST
+  .../lshop-korb/eigen/mehrere` `{ positionen: [{ articleNr, menge }], referenz, notiz }` -> `legeEigenePositionenAn`:
+  je Groesse mit Menge > 0 eine Zeile, fortlaufende EIGEN-Nummern, `eigeneZeilen` prueft alles vorher (422 = keine
+  Zeile), unter der Korb-Sperre, EIN Schreibaufruf in die gepruefte Zielzeilen-Strecke (`schreibeNeueZeilen` mit
+  `allesOderNichts`), zurueckgelesen. "Hinzufuegen und weitere Farbe" behaelt Modell/Referenz/Notiz. Der Einzelweg
+  (eine Groesse je Klick) ist in der Oberflaeche entfallen; `POST .../eigen` bleibt (Tests, Altaufrufer).
 - backend/lib/lshopEdi.js – L-Shop-EDI-Bestelldatei aus dem Warenkorb (BO4a), Logik in
   `utils/edi-bestellung.js`. **Erzeugt nur, verschickt nichts:** kein FTP/SFTP, kein Shop, nur Sheets;
   die Datei geht als Download an den Browser (nie in den FTP-Ordner `Order`, dort ist jede XML eine

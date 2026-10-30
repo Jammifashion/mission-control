@@ -30,7 +30,7 @@ import {
   TAB_KORB, KORB_SHOPS, KORB_STATUS_SHOP, korbSchluessel, STATUS, HERKUNFT,
   korbZeilen, alsSheetZeile, baueKontext, abgleichPlan, nachzulesendeBestellungen,
   ersteFreieZeile, bereichLeer, vergleicheZurueck, buendele, korbZaehler,
-  GRUENDE, statusPlan, naechsteEigenNummer, eigeneZeile, sucheModelle, NICHT_IM_BESTAND, KORB_SICHTBAR,
+  GRUENDE, statusPlan, naechsteEigenNummer, eigeneZeile, eigeneZeilen, sucheModelle, NICHT_IM_BESTAND, KORB_SICHTBAR,
 } from '../utils/korb-logic.js';
 import { LIEFERZEIT_META_KEY } from './lieferzeiten.js';
 
@@ -135,11 +135,13 @@ export async function ladeKontext(sheets, spreadsheetId) {
  * Neue Zeilen ohne append: erste freie Zeile, Nachbarzeile oben und Zielbereich
  * (plus eine Zeile darunter) pruefen, values.update, zuruecklesen.
  */
-async function schreibeNeueZeilen({ sheets, spreadsheetId, info, idx, zeilen }) {
+async function schreibeNeueZeilen({ sheets, spreadsheetId, info, idx, zeilen, allesOderNichts = false }) {
   const werte = await leseKorbWerte(sheets, spreadsheetId);
   const frisch = korbZeilen(werte);
   const da = new Set(frisch.zeilen.map(z => z.Schluessel));
   const rest = zeilen.filter(z => !da.has(z.Schluessel));   // ein anderer Lauf war schneller
+  // BO6: mehrere eigene Positionen nur ganz oder gar nicht (Nummern inzwischen vergeben -> nichts schreiben).
+  if (allesOderNichts && rest.length !== zeilen.length) return { geschrieben: 0, startZeile: null, uebersprungen: zeilen.length };
   if (!rest.length) return { geschrieben: 0, startZeile: null, uebersprungen: zeilen.length };
 
   const rows   = rest.map(z => alsSheetZeile(idx, z));
@@ -376,6 +378,40 @@ export async function legeEigenePositionAn({ eingabe, sheets: s, jetzt = () => n
     const r = await schreibeNeueZeilen({ sheets, spreadsheetId, info, idx, zeilen: [zeile] });
     if (r.geschrieben !== 1) throw fehler(BESCHAEFTIGT, 409);   // Nummer inzwischen vergeben
     return { ok: true, schluessel, zeile: r.startZeile, articleNr: zeile.LShop_ArticleNr, menge: zeile.Menge };
+  });
+}
+
+/**
+ * BO6: mehrere eigene Positionen (Groessenraster) in einem Schritt. Eingabe { positionen: [{ articleNr, menge }],
+ * referenz, notiz }; je Groesse mit Menge > 0 eine Zeile, fortlaufende EIGEN-Nummern. Unter derselben Sperre wie
+ * alle Korb-Schreiber; ein Schreibaufruf fuer den ganzen Block in vorher gepruefte Zielzeilen (nie values.append),
+ * alles oder nichts, zurueckgelesen.
+ */
+export async function legeEigenePositionenAn({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
+  return mitSperre('eigen', async () => {
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+    if (!spreadsheetId) throw fehler('GOOGLE_SHEET_ID fehlt.', 503);
+    const sheets = s ?? await sheetsClient();
+    const info = await reiterInfo(sheets, spreadsheetId);
+    if (!info) throw fehler(`Reiter "${TAB_KORB}" fehlt.`, 409);
+    const zeit = jetzt();
+    const { idx, zeilen } = korbZeilen(await leseKorbWerte(sheets, spreadsheetId));
+    // Waehlbar ist je ArticleNr nur, was lshopAuswertung fuer ihr Modell liefert (ohne ausgelaufen / 3 / 6).
+    const lshop = await ladeLShopZeilen({ sheets, spreadsheetId });
+    const nummern = (Array.isArray(eingabe?.positionen) ? eingabe.positionen : []).map(p => String(p?.articleNr ?? '').trim());
+    const modelle = [...new Set(nummern.map(n => lshop.find(z => z.articleNr === n)?.catalogNr).filter(Boolean))];
+    const varianten = [];
+    for (const m of modelle) varianten.push(...(await modellAuswertung(sheets, spreadsheetId, m)).varianten);
+    const ersterSchluessel = naechsteEigenNummer(zeilen, zeit.getUTCFullYear());
+    const neu = eigeneZeilen({ eingabe, varianten, ersterSchluessel, jetzt: zeit.toISOString() });
+
+    const r = await schreibeNeueZeilen({ sheets, spreadsheetId, info, idx, zeilen: neu, allesOderNichts: true });
+    if (r.geschrieben !== neu.length) throw fehler(BESCHAEFTIGT, 409);   // Nummern inzwischen vergeben - nichts geschrieben
+    return {
+      ok: true, startZeile: r.startZeile, positionen: neu.length,
+      stueck: neu.reduce((a, z) => a + Number(z.Menge), 0),
+      schluessel: neu.map(z => z.Schluessel),
+    };
   });
 }
 

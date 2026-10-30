@@ -16,7 +16,7 @@ const runKorbAbgleich = jest.fn();
 jest.unstable_mockModule('../lib/lshopKorb.js', () => ({
   runKorbAbgleich, BESCHAEFTIGT,
   leseKorb: jest.fn(), setzeStatus: jest.fn(), sucheLShopModelle: jest.fn(),
-  lshopModellVarianten: jest.fn(), legeEigenePositionAn: jest.fn(),
+  lshopModellVarianten: jest.fn(), legeEigenePositionAn: jest.fn(), legeEigenePositionenAn: jest.fn(),
   mitKorbSperre: jest.fn(),   // BO4a: lib/lshopEdi.js (ueber routes/bestellen.js) braucht den Export
   ladeKontext: jest.fn(), ladeProdukte: jest.fn(),   // PS1: lib/produktionStand.js (ueber routes/bestellen.js)
   leseEk: jest.fn(), leseStaffel: jest.fn(),         // BO4c: lib/lshopEdi.js (ueber routes/bestellen.js)

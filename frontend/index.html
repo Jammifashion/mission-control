@@ -396,6 +396,12 @@
       .korb-leiste .form-select, .korb-leiste .form-input { flex: 1 1 10rem; min-width: 0; font-size: 0.85rem; }
       .korb-eigen { border: 1px dashed var(--border); border-radius: 7px; padding: 0.7rem; margin-bottom: 0.8rem; display: flex; flex-direction: column; gap: 0.5rem; }
       .korb-eigen .form-input, .korb-eigen .form-select { width: 100%; box-sizing: border-box; font-size: 0.85rem; }
+      /* BO6: Groessenraster der eigenen Positionen */
+      .korb-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(4.6rem, 1fr)); gap: 0.4rem; }
+      .korb-raster label { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.8rem; text-align: center; }
+      .korb-raster input { width: 100%; box-sizing: border-box; text-align: center; font-size: 0.95rem; padding: 0.3rem 0.2rem; }
+      .korb-raster .korb-auslauf { color: var(--warning, #d4a017); font-size: 0.7rem; }
+      .korb-raster input.korb-raster-fehler { border-color: var(--danger); }
       .korb-reihe { display: flex; gap: 0.45rem; flex-wrap: wrap; }
       .korb-reihe .form-select { flex: 1 1 8rem; min-width: 0; }
       .korb-menge { flex: 0 0 5rem; }
@@ -1407,22 +1413,21 @@
             <div id="korb-lauf" class="lshop-card-bedarf" style="display:none;"></div>
             <div id="korb-belege" class="lshop-card-bedarf" style="display:none;"></div>
 
-            <!-- Eigene Position (BO3): Artikel -> Farbe -> Groesse -> Menge -> Referenz -> Notiz -->
+            <!-- Eigene Positionen (BO3, BO6): Artikel -> Farbe -> Groessenraster (Menge je Groesse) -> Referenz -> Notiz -->
             <div id="korb-eigen" class="korb-eigen" style="display:none;">
               <input id="korb-eigen-suche" type="search" class="form-input" placeholder="L-Shop-Artikel: ArticleNr, Modell, Name oder Hersteller" autocomplete="off" />
               <div id="korb-eigen-treffer" class="korb-treffer"></div>
               <div id="korb-eigen-form" style="display:none;">
                 <div id="korb-eigen-artikel" class="lshop-card-title"></div>
-                <div class="korb-reihe">
-                  <select id="korb-eigen-farbe" class="form-select"></select>
-                  <select id="korb-eigen-groesse" class="form-select"></select>
-                  <input id="korb-eigen-menge" type="number" class="form-input korb-menge" min="1" max="999" step="1" value="1" inputmode="numeric" aria-label="Menge" />
-                </div>
-                <input id="korb-eigen-referenz" type="text" class="form-input" maxlength="80" placeholder="Referenz (Pflicht)" aria-describedby="korb-eigen-referenz-hilfe" />
+                <select id="korb-eigen-farbe" class="form-select" aria-label="Farbe"></select>
+                <div id="korb-eigen-raster" class="korb-raster" data-hilfe="eigen-raster" role="group" aria-label="Menge je Größe"></div>
+                <div id="korb-eigen-summe" class="korb-zaehler" aria-live="polite"></div>
+                <input id="korb-eigen-referenz" type="text" class="form-input" maxlength="80" placeholder="Referenz (Pflicht, gilt für alle Größen)" aria-describedby="korb-eigen-referenz-hilfe" data-hilfe="eigen-referenz" />
                 <div id="korb-eigen-referenz-hilfe" class="korb-zaehler">z. B. „Lager“, „Muster“, „Verein X Auftrag 12“ – nie Namen von Privatpersonen.</div>
                 <input id="korb-eigen-notiz" type="text" class="form-input" maxlength="200" placeholder="Notiz (optional)" />
                 <div class="korb-reihe">
-                  <button class="btn-lshop-bestellen" id="korb-eigen-speichern" type="button">In den Korb</button>
+                  <button class="btn-lshop-bestellen" id="korb-eigen-speichern" type="button" data-hilfe="eigen-hinzufuegen">Hinzufügen</button>
+                  <button class="korb-aktion" id="korb-eigen-weiter" type="button" data-hilfe="eigen-weitere-farbe">Hinzufügen und weitere Farbe</button>
                   <button class="btn-secondary korb-klein" id="korb-eigen-abbrechen" type="button">Abbrechen</button>
                 </div>
               </div>
@@ -4671,6 +4676,11 @@
         'filter-offen':         { name: 'Offen', text: 'Positionen, die noch bei L-Shop bestellt werden müssen.' },
         'filter-raus':          { name: 'Herausgenommen', text: 'Positionen, die nicht bestellt werden (z. B. Ware da, schon bestellt). Zeigt die letzten 14 Tage.' },
         'filter-alle':          { name: 'Alle', text: 'Alles, was noch nicht bestellt ist: offen und herausgenommen.' },
+        // BO6: eigene Positionen mit Groessenraster
+        'eigen-raster':         { name: 'Menge je Größe', text: 'Trag bei jeder Größe die Stückzahl ein. Leer oder 0 = nicht bestellen. Je Größe entsteht eine Position.' },
+        'eigen-referenz':       { name: 'Referenz', text: 'Gilt für alle Größen dieses Schritts, z. B. „Lager“ oder „Verein X Auftrag 12“. Keine Namen von Privatpersonen.' },
+        'eigen-hinzufuegen':    { name: 'Hinzufügen', text: 'Legt je Größe mit Menge eine Position in den Korb. Enter in einem Mengenfeld tut dasselbe.' },
+        'eigen-weitere-farbe':  { name: 'Hinzufügen und weitere Farbe', text: 'Wie Hinzufügen, danach bleiben Modell und Referenz stehen – du wählst nur die nächste Farbe.' },
         'eigen':                { name: '+ Eigene Position', text: 'Einen L-Shop-Artikel ohne Shop-Bestellung in den Korb legen, z. B. für Muster oder Vereinsaufträge.' },
         'abgleich':             { name: '↻ Abgleich jetzt', text: 'Holt neue Shop-Bestellungen sofort in den Korb. Läuft sonst automatisch jede Stunde.' },
         'belege':               { name: '📥 Belege abrufen', text: 'Holt neue Belege von L-Shop (Auftrags- und Lieferbestätigungen, Rechnungen) und legt sie ins Archiv. Läuft sonst alle 30 Minuten.' },
@@ -4755,7 +4765,7 @@
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
-        korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'eigen', 'abgleich', 'belege', 'alle-offenen', 'zurueck'],
+        korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'abgleich', 'belege', 'alle-offenen', 'zurueck'],
         leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
         uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
         karton: ['karton-pruefen', 'karton-angekommen', 'karton-naechster'],
@@ -5057,17 +5067,57 @@
         finally { btn.disabled = false; }
       });
 
-      // ── Eigene Position: L-Shop-Modell -> Farbe -> Groesse -> Menge -> Referenz ──
+      // ── Eigene Positionen: L-Shop-Modell -> Farbe -> Groessenraster -> Referenz (BO3, BO6) ──
       // Nur blanke L-Shop-Artikel aus LShop_Modelle (nicht unsere Shop-Artikel); SSOT-ID bleibt leer.
-      const korbEigen = { artikel: null, varianten: [], timer: null, vorwahl: '' };
+      // BO6: je Groesse ein Mengenfeld, "Hinzufuegen" legt je Groesse mit Menge > 0 eine Position an (alle mit
+      // derselben Referenz, ein Schreibaufruf, alles oder nichts). Der alte Einzelweg (eine Groesse je Klick)
+      // ist ein Raster mit einem Feld - deshalb entfallen.
+
+      // ── Eigene-Raster: Anfang (reine Logik, Test backend/tests/korb-eigen-raster.test.js) ──
+      const EIGEN_MENGE_MAX = 999;
+      /** Groessen einer Farbe in Raster-Reihenfolge: Kindergroessen (Zahlen, L-Shop-Kinder) vorn, dann XS ... 8XL. */
+      function eigenRasterGroessen(varianten, farbe) {
+        const passend = (varianten ?? []).filter(v => v.farbe === farbe && /^\d{10}$/.test(String(v.articleNr ?? '')));
+        const reihe = grSortiere(passend.map(v => v.groesse)).sortiert;
+        const kind = g => ['zahl', 'kinder'].includes(grRang(g)?.klasse);
+        const ordnung = [...reihe.filter(kind), ...reihe.filter(g => !kind(g))];
+        const genutzt = new Set();
+        return ordnung.map(g => passend.find(v => v.groesse === g && !genutzt.has(v.articleNr) && genutzt.add(v.articleNr)))
+          .filter(Boolean).map(v => ({ groesse: v.groesse, articleNr: v.articleNr, auslauf: v.auslauf }));
+      }
+      /** Mengen (articleNr -> Eingabe) -> Positionen mit Menge > 0; leer/0 zaehlt nicht, Unsinn ist ein Fehler. */
+      function eigenRasterAuswahl(raster, mengen) {
+        const positionen = [], fehler = [];
+        for (const r of raster ?? []) {
+          const roh = String(mengen?.[r.articleNr] ?? '').trim();
+          if (roh === '' || roh === '0') continue;
+          const n = Number(roh);
+          if (!Number.isInteger(n) || n < 0 || n > EIGEN_MENGE_MAX) { fehler.push(r.groesse); continue; }
+          if (n > 0) positionen.push({ articleNr: r.articleNr, groesse: r.groesse, menge: n });
+        }
+        return { positionen, fehler, stueck: positionen.reduce((a, p) => a + p.menge, 0) };
+      }
+      function eigenSummeText(a) {
+        if (a.fehler.length) return `Menge ungültig bei ${a.fehler.join(', ')} (ganze Zahl 0–${EIGEN_MENGE_MAX}).`;
+        if (!a.positionen.length) return 'Noch keine Menge eingetragen.';
+        return `${a.positionen.length} Position${a.positionen.length === 1 ? '' : 'en'}, ${a.stueck} Stück: `
+          + a.positionen.map(p => `${p.groesse} × ${p.menge}`).join(' · ');
+      }
+      /** Body fuer POST .../eigen/mehrere. */
+      const eigenAnfrage = (a, referenz, notiz) => ({ positionen: a.positionen.map(p => ({ articleNr: p.articleNr, menge: p.menge })), referenz, notiz });
+      // ── Eigene-Raster: Ende ──
+
+      const korbEigen = { artikel: null, varianten: [], raster: [], timer: null, laeuft: false };
+      const eigenEl = id => document.getElementById(id);
 
       function korbEigenZuruecksetzen() {
-        korbEigen.artikel = null; korbEigen.varianten = [];
-        document.getElementById('korb-eigen-suche').value = '';
-        document.getElementById('korb-eigen-treffer').innerHTML = '';
-        document.getElementById('korb-eigen-form').style.display = 'none';
-        for (const id of ['korb-eigen-referenz', 'korb-eigen-notiz']) document.getElementById(id).value = '';
-        document.getElementById('korb-eigen-menge').value = '1';
+        korbEigen.artikel = null; korbEigen.varianten = []; korbEigen.raster = [];
+        eigenEl('korb-eigen-suche').value = '';
+        eigenEl('korb-eigen-treffer').innerHTML = '';
+        eigenEl('korb-eigen-form').style.display = 'none';
+        for (const id of ['korb-eigen-referenz', 'korb-eigen-notiz']) eigenEl(id).value = '';
+        eigenEl('korb-eigen-raster').innerHTML = '';
+        eigenEl('korb-eigen-summe').textContent = '';
       }
 
       document.getElementById('korb-eigen-btn')?.addEventListener('click', () => {
@@ -5108,12 +5158,31 @@
         }, 300);
       });
 
-      function korbEigenGroessen() {
-        const farbe = document.getElementById('korb-eigen-farbe').value;
-        const passend = korbEigen.varianten.filter(v => v.farbe === farbe);
-        // Wert = ArticleNr: nach Farbe + Groesse steht sie fest.
-        document.getElementById('korb-eigen-groesse').innerHTML = passend
-          .map(v => `<option value="${korbEsc(v.articleNr)}">${korbEsc(v.groesse || '–')}${v.auslauf !== undefined ? ` (läuft aus, ${korbEsc(v.auslauf)})` : ''} · ${korbEsc(v.articleNr)}</option>`).join('');
+      function eigenMengen() {
+        return Object.fromEntries([...eigenEl('korb-eigen-raster').querySelectorAll('input[data-nr]')].map(i => [i.dataset.nr, i.value]));
+      }
+      function eigenSummeZeichnen() {
+        const a = eigenRasterAuswahl(korbEigen.raster, eigenMengen());
+        eigenEl('korb-eigen-summe').textContent = eigenSummeText(a);
+        const falsch = new Set(a.fehler);
+        eigenEl('korb-eigen-raster').querySelectorAll('input[data-nr]').forEach(i => i.classList.toggle('korb-raster-fehler', falsch.has(i.dataset.groesse)));
+        return a;
+      }
+      function korbEigenRaster() {
+        const farbe = eigenEl('korb-eigen-farbe').value;
+        korbEigen.raster = farbe === '' && !korbEigen.varianten.some(v => v.farbe === '') ? [] : eigenRasterGroessen(korbEigen.varianten, farbe);
+        eigenEl('korb-eigen-raster').innerHTML = korbEigen.raster.map(r => `<label><span>${korbEsc(r.groesse || '–')}</span>`
+          + `<input type="number" class="form-input" min="0" max="${EIGEN_MENGE_MAX}" step="1" inputmode="numeric" placeholder="0" data-nr="${korbEsc(r.articleNr)}" data-groesse="${korbEsc(r.groesse)}" aria-label="Menge ${korbEsc(r.groesse)}">`
+          + (r.auslauf !== undefined ? `<span class="korb-auslauf">läuft aus (${korbEsc(r.auslauf)})</span>` : '') + '</label>').join('');
+        eigenSummeZeichnen();
+      }
+      function eigenFarbenSetzen(d, vorFarbe) {
+        const farben = [...new Set(d.varianten.map(v => v.farbe))];
+        eigenEl('korb-eigen-farbe').innerHTML = (farben.includes('') ? '' : '<option value="">Farbe wählen …</option>')
+          + farben.map(f => `<option value="${korbEsc(f)}">${korbEsc(f || '(ohne Farbe)')}</option>`).join('');
+        if (farben.length === 1) eigenEl('korb-eigen-farbe').value = farben[0];
+        if (vorFarbe !== undefined && farben.includes(vorFarbe)) eigenEl('korb-eigen-farbe').value = vorFarbe;
+        korbEigenRaster();
       }
 
       document.getElementById('korb-eigen-treffer')?.addEventListener('click', async ev => {
@@ -5127,47 +5196,64 @@
           const d = await apiJson(res);
           if (!d.varianten.length) { showToast('Keine wählbare Variante (alle ausgelaufen)', 'error'); return; }
           korbEigen.artikel = d; korbEigen.varianten = d.varianten;
-          document.getElementById('korb-eigen-treffer').innerHTML = '';
-          document.getElementById('korb-eigen-artikel').innerHTML = `<span class="korb-kopf-nr">${korbEsc(d.catalogNr)}</span>`
+          eigenEl('korb-eigen-treffer').innerHTML = '';
+          eigenEl('korb-eigen-artikel').innerHTML = `<span class="korb-kopf-nr">${korbEsc(d.catalogNr)}</span>`
             + (d.bezeichnung ? ` · <span class="korb-kopf-name">${korbEsc(d.bezeichnung)}</span>` : '') + (d.marke ? ` · ${korbEsc(d.marke)}` : '');
-          const farben = [...new Set(d.varianten.map(v => v.farbe))];
-          document.getElementById('korb-eigen-farbe').innerHTML = farben.map(f => `<option value="${korbEsc(f)}">${korbEsc(f || '(ohne Farbe)')}</option>`).join('');
-          // Suche per 10-stelliger ArticleNr: Farbe und Groesse gleich vorwaehlen.
+          // Suche per 10-stelliger ArticleNr: Farbe vorwaehlen, Fokus auf diese Groesse.
           const vor = d.varianten.find(v => v.articleNr === knopf.dataset.nr);
-          if (vor) document.getElementById('korb-eigen-farbe').value = vor.farbe;
-          korbEigenGroessen();
-          if (vor) document.getElementById('korb-eigen-groesse').value = vor.articleNr;
-          document.getElementById('korb-eigen-form').style.display = '';
+          eigenFarbenSetzen(d, vor?.farbe);
+          eigenEl('korb-eigen-form').style.display = '';
+          const feld = vor ? eigenEl('korb-eigen-raster').querySelector(`input[data-nr="${CSS.escape(vor.articleNr)}"]`) : null;
+          (feld ?? eigenEl('korb-eigen-raster').querySelector('input') ?? eigenEl('korb-eigen-farbe')).focus();
         } catch (e) { showToast(`Fehler: ${e.message}`, 'error'); }
       });
-      document.getElementById('korb-eigen-farbe')?.addEventListener('change', korbEigenGroessen);
+      document.getElementById('korb-eigen-farbe')?.addEventListener('change', () => {
+        korbEigenRaster();
+        eigenEl('korb-eigen-raster').querySelector('input')?.focus();
+      });
+      document.getElementById('korb-eigen-raster')?.addEventListener('input', eigenSummeZeichnen);
+      // Enter in einem Mengenfeld, in Referenz oder Notiz = Hinzufuegen.
+      document.getElementById('korb-eigen-form')?.addEventListener('keydown', ev => {
+        if (ev.key !== 'Enter' || !ev.target.matches('#korb-eigen-raster input, #korb-eigen-referenz, #korb-eigen-notiz')) return;
+        ev.preventDefault();
+        eigenHinzufuegen(false);
+      });
 
-      document.getElementById('korb-eigen-speichern')?.addEventListener('click', async ev => {
-        const referenz = document.getElementById('korb-eigen-referenz').value.trim();
-        if (!korbEigen.artikel) return;
-        if (!referenz) { showToast('Referenz fehlt (z. B. Lager, Muster, Verein X Auftrag 12)', 'error'); return; }
-        const btn = ev.currentTarget;
-        btn.disabled = true;
+      async function eigenHinzufuegen(weitereFarbe) {
+        if (korbEigen.laeuft || !korbEigen.artikel) return;
+        const referenz = eigenEl('korb-eigen-referenz').value.trim();
+        const notiz = eigenEl('korb-eigen-notiz').value.trim();
+        const a = eigenSummeZeichnen();
+        if (!eigenEl('korb-eigen-farbe').value && !korbEigen.raster.length) { showToast('Erst eine Farbe wählen.', 'warn'); eigenEl('korb-eigen-farbe').focus(); return; }
+        if (a.fehler.length) { showToast(eigenSummeText(a), 'error'); return; }
+        if (!a.positionen.length) { showToast('Noch keine Menge eingetragen – mindestens eine Größe braucht eine Menge.', 'warn'); eigenEl('korb-eigen-raster').querySelector('input')?.focus(); return; }
+        if (!referenz) { showToast('Referenz fehlt (z. B. Lager, Muster, Verein X Auftrag 12)', 'error'); eigenEl('korb-eigen-referenz').focus(); return; }
+        korbEigen.laeuft = true;
+        const knoepfe = [eigenEl('korb-eigen-speichern'), eigenEl('korb-eigen-weiter')];
+        knoepfe.forEach(b => { b.disabled = true; });
         try {
-          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/eigen`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              articleNr: document.getElementById('korb-eigen-groesse').value,
-              menge: Number(document.getElementById('korb-eigen-menge').value),
-              referenz,
-              notiz: document.getElementById('korb-eigen-notiz').value.trim(),
-            }),
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/eigen/mehrere`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(eigenAnfrage(a, referenz, notiz)),
           });
           const stopp = await laufStopp(res);
           if (stopp) { showToast(stopp, 'error'); return; }
           const r = await apiJson(res);
-          showToast(`Eigene Position ${r.schluessel} im Korb`);
-          korbEigenZuruecksetzen();
-          document.getElementById('korb-eigen').style.display = 'none';
+          showToast(`${r.positionen} eigene Position${r.positionen === 1 ? '' : 'en'} (${r.stueck} Stück) im Korb`);
+          if (weitereFarbe) {
+            // Modell, Referenz und Notiz bleiben; Farbe und Raster werden geleert.
+            eigenEl('korb-eigen-farbe').value = '';
+            korbEigenRaster();
+            eigenEl('korb-eigen-farbe').focus();
+          } else {
+            korbEigenZuruecksetzen();
+            eigenEl('korb-eigen').style.display = 'none';
+          }
           await loadLShopKorb();
-        } catch (e) { showToast(`Fehler: ${e.message}`, 'error'); }
-        finally { btn.disabled = false; }
-      });
+        } catch (e) { showToast(`Nicht hinzugefügt: ${e.message}`, 'error', 10000); }
+        finally { korbEigen.laeuft = false; knoepfe.forEach(b => { b.disabled = false; }); }
+      }
+      document.getElementById('korb-eigen-speichern')?.addEventListener('click', () => eigenHinzufuegen(false));
+      document.getElementById('korb-eigen-weiter')?.addEventListener('click', () => eigenHinzufuegen(true));
 
       // Ein Ablauf fuer beide Knoepfe "Abgleich jetzt" (Korb und Bestelluebersicht).
       async function korbAbgleichStarten(btn) {
