@@ -120,6 +120,22 @@ export function baueTrikotAnsicht({ zeilen, spalteErsetzt }) {
     if (!x.nummer) x.hinweise.push('nummer_leer');
     if (x.ersetztStatus && spalteErsetzt && !x.ersetztDurch.length) x.hinweise.push('ersatz_fehlt');
   }
+  // TR4 Wareneingang: Haken nur mit Charge; setzen bei leerem Status UND leerem Geliefert_Am, zurueck nur bei
+  // "ok" MIT Geliefert_Am (Stand eines MC-Hakens); "ersetzt", andere Werte und "ok" ohne Datum (von Hand) nie.
+  for (const x of z) {
+    const st = x.status.toLowerCase();
+    x.abhaken = !x.charge ? '' : (!x.status && !x.geliefertAm) ? 'setzen' : (st === STATUS_GELIEFERT && x.geliefertAm) ? 'zurueck' : '';
+  }
+  // TR4: "Bestellung komplett" = alle Trikots derselben Order-ID sind beim Kunden fertig (ersetzt -> Ersatzzeile).
+  const jeOrder = new Map();
+  for (const x of z) if (x.orderId) jeOrder.set(x.orderId, [...(jeOrder.get(x.orderId) ?? []), x]);
+  for (const x of z) {
+    const teile = x.orderId ? jeOrder.get(x.orderId) : [x];
+    // Ersatzzeile zaehlt ueber ihr Original (kundeFertig), nicht doppelt.
+    const zaehlen = teile.filter(t => !t.ersatzFuer);
+    x.bestellung = { trikots: zaehlen.length, fertig: zaehlen.filter(t => t.kundeFertig).length };
+    x.bestellungKomplett = !!x.orderId && zaehlen.length > 0 && zaehlen.every(t => t.kundeFertig);
+  }
 
   const offen = z.filter(x => !x.charge);
   const jeCharge = new Map();

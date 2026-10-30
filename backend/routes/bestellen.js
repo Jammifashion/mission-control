@@ -7,6 +7,7 @@ import { ediVorschau, ediErzeugen, ediAlsGesendet, ediSendenVorschau, ediSenden,
 import { leseLShopBestellungen } from '../lib/lshopBestellungen.js';
 import { leseTrikotAnsicht } from '../lib/trikotAnsicht.js';
 import { formularVorschau, formularDatei, alsBestelltEintragen } from '../lib/trikotFormular.js';
+import { trikotWareneingang } from '../lib/trikotWareneingang.js';
 import { wareneingangBuchen, wareneingangZurueck } from '../lib/wareneingang.js';
 import { kartonPruefen, kartonAngekommen } from '../lib/karton.js';
 import { leseProduktionStand } from '../lib/produktionStand.js';
@@ -216,6 +217,18 @@ router.get('/trikots', async (req, res, next) => {
   try {
     res.json(await leseTrikotAnsicht());
   } catch (err) { next(err); }
+});
+
+// ── POST /api/bestellen/trikots/wareneingang  (TR4) ─────────────────────────
+// Body { richtung: 'setzen'|'zurueck', auswahl: [{ id, zeile, geliefertAm }] }. Haken "da": NUR Status (S) = ok
+// und Geliefert_Am (R) = heute bei leeren Zellen; zurueck nur beim gesehenen Haken-Stand. 409 + probleme, nichts geschrieben.
+router.post('/trikots/wareneingang', async (req, res, next) => {
+  try {
+    res.json(await trikotWareneingang({ richtung: req.body?.richtung, auswahl: req.body?.auswahl }));
+  } catch (err) {
+    if (err?.status === 409 && (err.probleme || err.code)) return res.status(409).json({ error: err.message, probleme: err.probleme ?? [], code: err.code });
+    next(err);
+  }
 });
 
 // ── POST /api/bestellen/trikots/formular/*  (TR3) ────────────────────────────

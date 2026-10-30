@@ -65,7 +65,10 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   Karte nur markiert (`tr-markiert`), nie aufgeklappt - das Aufklappen legt Produktions-Zeilen an.
   TR3 am Ende der Sektion: Knopf "Produzenten-Bestellung …", Dialog `#tr-dialog`, Block `Trikot-Formular: Anfang/Ende`
   (Test trikot-formular-frontend.test.js): Vorwahl = offene Zeilen ohne Hinweis; "Als bestellt eintragen …" erst nach
-  dem Download GENAU dieser Auswahl (`trFormularGrund`), sonst Toast mit Grund (Hilfe `tr-erst-download`).)
+  dem Download GENAU dieser Auswahl (`trFormularGrund`), sonst Toast mit Grund (Hilfe `tr-erst-download`).
+  TR4 Wareneingang: Haken "da" je Zeile (`abhaken` aus der Ansicht) und "alle offenen dieser Bestellung als da" in
+  `trZeileHtml`/`trGruppeHtml`; Schreibteil "Trikot-Wareneingang (TR4)" am Ende der Sektion (Bestaetigung beim Rueckweg
+  und beim Sammelknopf, `trWe.laeuft`). Tippflaeche Haken >= 44 px.)
 - Artikelerfassung (dazu Modus-Knopf "🧵 L-Shop-Modelle", LS4: Unterpunkt `artikel/lshop-modelle`, Panel `#lsm-panel`,
   SECTION L-Shop-Modelle mit Block `L-Shop-Modelle: Anfang/Ende`, Test lshop-modelle-frontend.test.js; Hilfe-Gruppe
   `lshop-modelle`; Links `data-lsm-link` aus Warenkorb "Nicht im Bestand" und Maske "Kein L-Shop-Modell".
@@ -411,6 +414,13 @@ Neue Sektionen immer mit Anker versehen:
   Verbindungen, kein Fehler. Kundenangabe = Zeilen aus `Rohtext`, nur Anzeige, nie nach Name/Nummer uebernommen.
   Hinweise (gelb, nur Anzeige): Name/Nummer leer, Charge ohne Bestellt_Am, `Ersetzt` unbekannt, ersetzt ohne Ersatzzeile,
   Zeilen-ID doppelt (dann wird keine Verbindung geraten).
+  TR4: je Zeile `abhaken` ('setzen' = Charge da + Status UND Geliefert_Am leer; 'zurueck' = Status ok MIT Geliefert_Am;
+  sonst '' - "ersetzt", andere Werte, "ok" von Hand ohne Datum, ohne Charge) und `bestellungKomplett` (alle Trikots der
+  Order-ID beim Kunden fertig, Ersatzzeile zaehlt ueber ihr Original). Schreiben: `lib/trikotWareneingang.js`, Logik
+  `utils/trikot-wareneingang.js`, `POST /api/bestellen/trikots/wareneingang` `{ richtung, auswahl:[{id,zeile,geliefertAm}] }`:
+  NUR S (`ok`/leer) + R (Datumswert heute bzw. leer; fehlt das Datumsformat dd.mm.yyyy, nur Format setzen), Sperre je
+  Instanz, frisch gelesen, Vorher-Zustand je Zeile (zurueck nur beim gesehenen Datum), sonst 409 ohne Schreiben; EIN
+  batchUpdate RAW, ganzer Reiter zurueckgelesen.
 - backend/lib/trikotFormular.js – Produzenten-Bestellung (TR3), Logik `utils/trikot-formular.js`, `exceljs` 4.4.0 (gepinnt).
   `POST /api/bestellen/trikots/formular/vorschau` (schreibt nichts), `.../datei` (.xlsx nur als Antwort, nirgends abgelegt),
   `.../eintragen` `{ auswahl:[{id,zeile}], charge }`. ITEM/MATERIAL/COLLAR NUR aus `Trikot_Artikel` (`Formular_Artikel`,

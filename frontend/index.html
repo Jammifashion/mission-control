@@ -503,6 +503,12 @@
       .tr-angabe dt { color: var(--muted); }
       .tr-angabe dd { margin: 0; }
       .tr-markiert { outline: 2px solid var(--accent); outline-offset: 2px; }
+      /* TR4: Wareneingang - grosse Haken fuer die Arbeit am Regal */
+      .tr-haken { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.6rem; border: 1px solid var(--border); border-radius: 999px; cursor: pointer; min-height: 2.75rem; min-width: 4.5rem; box-sizing: border-box; }
+      .tr-haken input { width: 1.3rem; height: 1.3rem; margin: 0; cursor: pointer; }
+      .tr-haken:has(input:checked) { border-color: var(--success); color: var(--success); }
+      .tr-komplett { color: var(--success); font-weight: 600; }
+      .tr-alle { padding: 0.4rem 0 0.2rem; }
       /* TR3: Produzenten-Bestellung */
       .tr-wahl { display: grid; gap: 0.15rem; max-height: 14rem; overflow-y: auto; margin: 0.4rem 0; font-size: 0.84rem; }
       .tr-wahl label { display: flex; gap: 0.5rem; align-items: center; }
@@ -4740,6 +4746,11 @@
         'tr-lieferung':         { name: 'Lieferung ca.', text: 'Bestellt am + 30 Tage, wie im Formular des Produzenten. Fehlt „Bestellt am“, steht hier nichts.' },
         'tr-bestellung':        { name: 'Bestellnummer', text: 'Zeigt die Kundenbestellung unter „Bestellungen (JFN)“, solange sie dort noch offen ist.' },
         'tr-kundenangabe':      { name: 'Kundenangabe', text: 'Was der Kunde im Shop eingegeben hat. Gelb und offen, wenn Name oder Nummer nicht übernommen wurden.' },
+        // TR4: Wareneingang
+        'tr-haken':             { name: 'Haken „da“', text: 'Haken setzen, wenn das Trikot angekommen ist. Trägt Status „ok“ und Geliefert am (heute) ein.' },
+        'tr-zurueck':           { name: 'Haken wegnehmen', text: 'Doch nicht da? Haken wegnehmen leert Status und Geliefert am wieder – nur bei Haken aus MC.' },
+        'tr-alle-da':           { name: 'alle offenen als da', text: 'Bucht alle noch offenen Trikots dieser Bestellung auf einmal als angekommen. Fragt vorher nach.' },
+        'tr-komplett':          { name: 'Bestellung komplett', text: 'Alle Trikots dieser Kundenbestellung sind da (bei Ersatz zählt das neue Trikot) – kann gepackt werden.' },
         // TR3: Produzenten-Bestellung
         'tr-formular':          { name: 'Produzenten-Bestellung …', text: 'Wählt offene Trikots aus, zeigt das Formular des Produzenten und lädt es als Excel-Datei herunter.' },
         'tr-herunterladen':     { name: 'Formular herunterladen', text: 'Excel-Datei wie das Formular des Produzenten. Die Nummer darin ist vorläufig, gespeichert wird nichts.' },
@@ -4772,7 +4783,7 @@
         bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
-        trikots: ['tr-offen', 'tr-da', 'tr-lieferung', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download'],
+        trikots: ['tr-offen', 'tr-da', 'tr-lieferung', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett'],
         'lshop-modelle': ['lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
@@ -6357,9 +6368,17 @@
           : '<span class="tr-nr">ohne Bestellung</span>';
         const neben = [z.geliefertAm ? `geliefert ${trEsc(z.geliefertAm)}` : '', trIstSync(z.id) ? '' : trEsc(z.id), `Zeile ${z.zeile}`]
           .filter(Boolean).join(' · ');
+        // TR4: Haken "da" nur, wo MC schreiben darf (Charge da; leer -> setzen, MC-Haken -> zurueck), sonst Status-Etikett.
+        const haken = z.abhaken
+          ? `<label class="tr-haken"><input type="checkbox" data-tr-haken="${z.zeile}" data-id="${trEsc(z.id)}" data-datum="${trEsc(z.geliefertAm)}"`
+            + `${z.abhaken === 'zurueck' ? ' checked data-hilfe="tr-zurueck"' : ' data-hilfe="tr-haken"'}> da</label>`
+          : trStatusHtml(z);
+        const komplett = !z.charge || !z.orderId ? ''
+          : z.bestellungKomplett ? '<span class="tr-komplett" data-hilfe="tr-komplett">Bestellung komplett ✓</span>'
+          : z.bestellung?.trikots > 1 ? `<span class="tr-neben" data-hilfe="tr-komplett">Bestellung ${z.bestellung.fertig}/${z.bestellung.trikots} da</span>` : '';
         return `<div class="tr-zeile${z.hinweise.length ? ' tr-gelb' : ''}"><div class="tr-kopf">${order}`
           + `<span>${trEsc(z.produktKurz)} · ${trEsc(z.groesse || '–')}</span>`
-          + `<span><strong>${trEsc(z.name || '–')}</strong> · ${trEsc(z.nummer || '–')}</span>${trStatusHtml(z)}`
+          + `<span><strong>${trEsc(z.name || '–')}</strong> · ${trEsc(z.nummer || '–')}</span>${haken}${komplett}`
           + `<span class="tr-neben">${neben}</span></div>`
           + (bezug.length ? `<div class="tr-neben" data-hilfe="tr-ersetzt">${bezug.join(' · ')}</div>` : '')
           + (z.notiz ? `<div>Notiz: ${trEsc(z.notiz)}</div>` : '')
@@ -6375,7 +6394,12 @@
         const hinweis = g.hinweise.length ? `<span class="tr-hinweis">${g.hinweise.map(h => trEsc(TR_HINWEISE[h] ?? h)).join(' · ')}</span>` : '';
         return `<details class="tr-gruppe${g.offen ? ' tr-gruppe-offen' : ''}" data-charge="${trEsc(g.charge)}"${g.offen && g.anzahl ? ' open' : ''}>`
           + `<summary><strong${g.offen ? ' data-hilfe="tr-offen"' : ''}>${titel}</strong><span>${teile.filter(Boolean).join(' · ')}</span>${hinweis}</summary>`
-          + `<div class="tr-zeilen">${g.zeilen.length ? g.zeilen.map(trZeileHtml).join('') : '<p class="tr-neben">Keine.</p>'}</div></details>`;
+          + `<div class="tr-zeilen">${trAlleKnopfHtml(g)}${g.zeilen.length ? g.zeilen.map(trZeileHtml).join('') : '<p class="tr-neben">Keine.</p>'}</div></details>`;
+      }
+      /** TR4: "alle offenen dieser Bestellung als da" - nur mit offenen (abhakbaren) Zeilen. */
+      function trAlleKnopfHtml(g) {
+        const n = g.offen ? 0 : g.zeilen.filter(z => z.abhaken === 'setzen').length;
+        return n ? `<div class="tr-alle"><button type="button" class="korb-aktion" data-tr-alle="${trEsc(g.charge)}" data-hilfe="tr-alle-da">alle offenen dieser Bestellung als da (${n})</button></div>` : '';
       }
       const trListeHtml = d => (d?.gruppen ?? []).map(trGruppeHtml).join('');
       const trSummeText = d => `Trikots (JFN) · ${d.summen.offen} noch nicht beim Produzenten · ${d.summen.chargen} Bestellung${d.summen.chargen === 1 ? '' : 'en'}`
@@ -6548,6 +6572,56 @@
           document.getElementById('tr-ergebnis').textContent = `Nicht eingetragen: ${e.message}`;
           showToast(e.message, 'error', 10000);
         } finally { trForm.laeuft = false; trFormZeichnen(); }
+      });
+
+      // ── Trikot-Wareneingang (TR4): Haken "da", Rueckweg, "alle offenen dieser Bestellung" ──
+      // POST /api/bestellen/trikots/wareneingang - schreibt NUR Status + Geliefert_Am; Anzeige im Block "Trikots".
+      const trWe = { laeuft: false };
+      function trWeSperren(an) { document.querySelectorAll('#tr-liste [data-tr-haken], #tr-liste [data-tr-alle]').forEach(x => { x.disabled = an; }); }
+      async function trWeBuchen(richtung, auswahl) {
+        if (trWe.laeuft) { showToast('Läuft gerade – bitte kurz warten.', 'warn'); return false; }
+        trWe.laeuft = true; trWeSperren(true);
+        const offen = new Set([...document.querySelectorAll('#tr-liste details.tr-gruppe[open]')].map(d => d.dataset.charge));
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/trikots/wareneingang`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ richtung, auswahl }),
+          });
+          const j = await res.json().catch(() => null);
+          if (!res.ok) {
+            const liste = (j?.probleme ?? []).slice(1, 4).map(p => p.text).join(' · ');
+            showToast(`Nicht gebucht: ${j?.error || `HTTP ${res.status}`}${liste ? ` (${liste})` : ''}`, 'error', 10000);
+            return false;
+          }
+          showToast(richtung === 'setzen' ? `${j.zeilen} Trikot${j.zeilen === 1 ? '' : 's'} als da gebucht (${j.geliefertAm})` : `${j.zeilen} Haken zurückgenommen`,
+            j.rueckgelesen ? 'success' : 'error', j.rueckgelesen ? 4000 : 10000);
+          return true;
+        } catch (e) {
+          showToast(`Nicht gebucht: ${e.message}`, 'error', 10000);
+          return false;
+        } finally {
+          trWe.laeuft = false;
+          await loadTrikots();   // zeichnet neu (auch nach 409: zeigt den echten Stand)
+          document.querySelectorAll('#tr-liste details.tr-gruppe').forEach(d => { if (offen.has(d.dataset.charge)) d.open = true; });
+        }
+      }
+      document.getElementById('tr-liste')?.addEventListener('change', async ev => {
+        const cb = ev.target.closest?.('[data-tr-haken]');
+        if (!cb) return;
+        const auswahl = [{ id: cb.dataset.id, zeile: Number(cb.dataset.trHaken), geliefertAm: cb.dataset.datum }];
+        if (cb.checked) { await trWeBuchen('setzen', auswahl); return; }
+        const ok = await showConfirm('Doch nicht da?', `Haken wegnehmen? Status und Geliefert am (${trEsc(cb.dataset.datum)}) werden wieder geleert.`, 'Zurücknehmen');
+        if (!ok) { cb.checked = true; return; }
+        await trWeBuchen('zurueck', auswahl);
+      });
+      document.getElementById('tr-liste')?.addEventListener('click', async ev => {
+        const b = ev.target.closest?.('[data-tr-alle]');
+        if (!b) return;
+        const g = trZustand.daten?.gruppen?.find(x => !x.offen && x.charge === b.dataset.trAlle);
+        const zeilen = (g?.zeilen ?? []).filter(z => z.abhaken === 'setzen');
+        if (!zeilen.length) return;
+        const ok = await showConfirm('Alle als da buchen', `<strong>${zeilen.length} Trikot${zeilen.length === 1 ? '' : 's'}</strong> von Bestellung <strong>${trEsc(g.charge)}</strong> als angekommen buchen?`, 'Buchen');
+        if (!ok) return;
+        await trWeBuchen('setzen', zeilen.map(z => ({ id: z.id, zeile: z.zeile, geliefertAm: '' })));
       });
 
       // ── SECTION: Artikelerfassung ──
