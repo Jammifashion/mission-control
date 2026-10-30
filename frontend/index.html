@@ -6204,6 +6204,7 @@
         ersetzt_unbekannt:  '„Ersetzt“ zeigt auf eine Zeile, die es nicht gibt',
         ersatz_fehlt:       'ersetzt, aber keine Ersatzzeile',
         ohne_bestellt_am:   'Bestellt_Am fehlt',
+        id_doppelt:         'Zeilen-ID doppelt',
       };
       const trEsc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
       const trIstSync = id => /^\d+\|\d+\|\d+$/.test(String(id ?? ''));

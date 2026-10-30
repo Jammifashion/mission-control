@@ -396,7 +396,8 @@ Neue Sektionen immer mit Anker versehen:
   geliefert; `ersetzt` = beim Produzenten da, beim Kunden nicht fertig, bis die Ersatzzeile `ok` hat. Ersatzzeile =
   eigene Zeile (`INT-…`, Quelle `ersatz`), optionale Spalte `Ersetzt` hinten = Zeilen-ID des Originals; fehlt sie, keine
   Verbindungen, kein Fehler. Kundenangabe = Zeilen aus `Rohtext`, nur Anzeige, nie nach Name/Nummer uebernommen.
-  Hinweise (gelb, nur Anzeige): Name/Nummer leer, Charge ohne Bestellt_Am, `Ersetzt` unbekannt, ersetzt ohne Ersatzzeile.
+  Hinweise (gelb, nur Anzeige): Name/Nummer leer, Charge ohne Bestellt_Am, `Ersetzt` unbekannt, ersetzt ohne Ersatzzeile,
+  Zeilen-ID doppelt (dann wird keine Verbindung geraten).
   Produzenten-Formular (TR3, noch nicht gebaut): Heim -> "Trikot schwarz", Auswaerts -> "Trikot weiss", Material immer
   "Heavy", Kragen/EXTRA leer, Nummer `2026/NN` nur im Formular (Charge im Sheet bleibt Zahl).
 - backend/lib/seo-prompt.js – SEO-Prompt: Systemprompt (`SEO_SYSTEM_PROMPT`), User-Template,

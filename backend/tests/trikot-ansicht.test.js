@@ -97,6 +97,17 @@ describe('Ersatzzeilen (Spalte "Ersetzt")', () => {
     expect(finde(a, '101|1|1').kundeFertig).toBe(true);
     expect(a.gruppen.find(g => g.charge === '4').da).toBe(1);
   });
+  test('doppelte Zeilen-ID -> Hinweis an beiden, keine Verbindung geraten', () => {
+    const w = WERTE.map((r, i) => (i === 0 ? [...r, 'Ersetzt'] : r.length ? [...r, ''] : r));
+    w.push([...zeile('INT-2026-0001', '201', HEIM, '120', 'X', '1', 'intern', '', '6'), '']);
+    w.push([...zeile('INT-2026-0001', '202', HEIM, 'XL', 'Y', '2', 'ersatz', '', ''), '101|1|1']);
+    w.push([...zeile('INT-2026-0003', '203', HEIM, 'M', 'Z', '3', 'ersatz', '', ''), 'INT-2026-0001']);
+    const a = baueTrikotAnsicht(trikotZeilen(w));
+    const alle = a.gruppen.flatMap(g => g.zeilen);
+    expect(alle.filter(x => x.hinweise.includes('id_doppelt')).map(x => x.zeile)).toEqual([10, 9]);   // offen-Gruppe zuerst
+    expect(alle.find(x => x.id === 'INT-2026-0003').hinweise).toContain('ersetzt_unbekannt');
+    expect(alle.find(x => x.id === '101|1|1').ersetztDurch).toHaveLength(1);   // nur ueber die eindeutige Original-ID
+  });
   test('Ersetzt auf unbekannte Zeile -> Hinweis; ersetzt ohne Ersatzzeile -> Hinweis', () => {
     const a = mitSpalte('', '999|9|9');
     expect(finde(a, 'INT-2026-0001').hinweise).toContain('ersetzt_unbekannt');

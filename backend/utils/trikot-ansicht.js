@@ -32,6 +32,7 @@ export const HINWEISE = {
   ersetzt_unbekannt:  '„Ersetzt“ zeigt auf eine Zeile, die es nicht gibt',
   ersatz_fehlt:       'ersetzt, aber keine Ersatzzeile',
   ohne_bestellt_am:   'Bestellt_Am fehlt',
+  id_doppelt:         'Zeilen-ID doppelt',
 };
 
 const t = v => String(v ?? '').trim();
@@ -99,9 +100,12 @@ const chargeSort = (a, b) => {
 export function baueTrikotAnsicht({ zeilen, spalteErsetzt }) {
   const z = zeilen.map(x => ({ ...x, ersetztDurch: [], ersatzFuer: null, hinweise: [] }));
   const nachId = new Map(z.filter(x => x.id).map(x => [x.id, x]));
+  const jeId = new Map();
+  for (const x of z) if (x.id) jeId.set(x.id, (jeId.get(x.id) ?? 0) + 1);
+  for (const x of z) if (jeId.get(x.id) > 1) x.hinweise.push('id_doppelt');
   for (const x of z) {
     if (!x.ersetzt) continue;
-    const orig = nachId.get(x.ersetzt);
+    const orig = jeId.get(x.ersetzt) > 1 ? null : nachId.get(x.ersetzt);   // doppelte ID: nie raten
     if (!orig || orig === x) { x.hinweise.push('ersetzt_unbekannt'); continue; }
     orig.ersetztDurch.push({ id: x.id, charge: x.charge, status: x.status });
     x.ersatzFuer = { id: orig.id, charge: orig.charge, zeile: orig.zeile };
