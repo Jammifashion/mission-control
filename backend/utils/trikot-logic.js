@@ -117,9 +117,11 @@ export function extractFields(metaData) {
 }
 
 // Vorgefertigte Spieler-Trikots tragen Name und Nummer im Variantenmerkmal
-// "Name - Nummer" (pa_name-nummer), z.B. "LEPISTÖ - 11". Einzige erlaubte
-// Zerlegung: am letzten " - ". Der Platzhalter "WUNSCHNAME - WUNSCHNUMMER"
-// liefert nichts – die echten Werte stehen dann im Add-on oder in der Notiz.
+// "Name - Nummer" (pa_name-nummer), z.B. "LEPISTÖ - 11". Zerlegt wird am letzten
+// " - ". Ohne " - " (TS2, manche Varianten heissen "LEPISTÖ 11"): Zahl mit 1-3
+// Ziffern am Ende nach einem Leerzeichen = Nummer, alles davor = Name. Der
+// Platzhalter "WUNSCHNAME - WUNSCHNUMMER" liefert nichts – die echten Werte stehen
+// dann im Add-on oder in der Notiz.
 export const VARIANTE_NAME_NUMMER = ['pa_name-nummer', 'name - nummer'];
 const PLATZHALTER = new Set(['wunschname', 'wunschnummer']);
 
@@ -130,9 +132,10 @@ export function extractVarianteNameNummer(metaData) {
       ? m.display_value : m.value;
     if (typeof raw !== 'string') continue;
     const pos = raw.lastIndexOf(' - ');
-    if (pos < 0) continue;
-    const name   = raw.slice(0, pos).trim();
-    const nummer = raw.slice(pos + 3).trim();
+    const ohneTrenner = pos < 0 ? raw.trim().match(/^(.*\S)\s+(\d{1,3})$/) : null;
+    if (pos < 0 && !ohneTrenner) continue;
+    const name   = (ohneTrenner ? ohneTrenner[1] : raw.slice(0, pos)).trim();
+    const nummer = (ohneTrenner ? ohneTrenner[2] : raw.slice(pos + 3)).trim();
     if (!name || !nummer || PLATZHALTER.has(norm(name)) || PLATZHALTER.has(norm(nummer))) continue;
     return { name, nummer };
   }

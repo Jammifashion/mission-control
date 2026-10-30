@@ -87,6 +87,22 @@ describe('extractFields / Quelle', () => {
       .toEqual({ name: 'JANINE - PEPPY', nummer: '24' });
   });
 
+  test('TS2: ohne " - " Zahl am Ende nach Leerzeichen = Nummer, Rest = Name', () => {
+    const v = w => extractVarianteNameNummer([{ key: 'pa_name-nummer', display_value: w }]);
+    expect(v('SPIELER 11')).toEqual({ name: 'SPIELER', nummer: '11' });
+    expect(v('  Muster Name   7 ')).toEqual({ name: 'Muster Name', nummer: '7' });    // Name mit Leerzeichen, Schreibweise bleibt
+    expect(v('TEAM 2 SPIELER 99')).toEqual({ name: 'TEAM 2 SPIELER', nummer: '99' }); // Zahl in der Mitte gehoert zum Namen
+    expect(v('ÄRGER 100')).toEqual({ name: 'ÄRGER', nummer: '100' });
+    expect(v('SPIELER - 11')).toEqual({ name: 'SPIELER', nummer: '11' });            // Bindestrich-Form unveraendert
+    expect(v('LANGE 1234')).toBeNull();     // mehr als 3 Ziffern
+    expect(v('23')).toBeNull();             // Zahl allein
+    expect(v('SPIELER11')).toBeNull();      // ohne Leerzeichen
+    expect(v('NUR NAME')).toBeNull();       // ohne Zahl am Ende
+    expect(v('   ')).toBeNull();            // leer
+    expect(v('WUNSCHNAME 7')).toBeNull();   // Platzhalter bleibt Platzhalter
+    expect(extractVarianteNameNummer([{ key: 'Wunschname', display_value: 'ADDON 7' }])).toBeNull();   // nur das Variantenmerkmal
+  });
+
   test('Platzhalter WUNSCHNAME - WUNSCHNUMMER liefert nichts', () => {
     expect(extractVarianteNameNummer(ORDER.line_items[0].meta_data)).toBeNull();
     expect(extractVarianteNameNummer([{ key: 'pa_name-nummer', display_value: 'OHNETRENNER' }])).toBeNull();

@@ -381,6 +381,8 @@ Neue Sektionen immer mit Anker versehen:
   Neue Skriptspalten nur hinten anfuegen (`SCRIPT_COLUMNS_NACH_MANUELL`), nie zwischen O und P.
   Status `processing`, `on-hold` (Vorkasse), `completed`; ohne `after` Start 14 Tage (TK1, vorher 3)
   vor dem juengsten Bestelldatum (`UEBERLAPPUNG_TAGE`). Bestandszeilen werden nie geaendert.
+  Variantenmerkmal "Name - Nummer": Zerlegung am letzten " - "; ohne " - " (TS2) Zahl 1-3 Ziffern am Ende nach
+  Leerzeichen = Nummer, Rest = Name (Platzhalter WUNSCHNAME bleibt notiz); Add-on/Kundennotiz unveraendert.
   Zeilen-ID des Syncs = `Order-ID|Order-Item-ID|Laufnummer` (keine fortlaufende Nummer). Den Startpunkt
   bestimmen NUR Shop-Zeilen (`istSyncZeilenId`, `shopBestelldaten`); ein Bestelldatum nach heute
   (Europe/Berlin) zaehlt nicht und steht als `hinweise` in der Antwort (Workflow ::warning::, Knopf-Toast).
