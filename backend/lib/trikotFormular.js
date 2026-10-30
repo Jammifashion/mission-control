@@ -10,6 +10,7 @@
 
 import ExcelJS from 'exceljs';
 import { google } from 'googleapis';
+import { trikotAnsichtCacheLeeren } from './trikotAnsicht.js';
 import { getGoogleAuth } from './googleAuth.js';
 import { sheetsMitWiederholung } from './googleRetry.js';
 import { getWcClient } from './shopConfig.js';
@@ -203,6 +204,7 @@ export async function alsBestelltEintragen({ auswahl, charge, sheets: s, jetzt =
         range: { sheetId, startRowIndex: zeile - 1, endRowIndex: zeile, startColumnIndex: qSp, endColumnIndex: qSp + 1 },
         cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'dd.mm.yyyy' } } }, fields: 'userEnteredFormat.numberFormat' } })) } });
     }
+    trikotAnsichtCacheLeeren();   // TR5: Ansicht/Karten zeigen sofort den neuen Stand
     return {
       charge: Number(charge), nummer: bestellNummer(charge, jetzt), bestelltAm: heute.text,
       zeilen: plan.zellen.length / 2, rueckgelesen: !abw.length, abweichungen: abw, ohneDatumsformat,

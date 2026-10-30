@@ -31,13 +31,14 @@ describe('Block Trikots', () => {
     expect(T.TR_HINWEISE).toEqual(HINWEISE);
   });
 
-  test('Gruppen: offen zuerst und aufgeklappt, Charge mit "x von y da" und Lieferung', () => {
+  test('Gruppen: offen zuerst und aufgeklappt, Charge mit "x von y da" und bestellt/seit', () => {
     const h = T.trListeHtml(daten);
     expect(h.indexOf('noch nicht beim Produzenten')).toBeLessThan(h.indexOf('Bestellung 4'));
     expect(h.indexOf('Bestellung 4')).toBeLessThan(h.indexOf('Bestellung 2'));
     expect(h).toMatch(/data-charge="" open>/);
     expect(h).toMatch(/<span data-hilfe="tr-da">2 von 2 da<\/span>/);
-    expect(h).toMatch(/Lieferung ca\. 14\.10\.2026/);
+    expect(h).toMatch(/<span data-hilfe="tr-seit">bestellt 14\.09\.2026 · seit \d+ Wochen<\/span>/);   // TR5
+    expect(h).not.toMatch(/Lieferung ca\./);
     expect(h).toMatch(/Bestellung 4<\/strong><span><span data-hilfe="tr-da">0 von 1 da<\/span><\/span><span class="tr-hinweis">Bestellt_Am fehlt/);
     expect(h).not.toContain('Erika');
     expect(T.trSummeText(daten)).toBe('Trikots (JFN) · 1 noch nicht beim Produzenten · 2 Bestellungen · 2 von 3 da');

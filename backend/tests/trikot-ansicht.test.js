@@ -2,7 +2,7 @@
 
 import { jest } from '@jest/globals';
 import {
-  trikotZeilen, baueTrikotAnsicht, kundenangabe, lieferTag, produktKurz, HINWEISE,
+  trikotZeilen, baueTrikotAnsicht, kundenangabe, produktKurz, HINWEISE,
 } from '../utils/trikot-ansicht.js';
 import { leseTrikotAnsicht } from '../lib/trikotAnsicht.js';
 
@@ -30,9 +30,6 @@ describe('Hilfsfunktionen', () => {
     expect(produktKurz(HEIM)).toBe('Heim');
     expect(produktKurz(AUS)).toBe('Auswärts');
     expect(produktKurz('Schal')).toBe('Schal');
-    expect(lieferTag('14.09.2026')).toBe('14.10.2026');
-    expect(lieferTag('2026-12-15')).toBe('14.01.2027');
-    expect(lieferTag('')).toBe('');
     expect(kundenangabe('Name - Nummer: X 1\nGröße: L\n\nKundennotiz: bitte groß')).toEqual([
       { feld: 'Name - Nummer', wert: 'X 1' }, { feld: 'Größe', wert: 'L' }, { feld: 'Kundennotiz', wert: 'bitte groß' }]);
     expect(kundenangabe('(keine Meta-Daten, keine Kundennotiz)')).toEqual([]);
@@ -64,7 +61,8 @@ describe('Gruppen und Zaehlregel', () => {
   });
   test('ok und ersetzt zaehlen beim Produzenten als da; ersetzt ist beim Kunden nicht fertig', () => {
     const c2 = a.gruppen.find(g => g.charge === '2');
-    expect(c2).toMatchObject({ anzahl: 2, da: 2, bestelltAm: ['14.09.2026'], lieferung: '14.10.2026', hinweise: [] });
+    expect(c2).toMatchObject({ anzahl: 2, da: 2, bestelltAm: ['14.09.2026'], hinweise: [] });
+    expect(c2).not.toHaveProperty('lieferung');   // TR5: kein errechnetes Lieferdatum
     const [ok, ersetzt] = c2.zeilen;
     expect(ok).toMatchObject({ da: true, kundeFertig: true });
     expect(ersetzt).toMatchObject({ da: true, kundeFertig: false, ersetztStatus: true });

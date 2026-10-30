@@ -503,6 +503,11 @@
       .tr-angabe dt { color: var(--muted); }
       .tr-angabe dd { margin: 0; }
       .tr-markiert { outline: 2px solid var(--accent); outline-offset: 2px; }
+      /* TR5: Trikot-Stand auf der Bestellkarte */
+      .tr-karte { font-size: 0.74rem; padding: 0.15rem 0.55rem; border-radius: 999px; border: 1px solid var(--border); background: none; color: var(--muted); cursor: pointer; max-width: 100%; text-align: left; line-height: 1.3; }
+      .tr-karte.tr-k-offen { border-color: var(--accent); color: var(--accent); }
+      .tr-karte.tr-k-bestellt { border-color: var(--border); color: var(--text, inherit); }
+      .tr-karte.tr-k-da { border-color: var(--success); color: var(--success); }
       /* TR4: Wareneingang - grosse Haken fuer die Arbeit am Regal */
       .tr-haken { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.6rem; border: 1px solid var(--border); border-radius: 999px; cursor: pointer; min-height: 2.75rem; min-width: 4.5rem; box-sizing: border-box; }
       .tr-haken input { width: 1.3rem; height: 1.3rem; margin: 0; cursor: pointer; }
@@ -3956,6 +3961,7 @@
                   <span class="order-card-customer">${psEsc(name)}${city ? ' · ' + psEsc(city) : ''}</span>
                   <span class="order-card-detail">${date} · ${amount}${payment ? ' · ' + psEsc(payment) : ''}</span>
                   ${statusBadge(o.status)}
+                  ${psZustand.trikots ? trKarteHtml(o.id, psZustand.trikots[String(o.id)]) : ''}
                   ${kopf.zeile}
                 </div>
                 ${kopf.rechts}
@@ -3978,7 +3984,7 @@
       const PS_FILTER_KEY = 'mc_bestellungen_filter';
       const PS_MAX_SEITEN = 5;
       const psZustand = {
-        orders: [], daten: null, stand: new Map(), offen: new Set(), fehler: '', springe: '', markiert: null,
+        orders: [], daten: null, stand: new Map(), offen: new Set(), fehler: '', springe: '', markiert: null, trikots: null,
         filter: (() => { try { const f = localStorage.getItem(PS_FILTER_KEY); return PS_FILTER.includes(f) ? f : 'alle'; } catch { return 'alle'; } })(),
       };
       const psSchlank = o => ({
@@ -4064,6 +4070,13 @@
           summaryEl.innerHTML = `<strong>${count}</strong> offene Bestellung${count !== 1 ? 'en' : ''} &nbsp;·&nbsp; EUR <strong>${total.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> Umsatz`;
           summaryEl.style.display = '';
           psZustand.orders = orders;
+          psZustand.trikots = null;
+          // TR5: Trikot-Stand je Bestellung (nur JFN, nur lesen, 60 s Zwischenspeicher im Backend). Fehler -> ohne Kennzeichen.
+          if (currentShop() !== 'honk') {
+            apiFetch(`${API_BASE()}/api/bestellen/trikots`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) }).then(apiJson)
+              .then(d => { if (psZustand.orders === orders) { psZustand.trikots = d.bestellungen ?? {}; psZeichnen(); } })
+              .catch(() => {});
+          }
           psZustand.stand = new Map();
           psZustand.daten = null;
           psZustand.fehler = '';
@@ -4108,6 +4121,8 @@
         psZeichnen();
       });
       document.getElementById('jfn-orders-list')?.addEventListener('click', async ev => {
+        const tr = ev.target.closest('[data-tr-springe]');
+        if (tr) { ev.preventDefault(); ev.stopPropagation(); trSpringeZu(tr.dataset.trSpringe); oeffneAnsicht('bestellen', 'trikots'); return; }
         const link = ev.target.closest('a[data-ps-ziel]');
         if (link) {
           ev.preventDefault();
@@ -4743,7 +4758,8 @@
         // TR2: Ansicht "Trikots (JFN)"
         'tr-offen':             { name: 'noch nicht beim Produzenten', text: 'Trikots ohne Bestellnummer (Charge). Die kommen in die nächste Bestellung beim Produzenten.' },
         'tr-da':                { name: 'x von y da', text: 'Status „ok“ = geliefert. „ersetzt“ zählt auch als da (das Trikot kam), der Kunde wartet aber auf den Ersatz.' },
-        'tr-lieferung':         { name: 'Lieferung ca.', text: 'Bestellt am + 30 Tage, wie im Formular des Produzenten. Fehlt „Bestellt am“, steht hier nichts.' },
+        'tr-seit':              { name: 'bestellt · seit', text: 'Wann beim Produzenten bestellt wurde und wie lange das her ist. Die Lieferung dauert meist 4–6 Wochen.' },
+        'tr-karte':             { name: 'Trikot-Stand', text: 'Stand der Trikots dieser Bestellung. Klick öffnet sie unter Trikots (JFN).' },
         'tr-bestellung':        { name: 'Bestellnummer', text: 'Zeigt die Kundenbestellung unter „Bestellungen (JFN)“, solange sie dort noch offen ist.' },
         'tr-kundenangabe':      { name: 'Kundenangabe', text: 'Was der Kunde im Shop eingegeben hat. Gelb und offen, wenn Name oder Nummer nicht übernommen wurden.' },
         // TR4: Wareneingang
@@ -4783,7 +4799,7 @@
         bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
-        trikots: ['tr-offen', 'tr-da', 'tr-lieferung', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett'],
+        trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett'],
         'lshop-modelle': ['lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
@@ -6389,8 +6405,7 @@
         const titel = g.offen ? 'noch nicht beim Produzenten' : `Bestellung ${trEsc(g.charge)}`;
         const teile = g.offen ? [`${g.anzahl} Trikot${g.anzahl === 1 ? '' : 's'}`]
           : [`<span data-hilfe="tr-da">${g.da} von ${g.anzahl} da</span>`,
-            g.bestelltAm.length ? `bestellt ${g.bestelltAm.map(trEsc).join(', ')}` : '',
-            g.lieferung ? `<span data-hilfe="tr-lieferung">Lieferung ca. ${trEsc(g.lieferung)}</span>` : ''];
+            g.bestelltAm.length ? `<span data-hilfe="tr-seit">bestellt ${g.bestelltAm.map(trEsc).join(', ')} · ${trSeit(g.bestelltAm[0])}</span>` : ''];
         const hinweis = g.hinweise.length ? `<span class="tr-hinweis">${g.hinweise.map(h => trEsc(TR_HINWEISE[h] ?? h)).join(' · ')}</span>` : '';
         return `<details class="tr-gruppe${g.offen ? ' tr-gruppe-offen' : ''}" data-charge="${trEsc(g.charge)}"${g.offen && g.anzahl ? ' open' : ''}>`
           + `<summary><strong${g.offen ? ' data-hilfe="tr-offen"' : ''}>${titel}</strong><span>${teile.filter(Boolean).join(' · ')}</span>${hinweis}</summary>`
@@ -6402,11 +6417,49 @@
         return n ? `<div class="tr-alle"><button type="button" class="korb-aktion" data-tr-alle="${trEsc(g.charge)}" data-hilfe="tr-alle-da">alle offenen dieser Bestellung als da (${n})</button></div>` : '';
       }
       const trListeHtml = d => (d?.gruppen ?? []).map(trGruppeHtml).join('');
+      // TR5: "seit X Wochen" ab Bestellt_Am (TT.MM.JJJJ), Kalendertage in Berlin; kein errechnetes Lieferdatum.
+      function trSeit(bestelltAm, jetzt = new Date()) {
+        const m = String(bestelltAm ?? '').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+        if (!m) return '';
+        const [y, mo, d] = jetzt.toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' }).split('-').map(Number);
+        const tage = Math.round((Date.UTC(y, mo - 1, d) - Date.UTC(+m[3], +m[2] - 1, +m[1])) / 86400000);
+        if (tage < 1) return 'seit heute';
+        if (tage < 7) return `seit ${tage} Tag${tage === 1 ? '' : 'en'}`;
+        const w = Math.floor(tage / 7);
+        return `seit ${w} Woche${w === 1 ? '' : 'n'}`;
+      }
+      /** TR5: Kennzeichen fuer die Karte in "Bestellungen (JFN)" aus dem Stand je Bestellung (Backend bestellungStand). */
+      function trKarteText(st, jetzt = new Date()) {
+        if (!st) return null;
+        const mehr = st.trikots > 1;
+        const nr = st.chargen?.length ? `Bestellung ${st.chargen.join('/')}` : '';
+        if (st.stufe === 'nicht_bestellt') return { text: `${mehr ? 'Trikots' : 'Trikot'}: noch nicht beim Produzenten`, klasse: 'tr-k-offen' };
+        if (st.stufe === 'da') return { text: `${mehr ? `Trikots da (${st.trikots})` : 'Trikot da'} ✓`, klasse: 'tr-k-da' };
+        if (st.stufe === 'ersatz') return { text: `Trikot: Ersatz bestellt${st.ersatzCharge ? ` (Bestellung ${st.ersatzCharge})` : ''}`, klasse: 'tr-k-bestellt' };
+        if (st.stufe === 'teil') return { text: `Trikots: ${st.da} von ${st.trikots} da`, klasse: 'tr-k-bestellt' };
+        if (!st.bestelltAm) return { text: `${mehr ? 'Trikots' : 'Trikot'} bestellt${nr ? ` (${nr})` : ''}`, klasse: 'tr-k-bestellt' };
+        return { text: `${mehr ? 'Trikots' : 'Trikot'} bestellt am ${st.bestelltAm.slice(0, 6)} (${[nr, trSeit(st.bestelltAm, jetzt)].filter(Boolean).join(', ')})`, klasse: 'tr-k-bestellt' };
+      }
+      function trKarteHtml(orderId, st, jetzt) {
+        const k = trKarteText(st, jetzt);
+        return k ? `<button type="button" class="tr-karte ${k.klasse}" data-tr-springe="${trEsc(orderId)}" data-hilfe="tr-karte">${trEsc(k.text)}</button>` : '';
+      }
       const trSummeText = d => `Trikots (JFN) · ${d.summen.offen} noch nicht beim Produzenten · ${d.summen.chargen} Bestellung${d.summen.chargen === 1 ? '' : 'en'}`
         + ` · ${d.summen.da} von ${d.summen.zeilen - d.summen.offen} da`;
       // ── Trikots: Ende ──
 
-      const trZustand = { daten: null, laedt: false };
+      const trZustand = { daten: null, laedt: false, springe: '' };
+      // TR5: Sprung von der Bestellkarte - Gruppen mit Zeilen dieser Order-ID aufklappen, Zeilen markieren (nur lesen).
+      function trSpringeZu(orderId) { trZustand.springe = String(orderId ?? ''); }
+      function trSprungAusfuehren(el) {
+        const id = trZustand.springe;
+        if (!id) return;
+        trZustand.springe = '';
+        const ziele = [...el.querySelectorAll(`[data-tr-bestellung="${CSS.escape(id)}"]`)].map(a => a.closest('.tr-zeile')).filter(Boolean);
+        if (!ziele.length) { showToast(`Zu Bestellung #${id} gibt es keine Trikots.`, 'warn'); return; }
+        for (const z of ziele) { z.closest('details.tr-gruppe').open = true; z.classList.add('tr-markiert'); setTimeout(() => z.classList.remove('tr-markiert'), 4000); }
+        ziele[0].scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
       async function loadTrikots() {
         const el = document.getElementById('tr-liste');
         if (!el || trZustand.laedt) return;
@@ -6417,6 +6470,7 @@
           trZustand.daten = await apiJson(res);
           document.getElementById('tr-summe').textContent = trSummeText(trZustand.daten);
           el.innerHTML = trListeHtml(trZustand.daten);
+          trSprungAusfuehren(el);
         } catch (e) {
           el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Trikots konnten nicht geladen werden: ${trEsc(e.message)}</p>`;
         } finally {

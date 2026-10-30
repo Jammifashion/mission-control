@@ -11,12 +11,21 @@ async function sheetsClient() {
   return sheetsMitWiederholung(google.sheets({ version: 'v4', auth: await getGoogleAuth() }));
 }
 
-export async function leseTrikotAnsicht({ sheets: s } = {}) {
+// TR5: kurzer Zwischenspeicher, weil auch "Bestellungen (JFN)" den Stand je Bestellung liest. Die MC-Schreibwege
+// (TR3 Eintragen, TR4 Wareneingang) leeren ihn; Aenderungen von Hand im Sheet sind nach hoechstens CACHE_MS sichtbar.
+export const CACHE_MS = 60 * 1000;
+let cache = { bis: 0, daten: null };
+export const trikotAnsichtCacheLeeren = () => { cache = { bis: 0, daten: null }; };
+
+export async function leseTrikotAnsicht({ sheets: s, jetzt = Date.now() } = {}) {
   const spreadsheetId = process.env.BUSINESS_SHEET_ID;
   if (!spreadsheetId) { const e = new Error('BUSINESS_SHEET_ID fehlt.'); e.status = 503; throw e; }
+  if (!s && cache.daten && jetzt < cache.bis) return cache.daten;
   const sheets = s ?? await sheetsClient();
   const { data } = await sheets.spreadsheets.values.get({
     spreadsheetId, range: `'${TAB_TRIKOTS}'`, valueRenderOption: 'FORMATTED_VALUE',
   });
-  return baueTrikotAnsicht(trikotZeilen(data.values ?? []));
+  const daten = baueTrikotAnsicht(trikotZeilen(data.values ?? []));
+  if (!s) cache = { bis: jetzt + CACHE_MS, daten };
+  return daten;
 }

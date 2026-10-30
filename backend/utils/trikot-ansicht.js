@@ -14,7 +14,6 @@
 import { requireHeader, findHeader } from './sheet-headers.js';
 
 export const TAB_TRIKOTS = 'Trikots';
-export const LIEFER_TAGE = 30;
 export const STATUS_GELIEFERT = 'ok';
 export const STATUS_ERSETZT = 'ersetzt';
 
@@ -60,12 +59,6 @@ export function leseTag(s) {
   m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
   return null;
-}
-const tagText = d => `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${d.getUTCFullYear()}`;
-/** Voraussichtliche Lieferung = Bestellt_Am + 30 Tage (wie D2 im Formular des Produzenten), sonst ''. */
-export function lieferTag(bestelltAm) {
-  const d = leseTag(bestelltAm);
-  return d ? tagText(new Date(d.getTime() + LIEFER_TAGE * 86400000)) : '';
 }
 
 /** Werte des Reiters (FORMATTED_VALUE, Kopfzeile zuerst) -> Zeilen. Ganz leere Zeilen fallen weg. */
@@ -143,14 +136,15 @@ export function baueTrikotAnsicht({ zeilen, spalteErsetzt }) {
     if (!jeCharge.has(x.charge)) jeCharge.set(x.charge, []);
     jeCharge.get(x.charge).push(x);
   }
-  const gruppen = [{ charge: '', offen: true, anzahl: offen.length, da: 0, bestelltAm: [], lieferung: '', hinweise: [], zeilen: offen }];
+  // TR5: kein errechnetes Lieferdatum mehr (Inhaber 30.10.: 4-6 Wochen je nach Auslastung) - nur Bestellt_Am,
+  // "seit X Wochen" rechnet die Oberflaeche. Das Produzenten-Formular (D2 = +30 Tage) bleibt davon unberuehrt.
+  const gruppen = [{ charge: '', offen: true, anzahl: offen.length, da: 0, bestelltAm: [], hinweise: [], zeilen: offen }];
   for (const charge of [...jeCharge.keys()].sort(chargeSort)) {
     const zs = jeCharge.get(charge);
     const bestelltAm = [...new Set(zs.map(x => x.bestelltAm).filter(Boolean))]
       .sort((a, b) => (leseTag(a)?.getTime() ?? 0) - (leseTag(b)?.getTime() ?? 0));
     gruppen.push({
       charge, offen: false, anzahl: zs.length, da: zs.filter(x => x.da).length, bestelltAm,
-      lieferung: bestelltAm.length ? lieferTag(bestelltAm[0]) : '',
       hinweise: zs.some(x => !x.bestelltAm) ? ['ohne_bestellt_am'] : [],
       zeilen: zs,
     });
@@ -158,9 +152,42 @@ export function baueTrikotAnsicht({ zeilen, spalteErsetzt }) {
   return {
     spalteErsetzt,
     gruppen,
+    bestellungen: bestellungStand(z),
     summen: {
       zeilen: z.length, offen: offen.length, chargen: jeCharge.size,
       da: z.filter(x => x.da).length, hinweise: z.filter(x => x.hinweise.length).length,
     },
   };
+}
+
+/**
+ * TR5: Trikot-Stand je Shop-Bestellung (Order-ID) fuer die Karte in "Bestellungen (JFN)" - dieselben Regeln wie die
+ * Ansicht. Gezaehlt wird je Trikot des Kunden: eine Ersatzzeile zaehlt nicht extra, sie bestimmt aber Stand, Charge und
+ * Bestelldatum ihres Originals ("ersetzt"). Zeilen ohne Order-ID (Handzeilen) gehoeren zu keiner Bestellung.
+ * Stufe (in dieser Reihenfolge): nicht_bestellt (ein Trikot ohne Charge) > da (alle beim Kunden fertig) > ersatz
+ * (ersetzt, Ersatz noch nicht da) > teil (mehrere, ein Teil da) > bestellt.
+ * @param {object[]} zeilen  Zeilen aus baueTrikotAnsicht (mit kundeFertig, ersetztDurch, ersatzFuer)
+ * @returns {Object<string, {stufe, trikots, da, chargen, bestelltAm, ersatzCharge}>}
+ */
+export function bestellungStand(zeilen) {
+  const nachId = new Map(zeilen.filter(x => x.id).map(x => [x.id, x]));
+  const jeOrder = new Map();
+  for (const x of zeilen) if (x.orderId && !x.ersatzFuer) jeOrder.set(x.orderId, [...(jeOrder.get(x.orderId) ?? []), x]);
+  const out = {};
+  for (const [orderId, einheiten] of jeOrder) {
+    // Aktuelles Trikot je Einheit: bei "ersetzt" die (letzte) Ersatzzeile, sonst die Zeile selbst.
+    const aktuell = einheiten.map(e => (e.ersetztStatus && e.ersetztDurch.length ? nachId.get(e.ersetztDurch.at(-1).id) ?? e : e));
+    const da = einheiten.filter(e => e.kundeFertig).length;
+    const chargen = [...new Set(aktuell.map(a => a.charge).filter(Boolean))].sort((a, b) => Number(a) - Number(b) || a.localeCompare(b));
+    const daten = aktuell.map(a => a.bestelltAm).filter(Boolean).sort((a, b) => (leseTag(a)?.getTime() ?? 0) - (leseTag(b)?.getTime() ?? 0));
+    const ersatz = einheiten.find(e => e.ersetztStatus && !e.kundeFertig);
+    const ersatzZeile = ersatz?.ersetztDurch.length ? nachId.get(ersatz.ersetztDurch.at(-1).id) : null;
+    const stufe = aktuell.some(a => !a.charge) ? 'nicht_bestellt'
+      : da === einheiten.length ? 'da'
+      : ersatz ? 'ersatz'
+      : da > 0 ? 'teil'
+      : 'bestellt';
+    out[orderId] = { stufe, trikots: einheiten.length, da, chargen, bestelltAm: daten[0] ?? '', ersatzCharge: ersatzZeile?.charge ?? '' };
+  }
+  return out;
 }

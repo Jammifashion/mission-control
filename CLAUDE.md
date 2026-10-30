@@ -68,7 +68,11 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   dem Download GENAU dieser Auswahl (`trFormularGrund`), sonst Toast mit Grund (Hilfe `tr-erst-download`).
   TR4 Wareneingang: Haken "da" je Zeile (`abhaken` aus der Ansicht) und "alle offenen dieser Bestellung als da" in
   `trZeileHtml`/`trGruppeHtml`; Schreibteil "Trikot-Wareneingang (TR4)" am Ende der Sektion (Bestaetigung beim Rueckweg
-  und beim Sammelknopf, `trWe.laeuft`). Tippflaeche Haken >= 44 px.)
+  und beim Sammelknopf, `trWe.laeuft`). Tippflaeche Haken >= 44 px.
+  TR5: Gruppenkopf "bestellt TT.MM.JJJJ · seit X Wochen" (`trSeit`), KEIN errechnetes Lieferdatum (Inhaber: 4-6 Wochen je
+  Auslastung). Kennzeichen auf der Karte in "Bestellungen (JFN)": `trKarteText`/`trKarteHtml` aus `bestellungen` der
+  Trikot-Antwort (nur JFN, Laden still neben dem Stand, `psZustand.trikots`); Klick = `trSpringeZu` + Trikot-Ansicht,
+  Zeilen der Order-ID markiert, Karte nie aufgeklappt.)
 - Artikelerfassung (dazu Modus-Knopf "🧵 L-Shop-Modelle", LS4: Unterpunkt `artikel/lshop-modelle`, Panel `#lsm-panel`,
   SECTION L-Shop-Modelle mit Block `L-Shop-Modelle: Anfang/Ende`, Test lshop-modelle-frontend.test.js; Hilfe-Gruppe
   `lshop-modelle`; Links `data-lsm-link` aus Warenkorb "Nicht im Bestand" und Maske "Kein L-Shop-Modell".
@@ -407,8 +411,11 @@ Neue Sektionen immer mit Anker versehen:
   spaeter mit einem Trikot-Reiter in MC (Abbild des Sheets fuer den Wareneingang), noch nicht gebaut.
 - backend/lib/trikotAnsicht.js – Ansicht "Trikots (JFN)" (TR2), Logik `utils/trikot-ansicht.js`. `GET /api/bestellen/trikots`
   NUR LESEN, nur Reiter `Trikots` im Business-Sheet, Spalten ueber den Namen, `Kunde` verlaesst das Backend nie.
-  Gruppen: "noch nicht beim Produzenten" (Charge leer) oben, dann Chargen numerisch absteigend; je Charge "x von y da",
-  Bestellt_Am, Lieferung = Bestellt_Am + 30 Tage (wie D2 im Formular). Zaehlregel (Inhaber 30.10.): Status `ok` =
+  Gruppen: "noch nicht beim Produzenten" (Charge leer) oben, dann Chargen numerisch absteigend; je Charge "x von y da"
+  und Bestellt_Am (TR5: kein Lieferdatum mehr; nur das Produzenten-Formular traegt D2 = +30 Tage).
+  TR5: Antwort `bestellungen` = Stand je Order-ID (`bestellungStand`, eine Logik mit der Ansicht): Stufe nicht_bestellt >
+  da > ersatz > teil > bestellt; je Kunden-Trikot gezaehlt (Ersatzzeile ueber ihr Original), Zeilen ohne Order-ID
+  gehoeren zu keiner Bestellung. 60 s Zwischenspeicher (`CACHE_MS`), TR3-Eintragen und TR4-Wareneingang leeren ihn. Zaehlregel (Inhaber 30.10.): Status `ok` =
   geliefert; `ersetzt` = beim Produzenten da, beim Kunden nicht fertig, bis die Ersatzzeile `ok` hat. Ersatzzeile =
   eigene Zeile (`INT-…`, Quelle `ersatz`), optionale Spalte `Ersetzt` hinten = Zeilen-ID des Originals; fehlt sie, keine
   Verbindungen, kein Fehler. Kundenangabe = Zeilen aus `Rohtext`, nur Anzeige, nie nach Name/Nummer uebernommen.

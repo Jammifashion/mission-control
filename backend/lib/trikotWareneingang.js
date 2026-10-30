@@ -5,6 +5,7 @@
 // danach der ganze Reiter zurueckgelesen (nur die geplanten Zellen duerfen sich geaendert haben).
 
 import { google } from 'googleapis';
+import { trikotAnsichtCacheLeeren } from './trikotAnsicht.js';
 import { getGoogleAuth } from './googleAuth.js';
 import { sheetsMitWiederholung } from './googleRetry.js';
 import { TAB_TRIKOTS } from '../utils/trikot-ansicht.js';
@@ -57,6 +58,7 @@ export async function trikotWareneingang({ richtung, auswahl, sheets: s, jetzt =
         else if (String(vorher[r]?.[c] ?? '') !== String(ist)) abw.push(`${ref} (fremd)`);
       }
     }
+    trikotAnsichtCacheLeeren();   // TR5: Ansicht/Karten zeigen sofort den neuen Stand
     return {
       richtung, zeilen: plan.zeilen.length, geliefertAm: richtung === 'setzen' ? heute.text : '',
       rueckgelesen: !abw.length, abweichungen: abw, datumsformatGesetzt: ohneFormat.length,
