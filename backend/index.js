@@ -32,6 +32,7 @@ import lshopRouter from './routes/lshop.js';
 import bestellenRouter from './routes/bestellen.js';
 import lshopBelegeRouter from './routes/lshopBelege.js';
 import internRouter from './routes/intern.js';
+import lagerRouter from './routes/lager.js';
 
 // Secrets vor Express-Setup laden – stellt sicher dass process.env.CORS_ORIGIN
 // (und alle anderen Secrets) bereits gesetzt sind wenn die Middleware konfiguriert wird.
@@ -83,6 +84,7 @@ app.use('/api/seo',           seoMetaRouter);       // POST /meta-eingaben – Y
 app.use('/api/lshop',         lshopRouter);         // POST /stammdaten – L-Shop-Stammdaten (LS1)
 app.use('/api/bestellen',     bestellenRouter);     // L-Shop-Warenkorb: Abgleich + Anzeige (BO2)
 app.use('/api/bestellen/lshop-belege', lshopBelegeRouter); // Belege vom L-Shop-FTP, nur lesen (BO4b-1)
+app.use('/api/lager',         lagerRouter);         // Lager: Bestand, Buchungen (BO5-1)
 app.use('/api/health', healthRouter);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────

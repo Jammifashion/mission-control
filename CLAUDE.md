@@ -18,7 +18,7 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   auch `window.oeffneAnsicht`; Adresse `#bereich/unterpunkt`; Ereignis `mc:ansicht` fuer den
   zweiten Script-Block. Bereiche: dashboard · bestellen (Panel orders, Unterreiter) · artikel
   (Panel products, Modus-Knoepfe) · partner (lizenz = partnerportal, festpreis) · kunden (anfragen,
-  agent-wissen) · system (settings). Neue Ansicht = Zeile in BEREICHE, nie `nav button.click()`.
+  agent-wissen) · lager (bestand, buchungen; ein Panel `lager`, BO5-1) · system (settings). Neue Ansicht = Zeile in BEREICHE, nie `nav button.click()`.
   Alte Adresse = Zeile mit `umleitung: '<unterpunkt>'` ohne panel/knopf (BO4d: `bestellen/lshop`).)
 - Stand-Anzeige
 - Helpers (darin: Dashboard inkl. Knopf "Trikot-Sync jetzt")
@@ -73,6 +73,10 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   Auslastung). Kennzeichen auf der Karte in "Bestellungen (JFN)": `trKarteText`/`trKarteHtml` aus `bestellungen` der
   Trikot-Antwort (nur JFN, Laden still neben dem Stand, `psZustand.trikots`); Klick = `trSpringeZu` + Trikot-Ansicht,
   Zeilen der Order-ID markiert, Karte nie aufgeklappt.)
+- Lager (BO5-1: Bereich `lager`, Unterpunkte `lager/bestand` und `lager/buchungen` im Panel `#panel-lager`, geladen ueber
+  `mc:ansicht`; Block `Lager-Anzeige: Anfang/Ende` (Test lager-frontend.test.js, braucht grSortiere/grRang); Dialog
+  `#lager-dialog` Einbuchen (Haken "Zählung / Startbestand" = Aktion start) · Ausbuchen · Umlagern · Korrektur (gezaehlt);
+  Raster je Warenart, "da: n" am gewaehlten Ort; Vorgangs-Kennung `lagerDlg.vorgang` erst nach Erfolg neu. Hilfe-Gruppe `lager`.)
 - Artikelerfassung (dazu Modus-Knopf "🧵 L-Shop-Modelle", LS4: Unterpunkt `artikel/lshop-modelle`, Panel `#lsm-panel`,
   SECTION L-Shop-Modelle mit Block `L-Shop-Modelle: Anfang/Ende`, Test lshop-modelle-frontend.test.js; Hilfe-Gruppe
   `lshop-modelle`; Links `data-lsm-link` aus Warenkorb "Nicht im Bestand" und Maske "Kein L-Shop-Modell".
@@ -440,6 +444,21 @@ Neue Sektionen immer mit Anker versehen:
   Instanz, frisch gelesen, Zeilen-ID gleich, P+Q leer, Charge = hoechste + 1 (sonst 409, nichts geschrieben); EIN
   batchUpdate RAW: P = Zahl, Q = Datumswert (Seriennummer, Format dd.mm.yyyy wie der Bestand; fehlt das Format, nur
   Format setzen); ganzer Reiter zurueckgelesen.
+- backend/lib/lager.js – Lager (BO5-1), Logik `utils/lager.js`, Routen `routes/lager.js` (`/api/lager`, hinter requireApiKey).
+  Modell A (Inhaber 30.10.): Journal `Lager_Buchungen` (SSOT; Buchung_ID `LB-JJJJ-NNNNN` | Datum | Art | Warenart | Schluessel |
+  Menge ± | Ort | Grund | Bezug | Quelle | Notiz | Storno_von | Stand | Vorgang), Bestand = Summe je Schluessel + Ort, nur
+  gerechnet, NIE ueberschrieben: Korrektur = Gegenbuchung (Art `korrektur`, `Storno_von`; Umlagerung beide Zeilen), Umlagerung =
+  zwei Zeilen (Bezug gegenseitig). Nie negativ (Ausbuchen/Umlagern/Gegenbuchung gesperrt, 422); Zaehlung bucht nur die
+  Differenz zum gezaehlten Stand (Art `inventur`, Quelle `inventur`), Startbestand = Art `inventur`, Quelle `start`. Nur
+  Stueckzahlen. Schluessel: `LS:<ArticleNr>` · `WC:<WC_Variation_ID>` · `TR:<Produkt-ID>:<Groesse>` (beflockt nur in der
+  Notiz, nie der Rueckenname) · `EX:<SKU_Extern.ArticleNr>` · `FREI:LA-NNNN` (`Lager_Artikel`). Orte nur aus `Lager_Orte`
+  ("+ neuer Ort", eindeutig ohne Gross/Klein). Keine Reservierung, kein WooCommerce-Bestand, keine Personennamen.
+  Schreiben: eine Sperre je Instanz (409 `laeuft_gerade`), frisch gelesen, EIN values.update ueber `schreibeNeueZeilen(...,
+  { alt })` (lib/sheet-zeilen.js: der gelesene Stand gilt - andere Instanz dazwischen -> 409 `konflikt`), zurueckgelesen,
+  alles oder nichts. Gleiche `vorgang`-Kennung = schon gebucht (Doppelklick), nichts doppelt. Bestand/Verlauf 60 s
+  Zwischenspeicher, jede Buchung leert ihn; Stammdaten 5 min (Trikots aus dem Business-Sheet, nicht lesbar = Hinweis).
+  Fehlen Reiter/Spalten -> 409 `einrichtung`. Einrichtung: `scripts/setup-lager-reiter.js` (Trockenlauf, `--write`, nur neue
+  Reiter; `Produkt_Inventar` ist eine Artikelliste, kein Bestand). Nicht in BO5-1: Korb-Vorschlag, Wareneingang, Retouren.
 - backend/lib/seo-prompt.js – SEO-Prompt: Systemprompt (`SEO_SYSTEM_PROMPT`), User-Template,
   MODUS-Enum, Materialfilter. Serientitel nur als Fanart: steht im Hinweisblock woertlich
   "Fanart zur Serie <Titel>", kommt der Block FANART-SERIE dazu, sonst gilt das Titelverbot.

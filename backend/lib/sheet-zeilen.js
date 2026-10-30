@@ -38,12 +38,15 @@ const istLeer = rows => !(rows ?? []).some(r => (r ?? []).some(z => zellText(z))
 
 /**
  * Neue Zeilen unter die letzte belegte Zeile schreiben (kein append).
+ * @param {object} [opts]
+ * @param {any[][]} [opts.alt]  schon gelesener Reiter (UNFORMATTED); dann gilt GENAU dieser Stand (BO5-1:
+ *   der Lager-Bestand wurde daraus geprueft) - hat sich die letzte Zeile seitdem geaendert, wird nichts geschrieben.
  * @returns {Promise<number>} erste geschriebene Zeile (1-basiert)
  */
-export async function schreibeNeueZeilen(sheets, spreadsheetId, tab, zeilen) {
+export async function schreibeNeueZeilen(sheets, spreadsheetId, tab, zeilen, { alt: vorgelesen } = {}) {
   if (!zeilen?.length) return null;
   const q = `'${tab}'`;
-  const alt = (await sheets.spreadsheets.values.get({ spreadsheetId, range: q, valueRenderOption: 'UNFORMATTED_VALUE' })).data.values ?? [];
+  const alt = vorgelesen ?? (await sheets.spreadsheets.values.get({ spreadsheetId, range: q, valueRenderOption: 'UNFORMATTED_VALUE' })).data.values ?? [];
   const start = Math.max(letzteZeile(alt), 1) + 1;
   const ende = start + zeilen.length - 1;
   const spalte = spalteBuchstabe(Math.max(...zeilen.map(r => r.length), (alt[0] ?? []).length) - 1);
