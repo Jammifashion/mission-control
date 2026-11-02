@@ -20,7 +20,7 @@ import { rohlingBestandJeNr, korbAbgaenge } from '../utils/lager-korb.js';
 import {
   TAB_BUCHUNGEN, TAB_ARTIKEL, TAB_ORTE, BUCHUNG_SPALTEN, ARTIKEL_SPALTEN, ORTE_SPALTEN, WARENART, STATUS_AKTIV,
   buchungenAus, reiterZeilen, orteAus, aktiveOrte, artikelAus, warenartVon, planBuchung, planGegenbuchung,
-  planNeuerOrt, planNeuerArtikel, alsZeile, bestandListe, buchungsVerlauf, ART_TEXT, ZUGANG_ARTEN, ABGANG_ARTEN,
+  planNeuerOrt, planNeuerArtikel, alsZeile, bestandListe, buchungsVerlauf, ART_TEXT, ZUGANG_ARTEN, ABGANG_ARTEN, AUSSCHUSS_GRUENDE,
   ARTIKEL_WARENARTEN, MENGE_MAX, TAB_EVENTS, EVENT_SPALTEN, eventsAus, planNeuesEvent, bezugRegel, eventVorschlag, abgaengeAuswertung,
   MUSTER_PRAEFIX,
 } from '../utils/lager.js';
@@ -219,7 +219,7 @@ export async function leseBestand({ sheets: s, jetzt = Date.now() } = {}) {
     posten: bestandListe(l.buchungen, beschreibe),
     verlauf: buchungsVerlauf(l.buchungen, beschreibe),
     orte: l.orte, artikel: l.artikel.filter(a => a.status === STATUS_AKTIV),
-    arten: { zugang: ZUGANG_ARTEN, abgang: ABGANG_ARTEN, text: ART_TEXT }, artikelWarenarten: ARTIKEL_WARENARTEN, mengeMax: MENGE_MAX,
+    arten: { zugang: ZUGANG_ARTEN, abgang: ABGANG_ARTEN, text: ART_TEXT, ausschussGruende: AUSSCHUSS_GRUENDE }, artikelWarenarten: ARTIKEL_WARENARTEN, mengeMax: MENGE_MAX,
     hinweise: [...l.hinweise, ...(stamm.trikotHinweis ? [stamm.trikotHinweis] : []), ...(partner.hinweis ? [partner.hinweis] : []),
       ...(l.eventsDa ? [] : [`Reiter ${TAB_EVENTS} fehlt - „Verkauf vor Ort“ geht erst nach der Einrichtung.`])], buchungen: l.buchungen.length, stand: new Date(jetzt).toISOString(),
   };
@@ -456,6 +456,6 @@ export async function leseAbgaenge({ filter = {}, sheets: s } = {}) {
   return {
     einrichtung: l.einrichtung, filter, stueck: a.stueck, buchungen: a.buchungen, bezuege: a.bezuege,
     posten: a.posten.map(p => ({ ...p, ort: '', ...beschreibe(p.schluessel) })),
-    events: l.events, partner: (await ladePartner(sheets)).liste, artText: ART_TEXT,
+    events: l.events, partner: (await ladePartner(sheets)).liste, artText: ART_TEXT, ausschussGruende: AUSSCHUSS_GRUENDE,
   };
 }

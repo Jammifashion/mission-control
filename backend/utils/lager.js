@@ -33,20 +33,24 @@ export const ART = {
   VORRAT: 'vorrat', UEBERSCHUSS: 'zugang_ueberschuss', RETOURE: 'retoure', STORNO: 'storno', INVENTUR: 'inventur',
   ABGANG_SHOP: 'abgang_shop', ABGANG_VORORT: 'abgang_vorort', ABGANG_AUFTRAG: 'abgang_auftrag', ABGANG_PARTNER: 'abgang_partner',
   ABGANG_EIGEN: 'abgang_eigen', UMLAGERUNG: 'umlagerung', KORREKTUR: 'korrektur',
+  ABGANG_AUSSCHUSS: 'abgang_ausschuss',   // BO5-7: Fehldruck / defekt / verschenkt - geht nie zurueck in den Bestand
 };
+// BO5-7: Grund des Ausschusses (Pflicht, steht im Bezug); ein Freitext dazu geht in "Grund".
+export const AUSSCHUSS_GRUENDE = ['Fehldruck', 'Ware defekt', 'verschenkt'];
 export const ART_TEXT = {
   vorrat: 'Vorratskauf', zugang_ueberschuss: 'Überschuss Wareneingang', retoure: 'Retoure', storno: 'Storno',
   inventur: 'Zählung', abgang_shop: 'Shop-Bestellung', abgang_vorort: 'Verkauf vor Ort / Event',
   abgang_auftrag: 'eigener Auftrag', abgang_partner: 'Partner / Muster', abgang_eigen: 'eigene Korb-Position', umlagerung: 'Umlagerung', korrektur: 'Gegenbuchung',
+  abgang_ausschuss: 'Ausschuss',
 };
 export const ZUGANG_ARTEN = [ART.VORRAT, ART.UEBERSCHUSS, ART.RETOURE, ART.STORNO];
-export const ABGANG_ARTEN = [ART.ABGANG_VORORT, ART.ABGANG_AUFTRAG, ART.ABGANG_PARTNER, ART.ABGANG_SHOP];
+export const ABGANG_ARTEN = [ART.ABGANG_VORORT, ART.ABGANG_AUFTRAG, ART.ABGANG_PARTNER, ART.ABGANG_SHOP, ART.ABGANG_AUSSCHUSS];
 // BO5-3: Quelle korb = "aus Lager nehmen" bzw. "zurück in den Korb" im L-Shop-Warenkorb (Bezug = Korb-Schluessel).
 export const QUELLE = { KNOPF: 'knopf', START: 'start', INVENTUR: 'inventur', KORB: 'korb' };
 export const AKTIONEN = ['einbuchen', 'ausbuchen', 'umlagern', 'zaehlung', 'start'];
 
 export const MENGE_MAX = 9999;
-export const POSTEN_MAX = 60;
+export const POSTEN_MAX = 300;   // BO5-7: "ganzen Ort umlagern" bucht jeden Artikel des Orts in einem Schritt
 export const TEXT_MAX = 200;
 export const ORT_MAX = 40;
 export const STATUS_AKTIV = 'aktiv';
@@ -409,6 +413,7 @@ export function planNeuesEvent(eingabe, events) {
  */
 export function bezugRegel(art, bezug, { events = [], partner = [] } = {}) {
   const b = t(bezug);
+  if (art === ART.ABGANG_AUSSCHUSS) return AUSSCHUSS_GRUENDE.includes(b) || `Bitte den Grund wählen (${AUSSCHUSS_GRUENDE.join(' · ')}).`;
   if (art === ART.ABGANG_VORORT) {
     if (!b) return 'Bitte das Event wählen (oder „+ neues Event“).';
     const ev = events.find(x => x.id === b);

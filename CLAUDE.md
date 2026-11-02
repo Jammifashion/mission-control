@@ -484,6 +484,12 @@ Neue Sektionen immer mit Anker versehen:
   gelesen). `Lager_Ziel` = optionale Spalte ganz hinten in `Warenkorb_LShop` (`KORB_OPTIONAL`, nur ueber den Namen;
   Setup `scripts/setup-korb-lager-ziel.js`), nur eigene Positionen, setzen im BO6-Dialog oder `POST .../lshop-korb/lager-ziel`
   (offen/bestellt). Ortsauswahl ueberall mit Wrist vorgewaehlt (`lagerOrtWaehlen`, Dialog `#lo-dialog`).
+- Lager-Dialog BO5-7: Umlagern und Ausbuchen waehlen standardmaessig **aus dem Bestand** des gewaehlten Orts (`lagerAusBestand`,
+  `lagerDlg.herkunft`; Umschalter `#lager-quelle` "aus Bestand wählen" / "Artikel suchen", Einbuchen immer ueber Stammdaten):
+  Liste `lagerBestandAmOrt` (nur Menge > 0, Suche jedes Wort in Modell/Name/Farbe-Motiv/Groesse) im `#lager-raster`
+  (Klasse `lager-best-liste`), "alles" je Zeile und Gruppe, "ganzen Ort umlagern …" mit Bestaetigung (`lagerGanzerOrt`).
+  Abgangsart `abgang_ausschuss` (Ausschuss): Grund Pflicht aus `AUSSCHUSS_GRUENDE` (Fehldruck · Ware defekt · verschenkt)
+  im Bezug, Freitext optional in Grund; Fehldrucke nie zurueck in den Bestand. `POSTEN_MAX` 300 (ganzer Ort in einem Schritt).
   BO5-5 Abgaenge: Bezug je Art (`bezugRegel`): `abgang_vorort` = offenes Event `EV-NNNN` aus `Lager_Events` (Event_ID |
   Name | Datum JJJJ-MM-TT | Ort | Status offen/… | Notiz; optional - fehlt der Reiter, nur Hinweis; `POST /api/lager/events`),
   `abgang_auftrag` = Freitext 2-80 ohne Klarnamen (spaeter die Auftragsnummer), `abgang_partner` = aktive P-ID aus Business-Reiter
