@@ -414,6 +414,17 @@
       .lfb-stand.lfb-veraltet { opacity: 0.7; font-style: italic; }
       .lfb-liste-alt { color: var(--warning, #d4a017); }
       .lfb-hinweis { font-size: 0.75rem; color: var(--muted, #8b949e); margin-top: 4px; }
+      /* BO7-3: Lieferbarkeit Shop */
+      .lfbs-leiste { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
+      .lfbs-leiste .form-select, .lfbs-leiste .form-input { flex: 1 1 11rem; min-width: 0; }
+      .lfbs-artikel { margin-bottom: 0.6rem; }
+      .lfbs-artikel summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; align-items: baseline; }
+      .lfbs-name { font-weight: 600; overflow-wrap: anywhere; }
+      .lfbs-meta { font-size: 0.78rem; color: var(--muted, #8b949e); overflow-wrap: anywhere; }
+      .lfbs-var { display: grid; grid-template-columns: minmax(7rem, 1fr) minmax(9rem, 1.2fr) minmax(10rem, 2fr); gap: 0.2rem 0.8rem; padding: 0.35rem 0; border-top: 1px solid var(--border, #30363d); font-size: 0.84rem; }
+      .lfbs-var > * { min-width: 0; overflow-wrap: anywhere; }
+      .lfbs-vorschlag { color: var(--muted, #8b949e); }
+      @media (max-width: 600px) { .lfbs-var { grid-template-columns: 1fr; } }
       .korb-raster input.korb-raster-fehler { border-color: var(--danger); }
       .korb-reihe { display: flex; gap: 0.45rem; flex-wrap: wrap; }
       /* BO5-3: Lager im Korb */
@@ -1828,6 +1839,7 @@
           <button class="mode-btn" id="mode-btn-seo">🔍 SEO Daten</button>
           <button class="mode-btn" id="mode-btn-seoedit">🔎 SEO-Daten ändern</button>
           <button class="mode-btn" id="mode-btn-lshopmodelle">🧵 L-Shop-Modelle</button>
+          <button class="mode-btn" id="mode-btn-lieferbarkeit" data-hilfe="lfbs-modus">📦 Lieferbarkeit Shop</button>
         </div>
 
         <!-- SEO-Daten aendern (Befehl SE1): jeder veroeffentlichte Artikel, auch ohne SSOT-Zeile -->
@@ -1880,6 +1892,33 @@
               <span id="se-status" style="font-size:0.82rem;color:var(--muted);align-self:center;"></span>
             </div>
           </div>
+        </div>
+
+        <!-- BO7-3: Lieferbarkeit Shop - Shop-Artikel mit nicht lieferbarem L-Shop-Rohling (nur lesen) -->
+        <div id="lfbs-panel" style="display:none;">
+          <div class="card" style="margin-bottom:1rem;">
+            <div class="form-section-title">Lieferbarkeit Shop
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="lieferbarkeit-shop" aria-controls="hilfe-lieferbarkeit-shop" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+            </div>
+            <div id="hilfe-lieferbarkeit-shop" class="hilfe-legende" hidden></div>
+            <p class="field-note" style="margin:0 0 0.5rem;">Veröffentlichte Artikel, deren L-Shop-Rohling nicht mehr geführt wird, ausläuft oder seit mindestens 14 Tagen 0 hat. Nur Anzeige – geändert wird hier nichts.</p>
+            <div id="lfbs-zaehler" class="korb-zaehler"></div>
+            <div id="lfbs-stand" class="korb-zaehler"></div>
+            <div class="lfbs-leiste">
+              <select id="lfbs-f-stufe" class="form-select" aria-label="Stufe" data-hilfe="lfbs-f-stufe">
+                <option value="">alle Stufen</option><option value="nicht_gefuehrt">nicht mehr geführt</option><option value="auslauf">läuft aus</option><option value="null">bei L-Shop 0 (≥ 14 Tage)</option>
+              </select>
+              <select id="lfbs-f-kat" class="form-select" aria-label="Kategorie" data-hilfe="lfbs-f-kat"><option value="">alle Kategorien</option></select>
+              <input id="lfbs-suche" class="form-input" type="search" placeholder="Suche: Artikel, Farbe, Größe, Nummer" aria-label="Suche" data-hilfe="lfbs-suche">
+            </div>
+            <div class="lfbs-leiste">
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="lfbs-shopstatus" data-hilfe="lfbs-shopstatus">Shop-Status prüfen</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="lfbs-kopieren" data-hilfe="lfbs-kopieren">Liste kopieren</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="lfbs-drucken" data-hilfe="lfbs-drucken">Drucken</button>
+            </div>
+          </div>
+          <div id="lfbs-liste"></div>
+          <div id="lfbs-druck" class="zaehlliste" hidden></div>
         </div>
 
         <!-- L-Shop-Modelle (LS4): neue L-Shop-Modelle als Sammelliste aufnehmen -->
@@ -2083,6 +2122,7 @@
               <option value="publish">Veröffentlicht</option>
             </select>
           </div>
+          <div id="pf-lfbs-hinweis" class="lfb-hinweis"></div>
         </div>
 
         <!-- Block 1: Stammdaten -->
@@ -3205,6 +3245,7 @@
           { id: 'seo',         panel: 'products', knopf: '#mode-btn-seo' },
           { id: 'seo-aendern', panel: 'products', knopf: '#mode-btn-seoedit' },
           { id: 'lshop-modelle', panel: 'products', knopf: '#mode-btn-lshopmodelle', neuLaden: true },   // LS4
+          { id: 'lieferbarkeit', panel: 'products', knopf: '#mode-btn-lieferbarkeit', neuLaden: true },   // BO7-3
         ] },
         partner: { label: 'Partner', leiste: true, punkte: [
           { id: 'lizenz',    label: 'Lizenzpartner', panel: 'partnerportal', shop: true },
@@ -4986,6 +5027,18 @@
         'filter-alle':          { name: 'Alle', text: 'Alles, was noch nicht bestellt ist: offen und herausgenommen.' },
         // BO5-3: Lager im Korb
         'lager-gesperrt':       { name: 'bei L-Shop gesperrt', text: 'L-Shop führt diese Variante nicht mehr (Stammdatei). Einbuchen geht, Ware kann noch im Regal liegen.' },
+        'lfbs-modus':           { name: '📦 Lieferbarkeit Shop', text: 'Shop-Artikel, deren L-Shop-Rohling nicht mehr geführt wird, ausläuft oder seit 14 Tagen 0 hat. Nur Anzeige.' },
+        'lfbs-f-stufe':         { name: 'Stufe', text: 'Nur nicht mehr geführte, auslaufende oder seit mindestens 14 Tagen nicht lieferbare Rohlinge zeigen.' },
+        'lfbs-f-kat':           { name: 'Kategorie', text: 'Nur Artikel dieser Shop-Kategorie zeigen.' },
+        'lfbs-suche':           { name: 'Suche', text: 'Jedes Wort wird in Artikelname, Farbe, Größe, L-Shop-Nummer und Artikel-ID gesucht.' },
+        'lfbs-shopstatus':      { name: 'Shop-Status prüfen', text: 'Liest den Status jeder Variation im Shop und blendet private aus. Dauert etwa 2 Sekunden je Artikel.' },
+        'lfbs-kopieren':        { name: 'Liste kopieren', text: 'Kopiert die gezeigte Liste als Text (Artikel-ID, Variation-ID, Stufe, Vorschlag) – für einen Folgeauftrag.' },
+        'lfbs-drucken':         { name: 'Drucken', text: 'Druckt die gezeigte Liste hell, ohne Preise.' },
+        'lfbs-shop':            { name: 'im Shop', text: 'Öffnet den Artikel im Shop in einem neuen Tab.' },
+        'lfbs-maske':           { name: 'in der Maske', text: 'Öffnet den Artikel unter „Artikel ändern“.' },
+        'lfbs-ganze-farbe':     { name: 'ganze Farbe', text: 'Alle Größen dieser Farbe sind betroffen – die Farbe ist praktisch nicht mehr bestellbar.' },
+        'lfbs-vorschlag':       { name: 'Vorschlag', text: 'Nur ein Hinweis. Geändert wird nichts – Lieferzeit oder privat setzen erst nach deiner Freigabe in einem eigenen Auftrag.' },
+        'lfbs-maske-hinweis':   { name: 'Lieferproblem', text: 'Variationen dieses Artikels mit L-Shop-Lieferproblem. Klick öffnet die Liste „Lieferbarkeit Shop“.' },
         'lsm-lieferbar':        { name: 'Lieferbarkeit des Modells', text: 'Wie viele seiner Größen/Farben bei L-Shop lieferbar sind – nur für Nummern, die wir schon nutzen.' },
         'lfb-lieferbar':         { name: '● lieferbar', text: 'Bei L-Shop lieferbar (Bestandsdatei, stündlich). Die Zahl steht davor.' },
         'lfb-null':              { name: '● bei L-Shop 0', text: 'L-Shop hat gerade keinen Bestand. Bestellen geht trotzdem, L-Shop liefert nach. „seit“ = seit wann durchgehend 0.' },
@@ -5163,6 +5216,7 @@
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager'],
+        'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
         lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
       };
@@ -10815,6 +10869,7 @@
       const seoEditPanel    = document.getElementById('seoedit-panel');
       let seAendernModus    = false;
       let lsmModus          = false;   // LS4: Ansicht "L-Shop-Modelle" (SECTION L-Shop-Modelle)
+      let lfbsModus         = false;   // BO7-3: Ansicht "Lieferbarkeit Shop" (SECTION Lieferbarkeit Shop)
       const entwurfBlock    = document.getElementById('pf-entwurf-block');
       const searchBlock     = document.getElementById('pf-search-block');
       const btnCreateWc     = document.getElementById('btn-create-wc');
@@ -10870,6 +10925,8 @@
 
       function setMode(edit) {
         editMode = edit;
+        const lfbsHinweis = document.getElementById('pf-lfbs-hinweis');   // BO7-3: gehoert zum zuletzt geladenen Artikel
+        if (lfbsHinweis) lfbsHinweis.innerHTML = '';
         if (edit) { lshopModell = null; document.getElementById('pf-lshop-hint').textContent = ''; }
         seoMode  = false;
         seoModePanel.style.display    = 'none';
@@ -10929,10 +10986,10 @@
         loadSeoPendingList();
       }
 
-      modeBtnNew.addEventListener('click',  () => { if (editMode || seoMode || seAendernModus || lsmModus) setMode(false); });
-      modeBtnSeo.addEventListener('click',  () => { if (!seoMode || lsmModus) setSeoMode(); });
-      modeBtnEdit.addEventListener('click', () => { if (!editMode || seoMode || seAendernModus || lsmModus) setMode(true); });
-      modeBtnSeoEdit.addEventListener('click', () => { if (!seAendernModus || lsmModus) setSeAendernModus(); });
+      modeBtnNew.addEventListener('click',  () => { if (editMode || seoMode || seAendernModus || lsmModus || lfbsModus) setMode(false); });
+      modeBtnSeo.addEventListener('click',  () => { if (!seoMode || lsmModus || lfbsModus) setSeoMode(); });
+      modeBtnEdit.addEventListener('click', () => { if (!editMode || seoMode || seAendernModus || lsmModus || lfbsModus) setMode(true); });
+      modeBtnSeoEdit.addEventListener('click', () => { if (!seAendernModus || lsmModus || lfbsModus) setSeAendernModus(); });
 
       // ── SECTION: L-Shop-Modelle (LS4) ──
       // Neue L-Shop-Modelle als Sammelliste aufnehmen (Nicole, Inhaber 28.10.). Logik im Backend
@@ -11052,6 +11109,7 @@
         } catch { lsm.liste = []; }
       }
       function lsmAus() {
+        lfbsAus();   // BO7-3: andere Modi blenden auch "Lieferbarkeit Shop" aus
         lsmModus = false;
         const p = document.getElementById('lsm-panel');
         if (p) p.style.display = 'none';
@@ -11109,6 +11167,7 @@
         } catch (e) { box.innerHTML = `<p class="field-note" style="color:var(--danger);">Fehler: ${lsmEsc(e.message)}</p>`; }
       }
       function setLsmModus() {
+        lfbsAus();   // BO7-3
         lsmModus = true;
         seoMode = false;
         editMode = false;
@@ -11233,6 +11292,177 @@
       // Links aus Warenkorb ("Nicht im Bestand") und Erfassung (L-Shop-Nummer unbekannt).
       document.addEventListener('click', ev => {
         if (ev.target.closest?.('[data-lsm-link]')) { ev.preventDefault(); window.oeffneAnsicht('artikel', 'lshop-modelle'); }
+      });
+
+      // ── SECTION: Lieferbarkeit Shop (BO7-3) ──
+      // Shop-Artikel mit nicht lieferbarem L-Shop-Rohling (GET /api/lieferbarkeit-shop). Nur Anzeige und Text-Vorschlaege.
+      // ── Lieferbarkeit-Shop: Anfang (reine Logik, Test backend/tests/lieferbarkeit-shop.test.js) ──
+      const LFBS_STUFE_TEXT = { nicht_gefuehrt: 'nicht mehr geführt', auslauf: 'läuft aus', null: 'bei L-Shop 0' };
+      const lfbsEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const lfbsTag = s => (/^\d{4}-\d{2}-\d{2}/.test(String(s ?? '')) ? String(s).slice(0, 10).split('-').reverse().join('.') : '');
+      /** Spiegel von stufeText (utils/lieferbarkeit-shop.js) - der Test vergleicht beide. */
+      function lfbsStufeText(v) {
+        if (v.stufe === 'auslauf') return `läuft aus${v.auslaufdatum ? ` bis ${lfbsTag(v.auslaufdatum)}` : ''}`;
+        if (v.stufe === 'null') return `bei L-Shop 0${v.nullSeit ? ` seit ${lfbsTag(v.nullSeit)}` : ''} (${v.tage} Tage)`;
+        return LFBS_STUFE_TEXT[v.stufe] ?? v.stufe;
+      }
+      /** Filter: Stufe, Kategorie, Suche (jedes Wort). Artikel ohne passende Variation fallen weg. */
+      function lfbsFiltern(artikel, { stufe = '', kategorie = '', suche = '' } = {}) {
+        const woerter = String(suche ?? '').toLowerCase().split(/\s+/).filter(Boolean);
+        return (artikel ?? []).filter(a => !kategorie || (a.kategorien ?? []).includes(kategorie)).map(a => {
+          const vs = a.variationen.filter(v => (!stufe || v.stufe === stufe)
+            && woerter.every(w => [a.name, a.produktId, v.variationId, v.merkmale, v.articleNr, v.catalogNr].some(x => String(x ?? '').toLowerCase().includes(w))));
+          return vs.length ? { ...a, variationen: vs } : null;
+        }).filter(Boolean);
+      }
+      const lfbsKategorien = artikel => [...new Set((artikel ?? []).flatMap(a => a.kategorien ?? []))].sort((x, y) => x.localeCompare(y, 'de'));
+      /** Zaehler der gezeigten Liste: Artikel, Variationen, je Stufe. */
+      function lfbsZaehlen(artikel) {
+        const vs = artikel.flatMap(a => a.variationen);
+        const je = st => vs.filter(v => v.stufe === st).length;
+        return { artikel: artikel.length, variationen: vs.length, nicht_gefuehrt: je('nicht_gefuehrt'), auslauf: je('auslauf'), null: je('null') };
+      }
+      /** "Liste kopieren" - Spiegel von exportText (utils/lieferbarkeit-shop.js), fuer die gefilterte Liste. Ohne Preise. */
+      function lfbsExport(artikel, { stand = '' } = {}) {
+        const z = lfbsZaehlen(artikel);
+        const kopf = `Lieferbarkeit Shop – ${z.artikel} Artikel, ${z.variationen} Variationen${stand ? ` (Stand ${stand})` : ''}`;
+        const zeilen = artikel.flatMap(a => [
+          `Artikel ${a.produktId} · ${a.name} · ${a.betroffen} von ${a.gesamt} Variationen${a.farbenKomplett.length ? ` · ganze Farbe: ${a.farbenKomplett.join(', ')}` : ''}${a.lieferzeit ? ` · Lieferzeit ${a.lieferzeit.id}${a.lieferzeit.name ? ` (${a.lieferzeit.name})` : ''}` : ''}`,
+          ...a.variationen.map(v => `  Variation ${v.variationId} · ${v.merkmale || '–'} · L-Shop ${v.articleNr} · ${lfbsStufeText(v)} · ${v.vorschlag}`),
+        ]);
+        return [kopf, ...zeilen].join('\n');
+      }
+      // ── Lieferbarkeit-Shop: Ende ──
+
+      const lfbs = { daten: null, zeit: 0, laeuft: false };
+      const lfbsEl = id => document.getElementById(id);
+      function lfbsFilterWerte() {
+        return { stufe: lfbsEl('lfbs-f-stufe')?.value ?? '', kategorie: lfbsEl('lfbs-f-kat')?.value ?? '', suche: lfbsEl('lfbs-suche')?.value ?? '' };
+      }
+      function lfbsArtikelHtml(a) {
+        const kopf = `<span class="lfbs-name">${lfbsEsc(a.name)}</span>`
+          + `<span class="lfbs-meta">${a.betroffen} von ${a.gesamt} Variationen${a.kategorien.length ? ` · ${lfbsEsc(a.kategorien.join(', '))}` : ''}`
+          + `${a.lieferzeit ? ` · Lieferzeit ${lfbsEsc(a.lieferzeit.name || a.lieferzeit.id)} (${lfbsEsc(a.lieferzeit.id)})` : ''}</span>`
+          + (a.farbenKomplett.length ? `<span class="lfb-punkt lfb-nicht_gefuehrt" tabindex="0" data-hilfe="lfbs-ganze-farbe">● ganze Farbe: ${lfbsEsc(a.farbenKomplett.join(', '))}</span>` : '');
+        const links = `<div class="lfbs-meta">Artikel ${lfbsEsc(a.produktId)}`
+          + (a.permalink ? ` · <a href="${lfbsEsc(a.permalink)}" target="_blank" rel="noopener" data-hilfe="lfbs-shop">im Shop</a>` : '')
+          + ` · <button type="button" class="korb-link" data-lfbs-maske="${lfbsEsc(a.produktId)}" data-hilfe="lfbs-maske">in der Maske</button></div>`;
+        const vars = a.variationen.map(v => `<div class="lfbs-var"><span>${lfbsEsc(v.merkmale || '–')}</span>`
+          + `<span>${lfbPunkt({ stufe: v.stufe, stock: v.stufe === 'nicht_gefuehrt' ? null : 0, nullSeit: v.nullSeit, auslaufdatum: v.auslaufdatum })} ${lfbsEsc(lfbsStufeText(v))}`
+          + ` <span class="lfbs-meta">L-Shop ${lfbsEsc(v.articleNr)}</span></span>`
+          + `<span class="lfbs-vorschlag" tabindex="0" data-hilfe="lfbs-vorschlag">${lfbsEsc(v.vorschlag)}</span></div>`).join('');
+        return `<details class="card lfbs-artikel" open><summary>${kopf}</summary>${links}${vars}</details>`;
+      }
+      function lfbsZeichnen() {
+        const d = lfbs.daten;
+        const liste = lfbsEl('lfbs-liste');
+        if (!d) return;
+        if (!d.zaehler) { liste.innerHTML = `<p class="field-note">${lfbsEsc(d.hinweis || 'Keine Daten.')}</p>`; lfbsEl('lfbs-zaehler').textContent = ''; lfbsEl('lfbs-stand').innerHTML = ''; return; }
+        const kat = lfbsEl('lfbs-f-kat');
+        const vorher = kat.value;
+        kat.innerHTML = '<option value="">alle Kategorien</option>' + lfbsKategorien(d.artikel).map(k => `<option value="${lfbsEsc(k)}">${lfbsEsc(k)}</option>`).join('');
+        kat.value = lfbsKategorien(d.artikel).includes(vorher) ? vorher : '';
+        const gezeigt = lfbsFiltern(d.artikel, lfbsFilterWerte());
+        const z = lfbsZaehlen(gezeigt);
+        const aus = d.zaehler.ausgeblendet ?? {};
+        lfbsEl('lfbs-zaehler').textContent = `${z.artikel} Artikel · ${z.variationen} Variationen · nicht geführt ${z.nicht_gefuehrt} · läuft aus ${z.auslauf} · 0 seit ≥ 14 Tagen ${z.null}`
+          + (d.zaehler.shopStatusGeprueft ? ` · ${aus.privat ?? 0} im Shop privat (ausgeblendet)` : ' · Shop-Status der Variationen nicht geprüft');
+        lfbsEl('lfbs-stand').innerHTML = lfbStandHtml(d.stand);
+        liste.innerHTML = gezeigt.length ? gezeigt.map(lfbsArtikelHtml).join('')
+          : `<p class="field-note">${d.artikel.length ? 'Kein Treffer für diesen Filter.' : 'Keine Artikel mit Lieferproblem.'}</p>`;
+      }
+      async function lfbsLaden({ shopStatus = false, neu = false } = {}) {
+        if (lfbs.laeuft) return;
+        if (!neu && !shopStatus && lfbs.daten && Date.now() - lfbs.zeit < 5 * 60_000) { lfbsZeichnen(); return; }
+        lfbs.laeuft = true;
+        if (!lfbs.daten) lfbsEl('lfbs-liste').innerHTML = '<div class="skeleton"></div>';
+        const knopf = lfbsEl('lfbs-shopstatus');
+        if (shopStatus) { knopf.disabled = true; knopf.textContent = 'Shop-Status wird geprüft…'; }
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/lieferbarkeit-shop${shopStatus ? '?shopStatus=1' : ''}`, { signal: AbortSignal.timeout(shopStatus ? 600_000 : 120_000) });
+          lfbs.daten = await apiJson(res);
+          lfbs.zeit = Date.now();
+          lfbsZeichnen();
+        } catch (e) {
+          lfbsEl('lfbs-liste').innerHTML = `<p class="field-note" style="color:var(--danger);">Fehler: ${lfbsEsc(e.message)}</p>`;
+        } finally {
+          lfbs.laeuft = false;
+          knopf.disabled = false;
+          knopf.textContent = 'Shop-Status prüfen';
+        }
+      }
+      // Wird auch beim Start aus lsmAus() gerufen - deshalb ohne spaeter deklarierte Konstanten.
+      function lfbsAus() {
+        lfbsModus = false;
+        const p = document.getElementById('lfbs-panel');
+        if (p) p.style.display = 'none';
+        document.getElementById('mode-btn-lieferbarkeit')?.classList.remove('active');
+      }
+      function setLfbsModus() {
+        lsmAus();
+        lfbsModus = true;
+        seoMode = false;
+        editMode = false;
+        seAendernModus = false;
+        productFormArea.style.display = 'none';
+        seoModePanel.style.display    = 'none';
+        seoEditPanel.style.display    = 'none';
+        lfbsEl('lfbs-panel').style.display = '';
+        [modeBtnNew, modeBtnEdit, modeBtnSeo, modeBtnSeoEdit].forEach(b => b.classList.remove('active'));
+        lfbsEl('mode-btn-lieferbarkeit').classList.add('active');
+        lfbsLaden();
+      }
+      lfbsEl('mode-btn-lieferbarkeit')?.addEventListener('click', () => setLfbsModus());
+      ['lfbs-f-stufe', 'lfbs-f-kat'].forEach(id => lfbsEl(id)?.addEventListener('change', lfbsZeichnen));
+      lfbsEl('lfbs-suche')?.addEventListener('input', lfbsZeichnen);
+      lfbsEl('lfbs-shopstatus')?.addEventListener('click', () => lfbsLaden({ shopStatus: true }));
+      lfbsEl('lfbs-kopieren')?.addEventListener('click', async () => {
+        if (!lfbs.daten?.zaehler) return;
+        const text = lfbsExport(lfbsFiltern(lfbs.daten.artikel, lfbsFilterWerte()), { stand: lfbStand(lfbs.daten.stand).text.replace('Lieferbarkeit Stand ', '') });
+        try { await navigator.clipboard.writeText(text); showToast('Liste kopiert'); }
+        catch { showToast('Kopieren ging nicht – bitte im Browser erlauben', 'error'); }
+      });
+      lfbsEl('lfbs-drucken')?.addEventListener('click', () => {
+        if (!lfbs.daten?.zaehler) return;
+        const gezeigt = lfbsFiltern(lfbs.daten.artikel, lfbsFilterWerte());
+        const z = lfbsZaehlen(gezeigt);
+        const druck = lfbsEl('lfbs-druck');
+        druck.innerHTML = `<div class="zl-kopf"><strong>Lieferbarkeit Shop · ${z.artikel} Artikel · ${z.variationen} Variationen</strong><span>${lfbsEsc(lfbStand(lfbs.daten.stand).text)}</span></div>`
+          + gezeigt.map(a => `<div class="zl-modell"><div class="zl-titel">${lfbsEsc(a.name)} (Artikel ${lfbsEsc(a.produktId)}) – ${a.betroffen} von ${a.gesamt}</div>`
+            + a.variationen.map(v => `<div class="zl-farbe"><span class="zl-farbname">${lfbsEsc(v.merkmale || '–')}</span><span>${lfbsEsc(lfbsStufeText(v))} · ${lfbsEsc(v.vorschlag)}</span></div>`).join('') + '</div>').join('');
+        druck.hidden = false;
+        document.body.classList.add('druck-zaehlliste');
+        window.print();
+        document.body.classList.remove('druck-zaehlliste');
+        druck.hidden = true;
+      });
+      lfbsEl('lfbs-liste')?.addEventListener('click', ev => {
+        const m = ev.target.closest('[data-lfbs-maske]');
+        if (!m) return;
+        oeffneAnsicht('artikel', 'aendern');
+        loadWcProduct(m.dataset.lfbsMaske);
+      });
+      // Maske: kleine Zeile an einem betroffenen Artikel (Liste aus dem Zwischenspeicher oder einmal laden)
+      async function lfbsMaskeHinweis(produktId) {
+        const el = lfbsEl('pf-lfbs-hinweis');
+        if (!el) return;
+        el.innerHTML = '';
+        try {
+          if (!lfbs.daten || Date.now() - lfbs.zeit > 5 * 60_000) {
+            const res = await apiFetch(`${API_BASE()}/api/lieferbarkeit-shop`, { signal: AbortSignal.timeout(120_000) });
+            lfbs.daten = await apiJson(res); lfbs.zeit = Date.now();
+          }
+        } catch { return; }   // nur ein Hinweis - ohne Daten nichts zeigen
+        const a = (lfbs.daten.artikel ?? []).find(x => String(x.produktId) === String(produktId));
+        if (!a || String(wcEditProductId) !== String(produktId)) return;
+        el.innerHTML = `<button type="button" class="korb-link" data-lfbs-zur-liste="${lfbsEsc(a.produktId)}" data-hilfe="lfbs-maske-hinweis">⚠ ${a.betroffen} Variation${a.betroffen === 1 ? '' : 'en'} mit Lieferproblem bei L-Shop</button>`;
+      }
+      lfbsEl('pf-lfbs-hinweis')?.addEventListener('click', ev => {
+        const b = ev.target.closest('[data-lfbs-zur-liste]');
+        if (!b) return;
+        oeffneAnsicht('artikel', 'lieferbarkeit');
+        const s = lfbsEl('lfbs-suche');
+        if (s) { s.value = b.dataset.lfbsZurListe; lfbsZeichnen(); }
       });
 
       // ── SECTION: SEO-Daten aendern (Befehl SE1) ──
@@ -12295,6 +12525,7 @@
 
           wcEditProductId = p.id;
           document.getElementById('pf-wc-id').value = p.id;
+          lfbsMaskeHinweis(p.id);   // BO7-3: "n Variationen mit Lieferproblem" 
           // SS1: Shop-Status 1:1 merken; private/pending/future bleiben "(unverändert)".
           shopStatusGeladen = p.status ?? null;
           populateShopStatus(shopStatusGeladen);

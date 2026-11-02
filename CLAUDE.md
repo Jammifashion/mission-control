@@ -363,6 +363,16 @@ Neue Sektionen immer mit Anker versehen:
   das ist L-Shop-Bestellungen): `lfbPunkt` (CSS `lfb-<stufe>`, Hilfe `lfb-*`, Zahl in `data-hilfe-zusatz` - der Tooltip stellt sie vor
   den festen Text), `lfbStandHtml`, `lfbRasterHinweis` (Raster nur Punkt, Text darunter), Korb "nicht lieferbar zuerst"
   (`mc_korb_lb_zuerst`). Der Test parst das ganze Modul-Skript (doppelte Namen zwischen Bloecken = rot).
+  BO7-3 Problemliste "Lieferbarkeit Shop" (Unterpunkt `artikel/lieferbarkeit`, Modus-Knopf `#mode-btn-lieferbarkeit`, Panel
+  `#lfbs-panel`, SECTION Lieferbarkeit Shop, Block `Lieferbarkeit-Shop: Anfang/Ende`, Praefix `lfbs`, Test lieferbarkeit-shop.test.js):
+  `lib/lieferbarkeitShop.js` (`leseProblemliste`, NUR LESEN), Logik `utils/lieferbarkeit-shop.js`, `GET /api/lieferbarkeit-shop[?shopStatus=1]`.
+  Drin: Varianten Aktiv TRUE + WC_Variation_ID + LShop_ArticleNr eines veroeffentlichten JFN-Artikels mit Rohling nicht gefuehrt / laeuft
+  aus / 0 seit >= 14 Tagen am Stueck (`problemStufe`, `NULL_AB_TAGE`). Privat: MC setzt beim Privat-Setzen Aktiv FALSE (faellt heraus);
+  der Status JEDER Variation nur per Knopf "Shop-Status pruefen" (je Artikel ein Abruf, Takt 2 s, 30 min Zwischenspeicher), Produkte
+  (Status/Name/Kategorie/`_lieferzeit`) 10 min. Vorschlaege nur Text (beobachten, ab 30 Tagen Lieferzeit pruefen, Nachfolger nur mit
+  LIEFERBARER Alternative aus dem Reiter, nicht gefuehrt -> privat ueber die Loeschliste). "Liste kopieren" (`lfbsExport` = Spiegel
+  von `exportText`) und Drucken (`body.druck-zaehlliste`) ohne Preise. Maske: `lfbsMaskeHinweis` beim Laden eines Artikels
+  (`#pf-lfbs-hinweis`). Lieferzeit-Namen aus `Struktur_Lieferzeiten`. HONK: Varianten/Erfassungsmaske sind nur JFN.
 - backend/lib/lshopBelege.js – Belege-Abruf (BO4b-1), Logik in `utils/lshop-belege.js`. Scheduler
   `POST /api/intern/lshop-belege/abruf` (Job `lshop-belege-abruf`, `7,37 * * * *`) und Knopf
   `POST /api/bestellen/lshop-belege/abruf` (`routes/lshopBelege.js`, eigener Router, damit

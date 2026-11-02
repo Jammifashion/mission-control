@@ -85,7 +85,7 @@ describe('Verdrahtung im HTML', () => {
 
   test('jeder andere Modus blendet die Ansicht aus', () => {
     const anzahl = (html.match(/lsmAus\(\);/g) ?? []).length;
-    expect(anzahl).toBe(3);   // setMode, setSeoMode, setSeAendernModus
+    expect(anzahl).toBe(4);   // setMode, setSeoMode, setSeAendernModus, setLfbsModus (BO7-3)
   });
 
   test('Links aus Warenkorb und Erfassung fuehren hierher', () => {
