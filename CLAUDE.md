@@ -225,6 +225,17 @@ Neue Sektionen immer mit Anker versehen:
   Zeile), unter der Korb-Sperre, EIN Schreibaufruf in die gepruefte Zielzeilen-Strecke (`schreibeNeueZeilen` mit
   `allesOderNichts`), zurueckgelesen. "Hinzufuegen und weitere Farbe" behaelt Modell/Referenz/Notiz. Der Einzelweg
   (eine Groesse je Klick) ist in der Oberflaeche entfallen; `POST .../eigen` bleibt (Tests, Altaufrufer).
+  BO6-1 (bearbeiten): Knopf "bearbeiten …" an eigenen Positionen offen/abgewählt (Block `Eigen-Bearbeiten: Anfang/Ende`,
+  Dialog `#eb-dialog`, Test korb-eigen-bearbeiten.test.js); Lager im Korb, bestellt/geliefert in L-Shop-Bestellungen nur
+  gesperrt (aria-disabled, Grund im Mouse-over). `POST .../lshop-korb/eigen/bearbeiten` `{ schluessel, status, stand,
+  articleNr, menge, referenz, notiz, lagerZiel }` -> `bearbeiteEigenePosition` / `eigenBearbeitenPlan`: unter der Korb-Sperre,
+  Reiter UNFORMATTED frisch gelesen, ArticleNr nur aus dem Modell der bisherigen (waehlbar, ohne ausgelaufen/3/6; die
+  bisherige bleibt erlaubt), anderes Modell = herausnehmen + neu anlegen. Gleiche Werte = `unveraendert` (Doppelklick),
+  sonst Status + `Stand` wie gesehen (409), dann GENAU diese Zeile ueber `ersetzeZeile` (Vorher-Pruefung der ganzen Zeile,
+  409; nur geaenderte Zellen RAW, zurueckgelesen), Stand + Status_Datum neu. Spur in Spalte `Aenderung` hinten
+  ("geändert 02.11.: Menge 2 → 3, M → L", angehaengt mit " | "; nicht im Hinweis - der gehoert dem Abgleich und schaltet
+  bei Lager-Zeilen "zurück ins Lager" frei). Fehlt die Spalte -> 409 `einrichtung` (`scripts/setup-korb-aenderung.js`,
+  Trockenlauf Standard, `--write`).
 - backend/lib/lshopEdi.js – L-Shop-EDI-Bestelldatei aus dem Warenkorb (BO4a), Logik in
   `utils/edi-bestellung.js`. **Erzeugt nur, verschickt nichts:** kein FTP/SFTP, kein Shop, nur Sheets;
   die Datei geht als Download an den Browser (nie in den FTP-Ordner `Order`, dort ist jede XML eine
