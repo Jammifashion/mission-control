@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   runKorbAbgleich, leseKorb, setzeStatus, sucheLShopModelle, lshopModellVarianten, legeEigenePositionAn, legeEigenePositionenAn,
+  bearbeiteEigenePosition,
 } from '../lib/lshopKorb.js';
 import { notifyFehler } from '../lib/chatNotify.js';
 import { ediVorschau, ediErzeugen, ediAlsGesendet, ediSendenVorschau, ediSenden, ediZurueckAufEntwurf } from '../lib/lshopEdi.js';
@@ -81,6 +82,20 @@ router.post('/lshop-korb/eigen/mehrere', async (req, res, next) => {
     console.log(`L-Shop-Korb eigene Positionen ${r.schluessel[0]}..${r.schluessel[r.schluessel.length - 1]} (${r.positionen}, ab Zeile ${r.startZeile})`);
     res.json(r);
   } catch (err) { next(err); }
+});
+
+// ── POST /api/bestellen/lshop-korb/eigen/bearbeiten  (BO6-1) ─────────────────
+// Body: { schluessel, status, stand (wie gesehen), articleNr, menge, referenz, notiz, lagerZiel }. Nur eigene Positionen,
+// nur offen/abgewaehlt; genau diese Zeile (ersetzeZeile, Vorher-Pruefung), unter der Korb-Sperre, zurueckgelesen.
+router.post('/lshop-korb/eigen/bearbeiten', async (req, res, next) => {
+  try {
+    const r = await bearbeiteEigenePosition({ eingabe: req.body ?? {} });
+    console.log(`L-Shop-Korb eigene Position ${r.schluessel} ${r.unveraendert ? 'unverändert' : 'geändert'}`);
+    res.json(r);
+  } catch (err) {
+    if ([409, 422].includes(err?.status)) return res.status(err.status).json({ error: err.message, code: err.code });
+    next(err);
+  }
 });
 
 // ── POST /api/bestellen/lshop-korb/aus-lager  (BO5-3) ────────────────────────

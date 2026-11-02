@@ -99,7 +99,11 @@ export async function ersetzeZeile(sheets, spreadsheetId, tab, zeile, alt, neu) 
   const lies = async () => ((await sheets.spreadsheets.values.get({ spreadsheetId, range, valueRenderOption: 'UNFORMATTED_VALUE' })).data.values ?? [[]])[0] ?? [];
   const jetzt = await lies();
   const altVoll = Array.from({ length: breite }, (_, i) => alt[i] ?? '');
-  if (zeilenAbweichungen([altVoll], [jetzt]).length) throw new Error(`${tab} Z${zeile} hat sich seit dem Lesen geändert – nichts geschrieben.`);
+  if (zeilenAbweichungen([altVoll], [jetzt]).length) {
+    const e = new Error(`${tab} Z${zeile} hat sich seit dem Lesen geändert – nichts geschrieben.`);
+    e.status = 409;   // BO6-1: Aufrufer hinter einer Route melden das als 409
+    throw e;
+  }
   const daten = [];
   neu.forEach((w, j) => {
     if (zellText(w) !== zellText(jetzt[j])) daten.push({ range: `${q}!${spalteBuchstabe(j)}${zeile}`, values: [[w]] });

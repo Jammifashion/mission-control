@@ -462,6 +462,11 @@
       button.lb-lager { font-size: 0.78rem; }
       .lo-box { width: min(420px, 100%); }
       #korb-eigen-lager-ort[hidden] { display: none; }
+      /* BO6-1: Dialog "bearbeiten …" - Felder untereinander, Beschriftung klein darueber */
+      #eb-dialog .eb-feld { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.78rem; color: var(--muted); }
+      #eb-dialog #eb-lager-ort[hidden] { display: none; }
+      #eb-dialog #eb-vorschau { color: var(--text); }
+      .korb-pos [data-eigen-gesperrt], .lb-pos [data-eigen-gesperrt] { opacity: 0.55; cursor: not-allowed; }
       /* BO5-7: aus dem Bestand waehlen */
       .lager-quelle[hidden], .lager-best-kopf[hidden], #lager-was-wrap[hidden], #lager-wahl[hidden], #lager-ganzer-ort[hidden] { display: none; }
       .lager-best-kopf .form-input { flex: 1 1 12rem; min-width: 0; }
@@ -1556,6 +1561,32 @@
                 <button type="button" class="btn-lshop-bestellen" id="korb-lager-buchen" data-hilfe="aus-lager-buchen">Aus Lager nehmen</button>
               </div>
               <div id="korb-lager-ergebnis" class="korb-zaehler" role="status" aria-live="polite"></div>
+            </div>
+          </div>
+
+          <!-- BO6-1: eigene Position bearbeiten (nur offen/herausgenommen). Modell bleibt; anderes Modell = herausnehmen + neu anlegen. -->
+          <div id="eb-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="eb-titel" hidden>
+            <div class="edi-box korb-eigen">
+              <div class="edi-kopf">
+                <strong id="eb-titel">Eigene Position bearbeiten</strong>
+                <button type="button" class="korb-link" id="eb-abbrechen" data-hilfe="eb-abbrechen">Abbrechen</button>
+              </div>
+              <div id="eb-position" class="korb-zaehler"></div>
+              <div id="eb-artikel" class="lshop-card-title"></div>
+              <div class="korb-zaehler">Anderes Modell? Position herausnehmen und neu anlegen.</div>
+              <label class="eb-feld">Farbe <select id="eb-farbe" class="form-select" data-hilfe="eb-farbe"></select></label>
+              <label class="eb-feld">Größe <select id="eb-groesse" class="form-select" data-hilfe="eb-groesse"></select></label>
+              <label class="eb-feld">Menge <input id="eb-menge" type="number" class="form-input" min="1" max="999" step="1" inputmode="numeric" data-hilfe="eb-menge"></label>
+              <label class="eb-feld">Referenz <input id="eb-referenz" type="text" class="form-input" maxlength="80" data-hilfe="eb-referenz"></label>
+              <label class="eb-feld">Notiz <input id="eb-notiz" type="text" class="form-input" maxlength="200" placeholder="optional" data-hilfe="eb-notiz"></label>
+              <div class="korb-reihe"><label class="lager-start" data-hilfe="eb-lager"><input type="checkbox" id="eb-lager"> bei Ankunft ins Lager</label>
+                <select id="eb-lager-ort" class="form-select" aria-label="Lagerort" data-hilfe="lager-ort-waehlen" hidden></select></div>
+              <div id="eb-vorschau" class="korb-zaehler" aria-live="polite"></div>
+              <div id="eb-spur" class="korb-zaehler"></div>
+              <div class="korb-reihe">
+                <button type="button" class="btn-lshop-bestellen" id="eb-speichern" data-hilfe="eb-speichern">Speichern</button>
+              </div>
+              <div id="eb-ergebnis" class="korb-zaehler" role="status" aria-live="polite"></div>
             </div>
           </div>
         </div>
@@ -4791,7 +4822,11 @@
         const lager = p.herkunft !== 'eigen' ? '' : p.status === 'bestellt'
           ? ` · <button type="button" class="korb-link lb-lager" data-lager-ziel="${lbEsc(p.schluessel)}" data-lager-ziel-status="bestellt" data-lager-ziel-wert="${lbEsc(p.lagerZiel)}" data-hilfe="lager-ziel-aendern">${p.lagerZiel ? `→ Lager ${lbEsc(p.lagerZiel)}` : '+ bei Ankunft ins Lager'}</button>`
           : p.lagerZiel ? ` · <span class="lb-lager" data-hilfe="bei-ankunft-lager">→ Lager ${lbEsc(p.lagerZiel)}</span>` : '';
-        return `<div class="lb-pos"><span class="lb-pos-haupt">${modell} <strong>×${lbEsc(p.menge)}</strong>${geliefert}${lager}</span>`
+        // BO6-1: eigene Positionen sind hier nicht mehr bearbeitbar - Knopf gesperrt, Grund im Mouse-over.
+        const bearbeiten = p.herkunft !== 'eigen' ? '' : p.status === 'geliefert'
+          ? ' · <button type="button" class="korb-link" data-eigen-gesperrt="eb-gesperrt-geliefert" aria-disabled="true" data-hilfe="eb-gesperrt-geliefert">bearbeiten …</button>'
+          : ' · <button type="button" class="korb-link" data-eigen-gesperrt="eb-gesperrt-bestellt" aria-disabled="true" data-hilfe="eb-gesperrt-bestellt">bearbeiten …</button>';
+        return `<div class="lb-pos"><span class="lb-pos-haupt">${modell} <strong>×${lbEsc(p.menge)}</strong>${geliefert}${lager}${bearbeiten}</span>`
           + `<span class="lb-pos-neben">${[lbEsc(p.articleNr), lbEsc(p.reference), termin].filter(Boolean).join(' · ')}${abw}</span></div>`;
       }
       let lbMitAb = false;   // waehrend lbKarteHtml: Bestellung hat eine AB (fuer "sofort" je Position)
@@ -5074,14 +5109,27 @@
         'lager-alles-gruppe':   { name: 'alles (Gruppe)', text: 'Trägt bei allen Größen dieses Modells und dieser Farbe den ganzen Bestand ein.' },
         'lager-ganzer-ort':     { name: 'ganzen Ort umlagern …', text: 'Lagert alles vom Quell-Ort zum Ziel-Ort um, z. B. um einen alten Ort aufzulösen. Fragt vorher.' },
         'lager-ausschuss-grund': { name: 'Ausschuss: Grund', text: 'Pflicht: Fehldruck, Ware defekt oder verschenkt. Ausschuss kommt nie zurück in den Bestand.' },
+        // BO6-1: eigene Position bearbeiten
+        'eb-bearbeiten':        { name: 'bearbeiten …', text: 'Eigene Position korrigieren: Farbe, Größe, Menge, Referenz, Notiz, Lager. Das Modell bleibt.' },
+        'eb-gesperrt-bestellt': { name: 'bearbeiten (gesperrt)', text: 'Schon bei L-Shop bestellt – nicht mehr änderbar.' },
+        'eb-gesperrt-geliefert': { name: 'bearbeiten (gesperrt)', text: 'Schon geliefert – nicht mehr änderbar.' },
+        'eb-gesperrt-lager':    { name: 'bearbeiten (gesperrt)', text: 'Aus dem Lager genommen – erst „zurück in den Korb“, dann bearbeiten.' },
+        'eb-farbe':             { name: 'Farbe', text: 'Andere Farbe desselben Modells. Danach die Größe wählen.' },
+        'eb-groesse':           { name: 'Größe', text: 'Größe in dieser Farbe. Ausgelaufene Größen fehlen; die bisherige bleibt wählbar.' },
+        'eb-menge':             { name: 'Menge', text: 'Stückzahl von 1 bis 999.' },
+        'eb-referenz':          { name: 'Referenz', text: 'Pflicht, z. B. „Lager“, „Muster“, „Verein X Auftrag 12“ – nie Namen von Privatpersonen.' },
+        'eb-notiz':             { name: 'Notiz', text: 'Freitext, optional, höchstens 200 Zeichen.' },
+        'eb-lager':             { name: 'bei Ankunft ins Lager', text: 'Ware für den Vorrat: kommt sie an, bucht der Wareneingang sie gleich ins Lager. Haken weg = nicht.' },
+        'eb-speichern':         { name: 'Speichern', text: 'Speichert die Änderung an genau dieser Position. Was vorher war, steht in der Spur. Ein zweiter Klick ändert nichts doppelt.' },
+        'eb-abbrechen':         { name: 'Abbrechen', text: 'Schließt ohne etwas zu ändern.' },
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
-        korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'lager-storno-hinweis', 'lager-storno-zurueck', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'abgleich', 'belege', 'alle-offenen', 'zurueck'],
+        korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'lager-storno-hinweis', 'lager-storno-zurueck', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'eb-bearbeiten', 'eb-gesperrt-lager', 'eb-farbe', 'eb-groesse', 'eb-menge', 'eb-referenz', 'eb-notiz', 'eb-lager', 'eb-speichern', 'eb-abbrechen', 'abgleich', 'belege', 'alle-offenen', 'zurueck'],
         leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
         uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
         karton: ['karton-pruefen', 'karton-angekommen', 'karton-naechster', 'karton-rest-lager', 'karton-lager-ort', 'bei-ankunft-lager'],
-        bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-mehr', 'bei-ankunft-lager', 'lager-ziel-aendern', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
+        bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-mehr', 'bei-ankunft-lager', 'lager-ziel-aendern', 'eb-gesperrt-bestellt', 'eb-gesperrt-geliefert', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager'],
@@ -5219,7 +5267,8 @@
           + ` data-lager-ziel-wert="${korbEsc(p.lagerZiel ?? '')}" data-hilfe="lager-ziel-aendern">${p.lagerZiel ? `→ Lager ${korbEsc(p.lagerZiel)}` : '+ bei Ankunft ins Lager'}</button>`;
       }
       function korbPositionZeile(p, b) {
-        const herkunft = p.herkunft === 'eigen' ? `Eigen · ${korbEsc(p.referenz)}` : `${korbEsc(p.shop)} #${korbEsc(p.bestellnummer)} · Pos. ${korbEsc(p.position)}`;
+        const herkunft = (p.herkunft === 'eigen' ? `Eigen · ${korbEsc(p.referenz)}` : `${korbEsc(p.shop)} #${korbEsc(p.bestellnummer)} · Pos. ${korbEsc(p.position)}`)
+          + ebKnopfHtml(p, korbEsc);   // BO6-1: "bearbeiten …" an eigenen Positionen
         // BO5-6: an Lager-Positionen steht der Hinweis gelb im Lager-Kennzeichen (mit Knopf "zurück ins Lager")
         const hinweis  = p.hinweis && p.status !== 'Lager' ? ` · <span style="color:${p.vorschlag ? 'var(--accent)' : 'var(--danger)'};">⚠ ${korbEsc(p.hinweis)}</span>` : '';
         const notiz    = p.notiz ? ` · <em>${korbEsc(p.notiz)}</em>` : '';
@@ -5785,6 +5834,152 @@
       }
       document.getElementById('korb-eigen-speichern')?.addEventListener('click', () => eigenHinzufuegen(false));
       document.getElementById('korb-eigen-weiter')?.addEventListener('click', () => eigenHinzufuegen(true));
+
+      // BO6-1: eigene Position nachtraeglich bearbeiten. Nur offen/herausgenommen; bestellt/geliefert/Lager zeigen den Knopf
+      // gesperrt (aria-disabled, Grund im Mouse-over). Server: POST .../lshop-korb/eigen/bearbeiten.
+      // ── Eigen-Bearbeiten: Anfang (reine Logik, Test backend/tests/korb-eigen-bearbeiten.test.js; braucht Eigene-Raster) ──
+      /** Knopf "bearbeiten …" einer Korb-Position ('' bei Shop-Positionen). esc = Escape-Funktion der Ansicht.
+       *  Bestellt/geliefert stehen in L-Shop-Bestellungen (lbPositionHtml, dort gesperrt). */
+      function ebKnopfHtml(p, esc) {
+        if (p?.herkunft !== 'eigen') return '';
+        if (p.status === 'offen' || p.status === 'abgewählt') {
+          return ` · <button type="button" class="korb-link" data-eigen-bearbeiten="${esc(p.schluessel)}" data-hilfe="eb-bearbeiten">bearbeiten …</button>`;
+        }
+        if (p.status === 'Lager') return ' · <button type="button" class="korb-link" data-eigen-gesperrt="eb-gesperrt-lager" aria-disabled="true" data-hilfe="eb-gesperrt-lager">bearbeiten …</button>';
+        return '';
+      }
+      /** Groessen einer Farbe fuer die Auswahl; die bisherige Nummer bleibt waehlbar, auch wenn sie nicht mehr bestellbar ist. */
+      function ebGroessen(varianten, farbe, aktuell) {
+        const liste = eigenRasterGroessen(varianten, farbe);
+        if (aktuell && aktuell.farbe === farbe && !liste.some(g => g.articleNr === aktuell.articleNr)) {
+          liste.unshift({ groesse: aktuell.groesse, articleNr: aktuell.articleNr, bisher: true });
+        }
+        return liste;
+      }
+      /** Body fuer POST .../eigen/bearbeiten; f = { articleNr, menge, referenz, notiz, lagerZiel } aus dem Dialog. */
+      const ebAnfrage = (p, f) => ({ schluessel: p.schluessel, status: p.status, stand: p.stand ?? '',
+        articleNr: f.articleNr, menge: Number(f.menge), referenz: String(f.referenz ?? '').trim(), notiz: String(f.notiz ?? '').trim(),
+        lagerZiel: String(f.lagerZiel ?? '').trim() });
+      /** Was sich aendert (Anzeige vor dem Speichern) und ob die Eingaben gueltig sind. */
+      function ebVorschau(p, f, nameJeNr) {
+        const fehler = [];
+        const m = Number(f.menge);
+        if (!Number.isInteger(m) || m < 1 || m > EIGEN_MENGE_MAX) fehler.push(`Menge 1–${EIGEN_MENGE_MAX}`);
+        if (!/^\d{10}$/.test(String(f.articleNr ?? ''))) fehler.push('Farbe und Größe wählen');
+        if (!String(f.referenz ?? '').trim()) fehler.push('Referenz fehlt');
+        const teile = [];
+        if (!fehler.length) {
+          if (String(m) !== String(p.menge)) teile.push(`Menge ${p.menge} → ${m}`);
+          if (f.articleNr !== p.articleNr) teile.push(`${nameJeNr?.[p.articleNr] ?? p.articleNr} → ${nameJeNr?.[f.articleNr] ?? f.articleNr}`);
+          if (String(f.referenz).trim() !== (p.referenz ?? '')) teile.push('Referenz');
+          if (String(f.notiz ?? '').trim() !== (p.notiz ?? '')) teile.push('Notiz');
+          if (String(f.lagerZiel ?? '').trim() !== (p.lagerZiel ?? '')) teile.push(`Lager ${p.lagerZiel || '–'} → ${String(f.lagerZiel ?? '').trim() || '–'}`);
+        }
+        return { fehler, teile, text: fehler.length ? `Bitte prüfen: ${fehler.join(' · ')}` : (teile.length ? `Ändert: ${teile.join(', ')}` : 'Noch nichts geändert.') };
+      }
+      // ── Eigen-Bearbeiten: Ende ──
+
+      const eb = { p: null, b: null, varianten: [], laeuft: false };
+      const ebEl = id => document.getElementById(id);
+      const ebNameJeNr = () => Object.fromEntries([...eb.varianten, ...(eb.aktuell ? [eb.aktuell] : [])].map(v => [v.articleNr, [v.farbe, v.groesse].filter(Boolean).join(' ')]));
+      function ebFormular() {
+        return { articleNr: ebEl('eb-groesse').value, menge: ebEl('eb-menge').value, referenz: ebEl('eb-referenz').value,
+          notiz: ebEl('eb-notiz').value, lagerZiel: ebEl('eb-lager').checked ? ebEl('eb-lager-ort').value : '' };
+      }
+      function ebVorschauZeichnen() {
+        const v = ebVorschau(eb.p, ebFormular(), ebNameJeNr());
+        ebEl('eb-vorschau').textContent = v.text;
+        return v;
+      }
+      function ebGroessenSetzen(vorNr) {
+        const liste = ebGroessen(eb.varianten, ebEl('eb-farbe').value, eb.aktuell);
+        ebEl('eb-groesse').innerHTML = liste.map(g => `<option value="${korbEsc(g.articleNr)}">${korbEsc(g.groesse || '–')}`
+          + `${g.bisher ? ' (bisher, nicht mehr bestellbar)' : g.auslauf !== undefined ? ` (läuft aus ${korbEsc(g.auslauf)})` : ''}</option>`).join('');
+        if (vorNr && liste.some(g => g.articleNr === vorNr)) ebEl('eb-groesse').value = vorNr;
+        ebVorschauZeichnen();
+      }
+      async function ebLagerOrte(wert) {
+        const sel = ebEl('eb-lager-ort');
+        const orte = await lagerOrteHolen();
+        const liste = wert && !orte.includes(wert) ? [wert, ...orte] : orte;
+        sel.innerHTML = liste.map(o => `<option value="${korbEsc(o)}">${korbEsc(o)}</option>`).join('');
+        sel.value = wert || (orte.includes('Wrist') ? 'Wrist' : (orte[0] ?? ''));
+        sel.hidden = false;
+      }
+      async function ebOeffnen(schluessel) {
+        const { p, b } = korbLagerFinde(schluessel);
+        if (!p || p.herkunft !== 'eigen') { showToast('Position nicht mehr da – bitte neu laden.', 'warn'); return; }
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/modelle/${encodeURIComponent(b.catalogNr)}/varianten`);
+          const stopp = await laufStopp(res);
+          if (stopp) { showToast(stopp, 'error'); return; }
+          const d = await apiJson(res);
+          Object.assign(eb, { p: { ...p, articleNr: b.articleNr }, b, varianten: d.varianten, laeuft: false,
+            aktuell: { articleNr: b.articleNr, farbe: b.farbe, groesse: b.groesse } });
+        } catch (e) { showToast(`Fehler: ${e.message}`, 'error'); return; }
+        ebEl('eb-position').textContent = `${p.schluessel} · ${p.status === 'abgewählt' ? 'herausgenommen' : 'offen'}`;
+        ebEl('eb-artikel').innerHTML = `<span class="korb-kopf-nr">${korbEsc(b.catalogNr)}</span>`
+          + (b.bezeichnung ? ` · <span class="korb-kopf-name">${korbEsc(b.bezeichnung)}</span>` : '') + (b.marke ? ` · ${korbEsc(b.marke)}` : '');
+        const farben = [...new Set([...eb.varianten.map(v => v.farbe), b.farbe])];
+        ebEl('eb-farbe').innerHTML = farben.map(f => `<option value="${korbEsc(f)}">${korbEsc(f || '(ohne Farbe)')}</option>`).join('');
+        ebEl('eb-farbe').value = b.farbe;
+        ebGroessenSetzen(b.articleNr);
+        ebEl('eb-menge').value = p.menge;
+        ebEl('eb-referenz').value = p.referenz ?? '';
+        ebEl('eb-notiz').value = p.notiz ?? '';
+        ebEl('eb-lager').checked = !!p.lagerZiel;
+        ebEl('eb-lager-ort').hidden = true;
+        if (p.lagerZiel) { try { await ebLagerOrte(p.lagerZiel); } catch (e) { showToast(`Lagerorte nicht geladen: ${e.message}`, 'error'); } }
+        ebEl('eb-spur').textContent = p.aenderung ? `Bisher: ${p.aenderung}` : '';
+        ebEl('eb-ergebnis').textContent = '';
+        ebEl('eb-speichern').disabled = false;
+        ebEl('eb-dialog').hidden = false;
+        ebVorschauZeichnen();
+        ebEl('eb-menge').focus();
+      }
+      const ebZu = () => { ebEl('eb-dialog').hidden = true; };
+      async function ebSpeichern() {
+        if (eb.laeuft || !eb.p) return;
+        const v = ebVorschauZeichnen();
+        if (v.fehler.length) { showToast(v.text, 'warn'); return; }
+        if (!v.teile.length) { ebZu(); return; }
+        eb.laeuft = true;
+        ebEl('eb-speichern').disabled = true;
+        ebEl('eb-ergebnis').textContent = 'Wird gespeichert …';
+        try {
+          const j = await korbLagerPost('eigen/bearbeiten', ebAnfrage(eb.p, ebFormular()));
+          showToast(j.unveraendert ? 'War schon so gespeichert – nichts doppelt.' : `Gespeichert: ${j.aenderung}`, 'success');
+          korbZustand.auswahl.delete(eb.p.schluessel);   // neue Nummer/Menge -> Auswahl neu treffen
+          ebZu();
+          await loadLShopKorb();
+        } catch (e) {
+          ebEl('eb-ergebnis').textContent = e.status ? `Nicht gespeichert: ${e.message}`
+            : `Unklar, ob gespeichert (${e.message}). Bitte neu laden und prüfen.`;
+          showToast(ebEl('eb-ergebnis').textContent, 'error', 10000);
+        } finally { eb.laeuft = false; ebEl('eb-speichern').disabled = false; }
+      }
+      // Knoepfe sitzen im Korb (auch in der Zeile mit dem Haken - kein Anhaken) und in L-Shop-Bestellungen (nur gesperrt).
+      document.addEventListener('click', ev => {
+        const k = ev.target.closest?.('[data-eigen-bearbeiten], [data-eigen-gesperrt]');
+        if (!k) return;
+        ev.preventDefault();
+        if (k.dataset.eigenGesperrt) showToast(KNOPF_HILFE[k.dataset.eigenGesperrt]?.text ?? 'Nicht änderbar.', 'warn');
+        else ebOeffnen(k.dataset.eigenBearbeiten);
+      });
+      ebEl('eb-farbe')?.addEventListener('change', () => ebGroessenSetzen());
+      for (const id of ['eb-groesse', 'eb-menge', 'eb-referenz', 'eb-notiz', 'eb-lager-ort']) ebEl(id)?.addEventListener('input', ebVorschauZeichnen);
+      ebEl('eb-groesse')?.addEventListener('change', ebVorschauZeichnen);
+      ebEl('eb-lager')?.addEventListener('change', async ev => {
+        if (!ev.target.checked) { ebEl('eb-lager-ort').hidden = true; ebVorschauZeichnen(); return; }
+        try { await ebLagerOrte(eb.p?.lagerZiel); } catch (e) { ev.target.checked = false; showToast(`Lagerorte nicht geladen: ${e.message}`, 'error'); }
+        ebVorschauZeichnen();
+      });
+      ebEl('eb-speichern')?.addEventListener('click', ebSpeichern);
+      ebEl('eb-abbrechen')?.addEventListener('click', ebZu);
+      ebEl('eb-dialog')?.addEventListener('keydown', ev => {
+        if (ev.key === 'Escape') ebZu();
+        if (ev.key === 'Enter' && ev.target.matches('input')) { ev.preventDefault(); ebSpeichern(); }
+      });
 
       // Ein Ablauf fuer beide Knoepfe "Abgleich jetzt" (Korb und Bestelluebersicht).
       async function korbAbgleichStarten(btn) {

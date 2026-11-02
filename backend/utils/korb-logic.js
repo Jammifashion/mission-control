@@ -74,7 +74,9 @@ export const korbSchluessel = (shop, bestellnummer, position) =>
 /** Spaltenindizes ueber den Namen; fehlende Spalten -> Fehler mit Namen (422, nichts geschrieben). */
 // BO5-4: optionale Spalten hinten (nur ueber den Namen). Fehlen sie, laeuft alles wie vorher; Lager_Ziel = Ortsname
 // (leer = nein), nur an eigenen Positionen: "bei Ankunft ins Lager".
-export const KORB_OPTIONAL = ['Lager_Ziel'];
+// BO6-1: Aenderung = Spur von "bearbeiten …" an eigenen Positionen (leer = nie geaendert).
+export const SPALTE_AENDERUNG = 'Aenderung';
+export const KORB_OPTIONAL = ['Lager_Ziel', SPALTE_AENDERUNG];
 export function korbSpalten(header) {
   const norm = (header ?? []).map(normHeader);
   const idx = {};
@@ -348,6 +350,8 @@ export function buendele(zeilen, modelle = new Map(), namen = {}, jetzt = new Da
       bearbeitbar: z.Status === STATUS.OFFEN || z.Status === STATUS.ABGEWAEHLT,
       lagerZiel: t(z.Lager_Ziel),   // BO5-4: "→ Lager <Ort>" bei eigenen Positionen
       grundVorschlag: grundVorschlag(z.Hinweis),
+      // BO6-1: "bearbeiten …" an eigenen Positionen - Stand = Version, die der Browser gesehen hat; Spur bisheriger Aenderungen.
+      stand: z.Stand, aenderung: t(z[SPALTE_AENDERUNG]),
     });
   }
   return [...gruppen.values()].sort((a, b) => b.zuBestellen - a.zuBestellen || a.articleNr.localeCompare(b.articleNr));
@@ -553,4 +557,119 @@ export function eigeneZeilen({ eingabe = {}, varianten = [], ersterSchluessel, j
     eingabe: { articleNr: p.articleNr, menge: p.menge, referenz: eingabe.referenz, notiz: eingabe.notiz, lagerZiel: eingabe.lagerZiel },
     varianten, schluessel: `${m[1]}${String(Number(m[2]) + i).padStart(4, '0')}`, jetzt,
   }));
+}
+
+// ── BO6-1: eigene Position nachtraeglich bearbeiten ─────────────────────────
+// Nur Herkunft eigen, nur offen oder abgewaehlt (bestellt = schon bei L-Shop unterwegs; geliefert/Lager = Ware da).
+// Aenderbar: ArticleNr (Farbe/Groesse im SELBEN Modell), Menge, Referenz, Notiz, Lager_Ziel. Schluessel, Herkunft,
+// Angelegt, Status und Grund bleiben. Spur in der Spalte "Aenderung" (hinten): der Hinweis gehoert dem Abgleich (und
+// schaltet bei Lager-Zeilen "zurück ins Lager" frei), die Notiz ist selbst aenderbar und auf 200 Zeichen begrenzt.
+export const EIGEN_BEARBEITBAR = [STATUS.OFFEN, STATUS.ABGEWAEHLT];
+const AENDERUNG_MAX = 2000;   // aeltere Eintraege fallen vorn weg
+
+/** Warum eine Position nicht bearbeitbar ist ('' = bearbeitbar). */
+export function eigenGesperrtGrund(z) {
+  if (t(z?.Herkunft) !== HERKUNFT.EIGEN) return 'Shop-Positionen kommen aus der Kundenbestellung und sind nicht änderbar.';
+  const s = t(z?.Status);
+  if (s === STATUS.BESTELLT) return 'Schon bei L-Shop bestellt – nicht mehr änderbar.';
+  if (s === STATUS.GELIEFERT) return 'Schon geliefert – nicht mehr änderbar.';
+  if (s === STATUS.LAGER) return 'Aus dem Lager genommen – erst „zurück in den Korb“, dann bearbeiten.';
+  if (!EIGEN_BEARBEITBAR.includes(s)) return `Status „${s}“ – nicht änderbar.`;
+  return '';
+}
+
+const tagKurz = iso => {
+  const d = new Date(iso);
+  return isNaN(d) ? '' : d.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit' });
+};
+const leerStrich = v => t(v) || '–';
+
+/**
+ * Spur-Text "geändert 02.11.: Menge 2 → 3, M → L".
+ * @param {Map<string,{farbe,groesse}>} varianteJeNr  bekannte Varianten (auch ausgelaufene), nur fuer den Text
+ */
+export function aenderungText({ alt, neu, varianteJeNr = new Map(), jetzt }) {
+  const teile = [];
+  if (alt.Menge !== neu.Menge) teile.push(`Menge ${alt.Menge} → ${neu.Menge}`);
+  if (alt.LShop_ArticleNr !== neu.LShop_ArticleNr) {
+    const a = varianteJeNr.get(alt.LShop_ArticleNr), b = varianteJeNr.get(neu.LShop_ArticleNr);
+    if (!a || !b) teile.push(`${alt.LShop_ArticleNr} → ${neu.LShop_ArticleNr}`);
+    else {
+      const farbe = t(a.farbe) !== t(b.farbe), gr = t(a.groesse) !== t(b.groesse);
+      const seite = v => [farbe ? leerStrich(v.farbe) : '', gr ? leerStrich(v.groesse) : ''].filter(Boolean).join(' ');
+      teile.push(`${seite(a)} → ${seite(b)}`);
+    }
+  }
+  if (alt.Referenz !== neu.Referenz) teile.push(`Referenz „${alt.Referenz}“ → „${neu.Referenz}“`);
+  if (alt.Notiz !== neu.Notiz) teile.push('Notiz geändert');
+  if (alt.Lager_Ziel !== neu.Lager_Ziel) teile.push(`Lager ${leerStrich(alt.Lager_Ziel)} → ${leerStrich(neu.Lager_Ziel)}`);
+  return teile.length ? `geändert ${tagKurz(jetzt)}: ${teile.join(', ')}` : '';
+}
+
+/**
+ * Plan fuer "bearbeiten …" an einer eigenen Position, gegen eine FRISCH gelesene Zeile.
+ * @param {object} o
+ * @param {object[]} o.zeilen      korbZeilen().zeilen
+ * @param {object} o.idx           korbZeilen().idx (optionale Spalten)
+ * @param {object} o.eingabe       { schluessel, status, stand (wie gesehen), articleNr, menge, referenz, notiz, lagerZiel }
+ *                                 lagerZiel fehlt = bleibt, '' = entfernen
+ * @param {object[]} o.varianten   waehlbare Varianten des Modells der bisherigen ArticleNr (lshopAuswertung)
+ * @param {Map} [o.varianteJeNr]   ArticleNr -> { farbe, groesse } (Spur-Text)
+ * @param {string[]} [o.orte]      aktive Lagerorte
+ * @param {string} o.jetzt         ISO
+ * @returns {{ unveraendert: true, zeile, schluessel } | { zeile, schluessel, vorher, nachher, aenderung }}
+ */
+export function eigenBearbeitenPlan({ zeilen, idx, eingabe = {}, varianten = [], varianteJeNr, orte = [], jetzt }) {
+  const s = t(eingabe.schluessel);
+  const treffer = zeilen.filter(z => z.Schluessel === s);
+  if (!treffer.length) throw fehler409(`Position ${s} gibt es nicht (mehr) - nichts geändert.`);
+  if (treffer.length > 1) throw fehler409(`Position ${s} steht mehrfach im Warenkorb - nichts geändert.`);
+  const z = treffer[0];
+  const gesperrt = eigenGesperrtGrund(z);
+  if (gesperrt) throw fehler422(`${s}: ${gesperrt}`);
+
+  // Neue Werte pruefen wie beim Anlegen. Eine unveraenderte Nummer bleibt erlaubt, auch wenn sie inzwischen
+  // auslaeuft (das meldet dann die EDI-Pruefung) - sonst liesse sich nicht einmal die Menge aendern.
+  const nr = t(eingabe.articleNr) || z.LShop_ArticleNr;
+  if (!/^\d{10}$/.test(nr)) throw fehler422('L-Shop-ArticleNr fehlt (10 Ziffern) - bitte Farbe und Größe wählen.');
+  if (nr !== z.LShop_ArticleNr && !varianten.some(v => t(v.articleNr) === nr)) {
+    throw fehler422(`ArticleNr ${nr} ist nicht wählbar (anderes Modell, ausgelaufen oder Discontinued 3/6). Anderes Modell: herausnehmen und neu anlegen.`);
+  }
+  const menge = Number(eingabe.menge);
+  if (!Number.isInteger(menge) || menge < 1 || menge > MENGE_MAX) throw fehler422(`Menge muss eine ganze Zahl von 1 bis ${MENGE_MAX} sein.`);
+  const referenz = t(eingabe.referenz);
+  if (!referenz) throw fehler422('Referenz fehlt (z. B. "Lager", "Muster", "Verein X Auftrag 12").');
+  if (referenz.length > REFERENZ_MAX) throw fehler422(`Referenz ist länger als ${REFERENZ_MAX} Zeichen.`);
+  const notiz = t(eingabe.notiz);
+  if (notiz.length > NOTIZ_MAX) throw fehler422(`Notiz ist länger als ${NOTIZ_MAX} Zeichen.`);
+  const lagerSpalte = idx?.Lager_Ziel !== undefined;
+  const lagerZiel = eingabe.lagerZiel === undefined ? t(z.Lager_Ziel) : t(eingabe.lagerZiel);
+  if (lagerZiel && !lagerSpalte) throw einrichtung('Spalte Lager_Ziel fehlt im Warenkorb - erst einrichten (scripts/setup-korb-lager-ziel.js).');
+  if (lagerZiel && lagerZiel !== t(z.Lager_Ziel) && !orte.includes(lagerZiel)) throw fehler422(`Lagerort "${lagerZiel}" gibt es nicht (mehr).`);
+
+  const alt = { LShop_ArticleNr: z.LShop_ArticleNr, Menge: t(z.Menge), Referenz: t(z.Referenz), Notiz: t(z.Notiz), Lager_Ziel: t(z.Lager_Ziel) };
+  const neu = { LShop_ArticleNr: nr, Menge: String(menge), Referenz: referenz, Notiz: notiz, Lager_Ziel: lagerZiel };
+  // Schon so (Doppelklick, nichts geaendert): nichts schreiben - auch wenn Stand inzwischen neuer ist.
+  if (Object.keys(neu).every(k => alt[k] === neu[k])) return { unveraendert: true, zeile: z._zeile, schluessel: s };
+  if (z.Status !== t(eingabe.status) || z.Stand !== t(eingabe.stand)) {
+    throw fehler409(`Position ${s} hat sich seit dem Laden geändert - nichts geändert. Bitte neu laden.`);
+  }
+  if (idx?.[SPALTE_AENDERUNG] === undefined) throw einrichtung(`Spalte ${SPALTE_AENDERUNG} fehlt im Warenkorb - erst einrichten (scripts/setup-korb-aenderung.js).`);
+  const spur = aenderungText({ alt, neu, varianteJeNr, jetzt });
+  const bisher = t(z[SPALTE_AENDERUNG]);
+  const nachher = { ...z, ...neu, [SPALTE_AENDERUNG]: (bisher ? `${bisher} | ${spur}` : spur).slice(-AENDERUNG_MAX), Status_Datum: jetzt, Stand: jetzt };
+  if (!lagerSpalte) delete nachher.Lager_Ziel;
+  return { zeile: z._zeile, schluessel: s, vorher: z, nachher, aenderung: spur };
+}
+function einrichtung(msg) { const e = fehler409(msg); e.code = 'einrichtung'; return e; }
+
+/** Setup einer optionalen Korb-Spalte ganz hinten: { da, spalte, belegt, kopfBreite } (Muster lagerZielSpaltePlan). */
+export function korbSpaltePlan(werte, name) {
+  const kopf = (werte?.[0] ?? []).map(k => t(k));
+  const i = kopf.findIndex(k => normHeader(k) === normHeader(name));
+  if (i >= 0) return { da: true, spalte: i, belegt: 0, kopfBreite: kopf.length };
+  let spalte = kopf.length;
+  while (spalte > 0 && !kopf[spalte - 1]) spalte--;
+  const belegt = (werte ?? []).slice(1).filter(r => t(r?.[spalte])).length;
+  return { da: false, spalte, belegt, kopfBreite: kopf.length };
 }

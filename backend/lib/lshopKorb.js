@@ -31,7 +31,9 @@ import {
   korbZeilen, alsSheetZeile, baueKontext, abgleichPlan, nachzulesendeBestellungen,
   ersteFreieZeile, bereichLeer, vergleicheZurueck, buendele, korbZaehler,
   GRUENDE, statusPlan, naechsteEigenNummer, eigeneZeile, eigeneZeilen, sucheModelle, NICHT_IM_BESTAND, KORB_SICHTBAR,
+  eigenBearbeitenPlan,
 } from '../utils/korb-logic.js';
+import { ersetzeZeile } from './sheet-zeilen.js';
 import { LIEFERZEIT_META_KEY } from './lieferzeiten.js';
 import { leseLagerFuerKorb, leseLager } from './lager.js';
 import { aktiveOrte } from '../utils/lager.js';
@@ -422,6 +424,37 @@ export async function legeEigenePositionenAn({ eingabe, sheets: s, jetzt = () =>
       stueck: neu.reduce((a, z) => a + Number(z.Menge), 0),
       schluessel: neu.map(z => z.Schluessel),
     };
+  });
+}
+
+/**
+ * BO6-1: eigene Position nachtraeglich bearbeiten (nur offen/abgewaehlt). Unter der Korb-Sperre: Reiter frisch lesen
+ * (UNFORMATTED - dieselben Zellwerte, die ersetzeZeile zum Vergleich liest), pruefen (eigenBearbeitenPlan), dann GENAU
+ * diese Zeile ueber ersetzeZeile (Vorher-Pruefung der ganzen Zeile, nur geaenderte Zellen, RAW, zurueckgelesen).
+ * Kein append. Gleiche Werte = nichts geschrieben (Doppelklick).
+ */
+export async function bearbeiteEigenePosition({ eingabe = {}, sheets: s, jetzt = () => new Date() } = {}) {
+  return mitSperre('eigen-bearbeiten', async () => {
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+    if (!spreadsheetId) throw fehler('GOOGLE_SHEET_ID fehlt.', 503);
+    const sheets = s ?? await sheetsClient();
+    if (!await reiterInfo(sheets, spreadsheetId)) throw fehler(`Reiter "${TAB_KORB}" fehlt.`, 409);
+    const werte = (await sheets.spreadsheets.values.get({ spreadsheetId, range: q(TAB_KORB), valueRenderOption: 'UNFORMATTED_VALUE' })).data.values ?? [];
+    const { idx, zeilen } = korbZeilen(werte);
+    // Waehlbar ist nur das Modell der bisherigen Nummer (ohne ausgelaufen / 3 / 6); anderes Modell = herausnehmen + neu.
+    const alt = zeilen.find(z => z.Schluessel === String(eingabe.schluessel ?? '').trim());
+    const lshop = await ladeLShopZeilen({ sheets, spreadsheetId });
+    const modell = alt ? lshop.find(z => z.articleNr === alt.LShop_ArticleNr)?.catalogNr : '';
+    const varianten = modell ? (await modellAuswertung(sheets, spreadsheetId, modell)).varianten : [];
+    const varianteJeNr = new Map(lshop.map(z => [z.articleNr, { farbe: [z.color1, z.color2].filter(Boolean).join('/'), groesse: z.size }]));
+    const lagerZiel = String(eingabe.lagerZiel ?? '').trim();
+    const orte = lagerZiel && lagerZiel !== String(alt?.Lager_Ziel ?? '').trim() ? aktiveOrte((await leseLager(sheets, spreadsheetId)).orte) : [];
+    const zeit = jetzt().toISOString();
+    const plan = eigenBearbeitenPlan({ zeilen, idx, eingabe, varianten, varianteJeNr, orte, jetzt: zeit });
+    if (plan.unveraendert) return { ok: true, schluessel: plan.schluessel, unveraendert: true };
+
+    await ersetzeZeile(sheets, spreadsheetId, TAB_KORB, plan.zeile, werte[plan.zeile - 1] ?? [], alsSheetZeile(idx, plan.nachher));
+    return { ok: true, schluessel: plan.schluessel, aenderung: plan.aenderung, articleNr: plan.nachher.LShop_ArticleNr, menge: plan.nachher.Menge };
   });
 }
 
