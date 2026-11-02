@@ -13,6 +13,9 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 import { sheetsMitWiederholung } from './googleRetry.js';
 import { mitKorbSperre } from './lshopKorb.js';
+import { leseLager } from './lager.js';
+import { aktiveOrte } from '../utils/lager.js';
+import { eingangsZugaenge, lagerRestFuer, kartonBezug } from '../utils/lager-eingang.js';
 import { leseCustomerId } from './lshopEdi.js';
 import { archiviere, ArchivFehler, ArchivKonflikt } from './belegArchiv.js';
 import { reiter, haengeAn, legeReiterAn } from './lshopBelege.js';
@@ -57,7 +60,7 @@ export async function ladeKartonPdf(link, { holen = fetch } = {}) {
 }
 
 /** Link pruefen, Konto vergleichen, PDF lesen. -> { kartonId, buf, karton } */
-async function holeKarton({ link, sheets, holen }) {
+export async function holeKarton({ link, sheets, holen }) {
   const { kunde, kartonId } = kartonLink(link);
   const unsere = await leseCustomerId({ sheets });
   if (!unsere) throw fehler('lshop.customer_id fehlt im Reiter Config - Karton kann nicht zugeordnet werden.', 422);
@@ -94,14 +97,21 @@ export async function kartonPruefen({ link, sheets: s, holen } = {}) {
   const { kartonId, karton } = await holeKarton({ link, sheets, holen });
   const { zeilen } = korbZeilen(await werte(sheets, spreadsheetId, TAB_KORB));
   const { schonDa } = await leseKartons(sheets, spreadsheetId, kartonId);
-  return antwort(kartonId, karton, kartonAbgleich({ karton, korbZeilen: zeilen, referenz: referenzFuer, schonDa }));
+  const abgleich = kartonAbgleich({ karton, korbZeilen: zeilen, referenz: referenzFuer, schonDa });
+  // BO5-4: je Karton-Zeile der Ueberschuss (aus Ord., nie Qty) und ob er schon im Lager steht - fuer "Rest ins Lager".
+  const l = await leseLager(sheets, spreadsheetId).catch(() => null);
+  const gebucht = l && !l.einrichtung.length ? eingangsZugaenge(l.buchungen) : new Map();
+  abgleich.positionen = abgleich.positionen.map(p => ({ ...p, lagerRest: lagerRestFuer(p),
+    lagerGebucht: Boolean(gebucht.get(kartonBezug(karton.orderId, kartonId, p.reference, p.sku))?.length) }));
+  return { ...antwort(kartonId, karton, abgleich), lagerBereit: Boolean(l && !l.einrichtung.length),
+    orte: l && !l.einrichtung.length ? aktiveOrte(l.orte) : [] };
 }
 
 /**
  * Karton angekommen: nur waehlbare Positionen des frisch gelesenen Kartons (Schluessel), Status wie im Browser.
  * @param {{ link: string, auswahl: {schluessel:string,status:string}[] }} o
  */
-export async function kartonAngekommen({ link, auswahl, sheets: s, holen, archiv = archiviere, jetzt = () => new Date() } = {}) {
+export async function kartonAngekommen({ link, auswahl, sheets: s, holen, archiv = archiviere, jetzt = () => new Date(), vorgang } = {}) {
   if (!Array.isArray(auswahl) || !auswahl.length) throw fehler('Keine Position gewählt.', 400);
   const sheets = s ?? await sheetsClient();
   const spreadsheetId = process.env.GOOGLE_SHEET_ID;
@@ -131,7 +141,9 @@ export async function kartonAngekommen({ link, auswahl, sheets: s, holen, archiv
 
     // 2. Korb (+ Wareneingang am Paket) - derselbe Weg wie "Ware angekommen".
     const r = await bucheEingangInSperre({
-      orderId: karton.orderId, auswahl: auswahl.map(a => ({ schluessel: t(a.schluessel), status: t(a.status) })), sheets, spreadsheetId, nun,
+      orderId: karton.orderId, sheets, spreadsheetId, nun, quelle: 'karton', vorgang,
+      // BO5-4: insLager/ort je Position ("bei Ankunft ins Lager") gehen mit; Ueberschuss bucht der eigene Knopf.
+      auswahl: auswahl.map(a => ({ schluessel: t(a.schluessel), status: t(a.status), insLager: a.insLager, ort: t(a.ort) })),
     });
 
     // 3. Protokollzeile (nur beim ersten Eingang dieses Kartons).

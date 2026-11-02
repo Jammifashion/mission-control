@@ -101,6 +101,7 @@ describe('leseLShopBestellungen (nur lesen)', () => {
     expect(nach['JFN-2026-0005'].positionen[0]).toEqual({
       schluessel: 'JFN:3:1', articleNr: NR2, catalogNr: 'JH030F', bezeichnung: '', farbe: 'Deep Black', groesse: 'XL', menge: 1,
       reference: 'JFN-3-1', status: 'bestellt', statusDatum: '', liefertermin: '', abHinweis: '', abStufe: '',
+      herkunft: 'shop', lagerZiel: '',   // BO5-4
     });
     expect(nach['JFN-2026-0003']).toMatchObject({ stueck: 2, commission: 'KW45 3', erzeugt: '2026-11-03T08:00:00.000Z' });
     expect(nach['JFN-2026-0009'].positionen.map(p => [p.schluessel, p.reference])).toEqual([['EIGEN:2026-0001', 'Muster']]);   // ueber Korb_Schluessel
@@ -219,7 +220,7 @@ describe('Frontend-Block L-Shop-Bestellungen', () => {
     expect(html).toMatch(/if \(btn\.dataset\.subtab === 'tab-lshop-bestellungen'\) loadLShopBestellungen\(\);/);
     expect(html).toContain("sub('tab-lshop-bestellungen', `L-Shop-Bestellungen (${kurz})`);");
     expect(html).toMatch(/\/api\/bestellen\/lshop-bestellungen`/);
-    expect(html).toMatch(/bestellungen: \['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'\]/);
+    expect(html).toMatch(/bestellungen: \['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-mehr', 'bei-ankunft-lager', 'lager-ziel-aendern', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'\]/);   // BO5-4
     expect(html).toContain("'filter-alle':          { name: 'Alle', text: 'Alles, was noch nicht bestellt ist: offen und herausgenommen.' }");
   });
 });

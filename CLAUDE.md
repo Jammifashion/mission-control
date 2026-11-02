@@ -6,6 +6,11 @@
 - Nach `git pull` im Hauptordner: `cd backend && npm ci`.
 
 ## frontend/index.html (große Datei)
+**Dauerregel Mouse-over (Inhaber 02.11.2026):** Jedes neue Bedienelement (Knopf, Kennzeichen, Feld, Filter) bekommt einen
+Mouse-over: Text im Block `Knopf-Hilfe` (`KNOPF_HILFE` + Gruppe in `HILFE_GRUPPEN`, am Handy ⓘ), am Element `data-hilfe`,
+nie `title`. `backend/tests/knopf-mouseover.test.js` prueft jeden `<button>`; Knoepfe von vor der Regel stehen in
+`backend/tests/hilfen/knopf-ohne-hilfe-bestand.json` (Nachruesten = eigener Auftrag, dann Zeile dort streichen).
+
 Vor jeder Änderung erst Struktur prüfen:
 ```bash
 grep "SECTION" frontend/index.html
@@ -466,7 +471,19 @@ Neue Sektionen immer mit Anker versehen:
   alles oder nichts. Gleiche `vorgang`-Kennung = schon gebucht (Doppelklick), nichts doppelt. Bestand/Verlauf 60 s
   Zwischenspeicher, jede Buchung leert ihn; Stammdaten 5 min (Trikots aus dem Business-Sheet, nicht lesbar = Hinweis).
   Fehlen Reiter/Spalten -> 409 `einrichtung`. Einrichtung: `scripts/setup-lager-reiter.js` (Trockenlauf, `--write`, nur neue
-  Reiter; `Produkt_Inventar` ist eine Artikelliste, kein Bestand). Noch nicht: Wareneingang (BO5-4), Retouren (BO5-6).
+  Reiter; `Produkt_Inventar` ist eine Artikelliste, kein Bestand). Noch nicht: Retouren (BO5-6).
+- backend/lib/lagerEingang.js + utils/lager-eingang.js – Lager beim Wareneingang (BO5-4), nichts automatisch:
+  "Ware angekommen" (lib/wareneingang.js `bucheEingangInSperre`) und "Karton angekommen" SIND die Bestaetigung - im selben
+  `values.batchUpdate` (Korb + Paket + Lager, Korb- und Lager-Sperre) kommen ins Lager: Positionen mit `Lager_Ziel`
+  (Art vorrat, Menge = Positionsmenge, je Position abwaehlbar `insLager: false`) und "mehr gekommen" (`auswahl[].mehr`,
+  Art zugang_ueberschuss); Quelle wareneingang bzw. karton, Bezug = Korb-Schluessel, Grund "Wareneingang <order_id>"; je
+  Korb-Schluessel nur ein offener Zugang; "zurück auf bestellt" gesperrt (409 `lager`), solange er offen ist.
+  Eigene Knoepfe (nur Lager): `POST .../karton/ueberschuss` "Rest ins Lager"/"ins Lager" (PDF neu gelesen, Menge
+  `lagerRestFuer` aus Ord. - nie Qty, Bezug `<order_id>:<Karton-ID>:<reference>:<sku>` - nie die Kundennummer) und
+  `POST /api/bestellen/trikots/ins-lager` (Status ersetzt, `TR:<Produkt-ID>:<Groesse>`, Notiz nur "beflockt", Trikots nur
+  gelesen). `Lager_Ziel` = optionale Spalte ganz hinten in `Warenkorb_LShop` (`KORB_OPTIONAL`, nur ueber den Namen;
+  Setup `scripts/setup-korb-lager-ziel.js`), nur eigene Positionen, setzen im BO6-Dialog oder `POST .../lshop-korb/lager-ziel`
+  (offen/bestellt). Ortsauswahl ueberall mit Wrist vorgewaehlt (`lagerOrtWaehlen`, Dialog `#lo-dialog`).
   BO5-5 Abgaenge: Bezug je Art (`bezugRegel`): `abgang_vorort` = offenes Event `EV-NNNN` aus `Lager_Events` (Event_ID |
   Name | Datum JJJJ-MM-TT | Ort | Status offen/… | Notiz; optional - fehlt der Reiter, nur Hinweis; `POST /api/lager/events`),
   `abgang_auftrag` = Freitext 2-80 ohne Klarnamen (spaeter die Auftragsnummer), `abgang_partner` = aktive P-ID aus Business-Reiter

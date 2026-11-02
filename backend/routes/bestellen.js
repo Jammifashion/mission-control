@@ -12,6 +12,7 @@ import { wareneingangBuchen, wareneingangZurueck } from '../lib/wareneingang.js'
 import { kartonPruefen, kartonAngekommen } from '../lib/karton.js';
 import { leseProduktionStand } from '../lib/produktionStand.js';
 import { ausLagerNehmen, zurueckAusLager } from '../lib/lagerKorb.js';
+import { kartonUeberschuss, setzeLagerZiel, trikotInsLager } from '../lib/lagerEingang.js';
 
 const router = Router();
 
@@ -178,11 +179,12 @@ router.post('/lshop-korb/edi/zurueck', async (req, res, next) => {
 for (const [pfad, fn] of [['/lshop-korb/wareneingang', wareneingangBuchen], ['/lshop-korb/wareneingang/zurueck', wareneingangZurueck]]) {
   router.post(pfad, async (req, res, next) => {
     try {
-      const r = await fn({ orderId: req.body?.orderId, auswahl: req.body?.auswahl });
+      // BO5-4: auswahl[].mehr / insLager / ort und vorgang fuer die Lager-Zugaenge im selben Schritt
+      const r = await fn({ orderId: req.body?.orderId, auswahl: req.body?.auswahl, vorgang: req.body?.vorgang });
       console.log(`Wareneingang ${r.status}: ${r.orderId} (${r.positionen} Position(en)${r.paket ? `, ${r.paket}` : ''})`);
       res.json(r);
     } catch (err) {
-      if ((err?.status === 422 || err?.status === 409) && err.probleme) return res.status(err.status).json({ error: err.message, probleme: err.probleme });
+      if ((err?.status === 422 || err?.status === 409) && (err.probleme || err.code)) return res.status(err.status).json({ error: err.message, probleme: err.probleme ?? [], code: err.code });
       next(err);
     }
   });
@@ -201,7 +203,7 @@ router.post('/lshop-korb/karton/pruefen', async (req, res, next) => {
 });
 router.post('/lshop-korb/karton/angekommen', async (req, res, next) => {
   try {
-    const r = await kartonAngekommen({ link: req.body?.link, auswahl: req.body?.auswahl });
+    const r = await kartonAngekommen({ link: req.body?.link, auswahl: req.body?.auswahl, vorgang: req.body?.vorgang });
     console.log(`Karton angekommen: ${r.kartonId} -> ${r.orderId} (${r.positionen} Position(en), Archiv ${r.archiv}${r.paket ? `, ${r.paket}` : ''})`);
     res.json(r);
   } catch (err) {
@@ -209,6 +211,20 @@ router.post('/lshop-korb/karton/angekommen', async (req, res, next) => {
     next(err);
   }
 });
+
+// ── BO5-4: Lager beim Wareneingang ───────────────────────────────────────────
+// POST .../karton/ueberschuss { link, auswahl: [{ reference, sku }], ort, vorgang }: "Rest ins Lager" / "ins Lager" (nur Lager).
+// POST .../lager-ziel { schluessel, status, ziel }: "bei Ankunft ins Lager" an einer eigenen Position setzen/entfernen.
+// POST /api/bestellen/trikots/ins-lager { id, zeile, ort, vorgang }: falsches (ersetztes) Trikot ins Lager.
+const lagerRoute = fn => async (req, res, next) => {
+  try { res.json(await fn(req.body ?? {})); } catch (err) {
+    if ([404, 409, 422].includes(err?.status)) return res.status(err.status).json({ error: err.message, probleme: err.probleme ?? [], code: err.code });
+    next(err);
+  }
+};
+router.post('/lshop-korb/karton/ueberschuss', lagerRoute(b => kartonUeberschuss({ link: b.link, auswahl: b.auswahl, ort: b.ort, vorgang: b.vorgang })));
+router.post('/lshop-korb/lager-ziel', lagerRoute(b => setzeLagerZiel({ schluessel: b.schluessel, status: b.status, ziel: b.ziel })));
+router.post('/trikots/ins-lager', lagerRoute(b => trikotInsLager({ id: b.id, zeile: b.zeile, ort: b.ort, vorgang: b.vorgang })));
 
 // ── GET /api/bestellen/lshop-korb?shop=jfn|honk[&mit=bestelldatum] ───────────
 // Liest NUR den Reiter Warenkorb_LShop, gebuendelt nach LShop_ArticleNr, ohne Kundennamen.

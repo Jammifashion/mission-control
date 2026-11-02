@@ -72,6 +72,9 @@ export const korbSchluessel = (shop, bestellnummer, position) =>
   `${shopWert(shop)}:${t(bestellnummer)}:${t(position)}`;
 
 /** Spaltenindizes ueber den Namen; fehlende Spalten -> Fehler mit Namen (422, nichts geschrieben). */
+// BO5-4: optionale Spalten hinten (nur ueber den Namen). Fehlen sie, laeuft alles wie vorher; Lager_Ziel = Ortsname
+// (leer = nein), nur an eigenen Positionen: "bei Ankunft ins Lager".
+export const KORB_OPTIONAL = ['Lager_Ziel'];
 export function korbSpalten(header) {
   const norm = (header ?? []).map(normHeader);
   const idx = {};
@@ -79,6 +82,10 @@ export function korbSpalten(header) {
   for (const name of KORB_SPALTEN) {
     const i = norm.indexOf(normHeader(name));
     if (i < 0) fehlt.push(name); else idx[name] = i;
+  }
+  for (const name of KORB_OPTIONAL) {
+    const i = norm.indexOf(normHeader(name));
+    if (i >= 0) idx[name] = i;
   }
   if (fehlt.length) {
     const e = new Error(`Reiter "${TAB_KORB}": Spalte(n) fehlen: ${fehlt.join(', ')}`);
@@ -324,6 +331,7 @@ export function buendele(zeilen, modelle = new Map(), namen = {}, jetzt = new Da
       rausAktuell: z.Status === STATUS.ABGEWAEHLT && rausAktuell(z, jetzt),
       // BO3: nur offen <-> abgewaehlt ist in MC bearbeitbar; bestellt/geliefert/Lager setzt erst BO4.
       bearbeitbar: z.Status === STATUS.OFFEN || z.Status === STATUS.ABGEWAEHLT,
+      lagerZiel: t(z.Lager_Ziel),   // BO5-4: "→ Lager <Ort>" bei eigenen Positionen
       grundVorschlag: grundVorschlag(z.Hinweis),
     });
   }
@@ -508,6 +516,7 @@ export function eigeneZeile({ eingabe = {}, varianten = [], schluessel, jetzt })
     Referenz: referenz, 'SSOT-ID': '', LShop_ArticleNr: nr, Menge: String(menge),
     Status: STATUS.OFFEN, Grund: '', Hinweis: '', Status_Datum: jetzt, Bestell_ID: '', Notiz: notiz,
     Angelegt: jetzt, Quelle_Lauf: 'Knopf', Stand: jetzt,
+    Lager_Ziel: t(eingabe.lagerZiel),   // BO5-4: "bei Ankunft ins Lager" (Ortsname) - nur geschrieben, wenn die Spalte da ist
   };
 }
 
@@ -526,7 +535,7 @@ export function eigeneZeilen({ eingabe = {}, varianten = [], ersterSchluessel, j
   const m = String(ersterSchluessel ?? '').match(/^(.*-)(\d{4})$/);
   if (!m) throw new Error('ersterSchluessel ungueltig.');
   return mitMenge.map((p, i) => eigeneZeile({
-    eingabe: { articleNr: p.articleNr, menge: p.menge, referenz: eingabe.referenz, notiz: eingabe.notiz },
+    eingabe: { articleNr: p.articleNr, menge: p.menge, referenz: eingabe.referenz, notiz: eingabe.notiz, lagerZiel: eingabe.lagerZiel },
     varianten, schluessel: `${m[1]}${String(Number(m[2]) + i).padStart(4, '0')}`, jetzt,
   }));
 }

@@ -33,7 +33,8 @@ import {
   GRUENDE, statusPlan, naechsteEigenNummer, eigeneZeile, eigeneZeilen, sucheModelle, NICHT_IM_BESTAND, KORB_SICHTBAR,
 } from '../utils/korb-logic.js';
 import { LIEFERZEIT_META_KEY } from './lieferzeiten.js';
-import { leseLagerFuerKorb } from './lager.js';
+import { leseLagerFuerKorb, leseLager } from './lager.js';
+import { aktiveOrte } from '../utils/lager.js';
 import { korbVorschlaege } from '../utils/lager-korb.js';
 
 const TAB_VARIANTEN = 'Varianten';
@@ -405,6 +406,13 @@ export async function legeEigenePositionenAn({ eingabe, sheets: s, jetzt = () =>
     const varianten = [];
     for (const m of modelle) varianten.push(...(await modellAuswertung(sheets, spreadsheetId, m)).varianten);
     const ersterSchluessel = naechsteEigenNummer(zeilen, zeit.getUTCFullYear());
+    // BO5-4: "bei Ankunft ins Lager" - nur mit Spalte Lager_Ziel und einem aktiven Lagerort.
+    const lagerZiel = String(eingabe?.lagerZiel ?? '').trim();
+    if (lagerZiel) {
+      if (idx.Lager_Ziel === undefined) throw fehler('Spalte Lager_Ziel fehlt im Warenkorb - erst einrichten (scripts/setup-korb-lager-ziel.js).', 409);
+      const l = await leseLager(sheets, spreadsheetId);
+      if (!aktiveOrte(l.orte).includes(lagerZiel)) throw fehler(`Lagerort "${lagerZiel}" gibt es nicht (mehr).`, 422);
+    }
     const neu = eigeneZeilen({ eingabe, varianten, ersterSchluessel, jetzt: zeit.toISOString() });
 
     const r = await schreibeNeueZeilen({ sheets, spreadsheetId, info, idx, zeilen: neu, allesOderNichts: true });

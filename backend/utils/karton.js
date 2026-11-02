@@ -173,7 +173,8 @@ export function kartonAbgleich({ karton, korbZeilen, referenz, schonDa }) {
   const benutzt = new Set();
   const positionen = karton.positionen.map(p => {
     const z = jeRefSku.get(`${p.reference}\u0000${p.sku}`);
-    const basis = { ...p, schluessel: z?.Schluessel ?? '', menge: z ? Number(z.Menge) || 0 : null, status: z?.Status ?? '' };
+    const basis = { ...p, schluessel: z?.Schluessel ?? '', menge: z ? Number(z.Menge) || 0 : null, status: z?.Status ?? '',
+      lagerZiel: z && z.Herkunft === 'eigen' ? t(z.Lager_Ziel) : '' };   // BO5-4: "bei Ankunft ins Lager"
     if (!z) return { ...basis, ampel: AMPEL.GELB, text: 'nicht im Korb', waehlbar: false, vorgewaehlt: false };
     benutzt.add(z.Schluessel);
     if (z.Status === 'geliefert') return { ...basis, ampel: AMPEL.GELB, text: 'schon geliefert', waehlbar: false, vorgewaehlt: false };

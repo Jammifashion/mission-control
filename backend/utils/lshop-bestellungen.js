@@ -97,6 +97,8 @@ function position(z, modelle) {
     status: z.Status, statusDatum: t(z.Status_Datum),
     // BO4i: Liefertermin nur, wenn spaeter als sofort (JJJJ-MM-TT); AB-Hinweis je Position mit Stufe
     liefertermin: t(z.Liefertermin), abHinweis: t(z.AB_Hinweis), abStufe: abStufe(z.AB_Hinweis),
+    // BO5-4: "bei Ankunft ins Lager" (nur eigene Positionen) - Kennzeichen und Vorauswahl im Wareneingang
+    herkunft: t(z.Herkunft), lagerZiel: t(z.Herkunft) === 'eigen' ? t(z.Lager_Ziel) : '',
   };
 }
 
