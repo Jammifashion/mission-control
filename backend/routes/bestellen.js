@@ -11,7 +11,7 @@ import { trikotWareneingang } from '../lib/trikotWareneingang.js';
 import { wareneingangBuchen, wareneingangZurueck } from '../lib/wareneingang.js';
 import { kartonPruefen, kartonAngekommen } from '../lib/karton.js';
 import { leseProduktionStand } from '../lib/produktionStand.js';
-import { ausLagerNehmen, zurueckAusLager } from '../lib/lagerKorb.js';
+import { ausLagerNehmen, zurueckAusLager, stornoZurueckInsLager } from '../lib/lagerKorb.js';
 import { kartonUeberschuss, setzeLagerZiel, trikotInsLager } from '../lib/lagerEingang.js';
 
 const router = Router();
@@ -88,7 +88,8 @@ router.post('/lshop-korb/eigen/mehrere', async (req, res, next) => {
 // in EINEM Schreibaufruf; nie negativ, alles oder nichts; gleicher vorgang = schon gebucht.
 // ── POST /api/bestellen/lshop-korb/zurueck-aus-lager  (BO5-3) ────────────────
 // Body { schluessel, vorgang }. Status zurueck auf offen + Gegenbuchung der Lager-Abgaenge dieser Position.
-for (const [pfad, fn] of [['/lshop-korb/aus-lager', ausLagerNehmen], ['/lshop-korb/zurueck-aus-lager', zurueckAusLager]]) {
+// BO5-6: POST .../storno-zurueck-ins-lager { schluessel, vorgang } - nur mit Storno-Hinweis; Gegenbuchung + abgewaehlt.
+for (const [pfad, fn] of [['/lshop-korb/aus-lager', ausLagerNehmen], ['/lshop-korb/zurueck-aus-lager', zurueckAusLager], ['/lshop-korb/storno-zurueck-ins-lager', stornoZurueckInsLager]]) {
   router.post(pfad, async (req, res, next) => {
     try {
       const r = await fn({ eingabe: req.body ?? {} });

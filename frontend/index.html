@@ -434,6 +434,8 @@
       .lager-zeile .lager-menge { font-weight: 600; text-align: right; }
       .lager-null-menge { color: var(--muted); }
       .lager-hinweis { color: var(--warning, #d4a017); font-size: 0.75rem; }
+      .korb-storno { color: var(--warning, #d4a017); font-weight: 600; }
+      .lager-retoure-hinweis { color: var(--warning, #d4a017); margin-top: 6px; }
       .lager-buchung { display: grid; grid-template-columns: auto 1fr auto; gap: 0.2rem 0.6rem; padding: 0.45rem 0.2rem; border-bottom: 1px solid var(--border); font-size: 0.82rem; align-items: baseline; }
       .lager-buchung .lager-plus { color: var(--success, #3fb950); font-weight: 700; text-align: right; }
       .lager-buchung .lager-minus { color: var(--danger); font-weight: 700; text-align: right; }
@@ -4934,6 +4936,8 @@
         'aus-lager':            { name: 'aus Lager nehmen …', text: 'Nimmt die Position aus dem Lager statt sie zu bestellen. Du wählst den Ort und bestätigst.' },
         'aus-lager-buchen':     { name: 'Aus Lager nehmen', text: 'Setzt die Position auf „Lager“ und bucht die Ware im Lager aus – beides in einem Schritt.' },
         'zurueck-in-korb':      { name: 'zurück in den Korb', text: 'Doch bestellen? Die Position wird wieder offen, die Ware wieder im Lager eingebucht.' },
+        'lager-storno-hinweis': { name: 'Storno-Hinweis', text: 'Bestellung nach „aus Lager nehmen“ storniert oder geändert. Der Abgleich meldet das nur, Bestand und Status bleiben.' },
+        'lager-storno-zurueck': { name: 'zurück ins Lager', text: 'Bucht die Ware zurück ins Lager und nimmt die Position heraus (Grund „Bestellung storniert“), beides in einem Schritt.' },
         // BO6: eigene Positionen mit Groessenraster
         'eigen-raster':         { name: 'Menge je Größe', text: 'Trag bei jeder Größe die Stückzahl ein. Leer oder 0 = nicht bestellen. Je Größe entsteht eine Position.' },
         'eigen-referenz':       { name: 'Referenz', text: 'Gilt für alle Größen dieses Schritts, z. B. „Lager“ oder „Verein X Auftrag 12“. Keine Namen von Privatpersonen.' },
@@ -5055,6 +5059,9 @@
         'lager-ziel-aendern':   { name: '→ Lager / + bei Ankunft ins Lager', text: 'Eigene Position bei Ankunft gleich ins Lager buchen – Ort ändern oder entfernen, bis die Ware da ist.' },
         'eigen-lager':          { name: 'bei Ankunft ins Lager', text: 'Ware für den Vorrat: kommt sie an, bucht der Wareneingang sie gleich ins Lager.' },
         'trikot-ins-lager':     { name: 'falsches Trikot ins Lager …', text: 'Das ersetzte Trikot liegt hier: als 1 Stück ins Lager buchen. Der Rückenname wird nie übernommen.' },
+        'lager-retoure-bestellung': { name: 'Retoure: Bestellung', text: 'Pflicht: Shop (JFN oder HONK) und Bestellnummer. Mission Control liest die Bestellung nur, im Shop ändert sich nichts.' },
+        'lager-retoure-laden':  { name: 'Positionen laden', text: 'Holt die Positionen als Vorschlag. Zurück geht höchstens, was bestellt und noch nicht zurückgebucht ist.' },
+        'lager-retoure-link':   { name: 'Retoure zur Bestellung', text: 'Öffnet die Shop-Bestellung in „Bestellungen (JFN)“, zu der die Retoure gehört.' },
         'lager-bezug-link':     { name: 'Bezug', text: 'Öffnet die L-Shop-Bestellung bzw. die Trikot-Zeile, aus der diese Buchung kam.' },
         'lager-ort-waehlen':    { name: 'Lagerort', text: 'Wohin die Ware kommt. Wrist (Hauptlager) ist vorgewählt.' },
         'lager-ort-ok':         { name: 'Übernehmen', text: 'Übernimmt den gewählten Lagerort.' },
@@ -5070,7 +5077,7 @@
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
-        korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'abgleich', 'belege', 'alle-offenen', 'zurueck'],
+        korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'lager-storno-hinweis', 'lager-storno-zurueck', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'abgleich', 'belege', 'alle-offenen', 'zurueck'],
         leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
         uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
         karton: ['karton-pruefen', 'karton-angekommen', 'karton-naechster', 'karton-rest-lager', 'karton-lager-ort', 'bei-ankunft-lager'],
@@ -5079,7 +5086,7 @@
         produktion: ['ps-alle', 'ps-wartet', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager'],
         'lshop-modelle': ['lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
-        lager: ['lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund'],
+        lager: ['lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
       function hilfeLegendeHtml(gruppe) {
@@ -5164,8 +5171,11 @@
         const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
         if (p.status === 'Lager') {
           const ab = p.lagerAbgang ?? [];
+          // BO5-6: Hinweis des Abgleichs (storniert/erstattet/...) -> gelb mit "zurück ins Lager" (Gegenbuchung + herausgenommen)
+          const storno = p.hinweis ? ` · <span class="korb-storno" data-hilfe="lager-storno-hinweis">⚠ ${esc(p.hinweis)} – zurück ins Lager?</span>`
+            + ` <button class="korb-aktion korb-aktion-ruhig korb-klein" type="button" data-lager-storno="${esc(p.schluessel)}" data-hilfe="lager-storno-zurueck">zurück ins Lager</button>` : '';
           return ` · <span class="korb-lager">aus Lager${ab.length ? ` (${esc(korbLagerOrteText(ab))})` : ''}</span>`
-            + ` <button class="korb-link" type="button" data-lager-zurueck="${esc(p.schluessel)}" data-hilfe="zurueck-in-korb">zurück in den Korb</button>`;
+            + (storno || ` <button class="korb-link" type="button" data-lager-zurueck="${esc(p.schluessel)}" data-hilfe="zurueck-in-korb">zurück in den Korb</button>`);
         }
         if (p.status !== 'offen' || !p.lager || !(p.lager.n > 0)) return '';
         const text = p.lager.genug ? `im Lager: ${p.lager.n}` : `im Lager: ${p.lager.n} von ${p.menge}`;
@@ -5210,7 +5220,8 @@
       }
       function korbPositionZeile(p, b) {
         const herkunft = p.herkunft === 'eigen' ? `Eigen · ${korbEsc(p.referenz)}` : `${korbEsc(p.shop)} #${korbEsc(p.bestellnummer)} · Pos. ${korbEsc(p.position)}`;
-        const hinweis  = p.hinweis ? ` · <span style="color:${p.vorschlag ? 'var(--accent)' : 'var(--danger)'};">⚠ ${korbEsc(p.hinweis)}</span>` : '';
+        // BO5-6: an Lager-Positionen steht der Hinweis gelb im Lager-Kennzeichen (mit Knopf "zurück ins Lager")
+        const hinweis  = p.hinweis && p.status !== 'Lager' ? ` · <span style="color:${p.vorschlag ? 'var(--accent)' : 'var(--danger)'};">⚠ ${korbEsc(p.hinweis)}</span>` : '';
         const notiz    = p.notiz ? ` · <em>${korbEsc(p.notiz)}</em>` : '';
         // Position: JFN #Nr · Pos. · Menge · unser Artikelname. Die L-Shop-Angaben stehen nur im Buendelkopf.
         const text     = `${herkunft} ${korbMengeHtml(p.menge)}${p.produktname ? ` · ${korbEsc(p.produktname)}` : ''}`;
@@ -5489,6 +5500,21 @@
           showToast(erg.textContent, 'error', 10000);
         } finally { korbLager.laeuft = false; btn.disabled = false; }
       }
+      // BO5-6: Storno nach "aus Lager nehmen" - Ware zurueck ins Lager (Gegenbuchung) und Position herausgenommen
+      // (Grund "Bestellung storniert"), beides in einem Schritt; sie wird also nicht wieder zum Bestellen angeboten.
+      async function korbStornoZurueck(schluessel, knopf) {
+        const { p } = korbLagerFinde(schluessel);
+        if (!p) return;
+        const ok = await showConfirm('Zurück ins Lager', `<strong>${korbEsc(p.hinweis)}</strong> – Position #${korbEsc(p.bestellnummer)} (×${korbEsc(p.menge)}) zurück ins Lager buchen?`
+          + '<br>Die Position wird „herausgenommen“ (Grund „Bestellung storniert“) und nicht mehr bestellt.', 'Zurück ins Lager');
+        if (!ok) return;
+        knopf.disabled = true;
+        try {
+          const j = await korbLagerPost('storno-zurueck-ins-lager', { schluessel, vorgang: korbVorgang() });
+          showToast(j.schonGebucht ? 'War schon gebucht – nichts doppelt.' : 'Ware zurück im Lager, Position herausgenommen', 'success');
+        } catch (e) { showToast(`Nicht geändert: ${e.message}`, 'error', 10000); }
+        finally { await loadLShopKorb(); }
+      }
       async function korbLagerZurueck(schluessel, knopf) {
         const { p } = korbLagerFinde(schluessel);
         if (!p) return;
@@ -5507,9 +5533,11 @@
         const aus = ev.target.closest('[data-aus-lager]');
         const zur = ev.target.closest('[data-lager-zurueck]');
         const nr = ev.target.closest('[data-lager-nr]');
-        if (!aus && !zur && !nr) return;
+        const storno = ev.target.closest('[data-lager-storno]');   // BO5-6
+        if (!aus && !zur && !nr && !storno) return;
         ev.preventDefault();   // die Knoepfe sitzen in der Zeile mit dem Haken - kein Anhaken
-        if (aus) korbLagerOeffnen(aus.dataset.ausLager);
+        if (storno) korbStornoZurueck(storno.dataset.lagerStorno, storno);
+        else if (aus) korbLagerOeffnen(aus.dataset.ausLager);
         else if (zur) korbLagerZurueck(zur.dataset.lagerZurueck, zur);
         else lagerSpringeZu(nr.dataset.lagerNr);
       });
@@ -7315,7 +7343,7 @@
           if (roh === '' || (!zaehlung && roh === '0')) continue;
           const n = Number(roh);
           if (!Number.isInteger(n) || n < 0 || n > LAGER_MENGE_MAX) { fehler.push(r.label || r.groesse || r.schluessel); continue; }
-          posten.push({ schluessel: r.schluessel, label: r.label || r.groesse || '', menge: n });
+          posten.push({ schluessel: r.schluessel, label: r.label || r.groesse || '', menge: n, ...(r.bezug ? { bezug: r.bezug } : {}) });   // BO5-6: Retoure-Position
         }
         return { posten, fehler, stueck: posten.reduce((a, p) => a + p.menge, 0) };
       }
@@ -7331,8 +7359,9 @@
         return {
           aktion, art: aktion === 'einbuchen' || aktion === 'ausbuchen' ? z.art : '', ort: z.ort, zielOrt: aktion === 'umlagern' ? z.zielOrt : '',
           grund: String(z.grund ?? '').trim(), notiz: String(z.notiz ?? '').trim(), vorgang: z.vorgang,
-          bezug: aktion === 'ausbuchen' ? String(z.bezug ?? '').trim() : '',   // BO5-5: Event, Auftrag, Partner/Muster
-          posten: a.posten.map(p => (p.ort ? { schluessel: p.schluessel, menge: p.menge, ort: p.ort } : { schluessel: p.schluessel, menge: p.menge })),
+          // BO5-5: Event, Auftrag, Partner/Muster; BO5-6: Retoure = Shop-Bestellung, je Zeile ggf. die Position
+          bezug: aktion === 'ausbuchen' || (aktion === 'einbuchen' && z.art === 'retoure') ? String(z.bezug ?? '').trim() : '',
+          posten: a.posten.map(p => ({ schluessel: p.schluessel, menge: p.menge, ...(p.ort ? { ort: p.ort } : {}), ...(p.bezug ? { bezug: p.bezug } : {}) })),
         };
       }
       /** BO5-5 Sammelausbuchen: Raster-Auswahl in die Liste "auszubuchen" (gleicher Artikel + Ort = zusammengezaehlt). */
@@ -7439,7 +7468,7 @@
           + `<span>${korbEsc(lagerDatum(b.datum))}</span><span>${korbEsc(b.artText)} · ${korbEsc(lagerText(b))} · ${korbEsc(b.ort)}</span>`
           + `<span class="${b.menge > 0 ? 'lager-plus' : 'lager-minus'}">${b.menge > 0 ? '+' : ''}${b.menge}</span>`
           + `<span class="lager-klein"><span>${korbEsc(b.id)}</span>${b.grund ? `<span>${korbEsc(b.grund)}</span>` : ''}${b.notiz ? `<em>${korbEsc(b.notiz)}</em>` : ''}`
-          + `${b.quelle === 'korb' && b.bezug ? lagerBezugHtml(b) : ['karton', 'wareneingang'].includes(b.quelle) ? lagerEingangBezugHtml(b) : b.bezug ? `<span>${korbEsc(lagerBezugText(b.art, b.bezug, d))}</span>` : ''}`
+          + `${b.quelle === 'korb' && b.bezug ? lagerBezugHtml(b) : ['karton', 'wareneingang'].includes(b.quelle) ? lagerEingangBezugHtml(b) : b.art === 'retoure' && b.bezug ? lagerRetoureBezugHtml(b) : b.bezug ? `<span>${korbEsc(lagerBezugText(b.art, b.bezug, d))}</span>` : ''}`
           + `${b.stornoVon ? `<span>Gegenbuchung zu ${korbEsc(b.stornoVon)}</span>` : ''}${b.gegengebucht ? '<span>gegengebucht</span>' : ''}`
           + `${b.gegenbuchbar ? `<button type="button" class="korb-link" data-lager-gegen="${korbEsc(b.id)}" data-hilfe="lager-gegenbuchung">Gegenbuchung …</button>` : ''}</span></div>`).join('')
           + (d.verlauf.length >= 300 ? '<div class="korb-zaehler">Gezeigt werden die neuesten 300 Buchungen.</div>' : '')
@@ -7461,6 +7490,15 @@
         const trikot = String(b.bezug ?? '').match(/^(\d+)\|/)?.[1];
         if (trikot) return `<button type="button" class="korb-link" data-lager-tr="${korbEsc(trikot)}" data-hilfe="lager-bezug-link">Trikot #${korbEsc(trikot)}</button>`;
         return b.bezug ? `<span>${korbEsc(b.bezug)}</span>` : '';
+      }
+      // BO5-6: Retoure = Beleg mit der Shop-Bestellung. JFN springt in "Bestellungen (JFN)", HONK hat dort keine Ansicht (nur Text).
+      function lagerRetoureBezugHtml(b) {
+        const m = String(b.bezug ?? '').match(/^(JFN|HONK):(\d+)(?::(\d+))?$/);
+        if (!m) return `<span>${korbEsc(b.bezug)}</span>`;
+        const text = `Retoure zu ${m[1]} #${m[2]}${m[3] ? ` · Pos. ${m[3]}` : ''}`;
+        return m[1] === 'JFN'
+          ? `<button type="button" class="korb-link" data-lager-bestellung="${korbEsc(m[2])}" data-hilfe="lager-retoure-link">${korbEsc(text)}</button>`
+          : `<span>${korbEsc(text)}</span>`;
       }
       // Aus dem Korb: Bestand auf eine ArticleNr gefiltert (Suche trifft den Schluessel LS:<ArticleNr>).
       function lagerSpringeZu(articleNr) {
@@ -7651,8 +7689,22 @@
       function lagerBezugZeichnen() {
         const el = lagerEl('lager-bezug'), d = lagerZ.daten ?? {};
         const art = lagerEl('lager-art').value;
-        el.hidden = lagerDlg.modus !== 'ausbuchen';
-        if (el.hidden) { el.innerHTML = ''; return; }
+        const retoure = lagerDlg.modus === 'einbuchen' && !lagerEl('lager-start').checked && art === 'retoure';
+        el.hidden = lagerDlg.modus !== 'ausbuchen' && !retoure;
+        if (el.hidden) { el.innerHTML = ''; lagerDlg.retoure = null; return; }
+        if (retoure) {
+          // BO5-6: Retoure vom Kunden - Bestellung Pflicht; "Positionen laden" schlaegt die Positionen als Zeilen vor.
+          const r = lagerDlg.retoure;
+          el.innerHTML = '<div class="korb-reihe" data-hilfe="lager-retoure-bestellung"><select id="lager-retoure-shop" class="form-select" aria-label="Shop">'
+            + `<option value="JFN"${lagerDlg.retoureShop !== 'HONK' ? ' selected' : ''}>JFN</option><option value="HONK"${lagerDlg.retoureShop === 'HONK' ? ' selected' : ''}>HONK</option></select>`
+            + `<input id="lager-retoure-nr" class="form-input" inputmode="numeric" maxlength="12" placeholder="Bestellnummer" value="${korbEsc(lagerDlg.retoureNr ?? '')}" aria-label="Bestellnummer" />`
+            + '<button type="button" class="korb-aktion korb-aktion-ruhig" id="lager-retoure-laden" data-hilfe="lager-retoure-laden">Positionen laden</button></div>'
+            + (r ? `<div class="korb-zaehler">${korbEsc(r.kennung)}${r.schonGesamt ? ` · schon ${r.schonGesamt} zurückgebucht` : ''}`
+              + (r.positionen.some(p => !p.schluessel) ? ' · Positionen ohne Lager-Artikel: unten über „Was?“ suchen' : '') + '</div>' : '')
+            + '<div class="korb-zaehler lager-retoure-hinweis">Defekt oder Fehldruck zurückgekommen? Nicht einbuchen – das ist Ausschuss und kommt nie in den Bestand.</div>';
+          return;
+        }
+        lagerDlg.retoure = null;
         if (art === 'abgang_vorort') {
           const offen = (d.events ?? []).filter(ev => ev.status === 'offen');
           const wahl = offen.some(ev => ev.id === lagerDlg.event) ? lagerDlg.event : (d.eventVorschlag || offen[0]?.id || '');
@@ -7693,6 +7745,7 @@
         if (art === 'abgang_partner') return v('lager-partner') === '__muster' ? (lagerZ.daten?.musterPraefix ?? 'Muster: ') + v('lager-muster').trim() : v('lager-partner');
         if (art === 'abgang_shop') return v('lager-shop').trim();
         if (art === 'abgang_ausschuss') return (lagerDlg.ausschuss = v('lager-ausschuss'));
+        if (art === 'retoure' && lagerDlg.modus === 'einbuchen') return lagerDlg.retoure?.kennung ?? (v('lager-retoure-nr').trim() ? `${v('lager-retoure-shop')}:${v('lager-retoure-nr').trim()}` : '');
         return '';
       }
       function lagerListeZeichnen() {
@@ -7755,6 +7808,12 @@
       // BO5-7: Umlagern/Ausbuchen waehlen standardmaessig aus dem Bestand des gewaehlten Orts.
       const lagerAusBestand = () => ['umlagern', 'ausbuchen'].includes(lagerDlg.modus) && lagerDlg.herkunft !== 'suche';
       function lagerRasterFelder() {
+        // BO5-6: Retoure mit geladenen Positionen - je Position mit Lager-Artikel eine Zeile (Bezug = Position).
+        if (lagerDlg.retoure && lagerDlg.modus === 'einbuchen') {
+          lagerDlg.titel = '';
+          return lagerDlg.retoure.positionen.filter(p => p.schluessel).map(p => ({ schluessel: p.schluessel, bezug: p.bezug, groesse: p.groesse,
+            label: `${p.name} · bestellt ${p.menge}${p.schon ? ` · schon ${p.schon} zurückgebucht` : ''}`, max: Math.max(0, p.menge - p.schon) }));
+        }
         if (lagerAusBestand()) {
           lagerDlg.titel = '';
           const liste = lagerBestandAmOrt(lagerZ.daten?.posten, lagerEl('lager-ort').value, lagerEl('lager-best-suche').value);
@@ -7950,6 +8009,7 @@
           lagerDlg.vorgang = lagerVorgang();
           lagerEl('lager-raster').querySelectorAll('input').forEach(i => { i.value = ''; });
           if (sammel) { lagerDlg.liste = []; lagerListeZeichnen(); }
+          if (lagerDlg.retoure) { lagerDlg.retoure = null; lagerDlg.retoureNr = ''; lagerBezugZeichnen(); }   // BO5-6: naechste Retoure frisch
           await loadLager();
           // BO5-5 Event-Modus: bei "Verkauf vor Ort" bleibt der Dialog mit demselben Event offen (schnell weiterbuchen am Stand).
           if (sammel && z.art === 'abgang_vorort') { lagerBezugZeichnen(); lagerRasterZeichnen(); return; }
@@ -8010,7 +8070,30 @@
       lagerEl('lager-dialog')?.addEventListener('keydown', ev => { if (ev.key === 'Escape') lagerDialogZu(); });
       lagerEl('lager-start')?.addEventListener('change', () => lagerModus(lagerDlg.modus));
       lagerEl('lager-warenart')?.addEventListener('change', lagerWahlZeichnen);
-      lagerEl('lager-art')?.addEventListener('change', lagerBezugZeichnen);
+      lagerEl('lager-art')?.addEventListener('change', () => { lagerBezugZeichnen(); lagerRasterZeichnen(); });
+      // BO5-6: Retoure - Positionen der Bestellung laden (Shop nur lesend), Menge je Zeile = noch nicht zurueckgebuchte Menge.
+      lagerEl('lager-bezug')?.addEventListener('click', async ev => {
+        if (ev.target.id !== 'lager-retoure-laden') return;
+        const shop = document.getElementById('lager-retoure-shop').value, nr = document.getElementById('lager-retoure-nr').value.trim();
+        if (!/^\d{1,12}$/.test(nr)) { showToast('Bitte die Bestellnummer eintragen.', 'warn'); return; }
+        lagerDlg.retoureShop = shop; lagerDlg.retoureNr = nr;
+        ev.target.disabled = true;
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/lager/retoure?bestellung=${encodeURIComponent(`${shop}:${nr}`)}`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
+          const j = await res.json().catch(() => null);
+          if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
+          lagerDlg.retoure = j;
+          lagerBezugZeichnen();
+          lagerRasterZeichnen();
+          // Vorschlag: was noch nicht zurueckgebucht ist; aendern fuer eine Teilretoure.
+          for (const r of lagerDlg.raster) {
+            const i = lagerEl('lager-raster').querySelector(`input[data-schluessel="${CSS.escape(r.schluessel)}"]`);
+            if (i && r.max > 0) i.value = String(r.max);
+          }
+          lagerSummeZeichnen();
+        } catch (e) { showToast(`Bestellung nicht geladen: ${e.message}`, 'error', 10000); }
+        finally { ev.target.disabled = false; }
+      });
       // BO5-7: Bestand waehlen - Umschalter, Suche, "alles" je Zeile/Gruppe, ganzer Ort
       document.querySelectorAll('[data-lager-quelle]').forEach(b => b.addEventListener('click', () => {
         lagerDlg.herkunft = b.dataset.lagerQuelle;

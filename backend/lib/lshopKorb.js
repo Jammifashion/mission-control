@@ -269,7 +269,7 @@ export async function runKorbAbgleich({ dryRun = false, quelle = 'workflow', lau
         .filter(li => !schonDa.has(korbSchluessel(shop, o.id, li.id)))
         .map(li => String(li.product_id))))].filter(x => x && x !== '0');
       const produkte = await ladeProdukte(wc, pids);
-      const nach = nachzulesendeBestellungen({ shop, vorhanden, offene });
+      const nach = nachzulesendeBestellungen({ shop, vorhanden, offene, jetzt: jetzt() });
       const bekannte = nach.length ? await ladeBestellungenNachId(wc, nach) : new Map();
       const plan = abgleichPlan({ shop, vorhanden, offene, produkte, bekannte, ktx, jetzt: zeit, quelleLauf });
       shops[normalizeShop(shop).toUpperCase()] = { bestellungen: offene.length, ...plan.zaehler };

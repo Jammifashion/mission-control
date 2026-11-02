@@ -198,10 +198,25 @@ export function hinweisFuer(zeile, bestellung) {
 
 export const hinweisSperrt = hinweis => t(hinweis).split(TRENNER).some(h => HINWEIS_SPERRT.has(h));
 
-// Diese Zeilen prueft der Lauf auf neue Hinweise; abgewaehlte, gelieferte und
-// Lager-Zeilen hat der Inhaber schon erledigt.
-export const brauchtHinweisPruefung = z =>
-  t(z.Herkunft) === HERKUNFT.SHOP && [STATUS.OFFEN, STATUS.BESTELLT].includes(t(z.Status));
+// Diese Zeilen prueft der Lauf auf neue Hinweise; abgewaehlte und gelieferte hat der Inhaber schon erledigt.
+// BO5-6: Lager-Zeilen (Shop) der letzten LAGER_PRUEF_TAGE dazu - nur fuer den Storno-Hinweis, Status/Lager nie.
+export const LAGER_PRUEF_TAGE = 60;
+const lagerFrisch = (z, jetzt) => {
+  const d = Date.parse(t(z.Status_Datum));
+  return !Number.isFinite(d) || jetzt.getTime() - d <= LAGER_PRUEF_TAGE * 86_400_000;
+};
+export const brauchtHinweisPruefung = (z, jetzt = new Date()) =>
+  t(z.Herkunft) === HERKUNFT.SHOP && ([STATUS.OFFEN, STATUS.BESTELLT].includes(t(z.Status))
+    || (t(z.Status) === STATUS.LAGER && lagerFrisch(z, jetzt)));
+
+// BO5-6: bei Lager-Zeilen zaehlen nur Hinweise, die den Abgang in Frage stellen. "abgeschlossen" ist dort normal
+// (aus dem Lager geliefert), "noch nicht bezahlt" kam vor der Entnahme.
+const LAGER_HINWEISE = new Set([HINWEIS.STORNIERT, HINWEIS.ERSTATTET, HINWEIS.NICHT_IM_SHOP, HINWEIS.POSITION_WEG, HINWEIS.MENGE]);
+export function hinweisFuerZeile(zeile, bestellung) {
+  const h = hinweisFuer(zeile, bestellung);
+  if (t(zeile.Status) !== STATUS.LAGER) return h;
+  return h.split(TRENNER).filter(x => LAGER_HINWEISE.has(x)).join(TRENNER);
+}
 
 // ── Plan des Abgleichs ──────────────────────────────────────────────────────
 
@@ -245,10 +260,10 @@ export function abgleichPlan({ shop, vorhanden, offene, produkte, bekannte = new
 
   const hinweise = [];
   for (const z of vorhanden) {
-    if (normalizeShop(z.Shop) !== normalizeShop(shop) || !brauchtHinweisPruefung(z)) continue;
+    if (normalizeShop(z.Shop) !== normalizeShop(shop) || !brauchtHinweisPruefung(z, new Date(jetzt))) continue;
     const b = offenJeId.get(z.Bestellnummer) ?? bekannte.get(z.Bestellnummer) ?? null;
     if (!offenJeId.has(z.Bestellnummer) && !bekannte.has(z.Bestellnummer)) continue;  // nicht gelesen -> nicht anfassen
-    const h = hinweisFuer(z, b);
+    const h = hinweisFuerZeile(z, b);
     if (h !== z.Hinweis) hinweise.push({ schluessel: z.Schluessel, zeile: z._zeile, alt: z.Hinweis, neu: h });
   }
 
@@ -256,10 +271,10 @@ export function abgleichPlan({ shop, vorhanden, offene, produkte, bekannte = new
 }
 
 /** Bestell-IDs vorhandener Zeilen, deren Bestellung nicht unter den offenen ist (Hinweise). */
-export function nachzulesendeBestellungen({ shop, vorhanden, offene }) {
+export function nachzulesendeBestellungen({ shop, vorhanden, offene, jetzt = new Date() }) {
   const offenIds = new Set(offene.map(o => t(o.id)));
   return [...new Set(vorhanden
-    .filter(z => normalizeShop(z.Shop) === normalizeShop(shop) && brauchtHinweisPruefung(z) && !offenIds.has(z.Bestellnummer))
+    .filter(z => normalizeShop(z.Shop) === normalizeShop(shop) && brauchtHinweisPruefung(z, jetzt) && !offenIds.has(z.Bestellnummer))
     .map(z => z.Bestellnummer))];
 }
 

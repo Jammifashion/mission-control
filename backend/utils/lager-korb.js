@@ -6,7 +6,7 @@
 // EINEM Schreibvorgang. Rueckweg "zurück in den Korb" = Status offen + Gegenbuchung (Storno_von). Teilen
 // (Lager deckt nur einen Teil der Menge) gibt es in dieser Stufe nicht.
 
-import { STATUS, HERKUNFT, hinweisSperrt } from './korb-logic.js';
+import { STATUS, HERKUNFT, hinweisSperrt, GRUENDE } from './korb-logic.js';
 import { ART, QUELLE, WARENART, bestandAus, bestandVon, naechsteBuchungNr, buchungId, VORGANG_MUSTER, buchungenDesVorgangs } from './lager.js';
 
 const t = v => String(v ?? '').trim();
@@ -151,4 +151,20 @@ export function zurueckAusLagerPlan(e, { korbZeilen, buchungen, jetzt = new Date
       Ort: a.ort, Grund: 'zurück in den Korb', Bezug: z.Schluessel, Quelle: QUELLE.KORB, Notiz: '', Storno_von: a.id, Stand: iso, Vorgang: v,
     })),
   };
+}
+
+// BO5-6: Storno nach "aus Lager nehmen" - "zurück ins Lager" in EINEM Schritt: Gegenbuchung der Abgaenge und Korb-Status
+// abgewaehlt mit Grund "Bestellung storniert" (nicht erst offen - sonst stuende die Position kurz zum Bestellen bereit).
+// Nur bei einem Hinweis des Abgleichs (storniert / erstattet / nicht mehr im Shop / Position weg).
+export const STORNO_GRUND = 'Bestellung storniert';
+export function stornoZurueckPlan(e, k) {
+  const z = (k.korbZeilen ?? []).find(x => x.Schluessel === t(e?.schluessel));
+  if (z && z.Status === STATUS.LAGER && !t(z.Hinweis)) {
+    throw fehler(`Position ${z.Schluessel}: kein Storno-Hinweis - dafür ist „zurück in den Korb“ da.`, 422);
+  }
+  const plan = zurueckAusLagerPlan(e, k);
+  if (plan.schonGebucht) return plan;
+  plan.korb.werte = { ...plan.korb.werte, Status: STATUS.ABGEWAEHLT, Grund: STORNO_GRUND };
+  plan.lagerZeilen = plan.lagerZeilen.map(r => ({ ...r, Grund: 'Storno – zurück ins Lager' }));
+  return plan;
 }

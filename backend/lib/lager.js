@@ -15,13 +15,14 @@ import { leseReiterSpalten } from './ssot-reiter.js';
 import { ladeLShopZeilen, farbwert, discontinuedWert, DISCONTINUED_GESPERRT, STATUS_AUSGELAUFEN } from './lshop.js';
 import { istGroessenAchse } from './groessen.js';
 import { schreibeNeueZeilen } from './sheet-zeilen.js';
+import { getWcClient } from './shopConfig.js';
 import { sucheModelle } from '../utils/korb-logic.js';
 import { rohlingBestandJeNr, korbAbgaenge } from '../utils/lager-korb.js';
 import {
   TAB_BUCHUNGEN, TAB_ARTIKEL, TAB_ORTE, BUCHUNG_SPALTEN, ARTIKEL_SPALTEN, ORTE_SPALTEN, WARENART, STATUS_AKTIV,
   buchungenAus, reiterZeilen, orteAus, aktiveOrte, artikelAus, warenartVon, planBuchung, planGegenbuchung,
   planNeuerOrt, planNeuerArtikel, alsZeile, bestandListe, buchungsVerlauf, ART_TEXT, ZUGANG_ARTEN, ABGANG_ARTEN, AUSSCHUSS_GRUENDE,
-  ARTIKEL_WARENARTEN, MENGE_MAX, TAB_EVENTS, EVENT_SPALTEN, eventsAus, planNeuesEvent, bezugRegel, eventVorschlag, abgaengeAuswertung,
+  ARTIKEL_WARENARTEN, MENGE_MAX, ART, retoureBestellung, retourenMengen, trikotSchluessel, TAB_EVENTS, EVENT_SPALTEN, eventsAus, planNeuesEvent, bezugRegel, eventVorschlag, abgaengeAuswertung,
   MUSTER_PRAEFIX,
 } from '../utils/lager.js';
 
@@ -334,7 +335,7 @@ const antwortZeilen = zeilen => ({
 });
 
 /** POST /api/lager/buchen - Einbuchen, Ausbuchen, Umlagern, Zaehlung, Startbestand. Alles oder nichts. */
-export async function bucheLager({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
+export async function bucheLager({ eingabe, sheets: s, jetzt = () => new Date(), wcFuer = getWcClient } = {}) {
   return mitLagerSperre(async () => {
     const spreadsheetId = ssotId();
     const sheets = s ?? await sheetsClient();
@@ -343,7 +344,13 @@ export async function bucheLager({ eingabe, sheets: s, jetzt = () => new Date() 
     const stamm = await ladeStamm(sheets);
     const partner = await ladePartner(sheets);
     const bezugPruefen = (art, b) => bezugRegel(art, b, { events: l.events, partner: partner.liste });
-    const plan = planBuchung(eingabe, { buchungen: l.buchungen, orte: aktiveOrte(l.orte), gueltig: pruefer(stamm, l.artikel), bezugPruefen, jetzt: jetzt() });
+    // BO5-6: Retoure - die bestellten Mengen kommen frisch aus dem Shop (nur lesen); nie mehr zurueck als bestellt.
+    let retoureGrenzen = null;
+    if (eingabe?.aktion === 'einbuchen' && eingabe?.art === ART.RETOURE && retoureBestellung(eingabe.bezug)) {
+      const best = await ladeRetoureBestellung({ bezug: eingabe.bezug, wcFuer });
+      retoureGrenzen = new Map(best.positionen.map(p => [p.bezug, p.menge]));
+    }
+    const plan = planBuchung(eingabe, { buchungen: l.buchungen, orte: aktiveOrte(l.orte), gueltig: pruefer(stamm, l.artikel), bezugPruefen, retoureGrenzen, jetzt: jetzt() });
     if (plan.schonGebucht) return { ok: true, schonGebucht: true, ...antwortZeilen(plan.schonGebucht) };
     if (plan.probleme.length) {
       // In der Meldung den Artikel so nennen, wie ihn die Ansicht zeigt (Modell Farbe Groesse), nicht als Schluessel.
@@ -457,5 +464,56 @@ export async function leseAbgaenge({ filter = {}, sheets: s } = {}) {
     einrichtung: l.einrichtung, filter, stueck: a.stueck, buchungen: a.buchungen, bezuege: a.bezuege,
     posten: a.posten.map(p => ({ ...p, ort: '', ...beschreibe(p.schluessel) })),
     events: l.events, partner: (await ladePartner(sheets)).liste, artText: ART_TEXT, ausschussGruende: AUSSCHUSS_GRUENDE,
+  };
+}
+
+// ── BO5-6: Retouren - Positionen der Shop-Bestellung (nur lesen) ─────────────
+
+// Groesse aus den Positions-Metadaten (Variante). Name/Nummer (Rueckenname) werden NIE gelesen.
+const GROESSE_META = /gr(ö|oe)(ß|ss)e|size/i;
+const groesseAus = li => t((li.meta_data ?? []).find(m => GROESSE_META.test(`${m.key} ${m.display_key ?? ''}`))?.display_value ?? '');
+
+/** Bestellung "JFN:21593" aus dem Shop (getWcClient, nur lesen) -> Positionen ohne Kundendaten. */
+export async function ladeRetoureBestellung({ bezug, wcFuer = getWcClient } = {}) {
+  const r = retoureBestellung(bezug);
+  if (!r) throw fehler('Bitte die Shop-Bestellung angeben (JFN oder HONK und Bestellnummer).', 422, { code: 'bezug' });
+  let o;
+  try { o = (await wcFuer(r.shop).get(`orders/${r.nr}`)).data; } catch (err) {
+    if (err?.response?.status === 404 || err?.status === 404) throw fehler(`Bestellung ${r.kennung} gibt es im Shop nicht.`, 404, { code: 'bezug' });
+    throw err;
+  }
+  return {
+    kennung: r.kennung, shop: r.shop, status: t(o?.status),
+    positionen: (o?.line_items ?? []).map(li => ({
+      position: t(li.id), bezug: `${r.kennung}:${t(li.id)}`, name: t(li.name), parentName: t(li.parent_name), menge: Number(li.quantity) || 0,
+      productId: t(li.product_id), variationId: t(li.variation_id) === '0' ? '' : t(li.variation_id), groesse: groesseAus(li),
+    })),
+  };
+}
+
+/**
+ * GET /api/lager/retoure?bestellung=JFN:21593 - Positionen mit Vorschlag fuer den Lager-Schluessel und dem, was schon
+ * zurueckgebucht ist. Fertigware ueber WC_Variation_ID (nur JFN - die Varianten im Sheet sind JFN-IDs), Trikots als
+ * TR:<Produkt-ID>:<Groesse> ohne Rueckennamen; sonst kein Vorschlag (von Hand waehlen).
+ */
+export async function leseRetourePositionen({ bestellung, sheets: s, wcFuer = getWcClient } = {}) {
+  const sheets = s ?? await sheetsClient();
+  const best = await ladeRetoureBestellung({ bezug: bestellung, wcFuer });
+  const l = await leseLager(sheets, ssotId());
+  const stamm = await ladeStamm(sheets);
+  const beschreibe = beschreiber(stamm, l.artikel);
+  const schon = retourenMengen(l.buchungen);
+  const trikots = new Set(stamm.trikotArtikel.map(a => t(a.produktId)));
+  return {
+    kennung: best.kennung, status: best.status, schonGesamt: schon.get(best.kennung) ?? 0,
+    positionen: best.positionen.map(({ parentName, ...p }) => {
+      // Trikots: der Positionsname der Variante traegt Name/Nummer (Rueckenname) - nie an den Browser.
+      if (trikots.has(p.productId)) p.name = parentName || 'Trikot';
+      let schluessel = '';
+      if (best.shop === 'jfn' && p.variationId && stamm.wc.has(p.variationId)) schluessel = `WC:${p.variationId}`;
+      else if (trikots.has(p.productId) && p.groesse) schluessel = trikotSchluessel(p.productId, p.groesse);
+      const gueltig = schluessel && pruefer(stamm, l.artikel)(schluessel) === true && warenartVon(schluessel) ? schluessel : '';
+      return { ...p, schon: schon.get(p.bezug) ?? 0, schluessel: gueltig, ...(gueltig ? { artikel: beschreibe(gueltig) } : {}) };
+    }),
   };
 }

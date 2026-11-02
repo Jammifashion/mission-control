@@ -16,7 +16,7 @@ import { pruefeZielStrecke, zeilenAbweichungen, zellText } from './sheet-zeilen.
 import { colLetter } from '../utils/sheet-spalten.js';
 import { TAB_KORB, korbZeilen } from '../utils/korb-logic.js';
 import { aktiveOrte, alsZeile, TAB_BUCHUNGEN } from '../utils/lager.js';
-import { ausLagerPlan, zurueckAusLagerPlan } from '../utils/lager-korb.js';
+import { ausLagerPlan, zurueckAusLagerPlan, stornoZurueckPlan } from '../utils/lager-korb.js';
 
 const t = v => String(v ?? '').trim();
 const q = tab => `'${tab}'`;
@@ -77,3 +77,5 @@ async function lauf(planen, { eingabe, sheets: s, jetzt = () => new Date() }) {
 export const ausLagerNehmen = o => mitBeidenSperren('aus-lager', () => lauf(ausLagerPlan, o));
 /** "zurück in den Korb": Lager -> offen, Gegenbuchung. */
 export const zurueckAusLager = o => mitBeidenSperren('zurueck-aus-lager', () => lauf(zurueckAusLagerPlan, o));
+/** BO5-6: Storno nach Lager-Abgang - Gegenbuchung + Status abgewaehlt (Grund "Bestellung storniert") in einem Schritt. */
+export const stornoZurueckInsLager = o => mitBeidenSperren('storno-zurueck', () => lauf(stornoZurueckPlan, o));

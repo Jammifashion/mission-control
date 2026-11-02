@@ -38,7 +38,7 @@ export const ART = {
 // BO5-7: Grund des Ausschusses (Pflicht, steht im Bezug); ein Freitext dazu geht in "Grund".
 export const AUSSCHUSS_GRUENDE = ['Fehldruck', 'Ware defekt', 'verschenkt'];
 export const ART_TEXT = {
-  vorrat: 'Vorratskauf', zugang_ueberschuss: 'Überschuss Wareneingang', retoure: 'Retoure', storno: 'Storno',
+  vorrat: 'Vorratskauf', zugang_ueberschuss: 'Überschuss Wareneingang', retoure: 'Retoure vom Kunden', storno: 'Storno',
   inventur: 'Zählung', abgang_shop: 'Shop-Bestellung', abgang_vorort: 'Verkauf vor Ort / Event',
   abgang_auftrag: 'eigener Auftrag', abgang_partner: 'Partner / Muster', abgang_eigen: 'eigene Korb-Position', umlagerung: 'Umlagerung', korrektur: 'Gegenbuchung',
   abgang_ausschuss: 'Ausschuss',
@@ -160,7 +160,7 @@ const zuLang = (v, max = TEXT_MAX) => t(v).length > max;
  * @param {object} k  { buchungen, orte: string[] (aktiv), gueltig: schluessel -> true|Text, jetzt: Date }
  * @returns {{ zeilen: object[], probleme: object[], schonGebucht?: object[] }}
  */
-export function planBuchung(e, { buchungen, orte, gueltig = () => true, bezugPruefen = () => true, jetzt = new Date() }) {
+export function planBuchung(e, { buchungen, orte, gueltig = () => true, bezugPruefen = () => true, retoureGrenzen = null, jetzt = new Date() }) {
   const probleme = [];
   const aktion = t(e?.aktion);
   const vorgang = t(e?.vorgang);
@@ -187,7 +187,7 @@ export function planBuchung(e, { buchungen, orte, gueltig = () => true, bezugPru
   const orteGenutzt = new Set(roh.length ? roh.map(ortVon) : [ort]);
   for (const o of orteGenutzt) if (!ortListe.includes(o)) probleme.push(fehlerText('ort', o ? `Ort "${o}" gibt es nicht (mehr).` : 'Bitte einen Ort wählen.'));
   // BO5-5: Bezug je Abgangsart (Event, Auftrag, Partner/Muster) - die Regeln liefert lib/lager.js (Events, Partnerliste).
-  if (aktion === 'ausbuchen' && ABGANG_ARTEN.includes(art)) {
+  if ((aktion === 'ausbuchen' && ABGANG_ARTEN.includes(art)) || (aktion === 'einbuchen' && art === ART.RETOURE)) {   // BO5-6: Retoure braucht die Bestellung
     const b = bezugPruefen(art, t(e.bezug));
     if (b !== true) probleme.push(fehlerText('bezug', typeof b === 'string' ? b : 'Bezug fehlt.'));
   }
@@ -215,9 +215,13 @@ export function planBuchung(e, { buchungen, orte, gueltig = () => true, bezugPru
     const m = mengeLesen(p?.menge, { null: zaehlt });
     if (m === null) continue;   // leer = nicht buchen
     if (Number.isNaN(m)) { probleme.push(fehlerText('menge', `Menge bei ${s} ungültig (ganze Zahl ${zaehlt ? 0 : 1}–${MENGE_MAX}).`, { schluessel: s })); continue; }
-    posten.push({ schluessel: s, warenart: wa, menge: m, ort: ortVon(p) });
+    // BO5-6: Retoure - Bezug je Zeile = Position der Bestellung (<Shop>:<Bestellnr>:<Position>), sonst die Bestellung.
+    const pb = aktion === 'einbuchen' && art === ART.RETOURE && t(p?.bezug) ? t(p.bezug) : '';
+    if (pb && !pb.startsWith(`${t(e.bezug)}:`)) { probleme.push(fehlerText('bezug', `Position ${pb} gehört nicht zur Bestellung ${t(e.bezug)}.`, { schluessel: s })); continue; }
+    posten.push({ schluessel: s, warenart: wa, menge: m, ort: ortVon(p), bezug: pb });
   }
 
+  if (aktion === 'einbuchen' && art === ART.RETOURE && retoureGrenzen) probleme.push(...retoureUeberGrenze(posten, t(e.bezug), buchungen, retoureGrenzen));
   const bestand = bestandAus(buchungen);
   const bewegungen = [];   // { schluessel, warenart, ort, menge, bezugIdx? }
   for (const p of posten) {
@@ -250,7 +254,7 @@ export function planBuchung(e, { buchungen, orte, gueltig = () => true, bezugPru
     const partner = b.paar !== undefined ? b.paar : bewegungen.findIndex(x => x.paar === i);
     return {
       Buchung_ID: ids[i], Datum: iso, Art: art, Warenart: b.warenart, Schluessel: b.schluessel, Menge: b.menge, Ort: b.ort,
-      Grund: t(e.grund), Bezug: art === ART.UMLAGERUNG && partner >= 0 ? ids[partner] : t(e.bezug), Quelle: quelle,
+      Grund: t(e.grund), Bezug: art === ART.UMLAGERUNG && partner >= 0 ? ids[partner] : (b.bezug || t(e.bezug)), Quelle: quelle,
       Notiz: t(e.notiz), Storno_von: '', Stand: iso, Vorgang: vorgang,
     };
   });
@@ -414,6 +418,7 @@ export function planNeuesEvent(eingabe, events) {
 export function bezugRegel(art, bezug, { events = [], partner = [] } = {}) {
   const b = t(bezug);
   if (art === ART.ABGANG_AUSSCHUSS) return AUSSCHUSS_GRUENDE.includes(b) || `Bitte den Grund wählen (${AUSSCHUSS_GRUENDE.join(' · ')}).`;
+  if (art === ART.RETOURE) return Boolean(retoureBestellung(b)) || 'Bitte die Shop-Bestellung angeben (JFN oder HONK und Bestellnummer).';
   if (art === ART.ABGANG_VORORT) {
     if (!b) return 'Bitte das Event wählen (oder „+ neues Event“).';
     const ev = events.find(x => x.id === b);
@@ -471,4 +476,56 @@ export function abgaengeAuswertung(buchungen, f = {}) {
   }
   const posten = [...je.values()];
   return { posten, stueck: posten.reduce((a, p) => a + p.menge, 0), buchungen: buchungenZahl, bezuege: [...bezuege.values()] };
+}
+
+// ── BO5-6: Retouren ───────────────────────────────────────────────────────────
+
+const RETOURE_BESTELLUNG = /^(JFN|HONK):(\d{1,12})$/;
+/** "JFN:21593" -> { shop: 'jfn', nr: '21593' } oder null. */
+export function retoureBestellung(bezug) {
+  const m = t(bezug).match(RETOURE_BESTELLUNG);
+  return m ? { shop: m[1].toLowerCase(), nr: m[2], kennung: `${m[1]}:${m[2]}` } : null;
+}
+
+/** Schon zurueckgebucht (Retoure, Gegenbuchungen abgezogen) je Bezug - Position "<Shop>:<Nr>:<Pos>" und die Bestellung. */
+export function retourenMengen(buchungen) {
+  const gegen = new Map();
+  for (const b of buchungen ?? []) if (b.stornoVon) gegen.set(b.stornoVon, (gegen.get(b.stornoVon) ?? 0) + b.menge);
+  const m = new Map();
+  for (const b of buchungen ?? []) {
+    if (b.art !== ART.RETOURE || b.menge <= 0 || !b.bezug) continue;
+    const n = b.menge + (gegen.get(b.id) ?? 0);
+    if (n <= 0) continue;
+    const teile = b.bezug.split(':');
+    const bestellung = teile.slice(0, 2).join(':');
+    m.set(bestellung, (m.get(bestellung) ?? 0) + n);
+    if (teile.length > 2) m.set(b.bezug, (m.get(b.bezug) ?? 0) + n);
+  }
+  return m;
+}
+
+/**
+ * Nie mehr zurueck als bestellt: je Position (wenn angegeben) und fuer die ganze Bestellung.
+ * @param {Map<string,number>} grenzen  "<Shop>:<Nr>:<Pos>" -> bestellte Menge (aus dem Shop)
+ */
+export function retoureUeberGrenze(posten, bestellungBezug, buchungen, grenzen) {
+  const schon = retourenMengen(buchungen);
+  const probleme = [];
+  const neuJe = new Map();
+  for (const p of posten) if (p.bezug) neuJe.set(p.bezug, (neuJe.get(p.bezug) ?? 0) + p.menge);
+  // Lesbar wie in der Ansicht: "JFN #21593 · Pos. 5512"
+  const lesbar = b => { const [shop, nr, pos] = b.split(':'); return `${shop} #${nr}${pos ? ` · Pos. ${pos}` : ''}`; };
+  for (const [pos, neu] of neuJe) {
+    const max = grenzen.get(pos);
+    if (max === undefined) { probleme.push(fehlerText('bezug', `Position ${lesbar(pos)} gibt es in der Bestellung nicht.`)); continue; }
+    const s = schon.get(pos) ?? 0;
+    if (s + neu > max) probleme.push(fehlerText('retoure', `${lesbar(pos)}: bestellt ${max}, schon ${s} zurückgebucht - ${neu} geht nicht.`, { da: max - s }));
+  }
+  const gesamt = [...grenzen.values()].reduce((a, n) => a + n, 0);
+  const neuGesamt = posten.reduce((a, p) => a + p.menge, 0);
+  const schonGesamt = schon.get(bestellungBezug) ?? 0;
+  if (!probleme.length && schonGesamt + neuGesamt > gesamt) {
+    probleme.push(fehlerText('retoure', `Bestellung ${lesbar(bestellungBezug)}: ${gesamt} Teile bestellt, schon ${schonGesamt} zurückgebucht - ${neuGesamt} geht nicht.`, { da: gesamt - schonGesamt }));
+  }
+  return probleme;
 }

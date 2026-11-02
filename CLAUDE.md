@@ -89,7 +89,11 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   BO5-5: Ausbuchen = Bezug je Art (`#lager-bezug`: Event-Auswahl + "+ neues Event", Auftrag-Freitext, Partner P-… oder
   "Muster: …") und Liste "auszubuchen" (`lagerDlg.liste`, "Zur Liste und weitere Farbe" / "Alles ausbuchen", je Zeile ein
   Ort); bei Verkauf vor Ort bleibt der Dialog mit dem Event offen (Event-Modus). Unterpunkt `lager/abgaenge` (Auswertung im
-  Zaehlliste-Stil, Druck ueber `body.druck-zaehlliste`). Wrist (`LAGER_HAUPTORT`) ist ueberall vorgewaehlt, auch im Korb-Dialog.)
+  Zaehlliste-Stil, Druck ueber `body.druck-zaehlliste`). Wrist (`LAGER_HAUPTORT`) ist ueberall vorgewaehlt, auch im Korb-Dialog.
+  BO5-6: Einbuchen Art "Retoure vom Kunden" = Shop-Wahl + Bestellnummer + "Positionen laden" im `#lager-bezug` (`lagerDlg.retoure`,
+  Zeilen je Position mit Lager-Artikel, "bestellt n · schon m zurückgebucht", Rest vorbelegt), Hinweis Defekt = Ausschuss. Verlauf:
+  Retoure verlinkt "Retoure zu JFN #… · Pos. …" (`lagerRetoureBezugHtml` -> `psSpringeZu`), HONK nur Text. Korb "Aus Lager": Position
+  mit Hinweis gelb `.korb-storno` + Knopf "zurück ins Lager" (`data-lager-storno`, `korbStornoZurueck`) statt "zurück in den Korb".)
 - Artikelerfassung (dazu Modus-Knopf "🧵 L-Shop-Modelle", LS4: Unterpunkt `artikel/lshop-modelle`, Panel `#lsm-panel`,
   SECTION L-Shop-Modelle mit Block `L-Shop-Modelle: Anfang/Ende`, Test lshop-modelle-frontend.test.js; Hilfe-Gruppe
   `lshop-modelle`; Links `data-lsm-link` aus Warenkorb "Nicht im Bestand" und Maske "Kein L-Shop-Modell".
@@ -498,6 +502,13 @@ Neue Sektionen immer mit Anker versehen:
   Schreibaufruf. `GET /api/lager/abgaenge?art&bezug&von&bis` (`abgaengeAuswertung`: nur Abgangsarten inkl. abgang_eigen,
   Gegenbuchungen abgezogen, Tag Europe/Berlin). Fertigware-Suche: jedes Wort in Name/Artikelnummer/Kurzbezeichnung/Variantenwerten.
   Setup `--orte=Wrist,Itzehoe` legt nur fehlende Orte an (Trockenlauf ohne `--write`). Orte nie umbenennen (Text in Buchungen).
+  BO5-6 Retoure (Zugangsart `retoure`): Bezug Pflicht `JFN:<Nr>` oder `HONK:<Nr>` (`retoureBestellung`), je Posten `bezug`
+  `<Shop>:<Nr>:<line_item.id>`. `GET /api/lager/retoure?bestellung=` (`leseRetourePositionen`) liest die Bestellung NUR ueber
+  `getWcClient(shop).get('orders/<nr>')` (404 -> 404), Groesse aus den Positions-Metadaten; Vorschlag `WC:<variation_id>` nur JFN
+  (Varianten im Sheet = JFN-IDs), Trikot `TR:<Produkt-ID>:<Groesse>`, Positionsname bei Trikots = `parent_name` (der Variantenname
+  traegt den Rueckennamen - nie an den Browser, nie ins Journal). `bucheLager` liest die Bestellung beim Buchen frisch
+  (`retoureGrenzen`): nie mehr zurueck als bestellt je Position und je Bestellung, Gegenbuchungen abgezogen (`retourenMengen`,
+  `retoureUeberGrenze`, 422 "bestellt X, schon Y zurückgebucht"). Defekt/Fehldruck wird nicht eingebucht (Ausschuss).
 - backend/lib/lagerKorb.js – Lager im L-Shop-Warenkorb (BO5-3), Logik `utils/lager-korb.js`. MC schlaegt vor, der Inhaber
   bestaetigt; nichts automatisch, der Abgleich aendert nie einen Status. `GET .../lshop-korb` liefert je Buendel `lager`
   ({ summe, orte }) und je offener, nicht gesperrter Position `lager` ({ n, genug }) - NUR gleiche ArticleNr (LS:), in
@@ -511,6 +522,12 @@ Neue Sektionen immer mit Anker versehen:
   `abgang_eigen`, Quelle `korb`, Bezug = Korb-Schluessel; Rueckweg = Status offen + Gegenbuchung (`Storno_von`). Korb-
   Abgaenge sind im Lagerverlauf NICHT von Hand gegenbuchbar (sonst stimmt der Korb-Status nicht). Lager-Positionen gehen
   nie in EDI (Regel `vorhanden` = offen) oder Matrix/Zaehlliste (nur offen). Teilen (Lager deckt nur einen Teil) gibt es nicht.
+  BO5-6 Storno: der Abgleich prueft auch Shop-Zeilen mit Status `Lager` (nur `LAGER_PRUEF_TAGE` 60 ab Status_Datum,
+  `brauchtHinweisPruefung`) und schreibt NUR `Hinweis` (`hinweisFuerZeile`: storniert/erstattet/nicht mehr im Shop/Position weg/
+  Menge; "abgeschlossen" und "unbezahlt" nicht). `POST .../lshop-korb/storno-zurueck-ins-lager` { schluessel, vorgang }
+  (`stornoZurueckInsLager`, `stornoZurueckPlan`): nur Lager-Zeile MIT Hinweis (sonst 422), Gegenbuchung wie zurueck-aus-lager
+  (Grund "Storno – zurück ins Lager") + Korb `abgewählt`, Grund `Bestellung storniert` (`STORNO_GRUND`), EIN batchUpdate.
+  Storno nach Lieferung (Status geliefert) prueft der Abgleich nicht.
 - backend/lib/seo-prompt.js – SEO-Prompt: Systemprompt (`SEO_SYSTEM_PROMPT`), User-Template,
   MODUS-Enum, Materialfilter. Serientitel nur als Fanart: steht im Hinweisblock woertlich
   "Fanart zur Serie <Titel>", kommt der Block FANART-SERIE dazu, sonst gilt das Titelverbot.
