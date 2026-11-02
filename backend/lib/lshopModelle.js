@@ -16,6 +16,7 @@
 // Keine Preise in Antwort, Log oder Chat; nichts aus der Datei ausser Name, Marke,
 // Farben, Groessen, Discontinued.
 
+import { leseLieferbarkeit } from './lieferbarkeitLesen.js';
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 import { ladeLShopZeilen, lshopAuswertung, _resetLShopCache, TAB_LSHOP } from './lshop.js';
@@ -56,9 +57,12 @@ export async function leseZusatz({ sheets, ssotId = process.env.GOOGLE_SHEET_ID 
 }
 
 /** Kurzansicht eines Modells (ohne Preise) aus Zeilen im Format von lib/lshop.js. */
-export function vorschauAus(zeilen) {
+export function vorschauAus(zeilen, lieferbarkeit) {
   if (!zeilen?.length) return null;
-  const a = lshopAuswertung(zeilen);
+  const a = lshopAuswertung(zeilen, { lieferbarkeit });
+  // BO7-2: nur fuer Nummern, die wir schon nutzen (LShop_Lieferbarkeit hat nur die) - neue Modelle ohne Angabe.
+  const bekannt = a.varianten.filter(v => v.lieferbar);
+  const zaehl = st => bekannt.filter(v => v.lieferbar.stufe === st).length;
   return {
     catalogNr: U(zeilen[0].catalogNr),
     name: t(zeilen.find(z => t(z.bezeichnung))?.bezeichnung),
@@ -66,6 +70,7 @@ export function vorschauAus(zeilen) {
     farben: a.alleFarben,
     groessen: a.groessen,
     auslaufend: [...new Set(a.auslaufend.map(x => x.farbe))],
+    ...(bekannt.length ? { lieferbar: { varianten: a.varianten.length, bekannt: bekannt.length, lieferbar: zaehl('lieferbar'), null: zaehl('null'), auslauf: zaehl('auslauf'), weg: zaehl('nicht_gefuehrt') } } : {}),
     gesperrt: [...new Set(a.gesperrt.map(x => x.farbe))].filter(f => !a.alleFarben.includes(f)),
   };
 }
@@ -82,7 +87,7 @@ const alsLShopZeile = d => ({
 export async function modelleAmpel({ eingaben, sheets } = {}) {
   const liste = eingabenListe(eingaben);
   sheets ??= await sheetsClient();
-  const [bestand, zusatz] = await Promise.all([ladeLShopZeilen({ sheets }), leseZusatz({ sheets }).catch(e => (e.code === 'einrichtung' ? { zeilen: [] } : Promise.reject(e)))]);
+  const [bestand, zusatz, lb] = await Promise.all([ladeLShopZeilen({ sheets }), leseZusatz({ sheets }).catch(e => (e.code === 'einrichtung' ? { zeilen: [] } : Promise.reject(e))), leseLieferbarkeit({ sheets })]);
   const jeModell = new Map();
   for (const z of bestand) {
     const c = U(z.catalogNr);
@@ -94,7 +99,7 @@ export async function modelleAmpel({ eingaben, sheets } = {}) {
     ergebnisse: liste.map(e => {
       const stufe = ampelStufe(e, { bestandModelle, zusatz: zusatz.zeilen });
       return { eingabe: e.text, modell: e.art === 'nummer' ? e.wert : '', art: e.art, stufe,
-        ...(stufe === 'da' ? { vorschau: vorschauAus(jeModell.get(e.wert)) } : {}) };
+        ...(stufe === 'da' ? { vorschau: vorschauAus(jeModell.get(e.wert), lb.je) } : {}) };
     }),
   };
 }
@@ -141,17 +146,17 @@ export async function modellePruefen({ eingaben, sheets, drive, wcFuer, jetzt, s
       modus: 'trockenlauf', sheets, drive, ...(wcFuer ? { wcFuer } : {}), ...(jetzt ? { jetzt } : {}), ...(stream ? { stream } : {}),
       zusatzModelle: nummern, beobachte: sammler.beobachte,
     });
-    const [bestand, zusatz] = await Promise.all([ladeLShopZeilen({ sheets }), leseZusatz({ sheets }).catch(e => (e.code === 'einrichtung' ? { zeilen: [] } : Promise.reject(e)))]);
+    const [bestand, zusatz, lb] = await Promise.all([ladeLShopZeilen({ sheets }), leseZusatz({ sheets }).catch(e => (e.code === 'einrichtung' ? { zeilen: [] } : Promise.reject(e))), leseLieferbarkeit({ sheets })]);
     const bestandModelle = new Set(bestand.map(z => U(z.catalogNr)));
     const ergebnisse = liste.map((e, i) => {
       const ampel = ampelStufe(e, { bestandModelle, zusatz: zusatz.zeilen });
       const r = bewerteSuche(sammler.treffer[i]);
       const basis = { eingabe: e.text, modell: e.art === 'nummer' ? e.wert : '', art: e.art };
-      if (ampel === 'da') return { ...basis, stufe: 'da', catalogNr: e.wert, vorschau: vorschauAus(sammler.zeilen.get(e.wert)) };
-      if (r.stufe === 'gefunden') return { ...basis, stufe: 'gefunden', catalogNr: r.catalogNr, liste: ampel, vorschau: vorschauAus(sammler.zeilen.get(r.catalogNr)) };
+      if (ampel === 'da') return { ...basis, stufe: 'da', catalogNr: e.wert, vorschau: vorschauAus(sammler.zeilen.get(e.wert), lb.je) };
+      if (r.stufe === 'gefunden') return { ...basis, stufe: 'gefunden', catalogNr: r.catalogNr, liste: ampel, vorschau: vorschauAus(sammler.zeilen.get(r.catalogNr), lb.je) };
       if (r.stufe === 'vorschlag') {
         return { ...basis, stufe: 'vorschlag', mehr: r.mehr, vorschlaege: r.vorschlaege.map(v => ({
-          ...v, schonDa: bestandModelle.has(v.catalogNr), vorschau: vorschauAus(sammler.zeilen.get(v.catalogNr)),
+          ...v, schonDa: bestandModelle.has(v.catalogNr), vorschau: vorschauAus(sammler.zeilen.get(v.catalogNr), lb.je),
         })) };
       }
       // Tippfehler ("ZM108M" statt "Z108M"): die aehnlichen Nummern des Stammdaten-Laufs
@@ -159,7 +164,7 @@ export async function modellePruefen({ eingaben, sheets, drive, wcFuer, jetzt, s
       const aehnlich = e.art === 'nummer' ? (lauf.nichtTreffer.find(n => n.catalogNr === e.wert)?.kandidaten ?? []) : [];
       if (aehnlich.length) {
         return { ...basis, stufe: 'vorschlag', vorschlaege: aehnlich.map(c => ({
-          catalogNr: c, weg: 'aehnlich', schonDa: bestandModelle.has(c), vorschau: vorschauAus(sammler.zeilen.get(c)),
+          catalogNr: c, weg: 'aehnlich', schonDa: bestandModelle.has(c), vorschau: vorschauAus(sammler.zeilen.get(c), lb.je),
         })) };
       }
       return { ...basis, stufe: 'nicht' };

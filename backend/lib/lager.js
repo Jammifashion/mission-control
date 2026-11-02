@@ -8,6 +8,7 @@
 // mit derselben Vorgangs-Kennung bucht nichts doppelt. Jede Buchung leert den Zwischenspeicher des Bestands.
 // Stammdaten nur lesen: LShop_Modelle, Varianten, Erfassungsmaske, SKU_Extern (SSOT), Trikot_Artikel + Trikots (Business).
 
+import { leseLieferbarkeit } from './lieferbarkeitLesen.js';
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 import { sheetsMitWiederholung } from './googleRetry.js';
@@ -241,11 +242,15 @@ export async function rohlingVarianten({ catalogNr, sheets: s } = {}) {
   const nr = t(catalogNr);
   const zeilen = (await ladeStamm(sheets)).lshop.filter(z => t(z.catalogNr) === nr && /^\d{10}$/.test(t(z.articleNr)));
   if (!zeilen.length) throw fehler(`Modell "${nr}" steht nicht in den L-Shop-Stammdaten.`, 404);
+  const lb = await leseLieferbarkeit({ sheets });   // BO7-2: Punkte je Groesse im Raster
   return {
     catalogNr: nr, bezeichnung: t(zeilen.find(z => t(z.bezeichnung))?.bezeichnung), marke: t(zeilen.find(z => t(z.marke))?.marke),
+    lieferbarkeitStand: lb.stand,
     varianten: zeilen.map(z => ({
       articleNr: t(z.articleNr), schluessel: `LS:${t(z.articleNr)}`, farbe: farbwert(z.color1, z.color2), groesse: t(z.size),
-      auslauf: t(z.status) === STATUS_AUSGELAUFEN || DISCONTINUED_GESPERRT.has(discontinuedWert(z.discontinued)),
+      // BO7-2: harte Sperre (Discontinued 3/6, ausgelaufen) heisst jetzt so; "laeuft aus" nur noch aus der Auslaufliste
+      gesperrt: t(z.status) === STATUS_AUSGELAUFEN || DISCONTINUED_GESPERRT.has(discontinuedWert(z.discontinued)),
+      ...(lb.je.get(t(z.articleNr)) ? { lieferbar: lb.je.get(t(z.articleNr)) } : {}),
     })),
   };
 }

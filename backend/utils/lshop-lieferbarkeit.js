@@ -200,3 +200,37 @@ export function buildLieferbarkeitNachricht(wechsel, korbOffen) {
   });
   return `⚠️ L-Shop-Lieferbarkeit – offene Korb-Positionen betroffen:\n${zeilen.join('\n')}\nBitte im Warenkorb prüfen (Lager, anderes Modell oder warten).`;
 }
+
+// ── BO7-2: Anzeige (nur lesen) ───────────────────────────────────────────────
+// Vier Stufen, ueberall gleich: lieferbar (gruen) · bei L-Shop 0 (grau, "seit" aus Null_seit) · laeuft aus (gelb, nur aus
+// der Auslaufliste) · nicht mehr gefuehrt (rot, stock leer). Reihenfolge der Schwere: nicht gefuehrt > laeuft aus > 0.
+export const STUFE = { LIEFERBAR: 'lieferbar', NULL: 'null', AUSLAUF: 'auslauf', WEG: 'nicht_gefuehrt' };
+export const STAND_VERALTET_STUNDEN = 3;
+
+/** Reiterzeile (Spaltennamen als Schluessel) -> { stufe, stock, nullSeit, auslaufdatum } */
+export function stufeAus(z) {
+  const s = t(z?.stock);
+  const stock = s === '' ? null : Number(s);
+  const stufe = stock === null ? STUFE.WEG : t(z?.Auslauf) === 'ja' ? STUFE.AUSLAUF : stock === 0 ? STUFE.NULL : STUFE.LIEFERBAR;
+  return { stufe, stock, nullSeit: t(z?.Null_seit), auslaufdatum: t(z?.Auslaufdatum) };
+}
+
+/**
+ * Reiterwerte (Kopf + Zeilen) -> { je: Map ArticleNr -> stufeAus, stand } fuer die Anzeige.
+ * stand: { datei (ISO), veraltet (> 3 h), liste (Dateiname), listeTage, listeAlt (> 14 Tage) } oder null ohne Zeilen.
+ */
+export function lieferbarkeitAusWerten(werte, jetzt = new Date()) {
+  const alt = altAusWerten(werte);
+  const je = new Map([...alt].map(([nr, z]) => [nr, stufeAus(z)]));
+  if (!alt.size) return { je, stand: null };
+  const datei = letzterStand(alt);
+  const liste = [...alt.values()].map(z => t(z.Quelle_Liste)).find(Boolean) ?? '';
+  const listeTage = liste ? listenAlterTage(liste, jetzt) : null;
+  return {
+    je,
+    stand: {
+      datei, veraltet: !datei || jetzt.getTime() - Date.parse(datei) > STAND_VERALTET_STUNDEN * 3_600_000,
+      liste, listeTage, listeAlt: !liste || (listeTage ?? 0) > LISTE_ALT_TAGE,
+    },
+  };
+}

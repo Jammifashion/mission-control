@@ -176,17 +176,22 @@ const BG42 = BG42_FARBEN.map((f, i) => ({
 }));
 
 describe('Discontinued (M8b)', () => {
-  test('BG42: Wert 1 bleibt waehlbar, ist als auslaufend markiert, kein Hinweis', () => {
+  test('BG42: Wert 1 bleibt waehlbar, ohne Kennzeichen (BO7-2: "laeuft aus" nur aus der Auslaufliste), kein Hinweis', () => {
     const r = lshopAuswertung(BG42, {});
     expect(r.alleFarben).toEqual(BG42_FARBEN);
     expect(r.gesperrt).toEqual([]);
-    expect(r.auslaufend).toEqual([
-      { farbe: 'Jungle Camo', groesse: '38 x 14 x 8 cm', wert: 1 },
-      { farbe: 'Fluorescent Yellow', groesse: '38 x 14 x 8 cm', wert: 1 },
-    ]);
-    expect(r.varianten.find(v => v.farbe === 'Jungle Camo')).toMatchObject({ auslauf: 1 });
-    expect(r.varianten.find(v => v.farbe === 'Black')).not.toHaveProperty('auslauf');
+    expect(r.auslaufend).toEqual([]);
+    expect(r.varianten.find(v => v.farbe === 'Jungle Camo')).not.toHaveProperty('auslauf');
     expect(r.hinweise).toEqual([]);
+  });
+
+  test('BO7-2: mit Lieferbarkeit traegt die Variante die Stufe, auslaufend kommt aus der Liste', () => {
+    const jc = BG42.find(z => z.color1 === 'Jungle Camo').articleNr, bl = BG42.find(z => z.color1 === 'Black').articleNr;
+    const lieferbarkeit = new Map([[jc, { stufe: 'auslauf', stock: 3, nullSeit: '', auslaufdatum: '2026-12-31' }], [bl, { stufe: 'null', stock: 0, nullSeit: '2026-11-01T10:00:00Z', auslaufdatum: '' }]]);
+    const r = lshopAuswertung(BG42, { lieferbarkeit });
+    expect(r.auslaufend).toEqual([{ farbe: 'Jungle Camo', groesse: '38 x 14 x 8 cm', datum: '2026-12-31' }]);
+    expect(r.varianten.find(v => v.farbe === 'Black').lieferbar).toMatchObject({ stufe: 'null', stock: 0 });
+    expect(r.varianten.find(v => v.farbe === 'White')).not.toHaveProperty('lieferbar');
   });
 
   test('BG42 White, Black, Pink: Pink gibt es nicht, Auswahl sonst wie bisher', () => {
@@ -208,7 +213,7 @@ describe('Discontinued (M8b)', () => {
     expect(r.farben).toEqual(['Black', 'Blue']);
     expect(r.varianten).toEqual([
       { farbe: 'Black', groesse: 'M', articleNr: '9000000001' },
-      { farbe: 'Blue', groesse: 'M', articleNr: '9000000005', auslauf: 2 },
+      { farbe: 'Blue', groesse: 'M', articleNr: '9000000005' },   // Discontinued 2: waehlbar, ohne Kennzeichen (BO7-2)
     ]);
     expect(r.groessen).toEqual(['M']);
     expect(r.hinweise).toEqual([
@@ -216,7 +221,7 @@ describe('Discontinued (M8b)', () => {
       'Black / L: im L-Shop gesperrt (Discontinued 6) – nicht wählbar.',
     ]);
     expect(r.gesperrt.map(g => `${g.farbe}/${g.groesse}=${g.wert}`)).toEqual(['Black/L=6', 'Red/M=3', 'Red/L=3']);
-    expect(r.auslaufend).toEqual([{ farbe: 'Blue', groesse: 'M', wert: 2 }]);
+    expect(r.auslaufend).toEqual([]);   // BO7-2: Discontinued 2 ohne Auslaufliste kein "laeuft aus"; 3/6 sperren weiter
   });
 
   // LS2: Status "ausgelaufen" (Nummer nicht mehr in der Stammdatei) wie

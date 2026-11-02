@@ -256,7 +256,7 @@ describe('Ampel und Pruefen', () => {
     expect(s.BY289).toMatchObject({ stufe: 'gefunden', catalogNr: 'BY289', vorschau: { name: 'Ladies Fluffy Hoody', marke: 'Marke', farben: ['Black'], groessen: ['M', '5XL'] } });
     expect(s.TU03T.stufe).toBe('vorschlag');
     expect(s.TU03T.vorschlaege.map(v => [v.catalogNr, v.weg])).toEqual([['BCTU03T', 'hersteller']]);
-    expect(s.TU03T.vorschlaege[0].vorschau.auslaufend).toEqual(['White']);
+    expect(s.TU03T.vorschlaege[0].vorschau.auslaufend).toEqual([]);   // BO7-2: Discontinued 1/2 ohne Auslaufliste = kein "laeuft aus"
     expect(s.Fluffy.vorschlaege.map(v => v.catalogNr)).toEqual(['BY284', 'BY289']);
     expect(s['0100'].vorschlaege.map(v => v.catalogNr)).toEqual(['AB0100', 'CD0100']);
     expect(s.ZZ1).toEqual({ eingabe: 'ZZ1', modell: 'ZZ1', art: 'nummer', stufe: 'nicht' });

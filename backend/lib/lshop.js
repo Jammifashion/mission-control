@@ -40,10 +40,12 @@
 //  - 3 und 6: NICHT waehlbar (nie bestellen; Merkposten EDI 4d). Die Zeile
 //    faellt aus Farben, Groessen und Varianten heraus, steht in `gesperrt`, und
 //    fuer die gewaehlten Farben gibt es einen Hinweis.
-//  - jeder andere Wert: waehlbar, aber "laeuft aus (Wert n)" - Variante traegt
-//    `auslauf`, die Liste `auslaufend` gilt fuers ganze Modell (Markierung in
-//    der Maske). Kein Hinweis: der SEO-Flow zeigt Hinweise als Warnung an.
+//  - jeder andere Wert: waehlbar, ohne Kennzeichen. BO7-2: "laeuft aus" kommt
+//    NUR aus der Auslaufliste (Reiter LShop_Lieferbarkeit, Option `lieferbarkeit`):
+//    Variante traegt `lieferbar` { stufe, stock, nullSeit, auslaufdatum }, die
+//    Liste `auslaufend` gilt fuers ganze Modell (Markierung in der Maske).
 
+import { leseLieferbarkeit } from './lieferbarkeitLesen.js';
 import { leseReiterSpalten } from './ssot-reiter.js';
 import { filterMaterialFarbenMitMeldung, klammerGruppen, MATERIAL_PLACEHOLDER } from './seo-prompt.js';
 import { sortiereGroessen } from './groessen.js';
@@ -178,12 +180,14 @@ function einheitlich(zeilenJeFarbe, feld, farbwerte, name) {
  * @param {object[]} zeilen   [{ articleNr, catalogNr, color1, color2, size, consistence, grammage }]
  * @param {object}   o
  * @param {string[]} o.farben Gewaehlte Farbwerte ("Black/Kelly Green"). Leer = alle.
+ * @param {Map} [o.lieferbarkeit] BO7-2: ArticleNr -> { stufe, stock, nullSeit, auslaufdatum } (lib/lieferbarkeitLesen.js).
+ *   "laeuft aus" kommt NUR von dort (Auslaufliste); Discontinued 1/2/8 zeigt nichts mehr, 3/6 bleibt Sperre.
  * @returns {{ catalogNr: string, farben: string[], alleFarben: string[], groessen: string[],
- *             varianten: {farbe: string, groesse: string, articleNr: string, auslauf?: number|string}[],
+ *             varianten: {farbe: string, groesse: string, articleNr: string, lieferbar?: object}[],
  *             faser: string|null, grammatur: string|null, hinweise: string[],
- *             gesperrt: {farbe, groesse, articleNr, wert}[], auslaufend: {farbe, groesse, wert}[] }}
+ *             gesperrt: {farbe, groesse, articleNr, wert}[], auslaufend: {farbe, groesse, datum}[] }}
  */
-export function lshopAuswertung(zeilen, { farben } = {}) {
+export function lshopAuswertung(zeilen, { farben, lieferbarkeit } = {}) {
   const liste = Array.isArray(zeilen) ? zeilen : [];
   const hinweise = [];
 
@@ -243,8 +247,8 @@ export function lshopAuswertung(zeilen, { farben } = {}) {
       const nummern = [...new Set(treffer.map(z => t(z.articleNr)))];
       if (nummern.length > 1)
         hinweise.push(`${farbe} / ${groesse}: mehrere ArticleNr (${nummern.join(', ')}) – erste genommen.`);
-      const auslauf = treffer[0].disc;
-      varianten.push({ farbe, groesse, articleNr: nummern[0], ...(auslauf !== 0 ? { auslauf } : {}) });
+      const lieferbar = lieferbarkeit?.get(nummern[0]);
+      varianten.push({ farbe, groesse, articleNr: nummern[0], ...(lieferbar ? { lieferbar } : {}) });
     }
   }
 
@@ -279,7 +283,9 @@ export function lshopAuswertung(zeilen, { farben } = {}) {
     hinweise,
     // M8b: ganzes Modell, fuer die Markierung in der Maske.
     gesperrt:   gesperrtZeilen.map(z => ({ farbe: z.farbe, groesse: t(z.size), articleNr: t(z.articleNr), wert: z.sperre })),
-    auslaufend: waehlbar.filter(z => z.disc !== 0).map(z => ({ farbe: z.farbe, groesse: t(z.size), wert: z.disc })),
+    // BO7-2: nur aus der Auslaufliste (ganzes Modell, waehlbare Zeilen)
+    auslaufend: waehlbar.filter(z => lieferbarkeit?.get(t(z.articleNr))?.stufe === 'auslauf')
+      .map(z => ({ farbe: z.farbe, groesse: t(z.size), datum: lieferbarkeit.get(t(z.articleNr)).auslaufdatum })),
   };
 }
 
@@ -307,11 +313,14 @@ export async function ladeLShopZeilen({ sheets, spreadsheetId = process.env.GOOG
 /**
  * Zeilen einer CatalogNr auswerten. Unbekannte Nummer -> 404.
  */
-export async function lshopFuerArtikel(catalogNr, { farben, sheets, spreadsheetId } = {}) {
+export async function lshopFuerArtikel(catalogNr, { farben, sheets, spreadsheetId, mitLieferbarkeit = false } = {}) {
   const nr = t(catalogNr);
   if (!nr) throw fehler('CatalogNr fehlt.');
   const zeilen = (await ladeLShopZeilen({ sheets, spreadsheetId }))
     .filter(z => vergleich(z.catalogNr) === vergleich(nr));
   if (!zeilen.length) throw fehler(`CatalogNr "${nr}" steht nicht im ${CTX}.`, 404);
-  return lshopAuswertung(zeilen, { farben });
+  if (!mitLieferbarkeit) return lshopAuswertung(zeilen, { farben });
+  // BO7-2 (Maske): Punkte je Groesse und "laeuft aus" aus LShop_Lieferbarkeit, dazu der Stand.
+  const l = await leseLieferbarkeit({ sheets, spreadsheetId });
+  return { ...lshopAuswertung(zeilen, { farben, lieferbarkeit: l.je }), lieferbarkeitStand: l.stand };
 }

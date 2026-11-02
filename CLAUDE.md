@@ -352,6 +352,17 @@ Neue Sektionen immer mit Anker versehen:
   `Lieferbarkeit: Anfang/Ende`, eigener Router `routes/lshopLieferbarkeit.js`). Einrichtung `scripts/setup-lshop-lieferbarkeit.js`
   (Reiter + Ordner "L-Shop Auslauf" ueber `richteAuslaufOrdnerEin` in belegArchiv.js; Trockenlauf, `--write`), von Hand
   `scripts/lshop-lieferbarkeit.js` (Trockenlauf Standard, `--write`; lokal NODE_ENV=production fuer die FTP-Secrets).
+  BO7-2 Anzeige (nur lesen): `lib/lieferbarkeitLesen.js` (`leseLieferbarkeit`, 60 s Zwischenspeicher, der Lauf leert ihn;
+  fehlt/kaputt der Reiter -> leere Map, alles ohne Kennzeichen) -> `{ stufe, stock, nullSeit, auslaufdatum }` je ArticleNr
+  (`stufeAus`: nicht_gefuehrt > auslauf > null > lieferbar) + `stand` (Stand_Datei, veraltet > 3 h, Liste > 14 Tage).
+  `lshopAuswertung(zeilen, { lieferbarkeit })`: Variante traegt `lieferbar`, `auslaufend` NUR aus der Liste ({farbe, groesse,
+  datum}); Discontinued 1/2/8 zeigt NICHTS mehr, 3/6 + "ausgelaufen" bleiben Sperre (`gesperrt`). Angehaengt in: Korb (je Buendel
+  `lieferbar`, `lieferbarkeitStand`, `summen.nichtLieferbar`), `.../modelle/:c/varianten` (BO6/BO6-1), `GET /api/sheets/lshop/:c`
+  (Maske, `mitLieferbarkeit`), Lager `rohlingVarianten` (`gesperrt` statt `auslauf`), LS4 `vorschau.lieferbar` (nur genutzte
+  Nummern). Frontend Block `Lieferbarkeit-Anzeige: Anfang/Ende` (Test lieferbarkeit-anzeige.test.js), Praefix **`lfb`** (nicht `lb` -
+  das ist L-Shop-Bestellungen): `lfbPunkt` (CSS `lfb-<stufe>`, Hilfe `lfb-*`, Zahl in `data-hilfe-zusatz` - der Tooltip stellt sie vor
+  den festen Text), `lfbStandHtml`, `lfbRasterHinweis` (Raster nur Punkt, Text darunter), Korb "nicht lieferbar zuerst"
+  (`mc_korb_lb_zuerst`). Der Test parst das ganze Modul-Skript (doppelte Namen zwischen Bloecken = rot).
 - backend/lib/lshopBelege.js – Belege-Abruf (BO4b-1), Logik in `utils/lshop-belege.js`. Scheduler
   `POST /api/intern/lshop-belege/abruf` (Job `lshop-belege-abruf`, `7,37 * * * *`) und Knopf
   `POST /api/bestellen/lshop-belege/abruf` (`routes/lshopBelege.js`, eigener Router, damit

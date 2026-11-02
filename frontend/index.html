@@ -404,6 +404,16 @@
       .korb-raster label { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.8rem; text-align: center; }
       .korb-raster input { width: 100%; box-sizing: border-box; text-align: center; font-size: 0.95rem; padding: 0.3rem 0.2rem; }
       .korb-raster .korb-auslauf { color: var(--warning, #d4a017); font-size: 0.7rem; }
+      /* BO7-2: Lieferbarkeit bei L-Shop - vier Stufen, ueberall gleich */
+      .lfb-punkt { font-size: 0.72rem; white-space: nowrap; cursor: help; }
+      .lfb-lieferbar { color: var(--success, #3fb950); }
+      .lfb-null { color: var(--muted, #8b949e); }
+      .lfb-auslauf { color: var(--warning, #d4a017); }
+      .lfb-nicht_gefuehrt { color: var(--danger, #f85149); }
+      .lfb-stand { font-size: 0.72rem; color: var(--muted, #8b949e); cursor: help; }
+      .lfb-stand.lfb-veraltet { opacity: 0.7; font-style: italic; }
+      .lfb-liste-alt { color: var(--warning, #d4a017); }
+      .lfb-hinweis { font-size: 0.75rem; color: var(--muted, #8b949e); margin-top: 4px; }
       .korb-raster input.korb-raster-fehler { border-color: var(--danger); }
       .korb-reihe { display: flex; gap: 0.45rem; flex-wrap: wrap; }
       /* BO5-3: Lager im Korb */
@@ -1490,6 +1500,7 @@
                   <button type="button" data-filter="alle" data-hilfe="filter-alle" aria-pressed="false">Alle</button>
                   <button type="button" data-filter="lager" data-hilfe="filter-lager" aria-pressed="false">Aus Lager</button>
                 </span>
+                <button type="button" class="korb-link" id="korb-lb-zuerst" data-hilfe="korb-lb-zuerst" aria-pressed="false">nicht lieferbar zuerst</button>
               </div>
               <div class="korb-aktionen">
                 <button class="korb-aktion korb-aktion-haupt" id="korb-eigen-btn" type="button" data-hilfe="eigen">+ Eigene Position</button>
@@ -1503,6 +1514,7 @@
             </div>
             <div id="hilfe-korb" class="hilfe-legende" hidden></div>
             <div id="korb-zaehler" class="korb-zaehler"></div>
+            <div id="korb-lb-stand" class="korb-zaehler"></div>
             <button class="korb-link" id="korb-alle-btn" type="button" data-hilfe="alle-offenen">alle offenen wählen</button>
             <div id="korb-lauf" class="lshop-card-bedarf" style="display:none;"></div>
             <div id="korb-belege" class="lshop-card-bedarf" style="display:none;"></div>
@@ -1516,6 +1528,7 @@
                 <div id="korb-eigen-artikel" class="lshop-card-title"></div>
                 <select id="korb-eigen-farbe" class="form-select" aria-label="Farbe"></select>
                 <div id="korb-eigen-raster" class="korb-raster" data-hilfe="eigen-raster" role="group" aria-label="Menge je Größe"></div>
+                <div id="korb-eigen-lb" class="lfb-hinweis"></div>
                 <div id="korb-eigen-summe" class="korb-zaehler" aria-live="polite"></div>
                 <input id="korb-eigen-referenz" type="text" class="form-input" maxlength="80" placeholder="Referenz (Pflicht, gilt für alle Größen)" aria-describedby="korb-eigen-referenz-hilfe" data-hilfe="eigen-referenz" />
                 <div id="korb-eigen-referenz-hilfe" class="korb-zaehler">z. B. „Lager“, „Muster“, „Verein X Auftrag 12“ – nie Namen von Privatpersonen.</div>
@@ -1578,6 +1591,7 @@
               <div class="korb-zaehler">Anderes Modell? Position herausnehmen und neu anlegen.</div>
               <label class="eb-feld">Farbe <select id="eb-farbe" class="form-select" data-hilfe="eb-farbe"></select></label>
               <label class="eb-feld">Größe <select id="eb-groesse" class="form-select" data-hilfe="eb-groesse"></select></label>
+              <div id="eb-lb" class="lfb-hinweis"></div>
               <label class="eb-feld">Menge <input id="eb-menge" type="number" class="form-input" min="1" max="999" step="1" inputmode="numeric" data-hilfe="eb-menge"></label>
               <label class="eb-feld">Referenz <input id="eb-referenz" type="text" class="form-input" maxlength="80" data-hilfe="eb-referenz"></label>
               <label class="eb-feld">Notiz <input id="eb-notiz" type="text" class="form-input" maxlength="200" placeholder="optional" data-hilfe="eb-notiz"></label>
@@ -4776,7 +4790,10 @@
       // Unterreiter "L-Shop-Bestellungen"). Gemerkt je Browser; fehlt der Speicher, gilt "offen".
       const KORB_FILTER_KEY = 'mc_korb_filter';
       const korbFilterLesen = () => { try { const f = localStorage.getItem(KORB_FILTER_KEY); return ['offen', 'raus', 'alle', 'lager'].includes(f) ? f : 'offen'; } catch { return 'offen'; } };
-      const korbZustand = { daten: null, auswahl: new Map(), filter: korbFilterLesen() };   // auswahl: Schluessel -> Position
+      // BO7-2: "nicht lieferbar zuerst" (gemerkt je Browser, Standard aus)
+      const KORB_LB_KEY = 'mc_korb_lb_zuerst';
+      const korbLbLesen = () => { try { return localStorage.getItem(KORB_LB_KEY) === '1'; } catch { return false; } };
+      const korbZustand = { daten: null, auswahl: new Map(), filter: korbFilterLesen(), lbZuerst: korbLbLesen() };   // auswahl: Schluessel -> Position
       // "Herausgenommen" zeigt nur die letzten 14 Tage (+ unbezahlt, rausAktuell vom Server), aeltere per Link.
       // BO5-3: "Aus Lager" = Status Lager (Rueckweg "zurück in den Korb"); "Alle" bleibt offen + herausgenommen.
       const korbFilterPasst = p => korbZustand.filter === 'lager' ? p.status === 'Lager'
@@ -4968,6 +4985,16 @@
         'filter-raus':          { name: 'Herausgenommen', text: 'Positionen, die nicht bestellt werden (z. B. Ware da, schon bestellt). Zeigt die letzten 14 Tage.' },
         'filter-alle':          { name: 'Alle', text: 'Alles, was noch nicht bestellt ist: offen und herausgenommen.' },
         // BO5-3: Lager im Korb
+        'lager-gesperrt':       { name: 'bei L-Shop gesperrt', text: 'L-Shop führt diese Variante nicht mehr (Stammdatei). Einbuchen geht, Ware kann noch im Regal liegen.' },
+        'lsm-lieferbar':        { name: 'Lieferbarkeit des Modells', text: 'Wie viele seiner Größen/Farben bei L-Shop lieferbar sind – nur für Nummern, die wir schon nutzen.' },
+        'lfb-lieferbar':         { name: '● lieferbar', text: 'Bei L-Shop lieferbar (Bestandsdatei, stündlich). Die Zahl steht davor.' },
+        'lfb-null':              { name: '● bei L-Shop 0', text: 'L-Shop hat gerade keinen Bestand. Bestellen geht trotzdem, L-Shop liefert nach. „seit“ = seit wann durchgehend 0.' },
+        'lfb-auslauf':           { name: '● läuft aus', text: 'Steht auf der Auslaufliste von L-Shop (freitags neu). Bald nicht mehr bestellbar – Nachfolger überlegen.' },
+        'lfb-nicht-gefuehrt':    { name: '● nicht mehr geführt', text: 'Steht nicht mehr in der L-Shop-Bestandsdatei. Bestellen klappt wahrscheinlich nicht mehr.' },
+        'lfb-stand':             { name: 'Lieferbarkeit Stand', text: 'Uhrzeit der L-Shop-Bestandsdatei, aus der die Punkte stammen. MC liest die Datei stündlich.' },
+        'lfb-veraltet':          { name: 'Lieferbarkeit veraltet', text: 'Der Stand ist älter als 3 Stunden – der stündliche Abruf hängt. „📦 Lieferbarkeit jetzt“ holt ihn neu.' },
+        'lfb-liste':             { name: 'Auslaufliste', text: 'Die Auslaufliste ist älter als 14 Tage oder fehlt. Bitte die neue in „L-Shop Auslauf“ ablegen.' },
+        'korb-lb-zuerst':       { name: 'nicht lieferbar zuerst', text: 'Sortiert Artikel mit L-Shop-Problem (nicht geführt, läuft aus, 0) nach oben. Nochmal klicken = normal.' },
         'filter-lager':         { name: 'Aus Lager', text: 'Positionen, die du aus dem Lager genommen hast. Dort geht es mit „zurück in den Korb“ zurück.' },
         'korb-im-lager':        { name: 'im Lager: n', text: 'So viele Stück dieser Artikelnummer liegen im Lager (Orte beim Darüberfahren). Tippen öffnet den Bestand.' },
         'aus-lager':            { name: 'aus Lager nehmen …', text: 'Nimmt die Position aus dem Lager statt sie zu bestellen. Du wählst den Ort und bestätigst.' },
@@ -5128,7 +5155,7 @@
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
-        korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'lager-storno-hinweis', 'lager-storno-zurueck', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'eb-bearbeiten', 'eb-gesperrt-lager', 'eb-farbe', 'eb-groesse', 'eb-menge', 'eb-referenz', 'eb-notiz', 'eb-lager', 'eb-speichern', 'eb-abbrechen', 'abgleich', 'belege', 'lieferbarkeit', 'alle-offenen', 'zurueck'],
+        korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-lb-zuerst', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'lager-storno-hinweis', 'lager-storno-zurueck', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'eb-bearbeiten', 'eb-gesperrt-lager', 'eb-farbe', 'eb-groesse', 'eb-menge', 'eb-referenz', 'eb-notiz', 'eb-lager', 'eb-speichern', 'eb-abbrechen', 'abgleich', 'belege', 'lieferbarkeit', 'alle-offenen', 'zurueck'],
         leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
         uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
         karton: ['karton-pruefen', 'karton-angekommen', 'karton-naechster', 'karton-rest-lager', 'karton-lager-ort', 'bei-ankunft-lager'],
@@ -5136,8 +5163,8 @@
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager'],
-        'lshop-modelle': ['lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
-        lager: ['lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
+        'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
+        lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
       function hilfeLegendeHtml(gruppe) {
@@ -5157,8 +5184,10 @@
         const kannHover = () => { try { return win.matchMedia('(hover: hover)').matches; } catch { return true; } };
         const perTastatur = el => { try { return el.matches(':focus-visible'); } catch { return true; } };
         function zeigen(el, von = 'tastatur') {
-          const text = hilfeText(el?.dataset?.hilfe);
-          if (!text) return false;
+          const fest = hilfeText(el?.dataset?.hilfe);
+          if (!fest) return false;
+          // BO7-2: data-hilfe-zusatz = Zahl/Datum des Elements vor dem festen Text (z. B. "Bestand bei L-Shop: 37")
+          const text = el?.dataset?.hilfeZusatz ? `${el.dataset.hilfeZusatz} – ${fest}` : fest;
           if (aktuell && aktuell !== el) aktuell.removeAttribute('aria-describedby');
           aktuell = el;
           quelle = von;
@@ -5210,6 +5239,70 @@
         return Number.isFinite(n) && n > 1 ? `<span class="korb-menge-viel">${text}</span>` : text;
       }
       // ── Korb-Menge: Ende ──
+
+      // ── Lieferbarkeit-Anzeige: Anfang (BO7-2, reine Logik, Test backend/tests/lieferbarkeit-anzeige.test.js) ──
+      // Quelle nur LShop_Lieferbarkeit (Server haengt { stufe, stock, nullSeit, auslaufdatum } an). Vier Stufen, ueberall gleich.
+      const LFB_STUFEN = {
+        lieferbar:      { text: 'lieferbar', rang: 3, hilfe: 'lfb-lieferbar' },
+        null:           { text: 'bei L-Shop 0', rang: 2, hilfe: 'lfb-null' },
+        auslauf:        { text: 'läuft aus', rang: 1, hilfe: 'lfb-auslauf' },
+        nicht_gefuehrt: { text: 'nicht mehr geführt', rang: 0, hilfe: 'lfb-nicht-gefuehrt' },
+      };
+      const LFB_VERALTET_STUNDEN = 3;
+      const lfbEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      /** ISO oder JJJJ-MM-TT -> "TT.MM." bzw. mit Jahr "TT.MM.JJJJ" (Tag in Europe/Berlin). */
+      function lfbTag(wert, { jahr = false } = {}) {
+        const s = String(wert ?? '');
+        const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T12:00:00Z`) : new Date(s);
+        if (!s || Number.isNaN(d.getTime())) return '';
+        return d.toLocaleDateString('de-DE', { timeZone: 'Europe/Berlin', day: '2-digit', month: '2-digit', ...(jahr ? { year: 'numeric' } : {}) });
+      }
+      /** Kurztext der Stufe, z. B. "bei L-Shop 0 seit 02.11." oder "läuft aus bis 31.12.2026". */
+      function lfbText(l) {
+        if (!l || !LFB_STUFEN[l.stufe]) return '';
+        if (l.stufe === 'null' && l.nullSeit) return `bei L-Shop 0 seit ${lfbTag(l.nullSeit)}`;
+        if (l.stufe === 'auslauf' && l.auslaufdatum) return `läuft aus bis ${lfbTag(l.auslaufdatum, { jahr: true })}`;
+        return LFB_STUFEN[l.stufe].text;
+      }
+      /** Zahl fuer den Mouse-over (vor den festen Hilfetext). */
+      function lfbZusatz(l) {
+        if (!l) return '';
+        if (l.stufe === 'nicht_gefuehrt') return 'Nicht mehr in der L-Shop-Bestandsdatei';
+        const teile = [`Bestand bei L-Shop: ${l.stock ?? 0}`];
+        if (l.stufe === 'auslauf' && l.stock === 0 && l.nullSeit) teile.push(`0 seit ${lfbTag(l.nullSeit)}`);
+        return teile.join(' · ');
+      }
+      /** Punkt (und mit text auch der Kurztext) - leer, wenn nichts bekannt ist (Reiter fehlt, Nummer nicht genutzt). */
+      function lfbPunkt(l, { text = false } = {}) {
+        if (!l || !LFB_STUFEN[l.stufe]) return '';
+        return `<span class="lfb-punkt lfb-${l.stufe}" tabindex="0" data-hilfe="${LFB_STUFEN[l.stufe].hilfe}" data-hilfe-zusatz="${lfbEsc(lfbZusatz(l))}"`
+          + `${text ? '' : ` aria-label="${lfbEsc(lfbText(l))}"`}>●${text ? ` ${lfbEsc(lfbText(l))}` : ''}</span>`;
+      }
+      /** Rang fuer "nicht lieferbar zuerst" (nicht gefuehrt, laeuft aus, 0, lieferbar, unbekannt). */
+      const lfbRang = l => (l && LFB_STUFEN[l.stufe] ? LFB_STUFEN[l.stufe].rang : 4);
+      /** Stand-Zeile: "Lieferbarkeit Stand HH:MM", grau "veraltet" ab 3 h, Hinweis bei alter oder fehlender Auslaufliste. */
+      function lfbStand(stand, jetzt = new Date()) {
+        if (!stand?.datei) return { text: '', veraltet: false, hinweis: '' };
+        const d = new Date(stand.datei);
+        const zeit = d.toLocaleTimeString('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit' });
+        const tag = lfbTag(stand.datei) === lfbTag(jetzt.toISOString()) ? '' : ` (${lfbTag(stand.datei)})`;
+        const veraltet = jetzt.getTime() - d.getTime() > LFB_VERALTET_STUNDEN * 3_600_000;
+        const hinweis = !stand.liste ? 'keine Auslaufliste' : stand.listeAlt ? `Auslaufliste ${stand.listeTage} Tage alt` : '';
+        return { text: `Lieferbarkeit Stand ${zeit}${tag}`, veraltet, hinweis };
+      }
+      function lfbStandHtml(stand, jetzt = new Date()) {
+        const s = lfbStand(stand, jetzt);
+        if (!s.text) return '';
+        return `<span class="lfb-stand${s.veraltet ? ' lfb-veraltet' : ''}" tabindex="0" data-hilfe="${s.veraltet ? 'lfb-veraltet' : 'lfb-stand'}">${lfbEsc(s.text)}${s.veraltet ? ' · veraltet' : ''}</span>`
+          + (s.hinweis ? ` <span class="lfb-stand lfb-liste-alt" tabindex="0" data-hilfe="lfb-liste">${lfbEsc(s.hinweis)}</span>` : '');
+      }
+      /** Groessen-Raster/Liste: welche Groessen bei L-Shop ein Problem haben (im Raster steht nur der Punkt - schmal am Handy). */
+      function lfbRasterHinweis(liste) {
+        const prob = (liste ?? []).filter(r => r?.lieferbar && r.lieferbar.stufe !== 'lieferbar');
+        if (!prob.length) return '';
+        return `Bei L-Shop: ${prob.map(r => `${r.groesse || '–'}: ${lfbText(r.lieferbar)}`).join(' · ')} – wählbar bleiben sie, L-Shop liefert nach.`;
+      }
+      // ── Lieferbarkeit-Anzeige: Ende ──
 
       // ── Korb-Lager: Anfang (BO5-3, reine Logik, Test backend/tests/lager-korb.test.js) ──
       // "im Lager: n" an offenen Positionen (n vom Server, ohne Doppelverplanung), Orte im Mouse-over (title am Link,
@@ -5277,7 +5370,8 @@
         const notiz    = p.notiz ? ` · <em>${korbEsc(p.notiz)}</em>` : '';
         // Position: JFN #Nr · Pos. · Menge · unser Artikelname. Die L-Shop-Angaben stehen nur im Buendelkopf.
         const text     = `${herkunft} ${korbMengeHtml(p.menge)}${p.produktname ? ` · ${korbEsc(p.produktname)}` : ''}`;
-        const lager    = korbLagerHtml(p, b) + korbLagerZielHtml(p);   // BO5-4: "bei Ankunft ins Lager"
+        // BO7-2: an jeder offenen Position der Punkt der L-Shop-Lieferbarkeit (Text steht im Buendelkopf)
+        const lager    = korbLagerHtml(p, b) + korbLagerZielHtml(p) + (p.status === 'offen' && b?.lieferbar ? ` · ${lfbPunkt(b.lieferbar)}` : '');   // BO5-4: "bei Ankunft ins Lager"
         if (p.status === 'Lager') {
           return `<div class="korb-pos korb-pos-raus" data-korb-pos="${korbEsc(p.schluessel)}"><span class="korb-pos-text">${text} · ${korbEsc(korbDatum(p.statusDatum))}${notiz}${hinweis}${lager}</span></div>`;
         }
@@ -5336,7 +5430,11 @@
         const z = d.summen;
         document.getElementById('korb-summe').textContent =
           `L-Shop-Warenkorb · ${z.zuBestellen} Stück zu bestellen · ${z.artikelnummern} Artikelnummer${z.artikelnummern !== 1 ? 'n' : ''}`;
-        document.getElementById('korb-zaehler').textContent = z.mitHinweis ? `${z.mitHinweis} offene Position${z.mitHinweis !== 1 ? 'en' : ''} mit Hinweis` : '';
+        document.getElementById('korb-zaehler').textContent = [z.mitHinweis ? `${z.mitHinweis} offene Position${z.mitHinweis !== 1 ? 'en' : ''} mit Hinweis` : '',
+          z.nichtLieferbar ? `${z.nichtLieferbar} Artikelnummer${z.nichtLieferbar !== 1 ? 'n' : ''} bei L-Shop nicht lieferbar` : ''].filter(Boolean).join(' · ');
+        document.getElementById('korb-lb-stand').innerHTML = lfbStandHtml(d.lieferbarkeitStand);   // BO7-2
+        const lfbBtn = document.getElementById('korb-lb-zuerst');
+        if (lfbBtn) { lfbBtn.setAttribute('aria-pressed', String(korbZustand.lbZuerst)); lfbBtn.hidden = !d.lieferbarkeitStand; }
         // Herausgenommen: Zaehler = sichtbare Anzahl (14 Tage + unbezahlt, oder alle nach "ältere anzeigen"), klein die Gesamtzahl.
         const rausSichtbar = korbZustand.rausAeltere ? z.herausgenommen : z.herausgenommenAktuell;
         const rausAelter = z.herausgenommen - z.herausgenommenAktuell;
@@ -5351,6 +5449,8 @@
         const sichtbar = d.buendel
           .map(b => ({ ...b, zeigen: b.positionen.filter(korbFilterPasst) }))
           .filter(b => b.zeigen.length);
+        // BO7-2: stabil umsortieren - nicht gefuehrt, laeuft aus, 0 nach oben; sonst Reihenfolge des Servers
+        if (korbZustand.lbZuerst) sichtbar.sort((a, b) => lfbRang(a.lieferbar) - lfbRang(b.lieferbar));
         const aeltereLink = korbZustand.filter === 'raus' && !korbZustand.rausAeltere && rausAelter > 0
           ? `<button class="korb-link" type="button" id="korb-aeltere">ältere anzeigen (${rausAelter})</button>` : '';
         if (!sichtbar.length) {
@@ -5365,6 +5465,7 @@
               <div class="card-cb-wrap">${waehlbar.length ? `<input type="checkbox" class="korb-buendel-cb" data-buendel="${korbEsc(b.articleNr)}" ${alleAn ? 'checked' : ''} aria-label="ganzes Bündel wählen">` : ''}</div>
               <div class="lshop-card-info">
                 <div class="lshop-card-title korb-titel"><span>${korbKopfText(b)}</span><span class="lshop-stueck">${b.zuBestellen} Stk</span></div>
+                ${b.lieferbar ? `<div class="lshop-card-bedarf">${lfbPunkt(b.lieferbar, { text: true })}</div>` : ''}
                 ${b.unbezahlt ? `<div class="lshop-card-bedarf">davon ${b.unbezahlt} unbezahlt</div>` : ''}
                 <div class="lshop-card-orders">${b.zeigen.map(p => korbPositionZeile(p, b)).join('')}</div>
               </div>
@@ -5653,7 +5754,7 @@
         const ordnung = [...reihe.filter(kind), ...reihe.filter(g => !kind(g))];
         const genutzt = new Set();
         return ordnung.map(g => passend.find(v => v.groesse === g && !genutzt.has(v.articleNr) && genutzt.add(v.articleNr)))
-          .filter(Boolean).map(v => ({ groesse: v.groesse, articleNr: v.articleNr, auslauf: v.auslauf }));
+          .filter(Boolean).map(v => ({ groesse: v.groesse, articleNr: v.articleNr, ...(v.lieferbar ? { lieferbar: v.lieferbar } : {}) }));   // BO7-2
       }
       /** Mengen (articleNr -> Eingabe) -> Positionen mit Menge > 0; leer/0 zaehlt nicht, Unsinn ist ein Fehler. */
       function eigenRasterAuswahl(raster, mengen) {
@@ -5755,7 +5856,8 @@
         korbEigen.raster = farbe === '' && !korbEigen.varianten.some(v => v.farbe === '') ? [] : eigenRasterGroessen(korbEigen.varianten, farbe);
         eigenEl('korb-eigen-raster').innerHTML = korbEigen.raster.map(r => `<label><span>${korbEsc(r.groesse || '–')}</span>`
           + `<input type="number" class="form-input" min="0" max="${EIGEN_MENGE_MAX}" step="1" inputmode="numeric" placeholder="0" data-nr="${korbEsc(r.articleNr)}" data-groesse="${korbEsc(r.groesse)}" aria-label="Menge ${korbEsc(r.groesse)}">`
-          + (r.auslauf !== undefined ? `<span class="korb-auslauf">läuft aus (${korbEsc(r.auslauf)})</span>` : '') + '</label>').join('');
+          + (r.lieferbar ? lfbPunkt(r.lieferbar) : '') + '</label>').join('');   // BO7-2: nur der Punkt, Text darunter
+        eigenEl('korb-eigen-lb').textContent = lfbRasterHinweis(korbEigen.raster);
         eigenSummeZeichnen();
       }
       function eigenFarbenSetzen(d, vorFarbe) {
@@ -5897,7 +5999,8 @@
       function ebGroessenSetzen(vorNr) {
         const liste = ebGroessen(eb.varianten, ebEl('eb-farbe').value, eb.aktuell);
         ebEl('eb-groesse').innerHTML = liste.map(g => `<option value="${korbEsc(g.articleNr)}">${korbEsc(g.groesse || '–')}`
-          + `${g.bisher ? ' (bisher, nicht mehr bestellbar)' : g.auslauf !== undefined ? ` (läuft aus ${korbEsc(g.auslauf)})` : ''}</option>`).join('');
+          + `${g.bisher ? ' (bisher, nicht mehr bestellbar)' : g.lieferbar && g.lieferbar.stufe !== 'lieferbar' ? ` · ${korbEsc(lfbText(g.lieferbar))}` : ''}</option>`).join('');   // BO7-2
+        ebEl('eb-lb').textContent = lfbRasterHinweis(liste);
         if (vorNr && liste.some(g => g.articleNr === vorNr)) ebEl('eb-groesse').value = vorNr;
         ebVorschauZeichnen();
       }
@@ -6056,6 +6159,11 @@
       }
       // Block Belege-Abruf: Ende
       document.getElementById('korb-belege-btn')?.addEventListener('click', ev => belegeAbrufStarten(ev.currentTarget));
+      document.getElementById('korb-lb-zuerst')?.addEventListener('click', () => {   // BO7-2
+        korbZustand.lbZuerst = !korbZustand.lbZuerst;
+        try { localStorage.setItem(KORB_LB_KEY, korbZustand.lbZuerst ? '1' : '0'); } catch { /* nur fuer diese Sitzung */ }
+        korbZeichnen();
+      });
 
       // Block Lieferbarkeit: Anfang (BO7-1 - Lauf von Hand; die Anzeige je Position kommt mit BO7-2)
       function lieferbarkeitZeile(r) {
@@ -8113,7 +8221,8 @@
           + `<input type="number" class="form-input" min="0" max="${LAGER_MENGE_MAX}" step="1" inputmode="numeric" pattern="[0-9]*" placeholder="${zaehlung ? 'gezählt' : '0'}"`
           + ` data-schluessel="${korbEsc(r.schluessel)}" aria-label="Menge ${korbEsc(r.label)}" value="${korbEsc(vorher[r.schluessel] ?? '')}">`
           + (ort ? `<span class="lager-raster-da">da: ${da.get(r.schluessel) ?? 0}</span>` : '')
-          + (r.auslauf ? '<span class="korb-auslauf">läuft aus</span>' : '') + (r.aktiv === false ? '<span class="korb-auslauf">inaktiv</span>' : '') + '</label>').join('');
+          + (r.gesperrt ? '<span class="korb-auslauf" tabindex="0" data-hilfe="lager-gesperrt">bei L-Shop gesperrt</span>' : '') + (r.lieferbar ? lfbPunkt(r.lieferbar) : '')   // BO7-2
+          + (r.aktiv === false ? '<span class="korb-auslauf">inaktiv</span>' : '') + '</label>').join('');
         lagerSummeZeichnen();
       }
       function lagerSummeZeichnen() {
@@ -9086,16 +9195,25 @@
         const z = ((daten && daten.gesperrt) || []).find(g => lshopGleich(g.farbe, farbe));
         return z ? { farbe: z.farbe, wert: z.wert } : null;
       }
-      // "läuft aus (Wert 1)" fuer eine waehlbare Farbe, mit Groessen, wenn nicht alle betroffen.
+      // "läuft aus (bis 31.12.2026, nur M, L)" fuer eine waehlbare Farbe - BO7-2: nur aus der Auslaufliste.
       function lshopAuslauf(daten, farbe) {
         const f = lshopFarbe(daten, farbe);
         if (!f) return null;
         const z = ((daten && daten.auslaufend) || []).filter(a => a.farbe === f);
         if (!z.length) return null;
-        const werte = [...new Set(z.map(a => a.wert))].join('/');
+        const daten2 = [...new Set(z.map(a => a.datum).filter(Boolean))].map(d => `bis ${d.split('-').reverse().join('.')}`);
         const alle  = ((daten && daten.varianten) || []).filter(v => v.farbe === f).length;
-        const teil  = alle > z.length ? `, nur ${z.map(a => a.groesse).join(', ')}` : '';
-        return `läuft aus (Wert ${werte}${teil})`;
+        const teil  = alle > z.length ? `nur ${z.map(a => a.groesse).join(', ')}` : '';
+        const zusatz = [...daten2, teil].filter(Boolean).join(', ');
+        return `läuft aus${zusatz ? ` (${zusatz})` : ''}`;
+      }
+      // BO7-2: Lieferbarkeit einer Groesse ueber die gewaehlten Farben - die schlechteste Stufe zaehlt; null = nichts bekannt.
+      function lshopGroesseLb(daten, groesse, farben) {
+        const gew = (farben || []).map(f => lshopFarbe(daten, f)).filter(Boolean);
+        const treffer = ((daten && daten.varianten) || [])
+          .filter(v => lshopGleich(v.groesse, groesse) && (!gew.length || gew.includes(v.farbe)) && v.lieferbar).map(v => v.lieferbar);
+        const rang = { nicht_gefuehrt: 0, auslauf: 1, null: 2, lieferbar: 3 };
+        return treffer.sort((a, b) => (rang[a.stufe] ?? 4) - (rang[b.stufe] ?? 4))[0] || null;
       }
       // Sperrgrund einer Variante: Discontinued-Wert (3/6) oder LS2 "ausgelaufen"
       // (steht nicht mehr in der L-Shop-Stammdatei).
@@ -9645,7 +9763,8 @@
               const gr = d.groessen || [];
               hint.textContent = `L-Shop-Modell ${d.catalogNr}: ${(d.alleFarben || []).length} Farben, `
                 + (gr.length === 1 ? `eine Größe (${gr[0]}) – keine Größenachse.` : `Größen ${gr.join(', ')}.`)
-                + (lshopModellHinweis(d) ? ` ${lshopModellHinweis(d)}` : '');
+                + (lshopModellHinweis(d) ? ` ${lshopModellHinweis(d)}` : '')
+                + (lfbStand(d.lieferbarkeitStand).text ? ` · ${lfbStand(d.lieferbarkeitStand).text}${lfbStand(d.lieferbarkeitStand).veraltet ? ' (veraltet)' : ''}` : '');   // BO7-2
               if (weg.length) showToast(`Nicht im L-Shop-Modell, entfernt: ${weg.join(', ')}`, 'warn', 10000);
               // Faser-/Grammatur-Hinweise hier NICHT: sie gelten fuer alle Farben des
               // Modells. Gemeldet wird im SEO-Flow fuer die gewaehlten Farben.
@@ -9827,8 +9946,12 @@
               rm.addEventListener('click', () => { prop.tags.splice(ti, 1); renderTagChips(); });
               // M8b: auslaufende L-Shop-Farbe sichtbar markieren.
               const auslauf = (lshopModell && !editMode && istFarbAchse(prop.name)) ? lshopAuslauf(lshopModell, t) : null;
-              if (auslauf) { span.title = auslauf; span.style.outline = '1px dashed var(--warning, orange)'; }
-              span.append(auslauf ? `${t} – ${auslauf}` : t, rm);
+              if (auslauf) { span.dataset.hilfe = LFB_STUFEN.auslauf.hilfe; span.dataset.hilfeZusatz = auslauf; span.style.outline = '1px dashed var(--warning, orange)'; }
+              span.append(auslauf ? `${t} – ${auslauf}` : t);
+              // BO7-2: Punkt der L-Shop-Lieferbarkeit je Groesse (schlechteste Stufe der gewaehlten Farben)
+              const lb = (lshopModell && !editMode && grIstGroessenAchse(prop.name)) ? lshopGroesseLb(lshopModell, t, lshopGewaehlteFarben()) : null;
+              if (lb) span.insertAdjacentHTML('beforeend', ` ${lfbPunkt(lb)}`);
+              span.append(rm);
               tagWrap.insertBefore(span, tagInput);
             });
             // Sync checkboxes in open SSOT dropdown
@@ -10900,6 +11023,10 @@
         const s = lsmStufe(z);
         const nr = z.catalogNr && z.catalogNr.toUpperCase() !== z.text.toUpperCase() ? `${lsmEsc(z.text)} → <span class="lsm-nr">${lsmEsc(z.catalogNr)}</span>` : `<span class="lsm-nr">${lsmEsc(z.text)}</span>`;
         const auslauf = z.vorschau?.auslaufend?.length ? ` · <span class="lsm-auslauf">läuft aus: ${lsmEsc(z.vorschau.auslaufend.join(', '))}</span>` : '';
+        // BO7-2: nur fuer Nummern, die wir schon nutzen (LShop_Lieferbarkeit) - neue Modelle ohne Angabe
+        const lb = z.vorschau?.lieferbar;
+        const lfbTextLsm = lb ? ` · <span class="lfb-stand" tabindex="0" data-hilfe="lsm-lieferbar">${lsmEsc(`${lb.lieferbar} von ${lb.bekannt} Größen lieferbar`
+          + `${lb.null ? ` · ${lb.null} bei L-Shop 0` : ''}${lb.auslauf ? ` · ${lb.auslauf} laufen aus` : ''}${lb.weg ? ` · ${lb.weg} nicht mehr geführt` : ''}`)}</span>` : '';
         const gesperrt = z.vorschau?.gesperrt?.length ? ` · <span class="lsm-auslauf">nicht wählbar: ${lsmEsc(z.vorschau.gesperrt.join(', '))}</span>` : '';
         const vorschlaege = z.stufe === 'vorschlag'
           ? `<div class="lsm-vorschlaege">${(z.vorschlaege ?? []).map(v => `<button type="button" class="korb-aktion korb-aktion-ruhig" data-lsm-waehle="${i}" data-modell="${lsmEsc(v.catalogNr)}" data-hilfe="lsm-meintest">`
@@ -10908,7 +11035,7 @@
           : '';
         return `<div class="lsm-zeile lsm-${s.farbe}"><div class="lsm-kopf"><span>${nr} · <span class="lsm-stufe">${lsmEsc(s.text)}</span></span>`
           + `<button type="button" class="korb-link" data-lsm-entfernen="${i}" data-hilfe="lsm-entfernen" aria-label="Zeile entfernen">✕</button></div>`
-          + (z.vorschau ? `<div class="lsm-vorschau">${lsmEsc(lsmVorschauText(z.vorschau))}${auslauf}${gesperrt}</div>` : '')
+          + (z.vorschau ? `<div class="lsm-vorschau">${lsmEsc(lsmVorschauText(z.vorschau))}${auslauf}${gesperrt}${lfbTextLsm}</div>` : '')
           + (z.notiz ? `<div class="lsm-vorschau">Notiz: ${lsmEsc(z.notiz)}</div>` : '')
           + vorschlaege + '</div>';
       }

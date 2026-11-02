@@ -449,7 +449,7 @@ export function planeArtikel({ artikel, lshopZeilen, groessenTerme, preise, k = 
     hinweise.push(...aus.hinweise);
     if (!aus.farben.length) return fehler(`${artikel.modell}: Farbe "${farbe}" nicht wählbar.`);
     if (aus.auslaufend.some(a => a.farbe === farbe))
-      hinweise.push(`${artikel.modell} ${farbe}: läuft aus (${aus.auslaufend.filter(a => a.farbe === farbe).map(a => `${a.groesse}=${a.wert}`).join(', ')}).`);
+      hinweise.push(`${artikel.modell} ${farbe}: läuft aus (${aus.auslaufend.filter(a => a.farbe === farbe).map(a => `${a.groesse}${a.datum ? `=${a.datum}` : ''}`).join(', ')}).`);
 
     const imBereich = groessenImBereich(aus.groessen, artikel.von, artikel.bis);
     if (artikel.von && artikel.bis) {

@@ -247,7 +247,7 @@ router.get('/lshop/:catalogNr', async (req, res, next) => {
     const roh = req.query.farben;
     const farben = (Array.isArray(roh) ? roh : String(roh ?? '').split(','))
       .map(f => String(f).trim()).filter(Boolean);
-    res.json(await lshopFuerArtikel(req.params.catalogNr, { farben }));
+    res.json(await lshopFuerArtikel(req.params.catalogNr, { farben, mitLieferbarkeit: true }));   // BO7-2: Punkte je Groesse
   } catch (err) { next(err); }
 });
 

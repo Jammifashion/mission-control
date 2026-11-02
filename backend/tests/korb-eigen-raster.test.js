@@ -107,14 +107,15 @@ const F = new Function(`${gr}\n${block}\nreturn { eigenRasterGroessen, eigenRast
 describe('Frontend-Block Eigene-Raster', () => {
   const varianten = [
     { farbe: 'White', groesse: 'XL', articleNr: Q_WXL }, { farbe: 'White', groesse: 'S', articleNr: Q_WS },
-    { farbe: 'White', groesse: '152', articleNr: Q_W152 }, { farbe: 'White', groesse: 'M', articleNr: Q_WM, auslauf: 2 },
+    { farbe: 'White', groesse: '152', articleNr: Q_W152 }, { farbe: 'White', groesse: 'M', articleNr: Q_WM, lieferbar: { stufe: 'null', stock: 0, nullSeit: '2026-11-01T10:00:00Z', auslaufdatum: '' } },
     { farbe: 'White', groesse: '128', articleNr: Q_W128 }, { farbe: 'Black', groesse: 'L', articleNr: '2000000009' },
     { farbe: 'White', groesse: 'L', articleNr: '' },   // ohne ArticleNr -> nicht waehlbar
   ];
   test('Raster: nur diese Farbe, nur mit ArticleNr, Kindergroessen vorn, dann S -> XL', () => {
     const r = F.eigenRasterGroessen(varianten, 'White');
     expect(r.map(x => x.groesse)).toEqual(['128', '152', 'S', 'M', 'XL']);
-    expect(r.find(x => x.groesse === 'M').auslauf).toBe(2);
+    expect(r.find(x => x.groesse === 'M').lieferbar).toMatchObject({ stufe: 'null' });   // BO7-2: Punkt statt "läuft aus (Wert)"
+    expect(r.find(x => x.groesse === 'S')).not.toHaveProperty('lieferbar');
     expect(F.eigenRasterGroessen(varianten, 'Black').map(x => x.groesse)).toEqual(['L']);
     expect(F.eigenRasterGroessen(varianten, '')).toEqual([]);
   });

@@ -15,6 +15,7 @@ import ExcelJS from 'exceljs';
 import { getGoogleAuth } from './googleAuth.js';
 import { sheetsMitWiederholung } from './googleRetry.js';
 import { ladeBestandsdatei, LShopFtpFehler } from './lshopFtp.js';
+import { _lieferbarkeitCacheLeeren } from './lieferbarkeitLesen.js';
 import { richteAuslaufOrdnerEin } from './belegArchiv.js';
 import { notify } from './chatNotify.js';
 import { leseReiterSpalten } from './ssot-reiter.js';
@@ -189,6 +190,7 @@ export async function runLieferbarkeit({
     const zurueck = (await sheets.spreadsheets.values.get({ spreadsheetId, range, valueRenderOption: 'UNFORMATTED_VALUE' })).data.values ?? [];
     const ab = zeilenAbweichungen(neu, zurueck);
     if (ab.length || zurueck.length !== neu.length) throw fehler(`${LIEFERBARKEIT_TAB}: Rücklesen weicht ab (${ab.length} Zellen).`, 500);
+    _lieferbarkeitCacheLeeren();   // BO7-2: Anzeige liest den neuen Stand sofort
 
     // 6. Chat erst nach dem Schreiben
     let chat = 'nichts zu melden';

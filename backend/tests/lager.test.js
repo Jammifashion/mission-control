@@ -335,7 +335,7 @@ describe('lib/lager.js', () => {
   test('Auswahl: Rohling mit ausgelaufenen Varianten (markiert), Fertigware mit Achsen, Trikot ohne Namen', async () => {
     const { sheets } = machSheets(lagerTabs());
     const r = await rohlingVarianten({ catalogNr: 'JH030F', sheets });
-    expect(r.varianten.find(v => v.articleNr === NR_AUS)).toMatchObject({ auslauf: true, schluessel: `LS:${NR_AUS}` });
+    expect(r.varianten.find(v => v.articleNr === NR_AUS)).toMatchObject({ gesperrt: true, schluessel: `LS:${NR_AUS}` });   // BO7-2: harte Sperre heisst gesperrt
     const f = await fertigVarianten({ ssotId: '0001', sheets });
     expect(f.varianten[0]).toMatchObject({ wcId: '501', schluessel: 'WC:501', farbe: 'Deep Black', groesse: '2XL' });
     const tr = await trikotAuswahl({ sheets });

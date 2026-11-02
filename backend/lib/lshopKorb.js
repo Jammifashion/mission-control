@@ -35,6 +35,7 @@ import {
 } from '../utils/korb-logic.js';
 import { ersetzeZeile } from './sheet-zeilen.js';
 import { LIEFERZEIT_META_KEY } from './lieferzeiten.js';
+import { leseLieferbarkeit } from './lieferbarkeitLesen.js';
 import { leseLagerFuerKorb, leseLager } from './lager.js';
 import { aktiveOrte } from '../utils/lager.js';
 import { korbVorschlaege } from '../utils/lager-korb.js';
@@ -350,8 +351,9 @@ async function modellAuswertung(sheets, spreadsheetId, catalogNr) {
   const nr = String(catalogNr ?? '').trim();
   const zeilen = (await ladeLShopZeilen({ sheets, spreadsheetId })).filter(z => z.catalogNr === nr);
   if (!zeilen.length) throw fehler(NICHT_IM_BESTAND, 404);
-  const a = lshopAuswertung(zeilen);
-  return { catalogNr: nr, bezeichnung: zeilen.find(z => z.bezeichnung)?.bezeichnung ?? '', marke: a.marken[0] ?? '', varianten: a.varianten };
+  const lb = await leseLieferbarkeit({ sheets, spreadsheetId });   // BO7-2: Punkte je Groesse im Raster (BO6/BO6-1)
+  const a = lshopAuswertung(zeilen, { lieferbarkeit: lb.je });
+  return { catalogNr: nr, bezeichnung: zeilen.find(z => z.bezeichnung)?.bezeichnung ?? '', marke: a.marken[0] ?? '', varianten: a.varianten, lieferbarkeitStand: lb.stand };
 }
 
 export async function lshopModellVarianten({ catalogNr, sheets: s } = {}) {
@@ -523,6 +525,9 @@ export async function leseKorb({ shop, mit, sheets: s, wcFuer = getWcClient, jet
   // Lager-Positionen. Nur Anzeige - geaendert wird nichts (auch nicht im Abgleich).
   const lager = await leseLagerFuerKorb(sheets, spreadsheetId);
   korbVorschlaege(buendel, lager.bestand, lager.abgaenge);
+  // BO7-2: Lieferbarkeit bei L-Shop je Buendel (= eine ArticleNr) aus LShop_Lieferbarkeit; fehlt der Reiter -> ohne Kennzeichen.
+  const lb = await leseLieferbarkeit({ sheets, spreadsheetId });
+  for (const b of buendel) { const l = lb.je.get(String(b.articleNr ?? '').trim()); if (l) b.lieferbar = l; }
   let staffel;
   try { staffel = await leseStaffel({ sheets }); } catch { staffel = { stufen: [], fehler: 'Versandstaffel nicht lesbar' }; }
   return {
@@ -531,10 +536,12 @@ export async function leseKorb({ shop, mit, sheets: s, wcFuer = getWcClient, jet
     staffel,
     gruende: GRUENDE,
     lagerHinweis: lager.hinweis,
+    lieferbarkeitStand: lb.stand,
     summen: {
       positionen: meine.filter(z => z.Status !== STATUS.LAGER).length,   // "Alle" = offen + herausgenommen
       zuBestellen: buendel.reduce((n, b) => n + b.zuBestellen, 0),
       artikelnummern: buendel.filter(b => b.zuBestellen > 0).length,
+      nichtLieferbar: buendel.filter(b => b.zuBestellen > 0 && b.lieferbar && b.lieferbar.stufe !== 'lieferbar').length,
       ...korbZaehler(meine, nun),
     },
   };
