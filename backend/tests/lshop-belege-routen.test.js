@@ -16,6 +16,7 @@ const BELEGE_BESCHAEFTIGT = 'Der Beleg-Abruf läuft gerade - bitte gleich noch e
 const runBelegeAbruf = jest.fn();
 jest.unstable_mockModule('../lib/lshopBelege.js', () => ({ runBelegeAbruf, BELEGE_BESCHAEFTIGT }));
 jest.unstable_mockModule('../lib/lshopKorb.js', () => ({ runKorbAbgleich: jest.fn(), BESCHAEFTIGT: 'x' }));
+jest.unstable_mockModule('../lib/lshopLieferbarkeit.js', () => ({ runLieferbarkeit: jest.fn(), LIEFERBARKEIT_BESCHAEFTIGT: 'y' }));   // BO7-1
 const notifyFehler = jest.fn().mockResolvedValue(undefined);
 jest.unstable_mockModule('../lib/chatNotify.js', () => ({ notifyFehler, notify: jest.fn() }));
 

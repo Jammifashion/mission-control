@@ -1,6 +1,7 @@
 // Archiv der L-Shop-Belege in der geteilten Ablage (BO4b-2) - die einzige Stelle, die in Drive SCHREIBT
 // (Test beleg-archiv.test.js). Ziel: <geteilte Ablage>/L-Shop Belege/<Art>/<Jahr>/<Dateiname>,
 // Art = Lieferbestaetigung | Auftragsbestaetigung | Rechnung_XML | Rechnung_PDF | Bestellung | Karton. Nie die Bestandsdatei.
+// BO7-1: dazu nur der leere Ordner "L-Shop Auslauf" in der Wurzel (richteAuslaufOrdnerEin).
 //
 // Eigene Anmeldung mit dem engsten Scope drive.file: MC sieht und aendert nur Dateien und Ordner, die
 // es selbst angelegt hat (nicht Backups, nicht Stammdaten, nichts von Hand Abgelegtes). Deshalb legt
@@ -129,4 +130,17 @@ export async function richteArchivEin({ write = false, jahr = String(new Date().
     if (!id) throw new ArchivFehler(`${WURZEL}/${art}/${jahr} nicht angelegt.`);
   }
   return log;
+}
+
+// ── BO7-1: Ordner "L-Shop Auslauf" (Inhaber legt dort freitags die Auslaufliste ab) ──
+// Nur der Ordner in der Wurzel der Ablage, nur mit write; Dateien darin legt MC nie an (gelesen wird mit drive.readonly).
+export const AUSLAUF_ORDNER_NAME = 'L-Shop Auslauf';
+export async function richteAuslaufOrdnerEin({ write = false, drive = driveClient(), driveId = process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID } = {}) {
+  if (!driveId) throw new ArchivFehler('GOOGLE_DRIVE_SHARED_DRIVE_ID fehlt.');
+  const vorher = await ordner(drive, driveId, driveId, AUSLAUF_ORDNER_NAME, false);
+  if (vorher.id) return [`Drive: ${AUSLAUF_ORDNER_NAME} vorhanden - nicht angefasst.`];
+  if (!write) return [`Drive: ${AUSLAUF_ORDNER_NAME} fehlt -> wuerde angelegt.`];
+  const o = await ordner(drive, driveId, driveId, AUSLAUF_ORDNER_NAME, true);
+  if (!o.id) throw new ArchivFehler(`${AUSLAUF_ORDNER_NAME} nicht angelegt.`);
+  return [`✓ Drive: ${AUSLAUF_ORDNER_NAME} angelegt.`];
 }

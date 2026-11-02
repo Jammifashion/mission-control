@@ -3,6 +3,7 @@ import { requireSchedulerOidc } from '../middleware/schedulerAuth.js';
 import { runKorbAbgleich, BESCHAEFTIGT } from '../lib/lshopKorb.js';
 import { notifyFehler } from '../lib/chatNotify.js';
 import { runBelegeAbruf, BELEGE_BESCHAEFTIGT } from '../lib/lshopBelege.js';
+import { runLieferbarkeit, LIEFERBARKEIT_BESCHAEFTIGT } from '../lib/lshopLieferbarkeit.js';
 
 // Endpunkte fuer Google Cloud Scheduler (CS1). Stehen VOR requireApiKey und nur
 // hinter requireSchedulerOidc - ein MC_API_KEY oeffnet sie nicht.
@@ -56,6 +57,27 @@ router.post('/lshop-belege/abruf', async (_req, res, next) => {
     if ((err?.status ?? 500) >= 500) {
       await notifyFehler({ art: 'L-Shop-Belege', status: err?.status ?? 500, text: err?.message });
     }
+    next(err);
+  }
+});
+
+// ── POST /api/intern/lshop-lieferbarkeit/abruf  (Job lshop-lieferbarkeit, stuendlich :47 Europe/Berlin, BO7-1) ──
+// Body wird ignoriert. FTP-Fehler = 200 ftp "fehler"; erst wenn der letzte Stand aelter als 6 h ist, 502
+// (Chat + Log-Alarm). Sperre = 200 "uebersprungen".
+router.post('/lshop-lieferbarkeit/abruf', async (_req, res, next) => {
+  const laufId = `LB-${new Date().toISOString().slice(0, 16)}Z`;
+  try {
+    const r = await runLieferbarkeit({ dryRun: false, quelle: 'scheduler', laufId });
+    console.log(`L-Shop-Lieferbarkeit ${r.lauf}: ftp=${r.ftp}` + (r.ftp === 'ok'
+      ? ` nummern=${r.summen.nummern} null=${r.summen.null} nichtGefuehrt=${r.summen.nichtGefuehrt} auslauf=${r.summen.auslauf} wechsel=${r.wechsel} chat=${r.chat}`
+      : ` grund="${r.grund}"`));
+    res.json(r);
+  } catch (err) {
+    if (err?.status === 409 && err?.message === LIEFERBARKEIT_BESCHAEFTIGT) {
+      console.log(`L-Shop-Lieferbarkeit ${laufId}: uebersprungen (laeuft schon)`);
+      return res.json({ uebersprungen: 'läuft schon', lauf: laufId });
+    }
+    if ((err?.status ?? 500) >= 500) await notifyFehler({ art: 'L-Shop-Lieferbarkeit', status: err?.status ?? 500, text: err?.message });
     next(err);
   }
 });

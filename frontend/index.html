@@ -1496,6 +1496,7 @@
                 <span class="korb-paar">
                   <button class="korb-aktion korb-aktion-ruhig" id="korb-abgleich-btn" type="button" data-hilfe="abgleich">↻ Abgleich jetzt</button>
                   <button class="korb-aktion korb-aktion-ruhig" id="korb-belege-btn" type="button" data-hilfe="belege">📥 Belege abrufen</button>
+                  <button class="korb-aktion korb-aktion-ruhig" id="korb-lieferbarkeit-btn" type="button" data-hilfe="lieferbarkeit">📦 Lieferbarkeit jetzt</button>
                 </span>
                 <button class="hilfe-i" type="button" data-hilfe-gruppe="korb" aria-controls="hilfe-korb" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
               </div>
@@ -1505,6 +1506,7 @@
             <button class="korb-link" id="korb-alle-btn" type="button" data-hilfe="alle-offenen">alle offenen wählen</button>
             <div id="korb-lauf" class="lshop-card-bedarf" style="display:none;"></div>
             <div id="korb-belege" class="lshop-card-bedarf" style="display:none;"></div>
+            <div id="korb-lieferbarkeit" class="lshop-card-bedarf" hidden></div>
 
             <!-- Eigene Positionen (BO3, BO6): Artikel -> Farbe -> Groessenraster (Menge je Groesse) -> Referenz -> Notiz -->
             <div id="korb-eigen" class="korb-eigen" style="display:none;">
@@ -4980,6 +4982,7 @@
         'eigen-weitere-farbe':  { name: 'Hinzufügen und weitere Farbe', text: 'Wie Hinzufügen, danach bleiben Modell und Referenz stehen – du wählst nur die nächste Farbe.' },
         'eigen':                { name: '+ Eigene Position', text: 'Einen L-Shop-Artikel ohne Shop-Bestellung in den Korb legen, z. B. für Muster oder Vereinsaufträge.' },
         'abgleich':             { name: '↻ Abgleich jetzt', text: 'Holt neue Shop-Bestellungen sofort in den Korb. Läuft sonst automatisch jede Stunde.' },
+        'lieferbarkeit':        { name: '📦 Lieferbarkeit jetzt', text: 'Liest Bestand und Auslaufliste von L-Shop für unsere Rohlinge. Läuft sonst stündlich, meldet offene Positionen.' },
         'belege':               { name: '📥 Belege abrufen', text: 'Holt neue Belege von L-Shop (Auftrags- und Lieferbestätigungen, Rechnungen) und legt sie ins Archiv. Läuft sonst alle 30 Minuten.' },
         'alle-offenen':         { name: 'alle offenen wählen', text: 'Hakt alle offenen Positionen an. Gesperrte (z. B. storniert, erstattet) bleiben weg.' },
         'zurueck':              { name: 'zurück auf offen', text: 'Legt die Position wieder auf „Offen“. Dann wird sie wieder mitbestellt.' },
@@ -5125,7 +5128,7 @@
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
-        korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'lager-storno-hinweis', 'lager-storno-zurueck', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'eb-bearbeiten', 'eb-gesperrt-lager', 'eb-farbe', 'eb-groesse', 'eb-menge', 'eb-referenz', 'eb-notiz', 'eb-lager', 'eb-speichern', 'eb-abbrechen', 'abgleich', 'belege', 'alle-offenen', 'zurueck'],
+        korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'lager-storno-hinweis', 'lager-storno-zurueck', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'eb-bearbeiten', 'eb-gesperrt-lager', 'eb-farbe', 'eb-groesse', 'eb-menge', 'eb-referenz', 'eb-notiz', 'eb-lager', 'eb-speichern', 'eb-abbrechen', 'abgleich', 'belege', 'lieferbarkeit', 'alle-offenen', 'zurueck'],
         leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
         uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
         karton: ['karton-pruefen', 'karton-angekommen', 'karton-naechster', 'karton-rest-lager', 'karton-lager-ort', 'bei-ankunft-lager'],
@@ -6053,6 +6056,43 @@
       }
       // Block Belege-Abruf: Ende
       document.getElementById('korb-belege-btn')?.addEventListener('click', ev => belegeAbrufStarten(ev.currentTarget));
+
+      // Block Lieferbarkeit: Anfang (BO7-1 - Lauf von Hand; die Anzeige je Position kommt mit BO7-2)
+      function lieferbarkeitZeile(r) {
+        if (r.uebersprungen) return 'Lieferbarkeit: läuft gerade schon';
+        if (r.ftp !== 'ok') return `L-Shop-Bestandsdatei nicht erreichbar (${r.grund}) – nächster Versuch in einer Stunde`;
+        const s = r.summen ?? {};
+        const teile = [`Lieferbarkeit: ${s.nummern ?? 0} Rohlinge`, `${s.lieferbar ?? 0} lieferbar`, `${s.null ?? 0} bei L-Shop 0`];
+        if (s.nichtGefuehrt) teile.push(`${s.nichtGefuehrt} nicht mehr geführt`);
+        teile.push(`${s.auslauf ?? 0} laufen aus`);
+        if (r.korbOffen?.nichtLieferbar) teile.push(`⚠ ${r.korbOffen.nichtLieferbar} offene Korb-Nummer(n) nicht lieferbar`);
+        return teile.join(' · ') + ((r.hinweise ?? []).length ? ` · ${r.hinweise.join(' · ')}` : '');
+      }
+      async function lieferbarkeitStarten(btn) {
+        const anzeige = document.getElementById('korb-lieferbarkeit');
+        btn.disabled = true;
+        btn.textContent = '📦 Läuft…';
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-lieferbarkeit/abruf`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dryRun: false }),
+            signal: AbortSignal.timeout(300000),
+          });
+          const r = await apiJson(res);
+          anzeige.hidden = false;
+          anzeige.textContent = lieferbarkeitZeile(r);
+          if (r.ftp !== 'ok') showToast('L-Shop-Bestandsdatei nicht erreichbar', 'error');
+          else if (r.chat === 'gesendet') showToast('Lieferbarkeit aktualisiert – Meldung im Chat', 'warn');
+          else showToast('Lieferbarkeit aktualisiert');
+        } catch (e) {
+          showToast(`Lieferbarkeit fehlgeschlagen: ${e.message}`, 'error');
+        } finally {
+          btn.disabled = false;
+          btn.textContent = '📦 Lieferbarkeit jetzt';
+        }
+      }
+      // Block Lieferbarkeit: Ende
+      document.getElementById('korb-lieferbarkeit-btn')?.addEventListener('click', ev => lieferbarkeitStarten(ev.currentTarget));
 
       // ── Netto-Staffel: Anfang (BO4c, Test backend/tests/edi-senden.test.js) ──
       // Netto-Warenwert (EK = 10CartonsPrice x Menge) und Versandstaffel - NUR Anzeige hier hinter dem

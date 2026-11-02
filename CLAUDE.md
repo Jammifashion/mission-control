@@ -334,6 +334,24 @@ Neue Sektionen immer mit Anker versehen:
   `scripts/setup-lshop-belege-reiter.js` (Trockenlauf, `--write`). Frontend: Knopf „Karton scannen“ in
   L-Shop-Bestellungen, Dialog `#ks-dialog` (Kamera + `BarcodeDetector`, sonst Link einfuegen), Anzeige `ksErgebnisHtml`
   im Block `L-Shop-Bestellungen`; Link nur in `ksZustand.link`, nie Adresse/localStorage/Anzeige/Toast.
+- backend/lib/lshopLieferbarkeit.js – Lieferbarkeit L-Shop (BO7-1), Logik `utils/lshop-lieferbarkeit.js`. Quellen: `stockfile.csv`
+  (FTP-Wurzel, Konto "bestand" = Secrets `LSHOP_FTP_USER/PASS`, `ladeBestandsdatei` in lib/lshopFtp.js: nur list + downloadTo,
+  <= 10 MB, alle 30 min neu, `article;stock;catalog`, UTF-8 BOM, catalog = CatalogNr) und die Auslaufliste
+  `Auslaufartikel - Stand TT.MM.JJJJ….xlsx` (Ordner "L-Shop Auslauf" in der Ablage, sonst ablageweite Suche; neueste nach
+  NAMENSdatum; Spalten `Artikelnummer`, `Auslaufdatum` ueber den Namen; gelesen mit drive.readonly, nie gespeichert; > 14 Tage
+  alt -> Hinweis). Reiter `LShop_Lieferbarkeit` (SSOT): ArticleNr | CatalogNr | stock | Stand_Datei | Auslauf | Auslaufdatum |
+  Quelle_Liste | Geaendert_Am | Null_seit, NUR unsere Nummern (Varianten Aktiv TRUE, alle Korb-Zeilen, Lager `LS:`); stock leer =
+  nicht mehr bei L-Shop gefuehrt; `Null_seit` = seit wann durchgehend 0/nicht gefuehrt (BO7-3: 14 Tage). Jeder Lauf schreibt den
+  ganzen Reiter in EINEM values.update (kein append, vorher frisch gelesen = Stand vom Anfang, sonst 409; Rest darunter geleert;
+  zurueckgelesen). "laeuft aus" NUR aus der Liste; `Discontinued` 3/6 bleibt harte Sperre (Anzeige-Umstellung BO7-2). Chat
+  (`buildLieferbarkeitNachricht`) erst nach dem Schreiben, nur fuer Nummern mit OFFENEN Korb-Positionen und nur beim Wechsel
+  gegen die vorhandene Zeile (lieferbar -> 0/nicht gefuehrt, Auslauf nein -> ja); Erstbestand still, keine Shop-Variationen.
+  FTP-Fehler = 200 `ftp: fehler`, nichts geschrieben; letzter `Stand_Datei` > 6 h -> 502 (Chat + Log-Alarm). Liste nicht
+  lesbar -> Auslauf-Spalten bleiben. `POST /api/intern/lshop-lieferbarkeit/abruf` (Scheduler, Lauf-ID `LB-…`, Sperre -> 200
+  uebersprungen), `POST /api/bestellen/lshop-lieferbarkeit/abruf` { dryRun } (Knopf "📦 Lieferbarkeit jetzt" im Korb, Block
+  `Lieferbarkeit: Anfang/Ende`, eigener Router `routes/lshopLieferbarkeit.js`). Einrichtung `scripts/setup-lshop-lieferbarkeit.js`
+  (Reiter + Ordner "L-Shop Auslauf" ueber `richteAuslaufOrdnerEin` in belegArchiv.js; Trockenlauf, `--write`), von Hand
+  `scripts/lshop-lieferbarkeit.js` (Trockenlauf Standard, `--write`; lokal NODE_ENV=production fuer die FTP-Secrets).
 - backend/lib/lshopBelege.js – Belege-Abruf (BO4b-1), Logik in `utils/lshop-belege.js`. Scheduler
   `POST /api/intern/lshop-belege/abruf` (Job `lshop-belege-abruf`, `7,37 * * * *`) und Knopf
   `POST /api/bestellen/lshop-belege/abruf` (`routes/lshopBelege.js`, eigener Router, damit
@@ -837,6 +855,10 @@ Zweiter Job `lshop-belege-abruf` (BO4b-1): `7,37 * * * *` Europe/Berlin, POST au
 (`SCHEDULER_AUDIENCE` = URL des Korb-Endpunkts; die Audience ist nur ein Sollwert), Versuchsfrist
 300 s, keine Wiederholung (der naechste Takt holt nach). Lauf-ID `BA-<Zeit>`. FTP-Fehler sind 200;
 nur echte Fehler (Sheets, 401, Zeitlimit) machen den Versuch rot -> Log-Alarm (Kanal Mission Control Chat).
+
+Dritter Job `lshop-lieferbarkeit` (BO7-1): `47 * * * *` Europe/Berlin, POST auf
+`<BACKEND_URL>/api/intern/lshop-lieferbarkeit/abruf`, gleiches Dienstkonto, gleiche Audience wie CS1, Versuchsfrist 300 s,
+keine Wiederholung. FTP-Fehler sind 200; rot erst, wenn der letzte Stand aelter als 6 h ist (oder Sheets/401/Zeitlimit).
 
 ## Neues Secret anlegen
 1. Secret im GCP Secret Manager anlegen (Browser, Account gbr@jammifashion.de)

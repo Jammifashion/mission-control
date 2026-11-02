@@ -44,13 +44,15 @@ export function ohneZugang(err, geheim) {
 }
 
 // Auch fuer lib/lshopFtpSenden.js (BO4c): Zugang nur an dieser Stelle.
+// BO7-1: Konto "bestand" (LSHOP_FTP_USER/PASS) nur fuer ladeBestandsdatei - die Bestandsdatei liegt in der Wurzel.
+const KONTEN = { edi: ['LSHOP_EDI_FTP_USER', 'LSHOP_EDI_FTP_PASS'], bestand: ['LSHOP_FTP_USER', 'LSHOP_FTP_PASS'] };
 export async function zugang(konto) {
-  if (konto !== 'edi') throw new LShopFtpFehler(`Unbekanntes FTP-Konto "${konto}".`);
+  if (!KONTEN[konto]) throw new LShopFtpFehler(`Unbekanntes FTP-Konto "${konto}".`);
   const [hostRoh, user, password] = await Promise.all([
-    getSecret('LSHOP_FTP_HOST'), getSecret('LSHOP_EDI_FTP_USER'), getSecret('LSHOP_EDI_FTP_PASS'),
+    getSecret('LSHOP_FTP_HOST'), getSecret(KONTEN[konto][0]), getSecret(KONTEN[konto][1]),
   ]);
   const h = String(hostRoh ?? '').trim();
-  if (!h || !user || !password || h === 'unused') throw new LShopFtpFehler('FTP-Zugang nicht konfiguriert (Secrets LSHOP_FTP_HOST / LSHOP_EDI_FTP_*).');
+  if (!h || !user || !password || h === 'unused') throw new LShopFtpFehler(`FTP-Zugang nicht konfiguriert (Secrets LSHOP_FTP_HOST / ${KONTEN[konto].join(' / ')}).`);
   const [, host, port] = /^([^:]+)(?::(\d+))?$/.exec(h) ?? [];
   if (!host) throw new LShopFtpFehler('LSHOP_FTP_HOST hat kein gültiges Format.');
   return { host, port: port ? Number(port) : 21, user: String(user).trim(), password: String(password) };
@@ -107,6 +109,44 @@ export async function mitLShopFtp(fn, { konto = 'edi', clientFabrik } = {}) {
       await client.access({ host: z.host, port: z.port, user: z.user, password: z.password, secure: false });
     } catch (err) { throw ftpFehler(err); }
     return await fn(Object.freeze({ liste, lade }));
+  } finally {
+    try { client.close(); } catch { /* schon zu */ }
+  }
+}
+
+// ── BO7-1: Bestandsdatei (stockfile.csv), NUR LESEN ─────────────────────────────
+// Eigenes Konto "bestand", feste Datei in der Wurzel, eine Verbindung, keine Wiederholung. Wie oben gibt
+// es keinen Schreibweg; die Datei verlaesst dieses Modul nur als Buffer (nie gespeichert, nie geloggt).
+export const BESTAND_DATEI = 'stockfile.csv';
+export const MAX_BESTAND_BYTES = 10 * 1024 * 1024;
+
+/** -> { buf, stand (ISO der Datei auf dem FTP), bytes } */
+export async function ladeBestandsdatei({ clientFabrik, maxBytes = MAX_BESTAND_BYTES } = {}) {
+  const z = await zugang('bestand');
+  const geheim = [z.host, z.user, z.password];
+  const client = clientFabrik ? clientFabrik() : new Client(BEFEHL_ZEITLIMIT_MS);
+  const ftpFehler = err => (err instanceof LShopFtpFehler ? err : new LShopFtpFehler(`FTP: ${ohneZugang(err, geheim)}`));
+  try {
+    try {
+      await client.access({ host: z.host, port: z.port, user: z.user, password: z.password, secure: false });
+    } catch (err) { throw ftpFehler(err); }
+    let eintrag;
+    try { eintrag = (await client.list('/')).find(e => e.name === BESTAND_DATEI && e.isFile); } catch (err) { throw ftpFehler(err); }
+    if (!eintrag) throw new LShopFtpFehler(`${BESTAND_DATEI} liegt nicht auf dem FTP.`);
+    if (eintrag.size > maxBytes) throw new LShopFtpFehler(`${BESTAND_DATEI} ist größer als ${maxBytes} Bytes.`);
+    const teile = [];
+    let laenge = 0;
+    const ziel = new Writable({
+      write(chunk, _enc, cb) {
+        laenge += chunk.length;
+        if (laenge > maxBytes) return cb(new LShopFtpFehler(`${BESTAND_DATEI} ist größer als ${maxBytes} Bytes.`));
+        teile.push(chunk);
+        cb();
+      },
+    });
+    try { await client.downloadTo(ziel, `/${BESTAND_DATEI}`); } catch (err) { throw ftpFehler(err); }
+    const d = eintrag.modifiedAt instanceof Date && !Number.isNaN(eintrag.modifiedAt.getTime()) ? eintrag.modifiedAt.toISOString() : String(eintrag.rawModifiedAt ?? '');
+    return { buf: Buffer.concat(teile), stand: d, bytes: laenge };
   } finally {
     try { client.close(); } catch { /* schon zu */ }
   }
