@@ -32,3 +32,9 @@ export function reiterPlan(titel, koepfe = {}) {
     })),
   };
 }
+
+/** "--orte=Wrist,Itzehoe" aus den Argumenten -> ['Wrist', 'Itzehoe'] (ohne Argument leer). */
+export function orteAusArgs(argv) {
+  const a = (argv ?? []).find(x => String(x).startsWith('--orte='));
+  return a ? a.slice('--orte='.length).split(',').map(o => o.trim()).filter(Boolean) : [];
+}

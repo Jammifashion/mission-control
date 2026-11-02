@@ -8,7 +8,7 @@ import {
   TAB_BUCHUNGEN, TAB_ARTIKEL, TAB_ORTE, TAB_EVENTS, BUCHUNG_SPALTEN, ARTIKEL_SPALTEN, ORTE_SPALTEN, EVENT_SPALTEN,
   warenartVon, planBuchung, planNeuesEvent, bezugRegel, eventVorschlag, abgaengeAuswertung,
 } from '../utils/lager.js';
-import { reiterPlan, orteFehlend } from '../utils/lager-setup.js';
+import { reiterPlan, orteFehlend, orteAusArgs } from '../utils/lager-setup.js';
 import { bucheLager, neuesEvent, leseBestand, leseAbgaenge, sucheFertig, lagerCacheLeeren, _stammCacheLeeren, _partnerCacheLeeren } from '../lib/lager.js';
 import { _resetLShopCache } from '../lib/lshop.js';
 import { machSheets, grundTabs, NR, NR2 } from './hilfen/korb-sheet.js';
@@ -112,10 +112,13 @@ describe('Setup', () => {
     expect(reiterPlan(['Lager_Buchungen', 'Lager_Artikel', 'Lager_Orte'], {}).neu.map(r => r.tab)).toEqual([TAB_EVENTS]);
     expect(orteFehlend(['Regal A', 'wrist'], ['Wrist', 'Itzehoe', ' Itzehoe '])).toEqual(['Itzehoe']);
     expect(orteFehlend([], ['Wrist', 'Itzehoe'])).toEqual(['Wrist', 'Itzehoe']);
+    expect(orteAusArgs(['node', 'x.js', '--orte=Wrist, Itzehoe', '--write'])).toEqual(['Wrist', 'Itzehoe']);   // Befund Trockenlauf: nicht "rist"
+    expect(orteAusArgs(['node', 'x.js'])).toEqual([]);
+    expect(orteFehlend(['Wrist E3000 Kiste'], ['Wrist', 'Itzehoe'])).toEqual(['Wrist', 'Itzehoe']);
   });
   test('Skript: --orte nur mit --write schreibend, ohne append', () => {
     const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../scripts/setup-lager-reiter.js'), 'utf8');
-    expect(src).toMatch(/--orte=/);
+    expect(src).toContain('orteAusArgs(process.argv)');
     expect(src).toMatch(/if \(!WRITE\) \{ console\.log\('Trockenlauf - keine Orte angelegt\.'\); return; \}/);
     expect(src).not.toMatch(/values\.append/);
   });

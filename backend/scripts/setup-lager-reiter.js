@@ -15,14 +15,14 @@ import dotenv from 'dotenv';
 dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.env') });
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
-import { reiterPlan, orteFehlend } from '../utils/lager-setup.js';
+import { reiterPlan, orteFehlend, orteAusArgs } from '../utils/lager-setup.js';
 import { schreibeNeueZeilen } from '../lib/sheet-zeilen.js';
 import { TAB_ORTE, ORTE_SPALTEN, STATUS_AKTIV } from '../utils/lager.js';
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
 const WRITE = process.argv.includes('--write');
 // BO5-5: --orte "Wrist,Itzehoe" legt fehlende Lagerorte an (nur diese Zeilen, Status aktiv), vorhandene bleiben unveraendert.
-const ORTE = (process.argv.find(a => a.startsWith('--orte='))?.slice(8) ?? '').split(',').map(o => o.trim()).filter(Boolean);
+const ORTE = orteAusArgs(process.argv);
 
 async function main() {
   if (!SPREADSHEET_ID) throw new Error('GOOGLE_SHEET_ID fehlt.');
