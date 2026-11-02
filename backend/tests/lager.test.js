@@ -198,11 +198,11 @@ describe('Orte und Freitext-Artikel', () => {
 
 describe('Setup-Plan', () => {
   test('legt fehlende Reiter an, fasst vorhandene nicht an, meldet fehlende Spalten', () => {
-    expect(reiterPlan(['Produkt_Inventar']).neu.map(r => r.tab)).toEqual([TAB_BUCHUNGEN, TAB_ARTIKEL, TAB_ORTE]);
+    expect(reiterPlan(['Produkt_Inventar']).neu.map(r => r.tab)).toEqual([TAB_BUCHUNGEN, TAB_ARTIKEL, TAB_ORTE, 'Lager_Events']);   // BO5-5: Events
     const zweiter = reiterPlan(['Produkt_Inventar', TAB_BUCHUNGEN, TAB_ARTIKEL, TAB_ORTE],
       { [TAB_BUCHUNGEN]: BUCHUNG_SPALTEN, [TAB_ARTIKEL]: ARTIKEL_SPALTEN, [TAB_ORTE]: ['Ort', 'Status'] });
-    expect(zweiter.neu).toEqual([]);
     expect(zweiter.vorhanden.map(v => [v.tab, v.fehlt])).toEqual([[TAB_BUCHUNGEN, []], [TAB_ARTIKEL, []], [TAB_ORTE, ['Notiz']]]);
+    expect(zweiter.neu.map(r => r.tab)).toEqual(['Lager_Events']);   // BO5-5: nur der neue Reiter
   });
   test('Textspalten gibt es im Reiter', () => {
     for (const r of LAGER_REITER) for (const n of r.text) expect(r.spalten).toContain(n);

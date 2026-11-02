@@ -15,10 +15,14 @@ import dotenv from 'dotenv';
 dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.env') });
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
-import { reiterPlan } from '../utils/lager-setup.js';
+import { reiterPlan, orteFehlend } from '../utils/lager-setup.js';
+import { schreibeNeueZeilen } from '../lib/sheet-zeilen.js';
+import { TAB_ORTE, ORTE_SPALTEN, STATUS_AKTIV } from '../utils/lager.js';
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
 const WRITE = process.argv.includes('--write');
+// BO5-5: --orte "Wrist,Itzehoe" legt fehlende Lagerorte an (nur diese Zeilen, Status aktiv), vorhandene bleiben unveraendert.
+const ORTE = (process.argv.find(a => a.startsWith('--orte='))?.slice(8) ?? '').split(',').map(o => o.trim()).filter(Boolean);
 
 async function main() {
   if (!SPREADSHEET_ID) throw new Error('GOOGLE_SHEET_ID fehlt.');
@@ -35,9 +39,14 @@ async function main() {
     console.log(v.fehlt.length ? `✗ Reiter "${v.tab}" gibt es schon, es fehlen Spalten: ${v.fehlt.join(', ')} - bitte von Hand pruefen.`
       : `✓ Reiter "${v.tab}" gibt es schon, alle Spalten da.`);
   }
-  if (!plan.neu.length) { console.log('Nichts anzulegen.'); if (plan.vorhanden.some(v => v.fehlt.length)) process.exitCode = 1; return; }
+  if (!plan.neu.length) {
+    console.log('Keine Reiter anzulegen.');
+    if (plan.vorhanden.some(v => v.fehlt.length)) process.exitCode = 1;
+    await orteAnlegen(sheets);
+    return;
+  }
   for (const n of plan.neu) console.log(`Anlegen: "${n.tab}" mit ${n.spalten.length} Spalten: ${n.spalten.join(' | ')}${n.text.length ? `  (Text: ${n.text.join(', ')})` : ''}`);
-  if (!WRITE) { console.log('Trockenlauf - nichts angelegt. Mit --write anlegen.'); return; }
+  if (!WRITE) { console.log('Trockenlauf - nichts angelegt. Mit --write anlegen.'); await orteAnlegen(sheets); return; }
 
   let ok = true;
   for (const n of plan.neu) {
@@ -65,6 +74,26 @@ async function main() {
     ok &&= gleich;
   }
   if (!ok) process.exitCode = 1;
+  await orteAnlegen(sheets);
+}
+
+// Lagerorte: nur fehlende Namen als neue Zeilen (kein append, zurueckgelesen ueber schreibeNeueZeilen).
+async function orteAnlegen(sheets) {
+  if (!ORTE.length) return;
+  const { data } = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `'${TAB_ORTE}'`, valueRenderOption: 'UNFORMATTED_VALUE' }).catch(() => ({ data: {} }));
+  const werte = data.values ?? [];
+  if (!werte.length) { console.log(`Reiter "${TAB_ORTE}" fehlt noch - Orte erst nach --write.`); return; }
+  const kopf = werte[0].map(k => String(k).trim());
+  const vorhanden = werte.slice(1).map(r => r[kopf.indexOf('Ort')]);
+  console.log(`Lager_Orte heute: ${vorhanden.filter(Boolean).join(', ') || '(leer)'}`);
+  const neu = orteFehlend(vorhanden, ORTE);
+  if (!neu.length) { console.log(`✓ Orte ${ORTE.join(', ')} gibt es schon.`); return; }
+  console.log(`Anlegen: Orte ${neu.join(', ')} (Status ${STATUS_AKTIV})`);
+  if (!WRITE) { console.log('Trockenlauf - keine Orte angelegt.'); return; }
+  const zeilen = neu.map(o => kopf.map(k => (k === 'Ort' ? o : k === 'Status' ? STATUS_AKTIV : '')));
+  if (ORTE_SPALTEN.some(n => !kopf.includes(n))) throw new Error('Lager_Orte: Spalten fehlen - nichts geschrieben.');
+  const start = await schreibeNeueZeilen(sheets, SPREADSHEET_ID, TAB_ORTE, zeilen, { alt: werte });
+  console.log(`✓ Orte angelegt ab Zeile ${start}, zurueckgelesen.`);
 }
 
 main().catch(err => { console.error('✗', err.message); process.exit(1); });

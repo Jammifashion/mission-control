@@ -52,7 +52,7 @@ describe('Lager-Anzeige', () => {
   test('Anfrage: Startbestand-Haken macht aus Einbuchen die Aktion start ohne Art', () => {
     const a = F.lagerAuswahl([{ schluessel: 'LS:1', label: 'S' }], { 'LS:1': '4' });
     const z = { modus: 'einbuchen', start: true, art: 'vorrat', ort: 'Regal A', zielOrt: 'Werkstatt', grund: ' ', notiz: 'Kiste 1', vorgang: 'v-12345678' };
-    expect(F.lagerAnfrage(z, a)).toEqual({ aktion: 'start', art: '', ort: 'Regal A', zielOrt: '', grund: '', notiz: 'Kiste 1', vorgang: 'v-12345678', posten: [{ schluessel: 'LS:1', menge: 4 }] });
+    expect(F.lagerAnfrage(z, a)).toEqual({ aktion: 'start', art: '', ort: 'Regal A', zielOrt: '', grund: '', notiz: 'Kiste 1', vorgang: 'v-12345678', bezug: '', posten: [{ schluessel: 'LS:1', menge: 4 }] });
     expect(F.lagerAnfrage({ ...z, start: false }, a)).toMatchObject({ aktion: 'einbuchen', art: 'vorrat' });
     expect(F.lagerAnfrage({ ...z, modus: 'umlagern' }, a)).toMatchObject({ aktion: 'umlagern', art: '', zielOrt: 'Werkstatt' });
   });

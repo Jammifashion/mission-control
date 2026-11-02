@@ -2,7 +2,7 @@
 import { Router } from 'express';
 import {
   leseBestand, sucheRohling, rohlingVarianten, sucheFertig, fertigVarianten, trikotAuswahl, fremdAuswahl,
-  bucheLager, gegenbuchung, neuerOrt, neuerArtikel,
+  bucheLager, gegenbuchung, neuerOrt, neuerArtikel, neuesEvent, leseAbgaenge,
 } from '../lib/lager.js';
 
 const router = Router();
@@ -49,5 +49,11 @@ router.post('/gegenbuchung', mitMeldung(async req => {
 // ── POST /api/lager/orte { ort, notiz } · POST /api/lager/artikel { bezeichnung, warenart, … } ──
 router.post('/orte', mitMeldung(req => neuerOrt({ eingabe: req.body ?? {} })));
 router.post('/artikel', mitMeldung(req => neuerArtikel({ eingabe: req.body ?? {} })));
+
+// ── BO5-5: POST /api/lager/events { name, datum, ort, notiz } · GET /api/lager/abgaenge?art=&bezug=&von=&bis= ──
+router.post('/events', mitMeldung(req => neuesEvent({ eingabe: req.body ?? {} })));
+router.get('/abgaenge', mitMeldung(req => leseAbgaenge({ filter: {
+  art: String(req.query.art ?? ''), bezug: String(req.query.bezug ?? ''), von: String(req.query.von ?? ''), bis: String(req.query.bis ?? ''),
+} })));
 
 export default router;

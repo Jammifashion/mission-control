@@ -21,7 +21,8 @@ import {
   TAB_BUCHUNGEN, TAB_ARTIKEL, TAB_ORTE, BUCHUNG_SPALTEN, ARTIKEL_SPALTEN, ORTE_SPALTEN, WARENART, STATUS_AKTIV,
   buchungenAus, reiterZeilen, orteAus, aktiveOrte, artikelAus, warenartVon, planBuchung, planGegenbuchung,
   planNeuerOrt, planNeuerArtikel, alsZeile, bestandListe, buchungsVerlauf, ART_TEXT, ZUGANG_ARTEN, ABGANG_ARTEN,
-  ARTIKEL_WARENARTEN, MENGE_MAX,
+  ARTIKEL_WARENARTEN, MENGE_MAX, TAB_EVENTS, EVENT_SPALTEN, eventsAus, planNeuesEvent, bezugRegel, eventVorschlag, abgaengeAuswertung,
+  MUSTER_PRAEFIX,
 } from '../utils/lager.js';
 
 const TAB_VARIANTEN = 'Varianten';
@@ -76,12 +77,35 @@ export async function leseLager(sheets, spreadsheetId) {
   const werteB = await lies(TAB_BUCHUNGEN, BUCHUNG_SPALTEN);
   const werteA = await lies(TAB_ARTIKEL, ARTIKEL_SPALTEN);
   const werteO = await lies(TAB_ORTE, ORTE_SPALTEN);
+  // BO5-5: Events sind optional - fehlt der Reiter, geht alles ausser "Verkauf vor Ort" (Hinweis).
+  const eventsDa = titel.has(TAB_EVENTS);
+  const werteE = eventsDa ? await leseWerte(sheets, spreadsheetId, TAB_EVENTS) : [[]];
   const j = buchungenAus(werteB);
   return {
+    eventsDa, werteE, idxE: reiterZeilen(werteE, EVENT_SPALTEN).idx, events: eventsDa ? eventsAus(werteE) : [],
     einrichtung, werteB, werteA, werteO, idxB: j.idx, buchungen: j.buchungen, hinweise: j.hinweise,
     idxA: reiterZeilen(werteA, ARTIKEL_SPALTEN).idx, artikel: artikelAus(werteA),
     idxO: reiterZeilen(werteO, ORTE_SPALTEN).idx, orte: orteAus(werteO),
   };
+}
+
+// BO5-5: Partnerliste (Business-Sheet, Reiter Partner) nur lesen - aktive Partner mit P-ID. Nicht lesbar -> leer + Hinweis.
+let partnerCache = { bis: 0, daten: null };
+export const _partnerCacheLeeren = () => { partnerCache = { bis: 0, daten: null }; };
+async function ladePartner(sheets) {
+  if (partnerCache.daten && Date.now() < partnerCache.bis) return partnerCache.daten;
+  let daten;
+  try {
+    const business = process.env.BUSINESS_SHEET_ID;
+    if (!business) throw new Error('BUSINESS_SHEET_ID fehlt');
+    const zeilen = await leseReiterSpalten({ tab: 'Partner', sheets, spreadsheetId: business, spalten: { id: 'Partner-ID' }, optional: { name: 'Name', aktiv: 'Aktiv' } });
+    daten = { liste: zeilen.filter(p => /^P-\d{3,}$/.test(t(p.id)) && t(p.aktiv).toLowerCase() !== 'nein').map(p => ({ id: t(p.id), name: t(p.name) })), hinweis: '' };
+  } catch (err) {
+    console.warn(`Lager: Partnerliste nicht lesbar (${err?.status ?? err?.code ?? 'Fehler'})`);
+    daten = { liste: [], hinweis: 'Partnerliste gerade nicht lesbar - Partner-Abgänge nur als Muster.' };
+  }
+  partnerCache = { bis: Date.now() + STAMM_MS, daten };
+  return daten;
 }
 
 /** Stammdaten fuer Beschreibung und Pruefung der Schluessel (5 min). */
@@ -94,7 +118,7 @@ async function ladeStamm(sheets) {
     spalten: { ssotId: 'SSOT-ID', wcId: 'WC_Variation_ID' },
     optional: { e1: 'E1', v1: 'V1', e2: 'E2', v2: 'V2', e3: 'E3', v3: 'V3', aktiv: 'Aktiv' } });
   const maske = await leseReiterSpalten({ tab: TAB_MASKE, sheets, spreadsheetId,
-    spalten: { id: 'ID', name: 'Produktname' }, optional: { produktId: 'Produkt-ID', artikelnummer: 'Artikelnummer' } });
+    spalten: { id: 'ID', name: 'Produktname' }, optional: { produktId: 'Produkt-ID', artikelnummer: 'Artikelnummer', kurz: 'Artikelkurzbezeichnung' } });
   const extern = await leseReiterSpalten({ tab: TAB_EXTERN, sheets, spreadsheetId,
     spalten: { articleNr: 'ArticleNr' }, optional: { catalogNr: 'CatalogNr', name: 'Description', farbe: 'color1', groesse: 'Size', lieferant: 'Lieferant' } });
   // Trikots liegen im Business-Sheet. Ist es nicht lesbar, fehlen nur die Trikots (Hinweis), das Lager laeuft weiter.
@@ -187,13 +211,17 @@ export async function leseBestand({ sheets: s, jetzt = Date.now() } = {}) {
   const l = await leseLager(sheets, ssotId());
   const stamm = await ladeStamm(sheets);
   const beschreibe = beschreiber(stamm, l.artikel);
+  const partner = await ladePartner(sheets);
   const daten = {
     einrichtung: l.einrichtung,
+    events: l.events, eventVorschlag: eventVorschlag(l.buchungen, l.events), eventsDa: l.eventsDa,
+    partner: partner.liste, musterPraefix: MUSTER_PRAEFIX,
     posten: bestandListe(l.buchungen, beschreibe),
     verlauf: buchungsVerlauf(l.buchungen, beschreibe),
     orte: l.orte, artikel: l.artikel.filter(a => a.status === STATUS_AKTIV),
     arten: { zugang: ZUGANG_ARTEN, abgang: ABGANG_ARTEN, text: ART_TEXT }, artikelWarenarten: ARTIKEL_WARENARTEN, mengeMax: MENGE_MAX,
-    hinweise: [...l.hinweise, ...(stamm.trikotHinweis ? [stamm.trikotHinweis] : [])], buchungen: l.buchungen.length, stand: new Date(jetzt).toISOString(),
+    hinweise: [...l.hinweise, ...(stamm.trikotHinweis ? [stamm.trikotHinweis] : []), ...(partner.hinweis ? [partner.hinweis] : []),
+      ...(l.eventsDa ? [] : [`Reiter ${TAB_EVENTS} fehlt - „Verkauf vor Ort“ geht erst nach der Einrichtung.`])], buchungen: l.buchungen.length, stand: new Date(jetzt).toISOString(),
   };
   if (!s) cache = { bis: jetzt + CACHE_MS, daten };
   return daten;
@@ -227,8 +255,18 @@ export async function sucheFertig({ q: suche, sheets: s } = {}) {
   const stamm = await ladeStamm(sheets);
   const qq = t(suche).toLowerCase();
   if (qq.length < 2) return { artikel: [], mehr: false };
-  const mitVarianten = new Set(stamm.varianten.filter(v => t(v.wcId)).map(v => t(v.ssotId)));
-  const treffer = stamm.maske.filter(m => mitVarianten.has(t(m.id)) && [m.name, m.artikelnummer].some(x => t(x).toLowerCase().includes(qq)))
+  // BO5-5: jedes Suchwort muss passen - in Name, Artikelnummer, Kurzbezeichnung oder einem Variantenwert (Motiv, Farbe ...).
+  const woerter = qq.split(/\s+/).filter(Boolean);
+  const texte = new Map();
+  for (const v of stamm.varianten) {
+    if (!t(v.wcId)) continue;
+    const id = t(v.ssotId);
+    texte.set(id, `${texte.get(id) ?? ''} ${[v.v1, v.v2, v.v3].map(t).join(' ')}`.toLowerCase());
+  }
+  const treffer = stamm.maske.filter(m => texte.has(t(m.id)) && (() => {
+    const text = `${t(m.name)} ${t(m.artikelnummer)} ${t(m.kurz)} ${texte.get(t(m.id))}`.toLowerCase();
+    return woerter.every(w => text.includes(w));
+  })())
     .map(m => ({ ssotId: t(m.id), name: t(m.name), artikelnummer: t(m.artikelnummer) }));
   return { artikel: treffer.slice(0, 25), mehr: treffer.length > 25 };
 }
@@ -303,7 +341,9 @@ export async function bucheLager({ eingabe, sheets: s, jetzt = () => new Date() 
     const l = await leseLager(sheets, spreadsheetId);
     pruefeEinrichtung(l);
     const stamm = await ladeStamm(sheets);
-    const plan = planBuchung(eingabe, { buchungen: l.buchungen, orte: aktiveOrte(l.orte), gueltig: pruefer(stamm, l.artikel), jetzt: jetzt() });
+    const partner = await ladePartner(sheets);
+    const bezugPruefen = (art, b) => bezugRegel(art, b, { events: l.events, partner: partner.liste });
+    const plan = planBuchung(eingabe, { buchungen: l.buchungen, orte: aktiveOrte(l.orte), gueltig: pruefer(stamm, l.artikel), bezugPruefen, jetzt: jetzt() });
     if (plan.schonGebucht) return { ok: true, schonGebucht: true, ...antwortZeilen(plan.schonGebucht) };
     if (plan.probleme.length) {
       // In der Meldung den Artikel so nennen, wie ihn die Ansicht zeigt (Modell Farbe Groesse), nicht als Schluessel.
@@ -383,4 +423,39 @@ export async function leseLagerFuerKorb(sheets, spreadsheetId) {
     console.warn(`Korb: Lager nicht lesbar (${err?.status ?? err?.code ?? 'Fehler'})`);
     return { bestand: new Map(), abgaenge: new Map(), hinweis: 'Lager gerade nicht lesbar - ohne „im Lager“-Vorschläge.' };
   }
+}
+
+// ── BO5-5: Events und Auswertung ─────────────────────────────────────────────
+
+/** POST /api/lager/events { name, datum (JJJJ-MM-TT), ort, notiz } - neues Event (Status offen). */
+export async function neuesEvent({ eingabe, sheets: s } = {}) {
+  return mitLagerSperre(async () => {
+    const spreadsheetId = ssotId();
+    const sheets = s ?? await sheetsClient();
+    const l = await leseLager(sheets, spreadsheetId);
+    pruefeEinrichtung(l);
+    if (!l.eventsDa) throw fehler(`Reiter ${TAB_EVENTS} fehlt - erst einrichten.`, 409, { code: 'einrichtung' });
+    const plan = planNeuesEvent(eingabe, l.events);
+    if (plan.probleme.length) throw fehler(plan.probleme[0].text, 422, { probleme: plan.probleme, vorhanden: plan.vorhanden, code: 'nicht_angelegt' });
+    await schreibe(sheets, spreadsheetId, TAB_EVENTS, [plan.zeile], l.idxE, l.werteE);
+    lagerCacheLeeren();
+    return { ok: true, id: plan.id, name: plan.zeile.Name, datum: plan.zeile.Datum };
+  });
+}
+
+/**
+ * GET /api/lager/abgaenge?art=&bezug=&von=&bis= - was ging raus (Gegenbuchungen abgezogen), je Artikel beschrieben.
+ * Nur lesen. Bezuege mit Klartext: Event-Name/Datum, Partner-ID (Name nur im Browser hinter dem API-Schluessel).
+ */
+export async function leseAbgaenge({ filter = {}, sheets: s } = {}) {
+  const sheets = s ?? await sheetsClient();
+  const l = await leseLager(sheets, ssotId());
+  const stamm = await ladeStamm(sheets);
+  const beschreibe = beschreiber(stamm, l.artikel);
+  const a = abgaengeAuswertung(l.buchungen, filter);
+  return {
+    einrichtung: l.einrichtung, filter, stueck: a.stueck, buchungen: a.buchungen, bezuege: a.bezuege,
+    posten: a.posten.map(p => ({ ...p, ort: '', ...beschreibe(p.schluessel) })),
+    events: l.events, partner: (await ladePartner(sheets)).liste, artText: ART_TEXT,
+  };
 }

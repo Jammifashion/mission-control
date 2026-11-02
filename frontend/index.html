@@ -422,6 +422,7 @@
       .lager-filter .form-input { flex: 1 1 10rem; }
       .lager-null, .lager-start { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
       .lager-warnung { border: 1px solid var(--danger); color: var(--danger); border-radius: 7px; padding: 0.5rem 0.7rem; margin-bottom: 0.6rem; font-size: 0.84rem; }
+      #panel-lager .lager-filter[hidden], .lager-bezug[hidden], .lager-liste[hidden],
       .lager-warnung[hidden], .lager-null[hidden], .lager-start[hidden], .lager-neu[hidden], #lager-ort-neu[hidden] { display: none; }
       .lager-gruppe { border: 1px solid var(--border); border-radius: 7px; margin-bottom: 0.4rem; }
       .lager-gruppe > summary { display: flex; gap: 0.5rem; align-items: baseline; padding: 0.5rem 0.7rem; cursor: pointer; list-style: none; min-width: 0; }
@@ -443,6 +444,12 @@
       .lager-felder label[hidden] { display: none; }
       .lager-aktionen button { flex: 1 1 auto; }
       .lager-raster-da { font-size: 0.7rem; color: var(--muted); }
+      /* BO5-5: Bezug und Liste auszubuchen */
+      .lager-bezug { display: flex; flex-direction: column; gap: 0.35rem; }
+      .lager-liste { border: 1px solid var(--accent); border-radius: 7px; padding: 0.4rem 0.6rem; }
+      .lager-listen-zeile { display: grid; grid-template-columns: 1fr auto auto; gap: 0.5rem; align-items: baseline; font-size: 0.84rem; padding: 0.2rem 0; border-top: 1px solid var(--border); }
+      .lager-listen-zeile span { overflow-wrap: anywhere; }
+      .lager-a-filter { margin-bottom: 0.6rem; }
       .lager-box .korb-raster input { min-height: 2.6rem; }
       .lager-neu { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.4rem; border: 1px dashed var(--border); border-radius: 7px; padding: 0.5rem; }
       @media (max-width: 600px) {
@@ -2707,6 +2714,16 @@
           <div id="lager-hinweise" class="korb-zaehler"></div>
           <div id="lager-bestand"><div class="skeleton"></div></div>
           <div id="lager-buchungen" hidden><div class="skeleton"></div></div>
+          <!-- BO5-5: Auswertung "Abgänge" - was ging raus (Gegenbuchungen abgezogen), nur Stückzahlen, druckbar -->
+          <div id="lager-abgaenge" hidden>
+            <div class="korb-ansicht lager-filter lager-a-filter">
+              <select id="lager-a-art" class="form-select" aria-label="Art des Abgangs" data-hilfe="lager-auswertung"><option value="">alle Abgänge</option></select>
+              <select id="lager-a-bezug" class="form-select" aria-label="Event, Partner oder Auftrag"><option value="">alle Events / Partner / Aufträge</option></select>
+              <label class="lager-null">von <input id="lager-a-von" type="date" class="form-input" /></label>
+              <label class="lager-null">bis <input id="lager-a-bis" type="date" class="form-input" /></label>
+            </div>
+            <div id="lager-a-liste"><div class="skeleton"></div></div>
+          </div>
         </div>
 
         <!-- Dialog: Einbuchen / Ausbuchen / Umlagern / Korrektur (Inventur). Ein Klick auf "Buchen" = ein Schreibaufruf. -->
@@ -2732,6 +2749,7 @@
               <input id="lager-ort-neu-name" type="text" class="form-input" maxlength="40" placeholder="Neuer Ort, z. B. Regal A" />
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="lager-ort-neu-ok">Ort anlegen</button>
             </div>
+            <div id="lager-bezug" class="lager-bezug" hidden></div>
             <label class="lager-feld">Was?
               <select id="lager-warenart" class="form-select">
                 <option value="rohling">Rohling (L-Shop)</option><option value="fertig">Fertigware (unser Artikel)</option>
@@ -2741,7 +2759,9 @@
             <div id="lager-wahl"></div>
             <div id="lager-raster" class="korb-raster" data-hilfe="lager-raster" role="group" aria-label="Menge je Größe"></div>
             <div id="lager-dlg-summe" class="korb-zaehler" aria-live="polite"></div>
-            <input id="lager-grund" type="text" class="form-input" maxlength="200" placeholder="Grund (optional), z. B. Event Stadtfest" />
+            <!-- BO5-5: Bezug je Abgangsart (Event / Auftrag / Partner oder Muster) und Liste "auszubuchen" -->
+            <div id="lager-liste" class="lager-liste" data-hilfe="lager-sammel" hidden></div>
+            <input id="lager-grund" type="text" class="form-input" maxlength="200" placeholder="Grund (optional)" />
             <input id="lager-notiz" type="text" class="form-input" maxlength="200" placeholder="Notiz (optional) – keine Kundennamen" />
             <div class="korb-reihe">
               <button type="button" class="btn-lshop-bestellen" id="lager-buchen" data-hilfe="lager-buchen">Buchen</button>
@@ -3105,6 +3125,7 @@
         lager: { label: 'Lager', leiste: true, shop: false, punkte: [
           { id: 'bestand',   label: 'Bestand',   panel: 'lager' },
           { id: 'buchungen', label: 'Buchungen', panel: 'lager' },
+          { id: 'abgaenge',  label: 'Abgänge',   panel: 'lager' },   // BO5-5: Auswertung je Event/Partner/Auftrag
         ] },
         system: { label: 'System', shop: false, punkte: [
           { id: 'einstellungen', panel: 'settings' },
@@ -4945,7 +4966,7 @@
         // BO5-1: Lager
         'lager-bestand':        { name: 'Bestand', text: 'Was im Regal liegt, je Artikel und Ort. Gerechnet aus allen Buchungen. Tippen klappt die Größen auf.' },
         'lager-null':           { name: 'auch Bestand 0', text: 'Zeigt auch Artikel, die schon einmal da waren und jetzt aufgebraucht sind.' },
-        'lager-ort':            { name: 'Ort', text: 'Wo die Ware liegt, z. B. Regal A oder Kiste Crocodiles. „+ neuer Ort“ legt einen an.' },
+        'lager-ort':            { name: 'Ort', text: 'Wo die Ware liegt: Wrist (Hauptlager, vorgewählt) oder Itzehoe. Weitere Orte nur, wenn wirklich nötig.' },
         'lager-einbuchen':      { name: 'Einbuchen', text: 'Ware kommt ins Lager: Vorrat, Überschuss, Retoure oder Storno. Größen im Raster, dann Ort.' },
         'lager-startbestand':   { name: 'Zählung / Startbestand', text: 'Für die erste Erfassung: Regal für Regal zählen und eintragen. Wird als Zählung gebucht.' },
         'lager-ausbuchen':      { name: 'Ausbuchen', text: 'Ware geht raus, z. B. Verkauf vor Ort, eigener Auftrag oder Muster. Mehr als da ist geht nicht.' },
@@ -4953,9 +4974,16 @@
         'lager-korrektur':      { name: 'Korrektur (Inventur)', text: 'Trag ein, wie viel du gezählt hast. MC bucht nur den Unterschied zum Bestand.' },
         'lager-raster':         { name: 'Menge je Größe', text: 'Stückzahl je Größe. Leer = nichts buchen. „da“ zeigt den Bestand am gewählten Ort.' },
         'lager-buchen':         { name: 'Buchen', text: 'Bucht alle Größen mit Menge in einem Schritt. Ein zweiter Klick bucht nichts doppelt.' },
-        'lager-weitere-farbe':  { name: 'Buchen und weitere Farbe', text: 'Wie Buchen, danach bleiben Artikel, Ort und Art stehen – du wählst nur die nächste Farbe.' },
+        'lager-weitere-farbe':  { name: 'Buchen und weitere Farbe', text: 'Bucht (beim Ausbuchen: legt in die Liste), danach bleiben Artikel, Ort und Art – nur die nächste Farbe wählen.' },
         'lager-neuer-artikel':  { name: '+ neuer Artikel', text: 'Für Teile, die nirgends gepflegt sind. Bekommt eine eigene Nummer (LA-…).' },
         'lager-gegenbuchung':   { name: 'Gegenbuchung', text: 'Nimmt eine falsche Buchung zurück. Die alte bleibt sichtbar, eine neue Zeile hebt sie auf.' },
+        // BO5-5: Abgänge
+        'lager-event':          { name: 'Event', text: 'Verkauf vor Ort: nach dem Event nur ausbuchen, was verkauft ist. Das Event bleibt gewählt.' },
+        'lager-auftrag':        { name: 'Auftrag', text: 'Eigener Auftrag: kurze Referenz ohne Namen, z. B. „Verein X Auftrag 12“.' },
+        'lager-partner':        { name: 'Partner / Muster', text: 'Ware für einen Partner aus der Partnerliste – oder „Muster“ mit Empfänger ohne Namen.' },
+        'lager-sammel':         { name: 'Liste auszubuchen', text: 'Mehrere Artikel sammeln, dann „Alles ausbuchen“ – ein Schritt, alles oder nichts.' },
+        'lager-auswertung':     { name: 'Abgänge', text: 'Was rausging, je Artikel und Größe, Gegenbuchungen abgezogen. Filter nach Art, Event, Partner, Zeitraum.' },
+        'lager-auswertung-druck': { name: 'Drucken', text: 'Druckt die Auswertung als helle Liste, nur Stückzahlen.' },
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
@@ -4968,7 +4996,7 @@
         produktion: ['ps-alle', 'ps-wartet', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett'],
         'lshop-modelle': ['lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
-        lager: ['lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung'],
+        lager: ['lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
       function hilfeLegendeHtml(gruppe) {
@@ -5065,7 +5093,9 @@
       /** Vorbelegung: Ort mit dem meisten Bestand zuerst, Rest auf den naechsten (hoechstens zwei Orte). */
       function korbLagerVorbelegung(orte, menge) {
         let rest = Number(menge) || 0;
-        return (orte ?? []).map((o, i) => {
+        // BO5-5: das Hauptlager Wrist zuerst (wenn dort etwas liegt), sonst der Ort mit dem meisten Bestand.
+        const reihe = [...(orte ?? [])].sort((a, b) => (b.ort === 'Wrist') - (a.ort === 'Wrist'));
+        return reihe.map((o, i) => {
           const m = i < 2 ? Math.min(rest, o.menge) : 0;
           rest -= m;
           return { ort: o.ort, da: o.menge, menge: m };
@@ -7100,9 +7130,35 @@
         return {
           aktion, art: aktion === 'einbuchen' || aktion === 'ausbuchen' ? z.art : '', ort: z.ort, zielOrt: aktion === 'umlagern' ? z.zielOrt : '',
           grund: String(z.grund ?? '').trim(), notiz: String(z.notiz ?? '').trim(), vorgang: z.vorgang,
-          posten: a.posten.map(p => ({ schluessel: p.schluessel, menge: p.menge })),
+          bezug: aktion === 'ausbuchen' ? String(z.bezug ?? '').trim() : '',   // BO5-5: Event, Auftrag, Partner/Muster
+          posten: a.posten.map(p => (p.ort ? { schluessel: p.schluessel, menge: p.menge, ort: p.ort } : { schluessel: p.schluessel, menge: p.menge })),
         };
       }
+      /** BO5-5 Sammelausbuchen: Raster-Auswahl in die Liste "auszubuchen" (gleicher Artikel + Ort = zusammengezaehlt). */
+      function lagerListeHinzu(liste, a, { ort, titel = '' }) {
+        const neu = (liste ?? []).map(x => ({ ...x }));
+        for (const p of a.posten) {
+          const da = neu.find(x => x.schluessel === p.schluessel && x.ort === ort);
+          if (da) da.menge += p.menge;
+          else neu.push({ schluessel: p.schluessel, label: [titel, p.label].filter(Boolean).join(' · '), ort, menge: p.menge });
+        }
+        return neu;
+      }
+      /** Liste + aktuelles Raster -> Auswahl fuer lagerAnfrage (je Zeile ein Ort). */
+      function lagerListeAuswahl(liste, a, ort) {
+        const alle = lagerListeHinzu(liste, a, { ort });
+        return { posten: alle.map(x => ({ schluessel: x.schluessel, label: x.label, menge: x.menge, ort: x.ort })), fehler: a.fehler, stueck: alle.reduce((s, x) => s + x.menge, 0) };
+      }
+      /** Bezug lesbar: Event-Name (Datum), Partner-ID · Name, Muster-Text, Auftrag. */
+      function lagerBezugText(art, bezug, d = {}) {
+        const b = String(bezug ?? '');
+        if (!b) return '';
+        if (art === 'abgang_vorort') { const ev = (d.events ?? []).find(x => x.id === b); return ev ? `${ev.name} (${ev.datum.split('-').reverse().join('.')})` : b; }
+        if (art === 'abgang_partner' && /^P-/.test(b)) { const p = (d.partner ?? []).find(x => x.id === b); return p?.name ? `${b} · ${p.name}` : b; }
+        return b;
+      }
+      /** Hauptlager (Inhaber 30.10.): Wrist ist ueberall vorgewaehlt, wenn es den Ort gibt. */
+      const LAGER_HAUPTORT = 'Wrist';
       /** Bestand am Ort je Schluessel (fuer "da: n" im Raster). */
       function lagerDaAmOrt(posten, ort) {
         return new Map((posten ?? []).filter(p => p.ort === ort).map(p => [p.schluessel, p.menge]));
@@ -7141,8 +7197,9 @@
         const vorher = wert ?? sel.value;
         sel.innerHTML = (alle ? '<option value="">alle Orte</option>' : '<option value="">Ort wählen …</option>')
           + orte.map(o => `<option value="${korbEsc(o)}">${korbEsc(o)}</option>`).join('')
-          + (neu ? '<option value="__neu">+ neuer Ort …</option>' : '');
-        sel.value = orte.includes(vorher) ? vorher : '';
+          + (neu ? '<option value="__neu">(weiteren Ort anlegen …)</option>' : '');
+        // BO5-5: ohne bisherige Wahl ist das Hauptlager Wrist vorgewaehlt (nicht im Filter "alle Orte").
+        sel.value = orte.includes(vorher) ? vorher : (!alle && orte.includes(LAGER_HAUPTORT) ? LAGER_HAUPTORT : '');
       }
 
       function lagerZeichnen() {
@@ -7175,7 +7232,7 @@
           + `<span>${korbEsc(lagerDatum(b.datum))}</span><span>${korbEsc(b.artText)} · ${korbEsc(lagerText(b))} · ${korbEsc(b.ort)}</span>`
           + `<span class="${b.menge > 0 ? 'lager-plus' : 'lager-minus'}">${b.menge > 0 ? '+' : ''}${b.menge}</span>`
           + `<span class="lager-klein"><span>${korbEsc(b.id)}</span>${b.grund ? `<span>${korbEsc(b.grund)}</span>` : ''}${b.notiz ? `<em>${korbEsc(b.notiz)}</em>` : ''}`
-          + `${b.quelle === 'korb' && b.bezug ? lagerBezugHtml(b) : ''}`
+          + `${b.quelle === 'korb' && b.bezug ? lagerBezugHtml(b) : b.bezug ? `<span>${korbEsc(lagerBezugText(b.art, b.bezug, d))}</span>` : ''}`
           + `${b.stornoVon ? `<span>Gegenbuchung zu ${korbEsc(b.stornoVon)}</span>` : ''}${b.gegengebucht ? '<span>gegengebucht</span>' : ''}`
           + `${b.gegenbuchbar ? `<button type="button" class="korb-link" data-lager-gegen="${korbEsc(b.id)}" data-hilfe="lager-gegenbuchung">Gegenbuchung …</button>` : ''}</span></div>`).join('')
           + (d.verlauf.length >= 300 ? '<div class="korb-zaehler">Gezeigt werden die neuesten 300 Buchungen.</div>' : '')
@@ -7205,15 +7262,72 @@
       });
 
       function lagerZeigen(punkt) {
-        lagerZ.punkt = punkt === 'buchungen' ? 'buchungen' : 'bestand';
+        lagerZ.punkt = ['buchungen', 'abgaenge'].includes(punkt) ? punkt : 'bestand';
         lagerEl('lager-bestand').hidden = lagerZ.punkt !== 'bestand';
         lagerEl('lager-buchungen').hidden = lagerZ.punkt !== 'buchungen';
+        lagerEl('lager-abgaenge').hidden = lagerZ.punkt !== 'abgaenge';
+        // Die Filterleiste von Bestand/Buchungen gilt in der Auswertung nicht (eigene Filter).
+        document.querySelector('#panel-lager .lager-filter:not(.lager-a-filter)').hidden = lagerZ.punkt === 'abgaenge';
         lagerZeichnen();
       }
       document.addEventListener('mc:ansicht', e => {
         if (e.detail?.panel !== 'lager') return;
         lagerZeigen(e.detail.punkt);
         loadLager();
+        if (lagerZ.punkt === 'abgaenge') lagerAbgaengeLaden();
+      });
+
+      // ── BO5-5: Auswertung "Abgänge" (GET /api/lager/abgaenge) ──
+      // Je Modell/Farbe die Groessen mit Stueckzahl, Gegenbuchungen abgezogen; hell und druckbar wie die Zaehlliste (BO3b).
+      const lagerA = { daten: null, laedt: false };
+      function lagerAFilter() {
+        return { art: lagerEl('lager-a-art').value, bezug: lagerEl('lager-a-bezug').value, von: lagerEl('lager-a-von').value, bis: lagerEl('lager-a-bis').value };
+      }
+      async function lagerAbgaengeLaden() {
+        if (lagerA.laedt) return;
+        lagerA.laedt = true;
+        const f = lagerAFilter();
+        const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v)).toString();
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/lager/abgaenge${qs ? `?${qs}` : ''}`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
+          const j = await res.json().catch(() => null);
+          if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
+          lagerA.daten = j;
+          lagerAbgaengeZeichnen();
+        } catch (e) {
+          lagerEl('lager-a-liste').innerHTML = `<div class="lager-warnung">Auswertung nicht geladen: ${korbEsc(e.message)}</div>`;
+        } finally { lagerA.laedt = false; }
+      }
+      function lagerAbgaengeZeichnen() {
+        const d = lagerA.daten;
+        if (!d) return;
+        const f = d.filter ?? {};
+        const artSel = lagerEl('lager-a-art');
+        artSel.innerHTML = '<option value="">alle Abgänge</option>' + ['abgang_vorort', 'abgang_auftrag', 'abgang_partner', 'abgang_shop', 'abgang_eigen']
+          .map(a => `<option value="${a}"${a === f.art ? ' selected' : ''}>${korbEsc(d.artText?.[a] ?? a)}</option>`).join('');
+        // Bezuege: alle Events, alle Partner und was in den Buchungen vorkommt (Auftraege, Muster).
+        const optionen = new Map();
+        for (const ev of d.events ?? []) optionen.set(ev.id, lagerBezugText('abgang_vorort', ev.id, d));
+        for (const p of d.partner ?? []) optionen.set(p.id, lagerBezugText('abgang_partner', p.id, d));
+        for (const b of d.bezuege ?? []) if (b.bezug && !optionen.has(b.bezug)) optionen.set(b.bezug, lagerBezugText(b.art, b.bezug, d));
+        lagerEl('lager-a-bezug').innerHTML = '<option value="">alle Events / Partner / Aufträge</option>'
+          + [...optionen].map(([k, v]) => `<option value="${korbEsc(k)}"${k === f.bezug ? ' selected' : ''}>${korbEsc(v)}</option>`).join('');
+        const gruppen = lagerGruppen(d.posten);
+        const titel = ['Abgänge', f.art ? d.artText?.[f.art] : '', f.bezug ? optionen.get(f.bezug) ?? f.bezug : '',
+          f.von || f.bis ? `${f.von ? f.von.split('-').reverse().join('.') : '…'} – ${f.bis ? f.bis.split('-').reverse().join('.') : '…'}` : ''].filter(Boolean).join(' · ');
+        lagerEl('lager-a-liste').innerHTML = `<div class="zaehlliste lager-a-druck"><div class="zl-kopf"><strong>${korbEsc(titel)} · ${d.stueck} Stück</strong>`
+          + '<span class="zl-knoepfe"><button type="button" class="zl-knopf" id="lager-a-drucken" data-hilfe="lager-auswertung-druck">Drucken</button></span></div>'
+          + (gruppen.length ? gruppen.map(g => `<div class="zl-modell"><div class="zl-titel">${korbEsc([g.modell, g.name, g.farbe].filter(Boolean).join(' · '))} – ${g.summe}</div>`
+            + `<div class="zl-felder">${g.zeilen.map(z => `<span class="zl-feld">${korbEsc(z.groesse || '–')} × ${z.menge}</span>`).join('')}</div></div>`).join('')
+            : '<div class="zl-modell">Keine Abgänge für diese Auswahl.</div>')
+          + '</div>';
+      }
+      ['lager-a-art', 'lager-a-bezug', 'lager-a-von', 'lager-a-bis'].forEach(id => lagerEl(id)?.addEventListener('change', lagerAbgaengeLaden));
+      lagerEl('lager-a-liste')?.addEventListener('click', ev => {
+        if (ev.target.id !== 'lager-a-drucken') return;
+        document.body.classList.add('druck-zaehlliste');
+        window.print();
+        document.body.classList.remove('druck-zaehlliste');
       });
       ['lager-f-warenart', 'lager-f-ort', 'lager-f-null'].forEach(id => lagerEl(id)?.addEventListener('change', lagerZeichnen));
       lagerEl('lager-f-suche')?.addEventListener('input', lagerZeichnen);
@@ -7276,8 +7390,77 @@
         lagerOrteOptionen(lagerEl('lager-ort'), { neu: true });
         lagerOrteOptionen(lagerEl('lager-ziel'), { neu: true });
         lagerEl('lager-ort-neu').hidden = true;
-        lagerEl('lager-buchen').textContent = m === 'zaehlung' ? 'Differenz buchen' : 'Buchen';
+        lagerEl('lager-buchen').textContent = m === 'zaehlung' ? 'Differenz buchen' : m === 'ausbuchen' ? 'Alles ausbuchen' : 'Buchen';
+        lagerEl('lager-weiter').textContent = m === 'ausbuchen' ? 'Zur Liste und weitere Farbe' : 'Buchen und weitere Farbe';
+        lagerBezugZeichnen();
+        lagerListeZeichnen();
         lagerRasterZeichnen();
+      }
+
+      // ── BO5-5: Bezug je Abgangsart und Liste "auszubuchen" ──
+      // Gewaehltes Event / Partner bleibt fuer den naechsten Vorgang stehen (Event-Modus am Stand).
+      function lagerBezugZeichnen() {
+        const el = lagerEl('lager-bezug'), d = lagerZ.daten ?? {};
+        const art = lagerEl('lager-art').value;
+        el.hidden = lagerDlg.modus !== 'ausbuchen';
+        if (el.hidden) { el.innerHTML = ''; return; }
+        if (art === 'abgang_vorort') {
+          const offen = (d.events ?? []).filter(ev => ev.status === 'offen');
+          const wahl = offen.some(ev => ev.id === lagerDlg.event) ? lagerDlg.event : (d.eventVorschlag || offen[0]?.id || '');
+          const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+          el.innerHTML = '<label class="lager-feld" data-hilfe="lager-event">Event<select id="lager-event" class="form-select">'
+            + '<option value="">Event wählen …</option>'
+            + offen.map(ev => `<option value="${korbEsc(ev.id)}"${ev.id === wahl ? ' selected' : ''}>${korbEsc(lagerBezugText('abgang_vorort', ev.id, d))}</option>`).join('')
+            + '</select></label><button type="button" class="korb-link" id="lager-event-neu">+ neues Event</button>'
+            + '<div id="lager-event-form" class="lager-neu" hidden><input id="lager-event-name" class="form-input" maxlength="60" placeholder="Name, z. B. Halloween Markt" />'
+            + `<input id="lager-event-datum" type="date" class="form-input" value="${heute}" />`
+            + '<input id="lager-event-ort" class="form-input" maxlength="60" placeholder="Ort des Events (optional)" />'
+            + '<button type="button" class="korb-aktion korb-aktion-haupt" id="lager-event-ok">Event anlegen</button></div>'
+            + '<div class="korb-zaehler">Nach dem Event nur ausbuchen, was verkauft ist – mitgenommene Ware bleibt im Bestand.</div>';
+          lagerDlg.event = wahl;
+        } else if (art === 'abgang_auftrag') {
+          el.innerHTML = `<label class="lager-feld" data-hilfe="lager-auftrag">Auftrag<input id="lager-auftrag" class="form-input" maxlength="80" value="${korbEsc(lagerDlg.auftrag ?? '')}" placeholder="z. B. Verein X Auftrag 12" /></label>`
+            + '<div class="korb-zaehler">Nie Namen von Privatpersonen. Später steht hier die Auftragsnummer.</div>';
+        } else if (art === 'abgang_partner') {
+          const wahl = lagerDlg.partner ?? '';
+          el.innerHTML = '<label class="lager-feld" data-hilfe="lager-partner">Partner<select id="lager-partner" class="form-select"><option value="">Partner wählen …</option>'
+            + (d.partner ?? []).map(x => `<option value="${korbEsc(x.id)}"${x.id === wahl ? ' selected' : ''}>${korbEsc(lagerBezugText('abgang_partner', x.id, d))}</option>`).join('')
+            + `<option value="__muster"${wahl === '__muster' ? ' selected' : ''}>Muster …</option></select></label>`
+            + `<input id="lager-muster" class="form-input" maxlength="60" placeholder="Muster für … (z. B. Verein X), ohne Namen" value="${korbEsc(lagerDlg.muster ?? '')}"${wahl === '__muster' ? '' : ' hidden'} />`;
+        } else if (art === 'abgang_shop') {
+          el.innerHTML = '<label class="lager-feld">Bestellnummer (optional)<input id="lager-shop" class="form-input" maxlength="40" inputmode="numeric" /></label>';
+        } else el.innerHTML = '';
+      }
+      /** Bezug aus den Feldern (fuer lagerAnfrage). */
+      function lagerBezugWert() {
+        const art = lagerEl('lager-art').value, v = id => document.getElementById(id)?.value ?? '';
+        if (art === 'abgang_vorort') return v('lager-event');
+        if (art === 'abgang_auftrag') return v('lager-auftrag').trim();
+        if (art === 'abgang_partner') return v('lager-partner') === '__muster' ? (lagerZ.daten?.musterPraefix ?? 'Muster: ') + v('lager-muster').trim() : v('lager-partner');
+        if (art === 'abgang_shop') return v('lager-shop').trim();
+        return '';
+      }
+      function lagerListeZeichnen() {
+        const el = lagerEl('lager-liste');
+        const liste = lagerDlg.liste ?? [];
+        el.hidden = lagerDlg.modus !== 'ausbuchen' || !liste.length;
+        el.innerHTML = !liste.length ? '' : `<div class="korb-zaehler">Auszubuchen (${liste.reduce((s, x) => s + x.menge, 0)} Stück):</div>`
+          + liste.map((x, i) => `<div class="lager-listen-zeile"><span>${korbEsc(x.label)} · ${korbEsc(x.ort)}</span><strong>×${x.menge}</strong>`
+            + `<button type="button" class="korb-link" data-lager-liste-weg="${i}" aria-label="Zeile entfernen">✕</button></div>`).join('');
+      }
+      async function lagerEventAnlegen() {
+        const v = id => document.getElementById(id)?.value ?? '';
+        try {
+          const j = await lagerPost('events', { name: v('lager-event-name'), datum: v('lager-event-datum'), ort: v('lager-event-ort') });
+          showToast(`Event „${j.name}“ angelegt`, 'success');
+          lagerDlg.event = j.id;
+        } catch (e) {
+          if (!e.antwort?.vorhanden) { showToast(`Nicht angelegt: ${e.message}`, 'error'); return; }
+          lagerDlg.event = e.antwort.vorhanden;
+          showToast(e.message, 'warn');
+        }
+        await loadLager();
+        lagerBezugZeichnen();
       }
 
       // Auswahl je Warenart: Rohling/Fertigware ueber Suche -> Farbe; Trikot ueber Produkt; Fremdware ueber Filter; Sonstiges aus der Liste.
@@ -7324,6 +7507,7 @@
         if (wa === 'trikot') {
           const pid = document.getElementById('lager-trikot')?.value;
           const p = (lagerDlg.trikot ?? []).find(x => x.produktId === pid);
+          lagerDlg.titel = p?.name ?? '';   // BO5-5: Titel fuer die Liste "auszubuchen"
           return p ? lagerRasterReihe(p.groessen.map(g => ({ schluessel: `TR:${p.produktId}:${g}`, groesse: g }))).map(v => ({ ...v, label: v.groesse })) : [];
         }
         if (wa === 'fremd') {
@@ -7336,6 +7520,7 @@
         const alle = lagerZ.daten?.artikel ?? [];
         const a = alle.find(x => x.laNr === la);
         if (!a) return [];
+        lagerDlg.titel = [a.bezeichnung, a.farbe].filter(Boolean).join(' · ');
         const gruppe = alle.filter(x => (x.modell || x.bezeichnung) === (a.modell || a.bezeichnung) && x.farbe === a.farbe);
         return lagerRasterReihe(gruppe.map(x => ({ schluessel: `FREI:${x.laNr}`, groesse: x.groesse }))).map(v => ({ ...v, label: v.groesse || a.bezeichnung }));
       }
@@ -7445,11 +7630,32 @@
         if (lagerDlg.laeuft) return;
         const m = lagerDlg.modus;
         const z = { modus: m, start: lagerEl('lager-start').checked, art: lagerEl('lager-art').value, ort: lagerEl('lager-ort').value,
-          zielOrt: lagerEl('lager-ziel').value, grund: lagerEl('lager-grund').value, notiz: lagerEl('lager-notiz').value, vorgang: lagerDlg.vorgang };
-        const a = lagerSummeZeichnen();
-        const fehlt = !z.ort || z.ort === '__neu' ? 'Bitte einen Ort wählen.' : m === 'umlagern' && (!z.zielOrt || z.zielOrt === '__neu') ? 'Bitte den neuen Ort wählen.'
+          zielOrt: lagerEl('lager-ziel').value, grund: lagerEl('lager-grund').value, notiz: lagerEl('lager-notiz').value, vorgang: lagerDlg.vorgang,
+          bezug: lagerBezugWert() };
+        const raster = lagerSummeZeichnen();
+        const sammel = m === 'ausbuchen';   // BO5-5: Liste + aktuelles Raster, je Zeile ein Ort
+        const ortFehlt = !z.ort || z.ort === '__neu';
+        if (sammel && weiter) {   // "Zur Liste und weitere Farbe": nur sammeln, nichts buchen
+          const fehltL = ortFehlt ? 'Bitte einen Ort wählen.' : raster.fehler.length ? lagerSummeText(raster, false) : !raster.posten.length ? 'Noch keine Menge eingetragen.' : '';
+          if (fehltL) { showToast(fehltL, 'warn'); return; }
+          const farbe = document.getElementById('lager-farbe');
+          const titel = [lagerDlg.titel, farbe && !farbe.hidden ? farbe.value : ''].filter(Boolean).join(' · ');
+          lagerDlg.liste = lagerListeHinzu(lagerDlg.liste, raster, { ort: z.ort, titel });
+          lagerEl('lager-raster').querySelectorAll('input').forEach(i => { i.value = ''; });
+          lagerListeZeichnen();
+          const sel = document.getElementById('lager-farbe');
+          if (sel && !sel.hidden && sel.options.length > 1) { sel.value = ''; lagerRasterZeichnen(); sel.focus(); } else lagerRasterZeichnen();
+          return;
+        }
+        const a = sammel ? lagerListeAuswahl(lagerDlg.liste, ortFehlt ? { ...raster, posten: [] } : raster, z.ort) : raster;
+        const fehlt = (!sammel || raster.posten.length) && ortFehlt ? 'Bitte einen Ort wählen.'
+          : m === 'umlagern' && (!z.zielOrt || z.zielOrt === '__neu') ? 'Bitte den neuen Ort wählen.'
           : a.fehler.length ? lagerSummeText(a, m === 'zaehlung') : !a.posten.length ? 'Noch keine Menge eingetragen.' : '';
         if (fehlt) { showToast(fehlt, 'warn'); return; }
+        if (sammel) {
+          lagerDlg.auftrag = document.getElementById('lager-auftrag')?.value ?? lagerDlg.auftrag;
+          lagerDlg.muster = document.getElementById('lager-muster')?.value ?? lagerDlg.muster;
+        }
         lagerDlg.laeuft = true;
         lagerEl('lager-buchen').disabled = lagerEl('lager-weiter').disabled = true;
         const erg = lagerEl('lager-ergebnis');
@@ -7461,7 +7667,10 @@
           showToast(erg.textContent, 'success');
           lagerDlg.vorgang = lagerVorgang();
           lagerEl('lager-raster').querySelectorAll('input').forEach(i => { i.value = ''; });
+          if (sammel) { lagerDlg.liste = []; lagerListeZeichnen(); }
           await loadLager();
+          // BO5-5 Event-Modus: bei "Verkauf vor Ort" bleibt der Dialog mit demselben Event offen (schnell weiterbuchen am Stand).
+          if (sammel && z.art === 'abgang_vorort') { lagerBezugZeichnen(); lagerRasterZeichnen(); return; }
           if (!weiter) { lagerDialogZu(); return; }
           const sel = document.getElementById('lager-farbe');
           if (sel && !sel.hidden && sel.options.length > 1) { sel.value = ''; lagerRasterZeichnen(); sel.focus(); }
@@ -7519,6 +7728,21 @@
       lagerEl('lager-dialog')?.addEventListener('keydown', ev => { if (ev.key === 'Escape') lagerDialogZu(); });
       lagerEl('lager-start')?.addEventListener('change', () => lagerModus(lagerDlg.modus));
       lagerEl('lager-warenart')?.addEventListener('change', lagerWahlZeichnen);
+      lagerEl('lager-art')?.addEventListener('change', lagerBezugZeichnen);
+      lagerEl('lager-bezug')?.addEventListener('change', ev => {
+        if (ev.target.id === 'lager-partner') { lagerDlg.partner = ev.target.value; document.getElementById('lager-muster').hidden = ev.target.value !== '__muster'; }
+        if (ev.target.id === 'lager-event') lagerDlg.event = ev.target.value;
+      });
+      lagerEl('lager-bezug')?.addEventListener('click', ev => {
+        if (ev.target.id === 'lager-event-neu') { const fo = document.getElementById('lager-event-form'); fo.hidden = !fo.hidden; if (!fo.hidden) document.getElementById('lager-event-name').focus(); }
+        if (ev.target.id === 'lager-event-ok') lagerEventAnlegen();
+      });
+      lagerEl('lager-liste')?.addEventListener('click', ev => {
+        const k = ev.target.closest('[data-lager-liste-weg]');
+        if (!k) return;
+        lagerDlg.liste.splice(Number(k.dataset.lagerListeWeg), 1);
+        lagerListeZeichnen();
+      });
       ['lager-ort', 'lager-ziel'].forEach(id => lagerEl(id)?.addEventListener('change', ev => {
         const neu = ev.target.value === '__neu';
         lagerDlg.ortFuer = neu ? id : lagerDlg.ortFuer;

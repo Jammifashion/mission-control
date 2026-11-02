@@ -18,7 +18,7 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   auch `window.oeffneAnsicht`; Adresse `#bereich/unterpunkt`; Ereignis `mc:ansicht` fuer den
   zweiten Script-Block. Bereiche: dashboard · bestellen (Panel orders, Unterreiter) · artikel
   (Panel products, Modus-Knoepfe) · partner (lizenz = partnerportal, festpreis) · kunden (anfragen,
-  agent-wissen) · lager (bestand, buchungen; ein Panel `lager`, BO5-1) · system (settings). Neue Ansicht = Zeile in BEREICHE, nie `nav button.click()`.
+  agent-wissen) · lager (bestand, buchungen, abgaenge; ein Panel `lager`, BO5-1/BO5-5) · system (settings). Neue Ansicht = Zeile in BEREICHE, nie `nav button.click()`.
   Alte Adresse = Zeile mit `umleitung: '<unterpunkt>'` ohne panel/knopf (BO4d: `bestellen/lshop`).)
 - Stand-Anzeige
 - Helpers (darin: Dashboard inkl. Knopf "Trikot-Sync jetzt")
@@ -80,7 +80,11 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   BO5-3 im Warenkorb: Block `Korb-Lager: Anfang/Ende` (Test lager-korb.test.js) - "im Lager: n" (Orte im title) bzw. "n von m",
   Knopf "aus Lager nehmen …" nur bei genug, Dialog `#korb-lager-dialog` (Vorbelegung meister Ort, hoechstens zwei), Filter
   "Aus Lager" mit "zurück in den Korb", Hinweis `#korb-grund-lager` beim Grund "Ware da / Lager"; Verlauf verlinkt Korb-Position
-  (`korbSpringeZu`) und Bestellung (`psSpringeZu`); `lagerSpringeZu(articleNr)` filtert den Bestand.)
+  (`korbSpringeZu`) und Bestellung (`psSpringeZu`); `lagerSpringeZu(articleNr)` filtert den Bestand.
+  BO5-5: Ausbuchen = Bezug je Art (`#lager-bezug`: Event-Auswahl + "+ neues Event", Auftrag-Freitext, Partner P-… oder
+  "Muster: …") und Liste "auszubuchen" (`lagerDlg.liste`, "Zur Liste und weitere Farbe" / "Alles ausbuchen", je Zeile ein
+  Ort); bei Verkauf vor Ort bleibt der Dialog mit dem Event offen (Event-Modus). Unterpunkt `lager/abgaenge` (Auswertung im
+  Zaehlliste-Stil, Druck ueber `body.druck-zaehlliste`). Wrist (`LAGER_HAUPTORT`) ist ueberall vorgewaehlt, auch im Korb-Dialog.)
 - Artikelerfassung (dazu Modus-Knopf "🧵 L-Shop-Modelle", LS4: Unterpunkt `artikel/lshop-modelle`, Panel `#lsm-panel`,
   SECTION L-Shop-Modelle mit Block `L-Shop-Modelle: Anfang/Ende`, Test lshop-modelle-frontend.test.js; Hilfe-Gruppe
   `lshop-modelle`; Links `data-lsm-link` aus Warenkorb "Nicht im Bestand" und Maske "Kein L-Shop-Modell".
@@ -463,6 +467,14 @@ Neue Sektionen immer mit Anker versehen:
   Zwischenspeicher, jede Buchung leert ihn; Stammdaten 5 min (Trikots aus dem Business-Sheet, nicht lesbar = Hinweis).
   Fehlen Reiter/Spalten -> 409 `einrichtung`. Einrichtung: `scripts/setup-lager-reiter.js` (Trockenlauf, `--write`, nur neue
   Reiter; `Produkt_Inventar` ist eine Artikelliste, kein Bestand). Noch nicht: Wareneingang (BO5-4), Retouren (BO5-6).
+  BO5-5 Abgaenge: Bezug je Art (`bezugRegel`): `abgang_vorort` = offenes Event `EV-NNNN` aus `Lager_Events` (Event_ID |
+  Name | Datum JJJJ-MM-TT | Ort | Status offen/… | Notiz; optional - fehlt der Reiter, nur Hinweis; `POST /api/lager/events`),
+  `abgang_auftrag` = Freitext 2-80 ohne Klarnamen (spaeter die Auftragsnummer), `abgang_partner` = aktive P-ID aus Business-Reiter
+  `Partner` (nur gelesen, 5 min) oder `Muster: <Empfaenger>`. Nach einem Event wird nur Verkauftes ausgebucht (keine Ruecknahme-
+  Art; Fehler = Gegenbuchung). Sammelausbuchen: `posten[].ort` je Zeile (nur Aktion ausbuchen), nie negativ je Ort, ein
+  Schreibaufruf. `GET /api/lager/abgaenge?art&bezug&von&bis` (`abgaengeAuswertung`: nur Abgangsarten inkl. abgang_eigen,
+  Gegenbuchungen abgezogen, Tag Europe/Berlin). Fertigware-Suche: jedes Wort in Name/Artikelnummer/Kurzbezeichnung/Variantenwerten.
+  Setup `--orte=Wrist,Itzehoe` legt nur fehlende Orte an (Trockenlauf ohne `--write`). Orte nie umbenennen (Text in Buchungen).
 - backend/lib/lagerKorb.js – Lager im L-Shop-Warenkorb (BO5-3), Logik `utils/lager-korb.js`. MC schlaegt vor, der Inhaber
   bestaetigt; nichts automatisch, der Abgleich aendert nie einen Status. `GET .../lshop-korb` liefert je Buendel `lager`
   ({ summe, orte }) und je offener, nicht gesperrter Position `lager` ({ n, genug }) - NUR gleiche ArticleNr (LS:), in

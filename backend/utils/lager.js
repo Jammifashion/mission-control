@@ -156,7 +156,7 @@ const zuLang = (v, max = TEXT_MAX) => t(v).length > max;
  * @param {object} k  { buchungen, orte: string[] (aktiv), gueltig: schluessel -> true|Text, jetzt: Date }
  * @returns {{ zeilen: object[], probleme: object[], schonGebucht?: object[] }}
  */
-export function planBuchung(e, { buchungen, orte, gueltig = () => true, jetzt = new Date() }) {
+export function planBuchung(e, { buchungen, orte, gueltig = () => true, bezugPruefen = () => true, jetzt = new Date() }) {
   const probleme = [];
   const aktion = t(e?.aktion);
   const vorgang = t(e?.vorgang);
@@ -176,7 +176,17 @@ export function planBuchung(e, { buchungen, orte, gueltig = () => true, jetzt = 
 
   const ortListe = (orte ?? []).map(t);
   const ort = t(e.ort);
-  if (!ortListe.includes(ort)) probleme.push(fehlerText('ort', ort ? `Ort "${ort}" gibt es nicht (mehr).` : 'Bitte einen Ort wählen.'));
+  // BO5-5 Sammelausbuchen: jede Zeile der Liste darf ihren eigenen Ort tragen (sonst gilt der Ort des Dialogs).
+  const eigenerOrt = aktion === 'ausbuchen';
+  const ortVon = p => (eigenerOrt && t(p?.ort)) || ort;
+  const roh = Array.isArray(e.posten) ? e.posten : [];
+  const orteGenutzt = new Set(roh.length ? roh.map(ortVon) : [ort]);
+  for (const o of orteGenutzt) if (!ortListe.includes(o)) probleme.push(fehlerText('ort', o ? `Ort "${o}" gibt es nicht (mehr).` : 'Bitte einen Ort wählen.'));
+  // BO5-5: Bezug je Abgangsart (Event, Auftrag, Partner/Muster) - die Regeln liefert lib/lager.js (Events, Partnerliste).
+  if (aktion === 'ausbuchen' && ABGANG_ARTEN.includes(art)) {
+    const b = bezugPruefen(art, t(e.bezug));
+    if (b !== true) probleme.push(fehlerText('bezug', typeof b === 'string' ? b : 'Bezug fehlt.'));
+  }
   const zielOrt = t(e.zielOrt);
   if (aktion === 'umlagern') {
     if (!ortListe.includes(zielOrt)) probleme.push(fehlerText('zielOrt', zielOrt ? `Ort "${zielOrt}" gibt es nicht (mehr).` : 'Bitte den neuen Ort wählen.'));
@@ -185,7 +195,6 @@ export function planBuchung(e, { buchungen, orte, gueltig = () => true, jetzt = 
   for (const [feld, wert] of [['grund', e.grund], ['bezug', e.bezug], ['notiz', e.notiz]])
     if (zuLang(wert)) probleme.push(fehlerText(feld, `${feld[0].toUpperCase()}${feld.slice(1)} ist zu lang (höchstens ${TEXT_MAX} Zeichen).`));
 
-  const roh = Array.isArray(e.posten) ? e.posten : [];
   if (roh.length > POSTEN_MAX) probleme.push(fehlerText('posten', `Höchstens ${POSTEN_MAX} Zeilen auf einmal.`));
   const gesehen = new Set();
   const posten = [];
@@ -193,20 +202,22 @@ export function planBuchung(e, { buchungen, orte, gueltig = () => true, jetzt = 
     const s = t(p?.schluessel);
     const wa = warenartVon(s);
     if (!wa) { probleme.push(fehlerText('schluessel', `Unbekannter Artikel "${s}".`, { schluessel: s })); continue; }
-    if (gesehen.has(s)) { probleme.push(fehlerText('doppelt', `${s} steht doppelt in der Auswahl.`, { schluessel: s })); continue; }
-    gesehen.add(s);
+    const k = `${s}|${ortVon(p)}`;
+    if (gesehen.has(k)) { probleme.push(fehlerText('doppelt', `${s} steht doppelt in der Auswahl${eigenerOrt ? ` (Ort ${ortVon(p)})` : ''}.`, { schluessel: s })); continue; }
+    gesehen.add(k);
     const g = gueltig(s);
     if (g !== true) { probleme.push(fehlerText('schluessel', typeof g === 'string' ? g : `${s} ist nicht (mehr) gepflegt.`, { schluessel: s })); continue; }
     const zaehlt = aktion === 'zaehlung';
     const m = mengeLesen(p?.menge, { null: zaehlt });
     if (m === null) continue;   // leer = nicht buchen
     if (Number.isNaN(m)) { probleme.push(fehlerText('menge', `Menge bei ${s} ungültig (ganze Zahl ${zaehlt ? 0 : 1}–${MENGE_MAX}).`, { schluessel: s })); continue; }
-    posten.push({ schluessel: s, warenart: wa, menge: m });
+    posten.push({ schluessel: s, warenart: wa, menge: m, ort: ortVon(p) });
   }
 
   const bestand = bestandAus(buchungen);
   const bewegungen = [];   // { schluessel, warenart, ort, menge, bezugIdx? }
   for (const p of posten) {
+    const ort = p.ort;   // je Zeile (Sammelausbuchen), sonst der Ort des Dialogs
     const da = bestandVon(bestand, p.schluessel, ort);
     if (aktion === 'zaehlung') {
       const diff = p.menge - da;
@@ -358,4 +369,101 @@ export function buchungsVerlauf(buchungen, beschreibe, { limit = 300 } = {}) {
     gegengebucht: gegen.has(b.id), gegenbuchbar: !gegen.has(b.id) && b.art !== ART.KORREKTUR && !b.stornoVon && b.quelle !== QUELLE.KORB,
     ...beschreibe(b.schluessel),
   }));
+}
+
+// ── BO5-5: Events, Bezug je Abgangsart, Auswertung ────────────────────────────
+
+export const TAB_EVENTS = 'Lager_Events';
+export const EVENT_SPALTEN = ['Event_ID', 'Name', 'Datum', 'Ort', 'Status', 'Notiz'];
+export const EVENT_OFFEN = 'offen';
+export const MUSTER_PRAEFIX = 'Muster: ';
+const EVENT_ID = /^EV-\d{4}$/;
+const PARTNER_ID = /^P-\d{3,}$/;
+
+export const eventsAus = werte => reiterZeilen(werte, EVENT_SPALTEN).zeilen
+  .map(z => ({ id: t(z.Event_ID), name: t(z.Name), datum: t(z.Datum), ort: t(z.Ort), status: t(z.Status) || EVENT_OFFEN, notiz: t(z.Notiz) }))
+  .filter(ev => ev.id);
+
+/** Neues Event: Name 2-60, Datum JJJJ-MM-TT (Pflicht), Ort optional; gleicher Name + Datum -> das vorhandene. */
+export function planNeuesEvent(eingabe, events) {
+  const name = t(eingabe?.name).replace(/\s+/g, ' ');
+  const datum = t(eingabe?.datum);
+  const ort = t(eingabe?.ort).replace(/\s+/g, ' ');
+  const probleme = [];
+  if (name.length < 2 || name.length > 60) probleme.push(fehlerText('name', 'Name des Events: 2–60 Zeichen.'));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(datum) || isNaN(Date.parse(datum))) probleme.push(fehlerText('datum', 'Datum fehlt (TT.MM.JJJJ).'));
+  if (ort.length > 60) probleme.push(fehlerText('ort', 'Ort: höchstens 60 Zeichen.'));
+  if (zuLang(eingabe?.notiz)) probleme.push(fehlerText('notiz', `Notiz ist zu lang (höchstens ${TEXT_MAX} Zeichen).`));
+  if (probleme.length) return { probleme };
+  const gleich = events.find(ev => klein(ev.name) === klein(name) && ev.datum === datum);
+  if (gleich) return { probleme: [fehlerText('doppelt', `Das Event gibt es schon: ${gleich.name} (${gleich.datum}).`)], vorhanden: gleich.id };
+  const max = Math.max(0, ...events.map(ev => Number(ev.id.match(/^EV-(\d{4})$/)?.[1] ?? 0)));
+  const id = `EV-${String(max + 1).padStart(4, '0')}`;
+  return { probleme: [], id, zeile: { Event_ID: id, Name: name, Datum: datum, Ort: ort, Status: EVENT_OFFEN, Notiz: t(eingabe?.notiz) } };
+}
+
+/**
+ * Bezug je Abgangsart -> true oder Text. Verkauf vor Ort = offenes Event (EV-NNNN); eigener Auftrag = Freitext
+ * 2-80 Zeichen (spaeter die Auftragsnummer aus dem Auftragsmanagement - das Feld nimmt beides); Partner = P-… aus
+ * der Partnerliste oder "Muster: <Empfaenger>" ohne Klarnamen; Shop-Bestellung von Hand = optional.
+ */
+export function bezugRegel(art, bezug, { events = [], partner = [] } = {}) {
+  const b = t(bezug);
+  if (art === ART.ABGANG_VORORT) {
+    if (!b) return 'Bitte das Event wählen (oder „+ neues Event“).';
+    const ev = events.find(x => x.id === b);
+    if (!EVENT_ID.test(b) || !ev) return `Event "${b}" gibt es nicht.`;
+    return ev.status === EVENT_OFFEN || `Event ${ev.name} ist ${ev.status} - bitte ein offenes wählen.`;
+  }
+  if (art === ART.ABGANG_AUFTRAG) return (b.length >= 2 && b.length <= 80) || 'Bitte die Auftragsreferenz eintragen (2–80 Zeichen, ohne Namen).';
+  if (art === ART.ABGANG_PARTNER) {
+    if (b.startsWith(MUSTER_PRAEFIX.trim())) {
+      const rest = b.slice(MUSTER_PRAEFIX.trim().length).trim();
+      return (rest.length >= 2 && rest.length <= 60) || 'Bitte eintragen, wer das Muster bekommt (2–60 Zeichen, ohne Namen).';
+    }
+    if (!b) return 'Bitte den Partner wählen oder „Muster“.';
+    return (PARTNER_ID.test(b) && partner.some(p => p.id === b)) || `Partner "${b}" steht nicht in der Partnerliste.`;
+  }
+  return true;
+}
+
+/** Vorschlag im Dialog: das Event der juengsten Buchung "Verkauf vor Ort", wenn es noch offen ist, sonst das neueste offene. */
+export function eventVorschlag(buchungen, events) {
+  const offen = new Map(events.filter(ev => ev.status === EVENT_OFFEN).map(ev => [ev.id, ev]));
+  const letzte = [...(buchungen ?? [])].filter(b => b.art === ART.ABGANG_VORORT && offen.has(b.bezug)).sort((a, b) => b.datum.localeCompare(a.datum))[0];
+  if (letzte) return letzte.bezug;
+  return [...offen.values()].sort((a, b) => b.datum.localeCompare(a.datum) || b.id.localeCompare(a.id))[0]?.id ?? '';
+}
+
+export const ABGANG_AUSWERTUNG_ARTEN = [...ABGANG_ARTEN, ART.ABGANG_EIGEN];
+const tagVon = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' }); };
+
+/**
+ * Auswertung "Abgaenge": was ging raus, Gegenbuchungen abgezogen. Filter art, bezug, von/bis (JJJJ-MM-TT, Berlin).
+ * -> { posten: [{ schluessel, warenart, menge }], stueck, buchungen, bezuege: [{ art, bezug, stueck }] }
+ */
+export function abgaengeAuswertung(buchungen, f = {}) {
+  const alle = buchungen ?? [];
+  const gegen = new Map();
+  for (const b of alle) if (b.stornoVon) gegen.set(b.stornoVon, (gegen.get(b.stornoVon) ?? 0) + b.menge);
+  const arten = f.art ? [t(f.art)] : ABGANG_AUSWERTUNG_ARTEN;
+  const treffer = alle.filter(b => arten.includes(b.art) && b.menge < 0 && !b.stornoVon
+    && (!f.bezug || b.bezug === t(f.bezug))
+    && (!f.von || tagVon(b.datum) >= t(f.von)) && (!f.bis || tagVon(b.datum) <= t(f.bis)));
+  const je = new Map(), bezuege = new Map();
+  let buchungenZahl = 0;
+  for (const b of treffer) {
+    const raus = -b.menge - (gegen.get(b.id) ?? 0);   // Gegenbuchung (+) zieht ab
+    if (raus <= 0) continue;
+    buchungenZahl++;
+    const e = je.get(b.schluessel) ?? { schluessel: b.schluessel, warenart: warenartVon(b.schluessel) ?? b.warenart, menge: 0 };
+    e.menge += raus;
+    je.set(b.schluessel, e);
+    const k = `${b.art}|${b.bezug}`;
+    const z = bezuege.get(k) ?? { art: b.art, bezug: b.bezug, stueck: 0 };
+    z.stueck += raus;
+    bezuege.set(k, z);
+  }
+  const posten = [...je.values()];
+  return { posten, stueck: posten.reduce((a, p) => a + p.menge, 0), buchungen: buchungenZahl, bezuege: [...bezuege.values()] };
 }
