@@ -231,6 +231,13 @@
       .au-herkunft-wahl { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--muted); }
       .au-lager-knapp { border: 1px solid var(--accent); color: var(--accent); border-radius: 7px; padding: 0.35rem 0.6rem; font-size: 0.82rem; display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
       .au-herkunft { margin-left: 0.3rem; }
+      /* AM-3: Ware und Korb-Rueckmeldung */
+      .au-ware-offen { border-color: var(--accent); color: var(--accent); }
+      .au-ware-bestellt { border-color: #4a8af0; color: #8fb6f5; }
+      .au-ware-da { border-color: var(--success); color: var(--success); }
+      .au-korb { font-size: 0.78rem; }
+      #ab-dialog [hidden] { display: none !important; }
+      .ab-problem { border-color: var(--accent); }
       .au-kachel-zeile { font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem; }
       .kl-suchzeile { display: flex; flex-wrap: wrap; gap: 0.5rem; }
       .kl-suchzeile .form-input { flex: 1 1 12rem; min-width: 0; }
@@ -2973,7 +2980,8 @@
               <input id="au-suche" type="search" class="form-input" placeholder="Suche: Nr., Titel, Kunde, Spitzname" autocomplete="off" aria-label="Aufträge suchen" data-hilfe="au-suche" />
               <select id="au-f" class="form-select" aria-label="Filter" data-hilfe="au-filter">
                 <option value="offen">offen</option><option value="termin">Termin in ≤ 7 Tagen</option>
-                <option value="Anfrage">Anfrage</option><option value="Angebot">Angebot</option><option value="bestellt">bestellt</option>
+                <option value="ware">wartet auf Ware</option>
+                <option value="Anfrage">Anfrage</option><option value="Angebot">Angebot</option><option value="Design">Design</option><option value="bestellt">bestellt</option>
                 <option value="in Produktion">in Produktion</option><option value="fertig">fertig</option><option value="übergeben">übergeben</option>
                 <option value="bezahlt">bezahlt</option><option value="storniert">storniert</option><option value="alle">alle</option>
               </select>
@@ -3001,6 +3009,8 @@
             <div id="au-d-leiste" class="au-leiste" aria-label="Status"></div>
             <div class="korb-reihe ku-knoepfe">
               <button type="button" class="korb-aktion korb-aktion-haupt" id="au-weiter" data-hilfe="au-weiter">weiter …</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-design-skip" data-hilfe="au-design-skip">Design überspringen</button>
+              <button type="button" class="korb-aktion korb-aktion-haupt" id="au-bereitstellen" data-hilfe="au-bereitstellen">Rohlinge bereitstellen …</button>
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-zurueck" data-hilfe="au-zurueck">einen Schritt zurück</button>
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-bezahlt" data-hilfe="au-bezahlt">bezahlt</button>
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-bezahlt-zurueck" data-hilfe="au-bezahlt-zurueck">bezahlt zurücknehmen</button>
@@ -3015,6 +3025,29 @@
             </div>
             <div id="au-d-fehler" class="lager-warnung" hidden></div>
             <div id="au-d-pos"></div>
+          </div>
+        </div>
+
+        <!-- AM-3: Rohlinge bereitstellen - Vorschau je Position, ein Schritt nach Bestaetigung (Korb + Lager + Auftrag). -->
+        <div id="ab-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="ab-titel" hidden>
+          <div class="edi-box ku-box au-box">
+            <div class="edi-kopf">
+              <strong id="ab-titel">Rohlinge bereitstellen</strong>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="auftraege" aria-controls="hilfe-ab-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+              <button type="button" class="korb-link" id="ab-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
+            </div>
+            <div id="hilfe-ab-dialog" class="hilfe-legende" hidden></div>
+            <div class="korb-zaehler">🛒 kommt als eigene Position in den L-Shop-Warenkorb (Referenz = Auftragsnummer) · 📦 wird im Lager ausgebucht · ✓ nichts zu tun.</div>
+            <div id="ab-liste" class="ku-liste"></div>
+            <div id="ab-knapp" class="au-lager-knapp" hidden>
+              <span id="ab-knapp-text"></span>
+              <label class="au-herkunft-wahl" data-hilfe="ab-teilen"><input type="checkbox" id="ab-teilen"> Rest bestellen (teilen)</label>
+            </div>
+            <div id="ab-fehler" class="lager-warnung" hidden></div>
+            <div class="korb-reihe ku-knoepfe">
+              <button type="button" class="korb-aktion korb-aktion-haupt" id="ab-ok" data-hilfe="ab-ok">Bereitstellen</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="ab-abbrechen" data-hilfe="dialog-abbrechen">Abbrechen</button>
+            </div>
           </div>
         </div>
 
@@ -5687,10 +5720,10 @@
         'dash-auftraege':       { name: 'Aufträge', text: 'Offene Aufträge, Termine in 7 Tagen, fertig und nicht bezahlt, aktive Kunden. Klick öffnet Aufträge.' },
         // AM-2: Aufträge erfassen, Liste, Ansicht
         'au-suche':             { name: 'Aufträge suchen', text: 'Findet über Auftrags-Nr., Kurztitel, Kunde, Spitzname oder Kunden-Nr.; jedes Wort muss passen.' },
-        'au-filter':            { name: 'Filter', text: 'offen = weder bezahlt noch storniert. Dazu: Termin in 7 Tagen (auch überfällige), je Status oder alle.' },
+        'au-filter':            { name: 'Filter', text: 'offen = weder bezahlt noch storniert. Dazu: Termin in 7 Tagen, wartet auf Ware, je Status oder alle.' },
         'au-neu':               { name: '+ Neuer Auftrag', text: 'Kunde wählen, Kurztitel, Positionen aus L-Shop (Raster) oder frei. Speichert alles in einem Schritt.' },
         'au-oeffnen':           { name: 'Auftrag öffnen', text: 'Zeigt Kopf, Status mit Datum je Schritt und die Positionen mit Haken „fertig“.' },
-        'au-weiter':            { name: 'weiter zu …', text: 'Setzt den nächsten Schritt mit heutigem Datum. „bestellt“ setzt ihr selbst, bis der Korb das übernimmt.' },
+        'au-weiter':            { name: 'weiter zu …', text: 'Setzt den nächsten Schritt mit heutigem Datum. Design = Motiv/Entwurf in Arbeit oder wartet auf Freigabe.' },
         'au-zurueck':           { name: 'einen Schritt zurück', text: 'Fragt vorher. Geht einen Schritt zurück und leert das Datum des jetzigen Schritts.' },
         'au-bezahlt':           { name: 'bezahlt', text: 'Bezahlt-Datum heute, jederzeit (auch Vorkasse). Ist der Auftrag übergeben, steht er danach auf „bezahlt“.' },
         'au-bezahlt-zurueck':   { name: 'bezahlt zurücknehmen', text: 'Fragt vorher und leert das Bezahlt-Datum.' },
@@ -5715,6 +5748,18 @@
         'au-lager-ort':         { name: 'Lagerort', text: 'Aus welchem Lager die Rohlinge kommen. Wrist ist vorgewählt. Ausgebucht wird erst bei der Übergabe an den Korb.' },
         'au-teilen':            { name: 'teilen', text: 'Nimmt aus dem Lager, was da ist, und macht für den Rest eine Position „bestellen“.' },
         'au-herkunft-zeichen':  { name: 'Herkunft', text: '🛒 wird bestellt · 📦 kommt aus dem Lager (Ort) · ✓ liegt schon bereit.' },
+        'au-design-skip':       { name: 'Design überspringen', text: 'Kein Design nötig: weiter direkt zu „bestellt“. Der Schritt Design bleibt grau.' },
+        'au-bereitstellen':     { name: 'Rohlinge bereitstellen …', text: 'Zeigt je Position, was passiert: 🛒 in den Korb, 📦 aus dem Lager, ✓ nichts. Erst „Bereitstellen“ bucht – in einem Schritt.' },
+        'ab-teilen':            { name: 'Rest bestellen (teilen)', text: 'Reicht der Lagerbestand nicht: was da ist, kommt aus dem Lager, der Rest geht in den Korb.' },
+        'ab-ok':                { name: 'Bereitstellen', text: 'Legt die Korb-Positionen an (Referenz = Auftragsnummer) und bucht im Lager aus. Alles oder nichts, nie doppelt.' },
+        'au-korb-stand':        { name: 'Korb-Stand', text: 'Wo die Rohlinge stehen: im Korb, bestellt, bestätigt mit Liefertermin, geliefert. Klick öffnet die Korb-Position.' },
+        'au-lager-stand':       { name: 'ausgebucht', text: 'Die Rohlinge wurden für diesen Auftrag aus dem Lager genommen.' },
+        'au-zuruecknehmen':     { name: 'Übergabe zurücknehmen', text: 'Nur solange die Korb-Position offen ist bzw. bei Lagerware: nimmt sie aus dem Korb bzw. bucht zurück. Danach bearbeitbar.' },
+        'au-ware':              { name: 'Ware', text: 'offen = noch nicht alles bei L-Shop bestellt · bestellt = unterwegs · da = alles geliefert.' },
+        'au-frei-offen':        { name: 'noch zu besorgen', text: 'Freie Positionen gehen nicht über L-Shop – selbst besorgen. Das automatische „bestellt“ wartet nicht auf sie.' },
+        'korb-auftrag':         { name: 'Auftrag', text: 'Diese Position gehört zu einem Auftrag. Klick öffnet ihn; ändern nur dort.' },
+        'eb-gesperrt-auftrag':  { name: 'bearbeiten (gesperrt)', text: 'Gehört zu einem Auftrag – dort „Übergabe zurücknehmen“, dann ändern.' },
+        'lager-auftrag-link':   { name: 'Auftrag', text: 'Öffnet den Auftrag, für den diese Rohlinge ausgebucht wurden.' },
         'au-speichern':         { name: 'Speichern', text: 'Speichert Auftrag und Positionen in einem Schritt. Ein zweiter Klick legt nichts doppelt an.' },
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
@@ -5741,7 +5786,7 @@
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
-        auftraege: ['ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'dash-auftraege', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'dash-offen', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-herkunft-zeichen', 'au-speichern'],
+        auftraege: ['ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'dash-auftraege', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'dash-offen', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern'],
         lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
@@ -5984,11 +6029,15 @@
       // BO5-4: eigene offene Position - "→ Lager <Ort>" bzw. "+ bei Ankunft ins Lager" (setzen/aendern/entfernen).
       function korbLagerZielHtml(p) {
         if (p.herkunft !== 'eigen' || p.status !== 'offen') return '';
+        if (/^AU-\d{4}-\d{4}$/.test(p.referenz ?? '')) return '';   // AM-3: Kundenrohlinge eines Auftrags gehen nicht ins Lager
         return ` · <button type="button" class="korb-link korb-lager" data-lager-ziel="${korbEsc(p.schluessel)}" data-lager-ziel-status="offen"`
           + ` data-lager-ziel-wert="${korbEsc(p.lagerZiel ?? '')}" data-hilfe="lager-ziel-aendern">${p.lagerZiel ? `→ Lager ${korbEsc(p.lagerZiel)}` : '+ bei Ankunft ins Lager'}</button>`;
       }
       function korbPositionZeile(p, b) {
-        const herkunft = (p.herkunft === 'eigen' ? `Eigen · ${korbEsc(p.referenz)}` : `${korbEsc(p.shop)} #${korbEsc(p.bestellnummer)} · Pos. ${korbEsc(p.position)}`)
+        // AM-3: Referenz = Auftragsnummer -> Link zum Auftrag (Kurztitel nur in MC, nie in der EDI-Datei)
+        const auNr = p.herkunft === 'eigen' && /^AU-\d{4}-\d{4}$/.test(p.referenz ?? '') ? p.referenz : '';
+        const herkunft = (auNr ? `Eigen · <button type="button" class="korb-link" data-korb-au="${korbEsc(auNr)}" data-hilfe="korb-auftrag">${korbEsc([auNr, window.auKurztitel?.(auNr)].filter(Boolean).join(' · '))}</button>`
+          : p.herkunft === 'eigen' ? `Eigen · ${korbEsc(p.referenz)}` : `${korbEsc(p.shop)} #${korbEsc(p.bestellnummer)} · Pos. ${korbEsc(p.position)}`)
           + ebKnopfHtml(p, korbEsc);   // BO6-1: "bearbeiten …" an eigenen Positionen
         // BO5-6: an Lager-Positionen steht der Hinweis gelb im Lager-Kennzeichen (mit Knopf "zurück ins Lager")
         const hinweis  = p.hinweis && p.status !== 'Lager' ? ` · <span style="color:${p.vorschlag ? 'var(--accent)' : 'var(--danger)'};">⚠ ${korbEsc(p.hinweis)}</span>` : '';
@@ -6572,6 +6621,8 @@
        *  Bestellt/geliefert stehen in L-Shop-Bestellungen (lbPositionHtml, dort gesperrt). */
       function ebKnopfHtml(p, esc) {
         if (p?.herkunft !== 'eigen') return '';
+        // AM-3: Position eines Auftrags - aendern nur im Auftrag ("Übergabe zurücknehmen")
+        if (/^AU-\d{4}-\d{4}$/.test(p.referenz ?? '')) return ' · <button type="button" class="korb-link" data-eigen-gesperrt="eb-gesperrt-auftrag" aria-disabled="true" data-hilfe="eb-gesperrt-auftrag">bearbeiten …</button>';
         if (p.status === 'offen' || p.status === 'abgewählt') {
           return ` · <button type="button" class="korb-link" data-eigen-bearbeiten="${esc(p.schluessel)}" data-hilfe="eb-bearbeiten">bearbeiten …</button>`;
         }
@@ -8436,7 +8487,7 @@
           + `<span>${korbEsc(lagerDatum(b.datum))}</span><span>${korbEsc(b.artText)} · ${korbEsc(lagerText(b))} · ${korbEsc(b.ort)}</span>`
           + `<span class="${b.menge > 0 ? 'lager-plus' : 'lager-minus'}">${b.menge > 0 ? '+' : ''}${b.menge}</span>`
           + `<span class="lager-klein"><span>${korbEsc(b.id)}</span>${b.grund ? `<span>${korbEsc(b.grund)}</span>` : ''}${b.notiz ? `<em>${korbEsc(b.notiz)}</em>` : ''}`
-          + `${b.quelle === 'korb' && b.bezug ? lagerBezugHtml(b) : ['karton', 'wareneingang'].includes(b.quelle) ? lagerEingangBezugHtml(b) : b.art === 'retoure' && b.bezug ? lagerRetoureBezugHtml(b) : b.bezug ? `<span>${korbEsc(lagerBezugText(b.art, b.bezug, d))}</span>` : ''}`
+          + `${b.quelle === 'auftrag' && b.bezug ? `<button type="button" class="korb-link" data-lager-au="${korbEsc(b.bezug)}" data-hilfe="lager-auftrag-link">Auftrag ${korbEsc(b.bezug)}</button>` : b.quelle === 'korb' && b.bezug ? lagerBezugHtml(b) : ['karton', 'wareneingang'].includes(b.quelle) ? lagerEingangBezugHtml(b) : b.art === 'retoure' && b.bezug ? lagerRetoureBezugHtml(b) : b.bezug ? `<span>${korbEsc(lagerBezugText(b.art, b.bezug, d))}</span>` : ''}`
           + `${b.stornoVon ? `<span>Gegenbuchung zu ${korbEsc(b.stornoVon)}</span>` : ''}${b.gegengebucht ? '<span>gegengebucht</span>' : ''}`
           + `${b.gegenbuchbar ? `<button type="button" class="korb-link" data-lager-gegen="${korbEsc(b.id)}" data-hilfe="lager-gegenbuchung">Gegenbuchung …</button>` : ''}</span></div>`).join('')
           + (d.verlauf.length >= 300 ? '<div class="korb-zaehler">Gezeigt werden die neuesten 300 Buchungen.</div>' : '')
@@ -9564,10 +9615,28 @@
       // .../lshop-korb/modelle) - es wird NICHT in den Korb geschrieben (AM-3) - oder frei. Speichern = ein Aufruf.
 
       // ── Auftraege-Anzeige: Anfang (reine Logik, Test backend/tests/auftraege-frontend.test.js) ──
-      const AU_SCHRITTE = [['Anfrage', 'Anfrage_Am'], ['Angebot', 'Angebot_Am'], ['bestellt', 'Bestellt_Am'], ['in Produktion', 'Produktion_Am'],
+      const AU_SCHRITTE = [['Anfrage', 'Anfrage_Am'], ['Angebot', 'Angebot_Am'], ['Design', 'Design_Am'], ['bestellt', 'Bestellt_Am'], ['in Produktion', 'Produktion_Am'],
         ['fertig', 'Fertig_Am'], ['übergeben', 'Uebergeben_Am'], ['bezahlt', 'Bezahlt_Am']];
       const auIndex = s => AU_SCHRITTE.findIndex(([x]) => x === s);
-      const auFrei = a => a.Status !== 'storniert' && auIndex(a.Status) >= 0 && auIndex(a.Status) <= 1;
+      const auFrei = a => a.Status !== 'storniert' && auIndex(a.Status) >= 0 && auIndex(a.Status) <= auIndex('Design');   // AM-3: bis Design frei
+      // AM-3: Ware je Auftrag (nur 🛒-Positionen) und Korb-Stand je Position - Texte fuer Liste und Ansicht.
+      const AU_WARE_TEXT = { offen: 'Ware offen', bestellt: 'Ware bestellt', da: 'Ware da' };
+      const AU_KORB_TEXT = { offen: 'im Korb, offen', herausgenommen: 'im Korb herausgenommen', bestellt: 'bei L-Shop bestellt', 'bestätigt': 'bestätigt',
+        geliefert: 'geliefert', Lager: 'aus dem Lager (Korb)', fehlt: 'Korb-Zeile fehlt' };
+      function auKorbText(k) {
+        if (!k) return '';
+        const t = AU_KORB_TEXT[k.status] ?? k.status;
+        return k.status === 'bestätigt' ? `${t}${k.liefertermin ? ` · Liefertermin ${auDatum(k.liefertermin)}` : ' · sofort'}` : t;
+      }
+      /** Rohlinge bereitstellen: bis "bestellt", nicht storniert, und mind. eine 🛒/📦-Position noch nicht uebergeben.
+       *  Spaeter haengt hier auch die Auftragsart (AM-3a "Aufgabe" ohne Rohlinge). */
+      function auKannBereitstellen(a) {
+        if (!a || a.Status === 'storniert' || auIndex(a.Status) < 0 || auIndex(a.Status) > auIndex('bestellt')) return false;
+        return (a.positionen ?? []).some(p => p.Art === 'lshop' && ['bestellen', 'lager'].includes(p.Herkunft || 'bestellen') && !p.Korb_Schluessel && !p.Lager_Buchung);
+      }
+      /** "Übergabe zurücknehmen" je Position: Korb offen/herausgenommen oder Lager-Abgang, Auftrag hoechstens "bestellt". */
+      const auKannZuruecknehmen = (a, p) => a.Status !== 'storniert' && auIndex(a.Status) <= auIndex('bestellt')
+        && ((p.Korb_Schluessel && ['offen', 'herausgenommen', 'fehlt'].includes(p.korb?.status)) || !!p.Lager_Buchung);
       const auOffen = a => a.Status !== 'storniert' && a.Status !== 'bezahlt';
       const auHeute = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
       const auDatum = d => (/^\d{4}-\d{2}-\d{2}$/.test(String(d ?? '')) ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : '');
@@ -9582,7 +9651,8 @@
         const kMap = new Map((kunden ?? []).map(k => [k.Kunden_Nr, k]));
         const woerter = String(f.suche ?? '').trim().toLowerCase().split(/\s+/).filter(Boolean);
         const wahl = f.filter || 'offen';
-        return (auftraege ?? []).filter(a => (wahl === 'alle' ? true : wahl === 'offen' ? auOffen(a) : wahl === 'termin' ? auTerminBald(a, heute) : a.Status === wahl))
+        return (auftraege ?? []).filter(a => (wahl === 'alle' ? true : wahl === 'offen' ? auOffen(a) : wahl === 'termin' ? auTerminBald(a, heute)
+            : wahl === 'ware' ? auOffen(a) && ['offen', 'bestellt'].includes(a.ware) : a.Status === wahl))
           .filter(a => {
             if (!woerter.length) return true;
             const k = kMap.get(a.Kunden_Nr) ?? {};
@@ -9604,7 +9674,8 @@
           + `<span class="ku-nr">${kuEsc(a.Auftrag_Nr)}</span><span class="ku-name">${kuEsc(a.Kurztitel)}</span>`
           + `<button type="button" class="korb-link" data-au-oeffnen="${kuEsc(a.Auftrag_Nr)}" data-hilfe="au-oeffnen">öffnen</button>`
           + `<div class="ku-meta"><span>${kuEsc(auKundeText(k, a.Kunden_Nr))}</span><span class="ku-chip">${kuEsc(a.Status)}${a.Bezahlt_Am && a.Status !== 'bezahlt' ? ' · bezahlt' : ''}</span>`
-          + (termin ? `<span class="${bald.trim()}">${kuEsc(termin)}</span>` : '') + `<span>${Number(a.stueck) || 0} Stück</span></div></div>`;
+          + (termin ? `<span class="${bald.trim()}">${kuEsc(termin)}</span>` : '') + `<span>${Number(a.stueck) || 0} Stück</span>`
+          + (a.ware ? `<span class="ku-chip au-ware au-ware-${a.ware}" data-hilfe="au-ware">${kuEsc(AU_WARE_TEXT[a.ware])}</span>` : '') + '</div></div>';
       }
       /** Status-Leiste: je Schritt Name + Datum, aktueller hervorgehoben; storniert extra. */
       function auLeisteHtml(a) {
@@ -9711,6 +9782,7 @@
             throw new Error(j?.error || `HTTP ${res.status}`);
           }
           auZ.daten = j;
+          for (const x of j.auftraege ?? []) if (x.autoBestellt) showToast(`${x.Auftrag_Nr}: Rohlinge bestellt – automatisch auf „bestellt“ gesetzt.`);
           auZeichnen();
           if (auZ.offen) auDetailZeichnen(auZ.offen);
           if (kuZ.offen) kuAuftraegeZeichnen(kuZ.offen.Kunden_Nr);
@@ -9736,12 +9808,16 @@
         auEl('au-d-titel').textContent = `${a.Auftrag_Nr} · ${a.Kurztitel}`;
         auEl('au-d-kopf').innerHTML = `<div><button type="button" class="korb-link" data-au-kunde="${kuEsc(a.Kunden_Nr)}" data-hilfe="au-kundenkarte">${kuEsc(auKundeText(k, a.Kunden_Nr))}</button>`
           + ` · ${kuEsc(a.Kunden_Nr)}</div><div class="ku-meta">${[a.Kanal, a.Termin ? `Termin ${auDatum(a.Termin)}` : 'ohne Termin', `${a.stueck} Stück`].filter(Boolean).map(x => `<span>${kuEsc(x)}</span>`).join('')}</div>`
-          + (a.Notiz ? `<div class="au-notiz">${kuEsc(a.Notiz)}</div>` : '');
+          + (a.Notiz ? `<div class="au-notiz">${kuEsc(a.Notiz)}</div>` : '')
+          + (a.ware ? `<div><span class="ku-chip au-ware au-ware-${a.ware}" data-hilfe="au-ware">${kuEsc(AU_WARE_TEXT[a.ware])}</span></div>` : '')
+          + (a.freiOffen ? `<div class="korb-zaehler" data-hilfe="au-frei-offen" tabindex="0">${a.freiOffen} freie Position${a.freiOffen === 1 ? '' : 'en'} noch zu besorgen (nicht über L-Shop)</div>` : '');
         auEl('au-d-leiste').innerHTML = auLeisteHtml(a);
         const i = auIndex(a.Status), st = a.Status === 'storniert';
         const naechster = AU_SCHRITTE[i + 1]?.[0];
         auEl('au-weiter').hidden = st || !naechster;
         auEl('au-weiter').textContent = naechster ? `weiter zu „${naechster}“` : 'weiter';
+        auEl('au-design-skip').hidden = a.Status !== 'Angebot';   // AM-3: Design ist optional
+        auEl('au-bereitstellen').hidden = !auKannBereitstellen(a);
         auEl('au-zurueck').hidden = st || i <= 0;
         auEl('au-bezahlt').hidden = st || !!a.Bezahlt_Am;
         auEl('au-bezahlt-zurueck').hidden = st || !a.Bezahlt_Am;
@@ -9757,17 +9833,21 @@
           const zeilen = g.positionen.map(p => `<label class="au-pos" data-hilfe="au-pos-fertig"><input type="checkbox" data-au-fertig="${kuEsc(p.Position_ID)}" ${p.Fertig === 'ja' ? 'checked' : ''} ${st ? 'disabled' : ''}>`
             + `<span>${kuEsc(g.art === 'lshop' ? (p.lshop?.groesse || '–') : 'Menge')} × ${kuEsc(p.Menge)}</span>`
             + (p.lshop?.lieferbar ? lfbPunkt(p.lshop.lieferbar) : '') + (p.lshop && p.lshop.bestellbar === false ? '<span class="ku-gefahr">nicht mehr bestellbar</span>' : '')
-            + (p.Fertig_Am ? `<small>fertig ${auDatum(p.Fertig_Am)}</small>` : '') + '</label>').join('');
+            + (p.Fertig_Am ? `<small>fertig ${auDatum(p.Fertig_Am)}</small>` : '') + '</label>'
+            // AM-3: Rueckmeldung aus Korb/Lager je Position, Sprung zur Korb-Position, "Übergabe zurücknehmen"
+            + (p.korb ? `<button type="button" class="korb-link au-korb" data-au-korb="${kuEsc(p.Korb_Schluessel)}" data-hilfe="au-korb-stand">🛒 ${kuEsc(auKorbText(p.korb))}</button>` : '')
+            + (p.Lager_Buchung ? `<span class="ku-chip" data-hilfe="au-lager-stand">📦 ausgebucht (${kuEsc(p.Lager_Ort || '')})</span>` : '')
+            + (auKannZuruecknehmen(a, p) ? `<button type="button" class="korb-link" data-au-zuruecknehmen="${kuEsc(p.Position_ID)}" data-hilfe="au-zuruecknehmen">Übergabe zurücknehmen</button>` : '')).join('');
           return `<div class="au-gruppe"><div>${kopf} · ${g.stueck} Stück</div>${neben ? `<div class="ku-meta">${neben}</div>` : ''}<div class="au-pos-zeilen">${zeilen}</div></div>`;
         }).join('') || '<p class="korb-zaehler">Keine Positionen.</p>';
       }
 
-      async function auStatus(aktion, frage) {
+      async function auStatus(aktion, frage, extra = {}) {
         const a = (auZ.daten?.auftraege ?? []).find(x => x.Auftrag_Nr === auZ.offen);
         if (!a) return;
         if (frage && !await showConfirm(frage[0], `<p>${kuEsc(frage[1])}</p>`, frage[2] ?? 'Ja')) return;
         try {
-          const r = await auPost('status', { auftragNr: a.Auftrag_Nr, stand: a.Stand, aktion });
+          const r = await auPost('status', { auftragNr: a.Auftrag_Nr, stand: a.Stand, aktion, ...extra });
           showToast(`${r.auftragNr}: ${r.status}`);
         } catch (e) {
           auEl('au-d-fehler').textContent = e.message; auEl('au-d-fehler').hidden = false;
@@ -9775,6 +9855,7 @@
         await loadAuftraege();
       }
       auEl('au-weiter').addEventListener('click', () => auStatus('weiter'));
+      auEl('au-design-skip').addEventListener('click', () => auStatus('weiter', null, { ueberspringen: true }));
       auEl('au-fertig-setzen').addEventListener('click', async () => {
         const a = (auZ.daten?.auftraege ?? []).find(x => x.Auftrag_Nr === auZ.offen);
         if (!a) return;
@@ -9782,7 +9863,7 @@
         try {
           for (let n = 0; n < AU_SCHRITTE.length && auIndex((auZ.daten.auftraege.find(x => x.Auftrag_Nr === a.Auftrag_Nr) ?? a).Status) < auIndex('fertig'); n++) {
             const jetzt = auZ.daten.auftraege.find(x => x.Auftrag_Nr === a.Auftrag_Nr);
-            await auPost('status', { auftragNr: jetzt.Auftrag_Nr, stand: jetzt.Stand, aktion: 'weiter' });
+            await auPost('status', { auftragNr: jetzt.Auftrag_Nr, stand: jetzt.Stand, aktion: 'weiter', ueberspringen: jetzt.Status === 'Angebot' });   // AM-3: Design nicht genutzt
             auZ.daten = null; auZ.laedt = false;
             await loadAuftraege();
           }
@@ -10071,6 +10152,91 @@
       auEl('au-abbrechen').addEventListener('click', auDialogSchliessen);
       auEl('au-schliessen').addEventListener('click', auDialogSchliessen);
       auEl('au-dialog').addEventListener('keydown', e => { if (e.key === 'Escape') auDialogSchliessen(); });
+
+      // ── AM-3: Rohlinge bereitstellen / Übergabe zurücknehmen ──
+      const abZ = { auftragNr: '', stand: '', vorgang: '', ortWahl: {}, laeuft: false, daten: null };
+      const AB_AKTION = { korb: '🛒 in den Korb', lager: '📦 aus dem Lager', vorhanden: '✓ schon vorhanden – nichts', frei: 'noch zu besorgen (nicht über L-Shop)' };
+      function abZeichnen() {
+        const d = abZ.daten;
+        if (!d) return;
+        const orte = d.orte ?? [];
+        auEl('ab-liste').innerHTML = (d.vorschau ?? []).map(v => {
+          const was = v.art === 'lshop' ? [v.modell, v.farbe, v.groesse].filter(Boolean).join(' · ') || v.articleNr : v.freitext;
+          const ortWahl = v.problem === 'ort' ? `<select class="form-select" data-ab-ort="${kuEsc(v.positionId)}" aria-label="Lagerort"><option value="">Ort wählen …</option>`
+            + orte.map(o => `<option value="${kuEsc(o)}"${abZ.ortWahl[v.positionId] === o ? ' selected' : ''}>${kuEsc(o)}</option>`).join('') + '</select>' : '';
+          const neben = [v.aktion === 'lager' && v.ort ? `Ort ${v.ort}` : '', v.aktion === 'lager' && v.da !== undefined ? `da: ${v.da}` : '',
+            v.problem === 'knapp' ? 'reicht nicht' : '', v.problem === 'nicht bestellbar' ? 'nicht mehr bestellbar' : '', v.geteilt ? 'geteilt' : ''].filter(Boolean).join(' · ');
+          return `<div class="ku-zeile${v.problem ? ' ab-problem' : ''}"><span class="ku-nr">${kuEsc(v.positionId)}</span><span class="ku-name">${kuEsc(was)} × ${v.menge}</span>`
+            + `<span class="korb-zaehler">${kuEsc(AB_AKTION[v.aktion] ?? v.aktion)}</span><div class="ku-meta">${neben ? `<span>${kuEsc(neben)}</span>` : ''}${ortWahl}</div></div>`;
+        }).join('') || '<p class="korb-zaehler">Nichts mehr bereitzustellen.</p>';
+        const knapp = d.knapp ?? [];
+        auEl('ab-knapp').hidden = !knapp.length;
+        auEl('ab-knapp-text').textContent = knapp.map(k => `nur ${k.da} von ${k.menge} im Lager (${k.ort})`).join(' · ') + ' – Rest bestellen?';
+        const andere = (d.probleme ?? []).filter(x => !(x.code === 'knapp' && auEl('ab-teilen').checked));
+        auEl('ab-fehler').textContent = andere.filter(x => x.code !== 'knapp').map(x => x.text).join(' ');
+        auEl('ab-fehler').hidden = !auEl('ab-fehler').textContent;
+        auEl('ab-ok').disabled = !d.zuTun || (d.probleme ?? []).length > 0;
+      }
+      async function abVorschau() {
+        try {
+          abZ.daten = await auPost('bereitstellen/vorschau', { auftragNr: abZ.auftragNr, teilen: auEl('ab-teilen').checked, ortWahl: abZ.ortWahl });
+          abZeichnen();
+        } catch (e) { auEl('ab-fehler').textContent = e.message; auEl('ab-fehler').hidden = false; }
+      }
+      function abOeffnen(a) {
+        Object.assign(abZ, { auftragNr: a.Auftrag_Nr, stand: a.Stand, vorgang: auVorgang(), ortWahl: {}, laeuft: false, daten: null });
+        auEl('ab-titel').textContent = `Rohlinge bereitstellen · ${a.Auftrag_Nr}`;
+        auEl('ab-teilen').checked = false;
+        auEl('ab-liste').innerHTML = '<div class="skeleton"></div>';
+        auEl('ab-fehler').hidden = true;
+        auEl('ab-knapp').hidden = true;
+        auEl('ab-dialog').hidden = false;
+        abVorschau();
+      }
+      async function abBereitstellen() {
+        if (abZ.laeuft) return;   // Doppelklick: ein Aufruf; der Server erkennt die Vorgangs-Kennung bzw. schon uebergebene Positionen
+        abZ.laeuft = true;
+        auEl('ab-ok').disabled = true;
+        try {
+          const r = await auPost('bereitstellen', { auftragNr: abZ.auftragNr, stand: abZ.stand, vorgang: abZ.vorgang, teilen: auEl('ab-teilen').checked, ortWahl: abZ.ortWahl });
+          showToast(r.schon ? `${r.auftragNr}: schon bereitgestellt.` : `${r.auftragNr}: ${r.korbStueck} Stück in den Korb, ${r.lagerStueck} Stück aus dem Lager.`);
+          auEl('ab-dialog').hidden = true;
+          await loadAuftraege();
+        } catch (e) {
+          auEl('ab-fehler').textContent = e.message; auEl('ab-fehler').hidden = false;
+          if (e.code === 'konflikt') await loadAuftraege();
+          await abVorschau();
+        } finally { abZ.laeuft = false; }
+      }
+      auEl('au-bereitstellen').addEventListener('click', () => { const a = (auZ.daten?.auftraege ?? []).find(x => x.Auftrag_Nr === auZ.offen); if (a) abOeffnen(a); });
+      auEl('ab-teilen').addEventListener('change', abVorschau);
+      auEl('ab-liste').addEventListener('change', e => { const s = e.target.closest('[data-ab-ort]'); if (!s) return; abZ.ortWahl[s.dataset.abOrt] = s.value; abVorschau(); });
+      auEl('ab-ok').addEventListener('click', abBereitstellen);
+      for (const id of ['ab-abbrechen', 'ab-schliessen']) auEl(id).addEventListener('click', () => { auEl('ab-dialog').hidden = true; });
+      auEl('ab-dialog').addEventListener('keydown', e => { if (e.key === 'Escape') auEl('ab-dialog').hidden = true; });
+      auEl('au-d-pos').addEventListener('click', async e => {
+        const k = e.target.closest('[data-au-korb]');
+        if (k) { auDetailSchliessen(); korbSpringeZu(k.dataset.auKorb); return; }
+        const z = e.target.closest('[data-au-zuruecknehmen]');
+        if (!z) return;
+        if (!await showConfirm('Übergabe zurücknehmen?', '<p>Die Position kommt aus dem Korb (herausgenommen, Grund „Auftrag geändert“) bzw. zurück ins Lager und ist danach wieder bearbeitbar.</p>', 'Zurücknehmen')) return;
+        try {
+          await auPost('zuruecknehmen', { auftragNr: auZ.offen, positionId: z.dataset.auZuruecknehmen, vorgang: auVorgang() });
+          showToast(`${z.dataset.auZuruecknehmen}: Übergabe zurückgenommen.`);
+        } catch (err) { auEl('au-d-fehler').textContent = err.message; auEl('au-d-fehler').hidden = false; }
+        await loadAuftraege();
+      });
+      // Spruenge aus Korb und Lager in den Auftrag (dort steht nur die Auftragsnummer).
+      window.auKurztitel = nr => (auZ.daten?.auftraege ?? []).find(x => x.Auftrag_Nr === nr)?.Kurztitel ?? '';
+      window.auOeffnen = async nr => {
+        oeffneAnsicht('auftraege', 'liste');
+        if (!auZ.daten) await loadAuftraege();
+        auDetailOeffnen(nr);
+      };
+      document.addEventListener('click', e => {
+        const b = e.target.closest('[data-korb-au], [data-lager-au]');
+        if (b) window.auOeffnen(b.dataset.korbAu || b.dataset.lagerAu);
+      });
 
       // Kundenkarte: "Aufträge dieses Kunden" (Grundlage AM-4)
       function kuAuftraegeZeichnen(kundenNr) {

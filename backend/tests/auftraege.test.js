@@ -55,8 +55,13 @@ describe('Nummern und Status', () => {
   });
   const a = (status, extra = {}) => ({ Auftrag_Nr: 'AU-2026-0001', Status: status, ...extra });
   test('weiter setzt Datum, zurueck leert es; nur ein Schritt', () => {
-    expect(statusWechsel(a('Angebot'), 'weiter', JETZT)).toEqual({ Status: 'bestellt', Bestellt_Am: '2026-11-03' });
+    // AM-3: Angebot -> Design -> bestellt; Design ueberspringbar, ein uebersprungenes Design wird beim Zurueck uebergangen
+    expect(statusWechsel(a('Angebot'), 'weiter', JETZT)).toEqual({ Status: 'Design', Design_Am: '2026-11-03' });
+    expect(statusWechsel(a('Angebot'), 'weiter', JETZT, { ueberspringen: true })).toEqual({ Status: 'bestellt', Bestellt_Am: '2026-11-03' });
+    expect(() => statusWechsel(a('Design'), 'weiter', JETZT, { ueberspringen: true })).toThrow(/Überspringen/);
+    expect(statusWechsel(a('Design', { Design_Am: '2026-11-02' }), 'weiter', JETZT)).toEqual({ Status: 'bestellt', Bestellt_Am: '2026-11-03' });
     expect(statusWechsel(a('bestellt', { Bestellt_Am: '2026-11-01' }), 'zurueck', JETZT)).toEqual({ Status: 'Angebot', Bestellt_Am: '' });
+    expect(statusWechsel(a('bestellt', { Bestellt_Am: '2026-11-01', Design_Am: '2026-10-30' }), 'zurueck', JETZT)).toEqual({ Status: 'Design', Bestellt_Am: '' });
     expect(() => statusWechsel(a('Anfrage'), 'zurueck', JETZT)).toThrow();
     expect(() => statusWechsel(a('bezahlt'), 'weiter', JETZT)).toThrow();
   });
@@ -139,7 +144,7 @@ describe('Filter und Zahlen', () => {
     expect(liste.filter(a => terminBald(a, JETZT)).map(a => a.Auftrag_Nr)).toEqual(['1', '2']);
   });
   test('Kachel-Zahlen: offen, Termin bald, fertig nicht bezahlt', () => {
-    expect(auftragZahlen(liste, JETZT)).toEqual({ offen: 4, terminBald: 2, fertigNichtBezahlt: 2 });
+    expect(auftragZahlen(liste, JETZT)).toEqual({ offen: 4, terminBald: 2, fertigNichtBezahlt: 2, wartetAufWare: 0 });
   });
 });
 
@@ -174,9 +179,9 @@ describe('Schreibwege (ein batchUpdate, kein append, zurueckgelesen)', () => {
     expect(a.stueck).toBe(18);
     expect(a.positionen[0].lshop).toMatchObject({ modell: 'X3000', farbe: 'Black', groesse: 'S', bestellbar: true });
     await expect(wechsleStatus({ eingabe: { auftragNr: a.Auftrag_Nr, stand: 'alt', aktion: 'weiter' }, sheets, jetzt })).rejects.toMatchObject({ status: 409, code: 'konflikt' });
-    for (const _ of [1, 2]) {   // Anfrage -> Angebot -> bestellt
+    for (const _ of [1, 2]) {   // Anfrage -> Angebot -> (Design uebersprungen) bestellt
       a = (await leseAuftraege({ sheets, jetzt })).auftraege[0];
-      await wechsleStatus({ eingabe: { auftragNr: a.Auftrag_Nr, stand: a.Stand, aktion: 'weiter' }, sheets, jetzt: () => new Date(Date.parse(JETZT) + _ * 1000) });
+      await wechsleStatus({ eingabe: { auftragNr: a.Auftrag_Nr, stand: a.Stand, aktion: 'weiter', ueberspringen: _ === 2 }, sheets, jetzt: () => new Date(Date.parse(JETZT) + _ * 1000) });
     }
     a = (await leseAuftraege({ sheets, jetzt })).auftraege[0];
     expect(a).toMatchObject({ Status: 'bestellt', Bestellt_Am: '2026-11-03' });

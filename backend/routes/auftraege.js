@@ -2,12 +2,13 @@
 // Nur Auftrag_Nr/Kunden_Nr und Zahlen im Log, nie Namen oder Freitexte.
 import { Router } from 'express';
 import { leseAuftraege, legeAuftragAn, bearbeiteAuftrag, wechsleStatus, setzePositionFertig } from '../lib/auftraege.js';
+import { bereitstellenVorschau, bereitstellen, zuruecknehmen } from '../lib/auftragBereitstellen.js';
 
 const router = Router();
 
 const mitMeldung = fn => async (req, res, next) => {
   try { res.json(await fn(req)); } catch (err) {
-    if ([404, 409, 422, 503].includes(err?.status)) return res.status(err.status).json({ error: err.message, code: err.code });
+    if ([404, 409, 422, 503].includes(err?.status)) return res.status(err.status).json({ error: err.message, code: err.code, probleme: err.probleme, knapp: err.knapp });
     next(err);
   }
 };
@@ -44,5 +45,21 @@ router.post('/status', mitMeldung(async req => {
 // ── POST /api/auftraege/position-fertig ───────────────────────────────────────
 // Body { auftragNr, positionId, fertig: true|false }.
 router.post('/position-fertig', mitMeldung(req => setzePositionFertig({ eingabe: req.body ?? {} })));
+
+// ── AM-3: Rohlinge bereitstellen (Korb + Lager) ───────────────────────────────
+// POST /bereitstellen/vorschau { auftragNr, teilen, ortWahl } - schreibt nichts.
+router.post('/bereitstellen/vorschau', mitMeldung(req => bereitstellenVorschau({ eingabe: req.body ?? {} })));
+// POST /bereitstellen { auftragNr, stand, teilen, ortWahl, vorgang } - Korb, Lager, Positionen in einem Schritt.
+router.post('/bereitstellen', mitMeldung(async req => {
+  const r = await bereitstellen({ eingabe: req.body ?? {} });
+  if (!r.schon) console.log(`Auftrag ${r.auftragNr} bereitgestellt: Korb ${r.korb} (${r.korbStueck} Stück), Lager ${r.lager} (${r.lagerStueck} Stück), geteilt ${r.geteilt}`);
+  return r;
+}));
+// POST /zuruecknehmen { auftragNr, positionId, vorgang } - Korb abgewaehlt bzw. Lager-Gegenbuchung.
+router.post('/zuruecknehmen', mitMeldung(async req => {
+  const r = await zuruecknehmen({ eingabe: req.body ?? {} });
+  if (!r.unveraendert) console.log(`Auftrag ${r.auftragNr}: Übergabe ${r.positionId} zurückgenommen`);
+  return r;
+}));
 
 export default router;

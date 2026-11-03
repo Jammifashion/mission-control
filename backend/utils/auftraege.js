@@ -19,7 +19,11 @@ export const POSITION_SPALTEN = [
   'Korb_Schluessel', 'Lager_Ziel', 'Fertig', 'Fertig_Am', 'Versendet', 'Stand', 'Entfernt',
 ];
 // AM-2-2: optional ganz hinten - fehlen sie, gilt Herkunft "bestellen" (wie vor AM-2-2). Setup ergaenzt sie.
-export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort'];
+export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung'];
+// AM-3: optional ganz hinten in Auftraege - Datum des Schritts "Design" (leer = Schritt nicht genutzt / uebersprungen).
+export const AUFTRAG_OPTIONAL = ['Design_Am'];
+// AM-3: Korb-Referenz und Lager-Bezug eines Auftrags = die Auftragsnummer (nie Kunde, Spitzname oder Kurztitel).
+export const AU_NR_MUSTER = /^AU-\d{4}-\d{4}$/;
 // Herkunft je Position: bestellen (Standard, geht mit AM-3 in den L-Shop-Korb) | lager (eigenes Lager, ausgebucht erst mit AM-3)
 // | vorhanden (liegt schon bereit, nichts bestellt, nichts gebucht). Freie Positionen: leer oder vorhanden.
 export const HERKUNFT = { BESTELLEN: 'bestellen', LAGER: 'lager', VORHANDEN: 'vorhanden' };
@@ -32,14 +36,15 @@ export const POSITION_TEXT = ['Position_ID', 'Auftrag_Nr', 'LShop_ArticleNr', 'F
 export const KANAELE = ['Mail', 'WhatsApp', 'Telefon', 'persönlich', 'Jey'];
 // Schritte in Reihenfolge, je Schritt sein Datumsfeld. "storniert" steht ausserhalb (Storniert_Am).
 export const SCHRITTE = [
-  { status: 'Anfrage', feld: 'Anfrage_Am' }, { status: 'Angebot', feld: 'Angebot_Am' }, { status: 'bestellt', feld: 'Bestellt_Am' },
+  { status: 'Anfrage', feld: 'Anfrage_Am' }, { status: 'Angebot', feld: 'Angebot_Am' }, { status: 'Design', feld: 'Design_Am' },
+  { status: 'bestellt', feld: 'Bestellt_Am' },
   { status: 'in Produktion', feld: 'Produktion_Am' }, { status: 'fertig', feld: 'Fertig_Am' }, { status: 'übergeben', feld: 'Uebergeben_Am' },
   { status: 'bezahlt', feld: 'Bezahlt_Am' },
 ];
 export const STORNIERT = 'storniert';
 export const START_STATUS = ['Anfrage', 'Angebot'];
 // Bis einschliesslich Angebot sind Kopf und Positionen frei; ab bestellt nur Notiz/Termin (Korb-Logik folgt mit AM-3).
-export const FREI_BIS = 1;
+export const FREI_BIS = 2;   // AM-3: bis einschliesslich Design
 export const ART = { LSHOP: 'lshop', FREI: 'frei' };
 export const MENGE_MAX = 9999;
 export const POSITIONEN_MAX = 200;
@@ -69,11 +74,12 @@ export function zeilenAus(werte, spalten, schluessel, optional = []) {
   return { idx, zeilen, fehlt };
 }
 
-/** Objekt -> Sheet-Zeile in Spaltenfolge des Reiters (Breite = Kopfzeile). */
+/** Objekt -> Sheet-Zeile in Spaltenfolge des Reiters (Breite = Kopfzeile). Pflicht- und optionale Spalten, soweit da. */
 export function alsZeile(idx, obj, spalten, breite) {
   const n = breite ?? Math.max(...Object.values(idx)) + 1;
   const z = Array.from({ length: n }, () => '');
-  for (const s of [...spalten, ...(spalten === POSITION_SPALTEN ? POSITION_OPTIONAL : [])]) if (idx[s] !== undefined) z[idx[s]] = t(obj[s]);
+  const opt = spalten === POSITION_SPALTEN ? POSITION_OPTIONAL : spalten === AUFTRAG_SPALTEN ? AUFTRAG_OPTIONAL : [];
+  for (const s of [...spalten, ...opt]) if (idx[s] !== undefined) z[idx[s]] = t(obj[s]);
   return z;
 }
 
@@ -108,24 +114,29 @@ export const istFrei = a => a.Status !== STORNIERT && schrittIndex(a.Status) >= 
  * Statuswechsel. aktion: weiter | zurueck | bezahlt | bezahlt_zurueck | stornieren | storno_zurueck.
  * Liefert die geaenderten Felder (Status + Datumsfelder). Nicht erlaubt -> 422.
  * - weiter: naechster Schritt, Datum = heute (Berlin). bezahlt bleibt gesetzt, wenn schon da (Vorkasse).
- * - zurueck: einen Schritt zurueck, Datum des bisherigen Schritts geleert (bezahlt: Bezahlt_Am geleert).
+ *   AM-3: ueberspringen = true springt von "Angebot" direkt auf "bestellt" (Design nicht genutzt, bleibt leer).
+ * - zurueck: einen Schritt zurueck, Datum des bisherigen Schritts geleert (bezahlt: Bezahlt_Am geleert); ein
+ *   uebersprungenes "Design" (ohne Datum) wird dabei uebergangen.
  * - bezahlt: Bezahlt_Am = heute, jederzeit (Vorkasse); steht der Auftrag auf "übergeben", wird er "bezahlt".
  * - bezahlt_zurueck: Bezahlt_Am leer; Status "bezahlt" -> "übergeben".
  * - stornieren: Status storniert + Storniert_Am (nicht bei bezahlt); storno_zurueck: letzter Schritt mit Datum.
  */
-export function statusWechsel(a, aktion, jetzt) {
+export function statusWechsel(a, aktion, jetzt, { ueberspringen = false } = {}) {
   const i = schrittIndex(a.Status);
   const tag = heute(jetzt);
   if (a.Status === STORNIERT && aktion !== 'storno_zurueck') throw fehler(`${a.Auftrag_Nr} ist storniert.`, 422, 'storniert');
   switch (aktion) {
     case 'weiter': {
       if (i < 0 || i >= SCHRITTE.length - 1) throw fehler('Kein weiterer Schritt.', 422);
-      const n = SCHRITTE[i + 1];
+      if (ueberspringen && a.Status !== 'Angebot') throw fehler('Überspringen geht nur von „Angebot“ zu „bestellt“.', 422);
+      const n = SCHRITTE[i + (ueberspringen ? 2 : 1)];
       return { Status: n.status, [n.feld]: t(a[n.feld]) || tag };
     }
     case 'zurueck': {
       if (i <= 0) throw fehler('Kein Schritt zurück möglich.', 422);
-      return { Status: SCHRITTE[i - 1].status, [SCHRITTE[i].feld]: '' };
+      let j = i - 1;
+      if (SCHRITTE[j].status === 'Design' && !t(a.Design_Am)) j -= 1;   // uebersprungenes Design uebergehen
+      return { Status: SCHRITTE[j].status, [SCHRITTE[i].feld]: '' };
     }
     case 'bezahlt': {
       if (t(a.Bezahlt_Am)) throw fehler('Schon als bezahlt markiert.', 422);
@@ -261,14 +272,20 @@ export function bearbeitenPlan({ auftrag, positionen, eingabe, waehlbar, orte, j
         const a = alt.find(x => x.Position_ID === p.positionId);
         if (!a) throw fehler(`Position ${p.positionId} gibt es in diesem Auftrag nicht (mehr) – bitte neu laden.`, 409, 'konflikt');
         gesehen.add(a.Position_ID);
+        const uebergeben = istUebergeben(a);
         // Herkunft: leer im Sheet = bestellen (L-Shop) - nur echte Aenderungen schreiben
         const herkunftAlt = t(a.Herkunft) || (a.Art === ART.LSHOP ? HERKUNFT.BESTELLEN : '');
         const felder = Object.fromEntries(['Art', 'LShop_ArticleNr', 'Freitext', 'Menge', 'Motiv', 'Druck', 'Notiz', 'Lager_Ort'].filter(f => t(a[f]) !== p[f]).map(f => [f, p[f]]));
         if (herkunftAlt !== p.Herkunft) felder.Herkunft = p.Herkunft;
+        // AM-3: an Korb/Lager uebergeben -> nur Motiv/Druck/Notiz aenderbar; sonst erst "Übergabe zurücknehmen"
+        if (uebergeben && Object.keys(felder).some(f => !['Motiv', 'Druck', 'Notiz'].includes(f))) {
+          throw fehler(`Position ${a.Position_ID} ist an Korb/Lager übergeben – erst „Übergabe zurücknehmen“.`, 409, 'uebergeben');
+        }
         if (Object.keys(felder).length) aenderungPositionen.push({ zeile: a._zeile, positionId: a.Position_ID, felder: { ...felder, Stand: t(jetzt) } });
       } else neuePositionen.push(p);
     }
     for (const a of alt) {
+      if (!gesehen.has(a.Position_ID) && istUebergeben(a)) throw fehler(`Position ${a.Position_ID} ist an Korb/Lager übergeben – erst „Übergabe zurücknehmen“.`, 409, 'uebergeben');
       if (!gesehen.has(a.Position_ID)) aenderungPositionen.push({ zeile: a._zeile, positionId: a.Position_ID, felder: { Entfernt: heute(jetzt), Stand: t(jetzt) } });
     }
   }
@@ -293,6 +310,9 @@ export function fertigPlan({ auftrag, positionen, positionId, fertig, jetzt }) {
   return { position: p, felder, vorschlagFertig: fertigVorschlag(auftrag, nachher) };
 }
 
+/** AM-3: Position an Korb (Korb_Schluessel) oder Lager (Lager_Buchung) uebergeben? */
+export const istUebergeben = p => !!(t(p.Korb_Schluessel) || t(p.Lager_Buchung));
+
 /** Wird Herkunft lager/vorhanden gebraucht? Dann muessen die optionalen Spalten da sein. */
 export const brauchtHerkunftSpalten = positionen => (positionen ?? []).some(p => (p.Herkunft && p.Herkunft !== HERKUNFT.BESTELLEN) || p.Lager_Ort);
 
@@ -313,14 +333,53 @@ export function terminBald(a, jetzt, tage = 7) {
   return t(a.Termin) <= bis;
 }
 
-/** Nur Zahlen fuer die Dashboard-Kachel. wartetAufWare kommt mit AM-3. */
-export function auftragZahlen(auftraege, jetzt) {
+/** Nur Zahlen fuer die Dashboard-Kachel. AM-3: wartetAufWare = offene Auftraege, deren 🛒-Ware noch nicht da ist
+ *  (ware je Auftrag aus wareStand; ohne Angabe 0). */
+export function auftragZahlen(auftraege, jetzt, ware = new Map()) {
   const liste = auftraege ?? [];
   return {
     offen: liste.filter(istOffen).length,
     terminBald: liste.filter(a => terminBald(a, jetzt)).length,
     fertigNichtBezahlt: liste.filter(a => ['fertig', 'übergeben'].includes(a.Status) && !t(a.Bezahlt_Am)).length,
+    wartetAufWare: liste.filter(a => istOffen(a) && ['offen', 'bestellt'].includes(ware.get(a.Auftrag_Nr))).length,
   };
+}
+
+// ── AM-3: Rueckmeldung aus Korb und Lager ────────────────────────────────────
+
+/** Korb-Stand einer Position fuer die Anzeige: offen | herausgenommen | bestellt | bestätigt | geliefert | Lager | fehlt. */
+export function korbStand(z) {
+  if (!z) return { status: 'fehlt' };
+  const st = t(z.Status);
+  const status = st === 'abgewählt' ? 'herausgenommen' : st === 'bestellt' && t(z.AB_Hinweis) ? 'bestätigt' : st;
+  return { status, schluessel: t(z.Schluessel), bestellId: t(z.Bestell_ID), liefertermin: t(z.Liefertermin), hinweis: t(z.Hinweis) };
+}
+const KORB_ERLEDIGT = ['bestellt', 'bestätigt', 'geliefert', 'Lager'];
+
+/**
+ * Warenstand je Auftrag (nur 🛒-Positionen = Herkunft bestellen): '' (keine) | offen (mind. eine noch nicht im Korb
+ * bestellt) | bestellt (alle bestellt, nicht alle da) | da (alle geliefert bzw. aus dem Lager). Freie Positionen zaehlen nie.
+ */
+export function wareStand(positionen, korbJe) {
+  const best = (positionen ?? []).filter(p => p.Art === ART.LSHOP && (t(p.Herkunft) || HERKUNFT.BESTELLEN) === HERKUNFT.BESTELLEN);
+  if (!best.length) return '';
+  const st = best.map(p => (t(p.Korb_Schluessel) ? korbStand(korbJe.get(t(p.Korb_Schluessel))).status : 'nicht übergeben'));
+  if (st.some(x => !KORB_ERLEDIGT.includes(x))) return 'offen';
+  return st.every(x => ['geliefert', 'Lager'].includes(x)) ? 'da' : 'bestellt';
+}
+
+/**
+ * Automatisches "bestellt" (nur nach vorn): Auftrag steht auf Anfrage/Angebot/Design, hat mind. eine 🛒- oder 📦-Position,
+ * alle 🛒 sind im Korb mind. bestellt, alle 📦 sind ausgebucht. ✓ vorhanden und freie Positionen blockieren nicht.
+ */
+export function autoBestellt(auftrag, positionen, korbJe) {
+  if (!['Anfrage', 'Angebot', 'Design'].includes(auftrag.Status)) return false;
+  const l = (positionen ?? []).filter(p => p.Art === ART.LSHOP);
+  const best = l.filter(p => (t(p.Herkunft) || HERKUNFT.BESTELLEN) === HERKUNFT.BESTELLEN);
+  const lag = l.filter(p => t(p.Herkunft) === HERKUNFT.LAGER);
+  if (!best.length && !lag.length) return false;
+  return best.every(p => t(p.Korb_Schluessel) && KORB_ERLEDIGT.includes(korbStand(korbJe.get(t(p.Korb_Schluessel))).status))
+    && lag.every(p => t(p.Lager_Buchung));
 }
 
 /** Antwort fuer den Browser: ohne _zeile; Positionen je Auftrag (nur aktive), Stueck gesamt. */

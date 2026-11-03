@@ -4,7 +4,7 @@
 //   node backend/scripts/setup-auftraege-reiter.js --write   legt die fehlenden Reiter an
 //
 // Idempotent: Einen vorhandenen Reiter fasst das Skript nicht an; fehlende Pflichtspalten werden nur gemeldet. Nur NEUE Reiter.
-// AM-2-2: Ausnahme optionale Spalten (POSITION_OPTIONAL: Herkunft, Lager_Ort) - sie werden mit --write hinten an die
+// AM-2-2/AM-3: Ausnahme optionale Spalten (Positionen: Herkunft, Lager_Ort, Lager_Buchung; Auftraege: Design_Am) - mit --write hinten an die
 // Kopfzeile angehaengt (nur Kopfzellen, keine Daten), danach zurueckgelesen.
 // Kopfzeile RAW, fett, fixiert; Textformat fuer Nummern-/Datumsspalten NACH dem Schreiben der Kopfzeile (Befund LS2:
 // values.update loescht das Format beschriebener Zellen; sonst wird "2026-11-03" zum Datumswert). Danach zurueckgelesen.
@@ -15,12 +15,12 @@ import dotenv from 'dotenv';
 dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.env') });
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
-import { TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, POSITION_OPTIONAL, AUFTRAG_TEXT, POSITION_TEXT } from '../utils/auftraege.js';
+import { TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, POSITION_OPTIONAL, AUFTRAG_OPTIONAL, AUFTRAG_TEXT, POSITION_TEXT } from '../utils/auftraege.js';
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
 const WRITE = process.argv.includes('--write');
 const REITER = [
-  { tab: TAB_AUFTRAEGE, spalten: AUFTRAG_SPALTEN, text: AUFTRAG_TEXT },
+  { tab: TAB_AUFTRAEGE, spalten: AUFTRAG_SPALTEN, text: AUFTRAG_TEXT, optional: AUFTRAG_OPTIONAL },
   { tab: TAB_POSITIONEN, spalten: POSITION_SPALTEN, text: POSITION_TEXT, optional: POSITION_OPTIONAL },
 ];
 

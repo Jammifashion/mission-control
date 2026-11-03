@@ -9,12 +9,15 @@
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 import { pruefeZielStrecke, spalteBuchstabe, zeilenAbweichungen } from './sheet-zeilen.js';
+import { berlinDatum } from '../utils/berlin-tag.js';
 import { ladeLShopZeilen, lshopAuswertung } from './lshop.js';
 import { leseLieferbarkeit } from './lieferbarkeitLesen.js';
 import { leseKunden } from './kunden.js';
-import { leseLager } from './lager.js';   // AM-2-2: nur Lagerorte lesen - der Auftrag bucht nie im Lager (das kommt mit AM-3)
+import { leseLager } from './lager.js';
+import { TAB_KORB, korbZeilen } from '../utils/korb-logic.js';   // AM-3: Korb nur lesen (Rueckmeldung)   // AM-2-2: nur Lagerorte lesen - der Auftrag bucht nie im Lager (das kommt mit AM-3)
 import {
-  TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, POSITION_OPTIONAL, brauchtHerkunftSpalten, zeilenAus, alsZeile, anlagePlan, bearbeitenPlan,
+  TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, POSITION_OPTIONAL, AUFTRAG_OPTIONAL, brauchtHerkunftSpalten, zeilenAus,
+  korbStand, wareStand, autoBestellt, ART, HERKUNFT, alsZeile, anlagePlan, bearbeitenPlan,
   statusWechsel, fertigPlan, fertigVorschlag, aktivePositionen, auftragZahlen, auftraegeAntwort, fehler,
 } from '../utils/auftraege.js';
 
@@ -23,6 +26,8 @@ let cache = null;
 export function _auftraegeCacheLeeren() { cache = null; }
 
 let laeuft = false;
+export async function mitAuftragSperre(fn) { return mitSperre(fn); }
+export function _auftragSpreadsheet() { return sheetId(); }
 async function mitSperre(fn) {
   if (laeuft) throw fehler('Aufträge werden gerade gespeichert – gleich noch einmal.', 409, 'laeuft_gerade');
   laeuft = true;
@@ -36,6 +41,7 @@ function sheetId() {
   return id;
 }
 
+export async function liesAuftraege(sheets, spreadsheetId) { return lies(sheets, spreadsheetId); }
 async function lies(sheets, spreadsheetId) {
   let data;
   try {
@@ -47,7 +53,7 @@ async function lies(sheets, spreadsheetId) {
     throw err;
   }
   const [wa = [], wp = []] = (data.valueRanges ?? []).map(v => v.values ?? []);
-  const a = zeilenAus(wa, AUFTRAG_SPALTEN, 'Auftrag_Nr');
+  const a = zeilenAus(wa, AUFTRAG_SPALTEN, 'Auftrag_Nr', AUFTRAG_OPTIONAL);
   const p = zeilenAus(wp, POSITION_SPALTEN, 'Position_ID', POSITION_OPTIONAL);
   if (!wa.length || !wp.length || a.fehlt.length || p.fehlt.length) {
     throw fehler(`Spalten fehlen (${[...a.fehlt, ...p.fehlt].join(', ') || 'Kopfzeile'}) – scripts/setup-auftraege-reiter.js.`, 409, 'einrichtung');
@@ -57,7 +63,7 @@ async function lies(sheets, spreadsheetId) {
 
 // ── L-Shop: waehlbare Nummern und Anzeige je Position (nur lesen) ─────────────
 
-async function lshopInfo(sheets, spreadsheetId, nummern) {
+export async function lshopInfo(sheets, spreadsheetId, nummern) {
   const zeilen = await ladeLShopZeilen({ sheets, spreadsheetId });
   const nr = new Set([...nummern].filter(Boolean));
   const modelle = [...new Set(zeilen.filter(z => nr.has(z.articleNr)).map(z => z.catalogNr))];
@@ -87,12 +93,12 @@ async function lagerOrte(sheets, spreadsheetId, positionen) {
 }
 // Herkunft lager/vorhanden braucht die Spalten Herkunft + Lager_Ort; ohne sie wuerde die Wahl still verloren gehen.
 function pruefeHerkunftSpalten(idx, positionen) {
-  if (brauchtHerkunftSpalten(positionen) && POSITION_OPTIONAL.some(s => idx[s] === undefined)) {
+  if (brauchtHerkunftSpalten(positionen) && ['Herkunft', 'Lager_Ort'].some(s => idx[s] === undefined)) {
     throw fehler('Spalten Herkunft/Lager_Ort fehlen in Auftrag_Positionen – erst scripts/setup-auftraege-reiter.js --write.', 409, 'einrichtung');
   }
 }
 
-const nummernAus = liste => new Set((liste ?? []).map(p => String(p?.articleNr ?? p?.LShop_ArticleNr ?? '').trim()).filter(Boolean));
+export const nummernAus = liste => new Set((liste ?? []).map(p => String(p?.articleNr ?? p?.LShop_ArticleNr ?? '').trim()).filter(Boolean));
 
 async function kundeOk(kundenNr) {
   const { kunden } = await leseKunden();
@@ -132,17 +138,67 @@ const zellenAus = (tab, idx, zeile, felder) => Object.entries(felder).filter(([f
 // ── Lesen ────────────────────────────────────────────────────────────────────
 
 /** GET /api/auftraege: alle Auftraege mit aktiven Positionen (L-Shop-Anzeige dazu), 30 s Zwischenspeicher. */
-export async function leseAuftraege({ sheets: s, jetzt = () => new Date() } = {}) {
+// AM-3: Korb-Zeilen je Schluessel (nur lesen). Fehlt der Reiter, ohne Rueckmeldung weiter.
+export async function leseKorbJe(sheets, spreadsheetId) {
+  try {
+    const { data } = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${TAB_KORB}'`, valueRenderOption: 'UNFORMATTED_VALUE' });
+    return new Map(korbZeilen(data.values ?? []).zeilen.map(z => [z.Schluessel, z]));
+  } catch { return new Map(); }
+}
+
+/**
+ * AM-3: automatisches "bestellt" (nur nach vorn) fuer die Auftraege, bei denen alle 🛒 im Korb mind. bestellt und alle
+ * 📦 ausgebucht sind. Unter der Auftrags-Sperre frisch gelesen, EIN Schreibaufruf, zurueckgelesen. Laeuft gerade ein
+ * anderer Schreiber, wird still uebersprungen (der naechste Blick bzw. der stuendliche Abgleich holt es nach).
+ * @returns {string[]} die gesetzten Auftragsnummern
+ */
+export async function setzeAutoBestellt({ sheets: s, jetzt = () => new Date() } = {}) {
+  const sheets = s ?? await sheetsClient();
+  const spreadsheetId = sheetId();
+  try {
+    return await mitSperre(async () => {
+      const { a, p } = await lies(sheets, spreadsheetId);
+      const korbJe = await leseKorbJe(sheets, spreadsheetId);
+      const iso = jetzt().toISOString(), tag = berlinDatum(jetzt());
+      const ziele = a.zeilen.filter(x => autoBestellt(x, aktivePositionen(p.zeilen, x.Auftrag_Nr), korbJe));
+      if (!ziele.length) return [];
+      await schreibe(sheets, spreadsheetId, {
+        zellen: ziele.flatMap(x => zellenAus(TAB_AUFTRAEGE, a.idx, x._zeile, { Status: 'bestellt', Bestellt_Am: x.Bestellt_Am || tag, Stand: iso })),
+      });
+      return ziele.map(x => x.Auftrag_Nr);
+    });
+  } catch (err) {
+    if (err?.code === 'laeuft_gerade') return [];
+    throw err;
+  }
+}
+
+export async function leseAuftraege({ sheets: s, jetzt = () => new Date(), autoBestellen = true } = {}) {
   if (cache && cache.zeit > Date.now() - CACHE_MS && !s) return cache.antwort;
   const sheets = s ?? await sheetsClient();
   const spreadsheetId = sheetId();
+  // AM-3: erst das automatische "bestellt" (nur nach vorn), dann frisch lesen - so sieht man den Stand sofort.
+  const gesetzt = autoBestellen ? await setzeAutoBestellt({ sheets, jetzt }) : [];
   const { a, p } = await lies(sheets, spreadsheetId);
+  const korbJe = await leseKorbJe(sheets, spreadsheetId);
   const { info } = await lshopInfo(sheets, spreadsheetId, nummernAus(p.zeilen.filter(x => !x.Entfernt)));
-  const anreichern = x => (x.LShop_ArticleNr ? { ...x, lshop: info.get(x.LShop_ArticleNr) ?? { bestellbar: false } } : x);
-  const auftraege = auftraegeAntwort(a.zeilen, p.zeilen, anreichern).map(x => ({
-    ...x, vorschlagFertig: fertigVorschlag(x, aktivePositionen(p.zeilen, x.Auftrag_Nr)),
-  }));
-  const antwort = { auftraege, zahlen: auftragZahlen(a.zeilen, jetzt().toISOString()) };
+  const anreichern = x => ({
+    ...x,
+    ...(x.LShop_ArticleNr ? { lshop: info.get(x.LShop_ArticleNr) ?? { bestellbar: false } } : {}),
+    ...(x.Korb_Schluessel ? { korb: korbStand(korbJe.get(x.Korb_Schluessel)) } : {}),
+  });
+  const ware = new Map();
+  const auftraege = auftraegeAntwort(a.zeilen, p.zeilen, anreichern).map(x => {
+    const akt = aktivePositionen(p.zeilen, x.Auftrag_Nr);
+    const w = wareStand(akt, korbJe);
+    ware.set(x.Auftrag_Nr, w);
+    return {
+      ...x, vorschlagFertig: fertigVorschlag(x, akt), ware: w,
+      freiOffen: akt.filter(y => y.Art === ART.FREI && !y.Herkunft).length,
+      autoBestellt: gesetzt.includes(x.Auftrag_Nr),
+    };
+  });
+  const antwort = { auftraege, zahlen: auftragZahlen(a.zeilen, jetzt().toISOString(), ware), designSpalte: a.idx.Design_Am !== undefined };
   if (!s) cache = { zeit: Date.now(), antwort };
   return antwort;
 }
@@ -216,7 +272,11 @@ export async function bearbeiteAuftrag({ eingabe, sheets: s, jetzt = () => new D
 export async function wechsleStatus({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
   return mitAuftrag(eingabe, s, async ({ sheets, spreadsheetId, a, auftrag }) => {
     pruefeStand(auftrag, eingabe);
-    const felder = { ...statusWechsel(auftrag, String(eingabe?.aktion ?? ''), jetzt().toISOString()), Stand: jetzt().toISOString() };
+    const felder = { ...statusWechsel(auftrag, String(eingabe?.aktion ?? ''), jetzt().toISOString(), { ueberspringen: !!eingabe?.ueberspringen }), Stand: jetzt().toISOString() };
+    // AM-3: Schritt "Design" braucht die Spalte Design_Am - sonst klare Meldung statt still verlorenem Datum.
+    if (felder.Design_Am && a.idx.Design_Am === undefined) {
+      throw fehler('Spalte Design_Am fehlt in Auftraege – erst scripts/setup-auftraege-reiter.js --write (oder „Design überspringen“).', 409, 'einrichtung');
+    }
     await schreibe(sheets, spreadsheetId, { zellen: zellenAus(TAB_AUFTRAEGE, a.idx, auftrag._zeile, felder) });
     return { ok: true, auftragNr: auftrag.Auftrag_Nr, status: felder.Status ?? auftrag.Status };
   });

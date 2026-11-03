@@ -128,6 +128,10 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   neu mit Rueckruf `nachSpeichern`; Raster BO6 ueber die LESENDEN Endpunkte `.../lshop-korb/modelle`, nie Korb-Schreiben; freie
   Position; Motiv/Druck/Notiz je Gruppe Modell+Farbe). Block `Auftraege-Anzeige: Anfang/Ende` (Test auftraege-frontend.test.js).
   Kundenkarte `#ku-auftraege` = Auftraege des Kunden. Kachel: Hauptzahl offene Auftraege.
+  AM-3: Ansicht mit "Design überspringen", "Rohlinge bereitstellen …" (Dialog `#ab-dialog`, Vorschau je Position, "Rest bestellen
+  (teilen)", Ortswahl), Korb-Stand je Position (Klick `korbSpringeZu`), "Übergabe zurücknehmen", Ware-Kennzeichen, Hinweis freie
+  Positionen; Liste: Kennzeichen Ware + Filter "wartet auf Ware". Korb: AU-Referenz als Link `data-korb-au` (Kurztitel ueber
+  `window.auKurztitel`, nur in MC), Lager-Verlauf: Quelle auftrag -> `data-lager-au`; beide oeffnen `window.auOeffnen`.
   AM-2-2: Modellsuche im Auftrag ueber `twBinden` (`twModell`: Modell fett · Name · Marke). Herkunft je Gruppe (Modell+Farbe+
   Herkunft+Ort): bestellen | aus Lager (Ort, Bestand nur gelesen aus `GET /api/lager/bestand`, Knopf "teilen" = `auTeilen`) |
   schon vorhanden; frei nur leer/vorhanden. Gebucht wird im Lager erst mit AM-3. Ansicht: Kennzeichen 🛒/📦/✓.)
@@ -853,6 +857,23 @@ Neue Sektionen immer mit Anker versehen:
   AM-2-2: optionale Spalten hinten in Auftrag_Positionen `Herkunft` (bestellen | lager | vorhanden, leer = bestellen) + `Lager_Ort`
   (`POSITION_OPTIONAL`; Setup haengt sie an). Ohne Spalten: bestellen wie bisher, lager/vorhanden -> 409 `einrichtung`. Lagerort muss
   aktiv sein (`leseLager`, nur lesen) - der Auftrag bucht nie im Lager.
+  AM-3: Status **Design** zwischen Angebot und bestellt (optionale Spalte `Design_Am`, ohne Spalte 409 `einrichtung`; ueberspringbar
+  `ueberspringen: true` von Angebot -> bestellt, Leiste zeigt ihn dann grau; frei bearbeitbar bis Design). Uebergebene Positionen
+  (`Korb_Schluessel` bzw. optionale Spalte `Lager_Buchung`) sind gesperrt (409 `uebergeben`, nur Motiv/Druck/Notiz). Lesen liefert je
+  Position `korb` (`korbStand`: offen/herausgenommen/bestellt/bestätigt (AB)/geliefert/Lager), je Auftrag `ware` (`wareStand`, nur 🛒),
+  `freiOffen`; Kachel `wartetAufWare`. **Automatisches "bestellt"** (`autoBestellt`/`setzeAutoBestellt`, nur nach vorn aus Anfrage/
+  Angebot/Design, alle 🛒 im Korb >= bestellt + alle 📦 ausgebucht): beim Lesen (`GET /api/auftraege`) und nach dem stuendlichen
+  Korb-Abgleich (`routes/intern.js`); Sperre belegt = still uebersprungen.
+- backend/lib/auftragBereitstellen.js – Rohlinge eines Auftrags bereitstellen (AM-3), Logik `utils/auftrag-bereitstellen.js`.
+  `POST /api/auftraege/bereitstellen/vorschau` (schreibt nichts), `.../bereitstellen` { auftragNr, stand, teilen, ortWahl, vorgang },
+  `.../zuruecknehmen` { auftragNr, positionId, vorgang }. Unter Auftrags-, Korb- UND Lager-Sperre alle Reiter frisch (SSOT), EIN
+  values.batchUpdate ueber Korb + Lager_Buchungen + Auftrag_Positionen + Auftraege, zurueckgelesen. 🛒 = eigene Korb-Zeile
+  (`EIGEN:…`, **Referenz = AU-Nr.**, Notiz leer, Quelle_Lauf "Auftrag"); 📦 = `abgang_auftrag`, Bezug AU-Nr., Quelle `auftrag`, Notiz
+  Position_ID, Bestand JETZT (nie negativ; zu wenig -> 409 `knapp`, `teilen` = was da ist + Rest als neue Position bestellen); ✓/frei
+  nichts. Ort inaktiv -> 409 `ort` + Ortswahl. Bis einschliesslich "bestellt" (`kannBereitstellen`, spaeter auch Auftragsart AM-3a).
+  Zuruecknehmen: Korb nur offen/abgewaehlt -> abgewaehlt, Grund "Auftrag geändert"; Lager -> Gegenbuchung (korrektur, Storno_von).
+  Korb/Lager schuetzen Auftragszeilen: Korb-Bearbeiten gesperrt (`eigenGesperrtGrund`), kein "bei Ankunft ins Lager"
+  (`lagerZielPlan`), keine manuelle Gegenbuchung (`planGegenbuchung`, Quelle auftrag). EDI-`reference` = AU-Nr. (Korb-Referenz).
 - backend/lib/lexware.js – Lexware Office Public API (`https://api.lexware.io`), **NUR LESEN**, einzige Stelle mit Zugriff
   (Test kunden.test.js: nur `method: 'GET'`, kein anderer Ort nennt die URL). Heute nur `GET /v1/contacts?customer=true` (alle Seiten; AM-1-1 auch Suche `name`/`email`/`number`, eine Seite)
   und `GET /v1/contacts/{id}`,

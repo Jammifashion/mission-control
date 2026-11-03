@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireSchedulerOidc } from '../middleware/schedulerAuth.js';
 import { runKorbAbgleich, BESCHAEFTIGT } from '../lib/lshopKorb.js';
+import { setzeAutoBestellt } from '../lib/auftraege.js';
 import { notifyFehler } from '../lib/chatNotify.js';
 import { runBelegeAbruf, BELEGE_BESCHAEFTIGT } from '../lib/lshopBelege.js';
 import { runLieferbarkeit, LIEFERBARKEIT_BESCHAEFTIGT } from '../lib/lshopLieferbarkeit.js';
@@ -23,6 +24,13 @@ router.post('/lshop-korb/abgleich', async (_req, res, next) => {
       `L-Shop-Korb-Abgleich ${r.lauf}: vorhanden=${r.vorhanden} ` +
       `shops=${JSON.stringify(r.shops)} geschrieben=${JSON.stringify(r.schreiben)}`
     );
+    // AM-3: Auftraege, deren Rohlinge jetzt alle bestellt/ausgebucht sind, auf "bestellt" (nur nach vorn). Fehler hier
+    // brechen den Abgleich nicht ab - der naechste Lauf oder der naechste Blick in die Auftraege holt es nach.
+    try {
+      const gesetzt = await setzeAutoBestellt();
+      if (gesetzt.length) console.log(`Aufträge automatisch bestellt: ${gesetzt.join(', ')}`);
+      r.auftraegeBestellt = gesetzt.length;
+    } catch (e) { console.warn(`Aufträge auto-bestellt übersprungen: ${e?.code ?? e?.status ?? 'Fehler'}`); }
     res.json(r);
   } catch (err) {
     if (err?.status === 409 && err?.message === BESCHAEFTIGT) {

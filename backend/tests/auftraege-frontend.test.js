@@ -8,7 +8,7 @@ import { terminBald } from '../utils/auftraege.js';
 const html = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../frontend/index.html'), 'utf8');
 const ku = html.slice(html.indexOf('// ── Kunden-Liste: Anfang'), html.indexOf('// ── Kunden-Liste: Ende ──'));
 const block = html.slice(html.indexOf('// ── Auftraege-Anzeige: Anfang'), html.indexOf('// ── Auftraege-Anzeige: Ende ──'));
-const F = new Function(`${ku}\n${block}\nreturn { auFiltern, auTerminBald, auGruppen, auPositionenAnfrage, auLeisteHtml, auZeileHtml, auKundeText, auEntwurfAus, auFrei, auHerkunft, auHerkunftText, auLagerStand, auTeilen };`)();
+const F = new Function(`${ku}\n${block}\nreturn { auFiltern, auTerminBald, auGruppen, auPositionenAnfrage, auLeisteHtml, auZeileHtml, auKundeText, auEntwurfAus, auFrei, auHerkunft, auHerkunftText, auLagerStand, auTeilen, auKannBereitstellen, auKannZuruecknehmen, auKorbText };`)();
 const sektion = html.slice(html.indexOf('// ── SECTION: Aufträge – Liste, Ansicht, Erfassen (AM-2) ──'), html.indexOf('// ── SECTION: Artikelerfassung ──'))
   .split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
 
@@ -51,7 +51,7 @@ describe('Auftraege-Anzeige', () => {
     expect(F.auLeisteHtml({ Status: 'storniert', Storniert_Am: '2026-11-03' })).toContain('storniert');
     // Inhaber 03.11.: erledigt gruen (au-erledigt), aktuell gelb (au-aktuell, nie zugleich erledigt), offen grau (ohne Klasse)
     const schritte = [...h.matchAll(/class="au-schritt([^"]*)"/g)].map(m => m[1].trim());
-    expect(schritte).toEqual(['au-erledigt', 'au-erledigt', 'au-aktuell', '', '', '', '']);
+    expect(schritte).toEqual(['au-erledigt', 'au-erledigt', '', 'au-aktuell', '', '', '', '']);   // AM-3: Design uebersprungen = grau
     const vorkasse = F.auLeisteHtml({ Status: 'Angebot', Anfrage_Am: '1', Angebot_Am: '2', Bezahlt_Am: '2026-11-01' });
     expect([...vorkasse.matchAll(/class="au-schritt([^"]*)"/g)].map(m => m[1].trim()).at(-1)).toBe('au-erledigt');
     expect(html).toMatch(/\.au-schritt\.au-erledigt \{ color: var\(--success\)/);
@@ -137,5 +137,40 @@ describe('Herkunft (AM-2-2)', () => {
     expect(html).toContain('<div id="au-modell-treffer" class="tw-box" hidden></div>');
     expect(sektion).toContain('/api/lager/bestand');
     expect(sektion).not.toMatch(/\/api\/lager\/(buchen|gegenbuchung)/);
+  });
+});
+
+// AM-3: Bereitstellen, Korb-Rueckmeldung, Ware, Spruenge aus Korb und Lager
+describe('AM-3 Anzeige', () => {
+  const p = (extra) => ({ Position_ID: 'AU-2026-0003-01', Art: 'lshop', Herkunft: 'bestellen', ...extra });
+  test('Bereitstellen nur bis bestellt und nur mit noch nicht uebergebenen 🛒/📦', () => {
+    expect(F.auKannBereitstellen({ Status: 'Design', positionen: [p()] })).toBe(true);
+    expect(F.auKannBereitstellen({ Status: 'in Produktion', positionen: [p()] })).toBe(false);
+    expect(F.auKannBereitstellen({ Status: 'Angebot', positionen: [p({ Korb_Schluessel: 'EIGEN:2026-0001' }), p({ Herkunft: 'vorhanden' })] })).toBe(false);
+    expect(F.auKannBereitstellen({ Status: 'Angebot', positionen: [{ Art: 'frei', Herkunft: '' }] })).toBe(false);
+  });
+  test('Zuruecknehmen nur bei offenem Korb oder Lager-Abgang', () => {
+    const a = { Status: 'bestellt' };
+    expect(F.auKannZuruecknehmen(a, p({ Korb_Schluessel: 'K', korb: { status: 'offen' } }))).toBe(true);
+    expect(F.auKannZuruecknehmen(a, p({ Korb_Schluessel: 'K', korb: { status: 'bestellt' } }))).toBe(false);
+    expect(F.auKannZuruecknehmen(a, p({ Lager_Buchung: 'LB-1' }))).toBe(true);
+    expect(F.auKannZuruecknehmen({ Status: 'in Produktion' }, p({ Lager_Buchung: 'LB-1' }))).toBe(false);
+  });
+  test('Korb-Text je Stand, Liefertermin bei bestaetigt', () => {
+    expect(F.auKorbText({ status: 'bestätigt', liefertermin: '2026-11-20' })).toBe('bestätigt · Liefertermin 20.11.2026');
+    expect(F.auKorbText({ status: 'bestätigt', liefertermin: '' })).toBe('bestätigt · sofort');
+    expect(F.auKorbText({ status: 'geliefert' })).toBe('geliefert');
+  });
+  test('Filter "wartet auf Ware": offene Auftraege mit Ware offen/bestellt; Kennzeichen in der Zeile', () => {
+    const liste = [{ Auftrag_Nr: '1', Status: 'Angebot', ware: 'offen' }, { Auftrag_Nr: '2', Status: 'bestellt', ware: 'da' }, { Auftrag_Nr: '3', Status: 'storniert', ware: 'offen' }];
+    expect(F.auFiltern(liste, [], { filter: 'ware' }, HEUTE).map(a => a.Auftrag_Nr)).toEqual(['1']);
+    expect(F.auZeileHtml({ ...liste[0], Kurztitel: 'x', stueck: 1 }, null)).toContain('Ware offen');
+  });
+  test('Korb verlinkt den Auftrag (nie Name), Bearbeiten im Korb gesperrt, kein "bei Ankunft ins Lager"; Lager-Verlauf verlinkt den Auftrag', () => {
+    expect(html).toContain('data-korb-au="${korbEsc(auNr)}" data-hilfe="korb-auftrag"');
+    expect(html).toContain('data-eigen-gesperrt="eb-gesperrt-auftrag"');
+    expect(html).toContain('// AM-3: Kundenrohlinge eines Auftrags gehen nicht ins Lager');
+    expect(html).toContain('data-lager-au="${korbEsc(b.bezug)}" data-hilfe="lager-auftrag-link"');
+    expect(sektion).toContain("auPost('bereitstellen', { auftragNr: abZ.auftragNr, stand: abZ.stand, vorgang: abZ.vorgang");
   });
 });

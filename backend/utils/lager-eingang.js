@@ -11,6 +11,7 @@
 //  - Trikot mit Status "ersetzt": "falsches Trikot ins Lager" (TR:<Produkt-ID>:<Groesse>, Notiz nur "beflockt").
 
 import { ART, QUELLE, WARENART, naechsteBuchungNr, buchungId, bestandAus, VORGANG_MUSTER, buchungenDesVorgangs, trikotSchluessel, warenartVon } from './lager.js';
+import { AU_NR_MUSTER } from './auftraege.js';
 import { STATUS, HERKUNFT } from './korb-logic.js';
 
 const t = v => String(v ?? '').trim();
@@ -165,6 +166,7 @@ export function trikotLagerPlan({ zeile, ort, buchungen, orte, vorgang, jetzt = 
 export function lagerZielPlan({ korbZeile: z, status, ziel, orte }) {
   if (!z) throw fehler('Position gibt es nicht (mehr) - nichts geändert.', 409);
   if (z.Herkunft !== HERKUNFT.EIGEN) throw fehler('Nur eigene Positionen können direkt ins Lager gehen (Shop-Positionen gehören einem Kunden).', 422);
+  if (AU_NR_MUSTER.test(t(z.Referenz)) && t(ziel)) throw fehler(`Position ${z.Schluessel} gehört zu Auftrag ${t(z.Referenz)} (Kundenrohlinge) – nicht ins Lager.`, 422);
   if (z.Status !== t(status)) throw fehler(`Position ${z.Schluessel} hat sich geändert (jetzt "${z.Status}") - bitte neu laden.`, 409);
   if (![STATUS.OFFEN, STATUS.BESTELLT].includes(z.Status)) throw fehler(`Position ${z.Schluessel} ist "${z.Status}" - nur bis zum Wareneingang änderbar.`, 422);
   const neu = t(ziel);

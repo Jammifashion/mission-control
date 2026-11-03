@@ -12,6 +12,7 @@
 // Spalten nur ueber den Namen; die Kopfzeile legt scripts/setup-lshop-korb-reiter.js an.
 
 import { normHeader } from './sheet-headers.js';
+import { AU_NR_MUSTER } from './auftraege.js';
 import { varianteDerPosition } from './varianten-zeilen.js';
 import { normalizeShop, shopWert } from './shop-spalte.js';
 
@@ -569,6 +570,8 @@ const AENDERUNG_MAX = 2000;   // aeltere Eintraege fallen vorn weg
 
 /** Warum eine Position nicht bearbeitbar ist ('' = bearbeitbar). */
 export function eigenGesperrtGrund(z) {
+  // AM-3: Positionen eines Auftrags (Referenz = AU-Nr.) aendert nur der Auftrag ("Übergabe zurücknehmen").
+  if (AU_NR_MUSTER.test(t(z?.Referenz))) return `Gehört zu Auftrag ${t(z.Referenz)} – dort ändern („Übergabe zurücknehmen“).`;
   if (t(z?.Herkunft) !== HERKUNFT.EIGEN) return 'Shop-Positionen kommen aus der Kundenbestellung und sind nicht änderbar.';
   const s = t(z?.Status);
   if (s === STATUS.BESTELLT) return 'Schon bei L-Shop bestellt – nicht mehr änderbar.';

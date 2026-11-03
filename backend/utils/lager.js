@@ -46,7 +46,7 @@ export const ART_TEXT = {
 export const ZUGANG_ARTEN = [ART.VORRAT, ART.UEBERSCHUSS, ART.RETOURE, ART.STORNO];
 export const ABGANG_ARTEN = [ART.ABGANG_VORORT, ART.ABGANG_AUFTRAG, ART.ABGANG_PARTNER, ART.ABGANG_SHOP, ART.ABGANG_AUSSCHUSS];
 // BO5-3: Quelle korb = "aus Lager nehmen" bzw. "zurück in den Korb" im L-Shop-Warenkorb (Bezug = Korb-Schluessel).
-export const QUELLE = { KNOPF: 'knopf', START: 'start', INVENTUR: 'inventur', KORB: 'korb' };
+export const QUELLE = { KNOPF: 'knopf', START: 'start', INVENTUR: 'inventur', KORB: 'korb', AUFTRAG: 'auftrag' };   // AM-3: auftrag = Rohlinge eines Auftrags
 export const AKTIONEN = ['einbuchen', 'ausbuchen', 'umlagern', 'zaehlung', 'start'];
 
 export const MENGE_MAX = 9999;
@@ -275,6 +275,7 @@ export function planGegenbuchung({ buchungId: id, vorgang }, { buchungen, jetzt 
   if (b.art === ART.KORREKTUR || b.stornoVon) return { zeilen: [], probleme: [fehlerText('korrektur', 'Eine Gegenbuchung kann man nicht gegenbuchen.')] };
   // BO5-3: Abgaenge aus dem Korb nur ueber "zurück in den Korb" - sonst stimmt der Korb-Status nicht mehr.
   if (b.quelle === QUELLE.KORB) return { zeilen: [], probleme: [fehlerText('korb', 'Diese Buchung kam aus dem Warenkorb - bitte dort „zurück in den Korb“ nehmen.')] };
+  if (b.quelle === QUELLE.AUFTRAG) return { zeilen: [], probleme: [fehlerText('auftrag', `Diese Buchung gehört zu Auftrag ${b.bezug} - bitte dort „Übergabe zurücknehmen“.`)] };
   const ziele = [b];
   if (b.art === ART.UMLAGERUNG) {
     const p = buchungen.find(x => x.id === b.bezug && x.bezug === b.id);
