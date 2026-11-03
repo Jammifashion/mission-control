@@ -177,6 +177,26 @@
       .dash-stat-label { font-size: 0.72rem; color: var(--muted); margin-top: 0.35rem; text-transform: uppercase; letter-spacing: 0.05em; }
       /* AM-1-1: Shop-Zahlen und Auftraege-Kachel im selben Raster */
       .dash-stats-shop { display: contents; }
+      /* AM-2: Aufträge */
+      .au-box { width: min(860px, 100%); }
+      #au-ansicht[hidden], #au-detail [hidden], #au-dialog [hidden] { display: none !important; }
+      .au-block { border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.7rem; display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
+      .au-block legend { font-size: 0.8rem; color: var(--muted); padding: 0 0.3rem; }
+      .au-treffer { display: flex; flex-wrap: wrap; gap: 0.3rem 0.8rem; }
+      .au-leiste { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+      .au-schritt { display: inline-flex; flex-direction: column; align-items: center; padding: 0.25rem 0.55rem; border: 1px solid var(--border); border-radius: 7px; font-size: 0.78rem; color: var(--muted); }
+      .au-schritt small { font-size: 0.68rem; }
+      .au-schritt.au-erledigt { color: var(--text); }
+      .au-schritt.au-aktuell { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+      .au-kopf { display: flex; flex-direction: column; gap: 0.2rem; }
+      .au-notiz { font-size: 0.82rem; white-space: pre-wrap; }
+      .au-vorschlag { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; border: 1px solid var(--accent); border-radius: 8px; padding: 0.45rem 0.7rem; }
+      .au-gruppe { border: 1px solid var(--border); border-radius: 8px; padding: 0.45rem 0.7rem; margin-bottom: 0.4rem; display: flex; flex-direction: column; gap: 0.3rem; }
+      .au-gruppe-felder { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.4rem; }
+      .au-pos-zeilen { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; }
+      .au-pos { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; min-height: 44px; }
+      .au-pos input { width: 1.3rem; height: 1.3rem; }
+      .au-bald { color: var(--accent); font-weight: 600; }
       .au-kachel-zeile { font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem; }
       .kl-suchzeile { display: flex; flex-wrap: wrap; gap: 0.5rem; }
       .kl-suchzeile .form-input { flex: 1 1 12rem; min-width: 0; }
@@ -2910,10 +2930,120 @@
           <div id="ku-zaehler" class="korb-zaehler" aria-live="polite"></div>
           <div id="ku-liste"><div class="skeleton"></div></div>
         </div>
-        <div class="card" id="au-platzhalter" hidden>
-          <div class="lshop-offen-header korb-kopf"><span>Aufträge</span></div>
-          <p class="korb-zaehler">Aufträge erfassen kommt mit dem nächsten Ausbau (AM-2). Die Kundenliste steht schon unter „Kunden“.</p>
+        <!-- AM-2: Auftragsliste (GET /api/auftraege). Kundennamen kommen nur hier aus der Kundenliste dazu. -->
+        <div class="card" id="au-ansicht" hidden>
+          <div class="lshop-offen-header korb-kopf"><span id="au-summe">Aufträge</span></div>
+          <div id="au-einrichtung" class="lager-warnung" hidden></div>
+          <div class="korb-bedienung">
+            <div class="korb-ansicht lager-filter">
+              <input id="au-suche" type="search" class="form-input" placeholder="Suche: Nr., Titel, Kunde, Spitzname" autocomplete="off" aria-label="Aufträge suchen" data-hilfe="au-suche" />
+              <select id="au-f" class="form-select" aria-label="Filter" data-hilfe="au-filter">
+                <option value="offen">offen</option><option value="termin">Termin in ≤ 7 Tagen</option>
+                <option value="Anfrage">Anfrage</option><option value="Angebot">Angebot</option><option value="bestellt">bestellt</option>
+                <option value="in Produktion">in Produktion</option><option value="fertig">fertig</option><option value="übergeben">übergeben</option>
+                <option value="bezahlt">bezahlt</option><option value="storniert">storniert</option><option value="alle">alle</option>
+              </select>
+            </div>
+            <div class="korb-aktionen">
+              <button type="button" class="korb-aktion korb-aktion-haupt" id="au-neu" data-hilfe="au-neu">+ Neuer Auftrag</button>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="auftraege" aria-controls="hilfe-au" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+            </div>
+          </div>
+          <div id="hilfe-au" class="hilfe-legende" hidden></div>
+          <div id="au-zaehler" class="korb-zaehler" aria-live="polite"></div>
+          <div id="au-liste"><div class="skeleton"></div></div>
         </div>
+
+        <!-- AM-2: Auftragsansicht - Kopf, Status-Leiste, Positionen mit Haken "fertig". -->
+        <div id="au-detail" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="au-d-titel" hidden>
+          <div class="edi-box ku-box au-box">
+            <div class="edi-kopf">
+              <strong id="au-d-titel">Auftrag</strong>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="auftraege" aria-controls="hilfe-au-detail" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+              <button type="button" class="korb-link" id="au-d-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
+            </div>
+            <div id="hilfe-au-detail" class="hilfe-legende" hidden></div>
+            <div id="au-d-kopf" class="au-kopf"></div>
+            <div id="au-d-leiste" class="au-leiste" aria-label="Status"></div>
+            <div class="korb-reihe ku-knoepfe">
+              <button type="button" class="korb-aktion korb-aktion-haupt" id="au-weiter" data-hilfe="au-weiter">weiter …</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-zurueck" data-hilfe="au-zurueck">einen Schritt zurück</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-bezahlt" data-hilfe="au-bezahlt">bezahlt</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-bezahlt-zurueck" data-hilfe="au-bezahlt-zurueck">bezahlt zurücknehmen</button>
+              <span class="ku-luecke"></span>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-bearbeiten" data-hilfe="au-bearbeiten">bearbeiten …</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig ku-gefahr" id="au-storno" data-hilfe="au-storno">stornieren …</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-storno-zurueck" data-hilfe="au-storno-zurueck">Storno zurücknehmen</button>
+            </div>
+            <div id="au-d-vorschlag" class="au-vorschlag" hidden>
+              <span>Alle Positionen sind fertig.</span>
+              <button type="button" class="korb-aktion korb-aktion-haupt" id="au-fertig-setzen" data-hilfe="au-fertig-setzen">Auftrag auf fertig setzen</button>
+            </div>
+            <div id="au-d-fehler" class="lager-warnung" hidden></div>
+            <div id="au-d-pos"></div>
+          </div>
+        </div>
+
+        <!-- AM-2: Auftrag neu / bearbeiten. Kunde lokal -> Lexoffice -> neu; Positionen L-Shop (Raster wie BO6, OHNE Korb) oder frei. -->
+        <div id="au-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="au-titel" hidden>
+          <div class="edi-box ku-box au-box">
+            <div class="edi-kopf">
+              <strong id="au-titel">Neuer Auftrag</strong>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="auftraege" aria-controls="hilfe-au-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+              <button type="button" class="korb-link" id="au-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
+            </div>
+            <div id="hilfe-au-dialog" class="hilfe-legende" hidden></div>
+            <fieldset class="au-block" id="au-kunde-block">
+              <legend>Kunde</legend>
+              <div id="au-kunde" class="korb-zaehler">Noch kein Kunde gewählt.</div>
+              <div class="korb-reihe kl-suchzeile">
+                <input id="au-kunde-suche" type="search" class="form-input" autocomplete="off" placeholder="Name, Spitzname, Nummer, Ort" aria-label="Kunde suchen" data-hilfe="au-kunde-suche" />
+                <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-kunde-lex" data-hilfe="ku-lex-suchen">In Lexoffice suchen …</button>
+              </div>
+              <div id="au-kunde-treffer" class="au-treffer"></div>
+            </fieldset>
+            <div class="lager-felder ku-felder">
+              <label class="ku-breit">Kurztitel<input id="au-Kurztitel" type="text" class="form-input" maxlength="80" autocomplete="off" placeholder="z. B. Polos Saison 27" /></label>
+              <label>Kanal<select id="au-Kanal" class="form-select"><option value="">–</option><option>Mail</option><option>WhatsApp</option><option>Telefon</option><option>persönlich</option><option>Jey</option></select></label>
+              <label>Termin<input id="au-Termin" type="date" class="form-input" /></label>
+              <label id="au-start-wrap" data-hilfe="au-start">Start als<select id="au-start" class="form-select"><option value="Anfrage">Anfrage</option><option value="Angebot">Angebot</option></select></label>
+              <label class="ku-breit" data-hilfe="au-keine-namen">Notiz (keine Personennamen)<textarea id="au-Notiz" class="form-input" rows="2" maxlength="1000"></textarea></label>
+            </div>
+            <fieldset class="au-block" id="au-pos-block">
+              <legend>Positionen</legend>
+              <div id="au-pos-gesperrt" class="korb-zaehler" data-hilfe="au-pos-gesperrt" tabindex="0" hidden>Positionen sind ab „bestellt“ gesperrt – nur Notiz und Termin änderbar.</div>
+              <div id="au-pos-liste"></div>
+              <div id="au-pos-neu">
+                <div class="korb-reihe kl-suchzeile">
+                  <input id="au-modell-suche" type="search" class="form-input" autocomplete="off" placeholder="L-Shop-Modell: Nummer oder Name" aria-label="L-Shop-Modell suchen" data-hilfe="au-modell" />
+                </div>
+                <div id="au-modell-treffer" class="korb-eigen-treffer"></div>
+                <div id="au-raster-form" hidden>
+                  <div id="au-modell" class="korb-zaehler"></div>
+                  <select id="au-farbe" class="form-select" aria-label="Farbe"></select>
+                  <div id="au-raster" class="korb-raster" role="group" aria-label="Menge je Größe"></div>
+                  <div id="au-raster-lb" class="korb-zaehler"></div>
+                  <div id="au-raster-summe" class="korb-zaehler" aria-live="polite"></div>
+                  <div class="korb-reihe ku-knoepfe">
+                    <button type="button" class="korb-aktion korb-aktion-haupt" id="au-raster-hinzu" data-hilfe="au-raster-hinzu">Übernehmen</button>
+                    <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-raster-weiter" data-hilfe="au-raster-weiter">Übernehmen und weitere Farbe</button>
+                  </div>
+                </div>
+                <div class="korb-reihe kl-suchzeile au-frei">
+                  <input id="au-frei-text" type="text" class="form-input" maxlength="120" autocomplete="off" placeholder="Freie Position, z. B. Tassen, mitgebrachte Ware" aria-label="Freie Position" />
+                  <input id="au-frei-menge" type="number" class="form-input" min="1" max="9999" step="1" inputmode="numeric" placeholder="Menge" aria-label="Menge" />
+                  <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-frei-hinzu" data-hilfe="au-frei-hinzu">+ freie Position</button>
+                </div>
+              </div>
+            </fieldset>
+            <div id="au-fehler" class="lager-warnung" hidden></div>
+            <div class="korb-reihe ku-knoepfe">
+              <button type="button" class="korb-aktion korb-aktion-haupt" id="au-speichern" data-hilfe="au-speichern">Speichern</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-abbrechen" data-hilfe="dialog-abbrechen">Abbrechen</button>
+            </div>
+          </div>
+        </div>
+
 
         <!-- AM-1-1: Kunde suchen (Baustein, AM-2 nutzt ihn im Dialog "Auftrag anlegen"): lokal -> Lexoffice -> neu in MC.
              Treffer aus Lexoffice leben nur in diesem Dialog (kein Speicher, keine Adresse). -->
@@ -2965,6 +3095,8 @@
               <label class="ku-breit">Notiz<textarea id="ku-Notiz" class="form-input" rows="3" maxlength="1000" data-ku-feld="Notiz"></textarea></label>
             </div>
             <div id="ku-info" class="korb-zaehler"></div>
+            <!-- AM-2: Aufträge dieses Kunden (Grundlage AM-4) -->
+            <div id="ku-auftraege-block" class="au-block" hidden><div class="korb-zaehler">Aufträge dieses Kunden</div><div id="ku-auftraege" class="au-treffer"></div></div>
             <!-- DSGVO: zweite Bestaetigung - die Kunden-Nr. eintippen -->
             <div id="ku-dsgvo-schritt" class="korb-reihe" hidden>
               <input id="ku-dsgvo-nr" type="text" class="form-input" autocomplete="off" placeholder="Kunden-Nr. eintippen, z. B. K-00012" aria-label="Kunden-Nr. zur Bestätigung" />
@@ -5512,7 +5644,34 @@
         'kl-uebernehmen':       { name: 'übernehmen', text: 'Legt genau diesen Kunden in MC an und öffnet die Karte, z. B. für einen Spitznamen. Nie doppelt.' },
         'kl-oeffnen':           { name: 'schon in MC – öffnen', text: 'Den Kunden gibt es schon in MC; öffnet seine Karte.' },
         'kl-neu':               { name: '+ Neuer Kunde in MC', text: 'Nicht in Lexoffice? Dann den Kunden direkt in MC anlegen.' },
-        'dash-auftraege':       { name: 'Aufträge', text: 'Zahl der aktiven Kunden. Klick öffnet den Bereich Aufträge. Auftragszahlen kommen mit dem nächsten Ausbau.' },
+        'dash-auftraege':       { name: 'Aufträge', text: 'Offene Aufträge, Termine in 7 Tagen, fertig und nicht bezahlt, aktive Kunden. Klick öffnet Aufträge.' },
+        // AM-2: Aufträge erfassen, Liste, Ansicht
+        'au-suche':             { name: 'Aufträge suchen', text: 'Findet über Auftrags-Nr., Kurztitel, Kunde, Spitzname oder Kunden-Nr.; jedes Wort muss passen.' },
+        'au-filter':            { name: 'Filter', text: 'offen = weder bezahlt noch storniert. Dazu: Termin in 7 Tagen (auch überfällige), je Status oder alle.' },
+        'au-neu':               { name: '+ Neuer Auftrag', text: 'Kunde wählen, Kurztitel, Positionen aus L-Shop (Raster) oder frei. Speichert alles in einem Schritt.' },
+        'au-oeffnen':           { name: 'Auftrag öffnen', text: 'Zeigt Kopf, Status mit Datum je Schritt und die Positionen mit Haken „fertig“.' },
+        'au-weiter':            { name: 'weiter zu …', text: 'Setzt den nächsten Schritt mit heutigem Datum. „bestellt“ setzt ihr selbst, bis der Korb das übernimmt.' },
+        'au-zurueck':           { name: 'einen Schritt zurück', text: 'Fragt vorher. Geht einen Schritt zurück und leert das Datum des jetzigen Schritts.' },
+        'au-bezahlt':           { name: 'bezahlt', text: 'Bezahlt-Datum heute, jederzeit (auch Vorkasse). Ist der Auftrag übergeben, steht er danach auf „bezahlt“.' },
+        'au-bezahlt-zurueck':   { name: 'bezahlt zurücknehmen', text: 'Fragt vorher und leert das Bezahlt-Datum.' },
+        'au-bearbeiten':        { name: 'bearbeiten …', text: 'Bis „Angebot“ alles änderbar. Ab „bestellt“ nur Notiz und Termin.' },
+        'au-storno':            { name: 'stornieren …', text: 'Fragt vorher. Der Auftrag fällt aus „offen“, nichts wird gelöscht.' },
+        'au-storno-zurueck':    { name: 'Storno zurücknehmen', text: 'Holt den Auftrag auf seinen letzten Schritt zurück.' },
+        'au-fertig-setzen':     { name: 'Auftrag auf fertig setzen', text: 'Alle Positionen sind abgehakt: setzt den Auftrag bis „fertig“, jeder Schritt mit heutigem Datum.' },
+        'au-pos-fertig':        { name: 'fertig', text: 'Haken je Position, mit Datum. Sind alle fertig, schlägt MC vor, den Auftrag auf fertig zu setzen.' },
+        'au-kundenkarte':       { name: 'Kundenkarte', text: 'Öffnet die Karte des Kunden mit seinen Aufträgen.' },
+        'au-kunde-suche':       { name: 'Kunde suchen', text: 'Erst in MC (Name, Spitzname, Nummer, Ort). Nicht dabei: „In Lexoffice suchen …“, dort auch neu anlegen.' },
+        'au-kunde-wahl':        { name: 'Kunde wählen', text: 'Übernimmt diesen Kunden in den Auftrag.' },
+        'au-start':             { name: 'Start als', text: 'Neuer Auftrag beginnt als Anfrage oder gleich als Angebot.' },
+        'au-keine-namen':       { name: 'Notiz', text: 'Was zum Auftrag gehört. Bitte keine Namen von Personen eintragen.' },
+        'au-pos-gesperrt':      { name: 'Positionen gesperrt', text: 'Ab „bestellt“ sind Positionen gesperrt (die Verbindung zum Korb kommt mit dem nächsten Ausbau).' },
+        'au-modell':            { name: 'L-Shop-Modell', text: 'Modell suchen, Farbe wählen, Mengen je Größe eintragen. Nur für den Auftrag, nichts geht in den Korb.' },
+        'au-raster-hinzu':      { name: 'Übernehmen', text: 'Übernimmt die Mengen dieser Farbe in den Auftrag. Gibt es die Farbe schon, werden ihre Mengen ersetzt.' },
+        'au-raster-weiter':     { name: 'Übernehmen und weitere Farbe', text: 'Übernimmt und lässt das Modell offen für die nächste Farbe.' },
+        'au-frei-hinzu':        { name: '+ freie Position', text: 'Position ohne L-Shop-Nummer, z. B. Tassen oder mitgebrachte Ware: Text und Menge.' },
+        'au-gruppe-weg':        { name: 'entfernen', text: 'Nimmt diese Farbe bzw. Position aus dem Auftrag (erst beim Speichern).' },
+        'au-gruppe-felder':     { name: 'Motiv · Druck · Notiz', text: 'Gilt für alle Größen dieser Farbe. Keine Namen von Personen.' },
+        'au-speichern':         { name: 'Speichern', text: 'Speichert Auftrag und Positionen in einem Schritt. Ein zweiter Klick legt nichts doppelt an.' },
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
@@ -5538,7 +5697,7 @@
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
-        auftraege: ['ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-oeffnen', 'kl-neu', 'dash-auftraege'],
+        auftraege: ['ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-oeffnen', 'kl-neu', 'dash-auftraege', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-wahl', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-speichern'],
         lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
@@ -9008,8 +9167,9 @@
         kuEl('ku-fehler').hidden = !text;
       }
 
-      function kuDialogOeffnen(kunde) {
+      function kuDialogOeffnen(kunde, { nachSpeichern = null } = {}) {
         kuZ.offen = kunde ?? null;
+        kuZ.nachSpeichern = nachSpeichern;   // AM-2: Auftrag bekommt den neu angelegten Kunden
         const k = kunde ?? { Art: 'Firma', Land: 'DE', Status: 'aktiv', Quelle: 'mc' };
         const ausLex = !!kunde && kunde.Quelle === 'lexoffice';
         const gesperrt = k.Status === 'gesperrt-DSGVO';
@@ -9031,10 +9191,13 @@
         kuEl('ku-dsgvo-schritt').hidden = true;
         kuEl('ku-dsgvo-nr').value = '';
         kuDialogFehler('');
+        kuEl('ku-auftraege-block').hidden = !kunde;
+        kuAuftraegeZeichnen(kunde?.Kunden_Nr);
+        if (kunde && !auZ.daten) loadAuftraege();
         kuEl('ku-dialog').hidden = false;
         (kunde ? kuEl(ausLex ? 'ku-Spitzname' : 'ku-Name') : kuEl('ku-Name')).focus();
       }
-      function kuDialogSchliessen() { kuEl('ku-dialog').hidden = true; kuZ.offen = null; }
+      function kuDialogSchliessen() { kuEl('ku-dialog').hidden = true; kuZ.offen = null; kuZ.nachSpeichern = null; }
 
       // Antwort eines Schreibaufrufs: Kunde in der Liste ersetzen bzw. anhaengen.
       function kuUebernehmen(kunde) {
@@ -9072,7 +9235,9 @@
         if (!r) return;
         kuUebernehmen(r.kunde);
         showToast(r.unveraendert ? `${r.kundenNr}: nichts geändert.` : `${r.kundenNr} gespeichert.`);
+        const weiter = kuZ.nachSpeichern;
         kuDialogSchliessen();
+        weiter?.(r.kunde);
       }
 
       async function kuArchiv(archivieren) {
@@ -9132,8 +9297,10 @@
         const liste = e.detail.punkt === 'liste';
         kuDialogSchliessen();
         kuEl('ku-ansicht').hidden = liste;
-        kuEl('au-platzhalter').hidden = !liste;
-        if (!liste) loadKunden();
+        document.getElementById('au-ansicht').hidden = !liste;
+        document.getElementById('au-detail').hidden = true;
+        document.getElementById('au-dialog').hidden = true;
+        if (liste) loadAuftraege(); else loadKunden();
       });
 
 
@@ -9218,7 +9385,11 @@
       kuEl('kl-q').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); klSuchen(); } });
       kuEl('kl-schliessen').addEventListener('click', klSchliessen);
       kuEl('kl-dialog').addEventListener('keydown', e => { if (e.key === 'Escape') klSchliessen(); });
-      kuEl('kl-neu').addEventListener('click', () => { klSchliessen(); kuDialogOeffnen(null); });
+      kuEl('kl-neu').addEventListener('click', () => {
+        const weiter = klZ.beiAuswahl === kuDialogOeffnen ? null : klZ.beiAuswahl;   // AM-2: neuer Kunde geht zurueck in den Auftrag
+        klSchliessen();
+        kuDialogOeffnen(null, { nachSpeichern: weiter });
+      });
       kuEl('kl-liste').addEventListener('click', e => {
         const u = e.target.closest('[data-kl-uebernehmen]');
         if (u) return klUebernehmen(u);
@@ -9240,10 +9411,12 @@
       function auKachelHtml(z) {
         const zahl = v => (Number.isFinite(v) ? String(v) : '–');
         const a = z?.auftraege;
-        const unten = a
-          ? AU_KACHEL_ZEILEN.filter(([k]) => Number.isFinite(a[k])).map(([k, txt]) => `<div class="au-kachel-zeile">${zahl(a[k])} ${txt}</div>`).join('')
-          : '<div class="au-kachel-zeile">Aufträge folgen mit AM-2</div>';
-        return `<div class="dash-stat-value">${zahl(z?.aktiv)}</div><div class="dash-stat-label">Aufträge · aktive Kunden ↗</div>${unten}`;
+        // AM-2: Hauptzahl = offene Auftraege; darunter Termin, fertig/nicht bezahlt (wartet auf Ware ab AM-3) und aktive Kunden.
+        if (a) {
+          const zeilen = AU_KACHEL_ZEILEN.filter(([k]) => k !== 'offen' && Number.isFinite(a[k])).map(([k, txt]) => `<div class="au-kachel-zeile">${zahl(a[k])} ${txt}</div>`).join('');
+          return `<div class="dash-stat-value">${zahl(a.offen)}</div><div class="dash-stat-label">Aufträge offen ↗</div>${zeilen}<div class="au-kachel-zeile">${zahl(z?.aktiv)} aktive Kunden</div>`;
+        }
+        return `<div class="dash-stat-value">${zahl(z?.aktiv)}</div><div class="dash-stat-label">Aufträge · aktive Kunden ↗</div><div class="au-kachel-zeile">Auftragszahlen nicht verfügbar</div>`;
       }
       // ── Auftraege-Kachel: Ende ──
       async function loadAuftraegeKachel() {
@@ -9258,6 +9431,443 @@
       document.getElementById('dash-auftraege')?.addEventListener('click', () => oeffneAnsicht('auftraege', 'kunden'));
       document.getElementById('dash-auftraege')?.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); oeffneAnsicht('auftraege', 'kunden'); } });
       document.addEventListener('mc:ansicht', e => { if (e.detail?.panel === 'dashboard') loadAuftraegeKachel(); });   // auch beim Start
+
+
+      // ── SECTION: Aufträge – Liste, Ansicht, Erfassen (AM-2) ──
+      // Auftraege im SSOT nur mit Kunden_Nr; Name/Spitzname kommen hier aus der Kundenliste (kuZ.kunden) dazu. Keine Preise.
+      // Positionen: L-Shop ueber das Raster aus BO6 (eigenRasterGroessen/eigenRasterAuswahl, nur lesende Endpunkte
+      // .../lshop-korb/modelle) - es wird NICHT in den Korb geschrieben (AM-3) - oder frei. Speichern = ein Aufruf.
+
+      // ── Auftraege-Anzeige: Anfang (reine Logik, Test backend/tests/auftraege-frontend.test.js) ──
+      const AU_SCHRITTE = [['Anfrage', 'Anfrage_Am'], ['Angebot', 'Angebot_Am'], ['bestellt', 'Bestellt_Am'], ['in Produktion', 'Produktion_Am'],
+        ['fertig', 'Fertig_Am'], ['übergeben', 'Uebergeben_Am'], ['bezahlt', 'Bezahlt_Am']];
+      const auIndex = s => AU_SCHRITTE.findIndex(([x]) => x === s);
+      const auFrei = a => a.Status !== 'storniert' && auIndex(a.Status) >= 0 && auIndex(a.Status) <= 1;
+      const auOffen = a => a.Status !== 'storniert' && a.Status !== 'bezahlt';
+      const auHeute = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+      const auDatum = d => (/^\d{4}-\d{2}-\d{2}$/.test(String(d ?? '')) ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : '');
+      /** Termin in <= 7 Tagen (auch ueberfaellig), nur offene - wie terminBald im Backend. */
+      function auTerminBald(a, heute = auHeute(), tage = 7) {
+        if (!auOffen(a) || !/^\d{4}-\d{2}-\d{2}$/.test(String(a.Termin ?? ''))) return false;
+        const bis = new Date(Date.UTC(+heute.slice(0, 4), +heute.slice(5, 7) - 1, +heute.slice(8, 10) + tage)).toISOString().slice(0, 10);
+        return a.Termin <= bis;
+      }
+      /** Filter (offen | termin | <Status> | alle) und Suche (Nr., Kurztitel, Kunde, Spitzname, Kunden-Nr.); Termin, sonst angelegt. */
+      function auFiltern(auftraege, kunden, f = {}, heute = auHeute()) {
+        const kMap = new Map((kunden ?? []).map(k => [k.Kunden_Nr, k]));
+        const woerter = String(f.suche ?? '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+        const wahl = f.filter || 'offen';
+        return (auftraege ?? []).filter(a => (wahl === 'alle' ? true : wahl === 'offen' ? auOffen(a) : wahl === 'termin' ? auTerminBald(a, heute) : a.Status === wahl))
+          .filter(a => {
+            if (!woerter.length) return true;
+            const k = kMap.get(a.Kunden_Nr) ?? {};
+            const text = [a.Auftrag_Nr, a.Kurztitel, a.Kunden_Nr, k.Name, k.Spitzname].map(x => String(x ?? '').toLowerCase()).join(' ');
+            return woerter.every(w => text.includes(w));
+          })
+          .sort((x, y) => (x.Termin || '9999') .localeCompare(y.Termin || '9999') || String(x.Angelegt).localeCompare(String(y.Angelegt)));
+      }
+      /** Kunde fuer die Anzeige: Name (Spitzname), sonst die Nummer. */
+      function auKundeText(k, nr) {
+        if (!k) return nr || '–';
+        const sp = String(k.Spitzname ?? '').split(';').map(s => s.trim()).filter(Boolean)[0];
+        return `${k.Name || nr}${sp ? ` (${sp})` : ''}`;
+      }
+      function auZeileHtml(a, k) {
+        const termin = a.Termin ? `Termin ${auDatum(a.Termin)}` : '';
+        const bald = auTerminBald(a) ? ' au-bald' : '';
+        return `<div class="ku-zeile${a.Status === 'storniert' ? ' ku-gesperrt' : ''}" data-au-nr="${kuEsc(a.Auftrag_Nr)}">`
+          + `<span class="ku-nr">${kuEsc(a.Auftrag_Nr)}</span><span class="ku-name">${kuEsc(a.Kurztitel)}</span>`
+          + `<button type="button" class="korb-link" data-au-oeffnen="${kuEsc(a.Auftrag_Nr)}" data-hilfe="au-oeffnen">öffnen</button>`
+          + `<div class="ku-meta"><span>${kuEsc(auKundeText(k, a.Kunden_Nr))}</span><span class="ku-chip">${kuEsc(a.Status)}${a.Bezahlt_Am && a.Status !== 'bezahlt' ? ' · bezahlt' : ''}</span>`
+          + (termin ? `<span class="${bald.trim()}">${kuEsc(termin)}</span>` : '') + `<span>${Number(a.stueck) || 0} Stück</span></div></div>`;
+      }
+      /** Status-Leiste: je Schritt Name + Datum, aktueller hervorgehoben; storniert extra. */
+      function auLeisteHtml(a) {
+        const i = auIndex(a.Status);
+        return AU_SCHRITTE.map(([s, feld], j) => `<span class="au-schritt${j === i ? ' au-aktuell' : ''}${a[feld] ? ' au-erledigt' : ''}">${kuEsc(s)}`
+          + `${a[feld] ? `<small>${auDatum(a[feld])}</small>` : ''}</span>`).join('')
+          + (a.Status === 'storniert' ? `<span class="au-schritt au-aktuell ku-gefahr">storniert<small>${auDatum(a.Storniert_Am)}</small></span>` : '');
+      }
+      /** Positionen gruppieren: L-Shop je Modell + Farbe (Groessen in Rasterreihenfolge), frei einzeln. */
+      function auGruppen(positionen) {
+        const gruppen = [];
+        for (const p of positionen ?? []) {
+          const art = p.art ?? p.Art;
+          if (art === 'lshop') {
+            const l = p.lshop ?? p;
+            const key = `${l.modell ?? ''}|${l.farbe ?? ''}`;
+            let g = gruppen.find(x => x.key === key);
+            if (!g) { g = { key, art, modell: l.modell ?? '', bezeichnung: l.bezeichnung ?? '', farbe: l.farbe ?? '', positionen: [] }; gruppen.push(g); }
+            g.positionen.push(p);
+          } else gruppen.push({ key: `frei|${gruppen.length}`, art: 'frei', freitext: p.freitext ?? p.Freitext, positionen: [p] });
+        }
+        for (const g of gruppen) {
+          const gr = p => (p.lshop ?? p).groesse ?? '';
+          const reihe = typeof grSortiere === 'function' ? grSortiere(g.positionen.map(gr)).sortiert : g.positionen.map(gr);
+          g.positionen.sort((x, y) => reihe.indexOf(gr(x)) - reihe.indexOf(gr(y)));
+          g.stueck = g.positionen.reduce((s, p) => s + (Number(p.menge ?? p.Menge) || 0), 0);
+        }
+        return gruppen;
+      }
+      /** Entwurf -> positionen fuer POST /api/auftraege/neu bzw. /bearbeiten. */
+      const auPositionenAnfrage = entwurf => (entwurf ?? []).map(p => ({
+        ...(p.positionId ? { positionId: p.positionId } : {}), art: p.art,
+        ...(p.art === 'lshop' ? { articleNr: p.articleNr } : { freitext: p.freitext }),
+        menge: Number(p.menge), motiv: p.motiv ?? '', druck: p.druck ?? '', notiz: p.notiz ?? '',
+      }));
+      /** Gespeicherte Position -> Entwurf (fuer Bearbeiten). */
+      const auEntwurfAus = p => ({
+        positionId: p.Position_ID, art: p.Art, articleNr: p.LShop_ArticleNr, freitext: p.Freitext, menge: Number(p.Menge),
+        motiv: p.Motiv, druck: p.Druck, notiz: p.Notiz, modell: p.lshop?.modell ?? '', bezeichnung: p.lshop?.bezeichnung ?? '',
+        farbe: p.lshop?.farbe ?? '', groesse: p.lshop?.groesse ?? '', lieferbar: p.lshop?.lieferbar,
+      });
+      // ── Auftraege-Anzeige: Ende ──
+
+      const auEl = id => document.getElementById(id);
+      const auZ = { daten: null, laedt: false, offen: null };
+      const auDlg = { modus: 'neu', auftrag: null, kunde: null, entwurf: [], modell: null, varianten: [], raster: [], timer: null, laeuft: false, vorgang: '' };
+      const auVorgang = () => (globalThis.crypto?.randomUUID?.() ?? `au-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`);
+      const auKunde = nr => (kuZ.kunden ?? []).find(k => k.Kunden_Nr === nr);
+
+      function auZeichnen() {
+        const alle = auZ.daten?.auftraege ?? [];
+        const z = auZ.daten?.zahlen ?? {};
+        auEl('au-summe').textContent = `Aufträge: ${z.offen ?? 0} offen`;
+        const liste = auFiltern(alle, kuZ.kunden, { filter: auEl('au-f').value, suche: auEl('au-suche').value });
+        auEl('au-zaehler').textContent = `${liste.length} von ${alle.length} angezeigt · Termin in ≤ 7 Tagen: ${z.terminBald ?? 0} · fertig, nicht bezahlt: ${z.fertigNichtBezahlt ?? 0}`;
+        auEl('au-liste').innerHTML = !alle.length ? '<p class="korb-zaehler">Noch keine Aufträge. „+ Neuer Auftrag“ legt einen an.</p>'
+          : !liste.length ? '<p class="korb-zaehler">Kein Auftrag passt zu Suche bzw. Filter.</p>'
+          : `<div class="ku-liste">${liste.map(a => auZeileHtml(a, auKunde(a.Kunden_Nr))).join('')}</div>`;
+      }
+
+      async function loadAuftraege() {
+        if (auZ.laedt) return;
+        auZ.laedt = true;
+        auEl('au-einrichtung').hidden = true;
+        try {
+          const [res] = await Promise.all([apiFetch(`${API_BASE()}/api/auftraege`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) }), kuZ.kunden ? null : loadKunden()]);
+          const j = await res.json().catch(() => null);
+          if (!res.ok) {
+            if (j?.code === 'einrichtung') { auEl('au-einrichtung').textContent = `Aufträge noch nicht eingerichtet: ${j.error}`; auEl('au-einrichtung').hidden = false; auZ.daten = { auftraege: [], zahlen: {} }; auZeichnen(); return; }
+            throw new Error(j?.error || `HTTP ${res.status}`);
+          }
+          auZ.daten = j;
+          auZeichnen();
+          if (auZ.offen) auDetailZeichnen(auZ.offen);
+          if (kuZ.offen) kuAuftraegeZeichnen(kuZ.offen.Kunden_Nr);
+        } catch (e) {
+          auEl('au-liste').innerHTML = `<div class="lager-warnung">Aufträge nicht geladen: ${kuEsc(e.message)}</div>`;
+        } finally { auZ.laedt = false; }
+      }
+
+      async function auPost(pfad, body) {
+        const res = await apiFetch(`${API_BASE()}/api/auftraege/${pfad}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const j = await res.json().catch(() => null);
+        if (!res.ok) { const e = new Error(j?.error || `HTTP ${res.status}`); e.code = j?.code; throw e; }
+        return j;
+      }
+
+      // ── Ansicht ──
+      function auDetailOeffnen(nr) { auZ.offen = nr; auEl('au-d-fehler').hidden = true; auDetailZeichnen(nr); auEl('au-detail').hidden = false; }
+      function auDetailSchliessen() { auEl('au-detail').hidden = true; auZ.offen = null; }
+      function auDetailZeichnen(nr) {
+        const a = (auZ.daten?.auftraege ?? []).find(x => x.Auftrag_Nr === nr);
+        if (!a) { auDetailSchliessen(); return; }
+        const k = auKunde(a.Kunden_Nr);
+        auEl('au-d-titel').textContent = `${a.Auftrag_Nr} · ${a.Kurztitel}`;
+        auEl('au-d-kopf').innerHTML = `<div><button type="button" class="korb-link" data-au-kunde="${kuEsc(a.Kunden_Nr)}" data-hilfe="au-kundenkarte">${kuEsc(auKundeText(k, a.Kunden_Nr))}</button>`
+          + ` · ${kuEsc(a.Kunden_Nr)}</div><div class="ku-meta">${[a.Kanal, a.Termin ? `Termin ${auDatum(a.Termin)}` : 'ohne Termin', `${a.stueck} Stück`].filter(Boolean).map(x => `<span>${kuEsc(x)}</span>`).join('')}</div>`
+          + (a.Notiz ? `<div class="au-notiz">${kuEsc(a.Notiz)}</div>` : '');
+        auEl('au-d-leiste').innerHTML = auLeisteHtml(a);
+        const i = auIndex(a.Status), st = a.Status === 'storniert';
+        const naechster = AU_SCHRITTE[i + 1]?.[0];
+        auEl('au-weiter').hidden = st || !naechster;
+        auEl('au-weiter').textContent = naechster ? `weiter zu „${naechster}“` : 'weiter';
+        auEl('au-zurueck').hidden = st || i <= 0;
+        auEl('au-bezahlt').hidden = st || !!a.Bezahlt_Am;
+        auEl('au-bezahlt-zurueck').hidden = st || !a.Bezahlt_Am;
+        auEl('au-storno').hidden = st || a.Status === 'bezahlt';
+        auEl('au-storno-zurueck').hidden = !st;
+        auEl('au-bearbeiten').hidden = st;
+        auEl('au-d-vorschlag').hidden = !a.vorschlagFertig;
+        auEl('au-d-pos').innerHTML = auGruppen(a.positionen).map(g => {
+          const kopf = g.art === 'lshop' ? `<strong>${kuEsc(g.modell)}</strong>${g.bezeichnung ? ` · ${kuEsc(g.bezeichnung)}` : ''} · ${kuEsc(g.farbe || '(ohne Farbe)')}` : `<strong>${kuEsc(g.freitext)}</strong> · frei`;
+          const p0 = g.positionen[0];
+          const neben = [p0.Motiv && `Motiv: ${p0.Motiv}`, p0.Druck && `Druck: ${p0.Druck}`, p0.Notiz && `Notiz: ${p0.Notiz}`].filter(Boolean).map(x => `<span>${kuEsc(x)}</span>`).join('');
+          const zeilen = g.positionen.map(p => `<label class="au-pos" data-hilfe="au-pos-fertig"><input type="checkbox" data-au-fertig="${kuEsc(p.Position_ID)}" ${p.Fertig === 'ja' ? 'checked' : ''} ${st ? 'disabled' : ''}>`
+            + `<span>${kuEsc(g.art === 'lshop' ? (p.lshop?.groesse || '–') : 'Menge')} × ${kuEsc(p.Menge)}</span>`
+            + (p.lshop?.lieferbar ? lfbPunkt(p.lshop.lieferbar) : '') + (p.lshop && p.lshop.bestellbar === false ? '<span class="ku-gefahr">nicht mehr bestellbar</span>' : '')
+            + (p.Fertig_Am ? `<small>fertig ${auDatum(p.Fertig_Am)}</small>` : '') + '</label>').join('');
+          return `<div class="au-gruppe"><div>${kopf} · ${g.stueck} Stück</div>${neben ? `<div class="ku-meta">${neben}</div>` : ''}<div class="au-pos-zeilen">${zeilen}</div></div>`;
+        }).join('') || '<p class="korb-zaehler">Keine Positionen.</p>';
+      }
+
+      async function auStatus(aktion, frage) {
+        const a = (auZ.daten?.auftraege ?? []).find(x => x.Auftrag_Nr === auZ.offen);
+        if (!a) return;
+        if (frage && !await showConfirm(frage[0], `<p>${kuEsc(frage[1])}</p>`, frage[2] ?? 'Ja')) return;
+        try {
+          const r = await auPost('status', { auftragNr: a.Auftrag_Nr, stand: a.Stand, aktion });
+          showToast(`${r.auftragNr}: ${r.status}`);
+        } catch (e) {
+          auEl('au-d-fehler').textContent = e.message; auEl('au-d-fehler').hidden = false;
+        }
+        await loadAuftraege();
+      }
+      auEl('au-weiter').addEventListener('click', () => auStatus('weiter'));
+      auEl('au-fertig-setzen').addEventListener('click', async () => {
+        const a = (auZ.daten?.auftraege ?? []).find(x => x.Auftrag_Nr === auZ.offen);
+        if (!a) return;
+        // Bis "fertig" Schritt fuer Schritt (jeder Schritt bekommt sein Datum); nach jedem Schritt neuer Stand.
+        try {
+          for (let n = 0; n < AU_SCHRITTE.length && auIndex((auZ.daten.auftraege.find(x => x.Auftrag_Nr === a.Auftrag_Nr) ?? a).Status) < auIndex('fertig'); n++) {
+            const jetzt = auZ.daten.auftraege.find(x => x.Auftrag_Nr === a.Auftrag_Nr);
+            await auPost('status', { auftragNr: jetzt.Auftrag_Nr, stand: jetzt.Stand, aktion: 'weiter' });
+            auZ.daten = null; auZ.laedt = false;
+            await loadAuftraege();
+          }
+          showToast(`${a.Auftrag_Nr}: fertig`);
+        } catch (e) { auEl('au-d-fehler').textContent = e.message; auEl('au-d-fehler').hidden = false; await loadAuftraege(); }
+      });
+      auEl('au-zurueck').addEventListener('click', () => auStatus('zurueck', ['Einen Schritt zurück?', 'Der Auftrag geht einen Schritt zurück; das Datum des jetzigen Schritts wird geleert.', 'Zurück']));
+      auEl('au-bezahlt').addEventListener('click', () => auStatus('bezahlt'));
+      auEl('au-bezahlt-zurueck').addEventListener('click', () => auStatus('bezahlt_zurueck', ['„bezahlt“ zurücknehmen?', 'Das Bezahlt-Datum wird geleert.', 'Zurücknehmen']));
+      auEl('au-storno').addEventListener('click', () => auStatus('stornieren', ['Auftrag stornieren?', 'Der Auftrag wird storniert und aus „offen“ genommen. Nichts wird gelöscht; „Storno zurücknehmen“ macht es rückgängig.', 'Stornieren']));
+      auEl('au-storno-zurueck').addEventListener('click', () => auStatus('storno_zurueck', ['Storno zurücknehmen?', 'Der Auftrag kommt auf seinen letzten Schritt zurück.', 'Zurücknehmen']));
+      auEl('au-d-schliessen').addEventListener('click', auDetailSchliessen);
+      auEl('au-detail').addEventListener('keydown', e => { if (e.key === 'Escape' && auEl('au-dialog').hidden) auDetailSchliessen(); });
+      auEl('au-bearbeiten').addEventListener('click', () => {
+        const a = (auZ.daten?.auftraege ?? []).find(x => x.Auftrag_Nr === auZ.offen);
+        if (a) auDialogOeffnen(a);
+      });
+      auEl('au-d-pos').addEventListener('change', async e => {
+        const box = e.target.closest('[data-au-fertig]');
+        if (!box) return;
+        box.disabled = true;
+        try {
+          const r = await auPost('position-fertig', { auftragNr: auZ.offen, positionId: box.dataset.auFertig, fertig: box.checked });
+          if (r.vorschlagFertig) showToast('Alle Positionen fertig – „Auftrag auf fertig setzen“ steht bereit.');
+        } catch (err) { box.checked = !box.checked; auEl('au-d-fehler').textContent = err.message; auEl('au-d-fehler').hidden = false; }
+        await loadAuftraege();
+      });
+      auEl('au-d-kopf').addEventListener('click', e => {
+        const b = e.target.closest('[data-au-kunde]');
+        const k = b && auKunde(b.dataset.auKunde);
+        if (k) kuDialogOeffnen(k);
+      });
+
+      // ── Liste ──
+      auEl('au-suche').addEventListener('input', auZeichnen);
+      auEl('au-f').addEventListener('change', auZeichnen);
+      auEl('au-liste').addEventListener('click', e => { const b = e.target.closest('[data-au-oeffnen]'); if (b) auDetailOeffnen(b.dataset.auOeffnen); });
+      auEl('au-neu').addEventListener('click', () => auDialogOeffnen(null));
+
+      // ── Erfassen / Bearbeiten ──
+      function auFehler(text) { auEl('au-fehler').textContent = text ?? ''; auEl('au-fehler').hidden = !text; }
+      function auKundeSetzen(k) {
+        auDlg.kunde = k ?? null;
+        auEl('au-kunde').innerHTML = k ? `<strong>${kuEsc(auKundeText(k, k.Kunden_Nr))}</strong> · ${kuEsc(k.Kunden_Nr)}${k.Ort ? ` · ${kuEsc(k.Ort)}` : ''}` : 'Noch kein Kunde gewählt.';
+        auEl('au-kunde-suche').value = '';
+        auEl('au-kunde-treffer').innerHTML = '';
+      }
+      function auDialogOeffnen(auftrag) {
+        auDlg.modus = auftrag ? 'bearbeiten' : 'neu';
+        auDlg.auftrag = auftrag ?? null;
+        auDlg.vorgang = auVorgang();
+        const frei = !auftrag || auFrei(auftrag);
+        auDlg.entwurf = auftrag ? auftrag.positionen.map(auEntwurfAus) : [];
+        auEl('au-titel').textContent = auftrag ? `${auftrag.Auftrag_Nr} bearbeiten` : 'Neuer Auftrag';
+        auKundeSetzen(auftrag ? auKunde(auftrag.Kunden_Nr) ?? { Kunden_Nr: auftrag.Kunden_Nr } : null);
+        for (const f of ['Kurztitel', 'Kanal', 'Termin', 'Notiz']) auEl(`au-${f}`).value = auftrag?.[f] ?? '';
+        auEl('au-start-wrap').hidden = !!auftrag;
+        auEl('au-kunde-block').disabled = !frei;
+        auEl('au-Kurztitel').readOnly = !frei;
+        auEl('au-Kanal').disabled = !frei;
+        auEl('au-pos-gesperrt').hidden = frei;
+        auEl('au-pos-neu').hidden = !frei;
+        auEl('au-raster-form').hidden = true;
+        auEl('au-modell-suche').value = '';
+        auEl('au-modell-treffer').innerHTML = '';
+        auFehler('');
+        auEntwurfZeichnen();
+        auEl('au-dialog').hidden = false;
+        (frei ? (auftrag ? auEl('au-Kurztitel') : auEl('au-kunde-suche')) : auEl('au-Notiz')).focus();
+      }
+      function auDialogSchliessen() { auEl('au-dialog').hidden = true; }
+
+      function auEntwurfZeichnen() {
+        const frei = !auDlg.auftrag || auFrei(auDlg.auftrag);
+        const gruppen = auGruppen(auDlg.entwurf);
+        auEl('au-pos-liste').innerHTML = gruppen.map((g, gi) => {
+          const kopf = g.art === 'lshop' ? `<strong>${kuEsc(g.modell)}</strong> · ${kuEsc(g.farbe || '(ohne Farbe)')}` : `<strong>${kuEsc(g.freitext)}</strong> · frei`;
+          const mengen = g.positionen.map(p => `${kuEsc(g.art === 'lshop' ? (p.groesse || '–') : 'Menge')} × ${kuEsc(p.menge)}${p.lieferbar ? lfbPunkt(p.lieferbar) : ''}`).join(' · ');
+          const p0 = g.positionen[0];
+          const feld = (f, ph, max) => `<input type="text" class="form-input" maxlength="${max}" data-au-gruppe="${gi}" data-au-feld="${f}" value="${kuEsc(p0[f] ?? '')}" placeholder="${ph}" ${frei ? '' : 'readonly'} aria-label="${ph}" />`;
+          return `<div class="au-gruppe"><div>${kopf} · ${g.stueck} Stück ${frei ? `<button type="button" class="korb-link" data-au-gruppe-weg="${gi}" data-hilfe="au-gruppe-weg">entfernen</button>` : ''}</div>`
+            + `<div class="ku-meta">${mengen}</div><div class="au-gruppe-felder" data-hilfe="au-gruppe-felder">${feld('motiv', 'Motiv (keine Personennamen)', 120)}${feld('druck', 'Druck: Position/Technik', 120)}${feld('notiz', 'Notiz', 300)}</div></div>`;
+        }).join('') || '<p class="korb-zaehler">Noch keine Position.</p>';
+      }
+      auEl('au-pos-liste').addEventListener('input', e => {
+        const f = e.target.closest('[data-au-feld]');
+        if (!f) return;
+        const g = auGruppen(auDlg.entwurf)[Number(f.dataset.auGruppe)];
+        for (const p of g?.positionen ?? []) p[f.dataset.auFeld] = f.value;   // gilt fuer alle Groessen der Gruppe
+      });
+      auEl('au-pos-liste').addEventListener('click', e => {
+        const b = e.target.closest('[data-au-gruppe-weg]');
+        if (!b) return;
+        const g = auGruppen(auDlg.entwurf)[Number(b.dataset.auGruppeWeg)];
+        auDlg.entwurf = auDlg.entwurf.filter(p => !g.positionen.includes(p));
+        auEntwurfZeichnen();
+      });
+
+      // Kunde: erst lokal, dann Lexoffice, dann neu (Baustein AM-1-1)
+      auEl('au-kunde-suche').addEventListener('input', () => {
+        const q = auEl('au-kunde-suche').value;
+        const treffer = q.trim().length < 2 ? [] : kuSuche((kuZ.kunden ?? []).filter(k => k.Status === 'aktiv'), q).slice(0, 8);
+        auEl('au-kunde-treffer').innerHTML = treffer.map(k => `<button type="button" class="korb-link" data-au-kunde-wahl="${kuEsc(k.Kunden_Nr)}" data-hilfe="au-kunde-wahl">${kuEsc(auKundeText(k, k.Kunden_Nr))} · ${kuEsc(k.Kunden_Nr)}${k.Ort ? ` · ${kuEsc(k.Ort)}` : ''}</button>`).join('')
+          + (q.trim().length >= 2 && !treffer.length ? '<span class="korb-zaehler">Nicht in MC – „In Lexoffice suchen …“.</span>' : '');
+      });
+      auEl('au-kunde-treffer').addEventListener('click', e => { const b = e.target.closest('[data-au-kunde-wahl]'); if (b) auKundeSetzen(auKunde(b.dataset.auKundeWahl)); });
+      auEl('au-kunde-lex').addEventListener('click', () => kuKundeSuchen({ q: auEl('au-kunde-suche').value, beiAuswahl: k => auKundeSetzen(k) }));
+
+      // L-Shop-Raster (BO6), nur lesend
+      auEl('au-modell-suche').addEventListener('input', ev => {
+        clearTimeout(auDlg.timer);
+        const q = ev.target.value.trim();
+        const box = auEl('au-modell-treffer');
+        if (q.length < 2) { box.innerHTML = ''; return; }
+        auDlg.timer = setTimeout(async () => {
+          try {
+            const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/modelle?q=${encodeURIComponent(q)}`);
+            const stopp = await laufStopp(res);
+            if (stopp) { box.innerHTML = `<p class="korb-zaehler">${kuEsc(stopp)}</p>`; return; }
+            const d = await apiJson(res);
+            box.innerHTML = !d.modelle.length ? `<p class="korb-zaehler">${kuEsc(d.hinweis)}</p>`
+              : d.modelle.map(m => `<button type="button" data-au-modell="${kuEsc(m.catalogNr)}" ${m.bestellbar ? '' : 'disabled'} data-hilfe="eigen-modell">`
+                + `<span class="korb-kopf-nr">${kuEsc(m.catalogNr)}</span>${m.bezeichnung ? ` · <span class="korb-kopf-name">${kuEsc(m.bezeichnung)}</span>` : ''}${m.marke ? ` · ${kuEsc(m.marke)}` : ''}</button>`).join('');
+          } catch (e) { box.innerHTML = `<p class="korb-zaehler">Fehler: ${kuEsc(e.message)}</p>`; }
+        }, 300);
+      });
+      function auRasterZeichnen() {
+        const farbe = auEl('au-farbe').value;
+        auDlg.raster = farbe === '' && !auDlg.varianten.some(v => v.farbe === '') ? [] : eigenRasterGroessen(auDlg.varianten, farbe);
+        const vorhanden = new Map(auDlg.entwurf.filter(p => p.art === 'lshop').map(p => [p.articleNr, p.menge]));
+        auEl('au-raster').innerHTML = auDlg.raster.map(r => `<label><span>${kuEsc(r.groesse || '–')}</span>`
+          + `<input type="number" class="form-input" min="0" max="${EIGEN_MENGE_MAX}" step="1" inputmode="numeric" placeholder="0" value="${kuEsc(vorhanden.get(r.articleNr) ?? '')}" data-nr="${kuEsc(r.articleNr)}" data-groesse="${kuEsc(r.groesse)}" aria-label="Menge ${kuEsc(r.groesse)}">`
+          + (r.lieferbar ? lfbPunkt(r.lieferbar) : '') + '</label>').join('');
+        auEl('au-raster-lb').textContent = lfbRasterHinweis(auDlg.raster);
+        auRasterSumme();
+      }
+      function auRasterSumme() {
+        const mengen = Object.fromEntries([...auEl('au-raster').querySelectorAll('input[data-nr]')].map(i => [i.dataset.nr, i.value]));
+        const a = eigenRasterAuswahl(auDlg.raster, mengen);
+        auEl('au-raster-summe').textContent = eigenSummeText(a);
+        return a;
+      }
+      auEl('au-modell-treffer').addEventListener('click', async ev => {
+        const b = ev.target.closest('[data-au-modell]');
+        if (!b) return;
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/modelle/${encodeURIComponent(b.dataset.auModell)}/varianten`);
+          const stopp = await laufStopp(res);
+          if (stopp) { auFehler(stopp); return; }
+          const d = await apiJson(res);
+          auDlg.modell = d; auDlg.varianten = d.varianten;
+          auEl('au-modell-treffer').innerHTML = '';
+          auEl('au-modell').innerHTML = `<span class="korb-kopf-nr">${kuEsc(d.catalogNr)}</span>${d.bezeichnung ? ` · ${kuEsc(d.bezeichnung)}` : ''}`;
+          const farben = [...new Set(d.varianten.map(v => v.farbe))];
+          auEl('au-farbe').innerHTML = (farben.includes('') ? '' : '<option value="">Farbe wählen …</option>') + farben.map(f => `<option value="${kuEsc(f)}">${kuEsc(f || '(ohne Farbe)')}</option>`).join('');
+          if (farben.length === 1) auEl('au-farbe').value = farben[0];
+          auEl('au-raster-form').hidden = false;
+          auRasterZeichnen();
+          auEl('au-farbe').focus();
+        } catch (e) { auFehler(`Modell nicht geladen: ${e.message}`); }
+      });
+      auEl('au-farbe').addEventListener('change', () => { auRasterZeichnen(); auEl('au-raster').querySelector('input')?.focus(); });
+      auEl('au-raster').addEventListener('input', auRasterSumme);
+      function auRasterUebernehmen(weitere) {
+        const a = auRasterSumme();
+        if (a.fehler.length) { auFehler(eigenSummeText(a)); return; }
+        const farbe = auEl('au-farbe').value;
+        const nummern = new Set(auDlg.raster.map(r => r.articleNr));
+        // Die Gruppe (Modell + Farbe) wird ersetzt; Motiv/Druck/Notiz und Position-IDs vorhandener Groessen bleiben.
+        const alt = auDlg.entwurf.filter(p => p.art === 'lshop' && nummern.has(p.articleNr));
+        const vorlage = alt[0] ?? {};
+        // Die Gruppe bleibt an ihrer Stelle in der Liste (neue Farbe: ans Ende).
+        const stelle = alt.length ? auDlg.entwurf.indexOf(alt[0]) : auDlg.entwurf.length;
+        const rest = auDlg.entwurf.filter(p => !(p.art === 'lshop' && nummern.has(p.articleNr)));
+        const davor = auDlg.entwurf.slice(0, stelle).filter(p => rest.includes(p)).length;
+        const neu = [];
+        for (const p of a.positionen) {
+          const r = auDlg.raster.find(x => x.articleNr === p.articleNr);
+          const vorher = alt.find(x => x.articleNr === p.articleNr);
+          neu.push({ positionId: vorher?.positionId, art: 'lshop', articleNr: p.articleNr, menge: p.menge, modell: auDlg.modell.catalogNr,
+            bezeichnung: auDlg.modell.bezeichnung, farbe, groesse: r?.groesse ?? '', lieferbar: r?.lieferbar,
+            motiv: vorlage.motiv ?? '', druck: vorlage.druck ?? '', notiz: vorlage.notiz ?? '' });
+        }
+        auDlg.entwurf = [...rest.slice(0, davor), ...neu, ...rest.slice(davor)];
+        auFehler('');
+        auEntwurfZeichnen();
+        if (weitere) { auEl('au-farbe').value = ''; auRasterZeichnen(); auEl('au-farbe').focus(); }
+        else { auEl('au-raster-form').hidden = true; auEl('au-modell-suche').value = ''; auEl('au-modell-suche').focus(); }
+      }
+      auEl('au-raster-hinzu').addEventListener('click', () => auRasterUebernehmen(false));
+      auEl('au-raster-weiter').addEventListener('click', () => auRasterUebernehmen(true));
+      auEl('au-frei-hinzu').addEventListener('click', () => {
+        const text = auEl('au-frei-text').value.trim(), menge = Number(auEl('au-frei-menge').value);
+        if (!text) { auFehler('Freie Position: Text fehlt.'); auEl('au-frei-text').focus(); return; }
+        if (!Number.isInteger(menge) || menge < 1 || menge > 9999) { auFehler('Freie Position: Menge 1–9999.'); auEl('au-frei-menge').focus(); return; }
+        auDlg.entwurf.push({ art: 'frei', freitext: text, menge, motiv: '', druck: '', notiz: '' });
+        auEl('au-frei-text').value = ''; auEl('au-frei-menge').value = '';
+        auFehler('');
+        auEntwurfZeichnen();
+      });
+
+      async function auSpeichern() {
+        if (auDlg.laeuft) return;   // Doppelklick: ein Aufruf; beim Anlegen prueft der Server zusaetzlich die Vorgangs-Kennung
+        const a = auDlg.auftrag;
+        const frei = !a || auFrei(a);
+        const kopf = Object.fromEntries(['Kurztitel', 'Kanal', 'Termin', 'Notiz'].map(f => [f, auEl(`au-${f}`).value.trim()]));
+        if (frei && !auDlg.kunde?.Kunden_Nr) { auFehler('Erst einen Kunden wählen.'); auEl('au-kunde-suche').focus(); return; }
+        if (frei && !kopf.Kurztitel) { auFehler('Kurztitel fehlt.'); auEl('au-Kurztitel').focus(); return; }
+        if (frei && !auDlg.entwurf.length) { auFehler('Mindestens eine Position.'); return; }
+        auDlg.laeuft = true;
+        auEl('au-speichern').disabled = true;
+        try {
+          const body = !a ? { ...kopf, Kunden_Nr: auDlg.kunde.Kunden_Nr, status: auEl('au-start').value, vorgang: auDlg.vorgang, positionen: auPositionenAnfrage(auDlg.entwurf) }
+            : frei ? { auftragNr: a.Auftrag_Nr, stand: a.Stand, ...kopf, Kunden_Nr: auDlg.kunde.Kunden_Nr, positionen: auPositionenAnfrage(auDlg.entwurf) }
+            : { auftragNr: a.Auftrag_Nr, stand: a.Stand, Termin: kopf.Termin, Notiz: kopf.Notiz };
+          const r = await auPost(a ? 'bearbeiten' : 'neu', body);
+          showToast(a ? (r.unveraendert ? `${r.auftragNr}: nichts geändert.` : `${r.auftragNr} gespeichert.`) : `${r.auftragNr} angelegt.`);
+          auDialogSchliessen();
+          await loadAuftraege();
+          auDetailOeffnen(r.auftragNr);
+        } catch (e) {
+          auFehler(e.message);
+          if (e.code === 'konflikt') loadAuftraege();
+        } finally { auDlg.laeuft = false; auEl('au-speichern').disabled = false; }
+      }
+      auEl('au-speichern').addEventListener('click', auSpeichern);
+      auEl('au-abbrechen').addEventListener('click', auDialogSchliessen);
+      auEl('au-schliessen').addEventListener('click', auDialogSchliessen);
+      auEl('au-dialog').addEventListener('keydown', e => { if (e.key === 'Escape') auDialogSchliessen(); });
+
+      // Kundenkarte: "Aufträge dieses Kunden" (Grundlage AM-4)
+      function kuAuftraegeZeichnen(kundenNr) {
+        const el = auEl('ku-auftraege');
+        if (!el) return;
+        const liste = (auZ.daten?.auftraege ?? []).filter(a => a.Kunden_Nr === kundenNr).sort((x, y) => String(y.Angelegt).localeCompare(String(x.Angelegt)));
+        el.innerHTML = !kundenNr ? '' : !auZ.daten ? '<span class="korb-zaehler">Aufträge werden geladen …</span>'
+          : !liste.length ? '<span class="korb-zaehler">Noch keine Aufträge.</span>'
+          : liste.map(a => `<button type="button" class="korb-link" data-ku-au="${kuEsc(a.Auftrag_Nr)}" data-hilfe="au-oeffnen">${kuEsc(a.Auftrag_Nr)} · ${kuEsc(a.Kurztitel)} · ${kuEsc(a.Status)} · ${a.stueck} Stück</button>`).join('');
+      }
+      auEl('ku-auftraege').addEventListener('click', e => {
+        const b = e.target.closest('[data-ku-au]');
+        if (!b) return;
+        kuDialogSchliessen();
+        auDetailOeffnen(b.dataset.kuAu);
+      });
 
       // ── SECTION: Artikelerfassung ──
       const PROP_NAMES = ['Farbe', 'Größe', 'Druckfarbe']; // Fallback bis SSOT geladen

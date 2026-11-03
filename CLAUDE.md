@@ -21,7 +21,7 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
 - Navigation (NAV4: Tabelle `BEREICHE` im Block `Navigation-Tabelle: Anfang/Ende`, Test
   navigation.test.js; `oeffneAnsicht(bereich, unterpunkt)` = einziger Weg, eine Ansicht zu oeffnen,
   auch `window.oeffneAnsicht`; Adresse `#bereich/unterpunkt`; Ereignis `mc:ansicht` fuer den
-  zweiten Script-Block. Bereiche: dashboard · auftraege (kunden, liste; ein Panel `auftraege`, AM-1; seit AM-1-1 direkt
+  zweiten Script-Block. Bereiche: dashboard · auftraege (liste, kunden; ein Panel `auftraege`, AM-1/AM-2; seit AM-1-1 direkt
   hinter Dashboard) · bestellen (Panel orders, Unterreiter) · artikel
   (Panel products, Modus-Knoepfe) · partner (lizenz = partnerportal, festpreis) · kunden (anfragen,
   agent-wissen) · lager (bestand, buchungen, abgaenge; ein Panel `lager`, BO5-1/BO5-5) · system (settings). Neue Ansicht = Zeile in BEREICHE, nie `nav button.click()`.
@@ -114,7 +114,13 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   Anfang/Ende` (Test kunden-einzeln.test.js); Suche per POST, Treffer nur im Dialog. Unterpunkte: Aufträge vor Kunden (Inhaber). Dashboard-Kachel `#dash-auftraege` (Block
   `Auftraege-Kachel: Anfang/Ende`, `GET /api/kunden/zahlen`, nur Zahlen); AM-2 haengt `auftraege` { offen, terminBald,
   wartetAufWare, fertigNichtBezahlt } an dieselbe Antwort, `auKachelHtml` zeigt sie dann. Shop-Zahlen in `#dash-stats-row`
-  (= `.dash-stats-shop`, display: contents) zeichnet loadDashboard neu, die Kachel steht daneben.)
+  (= `.dash-stats-shop`, display: contents) zeichnet loadDashboard neu, die Kachel steht daneben.
+  AM-2 (SECTION "Aufträge – Liste, Ansicht, Erfassen"): Liste `#au-ansicht` (Filter offen/Termin <= 7 Tage/Status/alle, Suche
+  Nr./Titel/Kunde/Spitzname; Kundennamen nur hier aus `kuZ.kunden`), Ansicht `#au-detail` (Status-Leiste, weiter/zurueck/bezahlt/
+  stornieren, Haken fertig je Position, Vorschlag "auf fertig setzen"), Dialog `#au-dialog` (Kunde lokal -> `kuKundeSuchen` ->
+  neu mit Rueckruf `nachSpeichern`; Raster BO6 ueber die LESENDEN Endpunkte `.../lshop-korb/modelle`, nie Korb-Schreiben; freie
+  Position; Motiv/Druck/Notiz je Gruppe Modell+Farbe). Block `Auftraege-Anzeige: Anfang/Ende` (Test auftraege-frontend.test.js).
+  Kundenkarte `#ku-auftraege` = Auftraege des Kunden. Kachel: Hauptzahl offene Auftraege.)
 - Artikelerfassung (dazu Modus-Knopf "🧵 L-Shop-Modelle", LS4: Unterpunkt `artikel/lshop-modelle`, Panel `#lsm-panel`,
   SECTION L-Shop-Modelle mit Block `L-Shop-Modelle: Anfang/Ende`, Test lshop-modelle-frontend.test.js; Hilfe-Gruppe
   `lshop-modelle`; Links `data-lsm-link` aus Warenkorb "Nicht im Bestand" und Maske "Kein L-Shop-Modell".
@@ -822,6 +828,18 @@ Neue Sektionen immer mit Anker versehen:
   (`uebernehmeAusLexoffice`: Kontakt frisch per GET, unter der Sperre ueber die ID geprueft - schon da = `schon: true`,
   gesperrt = 409; sonst eine Zeile wie der Import). `GET /api/kunden/zahlen` = nur Zahlen. EIN batchUpdate
   (geaenderte Zellen + neue Zeilen in gepruefter Zielstrecke), zurueckgelesen. Wiederholbar (Grundlage AM-5).
+- backend/lib/auftraege.js – Auftraege (AM-2), Logik `utils/auftraege.js`, Routen `routes/auftraege.js` (`/api/auftraege`: GET /,
+  POST /neu, /bearbeiten, /status, /position-fertig). Reiter im **SSOT** `Auftraege` (Auftrag_Nr `AU-JJJJ-NNNN`, Kunden_Nr, Kurztitel,
+  Kanal, Status, Termin, je Schritt ein Datum, Notiz, Anfrage_ID, Lexoffice_Angebot/_Rechnung, Angelegt, Stand, hinten `Storniert_Am`,
+  `Vorgang`) und `Auftrag_Positionen` (Position_ID `AU-…-NN`, Art lshop|frei, LShop_ArticleNr, Freitext, Menge, Motiv, Druck, Notiz,
+  Korb_Schluessel/Lager_Ziel (AM-3), Fertig, Fertig_Am, Versendet, Stand, hinten `Entfernt`). **Nur Kunden_Nr, keine Personendaten,
+  keine Preise.** Setup `scripts/setup-auftraege-reiter.js` (Trockenlauf, `--write`). Status Anfrage → Angebot → bestellt → in
+  Produktion → fertig → übergeben → bezahlt (+ storniert): weiter setzt Datum, zurueck einen Schritt und leert es, bezahlt jederzeit
+  (Vorkasse; bei "übergeben" -> bezahlt), storniert ueber Storniert_Am, zurueck auf den letzten Schritt mit Datum. Bis "Angebot" alles
+  aenderbar, ab "bestellt" nur Notiz/Termin (409 `gesperrt`). Entfernte Positionen = `Entfernt` (nie loeschen). Schreiben: Sperre,
+  beide Reiter frisch, Auftrag-`stand` wie gesehen (409 `konflikt`), EIN values.batchUpdate (Zellen + neue Zeilen in gepruefter
+  Strecke), zurueckgelesen; Anlage mit `vorgang` (gleiche Kennung = schon angelegt). L-Shop-Nummern neu nur waehlbare (ohne
+  ausgelaufen/3/6), bisherige bleiben. `GET /api/kunden/zahlen` haengt `auftraege` { offen, terminBald, fertigNichtBezahlt } an.
 - backend/lib/lexware.js – Lexware Office Public API (`https://api.lexware.io`), **NUR LESEN**, einzige Stelle mit Zugriff
   (Test kunden.test.js: nur `method: 'GET'`, kein anderer Ort nennt die URL). Heute nur `GET /v1/contacts?customer=true` (alle Seiten; AM-1-1 auch Suche `name`/`email`/`number`, eine Seite)
   und `GET /v1/contacts/{id}`,

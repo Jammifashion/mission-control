@@ -172,14 +172,19 @@ describe('Zahlen und Dashboard-Kachel', () => {
   });
   const kb = html.slice(html.indexOf('// ── Auftraege-Kachel: Anfang'), html.indexOf('// ── Auftraege-Kachel: Ende ──'));
   const K = new Function(`${kb}\nreturn { auKachelHtml };`)();
-  test('Kachel: aktive Kunden + Hinweis, ohne Platzhalter-Zahlen; spaeter Auftragszahlen (AM-2)', () => {
+  test('Kachel: ohne Auftragszahlen aktive Kunden; mit AM-2 offene Auftraege als Hauptzahl, nur Zahlen', () => {
     const h = K.auKachelHtml({ aktiv: 223, gesamt: 230 });
     expect(h).toContain('>223<');
-    expect(h).toContain('Aufträge folgen mit AM-2');
+    expect(h).toContain('Auftragszahlen nicht verfügbar');
     expect(h).not.toMatch(/offene Aufträge|wartet auf Ware/);
-    const h2 = K.auKachelHtml({ aktiv: 5, auftraege: { offen: 3, terminBald: 1, wartetAufWare: 0, fertigNichtBezahlt: 2 } });
-    expect(h2).toContain('3 offene Aufträge');
-    expect(h2).toContain('0 wartet auf Ware');
+    const h2 = K.auKachelHtml({ aktiv: 5, auftraege: { offen: 3, terminBald: 1, fertigNichtBezahlt: 2 } });
+    expect(h2).toContain('>3<');
+    expect(h2).toContain('Aufträge offen');
+    expect(h2).toContain('1 Termin in ≤ 7 Tagen');
+    expect(h2).toContain('2 fertig, nicht bezahlt');
+    expect(h2).toContain('5 aktive Kunden');
+    expect(h2).not.toContain('wartet auf Ware');   // kommt mit AM-3
+    expect(K.auKachelHtml({ aktiv: 1, auftraege: { offen: 0, wartetAufWare: 4 } })).toContain('4 wartet auf Ware');
     expect(K.auKachelHtml(null)).toContain('>–<');
   });
   test('Kachel im Dashboard, klickbar mit Mouse-over, ohne Namen', () => {

@@ -5,6 +5,7 @@ import { Router } from 'express';
 import {
   leseKunden, legeKundeAn, bearbeiteKunde, archiviereKunde, sperreKundeDsgvo, leseKundenZahlen, sucheInLexoffice, uebernehmeAusLexoffice,
 } from '../lib/kunden.js';
+import { leseAuftragZahlen } from '../lib/auftraege.js';
 
 const router = Router();
 
@@ -24,7 +25,11 @@ router.get('/', mitMeldung(() => leseKunden()));
 
 // ── GET /api/kunden/zahlen ────────────────────────────────────────────────────
 // Nur Zahlen (Dashboard-Kachel "Aufträge"): gesamt, aktiv, archiviert, gesperrt, firmen, vereine, personen.
-router.get('/zahlen', mitMeldung(() => leseKundenZahlen()));
+// AM-2: dazu `auftraege` { offen, terminBald, fertigNichtBezahlt } (Reiter fehlen -> ohne).
+router.get('/zahlen', mitMeldung(async () => {
+  const z = await leseKundenZahlen();
+  try { return { ...z, auftraege: await leseAuftragZahlen() }; } catch { return z; }
+}));
 
 // ── POST /api/kunden/lexoffice-suche ──────────────────────────────────────────
 // Body { feld: name | email | number, q }. POST, damit der Suchbegriff nie in einer Adresse/einem Zugriffslog steht.
