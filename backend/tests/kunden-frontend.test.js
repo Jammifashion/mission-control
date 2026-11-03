@@ -38,9 +38,9 @@ describe('Kunden-Liste', () => {
     expect(z).toContain('data-hilfe="liste-bearbeiten"');
     expect(F.kuZeileHtml(kunden[0]).match(/ku-chip/g)).toHaveLength(2);
   });
-  test('Nutzdaten: Lexoffice-Kunde schickt nur Spitzname/Notiz, MC-Kunde alles, neu ohne Nummer', () => {
+  test('Nutzdaten: Lexoffice-Kunde schickt nur Spitzname/Ansprechpartner/Notiz, MC-Kunde alles, neu ohne Nummer', () => {
     const werte = { Name: 'Neu', Spitzname: ' x ', Notiz: 'n', Ort: 'O', Art: 'Firma' };
-    expect(Object.keys(F.kuNutzdaten(kunden[0], werte)).sort()).toEqual(['Notiz', 'Spitzname', 'kundenNr', 'stand']);
+    expect(Object.keys(F.kuNutzdaten(kunden[0], werte)).sort()).toEqual(['Ansprechpartner', 'Notiz', 'Spitzname', 'kundenNr', 'stand']);
     expect(F.kuNutzdaten(kunden[1], werte)).toMatchObject({ kundenNr: 'K-00002', stand: 's2', Name: 'Neu', Ort: 'O' });
     expect(F.kuNutzdaten(null, werte)).not.toHaveProperty('kundenNr');
   });

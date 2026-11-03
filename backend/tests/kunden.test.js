@@ -77,6 +77,14 @@ describe('Importplan', () => {
     expect(f).not.toHaveProperty('Status');
     expect(f).not.toHaveProperty('Art');   // Firma in Lexware, Verein in MC -> bleibt
   });
+  test('Ansprechpartner: Import fuellt nur ein leeres Feld, ein in MC gepflegter bleibt', () => {
+    const c = firma('aaaa-1', 10001, 'Testverein Musterstadt');
+    const leer = importPlan({ kunden: kunden(), kontakte: [c], jetzt: JETZT });
+    expect(leer.aenderungen[0].felder.Ansprechpartner).toBe('Max Probe');
+    const gepflegt = kundenZeilen(tabsMit({ ...K1, Ansprechpartner: 'Erfundene Trainerin' })[TAB_KUNDEN]).kunden;
+    const p = importPlan({ kunden: gepflegt, kontakte: [c], jetzt: JETZT });
+    expect(p.aenderungen[0]?.felder ?? {}).not.toHaveProperty('Ansprechpartner');
+  });
   test('Rueckfall Lexoffice_Nr, wenn die Zeile noch keine ID hat', () => {
     const ohneId = { ...K2, Kunden_Nr: 'K-00004', Lexoffice_Nr: '30000', Quelle: 'mc' };
     const ks = kundenZeilen(tabsMit(ohneId)[TAB_KUNDEN]).kunden;
@@ -129,8 +137,8 @@ describe('Suche, Nummern, Pflege', () => {
   test('Quelle lexoffice: Lexoffice-Felder nicht aenderbar, Spitzname schon', () => {
     expect(() => bearbeitenPlan({ kunden: ks(), eingabe: { kundenNr: 'K-00001', stand: K1.Stand, Name: 'Anders' }, jetzt: JETZT }))
       .toThrow(/aus Lexoffice übernommen/);
-    const p = bearbeitenPlan({ kunden: ks(), eingabe: { kundenNr: 'K-00001', stand: K1.Stand, Spitzname: 'Kicker' }, jetzt: JETZT });
-    expect(p.nachher).toMatchObject({ Spitzname: 'Kicker', Name: K1.Name, Stand: JETZT });
+    const p = bearbeitenPlan({ kunden: ks(), eingabe: { kundenNr: 'K-00001', stand: K1.Stand, Spitzname: 'Kicker', Ansprechpartner: 'Erfundener Trainer' }, jetzt: JETZT });
+    expect(p.nachher).toMatchObject({ Spitzname: 'Kicker', Ansprechpartner: 'Erfundener Trainer', Name: K1.Name, Stand: JETZT });
   });
   test('anderer Stand -> 409; Fehlertext ohne Namen', () => {
     let e; try { bearbeitenPlan({ kunden: ks(), eingabe: { kundenNr: 'K-00002', stand: 'alt', Name: 'Neu' }, jetzt: JETZT }); } catch (x) { e = x; }

@@ -2910,7 +2910,7 @@
               <button type="button" class="korb-link" id="ku-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
             </div>
             <div id="hilfe-ku-dialog" class="hilfe-legende" hidden></div>
-            <div id="ku-lex-hinweis" class="korb-zaehler" hidden>Grau = wird aus Lexoffice übernommen, dort ändern. Hier nur Spitzname und Notiz.</div>
+            <div id="ku-lex-hinweis" class="korb-zaehler" hidden>Grau = wird aus Lexoffice übernommen, dort ändern. Hier nur Spitzname, Ansprechpartner und Notiz.</div>
             <div class="lager-felder ku-felder">
               <label>Art<select id="ku-Art" class="form-select" data-ku-feld="Art"><option value="Firma">Firma</option><option value="Verein">Verein</option><option value="Person">Person</option></select></label>
               <label class="ku-breit">Name<input id="ku-Name" type="text" class="form-input" maxlength="120" data-ku-feld="Name" autocomplete="off" /></label>
@@ -8866,8 +8866,8 @@
       // Toasts und Meldungen nennen nur die Kunden-Nr., nie Namen. Unterpunkt Aufträge = Platzhalter bis AM-2.
 
       // ── Kunden-Liste: Anfang (reine Logik, Test backend/tests/kunden-frontend.test.js; Spiegel von utils/kunden.js) ──
-      const KU_LEX_FELDER = ['Art', 'Name', 'Ansprechpartner', 'E-Mail', 'Telefon', 'Strasse', 'PLZ', 'Ort', 'Land'];
-      const KU_MC_FELDER = ['Spitzname', 'Notiz'];
+      const KU_LEX_FELDER = ['Art', 'Name', 'E-Mail', 'Telefon', 'Strasse', 'PLZ', 'Ort', 'Land'];
+      const KU_MC_FELDER = ['Spitzname', 'Ansprechpartner', 'Notiz'];   // Ansprechpartner: Import fuellt nur, wenn leer
       const KU_FREI_FELDER = ['Art', 'Name', 'Spitzname', 'Ansprechpartner', 'E-Mail', 'Telefon', 'Strasse', 'PLZ', 'Ort', 'Land', 'Notiz'];
       const KU_STATUS_TEXT = { aktiv: 'aktiv', archiviert: 'archiviert', 'gesperrt-DSGVO': 'gesperrt (DSGVO)' };
       const kuKlein = s => String(s ?? '').trim().toLowerCase();
@@ -8907,7 +8907,7 @@
           + `<button type="button" class="korb-link" data-ku-bearbeiten="${kuEsc(k.Kunden_Nr)}" data-hilfe="liste-bearbeiten">bearbeiten …</button>`
           + `<div class="ku-meta">${meta}</div></div>`;
       }
-      /** Was der Dialog schickt: neu = alle MC-Felder; Quelle lexoffice = nur Spitzname/Notiz; sonst alle MC-Felder. */
+      /** Was der Dialog schickt: neu = alle MC-Felder; Quelle lexoffice = nur Spitzname/Ansprechpartner/Notiz; sonst alle MC-Felder. */
       function kuNutzdaten(kunde, werte) {
         const felder = !kunde ? KU_FREI_FELDER : kunde.Quelle === 'lexoffice' ? KU_MC_FELDER : KU_FREI_FELDER;
         const daten = Object.fromEntries(felder.map(f => [f, String(werte[f] ?? '').trim()]));

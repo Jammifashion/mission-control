@@ -22,8 +22,12 @@ export const QUELLE = { LEXOFFICE: 'lexoffice', MC: 'mc' };
 export const LEXOFFICE_FELDER = [
   'Lexoffice_Nr', 'Lexoffice_ID', 'Art', 'Name', 'Ansprechpartner', 'E-Mail', 'Telefon', 'Strasse', 'PLZ', 'Ort', 'Land',
 ];
-// In MC frei aenderbar; bei Quelle lexoffice nur diese (der Rest kommt aus Lexware).
-export const MC_FELDER = ['Spitzname', 'Notiz'];
+// Ansprechpartner (Inhaber 03.11.): fehlt in Lexware fast immer -> in MC pflegbar; der Import fuellt ihn nur, wenn leer.
+export const NUR_WENN_LEER = ['Ansprechpartner'];
+// In MC aenderbar bei Quelle lexoffice (der Rest kommt aus Lexware); bei Quelle mc alle MC_FREI_FELDER.
+export const MC_FELDER = ['Spitzname', 'Ansprechpartner', 'Notiz'];
+// Bei Quelle lexoffice in MC gesperrt.
+export const LEX_GESPERRT = LEXOFFICE_FELDER.filter(f => !MC_FELDER.includes(f));
 export const MC_FREI_FELDER = ['Art', 'Name', 'Spitzname', 'Ansprechpartner', 'E-Mail', 'Telefon', 'Strasse', 'PLZ', 'Ort', 'Land', 'Notiz'];
 // Personenbezogen: leert die DSGVO-Sperre.
 export const PERSONEN_FELDER = ['Name', 'Spitzname', 'Ansprechpartner', 'E-Mail', 'Telefon', 'Strasse', 'PLZ', 'Ort', 'Land', 'Notiz'];
@@ -202,6 +206,7 @@ export function importPlan({ kunden, kontakte, jetzt, nurFirmen = false }) {
     for (const f of LEXOFFICE_FELDER) {
       let wert = soll[f];
       if (f === 'Art' && wert === ART.FIRMA && ist.Art === ART.VEREIN) wert = ART.VEREIN;
+      if (NUR_WENN_LEER.includes(f) && t(ist[f])) continue;   // in MC gepflegt -> bleibt
       if (t(ist[f]) !== t(wert)) felder[f] = wert;
     }
     if (ist.Quelle !== QUELLE.LEXOFFICE) felder.Quelle = QUELLE.LEXOFFICE;
@@ -254,7 +259,7 @@ function findeKunde(kunden, kundenNr, stand) {
 }
 
 /**
- * Bearbeiten: bei Quelle lexoffice nur Spitzname/Notiz (Lexoffice-Felder -> 422 "wird aus Lexoffice übernommen"),
+ * Bearbeiten: bei Quelle lexoffice nur Spitzname/Ansprechpartner/Notiz (Lexoffice-Felder -> 422 "wird aus Lexoffice übernommen"),
  * bei Quelle mc alle MC-Felder. Gesperrte Kunden nicht. Liefert { kunde, nachher, unveraendert }.
  */
 export function bearbeitenPlan({ kunden, eingabe, jetzt }) {
@@ -262,7 +267,7 @@ export function bearbeitenPlan({ kunden, eingabe, jetzt }) {
   if (k.Status === STATUS.GESPERRT) throw fehler(`${k.Kunden_Nr} ist gesperrt (DSGVO) und nicht mehr änderbar.`, 409, 'gesperrt');
   const ausLex = k.Quelle === QUELLE.LEXOFFICE;
   if (ausLex) {
-    const verboten = LEXOFFICE_FELDER.filter(f => eingabe?.[f] !== undefined && t(eingabe[f]) !== t(k[f]));
+    const verboten = LEX_GESPERRT.filter(f => eingabe?.[f] !== undefined && t(eingabe[f]) !== t(k[f]));
     if (verboten.length) throw fehler(`${verboten.join(', ')} wird aus Lexoffice übernommen – dort ändern.`, 422, 'aus_lexoffice');
   }
   const f = pruefeEingabe(eingabe, ausLex ? MC_FELDER : MC_FREI_FELDER);

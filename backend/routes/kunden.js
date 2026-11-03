@@ -29,7 +29,7 @@ router.post('/neu', mitMeldung(async req => {
 }));
 
 // ── POST /api/kunden/bearbeiten ───────────────────────────────────────────────
-// Body { kundenNr, stand (wie gesehen), …Felder }. Quelle lexoffice: nur Spitzname/Notiz.
+// Body { kundenNr, stand (wie gesehen), …Felder }. Quelle lexoffice: nur Spitzname/Ansprechpartner/Notiz.
 router.post('/bearbeiten', mitMeldung(async req => {
   const r = await bearbeiteKunde({ eingabe: req.body ?? {} });
   if (!r.unveraendert) console.log(`Kunde bearbeitet: ${r.kundenNr}`);

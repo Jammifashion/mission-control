@@ -105,7 +105,7 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
 - Aufträge (AM-1: Bereich `auftraege`, Unterpunkt `auftraege/kunden` = Kundenliste, `auftraege/liste` = Platzhalter bis AM-2;
   Panel `#panel-auftraege`, geladen ueber `mc:ansicht`. Block `Kunden-Liste: Anfang/Ende` (Test kunden-frontend.test.js,
   `kuSuche` = Spiegel von `sucheKunden` in utils/kunden.js). Suche/Filter nur im Browser, Suchbegriff nie gespeichert (kein
-  Browser-Speicher, keine Adresse, nie an den Server). Dialog `#ku-dialog`: Quelle lexoffice = nur Spitzname/Notiz aenderbar;
+  Browser-Speicher, keine Adresse, nie an den Server). Dialog `#ku-dialog`: Quelle lexoffice = nur Spitzname/Ansprechpartner/Notiz aenderbar;
   Archivieren mit Bestaetigung; DSGVO = `showConfirm` + Kunden-Nr. eintippen (`#ku-dsgvo-schritt`). Toasts nur Kunden-Nr.
   Hilfe-Gruppe `auftraege`.)
 - Artikelerfassung (dazu Modus-Knopf "🧵 L-Shop-Modelle", LS4: Unterpunkt `artikel/lshop-modelle`, Panel `#lsm-panel`,
@@ -807,7 +807,7 @@ Neue Sektionen immer mit Anker versehen:
   Lexoffice-ID bleiben (der Import befuellt gesperrte Zeilen nie wieder). **Nie Namen/Adressen/Mail/Telefon in Log, Chat,
   Fehlertext, Postfach, Tests** (nur Kunden_Nr und Zahlen). Backup: drittes Ziel `KUNDEN` in backup-daily.js.
   Import `scripts/kunden-import.js` (Trockenlauf Standard = nur Zahlen, `--write`): `importPlan` gleicht ueber Lexoffice_ID ab
-  (Rueckfall Lexoffice_Nr bei Zeilen ohne ID), ueberschreibt nur `LEXOFFICE_FELDER`, nie Spitzname/Notiz/Status; Firma bleibt
+  (Rueckfall Lexoffice_Nr bei Zeilen ohne ID), ueberschreibt nur `LEXOFFICE_FELDER`, nie Spitzname/Notiz/Status, Ansprechpartner nur wenn leer (`NUR_WENN_LEER`); Firma bleibt
   "Verein", wenn MC es so gesetzt hat; archivierte Lexware-Kontakte legen nichts an; mehrdeutig = nichts. EIN batchUpdate
   (geaenderte Zellen + neue Zeilen in gepruefter Zielstrecke), zurueckgelesen. Wiederholbar (Grundlage AM-5).
 - backend/lib/lexware.js – Lexware Office Public API (`https://api.lexware.io`), **NUR LESEN**, einzige Stelle mit Zugriff
