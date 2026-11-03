@@ -170,6 +170,9 @@ describe('Navigation und Datenschutz', () => {
     const tabelle = html.slice(html.indexOf('const BEREICHE = {'), html.indexOf('// ── Navigation-Tabelle: Ende ──'));
     expect(tabelle.indexOf('auftraege: {')).toBeGreaterThan(tabelle.indexOf('dashboard: {'));
     expect(tabelle.indexOf('auftraege: {')).toBeLessThan(tabelle.indexOf('bestellen: {'));
+    // Inhaber 03.11.: im Bereich Aufträge der Unterpunkt Aufträge vor Kunden
+    const au = tabelle.slice(tabelle.indexOf('auftraege: {'), tabelle.indexOf('bestellen: {'));
+    expect([...au.matchAll(/id: '([a-z]+)'/g)].map(m => m[1])).toEqual(['liste', 'kunden']);
   });
   test('Suchbegriff geht per POST (nie in die Adresse), Route loggt keinen Suchbegriff/Namen', () => {
     const route = readFileSync(resolve(hier, '../routes/kunden.js'), 'utf8');

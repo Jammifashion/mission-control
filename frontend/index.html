@@ -3409,8 +3409,8 @@
         // AM-1: Auftragsmanagement. Kunden = Kundenstamm (eigenes Kunden-Sheet); Aufträge = Platzhalter bis AM-2.
         // AM-1-1 (Inhaber 03.11.): direkt hinter Dashboard, vor Bestellen.
         auftraege: { label: 'Aufträge', leiste: true, shop: false, punkte: [
+          { id: 'liste',  label: 'Aufträge', panel: 'auftraege' },   // Inhaber 03.11.: Aufträge vor Kunden
           { id: 'kunden', label: 'Kunden',   panel: 'auftraege' },
-          { id: 'liste',  label: 'Aufträge', panel: 'auftraege' },
         ] },
         bestellen: { label: 'Bestellen & Produktion', shop: true, punkte: [
           { id: 'bestellungen', panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-jfn-shop"]' },

@@ -111,7 +111,7 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   Hilfe-Gruppe `auftraege`.
   AM-1-1: Knopf "In Lexoffice suchen …" = Baustein `kuKundeSuchen({ q, beiAuswahl })` (auch `window.kuKundeSuchen`; AM-2 nutzt
   ihn im Dialog "Auftrag anlegen": lokal -> Lexoffice -> "+ Neuer Kunde in MC"). Dialog `#kl-dialog`, Block `Lexoffice-Treffer:
-  Anfang/Ende` (Test kunden-einzeln.test.js); Suche per POST, Treffer nur im Dialog. Dashboard-Kachel `#dash-auftraege` (Block
+  Anfang/Ende` (Test kunden-einzeln.test.js); Suche per POST, Treffer nur im Dialog. Unterpunkte: Aufträge vor Kunden (Inhaber). Dashboard-Kachel `#dash-auftraege` (Block
   `Auftraege-Kachel: Anfang/Ende`, `GET /api/kunden/zahlen`, nur Zahlen); AM-2 haengt `auftraege` { offen, terminBald,
   wartetAufWare, fertigNichtBezahlt } an dieselbe Antwort, `auKachelHtml` zeigt sie dann. Shop-Zahlen in `#dash-stats-row`
   (= `.dash-stats-shop`, display: contents) zeichnet loadDashboard neu, die Kachel steht daneben.)
