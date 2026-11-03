@@ -3,7 +3,9 @@
 //   node backend/scripts/setup-auftraege-reiter.js           Trockenlauf (Standard): zeigt nur, was passieren wuerde
 //   node backend/scripts/setup-auftraege-reiter.js --write   legt die fehlenden Reiter an
 //
-// Idempotent: Einen vorhandenen Reiter fasst das Skript nicht an; fehlende Spalten werden nur gemeldet. Nur NEUE Reiter.
+// Idempotent: Einen vorhandenen Reiter fasst das Skript nicht an; fehlende Pflichtspalten werden nur gemeldet. Nur NEUE Reiter.
+// AM-2-2: Ausnahme optionale Spalten (POSITION_OPTIONAL: Herkunft, Lager_Ort) - sie werden mit --write hinten an die
+// Kopfzeile angehaengt (nur Kopfzellen, keine Daten), danach zurueckgelesen.
 // Kopfzeile RAW, fett, fixiert; Textformat fuer Nummern-/Datumsspalten NACH dem Schreiben der Kopfzeile (Befund LS2:
 // values.update loescht das Format beschriebener Zellen; sonst wird "2026-11-03" zum Datumswert). Danach zurueckgelesen.
 
@@ -13,19 +15,21 @@ import dotenv from 'dotenv';
 dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.env') });
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
-import { TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, AUFTRAG_TEXT, POSITION_TEXT } from '../utils/auftraege.js';
+import { TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, POSITION_OPTIONAL, AUFTRAG_TEXT, POSITION_TEXT } from '../utils/auftraege.js';
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
 const WRITE = process.argv.includes('--write');
 const REITER = [
   { tab: TAB_AUFTRAEGE, spalten: AUFTRAG_SPALTEN, text: AUFTRAG_TEXT },
-  { tab: TAB_POSITIONEN, spalten: POSITION_SPALTEN, text: POSITION_TEXT },
+  { tab: TAB_POSITIONEN, spalten: POSITION_SPALTEN, text: POSITION_TEXT, optional: POSITION_OPTIONAL },
 ];
+
+const spalte = i => { let s = '', n = i + 1; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
 
 async function main() {
   if (!SPREADSHEET_ID) throw new Error('GOOGLE_SHEET_ID fehlt.');
   const sheets = google.sheets({ version: 'v4', auth: await getGoogleAuth() });
-  const { data } = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID, fields: 'sheets.properties(title,sheetId)' });
+  const { data } = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID, fields: 'sheets.properties(title,sheetId,gridProperties)' });
   const titel = (data.sheets ?? []).map(s => s.properties.title);
   const neu = [];
   for (const r of REITER) {
@@ -36,6 +40,23 @@ async function main() {
     console.log(fehlt.length ? `✗ Reiter "${r.tab}" gibt es schon, es fehlen Spalten: ${fehlt.join(', ')} - bitte von Hand pruefen.`
       : `✓ Reiter "${r.tab}" gibt es schon, alle Spalten da.`);
     if (fehlt.length) process.exitCode = 1;
+    const opt = (r.optional ?? []).filter(s => !kopf.includes(s));
+    if (!opt.length) continue;
+    console.log(`Ergaenzen: "${r.tab}" hinten ${opt.join(', ')} (Spalten ${kopf.length + 1}-${kopf.length + opt.length})`);
+    if (!WRITE) { console.log('Trockenlauf - keine Spalte ergaenzt.'); continue; }
+    const info = data.sheets.find(x => x.properties.title === r.tab).properties;
+    const noetig = kopf.length + opt.length - (info.gridProperties?.columnCount ?? 0);
+    if (noetig > 0) {
+      await sheets.spreadsheets.batchUpdate({ spreadsheetId: SPREADSHEET_ID, requestBody: { requests: [
+        { appendDimension: { sheetId: info.sheetId, dimension: 'COLUMNS', length: noetig } },
+      ] } });
+    }
+    const start = spalte(kopf.length);
+    await sheets.spreadsheets.values.update({ spreadsheetId: SPREADSHEET_ID, range: `'${r.tab}'!${start}1`, valueInputOption: 'RAW', requestBody: { values: [opt] } });
+    const { data: z } = await sheets.spreadsheets.values.get({ spreadsheetId: SPREADSHEET_ID, range: `'${r.tab}'!1:1` });
+    const ok = JSON.stringify((z.values?.[0] ?? []).slice(kopf.length)) === JSON.stringify(opt);
+    console.log(ok ? `✓ "${r.tab}": ${opt.join(', ')} ergaenzt, Kopfzeile zurueckgelesen.` : `✗ "${r.tab}": Kopfzeile weicht ab - bitte pruefen.`);
+    if (!ok) process.exitCode = 1;
   }
   if (!neu.length) { console.log('Keine Reiter anzulegen.'); return; }
   for (const r of neu) console.log(`Anlegen: "${r.tab}" mit ${r.spalten.length} Spalten: ${r.spalten.join(' | ')}  (Text: ${r.text.join(', ')})`);

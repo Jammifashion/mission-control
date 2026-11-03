@@ -125,3 +125,12 @@ describe('kein title= an Knoepfen', () => {
     expect(zuweisungen.sort()).toEqual(['el', 'label', 'masterCb']);
   });
 });
+
+describe('AM-2-2: Modell als Trefferzeile', () => {
+  const M = new Function(`${ku}\n${tw}\nreturn { twModell, twHtml };`)();
+  test('Modell fett · Name · Marke; nur ausgelaufene nicht waehlbar', () => {
+    const z = M.twModell({ catalogNr: 'E3005', bezeichnung: 'Women´s Premium-T', marke: 'Promodoro', bestellbar: true });
+    expect(M.twHtml('m', [z])).toContain('<strong>E3005</strong> · Women´s Premium-T · Promodoro');
+    expect(M.twModell({ catalogNr: 'X1', bestellbar: false })).toMatchObject({ aus: true, rechts: 'nur ausgelaufene Varianten' });
+  });
+});

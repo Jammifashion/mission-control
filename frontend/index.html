@@ -226,6 +226,11 @@
       .tw-zeile.tw-aus { cursor: default; opacity: 0.6; }
       .tw-zeile.tw-aus:hover { background: none; }
       .kl-tipp { font-size: 0.72rem; }
+      /* AM-2-2: Herkunft je Gruppe */
+      .au-herkunft-zeile { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+      .au-herkunft-wahl { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.8rem; color: var(--muted); }
+      .au-lager-knapp { border: 1px solid var(--accent); color: var(--accent); border-radius: 7px; padding: 0.35rem 0.6rem; font-size: 0.82rem; display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+      .au-herkunft { margin-left: 0.3rem; }
       .au-kachel-zeile { font-size: 0.75rem; color: var(--muted); margin-top: 0.25rem; }
       .kl-suchzeile { display: flex; flex-wrap: wrap; gap: 0.5rem; }
       .kl-suchzeile .form-input { flex: 1 1 12rem; min-width: 0; }
@@ -3049,7 +3054,7 @@
                 <div class="korb-reihe kl-suchzeile">
                   <input id="au-modell-suche" type="search" class="form-input" autocomplete="off" placeholder="L-Shop-Modell: Nummer oder Name" aria-label="L-Shop-Modell suchen" data-hilfe="au-modell" />
                 </div>
-                <div id="au-modell-treffer" class="korb-eigen-treffer"></div>
+                <div id="au-modell-treffer" class="tw-box" hidden></div>
                 <div id="au-raster-form" hidden>
                   <div id="au-modell" class="korb-zaehler"></div>
                   <select id="au-farbe" class="form-select" aria-label="Farbe"></select>
@@ -5706,6 +5711,10 @@
         'au-frei-hinzu':        { name: '+ freie Position', text: 'Position ohne L-Shop-Nummer, z. B. Tassen oder mitgebrachte Ware: Text und Menge.' },
         'au-gruppe-weg':        { name: 'entfernen', text: 'Nimmt diese Farbe bzw. Position aus dem Auftrag (erst beim Speichern).' },
         'au-gruppe-felder':     { name: 'Motiv · Druck · Notiz', text: 'Gilt für alle Größen dieser Farbe. Keine Namen von Personen.' },
+        'au-herkunft':          { name: 'Herkunft', text: 'bestellen = L-Shop (Korb, später); aus Lager = eigenes Lager; schon vorhanden = liegt bereit. Gilt für alle Größen.' },
+        'au-lager-ort':         { name: 'Lagerort', text: 'Aus welchem Lager die Rohlinge kommen. Wrist ist vorgewählt. Ausgebucht wird erst bei der Übergabe an den Korb.' },
+        'au-teilen':            { name: 'teilen', text: 'Nimmt aus dem Lager, was da ist, und macht für den Rest eine Position „bestellen“.' },
+        'au-herkunft-zeichen':  { name: 'Herkunft', text: '🛒 wird bestellt · 📦 kommt aus dem Lager (Ort) · ✓ liegt schon bereit.' },
         'au-speichern':         { name: 'Speichern', text: 'Speichert Auftrag und Positionen in einem Schritt. Ein zweiter Klick legt nichts doppelt an.' },
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
@@ -5732,7 +5741,7 @@
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
-        auftraege: ['ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'dash-auftraege', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'dash-offen', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-speichern'],
+        auftraege: ['ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'dash-auftraege', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'dash-offen', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-herkunft-zeichen', 'au-speichern'],
         lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
@@ -9352,12 +9361,13 @@
       // Hoechstens ~8 Zeilen sichtbar, darunter scrollen. Aktionszeilen ("In Lexoffice suchen …") stehen als letzte Zeilen.
       // Kein Mouse-over in der Liste (Inhaber: Hilfetexte duerfen sich nicht ueber Treffer legen).
       // ── Trefferliste: Anfang (reine Logik, Test backend/tests/trefferliste.test.js; braucht kuEsc) ──
-      /** eintraege: [{ haupt, neben, rechts, aktion, aus }] -> HTML. aktiv = markierte Zeile (-1 = keine). */
+      /** eintraege: [{ fett, haupt, neben, rechts, aktion, aus, punkt }] -> HTML. fett = fetter Anfang (z. B. Modellnummer),
+       *  punkt = fertiges HTML eines Lieferbarkeitspunkts (lfbPunkt). aktiv = markierte Zeile (-1 = keine). */
       function twHtml(id, eintraege, aktiv = -1) {
         if (!eintraege?.length) return '';
         return `<div class="tw-liste" role="listbox" id="${id}-liste">` + eintraege.map((e, i) =>
           `<div class="tw-zeile${i === aktiv ? ' tw-aktiv' : ''}${e.aktion ? ' tw-aktion' : ''}${e.aus ? ' tw-aus' : ''}" role="option" id="${id}-${i}" data-tw="${i}" aria-selected="${i === aktiv}"${e.aus ? ' aria-disabled="true"' : ''}>`
-          + `<span class="tw-haupt">${kuEsc(e.haupt)}</span>${e.neben ? `<span class="tw-neben">${kuEsc(e.neben)}</span>` : ''}`
+          + `<span class="tw-haupt">${e.fett ? `<strong>${kuEsc(e.fett)}</strong>${e.haupt ? ' · ' : ''}` : ''}${kuEsc(e.haupt)}${e.punkt ?? ''}</span>${e.neben ? `<span class="tw-neben">${kuEsc(e.neben)}</span>` : ''}`
           + `${e.rechts ? `<span class="tw-rechts">${kuEsc(e.rechts)}</span>` : ''}</div>`).join('') + '</div>';
       }
       /** Taste -> { aktiv, wahl?, zu? }. Gesperrte Zeilen (aus) werden uebersprungen; ↑/↓ laufen im Kreis. */
@@ -9390,6 +9400,9 @@
         rechts: [t.art, t.gesperrt ? 'gesperrt (DSGVO)' : t.inMc ? `schon in MC (${t.inMc}) – öffnen` : 'übernehmen'].join(' · '),
         aus: !!t.gesperrt, treffer: t,
       }));
+      /** AM-2-2: L-Shop-Modell als Zeile: Modell fett · Name · Marke; nur ausgelaufene Varianten = nicht waehlbar. */
+      const twModell = m => ({ fett: m.catalogNr, haupt: [m.bezeichnung, m.marke].filter(Boolean).join(' · '),
+        rechts: m.bestellbar ? '' : 'nur ausgelaufene Varianten', aus: !m.bestellbar, modell: m });
       // ── Trefferliste: Ende ──
       /** Bindet eine Trefferliste an ein Eingabefeld. Rueckgabe { zeigen(eintraege), zu(), offen() }. */
       function twBinden(input, box, beiWahl) {
@@ -9608,11 +9621,12 @@
           const art = p.art ?? p.Art;
           if (art === 'lshop') {
             const l = p.lshop ?? p;
-            const key = `${l.modell ?? ''}|${l.farbe ?? ''}`;
+            const herkunft = auHerkunft(p), ort = herkunft === 'lager' ? (p.lagerOrt ?? p.Lager_Ort ?? '') : '';
+            const key = `${l.modell ?? ''}|${l.farbe ?? ''}|${herkunft}|${ort}`;
             let g = gruppen.find(x => x.key === key);
-            if (!g) { g = { key, art, modell: l.modell ?? '', bezeichnung: l.bezeichnung ?? '', farbe: l.farbe ?? '', positionen: [] }; gruppen.push(g); }
+            if (!g) { g = { key, art, modell: l.modell ?? '', bezeichnung: l.bezeichnung ?? '', farbe: l.farbe ?? '', herkunft, lagerOrt: ort, positionen: [] }; gruppen.push(g); }
             g.positionen.push(p);
-          } else gruppen.push({ key: `frei|${gruppen.length}`, art: 'frei', freitext: p.freitext ?? p.Freitext, positionen: [p] });
+          } else gruppen.push({ key: `frei|${gruppen.length}`, art: 'frei', freitext: p.freitext ?? p.Freitext, herkunft: auHerkunft(p), lagerOrt: '', positionen: [p] });
         }
         for (const g of gruppen) {
           const gr = p => (p.lshop ?? p).groesse ?? '';
@@ -9627,12 +9641,44 @@
         ...(p.positionId ? { positionId: p.positionId } : {}), art: p.art,
         ...(p.art === 'lshop' ? { articleNr: p.articleNr } : { freitext: p.freitext }),
         menge: Number(p.menge), motiv: p.motiv ?? '', druck: p.druck ?? '', notiz: p.notiz ?? '',
+        herkunft: auHerkunft(p), ...(auHerkunft(p) === 'lager' ? { lagerOrt: p.lagerOrt ?? '' } : {}),
       }));
+      // ── AM-2-2: Herkunft je Position (bestellen · aus Lager · schon vorhanden). Gebucht wird im Lager erst mit AM-3. ──
+      /** Herkunft einer Position (Entwurf oder gespeichert); leer = bestellen bei L-Shop, leer bei frei. */
+      const auHerkunft = p => (p.herkunft ?? p.Herkunft ?? '') || ((p.art ?? p.Art) === 'lshop' ? 'bestellen' : '');
+      /** Kennzeichen fuer die Ansicht: 🛒 bestellen · 📦 Lager <Ort> · ✓ vorhanden (frei ohne Herkunft: nichts). */
+      function auHerkunftText(g) {
+        if (g.herkunft === 'lager') return `📦 Lager ${g.lagerOrt || ''}`.trim();
+        if (g.herkunft === 'vorhanden') return '✓ vorhanden';
+        return g.herkunft === 'bestellen' ? '🛒 bestellen' : '';
+      }
+      /** Lagerstand einer Gruppe am Ort: je Groesse Menge und Bestand; reicht = alle gedeckt. bestand(articleNr, ort) -> Zahl. */
+      function auLagerStand(positionen, ort, bestand) {
+        const zeilen = (positionen ?? []).map(p => ({ groesse: p.groesse ?? '', menge: Number(p.menge) || 0, da: bestand(p.articleNr, ort) }));
+        const ausLager = zeilen.reduce((s, z) => s + Math.min(z.menge, z.da), 0);
+        return { zeilen, reicht: zeilen.every(z => z.da >= z.menge), ausLager, rest: zeilen.reduce((s, z) => s + z.menge, 0) - ausLager };
+      }
+      /** "n aus Lager + Rest bestellen": je Position min(Menge, Bestand) bleibt aus Lager, der Rest wird eine neue Position
+       *  "bestellen" (ohne positionId). Ganz ohne Bestand -> die Position wird "bestellen". Gibt die neue Entwurfsliste zurueck. */
+      function auTeilen(entwurf, gruppe, bestand) {
+        const ort = gruppe.lagerOrt;
+        const neu = [];
+        for (const p of entwurf ?? []) {
+          if (!gruppe.positionen.includes(p)) { neu.push(p); continue; }
+          const da = Math.min(Number(p.menge) || 0, bestand(p.articleNr, ort));
+          const rest = (Number(p.menge) || 0) - da;
+          if (da === 0) { neu.push({ ...p, herkunft: 'bestellen', lagerOrt: '' }); continue; }
+          neu.push({ ...p, menge: da });
+          if (rest > 0) neu.push({ ...p, positionId: undefined, menge: rest, herkunft: 'bestellen', lagerOrt: '' });
+        }
+        return neu;
+      }
       /** Gespeicherte Position -> Entwurf (fuer Bearbeiten). */
       const auEntwurfAus = p => ({
         positionId: p.Position_ID, art: p.Art, articleNr: p.LShop_ArticleNr, freitext: p.Freitext, menge: Number(p.Menge),
         motiv: p.Motiv, druck: p.Druck, notiz: p.Notiz, modell: p.lshop?.modell ?? '', bezeichnung: p.lshop?.bezeichnung ?? '',
         farbe: p.lshop?.farbe ?? '', groesse: p.lshop?.groesse ?? '', lieferbar: p.lshop?.lieferbar,
+        herkunft: auHerkunft(p), lagerOrt: p.Lager_Ort ?? '',
       });
       // ── Auftraege-Anzeige: Ende ──
 
@@ -9704,7 +9750,8 @@
         auEl('au-bearbeiten').hidden = st;
         auEl('au-d-vorschlag').hidden = !a.vorschlagFertig;
         auEl('au-d-pos').innerHTML = auGruppen(a.positionen).map(g => {
-          const kopf = g.art === 'lshop' ? `<strong>${kuEsc(g.modell)}</strong>${g.bezeichnung ? ` · ${kuEsc(g.bezeichnung)}` : ''} · ${kuEsc(g.farbe || '(ohne Farbe)')}` : `<strong>${kuEsc(g.freitext)}</strong> · frei`;
+          const kopf = (g.art === 'lshop' ? `<strong>${kuEsc(g.modell)}</strong>${g.bezeichnung ? ` · ${kuEsc(g.bezeichnung)}` : ''} · ${kuEsc(g.farbe || '(ohne Farbe)')}` : `<strong>${kuEsc(g.freitext)}</strong> · frei`)
+            + (auHerkunftText(g) ? ` <span class="ku-chip au-herkunft" data-hilfe="au-herkunft-zeichen">${kuEsc(auHerkunftText(g))}</span>` : '');
           const p0 = g.positionen[0];
           const neben = [p0.Motiv && `Motiv: ${p0.Motiv}`, p0.Druck && `Druck: ${p0.Druck}`, p0.Notiz && `Notiz: ${p0.Notiz}`].filter(Boolean).map(x => `<span>${kuEsc(x)}</span>`).join('');
           const zeilen = g.positionen.map(p => `<label class="au-pos" data-hilfe="au-pos-fertig"><input type="checkbox" data-au-fertig="${kuEsc(p.Position_ID)}" ${p.Fertig === 'ja' ? 'checked' : ''} ${st ? 'disabled' : ''}>`
@@ -9802,10 +9849,11 @@
         auEl('au-pos-neu').hidden = !frei;
         auEl('au-raster-form').hidden = true;
         auEl('au-modell-suche').value = '';
-        auEl('au-modell-treffer').innerHTML = '';
+        auModellTw.zu();
         auFehler('');
         auEntwurfZeichnen();
         auEl('au-dialog').hidden = false;
+        if (!auLager.geladen) auLagerLaden();   // AM-2-2: Bestand fuer "aus Lager" (nur lesen)
         (frei ? (auftrag ? auEl('au-Kurztitel') : auEl('au-kunde-suche')) : auEl('au-Notiz')).focus();
       }
       function auDialogSchliessen() { auEl('au-dialog').hidden = true; }
@@ -9819,7 +9867,7 @@
           const p0 = g.positionen[0];
           const feld = (f, ph, max) => `<input type="text" class="form-input" maxlength="${max}" data-au-gruppe="${gi}" data-au-feld="${f}" value="${kuEsc(p0[f] ?? '')}" placeholder="${ph}" ${frei ? '' : 'readonly'} aria-label="${ph}" />`;
           return `<div class="au-gruppe"><div>${kopf} · ${g.stueck} Stück ${frei ? `<button type="button" class="korb-link" data-au-gruppe-weg="${gi}" data-hilfe="au-gruppe-weg">entfernen</button>` : ''}</div>`
-            + `<div class="ku-meta">${mengen}</div><div class="au-gruppe-felder" data-hilfe="au-gruppe-felder">${feld('motiv', 'Motiv (keine Personennamen)', 120)}${feld('druck', 'Druck: Position/Technik', 120)}${feld('notiz', 'Notiz', 300)}</div></div>`;
+            + `<div class="ku-meta">${mengen}</div>${auHerkunftHtml(g, gi, frei)}<div class="au-gruppe-felder" data-hilfe="au-gruppe-felder">${feld('motiv', 'Motiv (keine Personennamen)', 120)}${feld('druck', 'Druck: Position/Technik', 120)}${feld('notiz', 'Notiz', 300)}</div></div>`;
         }).join('') || '<p class="korb-zaehler">Noch keine Position.</p>';
       }
       auEl('au-pos-liste').addEventListener('input', e => {
@@ -9828,7 +9876,54 @@
         const g = auGruppen(auDlg.entwurf)[Number(f.dataset.auGruppe)];
         for (const p of g?.positionen ?? []) p[f.dataset.auFeld] = f.value;   // gilt fuer alle Groessen der Gruppe
       });
+      // AM-2-2: Herkunft je Gruppe. Lagerbestand nur gelesen (GET /api/lager/bestand); gebucht wird erst mit AM-3.
+      const auLager = { je: new Map(), orte: [], geladen: false, fehler: '' };
+      const auBestand = (articleNr, ort) => auLager.je.get(`${articleNr}|${ort}`) ?? 0;
+      async function auLagerLaden() {
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/lager/bestand`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
+          const j = await res.json().catch(() => null);
+          if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
+          auLager.je = new Map((j.posten ?? []).filter(x => String(x.schluessel).startsWith('LS:')).map(x => [`${String(x.schluessel).slice(3)}|${x.ort}`, Number(x.menge) || 0]));
+          auLager.orte = (j.orte ?? []).filter(o => o.status === 'aktiv').map(o => o.ort);
+          auLager.geladen = true; auLager.fehler = '';
+        } catch (e) { auLager.fehler = e.message; }
+        if (!auEl('au-dialog').hidden) auEntwurfZeichnen();
+      }
+      function auHerkunftHtml(g, gi, frei) {
+        const opt = (v, t) => `<option value="${v}"${g.herkunft === v ? ' selected' : ''}>${t}</option>`;
+        const wahl = g.art === 'lshop' ? opt('bestellen', '🛒 bestellen') + opt('lager', '📦 aus Lager') + opt('vorhanden', '✓ schon vorhanden')
+          : opt('', '– (noch zu besorgen)') + opt('vorhanden', '✓ schon vorhanden');
+        let html = `<div class="korb-reihe au-herkunft-zeile"><label class="au-herkunft-wahl" data-hilfe="au-herkunft">Herkunft <select class="form-select" data-au-herkunft="${gi}" ${frei ? '' : 'disabled'}>${wahl}</select></label>`;
+        if (g.herkunft === 'lager') {
+          const orte = auLager.orte.length ? auLager.orte : [g.lagerOrt || LAGER_HAUPTORT];
+          html += `<label class="au-herkunft-wahl" data-hilfe="au-lager-ort">Ort <select class="form-select" data-au-ort="${gi}" ${frei ? '' : 'disabled'}>`
+            + orte.map(o => `<option value="${kuEsc(o)}"${o === g.lagerOrt ? ' selected' : ''}>${kuEsc(o)}</option>`).join('') + '</select></label>';
+        }
+        html += '</div>';
+        if (g.herkunft !== 'lager') return html;
+        if (!auLager.geladen) return html + `<div class="korb-zaehler">${auLager.fehler ? `Lager nicht geladen: ${kuEsc(auLager.fehler)}` : 'Lagerbestand wird geladen …'}</div>`;
+        const st = auLagerStand(g.positionen, g.lagerOrt, auBestand);
+        html += `<div class="korb-zaehler">im Lager (${kuEsc(g.lagerOrt)}): ${st.zeilen.map(z => `${kuEsc(z.groesse || '–')} ${z.da}${z.da < z.menge ? ' ✗' : ''}`).join(' · ')}</div>`;
+        if (!st.reicht && frei) {
+          html += `<div class="au-lager-knapp">nur ${st.ausLager} im Lager, Rest (${st.rest}) bestellen?`
+            + ` <button type="button" class="korb-aktion korb-aktion-ruhig" data-au-teilen="${gi}" data-hilfe="au-teilen">teilen: ${st.ausLager} aus Lager + ${st.rest} bestellen</button></div>`;
+        }
+        return html;
+      }
+      auEl('au-pos-liste').addEventListener('change', e => {
+        const h = e.target.closest('[data-au-herkunft]'), o = e.target.closest('[data-au-ort]');
+        if (!h && !o) return;
+        const g = auGruppen(auDlg.entwurf)[Number((h ?? o).dataset[h ? 'auHerkunft' : 'auOrt'])];
+        for (const p of g?.positionen ?? []) {
+          if (h) { p.herkunft = h.value; p.lagerOrt = h.value === 'lager' ? (auLager.orte.includes(LAGER_HAUPTORT) ? LAGER_HAUPTORT : (auLager.orte[0] ?? LAGER_HAUPTORT)) : ''; }
+          else p.lagerOrt = o.value;
+        }
+        auEntwurfZeichnen();
+      });
       auEl('au-pos-liste').addEventListener('click', e => {
+        const t = e.target.closest('[data-au-teilen]');
+        if (t) { auDlg.entwurf = auTeilen(auDlg.entwurf, auGruppen(auDlg.entwurf)[Number(t.dataset.auTeilen)], auBestand); auEntwurfZeichnen(); return; }
         const b = e.target.closest('[data-au-gruppe-weg]');
         if (!b) return;
         const g = auGruppen(auDlg.entwurf)[Number(b.dataset.auGruppeWeg)];
@@ -9857,21 +9952,21 @@
       auEl('au-kunde-aendern').addEventListener('click', () => { auKundeSetzen(null); auEl('au-kunde-suche').focus(); });
 
       // L-Shop-Raster (BO6), nur lesend
+      // AM-2-2: Modellsuche als Trefferliste (twBinden) - lesbar im dunklen Dialog, ↑/↓/Enter/Esc.
+      const auModellTw = twBinden(auEl('au-modell-suche'), auEl('au-modell-treffer'), e => auModellWaehlen(e.modell.catalogNr));
       auEl('au-modell-suche').addEventListener('input', ev => {
         clearTimeout(auDlg.timer);
         const q = ev.target.value.trim();
-        const box = auEl('au-modell-treffer');
-        if (q.length < 2) { box.innerHTML = ''; return; }
+        if (q.length < 2) { auModellTw.zu(); return; }
         auDlg.timer = setTimeout(async () => {
           try {
             const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/modelle?q=${encodeURIComponent(q)}`);
             const stopp = await laufStopp(res);
-            if (stopp) { box.innerHTML = `<p class="korb-zaehler">${kuEsc(stopp)}</p>`; return; }
+            if (stopp) { auModellTw.zeigen([{ haupt: stopp, aus: true }]); return; }
             const d = await apiJson(res);
-            box.innerHTML = !d.modelle.length ? `<p class="korb-zaehler">${kuEsc(d.hinweis)}</p>`
-              : d.modelle.map(m => `<button type="button" data-au-modell="${kuEsc(m.catalogNr)}" ${m.bestellbar ? '' : 'disabled'} data-hilfe="eigen-modell">`
-                + `<span class="korb-kopf-nr">${kuEsc(m.catalogNr)}</span>${m.bezeichnung ? ` · <span class="korb-kopf-name">${kuEsc(m.bezeichnung)}</span>` : ''}${m.marke ? ` · ${kuEsc(m.marke)}` : ''}</button>`).join('');
-          } catch (e) { box.innerHTML = `<p class="korb-zaehler">Fehler: ${kuEsc(e.message)}</p>`; }
+            auModellTw.zeigen(d.modelle.length ? [...d.modelle.map(twModell), ...(d.mehr ? [{ haupt: 'Weitere Treffer – Suche genauer eingrenzen', aus: true }] : [])]
+              : [{ haupt: d.hinweis || 'Kein L-Shop-Modell gefunden', aus: true }]);
+          } catch (e) { auModellTw.zeigen([{ haupt: `Fehler: ${e.message}`, aus: true }]); }
         }, 300);
       });
       function auRasterZeichnen() {
@@ -9890,16 +9985,14 @@
         auEl('au-raster-summe').textContent = eigenSummeText(a);
         return a;
       }
-      auEl('au-modell-treffer').addEventListener('click', async ev => {
-        const b = ev.target.closest('[data-au-modell]');
-        if (!b) return;
+      async function auModellWaehlen(catalogNr) {
         try {
-          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/modelle/${encodeURIComponent(b.dataset.auModell)}/varianten`);
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/modelle/${encodeURIComponent(catalogNr)}/varianten`);
           const stopp = await laufStopp(res);
           if (stopp) { auFehler(stopp); return; }
           const d = await apiJson(res);
           auDlg.modell = d; auDlg.varianten = d.varianten;
-          auEl('au-modell-treffer').innerHTML = '';
+          auModellTw.zu();
           auEl('au-modell').innerHTML = `<span class="korb-kopf-nr">${kuEsc(d.catalogNr)}</span>${d.bezeichnung ? ` · ${kuEsc(d.bezeichnung)}` : ''}`;
           const farben = [...new Set(d.varianten.map(v => v.farbe))];
           auEl('au-farbe').innerHTML = (farben.includes('') ? '' : '<option value="">Farbe wählen …</option>') + farben.map(f => `<option value="${kuEsc(f)}">${kuEsc(f || '(ohne Farbe)')}</option>`).join('');
@@ -9908,7 +10001,7 @@
           auRasterZeichnen();
           auEl('au-farbe').focus();
         } catch (e) { auFehler(`Modell nicht geladen: ${e.message}`); }
-      });
+      }
       auEl('au-farbe').addEventListener('change', () => { auRasterZeichnen(); auEl('au-raster').querySelector('input')?.focus(); });
       auEl('au-raster').addEventListener('input', auRasterSumme);
       function auRasterUebernehmen(weitere) {
@@ -9929,7 +10022,8 @@
           const vorher = alt.find(x => x.articleNr === p.articleNr);
           neu.push({ positionId: vorher?.positionId, art: 'lshop', articleNr: p.articleNr, menge: p.menge, modell: auDlg.modell.catalogNr,
             bezeichnung: auDlg.modell.bezeichnung, farbe, groesse: r?.groesse ?? '', lieferbar: r?.lieferbar,
-            motiv: vorlage.motiv ?? '', druck: vorlage.druck ?? '', notiz: vorlage.notiz ?? '' });
+            motiv: vorlage.motiv ?? '', druck: vorlage.druck ?? '', notiz: vorlage.notiz ?? '',
+            herkunft: vorlage.herkunft ?? 'bestellen', lagerOrt: vorlage.lagerOrt ?? '' });
         }
         auDlg.entwurf = [...rest.slice(0, davor), ...neu, ...rest.slice(davor)];
         auFehler('');

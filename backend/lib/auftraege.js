@@ -12,8 +12,9 @@ import { pruefeZielStrecke, spalteBuchstabe, zeilenAbweichungen } from './sheet-
 import { ladeLShopZeilen, lshopAuswertung } from './lshop.js';
 import { leseLieferbarkeit } from './lieferbarkeitLesen.js';
 import { leseKunden } from './kunden.js';
+import { leseLager } from './lager.js';   // AM-2-2: nur Lagerorte lesen - der Auftrag bucht nie im Lager (das kommt mit AM-3)
 import {
-  TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, zeilenAus, alsZeile, anlagePlan, bearbeitenPlan,
+  TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, POSITION_OPTIONAL, brauchtHerkunftSpalten, zeilenAus, alsZeile, anlagePlan, bearbeitenPlan,
   statusWechsel, fertigPlan, fertigVorschlag, aktivePositionen, auftragZahlen, auftraegeAntwort, fehler,
 } from '../utils/auftraege.js';
 
@@ -47,7 +48,7 @@ async function lies(sheets, spreadsheetId) {
   }
   const [wa = [], wp = []] = (data.valueRanges ?? []).map(v => v.values ?? []);
   const a = zeilenAus(wa, AUFTRAG_SPALTEN, 'Auftrag_Nr');
-  const p = zeilenAus(wp, POSITION_SPALTEN, 'Position_ID');
+  const p = zeilenAus(wp, POSITION_SPALTEN, 'Position_ID', POSITION_OPTIONAL);
   if (!wa.length || !wp.length || a.fehlt.length || p.fehlt.length) {
     throw fehler(`Spalten fehlen (${[...a.fehlt, ...p.fehlt].join(', ') || 'Kopfzeile'}) – scripts/setup-auftraege-reiter.js.`, 409, 'einrichtung');
   }
@@ -76,6 +77,19 @@ async function lshopInfo(sheets, spreadsheetId, nummern) {
     }
   }
   return { waehlbar, info };
+}
+
+// AM-2-2: aktive Lagerorte nur, wenn eine Position "aus Lager" kommt (sonst kein Lese-Aufruf).
+async function lagerOrte(sheets, spreadsheetId, positionen) {
+  if (!(positionen ?? []).some(p => String(p?.herkunft ?? '').trim() === 'lager')) return null;
+  const l = await leseLager(sheets, spreadsheetId);
+  return (l.orte ?? []).filter(o => o.status === 'aktiv').map(o => o.ort);
+}
+// Herkunft lager/vorhanden braucht die Spalten Herkunft + Lager_Ort; ohne sie wuerde die Wahl still verloren gehen.
+function pruefeHerkunftSpalten(idx, positionen) {
+  if (brauchtHerkunftSpalten(positionen) && POSITION_OPTIONAL.some(s => idx[s] === undefined)) {
+    throw fehler('Spalten Herkunft/Lager_Ort fehlen in Auftrag_Positionen – erst scripts/setup-auftraege-reiter.js --write.', 409, 'einrichtung');
+  }
 }
 
 const nummernAus = liste => new Set((liste ?? []).map(p => String(p?.articleNr ?? p?.LShop_ArticleNr ?? '').trim()).filter(Boolean));
@@ -152,7 +166,9 @@ export async function legeAuftragAn({ eingabe, sheets: s, jetzt = () => new Date
     if (schon) return { ok: true, schon: true, auftragNr: schon.Auftrag_Nr };
     await kundePruefen(String(eingabe?.Kunden_Nr ?? '').trim());
     const { waehlbar } = await lshopInfo(sheets, spreadsheetId, nummernAus(eingabe?.positionen));
-    const plan = anlagePlan({ auftraege: a.zeilen, positionen: p.zeilen, eingabe, waehlbar, jetzt: jetzt().toISOString() });
+    const orte = await lagerOrte(sheets, spreadsheetId, eingabe?.positionen);
+    const plan = anlagePlan({ auftraege: a.zeilen, positionen: p.zeilen, eingabe, waehlbar, orte, jetzt: jetzt().toISOString() });
+    pruefeHerkunftSpalten(p.idx, plan.positionen);
     await schreibe(sheets, spreadsheetId, { bloecke: [
       { tab: TAB_AUFTRAEGE, alt: wa, zeilen: [alsZeile(a.idx, plan.auftrag, AUFTRAG_SPALTEN, wa[0].length)] },
       { tab: TAB_POSITIONEN, alt: wp, zeilen: plan.positionen.map(x => alsZeile(p.idx, x, POSITION_SPALTEN, wp[0].length)) },
@@ -180,7 +196,9 @@ export async function bearbeiteAuftrag({ eingabe, sheets: s, jetzt = () => new D
   return mitAuftrag(eingabe, s, async ({ sheets, spreadsheetId, wp, a, p, auftrag }) => {
     pruefeStand(auftrag, eingabe);
     const { waehlbar } = await lshopInfo(sheets, spreadsheetId, nummernAus(eingabe?.positionen));
-    const plan = bearbeitenPlan({ auftrag, positionen: p.zeilen, eingabe, waehlbar, jetzt: jetzt().toISOString() });
+    const orte = await lagerOrte(sheets, spreadsheetId, eingabe?.positionen);
+    const plan = bearbeitenPlan({ auftrag, positionen: p.zeilen, eingabe, waehlbar, orte, jetzt: jetzt().toISOString() });
+    pruefeHerkunftSpalten(p.idx, [...plan.neuePositionen, ...plan.aenderungPositionen.map(x => x.felder)]);
     if (plan.unveraendert) return { ok: true, auftragNr: auftrag.Auftrag_Nr, unveraendert: true };
     if (plan.aenderungAuftrag.Kunden_Nr) await kundePruefen(plan.aenderungAuftrag.Kunden_Nr);
     await schreibe(sheets, spreadsheetId, {

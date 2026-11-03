@@ -8,7 +8,7 @@ import { terminBald } from '../utils/auftraege.js';
 const html = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../frontend/index.html'), 'utf8');
 const ku = html.slice(html.indexOf('// ── Kunden-Liste: Anfang'), html.indexOf('// ── Kunden-Liste: Ende ──'));
 const block = html.slice(html.indexOf('// ── Auftraege-Anzeige: Anfang'), html.indexOf('// ── Auftraege-Anzeige: Ende ──'));
-const F = new Function(`${ku}\n${block}\nreturn { auFiltern, auTerminBald, auGruppen, auPositionenAnfrage, auLeisteHtml, auZeileHtml, auKundeText, auEntwurfAus, auFrei };`)();
+const F = new Function(`${ku}\n${block}\nreturn { auFiltern, auTerminBald, auGruppen, auPositionenAnfrage, auLeisteHtml, auZeileHtml, auKundeText, auEntwurfAus, auFrei, auHerkunft, auHerkunftText, auLagerStand, auTeilen };`)();
 const sektion = html.slice(html.indexOf('// ── SECTION: Aufträge – Liste, Ansicht, Erfassen (AM-2) ──'), html.indexOf('// ── SECTION: Artikelerfassung ──'))
   .split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
 
@@ -66,8 +66,8 @@ describe('Auftraege-Anzeige', () => {
     const g = F.auGruppen(entwurf);
     expect(g.map(x => [x.art, x.farbe ?? x.freitext, x.stueck])).toEqual([['lshop', 'Black', 3], ['frei', 'Tassen', 10], ['lshop', 'Navy', 1]]);
     const body = F.auPositionenAnfrage(entwurf);
-    expect(body[0]).toEqual({ art: 'lshop', articleNr: '1', menge: 2, motiv: 'Wappen', druck: '', notiz: '' });
-    expect(body[2]).toEqual({ art: 'frei', freitext: 'Tassen', menge: 10, motiv: '', druck: '', notiz: '' });
+    expect(body[0]).toEqual({ art: 'lshop', articleNr: '1', menge: 2, motiv: 'Wappen', druck: '', notiz: '', herkunft: 'bestellen' });
+    expect(body[2]).toEqual({ art: 'frei', freitext: 'Tassen', menge: 10, motiv: '', druck: '', notiz: '', herkunft: '' });
     expect(body[3].positionId).toBe('AU-2026-0001-04');
     expect(F.auEntwurfAus({ Position_ID: 'P', Art: 'lshop', LShop_ArticleNr: '1', Menge: '2', lshop: { modell: 'X', farbe: 'B', groesse: 'M' } })).toMatchObject({ positionId: 'P', menge: 2, modell: 'X' });
     expect(F.auFrei({ Status: 'Angebot' })).toBe(true);
@@ -91,5 +91,51 @@ describe('Verdrahtung', () => {
   test('Hinweis "keine Personennamen" an Notiz und Motiv', () => {
     expect(html).toContain('Notiz (keine Personennamen)');
     expect(sektion).toContain('Motiv (keine Personennamen)');
+  });
+});
+
+// AM-2-2: Herkunft je Position, Lagerstand, Teilen; Modellsuche als Trefferliste
+describe('Herkunft (AM-2-2)', () => {
+  const lager = { '1|Wrist': 1, '2|Wrist': 5 };
+  const bestand = (nr, ort) => lager[`${nr}|${ort}`] ?? 0;
+  const entwurf = () => [
+    { art: 'lshop', articleNr: '1', modell: 'X3000', farbe: 'Black', groesse: 'S', menge: 3, herkunft: 'lager', lagerOrt: 'Wrist', positionId: 'AU-1-01' },
+    { art: 'lshop', articleNr: '2', modell: 'X3000', farbe: 'Black', groesse: 'M', menge: 2, herkunft: 'lager', lagerOrt: 'Wrist' },
+    { art: 'lshop', articleNr: '3', modell: 'X3000', farbe: 'Black', groesse: 'L', menge: 4, herkunft: 'lager', lagerOrt: 'Wrist' },
+    { art: 'frei', freitext: 'Tassen', menge: 10, herkunft: 'vorhanden' },
+  ];
+  test('Standard: L-Shop ohne Herkunft = bestellen, frei = leer; Kennzeichen', () => {
+    expect(F.auHerkunft({ Art: 'lshop' })).toBe('bestellen');
+    expect(F.auHerkunft({ Art: 'frei' })).toBe('');
+    expect(F.auHerkunftText({ herkunft: 'lager', lagerOrt: 'Wrist' })).toBe('📦 Lager Wrist');
+    expect(F.auHerkunftText({ herkunft: 'vorhanden' })).toBe('✓ vorhanden');
+    expect(F.auHerkunftText({ herkunft: 'bestellen' })).toBe('🛒 bestellen');
+  });
+  test('Gruppen trennen nach Herkunft und Ort; Anfrage traegt Herkunft und Lagerort', () => {
+    const e = [...entwurf(), { art: 'lshop', articleNr: '4', modell: 'X3000', farbe: 'Black', groesse: 'XL', menge: 1, herkunft: 'bestellen' }];
+    expect(F.auGruppen(e).map(g => [g.herkunft, g.lagerOrt, g.positionen.length])).toEqual([['lager', 'Wrist', 3], ['vorhanden', '', 1], ['bestellen', '', 1]]);
+    const body = F.auPositionenAnfrage(e);
+    expect(body[0]).toMatchObject({ herkunft: 'lager', lagerOrt: 'Wrist' });
+    expect(body[4]).not.toHaveProperty('lagerOrt');
+  });
+  test('Lagerstand am Ort und Teilen: aus Lager, was da ist, Rest wird "bestellen"', () => {
+    const e = entwurf();
+    const g = F.auGruppen(e)[0];
+    expect(F.auLagerStand(g.positionen, 'Wrist', bestand)).toMatchObject({ reicht: false, ausLager: 3, rest: 6 });
+    const neu = F.auTeilen(e, g, bestand);
+    expect(neu.map(p => [p.articleNr ?? p.freitext, p.menge, p.herkunft, p.positionId ?? ''])).toEqual([
+      ['1', 1, 'lager', 'AU-1-01'], ['1', 2, 'bestellen', ''],   // S: 1 da, 2 bestellen
+      ['2', 2, 'lager', ''],                                      // M: reicht
+      ['3', 4, 'bestellen', ''],                                  // L: nichts da -> ganz bestellen
+      ['Tassen', 10, 'vorhanden', ''],
+    ]);
+    expect(neu.reduce((s, p) => s + p.menge, 0)).toBe(19);   // Stueck unveraendert
+  });
+  test('Modellsuche als Trefferliste (kein datalist), Lagerbestand nur gelesen', () => {
+    expect(html).not.toMatch(/<datalist/);
+    expect(sektion).toContain("const auModellTw = twBinden(auEl('au-modell-suche'), auEl('au-modell-treffer')");
+    expect(html).toContain('<div id="au-modell-treffer" class="tw-box" hidden></div>');
+    expect(sektion).toContain('/api/lager/bestand');
+    expect(sektion).not.toMatch(/\/api\/lager\/(buchen|gegenbuchung)/);
   });
 });

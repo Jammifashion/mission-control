@@ -18,6 +18,13 @@ export const POSITION_SPALTEN = [
   'Position_ID', 'Auftrag_Nr', 'Art', 'LShop_ArticleNr', 'Freitext', 'Menge', 'Motiv', 'Druck', 'Notiz',
   'Korb_Schluessel', 'Lager_Ziel', 'Fertig', 'Fertig_Am', 'Versendet', 'Stand', 'Entfernt',
 ];
+// AM-2-2: optional ganz hinten - fehlen sie, gilt Herkunft "bestellen" (wie vor AM-2-2). Setup ergaenzt sie.
+export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort'];
+// Herkunft je Position: bestellen (Standard, geht mit AM-3 in den L-Shop-Korb) | lager (eigenes Lager, ausgebucht erst mit AM-3)
+// | vorhanden (liegt schon bereit, nichts bestellt, nichts gebucht). Freie Positionen: leer oder vorhanden.
+export const HERKUNFT = { BESTELLEN: 'bestellen', LAGER: 'lager', VORHANDEN: 'vorhanden' };
+export const HERKUNFT_LSHOP = ['bestellen', 'lager', 'vorhanden'];
+export const HERKUNFT_FREI = ['', 'vorhanden'];
 export const AUFTRAG_TEXT = ['Auftrag_Nr', 'Kunden_Nr', 'Termin', 'Anfrage_Am', 'Angebot_Am', 'Bestellt_Am', 'Produktion_Am', 'Fertig_Am',
   'Uebergeben_Am', 'Bezahlt_Am', 'Storniert_Am'];
 export const POSITION_TEXT = ['Position_ID', 'Auftrag_Nr', 'LShop_ArticleNr', 'Fertig_Am', 'Entfernt'];
@@ -50,13 +57,13 @@ export function fehler(text, status = 422, code) {
 // ── Lesen ────────────────────────────────────────────────────────────────────
 
 /** Reiter-Werte -> { idx, zeilen: [{ ...Spalten, _zeile }], fehlt }. Nur ueber den Spaltennamen. */
-export function zeilenAus(werte, spalten, schluessel) {
+export function zeilenAus(werte, spalten, schluessel, optional = []) {
   const kopf = (werte?.[0] ?? []).map(t);
   const idx = Object.fromEntries(kopf.map((k, i) => [k, i]).filter(([k]) => k));
   const fehlt = spalten.filter(s => idx[s] === undefined);
   const zeilen = [];
   (werte ?? []).slice(1).forEach((r, i) => {
-    const o = Object.fromEntries(spalten.map(s => [s, idx[s] === undefined ? '' : t(r?.[idx[s]])]));
+    const o = Object.fromEntries([...spalten, ...optional].map(s => [s, idx[s] === undefined ? '' : t(r?.[idx[s]])]));
     if (o[schluessel]) zeilen.push({ ...o, _zeile: i + 2 });
   });
   return { idx, zeilen, fehlt };
@@ -66,7 +73,7 @@ export function zeilenAus(werte, spalten, schluessel) {
 export function alsZeile(idx, obj, spalten, breite) {
   const n = breite ?? Math.max(...Object.values(idx)) + 1;
   const z = Array.from({ length: n }, () => '');
-  for (const s of spalten) if (idx[s] !== undefined) z[idx[s]] = t(obj[s]);
+  for (const s of [...spalten, ...(spalten === POSITION_SPALTEN ? POSITION_OPTIONAL : [])]) if (idx[s] !== undefined) z[idx[s]] = t(obj[s]);
   return z;
 }
 
@@ -169,7 +176,7 @@ export function pruefeKopf(e, { nurNotizTermin = false } = {}) {
  * Positionen pruefen. eingabe: [{ positionId?, art: lshop|frei, articleNr | freitext, menge, motiv, druck, notiz }].
  * waehlbar: Set der ArticleNr, die neu gewaehlt werden duerfen (ohne ausgelaufen/3/6); bisherige Nummern bleiben erlaubt.
  */
-export function pruefePositionen(eingabe, { waehlbar, bisher = new Set() } = {}) {
+export function pruefePositionen(eingabe, { waehlbar, bisher = new Set(), orte = null } = {}) {
   const liste = Array.isArray(eingabe) ? eingabe : [];
   if (!liste.length) throw fehler('Mindestens eine Position.');
   if (liste.length > POSITIONEN_MAX) throw fehler(`Höchstens ${POSITIONEN_MAX} Positionen.`);
@@ -186,12 +193,19 @@ export function pruefePositionen(eingabe, { waehlbar, bisher = new Set() } = {})
       const a = t(p?.articleNr);
       if (!/^\d{10}$/.test(a)) throw fehler(`Position ${nr}: L-Shop-Nummer muss 10 Ziffern haben.`);
       if (!bisher.has(a) && !waehlbar?.has(a)) throw fehler(`Position ${nr}: L-Shop-Nummer nicht (mehr) bestellbar.`, 422, 'nicht_waehlbar');
-      return { positionId: t(p?.positionId), Art: ART.LSHOP, LShop_ArticleNr: a, Freitext: '', Menge: String(menge), ...neben };
+      const herkunft = t(p?.herkunft) || HERKUNFT.BESTELLEN;
+      if (!HERKUNFT_LSHOP.includes(herkunft)) throw fehler(`Position ${nr}: Herkunft bestellen, lager oder vorhanden.`);
+      const ort = herkunft === HERKUNFT.LAGER ? t(p?.lagerOrt) : '';
+      if (herkunft === HERKUNFT.LAGER && !ort) throw fehler(`Position ${nr}: Lagerort fehlt.`);
+      if (ort && orte && !orte.includes(ort)) throw fehler(`Position ${nr}: Lagerort gibt es nicht (mehr).`);
+      return { positionId: t(p?.positionId), Art: ART.LSHOP, LShop_ArticleNr: a, Freitext: '', Menge: String(menge), ...neben, Herkunft: herkunft, Lager_Ort: ort };
     }
     if (art === ART.FREI) {
       const f = lang(`Position ${nr}: Freitext`, t(p?.freitext), MAX.Freitext);
       if (!f) throw fehler(`Position ${nr}: Freitext fehlt.`);
-      return { positionId: t(p?.positionId), Art: ART.FREI, LShop_ArticleNr: '', Freitext: f, Menge: String(menge), ...neben };
+      const herkunft = t(p?.herkunft);
+      if (!HERKUNFT_FREI.includes(herkunft)) throw fehler(`Position ${nr}: freie Position nur leer oder vorhanden.`);
+      return { positionId: t(p?.positionId), Art: ART.FREI, LShop_ArticleNr: '', Freitext: f, Menge: String(menge), ...neben, Herkunft: herkunft, Lager_Ort: '' };
     }
     throw fehler(`Position ${nr}: Art lshop oder frei.`);
   });
@@ -200,13 +214,13 @@ export function pruefePositionen(eingabe, { waehlbar, bisher = new Set() } = {})
 // ── Plaene ───────────────────────────────────────────────────────────────────
 
 /** Neuer Auftrag: Kopf + Positionen. Status Anfrage oder Angebot (Anfrage_Am immer, Angebot_Am bei Angebot). */
-export function anlagePlan({ auftraege, positionen, eingabe, waehlbar, jetzt }) {
+export function anlagePlan({ auftraege, positionen, eingabe, waehlbar, orte, jetzt }) {
   const kopf = pruefeKopf(eingabe);
   if (!kopf.Kunden_Nr) throw fehler('Kunde fehlt.');
   if (!kopf.Kurztitel) throw fehler('Kurztitel fehlt.');
   const status = t(eingabe?.status) || 'Anfrage';
   if (!START_STATUS.includes(status)) throw fehler('Start-Status Anfrage oder Angebot.');
-  const pos = pruefePositionen(eingabe?.positionen, { waehlbar });
+  const pos = pruefePositionen(eingabe?.positionen, { waehlbar, orte });
   const tag = heute(jetzt);
   const nr = naechsteAuftragNr(auftraege, tag.slice(0, 4));
   const auftrag = {
@@ -228,7 +242,7 @@ export const aktivePositionen = (positionen, nr) => (positionen ?? []).filter(p 
  * entfernt markieren). Ab bestellt: nur Notiz/Termin; Positionen im Body -> 409 gesperrt. Storniert: nichts.
  * Liefert { aenderungAuftrag: {feld: wert}, aenderungPositionen: [{ zeile, felder }], neuePositionen: [...] }.
  */
-export function bearbeitenPlan({ auftrag, positionen, eingabe, waehlbar, jetzt }) {
+export function bearbeitenPlan({ auftrag, positionen, eingabe, waehlbar, orte, jetzt }) {
   if (auftrag.Status === STORNIERT) throw fehler(`${auftrag.Auftrag_Nr} ist storniert.`, 409, 'storniert');
   const frei = istFrei(auftrag);
   if (!frei && eingabe?.positionen !== undefined) throw fehler(`${auftrag.Auftrag_Nr}: ab „bestellt“ sind Positionen gesperrt.`, 409, 'gesperrt');
@@ -240,14 +254,17 @@ export function bearbeitenPlan({ auftrag, positionen, eingabe, waehlbar, jetzt }
   if (frei && eingabe?.positionen !== undefined) {
     const alt = aktivePositionen(positionen, auftrag.Auftrag_Nr);
     const bisher = new Set(alt.map(p => p.LShop_ArticleNr).filter(Boolean));
-    const pos = pruefePositionen(eingabe.positionen, { waehlbar, bisher });
+    const pos = pruefePositionen(eingabe.positionen, { waehlbar, bisher, orte });
     const gesehen = new Set();
     for (const p of pos) {
       if (p.positionId) {
         const a = alt.find(x => x.Position_ID === p.positionId);
         if (!a) throw fehler(`Position ${p.positionId} gibt es in diesem Auftrag nicht (mehr) – bitte neu laden.`, 409, 'konflikt');
         gesehen.add(a.Position_ID);
-        const felder = Object.fromEntries(['Art', 'LShop_ArticleNr', 'Freitext', 'Menge', 'Motiv', 'Druck', 'Notiz'].filter(f => t(a[f]) !== p[f]).map(f => [f, p[f]]));
+        // Herkunft: leer im Sheet = bestellen (L-Shop) - nur echte Aenderungen schreiben
+        const herkunftAlt = t(a.Herkunft) || (a.Art === ART.LSHOP ? HERKUNFT.BESTELLEN : '');
+        const felder = Object.fromEntries(['Art', 'LShop_ArticleNr', 'Freitext', 'Menge', 'Motiv', 'Druck', 'Notiz', 'Lager_Ort'].filter(f => t(a[f]) !== p[f]).map(f => [f, p[f]]));
+        if (herkunftAlt !== p.Herkunft) felder.Herkunft = p.Herkunft;
         if (Object.keys(felder).length) aenderungPositionen.push({ zeile: a._zeile, positionId: a.Position_ID, felder: { ...felder, Stand: t(jetzt) } });
       } else neuePositionen.push(p);
     }
@@ -275,6 +292,9 @@ export function fertigPlan({ auftrag, positionen, positionId, fertig, jetzt }) {
   const nachher = akt.map(x => (x.Position_ID === p.Position_ID ? { ...x, Fertig: soll } : x));
   return { position: p, felder, vorschlagFertig: fertigVorschlag(auftrag, nachher) };
 }
+
+/** Wird Herkunft lager/vorhanden gebraucht? Dann muessen die optionalen Spalten da sein. */
+export const brauchtHerkunftSpalten = positionen => (positionen ?? []).some(p => (p.Herkunft && p.Herkunft !== HERKUNFT.BESTELLEN) || p.Lager_Ort);
 
 /** Alle aktiven Positionen fertig und der Auftrag steht vor "fertig" -> Vorschlag. */
 export function fertigVorschlag(auftrag, aktive) {
@@ -306,7 +326,8 @@ export function auftragZahlen(auftraege, jetzt) {
 /** Antwort fuer den Browser: ohne _zeile; Positionen je Auftrag (nur aktive), Stueck gesamt. */
 export function auftraegeAntwort(auftraege, positionen, anreichern = p => p) {
   return (auftraege ?? []).map(({ _zeile, Vorgang, ...a }) => {
-    const pos = aktivePositionen(positionen, a.Auftrag_Nr).map(({ _zeile: _z, ...p }) => anreichern(p));
+    // AM-2-2: Herkunft leer = bestellen (L-Shop) bzw. leer (frei)
+    const pos = aktivePositionen(positionen, a.Auftrag_Nr).map(({ _zeile: _z, ...p }) => anreichern({ ...p, Herkunft: p.Herkunft || (p.Art === ART.LSHOP ? HERKUNFT.BESTELLEN : '') }));
     return { ...a, positionen: pos, stueck: pos.reduce((s, p) => s + (Number(p.Menge) || 0), 0) };
   });
 }

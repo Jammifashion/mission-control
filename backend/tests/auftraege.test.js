@@ -219,3 +219,54 @@ describe('Datenschutz', () => {
     expect(zeilenAus([AUFTRAG_SPALTEN], AUFTRAG_SPALTEN, 'Auftrag_Nr').fehlt).toEqual([]);
   });
 });
+
+// AM-2-2: Herkunft je Position (bestellen · lager · vorhanden), optionale Spalten, kein Lager-Schreiben
+describe('Herkunft (AM-2-2)', () => {
+  let L;
+  beforeAll(async () => { L = await import('../utils/lager.js'); });
+  const mitHerkunft = t => ({ ...t, [TAB_POSITIONEN]: [[...POSITION_SPALTEN, 'Herkunft', 'Lager_Ort']],
+    [L.TAB_BUCHUNGEN]: [L.BUCHUNG_SPALTEN], [L.TAB_ARTIKEL]: [L.ARTIKEL_SPALTEN], [L.TAB_ORTE]: [L.ORTE_SPALTEN, ['Wrist', 'aktiv', ''], ['Alt', 'inaktiv', '']] });
+  const pos = (herkunft, extra = {}) => ({ art: 'lshop', articleNr: NR_S, menge: 2, herkunft, ...extra });
+  test('Spalten fehlen: bestellen geht wie bisher, lager/vorhanden -> 409 einrichtung, nichts geschrieben', async () => {
+    const t = tabs();
+    const { sheets, aufrufe } = machSheets(t);
+    await legeAuftragAn({ eingabe: eingabe({ positionen: [pos('bestellen')] }), sheets, jetzt, kundePruefen: kundeOk });
+    const r = await leseAuftraege({ sheets, jetzt });
+    expect(r.auftraege[0].positionen[0].Herkunft).toBe('bestellen');   // leer = bestellen
+    const vorher = aufrufe.batchUpdate.length;
+    await expect(legeAuftragAn({ eingabe: eingabe({ vorgang: V(2), positionen: [pos('vorhanden')] }), sheets, jetzt, kundePruefen: kundeOk }))
+      .rejects.toMatchObject({ status: 409, code: 'einrichtung' });
+    expect(aufrufe.batchUpdate.length).toBe(vorher);
+  });
+  test('mit Spalten: Herkunft + Lagerort gespeichert; Ort muss aktiv sein; Lager wird nie beschrieben', async () => {
+    const t = mitHerkunft(tabs());
+    const { sheets, aufrufe } = machSheets(t);
+    await expect(legeAuftragAn({ eingabe: eingabe({ positionen: [pos('lager', { lagerOrt: 'Alt' })] }), sheets, jetzt, kundePruefen: kundeOk }))
+      .rejects.toThrow(/Lagerort gibt es nicht/);
+    await expect(legeAuftragAn({ eingabe: eingabe({ positionen: [pos('lager')] }), sheets, jetzt, kundePruefen: kundeOk })).rejects.toThrow(/Lagerort fehlt/);
+    await legeAuftragAn({ eingabe: eingabe({ positionen: [pos('lager', { lagerOrt: 'Wrist' }), pos('bestellen', { articleNr: NR_M }), { art: 'frei', freitext: 'Tassen', menge: 1, herkunft: 'vorhanden' }] }),
+      sheets, jetzt, kundePruefen: kundeOk });
+    const p = (await leseAuftraege({ sheets, jetzt })).auftraege[0].positionen;
+    expect(p.map(x => [x.Herkunft, x.Lager_Ort])).toEqual([['lager', 'Wrist'], ['bestellen', ''], ['vorhanden', '']]);
+    expect(t[L.TAB_BUCHUNGEN]).toHaveLength(1);   // nur Kopfzeile: nichts ausgebucht
+    expect(aufrufe.batchUpdate.some(b => b.includes(L.TAB_BUCHUNGEN))).toBe(false);
+  });
+  test('Herkunft aendern und teilen beim Bearbeiten; frei nur leer/vorhanden', async () => {
+    const t = mitHerkunft(tabs());
+    const { sheets } = machSheets(t);
+    await legeAuftragAn({ eingabe: eingabe({ positionen: [pos('lager', { lagerOrt: 'Wrist', menge: 5 })] }), sheets, jetzt, kundePruefen: kundeOk });
+    let a = (await leseAuftraege({ sheets, jetzt })).auftraege[0];
+    await bearbeiteAuftrag({ eingabe: { auftragNr: a.Auftrag_Nr, stand: a.Stand, positionen: [
+      { positionId: a.positionen[0].Position_ID, ...pos('lager', { lagerOrt: 'Wrist', menge: 2 }) }, pos('bestellen', { menge: 3 }),
+    ] }, sheets, jetzt: () => new Date(Date.parse(JETZT) + 1000), kundePruefen: kundeOk });
+    a = (await leseAuftraege({ sheets, jetzt })).auftraege[0];
+    expect(a.positionen.map(x => [x.Herkunft, x.Menge])).toEqual([['lager', '2'], ['bestellen', '3']]);
+    expect(a.stueck).toBe(5);
+    expect(() => pruefePositionen([{ art: 'frei', freitext: 'x', menge: 1, herkunft: 'lager' }], { waehlbar: new Set() })).toThrow(/nur leer oder vorhanden/);
+  });
+  test('Quelltext: der Auftrag liest das Lager nur (leseLager), bucht nie', () => {
+    const lib = readFileSync(resolve(hier, '../lib/auftraege.js'), 'utf8');
+    expect(lib).toMatch(/import \{ leseLager \} from '\.\/lager\.js'/);
+    expect(lib).not.toMatch(/bucheLager|gegenbuchung|mitLagerSperre/);
+  });
+});
