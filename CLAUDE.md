@@ -127,7 +127,10 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   stornieren, Haken fertig je Position, Vorschlag "auf fertig setzen"), Dialog `#au-dialog` (Kunde lokal -> `kuKundeSuchen` ->
   neu mit Rueckruf `nachSpeichern`; Raster BO6 ueber die LESENDEN Endpunkte `.../lshop-korb/modelle`, nie Korb-Schreiben; freie
   Position; Motiv/Druck/Notiz je Gruppe Modell+Farbe). Block `Auftraege-Anzeige: Anfang/Ende` (Test auftraege-frontend.test.js).
-  Kundenkarte `#ku-auftraege` = Auftraege des Kunden. Kachel: Hauptzahl offene Auftraege.)
+  Kundenkarte `#ku-auftraege` = Auftraege des Kunden. Kachel: Hauptzahl offene Auftraege.
+  AM-2-2: Modellsuche im Auftrag ueber `twBinden` (`twModell`: Modell fett · Name · Marke). Herkunft je Gruppe (Modell+Farbe+
+  Herkunft+Ort): bestellen | aus Lager (Ort, Bestand nur gelesen aus `GET /api/lager/bestand`, Knopf "teilen" = `auTeilen`) |
+  schon vorhanden; frei nur leer/vorhanden. Gebucht wird im Lager erst mit AM-3. Ansicht: Kennzeichen 🛒/📦/✓.)
 - Artikelerfassung (dazu Modus-Knopf "🧵 L-Shop-Modelle", LS4: Unterpunkt `artikel/lshop-modelle`, Panel `#lsm-panel`,
   SECTION L-Shop-Modelle mit Block `L-Shop-Modelle: Anfang/Ende`, Test lshop-modelle-frontend.test.js; Hilfe-Gruppe
   `lshop-modelle`; Links `data-lsm-link` aus Warenkorb "Nicht im Bestand" und Maske "Kein L-Shop-Modell".
@@ -847,6 +850,9 @@ Neue Sektionen immer mit Anker versehen:
   beide Reiter frisch, Auftrag-`stand` wie gesehen (409 `konflikt`), EIN values.batchUpdate (Zellen + neue Zeilen in gepruefter
   Strecke), zurueckgelesen; Anlage mit `vorgang` (gleiche Kennung = schon angelegt). L-Shop-Nummern neu nur waehlbare (ohne
   ausgelaufen/3/6), bisherige bleiben. `GET /api/kunden/zahlen` haengt `auftraege` { offen, terminBald, fertigNichtBezahlt } an.
+  AM-2-2: optionale Spalten hinten in Auftrag_Positionen `Herkunft` (bestellen | lager | vorhanden, leer = bestellen) + `Lager_Ort`
+  (`POSITION_OPTIONAL`; Setup haengt sie an). Ohne Spalten: bestellen wie bisher, lager/vorhanden -> 409 `einrichtung`. Lagerort muss
+  aktiv sein (`leseLager`, nur lesen) - der Auftrag bucht nie im Lager.
 - backend/lib/lexware.js – Lexware Office Public API (`https://api.lexware.io`), **NUR LESEN**, einzige Stelle mit Zugriff
   (Test kunden.test.js: nur `method: 'GET'`, kein anderer Ort nennt die URL). Heute nur `GET /v1/contacts?customer=true` (alle Seiten; AM-1-1 auch Suche `name`/`email`/`number`, eine Seite)
   und `GET /v1/contacts/{id}`,
