@@ -200,7 +200,8 @@
       .au-leiste { display: flex; flex-wrap: wrap; gap: 0.3rem; }
       .au-schritt { display: inline-flex; flex-direction: column; align-items: center; padding: 0.25rem 0.55rem; border: 1px solid var(--border); border-radius: 7px; font-size: 0.78rem; color: var(--muted); }
       .au-schritt small { font-size: 0.68rem; }
-      .au-schritt.au-erledigt { color: var(--text); }
+      /* Inhaber 03.11.: erledigte Schritte gruen, aktueller gelb (Akzent), noch nicht erreicht grau */
+      .au-schritt.au-erledigt { color: var(--success); border-color: var(--success); background: color-mix(in srgb, var(--success) 12%, transparent); }
       .au-schritt.au-aktuell { border-color: var(--accent); color: var(--accent); font-weight: 600; }
       .au-kopf { display: flex; flex-direction: column; gap: 0.2rem; }
       .au-notiz { font-size: 0.82rem; white-space: pre-wrap; }
@@ -9595,7 +9596,8 @@
       /** Status-Leiste: je Schritt Name + Datum, aktueller hervorgehoben; storniert extra. */
       function auLeisteHtml(a) {
         const i = auIndex(a.Status);
-        return AU_SCHRITTE.map(([s, feld], j) => `<span class="au-schritt${j === i ? ' au-aktuell' : ''}${a[feld] ? ' au-erledigt' : ''}">${kuEsc(s)}`
+        // erledigt = Schritt mit Datum, ausser dem aktuellen (bezahlt kann schon vorher erledigt sein: Vorkasse)
+        return AU_SCHRITTE.map(([s, feld], j) => `<span class="au-schritt${j === i ? ' au-aktuell' : a[feld] ? ' au-erledigt' : ''}">${kuEsc(s)}`
           + `${a[feld] ? `<small>${auDatum(a[feld])}</small>` : ''}</span>`).join('')
           + (a.Status === 'storniert' ? `<span class="au-schritt au-aktuell ku-gefahr">storniert<small>${auDatum(a.Storniert_Am)}</small></span>` : '');
       }

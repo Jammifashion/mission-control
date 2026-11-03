@@ -49,6 +49,12 @@ describe('Auftraege-Anzeige', () => {
     expect(h.match(/au-aktuell/g)).toHaveLength(1);
     expect(h).toContain('03.11.2026');
     expect(F.auLeisteHtml({ Status: 'storniert', Storniert_Am: '2026-11-03' })).toContain('storniert');
+    // Inhaber 03.11.: erledigt gruen (au-erledigt), aktuell gelb (au-aktuell, nie zugleich erledigt), offen grau (ohne Klasse)
+    const schritte = [...h.matchAll(/class="au-schritt([^"]*)"/g)].map(m => m[1].trim());
+    expect(schritte).toEqual(['au-erledigt', 'au-erledigt', 'au-aktuell', '', '', '', '']);
+    const vorkasse = F.auLeisteHtml({ Status: 'Angebot', Anfrage_Am: '1', Angebot_Am: '2', Bezahlt_Am: '2026-11-01' });
+    expect([...vorkasse.matchAll(/class="au-schritt([^"]*)"/g)].map(m => m[1].trim()).at(-1)).toBe('au-erledigt');
+    expect(html).toMatch(/\.au-schritt\.au-erledigt \{ color: var\(--success\)/);
   });
   test('Gruppen: L-Shop je Modell+Farbe, frei einzeln; Anfrage an den Server', () => {
     const entwurf = [
