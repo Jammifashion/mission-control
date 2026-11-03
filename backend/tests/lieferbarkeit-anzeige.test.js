@@ -22,12 +22,12 @@ describe('Stufen', () => {
     [zeile(NR, 37), STUFE.LIEFERBAR],
     [zeile(NR, 0, { Null_seit: '2026-11-01T10:00:00Z' }), STUFE.NULL],
     [zeile(NR, 5, { Auslauf: 'ja', Auslaufdatum: '2026-12-31' }), STUFE.AUSLAUF],
-    [zeile(NR, 0, { Auslauf: 'ja' }), STUFE.AUSLAUF],          // laeuft aus geht vor 0
+    [zeile(NR, 0, { Auslauf: 'ja' }), STUFE.AUSLAUF_NULL],     // BO7-4: laeuft aus + 0 = eigene Stufe
     [zeile(NR, '', { Auslauf: 'ja' }), STUFE.WEG],             // nicht gefuehrt geht vor allem
   ])('%j -> %s', (z, st) => expect(stufeAus(z).stufe).toBe(st));
   test('Zahl, Null_seit und Auslaufdatum werden mitgegeben', () => {
     expect(stufeAus(zeile(NR, 0, { Null_seit: '2026-11-01T10:00:00Z', Auslauf: 'ja', Auslaufdatum: '2026-12-31' })))
-      .toEqual({ stufe: 'auslauf', stock: 0, nullSeit: '2026-11-01T10:00:00Z', auslaufdatum: '2026-12-31' });
+      .toEqual({ stufe: 'auslauf_null', stock: 0, nullSeit: '2026-11-01T10:00:00Z', auslaufdatum: '2026-12-31' });
   });
   test('Stand: veraltet ab 3 h, Liste alt ab 14 Tagen, ohne Liste = alt; leerer Reiter -> kein Stand', () => {
     const w = werte([zeile(NR, 1)]);
@@ -127,7 +127,9 @@ describe('Frontend-Block Lieferbarkeit-Anzeige', () => {
     expect(h).not.toMatch(/title=/);
     expect(F.lfbPunkt(l('nicht_gefuehrt', { stock: null }), { text: true })).toMatch(/data-hilfe="lfb-nicht-gefuehrt"[^>]*>● nicht mehr geführt</);
     expect(F.lfbPunkt(undefined)).toBe('');
-    expect(F.lfbZusatz(l('auslauf', { stock: 0, nullSeit: '2026-11-01T10:00:00Z' }))).toBe('Bestand bei L-Shop: 0 · 0 seit 01.11.');
+    expect(F.lfbZusatz(l('auslauf_null', { stock: 0, nullSeit: '2026-11-01T10:00:00Z', auslaufdatum: '2026-12-31' }))).toBe('läuft aus bis 31.12.2026 – bei L-Shop schon 0 seit 01.11.');
+    expect(F.lfbText(l('auslauf_null', { stock: 0, auslaufdatum: '2026-12-31' }))).toBe('läuft aus bis 31.12.2026 · schon 0');
+    expect(F.lfbPunkt(l('auslauf_null', { stock: 0 }))).toMatch(/class="lfb-punkt lfb-auslauf_null"[^>]*data-hilfe="lfb-auslauf-null"/);
   });
   test('Stand: HH:MM (Berlin), veraltet ab 3 h, Hinweis bei alter/fehlender Liste', () => {
     const st = { datei: '2026-11-03T09:30:12.000Z', liste: 'L', listeTage: 4, listeAlt: false };

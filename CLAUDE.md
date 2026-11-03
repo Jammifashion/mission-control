@@ -373,6 +373,11 @@ Neue Sektionen immer mit Anker versehen:
   LIEFERBARER Alternative aus dem Reiter, nicht gefuehrt -> privat ueber die Loeschliste). "Liste kopieren" (`lfbsExport` = Spiegel
   von `exportText`) und Drucken (`body.druck-zaehlliste`) ohne Preise. Maske: `lfbsMaskeHinweis` beim Laden eines Artikels
   (`#pf-lfbs-hinweis`). Lieferzeit-Namen aus `Struktur_Lieferzeiten`. HONK: Varianten/Erfassungsmaske sind nur JFN.
+  BO7-4: Stufe **`auslauf_null`** "laeuft aus · schon 0" (Auslaufliste UND stock 0, ohne 14-Tage-Grenze) = dringendste nach
+  "nicht mehr gefuehrt" (`stufeAus`, Rang nicht_gefuehrt > auslauf_null > auslauf > null > lieferbar), ueberall wo Punkte stehen
+  (CSS `lfb-auslauf_null` orange, Hilfe `lfb-auslauf-null`, Mouse-over "laeuft aus bis … – bei L-Shop schon 0 seit …"), in der
+  Problemliste eigener Filter/Zaehler, je Artikel `schonNull` ("x davon schon 0"), Vorschlag "jetzt handeln: …". `auslaufend` in
+  lshopAuswertung enthaelt sie mit `schonNull`. Chat (BO7-1): eine Zeile je Nummer, nennt "laeuft aus" UND "schon 0".
 - backend/lib/lshopBelege.js – Belege-Abruf (BO4b-1), Logik in `utils/lshop-belege.js`. Scheduler
   `POST /api/intern/lshop-belege/abruf` (Job `lshop-belege-abruf`, `7,37 * * * *`) und Knopf
   `POST /api/bestellen/lshop-belege/abruf` (`routes/lshopBelege.js`, eigener Router, damit

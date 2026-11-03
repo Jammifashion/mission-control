@@ -86,7 +86,8 @@ describe('Plan', () => {
     expect(z[B].Null_seit).toBe('');
     expect(z[C].Null_seit).toBe(T1.toISOString());   // weiter nicht gefuehrt: seit dem ersten Lauf
     expect(z[C].Geaendert_Am).toBe(T1.toISOString());   // unveraendert
-    expect(p2.wechsel).toEqual([{ nr: A, art: 'null', catalog: 'JH001', gefuehrt: true }, { nr: B, art: 'auslauf', catalog: 'JH001', auslaufdatum: '' }]);
+    expect(p2.wechsel).toEqual([{ nr: A, art: 'null', catalog: 'JH001', gefuehrt: true, auslauf: false, auslaufdatum: '', istNull: true },
+      { nr: B, art: 'auslauf', catalog: 'JH001', gefuehrt: true, auslauf: true, auslaufdatum: '', istNull: false }]);   // BO7-4: Auslauf + Bestand dabei
   });
 
   test('ohne lesbare Liste bleiben Auslauf, Datum und Quelle wie bisher', () => {
@@ -104,6 +105,15 @@ describe('Plan', () => {
     expect(text).not.toContain(C);
     expect(text).not.toMatch(/€|EUR|Preis/);
     expect(buildLieferbarkeitNachricht(w, new Map([[D, 1]]))).toBeNull();
+  });
+  test('BO7-4: laeuft aus UND schon 0 - eine Zeile, die beides nennt (auch wenn beide Wechsel im selben Lauf kommen)', () => {
+    const w = [{ nr: A, art: 'null', catalog: 'JH001', gefuehrt: true, auslauf: true, auslaufdatum: '2026-12-31', istNull: true },
+      { nr: A, art: 'auslauf', catalog: 'JH001', gefuehrt: true, auslauf: true, auslaufdatum: '2026-12-31', istNull: true },
+      { nr: B, art: 'auslauf', catalog: 'JH001', gefuehrt: true, auslauf: true, auslaufdatum: '', istNull: true }];
+    const text = buildLieferbarkeitNachricht(w, new Map([[A, 1], [B, 1]]));
+    expect(text.split('\n').filter(z => z.startsWith('• '))).toEqual([
+      `• ${A} (JH001): läuft aus (bis 31.12.2026) – bei L-Shop schon 0, da kommt wohl nichts mehr · 1 offene Position`,
+      `• ${B} (JH001): läuft aus – bei L-Shop schon 0, da kommt wohl nichts mehr · 1 offene Position`]);
   });
 });
 

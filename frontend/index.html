@@ -409,6 +409,7 @@
       .lfb-lieferbar { color: var(--success, #3fb950); }
       .lfb-null { color: var(--muted, #8b949e); }
       .lfb-auslauf { color: var(--warning, #d4a017); }
+      .lfb-auslauf_null { color: #f0883e; font-weight: 600; }   /* BO7-4: laeuft aus · schon 0 (orange) */
       .lfb-nicht_gefuehrt { color: var(--danger, #f85149); }
       .lfb-stand { font-size: 0.72rem; color: var(--muted, #8b949e); cursor: help; }
       .lfb-stand.lfb-veraltet { opacity: 0.7; font-style: italic; }
@@ -1906,7 +1907,7 @@
             <div id="lfbs-stand" class="korb-zaehler"></div>
             <div class="lfbs-leiste">
               <select id="lfbs-f-stufe" class="form-select" aria-label="Stufe" data-hilfe="lfbs-f-stufe">
-                <option value="">alle Stufen</option><option value="nicht_gefuehrt">nicht mehr geführt</option><option value="auslauf">läuft aus</option><option value="null">bei L-Shop 0 (≥ 14 Tage)</option>
+                <option value="">alle Stufen</option><option value="nicht_gefuehrt">nicht mehr geführt</option><option value="auslauf_null">läuft aus · schon 0</option><option value="auslauf">läuft aus</option><option value="null">bei L-Shop 0 (≥ 14 Tage)</option>
               </select>
               <select id="lfbs-f-kat" class="form-select" aria-label="Kategorie" data-hilfe="lfbs-f-kat"><option value="">alle Kategorien</option></select>
               <input id="lfbs-suche" class="form-input" type="search" placeholder="Suche: Artikel, Farbe, Größe, Nummer" aria-label="Suche" data-hilfe="lfbs-suche">
@@ -5036,6 +5037,7 @@
         'lfbs-drucken':         { name: 'Drucken', text: 'Druckt die gezeigte Liste hell, ohne Preise.' },
         'lfbs-shop':            { name: 'im Shop', text: 'Öffnet den Artikel im Shop in einem neuen Tab.' },
         'lfbs-maske':           { name: 'in der Maske', text: 'Öffnet den Artikel unter „Artikel ändern“.' },
+        'lfbs-schon-null':      { name: 'davon schon 0', text: 'So viele betroffene Variationen laufen aus und sind bei L-Shop schon 0 – die dringendsten zuerst ansehen.' },
         'lfbs-ganze-farbe':     { name: 'ganze Farbe', text: 'Alle Größen dieser Farbe sind betroffen – die Farbe ist praktisch nicht mehr bestellbar.' },
         'lfbs-vorschlag':       { name: 'Vorschlag', text: 'Nur ein Hinweis. Geändert wird nichts – Lieferzeit oder privat setzen erst nach deiner Freigabe in einem eigenen Auftrag.' },
         'lfbs-maske-hinweis':   { name: 'Lieferproblem', text: 'Variationen dieses Artikels mit L-Shop-Lieferproblem. Klick öffnet die Liste „Lieferbarkeit Shop“.' },
@@ -5043,6 +5045,7 @@
         'lfb-lieferbar':         { name: '● lieferbar', text: 'Bei L-Shop lieferbar (Bestandsdatei, stündlich). Die Zahl steht davor.' },
         'lfb-null':              { name: '● bei L-Shop 0', text: 'L-Shop hat gerade keinen Bestand. Bestellen geht trotzdem, L-Shop liefert nach. „seit“ = seit wann durchgehend 0.' },
         'lfb-auslauf':           { name: '● läuft aus', text: 'Steht auf der Auslaufliste von L-Shop (freitags neu). Bald nicht mehr bestellbar – Nachfolger überlegen.' },
+        'lfb-auslauf-null':     { name: '● läuft aus · schon 0', text: 'Auslaufliste UND bei L-Shop schon 0 – da kommt wohl nichts mehr. Jetzt handeln: Nachfolger oder privat.' },
         'lfb-nicht-gefuehrt':    { name: '● nicht mehr geführt', text: 'Steht nicht mehr in der L-Shop-Bestandsdatei. Bestellen klappt wahrscheinlich nicht mehr.' },
         'lfb-stand':             { name: 'Lieferbarkeit Stand', text: 'Uhrzeit der L-Shop-Bestandsdatei, aus der die Punkte stammen. MC liest die Datei stündlich.' },
         'lfb-veraltet':          { name: 'Lieferbarkeit veraltet', text: 'Der Stand ist älter als 3 Stunden – der stündliche Abruf hängt. „📦 Lieferbarkeit jetzt“ holt ihn neu.' },
@@ -5208,7 +5211,7 @@
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
-        korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-lb-zuerst', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'lager-storno-hinweis', 'lager-storno-zurueck', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'eb-bearbeiten', 'eb-gesperrt-lager', 'eb-farbe', 'eb-groesse', 'eb-menge', 'eb-referenz', 'eb-notiz', 'eb-lager', 'eb-speichern', 'eb-abbrechen', 'abgleich', 'belege', 'lieferbarkeit', 'alle-offenen', 'zurueck'],
+        korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-lb-zuerst', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'lager-storno-hinweis', 'lager-storno-zurueck', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'eb-bearbeiten', 'eb-gesperrt-lager', 'eb-farbe', 'eb-groesse', 'eb-menge', 'eb-referenz', 'eb-notiz', 'eb-lager', 'eb-speichern', 'eb-abbrechen', 'abgleich', 'belege', 'lieferbarkeit', 'alle-offenen', 'zurueck'],
         leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
         uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
         karton: ['karton-pruefen', 'karton-angekommen', 'karton-naechster', 'karton-rest-lager', 'karton-lager-ort', 'bei-ankunft-lager'],
@@ -5216,9 +5219,9 @@
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager'],
-        'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
+        'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
-        lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
+        lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
       function hilfeLegendeHtml(gruppe) {
@@ -5295,11 +5298,13 @@
       // ── Korb-Menge: Ende ──
 
       // ── Lieferbarkeit-Anzeige: Anfang (BO7-2, reine Logik, Test backend/tests/lieferbarkeit-anzeige.test.js) ──
-      // Quelle nur LShop_Lieferbarkeit (Server haengt { stufe, stock, nullSeit, auslaufdatum } an). Vier Stufen, ueberall gleich.
+      // Quelle nur LShop_Lieferbarkeit (Server haengt { stufe, stock, nullSeit, auslaufdatum } an). Stufen ueberall gleich;
+      // BO7-4: "laeuft aus · schon 0" (Auslaufliste UND Bestand 0) ist die dringendste nach "nicht mehr gefuehrt".
       const LFB_STUFEN = {
-        lieferbar:      { text: 'lieferbar', rang: 3, hilfe: 'lfb-lieferbar' },
-        null:           { text: 'bei L-Shop 0', rang: 2, hilfe: 'lfb-null' },
-        auslauf:        { text: 'läuft aus', rang: 1, hilfe: 'lfb-auslauf' },
+        lieferbar:      { text: 'lieferbar', rang: 4, hilfe: 'lfb-lieferbar' },
+        null:           { text: 'bei L-Shop 0', rang: 3, hilfe: 'lfb-null' },
+        auslauf:        { text: 'läuft aus', rang: 2, hilfe: 'lfb-auslauf' },
+        auslauf_null:   { text: 'läuft aus · schon 0', rang: 1, hilfe: 'lfb-auslauf-null' },
         nicht_gefuehrt: { text: 'nicht mehr geführt', rang: 0, hilfe: 'lfb-nicht-gefuehrt' },
       };
       const LFB_VERALTET_STUNDEN = 3;
@@ -5316,15 +5321,16 @@
         if (!l || !LFB_STUFEN[l.stufe]) return '';
         if (l.stufe === 'null' && l.nullSeit) return `bei L-Shop 0 seit ${lfbTag(l.nullSeit)}`;
         if (l.stufe === 'auslauf' && l.auslaufdatum) return `läuft aus bis ${lfbTag(l.auslaufdatum, { jahr: true })}`;
+        if (l.stufe === 'auslauf_null') return `läuft aus${l.auslaufdatum ? ` bis ${lfbTag(l.auslaufdatum, { jahr: true })}` : ''} · schon 0`;
         return LFB_STUFEN[l.stufe].text;
       }
       /** Zahl fuer den Mouse-over (vor den festen Hilfetext). */
       function lfbZusatz(l) {
         if (!l) return '';
         if (l.stufe === 'nicht_gefuehrt') return 'Nicht mehr in der L-Shop-Bestandsdatei';
-        const teile = [`Bestand bei L-Shop: ${l.stock ?? 0}`];
-        if (l.stufe === 'auslauf' && l.stock === 0 && l.nullSeit) teile.push(`0 seit ${lfbTag(l.nullSeit)}`);
-        return teile.join(' · ');
+        // BO7-4: "läuft aus bis 31.12.2026 – bei L-Shop schon 0 seit 02.11."
+        if (l.stufe === 'auslauf_null') return `läuft aus${l.auslaufdatum ? ` bis ${lfbTag(l.auslaufdatum, { jahr: true })}` : ''} – bei L-Shop schon 0${l.nullSeit ? ` seit ${lfbTag(l.nullSeit)}` : ''}`;
+        return `Bestand bei L-Shop: ${l.stock ?? 0}`;
       }
       /** Punkt (und mit text auch der Kurztext) - leer, wenn nichts bekannt ist (Reiter fehlt, Nummer nicht genutzt). */
       function lfbPunkt(l, { text = false } = {}) {
@@ -5332,8 +5338,8 @@
         return `<span class="lfb-punkt lfb-${l.stufe}" tabindex="0" data-hilfe="${LFB_STUFEN[l.stufe].hilfe}" data-hilfe-zusatz="${lfbEsc(lfbZusatz(l))}"`
           + `${text ? '' : ` aria-label="${lfbEsc(lfbText(l))}"`}>●${text ? ` ${lfbEsc(lfbText(l))}` : ''}</span>`;
       }
-      /** Rang fuer "nicht lieferbar zuerst" (nicht gefuehrt, laeuft aus, 0, lieferbar, unbekannt). */
-      const lfbRang = l => (l && LFB_STUFEN[l.stufe] ? LFB_STUFEN[l.stufe].rang : 4);
+      /** Rang fuer "nicht lieferbar zuerst" (nicht gefuehrt, laeuft aus · schon 0, laeuft aus, 0, lieferbar, unbekannt). */
+      const lfbRang = l => (l && LFB_STUFEN[l.stufe] ? LFB_STUFEN[l.stufe].rang : 5);
       /** Stand-Zeile: "Lieferbarkeit Stand HH:MM", grau "veraltet" ab 3 h, Hinweis bei alter oder fehlender Auslaufliste. */
       function lfbStand(stand, jetzt = new Date()) {
         if (!stand?.datei) return { text: '', veraltet: false, hinweis: '' };
@@ -9259,14 +9265,15 @@
         const alle  = ((daten && daten.varianten) || []).filter(v => v.farbe === f).length;
         const teil  = alle > z.length ? `nur ${z.map(a => a.groesse).join(', ')}` : '';
         const zusatz = [...daten2, teil].filter(Boolean).join(', ');
-        return `läuft aus${zusatz ? ` (${zusatz})` : ''}`;
+        const schonNull = z.some(a => a.schonNull) ? ' · schon 0' : '';   // BO7-4
+        return `läuft aus${zusatz ? ` (${zusatz})` : ''}${schonNull}`;
       }
       // BO7-2: Lieferbarkeit einer Groesse ueber die gewaehlten Farben - die schlechteste Stufe zaehlt; null = nichts bekannt.
       function lshopGroesseLb(daten, groesse, farben) {
         const gew = (farben || []).map(f => lshopFarbe(daten, f)).filter(Boolean);
         const treffer = ((daten && daten.varianten) || [])
           .filter(v => lshopGleich(v.groesse, groesse) && (!gew.length || gew.includes(v.farbe)) && v.lieferbar).map(v => v.lieferbar);
-        const rang = { nicht_gefuehrt: 0, auslauf: 1, null: 2, lieferbar: 3 };
+        const rang = { nicht_gefuehrt: 0, auslauf_null: 1, auslauf: 2, null: 3, lieferbar: 4 };   // BO7-4
         return treffer.sort((a, b) => (rang[a.stufe] ?? 4) - (rang[b.stufe] ?? 4))[0] || null;
       }
       // Sperrgrund einer Variante: Discontinued-Wert (3/6) oder LS2 "ausgelaufen"
@@ -11083,7 +11090,7 @@
         // BO7-2: nur fuer Nummern, die wir schon nutzen (LShop_Lieferbarkeit) - neue Modelle ohne Angabe
         const lb = z.vorschau?.lieferbar;
         const lfbTextLsm = lb ? ` · <span class="lfb-stand" tabindex="0" data-hilfe="lsm-lieferbar">${lsmEsc(`${lb.lieferbar} von ${lb.bekannt} Größen lieferbar`
-          + `${lb.null ? ` · ${lb.null} bei L-Shop 0` : ''}${lb.auslauf ? ` · ${lb.auslauf} laufen aus` : ''}${lb.weg ? ` · ${lb.weg} nicht mehr geführt` : ''}`)}</span>` : '';
+          + `${lb.null ? ` · ${lb.null} bei L-Shop 0` : ''}${lb.auslaufNull ? ` · ${lb.auslaufNull} laufen aus, schon 0` : ''}${lb.auslauf ? ` · ${lb.auslauf} laufen aus` : ''}${lb.weg ? ` · ${lb.weg} nicht mehr geführt` : ''}`)}</span>` : '';
         const gesperrt = z.vorschau?.gesperrt?.length ? ` · <span class="lsm-auslauf">nicht wählbar: ${lsmEsc(z.vorschau.gesperrt.join(', '))}</span>` : '';
         const vorschlaege = z.stufe === 'vorschlag'
           ? `<div class="lsm-vorschlaege">${(z.vorschlaege ?? []).map(v => `<button type="button" class="korb-aktion korb-aktion-ruhig" data-lsm-waehle="${i}" data-modell="${lsmEsc(v.catalogNr)}" data-hilfe="lsm-meintest">`
@@ -11297,12 +11304,13 @@
       // ── SECTION: Lieferbarkeit Shop (BO7-3) ──
       // Shop-Artikel mit nicht lieferbarem L-Shop-Rohling (GET /api/lieferbarkeit-shop). Nur Anzeige und Text-Vorschlaege.
       // ── Lieferbarkeit-Shop: Anfang (reine Logik, Test backend/tests/lieferbarkeit-shop.test.js) ──
-      const LFBS_STUFE_TEXT = { nicht_gefuehrt: 'nicht mehr geführt', auslauf: 'läuft aus', null: 'bei L-Shop 0' };
+      const LFBS_STUFE_TEXT = { nicht_gefuehrt: 'nicht mehr geführt', auslauf_null: 'läuft aus · schon 0', auslauf: 'läuft aus', null: 'bei L-Shop 0' };
       const lfbsEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
       const lfbsTag = s => (/^\d{4}-\d{2}-\d{2}/.test(String(s ?? '')) ? String(s).slice(0, 10).split('-').reverse().join('.') : '');
       /** Spiegel von stufeText (utils/lieferbarkeit-shop.js) - der Test vergleicht beide. */
       function lfbsStufeText(v) {
         if (v.stufe === 'auslauf') return `läuft aus${v.auslaufdatum ? ` bis ${lfbsTag(v.auslaufdatum)}` : ''}`;
+        if (v.stufe === 'auslauf_null') return `läuft aus${v.auslaufdatum ? ` bis ${lfbsTag(v.auslaufdatum)}` : ''} · schon 0${v.nullSeit ? ` seit ${lfbsTag(v.nullSeit)}` : ''}`;
         if (v.stufe === 'null') return `bei L-Shop 0${v.nullSeit ? ` seit ${lfbsTag(v.nullSeit)}` : ''} (${v.tage} Tage)`;
         return LFBS_STUFE_TEXT[v.stufe] ?? v.stufe;
       }
@@ -11320,14 +11328,14 @@
       function lfbsZaehlen(artikel) {
         const vs = artikel.flatMap(a => a.variationen);
         const je = st => vs.filter(v => v.stufe === st).length;
-        return { artikel: artikel.length, variationen: vs.length, nicht_gefuehrt: je('nicht_gefuehrt'), auslauf: je('auslauf'), null: je('null') };
+        return { artikel: artikel.length, variationen: vs.length, nicht_gefuehrt: je('nicht_gefuehrt'), auslauf_null: je('auslauf_null'), auslauf: je('auslauf'), null: je('null') };
       }
       /** "Liste kopieren" - Spiegel von exportText (utils/lieferbarkeit-shop.js), fuer die gefilterte Liste. Ohne Preise. */
       function lfbsExport(artikel, { stand = '' } = {}) {
         const z = lfbsZaehlen(artikel);
         const kopf = `Lieferbarkeit Shop – ${z.artikel} Artikel, ${z.variationen} Variationen${stand ? ` (Stand ${stand})` : ''}`;
         const zeilen = artikel.flatMap(a => [
-          `Artikel ${a.produktId} · ${a.name} · ${a.betroffen} von ${a.gesamt} Variationen${a.farbenKomplett.length ? ` · ganze Farbe: ${a.farbenKomplett.join(', ')}` : ''}${a.lieferzeit ? ` · Lieferzeit ${a.lieferzeit.id}${a.lieferzeit.name ? ` (${a.lieferzeit.name})` : ''}` : ''}`,
+          `Artikel ${a.produktId} · ${a.name} · ${a.betroffen} von ${a.gesamt} Variationen${a.schonNull ? ` · ${a.schonNull} davon schon 0` : ''}${a.farbenKomplett.length ? ` · ganze Farbe: ${a.farbenKomplett.join(', ')}` : ''}${a.lieferzeit ? ` · Lieferzeit ${a.lieferzeit.id}${a.lieferzeit.name ? ` (${a.lieferzeit.name})` : ''}` : ''}`,
           ...a.variationen.map(v => `  Variation ${v.variationId} · ${v.merkmale || '–'} · L-Shop ${v.articleNr} · ${lfbsStufeText(v)} · ${v.vorschlag}`),
         ]);
         return [kopf, ...zeilen].join('\n');
@@ -11343,12 +11351,13 @@
         const kopf = `<span class="lfbs-name">${lfbsEsc(a.name)}</span>`
           + `<span class="lfbs-meta">${a.betroffen} von ${a.gesamt} Variationen${a.kategorien.length ? ` · ${lfbsEsc(a.kategorien.join(', '))}` : ''}`
           + `${a.lieferzeit ? ` · Lieferzeit ${lfbsEsc(a.lieferzeit.name || a.lieferzeit.id)} (${lfbsEsc(a.lieferzeit.id)})` : ''}</span>`
+          + (a.schonNull ? `<span class="lfb-punkt lfb-auslauf_null" tabindex="0" data-hilfe="lfbs-schon-null">● ${a.schonNull} davon schon 0</span>` : '')   // BO7-4
           + (a.farbenKomplett.length ? `<span class="lfb-punkt lfb-nicht_gefuehrt" tabindex="0" data-hilfe="lfbs-ganze-farbe">● ganze Farbe: ${lfbsEsc(a.farbenKomplett.join(', '))}</span>` : '');
         const links = `<div class="lfbs-meta">Artikel ${lfbsEsc(a.produktId)}`
           + (a.permalink ? ` · <a href="${lfbsEsc(a.permalink)}" target="_blank" rel="noopener" data-hilfe="lfbs-shop">im Shop</a>` : '')
           + ` · <button type="button" class="korb-link" data-lfbs-maske="${lfbsEsc(a.produktId)}" data-hilfe="lfbs-maske">in der Maske</button></div>`;
         const vars = a.variationen.map(v => `<div class="lfbs-var"><span>${lfbsEsc(v.merkmale || '–')}</span>`
-          + `<span>${lfbPunkt({ stufe: v.stufe, stock: v.stufe === 'nicht_gefuehrt' ? null : 0, nullSeit: v.nullSeit, auslaufdatum: v.auslaufdatum })} ${lfbsEsc(lfbsStufeText(v))}`
+          + `<span>${lfbPunkt({ stufe: v.stufe, stock: v.stufe === 'nicht_gefuehrt' ? null : v.stufe === 'auslauf' ? v.stock : 0, nullSeit: v.nullSeit, auslaufdatum: v.auslaufdatum })} ${lfbsEsc(lfbsStufeText(v))}`
           + ` <span class="lfbs-meta">L-Shop ${lfbsEsc(v.articleNr)}</span></span>`
           + `<span class="lfbs-vorschlag" tabindex="0" data-hilfe="lfbs-vorschlag">${lfbsEsc(v.vorschlag)}</span></div>`).join('');
         return `<details class="card lfbs-artikel" open><summary>${kopf}</summary>${links}${vars}</details>`;
@@ -11365,7 +11374,7 @@
         const gezeigt = lfbsFiltern(d.artikel, lfbsFilterWerte());
         const z = lfbsZaehlen(gezeigt);
         const aus = d.zaehler.ausgeblendet ?? {};
-        lfbsEl('lfbs-zaehler').textContent = `${z.artikel} Artikel · ${z.variationen} Variationen · nicht geführt ${z.nicht_gefuehrt} · läuft aus ${z.auslauf} · 0 seit ≥ 14 Tagen ${z.null}`
+        lfbsEl('lfbs-zaehler').textContent = `${z.artikel} Artikel · ${z.variationen} Variationen · nicht geführt: ${z.nicht_gefuehrt} · läuft aus · schon 0: ${z.auslauf_null} · läuft aus: ${z.auslauf} · 0 seit ≥ 14 Tagen: ${z.null}`
           + (d.zaehler.shopStatusGeprueft ? ` · ${aus.privat ?? 0} im Shop privat (ausgeblendet)` : ' · Shop-Status der Variationen nicht geprüft');
         lfbsEl('lfbs-stand').innerHTML = lfbStandHtml(d.stand);
         liste.innerHTML = gezeigt.length ? gezeigt.map(lfbsArtikelHtml).join('')

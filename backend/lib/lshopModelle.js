@@ -70,7 +70,7 @@ export function vorschauAus(zeilen, lieferbarkeit) {
     farben: a.alleFarben,
     groessen: a.groessen,
     auslaufend: [...new Set(a.auslaufend.map(x => x.farbe))],
-    ...(bekannt.length ? { lieferbar: { varianten: a.varianten.length, bekannt: bekannt.length, lieferbar: zaehl('lieferbar'), null: zaehl('null'), auslauf: zaehl('auslauf'), weg: zaehl('nicht_gefuehrt') } } : {}),
+    ...(bekannt.length ? { lieferbar: { varianten: a.varianten.length, bekannt: bekannt.length, lieferbar: zaehl('lieferbar'), null: zaehl('null'), auslauf: zaehl('auslauf'), auslaufNull: zaehl('auslauf_null'), weg: zaehl('nicht_gefuehrt') } } : {}),
     gesperrt: [...new Set(a.gesperrt.map(x => x.farbe))].filter(f => !a.alleFarben.includes(f)),
   };
 }

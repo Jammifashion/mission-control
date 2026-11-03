@@ -284,8 +284,9 @@ export function lshopAuswertung(zeilen, { farben, lieferbarkeit } = {}) {
     // M8b: ganzes Modell, fuer die Markierung in der Maske.
     gesperrt:   gesperrtZeilen.map(z => ({ farbe: z.farbe, groesse: t(z.size), articleNr: t(z.articleNr), wert: z.sperre })),
     // BO7-2: nur aus der Auslaufliste (ganzes Modell, waehlbare Zeilen)
-    auslaufend: waehlbar.filter(z => lieferbarkeit?.get(t(z.articleNr))?.stufe === 'auslauf')
-      .map(z => ({ farbe: z.farbe, groesse: t(z.size), datum: lieferbarkeit.get(t(z.articleNr)).auslaufdatum })),
+    auslaufend: waehlbar.filter(z => ['auslauf', 'auslauf_null'].includes(lieferbarkeit?.get(t(z.articleNr))?.stufe))
+      .map(z => ({ farbe: z.farbe, groesse: t(z.size), datum: lieferbarkeit.get(t(z.articleNr)).auslaufdatum,
+        ...(lieferbarkeit.get(t(z.articleNr)).stufe === 'auslauf_null' ? { schonNull: true } : {}) })),   // BO7-4
   };
 }
 

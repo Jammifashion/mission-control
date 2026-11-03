@@ -10,7 +10,7 @@ export const NULL_AB_TAGE = 14;       // Inhaber 02.11.: Bestand 0 zaehlt erst a
 export const LIEFERZEIT_PRUEFEN_TAGE = 30;
 export const NACHFOLGER_MAX = 3;
 const TAG_MS = 86_400_000;
-const RANG = { [STUFE.WEG]: 0, [STUFE.AUSLAUF]: 1, [STUFE.NULL]: 2 };
+const RANG = { [STUFE.WEG]: 0, [STUFE.AUSLAUF_NULL]: 1, [STUFE.AUSLAUF]: 2, [STUFE.NULL]: 3 };   // BO7-4: schon 0 vor laeuft aus
 const t = v => String(v ?? '').trim();
 const NR_RE = /^\d{10}$/;
 
@@ -26,7 +26,8 @@ export function tageSeit(iso, jetzt = new Date()) {
  */
 export function problemStufe(l, jetzt = new Date()) {
   if (!l) return null;
-  if (l.stufe === STUFE.WEG || l.stufe === STUFE.AUSLAUF) return { stufe: l.stufe, tage: tageSeit(l.nullSeit, jetzt), auslaufdatum: t(l.auslaufdatum), nullSeit: t(l.nullSeit), stock: l.stock };
+  // nicht gefuehrt, laeuft aus und (BO7-4) laeuft aus · schon 0 zaehlen sofort - ohne 14-Tage-Grenze
+  if ([STUFE.WEG, STUFE.AUSLAUF, STUFE.AUSLAUF_NULL].includes(l.stufe)) return { stufe: l.stufe, tage: tageSeit(l.nullSeit, jetzt), auslaufdatum: t(l.auslaufdatum), nullSeit: t(l.nullSeit), stock: l.stock };
   if (l.stufe === STUFE.NULL) {
     const tage = tageSeit(l.nullSeit, jetzt);
     return tage !== null && tage >= NULL_AB_TAGE ? { stufe: STUFE.NULL, tage, auslaufdatum: '', nullSeit: t(l.nullSeit), stock: 0 } : null;
@@ -56,9 +57,11 @@ export function vorschlagFuer(p, nachfolger = { farben: [], modelle: [] }) {
   if (p.stufe === STUFE.WEG) return 'Variation privat (Löschliste)';
   if (p.stufe === STUFE.NULL) return p.tage >= LIEFERZEIT_PRUEFEN_TAGE ? 'Lieferzeit prüfen' : 'beobachten';
   const teile = [];
+  const nf = () => (teile.length ? ` – lieferbar: ${teile.join(' · ')} (nur Hinweis)` : '');
   if (nachfolger.farben?.length) teile.push(`gleiches Modell in ${nachfolger.farben.join(', ')}`);
   if (nachfolger.modelle?.length) teile.push(`${nachfolger.marke ? `${nachfolger.marke}: ` : ''}${nachfolger.modelle.join(', ')}`);
-  return `Nachfolger suchen${teile.length ? ` – lieferbar: ${teile.join(' · ')} (nur Hinweis)` : ''}`;
+  if (p.stufe === STUFE.AUSLAUF_NULL) return `jetzt handeln: Nachfolger anlegen oder Variation privat (Löschliste) · Lieferzeit prüfen${nf()}`;
+  return `Nachfolger suchen${nf()}`;
 }
 
 /** Merkmale einer Varianten-Zeile aus E1/V1 … E3/V3 -> { farbe, groesse, text } */
@@ -70,7 +73,8 @@ export function merkmale(z) {
 
 /** Sortierschluessel: nicht gefuehrt -> laeuft aus (frueheres Datum zuerst, ohne Datum danach) -> 0 am laengsten. */
 export function sortSchluessel(v) {
-  return [RANG[v.stufe] ?? 9, v.stufe === STUFE.AUSLAUF ? (v.auslaufdatum || '9999-99-99') : '', v.stufe === STUFE.NULL ? -(v.tage ?? 0) : 0];
+  const aus = v.stufe === STUFE.AUSLAUF || v.stufe === STUFE.AUSLAUF_NULL;
+  return [RANG[v.stufe] ?? 9, aus ? (v.auslaufdatum || '9999-99-99') : '', v.stufe === STUFE.NULL ? -(v.tage ?? 0) : 0];
 }
 const vergleiche = (a, b) => {
   const x = sortSchluessel(a), y = sortSchluessel(b);
@@ -108,11 +112,11 @@ export function baueProblemliste({ varianten, produktJeSsot, je, produkte, liefe
     const vid = t(z.WC_Variation_ID);
     if (varStatus && varStatus.has(vid) && varStatus.get(vid) !== 'publish') { ausgeblendet.privat++; continue; }
     const m = merkmale(z);
-    const nf = p.stufe === STUFE.AUSLAUF ? nachfolgerFuer(nr, modelle, je) : undefined;
+    const nf = p.stufe === STUFE.AUSLAUF || p.stufe === STUFE.AUSLAUF_NULL ? nachfolgerFuer(nr, modelle, je) : undefined;
     if (!jeArtikel.has(pid)) jeArtikel.set(pid, { produktId: pid, ssotId: t(z['SSOT-ID']), variationen: [] });
     jeArtikel.get(pid).variationen.push({
       variationId: vid, articleNr: nr, catalogNr: t(modelle.find(x => t(x.articleNr) === nr)?.catalogNr), farbe: m.farbe, groesse: m.groesse,
-      merkmale: m.text, stufe: p.stufe, tage: p.tage, nullSeit: p.nullSeit, auslaufdatum: p.auslaufdatum, vorschlag: vorschlagFuer(p, nf),
+      merkmale: m.text, stufe: p.stufe, stock: p.stock ?? null, tage: p.tage, nullSeit: p.nullSeit, auslaufdatum: p.auslaufdatum, vorschlag: vorschlagFuer(p, nf),
     });
   }
   const artikel = [...jeArtikel.values()].map(a => {
@@ -127,7 +131,7 @@ export function baueProblemliste({ varianten, produktJeSsot, je, produkte, liefe
     return {
       ...a, name: t(prod.name), permalink: t(prod.permalink), kategorien: prod.kategorien ?? [],
       lieferzeit: lz ? { id: lz, name: lieferzeitName.get(lz) ?? '' } : null,
-      gesamt: alle.length, betroffen: a.variationen.length, farbenKomplett,
+      gesamt: alle.length, betroffen: a.variationen.length, schonNull: a.variationen.filter(v => v.stufe === STUFE.AUSLAUF_NULL).length, farbenKomplett,
     };
   }).sort((x, y) => vergleiche(x.variationen[0], y.variationen[0]) || x.name.localeCompare(y.name, 'de'));
   const vars = artikel.flatMap(a => a.variationen.map(v => ({ ...v, produktId: a.produktId })));
@@ -136,18 +140,19 @@ export function baueProblemliste({ varianten, produktJeSsot, je, produkte, liefe
     artikel,
     zaehler: {
       artikel: artikel.length, variationen: vars.length,
-      [STUFE.WEG]: zaehle(STUFE.WEG), [STUFE.AUSLAUF]: zaehle(STUFE.AUSLAUF), [STUFE.NULL]: zaehle(STUFE.NULL),
+      [STUFE.WEG]: zaehle(STUFE.WEG), [STUFE.AUSLAUF_NULL]: zaehle(STUFE.AUSLAUF_NULL), [STUFE.AUSLAUF]: zaehle(STUFE.AUSLAUF), [STUFE.NULL]: zaehle(STUFE.NULL),
       ausgeblendet, shopStatusGeprueft: Boolean(varStatus),
     },
   };
 }
 
-const STUFE_TEXT = { [STUFE.WEG]: 'nicht mehr geführt', [STUFE.AUSLAUF]: 'läuft aus', [STUFE.NULL]: 'bei L-Shop 0' };
+const STUFE_TEXT = { [STUFE.WEG]: 'nicht mehr geführt', [STUFE.AUSLAUF_NULL]: 'läuft aus · schon 0', [STUFE.AUSLAUF]: 'läuft aus', [STUFE.NULL]: 'bei L-Shop 0' };
 const tagDe = s => (/^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10).split('-').reverse().join('.') : '');
 
 /** Kurztext der Stufe einer Problem-Variation ("läuft aus bis 31.12.2026", "bei L-Shop 0 seit 01.11.2026 (16 Tage)"). */
 export function stufeText(v) {
   if (v.stufe === STUFE.AUSLAUF) return `läuft aus${v.auslaufdatum ? ` bis ${tagDe(v.auslaufdatum)}` : ''}`;
+  if (v.stufe === STUFE.AUSLAUF_NULL) return `läuft aus${v.auslaufdatum ? ` bis ${tagDe(v.auslaufdatum)}` : ''} · schon 0${v.nullSeit ? ` seit ${tagDe(v.nullSeit)}` : ''}`;
   if (v.stufe === STUFE.NULL) return `bei L-Shop 0${v.nullSeit ? ` seit ${tagDe(v.nullSeit)}` : ''} (${v.tage} Tage)`;
   return STUFE_TEXT[v.stufe] ?? v.stufe;
 }
@@ -156,7 +161,7 @@ export function stufeText(v) {
 export function exportText(liste, { stand = '' } = {}) {
   const kopf = `Lieferbarkeit Shop – ${liste.zaehler.artikel} Artikel, ${liste.zaehler.variationen} Variationen${stand ? ` (Stand ${stand})` : ''}`;
   const zeilen = liste.artikel.flatMap(a => [
-    `Artikel ${a.produktId} · ${a.name} · ${a.betroffen} von ${a.gesamt} Variationen${a.farbenKomplett.length ? ` · ganze Farbe: ${a.farbenKomplett.join(', ')}` : ''}${a.lieferzeit ? ` · Lieferzeit ${a.lieferzeit.id}${a.lieferzeit.name ? ` (${a.lieferzeit.name})` : ''}` : ''}`,
+    `Artikel ${a.produktId} · ${a.name} · ${a.betroffen} von ${a.gesamt} Variationen${a.schonNull ? ` · ${a.schonNull} davon schon 0` : ''}${a.farbenKomplett.length ? ` · ganze Farbe: ${a.farbenKomplett.join(', ')}` : ''}${a.lieferzeit ? ` · Lieferzeit ${a.lieferzeit.id}${a.lieferzeit.name ? ` (${a.lieferzeit.name})` : ''}` : ''}`,
     ...a.variationen.map(v => `  Variation ${v.variationId} · ${v.merkmale || '–'} · L-Shop ${v.articleNr} · ${stufeText(v)} · ${v.vorschlag}`),
   ]);
   return [kopf, ...zeilen].join('\n');

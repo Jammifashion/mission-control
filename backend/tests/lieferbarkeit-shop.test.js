@@ -202,7 +202,7 @@ describe('Frontend-Block Lieferbarkeit-Shop', () => {
     expect(F.lfbsFiltern(l.artikel, { kategorie: 'Shirts' }).map(a => a.produktId)).toEqual(['200']);
     expect(F.lfbsFiltern(l.artikel, { suche: 'hoodie navy' })[0].variationen.map(v => v.variationId)).toEqual(['503']);
     expect(F.lfbsKategorien(l.artikel)).toEqual(['Hoodies', 'Shirts']);
-    expect(F.lfbsZaehlen(l.artikel)).toEqual({ artikel: 2, variationen: 5, nicht_gefuehrt: 1, auslauf: 2, null: 2 });
+    expect(F.lfbsZaehlen(l.artikel)).toEqual({ artikel: 2, variationen: 5, nicht_gefuehrt: 1, auslauf_null: 0, auslauf: 2, null: 2 });
   });
   test('Verdrahtung: Unterpunkt artikel/lieferbarkeit, Modus-Knopf mit Mouse-over, Maske-Hinweis, nichts Schreibendes', () => {
     expect(html).toContain("{ id: 'lieferbarkeit', panel: 'products', knopf: '#mode-btn-lieferbarkeit', neuLaden: true }");

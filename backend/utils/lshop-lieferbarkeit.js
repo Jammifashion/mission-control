@@ -156,8 +156,10 @@ export function planLieferbarkeit({ nummern, bestand, auslauf = null, listeName 
     if (aus === 'ja') summen.auslauf++;
     if (!a) summen.neu++; else if (!gleich) summen.geaendert++;
     // Wechsel nur gegen einen vorhandenen Vorher-Stand (Erstbestand still)
-    if (a && istNull && !altNull(a)) wechsel.push({ nr, art: 'null', catalog: z.CatalogNr, gefuehrt: Boolean(b) });
-    if (a && aus === 'ja' && t(a.Auslauf) !== 'ja') wechsel.push({ nr, art: 'auslauf', catalog: z.CatalogNr, auslaufdatum: ausDatum });
+    // BO7-4: beide Wechsel tragen Auslauf und Bestand - die Meldung nennt "laeuft aus" UND "schon 0" in einer Zeile
+    const info = { catalog: z.CatalogNr, gefuehrt: Boolean(b), auslauf: aus === 'ja', auslaufdatum: ausDatum, istNull };
+    if (a && istNull && !altNull(a)) wechsel.push({ nr, art: 'null', ...info });
+    if (a && aus === 'ja' && t(a.Auslauf) !== 'ja') wechsel.push({ nr, art: 'auslauf', ...info });
   }
   return { zeilen, wechsel, summen };
 }
@@ -191,11 +193,22 @@ const tagDe = s => (/^(\d{4})-(\d{2})-(\d{2})$/.exec(s) ? s.split('-').reverse()
 export function buildLieferbarkeitNachricht(wechsel, korbOffen) {
   const rel = (wechsel ?? []).filter(w => korbOffen.has(w.nr));
   if (!rel.length) return null;
-  const zeilen = rel.map(w => {
+  // BO7-4: eine Zeile je Nummer, auch wenn sie im selben Lauf auf 0 faellt UND auf die Auslaufliste kommt
+  const jeNr = new Map();
+  for (const w of rel) {
+    const v = jeNr.get(w.nr) ?? {};
+    jeNr.set(w.nr, { ...v, ...w, gefuehrt: w.gefuehrt ?? v.gefuehrt ?? true,
+      istNull: Boolean(v.istNull || w.istNull || w.art === 'null'), auslauf: Boolean(v.auslauf || w.auslauf || w.art === 'auslauf'),
+      auslaufdatum: w.auslaufdatum || v.auslaufdatum || '' });
+  }
+  const zeilen = [...jeNr.values()].map(w => {
     const n = korbOffen.get(w.nr);
-    const was = w.art === 'null'
-      ? (w.gefuehrt ? 'jetzt nicht lieferbar (Bestand 0)' : 'nicht mehr bei L-Shop geführt')
-      : `läuft aus${tagDe(w.auslaufdatum) ? ` (bis ${tagDe(w.auslaufdatum)})` : ''}`;
+    const auslauf = `läuft aus${tagDe(w.auslaufdatum) ? ` (bis ${tagDe(w.auslaufdatum)})` : ''}`;
+    let was;
+    if (!w.gefuehrt) was = 'nicht mehr bei L-Shop geführt';
+    else if (w.auslauf && w.istNull) was = `${auslauf} – bei L-Shop schon 0, da kommt wohl nichts mehr`;
+    else if (w.istNull) was = 'jetzt nicht lieferbar (Bestand 0)';
+    else was = auslauf;
     return `• ${w.nr}${w.catalog ? ` (${w.catalog})` : ''}: ${was} · ${n} offene Position${n === 1 ? '' : 'en'}`;
   });
   return `⚠️ L-Shop-Lieferbarkeit – offene Korb-Positionen betroffen:\n${zeilen.join('\n')}\nBitte im Warenkorb prüfen (Lager, anderes Modell oder warten).`;
@@ -203,15 +216,18 @@ export function buildLieferbarkeitNachricht(wechsel, korbOffen) {
 
 // ── BO7-2: Anzeige (nur lesen) ───────────────────────────────────────────────
 // Vier Stufen, ueberall gleich: lieferbar (gruen) · bei L-Shop 0 (grau, "seit" aus Null_seit) · laeuft aus (gelb, nur aus
-// der Auslaufliste) · nicht mehr gefuehrt (rot, stock leer). Reihenfolge der Schwere: nicht gefuehrt > laeuft aus > 0.
-export const STUFE = { LIEFERBAR: 'lieferbar', NULL: 'null', AUSLAUF: 'auslauf', WEG: 'nicht_gefuehrt' };
+// der Auslaufliste) · nicht mehr gefuehrt (rot, stock leer). BO7-4: dazu "laeuft aus · schon 0" (orange). Reihenfolge der
+// Schwere: nicht gefuehrt > laeuft aus · schon 0 > laeuft aus > 0.
+// BO7-4: "laeuft aus · schon 0" (Auslaufliste UND stock 0) = dringendste Stufe nach "nicht gefuehrt" - da kommt nichts mehr nach.
+export const STUFE = { LIEFERBAR: 'lieferbar', NULL: 'null', AUSLAUF: 'auslauf', AUSLAUF_NULL: 'auslauf_null', WEG: 'nicht_gefuehrt' };
 export const STAND_VERALTET_STUNDEN = 3;
 
 /** Reiterzeile (Spaltennamen als Schluessel) -> { stufe, stock, nullSeit, auslaufdatum } */
 export function stufeAus(z) {
   const s = t(z?.stock);
   const stock = s === '' ? null : Number(s);
-  const stufe = stock === null ? STUFE.WEG : t(z?.Auslauf) === 'ja' ? STUFE.AUSLAUF : stock === 0 ? STUFE.NULL : STUFE.LIEFERBAR;
+  const aus = t(z?.Auslauf) === 'ja';
+  const stufe = stock === null ? STUFE.WEG : aus && stock === 0 ? STUFE.AUSLAUF_NULL : aus ? STUFE.AUSLAUF : stock === 0 ? STUFE.NULL : STUFE.LIEFERBAR;
   return { stufe, stock, nullSeit: t(z?.Null_seit), auslaufdatum: t(z?.Auslaufdatum) };
 }
 
