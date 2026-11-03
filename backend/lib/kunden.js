@@ -100,19 +100,19 @@ export const sperreKundeDsgvo = o => ersetze(dsgvoPlan, o);
  * die gepruefte Zielstrecke), danach der ganze Reiter zurueckgelesen und verglichen.
  * @returns {{ dryRun, seiten, kontakte: object, plan: object, geschrieben?: { neu, geaendert } }}  nur Zahlen
  */
-export async function importiereKunden({ dryRun = true, sheets: s, kontakteLesen = leseKundenKontakte, jetzt = () => new Date() } = {}) {
+export async function importiereKunden({ dryRun = true, nurFirmen = false, sheets: s, kontakteLesen = leseKundenKontakte, jetzt = () => new Date() } = {}) {
   const sheets = s ?? await sheetsClient();
   const spreadsheetId = sheetId();
   const { kontakte, seiten } = await kontakteLesen();
   const zahlen = zaehleKontakte(kontakte);
   if (dryRun) {
     const { kunden } = await lies(sheets, spreadsheetId);
-    const { zaehler } = importPlan({ kunden, kontakte, jetzt: jetzt().toISOString() });
+    const { zaehler } = importPlan({ kunden, kontakte, nurFirmen, jetzt: jetzt().toISOString() });
     return { dryRun: true, seiten, kontakte: zahlen, plan: zaehler, kundenVorher: kunden.length };
   }
   return mitSperre(async () => {
     const { werte, idx, kunden, breite } = await lies(sheets, spreadsheetId);
-    const { neu, aenderungen, zaehler } = importPlan({ kunden, kontakte, jetzt: jetzt().toISOString() });
+    const { neu, aenderungen, zaehler } = importPlan({ kunden, kontakte, nurFirmen, jetzt: jetzt().toISOString() });
     const q = `'${TAB_KUNDEN}'`;
     const data = [];
     for (const a of aenderungen) {

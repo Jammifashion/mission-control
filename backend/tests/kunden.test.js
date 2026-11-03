@@ -97,6 +97,12 @@ describe('Importplan', () => {
     expect(p.neu).toEqual([]);
     expect(p.zaehler).toMatchObject({ gesperrtUebersprungen: 1, archiviertUebersprungen: 1 });
   });
+  test('nurFirmen: Personen werden uebersprungen und gezaehlt, Firmen normal', () => {
+    const p = importPlan({ kunden: kunden(), kontakte: [firma('neu-1', 20001, 'Neu A'), person('neu-2', 20002, 'N', 'B')], jetzt: JETZT, nurFirmen: true });
+    expect(p.neu.map(k => k.Art)).toEqual(['Firma']);
+    expect(p.zaehler).toMatchObject({ neu: 1, personenUebersprungen: 1 });
+    expect(importPlan({ kunden: kunden(), kontakte: [person('neu-2', 20002, 'N', 'B')], jetzt: JETZT }).zaehler.neu).toBe(1);
+  });
   test('Zeile mit derselben ID doppelt -> mehrdeutig, nichts', () => {
     const ks = kundenZeilen(tabsMit(K1, { ...K1, Kunden_Nr: 'K-00009' })[TAB_KUNDEN]).kunden;
     const p = importPlan({ kunden: ks, kontakte: [firma('aaaa-1', 10001, 'Egal')], jetzt: JETZT });

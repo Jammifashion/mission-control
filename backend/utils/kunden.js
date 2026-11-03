@@ -158,12 +158,14 @@ export function zaehleKontakte(kontakte) {
  * ueberschrieben; Spitzname, Notiz, Status, Kunden_Nr, Angelegt nie. Art: "Verein" bleibt bei einer Firma stehen.
  * Gesperrte (DSGVO) Zeilen werden nie wieder befuellt. Archivierte Lexware-Kontakte legen keine neue Zeile an.
  * Ein Kontakt, der auf mehrere Zeilen passt, und eine Zeile, auf die mehrere Kontakte passen -> nichts, Zaehler.
+ * nurFirmen (Inhaber 03.11.): Personen-Kontakte werden ganz uebersprungen (Zaehler personenUebersprungen) - sie kommen
+ * einzeln ueber "+ Neuer Kunde" in MC dazu.
  * @returns {{ neu: object[], aenderungen: { kundenNr, zeile, felder: object }[], zaehler: object }}
  */
-export function importPlan({ kunden, kontakte, jetzt }) {
+export function importPlan({ kunden, kontakte, jetzt, nurFirmen = false }) {
   const zaehler = {
     kontakte: 0, neu: 0, geaendert: 0, unveraendert: 0, felderGeaendert: 0, archiviertUebersprungen: 0,
-    gesperrtUebersprungen: 0, mehrdeutig: 0, ohneId: 0,
+    gesperrtUebersprungen: 0, mehrdeutig: 0, ohneId: 0, personenUebersprungen: 0,
   };
   const nachId = new Map(), nachNr = new Map();
   const merke = (map, key, k) => { if (!key) return; map.set(key, [...(map.get(key) ?? []), k]); };
@@ -174,6 +176,7 @@ export function importPlan({ kunden, kontakte, jetzt }) {
   for (const c of kontakte ?? []) {
     zaehler.kontakte++;
     const soll = kundeAusKontakt(c);
+    if (nurFirmen && soll.Art === ART.PERSON) { zaehler.personenUebersprungen++; continue; }
     if (!soll.Lexoffice_ID) { zaehler.ohneId++; continue; }
     let passend = nachId.get(soll.Lexoffice_ID) ?? [];
     if (!passend.length && soll.Lexoffice_Nr) passend = (nachNr.get(soll.Lexoffice_Nr) ?? []).filter(k => !t(k.Lexoffice_ID));

@@ -2,6 +2,7 @@
 //
 //   node backend/scripts/kunden-import.js           Trockenlauf (Standard): nur Zahlen, schreibt nichts
 //   node backend/scripts/kunden-import.js --write   schreibt neue Kunden (K-NNNNN) und geaenderte Lexoffice-Felder
+//   --nur-firmen                                   Personen-Kontakte ueberspringen (Inhaber 03.11.: erster Import nur Firmen)
 //
 // Wiederholbar: Abgleich ueber Lexoffice_ID (Rueckfall Lexoffice_Nr); ein zweiter Lauf legt nichts doppelt an
 // und meldet nur Aenderungen. Spitzname, Notiz, Status bleiben immer. Ausgabe nur Zahlen - nie Namen.
@@ -14,9 +15,10 @@ dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.e
 import { importiereKunden } from '../lib/kunden.js';
 
 const WRITE = process.argv.includes('--write');
+const NUR_FIRMEN = process.argv.includes('--nur-firmen');
 
 async function main() {
-  const r = await importiereKunden({ dryRun: !WRITE });
+  const r = await importiereKunden({ dryRun: !WRITE, nurFirmen: NUR_FIRMEN });
   const k = r.kontakte, p = r.plan;
   console.log(`Lexware: ${r.seiten} Seite(n), ${k.gesamt} Kunden-Kontakte`);
   console.log(`  Firmen ${k.firmen} · Personen ${k.personen} · archiviert ${k.archiviert} · ohne Kundennummer ${k.ohneKundennummer}`);
@@ -26,7 +28,7 @@ async function main() {
   console.log(`Reiter Kunden vorher: ${r.kundenVorher} Zeile(n)`);
   console.log(`Plan: neu ${p.neu} · geaendert ${p.geaendert} (${p.felderGeaendert} Felder) · unveraendert ${p.unveraendert}`
     + ` · archiviert uebersprungen ${p.archiviertUebersprungen} · gesperrt uebersprungen ${p.gesperrtUebersprungen}`
-    + ` · mehrdeutig ${p.mehrdeutig} · ohne ID ${p.ohneId}`);
+    + ` · mehrdeutig ${p.mehrdeutig} · ohne ID ${p.ohneId}${NUR_FIRMEN ? ` · Personen uebersprungen ${p.personenUebersprungen}` : ''}`);
   if (r.dryRun) { console.log('Trockenlauf - nichts geschrieben. Mit --write schreiben (nach Freigabe).'); return; }
   console.log(`✓ geschrieben: neu ${r.geschrieben.neu} · geaendert ${r.geschrieben.geaendert}${r.geschrieben.ersteNeueZeile ? ` (neue ab Zeile ${r.geschrieben.ersteNeueZeile})` : ''}, zurueckgelesen.`);
 }
