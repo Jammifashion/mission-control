@@ -9,6 +9,7 @@
 // Nichts davon steht in Log, Chat oder EDI ausser Auftragsnummer und Zahlen.
 
 import { google } from 'googleapis';
+import { AG_PRAEFIX } from '../utils/aufgaben.js';
 import { getGoogleAuth } from './googleAuth.js';
 import { sheetsMitWiederholung } from './googleRetry.js';
 import { mitKorbSperre, _korbCacheLeeren } from './lshopKorb.js';
@@ -30,6 +31,7 @@ function ssot() {
 const mitAllenSperren = fn => mitAuftragSperre(() => mitKorbSperre('auftrag', () => mitLagerSperre(fn)));
 
 async function lies(sheets, spreadsheetId, auftragNr) {
+  if (AG_PRAEFIX.test(String(auftragNr ?? ''))) throw fehler('Aufgaben haben keine Rohlinge – bereitstellen geht nur bei Aufträgen (AU-…).', 422, 'aufgabe');
   const au = await liesAuftraege(sheets, spreadsheetId);
   const auftrag = au.a.zeilen.find(x => x.Auftrag_Nr === String(auftragNr ?? '').trim());
   if (!auftrag) throw fehler('Auftrag gibt es nicht.', 404);

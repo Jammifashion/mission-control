@@ -94,7 +94,7 @@ export async function leseLager(sheets, spreadsheetId) {
 // BO5-5: Partnerliste (Business-Sheet, Reiter Partner) nur lesen - aktive Partner mit P-ID. Nicht lesbar -> leer + Hinweis.
 let partnerCache = { bis: 0, daten: null };
 export const _partnerCacheLeeren = () => { partnerCache = { bis: 0, daten: null }; };
-async function ladePartner(sheets) {
+export async function ladePartner(sheets) {
   if (partnerCache.daten && Date.now() < partnerCache.bis) return partnerCache.daten;
   let daten;
   try {

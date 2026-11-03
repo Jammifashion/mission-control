@@ -8,6 +8,7 @@
 // Namen stehen nirgends: Korb-Referenz und Lager-Bezug sind die AU-Nr., die Lager-Notiz die Position_ID.
 
 import { STATUS as KORB_STATUS, HERKUNFT as KORB_HERKUNFT, naechsteEigenNummer } from './korb-logic.js';
+import { AG_PRAEFIX } from './aufgaben.js';
 import { ART as LAGER_ART, WARENART, bestandAus, bestandVon, naechsteBuchungNr, buchungId, VORGANG_MUSTER, buchungenDesVorgangs } from './lager.js';
 import { ART, HERKUNFT, aktivePositionen, istUebergeben, naechstePositionId, schrittIndex, fehler, POSITION_SPALTEN, STORNIERT } from './auftraege.js';
 
@@ -19,6 +20,7 @@ export const BEREITSTELLEN_BIS = 'bestellt';
 
 /** Darf der Auftrag (noch) Rohlinge bereitstellen? Haengt spaeter auch an der Auftragsart (AM-3a, "Aufgabe" ohne Rohlinge). */
 export function kannBereitstellen(auftrag) {
+  if (AG_PRAEFIX.test(String(auftrag?.Auftrag_Nr ?? auftrag?.Aufgabe_Nr ?? ''))) return false;   // AM-4: Aufgaben haben keine Rohlinge
   return auftrag.Status !== STORNIERT && schrittIndex(auftrag.Status) >= 0 && schrittIndex(auftrag.Status) <= schrittIndex(BEREITSTELLEN_BIS);
 }
 

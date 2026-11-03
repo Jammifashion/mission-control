@@ -221,6 +221,7 @@ export function ediPruefung({ auswahl, zeilen, modelle, customerId, commission, 
     const reference = referenzFuer(z);
     if (!reference) melde('reference', 'Referenz leer', s);
     else if (reference.length > EDI_LAENGEN.reference || STEUERZEICHEN.test(reference)) melde('reference', `Referenz ${reference.length} Zeichen (höchstens ${EDI_LAENGEN.reference})`, s);
+    else if (/^\s*AG-/i.test(reference)) melde('reference', 'Referenz ist eine Aufgaben-Nummer (AG-…) – Aufgaben haben keine Rohlinge', s);
 
     items.push({
       schluessel: s, itemnumber: nr, reference, quantity: menge,

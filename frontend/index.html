@@ -212,6 +212,27 @@
       .au-pos { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; min-height: 44px; }
       .au-pos input { width: 1.3rem; height: 1.3rem; }
       .au-bald { color: var(--accent); font-weight: 600; }
+      /* AM-4: Aufgaben + Checkliste (Handy 375 px: alles bricht um, keine waagerechte Verschiebung) */
+      .ag-chip { border-color: var(--accent); color: var(--accent); }
+      .td-block { margin-top: 0.8rem; border-top: 1px solid var(--border); padding-top: 0.5rem; }
+      .td-kopf { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; margin-bottom: 0.2rem; }
+      .td-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.5rem; min-height: 44px; border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
+      .td-haken { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+      .td-haken input { width: 1.3rem; height: 1.3rem; }
+      .td-text { flex: 1 1 10rem; min-width: 0; overflow-wrap: anywhere; }
+      .td-faellig { font-size: 0.8rem; white-space: nowrap; color: var(--muted); }
+      .td-ueberfaellig .td-faellig { color: var(--danger); font-weight: 600; }
+      .td-heute .td-faellig { color: var(--accent); font-weight: 600; }
+      .td-knoepfe { display: inline-flex; gap: 0.15rem; }
+      .td-knopf { min-width: 36px; min-height: 36px; text-decoration: none; }
+      .td-knopf:disabled { opacity: 0.35; cursor: default; }
+      .td-neu, .td-edit { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0.4rem; }
+      .td-neu input[type="text"], .td-edit input[type="text"] { flex: 1 1 12rem; min-width: 0; }
+      .td-neu input[type="date"], .td-edit input[type="date"] { flex: 0 1 10rem; min-width: 0; }
+      .td-erledigt summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); padding: 0.35rem 0; min-height: 44px; display: flex; align-items: center; }
+      .td-erl .td-text { text-decoration: line-through; opacity: 0.7; }
+      .ag-wartet-zeile { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0.4rem 0; }
+      .ag-wartet-zeile input { flex: 1 1 12rem; min-width: 0; }
       /* AM-2-1: Trefferliste (eine Zeile je Treffer, ~8 sichtbar, darunter scrollen) */
       .tw-box { margin-top: 0.3rem; }
       .tw-box[hidden], #au-kunde-gewaehlt[hidden], #au-kunde-suchzeile[hidden] { display: none !important; }
@@ -2985,10 +3006,16 @@
                 <option value="ware">wartet auf Ware</option>
                 <option value="Anfrage">Anfrage</option><option value="Angebot">Angebot</option><option value="Design">Design</option><option value="bestellt">bestellt</option>
                 <option value="in Produktion">in Produktion</option><option value="fertig">fertig</option><option value="übergeben">übergeben</option>
-                <option value="bezahlt">bezahlt</option><option value="storniert">storniert</option><option value="alle">alle</option>
+                <option value="bezahlt">bezahlt</option><option value="storniert">storniert</option>
+                <optgroup label="Aufgaben"><option value="in Arbeit">in Arbeit</option><option value="wartet">wartet</option><option value="erledigt">erledigt</option><option value="verworfen">verworfen</option></optgroup>
+                <option value="alle">alle</option>
+              </select>
+              <select id="au-art" class="form-select" aria-label="Art" data-hilfe="au-art">
+                <option value="alle">Aufträge und Aufgaben</option><option value="auftraege">nur Aufträge</option><option value="aufgaben">nur Aufgaben</option>
               </select>
             </div>
             <div class="korb-aktionen">
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="ag-neu" data-hilfe="ag-neu">+ Neue Aufgabe</button>
               <button type="button" class="korb-aktion korb-aktion-haupt" id="au-neu" data-hilfe="au-neu">+ Neuer Auftrag</button>
               <button class="hilfe-i" type="button" data-hilfe-gruppe="auftraege" aria-controls="hilfe-au" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
             </div>
@@ -2996,6 +3023,25 @@
           <div id="hilfe-au" class="hilfe-legende" hidden></div>
           <div id="au-zaehler" class="korb-zaehler" aria-live="polite"></div>
           <div id="au-liste"><div class="skeleton"></div></div>
+        </div>
+
+        <!-- AM-4: Offene To-dos aus Aufträgen und Aufgaben (nach Fälligkeit, abhaken direkt hier). -->
+        <div class="card" id="td-ansicht" hidden>
+          <div class="lshop-offen-header korb-kopf"><span id="td-summe">Offene To-dos</span></div>
+          <div id="td-einrichtung"></div>
+          <div class="korb-bedienung">
+            <div class="korb-ansicht lager-filter">
+              <select id="td-f" class="form-select" aria-label="Filter" data-hilfe="td-filter">
+                <option value="alle">alle</option><option value="ueberfaellig">überfällig</option><option value="woche">diese Woche</option>
+                <option value="aufgaben">nur Aufgaben</option><option value="auftraege">nur Aufträge</option>
+              </select>
+            </div>
+            <div class="korb-aktionen">
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="auftraege" aria-controls="hilfe-td" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+            </div>
+          </div>
+          <div id="hilfe-td" class="hilfe-legende" hidden></div>
+          <div id="td-liste"><div class="skeleton"></div></div>
         </div>
 
         <!-- AM-2: Auftragsansicht - Kopf, Status-Leiste, Positionen mit Haken "fertig". -->
@@ -3017,6 +3063,7 @@
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-bezahlt" data-hilfe="au-bezahlt">bezahlt</button>
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-bezahlt-zurueck" data-hilfe="au-bezahlt-zurueck">bezahlt zurücknehmen</button>
               <span class="ku-luecke"></span>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-aufgabe-neu" data-hilfe="au-aufgabe-neu">+ Aufgabe dazu</button>
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-bearbeiten" data-hilfe="au-bearbeiten">bearbeiten …</button>
               <button type="button" class="korb-aktion korb-aktion-ruhig ku-gefahr" id="au-storno" data-hilfe="au-storno">stornieren …</button>
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-storno-zurueck" data-hilfe="au-storno-zurueck">Storno zurücknehmen</button>
@@ -3027,6 +3074,8 @@
             </div>
             <div id="au-d-fehler" class="lager-warnung" hidden></div>
             <div id="au-d-pos"></div>
+            <div id="au-d-aufgaben" class="td-block-zusatz"></div>
+            <div id="au-d-todos"></div>
           </div>
         </div>
 
@@ -3049,6 +3098,84 @@
             <div class="korb-reihe ku-knoepfe">
               <button type="button" class="korb-aktion korb-aktion-haupt" id="ab-ok" data-hilfe="ab-ok">Bereitstellen</button>
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="ab-abbrechen" data-hilfe="dialog-abbrechen">Abbrechen</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- AM-4: Aufgabe (AG-…) - Kopf, Status-Leiste, Checkliste. Keine Positionen, keine Rohlinge. -->
+        <div id="ag-detail" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="ag-d-titel" hidden>
+          <div class="edi-box ku-box au-box">
+            <div class="edi-kopf">
+              <strong id="ag-d-titel">Aufgabe</strong>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="auftraege" aria-controls="hilfe-ag-detail" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+              <button type="button" class="korb-link" id="ag-d-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
+            </div>
+            <div id="hilfe-ag-detail" class="hilfe-legende" hidden></div>
+            <div id="ag-d-kopf" class="au-kopf"></div>
+            <div id="ag-d-leiste" class="au-leiste" aria-label="Status"></div>
+            <div class="korb-reihe ku-knoepfe">
+              <button type="button" class="korb-aktion korb-aktion-haupt" id="ag-weiter" data-hilfe="ag-weiter">weiter …</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="ag-erledigt" data-hilfe="ag-erledigt">erledigt</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="ag-zurueck" data-hilfe="ag-zurueck">einen Schritt zurück</button>
+              <span class="ku-luecke"></span>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="ag-bearbeiten" data-hilfe="ag-bearbeiten">bearbeiten …</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig ku-gefahr" id="ag-verwerfen" data-hilfe="ag-verwerfen">verwerfen …</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="ag-verwerfen-zurueck" data-hilfe="ag-verwerfen-zurueck">verwerfen zurücknehmen</button>
+            </div>
+            <div id="ag-wartet-zeile" class="ag-wartet-zeile" hidden>
+              <input id="ag-wartet-text" type="text" class="form-input" maxlength="120" autocomplete="off" placeholder="wartet auf wen/was? (keine Personennamen)" aria-label="wartet auf" />
+              <button type="button" class="korb-aktion korb-aktion-haupt" id="ag-wartet-ok" data-hilfe="ag-wartet-ok">auf „wartet“ setzen</button>
+            </div>
+            <div id="ag-d-fehler" class="lager-warnung" hidden></div>
+            <div id="ag-d-todos"></div>
+          </div>
+        </div>
+
+        <!-- AM-4: Aufgabe neu / bearbeiten. "für" optional: Kunde (Trefferliste wie im Auftrag), Partner, Shop-Artikel, intern. -->
+        <div id="ag-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="ag-titel" hidden>
+          <div class="edi-box ku-box au-box">
+            <div class="edi-kopf">
+              <strong id="ag-titel">Neue Aufgabe</strong>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="auftraege" aria-controls="hilfe-ag-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+              <button type="button" class="korb-link" id="ag-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
+            </div>
+            <div id="hilfe-ag-dialog" class="hilfe-legende" hidden></div>
+            <div class="lager-felder ku-felder">
+              <label class="ku-breit" data-hilfe="au-keine-namen">Kurztitel (keine Personennamen)<input id="ag-Kurztitel" type="text" class="form-input" maxlength="80" autocomplete="off" placeholder="z. B. Motive Weihnachten für Partner" /></label>
+              <label>Fällig<input id="ag-Faellig" type="date" class="form-input" /></label>
+              <label class="ku-breit" data-hilfe="au-keine-namen">Notiz (keine Personennamen)<textarea id="ag-Notiz" class="form-input" rows="2" maxlength="1000"></textarea></label>
+              <label class="ku-breit" id="ag-wartet-wrap" data-hilfe="ag-wartet-ok" hidden>wartet auf (keine Personennamen)<input id="ag-Wartet_Auf" type="text" class="form-input" maxlength="120" autocomplete="off" /></label>
+            </div>
+            <fieldset class="au-block">
+              <legend data-hilfe="ag-fuer" tabindex="0">für (optional)</legend>
+              <select id="ag-fuer-art" class="form-select" aria-label="für">
+                <option value="">–</option><option value="kunde">Kunde</option><option value="partner">Partner</option><option value="artikel">Shop-Artikel</option><option value="intern">intern</option>
+              </select>
+              <div id="ag-fuer-gewaehlt" class="korb-reihe" hidden>
+                <span id="ag-fuer-text"></span>
+                <button type="button" class="korb-link" id="ag-fuer-aendern" data-hilfe="ag-fuer-aendern">ändern</button>
+              </div>
+              <div id="ag-fuer-suchzeile" hidden>
+                <input id="ag-fuer-suche" type="search" class="form-input" autocomplete="off" aria-label="für: suchen" />
+                <div id="ag-fuer-treffer" class="tw-box" hidden></div>
+              </div>
+              <select id="ag-fuer-partner" class="form-select" aria-label="Partner" hidden></select>
+            </fieldset>
+            <fieldset class="au-block">
+              <legend data-hilfe="ag-gehoert" tabindex="0">gehört zu (optional)</legend>
+              <div id="ag-gehoert-gewaehlt" class="korb-reihe" hidden>
+                <span id="ag-gehoert-text"></span>
+                <button type="button" class="korb-link" id="ag-gehoert-aendern" data-hilfe="ag-gehoert-aendern">ändern</button>
+              </div>
+              <div id="ag-gehoert-suchzeile">
+                <input id="ag-gehoert-suche" type="search" class="form-input" autocomplete="off" placeholder="Auftrag: Nummer, Titel, Kunde" aria-label="Auftrag suchen" />
+                <div id="ag-gehoert-treffer" class="tw-box" hidden></div>
+              </div>
+            </fieldset>
+            <div id="ag-fehler" class="lager-warnung" hidden></div>
+            <div class="korb-reihe ku-knoepfe">
+              <button type="button" class="korb-aktion korb-aktion-haupt" id="ag-speichern" data-hilfe="ag-speichern">Speichern</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="ag-abbrechen" data-hilfe="dialog-abbrechen">Abbrechen</button>
             </div>
           </div>
         </div>
@@ -3616,6 +3743,7 @@
         // AM-1-1 (Inhaber 03.11.): direkt hinter Dashboard, vor Bestellen.
         auftraege: { label: 'Aufträge', leiste: true, shop: false, punkte: [
           { id: 'liste',  label: 'Aufträge', panel: 'auftraege' },   // Inhaber 03.11.: Aufträge vor Kunden
+          { id: 'todos',  label: 'Offene To-dos', panel: 'auftraege' },   // AM-4: alle offenen Punkte aus Aufträgen und Aufgaben
           { id: 'kunden', label: 'Kunden',   panel: 'auftraege' },
         ] },
         bestellen: { label: 'Bestellen & Produktion', shop: true, punkte: [
@@ -5720,7 +5848,7 @@
         'kl-uebernehmen':       { name: 'Treffer wählen', text: 'Zeile anklicken oder ↑/↓ und Enter: übernimmt genau diesen Kunden (nie doppelt). „schon in MC“ öffnet ihn nur.' },
         'kl-neu':               { name: '+ Neuer Kunde in MC', text: 'Nicht in Lexoffice? Dann den Kunden direkt in MC anlegen.' },
         'dash-offen':           { name: 'Offen', text: 'Bestellungen in Bearbeitung und in Wartestellung. Klick öffnet Bestellungen (JFN).' },
-        'dash-auftraege':       { name: 'Aufträge', text: 'Offene Aufträge, Termine in 7 Tagen, fertig und nicht bezahlt, aktive Kunden. Klick öffnet Aufträge.' },
+        'dash-auftraege':       { name: 'Aufträge', text: 'Offene Aufträge, Termine, fertig/nicht bezahlt, überfällige To-dos, offene Aufgaben. Klick öffnet Aufträge.' },
         // AM-2: Aufträge erfassen, Liste, Ansicht
         'au-suche':             { name: 'Aufträge suchen', text: 'Findet über Auftrags-Nr., Kurztitel, Kunde, Spitzname oder Kunden-Nr.; jedes Wort muss passen.' },
         'au-filter':            { name: 'Filter', text: 'offen = weder bezahlt noch storniert. Dazu: Termin in 7 Tagen, wartet auf Ware, je Status oder alle.' },
@@ -5752,6 +5880,36 @@
         'au-raster-lager':      { name: 'im Lager', text: 'So viele Stück dieser Größe liegen im Lager (alle Orte zusammen, die Orte stehen davor).' },
         'au-lager-vorschlag':   { name: 'schon im Lager', text: 'Diese Ware liegt (ganz oder teilweise) schon im Lager. Du kannst sie von dort nehmen, statt sie zu bestellen.' },
         'au-lager-nehmen':      { name: 'aus Lager nehmen', text: 'Herkunft „aus Lager“ mit diesem Ort. Reicht es nicht, wird geteilt: was da ist aus Lager, der Rest wird bestellt.' },
+        'au-art':               { name: 'Art', text: 'Zeigt Aufträge und Aufgaben zusammen oder nur eins davon.' },
+        'ag-neu':               { name: 'Neue Aufgabe', text: 'Arbeit ohne Rohlinge: Motive, Artikel anpassen, Anruf beim Dienstleister. Bekommt eine AG-Nummer.' },
+        'ag-oeffnen':           { name: 'Aufgabe öffnen', text: 'Öffnet die Aufgabe mit Status, Checkliste und Bearbeiten.' },
+        'ag-kennzeichen':       { name: 'Aufgabe', text: 'Eine Aufgabe (AG-…), kein Kundenauftrag: keine Positionen, keine Rohlinge.' },
+        'ag-weiter':            { name: 'weiter', text: 'Nächster Schritt: offen → in Arbeit → wartet → erledigt. Bei „wartet“ fragt MC, auf wen oder was.' },
+        'ag-erledigt':          { name: 'erledigt', text: 'Setzt die Aufgabe direkt auf erledigt (nicht jede Aufgabe muss warten).' },
+        'ag-zurueck':           { name: 'zurück', text: 'Einen Schritt zurück; das Datum des jetzigen Schritts wird geleert.' },
+        'ag-verwerfen':         { name: 'verwerfen', text: 'Aufgabe fällt weg. Nichts wird gelöscht, „verwerfen zurücknehmen“ macht es rückgängig.' },
+        'ag-verwerfen-zurueck': { name: 'verwerfen zurücknehmen', text: 'Holt die Aufgabe auf ihren letzten Schritt zurück.' },
+        'ag-bearbeiten':        { name: 'bearbeiten', text: 'Titel, Notiz, Fälligkeit, „für“ und „gehört zu“ ändern.' },
+        'ag-wartet-ok':         { name: 'wartet', text: 'Auf wen oder was die Aufgabe wartet (z. B. „Muster vom Sticker“) – keine Personennamen.' },
+        'ag-fuer':              { name: 'für', text: 'Wofür die Aufgabe ist: Kunde, Partner, Shop-Artikel oder intern (optional).' },
+        'ag-fuer-aendern':      { name: 'ändern', text: 'Andere Auswahl für „für“ suchen.' },
+        'ag-gehoert':           { name: 'gehört zu', text: 'Optional: ein Auftrag (AU-…). Dort erscheint die Aufgabe unter „Aufgaben zu diesem Auftrag“.' },
+        'ag-gehoert-aendern':   { name: 'ändern', text: 'Anderen Auftrag wählen oder die Verbindung lösen.' },
+        'ag-gehoert-link':      { name: 'Auftrag', text: 'Öffnet den Auftrag, zu dem die Aufgabe gehört.' },
+        'ag-speichern':         { name: 'Speichern', text: 'Legt die Aufgabe an bzw. speichert die Änderung.' },
+        'au-aufgabe-neu':       { name: 'Aufgabe dazu', text: 'Neue Aufgabe, die zu diesem Auftrag gehört (z. B. Motiv entwerfen).' },
+        'td-haken':             { name: 'erledigt', text: 'Haken = Punkt erledigt (mit Datum). Ändert nie den Status des Auftrags oder der Aufgabe.' },
+        'td-faellig':           { name: 'fällig', text: 'Fälligkeit des Punkts: rot = überfällig, gelb = heute.' },
+        'td-hoch':              { name: 'nach oben', text: 'Schiebt den Punkt eine Stelle nach oben.' },
+        'td-runter':            { name: 'nach unten', text: 'Schiebt den Punkt eine Stelle nach unten.' },
+        'td-aendern':           { name: 'ändern', text: 'Text und Fälligkeit des Punkts ändern.' },
+        'td-weg':               { name: 'entfernen', text: 'Nimmt den Punkt aus der Liste (archiviert, nicht gelöscht).' },
+        'td-speichern':         { name: 'speichern', text: 'Speichert Text und Fälligkeit des Punkts.' },
+        'td-neu':               { name: '+ Punkt', text: 'Legt einen neuen Punkt an (Enter im Feld geht auch). Keine Personennamen.' },
+        'td-erledigt-liste':    { name: 'erledigte', text: 'Klappt die erledigten Punkte auf; dort lässt sich ein Haken zurücknehmen.' },
+        'td-zahl':              { name: 'To-dos', text: 'So viele Punkte der Checkliste sind noch offen.' },
+        'td-filter':            { name: 'Filter', text: 'Alle, überfällige, diese Woche (bis 6 Tage, mit überfälligen), nur Aufgaben oder nur Aufträge.' },
+        'td-bezug':             { name: 'Auftrag/Aufgabe', text: 'Öffnet den Auftrag bzw. die Aufgabe, zu der der Punkt gehört.' },
         'au-teilen':            { name: 'teilen', text: 'Nimmt aus dem Lager, was da ist, und macht für den Rest eine Position „bestellen“.' },
         'au-herkunft-zeichen':  { name: 'Herkunft', text: '🛒 wird bestellt · 📦 kommt aus dem Lager (Ort) · ✓ liegt schon bereit.' },
         'au-design-skip':       { name: 'Design überspringen', text: 'Kein Design nötig: weiter direkt zu „bestellt“. Der Schritt Design bleibt grau.' },
@@ -5792,7 +5950,7 @@
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
-        auftraege: ['ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'dash-auftraege', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'dash-offen', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern'],
+        auftraege: ['ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'dash-auftraege', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'dash-offen', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern'],
         lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
@@ -9403,13 +9561,13 @@
 
       document.addEventListener('mc:ansicht', e => {
         if (e.detail?.panel !== 'auftraege') return;
-        const liste = e.detail.punkt === 'liste';
+        const liste = e.detail.punkt === 'liste', todos = e.detail.punkt === 'todos';
         kuDialogSchliessen();
-        kuEl('ku-ansicht').hidden = liste;
+        kuEl('ku-ansicht').hidden = liste || todos;
         document.getElementById('au-ansicht').hidden = !liste;
-        document.getElementById('au-detail').hidden = true;
-        document.getElementById('au-dialog').hidden = true;
-        if (liste) loadAuftraege(); else loadKunden();
+        document.getElementById('td-ansicht').hidden = !todos;   // AM-4
+        for (const id of ['au-detail', 'au-dialog', 'ag-detail', 'ag-dialog']) document.getElementById(id).hidden = true;
+        if (liste || todos) loadAuftraege(); else loadKunden();
       });
 
 
@@ -9589,6 +9747,7 @@
       // ── Auftraege-Kachel: Anfang (reine Logik, Test backend/tests/kunden-frontend.test.js) ──
       const AU_KACHEL_ZEILEN = [
         ['offen', 'offene Aufträge'], ['terminBald', 'Termin in ≤ 7 Tagen'], ['wartetAufWare', 'wartet auf Ware'], ['fertigNichtBezahlt', 'fertig, nicht bezahlt'],
+        ['todosUeberfaellig', 'To-dos überfällig'], ['aufgabenOffen', 'Aufgaben offen'],   // AM-4
       ];
       function auKachelHtml(z) {
         const zahl = v => (Number.isFinite(v) ? String(v) : '–');
@@ -9637,6 +9796,7 @@
       /** Rohlinge bereitstellen: bis "bestellt", nicht storniert, und mind. eine 🛒/📦-Position noch nicht uebergeben.
        *  Spaeter haengt hier auch die Auftragsart (AM-3a "Aufgabe" ohne Rohlinge). */
       function auKannBereitstellen(a) {
+        if (/^AG-/.test(String(a?.Auftrag_Nr ?? a?.Aufgabe_Nr ?? ''))) return false;   // AM-4: Aufgaben haben keine Rohlinge
         if (!a || a.Status === 'storniert' || auIndex(a.Status) < 0 || auIndex(a.Status) > auIndex('bestellt')) return false;
         return (a.positionen ?? []).some(p => p.Art === 'lshop' && ['bestellen', 'lager'].includes(p.Herkunft || 'bestellen') && !p.Korb_Schluessel && !p.Lager_Buchung);
       }
@@ -9673,7 +9833,7 @@
         const sp = String(k.Spitzname ?? '').split(';').map(s => s.trim()).filter(Boolean)[0];
         return `${k.Name || nr}${sp ? ` (${sp})` : ''}`;
       }
-      function auZeileHtml(a, k) {
+      function auZeileHtml(a, k, nTodos = 0) {
         const termin = a.Termin ? `Termin ${auDatum(a.Termin)}` : '';
         const bald = auTerminBald(a) ? ' au-bald' : '';
         return `<div class="ku-zeile${a.Status === 'storniert' ? ' ku-gesperrt' : ''}" data-au-nr="${kuEsc(a.Auftrag_Nr)}">`
@@ -9681,7 +9841,7 @@
           + `<button type="button" class="korb-link" data-au-oeffnen="${kuEsc(a.Auftrag_Nr)}" data-hilfe="au-oeffnen">öffnen</button>`
           + `<div class="ku-meta"><span>${kuEsc(auKundeText(k, a.Kunden_Nr))}</span><span class="ku-chip">${kuEsc(a.Status)}${a.Bezahlt_Am && a.Status !== 'bezahlt' ? ' · bezahlt' : ''}</span>`
           + (termin ? `<span class="${bald.trim()}">${kuEsc(termin)}</span>` : '') + `<span>${Number(a.stueck) || 0} Stück</span>`
-          + (a.ware ? `<span class="ku-chip au-ware au-ware-${a.ware}" data-hilfe="au-ware">${kuEsc(AU_WARE_TEXT[a.ware])}</span>` : '') + '</div></div>';
+          + (a.ware ? `<span class="ku-chip au-ware au-ware-${a.ware}" data-hilfe="au-ware">${kuEsc(AU_WARE_TEXT[a.ware])}</span>` : '') + tdChip(nTodos) + '</div></div>';
       }
       /** Status-Leiste: je Schritt Name + Datum, aktueller hervorgehoben; storniert extra. */
       function auLeisteHtml(a) {
@@ -9779,6 +9939,105 @@
         farbe: p.lshop?.farbe ?? '', groesse: p.lshop?.groesse ?? '', lieferbar: p.lshop?.lieferbar,
         herkunft: auHerkunft(p), lagerOrt: p.Lager_Ort ?? '',
       });
+      // AM-4: Aufgaben (AG) und To-dos - Anzeige-Logik (Server: utils/aufgaben.js). Aufgaben haben keine Positionen/Rohlinge.
+      const AG_SCHRITTE = [['offen', 'Offen_Am'], ['in Arbeit', 'In_Arbeit_Am'], ['wartet', 'Wartet_Am'], ['erledigt', 'Erledigt_Am']];
+      const agIndex = s => AG_SCHRITTE.findIndex(([x]) => x === s);
+      const agOffen = g => !['erledigt', 'verworfen'].includes(g.Status);
+      const AG_FUER_TEXT = { kunde: 'Kunde', partner: 'Partner', artikel: 'Shop-Artikel', intern: 'intern' };
+      /** Status-Leiste einer Aufgabe (Farben wie beim Auftrag: erledigt gruen, aktuell gelb, nicht erreicht grau). */
+      function agLeisteHtml(g) {
+        const i = agIndex(g.Status);
+        return AG_SCHRITTE.map(([s, feld], j) => `<span class="au-schritt${j === i ? ' au-aktuell' : g[feld] ? ' au-erledigt' : ''}">${kuEsc(s)}`
+          + `${g[feld] ? `<small>${auDatum(g[feld])}</small>` : ''}</span>`).join('')
+          + (g.Status === 'verworfen' ? `<span class="au-schritt au-aktuell ku-gefahr">verworfen<small>${auDatum(g.Verworfen_Am)}</small></span>` : '');
+      }
+      /** Faelligkeit -> ueberfaellig | heute | woche (bis +6 Tage) | spaeter | '' - wie faelligStufe im Backend. */
+      function tdStufe(f, heute = auHeute()) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(f ?? ''))) return '';
+        if (f < heute) return 'ueberfaellig';
+        if (f === heute) return 'heute';
+        const bis = new Date(Date.UTC(+heute.slice(0, 4), +heute.slice(5, 7) - 1, +heute.slice(8, 10) + 6)).toISOString().slice(0, 10);
+        return f <= bis ? 'woche' : 'spaeter';
+      }
+      /** Aktive To-dos eines Bezugs in Reihenfolge, getrennt nach offen / erledigt. */
+      function tdVon(todos, bezug) {
+        const l = (todos ?? []).filter(d => d.Bezug === bezug && !d.Archiviert)
+          .sort((a, b) => (Number(a.Reihenfolge) || 0) - (Number(b.Reihenfolge) || 0) || String(a.Todo_ID).localeCompare(String(b.Todo_ID)));
+        return { offen: l.filter(d => d.Erledigt !== 'ja'), erledigt: l.filter(d => d.Erledigt === 'ja') };
+      }
+      const tdZaehler = v => `${v.erledigt.length}/${v.offen.length + v.erledigt.length} erledigt`;
+      /**
+       * Uebersicht "Offene To-dos": nur offene Punkte offener Auftraege/Aufgaben, nach Faelligkeit (ohne Datum zuletzt).
+       * bezuege: Map Nr -> { titel, offen, art: 'AU' | 'AG' }. filter: alle | ueberfaellig | woche (bis +6 Tage, inkl. ueberfaellig) | aufgaben | auftraege.
+       */
+      function tdUebersicht(todos, bezuege, filter = 'alle', heute = auHeute()) {
+        return (todos ?? []).filter(d => !d.Archiviert && d.Erledigt !== 'ja' && bezuege.get(d.Bezug)?.offen)
+          .map(d => ({ todo: d, stufe: tdStufe(d.Faellig, heute), bezug: bezuege.get(d.Bezug) }))
+          .filter(x => filter === 'ueberfaellig' ? x.stufe === 'ueberfaellig' : filter === 'woche' ? ['ueberfaellig', 'heute', 'woche'].includes(x.stufe)
+            : filter === 'aufgaben' ? x.bezug.art === 'AG' : filter === 'auftraege' ? x.bezug.art === 'AU' : true)
+          .sort((a, b) => (a.todo.Faellig || '9999').localeCompare(b.todo.Faellig || '9999') || String(a.todo.Bezug).localeCompare(String(b.todo.Bezug))
+            || (Number(a.todo.Reihenfolge) || 0) - (Number(b.todo.Reihenfolge) || 0));
+      }
+      /** Aufgaben fuer die gemeinsame Liste: offen | termin (faellig in <= 7 Tagen) | <Aufgaben-Status> | alle; Suche Nr., Titel, "wartet auf". */
+      function agFiltern(aufgaben, f = {}, heute = auHeute()) {
+        const woerter = String(f.suche ?? '').trim().toLowerCase().split(/\s+/).filter(Boolean);
+        const wahl = f.filter || 'offen';
+        return (aufgaben ?? []).filter(g => (wahl === 'alle' ? true : wahl === 'offen' ? agOffen(g)
+            : wahl === 'termin' ? agOffen(g) && auTerminBald({ Status: 'offen', Termin: g.Faellig }, heute) : g.Status === wahl))
+          .filter(g => woerter.every(w => [g.Aufgabe_Nr, g.Kurztitel, g.Wartet_Auf, g.Fuer, g.Gehoert_Zu].join(' ').toLowerCase().includes(w)));
+      }
+      /** "fuer" als Text: Kunde (Name aus der Kundenliste), Partner (P-… Name), Shop-Artikel #ID, intern. */
+      function agFuerText(g, kunde, partnerName = '') {
+        if (g.Fuer_Art === 'kunde') return `für ${auKundeText(kunde, g.Fuer)}`;
+        if (g.Fuer_Art === 'partner') return `für ${[g.Fuer, partnerName].filter(Boolean).join(' ')}`;
+        if (g.Fuer_Art === 'artikel') return `für Shop-Artikel #${g.Fuer}`;
+        return g.Fuer_Art === 'intern' ? 'intern' : '';
+      }
+      const tdChip = n => (n ? `<span class="ku-chip" data-hilfe="td-zahl" tabindex="0">${n} offene${n === 1 ? 's' : ''} To-do${n === 1 ? '' : 's'}</span>` : '');
+      function agZeileHtml(g, fuer = '', nTodos = 0) {
+        const st = tdStufe(g.Faellig);
+        return `<div class="ku-zeile${g.Status === 'verworfen' ? ' ku-gesperrt' : ''}" data-ag-nr="${kuEsc(g.Aufgabe_Nr)}">`
+          + `<span class="ku-nr">${kuEsc(g.Aufgabe_Nr)}</span><span class="ku-name">${kuEsc(g.Kurztitel)}</span>`
+          + `<button type="button" class="korb-link" data-ag-oeffnen="${kuEsc(g.Aufgabe_Nr)}" data-hilfe="ag-oeffnen">öffnen</button>`
+          + `<div class="ku-meta"><span class="ku-chip ag-chip" data-hilfe="ag-kennzeichen" tabindex="0">Aufgabe</span><span class="ku-chip">${kuEsc(g.Status)}</span>`
+          + (fuer ? `<span>${kuEsc(fuer)}</span>` : '')
+          + (g.Faellig ? `<span class="${agOffen(g) && ['ueberfaellig', 'heute'].includes(st) ? 'au-bald' : ''}">fällig ${auDatum(g.Faellig)}</span>` : '')
+          + (g.Status === 'wartet' && g.Wartet_Auf ? `<span>wartet auf: ${kuEsc(g.Wartet_Auf)}</span>` : '')
+          + (g.Gehoert_Zu ? `<span>zu ${kuEsc(g.Gehoert_Zu)}</span>` : '') + tdChip(nTodos) + '</div></div>';
+      }
+      /**
+       * Checkliste eines Auftrags / einer Aufgabe. zu = storniert/verworfen (nur ansehen). bearbeite = Todo_ID im Aenderungsmodus.
+       * Erledigte eingeklappt mit Zaehler; Haken, ↑/↓, ändern, entfernen (= archivieren). Freitext: keine Personennamen.
+       */
+      function tdBlockHtml(bezug, todos, { zu = false, bearbeite = '', offenErledigt = false, heute = auHeute() } = {}) {
+        const v = tdVon(todos, bezug);
+        const zeile = (d, i, n) => {
+          const id = kuEsc(d.Todo_ID);
+          if (bearbeite === d.Todo_ID && !zu) {
+            return `<div class="td-zeile td-edit"><input type="text" class="form-input" maxlength="200" data-td-edit-text value="${kuEsc(d.Text)}" aria-label="To-do-Text (keine Personennamen)" />`
+              + `<input type="date" class="form-input" data-td-edit-faellig value="${kuEsc(d.Faellig ?? '')}" aria-label="fällig am" />`
+              + `<button type="button" class="korb-aktion korb-aktion-haupt" data-td-speichern="${id}" data-td-stand="${kuEsc(d.Stand)}" data-hilfe="td-speichern">speichern</button>`
+              + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-td-abbrechen data-hilfe="dialog-abbrechen">abbrechen</button></div>`;
+          }
+          const erl = d.Erledigt === 'ja';
+          return `<div class="td-zeile td-${erl ? 'erl' : tdStufe(d.Faellig, heute) || 'ohne'}">`
+            + `<label class="td-haken" data-hilfe="td-haken"><input type="checkbox" data-td-haken="${id}" ${erl ? 'checked' : ''} ${zu ? 'disabled' : ''} aria-label="erledigt" /></label>`
+            + `<span class="td-text">${kuEsc(d.Text)}</span>`
+            + (d.Faellig ? `<span class="td-faellig" data-hilfe="td-faellig" tabindex="0">${auDatum(d.Faellig)}</span>` : '')
+            + (zu ? '' : '<span class="td-knoepfe">' + (erl ? '' : `<button type="button" class="korb-link td-knopf" data-td-hoch="${id}" data-hilfe="td-hoch" aria-label="nach oben"${i === 0 ? ' disabled' : ''}>↑</button>`
+              + `<button type="button" class="korb-link td-knopf" data-td-runter="${id}" data-hilfe="td-runter" aria-label="nach unten"${i === n - 1 ? ' disabled' : ''}>↓</button>`
+              + `<button type="button" class="korb-link td-knopf" data-td-aendern="${id}" data-hilfe="td-aendern" aria-label="ändern">✎</button>`)
+              + `<button type="button" class="korb-link td-knopf" data-td-weg="${id}" data-hilfe="td-weg" aria-label="entfernen">✕</button></span>`)
+            + '</div>';
+        };
+        const neu = zu ? '' : `<div class="td-neu"><input type="text" class="form-input" maxlength="200" data-td-neu-text placeholder="Neuer Punkt (keine Personennamen) – Enter legt an" aria-label="Neuer Punkt" />`
+          + `<input type="date" class="form-input" data-td-neu-faellig aria-label="fällig am (optional)" />`
+          + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-td-neu data-hilfe="td-neu">+ Punkt</button></div>`;
+        const erledigt = v.erledigt.length ? `<details class="td-erledigt"${offenErledigt ? ' open' : ''}><summary data-hilfe="td-erledigt-liste">${tdZaehler(v)} – erledigte zeigen</summary>`
+          + v.erledigt.map((d, i) => zeile(d, i, v.erledigt.length)).join('') + '</details>' : '';
+        return `<div class="td-block" data-td-bezug="${kuEsc(bezug)}"><div class="td-kopf"><strong>To-dos</strong><span class="korb-zaehler">${tdZaehler(v)}</span></div>`
+          + (v.offen.map((d, i) => zeile(d, i, v.offen.length)).join('') || '<p class="korb-zaehler">Keine offenen Punkte.</p>') + erledigt + neu + '</div>';
+      }
       // ── Auftraege-Anzeige: Ende ──
 
       const auEl = id => document.getElementById(id);
@@ -9790,12 +10049,19 @@
       function auZeichnen() {
         const alle = auZ.daten?.auftraege ?? [];
         const z = auZ.daten?.zahlen ?? {};
-        auEl('au-summe').textContent = `Aufträge: ${z.offen ?? 0} offen`;
-        const liste = auFiltern(alle, kuZ.kunden, { filter: auEl('au-f').value, suche: auEl('au-suche').value });
-        auEl('au-zaehler').textContent = `${liste.length} von ${alle.length} angezeigt · Termin in ≤ 7 Tagen: ${z.terminBald ?? 0} · fertig, nicht bezahlt: ${z.fertigNichtBezahlt ?? 0}`;
-        auEl('au-liste').innerHTML = !alle.length ? '<p class="korb-zaehler">Noch keine Aufträge. „+ Neuer Auftrag“ legt einen an.</p>'
-          : !liste.length ? '<p class="korb-zaehler">Kein Auftrag passt zu Suche bzw. Filter.</p>'
-          : `<div class="ku-liste">${liste.map(a => auZeileHtml(a, auKunde(a.Kunden_Nr))).join('')}</div>`;
+        // AM-4: Auftraege und Aufgaben in einer Liste (Filter Art), nach Termin bzw. Faelligkeit.
+        const art = auEl('au-art').value, f = { filter: auEl('au-f').value, suche: auEl('au-suche').value };
+        const ags = agAlle();
+        const liste = [
+          ...(art === 'aufgaben' ? [] : auFiltern(alle, kuZ.kunden, f).map(a => ({ datum: a.Termin, html: auZeileHtml(a, auKunde(a.Kunden_Nr), tdOffenZahl(a.Auftrag_Nr)) }))),
+          ...(art === 'auftraege' ? [] : agFiltern(ags, f).map(g => ({ datum: g.Faellig, html: agZeileHtml(g, agFuer(g), tdOffenZahl(g.Aufgabe_Nr)) }))),
+        ].sort((x, y) => (x.datum || '9999').localeCompare(y.datum || '9999'));
+        auEl('au-summe').textContent = `Aufträge: ${z.offen ?? 0} offen${z.aufgabenOffen ? ` · Aufgaben: ${z.aufgabenOffen} offen` : ''}`;
+        auEl('au-zaehler').textContent = `${liste.length} von ${alle.length + ags.length} angezeigt · Termin in ≤ 7 Tagen: ${z.terminBald ?? 0} · fertig, nicht bezahlt: ${z.fertigNichtBezahlt ?? 0}`
+          + (z.todosUeberfaellig ? ` · To-dos überfällig: ${z.todosUeberfaellig}` : '');
+        auEl('au-liste').innerHTML = !alle.length && !ags.length ? '<p class="korb-zaehler">Noch keine Aufträge. „+ Neuer Auftrag“ legt einen an.</p>'
+          : !liste.length ? '<p class="korb-zaehler">Nichts passt zu Suche bzw. Filter.</p>'
+          : `<div class="ku-liste">${liste.map(x => x.html).join('')}</div>`;
       }
 
       async function loadAuftraege() {
@@ -9813,6 +10079,11 @@
           for (const x of j.auftraege ?? []) if (x.autoBestellt) showToast(`${x.Auftrag_Nr}: Rohlinge bestellt – automatisch auf „bestellt“ gesetzt.`);
           auZeichnen();
           if (auZ.offen) auDetailZeichnen(auZ.offen);
+          if (agZ.offen) agDetailZeichnen(agZ.offen);   // AM-4
+          // AM-4: Partnernamen fuer "für Partner" kommen mit der Lager-Antwort (nur gelesen, nur wenn gebraucht)
+          if (!auLager.geladen && (j.aufgaben ?? []).some(g => g.Fuer_Art === 'partner')) auLagerLaden().then(() => { auZeichnen(); if (agZ.offen) agDetailZeichnen(agZ.offen); });
+          tdUebersichtZeichnen();
+          if (tdZ.fokus) { document.querySelector(`.td-block[data-td-bezug="${tdZ.fokus}"] [data-td-neu-text]`)?.focus(); tdZ.fokus = ''; }
           if (kuZ.offen) kuAuftraegeZeichnen(kuZ.offen.Kunden_Nr);
         } catch (e) {
           auEl('au-liste').innerHTML = `<div class="lager-warnung">Aufträge nicht geladen: ${kuEsc(e.message)}</div>`;
@@ -9868,6 +10139,7 @@
             + (auKannZuruecknehmen(a, p) ? `<button type="button" class="korb-link" data-au-zuruecknehmen="${kuEsc(p.Position_ID)}" data-hilfe="au-zuruecknehmen">Übergabe zurücknehmen</button>` : '')).join('');
           return `<div class="au-gruppe"><div>${kopf} · ${g.stueck} Stück</div>${neben ? `<div class="ku-meta">${neben}</div>` : ''}<div class="au-pos-zeilen">${zeilen}</div></div>`;
         }).join('') || '<p class="korb-zaehler">Keine Positionen.</p>';
+        auDetailZusatz(a);   // AM-4: zugehoerige Aufgaben + To-dos
       }
 
       async function auStatus(aktion, frage, extra = {}) {
@@ -9995,6 +10267,7 @@
           if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
           auLager.je = new Map((j.posten ?? []).filter(x => String(x.schluessel).startsWith('LS:')).map(x => [`${String(x.schluessel).slice(3)}|${x.ort}`, Number(x.menge) || 0]));
           auLager.orte = (j.orte ?? []).filter(o => o.status === 'aktiv').map(o => o.ort);
+          auLager.partner = j.partner ?? [];   // AM-4: Auswahl "für Partner" (aktive P-…, nur gelesen)
           auLager.geladen = true; auLager.fehler = '';
         } catch (e) { auLager.fehler = e.message; }
         if (!auEl('au-dialog').hidden) { auEntwurfZeichnen(); if (!auEl('au-raster-form').hidden) { auFarbenLager(); auRasterZeichnen(); } }
@@ -10305,6 +10578,288 @@
         const b = e.target.closest('[data-korb-au], [data-lager-au]');
         if (b) window.auOeffnen(b.dataset.korbAu || b.dataset.lagerAu);
       });
+
+      // ── SECTION: Aufgaben und To-dos (AM-4) ──
+      // Aufgaben (AG-…) liegen im eigenen Reiter, kommen aber mit GET /api/auftraege (aufgaben, todos) und stehen in derselben
+      // Liste. Keine Positionen, kein "Rohlinge bereitstellen". To-dos haengen an AU- oder AG-Nummer; jede Aktion = ein Aufruf,
+      // danach neu geladen. Freitexte (Titel, To-do, "wartet auf") ohne Personennamen; nichts davon in Adresse/Browser-Speicher.
+      const agZ = { offen: null };
+      const tdZ = { bearbeite: '', laeuft: false, offenErledigt: new Set(), fokus: '' };
+      const agDlg = { aufgabe: null, fuer: null, gehoert: '', vorgang: '', laeuft: false, timer: null };
+      const agAlle = () => auZ.daten?.aufgaben ?? [];
+      const tdAlle = () => auZ.daten?.todos ?? [];
+      const agPartnerName = id => (auLager.partner ?? []).find(p => p.id === id)?.name ?? '';
+      const agFuer = g => agFuerText(g, g.Fuer_Art === 'kunde' ? auKunde(g.Fuer) : null, g.Fuer_Art === 'partner' ? agPartnerName(g.Fuer) : '');
+      const tdOffenZahl = nr => tdVon(tdAlle(), nr).offen.length;
+      /** Nr -> { titel, offen, art } fuer Uebersicht und Kachel-Logik. */
+      function tdBezuege() {
+        return new Map([
+          ...(auZ.daten?.auftraege ?? []).map(a => [a.Auftrag_Nr, { nr: a.Auftrag_Nr, titel: a.Kurztitel, offen: auOffen(a), art: 'AU' }]),
+          ...agAlle().map(g => [g.Aufgabe_Nr, { nr: g.Aufgabe_Nr, titel: g.Kurztitel, offen: agOffen(g), art: 'AG' }]),
+        ]);
+      }
+      function tdEinrichtungHinweis() {
+        const e = auZ.daten?.einrichtung;
+        return e && (!e.aufgaben || !e.todos) ? '<div class="lager-warnung">Aufgaben/To-dos noch nicht eingerichtet (Reiter fehlen) – scripts/setup-auftraege-reiter.js --write.</div>' : '';
+      }
+
+      // ── Liste: Auftraege + Aufgaben ──
+      auEl('au-art').addEventListener('change', auZeichnen);
+      auEl('au-liste').addEventListener('click', e => { const b = e.target.closest('[data-ag-oeffnen]'); if (b) agDetailOeffnen(b.dataset.agOeffnen); });
+      auEl('ag-neu').addEventListener('click', () => agDialogOeffnen(null));
+
+      // ── Uebersicht "Offene To-dos" ──
+      function tdUebersichtZeichnen() {
+        const el = auEl('td-liste');
+        if (!el || auEl('td-ansicht').hidden) return;
+        const l = tdUebersicht(tdAlle(), tdBezuege(), auEl('td-f').value);
+        const alle = tdUebersicht(tdAlle(), tdBezuege(), 'alle');
+        const ueber = alle.filter(x => x.stufe === 'ueberfaellig').length;
+        auEl('td-summe').textContent = `Offene To-dos: ${alle.length}${ueber ? ` · ${ueber} überfällig` : ''}`;
+        auEl('td-einrichtung').innerHTML = tdEinrichtungHinweis();
+        el.innerHTML = !alle.length ? '<p class="korb-zaehler">Keine offenen To-dos.</p>'
+          : !l.length ? '<p class="korb-zaehler">Kein To-do passt zum Filter.</p>'
+          : l.map(({ todo: d, stufe, bezug }) => `<div class="td-zeile td-${stufe || 'ohne'}">`
+            + `<label class="td-haken" data-hilfe="td-haken"><input type="checkbox" data-td-haken="${kuEsc(d.Todo_ID)}" aria-label="erledigt" /></label>`
+            + `<span class="td-text">${kuEsc(d.Text)}</span>`
+            + `<span class="td-faellig" data-hilfe="td-faellig" tabindex="0">${d.Faellig ? auDatum(d.Faellig) : 'ohne Datum'}</span>`
+            + `<button type="button" class="korb-link" data-td-bezug-oeffnen="${kuEsc(bezug.nr)}" data-hilfe="td-bezug">${kuEsc(bezug.nr)} · ${kuEsc(bezug.titel)}</button></div>`).join('');
+      }
+      auEl('td-f').addEventListener('change', tdUebersichtZeichnen);
+      auEl('td-liste').addEventListener('click', e => {
+        const b = e.target.closest('[data-td-bezug-oeffnen]');
+        if (!b) return;
+        const nr = b.dataset.tdBezugOeffnen;
+        if (nr.startsWith('AG-')) agDetailOeffnen(nr); else auDetailOeffnen(nr);
+      });
+
+      // ── Checkliste: ein Satz Ereignisse fuer Auftrag, Aufgabe und Uebersicht ──
+      function tdNeuZeichnen() {
+        if (auZ.offen) auDetailZeichnen(auZ.offen);
+        if (agZ.offen) agDetailZeichnen(agZ.offen);
+        tdUebersichtZeichnen();
+        if (tdZ.fokus) document.querySelector(`.td-block[data-td-bezug="${tdZ.fokus}"] [data-td-neu-text]`)?.focus();
+        tdZ.fokus = '';
+      }
+      async function tdAktion(pfad, body, { fokus = '' } = {}) {
+        if (tdZ.laeuft) return false;
+        tdZ.laeuft = true;
+        let ok = true;
+        try { await auPost(pfad, body); } catch (err) { ok = false; showToast(`To-do: ${err.message}`, 'error'); }
+        finally { tdZ.laeuft = false; }
+        tdZ.fokus = fokus;
+        await loadAuftraege();
+        return ok;
+      }
+      async function tdNeu(block) {
+        const text = block.querySelector('[data-td-neu-text]'), faellig = block.querySelector('[data-td-neu-faellig]');
+        if (!text.value.trim()) { text.focus(); return; }
+        await tdAktion('todo/neu', { bezug: block.dataset.tdBezug, text: text.value, faellig: faellig.value, vorgang: auVorgang() }, { fokus: block.dataset.tdBezug });
+      }
+      document.addEventListener('keydown', e => {
+        const f = e.target.closest?.('[data-td-neu-text], [data-td-edit-text]');
+        if (!f || e.key !== 'Enter') return;
+        e.preventDefault();
+        if (f.matches('[data-td-neu-text]')) tdNeu(f.closest('.td-block'));
+        else f.closest('.td-zeile').querySelector('[data-td-speichern]')?.click();
+      });
+      document.addEventListener('change', async e => {
+        const h = e.target.closest?.('[data-td-haken]');
+        if (!h) return;
+        h.disabled = true;
+        await tdAktion('todo/aendern', { todoId: h.dataset.tdHaken, erledigt: h.checked });
+      });
+      document.addEventListener('toggle', e => {
+        const d = e.target.closest?.('.td-erledigt');
+        const b = d?.closest('.td-block')?.dataset.tdBezug;
+        if (b) { if (d.open) tdZ.offenErledigt.add(b); else tdZ.offenErledigt.delete(b); }
+      }, true);
+      document.addEventListener('click', async e => {
+        const b = e.target.closest?.('[data-td-neu], [data-td-hoch], [data-td-runter], [data-td-aendern], [data-td-weg], [data-td-speichern], [data-td-abbrechen]');
+        if (!b || !b.closest('.td-block')) return;
+        const d = b.dataset;
+        if (d.tdNeu !== undefined) return tdNeu(b.closest('.td-block'));
+        if (d.tdHoch || d.tdRunter) return tdAktion('todo/verschieben', { todoId: d.tdHoch || d.tdRunter, richtung: d.tdHoch ? 'hoch' : 'runter' });
+        if (d.tdAendern) { tdZ.bearbeite = d.tdAendern; tdNeuZeichnen(); document.querySelector('[data-td-edit-text]')?.focus(); return; }
+        if (d.tdAbbrechen !== undefined) { tdZ.bearbeite = ''; tdNeuZeichnen(); return; }
+        if (d.tdWeg) { if (await tdAktion('todo/archivieren', { todoId: d.tdWeg })) showToast(`${d.tdWeg}: entfernt (archiviert).`); return; }
+        if (d.tdSpeichern) {
+          const z = b.closest('.td-zeile');
+          if (await tdAktion('todo/aendern', { todoId: d.tdSpeichern, stand: d.tdStand, text: z.querySelector('[data-td-edit-text]').value, faellig: z.querySelector('[data-td-edit-faellig]').value })) tdZ.bearbeite = '';
+          tdNeuZeichnen();
+        }
+      });
+      const tdBlock = (bezug, zu) => tdBlockHtml(bezug, tdAlle(), { zu, bearbeite: tdZ.bearbeite, offenErledigt: tdZ.offenErledigt.has(bezug) });
+
+      // ── Auftrag: zugehoerige Aufgaben + Checkliste (in auDetailZeichnen) ──
+      function auDetailZusatz(a) {
+        const zug = agAlle().filter(g => g.Gehoert_Zu === a.Auftrag_Nr);
+        auEl('au-d-aufgaben').innerHTML = zug.length ? `<div class="td-kopf"><strong>Aufgaben zu diesem Auftrag</strong></div>`
+          + zug.map(g => `<div><button type="button" class="korb-link" data-ag-oeffnen="${kuEsc(g.Aufgabe_Nr)}" data-hilfe="ag-oeffnen">${kuEsc(g.Aufgabe_Nr)} · ${kuEsc(g.Kurztitel)}</button> <span class="ku-chip">${kuEsc(g.Status)}</span></div>`).join('') : '';
+        auEl('au-d-todos').innerHTML = auZ.daten?.einrichtung?.todos === false ? tdEinrichtungHinweis() : tdBlock(a.Auftrag_Nr, a.Status === 'storniert');
+        auEl('au-aufgabe-neu').hidden = a.Status === 'storniert' || auZ.daten?.einrichtung?.aufgaben === false;
+      }
+      auEl('au-d-aufgaben').addEventListener('click', e => { const b = e.target.closest('[data-ag-oeffnen]'); if (b) agDetailOeffnen(b.dataset.agOeffnen); });
+      auEl('au-aufgabe-neu').addEventListener('click', () => agDialogOeffnen(null, { gehoert: auZ.offen }));
+
+      // ── Aufgabe: Ansicht ──
+      function agDetailOeffnen(nr) {
+        agZ.offen = nr; tdZ.bearbeite = '';
+        auEl('ag-d-fehler').hidden = true; auEl('ag-wartet-zeile').hidden = true;
+        agDetailZeichnen(nr);
+        auEl('ag-detail').hidden = false;
+      }
+      function agDetailSchliessen() { auEl('ag-detail').hidden = true; agZ.offen = null; }
+      function agDetailZeichnen(nr) {
+        const g = agAlle().find(x => x.Aufgabe_Nr === nr);
+        if (!g) { agDetailSchliessen(); return; }
+        const i = agIndex(g.Status), weg = g.Status === 'verworfen';
+        auEl('ag-d-titel').textContent = `${g.Aufgabe_Nr} · ${g.Kurztitel}`;
+        auEl('ag-d-kopf').innerHTML = `<div class="ku-meta">${[agFuer(g), g.Faellig ? `fällig ${auDatum(g.Faellig)}` : 'ohne Fälligkeit'].filter(Boolean).map(x => `<span>${kuEsc(x)}</span>`).join('')}`
+          + (g.Gehoert_Zu ? `<button type="button" class="korb-link" data-ag-auftrag="${kuEsc(g.Gehoert_Zu)}" data-hilfe="ag-gehoert-link">zu ${kuEsc(g.Gehoert_Zu)}${window.auKurztitel?.(g.Gehoert_Zu) ? ` · ${kuEsc(window.auKurztitel(g.Gehoert_Zu))}` : ''}</button>` : '') + '</div>'
+          + (g.Status === 'wartet' && g.Wartet_Auf ? `<div class="au-notiz">wartet auf: ${kuEsc(g.Wartet_Auf)}</div>` : '')
+          + (g.Notiz ? `<div class="au-notiz">${kuEsc(g.Notiz)}</div>` : '');
+        auEl('ag-d-leiste').innerHTML = agLeisteHtml(g);
+        const naechster = AG_SCHRITTE[i + 1]?.[0];
+        auEl('ag-weiter').hidden = weg || !naechster;
+        auEl('ag-weiter').textContent = naechster ? `weiter zu „${naechster}“` : 'weiter';
+        auEl('ag-erledigt').hidden = weg || i < 0 || i >= AG_SCHRITTE.length - 2;   // aus "wartet" ist "weiter" schon "erledigt"
+        auEl('ag-zurueck').hidden = weg || i <= 0;
+        auEl('ag-verwerfen').hidden = !agOffen(g);
+        auEl('ag-verwerfen-zurueck').hidden = !weg;
+        auEl('ag-bearbeiten').hidden = weg;
+        auEl('ag-d-todos').innerHTML = auZ.daten?.einrichtung?.todos === false ? tdEinrichtungHinweis() : tdBlock(g.Aufgabe_Nr, weg);
+      }
+      async function agStatus(aktion, frage, extra = {}) {
+        const g = agAlle().find(x => x.Aufgabe_Nr === agZ.offen);
+        if (!g) return;
+        if (frage && !await showConfirm(frage[0], `<p>${kuEsc(frage[1])}</p>`, frage[2] ?? 'Ja')) return;
+        try {
+          const r = await auPost('aufgabe/status', { aufgabeNr: g.Aufgabe_Nr, stand: g.Stand, aktion, ...extra });
+          showToast(`${r.aufgabeNr}: ${r.status}`);
+          auEl('ag-wartet-zeile').hidden = true;
+        } catch (e) { auEl('ag-d-fehler').textContent = e.message; auEl('ag-d-fehler').hidden = false; }
+        await loadAuftraege();
+      }
+      auEl('ag-weiter').addEventListener('click', () => {
+        const g = agAlle().find(x => x.Aufgabe_Nr === agZ.offen);
+        if (g?.Status === 'in Arbeit') { auEl('ag-wartet-zeile').hidden = false; auEl('ag-wartet-text').value = ''; auEl('ag-wartet-text').focus(); return; }   // "wartet" braucht den Text
+        agStatus('weiter');
+      });
+      auEl('ag-wartet-ok').addEventListener('click', () => {
+        const w = auEl('ag-wartet-text').value.trim();
+        if (!w) { auEl('ag-wartet-text').focus(); return; }
+        agStatus('weiter', null, { wartetAuf: w });
+      });
+      auEl('ag-wartet-text').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); auEl('ag-wartet-ok').click(); } });
+      auEl('ag-erledigt').addEventListener('click', () => agStatus('erledigt'));
+      auEl('ag-zurueck').addEventListener('click', () => agStatus('zurueck', ['Einen Schritt zurück?', 'Die Aufgabe geht einen Schritt zurück; das Datum des jetzigen Schritts wird geleert.', 'Zurück']));
+      auEl('ag-verwerfen').addEventListener('click', () => agStatus('verwerfen', ['Aufgabe verwerfen?', 'Die Aufgabe wird verworfen und aus „offen“ genommen. Nichts wird gelöscht; „verwerfen zurücknehmen“ macht es rückgängig.', 'Verwerfen']));
+      auEl('ag-verwerfen-zurueck').addEventListener('click', () => agStatus('verwerfen_zurueck', ['Verwerfen zurücknehmen?', 'Die Aufgabe kommt auf ihren letzten Schritt zurück.', 'Zurücknehmen']));
+      auEl('ag-bearbeiten').addEventListener('click', () => { const g = agAlle().find(x => x.Aufgabe_Nr === agZ.offen); if (g) agDialogOeffnen(g); });
+      auEl('ag-d-schliessen').addEventListener('click', agDetailSchliessen);
+      auEl('ag-detail').addEventListener('keydown', e => { if (e.key === 'Escape' && auEl('ag-dialog').hidden) agDetailSchliessen(); });
+      auEl('ag-d-kopf').addEventListener('click', e => { const b = e.target.closest('[data-ag-auftrag]'); if (b) { agDetailSchliessen(); auDetailOeffnen(b.dataset.agAuftrag); } });
+
+      // ── Aufgabe: neu / bearbeiten ──
+      function agFehler(t) { auEl('ag-fehler').textContent = t ?? ''; auEl('ag-fehler').hidden = !t; }
+      function agFuerZeigen() {
+        const art = auEl('ag-fuer-art').value, f = agDlg.fuer;
+        const gewaehlt = f && f.art === art && ['kunde', 'artikel'].includes(art);
+        auEl('ag-fuer-gewaehlt').hidden = !gewaehlt;
+        auEl('ag-fuer-text').textContent = gewaehlt ? f.text : '';
+        auEl('ag-fuer-suchzeile').hidden = gewaehlt || !['kunde', 'artikel'].includes(art);
+        auEl('ag-fuer-suche').placeholder = art === 'kunde' ? 'Kunde: Name, Spitzname, Nummer, Ort' : 'Shop-Artikel: Name, SKU oder ID';
+        auEl('ag-fuer-partner').hidden = art !== 'partner';
+        if (art === 'partner') {
+          const liste = auLager.partner ?? [];
+          auEl('ag-fuer-partner').innerHTML = '<option value="">Partner wählen …</option>' + liste.map(p => `<option value="${kuEsc(p.id)}"${f?.art === 'partner' && f.wert === p.id ? ' selected' : ''}>${kuEsc(p.id)} ${kuEsc(p.name)}</option>`).join('');
+          if (!liste.length && !auLager.geladen) auLagerLaden().then(() => { if (!auEl('ag-dialog').hidden && auEl('ag-fuer-art').value === 'partner') agFuerZeigen(); });
+        }
+      }
+      function agGehoertZeigen() {
+        const nr = agDlg.gehoert;
+        auEl('ag-gehoert-gewaehlt').hidden = !nr;
+        auEl('ag-gehoert-suchzeile').hidden = !!nr;
+        auEl('ag-gehoert-text').textContent = nr ? `${nr}${window.auKurztitel?.(nr) ? ` · ${window.auKurztitel(nr)}` : ''}` : '';
+      }
+      function agDialogOeffnen(g, { gehoert = '' } = {}) {
+        agDlg.aufgabe = g; agDlg.vorgang = auVorgang();
+        agDlg.fuer = g?.Fuer_Art ? { art: g.Fuer_Art, wert: g.Fuer, text: agFuer(g).replace(/^für /, '') } : null;
+        agDlg.gehoert = g ? (g.Gehoert_Zu ?? '') : gehoert;
+        auEl('ag-titel').textContent = g ? `${g.Aufgabe_Nr} bearbeiten` : 'Neue Aufgabe';
+        for (const f of ['Kurztitel', 'Notiz', 'Faellig', 'Wartet_Auf']) auEl(`ag-${f}`).value = g?.[f] ?? '';
+        auEl('ag-wartet-wrap').hidden = g?.Status !== 'wartet';
+        auEl('ag-fuer-art').value = g?.Fuer_Art ?? '';
+        auEl('ag-fuer-suche').value = ''; auEl('ag-gehoert-suche').value = '';
+        agFuerTw.zu(); agGehoertTw.zu();
+        agFuerZeigen(); agGehoertZeigen(); agFehler('');
+        auEl('ag-dialog').hidden = false;
+        auEl('ag-Kurztitel').focus();
+      }
+      function agDialogSchliessen() { auEl('ag-dialog').hidden = true; }
+      auEl('ag-fuer-art').addEventListener('change', () => { agFuerZeigen(); if (!auEl('ag-fuer-suchzeile').hidden) auEl('ag-fuer-suche').focus(); });
+      auEl('ag-fuer-aendern').addEventListener('click', () => { agDlg.fuer = null; agFuerZeigen(); auEl('ag-fuer-suche').focus(); });
+      auEl('ag-fuer-partner').addEventListener('change', e => {
+        const p = (auLager.partner ?? []).find(x => x.id === e.target.value);
+        agDlg.fuer = p ? { art: 'partner', wert: p.id, text: `${p.id} ${p.name}` } : null;
+      });
+      const agFuerTw = twBinden(auEl('ag-fuer-suche'), auEl('ag-fuer-treffer'), e => {
+        if (e.kunde) agDlg.fuer = { art: 'kunde', wert: e.kunde.Kunden_Nr, text: auKundeText(e.kunde, e.kunde.Kunden_Nr) };
+        if (e.artikel) agDlg.fuer = { art: 'artikel', wert: String(e.artikel.id), text: `${e.artikel.name} (#${e.artikel.id})` };
+        auEl('ag-fuer-suche').value = '';
+        agFuerZeigen();
+      });
+      auEl('ag-fuer-suche').addEventListener('input', () => {
+        const q = auEl('ag-fuer-suche').value.trim(), art = auEl('ag-fuer-art').value;
+        clearTimeout(agDlg.timer);
+        if (q.length < 2) { agFuerTw.zu(); return; }
+        if (art === 'kunde') {
+          const t = kuSuche((kuZ.kunden ?? []).filter(k => k.Status === 'aktiv'), q).map(twKunde);
+          agFuerTw.zeigen(t.length ? t : [{ haupt: 'Kein Kunde in MC gefunden', aus: true }]);
+          return;
+        }
+        agDlg.timer = setTimeout(async () => {
+          try {
+            const res = await apiFetch(`${API_BASE()}/api/seo/artikel-suche?q=${encodeURIComponent(q)}`);
+            const stopp = await laufStopp(res);
+            if (stopp) { agFuerTw.zeigen([{ haupt: stopp, aus: true }]); return; }
+            const d = await apiJson(res);
+            agFuerTw.zeigen(d.length ? d.slice(0, 20).map(p => ({ haupt: p.name, neben: [p.sku, `#${p.id}`].filter(Boolean).join(' · '), artikel: p })) : [{ haupt: 'Kein veröffentlichter Artikel gefunden', aus: true }]);
+          } catch (err) { agFuerTw.zeigen([{ haupt: `Fehler: ${err.message}`, aus: true }]); }
+        }, 300);
+      });
+      const agGehoertTw = twBinden(auEl('ag-gehoert-suche'), auEl('ag-gehoert-treffer'), e => { agDlg.gehoert = e.nr; auEl('ag-gehoert-suche').value = ''; agGehoertZeigen(); });
+      auEl('ag-gehoert-suche').addEventListener('input', () => {
+        const q = auEl('ag-gehoert-suche').value.trim();
+        if (q.length < 2) { agGehoertTw.zu(); return; }
+        const t = auFiltern(auZ.daten?.auftraege ?? [], kuZ.kunden, { filter: 'alle', suche: q }).slice(0, 20)
+          .map(a => ({ haupt: `${a.Auftrag_Nr} · ${a.Kurztitel}`, neben: auKundeText(auKunde(a.Kunden_Nr), a.Kunden_Nr), rechts: a.Status, nr: a.Auftrag_Nr }));
+        agGehoertTw.zeigen(t.length ? t : [{ haupt: 'Kein Auftrag gefunden', aus: true }]);
+      });
+      auEl('ag-gehoert-aendern').addEventListener('click', () => { agDlg.gehoert = ''; agGehoertZeigen(); auEl('ag-gehoert-suche').focus(); });
+      auEl('ag-speichern').addEventListener('click', async () => {
+        if (agDlg.laeuft) return;
+        const art = auEl('ag-fuer-art').value;
+        const fuer = agDlg.fuer?.art === art ? agDlg.fuer.wert : '';
+        if (['kunde', 'partner', 'artikel'].includes(art) && !fuer) { agFehler(`„für“: ${AG_FUER_TEXT[art]} auswählen.`); return; }
+        const body = { Kurztitel: auEl('ag-Kurztitel').value, Notiz: auEl('ag-Notiz').value, Faellig: auEl('ag-Faellig').value, Fuer_Art: art, Fuer: fuer, Gehoert_Zu: agDlg.gehoert };
+        const g = agDlg.aufgabe;
+        if (g?.Status === 'wartet') body.Wartet_Auf = auEl('ag-Wartet_Auf').value;
+        agDlg.laeuft = true; auEl('ag-speichern').disabled = true;
+        try {
+          const r = g ? await auPost('aufgabe/bearbeiten', { aufgabeNr: g.Aufgabe_Nr, stand: g.Stand, ...body })
+            : await auPost('aufgabe/neu', { ...body, vorgang: agDlg.vorgang });
+          showToast(g ? `${r.aufgabeNr}${r.unveraendert ? ': nichts geändert' : ' gespeichert'}` : `${r.aufgabeNr} angelegt`);
+          agDialogSchliessen();
+          await loadAuftraege();
+          if (!g) agDetailOeffnen(r.aufgabeNr);
+        } catch (e) { agFehler(e.message); }
+        finally { agDlg.laeuft = false; auEl('ag-speichern').disabled = false; }
+      });
+      auEl('ag-abbrechen').addEventListener('click', agDialogSchliessen);
+      auEl('ag-schliessen').addEventListener('click', agDialogSchliessen);
+      auEl('ag-dialog').addEventListener('keydown', e => { if (e.key === 'Escape') agDialogSchliessen(); });
 
       // Kundenkarte: "Aufträge dieses Kunden" (Grundlage AM-4)
       function kuAuftraegeZeichnen(kundenNr) {

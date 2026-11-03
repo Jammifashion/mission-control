@@ -136,6 +136,12 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   Zeile "im Lager: …", Farbauswahl "· 📦 n im Lager" (`auLagerJe`, nur gelesen aus `GET /api/lager/bestand`). Gruppe "bestellen"
   mit Bestand: Hinweis + Knopf "aus Lager nehmen" bzw. "teilen" (`auLagerVorschlag`, Hauptort zuerst; `auBestandOhne` zieht ab,
   was andere Positionen des Entwurfs schon aus Lager nehmen). Nichts wird gebucht - das bleibt beim Bereitstellen.
+  AM-4: Unterpunkt `auftraege/todos` "Offene To-dos" (Karte `#td-ansicht`, Filter alle/ueberfaellig/woche/aufgaben/auftraege,
+  abhaken direkt). Liste zeigt Auftraege UND Aufgaben (Filter `#au-art`, Kennzeichen "Aufgabe", "n offene To-dos"); "+ Neue Aufgabe"
+  (`#ag-dialog`: Kurztitel, Notiz, Faellig, "für" Kunde/Partner/Shop-Artikel/intern, "gehört zu" AU-…), Ansicht `#ag-detail` mit eigener
+  Leiste (`agLeisteHtml`) und Checkliste. Checkliste `tdBlockHtml` (Block `Auftraege-Anzeige`) in Auftrag und Aufgabe: Enter legt an,
+  Haken, ↑/↓ (nur unter gleich erledigten), ✎, ✕ = archivieren, erledigte eingeklappt "n/m erledigt". Ereignisse fuer alle Bloecke in
+  SECTION "Aufgaben und To-dos (AM-4)" (`tdAktion`, nach jeder Aktion `loadAuftraege`). Freitexte nie in Adresse/Browser-Speicher.
   AM-2-2: Modellsuche im Auftrag ueber `twBinden` (`twModell`: Modell fett · Name · Marke). Herkunft je Gruppe (Modell+Farbe+
   Herkunft+Ort): bestellen | aus Lager (Ort, Bestand nur gelesen aus `GET /api/lager/bestand`, Knopf "teilen" = `auTeilen`) |
   schon vorhanden; frei nur leer/vorhanden. Gebucht wird im Lager erst mit AM-3. Ansicht: Kennzeichen 🛒/📦/✓.)
@@ -878,6 +884,19 @@ Neue Sektionen immer mit Anker versehen:
   Zuruecknehmen: Korb nur offen/abgewaehlt -> abgewaehlt, Grund "Auftrag geändert"; Lager -> Gegenbuchung (korrektur, Storno_von).
   Korb/Lager schuetzen Auftragszeilen: Korb-Bearbeiten gesperrt (`eigenGesperrtGrund`), kein "bei Ankunft ins Lager"
   (`lagerZielPlan`), keine manuelle Gegenbuchung (`planGegenbuchung`, Quelle auftrag). EDI-`reference` = AU-Nr. (Korb-Referenz).
+- backend/utils/aufgaben.js – Aufgaben (AG) und To-dos (AM-4), Lesen/Schreiben in lib/auftraege.js (gleiche Sperre, ein Schreibaufruf,
+  kein append, zurueckgelesen). **Eigene Reiter** im SSOT (Bericht AM-4 Punkt 0): `Aufgaben` (Aufgabe_Nr `AG-JJJJ-NNNN`, eigener
+  Zaehler | Kurztitel | Notiz | Faellig | Status offen/in Arbeit/wartet/erledigt/verworfen | Fuer_Art kunde/partner/artikel/intern |
+  Fuer K-…/P-…/Produkt-ID | Gehoert_Zu AU-… | Wartet_Auf | je Schritt ein Datum | Angelegt | Stand | Vorgang) und `Auftrag_Todos`
+  (Todo_ID `<Bezug>-Tnn` | Bezug AU-/AG-Nr. | Text | Faellig | Erledigt ja | Erledigt_Am | Reihenfolge | Angelegt | Stand | Archiviert | Vorgang).
+  Keine Kundenauftrags-Logik liest Aufgaben (darum kein gemeinsamer Reiter). Fehlen die Reiter, laeuft `GET /api/auftraege` wie bisher
+  (`einrichtung: { aufgaben, todos }` false), Schreiben -> 409 `einrichtung`. Routen `POST /api/auftraege/aufgabe/{neu,bearbeiten,status}`,
+  `.../todo/{neu,aendern,verschieben,archivieren}`. Status: weiter (nach "wartet" Pflicht `wartetAuf`, keine Personennamen), erledigt (direkt),
+  zurueck (Schritte ohne Datum uebergangen, "wartet" leert Wartet_Auf), verwerfen / verwerfen_zurueck. To-dos aendern nie einen Status;
+  Haken ohne Stand (Zielzustand), Text/Faelligkeit mit Stand; entfernen = `Archiviert`. "für Partner" gegen `ladePartner` (lib/lager.js,
+  nur gelesen). **AG ist nie Korb-Referenz:** `eigeneZeile`/`eigenBearbeitenPlan` 422, EDI-Regel `reference` rot, `kannBereitstellen`
+  false + `bereitstellenVorschau` 422 `aufgabe`. Kachel: `todosUeberfaellig` (nur offene Bezuege), `aufgabenOffen`. Backup: automatisch
+  (backup-daily.js sichert alle Reiter des SSOT). Setup `scripts/setup-auftraege-reiter.js` legt beide Reiter an (Trockenlauf, `--write`).
 - backend/lib/lexware.js – Lexware Office Public API (`https://api.lexware.io`), **NUR LESEN**, einzige Stelle mit Zugriff
   (Test kunden.test.js: nur `method: 'GET'`, kein anderer Ort nennt die URL). Heute nur `GET /v1/contacts?customer=true` (alle Seiten; AM-1-1 auch Suche `name`/`email`/`number`, eine Seite)
   und `GET /v1/contacts/{id}`,

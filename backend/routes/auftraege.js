@@ -1,7 +1,10 @@
 // Auftraege (AM-2), hinter requireApiKey. Logik in lib/auftraege.js + utils/auftraege.js.
 // Nur Auftrag_Nr/Kunden_Nr und Zahlen im Log, nie Namen oder Freitexte.
 import { Router } from 'express';
-import { leseAuftraege, legeAuftragAn, bearbeiteAuftrag, wechsleStatus, setzePositionFertig } from '../lib/auftraege.js';
+import {
+  leseAuftraege, legeAuftragAn, bearbeiteAuftrag, wechsleStatus, setzePositionFertig,
+  legeAufgabeAn, bearbeiteAufgabe, wechsleAufgabeStatus, legeTodoAn, aendereTodo, verschiebeTodo, archiviereTodo,
+} from '../lib/auftraege.js';
 import { bereitstellenVorschau, bereitstellen, zuruecknehmen } from '../lib/auftragBereitstellen.js';
 
 const router = Router();
@@ -61,5 +64,35 @@ router.post('/zuruecknehmen', mitMeldung(async req => {
   if (!r.unveraendert) console.log(`Auftrag ${r.auftragNr}: Übergabe ${r.positionId} zurückgenommen`);
   return r;
 }));
+
+// ── AM-4: Aufgaben (AG) ───────────────────────────────────────────────────────
+// POST /aufgabe/neu { Kurztitel, Notiz, Faellig, Fuer_Art, Fuer, Gehoert_Zu, vorgang }
+router.post('/aufgabe/neu', mitMeldung(async req => {
+  const r = await legeAufgabeAn({ eingabe: req.body ?? {} });
+  if (!r.schon) console.log(`Aufgabe neu: ${r.aufgabeNr}`);
+  return r;
+}));
+// POST /aufgabe/bearbeiten { aufgabeNr, stand, Kurztitel?, Notiz?, Faellig?, Fuer_Art?, Fuer?, Gehoert_Zu?, Wartet_Auf? }
+router.post('/aufgabe/bearbeiten', mitMeldung(async req => {
+  const r = await bearbeiteAufgabe({ eingabe: req.body ?? {} });
+  if (!r.unveraendert) console.log(`Aufgabe bearbeitet: ${r.aufgabeNr}`);
+  return r;
+}));
+// POST /aufgabe/status { aufgabeNr, stand, aktion: weiter | erledigt | zurueck | verwerfen | verwerfen_zurueck, wartetAuf? }
+router.post('/aufgabe/status', mitMeldung(async req => {
+  const r = await wechsleAufgabeStatus({ eingabe: req.body ?? {} });
+  console.log(`Aufgabe ${r.aufgabeNr}: Status ${r.status}`);
+  return r;
+}));
+
+// ── AM-4: To-dos je Auftrag/Aufgabe ───────────────────────────────────────────
+// POST /todo/neu { bezug (AU-/AG-Nr.), text, faellig?, vorgang }
+router.post('/todo/neu', mitMeldung(req => legeTodoAn({ eingabe: req.body ?? {} })));
+// POST /todo/aendern { todoId, erledigt? | stand + text?/faellig? }
+router.post('/todo/aendern', mitMeldung(req => aendereTodo({ eingabe: req.body ?? {} })));
+// POST /todo/verschieben { todoId, richtung: hoch | runter }
+router.post('/todo/verschieben', mitMeldung(req => verschiebeTodo({ eingabe: req.body ?? {} })));
+// POST /todo/archivieren { todoId } - "entfernen", nie loeschen
+router.post('/todo/archivieren', mitMeldung(req => archiviereTodo({ eingabe: req.body ?? {} })));
 
 export default router;

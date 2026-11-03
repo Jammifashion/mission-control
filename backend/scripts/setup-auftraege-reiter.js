@@ -1,4 +1,4 @@
-// Legt im SSOT-Sheet die Reiter `Auftraege` und `Auftrag_Positionen` an (AM-2).
+// Legt im SSOT-Sheet die Reiter `Auftraege` und `Auftrag_Positionen` an (AM-2), seit AM-4 auch `Aufgaben` und `Auftrag_Todos`.
 //
 //   node backend/scripts/setup-auftraege-reiter.js           Trockenlauf (Standard): zeigt nur, was passieren wuerde
 //   node backend/scripts/setup-auftraege-reiter.js --write   legt die fehlenden Reiter an
@@ -16,12 +16,15 @@ dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.e
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, POSITION_OPTIONAL, AUFTRAG_OPTIONAL, AUFTRAG_TEXT, POSITION_TEXT } from '../utils/auftraege.js';
+import { TAB_AUFGABEN, TAB_TODOS, AUFGABE_SPALTEN, TODO_SPALTEN, AUFGABE_TEXT, TODO_TEXT } from '../utils/aufgaben.js';
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
 const WRITE = process.argv.includes('--write');
 const REITER = [
   { tab: TAB_AUFTRAEGE, spalten: AUFTRAG_SPALTEN, text: AUFTRAG_TEXT, optional: AUFTRAG_OPTIONAL },
   { tab: TAB_POSITIONEN, spalten: POSITION_SPALTEN, text: POSITION_TEXT, optional: POSITION_OPTIONAL },
+  { tab: TAB_AUFGABEN, spalten: AUFGABE_SPALTEN, text: AUFGABE_TEXT },   // AM-4
+  { tab: TAB_TODOS, spalten: TODO_SPALTEN, text: TODO_TEXT },            // AM-4
 ];
 
 const spalte = i => { let s = '', n = i + 1; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };

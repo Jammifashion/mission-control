@@ -271,7 +271,7 @@ describe('Herkunft (AM-2-2)', () => {
   });
   test('Quelltext: der Auftrag liest das Lager nur (leseLager), bucht nie', () => {
     const lib = readFileSync(resolve(hier, '../lib/auftraege.js'), 'utf8');
-    expect(lib).toMatch(/import \{ leseLager \} from '\.\/lager\.js'/);
+    expect(lib).toMatch(/import \{ leseLager, ladePartner \} from '\.\/lager\.js'/);   // AM-4: Partnerliste nur gelesen
     expect(lib).not.toMatch(/bucheLager|gegenbuchung|mitLagerSperre/);
   });
 });

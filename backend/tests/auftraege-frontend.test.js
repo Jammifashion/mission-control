@@ -4,11 +4,12 @@ import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { terminBald } from '../utils/auftraege.js';
+import { faelligStufe } from '../utils/aufgaben.js';
 
 const html = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../frontend/index.html'), 'utf8');
 const ku = html.slice(html.indexOf('// ── Kunden-Liste: Anfang'), html.indexOf('// ── Kunden-Liste: Ende ──'));
 const block = html.slice(html.indexOf('// ── Auftraege-Anzeige: Anfang'), html.indexOf('// ── Auftraege-Anzeige: Ende ──'));
-const F = new Function(`${ku}\n${block}\nreturn { auFiltern, auTerminBald, auGruppen, auPositionenAnfrage, auLeisteHtml, auZeileHtml, auKundeText, auEntwurfAus, auFrei, auHerkunft, auHerkunftText, auLagerStand, auLagerJe, auLagerVorschlag, auBestandOhne, auTeilen, auKannBereitstellen, auKannZuruecknehmen, auKorbText };`)();
+const F = new Function(`${ku}\n${block}\nreturn { auFiltern, auTerminBald, auGruppen, auPositionenAnfrage, auLeisteHtml, auZeileHtml, auKundeText, auEntwurfAus, auFrei, auHerkunft, auHerkunftText, auLagerStand, auLagerJe, auLagerVorschlag, auBestandOhne, auTeilen, auKannBereitstellen, auKannZuruecknehmen, auKorbText, agLeisteHtml, agFiltern, agFuerText, agZeileHtml, tdStufe, tdVon, tdUebersicht, tdBlockHtml, tdZaehler };`)();
 const sektion = html.slice(html.indexOf('// ── SECTION: Aufträge – Liste, Ansicht, Erfassen (AM-2) ──'), html.indexOf('// ── SECTION: Artikelerfassung ──'))
   .split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
 
@@ -188,5 +189,96 @@ describe('AM-3 Anzeige', () => {
     expect(html).toContain('// AM-3: Kundenrohlinge eines Auftrags gehen nicht ins Lager');
     expect(html).toContain('data-lager-au="${korbEsc(b.bezug)}" data-hilfe="lager-auftrag-link"');
     expect(sektion).toContain("auPost('bereitstellen', { auftragNr: abZ.auftragNr, stand: abZ.stand, vorgang: abZ.vorgang");
+  });
+});
+
+describe('AM-4: Aufgaben und To-dos (Anzeige)', () => {
+  const ag = [
+    { Aufgabe_Nr: 'AG-2026-0001', Kurztitel: 'Motive Partner', Status: 'offen', Offen_Am: '2026-11-01', Faellig: '2026-11-05', Fuer_Art: 'partner', Fuer: 'P-002' },
+    { Aufgabe_Nr: 'AG-2026-0002', Kurztitel: 'Anruf Sticker', Status: 'wartet', Offen_Am: '2026-11-01', In_Arbeit_Am: '2026-11-02', Wartet_Am: '2026-11-03', Wartet_Auf: 'Muster' },
+    { Aufgabe_Nr: 'AG-2026-0003', Kurztitel: 'Alt', Status: 'erledigt', Erledigt_Am: '2026-11-02' },
+    { Aufgabe_Nr: 'AG-2026-0004', Kurztitel: 'Weg', Status: 'verworfen', Verworfen_Am: '2026-11-02' },
+  ];
+  test('Faelligkeit wie im Backend (faelligStufe)', () => {
+    for (const f of ['2026-11-01', '2026-11-03', '2026-11-09', '2026-11-10', '', 'x']) expect([f, F.tdStufe(f, HEUTE)]).toEqual([f, faelligStufe(f, `${HEUTE}T10:00:00Z`)]);
+  });
+  test('Status-Leiste Aufgabe: erledigt gruen, aktuell gelb, verworfen extra', () => {
+    const h = F.agLeisteHtml(ag[1]);
+    expect(h).toMatch(/au-erledigt">offen/);
+    expect(h).toMatch(/au-erledigt">in Arbeit/);
+    expect(h).toMatch(/au-aktuell">wartet/);
+    expect(h).toMatch(/class="au-schritt">erledigt/);
+    expect(F.agLeisteHtml(ag[3])).toContain('ku-gefahr">verworfen');
+  });
+  test('Liste: Aufgaben offen/Status/Suche; Kennzeichen, "für", wartet auf, To-do-Zahl', () => {
+    expect(F.agFiltern(ag, {}, HEUTE).map(g => g.Aufgabe_Nr)).toEqual(['AG-2026-0001', 'AG-2026-0002']);
+    expect(F.agFiltern(ag, { filter: 'termin' }, HEUTE).map(g => g.Aufgabe_Nr)).toEqual(['AG-2026-0001']);
+    expect(F.agFiltern(ag, { filter: 'verworfen' }, HEUTE).map(g => g.Aufgabe_Nr)).toEqual(['AG-2026-0004']);
+    expect(F.agFiltern(ag, { filter: 'Angebot' }, HEUTE)).toEqual([]);   // Auftragsstatus trifft keine Aufgabe
+    expect(F.agFiltern(ag, { filter: 'alle', suche: 'muster' }, HEUTE).map(g => g.Aufgabe_Nr)).toEqual(['AG-2026-0002']);
+    expect(F.agFuerText(ag[0], null, 'Partnername')).toBe('für P-002 Partnername');
+    expect(F.agFuerText({ Fuer_Art: 'kunde', Fuer: 'K-00001' }, kunden[0])).toBe('für Testverein (Kicker)');
+    expect(F.agFuerText({ Fuer_Art: 'artikel', Fuer: '123' })).toBe('für Shop-Artikel #123');
+    const z = F.agZeileHtml({ ...ag[1], Kurztitel: 'A <b>' }, '', 2);
+    expect(z).toContain('data-hilfe="ag-kennzeichen"');
+    expect(z).toContain('wartet auf: Muster');
+    expect(z).toContain('2 offene To-dos');
+    expect(z).toContain('A &lt;b&gt;');
+    expect(F.auZeileHtml({ ...auftraege[0], stueck: 1 }, kunden[0], 1)).toContain('1 offenes To-do');
+  });
+  test('Aufgaben haben keine Rohlinge (Oberflaeche)', () => {
+    expect(F.auKannBereitstellen({ Auftrag_Nr: 'AG-2026-0001', Status: 'Angebot', positionen: [{ Art: 'lshop', Herkunft: 'bestellen' }] })).toBe(false);
+    expect(F.auKannBereitstellen({ Auftrag_Nr: 'AU-2026-0001', Status: 'Angebot', positionen: [{ Art: 'lshop', Herkunft: 'bestellen' }] })).toBe(true);
+  });
+  const td = (o) => ({ Bezug: 'AU-2026-0001', Erledigt: '', Archiviert: '', Stand: 's', ...o });
+  const todos = [
+    td({ Todo_ID: 'AU-2026-0001-T01', Text: 'Motiv', Reihenfolge: '2', Faellig: '2026-11-01' }),
+    td({ Todo_ID: 'AU-2026-0001-T02', Text: 'Größen', Reihenfolge: '1' }),
+    td({ Todo_ID: 'AU-2026-0001-T03', Text: 'erledigt', Reihenfolge: '3', Erledigt: 'ja' }),
+    td({ Todo_ID: 'AU-2026-0001-T04', Text: 'weg', Reihenfolge: '4', Archiviert: '2026-11-02' }),
+    td({ Todo_ID: 'AG-2026-0001-T01', Bezug: 'AG-2026-0001', Text: 'Sticker', Reihenfolge: '1', Faellig: '2026-11-03' }),
+    td({ Todo_ID: 'AG-2026-0002-T01', Bezug: 'AG-2026-0002', Text: 'Woche', Reihenfolge: '1', Faellig: '2026-11-07' }),
+    td({ Todo_ID: 'AU-2026-0004-T01', Bezug: 'AU-2026-0004', Text: 'storniert', Reihenfolge: '1', Faellig: '2026-10-01' }),
+  ];
+  test('Checkliste: Reihenfolge, erledigte eingeklappt mit Zaehler, Knoepfe, nur ansehen bei zu', () => {
+    const v = F.tdVon(todos, 'AU-2026-0001');
+    expect(v.offen.map(d => d.Todo_ID)).toEqual(['AU-2026-0001-T02', 'AU-2026-0001-T01']);
+    expect(F.tdZaehler(v)).toBe('1/3 erledigt');
+    const h = F.tdBlockHtml('AU-2026-0001', todos, { heute: HEUTE });
+    expect(h).toContain('data-td-bezug="AU-2026-0001"');
+    expect(h).toContain('<details class="td-erledigt"><summary data-hilfe="td-erledigt-liste">1/3 erledigt');
+    expect(h).toContain('td-zeile td-ueberfaellig');
+    expect(h).toMatch(/data-td-hoch="AU-2026-0001-T02"[^>]*disabled/);   // erster: nicht hoch
+    expect(h).toContain('data-td-neu-text');
+    expect(h).not.toContain('AU-2026-0001-T04');
+    const zu = F.tdBlockHtml('AU-2026-0001', todos, { zu: true, heute: HEUTE });
+    expect(zu).not.toContain('data-td-neu');
+    expect(zu).not.toContain('data-td-weg');
+    expect(zu).toMatch(/data-td-haken="AU-2026-0001-T02"[^>]*disabled/);
+    expect(F.tdBlockHtml('AU-2026-0001', todos, { bearbeite: 'AU-2026-0001-T01', heute: HEUTE })).toContain('data-td-speichern="AU-2026-0001-T01" data-td-stand="s"');
+  });
+  test('Uebersicht: nach Faelligkeit, ohne Datum zuletzt, nur offene Bezuege, Filter', () => {
+    const bez = new Map([
+      ['AU-2026-0001', { nr: 'AU-2026-0001', titel: 'Polos', offen: true, art: 'AU' }], ['AU-2026-0004', { nr: 'AU-2026-0004', titel: 'x', offen: false, art: 'AU' }],
+      ['AG-2026-0001', { nr: 'AG-2026-0001', titel: 'Motive', offen: true, art: 'AG' }], ['AG-2026-0002', { nr: 'AG-2026-0002', titel: 'Anruf', offen: true, art: 'AG' }],
+    ]);
+    const ids = f => F.tdUebersicht(todos, bez, f, HEUTE).map(x => x.todo.Todo_ID);
+    expect(ids('alle')).toEqual(['AU-2026-0001-T01', 'AG-2026-0001-T01', 'AG-2026-0002-T01', 'AU-2026-0001-T02']);
+    expect(ids('ueberfaellig')).toEqual(['AU-2026-0001-T01']);
+    expect(ids('woche')).toEqual(['AU-2026-0001-T01', 'AG-2026-0001-T01', 'AG-2026-0002-T01']);
+    expect(ids('aufgaben')).toEqual(['AG-2026-0001-T01', 'AG-2026-0002-T01']);
+    expect(ids('auftraege')).toEqual(['AU-2026-0001-T01', 'AU-2026-0001-T02']);
+    expect(F.tdUebersicht(todos, bez, 'alle', HEUTE).map(x => x.stufe).slice(0, 2)).toEqual(['ueberfaellig', 'heute']);
+  });
+  test('Verdrahtung: Unterpunkt, Filter Art, Knoepfe, Kachel, keine Freitexte in Adresse/Speicher', () => {
+    expect(html).toContain("{ id: 'todos',  label: 'Offene To-dos', panel: 'auftraege' }");
+    expect(html).toContain('<select id="au-art"');
+    expect(html).toContain('id="ag-neu" data-hilfe="ag-neu"');
+    expect(html).toContain("['todosUeberfaellig', 'To-dos überfällig'], ['aufgabenOffen', 'Aufgaben offen']");
+    const ag4 = html.slice(html.indexOf('// ── SECTION: Aufgaben und To-dos (AM-4) ──'), html.indexOf('// Kundenkarte: "Aufträge dieses Kunden"'));
+    expect(ag4.length).toBeGreaterThan(2000);
+    expect(ag4).not.toMatch(/localStorage|sessionStorage|location\.hash|history\.(push|replace)State/);
+    expect(ag4).toContain("tdAktion('todo/neu', ");
+    expect(ag4).toContain("auPost('aufgabe/status', ");
   });
 });

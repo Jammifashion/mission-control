@@ -13,13 +13,17 @@ import { berlinDatum } from '../utils/berlin-tag.js';
 import { ladeLShopZeilen, lshopAuswertung } from './lshop.js';
 import { leseLieferbarkeit } from './lieferbarkeitLesen.js';
 import { leseKunden } from './kunden.js';
-import { leseLager } from './lager.js';
+import { leseLager, ladePartner } from './lager.js';
 import { TAB_KORB, korbZeilen } from '../utils/korb-logic.js';   // AM-3: Korb nur lesen (Rueckmeldung)   // AM-2-2: nur Lagerorte lesen - der Auftrag bucht nie im Lager (das kommt mit AM-3)
 import {
   TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, POSITION_OPTIONAL, AUFTRAG_OPTIONAL, brauchtHerkunftSpalten, zeilenAus,
   korbStand, wareStand, autoBestellt, ART, HERKUNFT, alsZeile, anlagePlan, bearbeitenPlan,
   statusWechsel, fertigPlan, fertigVorschlag, aktivePositionen, auftragZahlen, auftraegeAntwort, fehler,
 } from '../utils/auftraege.js';
+import {
+  TAB_AUFGABEN, TAB_TODOS, AUFGABE_SPALTEN, TODO_SPALTEN, VERWORFEN, istBezug, aufgabeOffen, aufgabeAnlagePlan, aufgabeBearbeitenPlan,
+  aufgabeStatusWechsel, todoAnlagePlan, todoAendernPlan, todoArchivPlan, todoVerschiebenPlan, aufgabenZahlen, ohneIntern, todoAktiv,
+} from '../utils/aufgaben.js';
 
 const CACHE_MS = 30 * 1000;
 let cache = null;
@@ -59,6 +63,32 @@ async function lies(sheets, spreadsheetId) {
     throw fehler(`Spalten fehlen (${[...a.fehlt, ...p.fehlt].join(', ') || 'Kopfzeile'}) – scripts/setup-auftraege-reiter.js.`, 409, 'einrichtung');
   }
   return { wa, wp, a, p };
+}
+
+// AM-4: Aufgaben + To-dos (eigene Reiter). Fehlt ein Reiter, ist er null - Lesen laeuft weiter, Schreiben meldet 409.
+const ZUSATZ = [
+  { tab: TAB_AUFGABEN, spalten: AUFGABE_SPALTEN, schluessel: 'Aufgabe_Nr' },
+  { tab: TAB_TODOS, spalten: TODO_SPALTEN, schluessel: 'Todo_ID' },
+];
+async function liesZusatz(sheets, spreadsheetId) {
+  const aus = {};
+  for (const z of ZUSATZ) {
+    let werte = null;
+    try {
+      const { data } = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${z.tab}'`, valueRenderOption: 'UNFORMATTED_VALUE' });
+      werte = data.values ?? [];
+    } catch (err) {
+      if (!(err?.code === 400 || err?.response?.status === 400)) throw err;
+    }
+    if (!werte) { aus[z.tab] = null; continue; }
+    const r = zeilenAus(werte, z.spalten, z.schluessel);
+    aus[z.tab] = { werte, ...r, kaputt: !werte.length || r.fehlt.length > 0 };
+  }
+  return { g: aus[TAB_AUFGABEN], d: aus[TAB_TODOS] };
+}
+function brauche(x, tab) {
+  if (!x || x.kaputt) throw fehler(`Reiter ${tab} fehlt oder Spalten fehlen${x?.fehlt?.length ? ` (${x.fehlt.join(', ')})` : ''} – erst scripts/setup-auftraege-reiter.js --write.`, 409, 'einrichtung');
+  return x;
 }
 
 // ── L-Shop: waehlbare Nummern und Anzeige je Position (nur lesen) ─────────────
@@ -121,14 +151,15 @@ async function schreibe(sheets, spreadsheetId, { zellen = [], bloecke = [] }) {
   }
   if (!data.length) return { strecken };
   await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: 'RAW', data } });
+  const tabs = [...new Set([...zellen.map(z => z.tab), ...strecken.map(x => x.tab)])];   // AM-4: nur die beschriebenen Reiter zuruecklesen
   const { data: zurueck } = await sheets.spreadsheets.values.batchGet({
-    spreadsheetId, ranges: [`'${TAB_AUFTRAEGE}'`, `'${TAB_POSITIONEN}'`], valueRenderOption: 'UNFORMATTED_VALUE',
+    spreadsheetId, ranges: tabs.map(x => `'${x}'`), valueRenderOption: 'UNFORMATTED_VALUE',
   });
-  const neu = { [TAB_AUFTRAEGE]: zurueck.valueRanges?.[0]?.values ?? [], [TAB_POSITIONEN]: zurueck.valueRanges?.[1]?.values ?? [] };
+  const neu = Object.fromEntries(tabs.map((x, i) => [x, zurueck.valueRanges?.[i]?.values ?? []]));
   let ab = 0;
   for (const z of zellen) ab += zeilenAbweichungen([[z.wert]], [[neu[z.tab][z.zeile - 1]?.[z.spalte]]]).length;
   for (const s of strecken) ab += zeilenAbweichungen(s.zeilen, neu[s.tab].slice(s.start - 1, s.ende)).length;
-  if (ab) throw fehler(`Aufträge: Rücklesen weicht in ${ab} Zelle(n) ab – bitte prüfen.`, 500, 'ruecklesen');
+  if (ab) throw fehler(`Aufträge/Aufgaben: Rücklesen weicht in ${ab} Zelle(n) ab – bitte prüfen.`, 500, 'ruecklesen');
   return { strecken };
 }
 
@@ -198,7 +229,17 @@ export async function leseAuftraege({ sheets: s, jetzt = () => new Date(), autoB
       autoBestellt: gesetzt.includes(x.Auftrag_Nr),
     };
   });
-  const antwort = { auftraege, zahlen: auftragZahlen(a.zeilen, jetzt().toISOString(), ware), designSpalte: a.idx.Design_Am !== undefined };
+  // AM-4: Aufgaben und To-dos (eigene Reiter); fehlen sie, leer + Kennzeichen fuer die Oberflaeche.
+  const { g, d } = await liesZusatz(sheets, spreadsheetId);
+  const aufgaben = g && !g.kaputt ? g.zeilen : [];
+  const todos = d && !d.kaputt ? d.zeilen.filter(todoAktiv) : [];
+  const offenJe = new Map([...a.zeilen.map(x => [x.Auftrag_Nr, x.Status !== 'storniert' && x.Status !== 'bezahlt']), ...aufgaben.map(x => [x.Aufgabe_Nr, aufgabeOffen(x)])]);
+  const antwort = {
+    auftraege, aufgaben: aufgaben.map(ohneIntern), todos: todos.map(ohneIntern),
+    zahlen: { ...auftragZahlen(a.zeilen, jetzt().toISOString(), ware), ...aufgabenZahlen(aufgaben, todos, jetzt().toISOString(), nr => offenJe.get(nr) ?? false) },
+    designSpalte: a.idx.Design_Am !== undefined,
+    einrichtung: { aufgaben: !!g && !g.kaputt, todos: !!d && !d.kaputt },
+  };
   if (!s) cache = { zeit: Date.now(), antwort };
   return antwort;
 }
@@ -288,5 +329,134 @@ export async function setzePositionFertig({ eingabe, sheets: s, jetzt = () => ne
     const plan = fertigPlan({ auftrag, positionen: p.zeilen, positionId: eingabe?.positionId, fertig: !!eingabe?.fertig, jetzt: jetzt().toISOString() });
     if (plan.felder) await schreibe(sheets, spreadsheetId, { zellen: zellenAus(TAB_POSITIONEN, p.idx, plan.position._zeile, plan.felder) });
     return { ok: true, auftragNr: auftrag.Auftrag_Nr, positionId: plan.position.Position_ID, vorschlagFertig: plan.vorschlagFertig, unveraendert: !plan.felder };
+  });
+}
+
+// ── AM-4: Aufgaben ───────────────────────────────────────────────────────────
+
+// "fuer": Kunde muss es geben (nicht gesperrt), Partner aktiv in der Partnerliste; Artikel nur die Produkt-ID (aus der Suche).
+async function pruefeFuer(sheets, felder, kundePruefen) {
+  if (felder.Fuer_Art === 'kunde') await kundePruefen(felder.Fuer);
+  if (felder.Fuer_Art === 'partner') {
+    const p = await ladePartner(sheets);
+    if (!p.liste.length) throw fehler('Partnerliste gerade nicht lesbar – bitte gleich noch einmal.', 503, 'partner');
+    if (!p.liste.some(x => x.id === felder.Fuer)) throw fehler(`Partner ${felder.Fuer} gibt es nicht (aktiv).`, 422, 'partner');
+  }
+}
+
+async function mitAufgabe(eingabe, s, fn) {
+  if (eingabe?.stand === undefined) throw fehler('Stand fehlt – bitte neu laden.', 422);
+  return mitSperre(async () => {
+    const sheets = s ?? await sheetsClient();
+    const spreadsheetId = sheetId();
+    const daten = await lies(sheets, spreadsheetId);
+    const g = brauche((await liesZusatz(sheets, spreadsheetId)).g, TAB_AUFGABEN);
+    const aufgabe = g.zeilen.find(x => x.Aufgabe_Nr === String(eingabe?.aufgabeNr ?? '').trim());
+    if (!aufgabe) throw fehler('Aufgabe gibt es nicht.', 404);
+    if (String(eingabe.stand).trim() !== aufgabe.Stand) throw fehler(`${aufgabe.Aufgabe_Nr} wurde inzwischen geändert – bitte neu laden.`, 409, 'konflikt');
+    return fn({ sheets, spreadsheetId, ...daten, g, aufgabe });
+  });
+}
+
+/** Neue Aufgabe (AG-JJJJ-NNNN, eigener Zaehler). Gleiche Vorgang-Kennung = schon angelegt (Doppelklick). */
+export async function legeAufgabeAn({ eingabe, sheets: s, jetzt = () => new Date(), kundePruefen = kundeOk } = {}) {
+  const vorgang = String(eingabe?.vorgang ?? '').trim();
+  if (!/^[\w-]{8,64}$/.test(vorgang)) throw fehler('Vorgangs-Kennung fehlt.', 422);
+  return mitSperre(async () => {
+    const sheets = s ?? await sheetsClient();
+    const spreadsheetId = sheetId();
+    const { a } = await lies(sheets, spreadsheetId);
+    const g = brauche((await liesZusatz(sheets, spreadsheetId)).g, TAB_AUFGABEN);
+    const schon = g.zeilen.find(x => x.Vorgang === vorgang);
+    if (schon) return { ok: true, schon: true, aufgabeNr: schon.Aufgabe_Nr };
+    const plan = aufgabeAnlagePlan({ aufgaben: g.zeilen, eingabe, auftragNummern: new Set(a.zeilen.map(x => x.Auftrag_Nr)), jetzt: jetzt().toISOString() });
+    await pruefeFuer(sheets, plan, kundePruefen);
+    await schreibe(sheets, spreadsheetId, { bloecke: [{ tab: TAB_AUFGABEN, alt: g.werte, zeilen: [alsZeile(g.idx, plan, AUFGABE_SPALTEN, g.werte[0].length)] }] });
+    return { ok: true, schon: false, aufgabeNr: plan.Aufgabe_Nr };
+  });
+}
+
+/** Aufgabe bearbeiten (Kurztitel, Notiz, Faellig, fuer, gehoert zu, "wartet auf" im Schritt wartet). */
+export async function bearbeiteAufgabe({ eingabe, sheets: s, jetzt = () => new Date(), kundePruefen = kundeOk } = {}) {
+  return mitAufgabe(eingabe, s, async ({ sheets, spreadsheetId, a, g, aufgabe }) => {
+    const plan = aufgabeBearbeitenPlan({ aufgabe, eingabe, auftragNummern: new Set(a.zeilen.map(x => x.Auftrag_Nr)), jetzt: jetzt().toISOString() });
+    if (plan.unveraendert) return { ok: true, aufgabeNr: aufgabe.Aufgabe_Nr, unveraendert: true };
+    if (plan.aenderung.Fuer_Art !== undefined || plan.aenderung.Fuer !== undefined) await pruefeFuer(sheets, { ...aufgabe, ...plan.aenderung }, kundePruefen);
+    await schreibe(sheets, spreadsheetId, { zellen: zellenAus(TAB_AUFGABEN, g.idx, aufgabe._zeile, plan.aenderung) });
+    return { ok: true, aufgabeNr: aufgabe.Aufgabe_Nr };
+  });
+}
+
+/** Statuswechsel einer Aufgabe (weiter | erledigt | zurueck | verwerfen | verwerfen_zurueck), wartetAuf beim Schritt "wartet". */
+export async function wechsleAufgabeStatus({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
+  return mitAufgabe(eingabe, s, async ({ sheets, spreadsheetId, g, aufgabe }) => {
+    const felder = { ...aufgabeStatusWechsel(aufgabe, String(eingabe?.aktion ?? ''), jetzt().toISOString(), { wartetAuf: eingabe?.wartetAuf }), Stand: jetzt().toISOString() };
+    await schreibe(sheets, spreadsheetId, { zellen: zellenAus(TAB_AUFGABEN, g.idx, aufgabe._zeile, felder) });
+    return { ok: true, aufgabeNr: aufgabe.Aufgabe_Nr, status: felder.Status ?? aufgabe.Status };
+  });
+}
+
+// ── AM-4: To-dos (Auftraege und Aufgaben) ────────────────────────────────────
+
+async function mitTodos(s, fn) {
+  return mitSperre(async () => {
+    const sheets = s ?? await sheetsClient();
+    const spreadsheetId = sheetId();
+    const { a } = await lies(sheets, spreadsheetId);
+    const { g, d } = await liesZusatz(sheets, spreadsheetId);
+    return fn({ sheets, spreadsheetId, a, g: g && !g.kaputt ? g : null, d: brauche(d, TAB_TODOS) });
+  });
+}
+const todoAus = (d, eingabe) => {
+  const todo = d.zeilen.find(x => x.Todo_ID === String(eingabe?.todoId ?? '').trim());
+  if (!todo) throw fehler('To-do gibt es nicht (mehr) – bitte neu laden.', 404);
+  return todo;
+};
+
+/** Neuer Punkt fuer eine AU-/AG-Nr., die es geben muss; storniert/verworfen -> 409. Doppelklick ueber Vorgang. */
+export async function legeTodoAn({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
+  const vorgang = String(eingabe?.vorgang ?? '').trim();
+  if (!/^[\w-]{8,64}$/.test(vorgang)) throw fehler('Vorgangs-Kennung fehlt.', 422);
+  const bezug = String(eingabe?.bezug ?? '').trim();
+  if (!istBezug(bezug)) throw fehler('Bezug muss AU-… oder AG-… sein.', 422);
+  return mitTodos(s, async ({ sheets, spreadsheetId, a, g, d }) => {
+    const schon = d.zeilen.find(x => x.Vorgang === vorgang);
+    if (schon) return { ok: true, schon: true, todoId: schon.Todo_ID };
+    const au = a.zeilen.find(x => x.Auftrag_Nr === bezug), ag = g?.zeilen.find(x => x.Aufgabe_Nr === bezug);
+    if (!au && !ag) throw fehler(`${bezug} gibt es nicht.`, 404);
+    const bezugOffen = au ? au.Status !== 'storniert' : ag.Status !== VERWORFEN;
+    const plan = todoAnlagePlan({ todos: d.zeilen, bezug, eingabe, bezugOffen, jetzt: jetzt().toISOString() });
+    await schreibe(sheets, spreadsheetId, { bloecke: [{ tab: TAB_TODOS, alt: d.werte, zeilen: [alsZeile(d.idx, plan, TODO_SPALTEN, d.werte[0].length)] }] });
+    return { ok: true, schon: false, todoId: plan.Todo_ID };
+  });
+}
+
+/** Haken / Text / Faelligkeit eines Punkts. */
+export async function aendereTodo({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
+  return mitTodos(s, async ({ sheets, spreadsheetId, d }) => {
+    const todo = todoAus(d, eingabe);
+    const plan = todoAendernPlan({ todo, eingabe, jetzt: jetzt().toISOString() });
+    if (plan.felder) await schreibe(sheets, spreadsheetId, { zellen: zellenAus(TAB_TODOS, d.idx, todo._zeile, plan.felder) });
+    return { ok: true, todoId: todo.Todo_ID, bezug: todo.Bezug, unveraendert: !plan.felder };
+  });
+}
+
+/** Hoch/runter innerhalb des Bezugs. */
+export async function verschiebeTodo({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
+  return mitTodos(s, async ({ sheets, spreadsheetId, d }) => {
+    const todo = todoAus(d, eingabe);
+    const plan = todoVerschiebenPlan({ todos: d.zeilen, todo, richtung: String(eingabe?.richtung ?? ''), jetzt: jetzt().toISOString() });
+    if (plan.length) await schreibe(sheets, spreadsheetId, { zellen: plan.flatMap(x => zellenAus(TAB_TODOS, d.idx, x.todo._zeile, x.felder)) });
+    return { ok: true, todoId: todo.Todo_ID, unveraendert: !plan.length };
+  });
+}
+
+/** Entfernen = archivieren (nie loeschen). */
+export async function archiviereTodo({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
+  return mitTodos(s, async ({ sheets, spreadsheetId, d }) => {
+    const todo = todoAus(d, eingabe);
+    const plan = todoArchivPlan({ todo, jetzt: jetzt().toISOString() });
+    if (plan.felder) await schreibe(sheets, spreadsheetId, { zellen: zellenAus(TAB_TODOS, d.idx, todo._zeile, plan.felder) });
+    return { ok: true, todoId: todo.Todo_ID, unveraendert: !plan.felder };
   });
 }

@@ -13,6 +13,7 @@
 
 import { normHeader } from './sheet-headers.js';
 import { AU_NR_MUSTER } from './auftraege.js';
+import { AG_PRAEFIX } from './aufgaben.js';
 import { varianteDerPosition } from './varianten-zeilen.js';
 import { normalizeShop, shopWert } from './shop-spalte.js';
 
@@ -529,6 +530,7 @@ export function eigeneZeile({ eingabe = {}, varianten = [], schluessel, jetzt })
   const referenz = t(eingabe.referenz);
   if (!referenz) throw fehler422('Referenz fehlt (z. B. "Lager", "Muster", "Verein X Auftrag 12").');
   if (referenz.length > REFERENZ_MAX) throw fehler422(`Referenz ist länger als ${REFERENZ_MAX} Zeichen.`);
+  if (AG_PRAEFIX.test(referenz)) throw fehler422('Aufgaben-Nummern (AG-…) sind keine Korb-Referenz – Aufgaben haben keine Rohlinge.');
   const notiz = t(eingabe.notiz);
   if (notiz.length > NOTIZ_MAX) throw fehler422(`Notiz ist länger als ${NOTIZ_MAX} Zeichen.`);
   return {
@@ -643,6 +645,7 @@ export function eigenBearbeitenPlan({ zeilen, idx, eingabe = {}, varianten = [],
   const referenz = t(eingabe.referenz);
   if (!referenz) throw fehler422('Referenz fehlt (z. B. "Lager", "Muster", "Verein X Auftrag 12").');
   if (referenz.length > REFERENZ_MAX) throw fehler422(`Referenz ist länger als ${REFERENZ_MAX} Zeichen.`);
+  if (AG_PRAEFIX.test(referenz)) throw fehler422('Aufgaben-Nummern (AG-…) sind keine Korb-Referenz – Aufgaben haben keine Rohlinge.');
   const notiz = t(eingabe.notiz);
   if (notiz.length > NOTIZ_MAX) throw fehler422(`Notiz ist länger als ${NOTIZ_MAX} Zeichen.`);
   const lagerSpalte = idx?.Lager_Ziel !== undefined;
