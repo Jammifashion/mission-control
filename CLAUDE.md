@@ -10,6 +10,11 @@
 Mouse-over: Text im Block `Knopf-Hilfe` (`KNOPF_HILFE` + Gruppe in `HILFE_GRUPPEN`, am Handy ⓘ), am Element `data-hilfe`,
 nie `title`. `backend/tests/knopf-mouseover.test.js` prueft jeden `<button>`; Knoepfe von vor der Regel stehen in
 `backend/tests/hilfen/knopf-ohne-hilfe-bestand.json` (Nachruesten = eigener Auftrag, dann Zeile dort streichen).
+**AM-2-1 (Inhaber 03.11.):** Hilfetexte an Eingabefeldern erscheinen nicht, solange das Feld (oder ein Feld im Element, z. B.
+Label) Fokus hat, und verschwinden beim Tippen (`feldMitFokus` in `hilfeEinrichten`). Kein `title` an Knoepfen, auch nicht im
+Code - wechselnde Zusaetze (Orte, Shop) ueber `data-hilfe-zusatz` (Test trefferliste.test.js). Trefferlisten (Kundenwahl im
+Auftrag, Lexoffice-Treffer) ueber den Baustein `twBinden` (Block `Trefferliste: Anfang/Ende`): eine Zeile je Treffer, ↑/↓/Enter/Esc,
+Aktionszeilen am Ende, kein Mouse-over in der Liste.
 
 Vor jeder Änderung erst Struktur prüfen:
 ```bash

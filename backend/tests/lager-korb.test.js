@@ -234,12 +234,13 @@ describe('Frontend-Block Korb-Lager', () => {
   const F = new Function(`${block}\nreturn { korbLagerHtml, korbLagerVorbelegung, korbLagerVerteilung, korbLagerOrteText };`)();
   const orte = [{ ort: 'Regal A', menge: 3 }, { ort: 'Werkstatt', menge: 2 }, { ort: 'Keller', menge: 1 }];
 
-  test('Kennzeichen: genug -> Zahl + Knopf, zu wenig -> "n von m" ohne Knopf, Orte im title', () => {
+  test('Kennzeichen: genug -> Zahl + Knopf, zu wenig -> "n von m" ohne Knopf, Orte im Mouse-over (AM-2-1: data-hilfe-zusatz statt title)', () => {
     const bnd = { articleNr: NR, lager: { summe: 5, orte } };
     const genug = F.korbLagerHtml({ schluessel: 'a', status: 'offen', menge: 2, lager: { n: 5, genug: true } }, bnd);
     expect(genug).toMatch(/im Lager: 5/);
     expect(genug).toMatch(/data-aus-lager="a"/);
-    expect(genug).toMatch(/title="Regal A: 3 · Werkstatt: 2 · Keller: 1"/);
+    expect(genug).toMatch(/data-hilfe-zusatz="Regal A: 3 · Werkstatt: 2 · Keller: 1"/);
+    expect(genug).not.toContain(" title=");
     const knapp = F.korbLagerHtml({ schluessel: 'b', status: 'offen', menge: 4, lager: { n: 1, genug: false } }, bnd);
     expect(knapp).toMatch(/im Lager: 1 von 4/);
     expect(knapp).not.toMatch(/data-aus-lager/);
