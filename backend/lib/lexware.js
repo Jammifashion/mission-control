@@ -118,10 +118,37 @@ export function suchAnfrage(feld, q) {
 export async function sucheKundenKontakte({ feld, q, schluessel, fetchFn = fetch, warte = schlafen } = {}) {
   const pfad = suchAnfrage(feld, q);
   const key = schluessel ?? await getSecret('LEXWARE_API_KEY');
-  const d = await lexwareGet(pfad, { schluessel: key, fetchFn, warte, takt: suchTakt });
-  if (!Array.isArray(d?.content)) throw new LexwareFehler('Lexware /v1/contacts: Antwort ohne Liste (content).', 200);
+  const seite = async p => {
+    const d = await lexwareGet(p, { schluessel: key, fetchFn, warte, takt: suchTakt });
+    if (!Array.isArray(d?.content)) throw new LexwareFehler('Lexware /v1/contacts: Antwort ohne Liste (content).', 200);
+    return d;
+  };
+  const d = await seite(pfad);
   const mehr = (Number.isFinite(d.totalElements) && d.totalElements > d.content.length) || d.last === false;
-  return { kontakte: d.content.slice(0, SUCH_GROESSE), mehr };
+  const woerter = String(q ?? '').trim().split(/\s+/).filter(Boolean);
+  if (d.content.length || (feld ?? 'name') !== 'name' || woerter.length < 2) return { kontakte: d.content.slice(0, SUCH_GROESSE), mehr };
+  return ausweichSuche(woerter, seite);
+}
+
+// Befund Inhaber 03.11.: Lexware vergleicht "name" bei Personen mit Vor- ODER Nachname einzeln - "Vorname Nachname" findet
+// nichts. Ausweich (nur wenn die ganze Eingabe 0 Treffer hat): mit dem laengsten Wort (>= 3) suchen, hoechstens
+// AUSWEICH_SEITEN Seiten, und hier filtern: jedes Wort muss im ganzen Namen (Firma bzw. Vor- + Nachname) vorkommen.
+export const AUSWEICH_SEITEN = 4;
+const kontaktName = c => (c?.company?.name ?? [c?.person?.firstName, c?.person?.lastName].filter(Boolean).join(' ')).toLowerCase();
+async function ausweichSuche(woerter, seite) {
+  const wort = [...woerter].sort((a, b) => b.length - a.length)[0];
+  if (wort.length < 3) return { kontakte: [], mehr: false };
+  const klein = woerter.map(w => w.toLowerCase());
+  const treffer = [];
+  let weitere = false;
+  for (let p = 0; p < AUSWEICH_SEITEN; p++) {
+    const d = await seite(`/v1/contacts?customer=true&name=${encodeURIComponent(wort)}&page=${p}&size=${SUCH_GROESSE}`);
+    treffer.push(...d.content.filter(c => klein.every(w => kontaktName(c).includes(w))));
+    const letzte = d.last === true || d.content.length < SUCH_GROESSE || (Number.isFinite(d.totalPages) && p + 1 >= d.totalPages);
+    if (letzte) break;
+    if (p === AUSWEICH_SEITEN - 1) weitere = true;
+  }
+  return { kontakte: treffer.slice(0, SUCH_GROESSE), mehr: weitere || treffer.length > SUCH_GROESSE };
 }
 
 /** Einen Kontakt ueber die ID lesen (GET /v1/contacts/{id}). */

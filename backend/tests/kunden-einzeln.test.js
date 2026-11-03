@@ -7,7 +7,7 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { machSheets } from './hilfen/korb-sheet.js';
 import { KUNDEN_SPALTEN, TAB_KUNDEN, kundenZeilen, importPlan, lexTreffer, uebernahmePlan, kundenZahlen } from '../utils/kunden.js';
-import { suchAnfrage, sucheKundenKontakte, leseKontakt, _suchTaktNeu, SUCH_GROESSE, MAX_429 } from '../lib/lexware.js';
+import { suchAnfrage, sucheKundenKontakte, leseKontakt, _suchTaktNeu, SUCH_GROESSE, MAX_429, AUSWEICH_SEITEN } from '../lib/lexware.js';
 import { sucheInLexoffice, uebernehmeAusLexoffice, leseKundenZahlen, _kundenCacheLeeren } from '../lib/kunden.js';
 
 const hier = dirname(fileURLToPath(import.meta.url));
@@ -56,6 +56,31 @@ describe('Lexoffice-Suche (nur lesen)', () => {
     expect(r.kontakte).toHaveLength(25);
     expect(r.mehr).toBe(true);
     expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+  test('Vor- und Nachname zusammen: 0 Treffer -> Ausweich ueber das laengste Wort, jedes Wort muss passen', async () => {
+    const urls = [];
+    const fetchFn = jest.fn(async url => {
+      urls.push(decodeURIComponent(url));
+      if (url.includes('name=Paula%20Platzhalter')) return antwort(200, { content: [], totalElements: 0, last: true });
+      return antwort(200, { content: [person('a', 1, 'Paula', 'Platzhalter'), person('b', 2, 'Peter', 'Platzhalter'), firma('c', 3, 'Platzhalter Bau GmbH')], last: true });
+    });
+    const r = await sucheKundenKontakte({ feld: 'name', q: 'Paula Platzhalter', schluessel: 'k', fetchFn, warte: async () => {} });
+    expect(r.kontakte.map(c => c.id)).toEqual(['a']);
+    expect(r.mehr).toBe(false);
+    expect(urls[1]).toContain('name=Platzhalter&page=0');
+    // Treffer schon beim ersten Mal (z. B. Firma mit Leerzeichen) -> keine zweite Anfrage
+    const f2 = jest.fn(async () => antwort(200, { content: [firma('c', 3, 'Platzhalter Bau GmbH')], last: true }));
+    expect((await sucheKundenKontakte({ feld: 'name', q: 'Platzhalter Bau', schluessel: 'k', fetchFn: f2, warte: async () => {} })).kontakte).toHaveLength(1);
+    expect(f2).toHaveBeenCalledTimes(1);
+  });
+  test('Ausweich hoechstens AUSWEICH_SEITEN Seiten, dann "mehr"', async () => {
+    const fetchFn = jest.fn(async url => (url.includes('%20')
+      ? antwort(200, { content: [], last: true })
+      : antwort(200, { content: Array.from({ length: 25 }, (_, i) => person(`p${i}`, i, 'Paula', 'Platzhalter')), last: false })));
+    const r = await sucheKundenKontakte({ feld: 'name', q: 'Paula Platzhalter', schluessel: 'k', fetchFn, warte: async () => {} });
+    expect(fetchFn).toHaveBeenCalledTimes(1 + AUSWEICH_SEITEN);
+    expect(r.kontakte).toHaveLength(25);
+    expect(r.mehr).toBe(true);
   });
   test('429 bei der Suche: warten, dann Abbruch nach MAX_429', async () => {
     const fetchFn = jest.fn(async () => antwort(429, {}));
