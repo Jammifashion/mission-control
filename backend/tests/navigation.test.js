@@ -19,7 +19,7 @@ describe('Tabelle BEREICHE deckt alle vorhandenen Ansichten ab', () => {
   test('Hauptleiste = Bereiche der Tabelle, in derselben Reihenfolge', () => {
     const knoepfe = [...html.matchAll(/<button[^>]*data-bereich="([a-z]+)"/g)].map(m => m[1]);
     expect(knoepfe).toEqual(Object.keys(BEREICHE));
-    expect(knoepfe).toEqual(['dashboard', 'bestellen', 'artikel', 'partner', 'kunden', 'auftraege', 'lager', 'system']);   // BO5-1: Lager, AM-1: Auftraege
+    expect(knoepfe).toEqual(['dashboard', 'auftraege', 'bestellen', 'artikel', 'partner', 'kunden', 'lager', 'system']);   // BO5-1: Lager; AM-1-1: Auftraege direkt hinter Dashboard
   });
 
   test('jedes Panel ist erreichbar, jedes Ziel-Panel existiert', () => {

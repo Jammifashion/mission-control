@@ -9,10 +9,10 @@
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 import { schreibeNeueZeilen, ersetzeZeile, pruefeZielStrecke, spalteBuchstabe, zeilenAbweichungen } from './sheet-zeilen.js';
-import { leseKundenKontakte } from './lexware.js';
+import { leseKundenKontakte, sucheKundenKontakte, leseKontakt } from './lexware.js';
 import {
   TAB_KUNDEN, kundenZeilen, alsSheetZeile, neuerKunde, bearbeitenPlan, archivPlan, dsgvoPlan, importPlan,
-  zaehleKontakte, kundenAntwort, fehler, KUNDEN_SPALTEN,
+  zaehleKontakte, kundenAntwort, fehler, KUNDEN_SPALTEN, lexTreffer, uebernahmePlan, kundenZahlen,
 } from '../utils/kunden.js';
 
 const CACHE_MS = 30 * 1000;
@@ -144,6 +144,41 @@ export async function importiereKunden({ dryRun = true, nurFirmen = false, sheet
       dryRun: false, seiten, kontakte: zahlen, plan: zaehler, kundenVorher: kunden.length,
       geschrieben: { neu: neu.length, geaendert: aenderungen.length, ersteNeueZeile: ziel?.start ?? null },
     };
+  });
+}
+
+/** GET /api/kunden/zahlen: nur Zahlen (Dashboard-Kachel). */
+export async function leseKundenZahlen({ sheets } = {}) {
+  const { kunden } = await leseKunden({ sheets });
+  return kundenZahlen(kunden);
+}
+
+/**
+ * AM-1-1: Suche in Lexoffice (nur lesen, nur Kunden, eine Seite). Die Treffer gehen nur in die Antwort - kein
+ * Zwischenspeicher, kein Log. "schon in MC" ueber Lexoffice-ID bzw. -Nr. im Kunden-Sheet.
+ */
+export async function sucheInLexoffice({ feld, q, sheets: s, suche = sucheKundenKontakte } = {}) {
+  const { kontakte, mehr } = await suche({ feld, q });
+  const sheets = s ?? await sheetsClient();
+  const { kunden } = await lies(sheets, sheetId());
+  return { treffer: lexTreffer(kontakte, kunden), mehr };
+}
+
+/**
+ * AM-1-1: genau einen Lexoffice-Kontakt uebernehmen. Kontakt frisch aus Lexware (GET, ausserhalb der Sperre), dann
+ * unter der Sperre das Sheet frisch lesen und ueber die ID pruefen (nie doppelt, auch beim Doppelklick: zweiter Aufruf
+ * liefert { schon: true }). Neue Zeile ohne append, zurueckgelesen.
+ */
+export async function uebernehmeAusLexoffice({ lexofficeId, sheets: s, kontaktLesen = leseKontakt, jetzt = () => new Date() } = {}) {
+  const kontakt = await kontaktLesen({ id: lexofficeId });
+  return mitSperre(async () => {
+    const sheets = s ?? await sheetsClient();
+    const spreadsheetId = sheetId();
+    const { werte, idx, kunden, breite } = await lies(sheets, spreadsheetId);
+    const plan = uebernahmePlan({ kunden, kontakt, jetzt: jetzt().toISOString() });
+    if (plan.schon) return { ok: true, schon: true, kundenNr: plan.schon.Kunden_Nr, kunde: kundenAntwort([plan.schon])[0] };
+    const zeile = await schreibeNeueZeilen(sheets, spreadsheetId, TAB_KUNDEN, [alsSheetZeile(idx, plan.neu, breite)], { alt: werte });
+    return { ok: true, schon: false, kundenNr: plan.neu.Kunden_Nr, zeile, kunde: kundenAntwort([plan.neu])[0] };
   });
 }
 

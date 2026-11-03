@@ -162,14 +162,14 @@ export function zaehleKontakte(kontakte) {
  * ueberschrieben; Spitzname, Notiz, Status, Kunden_Nr, Angelegt nie. Art: "Verein" bleibt bei einer Firma stehen.
  * Gesperrte (DSGVO) Zeilen werden nie wieder befuellt. Archivierte Lexware-Kontakte legen keine neue Zeile an.
  * Ein Kontakt, der auf mehrere Zeilen passt, und eine Zeile, auf die mehrere Kontakte passen -> nichts, Zaehler.
- * nurFirmen (Inhaber 03.11.): Personen-Kontakte werden ganz uebersprungen (Zaehler personenUebersprungen) - sie kommen
- * einzeln ueber "+ Neuer Kunde" in MC dazu.
+ * nurFirmen (Inhaber 03.11.): Personen-Kontakte ohne Zeile im Sheet werden uebersprungen (Zaehler personenUebersprungen);
+ * einzeln uebernommene Personen (AM-1-1) haben eine Zeile und werden mit abgeglichen (Zaehler personenAbgeglichen).
  * @returns {{ neu: object[], aenderungen: { kundenNr, zeile, felder: object }[], zaehler: object }}
  */
 export function importPlan({ kunden, kontakte, jetzt, nurFirmen = false }) {
   const zaehler = {
     kontakte: 0, neu: 0, geaendert: 0, unveraendert: 0, felderGeaendert: 0, archiviertUebersprungen: 0,
-    gesperrtUebersprungen: 0, mehrdeutig: 0, ohneId: 0, personenUebersprungen: 0,
+    gesperrtUebersprungen: 0, mehrdeutig: 0, ohneId: 0, personenUebersprungen: 0, personenAbgeglichen: 0,
   };
   const nachId = new Map(), nachNr = new Map();
   const merke = (map, key, k) => { if (!key) return; map.set(key, [...(map.get(key) ?? []), k]); };
@@ -180,11 +180,14 @@ export function importPlan({ kunden, kontakte, jetzt, nurFirmen = false }) {
   for (const c of kontakte ?? []) {
     zaehler.kontakte++;
     const soll = kundeAusKontakt(c);
-    if (nurFirmen && soll.Art === ART.PERSON) { zaehler.personenUebersprungen++; continue; }
     if (!soll.Lexoffice_ID) { zaehler.ohneId++; continue; }
     let passend = nachId.get(soll.Lexoffice_ID) ?? [];
     if (!passend.length && soll.Lexoffice_Nr) passend = (nachNr.get(soll.Lexoffice_Nr) ?? []).filter(k => !t(k.Lexoffice_ID));
     if (passend.length > 1) { zaehler.mehrdeutig++; continue; }
+    if (nurFirmen && soll.Art === ART.PERSON) {
+      if (!passend.length) { zaehler.personenUebersprungen++; continue; }
+      zaehler.personenAbgeglichen++;
+    }
     if (passend.length === 1) treffer.set(passend[0].Kunden_Nr, (treffer.get(passend[0].Kunden_Nr) ?? 0) + 1);
     zuordnung.push({ c, soll, ist: passend[0] ?? null });
   }
@@ -307,4 +310,54 @@ export function dsgvoPlan({ kunden, eingabe, jetzt }) {
 /** Fuer die Oberflaeche: ohne _zeile, Felder in kleiner Schreibweise bleiben wie im Reiter (Spaltennamen). */
 export function kundenAntwort(kunden) {
   return (kunden ?? []).map(({ _zeile, ...k }) => k);
+}
+
+// ── AM-1-1: einzelne Kunden aus Lexoffice ────────────────────────────────────
+
+/** Kunde im Sheet zu einem Lexware-Kontakt (ID, sonst Nr. bei Zeilen ohne ID) oder null. */
+export function kundeZuKontakt(kunden, soll) {
+  return (kunden ?? []).find(k => soll.Lexoffice_ID && t(k.Lexoffice_ID) === soll.Lexoffice_ID)
+    ?? (kunden ?? []).find(k => soll.Lexoffice_Nr && !t(k.Lexoffice_ID) && t(k.Lexoffice_Nr) === soll.Lexoffice_Nr) ?? null;
+}
+
+/** Trefferliste der Lexoffice-Suche fuer den Browser: nur Name, Art, Ort, Nr., ID und "schon in MC". */
+export function lexTreffer(kontakte, kunden) {
+  return (kontakte ?? []).map(c => {
+    const soll = kundeAusKontakt(c);
+    const k = kundeZuKontakt(kunden, soll);
+    return {
+      lexofficeId: soll.Lexoffice_ID, lexofficeNr: soll.Lexoffice_Nr, art: soll.Art, name: soll.Name,
+      ort: [soll.PLZ, soll.Ort].filter(Boolean).join(' '), archiviert: !!c?.archived,
+      inMc: k ? k.Kunden_Nr : null, gesperrt: k?.Status === STATUS.GESPERRT,
+    };
+  });
+}
+
+/**
+ * Uebernahme genau eines Kontakts (Regeln wie der Import): schon im Sheet -> { schon: kunde } (nichts schreiben;
+ * auch beim Doppelklick), DSGVO-gesperrt -> 409, kein Kunde in Lexware -> 422, sonst { neu: Zeile }.
+ */
+export function uebernahmePlan({ kunden, kontakt, jetzt }) {
+  if (!kontakt?.roles?.customer) throw fehler('Dieser Lexoffice-Kontakt ist kein Kunde.', 422, 'kein_kunde');
+  const soll = kundeAusKontakt(kontakt);
+  if (!soll.Lexoffice_ID) throw fehler('Lexoffice-Kontakt ohne ID.', 422);
+  const k = kundeZuKontakt(kunden, soll);
+  if (k?.Status === STATUS.GESPERRT) throw fehler(`${k.Kunden_Nr} ist gesperrt (DSGVO) und wird nicht wieder befüllt.`, 409, 'gesperrt');
+  if (k) return { schon: k };
+  return {
+    neu: {
+      ...Object.fromEntries(KUNDEN_SPALTEN.map(s => [s, ''])), ...soll, Kunden_Nr: naechsteKundenNr(kunden),
+      Status: STATUS.AKTIV, Quelle: QUELLE.LEXOFFICE, Angelegt: t(jetzt), Stand: t(jetzt),
+    },
+  };
+}
+
+/** Nur Zahlen fuer die Dashboard-Kachel und Pruefungen (keine Namen). AM-2 haengt hier die Auftragszahlen an. */
+export function kundenZahlen(kunden) {
+  const n = f => (kunden ?? []).filter(f).length;
+  return {
+    gesamt: n(() => true), aktiv: n(k => k.Status === STATUS.AKTIV), archiviert: n(k => k.Status === STATUS.ARCHIVIERT),
+    gesperrt: n(k => k.Status === STATUS.GESPERRT), firmen: n(k => k.Art === ART.FIRMA), vereine: n(k => k.Art === ART.VEREIN),
+    personen: n(k => k.Art === ART.PERSON),
+  };
 }

@@ -90,3 +90,46 @@ export async function leseKundenKontakte({ schluessel, fetchFn = fetch, warte = 
   }
   throw new LexwareFehler(`Lexware /v1/contacts: mehr als ${MAX_SEITEN} Seiten – abgebrochen.`, 200);
 }
+
+// ── AM-1-1: einzelne Kunden bei Bedarf (Suche -> auswaehlen -> uebernehmen) ──────────────────────────────
+// Ein Takt fuer alle Such-/Einzelabrufe dieser Instanz (zwei schnelle Klicks bleiben unter 2/s).
+export const SUCH_GROESSE = 25;
+export const SUCH_FELDER = ['name', 'email', 'number'];
+let suchTakt = taktgeber();
+export function _suchTaktNeu(warte, jetzt) { suchTakt = taktgeber(warte, jetzt); }
+
+/** Eingabe der Lexware-Suche pruefen. name/email ab 3 Zeichen, number nur Ziffern. Fehlertext ohne den Suchbegriff. */
+export function suchAnfrage(feld, q) {
+  const f = String(feld ?? 'name').trim();
+  const w = String(q ?? '').trim();
+  if (!SUCH_FELDER.includes(f)) { const e = new Error('Suche nur nach Name, E-Mail oder Kundennummer.'); e.status = 422; throw e; }
+  if (f === 'number' ? !/^\d{1,12}$/.test(w) : w.length < 3) {
+    const e = new Error(f === 'number' ? 'Kundennummer nur aus Ziffern.' : 'Bitte mindestens 3 Zeichen eingeben.');
+    e.status = 422; e.code = 'zu_kurz'; throw e;
+  }
+  return `/v1/contacts?customer=true&${f}=${encodeURIComponent(w)}&page=0&size=${SUCH_GROESSE}`;
+}
+
+/**
+ * Lexware-Suche (nur Kunden, eine Seite). Liefert die Kontakte unveraendert nur an den Aufrufer - kein
+ * Zwischenspeicher, kein Log (Suchbegriff und Treffer sind Personendaten).
+ * @returns {{ kontakte: object[], mehr: boolean }}
+ */
+export async function sucheKundenKontakte({ feld, q, schluessel, fetchFn = fetch, warte = schlafen } = {}) {
+  const pfad = suchAnfrage(feld, q);
+  const key = schluessel ?? await getSecret('LEXWARE_API_KEY');
+  const d = await lexwareGet(pfad, { schluessel: key, fetchFn, warte, takt: suchTakt });
+  if (!Array.isArray(d?.content)) throw new LexwareFehler('Lexware /v1/contacts: Antwort ohne Liste (content).', 200);
+  const mehr = (Number.isFinite(d.totalElements) && d.totalElements > d.content.length) || d.last === false;
+  return { kontakte: d.content.slice(0, SUCH_GROESSE), mehr };
+}
+
+/** Einen Kontakt ueber die ID lesen (GET /v1/contacts/{id}). */
+export async function leseKontakt({ id, schluessel, fetchFn = fetch, warte = schlafen } = {}) {
+  const sid = String(id ?? '').trim();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sid)) {
+    const e = new Error('Lexoffice-ID ungültig.'); e.status = 422; throw e;
+  }
+  const key = schluessel ?? await getSecret('LEXWARE_API_KEY');
+  return lexwareGet(`/v1/contacts/${sid}`, { schluessel: key, fetchFn, warte, takt: suchTakt });
+}

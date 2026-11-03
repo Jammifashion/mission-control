@@ -21,9 +21,10 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
 - Navigation (NAV4: Tabelle `BEREICHE` im Block `Navigation-Tabelle: Anfang/Ende`, Test
   navigation.test.js; `oeffneAnsicht(bereich, unterpunkt)` = einziger Weg, eine Ansicht zu oeffnen,
   auch `window.oeffneAnsicht`; Adresse `#bereich/unterpunkt`; Ereignis `mc:ansicht` fuer den
-  zweiten Script-Block. Bereiche: dashboard · bestellen (Panel orders, Unterreiter) · artikel
+  zweiten Script-Block. Bereiche: dashboard · auftraege (kunden, liste; ein Panel `auftraege`, AM-1; seit AM-1-1 direkt
+  hinter Dashboard) · bestellen (Panel orders, Unterreiter) · artikel
   (Panel products, Modus-Knoepfe) · partner (lizenz = partnerportal, festpreis) · kunden (anfragen,
-  agent-wissen) · auftraege (kunden, liste; ein Panel `auftraege`, AM-1) · lager (bestand, buchungen, abgaenge; ein Panel `lager`, BO5-1/BO5-5) · system (settings). Neue Ansicht = Zeile in BEREICHE, nie `nav button.click()`.
+  agent-wissen) · lager (bestand, buchungen, abgaenge; ein Panel `lager`, BO5-1/BO5-5) · system (settings). Neue Ansicht = Zeile in BEREICHE, nie `nav button.click()`.
   Alte Adresse = Zeile mit `umleitung: '<unterpunkt>'` ohne panel/knopf (BO4d: `bestellen/lshop`).)
 - Stand-Anzeige
 - Helpers (darin: Dashboard inkl. Knopf "Trikot-Sync jetzt")
@@ -107,7 +108,13 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   `kuSuche` = Spiegel von `sucheKunden` in utils/kunden.js). Suche/Filter nur im Browser, Suchbegriff nie gespeichert (kein
   Browser-Speicher, keine Adresse, nie an den Server). Dialog `#ku-dialog`: Quelle lexoffice = nur Spitzname/Ansprechpartner/Notiz aenderbar;
   Archivieren mit Bestaetigung; DSGVO = `showConfirm` + Kunden-Nr. eintippen (`#ku-dsgvo-schritt`). Toasts nur Kunden-Nr.
-  Hilfe-Gruppe `auftraege`.)
+  Hilfe-Gruppe `auftraege`.
+  AM-1-1: Knopf "In Lexoffice suchen …" = Baustein `kuKundeSuchen({ q, beiAuswahl })` (auch `window.kuKundeSuchen`; AM-2 nutzt
+  ihn im Dialog "Auftrag anlegen": lokal -> Lexoffice -> "+ Neuer Kunde in MC"). Dialog `#kl-dialog`, Block `Lexoffice-Treffer:
+  Anfang/Ende` (Test kunden-einzeln.test.js); Suche per POST, Treffer nur im Dialog. Dashboard-Kachel `#dash-auftraege` (Block
+  `Auftraege-Kachel: Anfang/Ende`, `GET /api/kunden/zahlen`, nur Zahlen); AM-2 haengt `auftraege` { offen, terminBald,
+  wartetAufWare, fertigNichtBezahlt } an dieselbe Antwort, `auKachelHtml` zeigt sie dann. Shop-Zahlen in `#dash-stats-row`
+  (= `.dash-stats-shop`, display: contents) zeichnet loadDashboard neu, die Kachel steht daneben.)
 - Artikelerfassung (dazu Modus-Knopf "🧵 L-Shop-Modelle", LS4: Unterpunkt `artikel/lshop-modelle`, Panel `#lsm-panel`,
   SECTION L-Shop-Modelle mit Block `L-Shop-Modelle: Anfang/Ende`, Test lshop-modelle-frontend.test.js; Hilfe-Gruppe
   `lshop-modelle`; Links `data-lsm-link` aus Warenkorb "Nicht im Bestand" und Maske "Kein L-Shop-Modell".
@@ -808,10 +815,16 @@ Neue Sektionen immer mit Anker versehen:
   Fehlertext, Postfach, Tests** (nur Kunden_Nr und Zahlen). Backup: drittes Ziel `KUNDEN` in backup-daily.js.
   Import `scripts/kunden-import.js` (Trockenlauf Standard = nur Zahlen, `--write`): `importPlan` gleicht ueber Lexoffice_ID ab
   (Rueckfall Lexoffice_Nr bei Zeilen ohne ID), ueberschreibt nur `LEXOFFICE_FELDER`, nie Spitzname/Notiz/Status, Ansprechpartner nur wenn leer (`NUR_WENN_LEER`); Firma bleibt
-  "Verein", wenn MC es so gesetzt hat; archivierte Lexware-Kontakte legen nichts an; mehrdeutig = nichts. EIN batchUpdate
+  "Verein", wenn MC es so gesetzt hat; archivierte Lexware-Kontakte legen nichts an; mehrdeutig = nichts. `--nur-firmen`
+  (Stand live): Firmen + schon uebernommene Personen werden abgeglichen, weitere Personen nie pauschal geholt.
+  AM-1-1 einzeln: `POST /api/kunden/lexoffice-suche` { feld name|email|number, q } (Suchbegriff nie in Adresse/Log, eine
+  Seite 25, `lexTreffer` mit "schon in MC" ueber ID bzw. Nr.) und `POST .../lexoffice-uebernehmen` { lexofficeId }
+  (`uebernehmeAusLexoffice`: Kontakt frisch per GET, unter der Sperre ueber die ID geprueft - schon da = `schon: true`,
+  gesperrt = 409; sonst eine Zeile wie der Import). `GET /api/kunden/zahlen` = nur Zahlen. EIN batchUpdate
   (geaenderte Zellen + neue Zeilen in gepruefter Zielstrecke), zurueckgelesen. Wiederholbar (Grundlage AM-5).
 - backend/lib/lexware.js – Lexware Office Public API (`https://api.lexware.io`), **NUR LESEN**, einzige Stelle mit Zugriff
-  (Test kunden.test.js: nur `method: 'GET'`, kein anderer Ort nennt die URL). Heute nur `GET /v1/contacts?customer=true`,
+  (Test kunden.test.js: nur `method: 'GET'`, kein anderer Ort nennt die URL). Heute nur `GET /v1/contacts?customer=true` (alle Seiten; AM-1-1 auch Suche `name`/`email`/`number`, eine Seite)
+  und `GET /v1/contacts/{id}`,
   Paging (250, `last`/`totalPages`, max. 200 Seiten), Takt 600 ms (Limit 2/s), 429 -> Retry-After bzw. steigend warten,
   hoechstens 5 Mal. Schluessel Secret `LEXWARE_API_KEY` ueber `getSecret` (NICHT in SECRET_KEYS: Backend startet ohne ihn),
   nur Leserecht Kontakte, hoechstens 24 Monate gueltig. Fehlertexte: Pfad + Status, nie Antwortinhalt/Schluessel.
