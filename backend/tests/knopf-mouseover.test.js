@@ -17,6 +17,11 @@ describe('Mouse-over an jedem Knopf', () => {
     const neu = [...new Set(knoepfeOhneHilfe(html))].filter(k => !bestand.has(k));
     expect(neu).toEqual([]);
   });
+  test('HT2: der Erkenner sieht auch Knoepfe mit langem Inhalt (Zaehler-Badge)', () => {
+    const lang = `<button data-bereich="x"><span>${'Bestellen &amp; Produktion '.repeat(5)}</span><span class="nav-badge"></span></button>`;
+    expect(knoepfeOhneHilfe(lang)).toHaveLength(1);
+    expect(knoepfeOhneHilfe(lang.replace('<button ', '<button data-hilfe="nav-bereich" '))).toEqual([]);
+  });
   test('der Erkenner findet Knoepfe ohne Hilfe und laesst Knoepfe mit Hilfe oder ⓘ in Ruhe', () => {
     const probe = '<button id="a" data-hilfe="x">A</button><button class="hilfe-i" data-hilfe-gruppe="g">ⓘ</button>'
       + '<button id="b">B</button><button type="button" data-foo="1">Text ${x}</button>';

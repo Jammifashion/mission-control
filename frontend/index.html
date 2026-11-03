@@ -331,6 +331,11 @@
         width: 2rem; height: 2rem; font-size: 0.95rem; line-height: 1; cursor: pointer; flex: none;
       }
       .hilfe-i[aria-expanded="true"] { border-color: var(--info); color: var(--info); }
+      /* HT2: ⓘ in Fenster-Koepfen, Leisten und Titeln */
+      .edi-kopf .hilfe-i, .anf-modal-head .hilfe-i, .anf-side-head .hilfe-i { margin-left: auto; }
+      .modal-title.mit-hilfe-i { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+      .hilfe-i-klein { width: 1.6rem; height: 1.6rem; font-size: 0.8rem; }
+      .header-actions .hilfe-i { width: 1.8rem; height: 1.8rem; }
       .hilfe-legende { border: 1px solid var(--border); border-radius: 7px; padding: 0.5rem 0.7rem; margin: 0 0 0.6rem; font-size: 0.8rem; }
       .hilfe-legende[hidden] { display: none; }
       .hilfe-legende dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 0.25rem 0.8rem; }
@@ -338,7 +343,7 @@
       .hilfe-legende dd { margin: 0; color: var(--muted); }
       @media (max-width: 600px) { .hilfe-legende dl { grid-template-columns: 1fr; } .hilfe-legende dd { margin-bottom: 0.3rem; } }
       .mc-tip {
-        position: fixed; z-index: 60; max-width: min(18rem, calc(100vw - 16px)); pointer-events: none;
+        position: fixed; z-index: 10050; max-width: min(18rem, calc(100vw - 16px)); pointer-events: none;   /* HT2: ueber jedem Fenster */
         background: var(--surface); color: var(--text); border: 1px solid var(--info); border-radius: 6px;
         padding: 0.4rem 0.55rem; font-size: 0.78rem; line-height: 1.35; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
       }
@@ -1352,6 +1357,7 @@
     <header>
       <h1>Mission Control</h1>
       <div class="header-actions">
+        <button class="hilfe-i" type="button" data-hilfe-gruppe="navigation" aria-controls="hilfe-navigation" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
         <button id="shop-badge" type="button" title="Shop wechseln" data-hilfe="shop-badge">JFN</button>
         <div id="status-dot" title="API-Status wird geladen…"></div>
       </div>
@@ -1360,7 +1366,8 @@
     <!-- Shop-Auswahl Modal (Sprint 5.4) -->
     <div id="shop-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="shop-modal-title">
       <div id="shop-modal">
-        <h2 id="shop-modal-title">Shop auswählen</h2>
+        <h2 id="shop-modal-title" style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">Shop auswählen <button class="hilfe-i" type="button" data-hilfe-gruppe="dialog" aria-controls="hilfe-shop-modal" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button></h2>
+        <div id="hilfe-shop-modal" class="hilfe-legende" hidden></div>
         <p>Mit welchem Shop möchtest du arbeiten? Wechsel später jederzeit über das Badge oben.</p>
         <div class="shop-modal-buttons">
           <button class="shop-modal-btn" data-shop-choice="jfn" type="button" data-hilfe="shop-wahl">JammiFashion</button>
@@ -1375,7 +1382,7 @@
 
     <nav>
       <button class="active" data-bereich="dashboard" data-hilfe="nav-bereich"><span class="lang">Dashboard</span><span class="kurz">Start</span></button>
-      <button data-bereich="bestellen"><span class="lang">Bestellen &amp; Produktion</span><span class="kurz">Bestellen</span><span id="nav-orders-badge" class="nav-badge"></span></button>
+      <button data-bereich="bestellen" data-hilfe="nav-bereich"><span class="lang">Bestellen &amp; Produktion</span><span class="kurz">Bestellen</span><span id="nav-orders-badge" class="nav-badge"></span></button>
       <button data-bereich="artikel" data-hilfe="nav-bereich"><span class="lang">Artikel</span><span class="kurz">Artikel</span></button>
       <button data-bereich="partner" data-hilfe="nav-bereich"><span class="lang">Partner</span><span class="kurz">Partner</span></button>
       <button data-bereich="kunden" data-hilfe="nav-bereich"><span class="lang">Kunden &amp; Jey</span><span class="kurz">Kunden</span></button>
@@ -1384,6 +1391,7 @@
     </nav>
 
     <main>
+      <div id="hilfe-navigation" class="hilfe-legende" hidden></div>
       <!-- NAV4: 2. Ebene fuer Partner und Kunden & Jey (baut oeffneAnsicht) -->
       <div id="bereich-leiste" class="sub-tabs bereich-leiste" hidden></div>
       <!-- Dashboard -->
@@ -1446,7 +1454,7 @@
           <button class="sub-tab" data-subtab="tab-lshop-uebersicht" data-hilfe="nav-unterreiter">Bestellübersicht</button>
           <button class="sub-tab" data-subtab="tab-lshop-bestellungen" data-hilfe="nav-unterreiter">L-Shop-Bestellungen</button>
           <button class="sub-tab" data-subtab="tab-trikots" data-hilfe="nav-unterreiter">Trikots (JFN)</button>
-          <button class="sub-tab" data-subtab="tab-eingaenge">Anfragen &amp; Eigenaufträge<span id="sub-eingaenge-badge" class="nav-badge"></span></button>
+          <button class="sub-tab" data-subtab="tab-eingaenge" data-hilfe="nav-unterreiter">Anfragen &amp; Eigenaufträge<span id="sub-eingaenge-badge" class="nav-badge"></span></button>
         </div>
 
         <div id="tab-jfn-shop" class="sub-tab-panel active">
@@ -1474,7 +1482,9 @@
             <div class="lshop-inner-tabs">
               <button class="dtf-tab active" data-dtftab="dtf-offen" data-hilfe="tab-offen">Offen</button>
               <button class="dtf-tab" data-dtftab="dtf-protokoll" data-hilfe="tab-protokoll">Protokoll</button>
+              <button class="hilfe-i hilfe-i-klein" type="button" data-hilfe-gruppe="auftragsmonitor" aria-controls="hilfe-auftragsmonitor" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
             </div>
+            <div id="hilfe-auftragsmonitor" class="hilfe-legende" hidden></div>
             <div id="dtf-offen" class="dtf-panel active">
               <div class="skeleton"></div><div class="skeleton"></div>
             </div>
@@ -1579,8 +1589,10 @@
             <div class="edi-box">
               <div class="edi-kopf">
                 <strong id="korb-lager-titel">Aus Lager nehmen</strong>
+                <button class="hilfe-i" type="button" data-hilfe-gruppe="dialog" aria-controls="hilfe-korb-lager-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
                 <button type="button" class="korb-link" id="korb-lager-schliessen" data-hilfe="dialog-abbrechen">Abbrechen</button>
               </div>
+              <div id="hilfe-korb-lager-dialog" class="hilfe-legende" hidden></div>
               <div id="korb-lager-position" class="korb-zaehler"></div>
               <div id="korb-lager-orte" class="korb-lager-orte" role="group" aria-label="Menge je Ort"></div>
               <div id="korb-lager-summe" class="korb-zaehler" aria-live="polite"></div>
@@ -1596,8 +1608,10 @@
             <div class="edi-box korb-eigen">
               <div class="edi-kopf">
                 <strong id="eb-titel">Eigene Position bearbeiten</strong>
+                <button class="hilfe-i" type="button" data-hilfe-gruppe="dialog" aria-controls="hilfe-eb-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
                 <button type="button" class="korb-link" id="eb-abbrechen" data-hilfe="eb-abbrechen">Abbrechen</button>
               </div>
+              <div id="hilfe-eb-dialog" class="hilfe-legende" hidden></div>
               <div id="eb-position" class="korb-zaehler"></div>
               <div id="eb-artikel" class="lshop-card-title"></div>
               <div class="korb-zaehler">Anderes Modell? Position herausnehmen und neu anlegen.</div>
@@ -1710,8 +1724,10 @@
           <div class="edi-box">
             <div class="edi-kopf">
               <strong id="we-titel">Ware angekommen</strong>
-              <button type="button" class="korb-link" id="we-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="dialog" aria-controls="hilfe-we-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+                <button type="button" class="korb-link" id="we-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
             </div>
+              <div id="hilfe-we-dialog" class="hilfe-legende" hidden></div>
             <div class="korb-zaehler">Hak an, was im Paket war. Fehlt etwas, nimm das Häkchen weg – die Position bleibt „bestellt“.</div>
             <div id="we-liste"></div>
             <div class="korb-reihe">
@@ -1724,7 +1740,9 @@
         <!-- BO5-4: Lagerort waehlen (Wrist vorgewaehlt) - fuer "bei Ankunft ins Lager" und "falsches Trikot ins Lager". -->
         <div id="lo-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="lo-titel" hidden>
           <div class="edi-box lo-box">
-            <div class="edi-kopf"><strong id="lo-titel">Lagerort</strong></div>
+            <div class="edi-kopf"><strong id="lo-titel">Lagerort</strong><button class="hilfe-i" type="button" data-hilfe-gruppe="dialog" aria-controls="hilfe-lo-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+                </div>
+              <div id="hilfe-lo-dialog" class="hilfe-legende" hidden></div>
             <div id="lo-text" class="korb-zaehler"></div>
             <select id="lo-ort" class="form-select" aria-label="Lagerort" data-hilfe="lager-ort-waehlen"></select>
             <div class="korb-reihe">
@@ -1768,8 +1786,10 @@
           <div class="edi-box">
             <div class="edi-kopf">
               <strong id="senden-titel">An L-Shop senden</strong>
-              <button type="button" class="korb-link" id="senden-schliessen" data-hilfe="dialog-abbrechen">Abbrechen</button>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="dialog" aria-controls="hilfe-senden-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+                <button type="button" class="korb-link" id="senden-schliessen" data-hilfe="dialog-abbrechen">Abbrechen</button>
             </div>
+              <div id="hilfe-senden-dialog" class="hilfe-legende" hidden></div>
             <div id="senden-box" class="senden-box" role="status" aria-live="polite" hidden></div>
             <div id="senden-kopf" class="korb-zaehler"></div>
             <div class="senden-warnung" id="senden-warnung"><strong>Das ist eine echte Bestellung bei L-Shop.</strong> Sie wird gepackt, versandt und berechnet.</div>
@@ -1805,8 +1825,10 @@
           <div class="edi-box">
             <div class="edi-kopf">
               <strong id="tr-titel">Produzenten-Bestellung</strong>
-              <button type="button" class="korb-link" id="tr-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="dialog" aria-controls="hilfe-tr-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+                <button type="button" class="korb-link" id="tr-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
             </div>
+              <div id="hilfe-tr-dialog" class="hilfe-legende" hidden></div>
             <div class="korb-zaehler">Wähle die Trikots für die nächste Bestellung beim Produzenten. Gespeichert wird erst mit „Als bestellt eintragen“.</div>
             <div id="tr-auswahl"></div>
             <div id="tr-vorschau"></div>
@@ -1841,7 +1863,9 @@
           <button class="mode-btn" id="mode-btn-seoedit" data-hilfe="modus-seo-aendern">🔎 SEO-Daten ändern</button>
           <button class="mode-btn" id="mode-btn-lshopmodelle" data-hilfe="modus-lshop-modelle">🧵 L-Shop-Modelle</button>
           <button class="mode-btn" id="mode-btn-lieferbarkeit" data-hilfe="lfbs-modus">📦 Lieferbarkeit Shop</button>
+          <button class="hilfe-i" type="button" data-hilfe-gruppe="artikel" aria-controls="hilfe-artikel" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
         </div>
+        <div id="hilfe-artikel" class="hilfe-legende" hidden></div>
 
         <!-- SEO-Daten aendern (Befehl SE1): jeder veroeffentlichte Artikel, auch ohne SSOT-Zeile -->
         <div id="seoedit-panel" style="display:none;">
@@ -2011,6 +2035,7 @@
                 <textarea id="seo-eigenschaften" class="form-input" rows="4" style="resize:vertical;font-family:inherit;" placeholder="Zeilenweise eingeben, z.B.&#10;Grammatur: 280 g/m²&#10;Schnitt: Regular Fit&#10;Passform: Unisex"></textarea>
               </div>
               <div class="form-field" style="margin-bottom:0.75rem;">
+                <button class="hilfe-i hilfe-i-klein" style="float:right;" type="button" data-hilfe-gruppe="editor" aria-controls="hilfe-editor-seo" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
                 <label>Kurzbeschreibung</label>
                 <div class="rich-editor">
                   <div class="rich-toolbar">
@@ -2019,6 +2044,7 @@
                     <span class="rich-sep"></span>
                     <button type="button" data-cmd="createLink" title="Link" data-hilfe="editor-link">&#128279;</button>
                   </div>
+                  <div id="hilfe-editor-seo" class="hilfe-legende" hidden></div>
                   <div id="rich-seo-short" class="rich-content" contenteditable="true" data-placeholder="Kurzbeschreibung…"></div>
                 </div>
               </div>
@@ -2176,6 +2202,7 @@
             </div>
             <div id="pf-desc-edit-wrap" style="display:none;grid-column:1/-1;">
               <div class="form-field form-col-full">
+                <button class="hilfe-i hilfe-i-klein" style="float:right;" type="button" data-hilfe-gruppe="editor" aria-controls="hilfe-editor-maske" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
                 <label>Kurzbeschreibung</label>
                 <div class="rich-editor">
                   <div class="rich-toolbar">
@@ -2184,6 +2211,7 @@
                     <span class="rich-sep"></span>
                     <button type="button" data-cmd="createLink" title="Link" data-hilfe="editor-link">&#128279;</button>
                   </div>
+                  <div id="hilfe-editor-maske" class="hilfe-legende" hidden></div>
                   <div id="rich-short-desc" class="rich-content" contenteditable="true" data-placeholder="Kurzbeschreibung…"></div>
                 </div>
               </div>
@@ -2329,7 +2357,9 @@
           <button class="sub-tab" data-ptab="kalkulation" data-hilfe="nav-unterreiter">Kalkulation</button>
           <button class="sub-tab" data-ptab="verkaeufe" data-hilfe="nav-unterreiter">Verkäufe</button>
           <button class="sub-tab" data-ptab="abrechnungen" data-hilfe="nav-unterreiter">Abrechnungen</button>
+          <button class="hilfe-i" type="button" data-hilfe-gruppe="partner" aria-controls="hilfe-partner" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
         </div>
+        <div id="hilfe-partner" class="hilfe-legende" hidden></div>
         <div id="ptab-partner" class="sub-tab-panel active">
           <div class="card">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
@@ -2445,7 +2475,9 @@
           <button class="sub-tab" data-fptab="fp-zusammenfassung" data-hilfe="nav-unterreiter">Zusammenfassung</button>
           <button class="sub-tab" data-fptab="fp-festpreise" data-hilfe="nav-unterreiter">Festpreise</button>
           <button class="sub-tab" data-fptab="fp-intern" data-hilfe="nav-unterreiter">Interne Bestellungen</button>
+          <button class="hilfe-i" type="button" data-hilfe-gruppe="festpreis" aria-controls="hilfe-festpreis" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
         </div>
+        <div id="hilfe-festpreis" class="hilfe-legende" hidden></div>
 
         <!-- Partner -->
         <div id="fptab-fp-partner" class="sub-tab-panel active">
@@ -2614,7 +2646,9 @@
           <button class="anf-new-btn" id="anf-btn-new" title="Neue Anfrage manuell anlegen" data-hilfe="anf-neu">
             <span class="anf-new-icon">+</span> Neue Anfrage
           </button>
+          <button class="hilfe-i" type="button" data-hilfe-gruppe="anfragen" aria-controls="hilfe-anfragen" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
         </div>
+        <div id="hilfe-anfragen" class="hilfe-legende" hidden></div>
 
         <div class="anf-kpi-row">
           <div class="anf-kpi anf-kpi-neu" data-status-group="neu">
@@ -2686,7 +2720,10 @@
 
         <!-- Sektion 1: Produktinfos -->
         <div class="card" style="margin-bottom:1rem;">
-          <div class="form-section-title">Produktinfos</div>
+          <div class="form-section-title">Produktinfos
+            <button class="hilfe-i" type="button" data-hilfe-gruppe="assistent" aria-controls="hilfe-assistent" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+          </div>
+          <div id="hilfe-assistent" class="hilfe-legende" hidden></div>
           <div id="aw-produkt-wrap"><div class="skeleton" style="height:60px;"></div></div>
           <div style="margin-top:0.75rem;">
             <button class="btn-secondary" id="aw-produkt-add-btn" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="aw-eintrag-neu">+ Eintrag hinzufügen</button>
@@ -2856,8 +2893,10 @@
           <div class="edi-box lager-box">
             <div class="edi-kopf">
               <strong id="lager-titel">Einbuchen</strong>
-              <button type="button" class="korb-link" id="lager-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="lager-dialog" aria-controls="hilfe-lager-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+                <button type="button" class="korb-link" id="lager-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
             </div>
+              <div id="hilfe-lager-dialog" class="hilfe-legende" hidden></div>
             <div class="korb-filter lager-aktionen" role="group" aria-label="Was tun?">
               <button type="button" data-lager-modus="einbuchen" data-hilfe="lager-einbuchen">Einbuchen</button>
               <button type="button" data-lager-modus="ausbuchen" data-hilfe="lager-ausbuchen">Ausbuchen</button>
@@ -2908,7 +2947,8 @@
 
       <section id="panel-settings" class="panel">
         <div class="card">
-          <h2>API Key</h2>
+          <h2 class="mit-hilfe-i" style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">API Key <button class="hilfe-i" type="button" data-hilfe-gruppe="einstellungen" aria-controls="hilfe-einstellungen" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button></h2>
+          <div id="hilfe-einstellungen" class="hilfe-legende" hidden></div>
           <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
             <input id="api-key" type="password" placeholder="MC_API_KEY"
               style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.6rem 0.8rem;color:var(--text);font-size:0.9rem;" />
@@ -2945,8 +2985,10 @@
           <div class="anf-side-id" id="anf-side-id">—</div>
           <div class="anf-side-date" id="anf-side-date"></div>
         </div>
+        <button class="hilfe-i" type="button" data-hilfe-gruppe="dialog" aria-controls="hilfe-anf-side" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
         <button class="anf-side-close" id="anf-side-close" aria-label="Schließen" data-hilfe="dialog-schliessen">×</button>
       </header>
+      <div id="hilfe-anf-side" class="hilfe-legende" hidden></div>
 
       <div class="anf-side-body" id="anf-side-body">
         <section class="anf-side-section anf-side-customer">
@@ -3006,8 +3048,10 @@
       <div class="anf-modal" role="dialog" aria-modal="true">
         <header class="anf-modal-head">
           <div class="anf-modal-title">Neue Anfrage</div>
+          <button class="hilfe-i" type="button" data-hilfe-gruppe="dialog" aria-controls="hilfe-anf-modal" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
           <button class="anf-side-close" id="anf-modal-close" aria-label="Schließen" data-hilfe="dialog-abbrechen">×</button>
         </header>
+        <div id="hilfe-anf-modal" class="hilfe-legende" hidden></div>
         <form id="anf-new-form" class="anf-modal-body">
           <div class="anf-form-grid">
             <label class="anf-form-field">
@@ -4270,7 +4314,7 @@
               </div>
               <div class="order-card-body">
                 <div id="order-items-${o.id}">${istOffen ? artikel : ''}</div>
-                <button class="btn-complete-order" data-order-id="${o.id}">
+                <button class="btn-complete-order" data-order-id="${o.id}" data-hilfe="wc-erledigt">
                   Als erledigt markieren (WC Status → completed)
                 </button>
               </div>
@@ -5024,6 +5068,11 @@
       // (data-hilfe-gruppe) die Liste der Gruppe. Neuer Knopf = Text hier + Schluessel in HILFE_GRUPPEN.
       const KNOPF_HILFE = {
         // HT1 (03.11.2026): Mouse-over fuer die aelteren Knoepfe; gemeinsame Texte (dialog-*, liste-*, editor-*, nav-*) genau einmal.
+        'wc-erledigt':          { name: 'Als erledigt markieren', text: 'Setzt die Bestellung im Shop auf „abgeschlossen“ – der Kunde sieht den neuen Status.' },
+        'eigen-modell':         { name: 'Modell wählen', text: 'Übernimmt dieses L-Shop-Modell für die eigene Position. Grau = gerade nicht bestellbar.' },
+        'bm-zelle':             { name: 'Zelle der Matrix', text: 'Klappt die Positionen dieser Zelle auf oder zu. Nur Anzeige.' },
+        'bm-gruppe':            { name: 'Gruppe', text: 'Klappt diese Gruppe auf oder zu. Gemerkt wird das nicht.' },
+        'fk-historie':          { name: 'Historie anzeigen', text: 'Wechselt zwischen den gültigen Fixkosten und allen früheren Versionen. Nur Anzeige.' },
         'dialog-abbrechen':      { name: 'Abbrechen', text: 'Schließt den Dialog. Nichts wird gespeichert oder geändert.' },
         'dialog-schliessen':     { name: 'Schließen', text: 'Schließt das Fenster. Was du vorher schon gebucht oder gespeichert hast, bleibt.' },
         'dialog-bestaetigen':    { name: 'Bestätigen', text: 'Führt die Aktion aus, die im Fenster beschrieben ist.' },
@@ -5311,18 +5360,18 @@
         // HT1: Gruppen der aelteren Knoepfe (ⓘ-Liste, sobald es dort ein ⓘ gibt)
         'navigation': ['shop-badge', 'shop-wahl', 'nav-bereich', 'nav-ansicht', 'nav-unterreiter', 'trikot-sync'],
         'dialog': ['dialog-abbrechen', 'dialog-schliessen', 'dialog-bestaetigen', 'dialog-speichern', 'liste-bearbeiten', 'zeile-speichern'],
-        'auftragsmonitor': ['tab-offen', 'tab-protokoll', 'mon-fulfillment', 'dtf-sammel', 'dtf-bestellt', 'lshop-alt-sammel', 'lshop-alt-bestellt', 'korb-aeltere'],
+        'auftragsmonitor': ['wc-erledigt', 'tab-offen', 'tab-protokoll', 'mon-fulfillment', 'dtf-sammel', 'dtf-bestellt', 'lshop-alt-sammel', 'lshop-alt-bestellt', 'korb-aeltere'],
         'artikel': ['modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
         'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
-        'partner': ['partner-neu', 'partner-aktiv', 'link-kopieren', 'token-neu', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
+        'partner': ['fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'token-neu', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
         'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'fp-preis-loeschen'],
         'anfragen': ['anf-neu', 'anf-aktualisieren', 'anf-anlegen', 'anf-speichern'],
         'assistent': ['aw-eintrag-neu', 'aw-eintrag-speichern', 'aw-prompt-speichern', 'aw-prompt-standard', 'aw-prompt-zeigen', 'aw-test-senden', 'aw-test-neu'],
         'lager-dialog': ['lager-treffer', 'lager-liste-weg', 'lager-event-neu', 'lager-event-anlegen', 'lager-artikel-anlegen', 'lager-ort-anlegen', 'lager-verlauf-korb', 'lager-verlauf-bestellung'],
         'einstellungen': ['api-key-speichern', 'app-installieren', 'stamm-pruefen', 'stamm-uebernehmen'],
-        korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-lb-zuerst', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'lager-storno-hinweis', 'lager-storno-zurueck', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'eb-bearbeiten', 'eb-gesperrt-lager', 'eb-farbe', 'eb-groesse', 'eb-menge', 'eb-referenz', 'eb-notiz', 'eb-lager', 'eb-speichern', 'eb-abbrechen', 'abgleich', 'belege', 'lieferbarkeit', 'alle-offenen', 'zurueck'],
+        korb:       ['eigen-modell', 'filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-lb-zuerst', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'lager-storno-hinweis', 'lager-storno-zurueck', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'eb-bearbeiten', 'eb-gesperrt-lager', 'eb-farbe', 'eb-groesse', 'eb-menge', 'eb-referenz', 'eb-notiz', 'eb-lager', 'eb-speichern', 'eb-abbrechen', 'abgleich', 'belege', 'lieferbarkeit', 'alle-offenen', 'zurueck'],
         leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
-        uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
+        uebersicht: ['bm-zelle', 'bm-gruppe', 'gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
         karton: ['karton-pruefen', 'karton-angekommen', 'karton-naechster', 'karton-rest-lager', 'karton-lager-ort', 'bei-ankunft-lager'],
         bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-mehr', 'bei-ankunft-lager', 'lager-ziel-aendern', 'eb-gesperrt-bestellt', 'eb-gesperrt-geliefert', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
@@ -5333,9 +5382,19 @@
         lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
-      function hilfeLegendeHtml(gruppe) {
+      // HT2: Fenster (Dialoge) - der Tooltip haengt im offenen Fenster, ein ⓘ darin listet die Knoepfe genau dieses Fensters.
+      const HILFE_FENSTER = '.edi-dialog, .modal-backdrop, .anf-side-panel, .anf-modal-backdrop, #shop-modal-overlay';
+      /** Schluessel der ⓘ-Liste: im Fenster (wurzel) die Knoepfe darin (Reihenfolge wie auf dem Bildschirm), dazu die Gruppe. */
+      function hilfeSchluessel(gruppe, wurzel) {
+        const gr = HILFE_GRUPPEN[gruppe] ?? [];
+        if (!wurzel?.querySelectorAll) return gr;
+        const drin = [...wurzel.querySelectorAll('[data-hilfe]')].map(x => x.dataset.hilfe);
+        const alle = [...new Set([...drin, ...(gruppe === 'dialog' ? [] : gr)])].filter(k => hilfeText(k));
+        return alle.length ? alle : gr;
+      }
+      function hilfeLegendeHtml(gruppe, wurzel = null) {
         const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
-        return '<dl>' + (HILFE_GRUPPEN[gruppe] ?? []).filter(k => hilfeText(k))
+        return '<dl>' + hilfeSchluessel(gruppe, wurzel).filter(k => hilfeText(k))
           .map(k => `<dt>${esc(KNOPF_HILFE[k].name)}</dt><dd>${esc(hilfeText(k))}</dd>`).join('') + '</dl>';
       }
       // doc/win als Parameter, damit der Test ohne Browser laeuft.
@@ -5357,15 +5416,22 @@
           if (aktuell && aktuell !== el) aktuell.removeAttribute('aria-describedby');
           aktuell = el;
           quelle = von;
+          // HT2: im offenen Fenster haengen, sonst am Seitenende - so liegt er nie hinter der Abdeckung eines Fensters.
+          const fenster = el.closest?.(HILFE_FENSTER) ?? null;
+          const ziel = fenster ?? doc.body;
+          if (tip.parentNode !== ziel) ziel.appendChild(tip);
           tip.textContent = text;
           tip.hidden = false;
           el.setAttribute('aria-describedby', 'mc-tip');
-          // Unter dem Element, sonst darueber; nie ueber den Rand (8 px).
+          // Unter dem Element, sonst darueber; nie ueber den Rand (8 px). Ein Fenster mit transform (Seitenleiste)
+          // ist Bezugsrahmen fuer position: fixed - dann um seine Lage verschieben.
           const r = el.getBoundingClientRect();
           const b = tip.offsetWidth, h = tip.offsetHeight;
+          let dx = 0, dy = 0;
+          try { if (fenster && win.getComputedStyle(fenster).transform !== 'none') { const f = fenster.getBoundingClientRect(); dx = f.left; dy = f.top; } } catch { /* ohne Versatz */ }
           const unten = r.bottom + 6 + h <= win.innerHeight;
-          tip.style.top = `${Math.max(8, unten ? r.bottom + 6 : r.top - 6 - h)}px`;
-          tip.style.left = `${Math.max(8, Math.min(r.left, win.innerWidth - b - 8))}px`;
+          tip.style.top = `${Math.max(8, unten ? r.bottom + 6 : r.top - 6 - h) - dy}px`;
+          tip.style.left = `${Math.max(8, Math.min(r.left, win.innerWidth - b - 8)) - dx}px`;
           return true;
         }
         function verbergen() {
@@ -5388,11 +5454,30 @@
           const liste = doc.getElementById(knopf.getAttribute('aria-controls'));
           if (!liste) return;
           const auf = knopf.getAttribute('aria-expanded') !== 'true';
-          if (auf) liste.innerHTML = hilfeLegendeHtml(knopf.dataset.hilfeGruppe);
+          if (auf) liste.innerHTML = hilfeLegendeHtml(knopf.dataset.hilfeGruppe, knopf.closest?.(HILFE_FENSTER) ?? null);
           liste.hidden = !auf;
           knopf.setAttribute('aria-expanded', String(auf));
         });
-        return { zeigen, verbergen, tip };
+        // HT2: Fenster, die erst im Code entstehen (Bestätigen, Partner, Festpreis …), bekommen ihr ⓘ in die Titelzeile.
+        let fensterNr = 0;
+        function fensterI(box) {
+          const titel = box?.querySelector?.('.modal-title');
+          if (!titel || titel.querySelector('.hilfe-i')) return;
+          const id = `hilfe-fenster-${++fensterNr}`;
+          titel.classList.add('mit-hilfe-i');
+          titel.insertAdjacentHTML('beforeend', `<button class="hilfe-i" type="button" data-hilfe-gruppe="dialog" aria-controls="${id}" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>`);
+          titel.insertAdjacentHTML('afterend', `<div id="${id}" class="hilfe-legende" hidden></div>`);
+        }
+        if (win.MutationObserver && doc.body?.querySelectorAll) {
+          new win.MutationObserver(eintraege => {
+            for (const e of eintraege) for (const n of e.addedNodes) {
+              if (n.nodeType !== 1) continue;
+              if (n.matches?.('.modal-backdrop')) fensterI(n);
+              n.querySelectorAll?.('.modal-backdrop').forEach(fensterI);
+            }
+          }).observe(doc.body, { childList: true, subtree: true });
+        }
+        return { zeigen, verbergen, tip, fensterI };
       }
       // ── Knopf-Hilfe: Ende ──
       hilfeEinrichten(document, window);
@@ -6000,7 +6085,7 @@
               return;
             }
             // Treffer: Modell · Name (gelb) · Hersteller
-            box.innerHTML = d.modelle.map(m => `<button type="button" data-modell="${korbEsc(m.catalogNr)}" data-nr="${korbEsc(m.articleNr ?? '')}" ${m.bestellbar ? '' : 'disabled'}>`
+            box.innerHTML = d.modelle.map(m => `<button type="button" data-modell="${korbEsc(m.catalogNr)}" data-nr="${korbEsc(m.articleNr ?? '')}" ${m.bestellbar ? '' : 'disabled'} data-hilfe="eigen-modell">`
               + `<span class="korb-kopf-nr">${korbEsc(m.catalogNr)}</span>`
               + (m.bezeichnung ? ` · <span class="korb-kopf-name">${korbEsc(m.bezeichnung)}</span>` : '')
               + (m.marke ? ` · ${korbEsc(m.marke)}` : '')
@@ -6825,7 +6910,7 @@
         const auf = uebersichtZustand.offen === key;
         const titel = `${z.farbe} · ${z.groesse}: ${z.positionen.length} Position${z.positionen.length !== 1 ? 'en' : ''}`
           + (z.wartet != null ? ` · wartet seit ${bmTage(z.wartet)}` : '');
-        return `<button type="button" class="bm-zelle${auf ? ' bm-auf' : ''}" data-zelle="${korbEsc(key)}" aria-expanded="${auf}" title="${korbEsc(titel)}">`
+        return `<button type="button" class="bm-zelle${auf ? ' bm-auf' : ''}" data-zelle="${korbEsc(key)}" aria-expanded="${auf}" title="${korbEsc(titel)}" data-hilfe="bm-zelle">`
           + (mitGroesse ? `<span class="bm-gr">${korbEsc(z.groesse)}</span> ` : '')
           + `<strong>${z.stueck || ''}</strong>${bmMarken(z)}</button>`;
       }
@@ -6863,7 +6948,7 @@
         const z = m.zellen[0];
         const key = bmOffenKey(gid, z);
         const auf = uebersichtZustand.offen === key;
-        return `<div class="bm-einzeln-zeile"><button type="button" class="bm-einzeln${auf ? ' bm-auf' : ''}" data-zelle="${korbEsc(key)}" aria-expanded="${auf}">`
+        return `<div class="bm-einzeln-zeile"><button type="button" class="bm-einzeln${auf ? ' bm-auf' : ''}" data-zelle="${korbEsc(key)}" aria-expanded="${auf}" data-hilfe="bm-zelle">`
           + `${bmKopf(m)} · <span class="korb-kopf-variante">${korbEsc(z.farbe)} · ${korbEsc(z.groesse)}</span>`
           + `<span class="bm-einzeln-stueck"><strong>${z.stueck || ''}</strong>${bmMarken(z)}</span></button>${bmPositionen(gid, m)}</div>`;
       }
@@ -6914,7 +6999,7 @@
         el.innerHTML = gruppen.map(g => {
           if (!g.name) return bmInhalt(g);   // Modell: keine Obergruppe, wie in BO3b
           const zu = uebersichtZustand.zu.has(g.id);
-          return `<div class="bm-gruppe"><button type="button" class="bm-gruppe-kopf" data-gruppe-auf="${korbEsc(g.id)}" aria-expanded="${!zu}">`
+          return `<div class="bm-gruppe"><button type="button" class="bm-gruppe-kopf" data-gruppe-auf="${korbEsc(g.id)}" aria-expanded="${!zu}" data-hilfe="bm-gruppe">`
             + `<span>${zu ? '▸' : '▾'} <strong>${korbEsc(g.name)}</strong></span><span class="bm-gruppe-summe">${bmGruppenText(g)}</span></button>`
             + (zu ? '' : `<div class="bm-gruppe-inhalt">${bmInhalt(g)}</div>`) + '</div>';
         }).join('');
@@ -14736,7 +14821,7 @@
           ].filter(Boolean).join(' oder ');
           wrap.innerHTML = `
             <div style="margin-bottom:0.6rem;display:flex;align-items:center;gap:0.75rem;">
-              <button class="btn-secondary btn-xs" id="fk-hist-toggle">
+              <button class="btn-secondary btn-xs" id="fk-hist-toggle" data-hilfe="fk-historie">
                 ${_fkHistorie ? 'Aktive anzeigen' : 'Historie anzeigen'}
               </button>
               ${legende ? `<span style="font-size:0.78rem;color:var(--muted);">Ausgegraut = ${legende}</span>` : ''}

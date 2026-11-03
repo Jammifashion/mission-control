@@ -3,10 +3,11 @@
 //
 // Erfasst jedes <button ...> im HTML und in den Template-Strings der Skripte. Ein Knopf hat einen Mouse-over, wenn
 // er data-hilfe oder data-hilfe-gruppe (ⓘ) traegt. Kennung = id, sonst data-…-Attributname + Knopftext (gekuerzt).
+// HT2: der Inhalt darf beliebig lang sein (vorher <= 80 Zeichen - Knoepfe mit Zaehler-Badge fielen durch).
 
 export function knoepfeOhneHilfe(html) {
   const ergebnis = [];
-  const re = /<button\b([^>]*)>([\s\S]{0,80}?)<\/button>/g;
+  const re = /<button\b([^>]*)>([\s\S]*?)<\/button>/g;
   let m;
   while ((m = re.exec(html))) {
     const attr = m[1];

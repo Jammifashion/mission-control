@@ -79,14 +79,16 @@ describe('Knoepfe tragen data-hilfe', () => {
     expect(html).toMatch(/id="zl-zurueck" data-hilfe="zl-zurueck"/);
   });
 
-  // HT1: Gruppen der aelteren Knoepfe haben noch kein ⓘ (ein ⓘ waere eine Layout-Aenderung, eigener Auftrag). Sie stehen
-  // hier ausdruecklich; jede andere Gruppe braucht ihr ⓘ, und jedes ⓘ eine Gruppe.
-  const GRUPPEN_OHNE_I = ['navigation', 'dialog', 'auftragsmonitor', 'artikel', 'editor', 'partner', 'festpreis', 'anfragen', 'assistent', 'lager-dialog', 'einstellungen'];
+  // HT2: jede Gruppe hat (mindestens) ein ⓘ - ohne Ausnahme; jedes ⓘ hat eine Gruppe und eine eigene Liste.
+  const GRUPPEN_OHNE_I = [];
   test('jedes ⓘ hat eine Gruppe und eine Liste mit dieser id', () => {
     const knoepfe = [...html.matchAll(/data-hilfe-gruppe="([^"]+)" aria-controls="([^"]+)"/g)];
-    expect(knoepfe.map(m => m[1]).sort()).toEqual(Object.keys(HILFE_GRUPPEN).filter(g => !GRUPPEN_OHNE_I.includes(g)).sort());
-    expect(GRUPPEN_OHNE_I.filter(g => !HILFE_GRUPPEN[g])).toEqual([]);
-    for (const [, , ziel] of knoepfe) expect(tag(ziel)).toMatch(/class="hilfe-legende"/);
+    expect([...new Set(knoepfe.map(m => m[1]))].sort()).toEqual(Object.keys(HILFE_GRUPPEN).sort());
+    expect(GRUPPEN_OHNE_I).toEqual([]);
+    const ziele = knoepfe.map(m => m[2]);
+    expect(ziele.length).toBe(new Set(ziele).size);   // jede Liste gehoert genau einem ⓘ
+    // "${id}" = Vorlage in fensterI; deren Liste entsteht beim Oeffnen des Fensters (eigener Test unten)
+    for (const [, , ziel] of knoepfe.filter(m => !m[2].includes('${'))) expect(tag(ziel)).toMatch(/class="hilfe-legende"/);
   });
 
   test('Funktion unveraendert: alle Klick-Handler haengen noch an ihren ids', () => {
@@ -146,6 +148,50 @@ function umgebung({ hover = true } = {}) {
   const h = hilfeEinrichten(doc, win);
   return { doc, ids, feuern, ...h };
 }
+
+describe('HT2: Tooltip und ⓘ in Fenstern', () => {
+  // Fenster-Attrappe: closest() mit der Fenster-Auswahl findet das naechste Element mit fenster: true
+  function imFenster() {
+    const u = umgebung();
+    const fenster = el({ role: 'dialog' });
+    fenster.fenster = true;
+    fenster.kinder = [];
+    fenster.appendChild = x => { x.parentNode = fenster; fenster.kinder.push(x); };
+    fenster.querySelectorAll = () => [el({ 'data-hilfe': 'dialog-abbrechen' }), el({ 'data-hilfe': 'aus-lager-buchen' }), el({ 'data-hilfe': 'dialog-abbrechen' })];
+    const knopf = el({ 'data-hilfe': 'dialog-abbrechen' });
+    knopf.parent = fenster;
+    const body = u.doc.body.appendChild;
+    u.doc.body.appendChild = x => { body(x); x.parentNode = u.doc.body; };
+    const alt = knopf.closest;
+    knopf.closest = sel => (sel.includes('.edi-dialog') ? fenster : alt(sel));
+    return { u, fenster, knopf };
+  }
+  test('der Tooltip haengt im offenen Fenster, nicht am Seitenende; ausserhalb wieder am Seitenende', () => {
+    const { u, fenster, knopf } = imFenster();
+    u.feuern('focusin', { target: knopf });
+    expect(u.tip.hidden).toBe(false);
+    expect(u.tip.parentNode === fenster).toBe(true);
+    expect(fenster.kinder.includes(u.tip)).toBe(true);
+    u.feuern('focusin', { target: el({ 'data-hilfe': 'abgleich' }) });
+    expect(u.tip.parentNode === u.doc.body).toBe(true);
+  });
+  test('ⓘ im Fenster listet die Knoepfe dieses Fensters (ohne Doppel), sonst die Gruppe', () => {
+    const { fenster } = imFenster();
+    const liste = hilfeLegendeHtml('dialog', fenster);
+    expect((liste.match(/<dt>/g) ?? []).length).toBe(2);
+    expect(liste).toContain(`<dd>${KNOPF_HILFE['aus-lager-buchen'].text.replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`)}</dd>`);
+    expect(hilfeLegendeHtml('dialog')).toBe(hilfeLegendeHtml('dialog', null));
+  });
+  test('der Tooltip liegt ueber jeder Fenster-Abdeckung', () => {
+    const z = Number(html.match(/\.mc-tip \{[^}]*z-index: (\d+)/)[1]);
+    const ebenen = [...html.matchAll(/z-index: (\d+)/g)].map(m => Number(m[1])).filter(n => n !== z);
+    expect(z).toBeGreaterThan(Math.max(...ebenen));
+  });
+  test('Fenster aus dem Code (Bestaetigen, Partner, Festpreis) bekommen ihr ⓘ beim Oeffnen', () => {
+    expect(html).toContain("if (n.matches?.('.modal-backdrop')) fensterI(n);");
+    expect(html).toContain('data-hilfe-gruppe="dialog" aria-controls="${id}"');
+  });
+});
 
 describe('Tooltip', () => {
   test('erscheint bei Tastatur-Fokus mit dem Text, aria-describedby gesetzt', () => {

@@ -43,7 +43,11 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   Ausnahmen). Wiederkehrende Knoepfe teilen EINEN Text: `dialog-abbrechen`, `dialog-schliessen`, `dialog-bestaetigen`, `dialog-speichern`,
   `liste-bearbeiten`, `zeile-speichern`, `link-kopieren`, `token-neu`, `nav-bereich`, `nav-unterreiter`, `tab-offen/-protokoll`,
   `editor-*` (Test knopf-mouseover.test.js) - neue Dialoge nutzen sie, keine Kopien. Gruppen ohne ⓘ stehen in `GRUPPEN_OHNE_I`
-  (knopf-hilfe.test.js); am Handy gibt es fuer sie noch keine Erklaerung.)
+  (knopf-hilfe.test.js). HT2: jede Gruppe hat ein ⓘ (`GRUPPEN_OHNE_I` leer); jedes Fenster (`HILFE_FENSTER`: .edi-dialog,
+  .modal-backdrop, Anfragen-Fenster, Shop-Wahl) hat eins im Kopf - im Code erzeugte Fenster bekommen es beim Oeffnen (`fensterI`,
+  MutationObserver). Ein ⓘ im Fenster listet die Knoepfe genau dieses Fensters. Der Tooltip haengt im offenen Fenster (z-index
+  10050 ueber allem); Fenster mit transform (Anfragen-Seitenleiste) werden verrechnet. Nie ein ⓘ in die Editor-Leiste
+  (`.rich-toolbar` - deren mousedown fuehrt execCommand aus). Der Erkenner prueft jedes `<button>`-Tag, egal wie lang der Inhalt.)
 - L-Shop-Bestellübersicht (BO3b: Unterpunkt `bestellen/lshop-uebersicht`, direkt hinter dem Korb. Nur eine
   Ansicht auf `korbZustand.daten` - kein eigener Abruf, kein Endpunkt; `korbZeichnen()` zeichnet beide.
   Block `Matrix: Anfang/Ende` (`baueMatrix`, Test bestellmatrix.test.js): nur Status offen, sperrender
