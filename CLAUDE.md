@@ -132,6 +132,10 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   (teilen)", Ortswahl), Korb-Stand je Position (Klick `korbSpringeZu`), "Übergabe zurücknehmen", Ware-Kennzeichen, Hinweis freie
   Positionen; Liste: Kennzeichen Ware + Filter "wartet auf Ware". Korb: AU-Referenz als Link `data-korb-au` (Kurztitel ueber
   `window.auKurztitel`, nur in MC), Lager-Verlauf: Quelle auftrag -> `data-lager-au`; beide oeffnen `window.auOeffnen`.
+  AM-3-1 (Inhaber 03.11.): Lagerbestand schon bei der Warenwahl - Raster je Groesse "📦 n" (alle Orte, Orte im Mouse-over),
+  Zeile "im Lager: …", Farbauswahl "· 📦 n im Lager" (`auLagerJe`, nur gelesen aus `GET /api/lager/bestand`). Gruppe "bestellen"
+  mit Bestand: Hinweis + Knopf "aus Lager nehmen" bzw. "teilen" (`auLagerVorschlag`, Hauptort zuerst; `auBestandOhne` zieht ab,
+  was andere Positionen des Entwurfs schon aus Lager nehmen). Nichts wird gebucht - das bleibt beim Bereitstellen.
   AM-2-2: Modellsuche im Auftrag ueber `twBinden` (`twModell`: Modell fett · Name · Marke). Herkunft je Gruppe (Modell+Farbe+
   Herkunft+Ort): bestellen | aus Lager (Ort, Bestand nur gelesen aus `GET /api/lager/bestand`, Knopf "teilen" = `auTeilen`) |
   schon vorhanden; frei nur leer/vorhanden. Gebucht wird im Lager erst mit AM-3. Ansicht: Kennzeichen 🛒/📦/✓.)

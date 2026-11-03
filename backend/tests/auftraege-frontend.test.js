@@ -8,7 +8,7 @@ import { terminBald } from '../utils/auftraege.js';
 const html = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../frontend/index.html'), 'utf8');
 const ku = html.slice(html.indexOf('// ── Kunden-Liste: Anfang'), html.indexOf('// ── Kunden-Liste: Ende ──'));
 const block = html.slice(html.indexOf('// ── Auftraege-Anzeige: Anfang'), html.indexOf('// ── Auftraege-Anzeige: Ende ──'));
-const F = new Function(`${ku}\n${block}\nreturn { auFiltern, auTerminBald, auGruppen, auPositionenAnfrage, auLeisteHtml, auZeileHtml, auKundeText, auEntwurfAus, auFrei, auHerkunft, auHerkunftText, auLagerStand, auTeilen, auKannBereitstellen, auKannZuruecknehmen, auKorbText };`)();
+const F = new Function(`${ku}\n${block}\nreturn { auFiltern, auTerminBald, auGruppen, auPositionenAnfrage, auLeisteHtml, auZeileHtml, auKundeText, auEntwurfAus, auFrei, auHerkunft, auHerkunftText, auLagerStand, auLagerJe, auLagerVorschlag, auBestandOhne, auTeilen, auKannBereitstellen, auKannZuruecknehmen, auKorbText };`)();
 const sektion = html.slice(html.indexOf('// ── SECTION: Aufträge – Liste, Ansicht, Erfassen (AM-2) ──'), html.indexOf('// ── SECTION: Artikelerfassung ──'))
   .split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
 
@@ -130,6 +130,22 @@ describe('Herkunft (AM-2-2)', () => {
       ['Tassen', 10, 'vorhanden', ''],
     ]);
     expect(neu.reduce((s, p) => s + p.menge, 0)).toBe(19);   // Stueck unveraendert
+  });
+  test('AM-3-1: Bestand je Nummer ueber alle Orte und Vorschlag fuer "bestellen"', () => {
+    const b = (nr, ort) => ({ '1|Wrist': 1, '1|Itzehoe': 3, '2|Wrist': 2, '2|Itzehoe': 2 })[`${nr}|${ort}`] ?? 0;
+    expect(F.auLagerJe('1', ['Wrist', 'Itzehoe'], b)).toEqual({ summe: 4, orte: [{ ort: 'Itzehoe', n: 3 }, { ort: 'Wrist', n: 1 }] });
+    expect(F.auLagerJe('9', ['Wrist'], b)).toEqual({ summe: 0, orte: [] });
+    const pos = [{ articleNr: '1', menge: 1 }, { articleNr: '2', menge: 2 }];
+    expect(F.auLagerVorschlag(pos, ['Itzehoe', 'Wrist'], b, 'Wrist')).toMatchObject({ ort: 'Wrist', reicht: true, ausLager: 3 });   // Hauptort zuerst
+    const mehr = [{ articleNr: '1', menge: 3 }, { articleNr: '2', menge: 2 }];
+    expect(F.auLagerVorschlag(mehr, ['Wrist', 'Itzehoe'], b, 'Wrist')).toMatchObject({ ort: 'Itzehoe', reicht: true });               // deckt alles
+    const zuviel = [{ articleNr: '1', menge: 5 }];
+    expect(F.auLagerVorschlag(zuviel, ['Wrist', 'Itzehoe'], b, 'Wrist')).toMatchObject({ ort: 'Itzehoe', reicht: false, ausLager: 3, rest: 2 });
+    expect(F.auLagerVorschlag([{ articleNr: '9', menge: 1 }], ['Wrist'], b, 'Wrist')).toBeNull();
+    // Was andere Positionen schon aus dem Lager nehmen, steht nicht mehr zur Wahl
+    const schon = { articleNr: '1', menge: 1, herkunft: 'lager', lagerOrt: 'Wrist' }, rest = { articleNr: '1', menge: 1, herkunft: 'bestellen' };
+    const frei = F.auBestandOhne([schon, rest], { positionen: [rest] }, b);
+    expect([frei('1', 'Wrist'), frei('1', 'Itzehoe')]).toEqual([0, 3]);
   });
   test('Modellsuche als Trefferliste (kein datalist), Lagerbestand nur gelesen', () => {
     expect(html).not.toMatch(/<datalist/);
