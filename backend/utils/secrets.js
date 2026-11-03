@@ -32,6 +32,7 @@ export const SECRET_KEYS = [
   'LSHOP_FTP_HOST',
   'LSHOP_EDI_FTP_USER',
   'LSHOP_EDI_FTP_PASS',
+  'KUNDEN_SHEET_ID',
 ];
 
 function getSmClient() {

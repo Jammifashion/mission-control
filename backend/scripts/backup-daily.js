@@ -27,6 +27,9 @@ const SCOPES = [
 export const ZIELE = [
   { praefix: 'SSOT',     envKey: 'GOOGLE_SHEET_ID' },
   { praefix: 'BUSINESS', envKey: 'BUSINESS_SHEET_ID' },
+  // AM-1: Kundenstamm (eigenes Sheet, Personendaten). Kopien bleiben bis zur Rotation (14 Tage / 12 Monate) -
+  // eine DSGVO-Sperre wirkt in den Backups erst danach.
+  { praefix: 'KUNDEN',   envKey: 'KUNDEN_SHEET_ID' },
 ];
 
 // ── Retention ───────────────────────────────────────────────────────────────

@@ -35,7 +35,7 @@ jest.unstable_mockModule('googleapis', () => ({
 let runBackup, ZIELE, ohneIds;
 
 const ENV_KEYS = [
-  'GOOGLE_SHEET_ID', 'BUSINESS_SHEET_ID', 'GOOGLE_DRIVE_SHARED_DRIVE_ID',
+  'GOOGLE_SHEET_ID', 'BUSINESS_SHEET_ID', 'KUNDEN_SHEET_ID', 'GOOGLE_DRIVE_SHARED_DRIVE_ID',
   'GOOGLE_DRIVE_BACKUP_DAILY_ID', 'GOOGLE_DRIVE_BACKUP_MONTHLY_ID',
   'GOOGLE_CREDENTIALS_JSON',
 ];
@@ -77,6 +77,7 @@ beforeEach(() => {
 
   process.env.GOOGLE_SHEET_ID               = 'ssot-id';
   process.env.BUSINESS_SHEET_ID             = 'business-id';
+  process.env.KUNDEN_SHEET_ID               = 'kunden-id';
   process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID  = 'drive-id';
   process.env.GOOGLE_DRIVE_BACKUP_DAILY_ID  = 'daily-folder';
   process.env.GOOGLE_DRIVE_BACKUP_MONTHLY_ID = 'monthly-folder';
@@ -92,6 +93,8 @@ beforeEach(() => {
   sheetsGet.mockImplementation(async ({ spreadsheetId }) => ({
     data: spreadsheetId === 'ssot-id'
       ? { properties: { title: 'JF_Master_Inventur_SSoT' }, sheets: [{ properties: { title: 'Erfassungsmaske' } }] }
+      : spreadsheetId === 'kunden-id'
+      ? { properties: { title: 'Kunden' }, sheets: [{ properties: { title: 'Kunden' } }] }
       : { properties: { title: 'JF_Business' }, sheets: [
           { properties: { title: 'Partner_Verkäufe' } },
           { properties: { title: 'Kalkulation_Fixkosten' } },
@@ -113,24 +116,25 @@ afterEach(() => {
 const namen = () => filesCreate.mock.calls.map(c => c[0].requestBody.name);
 
 describe('ZIELE', () => {
-  test('enthaelt beide Spreadsheets', () => {
-    expect(ZIELE.map(z => z.envKey).sort()).toEqual(['BUSINESS_SHEET_ID', 'GOOGLE_SHEET_ID']);
+  test('enthaelt alle drei Spreadsheets (AM-1: Kunden)', () => {
+    expect(ZIELE.map(z => z.envKey).sort()).toEqual(['BUSINESS_SHEET_ID', 'GOOGLE_SHEET_ID', 'KUNDEN_SHEET_ID']);
   });
 
   test('jedes Ziel hat ein unterscheidbares Praefix', () => {
     const p = ZIELE.map(z => z.praefix);
     expect(p).toContain('SSOT');
     expect(p).toContain('BUSINESS');
+    expect(p).toContain('KUNDEN');
     expect(new Set(p).size).toBe(p.length);
   });
 });
 
 describe('beide Spreadsheets werden gesichert', () => {
-  test('zwei Dateien, je mit Praefix und Datum', async () => {
+  test('drei Dateien, je mit Praefix und Datum', async () => {
     const r = await runBackup();
-    expect(r.dateien).toBe(2);
+    expect(r.dateien).toBe(3);
     const heute = new Date().toISOString().slice(0, 10);
-    expect(namen()).toEqual([`SSOT_Backup-${heute}.json.gz`, `BUSINESS_Backup-${heute}.json.gz`]);
+    expect(namen()).toEqual([`SSOT_Backup-${heute}.json.gz`, `BUSINESS_Backup-${heute}.json.gz`, `KUNDEN_Backup-${heute}.json.gz`]);
   });
 
   test('jede Datei traegt die ID ihres eigenen Spreadsheets', async () => {
@@ -156,6 +160,7 @@ describe('beide Spreadsheets werden gesichert', () => {
     expect(gelesen).toContain('ssot-id!Erfassungsmaske');
     expect(gelesen).toContain('business-id!Partner_Verkäufe');
     expect(gelesen).toContain('business-id!Kalkulation_Fixkosten');
+    expect(gelesen).toContain('kunden-id!Kunden');
   });
 });
 
@@ -163,6 +168,7 @@ describe('fehlende Spreadsheet-ID bricht ab', () => {
   test.each([
     ['GOOGLE_SHEET_ID'],
     ['BUSINESS_SHEET_ID'],
+    ['KUNDEN_SHEET_ID'],
   ])('%s fehlt → Fehler, und keine Datei hochgeladen', async (key) => {
     delete process.env[key];
     await expect(runBackup()).rejects.toThrow(key);
@@ -196,8 +202,9 @@ describe('ein scheiterndes Ziel macht den Lauf rot', () => {
     expect(err).toBeInstanceOf(Error);
     expect(err.message).toMatch(/unvollständig/);
     expect(err.message).toContain('BUSINESS');
-    expect(namen()).toHaveLength(1);
+    expect(namen()).toHaveLength(2);
     expect(namen()[0]).toMatch(/^SSOT_Backup-/);
+    expect(namen()[1]).toMatch(/^KUNDEN_Backup-/);
   });
 
   // Das Actions-Log ist oeffentlich: die Meldung nennt Praefix und envKey,
@@ -340,7 +347,7 @@ describe('Aufbewahrung: Papierkorb statt Loeschen', () => {
       return { data: { files: [] } };
     });
     const r = await runBackup();
-    expect(r.dateien).toBe(2);
+    expect(r.dateien).toBe(3);
     expect(r.cleanupWarnungen).toHaveLength(1);
     expect(r.cleanupWarnungen[0]).toMatch(/^Daily-Cleanup fehlgeschlagen/);
     expect(r.cleanupWarnungen[0]).not.toContain(ordnerId);
@@ -369,7 +376,7 @@ describe('Retention bleibt wie bisher', () => {
       const monatlich = filesCreate.mock.calls
         .filter(c => c[0].requestBody.parents[0] === 'monthly-folder')
         .map(c => c[0].requestBody.name);
-      expect(monatlich).toEqual(['SSOT_Backup-2026-05.json.gz', 'BUSINESS_Backup-2026-05.json.gz']);
+      expect(monatlich).toEqual(['SSOT_Backup-2026-05.json.gz', 'BUSINESS_Backup-2026-05.json.gz', 'KUNDEN_Backup-2026-05.json.gz']);
     } finally { jest.useRealTimers(); }
   });
 

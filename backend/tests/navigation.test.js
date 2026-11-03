@@ -1,4 +1,4 @@
-// NAV4: Navigation in 7 Bereichen (BO5-1: Lager). Die Tabelle BEREICHE in index.html (Block
+// NAV4: Navigation in 8 Bereichen (BO5-1: Lager, AM-1: Auftraege). Die Tabelle BEREICHE in index.html (Block
 // "Navigation-Tabelle") muss jede vorhandene Ansicht erreichbar machen, und die
 // Adresse #bereich/unterpunkt muss sauber aufgeloest werden.
 
@@ -19,7 +19,7 @@ describe('Tabelle BEREICHE deckt alle vorhandenen Ansichten ab', () => {
   test('Hauptleiste = Bereiche der Tabelle, in derselben Reihenfolge', () => {
     const knoepfe = [...html.matchAll(/<button[^>]*data-bereich="([a-z]+)"/g)].map(m => m[1]);
     expect(knoepfe).toEqual(Object.keys(BEREICHE));
-    expect(knoepfe).toEqual(['dashboard', 'bestellen', 'artikel', 'partner', 'kunden', 'lager', 'system']);   // BO5-1: Lager
+    expect(knoepfe).toEqual(['dashboard', 'bestellen', 'artikel', 'partner', 'kunden', 'auftraege', 'lager', 'system']);   // BO5-1: Lager, AM-1: Auftraege
   });
 
   test('jedes Panel ist erreichbar, jedes Ziel-Panel existiert', () => {

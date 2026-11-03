@@ -35,6 +35,7 @@ import lshopLieferbarkeitRouter from './routes/lshopLieferbarkeit.js';
 import lieferbarkeitShopRouter from './routes/lieferbarkeitShop.js';
 import internRouter from './routes/intern.js';
 import lagerRouter from './routes/lager.js';
+import kundenRouter from './routes/kunden.js';
 
 // Secrets vor Express-Setup laden – stellt sicher dass process.env.CORS_ORIGIN
 // (und alle anderen Secrets) bereits gesetzt sind wenn die Middleware konfiguriert wird.
@@ -89,6 +90,7 @@ app.use('/api/bestellen/lshop-belege', lshopBelegeRouter); // Belege vom L-Shop-
 app.use('/api/bestellen/lshop-lieferbarkeit', lshopLieferbarkeitRouter); // Bestandsdatei + Auslaufliste, nur lesen (BO7-1)
 app.use('/api/lieferbarkeit-shop', lieferbarkeitShopRouter);   // Problemliste Shop-Artikel, nur lesen (BO7-3)
 app.use('/api/lager',         lagerRouter);         // Lager: Bestand, Buchungen (BO5-1)
+app.use('/api/kunden',        kundenRouter);        // Kundenstamm, eigenes Sheet KUNDEN_SHEET_ID (AM-1)
 app.use('/api/health', healthRouter);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────

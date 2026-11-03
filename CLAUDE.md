@@ -23,7 +23,7 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   auch `window.oeffneAnsicht`; Adresse `#bereich/unterpunkt`; Ereignis `mc:ansicht` fuer den
   zweiten Script-Block. Bereiche: dashboard · bestellen (Panel orders, Unterreiter) · artikel
   (Panel products, Modus-Knoepfe) · partner (lizenz = partnerportal, festpreis) · kunden (anfragen,
-  agent-wissen) · lager (bestand, buchungen, abgaenge; ein Panel `lager`, BO5-1/BO5-5) · system (settings). Neue Ansicht = Zeile in BEREICHE, nie `nav button.click()`.
+  agent-wissen) · auftraege (kunden, liste; ein Panel `auftraege`, AM-1) · lager (bestand, buchungen, abgaenge; ein Panel `lager`, BO5-1/BO5-5) · system (settings). Neue Ansicht = Zeile in BEREICHE, nie `nav button.click()`.
   Alte Adresse = Zeile mit `umleitung: '<unterpunkt>'` ohne panel/knopf (BO4d: `bestellen/lshop`).)
 - Stand-Anzeige
 - Helpers (darin: Dashboard inkl. Knopf "Trikot-Sync jetzt")
@@ -102,6 +102,12 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   Zeilen je Position mit Lager-Artikel, "bestellt n · schon m zurückgebucht", Rest vorbelegt), Hinweis Defekt = Ausschuss. Verlauf:
   Retoure verlinkt "Retoure zu JFN #… · Pos. …" (`lagerRetoureBezugHtml` -> `psSpringeZu`), HONK nur Text. Korb "Aus Lager": Position
   mit Hinweis gelb `.korb-storno` + Knopf "zurück ins Lager" (`data-lager-storno`, `korbStornoZurueck`) statt "zurück in den Korb".)
+- Aufträge (AM-1: Bereich `auftraege`, Unterpunkt `auftraege/kunden` = Kundenliste, `auftraege/liste` = Platzhalter bis AM-2;
+  Panel `#panel-auftraege`, geladen ueber `mc:ansicht`. Block `Kunden-Liste: Anfang/Ende` (Test kunden-frontend.test.js,
+  `kuSuche` = Spiegel von `sucheKunden` in utils/kunden.js). Suche/Filter nur im Browser, Suchbegriff nie gespeichert (kein
+  Browser-Speicher, keine Adresse, nie an den Server). Dialog `#ku-dialog`: Quelle lexoffice = nur Spitzname/Notiz aenderbar;
+  Archivieren mit Bestaetigung; DSGVO = `showConfirm` + Kunden-Nr. eintippen (`#ku-dsgvo-schritt`). Toasts nur Kunden-Nr.
+  Hilfe-Gruppe `auftraege`.)
 - Artikelerfassung (dazu Modus-Knopf "🧵 L-Shop-Modelle", LS4: Unterpunkt `artikel/lshop-modelle`, Panel `#lsm-panel`,
   SECTION L-Shop-Modelle mit Block `L-Shop-Modelle: Anfang/Ende`, Test lshop-modelle-frontend.test.js; Hilfe-Gruppe
   `lshop-modelle`; Links `data-lsm-link` aus Warenkorb "Nicht im Bestand" und Maske "Kein L-Shop-Modell".
@@ -790,6 +796,25 @@ Neue Sektionen immer mit Anker versehen:
   nie Nur_intern, sonst meldet die Pruefung den KI-Satz) und `tt-fluffy` (P-002, Kat. 121, `motivAenderung` aendert
   die vorhandene Motive-Zeile TT-Logo, alter Inhalt geprueft). Partner_Artikel legt der Import/Abgleich an, nie das Skript.
   Preise `.preise-ucs-lebkuchen.json`, `.preise-tt-fluffy.json` (gitignored).
+- backend/lib/kunden.js – Kundenstamm (AM-1), Logik `utils/kunden.js`, Routen `routes/kunden.js` (`/api/kunden`, hinter
+  requireApiKey: GET /, POST /neu, /bearbeiten, /archivieren, /dsgvo-sperren). **Eigenes Google Sheet "Kunden"** (Secret
+  `KUNDEN_SHEET_ID`, freigegeben fuer Inhaber, Nicole, Dienstkonto), getrennt vom SSOT; Reiter `Kunden`: Kunden_Nr (`K-NNNNN`,
+  vergibt MC, hoechste + 1, nie wiederverwendet) | Lexoffice_Nr | Lexoffice_ID | Art (Firma/Verein/Person) | Name | Spitzname
+  (mehrere mit ;) | Ansprechpartner | E-Mail | Telefon | Strasse | PLZ | Ort | Land | Notiz | Status (aktiv/archiviert/
+  gesperrt-DSGVO) | Quelle (lexoffice/mc) | Angelegt | Stand. Setup `scripts/setup-kunden-reiter.js` (Trockenlauf, `--write`).
+  Schreiben: Sperre je Instanz, frisch gelesen, kein append, `ersetzeZeile` bzw. `schreibeNeueZeilen`, `stand` wie gesehen
+  (sonst 409 `konflikt`). Nie loeschen: Archivieren; DSGVO-Sperre leert Personenfelder, Name = "gelöscht K-NNNNN", Kunden_Nr und
+  Lexoffice-ID bleiben (der Import befuellt gesperrte Zeilen nie wieder). **Nie Namen/Adressen/Mail/Telefon in Log, Chat,
+  Fehlertext, Postfach, Tests** (nur Kunden_Nr und Zahlen). Backup: drittes Ziel `KUNDEN` in backup-daily.js.
+  Import `scripts/kunden-import.js` (Trockenlauf Standard = nur Zahlen, `--write`): `importPlan` gleicht ueber Lexoffice_ID ab
+  (Rueckfall Lexoffice_Nr bei Zeilen ohne ID), ueberschreibt nur `LEXOFFICE_FELDER`, nie Spitzname/Notiz/Status; Firma bleibt
+  "Verein", wenn MC es so gesetzt hat; archivierte Lexware-Kontakte legen nichts an; mehrdeutig = nichts. EIN batchUpdate
+  (geaenderte Zellen + neue Zeilen in gepruefter Zielstrecke), zurueckgelesen. Wiederholbar (Grundlage AM-5).
+- backend/lib/lexware.js – Lexware Office Public API (`https://api.lexware.io`), **NUR LESEN**, einzige Stelle mit Zugriff
+  (Test kunden.test.js: nur `method: 'GET'`, kein anderer Ort nennt die URL). Heute nur `GET /v1/contacts?customer=true`,
+  Paging (250, `last`/`totalPages`, max. 200 Seiten), Takt 600 ms (Limit 2/s), 429 -> Retry-After bzw. steigend warten,
+  hoechstens 5 Mal. Schluessel Secret `LEXWARE_API_KEY` ueber `getSecret` (NICHT in SECRET_KEYS: Backend startet ohne ihn),
+  nur Leserecht Kontakte, hoechstens 24 Monate gueltig. Fehlertexte: Pfad + Status, nie Antwortinhalt/Schluessel.
 - backend/lib/wpMedien.js – Upload in die WordPress-Mediathek (`ladeMedienHoch`, `setzeMedienText`),
   eine Stelle fuer `POST /api/artikel/media-upload` und das Halloween-Skript (fetchMitZeitlimit +
   pruefeFetchAntwort; Titel/ALT als Abfrageparameter).
@@ -829,7 +854,7 @@ WC_URL_HONK, GOOGLE_SHEET_ID, BUSINESS_SHEET_ID, GEMINI_API_KEY, MC_API_KEY,
 CORS_ORIGIN, TURNSTILE_SECRET_KEY, WP_APP_PASSWORD, WP_APP_PASSWORD_HONK,
 CHAT_SESSION_SECRET, GOOGLE_DRIVE_SHARED_DRIVE_ID, GOOGLE_DRIVE_BACKUP_DAILY_ID,
 GOOGLE_DRIVE_BACKUP_MONTHLY_ID, GCHAT_WEBHOOK_URL, SCHEDULER_SA_EMAIL,
-SCHEDULER_AUDIENCE, LSHOP_FTP_HOST, LSHOP_EDI_FTP_USER, LSHOP_EDI_FTP_PASS
+SCHEDULER_AUDIENCE, LSHOP_FTP_HOST, LSHOP_EDI_FTP_USER, LSHOP_EDI_FTP_PASS, KUNDEN_SHEET_ID
 
 Ein leerer Wert zählt als fehlend. Für lokal ungenutzte Dienste (HonkShop,
 Turnstile, WP-Upload) reicht ein Platzhalter wie `unused` – Hauptsache nicht

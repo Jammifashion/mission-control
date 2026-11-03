@@ -471,6 +471,27 @@
       .lager-felder { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: 0.5rem; }
       .lager-felder label, .lager-feld { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.8rem; color: var(--muted); }
       .lager-felder label[hidden] { display: none; }
+      /* AM-1: Kundenliste und Kunden-Dialog */
+      .ku-box { width: min(760px, 100%); }
+      #panel-auftraege [hidden] { display: none !important; }   /* .korb-reihe/.korb-aktion setzen display */
+      .ku-felder .ku-breit { grid-column: 1 / -1; }
+      .ku-felder input[readonly], .ku-felder select:disabled { opacity: 0.55; cursor: not-allowed; }
+      .ku-knoepfe { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+      .ku-knoepfe .ku-luecke { flex: 1 1 auto; }
+      .ku-gefahr { color: var(--danger); border-color: var(--danger); }
+      .ku-liste { display: flex; flex-direction: column; gap: 0.4rem; }
+      .ku-zeile { display: grid; grid-template-columns: 6.5rem 1fr auto; gap: 0.25rem 0.75rem; align-items: center; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+      .ku-nr { font-family: ui-monospace, monospace; font-size: 0.8rem; color: var(--muted); }
+      .ku-name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+      .ku-meta { grid-column: 2 / 3; font-size: 0.78rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0.3rem 0.6rem; }
+      .ku-chip { display: inline-block; padding: 0 0.45rem; border-radius: 999px; border: 1px solid var(--border); font-size: 0.74rem; color: var(--text); }
+      .ku-zeile.ku-archiviert { opacity: 0.65; }
+      .ku-zeile.ku-gesperrt { opacity: 0.5; }
+      @media (max-width: 600px) {
+        .ku-zeile { grid-template-columns: 1fr auto; }
+        .ku-nr { grid-column: 1 / -1; }
+        .ku-meta { grid-column: 1 / -1; }
+      }
       .lager-aktionen button { flex: 1 1 auto; }
       .lager-raster-da { font-size: 0.7rem; color: var(--muted); }
       /* BO5-5: Bezug und Liste auszubuchen */
@@ -1386,6 +1407,7 @@
       <button data-bereich="artikel" data-hilfe="nav-bereich"><span class="lang">Artikel</span><span class="kurz">Artikel</span></button>
       <button data-bereich="partner" data-hilfe="nav-bereich"><span class="lang">Partner</span><span class="kurz">Partner</span></button>
       <button data-bereich="kunden" data-hilfe="nav-bereich"><span class="lang">Kunden &amp; Jey</span><span class="kurz">Kunden</span></button>
+      <button data-bereich="auftraege" data-hilfe="nav-bereich"><span class="lang">Aufträge</span><span class="kurz">Aufträge</span></button>
       <button data-bereich="lager" data-hilfe="nav-bereich"><span class="lang">Lager</span><span class="kurz">Lager</span></button>
       <button data-bereich="system" data-hilfe="nav-bereich"><span class="lang">System</span><span class="kurz">System</span></button>
     </nav>
@@ -2849,6 +2871,78 @@
 
       </section>
 
+      <!-- AM-1: Aufträge. Unterpunkt Kunden = Kundenstamm (eigenes Kunden-Sheet, GET /api/kunden); Suche nur im Browser,
+           der Suchbegriff wird nirgends gespeichert. Unterpunkt Aufträge = Platzhalter bis AM-2. -->
+      <section id="panel-auftraege" class="panel">
+        <div class="card" id="ku-ansicht">
+          <div class="lshop-offen-header korb-kopf"><span id="ku-summe">Kunden</span></div>
+          <div id="ku-einrichtung" class="lager-warnung" hidden></div>
+          <div class="korb-bedienung">
+            <div class="korb-ansicht lager-filter">
+              <input id="ku-suche" type="search" class="form-input" placeholder="Suche: Name, Spitzname, Nummer, Ort" autocomplete="off" aria-label="Kunden suchen" data-hilfe="ku-suche" />
+              <select id="ku-f-art" class="form-select" aria-label="Art" data-hilfe="ku-f-art">
+                <option value="">alle Arten</option><option value="Firma">Firma</option><option value="Verein">Verein</option><option value="Person">Person</option>
+              </select>
+              <select id="ku-f-status" class="form-select" aria-label="Status" data-hilfe="ku-f-status">
+                <option value="aktiv">aktiv</option><option value="archiviert">archiviert</option><option value="gesperrt-DSGVO">gesperrt (DSGVO)</option><option value="">alle</option>
+              </select>
+            </div>
+            <div class="korb-aktionen">
+              <button type="button" class="korb-aktion korb-aktion-haupt" id="ku-neu" data-hilfe="ku-neu">+ Neuer Kunde</button>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="auftraege" aria-controls="hilfe-auftraege" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+            </div>
+          </div>
+          <div id="hilfe-auftraege" class="hilfe-legende" hidden></div>
+          <div id="ku-zaehler" class="korb-zaehler" aria-live="polite"></div>
+          <div id="ku-liste"><div class="skeleton"></div></div>
+        </div>
+        <div class="card" id="au-platzhalter" hidden>
+          <div class="lshop-offen-header korb-kopf"><span>Aufträge</span></div>
+          <p class="korb-zaehler">Aufträge erfassen kommt mit dem nächsten Ausbau (AM-2). Die Kundenliste steht schon unter „Kunden“.</p>
+        </div>
+
+        <!-- Dialog: Kunde neu / bearbeiten. Bei Quelle Lexoffice sind die Lexoffice-Felder nur lesbar. -->
+        <div id="ku-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="ku-titel" hidden>
+          <div class="edi-box ku-box">
+            <div class="edi-kopf">
+              <strong id="ku-titel">Neuer Kunde</strong>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="auftraege" aria-controls="hilfe-ku-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+              <button type="button" class="korb-link" id="ku-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
+            </div>
+            <div id="hilfe-ku-dialog" class="hilfe-legende" hidden></div>
+            <div id="ku-lex-hinweis" class="korb-zaehler" hidden>Grau = wird aus Lexoffice übernommen, dort ändern. Hier nur Spitzname und Notiz.</div>
+            <div class="lager-felder ku-felder">
+              <label>Art<select id="ku-Art" class="form-select" data-ku-feld="Art"><option value="Firma">Firma</option><option value="Verein">Verein</option><option value="Person">Person</option></select></label>
+              <label class="ku-breit">Name<input id="ku-Name" type="text" class="form-input" maxlength="120" data-ku-feld="Name" autocomplete="off" /></label>
+              <label class="ku-breit" data-hilfe="ku-spitzname">Spitzname (mehrere mit ;)<input id="ku-Spitzname" type="text" class="form-input" maxlength="200" data-ku-feld="Spitzname" autocomplete="off" placeholder="z. B. Crocos; die Turner" /></label>
+              <label>Ansprechpartner<input id="ku-Ansprechpartner" type="text" class="form-input" maxlength="120" data-ku-feld="Ansprechpartner" autocomplete="off" /></label>
+              <label>E-Mail<input id="ku-E-Mail" type="email" class="form-input" maxlength="120" data-ku-feld="E-Mail" autocomplete="off" /></label>
+              <label>Telefon<input id="ku-Telefon" type="tel" class="form-input" maxlength="40" data-ku-feld="Telefon" autocomplete="off" /></label>
+              <label class="ku-breit">Straße<input id="ku-Strasse" type="text" class="form-input" maxlength="120" data-ku-feld="Strasse" autocomplete="off" /></label>
+              <label>PLZ<input id="ku-PLZ" type="text" class="form-input" maxlength="12" data-ku-feld="PLZ" autocomplete="off" inputmode="numeric" /></label>
+              <label>Ort<input id="ku-Ort" type="text" class="form-input" maxlength="80" data-ku-feld="Ort" autocomplete="off" /></label>
+              <label>Land<input id="ku-Land" type="text" class="form-input" maxlength="2" data-ku-feld="Land" autocomplete="off" placeholder="DE" /></label>
+              <label class="ku-breit">Notiz<textarea id="ku-Notiz" class="form-input" rows="3" maxlength="1000" data-ku-feld="Notiz"></textarea></label>
+            </div>
+            <div id="ku-info" class="korb-zaehler"></div>
+            <!-- DSGVO: zweite Bestaetigung - die Kunden-Nr. eintippen -->
+            <div id="ku-dsgvo-schritt" class="korb-reihe" hidden>
+              <input id="ku-dsgvo-nr" type="text" class="form-input" autocomplete="off" placeholder="Kunden-Nr. eintippen, z. B. K-00012" aria-label="Kunden-Nr. zur Bestätigung" />
+              <button type="button" class="korb-aktion korb-aktion-ruhig ku-gefahr" id="ku-dsgvo-ok" data-hilfe="ku-dsgvo-ok">endgültig sperren</button>
+            </div>
+            <div id="ku-fehler" class="lager-warnung" hidden></div>
+            <div class="korb-reihe ku-knoepfe">
+              <button type="button" class="korb-aktion korb-aktion-haupt" id="ku-speichern" data-hilfe="ku-speichern">Speichern</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="ku-abbrechen" data-hilfe="dialog-abbrechen">Abbrechen</button>
+              <span class="ku-luecke"></span>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="ku-archiv" data-hilfe="ku-archivieren" hidden>Archivieren</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="ku-zurueckholen" data-hilfe="ku-zurueckholen" hidden>Zurückholen</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig ku-gefahr" id="ku-dsgvo" data-hilfe="ku-dsgvo" hidden>DSGVO sperren …</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- BO5-1: Lager. Bestand wird aus dem Buchungsjournal gerechnet (GET /api/lager/bestand); buchen nur ueber den Dialog. -->
       <section id="panel-lager" class="panel">
         <div class="card">
@@ -3299,6 +3393,11 @@
         kunden: { label: 'Kunden & Jey', leiste: true, shop: false, punkte: [
           { id: 'anfragen', label: 'Kundenanfragen', panel: 'anfragen' },
           { id: 'wissen',   label: 'Agent-Wissen',   panel: 'agent-wissen' },
+        ] },
+        // AM-1: Auftragsmanagement. Kunden = Kundenstamm (eigenes Kunden-Sheet); Aufträge = Platzhalter bis AM-2.
+        auftraege: { label: 'Aufträge', leiste: true, shop: false, punkte: [
+          { id: 'kunden', label: 'Kunden',   panel: 'auftraege' },
+          { id: 'liste',  label: 'Aufträge', panel: 'auftraege' },
         ] },
         // BO5-1: beide Unterpunkte im selben Panel; welche Liste sichtbar ist, entscheidet lagerZeigen (Ereignis mc:ansicht).
         lager: { label: 'Lager', leiste: true, shop: false, punkte: [
@@ -5354,6 +5453,17 @@
         'eb-lager':             { name: 'bei Ankunft ins Lager', text: 'Ware für den Vorrat: kommt sie an, bucht der Wareneingang sie gleich ins Lager. Haken weg = nicht.' },
         'eb-speichern':         { name: 'Speichern', text: 'Speichert die Änderung an genau dieser Position. Was vorher war, steht in der Spur. Ein zweiter Klick ändert nichts doppelt.' },
         'eb-abbrechen':         { name: 'Abbrechen', text: 'Schließt ohne etwas zu ändern.' },
+        // AM-1: Bereich Aufträge, Kundenliste
+        'ku-suche':             { name: 'Kunden suchen', text: 'Findet über Name, Spitzname, Kunden-Nr., Lexoffice-Nr. und Ort; jedes Wort muss passen. Wird nicht gespeichert.' },
+        'ku-f-art':             { name: 'Art', text: 'Nur Firmen, Vereine oder Personen zeigen.' },
+        'ku-f-status':          { name: 'Status', text: 'Aktive, archivierte oder gesperrte Kunden zeigen. Archiviert = aus der Liste, nicht gelöscht.' },
+        'ku-neu':               { name: '+ Neuer Kunde', text: 'Kunde direkt in MC anlegen, ohne Lexoffice-Nummer. Die Kunden-Nr. vergibt MC.' },
+        'ku-spitzname':         { name: 'Spitzname', text: 'Wörter, unter denen ihr den Kunden kennt, mit ; trennen. Die Suche findet ihn darüber; Lexoffice ändert ihn nie.' },
+        'ku-speichern':         { name: 'Speichern', text: 'Speichert genau diesen Kunden. Hat ihn inzwischen jemand anders geändert, kommt ein Hinweis statt Überschreiben.' },
+        'ku-archivieren':       { name: 'Archivieren', text: 'Nimmt den Kunden aus der aktiven Liste. Nichts wird gelöscht; „Zurückholen“ macht es rückgängig.' },
+        'ku-zurueckholen':      { name: 'Zurückholen', text: 'Macht einen archivierten Kunden wieder aktiv.' },
+        'ku-dsgvo':             { name: 'DSGVO sperren …', text: 'Löschwunsch des Kunden: leert Name, Kontakt, Adresse und Notiz. Fragt zweimal, nicht rückgängig zu machen.' },
+        'ku-dsgvo-ok':          { name: 'endgültig sperren', text: 'Zweite Bestätigung: erst die Kunden-Nr. eintippen, dann sperren.' },
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
@@ -5379,6 +5489,7 @@
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
+        auftraege: ['ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok'],
         lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
@@ -8747,6 +8858,233 @@
         if (t) { lagerTrefferWaehlen(t.dataset.lagerTreffer); return; }
         if (ev.target.id === 'lager-frei-neu') { const f = document.getElementById('lager-frei-form'); f.hidden = !f.hidden; if (!f.hidden) document.getElementById('lager-neu-bez').focus(); }
         if (ev.target.id === 'lager-neu-ok') lagerArtikelAnlegen();
+      });
+
+      // ── SECTION: Aufträge (AM-1) ──
+      // Bereich "Aufträge", Unterpunkt Kunden: Kundenstamm aus dem eigenen Kunden-Sheet (GET /api/kunden). Suche und
+      // Filter laufen nur im Browser; der Suchbegriff wird nirgends gespeichert (nicht im Browser-Speicher, nicht in der Adresse).
+      // Toasts und Meldungen nennen nur die Kunden-Nr., nie Namen. Unterpunkt Aufträge = Platzhalter bis AM-2.
+
+      // ── Kunden-Liste: Anfang (reine Logik, Test backend/tests/kunden-frontend.test.js; Spiegel von utils/kunden.js) ──
+      const KU_LEX_FELDER = ['Art', 'Name', 'Ansprechpartner', 'E-Mail', 'Telefon', 'Strasse', 'PLZ', 'Ort', 'Land'];
+      const KU_MC_FELDER = ['Spitzname', 'Notiz'];
+      const KU_FREI_FELDER = ['Art', 'Name', 'Spitzname', 'Ansprechpartner', 'E-Mail', 'Telefon', 'Strasse', 'PLZ', 'Ort', 'Land', 'Notiz'];
+      const KU_STATUS_TEXT = { aktiv: 'aktiv', archiviert: 'archiviert', 'gesperrt-DSGVO': 'gesperrt (DSGVO)' };
+      const kuKlein = s => String(s ?? '').trim().toLowerCase();
+      const kuEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      /** Jedes Wort muss in Name, Spitzname, Kunden-Nr., Lexoffice-Nr. oder Ort vorkommen (wie sucheKunden im Backend). */
+      function kuSuche(kunden, q) {
+        const woerter = kuKlein(q).split(/\s+/).filter(Boolean);
+        if (!woerter.length) return [...(kunden ?? [])];
+        return (kunden ?? []).filter(k => {
+          const text = [k.Name, k.Spitzname, k.Kunden_Nr, k.Lexoffice_Nr, k.Ort].map(kuKlein).join(' ');
+          return woerter.every(w => text.includes(w));
+        });
+      }
+      /** Filter Art + Status (leer = alle), dann Suche; sortiert nach Name, ohne Namen nach Nummer. */
+      function kuFiltern(kunden, f = {}) {
+        const liste = (kunden ?? []).filter(k => (!f.art || k.Art === f.art) && (!f.status || k.Status === f.status));
+        return kuSuche(liste, f.suche).sort((a, b) => kuKlein(a.Name).localeCompare(kuKlein(b.Name), 'de') || String(a.Kunden_Nr).localeCompare(String(b.Kunden_Nr)));
+      }
+      /** Zaehler ueber alle Kunden (unabhaengig vom Filter). */
+      function kuZaehler(kunden) {
+        const n = s => (kunden ?? []).filter(k => k.Status === s).length;
+        return { gesamt: (kunden ?? []).length, aktiv: n('aktiv'), archiviert: n('archiviert'), gesperrt: n('gesperrt-DSGVO') };
+      }
+      const kuSpitznamen = s => String(s ?? '').split(';').map(x => x.trim()).filter(Boolean);
+      /** Eine Zeile der Liste. */
+      function kuZeileHtml(k) {
+        const klasse = k.Status === 'archiviert' ? ' ku-archiviert' : k.Status === 'gesperrt-DSGVO' ? ' ku-gesperrt' : '';
+        const meta = [
+          k.Art ? `<span>${kuEsc(k.Art)}</span>` : '',
+          k.Ort ? `<span>${kuEsc([k.PLZ, k.Ort].filter(Boolean).join(' '))}</span>` : '',
+          k.Lexoffice_Nr ? `<span>Lexoffice ${kuEsc(k.Lexoffice_Nr)}</span>` : (k.Quelle === 'mc' ? '<span>nur in MC</span>' : ''),
+          k.Status !== 'aktiv' ? `<span>${kuEsc(KU_STATUS_TEXT[k.Status] ?? k.Status)}</span>` : '',
+          ...kuSpitznamen(k.Spitzname).map(s => `<span class="ku-chip">${kuEsc(s)}</span>`),
+        ].filter(Boolean).join('');
+        return `<div class="ku-zeile${klasse}" data-ku-nr="${kuEsc(k.Kunden_Nr)}">`
+          + `<span class="ku-nr">${kuEsc(k.Kunden_Nr)}</span><span class="ku-name">${kuEsc(k.Name)}</span>`
+          + `<button type="button" class="korb-link" data-ku-bearbeiten="${kuEsc(k.Kunden_Nr)}" data-hilfe="liste-bearbeiten">bearbeiten …</button>`
+          + `<div class="ku-meta">${meta}</div></div>`;
+      }
+      /** Was der Dialog schickt: neu = alle MC-Felder; Quelle lexoffice = nur Spitzname/Notiz; sonst alle MC-Felder. */
+      function kuNutzdaten(kunde, werte) {
+        const felder = !kunde ? KU_FREI_FELDER : kunde.Quelle === 'lexoffice' ? KU_MC_FELDER : KU_FREI_FELDER;
+        const daten = Object.fromEntries(felder.map(f => [f, String(werte[f] ?? '').trim()]));
+        return kunde ? { kundenNr: kunde.Kunden_Nr, stand: kunde.Stand, ...daten } : daten;
+      }
+      // ── Kunden-Liste: Ende ──
+
+      const kuEl = id => document.getElementById(id);
+      const kuZ = { kunden: null, laedt: false, offen: null };   // offen: Kunde im Dialog (null = neu)
+      const kuFilterWerte = () => ({ art: kuEl('ku-f-art').value, status: kuEl('ku-f-status').value, suche: kuEl('ku-suche').value });
+
+      function kuZeichnen() {
+        const alle = kuZ.kunden ?? [];
+        const z = kuZaehler(alle);
+        kuEl('ku-summe').textContent = `Kunden: ${z.aktiv} aktiv`;
+        const liste = kuFiltern(alle, kuFilterWerte());
+        kuEl('ku-zaehler').textContent = `${liste.length} von ${z.gesamt} angezeigt · ${z.archiviert} archiviert · ${z.gesperrt} gesperrt`;
+        kuEl('ku-liste').innerHTML = !alle.length ? '<p class="korb-zaehler">Noch keine Kunden. „+ Neuer Kunde“ legt einen an; der Import aus Lexoffice füllt die Liste.</p>'
+          : !liste.length ? '<p class="korb-zaehler">Kein Kunde passt zur Suche bzw. zum Filter.</p>'
+          : `<div class="ku-liste">${liste.map(kuZeileHtml).join('')}</div>`;
+      }
+
+      async function loadKunden() {
+        if (kuZ.laedt) return;
+        kuZ.laedt = true;
+        kuEl('ku-einrichtung').hidden = true;
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/kunden`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
+          const j = await res.json().catch(() => null);
+          if (!res.ok) {
+            if (j?.code === 'einrichtung') {
+              kuEl('ku-einrichtung').textContent = `Kunden-Sheet noch nicht eingerichtet: ${j.error}`;
+              kuEl('ku-einrichtung').hidden = false;
+              kuZ.kunden = [];
+              kuZeichnen();
+              return;
+            }
+            throw new Error(j?.error || `HTTP ${res.status}`);
+          }
+          kuZ.kunden = j.kunden ?? [];
+          kuZeichnen();
+        } catch (e) {
+          kuEl('ku-liste').innerHTML = `<div class="lager-warnung">Kunden nicht geladen: ${kuEsc(e.message)}</div>`;
+        } finally { kuZ.laedt = false; }
+      }
+
+      function kuDialogFehler(text) {
+        kuEl('ku-fehler').textContent = text ?? '';
+        kuEl('ku-fehler').hidden = !text;
+      }
+
+      function kuDialogOeffnen(kunde) {
+        kuZ.offen = kunde ?? null;
+        const k = kunde ?? { Art: 'Firma', Land: 'DE', Status: 'aktiv', Quelle: 'mc' };
+        const ausLex = !!kunde && kunde.Quelle === 'lexoffice';
+        const gesperrt = k.Status === 'gesperrt-DSGVO';
+        kuEl('ku-titel').textContent = kunde ? `Kunde ${kunde.Kunden_Nr}` : 'Neuer Kunde';
+        document.querySelectorAll('#ku-dialog [data-ku-feld]').forEach(el => {
+          const f = el.dataset.kuFeld;
+          el.value = k[f] ?? '';
+          const nurLesen = gesperrt || (ausLex && KU_LEX_FELDER.includes(f));
+          if (el.tagName === 'SELECT') el.disabled = nurLesen; else el.readOnly = nurLesen;
+        });
+        kuEl('ku-lex-hinweis').hidden = !ausLex || gesperrt;
+        kuEl('ku-info').textContent = !kunde ? 'Die Kunden-Nr. vergibt MC beim Speichern.'
+          : [kunde.Kunden_Nr, ausLex ? `aus Lexoffice${kunde.Lexoffice_Nr ? ` (Nr. ${kunde.Lexoffice_Nr})` : ''}` : 'nur in MC',
+            KU_STATUS_TEXT[kunde.Status] ?? kunde.Status, kunde.Angelegt ? `angelegt ${String(kunde.Angelegt).slice(0, 10)}` : ''].filter(Boolean).join(' · ');
+        kuEl('ku-speichern').hidden = gesperrt;
+        kuEl('ku-archiv').hidden = !kunde || k.Status !== 'aktiv';
+        kuEl('ku-zurueckholen').hidden = !kunde || k.Status !== 'archiviert';
+        kuEl('ku-dsgvo').hidden = !kunde || gesperrt;
+        kuEl('ku-dsgvo-schritt').hidden = true;
+        kuEl('ku-dsgvo-nr').value = '';
+        kuDialogFehler('');
+        kuEl('ku-dialog').hidden = false;
+        (kunde ? kuEl(ausLex ? 'ku-Spitzname' : 'ku-Name') : kuEl('ku-Name')).focus();
+      }
+      function kuDialogSchliessen() { kuEl('ku-dialog').hidden = true; kuZ.offen = null; }
+
+      // Antwort eines Schreibaufrufs: Kunde in der Liste ersetzen bzw. anhaengen.
+      function kuUebernehmen(kunde) {
+        if (!kunde) return;
+        const liste = kuZ.kunden ?? [];
+        const i = liste.findIndex(x => x.Kunden_Nr === kunde.Kunden_Nr);
+        if (i >= 0) liste[i] = kunde; else liste.push(kunde);
+        kuZ.kunden = liste;
+        kuZeichnen();
+      }
+
+      async function kuSenden(pfad, body, knopf) {
+        knopf.disabled = true;
+        kuDialogFehler('');
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/kunden/${pfad}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+          });
+          const j = await res.json().catch(() => null);
+          if (!res.ok) {
+            kuDialogFehler(j?.error || `HTTP ${res.status}`);
+            if (j?.code === 'konflikt') loadKunden();
+            return null;
+          }
+          return j;
+        } catch (e) {
+          kuDialogFehler(`Nicht gespeichert: ${e.message}`);
+          return null;
+        } finally { knopf.disabled = false; }
+      }
+
+      async function kuSpeichern() {
+        const werte = Object.fromEntries([...document.querySelectorAll('#ku-dialog [data-ku-feld]')].map(el => [el.dataset.kuFeld, el.value]));
+        const r = await kuSenden(kuZ.offen ? 'bearbeiten' : 'neu', kuNutzdaten(kuZ.offen, werte), kuEl('ku-speichern'));
+        if (!r) return;
+        kuUebernehmen(r.kunde);
+        showToast(r.unveraendert ? `${r.kundenNr}: nichts geändert.` : `${r.kundenNr} gespeichert.`);
+        kuDialogSchliessen();
+      }
+
+      async function kuArchiv(archivieren) {
+        const k = kuZ.offen;
+        if (!k) return;
+        if (archivieren && !await showConfirm('Kunde archivieren?', `<p>${kuEsc(k.Kunden_Nr)} verschwindet aus der Liste „aktiv“. Nichts wird gelöscht; „Zurückholen“ macht es rückgängig.</p>`, 'Archivieren')) return;
+        const r = await kuSenden('archivieren', { kundenNr: k.Kunden_Nr, stand: k.Stand, archivieren }, kuEl(archivieren ? 'ku-archiv' : 'ku-zurueckholen'));
+        if (!r) return;
+        kuUebernehmen(r.kunde);
+        showToast(`${r.kundenNr} ${archivieren ? 'archiviert' : 'wieder aktiv'}.`);
+        kuDialogSchliessen();
+      }
+
+      // DSGVO: erste Bestaetigung im Fenster, zweite durch Eintippen der Kunden-Nr.
+      async function kuDsgvoStart() {
+        const k = kuZ.offen;
+        if (!k) return;
+        const ok = await showConfirm('Kunde DSGVO sperren?',
+          `<p>Name, Spitzname, Ansprechpartner, Kontakt, Adresse und Notiz von ${kuEsc(k.Kunden_Nr)} werden geleert. Nur die Kunden-Nr. bleibt. Das lässt sich nicht rückgängig machen.</p>`
+          + '<p>Wenn der Kunde auch in Lexoffice steht: dort ebenfalls löschen bzw. sperren (Aufbewahrung von Rechnungen beachten). Backups enthalten die alten Daten bis zu ihrer Löschfrist.</p>',
+          'Weiter');
+        if (!ok) return;
+        kuEl('ku-dsgvo-schritt').hidden = false;
+        kuEl('ku-dsgvo-nr').focus();
+      }
+      async function kuDsgvoOk() {
+        const k = kuZ.offen;
+        if (!k) return;
+        const r = await kuSenden('dsgvo-sperren', { kundenNr: k.Kunden_Nr, stand: k.Stand, bestaetigung: kuEl('ku-dsgvo-nr').value.trim() }, kuEl('ku-dsgvo-ok'));
+        if (!r) return;
+        kuUebernehmen(r.kunde);
+        showToast(`${r.kundenNr} gesperrt (DSGVO).`);
+        kuDialogSchliessen();
+      }
+
+      kuEl('ku-suche').addEventListener('input', () => kuZeichnen());
+      kuEl('ku-f-art').addEventListener('change', () => kuZeichnen());
+      kuEl('ku-f-status').addEventListener('change', () => kuZeichnen());
+      kuEl('ku-neu').addEventListener('click', () => kuDialogOeffnen(null));
+      kuEl('ku-liste').addEventListener('click', e => {
+        const b = e.target.closest('[data-ku-bearbeiten]');
+        if (!b) return;
+        const k = (kuZ.kunden ?? []).find(x => x.Kunden_Nr === b.dataset.kuBearbeiten);
+        if (k) kuDialogOeffnen(k);
+      });
+      kuEl('ku-speichern').addEventListener('click', kuSpeichern);
+      kuEl('ku-abbrechen').addEventListener('click', kuDialogSchliessen);
+      kuEl('ku-schliessen').addEventListener('click', kuDialogSchliessen);
+      kuEl('ku-archiv').addEventListener('click', () => kuArchiv(true));
+      kuEl('ku-zurueckholen').addEventListener('click', () => kuArchiv(false));
+      kuEl('ku-dsgvo').addEventListener('click', kuDsgvoStart);
+      kuEl('ku-dsgvo-ok').addEventListener('click', kuDsgvoOk);
+      kuEl('ku-dialog').addEventListener('keydown', e => { if (e.key === 'Escape') kuDialogSchliessen(); });
+
+      document.addEventListener('mc:ansicht', e => {
+        if (e.detail?.panel !== 'auftraege') return;
+        const liste = e.detail.punkt === 'liste';
+        kuDialogSchliessen();
+        kuEl('ku-ansicht').hidden = liste;
+        kuEl('au-platzhalter').hidden = !liste;
+        if (!liste) loadKunden();
       });
 
       // ── SECTION: Artikelerfassung ──
