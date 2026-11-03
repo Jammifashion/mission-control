@@ -31,6 +31,8 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   (Panel products, Modus-Knoepfe) · partner (lizenz = partnerportal, festpreis) · kunden (anfragen,
   agent-wissen) · lager (bestand, buchungen, abgaenge; ein Panel `lager`, BO5-1/BO5-5) · system (settings). Neue Ansicht = Zeile in BEREICHE, nie `nav button.click()`.
   Alte Adresse = Zeile mit `umleitung: '<unterpunkt>'` ohne panel/knopf (BO4d: `bestellen/lshop`).)
+  Am Handy (<= 600 px) ist die Hauptleiste ein Raster aus Kacheln 4 × 2 in Blau (Inhaber 03.11., Variablen `--nav-kachel*`);
+  darueber bis 720 px Kurznamen in einer Zeile, am Desktop Langnamen.
 - Stand-Anzeige
 - Helpers (darin: Dashboard inkl. Knopf "Trikot-Sync jetzt")
 - Auftragsmonitor, Auftragsmonitor Dual-Source; darunter "Auftragsmonitor: Shop Orders" (kein SECTION-Anker) mit der

@@ -19,6 +19,8 @@
         --surface: #1a1a1a;
         --border: #2a2a2a;
         --accent: #e8c44a;
+        /* Hauptnavigation am Handy als Kacheln (Inhaber 03.11.: blau) */
+        --nav-kachel: #16243a; --nav-kachel-rand: #2c4a73; --nav-kachel-text: #b9cdea; --nav-kachel-aktiv: #2f6fd1; --nav-kachel-aktiv-rand: #5b93f0;
         --text: #f0f0f0;
         --muted: #888;
         --danger: #e05252;
@@ -143,6 +145,18 @@
         nav button { padding: 0.7rem 0.25rem; font-size: 0.8rem; }
         nav .lang { display: none; }
         nav .kurz { display: inline; }
+      }
+      /* Inhaber 03.11.: am Handy die 8 Bereiche als Kacheln 4 × 2 (blau) - nichts scrollt, nichts abgeschnitten. */
+      @media (max-width: 600px) {
+        nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.35rem; padding: 0.5rem; overflow: visible; }
+        nav button {
+          min-height: 44px; padding: 0.5rem 0.2rem; font-size: 0.78rem;
+          background: var(--nav-kachel); color: var(--nav-kachel-text);
+          border: 1px solid var(--nav-kachel-rand); border-radius: 8px;
+          overflow: hidden; text-overflow: ellipsis;
+        }
+        nav button.active { background: var(--nav-kachel-aktiv); border-color: var(--nav-kachel-aktiv-rand); color: #fff; font-weight: 600; }
+        nav button .nav-badge { margin-left: 0.25rem; }
       }
       /* Shop-Badge in Bereichen, in denen der Shop nicht wirkt */
       #shop-badge.shop-inaktiv { opacity: 0.4; }

@@ -22,6 +22,13 @@ describe('Tabelle BEREICHE deckt alle vorhandenen Ansichten ab', () => {
     expect(knoepfe).toEqual(['dashboard', 'auftraege', 'bestellen', 'artikel', 'partner', 'kunden', 'lager', 'system']);   // BO5-1: Lager; AM-1-1: Auftraege direkt hinter Dashboard
   });
 
+  test('Handy: Hauptnavigation als Kacheln 4 × 2 (Inhaber 03.11.), 8 Bereiche passen ohne Scrollen', () => {
+    const block = html.match(/@media \(max-width: 600px\) \{\s*nav \{([^}]*)\}/)?.[1] ?? '';
+    expect(block).toContain('grid-template-columns: repeat(4, minmax(0, 1fr))');
+    expect(block).toContain('overflow: visible');
+    expect(Object.keys(BEREICHE)).toHaveLength(8);
+  });
+
   test('jedes Panel ist erreichbar, jedes Ziel-Panel existiert', () => {
     const panels = [...html.matchAll(/<section id="panel-([a-z-]+)" class="panel/g)].map(m => m[1]);
     const ziele  = new Set(punkte.map(p => p.panel));
