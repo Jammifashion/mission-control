@@ -1352,7 +1352,7 @@
     <header>
       <h1>Mission Control</h1>
       <div class="header-actions">
-        <button id="shop-badge" type="button" title="Shop wechseln">JFN</button>
+        <button id="shop-badge" type="button" title="Shop wechseln" data-hilfe="shop-badge">JFN</button>
         <div id="status-dot" title="API-Status wird geladen…"></div>
       </div>
     </header>
@@ -1363,8 +1363,8 @@
         <h2 id="shop-modal-title">Shop auswählen</h2>
         <p>Mit welchem Shop möchtest du arbeiten? Wechsel später jederzeit über das Badge oben.</p>
         <div class="shop-modal-buttons">
-          <button class="shop-modal-btn" data-shop-choice="jfn" type="button">JammiFashion</button>
-          <button class="shop-modal-btn shop-honk-btn" data-shop-choice="honk" type="button">HonkShop</button>
+          <button class="shop-modal-btn" data-shop-choice="jfn" type="button" data-hilfe="shop-wahl">JammiFashion</button>
+          <button class="shop-modal-btn shop-honk-btn" data-shop-choice="honk" type="button" data-hilfe="shop-wahl">HonkShop</button>
         </div>
         <label class="shop-modal-remember">
           <input type="checkbox" id="shop-remember" checked>
@@ -1374,13 +1374,13 @@
     </div>
 
     <nav>
-      <button class="active" data-bereich="dashboard"><span class="lang">Dashboard</span><span class="kurz">Start</span></button>
+      <button class="active" data-bereich="dashboard" data-hilfe="nav-bereich"><span class="lang">Dashboard</span><span class="kurz">Start</span></button>
       <button data-bereich="bestellen"><span class="lang">Bestellen &amp; Produktion</span><span class="kurz">Bestellen</span><span id="nav-orders-badge" class="nav-badge"></span></button>
-      <button data-bereich="artikel"><span class="lang">Artikel</span><span class="kurz">Artikel</span></button>
-      <button data-bereich="partner"><span class="lang">Partner</span><span class="kurz">Partner</span></button>
-      <button data-bereich="kunden"><span class="lang">Kunden &amp; Jey</span><span class="kurz">Kunden</span></button>
-      <button data-bereich="lager"><span class="lang">Lager</span><span class="kurz">Lager</span></button>
-      <button data-bereich="system"><span class="lang">System</span><span class="kurz">System</span></button>
+      <button data-bereich="artikel" data-hilfe="nav-bereich"><span class="lang">Artikel</span><span class="kurz">Artikel</span></button>
+      <button data-bereich="partner" data-hilfe="nav-bereich"><span class="lang">Partner</span><span class="kurz">Partner</span></button>
+      <button data-bereich="kunden" data-hilfe="nav-bereich"><span class="lang">Kunden &amp; Jey</span><span class="kurz">Kunden</span></button>
+      <button data-bereich="lager" data-hilfe="nav-bereich"><span class="lang">Lager</span><span class="kurz">Lager</span></button>
+      <button data-bereich="system" data-hilfe="nav-bereich"><span class="lang">System</span><span class="kurz">System</span></button>
     </nav>
 
     <main>
@@ -1425,7 +1425,7 @@
             Holt neue Trikot-Bestellungen aus dem JammiFashion-Shop in den Reiter „Trikots“. Vorhandene Zeilen bleiben unverändert.
           </p>
           <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
-            <button class="btn" id="trikot-sync-btn">Trikot-Sync jetzt</button>
+            <button class="btn" id="trikot-sync-btn" data-hilfe="trikot-sync">Trikot-Sync jetzt</button>
           </div>
           <p id="trikot-sync-status" style="color:var(--muted);font-size:0.85rem;margin-top:0.5rem;"></p>
         </div>
@@ -1438,14 +1438,14 @@
       <!-- Auftragsmonitor -->
       <section id="panel-orders" class="panel">
         <div class="sub-tabs">
-          <button class="sub-tab active" data-subtab="tab-jfn-shop">Bestellungen</button>
-          <button class="sub-tab" data-subtab="tab-dtf">DTF Bestellungen</button>
+          <button class="sub-tab active" data-subtab="tab-jfn-shop" data-hilfe="nav-unterreiter">Bestellungen</button>
+          <button class="sub-tab" data-subtab="tab-dtf" data-hilfe="nav-unterreiter">DTF Bestellungen</button>
           <!-- BO2: abgeloest durch den L-Shop-Warenkorb, ausgeblendet (nicht entfernt; #bestellen/lshop oeffnet ihn weiter). -->
-          <button class="sub-tab" data-subtab="tab-lshop" style="display:none;">L-Shop Bestellungen</button>
-          <button class="sub-tab" data-subtab="tab-lshop-korb">L-Shop-Warenkorb</button>
-          <button class="sub-tab" data-subtab="tab-lshop-uebersicht">Bestellübersicht</button>
-          <button class="sub-tab" data-subtab="tab-lshop-bestellungen">L-Shop-Bestellungen</button>
-          <button class="sub-tab" data-subtab="tab-trikots">Trikots (JFN)</button>
+          <button class="sub-tab" data-subtab="tab-lshop" style="display:none;" data-hilfe="nav-unterreiter">L-Shop Bestellungen</button>
+          <button class="sub-tab" data-subtab="tab-lshop-korb" data-hilfe="nav-unterreiter">L-Shop-Warenkorb</button>
+          <button class="sub-tab" data-subtab="tab-lshop-uebersicht" data-hilfe="nav-unterreiter">Bestellübersicht</button>
+          <button class="sub-tab" data-subtab="tab-lshop-bestellungen" data-hilfe="nav-unterreiter">L-Shop-Bestellungen</button>
+          <button class="sub-tab" data-subtab="tab-trikots" data-hilfe="nav-unterreiter">Trikots (JFN)</button>
           <button class="sub-tab" data-subtab="tab-eingaenge">Anfragen &amp; Eigenaufträge<span id="sub-eingaenge-badge" class="nav-badge"></span></button>
         </div>
 
@@ -1472,8 +1472,8 @@
         <div id="tab-dtf" class="sub-tab-panel">
           <div class="card">
             <div class="lshop-inner-tabs">
-              <button class="dtf-tab active" data-dtftab="dtf-offen">Offen</button>
-              <button class="dtf-tab" data-dtftab="dtf-protokoll">Protokoll</button>
+              <button class="dtf-tab active" data-dtftab="dtf-offen" data-hilfe="tab-offen">Offen</button>
+              <button class="dtf-tab" data-dtftab="dtf-protokoll" data-hilfe="tab-protokoll">Protokoll</button>
             </div>
             <div id="dtf-offen" class="dtf-panel active">
               <div class="skeleton"></div><div class="skeleton"></div>
@@ -1486,8 +1486,8 @@
         <div id="tab-lshop" class="sub-tab-panel">
           <div class="card">
             <div class="lshop-inner-tabs">
-              <button class="lshop-tab active" data-lshoptab="lshop-offen">Offen</button>
-              <button class="lshop-tab" data-lshoptab="lshop-protokoll">Protokoll</button>
+              <button class="lshop-tab active" data-lshoptab="lshop-offen" data-hilfe="tab-offen">Offen</button>
+              <button class="lshop-tab" data-lshoptab="lshop-protokoll" data-hilfe="tab-protokoll">Protokoll</button>
             </div>
             <div id="lshop-offen" class="lshop-panel active">
               <div class="skeleton"></div><div class="skeleton"></div>
@@ -1551,7 +1551,7 @@
                 <div class="korb-reihe">
                   <button class="btn-lshop-bestellen" id="korb-eigen-speichern" type="button" data-hilfe="eigen-hinzufuegen">Hinzufügen</button>
                   <button class="korb-aktion" id="korb-eigen-weiter" type="button" data-hilfe="eigen-weitere-farbe">Hinzufügen und weitere Farbe</button>
-                  <button class="btn-secondary korb-klein" id="korb-eigen-abbrechen" type="button">Abbrechen</button>
+                  <button class="btn-secondary korb-klein" id="korb-eigen-abbrechen" type="button" data-hilfe="dialog-abbrechen">Abbrechen</button>
                 </div>
               </div>
             </div>
@@ -1579,7 +1579,7 @@
             <div class="edi-box">
               <div class="edi-kopf">
                 <strong id="korb-lager-titel">Aus Lager nehmen</strong>
-                <button type="button" class="korb-link" id="korb-lager-schliessen">Abbrechen</button>
+                <button type="button" class="korb-link" id="korb-lager-schliessen" data-hilfe="dialog-abbrechen">Abbrechen</button>
               </div>
               <div id="korb-lager-position" class="korb-zaehler"></div>
               <div id="korb-lager-orte" class="korb-lager-orte" role="group" aria-label="Menge je Ort"></div>
@@ -1681,7 +1681,7 @@
               <strong id="edi-titel">L-Shop-Bestellung</strong>
               <span class="korb-reihe">
                 <button class="hilfe-i" type="button" data-hilfe-gruppe="edi-dialog" aria-controls="hilfe-edi-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
-                <button type="button" class="korb-link" id="edi-schliessen">Schließen</button>
+                <button type="button" class="korb-link" id="edi-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
               </span>
             </div>
             <div class="korb-zaehler">Erst prüfen. Dann <strong>an L-Shop senden</strong> (mit Rückfrage) oder nur einen Entwurf speichern.</div>
@@ -1710,7 +1710,7 @@
           <div class="edi-box">
             <div class="edi-kopf">
               <strong id="we-titel">Ware angekommen</strong>
-              <button type="button" class="korb-link" id="we-schliessen">Schließen</button>
+              <button type="button" class="korb-link" id="we-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
             </div>
             <div class="korb-zaehler">Hak an, was im Paket war. Fehlt etwas, nimm das Häkchen weg – die Position bleibt „bestellt“.</div>
             <div id="we-liste"></div>
@@ -1742,7 +1742,7 @@
               <strong id="ks-titel">Karton scannen</strong>
               <span class="korb-reihe">
                 <button class="hilfe-i" type="button" data-hilfe-gruppe="karton" aria-controls="hilfe-karton" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
-                <button type="button" class="korb-link" id="ks-schliessen">Schließen</button>
+                <button type="button" class="korb-link" id="ks-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
               </span>
             </div>
             <div id="hilfe-karton" class="hilfe-legende" hidden></div>
@@ -1768,7 +1768,7 @@
           <div class="edi-box">
             <div class="edi-kopf">
               <strong id="senden-titel">An L-Shop senden</strong>
-              <button type="button" class="korb-link" id="senden-schliessen">Abbrechen</button>
+              <button type="button" class="korb-link" id="senden-schliessen" data-hilfe="dialog-abbrechen">Abbrechen</button>
             </div>
             <div id="senden-box" class="senden-box" role="status" aria-live="polite" hidden></div>
             <div id="senden-kopf" class="korb-zaehler"></div>
@@ -1805,7 +1805,7 @@
           <div class="edi-box">
             <div class="edi-kopf">
               <strong id="tr-titel">Produzenten-Bestellung</strong>
-              <button type="button" class="korb-link" id="tr-schliessen">Schließen</button>
+              <button type="button" class="korb-link" id="tr-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
             </div>
             <div class="korb-zaehler">Wähle die Trikots für die nächste Bestellung beim Produzenten. Gespeichert wird erst mit „Als bestellt eintragen“.</div>
             <div id="tr-auswahl"></div>
@@ -1835,11 +1835,11 @@
 
         <!-- Modus-Auswahl -->
         <div class="mode-toggle">
-          <button class="mode-btn active" id="mode-btn-new">＋ Neu anlegen</button>
-          <button class="mode-btn" id="mode-btn-edit">✏️ Artikel ändern</button>
-          <button class="mode-btn" id="mode-btn-seo">🔍 SEO Daten</button>
-          <button class="mode-btn" id="mode-btn-seoedit">🔎 SEO-Daten ändern</button>
-          <button class="mode-btn" id="mode-btn-lshopmodelle">🧵 L-Shop-Modelle</button>
+          <button class="mode-btn active" id="mode-btn-new" data-hilfe="modus-neu">＋ Neu anlegen</button>
+          <button class="mode-btn" id="mode-btn-edit" data-hilfe="modus-aendern">✏️ Artikel ändern</button>
+          <button class="mode-btn" id="mode-btn-seo" data-hilfe="modus-seo">🔍 SEO Daten</button>
+          <button class="mode-btn" id="mode-btn-seoedit" data-hilfe="modus-seo-aendern">🔎 SEO-Daten ändern</button>
+          <button class="mode-btn" id="mode-btn-lshopmodelle" data-hilfe="modus-lshop-modelle">🧵 L-Shop-Modelle</button>
           <button class="mode-btn" id="mode-btn-lieferbarkeit" data-hilfe="lfbs-modus">📦 Lieferbarkeit Shop</button>
         </div>
 
@@ -1849,7 +1849,7 @@
             <div class="form-section-title">Artikel suchen <span class="field-note">(Name, SKU oder Produkt-ID – nur veröffentlichte)</span></div>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
               <input id="se-suche" type="text" class="form-input" style="flex:1;min-width:12rem;" placeholder="z. B. Oldschool, E3000/CH-Oldschool oder 21044" />
-              <button class="btn-secondary" id="se-suchen">Suchen</button>
+              <button class="btn-secondary" id="se-suchen" data-hilfe="se-suchen">Suchen</button>
             </div>
             <select id="se-treffer" class="form-select" style="margin-top:0.5rem;display:none;"></select>
           </div>
@@ -1888,8 +1888,8 @@
               </div>
             </div>
             <div class="panel-actions">
-              <button class="btn-secondary" id="se-neu-bauen">Titel und Meta neu bauen</button>
-              <button class="btn" id="se-speichern">Yoast-Daten speichern</button>
+              <button class="btn-secondary" id="se-neu-bauen" data-hilfe="se-neu-bauen">Titel und Meta neu bauen</button>
+              <button class="btn" id="se-speichern" data-hilfe="se-speichern">Yoast-Daten speichern</button>
               <span id="se-status" style="font-size:0.82rem;color:var(--muted);align-self:center;"></span>
             </div>
           </div>
@@ -2014,10 +2014,10 @@
                 <label>Kurzbeschreibung</label>
                 <div class="rich-editor">
                   <div class="rich-toolbar">
-                    <button type="button" data-cmd="bold" title="Fett"><b>B</b></button>
-                    <button type="button" data-cmd="italic" title="Kursiv"><i>I</i></button>
+                    <button type="button" data-cmd="bold" title="Fett" data-hilfe="editor-b"><b>B</b></button>
+                    <button type="button" data-cmd="italic" title="Kursiv" data-hilfe="editor-i"><i>I</i></button>
                     <span class="rich-sep"></span>
-                    <button type="button" data-cmd="createLink" title="Link">&#128279;</button>
+                    <button type="button" data-cmd="createLink" title="Link" data-hilfe="editor-link">&#128279;</button>
                   </div>
                   <div id="rich-seo-short" class="rich-content" contenteditable="true" data-placeholder="Kurzbeschreibung…"></div>
                 </div>
@@ -2026,17 +2026,17 @@
                 <label>Artikelbeschreibung</label>
                 <div class="rich-editor">
                   <div class="rich-toolbar">
-                    <button type="button" data-cmd="bold" title="Fett"><b>B</b></button>
-                    <button type="button" data-cmd="italic" title="Kursiv"><i>I</i></button>
-                    <button type="button" data-cmd="underline" title="Unterstrichen"><u>U</u></button>
+                    <button type="button" data-cmd="bold" title="Fett" data-hilfe="editor-b"><b>B</b></button>
+                    <button type="button" data-cmd="italic" title="Kursiv" data-hilfe="editor-i"><i>I</i></button>
+                    <button type="button" data-cmd="underline" title="Unterstrichen" data-hilfe="editor-u"><u>U</u></button>
                     <span class="rich-sep"></span>
-                    <button type="button" data-cmd="formatBlock" data-val="h2" title="H2">H2</button>
-                    <button type="button" data-cmd="formatBlock" data-val="h3" title="H3">H3</button>
+                    <button type="button" data-cmd="formatBlock" data-val="h2" title="H2" data-hilfe="editor-h2">H2</button>
+                    <button type="button" data-cmd="formatBlock" data-val="h3" title="H3" data-hilfe="editor-h3">H3</button>
                     <span class="rich-sep"></span>
-                    <button type="button" data-cmd="insertOrderedList" title="Nummerierte Liste">1.</button>
-                    <button type="button" data-cmd="insertUnorderedList" title="Aufzählung">&#8226;</button>
+                    <button type="button" data-cmd="insertOrderedList" title="Nummerierte Liste" data-hilfe="editor-ol">1.</button>
+                    <button type="button" data-cmd="insertUnorderedList" title="Aufzählung" data-hilfe="editor-ul">&#8226;</button>
                     <span class="rich-sep"></span>
-                    <button type="button" data-cmd="createLink" title="Link">&#128279;</button>
+                    <button type="button" data-cmd="createLink" title="Link" data-hilfe="editor-link">&#128279;</button>
                   </div>
                   <div id="rich-seo-full" class="rich-content" contenteditable="true" data-placeholder="Artikelbeschreibung…"></div>
                 </div>
@@ -2072,8 +2072,8 @@
               </div>
             </div>
             <div class="panel-actions">
-              <button class="btn-secondary" id="btn-seo-generate">Beschreibung generieren</button>
-              <button class="btn" id="btn-seo-save">SEO Speichern</button>
+              <button class="btn-secondary" id="btn-seo-generate" data-hilfe="seo-generieren">Beschreibung generieren</button>
+              <button class="btn" id="btn-seo-save" data-hilfe="seo-speichern">SEO Speichern</button>
               <span id="seo-status-msg" style="font-size:0.82rem;color:var(--muted);align-self:center;"></span>
             </div>
           </div>
@@ -2157,7 +2157,7 @@
               <label>SSOT-ID <span class="field-note">(auto)</span></label>
               <input id="pf-ssot-id" type="text" class="form-input accent" readonly placeholder="wird automatisch vergeben" />
               <button type="button" class="btn-secondary" id="btn-aid-anlegen" disabled
-                      style="margin-top:0.4rem;font-size:0.82rem;padding:0.42rem 0.85rem;">Artikel-ID anlegen</button>
+                      style="margin-top:0.4rem;font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="aid-anlegen">Artikel-ID anlegen</button>
               <div id="btn-aid-grund" class="field-note" style="margin-top:0.25rem;"></div>
             </div>
             <div class="form-field form-col-full">
@@ -2169,7 +2169,7 @@
               <div class="variant-imgref-row">
                 <img id="pf-hauptbild-thumb" alt="" style="display:none;height:44px;width:44px;object-fit:cover;border-radius:4px;" />
                 <input type="file" accept="image/*" id="pf-hauptbild-file" class="variant-file-inp" />
-                <button type="button" class="btn-secondary variant-upload-btn" id="pf-hauptbild-upload" disabled>Hochladen</button>
+                <button type="button" class="btn-secondary variant-upload-btn" id="pf-hauptbild-upload" disabled data-hilfe="hauptbild-upload">Hochladen</button>
                 <span class="variant-upload-status" id="pf-hauptbild-status"></span>
               </div>
               <div class="field-note" style="margin-top:0.25rem;">Gilt für alle Varianten ohne eigenes Bild.</div>
@@ -2179,10 +2179,10 @@
                 <label>Kurzbeschreibung</label>
                 <div class="rich-editor">
                   <div class="rich-toolbar">
-                    <button type="button" data-cmd="bold" title="Fett"><b>B</b></button>
-                    <button type="button" data-cmd="italic" title="Kursiv"><i>I</i></button>
+                    <button type="button" data-cmd="bold" title="Fett" data-hilfe="editor-b"><b>B</b></button>
+                    <button type="button" data-cmd="italic" title="Kursiv" data-hilfe="editor-i"><i>I</i></button>
                     <span class="rich-sep"></span>
-                    <button type="button" data-cmd="createLink" title="Link">&#128279;</button>
+                    <button type="button" data-cmd="createLink" title="Link" data-hilfe="editor-link">&#128279;</button>
                   </div>
                   <div id="rich-short-desc" class="rich-content" contenteditable="true" data-placeholder="Kurzbeschreibung…"></div>
                 </div>
@@ -2191,17 +2191,17 @@
                 <label>Artikelbeschreibung</label>
                 <div class="rich-editor">
                   <div class="rich-toolbar">
-                    <button type="button" data-cmd="bold" title="Fett"><b>B</b></button>
-                    <button type="button" data-cmd="italic" title="Kursiv"><i>I</i></button>
-                    <button type="button" data-cmd="underline" title="Unterstrichen"><u>U</u></button>
+                    <button type="button" data-cmd="bold" title="Fett" data-hilfe="editor-b"><b>B</b></button>
+                    <button type="button" data-cmd="italic" title="Kursiv" data-hilfe="editor-i"><i>I</i></button>
+                    <button type="button" data-cmd="underline" title="Unterstrichen" data-hilfe="editor-u"><u>U</u></button>
                     <span class="rich-sep"></span>
-                    <button type="button" data-cmd="formatBlock" data-val="h2" title="H2">H2</button>
-                    <button type="button" data-cmd="formatBlock" data-val="h3" title="H3">H3</button>
+                    <button type="button" data-cmd="formatBlock" data-val="h2" title="H2" data-hilfe="editor-h2">H2</button>
+                    <button type="button" data-cmd="formatBlock" data-val="h3" title="H3" data-hilfe="editor-h3">H3</button>
                     <span class="rich-sep"></span>
-                    <button type="button" data-cmd="insertOrderedList" title="Nummerierte Liste">1.</button>
-                    <button type="button" data-cmd="insertUnorderedList" title="Aufzählung">&#8226;</button>
+                    <button type="button" data-cmd="insertOrderedList" title="Nummerierte Liste" data-hilfe="editor-ol">1.</button>
+                    <button type="button" data-cmd="insertUnorderedList" title="Aufzählung" data-hilfe="editor-ul">&#8226;</button>
                     <span class="rich-sep"></span>
-                    <button type="button" data-cmd="createLink" title="Link">&#128279;</button>
+                    <button type="button" data-cmd="createLink" title="Link" data-hilfe="editor-link">&#128279;</button>
                   </div>
                   <div id="rich-description" class="rich-content" contenteditable="true" data-placeholder="Artikelbeschreibung…"></div>
                 </div>
@@ -2223,7 +2223,7 @@
               <div id="pf-shipping-hint" class="field-note" style="margin-top:0.25rem;"></div>
               <div id="pf-shipping-status" class="field-note" style="margin-top:0.25rem;color:var(--danger);display:none;">
                 <span id="pf-shipping-status-text"></span>
-                <button type="button" class="btn-secondary" id="btn-shipping-reload" style="display:none;margin-left:0.5rem;">Neu laden</button>
+                <button type="button" class="btn-secondary" id="btn-shipping-reload" style="display:none;margin-left:0.5rem;" data-hilfe="versand-neu-laden">Neu laden</button>
               </div>
             </div>
             <div class="form-field">
@@ -2255,7 +2255,7 @@
         <div class="card" id="existing-variants-block" style="display:none;margin-bottom:1rem;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
             <div class="form-section-title" style="margin:0;">Bestehende Varianten</div>
-            <button id="ev-bulk-delete-btn" class="btn-secondary" style="display:none;color:var(--danger);border-color:var(--danger);font-size:0.82rem;padding:0.35rem 0.75rem;">0 löschen</button>
+            <button id="ev-bulk-delete-btn" class="btn-secondary" style="display:none;color:var(--danger);border-color:var(--danger);font-size:0.82rem;padding:0.35rem 0.75rem;" data-hilfe="varianten-loeschen">0 löschen</button>
           </div>
           <div style="overflow-x:auto;">
             <table class="ev-table">
@@ -2270,8 +2270,8 @@
           <div class="form-section-title">3 — Artikeleigenschaften</div>
           <div id="properties-container"></div>
           <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.25rem;">
-            <button class="btn-secondary" id="btn-add-property" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Eigenschaft hinzufügen</button>
-            <button class="btn-secondary" id="btn-add-new-variants" style="display:none;font-size:0.82rem;padding:0.42rem 0.85rem;">Neue Varianten anlegen</button>
+            <button class="btn-secondary" id="btn-add-property" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="eigenschaft-neu">+ Eigenschaft hinzufügen</button>
+            <button class="btn-secondary" id="btn-add-new-variants" style="display:none;font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="varianten-neu">Neue Varianten anlegen</button>
             <span id="new-variants-status" style="font-size:0.82rem;color:var(--muted);align-self:center;"></span>
           </div>
           <!-- Farbachsen-Regel: sichtbar am Feld, nicht erst beim Push. -->
@@ -2284,16 +2284,16 @@
                 <select id="imgref-property-select" class="form-select"></select>
                 <select id="imgref-value-select" class="form-select"></select>
                 <input type="file" accept="image/*" id="imgref-file-inp" class="variant-file-inp" />
-                <button type="button" class="btn-secondary variant-upload-btn" id="imgref-upload-btn" disabled>Hochladen</button>
+                <button type="button" class="btn-secondary variant-upload-btn" id="imgref-upload-btn" disabled data-hilfe="variantenbild-upload">Hochladen</button>
                 <span class="variant-upload-status" id="imgref-upload-status"></span>
               </div>
               <div id="imgref-assigned-list" class="variant-imgref-list"></div>
             </div>
             <div class="variants-toolbar" id="variants-toolbar" style="display:none;">
               <span class="variants-count" id="variants-count-label"></span>
-              <button class="btn-secondary btn-xs" id="btn-check-all">Alle</button>
-              <button class="btn-secondary btn-xs" id="btn-check-none">Keine</button>
-              <button class="btn-secondary btn-xs" id="btn-ai-suggest" style="margin-left:auto;">KI Vorschlag</button>
+              <button class="btn-secondary btn-xs" id="btn-check-all" data-hilfe="varianten-alle">Alle</button>
+              <button class="btn-secondary btn-xs" id="btn-check-none" data-hilfe="varianten-keine">Keine</button>
+              <button class="btn-secondary btn-xs" id="btn-ai-suggest" style="margin-left:auto;" data-hilfe="ki-vorschlag">KI Vorschlag</button>
               <span id="ai-suggest-status" style="font-size:0.8rem;color:var(--muted);"></span>
             </div>
             <div id="variants-table"></div>
@@ -2310,10 +2310,10 @@
 
         <!-- Bottom Actions -->
         <div class="panel-actions">
-          <button class="btn-secondary" id="btn-save-draft">Entwurf speichern</button>
-          <button class="btn" id="btn-create-wc" disabled>In WooCommerce anlegen</button>
+          <button class="btn-secondary" id="btn-save-draft" data-hilfe="entwurf-speichern">Entwurf speichern</button>
+          <button class="btn" id="btn-create-wc" disabled data-hilfe="wc-anlegen">In WooCommerce anlegen</button>
           <span id="btn-create-wc-grund" class="field-note" style="align-self:center;"></span>
-          <button class="btn" id="btn-update-wc" style="display:none;">Änderungen speichern</button>
+          <button class="btn" id="btn-update-wc" style="display:none;" data-hilfe="wc-aendern">Änderungen speichern</button>
           <span id="prod-push-status" style="font-size:0.82rem;color:var(--muted);align-self:center;"></span>
         </div>
         </div><!-- /product-form-area -->
@@ -2323,18 +2323,18 @@
       <!-- Partnerportal -->
       <section id="panel-partnerportal" class="panel">
         <div class="sub-tabs">
-          <button class="sub-tab active" data-ptab="partner">Partner</button>
-          <button class="sub-tab" data-ptab="artikel">Artikel</button>
-          <button class="sub-tab" data-ptab="intern">Interne Bestellungen</button>
-          <button class="sub-tab" data-ptab="kalkulation">Kalkulation</button>
-          <button class="sub-tab" data-ptab="verkaeufe">Verkäufe</button>
-          <button class="sub-tab" data-ptab="abrechnungen">Abrechnungen</button>
+          <button class="sub-tab active" data-ptab="partner" data-hilfe="nav-unterreiter">Partner</button>
+          <button class="sub-tab" data-ptab="artikel" data-hilfe="nav-unterreiter">Artikel</button>
+          <button class="sub-tab" data-ptab="intern" data-hilfe="nav-unterreiter">Interne Bestellungen</button>
+          <button class="sub-tab" data-ptab="kalkulation" data-hilfe="nav-unterreiter">Kalkulation</button>
+          <button class="sub-tab" data-ptab="verkaeufe" data-hilfe="nav-unterreiter">Verkäufe</button>
+          <button class="sub-tab" data-ptab="abrechnungen" data-hilfe="nav-unterreiter">Abrechnungen</button>
         </div>
         <div id="ptab-partner" class="sub-tab-panel active">
           <div class="card">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
               <h2>Partner</h2>
-              <button class="btn" id="btn-add-partner" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Partner hinzufügen</button>
+              <button class="btn" id="btn-add-partner" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="partner-neu">+ Partner hinzufügen</button>
             </div>
             <div id="partner-list-wrap"><div class="skeleton" style="height:80px;"></div></div>
           </div>
@@ -2347,10 +2347,10 @@
                 <select class="form-select" id="artikel-filter-partner" style="font-size:0.83rem;padding:0.36rem 0.65rem;min-width:180px;">
                   <option value="">– Partner wählen –</option>
                 </select>
-                <button class="btn-secondary" id="btn-artikel-import" style="font-size:0.82rem;padding:0.42rem 0.85rem;" disabled>↓ Aus WC importieren</button>
+                <button class="btn-secondary" id="btn-artikel-import" style="font-size:0.82rem;padding:0.42rem 0.85rem;" disabled data-hilfe="partner-artikel-import">↓ Aus WC importieren</button>
               </div>
               <div id="artikel-honk-controls" style="display:none;">
-                <button class="btn-secondary" id="btn-honk-artikel-import" style="font-size:0.82rem;padding:0.42rem 0.85rem;">↓ Artikel aus Shop laden</button>
+                <button class="btn-secondary" id="btn-honk-artikel-import" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="honk-artikel-import">↓ Artikel aus Shop laden</button>
               </div>
             </div>
             <div id="artikel-warning-wrap" style="margin-bottom:0.75rem;"></div>
@@ -2365,7 +2365,7 @@
                 <select class="form-select" id="intern-filter-partner" style="font-size:0.83rem;padding:0.36rem 0.65rem;min-width:180px;">
                   <option value="">– Partner wählen –</option>
                 </select>
-                <button class="btn" id="btn-intern-add" style="font-size:0.82rem;padding:0.42rem 0.85rem;" disabled>+ Hinzufügen</button>
+                <button class="btn" id="btn-intern-add" style="font-size:0.82rem;padding:0.42rem 0.85rem;" disabled data-hilfe="partner-dialog-neu">+ Hinzufügen</button>
               </div>
             </div>
             <div id="intern-list-wrap"><p style="color:var(--muted);font-size:0.85rem;">Bitte Partner wählen.</p></div>
@@ -2375,7 +2375,7 @@
           <div class="card">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
               <h2>Druckpreise</h2>
-              <button class="btn" id="btn-add-druckpreis" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Hinzufügen</button>
+              <button class="btn" id="btn-add-druckpreis" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="partner-dialog-neu">+ Hinzufügen</button>
             </div>
             <div id="druckpreise-table-wrap"><div class="skeleton" style="height:60px;"></div></div>
           </div>
@@ -2387,14 +2387,14 @@
           <div class="card">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
               <h2>Verkaufspreise</h2>
-              <button class="btn" id="btn-add-verkaufspreis" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Hinzufügen</button>
+              <button class="btn" id="btn-add-verkaufspreis" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="partner-dialog-neu">+ Hinzufügen</button>
             </div>
             <div id="verkaufspreise-table-wrap"><div class="skeleton" style="height:60px;"></div></div>
           </div>
           <div class="card">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
               <h2>Artikel / EK-Preise</h2>
-              <button class="btn" id="btn-add-artikel" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Hinzufügen</button>
+              <button class="btn" id="btn-add-artikel" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="partner-dialog-neu">+ Hinzufügen</button>
             </div>
             <div id="artikel-table-wrap"><div class="skeleton" style="height:60px;"></div></div>
           </div>
@@ -2412,8 +2412,8 @@
                   <option value="offen">Offen</option>
                   <option value="abgerechnet">Abgerechnet</option>
                 </select>
-                <button class="btn-secondary" id="btn-wc-sync" style="font-size:0.82rem;padding:0.42rem 0.85rem;">↻ WC-Sync</button>
-                <button class="btn" id="btn-add-verkauf" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Verkauf erfassen</button>
+                <button class="btn-secondary" id="btn-wc-sync" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="wc-sync">↻ WC-Sync</button>
+                <button class="btn" id="btn-add-verkauf" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="verkauf-neu">+ Verkauf erfassen</button>
               </div>
             </div>
             <div id="verkaeufe-list-wrap"></div>
@@ -2427,7 +2427,7 @@
                 <select class="form-select" id="abrechnungen-filter-partner" style="font-size:0.83rem;padding:0.36rem 0.65rem;">
                   <option value="">Alle Partner</option>
                 </select>
-                <button class="btn" id="btn-add-abrechnung" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Abrechnung erstellen</button>
+                <button class="btn" id="btn-add-abrechnung" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="abrechnung-neu">+ Abrechnung erstellen</button>
               </div>
             </div>
             <div id="abrechnungen-list-wrap"></div>
@@ -2438,13 +2438,13 @@
       <!-- Festpreis-Tab (Sprint 5.5) -->
       <section id="panel-festpreis" class="panel">
         <div class="sub-tabs">
-          <button class="sub-tab active" data-fptab="fp-partner">Partner</button>
-          <button class="sub-tab" data-fptab="fp-artikel">Artikel</button>
-          <button class="sub-tab" data-fptab="fp-verkaeufe">Bestellungen</button>
-          <button class="sub-tab" data-fptab="fp-abrechnungen">Abrechnung</button>
-          <button class="sub-tab" data-fptab="fp-zusammenfassung">Zusammenfassung</button>
-          <button class="sub-tab" data-fptab="fp-festpreise">Festpreise</button>
-          <button class="sub-tab" data-fptab="fp-intern">Interne Bestellungen</button>
+          <button class="sub-tab active" data-fptab="fp-partner" data-hilfe="nav-unterreiter">Partner</button>
+          <button class="sub-tab" data-fptab="fp-artikel" data-hilfe="nav-unterreiter">Artikel</button>
+          <button class="sub-tab" data-fptab="fp-verkaeufe" data-hilfe="nav-unterreiter">Bestellungen</button>
+          <button class="sub-tab" data-fptab="fp-abrechnungen" data-hilfe="nav-unterreiter">Abrechnung</button>
+          <button class="sub-tab" data-fptab="fp-zusammenfassung" data-hilfe="nav-unterreiter">Zusammenfassung</button>
+          <button class="sub-tab" data-fptab="fp-festpreise" data-hilfe="nav-unterreiter">Festpreise</button>
+          <button class="sub-tab" data-fptab="fp-intern" data-hilfe="nav-unterreiter">Interne Bestellungen</button>
         </div>
 
         <!-- Partner -->
@@ -2452,7 +2452,7 @@
           <div class="card">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
               <h2>Festpreis-Partner</h2>
-              <button class="btn" id="btn-fp-add-partner" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Partner hinzufügen</button>
+              <button class="btn" id="btn-fp-add-partner" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="partner-neu">+ Partner hinzufügen</button>
             </div>
             <div id="fp-partner-list-wrap"><div class="skeleton" style="height:80px;"></div></div>
           </div>
@@ -2467,7 +2467,7 @@
                 <select class="form-select" id="fp-artikel-filter-partner" style="font-size:0.83rem;padding:0.36rem 0.65rem;min-width:180px;">
                   <option value="">– Partner wählen –</option>
                 </select>
-                <button class="btn-secondary" id="btn-fp-artikel-import" style="font-size:0.82rem;padding:0.42rem 0.85rem;" disabled>↓ Aus WC importieren</button>
+                <button class="btn-secondary" id="btn-fp-artikel-import" style="font-size:0.82rem;padding:0.42rem 0.85rem;" disabled data-hilfe="partner-artikel-import">↓ Aus WC importieren</button>
               </div>
             </div>
             <div id="fp-artikel-list-wrap"><p style="color:var(--muted);font-size:0.85rem;">Bitte Partner wählen.</p></div>
@@ -2489,7 +2489,7 @@
                   <option value="abgerechnet">Abgerechnet</option>
                 </select>
                 <input class="form-input" id="fp-verkaeufe-filter-ab-order" type="number" placeholder="ab Order-ID" style="font-size:0.83rem;padding:0.36rem 0.65rem;width:130px;">
-                <button class="btn-secondary" id="btn-fp-sync" style="font-size:0.82rem;padding:0.42rem 0.85rem;">↻ WC-Sync</button>
+                <button class="btn-secondary" id="btn-fp-sync" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="wc-sync">↻ WC-Sync</button>
               </div>
             </div>
             <div id="fp-verkaeufe-list-wrap"><div class="skeleton" style="height:80px;"></div></div>
@@ -2515,8 +2515,8 @@
                 <label style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-weight:600;">Zeitraum bis</label>
                 <input type="text" id="fp-abr-bis" class="form-input" placeholder="31.01.2026" style="font-size:0.84rem;" />
               </div>
-              <button class="btn-secondary" id="btn-fp-vorschau" style="font-size:0.82rem;padding:0.42rem 0.85rem;">Vorschau</button>
-              <button class="btn" id="btn-fp-abrechnung-erstellen" style="font-size:0.82rem;padding:0.42rem 0.85rem;">Erstellen</button>
+              <button class="btn-secondary" id="btn-fp-vorschau" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="abrechnung-vorschau">Vorschau</button>
+              <button class="btn" id="btn-fp-abrechnung-erstellen" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="fp-abrechnung-erstellen">Erstellen</button>
             </div>
             <div id="fp-abr-status" style="margin-top:0.6rem;font-size:0.82rem;min-height:1.1em;"></div>
           </div>
@@ -2546,7 +2546,7 @@
                   <option value="offen">offen</option>
                   <option value="abgerechnet">abgerechnet</option>
                 </select>
-                <button class="btn-secondary" id="btn-fp-zus-laden" style="font-size:0.82rem;padding:0.42rem 0.85rem;">Laden</button>
+                <button class="btn-secondary" id="btn-fp-zus-laden" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="fp-zusammenfassung">Laden</button>
               </div>
             </div>
             <div id="fp-zus-wrap"><p style="color:var(--muted);font-size:0.85rem;">Bitte Filter wählen und Laden klicken.</p></div>
@@ -2576,7 +2576,7 @@
                 <label style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted);font-weight:600;">Handling (€ netto/Stk)</label>
                 <input type="number" class="form-input" id="fp-preis-handling" step="0.01" min="0" placeholder="0.00" style="font-size:0.84rem;">
               </div>
-              <button class="btn" id="btn-fp-preis-add" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Hinzufügen</button>
+              <button class="btn" id="btn-fp-preis-add" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="partner-dialog-neu">+ Hinzufügen</button>
             </div>
           </div>
           <div class="card">
@@ -2594,7 +2594,7 @@
                 <select class="form-select" id="fp-intern-filter-partner" style="font-size:0.83rem;padding:0.36rem 0.65rem;min-width:180px;">
                   <option value="">– Partner wählen –</option>
                 </select>
-                <button class="btn" id="btn-fp-intern-add" style="font-size:0.82rem;padding:0.42rem 0.85rem;" disabled>+ Hinzufügen</button>
+                <button class="btn" id="btn-fp-intern-add" style="font-size:0.82rem;padding:0.42rem 0.85rem;" disabled data-hilfe="partner-dialog-neu">+ Hinzufügen</button>
               </div>
             </div>
             <div id="fp-intern-list-wrap"><p style="color:var(--muted);font-size:0.85rem;">Bitte Partner wählen.</p></div>
@@ -2611,7 +2611,7 @@
             <h2>Kundenanfragen</h2>
             <div class="anf-header-sub">Externe Produkt- und Auftragsanfragen</div>
           </div>
-          <button class="anf-new-btn" id="anf-btn-new" title="Neue Anfrage manuell anlegen">
+          <button class="anf-new-btn" id="anf-btn-new" title="Neue Anfrage manuell anlegen" data-hilfe="anf-neu">
             <span class="anf-new-icon">+</span> Neue Anfrage
           </button>
         </div>
@@ -2654,7 +2654,7 @@
           <div class="anf-search-wrap">
             <input class="anf-search-input" id="anf-filter-search" type="search" placeholder="Suche Kunde oder Produkt…" autocomplete="off" />
           </div>
-          <button class="anf-refresh-btn" id="anf-btn-refresh" title="Aktualisieren">
+          <button class="anf-refresh-btn" id="anf-btn-refresh" title="Aktualisieren" data-hilfe="anf-aktualisieren">
             <span class="anf-refresh-icon">⟳</span> Aktualisieren
           </button>
         </div>
@@ -2689,7 +2689,7 @@
           <div class="form-section-title">Produktinfos</div>
           <div id="aw-produkt-wrap"><div class="skeleton" style="height:60px;"></div></div>
           <div style="margin-top:0.75rem;">
-            <button class="btn-secondary" id="aw-produkt-add-btn" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Eintrag hinzufügen</button>
+            <button class="btn-secondary" id="aw-produkt-add-btn" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="aw-eintrag-neu">+ Eintrag hinzufügen</button>
           </div>
           <div class="aw-add-form" id="aw-produkt-add-form" style="display:none;">
             <div class="aw-add-row">
@@ -2706,7 +2706,7 @@
                 <input class="aw-input" id="aw-produkt-new-notiz" placeholder="Optionale Notiz" />
               </div>
               <div>
-                <button class="btn" id="aw-produkt-save-new" style="font-size:0.82rem;padding:0.42rem 0.85rem;">Hinzufügen</button>
+                <button class="btn" id="aw-produkt-save-new" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="aw-eintrag-speichern">Hinzufügen</button>
               </div>
             </div>
           </div>
@@ -2717,7 +2717,7 @@
           <div class="form-section-title">Tonalität &amp; Kommunikation</div>
           <div id="aw-ton-wrap"><div class="skeleton" style="height:60px;"></div></div>
           <div style="margin-top:0.75rem;">
-            <button class="btn-secondary" id="aw-ton-add-btn" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Eintrag hinzufügen</button>
+            <button class="btn-secondary" id="aw-ton-add-btn" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="aw-eintrag-neu">+ Eintrag hinzufügen</button>
           </div>
           <div class="aw-add-form" id="aw-ton-add-form" style="display:none;">
             <div class="aw-add-row">
@@ -2734,7 +2734,7 @@
                 <input class="aw-input" id="aw-ton-new-notiz" placeholder="Optionale Notiz" />
               </div>
               <div>
-                <button class="btn" id="aw-ton-save-new" style="font-size:0.82rem;padding:0.42rem 0.85rem;">Hinzufügen</button>
+                <button class="btn" id="aw-ton-save-new" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="aw-eintrag-speichern">Hinzufügen</button>
               </div>
             </div>
           </div>
@@ -2745,7 +2745,7 @@
           <div class="form-section-title">Allgemeine Infos</div>
           <div id="aw-info-wrap"><div class="skeleton" style="height:60px;"></div></div>
           <div style="margin-top:0.75rem;">
-            <button class="btn-secondary" id="aw-info-add-btn" style="font-size:0.82rem;padding:0.42rem 0.85rem;">+ Eintrag hinzufügen</button>
+            <button class="btn-secondary" id="aw-info-add-btn" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="aw-eintrag-neu">+ Eintrag hinzufügen</button>
           </div>
           <div class="aw-add-form" id="aw-info-add-form" style="display:none;">
             <div class="aw-add-row">
@@ -2762,7 +2762,7 @@
                 <input class="aw-input" id="aw-info-new-notiz" placeholder="Optionale Notiz" />
               </div>
               <div>
-                <button class="btn" id="aw-info-save-new" style="font-size:0.82rem;padding:0.42rem 0.85rem;">Hinzufügen</button>
+                <button class="btn" id="aw-info-save-new" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="aw-eintrag-speichern">Hinzufügen</button>
               </div>
             </div>
           </div>
@@ -2782,9 +2782,9 @@
           </div>
           <textarea class="aw-prompt-ta" id="aw-prompt-editor" rows="20" placeholder="Lade Prompt-Gerüst …"></textarea>
           <div class="aw-toolbar" style="margin-top:0.75rem;">
-            <button class="btn" id="aw-prompt-save-btn" style="font-size:0.82rem;padding:0.42rem 0.85rem;">Speichern &amp; aktivieren</button>
-            <button class="btn-secondary" id="aw-prompt-reset-btn" style="font-size:0.82rem;padding:0.42rem 0.85rem;">Auf Standard zurücksetzen</button>
-            <button class="btn-secondary" id="aw-prompt-show-btn" style="font-size:0.82rem;padding:0.42rem 0.85rem;">Voll aufgelösten Prompt anzeigen ▾</button>
+            <button class="btn" id="aw-prompt-save-btn" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="aw-prompt-speichern">Speichern &amp; aktivieren</button>
+            <button class="btn-secondary" id="aw-prompt-reset-btn" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="aw-prompt-standard">Auf Standard zurücksetzen</button>
+            <button class="btn-secondary" id="aw-prompt-show-btn" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="aw-prompt-zeigen">Voll aufgelösten Prompt anzeigen ▾</button>
           </div>
           <div id="aw-prompt-resolved-wrap" style="display:none;margin-top:0.75rem;">
             <textarea class="aw-prompt-ta" id="aw-prompt-resolved" rows="14" readonly placeholder="(ohne Referenzaufträge)" style="margin-top:0;"></textarea>
@@ -2803,10 +2803,10 @@
           </div>
           <div class="aw-chat-input-row">
             <textarea id="aw-test-input" rows="1" placeholder="Nachricht an den Agenten …"></textarea>
-            <button class="btn" id="aw-test-send-btn" style="padding:0.55rem 1rem;font-size:0.85rem;">Senden</button>
+            <button class="btn" id="aw-test-send-btn" style="padding:0.55rem 1rem;font-size:0.85rem;" data-hilfe="aw-test-senden">Senden</button>
           </div>
           <div style="margin-top:0.6rem;">
-            <button class="btn-secondary" id="aw-test-reset-btn" style="font-size:0.8rem;padding:0.38rem 0.8rem;">Test-Chat zurücksetzen</button>
+            <button class="btn-secondary" id="aw-test-reset-btn" style="font-size:0.8rem;padding:0.38rem 0.8rem;" data-hilfe="aw-test-neu">Test-Chat zurücksetzen</button>
           </div>
         </div>
 
@@ -2856,7 +2856,7 @@
           <div class="edi-box lager-box">
             <div class="edi-kopf">
               <strong id="lager-titel">Einbuchen</strong>
-              <button type="button" class="korb-link" id="lager-schliessen">Schließen</button>
+              <button type="button" class="korb-link" id="lager-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
             </div>
             <div class="korb-filter lager-aktionen" role="group" aria-label="Was tun?">
               <button type="button" data-lager-modus="einbuchen" data-hilfe="lager-einbuchen">Einbuchen</button>
@@ -2872,7 +2872,7 @@
             </div>
             <div id="lager-ort-neu" class="korb-reihe" hidden>
               <input id="lager-ort-neu-name" type="text" class="form-input" maxlength="40" placeholder="Neuer Ort, z. B. Regal A" />
-              <button type="button" class="korb-aktion korb-aktion-ruhig" id="lager-ort-neu-ok">Ort anlegen</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="lager-ort-neu-ok" data-hilfe="lager-ort-anlegen">Ort anlegen</button>
             </div>
             <div id="lager-bezug" class="lager-bezug" hidden></div>
             <!-- BO5-7: beim Umlagern/Ausbuchen aus dem Bestand des Orts waehlen (Standard) oder wie beim Einbuchen suchen -->
@@ -2912,13 +2912,13 @@
           <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
             <input id="api-key" type="password" placeholder="MC_API_KEY"
               style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.6rem 0.8rem;color:var(--text);font-size:0.9rem;" />
-            <button class="btn" id="save-key">Speichern</button>
+            <button class="btn" id="save-key" data-hilfe="api-key-speichern">Speichern</button>
           </div>
           <p id="key-saved" style="color:var(--success);font-size:0.8rem;margin-top:0.5rem;display:none;">Gespeichert.</p>
         </div>
         <div class="card">
           <h2>PWA installieren</h2>
-          <button class="btn btn-ghost" id="install-btn" style="display:none;">Zum Startbildschirm hinzufügen</button>
+          <button class="btn btn-ghost" id="install-btn" style="display:none;" data-hilfe="app-installieren">Zum Startbildschirm hinzufügen</button>
           <p id="install-hint" style="color:var(--muted);font-size:0.85rem;">App bereits installiert oder Browser unterstützt keine Installation.</p>
         </div>
         <div class="card" id="lshop-stamm-card">
@@ -2928,8 +2928,8 @@
             „Prüfen“ schreibt nichts; „Übernehmen“ nur nach einer Prüfung derselben Datei.
           </p>
           <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
-            <button class="btn" id="lshop-stamm-pruefen">Prüfen</button>
-            <button class="btn btn-ghost" id="lshop-stamm-uebernehmen" disabled>Übernehmen</button>
+            <button class="btn" id="lshop-stamm-pruefen" data-hilfe="stamm-pruefen">Prüfen</button>
+            <button class="btn btn-ghost" id="lshop-stamm-uebernehmen" disabled data-hilfe="stamm-uebernehmen">Übernehmen</button>
           </div>
           <p id="lshop-stamm-status" style="color:var(--muted);font-size:0.85rem;margin-top:0.5rem;"></p>
           <div id="lshop-stamm-ergebnis" style="font-size:0.85rem;margin-top:0.5rem;"></div>
@@ -2945,7 +2945,7 @@
           <div class="anf-side-id" id="anf-side-id">—</div>
           <div class="anf-side-date" id="anf-side-date"></div>
         </div>
-        <button class="anf-side-close" id="anf-side-close" aria-label="Schließen">×</button>
+        <button class="anf-side-close" id="anf-side-close" aria-label="Schließen" data-hilfe="dialog-schliessen">×</button>
       </header>
 
       <div class="anf-side-body" id="anf-side-body">
@@ -2996,7 +2996,7 @@
           <label class="anf-side-edit-label">Interne Notiz</label>
           <textarea class="anf-side-notiz" id="anf-side-notiz" rows="3" placeholder="Notiz hinzufügen oder bestehende überschreiben…"></textarea>
         </div>
-        <button class="btn anf-side-save" id="anf-side-save">Speichern</button>
+        <button class="btn anf-side-save" id="anf-side-save" data-hilfe="anf-speichern">Speichern</button>
         <div class="anf-side-savestatus" id="anf-side-savestatus"></div>
       </footer>
     </aside>
@@ -3006,7 +3006,7 @@
       <div class="anf-modal" role="dialog" aria-modal="true">
         <header class="anf-modal-head">
           <div class="anf-modal-title">Neue Anfrage</div>
-          <button class="anf-side-close" id="anf-modal-close" aria-label="Schließen">×</button>
+          <button class="anf-side-close" id="anf-modal-close" aria-label="Schließen" data-hilfe="dialog-abbrechen">×</button>
         </header>
         <form id="anf-new-form" class="anf-modal-body">
           <div class="anf-form-grid">
@@ -3044,8 +3044,8 @@
             </label>
           </div>
           <div class="anf-modal-actions">
-            <button type="button" class="btn btn-ghost" id="anf-modal-cancel">Abbrechen</button>
-            <button type="submit" class="btn" id="anf-modal-submit">Anfrage anlegen</button>
+            <button type="button" class="btn btn-ghost" id="anf-modal-cancel" data-hilfe="dialog-abbrechen">Abbrechen</button>
+            <button type="submit" class="btn" id="anf-modal-submit" data-hilfe="anf-anlegen">Anfrage anlegen</button>
           </div>
           <div class="anf-modal-error" id="anf-modal-error"></div>
         </form>
@@ -3334,7 +3334,7 @@
         if (!def.leiste) { el.hidden = true; el.innerHTML = ''; return; }
         el.hidden = false;
         el.innerHTML = def.punkte.map(p =>
-          `<button class="sub-tab${p.id === punkt ? ' active' : ''}" data-punkt="${p.id}">${p.label}</button>`).join('');
+          `<button class="sub-tab${p.id === punkt ? ' active' : ''}" data-punkt="${p.id}" data-hilfe="nav-ansicht">${p.label}</button>`).join('');
       }
 
       // Oeffnet Bereich + Unterpunkt. Ohne Unterpunkt bleibt bei Bestellen/Artikel
@@ -3706,7 +3706,7 @@
               <span class="badge ${erledigt ? 'badge-completed' : 'badge-pending'}">${monEsc(e.fulfillment || 'Beauftragt')}</span>
               <button type="button" class="btn-secondary mon-fulfillment-btn"
                 style="margin-left:0.4rem;font-size:0.78rem;padding:0.3rem 0.6rem;"
-                data-partner-id="${monEsc(e.partnerId)}" data-row-id="${e.rowId}" data-next="${naechster}">
+                data-partner-id="${monEsc(e.partnerId)}" data-row-id="${e.rowId}" data-next="${naechster}" data-hilfe="mon-fulfillment">
                 Als ${naechster} markieren
               </button>
             </td>
@@ -3811,7 +3811,7 @@
             </div>
             <div class="bulk-bar" id="dtf-bulk-bar" style="display:none;">
               <span class="bulk-count" id="dtf-bulk-count"></span>
-              <button class="btn-dtf-bestellen" id="dtf-bulk-btn">🖨️ Ausgewählte bestellen</button>
+              <button class="btn-dtf-bestellen" id="dtf-bulk-btn" data-hilfe="dtf-sammel">🖨️ Ausgewählte bestellen</button>
             </div>` + items.map(item => {
             const orderLines = item.betroffeneOrders
               .map(o => `#${o.orderId} ${o.kunde} ×${o.stueck}`)
@@ -3832,7 +3832,7 @@
                 </div>
                 <div class="lshop-card-right">
                   <span class="lshop-stueck">${item.stueck} Stk</span>
-                  <button class="btn-dtf-bestellen" data-groupkey="${safeAttr}">🖨️ DTF bestellt</button>
+                  <button class="btn-dtf-bestellen" data-groupkey="${safeAttr}" data-hilfe="dtf-bestellt">🖨️ DTF bestellt</button>
                 </div>
               </div>`;
           }).join('');
@@ -3995,7 +3995,7 @@
             </div>
             <div class="bulk-bar" id="lshop-bulk-bar" style="display:none;">
               <span class="bulk-count" id="lshop-bulk-count"></span>
-              <button class="btn-lshop-bestellen" id="lshop-bulk-btn">📦 Ausgewählte bestellen</button>
+              <button class="btn-lshop-bestellen" id="lshop-bulk-btn" data-hilfe="lshop-alt-sammel">📦 Ausgewählte bestellen</button>
             </div>` + items.map(item => {
             const orderLines = item.betroffeneOrders
               .map(o => `#${o.orderId} ${o.kunde} ×${o.stueck}`)
@@ -4018,7 +4018,7 @@
                   <span class="lshop-stueck">${item.stueck} Stk</span>
                   <input class="lshop-kw-input" type="text" placeholder="KW…"
                     data-groupkey="${safeAttr}" title="Lieferwoche eingeben">
-                  <button class="btn-lshop-bestellen" data-groupkey="${safeAttr}">📦 Beim L-Shop bestellt</button>
+                  <button class="btn-lshop-bestellen" data-groupkey="${safeAttr}" data-hilfe="lshop-alt-bestellt">📦 Beim L-Shop bestellt</button>
                 </div>
               </div>`;
           }).join('');
@@ -5023,6 +5023,103 @@
       // title, sonst zeigt der Browser denselben Text ein zweites Mal. Auf dem Handy oeffnet das ⓘ
       // (data-hilfe-gruppe) die Liste der Gruppe. Neuer Knopf = Text hier + Schluessel in HILFE_GRUPPEN.
       const KNOPF_HILFE = {
+        // HT1 (03.11.2026): Mouse-over fuer die aelteren Knoepfe; gemeinsame Texte (dialog-*, liste-*, editor-*, nav-*) genau einmal.
+        'dialog-abbrechen':      { name: 'Abbrechen', text: 'Schließt den Dialog. Nichts wird gespeichert oder geändert.' },
+        'dialog-schliessen':     { name: 'Schließen', text: 'Schließt das Fenster. Was du vorher schon gebucht oder gespeichert hast, bleibt.' },
+        'dialog-bestaetigen':    { name: 'Bestätigen', text: 'Führt die Aktion aus, die im Fenster beschrieben ist.' },
+        'dialog-speichern':      { name: 'Speichern / Hinzufügen', text: 'Speichert die Eingaben dieses Dialogs im Sheet. Ändern geht später über „Bearbeiten“.' },
+        'liste-bearbeiten':      { name: 'Bearbeiten', text: 'Öffnet diese Zeile in einem Dialog. Gespeichert wird erst dort.' },
+        'zeile-speichern':       { name: 'Speichern (Zeile)', text: 'Speichert die geänderten Werte dieser Zeile im Sheet.' },
+        'link-kopieren':         { name: 'Link kopieren', text: 'Kopiert den Portal-Link dieses Partners in die Zwischenablage. Es wird nichts geändert.' },
+        'token-neu':             { name: 'Token gen.', text: 'Erzeugt einen neuen Zugang zum Partnerportal und speichert ihn im Sheet. Der alte Link geht dann nicht mehr.' },
+        'nav-bereich':           { name: 'Bereich', text: 'Öffnet diesen Bereich. Seine Unterpunkte stehen darunter.' },
+        'nav-unterreiter':       { name: 'Unterreiter', text: 'Öffnet diesen Unterreiter. Es wird nichts geändert.' },
+        'tab-offen':             { name: 'Offen', text: 'Zeigt, was noch nicht als bestellt eingetragen ist.' },
+        'tab-protokoll':         { name: 'Protokoll', text: 'Zeigt, was schon als bestellt eingetragen wurde.' },
+        'editor-b':              { name: 'B', text: 'Markierten Text fett.' },
+        'editor-i':              { name: 'I', text: 'Markierten Text kursiv.' },
+        'editor-u':              { name: 'U', text: 'Markierten Text unterstrichen.' },
+        'editor-h2':             { name: 'H2', text: 'Zeile als Zwischenüberschrift (h2). Der SEO-Text braucht genau eine.' },
+        'editor-h3':             { name: 'H3', text: 'Zeile als kleinere Zwischenüberschrift (h3).' },
+        'editor-ol':             { name: '1.', text: 'Nummerierte Liste.' },
+        'editor-ul':             { name: '•', text: 'Aufzählung mit Punkten.' },
+        'editor-link':           { name: 'Link', text: 'Markierten Text verlinken – fragt nach der Adresse.' },
+        'shop-badge':            { name: 'Shop', text: 'Zeigt, mit welchem Shop du arbeitest (JFN oder HONK). Klick öffnet die Auswahl.' },
+        'shop-wahl':             { name: 'Shop wählen', text: 'MC arbeitet danach mit diesem Shop. Gemerkt nur in diesem Browser.' },
+        'nav-ansicht':           { name: 'Ansicht', text: 'Öffnet diese Ansicht des Bereichs.' },
+        'trikot-sync':           { name: 'Trikot-Sync jetzt', text: 'Holt neue Trikot-Bestellungen aus dem JFN-Shop in die Trikot-Liste im Sheet. Vorhandene Zeilen bleiben.' },
+        'mon-fulfillment':       { name: 'Als … markieren', text: 'Setzt den Stand dieser internen Partner-Bestellung eine Stufe weiter (Sheet). Erneut klicken geht weiter.' },
+        'dtf-sammel':            { name: 'Ausgewählte bestellen', text: 'Trägt die angehakten Motive als bei DTF bestellt ein (Sheet). Bei DTF selbst wird nichts bestellt.' },
+        'dtf-bestellt':          { name: 'DTF bestellt', text: 'Trägt dieses Motiv als bei DTF bestellt ein (Sheet). Bei DTF selbst wird nichts bestellt.' },
+        'lshop-alt-sammel':      { name: 'Ausgewählte bestellen (alt)', text: 'Alter Weg vor dem Warenkorb: trägt die Auswahl als bei L-Shop bestellt ein (Sheet). Heute: Warenkorb.' },
+        'lshop-alt-bestellt':    { name: 'Beim L-Shop bestellt (alt)', text: 'Alter Weg vor dem Warenkorb: trägt diese Gruppe als bestellt ein (Sheet). Heute: Warenkorb.' },
+        'korb-aeltere':          { name: 'ältere anzeigen', text: 'Zeigt auch herausgenommene Positionen, die älter als 14 Tage sind.' },
+        'modus-neu':             { name: 'Neu anlegen', text: 'Leere Maske für einen neuen Artikel.' },
+        'modus-aendern':         { name: 'Artikel ändern', text: 'Einen vorhandenen Shop-Artikel suchen und ändern.' },
+        'modus-seo':             { name: 'SEO Daten', text: 'SEO-Text für einen Artikel erzeugen, prüfen und speichern.' },
+        'modus-seo-aendern':     { name: 'SEO-Daten ändern', text: 'Yoast-Titel und Meta-Beschreibung eines veröffentlichten Artikels ändern.' },
+        'modus-lshop-modelle':   { name: 'L-Shop-Modelle', text: 'Neue L-Shop-Modelle als Liste prüfen und aufnehmen.' },
+        'se-suchen':             { name: 'Suchen', text: 'Sucht den Artikel im Shop. Es wird nur gelesen.' },
+        'se-neu-bauen':          { name: 'Titel und Meta neu bauen', text: 'Baut Titel und Meta-Beschreibung neu aus den Artikeldaten. Gespeichert wird noch nichts.' },
+        'se-speichern':          { name: 'Yoast-Daten speichern', text: 'Schreibt Titel und Meta in den Shop (Kunden sehen es) und liest sie zurück. Die SEO-Karte wird nachgezogen.' },
+        'seo-generieren':        { name: 'Beschreibung generieren', text: 'Lässt die KI eine Beschreibung schreiben und prüft sie. Gespeichert wird noch nichts.' },
+        'seo-speichern':         { name: 'SEO Speichern', text: 'Schreibt Beschreibung und SEO-Daten in den Shop – Kunden sehen es sofort.' },
+        'aid-anlegen':           { name: 'Artikel-ID anlegen', text: 'Legt für diesen Entwurf eine Zeile mit der nächsten Artikel-ID in der Erfassungsmaske an. Nie doppelt.' },
+        'hauptbild-upload':      { name: 'Hochladen (Hauptbild)', text: 'Lädt das gewählte Bild in die Mediathek des Shops und nimmt es als Hauptbild.' },
+        'versand-neu-laden':     { name: 'Neu laden', text: 'Liest die Versandklassen erneut aus dem Shop.' },
+        'varianten-loeschen':    { name: 'Varianten löschen', text: 'Löscht die angehakten Variationen ENDGÜLTIG im Shop (kein Papierkorb). Fragt vorher.' },
+        'eigenschaft-neu':       { name: 'Eigenschaft hinzufügen', text: 'Fügt eine weitere Achse hinzu, z. B. Motiv. Gespeichert wird erst beim Speichern des Artikels.' },
+        'varianten-neu':         { name: 'Neue Varianten anlegen', text: 'Legt die angehakten, noch fehlenden Variationen im Shop an. Vorhandene Kombinationen werden übersprungen.' },
+        'variantenbild-upload':  { name: 'Hochladen (Variantenbild)', text: 'Lädt das Bild in die Mediathek und ordnet es dem gewählten Wert zu.' },
+        'varianten-alle':        { name: 'Alle', text: 'Hakt alle Varianten in der Liste an.' },
+        'varianten-keine':       { name: 'Keine', text: 'Nimmt alle Haken in der Liste weg.' },
+        'ki-vorschlag':          { name: 'KI Vorschlag', text: 'Lässt die KI Varianten vorschlagen. Übernommen wird erst, was du anhakst und speicherst.' },
+        'entwurf-speichern':     { name: 'Entwurf speichern', text: 'Speichert die Maske als Entwurf in der Erfassungsmaske (Sheet). Im Shop ändert sich nichts.' },
+        'wc-anlegen':            { name: 'In WooCommerce anlegen', text: 'Legt den Artikel mit Variationen im Shop an und schreibt die IDs ins Sheet.' },
+        'wc-aendern':            { name: 'Änderungen speichern', text: 'Schreibt die Änderungen in den Shop – Kunden sehen sie sofort – und zieht das Sheet nach.' },
+        'partner-neu':           { name: 'Partner hinzufügen', text: 'Öffnet den Dialog für einen neuen Lizenzpartner.' },
+        'partner-aktiv':         { name: 'Aktivieren / Deaktivieren', text: 'Schaltet den Partner aktiv oder inaktiv (Sheet). Inaktive bekommen keine neuen Verkäufe.' },
+        'partner-artikel-import': { name: 'Aus WC importieren', text: 'Legt fehlende Artikel des Partners aus dem Shop im Sheet an. Vorhandene Zeilen bleiben.' },
+        'honk-artikel-import':   { name: 'Artikel aus Shop laden', text: 'Legt fehlende HonkShop-Artikel aus dem Shop im Sheet an. Vorhandene Zeilen bleiben.' },
+        'partner-dialog-neu':    { name: '+ Hinzufügen', text: 'Öffnet einen Dialog für einen neuen Eintrag in dieser Liste.' },
+        'wc-sync':               { name: 'WC-Sync', text: 'Öffnet den Sync: Bestellungen ab einem Datum aus dem Shop als Verkäufe ins Sheet holen.' },
+        'wc-sync-starten':       { name: 'Sync starten', text: 'Liest die Bestellungen aus dem Shop und schreibt neue Verkäufe ins Sheet. Vorhandene Zeilen bleiben.' },
+        'verkauf-neu':           { name: 'Verkauf erfassen', text: 'Öffnet einen Dialog für einen Verkauf von Hand.' },
+        'abrechnung-neu':        { name: 'Abrechnung erstellen', text: 'Öffnet den Assistenten für eine neue Abrechnung. Zuerst kommt eine Vorschau.' },
+        'abrechnung-vorschau':   { name: 'Vorschau', text: 'Rechnet die Abrechnung nur durch und zeigt sie. Gespeichert wird nichts.' },
+        'abrechnung-erstellen':  { name: 'Abrechnung erstellen', text: 'Legt die Abrechnung als Entwurf im Sheet an. Freigeben oder verwerfen danach in der Liste.' },
+        'abrechnung-freigeben':  { name: 'Freigeben', text: 'Gibt die Abrechnung frei. Alle Verkäufe und internen Bestellungen darin gelten dann als abgerechnet (Sheet).' },
+        'abrechnung-verwerfen':  { name: 'Verwerfen', text: 'Löscht den Entwurf. Die Posten bleiben offen und kommen in die nächste Abrechnung.' },
+        'abrechnung-bezahlt':    { name: 'Als bezahlt markieren', text: 'Setzt die freigegebene Abrechnung auf „bezahlt“ (Sheet).' },
+        'fixkosten-version':     { name: 'Neue Version speichern', text: 'Speichert die Fixkosten als neue Version ab heute. Alte Versionen bleiben für frühere Abrechnungen.' },
+        'intern-loeschen':       { name: 'Löschen (interne Bestellung)', text: 'Löscht diese interne Bestellung im Sheet – nicht rückgängig zu machen. Fragt vorher.' },
+        'fp-abrechnung-erstellen': { name: 'Erstellen', text: 'Legt die Festpreis-Abrechnung für den Zeitraum im Sheet an.' },
+        'fp-zusammenfassung':    { name: 'Laden', text: 'Zeigt die Zusammenfassung für den gewählten Zeitraum. Es wird nur gelesen.' },
+        'fp-abrechnung-loeschen': { name: '✕ Abrechnung', text: 'Löscht diese Abrechnung im Sheet; ihre Verkäufe werden wieder „offen“. Fragt vorher.' },
+        'fp-preis-loeschen':     { name: '✕ Festpreis', text: 'Löscht diesen Festpreis im Sheet. Fragt vorher.' },
+        'anf-neu':               { name: 'Neue Anfrage', text: 'Öffnet ein Formular für eine Anfrage, die nicht über den Chat kam.' },
+        'anf-aktualisieren':     { name: 'Aktualisieren', text: 'Lädt die Anfragen neu. Es wird nichts geändert.' },
+        'anf-anlegen':           { name: 'Anfrage anlegen', text: 'Speichert die neue Anfrage im Sheet und meldet sie im Chat.' },
+        'anf-speichern':         { name: 'Speichern (Anfrage)', text: 'Speichert Status und Notiz dieser Anfrage im Sheet.' },
+        'aw-eintrag-neu':        { name: 'Eintrag hinzufügen', text: 'Öffnet die Zeile für einen neuen Wissens-Eintrag.' },
+        'aw-eintrag-speichern':  { name: 'Hinzufügen (Wissen)', text: 'Speichert den neuen Eintrag im Sheet. Der Kunden-Chat nutzt ihn ab sofort.' },
+        'aw-prompt-speichern':   { name: 'Speichern & aktivieren', text: 'Speichert den eigenen Prompt im Sheet. Der Kunden-Chat nutzt ihn ab sofort.' },
+        'aw-prompt-standard':    { name: 'Auf Standard zurücksetzen', text: 'Löscht den eigenen Prompt; das Standard-Gerüst gilt wieder. Nicht rückgängig zu machen, fragt vorher.' },
+        'aw-prompt-zeigen':      { name: 'Prompt anzeigen', text: 'Zeigt den Prompt so, wie der Kunden-Chat ihn bekommt. Nur Anzeige.' },
+        'aw-test-senden':        { name: 'Senden (Test)', text: 'Schickt die Nachricht an den Test-Chat. Echte Kunden sehen nichts.' },
+        'aw-test-neu':           { name: 'Test-Chat zurücksetzen', text: 'Leert den Test-Chat. Es wird nichts gespeichert.' },
+        'lager-treffer':         { name: 'Treffer', text: 'Übernimmt diesen Artikel ins Raster darunter.' },
+        'lager-liste-weg':       { name: '✕ aus der Liste', text: 'Nimmt die Zeile aus der Liste „auszubuchen“. Gebucht ist noch nichts.' },
+        'lager-event-neu':       { name: 'neues Event', text: 'Öffnet die Felder für ein neues Event (Name, Datum, Ort).' },
+        'lager-event-anlegen':   { name: 'Event anlegen', text: 'Legt das Event im Sheet an und wählt es gleich aus.' },
+        'lager-artikel-anlegen': { name: 'Anlegen (freier Artikel)', text: 'Legt den freien Artikel mit eigener LA-Nummer im Sheet an.' },
+        'lager-ort-anlegen':     { name: 'Ort anlegen', text: 'Legt den neuen Lagerort im Sheet an. Orte werden nie umbenannt.' },
+        'lager-verlauf-korb':    { name: 'Korb-Position', text: 'Öffnet die Position im L-Shop-Warenkorb.' },
+        'lager-verlauf-bestellung': { name: 'Bestellung', text: 'Öffnet die Shop-Bestellung unter „Bestellungen (JFN)“.' },
+        'api-key-speichern':     { name: 'API-Key speichern', text: 'Speichert den Schlüssel nur in diesem Browser. Danach lädt MC neu.' },
+        'app-installieren':      { name: 'Zum Startbildschirm hinzufügen', text: 'Legt MC als App auf den Startbildschirm. Es wird nichts im Shop oder Sheet geändert.' },
+        'stamm-pruefen':         { name: 'Prüfen', text: 'Liest die neueste L-Shop-Stammdatei und zeigt, was sich ändern würde. Schreibt nichts.' },
+        'stamm-uebernehmen':     { name: 'Übernehmen', text: 'Schreibt die geprüften Änderungen in die L-Shop-Modelle im Sheet. Geht nur direkt nach „Prüfen“.' },
         'filter-offen':         { name: 'Offen', text: 'Positionen, die noch bei L-Shop bestellt werden müssen.' },
         'filter-raus':          { name: 'Herausgenommen', text: 'Positionen, die nicht bestellt werden (z. B. Ware da, schon bestellt). Zeigt die letzten 14 Tage.' },
         'filter-alle':          { name: 'Alle', text: 'Alles, was noch nicht bestellt ist: offen und herausgenommen.' },
@@ -5211,6 +5308,18 @@
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
+        // HT1: Gruppen der aelteren Knoepfe (ⓘ-Liste, sobald es dort ein ⓘ gibt)
+        'navigation': ['shop-badge', 'shop-wahl', 'nav-bereich', 'nav-ansicht', 'nav-unterreiter', 'trikot-sync'],
+        'dialog': ['dialog-abbrechen', 'dialog-schliessen', 'dialog-bestaetigen', 'dialog-speichern', 'liste-bearbeiten', 'zeile-speichern'],
+        'auftragsmonitor': ['tab-offen', 'tab-protokoll', 'mon-fulfillment', 'dtf-sammel', 'dtf-bestellt', 'lshop-alt-sammel', 'lshop-alt-bestellt', 'korb-aeltere'],
+        'artikel': ['modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
+        'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
+        'partner': ['partner-neu', 'partner-aktiv', 'link-kopieren', 'token-neu', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
+        'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'fp-preis-loeschen'],
+        'anfragen': ['anf-neu', 'anf-aktualisieren', 'anf-anlegen', 'anf-speichern'],
+        'assistent': ['aw-eintrag-neu', 'aw-eintrag-speichern', 'aw-prompt-speichern', 'aw-prompt-standard', 'aw-prompt-zeigen', 'aw-test-senden', 'aw-test-neu'],
+        'lager-dialog': ['lager-treffer', 'lager-liste-weg', 'lager-event-neu', 'lager-event-anlegen', 'lager-artikel-anlegen', 'lager-ort-anlegen', 'lager-verlauf-korb', 'lager-verlauf-bestellung'],
+        'einstellungen': ['api-key-speichern', 'app-installieren', 'stamm-pruefen', 'stamm-uebernehmen'],
         korb:       ['filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-lb-zuerst', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'lager-storno-hinweis', 'lager-storno-zurueck', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'eb-bearbeiten', 'eb-gesperrt-lager', 'eb-farbe', 'eb-groesse', 'eb-menge', 'eb-referenz', 'eb-notiz', 'eb-lager', 'eb-speichern', 'eb-abbrechen', 'abgleich', 'belege', 'lieferbarkeit', 'alle-offenen', 'zurueck'],
         leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
         uebersicht: ['gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
@@ -5512,7 +5621,7 @@
         // BO7-2: stabil umsortieren - nicht gefuehrt, laeuft aus, 0 nach oben; sonst Reihenfolge des Servers
         if (korbZustand.lbZuerst) sichtbar.sort((a, b) => lfbRang(a.lieferbar) - lfbRang(b.lieferbar));
         const aeltereLink = korbZustand.filter === 'raus' && !korbZustand.rausAeltere && rausAelter > 0
-          ? `<button class="korb-link" type="button" id="korb-aeltere">ältere anzeigen (${rausAelter})</button>` : '';
+          ? `<button class="korb-link" type="button" id="korb-aeltere" data-hilfe="korb-aeltere">ältere anzeigen (${rausAelter})</button>` : '';
         if (!sichtbar.length) {
           const leer = { offen: 'Keine offenen Positionen.', raus: 'Keine herausgenommenen Positionen in den letzten 14 Tagen.', alle: 'Der Korb ist leer.', lager: 'Keine Position aus dem Lager genommen.' };
           el.innerHTML = `<p style="color:var(--muted);font-size:0.84rem;">${d.buendel.length ? leer[korbZustand.filter] : 'Der Korb ist leer.'}</p>${aeltereLink}`;
@@ -7882,9 +7991,9 @@
       function lagerBezugHtml(b) {
         const s = String(b.bezug ?? '');
         const shop = s.match(/^JFN:(\d+):/);
-        return `<button type="button" class="korb-link" data-lager-korb="${korbEsc(s)}" data-lager-korb-filter="${b.art.startsWith('abgang_') && !b.gegengebucht ? 'lager' : 'offen'}">`
+        return `<button type="button" class="korb-link" data-lager-korb="${korbEsc(s)}" data-lager-korb-filter="${b.art.startsWith('abgang_') && !b.gegengebucht ? 'lager' : 'offen'}" data-hilfe="lager-verlauf-korb">`
           + `Korb-Position ${korbEsc(shop ? `#${shop[1]}` : s)}</button>`
-          + (shop ? `<button type="button" class="korb-link" data-lager-bestellung="${korbEsc(shop[1])}">Bestellung #${korbEsc(shop[1])}</button>` : '');
+          + (shop ? `<button type="button" class="korb-link" data-lager-bestellung="${korbEsc(shop[1])}" data-hilfe="lager-verlauf-bestellung">Bestellung #${korbEsc(shop[1])}</button>` : '');
       }
       // BO5-4: Zugaenge aus dem Wareneingang - Link zur L-Shop-Bestellung (order_id aus Bezug bzw. Grund) oder zur Trikot-Zeile.
       function lagerEingangBezugHtml(b) {
@@ -8115,11 +8224,11 @@
           el.innerHTML = '<label class="lager-feld" data-hilfe="lager-event">Event<select id="lager-event" class="form-select">'
             + '<option value="">Event wählen …</option>'
             + offen.map(ev => `<option value="${korbEsc(ev.id)}"${ev.id === wahl ? ' selected' : ''}>${korbEsc(lagerBezugText('abgang_vorort', ev.id, d))}</option>`).join('')
-            + '</select></label><button type="button" class="korb-link" id="lager-event-neu">+ neues Event</button>'
+            + '</select></label><button type="button" class="korb-link" id="lager-event-neu" data-hilfe="lager-event-neu">+ neues Event</button>'
             + '<div id="lager-event-form" class="lager-neu" hidden><input id="lager-event-name" class="form-input" maxlength="60" placeholder="Name, z. B. Halloween Markt" />'
             + `<input id="lager-event-datum" type="date" class="form-input" value="${heute}" />`
             + '<input id="lager-event-ort" class="form-input" maxlength="60" placeholder="Ort des Events (optional)" />'
-            + '<button type="button" class="korb-aktion korb-aktion-haupt" id="lager-event-ok">Event anlegen</button></div>'
+            + '<button type="button" class="korb-aktion korb-aktion-haupt" id="lager-event-ok" data-hilfe="lager-event-anlegen">Event anlegen</button></div>'
             + '<div class="korb-zaehler">Nach dem Event nur ausbuchen, was verkauft ist – mitgenommene Ware bleibt im Bestand.</div>';
           lagerDlg.event = wahl;
         } else if (art === 'abgang_auftrag') {
@@ -8157,7 +8266,7 @@
         el.hidden = lagerDlg.modus !== 'ausbuchen' || !liste.length;
         el.innerHTML = !liste.length ? '' : `<div class="korb-zaehler">Auszubuchen (${liste.reduce((s, x) => s + x.menge, 0)} Stück):</div>`
           + liste.map((x, i) => `<div class="lager-listen-zeile"><span>${korbEsc(x.label)} · ${korbEsc(x.ort)}</span><strong>×${x.menge}</strong>`
-            + `<button type="button" class="korb-link" data-lager-liste-weg="${i}" aria-label="Zeile entfernen">✕</button></div>`).join('');
+            + `<button type="button" class="korb-link" data-lager-liste-weg="${i}" aria-label="Zeile entfernen" data-hilfe="lager-liste-weg">✕</button></div>`).join('');
       }
       async function lagerEventAnlegen() {
         const v = id => document.getElementById(id)?.value ?? '';
@@ -8202,7 +8311,7 @@
             + '<input id="lager-neu-farbe" class="form-input" maxlength="40" placeholder="Farbe (optional)" />'
             + '<input id="lager-neu-groesse" class="form-input" maxlength="40" placeholder="Größe (optional)" />'
             + '<input id="lager-neu-notiz" class="form-input" maxlength="200" placeholder="Notiz (optional)" />'
-            + '<button type="button" class="korb-aktion korb-aktion-haupt" id="lager-neu-ok">Anlegen</button></div>';
+            + '<button type="button" class="korb-aktion korb-aktion-haupt" id="lager-neu-ok" data-hilfe="lager-artikel-anlegen">Anlegen</button></div>';
         }
         lagerRasterZeichnen();
       }
@@ -8311,7 +8420,7 @@
           if (lagerDlg.warenart !== wa) return;
           const liste = wa === 'rohling' ? j.modelle.map(m => ({ id: m.catalogNr, text: [m.catalogNr, m.bezeichnung, m.marke].filter(Boolean).join(' · ') }))
             : j.artikel.map(a => ({ id: a.ssotId, text: [a.name, a.artikelnummer].filter(Boolean).join(' · ') }));
-          ziel.innerHTML = liste.length ? liste.map(x => `<button type="button" data-lager-treffer="${korbEsc(x.id)}">${korbEsc(x.text)}</button>`).join('')
+          ziel.innerHTML = liste.length ? liste.map(x => `<button type="button" data-lager-treffer="${korbEsc(x.id)}" data-hilfe="lager-treffer">${korbEsc(x.text)}</button>`).join('')
             + (j.mehr ? '<div class="korb-zaehler">… weitere – genauer suchen.</div>' : '')
             : `<div class="korb-zaehler">${korbEsc(j.hinweis || 'Nichts gefunden.')}</div>`;
         } catch (e) { ziel.innerHTML = `<div class="korb-zaehler">Suche fehlgeschlagen: ${korbEsc(e.message)}</div>`; }
@@ -12921,8 +13030,8 @@
               <div class="modal-title">${title}</div>
               <div class="modal-body">${bodyHtml}</div>
               <div class="modal-actions">
-                <button class="btn-secondary" id="_mc">${cancelLabel}</button>
-                <button class="btn-danger"    id="_mo">${confirmLabel}</button>
+                <button class="btn-secondary" id="_mc" data-hilfe="dialog-abbrechen">${cancelLabel}</button>
+                <button class="btn-danger"    id="_mo" data-hilfe="dialog-bestaetigen">${confirmLabel}</button>
               </div>
             </div>`;
           document.body.appendChild(backdrop);
@@ -13877,7 +13986,7 @@
                   <td class="aw-key">${awEsc(r.schluessel)}</td>
                   <td><input class="aw-input aw-val" value="${awEsc(r.wert)}" /></td>
                   <td><input class="aw-input aw-notiz" value="${awEsc(r.notiz)}" /></td>
-                  <td><button class="aw-save-btn" data-schluessel="${awEsc(r.schluessel)}">Speichern</button></td>
+                  <td><button class="aw-save-btn" data-schluessel="${awEsc(r.schluessel)}" data-hilfe="zeile-speichern">Speichern</button></td>
                 </tr>`).join('')}
             </tbody>
           </table>`;
@@ -14273,11 +14382,11 @@
                         : '<span style="color:var(--muted);font-size:0.8rem;">–</span>'}
                     </td>
                     <td style="white-space:nowrap;">
-                      <button class="btn-secondary btn-xs" data-pp-edit="${p.id}">Bearbeiten</button>
-                      <button class="btn-ghost btn-xs" data-pp-toggle="${p.id}" data-aktiv="${p.aktiv}" style="margin-left:0.3rem;">${p.aktiv ? 'Deaktivieren' : 'Aktivieren'}</button>
+                      <button class="btn-secondary btn-xs" data-pp-edit="${p.id}" data-hilfe="liste-bearbeiten">Bearbeiten</button>
+                      <button class="btn-ghost btn-xs" data-pp-toggle="${p.id}" data-aktiv="${p.aktiv}" style="margin-left:0.3rem;" data-hilfe="partner-aktiv">${p.aktiv ? 'Deaktivieren' : 'Aktivieren'}</button>
                       ${p.token
-                        ? `<button class="btn-secondary btn-xs" data-pp-copy="${p.id}" style="margin-left:0.3rem;">Link kopieren</button>`
-                        : `<button class="btn-secondary btn-xs" data-pp-gen-token="${p.id}" style="margin-left:0.3rem;">Token gen.</button>`}
+                        ? `<button class="btn-secondary btn-xs" data-pp-copy="${p.id}" style="margin-left:0.3rem;" data-hilfe="link-kopieren">Link kopieren</button>`
+                        : `<button class="btn-secondary btn-xs" data-pp-gen-token="${p.id}" style="margin-left:0.3rem;" data-hilfe="token-neu">Token gen.</button>`}
                     </td>
                   </tr>`).join('')}
                 </tbody>
@@ -14402,8 +14511,8 @@
                 </div>
               </div>
               <div class="modal-actions" style="margin-top:1.25rem;">
-                <button class="btn-secondary" id="pp-f-cancel">Abbrechen</button>
-                <button class="btn" id="pp-f-save">${isEdit ? 'Speichern' : 'Hinzufügen'}</button>
+                <button class="btn-secondary" id="pp-f-cancel" data-hilfe="dialog-abbrechen">Abbrechen</button>
+                <button class="btn" id="pp-f-save" data-hilfe="dialog-speichern">${isEdit ? 'Speichern' : 'Hinzufügen'}</button>
               </div>
             </div>
           </div>`;
@@ -14480,8 +14589,8 @@
               </p>
             </div>
             <div class="modal-actions" style="margin-top:1.25rem;">
-              <button class="btn-secondary" id="sync-x">Abbrechen</button>
-              <button class="btn" id="sync-ok">Sync starten</button>
+              <button class="btn-secondary" id="sync-x" data-hilfe="dialog-abbrechen">Abbrechen</button>
+              <button class="btn" id="sync-ok" data-hilfe="wc-sync-starten">Sync starten</button>
             </div>
           </div>
         </div>`;
@@ -14563,7 +14672,7 @@
             <tbody>${_dpRows.map((r, i) => `<tr>
               <td>${r.druckposition}</td><td>${r.groesse}</td>
               <td>${r.preisNetto.toFixed(2)} €</td><td>${r.gueltigAb || '–'}</td>
-              <td><button class="btn-secondary btn-xs" data-dp-i="${i}">Bearbeiten</button></td>
+              <td><button class="btn-secondary btn-xs" data-dp-i="${i}" data-hilfe="liste-bearbeiten">Bearbeiten</button></td>
             </tr>`).join('')}</tbody>
           </table></div>`;
           wrap.querySelectorAll('[data-dp-i]').forEach(btn =>
@@ -14588,8 +14697,8 @@
             <div class="form-field"><label>Gültig Ab</label>
               <input class="form-input" type="date" id="dp-ab" value="${isNew ? '' : _toIso(ex.gueltigAb)}"></div>
           </div><div class="modal-actions" style="margin-top:1.25rem;">
-            <button class="btn-secondary" id="dp-x">Abbrechen</button>
-            <button class="btn" id="dp-ok">Hinzufügen</button>
+            <button class="btn-secondary" id="dp-x" data-hilfe="dialog-abbrechen">Abbrechen</button>
+            <button class="btn" id="dp-ok" data-hilfe="dialog-speichern">Hinzufügen</button>
           </div></div></div>`;
         document.body.appendChild(bd);
         bd.querySelector('#dp-x').onclick = () => bd.remove();
@@ -14652,7 +14761,7 @@
                   <td>${r.betrag}</td><td>${r.einheit}</td>
                   <td>${r.gueltigAb || '–'}</td>
                   ${_fkHistorie ? `<td>${r.gueltigBis || '–'}</td>` : ''}
-                  <td>${dimmen ? '' : `<button class="btn-secondary btn-xs" data-fk-i="${origI}">Bearbeiten</button>`}</td>
+                  <td>${dimmen ? '' : `<button class="btn-secondary btn-xs" data-fk-i="${origI}" data-hilfe="liste-bearbeiten">Bearbeiten</button>`}</td>
                 </tr>`;
               }).join('')}</tbody>
             </table></div>`;
@@ -14681,8 +14790,8 @@
             <div class="form-field"><label>Gültig ab *</label>
               <input class="form-input" type="date" id="fk-ab" value="${todayIso}"></div>
           </div><div class="modal-actions" style="margin-top:1.25rem;">
-            <button class="btn-secondary" id="fk-x">Abbrechen</button>
-            <button class="btn" id="fk-ok">Neue Version speichern</button>
+            <button class="btn-secondary" id="fk-x" data-hilfe="dialog-abbrechen">Abbrechen</button>
+            <button class="btn" id="fk-ok" data-hilfe="fixkosten-version">Neue Version speichern</button>
           </div></div></div>`;
         document.body.appendChild(bd);
         bd.querySelector('#fk-x').onclick = () => bd.remove();
@@ -14737,7 +14846,7 @@
             <tbody>${_vkRows.map((r, i) => `<tr>
               <td>${r.produkttyp}</td><td>${r.abMenge}</td><td>${r.vkBrutto.toFixed(2)} €</td>
               <td>${r.gueltigAb || '–'}</td><td>${r.notiz || '–'}</td>
-              <td><button class="btn-secondary btn-xs" data-vk-i="${i}">Bearbeiten</button></td>
+              <td><button class="btn-secondary btn-xs" data-vk-i="${i}" data-hilfe="liste-bearbeiten">Bearbeiten</button></td>
             </tr>`).join('')}</tbody>
           </table></div>`;
           wrap.querySelectorAll('[data-vk-i]').forEach(btn =>
@@ -14762,8 +14871,8 @@
             <div class="form-field form-col-full"><label>Notiz</label>
               <input class="form-input" id="vk-no" value="${isNew ? '' : (ex.notiz||'')}" placeholder="Optional"></div>
           </div><div class="modal-actions" style="margin-top:1.25rem;">
-            <button class="btn-secondary" id="vk-x">Abbrechen</button>
-            <button class="btn" id="vk-ok">Hinzufügen</button>
+            <button class="btn-secondary" id="vk-x" data-hilfe="dialog-abbrechen">Abbrechen</button>
+            <button class="btn" id="vk-ok" data-hilfe="dialog-speichern">Hinzufügen</button>
           </div></div></div>`;
         document.body.appendChild(bd);
         bd.querySelector('#vk-x').onclick = () => bd.remove();
@@ -14797,7 +14906,7 @@
             <tbody>${_artRows.map((r, i) => `<tr>
               <td>${r.lshopNr}</td><td>${r.artikelname}</td><td>${r.ekPreisNetto.toFixed(2)} €</td>
               <td>${r.kategorie || '–'}</td><td>${r.gueltigAb || '–'}</td><td>${r.notiz || '–'}</td>
-              <td><button class="btn-secondary btn-xs" data-art-i="${i}">Bearbeiten</button></td>
+              <td><button class="btn-secondary btn-xs" data-art-i="${i}" data-hilfe="liste-bearbeiten">Bearbeiten</button></td>
             </tr>`).join('')}</tbody>
           </table></div>`;
           wrap.querySelectorAll('[data-art-i]').forEach(btn =>
@@ -14826,8 +14935,8 @@
             <div class="form-field form-col-full"><label>Notiz</label>
               <input class="form-input" id="art-no" value="${isNew ? '' : (ex.notiz||'')}" placeholder="Optional"></div>
           </div><div class="modal-actions" style="margin-top:1.25rem;">
-            <button class="btn-secondary" id="art-x">Abbrechen</button>
-            <button class="btn" id="art-ok">Hinzufügen</button>
+            <button class="btn-secondary" id="art-x" data-hilfe="dialog-abbrechen">Abbrechen</button>
+            <button class="btn" id="art-ok" data-hilfe="dialog-speichern">Hinzufügen</button>
           </div></div></div>`;
         document.body.appendChild(bd);
         bd.querySelector('#art-x').onclick = () => bd.remove();
@@ -14944,8 +15053,8 @@
             <div class="form-field form-col-full"><label>VK Brutto (€) *</label>
               <input class="form-input" type="number" id="sv-vk" step="0.01" min="0" placeholder="0.00"></div>
           </div><div class="modal-actions" style="margin-top:1.25rem;">
-            <button class="btn-secondary" id="sv-x">Abbrechen</button>
-            <button class="btn" id="sv-ok">Speichern</button>
+            <button class="btn-secondary" id="sv-x" data-hilfe="dialog-abbrechen">Abbrechen</button>
+            <button class="btn" id="sv-ok" data-hilfe="dialog-speichern">Speichern</button>
           </div></div></div>`;
         document.body.appendChild(bd);
         bd.querySelector('#sv-x').onclick = () => bd.remove();
@@ -15135,8 +15244,8 @@
         if (r.status === 'entwurf') {
           actionsHTML = `
             <div class="abr-actions">
-              <button class="btn-success" data-abr-action="freigeben" data-abr-id="${r.abrechnungId}">✓ Freigeben</button>
-              <button class="btn-danger" data-abr-action="verwerfen" data-abr-id="${r.abrechnungId}">✗ Verwerfen</button>
+              <button class="btn-success" data-abr-action="freigeben" data-abr-id="${r.abrechnungId}" data-hilfe="abrechnung-freigeben">✓ Freigeben</button>
+              <button class="btn-danger" data-abr-action="verwerfen" data-abr-id="${r.abrechnungId}" data-hilfe="abrechnung-verwerfen">✗ Verwerfen</button>
             </div>
             <p style="font-size:0.78rem;color:var(--muted);margin-top:0.6rem;">
               Bei Freigabe werden alle Verkäufe und interne Bestellungen auf „abgerechnet" gesetzt.
@@ -15145,7 +15254,7 @@
         } else if (r.status === 'freigegeben') {
           actionsHTML = `
             <div class="abr-actions">
-              <button class="btn" data-abr-action="bezahlt" data-abr-id="${r.abrechnungId}">→ Als bezahlt markieren</button>
+              <button class="btn" data-abr-action="bezahlt" data-abr-id="${r.abrechnungId}" data-hilfe="abrechnung-bezahlt">→ Als bezahlt markieren</button>
             </div>`;
         }
 
@@ -15281,8 +15390,8 @@
             und alle Posten als „abgerechnet" markiert.
           </p>
           <div class="modal-actions" style="margin-top:1.25rem;">
-            <button class="btn-secondary" id="ab-x">Abbrechen</button>
-            <button class="btn" id="ab-ok">Vorschau anzeigen</button>
+            <button class="btn-secondary" id="ab-x" data-hilfe="dialog-abbrechen">Abbrechen</button>
+            <button class="btn" id="ab-ok" data-hilfe="abrechnung-vorschau">Vorschau anzeigen</button>
           </div></div></div>`;
         document.body.appendChild(bd);
         bd.querySelector('#ab-x').onclick = () => bd.remove();
@@ -15394,8 +15503,8 @@
             </div>
           </div>
           <div class="modal-actions" style="margin-top:1.25rem;">
-            <button class="btn-secondary" id="vor-x">Schließen</button>
-            <button class="btn" id="vor-ok"${data.verkaeufe.length === 0 ? ' disabled' : ''}>Abrechnung jetzt erstellen</button>
+            <button class="btn-secondary" id="vor-x" data-hilfe="dialog-schliessen">Schließen</button>
+            <button class="btn" id="vor-ok"${data.verkaeufe.length === 0 ? ' disabled' : ''} data-hilfe="abrechnung-erstellen">Abrechnung jetzt erstellen</button>
           </div>
         </div>`;
         document.body.appendChild(bd);
@@ -15906,8 +16015,8 @@
             ).join('');
             const actions = r.status === 'abgerechnet'
               ? ''
-              : `<button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;" data-int-edit="${r.rowId}">Bearbeiten</button>
-                 <button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;margin-top:0.25rem;color:var(--danger);" data-int-del="${r.rowId}">Löschen</button>`;
+              : `<button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;" data-int-edit="${r.rowId}" data-hilfe="liste-bearbeiten">Bearbeiten</button>
+                 <button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;margin-top:0.25rem;color:var(--danger);" data-int-del="${r.rowId}" data-hilfe="intern-loeschen">Löschen</button>`;
             return `<tr>
               <td>${r.datum}</td>
               <td>${r.bezeichnung}</td>
@@ -15999,8 +16108,8 @@
               <input class="form-input" type="number" id="int-e" min="0" step="0.01" value="${eVal}"></div>
           </div>
           <div class="modal-actions" style="margin-top:1.25rem;">
-            <button class="btn-secondary" id="int-x">Abbrechen</button>
-            <button class="btn" id="int-ok">${isEdit ? 'Speichern' : 'Hinzufügen'}</button>
+            <button class="btn-secondary" id="int-x" data-hilfe="dialog-abbrechen">Abbrechen</button>
+            <button class="btn" id="int-ok" data-hilfe="dialog-speichern">${isEdit ? 'Speichern' : 'Hinzufügen'}</button>
           </div></div></div>`;
         document.body.appendChild(bd);
         bd.querySelector('#int-x').onclick = () => bd.remove();
@@ -16131,10 +16240,10 @@
                 <td><span class="badge ${(p['Aktiv'] ?? '').toLowerCase() === 'ja' ? 'badge-completed' : 'badge-cancelled'}">${(p['Aktiv'] ?? '').toLowerCase() === 'ja' ? 'Aktiv' : 'Inaktiv'}</span></td>
                 <td style="color:var(--muted);font-size:0.84rem;">${p['Notiz'] || '–'}</td>
                 <td style="white-space:nowrap;">
-                  <button class="btn-secondary btn-xs" data-fp-edit="${p['Partner-ID']}">Bearbeiten</button>
+                  <button class="btn-secondary btn-xs" data-fp-edit="${p['Partner-ID']}" data-hilfe="liste-bearbeiten">Bearbeiten</button>
                   ${p['Token']
-                    ? `<button class="btn-secondary btn-xs" data-fp-copy="${p['Partner-ID']}" style="margin-left:0.3rem;">Link kopieren</button>`
-                    : `<button class="btn-secondary btn-xs" data-fp-gen-token="${p['Partner-ID']}" style="margin-left:0.3rem;">Token gen.</button>`}
+                    ? `<button class="btn-secondary btn-xs" data-fp-copy="${p['Partner-ID']}" style="margin-left:0.3rem;" data-hilfe="link-kopieren">Link kopieren</button>`
+                    : `<button class="btn-secondary btn-xs" data-fp-gen-token="${p['Partner-ID']}" style="margin-left:0.3rem;" data-hilfe="token-neu">Token gen.</button>`}
                 </td>
               </tr>`).join('')}</tbody>
             </table></div>`;
@@ -16273,8 +16382,8 @@
                   </div>
                 </div>
                 <div class="modal-actions" style="margin-top:1.25rem;">
-                  <button class="btn-secondary" id="fp-f-cancel">Abbrechen</button>
-                  <button class="btn" id="fp-f-save">${isEdit ? 'Speichern' : 'Hinzufügen'}</button>
+                  <button class="btn-secondary" id="fp-f-cancel" data-hilfe="dialog-abbrechen">Abbrechen</button>
+                  <button class="btn" id="fp-f-save" data-hilfe="dialog-speichern">${isEdit ? 'Speichern' : 'Hinzufügen'}</button>
                 </div>
                 <div id="fp-f-err" style="color:var(--danger);font-size:0.83rem;margin-top:0.5rem;min-height:1em;"></div>
               </div>
@@ -16389,7 +16498,7 @@
                   <option value="">– wählen –</option>
                   ${kategorien.map(k => `<option value="${k}"${(a['Artikelkategorie'] ?? '') === k ? ' selected' : ''}>${k}</option>`).join('')}
                 </select></td>
-                <td><button class="btn-secondary btn-xs fp-art-save" data-pid="${a['Produkt-ID']}">Speichern</button></td>
+                <td><button class="btn-secondary btn-xs fp-art-save" data-pid="${a['Produkt-ID']}" data-hilfe="zeile-speichern">Speichern</button></td>
               </tr>`).join('')}</tbody>
             </table></div>`;
             wrap.querySelectorAll('.fp-art-save').forEach(btn => {
@@ -16433,8 +16542,8 @@
                 </p>
               </div>
               <div class="modal-actions" style="margin-top:1.25rem;">
-                <button class="btn-secondary" id="fp-sync-x">Abbrechen</button>
-                <button class="btn" id="fp-sync-ok">Sync starten</button>
+                <button class="btn-secondary" id="fp-sync-x" data-hilfe="dialog-abbrechen">Abbrechen</button>
+                <button class="btn" id="fp-sync-ok" data-hilfe="wc-sync-starten">Sync starten</button>
               </div>
             </div>
           </div>`;
@@ -16616,7 +16725,7 @@
                   <select class="form-select fp-abr-status-sel" data-abr-id="${abrId}" data-abr-cur="${cur}"
                     style="font-size:0.78rem;padding:0.22rem 0.5rem;margin-top:0.1rem;">${opts}</select>
                 </td>
-                <td style="color:var(--muted);font-size:0.82rem;">${r['Erstellt-Am']}${cur === 'entwurf' ? ` <button class="btn-secondary" style="font-size:0.72rem;padding:0.15rem 0.4rem;margin-left:0.4rem;" data-del-abr="${abrId}" title="Entwurf löschen">✕</button>` : ''}</td>
+                <td style="color:var(--muted);font-size:0.82rem;">${r['Erstellt-Am']}${cur === 'entwurf' ? ` <button class="btn-secondary" style="font-size:0.72rem;padding:0.15rem 0.4rem;margin-left:0.4rem;" data-del-abr="${abrId}" title="Entwurf löschen" data-hilfe="fp-abrechnung-loeschen">✕</button>` : ''}</td>
               </tr>
               <tr id="fp-abr-det-${idSafe}" style="display:none;">${detailCell}</tr>`;}).join('')}</tbody>
             </table></div>`;
@@ -16701,7 +16810,7 @@
                     data-rowid="${p._rowId}" data-field="handlingskosten"
                     style="width:80px;padding:0.25rem 0.4rem;font-size:0.84rem;text-align:right;">
                 </td>
-                <td><button class="btn-secondary" style="font-size:0.75rem;padding:0.25rem 0.5rem;" data-del-preis="${p._rowId}">✕</button></td>
+                <td><button class="btn-secondary" style="font-size:0.75rem;padding:0.25rem 0.5rem;" data-del-preis="${p._rowId}" data-hilfe="fp-preis-loeschen">✕</button></td>
               </tr>`).join('')}</tbody>
             </table></div>`;
 
@@ -16880,8 +16989,8 @@
               ${fpInterneBlockHTML(d)}
             </div>
             <div class="modal-actions" style="margin-top:1.25rem;">
-              <button class="btn-secondary" id="fp-vor-x">Schließen</button>
-              <button class="btn" id="fp-vor-ok">Abrechnung erstellen</button>
+              <button class="btn-secondary" id="fp-vor-x" data-hilfe="dialog-schliessen">Schließen</button>
+              <button class="btn" id="fp-vor-ok" data-hilfe="abrechnung-erstellen">Abrechnung erstellen</button>
             </div>
           </div>`;
           document.body.appendChild(bd);
@@ -16967,7 +17076,7 @@
               ).join('');
               const editBtn = r.status === 'abgerechnet'
                 ? ''
-                : `<button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;" data-fpi-edit="${r.rowId}">Bearbeiten</button>`;
+                : `<button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;" data-fpi-edit="${r.rowId}" data-hilfe="liste-bearbeiten">Bearbeiten</button>`;
               return `<tr>
                 <td>${r.datum}</td>
                 <td>${r.bezeichnung}</td>
@@ -17030,8 +17139,8 @@
                 <input class="form-input" type="number" id="fpi-e" min="0" step="0.01" value="${isEdit ? existing.einzelpreis : 0}"></div>
             </div>
             <div class="modal-actions" style="margin-top:1.25rem;">
-              <button class="btn-secondary" id="fpi-x">Abbrechen</button>
-              <button class="btn" id="fpi-ok">${isEdit ? 'Speichern' : 'Hinzufügen'}</button>
+              <button class="btn-secondary" id="fpi-x" data-hilfe="dialog-abbrechen">Abbrechen</button>
+              <button class="btn" id="fpi-ok" data-hilfe="dialog-speichern">${isEdit ? 'Speichern' : 'Hinzufügen'}</button>
             </div></div></div>`;
           document.body.appendChild(bd);
           bd.querySelector('#fpi-x').onclick = () => bd.remove();

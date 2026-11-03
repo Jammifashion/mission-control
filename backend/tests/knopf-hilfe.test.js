@@ -79,9 +79,13 @@ describe('Knoepfe tragen data-hilfe', () => {
     expect(html).toMatch(/id="zl-zurueck" data-hilfe="zl-zurueck"/);
   });
 
+  // HT1: Gruppen der aelteren Knoepfe haben noch kein ⓘ (ein ⓘ waere eine Layout-Aenderung, eigener Auftrag). Sie stehen
+  // hier ausdruecklich; jede andere Gruppe braucht ihr ⓘ, und jedes ⓘ eine Gruppe.
+  const GRUPPEN_OHNE_I = ['navigation', 'dialog', 'auftragsmonitor', 'artikel', 'editor', 'partner', 'festpreis', 'anfragen', 'assistent', 'lager-dialog', 'einstellungen'];
   test('jedes ⓘ hat eine Gruppe und eine Liste mit dieser id', () => {
     const knoepfe = [...html.matchAll(/data-hilfe-gruppe="([^"]+)" aria-controls="([^"]+)"/g)];
-    expect(knoepfe.map(m => m[1]).sort()).toEqual(Object.keys(HILFE_GRUPPEN).sort());
+    expect(knoepfe.map(m => m[1]).sort()).toEqual(Object.keys(HILFE_GRUPPEN).filter(g => !GRUPPEN_OHNE_I.includes(g)).sort());
+    expect(GRUPPEN_OHNE_I.filter(g => !HILFE_GRUPPEN[g])).toEqual([]);
     for (const [, , ziel] of knoepfe) expect(tag(ziel)).toMatch(/class="hilfe-legende"/);
   });
 

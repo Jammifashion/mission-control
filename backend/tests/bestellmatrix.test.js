@@ -133,7 +133,7 @@ describe('baueMatrix', () => {
 
 describe('Einbindung in index.html', () => {
   test('Unterreiter, Panel und BEREICHE-Zeile direkt hinter dem Warenkorb', () => {
-    const tabs = [...html.matchAll(/data-subtab="(tab-[a-z-]+)">/g)].map(m => m[1]);
+    const tabs = [...html.matchAll(/data-subtab="(tab-[a-z-]+)"[^>]*>/g)].map(m => m[1]);
     expect(tabs.indexOf('tab-lshop-uebersicht')).toBe(tabs.indexOf('tab-lshop-korb') + 1);
     expect(html).toContain('<div id="tab-lshop-uebersicht" class="sub-tab-panel">');
     const nav = block('// ── Navigation-Tabelle: Anfang ──', '// ── Navigation-Tabelle: Ende ──');

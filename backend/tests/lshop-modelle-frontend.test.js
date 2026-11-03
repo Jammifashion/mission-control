@@ -78,7 +78,7 @@ describe('Block L-Shop-Modelle', () => {
 
 describe('Verdrahtung im HTML', () => {
   test('Modus-Knopf, Panel und Zeile in der Navigation', () => {
-    expect(html).toMatch(/<button class="mode-btn" id="mode-btn-lshopmodelle">/);
+    expect(html).toMatch(/<button class="mode-btn" id="mode-btn-lshopmodelle"[^>]*>/);
     expect(html).toMatch(/<div id="lsm-panel" style="display:none;">/);
     expect(html).toMatch(/\{ id: 'lshop-modelle', panel: 'products', knopf: '#mode-btn-lshopmodelle'/);
   });

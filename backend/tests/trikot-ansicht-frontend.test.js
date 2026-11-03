@@ -69,7 +69,7 @@ describe('Block Trikots', () => {
 
 describe('Einbindung', () => {
   test('Unterreiter, Panel, Navigation (nur JFN), Lader beim Oeffnen', () => {
-    expect(html).toMatch(/data-subtab="tab-lshop-bestellungen">L-Shop-Bestellungen<\/button>\s*<button class="sub-tab" data-subtab="tab-trikots">Trikots \(JFN\)<\/button>/);
+    expect(html).toMatch(/data-subtab="tab-lshop-bestellungen"[^>]*>L-Shop-Bestellungen<\/button>\s*<button class="sub-tab" data-subtab="tab-trikots"[^>]*>Trikots \(JFN\)<\/button>/);
     expect(html).toMatch(/<div id="tab-trikots" class="sub-tab-panel">/);
     expect(html).toMatch(/\{ id: 'trikots', +panel: 'orders', knopf: '#panel-orders \.sub-tab\[data-subtab="tab-trikots"\]', neuLaden: true, shop: false \}/);
     expect(html).toMatch(/if \(btn\.dataset\.subtab === 'tab-trikots'\) loadTrikots\(\);/);

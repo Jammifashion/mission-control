@@ -39,7 +39,11 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   haupt/ruhig), ebenso in der Bestelluebersicht. Erklaerungen NUR im Block `Knopf-Hilfe: Anfang/Ende`
   (`KNOPF_HILFE`, `HILFE_GRUPPEN`, Test knopf-hilfe.test.js): `data-hilfe="<schluessel>"` = Tooltip bei Maus
   und Tastatur-Fokus, kein `title`; ⓘ (`data-hilfe-gruppe`) blendet die Liste ein (Handy). Neuer Knopf =
-  Text + Schluessel dort.)
+  Text + Schluessel dort. HT1 (03.11.): JEDER Knopf hat jetzt einen Mouse-over, `knopf-ohne-hilfe-bestand.json` ist leer (Test ohne
+  Ausnahmen). Wiederkehrende Knoepfe teilen EINEN Text: `dialog-abbrechen`, `dialog-schliessen`, `dialog-bestaetigen`, `dialog-speichern`,
+  `liste-bearbeiten`, `zeile-speichern`, `link-kopieren`, `token-neu`, `nav-bereich`, `nav-unterreiter`, `tab-offen/-protokoll`,
+  `editor-*` (Test knopf-mouseover.test.js) - neue Dialoge nutzen sie, keine Kopien. Gruppen ohne ⓘ stehen in `GRUPPEN_OHNE_I`
+  (knopf-hilfe.test.js); am Handy gibt es fuer sie noch keine Erklaerung.)
 - L-Shop-Bestellübersicht (BO3b: Unterpunkt `bestellen/lshop-uebersicht`, direkt hinter dem Korb. Nur eine
   Ansicht auf `korbZustand.daten` - kein eigener Abruf, kein Endpunkt; `korbZeichnen()` zeichnet beide.
   Block `Matrix: Anfang/Ende` (`baueMatrix`, Test bestellmatrix.test.js): nur Status offen, sperrender

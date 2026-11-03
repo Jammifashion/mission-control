@@ -69,7 +69,7 @@ describe('Adresse #bereich/unterpunkt', () => {
       expect(punkte.some(p => p.b === u.b && p.id === u.umleitung)).toBe(true);
     }
     expect(html).not.toMatch(/knopf: '#panel-orders \.sub-tab\[data-subtab="tab-lshop"\]'/);
-    expect(html).toMatch(/<button class="sub-tab" data-subtab="tab-lshop-uebersicht">[^<]*<\/button>\s*<button class="sub-tab" data-subtab="tab-lshop-bestellungen">/);
+    expect(html).toMatch(/<button class="sub-tab" data-subtab="tab-lshop-uebersicht"[^>]*>[^<]*<\/button>\s*<button class="sub-tab" data-subtab="tab-lshop-bestellungen"[^>]*>/);
   });
 
   test('nur Bereich -> Bereich ohne Unterpunkt', () => {
