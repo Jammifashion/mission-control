@@ -113,7 +113,7 @@ describe('Querverweise laufen ueber oeffneAnsicht', () => {
   });
 });
 
-describe('NAV5: 2. Ebene am Handy als Kacheln (Petrol), Desktop unveraendert', () => {
+describe('NAV5: 2. Ebene am Handy als Kacheln (Violett), Desktop unveraendert', () => {
   const css = html.slice(html.indexOf('/* NAV5 (Inhaber 04.11.)'), html.indexOf('/* Shop-Badge in Bereichen'));
   test('nur bis 600 px: Raster statt Scrollleiste, Umbruch statt Abschneiden, eigene Farbe', () => {
     expect(css).toMatch(/@media \(max-width: 600px\)/);
