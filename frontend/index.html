@@ -21,6 +21,8 @@
         --accent: #e8c44a;
         /* Hauptnavigation am Handy als Kacheln (Inhaber 03.11.: blau) */
         --nav-kachel: #16243a; --nav-kachel-rand: #2c4a73; --nav-kachel-text: #b9cdea; --nav-kachel-aktiv: #2f6fd1; --nav-kachel-aktiv-rand: #5b93f0;
+        /* NAV5: 2. Ebene am Handy (Unterreiter) - Petrol/Tuerkis, klar getrennt von blau (Hauptkacheln) und gold (Shop) */
+        --nav2-rand: #1f7a80; --nav2-text: #8fd3d6; --nav2-aktiv: #13787f; --nav2-aktiv-rand: #3fb7bd;
         --text: #f0f0f0;
         --muted: #888;
         --danger: #e05252;
@@ -157,6 +159,27 @@
         }
         nav button.active { background: var(--nav-kachel-aktiv); border-color: var(--nav-kachel-aktiv-rand); color: #fff; font-weight: 600; }
         nav button .nav-badge { margin-left: 0.25rem; }
+      }
+      /* NAV5 (Inhaber 04.11.): 2. Ebene am Handy als Kacheln - kleiner/flacher als die blauen Hauptkacheln, Petrol,
+         aktiv gefuellt, sonst nur umrandet. Namen brechen um, nichts scrollt waagrecht. Gilt fuer die Bereichsleiste
+         (#bereich-leiste), die Unterreiter in den Panels (.sub-tabs) und die Modus-Knoepfe in Artikel (.mode-toggle). */
+      @media (max-width: 600px) {
+        :root .sub-tabs, :root .mode-toggle {   /* :root = vor den Desktop-Regeln weiter unten */
+          display: grid; grid-template-columns: repeat(auto-fill, minmax(6.4rem, 1fr)); gap: 0.3rem;
+          overflow: visible; border-bottom: none; padding: 0.4rem 0.5rem; margin-bottom: 0.6rem;
+        }
+        :root .bereich-leiste { padding: 0.4rem 0.5rem; }
+        :root .sub-tabs > .sub-tab, :root .mode-toggle > .mode-btn {
+          white-space: normal; overflow-wrap: anywhere; line-height: 1.15; text-align: center;
+          min-height: 36px; padding: 0.3rem 0.35rem; margin: 0; font-size: 0.74rem; font-weight: 500;
+          background: transparent; color: var(--nav2-text); border: 1px solid var(--nav2-rand); border-radius: 6px;
+        }
+        :root .sub-tabs > .sub-tab.active, :root .mode-toggle > .mode-btn.active {
+          background: var(--nav2-aktiv); border-color: var(--nav2-aktiv-rand); color: #fff; font-weight: 600;
+        }
+        :root .sub-tabs > .sub-tab .nav-badge { margin-left: 0.2rem; }
+        :root .sub-tabs > .hilfe-i, :root .mode-toggle > .hilfe-i { justify-self: start; align-self: center; }
+        .sub-shop { display: none; }   /* "(JFN)"/"(HONK)" - das Kennzeichen oben zeigt den Shop */
       }
       /* Shop-Badge in Bereichen, in denen der Shop nicht wirkt */
       #shop-badge.shop-inaktiv { opacity: 0.4; }
@@ -1585,7 +1608,7 @@
           <button class="sub-tab" data-subtab="tab-lshop-korb" data-hilfe="nav-unterreiter">L-Shop-Warenkorb</button>
           <button class="sub-tab" data-subtab="tab-lshop-uebersicht" data-hilfe="nav-unterreiter">Bestellübersicht</button>
           <button class="sub-tab" data-subtab="tab-lshop-bestellungen" data-hilfe="nav-unterreiter">L-Shop-Bestellungen</button>
-          <button class="sub-tab" data-subtab="tab-trikots" data-hilfe="nav-unterreiter">Trikots (JFN)</button>
+          <button class="sub-tab" data-subtab="tab-trikots" data-hilfe="nav-unterreiter">Trikots<span class="sub-shop"> (JFN)</span></button>
           <button class="sub-tab" data-subtab="tab-eingaenge" data-hilfe="nav-unterreiter">Anfragen &amp; Eigenaufträge<span id="sub-eingaenge-badge" class="nav-badge"></span></button>
         </div>
 
@@ -3644,13 +3667,14 @@
         // NAV3: Unterreiter zeigen, fuer welchen Shop sie gelten (Produktions_Status,
         // DTF-/L-Shop-Protokoll sind je Shop getrennt).
         const kurz = shop === 'honk' ? 'HONK' : 'JFN';
-        const sub = (k, text) => { const el = document.querySelector(`[data-subtab="${k}"]`); if (el) el.textContent = text; };
-        sub('tab-jfn-shop', `Bestellungen (${kurz})`);
-        sub('tab-dtf',      `DTF Bestellungen (${kurz})`);
-        sub('tab-lshop',    `L-Shop Bestellungen (${kurz})`);
-        sub('tab-lshop-korb', `L-Shop-Warenkorb (${kurz})`);
-        sub('tab-lshop-uebersicht', `Bestellübersicht (${kurz})`);
-        sub('tab-lshop-bestellungen', `L-Shop-Bestellungen (${kurz})`);
+        // NAV5: Shop-Zusatz in eigenem span - am Handy ausgeblendet (.sub-shop), Desktop unveraendert.
+        const sub = (k, text) => { const el = document.querySelector(`[data-subtab="${k}"]`); if (el) el.innerHTML = `${text}<span class="sub-shop"> (${kurz})</span>`; };
+        sub('tab-jfn-shop', 'Bestellungen');
+        sub('tab-dtf',      'DTF Bestellungen');
+        sub('tab-lshop',    'L-Shop Bestellungen');
+        sub('tab-lshop-korb', 'L-Shop-Warenkorb');
+        sub('tab-lshop-uebersicht', 'Bestellübersicht');
+        sub('tab-lshop-bestellungen', 'L-Shop-Bestellungen');
         const artikelTab = document.querySelector('[data-ptab="artikel"]');
         if (artikelTab) artikelTab.style.display = '';
       }

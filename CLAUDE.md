@@ -30,7 +30,9 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   hinter Dashboard) · bestellen (Panel orders, Unterreiter) · artikel
   (Panel products, Modus-Knoepfe) · partner (lizenz = partnerportal, festpreis) · kunden (anfragen,
   agent-wissen) · lager (bestand, buchungen, abgaenge; ein Panel `lager`, BO5-1/BO5-5) · system (settings). Neue Ansicht = Zeile in BEREICHE, nie `nav button.click()`.
-  Alte Adresse = Zeile mit `umleitung: '<unterpunkt>'` ohne panel/knopf (BO4d: `bestellen/lshop`).)
+  Alte Adresse = Zeile mit `umleitung: '<unterpunkt>'` ohne panel/knopf (BO4d: `bestellen/lshop`).
+  NAV5: bis 600 px ist die 2. Ebene (`#bereich-leiste`, `.sub-tabs` in den Panels, `.mode-toggle` in Artikel) ein Kachelraster in
+  Petrol (`--nav2-*`, aktiv gefuellt), Namen brechen um; Shop-Zusatz "(JFN)" steht in `.sub-shop` und ist am Handy aus. Desktop unveraendert.)
   Am Handy (<= 600 px) ist die Hauptleiste ein Raster aus Kacheln 4 × 2 in Blau (Inhaber 03.11., Variablen `--nav-kachel*`);
   darueber bis 720 px Kurznamen in einer Zeile, am Desktop Langnamen.
 - Stand-Anzeige

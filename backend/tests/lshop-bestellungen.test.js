@@ -218,7 +218,7 @@ describe('Frontend-Block L-Shop-Bestellungen', () => {
   test('Unterreiter, Panel, Laden nur beim Oeffnen, Hilfetexte', () => {
     expect(html).toContain('<div id="tab-lshop-bestellungen" class="sub-tab-panel">');
     expect(html).toMatch(/if \(btn\.dataset\.subtab === 'tab-lshop-bestellungen'\) loadLShopBestellungen\(\);/);
-    expect(html).toContain("sub('tab-lshop-bestellungen', `L-Shop-Bestellungen (${kurz})`);");
+    expect(html).toContain("sub('tab-lshop-bestellungen', 'L-Shop-Bestellungen');");   // NAV5: Shop-Zusatz haengt sub() als .sub-shop an
     expect(html).toMatch(/\/api\/bestellen\/lshop-bestellungen`/);
     expect(html).toMatch(/bestellungen: \['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-mehr', 'bei-ankunft-lager', 'lager-ziel-aendern', 'eb-gesperrt-bestellt', 'eb-gesperrt-geliefert', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'\]/);   // BO5-4, BO6-1
     expect(html).toContain("'filter-alle':          { name: 'Alle', text: 'Alles, was noch nicht bestellt ist: offen und herausgenommen.' }");

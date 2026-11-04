@@ -112,3 +112,28 @@ describe('Querverweise laufen ueber oeffneAnsicht', () => {
     expect(html).toMatch(/addEventListener\('mc:ansicht'[\s\S]{0,120}festpreis[\s\S]{0,60}loadFpPartner\(\)/);
   });
 });
+
+describe('NAV5: 2. Ebene am Handy als Kacheln (Petrol), Desktop unveraendert', () => {
+  const css = html.slice(html.indexOf('/* NAV5 (Inhaber 04.11.)'), html.indexOf('/* Shop-Badge in Bereichen'));
+  test('nur bis 600 px: Raster statt Scrollleiste, Umbruch statt Abschneiden, eigene Farbe', () => {
+    expect(css).toMatch(/@media \(max-width: 600px\)/);
+    expect(css).toMatch(/:root \.sub-tabs, :root \.mode-toggle \{[^}]*display: grid;[^}]*auto-fill[^}]*overflow: visible;/);
+    expect(css).toMatch(/white-space: normal;/);
+    expect(css).toMatch(/var\(--nav2-aktiv\)/);
+    expect(css).not.toMatch(/--nav-kachel/);   // nicht das Blau der Hauptkacheln
+    expect(html).toMatch(/--nav2-rand: #[0-9a-f]{6}; --nav2-text: #[0-9a-f]{6}; --nav2-aktiv: #[0-9a-f]{6}; --nav2-aktiv-rand: #[0-9a-f]{6};/);
+    // Desktop-Regel bleibt (eine Zeile, scrollt fuer sich)
+    expect(html).toContain('.sub-tabs { display: flex; gap: 0; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); overflow-x: auto;');
+  });
+  test('Shop-Zusatz in .sub-shop (am Handy aus), Name ohne Zusatz', () => {
+    expect(css).toMatch(/\.sub-shop \{ display: none; \}/);
+    expect(html).toContain("el.innerHTML = `${text}<span class=\"sub-shop\"> (${kurz})</span>`");
+    for (const n of ['Bestellungen', 'DTF Bestellungen', 'L-Shop-Warenkorb', 'Bestellübersicht', 'L-Shop-Bestellungen']) expect(html).toContain(`sub('`);
+    expect(html).toContain('>Trikots<span class="sub-shop"> (JFN)</span></button>');
+    expect(html).not.toMatch(/sub\('tab-[a-z-]+',\s*`[^`]*\(\$\{kurz\}\)`\)/);
+  });
+  test('jeder Unterpunkt einer Bereichsleiste wird als Kachel (Knopf .sub-tab) gezeichnet', () => {
+    expect(html).toContain('`<button class="sub-tab${p.id === punkt ? \' active\' : \'\'}" data-punkt="${p.id}" data-hilfe="nav-ansicht">${p.label}</button>`');
+    for (const [b, def] of Object.entries(BEREICHE).filter(([, d]) => d.leiste)) expect([b, def.punkte.length]).toEqual([b, expect.any(Number)]);
+  });
+});
