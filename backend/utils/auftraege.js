@@ -3,6 +3,7 @@
 // Lesen/Schreiben in lib/auftraege.js.
 
 import { berlinDatum } from './berlin-tag.js';
+import { euroZahl, ustAus, rabattAus, rabattZelle, UST_STANDARD, AUFPREIS_AB_STANDARD, ZUSTAENDIG } from './auftrag-preise.js';
 
 export const TAB_AUFTRAEGE = 'Auftraege';
 export const TAB_POSITIONEN = 'Auftrag_Positionen';
@@ -19,9 +20,12 @@ export const POSITION_SPALTEN = [
   'Korb_Schluessel', 'Lager_Ziel', 'Fertig', 'Fertig_Am', 'Versendet', 'Stand', 'Entfernt',
 ];
 // AM-2-2: optional ganz hinten - fehlen sie, gilt Herkunft "bestellen" (wie vor AM-2-2). Setup ergaenzt sie.
-export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung'];
+// AM-5: Preisfelder je Position (netto, Euro als Zahl), hinten optional. Fehlen sie, werden keine Preise geschrieben (409).
+export const PREIS_SPALTEN = ['Preis_Netto', 'Aufpreis_Netto', 'Aufpreis_Ab', 'USt_Satz', 'EK_Hand'];
+export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung', ...PREIS_SPALTEN];
 // AM-3: optional ganz hinten in Auftraege - Datum des Schritts "Design" (leer = Schritt nicht genutzt / uebersprungen).
-export const AUFTRAG_OPTIONAL = ['Design_Am'];
+export const AUFTRAG_OPTIONAL = ['Design_Am', 'Rabatt', 'Angebot_Netto', 'Angebot_Brutto', 'Angebot_Stand', 'Zustaendig'];
+export const ANGEBOT_SPALTEN = ['Angebot_Netto', 'Angebot_Brutto', 'Angebot_Stand'];
 // AM-3: Korb-Referenz und Lager-Bezug eines Auftrags = die Auftragsnummer (nie Kunde, Spitzname oder Kurztitel).
 export const AU_NR_MUSTER = /^AU-\d{4}-\d{4}$/;
 // Herkunft je Position: bestellen (Standard, geht mit AM-3 in den L-Shop-Korb) | lager (eigenes Lager, ausgebucht erst mit AM-3)
@@ -74,12 +78,15 @@ export function zeilenAus(werte, spalten, schluessel, optional = []) {
   return { idx, zeilen, fehlt };
 }
 
+// AM-5: Betrags-Spalten gehen als Zahl ins Sheet (RAW), auch wenn sie als Text gelesen wurden (z. B. beim Teilen einer Position).
+const ZAHL_SPALTEN = new Set(['Preis_Netto', 'Aufpreis_Netto', 'EK_Hand', 'USt_Satz', 'Angebot_Netto', 'Angebot_Brutto', 'Rabatt']);
+export const zellWert = (s, v) => (typeof v === 'number' ? v : ZAHL_SPALTEN.has(s) && /^\d+(\.\d+)?$/.test(t(v)) ? Number(t(v)) : t(v));
 /** Objekt -> Sheet-Zeile in Spaltenfolge des Reiters (Breite = Kopfzeile). Pflicht- und optionale Spalten, soweit da. */
 export function alsZeile(idx, obj, spalten, breite) {
   const n = breite ?? Math.max(...Object.values(idx)) + 1;
   const z = Array.from({ length: n }, () => '');
   const opt = spalten === POSITION_SPALTEN ? POSITION_OPTIONAL : spalten === AUFTRAG_SPALTEN ? AUFTRAG_OPTIONAL : [];
-  for (const s of [...spalten, ...opt]) if (idx[s] !== undefined) z[idx[s]] = t(obj[s]);
+  for (const s of [...spalten, ...opt]) if (idx[s] !== undefined) z[idx[s]] = zellWert(s, obj[s]);
   return z;
 }
 
@@ -173,6 +180,7 @@ export function pruefeKopf(e, { nurNotizTermin = false } = {}) {
     aus.Termin = v;
   }
   if (e?.Notiz !== undefined) aus.Notiz = lang('Notiz', t(e.Notiz), MAX.Notiz);
+  if (e?.Rabatt !== undefined) aus.Rabatt = rabattZelle(rabattAus(e.Rabatt));   // AM-5: auch ab "bestellt" (Preise nachtragen)
   if (nurNotizTermin) return aus;
   if (e?.Kurztitel !== undefined) aus.Kurztitel = lang('Kurztitel', t(e.Kurztitel).replace(/\s+/g, ' '), MAX.Kurztitel);
   if (e?.Kanal !== undefined) {
@@ -199,6 +207,7 @@ export function pruefePositionen(eingabe, { waehlbar, bisher = new Set(), orte =
     const neben = {
       Motiv: lang(`Position ${nr}: Motiv`, t(p?.motiv), MAX.Motiv), Druck: lang(`Position ${nr}: Druck`, t(p?.druck), MAX.Druck),
       Notiz: lang(`Position ${nr}: Notiz`, t(p?.notiz), MAX.PosNotiz),
+      ...preisFelder(p, art, nr),
     };
     if (art === ART.LSHOP) {
       const a = t(p?.articleNr);
@@ -221,6 +230,25 @@ export function pruefePositionen(eingabe, { waehlbar, bisher = new Set(), orte =
     throw fehler(`Position ${nr}: Art lshop oder frei.`);
   });
 }
+
+/**
+ * AM-5: Preisfelder einer Position (netto, Euro). Leer erlaubt (Auftrag noch in Anfrage). Aufpreis nur bei L-Shop
+ * ("ab" Vorbelegung 3XL), USt leer = 19 %. Werte als Zahl bzw. '' (so landen sie als Zahl im Sheet).
+ */
+export function preisFelder(p, art, nr) {
+  const z = (v, f) => { try { const e = euroZahl(v, `Position ${nr}: ${f}`); return e === null ? '' : e; } catch (err) { throw fehler(err.message, 422, 'preis'); } };
+  let ust;
+  try { ust = ustAus(p?.ust); } catch (err) { throw fehler(`Position ${nr}: ${err.message}`, 422, 'preis'); }
+  const aufpreis = art === ART.LSHOP ? z(p?.aufpreis, 'Aufpreis') : '';
+  return {
+    Preis_Netto: z(p?.preis, 'Preis'), Aufpreis_Netto: aufpreis, Aufpreis_Ab: aufpreis === '' ? '' : (t(p?.aufpreisAb) || AUFPREIS_AB_STANDARD),
+    USt_Satz: ust === UST_STANDARD ? '' : ust, EK_Hand: z(p?.ekHand, 'EK'),
+  };
+}
+/** Werden Preis-Spalten gebraucht (mind. ein Preisfeld gesetzt)? */
+export const brauchtPreisSpalten = positionen => (positionen ?? []).some(p => PREIS_SPALTEN.some(f => t(p?.[f]) !== ''));
+/** Zellen gleich? Zahl und Text gleicher Zahl ("12.5" / 12.5) gelten als gleich. */
+const gleich = (a, b) => t(a) === t(b) || (t(a) !== '' && t(b) !== '' && Number(t(a)) === Number(t(b)));
 
 // ── Plaene ───────────────────────────────────────────────────────────────────
 
@@ -256,12 +284,27 @@ export const aktivePositionen = (positionen, nr) => (positionen ?? []).filter(p 
 export function bearbeitenPlan({ auftrag, positionen, eingabe, waehlbar, orte, jetzt }) {
   if (auftrag.Status === STORNIERT) throw fehler(`${auftrag.Auftrag_Nr} ist storniert.`, 409, 'storniert');
   const frei = istFrei(auftrag);
-  if (!frei && eingabe?.positionen !== undefined) throw fehler(`${auftrag.Auftrag_Nr}: ab „bestellt“ sind Positionen gesperrt.`, 409, 'gesperrt');
   const kopf = pruefeKopf(eingabe, { nurNotizTermin: !frei });
   if (frei && kopf.Kurztitel === '') throw fehler('Kurztitel fehlt.');
   if (frei && kopf.Kunden_Nr === '') throw fehler('Kunde fehlt.');
-  const aenderungAuftrag = Object.fromEntries(Object.entries(kopf).filter(([k, v]) => t(auftrag[k]) !== v));
+  const aenderungAuftrag = Object.fromEntries(Object.entries(kopf).filter(([k, v]) => !gleich(auftrag[k], v)));
   const aenderungPositionen = [], neuePositionen = [];
+  if (!frei && eingabe?.positionen !== undefined) {
+    // AM-5: ab "bestellt" nur Preise nachtragen/aendern - jede Position muss bleiben, wie sie ist.
+    const alt = aktivePositionen(positionen, auftrag.Auftrag_Nr);
+    const bisher = new Set(alt.map(p => p.LShop_ArticleNr).filter(Boolean));
+    const gesperrt = () => fehler(`${auftrag.Auftrag_Nr}: ab „bestellt“ sind Positionen gesperrt – nur Preise änderbar.`, 409, 'gesperrt');
+    if (!Array.isArray(eingabe.positionen) || eingabe.positionen.length !== alt.length || !alt.length) throw gesperrt();
+    const pos = pruefePositionen(eingabe.positionen, { waehlbar: bisher, bisher, orte: null });
+    if (pos.some(p => !p.positionId)) throw gesperrt();
+    for (const p of pos) {
+      const a = alt.find(x => x.Position_ID === p.positionId);
+      if (!a) throw fehler(`Position ${p.positionId} gibt es in diesem Auftrag nicht (mehr) – bitte neu laden.`, 409, 'konflikt');
+      if (['Art', 'LShop_ArticleNr', 'Freitext', 'Menge'].some(f => !gleich(a[f], p[f]))) throw gesperrt();
+      const felder = Object.fromEntries(PREIS_SPALTEN.filter(f => !gleich(a[f], p[f])).map(f => [f, p[f]]));
+      if (Object.keys(felder).length) aenderungPositionen.push({ zeile: a._zeile, positionId: a.Position_ID, felder: { ...felder, Stand: t(jetzt) } });
+    }
+  }
   if (frei && eingabe?.positionen !== undefined) {
     const alt = aktivePositionen(positionen, auftrag.Auftrag_Nr);
     const bisher = new Set(alt.map(p => p.LShop_ArticleNr).filter(Boolean));
@@ -275,10 +318,10 @@ export function bearbeitenPlan({ auftrag, positionen, eingabe, waehlbar, orte, j
         const uebergeben = istUebergeben(a);
         // Herkunft: leer im Sheet = bestellen (L-Shop) - nur echte Aenderungen schreiben
         const herkunftAlt = t(a.Herkunft) || (a.Art === ART.LSHOP ? HERKUNFT.BESTELLEN : '');
-        const felder = Object.fromEntries(['Art', 'LShop_ArticleNr', 'Freitext', 'Menge', 'Motiv', 'Druck', 'Notiz', 'Lager_Ort'].filter(f => t(a[f]) !== p[f]).map(f => [f, p[f]]));
+        const felder = Object.fromEntries(['Art', 'LShop_ArticleNr', 'Freitext', 'Menge', 'Motiv', 'Druck', 'Notiz', 'Lager_Ort', ...PREIS_SPALTEN].filter(f => !gleich(a[f], p[f])).map(f => [f, p[f]]));
         if (herkunftAlt !== p.Herkunft) felder.Herkunft = p.Herkunft;
         // AM-3: an Korb/Lager uebergeben -> nur Motiv/Druck/Notiz aenderbar; sonst erst "Übergabe zurücknehmen"
-        if (uebergeben && Object.keys(felder).some(f => !['Motiv', 'Druck', 'Notiz'].includes(f))) {
+        if (uebergeben && Object.keys(felder).some(f => !['Motiv', 'Druck', 'Notiz', ...PREIS_SPALTEN].includes(f))) {   // AM-5: Preise bleiben aenderbar
           throw fehler(`Position ${a.Position_ID} ist an Korb/Lager übergeben – erst „Übergabe zurücknehmen“.`, 409, 'uebergeben');
         }
         if (Object.keys(felder).length) aenderungPositionen.push({ zeile: a._zeile, positionId: a.Position_ID, felder: { ...felder, Stand: t(jetzt) } });

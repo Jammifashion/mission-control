@@ -4,7 +4,8 @@
 //   node backend/scripts/setup-auftraege-reiter.js --write   legt die fehlenden Reiter an
 //
 // Idempotent: Einen vorhandenen Reiter fasst das Skript nicht an; fehlende Pflichtspalten werden nur gemeldet. Nur NEUE Reiter.
-// AM-2-2/AM-3: Ausnahme optionale Spalten (Positionen: Herkunft, Lager_Ort, Lager_Buchung; Auftraege: Design_Am) - mit --write hinten an die
+// AM-2-2/AM-3/AM-5: Ausnahme optionale Spalten (Positionen: Herkunft, Lager_Ort, Lager_Buchung, Preise; Auftraege: Design_Am, Rabatt,
+// Angebot_*, Zustaendig; Aufgaben: Zustaendig) - mit --write hinten an die
 // Kopfzeile angehaengt (nur Kopfzellen, keine Daten), danach zurueckgelesen.
 // Kopfzeile RAW, fett, fixiert; Textformat fuer Nummern-/Datumsspalten NACH dem Schreiben der Kopfzeile (Befund LS2:
 // values.update loescht das Format beschriebener Zellen; sonst wird "2026-11-03" zum Datumswert). Danach zurueckgelesen.
@@ -23,7 +24,7 @@ const WRITE = process.argv.includes('--write');
 const REITER = [
   { tab: TAB_AUFTRAEGE, spalten: AUFTRAG_SPALTEN, text: AUFTRAG_TEXT, optional: AUFTRAG_OPTIONAL },
   { tab: TAB_POSITIONEN, spalten: POSITION_SPALTEN, text: POSITION_TEXT, optional: POSITION_OPTIONAL },
-  { tab: TAB_AUFGABEN, spalten: AUFGABE_SPALTEN, text: AUFGABE_TEXT },   // AM-4
+  { tab: TAB_AUFGABEN, spalten: AUFGABE_SPALTEN, text: AUFGABE_TEXT, optional: ['Zustaendig'] },   // AM-4, AM-5: Zustaendig hinten
   { tab: TAB_TODOS, spalten: TODO_SPALTEN, text: TODO_TEXT },            // AM-4
 ];
 

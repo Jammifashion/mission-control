@@ -9,7 +9,8 @@ import { faelligStufe } from '../utils/aufgaben.js';
 const html = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../frontend/index.html'), 'utf8');
 const ku = html.slice(html.indexOf('// ── Kunden-Liste: Anfang'), html.indexOf('// ── Kunden-Liste: Ende ──'));
 const block = html.slice(html.indexOf('// ── Auftraege-Anzeige: Anfang'), html.indexOf('// ── Auftraege-Anzeige: Ende ──'));
-const F = new Function(`${ku}\n${block}\nreturn { auFiltern, auTerminBald, auGruppen, auPositionenAnfrage, auLeisteHtml, auZeileHtml, auKundeText, auEntwurfAus, auFrei, auHerkunft, auHerkunftText, auLagerStand, auLagerJe, auLagerVorschlag, auBestandOhne, auTeilen, auKannBereitstellen, auKannZuruecknehmen, auKorbText, agLeisteHtml, agFiltern, agFuerText, agZeileHtml, tdStufe, tdVon, tdUebersicht, tdBlockHtml, tdZaehler };`)();
+const preise = html.slice(html.indexOf('// ── Auftrag-Preise: Anfang'), html.indexOf('// ── Auftrag-Preise: Ende'));   // AM-5: apFeld & Co.
+const F = new Function(`${ku}\n${preise}\n${block}\nreturn { auFiltern, auTerminBald, auGruppen, auPositionenAnfrage, auLeisteHtml, auZeileHtml, auKundeText, auEntwurfAus, auFrei, auHerkunft, auHerkunftText, auLagerStand, auLagerJe, auLagerVorschlag, auBestandOhne, auTeilen, auKannBereitstellen, auKannZuruecknehmen, auKorbText, agLeisteHtml, agFiltern, agFuerText, agZeileHtml, tdStufe, tdVon, tdUebersicht, tdBlockHtml, tdZaehler, auZustPasst, auZustHtml };`)();
 const sektion = html.slice(html.indexOf('// ── SECTION: Aufträge – Liste, Ansicht, Erfassen (AM-2) ──'), html.indexOf('// ── SECTION: Artikelerfassung ──'))
   .split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
 
@@ -67,8 +68,8 @@ describe('Auftraege-Anzeige', () => {
     const g = F.auGruppen(entwurf);
     expect(g.map(x => [x.art, x.farbe ?? x.freitext, x.stueck])).toEqual([['lshop', 'Black', 3], ['frei', 'Tassen', 10], ['lshop', 'Navy', 1]]);
     const body = F.auPositionenAnfrage(entwurf);
-    expect(body[0]).toEqual({ art: 'lshop', articleNr: '1', menge: 2, motiv: 'Wappen', druck: '', notiz: '', herkunft: 'bestellen' });
-    expect(body[2]).toEqual({ art: 'frei', freitext: 'Tassen', menge: 10, motiv: '', druck: '', notiz: '', herkunft: '' });
+    expect(body[0]).toEqual({ art: 'lshop', articleNr: '1', menge: 2, motiv: 'Wappen', druck: '', notiz: '', herkunft: 'bestellen', preis: '', aufpreis: '', aufpreisAb: '', ust: '19', ekHand: '' });
+    expect(body[2]).toEqual({ art: 'frei', freitext: 'Tassen', menge: 10, motiv: '', druck: '', notiz: '', herkunft: '', preis: '', ust: '19', ekHand: '' });
     expect(body[3].positionId).toBe('AU-2026-0001-04');
     expect(F.auEntwurfAus({ Position_ID: 'P', Art: 'lshop', LShop_ArticleNr: '1', Menge: '2', lshop: { modell: 'X', farbe: 'B', groesse: 'M' } })).toMatchObject({ positionId: 'P', menge: 2, modell: 'X' });
     expect(F.auFrei({ Status: 'Angebot' })).toBe(true);
@@ -280,5 +281,22 @@ describe('AM-4: Aufgaben und To-dos (Anzeige)', () => {
     expect(ag4).not.toMatch(/localStorage|sessionStorage|location\.hash|history\.(push|replace)State/);
     expect(ag4).toContain("tdAktion('todo/neu', ");
     expect(ag4).toContain("auPost('aufgabe/status', ");
+  });
+});
+
+describe('AM-5: Zuständig (Filter, Kennzeichen, To-dos vom Bezug)', () => {
+  test('Filter alle/Christian/Nicole/ohne; Auswahl je Zeile mit C/N', () => {
+    const l = [{ Zustaendig: 'Christian' }, { Zustaendig: 'Nicole' }, { Zustaendig: '' }, {}];
+    expect(['alle', 'Christian', 'Nicole', 'ohne'].map(f => l.filter(x => F.auZustPasst(x, f)).length)).toEqual([4, 1, 1, 2]);
+    const h = F.auZustHtml('AU-2026-0001', 'Nicole', ['Christian', 'Nicole']);
+    expect(h).toContain('data-au-zust="AU-2026-0001" data-hilfe="zust-liste"');
+    expect(h).toContain('<option value="Nicole" selected>N</option>');
+    expect(h).toContain('<option value="Christian">C</option>');
+  });
+  test('Offene To-dos nehmen das Zuständig ihres Auftrags/ihrer Aufgabe', () => {
+    const bez = new Map([['AU-2026-0001', { nr: 'AU-2026-0001', titel: 'x', offen: true, art: 'AU', zust: 'Nicole' }], ['AG-2026-0001', { nr: 'AG-2026-0001', titel: 'y', offen: true, art: 'AG', zust: '' }]]);
+    const todos = [{ Todo_ID: 'AU-2026-0001-T01', Bezug: 'AU-2026-0001', Erledigt: '', Archiviert: '' }, { Todo_ID: 'AG-2026-0001-T01', Bezug: 'AG-2026-0001', Erledigt: '', Archiviert: '' }];
+    expect(F.tdUebersicht(todos, bez, 'alle', HEUTE, 'Nicole').map(x => x.todo.Todo_ID)).toEqual(['AU-2026-0001-T01']);
+    expect(F.tdUebersicht(todos, bez, 'alle', HEUTE, 'ohne').map(x => x.todo.Todo_ID)).toEqual(['AG-2026-0001-T01']);
   });
 });

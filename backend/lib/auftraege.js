@@ -10,7 +10,9 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 import { pruefeZielStrecke, spalteBuchstabe, zeilenAbweichungen } from './sheet-zeilen.js';
 import { berlinDatum } from '../utils/berlin-tag.js';
-import { ladeLShopZeilen, lshopAuswertung } from './lshop.js';
+import { ladeLShopZeilen, lshopAuswertung, TAB_LSHOP } from './lshop.js';
+import { leseReiterSpalten } from './ssot-reiter.js';
+import { euro } from '../utils/edi-bestellung.js';
 import { leseLieferbarkeit } from './lieferbarkeitLesen.js';
 import { leseKunden } from './kunden.js';
 import { leseLager, ladePartner } from './lager.js';
@@ -19,7 +21,9 @@ import {
   TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, POSITION_OPTIONAL, AUFTRAG_OPTIONAL, brauchtHerkunftSpalten, zeilenAus,
   korbStand, wareStand, autoBestellt, ART, HERKUNFT, alsZeile, anlagePlan, bearbeitenPlan,
   statusWechsel, fertigPlan, fertigVorschlag, aktivePositionen, auftragZahlen, auftraegeAntwort, fehler,
+  PREIS_SPALTEN, ANGEBOT_SPALTEN, brauchtPreisSpalten,
 } from '../utils/auftraege.js';
+import { auftragSummen, positionAusZeile, rabattAus, angebotAbweichung, ZUSTAENDIG } from '../utils/auftrag-preise.js';
 import {
   TAB_AUFGABEN, TAB_TODOS, AUFGABE_SPALTEN, TODO_SPALTEN, VERWORFEN, istBezug, aufgabeOffen, aufgabeAnlagePlan, aufgabeBearbeitenPlan,
   aufgabeStatusWechsel, todoAnlagePlan, todoAendernPlan, todoArchivPlan, todoVerschiebenPlan, aufgabenZahlen, ohneIntern, todoAktiv,
@@ -67,7 +71,7 @@ async function lies(sheets, spreadsheetId) {
 
 // AM-4: Aufgaben + To-dos (eigene Reiter). Fehlt ein Reiter, ist er null - Lesen laeuft weiter, Schreiben meldet 409.
 const ZUSATZ = [
-  { tab: TAB_AUFGABEN, spalten: AUFGABE_SPALTEN, schluessel: 'Aufgabe_Nr' },
+  { tab: TAB_AUFGABEN, spalten: AUFGABE_SPALTEN, schluessel: 'Aufgabe_Nr', optional: ['Zustaendig'] },   // AM-5: Zustaendig hinten
   { tab: TAB_TODOS, spalten: TODO_SPALTEN, schluessel: 'Todo_ID' },
 ];
 async function liesZusatz(sheets, spreadsheetId) {
@@ -81,7 +85,7 @@ async function liesZusatz(sheets, spreadsheetId) {
       if (!(err?.code === 400 || err?.response?.status === 400)) throw err;
     }
     if (!werte) { aus[z.tab] = null; continue; }
-    const r = zeilenAus(werte, z.spalten, z.schluessel);
+    const r = zeilenAus(werte, z.spalten, z.schluessel, z.optional ?? []);
     aus[z.tab] = { werte, ...r, kaputt: !werte.length || r.fehlt.length > 0 };
   }
   return { g: aus[TAB_AUFGABEN], d: aus[TAB_TODOS] };
@@ -89,6 +93,28 @@ async function liesZusatz(sheets, spreadsheetId) {
 function brauche(x, tab) {
   if (!x || x.kaputt) throw fehler(`Reiter ${tab} fehlt oder Spalten fehlen${x?.fehlt?.length ? ` (${x.fehlt.join(', ')})` : ''} – erst scripts/setup-auftraege-reiter.js --write.`, 409, 'einrichtung');
   return x;
+}
+
+// ── AM-5: EK je ArticleNr (10CartonsPrice, LShop_Modelle) und Summen je Auftrag ──
+// Nur Anzeige in MC. EK = L-Shop-Preis ab 10 Kartons der ArticleNr (je Groesse; keine Mengenstaffel in der Quelle).
+async function leseEkJe(sheets, spreadsheetId) {
+  try {
+    const zeilen = await leseReiterSpalten({ tab: TAB_LSHOP, spalten: { articleNr: 'ArticleNr' }, optional: { preis: '10CartonsPrice', stand: 'Quelle_Datum' }, sheets, spreadsheetId });
+    return new Map(zeilen.map(z => [String(z.articleNr ?? '').trim(), { ek: euro(z.preis), stand: z.stand ?? '' }]));   // formatiert gelesen ("4,10") -> Zahl
+  } catch { return new Map(); }
+}
+/** Summen eines Auftrags aus den aktiven Positionen (Groesse aus info, EK aus ekJe). */
+function summenFuer(auftrag, aktive, info, ekJe) {
+  const eingaben = aktive.map(p => positionAusZeile(p, { groesse: info.get(p.LShop_ArticleNr)?.groesse ?? '', ekAuto: p.LShop_ArticleNr ? ekJe.get(p.LShop_ArticleNr)?.ek ?? null : null }));
+  let rabatt = null;
+  try { rabatt = rabattAus(auftrag.Rabatt); } catch { /* ungueltig im Sheet -> ohne Rabatt */ }
+  return auftragSummen(eingaben, rabatt);
+}
+/** Angebotsstand festhalten (Status "Angebot" bzw. Knopf): netto/brutto nach Rabatt (Euro) + Tag. */
+const angebotFelder = (summen, tag) => ({ Angebot_Netto: summen.nettoNach / 100, Angebot_Brutto: summen.brutto / 100, Angebot_Stand: tag });
+function pruefeSpalten(idx, spalten, was) {
+  const fehlt = spalten.filter(s => idx[s] === undefined);
+  if (fehlt.length) throw fehler(`Spalte fehlt (${fehlt.join(', ')}) – erst scripts/setup-auftraege-reiter.js --write (${was}).`, 409, 'einrichtung');
 }
 
 // ── L-Shop: waehlbare Nummern und Anzeige je Position (nur lesen) ─────────────
@@ -219,14 +245,21 @@ export async function leseAuftraege({ sheets: s, jetzt = () => new Date(), autoB
     ...(x.Korb_Schluessel ? { korb: korbStand(korbJe.get(x.Korb_Schluessel)) } : {}),
   });
   const ware = new Map();
-  const auftraege = auftraegeAntwort(a.zeilen, p.zeilen, anreichern).map(x => {
+  const ekJe = await leseEkJe(sheets, spreadsheetId);   // AM-5
+  const auftraege = auftraegeAntwort(a.zeilen, p.zeilen, x => {
+    const y = anreichern(x);
+    const e = x.LShop_ArticleNr ? ekJe.get(x.LShop_ArticleNr) : null;
+    return e ? { ...y, ekAuto: e.ek, ekStand: e.stand } : y;
+  }).map(x => {
     const akt = aktivePositionen(p.zeilen, x.Auftrag_Nr);
+    const summen = summenFuer(x, akt, info, ekJe);
     const w = wareStand(akt, korbJe);
     ware.set(x.Auftrag_Nr, w);
     return {
       ...x, vorschlagFertig: fertigVorschlag(x, akt), ware: w,
       freiOffen: akt.filter(y => y.Art === ART.FREI && !y.Herkunft).length,
       autoBestellt: gesetzt.includes(x.Auftrag_Nr),
+      preise: { ...summen, angebotGeaendert: angebotAbweichung(x, summen) },   // AM-5: Cent
     };
   });
   // AM-4: Aufgaben und To-dos (eigene Reiter); fehlen sie, leer + Kennzeichen fuer die Oberflaeche.
@@ -238,6 +271,10 @@ export async function leseAuftraege({ sheets: s, jetzt = () => new Date(), autoB
     auftraege, aufgaben: aufgaben.map(ohneIntern), todos: todos.map(ohneIntern),
     zahlen: { ...auftragZahlen(a.zeilen, jetzt().toISOString(), ware), ...aufgabenZahlen(aufgaben, todos, jetzt().toISOString(), nr => offenJe.get(nr) ?? false) },
     designSpalte: a.idx.Design_Am !== undefined,
+    // AM-5: welche Spalten es schon gibt (Oberflaeche sperrt sonst Preise/Zustaendig mit Hinweis), feste Auswahl "Zuständig"
+    spalten: { preise: PREIS_SPALTEN.every(s => p.idx[s] !== undefined), rabatt: a.idx.Rabatt !== undefined, angebot: ANGEBOT_SPALTEN.every(s => a.idx[s] !== undefined),
+      zustaendig: a.idx.Zustaendig !== undefined, zustaendigAufgaben: !!g && !g.kaputt && g.idx.Zustaendig !== undefined },
+    zustaendigAuswahl: ZUSTAENDIG,
     einrichtung: { aufgaben: !!g && !g.kaputt, todos: !!d && !d.kaputt },
   };
   if (!s) cache = { zeit: Date.now(), antwort };
@@ -266,6 +303,12 @@ export async function legeAuftragAn({ eingabe, sheets: s, jetzt = () => new Date
     const orte = await lagerOrte(sheets, spreadsheetId, eingabe?.positionen);
     const plan = anlagePlan({ auftraege: a.zeilen, positionen: p.zeilen, eingabe, waehlbar, orte, jetzt: jetzt().toISOString() });
     pruefeHerkunftSpalten(p.idx, plan.positionen);
+    if (brauchtPreisSpalten(plan.positionen)) pruefeSpalten(p.idx, PREIS_SPALTEN, 'Preise');   // AM-5
+    if (plan.auftrag.Rabatt !== undefined && plan.auftrag.Rabatt !== '') pruefeSpalten(a.idx, ['Rabatt'], 'Rabatt');
+    if (plan.auftrag.Status === 'Angebot' && a.idx.Angebot_Stand !== undefined) {   // AM-5: Angebotsstand festhalten
+      const { info } = await lshopInfo(sheets, spreadsheetId, nummernAus(plan.positionen));
+      Object.assign(plan.auftrag, angebotFelder(summenFuer(plan.auftrag, plan.positionen, info, await leseEkJe(sheets, spreadsheetId)), plan.auftrag.Anfrage_Am));
+    }
     await schreibe(sheets, spreadsheetId, { bloecke: [
       { tab: TAB_AUFTRAEGE, alt: wa, zeilen: [alsZeile(a.idx, plan.auftrag, AUFTRAG_SPALTEN, wa[0].length)] },
       { tab: TAB_POSITIONEN, alt: wp, zeilen: plan.positionen.map(x => alsZeile(p.idx, x, POSITION_SPALTEN, wp[0].length)) },
@@ -296,6 +339,8 @@ export async function bearbeiteAuftrag({ eingabe, sheets: s, jetzt = () => new D
     const orte = await lagerOrte(sheets, spreadsheetId, eingabe?.positionen);
     const plan = bearbeitenPlan({ auftrag, positionen: p.zeilen, eingabe, waehlbar, orte, jetzt: jetzt().toISOString() });
     pruefeHerkunftSpalten(p.idx, [...plan.neuePositionen, ...plan.aenderungPositionen.map(x => x.felder)]);
+    if (brauchtPreisSpalten([...plan.neuePositionen, ...plan.aenderungPositionen.map(x => x.felder)])) pruefeSpalten(p.idx, PREIS_SPALTEN, 'Preise');   // AM-5
+    if (plan.aenderungAuftrag.Rabatt !== undefined) pruefeSpalten(a.idx, ['Rabatt'], 'Rabatt');
     if (plan.unveraendert) return { ok: true, auftragNr: auftrag.Auftrag_Nr, unveraendert: true };
     if (plan.aenderungAuftrag.Kunden_Nr) await kundePruefen(plan.aenderungAuftrag.Kunden_Nr);
     await schreibe(sheets, spreadsheetId, {
@@ -311,12 +356,20 @@ export async function bearbeiteAuftrag({ eingabe, sheets: s, jetzt = () => new D
 
 /** Statuswechsel (weiter | zurueck | bezahlt | bezahlt_zurueck | stornieren | storno_zurueck). */
 export async function wechsleStatus({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
-  return mitAuftrag(eingabe, s, async ({ sheets, spreadsheetId, a, auftrag }) => {
+  return mitAuftrag(eingabe, s, async ({ sheets, spreadsheetId, a, p, auftrag }) => {
     pruefeStand(auftrag, eingabe);
     const felder = { ...statusWechsel(auftrag, String(eingabe?.aktion ?? ''), jetzt().toISOString(), { ueberspringen: !!eingabe?.ueberspringen }), Stand: jetzt().toISOString() };
     // AM-3: Schritt "Design" braucht die Spalte Design_Am - sonst klare Meldung statt still verlorenem Datum.
     if (felder.Design_Am && a.idx.Design_Am === undefined) {
       throw fehler('Spalte Design_Am fehlt in Auftraege – erst scripts/setup-auftraege-reiter.js --write (oder „Design überspringen“).', 409, 'einrichtung');
+    }
+    // AM-5: beim Wechsel auf "Angebot" Summe netto/brutto + Tag festhalten. Ohne Spalten: mit Preisen 409, ohne Preise still weiter.
+    if (felder.Status === 'Angebot') {
+      const akt = aktivePositionen(p.zeilen, auftrag.Auftrag_Nr);
+      const { info } = await lshopInfo(sheets, spreadsheetId, nummernAus(akt));
+      const summen = summenFuer(auftrag, akt, info, await leseEkJe(sheets, spreadsheetId));
+      if (ANGEBOT_SPALTEN.every(s => a.idx[s] !== undefined)) Object.assign(felder, angebotFelder(summen, felder.Angebot_Am || berlinDatum(jetzt())));
+      else if (summen.netto) pruefeSpalten(a.idx, ANGEBOT_SPALTEN, 'Angebotsstand');
     }
     await schreibe(sheets, spreadsheetId, { zellen: zellenAus(TAB_AUFTRAEGE, a.idx, auftrag._zeile, felder) });
     return { ok: true, auftragNr: auftrag.Auftrag_Nr, status: felder.Status ?? auftrag.Status };
@@ -458,5 +511,49 @@ export async function archiviereTodo({ eingabe, sheets: s, jetzt = () => new Dat
     const plan = todoArchivPlan({ todo, jetzt: jetzt().toISOString() });
     if (plan.felder) await schreibe(sheets, spreadsheetId, { zellen: zellenAus(TAB_TODOS, d.idx, todo._zeile, plan.felder) });
     return { ok: true, todoId: todo.Todo_ID, unveraendert: !plan.felder };
+  });
+}
+
+// ── AM-5: Angebotsstand aktualisieren, "Zuständig" ───────────────────────────
+
+/** Knopf "Angebotsstand aktualisieren": aktuelle Summe netto/brutto + heute festhalten (Stand wie gesehen). */
+export async function aktualisiereAngebot({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
+  return mitAuftrag(eingabe, s, async ({ sheets, spreadsheetId, a, p, auftrag }) => {
+    pruefeStand(auftrag, eingabe);
+    if (auftrag.Status === 'storniert') throw fehler(`${auftrag.Auftrag_Nr} ist storniert.`, 409, 'storniert');
+    pruefeSpalten(a.idx, ANGEBOT_SPALTEN, 'Angebotsstand');
+    const akt = aktivePositionen(p.zeilen, auftrag.Auftrag_Nr);
+    const { info } = await lshopInfo(sheets, spreadsheetId, nummernAus(akt));
+    const felder = { ...angebotFelder(summenFuer(auftrag, akt, info, await leseEkJe(sheets, spreadsheetId)), berlinDatum(jetzt())), Stand: jetzt().toISOString() };
+    await schreibe(sheets, spreadsheetId, { zellen: zellenAus(TAB_AUFTRAEGE, a.idx, auftrag._zeile, felder) });
+    return { ok: true, auftragNr: auftrag.Auftrag_Nr };
+  });
+}
+
+/**
+ * "Zuständig" (Christian · Nicole · leer) an Auftrag oder Aufgabe - einfach ueberschreiben: kein Stand-Vergleich, kein Verlauf,
+ * der Stand der Zeile bleibt (offene Fenster werden nicht ungueltig). Fehlt die Spalte -> 409.
+ */
+export async function setzeZustaendig({ eingabe, sheets: s } = {}) {
+  const nr = String(eingabe?.nr ?? '').trim();
+  const wert = String(eingabe?.zustaendig ?? '').trim();
+  if (wert && !ZUSTAENDIG.includes(wert)) throw fehler(`Zuständig: ${ZUSTAENDIG.join(', ')} oder leer.`, 422);
+  return mitSperre(async () => {
+    const sheets = s ?? await sheetsClient();
+    const spreadsheetId = sheetId();
+    if (/^AG-/.test(nr)) {
+      const g = brauche((await liesZusatz(sheets, spreadsheetId)).g, TAB_AUFGABEN);
+      const x = g.zeilen.find(z => z.Aufgabe_Nr === nr);
+      if (!x) throw fehler('Aufgabe gibt es nicht.', 404);
+      pruefeSpalten(g.idx, ['Zustaendig'], 'Zuständig in Aufgaben');
+      if (x.Zustaendig !== wert) await schreibe(sheets, spreadsheetId, { zellen: zellenAus(TAB_AUFGABEN, g.idx, x._zeile, { Zustaendig: wert }) });
+      return { ok: true, nr, zustaendig: wert };
+    }
+    const { a } = await lies(sheets, spreadsheetId);
+    const x = a.zeilen.find(z => z.Auftrag_Nr === nr);
+    if (!x) throw fehler('Auftrag gibt es nicht.', 404);
+    pruefeSpalten(a.idx, ['Zustaendig'], 'Zuständig in Aufträgen');
+    if (x.Zustaendig !== wert) await schreibe(sheets, spreadsheetId, { zellen: zellenAus(TAB_AUFTRAEGE, a.idx, x._zeile, { Zustaendig: wert }) });
+    return { ok: true, nr, zustaendig: wert };
   });
 }

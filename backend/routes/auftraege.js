@@ -4,6 +4,7 @@ import { Router } from 'express';
 import {
   leseAuftraege, legeAuftragAn, bearbeiteAuftrag, wechsleStatus, setzePositionFertig,
   legeAufgabeAn, bearbeiteAufgabe, wechsleAufgabeStatus, legeTodoAn, aendereTodo, verschiebeTodo, archiviereTodo,
+  aktualisiereAngebot, setzeZustaendig,
 } from '../lib/auftraege.js';
 import { bereitstellenVorschau, bereitstellen, zuruecknehmen } from '../lib/auftragBereitstellen.js';
 
@@ -94,5 +95,15 @@ router.post('/todo/aendern', mitMeldung(req => aendereTodo({ eingabe: req.body ?
 router.post('/todo/verschieben', mitMeldung(req => verschiebeTodo({ eingabe: req.body ?? {} })));
 // POST /todo/archivieren { todoId } - "entfernen", nie loeschen
 router.post('/todo/archivieren', mitMeldung(req => archiviereTodo({ eingabe: req.body ?? {} })));
+
+// ── AM-5: Angebotsstand, Zustaendig ───────────────────────────────────────────
+// POST /angebot { auftragNr, stand } - aktuelle Summe als Angebotsstand festhalten.
+router.post('/angebot', mitMeldung(async req => {
+  const r = await aktualisiereAngebot({ eingabe: req.body ?? {} });
+  console.log(`Auftrag ${r.auftragNr}: Angebotsstand aktualisiert`);   // nie Betraege
+  return r;
+}));
+// POST /zustaendig { nr (AU-/AG-), zustaendig: Christian | Nicole | "" }
+router.post('/zustaendig', mitMeldung(req => setzeZustaendig({ eingabe: req.body ?? {} })));
 
 export default router;

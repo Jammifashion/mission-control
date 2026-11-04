@@ -884,6 +884,20 @@ Neue Sektionen immer mit Anker versehen:
   Zuruecknehmen: Korb nur offen/abgewaehlt -> abgewaehlt, Grund "Auftrag geändert"; Lager -> Gegenbuchung (korrektur, Storno_von).
   Korb/Lager schuetzen Auftragszeilen: Korb-Bearbeiten gesperrt (`eigenGesperrtGrund`), kein "bei Ankunft ins Lager"
   (`lagerZielPlan`), keine manuelle Gegenbuchung (`planGegenbuchung`, Quelle auftrag). EDI-`reference` = AU-Nr. (Korb-Referenz).
+- backend/utils/auftrag-preise.js – Preise je Auftrag (AM-5), einzige Rechen-Stelle; Frontend-Spiegel Block `Auftrag-Preise: Anfang/Ende`
+  (Test auftrag-preise.test.js vergleicht beide). Eingabe NETTO, Rechnen in Cent, gerundet erst in der Anzeige (`euroText`). Spalten hinten
+  optional: `Auftrag_Positionen` Preis_Netto | Aufpreis_Netto | Aufpreis_Ab | USt_Satz (leer = 19) | EK_Hand, `Auftraege` Rabatt ("10%" Text
+  oder Betrag Zahl) | Angebot_Netto | Angebot_Brutto | Angebot_Stand | Zustaendig, `Aufgaben` Zustaendig. Betraege als ZAHL (RAW, `zellWert`
+  in utils/auftraege.js). Preis je Gruppe (Modell+Farbe) auf allen Groessen, Aufpreis nur L-Shop ab Groesse (`aufpreisGilt`, gleiche Klasse,
+  Vorbelegung 3XL), USt 19/7/0, Rabatt vor MwSt anteilig je Satz (`verteile`, Summe exakt). EK: `EK_Hand` vor L-Shop `10CartonsPrice` der
+  ArticleNr (je Groesse, KEINE Mengenstaffel in der Quelle; Lager/vorhanden zaehlen mit); Rohertrag nur ueber Positionen mit Preis UND EK.
+  Preise sind auch ab "bestellt" aenderbar (nur Preisfelder, `bearbeitenPlan`: Positionen sonst 409 `gesperrt`), storniert nie. Beim Wechsel
+  auf "Angebot" (und Anlage als Angebot) haelt lib/auftraege.js netto/brutto nach Rabatt + Tag fest; `angebotAbweichung` -> "geändert seit
+  Angebot", `POST /api/auftraege/angebot` aktualisiert. Fehlen Spalten: Lesen wie bisher (`spalten` in der Antwort), Schreiben 409.
+  "Zuständig" (`ZUSTAENDIG` = Christian, Nicole; leer = niemand): `POST /api/auftraege/zustaendig` { nr AU-/AG-, zustaendig }, einfach
+  ueberschreiben (Stand bleibt, kein Verlauf); Filter in Liste und "Offene To-dos" (To-dos nehmen das Merkmal ihres Bezugs).
+  **Preise/EK nie in Korb, EDI, Log, Chat** (Test). Oberflaeche: Dialog "Preise (netto)" mit Rabatt + Live-Summe, Preiszeile je Gruppe
+  (`auPreisZeileHtml`), Ansicht `auDetailPreise` (Summen, Angebotsstand, "Kalkulation zeigen" - am Handy zu), Liste "… € netto" (* = unvollstaendig).
 - backend/utils/aufgaben.js – Aufgaben (AG) und To-dos (AM-4), Lesen/Schreiben in lib/auftraege.js (gleiche Sperre, ein Schreibaufruf,
   kein append, zurueckgelesen). **Eigene Reiter** im SSOT (Bericht AM-4 Punkt 0): `Aufgaben` (Aufgabe_Nr `AG-JJJJ-NNNN`, eigener
   Zaehler | Kurztitel | Notiz | Faellig | Status offen/in Arbeit/wartet/erledigt/verworfen | Fuer_Art kunde/partner/artikel/intern |
