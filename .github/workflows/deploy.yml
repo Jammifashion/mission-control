@@ -63,11 +63,16 @@ jobs:
       - name: Configure Pages
         uses: actions/configure-pages@v5
 
+      # GH1: Artefaktname je Versuch - sonst findet deploy-pages bei "Re-run" mehrere
+      # "github-pages"-Artefakte (eins je Versuch) und bricht ab.
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: frontend/
+          name: github-pages-${{ github.run_attempt }}
 
       - name: Deploy to GitHub Pages
         id: deploy
         uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
