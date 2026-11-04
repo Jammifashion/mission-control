@@ -899,6 +899,13 @@
       .order-zf.ps-fertig { color: var(--success); }
       .ps-wartet-seit { display: inline-block; font-size: 0.75rem; font-weight: 600; padding: 0.1em 0.45em; border-radius: 4px; background: #4a3a10; color: var(--accent); white-space: nowrap; }
       .ps-bedienung { margin-bottom: 0.6rem; }
+      /* BS1: Suche in offenen Bestellungen */
+      .ps-suche-wrap { display: inline-flex; align-items: center; gap: 0.35rem; flex: 1 1 16rem; min-width: 0; }
+      .ps-suche-wrap input { flex: 1 1 auto; min-width: 0; }
+      .ps-suche-label { font-size: 0.8rem; color: var(--muted); cursor: help; }
+      .ps-suche-kopf { font-size: 0.84rem; color: var(--muted); margin: 0 0 0.6rem; }
+      .ps-treffer { font-size: 0.8rem; color: var(--accent); margin-top: 0.15rem; }
+      @media (max-width: 600px) { .ps-suche-wrap { flex-basis: 100%; } }
       @media (max-width: 600px) {
         .prod-checks { grid-template-columns: 1fr; gap: 0.15rem; }
         .prod-check-label { min-height: 40px; font-size: 0.88rem; }
@@ -1621,6 +1628,12 @@
                 <span class="korb-filter" id="ps-filter" role="group" aria-label="Bestellungen filtern">
                   <button type="button" data-pfilter="alle" data-hilfe="ps-alle" aria-pressed="true">Alle</button>
                   <button type="button" data-pfilter="wartet" data-hilfe="ps-wartet" aria-pressed="false">wartet auf Teile</button>
+                </span>
+                <!-- BS1: Suche in den geladenen offenen Bestellungen (nur im Browser, nie gespeichert, nie an den Server) -->
+                <span class="ps-suche-wrap">
+                  <label for="ps-suche" class="ps-suche-label" data-hilfe="ps-suche" tabindex="0">Suche</label>
+                  <input id="ps-suche" type="text" class="form-input" autocomplete="off" placeholder="Artikel, SKU oder Bestell-Nr." aria-label="In offenen Bestellungen suchen" />
+                  <button type="button" class="korb-link" id="ps-suche-weg" data-hilfe="ps-suche-weg" aria-label="Suche leeren" hidden>×</button>
                 </span>
               </div>
               <div class="korb-aktionen">
@@ -4753,6 +4766,32 @@
       // Karte die Zusammenfassung ("2/3 fertig · wartet auf: …"), im Filter "wartet auf Teile" dazu
       // "wartet seit". "L-Shop bestellt" und "Gedruckt" sind keine Haekchen mehr (Spalten bleiben im Sheet).
       const PS_FILTER = ['alle', 'wartet'];
+      // BS1: Suche in offenen Bestellungen - Artikelname (bei Varianten der Elternname, ohne Rueckenname), SKU,
+      // Farbe/Groesse aus den Merkmalen, Bestell-Nr. Gross/Klein egal, ae = ä. Mehrere Woerter: alle in EINER Position
+      // (oder in der Bestell-Nr.). Nur im Browser, kein Speicher, nie an den Server.
+      const psNorm = x => String(x ?? '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+        .normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+      const PS_SUCH_MERKMAL = /farbe|gr(oe|ö)(ss|ß)e|size|colou?r/i;   // nur diese Merkmale - nie Name/Nummer (Rueckenname)
+      function psPosition(li) {
+        const name = li?.parent_name || li?.name || '';
+        const merkmal = (li?.meta_data ?? []).filter(m => !String(m.key ?? '').startsWith('_') && PS_SUCH_MERKMAL.test(String(m.display_key ?? m.key ?? '')))
+          .map(m => String(m.display_value ?? m.value ?? '')).filter(Boolean);
+        return { menge: li?.quantity ?? '', name, merkmal: merkmal.join(' · '), text: psNorm([name, li?.sku, ...merkmal].join(' ')) };
+      }
+      /** { aktiv, worte, orders, treffer: Map(Bestell-ID -> Positionen) }; unter 2 Zeichen = inaktiv (alles wie vorher). */
+      function psSuche(orders, q) {
+        const worte = psNorm(q).split(/\s+/).filter(Boolean);
+        if (worte.join('').length < 2) return { aktiv: false, worte: [], orders, treffer: new Map() };
+        const treffer = new Map();
+        const aus = (orders ?? []).filter(o => {
+          const nr = psNorm(`${o.id} ${o.number ?? ''}`);
+          const pos = (o.line_items ?? []).map(psPosition).filter(p => worte.every(w => p.text.includes(w) || nr.includes(w)));
+          if (pos.length) { treffer.set(String(o.id), pos); return true; }
+          return worte.every(w => nr.includes(w));
+        });
+        return { aktiv: true, worte, orders: aus, treffer };
+      }
+      const psSucheKopf = (n, m, q) => (n ? `${n} von ${m} offenen Bestellungen enthalten „${q}“` : `Keine offene Bestellung enthält „${q}“`);
       const PS_FELDER = ['fertig', 'dtfBestellt', 'versendet'];   // Haekchen je Artikel (Felder im PUT)
       const psEsc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
       /** Varianten-Text aus den meta_data einer Shop-Position (interne Schluessel mit _ weg). */
@@ -4811,7 +4850,7 @@
       // ── Produktion-Stand: Ende ──
 
       // ── Bestellkarten rendern ─────────────────────────────────────────────
-      function renderOrderCards(orders, { stand, offen, fertigSpalte, filter }) {
+      function renderOrderCards(orders, { stand, offen, fertigSpalte, filter, treffer = new Map() }) {
         if (!orders?.length) {
           return `<p style="color:var(--muted);font-size:0.85rem;">${filter === 'wartet' ? 'Kein Auftrag wartet auf Teile.' : 'Keine offenen Bestellungen.'}</p>`;
         }
@@ -4838,6 +4877,7 @@
                   ${statusBadge(o.status)}
                   ${psZustand.trikots ? trKarteHtml(o.id, psZustand.trikots[String(o.id)]) : ''}
                   ${kopf.zeile}
+                  ${(treffer.get(String(o.id)) ?? []).map(p => `<span class="ps-treffer">${psEsc(p.menge)}× ${psEsc(p.name)}${p.merkmal ? ` · ${psEsc(p.merkmal)}` : ''}</span>`).join('')}
                 </div>
                 ${kopf.rechts}
                 <span class="order-card-toggle">▼</span>
@@ -4860,6 +4900,7 @@
       const PS_MAX_SEITEN = 5;
       const psZustand = {
         orders: [], daten: null, stand: new Map(), offen: new Set(), fehler: '', springe: '', markiert: null, trikots: null,
+        suche: '', grenze: false,   // BS1: Suchbegriff nur im Speicher der Seite
         filter: (() => { try { const f = localStorage.getItem(PS_FILTER_KEY); return PS_FILTER.includes(f) ? f : 'alle'; } catch { return 'alle'; } })(),
       };
       const psSchlank = o => ({
@@ -4896,9 +4937,12 @@
         const sicht = psSicht(psZustand.orders, psZustand.daten, psZustand.filter);
         const fehler = psZustand.fehler
           ? `<p style="color:var(--danger);font-size:0.84rem;">Stand konnte nicht geladen werden: ${psEsc(psZustand.fehler)}</p>` : '';
-        el.innerHTML = fehler + renderOrderCards(sicht, {
-          stand: psZustand.stand, offen: psZustand.offen, fertigSpalte: psZustand.daten?.fertigSpalte !== false, filter: psZustand.filter,
-        });
+        // BS1: Suche wirkt zusaetzlich zu Filter und Shop
+        const s = psSuche(sicht, psZustand.suche);
+        const kopf = s.aktiv ? `<p class="ps-suche-kopf" aria-live="polite">${psEsc(psSucheKopf(s.orders.length, sicht.length, psZustand.suche.trim()))}</p>` : '';
+        el.innerHTML = fehler + kopf + (s.aktiv && !s.orders.length ? '' : renderOrderCards(s.orders, {
+          stand: psZustand.stand, offen: psZustand.offen, fertigSpalte: psZustand.daten?.fertigSpalte !== false, filter: psZustand.filter, treffer: s.treffer,
+        }));
         // TR2: Markierung nach dem Sprung ueberlebt das zweite Zeichnen (nach dem Stand-Abruf).
         const m = psZustand.markiert;
         if (m && Date.now() < m.bis) document.getElementById(`order-card-${m.id}`)?.classList.add('tr-markiert');
@@ -4912,6 +4956,12 @@
         if (!id || !psZustand.orders.length) return;
         psZustand.springe = '';
         const karte = document.getElementById(`order-card-${id}`);
+        if (!karte && psZustand.suche && psZustand.orders.some(o => String(o.id) === id)) {   // BS1: Suche blendet das Ziel aus
+          psSucheSetzen('');
+          psZustand.springe = id;
+          psZeichnen();
+          return;
+        }
         if (!karte && psZustand.filter !== 'alle' && psZustand.orders.some(o => String(o.id) === id)) {
           psZustand.filter = 'alle';   // nur fuer jetzt, nicht in localStorage
           psZustand.springe = id;
@@ -4931,6 +4981,7 @@
         summaryEl.style.display = 'none';
         try {
           const orders = [];
+          psZustand.grenze = false;
           for (let page = 1; page <= PS_MAX_SEITEN; page++) {
             const res = await apiFetch(`${API_BASE()}/api/woocommerce/orders?per_page=100&page=${page}&status=pending,processing,on-hold`);
             const stopp = await laufStopp(res);
@@ -4939,10 +4990,12 @@
             if (!Array.isArray(liste)) throw new Error('Keine Liste vom Shop erhalten.');
             orders.push(...liste);
             if (liste.length < 100) break;
+            if (page === PS_MAX_SEITEN) psZustand.grenze = true;   // BS1: es gibt mehr, als geladen wurde
           }
           const count = orders.length;
           const total = orders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
-          summaryEl.innerHTML = `<strong>${count}</strong> offene Bestellung${count !== 1 ? 'en' : ''} &nbsp;·&nbsp; EUR <strong>${total.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> Umsatz`;
+          summaryEl.innerHTML = `<strong>${count}</strong> offene Bestellung${count !== 1 ? 'en' : ''} &nbsp;·&nbsp; EUR <strong>${total.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> Umsatz`
+            + (psZustand.grenze ? ` &nbsp;·&nbsp; <span style="color:var(--danger)" data-hilfe="ps-grenze" tabindex="0">mehr als ${PS_MAX_SEITEN * 100} – Liste und Suche zeigen nur die neuesten ${PS_MAX_SEITEN * 100}</span>` : '');
           summaryEl.style.display = '';
           psZustand.orders = orders;
           psZustand.trikots = null;
@@ -4988,6 +5041,22 @@
       }
 
       // ── Ereignisse (einmal am Container, die Karten werden neu gezeichnet) ──
+      // BS1: Suche (kurz verzoegert beim Tippen, × leert)
+      let psSucheTimer = null;
+      function psSucheSetzen(q) {
+        psZustand.suche = q;
+        const f = document.getElementById('ps-suche');
+        if (f && f.value !== q) f.value = q;
+        document.getElementById('ps-suche-weg').hidden = !q;
+      }
+      document.getElementById('ps-suche')?.addEventListener('input', ev => {
+        clearTimeout(psSucheTimer);
+        const q = ev.target.value;
+        document.getElementById('ps-suche-weg').hidden = !q;
+        psSucheTimer = setTimeout(() => { psZustand.suche = q; psZeichnen(); }, 200);
+      });
+      document.getElementById('ps-suche')?.addEventListener('keydown', ev => { if (ev.key === 'Escape' && ev.target.value) { ev.preventDefault(); psSucheSetzen(''); psZeichnen(); } });
+      document.getElementById('ps-suche-weg')?.addEventListener('click', () => { psSucheSetzen(''); psZeichnen(); document.getElementById('ps-suche').focus(); });
       document.getElementById('ps-filter')?.addEventListener('click', ev => {
         const f = ev.target.closest('[data-pfilter]')?.dataset.pfilter;
         if (!f || !PS_FILTER.includes(f)) return;
@@ -5789,6 +5858,9 @@
         'netto-summe':          { name: 'Summe netto', text: 'Einkaufswert der Auswahl (EK × Menge) und wie viel noch bis zur nächsten Versandstufe fehlt.' },
         // PS1: Bestellansicht "Bestellungen (JFN)"
         'ps-alle':              { name: 'Alle', text: 'Alle offenen Shop-Bestellungen, neueste zuerst.' },
+        'ps-suche':             { name: 'Suche', text: 'Findet offene Bestellungen mit diesem Artikel: Name, SKU, Farbe/Größe oder Bestell-Nr. Mehrere Wörter = alle.' },
+        'ps-suche-weg':         { name: '×', text: 'Leert die Suche; alle offenen Bestellungen sind wieder da.' },
+        'ps-grenze':            { name: 'Obergrenze', text: 'Es gibt mehr offene Bestellungen, als MC lädt. Liste und Suche sehen nur die neuesten.' },
         'ps-wartet':            { name: 'wartet auf Teile', text: 'Aufträge, bei denen schon etwas fertig ist und noch etwas fehlt – deine Packliste, älteste zuerst.' },
         'prod-lshop':           { name: 'L-Shop', text: 'Kommt aus dem L-Shop-Warenkorb, du musst hier nichts abhaken. Tippen öffnet den Korb bzw. die L-Shop-Bestellung.' },
         'prod-fertig':          { name: 'Fertig (im Karton)', text: 'Hak an, wenn der Artikel bedruckt und gepackt im Karton liegt, der Auftrag aber noch nicht komplett ist.' },
@@ -6020,7 +6092,7 @@
         karton: ['karton-pruefen', 'karton-angekommen', 'karton-naechster', 'karton-rest-lager', 'karton-lager-ort', 'bei-ankunft-lager'],
         bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-mehr', 'bei-ankunft-lager', 'lager-ziel-aendern', 'eb-gesperrt-bestellt', 'eb-gesperrt-geliefert', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
-        produktion: ['ps-alle', 'ps-wartet', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
+        produktion: ['ps-alle', 'ps-wartet', 'ps-suche', 'ps-suche-weg', 'ps-grenze', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],

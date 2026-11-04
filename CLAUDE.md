@@ -241,6 +241,10 @@ Neue Sektionen immer mit Anker versehen:
   als fertig. Kopf: "2/3 fertig · 1/3 versendet · wartet auf: …"; Filter "wartet auf Teile" = mind. 1 fertig und
   mind. 1 nicht, aelteste zuerst nach fruehestem Fertig_Am (sonst Bestelldatum), "wartet seit" Kalendertage
   Europe/Berlin; Filter in localStorage `mc_bestellungen_filter`. Liste laedt seitenweise (100, max. 5 Seiten).
+  BS1: Suchfeld `#ps-suche` neben dem Filter (Label "Suche" traegt den Mouse-over): `psSuche` im Block `Produktion-Stand` sucht ab 2
+  Zeichen in Elternname der Position (nie im Variantennamen - der traegt bei Trikots den Rueckennamen), SKU, Merkmale Farbe/Groesse und
+  Bestell-Nr.; ae = ä; mehrere Woerter alle in EINER Position. Wirkt auf die Sicht des Filters; Kopf "n von m offenen Bestellungen
+  enthalten ‚…‘", Treffer-Zeile je Karte. Nur im Speicher der Seite. Mehr als 500 offene -> Hinweis `ps-grenze`.
 - backend/lib/lshopKorb.js – L-Shop-Warenkorb (BO2), Logik in `utils/korb-logic.js`. Reiter
   `Warenkorb_LShop` (SSOT) ist ein STEHENDER Bestand: jede L-Shop-bestellfaehige Shop-Position eine
   Zeile, Schluessel `JFN:<Bestellnummer>:<Position>`, Spalte Shop von Anfang an. Abgleich
