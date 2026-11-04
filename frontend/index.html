@@ -321,6 +321,23 @@
       .orders-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--border); }
       .orders-table tr:last-child td { border-bottom: none; }
 
+      /* PP1: Startkacheln (wie die MC-Hauptkacheln, am Handy 2 x 2) */
+      .pk-raster { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.6rem; }
+      .pk-kachel { display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; padding: 0.9rem 1rem; min-height: 96px; text-align: left;
+        background: #16243a; border: 1px solid #2c4a73; border-radius: 10px; color: #b9cdea; cursor: pointer; font: inherit; }
+      .pk-kachel:hover, .pk-kachel:focus-visible { border-color: #5b93f0; }
+      .pk-zahl { font-size: 1.6rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; line-height: 1.1; overflow-wrap: anywhere; }
+      .pk-label { font-size: 0.85rem; }
+      .pk-klein { font-size: 0.74rem; opacity: 0.8; }
+      .pk-saldo.pk-plus .pk-zahl { color: #4caf50; }
+      .pk-saldo.pk-minus .pk-zahl { color: #f44336; }
+      .pk-details .pk-zahl { color: #b9cdea; }
+      .pk-info-zeile { margin-top: 0.4rem; font-size: 0.82rem; }
+      .pk-info-knopf { background: none; border: 1px solid #2c4a73; border-radius: 999px; color: #b9cdea; width: 28px; height: 28px; cursor: pointer; }
+      .pk-info { margin: 0.4rem 0 0; color: #999; max-width: 46rem; }
+      @media (max-width: 600px) { .pk-raster { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pk-zahl { font-size: 1.35rem; } }
+      .pk-wahl { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.6rem; font-size: 0.85rem; color: var(--muted); }
+      #pk-mc { margin-bottom: 1rem; }
       /* ── Sub-tabs (Auftragsmonitor) ── */
       /* Jede Reiterzeile scrollt fuer sich waagrecht (Handy), nicht die ganze Seite. */
       .sub-tabs { display: flex; gap: 0; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
@@ -2534,6 +2551,10 @@
               <h2>Partner</h2>
               <button class="btn" id="btn-add-partner" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="partner-neu">+ Partner hinzufügen</button>
             </div>
+            <!-- PP1: Zahlen eines Partners auf einen Blick (dieselben Kacheln wie im Portal) -->
+            <div class="pk-wahl"><label data-hilfe="pk-wahl" tabindex="0">Partner auf einen Blick</label>
+              <select id="pk-partner" class="form-select" aria-label="Partner wählen"><option value="">Partner wählen …</option></select></div>
+            <div id="pk-mc"></div>
             <div id="partner-list-wrap"><div class="skeleton" style="height:80px;"></div></div>
           </div>
         </div>
@@ -5678,6 +5699,12 @@
         'dialog-speichern':      { name: 'Speichern / Hinzufügen', text: 'Speichert die Eingaben dieses Dialogs im Sheet. Ändern geht später über „Bearbeiten“.' },
         'liste-bearbeiten':      { name: 'Bearbeiten', text: 'Öffnet diese Zeile in einem Dialog. Gespeichert wird erst dort.' },
         'zeile-speichern':       { name: 'Speichern (Zeile)', text: 'Speichert die geänderten Werte dieser Zeile im Sheet.' },
+        'pk-wahl':               { name: 'Partner auf einen Blick', text: 'Zeigt die Zahlen eines Partners wie in seinem Portal: Bestellungen, interne Bestellungen, Saldo.' },
+        'pk-bestellungen':       { name: 'Bestellungen', text: 'Shop-Bestellungen mit Artikeln des Partners seit der letzten Abrechnung. Klick: Verkäufe.' },
+        'pk-intern':             { name: 'Interne Bestellungen', text: 'Offene interne Bestellungen des Partners seit der letzten Abrechnung. Klick: interne Bestellungen.' },
+        'pk-saldo':              { name: 'Saldo', text: 'Lizenzanteile (inkl. MwSt) minus interne Bestellungen, noch nicht abgerechnet. Grün bekommt, rot schuldet.' },
+        'pk-details':            { name: 'Details', text: 'Öffnet die bisherige Ansicht mit allen Einzelheiten.' },
+        'pk-info':               { name: 'ⓘ Saldo', text: 'Erklärt kurz, wie der Saldo gerechnet wird.' },
         'link-kopieren':         { name: 'Link kopieren', text: 'Kopiert den Portal-Link dieses Partners in die Zwischenablage. Es wird nichts geändert.' },
         'token-neu':             { name: 'Token gen.', text: 'Erzeugt einen neuen Zugang zum Partnerportal und speichert ihn im Sheet. Der alte Link geht dann nicht mehr.' },
         'nav-bereich':           { name: 'Bereich', text: 'Öffnet diesen Bereich. Seine Unterpunkte stehen darunter.' },
@@ -6080,7 +6107,7 @@
         'auftragsmonitor': ['wc-erledigt', 'tab-offen', 'tab-protokoll', 'mon-fulfillment', 'dtf-sammel', 'dtf-bestellt', 'lshop-alt-sammel', 'lshop-alt-bestellt', 'korb-aeltere'],
         'artikel': ['modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
         'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
-        'partner': ['fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'token-neu', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
+        'partner': ['pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'token-neu', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
         'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'fp-preis-loeschen'],
         'anfragen': ['anf-neu', 'anf-aktualisieren', 'anf-anlegen', 'anf-speichern'],
         'assistent': ['aw-eintrag-neu', 'aw-eintrag-speichern', 'aw-prompt-speichern', 'aw-prompt-standard', 'aw-prompt-zeigen', 'aw-test-senden', 'aw-test-neu'],
@@ -16933,6 +16960,53 @@
       }
 
       // ── SECTION: Partnerportal ──
+      // ── Partner-Kacheln: Anfang (wortgleich in index.html und partner.html, Test partner-kacheln.test.js) ──
+      // PP1: Startkacheln eines Lizenzpartners aus GET /api/partner/kacheln bzw. /api/kalkulation/partner/:id/kacheln.
+      // Saldo > 0 = bekommt noch (gruen), < 0 = schuldet noch (rot). saldoKachel false (Partner-Spalte Saldo_Kachel = nein) -> ohne Saldo.
+      const pkEuro = n => Number(n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+      const pkEsc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+      function pkSaldoText(saldo) {
+        if (saldo > 0) return { klasse: 'pk-plus', wort: 'bekommst du noch', betrag: pkEuro(saldo) };
+        if (saldo < 0) return { klasse: 'pk-minus', wort: 'schuldest du noch', betrag: `−${pkEuro(Math.abs(saldo))}` };
+        return { klasse: '', wort: 'ausgeglichen', betrag: pkEuro(0) };
+      }
+      function pkKachelnHtml(k) {
+        const seit = k.seit ? `seit ${pkEsc(k.seit)}` : 'seit Beginn';
+        const s = pkSaldoText(k.saldo);
+        const ohne = k.internOhneBetrag ? `<span class="pk-klein">${k.internOhneBetrag} ohne Betrag</span>` : '';
+        return '<div class="pk-raster">'
+          + `<button type="button" class="pk-kachel" data-pk-ziel="verkaeufe" data-hilfe="pk-bestellungen"><span class="pk-zahl">${Number(k.bestellungen) || 0}</span><span class="pk-label">Bestellungen</span><span class="pk-klein">${seit}</span></button>`
+          + `<button type="button" class="pk-kachel" data-pk-ziel="intern" data-hilfe="pk-intern"><span class="pk-zahl">${Number(k.intern) || 0}</span><span class="pk-label">Interne Bestellungen</span>${ohne}</button>`
+          + (k.saldoKachel === false ? ''
+            : `<button type="button" class="pk-kachel pk-saldo ${s.klasse}" data-pk-ziel="saldo" data-hilfe="pk-saldo"><span class="pk-zahl">${s.betrag}</span><span class="pk-label">Saldo · ${s.wort}</span><span class="pk-klein">${seit}</span></button>`)
+          + '<button type="button" class="pk-kachel pk-details" data-pk-ziel="details" data-hilfe="pk-details"><span class="pk-zahl">›</span><span class="pk-label">Details</span></button>'
+          + '</div>'
+          + (k.saldoKachel === false ? '' : '<div class="pk-info-zeile"><button type="button" class="pk-info-knopf" data-pk-info aria-expanded="false" aria-label="Wie wird der Saldo gerechnet?" data-hilfe="pk-info">ⓘ</button>'
+            + `<p class="pk-info" hidden>Saldo = deine Lizenzanteile aus Shop-Verkäufen (inkl. MwSt) minus deine internen Bestellungen – alles, was noch nicht abgerechnet ist (${seit}). `
+            + `Positiv: das bekommst du noch. Negativ: das schuldest du noch.${k.internOhneBetrag ? ' Interne Bestellungen ohne Betrag zählen hier mit 0.' : ''}</p></div>`);
+      }
+      // ── Partner-Kacheln: Ende ──
+      // PP1: Auswahl "Partner auf einen Blick" - Kacheln aus GET /api/kalkulation/partner/:id/kacheln (shop haengt apiFetch an).
+      async function pkMcLaden(id) {
+        const el = document.getElementById('pk-mc');
+        if (!id) { el.innerHTML = ''; return; }
+        el.innerHTML = '<div class="skeleton" style="height:96px;"></div>';
+        try {
+          const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/partner/${encodeURIComponent(id)}/kacheln`);
+          const j = await r.json();
+          if (!r.ok) throw new Error(j?.error || r.statusText);
+          el.innerHTML = pkKachelnHtml(j);
+        } catch (e) { el.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Zahlen nicht geladen: ${pkEsc(e.message)}</p>`; }
+      }
+      document.getElementById('pk-partner').addEventListener('change', e => pkMcLaden(e.target.value));
+      document.getElementById('pk-mc').addEventListener('click', ev => {
+        const info = ev.target.closest('[data-pk-info]');
+        if (info) { const t = info.parentElement.querySelector('.pk-info'); t.hidden = !t.hidden; info.setAttribute('aria-expanded', String(!t.hidden)); return; }
+        const k = ev.target.closest('[data-pk-ziel]');
+        if (!k) return;
+        const tab = { verkaeufe: 'verkaeufe', intern: 'intern', saldo: 'abrechnungen', details: 'verkaeufe' }[k.dataset.pkZiel];
+        document.querySelector(`#panel-partnerportal .sub-tab[data-ptab="${tab}"]`)?.click();
+      });
       document.querySelectorAll('#panel-partnerportal .sub-tab').forEach(btn => {
         btn.addEventListener('click', () => {
           document.querySelectorAll('#panel-partnerportal .sub-tab').forEach(b => b.classList.remove('active'));
@@ -16969,6 +17043,13 @@
         wrap.innerHTML = '<div class="skeleton" style="height:80px;"></div>';
         try {
           _ppPartners = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/partner`).then(r => r.json());
+          // PP1: Auswahl fuer die Kacheln (nur Partner-ID + Name, Auswahl bleibt beim Neuladen)
+          const pkSel = document.getElementById('pk-partner');
+          if (pkSel) {
+            const alt = pkSel.value;
+            pkSel.innerHTML = '<option value="">Partner wählen …</option>' + (_ppPartners ?? []).map(p => `<option value="${pkEsc(p.id)}">${pkEsc(p.id)} · ${pkEsc(p.name)}</option>`).join('');
+            if (alt && _ppPartners.some(p => p.id === alt)) pkSel.value = alt;
+          }
           if (!_ppPartners.length) {
             wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Noch keine Partner erfasst.</p>';
             return;

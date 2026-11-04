@@ -10,6 +10,7 @@ import { toFloat, toDE, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, buil
 import { sichereSpalte } from '../utils/sheet-spalten.js';
 import { notify, buildPartnerNachricht } from '../lib/chatNotify.js';
 import { requireHeader } from '../utils/sheet-headers.js';
+import { saldoRechnung, partnerKacheln } from '../utils/partner-saldo.js';
 
 const router = Router();
 
@@ -817,7 +818,6 @@ router.get('/saldo', async (req, res, next) => {
     ]);
     await migrateNeuStatus(sheets, sheetId, internTab.header, internTab.rows);
 
-    const round2 = n => Math.round(n * 100) / 100;
     const mwstProzent = parseKonfiguration(konfigTab.rows, konfigTab.header).mwstProzent;
 
     const vh = col => verkäufeTab.header.indexOf(col);
@@ -830,21 +830,53 @@ router.get('/saldo', async (req, res, next) => {
       .filter(r => r[ih('Partner-ID')] === partnerId && (r[ih('Status')] ?? '') === 'offen')
       .reduce((s, r) => s + toFloat(r[ih('Summe')]), 0);
 
-    // Lizenz brutto (netto + MwSt), davon interne (brutto) abziehen.
-    const lizenzBrutto = round2(lizenzNetto * (1 + mwstProzent / 100));
-    const saldoBrutto  = round2(lizenzBrutto - interneSumme);
-    const saldoNetto   = round2(saldoBrutto / (1 + mwstProzent / 100));
+    // PP1: dieselbe Rechnung wie Abrechnung und Kacheln (utils/partner-saldo.js).
+    const s = saldoRechnung({ lizenzNetto, interneSumme, mwstProzent });
     res.json({
       mwstProzent,
-      lizenzNetto:  round2(lizenzNetto),
-      lizenzBrutto,
-      lizenzSumme:  round2(lizenzNetto),   // Rückwärtskompatibel (netto)
-      interneSumme: round2(interneSumme),
-      saldoNetto,
-      saldo:        saldoBrutto,            // Saldo jetzt brutto
+      lizenzNetto:  s.lizenzNetto,
+      lizenzBrutto: s.lizenzBrutto,
+      lizenzSumme:  s.lizenzNetto,   // Rückwärtskompatibel (netto)
+      interneSumme: s.interneSumme,
+      saldoNetto:   s.saldoNetto,
+      saldo:        s.saldo,          // Saldo jetzt brutto
     });
   } catch (err) { next(err); }
 });
+
+// ── PP1: GET /api/partner/kacheln ────────────────────────────────────────────
+// Startkacheln des Portals: Bestellungen · Interne Bestellungen · Saldo (seit der letzten Abrechnung = Status offen).
+// Nur lesen, nur Zeilen des Token-Partners. Keine Betraege ins Log.
+router.get('/kacheln', async (req, res, next) => {
+  try {
+    const token = extractToken(req);
+    if (!token) return res.status(401).json({ error: 'token fehlt.' });
+    const { partnerId } = await resolvePartner(token);
+    res.json(await leseKacheln({ partnerId, shop: req.query.shop }));
+  } catch (err) { next(err); }
+});
+
+/** Kacheln eines Partners (Portal und MC-Admin). Liest Verkaeufe/Abrechnungen des Shops, interne Bestellungen, Partner, Fixkosten. */
+export async function leseKacheln({ partnerId, shop, sheets: s }) {
+  const sheetId = process.env.BUSINESS_SHEET_ID;
+  if (!sheetId) throw Object.assign(new Error('BUSINESS_SHEET_ID nicht konfiguriert.'), { status: 503 });
+  const sheets = s ?? await getSheets();
+  const cfg = getShopConfig(shop);
+  const [verkaeufe, intern, abrechnungen, partner, konfig] = await Promise.all([
+    readTab(sheets, sheetId, cfg.tabVerkaeufe), readTab(sheets, sheetId, 'Partner_Interne_Bestellungen'),
+    readTab(sheets, sheetId, cfg.tabAbrechnungen), readTab(sheets, sheetId, 'Partner'), readTab(sheets, sheetId, 'Kalkulation_Fixkosten'),
+  ]);
+  const { mwstProzent } = parseKonfiguration(konfig.rows, konfig.header);
+  return partnerKacheln({ partnerId, tabs: { verkaeufe, intern, abrechnungen, partner }, mwstProzent, hilfen: { toFloat, parseDate: kachelDatum, toDE } });
+}
+// TT.MM.JJJJ (wie die Reiter) oder ISO -> Date (lokal Mitternacht); sonst null
+function kachelDatum(s) {
+  const t = String(s ?? '').trim();
+  let m = t.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (m) return new Date(+m[3], +m[2] - 1, +m[1]);
+  m = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+}
 
 // ── GET /api/partner/abrechnungen ────────────────────────────────────────────
 // Partner sieht nur freigegebene oder bezahlte Abrechnungen (keine Entwürfe).

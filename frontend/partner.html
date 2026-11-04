@@ -102,6 +102,22 @@
     .ea-adresse { display: flex; flex-direction: column; gap: 0.5rem; }
     .ea-msg-ok { background: rgba(76,175,80,0.12); border: 1px solid rgba(76,175,80,0.4); color: var(--success); padding: 0.7rem 1rem; border-radius: 6px; font-size: 0.88rem; }
     .ea-msg-err { background: rgba(244,67,54,0.1); border: 1px solid rgba(244,67,54,0.35); color: var(--danger); padding: 0.7rem 1rem; border-radius: 6px; font-size: 0.88rem; }
+    /* PP1: Startkacheln (wie die MC-Hauptkacheln, am Handy 2 x 2) */
+    .pk-raster { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.6rem; }
+    .pk-kachel { display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; padding: 0.9rem 1rem; min-height: 96px; text-align: left;
+      background: #16243a; border: 1px solid #2c4a73; border-radius: 10px; color: #b9cdea; cursor: pointer; font: inherit; }
+    .pk-kachel:hover, .pk-kachel:focus-visible { border-color: #5b93f0; }
+    .pk-zahl { font-size: 1.6rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; line-height: 1.1; overflow-wrap: anywhere; }
+    .pk-label { font-size: 0.85rem; }
+    .pk-klein { font-size: 0.74rem; opacity: 0.8; }
+    .pk-saldo.pk-plus .pk-zahl { color: #4caf50; }
+    .pk-saldo.pk-minus .pk-zahl { color: #f44336; }
+    .pk-details .pk-zahl { color: #b9cdea; }
+    .pk-info-zeile { margin-top: 0.4rem; font-size: 0.82rem; }
+    .pk-info-knopf { background: none; border: 1px solid #2c4a73; border-radius: 999px; color: #b9cdea; width: 28px; height: 28px; cursor: pointer; }
+    .pk-info { margin: 0.4rem 0 0; color: #999; max-width: 46rem; }
+    @media (max-width: 600px) { .pk-raster { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pk-zahl { font-size: 1.35rem; } }
+    #pv-details[hidden] { display: none; }
   </style>
 </head>
 <body>
@@ -180,6 +196,33 @@
       return { offen: 'badge-offen', abgerechnet: 'badge-abgerechnet',
                angefordert: 'badge-angefordert', geprüft: 'badge-geprueft', bezahlt: 'badge-bezahlt' }[s] ?? '';
     }
+
+// ── Partner-Kacheln: Anfang (wortgleich in index.html und partner.html, Test partner-kacheln.test.js) ──
+    // PP1: Startkacheln eines Lizenzpartners aus GET /api/partner/kacheln bzw. /api/kalkulation/partner/:id/kacheln.
+    // Saldo > 0 = bekommt noch (gruen), < 0 = schuldet noch (rot). saldoKachel false (Partner-Spalte Saldo_Kachel = nein) -> ohne Saldo.
+    const pkEuro = n => Number(n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+    const pkEsc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+    function pkSaldoText(saldo) {
+      if (saldo > 0) return { klasse: 'pk-plus', wort: 'bekommst du noch', betrag: pkEuro(saldo) };
+      if (saldo < 0) return { klasse: 'pk-minus', wort: 'schuldest du noch', betrag: `−${pkEuro(Math.abs(saldo))}` };
+      return { klasse: '', wort: 'ausgeglichen', betrag: pkEuro(0) };
+    }
+    function pkKachelnHtml(k) {
+      const seit = k.seit ? `seit ${pkEsc(k.seit)}` : 'seit Beginn';
+      const s = pkSaldoText(k.saldo);
+      const ohne = k.internOhneBetrag ? `<span class="pk-klein">${k.internOhneBetrag} ohne Betrag</span>` : '';
+      return '<div class="pk-raster">'
+        + `<button type="button" class="pk-kachel" data-pk-ziel="verkaeufe" data-hilfe="pk-bestellungen"><span class="pk-zahl">${Number(k.bestellungen) || 0}</span><span class="pk-label">Bestellungen</span><span class="pk-klein">${seit}</span></button>`
+        + `<button type="button" class="pk-kachel" data-pk-ziel="intern" data-hilfe="pk-intern"><span class="pk-zahl">${Number(k.intern) || 0}</span><span class="pk-label">Interne Bestellungen</span>${ohne}</button>`
+        + (k.saldoKachel === false ? ''
+          : `<button type="button" class="pk-kachel pk-saldo ${s.klasse}" data-pk-ziel="saldo" data-hilfe="pk-saldo"><span class="pk-zahl">${s.betrag}</span><span class="pk-label">Saldo · ${s.wort}</span><span class="pk-klein">${seit}</span></button>`)
+        + '<button type="button" class="pk-kachel pk-details" data-pk-ziel="details" data-hilfe="pk-details"><span class="pk-zahl">›</span><span class="pk-label">Details</span></button>'
+        + '</div>'
+        + (k.saldoKachel === false ? '' : '<div class="pk-info-zeile"><button type="button" class="pk-info-knopf" data-pk-info aria-expanded="false" aria-label="Wie wird der Saldo gerechnet?" data-hilfe="pk-info">ⓘ</button>'
+          + `<p class="pk-info" hidden>Saldo = deine Lizenzanteile aus Shop-Verkäufen (inkl. MwSt) minus deine internen Bestellungen – alles, was noch nicht abgerechnet ist (${seit}). `
+          + `Positiv: das bekommst du noch. Negativ: das schuldest du noch.${k.internOhneBetrag ? ' Interne Bestellungen ohne Betrag zählen hier mit 0.' : ''}</p></div>`);
+    }
+    // ── Partner-Kacheln: Ende ──
 
     function showError(msg) {
       main.innerHTML = `
@@ -481,7 +524,12 @@
         return;
       }
 
+      // PP1: zuerst die Startkacheln; die bisherigen Karten stehen unveraendert unter "Details".
       main.innerHTML = `
+        <div class="card" id="pv-kacheln-karte">
+          <div id="pv-kacheln"><div class="skeleton" style="height:96px;"></div></div>
+        </div>
+        <div id="pv-details" hidden>
         <div class="card">
           <div class="card-header">
             <h2>Meine Verkäufe</h2>
@@ -540,7 +588,9 @@
             <h2>Meine Abrechnungen</h2>
           </div>
           <div id="pv-abrechnungen"><div class="skeleton"></div></div>
+        </div>
         </div>`;
+      ladeKacheln();
 
       document.getElementById('btn-refresh-verkaeufe').addEventListener('click', () => {
         loadVerkaeufe();
@@ -552,6 +602,28 @@
 
       await Promise.all([loadVerkaeufe(), loadIntern(), loadSaldo(), loadAbrechnungen()]);
     }
+
+    // PP1: Kacheln laden; Klick zeigt die Details und springt zur passenden Karte.
+    async function ladeKacheln() {
+      const wrap = document.getElementById('pv-kacheln');
+      try {
+        wrap.innerHTML = pkKachelnHtml(await apiGet('/api/partner/kacheln'));
+      } catch (e) {
+        wrap.innerHTML = `<p style="color:var(--muted);font-size:0.85rem;">Übersicht gerade nicht verfügbar – die Details stehen darunter.</p>`;
+        document.getElementById('pv-details').hidden = false;
+      }
+    }
+    document.addEventListener('click', ev => {
+      const info = ev.target.closest('[data-pk-info]');
+      if (info) { const t = info.parentElement.querySelector('.pk-info'); t.hidden = !t.hidden; info.setAttribute('aria-expanded', String(!t.hidden)); return; }
+      const k = ev.target.closest('[data-pk-ziel]');
+      if (!k) return;
+      const details = document.getElementById('pv-details');
+      details.hidden = false;
+      const ziel = { verkaeufe: 'pv-verkaeufe', intern: 'pv-intern', saldo: 'pv-saldo', details: 'pv-details' }[k.dataset.pkZiel];
+      const el = document.getElementById(ziel);
+      (el?.closest('.card') ?? el)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
 
     init();
   </script>

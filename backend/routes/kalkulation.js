@@ -9,6 +9,8 @@ import {
 import { requireHeader, findHeader } from '../utils/sheet-headers.js';
 import { colLetter, sichereSpalte } from '../utils/sheet-spalten.js';
 import { abrechnungHinweise } from '../utils/sync-logic.js';
+import { saldoRechnung } from '../utils/partner-saldo.js';
+import { leseKacheln } from './partnerPortal.js';
 import { berechnePartnerAnteil, parseKonfiguration, istBekanntePosition, baueLizenzSaetze, lizenzSatzAusZeile, parseVertragAb, baueVertragsbeginne } from '../utils/partner-kalkulation.js';
 
 const router = Router();
@@ -268,6 +270,17 @@ router.patch('/partner/:id', async (req, res, next) => {
 
 // ── POST /api/kalkulation/partner-verkauf ────────────────────────────────────
 // Einen Verkauf für einen Partner erfassen
+// ── PP1: GET /api/kalkulation/partner/:id/kacheln?shop= ──────────────────────
+// Dieselben Startkacheln wie im Portal (Bestellungen, interne Bestellungen, Saldo seit der letzten Abrechnung),
+// fuer die Ansicht in MC unter Partner -> Lizenzpartner. Nur lesen.
+router.get('/partner/:id/kacheln', async (req, res, next) => {
+  try {
+    const partnerId = String(req.params.id ?? '').trim();
+    if (!/^P-\d{3,}$/.test(partnerId)) return res.status(400).json({ error: 'Partner-ID P-NNN erwartet.' });
+    res.json(await leseKacheln({ partnerId, shop: req.query.shop }));
+  } catch (err) { next(err); }
+});
+
 router.post('/partner-verkauf', async (req, res, next) => {
   try {
     const sheetId = process.env.BUSINESS_SHEET_ID;
@@ -374,14 +387,12 @@ router.post('/abrechnung/vorschau', async (req, res, next) => {
         summe:       toFloat(row[ih('Summe')]),
       }));
 
-    const round2 = n => Math.round(n * 100) / 100;
     const mwstProzent  = parseKonfiguration(konfigTab.rows, konfigTab.header).mwstProzent;
     const lizenzNetto  = verkaeufe.reduce((s, v) => s + v.lizenz, 0);
     const interneSumme = intern.reduce((s, i) => s + i.summe, 0);
-    // Lizenz brutto (netto + MwSt), davon interne (brutto) abziehen.
-    const lizenzBrutto = round2(lizenzNetto * (1 + mwstProzent / 100));
-    const saldoBrutto  = round2(lizenzBrutto - interneSumme);
-    const saldoNetto   = round2(saldoBrutto / (1 + mwstProzent / 100));
+    // PP1: dieselbe Rechnung wie Portal und Kacheln (utils/partner-saldo.js).
+    const sr = saldoRechnung({ lizenzNetto, interneSumme, mwstProzent });
+    const { lizenzBrutto, saldoNetto } = sr, saldoBrutto = sr.saldo;
 
     res.json({
       partnerId,
@@ -389,10 +400,10 @@ router.post('/abrechnung/vorschau', async (req, res, next) => {
       verkaeufe,
       intern,
       mwstProzent,
-      lizenzNetto:  round2(lizenzNetto),
+      lizenzNetto:  sr.lizenzNetto,
       lizenzBrutto,
-      lizenzSumme:  round2(lizenzNetto),   // Rückwärtskompatibel (netto)
-      interneSumme: round2(interneSumme),
+      lizenzSumme:  sr.lizenzNetto,   // Rückwärtskompatibel (netto)
+      interneSumme: sr.interneSumme,
       saldoNetto,
       saldo:        saldoBrutto,            // Saldo jetzt brutto
       hinweise:            hinweis.hinweise,
@@ -585,8 +596,8 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
     // Lizenz brutto (netto + MwSt), davon interne (brutto) abziehen → Saldo brutto.
     const round2 = n => Math.round(n * 100) / 100;
     const mwstProzent  = konfiguration.mwstProzent;
-    const lizenzBrutto = round2(lizenzSumme * (1 + mwstProzent / 100));
-    const saldo        = round2(lizenzBrutto - interneSumme);
+    // PP1: dieselbe Rechnung wie Portal und Kacheln (utils/partner-saldo.js).
+    const { lizenzBrutto, saldo } = saldoRechnung({ lizenzNetto: lizenzSumme, interneSumme, mwstProzent });
 
     // Neue Abrechnungs-ID
     const abIdIdx    = abrechnungenTab.header.indexOf('Abrechnungs-ID');

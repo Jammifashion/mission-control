@@ -516,6 +516,14 @@ Neue Sektionen immer mit Anker versehen:
   oder mehrfach -> `ArchivKonflikt`. Nie loeschen, ueberschreiben, Papierkorb, Freigaben (Quelltext-Test
   beleg-archiv.test.js).
 - backend/routes/partnerPortal.js – Token-Auth für partner.html + WC-Sync
+  PP1: Startkacheln `GET /api/partner/kacheln` (Token) und `GET /api/kalkulation/partner/:id/kacheln` (Admin, MC unter Partner ->
+  Lizenzpartner, Auswahl "Partner auf einen Blick"), beide ueber `leseKacheln` -> `partnerKacheln` (utils/partner-saldo.js): Bestellungen =
+  Order-IDs mit offenen/gesperrten Zeilen (netto Stueck > 0), interne = offene (Neu = offen, ohne zu schreiben; leere Summe = 0 + "n ohne
+  Betrag"), "seit" = groesstes Zeitraum-Bis der Abrechnungen + 1 Tag, sonst Vertrag-ab. **Saldo nur ueber `saldoRechnung`** - dieselbe
+  Funktion nutzen `/api/partner/saldo` und Abrechnung vorschau/erstellen (keine zweite Formel). Optionale Spalte `Saldo_Kachel` im Reiter
+  Partner ("nein" blendet NUR die Kachel aus; Setup `scripts/setup-partner-saldo-kachel.js`, P-012 = nein). Frontend-Baustein Block
+  `Partner-Kacheln: Anfang/Ende` wortgleich in partner.html und index.html (Test partner-kacheln.test.js); im Portal stehen die bisherigen
+  Karten unveraendert unter "Details" (`#pv-details`).
 - backend/routes/anfragen.js – Kundenanfragen Admin (POST /neu, GET /, PATCH /:id/status) – hinter requireApiKey
 - backend/routes/anfragen-chat.js – Chat-Widget public endpoint (POST /chat, kein API-Key) – vor requireApiKey
 - frontend/anfrage.html – Standalone Chat-Widget für Kunden (GitHub Pages, kein MC-Design)
