@@ -142,6 +142,13 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   Browser-Speicher, keine Adresse, nie an den Server). Dialog `#ku-dialog`: Quelle lexoffice = nur Spitzname/Ansprechpartner/Notiz aenderbar;
   Archivieren mit Bestaetigung; DSGVO = `showConfirm` + Kunden-Nr. eintippen (`#ku-dsgvo-schritt`). Toasts nur Kunden-Nr.
   Hilfe-Gruppe `auftraege`.
+  AMQ1: Dashboard-Kachel -> `auftraege/liste` (offen), Teilzahlen mit Filter (`AU_KACHEL_ZIEL`). Positionen erst ab "bestellt"
+  Pflicht (`POSITIONEN_PFLICHT_AB`, 422 `ohne_positionen`), davor Hinweis `#au-pos-leer`. Dialog: Kopf -> Positionen -> unten
+  `#au-preis-block`. `Preis_Eingabe` (brutto | leer = netto) + `Design_Link` (nur https) hinten in Auftraege. Brutto-Eingabe:
+  Netto bis 4 Nachkommastellen (`nettoAusBrutto`/`apNettoAusBrutto`), Cent mit Bruchteil, gerundet erst je Steuersatz
+  (MwSt = round(brutto) - round(netto)) - ein brutto getippter Preis kommt genau wieder heraus. Entwurf haelt unberuehrte Preise
+  als Zahl (`auNettoRoh`). Angefangene freie Position/Raster wird beim Speichern uebernommen (`auOffeneEingaben`), Enter uebernimmt.
+  API-Schluessel in eigenem `<form id="api-key-form">`, Feld nie vorbelegt (sonst "Passwort speichern?" bei jeder Eingabe).
   AM-1-1: Knopf "In Lexoffice suchen …" = Baustein `kuKundeSuchen({ q, beiAuswahl })` (auch `window.kuKundeSuchen`; AM-2 nutzt
   ihn im Dialog "Auftrag anlegen": lokal -> Lexoffice -> "+ Neuer Kunde in MC"). Dialog `#kl-dialog`, Block `Lexoffice-Treffer:
   Anfang/Ende` (Test kunden-einzeln.test.js); Suche per POST, Treffer nur im Dialog. Unterpunkte: Aufträge vor Kunden (Inhaber). Dashboard-Kachel `#dash-auftraege` (Block
