@@ -6266,7 +6266,7 @@
         'dash-auftraege':       { name: 'Aufträge', text: 'Offene Aufträge, Termine, fertig/nicht bezahlt, überfällige To-dos, offene Aufgaben. Klick öffnet Aufträge.' },
         'dash-au-zeile':        { name: 'Teilzahl', text: 'Öffnet Aufträge bzw. To-dos gleich mit diesem Filter.' },
         'au-design-link':       { name: 'Design-Link', text: 'Link zum Entwurf (z. B. Canva), nur https://. In der Ansicht als „Design öffnen ↗“.' },
-        'ap-eingabe':           { name: 'Preise eingeben', text: 'Preise an den Positionen netto oder brutto eintippen. Gespeichert wird netto, die Summe unten bleibt netto · MwSt · brutto.' },
+        'ap-eingabe':           { name: 'Preise eingeben', text: 'Netto oder brutto eintippen (neu: Privatperson = brutto). Gespeichert wird netto, Summe unten netto · MwSt · brutto.' },
         // AM-2: Aufträge erfassen, Liste, Ansicht
         'au-suche':             { name: 'Aufträge suchen', text: 'Findet über Auftrags-Nr., Kurztitel, Kunde, Spitzname oder Kunden-Nr.; jedes Wort muss passen.' },
         'au-filter':            { name: 'Filter', text: 'offen = weder bezahlt noch storniert. Dazu: Termin in 7 Tagen, wartet auf Ware, je Status oder alle.' },
@@ -11039,8 +11039,23 @@
 
       // ── Erfassen / Bearbeiten ──
       function auFehler(text) { auEl('au-fehler').textContent = text ?? ''; auEl('au-fehler').hidden = !text; }
+      /** AMQ2 (Inhaber 06.11.): Vorbelegung "Preise eingeben" beim NEUEN Auftrag - Kundenart Person -> brutto, sonst netto. */
+      const auEingabeVorschlag = k => (String(k?.Art ?? '').trim() === 'Person' ? 'brutto' : 'netto');
+      /** AMQ2: Vorbelegung setzen - nur neuer Auftrag, nur solange der Umschalter nicht von Hand bedient wurde, nur mit Spalte. */
+      function auEingabeVorbelegen(k) {
+        if (auDlg.modus !== 'neu' || auDlg.eingabeHand) return;
+        const sel = auEl('au-preis-eingabe');
+        const soll = sel.querySelector('option[value="brutto"]').disabled ? 'netto' : auEingabeVorschlag(k);
+        if (auDlg.eingabe === soll && sel.value === soll) return;
+        auDlg.eingabe = soll;
+        sel.value = soll;
+        for (const p of auDlg.entwurf) { delete p.preisText; delete p.aufpreisText; }
+        auEntwurfZeichnen();
+        auPreisSummeZeichnen();
+      }
       function auKundeSetzen(k) {
         auDlg.kunde = k ?? null;
+        auEingabeVorbelegen(k);   // AMQ2
         auEl('au-kunde').innerHTML = k ? `<strong>${kuEsc(auKundeText(k, k.Kunden_Nr))}</strong> · ${kuEsc(k.Kunden_Nr)}${k.Ort ? ` · ${kuEsc(k.Ort)}` : ''}` : '';
         auEl('au-kunde-gewaehlt').hidden = !k;
         auEl('au-kunde-suchzeile').hidden = !!k;
@@ -11051,6 +11066,7 @@
         auDlg.modus = auftrag ? 'bearbeiten' : 'neu';
         auDlg.auftrag = auftrag ?? null;
         auDlg.vorgang = auVorgang();
+        auDlg.eingabeHand = false;   // AMQ2: Umschalter noch nicht von Hand bedient
         const frei = !auftrag || auFrei(auftrag);
         auDlg.entwurf = auftrag ? auftrag.positionen.map(auEntwurfAus) : [];
         auEl('au-titel').textContent = auftrag ? `${auftrag.Auftrag_Nr} bearbeiten` : 'Neuer Auftrag';
@@ -11168,6 +11184,7 @@
       // AMQ1: Umschalten netto/brutto aendert nur Anzeige und Eingabe - gespeicherte Werte bleiben.
       auEl('au-start').addEventListener('change', () => auEntwurfZeichnen());   // AMQ1: Hinweis "ohne Position" je Start-Status
       auEl('au-preis-eingabe').addEventListener('change', () => {
+        auDlg.eingabeHand = true;   // AMQ2: ab jetzt keine Vorbelegung mehr beim Kundenwechsel
         auDlg.eingabe = auEl('au-preis-eingabe').value === 'brutto' ? 'brutto' : 'netto';
         for (const p of auDlg.entwurf) { delete p.preisText; delete p.aufpreisText; }
         auEntwurfZeichnen();

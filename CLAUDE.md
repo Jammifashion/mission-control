@@ -147,7 +147,8 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   `#au-preis-block`. `Preis_Eingabe` (brutto | leer = netto) + `Design_Link` (nur https) hinten in Auftraege. Brutto-Eingabe:
   Netto bis 4 Nachkommastellen (`nettoAusBrutto`/`apNettoAusBrutto`), Cent mit Bruchteil, gerundet erst je Steuersatz
   (MwSt = round(brutto) - round(netto)) - ein brutto getippter Preis kommt genau wieder heraus. Entwurf haelt unberuehrte Preise
-  als Zahl (`auNettoRoh`). Angefangene freie Position/Raster wird beim Speichern uebernommen (`auOffeneEingaben`), Enter uebernimmt.
+  als Zahl (`auNettoRoh`). AMQ2: neuer Auftrag - Kundenart Person -> "Preise eingeben" brutto (`auEingabeVorbelegen`),
+  sonst netto; nicht mehr nach Handumschaltung (`auDlg.eingabeHand`), nie beim Bearbeiten. Angefangene freie Position/Raster wird beim Speichern uebernommen (`auOffeneEingaben`), Enter uebernimmt.
   API-Schluessel in eigenem `<form id="api-key-form">`, Feld nie vorbelegt (sonst "Passwort speichern?" bei jeder Eingabe).
   AM-1-1: Knopf "In Lexoffice suchen …" = Baustein `kuKundeSuchen({ q, beiAuswahl })` (auch `window.kuKundeSuchen`; AM-2 nutzt
   ihn im Dialog "Auftrag anlegen": lokal -> Lexoffice -> "+ Neuer Kunde in MC"). Dialog `#kl-dialog`, Block `Lexoffice-Treffer:
