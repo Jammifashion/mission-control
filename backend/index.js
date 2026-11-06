@@ -36,6 +36,7 @@ import lieferbarkeitShopRouter from './routes/lieferbarkeitShop.js';
 import internRouter from './routes/intern.js';
 import lagerRouter from './routes/lager.js';
 import kundenRouter from './routes/kunden.js';
+import dashboardRouter from './routes/dashboard.js';
 import auftraegeRouter from './routes/auftraege.js';
 
 // Secrets vor Express-Setup laden – stellt sicher dass process.env.CORS_ORIGIN
@@ -92,6 +93,7 @@ app.use('/api/bestellen/lshop-lieferbarkeit', lshopLieferbarkeitRouter); // Best
 app.use('/api/lieferbarkeit-shop', lieferbarkeitShopRouter);   // Problemliste Shop-Artikel, nur lesen (BO7-3)
 app.use('/api/lager',         lagerRouter);         // Lager: Bestand, Buchungen (BO5-1)
 app.use('/api/kunden',        kundenRouter);        // Kundenstamm, eigenes Sheet KUNDEN_SHEET_ID (AM-1)
+app.use('/api/dashboard',     dashboardRouter);     // DB1: gebuendeltes Dashboard + Kundenhinweis gelesen
 app.use('/api/auftraege',     auftraegeRouter);     // Auftraege im SSOT, nur Kunden_Nr (AM-2)
 app.use('/api/health', healthRouter);
 

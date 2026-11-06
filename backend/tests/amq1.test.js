@@ -140,15 +140,16 @@ describe('Oberflaeche', () => {
     const pos = [{ art: 'frei', menge: 3, preis: 25.1261, ust: 19, ekHand: null }];
     expect(F.apSummen(pos, { art: '€', wert: 5 })).toEqual(auftragSummen(pos, { art: '€', wert: 5 }));
   });
-  test('1. Dashboard-Kachel -> Auftraege (nicht Kunden), Teilzahlen mit Filter', () => {
-    const k = block('// ── Auftraege-Kachel: Anfang', '// ── Auftraege-Kachel: Ende');
-    const F = new Function(`${k}\nreturn { auKachelHtml, AU_KACHEL_ZIEL, AU_KACHEL_START };`)();
-    expect(F.AU_KACHEL_START).toEqual({ unterpunkt: 'liste', filter: { 'au-f': 'offen', 'au-art': 'alle' } });
-    expect(F.AU_KACHEL_ZIEL.wartetAufWare.filter).toEqual({ 'au-f': 'ware', 'au-art': 'auftraege' });
-    expect(F.AU_KACHEL_ZIEL.todosUeberfaellig).toEqual({ unterpunkt: 'todos', filter: { 'td-f': 'ueberfaellig' } });
-    const h = F.auKachelHtml({ aktiv: 3, auftraege: { offen: 2, terminBald: 1, wartetAufWare: 1, fertigNichtBezahlt: 0, todosUeberfaellig: 2, aufgabenOffen: 1 } });
-    expect(h).toContain('<button type="button" class="au-kachel-zeile au-kachel-link" data-au-ziel="wartetAufWare" data-hilfe="dash-au-zeile">1 wartet auf Ware</button>');
-    expect(h).toContain('<div class="au-kachel-zeile">0 fertig, nicht bezahlt</div>');
+  // DB1: die Kachel "Aufträge" ist in "Zu tun" + "Eigene Aufträge" aufgegangen - dieselben Sprungziele (Test dashboard-frontend.test.js)
+  test('1. Dashboard -> Auftraege (nicht Kunden), Teilzahlen mit Filter', () => {
+    const k = block('// ── Dashboard-Anzeige: Anfang', '// ── Dashboard-Anzeige: Ende');
+    const F = new Function(`${k}\nreturn { DB_AU_ZIEL };`)();
+    const ziel = Object.fromEntries(F.DB_AU_ZIEL.map(([key, , f]) => [key, f]));
+    expect(ziel.offen).toEqual({ 'au-f': 'offen', 'au-art': 'alle' });
+    expect(ziel.terminBald).toEqual({ 'au-f': 'termin', 'au-art': 'auftraege' });
+    expect(ziel.aufgabenOffen).toEqual({ 'au-f': 'offen', 'au-art': 'aufgaben' });
+    expect(html).toContain("dbFilterSetzen({ 'au-f': 'ware', 'au-art': 'auftraege' }); oeffneAnsicht('auftraege', 'liste');");
+    expect(html).toContain("f.value = k.todos?.ueberfaellig ? 'ueberfaellig' : 'woche';");
     expect(html).not.toContain("oeffneAnsicht('auftraege', 'kunden')");
   });
   test('2. API-Schluessel: eigenes Formular, Feld nie vorbelegt, Speichern ueber submit', () => {

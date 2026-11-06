@@ -170,26 +170,16 @@ describe('Zahlen und Dashboard-Kachel', () => {
     expect(z).toEqual({ gesamt: 2, aktiv: 1, archiviert: 0, gesperrt: 1, firmen: 1, vereine: 0, personen: 1 });
     expect(kundenZahlen([])).toMatchObject({ gesamt: 0, aktiv: 0 });
   });
-  const kb = html.slice(html.indexOf('// ── Auftraege-Kachel: Anfang'), html.indexOf('// ── Auftraege-Kachel: Ende ──'));
-  const K = new Function(`${kb}\nreturn { auKachelHtml };`)();
-  test('Kachel: ohne Auftragszahlen aktive Kunden; mit AM-2 offene Auftraege als Hauptzahl, nur Zahlen', () => {
-    const h = K.auKachelHtml({ aktiv: 223, gesamt: 230 });
-    expect(h).toContain('>223<');
-    expect(h).toContain('Auftragszahlen nicht verfügbar');
-    expect(h).not.toMatch(/offene Aufträge|wartet auf Ware/);
-    const h2 = K.auKachelHtml({ aktiv: 5, auftraege: { offen: 3, terminBald: 1, fertigNichtBezahlt: 2 } });
-    expect(h2).toContain('>3<');
-    expect(h2).toContain('Aufträge offen');
-    expect(h2).toContain('1 Termin in ≤ 7 Tagen');
-    expect(h2).toContain('2 fertig, nicht bezahlt');
-    expect(h2).toContain('5 aktive Kunden');
-    expect(h2).not.toContain('wartet auf Ware');   // kommt mit AM-3
-    expect(K.auKachelHtml({ aktiv: 1, auftraege: { offen: 0, wartetAufWare: 4 } })).toContain('4 wartet auf Ware');
-    expect(K.auKachelHtml(null)).toContain('>–<');
-  });
-  test('Kachel im Dashboard, klickbar mit Mouse-over, ohne Namen', () => {
-    expect(html).toMatch(/id="dash-auftraege" role="link" tabindex="0" data-hilfe="dash-auftraege"/);
-    expect(kb).not.toMatch(/Name|Spitzname/);
+  // DB1: Die Dashboard-Kachel "Aufträge" ist in das neue Dashboard aufgegangen (Abschnitt "Eigene Aufträge", nur Zahlen).
+  const kb = html.slice(html.indexOf('// ── Dashboard-Anzeige: Anfang'), html.indexOf('// ── Dashboard-Anzeige: Ende ──'));
+  const K = new Function(`${kb}\nreturn { dbAuHtml };`)();
+  test('Eigene Auftraege: nur Zahlen je Status, klickbar mit Mouse-over; Quelle fehlt -> "–"', () => {
+    const h = K.dbAuHtml({ Anfrage: 1, Angebot: 0, Design: 0, bestellt: 2, 'in Produktion': 0, fertigNichtBezahlt: 2, terminBald: 1, aufgabenOffen: 0, offen: 5 });
+    expect(h).toContain('fertig, nicht bezahlt: <strong>2</strong>');
+    expect(h).toContain('Termin ≤ 7 Tage: <strong>1</strong>');
+    expect(h).toContain('data-hilfe="dash-au-status"');
+    expect(K.dbAuHtml({ fehlt: ['auftraege'] })).toContain('– nicht geladen: Aufträge');
+    expect(html).not.toContain('id="dash-auftraege"');
   });
 });
 

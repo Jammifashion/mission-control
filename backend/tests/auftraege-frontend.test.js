@@ -275,7 +275,9 @@ describe('AM-4: Aufgaben und To-dos (Anzeige)', () => {
     expect(html).toContain("{ id: 'todos',  label: 'Offene To-dos', panel: 'auftraege' }");
     expect(html).toContain('<select id="au-art"');
     expect(html).toContain('id="ag-neu" data-hilfe="ag-neu"');
-    expect(html).toContain("['todosUeberfaellig', 'To-dos überfällig'], ['aufgabenOffen', 'Aufgaben offen']");
+    // DB1: Kachel im Dashboard -> To-dos (Kachel "To-dos heute/überfällig") und Aufgaben offen (Eigene Aufträge)
+    expect(html).toContain("['aufgabenOffen', 'Aufgaben offen', { 'au-f': 'offen', 'au-art': 'aufgaben' }]");
+    expect(html).toContain("oeffneAnsicht('auftraege', 'todos');");
     const ag4 = html.slice(html.indexOf('// ── SECTION: Aufgaben und To-dos (AM-4) ──'), html.indexOf('// Kundenkarte: "Aufträge dieses Kunden"'));
     expect(ag4.length).toBeGreaterThan(2000);
     expect(ag4).not.toMatch(/localStorage|sessionStorage|location\.hash|history\.(push|replace)State/);

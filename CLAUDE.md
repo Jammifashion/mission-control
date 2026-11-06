@@ -55,7 +55,14 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   Am Handy (<= 600 px) ist die Hauptleiste ein Raster aus Kacheln 4 × 2 in Blau (Inhaber 03.11., Variablen `--nav-kachel*`);
   darueber bis 720 px Kurznamen in einer Zeile, am Desktop Langnamen.
 - Stand-Anzeige
-- Helpers (darin: Dashboard inkl. Knopf "Trikot-Sync jetzt")
+- Helpers (darin: Dashboard DB1, Block `Dashboard-Anzeige: Anfang/Ende` (Test dashboard-frontend.test.js): EINE Route
+  `GET /api/dashboard?wer=` (lib/dashboard.js, Logik utils/dashboard.js, Test dashboard.test.js) - oben "Zu tun" (7 Kacheln, immer
+  sichtbar, 0 grau, fehlende Quelle = "–"), "Neu 24 h", "Am längsten wartend", "Eigene Aufträge", "Geld". Wartet lange = > 7
+  Kalendertage Berlin (rot > 14), Shop + Aufträge vor "fertig", OHNE jede JFN-Bestellung mit Trikot-Position (Trikot_Artikel wie
+  der Sync + Order-ID im Reiter Trikots). Kundenhinweis "gelesen" fuer alle: Reiter `Hinweis_Gelesen` (nur Shop, Nr, Pruefsumme,
+  Kuerzel, Zeit; `scripts/setup-hinweis-gelesen.js`), geaenderte Notiz = neue Pruefsumme = wieder ungelesen. Alle/Christian/Nicole je
+  Geraet (`mc_dash_wer`). Abholung im Backend = `versandArt` (Spiegel von `psVersandArt`, Test vergleicht). Der Knopf "Trikot-Sync
+  jetzt" steht seit DB1 auf der Trikot-Seite.)
 - Auftragsmonitor, Auftragsmonitor Dual-Source; darunter "Auftragsmonitor: Shop Orders" (kein SECTION-Anker) mit der
   Bestellansicht "Bestellungen (JFN)" (PS1, Block `Produktion-Stand: Anfang/Ende`, Test produktion-stand.test.js)
   BS2: Versandart je Karte `psVersandArt(o, shop)` aus `shipping_lines` (method_id + instance_id, Titel nur Rueckfall; Abholung =

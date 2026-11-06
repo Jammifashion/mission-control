@@ -257,6 +257,50 @@
       .dash-stat-label { font-size: 0.72rem; color: var(--muted); margin-top: 0.35rem; text-transform: uppercase; letter-spacing: 0.05em; }
       /* AM-1-1: Shop-Zahlen und Auftraege-Kachel im selben Raster */
       .dash-stats-shop { display: contents; }
+      /* DB1: Dashboard "Was muss ich tun?" - Farben nur ueber Rollen (farben.css); am Handy nichts breiter als der Schirm */
+      #panel-dashboard, #panel-dashboard * { min-width: 0; }
+      .dash-kopf { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; align-items: flex-end; justify-content: space-between; }
+      .dash-kopf-rechts { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+      .dash-abschnitt { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 0 0 0.5rem; font-weight: 600; }
+      .dash-fehler { border: 1px solid var(--danger); color: var(--danger); border-radius: 8px; padding: 0.5rem 0.75rem; margin-bottom: 0.8rem; font-size: 0.85rem; overflow-wrap: anywhere; }
+      .dash-kacheln { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 9rem), 1fr)); gap: 0.6rem; margin-bottom: 1rem; }
+      .dash-kachel { display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; text-align: left; font: inherit; color: var(--text); cursor: pointer;
+        background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--border); border-radius: 8px; padding: 0.7rem 0.85rem; min-height: 84px; overflow-wrap: anywhere; }
+      .dash-kachel:hover, .dash-kachel:focus-visible { border-color: var(--focus); }
+      .dash-k-zahl { font-size: 1.7rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+      .dash-k-name { font-size: 0.82rem; font-weight: 600; }
+      .dash-k-unter { font-size: 0.74rem; color: var(--muted); }
+      .dash-k-ruhig .dash-k-zahl { color: var(--muted); }
+      .dash-k-warning { border-left-color: var(--warning); } .dash-k-warning .dash-k-zahl { color: var(--warning); }
+      .dash-k-danger { border-left-color: var(--danger); } .dash-k-danger .dash-k-zahl { color: var(--danger); }
+      .dash-k-info { border-left-color: var(--info); } .dash-k-info .dash-k-zahl { color: var(--info); }
+      .dash-k-au { border-left-color: var(--au); } .dash-k-au .dash-k-zahl { color: var(--au); }
+      .dash-k-aktiv { outline: 2px solid var(--info); outline-offset: 1px; }
+      .dash-liste { display: flex; flex-direction: column; }
+      .dash-zeile { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.15rem 0.6rem; align-items: center; width: 100%; text-align: left; font: inherit; color: var(--text);
+        background: none; border: 0; border-top: 1px solid var(--border); padding: 0.5rem 0.2rem; cursor: pointer; }
+      .dash-zeile:first-child { border-top: 0; }
+      .dash-zeile:hover, .dash-zeile:focus-visible { background: var(--surface-2); }
+      .dash-z-kopf { display: flex; flex-wrap: wrap; gap: 0.3rem 0.5rem; align-items: center; font-weight: 600; overflow-wrap: anywhere; }
+      .dash-z-rechts { font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; font-size: 0.85rem; }
+      .dash-z-unter { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.25rem 0.6rem; align-items: center; font-size: 0.8rem; color: var(--muted); overflow-wrap: anywhere; }
+      .dash-shop { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.72rem; font-weight: 700; }
+      .dash-shop::before { content: ''; width: 0.55rem; height: 0.55rem; border-radius: 50%; background: currentColor; }
+      .dash-shop-jfn { color: var(--shop-jfn); } .dash-shop-honk { color: var(--shop-honk); }
+      .dash-tage { font-weight: 600; } .dash-tage-warning { color: var(--warning); } .dash-tage-danger { color: var(--danger); }
+      .dash-hinweis-zeile { border-top: 1px solid var(--border); padding: 0.55rem 0.2rem; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.3rem 0.6rem; align-items: start; }
+      .dash-hinweis-zeile:first-child { border-top: 0; }
+      .dash-hinweis-text { grid-column: 1 / -1; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.88rem; border-left: 3px solid var(--warning); padding-left: 0.5rem; }
+      .dash-detail-kopf { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: space-between; align-items: center; margin-bottom: 0.4rem; }
+      .dash-leer { color: var(--muted); font-size: 0.86rem; padding: 0.3rem 0; }
+      .dash-au-reihe { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+      .dash-au-reihe .ku-chip { cursor: pointer; font: inherit; font-size: 0.82rem; padding: 0.2rem 0.6rem; min-height: 32px; }
+      .dash-geld-zahlen { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
+      .dash-geld-zahl { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+      .dash-geld-label { font-size: 0.72rem; color: var(--muted); }
+      .dash-geld details { margin-top: 0.6rem; } .dash-geld summary { cursor: pointer; font-size: 0.82rem; color: var(--muted); min-height: 32px; display: flex; align-items: center; }
+      .dash-balken { display: flex; align-items: flex-end; gap: 6px; height: 80px; margin-top: 0.3rem; }
+      .dash-balken .rev-col { height: 100%; }
       /* AM-2: Aufträge */
       .au-box { width: min(860px, 100%); }
       #au-ansicht[hidden], #au-detail [hidden], #au-dialog [hidden] { display: none !important; }
@@ -1675,57 +1719,43 @@
       <div id="bereich-leiste" class="sub-tabs bereich-leiste" hidden></div>
       <!-- Dashboard -->
       <section id="panel-dashboard" class="panel active">
-        <div class="dash-greeting">
-          <div class="dash-greeting-text" id="dash-greeting-text">Guten Morgen</div>
-          <div class="dash-greeting-date" id="dash-greeting-date"></div>
+        <!-- DB1 (Inhaber + Nicole 06.11.): oben zu tun, darunter neu, unten Geld. Daten: EINE Route GET /api/dashboard. -->
+        <div class="dash-greeting dash-kopf">
+          <div class="dash-kopf-text">
+            <div class="dash-greeting-text" id="dash-greeting-text">Guten Morgen</div>
+            <div class="dash-greeting-date" id="dash-greeting-date"></div>
+          </div>
+          <div class="dash-kopf-rechts">
+            <span class="korb-filter" id="dash-wer" role="group" aria-label="Wessen Aufträge und To-dos">
+              <button type="button" data-dash-wer="" data-hilfe="dash-wer" aria-pressed="true">Alle</button>
+              <button type="button" data-dash-wer="Christian" data-hilfe="dash-wer" aria-pressed="false">Christian</button>
+              <button type="button" data-dash-wer="Nicole" data-hilfe="dash-wer" aria-pressed="false">Nicole</button>
+            </span>
+            <button class="hilfe-i" type="button" data-hilfe-gruppe="dashboard" aria-controls="hilfe-dashboard" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+          </div>
         </div>
-        <div class="dash-stats-row">
-          <!-- AM-1-1: Kachel "Aufträge" (nur Zahlen, GET /api/kunden/zahlen); AM-2 haengt die Auftragszahlen an -->
-          <div class="dash-stat-card dash-stat-clickable" id="dash-auftraege" role="link" tabindex="0" data-hilfe="dash-auftraege">
-            <div class="skeleton" style="height:2.2rem;margin-bottom:0.35rem;border-radius:4px;"></div>
-            <div class="dash-stat-label">Aufträge</div>
-          </div>
-          <div class="dash-stats-shop" id="dash-stats-row">
-          <div class="dash-stat-card">
-            <div class="skeleton" style="height:2.2rem;margin-bottom:0.35rem;border-radius:4px;"></div>
-            <div class="dash-stat-label">Bestellungen heute</div>
-          </div>
-          <div class="dash-stat-card dash-stat-clickable" id="stat-open" data-hilfe="dash-offen" tabindex="0">
-            <div class="skeleton" style="height:2.2rem;margin-bottom:0.35rem;border-radius:4px;"></div>
-            <div class="dash-stat-label">Offen ↗</div>
-          </div>
-          <div class="dash-stat-card">
-            <div class="skeleton" style="height:2.2rem;margin-bottom:0.35rem;border-radius:4px;"></div>
-            <div class="dash-stat-label">Umsatz heute</div>
-          </div>
-          </div>
+        <div id="hilfe-dashboard" class="hilfe-legende" hidden></div>
+        <div id="dash-fehler" class="dash-fehler" hidden></div>
+        <h2 class="dash-abschnitt">Zu tun</h2>
+        <div class="dash-kacheln" id="dash-zutun">
+          <div class="skeleton" style="height:84px;"></div><div class="skeleton" style="height:84px;"></div><div class="skeleton" style="height:84px;"></div>
+        </div>
+        <div class="card dash-detail" id="dash-detail" hidden></div>
+        <div class="card">
+          <h2>Neu in den letzten 24 h</h2>
+          <div id="dash-neu"><div class="skeleton"></div></div>
         </div>
         <div class="card">
-          <h2>Umsatz letzte 7 Tage</h2>
-          <div class="rev-donut-wrap">
-            <div id="rev-chart-wrap" class="rev-chart">
-              <div class="skeleton" style="width:100%;height:90px;align-self:flex-start;"></div>
-            </div>
-            <div id="donut-wrap" class="donut-wrap">
-              <svg class="donut-svg" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="35" fill="none" style="stroke:var(--border)" stroke-width="14"/>
-              </svg>
-            </div>
-          </div>
+          <h2>Am längsten wartend</h2>
+          <div id="dash-wartend"><div class="skeleton"></div></div>
         </div>
         <div class="card">
-          <h2>Trikot-Sync</h2>
-          <p style="color:var(--muted);font-size:0.85rem;">
-            Holt neue Trikot-Bestellungen aus dem JammiFashion-Shop in den Reiter „Trikots“. Vorhandene Zeilen bleiben unverändert.
-          </p>
-          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
-            <button class="btn" id="trikot-sync-btn" data-hilfe="trikot-sync">Trikot-Sync jetzt</button>
-          </div>
-          <p id="trikot-sync-status" style="color:var(--muted);font-size:0.85rem;margin-top:0.5rem;"></p>
+          <h2>Eigene Aufträge</h2>
+          <div id="dash-au"><div class="skeleton" style="height:40px;"></div></div>
         </div>
-        <div class="card">
-          <h2>Letzte Bestellungen</h2>
-          <div id="recent-orders"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+        <div class="card dash-geld">
+          <h2>Geld</h2>
+          <div id="dash-geld"><div class="skeleton" style="height:40px;"></div></div>
         </div>
       </section>
 
@@ -2112,6 +2142,16 @@
 
         <!-- TR2: Trikot-Bestellungen (Reiter "Trikots") je Produzenten-Bestellung, nur lesen -->
         <div id="tab-trikots" class="sub-tab-panel">
+            <div class="card">
+              <h2>Trikot-Sync</h2>   <!-- DB1: vom Dashboard hierher, Route und geplanter Lauf unveraendert -->
+              <p style="color:var(--muted);font-size:0.85rem;">
+                Holt neue Trikot-Bestellungen aus dem JammiFashion-Shop in den Reiter „Trikots“. Vorhandene Zeilen bleiben unverändert.
+              </p>
+              <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.5rem;">
+                <button class="btn" id="trikot-sync-btn" data-hilfe="trikot-sync">Trikot-Sync jetzt</button>
+              </div>
+              <p id="trikot-sync-status" style="color:var(--muted);font-size:0.85rem;margin-top:0.5rem;"></p>
+            </div>
           <div class="card">
             <div class="lshop-offen-header korb-kopf">
               <span id="tr-summe">Trikots (JFN)</span>
@@ -4227,7 +4267,7 @@
         </table>`;
       }
 
-      // ── Dashboard ────────────────────────────────────────────────────────
+      // ── Dashboard (DB1) ──────────────────────────────────────────────────
       function setGreeting() {
         const h = new Date().getHours();
         document.getElementById('dash-greeting-text').textContent =
@@ -4236,85 +4276,223 @@
           new Date().toLocaleDateString('de-DE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
       }
 
+      // ── Dashboard-Anzeige: Anfang (reine Anzeige, Test backend/tests/dashboard-frontend.test.js) ──
+      // Daten und Zaehlregeln kommen fertig aus GET /api/dashboard (backend/utils/dashboard.js); hier nur HTML.
+      // Eigenstaendig (eigene Maskierung), weil das Dashboard vor den Bloecken der Auftraege gezeichnet werden kann.
+      const dbEsc = x => String(x ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const dbEuro = n => (Number.isFinite(Number(n)) ? Number(n).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' }) : '–');
+      const DB_QUELLE = { shop_jfn: 'Shop JFN', shop_honk: 'Shop HONK', auftraege: 'Aufträge', rueckstand: 'Rückstandsliste', trikots: 'Trikot-Liste', trikot_artikel: 'Trikot-Artikel' };
+      const dbFehlt = fehlt => `nicht geladen: ${(fehlt ?? []).map(q => DB_QUELLE[q] ?? q).join(', ')}`;
+      const DB_STATUS = { processing: 'in Bearbeitung', 'on-hold': 'in Wartestellung', pending: 'ausstehend', completed: 'abgeschlossen', cancelled: 'storniert', refunded: 'erstattet', failed: 'fehlgeschlagen' };
+      const DB_AU_KLASSE = { Anfrage: 'anfrage', Angebot: 'angebot', Design: 'design', bestellt: 'bestellt', 'in Produktion': 'produktion', fertig: 'fertig', 'übergeben': 'uebergeben', bezahlt: 'uebergeben', storniert: 'storniert' };
+      const dbKz = nr => `<span class="kz kz-${/^AG-/.test(nr) ? 'ag' : 'au'}">${dbEsc(nr)}</span>`;
+      const dbShop = b => `<span class="dash-shop dash-shop-${b.shop === 'honk' ? 'honk' : 'jfn'}">${dbEsc(b.shopKurz ?? String(b.shop).toUpperCase())}</span>`;
+      const dbStatusChip = (x) => (x.art === 'shop'
+        ? `<span class="badge badge-${dbEsc(x.status)}">${dbEsc(DB_STATUS[x.status] ?? x.status)}</span>`
+        : `<span class="ku-chip${DB_AU_KLASSE[x.status] ? ` au-st-${DB_AU_KLASSE[x.status]}` : ''}">${dbEsc(x.status)}</span>`);
+      const dbZielAttr = x => (x.art === 'shop' ? `data-dash-shop="${dbEsc(x.shop)}" data-dash-id="${dbEsc(x.id)}"` : x.art === 'ag' ? `data-dash-ag="${dbEsc(x.nr)}"` : `data-dash-au="${dbEsc(x.nr)}"`);
+      const dbKennung = x => (x.art === 'shop' ? `${dbShop(x)} #${dbEsc(x.nr)}` : dbKz(x.nr));
+
+      /** Eine Kachel. stufe: ruhig | warning | danger | info | au | '' (neutral). */
+      const DB_KACHEL_HILFE = { hinweise: 'dash-k-hinweise', lange: 'dash-k-lange', todos: 'dash-k-todos', rueckstand: 'dash-k-rueckstand',
+        ware: 'dash-k-ware', abholung: 'dash-k-abholung', trikots: 'dash-k-trikots' };   // Mouse-over je Kachel (KNOPF_HILFE)
+      function dbKachel(ziel, { zahl, name, unter = '', stufe = '' }) {
+        return `<button type="button" class="dash-kachel${stufe ? ` dash-k-${stufe}` : ''}" data-dash-ziel="${ziel}" data-hilfe="${DB_KACHEL_HILFE[ziel]}">`
+          + `<span class="dash-k-zahl">${dbEsc(zahl)}</span><span class="dash-k-name">${dbEsc(name)}</span>${unter ? `<span class="dash-k-unter">${dbEsc(unter)}</span>` : ''}</button>`;
+      }
+      /** Abschnitt A "Zu tun": immer alle Kacheln, 0 = ruhig/grau, fehlende Quelle = "–" + Hinweis. */
+      function dbKachelnHtml(k = {}) {
+        const fehlt = (x, ziel, name) => (x?.fehlt ? dbKachel(ziel, { zahl: '–', name, unter: dbFehlt(x.fehlt), stufe: 'ruhig' }) : null);
+        const h = k.hinweise, l = k.lange, t = k.todos, r = k.rueckstand, w = k.ware, a = k.abholung, tr = k.trikots;
+        const todoZahl = t && !t.fehlt ? t.ueberfaellig + t.heute : 0;
+        return [
+          fehlt(h, 'hinweise', 'Kundenhinweise ungelesen') ?? dbKachel('hinweise', { zahl: h?.zahl ?? 0, name: 'Kundenhinweise ungelesen', stufe: h?.zahl ? 'warning' : 'ruhig' }),
+          fehlt(l, 'lange', 'Wartet lange') ?? dbKachel('lange', { zahl: l?.zahl ?? 0, name: 'Wartet lange (> 7 Tage)',
+            unter: l?.zahl ? `ältester: ${l.aeltester} Tage` : 'ohne Trikots', stufe: !l?.zahl ? 'ruhig' : l.rot ? 'danger' : 'warning' }),
+          fehlt(t, 'todos', 'To-dos heute/überfällig') ?? dbKachel('todos', { zahl: todoZahl, name: 'To-dos heute/überfällig',
+            unter: todoZahl ? `${t.ueberfaellig} überfällig · ${t.heute} heute` : '', stufe: t?.ueberfaellig ? 'danger' : t?.heute ? 'info' : 'ruhig' }),
+          fehlt(r, 'rueckstand', 'L-Shop-Rückstand') ?? dbKachel('rueckstand', { zahl: r?.positionen ?? 0, name: 'L-Shop-Rückstand',
+            unter: !r?.liste ? 'keine Rückstandsliste' : [`${r.stueck} Stück`, r.kritisch ? `${r.kritisch} kritisch` : '', r.veraltet ? 'Liste veraltet' : ''].filter(Boolean).join(' · '),
+            stufe: r?.kritisch || r?.veraltet ? 'danger' : r?.positionen ? 'warning' : 'ruhig' }),
+          fehlt(w, 'ware', 'Wartet auf Ware') ?? dbKachel('ware', { zahl: w?.zahl ?? 0, name: 'Wartet auf Ware', stufe: w?.zahl ? 'warning' : 'ruhig' }),
+          fehlt(a, 'abholung', 'Abholungen offen') ?? dbKachel('abholung', { zahl: a?.zahl ?? 0, name: 'Abholungen offen 📍', stufe: a?.zahl ? 'au' : 'ruhig' }),
+          fehlt(tr, 'trikots', 'Trikots') ?? dbKachel('trikots', { zahl: tr?.nichtBeimProduzenten ?? 0, name: 'Trikots nicht beim Produzenten',
+            unter: `${tr?.goalie ?? 0} Goalie offen · ${tr?.ueber6Wochen ?? 0} über 6 Wochen`,
+            stufe: tr?.goalie || tr?.ueber6Wochen ? 'warning' : tr?.nichtBeimProduzenten ? '' : 'ruhig' }),
+        ].join('');
+      }
+      const dbTage = n => `<span class="dash-tage${n > 14 ? ' dash-tage-danger' : n > 7 ? ' dash-tage-warning' : ''}">seit ${dbEsc(n)} ${n === 1 ? 'Tag' : 'Tagen'}</span>`;
+      /** Wartende Zeile (Wartet lange, Am laengsten wartend): Kennzeichen, Kunde/Titel, Tage, Gruende. */
+      function dbWarteZeile(x) {
+        return `<button type="button" class="dash-zeile" ${dbZielAttr(x)} data-hilfe="dash-zeile">`
+          + `<span class="dash-z-kopf">${dbKennung(x)}${x.titel ? ` ${dbEsc(x.titel)}` : ''}</span><span class="dash-z-rechts">${dbTage(x.tage)}</span>`
+          + `<span class="dash-z-unter"><span>${dbEsc(x.kunde || '–')}</span>${(x.grund ?? []).map(g => `<span>· ${dbEsc(g)}</span>`).join('')}</span></button>`;
+      }
+      function dbListeHtml(liste, leer) {
+        return liste?.length ? `<div class="dash-liste">${liste.map(dbWarteZeile).join('')}</div>` : `<p class="dash-leer">${dbEsc(leer)}</p>`;
+      }
+      /** Abschnitt B "Neu in 24 h": Shop + AU/AG gemeinsam, gestapelt (oben Kennzeichen · Betrag, darunter Kunde + Status). */
+      function dbNeuHtml(neu) {
+        if (neu?.fehlt) return `<p class="dash-leer">– ${dbEsc(dbFehlt(neu.fehlt))}</p>`;
+        if (!neu?.length) return '<p class="dash-leer">Seit gestern nichts Neues.</p>';
+        return `<div class="dash-liste">${neu.map(x => `<button type="button" class="dash-zeile" ${dbZielAttr(x)} data-hilfe="dash-zeile">`
+          + `<span class="dash-z-kopf">${dbKennung(x)}${x.hinweis ? ' 💬' : ''}${x.abholung ? ' 📍' : ''}${x.titel ? ` ${dbEsc(x.titel)}` : ''}</span>`
+          + `<span class="dash-z-rechts">${x.art === 'ag' ? '' : dbEuro(x.betrag)}</span>`
+          + `<span class="dash-z-unter"><span>${dbEsc(x.kunde || (x.art === 'ag' ? 'Aufgabe' : '–'))}</span>${dbStatusChip(x)}</span></button>`).join('')}</div>`;
+      }
+      /** Hinweisliste: Bestellnummer, Shop, Kunde, Notiz (nur hier, live aus dem Shop), Knopf "gelesen ✓". */
+      function dbHinweiseHtml(liste) {
+        if (!liste?.length) return '<p class="dash-leer">Keine ungelesenen Kundenhinweise.</p>';
+        return liste.map(h => `<div class="dash-hinweis-zeile">`
+          + `<button type="button" class="korb-link" ${dbZielAttr({ art: 'shop', ...h })} data-hilfe="dash-zeile">${dbShop(h)} #${dbEsc(h.nr)} · ${dbEsc(h.kunde || '–')}</button>`
+          + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-dash-gelesen data-shop="${dbEsc(h.shop)}" data-nr="${dbEsc(h.nr)}" data-pruef="${dbEsc(h.pruef)}" data-hilfe="dash-gelesen">gelesen ✓</button>`
+          + `<div class="dash-hinweis-text">${dbEsc(h.text)}</div></div>`).join('');
+      }
+      function dbDetailHtml(art, k) {
+        const titel = art === 'hinweise' ? 'Kundenhinweise ungelesen' : 'Wartet lange (> 7 Tage, ohne Trikots)';
+        const inhalt = art === 'hinweise' ? dbHinweiseHtml(k?.hinweise?.liste) : dbListeHtml(k?.lange?.liste, 'Nichts wartet länger als 7 Tage.');
+        return `<div class="dash-detail-kopf"><h2>${titel}</h2><button type="button" class="korb-link" data-dash-detail-zu data-hilfe="dash-detail-zu">schließen</button></div>${inhalt}`;
+      }
+      /** Abschnitt D: Status-Chips (FK1) + was die alte Kachel anklickbar hatte. */
+      const DB_AU_ZIEL = [
+        ['Anfrage', 'Anfrage', { 'au-f': 'Anfrage', 'au-art': 'auftraege' }], ['Angebot', 'Angebot', { 'au-f': 'Angebot', 'au-art': 'auftraege' }],
+        ['Design', 'Design', { 'au-f': 'Design', 'au-art': 'auftraege' }], ['bestellt', 'bestellt', { 'au-f': 'bestellt', 'au-art': 'auftraege' }],
+        ['in Produktion', 'in Produktion', { 'au-f': 'in Produktion', 'au-art': 'auftraege' }],
+        ['fertigNichtBezahlt', 'fertig, nicht bezahlt', { 'au-f': 'fertig', 'au-art': 'auftraege' }],
+        ['terminBald', 'Termin ≤ 7 Tage', { 'au-f': 'termin', 'au-art': 'auftraege' }],
+        ['aufgabenOffen', 'Aufgaben offen', { 'au-f': 'offen', 'au-art': 'aufgaben' }],
+        ['offen', 'alle offenen', { 'au-f': 'offen', 'au-art': 'alle' }],
+      ];
+      function dbAuHtml(a) {
+        if (!a || a.fehlt) return `<p class="dash-leer">– ${dbEsc(dbFehlt(a?.fehlt))}</p>`;
+        return `<div class="dash-au-reihe">${DB_AU_ZIEL.map(([k, text], i) => `<button type="button" class="ku-chip${DB_AU_KLASSE[k] ? ` au-st-${DB_AU_KLASSE[k]}` : ''}"`
+          + ` data-dash-au-filter="${i}" data-hilfe="dash-au-status">${dbEsc(text)}: <strong>${dbEsc(a[k] ?? 0)}</strong></button>`).join('')}</div>`;
+      }
+      /** Abschnitt E: drei Zahlen, darunter kleiner 7-Tage-Balken (<= 80 px), am Handy zugeklappt. */
+      function dbGeldHtml(g, { offenBalken = true } = {}) {
+        if (!g || g.fehlt) return `<p class="dash-leer">– ${dbEsc(dbFehlt(g?.fehlt))}</p>`;
+        const max = Math.max(...(g.tage ?? []).map(d => d.betrag), 1);
+        const wt = tag => new Date(`${tag}T12:00:00Z`).toLocaleDateString('de-DE', { weekday: 'short', timeZone: 'Europe/Berlin' });
+        return `<div class="dash-geld-zahlen" tabindex="0" data-hilfe="dash-geld">`
+          + `<div><div class="dash-geld-zahl">${dbEuro(g.heute)}</div><div class="dash-geld-label">Umsatz heute</div></div>`
+          + `<div><div class="dash-geld-zahl">${dbEuro(g.sieben)}</div><div class="dash-geld-label">Umsatz 7 Tage</div></div>`
+          + `<div><div class="dash-geld-zahl">${dbEuro(g.offen)}</div><div class="dash-geld-label">offen</div></div></div>`
+          + `<details${offenBalken ? ' open' : ''}><summary data-hilfe="dash-balken" tabindex="0">7 Tage im Verlauf</summary><div class="dash-balken">${(g.tage ?? []).map(d =>
+            `<div class="rev-col" data-hilfe="dash-balken" data-hilfe-zusatz="${dbEsc(`${wt(d.tag)}: ${dbEuro(d.betrag)}`)}"><div class="rev-bar" style="height:${Math.max(Math.round((d.betrag / max) * 62), 2)}px"></div>`
+            + `<div class="rev-day">${dbEsc(wt(d.tag))}</div></div>`).join('')}</div></details>`;
+      }
+      // ── Dashboard-Anzeige: Ende ──
+
+      const DB_WER_KEY = 'mc_dash_wer';
+      const dbZ = { daten: null, detail: '', wer: (() => { try { const w = localStorage.getItem(DB_WER_KEY); return ['Christian', 'Nicole'].includes(w) ? w : ''; } catch { return ''; } })(), laeuft: false };
+      const dbEl = id => document.getElementById(id);
+      function dbWerZeigen() { document.querySelectorAll('[data-dash-wer]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.dashWer === dbZ.wer))); }
+      function dbZeichnen() {
+        const d = dbZ.daten;
+        if (!d) return;
+        dbEl('dash-zutun').innerHTML = dbKachelnHtml(d.kacheln);
+        dbEl('dash-neu').innerHTML = dbNeuHtml(d.neu);
+        dbEl('dash-wartend').innerHTML = d.wartend?.fehlt ? `<p class="dash-leer">– ${dbEsc(dbFehlt(d.wartend.fehlt))}</p>` : dbListeHtml(d.wartend?.liste, 'Nichts wartet.');
+        dbEl('dash-au').innerHTML = dbAuHtml(d.auftraege);
+        const handy = window.matchMedia?.('(max-width: 600px)').matches;
+        dbEl('dash-geld').innerHTML = dbGeldHtml(d.geld, { offenBalken: !handy });
+        const det = dbEl('dash-detail');
+        det.hidden = !dbZ.detail;
+        if (dbZ.detail) det.innerHTML = dbDetailHtml(dbZ.detail, d.kacheln);
+        document.querySelectorAll('.dash-kachel').forEach(k => k.classList.toggle('dash-k-aktiv', k.dataset.dashZiel === dbZ.detail));
+        const ft = Object.entries(d.fehlerText ?? {}).filter(([q]) => q !== 'gelesen' && q !== 'kunden');
+        const fe = dbEl('dash-fehler');
+        fe.hidden = !ft.length && d.einrichtung?.gelesen !== false;
+        fe.textContent = [ft.length ? `Teilweise nicht geladen: ${ft.map(([q]) => DB_QUELLE[q] ?? q).join(', ')} – die betroffenen Kacheln zeigen „–“.` : '',
+          d.einrichtung?.gelesen === false ? '„gelesen“ ist noch nicht eingerichtet (Reiter Hinweis_Gelesen fehlt).' : ''].filter(Boolean).join(' ');
+      }
       async function loadDashboard() {
         setGreeting();
+        dbWerZeigen();
+        if (dbZ.laeuft) return;
+        dbZ.laeuft = true;
         try {
-          const [stats, orders] = await Promise.all([
-            apiFetch(`${API_BASE()}/api/woocommerce/stats`).then(r => r.json()),
-            apiFetch(`${API_BASE()}/api/woocommerce/orders?per_page=5`).then(r => r.json()),
-          ]);
-
-          // Stat cards
-          const umsatz = parseFloat(stats.revenue_today);
-          const umsatzHeute = Number.isFinite(umsatz)
-            ? umsatz.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })
-            : '–';
-          document.getElementById('dash-stats-row').innerHTML = `
-            <div class="dash-stat-card">
-              <div class="dash-stat-value">${stats.orders_today ?? '–'}</div>
-              <div class="dash-stat-label">Bestellungen heute</div>
-            </div>
-            <div class="dash-stat-card dash-stat-clickable" id="stat-open" data-hilfe="dash-offen" tabindex="0">
-              <div class="dash-stat-value">${stats.offen ?? '–'}</div>
-              <div class="dash-stat-label">Offen ↗</div>
-            </div>
-            <div class="dash-stat-card">
-              <div class="dash-stat-value">${umsatzHeute}</div>
-              <div class="dash-stat-label">Umsatz heute</div>
-            </div>`;
-          document.getElementById('stat-open')?.addEventListener('click', () =>
-            oeffneAnsicht('bestellen', 'bestellungen'));
-
-          // Revenue chart
-          const days = stats.revenue_7days ?? [];
-          const chartEl = document.getElementById('rev-chart-wrap');
-          if (days.length) {
-            const max = Math.max(...days.map(d => d.revenue), 1);
-            chartEl.innerHTML = days.map(d => {
-              const barH = Math.max(Math.round((d.revenue / max) * 90), 2);
-              const fmt  = d.revenue.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-              return `<div class="rev-col" title="${d.date}: ${fmt}">
-                <div class="rev-bar" style="height:${barH}px"></div>
-                <div class="rev-day">${d.date}</div>
-              </div>`;
-            }).join('');
-          } else {
-            chartEl.innerHTML = '<p style="color:var(--muted);font-size:0.82rem;align-self:center;">Keine Daten</p>';
-          }
-
-          // Donut chart – offene Bestellungen nach Status
-          (function renderDonut(processing, onHold) {
-            const donutEl = document.getElementById('donut-wrap');
-            if (!donutEl) return;
-            const C     = 219.91;   // 2π × 35
-            const total = processing + onHold;
-            let segs    = `<circle cx="50" cy="50" r="35" fill="none" style="stroke:var(--border)" stroke-width="14"/>`;
-            if (total > 0) {
-              const pLen = parseFloat(((processing / total) * C).toFixed(2));
-              const oLen = parseFloat(((onHold     / total) * C).toFixed(2));
-              if (pLen > 0) segs += `<circle cx="50" cy="50" r="35" fill="none" style="stroke:var(--success)" stroke-width="14"
-                stroke-dasharray="${pLen} ${C}" stroke-dashoffset="0" transform="rotate(-90 50 50)"/>`;
-              if (oLen > 0) segs += `<circle cx="50" cy="50" r="35" fill="none" style="stroke:var(--warning)" stroke-width="14"
-                stroke-dasharray="${oLen} ${C}" stroke-dashoffset="${-pLen}" transform="rotate(-90 50 50)"/>`;
-            }
-            donutEl.innerHTML = `
-              <svg class="donut-svg" viewBox="0 0 100 100">${segs}
-                <text x="50" y="47" text-anchor="middle" font-size="18" font-weight="700" style="fill:var(--text)">${total}</text>
-                <text x="50" y="60" text-anchor="middle" font-size="7.5" style="fill:var(--muted)">Offen</text>
-              </svg>
-              <div class="donut-legend">
-                <span style="color:var(--success)">▪</span> ${processing} In Bearbeitung<br>
-                <span style="color:var(--warning)">▪</span> ${onHold} Wartestellung
-              </div>`;
-          })(stats.processing ?? 0, stats.pending ?? 0);
-
-          // Recent orders
-          document.getElementById('recent-orders').innerHTML = ordersTable(orders);
+          const res = await apiFetch(`${API_BASE()}/api/dashboard${dbZ.wer ? `?wer=${encodeURIComponent(dbZ.wer)}` : ''}`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
+          const stopp = await laufStopp(res);
+          if (stopp) throw new Error(stopp);
+          const j = await res.json().catch(() => null);
+          if (!res.ok || !j) throw new Error(j?.error || `HTTP ${res.status}`);
+          dbZ.daten = j;
+          dbZeichnen();
         } catch (e) {
-          document.getElementById('recent-orders').innerHTML =
-            `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+          const fe = dbEl('dash-fehler');
+          fe.hidden = false;
+          fe.textContent = `Dashboard nicht geladen: ${e.message}`;
+          if (!dbZ.daten) for (const id of ['dash-zutun', 'dash-neu', 'dash-wartend', 'dash-au', 'dash-geld']) dbEl(id).innerHTML = '<p class="dash-leer">–</p>';
+        } finally { dbZ.laeuft = false; }
+      }
+      /** Sprung in die passende, schon gefilterte Ansicht. */
+      function dbFilterSetzen(filter) {
+        for (const [id, wert] of Object.entries(filter)) { const el = dbEl(id); if (el) el.value = wert; }
+        const z = dbEl('au-zust-f'); if (z) z.value = dbZ.wer || 'alle';
+      }
+      async function dbOeffne(el) {
+        if (el.dataset.dashShop) {
+          const shop = el.dataset.dashShop === 'honk' ? 'honk' : 'jfn';
+          if (shop !== currentShop()) setCurrentShop(shop, false);
+          psSpringeZu(el.dataset.dashId);
+          oeffneAnsicht('bestellen', 'bestellungen');
+        } else if (el.dataset.dashAu) {
+          window.auOeffnen?.(el.dataset.dashAu);
+        } else if (el.dataset.dashAg) {
+          oeffneAnsicht('auftraege', 'liste');
+          if (!auZ.daten) await loadAuftraege();
+          agDetailOeffnen(el.dataset.dashAg);
         }
       }
+      function dbKachelKlick(ziel) {
+        const k = dbZ.daten?.kacheln ?? {};
+        if (ziel === 'hinweise' || ziel === 'lange') { dbZ.detail = dbZ.detail === ziel ? '' : ziel; dbZeichnen(); if (dbZ.detail) dbEl('dash-detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); return; }
+        if (ziel === 'todos') {
+          const f = dbEl('td-f'); if (f) f.value = k.todos?.ueberfaellig ? 'ueberfaellig' : 'woche';
+          const z = dbEl('td-zust-f'); if (z) z.value = dbZ.wer || 'alle';
+          oeffneAnsicht('auftraege', 'todos');
+        } else if (ziel === 'ware') { dbFilterSetzen({ 'au-f': 'ware', 'au-art': 'auftraege' }); oeffneAnsicht('auftraege', 'liste'); }
+        else if (ziel === 'abholung') {
+          psZustand.versand = 'abholung'; psZustand.status = 'alle';
+          try { localStorage.setItem(PS_VERSAND_KEY, 'abholung'); } catch { /* Speicher gesperrt */ }
+          oeffneAnsicht('bestellen', 'bestellungen');
+        } else if (ziel === 'trikots') oeffneAnsicht('bestellen', 'trikots');
+        else if (ziel === 'rueckstand') {
+          oeffneAnsicht('bestellen', 'lshop-bestellungen');
+          setTimeout(() => { const b = dbEl('rs-bereich'); b?.querySelector('details.rs-block')?.setAttribute('open', ''); b?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 600);
+        }
+      }
+      dbEl('panel-dashboard').addEventListener('click', async ev => {
+        const wer = ev.target.closest('[data-dash-wer]');
+        if (wer) {
+          dbZ.wer = wer.dataset.dashWer;
+          try { if (dbZ.wer) localStorage.setItem(DB_WER_KEY, dbZ.wer); else localStorage.removeItem(DB_WER_KEY); } catch { /* Speicher gesperrt -> nur jetzt */ }
+          loadDashboard();
+          return;
+        }
+        const gel = ev.target.closest('[data-dash-gelesen]');
+        if (gel) {
+          if (gel.disabled) return;
+          gel.disabled = true;
+          try {
+            const res = await apiFetch(`${API_BASE()}/api/dashboard/hinweis-gelesen`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ shop: gel.dataset.shop, nr: gel.dataset.nr, pruef: gel.dataset.pruef, wer: dbZ.wer }) });
+            const j = await res.json().catch(() => null);
+            if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
+            showToast(`#${gel.dataset.nr}: als gelesen markiert – für alle.`, 'success');
+          } catch (e) { showToast(`Nicht gespeichert: ${e.message}`, 'error', 8000); gel.disabled = false; }
+          loadDashboard();
+          return;
+        }
+        if (ev.target.closest('[data-dash-detail-zu]')) { dbZ.detail = ''; dbZeichnen(); return; }
+        const kachel = ev.target.closest('[data-dash-ziel]');
+        if (kachel) { dbKachelKlick(kachel.dataset.dashZiel); return; }
+        const auf = ev.target.closest('[data-dash-au-filter]');
+        if (auf) { dbFilterSetzen(DB_AU_ZIEL[Number(auf.dataset.dashAuFilter)][2]); oeffneAnsicht('auftraege', 'liste'); return; }
+        const zeile = ev.target.closest('[data-dash-shop], [data-dash-au], [data-dash-ag]');
+        if (zeile) dbOeffne(zeile);
+      });
 
       // Trikot-Sync von Hand: dieselbe Route wie trikot-sync-daily.yml. Der Sync
       // haengt nur Zeilen mit neuer Zeilen-ID an, ein erneuter Lauf ist also
@@ -6329,9 +6507,21 @@
         'kl-suchen':            { name: 'Suchen', text: 'Fragt Lexoffice, nur lesend. Höchstens 25 Treffer; gibt es mehr, genauer suchen.' },
         'kl-uebernehmen':       { name: 'Treffer wählen', text: 'Zeile anklicken oder ↑/↓ und Enter: übernimmt genau diesen Kunden (nie doppelt). „schon in MC“ öffnet ihn nur.' },
         'kl-neu':               { name: '+ Neuer Kunde in MC', text: 'Nicht in Lexoffice? Dann den Kunden direkt in MC anlegen.' },
-        'dash-offen':           { name: 'Offen', text: 'Bestellungen in Bearbeitung und in Wartestellung. Klick öffnet Bestellungen (JFN).' },
-        'dash-auftraege':       { name: 'Aufträge', text: 'Offene Aufträge, Termine, fertig/nicht bezahlt, überfällige To-dos, offene Aufgaben. Klick öffnet Aufträge.' },
-        'dash-au-zeile':        { name: 'Teilzahl', text: 'Öffnet Aufträge bzw. To-dos gleich mit diesem Filter.' },
+        // DB1: Dashboard
+        'dash-wer':             { name: 'Alle · Christian · Nicole', text: 'Zeigt Aufträge, Aufgaben und To-dos nur dieser Person. Shop-Bestellungen bleiben. Gilt nur auf diesem Gerät.' },
+        'dash-k-hinweise':      { name: 'Kundenhinweise', text: 'Offene Bestellungen (JFN + HONK) mit Kundennotiz, die noch niemand gelesen hat. Klick zeigt die Liste.' },
+        'dash-k-lange':         { name: 'Wartet lange', text: 'Länger als 7 Tage offen (Shop + Aufträge, ohne Trikots). Ab 14 Tagen rot. Klick zeigt die Liste.' },
+        'dash-k-todos':         { name: 'To-dos', text: 'To-dos, die heute fällig oder überfällig sind. Klick öffnet die To-do-Übersicht mit Filter.' },
+        'dash-k-rueckstand':    { name: 'L-Shop-Rückstand', text: 'Positionen aus der Rückstandsliste von L-Shop. Rot: in Klärung oder Liste veraltet. Klick öffnet L-Shop-Bestellungen.' },
+        'dash-k-ware':          { name: 'Wartet auf Ware', text: 'Offene Aufträge, deren Ware noch nicht da ist. Klick öffnet Aufträge mit diesem Filter.' },
+        'dash-k-abholung':      { name: 'Abholungen offen', text: 'Offene Bestellungen mit Abholung. Klick öffnet Bestellungen mit Filter Abholung.' },
+        'dash-k-trikots':       { name: 'Trikots', text: 'Noch nicht beim Produzenten, offene Goalie-Hinweise, Bestellungen über 6 Wochen. Klick öffnet die Trikot-Ansicht.' },
+        'dash-gelesen':         { name: 'gelesen ✓', text: 'Hinweis ist erledigt – für alle. Ändert der Kunde die Notiz, erscheint sie wieder.' },
+        'dash-zeile':           { name: 'Öffnen', text: 'Öffnet diese Bestellung bzw. diesen Auftrag.' },
+        'dash-au-status':       { name: 'Aufträge nach Status', text: 'Zahl je Status. Klick öffnet Aufträge mit diesem Filter.' },
+        'dash-detail-zu':       { name: 'Liste schließen', text: 'Blendet die Liste unter den Kacheln wieder aus.' },
+        'dash-geld':            { name: 'Geld', text: 'Umsatz heute und 7 Tage (beide Shops, ohne Storno). Offen = Wartestellung im Shop + fertige, nicht bezahlte Aufträge.' },
+        'dash-balken':          { name: '7 Tage', text: 'Umsatz je Tag, beide Shops zusammen.' },
         'au-design-link':       { name: 'Design-Link', text: 'Link zum Entwurf (z. B. Canva), nur https://. In der Ansicht als „Design öffnen ↗“.' },
         'ap-eingabe':           { name: 'Preise eingeben', text: 'Netto oder brutto eintippen (neu: Privatperson = brutto). Gespeichert wird netto, Summe unten netto · MwSt · brutto.' },
         // AM-2: Aufträge erfassen, Liste, Ansicht
@@ -6445,6 +6635,8 @@
         'assistent': ['aw-eintrag-neu', 'aw-eintrag-speichern', 'aw-prompt-speichern', 'aw-prompt-standard', 'aw-prompt-zeigen', 'aw-test-senden', 'aw-test-neu'],
         'lager-dialog': ['lager-treffer', 'lager-liste-weg', 'lager-event-neu', 'lager-event-anlegen', 'lager-artikel-anlegen', 'lager-ort-anlegen', 'lager-verlauf-korb', 'lager-verlauf-bestellung'],
         'darstellung': ['theme-wahl'],
+        'dashboard': ['dash-wer', 'dash-k-hinweise', 'dash-k-lange', 'dash-k-todos', 'dash-k-rueckstand', 'dash-k-ware', 'dash-k-abholung', 'dash-k-trikots',
+          'dash-gelesen', 'dash-zeile', 'dash-au-status', 'dash-detail-zu', 'dash-geld', 'dash-balken'],
         'einstellungen': ['api-key-speichern', 'app-installieren', 'stamm-pruefen', 'stamm-uebernehmen'],
         korb:       ['eigen-modell', 'filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-lb-zuerst', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'lager-storno-hinweis', 'lager-storno-zurueck', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'eb-bearbeiten', 'eb-gesperrt-lager', 'eb-farbe', 'eb-groesse', 'eb-menge', 'eb-referenz', 'eb-notiz', 'eb-lager', 'eb-speichern', 'eb-abbrechen', 'abgleich', 'belege', 'lieferbarkeit', 'alle-offenen', 'zurueck'],
         leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
@@ -6457,7 +6649,7 @@
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag', 'tr-aendern-gesperrt', 'ti-goalie', 'tr-goalie', 'tr-gk-pruefen', 'tr-gk-markieren', 'tr-gk-kein'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
-        auftraege: ['dash-au-zeile', 'au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'dash-auftraege', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'dash-offen', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern'],
+        auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern'],
         lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
@@ -10461,59 +10653,7 @@
         kuDialogOeffnen(null, { nachSpeichern: weiter });
       });
 
-      // ── AM-1-1: Dashboard-Kachel "Aufträge" (nur Zahlen aus GET /api/kunden/zahlen) ──
-      // AM-2 dockt hier an: dieselbe Antwort bekommt ein Feld `auftraege` { offen, terminBald, wartetAufWare, fertigNichtBezahlt };
-      // auKachelHtml zeigt dann je Zahl eine Zeile (nur Zahlen, nie Namen). Bis dahin: aktive Kunden + Hinweis.
-      // ── Auftraege-Kachel: Anfang (reine Logik, Test backend/tests/kunden-frontend.test.js) ──
-      const AU_KACHEL_ZEILEN = [
-        ['offen', 'offene Aufträge'], ['terminBald', 'Termin in ≤ 7 Tagen'], ['wartetAufWare', 'wartet auf Ware'], ['fertigNichtBezahlt', 'fertig, nicht bezahlt'],
-        ['todosUeberfaellig', 'To-dos überfällig'], ['aufgabenOffen', 'Aufgaben offen'],   // AM-4
-      ];
-      // AMQ1: Ziel je Teilzahl - Unterpunkt + Filterwerte (au-f / au-art bzw. td-f). Kachel selbst -> Aufträge (offen).
-      const AU_KACHEL_ZIEL = {
-        terminBald: { unterpunkt: 'liste', filter: { 'au-f': 'termin', 'au-art': 'auftraege' } },
-        wartetAufWare: { unterpunkt: 'liste', filter: { 'au-f': 'ware', 'au-art': 'auftraege' } },
-        todosUeberfaellig: { unterpunkt: 'todos', filter: { 'td-f': 'ueberfaellig' } },
-        aufgabenOffen: { unterpunkt: 'liste', filter: { 'au-f': 'offen', 'au-art': 'aufgaben' } },
-      };
-      const AU_KACHEL_START = { unterpunkt: 'liste', filter: { 'au-f': 'offen', 'au-art': 'alle' } };
-      function auKachelHtml(z) {
-        const zahl = v => (Number.isFinite(v) ? String(v) : '–');
-        const a = z?.auftraege;
-        // AM-2: Hauptzahl = offene Auftraege; darunter Termin, fertig/nicht bezahlt (wartet auf Ware ab AM-3) und aktive Kunden.
-        if (a) {
-          // AMQ1: Teilzahlen springen mit passendem Filter (AU_KACHEL_ZIEL); sonst nur Text
-          const zeilen = AU_KACHEL_ZEILEN.filter(([k]) => k !== 'offen' && Number.isFinite(a[k])).map(([k, txt]) => (AU_KACHEL_ZIEL[k]
-            ? `<button type="button" class="au-kachel-zeile au-kachel-link" data-au-ziel="${k}" data-hilfe="dash-au-zeile">${zahl(a[k])} ${txt}</button>`
-            : `<div class="au-kachel-zeile">${zahl(a[k])} ${txt}</div>`)).join('');
-          return `<div class="dash-stat-value">${zahl(a.offen)}</div><div class="dash-stat-label">Aufträge offen ↗</div>${zeilen}<div class="au-kachel-zeile">${zahl(z?.aktiv)} aktive Kunden</div>`;
-        }
-        return `<div class="dash-stat-value">${zahl(z?.aktiv)}</div><div class="dash-stat-label">Aufträge · aktive Kunden ↗</div><div class="au-kachel-zeile">Auftragszahlen nicht verfügbar</div>`;
-      }
-      // ── Auftraege-Kachel: Ende ──
-      async function loadAuftraegeKachel() {
-        const el = document.getElementById('dash-auftraege');
-        if (!el) return;
-        try {
-          const res = await apiFetch(`${API_BASE()}/api/kunden/zahlen`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
-          const j = await res.json().catch(() => null);
-          el.innerHTML = auKachelHtml(res.ok ? j : null);
-        } catch { el.innerHTML = auKachelHtml(null); }
-      }
-      // AMQ1: Kachel -> Aufträge (statt Kunden); Teilzahl -> Aufträge/To-dos mit Filter
-      function auKachelSprung(ziel) {
-        for (const [id, wert] of Object.entries(ziel.filter)) { const el = document.getElementById(id); if (el) el.value = wert; }
-        oeffneAnsicht('auftraege', ziel.unterpunkt);
-      }
-      document.getElementById('dash-auftraege')?.addEventListener('click', e => {
-        const k = e.target.closest('[data-au-ziel]')?.dataset.auZiel;
-        auKachelSprung(AU_KACHEL_ZIEL[k] ?? AU_KACHEL_START);
-      });
-      document.getElementById('dash-auftraege')?.addEventListener('keydown', e => {
-        if (e.target.closest('[data-au-ziel]')) return;   // Knopf der Teilzahl: Enter klickt ihn selbst
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); auKachelSprung(AU_KACHEL_START); }
-      });
-      document.addEventListener('mc:ansicht', e => { if (e.detail?.panel === 'dashboard') loadAuftraegeKachel(); });   // auch beim Start
+      // DB1: Die Dashboard-Kachel "Aufträge" (AM-1-1/AMQ1) ist in "Zu tun" und "Eigene Aufträge" aufgegangen (Block Dashboard-Anzeige).
 
 
       // ── SECTION: Aufträge – Liste, Ansicht, Erfassen (AM-2) ──

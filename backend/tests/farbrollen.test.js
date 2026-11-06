@@ -152,6 +152,8 @@ const PAARE = [
   ['--danger', '--surface'], ['--danger', '--danger-bg'], ['--danger', 'mix:--danger:12:--surface'], ['--bg', '--danger'],
   ['--success', '--surface'], ['--success', '--success-bg'], ['--bg', '--success'],
   ['--status-design', 'mix:--status-design:12:--surface'], ['--au', 'mix:--au:22:--surface'], ['--ag', '--surface'],
+  // DB1: Dashboard-Kacheln (Zahl in Rollenfarbe auf der Karte, Grau bei 0) und Shop-Punkte in den Listen
+  ['--au', '--surface'], ['--shop-jfn', '--surface'], ['--shop-honk', '--surface'], ['--text', '--surface-2'],
   ['--shop-jfn', 'mix:--shop-jfn:15:--surface'], ['--shop-honk', 'mix:--shop-honk:15:--surface'],
   ['--nav-kachel-text', '--nav-kachel'], ['--on-color', '--nav-kachel-aktiv'], ['--nav2-text', '--nav2-kachel'], ['--on-color', '--nav2-aktiv'],
 ];
