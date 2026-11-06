@@ -32,6 +32,7 @@ const CACHE_NAME   = CACHE_PREFIX + VERSION;
 // Nur die PWA-Shell. Alles andere kommt aus dem Netz.
 const PRECACHE = [
   './index.html',
+  './farben.css',   // FK4: alle Farbwerte (ohne sie waere MC offline farblos)
   './manifest.json',
 ];
 

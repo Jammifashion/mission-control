@@ -3,52 +3,113 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="">
   <title>Festpreis Partner Portal – JammiFashion</title>
+    <script>
+    // FK3: Farbdarstellung vor dem ersten Zeichnen setzen (kein Aufblitzen). Wahl je Geraet, getrennt von MC (mc_theme).
+    // ── Theme: Anfang (reine Logik wie MC, Schluessel partner_theme, wortgleich in partner-festpreis.html; Test backend/tests/partner-farben.test.js) ──
+    var PT_THEME_WAHLEN = ['system', 'light', 'dark'];
+    function ptThemeLies(speicher) {
+      try { var w = speicher ? speicher.getItem('partner_theme') : null; return PT_THEME_WAHLEN.indexOf(w) >= 0 ? w : 'system'; } catch (e) { return 'system'; }
+    }
+    function ptThemeSchreib(speicher, wahl) {
+      try { if (!speicher) return false; if (wahl === 'system') speicher.removeItem('partner_theme'); else speicher.setItem('partner_theme', wahl); return true; } catch (e) { return false; }
+    }
+    function ptThemeModus(wahl, matchMedia) {
+      if (wahl === 'light' || wahl === 'dark') return wahl;
+      try { return matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; } catch (e) { return 'dark'; }
+    }
+    function ptThemeAnwenden(doc, wahl, matchMedia) {
+      var modus = ptThemeModus(wahl, matchMedia);
+      doc.documentElement.setAttribute('data-theme', modus);
+      doc.documentElement.setAttribute('data-theme-wahl', wahl);
+      return modus;
+    }
+    /** Browser-Leiste: theme-color = aktuelles --bg (kein fester Wert im Code). */
+    function ptThemeMeta(doc, win) {
+      var m = doc.querySelector('meta[name="theme-color"]');
+      if (!m || !win || !win.getComputedStyle) return;
+      var bg = win.getComputedStyle(doc.documentElement).getPropertyValue('--bg').trim();
+      if (bg) m.setAttribute('content', bg);
+    }
+    // ── Theme: Ende ──
+    (function () {
+      var speicher = null;
+      try { speicher = window.localStorage; } catch (e) { speicher = null; }
+      var mm = window.matchMedia ? window.matchMedia.bind(window) : null;
+      var wahl = ptThemeLies(speicher);
+      ptThemeAnwenden(document, wahl, mm);
+      window.ptTheme = {
+        wahl: function () { return wahl; },
+        setze: function (neu) {
+          wahl = PT_THEME_WAHLEN.indexOf(neu) >= 0 ? neu : 'system';
+          ptThemeSchreib(speicher, wahl);
+          var modus = ptThemeAnwenden(document, wahl, mm);
+          ptThemeMeta(document, window);
+          return modus;
+        },
+      };
+      try {
+        var q = mm && mm('(prefers-color-scheme: light)');
+        var folge = function () { if (wahl === 'system') { ptThemeAnwenden(document, wahl, mm); ptThemeMeta(document, window); } };
+        if (q && q.addEventListener) q.addEventListener('change', folge); else if (q && q.addListener) q.addListener(folge);
+        document.addEventListener('visibilitychange', function () { if (!document.hidden && ptThemeModus(wahl, mm) !== document.documentElement.getAttribute('data-theme')) folge(); });
+      } catch (e) { /* aelterer Browser: bleibt beim Startwert */ }
+      document.addEventListener('DOMContentLoaded', function () { ptThemeMeta(document, window); });
+    })();
+  </script>
+  <link rel="stylesheet" href="farben.css">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg: #121212; --card: #1e1e1e; --border: #2e2e2e;
-      --text: #e0e0e0; --muted: #999; --accent: #e8c44a;
-      --success: #4caf50; --danger: #f44336;
-    }
+    /* Farben: farben.css (FK4) - gleiche Datei wie MC, hier keine Farbwerte. */
     body {
       background: var(--bg); color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       font-size: 15px; min-height: 100vh;
     }
     header {
-      background: var(--card); border-bottom: 1px solid var(--border);
+      background: var(--surface); border-bottom: 1px solid var(--border);
       padding: 1rem 1.5rem; display: flex; align-items: center;
-      justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+      justify-content: space-between; gap: 0.6rem 1rem; flex-wrap: wrap;
     }
-    header .logo { font-size: 1.05rem; color: var(--accent); font-weight: 700; letter-spacing: 0.02em; }
+    .kopf-rechts { display: flex; align-items: center; gap: 0.75rem; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+    /* FK3: Umschalter Farbdarstellung (System | Hell | Dunkel), Hinweis bei Maus und Antippen (Fokus), kein title */
+    .theme-schalter { position: relative; display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; background: var(--bg); }
+    .theme-schalter button { background: none; border: none; color: var(--muted); font: inherit; font-size: 0.8rem; min-width: 36px; min-height: 32px; padding: 0 0.55rem; border-radius: 999px; cursor: pointer; }
+    .theme-schalter button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 0 0 1px var(--border); }
+    .theme-schalter button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+    .theme-schalter::after { content: attr(data-tipp); position: absolute; top: calc(100% + 6px); right: 0; z-index: 20; width: max-content; max-width: min(15rem, 80vw);
+      background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 0.35rem 0.55rem; font-size: 0.76rem; line-height: 1.35;
+      box-shadow: 0 4px 14px var(--shadow); opacity: 0; pointer-events: none; transition: opacity 0.12s; }
+    .theme-schalter:hover::after, .theme-schalter:focus-within::after { opacity: 1; }
+    header .logo { font-size: 1.05rem; color: var(--text); font-weight: 700; letter-spacing: 0.02em; }
     header .partner-name { font-size: 0.9rem; color: var(--muted); }
     main { max-width: 1060px; margin: 0 auto; padding: 1.5rem 1rem; display: flex; flex-direction: column; gap: 1.5rem; }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem 1.5rem; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem 1.5rem; }
     .card-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.1rem; }
     .card-header h2 { font-size: 1rem; font-weight: 600; }
     table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     thead tr { border-bottom: 1px solid var(--border); }
     th { padding: 0.55rem 0.8rem; text-align: left; color: var(--muted); font-weight: 500; font-size: 0.82rem; white-space: nowrap; }
-    td { padding: 0.6rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.9rem; }
+    td { padding: 0.6rem 0.8rem; border-bottom: 1px solid color-mix(in srgb, var(--text) 4%, transparent); font-size: 0.9rem; }
     tr:last-child td { border-bottom: none; }
     .badge { display: inline-block; padding: 0.22rem 0.65rem; border-radius: 20px; font-size: 0.78rem; font-weight: 600; }
-    .badge-offen       { background: rgba(255,193,7,0.15);  color: #ffc107; }
-    .badge-abgerechnet { background: rgba(76,175,80,0.15);  color: #4caf50; }
-    .badge-entwurf     { background: rgba(120,120,120,0.2); color: #aaa; }
-    .badge-freigegeben { background: rgba(76,175,80,0.15);  color: #4caf50; }
-    .skeleton { background: linear-gradient(90deg, var(--card) 25%, #252525 50%, var(--card) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px; height: 80px; }
+    .badge-offen       { background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); }
+    .badge-abgerechnet { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); }
+    .badge-entwurf     { background: color-mix(in srgb, var(--muted) 20%, transparent); color: var(--text); }
+    .badge-freigegeben { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); }
+    .skeleton { background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px; height: 80px; }
     @keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
     .empty { color: var(--muted); font-size: 0.88rem; padding: 1.5rem 0; }
-    .btn { background: var(--accent); color: #000; border: none; border-radius: 6px; padding: 0.45rem 1.1rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
+    .btn { background: var(--accent); color: var(--accent-text); border: none; border-radius: 6px; padding: 0.45rem 1.1rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: opacity 0.15s; }
     .btn:hover { opacity: 0.88; }
     .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 0.4rem 0.9rem; font-size: 0.84rem; cursor: pointer; }
-    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-outline:hover { border-color: var(--focus); color: var(--focus); }
     #splash { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 55vh; gap: 1rem; }
     #splash p { color: var(--muted); font-size: 0.92rem; }
-    .error-box { background: rgba(244,67,54,0.1); border: 1px solid rgba(244,67,54,0.35); border-radius: 8px; padding: 1.5rem 2rem; text-align: center; }
+    .error-box { background: color-mix(in srgb, var(--danger) 10%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); border-radius: 8px; padding: 1.5rem 2rem; text-align: center; }
     .error-box p { color: var(--danger); font-size: 1rem; line-height: 1.6; }
-    .api-cfg { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    .api-cfg { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
     .api-cfg label { font-size: 0.84rem; color: var(--muted); white-space: nowrap; }
     .api-cfg input { flex: 1; min-width: 200px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.45rem 0.75rem; color: var(--text); font-size: 0.88rem; }
     .num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -58,7 +119,7 @@
     .saldo-row .amount { font-variant-numeric: tabular-nums; font-weight: 600; }
     .saldo-divider { border: none; border-top: 1px solid var(--border); margin: 0.4rem 0; }
     .saldo-final { font-size: 1.05rem; font-weight: 700; padding-top: 0.4rem; }
-    .saldo-positive { color: #4caf50; }
+    .saldo-positive { color: var(--success); }
     .saldo-negative { color: var(--danger); }
     /* Abrechnung */
     .abr-card { padding-top: 1.25rem; margin-top: 1.25rem; border-top: 1px solid var(--border); }
@@ -66,7 +127,7 @@
     .abr-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; padding-bottom: 0.6rem; margin-bottom: 0.6rem; border-bottom: 1px solid var(--border); }
     .abr-zeitraum { font-size: 0.86rem; color: var(--muted); }
     .abr-summe { font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-    .abr-summe.pos { color: #4caf50; }
+    .abr-summe.pos { color: var(--success); }
     .summary { font-size: 0.84rem; color: var(--muted); margin-bottom: 0.85rem; }
     .summary strong { color: var(--text); }
     /* Kalkulations-Info */
@@ -81,20 +142,27 @@
     .ea-form { display: flex; flex-direction: column; gap: 0.85rem; max-width: 520px; }
     .ea-label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.84rem; color: var(--muted); }
     .ea-input { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.75rem; color: var(--text); font-size: 0.9rem; font-family: inherit; }
-    .ea-input:focus { outline: none; border-color: var(--accent); }
+    .ea-input:focus { outline: none; border-color: var(--focus); }
     .ea-fieldset { border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
     .ea-fieldset legend { font-size: 0.84rem; color: var(--muted); padding: 0 0.4rem; }
     .ea-radio { font-size: 0.88rem; color: var(--text); display: flex; align-items: center; gap: 0.4rem; cursor: pointer; }
     .ea-adresse { display: flex; flex-direction: column; gap: 0.5rem; }
-    .ea-msg-ok { background: rgba(76,175,80,0.12); border: 1px solid rgba(76,175,80,0.4); color: var(--success); padding: 0.7rem 1rem; border-radius: 6px; font-size: 0.88rem; }
-    .ea-msg-err { background: rgba(244,67,54,0.1); border: 1px solid rgba(244,67,54,0.35); color: var(--danger); padding: 0.7rem 1rem; border-radius: 6px; font-size: 0.88rem; }
+    .ea-msg-ok { background: color-mix(in srgb, var(--success) 12%, transparent); border: 1px solid color-mix(in srgb, var(--success) 40%, transparent); color: var(--success); padding: 0.7rem 1rem; border-radius: 6px; font-size: 0.88rem; }
+    .ea-msg-err { background: color-mix(in srgb, var(--danger) 10%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); color: var(--danger); padding: 0.7rem 1rem; border-radius: 6px; font-size: 0.88rem; }
   </style>
 </head>
 <body>
 
   <header>
     <span class="logo">JammiFashion – Festpreis Partner Portal</span>
-    <span class="partner-name" id="partner-name-header"></span>
+    <div class="kopf-rechts">
+      <span class="partner-name" id="partner-name-header"></span>
+      <div class="theme-schalter" id="theme-schalter" role="group" aria-label="Farbdarstellung" data-tipp="Farbdarstellung: System, Hell oder Dunkel">
+        <button type="button" data-theme-knopf="system" aria-pressed="true" aria-label="System">Auto</button>
+        <button type="button" data-theme-knopf="light" aria-pressed="false" aria-label="Hell">☀</button>
+        <button type="button" data-theme-knopf="dark" aria-pressed="false" aria-label="Dunkel">☾</button>
+      </div>
+    </div>
   </header>
 
   <main id="main-content">
@@ -119,6 +187,19 @@
     let PARTNER_ID = '';
 
     const main = document.getElementById('main-content');
+
+    // FK3: Umschalter Farbdarstellung (Logik im <head>, Block "Theme")
+    function themeKnoepfeZeigen() {
+      const w = window.ptTheme ? window.ptTheme.wahl() : 'system';
+      document.querySelectorAll('[data-theme-knopf]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.themeKnopf === w)));
+    }
+    document.getElementById('theme-schalter').addEventListener('click', ev => {
+      const b = ev.target.closest('[data-theme-knopf]');
+      if (!b || !window.ptTheme) return;
+      window.ptTheme.setze(b.dataset.themeKnopf);
+      themeKnoepfeZeigen();
+    });
+    themeKnoepfeZeigen();
 
     async function apiFetch(path) {
       const r = await fetch(`${API_BASE}${path}`, {
@@ -178,8 +259,8 @@
             </tr></thead>
             <tbody>${rows.map(r => {
               const isStorno = !!(r['Storno-Status'] || '').trim() || Number(r['Stückzahl'] || 0) < 0;
-              const red = 'color:#dc2626;font-weight:600;';
-              return `<tr style="${isStorno ? 'background:rgba(220,38,38,0.07);' : ''}">
+              const red = 'color:var(--danger);font-weight:600;';
+              return `<tr style="${isStorno ? 'background:color-mix(in srgb, var(--danger) 7%, transparent);' : ''}">
               <td>${r['Datum']}</td>
               <td>${r['WC-Bestellnummer']}</td>
               <td style="max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${r['Artikelname']}">${r['Artikelname']}${isStorno ? ` <span style="font-size:0.72rem;${red}">↩ Storno</span>` : ''}</td>

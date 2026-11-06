@@ -1,0 +1,74 @@
+/* farben.css – EINZIGE Quelle aller Farbwerte (FK4, Inhaber 06.11.2026).
+   Eingebunden per <link> im <head> von index.html (MC), partner.html und partner-festpreis.html, jeweils NACH dem
+   Theme-Skript (setzt data-theme vor dem ersten Zeichnen) und VOR dem seitenbezogenen <style>.
+   Rollen: FK1 (eine Farbe = eine Rolle), Hell-Werte: FK2 (Kontrast WCAG AA, gemessen in farbrollen.test.js).
+   Eine neue Farbe = Wert in BEIDEN Bloecken. Ausserhalb dieser Datei nur var(--…). */
+
+:root {
+  --bg: #0f0f0f;
+  --surface: #1a1a1a;
+  --surface-2: #232323;    /* abgesetzte Flaeche: Tooltip, Toast, Editor-Leiste, Hover in Listen */
+  --border: #2a2a2a;
+  --disabled: #555;        /* deaktiviert, Platzhalter, "erledigt"-Zaehler */
+  --accent: #e8c44a;       /* NUR Hauptaktion + aktiver Reiter/Tab */
+  --accent-text: #111;     /* Text auf Gold */
+  --focus: var(--accent);  /* Bedienung: Fokus-Rahmen, Haken, Hover-Rand an Feldern/Knoepfen (eigene Rolle, heute gleiche Farbe) */
+  --on-color: #fff;        /* Text auf kraeftiger Flaeche (aktive Kachel, Fehler-Knopf) */
+  /* Hauptnavigation am Handy als Kacheln (Inhaber 03.11.: blau) */
+  --nav-kachel: #16243a; --nav-kachel-rand: #2c4a73; --nav-kachel-text: #b9cdea; --nav-kachel-aktiv: #2f6fd1; --nav-kachel-aktiv-rand: #5b93f0;
+  /* NAV5: 2. Ebene am Handy (Unterreiter) - Violett (Inhaber 04.11., Variante B), getrennt von blau (Hauptkacheln) und gold (Shop) */
+  --nav2-rand: #6b54a6; --nav2-text: #cbbcf0; --nav2-aktiv: #6a3fc2; --nav2-aktiv-rand: #a184ec;
+  --text: #f0f0f0;
+  --muted: #888;
+  --info: #4a9eff;         /* Links, Filter-Segmente, "aktuell/heute", Markierung */
+  --warning: #f0a030;      /* bald faellig, laeuft aus, Hinweis, Ampel gelb, Goalie, Wartestellung, RS1 sofort/KW */
+  --warning-bg: #3d2a0c;
+  --danger: #e86464;       /* NUR Fehler, ueberfaellig, Storno, RS1 in Klaerung/unbekannt/veraltet */
+  --danger-bg: #3a1a1a;
+  --success: #52c97a;      /* erledigt, geliefert, lieferbar, Saldo plus */
+  --success-bg: #1a3a20;
+  --status-design: #a184ec; /* Auftragsstatus "Design" */
+  --au: #2bb3a3;           /* Kennzeichen Auftrag AU-…, Status bestellt/Produktion, Abholung */
+  --ag: #9a8fb8;           /* Kennzeichen Aufgabe AG-… */
+  --shop-jfn: #c9a04a;     /* Shop-Kennzeichen JFN */
+  --shop-honk: #e66aa8;    /* Shop-Kennzeichen HONK */
+  --shadow: rgb(0 0 0 / 0.5);
+  --overlay: rgb(0 0 0 / 0.65);
+  /* Zaehlliste (Papier, auch Druck) */
+  --paper: #fff; --paper-text: #111; --paper-line: #bbb;
+  --nav2-kachel: transparent;   /* FK2: 2. Ebene am Handy, Flaeche (dunkel nur umrandet) */
+  color-scheme: dark;
+}
+
+/* FK2 (Inhaber 06.11.): heller Modus - hellgrauer Grund, weisse Karten, Navigation pastell. data-theme setzt der
+   Block "Theme" im <head> (Wahl System|Hell|Dunkel je Geraet, System = prefers-color-scheme). Nur Farbwerte, sonst nichts. */
+:root[data-theme="light"] {
+  --bg: #f5f5f3;
+  --surface: #ffffff;
+  --surface-2: #efeee9;
+  --border: #dddad4;
+  --disabled: #8a8a8a;
+  --text: #1a1a1a;
+  --muted: #666;
+  --accent: #8f6b00;
+  --accent-text: #fff;
+  --focus: var(--info);
+  --on-color: #fff;
+  --nav-kachel: #dce8fb; --nav-kachel-rand: #b3cbef; --nav-kachel-text: #163a6e; --nav-kachel-aktiv: #1b5fb5; --nav-kachel-aktiv-rand: #17569f;
+  --nav2-kachel: #e8e1fa; --nav2-rand: #c6b8ee; --nav2-text: #3f2c7a; --nav2-aktiv: #6b4fc4; --nav2-aktiv-rand: #523a9e;
+  --info: #1b5fb5;
+  --warning: #8a5300;
+  --warning-bg: #fbeed6;
+  --danger: #c62828;
+  --danger-bg: #fbe4e4;
+  --success: #23763f;
+  --success-bg: #e2f2e8;
+  --status-design: #5c4fb0;
+  --au: #0d6658;
+  --ag: #6e6391;
+  --shop-jfn: #7d5c10;
+  --shop-honk: #a8306b;
+  --shadow: rgb(0 0 0 / 0.12);
+  --overlay: rgb(0 0 0 / 0.35);
+  color-scheme: light;
+}

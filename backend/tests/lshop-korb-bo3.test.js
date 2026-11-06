@@ -294,7 +294,8 @@ describe('L-Shop-Zeile je Buendel und Position', () => {
 describe('Frontend: Filter Offen/Herausgenommen/Alle', () => {
   const html = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../frontend/index.html'), 'utf8');
   test('--info in :root, Filter-CSS nur ueber var(--info), keine feste Farbe', () => {
-    expect(html).toMatch(/:root\s*\{[^}]*--info:\s*#[0-9a-f]{6}/i);
+    const farben = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../frontend/farben.css'), 'utf8');   // FK4
+    expect(farben).toMatch(/:root\s*\{[^}]*--info:\s*#[0-9a-f]{6}/i);
     const css = html.match(/\.korb-filter button[\s\S]*?\}\s*\.korb-filter button\[aria-pressed="true"\][^}]*\}/)[0];
     expect(css).toContain('var(--info)');
     expect(css).not.toMatch(/#[0-9a-f]{3,6}\b/i);

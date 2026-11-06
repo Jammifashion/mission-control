@@ -121,7 +121,7 @@ describe('NAV5: 2. Ebene am Handy als Kacheln (Violett), Desktop unveraendert', 
     expect(css).toMatch(/white-space: normal;/);
     expect(css).toMatch(/var\(--nav2-aktiv\)/);
     expect(css).not.toMatch(/--nav-kachel/);   // nicht das Blau der Hauptkacheln
-    expect(html).toMatch(/--nav2-rand: #[0-9a-f]{6}; --nav2-text: #[0-9a-f]{6}; --nav2-aktiv: #[0-9a-f]{6}; --nav2-aktiv-rand: #[0-9a-f]{6};/);
+    expect(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../frontend/farben.css'), 'utf8')).toMatch(/--nav2-rand: #[0-9a-f]{6}; --nav2-text: #[0-9a-f]{6}; --nav2-aktiv: #[0-9a-f]{6}; --nav2-aktiv-rand: #[0-9a-f]{6};/);
     // Desktop-Regel bleibt (eine Zeile, scrollt fuer sich)
     expect(html).toContain('.sub-tabs { display: flex; gap: 0; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); overflow-x: auto;');
   });

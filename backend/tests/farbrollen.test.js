@@ -1,15 +1,17 @@
 // FK1: Farbrollen - jeder Farbwert steht nur in :root, sonst nur var(--…). Eine Farbe = eine Rolle.
+// FK4: die Bloecke stehen in frontend/farben.css (einzige Quelle fuer MC und beide Partnerportale).
 
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const html = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../frontend/index.html'), 'utf8');
-const rootMatch = html.match(/:root\s*\{[^}]*\}/);
+const farbenCss = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../frontend/farben.css'), 'utf8');   // FK4
+const rootMatch = farbenCss.match(/:root\s*\{[^}]*\}/);
 const root = rootMatch[0];
-const hellMatch = html.match(/:root\[data-theme="light"\]\s*\{[^}]*\}/);   // FK2: heller Modus, ebenfalls nur Farbwerte
+const hellMatch = farbenCss.match(/:root\[data-theme="light"\]\s*\{[^}]*\}/);   // FK2: heller Modus, ebenfalls nur Farbwerte
 const hellBlock = hellMatch ? hellMatch[0] : '';
-const ohneRoot = html.replace(root, '').replace(hellBlock, '');
+const ohneRoot = html;   // FK4: index.html hat keine eigenen Farbbloecke mehr, alles steht in farben.css
 const regel = sel => { const m = html.indexOf(`
       ${sel}`); const i = m < 0 ? html.indexOf(sel) : m + 7; return i < 0 ? '' : html.slice(i, html.indexOf('}', i) + 1); };
 
@@ -184,5 +186,27 @@ describe('FK2: heller Modus', () => {
       expect([k, new RegExp(`\\.${k} \\{[^}]*background: var\\(--accent\\); color: var\\(--accent-text\\)`).test(css)]).toEqual([k, true]);
     }
     expect(html).not.toMatch(/<button[^>]*style="[^"]*background:\s*var\(--success/);
+  });
+});
+
+describe('FK4: farben.css zentral', () => {
+  const fe = n => readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../frontend', n), 'utf8');
+  const LINK = '<link rel="stylesheet" href="farben.css">';
+  test('farben.css enthaelt nur die zwei Bloecke (plus Kommentare)', () => {
+    const rest = farbenCss.replace(root, '').replace(hellBlock, '').replace(/\/\*[\s\S]*?\*\//g, '').trim();
+    expect(rest).toBe('');
+  });
+  test.each(['index.html', 'partner.html', 'partner-festpreis.html'])('%s: bindet farben.css im <head> nach dem Theme-Skript und vor <style> ein, eigene Farbbloecke gibt es nicht', datei => {
+    const s = fe(datei);
+    const l = s.indexOf(LINK);
+    expect(l).toBeGreaterThan(0);
+    expect(l).toBeLessThan(s.indexOf('<style>'));
+    expect(l).toBeGreaterThan(s.indexOf('Theme: Ende'));
+    expect(l).toBeLessThan(s.indexOf('</head>'));
+    expect(s.match(/:root\s*\{|:root\[data-theme/g)).toBeNull();
+  });
+  test('Service Worker laedt farben.css mit der MC-Shell vor (offline)', () => {
+    const pre = fe('sw.js').match(/const PRECACHE = \[([\s\S]*?)\];/)[1];
+    expect(pre).toContain("'./farben.css'");
   });
 });
