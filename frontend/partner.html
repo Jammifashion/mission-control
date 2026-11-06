@@ -3,13 +3,130 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="">
   <title>Partner Portal – JammiFashion</title>
+  <script>
+    // FK3: Farbdarstellung vor dem ersten Zeichnen setzen (kein Aufblitzen). Wahl je Geraet, getrennt von MC (mc_theme).
+    // ── Theme: Anfang (reine Logik wie MC, Schluessel partner_theme; Test backend/tests/partner-farben.test.js) ──
+    var PT_THEME_WAHLEN = ['system', 'light', 'dark'];
+    function ptThemeLies(speicher) {
+      try { var w = speicher ? speicher.getItem('partner_theme') : null; return PT_THEME_WAHLEN.indexOf(w) >= 0 ? w : 'system'; } catch (e) { return 'system'; }
+    }
+    function ptThemeSchreib(speicher, wahl) {
+      try { if (!speicher) return false; if (wahl === 'system') speicher.removeItem('partner_theme'); else speicher.setItem('partner_theme', wahl); return true; } catch (e) { return false; }
+    }
+    function ptThemeModus(wahl, matchMedia) {
+      if (wahl === 'light' || wahl === 'dark') return wahl;
+      try { return matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; } catch (e) { return 'dark'; }
+    }
+    function ptThemeAnwenden(doc, wahl, matchMedia) {
+      var modus = ptThemeModus(wahl, matchMedia);
+      doc.documentElement.setAttribute('data-theme', modus);
+      doc.documentElement.setAttribute('data-theme-wahl', wahl);
+      return modus;
+    }
+    /** Browser-Leiste: theme-color = aktuelles --bg (kein fester Wert im Code). */
+    function ptThemeMeta(doc, win) {
+      var m = doc.querySelector('meta[name="theme-color"]');
+      if (!m || !win || !win.getComputedStyle) return;
+      var bg = win.getComputedStyle(doc.documentElement).getPropertyValue('--bg').trim();
+      if (bg) m.setAttribute('content', bg);
+    }
+    // ── Theme: Ende ──
+    (function () {
+      var speicher = null;
+      try { speicher = window.localStorage; } catch (e) { speicher = null; }
+      var mm = window.matchMedia ? window.matchMedia.bind(window) : null;
+      var wahl = ptThemeLies(speicher);
+      ptThemeAnwenden(document, wahl, mm);
+      window.ptTheme = {
+        wahl: function () { return wahl; },
+        setze: function (neu) {
+          wahl = PT_THEME_WAHLEN.indexOf(neu) >= 0 ? neu : 'system';
+          ptThemeSchreib(speicher, wahl);
+          var modus = ptThemeAnwenden(document, wahl, mm);
+          ptThemeMeta(document, window);
+          return modus;
+        },
+      };
+      try {
+        var q = mm && mm('(prefers-color-scheme: light)');
+        var folge = function () { if (wahl === 'system') { ptThemeAnwenden(document, wahl, mm); ptThemeMeta(document, window); } };
+        if (q && q.addEventListener) q.addEventListener('change', folge); else if (q && q.addListener) q.addListener(folge);
+        document.addEventListener('visibilitychange', function () { if (!document.hidden && ptThemeModus(wahl, mm) !== document.documentElement.getAttribute('data-theme')) folge(); });
+      } catch (e) { /* aelterer Browser: bleibt beim Startwert */ }
+      document.addEventListener('DOMContentLoaded', function () { ptThemeMeta(document, window); });
+    })();
+  </script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --bg: #121212; --card: #1e1e1e; --border: #2e2e2e;
-      --text: #e0e0e0; --muted: #999; --accent: #e8c44a;
-      --success: #4caf50; --danger: #f44336;
+      /* FK3: gleiche Farbrollen und Werte wie MC (frontend/index.html :root) - Test partner-farben.test.js prueft die Gleichheit.
+         Jeder Farbwert steht nur hier und im Hell-Block, sonst nur var(--…). */
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --surface-2: #232323;    /* abgesetzte Flaeche: Tooltip, Toast, Editor-Leiste, Hover in Listen */
+      --border: #2a2a2a;
+      --disabled: #555;        /* deaktiviert, Platzhalter, "erledigt"-Zaehler */
+      --accent: #e8c44a;       /* NUR Hauptaktion + aktiver Reiter/Tab */
+      --accent-text: #111;     /* Text auf Gold */
+      --focus: var(--accent);  /* Bedienung: Fokus-Rahmen, Haken, Hover-Rand an Feldern/Knoepfen (eigene Rolle, heute gleiche Farbe) */
+      --on-color: #fff;        /* Text auf kraeftiger Flaeche (aktive Kachel, Fehler-Knopf) */
+      /* Hauptnavigation am Handy als Kacheln (Inhaber 03.11.: blau) */
+      --nav-kachel: #16243a; --nav-kachel-rand: #2c4a73; --nav-kachel-text: #b9cdea; --nav-kachel-aktiv: #2f6fd1; --nav-kachel-aktiv-rand: #5b93f0;
+      /* NAV5: 2. Ebene am Handy (Unterreiter) - Violett (Inhaber 04.11., Variante B), getrennt von blau (Hauptkacheln) und gold (Shop) */
+      --nav2-rand: #6b54a6; --nav2-text: #cbbcf0; --nav2-aktiv: #6a3fc2; --nav2-aktiv-rand: #a184ec;
+      --text: #f0f0f0;
+      --muted: #888;
+      --info: #4a9eff;         /* Links, Filter-Segmente, "aktuell/heute", Markierung */
+      --warning: #f0a030;      /* bald faellig, laeuft aus, Hinweis, Ampel gelb, Goalie, Wartestellung, RS1 sofort/KW */
+      --warning-bg: #3d2a0c;
+      --danger: #e86464;       /* NUR Fehler, ueberfaellig, Storno, RS1 in Klaerung/unbekannt/veraltet */
+      --danger-bg: #3a1a1a;
+      --success: #52c97a;      /* erledigt, geliefert, lieferbar, Saldo plus */
+      --success-bg: #1a3a20;
+      --status-design: #a184ec; /* Auftragsstatus "Design" */
+      --au: #2bb3a3;           /* Kennzeichen Auftrag AU-…, Status bestellt/Produktion, Abholung */
+      --ag: #9a8fb8;           /* Kennzeichen Aufgabe AG-… */
+      --shop-jfn: #c9a04a;     /* Shop-Kennzeichen JFN */
+      --shop-honk: #e66aa8;    /* Shop-Kennzeichen HONK */
+      --shadow: rgb(0 0 0 / 0.5);
+      --overlay: rgb(0 0 0 / 0.65);
+      /* Zaehlliste (Papier, auch Druck) */
+      --paper: #fff; --paper-text: #111; --paper-line: #bbb;
+      --nav2-kachel: transparent;   /* FK2: 2. Ebene am Handy, Flaeche (dunkel nur umrandet) */
+      color-scheme: dark;
+    }
+    /* FK3: heller Modus wie MC (Wahl je Geraet, localStorage "partner_theme", Umschalter oben im Kopf) */
+    :root[data-theme="light"] {
+      --bg: #f5f5f3;
+      --surface: #ffffff;
+      --surface-2: #efeee9;
+      --border: #dddad4;
+      --disabled: #8a8a8a;
+      --text: #1a1a1a;
+      --muted: #666;
+      --accent: #8f6b00;
+      --accent-text: #fff;
+      --focus: var(--info);
+      --on-color: #fff;
+      --nav-kachel: #dce8fb; --nav-kachel-rand: #b3cbef; --nav-kachel-text: #163a6e; --nav-kachel-aktiv: #1b5fb5; --nav-kachel-aktiv-rand: #17569f;
+      --nav2-kachel: #e8e1fa; --nav2-rand: #c6b8ee; --nav2-text: #3f2c7a; --nav2-aktiv: #6b4fc4; --nav2-aktiv-rand: #523a9e;
+      --info: #1b5fb5;
+      --warning: #8a5300;
+      --warning-bg: #fbeed6;
+      --danger: #c62828;
+      --danger-bg: #fbe4e4;
+      --success: #23763f;
+      --success-bg: #e2f2e8;
+      --status-design: #5c4fb0;
+      --au: #0d6658;
+      --ag: #6e6391;
+      --shop-jfn: #7d5c10;
+      --shop-honk: #a8306b;
+      --shadow: rgb(0 0 0 / 0.12);
+      --overlay: rgb(0 0 0 / 0.35);
+      color-scheme: light;
     }
     body {
       background: var(--bg);
@@ -19,36 +136,46 @@
       min-height: 100vh;
     }
     header {
-      background: var(--card);
+      background: var(--surface);
       border-bottom: 1px solid var(--border);
       padding: 1rem 1.5rem;
       display: flex; align-items: center; justify-content: space-between;
-      gap: 1rem; flex-wrap: wrap;
+      gap: 0.6rem 1rem; flex-wrap: wrap;
     }
-    header .logo { font-size: 1.05rem; color: var(--accent); font-weight: 700; letter-spacing: 0.02em; }
+    .kopf-rechts { display: flex; align-items: center; gap: 0.75rem; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+    /* FK3: Umschalter Farbdarstellung (System | Hell | Dunkel), Hinweis bei Maus und Antippen (Fokus), kein title */
+    .theme-schalter { position: relative; display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; background: var(--bg); }
+    .theme-schalter button { background: none; border: none; color: var(--muted); font: inherit; font-size: 0.8rem; min-width: 36px; min-height: 32px; padding: 0 0.55rem; border-radius: 999px; cursor: pointer; }
+    .theme-schalter button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 0 0 1px var(--border); }
+    .theme-schalter button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+    .theme-schalter::after { content: attr(data-tipp); position: absolute; top: calc(100% + 6px); right: 0; z-index: 20; width: max-content; max-width: min(15rem, 80vw);
+      background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 0.35rem 0.55rem; font-size: 0.76rem; line-height: 1.35;
+      box-shadow: 0 4px 14px var(--shadow); opacity: 0; pointer-events: none; transition: opacity 0.12s; }
+    .theme-schalter:hover::after, .theme-schalter:focus-within::after { opacity: 1; }
+    header .logo { font-size: 1.05rem; color: var(--text); font-weight: 700; letter-spacing: 0.02em; }
     header .partner-name { font-size: 0.9rem; color: var(--muted); }
     main { max-width: 1060px; margin: 0 auto; padding: 1.5rem 1rem; display: flex; flex-direction: column; gap: 1.5rem; }
-    .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem 1.5rem; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem 1.5rem; }
     .card-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.1rem; }
     .card-header h2 { font-size: 1rem; font-weight: 600; }
     table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
     thead tr { border-bottom: 1px solid var(--border); }
     th { padding: 0.55rem 0.8rem; text-align: left; color: var(--muted); font-weight: 500; font-size: 0.82rem; white-space: nowrap; }
-    td { padding: 0.6rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.9rem; }
+    td { padding: 0.6rem 0.8rem; border-bottom: 1px solid color-mix(in srgb, var(--text) 4%, transparent); font-size: 0.9rem; }
     tr:last-child td { border-bottom: none; }
     .badge { display: inline-block; padding: 0.22rem 0.65rem; border-radius: 20px; font-size: 0.78rem; font-weight: 600; }
-    .badge-offen        { background: rgba(255,193,7,0.15);   color: #ffc107; }
-    .badge-abgerechnet  { background: rgba(76,175,80,0.15);   color: #4caf50; }
-    .badge-angefordert  { background: rgba(255,193,7,0.15);   color: #ffc107; }
-    .badge-geprueft     { background: rgba(33,150,243,0.15);  color: #42a5f5; }
-    .badge-bezahlt      { background: rgba(76,175,80,0.15);   color: #4caf50; }
-    .skeleton { background: linear-gradient(90deg, var(--card) 25%, #252525 50%, var(--card) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px; height: 80px; }
+    .badge-offen        { background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); }
+    .badge-abgerechnet  { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); }
+    .badge-angefordert  { background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); }
+    .badge-geprueft     { background: color-mix(in srgb, var(--info) 15%, transparent); color: var(--info); }
+    .badge-bezahlt      { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); }
+    .skeleton { background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px; height: 80px; }
     @keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
     .empty { color: var(--muted); font-size: 0.88rem; padding: 1.5rem 0; }
     .summary { font-size: 0.84rem; color: var(--muted); margin-bottom: 0.85rem; }
     .summary strong { color: var(--text); }
     .btn {
-      background: var(--accent); color: #000; border: none; border-radius: 6px;
+      background: var(--accent); color: var(--accent-text); border: none; border-radius: 6px;
       padding: 0.45rem 1.1rem; font-size: 0.85rem; font-weight: 600; cursor: pointer;
       transition: opacity 0.15s;
     }
@@ -58,14 +185,14 @@
       background: transparent; color: var(--text); border: 1px solid var(--border);
       border-radius: 6px; padding: 0.4rem 0.9rem; font-size: 0.84rem; cursor: pointer;
     }
-    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-outline:hover { border-color: var(--focus); color: var(--focus); }
     /* Error / splash */
     #splash { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 55vh; gap: 1rem; }
     #splash p { color: var(--muted); font-size: 0.92rem; }
-    .error-box { background: rgba(244,67,54,0.1); border: 1px solid rgba(244,67,54,0.35); border-radius: 8px; padding: 1.5rem 2rem; text-align: center; }
+    .error-box { background: color-mix(in srgb, var(--danger) 10%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); border-radius: 8px; padding: 1.5rem 2rem; text-align: center; }
     .error-box p { color: var(--danger); font-size: 1rem; line-height: 1.6; }
     /* API config */
-    .api-cfg { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    .api-cfg { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
     .api-cfg label { font-size: 0.84rem; color: var(--muted); white-space: nowrap; }
     .api-cfg input { flex: 1; min-width: 200px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.45rem 0.75rem; color: var(--text); font-size: 0.88rem; }
     /* Saldo */
@@ -74,7 +201,7 @@
     .saldo-row .amount { font-variant-numeric: tabular-nums; font-weight: 600; }
     .saldo-divider { border: none; border-top: 1px solid var(--border); margin: 0.4rem 0; }
     .saldo-final { font-size: 1.05rem; font-weight: 700; padding-top: 0.4rem; }
-    .saldo-positive { color: #4caf50; }
+    .saldo-positive { color: var(--success); }
     .saldo-negative { color: var(--danger); }
     /* Abrechnungs-Detail (gerendert innerhalb der äußeren Card) */
     .abr-card { padding-top: 1.25rem; margin-top: 1.25rem; border-top: 1px solid var(--border); }
@@ -88,34 +215,34 @@
     }
     .abr-zeitraum { font-size: 0.86rem; color: var(--muted); }
     .abr-summe { font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-    .abr-summe.pos { color: #4caf50; }
+    .abr-summe.pos { color: var(--success); }
     .abr-summe.neg { color: var(--danger); }
     .num { text-align: right; font-variant-numeric: tabular-nums; }
     /* Eigenauftrag-Formular */
     .ea-form { display: flex; flex-direction: column; gap: 0.85rem; max-width: 520px; }
     .ea-label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.84rem; color: var(--muted); }
     .ea-input { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.75rem; color: var(--text); font-size: 0.9rem; font-family: inherit; }
-    .ea-input:focus { outline: none; border-color: var(--accent); }
+    .ea-input:focus { outline: none; border-color: var(--focus); }
     .ea-fieldset { border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
     .ea-fieldset legend { font-size: 0.84rem; color: var(--muted); padding: 0 0.4rem; }
     .ea-radio { font-size: 0.88rem; color: var(--text); display: flex; align-items: center; gap: 0.4rem; cursor: pointer; }
     .ea-adresse { display: flex; flex-direction: column; gap: 0.5rem; }
-    .ea-msg-ok { background: rgba(76,175,80,0.12); border: 1px solid rgba(76,175,80,0.4); color: var(--success); padding: 0.7rem 1rem; border-radius: 6px; font-size: 0.88rem; }
-    .ea-msg-err { background: rgba(244,67,54,0.1); border: 1px solid rgba(244,67,54,0.35); color: var(--danger); padding: 0.7rem 1rem; border-radius: 6px; font-size: 0.88rem; }
-    /* PP1: Startkacheln (wie die MC-Hauptkacheln, am Handy 2 x 2) */
+    .ea-msg-ok { background: color-mix(in srgb, var(--success) 12%, transparent); border: 1px solid color-mix(in srgb, var(--success) 40%, transparent); color: var(--success); padding: 0.7rem 1rem; border-radius: 6px; font-size: 0.88rem; }
+    .ea-msg-err { background: color-mix(in srgb, var(--danger) 10%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); color: var(--danger); padding: 0.7rem 1rem; border-radius: 6px; font-size: 0.88rem; }
+    /* PP1: Startkacheln, am Handy 2 x 2 (FK3: Grundflaechen wie in MC, Navigationsfarben nur fuer die Handy-Navigation in MC) */
     .pk-raster { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.6rem; }
     .pk-kachel { display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; padding: 0.9rem 1rem; min-height: 96px; text-align: left;
-      background: #16243a; border: 1px solid #2c4a73; border-radius: 10px; color: #b9cdea; cursor: pointer; font: inherit; }
-    .pk-kachel:hover, .pk-kachel:focus-visible { border-color: #5b93f0; }
-    .pk-zahl { font-size: 1.6rem; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; line-height: 1.1; overflow-wrap: anywhere; }
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: var(--muted); cursor: pointer; font: inherit; }
+    .pk-kachel:hover, .pk-kachel:focus-visible { border-color: var(--info); }
+    .pk-zahl { font-size: 1.6rem; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.1; overflow-wrap: anywhere; }
     .pk-label { font-size: 0.85rem; }
     .pk-klein { font-size: 0.74rem; opacity: 0.8; }
-    .pk-saldo.pk-plus .pk-zahl { color: #4caf50; }
-    .pk-saldo.pk-minus .pk-zahl { color: #f44336; }
-    .pk-details .pk-zahl { color: #b9cdea; }
+    .pk-saldo.pk-plus .pk-zahl { color: var(--success); }
+    .pk-saldo.pk-minus .pk-zahl { color: var(--danger); }
+    .pk-details .pk-zahl { color: var(--text); }
     .pk-info-zeile { margin-top: 0.4rem; font-size: 0.82rem; }
-    .pk-info-knopf { background: none; border: 1px solid #2c4a73; border-radius: 999px; color: #b9cdea; width: 28px; height: 28px; cursor: pointer; }
-    .pk-info { margin: 0.4rem 0 0; color: #999; max-width: 46rem; }
+    .pk-info-knopf { background: none; border: 1px solid var(--border); border-radius: 999px; color: var(--muted); width: 28px; height: 28px; cursor: pointer; }
+    .pk-info { margin: 0.4rem 0 0; color: var(--muted); max-width: 46rem; }
     @media (max-width: 600px) { .pk-raster { grid-template-columns: repeat(2, minmax(0, 1fr)); } .pk-zahl { font-size: 1.35rem; } }
     #pv-details[hidden] { display: none; }
   </style>
@@ -124,7 +251,14 @@
 
   <header>
     <span class="logo" id="shop-logo">JammiFashion – Partner Portal</span>
-    <span class="partner-name" id="partner-name-header"></span>
+    <div class="kopf-rechts">
+      <span class="partner-name" id="partner-name-header"></span>
+      <div class="theme-schalter" id="theme-schalter" role="group" aria-label="Farbdarstellung" data-tipp="Farbdarstellung: System, Hell oder Dunkel">
+        <button type="button" data-theme-knopf="system" aria-pressed="true" aria-label="System">Auto</button>
+        <button type="button" data-theme-knopf="light" aria-pressed="false" aria-label="Hell">☀</button>
+        <button type="button" data-theme-knopf="dark" aria-pressed="false" aria-label="Dunkel">☾</button>
+      </div>
+    </div>
   </header>
 
   <main id="main-content">
@@ -151,6 +285,19 @@
     let PARTNER_ID = '';
 
     const main = document.getElementById('main-content');
+
+    // FK3: Umschalter Farbdarstellung (Logik im <head>, Block "Theme")
+    function themeKnoepfeZeigen() {
+      const w = window.ptTheme ? window.ptTheme.wahl() : 'system';
+      document.querySelectorAll('[data-theme-knopf]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.themeKnopf === w)));
+    }
+    document.getElementById('theme-schalter').addEventListener('click', ev => {
+      const b = ev.target.closest('[data-theme-knopf]');
+      if (!b || !window.ptTheme) return;
+      window.ptTheme.setze(b.dataset.themeKnopf);
+      themeKnoepfeZeigen();
+    });
+    themeKnoepfeZeigen();
 
     function withShop(path) {
       const sep = path.includes('?') ? '&' : '?';
@@ -247,8 +394,8 @@
             </tr></thead>
             <tbody>${rows.map(r => {
               const isStorno = !!r.storno || r.stueckzahl < 0;
-              const red = 'color:#dc2626;font-weight:600;';
-              const rowStyle = isStorno ? 'background:rgba(220,38,38,0.07);' : '';
+              const red = 'color:var(--danger);font-weight:600;';
+              const rowStyle = isStorno ? 'background:color-mix(in srgb, var(--danger) 7%, transparent);' : '';
               return `<tr style="${rowStyle}">
               <td>${r.orderId}</td>
               <td>${r.artikelname}${isStorno ? ' <span style="font-size:0.72rem;'+red+'">↩ Storno</span>' : ''}</td>

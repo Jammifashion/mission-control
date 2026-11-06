@@ -23,6 +23,10 @@ Nummern) = `--text`. Test `backend/tests/farbrollen.test.js` (einzige Ausnahme: 
 `<head>` VOR `<style>` (kein Aufblitzen) setzt `data-theme` (aufgeloest) + `data-theme-wahl`, `theme-color` = aktuelles `--bg`;
 `window.mcTheme.setze()`, Auswahl `#theme-wahl` oben in den Einstellungen. Neue Farbe = Wert in BEIDEN Bloecken, Kontrast AA wird im
 Test gemessen. Aktionsknoepfe nie `--success` (Hauptaktion = `--accent`/`--accent-text`). Test `theme.test.js`.
+**Partnerportal (FK3):** `frontend/partner.html` hat dieselben zwei Bloecke (`:root` + Hell) mit denselben Werten wie index.html
+(Test `partner-farben.test.js` vergleicht beide) - eine Farbaenderung immer in BEIDEN Dateien. Umschalter oben im Kopf
+(Auto/☀/☾, `#theme-schalter`, Hinweis per `data-tipp`), Wahl in `localStorage` `partner_theme` (getrennt von `mc_theme`).
+`partner-festpreis.html` ist noch nicht umgestellt.
 **AM-2-1 (Inhaber 03.11.):** Hilfetexte an Eingabefeldern erscheinen nicht, solange das Feld (oder ein Feld im Element, z. B.
 Label) Fokus hat, und verschwinden beim Tippen (`feldMitFokus` in `hilfeEinrichten`). Kein `title` an Knoepfen, auch nicht im
 Code - wechselnde Zusaetze (Orte, Shop) ueber `data-hilfe-zusatz` (Test trefferliste.test.js). Trefferlisten (Kundenwahl im
