@@ -38,6 +38,12 @@ export const MANUAL_COLUMNS = ['Charge', 'Bestellt_Am', 'Geliefert_Am', 'Status'
 // Skriptspalten, die nachträglich kamen: stehen HINTER den manuellen (ab U), damit
 // P–T ihren Platz behalten. Zahlart = order.payment_method_title, unverändert.
 export const SCRIPT_COLUMNS_NACH_MANUELL = ['Zahlart'];
+// TR7: Goalie (Torwart-Version, nur auf Nachfrage, nie im Shop) - optionale Spalte ganz hinten, Wert "ja" oder leer.
+// Nur MC setzt sie (Trikot aendern, interne Bestellung); der Sync schreibt sie nie (toSheetRow: null = Zelle bleibt).
+// Einrichtung: scripts/setup-trikot-goalie.js.
+export const SPALTE_GOALIE = 'Goalie';
+export const GOALIE_JA = 'ja';
+export const goalieWert = v => (v === true || ['ja', 'true', 'wahr', '1', 'x'].includes(String(v ?? '').trim().toLowerCase()) ? GOALIE_JA : '');
 export const TRIKOT_HEADER = [...SCRIPT_COLUMNS, ...MANUAL_COLUMNS, ...SCRIPT_COLUMNS_NACH_MANUELL];
 
 export const ARTIKEL_COLUMNS = ['Artikelnummer', 'Produkt-ID', 'Produktname', 'Aktiv'];

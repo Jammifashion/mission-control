@@ -83,7 +83,8 @@ describe('Schreiben (In-Memory-Sheet)', () => {
     const { sheets } = machSheets(t);
     await legeInterneTrikotsAn({ sheets, wc, jetzt: JETZT, vorgang: V(6), referenz: 'AU-2026-0003', trikots: [{ produktId: '111', groesse: 'L', name: 'A', nummer: '1', notiz: 'alt' }] });
     const z = t.Trikots.findIndex(r => r[0] === 'INT-2026-0003') + 1;
-    await aendereInternesTrikot({ sheets, wc, aktion: 'aendern', ziel: { id: 'INT-2026-0003', zeile: z }, trikot: { produktId: '111', groesse: 'XL', name: 'B', nummer: '2', notiz: 'neu' } });
+    await aendereInternesTrikot({ sheets, wc, aktion: 'aendern', ziel: { id: 'INT-2026-0003', zeile: z }, trikot: { produktId: '111', groesse: 'XL', name: 'B', nummer: '2', notiz: 'neu' },
+      vorher: { produkt: 'Testverein Heimtrikot', groesse: 'L', name: 'A', nummer: '1', notiz: 'alt', goalie: '' } });
     const w = s => t.Trikots[z - 1][KOPF.indexOf(s)];
     expect([w('Groesse'), w('Name'), w('Nummer')]).toEqual(['XL', 'B', '2']);
     expect(rohtextLesen(w('Rohtext'))).toEqual({ referenz: 'AU-2026-0003', notiz: 'neu', vorgang: `${V(6)}-1` });   // Referenz/Vorgang bleiben
@@ -124,7 +125,8 @@ describe('Plan direkt', () => {
     const t = tabs();
     const p = anlagePlan({ werte: t.Trikots, produkte: PRODUKTE, heute: '2026-11-06', erfasstAm: '', vorgang: V(7), trikots: [{ produktId: '111', groesse: 'L', name: 'A', nummer: '1' }] });
     t.Trikots.push(p.zeilen[0]);
-    const r = aenderungPlan({ werte: t.Trikots, ziel: { id: p.ids[0], zeile: t.Trikots.length }, aktion: 'aendern', trikot: { produktId: '111', groesse: 'l', name: 'A', nummer: '1' }, produkte: PRODUKTE });
+    const r = aenderungPlan({ werte: t.Trikots, ziel: { id: p.ids[0], zeile: t.Trikots.length }, aktion: 'aendern', trikot: { produktId: '111', groesse: 'l', name: 'A', nummer: '1' }, produkte: PRODUKTE,
+      vorher: { groesse: 'L', name: 'A', nummer: '1', notiz: '', goalie: '' } });
     expect(r.unveraendert).toBe(true);
   });
 });

@@ -141,7 +141,9 @@ export async function baueXlsx({ kopf, positionen, tage }) {
     const row = ws.getRow(r);
     row.height = 15;
     const p = positionen[r - 8];
-    const daten = p ? [1, p.artikel, p.kragen, p.material, /^\d+$/.test(p.groesse) ? Number(p.groesse) : p.groesse, p.name, p.nummer, ''] : [];
+    // TR7: Goalie -> SIZE "GK…" (Text), EXTRA "GOALI"; sonst Kindergroesse als Zahl wie bisher, EXTRA leer.
+    const size = p?.size ?? p?.groesse;
+    const daten = p ? [1, p.artikel, p.kragen, p.material, /^\d+$/.test(size) ? Number(size) : size, p.name, p.nummer, p.extra ?? ''] : [];
     for (let s = 1; s <= 8; s++) {
       const c = row.getCell(s);
       if (p) c.value = daten[s - 1] === '' ? null : daten[s - 1];

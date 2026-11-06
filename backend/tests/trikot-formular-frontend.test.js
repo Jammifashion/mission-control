@@ -47,6 +47,11 @@ describe('Block Trikot-Formular', () => {
     expect(g).toMatch(/<tr class="tr-gelb"><td>1<\/td><td>keine Zuordnung/);
     expect(g).toMatch(/Ohne Zuordnung \(nicht exportierbar\): Zeile 5/);
   });
+  test('TR7: Goalie-Zeile zeigt SIZE GK… und EXTRA GOALI wie in der Datei; normale Zeile EXTRA leer', () => {
+    const h = F.trVorschauHtml({ ...vorschau, positionen: [{ ...vorschau.positionen[0], goalie: true, size: 'GKL', extra: 'GOALI' }, { ...vorschau.positionen[0], zeile: 6, size: 'L', extra: '' }] });
+    expect(h).toMatch(/<tr class="tr-goalie-zeile"><td>1<\/td><td>Trikot schwarz<\/td><td><\/td><td>Heavy<\/td><td>GKL<\/td><td>ALPHA<\/td><td>7<\/td><td>GOALI<\/td>/);
+    expect(h).toMatch(/<tr><td>1<\/td><td>Trikot schwarz<\/td><td><\/td><td>Heavy<\/td><td>L<\/td><td>ALPHA<\/td><td>7<\/td><td><\/td>/);
+  });
   test('Eintragen erst nach dem Download genau dieser Auswahl; gesperrt bei Problemen', () => {
     const auswahl = [{ id: '1|1|1', zeile: 5 }];
     const g = z => F.trFormularGrund({ vorschau, auswahl, heruntergeladen: '', laeuft: false, ...z });

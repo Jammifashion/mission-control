@@ -96,6 +96,13 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   Auslastung). Kennzeichen auf der Karte in "Bestellungen (JFN)": `trKarteText`/`trKarteHtml` aus `bestellungen` der
   Trikot-Antwort (nur JFN, Laden still neben dem Stand, `psZustand.trikots`); Klick = `trSpringeZu` + Trikot-Ansicht,
   Zeilen der Order-ID markiert, Karte nie aufgeklappt.
+  TR7 Goalie (Torwart-Version, nur auf Nachfrage, nie im Shop/Sync): optionale Spalte `Goalie` ganz hinten ("ja"/leer,
+  `SPALTE_GOALIE`/`goalieWert` in utils/trikot-logic.js, `scripts/setup-trikot-goalie.js`; fehlt sie, Goalie setzen = 409
+  `einrichtung`). "ändern …" an JEDER Zeile ohne Charge, nicht storniert (`aenderbar`; Shop: Groesse/Name/Nummer/Notiz-Spalte/
+  Goalie, Trikot fest; INT wie TR6 + Goalie), `POST /api/bestellen/trikots/aendern` { id, zeile, trikot, vorher } - `vorher` =
+  gesehener Stand, je Zelle geprueft (409 `geaendert`, nichts geschrieben); mit Charge gesperrt (Hilfe `tr-aendern-gesperrt`,
+  Ersatz = TR3b). "entfernen" bleibt nur INT. Dialog `#ti-dialog` mit GK-Schalter je Trikot. Kennzeichen `trGkHtml` (Zeile),
+  Karte " · GK". Formular: SIZE = "GK" + Groesse, EXTRA = "GOALI" (`GOALIE_FORMULAR`), Goalie ans Ende des Produkts.
   TR6: Knopf "+ Interne Trikotbestellung" (Dialog `#ti-dialog`, je Trikot eine Zeile, "+ weiteres Trikot", Referenz AU-… per Trefferliste
   oder Freitext) -> `lib/trikotIntern.js` / `utils/trikot-intern.js`: MC vergibt INT-JJJJ-NNNN (hoechste des Jahres + 1, auch gegen
   Handzeilen), Zeilen wie TK1 (Quelle intern, Bestelldatum Text, Stueck 1, P-T und Zahlart leer), Referenz/Notiz/`MC-Vorgang:` im Rohtext

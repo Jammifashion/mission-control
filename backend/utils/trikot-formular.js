@@ -20,6 +20,8 @@ export const FORMULAR = { team: 'Crocodiles Hamburg', saison: '26_27', wiederhol
 // Wortlaut wie im Muster, inklusive der Leerzeichen am Ende.
 export const KOPF_BESCHRIFTUNG = ['DATE OF ORDER:   ', 'DELIVERY DATE:  ', 'TEAM NAME:  ', 'YOUR ORDER NUMBER:  ', 'REPEAT ORDER:    YES / NO / PARTLY'];
 export const TABELLE_KOPF = ['QUANTITY', 'ITEM - PRODUCT NAME', 'COLLAR ', 'MATERIAL ', 'SIZE', 'NAME', 'NUMBER ', 'EXTRA'];
+// TR7 (Inhaber 06.11.): Goalie = Torwart-Version. SIZE = "GK" + Groesse (GK2XL, GKL, Kinder GK130), EXTRA = "GOALI".
+export const GOALIE_FORMULAR = { praefix: 'GK', extra: 'GOALI' };
 
 const t = v => String(v ?? '').trim();
 const fehler = (msg, status, extra = {}) => Object.assign(new Error(msg), { status, ...extra });
@@ -51,6 +53,9 @@ export function formularPositionen(zeilen, zuordnung) {
     const f = zuordnung.jeName.get(t(z.produkt));
     return {
       id: z.id, zeile: z.zeile, produkt: z.produktKurz ?? z.produkt, groesse: t(z.groesse), name: t(z.name), nummer: t(z.nummer),
+      goalie: !!z.goalie,
+      size: z.goalie ? `${GOALIE_FORMULAR.praefix}${t(z.groesse)}` : t(z.groesse),
+      extra: z.goalie ? GOALIE_FORMULAR.extra : '',
       artikel: f?.artikel ?? '', material: f?.material ?? '', kragen: f?.kragen ?? '', reihenfolge: f?.reihenfolge ?? Infinity,
       fehler: f ? [] : ['ohne_zuordnung'],
     };
@@ -71,9 +76,10 @@ const vergleich = (a, b) => {
   }
   return 0;
 };
-/** Reihenfolge: Produkt (Reihenfolge in Trikot_Artikel: Heim vor Auswaerts), Groesse, Nummer. */
+/** Reihenfolge: Produkt (Reihenfolge in Trikot_Artikel: Heim vor Auswaerts), Goalie ans Ende des Produkts (TR7), Groesse, Nummer. */
 export function sortierePositionen(pos) {
   return [...pos].sort((a, b) => (a.reihenfolge - b.reihenfolge)
+    || (Number(!!a.goalie) - Number(!!b.goalie))
     || vergleich(groessenSchluessel(a.groesse), groessenSchluessel(b.groesse))
     || vergleich([Number(a.nummer) || 0, a.nummer], [Number(b.nummer) || 0, b.nummer])
     || a.zeile - b.zeile);
@@ -82,7 +88,11 @@ export function sortierePositionen(pos) {
 /** Je Produkt und Groesse die Anzahl, in Formular-Reihenfolge. */
 export function zaehleJeGroesse(sortiert) {
   const m = new Map();
-  for (const p of sortiert) { const k = `${p.produkt}\u0000${p.groesse}`; m.set(k, { produkt: p.produkt, groesse: p.groesse, anzahl: (m.get(k)?.anzahl ?? 0) + 1 }); }
+  for (const p of sortiert) {
+    const g = p.size ?? p.groesse;   // TR7: Goalie zaehlt als eigene Groesse (GKL)
+    const k = `${p.produkt}\u0000${g}`;
+    m.set(k, { produkt: p.produkt, groesse: g, anzahl: (m.get(k)?.anzahl ?? 0) + 1 });
+  }
   return [...m.values()];
 }
 

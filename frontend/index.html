@@ -797,7 +797,12 @@
       .tr-formular-wrap { overflow-x: auto; }
       /* TR6: interne Trikotbestellung */
       #ti-dialog [hidden] { display: none !important; }
-      .ti-zeile { display: grid; grid-template-columns: 1.3fr 0.8fr 1.4fr 0.6fr 1.4fr auto; gap: 0.35rem; align-items: center; margin-bottom: 0.4rem; }
+      .ti-zeile { display: grid; grid-template-columns: 1.3fr 0.8fr 1.4fr 0.6fr auto 1.4fr auto; gap: 0.35rem; align-items: center; margin-bottom: 0.4rem; }
+      /* TR7: Goalie (Torwart-Trikot) */
+      .ti-gk { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; white-space: nowrap; min-height: 44px; }
+      .ti-fest { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .tr-gk { display: inline-block; margin-left: 0.3rem; padding: 0 0.35rem; border: 1px solid var(--accent); border-radius: 4px; color: var(--accent); font-size: 0.72rem; font-weight: 700; line-height: 1.4; }
+      .tr-formular tr.tr-goalie-zeile td { font-weight: 600; }
       .ti-zeile .form-input, .ti-zeile .form-select { min-width: 0; width: 100%; }
       .ti-kopf { font-size: 0.75rem; color: var(--muted); }
       .tr-intern-knoepfe { display: flex; gap: 0.6rem; flex-wrap: wrap; }
@@ -2031,7 +2036,7 @@
               <input id="ti-referenz" type="text" class="form-input" maxlength="80" autocomplete="off" placeholder="z. B. AU-2026-0003 oder Vereinsfeier" aria-label="Referenz" />
               <div id="ti-referenz-treffer" class="tw-box" hidden></div>
             </div>
-            <div class="ti-zeile ti-kopf" aria-hidden="true"><span>Trikot</span><span>Größe</span><span>Name</span><span>Nr.</span><span>Notiz</span><span></span></div>
+            <div class="ti-zeile ti-kopf" aria-hidden="true"><span>Trikot</span><span>Größe</span><span>Name</span><span>Nr.</span><span>GK</span><span>Notiz</span><span></span></div>
             <div id="ti-zeilen"></div>
             <button type="button" class="korb-link" id="ti-plus" data-hilfe="ti-plus">+ weiteres Trikot</button>
             <div id="ti-fehler" class="lager-warnung" hidden></div>
@@ -5999,7 +6004,10 @@
         'ti-zeile-weg':         { name: '✕', text: 'Nimmt diese Zeile aus dem Dialog. Gespeichert war sie noch nicht.' },
         'ti-referenz':          { name: 'Referenz', text: 'Auftragsnummer AU-… aus der Liste oder ein kurzer Freitext – keine Personennamen.' },
         'ti-speichern':         { name: 'Speichern', text: 'Legt die Trikots an (noch nicht beim Produzenten) bzw. speichert die Änderung.' },
-        'ti-aendern':           { name: 'ändern …', text: 'Größe, Name, Nummer, Trikot oder Notiz ändern – geht nur, solange es nicht beim Produzenten ist.' },
+        'ti-aendern':           { name: 'ändern …', text: 'Größe, Name, Nummer, Goalie, Notiz (intern auch das Trikot) ändern – nur, solange es nicht beim Hersteller ist.' },
+        'tr-aendern-gesperrt':  { name: 'ändern …', text: 'Schon beim Hersteller – Änderung nur über Ersatz (TR3b).' },
+        'ti-goalie':            { name: 'GK', text: 'Goalie: Torwart-Version des Trikots. Im Formular für den Hersteller steht dann GK vor der Größe und GOALI unter EXTRA.' },
+        'tr-goalie':            { name: 'GK', text: 'Goalie-Trikot (Torwart-Version). Geht an den Hersteller mit GK vor der Größe und GOALI unter EXTRA.' },
         'ti-entfernen':         { name: 'entfernen', text: 'Nimmt das Trikot heraus (Status „storniert“, die Zeile bleibt im Sheet). Nur vor der Produzenten-Bestellung.' },
         'ti-entfernt':          { name: 'entfernt', text: 'In MC entfernte interne Trikots. Diese gehen nicht zum Produzenten und zählen nirgends mit.' },
         'ti-auftrag':           { name: 'Auftrag', text: 'Öffnet den Auftrag, zu dem diese Trikots gehören.' },
@@ -6168,7 +6176,7 @@
         bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-mehr', 'bei-ankunft-lager', 'lager-ziel-aendern', 'eb-gesperrt-bestellt', 'eb-gesperrt-geliefert', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'ps-suche', 'ps-suche-weg', 'ps-grenze', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
-        trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag'],
+        trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag', 'tr-aendern-gesperrt', 'ti-goalie', 'tr-goalie'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
         auftraege: ['ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'dash-auftraege', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'dash-offen', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern'],
@@ -8399,7 +8407,7 @@
           : z.bestellungKomplett ? '<span class="tr-komplett" data-hilfe="tr-komplett">Bestellung komplett ✓</span>'
           : z.bestellung?.trikots > 1 ? `<span class="tr-neben" data-hilfe="tr-komplett">Bestellung ${z.bestellung.fertig}/${z.bestellung.trikots} da</span>` : '';
         return `<div class="tr-zeile${z.hinweise.length ? ' tr-gelb' : ''}"><div class="tr-kopf">${order}`
-          + `<span>${trEsc(z.produktKurz)} · ${trEsc(z.groesse || '–')}</span>`
+          + `<span>${trEsc(z.produktKurz)} · ${trEsc(z.groesse || '–')}${trGkHtml(z)}</span>`
           + `<span><strong>${trEsc(z.name || '–')}</strong> · ${trEsc(z.nummer || '–')}</span>${haken}${komplett}`
           + `<span class="tr-neben">${neben}</span></div>`
           + (bezug.length ? `<div class="tr-neben" data-hilfe="tr-ersetzt">${bezug.join(' · ')}</div>` : '')
@@ -8410,13 +8418,16 @@
           + (andere.length ? `<div class="tr-hinweis">${andere.map(h => trEsc(TR_HINWEISE[h] ?? h)).join(' · ')}</div>` : '')
           + trAngabeHtml(z) + '</div>';
       }
-      /** TR6: interne Bestellung - Referenz (AU-… als Link), solange ohne Charge: ändern / entfernen. */
+      /** TR7: Goalie-Kennzeichen (Torwart-Version, nur auf Nachfrage). */
+      const trGkHtml = z => (z.goalie ? '<span class="tr-gk" data-hilfe="tr-goalie">GK</span>' : '');
+      /** TR6/TR7: Referenz (AU-… als Link); ohne Charge "ändern …" (Shop + INT), "entfernen" nur INT; mit Charge gesperrt. */
       function trInternHtml(z) {
         const ref = !z.referenz ? '' : /^AU-\d{4}-\d{4}$/.test(z.referenz)
           ? `<button type="button" class="korb-link" data-tr-au="${trEsc(z.referenz)}" data-hilfe="ti-auftrag">Auftrag ${trEsc(z.referenz)}</button>`
           : `<span>Referenz: ${trEsc(z.referenz)}</span>`;
-        const knoepfe = z.bearbeitbar ? `<button type="button" class="korb-link" data-ti-aendern="${z.zeile}" data-id="${trEsc(z.id)}" data-hilfe="ti-aendern">ändern …</button>`
-          + `<button type="button" class="korb-link ku-gefahr" data-ti-weg="${z.zeile}" data-id="${trEsc(z.id)}" data-hilfe="ti-entfernen">entfernen</button>` : '';
+        const knoepfe = (z.aenderbar ? `<button type="button" class="korb-link" data-ti-aendern="${z.zeile}" data-id="${trEsc(z.id)}" data-hilfe="ti-aendern">ändern …</button>` : '')
+          + (z.aendernGesperrt ? '<button type="button" class="korb-link" aria-disabled="true" data-hilfe="tr-aendern-gesperrt">ändern …</button>' : '')
+          + (z.bearbeitbar ? `<button type="button" class="korb-link ku-gefahr" data-ti-weg="${z.zeile}" data-id="${trEsc(z.id)}" data-hilfe="ti-entfernen">entfernen</button>` : '');
         return ref || knoepfe ? `<div class="tr-intern-knoepfe">${ref}${knoepfe}</div>` : '';
       }
       function trGruppeHtml(g) {
@@ -8452,6 +8463,11 @@
       }
       /** TR5: Kennzeichen fuer die Karte in "Bestellungen (JFN)" aus dem Stand je Bestellung (Backend bestellungStand). */
       function trKarteText(st, jetzt = new Date()) {
+        const k = trKarteGrund(st, jetzt);
+        if (k && st.goalie) k.text += ` · GK${st.trikots > 1 ? ` ${st.goalie}` : ''}`;   // TR7
+        return k;
+      }
+      function trKarteGrund(st, jetzt) {
         if (!st) return null;
         const mehr = st.trikots > 1;
         const nr = st.chargen?.length ? `Bestellung ${st.chargen.join('/')}` : '';
@@ -8515,7 +8531,7 @@
       function trAuswahlHtml(zeilen, gew) {
         if (!zeilen.length) return '<p class="tr-neben">Keine offenen Trikots.</p>';
         return '<div class="tr-wahl">' + zeilen.map(z => `<label><input type="checkbox" data-tr-wahl="${z.zeile}"${gew.has(z.zeile) ? ' checked' : ''}>`
-          + `<span>${trEsc(z.produktKurz)} · ${trEsc(z.groesse || '–')} · <strong>${trEsc(z.name || '–')}</strong> · ${trEsc(z.nummer || '–')}`
+          + `<span>${trEsc(z.produktKurz)} · ${trEsc(z.groesse || '–')}${z.goalie ? ' <span class="tr-gk">GK</span>' : ''} · <strong>${trEsc(z.name || '–')}</strong> · ${trEsc(z.nummer || '–')}`
           + `${z.hinweise.length ? ` <span class="tr-hinweis">(${z.hinweise.map(h => trEsc(TR_HINWEISE[h] ?? h)).join(', ')})</span>` : ''}</span></label>`).join('') + '</div>';
       }
       function trVorschauHtml(v) {
@@ -8523,8 +8539,9 @@
         const kopf = [['DATE OF ORDER', v.kopf.bestelltAm], ['DELIVERY DATE', v.kopf.lieferung], ['TEAM NAME', v.kopf.team],
           ['YOUR ORDER NUMBER', `${v.kopf.nummer} (vorläufig)`], ['REPEAT ORDER', v.kopf.wiederholung]];
         const ohne = new Set(v.ohneZuordnung ?? []);
-        const zeilen = v.positionen.map(p => `<tr${ohne.has(p.zeile) ? ' class="tr-gelb"' : ''}><td>1</td><td>${trEsc(p.artikel || 'keine Zuordnung')}</td><td>${trEsc(p.kragen)}</td>`
-          + `<td>${trEsc(p.material)}</td><td>${trEsc(p.groesse)}</td><td>${trEsc(p.name)}</td><td>${trEsc(p.nummer)}</td><td></td></tr>`).join('');
+        // TR7: SIZE/EXTRA wie in der Datei (Goalie: GK + Größe, GOALI).
+        const zeilen = v.positionen.map(p => `<tr${ohne.has(p.zeile) ? ' class="tr-gelb"' : p.goalie ? ' class="tr-goalie-zeile"' : ''}><td>1</td><td>${trEsc(p.artikel || 'keine Zuordnung')}</td><td>${trEsc(p.kragen)}</td>`
+          + `<td>${trEsc(p.material)}</td><td>${trEsc(p.size ?? p.groesse)}</td><td>${trEsc(p.name)}</td><td>${trEsc(p.nummer)}</td><td>${trEsc(p.extra ?? '')}</td></tr>`).join('');
         const zaehler = (v.zaehler ?? []).map(z => `${trEsc(z.produkt)} ${trEsc(z.groesse)}: ${z.anzahl}`).join(' · ');
         const warn = [
           v.einrichtung?.length ? `Einrichtung fehlt: ${v.einrichtung.map(trEsc).join(', ')}` : '',
@@ -8703,27 +8720,33 @@
       // ── TR6: interne Trikotbestellung (INT-…) ──
       // Auswahl (Heim/Auswaerts, Groessen) einmal geladen; Speichern = ein Aufruf, danach neu geladen. Rueckennamen und Referenz
       // bleiben im Dialog bzw. im Sheet - nie in Adresse, Browser-Speicher oder Toast.
-      const tiZ = { auswahl: null, zeilen: [], aendern: null, vorgang: '', laeuft: false };
+      const tiZ = { auswahl: null, zeilen: [], aendern: null, vorher: null, vorgang: '', laeuft: false };
       const tiEl = id => document.getElementById(id);
       /** Ein Dialog-Trikot -> Zeile (Selects und Felder; i = Index im Dialog). */
-      function tiZeileHtml(t, i, auswahl, { einzeln = false } = {}) {
+      // TR7: produktFest = Shop-Zeile (Trikot kommt aus der Bestellung, nur Text); goalie = Schalter "GK" je Trikot.
+      function tiZeileHtml(t, i, auswahl, { einzeln = false, produktFest = '' } = {}) {
         const opt = (wert, text, sel) => `<option value="${trEsc(wert)}"${sel ? ' selected' : ''}>${trEsc(text)}</option>`;
         const produkte = (auswahl?.produkte ?? []).map(p => opt(p.produktId, p.kurz || p.name, p.produktId === t.produktId)).join('');
         const gr = auswahl?.groessen ?? { kinder: [], erwachsene: [] };
-        const groessen = `<option value="">Größe …</option><optgroup label="Kinder (cm)">${gr.kinder.map(g => opt(g, g, g === t.groesse)).join('')}</optgroup>`
+        const bekannt = [...gr.kinder, ...gr.erwachsene];
+        const groessen = `<option value="">Größe …</option>`
+          + (t.groesse && !bekannt.includes(t.groesse) ? opt(t.groesse, t.groesse, true) : '')   // Shop-Größe außerhalb der Liste bleibt wählbar
+          + `<optgroup label="Kinder (cm)">${gr.kinder.map(g => opt(g, g, g === t.groesse)).join('')}</optgroup>`
           + `<optgroup label="Erwachsene">${gr.erwachsene.map(g => opt(g, g, g === t.groesse)).join('')}</optgroup>`;
         return `<div class="ti-zeile" data-ti-i="${i}">`
-          + `<select class="form-select" data-ti-feld="produktId" aria-label="Trikot">${produkte}</select>`
+          + (produktFest ? `<span class="ti-fest">${trEsc(produktFest)}</span>` : `<select class="form-select" data-ti-feld="produktId" aria-label="Trikot">${produkte}</select>`)
           + `<select class="form-select" data-ti-feld="groesse" aria-label="Größe">${groessen}</select>`
           + `<input type="text" class="form-input" maxlength="30" data-ti-feld="name" value="${trEsc(t.name)}" placeholder="Name" aria-label="Name auf dem Rücken" />`
           + `<input type="text" class="form-input" maxlength="3" inputmode="numeric" data-ti-feld="nummer" value="${trEsc(t.nummer)}" placeholder="Nr." aria-label="Nummer" />`
+          + `<label class="ti-gk" data-hilfe="ti-goalie"><input type="checkbox" data-ti-feld="goalie"${t.goalie ? ' checked' : ''} aria-label="Goalie (Torwart-Trikot)"> GK</label>`
           + `<input type="text" class="form-input" maxlength="200" data-ti-feld="notiz" value="${trEsc(t.notiz)}" placeholder="Notiz" aria-label="Notiz" />`
           + (einzeln ? '<span></span>' : `<button type="button" class="korb-link" data-ti-zeile-weg="${i}" data-hilfe="ti-zeile-weg" aria-label="Zeile entfernen">✕</button>`)
           + '</div>';
       }
-      const tiLeer = () => ({ produktId: tiZ.auswahl?.produkte?.[0]?.produktId ?? '', groesse: '', name: '', nummer: '', notiz: '' });
+      const tiLeer = () => ({ produktId: tiZ.auswahl?.produkte?.[0]?.produktId ?? '', groesse: '', name: '', nummer: '', notiz: '', goalie: false });
       function tiZeichnen() {
-        tiEl('ti-zeilen').innerHTML = tiZ.zeilen.map((t, i) => tiZeileHtml(t, i, tiZ.auswahl, { einzeln: !!tiZ.aendern })).join('');
+        const fest = tiZ.aendern && !tiZ.aendern.intern ? (tiZ.aendern.produktKurz || tiZ.aendern.produkt) : '';
+        tiEl('ti-zeilen').innerHTML = tiZ.zeilen.map((t, i) => tiZeileHtml(t, i, tiZ.auswahl, { einzeln: !!tiZ.aendern, produktFest: fest })).join('');
         tiEl('ti-plus').hidden = !!tiZ.aendern;
         tiEl('ti-referenz-block').hidden = !!tiZ.aendern;
       }
@@ -8736,13 +8759,16 @@
         }
         tiZ.aendern = aendern;
         tiZ.vorgang = globalThis.crypto?.randomUUID?.() ?? `ti-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+        const notiz = aendern ? (aendern.notizMc ?? (aendern.kundenangabe ?? []).find(a => a.feld === 'Notiz')?.wert ?? '') : '';
         tiZ.zeilen = aendern ? [{ produktId: (tiZ.auswahl.produkte.find(p => p.name === aendern.produkt) ?? tiZ.auswahl.produkte[0])?.produktId ?? '',
-          groesse: aendern.groesse, name: aendern.name, nummer: aendern.nummer, notiz: (aendern.kundenangabe ?? []).find(a => a.feld === 'Notiz')?.wert ?? '' }] : [tiLeer()];
-        tiEl('ti-titel').textContent = aendern ? `${aendern.id} ändern` : 'Interne Trikotbestellung';
+          groesse: aendern.groesse, name: aendern.name, nummer: aendern.nummer, notiz, goalie: !!aendern.goalie }] : [tiLeer()];
+        // TR7: gesehener Stand - der Server prueft ihn je Zelle, weicht er ab, wird nichts gespeichert.
+        tiZ.vorher = aendern ? { produkt: aendern.produkt, groesse: aendern.groesse, name: aendern.name, nummer: aendern.nummer, notiz, goalie: aendern.goalie ? 'ja' : '' } : null;
+        tiEl('ti-titel').textContent = aendern ? `${aendern.orderId ? `#${aendern.orderId}` : aendern.id} · Trikot ändern` : 'Interne Trikotbestellung';
         tiEl('ti-referenz').value = '';
         tiZeichnen();
         tiEl('ti-dialog').hidden = false;
-        (aendern ? tiEl('ti-zeilen').querySelector('select') : tiEl('ti-referenz')).focus();
+        (aendern ? tiEl('ti-zeilen').querySelector('[data-ti-feld="groesse"]') : tiEl('ti-referenz')).focus();
       }
       const tiSchliessen = () => { tiEl('ti-dialog').hidden = true; };
       tiEl('ti-neu')?.addEventListener('click', () => tiOeffnen());
@@ -8754,11 +8780,11 @@
       });
       tiEl('ti-zeilen').addEventListener('input', e => {
         const f = e.target.closest('[data-ti-feld]');
-        if (f) tiZ.zeilen[Number(f.closest('[data-ti-i]').dataset.tiI)][f.dataset.tiFeld] = f.value;
+        if (f) tiZ.zeilen[Number(f.closest('[data-ti-i]').dataset.tiI)][f.dataset.tiFeld] = f.type === 'checkbox' ? f.checked : f.value;
       });
       tiEl('ti-zeilen').addEventListener('change', e => {
         const f = e.target.closest('[data-ti-feld]');
-        if (f) tiZ.zeilen[Number(f.closest('[data-ti-i]').dataset.tiI)][f.dataset.tiFeld] = f.value;
+        if (f) tiZ.zeilen[Number(f.closest('[data-ti-i]').dataset.tiI)][f.dataset.tiFeld] = f.type === 'checkbox' ? f.checked : f.value;
       });
       tiEl('ti-zeilen').addEventListener('click', e => {
         const b = e.target.closest('[data-ti-zeile-weg]');
@@ -8784,9 +8810,9 @@
         tiZ.laeuft = true; tiEl('ti-speichern').disabled = true;
         try {
           const a = tiZ.aendern;
-          const res = await apiFetch(`${API_BASE()}/api/bestellen/trikots/intern${a ? '/aendern' : ''}`, {
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/${a ? 'trikots/aendern' : 'trikots/intern'}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(a ? { id: a.id, zeile: a.zeile, trikot: tiZ.zeilen[0] } : { trikots: tiZ.zeilen, referenz: tiEl('ti-referenz').value, vorgang: tiZ.vorgang }),
+            body: JSON.stringify(a ? { id: a.id, zeile: a.zeile, trikot: tiZ.zeilen[0], vorher: tiZ.vorher } : { trikots: tiZ.zeilen, referenz: tiEl('ti-referenz').value, vorgang: tiZ.vorgang }),
           });
           const j = await apiJson(res);
           showToast(a ? `${a.id} gespeichert.` : `${j.ids.length} Trikot${j.ids.length === 1 ? '' : 's'} angelegt (${j.ids[0]}${j.ids.length > 1 ? ` … ${j.ids.at(-1)}` : ''}).`);

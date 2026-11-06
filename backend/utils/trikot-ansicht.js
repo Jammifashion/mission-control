@@ -12,6 +12,7 @@
 // Sie wird nur angezeigt, nie nach Name/Nummer uebernommen.
 
 import { requireHeader, findHeader } from './sheet-headers.js';
+import { SPALTE_GOALIE, goalieWert } from './trikot-logic.js';
 
 export const TAB_TRIKOTS = 'Trikots';
 export const STATUS_GELIEFERT = 'ok';
@@ -24,7 +25,7 @@ export const TRIKOT_ANSICHT_SPALTEN = {
   nummer: 'Nummer', quelle: 'Quelle', rohtext: 'Rohtext', charge: 'Charge', bestelltAm: 'Bestellt_Am',
   geliefertAm: 'Geliefert_Am', status: 'Status', notiz: 'Notiz',
 };
-export const TRIKOT_ANSICHT_OPTIONAL = { ersetzt: 'Ersetzt' };
+export const TRIKOT_ANSICHT_OPTIONAL = { ersetzt: 'Ersetzt', goalie: SPALTE_GOALIE };
 
 // Gelbe Hinweise je Zeile bzw. Gruppe - nur anzeigen.
 export const HINWEISE = {
@@ -69,6 +70,7 @@ export function trikotZeilen(values) {
   const ctx = `Reiter ${TAB_TRIKOTS}`;
   const idx = Object.fromEntries(Object.entries(TRIKOT_ANSICHT_SPALTEN).map(([f, n]) => [f, requireHeader(kopf, n, ctx)]));
   const iErsetzt = findHeader(kopf, TRIKOT_ANSICHT_OPTIONAL.ersetzt);
+  const iGoalie = findHeader(kopf, TRIKOT_ANSICHT_OPTIONAL.goalie);   // TR7
   const zeilen = [];
   rows.forEach((r, i) => {
     const w = f => t(r[idx[f]]);
@@ -78,10 +80,11 @@ export function trikotZeilen(values) {
       groesse: w('groesse'), name: w('name'), nummer: w('nummer'), quelle: w('quelle'), kundenangabe: kundenangabe(w('rohtext')),
       charge: w('charge'), bestelltAm: w('bestelltAm'), geliefertAm: w('geliefertAm'), status: w('status'), notiz: w('notiz'),
       ersetzt: iErsetzt >= 0 ? t(r[iErsetzt]) : '',
+      goalie: iGoalie >= 0 && !!goalieWert(r[iGoalie]),
       referenz: (t(w('rohtext')).split('\n').find(l => l.startsWith('Referenz:')) ?? '').slice(9).trim(),   // TR6: interne Bestellung
     });
   });
-  return { zeilen, spalteErsetzt: iErsetzt >= 0 };
+  return { zeilen, spalteErsetzt: iErsetzt >= 0, spalteGoalie: iGoalie >= 0 };
 }
 
 const chargeSort = (a, b) => {
@@ -93,7 +96,7 @@ const chargeSort = (a, b) => {
 };
 
 /** Zeilen -> Ansicht { gruppen, summen, spalteErsetzt }. */
-export function baueTrikotAnsicht({ zeilen, spalteErsetzt }) {
+export function baueTrikotAnsicht({ zeilen, spalteErsetzt, spalteGoalie = false }) {
   const z = zeilen.map(x => ({ ...x, ersetztDurch: [], ersatzFuer: null, hinweise: [] }));
   const nachId = new Map(z.filter(x => x.id).map(x => [x.id, x]));
   const jeId = new Map();
@@ -137,7 +140,12 @@ export function baueTrikotAnsicht({ zeilen, spalteErsetzt }) {
   for (const x of z) {
     x.storniert = x.status.toLowerCase() === STATUS_STORNIERT;
     x.intern = /^INT-\d{4}-\d{4}$/.test(x.id) && x.quelle === 'intern';
-    x.bearbeitbar = x.intern && !x.charge && !x.storniert;
+    x.bearbeitbar = x.intern && !x.charge && !x.storniert;   // TR6: entfernen (nur INT)
+    // TR7: aendern - jede Zeile ohne Charge, nicht storniert; mit Charge nur gesperrt anzeigen (Ersatz, TR3b).
+    x.aenderbar = !x.charge && !x.storniert;
+    x.aendernGesperrt = !!x.charge && !x.storniert;
+    // Notiz zum Vorbelegen und fuer die Vorher-Pruefung: INT im Rohtext (TR6), sonst Spalte Notiz.
+    x.notizMc = x.intern ? (x.kundenangabe.find(a => a.feld === 'Notiz')?.wert ?? '') : x.notiz;
   }
   const aktiv = z.filter(x => !x.storniert);
   const offen = aktiv.filter(x => !x.charge);
@@ -163,6 +171,7 @@ export function baueTrikotAnsicht({ zeilen, spalteErsetzt }) {
   if (entfernt.length) gruppen.push({ charge: '', offen: false, storniert: true, anzahl: entfernt.length, da: 0, bestelltAm: [], hinweise: [], zeilen: entfernt });
   return {
     spalteErsetzt,
+    spalteGoalie,
     gruppen,
     bestellungen: bestellungStand(aktiv),
     summen: {
@@ -199,7 +208,8 @@ export function bestellungStand(zeilen) {
       : ersatz ? 'ersatz'
       : da > 0 ? 'teil'
       : 'bestellt';
-    out[orderId] = { stufe, trikots: einheiten.length, da, chargen, bestelltAm: daten[0] ?? '', ersatzCharge: ersatzZeile?.charge ?? '' };
+    out[orderId] = { stufe, trikots: einheiten.length, da, chargen, bestelltAm: daten[0] ?? '', ersatzCharge: ersatzZeile?.charge ?? '',
+      goalie: aktuell.filter(a => a.goalie).length };   // TR7
   }
   return out;
 }

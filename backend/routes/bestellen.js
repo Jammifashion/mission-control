@@ -292,9 +292,10 @@ router.post('/trikots/intern', internMeldung(async req => {
   if (!r.schon) console.log(`Trikots intern angelegt: ${r.ids.join(', ')}`);
   return r;
 }));
-router.post('/trikots/intern/aendern', internMeldung(async req => {
-  const r = await aendereInternesTrikot({ aktion: 'aendern', ziel: { id: req.body?.id, zeile: req.body?.zeile }, trikot: req.body?.trikot });
-  if (!r.unveraendert) console.log(`Trikot intern geändert: ${r.id}`);
+// TR7: /trikots/aendern = jede Zeile ohne Charge (Shop und INT), vorher = gesehener Stand; alter Pfad bleibt derselbe Weg.
+router.post(['/trikots/aendern', '/trikots/intern/aendern'], internMeldung(async req => {
+  const r = await aendereInternesTrikot({ aktion: 'aendern', ziel: { id: req.body?.id, zeile: req.body?.zeile }, trikot: req.body?.trikot, vorher: req.body?.vorher });
+  if (!r.unveraendert) console.log(`Trikot geändert: ${r.id}`);
   return r;
 }));
 router.post('/trikots/intern/entfernen', internMeldung(async req => {

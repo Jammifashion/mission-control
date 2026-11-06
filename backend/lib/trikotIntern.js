@@ -1,7 +1,8 @@
 // Interne Trikotbestellung (TR6) - Ein-/Ausgabe, Logik in utils/trikot-intern.js.
 // GET  /api/bestellen/trikots/intern/auswahl                -> Trikots (Heim/Auswaerts aus Trikot_Artikel + Shop-Name/SKU), Groessen
 // POST /api/bestellen/trikots/intern { trikots, referenz, vorgang }        -> neue INT-Zeilen (kein append, zurueckgelesen)
-// POST /api/bestellen/trikots/intern/aendern { id, zeile, trikot }         -> nur ohne Charge
+// POST /api/bestellen/trikots/aendern { id, zeile, trikot, vorher }         -> TR7: Shop- und INT-Zeilen ohne Charge
+//      (alter Pfad /trikots/intern/aendern bleibt derselbe Weg); vorher = gesehener Stand, je Zelle geprueft
 // POST /api/bestellen/trikots/intern/entfernen { id, zeile }               -> Status "storniert", nie loeschen
 // Eine Sperre je Instanz, Reiter frisch gelesen (UNFORMATTED). Log nur Zeilen-IDs.
 
@@ -15,7 +16,7 @@ import { berlinDatum } from '../utils/berlin-tag.js';
 import { TAB_TRIKOTS } from '../utils/trikot-ansicht.js';
 import { produktKurz } from '../utils/trikot-ansicht.js';
 import {
-  anlagePlan, aenderungPlan, schonAngelegt, GROESSEN_KINDER, GROESSEN_ERWACHSENE,
+  anlagePlan, aenderungPlan, schonAngelegt, istIntern, GROESSEN_KINDER, GROESSEN_ERWACHSENE,
 } from '../utils/trikot-intern.js';
 
 const TAB_ARTIKEL = 'Trikot_Artikel';
@@ -94,13 +95,19 @@ export async function legeInterneTrikotsAn({ trikots, referenz, vorgang, sheets:
   });
 }
 
-/** Bearbeiten ('aendern', trikot) bzw. Entfernen ('entfernen' -> Status storniert) einer INT-Zeile ohne Charge. */
-export async function aendereInternesTrikot({ aktion, ziel, trikot, sheets: s, wc: w } = {}) {
+/**
+ * Aendern ('aendern', trikot, vorher; TR7: Shop- und INT-Zeilen ohne Charge) bzw. Entfernen ('entfernen' -> Status
+ * storniert, nur INT). Unter der Sperre frisch gelesen; vorher wird je Zelle geprueft (sonst 409, nichts geschrieben).
+ */
+export async function aendereInternesTrikot({ aktion, ziel, trikot, vorher, sheets: s, wc: w } = {}) {
   return mitSperre(async () => {
     const sheets = s ?? await sheetsClient();
     const werte = await leseReiter(sheets);
-    const produkte = aktion === 'aendern' ? await ladeProdukte(sheets, w ?? getWcClient('jfn')) : new Map();
-    const plan = aenderungPlan({ werte, ziel, aktion, trikot, produkte });
+    const [kopf = []] = werte;
+    const r = werte[Number(ziel?.zeile) - 1];
+    const intern = istIntern({ id: r?.[kopf.indexOf('Zeilen-ID')], quelle: r?.[kopf.indexOf('Quelle')] });
+    const produkte = aktion === 'aendern' && intern ? await ladeProdukte(sheets, w ?? getWcClient('jfn')) : new Map();
+    const plan = aenderungPlan({ werte, ziel, aktion, trikot, vorher, produkte });
     if (plan.unveraendert) return { ok: true, id: t(ziel?.id), unveraendert: true };
     const data = plan.zellen.map(z => ({ range: `'${TAB_TRIKOTS}'!${spalteBuchstabe(z.spalte)}${plan.zeile}`, values: [[z.wert]] }));
     await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: sheetId(), requestBody: { valueInputOption: 'RAW', data } });
@@ -111,3 +118,4 @@ export async function aendereInternesTrikot({ aktion, ziel, trikot, sheets: s, w
     return { ok: true, id: t(ziel?.id), aktion };
   });
 }
+export const aendereTrikot = aendereInternesTrikot;   // TR7: gilt fuer jede Zeile ohne Charge

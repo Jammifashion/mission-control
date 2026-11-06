@@ -87,6 +87,8 @@ describe('Kennzeichen auf der Karte', () => {
     expect(t('506')).toBe('Trikot da ✓');
     expect(t('507')).toBe('Trikot bestellt (Bestellung 5)');
     expect(T.trKarteText(undefined, JETZT)).toBeNull();
+    expect(T.trKarteText({ ...s['501'], goalie: 1 }, JETZT).text).toBe('Trikot: noch nicht beim Produzenten · GK');   // TR7
+    expect(T.trKarteText({ ...s['504'], goalie: 1 }, JETZT).text).toBe('Trikots: 1 von 2 da · GK 1');
     expect(T.trKarteHtml('999', undefined, JETZT)).toBe('');   // Bestellung ohne Trikots: kein Kennzeichen
     expect(T.trKarteHtml('503', s['503'], JETZT)).toMatch(/<button type="button" class="tr-karte tr-k-da" data-tr-springe="503" data-hilfe="tr-karte">Trikot da ✓<\/button>/);
   });
