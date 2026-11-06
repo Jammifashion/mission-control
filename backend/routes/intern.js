@@ -3,6 +3,7 @@ import { requireSchedulerOidc } from '../middleware/schedulerAuth.js';
 import { runKorbAbgleich, BESCHAEFTIGT } from '../lib/lshopKorb.js';
 import { setzeAutoBestellt } from '../lib/auftraege.js';
 import { notifyFehler } from '../lib/chatNotify.js';
+import { istLaufStopp } from '../lib/hosterPruefseite.js';
 import { runBelegeAbruf, BELEGE_BESCHAEFTIGT } from '../lib/lshopBelege.js';
 import { runLieferbarkeit, LIEFERBARKEIT_BESCHAEFTIGT } from '../lib/lshopLieferbarkeit.js';
 
@@ -37,8 +38,9 @@ router.post('/lshop-korb/abgleich', async (_req, res, next) => {
       console.log(`L-Shop-Korb-Abgleich ${laufId}: uebersprungen (laeuft schon)`);
       return res.json({ uebersprungen: 'läuft schon', lauf: laufId });
     }
-    if (err?.code !== 'hoster_pruefseite' && (err?.status ?? 500) >= 500) {
-      await notifyFehler({ art: 'L-Shop-Korb-Abgleich', status: err?.status ?? 500, text: err?.message });
+    // AL1: Hoster-Pruefseite und Shop-Zeitueberschreitung meldet die Middleware (eine Meldung je Ereignis).
+    if (!istLaufStopp(err) && err?.code !== 'hoster_pruefseite' && (err?.status ?? 500) >= 500) {
+      await notifyFehler({ art: 'L-Shop-Korb-Abgleich', status: err?.status ?? 500, text: err?.message, titel: 'Störung' });
     }
     next(err);
   }
@@ -62,8 +64,8 @@ router.post('/lshop-belege/abruf', async (_req, res, next) => {
       console.log(`L-Shop-Belege ${laufId}: uebersprungen (laeuft schon)`);
       return res.json({ uebersprungen: 'läuft schon', lauf: laufId });
     }
-    if ((err?.status ?? 500) >= 500) {
-      await notifyFehler({ art: 'L-Shop-Belege', status: err?.status ?? 500, text: err?.message });
+    if (!istLaufStopp(err) && (err?.status ?? 500) >= 500) {
+      await notifyFehler({ art: 'L-Shop-Belege', status: err?.status ?? 500, text: err?.message, titel: 'Störung' });
     }
     next(err);
   }
@@ -85,7 +87,9 @@ router.post('/lshop-lieferbarkeit/abruf', async (_req, res, next) => {
       console.log(`L-Shop-Lieferbarkeit ${laufId}: uebersprungen (laeuft schon)`);
       return res.json({ uebersprungen: 'läuft schon', lauf: laufId });
     }
-    if ((err?.status ?? 500) >= 500) await notifyFehler({ art: 'L-Shop-Lieferbarkeit', status: err?.status ?? 500, text: err?.message });
+    if (!istLaufStopp(err) && (err?.status ?? 500) >= 500) {
+      await notifyFehler({ art: 'L-Shop-Lieferbarkeit', status: err?.status ?? 500, text: err?.message, titel: 'Störung' });
+    }
     next(err);
   }
 });

@@ -5,6 +5,7 @@ import {
   bearbeiteEigenePosition,
 } from '../lib/lshopKorb.js';
 import { notifyFehler } from '../lib/chatNotify.js';
+import { istLaufStopp } from '../lib/hosterPruefseite.js';
 import { ediVorschau, ediErzeugen, ediAlsGesendet, ediSendenVorschau, ediSenden, ediZurueckAufEntwurf } from '../lib/lshopEdi.js';
 import { leseLShopBestellungen } from '../lib/lshopBestellungen.js';
 import { leseTrikotAnsicht } from '../lib/trikotAnsicht.js';
@@ -33,9 +34,10 @@ router.post('/lshop-korb/abgleich', async (req, res, next) => {
     );
     res.json(r);
   } catch (err) {
-    // Hoster-Pruefseite meldet ihre eigene Middleware; 409 (laeuft schon / Zielzeilen belegt) ist kein Ausfall.
-    if (err?.code !== 'hoster_pruefseite' && (err?.status ?? 500) >= 500) {
-      await notifyFehler({ art: 'L-Shop-Korb-Abgleich', status: err?.status ?? 500, text: err?.message });
+    // Hoster-Pruefseite und Shop-Zeitueberschreitung meldet ihre eigene Middleware (AL1: eine Meldung je
+    // Ereignis); 409 (laeuft schon / Zielzeilen belegt) ist kein Ausfall.
+    if (!istLaufStopp(err) && err?.code !== 'hoster_pruefseite' && (err?.status ?? 500) >= 500) {
+      await notifyFehler({ art: 'L-Shop-Korb-Abgleich', status: err?.status ?? 500, text: err?.message, titel: 'Störung' });
     }
     next(err);
   }

@@ -66,6 +66,17 @@ describe('buildFehlerNachricht', () => {
     expect(t).toContain('Mission Control');
   });
 
+  test('Titel: Standard "Chat-Stoerung", sonst der mitgegebene (AL1)', () => {
+    expect(buildFehlerNachricht({ art: 'HTTP 502', text: 'x' }).split('\n')[0]).toBe('🔴 Chat-Stoerung · HTTP 502');
+    expect(buildFehlerNachricht({ art: 'L-Shop-Belege', titel: 'Störung', text: 'x' }).split('\n')[0]).toBe('🔴 Störung · L-Shop-Belege');
+  });
+
+  test('Zeitstempel im Fehlertext bleibt lesbar (AL1)', () => {
+    const t = buildFehlerNachricht({ art: 'L-Shop-Belege', titel: 'Störung', status: 500, text: 'Sheets weg, 2026-11-04T23:17:28Z' });
+    expect(t).toContain('2026-11-04T23:17:28Z');
+    expect(t).not.toContain('[Telefon entfernt]');
+  });
+
   test('ohne Status bleibt die HTTP-Zeile weg', () => {
     expect(buildFehlerNachricht({ art: 'Antwort ohne JSON-Huelle', text: 'x' }))
       .not.toMatch(/HTTP/);

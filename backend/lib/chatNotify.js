@@ -27,13 +27,26 @@ const EMAIL_RE = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.\p{L}{2,}/giu;
 // wirklich eine ist, entscheidet erst die Ziffernzahl in der Ersetzung -
 // sonst faengt das Muster auch "20.10." oder "128,40" ein.
 const TEL_RE = /(?:\+|00)?\d[\d\s/().-]{5,}\d/g;
+// AL1: Datum und Uhrzeit sind keine Telefonnummern ("2026-11-04T23:17:28Z" wurde geschwaerzt). Vor dem
+// Telefon-Muster werden sie durch einen Platzhalter ohne Ziffern ersetzt und danach zurueckgesetzt. Nur
+// gueltige Werte (Monat 1-12, Tag 1-31, Stunde 0-23, Minute 0-59) - "12.34.56" bleibt ein Telefon-Kandidat.
+const TAG = '(?:0?[1-9]|[12]\\d|3[01])', MONAT = '(?:0?[1-9]|1[0-2])', UHR = '(?:[01]?\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:[.,]\\d+)?)?';
+const ZEIT_RE = new RegExp([
+  `\\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\\d|3[01])(?:[T ]${UHR}(?:Z|[+-]\\d{2}:?\\d{2})?)?`,   // ISO
+  `(?<![\\d.])${TAG}\\.${MONAT}\\.(?:\\d{4}|\\d{2})?(?!\\d|\\.\\d)`,                                // 04.11.2026, 04.11.
+  `(?<![\\d:])${UHR}(?![\\d:])`,                                                                    // 23:17, 23:17:28
+].join('|'), 'g');
+const PLATZ = '\u0001';
 
 export function redact(text) {
   let out = String(text ?? '').replace(EMAIL_RE, '[E-Mail entfernt]');
+  const zeiten = [];
+  out = out.replace(ZEIT_RE, z => { zeiten.push(z); return PLATZ; });
   out = out.replace(TEL_RE, treffer =>
     treffer.replace(/\D/g, '').length >= 7 ? '[Telefon entfernt]' : treffer,
   );
-  return out;
+  let i = 0;
+  return out.replace(/\u0001/g, () => zeiten[i++] ?? '');
 }
 
 // Auf Handy-Laenge kuerzen. Zeilenumbrueche fallen weg, damit eine Nachricht
@@ -176,9 +189,11 @@ export function buildLShopModelleNachricht({ modelle, datum } = {}) {
 const ALARM_TTL_MS = 60 * 60 * 1000;
 const letzterAlarm = new Map(); // art → Zeitstempel
 
-export function buildFehlerNachricht({ art, status, text }) {
+// AL1: `titel` = Ursache in der Kopfzeile. Standard bleibt "Chat-Stoerung" (Kunden-Chat); andere Ablaeufe
+// (L-Shop-Laeufe) geben "Störung", damit eine Meldung nicht nach dem Chat aussieht.
+export function buildFehlerNachricht({ art, status, text, titel = 'Chat-Stoerung' }) {
   return [
-    `🔴 Chat-Stoerung · ${art}`,
+    `🔴 ${titel} · ${art}`,
     status ? `HTTP ${status}` : '',
     // sauber() = redact() + kuerzen. Der Text kommt aus Fehlermeldungen, nicht
     // aus Kundeneingaben - die Redaktion ist die zweite Sicherung.
@@ -192,7 +207,7 @@ export function buildFehlerNachricht({ art, status, text }) {
  * Rueckgabe: true wenn gesendet, false wenn gedrosselt oder nicht zustellbar.
  * Wirft nie - ein fehlgeschlagener Alarm darf den Fehlerweg nicht kapern.
  */
-export async function notifyFehler({ art, status, text }) {
+export async function notifyFehler({ art, status, text, titel }) {
   try {
     const jetzt   = Date.now();
     const zuletzt = letzterAlarm.get(art);
@@ -201,7 +216,7 @@ export async function notifyFehler({ art, status, text }) {
     // Zeitstempel VOR dem Senden setzen: sonst laufen bei einem haengenden
     // Webhook alle parallelen Requests in denselben Alarm.
     letzterAlarm.set(art, jetzt);
-    return await notify(buildFehlerNachricht({ art, status, text }));
+    return await notify(buildFehlerNachricht({ art, status, text, titel }));
   } catch (err) {
     console.error('[chatNotify] Alarm fehlgeschlagen:', err?.message ?? err);
     return false;

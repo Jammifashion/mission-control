@@ -406,6 +406,28 @@ describe('E-Mail und Telefon werden entfernt', () => {
     expect(redact('Tel 0049-170-1234567')).toContain('[Telefon entfernt]');
   });
 
+  // AL1: "2026-11-04T23:17:28Z" wurde zu "[Telefon entfernt]T23:17:28Z". Erfundene Nummern.
+  test.each([
+    '2026-11-04T23:17:28Z', '2026-11-04T23:17:28.123Z', '2026-11-04 23:17', '2026-11-04T23:17:28+01:00',
+    '04.11.2026', '04.11.2026 23:17', '4.11.26', '04.11. 23:17:28', '23:17', '00:17:04',
+  ])('Datum/Uhrzeit bleibt: %s', wert => {
+    const text = `Shop JFN GET orders nach 15 s, ${wert}.`;
+    expect(redact(text)).toBe(text);
+  });
+
+  test.each([
+    '+49 171 1234567', '+49 (0)40 123456-7', '0171 1234567', '0171-123-4567', '0171/1234567',
+    '0179 903 73 61', '04822 1234567', '0049 171 1234567', '040 12.34.56',
+  ])('Telefon wird weiter entfernt: %s', nr => {
+    const out = redact(`Rueckruf ${nr} erbeten`);
+    expect(out).toBe('Rueckruf [Telefon entfernt] erbeten');
+  });
+
+  test('Zeitstempel und Telefon im selben Text', () => {
+    expect(redact('am 2026-11-04T23:17:28Z, Rueckruf 0171 1234567, 04.11.2026'))
+      .toBe('am 2026-11-04T23:17:28Z, Rueckruf [Telefon entfernt], 04.11.2026');
+  });
+
   test('Datum und Menge bleiben erhalten', () => {
     const out = redact('45 Stück, Wunschtermin 20.10., Budget 128,40 EUR');
     expect(out).toContain('45 Stück');
