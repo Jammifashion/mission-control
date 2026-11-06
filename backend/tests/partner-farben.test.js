@@ -54,7 +54,8 @@ describe.each(['partner.html', 'partner-festpreis.html'])('%s', datei => {
     const regeln = [...html.matchAll(/([^{}\n]+)\{[^}]*var\(--accent\)[^}]*\}/g)].map(m => m[1].trim());
     expect(regeln).toEqual(['.btn']);
     expect(html).toMatch(/header \.logo \{[^}]*color: var\(--text\)/);
-    expect(html).toContain("const red = 'color:var(--danger);font-weight:600;';");
+    expect(html).toContain('.pl-rot { color: var(--danger);');   // PP3: Storno ueber Klasse statt Inline-Farbe
+    expect(html).toContain('<span class="pl-rot pl-klein">↩ Storno</span>');
     expect(html).not.toMatch(/\.(?:btn|btn-outline)[^{]*\{[^}]*background:\s*var\(--success/);
     expect(html).toMatch(/\.badge-offen\s*\{[^}]*color: var\(--warning\)/);
   });

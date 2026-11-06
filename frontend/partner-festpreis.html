@@ -135,8 +135,9 @@
     .kalk-info-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0.85rem 1rem; }
     .kalk-info-label { font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 0.25rem; }
     .kalk-info-value { font-size: 1.1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    /* PP3: alte Regel (Spalten ab 5 ausblenden) nur noch fuer Tabellen ohne Handy-Karten - versteckte sonst Status und Betrag */
     @media (max-width: 600px) {
-      th:nth-child(n+5), td:nth-child(n+5) { display: none; }
+      table:not(.pl-tabelle) th:nth-child(n+5), table:not(.pl-tabelle) td:nth-child(n+5) { display: none; }
     }
     /* Eigenauftrag-Formular */
     .ea-form { display: flex; flex-direction: column; gap: 0.85rem; max-width: 520px; }
@@ -148,6 +149,44 @@
     .ea-radio { font-size: 0.88rem; color: var(--text); display: flex; align-items: center; gap: 0.4rem; cursor: pointer; }
     .ea-adresse { display: flex; flex-direction: column; gap: 0.5rem; }
     .ea-msg-ok { background: color-mix(in srgb, var(--success) 12%, transparent); border: 1px solid color-mix(in srgb, var(--success) 40%, transparent); color: var(--success); padding: 0.7rem 1rem; border-radius: 6px; font-size: 0.88rem; }
+    /* ── Portal-Listen CSS: Anfang (PP3, wortgleich in partner.html und partner-festpreis.html) ── */
+    .pl-kopf { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
+    .pl-kopf .summary { margin: 0; }
+    .pl-schalter { display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.84rem; color: var(--muted); cursor: pointer; min-height: 36px; }
+    .pl-schalter input { width: 1.1rem; height: 1.1rem; margin: 0; accent-color: var(--focus); }
+    .pl-wrap { overflow-x: auto; }
+    .pl-storno { background: color-mix(in srgb, var(--danger) 7%, transparent); }
+    .pl-rot { color: var(--danger); font-weight: 600; }
+    .pl-klein { font-size: 0.72rem; }
+    .pl-haupt { overflow-wrap: anywhere; }
+    .pl-abschnitt > summary { cursor: pointer; list-style: none; margin-bottom: 0; }
+    .pl-abschnitt > summary::-webkit-details-marker { display: none; }
+    .pl-abschnitt > summary h2::after { content: ' ▾'; color: var(--muted); font-weight: 400; }
+    .pl-abschnitt:not([open]) > summary h2::after { content: ' ▸'; }
+    .pl-abschnitt[open] > summary { margin-bottom: 1.1rem; }
+    .pl-anzahl { color: var(--muted); font-weight: 400; }
+    /* Handy: Karten statt Tabelle - oben Datum | Betrag, darunter Artikel | Status, Nebenangaben klein mit Beschriftung */
+    @media (max-width: 480px) {
+      header { padding: 0.7rem 0.9rem; gap: 0.4rem; }
+      header .logo { font-size: 0.95rem; }
+      .kopf-rechts { width: 100%; margin-left: 0; flex-wrap: nowrap; justify-content: space-between; }
+      header .partner-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.82rem; }
+      main { padding: 1rem 0.7rem; gap: 1rem; }
+      .card { padding: 1rem 0.9rem; }
+      .pl-wrap { overflow-x: visible; }
+      table.pl-tabelle, table.pl-tabelle tbody { display: block; }
+      table.pl-tabelle thead { display: none; }
+      table.pl-tabelle tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.15rem 0.75rem; padding: 0.6rem 0.3rem; border-bottom: 1px solid var(--border); }
+      table.pl-tabelle tr:last-child { border-bottom: none; }
+      table.pl-tabelle td { display: block; padding: 0; border: 0; text-align: left; min-width: 0; font-size: 0.9rem; }
+      table.pl-tabelle td.pl-datum { grid-column: 1; grid-row: 1; font-size: 0.8rem; color: var(--muted); }
+      table.pl-tabelle td.pl-betrag { grid-column: 2; grid-row: 1; text-align: right; font-weight: 600; white-space: nowrap; }
+      table.pl-tabelle td.pl-haupt { grid-column: 1; grid-row: 2; font-weight: 600; }
+      table.pl-tabelle td.pl-status { grid-column: 2; grid-row: 2; text-align: right; align-self: start; }
+      table.pl-tabelle td.pl-neben { grid-column: 1 / -1; font-size: 0.78rem; color: var(--muted); }
+      table.pl-tabelle td.pl-neben::before { content: attr(data-label) ": "; }
+    }
+    /* ── Portal-Listen CSS: Ende ── */
     .ea-msg-err { background: color-mix(in srgb, var(--danger) 10%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); color: var(--danger); padding: 0.7rem 1rem; border-radius: 6px; font-size: 0.88rem; }
   </style>
 </head>
@@ -187,6 +226,54 @@
     let PARTNER_ID = '';
 
     const main = document.getElementById('main-content');
+
+    // ── Portal-Listen: Anfang (PP3, wortgleich in partner.html und partner-festpreis.html, Test partner-listen.test.js) ──
+    // Inhaber 06.11.: Listen zeigen standardmaessig nur Offenes (noch nicht abgerechnet = seit der letzten Abrechnung).
+    // "auch abgerechnete anzeigen" je Geraet (localStorage, Standard aus). Summen/Saldo rechnen davon unabhaengig.
+    // Am Handy (<= 480 px) werden dieselben Tabellen per CSS zu Karten (Klassen pl-datum/-betrag/-haupt/-status/-neben).
+    const PL_KEY = 'partner_abgerechnet_zeigen';
+    function plLies(speicher) { try { return !!speicher && speicher.getItem(PL_KEY) === '1'; } catch { return false; } }
+    function plSchreib(speicher, an) {
+      try { if (!speicher) return false; if (an) speicher.setItem(PL_KEY, '1'); else speicher.removeItem(PL_KEY); return true; } catch { return false; }
+    }
+    const plSpeicher = () => { try { return window.localStorage; } catch { return null; } };
+    const plAbgerechnet = status => String(status ?? '').trim().toLowerCase() === 'abgerechnet';
+    /** zeilen: [{ status, ... }] -> { zeilen (sichtbar), offen, abgerechnet, alle } */
+    function plSicht(zeilen, alle) {
+      const liste = zeilen ?? [];
+      const offen = liste.filter(z => !plAbgerechnet(z.status));
+      return { zeilen: alle ? liste : offen, offen: offen.length, abgerechnet: liste.length - offen.length, alle: !!alle };
+    }
+    const plEsc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+    /** Zeile ueber der Liste: "n offen · m abgerechnet" + Schalter (nur wenn es Abgerechnetes gibt). */
+    function plKopfHtml(sicht) {
+      const zahl = `${sicht.offen} offen${sicht.abgerechnet ? ` · ${sicht.abgerechnet} abgerechnet` : ''}`;
+      const schalter = sicht.abgerechnet
+        ? `<label class="pl-schalter"><input type="checkbox" data-pl-alle${sicht.alle ? ' checked' : ''}> auch abgerechnete anzeigen</label>` : '';
+      return `<div class="pl-kopf"><span class="summary">${zahl}</span>${schalter}</div>`;
+    }
+    /** spalten: [{ titel, rolle: datum|betrag|haupt|status|neben, num }]; zeilen: [{ zellen: [fertiges HTML], storno }] */
+    function plTabelleHtml(spalten, zeilen, leer) {
+      if (!zeilen.length) return `<p class="empty">${plEsc(leer)}</p>`;
+      const kopf = spalten.map(sp => `<th${sp.num ? ' class="num"' : ''}>${plEsc(sp.titel)}</th>`).join('');
+      const koerper = zeilen.map(z => `<tr${z.storno ? ' class="pl-storno"' : ''}>${z.zellen.map((inhalt, i) =>
+        `<td class="pl-${spalten[i].rolle}${spalten[i].num ? ' num' : ''}" data-label="${plEsc(spalten[i].titel)}">${inhalt}</td>`).join('')}</tr>`).join('');
+      return `<div class="pl-wrap"><table class="pl-tabelle"><thead><tr>${kopf}</tr></thead><tbody>${koerper}</tbody></table></div>`;
+    }
+    const plDaten = { verkaeufe: null, intern: null };
+    /** Abrechnungen: am Handy eingeklappt, am Desktop offen; Anzahl in der Ueberschrift. */
+    function plAbschnittOeffnen() {
+      const box = document.getElementById('pv-abr-box');
+      if (box) box.open = !(window.matchMedia && window.matchMedia('(max-width: 480px)').matches);
+    }
+    function plAnzahlSetzen(n) { const el = document.getElementById('pv-abr-anzahl'); if (el) el.textContent = `(${n})`; }
+    document.addEventListener('change', ev => {
+      const cb = ev.target.closest ? ev.target.closest('[data-pl-alle]') : null;
+      if (!cb) return;
+      plSchreib(plSpeicher(), cb.checked);
+      renderVerkaeufe(); renderIntern();
+    });
+    // ── Portal-Listen: Ende ──
 
     // FK3: Umschalter Farbdarstellung (Logik im <head>, Block "Theme")
     function themeKnoepfeZeigen() {
@@ -240,69 +327,57 @@
       main.innerHTML = `<div class="error-box" style="max-width:480px;margin:3rem auto;"><p>${msg}</p></div>`;
     }
 
-    // ── Verkäufe ─────────────────────────────────────────────────────────────
+    // ── Verkäufe (PP3: nur Offenes, Schalter "auch abgerechnete") ──
     async function loadVerkaeufe() {
       const wrap = document.getElementById('pv-verkaeufe');
       if (!wrap) return;
       wrap.innerHTML = '<div class="skeleton"></div>';
       try {
-        const rows = await apiFetch('/api/festpreis-public/verkaeufe');
-        const offen = rows.filter(r => (r['Status Abrechnung'] ?? '').toLowerCase() === 'offen');
-        if (!rows.length) { wrap.innerHTML = '<p class="empty">Noch keine Verkäufe vorhanden.</p>'; return; }
-
-        wrap.innerHTML = `
-          <p class="summary">${rows.length} Eintrag/Einträge &nbsp;·&nbsp; ${offen.length} offen</p>
-          <div style="overflow-x:auto;"><table>
-            <thead><tr>
-              <th>Datum</th><th>Bestell-Nr.</th><th>Artikel</th>
-              <th class="num">Menge</th><th>Status</th>
-            </tr></thead>
-            <tbody>${rows.map(r => {
-              const isStorno = !!(r['Storno-Status'] || '').trim() || Number(r['Stückzahl'] || 0) < 0;
-              const red = 'color:var(--danger);font-weight:600;';
-              return `<tr style="${isStorno ? 'background:color-mix(in srgb, var(--danger) 7%, transparent);' : ''}">
-              <td>${r['Datum']}</td>
-              <td>${r['WC-Bestellnummer']}</td>
-              <td style="max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${r['Artikelname']}">${r['Artikelname']}${isStorno ? ` <span style="font-size:0.72rem;${red}">↩ Storno</span>` : ''}</td>
-              <td class="num" style="${isStorno ? red : ''}">${r['Stückzahl']}</td>
-              <td><span class="badge badge-${(r['Status Abrechnung'] || 'offen').toLowerCase()}">${r['Status Abrechnung']}</span></td>
-            </tr>`;}).join('')}</tbody>
-          </table></div>`;
+        plDaten.verkaeufe = (await apiFetch('/api/festpreis-public/verkaeufe')).map(r => ({ ...r, status: r['Status Abrechnung'] || 'offen' }));
+        renderVerkaeufe();
       } catch (e) {
-        wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${e.message}</p>`;
+        wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${plEsc(e.message)}</p>`;
       }
     }
+    function renderVerkaeufe() {
+      const wrap = document.getElementById('pv-verkaeufe');
+      if (!wrap || !plDaten.verkaeufe) return;
+      const rows = plDaten.verkaeufe;
+      if (!rows.length) { wrap.innerHTML = '<p class="empty">Noch keine Verkäufe vorhanden.</p>'; return; }
+      const sicht = plSicht(rows, plLies(plSpeicher()));
+      const spalten = [{ titel: 'Datum', rolle: 'datum' }, { titel: 'Bestell-Nr.', rolle: 'neben' }, { titel: 'Artikel', rolle: 'haupt' },
+        { titel: 'Menge', rolle: 'betrag', num: true }, { titel: 'Status', rolle: 'status' }];
+      const zeilen = sicht.zeilen.map(r => {
+        const storno = !!(r['Storno-Status'] || '').trim() || Number(r['Stückzahl'] || 0) < 0;
+        return { storno, zellen: [plEsc(r['Datum']), plEsc(r['WC-Bestellnummer']), `${plEsc(r['Artikelname'])}${storno ? ' <span class="pl-rot pl-klein">↩ Storno</span>' : ''}`,
+          `<span class="${storno ? 'pl-rot' : ''}">${plEsc(r['Stückzahl'])}</span>`, `<span class="badge badge-${plEsc(String(r.status).toLowerCase())}">${plEsc(r.status)}</span>`] };
+      });
+      wrap.innerHTML = plKopfHtml(sicht) + plTabelleHtml(spalten, zeilen, 'Seit der letzten Abrechnung noch keine Verkäufe.');
+    }
 
-    // ── Direkte (interne) Bestellungen ───────────────────────────────────────
+    // ── Direkte (interne) Bestellungen (PP3: nur Offenes) ──
     async function loadIntern() {
       const wrap = document.getElementById('pv-intern');
       if (!wrap) return;
       wrap.innerHTML = '<div class="skeleton"></div>';
       try {
-        const rows = await apiFetch('/api/festpreis-public/intern');
-        if (!rows.length) { wrap.innerHTML = '<p class="empty">Keine direkten Bestellungen vorhanden.</p>'; return; }
-        wrap.innerHTML = `
-          <p class="summary">${rows.length} Eintrag/Einträge</p>
-          <div style="overflow-x:auto;"><table>
-            <thead><tr>
-              <th>Datum</th><th>Bezeichnung</th>
-              <th class="num">Anzahl</th>
-              <th class="num">Einzelpreis brutto</th>
-              <th class="num">Summe</th>
-              <th>Status</th>
-            </tr></thead>
-            <tbody>${rows.map(r => `<tr>
-              <td>${r.datum}</td>
-              <td>${r.bezeichnung}</td>
-              <td class="num">${r.anzahl}</td>
-              <td class="num">${fmt(r.einzelpreis)}</td>
-              <td class="num"><strong>${fmt(r.summe)}</strong></td>
-              <td><span class="badge badge-${(r.status || 'offen').toLowerCase()}">${r.status || 'offen'}</span></td>
-            </tr>`).join('')}</tbody>
-          </table></div>`;
+        plDaten.intern = (await apiFetch('/api/festpreis-public/intern')).map(r => ({ ...r, status: r.status || 'offen' }));
+        renderIntern();
       } catch (e) {
-        wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${e.message}</p>`;
+        wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${plEsc(e.message)}</p>`;
       }
+    }
+    function renderIntern() {
+      const wrap = document.getElementById('pv-intern');
+      if (!wrap || !plDaten.intern) return;
+      const rows = plDaten.intern;
+      if (!rows.length) { wrap.innerHTML = '<p class="empty">Keine direkten Bestellungen vorhanden.</p>'; return; }
+      const sicht = plSicht(rows, plLies(plSpeicher()));
+      const spalten = [{ titel: 'Datum', rolle: 'datum' }, { titel: 'Bezeichnung', rolle: 'haupt' }, { titel: 'Anzahl', rolle: 'neben', num: true },
+        { titel: 'Einzelpreis brutto', rolle: 'neben', num: true }, { titel: 'Summe', rolle: 'betrag', num: true }, { titel: 'Status', rolle: 'status' }];
+      const zeilen = sicht.zeilen.map(r => ({ zellen: [plEsc(r.datum), plEsc(r.bezeichnung), plEsc(r.anzahl), fmt(r.einzelpreis), `<strong>${fmt(r.summe)}</strong>`,
+        `<span class="badge badge-${plEsc(String(r.status).toLowerCase())}">${plEsc(r.status)}</span>`] }));
+      wrap.innerHTML = plKopfHtml(sicht) + plTabelleHtml(spalten, zeilen, 'Seit der letzten Abrechnung keine direkten Bestellungen.');
     }
 
     // ── Saldo / offene Auszahlung ────────────────────────────────────────────
@@ -361,6 +436,7 @@
       wrap.innerHTML = '<div class="skeleton"></div>';
       try {
         const rows = await apiFetch('/api/festpreis-public/abrechnungen');
+        plAnzahlSetzen(rows.length);   // PP3
         if (!rows.length) { wrap.innerHTML = '<p class="empty">Noch keine Abrechnungen vorhanden.</p>'; return; }
 
         rows.sort((a, b) => (b['Erstellt-Am'] || '').localeCompare(a['Erstellt-Am'] || ''));
@@ -380,18 +456,8 @@
             const interneSumme = (pos && pos.interneSumme) || intern.reduce((s, i) => s + Number(i.summe || 0), 0);
             const internBlock = intern.length ? `
               <h3 style="font-size:0.9rem;margin:1rem 0 0.5rem;">Verrechnete direkte Bestellungen</h3>
-              <div style="overflow-x:auto;"><table>
-                <thead><tr>
-                  <th>Datum</th><th>Bezeichnung</th>
-                  <th class="num">Anzahl</th><th class="num">Summe (brutto)</th>
-                </tr></thead>
-                <tbody>${intern.map(i => `<tr>
-                  <td>${i.datum}</td>
-                  <td>${i.bezeichnung}</td>
-                  <td class="num">${i.anzahl}</td>
-                  <td class="num" style="color:var(--danger);">−${fmt(i.summe)}</td>
-                </tr>`).join('')}</tbody>
-              </table></div>` : '';
+              ${plTabelleHtml([{ titel: 'Datum', rolle: 'datum' }, { titel: 'Bezeichnung', rolle: 'haupt' }, { titel: 'Anzahl', rolle: 'neben', num: true }, { titel: 'Summe (brutto)', rolle: 'betrag', num: true }],
+                intern.map(i => ({ zellen: [plEsc(i.datum), plEsc(i.bezeichnung), plEsc(i.anzahl), `<span class="pl-rot">−${fmt(i.summe)}</span>`] })), '')}` : '';
             return `
             <div class="abr-card">
               <div class="abr-header">
@@ -501,6 +567,12 @@
       main.innerHTML = `
         <div class="card">
           <div class="card-header">
+            <h2>Offene Auszahlung</h2>
+          </div>
+          <div id="pv-saldo"><div class="skeleton" style="height:120px;"></div></div>
+        </div>
+        <div class="card">
+          <div class="card-header">
             <h2>Meine Verkäufe</h2>
             <button class="btn-outline" id="btn-refresh">↻ Aktualisieren</button>
           </div>
@@ -546,18 +618,11 @@
             <button class="btn" type="submit" id="ea-submit">Eigenauftrag absenden</button>
           </form>
         </div>
-        <div class="card">
-          <div class="card-header">
-            <h2>Offene Auszahlung</h2>
-          </div>
-          <div id="pv-saldo"><div class="skeleton" style="height:120px;"></div></div>
-        </div>
-        <div class="card">
-          <div class="card-header">
-            <h2>Meine Abrechnungen</h2>
-          </div>
+        <details class="card pl-abschnitt" id="pv-abr-box">
+          <summary class="card-header"><h2>Meine Abrechnungen <span class="pl-anzahl" id="pv-abr-anzahl"></span></h2></summary>
           <div id="pv-abrechnungen"><div class="skeleton"></div></div>
-        </div>`;
+        </details>`;
+      plAbschnittOeffnen();   // PP3
 
       document.getElementById('btn-refresh').addEventListener('click', () => {
         loadVerkaeufe();

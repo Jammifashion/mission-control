@@ -29,6 +29,11 @@ Farbbloecke (Test farbrollen.test.js). **Partnerportale (FK3/FK4):** Umschalter 
 `data-tipp`), Wahl in `localStorage` `partner_theme` (beide Portale, getrennt von `mc_theme`), Theme-Block wortgleich in beiden
 Portalen (Test partner-farben.test.js, inkl. Syntaxpruefung aller Skripte). `anfrage.html` (Kunden-Widget) und die Offline-Seite in
 `sw.js` sind bewusst nicht angeschlossen.
+**Partnerportal-Listen (PP3):** Block `Portal-Listen: Anfang/Ende` + CSS `Portal-Listen CSS` wortgleich in beiden Portalen (Test
+partner-listen.test.js): Listen zeigen standardmaessig nur Offenes (Status nicht "abgerechnet"), Schalter "auch abgerechnete anzeigen"
+(`localStorage` `partner_abgerechnet_zeigen`, Standard aus); Summen/Saldo ungefiltert. `plTabelleHtml` mit Rollen datum|betrag|haupt|
+status|neben -> am Handy (<= 480 px) Karten per CSS. Abrechnungen in `<details id="pv-abr-box">`, am Handy zu. Festpreis: Offene
+Auszahlung oben.
 **AM-2-1 (Inhaber 03.11.):** Hilfetexte an Eingabefeldern erscheinen nicht, solange das Feld (oder ein Feld im Element, z. B.
 Label) Fokus hat, und verschwinden beim Tippen (`feldMitFokus` in `hilfeEinrichten`). Kein `title` an Knoepfen, auch nicht im
 Code - wechselnde Zusaetze (Orte, Shop) ueber `data-hilfe-zusatz` (Test trefferliste.test.js). Trefferlisten (Kundenwahl im
