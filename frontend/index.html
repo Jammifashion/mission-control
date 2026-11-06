@@ -805,7 +805,10 @@
       .tr-formular tr.tr-goalie-zeile td { font-weight: 600; }
       /* TR8: Goalie-Hinweis "GK? prüfen" */
       .tr-gk-pruefen { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.25rem 0; }
-      .tr-gk-frage { display: inline-block; padding: 0 0.4rem; border-radius: 4px; background: rgba(234, 179, 8, 0.18); color: var(--warning, #eab308); font-size: 0.75rem; font-weight: 700; line-height: 1.6; }
+      /* antwort-TR8: Goalie-Warnungen rot (--danger wie andere Fehler/Warnungen), das bestaetigte GK bleibt ohne Warnfarbe. */
+      .tr-gk-frage { display: inline-block; padding: 0 0.4rem; border: 1px solid var(--danger); border-radius: 4px; background: rgba(224, 82, 82, 0.14); color: var(--danger); font-size: 0.75rem; font-weight: 700; line-height: 1.6; }
+      .tr-gk-zaehler, .tr-gk-warnung { color: var(--danger); font-weight: 700; }
+      .tr-gk-warnung { font-size: 0.84rem; }
       .tr-gk-pruefen { row-gap: 0; }
       .tr-gk-pruefen .korb-link { min-height: 44px; display: inline-flex; align-items: center; }
       .ti-zeile .form-input, .ti-zeile .form-select { min-width: 0; width: 100%; }
@@ -8500,7 +8503,11 @@
       }
       const trSummeText = d => `Trikots (JFN) · ${d.summen.offen} noch nicht beim Produzenten · ${d.summen.chargen} Bestellung${d.summen.chargen === 1 ? '' : 'en'}`
         + ` · ${d.summen.da} von ${d.summen.zeilen - d.summen.offen} da`
-        + (d.summen.goalieOffen ? ` · ${d.summen.goalieOffen} Goalie-Hinweis${d.summen.goalieOffen === 1 ? '' : 'e'} offen` : '');   // TR8
+        + (d.summen.goalieOffen ? ` · ${trGkZaehlerText(d.summen.goalieOffen)}` : '');   // TR8
+      const trGkZaehlerText = n => `${n} Goalie-Hinweis${n === 1 ? '' : 'e'} offen`;
+      /** antwort-TR8: Summe mit rotem Goalie-Zaehler (nur Zahlen, kein Kundentext). */
+      const trSummeHtml = d => trEsc(trSummeText({ ...d, summen: { ...d.summen, goalieOffen: 0 } }))
+        + (d.summen.goalieOffen ? ` · <span class="tr-gk-zaehler">${trEsc(trGkZaehlerText(d.summen.goalieOffen))}</span>` : '');
       // ── Trikots: Ende ──
 
       const trZustand = { daten: null, laedt: false, springe: '' };
@@ -8523,7 +8530,7 @@
         try {
           const res = await apiFetch(`${API_BASE()}/api/bestellen/trikots`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
           trZustand.daten = await apiJson(res);
-          document.getElementById('tr-summe').textContent = trSummeText(trZustand.daten);
+          document.getElementById('tr-summe').innerHTML = trSummeHtml(trZustand.daten);
           el.innerHTML = trListeHtml(trZustand.daten);
           trSprungAusfuehren(el);
         } catch (e) {
@@ -8564,14 +8571,14 @@
         const warn = [
           v.einrichtung?.length ? `Einrichtung fehlt: ${v.einrichtung.map(trEsc).join(', ')}` : '',
           ohne.size ? `Ohne Zuordnung (nicht exportierbar): Zeile ${[...ohne].join(', ')}` : '',
-          v.goalieOffen?.length ? `GK? prüfen – erst klären (als Goalie markieren oder „kein Goalie“) oder abwählen: Zeile ${v.goalieOffen.join(', ')}` : '',
           ...(v.probleme ?? []).map(p => trEsc(p.text)),
         ].filter(Boolean);
         return `<table class="tr-formular tr-formular-kopf"><tbody>${kopf.map(([a, b]) => `<tr><td>${a}</td><td><strong>${trEsc(b)}</strong></td></tr>`).join('')}</tbody></table>`
           + `<div class="tr-formular-wrap"><table class="tr-formular"><thead><tr><th>QUANTITY</th><th>ITEM</th><th>COLLAR</th><th>MATERIAL</th><th>SIZE</th><th>NAME</th><th>NUMBER</th><th>EXTRA</th></tr></thead>`
           + `<tbody>${zeilen || '<tr><td colspan="8">Nichts gewählt.</td></tr>'}</tbody></table></div>`
           + `<p class="tr-neben">${v.positionen.length} Trikot${v.positionen.length === 1 ? '' : 's'}${zaehler ? ` · ${zaehler}` : ''} · Datei: ${trEsc(v.dateiname)}</p>`
-          + (warn.length ? `<p class="tr-hinweis">${warn.join(' · ')}</p>` : '');
+          + (warn.length ? `<p class="tr-hinweis">${warn.join(' · ')}</p>` : '')
+          + (v.goalieOffen?.length ? `<p class="tr-gk-warnung">GK? prüfen – erst klären (als Goalie markieren oder „kein Goalie“) oder abwählen: Zeile ${v.goalieOffen.join(', ')}</p>` : '');
       }
       /** Grund, warum Herunterladen/Eintragen nicht geht ('' = frei). */
       function trFormularGrund({ vorschau, auswahl, heruntergeladen, laeuft }) {

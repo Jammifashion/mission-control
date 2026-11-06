@@ -126,7 +126,7 @@ describe('Produzenten-Bestellung', () => {
 describe('Oberflaeche', () => {
   const html = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../frontend/index.html'), 'utf8');
   const block = (a, b) => html.slice(html.indexOf(a), html.indexOf(b));
-  const T = new Function(`${block('// ── Trikots: Anfang', '// ── Trikots: Ende')}\nreturn { trGkPruefenHtml, trSummeText };`)();
+  const T = new Function(`${block('// ── Trikots: Anfang', '// ── Trikots: Ende')}\nreturn { trGkPruefenHtml, trSummeText, trSummeHtml };`)();
   const F = new Function(`const TR_HINWEISE = {}; const trEsc = s => String(s ?? '');\n${block('// ── Trikot-Formular: Anfang', '// ── Trikot-Formular: Ende')}\nreturn { trVorwahl, trFormularGrund, trVorschauHtml };`)();
   test('Hinweis mit Mouse-over (Fundstelle + Stichwort) und zwei Knoepfen', () => {
     const h = T.trGkPruefenHtml({ goalieOffen: true, goalieHinweis: 'Kundennotiz: ‚torwart‘', zeile: 4, id: '60001|1|1' });
@@ -141,6 +141,19 @@ describe('Oberflaeche', () => {
     expect(T.trSummeText(d(2))).toMatch(/ · 2 Goalie-Hinweise offen$/);
     expect(T.trSummeText(d(1))).toMatch(/ · 1 Goalie-Hinweis offen$/);
     expect(T.trSummeText(d(0))).not.toMatch(/Goalie/);
+    // antwort-TR8: Zaehler rot (eigene Klasse), nur solange > 0
+    expect(T.trSummeHtml(d(2))).toMatch(/ · <span class="tr-gk-zaehler">2 Goalie-Hinweise offen<\/span>$/);
+    expect(T.trSummeHtml(d(0))).not.toMatch(/tr-gk-zaehler|Goalie/);
+  });
+  test('antwort-TR8: Goalie-Warnungen rot (--danger), bestaetigtes GK ohne Warnfarbe', () => {
+    const css = html.slice(html.indexOf('.tr-gk-frage {'), html.indexOf('\n', html.indexOf('.tr-gk-frage {')));
+    expect(css).toContain('color: var(--danger)');
+    expect(css).toContain('border: 1px solid var(--danger)');
+    expect(html).toMatch(/\.tr-gk-zaehler, \.tr-gk-warnung \{ color: var\(--danger\)/);
+    const gk = html.slice(html.indexOf('.tr-gk {'), html.indexOf('\n', html.indexOf('.tr-gk {')));
+    expect(gk).toContain('var(--accent)');
+    expect(gk).not.toContain('danger');
+    expect(html).toContain("document.getElementById('tr-summe').innerHTML = trSummeHtml(trZustand.daten);");
   });
   test('Formular: nicht vorgewaehlt, Export gesperrt bis zur Klaerung, Warnung nennt die Zeile', () => {
     expect([...F.trVorwahl([{ zeile: 2, hinweise: [], goalieOffen: true }, { zeile: 3, hinweise: [] }])]).toEqual([3]);
@@ -148,6 +161,7 @@ describe('Oberflaeche', () => {
     expect(F.trFormularGrund({ vorschau: v, auswahl: [{ id: 'x', zeile: 2 }], heruntergeladen: '', laeuft: false })).toBe('gesperrt');
     expect(F.trFormularGrund({ vorschau: { ...v, goalieOffen: [] }, auswahl: [{ id: 'x', zeile: 2 }], heruntergeladen: '', laeuft: false })).toBe('erst-download');
     const h = F.trVorschauHtml({ ...v, kopf: { bestelltAm: '', lieferung: '', team: '', nummer: '', wiederholung: '' }, positionen: [], zaehler: [], dateiname: 'x' });
-    expect(h).toContain('GK? prüfen – erst klären (als Goalie markieren oder „kein Goalie“) oder abwählen: Zeile 2');
+    expect(h).toContain('<p class="tr-gk-warnung">GK? prüfen – erst klären (als Goalie markieren oder „kein Goalie“) oder abwählen: Zeile 2</p>');
+    expect(h).not.toMatch(/class="tr-hinweis">[^<]*GK\? prüfen/);
   });
 });
