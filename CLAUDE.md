@@ -18,6 +18,11 @@ JS, SVG ueber `style="stroke:var(--x)"`); Toenungen per `color-mix(in srgb, var(
 ueberfaellig/Storno, `--success` erledigt/geliefert, `--au`/`--ag` Kennzeichen (`kzHtml`), `--shop-jfn`/`--shop-honk`,
 `--nav-kachel*`/`--nav2-*` nur Handy-Navigation, `--status-design`; Auftragsstatus-Chip `auStatusKlasse`. Zierfarbe (Titel,
 Nummern) = `--text`. Test `backend/tests/farbrollen.test.js` (einzige Ausnahme: `<meta name="theme-color">`).
+**Heller Modus (FK2):** zweiter Block `:root[data-theme="light"]` direkt unter `:root` (nur Variablen, die es dunkel auch gibt;
+`--focus` hell = `--info`). Wahl System|Hell|Dunkel je Geraet (`localStorage` `mc_theme`, fehlt = System), Block `Theme: Anfang/Ende` im
+`<head>` VOR `<style>` (kein Aufblitzen) setzt `data-theme` (aufgeloest) + `data-theme-wahl`, `theme-color` = aktuelles `--bg`;
+`window.mcTheme.setze()`, Auswahl `#theme-wahl` oben in den Einstellungen. Neue Farbe = Wert in BEIDEN Bloecken, Kontrast AA wird im
+Test gemessen. Aktionsknoepfe nie `--success` (Hauptaktion = `--accent`/`--accent-text`). Test `theme.test.js`.
 **AM-2-1 (Inhaber 03.11.):** Hilfetexte an Eingabefeldern erscheinen nicht, solange das Feld (oder ein Feld im Element, z. B.
 Label) Fokus hat, und verschwinden beim Tippen (`feldMitFokus` in `hilfeEinrichten`). Kein `title` an Knoepfen, auch nicht im
 Code - wechselnde Zusaetze (Orte, Shop) ueber `data-hilfe-zusatz` (Test trefferliste.test.js). Trefferlisten (Kundenwahl im

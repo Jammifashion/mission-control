@@ -11,6 +11,62 @@
     <title>Mission Control</title>
     <link rel="manifest" href="manifest.json" />
     <link rel="apple-touch-icon" href="icons/icon-192.png" />
+    <script>
+      // FK2: Theme vor dem ersten Zeichnen setzen (kein Aufblitzen). Wahl je Geraet in localStorage "mc_theme":
+      // system (Standard, = prefers-color-scheme) | light | dark. Ohne Speicher -> system. data-theme = aufgeloester Modus.
+      // ── Theme: Anfang (reine Logik, Test backend/tests/theme.test.js) ──
+      var MC_THEME_WAHLEN = ['system', 'light', 'dark'];
+      function mcThemeLies(speicher) {
+        try { var w = speicher ? speicher.getItem('mc_theme') : null; return MC_THEME_WAHLEN.indexOf(w) >= 0 ? w : 'system'; } catch (e) { return 'system'; }
+      }
+      function mcThemeSchreib(speicher, wahl) {
+        try { if (!speicher) return false; if (wahl === 'system') speicher.removeItem('mc_theme'); else speicher.setItem('mc_theme', wahl); return true; } catch (e) { return false; }
+      }
+      function mcThemeModus(wahl, matchMedia) {
+        if (wahl === 'light' || wahl === 'dark') return wahl;
+        try { return matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; } catch (e) { return 'dark'; }
+      }
+      function mcThemeAnwenden(doc, wahl, matchMedia) {
+        var modus = mcThemeModus(wahl, matchMedia);
+        doc.documentElement.setAttribute('data-theme', modus);
+        doc.documentElement.setAttribute('data-theme-wahl', wahl);
+        return modus;
+      }
+      /** Browser-Leiste: theme-color = aktuelles --bg (kein fester Wert im Code). */
+      function mcThemeMeta(doc, win) {
+        var m = doc.querySelector('meta[name="theme-color"]');
+        if (!m || !win || !win.getComputedStyle) return;
+        var bg = win.getComputedStyle(doc.documentElement).getPropertyValue('--bg').trim();
+        if (bg) m.setAttribute('content', bg);
+      }
+      // ── Theme: Ende ──
+      (function () {
+        var speicher = null;
+        try { speicher = window.localStorage; } catch (e) { speicher = null; }
+        var mm = window.matchMedia ? window.matchMedia.bind(window) : null;
+        var wahl = mcThemeLies(speicher);
+        mcThemeAnwenden(document, wahl, mm);
+        window.mcTheme = {
+          wahl: function () { return wahl; },
+          setze: function (neu) {
+            wahl = MC_THEME_WAHLEN.indexOf(neu) >= 0 ? neu : 'system';
+            mcThemeSchreib(speicher, wahl);
+            var modus = mcThemeAnwenden(document, wahl, mm);
+            mcThemeMeta(document, window);
+            return modus;
+          },
+        };
+        // System-Wahl folgt dem Geraet live (z. B. Handy wechselt abends auf dunkel)
+        try {
+          var q = mm && mm('(prefers-color-scheme: light)');
+          var folge = function () { if (wahl === 'system') { mcThemeAnwenden(document, wahl, mm); mcThemeMeta(document, window); } };
+          if (q && q.addEventListener) q.addEventListener('change', folge); else if (q && q.addListener) q.addListener(folge);
+          // zusaetzlich beim Zurueckkehren zur App (Handy im Hintergrund umgestellt)
+          document.addEventListener('visibilitychange', function () { if (!document.hidden && mcThemeModus(wahl, mm) !== document.documentElement.getAttribute('data-theme')) folge(); });
+        } catch (e) { /* aelterer Browser: bleibt beim Startwert */ }
+        document.addEventListener('DOMContentLoaded', function () { mcThemeMeta(document, window); });
+      })();
+    </script>
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -35,7 +91,7 @@
         --info: #4a9eff;         /* Links, Filter-Segmente, "aktuell/heute", Markierung */
         --warning: #f0a030;      /* bald faellig, laeuft aus, Hinweis, Ampel gelb, Goalie, Wartestellung, RS1 sofort/KW */
         --warning-bg: #3d2a0c;
-        --danger: #e05252;       /* NUR Fehler, ueberfaellig, Storno, RS1 in Klaerung/unbekannt/veraltet */
+        --danger: #e86464;       /* NUR Fehler, ueberfaellig, Storno, RS1 in Klaerung/unbekannt/veraltet */
         --danger-bg: #3a1a1a;
         --success: #52c97a;      /* erledigt, geliefert, lieferbar, Saldo plus */
         --success-bg: #1a3a20;
@@ -43,11 +99,45 @@
         --au: #2bb3a3;           /* Kennzeichen Auftrag AU-…, Status bestellt/Produktion, Abholung */
         --ag: #9a8fb8;           /* Kennzeichen Aufgabe AG-… */
         --shop-jfn: #c9a04a;     /* Shop-Kennzeichen JFN */
-        --shop-honk: #e05fa0;    /* Shop-Kennzeichen HONK */
+        --shop-honk: #e66aa8;    /* Shop-Kennzeichen HONK */
         --shadow: rgb(0 0 0 / 0.5);
         --overlay: rgb(0 0 0 / 0.65);
         /* Zaehlliste (Papier, auch Druck) */
         --paper: #fff; --paper-text: #111; --paper-line: #bbb;
+        --nav2-kachel: transparent;   /* FK2: 2. Ebene am Handy, Flaeche (dunkel nur umrandet) */
+        color-scheme: dark;
+      }
+      /* FK2 (Inhaber 06.11.): heller Modus - hellgrauer Grund, weisse Karten, Navigation pastell. data-theme setzt der
+         Block "Theme" im <head> (Wahl System|Hell|Dunkel je Geraet, System = prefers-color-scheme). Nur Farbwerte, sonst nichts. */
+      :root[data-theme="light"] {
+        --bg: #f5f5f3;
+        --surface: #ffffff;
+        --surface-2: #efeee9;
+        --border: #dddad4;
+        --disabled: #8a8a8a;
+        --text: #1a1a1a;
+        --muted: #666;
+        --accent: #8f6b00;
+        --accent-text: #fff;
+        --focus: var(--info);
+        --on-color: #fff;
+        --nav-kachel: #dce8fb; --nav-kachel-rand: #b3cbef; --nav-kachel-text: #163a6e; --nav-kachel-aktiv: #1b5fb5; --nav-kachel-aktiv-rand: #17569f;
+        --nav2-kachel: #e8e1fa; --nav2-rand: #c6b8ee; --nav2-text: #3f2c7a; --nav2-aktiv: #6b4fc4; --nav2-aktiv-rand: #523a9e;
+        --info: #1b5fb5;
+        --warning: #8a5300;
+        --warning-bg: #fbeed6;
+        --danger: #c62828;
+        --danger-bg: #fbe4e4;
+        --success: #23763f;
+        --success-bg: #e2f2e8;
+        --status-design: #5c4fb0;
+        --au: #0d6658;
+        --ag: #6e6391;
+        --shop-jfn: #7d5c10;
+        --shop-honk: #a8306b;
+        --shadow: rgb(0 0 0 / 0.12);
+        --overlay: rgb(0 0 0 / 0.35);
+        color-scheme: light;
       }
 
       body {
@@ -192,7 +282,7 @@
         :root .sub-tabs > .sub-tab, :root .mode-toggle > .mode-btn {
           white-space: normal; overflow-wrap: anywhere; line-height: 1.15; text-align: center;
           min-height: 36px; padding: 0.3rem 0.35rem; margin: 0; font-size: 0.74rem; font-weight: 500;
-          background: transparent; color: var(--nav2-text); border: 1px solid var(--nav2-rand); border-radius: 6px;
+          background: var(--nav2-kachel); color: var(--nav2-text); border: 1px solid var(--nav2-rand); border-radius: 6px;
         }
         :root .sub-tabs > .sub-tab.active, :root .mode-toggle > .mode-btn.active {
           background: var(--nav2-aktiv); border-color: var(--nav2-aktiv-rand); color: var(--on-color); font-weight: 600;
@@ -412,11 +502,11 @@
       .dtf-panel { display: none; }
       .dtf-panel.active { display: block; }
       .btn-dtf-bestellen {
-        background: var(--success-bg); color: var(--success); border: 1px solid color-mix(in srgb, var(--success) 35%, transparent);
+        background: var(--accent); color: var(--accent-text); border: 1px solid var(--accent);   /* FK2: Hauptaktion (vorher gruen) */
         border-radius: 5px; padding: 0.3rem 0.65rem; font-size: 0.8rem; font-weight: 500;
         cursor: pointer; white-space: nowrap; transition: background 0.15s;
       }
-      .btn-dtf-bestellen:hover { background: color-mix(in srgb, var(--success) 30%, transparent); }
+      .btn-dtf-bestellen:hover:not(:disabled) { opacity: 0.88; }
       .btn-dtf-bestellen:disabled { opacity: 0.5; cursor: not-allowed; }
 
       .lshop-offen-header { font-size: 0.82rem; font-weight: 600; color: var(--muted); margin-bottom: 0.75rem; letter-spacing: 0.03em; display: flex; align-items: center; justify-content: space-between; }
@@ -450,11 +540,11 @@
       }
       .lshop-kw-input:focus { outline: none; border-color: var(--focus); }
       .btn-lshop-bestellen {
-        background: var(--success-bg); color: var(--success); border: 1px solid color-mix(in srgb, var(--success) 35%, transparent);
+        background: var(--accent); color: var(--accent-text); border: 1px solid var(--accent);   /* FK2: Hauptaktion (vorher gruen) */
         border-radius: 5px; padding: 0.3rem 0.65rem; font-size: 0.8rem; font-weight: 500;
         cursor: pointer; white-space: nowrap; transition: background 0.15s;
       }
-      .btn-lshop-bestellen:hover { background: color-mix(in srgb, var(--success) 30%, transparent); }
+      .btn-lshop-bestellen:hover:not(:disabled) { opacity: 0.88; }
       .btn-lshop-bestellen:disabled { opacity: 0.5; cursor: not-allowed; }
       /* BO4f: gesperrt ueber aria-disabled statt disabled, damit die Erklaerung beim Darueberfahren erscheint */
       .edi-box [aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
@@ -1017,11 +1107,11 @@
         .order-card-body { padding: 0.75rem; }
       }
       .btn-complete-order {
-        margin-top: 0.8rem; width: 100%; background: var(--success-bg); color: var(--success);
-        border: 1px solid color-mix(in srgb, var(--success) 35%, transparent); border-radius: 6px; padding: 0.48rem;
+        margin-top: 0.8rem; width: 100%; background: var(--accent); color: var(--accent-text);   /* FK2: Hauptaktion (vorher gruen) */
+        border: 1px solid var(--accent); border-radius: 6px; padding: 0.48rem;
         font-size: 0.84rem; font-weight: 500; cursor: pointer; transition: background 0.15s;
       }
-      .btn-complete-order:hover { background: color-mix(in srgb, var(--success) 30%, transparent); }
+      .btn-complete-order:hover { opacity: 0.88; }
 
       /* ── Toast ── */
       .toast {
@@ -1165,7 +1255,7 @@
       .modal-body { font-size: 0.86rem; color: var(--muted); margin-bottom: 1.25rem; line-height: 1.5; }
       .modal-body strong { color: var(--text); }
       .modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; }
-      .btn-danger { background: var(--danger); color: var(--on-color); border: none; border-radius: 6px; padding: 0.5rem 1rem; font-size: 0.88rem; cursor: pointer; font-family: inherit; }
+      .btn-danger { background: var(--danger); color: var(--bg); border: none; border-radius: 6px; padding: 0.5rem 1rem; font-size: 0.88rem; cursor: pointer; font-family: inherit; }
       .btn-danger:hover { opacity: 0.88; }
 
       /* ── Kundenanfragen Extern ── */
@@ -1569,9 +1659,9 @@
       .abr-saldo-pos { color: var(--success); }
       .abr-saldo-neg { color: var(--danger); }
       .abr-actions { margin-top: 0.85rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
-      .btn-success { background: var(--success); color: var(--bg); border: none; border-radius: 6px; padding: 0.45rem 1rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
-      .btn-success:hover:not(:disabled) { opacity: 0.88; }
-      .btn-danger { background: var(--danger); color: var(--on-color); border: none; border-radius: 6px; padding: 0.45rem 1rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+      .btn-success { background: var(--accent); color: var(--accent-text); border: none; border-radius: 6px; padding: 0.45rem 1rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+      .btn-success:hover:not(:disabled) { opacity: 0.88; }   /* FK2: Klassenname bleibt, Farbe = Hauptaktion */
+      .btn-danger { background: var(--danger); color: var(--bg); border: none; border-radius: 6px; padding: 0.45rem 1rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
       .btn-danger:hover:not(:disabled) { opacity: 0.88; }
 
       /* ── Lizenz-Detail-Tooltip (Partner-Artikel-Tab) ── */
@@ -3634,6 +3724,17 @@
       </section>
 
       <section id="panel-settings" class="panel">
+        <div class="card">
+          <h2 class="mit-hilfe-i" style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">Darstellung <button class="hilfe-i" type="button" data-hilfe-gruppe="darstellung" aria-controls="hilfe-darstellung" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button></h2>
+          <div id="hilfe-darstellung" class="hilfe-legende" hidden></div>
+          <label style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;margin-top:0.5rem;font-size:0.9rem;">Farben
+            <select id="theme-wahl" class="form-select" style="width:auto;min-width:10rem;" data-hilfe="theme-wahl">
+              <option value="system">System</option>
+              <option value="light">Hell</option>
+              <option value="dark">Dunkel</option>
+            </select>
+          </label>
+        </div>
         <div class="card">
           <h2 class="mit-hilfe-i" style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">API Key <button class="hilfe-i" type="button" data-hilfe-gruppe="einstellungen" aria-controls="hilfe-einstellungen" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button></h2>
           <div id="hilfe-einstellungen" class="hilfe-legende" hidden></div>
@@ -6057,6 +6158,7 @@
         'lager-ort-anlegen':     { name: 'Ort anlegen', text: 'Legt den neuen Lagerort im Sheet an. Orte werden nie umbenannt.' },
         'lager-verlauf-korb':    { name: 'Korb-Position', text: 'Öffnet die Position im L-Shop-Warenkorb.' },
         'lager-verlauf-bestellung': { name: 'Bestellung', text: 'Öffnet die Shop-Bestellung unter „Bestellungen (JFN)“.' },
+        'theme-wahl':            { name: 'Farben', text: 'System folgt dem Gerät (hell/dunkel). Hell oder Dunkel gilt fest – gespeichert nur auf diesem Gerät.' },
         'api-key-speichern':     { name: 'API-Key speichern', text: 'Speichert den Schlüssel nur in diesem Browser. Danach lädt MC neu.' },
         'app-installieren':      { name: 'Zum Startbildschirm hinzufügen', text: 'Legt MC als App auf den Startbildschirm. Es wird nichts im Shop oder Sheet geändert.' },
         'stamm-pruefen':         { name: 'Prüfen', text: 'Liest die neueste L-Shop-Stammdatei und zeigt, was sich ändern würde. Schreibt nichts.' },
@@ -6409,6 +6511,7 @@
         'anfragen': ['anf-neu', 'anf-aktualisieren', 'anf-anlegen', 'anf-speichern'],
         'assistent': ['aw-eintrag-neu', 'aw-eintrag-speichern', 'aw-prompt-speichern', 'aw-prompt-standard', 'aw-prompt-zeigen', 'aw-test-senden', 'aw-test-neu'],
         'lager-dialog': ['lager-treffer', 'lager-liste-weg', 'lager-event-neu', 'lager-event-anlegen', 'lager-artikel-anlegen', 'lager-ort-anlegen', 'lager-verlauf-korb', 'lager-verlauf-bestellung'],
+        'darstellung': ['theme-wahl'],
         'einstellungen': ['api-key-speichern', 'app-installieren', 'stamm-pruefen', 'stamm-uebernehmen'],
         korb:       ['eigen-modell', 'filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-lb-zuerst', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'lager-storno-hinweis', 'lager-storno-zurueck', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'eb-bearbeiten', 'eb-gesperrt-lager', 'eb-farbe', 'eb-groesse', 'eb-menge', 'eb-referenz', 'eb-notiz', 'eb-lager', 'eb-speichern', 'eb-abbrechen', 'abgleich', 'belege', 'lieferbarkeit', 'alle-offenen', 'zurueck'],
         leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
@@ -17110,6 +17213,14 @@
       });
 
       // ── SECTION: Settings ──
+      // FK2: Darstellung System | Hell | Dunkel (Logik im <head>, Block "Theme")
+      {
+        const themeSel = document.getElementById('theme-wahl');
+        if (themeSel && window.mcTheme) {
+          themeSel.value = window.mcTheme.wahl();
+          themeSel.addEventListener('change', () => { window.mcTheme.setze(themeSel.value); });
+        }
+      }
       // AMQ1: Feld nie vorbelegen (ein gefuelltes Passwortfeld liess Chrome bei jeder Eingabe "Passwort speichern?" fragen);
       // gespeichert ist der Schluessel in localStorage, das Feld zeigt nur, ob einer da ist. Speichern = eigenes Formular.
       const keyInput = document.getElementById('api-key');

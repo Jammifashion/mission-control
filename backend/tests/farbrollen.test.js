@@ -7,7 +7,9 @@ import { fileURLToPath } from 'url';
 const html = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../frontend/index.html'), 'utf8');
 const rootMatch = html.match(/:root\s*\{[^}]*\}/);
 const root = rootMatch[0];
-const ohneRoot = html.replace(root, '');
+const hellMatch = html.match(/:root\[data-theme="light"\]\s*\{[^}]*\}/);   // FK2: heller Modus, ebenfalls nur Farbwerte
+const hellBlock = hellMatch ? hellMatch[0] : '';
+const ohneRoot = html.replace(root, '').replace(hellBlock, '');
 const regel = sel => { const m = html.indexOf(`
       ${sel}`); const i = m < 0 ? html.indexOf(sel) : m + 7; return i < 0 ? '' : html.slice(i, html.indexOf('}', i) + 1); };
 
@@ -34,13 +36,13 @@ describe('FK1: Farbwerte nur in :root', () => {
     expect(wert('--accent-text')).toBe('#111');
     expect(wert('--info')).toBe('#4a9eff');
     expect(wert('--warning')).toBe('#f0a030');
-    expect(wert('--danger')).toBe('#e05252');
+    expect(wert('--danger')).toBe('#e86464');   // FK2: von #e05252 nachgeschaerft (Kontrast AA auf Chip und --danger-bg)
     expect(wert('--success')).toBe('#52c97a');
     expect(wert('--status-design')).toBe('#a184ec');
     expect(wert('--au')).toBe('#2bb3a3');
     expect(wert('--ag')).toBe('#9a8fb8');
     expect(wert('--shop-jfn')).toBe('#c9a04a');
-    expect(wert('--shop-honk')).toBe('#e05fa0');
+    expect(wert('--shop-honk')).toBe('#e66aa8');   // FK2: von #e05fa0 nachgeschaerft (Kontrast AA)
   });
   test('ausserhalb :root kein Hex-, rgb()- oder hsl()-Farbwert (CSS, Inline, JS)', () => {
     const treffer = [...ohneAusnahmen.matchAll(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/g)]
@@ -53,7 +55,7 @@ describe('FK1: Farbwerte nur in :root', () => {
   });
   test('Variablen werden nur in :root definiert, und jede benutzte ist definiert', () => {
     expect(ohneRoot.match(/^\s*--[a-z0-9-]+\s*:/gm)).toBeNull();
-    const definiert = new Set([...root.matchAll(/(--[a-z0-9-]+)\s*:/g)].map(m => m[1]));
+    const definiert = new Set([...(root + hellBlock).matchAll(/(--[a-z0-9-]+)\s*:/g)].map(m => m[1]));
     const benutzt = new Set([...html.matchAll(/var\((--[a-z0-9-]+)/g)].map(m => m[1]));
     expect([...benutzt].filter(v => !definiert.has(v))).toEqual([]);
   });
@@ -129,5 +131,58 @@ describe('FK1: Kennzeichen Auftrag/Aufgabe', () => {
     expect(html).toContain("auEl('ag-d-titel').innerHTML = `${kzHtml(g.Aufgabe_Nr)} · ${kuEsc(g.Kurztitel)}`;");
     expect(html).toContain('${kzHtml(bezug.nr, false)}');
     expect((html.match(/vorHtml: kzHtml\(a\.Auftrag_Nr, false\)/g) ?? []).length).toBe(2);
+  });
+});
+
+// ── FK2: heller Modus, Knoepfe, Kontrast ──
+const parseVars = txt => Object.fromEntries([...txt.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g)].map(m => [m[1], m[2].replace(/\/\*.*?\*\//g, '').trim()]));
+const DUNKEL = parseVars(root);
+const HELL = { ...DUNKEL, ...parseVars(hellBlock) };
+const hex = h => { h = h.replace('#', ''); if (h.length === 3) h = [...h].map(c => c + c).join(''); return [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16)); };
+const farbe = (n, vars) => { const w = vars[n]; const v = w.match(/^var\((--[a-z0-9-]+)\)$/); if (v) return farbe(v[1], vars); if (w === 'transparent') return farbe('--bg', vars); return hex(w); };
+const lum = c => { const f = c.map(x => { x /= 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }); return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]; };
+const kontrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+const grund = (b, vars) => { if (!b.startsWith('mix:')) return farbe(b, vars); const [, v, p, g] = b.split(':'); const c = farbe(v, vars); const u = farbe(g, vars); return c.map((x, i) => x * p / 100 + u[i] * (1 - p / 100)); };
+const PAARE = [
+  ['--text', '--bg'], ['--text', '--surface'], ['--muted', '--surface'], ['--muted', '--bg'], ['--text', '--surface-2'],
+  ['--accent', '--surface'], ['--accent-text', '--accent'], ['--info', '--surface'], ['--info', 'mix:--info:12:--surface'], ['--bg', '--info'],
+  ['--warning', '--surface'], ['--warning', '--warning-bg'], ['--warning', 'mix:--warning:16:--surface'],
+  ['--danger', '--surface'], ['--danger', '--danger-bg'], ['--danger', 'mix:--danger:12:--surface'], ['--bg', '--danger'],
+  ['--success', '--surface'], ['--success', '--success-bg'], ['--bg', '--success'],
+  ['--status-design', 'mix:--status-design:12:--surface'], ['--au', 'mix:--au:22:--surface'], ['--ag', '--surface'],
+  ['--shop-jfn', 'mix:--shop-jfn:15:--surface'], ['--shop-honk', 'mix:--shop-honk:15:--surface'],
+  ['--nav-kachel-text', '--nav-kachel'], ['--on-color', '--nav-kachel-aktiv'], ['--nav2-text', '--nav2-kachel'], ['--on-color', '--nav2-aktiv'],
+];
+
+describe('FK2: heller Modus', () => {
+  test('Hell-Block vorhanden, nur Variablen, die es dunkel auch gibt; color-scheme je Modus', () => {
+    expect(hellBlock).not.toBe('');
+    for (const v of Object.keys(parseVars(hellBlock))) expect([v, v in DUNKEL]).toEqual([v, true]);
+    expect(root).toMatch(/color-scheme:\s*dark/);
+    expect(hellBlock).toMatch(/color-scheme:\s*light/);
+    for (const v of ['--bg', '--surface', '--text', '--muted', '--accent', '--accent-text', '--info', '--warning', '--danger', '--success', '--au', '--ag',
+      '--shop-jfn', '--shop-honk', '--nav-kachel', '--nav-kachel-text', '--nav2-kachel', '--nav2-text', '--focus']) expect([v, v in parseVars(hellBlock)]).toEqual([v, true]);
+  });
+  test('Grund hellgrau, Karten weiss; --focus hell eigenstaendig (Info), dunkel = Akzent', () => {
+    expect(HELL['--bg']).toBe('#f5f5f3');
+    expect(HELL['--surface']).toBe('#ffffff');
+    expect(HELL['--focus']).toBe('var(--info)');
+    expect(DUNKEL['--focus']).toBe('var(--accent)');
+  });
+  test.each(PAARE)('Kontrast %s auf %s >= 4,5 in beiden Modi (WCAG AA)', (f, b) => {
+    for (const [modus, vars] of [['dunkel', DUNKEL], ['hell', HELL]]) {
+      const k = kontrast(farbe(f, vars), grund(b, vars));
+      expect([modus, k >= 4.5 ? 'ok' : k.toFixed(2)]).toEqual([modus, 'ok']);
+    }
+  });
+  test('kein Knopf mit --success als Hintergrund (Aktion = --accent, Erfolg nur Zustand)', () => {
+    const knopfKlassen = [...new Set([...html.matchAll(/<button[^>]*class="([^"]+)"/g)].flatMap(m => m[1].split(/\s+/)))].filter(k => /^[a-z][a-z0-9-]*$/.test(k));
+    const css = html.match(/<style>([\s\S]*?)<\/style>/g).join('\n');
+    const gruen = knopfKlassen.filter(k => new RegExp(`\\.${k}(?![a-z0-9-])[^{]*\\{[^}]*background(?:-color)?:\\s*(?:var\\(--success|color-mix\\(in srgb, var\\(--success)`).test(css));
+    expect(gruen).toEqual([]);
+    for (const k of ['btn-dtf-bestellen', 'btn-lshop-bestellen', 'btn-complete-order', 'btn-success']) {
+      expect([k, new RegExp(`\\.${k} \\{[^}]*background: var\\(--accent\\); color: var\\(--accent-text\\)`).test(css)]).toEqual([k, true]);
+    }
+    expect(html).not.toMatch(/<button[^>]*style="[^"]*background:\s*var\(--success/);
   });
 });
