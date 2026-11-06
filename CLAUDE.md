@@ -189,7 +189,10 @@ Neue Sektionen immer mit Anker versehen:
   nacheinander statt `Promise.all`. Jedes catch, das mit dem naechsten Element weitermacht,
   ruft zuerst `wirfWennPruefseite(err)`. Zwischenspeicher nur mit gueltiger Liste/Objekt.
   `middleware/hosterPruefseite.js` (vor dem allgemeinen Fehlerhandler): 503 + Code +
-  `notifyHosterPruefseite` (gedrosselt 1/h); Workflows werden rot. Frontend:
+  `notifyHosterPruefseite` (gedrosselt 1/h); Workflows werden rot. AL2: eine LESENDE Shop-Zeitueberschreitung
+  meldet MC erst bei der zweiten innerhalb von 2 h je Shop + Ablauf (`lib/alarmStand.js`, Logik `utils/alarm-stand.js`,
+  SSOT-Reiter `Alarm_Stand` - nur bei Zeitueberschreitung geschrieben, `scripts/setup-alarm-stand.js`); schreibend
+  (Ergebnis unklar) und Pruefseite sofort; Reiter fehlt/Sheets-Fehler = sofort. Routen melden Laufstopps nie selbst (AL1). Frontend:
   `istHosterPruefseite(res)` beendet Schleifen.
 - backend/utils/secrets.js – Secret Manager, loadAllSecrets()
 - backend/middleware/auth.js – X-API-Key Auth + Rate Limiting

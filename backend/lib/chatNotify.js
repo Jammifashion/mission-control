@@ -257,7 +257,7 @@ export async function notifyHosterPruefseite({ ablauf, shop, pfad, httpStatus, t
  * Schreibzugriff: Ergebnis unklar, nichts wiederholt oder zurueckgerollt.
  * Wirft nie.
  */
-export async function notifyShopZeitueberschreitung({ ablauf, shop, methode, pfad, limitMs, ergebnisUnklar, zeit } = {}) {
+export async function notifyShopZeitueberschreitung({ ablauf, shop, methode, pfad, limitMs, ergebnisUnklar, zeit, vorigeVorMin } = {}) {
   const art = 'shop_timeout';
   try {
     const jetzt   = Date.now();
@@ -269,6 +269,8 @@ export async function notifyShopZeitueberschreitung({ ablauf, shop, methode, pfa
       [...[ablauf, shop && `Shop ${shop}`, pfad && `${methode ?? ''} ${pfad}`.trim(),
         Number.isFinite(limitMs) && `nach ${Math.round(limitMs / 1000)} s`].filter(Boolean).map(t => sauber(String(t), 90)),
         /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(zeit ?? '') ? zeit : null].filter(Boolean).join(' · '),
+      // AL2: lesende Zeitueberschreitungen meldet MC erst beim zweiten Mal innerhalb von 2 h.
+      Number.isFinite(vorigeVorMin) ? `Zweite Zeitüberschreitung innerhalb von 2 h (die vorige vor ${vorigeVorMin} min).` : '',
       ergebnisUnklar
         ? 'Schreibzugriff: Ergebnis unklar, bitte im Shop nachlesen. Nichts wiederholt oder zurückgerollt.'
         : 'Keine Wiederholung. Nächster Versuch frühestens beim nächsten geplanten Lauf.',

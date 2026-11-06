@@ -85,4 +85,10 @@ describe('Zeitueberschreitung', () => {
     await request(app).put('/schreiben');
     expect(fetchMock).toHaveBeenCalledTimes(1);          // gedrosselt
   });
+
+  test('AL2: zweite Zeitueberschreitung nennt den Abstand zur vorigen', async () => {
+    const { notifyShopZeitueberschreitung } = await import('../lib/chatNotify.js');
+    await notifyShopZeitueberschreitung({ shop: 'JammiFashion', methode: 'GET', pfad: 'orders', limitMs: 15_000, vorigeVorMin: 60 });
+    expect(gesendeterText()).toContain('Zweite Zeitüberschreitung innerhalb von 2 h (die vorige vor 60 min).');
+  });
 });
