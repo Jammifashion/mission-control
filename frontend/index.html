@@ -261,6 +261,8 @@
       #panel-dashboard, #panel-dashboard * { min-width: 0; }
       .dash-kopf { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; align-items: flex-end; justify-content: space-between; }
       .dash-kopf-rechts { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+      .dash-vorlese-text { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--info); border-radius: 8px;
+        padding: 0.6rem 0.8rem; margin: 0 0 0.8rem; font-size: 0.92rem; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; }   /* DB2: Mitlesen */
       .dash-abschnitt { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 0 0 0.5rem; font-weight: 600; }
       .dash-fehler { border: 1px solid var(--danger); color: var(--danger); border-radius: 8px; padding: 0.5rem 0.75rem; margin-bottom: 0.8rem; font-size: 0.85rem; overflow-wrap: anywhere; }
       .dash-kacheln { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 9rem), 1fr)); gap: 0.6rem; margin-bottom: 1rem; }
@@ -1726,6 +1728,8 @@
             <div class="dash-greeting-date" id="dash-greeting-date"></div>
           </div>
           <div class="dash-kopf-rechts">
+            <!-- DB2: Zusammenfassung vorlesen (Sprachausgabe des Geraets); ohne speechSynthesis bleibt der Knopf verborgen -->
+            <button type="button" class="korb-aktion korb-aktion-ruhig" id="dash-vorlesen" data-hilfe="dash-vorlesen" aria-pressed="false" hidden>🔊 Vorlesen</button>
             <span class="korb-filter" id="dash-wer" role="group" aria-label="Wessen Aufträge und To-dos">
               <button type="button" data-dash-wer="" data-hilfe="dash-wer" aria-pressed="true">Alle</button>
               <button type="button" data-dash-wer="Christian" data-hilfe="dash-wer" aria-pressed="false">Christian</button>
@@ -1735,6 +1739,7 @@
           </div>
         </div>
         <div id="hilfe-dashboard" class="hilfe-legende" hidden></div>
+        <p id="dash-vorlese-text" class="dash-vorlese-text" aria-live="off" hidden></p>
         <div id="dash-fehler" class="dash-fehler" hidden></div>
         <h2 class="dash-abschnitt" id="dash-zutun-titel">Zu tun</h2>
         <div class="dash-kacheln" id="dash-zutun">
@@ -4384,6 +4389,74 @@
       }
       // ── Dashboard-Anzeige: Ende ──
 
+      // ── Dashboard-Vorlesen: Anfang (DB2, reine Funktion, Test backend/tests/dashboard-vorlesen.test.js) ──
+      // Text aus festen Regeln, nur aus den Zahlen von GET /api/dashboard: keine KI, kein Dienst, NIE Namen oder Bestellnummern
+      // (Kunden, Partner, Rueckennamen, AU-/AG-Nummern) - es kann jemand mithoeren. Nur was > 0 ist. Tageszeit Europe/Berlin.
+      // Geld: vor 18 Uhr der Umsatz von gestern, ab 18 Uhr der von heute (bisher); volle Euro.
+      const DBV_UMSATZ_HEUTE_AB = 18;
+      const dbvTeil = (opt, tz) => new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', ...opt }).format(tz);
+      const dbvZahl = (n, eins, mehr) => (n === 1 ? eins : `${n} ${mehr}`);
+      const dbvGross = s => s.charAt(0).toUpperCase() + s.slice(1);
+      const dbvEuro = n => `${Math.round(n).toLocaleString('de-DE')} Euro`;
+      const dbvDa = x => x && !x.fehlt && !x.nurJfn;
+      /** Liste der Saetze (einzeln vorgelesen, damit lange Texte am Handy nicht abbrechen). */
+      function dbVorleseSaetze(d, jetzt = new Date()) {
+        const stunde = Number(new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', hour: 'numeric', hourCycle: 'h23' }).formatToParts(jetzt).find(p => p.type === 'hour').value);
+        const s = [`${stunde < 12 ? 'Guten Morgen' : stunde < 18 ? 'Guten Tag' : 'Guten Abend'}.`,
+          `Heute ist ${dbvTeil({ weekday: 'long' }, jetzt)}, der ${dbvTeil({ day: 'numeric' }, jetzt)}. ${dbvTeil({ month: 'long' }, jetzt)}.`];
+        if (!d) return s;
+        if (d.wer === 'Christian' || d.wer === 'Nicole') s.push(`Ansicht ${d.wer}.`);   // Auftraege/To-dos nur dieser Person
+        const shopName = d.shop === 'honk' ? 'HONK-Shop' : 'JFN-Shop';
+        const inhalt = [];
+        // Neu seit gestern (letzte 24 h)
+        const neu = Array.isArray(d.neu) ? d.neu : [];
+        const best = neu.filter(x => x.art === 'shop'), mitH = best.filter(x => x.hinweis).length;
+        const au = neu.filter(x => x.art === 'au').length, ag = neu.filter(x => x.art === 'ag').length;
+        const dazu = [au ? dbvZahl(au, 'ein neuer Auftrag', 'neue Aufträge') : '', ag ? dbvZahl(ag, 'eine neue Aufgabe', 'neue Aufgaben') : ''].filter(Boolean).join(' und ');
+        if (best.length) {
+          inhalt.push(`Seit gestern ${dbvZahl(best.length, 'eine neue Bestellung', 'neue Bestellungen')} im ${shopName}`
+            + `${mitH ? (best.length === 1 ? ', mit Kundenhinweis' : `, ${mitH === 1 ? 'eine' : mitH} davon mit Kundenhinweis`) : ''}.`);
+          if (dazu) inhalt.push(`Dazu ${dazu}.`);
+        } else if (dazu) inhalt.push(`Seit gestern ${dazu}.`);
+        // Zu tun
+        const k = d.kacheln ?? {};
+        if (dbvDa(k.hinweise) && k.hinweise.zahl) inhalt.push(`${dbvGross(dbvZahl(k.hinweise.zahl, 'ein Kundenhinweis', 'Kundenhinweise'))} ungelesen.`);
+        if (dbvDa(k.lange) && k.lange.zahl) {
+          const alt = Number(k.lange.aeltester);
+          inhalt.push(k.lange.zahl === 1 ? `Einer wartet über 7 Tage${alt ? `, seit ${alt} Tagen` : ''}.`
+            : `${k.lange.zahl} warten über 7 Tage${alt ? `, der älteste ${alt} Tage` : ''}.`);
+        }
+        if (dbvDa(k.todos) && (k.todos.ueberfaellig || k.todos.heute)) {
+          inhalt.push(`To-dos: ${[k.todos.ueberfaellig ? `${k.todos.ueberfaellig} überfällig` : '', k.todos.heute ? `${k.todos.heute} heute fällig` : ''].filter(Boolean).join(', ')}.`);
+        }
+        if (dbvDa(k.ware) && k.ware.zahl) inhalt.push(k.ware.zahl === 1 ? 'Ein Auftrag wartet auf Ware.' : `${k.ware.zahl} Aufträge warten auf Ware.`);
+        if (dbvDa(k.abholung) && k.abholung.zahl) inhalt.push(`${dbvGross(dbvZahl(k.abholung.zahl, 'eine Abholung', 'Abholungen'))} offen.`);
+        if (dbvDa(k.rueckstand)) {
+          const r = k.rueckstand;
+          const alt = r.liste && r.veraltet;
+          if (r.positionen) inhalt.push(`L-Shop-Rückstand: ${dbvZahl(r.positionen, 'eine Position', 'Positionen')}${r.kritisch ? `, davon ${r.kritisch === 1 ? 'eine' : r.kritisch} kritisch` : ''}${alt ? ', Liste veraltet' : ''}.`);
+          else if (alt) inhalt.push('Die Rückstandsliste ist veraltet.');
+        }
+        if (dbvDa(k.trikots) && (k.trikots.ueber6Wochen || k.trikots.goalie)) {
+          inhalt.push(`Trikots: ${[k.trikots.ueber6Wochen ? `${dbvZahl(k.trikots.ueber6Wochen, 'eine Bestellung', 'Bestellungen')} über 6 Wochen` : '',
+            k.trikots.goalie ? `${k.trikots.goalie} Goalie offen` : ''].filter(Boolean).join(', ')}.`);
+        }
+        s.push(...(inhalt.length ? inhalt : ['Alles erledigt, nichts Offenes.']));
+        if ((d.fehler ?? []).some(q => q !== 'gelesen' && q !== 'kunden')) s.push('Einige Zahlen fehlen.');
+        // Geld kurz
+        const g = d.geld;
+        if (dbvDa(g)) {
+          const heute = stunde >= DBV_UMSATZ_HEUTE_AB, betrag = Math.round(Number(heute ? g.heute : g.tage?.[5]?.betrag) || 0);
+          if (betrag > 0) s.push(`Umsatz ${heute ? 'heute bisher' : 'gestern'} ${dbvEuro(betrag)}.`);
+        }
+        return s;
+      }
+      /** Saetze zu Abschnitten <= max Zeichen buendeln: weniger Pausen, aber kurz genug, dass Chrome nicht abbricht (~15 s). */
+      function dbvAbschnitte(saetze, max = 180) {
+        return saetze.reduce((a, satz) => { const l = a.length - 1; if (l >= 0 && (a[l] + ' ' + satz).length <= max) a[l] += ' ' + satz; else a.push(satz); return a; }, []);
+      }
+      // ── Dashboard-Vorlesen: Ende ──
+
       const DB_WER_KEY = 'mc_dash_wer';
       const dbZ = { daten: null, detail: '', wer: (() => { try { const w = localStorage.getItem(DB_WER_KEY); return ['Christian', 'Nicole'].includes(w) ? w : ''; } catch { return ''; } })(), laeuft: false };
       const dbEl = id => document.getElementById(id);
@@ -4465,10 +4538,59 @@
           setTimeout(() => { const b = dbEl('rs-bereich'); b?.querySelector('details.rs-block')?.setAttribute('open', ''); b?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 600);
         }
       }
+      // DB2: Vorlesen. Abschnitte <= 180 Zeichen je Aeusserung (Chrome bricht lange Aeusserungen ab), `lauf` verhindert, dass ein altes onend
+      // nach Stopp/Neustart den Zustand umschaltet. Stopp bei Klick, Ansichtswechsel, Wechsel Alle/Christian/Nicole, Seite weg.
+      const dbv = { lauf: 0, spricht: false };
+      const dbvSynth = () => (typeof window.speechSynthesis?.speak === 'function' && typeof window.SpeechSynthesisUtterance === 'function' ? window.speechSynthesis : null);
+      function dbvKnopf() {
+        const b = dbEl('dash-vorlesen');
+        b.hidden = !dbvSynth();
+        b.textContent = dbv.spricht ? '⏹ Stopp' : '🔊 Vorlesen';
+        b.setAttribute('aria-pressed', String(dbv.spricht));
+        const t = dbEl('dash-vorlese-text');
+        t.hidden = !dbv.spricht;
+        if (!dbv.spricht) t.textContent = '';
+      }
+      function dbvStopp() {
+        dbv.lauf++;
+        if (dbv.spricht) dbvSynth()?.cancel();
+        dbv.spricht = false;
+        dbvKnopf();
+      }
+      function dbvStart() {
+        const synth = dbvSynth();
+        if (!synth) return dbvKnopf();
+        if (!dbZ.daten) { showToast('Das Dashboard ist noch nicht geladen.', 'error'); return; }
+        const saetze = dbVorleseSaetze(dbZ.daten);
+        synth.cancel();   // kein Doppelstart: was noch laeuft, endet hier
+        const lauf = ++dbv.lauf;
+        const stimmen = synth.getVoices?.() ?? [];
+        // nur Stimmen auf dem Geraet (localService): Online-Stimmen wie "Google Deutsch" schicken den Text an einen Dienst
+        const lokal = stimmen.filter(v => v.localService !== false);
+        const stimme = lokal.find(v => v.lang === 'de-DE') ?? lokal.find(v => /^de(-|_|$)/i.test(v.lang)) ?? null;
+        const stuecke = dbvAbschnitte(saetze);
+        stuecke.forEach((satz, i) => {
+          const u = new SpeechSynthesisUtterance(satz);
+          u.lang = 'de-DE';
+          if (stimme) u.voice = stimme;
+          u.rate = 1.1;
+          if (i === stuecke.length - 1) u.onend = () => { if (lauf === dbv.lauf) { dbv.spricht = false; dbvKnopf(); } };
+          u.onerror = () => { if (lauf === dbv.lauf) { dbv.spricht = false; dbvKnopf(); } };
+          synth.speak(u);
+        });
+        dbv.spricht = true;
+        dbvKnopf();
+        dbEl('dash-vorlese-text').textContent = saetze.join(' ');
+      }
+      dbvKnopf();
+      document.addEventListener('mc:ansicht', dbvStopp);
+      window.addEventListener('pagehide', dbvStopp);
       dbEl('panel-dashboard').addEventListener('click', async ev => {
+        if (ev.target.closest('#dash-vorlesen')) { if (dbv.spricht) dbvStopp(); else dbvStart(); return; }
         const wer = ev.target.closest('[data-dash-wer]');
         if (wer) {
           dbZ.wer = wer.dataset.dashWer;
+          dbvStopp();   // DB2: der vorgelesene Text passte zur alten Auswahl
           try { if (dbZ.wer) localStorage.setItem(DB_WER_KEY, dbZ.wer); else localStorage.removeItem(DB_WER_KEY); } catch { /* Speicher gesperrt -> nur jetzt */ }
           loadDashboard();
           return;
@@ -6510,6 +6632,7 @@
         'kl-uebernehmen':       { name: 'Treffer wählen', text: 'Zeile anklicken oder ↑/↓ und Enter: übernimmt genau diesen Kunden (nie doppelt). „schon in MC“ öffnet ihn nur.' },
         'kl-neu':               { name: '+ Neuer Kunde in MC', text: 'Nicht in Lexoffice? Dann den Kunden direkt in MC anlegen.' },
         // DB1: Dashboard
+        'dash-vorlesen':        { name: 'Vorlesen', text: 'Liest eine Zusammenfassung vor und zeigt sie an (Sprachausgabe des Geräts, nichts geht ins Netz). Nur Zahlen. Nochmal = Stopp.' },
         'dash-wer':             { name: 'Alle · Christian · Nicole', text: 'Zeigt Aufträge, Aufgaben und To-dos nur dieser Person. Shop-Bestellungen bleiben. Gilt nur auf diesem Gerät.' },
         'dash-k-hinweise':      { name: 'Kundenhinweise', text: 'Offene Bestellungen des gewählten Shops mit Kundennotiz, die noch niemand gelesen hat. Klick zeigt die Liste.' },
         'dash-k-lange':         { name: 'Wartet lange', text: 'Länger als 7 Tage offen (Shop + Aufträge, ohne Trikots). Ab 14 Tagen rot. Klick zeigt die Liste.' },
@@ -6637,7 +6760,7 @@
         'assistent': ['aw-eintrag-neu', 'aw-eintrag-speichern', 'aw-prompt-speichern', 'aw-prompt-standard', 'aw-prompt-zeigen', 'aw-test-senden', 'aw-test-neu'],
         'lager-dialog': ['lager-treffer', 'lager-liste-weg', 'lager-event-neu', 'lager-event-anlegen', 'lager-artikel-anlegen', 'lager-ort-anlegen', 'lager-verlauf-korb', 'lager-verlauf-bestellung'],
         'darstellung': ['theme-wahl'],
-        'dashboard': ['dash-wer', 'dash-k-hinweise', 'dash-k-lange', 'dash-k-todos', 'dash-k-rueckstand', 'dash-k-ware', 'dash-k-abholung', 'dash-k-trikots',
+        'dashboard': ['dash-vorlesen', 'dash-wer', 'dash-k-hinweise', 'dash-k-lange', 'dash-k-todos', 'dash-k-rueckstand', 'dash-k-ware', 'dash-k-abholung', 'dash-k-trikots',
           'dash-gelesen', 'dash-zeile', 'dash-au-status', 'dash-detail-zu', 'dash-geld', 'dash-balken'],
         'einstellungen': ['api-key-speichern', 'app-installieren', 'stamm-pruefen', 'stamm-uebernehmen'],
         korb:       ['eigen-modell', 'filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-lb-zuerst', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'lager-storno-hinweis', 'lager-storno-zurueck', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'eb-bearbeiten', 'eb-gesperrt-lager', 'eb-farbe', 'eb-groesse', 'eb-menge', 'eb-referenz', 'eb-notiz', 'eb-lager', 'eb-speichern', 'eb-abbrechen', 'abgleich', 'belege', 'lieferbarkeit', 'alle-offenen', 'zurueck'],

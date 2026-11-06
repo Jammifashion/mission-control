@@ -67,7 +67,10 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   Kalendertage Berlin (rot > 14), Shop + Aufträge vor "fertig", OHNE jede JFN-Bestellung mit Trikot-Position (Trikot_Artikel wie
   der Sync + Order-ID im Reiter Trikots). Kundenhinweis "gelesen" fuer alle: Reiter `Hinweis_Gelesen` (nur Shop, Nr, Pruefsumme,
   Kuerzel, Zeit; `scripts/setup-hinweis-gelesen.js`), geaenderte Notiz = neue Pruefsumme = wieder ungelesen. Alle/Christian/Nicole je
-  Geraet (`mc_dash_wer`). Abholung im Backend = `versandArt` (Spiegel von `psVersandArt`, Test vergleicht). Der Knopf "Trikot-Sync
+  Geraet (`mc_dash_wer`). DB2 "Vorlesen" (`#dash-vorlesen`, Block `Dashboard-Vorlesen: Anfang/Ende`, Test dashboard-vorlesen.test.js):
+  Text aus festen Regeln NUR aus den Zahlen der Antwort (nie Namen/Bestell-/AU-Nummern/Hinweistexte), nur was > 0, Geld vor 18 Uhr
+  gestern, ab 18 Uhr heute; `speechSynthesis` mit lokaler deutscher Stimme (`localService`, nie Online-Stimmen), Abschnitte <= 180
+  Zeichen; Stopp bei Klick, `mc:ansicht`, Alle/Christian/Nicole, pagehide; ohne Sprachausgabe Knopf verborgen. Abholung im Backend = `versandArt` (Spiegel von `psVersandArt`, Test vergleicht). Der Knopf "Trikot-Sync
   jetzt" steht seit DB1 auf der Trikot-Seite.)
 - Auftragsmonitor, Auftragsmonitor Dual-Source; darunter "Auftragsmonitor: Shop Orders" (kein SECTION-Anker) mit der
   Bestellansicht "Bestellungen (JFN)" (PS1, Block `Produktion-Stand: Anfang/Ende`, Test produktion-stand.test.js)
