@@ -70,7 +70,8 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   Geraet (`mc_dash_wer`). DB2 "Vorlesen" (`#dash-vorlesen`, Block `Dashboard-Vorlesen: Anfang/Ende`, Test dashboard-vorlesen.test.js):
   Text aus festen Regeln NUR aus den Zahlen der Antwort (nie Namen/Bestell-/AU-Nummern/Hinweistexte), nur was > 0, Geld vor 18 Uhr
   gestern, ab 18 Uhr heute; `speechSynthesis` mit lokaler deutscher Stimme (`localService`, nie Online-Stimmen), Abschnitte <= 180
-  Zeichen; Stopp bei Klick, `mc:ansicht`, Alle/Christian/Nicole, pagehide; ohne Sprachausgabe Knopf verborgen. Abholung im Backend = `versandArt` (Spiegel von `psVersandArt`, Test vergleicht). Der Knopf "Trikot-Sync
+  Zeichen NACHEINANDER (DB2-1: Android-Chrome bricht eingereihte Aeusserungen ab; cancel() nur wenn etwas laeuft; Fehler = Toast mit
+  Code), "Jammifashion Shop", "n Auftraege warten"; Stopp bei Klick, `mc:ansicht`, Alle/Christian/Nicole, pagehide; ohne Sprachausgabe verborgen. Abholung im Backend = `versandArt` (Spiegel von `psVersandArt`, Test vergleicht). Der Knopf "Trikot-Sync
   jetzt" steht seit DB1 auf der Trikot-Seite.)
 - Auftragsmonitor, Auftragsmonitor Dual-Source; darunter "Auftragsmonitor: Shop Orders" (kein SECTION-Anker) mit der
   Bestellansicht "Bestellungen (JFN)" (PS1, Block `Produktion-Stand: Anfang/Ende`, Test produktion-stand.test.js)

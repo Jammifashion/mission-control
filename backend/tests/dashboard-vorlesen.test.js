@@ -58,10 +58,10 @@ describe('Textbau', () => {
   test('voller Tag: Reihenfolge Neu, Zu tun, Geld; Mehrzahl', () => {
     expect(dbVorleseSaetze(voll(), MITTAG)).toEqual([
       'Guten Tag.', 'Heute ist Freitag, der 6. November.',
-      'Seit gestern 2 neue Bestellungen im JFN-Shop, eine davon mit Kundenhinweis.',
+      'Seit gestern 2 neue Bestellungen im Jammifashion Shop, eine davon mit Kundenhinweis.',
       'Dazu ein neuer Auftrag und eine neue Aufgabe.',
       '2 Kundenhinweise ungelesen.',
-      '3 warten über 7 Tage, der älteste 16 Tage.',
+      '3 Aufträge warten über 7 Tage, der älteste 16 Tage.',
       'To-dos: 1 überfällig, 2 heute fällig.',
       '2 Aufträge warten auf Ware.',
       'Eine Abholung offen.',
@@ -77,8 +77,8 @@ describe('Textbau', () => {
         abholung: { zahl: 3 }, rueckstand: { positionen: 1, kritisch: 0, veraltet: false, liste: true }, trikots: { goalie: 0, ueber6Wochen: 1 } },
     });
     expect(dbVorleseSaetze(d, MITTAG).slice(2, -1)).toEqual([
-      'Seit gestern eine neue Bestellung im JFN-Shop, mit Kundenhinweis.', 'Dazu 2 neue Aufträge.',
-      'Ein Kundenhinweis ungelesen.', 'Einer wartet über 7 Tage, seit 9 Tagen.', 'To-dos: 1 heute fällig.',
+      'Seit gestern eine neue Bestellung im Jammifashion Shop, mit Kundenhinweis.', 'Dazu 2 neue Aufträge.',
+      'Ein Kundenhinweis ungelesen.', 'Ein Auftrag wartet über 7 Tage, seit 9 Tagen.', 'To-dos: 1 heute fällig.',
       'Ein Auftrag wartet auf Ware.', '3 Abholungen offen.', 'L-Shop-Rückstand: eine Position.', 'Trikots: eine Bestellung über 6 Wochen.',
     ]);
   });
@@ -122,9 +122,9 @@ describe('Textbau', () => {
       for (const x of [...NAMEN, ...NUMMERN, 'Hoodies', 'Musterteile', '#']) expect([x, t.includes(x)]).toEqual([x, false]);
     }
   });
-  test('Laenge: voller Tag hoechstens 80 Woerter (~30 s)', () => {
+  test('Laenge: voller Tag hoechstens 82 Woerter (~30 s; DB2-1: +"Aufträge", Inhaber)', () => {
     const t = text(voll({ wer: 'Nicole', fehler: ['auftraege'] }), MITTAG);
-    expect(t.split(/\s+/).length).toBeLessThanOrEqual(80);
+    expect(t.split(/\s+/).length).toBeLessThanOrEqual(82);
   });
   test('Abschnitte: ganze Saetze, hoechstens 180 Zeichen, nichts verloren', () => {
     const saetze = dbVorleseSaetze(voll({ wer: 'Nicole' }), MITTAG);
@@ -144,7 +144,7 @@ const steuer = html.slice(html.indexOf('      const dbv = { lauf: 0'), html.inde
 function aufbau({ mitSprache = true, daten = voll() } = {}) {
   const el = { 'dash-vorlesen': { hidden: false, textContent: '', attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } }, 'dash-vorlese-text': { hidden: true, textContent: '' } };
   const gesprochen = [];
-  const synth = { warteschlange: [], cancel() { this.abgebrochen = (this.abgebrochen ?? 0) + 1; this.warteschlange = []; }, speak(u) { this.warteschlange.push(u); gesprochen.push(u); },
+  const synth = { warteschlange: [], cancel() { this.abgebrochen = (this.abgebrochen ?? 0) + 1; this.warteschlange = []; this.speaking = false; }, speak(u) { this.speaking = true; this.warteschlange.push(u); gesprochen.push(u); }, speaking: false, pending: false,
     getVoices: () => [{ lang: 'en-US', name: 'E', localService: true }, { lang: 'de-DE', name: 'Google Deutsch', localService: false }, { lang: 'de-DE', name: 'Deutsch', localService: true }] };
   const win = mitSprache ? { speechSynthesis: synth, SpeechSynthesisUtterance: function U(t) { this.text = t; } } : {};
   const horcher = {};
@@ -166,50 +166,84 @@ describe('Knopf', () => {
     expect(a.dbv.spricht).toBe(false);
     expect(a.el['dash-vorlesen'].hidden).toBe(true);
   });
-  test('Start: Abschnitte je Aeusserung, de-DE + lokale deutsche Stimme (nie online), Knopf "Stopp", Text sichtbar', () => {
+  // Ablauf nachspielen: jeden gesprochenen Abschnitt beenden, bis nichts mehr nachkommt (DB2-1: einer nach dem anderen)
+  const allesVorlesen = a => { for (let i = 0; i < 50 && a.gesprochen[i]; i++) a.gesprochen[i].onend(); };
+  test('Start: Abschnitte NACHEINANDER, de-DE + lokale deutsche Stimme (nie online), Knopf "Stopp", Text sichtbar', () => {
     const a = aufbau();
     expect(a.el['dash-vorlesen'].hidden).toBe(false);
     expect(a.el['dash-vorlesen'].textContent).toBe('🔊 Vorlesen');
     a.dbvStart();
-    expect(a.gesprochen.length).toBeGreaterThan(1);
-    expect(a.gesprochen.every(u => u.lang === 'de-DE' && u.voice?.name === 'Deutsch')).toBe(true);
+    expect(a.synth.abgebrochen).toBeUndefined();   // nichts lief -> kein cancel() (Android bricht sonst die naechste Aeusserung ab)
+    expect(a.gesprochen.length).toBe(1);   // erst der erste Abschnitt
     expect(a.el['dash-vorlesen'].textContent).toBe('⏹ Stopp');
     expect(a.el['dash-vorlesen'].attrs['aria-pressed']).toBe('true');
     expect(a.el['dash-vorlese-text'].hidden).toBe(false);
-    expect(a.el['dash-vorlese-text'].textContent).toBe(a.gesprochen.map(u => u.text).join(' '));
-    a.gesprochen.at(-1).onend();   // fertig vorgelesen
+    a.gesprochen[0].onend();
+    expect(a.gesprochen.length).toBe(2);   // der naechste erst nach dem Ende des vorigen
+    allesVorlesen(a);
+    expect(a.gesprochen.length).toBeGreaterThan(2);
+    expect(a.gesprochen.every(u => u.lang === 'de-DE' && u.voice?.name === 'Deutsch')).toBe(true);
+    expect(a.el['dash-vorlese-text'].textContent).toBe('');   // fertig -> Text weg
     expect(a.dbv.spricht).toBe(false);
     expect(a.el['dash-vorlesen'].textContent).toBe('🔊 Vorlesen');
     expect(a.el['dash-vorlese-text'].hidden).toBe(true);
   });
-  test('kein Doppelstart: zweiter Start bricht den ersten ab, altes onend schaltet nichts um', () => {
+  test('Mitlese-Text = alle Abschnitte', () => {
     const a = aufbau();
     a.dbvStart();
-    const ersterLetzter = a.gesprochen.at(-1);
-    const vorher = a.synth.abgebrochen;
+    const t = a.el['dash-vorlese-text'].textContent;
+    allesVorlesen(a);
+    expect(a.gesprochen.map(u => u.text).join(' ')).toBe(t);
+  });
+  test('Android: Sprache "de_DE" wird erkannt', () => {
+    const a = aufbau();
+    a.synth.getVoices = () => [{ lang: 'de_DE', name: 'Android Deutsch', localService: true }];
     a.dbvStart();
-    expect(a.synth.abgebrochen).toBe(vorher + 1);
-    ersterLetzter.onend();
+    expect(a.gesprochen[0].voice?.name).toBe('Android Deutsch');
+  });
+  test('kein Doppelstart: zweiter Start bricht den ersten ab, altes onend spricht nicht weiter', () => {
+    const a = aufbau();
+    a.dbvStart();
+    const alter = a.gesprochen[0];
+    a.dbvStart();
+    expect(a.synth.abgebrochen).toBe(1);
+    const n = a.gesprochen.length;
+    alter.onend();
+    expect(a.gesprochen.length).toBe(n);   // alter Lauf haengt nichts an
     expect(a.dbv.spricht).toBe(true);
   });
   test('Stopp und Abbruch beim Ansichtswechsel / Seite weg', () => {
     for (const ausloeser of [a => a.dbvStopp(), a => a.horcher['mc:ansicht'](), a => a.winHorcher.pagehide()]) {
       const a = aufbau();
       a.dbvStart();
-      const n = a.synth.abgebrochen;
       ausloeser(a);
-      expect(a.synth.abgebrochen).toBe(n + 1);
+      expect(a.synth.abgebrochen).toBe(1);
       expect(a.dbv.spricht).toBe(false);
       expect(a.el['dash-vorlese-text'].hidden).toBe(true);
-      a.gesprochen.at(-1).onend();
+      a.gesprochen[0].onend();
+      expect(a.gesprochen.length).toBe(1);
       expect(a.dbv.spricht).toBe(false);
     }
   });
-  test('Fehler der Sprachausgabe beendet sauber', () => {
+  test('Fehler: erst ohne gewaehlte Stimme neu versuchen, dann sauber beenden mit Meldung samt Fehlercode', () => {
     const a = aufbau();
     a.dbvStart();
-    a.gesprochen[0].onerror();
+    a.gesprochen[0].onerror({ error: 'synthesis-failed' });
+    expect(a.gesprochen.length).toBe(2);
+    expect(a.gesprochen[1].voice).toBeUndefined();
+    expect(a.dbv.spricht).toBe(true);
+    a.gesprochen[1].onerror({ error: 'synthesis-failed' });
     expect(a.dbv.spricht).toBe(false);
+    expect(a.toasts).toEqual(['Vorlesen abgebrochen (synthesis-failed).']);
+  });
+  test('Fehler nach Beginn: kein zweiter Versuch, Meldung', () => {
+    const a = aufbau();
+    a.dbvStart();
+    a.gesprochen[0].onstart();
+    a.gesprochen[0].onerror({ error: 'interrupted' });
+    expect(a.gesprochen.length).toBe(1);
+    expect(a.dbv.spricht).toBe(false);
+    expect(a.toasts).toEqual(['Vorlesen abgebrochen (interrupted).']);
   });
   test('ohne Daten: Toast, kein Sprechen', () => {
     const a = aufbau({ daten: null });

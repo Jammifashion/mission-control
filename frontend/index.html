@@ -4406,7 +4406,7 @@
           `Heute ist ${dbvTeil({ weekday: 'long' }, jetzt)}, der ${dbvTeil({ day: 'numeric' }, jetzt)}. ${dbvTeil({ month: 'long' }, jetzt)}.`];
         if (!d) return s;
         if (d.wer === 'Christian' || d.wer === 'Nicole') s.push(`Ansicht ${d.wer}.`);   // Auftraege/To-dos nur dieser Person
-        const shopName = d.shop === 'honk' ? 'HONK-Shop' : 'JFN-Shop';
+        const shopName = d.shop === 'honk' ? 'HONK-Shop' : 'Jammifashion Shop';   // DB2-1 (Inhaber): "JFN" klingt vorgelesen unklar
         const inhalt = [];
         // Neu seit gestern (letzte 24 h)
         const neu = Array.isArray(d.neu) ? d.neu : [];
@@ -4423,8 +4423,9 @@
         if (dbvDa(k.hinweise) && k.hinweise.zahl) inhalt.push(`${dbvGross(dbvZahl(k.hinweise.zahl, 'ein Kundenhinweis', 'Kundenhinweise'))} ungelesen.`);
         if (dbvDa(k.lange) && k.lange.zahl) {
           const alt = Number(k.lange.aeltester);
-          inhalt.push(k.lange.zahl === 1 ? `Einer wartet über 7 Tage${alt ? `, seit ${alt} Tagen` : ''}.`
-            : `${k.lange.zahl} warten über 7 Tage${alt ? `, der älteste ${alt} Tage` : ''}.`);
+          // DB2-1 (Inhaber): mit Hauptwort, sonst fehlt beim Hoeren das "was" (zaehlt Shop-Bestellungen + Auftraege)
+          inhalt.push(k.lange.zahl === 1 ? `Ein Auftrag wartet über 7 Tage${alt ? `, seit ${alt} Tagen` : ''}.`
+            : `${k.lange.zahl} Aufträge warten über 7 Tage${alt ? `, der älteste ${alt} Tage` : ''}.`);
         }
         if (dbvDa(k.todos) && (k.todos.ueberfaellig || k.todos.heute)) {
           inhalt.push(`To-dos: ${[k.todos.ueberfaellig ? `${k.todos.ueberfaellig} überfällig` : '', k.todos.heute ? `${k.todos.heute} heute fällig` : ''].filter(Boolean).join(', ')}.`);
@@ -4562,25 +4563,42 @@
         if (!synth) return dbvKnopf();
         if (!dbZ.daten) { showToast('Das Dashboard ist noch nicht geladen.', 'error'); return; }
         const saetze = dbVorleseSaetze(dbZ.daten);
-        synth.cancel();   // kein Doppelstart: was noch laeuft, endet hier
+        // kein Doppelstart: was noch laeuft, endet hier. DB2-1: cancel() nur, wenn wirklich etwas laeuft - Chrome auf Android
+        // bricht sonst die direkt folgende Aeusserung mit einem Fehler ab (Text blitzte nur kurz auf).
+        if (synth.speaking || synth.pending) synth.cancel();
         const lauf = ++dbv.lauf;
         const stimmen = synth.getVoices?.() ?? [];
-        // nur Stimmen auf dem Geraet (localService): Online-Stimmen wie "Google Deutsch" schicken den Text an einen Dienst
+        // nur Stimmen auf dem Geraet (localService): Online-Stimmen wie "Google Deutsch" schicken den Text an einen Dienst.
+        // Android schreibt die Sprache teils "de_DE".
         const lokal = stimmen.filter(v => v.localService !== false);
-        const stimme = lokal.find(v => v.lang === 'de-DE') ?? lokal.find(v => /^de(-|_|$)/i.test(v.lang)) ?? null;
+        const stimme = lokal.find(v => /^de[-_]DE$/i.test(v.lang)) ?? lokal.find(v => /^de(-|_|$)/i.test(v.lang)) ?? null;
         const stuecke = dbvAbschnitte(saetze);
-        stuecke.forEach((satz, i) => {
-          const u = new SpeechSynthesisUtterance(satz);
+        const ende = () => { if (lauf === dbv.lauf) { dbv.spricht = false; dbvKnopf(); } };
+        // DB2-1: Abschnitte NACHEINANDER (der naechste erst nach dem Ende des vorigen) statt alle in die Warteschlange -
+        // Chrome auf Android unterbricht sonst die laufende Aeusserung mit "interrupted".
+        const sprich = (i, mitStimme) => {
+          if (lauf !== dbv.lauf) return;
+          if (i >= stuecke.length) return ende();
+          const u = new SpeechSynthesisUtterance(stuecke[i]);
           u.lang = 'de-DE';
-          if (stimme) u.voice = stimme;
+          if (mitStimme && stimme) u.voice = stimme;
           u.rate = 1.1;
-          if (i === stuecke.length - 1) u.onend = () => { if (lauf === dbv.lauf) { dbv.spricht = false; dbvKnopf(); } };
-          u.onerror = () => { if (lauf === dbv.lauf) { dbv.spricht = false; dbvKnopf(); } };
+          let gestartet = false;
+          u.onstart = () => { gestartet = true; };
+          u.onend = () => sprich(i + 1, mitStimme);
+          u.onerror = e => {
+            if (lauf !== dbv.lauf) return;
+            // gewaehlte Stimme scheitert gleich am Anfang -> einmal mit der Standardstimme des Geraets (de-DE) versuchen
+            if (i === 0 && !gestartet && mitStimme && stimme) return sprich(0, false);
+            ende();
+            showToast(`Vorlesen abgebrochen (${e?.error || 'unbekannt'}).`, 'error', 8000);
+          };
           synth.speak(u);
-        });
+        };
         dbv.spricht = true;
         dbvKnopf();
         dbEl('dash-vorlese-text').textContent = saetze.join(' ');
+        sprich(0, true);
       }
       dbvKnopf();
       document.addEventListener('mc:ansicht', dbvStopp);
