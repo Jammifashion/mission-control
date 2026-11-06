@@ -54,6 +54,7 @@ export function formularPositionen(zeilen, zuordnung) {
     return {
       id: z.id, zeile: z.zeile, produkt: z.produktKurz ?? z.produkt, groesse: t(z.groesse), name: t(z.name), nummer: t(z.nummer),
       goalie: !!z.goalie,
+      goalieOffen: !!z.goalieOffen,   // TR8: "GK? prüfen" - Export erst nach Klärung
       size: z.goalie ? `${GOALIE_FORMULAR.praefix}${t(z.groesse)}` : t(z.groesse),
       extra: z.goalie ? GOALIE_FORMULAR.extra : '',
       artikel: f?.artikel ?? '', material: f?.material ?? '', kragen: f?.kragen ?? '', reihenfolge: f?.reihenfolge ?? Infinity,

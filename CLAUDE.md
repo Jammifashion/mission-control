@@ -103,6 +103,12 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   gesehener Stand, je Zelle geprueft (409 `geaendert`, nichts geschrieben); mit Charge gesperrt (Hilfe `tr-aendern-gesperrt`,
   Ersatz = TR3b). "entfernen" bleibt nur INT. Dialog `#ti-dialog` mit GK-Schalter je Trikot. Kennzeichen `trGkHtml` (Zeile),
   Karte " · GK". Formular: SIZE = "GK" + Groesse, EXTRA = "GOALI" (`GOALIE_FORMULAR`), Goalie ans Ende des Produkts.
+  TR8 Goalie-Hinweis (nur lesen, nie automatisch "ja"): `utils/goalie-hinweis.js` sucht torwart/goalie/goali/keeper (auch
+  Wortteil), gk/goal nur als eigenes Wort, NUR in Rohtext-Feldern (ohne `AUSSCHLUSS`: _-Meta, ppcp_*, captcha, Zahlung/Tracking,
+  MC-Vorgang) und Spalte Notiz. `Goalie` = "ja" | "nein" (quittiert, `goalieStatus`) | leer. Offen (`goalieOffen`) = Hinweis +
+  leer + ohne Charge + Spalte da -> gelb "GK? prüfen" (`trGkPruefenHtml`, Fundstelle+Stichwort in `data-hilfe-zusatz`, nie der
+  Text), Knoepfe "als Goalie markieren" / "kein Goalie" = `POST .../trikots/goalie` { id, zeile, wert, vorher } (TR7-Weg, nur
+  Zelle Goalie). Zaehler in `trSummeText`. Formular: nicht vorgewaehlt, Download/Eintragen gesperrt (409 `goalie_offen`).
   TR6: Knopf "+ Interne Trikotbestellung" (Dialog `#ti-dialog`, je Trikot eine Zeile, "+ weiteres Trikot", Referenz AU-… per Trefferliste
   oder Freitext) -> `lib/trikotIntern.js` / `utils/trikot-intern.js`: MC vergibt INT-JJJJ-NNNN (hoechste des Jahres + 1, auch gegen
   Handzeilen), Zeilen wie TK1 (Quelle intern, Bestelldatum Text, Stueck 1, P-T und Zahlart leer), Referenz/Notiz/`MC-Vorgang:` im Rohtext

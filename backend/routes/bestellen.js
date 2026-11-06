@@ -313,6 +313,15 @@ router.post('/trikots/wareneingang', async (req, res, next) => {
   }
 });
 
+// ── POST /api/bestellen/trikots/goalie  (TR8) ─────────────────────────────────
+// Ein-Klick am Goalie-Hinweis: { id, zeile, wert: "ja" | "nein", vorher } - nur die Zelle Goalie, Weg und Vorher-Pruefung
+// wie "ändern …" (TR7). Log nur Zeilen-ID und Wert.
+router.post('/trikots/goalie', internMeldung(async req => {
+  const r = await aendereInternesTrikot({ aktion: 'goalie', ziel: { id: req.body?.id, zeile: req.body?.zeile }, wert: req.body?.wert, vorher: req.body?.vorher });
+  if (!r.unveraendert) console.log(`Trikot Goalie ${req.body?.wert === 'ja' ? 'ja' : 'nein'}: ${r.id}`);
+  return r;
+}));
+
 // ── POST /api/bestellen/trikots/formular/*  (TR3) ────────────────────────────
 // Produzenten-Bestellung: Vorschau (schreibt nichts), .xlsx nur als Antwort (nirgends abgelegt), Eintragen
 // NUR Charge + Bestellt_Am der gewaehlten Zeilen (leere Zellen, Nummer frei, zurueckgelesen).

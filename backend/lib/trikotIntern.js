@@ -99,7 +99,7 @@ export async function legeInterneTrikotsAn({ trikots, referenz, vorgang, sheets:
  * Aendern ('aendern', trikot, vorher; TR7: Shop- und INT-Zeilen ohne Charge) bzw. Entfernen ('entfernen' -> Status
  * storniert, nur INT). Unter der Sperre frisch gelesen; vorher wird je Zelle geprueft (sonst 409, nichts geschrieben).
  */
-export async function aendereInternesTrikot({ aktion, ziel, trikot, vorher, sheets: s, wc: w } = {}) {
+export async function aendereInternesTrikot({ aktion, ziel, trikot, vorher, wert, sheets: s, wc: w } = {}) {
   return mitSperre(async () => {
     const sheets = s ?? await sheetsClient();
     const werte = await leseReiter(sheets);
@@ -107,7 +107,7 @@ export async function aendereInternesTrikot({ aktion, ziel, trikot, vorher, shee
     const r = werte[Number(ziel?.zeile) - 1];
     const intern = istIntern({ id: r?.[kopf.indexOf('Zeilen-ID')], quelle: r?.[kopf.indexOf('Quelle')] });
     const produkte = aktion === 'aendern' && intern ? await ladeProdukte(sheets, w ?? getWcClient('jfn')) : new Map();
-    const plan = aenderungPlan({ werte, ziel, aktion, trikot, vorher, produkte });
+    const plan = aenderungPlan({ werte, ziel, aktion, trikot, vorher, produkte, wert });
     if (plan.unveraendert) return { ok: true, id: t(ziel?.id), unveraendert: true };
     const data = plan.zellen.map(z => ({ range: `'${TAB_TRIKOTS}'!${spalteBuchstabe(z.spalte)}${plan.zeile}`, values: [[z.wert]] }));
     await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: sheetId(), requestBody: { valueInputOption: 'RAW', data } });

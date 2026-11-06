@@ -12,7 +12,8 @@
 // Sie wird nur angezeigt, nie nach Name/Nummer uebernommen.
 
 import { requireHeader, findHeader } from './sheet-headers.js';
-import { SPALTE_GOALIE, goalieWert } from './trikot-logic.js';
+import { SPALTE_GOALIE, goalieWert, goalieStatus } from './trikot-logic.js';
+import { goalieHinweise, hinweisText } from './goalie-hinweis.js';
 
 export const TAB_TRIKOTS = 'Trikots';
 export const STATUS_GELIEFERT = 'ok';
@@ -81,8 +82,15 @@ export function trikotZeilen(values) {
       charge: w('charge'), bestelltAm: w('bestelltAm'), geliefertAm: w('geliefertAm'), status: w('status'), notiz: w('notiz'),
       ersetzt: iErsetzt >= 0 ? t(r[iErsetzt]) : '',
       goalie: iGoalie >= 0 && !!goalieWert(r[iGoalie]),
+      goalieRoh: iGoalie >= 0 ? goalieStatus(r[iGoalie]) : '',   // TR8: 'ja' | 'nein' (quittiert) | '' (ungeprueft)
       referenz: (t(w('rohtext')).split('\n').find(l => l.startsWith('Referenz:')) ?? '').slice(9).trim(),   // TR6: interne Bestellung
     });
+    // TR8: Goalie-Hinweis aus menschlichen Freitexten (nur lesen). Offen = Hinweis, Goalie ungeprueft, noch ohne Charge,
+    // nicht storniert, Spalte vorhanden (ohne Spalte kann niemand markieren/quittieren - dann kein offener Hinweis).
+    const z = zeilen.at(-1);
+    const hinweise = goalieHinweise({ rohtext: w('rohtext'), notiz: z.notiz });
+    z.goalieHinweis = hinweisText(hinweise);
+    z.goalieOffen = iGoalie >= 0 && hinweise.length > 0 && !z.goalieRoh && !z.charge && z.status.toLowerCase() !== STATUS_STORNIERT;
   });
   return { zeilen, spalteErsetzt: iErsetzt >= 0, spalteGoalie: iGoalie >= 0 };
 }
@@ -176,6 +184,7 @@ export function baueTrikotAnsicht({ zeilen, spalteErsetzt, spalteGoalie = false 
     bestellungen: bestellungStand(aktiv),
     summen: {
       zeilen: aktiv.length, offen: offen.length, chargen: jeCharge.size, entfernt: entfernt.length,
+      goalieOffen: aktiv.filter(x => x.goalieOffen).length,   // TR8
       da: aktiv.filter(x => x.da).length, hinweise: aktiv.filter(x => x.hinweise.length).length,
     },
   };

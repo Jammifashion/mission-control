@@ -803,6 +803,11 @@
       .ti-fest { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .tr-gk { display: inline-block; margin-left: 0.3rem; padding: 0 0.35rem; border: 1px solid var(--accent); border-radius: 4px; color: var(--accent); font-size: 0.72rem; font-weight: 700; line-height: 1.4; }
       .tr-formular tr.tr-goalie-zeile td { font-weight: 600; }
+      /* TR8: Goalie-Hinweis "GK? prüfen" */
+      .tr-gk-pruefen { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.25rem 0; }
+      .tr-gk-frage { display: inline-block; padding: 0 0.4rem; border-radius: 4px; background: rgba(234, 179, 8, 0.18); color: var(--warning, #eab308); font-size: 0.75rem; font-weight: 700; line-height: 1.6; }
+      .tr-gk-pruefen { row-gap: 0; }
+      .tr-gk-pruefen .korb-link { min-height: 44px; display: inline-flex; align-items: center; }
       .ti-zeile .form-input, .ti-zeile .form-select { min-width: 0; width: 100%; }
       .ti-kopf { font-size: 0.75rem; color: var(--muted); }
       .tr-intern-knoepfe { display: flex; gap: 0.6rem; flex-wrap: wrap; }
@@ -6008,6 +6013,9 @@
         'tr-aendern-gesperrt':  { name: 'ändern …', text: 'Schon beim Hersteller – Änderung nur über Ersatz (TR3b).' },
         'ti-goalie':            { name: 'GK', text: 'Goalie: Torwart-Version des Trikots. Im Formular für den Hersteller steht dann GK vor der Größe und GOALI unter EXTRA.' },
         'tr-goalie':            { name: 'GK', text: 'Goalie-Trikot (Torwart-Version). Geht an den Hersteller mit GK vor der Größe und GOALI unter EXTRA.' },
+        'tr-gk-pruefen':        { name: 'GK? prüfen', text: 'Im Freitext steht ein Torwart-Stichwort. Bitte klären – Goalie gibt es nur nach Absprache.' },
+        'tr-gk-markieren':      { name: 'als Goalie markieren', text: 'Setzt Goalie für dieses Trikot (GK vor der Größe, GOALI im Formular).' },
+        'tr-gk-kein':           { name: 'kein Goalie', text: 'Kein Torwart-Trikot – der Hinweis verschwindet für diese Zeile (Goalie = nein).' },
         'ti-entfernen':         { name: 'entfernen', text: 'Nimmt das Trikot heraus (Status „storniert“, die Zeile bleibt im Sheet). Nur vor der Produzenten-Bestellung.' },
         'ti-entfernt':          { name: 'entfernt', text: 'In MC entfernte interne Trikots. Diese gehen nicht zum Produzenten und zählen nirgends mit.' },
         'ti-auftrag':           { name: 'Auftrag', text: 'Öffnet den Auftrag, zu dem diese Trikots gehören.' },
@@ -6176,7 +6184,7 @@
         bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-mehr', 'bei-ankunft-lager', 'lager-ziel-aendern', 'eb-gesperrt-bestellt', 'eb-gesperrt-geliefert', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'ps-suche', 'ps-suche-weg', 'ps-grenze', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
-        trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag', 'tr-aendern-gesperrt', 'ti-goalie', 'tr-goalie'],
+        trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag', 'tr-aendern-gesperrt', 'ti-goalie', 'tr-goalie', 'tr-gk-pruefen', 'tr-gk-markieren', 'tr-gk-kein'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
         auftraege: ['ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'dash-auftraege', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'dash-offen', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern'],
@@ -8414,9 +8422,17 @@
           // BO5-4: das ersetzte (falsche) Trikot liegt hier - ins Lager buchen; der Reiter Trikots bleibt unveraendert.
           + (String(z.status ?? '').toLowerCase() === 'ersetzt' ? `<div><button type="button" class="korb-link" data-tr-lager="${z.zeile}" data-id="${trEsc(z.id)}" data-hilfe="trikot-ins-lager">falsches Trikot ins Lager …</button></div>` : '')
           + (z.notiz ? `<div>Notiz: ${trEsc(z.notiz)}</div>` : '')
+          + trGkPruefenHtml(z)
           + trInternHtml(z)
           + (andere.length ? `<div class="tr-hinweis">${andere.map(h => trEsc(TR_HINWEISE[h] ?? h)).join(' · ')}</div>` : '')
           + trAngabeHtml(z) + '</div>';
+      }
+      /** TR8: Goalie-Hinweis aus Freitext, Goalie noch leer -> gelb "GK? prüfen" (Fundstelle + Stichwort im Mouse-over) + Ein-Klick. */
+      function trGkPruefenHtml(z) {
+        if (!z.goalieOffen) return '';
+        return `<div class="tr-gk-pruefen"><span class="tr-gk-frage" tabindex="0" data-hilfe="tr-gk-pruefen" data-hilfe-zusatz="${trEsc(z.goalieHinweis)}">GK? prüfen</span>`
+          + `<button type="button" class="korb-link" data-tr-gk="ja" data-zeile="${z.zeile}" data-id="${trEsc(z.id)}" data-hilfe="tr-gk-markieren">als Goalie markieren</button>`
+          + `<button type="button" class="korb-link" data-tr-gk="nein" data-zeile="${z.zeile}" data-id="${trEsc(z.id)}" data-hilfe="tr-gk-kein">kein Goalie</button></div>`;
       }
       /** TR7: Goalie-Kennzeichen (Torwart-Version, nur auf Nachfrage). */
       const trGkHtml = z => (z.goalie ? '<span class="tr-gk" data-hilfe="tr-goalie">GK</span>' : '');
@@ -8483,7 +8499,8 @@
         return k ? `<button type="button" class="tr-karte ${k.klasse}" data-tr-springe="${trEsc(orderId)}" data-hilfe="tr-karte">${trEsc(k.text)}</button>` : '';
       }
       const trSummeText = d => `Trikots (JFN) · ${d.summen.offen} noch nicht beim Produzenten · ${d.summen.chargen} Bestellung${d.summen.chargen === 1 ? '' : 'en'}`
-        + ` · ${d.summen.da} von ${d.summen.zeilen - d.summen.offen} da`;
+        + ` · ${d.summen.da} von ${d.summen.zeilen - d.summen.offen} da`
+        + (d.summen.goalieOffen ? ` · ${d.summen.goalieOffen} Goalie-Hinweis${d.summen.goalieOffen === 1 ? '' : 'e'} offen` : '');   // TR8
       // ── Trikots: Ende ──
 
       const trZustand = { daten: null, laedt: false, springe: '' };
@@ -8525,14 +8542,15 @@
 
       // ── Trikot-Formular: Anfang (TR3, reine Anzeige, Test backend/tests/trikot-formular-frontend.test.js) ──
       // Vorwahl: alle offenen Trikots ohne Hinweis; mit Hinweis (z. B. nur Nummer) nur bewusst dazu.
-      const trVorwahl = zeilen => new Set(zeilen.filter(z => !z.hinweise.length).map(z => z.zeile));
+      const trVorwahl = zeilen => new Set(zeilen.filter(z => !z.hinweise.length && !z.goalieOffen).map(z => z.zeile));   // TR8: GK? prüfen nur bewusst
       const trAuswahlListe = (zeilen, gew) => zeilen.filter(z => gew.has(z.zeile)).map(z => ({ id: z.id, zeile: z.zeile }));
       const trAuswahlSchluessel = auswahl => auswahl.map(a => `${a.zeile}:${a.id}`).sort().join('|');
       function trAuswahlHtml(zeilen, gew) {
         if (!zeilen.length) return '<p class="tr-neben">Keine offenen Trikots.</p>';
         return '<div class="tr-wahl">' + zeilen.map(z => `<label><input type="checkbox" data-tr-wahl="${z.zeile}"${gew.has(z.zeile) ? ' checked' : ''}>`
           + `<span>${trEsc(z.produktKurz)} · ${trEsc(z.groesse || '–')}${z.goalie ? ' <span class="tr-gk">GK</span>' : ''} · <strong>${trEsc(z.name || '–')}</strong> · ${trEsc(z.nummer || '–')}`
-          + `${z.hinweise.length ? ` <span class="tr-hinweis">(${z.hinweise.map(h => trEsc(TR_HINWEISE[h] ?? h)).join(', ')})</span>` : ''}</span></label>`).join('') + '</div>';
+          + `${z.hinweise.length ? ` <span class="tr-hinweis">(${z.hinweise.map(h => trEsc(TR_HINWEISE[h] ?? h)).join(', ')})</span>` : ''}`
+          + `${z.goalieOffen ? ' <span class="tr-gk-frage">GK? prüfen</span>' : ''}</span></label>`).join('') + '</div>';
       }
       function trVorschauHtml(v) {
         if (!v) return '';
@@ -8546,6 +8564,7 @@
         const warn = [
           v.einrichtung?.length ? `Einrichtung fehlt: ${v.einrichtung.map(trEsc).join(', ')}` : '',
           ohne.size ? `Ohne Zuordnung (nicht exportierbar): Zeile ${[...ohne].join(', ')}` : '',
+          v.goalieOffen?.length ? `GK? prüfen – erst klären (als Goalie markieren oder „kein Goalie“) oder abwählen: Zeile ${v.goalieOffen.join(', ')}` : '',
           ...(v.probleme ?? []).map(p => trEsc(p.text)),
         ].filter(Boolean);
         return `<table class="tr-formular tr-formular-kopf"><tbody>${kopf.map(([a, b]) => `<tr><td>${a}</td><td><strong>${trEsc(b)}</strong></td></tr>`).join('')}</tbody></table>`
@@ -8558,7 +8577,7 @@
       function trFormularGrund({ vorschau, auswahl, heruntergeladen, laeuft }) {
         if (laeuft) return 'laeuft';
         if (!auswahl.length || !vorschau || !vorschau.positionen.length) return 'leer';
-        if (vorschau.einrichtung?.length || vorschau.ohneZuordnung?.length || vorschau.probleme?.length) return 'gesperrt';
+        if (vorschau.einrichtung?.length || vorschau.ohneZuordnung?.length || vorschau.probleme?.length || vorschau.goalieOffen?.length) return 'gesperrt';
         if (heruntergeladen !== trAuswahlSchluessel(auswahl)) return 'erst-download';
         return '';
       }
@@ -8763,7 +8782,7 @@
         tiZ.zeilen = aendern ? [{ produktId: (tiZ.auswahl.produkte.find(p => p.name === aendern.produkt) ?? tiZ.auswahl.produkte[0])?.produktId ?? '',
           groesse: aendern.groesse, name: aendern.name, nummer: aendern.nummer, notiz, goalie: !!aendern.goalie }] : [tiLeer()];
         // TR7: gesehener Stand - der Server prueft ihn je Zelle, weicht er ab, wird nichts gespeichert.
-        tiZ.vorher = aendern ? { produkt: aendern.produkt, groesse: aendern.groesse, name: aendern.name, nummer: aendern.nummer, notiz, goalie: aendern.goalie ? 'ja' : '' } : null;
+        tiZ.vorher = aendern ? { produkt: aendern.produkt, groesse: aendern.groesse, name: aendern.name, nummer: aendern.nummer, notiz, goalie: aendern.goalieRoh ?? (aendern.goalie ? 'ja' : '') } : null;
         tiEl('ti-titel').textContent = aendern ? `${aendern.orderId ? `#${aendern.orderId}` : aendern.id} · Trikot ändern` : 'Interne Trikotbestellung';
         tiEl('ti-referenz').value = '';
         tiZeichnen();
@@ -8825,6 +8844,24 @@
       tiEl('ti-schliessen').addEventListener('click', tiSchliessen);
       tiEl('ti-dialog').addEventListener('keydown', e => { if (e.key === 'Escape') tiSchliessen(); });
       const trAlleZeilen = () => (trZustand.daten?.gruppen ?? []).flatMap(g => g.zeilen);
+      // TR8: Ein-Klick am Goalie-Hinweis. Schreibt nur die Zelle Goalie ("ja" / "nein" = quittiert), Vorher-Stand wie gesehen.
+      let trGkLaeuft = false;
+      document.getElementById('tr-liste')?.addEventListener('click', async ev => {
+        const b = ev.target.closest('[data-tr-gk]');
+        if (!b || trGkLaeuft) return;
+        const z = trAlleZeilen().find(x => x.zeile === Number(b.dataset.zeile) && x.id === b.dataset.id);
+        if (!z) { showToast('Die Zeile hat sich geändert – bitte neu laden.', 'warn'); return; }
+        trGkLaeuft = true;
+        b.closest('.tr-gk-pruefen')?.querySelectorAll('button').forEach(x => { x.disabled = true; });
+        try {
+          await apiJson(await apiFetch(`${API_BASE()}/api/bestellen/trikots/goalie`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: z.id, zeile: z.zeile, wert: b.dataset.trGk,
+              vorher: { produkt: z.produkt, groesse: z.groesse, name: z.name, nummer: z.nummer, notiz: z.notizMc ?? '', goalie: z.goalieRoh ?? '' } }) }));
+          showToast(b.dataset.trGk === 'ja' ? `${z.orderId ? `#${z.orderId}` : z.id}: als Goalie markiert.` : `${z.orderId ? `#${z.orderId}` : z.id}: kein Goalie (Hinweis quittiert).`);
+        } catch (e) { showToast(`Nicht gespeichert: ${e.message}`, 'error'); }
+        finally { trGkLaeuft = false; }
+        await loadTrikots();
+      });
       /** TR6: Anzahl interner Trikots (nicht entfernt) mit dieser Referenz - fuer den Hinweis im Auftrag. */
       const trZaehleReferenz = (daten, nr) => (daten?.gruppen ?? []).filter(g => !g.storniert).flatMap(g => g.zeilen).filter(z => z.referenz === nr).length;
       document.getElementById('tr-liste')?.addEventListener('click', async ev => {

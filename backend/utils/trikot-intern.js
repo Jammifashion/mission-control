@@ -8,7 +8,7 @@
 // Nie Rueckennamen oder Referenzen ins Log - nur Zeilen-IDs.
 
 import { requireHeader } from './sheet-headers.js';
-import { TRIKOT_HEADER, SPALTE_GOALIE, goalieWert } from './trikot-logic.js';
+import { TRIKOT_HEADER, SPALTE_GOALIE, goalieWert, goalieStatus, GOALIE_JA, GOALIE_NEIN } from './trikot-logic.js';
 
 export const STATUS_STORNIERT = 'storniert';
 export const QUELLE_INTERN = 'intern';
@@ -133,11 +133,21 @@ export function zeilenStand(kopf, r) {
   const iGoalie = kopf.indexOf(SPALTE_GOALIE);
   return {
     intern, produkt: w('Produktname'), groesse: w('Groesse'), name: w('Name'), nummer: w('Nummer'),
-    notiz: intern ? rohtextLesen(w('Rohtext')).notiz : w('Notiz'), goalie: iGoalie >= 0 ? goalieWert(r?.[iGoalie]) : '',
+    notiz: intern ? rohtextLesen(w('Rohtext')).notiz : w('Notiz'), goalie: iGoalie >= 0 ? goalieStatus(r?.[iGoalie]) : '',   // TR8: auch "nein"
   };
 }
 const VORHER_FELDER = ['groesse', 'name', 'nummer', 'notiz', 'goalie'];
 const FELD_TEXT = { produkt: 'Trikot', groesse: 'Größe', name: 'Name', nummer: 'Nummer', notiz: 'Notiz', goalie: 'Goalie' };
+/** Gesehener Stand (vorher) gegen den frisch gelesenen (ist), je Zelle; weicht etwas ab: 409 geaendert, nichts geschrieben. */
+function pruefeVorher(ist, vorher) {
+  if (!vorher || typeof vorher !== 'object' || VORHER_FELDER.some(f => !(f in vorher))) throw fehler('Vorher-Stand fehlt – bitte neu laden.', 422);
+  const vergleich = { groesse: v => t(v).toUpperCase(), goalie: goalieStatus };
+  const felder = [...VORHER_FELDER, ...(ist.intern && 'produkt' in vorher ? ['produkt'] : [])];
+  const abweichend = felder.filter(f => (vergleich[f] ?? t)(vorher[f]) !== (vergleich[f] ?? t)(ist[f]));
+  if (abweichend.length) {
+    throw fehler(`Inzwischen geändert (${abweichend.map(f => FELD_TEXT[f]).join(', ')}) – nichts gespeichert, bitte neu laden.`, 409, { code: 'geaendert', felder: abweichend });
+  }
+}
 
 /**
  * Plan Bearbeiten/Entfernen fuer EINE Zeile. werte = frisch gelesen (Kopfzeile zuerst); ziel = { id, zeile }.
@@ -147,7 +157,7 @@ const FELD_TEXT = { produkt: 'Trikot', groesse: 'Größe', name: 'Name', nummer:
  *   (Produktname/Artikelnummer), Notiz im Rohtext (TR6). 'entfernen' -> Status storniert (nur INT, TR6).
  * @returns {{ zellen: Array<{spalte, wert}>, zeile, unveraendert }}
  */
-export function aenderungPlan({ werte, ziel, aktion, trikot, vorher, produkte }) {
+export function aenderungPlan({ werte, ziel, aktion, trikot, vorher, produkte, wert }) {
   const [kopf = [], ...rows] = werte ?? [];
   const zeile = Number(ziel?.zeile);
   const r = rows[zeile - 2];
@@ -162,13 +172,7 @@ export function aenderungPlan({ werte, ziel, aktion, trikot, vorher, produkte })
     const grund = aenderbar({ charge: w('Charge'), status: w('Status') });
     if (grund) throw fehler(grund, 409, { code: 'gesperrt' });
     const ist = zeilenStand(kopf, r);
-    if (!vorher || typeof vorher !== 'object' || VORHER_FELDER.some(f => !(f in vorher))) throw fehler('Vorher-Stand fehlt – bitte neu laden.', 422);
-    const vergleich = { groesse: v => t(v).toUpperCase(), goalie: goalieWert };
-    const felder = [...VORHER_FELDER, ...(ist.intern && 'produkt' in vorher ? ['produkt'] : [])];
-    const abweichend = felder.filter(f => (vergleich[f] ?? t)(vorher[f]) !== (vergleich[f] ?? t)(ist[f]));
-    if (abweichend.length) {
-      throw fehler(`Inzwischen geändert (${abweichend.map(f => FELD_TEXT[f]).join(', ')}) – nichts gespeichert, bitte neu laden.`, 409, { code: 'geaendert', felder: abweichend });
-    }
+    pruefeVorher(ist, vorher);
     const g = pruefeTrikot(trikot, produkte, 1, { ohneProdukt: !ist.intern });
     const iGoalie = kopf.indexOf(SPALTE_GOALIE);
     if (iGoalie < 0 && g.goalie) throw fehler(EINRICHTUNG_GOALIE, 409, { code: 'einrichtung' });
@@ -179,7 +183,18 @@ export function aenderungPlan({ werte, ziel, aktion, trikot, vorher, produkte })
     } else {
       soll.Notiz = g.notiz;
     }
-    if (iGoalie >= 0) soll[SPALTE_GOALIE] = g.goalie;
+    // TR8: ein quittiertes "nein" bleibt, wenn Goalie nicht angehakt ist.
+    if (iGoalie >= 0) soll[SPALTE_GOALIE] = g.goalie || (ist.goalie === GOALIE_NEIN ? GOALIE_NEIN : '');
+  } else if (aktion === 'goalie') {
+    // TR8: Ein-Klick am Hinweis - "ja" (als Goalie markieren) bzw. "nein" (kein Goalie, quittiert); gleiche Sperre und
+    // Vorher-Pruefung wie "ändern …", geschrieben wird nur die Zelle Goalie.
+    const grund = aenderbar({ charge: w('Charge'), status: w('Status') });
+    if (grund) throw fehler(grund, 409, { code: 'gesperrt' });
+    if (![GOALIE_JA, GOALIE_NEIN].includes(t(wert))) throw fehler('Wert nur „ja“ oder „nein“.', 400);
+    const iGoalie = kopf.indexOf(SPALTE_GOALIE);
+    if (iGoalie < 0) throw fehler(EINRICHTUNG_GOALIE, 409, { code: 'einrichtung' });
+    pruefeVorher(zeilenStand(kopf, r), vorher);
+    soll[SPALTE_GOALIE] = t(wert);
   } else throw fehler('Unbekannte Aktion.', 400);
   const zellen = Object.entries(soll).filter(([s, v]) => w(s) !== t(v)).map(([s, v]) => ({ spalte: kopf.indexOf(s), wert: v }));
   return { zellen, zeile, unveraendert: !zellen.length };

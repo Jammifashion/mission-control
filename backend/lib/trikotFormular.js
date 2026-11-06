@@ -84,6 +84,7 @@ async function baueVorschau({ auswahl, sheets, wc, jetzt }) {
     charge, nummer: bestellNummer(charge, jetzt), dateiname: dateiName(charge), vorlaeufig: true,
     kopf: { bestelltAm: heute.text, lieferung: liefer.text, team: FORMULAR.team, nummer: bestellNummer(charge, jetzt), wiederholung: FORMULAR.wiederholung },
     positionen, zaehler: zaehleJeGroesse(positionen), probleme,
+    goalieOffen: positionen.filter(p => p.goalieOffen).map(p => p.zeile),   // TR8
     ohneZuordnung: positionen.filter(p => p.fehler.includes('ohne_zuordnung')).map(p => p.zeile),
     einrichtung: k.zuordnung.fehlend,
     _tage: { heute, liefer },
@@ -160,6 +161,7 @@ export async function formularDatei({ auswahl, sheets: s, wc = getWcClient('jfn'
   const v = await baueVorschau({ auswahl, sheets: s ?? await sheetsClient(), wc, jetzt });
   if (v.probleme.length) throw fehler('Auswahl hat sich geändert – bitte neu laden.', 409, { probleme: v.probleme });
   if (v.einrichtung.length) throw fehler(`Einrichtung fehlt: ${v.einrichtung.join(', ')} in ${TAB_ARTIKEL}.`, 409, { code: 'einrichtung' });
+  if (v.goalieOffen.length) throw fehler(`Goalie-Hinweis ungeklärt (GK? prüfen): Zeile ${v.goalieOffen.join(', ')} – erst markieren oder „kein Goalie“.`, 409, { code: 'goalie_offen' });
   if (v.ohneZuordnung.length) throw fehler(`Ohne Zuordnung zu einem Produkt: Zeile ${v.ohneZuordnung.join(', ')}.`, 422, { code: 'ohne_zuordnung' });
   if (!v.positionen.length) throw fehler('Keine Trikots gewählt.', 400);
   return { dateiname: v.dateiname, buffer: await baueXlsx({ kopf: v.kopf, positionen: v.positionen, tage: v._tage }) };
@@ -177,6 +179,10 @@ export async function alsBestelltEintragen({ auswahl, charge, sheets: s, jetzt =
     const vorher = await lies();
     const heute = tagWerte(jetzt);
     const plan = eintragPlan(vorher, auswahl, { charge, serial: heute.serial });
+    // TR8: auch beim Eintragen - ungeklaerte Goalie-Hinweise in der Auswahl sperren (die Datei waere ohne Klaerung entstanden).
+    const gewaehlt = new Set((auswahl ?? []).map(a => Number(a?.zeile)));
+    const goalieOffen = trikotZeilen(vorher).zeilen.filter(z => gewaehlt.has(z.zeile) && z.goalieOffen).map(z => z.zeile);
+    if (goalieOffen.length) throw fehler(`Goalie-Hinweis ungeklärt: Zeile ${goalieOffen.join(', ')}.`, 409, { code: 'goalie_offen' });
     if (plan.probleme.length) throw fehler(plan.probleme[0].text, 409, { probleme: plan.probleme, code: 'nicht_eingetragen' });
     await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: id, requestBody: { valueInputOption: 'RAW', data: plan.zellen } });
     const nachher = await lies();

@@ -74,7 +74,7 @@ describe('Gruppen und Zaehlregel', () => {
     expect(a.gruppen[0].zeilen[0].kundenangabe[0]).toEqual({ feld: 'Name - Nummer', wert: 'DELTA 22' });
     expect(a.gruppen.find(g => g.charge === '10').zeilen[0].hinweise).toEqual(['nummer_leer']);
     expect(a.gruppen.find(g => g.charge === '4').hinweise).toEqual(['ohne_bestellt_am']);
-    expect(a.summen).toEqual({ zeilen: 6, offen: 1, chargen: 4, da: 2, hinweise: 2, entfernt: 0 });
+    expect(a.summen).toEqual({ zeilen: 6, offen: 1, chargen: 4, da: 2, hinweise: 2, entfernt: 0, goalieOffen: 0 });
   });
 });
 

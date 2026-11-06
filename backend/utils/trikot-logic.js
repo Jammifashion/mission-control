@@ -44,6 +44,9 @@ export const SCRIPT_COLUMNS_NACH_MANUELL = ['Zahlart'];
 export const SPALTE_GOALIE = 'Goalie';
 export const GOALIE_JA = 'ja';
 export const goalieWert = v => (v === true || ['ja', 'true', 'wahr', '1', 'x'].includes(String(v ?? '').trim().toLowerCase()) ? GOALIE_JA : '');
+// TR8: "nein" = bewusst kein Goalie (Hinweis quittiert); leer = ungeprueft. Fuer Formular/Kennzeichen zaehlt nur "ja".
+export const GOALIE_NEIN = 'nein';
+export const goalieStatus = v => (goalieWert(v) || (String(v ?? '').trim().toLowerCase() === GOALIE_NEIN ? GOALIE_NEIN : ''));
 export const TRIKOT_HEADER = [...SCRIPT_COLUMNS, ...MANUAL_COLUMNS, ...SCRIPT_COLUMNS_NACH_MANUELL];
 
 export const ARTIKEL_COLUMNS = ['Artikelnummer', 'Produkt-ID', 'Produktname', 'Aktiv'];
