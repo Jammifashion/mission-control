@@ -520,6 +520,16 @@ Neue Sektionen immer mit Anker versehen:
   ohne AB "Liefertermin folgt". Wareneingang seit BO4b-5 (lib/wareneingang.js, lib/karton.js). Der Korb (`GET .../lshop-korb`) zeigt seit BO4d nur
   `KORB_SICHTBAR` = offen + abgewählt (`summen.positionen` = beide), liefert keine `sendungen` mehr; die
   Zeilen bleiben unveraendert.
+- backend/lib/rueckstand.js – L-Shop-Rueckstandsliste (RS1), NUR LESEN, Logik `utils/rueckstand.js`. Apps Script (info@) legt jeden
+  Mittwoch `Rueckstandsliste_JJJJ-MM-TT.xlsx` in den Ordner "L-Shop Rueckstandsliste" der geteilten Ablage (`RUECKSTAND_ORDNER_ID`,
+  per Env ueberschreibbar; drive.readonly). Die Datei hat keinen Standard-Stil (exceljs findet kein Blatt, Blattdatei "Sheet1.xml"):
+  `leseXlsxZeilen` liest das Zip selbst (jszip 3.10.1, gepinnt), NUR Spalten A-O - P-T (Empfaenger/Adresse) nie. Kommission =
+  Kommission der GANZEN Bestellung ("JFN Sammelbestellung KWnn"), nicht die Positions-Referenz: Zuordnung ueber Fremdbeleg
+  (`order_id`) + LieferantArtNr auf Korb-Positionen (mehrere moeglich) -> AU (Korb-Referenz AU-…), Shop-Bestellungen, L-Shop-Bestellung;
+  sonst "ohne Bezug in MC". `GET /api/bestellen/rueckstand` (ohne Kommission/Kunden-Nr.), nichts gespeichert, Datei-Cache nach ID +
+  Aenderungszeit, Ordnerliste 10 min. Liste > 8 Tage -> Hinweis veraltet. Frontend Block `Rueckstand: Anfang/Ende` (Abschnitt
+  `#rs-bereich` oben in L-Shop-Bestellungen), Kennzeichen `rsKorbKennzeichen` / `rsShopKennzeichen` / `rsAuftragKennzeichen`, `zahlen`
+  fuer das Dashboard (DB1). Test rueckstand.test.js.
 - backend/lib/lshopAb.js – Auftragsbestaetigung (AB-XML) auswerten (BO4i), Logik `utils/lshop-ab.js`. **IDs:** im alten
   Stufenplan (auftrag-BO4b) war "BO4b-4" der Wareneingang - erledigt als BO4b-5; die AB-Auswertung heisst BO4i.
   AB kommt seit 27.10. nur noch als XML in `ORDERCONFIRMATION` (Mail aus), je VA. Gemessen 28.10.: UTF-8 ohne BOM;

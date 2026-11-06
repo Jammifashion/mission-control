@@ -510,6 +510,17 @@
       .lb-karte > summary, .lb-portal > summary { cursor: pointer; padding: 0.55rem 0.75rem; display: flex; flex-wrap: wrap; gap: 0.4rem 0.75rem; align-items: center; justify-content: space-between; }
       .lb-inhalt { padding: 0 0.75rem 0.6rem; display: grid; gap: 0.3rem; }
       .lb-pos { display: grid; gap: 0.1rem; padding: 0.3rem 0; border-top: 1px solid var(--border); }
+      /* RS1: L-Shop-Rueckstand - vorerst bestehende Warnfarben (Farbkonzept folgt): KW/sofort gelb, in Klaerung/unbekannt rot */
+      .rs-chip { display: inline-block; padding: 0 0.4rem; border-radius: 4px; font-size: 0.72rem; font-weight: 600; line-height: 1.6; white-space: nowrap; border: 1px solid currentColor; }
+      .rs-sofort, .rs-kw { color: var(--warning, #d4a017); }
+      .rs-klaerung, .rs-unbekannt { color: var(--danger); background: rgba(224, 82, 82, 0.12); }
+      .rs-block { margin: 0.4rem 0 0.8rem; border: 1px solid var(--border); border-radius: 8px; padding: 0.4rem 0.7rem; }
+      .rs-block > summary { cursor: pointer; font-size: 0.86rem; display: flex; flex-wrap: wrap; gap: 0.3rem 0.7rem; align-items: center; }
+      .rs-veraltet { color: var(--danger); font-weight: 600; }
+      .rs-gruppe { margin-top: 0.6rem; }
+      .rs-gruppe h4 { font-size: 0.8rem; color: var(--muted); margin: 0 0 0.2rem; font-weight: 600; }
+      .rs-zeile { display: flex; flex-wrap: wrap; gap: 0.2rem 0.6rem; align-items: center; padding: 0.3rem 0; border-top: 1px solid var(--border); font-size: 0.82rem; }
+      .rs-zeile .rs-was { flex: 1 1 14rem; min-width: 0; overflow-wrap: anywhere; }
       .lb-pos-neben, .lb-leer, .lb-folgt { color: var(--muted); }
       .lb-folgt { font-style: italic; }
       .lb-abschnitt { margin-top: 0.4rem; font-weight: 600; }
@@ -1923,6 +1934,8 @@
               </div>
             </div>
             <div id="hilfe-bestellungen" class="hilfe-legende" hidden></div>
+            <!-- RS1: L-Shop-Rueckstandsliste (Drive, nur lesen) - eingeklappt, Stand der Liste im Kopf -->
+            <div id="rs-bereich"></div>
             <div id="lb-liste"><div class="skeleton"></div></div>
           </div>
         </div>
@@ -5035,6 +5048,7 @@
                   ${statusBadge(o.status)}
                   ${psVersandHtml(psVersandArt(o, currentShop()))}
                   ${psZustand.trikots ? trKarteHtml(o.id, psZustand.trikots[String(o.id)]) : ''}
+                  ${globalThis.rsShopKennzeichen?.(currentShop(), o.id) ?? ''}
                   ${kopf.zeile}
                   ${(treffer.get(String(o.id)) ?? []).map(p => `<span class="ps-treffer">${psEsc(p.menge)}× ${psEsc(p.name)}${p.merkmal ? ` · ${psEsc(p.merkmal)}` : ''}</span>`).join('')}
                 </div>
@@ -5178,6 +5192,7 @@
           summaryEl.style.display = '';
           psZustand.orders = orders;
           psZustand.trikots = null;
+          rsLaden().then(() => { if (psZustand.orders === orders) psZeichnen(); });   // RS1: Rueckstand-Kennzeichen still dazu
           // TR5: Trikot-Stand je Bestellung (nur JFN, nur lesen, 60 s Zwischenspeicher im Backend). Fehler -> ohne Kennzeichen.
           if (currentShop() !== 'honk') {
             apiFetch(`${API_BASE()}/api/bestellen/trikots`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) }).then(apiJson)
@@ -5679,6 +5694,49 @@
         : korbZustand.filter === 'alle' ? p.status === 'offen' || p.status === 'abgewählt'
         : (korbZustand.filter === 'raus' ? p.status === 'abgewählt' && (p.rausAktuell || korbZustand.rausAeltere) : p.status === 'offen');
 
+      // ── Rueckstand: Anfang (RS1, reine Anzeige, Test backend/tests/rueckstand.test.js) ──
+      // Daten aus GET /api/bestellen/rueckstand (ohne Empfaenger/Adresse/Kommission). Kennzeichen an Korb-Position, Auftrag und
+      // Shop-Bestellkarte: "Rückstand: ca. KW 46"; in Klärung/unbekannt deutlicher (rot), sonst Warnfarbe.
+      const rsEsc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+      const RS_GRUPPEN = [['auftrag', 'Aufträge'], ['shop', 'Shop-Bestellungen'], ['lshop', 'nur L-Shop-Bestellung'], ['ohne', 'ohne Bezug in MC']];
+      /** Kennzeichen; k = { stufe, status, stueck } oder leer. */
+      function rsKennzeichenHtml(k) {
+        if (!k) return '';
+        return ` <span class="rs-chip rs-${rsEsc(k.stufe)}" tabindex="0" data-hilfe="rs-kennzeichen" data-hilfe-zusatz="${rsEsc(`${k.stueck} Stück im Rückstand`)}">Rückstand: ${rsEsc(k.status)}</span>`;
+      }
+      const rsDatum = iso => (/^\d{4}-\d{2}-\d{2}$/.test(String(iso ?? '')) ? new Date(`${iso}T12:00:00Z`).toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', timeZone: 'Europe/Berlin' }) : '');
+      /** Gruppe einer Position: Auftrag > Shop-Bestellung > L-Shop-Bestellung > ohne Bezug. */
+      const rsGruppe = p => (p.auftraege?.length ? 'auftrag' : p.shops?.length ? 'shop' : p.orderId ? 'lshop' : 'ohne');
+      function rsBezugHtml(p) {
+        return [
+          ...(p.auftraege ?? []).map(a => `<button type="button" class="korb-link" data-rs-au="${rsEsc(a)}" data-hilfe="rs-bezug">${rsEsc(a)}</button>`),
+          ...(p.shops ?? []).map(x => `<button type="button" class="korb-link" data-rs-shop="${rsEsc(x.bestellnummer)}" data-rs-shopname="${rsEsc(x.shop)}" data-hilfe="rs-bezug">${rsEsc(x.shop)} #${rsEsc(x.bestellnummer)}</button>`),
+          p.orderId ? `<button type="button" class="korb-link" data-rs-order="${rsEsc(p.orderId)}" data-hilfe="rs-bezug">${rsEsc(p.orderId)}</button>` : '',
+          !p.orderId && p.auftrag ? `<span class="korb-zaehler">L-Shop ${rsEsc(p.auftrag)}</span>` : '',
+        ].filter(Boolean).join(' ');
+      }
+      function rsZeileHtml(p) {
+        const was = [p.katalogNr, p.farbe, p.groesse].filter(Boolean).map(rsEsc).join(' · ') || rsEsc(p.articleNr);
+        return `<div class="rs-zeile"><span class="rs-was">${was} <strong>×${rsEsc(p.rueckstand)}</strong> im Rückstand${p.bestellt !== null && p.bestellt !== undefined ? ` <span class="korb-zaehler">(von ${rsEsc(p.bestellt)})</span>` : ''}</span>`
+          + `${rsKennzeichenHtml({ stufe: p.stufe, status: p.status || 'ohne Termin', stueck: p.rueckstand })}<span>${rsBezugHtml(p)}</span></div>`;
+      }
+      /** Abschnitt in L-Shop-Bestellungen. d = Antwort; ohne Liste: Hinweis. Eingeklappt, ausser veraltet oder kritisch. */
+      function rsBlockHtml(d, { offen = false } = {}) {
+        if (!d) return '';
+        if (!d.liste) return `<div class="rs-block korb-zaehler" data-hilfe="rs-block" tabindex="0">${rsEsc(d.hinweis || 'Keine Rückstandsliste.')}</div>`;
+        const z = d.zahlen ?? {};
+        const kopf = `<strong data-hilfe="rs-block">Rückstand L-Shop</strong><span>Liste vom ${rsEsc(rsDatum(d.liste.datum))}</span>`
+          + `<span>${z.positionen} Position${z.positionen === 1 ? '' : 'en'} · ${z.stueck} Stück</span>`
+          + (z.kritisch ? `<span class="rs-chip rs-klaerung">${z.kritisch} in Klärung/unbekannt</span>` : '')
+          + (d.liste.veraltet ? `<span class="rs-veraltet">${rsEsc(d.hinweis)}</span>` : '');
+        const gruppen = RS_GRUPPEN.map(([g, titel]) => {
+          const l = (d.positionen ?? []).filter(p => rsGruppe(p) === g);
+          return l.length ? `<div class="rs-gruppe"><h4>${titel} (${l.length})</h4>${l.map(rsZeileHtml).join('')}</div>` : '';
+        }).join('');
+        return `<details class="rs-block"${offen || d.liste.veraltet || z.kritisch ? ' open' : ''}><summary>${kopf}</summary>${gruppen || '<p class="korb-zaehler">Nichts im Rückstand.</p>'}</details>`;
+      }
+      // ── Rueckstand: Ende ──
+
       // ── L-Shop-Bestellungen: Anfang (BO4d, Test backend/tests/lshop-bestellungen.test.js) ──
       // Reine Anzeige des Unterreiters "L-Shop-Bestellungen" aus GET /api/bestellen/lshop-bestellungen:
       // je Bestellung eine aufklappbare Karte (Kopf, Positionen, Lieferscheine mit Paketen), darunter die
@@ -5724,7 +5782,8 @@
         const bearbeiten = p.herkunft !== 'eigen' ? '' : p.status === 'geliefert'
           ? ' · <button type="button" class="korb-link" data-eigen-gesperrt="eb-gesperrt-geliefert" aria-disabled="true" data-hilfe="eb-gesperrt-geliefert">bearbeiten …</button>'
           : ' · <button type="button" class="korb-link" data-eigen-gesperrt="eb-gesperrt-bestellt" aria-disabled="true" data-hilfe="eb-gesperrt-bestellt">bearbeiten …</button>';
-        return `<div class="lb-pos"><span class="lb-pos-haupt">${modell} <strong>×${lbEsc(p.menge)}</strong>${geliefert}${lager}${bearbeiten}</span>`
+        const rueck = globalThis.rsKorbKennzeichen?.(p.schluessel) ?? '';   // RS1
+        return `<div class="lb-pos"><span class="lb-pos-haupt">${modell} <strong>×${lbEsc(p.menge)}</strong>${rueck}${geliefert}${lager}${bearbeiten}</span>`
           + `<span class="lb-pos-neben">${[lbEsc(p.articleNr), lbEsc(p.reference), termin].filter(Boolean).join(' · ')}${abw}</span></div>`;
       }
       let lbMitAb = false;   // waehrend lbKarteHtml: Bestellung hat eine AB (fuer "sofort" je Position)
@@ -6046,6 +6105,9 @@
         'edi-pruefen':          { name: 'Neu prüfen', text: 'Prüft die Auswahl nach einer Änderung erneut.' },
         // BO4b-5: Wareneingang
         'ware-angekommen':      { name: 'Ware angekommen …', text: 'Öffnet die Liste dieser Bestellung. Dort hakst du ab, was im Paket war, und buchst es als geliefert.' },
+        'rs-block':             { name: 'Rückstand L-Shop', text: 'Aus der Rückstandsliste von L-Shop (jeden Mittwoch): was noch fehlt und wann es kommt. Nur lesen.' },
+        'rs-kennzeichen':       { name: 'Rückstand', text: 'Bei L-Shop im Rückstand: sofort, ca. KW …, in Klärung (angemahnt) oder unbekannt (kein Termin).' },
+        'rs-bezug':             { name: 'Bezug', text: 'Öffnet den Auftrag, die Shop-Bestellung oder die L-Shop-Bestellung zu dieser Position.' },
         'karton-scannen':       { name: 'Karton scannen', text: 'Öffnet die Kamera. Scanne den QR-Code auf dem L-Shop-Karton und sieh, was drin sein soll.' },
         'karton-pruefen':       { name: 'Prüfen', text: 'Liest den eingefügten Karton-Link und vergleicht den Inhalt mit der Bestellung. Bucht noch nichts.' },
         'karton-angekommen':    { name: 'Karton angekommen', text: 'Bucht die angehakten Positionen als geliefert und legt die Karton-PDF ins Archiv.' },
@@ -6318,7 +6380,7 @@
         leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
         uebersicht: ['bm-zelle', 'bm-gruppe', 'gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
         karton: ['karton-pruefen', 'karton-angekommen', 'karton-naechster', 'karton-rest-lager', 'karton-lager-ort', 'bei-ankunft-lager'],
-        bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-mehr', 'bei-ankunft-lager', 'lager-ziel-aendern', 'eb-gesperrt-bestellt', 'eb-gesperrt-geliefert', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
+        bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-mehr', 'bei-ankunft-lager', 'lager-ziel-aendern', 'eb-gesperrt-bestellt', 'eb-gesperrt-geliefert', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere', 'rs-block', 'rs-kennzeichen', 'rs-bezug'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'ps-suche', 'ps-suche-weg', 'ps-grenze', 'ps-status-alle', 'ps-status-processing', 'ps-status-on-hold',
           'ps-status-pending', 'ps-versand-alle', 'ps-versand-filter-abholung', 'ps-versand-filter-versand', 'ps-versand-abholung', 'ps-versand-versand', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
@@ -8040,6 +8102,34 @@
         karte.scrollIntoView({ block: 'start', behavior: 'smooth' });
         karte.querySelector('summary')?.focus({ preventScroll: true });
       }
+      // ── RS1: Rueckstand laden (einmal, 5 min im Browser), Kennzeichen-Zugriff fuer andere Bloecke ──
+      const rsZustand = { daten: null, bis: 0, laeuft: null, fehler: '' };
+      function rsLaden({ neu = false } = {}) {
+        if (!neu && rsZustand.daten && Date.now() < rsZustand.bis) return Promise.resolve(rsZustand.daten);
+        if (rsZustand.laeuft) return rsZustand.laeuft;
+        rsZustand.laeuft = apiFetch(`${API_BASE()}/api/bestellen/rueckstand`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) }).then(apiJson)
+          .then(d => { rsZustand.daten = d; rsZustand.bis = Date.now() + 5 * 60 * 1000; rsZustand.fehler = ''; return d; })
+          .catch(e => { rsZustand.fehler = e.message; return rsZustand.daten; })
+          .finally(() => { rsZustand.laeuft = null; });
+        return rsZustand.laeuft;
+      }
+      globalThis.rsKorbKennzeichen = schluessel => rsKennzeichenHtml(rsZustand.daten?.je?.korb?.[schluessel]);
+      globalThis.rsAuftragKennzeichen = nr => rsKennzeichenHtml(rsZustand.daten?.je?.auftrag?.[nr]);
+      globalThis.rsShopKennzeichen = (shop, nr) => rsKennzeichenHtml(rsZustand.daten?.je?.shop?.[`${String(shop).toUpperCase()}:${nr}`]);
+      function rsBereichZeichnen() {
+        const el = document.getElementById('rs-bereich');
+        if (!el) return;
+        el.innerHTML = rsZustand.fehler && !rsZustand.daten
+          ? `<div class="rs-block korb-zaehler">Rückstandsliste nicht geladen: ${rsEsc(rsZustand.fehler)}</div>` : rsBlockHtml(rsZustand.daten);
+      }
+      document.getElementById('rs-bereich')?.addEventListener('click', ev => {
+        const au = ev.target.closest('[data-rs-au]');
+        if (au) { window.auOeffnen?.(au.dataset.rsAu); return; }
+        const sh = ev.target.closest('[data-rs-shop]');
+        if (sh) { psSpringeZu(sh.dataset.rsShop); oeffneAnsicht('bestellen', 'bestellungen'); return; }
+        const or = ev.target.closest('[data-rs-order]');
+        if (or) { lbSpringeZu(or.dataset.rsOrder); lbZeichnen(); }
+      });
       async function loadLShopBestellungen() {
         const el = document.getElementById('lb-liste');
         if (!el || lbZustand.laedt) return;
@@ -8049,6 +8139,7 @@
           const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-bestellungen`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
           lbZustand.daten = await apiJson(res);
           lbZeichnen();
+          rsLaden().then(() => { rsBereichZeichnen(); lbZeichnen(); });   // RS1: Rueckstand still dazu
         } catch (e) {
           el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Bestellungen konnten nicht geladen werden: ${lbEsc(e.message)}</p>`;
         } finally {
@@ -10806,6 +10897,7 @@
             throw new Error(j?.error || `HTTP ${res.status}`);
           }
           auZ.daten = j;
+          rsLaden().then(() => { if (auZ.offen) auDetailZeichnen(auZ.offen); });   // RS1: Rueckstand am Auftrag
           for (const x of j.auftraege ?? []) if (x.autoBestellt) showToast(`${x.Auftrag_Nr}: Rohlinge bestellt – automatisch auf „bestellt“ gesetzt.`);
           auZeichnen();
           if (auZ.offen) auDetailZeichnen(auZ.offen);
@@ -10843,6 +10935,7 @@
           + (a.Notiz ? `<div class="au-notiz">${kuEsc(a.Notiz)}</div>` : '')
           + auDesignLinkHtml(a.Design_Link)
           + (a.ware ? `<div><span class="ku-chip au-ware au-ware-${a.ware}" data-hilfe="au-ware">${kuEsc(AU_WARE_TEXT[a.ware])}</span></div>` : '')
+          + (globalThis.rsAuftragKennzeichen?.(a.Auftrag_Nr) ? `<div>${globalThis.rsAuftragKennzeichen(a.Auftrag_Nr)}</div>` : '')   // RS1
           + (a.freiOffen ? `<div class="korb-zaehler" data-hilfe="au-frei-offen" tabindex="0">${a.freiOffen} freie Position${a.freiOffen === 1 ? '' : 'en'} noch zu besorgen (nicht über L-Shop)</div>` : '');
         auEl('au-d-leiste').innerHTML = auLeisteHtml(a);
         const i = auIndex(a.Status), st = a.Status === 'storniert';

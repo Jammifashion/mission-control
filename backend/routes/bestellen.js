@@ -9,6 +9,7 @@ import { istLaufStopp } from '../lib/hosterPruefseite.js';
 import { ediVorschau, ediErzeugen, ediAlsGesendet, ediSendenVorschau, ediSenden, ediZurueckAufEntwurf } from '../lib/lshopEdi.js';
 import { leseLShopBestellungen } from '../lib/lshopBestellungen.js';
 import { leseTrikotAnsicht } from '../lib/trikotAnsicht.js';
+import { leseRueckstand } from '../lib/rueckstand.js';
 import { formularVorschau, formularDatei, alsBestelltEintragen } from '../lib/trikotFormular.js';
 import { trikotWareneingang } from '../lib/trikotWareneingang.js';
 import { wareneingangBuchen, wareneingangZurueck } from '../lib/wareneingang.js';
@@ -267,6 +268,16 @@ router.get('/lshop-bestellungen', async (req, res, next) => {
 // ── GET /api/bestellen/trikots  (TR2) ─────────────────────────────────────────
 // Unterreiter "Trikots (JFN)": Reiter "Trikots" gruppiert nach Produzenten-Bestellung (Charge), oben
 // "noch nicht beim Produzenten", je Charge "x von y da". Nur lesen, nur Sheets, ohne Kundennamen.
+// ── GET /api/bestellen/rueckstand  (RS1) ─────────────────────────────────────
+// L-Shop-Rueckstandsliste: NUR LESEN (Drive + Korb/EDI), nichts gespeichert. Ohne Empfaenger/Adresse/Kommission.
+router.get('/rueckstand', async (_req, res, next) => {
+  try {
+    const r = await leseRueckstand();
+    console.log(`Rückstand: ${r.zahlen.positionen} Positionen, ${r.zahlen.kritisch} in Klärung/unbekannt, ${r.zahlen.ohneBezug} ohne Bezug`);
+    res.json(r);
+  } catch (err) { next(err); }
+});
+
 router.get('/trikots', async (req, res, next) => {
   try {
     res.json(await leseTrikotAnsicht());
