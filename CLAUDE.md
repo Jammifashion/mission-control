@@ -39,6 +39,11 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
 - Helpers (darin: Dashboard inkl. Knopf "Trikot-Sync jetzt")
 - Auftragsmonitor, Auftragsmonitor Dual-Source; darunter "Auftragsmonitor: Shop Orders" (kein SECTION-Anker) mit der
   Bestellansicht "Bestellungen (JFN)" (PS1, Block `Produktion-Stand: Anfang/Ende`, Test produktion-stand.test.js)
+  BS2: Versandart je Karte `psVersandArt(o, shop)` aus `shipping_lines` (method_id + instance_id, Titel nur Rueckfall; Abholung =
+  local_pickup*/pickup_location, JFN 6 Stadion · 3 Wrist · 5 Sammelbestellung, flat_rate/4 = AT; unbekannt = Titel), Abholung gold
+  hervorgehoben. Filter Status (`#ps-status`, "ausstehend" nur bei Bedarf) + Versandart (`#ps-versand`) mit Zaehlern (`psFacetten`),
+  kombiniert mit "wartet auf Teile", BS1-Suche und Shop; Wahl in localStorage `mc_bestellungen_status`/`_versand` (Test
+  bestellungen-versand.test.js).
 - L-Shop-Warenkorb (BO2: Unterpunkt `bestellen/lshop-korb`, Anzeige + Knopf "Abgleich jetzt"; der alte
   Unterreiter "L-Shop Bestellungen" ist seitdem ausgeblendet, nicht entfernt. BO4a am Ende der Sektion:
   "EDI-Entwurf" - Knopf "EDI-Datei erzeugen (Entwurf)" in der Leiste, "alle offenen wählen" (ohne

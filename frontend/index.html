@@ -940,6 +940,15 @@
       .order-zf.ps-fertig { color: var(--success); }
       .ps-wartet-seit { display: inline-block; font-size: 0.75rem; font-weight: 600; padding: 0.1em 0.45em; border-radius: 4px; background: #4a3a10; color: var(--accent); white-space: nowrap; }
       .ps-bedienung { margin-bottom: 0.6rem; }
+      /* BS2: Versandart an der Karte (Abholung hervorgehoben, Versand dezent) + Filter Status/Versandart */
+      .ps-versand { display: inline-block; padding: 0 0.4rem; border-radius: 4px; font-size: 0.74rem; line-height: 1.6; border: 1px solid var(--border); color: var(--muted); }
+      .ps-versand-abholung { border-color: var(--accent); color: var(--accent); font-weight: 700; background: rgba(232, 196, 74, 0.12); }
+      .ps-filter-zeile { display: flex; flex-wrap: wrap; gap: 0.4rem 0.8rem; align-items: center; margin-top: 0.45rem; }
+      @media (max-width: 600px) {
+        /* BS2: Filter als kleine Kacheln (Stil NAV5), umbrechen statt seitlich hinaus */
+        .ps-filter-zeile .korb-filter { flex-wrap: wrap; gap: 0.3rem; flex: 1 1 100%; }
+        .ps-filter-zeile .korb-filter button { flex: 0 1 auto; border-radius: 6px; margin-left: 0; min-height: 2.2rem; padding: 0 0.55rem; }
+      }
       /* BS1: Suche in offenen Bestellungen */
       .ps-suche-wrap { display: inline-flex; align-items: center; gap: 0.35rem; flex: 1 1 16rem; min-width: 0; }
       .ps-suche-wrap input { flex: 1 1 auto; min-width: 0; }
@@ -1680,6 +1689,20 @@
               <div class="korb-aktionen">
                 <button class="hilfe-i" type="button" data-hilfe-gruppe="produktion" aria-controls="hilfe-produktion" aria-expanded="false" aria-label="Was bedeuten die Knöpfe?">ⓘ</button>
               </div>
+            </div>
+            <!-- BS2: Filter Status und Versandart (Zaehler im Text, Wahl im Browser-Speicher, nie Kundendaten) -->
+            <div class="ps-filter-zeile">
+              <span class="korb-filter" id="ps-status" role="group" aria-label="Nach Status filtern">
+                <button type="button" data-pstatus="alle" data-hilfe="ps-status-alle" aria-pressed="true">Alle</button>
+                <button type="button" data-pstatus="processing" data-hilfe="ps-status-processing" aria-pressed="false">in Bearbeitung</button>
+                <button type="button" data-pstatus="on-hold" data-hilfe="ps-status-on-hold" aria-pressed="false">in Wartestellung</button>
+                <button type="button" data-pstatus="pending" data-hilfe="ps-status-pending" aria-pressed="false" hidden>ausstehend</button>
+              </span>
+              <span class="korb-filter" id="ps-versand" role="group" aria-label="Nach Versandart filtern">
+                <button type="button" data-pversand="alle" data-hilfe="ps-versand-alle" aria-pressed="true">Alle</button>
+                <button type="button" data-pversand="abholung" data-hilfe="ps-versand-filter-abholung" aria-pressed="false">Abholung</button>
+                <button type="button" data-pversand="versand" data-hilfe="ps-versand-filter-versand" aria-pressed="false">Versand</button>
+              </span>
             </div>
             <div id="hilfe-produktion" class="hilfe-legende" hidden></div>
             <div id="jfn-orders-list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
@@ -4919,12 +4942,59 @@
         .sort((a, b) => (Date.parse(a.zusammenfassung.wartetSeit) || Infinity) - (Date.parse(b.zusammenfassung.wartetSeit) || Infinity)
           || String(a.id).localeCompare(String(b.id), 'de', { numeric: true }))
         .map(b => b.id);
+      // BS2: Versandart je Bestellung aus shipping_lines (method_id + instance_id; Titel nur als Rueckfall, Titel aendern sich).
+      // Abholung = local_pickup* / pickup_location (wie VP1). JFN-Instanzen (ST1): 6 Stadion, 3 Wrist ("Abholung vor Ort" alt),
+      // 5 Sammelbestellung (deaktiviert); flat_rate/4 = Versand AT. HONK kennt nur die allgemeine Zuordnung. Unbekannt: Titel.
+      const PS_STATUS = { alle: 'Alle', processing: 'in Bearbeitung', 'on-hold': 'in Wartestellung', pending: 'ausstehend' };
+      const PS_VERSAND = { alle: 'Alle', abholung: 'Abholung', versand: 'Versand' };
+      const PS_ABHOLUNG = {
+        stadion: { icon: '🏟', text: 'Abholung Stadion' }, wrist: { icon: '📍', text: 'Abholung Wrist' },
+        sammel: { icon: '📍', text: 'Abholung Sammelbestellung' },
+      };
+      const PS_JFN_INSTANZ = { 'local_pickup/6': 'stadion', 'local_pickup/3': 'wrist', 'local_pickup/5': 'sammel' };
+      function psVersandArt(o, shop = 'jfn') {
+        const lines = o?.shipping_lines ?? [];
+        if (!lines.length) return { art: 'ohne', icon: '', text: 'ohne Versandart' };
+        const abhol = lines.find(l => /^(local_pickup|pickup_location)/.test(String(l.method_id ?? ''))
+          || (!/^(flat_rate|free_shipping)$/.test(String(l.method_id ?? '')) && /abhol/i.test(String(l.method_title ?? ''))));
+        if (abhol) {
+          const titel = String(abhol.method_title ?? '').trim();
+          const key = shop === 'honk' ? '' : PS_JFN_INSTANZ[`${abhol.method_id}/${abhol.instance_id ?? ''}`];
+          const nachTitel = /stadion/i.test(titel) ? 'stadion' : /wrist|vor ort/i.test(titel) ? 'wrist' : /sammel/i.test(titel) ? 'sammel' : '';
+          const fest = PS_ABHOLUNG[key || nachTitel];
+          return { art: 'abholung', ...(fest ?? { icon: '📍', text: titel || 'Abholung' }) };
+        }
+        const l = lines[0];
+        const id = String(l.method_id ?? ''), titel = String(l.method_title ?? '').trim();
+        if (/^(flat_rate|free_shipping)$/.test(id)) {
+          const at = (shop !== 'honk' && `${id}/${l.instance_id ?? ''}` === 'flat_rate/4') || /österreich|austria|\bAT\b/i.test(titel);
+          return { art: 'versand', icon: '', text: at ? 'Versand AT' : 'Versand' };
+        }
+        return { art: 'versand', icon: '', text: titel || id || 'Versand', unbekannt: true };
+      }
+      const psVersandHtml = v => (v.art === 'abholung'
+        ? `<span class="ps-versand ps-versand-abholung" tabindex="0" data-hilfe="ps-versand-abholung">`
+        : `<span class="ps-versand ps-versand-${v.art}" tabindex="0" data-hilfe="ps-versand-versand">`)
+        + `${v.icon ? `${v.icon} ` : ''}${psEsc(v.text)}</span>`;
+      /** Status- und Versandfilter (Versand = alles, was keine Abholung ist, auch "ohne Versandart"). */
+      function psFiltern(orders, { status = 'alle', versand = 'alle', shop = 'jfn' } = {}) {
+        return (orders ?? []).filter(o => (status === 'alle' || o.status === status)
+          && (versand === 'alle' || (psVersandArt(o, shop).art === 'abholung') === (versand === 'abholung')));
+      }
+      /** Zaehler je Knopf: Status-Zahlen unter dem gewaehlten Versandfilter und umgekehrt (Suche zaehlt nicht mit). */
+      function psFacetten(orders, { status = 'alle', versand = 'alle', shop = 'jfn' } = {}) {
+        const st = psFiltern(orders, { versand, shop }), vs = psFiltern(orders, { status, shop });
+        return {
+          status: Object.fromEntries(Object.keys(PS_STATUS).map(k => [k, k === 'alle' ? st.length : st.filter(o => o.status === k).length])),
+          versand: Object.fromEntries(Object.keys(PS_VERSAND).map(k => [k, psFiltern(vs, { versand: k, shop }).length])),
+        };
+      }
       // ── Produktion-Stand: Ende ──
 
       // ── Bestellkarten rendern ─────────────────────────────────────────────
-      function renderOrderCards(orders, { stand, offen, fertigSpalte, filter, treffer = new Map() }) {
+      function renderOrderCards(orders, { stand, offen, fertigSpalte, filter, treffer = new Map(), gefiltert = false }) {
         if (!orders?.length) {
-          return `<p style="color:var(--muted);font-size:0.85rem;">${filter === 'wartet' ? 'Kein Auftrag wartet auf Teile.' : 'Keine offenen Bestellungen.'}</p>`;
+          return `<p style="color:var(--muted);font-size:0.85rem;">${filter === 'wartet' ? 'Kein Auftrag wartet auf Teile.' : gefiltert ? 'Keine Bestellung passt zu den Filtern.' : 'Keine offenen Bestellungen.'}</p>`;
         }
         return orders.map(o => {
           const name    = `${o.billing?.first_name ?? ''} ${o.billing?.last_name ?? ''}`.trim();
@@ -4947,6 +5017,7 @@
                   <span class="order-card-customer">${psEsc(name)}${city ? ' · ' + psEsc(city) : ''}</span>
                   <span class="order-card-detail">${date} · ${amount}${payment ? ' · ' + psEsc(payment) : ''}</span>
                   ${statusBadge(o.status)}
+                  ${psVersandHtml(psVersandArt(o, currentShop()))}
                   ${psZustand.trikots ? trKarteHtml(o.id, psZustand.trikots[String(o.id)]) : ''}
                   ${kopf.zeile}
                   ${(treffer.get(String(o.id)) ?? []).map(p => `<span class="ps-treffer">${psEsc(p.menge)}× ${psEsc(p.name)}${p.merkmal ? ` · ${psEsc(p.merkmal)}` : ''}</span>`).join('')}
@@ -4969,11 +5040,15 @@
       // des Stands fuer alle Karten (POST /api/bestellen/produktion/stand mit den Positionen, die der
       // Browser schon hat). Filter in localStorage mc_bestellungen_filter, aufgeklappte Karten nie gespeichert.
       const PS_FILTER_KEY = 'mc_bestellungen_filter';
+      const PS_STATUS_KEY = 'mc_bestellungen_status', PS_VERSAND_KEY = 'mc_bestellungen_versand';   // BS2
+      function psGespeichert(key, erlaubt) { try { const f = localStorage.getItem(key); return f in erlaubt ? f : 'alle'; } catch { return 'alle'; } }
       const PS_MAX_SEITEN = 5;
       const psZustand = {
         orders: [], daten: null, stand: new Map(), offen: new Set(), fehler: '', springe: '', markiert: null, trikots: null,
         suche: '', grenze: false,   // BS1: Suchbegriff nur im Speicher der Seite
         filter: (() => { try { const f = localStorage.getItem(PS_FILTER_KEY); return PS_FILTER.includes(f) ? f : 'alle'; } catch { return 'alle'; } })(),
+        // BS2: Status- und Versandfilter - nur der Schalterwert im Browser-Speicher, keine Kundendaten
+        status: psGespeichert(PS_STATUS_KEY, PS_STATUS), versand: psGespeichert(PS_VERSAND_KEY, PS_VERSAND),
       };
       const psSchlank = o => ({
         id: o.id, date_created: o.date_created,
@@ -5006,14 +5081,30 @@
           btn.textContent = psZustand.daten ? `${name[f]} (${z[f]})` : name[f];
           btn.setAttribute('aria-pressed', String(f === psZustand.filter));
         });
-        const sicht = psSicht(psZustand.orders, psZustand.daten, psZustand.filter);
+        // BS2: Status-/Versandfilter auf die Sicht (Alle bzw. wartet auf Teile), Zaehler je Knopf, "ausstehend" nur bei Bedarf
+        const shop = currentShop();
+        const basis = psSicht(psZustand.orders, psZustand.daten, psZustand.filter);
+        const fac = psFacetten(basis, { status: psZustand.status, versand: psZustand.versand, shop });
+        document.querySelectorAll('#ps-status [data-pstatus]').forEach(btn => {
+          const k = btn.dataset.pstatus;
+          btn.textContent = `${PS_STATUS[k]} (${fac.status[k]})`;
+          btn.setAttribute('aria-pressed', String(k === psZustand.status));
+          if (k === 'pending') btn.hidden = !fac.status.pending && psZustand.status !== 'pending';
+        });
+        document.querySelectorAll('#ps-versand [data-pversand]').forEach(btn => {
+          const k = btn.dataset.pversand;
+          btn.textContent = `${PS_VERSAND[k]} (${fac.versand[k]})`;
+          btn.setAttribute('aria-pressed', String(k === psZustand.versand));
+        });
+        const gefiltert = psZustand.status !== 'alle' || psZustand.versand !== 'alle';
+        const sicht = psFiltern(basis, { status: psZustand.status, versand: psZustand.versand, shop });
         const fehler = psZustand.fehler
           ? `<p style="color:var(--danger);font-size:0.84rem;">Stand konnte nicht geladen werden: ${psEsc(psZustand.fehler)}</p>` : '';
         // BS1: Suche wirkt zusaetzlich zu Filter und Shop
         const s = psSuche(sicht, psZustand.suche);
         const kopf = s.aktiv ? `<p class="ps-suche-kopf" aria-live="polite">${psEsc(psSucheKopf(s.orders.length, sicht.length, psZustand.suche.trim()))}</p>` : '';
         el.innerHTML = fehler + kopf + (s.aktiv && !s.orders.length ? '' : renderOrderCards(s.orders, {
-          stand: psZustand.stand, offen: psZustand.offen, fertigSpalte: psZustand.daten?.fertigSpalte !== false, filter: psZustand.filter, treffer: s.treffer,
+          stand: psZustand.stand, offen: psZustand.offen, fertigSpalte: psZustand.daten?.fertigSpalte !== false, filter: psZustand.filter, treffer: s.treffer, gefiltert,
         }));
         // TR2: Markierung nach dem Sprung ueberlebt das zweite Zeichnen (nach dem Stand-Abruf).
         const m = psZustand.markiert;
@@ -5034,8 +5125,8 @@
           psZeichnen();
           return;
         }
-        if (!karte && psZustand.filter !== 'alle' && psZustand.orders.some(o => String(o.id) === id)) {
-          psZustand.filter = 'alle';   // nur fuer jetzt, nicht in localStorage
+        if (!karte && (psZustand.filter !== 'alle' || psZustand.status !== 'alle' || psZustand.versand !== 'alle') && psZustand.orders.some(o => String(o.id) === id)) {
+          psZustand.filter = 'alle'; psZustand.status = 'alle'; psZustand.versand = 'alle';   // nur fuer jetzt, nicht in localStorage
           psZustand.springe = id;
           psZeichnen();
           return;
@@ -5134,6 +5225,21 @@
         if (!f || !PS_FILTER.includes(f)) return;
         psZustand.filter = f;
         try { localStorage.setItem(PS_FILTER_KEY, f); } catch { /* ohne Speicher: nur fuer diese Sitzung */ }
+        psZeichnen();
+      });
+      // BS2: Status-/Versandfilter (Wahl bleibt beim Neuladen und Shop-Wechsel)
+      document.getElementById('ps-status')?.addEventListener('click', ev => {
+        const f = ev.target.closest('[data-pstatus]')?.dataset.pstatus;
+        if (!f || !(f in PS_STATUS)) return;
+        psZustand.status = f;
+        try { localStorage.setItem(PS_STATUS_KEY, f); } catch { /* nur fuer diese Sitzung */ }
+        psZeichnen();
+      });
+      document.getElementById('ps-versand')?.addEventListener('click', ev => {
+        const f = ev.target.closest('[data-pversand]')?.dataset.pversand;
+        if (!f || !(f in PS_VERSAND)) return;
+        psZustand.versand = f;
+        try { localStorage.setItem(PS_VERSAND_KEY, f); } catch { /* nur fuer diese Sitzung */ }
         psZeichnen();
       });
       document.getElementById('jfn-orders-list')?.addEventListener('click', async ev => {
@@ -5936,6 +6042,15 @@
         'netto-summe':          { name: 'Summe netto', text: 'Einkaufswert der Auswahl (EK × Menge) und wie viel noch bis zur nächsten Versandstufe fehlt.' },
         // PS1: Bestellansicht "Bestellungen (JFN)"
         'ps-alle':              { name: 'Alle', text: 'Alle offenen Shop-Bestellungen, neueste zuerst.' },
+        'ps-status-alle':       { name: 'Alle', text: 'Alle offenen Bestellungen, egal welcher Status.' },
+        'ps-status-processing': { name: 'in Bearbeitung', text: 'Nur Bestellungen mit Status „in Bearbeitung“ (bezahlt).' },
+        'ps-status-on-hold':    { name: 'in Wartestellung', text: 'Nur Bestellungen in Wartestellung, z. B. Vorkasse noch nicht da.' },
+        'ps-status-pending':    { name: 'ausstehend', text: 'Nur ausstehende Bestellungen (Zahlung noch offen).' },
+        'ps-versand-alle':      { name: 'Alle', text: 'Abholung und Versand.' },
+        'ps-versand-filter-abholung': { name: 'Abholung', text: 'Nur Bestellungen mit Abholung (Stadion, Wrist, andere Abholarten).' },
+        'ps-versand-filter-versand':  { name: 'Versand', text: 'Nur Bestellungen, die verschickt werden (auch ohne Versandart).' },
+        'ps-versand-abholung':  { name: 'Abholung', text: 'Der Kunde holt ab – nicht verschicken. Ort steht im Kennzeichen.' },
+        'ps-versand-versand':   { name: 'Versand', text: 'Versandart der Bestellung laut Shop.' },
         'ps-suche':             { name: 'Suche', text: 'Findet offene Bestellungen mit diesem Artikel: Name, SKU, Farbe/Größe oder Bestell-Nr. Mehrere Wörter = alle.' },
         'ps-suche-weg':         { name: '×', text: 'Leert die Suche; alle offenen Bestellungen sind wieder da.' },
         'ps-grenze':            { name: 'Obergrenze', text: 'Es gibt mehr offene Bestellungen, als MC lädt. Liste und Suche sehen nur die neuesten.' },
@@ -6186,7 +6301,8 @@
         karton: ['karton-pruefen', 'karton-angekommen', 'karton-naechster', 'karton-rest-lager', 'karton-lager-ort', 'bei-ankunft-lager'],
         bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-mehr', 'bei-ankunft-lager', 'lager-ziel-aendern', 'eb-gesperrt-bestellt', 'eb-gesperrt-geliefert', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
-        produktion: ['ps-alle', 'ps-wartet', 'ps-suche', 'ps-suche-weg', 'ps-grenze', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
+        produktion: ['ps-alle', 'ps-wartet', 'ps-suche', 'ps-suche-weg', 'ps-grenze', 'ps-status-alle', 'ps-status-processing', 'ps-status-on-hold',
+          'ps-status-pending', 'ps-versand-alle', 'ps-versand-filter-abholung', 'ps-versand-filter-versand', 'ps-versand-abholung', 'ps-versand-versand', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag', 'tr-aendern-gesperrt', 'ti-goalie', 'tr-goalie', 'tr-gk-pruefen', 'tr-gk-markieren', 'tr-gk-kein'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
