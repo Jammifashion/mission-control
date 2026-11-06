@@ -26,9 +26,11 @@ describe('Eingabe und Rundung', () => {
     expect(euroZahl('12,50')).toBe(12.5);
     expect(euroZahl('1.234,5')).toBe(1234.5);
     expect(euroZahl(' 7 € ')).toBe(7);
-    expect(euroZahl(3.456)).toBe(3.46);
+    expect(euroZahl(3.456)).toBe(3.456);          // AMQ1: bis 4 Nachkommastellen (exakte Brutto-Eingabe)
+    expect(euroZahl(3.45678)).toBe(3.4568);
+    expect(euroZahl('25.1261')).toBe(25.1261);    // so kommt ein 4-stelliger Nettopreis aus dem Reiter (UNFORMATTED)
     expect(euroZahl('')).toBeNull();
-    expect(() => euroZahl('12,505')).toThrow(/Betrag/);
+    expect(() => euroZahl('12,50505')).toThrow(/Betrag/);
     expect(() => euroZahl('-3')).toThrow();
     expect(cent(0.1 + 0.2)).toBe(30);
     expect(euroText(123456)).toBe('1.234,56 €');
@@ -146,7 +148,7 @@ describe('Schreibwege mit Preisen', () => {
     const p = r.auftraege[0].preise;
     expect(p).toMatchObject({ netto: 3750 + 2900 + 4990, rabatt: 1164, ek: 1230 + 1040 + 2000, ekFehlt: 0, angebotGeaendert: null });
     expect(r.auftraege[0].positionen[0]).toMatchObject({ ekAuto: 4.1, ekStand: '01.11.2026' });
-    expect(r.spalten).toEqual({ preise: true, rabatt: true, angebot: true, zustaendig: true, zustaendigAufgaben: true });
+    expect(r.spalten).toEqual({ preise: true, rabatt: true, angebot: true, zustaendig: true, zustaendigAufgaben: true, preisEingabe: true, designLink: true });
     expect(r.zustaendigAuswahl).toEqual(ZUSTAENDIG);
   });
   test('Angebot festhalten beim Statuswechsel, "geändert seit Angebot", aktualisieren', async () => {

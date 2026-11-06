@@ -21,7 +21,7 @@ import {
   TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, POSITION_OPTIONAL, AUFTRAG_OPTIONAL, brauchtHerkunftSpalten, zeilenAus,
   korbStand, wareStand, autoBestellt, ART, HERKUNFT, alsZeile, anlagePlan, bearbeitenPlan,
   statusWechsel, fertigPlan, fertigVorschlag, aktivePositionen, auftragZahlen, auftraegeAntwort, fehler,
-  PREIS_SPALTEN, ANGEBOT_SPALTEN, brauchtPreisSpalten,
+  PREIS_SPALTEN, ANGEBOT_SPALTEN, brauchtPreisSpalten, POSITIONEN_PFLICHT_AB,
 } from '../utils/auftraege.js';
 import { auftragSummen, positionAusZeile, rabattAus, angebotAbweichung, ZUSTAENDIG } from '../utils/auftrag-preise.js';
 import {
@@ -273,7 +273,8 @@ export async function leseAuftraege({ sheets: s, jetzt = () => new Date(), autoB
     designSpalte: a.idx.Design_Am !== undefined,
     // AM-5: welche Spalten es schon gibt (Oberflaeche sperrt sonst Preise/Zustaendig mit Hinweis), feste Auswahl "Zuständig"
     spalten: { preise: PREIS_SPALTEN.every(s => p.idx[s] !== undefined), rabatt: a.idx.Rabatt !== undefined, angebot: ANGEBOT_SPALTEN.every(s => a.idx[s] !== undefined),
-      zustaendig: a.idx.Zustaendig !== undefined, zustaendigAufgaben: !!g && !g.kaputt && g.idx.Zustaendig !== undefined },
+      zustaendig: a.idx.Zustaendig !== undefined, zustaendigAufgaben: !!g && !g.kaputt && g.idx.Zustaendig !== undefined,
+      preisEingabe: a.idx.Preis_Eingabe !== undefined, designLink: a.idx.Design_Link !== undefined },   // AMQ1
     zustaendigAuswahl: ZUSTAENDIG,
     einrichtung: { aufgaben: !!g && !g.kaputt, todos: !!d && !d.kaputt },
   };
@@ -305,6 +306,7 @@ export async function legeAuftragAn({ eingabe, sheets: s, jetzt = () => new Date
     pruefeHerkunftSpalten(p.idx, plan.positionen);
     if (brauchtPreisSpalten(plan.positionen)) pruefeSpalten(p.idx, PREIS_SPALTEN, 'Preise');   // AM-5
     if (plan.auftrag.Rabatt !== undefined && plan.auftrag.Rabatt !== '') pruefeSpalten(a.idx, ['Rabatt'], 'Rabatt');
+    pruefeAmq1Spalten(a.idx, plan.auftrag);   // AMQ1
     if (plan.auftrag.Status === 'Angebot' && a.idx.Angebot_Stand !== undefined) {   // AM-5: Angebotsstand festhalten
       const { info } = await lshopInfo(sheets, spreadsheetId, nummernAus(plan.positionen));
       Object.assign(plan.auftrag, angebotFelder(summenFuer(plan.auftrag, plan.positionen, info, await leseEkJe(sheets, spreadsheetId)), plan.auftrag.Anfrage_Am));
@@ -341,6 +343,7 @@ export async function bearbeiteAuftrag({ eingabe, sheets: s, jetzt = () => new D
     pruefeHerkunftSpalten(p.idx, [...plan.neuePositionen, ...plan.aenderungPositionen.map(x => x.felder)]);
     if (brauchtPreisSpalten([...plan.neuePositionen, ...plan.aenderungPositionen.map(x => x.felder)])) pruefeSpalten(p.idx, PREIS_SPALTEN, 'Preise');   // AM-5
     if (plan.aenderungAuftrag.Rabatt !== undefined) pruefeSpalten(a.idx, ['Rabatt'], 'Rabatt');
+    pruefeAmq1Spalten(a.idx, plan.aenderungAuftrag);   // AMQ1
     if (plan.unveraendert) return { ok: true, auftragNr: auftrag.Auftrag_Nr, unveraendert: true };
     if (plan.aenderungAuftrag.Kunden_Nr) await kundePruefen(plan.aenderungAuftrag.Kunden_Nr);
     await schreibe(sheets, spreadsheetId, {
@@ -354,11 +357,21 @@ export async function bearbeiteAuftrag({ eingabe, sheets: s, jetzt = () => new D
   });
 }
 
+/** AMQ1: Preis_Eingabe "brutto" bzw. ein Design-Link brauchen ihre Spalte - sonst klare Meldung statt still verloren. */
+function pruefeAmq1Spalten(idx, felder) {
+  if (felder.Preis_Eingabe) pruefeSpalten(idx, ['Preis_Eingabe'], 'Preis-Eingabe brutto');
+  if (felder.Design_Link) pruefeSpalten(idx, ['Design_Link'], 'Design-Link');
+}
+
 /** Statuswechsel (weiter | zurueck | bezahlt | bezahlt_zurueck | stornieren | storno_zurueck). */
 export async function wechsleStatus({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
   return mitAuftrag(eingabe, s, async ({ sheets, spreadsheetId, a, p, auftrag }) => {
     pruefeStand(auftrag, eingabe);
     const felder = { ...statusWechsel(auftrag, String(eingabe?.aktion ?? ''), jetzt().toISOString(), { ueberspringen: !!eingabe?.ueberspringen }), Stand: jetzt().toISOString() };
+    // AMQ1: Positionen sind bis "Design" freiwillig - zu "bestellt" (Ware bestellen/bereitstellen) gehoert mindestens eine.
+    if (felder.Status === POSITIONEN_PFLICHT_AB && !aktivePositionen(p.zeilen, auftrag.Auftrag_Nr).length) {
+      throw fehler(`${auftrag.Auftrag_Nr}: erst Positionen erfassen – „bestellt“ geht nicht ohne Position.`, 422, 'ohne_positionen');
+    }
     // AM-3: Schritt "Design" braucht die Spalte Design_Am - sonst klare Meldung statt still verlorenem Datum.
     if (felder.Design_Am && a.idx.Design_Am === undefined) {
       throw fehler('Spalte Design_Am fehlt in Auftraege – erst scripts/setup-auftraege-reiter.js --write (oder „Design überspringen“).', 409, 'einrichtung');

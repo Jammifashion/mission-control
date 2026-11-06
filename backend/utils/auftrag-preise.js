@@ -13,24 +13,39 @@ export const ZUSTAENDIG = ['Christian', 'Nicole'];
 
 const t = v => String(v ?? '').trim();
 
-/** Euro-Eingabe -> Zahl (2 Nachkommastellen) | null (leer). "12,50", "1.234,50", "12.5", 12.5. Sonst Fehler (Text ohne Wert). */
+/**
+ * Euro-Eingabe -> Zahl | null (leer). "12,50", "1.234,50", "12.5", 12.5. Sonst Fehler (Text ohne Wert).
+ * AMQ1: bis 4 Nachkommastellen - ein aus brutto zurueckgerechneter Nettopreis (25,1261) bleibt so genau, dass
+ * netto x (1 + USt) wieder genau den eingegebenen Bruttopreis ergibt. Eingaben mit 2 Stellen bleiben, wie sie sind.
+ */
 export function euroZahl(v, feld = 'Preis') {
   if (typeof v === 'number') {
     if (!Number.isFinite(v) || v < 0 || v > PREIS_MAX) throw preisFehler(`${feld} muss zwischen 0 und ${PREIS_MAX} € liegen.`);
-    return Math.round(v * 100) / 100;
+    return Math.round(v * 10000) / 10000;
   }
   let s = t(v).replace(/\s|€/g, '');
   if (!s) return null;
   if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(s)) s = s.replace(/\./g, '');   // 1.234,50
   s = s.replace(',', '.');
-  if (!/^\d+(\.\d{1,2})?$/.test(s)) throw preisFehler(`${feld}: bitte als Betrag eingeben, z. B. 12,50.`);
+  if (!/^\d+(\.\d{1,4})?$/.test(s)) throw preisFehler(`${feld}: bitte als Betrag eingeben, z. B. 12,50.`);
   const n = Number(s);
   if (n > PREIS_MAX) throw preisFehler(`${feld} muss zwischen 0 und ${PREIS_MAX} € liegen.`);
-  return Math.round(n * 100) / 100;
+  return Math.round(n * 10000) / 10000;
 }
 function preisFehler(text) { const e = new Error(text); e.status = 422; e.code = 'preis'; return e; }
 
-export const cent = e => (e === null || e === undefined || e === '' ? null : Math.round(Number(e) * 100));
+// AMQ1: Cent mit Bruchteil (Netto bis 4 Stellen = Hundertstel-Cent); ganze Cent erst je Positionssumme.
+export const cent = e => (e === null || e === undefined || e === '' ? null : Math.round(Number(e) * 10000) / 100);
+/** AMQ1: Bruttopreis (Euro) -> Netto (Euro, bis 4 Stellen), so dass bruttoAusNetto(netto) wieder genau brutto ist. */
+export function nettoAusBrutto(brutto, ust = UST_STANDARD) {
+  if (brutto === null || brutto === undefined || brutto === '') return null;
+  return Math.round((Number(brutto) * 100 / (100 + Number(ust))) * 10000) / 10000;
+}
+/** AMQ1: Netto (Euro) -> Brutto (Euro, 2 Stellen) fuer die Anzeige im Brutto-Modus. */
+export function bruttoAusNetto(netto, ust = UST_STANDARD) {
+  if (netto === null || netto === undefined || netto === '') return null;
+  return Math.round(Number(netto) * (100 + Number(ust))) / 100;
+}
 /** Cent -> "12,50 €" (Anzeige). */
 export const euroText = c => (c === null || c === undefined ? '–' : `${(c / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`);
 
@@ -76,10 +91,11 @@ export function positionWerte(p, rang = groessenRang) {
   const menge = Number(p.menge) || 0;
   const stueck = cent(p.preis);
   const auf = p.art === 'lshop' && p.aufpreis && aufpreisGilt(p.groesse, p.aufpreisAb, rang) ? cent(p.aufpreis) : 0;
-  const netto = stueck === null ? null : (stueck + auf) * menge;
+  // AMQ1: Netto je Position auf Hundertstel-Cent genau (Netto bis 4 Stellen) - gerundet wird erst je Steuersatz (auftragSummen)
+  const netto = stueck === null ? null : Math.round((stueck + auf) * menge * 100) / 100;
   const ekStueck = p.ekHand !== null && p.ekHand !== undefined && p.ekHand !== '' ? cent(p.ekHand) : (p.ekAuto ?? null) === null ? null : cent(p.ekAuto);
   const ekQuelle = p.ekHand !== null && p.ekHand !== undefined && p.ekHand !== '' ? 'hand' : ekStueck === null ? '' : 'lshop';
-  const ek = ekStueck === null ? null : ekStueck * menge;
+  const ek = ekStueck === null ? null : Math.round(ekStueck * menge);
   return { menge, netto, aufpreisGilt: auf > 0, ust: p.ust ?? UST_STANDARD, ek, ekQuelle, rohertrag: netto !== null && ek !== null ? netto - ek : null };
 }
 
@@ -104,18 +120,21 @@ function verteile(gesamt, gewichte) {
 export function auftragSummen(positionen, rabatt = null, rang = groessenRang) {
   const pos = (positionen ?? []).map(p => positionWerte(p, rang));
   const mitPreis = pos.filter(p => p.netto !== null);
-  const netto = mitPreis.reduce((s, p) => s + p.netto, 0);
-  const rabattCent = !rabatt || !netto ? 0 : Math.min(netto, rabatt.art === '%' ? Math.round((netto * rabatt.wert) / 100) : cent(rabatt.wert));
+  const netto = Math.round(mitPreis.reduce((s, p) => s + p.netto, 0));   // AMQ1: ganze Cent erst hier
+  const rabattCent = !rabatt || !netto ? 0 : Math.min(netto, rabatt.art === '%' ? Math.round((netto * rabatt.wert) / 100) : Math.round(cent(rabatt.wert)));
   const anteil = verteile(rabattCent, mitPreis.map(p => p.netto));
   mitPreis.forEach((p, i) => { p.nachRabatt = p.netto - anteil[i]; });
   const saetze = [...new Set(mitPreis.map(p => p.ust))].sort((a, b) => b - a);
+  // AMQ1: MwSt = gerundetes Brutto des Satzes minus gerundetes Netto - so ergibt ein brutto eingegebener Preis genau
+  // diesen Bruttobetrag (bei ganzzahligem Netto wie bisher round(basis x Satz)).
   const mwst = saetze.map(satz => {
-    const basis = mitPreis.filter(p => p.ust === satz).reduce((s, p) => s + p.nachRabatt, 0);
-    return { satz, basis, betrag: Math.round((basis * satz) / 100) };
+    const genau = mitPreis.filter(p => p.ust === satz).reduce((s, p) => s + p.nachRabatt, 0);
+    const basis = Math.round(genau);
+    return { satz, basis, betrag: Math.round((genau * (100 + satz)) / 100) - basis };
   });
   const nettoNach = netto - rabattCent;
   const mitEk = mitPreis.filter(p => p.ek !== null);
-  const umsatzMitEk = mitEk.reduce((s, p) => s + p.nachRabatt, 0);
+  const umsatzMitEk = Math.round(mitEk.reduce((s, p) => s + p.nachRabatt, 0));
   const ek = mitEk.reduce((s, p) => s + p.ek, 0);
   const rohertrag = umsatzMitEk - ek;
   return {
@@ -140,6 +159,6 @@ export function positionAusZeile(p, { groesse = '', ekAuto = null } = {}) {
 /** Angebotsstand: weicht die aktuelle Summe (Cent) vom festgehaltenen ab? Ohne Stand -> null. */
 export function angebotAbweichung(auftrag, summen) {
   if (t(auftrag.Angebot_Stand) === '') return null;
-  const alt = { netto: cent(auftrag.Angebot_Netto) ?? 0, brutto: cent(auftrag.Angebot_Brutto) ?? 0 };
+  const alt = { netto: Math.round(cent(auftrag.Angebot_Netto) ?? 0), brutto: Math.round(cent(auftrag.Angebot_Brutto) ?? 0) };
   return alt.netto !== summen.nettoNach || alt.brutto !== summen.brutto ? { alt, neu: { netto: summen.nettoNach, brutto: summen.brutto } } : null;
 }

@@ -24,7 +24,14 @@ export const POSITION_SPALTEN = [
 export const PREIS_SPALTEN = ['Preis_Netto', 'Aufpreis_Netto', 'Aufpreis_Ab', 'USt_Satz', 'EK_Hand'];
 export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung', ...PREIS_SPALTEN];
 // AM-3: optional ganz hinten in Auftraege - Datum des Schritts "Design" (leer = Schritt nicht genutzt / uebersprungen).
-export const AUFTRAG_OPTIONAL = ['Design_Am', 'Rabatt', 'Angebot_Netto', 'Angebot_Brutto', 'Angebot_Stand', 'Zustaendig'];
+// AMQ1: Preis_Eingabe ("brutto" oder leer = netto; nur die Eingabe an der Position, gespeichert wird immer netto) und
+// Design_Link (https-Adresse, z. B. Canva) - optional ganz hinten, Setup ergaenzt sie.
+export const AUFTRAG_OPTIONAL = ['Design_Am', 'Rabatt', 'Angebot_Netto', 'Angebot_Brutto', 'Angebot_Stand', 'Zustaendig', 'Preis_Eingabe', 'Design_Link'];
+export const PREIS_EINGABE = ['netto', 'brutto'];
+export const DESIGN_LINK_MAX = 500;
+// AMQ1 (Inhaber 06.11.): Positionen sind keine Pflicht, solange man noch nicht bestellt - Pflicht erst beim Wechsel auf
+// "bestellt" (dann wird Ware bestellt/bereitgestellt). In Angebot/Design zeigt die Oberflaeche nur einen Hinweis.
+export const POSITIONEN_PFLICHT_AB = 'bestellt';
 export const ANGEBOT_SPALTEN = ['Angebot_Netto', 'Angebot_Brutto', 'Angebot_Stand'];
 // AM-3: Korb-Referenz und Lager-Bezug eines Auftrags = die Auftragsnummer (nie Kunde, Spitzname oder Kurztitel).
 export const AU_NR_MUSTER = /^AU-\d{4}-\d{4}$/;
@@ -53,6 +60,16 @@ export const ART = { LSHOP: 'lshop', FREI: 'frei' };
 export const MENGE_MAX = 9999;
 export const POSITIONEN_MAX = 200;
 export const MAX = { Kurztitel: 80, Notiz: 1000, Motiv: 120, Druck: 120, PosNotiz: 300, Freitext: 120 };
+/** AMQ1: Design-Link nur https://, ohne Leerzeichen, hoechstens DESIGN_LINK_MAX Zeichen. '' = keiner. */
+export function designLinkAus(v) {
+  const s = String(v ?? '').trim();
+  if (!s) return '';
+  let u;
+  try { u = new URL(s); } catch { throw fehler('Design-Link: bitte eine vollständige Adresse mit https:// eingeben.'); }
+  if (u.protocol !== 'https:' || /\s/.test(s)) throw fehler('Design-Link: nur https://-Adressen.');
+  if (s.length > DESIGN_LINK_MAX) throw fehler(`Design-Link ist länger als ${DESIGN_LINK_MAX} Zeichen.`);
+  return s;
+}
 
 const t = v => String(v ?? '').trim();
 
@@ -181,6 +198,13 @@ export function pruefeKopf(e, { nurNotizTermin = false } = {}) {
   }
   if (e?.Notiz !== undefined) aus.Notiz = lang('Notiz', t(e.Notiz), MAX.Notiz);
   if (e?.Rabatt !== undefined) aus.Rabatt = rabattZelle(rabattAus(e.Rabatt));   // AM-5: auch ab "bestellt" (Preise nachtragen)
+  // AMQ1: auch ab "bestellt" (Preise nachtragen, Design-Link nachreichen). Preis_Eingabe "netto" = leer im Sheet.
+  if (e?.Preis_Eingabe !== undefined) {
+    const v = t(e.Preis_Eingabe) || 'netto';
+    if (!PREIS_EINGABE.includes(v)) throw fehler('Preis-Eingabe netto oder brutto.');
+    aus.Preis_Eingabe = v === 'brutto' ? 'brutto' : '';
+  }
+  if (e?.Design_Link !== undefined) aus.Design_Link = designLinkAus(e.Design_Link);
   if (nurNotizTermin) return aus;
   if (e?.Kurztitel !== undefined) aus.Kurztitel = lang('Kurztitel', t(e.Kurztitel).replace(/\s+/g, ' '), MAX.Kurztitel);
   if (e?.Kanal !== undefined) {
@@ -195,9 +219,9 @@ export function pruefeKopf(e, { nurNotizTermin = false } = {}) {
  * Positionen pruefen. eingabe: [{ positionId?, art: lshop|frei, articleNr | freitext, menge, motiv, druck, notiz }].
  * waehlbar: Set der ArticleNr, die neu gewaehlt werden duerfen (ohne ausgelaufen/3/6); bisherige Nummern bleiben erlaubt.
  */
-export function pruefePositionen(eingabe, { waehlbar, bisher = new Set(), orte = null } = {}) {
+export function pruefePositionen(eingabe, { waehlbar, bisher = new Set(), orte = null, leerErlaubt = false } = {}) {
   const liste = Array.isArray(eingabe) ? eingabe : [];
-  if (!liste.length) throw fehler('Mindestens eine Position.');
+  if (!liste.length && !leerErlaubt) throw fehler('Mindestens eine Position.');
   if (liste.length > POSITIONEN_MAX) throw fehler(`Höchstens ${POSITIONEN_MAX} Positionen.`);
   return liste.map((p, i) => {
     const nr = i + 1;
@@ -259,7 +283,7 @@ export function anlagePlan({ auftraege, positionen, eingabe, waehlbar, orte, jet
   if (!kopf.Kurztitel) throw fehler('Kurztitel fehlt.');
   const status = t(eingabe?.status) || 'Anfrage';
   if (!START_STATUS.includes(status)) throw fehler('Start-Status Anfrage oder Angebot.');
-  const pos = pruefePositionen(eingabe?.positionen, { waehlbar, orte });
+  const pos = pruefePositionen(eingabe?.positionen, { waehlbar, orte, leerErlaubt: true });   // AMQ1: Pflicht erst ab "bestellt"
   const tag = heute(jetzt);
   const nr = naechsteAuftragNr(auftraege, tag.slice(0, 4));
   const auftrag = {
@@ -308,7 +332,7 @@ export function bearbeitenPlan({ auftrag, positionen, eingabe, waehlbar, orte, j
   if (frei && eingabe?.positionen !== undefined) {
     const alt = aktivePositionen(positionen, auftrag.Auftrag_Nr);
     const bisher = new Set(alt.map(p => p.LShop_ArticleNr).filter(Boolean));
-    const pos = pruefePositionen(eingabe.positionen, { waehlbar, bisher, orte });
+    const pos = pruefePositionen(eingabe.positionen, { waehlbar, bisher, orte, leerErlaubt: true });   // AMQ1: frei = vor "bestellt"
     const gesehen = new Set();
     for (const p of pos) {
       if (p.positionId) {

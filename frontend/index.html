@@ -940,6 +940,12 @@
       .order-zf.ps-fertig { color: var(--success); }
       .ps-wartet-seit { display: inline-block; font-size: 0.75rem; font-weight: 600; padding: 0.1em 0.45em; border-radius: 4px; background: #4a3a10; color: var(--accent); white-space: nowrap; }
       .ps-bedienung { margin-bottom: 0.6rem; }
+      /* AMQ1 */
+      .api-key-name { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+      #api-key-form { position: relative; }
+      .ap-eingabe { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; margin-bottom: 0.4rem; }
+      .ap-eingabe select { width: auto; }
+      .au-kachel-link { display: block; background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; text-decoration: underline dotted; }
       /* BS2: Versandart an der Karte (Abholung hervorgehoben, Versand dezent) + Filter Status/Versandart */
       .ps-versand { display: inline-block; padding: 0 0.4rem; border-radius: 4px; font-size: 0.74rem; line-height: 1.6; border: 1px solid var(--border); color: var(--muted); }
       /* BS2-1 (Inhaber 06.11.): Abholung violett - faellt auf, kommt in der Bestelluebersicht nicht vor (dort Gold/Rot/Grau) */
@@ -3363,18 +3369,14 @@
               <label>Termin<input id="au-Termin" type="date" class="form-input" /></label>
               <label id="au-start-wrap" data-hilfe="au-start">Start als<select id="au-start" class="form-select"><option value="Anfrage">Anfrage</option><option value="Angebot">Angebot</option></select></label>
               <label class="ku-breit" data-hilfe="au-keine-namen">Notiz (keine Personennamen)<textarea id="au-Notiz" class="form-input" rows="2" maxlength="1000"></textarea></label>
+              <!-- AMQ1: Design-Link (z. B. Canva), nur https -->
+              <label class="ku-breit" data-hilfe="au-design-link">Design-Link (https://…)<input id="au-Design_Link" type="url" class="form-input" maxlength="500" autocomplete="off" inputmode="url" placeholder="https://www.canva.com/…" /></label>
             </div>
-            <fieldset class="au-block" id="au-preis-block">
-              <legend data-hilfe="ap-summen" tabindex="0">Preise (netto)</legend>
-              <div id="au-preis-hinweis" class="lager-warnung" hidden></div>
-              <div class="ap-rabatt">
-                <label data-hilfe="ap-rabatt">Rabatt auf den Auftrag<input id="au-rabatt" type="text" class="form-input" inputmode="decimal" autocomplete="off" placeholder="z. B. 10 oder 25,00" /></label>
-                <select id="au-rabatt-art" class="form-select" aria-label="Rabatt in % oder €"><option value="%">%</option><option value="€">€</option></select>
-              </div>
-              <div id="au-preis-summe"></div>
-            </fieldset>
+            <!-- AMQ1: Reihenfolge Kopf -> Positionen (Preis direkt an der Gruppe) -> unten Summe/Rabatt/Kalkulation -->
             <fieldset class="au-block" id="au-pos-block">
               <legend>Positionen</legend>
+              <label class="ap-eingabe" id="au-preis-eingabe-wrap" data-hilfe="ap-eingabe">Preise eingeben<select id="au-preis-eingabe" class="form-select"><option value="netto">netto</option><option value="brutto">brutto</option></select></label>
+              <div id="au-pos-leer" class="korb-zaehler" hidden></div>
               <div id="au-pos-gesperrt" class="korb-zaehler" data-hilfe="au-pos-gesperrt" tabindex="0" hidden>Positionen sind ab „bestellt“ gesperrt – nur Notiz und Termin änderbar.</div>
               <div id="au-pos-liste"></div>
               <div id="au-pos-neu">
@@ -3400,6 +3402,15 @@
                   <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-frei-hinzu" data-hilfe="au-frei-hinzu">+ freie Position</button>
                 </div>
               </div>
+            </fieldset>
+            <fieldset class="au-block" id="au-preis-block">
+              <legend data-hilfe="ap-summen" tabindex="0">Summe · Rabatt · Kalkulation (netto)</legend>
+              <div id="au-preis-hinweis" class="lager-warnung" hidden></div>
+              <div class="ap-rabatt">
+                <label data-hilfe="ap-rabatt">Rabatt auf den Auftrag<input id="au-rabatt" type="text" class="form-input" inputmode="decimal" autocomplete="off" placeholder="z. B. 10 oder 25,00" /></label>
+                <select id="au-rabatt-art" class="form-select" aria-label="Rabatt in % oder €"><option value="%">%</option><option value="€">€ netto</option></select>
+              </div>
+              <div id="au-preis-summe"></div>
             </fieldset>
             <div id="au-fehler" class="lager-warnung" hidden></div>
             <div class="korb-reihe ku-knoepfe">
@@ -3581,11 +3592,14 @@
         <div class="card">
           <h2 class="mit-hilfe-i" style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">API Key <button class="hilfe-i" type="button" data-hilfe-gruppe="einstellungen" aria-controls="hilfe-einstellungen" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button></h2>
           <div id="hilfe-einstellungen" class="hilfe-legende" hidden></div>
-          <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
-            <input id="api-key" type="password" placeholder="MC_API_KEY"
+          <!-- AMQ1: eigenes Formular nur fuer den Schluessel (Chrome ordnet sonst jedes Textfeld in MC diesem Passwortfeld zu und
+               fragt "Passwort speichern?"); das Feld wird nie vorbelegt - gespeichert ist der Schluessel im Browser-Speicher. -->
+          <form id="api-key-form" autocomplete="on" style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+            <input type="text" name="username" autocomplete="username" value="Mission Control" readonly tabindex="-1" aria-hidden="true" class="api-key-name" />
+            <input id="api-key" name="password" type="password" autocomplete="current-password" placeholder="MC_API_KEY"
               style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.6rem 0.8rem;color:var(--text);font-size:0.9rem;" />
-            <button class="btn" id="save-key" data-hilfe="api-key-speichern">Speichern</button>
-          </div>
+            <button class="btn" id="save-key" type="submit" data-hilfe="api-key-speichern">Speichern</button>
+          </form>
           <p id="key-saved" style="color:var(--success);font-size:0.8rem;margin-top:0.5rem;display:none;">Gespeichert.</p>
         </div>
         <div class="card">
@@ -6188,6 +6202,9 @@
         'kl-neu':               { name: '+ Neuer Kunde in MC', text: 'Nicht in Lexoffice? Dann den Kunden direkt in MC anlegen.' },
         'dash-offen':           { name: 'Offen', text: 'Bestellungen in Bearbeitung und in Wartestellung. Klick öffnet Bestellungen (JFN).' },
         'dash-auftraege':       { name: 'Aufträge', text: 'Offene Aufträge, Termine, fertig/nicht bezahlt, überfällige To-dos, offene Aufgaben. Klick öffnet Aufträge.' },
+        'dash-au-zeile':        { name: 'Teilzahl', text: 'Öffnet Aufträge bzw. To-dos gleich mit diesem Filter.' },
+        'au-design-link':       { name: 'Design-Link', text: 'Link zum Entwurf (z. B. Canva), nur https://. In der Ansicht als „Design öffnen ↗“.' },
+        'ap-eingabe':           { name: 'Preise eingeben', text: 'Preise an den Positionen netto oder brutto eintippen. Gespeichert wird netto, die Summe unten bleibt netto · MwSt · brutto.' },
         // AM-2: Aufträge erfassen, Liste, Ansicht
         'au-suche':             { name: 'Aufträge suchen', text: 'Findet über Auftrags-Nr., Kurztitel, Kunde, Spitzname oder Kunden-Nr.; jedes Wort muss passen.' },
         'au-filter':            { name: 'Filter', text: 'offen = weder bezahlt noch storniert. Dazu: Termin in 7 Tagen, wartet auf Ware, je Status oder alle.' },
@@ -6308,7 +6325,7 @@
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag', 'tr-aendern-gesperrt', 'ti-goalie', 'tr-goalie', 'tr-gk-pruefen', 'tr-gk-markieren', 'tr-gk-kein'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
-        auftraege: ['ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'dash-auftraege', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'dash-offen', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern'],
+        auftraege: ['dash-au-zeile', 'au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'dash-auftraege', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'dash-offen', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern'],
         lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
@@ -10291,12 +10308,23 @@
         ['offen', 'offene Aufträge'], ['terminBald', 'Termin in ≤ 7 Tagen'], ['wartetAufWare', 'wartet auf Ware'], ['fertigNichtBezahlt', 'fertig, nicht bezahlt'],
         ['todosUeberfaellig', 'To-dos überfällig'], ['aufgabenOffen', 'Aufgaben offen'],   // AM-4
       ];
+      // AMQ1: Ziel je Teilzahl - Unterpunkt + Filterwerte (au-f / au-art bzw. td-f). Kachel selbst -> Aufträge (offen).
+      const AU_KACHEL_ZIEL = {
+        terminBald: { unterpunkt: 'liste', filter: { 'au-f': 'termin', 'au-art': 'auftraege' } },
+        wartetAufWare: { unterpunkt: 'liste', filter: { 'au-f': 'ware', 'au-art': 'auftraege' } },
+        todosUeberfaellig: { unterpunkt: 'todos', filter: { 'td-f': 'ueberfaellig' } },
+        aufgabenOffen: { unterpunkt: 'liste', filter: { 'au-f': 'offen', 'au-art': 'aufgaben' } },
+      };
+      const AU_KACHEL_START = { unterpunkt: 'liste', filter: { 'au-f': 'offen', 'au-art': 'alle' } };
       function auKachelHtml(z) {
         const zahl = v => (Number.isFinite(v) ? String(v) : '–');
         const a = z?.auftraege;
         // AM-2: Hauptzahl = offene Auftraege; darunter Termin, fertig/nicht bezahlt (wartet auf Ware ab AM-3) und aktive Kunden.
         if (a) {
-          const zeilen = AU_KACHEL_ZEILEN.filter(([k]) => k !== 'offen' && Number.isFinite(a[k])).map(([k, txt]) => `<div class="au-kachel-zeile">${zahl(a[k])} ${txt}</div>`).join('');
+          // AMQ1: Teilzahlen springen mit passendem Filter (AU_KACHEL_ZIEL); sonst nur Text
+          const zeilen = AU_KACHEL_ZEILEN.filter(([k]) => k !== 'offen' && Number.isFinite(a[k])).map(([k, txt]) => (AU_KACHEL_ZIEL[k]
+            ? `<button type="button" class="au-kachel-zeile au-kachel-link" data-au-ziel="${k}" data-hilfe="dash-au-zeile">${zahl(a[k])} ${txt}</button>`
+            : `<div class="au-kachel-zeile">${zahl(a[k])} ${txt}</div>`)).join('');
           return `<div class="dash-stat-value">${zahl(a.offen)}</div><div class="dash-stat-label">Aufträge offen ↗</div>${zeilen}<div class="au-kachel-zeile">${zahl(z?.aktiv)} aktive Kunden</div>`;
         }
         return `<div class="dash-stat-value">${zahl(z?.aktiv)}</div><div class="dash-stat-label">Aufträge · aktive Kunden ↗</div><div class="au-kachel-zeile">Auftragszahlen nicht verfügbar</div>`;
@@ -10311,8 +10339,19 @@
           el.innerHTML = auKachelHtml(res.ok ? j : null);
         } catch { el.innerHTML = auKachelHtml(null); }
       }
-      document.getElementById('dash-auftraege')?.addEventListener('click', () => oeffneAnsicht('auftraege', 'kunden'));
-      document.getElementById('dash-auftraege')?.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); oeffneAnsicht('auftraege', 'kunden'); } });
+      // AMQ1: Kachel -> Aufträge (statt Kunden); Teilzahl -> Aufträge/To-dos mit Filter
+      function auKachelSprung(ziel) {
+        for (const [id, wert] of Object.entries(ziel.filter)) { const el = document.getElementById(id); if (el) el.value = wert; }
+        oeffneAnsicht('auftraege', ziel.unterpunkt);
+      }
+      document.getElementById('dash-auftraege')?.addEventListener('click', e => {
+        const k = e.target.closest('[data-au-ziel]')?.dataset.auZiel;
+        auKachelSprung(AU_KACHEL_ZIEL[k] ?? AU_KACHEL_START);
+      });
+      document.getElementById('dash-auftraege')?.addEventListener('keydown', e => {
+        if (e.target.closest('[data-au-ziel]')) return;   // Knopf der Teilzahl: Enter klickt ihn selbst
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); auKachelSprung(AU_KACHEL_START); }
+      });
       document.addEventListener('mc:ansicht', e => { if (e.detail?.panel === 'dashboard') loadAuftraegeKachel(); });   // auch beim Start
 
 
@@ -10330,22 +10369,32 @@
       const AP_ZUSTAENDIG = ['Christian', 'Nicole'];
       const apT = v => String(v ?? '').trim();
       function apFehler(text) { const e = new Error(text); e.code = 'preis'; return e; }
-      /** "12,50" / "1.234,50" / 12.5 -> Zahl (2 Stellen) | null (leer); sonst Fehler. */
+      /** "12,50" / "1.234,50" / 12.5 -> Zahl (bis 4 Stellen, AMQ1) | null (leer); sonst Fehler. */
       function apEuro(v, feld = 'Preis') {
         if (typeof v === 'number') {
           if (!Number.isFinite(v) || v < 0 || v > AP_MAX) throw apFehler(`${feld} muss zwischen 0 und ${AP_MAX} € liegen.`);
-          return Math.round(v * 100) / 100;
+          return Math.round(v * 10000) / 10000;
         }
         let s = apT(v).replace(/\s|€/g, '');
         if (!s) return null;
         if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(s)) s = s.replace(/\./g, '');
         s = s.replace(',', '.');
-        if (!/^\d+(\.\d{1,2})?$/.test(s)) throw apFehler(`${feld}: bitte als Betrag eingeben, z. B. 12,50.`);
+        if (!/^\d+(\.\d{1,4})?$/.test(s)) throw apFehler(`${feld}: bitte als Betrag eingeben, z. B. 12,50.`);
         const n = Number(s);
         if (n > AP_MAX) throw apFehler(`${feld} muss zwischen 0 und ${AP_MAX} € liegen.`);
-        return Math.round(n * 100) / 100;
+        return Math.round(n * 10000) / 10000;
       }
-      const apCent = e => (e === null || e === undefined || e === '' ? null : Math.round(Number(e) * 100));
+      // AMQ1: Cent mit Bruchteil (Netto bis 4 Stellen), ganze Cent erst je Positionssumme.
+      const apCent = e => (e === null || e === undefined || e === '' ? null : Math.round(Number(e) * 10000) / 100);
+      /** AMQ1: Brutto (Euro) -> Netto (bis 4 Stellen), so dass apBruttoAusNetto(netto) wieder genau brutto ergibt. */
+      function apNettoAusBrutto(brutto, ust = AP_UST_STANDARD) {
+        if (brutto === null || brutto === undefined || brutto === '') return null;
+        return Math.round((Number(brutto) * 100 / (100 + Number(ust))) * 10000) / 10000;
+      }
+      function apBruttoAusNetto(netto, ust = AP_UST_STANDARD) {
+        if (netto === null || netto === undefined || netto === '') return null;
+        return Math.round(Number(netto) * (100 + Number(ust))) / 100;
+      }
       const apEuroText = c => (c === null || c === undefined ? '–' : `${(c / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`);
       /** Zahl fuer ein Eingabefeld: 12.5 -> "12,50" (leer bleibt leer). */
       const apFeld = v => (apT(v) === '' || !Number.isFinite(Number(v)) ? '' : Number(v).toFixed(2).replace('.', ','));
@@ -10379,10 +10428,10 @@
         const menge = Number(p.menge) || 0;
         const stueck = apCent(p.preis);
         const auf = p.art === 'lshop' && p.aufpreis && apAufpreisGilt(p.groesse, p.aufpreisAb) ? apCent(p.aufpreis) : 0;
-        const netto = stueck === null ? null : (stueck + auf) * menge;
+        const netto = stueck === null ? null : Math.round((stueck + auf) * menge * 100) / 100;   // AMQ1: Hundertstel-Cent
         const ekStueck = p.ekHand !== null && p.ekHand !== undefined && p.ekHand !== '' ? apCent(p.ekHand) : (p.ekAuto ?? null) === null ? null : apCent(p.ekAuto);
         const ekQuelle = p.ekHand !== null && p.ekHand !== undefined && p.ekHand !== '' ? 'hand' : ekStueck === null ? '' : 'lshop';
-        const ek = ekStueck === null ? null : ekStueck * menge;
+        const ek = ekStueck === null ? null : Math.round(ekStueck * menge);
         return { menge, netto, aufpreisGilt: auf > 0, ust: p.ust ?? AP_UST_STANDARD, ek, ekQuelle, rohertrag: netto !== null && ek !== null ? netto - ek : null };
       }
       function apVerteile(gesamt, gewichte) {
@@ -10397,18 +10446,19 @@
       function apSummen(positionen, rabatt = null) {
         const pos = (positionen ?? []).map(apPositionWerte);
         const mitPreis = pos.filter(p => p.netto !== null);
-        const netto = mitPreis.reduce((s, p) => s + p.netto, 0);
-        const rabattCent = !rabatt || !netto ? 0 : Math.min(netto, rabatt.art === '%' ? Math.round((netto * rabatt.wert) / 100) : apCent(rabatt.wert));
+        const netto = Math.round(mitPreis.reduce((s, p) => s + p.netto, 0));   // AMQ1: ganze Cent erst hier
+        const rabattCent = !rabatt || !netto ? 0 : Math.min(netto, rabatt.art === '%' ? Math.round((netto * rabatt.wert) / 100) : Math.round(apCent(rabatt.wert)));
         const anteil = apVerteile(rabattCent, mitPreis.map(p => p.netto));
         mitPreis.forEach((p, i) => { p.nachRabatt = p.netto - anteil[i]; });
         const saetze = [...new Set(mitPreis.map(p => p.ust))].sort((a, b) => b - a);
-        const mwst = saetze.map(satz => {
-          const basis = mitPreis.filter(p => p.ust === satz).reduce((s, p) => s + p.nachRabatt, 0);
-          return { satz, basis, betrag: Math.round((basis * satz) / 100) };
+        const mwst = saetze.map(satz => {   // AMQ1: gerundetes Brutto des Satzes minus gerundetes Netto
+          const genau = mitPreis.filter(p => p.ust === satz).reduce((s, p) => s + p.nachRabatt, 0);
+          const basis = Math.round(genau);
+          return { satz, basis, betrag: Math.round((genau * (100 + satz)) / 100) - basis };
         });
         const nettoNach = netto - rabattCent;
         const mitEk = mitPreis.filter(p => p.ek !== null);
-        const umsatzMitEk = mitEk.reduce((s, p) => s + p.nachRabatt, 0);
+        const umsatzMitEk = Math.round(mitEk.reduce((s, p) => s + p.nachRabatt, 0));
         const ek = mitEk.reduce((s, p) => s + p.ek, 0);
         const rohertrag = umsatzMitEk - ek;
         return {
@@ -10600,6 +10650,8 @@
         }
         return neu;
       }
+      /** AMQ1: Netto-Zelle -> Zahl (genau) bzw. '' - so geht ein unberuehrter Preis unveraendert zurueck. */
+      const auNettoRoh = v => (apT(v) === '' || !Number.isFinite(Number(v)) ? '' : Number(v));
       /** Gespeicherte Position -> Entwurf (fuer Bearbeiten). */
       const auEntwurfAus = p => ({
         positionId: p.Position_ID, art: p.Art, articleNr: p.LShop_ArticleNr, freitext: p.Freitext, menge: Number(p.Menge),
@@ -10607,7 +10659,7 @@
         farbe: p.lshop?.farbe ?? '', groesse: p.lshop?.groesse ?? '', lieferbar: p.lshop?.lieferbar,
         herkunft: auHerkunft(p), lagerOrt: p.Lager_Ort ?? '',
         // AM-5: Preise als Eingabetext ("12,50"), USt leer = 19, EK automatisch aus der Antwort
-        preis: apFeld(p.Preis_Netto), aufpreis: apFeld(p.Aufpreis_Netto), aufpreisAb: p.Aufpreis_Ab || '', ust: p.USt_Satz === '' || p.USt_Satz === undefined ? '19' : String(p.USt_Satz),
+        preis: auNettoRoh(p.Preis_Netto), aufpreis: auNettoRoh(p.Aufpreis_Netto), aufpreisAb: p.Aufpreis_Ab || '',   // AMQ1: genau (bis 4 Stellen) ust: p.USt_Satz === '' || p.USt_Satz === undefined ? '19' : String(p.USt_Satz),
         ekHand: apFeld(p.EK_Hand), ekAuto: p.ekAuto ?? null, ekStand: p.ekStand ?? '',
       });
       // AM-4: Aufgaben (AG) und To-dos - Anzeige-Logik (Server: utils/aufgaben.js). Aufgaben haben keine Positionen/Rohlinge.
@@ -10778,6 +10830,9 @@
       // ── Ansicht ──
       function auDetailOeffnen(nr) { auZ.offen = nr; auEl('au-d-fehler').hidden = true; auDetailZeichnen(nr); auEl('au-detail').hidden = false; }
       function auDetailSchliessen() { auEl('au-detail').hidden = true; auZ.offen = null; }
+      /** AMQ1: Design-Link (nur https) als "Design öffnen ↗" in neuem Tab. */
+      const auDesignLinkHtml = url => (/^https:\/\/\S+$/i.test(String(url ?? '').trim())
+        ? `<div><a href="${kuEsc(String(url).trim())}" target="_blank" rel="noopener noreferrer" class="korb-link" data-hilfe="au-design-link">Design öffnen ↗</a></div>` : '');
       function auDetailZeichnen(nr) {
         const a = (auZ.daten?.auftraege ?? []).find(x => x.Auftrag_Nr === nr);
         if (!a) { auDetailSchliessen(); return; }
@@ -10786,6 +10841,7 @@
         auEl('au-d-kopf').innerHTML = `<div><button type="button" class="korb-link" data-au-kunde="${kuEsc(a.Kunden_Nr)}" data-hilfe="au-kundenkarte">${kuEsc(auKundeText(k, a.Kunden_Nr))}</button>`
           + ` · ${kuEsc(a.Kunden_Nr)}</div><div class="ku-meta">${[a.Kanal, a.Termin ? `Termin ${auDatum(a.Termin)}` : 'ohne Termin', `${a.stueck} Stück`].filter(Boolean).map(x => `<span>${kuEsc(x)}</span>`).join('')}</div>`
           + (a.Notiz ? `<div class="au-notiz">${kuEsc(a.Notiz)}</div>` : '')
+          + auDesignLinkHtml(a.Design_Link)
           + (a.ware ? `<div><span class="ku-chip au-ware au-ware-${a.ware}" data-hilfe="au-ware">${kuEsc(AU_WARE_TEXT[a.ware])}</span></div>` : '')
           + (a.freiOffen ? `<div class="korb-zaehler" data-hilfe="au-frei-offen" tabindex="0">${a.freiOffen} freie Position${a.freiOffen === 1 ? '' : 'en'} noch zu besorgen (nicht über L-Shop)</div>` : '');
         auEl('au-d-leiste').innerHTML = auLeisteHtml(a);
@@ -10806,8 +10862,11 @@
           const kopf = (g.art === 'lshop' ? `<strong>${kuEsc(g.modell)}</strong>${g.bezeichnung ? ` · ${kuEsc(g.bezeichnung)}` : ''} · ${kuEsc(g.farbe || '(ohne Farbe)')}` : `<strong>${kuEsc(g.freitext)}</strong> · frei`)
             + (auHerkunftText(g) ? ` <span class="ku-chip au-herkunft" data-hilfe="au-herkunft-zeichen">${kuEsc(auHerkunftText(g))}</span>` : '');
           const p0 = g.positionen[0];
-          const preisText = p0.Preis_Netto !== '' && p0.Preis_Netto !== undefined ? `${apEuroText(apCent(p0.Preis_Netto))}/Stück netto`
-            + (p0.Aufpreis_Netto !== '' && p0.Aufpreis_Netto !== undefined ? ` · ab ${p0.Aufpreis_Ab || AP_AUFPREIS_AB} +${apEuroText(apCent(p0.Aufpreis_Netto))}` : '')
+          // AMQ1: Preis an der Position im gewaehlten Modus (brutto aus netto zurueckgerechnet), Summe unten bleibt netto · MwSt · brutto
+          const br = a.Preis_Eingabe === 'brutto', ustP = (() => { try { return apUst(p0.USt_Satz); } catch { return AP_UST_STANDARD; } })();
+          const zeig = v => apEuroText(apCent(br ? apBruttoAusNetto(Number(v), ustP) : v));
+          const preisText = p0.Preis_Netto !== '' && p0.Preis_Netto !== undefined ? `${zeig(p0.Preis_Netto)}/Stück ${br ? 'brutto' : 'netto'}`
+            + (p0.Aufpreis_Netto !== '' && p0.Aufpreis_Netto !== undefined ? ` · ab ${p0.Aufpreis_Ab || AP_AUFPREIS_AB} +${zeig(p0.Aufpreis_Netto)}` : '')
             + (p0.USt_Satz !== '' && p0.USt_Satz !== undefined ? ` · USt ${p0.USt_Satz} %` : '') : 'ohne Preis';   // AM-5
           const neben = [preisText, p0.Motiv && `Motiv: ${p0.Motiv}`, p0.Druck && `Druck: ${p0.Druck}`, p0.Notiz && `Notiz: ${p0.Notiz}`].filter(Boolean).map(x => `<span>${kuEsc(x)}</span>`).join('');
           const zeilen = g.positionen.map(p => `<label class="au-pos" data-hilfe="au-pos-fertig"><input type="checkbox" data-au-fertig="${kuEsc(p.Position_ID)}" ${p.Fertig === 'ja' ? 'checked' : ''} ${st ? 'disabled' : ''}>`
@@ -10903,7 +10962,12 @@
         auDlg.entwurf = auftrag ? auftrag.positionen.map(auEntwurfAus) : [];
         auEl('au-titel').textContent = auftrag ? `${auftrag.Auftrag_Nr} bearbeiten` : 'Neuer Auftrag';
         auKundeSetzen(auftrag ? auKunde(auftrag.Kunden_Nr) ?? { Kunden_Nr: auftrag.Kunden_Nr } : null);
-        for (const f of ['Kurztitel', 'Kanal', 'Termin', 'Notiz']) auEl(`au-${f}`).value = auftrag?.[f] ?? '';
+        for (const f of ['Kurztitel', 'Kanal', 'Termin', 'Notiz', 'Design_Link']) auEl(`au-${f}`).value = auftrag?.[f] ?? '';
+        // AMQ1: Preis-Eingabe je Auftrag (leer = netto); ohne Spalte nur netto
+        auDlg.eingabe = auftrag?.Preis_Eingabe === 'brutto' ? 'brutto' : 'netto';
+        auEl('au-preis-eingabe').value = auDlg.eingabe;
+        auEl('au-preis-eingabe').querySelector('option[value="brutto"]').disabled = auZ.daten?.spalten?.preisEingabe === false;
+        auEl('au-Design_Link').closest('label').hidden = auZ.daten?.spalten?.designLink === false;
         auEl('au-start-wrap').hidden = !!auftrag;
         auEl('au-kunde-block').disabled = !frei;
         auEl('au-Kurztitel').readOnly = !frei;
@@ -10920,6 +10984,7 @@
         auEl('au-preis-hinweis').hidden = !auEl('au-preis-hinweis').textContent;
         auEl('au-raster-form').hidden = true;
         auEl('au-modell-suche').value = '';
+        auEl('au-frei-text').value = ''; auEl('au-frei-menge').value = '';
         auModellTw.zu();
         auFehler('');
         auEntwurfZeichnen();
@@ -10941,24 +11006,56 @@
           return `<div class="au-gruppe"><div>${kopf} · ${g.stueck} Stück ${frei ? `<button type="button" class="korb-link" data-au-gruppe-weg="${gi}" data-hilfe="au-gruppe-weg">entfernen</button>` : ''}</div>`
             + `<div class="ku-meta">${mengen}</div>${auHerkunftHtml(g, gi, frei)}${auPreisZeileHtml(g, gi)}<div class="au-gruppe-felder" data-hilfe="au-gruppe-felder">${feld('motiv', 'Motiv (keine Personennamen)', 120)}${feld('druck', 'Druck: Position/Technik', 120)}${feld('notiz', 'Notiz', 300)}</div></div>`;
         }).join('') || '<p class="korb-zaehler">Noch keine Position.</p>';
+        // AMQ1: ohne Positionen speicherbar; Pflicht erst beim Wechsel auf "bestellt"
+        const st = auDlg.auftrag?.Status ?? auEl('au-start').value;
+        const leer = !auDlg.entwurf.length && frei;
+        auEl('au-pos-leer').hidden = !leer;
+        auEl('au-pos-leer').textContent = st === 'Anfrage' ? 'Noch keine Position – für eine Anfrage in Ordnung.'
+          : 'Noch keine Position – geht, aber spätestens vor „bestellt“ müssen Positionen rein.';
       }
       auEl('au-pos-liste').addEventListener('input', e => {
         const f = e.target.closest('[data-au-feld]');
         if (!f) return;
         const g = auGruppen(auDlg.entwurf)[Number(f.dataset.auGruppe)];
-        for (const p of g?.positionen ?? []) p[f.dataset.auFeld] = f.value;   // gilt fuer alle Groessen der Gruppe
+        for (const p of g?.positionen ?? []) {   // gilt fuer alle Groessen der Gruppe
+          if (['preis', 'aufpreis'].includes(f.dataset.auFeld)) auPreisSetzen(p, f.dataset.auFeld, f.value);   // AMQ1: netto/brutto
+          else p[f.dataset.auFeld] = f.value;
+        }
         if (['preis', 'aufpreis', 'ekHand'].includes(f.dataset.auFeld)) auPreisSummeZeichnen();   // AM-5: Summe live
       });
+      // AMQ1: Preise im Entwurf immer netto (p.preis/p.aufpreis: Text wie getippt im Netto-Modus oder Zahl mit bis zu 4 Stellen);
+      // im Brutto-Modus zeigt das Feld brutto und rechnet beim Tippen exakt auf netto zurueck. Unberuehrte Werte bleiben genau.
+      const auBrutto = () => auDlg.eingabe === 'brutto';
+      function auPreisSetzen(p, feld, text) {
+        p[`${feld}Text`] = text;
+        if (!auBrutto()) { p[feld] = text; return; }
+        let ust = AP_UST_STANDARD;
+        try { ust = apUst(p.ust); } catch { /* Standard */ }
+        try { const b = apEuro(text); p[feld] = b === null ? '' : apNettoAusBrutto(b, ust); } catch { p[feld] = text; }   // ungueltig -> Meldung beim Speichern
+      }
+      /** Feldwert im gewaehlten Modus: getippter Text, sonst aus dem Netto-Wert. */
+      function auPreisFeldWert(p, feld) {
+        if (p[`${feld}Text`] !== undefined) return p[`${feld}Text`];
+        if (p[feld] === '' || p[feld] === undefined || p[feld] === null) return '';
+        let n;
+        try { n = apEuro(p[feld]); } catch { return String(p[feld]); }
+        if (n === null) return '';
+        let ust = AP_UST_STANDARD;
+        try { ust = apUst(p.ust); } catch { /* Standard */ }
+        return apFeld(auBrutto() ? apBruttoAusNetto(n, ust) : n);
+      }
       // ── AM-5: Preise im Dialog (netto je Gruppe, Aufpreis ab Groesse, USt, EK von Hand bei freien) ──
       const auPreisEditierbar = () => (!auDlg.auftrag || auDlg.auftrag.Status !== 'storniert') && auZ.daten?.spalten?.preise !== false;
       function auPreisZeileHtml(g, gi) {
         const p0 = g.positionen[0], an = auPreisEditierbar();
-        const feld = (f, label, hilfe) => `<label ${hilfe}>${label}<input type="text" class="form-input" inputmode="decimal" autocomplete="off" data-au-gruppe="${gi}" data-au-feld="${f}" value="${kuEsc(p0[f] ?? '')}" placeholder="0,00" ${an ? '' : 'readonly'} /></label>`;
+        const wert = f => (['preis', 'aufpreis'].includes(f) ? auPreisFeldWert(p0, f) : p0[f] ?? '');   // AMQ1
+        const feld = (f, label, hilfe) => `<label ${hilfe}>${label}<input type="text" class="form-input" inputmode="decimal" autocomplete="off" data-au-gruppe="${gi}" data-au-feld="${f}" value="${kuEsc(wert(f))}" placeholder="0,00" ${an ? '' : 'readonly'} /></label>`;
+        const modus = auBrutto() ? 'brutto' : 'netto';
         const groessen = g.art === 'lshop' ? [...new Set([...g.positionen.map(p => p.groesse).filter(Boolean), AP_AUFPREIS_AB])] : [];
         const sortiert = typeof grSortiere === 'function' ? grSortiere(groessen).sortiert : groessen;
         const ab = p0.aufpreisAb || AP_AUFPREIS_AB;
-        return `<div class="ap-preise">${feld('preis', 'Preis/Stück netto €', 'data-hilfe="ap-preis"')}`
-          + (g.art === 'lshop' ? feld('aufpreis', 'Aufpreis groß €', 'data-hilfe="ap-aufpreis"')
+        return `<div class="ap-preise">${feld('preis', `Preis/Stück ${modus} €`, 'data-hilfe="ap-preis"')}`
+          + (g.art === 'lshop' ? feld('aufpreis', `Aufpreis groß ${modus} €`, 'data-hilfe="ap-aufpreis"')
             + `<label data-hilfe="ap-aufpreis-ab">ab Größe<select class="form-select" data-au-wahl="aufpreisAb" data-au-gruppe="${gi}" ${an ? '' : 'disabled'}>${sortiert.map(x => `<option${x === ab ? ' selected' : ''}>${kuEsc(x)}</option>`).join('')}</select></label>` : '')
           + `<label data-hilfe="ap-ust">USt<select class="form-select" data-au-wahl="ust" data-au-gruppe="${gi}" ${an ? '' : 'disabled'}>${AP_UST.map(u => `<option value="${u}"${String(u) === String(p0.ust ?? '19') ? ' selected' : ''}>${u} %</option>`).join('')}</select></label>`
           + (g.art === 'frei' ? feld('ekHand', 'EK €/Stück (optional)', 'data-hilfe="ap-ek-hand"') : '') + '</div>';
@@ -10967,7 +11064,20 @@
         const w = e.target.closest('[data-au-wahl]');
         if (!w) return;
         const g = auGruppen(auDlg.entwurf)[Number(w.dataset.auGruppe)];
-        for (const p of g?.positionen ?? []) p[w.dataset.auWahl] = w.value;
+        for (const p of g?.positionen ?? []) {
+          // AMQ1: im Brutto-Modus bleibt bei neuer USt der Bruttopreis stehen, netto wird neu gerechnet
+          const brutto = w.dataset.auWahl === 'ust' && auBrutto() ? ['preis', 'aufpreis'].map(f => [f, auPreisFeldWert(p, f)]) : [];
+          p[w.dataset.auWahl] = w.value;
+          for (const [f, text] of brutto) if (text !== '') auPreisSetzen(p, f, text);
+        }
+        auPreisSummeZeichnen();
+      });
+      // AMQ1: Umschalten netto/brutto aendert nur Anzeige und Eingabe - gespeicherte Werte bleiben.
+      auEl('au-start').addEventListener('change', () => auEntwurfZeichnen());   // AMQ1: Hinweis "ohne Position" je Start-Status
+      auEl('au-preis-eingabe').addEventListener('change', () => {
+        auDlg.eingabe = auEl('au-preis-eingabe').value === 'brutto' ? 'brutto' : 'netto';
+        for (const p of auDlg.entwurf) { delete p.preisText; delete p.aufpreisText; }
+        auEntwurfZeichnen();
         auPreisSummeZeichnen();
       });
       function auRabattEingabe() { return { art: auEl('au-rabatt-art').value, wert: auEl('au-rabatt').value }; }
@@ -11159,7 +11269,7 @@
       auEl('au-raster').addEventListener('input', auRasterSumme);
       function auRasterUebernehmen(weitere) {
         const a = auRasterSumme();
-        if (a.fehler.length) { auFehler(eigenSummeText(a)); return; }
+        if (a.fehler.length) { auFehler(`Nicht übernommene Eingabe im Größenraster: ${eigenSummeText(a)}`); return false; }
         const farbe = auEl('au-farbe').value;
         const nummern = new Set(auDlg.raster.map(r => r.articleNr));
         // Die Gruppe (Modell + Farbe) wird ersetzt; Motiv/Druck/Notiz und Position-IDs vorhandener Groessen bleiben.
@@ -11188,24 +11298,42 @@
       }
       auEl('au-raster-hinzu').addEventListener('click', () => auRasterUebernehmen(false));
       auEl('au-raster-weiter').addEventListener('click', () => auRasterUebernehmen(true));
-      auEl('au-frei-hinzu').addEventListener('click', () => {
-        const text = auEl('au-frei-text').value.trim(), menge = Number(auEl('au-frei-menge').value);
-        if (!text) { auFehler('Freie Position: Text fehlt.'); auEl('au-frei-text').focus(); return; }
-        if (!Number.isInteger(menge) || menge < 1 || menge > 9999) { auFehler('Freie Position: Menge 1–9999.'); auEl('au-frei-menge').focus(); return; }
+      /** AMQ1: freie Position aus den Feldern uebernehmen. 'leer' = nichts getippt, true = uebernommen, false = Fehler gemeldet. */
+      function auFreiUebernehmen() {
+        const text = auEl('au-frei-text').value.trim(), mengeText = auEl('au-frei-menge').value.trim(), menge = Number(mengeText);
+        if (!text && !mengeText) return 'leer';
+        if (!text) { auFehler('Freie Position: Text fehlt (oder Menge leeren).'); auEl('au-frei-text').focus(); return false; }
+        if (!Number.isInteger(menge) || menge < 1 || menge > 9999) { auFehler('Freie Position: Menge 1–9999.'); auEl('au-frei-menge').focus(); return false; }
         auDlg.entwurf.push({ art: 'frei', freitext: text, menge, motiv: '', druck: '', notiz: '' });
         auEl('au-frei-text').value = ''; auEl('au-frei-menge').value = '';
         auFehler('');
         auEntwurfZeichnen();
-      });
+        auPreisSummeZeichnen();
+        return true;
+      }
+      auEl('au-frei-hinzu').addEventListener('click', () => auFreiUebernehmen());
+      for (const id of ['au-frei-text', 'au-frei-menge']) {
+        auEl(id).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); auFreiUebernehmen(); } });   // AMQ1: Enter uebernimmt
+      }
+      /** AMQ1: vor dem Speichern - nichts Getipptes geht still verloren (freie Position, Groessenraster). true = weiter. */
+      function auOffeneEingaben() {
+        if (auFreiUebernehmen() === false) return false;
+        if (!auEl('au-raster-form').hidden && auRasterSumme().positionen.length) return auRasterUebernehmen(false) !== false;
+        return true;
+      }
 
       async function auSpeichern() {
         if (auDlg.laeuft) return;   // Doppelklick: ein Aufruf; beim Anlegen prueft der Server zusaetzlich die Vorgangs-Kennung
         const a = auDlg.auftrag;
         const frei = !a || auFrei(a);
+        if (frei && !auOffeneEingaben()) return;   // AMQ1: angefangene freie Position / Raster uebernehmen, sonst Hinweis
         const kopf = Object.fromEntries(['Kurztitel', 'Kanal', 'Termin', 'Notiz'].map(f => [f, auEl(`au-${f}`).value.trim()]));
+        // AMQ1: Design-Link und Preis-Eingabe (nur wenn die Spalten da sind, sonst wie bisher)
+        if (auZ.daten?.spalten?.designLink !== false) kopf.Design_Link = auEl('au-Design_Link').value.trim();
+        if (auZ.daten?.spalten?.preisEingabe !== false) kopf.Preis_Eingabe = auDlg.eingabe;
+        if (kopf.Design_Link && !/^https:\/\/\S+$/i.test(kopf.Design_Link)) { auFehler('Design-Link: nur https://-Adressen.'); auEl('au-Design_Link').focus(); return; }
         if (frei && !auDlg.kunde?.Kunden_Nr) { auFehler('Erst einen Kunden wählen.'); auEl('au-kunde-suche').focus(); return; }
         if (frei && !kopf.Kurztitel) { auFehler('Kurztitel fehlt.'); auEl('au-Kurztitel').focus(); return; }
-        if (frei && !auDlg.entwurf.length) { auFehler('Mindestens eine Position.'); return; }
         const preisFehler = auPreisePruefen();   // AM-5
         if (preisFehler) { auFehler(preisFehler); return; }
         const preise = auPreisEditierbar() && auZ.daten?.spalten?.preise !== false;
@@ -11215,7 +11343,8 @@
         try {
           const body = !a ? { ...kopf, ...rabatt, Kunden_Nr: auDlg.kunde.Kunden_Nr, status: auEl('au-start').value, vorgang: auDlg.vorgang, positionen: auPositionenAnfrage(auDlg.entwurf) }
             : frei ? { auftragNr: a.Auftrag_Nr, stand: a.Stand, ...kopf, ...rabatt, Kunden_Nr: auDlg.kunde.Kunden_Nr, positionen: auPositionenAnfrage(auDlg.entwurf) }
-            : { auftragNr: a.Auftrag_Nr, stand: a.Stand, Termin: kopf.Termin, Notiz: kopf.Notiz, ...(preise ? { ...rabatt, positionen: auPositionenAnfrage(auDlg.entwurf) } : {}) };   // AM-5: ab "bestellt" nur Preise
+            : { auftragNr: a.Auftrag_Nr, stand: a.Stand, Termin: kopf.Termin, Notiz: kopf.Notiz, ...(kopf.Design_Link !== undefined ? { Design_Link: kopf.Design_Link } : {}),
+              ...(preise ? { ...rabatt, ...(kopf.Preis_Eingabe !== undefined ? { Preis_Eingabe: kopf.Preis_Eingabe } : {}), positionen: auPositionenAnfrage(auDlg.entwurf) } : {}) };   // AM-5: ab "bestellt" nur Preise
           const r = await auPost(a ? 'bearbeiten' : 'neu', body);
           showToast(a ? (r.unveraendert ? `${r.auftragNr}: nichts geändert.` : `${r.auftragNr} gespeichert.`) : `${r.auftragNr} angelegt.`);
           auDialogSchliessen();
@@ -16825,10 +16954,18 @@
       });
 
       // ── SECTION: Settings ──
+      // AMQ1: Feld nie vorbelegen (ein gefuelltes Passwortfeld liess Chrome bei jeder Eingabe "Passwort speichern?" fragen);
+      // gespeichert ist der Schluessel in localStorage, das Feld zeigt nur, ob einer da ist. Speichern = eigenes Formular.
       const keyInput = document.getElementById('api-key');
-      keyInput.value = localStorage.getItem('mc_api_key') || '';
-      document.getElementById('save-key').addEventListener('click', () => {
-        localStorage.setItem('mc_api_key', keyInput.value.trim());
+      const keyPlatzhalter = () => { keyInput.placeholder = localStorage.getItem('mc_api_key') ? 'gespeichert – nur zum Ändern neu eingeben' : 'MC_API_KEY'; };
+      keyPlatzhalter();
+      document.getElementById('api-key-form').addEventListener('submit', e => {
+        e.preventDefault();
+        const neu = keyInput.value.trim();
+        if (!neu) return;
+        localStorage.setItem('mc_api_key', neu);
+        keyInput.value = '';
+        keyPlatzhalter();
         const saved = document.getElementById('key-saved');
         saved.style.display = 'block';
         setTimeout(() => saved.style.display = 'none', 2000);
