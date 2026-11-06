@@ -10,8 +10,8 @@ const mitMeldung = fn => async (req, res, next) => {
   }
 };
 
-// GET /api/dashboard?wer=Christian|Nicole (leer = alle)
-router.get('/', mitMeldung(req => leseDashboard({ wer: String(req.query.wer ?? '') })));
+// GET /api/dashboard?wer=Christian|Nicole (leer = alle)&shop=jfn|honk (Kennzeichen, apiFetch haengt es an)
+router.get('/', mitMeldung(req => leseDashboard({ wer: String(req.query.wer ?? ''), shop: String(req.query.shop ?? '').toLowerCase() })));
 // POST /api/dashboard/hinweis-gelesen { shop, nr, pruef, wer }
 router.post('/hinweis-gelesen', mitMeldung(req => setzeHinweisGelesen({ eingabe: req.body ?? {} })));
 

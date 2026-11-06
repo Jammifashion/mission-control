@@ -83,7 +83,9 @@ const kurz = err => String(err?.message ?? err).slice(0, 160);
  * GET /api/dashboard. wer = 'Christian' | 'Nicole' | '' (alle).
  * Antwort: baueDashboard(...) + `fehlerText` je Quelle (kurz, ohne Kundendaten) + `einrichtung.gelesen`.
  */
-export async function leseDashboard({ wer = '', jetzt = new Date(), sheets: s, wc = {}, quellen = {} } = {}) {
+export async function leseDashboard({ wer = '', shop = '', jetzt = new Date(), sheets: s, wc = {}, quellen = {} } = {}) {
+  // Inhaber 06.11.: nur der Shop aus dem Kennzeichen (?shop=, haengt apiFetch immer an); leer = beide
+  const aktiv = SHOPS.includes(shop) ? [shop] : SHOPS;
   const sheets = s ?? await sheetsClient();
   const fehlerText = {};
   const versuche = async (name, fn) => {
@@ -100,18 +102,18 @@ export async function leseDashboard({ wer = '', jetzt = new Date(), sheets: s, w
   ]);
   const trikotOrderIds = new Set((trikots?.gruppen ?? []).flatMap(g => g.zeilen ?? []).map(z => String(z.orderId ?? '').trim()).filter(Boolean));
   const shops = {};
-  for (const shop of SHOPS) {
-    const roh = await versuche(`shop_${shop}`, () => leseShopRoh(shop, { jetzt, wc: wc[shop] }));
+  for (const sh of aktiv) {
+    const roh = await versuche(`shop_${sh}`, () => leseShopRoh(sh, { jetzt, wc: wc[sh] }));
     if (!roh) continue;
-    const norm = o => shopBestellung(o, shop, { artikel, trikotOrderIds });
+    const norm = o => shopBestellung(o, sh, { artikel, trikotOrderIds });
     const woche = roh.woche.map(norm);
-    shops[shop] = { offen: roh.offen.map(norm), woche, neu: woche };
+    shops[sh] = { offen: roh.offen.map(norm), woche, neu: woche };
   }
   const kundenMap = new Map((kunden?.kunden ?? []).map(k => [k.Kunden_Nr, String(k.Spitzname ?? '').split(';')[0].trim() ? `${k.Name} (${String(k.Spitzname).split(';')[0].trim()})` : k.Name]));
   const gelesen = gelesenAus(gelesenWerte ?? []);
   // "kunden" fehlt -> nur die Kunden-Nr. statt Name, keine Kachel faellt aus; "gelesen" fehlt -> alles gilt als ungelesen
   const quellFehler = Object.fromEntries(Object.keys(fehlerText).filter(k => !['kunden', 'gelesen'].includes(k)).map(k => [k, true]));
-  const d = baueDashboard({ shops, au, kunden: kundenMap, rueckstand, trikots, gelesen, wer, jetzt, fehler: quellFehler });
+  const d = baueDashboard({ shops, shop: aktiv.length === 1 ? aktiv[0] : '', au, kunden: kundenMap, rueckstand, trikots, gelesen, wer, jetzt, fehler: quellFehler });
   return { ...d, fehlerText, einrichtung: { gelesen: gelesenWerte !== null || !!fehlerText.gelesen } };
 }
 

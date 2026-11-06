@@ -1736,7 +1736,7 @@
         </div>
         <div id="hilfe-dashboard" class="hilfe-legende" hidden></div>
         <div id="dash-fehler" class="dash-fehler" hidden></div>
-        <h2 class="dash-abschnitt">Zu tun</h2>
+        <h2 class="dash-abschnitt" id="dash-zutun-titel">Zu tun</h2>
         <div class="dash-kacheln" id="dash-zutun">
           <div class="skeleton" style="height:84px;"></div><div class="skeleton" style="height:84px;"></div><div class="skeleton" style="height:84px;"></div>
         </div>
@@ -4302,7 +4302,8 @@
       }
       /** Abschnitt A "Zu tun": immer alle Kacheln, 0 = ruhig/grau, fehlende Quelle = "–" + Hinweis. */
       function dbKachelnHtml(k = {}) {
-        const fehlt = (x, ziel, name) => (x?.fehlt ? dbKachel(ziel, { zahl: '–', name, unter: dbFehlt(x.fehlt), stufe: 'ruhig' }) : null);
+        const fehlt = (x, ziel, name) => (x?.nurJfn ? dbKachel(ziel, { zahl: '–', name, unter: 'nur JFN', stufe: 'ruhig' })   // Shop HONK gewaehlt
+          : x?.fehlt ? dbKachel(ziel, { zahl: '–', name, unter: dbFehlt(x.fehlt), stufe: 'ruhig' }) : null);
         const h = k.hinweise, l = k.lange, t = k.todos, r = k.rueckstand, w = k.ware, a = k.abholung, tr = k.trikots;
         const todoZahl = t && !t.fehlt ? t.ueberfaellig + t.heute : 0;
         return [
@@ -4390,6 +4391,7 @@
       function dbZeichnen() {
         const d = dbZ.daten;
         if (!d) return;
+        dbEl('dash-zutun-titel').textContent = d.shop ? `Zu tun · ${d.shop === 'honk' ? 'HONK' : 'JFN'}` : 'Zu tun';   // folgt dem Shop-Kennzeichen
         dbEl('dash-zutun').innerHTML = dbKachelnHtml(d.kacheln);
         dbEl('dash-neu').innerHTML = dbNeuHtml(d.neu);
         dbEl('dash-wartend').innerHTML = d.wartend?.fehlt ? `<p class="dash-leer">– ${dbEsc(dbFehlt(d.wartend.fehlt))}</p>` : dbListeHtml(d.wartend?.liste, 'Nichts wartet.');
@@ -6509,7 +6511,7 @@
         'kl-neu':               { name: '+ Neuer Kunde in MC', text: 'Nicht in Lexoffice? Dann den Kunden direkt in MC anlegen.' },
         // DB1: Dashboard
         'dash-wer':             { name: 'Alle · Christian · Nicole', text: 'Zeigt Aufträge, Aufgaben und To-dos nur dieser Person. Shop-Bestellungen bleiben. Gilt nur auf diesem Gerät.' },
-        'dash-k-hinweise':      { name: 'Kundenhinweise', text: 'Offene Bestellungen (JFN + HONK) mit Kundennotiz, die noch niemand gelesen hat. Klick zeigt die Liste.' },
+        'dash-k-hinweise':      { name: 'Kundenhinweise', text: 'Offene Bestellungen des gewählten Shops mit Kundennotiz, die noch niemand gelesen hat. Klick zeigt die Liste.' },
         'dash-k-lange':         { name: 'Wartet lange', text: 'Länger als 7 Tage offen (Shop + Aufträge, ohne Trikots). Ab 14 Tagen rot. Klick zeigt die Liste.' },
         'dash-k-todos':         { name: 'To-dos', text: 'To-dos, die heute fällig oder überfällig sind. Klick öffnet die To-do-Übersicht mit Filter.' },
         'dash-k-rueckstand':    { name: 'L-Shop-Rückstand', text: 'Positionen aus der Rückstandsliste von L-Shop. Rot: in Klärung oder Liste veraltet. Klick öffnet L-Shop-Bestellungen.' },
@@ -6520,8 +6522,8 @@
         'dash-zeile':           { name: 'Öffnen', text: 'Öffnet diese Bestellung bzw. diesen Auftrag.' },
         'dash-au-status':       { name: 'Aufträge nach Status', text: 'Zahl je Status. Klick öffnet Aufträge mit diesem Filter.' },
         'dash-detail-zu':       { name: 'Liste schließen', text: 'Blendet die Liste unter den Kacheln wieder aus.' },
-        'dash-geld':            { name: 'Geld', text: 'Umsatz heute und 7 Tage (beide Shops, ohne Storno). Offen = Wartestellung im Shop + fertige, nicht bezahlte Aufträge.' },
-        'dash-balken':          { name: '7 Tage', text: 'Umsatz je Tag, beide Shops zusammen.' },
+        'dash-geld':            { name: 'Geld', text: 'Umsatz heute und 7 Tage (Shop oben im Kennzeichen, ohne Storno). Offen = Wartestellung + fertige, unbezahlte Aufträge.' },
+        'dash-balken':          { name: '7 Tage', text: 'Umsatz je Tag im gewählten Shop.' },
         'au-design-link':       { name: 'Design-Link', text: 'Link zum Entwurf (z. B. Canva), nur https://. In der Ansicht als „Design öffnen ↗“.' },
         'ap-eingabe':           { name: 'Preise eingeben', text: 'Netto oder brutto eintippen (neu: Privatperson = brutto). Gespeichert wird netto, Summe unten netto · MwSt · brutto.' },
         // AM-2: Aufträge erfassen, Liste, Ansicht

@@ -113,3 +113,13 @@ describe('Aufbau und Verdrahtung', () => {
     for (const r of ['--warning', '--danger', '--info', '--au', '--shop-jfn', '--shop-honk']) expect(css).toContain(`var(${r})`);
   });
 });
+
+describe('Shop aus dem Kennzeichen', () => {
+  test('HONK: Rueckstand und Trikots als "nur JFN"; Ueberschrift zeigt den Shop', () => {
+    const h = F.dbKachelnHtml({ ...kacheln, rueckstand: { nurJfn: true }, trikots: { nurJfn: true } });
+    expect(h).toMatch(/data-dash-ziel="rueckstand"[^>]*><span class="dash-k-zahl">–<\/span>[\s\S]*?nur JFN/);
+    expect(klasse(h, 'trikots')).toBe('dash-k-ruhig');
+    expect(html).toContain("dbEl('dash-zutun-titel').textContent = d.shop ? `Zu tun · ${d.shop === 'honk' ? 'HONK' : 'JFN'}` : 'Zu tun';");
+    expect(html).toMatch(/dashboard: \{ label: 'Dashboard', shop: true,/);   // Kennzeichen wirkt, Wechsel laedt neu
+  });
+});

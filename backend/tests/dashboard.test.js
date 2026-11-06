@@ -241,3 +241,40 @@ describe('lib/dashboard', () => {
     expect(JSON.stringify(tabs)).not.toContain('klingeln');
   });
 });
+
+describe('Shop aus dem Kennzeichen (Inhaber 06.11.)', () => {
+  const b = (id, shop, opt) => shopBestellung(order(id, opt), shop, { artikel });
+  const basis = {
+    shops: { jfn: { offen: [b(1, 'jfn', { tage: 9, note: 'a' })], neu: [b(1, 'jfn', { tage: 0 })], woche: [b(1, 'jfn', { tage: 0, total: '10.00' })] },
+      honk: { offen: [b(2, 'honk', { tage: 20, note: 'b' })], neu: [b(2, 'honk', { tage: 0 })], woche: [b(2, 'honk', { tage: 0, total: '5.00' })] } },
+    au: { auftraege: [{ Auftrag_Nr: 'AU-2026-0001', Status: 'bestellt', Angelegt: '2026-10-01T08:00:00Z', ware: 'bestellt' }], aufgaben: [], todos: [] },
+    rueckstand: { zahlen: { positionen: 1, stueck: 1, kritisch: 0 }, liste: {} }, trikots: { summen: { offen: 2, goalieOffen: 0 } }, jetzt: JETZT,
+  };
+  test('JFN: nur JFN-Bestellungen, Auftraege bleiben', () => {
+    const d = baueDashboard({ ...basis, shop: 'jfn' });
+    expect(d.shop).toBe('jfn');
+    expect(d.kacheln.hinweise.zahl).toBe(1);
+    expect(d.kacheln.lange.liste.map(x => x.nr)).toEqual(['AU-2026-0001', '1']);
+    expect(d.geld.heute).toBe(10);
+    expect(d.kacheln.trikots.nichtBeimProduzenten).toBe(2);
+  });
+  test('HONK: nur HONK, Rueckstand und Trikots "nur JFN", Trikot-Artikel-Fehler stoert HONK nicht', () => {
+    const d = baueDashboard({ ...basis, shop: 'honk', fehler: { trikot_artikel: true } });
+    expect(d.kacheln.hinweise.liste.map(x => x.shop)).toEqual(['honk']);
+    expect(d.neu.filter(x => x.art === 'shop').map(x => x.shop)).toEqual(['honk']);
+    expect(d.geld.heute).toBe(5);
+    expect(d.kacheln.rueckstand).toEqual({ nurJfn: true });
+    expect(d.kacheln.trikots).toEqual({ nurJfn: true });
+    expect(d.kacheln.lange.zahl).toBe(2);
+  });
+  test('Route liest nur den gewaehlten Shop', async () => {
+    _dashboardCacheLeeren();
+    const jfn = wcAttrappe([]), honk = wcAttrappe([order(5, { tage: 1 })]);
+    const quellen = { auftraege: async () => ({ auftraege: [], aufgaben: [], todos: [] }), kunden: async () => ({ kunden: [] }), rueckstand: async () => ({ zahlen: {} }),
+      trikots: async () => ({ summen: {}, gruppen: [] }), trikotArtikel: async () => artikel, gelesen: async () => [KOPF_GELESEN] };
+    const d = await leseDashboard({ shop: 'honk', jetzt: JETZT, sheets: sheetsAttrappe({}), wc: { jfn, honk }, quellen });
+    expect(jfn.aufrufe).toEqual([]);
+    expect(honk.aufrufe).toHaveLength(3);
+    expect(d.shop).toBe('honk');
+  });
+});

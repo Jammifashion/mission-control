@@ -131,12 +131,16 @@ const zust = (x, wer) => !wer || t(x.Zustaendig) === wer;
  * @param {Object<string,{offen:object[],neu:object[],woche:object[]}>} p.shops  normalisierte Bestellungen je Shop
  * @param {{auftraege,aufgaben,todos}|null} p.au
  */
-export function baueDashboard({ shops = {}, au = null, kunden = new Map(), rueckstand = null, trikots = null, gelesen = new Map(), wer = '', jetzt = new Date(), fehler = {} }) {
+export function baueDashboard({ shops = {}, shop = '', au = null, kunden = new Map(), rueckstand = null, trikots = null, gelesen = new Map(), wer = '', jetzt = new Date(), fehler = {} }) {
   wer = WER.includes(wer) ? wer : '';
+  // Inhaber 06.11.: das Dashboard folgt dem Shop-Kennzeichen (JFN oder HONK); ohne Angabe beide (Tests, Auswertung)
+  const AKTIV = SHOPS.includes(shop) ? [shop] : SHOPS;
+  const nurJfn = AKTIV.length === 1 && AKTIV[0] !== 'jfn';   // Rueckstand und Trikots gibt es nur bei JFN
   const fehlt = quellen => quellen.filter(q => fehler[q]);
   const kachel = (quellen, fn) => { const f = fehlt(quellen); return f.length ? { fehlt: f } : fn(); };
-  const SHOPQ = SHOPS.map(s => `shop_${s}`);
-  const offenShop = SHOPS.flatMap(s => shops[s]?.offen ?? []).filter(b => SHOP_OFFEN.includes(b.status));
+  const SHOPQ = AKTIV.map(s => `shop_${s}`);
+  const TRIKOTQ = AKTIV.includes('jfn') ? ['trikot_artikel'] : [];
+  const offenShop = AKTIV.flatMap(s => shops[s]?.offen ?? []).filter(b => SHOP_OFFEN.includes(b.status));
   const auftraege = (au?.auftraege ?? []).filter(a => zust(a, wer));
   const aufgaben = (au?.aufgaben ?? []).filter(g => zust(g, wer));
   const zustJe = new Map([...(au?.auftraege ?? []).map(a => [a.Auftrag_Nr, t(a.Zustaendig)]), ...(au?.aufgaben ?? []).map(g => [g.Aufgabe_Nr, t(g.Zustaendig)])]);
@@ -164,7 +168,7 @@ export function baueDashboard({ shops = {}, au = null, kunden = new Map(), rueck
 
   const jetztMs = jetzt.getTime();
   const neu = [
-    ...SHOPS.flatMap(s => shops[s]?.neu ?? []).filter(b => !ZAEHLT_NICHT.has(b.status)).map(b => ({
+    ...AKTIV.flatMap(s => shops[s]?.neu ?? []).filter(b => !ZAEHLT_NICHT.has(b.status)).map(b => ({
       art: 'shop', shop: b.shop, shopKurz: b.shopKurz, nr: b.nr, id: b.id, kunde: b.kunde, betrag: b.betrag, status: b.status,
       hinweis: !!b.hinweis, abholung: b.versand?.art === 'abholung', zeit: zeitMs(b.datum),
     })),
@@ -176,30 +180,30 @@ export function baueDashboard({ shops = {}, au = null, kunden = new Map(), rueck
   const auStatus = Object.fromEntries(AU_STATUS_ZAHLEN.map(s => [s, auftraege.filter(a => a.Status === s).length]));
   const fertigNichtBezahlt = auftraege.filter(a => ['fertig', 'übergeben'].includes(a.Status) && !t(a.Bezahlt_Am));
   const heuteTag = tagBerlin(jetzt);
-  const woche = SHOPS.flatMap(s => shops[s]?.woche ?? []).filter(b => !ZAEHLT_NICHT.has(b.status));
+  const woche = AKTIV.flatMap(s => shops[s]?.woche ?? []).filter(b => !ZAEHLT_NICHT.has(b.status));
   const tage7 = Array.from({ length: 7 }, (_, i) => { const d = new Date(Date.UTC(+heuteTag.slice(0, 4), +heuteTag.slice(5, 7) - 1, +heuteTag.slice(8, 10) - 6 + i)); return d.toISOString().slice(0, 10); });
   const proTag = tage7.map(tag => ({ tag, betrag: Math.round(woche.filter(b => tagBerlin(b.datum) === tag).reduce((s, b) => s + b.betrag, 0) * 100) / 100 }));
   const runde = x => Math.round(x * 100) / 100;
 
   return {
-    stand: jetzt.toISOString(), wer, fehler: Object.keys(fehler).filter(k => fehler[k]),
+    stand: jetzt.toISOString(), wer, shop: AKTIV.length === 1 ? AKTIV[0] : '', fehler: Object.keys(fehler).filter(k => fehler[k]),
     kacheln: {
       hinweise: kachel(SHOPQ, () => ({ zahl: hinweisListe.length, liste: hinweisListe })),
-      lange: kachel([...SHOPQ, 'auftraege', 'trikot_artikel'], () => ({ zahl: lang.length, aeltester: lang[0]?.tage ?? null, rot: lang.some(x => x.tage > ROT_AB_TAGE), liste: lang })),
+      lange: kachel([...SHOPQ, 'auftraege', ...TRIKOTQ], () => ({ zahl: lang.length, aeltester: lang[0]?.tage ?? null, rot: lang.some(x => x.tage > ROT_AB_TAGE), liste: lang })),
       todos: kachel(['auftraege'], () => {
         const st = todos.map(d => faelligStufe(d.Faellig, jetzt.toISOString()));
         return { ueberfaellig: st.filter(s => s === 'ueberfaellig').length, heute: st.filter(s => s === 'heute').length };
       }),
-      rueckstand: kachel(['rueckstand'], () => ({ ...(rueckstand?.zahlen ?? { positionen: 0, stueck: 0, kritisch: 0 }), veraltet: !!rueckstand?.liste?.veraltet, liste: !!rueckstand?.liste })),
+      rueckstand: nurJfn ? { nurJfn: true } : kachel(['rueckstand'], () => ({ ...(rueckstand?.zahlen ?? { positionen: 0, stueck: 0, kritisch: 0 }), veraltet: !!rueckstand?.liste?.veraltet, liste: !!rueckstand?.liste })),
       ware: kachel(['auftraege'], () => ({ zahl: auftraege.filter(a => a.Status !== 'storniert' && a.Status !== 'bezahlt' && ['offen', 'bestellt'].includes(a.ware)).length })),
       abholung: kachel(SHOPQ, () => ({ zahl: offenShop.filter(b => b.versand?.art === 'abholung').length })),
-      trikots: kachel(['trikots', 'shop_jfn', 'trikot_artikel'], () => ({
+      trikots: nurJfn ? { nurJfn: true } : kachel(['trikots', 'shop_jfn', 'trikot_artikel'], () => ({
         nichtBeimProduzenten: trikots?.summen?.offen ?? 0, goalie: trikots?.summen?.goalieOffen ?? 0,
         ueber6Wochen: offenShop.filter(b => b.trikot && (alterTage(b.datum, jetzt) ?? 0) > TRIKOT_LANGE_TAGE).length,
       })),
     },
     neu: fehlt([...SHOPQ, 'auftraege']).length ? { fehlt: fehlt([...SHOPQ, 'auftraege']) } : neu,
-    wartend: kachel([...SHOPQ, 'auftraege', 'trikot_artikel'], () => ({ liste: wartend.slice(0, WARTEND_TOP) })),
+    wartend: kachel([...SHOPQ, 'auftraege', ...TRIKOTQ], () => ({ liste: wartend.slice(0, WARTEND_TOP) })),
     auftraege: kachel(['auftraege'], () => ({
       ...auStatus, fertigNichtBezahlt: fertigNichtBezahlt.length,
       // aus der alten Aufträge-Kachel (AMQ1), damit nichts verloren geht

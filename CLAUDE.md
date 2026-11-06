@@ -56,7 +56,8 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   darueber bis 720 px Kurznamen in einer Zeile, am Desktop Langnamen.
 - Stand-Anzeige
 - Helpers (darin: Dashboard DB1, Block `Dashboard-Anzeige: Anfang/Ende` (Test dashboard-frontend.test.js): EINE Route
-  `GET /api/dashboard?wer=` (lib/dashboard.js, Logik utils/dashboard.js, Test dashboard.test.js) - oben "Zu tun" (7 Kacheln, immer
+  `GET /api/dashboard?wer=&shop=` (folgt dem Shop-Kennzeichen, Inhaber 06.11.: nur dieser Shop wird gelesen und gezaehlt, Auftraege
+  immer; Rueckstand/Trikots bei HONK "nur JFN"; lib/dashboard.js, Logik utils/dashboard.js, Test dashboard.test.js) - oben "Zu tun" (7 Kacheln, immer
   sichtbar, 0 grau, fehlende Quelle = "–"), "Neu 24 h", "Am längsten wartend", "Eigene Aufträge", "Geld". Wartet lange = > 7
   Kalendertage Berlin (rot > 14), Shop + Aufträge vor "fertig", OHNE jede JFN-Bestellung mit Trikot-Position (Trikot_Artikel wie
   der Sync + Order-ID im Reiter Trikots). Kundenhinweis "gelesen" fuer alle: Reiter `Hinweis_Gelesen` (nur Shop, Nr, Pruefsumme,
