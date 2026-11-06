@@ -942,7 +942,8 @@
       .ps-bedienung { margin-bottom: 0.6rem; }
       /* BS2: Versandart an der Karte (Abholung hervorgehoben, Versand dezent) + Filter Status/Versandart */
       .ps-versand { display: inline-block; padding: 0 0.4rem; border-radius: 4px; font-size: 0.74rem; line-height: 1.6; border: 1px solid var(--border); color: var(--muted); }
-      .ps-versand-abholung { border-color: var(--accent); color: var(--accent); font-weight: 700; background: rgba(232, 196, 74, 0.12); }
+      /* BS2-1 (Inhaber 06.11.): Abholung violett - faellt auf, kommt in der Bestelluebersicht nicht vor (dort Gold/Rot/Grau) */
+      .ps-versand-abholung { border-color: #a184ec; color: #d4c2ff; font-weight: 700; background: rgba(140, 90, 230, 0.28); }
       .ps-filter-zeile { display: flex; flex-wrap: wrap; gap: 0.4rem 0.8rem; align-items: center; margin-top: 0.45rem; }
       @media (max-width: 600px) {
         /* BS2: Filter als kleine Kacheln (Stil NAV5), umbrechen statt seitlich hinaus */
@@ -995,6 +996,7 @@
       .badge-completed  { background: #1a4a2e; color: var(--success); }
       .badge-pending    { background: #4a3a10; color: var(--accent); }
       .badge-cancelled  { background: #3a1a1a; color: var(--danger); }
+      .badge-on-hold    { background: rgba(224, 82, 82, 0.16); color: var(--danger); border: 1px solid var(--danger); }   /* BS2-1: Wartestellung rot */
       .badge-ready      { background: #1a4a2e; color: var(--success); }
       .badge-idle       { background: #2a2a2a; color: var(--muted); }
 
@@ -4112,7 +4114,7 @@
 
       // ── SECTION: Helpers ──
       function statusBadge(s) {
-        const map = { processing: 'In Bearbeitung', completed: 'Abgeschlossen', pending: 'Wartend', cancelled: 'Storniert' };
+        const map = { processing: 'In Bearbeitung', completed: 'Abgeschlossen', pending: 'Wartend', cancelled: 'Storniert', 'on-hold': 'In Wartestellung' };
         return `<span class="badge badge-${s}">${map[s] || s}</span>`;
       }
 

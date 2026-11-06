@@ -80,6 +80,19 @@ describe('Filter und Zaehler', () => {
   });
 });
 
+describe('Farben (BS2-1, Inhaber 06.11.)', () => {
+  const regel = sel => html.slice(html.indexOf(sel), html.indexOf('\n', html.indexOf(sel)));
+  test('Abholung violett, nicht Gold/Rot (Bestelluebersicht nutzt Gold/Rot/Grau)', () => {
+    const r = regel('.ps-versand-abholung {');
+    expect(r).toContain('#a184ec');
+    expect(r).not.toMatch(/accent|danger/);
+  });
+  test('Status "on-hold" rot mit deutschem Text', () => {
+    expect(regel('.badge-on-hold')).toContain('color: var(--danger)');
+    expect(html).toContain("'on-hold': 'In Wartestellung' }");
+  });
+});
+
 describe('Einbindung', () => {
   test('Kennzeichen an jeder Karte (je Shop), Filter-Knoepfe mit Mouse-over, Wahl nur als Schalterwert gespeichert', () => {
     expect(html).toContain('${psVersandHtml(psVersandArt(o, currentShop()))}');
