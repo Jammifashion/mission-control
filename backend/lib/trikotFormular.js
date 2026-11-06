@@ -68,6 +68,7 @@ function gewaehlte(zeilen, auswahl) {
     const z = nachZeile.get(Number(a?.zeile));
     if (!z || z.id !== String(a?.id ?? '').trim()) { probleme.push({ zeile: a?.zeile, text: `Zeile ${a?.zeile} hat sich geändert – bitte neu laden.` }); continue; }
     if (z.charge) { probleme.push({ zeile: z.zeile, text: `Zeile ${z.zeile} ist schon in Bestellung ${z.charge}.` }); continue; }
+    if (z.status.toLowerCase() === 'storniert') { probleme.push({ zeile: z.zeile, text: `Zeile ${z.zeile} ist entfernt (storniert).` }); continue; }   // TR6
     gew.push(z);
   }
   return { gew, probleme };

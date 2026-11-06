@@ -16,6 +16,8 @@ import { requireHeader, findHeader } from './sheet-headers.js';
 export const TAB_TRIKOTS = 'Trikots';
 export const STATUS_GELIEFERT = 'ok';
 export const STATUS_ERSETZT = 'ersetzt';
+// TR6: interne Bestellung in MC entfernt (nie Zeile loeschen) - steht in keiner Gruppe, nur unter "entfernt".
+export const STATUS_STORNIERT = 'storniert';
 
 export const TRIKOT_ANSICHT_SPALTEN = {
   id: 'Zeilen-ID', orderId: 'Order-ID', produkt: 'Produktname', groesse: 'Groesse', name: 'Name',
@@ -45,7 +47,7 @@ export function produktKurz(name) {
 
 /** Rohtext -> [{ feld, wert }]; "(keine Meta-Daten …)" und leere Zeilen fallen weg. */
 export function kundenangabe(rohtext) {
-  return t(rohtext).split('\n').map(l => l.trim()).filter(l => l && !/^\(keine Meta-Daten/.test(l)).map(l => {
+  return t(rohtext).split('\n').map(l => l.trim()).filter(l => l && !/^\(keine Meta-Daten/.test(l) && !/^MC-Vorgang:/.test(l)).map(l => {
     const p = l.indexOf(':');
     return p > 0 ? { feld: l.slice(0, p).trim(), wert: l.slice(p + 1).trim() } : { feld: '', wert: l };
   });
@@ -76,6 +78,7 @@ export function trikotZeilen(values) {
       groesse: w('groesse'), name: w('name'), nummer: w('nummer'), quelle: w('quelle'), kundenangabe: kundenangabe(w('rohtext')),
       charge: w('charge'), bestelltAm: w('bestelltAm'), geliefertAm: w('geliefertAm'), status: w('status'), notiz: w('notiz'),
       ersetzt: iErsetzt >= 0 ? t(r[iErsetzt]) : '',
+      referenz: (t(w('rohtext')).split('\n').find(l => l.startsWith('Referenz:')) ?? '').slice(9).trim(),   // TR6: interne Bestellung
     });
   });
   return { zeilen, spalteErsetzt: iErsetzt >= 0 };
@@ -130,9 +133,16 @@ export function baueTrikotAnsicht({ zeilen, spalteErsetzt }) {
     x.bestellungKomplett = !!x.orderId && zaehlen.length > 0 && zaehlen.every(t => t.kundeFertig);
   }
 
-  const offen = z.filter(x => !x.charge);
+  // TR6: interne Zeilen (INT-…, Quelle intern) ohne Charge sind in MC aenderbar; stornierte stehen nur unter "entfernt".
+  for (const x of z) {
+    x.storniert = x.status.toLowerCase() === STATUS_STORNIERT;
+    x.intern = /^INT-\d{4}-\d{4}$/.test(x.id) && x.quelle === 'intern';
+    x.bearbeitbar = x.intern && !x.charge && !x.storniert;
+  }
+  const aktiv = z.filter(x => !x.storniert);
+  const offen = aktiv.filter(x => !x.charge);
   const jeCharge = new Map();
-  for (const x of z.filter(x => x.charge)) {
+  for (const x of aktiv.filter(x => x.charge)) {
     if (!jeCharge.has(x.charge)) jeCharge.set(x.charge, []);
     jeCharge.get(x.charge).push(x);
   }
@@ -149,13 +159,15 @@ export function baueTrikotAnsicht({ zeilen, spalteErsetzt }) {
       zeilen: zs,
     });
   }
+  const entfernt = z.filter(x => x.storniert);
+  if (entfernt.length) gruppen.push({ charge: '', offen: false, storniert: true, anzahl: entfernt.length, da: 0, bestelltAm: [], hinweise: [], zeilen: entfernt });
   return {
     spalteErsetzt,
     gruppen,
-    bestellungen: bestellungStand(z),
+    bestellungen: bestellungStand(aktiv),
     summen: {
-      zeilen: z.length, offen: offen.length, chargen: jeCharge.size,
-      da: z.filter(x => x.da).length, hinweise: z.filter(x => x.hinweise.length).length,
+      zeilen: aktiv.length, offen: offen.length, chargen: jeCharge.size, entfernt: entfernt.length,
+      da: aktiv.filter(x => x.da).length, hinweise: aktiv.filter(x => x.hinweise.length).length,
     },
   };
 }

@@ -95,7 +95,13 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   TR5: Gruppenkopf "bestellt TT.MM.JJJJ · seit X Wochen" (`trSeit`), KEIN errechnetes Lieferdatum (Inhaber: 4-6 Wochen je
   Auslastung). Kennzeichen auf der Karte in "Bestellungen (JFN)": `trKarteText`/`trKarteHtml` aus `bestellungen` der
   Trikot-Antwort (nur JFN, Laden still neben dem Stand, `psZustand.trikots`); Klick = `trSpringeZu` + Trikot-Ansicht,
-  Zeilen der Order-ID markiert, Karte nie aufgeklappt.)
+  Zeilen der Order-ID markiert, Karte nie aufgeklappt.
+  TR6: Knopf "+ Interne Trikotbestellung" (Dialog `#ti-dialog`, je Trikot eine Zeile, "+ weiteres Trikot", Referenz AU-… per Trefferliste
+  oder Freitext) -> `lib/trikotIntern.js` / `utils/trikot-intern.js`: MC vergibt INT-JJJJ-NNNN (hoechste des Jahres + 1, auch gegen
+  Handzeilen), Zeilen wie TK1 (Quelle intern, Bestelldatum Text, Stueck 1, P-T und Zahlart leer), Referenz/Notiz/`MC-Vorgang:` im Rohtext
+  (Doppelklick; die Ansicht blendet den Vorgang aus). "ändern …"/"entfernen" nur bei INT + intern + ohne Charge; entfernen = Status
+  `storniert` (Zeile bleibt) -> eigene, eingeklappte Gruppe "entfernt", nie im Formular (TR3 lehnt ab) oder in Zaehlern. Auftragsansicht:
+  `#au-d-trikots` "n Trikots (Trikot-Seite)" ueber `referenz` (nur lesen). UI-Code am Ende der Trikot-Sektion (nicht im Lese-Teil).)
 - Lager (BO5-1: Bereich `lager`, Unterpunkte `lager/bestand` und `lager/buchungen` im Panel `#panel-lager`, geladen ueber
   `mc:ansicht`; Block `Lager-Anzeige: Anfang/Ende` (Test lager-frontend.test.js, braucht grSortiere/grRang); Dialog
   `#lager-dialog` Einbuchen (Haken "Zählung / Startbestand" = Aktion start) · Ausbuchen · Umlagern · Korrektur (gezaehlt);

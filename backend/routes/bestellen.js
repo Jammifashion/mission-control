@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { internAuswahl, legeInterneTrikotsAn, aendereInternesTrikot } from '../lib/trikotIntern.js';
 import {
   runKorbAbgleich, leseKorb, setzeStatus, sucheLShopModelle, lshopModellVarianten, legeEigenePositionAn, legeEigenePositionenAn,
   bearbeiteEigenePosition,
@@ -273,6 +274,33 @@ router.get('/trikots', async (req, res, next) => {
 // ── POST /api/bestellen/trikots/wareneingang  (TR4) ─────────────────────────
 // Body { richtung: 'setzen'|'zurueck', auswahl: [{ id, zeile, geliefertAm }] }. Haken "da": NUR Status (S) = ok
 // und Geliefert_Am (R) = heute bei leeren Zellen; zurueck nur beim gesehenen Haken-Stand. 409 + probleme, nichts geschrieben.
+// ── TR6: interne Trikotbestellung (INT-…) ─────────────────────────────────────
+// GET /trikots/intern/auswahl; POST /trikots/intern { trikots:[{produktId, groesse, name, nummer, notiz}], referenz, vorgang };
+// POST /trikots/intern/aendern { id, zeile, trikot }; POST /trikots/intern/entfernen { id, zeile } (Status storniert).
+// Log nur Zeilen-IDs, nie Rueckennamen oder Referenz.
+const internMeldung = fn => async (req, res, next) => {
+  try { res.json(await fn(req)); } catch (err) {
+    if ([404, 409, 422, 502, 503].includes(err?.status)) return res.status(err.status).json({ error: err.message, code: err.code });
+    next(err);
+  }
+};
+router.get('/trikots/intern/auswahl', internMeldung(() => internAuswahl()));
+router.post('/trikots/intern', internMeldung(async req => {
+  const r = await legeInterneTrikotsAn({ trikots: req.body?.trikots, referenz: req.body?.referenz, vorgang: req.body?.vorgang });
+  if (!r.schon) console.log(`Trikots intern angelegt: ${r.ids.join(', ')}`);
+  return r;
+}));
+router.post('/trikots/intern/aendern', internMeldung(async req => {
+  const r = await aendereInternesTrikot({ aktion: 'aendern', ziel: { id: req.body?.id, zeile: req.body?.zeile }, trikot: req.body?.trikot });
+  if (!r.unveraendert) console.log(`Trikot intern geändert: ${r.id}`);
+  return r;
+}));
+router.post('/trikots/intern/entfernen', internMeldung(async req => {
+  const r = await aendereInternesTrikot({ aktion: 'entfernen', ziel: { id: req.body?.id, zeile: req.body?.zeile } });
+  if (!r.unveraendert) console.log(`Trikot intern entfernt (storniert): ${r.id}`);
+  return r;
+}));
+
 router.post('/trikots/wareneingang', async (req, res, next) => {
   try {
     res.json(await trikotWareneingang({ richtung: req.body?.richtung, auswahl: req.body?.auswahl }));

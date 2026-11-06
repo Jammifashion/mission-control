@@ -795,6 +795,17 @@
       .tr-formular-kopf td { text-align: left; border: none; padding: 0.05rem 0.35rem; }
       .tr-formular tr.tr-gelb td { color: var(--warning, #d4a017); }
       .tr-formular-wrap { overflow-x: auto; }
+      /* TR6: interne Trikotbestellung */
+      #ti-dialog [hidden] { display: none !important; }
+      .ti-zeile { display: grid; grid-template-columns: 1.3fr 0.8fr 1.4fr 0.6fr 1.4fr auto; gap: 0.35rem; align-items: center; margin-bottom: 0.4rem; }
+      .ti-zeile .form-input, .ti-zeile .form-select { min-width: 0; width: 100%; }
+      .ti-kopf { font-size: 0.75rem; color: var(--muted); }
+      .tr-intern-knoepfe { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+      .tr-gruppe-entfernt { opacity: 0.75; }
+      @media (max-width: 600px) {
+        .ti-zeile { grid-template-columns: 1fr 1fr; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border); }
+        .ti-kopf { display: none; }
+      }
       #tr-eintragen[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
       #tr-vorschau p { font-size: 0.82rem; margin: 0.3rem 0; }
       .we-zeile { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
@@ -1994,14 +2005,40 @@
               <span id="tr-summe">Trikots (JFN)</span>
             </div>
             <div class="korb-bedienung">
-              <div class="korb-ansicht"><span class="field-note">Nur Anzeige – geändert wird im Sheet.</span></div>
+              <div class="korb-ansicht"><span class="field-note">Interne Trikots erfasst und ändert MC, alles andere das Sheet.</span></div>
               <div class="korb-aktionen">
+                <button type="button" class="korb-aktion korb-aktion-ruhig" id="ti-neu" data-hilfe="ti-neu">+ Interne Trikotbestellung</button>
                 <button type="button" class="korb-aktion korb-aktion-haupt" id="tr-formular-oeffnen" data-hilfe="tr-formular">Produzenten-Bestellung …</button>
                 <button class="hilfe-i" type="button" data-hilfe-gruppe="trikots" aria-controls="hilfe-trikots" aria-expanded="false" aria-label="Was bedeutet die Anzeige?">ⓘ</button>
               </div>
             </div>
             <div id="hilfe-trikots" class="hilfe-legende" hidden></div>
             <div id="tr-liste"><div class="skeleton"></div></div>
+          </div>
+        </div>
+
+        <!-- TR6: interne Trikotbestellung - je Trikot eine Zeile, Referenz einmal; MC vergibt die INT-Nummer -->
+        <div id="ti-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="ti-titel" hidden>
+          <div class="edi-box">
+            <div class="edi-kopf">
+              <strong id="ti-titel">Interne Trikotbestellung</strong>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="trikots" aria-controls="hilfe-ti-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+              <button type="button" class="korb-link" id="ti-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
+            </div>
+            <div id="hilfe-ti-dialog" class="hilfe-legende" hidden></div>
+            <div id="ti-referenz-block">
+              <label data-hilfe="ti-referenz" tabindex="0">Referenz (Auftrag AU-… oder kurz, keine Personennamen)</label>
+              <input id="ti-referenz" type="text" class="form-input" maxlength="80" autocomplete="off" placeholder="z. B. AU-2026-0003 oder Vereinsfeier" aria-label="Referenz" />
+              <div id="ti-referenz-treffer" class="tw-box" hidden></div>
+            </div>
+            <div class="ti-zeile ti-kopf" aria-hidden="true"><span>Trikot</span><span>Größe</span><span>Name</span><span>Nr.</span><span>Notiz</span><span></span></div>
+            <div id="ti-zeilen"></div>
+            <button type="button" class="korb-link" id="ti-plus" data-hilfe="ti-plus">+ weiteres Trikot</button>
+            <div id="ti-fehler" class="lager-warnung" hidden></div>
+            <div class="korb-reihe ku-knoepfe">
+              <button type="button" class="korb-aktion korb-aktion-haupt" id="ti-speichern" data-hilfe="ti-speichern">Speichern</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="ti-abbrechen" data-hilfe="dialog-abbrechen">Abbrechen</button>
+            </div>
           </div>
         </div>
 
@@ -3153,6 +3190,7 @@
             <div id="au-d-pos"></div>
             <div id="au-d-preise"></div>
             <div class="korb-reihe ku-knoepfe"><button type="button" class="korb-aktion korb-aktion-ruhig" id="au-angebot-neu" data-hilfe="ap-angebot-neu" hidden>Angebotsstand aktualisieren</button></div>
+            <div id="au-d-trikots"></div>
             <div id="au-d-aufgaben" class="td-block-zusatz"></div>
             <div id="au-d-todos"></div>
           </div>
@@ -5956,6 +5994,16 @@
         'bei-ankunft-lager':    { name: 'davon ins Lager', text: 'Diese eigene Position soll bei Ankunft ins Lager. Haken weg = diesmal nicht einbuchen.' },
         'lager-ziel-aendern':   { name: '→ Lager / + bei Ankunft ins Lager', text: 'Eigene Position bei Ankunft gleich ins Lager buchen – Ort ändern oder entfernen, bis die Ware da ist.' },
         'eigen-lager':          { name: 'bei Ankunft ins Lager', text: 'Ware für den Vorrat: kommt sie an, bucht der Wareneingang sie gleich ins Lager.' },
+        'ti-neu':               { name: '+ Interne Trikotbestellung', text: 'Trikots außerhalb des Shops erfassen (Verein, Telefon). MC vergibt die INT-Nummer, Produzent wie gewohnt.' },
+        'ti-plus':              { name: '+ weiteres Trikot', text: 'Noch eine Zeile im selben Dialog – je Trikot eine Zeile.' },
+        'ti-zeile-weg':         { name: '✕', text: 'Nimmt diese Zeile aus dem Dialog. Gespeichert war sie noch nicht.' },
+        'ti-referenz':          { name: 'Referenz', text: 'Auftragsnummer AU-… aus der Liste oder ein kurzer Freitext – keine Personennamen.' },
+        'ti-speichern':         { name: 'Speichern', text: 'Legt die Trikots an (noch nicht beim Produzenten) bzw. speichert die Änderung.' },
+        'ti-aendern':           { name: 'ändern …', text: 'Größe, Name, Nummer, Trikot oder Notiz ändern – geht nur, solange es nicht beim Produzenten ist.' },
+        'ti-entfernen':         { name: 'entfernen', text: 'Nimmt das Trikot heraus (Status „storniert“, die Zeile bleibt im Sheet). Nur vor der Produzenten-Bestellung.' },
+        'ti-entfernt':          { name: 'entfernt', text: 'In MC entfernte interne Trikots. Diese gehen nicht zum Produzenten und zählen nirgends mit.' },
+        'ti-auftrag':           { name: 'Auftrag', text: 'Öffnet den Auftrag, zu dem diese Trikots gehören.' },
+        'ti-im-auftrag':        { name: 'Trikots', text: 'Interne Trikots mit dieser Auftragsnummer. Klick öffnet die Trikot-Seite.' },
         'trikot-ins-lager':     { name: 'falsches Trikot ins Lager …', text: 'Das ersetzte Trikot liegt hier: als 1 Stück ins Lager buchen. Der Rückenname wird nie übernommen.' },
         'lager-retoure-bestellung': { name: 'Retoure: Bestellung', text: 'Pflicht: Shop (JFN oder HONK) und Bestellnummer. Mission Control liest die Bestellung nur, im Shop ändert sich nichts.' },
         'lager-retoure-laden':  { name: 'Positionen laden', text: 'Holt die Positionen als Vorschlag. Zurück geht höchstens, was bestellt und noch nicht zurückgebucht ist.' },
@@ -6120,7 +6168,7 @@
         bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-mehr', 'bei-ankunft-lager', 'lager-ziel-aendern', 'eb-gesperrt-bestellt', 'eb-gesperrt-geliefert', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'ps-suche', 'ps-suche-weg', 'ps-grenze', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
-        trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager'],
+        trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
         auftraege: ['ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'dash-auftraege', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'dash-offen', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern'],
@@ -8315,6 +8363,7 @@
       const trEsc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
       const trIstSync = id => /^\d+\|\d+\|\d+$/.test(String(id ?? ''));
       function trStatusHtml(z) {
+        if (z.storniert) return '<span class="lb-status" data-hilfe="ti-entfernt">entfernt</span>';   // TR6
         if (z.geliefert) return '<span class="lb-status lb-st-geliefert">da</span>';
         if (z.ersetztStatus) return `<span class="lb-status" data-hilfe="tr-ersetzt">ersetzt${z.kundeFertig ? ' · Ersatz da' : ''}</span>`;
         if (z.status) return `<span class="lb-status">${trEsc(z.status)}</span>`;
@@ -8357,10 +8406,24 @@
           // BO5-4: das ersetzte (falsche) Trikot liegt hier - ins Lager buchen; der Reiter Trikots bleibt unveraendert.
           + (String(z.status ?? '').toLowerCase() === 'ersetzt' ? `<div><button type="button" class="korb-link" data-tr-lager="${z.zeile}" data-id="${trEsc(z.id)}" data-hilfe="trikot-ins-lager">falsches Trikot ins Lager …</button></div>` : '')
           + (z.notiz ? `<div>Notiz: ${trEsc(z.notiz)}</div>` : '')
+          + trInternHtml(z)
           + (andere.length ? `<div class="tr-hinweis">${andere.map(h => trEsc(TR_HINWEISE[h] ?? h)).join(' · ')}</div>` : '')
           + trAngabeHtml(z) + '</div>';
       }
+      /** TR6: interne Bestellung - Referenz (AU-… als Link), solange ohne Charge: ändern / entfernen. */
+      function trInternHtml(z) {
+        const ref = !z.referenz ? '' : /^AU-\d{4}-\d{4}$/.test(z.referenz)
+          ? `<button type="button" class="korb-link" data-tr-au="${trEsc(z.referenz)}" data-hilfe="ti-auftrag">Auftrag ${trEsc(z.referenz)}</button>`
+          : `<span>Referenz: ${trEsc(z.referenz)}</span>`;
+        const knoepfe = z.bearbeitbar ? `<button type="button" class="korb-link" data-ti-aendern="${z.zeile}" data-id="${trEsc(z.id)}" data-hilfe="ti-aendern">ändern …</button>`
+          + `<button type="button" class="korb-link ku-gefahr" data-ti-weg="${z.zeile}" data-id="${trEsc(z.id)}" data-hilfe="ti-entfernen">entfernen</button>` : '';
+        return ref || knoepfe ? `<div class="tr-intern-knoepfe">${ref}${knoepfe}</div>` : '';
+      }
       function trGruppeHtml(g) {
+        if (g.storniert) {   // TR6: entfernte interne Trikots - eingeklappt, nur zum Nachsehen
+          return `<details class="tr-gruppe tr-gruppe-entfernt" data-charge=""><summary><strong data-hilfe="ti-entfernt">entfernt</strong><span>${g.anzahl} Trikot${g.anzahl === 1 ? '' : 's'}</span></summary>`
+            + `<div class="tr-zeilen">${g.zeilen.map(trZeileHtml).join('')}</div></details>`;
+        }
         const titel = g.offen ? 'noch nicht beim Produzenten' : `Bestellung ${trEsc(g.charge)}`;
         const teile = g.offen ? [`${g.anzahl} Trikot${g.anzahl === 1 ? '' : 's'}`]
           : [`<span data-hilfe="tr-da">${g.da} von ${g.anzahl} da</span>`,
@@ -8635,6 +8698,124 @@
         const ok = await showConfirm('Alle als da buchen', `<strong>${zeilen.length} Trikot${zeilen.length === 1 ? '' : 's'}</strong> von Bestellung <strong>${trEsc(g.charge)}</strong> als angekommen buchen?`, 'Buchen');
         if (!ok) return;
         await trWeBuchen('setzen', zeilen.map(z => ({ id: z.id, zeile: z.zeile, geliefertAm: '' })));
+      });
+
+      // ── TR6: interne Trikotbestellung (INT-…) ──
+      // Auswahl (Heim/Auswaerts, Groessen) einmal geladen; Speichern = ein Aufruf, danach neu geladen. Rueckennamen und Referenz
+      // bleiben im Dialog bzw. im Sheet - nie in Adresse, Browser-Speicher oder Toast.
+      const tiZ = { auswahl: null, zeilen: [], aendern: null, vorgang: '', laeuft: false };
+      const tiEl = id => document.getElementById(id);
+      /** Ein Dialog-Trikot -> Zeile (Selects und Felder; i = Index im Dialog). */
+      function tiZeileHtml(t, i, auswahl, { einzeln = false } = {}) {
+        const opt = (wert, text, sel) => `<option value="${trEsc(wert)}"${sel ? ' selected' : ''}>${trEsc(text)}</option>`;
+        const produkte = (auswahl?.produkte ?? []).map(p => opt(p.produktId, p.kurz || p.name, p.produktId === t.produktId)).join('');
+        const gr = auswahl?.groessen ?? { kinder: [], erwachsene: [] };
+        const groessen = `<option value="">Größe …</option><optgroup label="Kinder (cm)">${gr.kinder.map(g => opt(g, g, g === t.groesse)).join('')}</optgroup>`
+          + `<optgroup label="Erwachsene">${gr.erwachsene.map(g => opt(g, g, g === t.groesse)).join('')}</optgroup>`;
+        return `<div class="ti-zeile" data-ti-i="${i}">`
+          + `<select class="form-select" data-ti-feld="produktId" aria-label="Trikot">${produkte}</select>`
+          + `<select class="form-select" data-ti-feld="groesse" aria-label="Größe">${groessen}</select>`
+          + `<input type="text" class="form-input" maxlength="30" data-ti-feld="name" value="${trEsc(t.name)}" placeholder="Name" aria-label="Name auf dem Rücken" />`
+          + `<input type="text" class="form-input" maxlength="3" inputmode="numeric" data-ti-feld="nummer" value="${trEsc(t.nummer)}" placeholder="Nr." aria-label="Nummer" />`
+          + `<input type="text" class="form-input" maxlength="200" data-ti-feld="notiz" value="${trEsc(t.notiz)}" placeholder="Notiz" aria-label="Notiz" />`
+          + (einzeln ? '<span></span>' : `<button type="button" class="korb-link" data-ti-zeile-weg="${i}" data-hilfe="ti-zeile-weg" aria-label="Zeile entfernen">✕</button>`)
+          + '</div>';
+      }
+      const tiLeer = () => ({ produktId: tiZ.auswahl?.produkte?.[0]?.produktId ?? '', groesse: '', name: '', nummer: '', notiz: '' });
+      function tiZeichnen() {
+        tiEl('ti-zeilen').innerHTML = tiZ.zeilen.map((t, i) => tiZeileHtml(t, i, tiZ.auswahl, { einzeln: !!tiZ.aendern })).join('');
+        tiEl('ti-plus').hidden = !!tiZ.aendern;
+        tiEl('ti-referenz-block').hidden = !!tiZ.aendern;
+      }
+      function tiFehler(text) { tiEl('ti-fehler').textContent = text ?? ''; tiEl('ti-fehler').hidden = !text; }
+      async function tiOeffnen(aendern = null) {
+        tiFehler('');
+        if (!tiZ.auswahl) {
+          try { tiZ.auswahl = await apiJson(await apiFetch(`${API_BASE()}/api/bestellen/trikots/intern/auswahl`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) })); }
+          catch (e) { showToast(`Trikot-Auswahl nicht geladen: ${e.message}`, 'error'); return; }
+        }
+        tiZ.aendern = aendern;
+        tiZ.vorgang = globalThis.crypto?.randomUUID?.() ?? `ti-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
+        tiZ.zeilen = aendern ? [{ produktId: (tiZ.auswahl.produkte.find(p => p.name === aendern.produkt) ?? tiZ.auswahl.produkte[0])?.produktId ?? '',
+          groesse: aendern.groesse, name: aendern.name, nummer: aendern.nummer, notiz: (aendern.kundenangabe ?? []).find(a => a.feld === 'Notiz')?.wert ?? '' }] : [tiLeer()];
+        tiEl('ti-titel').textContent = aendern ? `${aendern.id} ändern` : 'Interne Trikotbestellung';
+        tiEl('ti-referenz').value = '';
+        tiZeichnen();
+        tiEl('ti-dialog').hidden = false;
+        (aendern ? tiEl('ti-zeilen').querySelector('select') : tiEl('ti-referenz')).focus();
+      }
+      const tiSchliessen = () => { tiEl('ti-dialog').hidden = true; };
+      tiEl('ti-neu')?.addEventListener('click', () => tiOeffnen());
+      tiEl('ti-plus').addEventListener('click', () => {
+        const letzte = tiZ.zeilen.at(-1);
+        tiZ.zeilen.push({ ...tiLeer(), produktId: letzte?.produktId ?? tiLeer().produktId });   // gleiches Trikot wie davor
+        tiZeichnen();
+        tiEl('ti-zeilen').lastElementChild?.querySelector('[data-ti-feld="groesse"]')?.focus();
+      });
+      tiEl('ti-zeilen').addEventListener('input', e => {
+        const f = e.target.closest('[data-ti-feld]');
+        if (f) tiZ.zeilen[Number(f.closest('[data-ti-i]').dataset.tiI)][f.dataset.tiFeld] = f.value;
+      });
+      tiEl('ti-zeilen').addEventListener('change', e => {
+        const f = e.target.closest('[data-ti-feld]');
+        if (f) tiZ.zeilen[Number(f.closest('[data-ti-i]').dataset.tiI)][f.dataset.tiFeld] = f.value;
+      });
+      tiEl('ti-zeilen').addEventListener('click', e => {
+        const b = e.target.closest('[data-ti-zeile-weg]');
+        if (!b) return;
+        tiZ.zeilen.splice(Number(b.dataset.tiZeileWeg), 1);
+        if (!tiZ.zeilen.length) tiZ.zeilen.push(tiLeer());
+        tiZeichnen();
+      });
+      // Referenz: Auftraege als Trefferliste (Nummer/Titel), sonst Freitext.
+      const tiRefTw = twBinden(tiEl('ti-referenz'), tiEl('ti-referenz-treffer'), e => { tiEl('ti-referenz').value = e.nr; });
+      tiEl('ti-referenz').addEventListener('input', async () => {
+        const q = tiEl('ti-referenz').value.trim();
+        if (q.length < 2) { tiRefTw.zu(); return; }
+        if (!auZ.daten) await loadAuftraege();
+        const t = auFiltern(auZ.daten?.auftraege ?? [], kuZ.kunden, { filter: 'offen', suche: q }).slice(0, 15)
+          .map(a => ({ haupt: `${a.Auftrag_Nr} · ${a.Kurztitel}`, rechts: a.Status, nr: a.Auftrag_Nr }));
+        if (t.length) tiRefTw.zeigen(t); else tiRefTw.zu();
+      });
+      tiEl('ti-speichern').addEventListener('click', async () => {
+        if (tiZ.laeuft) return;
+        const ohne = tiZ.zeilen.findIndex(t => !t.groesse);
+        if (ohne >= 0) { tiFehler(`Trikot ${ohne + 1}: Größe fehlt.`); return; }
+        tiZ.laeuft = true; tiEl('ti-speichern').disabled = true;
+        try {
+          const a = tiZ.aendern;
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/trikots/intern${a ? '/aendern' : ''}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(a ? { id: a.id, zeile: a.zeile, trikot: tiZ.zeilen[0] } : { trikots: tiZ.zeilen, referenz: tiEl('ti-referenz').value, vorgang: tiZ.vorgang }),
+          });
+          const j = await apiJson(res);
+          showToast(a ? `${a.id} gespeichert.` : `${j.ids.length} Trikot${j.ids.length === 1 ? '' : 's'} angelegt (${j.ids[0]}${j.ids.length > 1 ? ` … ${j.ids.at(-1)}` : ''}).`);
+          tiSchliessen();
+          await loadTrikots();
+        } catch (e) { tiFehler(e.message); }
+        finally { tiZ.laeuft = false; tiEl('ti-speichern').disabled = false; }
+      });
+      tiEl('ti-abbrechen').addEventListener('click', tiSchliessen);
+      tiEl('ti-schliessen').addEventListener('click', tiSchliessen);
+      tiEl('ti-dialog').addEventListener('keydown', e => { if (e.key === 'Escape') tiSchliessen(); });
+      const trAlleZeilen = () => (trZustand.daten?.gruppen ?? []).flatMap(g => g.zeilen);
+      /** TR6: Anzahl interner Trikots (nicht entfernt) mit dieser Referenz - fuer den Hinweis im Auftrag. */
+      const trZaehleReferenz = (daten, nr) => (daten?.gruppen ?? []).filter(g => !g.storniert).flatMap(g => g.zeilen).filter(z => z.referenz === nr).length;
+      document.getElementById('tr-liste')?.addEventListener('click', async ev => {
+        const au = ev.target.closest('[data-tr-au]');
+        if (au) { ev.preventDefault(); window.auOeffnen?.(au.dataset.trAu); return; }
+        const aendern = ev.target.closest('[data-ti-aendern]'), weg = ev.target.closest('[data-ti-weg]');
+        const knopf = aendern ?? weg;
+        if (!knopf) return;
+        const z = trAlleZeilen().find(x => x.zeile === Number(knopf.dataset.tiAendern ?? knopf.dataset.tiWeg) && x.id === knopf.dataset.id);
+        if (!z) { showToast('Die Zeile hat sich geändert – bitte neu laden.', 'warn'); return; }
+        if (aendern) { tiOeffnen(z); return; }
+        if (!await showConfirm('Trikot entfernen?', `<p>${trEsc(z.id)} geht nicht zum Produzenten. Die Zeile bleibt im Sheet (Status „storniert“).</p>`, 'Entfernen')) return;
+        try {
+          await apiJson(await apiFetch(`${API_BASE()}/api/bestellen/trikots/intern/entfernen`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: z.id, zeile: z.zeile }) }));
+          showToast(`${z.id} entfernt.`);
+        } catch (e) { showToast(`Nicht entfernt: ${e.message}`, 'error'); }
+        await loadTrikots();
       });
 
       // ── SECTION: Lager (BO5-1) ──
@@ -11123,7 +11304,29 @@
           + zug.map(g => `<div><button type="button" class="korb-link" data-ag-oeffnen="${kuEsc(g.Aufgabe_Nr)}" data-hilfe="ag-oeffnen">${kuEsc(g.Aufgabe_Nr)} · ${kuEsc(g.Kurztitel)}</button> <span class="ku-chip">${kuEsc(g.Status)}</span></div>`).join('') : '';
         auEl('au-d-todos').innerHTML = auZ.daten?.einrichtung?.todos === false ? tdEinrichtungHinweis() : tdBlock(a.Auftrag_Nr, a.Status === 'storniert');
         auEl('au-aufgabe-neu').hidden = a.Status === 'storniert' || auZ.daten?.einrichtung?.aufgaben === false;
+        auTrikotHinweis(a.Auftrag_Nr);   // TR6
       }
+      // TR6: interne Trikots mit dieser Auftragsnummer als Referenz - nur lesen, Klick springt zur Trikot-Seite.
+      function auTrikotHinweis(nr) {
+        const el = auEl('au-d-trikots');
+        if (!trZustand.daten) {
+          el.innerHTML = '';
+          if (!trZustand.laedtStill) {
+            trZustand.laedtStill = true;
+            apiFetch(`${API_BASE()}/api/bestellen/trikots`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) }).then(apiJson)
+              .then(d => { trZustand.daten = d; if (auZ.offen === nr) auTrikotHinweis(nr); }).catch(() => {}).finally(() => { trZustand.laedtStill = false; });
+          }
+          return;
+        }
+        const n = trZaehleReferenz(trZustand.daten, nr);
+        el.innerHTML = n ? `<button type="button" class="korb-link" data-au-trikots="${kuEsc(nr)}" data-hilfe="ti-im-auftrag">${n} Trikot${n === 1 ? '' : 's'} (Trikot-Seite)</button>` : '';
+      }
+      auEl('au-d-trikots').addEventListener('click', e => {
+        const b = e.target.closest('[data-au-trikots]');
+        if (!b) return;
+        auDetailSchliessen();
+        oeffneAnsicht('bestellen', 'trikots');
+      });
       auEl('au-d-aufgaben').addEventListener('click', e => { const b = e.target.closest('[data-ag-oeffnen]'); if (b) agDetailOeffnen(b.dataset.agOeffnen); });
       auEl('au-aufgabe-neu').addEventListener('click', () => agDialogOeffnen(null, { gehoert: auZ.offen }));
 
