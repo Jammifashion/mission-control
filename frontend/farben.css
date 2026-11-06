@@ -10,7 +10,7 @@
   --surface-2: #232323;    /* abgesetzte Flaeche: Tooltip, Toast, Editor-Leiste, Hover in Listen */
   --border: #2a2a2a;
   --disabled: #555;        /* deaktiviert, Platzhalter, "erledigt"-Zaehler */
-  --accent: #e8c44a;       /* NUR Hauptaktion + aktiver Reiter/Tab */
+  --accent: #fcb201;       /* Markengold (Inhaber 06.11., FK5). NUR Hauptaktion + aktiver Reiter/Tab */
   --accent-text: #111;     /* Text auf Gold */
   --focus: var(--accent);  /* Bedienung: Fokus-Rahmen, Haken, Hover-Rand an Feldern/Knoepfen (eigene Rolle, heute gleiche Farbe) */
   --on-color: #fff;        /* Text auf kraeftiger Flaeche (aktive Kachel, Fehler-Knopf) */
@@ -50,7 +50,7 @@
   --disabled: #8a8a8a;
   --text: #1a1a1a;
   --muted: #666;
-  --accent: #8f6b00;
+  --accent: #8a5f00;       /* Markengold auf hellem Grund (Inhaber 06.11., FK5) */
   --accent-text: #fff;
   --focus: var(--info);
   --on-color: #fff;

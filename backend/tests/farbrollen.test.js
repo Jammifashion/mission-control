@@ -34,7 +34,7 @@ describe('FK1: Farbwerte nur in :root', () => {
   });
   test('Werte laut Auftrag', () => {
     const wert = v => root.match(new RegExp(`${v}:\\s*([^;\\s]+)`))[1].toLowerCase();
-    expect(wert('--accent')).toBe('#e8c44a');
+    expect(wert('--accent')).toBe('#fcb201');   // Markengold, Inhaber 06.11. (FK5, vorher #e8c44a)
     expect(wert('--accent-text')).toBe('#111');
     expect(wert('--info')).toBe('#4a9eff');
     expect(wert('--warning')).toBe('#f0a030');
@@ -147,7 +147,8 @@ const kontrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - 
 const grund = (b, vars) => { if (!b.startsWith('mix:')) return farbe(b, vars); const [, v, p, g] = b.split(':'); const c = farbe(v, vars); const u = farbe(g, vars); return c.map((x, i) => x * p / 100 + u[i] * (1 - p / 100)); };
 const PAARE = [
   ['--text', '--bg'], ['--text', '--surface'], ['--muted', '--surface'], ['--muted', '--bg'], ['--text', '--surface-2'],
-  ['--accent', '--surface'], ['--accent-text', '--accent'], ['--info', '--surface'], ['--info', 'mix:--info:12:--surface'], ['--bg', '--info'],
+  // FK5: --accent auf --bg = Markengold als Umrissknopf/aktiver Reiter auf der Seite (auf der Karte: --surface)
+  ['--accent', '--surface'], ['--accent', '--bg'], ['--accent-text', '--accent'], ['--info', '--surface'], ['--info', 'mix:--info:12:--surface'], ['--bg', '--info'],
   ['--warning', '--surface'], ['--warning', '--warning-bg'], ['--warning', 'mix:--warning:16:--surface'],
   ['--danger', '--surface'], ['--danger', '--danger-bg'], ['--danger', 'mix:--danger:12:--surface'], ['--bg', '--danger'],
   ['--success', '--surface'], ['--success', '--success-bg'], ['--bg', '--success'],
@@ -170,6 +171,7 @@ describe('FK2: heller Modus', () => {
   test('Grund hellgrau, Karten weiss; --focus hell eigenstaendig (Info), dunkel = Akzent', () => {
     expect(HELL['--bg']).toBe('#f5f5f3');
     expect(HELL['--surface']).toBe('#ffffff');
+    expect(HELL['--accent']).toBe('#8a5f00');   // Markengold, Inhaber 06.11. (FK5, vorher #8f6b00)
     expect(HELL['--focus']).toBe('var(--info)');
     expect(DUNKEL['--focus']).toBe('var(--accent)');
   });
