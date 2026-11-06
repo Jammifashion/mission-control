@@ -10,6 +10,14 @@
 Mouse-over: Text im Block `Knopf-Hilfe` (`KNOPF_HILFE` + Gruppe in `HILFE_GRUPPEN`, am Handy ⓘ), am Element `data-hilfe`,
 nie `title`. `backend/tests/knopf-mouseover.test.js` prueft jeden `<button>`; Knoepfe von vor der Regel stehen in
 `backend/tests/hilfen/knopf-ohne-hilfe-bestand.json` (Nachruesten = eigener Auftrag, dann Zeile dort streichen).
+
+**Dauerregel Farben (FK1, Inhaber 06.11.2026):** Jeder Farbwert steht NUR in `:root`, sonst nur `var(--…)` (auch Inline,
+JS, SVG ueber `style="stroke:var(--x)"`); Toenungen per `color-mix(in srgb, var(--x) n%, transparent)`, keine Ersatzwerte
+`var(--x, #…)`. Eine Farbe = eine Rolle: `--accent` nur Hauptaktion + aktiver Reiter (Fokus/Haken/Hover-Rand = `--focus`),
+`--info` Links/Filter/aktuell/heute, `--warning` Hinweis/bald/laeuft aus/Wartestellung/Goalie, `--danger` nur Fehler/
+ueberfaellig/Storno, `--success` erledigt/geliefert, `--au`/`--ag` Kennzeichen (`kzHtml`), `--shop-jfn`/`--shop-honk`,
+`--nav-kachel*`/`--nav2-*` nur Handy-Navigation, `--status-design`; Auftragsstatus-Chip `auStatusKlasse`. Zierfarbe (Titel,
+Nummern) = `--text`. Test `backend/tests/farbrollen.test.js` (einzige Ausnahme: `<meta name="theme-color">`).
 **AM-2-1 (Inhaber 03.11.):** Hilfetexte an Eingabefeldern erscheinen nicht, solange das Feld (oder ein Feld im Element, z. B.
 Label) Fokus hat, und verschwinden beim Tippen (`feldMitFokus` in `hilfeEinrichten`). Kein `title` an Knoepfen, auch nicht im
 Code - wechselnde Zusaetze (Orte, Shop) ueber `data-hilfe-zusatz` (Test trefferliste.test.js). Trefferlisten (Kundenwahl im

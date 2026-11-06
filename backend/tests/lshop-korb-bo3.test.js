@@ -299,9 +299,9 @@ describe('Frontend: Filter Offen/Herausgenommen/Alle', () => {
     expect(css).toContain('var(--info)');
     expect(css).not.toMatch(/#[0-9a-f]{3,6}\b/i);
   });
-  test('Buendelkopf: Name gelb (--accent), Variante gruen (--success), keine feste Farbe; keine L-Shop-Zeile je Position', () => {
+  test('Buendelkopf: Name --text (FK1: Gold nur Aktion/Reiter), Variante gruen (--success), keine feste Farbe; keine L-Shop-Zeile je Position', () => {
     const regel = name => html.match(new RegExp(`\\.${name} \\{[^}]*\\}`))?.[0] ?? '';
-    expect(regel('korb-kopf-name')).toContain('var(--accent)');
+    expect(regel('korb-kopf-name')).toContain('var(--text)');
     expect(regel('korb-kopf-variante')).toContain('var(--success)');
     expect(regel('korb-kopf-nr')).toContain('var(--text)');
     for (const n of ['korb-kopf-name', 'korb-kopf-variante', 'korb-kopf-nr']) expect(regel(n)).not.toMatch(/#[0-9a-f]{3,6}\b/i);

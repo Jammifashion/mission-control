@@ -80,15 +80,16 @@ describe('Filter und Zaehler', () => {
   });
 });
 
-describe('Farben (BS2-1, Inhaber 06.11.)', () => {
+describe('Farben (FK1, Inhaber 06.11.; vorher BS2-1)', () => {
   const regel = sel => html.slice(html.indexOf(sel), html.indexOf('\n', html.indexOf(sel)));
-  test('Abholung violett, nicht Gold/Rot (Bestelluebersicht nutzt Gold/Rot/Grau)', () => {
+  test('Abholung --au (Petrol), keine Signal-/Akzentfarbe, kein fester Wert', () => {
     const r = regel('.ps-versand-abholung {');
-    expect(r).toContain('#a184ec');
-    expect(r).not.toMatch(/accent|danger/);
+    expect(r).toContain('var(--au)');
+    expect(r).not.toMatch(/accent|danger|warning|#[0-9a-f]{3}/i);
   });
-  test('Status "on-hold" rot mit deutschem Text', () => {
-    expect(regel('.badge-on-hold')).toContain('color: var(--danger)');
+  test('Status "on-hold" --warning (FK1, vorher rot) mit deutschem Text', () => {
+    expect(regel('.badge-on-hold')).toContain('color: var(--warning)');
+    expect(regel('.badge-on-hold')).not.toContain('danger');
     expect(html).toContain("'on-hold': 'In Wartestellung' }");
   });
 });
