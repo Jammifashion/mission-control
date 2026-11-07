@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="">
+  <title>Bestellseite – JammiFashion</title>
+  <script>
+    // KS1: Token sofort aus der Adresse nehmen (vor allem anderen), danach nur sessionStorage dieses Tabs.
+    // ── Bestellseite-Token: Anfang (reine Logik, Test backend/tests/bestellseite-seite.test.js) ──
+    var BS_TOKEN_MUSTER = /^[A-Za-z0-9_-]{43}$/;
+    /** Token aus #t=… (bevorzugt, geht nie an den Server) oder ?t=… */
+    function bsTokenAusAdresse(hash, suche) {
+      var m = /(?:^#|&)t=([^&]+)/.exec(String(hash || '')) || /(?:^\?|&)t=([^&]+)/.exec(String(suche || ''));
+      var tok = m ? decodeURIComponent(m[1]) : '';
+      return BS_TOKEN_MUSTER.test(tok) ? tok : '';
+    }
+    /** Liest den Token einmal, legt ihn in den Speicher und entfernt ihn aus der Adresse. -> Token oder '' */
+    function bsTokenUebernehmen(win, speicher) {
+      var tok = bsTokenAusAdresse(win.location.hash, win.location.search);
+      var hatteTeil = /(?:^#|&)t=/.test(win.location.hash || '') || /(?:^\?|&)t=/.test(win.location.search || '');
+      if (hatteTeil && win.history && win.history.replaceState) win.history.replaceState(null, '', win.location.pathname);
+      try {
+        if (tok && speicher) speicher.setItem('bs_token', tok);
+        var gespeichert = speicher ? speicher.getItem('bs_token') : '';
+        return tok || (BS_TOKEN_MUSTER.test(gespeichert || '') ? gespeichert : '');
+      } catch (e) { return tok; }
+    }
+    // ── Bestellseite-Token: Ende ──
+    var BS_TOKEN = '';
+    try { BS_TOKEN = bsTokenUebernehmen(window, window.sessionStorage); } catch (e) { BS_TOKEN = bsTokenUebernehmen(window, null); }
+
+    // Farbdarstellung wie das Partnerportal (eigener Schluessel bs_theme), vor dem ersten Zeichnen.
+    var BS_THEME_WAHLEN = ['system', 'light', 'dark'];
+    function bsThemeLies(speicher) {
+      try { var w = speicher ? speicher.getItem('bs_theme') : null; return BS_THEME_WAHLEN.indexOf(w) >= 0 ? w : 'system'; } catch (e) { return 'system'; }
+    }
+    function bsThemeModus(wahl, matchMedia) {
+      if (wahl === 'light' || wahl === 'dark') return wahl;
+      try { return matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'; } catch (e) { return 'dark'; }
+    }
+    (function () {
+      var speicher = null;
+      try { speicher = window.localStorage; } catch (e) { speicher = null; }
+      var mm = window.matchMedia ? window.matchMedia.bind(window) : null;
+      var wahl = bsThemeLies(speicher);
+      var anwenden = function () {
+        document.documentElement.setAttribute('data-theme', bsThemeModus(wahl, mm));
+        document.documentElement.setAttribute('data-theme-wahl', wahl);
+        var m = document.querySelector('meta[name="theme-color"]');
+        var bg = window.getComputedStyle ? window.getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() : '';
+        if (m && bg) m.setAttribute('content', bg);
+      };
+      anwenden();
+      window.bsTheme = {
+        wahl: function () { return wahl; },
+        setze: function (neu) {
+          wahl = BS_THEME_WAHLEN.indexOf(neu) >= 0 ? neu : 'system';
+          try { if (speicher) { if (wahl === 'system') speicher.removeItem('bs_theme'); else speicher.setItem('bs_theme', wahl); } } catch (e) { /* gesperrt */ }
+          anwenden();
+        },
+      };
+      try {
+        var q = mm && mm('(prefers-color-scheme: light)');
+        var folge = function () { if (wahl === 'system') anwenden(); };
+        if (q && q.addEventListener) q.addEventListener('change', folge); else if (q && q.addListener) q.addListener(folge);
+      } catch (e) { /* aelterer Browser */ }
+      document.addEventListener('DOMContentLoaded', anwenden);
+    })();
+  </script>
+  <link rel="stylesheet" href="farben.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* Farben nur ueber farben.css (gleiche Rollen wie MC und Partnerportal). */
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 15px; min-height: 100vh; overflow-x: hidden; }
+    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0.8rem 1rem; display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
+    header .logo { font-size: 1.05rem; color: var(--text); font-weight: 700; letter-spacing: 0.02em; }
+    .theme-schalter { position: relative; display: inline-flex; border: 1px solid var(--border); border-radius: 999px; padding: 2px; background: var(--bg); }
+    .theme-schalter button { background: none; border: none; color: var(--muted); font: inherit; font-size: 0.8rem; min-width: 40px; min-height: 36px; padding: 0 0.55rem; border-radius: 999px; cursor: pointer; }
+    .theme-schalter button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 0 0 1px var(--border); }
+    .theme-schalter button:focus-visible, .bs-suche:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+    main { max-width: 1060px; margin: 0 auto; padding: 1rem; display: flex; flex-direction: column; gap: 1rem; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.1rem; min-width: 0; }
+    .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 0.6rem; }
+    .bs-hinweis { line-height: 1.5; white-space: pre-line; overflow-wrap: anywhere; }
+    .bs-klein { color: var(--muted); font-size: 0.84rem; line-height: 1.45; }
+    .bs-termine { list-style: none; display: flex; flex-direction: column; gap: 0.45rem; }
+    .bs-termine li { display: flex; flex-wrap: wrap; gap: 0.2rem 0.8rem; align-items: baseline; padding: 0.5rem 0.6rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
+    .bs-termine strong { font-size: 0.95rem; }
+    .bs-schluss { color: var(--warning); font-size: 0.84rem; }
+    .bs-leiste { display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center; margin-bottom: 0.8rem; }
+    .bs-suche { flex: 1 1 12rem; min-width: 0; min-height: 40px; padding: 0.4rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; }
+    .bs-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: 0.8rem; }
+    .bs-artikel { border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+    .bs-bild { aspect-ratio: 1 / 1; background: var(--bg); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 0.8rem; }
+    .bs-bild img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .bs-text { padding: 0.6rem 0.7rem 0.75rem; display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+    @media (max-width: 600px) {   /* Handy: Bild klein links, Text rechts - sonst ein Bildschirm je Artikel */
+      .bs-artikel { flex-direction: row; }
+      .bs-bild { width: 6rem; flex: none; aspect-ratio: auto; min-height: 6rem; align-self: stretch; }
+      .bs-bild img { height: 100%; min-height: 6rem; }
+      .bs-text { flex: 1 1 auto; }
+    }
+    .bs-name { font-weight: 600; font-size: 0.92rem; overflow-wrap: anywhere; }
+    .bs-farbe { color: var(--muted); font-size: 0.84rem; overflow-wrap: anywhere; }
+    .bs-groessen { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+    .bs-gr { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.8rem; padding: 0.15rem 0.45rem; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); }
+    .bs-punkt { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--muted); flex: none; }
+    .bs-punkt.lieferbar { background: var(--success); }
+    .bs-punkt.knapp { background: var(--warning); }
+    .bs-punkt.auslauf { background: var(--info); }
+    .bs-punkt.weg { background: var(--danger); }
+    .bs-besorgen { font-size: 0.78rem; color: var(--muted); font-style: italic; }
+    .bs-legende { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; font-size: 0.8rem; color: var(--muted); margin-top: 0.6rem; }
+    .bs-legende span { display: inline-flex; align-items: center; gap: 0.3rem; }
+    .btn { background: var(--accent); color: var(--accent-text); border: none; border-radius: 6px; padding: 0.55rem 1.1rem; min-height: 40px; font-size: 0.88rem; font-weight: 600; cursor: pointer; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .bs-link { color: var(--text); overflow-wrap: anywhere; }
+    .bs-fehler { background: var(--danger-bg); border: 1px solid var(--danger); border-radius: 8px; padding: 1.2rem; text-align: center; line-height: 1.6; color: var(--text); }
+    .bs-laden { color: var(--muted); padding: 2rem 0; text-align: center; }
+    footer { max-width: 1060px; margin: 0 auto; padding: 0.5rem 1rem 2rem; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="logo">JammiFashion · Bestellseite</span>
+    <div class="theme-schalter" id="theme-schalter" role="group" aria-label="Farbdarstellung">
+      <button type="button" data-theme-knopf="system" aria-pressed="true" aria-label="Farbdarstellung wie das Gerät">Auto</button>
+      <button type="button" data-theme-knopf="light" aria-pressed="false" aria-label="Hell">☀</button>
+      <button type="button" data-theme-knopf="dark" aria-pressed="false" aria-label="Dunkel">☾</button>
+    </div>
+  </header>
+
+  <main id="bs-main">
+    <p class="bs-laden" id="bs-laden">Bestellseite wird geladen …</p>
+  </main>
+
+  <footer>
+    <p class="bs-klein" id="bs-datenschutz">Bitte nur Kürzel oder Vorname eintragen. Rückennamen werden nur für den Druck genutzt und nach 12 Monaten gelöscht. Keine Telefonnummern, Adressen oder Gesundheitsangaben in Freitexte.</p>
+  </footer>
+
+  <script>
+    const API_BASE = 'https://mission-control-backend-181760755456.europe-west1.run.app';
+    const main = document.getElementById('bs-main');
+
+    // ── Bestellseite-Anzeige: Anfang (reine Logik, Test backend/tests/bestellseite-seite.test.js) ──
+    const BS_STUFE = {
+      lieferbar: { klasse: 'lieferbar', text: 'lieferbar' },
+      null: { klasse: 'knapp', text: 'zurzeit nicht vorrätig' },
+      auslauf_null: { klasse: 'knapp', text: 'läuft aus, zurzeit nicht vorrätig' },
+      auslauf: { klasse: 'auslauf', text: 'läuft aus' },
+      nicht_gefuehrt: { klasse: 'weg', text: 'nicht mehr lieferbar' },
+    };
+    const bsEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const bsDatum = ymd => (/^\d{4}-\d{2}-\d{2}$/.test(ymd || '') ? `${ymd.slice(8, 10)}.${ymd.slice(5, 7)}.${ymd.slice(0, 4)}` : '');
+    const bsWochentag = ymd => (/^\d{4}-\d{2}-\d{2}$/.test(ymd || '') ? ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][new Date(`${ymd}T12:00:00Z`).getUTCDay()] : '');
+    function bsFehlerText(status, body) {
+      if (status === 401) return 'Dieser Link ist nicht (mehr) gültig. Bitte den Link aus der Nachricht von JammiFashion öffnen.';
+      if (status === 403) return body?.error || 'Diese Bestellseite ist nicht mehr freigegeben.';
+      if (status === 429) return body?.error || 'Zu viele Versuche – bitte in 15 Minuten noch einmal.';
+      return 'Die Bestellseite ist gerade nicht erreichbar. Bitte später noch einmal versuchen.';
+    }
+    function bsGroesseHtml(g) {
+      if (g.nochZuBesorgen) return `<span class="bs-gr">${bsEsc(g.groesse || 'eine Größe')} <span class="bs-besorgen">noch zu besorgen</span></span>`;
+      const s = BS_STUFE[g.lieferbar] || null;
+      return `<span class="bs-gr">${s ? `<span class="bs-punkt ${s.klasse}" role="img" aria-label="${bsEsc(s.text)}"></span>` : ''}${bsEsc(g.groesse || 'eine Größe')}</span>`;
+    }
+    function bsArtikelHtml(a) {
+      const bild = a.bild ? `<img src="${bsEsc(a.bild)}" alt="${bsEsc(a.name)}" loading="lazy" referrerpolicy="no-referrer">` : 'ohne Bild';
+      const farbe = [a.farbe, a.design].filter(Boolean).join(' · ');
+      const gr = (a.groessen || []).length ? `<div class="bs-groessen">${a.groessen.map(bsGroesseHtml).join('')}</div>` : '<span class="bs-klein">Größen nach Absprache</span>';
+      return `<article class="bs-artikel" data-such="${bsEsc(`${a.name} ${farbe} ${a.motiv || ''}`.toLowerCase())}">
+        <div class="bs-bild">${bild}</div>
+        <div class="bs-text"><span class="bs-name">${bsEsc(a.name)}</span>${farbe ? `<span class="bs-farbe">${bsEsc(farbe)}</span>` : ''}
+        ${a.motiv && a.motiv !== a.name ? `<span class="bs-klein">Motiv: ${bsEsc(a.motiv)}</span>` : ''}${gr}</div></article>`;
+    }
+    function bsTermineHtml(d) {
+      const liste = d.termine || [];
+      const regel = `Bestellschluss ${d.regel.bestellschlussTage} Tage vor dem Termin, am besten bis ${d.regel.empfohlenTage} Tage vorher.`;
+      if (!liste.length) return `<p class="bs-klein">${d.art === 'dauer' ? 'Noch keine Termine eingetragen.' : 'Termin folgt.'} ${bsEsc(regel)}</p>`;
+      return `<ul class="bs-termine">${liste.map(x => `<li><strong>${x.datum ? `${bsWochentag(x.datum)} ${bsDatum(x.datum)}` : 'Termin folgt'}</strong>${x.notiz ? `<span>${bsEsc(x.notiz)}</span>` : ''}
+        ${x.bestellschluss ? `<span class="bs-schluss">Bestellschluss ${bsDatum(x.bestellschluss)} · am besten bis ${bsDatum(x.empfohlen)}</span>` : ''}</li>`).join('')}</ul>
+        <p class="bs-klein" style="margin-top:0.5rem">${bsEsc(regel)}</p>`;
+    }
+    function bsSeiteHtml(d) {
+      const legende = Object.values(BS_STUFE).filter((s, i, l) => l.findIndex(x => x.klasse === s.klasse) === i)
+        .map(s => `<span><span class="bs-punkt ${s.klasse}"></span>${bsEsc(s.text)}</span>`).join('') + '<span><span class="bs-besorgen">noch zu besorgen</span> = besorgen wir gesondert</span>';
+      return `
+        ${d.hinweis ? `<section class="card"><p class="bs-hinweis">${bsEsc(d.hinweis)}</p></section>` : ''}
+        <section class="card"><h2>${d.art === 'dauer' ? 'Termine' : 'Termin'}</h2>${bsTermineHtml(d)}</section>
+        <section class="card"><h2>Artikel (${(d.artikel || []).length})</h2>
+          <div class="bs-leiste"><input class="bs-suche" id="bs-suche" type="search" placeholder="Artikel suchen …" aria-label="Artikel suchen" autocomplete="off">
+            <button type="button" class="btn" disabled aria-describedby="bs-bald">Eintragen</button><span class="bs-klein" id="bs-bald">Eintragen kommt bald.</span></div>
+          ${d.designLink ? `<p class="bs-klein" style="margin-bottom:0.6rem">Design ansehen: <a class="bs-link" href="${bsEsc(d.designLink)}" target="_blank" rel="noopener noreferrer">Link öffnen</a></p>` : ''}
+          ${(d.artikel || []).length ? `<div class="bs-raster" id="bs-raster">${d.artikel.map(bsArtikelHtml).join('')}</div>` : '<p class="bs-klein">Noch keine Artikel freigegeben.</p>'}
+          <div class="bs-legende">${legende}</div>
+          <p class="bs-klein" id="bs-keine" hidden>Kein Artikel passt zur Suche.</p>
+        </section>
+        <p class="bs-klein">Link gültig bis ${bsDatum(d.ablauf)}.</p>`;
+    }
+    // ── Bestellseite-Anzeige: Ende ──
+
+    function themeKnoepfeZeigen() {
+      const w = window.bsTheme ? window.bsTheme.wahl() : 'system';
+      document.querySelectorAll('[data-theme-knopf]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.themeKnopf === w)));
+    }
+    document.getElementById('theme-schalter').addEventListener('click', ev => {
+      const b = ev.target.closest('[data-theme-knopf]');
+      if (!b || !window.bsTheme) return;
+      window.bsTheme.setze(b.dataset.themeKnopf);
+      themeKnoepfeZeigen();
+    });
+    themeKnoepfeZeigen();
+
+    function fehlerZeigen(text) { main.innerHTML = `<div class="bs-fehler">${bsEsc(text)}</div>`; }
+
+    async function laden() {
+      if (!BS_TOKEN) { fehlerZeigen(bsFehlerText(401)); return; }
+      let res, body = null;
+      try {
+        res = await fetch(`${API_BASE}/api/bestellseite/zugang`, { headers: { Authorization: `Bearer ${BS_TOKEN}` }, referrerPolicy: 'no-referrer', cache: 'no-store' });
+        body = await res.json().catch(() => null);
+      } catch { fehlerZeigen(bsFehlerText(0)); return; }
+      if (!res.ok) {
+        if (res.status === 401) { try { sessionStorage.removeItem('bs_token'); } catch { /* gesperrt */ } }
+        fehlerZeigen(bsFehlerText(res.status, body)); return;
+      }
+      main.innerHTML = bsSeiteHtml(body);
+      const suche = document.getElementById('bs-suche');
+      suche?.addEventListener('input', () => {
+        const q = suche.value.trim().toLowerCase();
+        let n = 0;
+        document.querySelectorAll('#bs-raster .bs-artikel').forEach(el => { const ja = !q || q.split(/\s+/).every(w => el.dataset.such.includes(w)); el.hidden = !ja; if (ja) n++; });
+        const k = document.getElementById('bs-keine'); if (k) k.hidden = n > 0;
+      });
+    }
+    laden();
+  </script>
+</body>
+</html>

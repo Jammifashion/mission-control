@@ -288,6 +288,20 @@
         background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 0.35rem 0.55rem; cursor: pointer; min-width: 0; overflow-wrap: anywhere; }
       .au-letzte-zeile:hover, .au-letzte-zeile:focus-visible { border-color: var(--focus); }
       .au-nachsehen { z-index: 51; }
+      /* KS1: Bestellseiten - Liste und Dialog (Dialog ueber Auftragsansicht und Kundenkarte) */
+      #bsm-dialog { z-index: 52; }   /* ueber die id, sonst gewinnt die spaetere Regel .edi-dialog (z-index 50) */
+      .bsm-zeile { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; align-items: center; text-align: left; font: inherit; font-size: 0.88rem; color: var(--text);
+        padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; min-width: 0; overflow-wrap: anywhere; }
+      .bsm-zeile:hover, .bsm-zeile:focus-visible { border-color: var(--focus); }
+      .bsm-aktiv { border-color: var(--success); color: var(--success); }
+      .bsm-gesperrt { border-color: var(--danger); color: var(--danger); }
+      .bsm-abgelaufen { border-color: var(--warning); color: var(--warning); }
+      .bsm-termine { margin: 0 0 0 1.1rem; font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.15rem; }
+      .bsm-link-box { border: 1px solid var(--border); border-left: 4px solid var(--success); background: var(--surface-2); border-radius: 6px; padding: 0.5rem 0.7rem; display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+      .bsm-link-box .form-input { flex: 1 1 14rem; min-width: 0; }
+      .bsm-breit { flex: 1 1 16rem; min-width: 0; }
+      #bsm-dialog .edi-feld > .form-select, #bsm-dialog .edi-feld > .form-input { flex: none; }   /* .korb-reihe gibt Feldern eine Basis - in der Spalte waere das die Hoehe */
+      .bsm-zugang .korb-reihe { flex-wrap: wrap; }
       @media (max-width: 600px) {   /* ueber die id, sonst gewinnt die spaetere Regel .edi-dialog */
         #au-nachsehen { padding: 0; }
         #au-nachsehen .edi-box { width: 100%; min-height: 100%; border-radius: 0; border: 0; }
@@ -3348,6 +3362,21 @@
           <div id="td-liste"><div class="skeleton"></div></div>
         </div>
 
+        <!-- KS1: Bestellseiten (Zugaenge per Token) - Liste, Status, Knopf "Artikelliste aktualisieren" -->
+        <div class="card" id="bsm-ansicht" hidden>
+          <div class="lshop-offen-header korb-kopf"><span>Bestellseiten für Kunden</span></div>
+          <div id="bsm-einrichtung" class="lager-warnung" hidden></div>
+          <div class="korb-bedienung">
+            <div class="korb-ansicht"><span id="bsm-bilder-stand" class="korb-zaehler" data-hilfe="bsm-bilder-stand" tabindex="0"></span></div>
+            <div class="korb-aktionen">
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="bsm-bilder" data-hilfe="bsm-bilder">Artikelliste aktualisieren</button>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="bestellseiten" aria-controls="hilfe-bsm" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+            </div>
+          </div>
+          <div id="hilfe-bsm" class="hilfe-legende" hidden></div>
+          <div id="bsm-liste"><div class="skeleton"></div></div>
+        </div>
+
         <!-- AM-2: Auftragsansicht - Kopf, Status-Leiste, Positionen mit Haken "fertig". -->
         <div id="au-detail" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="au-d-titel" hidden>
           <div class="edi-box ku-box au-box">
@@ -3370,6 +3399,7 @@
               <span class="ku-luecke"></span>
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-aufgabe-neu" data-hilfe="au-aufgabe-neu">+ Aufgabe dazu</button>
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-wie-letztes" data-hilfe="au-wie-letztes">Wie letztes Mal …</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-bestellseite" data-hilfe="au-bestellseite">Bestellseite für Kunden …</button>   <!-- KS1 -->
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-bearbeiten" data-hilfe="au-bearbeiten">bearbeiten …</button>
               <button type="button" class="korb-aktion korb-aktion-ruhig ku-gefahr" id="au-storno" data-hilfe="au-storno">stornieren …</button>
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-storno-zurueck" data-hilfe="au-storno-zurueck">Storno zurücknehmen</button>
@@ -3660,10 +3690,25 @@
               <button type="button" class="korb-aktion korb-aktion-haupt" id="ku-speichern" data-hilfe="ku-speichern">Speichern</button>
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="ku-abbrechen" data-hilfe="dialog-abbrechen">Abbrechen</button>
               <span class="ku-luecke"></span>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="ku-dauer-bestellseite" data-hilfe="ku-dauer-bestellseite" hidden>Dauer-Bestellseite …</button>   <!-- KS1 -->
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="ku-archiv" data-hilfe="ku-archivieren" hidden>Archivieren</button>
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="ku-zurueckholen" data-hilfe="ku-zurueckholen" hidden>Zurückholen</button>
               <button type="button" class="korb-aktion korb-aktion-ruhig ku-gefahr" id="ku-dsgvo" data-hilfe="ku-dsgvo" hidden>DSGVO sperren …</button>
             </div>
+          </div>
+        </div>
+        <!-- KS1: Bestellseite anlegen / Link / sperren - ueber Auftragsansicht und Kundenkarte. Link nur, solange das Fenster offen ist. -->
+        <div id="bsm-dialog" class="edi-dialog bsm-dialog" role="dialog" aria-modal="true" aria-labelledby="bsm-titel" hidden>
+          <div class="edi-box ku-box">
+            <div class="edi-kopf">
+              <strong id="bsm-titel">Bestellseite</strong>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="bestellseiten" aria-controls="hilfe-bsm-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+              <button type="button" class="korb-link" id="bsm-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
+            </div>
+            <div id="hilfe-bsm-dialog" class="hilfe-legende" hidden></div>
+            <div class="korb-zaehler">Kunden sehen auf der Seite Artikel, Farben, Größen und Lieferbarkeit – nie Preise. Eintragen kommt mit der nächsten Stufe.</div>
+            <div id="bsm-fehler" class="lager-warnung" hidden></div>
+            <div id="bsm-inhalt"></div>
           </div>
         </div>
       </section>
@@ -4112,6 +4157,7 @@
           { id: 'liste',  label: 'Aufträge', panel: 'auftraege' },   // Inhaber 03.11.: Aufträge vor Kunden
           { id: 'todos',  label: 'Offene To-dos', panel: 'auftraege' },   // AM-4: alle offenen Punkte aus Aufträgen und Aufgaben
           { id: 'kunden', label: 'Kunden',   panel: 'auftraege' },
+          { id: 'bestellseiten', label: 'Bestellseiten', panel: 'auftraege' },   // KS1: Bestellseiten per Token
         ] },
         bestellen: { label: 'Bestellen & Produktion', shop: true, punkte: [
           { id: 'bestellungen', panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-jfn-shop"]' },
@@ -6833,6 +6879,25 @@
         'au-hist-preis':        { name: 'Letzter Preis', text: 'Letzter Preis netto aus diesem Auftrag (nur in MC).' },
         'au-preis-von':         { name: 'Preis übernommen', text: 'Preis kommt aus einem früheren Auftrag – frei änderbar.' },
         'au-hist-lfb':          { name: 'Lieferbarkeit', text: 'Läuft bei L-Shop aus oder ist gerade 0 – vor dem Bestellen prüfen.' },
+        // KS1: Bestellseiten per Token
+        'au-bestellseite':      { name: 'Bestellseite für Kunden', text: 'Link für den Kunden: Artikel, Farben, Größen und Lieferbarkeit dieses Auftrags, ohne Preise. Anlegen, neuer Link, sperren.' },
+        'ku-dauer-bestellseite': { name: 'Dauer-Bestellseite', text: 'Dauer-Link für diesen Kunden (z. B. Fanshop): Sortiment aus Shop-Kategorien, mehrere Termine. Gültig bis Saisonende.' },
+        'bsm-status':           { name: 'Status', text: 'aktiv = Link geht · gesperrt = von dir gesperrt · abgelaufen = „Gültig bis“ ist vorbei.' },
+        'bsm-oeffnen':          { name: 'Bestellseite öffnen', text: 'Zeigt Status, Gültigkeit, Hinweis und Termine. Dort neuer Link, sperren oder verlängern.' },
+        'bsm-link':             { name: 'Link', text: 'Der Link steht nur jetzt hier. Im Sheet liegt nur ein Prüfwert, nicht der Link selbst.' },
+        'bsm-kopieren':         { name: 'Link kopieren', text: 'Kopiert den Link für den Kunden. Nach dem Schließen ist er nicht mehr lesbar.' },
+        'bsm-anlegen':          { name: 'Bestellseite anlegen', text: 'Legt die Bestellseite an und zeigt den Link einmal. Schreibt eine Zeile ins Sheet.' },
+        'bsm-speichern':        { name: 'Speichern', text: 'Speichert „Gültig bis“, Hinweis und Design-Link. Der Link bleibt gleich.' },
+        'bsm-neuer-link':       { name: 'Neuer Link', text: 'Erzeugt einen neuen Link. Der alte geht sofort nicht mehr – den neuen dem Kunden schicken.' },
+        'bsm-sperren':          { name: 'Sperren', text: 'Der Link geht sofort nicht mehr. Nichts wird gelöscht, „wieder freigeben“ macht es rückgängig.' },
+        'bsm-entsperren':       { name: 'Wieder freigeben', text: 'Der bisherige Link geht wieder, solange „Gültig bis“ nicht vorbei ist.' },
+        'bsm-ablauf':           { name: 'Gültig bis', text: 'Letzter Tag, an dem der Link geht. Dauer: Saisonende 30.06., Auftrag: Termin + 30 Tage.' },
+        'bsm-hinweis':          { name: 'Hinweis', text: 'Kurzer Text oben auf der Seite, z. B. Abholung. Ohne Namen, höchstens 200 Zeichen.' },
+        'bsm-design':           { name: 'Design-Link zeigen', text: 'Zeigt dem Kunden den Design-Link des Auftrags (z. B. Canva). Standard aus.' },
+        'bsm-sortiment':        { name: 'Sortiment', text: 'Shop-Kategorie mit allen Unterkategorien. Gezeigt werden nur veröffentlichte Artikel.' },
+        'bsm-partner':          { name: 'Gehört zu Partner', text: 'Nur ein Merkmal (z. B. FP-001). Die Partner-Abrechnung liest die Bestellseite nie.' },
+        'bsm-bilder':           { name: 'Artikelliste aktualisieren', text: 'Holt die Bilder der Dauer-Sortimente aus dem Shop, 1 Abruf je 2 s. Die Kundenseite fragt den Shop nie selbst.' },
+        'bsm-bilder-stand':     { name: 'Stand Artikelliste', text: 'Wann die Bilder zuletzt geholt wurden. Neue Artikel brauchen ein „Artikelliste aktualisieren“ für ihr Bild.' },
         'au-wie-letztes':       { name: 'Wie letztes Mal', text: 'Neuer Auftrag mit Kunde, Positionen, Mengen und Preisen von hier. Termin, Notiz und Rabatt bleiben leer.' },
         'au-vorlage-von':       { name: 'Vorlage', text: 'Dieser Auftrag wurde nach diesem Auftrag angelegt. Klick öffnet ihn.' },
         'ku-hist':              { name: 'Hatte bisher', text: 'Was der Kunde ab „bestellt“ hatte, je Modell + Farbe. Grau = nur angefragt. Stornierte zählen nicht.' },
@@ -6878,7 +6943,9 @@
         auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern',
           'au-hist-chip', 'au-hist-aus', 'au-hist-drin', 'au-hist-mehr', 'au-hist-preis', 'au-preis-von', 'au-hist-lfb', 'au-wie-letztes', 'au-vorlage-von',
           'ku-hist', 'ku-hist-neu', 'ku-hist-frei-neu', 'ku-mit-storniert', 'ku-wie-letztes',
-          'au-letzte', 'au-letzte-alle', 'au-ns-schliessen', 'au-ns-vorlage', 'au-ek-von'],   // AM-6, AM-6-1
+          'au-letzte', 'au-letzte-alle', 'au-ns-schliessen', 'au-ns-vorlage', 'au-ek-von', 'au-bestellseite', 'ku-dauer-bestellseite'],   // AM-6, AM-6-1, KS1
+        bestellseiten: ['bsm-status', 'bsm-oeffnen', 'bsm-link', 'bsm-kopieren', 'bsm-anlegen', 'bsm-speichern', 'bsm-neuer-link', 'bsm-sperren', 'bsm-entsperren',
+          'bsm-ablauf', 'bsm-hinweis', 'bsm-design', 'bsm-sortiment', 'bsm-partner', 'bsm-bilder', 'bsm-bilder-stand'],   // KS1
         lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
@@ -10596,6 +10663,7 @@
         kuEl('ku-archiv').hidden = !kunde || k.Status !== 'aktiv';
         kuEl('ku-zurueckholen').hidden = !kunde || k.Status !== 'archiviert';
         kuEl('ku-dsgvo').hidden = !kunde || gesperrt;
+        kuEl('ku-dauer-bestellseite').hidden = !kunde || k.Status !== 'aktiv';   // KS1
         kuEl('ku-dsgvo-schritt').hidden = true;
         kuEl('ku-dsgvo-nr').value = '';
         kuDialogFehler('');
@@ -10702,13 +10770,15 @@
 
       document.addEventListener('mc:ansicht', e => {
         if (e.detail?.panel !== 'auftraege') return;
-        const liste = e.detail.punkt === 'liste', todos = e.detail.punkt === 'todos';
+        const liste = e.detail.punkt === 'liste', todos = e.detail.punkt === 'todos', bs = e.detail.punkt === 'bestellseiten';
         kuDialogSchliessen();
-        kuEl('ku-ansicht').hidden = liste || todos;
+        kuEl('ku-ansicht').hidden = liste || todos || bs;
         document.getElementById('au-ansicht').hidden = !liste;
         document.getElementById('td-ansicht').hidden = !todos;   // AM-4
-        for (const id of ['au-detail', 'au-dialog', 'ag-detail', 'ag-dialog']) document.getElementById(id).hidden = true;
-        if (liste || todos) loadAuftraege(); else loadKunden();
+        document.getElementById('bsm-ansicht').hidden = !bs;   // KS1
+        for (const id of ['au-detail', 'au-dialog', 'ag-detail', 'ag-dialog', 'bsm-dialog']) document.getElementById(id).hidden = true;
+        if (bs) { globalThis.bsmLaden?.(); if (!auZ.daten) loadAuftraege(); }
+        else if (liste || todos) loadAuftraege(); else loadKunden();
       });
 
 
@@ -11559,6 +11629,7 @@
         auEl('au-storno').hidden = st || a.Status === 'bezahlt';
         auEl('au-storno-zurueck').hidden = !st;
         auEl('au-bearbeiten').hidden = st;
+        auEl('au-bestellseite').hidden = st || a.Status === 'bezahlt';   // KS1
         auEl('au-d-vorschlag').hidden = !a.vorschlagFertig;
         auEl('au-d-pos').innerHTML = auGruppen(a.positionen).map(g => {
           const kopf = (g.art === 'lshop' ? `<strong>${kuEsc(g.modell)}</strong>${g.bezeichnung ? ` · ${kuEsc(g.bezeichnung)}` : ''} · ${kuEsc(g.farbe || '(ohne Farbe)')}` : `<strong>${kuEsc(g.freitext)}</strong> · frei`)
@@ -12680,6 +12751,213 @@
         if (!fr) return;
         kuDialogSchliessen(); auDialogOeffnen(null, { kunde: k });
         auEl('au-frei-text').value = fr.text; auEl('au-frei-menge').focus();
+      });
+
+      // ── SECTION: Bestellseiten (KS1) ──
+      // Bestellseite per Token fuer Kunden: Art auftrag (Knopf in der Auftragsansicht) oder dauer (Knopf in der Kundenkarte).
+      // Der Link (Token) kommt nur EINMAL vom Server (Anlegen / neuer Link) und steht nur in bsmZ.link, solange der Dialog offen ist -
+      // nie im Browser-Speicher, nie in der Adresse, nie im Toast. Schliessen vergisst ihn.
+      // ── Bestellseiten-MC: Anfang (reine Logik, Test backend/tests/bestellseite-seite.test.js; braucht kuEsc) ──
+      const BSM_SEITE = 'https://jammifashion.github.io/mission-control/bestellen.html';
+      const BSM_STATUS_TEXT = { aktiv: 'aktiv', gesperrt: 'gesperrt', abgelaufen: 'abgelaufen' };
+      /** Link fuer den Kunden: Token im #-Teil (geht nie an GitHub Pages), die Seite nimmt ihn sofort aus der Adresse. */
+      const bsmLink = token => `${BSM_SEITE}#t=${encodeURIComponent(token)}`;
+      const bsmDatum = ymd => (/^\d{4}-\d{2}-\d{2}$/.test(ymd || '') ? `${ymd.slice(8, 10)}.${ymd.slice(5, 7)}.${ymd.slice(0, 4)}` : '–');
+      /** Zugaenge zu einem Auftrag bzw. (dauer) zu einem Kunden, neueste zuerst. */
+      function bsmZugaengeFuer(zugaenge, { auftragNr = '', kundenNr = '' } = {}) {
+        return (zugaenge ?? []).filter(z => (auftragNr ? z.Art === 'auftrag' && z.Auftrag_Nr === auftragNr : z.Art === 'dauer' && z.Kunden_Nr === kundenNr));
+      }
+      /** Gibt es einen nicht gesperrten Zugang? Dann kein zweiter (Server prueft dasselbe). */
+      const bsmHatOffenen = liste => (liste ?? []).some(z => z.status !== 'gesperrt');
+      function bsmChipHtml(status) {
+        return `<span class="ku-chip bsm-${kuEsc(status)}" data-hilfe="bsm-status">${kuEsc(BSM_STATUS_TEXT[status] ?? status)}</span>`;
+      }
+      function bsmZeileHtml(z, kundeText = '') {
+        const was = z.Art === 'auftrag' ? `Auftrag ${z.Auftrag_Nr}` : `Dauer · Sortiment ${z.Sortiment}`;
+        const termine = z.Art === 'dauer' ? ` · ${z.termine?.length ?? 0} Termin${(z.termine?.length ?? 0) === 1 ? '' : 'e'}` : '';
+        return `<button type="button" class="bsm-zeile" data-bsm-oeffnen="${kuEsc(z.Zugang_ID)}" data-hilfe="bsm-oeffnen">`
+          + `<strong>${kuEsc(z.Zugang_ID)}</strong><span>${kuEsc(was)}</span><span>${kuEsc(kundeText || z.Kunden_Nr)}</span>`
+          + `${bsmChipHtml(z.status)}<span class="korb-zaehler">bis ${kuEsc(bsmDatum(z.Ablauf))}${kuEsc(termine)}</span></button>`;
+      }
+      /** Termine einer Dauer-Bestellseite (nur sehen; Eintragen auf der Seite kommt mit KS2). */
+      function bsmTermineHtml(z) {
+        const t = (z.termine ?? []).slice().sort((a, b) => String(a.Datum).localeCompare(String(b.Datum)));
+        if (!t.length) return '<p class="korb-zaehler">Noch keine Termine.</p>';
+        return `<ul class="bsm-termine">${t.map(x => `<li><strong>${kuEsc(bsmDatum(x.Datum))}</strong>${x.Notiz ? ` · ${kuEsc(x.Notiz)}` : ''}`
+          + `${x.Bestellschluss ? ` · Bestellschluss ${kuEsc(bsmDatum(x.Bestellschluss))}` : ''}${x.Auftrag_Nr ? ` · ${kuEsc(x.Auftrag_Nr)}` : ''}</li>`).join('')}</ul>`;
+      }
+      // ── Bestellseiten-MC: Ende ──
+
+      const bsmEl = id => document.getElementById(id);
+      const bsmZ = { daten: null, laedt: false, fuer: null, offen: null, link: '', vorgang: '', kategorien: null };
+
+      async function bsmApi(pfad, body) {
+        const res = await apiFetch(`${API_BASE()}/api/bestellseiten${pfad}`, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+          : { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
+        const j = await res.json().catch(() => null);
+        if (!res.ok) { const e = new Error(j?.error || `HTTP ${res.status}`); e.code = j?.code; throw e; }
+        return j;
+      }
+      async function bsmLaden() {
+        if (bsmZ.laedt) return;
+        bsmZ.laedt = true;
+        bsmEl('bsm-einrichtung').hidden = true;
+        try {
+          if (!kuZ.kunden) await loadKunden();
+          bsmZ.daten = await bsmApi('');
+        } catch (e) {
+          bsmZ.daten = { zugaenge: [] };
+          bsmEl('bsm-einrichtung').textContent = e.code === 'einrichtung' ? `Bestellseiten noch nicht eingerichtet: ${e.message}` : `Bestellseiten nicht geladen: ${e.message}`;
+          bsmEl('bsm-einrichtung').hidden = false;
+        } finally { bsmZ.laedt = false; }
+        bsmZeichnen();
+        if (!bsmEl('bsm-dialog').hidden) bsmDialogZeichnen();
+      }
+      function bsmZeichnen() {
+        const d = bsmZ.daten ?? { zugaenge: [] };
+        const kt = nr => { const k = auKunde(nr); return k ? auKundeText(k, nr) : nr; };
+        bsmEl('bsm-liste').innerHTML = d.zugaenge.length ? `<div class="ku-liste">${d.zugaenge.map(z => bsmZeileHtml(z, kt(z.Kunden_Nr))).join('')}</div>`
+          : '<p class="korb-zaehler">Noch keine Bestellseiten. Anlegen über die Auftragsansicht („Bestellseite für Kunden …“) oder die Kundenkarte („Dauer-Bestellseite …“).</p>';
+        bsmEl('bsm-bilder-stand').textContent = d.bilderStand ? `Artikelliste (Bilder) Stand ${new Date(d.bilderStand).toLocaleString('de-DE')} · ${d.bilderAnzahl} Bilder` : 'Artikelliste (Bilder) noch nicht geladen';
+      }
+
+      // ── Dialog: Anlegen / Link / Sperren / Ablauf ──
+      async function bsmDialogOeffnen(fuer) {
+        bsmZ.fuer = fuer; bsmZ.link = ''; bsmZ.vorgang = auVorgang();
+        bsmEl('bsm-fehler').hidden = true;
+        bsmEl('bsm-dialog').hidden = false;
+        bsmEl('bsm-inhalt').innerHTML = '<div class="skeleton"></div>';
+        if (!bsmZ.daten) await bsmLaden();
+        if (fuer.art === 'dauer' && !bsmZ.kategorien) {
+          try { bsmZ.kategorien = (await bsmApi('/kategorien')).kategorien; } catch { bsmZ.kategorien = []; }
+        }
+        bsmDialogZeichnen();
+      }
+      function bsmDialogSchliessen() { bsmEl('bsm-dialog').hidden = true; bsmZ.link = ''; bsmZ.fuer = null; }
+      function bsmAktueller() {
+        const f = bsmZ.fuer; if (!f) return [];
+        if (f.zugangId) return (bsmZ.daten?.zugaenge ?? []).filter(z => z.Zugang_ID === f.zugangId);
+        return bsmZugaengeFuer(bsmZ.daten?.zugaenge, f);
+      }
+      function bsmDialogZeichnen() {
+        const f = bsmZ.fuer; if (!f) return;
+        const liste = bsmAktueller();
+        const art = f.art ?? liste[0]?.Art;
+        bsmEl('bsm-titel').textContent = art === 'dauer' ? `Dauer-Bestellseite · ${f.kundenNr || liste[0]?.Kunden_Nr || ''}` : `Bestellseite · ${f.auftragNr || liste[0]?.Auftrag_Nr || ''}`;
+        const link = bsmZ.link ? `<div class="bsm-link-box"><div class="korb-zaehler">Link für den Kunden – wird nur jetzt angezeigt. Nach dem Schließen ist er nicht mehr lesbar (dann „neuer Link“).</div>`
+          + `<div class="korb-reihe"><input id="bsm-link" class="form-input" type="text" readonly value="${kuEsc(bsmZ.link)}" aria-label="Link für den Kunden" data-hilfe="bsm-link">`
+          + `<button type="button" class="korb-aktion korb-aktion-haupt" id="bsm-kopieren" data-hilfe="bsm-kopieren">Link kopieren</button></div></div>` : '';
+        const vorhanden = liste.map(z => `<div class="au-gruppe bsm-zugang" data-bsm-zugang="${kuEsc(z.Zugang_ID)}">`
+          + `<div><strong>${kuEsc(z.Zugang_ID)}</strong> ${bsmChipHtml(z.status)} · Link gültig bis ${kuEsc(bsmDatum(z.Ablauf))}${z.Partner_ID ? ` · gehört zu ${kuEsc(z.Partner_ID)}` : ''}</div>`
+          + (z.Hinweis ? `<div class="ku-meta"><span>Hinweis: ${kuEsc(z.Hinweis)}</span></div>` : '')
+          + (z.Art === 'dauer' ? `<div class="korb-zaehler">Sortiment: Kategorie ${kuEsc(z.Sortiment)} mit Unterkategorien · Bestellschluss ${kuEsc(z.Bestellschluss_Tage)} Tage, am besten ${kuEsc(z.Empfohlen_Tage)} Tage vorher</div><div class="korb-zaehler">Termine</div>${bsmTermineHtml(z)}` : '')
+          + (z.Art === 'auftrag' ? `<label class="ku-mit-storniert" data-hilfe="bsm-design"><input type="checkbox" data-bsm-design ${z.Design_Link_Zeigen === 'ja' ? 'checked' : ''}> Design-Link auf der Seite zeigen</label>` : '')
+          + `<div class="korb-reihe"><label class="edi-feld" data-hilfe="bsm-ablauf">Gültig bis<input type="date" class="form-input" data-bsm-ablauf value="${kuEsc(z.Ablauf)}"></label>`
+          + `<label class="edi-feld bsm-breit" data-hilfe="bsm-hinweis">Hinweis auf der Seite (ohne Namen)<input type="text" class="form-input" maxlength="200" data-bsm-hinweis value="${kuEsc(z.Hinweis)}"></label></div>`
+          + `<div class="korb-reihe ku-knoepfe"><button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-speichern data-hilfe="bsm-speichern">Speichern</button>`
+          + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-neuer-link data-hilfe="bsm-neuer-link">neuer Link …</button>`
+          + (z.status === 'gesperrt' ? `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-entsperren data-hilfe="bsm-entsperren">wieder freigeben</button>`
+            : `<button type="button" class="korb-aktion korb-aktion-ruhig ku-gefahr" data-bsm-sperren data-hilfe="bsm-sperren">sperren …</button>`)
+          + '</div></div>').join('');
+        const neuNoetig = !f.zugangId && !bsmHatOffenen(liste);
+        const kats = (bsmZ.kategorien ?? []).filter(k => !String(k.pfad).includes(' > '));
+        const neu = !neuNoetig ? '' : `<div class="au-gruppe"><div><strong>Neue ${art === 'dauer' ? 'Dauer-Bestellseite' : 'Bestellseite für diesen Auftrag'}</strong></div>`
+          + (art === 'dauer' ? `<div class="korb-reihe"><label class="edi-feld bsm-breit" data-hilfe="bsm-sortiment">Sortiment (Kategorie, mit allen Unterkategorien)<select id="bsm-n-sortiment" class="form-select">`
+            + `<option value="">bitte wählen</option>${kats.map(k => `<option value="${kuEsc(k.nr)}">${kuEsc(k.pfad)} (${kuEsc(k.nr)})</option>`).join('')}</select></label>`
+            + `<label class="edi-feld" data-hilfe="bsm-partner">gehört zu Partner (nur Merkmal)<input id="bsm-n-partner" type="text" class="form-input" maxlength="6" placeholder="z. B. FP-001"></label></div>` : '')
+          + `<div class="korb-reihe"><label class="edi-feld" data-hilfe="bsm-ablauf">Gültig bis<input id="bsm-n-ablauf" type="date" class="form-input" value="${kuEsc(f.ablaufVorschlag ?? '')}"></label>`
+          + `<label class="edi-feld bsm-breit" data-hilfe="bsm-hinweis">Hinweis auf der Seite (ohne Namen)<input id="bsm-n-hinweis" type="text" class="form-input" maxlength="200"></label></div>`
+          + (art === 'auftrag' ? `<label class="ku-mit-storniert" data-hilfe="bsm-design"><input type="checkbox" id="bsm-n-design"> Design-Link auf der Seite zeigen</label>` : '')
+          + `<div class="korb-reihe ku-knoepfe"><button type="button" class="korb-aktion korb-aktion-haupt" id="bsm-anlegen" data-hilfe="bsm-anlegen">Bestellseite anlegen</button></div></div>`;
+        bsmEl('bsm-inhalt').innerHTML = link + vorhanden + neu || '<p class="korb-zaehler">Nichts gefunden.</p>';
+      }
+      function bsmFehler(text) { bsmEl('bsm-fehler').textContent = text; bsmEl('bsm-fehler').hidden = !text; }
+
+      async function bsmAnlegen(knopf) {
+        const f = bsmZ.fuer;
+        const body = { art: f.art, vorgang: bsmZ.vorgang, ablauf: bsmEl('bsm-n-ablauf')?.value || '', hinweis: bsmEl('bsm-n-hinweis')?.value || '' };
+        if (f.art === 'auftrag') Object.assign(body, { auftragNr: f.auftragNr, designLinkZeigen: !!bsmEl('bsm-n-design')?.checked });
+        else Object.assign(body, { kundenNr: f.kundenNr, sortiment: bsmEl('bsm-n-sortiment')?.value || '', partnerId: bsmEl('bsm-n-partner')?.value.trim() || '' });
+        knopf.disabled = true;
+        try {
+          const r = await bsmApi('/neu', body);
+          if (r.schon) { bsmFehler(`${r.zugangId} ist schon angelegt – für einen Link „neuer Link …“.`); }
+          else { bsmZ.link = bsmLink(r.token); showToast(`${r.zugangId}: Bestellseite angelegt – Link jetzt kopieren.`); }
+          bsmZ.vorgang = auVorgang();
+          await bsmLaden();
+        } catch (e) { bsmFehler(e.message); } finally { knopf.disabled = false; }
+      }
+      async function bsmAendern(z, felder, knopf) {
+        knopf.disabled = true;
+        try {
+          const r = await bsmApi('/bearbeiten', { zugangId: z.Zugang_ID, stand: z.Stand, ...felder });
+          showToast(`${r.zugangId}: gespeichert (${BSM_STATUS_TEXT[r.status] ?? r.status}).`);
+          await bsmLaden();
+        } catch (e) { bsmFehler(e.message); } finally { knopf.disabled = false; }
+      }
+      async function bsmNeuerLink(z, knopf) {
+        if (!await showConfirm('Neuer Link?', `<p>${kuEsc(z.Zugang_ID)}: Der bisherige Link geht danach sofort nicht mehr. Den neuen Link musst du dem Kunden neu schicken.</p>`, 'Neuer Link')) return;
+        knopf.disabled = true;
+        try {
+          const r = await bsmApi('/neuer-link', { zugangId: z.Zugang_ID, stand: z.Stand });
+          bsmZ.link = bsmLink(r.token);
+          showToast(`${r.zugangId}: neuer Link erzeugt – jetzt kopieren.`);
+          await bsmLaden();
+        } catch (e) { bsmFehler(e.message); } finally { knopf.disabled = false; }
+      }
+
+      bsmEl('bsm-dialog').addEventListener('click', async e => {
+        const b = e.target.closest('button'); if (!b) return;
+        if (b.id === 'bsm-schliessen') { bsmDialogSchliessen(); return; }
+        if (b.id === 'bsm-anlegen') { bsmAnlegen(b); return; }
+        if (b.id === 'bsm-kopieren') {
+          try { await navigator.clipboard.writeText(bsmZ.link); showToast('Link kopiert.'); }
+          catch { bsmEl('bsm-link')?.select(); showToast('Kopieren ging nicht – Link ist markiert, bitte von Hand kopieren.', 'toast-error'); }
+          return;
+        }
+        const box = b.closest('[data-bsm-zugang]'); if (!box) return;
+        const z = (bsmZ.daten?.zugaenge ?? []).find(x => x.Zugang_ID === box.dataset.bsmZugang); if (!z) return;
+        bsmFehler('');
+        if (b.hasAttribute('data-bsm-speichern')) {
+          const felder = { ablauf: box.querySelector('[data-bsm-ablauf]').value, hinweis: box.querySelector('[data-bsm-hinweis]').value };
+          const d = box.querySelector('[data-bsm-design]'); if (d) felder.designLinkZeigen = d.checked;
+          bsmAendern(z, felder, b);
+        } else if (b.hasAttribute('data-bsm-neuer-link')) bsmNeuerLink(z, b);
+        else if (b.hasAttribute('data-bsm-sperren')) {
+          if (await showConfirm('Bestellseite sperren?', `<p>${kuEsc(z.Zugang_ID)}: Der Link geht sofort nicht mehr. „wieder freigeben“ macht das rückgängig.</p>`, 'Sperren')) bsmAendern(z, { aktiv: false }, b);
+        } else if (b.hasAttribute('data-bsm-entsperren')) bsmAendern(z, { aktiv: true }, b);
+      });
+      globalThis.bsmLaden = bsmLaden;   // fuer den mc:ansicht-Wechsel (steht weiter oben)
+      bsmEl('bsm-dialog').addEventListener('keydown', e => { if (e.key === 'Escape') bsmDialogSchliessen(); });
+      bsmEl('bsm-liste').addEventListener('click', e => {
+        const b = e.target.closest('[data-bsm-oeffnen]'); if (!b) return;
+        const z = (bsmZ.daten?.zugaenge ?? []).find(x => x.Zugang_ID === b.dataset.bsmOeffnen);
+        if (z) bsmDialogOeffnen({ zugangId: z.Zugang_ID, art: z.Art, auftragNr: z.Auftrag_Nr, kundenNr: z.Kunden_Nr });
+      });
+      bsmEl('bsm-bilder').addEventListener('click', async e => {
+        const b = e.currentTarget;
+        if (!await showConfirm('Artikelliste aktualisieren?', '<p>Holt die Bilder der Artikel aller Dauer-Bestellseiten aus dem Shop – langsam, ein Abruf alle 2 Sekunden (etwa 1 Minute). Am Shop wird nichts geändert.</p>', 'Aktualisieren')) return;
+        b.disabled = true; b.textContent = 'läuft …';
+        try {
+          const r = await bsmApi('/bilder', { dryRun: false });
+          showToast(`Artikelliste aktualisiert: ${r.produkte} Artikel, ${r.mitBild} Bilder.`);
+          await bsmLaden();
+        } catch (err) { showToast(`Artikelliste nicht aktualisiert: ${err.message}`, 'toast-error'); }
+        finally { b.disabled = false; b.textContent = 'Artikelliste aktualisieren'; }
+      });
+      // Einstieg aus der Auftragsansicht (Art auftrag) und der Kundenkarte (Art dauer). Ablauf-Vorschlag wie der Server.
+      auEl('au-bestellseite').addEventListener('click', () => {
+        const a = (auZ.daten?.auftraege ?? []).find(x => x.Auftrag_Nr === auZ.offen); if (!a) return;
+        const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+        const basis = /^\d{4}-\d{2}-\d{2}$/.test(a.Termin || '') && a.Termin > heute ? a.Termin : heute;
+        const d = new Date(`${basis}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 30);
+        bsmDialogOeffnen({ art: 'auftrag', auftragNr: a.Auftrag_Nr, kundenNr: a.Kunden_Nr, ablaufVorschlag: d.toISOString().slice(0, 10) });
+      });
+      kuEl('ku-dauer-bestellseite').addEventListener('click', () => {
+        if (!kuZ.offen) return;
+        const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+        const j = Number(heute.slice(0, 4));
+        bsmDialogOeffnen({ art: 'dauer', kundenNr: kuZ.offen.Kunden_Nr, ablaufVorschlag: heute <= `${j}-06-30` ? `${j}-06-30` : `${j + 1}-06-30` });
       });
 
       // ── SECTION: Artikelerfassung ──

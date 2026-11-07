@@ -233,6 +233,13 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   AM-2-2: Modellsuche im Auftrag ueber `twBinden` (`twModell`: Modell fett · Name · Marke). Herkunft je Gruppe (Modell+Farbe+
   Herkunft+Ort): bestellen | aus Lager (Ort, Bestand nur gelesen aus `GET /api/lager/bestand`, Knopf "teilen" = `auTeilen`) |
   schon vorhanden; frei nur leer/vorhanden. Gebucht wird im Lager erst mit AM-3. Ansicht: Kennzeichen 🛒/📦/✓.)
+- Bestellseiten (KS1: Unterpunkt `auftraege/bestellseiten`, Karte `#bsm-ansicht` im Panel `auftraege`, SECTION Bestellseiten (KS1) vor
+  Artikelerfassung, Block `Bestellseiten-MC: Anfang/Ende` (Test bestellseite-seite.test.js), Praefix `bsm`, Hilfe-Gruppe `bestellseiten`.
+  Einstiege: Knopf "Bestellseite für Kunden …" (`#au-bestellseite`, Auftragsansicht, Art auftrag) und "Dauer-Bestellseite …"
+  (`#ku-dauer-bestellseite`, Kundenkarte, Art dauer). Ein Dialog `#bsm-dialog` (nach `#ku-dialog` im DOM, z-index 52 ueber die id): Anlegen,
+  Link einmal anzeigen + kopieren, Speichern (Gueltig bis, Hinweis, Design-Link), neuer Link, sperren/wieder freigeben, Termine (dauer).
+  Der Link (`bestellen.html#t=<Token>`) steht nur in `bsmZ.link`, solange der Dialog offen ist - nie Browser-Speicher/Adresse/Toast.
+  Knopf "Artikelliste aktualisieren" = Bilder der Dauer-Sortimente.)
 - Artikelerfassung (dazu Modus-Knopf "🧵 L-Shop-Modelle", LS4: Unterpunkt `artikel/lshop-modelle`, Panel `#lsm-panel`,
   SECTION L-Shop-Modelle mit Block `L-Shop-Modelle: Anfang/Ende`, Test lshop-modelle-frontend.test.js; Hilfe-Gruppe
   `lshop-modelle`; Links `data-lsm-link` aus Warenkorb "Nicht im Bestand" und Maske "Kein L-Shop-Modell".
@@ -1042,6 +1049,29 @@ Neue Sektionen immer mit Anker versehen:
   Paging (250, `last`/`totalPages`, max. 200 Seiten), Takt 600 ms (Limit 2/s), 429 -> Retry-After bzw. steigend warten,
   hoechstens 5 Mal. Schluessel Secret `LEXWARE_API_KEY` ueber `getSecret` (NICHT in SECRET_KEYS: Backend startet ohne ihn),
   nur Leserecht Kontakte, hoechstens 24 Monate gueltig. Fehlertexte: Pfad + Status, nie Antwortinhalt/Schluessel.
+- backend/lib/bestellseite.js – Bestellseite per Token fuer Kunden (KS1), Logik `utils/bestellseite.js`. Inhaber 07.11.: fuer JEDEN Auftrag
+  moeglich, Fanshop ist der erste Fall. Zwei Arten: `auftrag` (genau ein AU-…, Artikel = Gruppen Modell + Farbe der Positionen mit allen
+  waehlbaren Groessen des Modells aus LShop_Modelle, Name = Motiv bzw. Kurztitel - nie L-Shop-Name/Marke/Modellnummer, ein Termin = Termin
+  des Auftrags) und `dauer` (ein Kunde, Sortiment = Shop-Kategorie(n) mit Unterkategorien aus Struktur_Kategorien; die Maske fuehrt
+  Kategorien als NAMEN, ein Name, den es auch ausserhalb gibt, zaehlt allein nicht (`sortimentNamen`); nur Status Shop "Veröffentlicht",
+  aktive Varianten mit WC_Variation_ID; ohne L-Shop-Nr. auswaehlbar mit "noch zu besorgen"). SSOT-Reiter `Bestellseiten` (Zugang_ID BS-NNN |
+  Art | Kunden_Nr | Auftrag_Nr | Partner_ID (nur Merkmal) | Token_Hash | Aktiv | Ablauf | Bestellschluss_Tage 4 | Empfohlen_Tage 7 |
+  Sortiment | Hinweis | Angelegt | Stand | Design_Link_Zeigen | Vorgang), `Bestell_Termine` (BT-NNNN), `Bestell_Eintraege` (nur angelegt,
+  beschrieben ab KS2), `Bestell_Bilder` (WC_ID | Art produkt/variante | Bild_URL | Status | Stand). Setup
+  `scripts/setup-bestellseiten-reiter.js` (Trockenlauf, `--write`).
+  **Token:** nur im Backend `randomBytes(32)` base64url, im Sheet NUR der SHA-256-Hash, Vergleich `timingSafeEqual` ueber alle Zeilen;
+  Klartext einmal in der Antwort von `/neu` bzw. `/neuer-link`, nie Log/Fehlertext/Adresse. Ablauf = letzter gueltiger Tag (Berlin), Vorschlag
+  dauer 30.06., auftrag Termin + 30. Je Auftrag bzw. Kunde (dauer) hoechstens ein nicht gesperrter Zugang.
+  Oeffentlich `GET /api/bestellseite/zugang` (routes/bestellseite.js, VOR requireApiKey, hinter dem allgemeinen Limiter; Token nur
+  `Authorization: Bearer`): 401 unbekannt, 403 gesperrt/abgelaufen (freundlicher Text), sonst `seitenAntwort` = FESTE Feldauswahl
+  (`artikelFuerSeite`) - nie Preis, EK, L-Shop-Name, Kunden-/Partner-/Auftrag-Nr. Kein Limiter je Token (Inhaber), nur Fehlversuchs-Bremse je
+  IP fuer 401 (20 / 15 min). Katalog 5 min je Zugang+Stand zwischengespeichert. Die Seite greift NIE in den Shop: Bilder nur aus
+  `Bestell_Bilder`, gefuellt per MC-Knopf (`POST /api/bestellseiten/bilder`, nur veroeffentlichte Artikel der nicht gesperrten
+  Dauer-Sortimente, getWcClient, nacheinander 2 s Takt, `products?include` + `products/<id>/variations` mit `_fields`, ganzer Reiter in
+  EINEM values.update, vorher/nachher gelesen). Verwaltung `routes/bestellseiten.js` (`/api/bestellseiten`, hinter requireApiKey: GET /,
+  /kategorien, POST /neu, /bearbeiten, /neuer-link, /bilder). KS-Dateien nennen nie die Reiter der Partner-Abrechnung (Quelltext-Test).
+  Seite `frontend/bestellen.html` (GitHub Pages): Token im #-Teil, sofort `history.replaceState`, danach nur `sessionStorage` (`bs_token`),
+  `no-referrer`, noindex, Hell/Dunkel (`bs_theme`), Bloecke `Bestellseite-Token` und `Bestellseite-Anzeige`; Eintragen kommt mit KS2.
 - backend/lib/wpMedien.js – Upload in die WordPress-Mediathek (`ladeMedienHoch`, `setzeMedienText`),
   eine Stelle fuer `POST /api/artikel/media-upload` und das Halloween-Skript (fetchMitZeitlimit +
   pruefeFetchAntwort; Titel/ALT als Abfrageparameter).

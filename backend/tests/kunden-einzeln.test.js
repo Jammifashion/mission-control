@@ -192,7 +192,7 @@ describe('Navigation und Datenschutz', () => {
     expect(tabelle.indexOf('auftraege: {')).toBeLessThan(tabelle.indexOf('bestellen: {'));
     // Inhaber 03.11.: im Bereich Aufträge der Unterpunkt Aufträge vor Kunden
     const au = tabelle.slice(tabelle.indexOf('auftraege: {'), tabelle.indexOf('bestellen: {'));
-    expect([...au.matchAll(/id: '([a-z]+)'/g)].map(m => m[1])).toEqual(['liste', 'todos', 'kunden']);   // AM-4: Offene To-dos hinter Auftraege
+    expect([...au.matchAll(/id: '([a-z]+)'/g)].map(m => m[1])).toEqual(['liste', 'todos', 'kunden', 'bestellseiten']);   // AM-4: Offene To-dos hinter Auftraege; KS1: Bestellseiten am Ende
   });
   test('Suchbegriff geht per POST (nie in die Adresse), Route loggt keinen Suchbegriff/Namen', () => {
     const route = readFileSync(resolve(hier, '../routes/kunden.js'), 'utf8');

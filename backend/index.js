@@ -39,6 +39,8 @@ import lagerRouter from './routes/lager.js';
 import kundenRouter from './routes/kunden.js';
 import dashboardRouter from './routes/dashboard.js';
 import auftraegeRouter from './routes/auftraege.js';
+import bestellseiteRouter from './routes/bestellseite.js';
+import bestellseitenRouter from './routes/bestellseiten.js';
 
 // Secrets vor Express-Setup laden – stellt sicher dass process.env.CORS_ORIGIN
 // (und alle anderen Secrets) bereits gesetzt sind wenn die Middleware konfiguriert wird.
@@ -67,6 +69,7 @@ app.use('/api/partner',      tokenBremse, partnerPortalRouter); // Token-Auth od
 app.use('/api/anfragen',           anfragenChatRouter);   // public: nur /chat (kein API-Key nötig)
 app.use('/api/festpreis-public',   tokenBremse, festpreisPublicRouter); // public: Token-Auth (kein API-Key); PPS1: Bremse
 app.use('/api/intern',             internRouter);          // Cloud Scheduler: OIDC-Token statt API-Key (CS1)
+app.use('/api/bestellseite',       bestellseiteRouter);    // public: Bestellseite per Token (KS1), Bearer-Token statt API-Key
 app.use(requireApiKey);
 
 // ── Routes ────────────────────────────────────────────────────────────────────
@@ -96,6 +99,7 @@ app.use('/api/lager',         lagerRouter);         // Lager: Bestand, Buchungen
 app.use('/api/kunden',        kundenRouter);        // Kundenstamm, eigenes Sheet KUNDEN_SHEET_ID (AM-1)
 app.use('/api/dashboard',     dashboardRouter);     // DB1: gebuendeltes Dashboard + Kundenhinweis gelesen
 app.use('/api/auftraege',     auftraegeRouter);     // Auftraege im SSOT, nur Kunden_Nr (AM-2)
+app.use('/api/bestellseiten', bestellseitenRouter); // KS1: Bestellseiten verwalten (Token nur einmal in der Antwort)
 app.use('/api/health', healthRouter);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
