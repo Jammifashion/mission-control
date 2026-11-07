@@ -4,7 +4,9 @@
 // Den Zwischenspeicher fuellt nur der MC-Knopf "Artikelliste aktualisieren" (getWcClient, 2-s-Takt, nacheinander).
 //
 // Schreiben: eine Sperre je Instanz, frisch gelesen (UNFORMATTED), kein values.append (pruefeZielStrecke/ersetzeZeile),
-// zurueckgelesen. Token-Klartext verlaesst diese Datei nur in der Antwort an MC (einmal), nie ins Sheet, nie ins Log.
+// zurueckgelesen. Token-Klartext verlaesst diese Datei nur in der Antwort an MC, nie ins Sheet, nie ins Log.
+// LK1: neue Links stehen zusaetzlich AES-256-GCM-verschluesselt in Token_Verschluesselt; `zeigeLink` gibt den Token fuer
+// "Link kopieren" an MC (hinter dem API-Key). Ohne Schluessel oder Spalte: nur der Hash (wie KS1), Kopieren nicht verfuegbar.
 // Log: nur Zugang_ID, Zahlen.
 
 import { google } from 'googleapis';
@@ -21,8 +23,10 @@ import { zeilenAus, aktivePositionen } from '../utils/auftraege.js';
 import {
   TAB_ZUGAENGE, TAB_TERMINE, TAB_EINTRAEGE, TAB_BILDER, ZUGANG_SPALTEN, ZUGANG_OPTIONAL, ZUGANG_ALLE, TERMIN_SPALTEN, BILD_SPALTEN,
   BILD_OPTIONAL, EINTRAG_SPALTEN, ART, STATUS, fehler, erzeugeToken, tokenHash, findeZugang, zugangStatus, anlagePlan, bearbeitenPlan,
-  katalogDauer, katalogAuftrag, seitenAntwort, zugangFuerMc, sortimentNamen, trikotsDauer,
+  katalogDauer, katalogAuftrag, seitenAntwort, zugangFuerMc, sortimentNamen, trikotsDauer, zugangKontext,
 } from '../utils/bestellseite.js';
+import { ladeLinkSchluessel } from './linkSchluessel.js';
+import { verschluessele, tokenFuerMc, linkFehler } from '../utils/link-schluessel.js';
 import { EINTRAG_OPTIONAL, OFFEN } from '../utils/bestell-eintraege.js';
 import { GROESSEN_KINDER, GROESSEN_ERWACHSENE } from '../utils/trikot-intern.js';
 
@@ -236,7 +240,7 @@ export async function leseSeite({ token, sheets: s, jetzt = () => new Date() } =
 
 // ── MC: Liste, Anlegen, Bearbeiten, neuer Link ───────────────────────────────
 
-export async function leseZugaenge({ sheets: s, jetzt = () => new Date() } = {}) {
+export async function leseZugaenge({ sheets: s, jetzt = () => new Date(), schluesselLaden = ladeLinkSchluessel } = {}) {
   const sheets = s ?? await sheetsClient();
   const spreadsheetId = sheetId();
   const { z, tr } = await lies(sheets, spreadsheetId);
@@ -244,14 +248,26 @@ export async function leseZugaenge({ sheets: s, jetzt = () => new Date() } = {})
   return {
     zugaenge: z.zeilen.map(x => zugangFuerMc(x, jetzt(), tr.zeilen)).sort((a, b) => b.Zugang_ID.localeCompare(a.Zugang_ID)),
     bilderStand: bilder.stand, bilderAnzahl: bilder.je.size,
-    spalten: { designLink: z.idx.Design_Link_Zeigen !== undefined },
+    spalten: { designLink: z.idx.Design_Link_Zeigen !== undefined, linkVerschluesselt: z.idx.Token_Verschluesselt !== undefined },
+    linkSchluessel: Boolean(await schluesselLaden()),   // LK1: nur ja/nein, nie der Wert
   };
 }
 
 const kundeDaAus = kunden => nr => kunden.some(k => k.Kunden_Nr === nr && k.Status !== 'gesperrt-DSGVO' && k.Status !== 'archiviert');
 
 /** Neuer Zugang. Antwort enthaelt den Token-Klartext EINMAL (nie gespeichert). Gleiche Vorgang-Kennung = schon angelegt. */
-export async function legeZugangAn({ eingabe, sheets: s, jetzt = () => new Date(), kundenLesen = leseKunden, zufall } = {}) {
+/**
+ * LK1: verschluesselten Token in den Zugang legen (Spalte da + Schluessel da), sonst leeren - ein alter Wert gehoerte zum
+ * alten Link. Liefert, ob der Link spaeter kopierbar ist.
+ */
+async function verschluesselt(z, zugang, token, schluesselLaden) {
+  if (z.idx.Token_Verschluesselt === undefined) return false;
+  const schluessel = await schluesselLaden();
+  zugang.Token_Verschluesselt = schluessel ? verschluessele(token, schluessel, zugangKontext(zugang.Zugang_ID)) : '';
+  return Boolean(zugang.Token_Verschluesselt);
+}
+
+export async function legeZugangAn({ eingabe, sheets: s, jetzt = () => new Date(), kundenLesen = leseKunden, zufall, schluesselLaden = ladeLinkSchluessel } = {}) {
   const vorgang = t(eingabe?.vorgang);
   if (!/^[\w-]{8,64}$/.test(vorgang)) throw fehler('Vorgangs-Kennung fehlt.', 422);
   return mitSperre(async () => {
@@ -269,12 +285,13 @@ export async function legeZugangAn({ eingabe, sheets: s, jetzt = () => new Date(
     if (plan.zugang.Design_Link_Zeigen && z.idx.Design_Link_Zeigen === undefined) throw fehler('Spalte Design_Link_Zeigen fehlt – Setup.', 409, 'einrichtung');
     const token = erzeugeToken(zufall);
     plan.zugang.Token_Hash = tokenHash(token);
+    const kopierbar = await verschluesselt(z, plan.zugang, token, schluesselLaden);
     await schreibeBloecke(sheets, spreadsheetId, [
       { tab: TAB_ZUGAENGE, alt: wz, zeilen: [alsZeile(z.idx, plan.zugang, wz[0].length)] },
       { tab: TAB_TERMINE, alt: wt, zeilen: plan.termin ? [alsZeile(tr.idx, plan.termin, wt[0].length)] : [] },
     ]);
     console.log(`Bestellseite ${plan.zugang.Zugang_ID} angelegt (${plan.zugang.Art}).`);
-    return { ok: true, schon: false, zugangId: plan.zugang.Zugang_ID, token, ablauf: plan.zugang.Ablauf };
+    return { ok: true, schon: false, zugangId: plan.zugang.Zugang_ID, token, ablauf: plan.zugang.Ablauf, kopierbar };
   });
 }
 
@@ -306,7 +323,7 @@ export async function bearbeiteZugang({ eingabe, sheets: s, jetzt = () => new Da
 }
 
 /** Neuer Link: neuer Token, der alte ist sofort ungueltig. Klartext einmal in der Antwort. */
-export async function neuerLink({ eingabe, sheets: s, jetzt = () => new Date(), zufall } = {}) {
+export async function neuerLink({ eingabe, sheets: s, jetzt = () => new Date(), zufall, schluesselLaden = ladeLinkSchluessel } = {}) {
   return mitSperre(async () => {
     const sheets = s ?? await sheetsClient();
     const spreadsheetId = sheetId();
@@ -316,10 +333,27 @@ export async function neuerLink({ eingabe, sheets: s, jetzt = () => new Date(), 
     if (t(eingabe?.stand) !== t(alt.Stand)) throw fehler('Zugang wurde inzwischen geändert – bitte neu laden.', 409, 'konflikt');
     const token = erzeugeToken(zufall);
     const neu = { ...alt, Token_Hash: tokenHash(token), Stand: jetzt().toISOString() };
+    const kopierbar = await verschluesselt(z, neu, token, schluesselLaden);
     await ersetzeZugang(sheets, spreadsheetId, wz, z, alt, neu);
     console.log(`Bestellseite ${alt.Zugang_ID}: neuer Link erzeugt.`);
-    return { ok: true, zugangId: alt.Zugang_ID, token, stand: neu.Stand, status: zugangStatus(neu, jetzt().toISOString()) };
+    return { ok: true, zugangId: alt.Zugang_ID, token, stand: neu.Stand, status: zugangStatus(neu, jetzt().toISOString()), kopierbar };
   });
+}
+
+/**
+ * LK1: Token fuer "Link kopieren" (nur MC, hinter dem API-Key). Liest frisch, entschluesselt, prueft gegen den Hash.
+ * Altbestand/ohne Schluessel/passt nicht -> 409 `link_alt` | `link_kein_schluessel` | `link_fehler` (Text ohne Wert).
+ */
+export async function zeigeLink({ zugangId, sheets: s, schluesselLaden = ladeLinkSchluessel } = {}) {
+  const sheets = s ?? await sheetsClient();
+  const { z } = await lies(sheets, sheetId());
+  const zugang = z.zeilen.find(x => x.Zugang_ID === t(zugangId));
+  if (!zugang) throw fehler('Zugang gibt es nicht.', 404);
+  const wert = t(zugang.Token_Verschluesselt);
+  const schluessel = wert ? await schluesselLaden() : null;
+  const e = tokenFuerMc({ wert, hash: zugang.Token_Hash, schluessel, kontext: zugangKontext(zugang.Zugang_ID) });
+  if (e.status !== 'ok') throw linkFehler(e.status);
+  return { zugangId: zugang.Zugang_ID, token: e.token };
 }
 
 // ── MC-Knopf "Artikelliste aktualisieren": Bild-URLs schonend aus dem Shop ────

@@ -1,7 +1,7 @@
 // Bestellseiten verwalten (KS1), hinter requireApiKey. Logik in lib/bestellseite.js + utils/bestellseite.js.
-// Der Token-Klartext steht nur in der Antwort von /neu und /neuer-link (einmal, fuer den Kopieren-Knopf), nie im Log.
+// Der Token-Klartext steht nur in der Antwort von /neu, /neuer-link und (LK1) /:zugangId/link (Kopieren-Knopf), nie im Log.
 import { Router } from 'express';
-import { leseZugaenge, legeZugangAn, bearbeiteZugang, neuerLink, aktualisiereBilder, leseKategorien, bilderPlan, bilderStueck, bilderSchreiben } from '../lib/bestellseite.js';
+import { leseZugaenge, legeZugangAn, bearbeiteZugang, neuerLink, zeigeLink, aktualisiereBilder, leseKategorien, bilderPlan, bilderStueck, bilderSchreiben } from '../lib/bestellseite.js';
 import { leseEintraegeMc } from '../lib/bestellEintraege.js';   // KS2: nur ansehen
 
 const router = Router();
@@ -25,6 +25,8 @@ router.post('/neu', mitMeldung(req => legeZugangAn({ eingabe: req.body ?? {} }))
 router.post('/bearbeiten', mitMeldung(req => bearbeiteZugang({ eingabe: req.body ?? {} })));
 // POST /api/bestellseiten/neuer-link { zugangId, stand } - alter Link sofort ungueltig.
 router.post('/neuer-link', mitMeldung(req => neuerLink({ eingabe: req.body ?? {} })));
+// GET /api/bestellseiten/:zugangId/link - LK1: Token fuer "Link kopieren" (entschluesselt, no-store); Altbestand 409 link_alt.
+router.get('/:zugangId/link', (req, res, next) => { res.set('Cache-Control', 'no-store'); next(); }, mitMeldung(req => zeigeLink({ zugangId: req.params.zugangId })));
 // POST /api/bestellseiten/bilder { dryRun } - alles in einem Zug (nur noch fuer Trockenlauf/Tests; dauert Minuten).
 router.post('/bilder', mitMeldung(req => aktualisiereBilder({ dryRun: req.body?.dryRun === true })));
 // KS2-2: Knopf "Artikelliste aktualisieren" in Stuecken (kein Browser-Abbruch, kein Cloud-Run-Zeitlimit):

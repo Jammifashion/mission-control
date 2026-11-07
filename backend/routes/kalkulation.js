@@ -12,7 +12,7 @@ import { abrechnungHinweise } from '../utils/sync-logic.js';
 import { saldoRechnung } from '../utils/partner-saldo.js';
 import { leseKacheln } from './partnerPortal.js';
 import { zugangArt, klartextFuerMc } from '../utils/partner-token.js';
-import { erzeugeNeuenPartnerLink } from '../lib/partnerLink.js';
+import { erzeugeNeuenPartnerLink, zeigePartnerLink, partnerKopierbar } from '../lib/partnerLink.js';
 import { berechnePartnerAnteil, parseKonfiguration, istBekanntePosition, baueLizenzSaetze, lizenzSatzAusZeile, parseVertragAb, baueVertragsbeginne } from '../utils/partner-kalkulation.js';
 
 const router = Router();
@@ -131,6 +131,7 @@ router.get('/partner', async (req, res, next) => {
       // PPS1: Klartext nur im Uebergang (fuer "Link kopieren"), nie der Hash. zugang = 'hash' | 'klartext' | ''.
       token:         klartextFuerMc(header, r),
       zugang:        zugangArt(header, r),
+      kopierbar:     partnerKopierbar(header, r),   // LK1: "Link kopieren" ohne neuen Link moeglich (ohne Wert)
       aktiv:         (r[aktivIdx] ?? '').toLowerCase() === 'ja',
       lizenzProzent: toFloat(r[lizenzIdx]),
       portoModell:   r[portoIdx]   ?? 'geteilt-50-50',
@@ -208,6 +209,18 @@ router.post('/partner', async (req, res, next) => {
 router.post('/partner/:id/link-neu', async (req, res, next) => {
   try {
     res.json(await erzeugeNeuenPartnerLink({ art: 'lizenz', partnerId: req.params.id }));
+  } catch (err) {
+    if (err.code && err.status) return res.status(err.status).json({ error: err.message, code: err.code });
+    next(err);
+  }
+});
+
+// ── GET /api/kalkulation/partner/:id/link (LK1) ──────────────────────────────
+// "Link kopieren": entschluesselt serverseitig, Link nur in dieser Antwort (no-store), nie im Log.
+router.get('/partner/:id/link', async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json(await zeigePartnerLink({ art: 'lizenz', partnerId: req.params.id }));
   } catch (err) {
     if (err.code && err.status) return res.status(err.status).json({ error: err.message, code: err.code });
     next(err);

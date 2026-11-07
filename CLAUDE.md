@@ -654,6 +654,16 @@ Neue Sektionen immer mit Anker versehen:
   `history.replaceState`; `<meta name="referrer" content="no-referrer">`. Umstellung `scripts/setup-partner-token-hash.js`
   (Trockenlauf; `--write` = Hashes; `--leeren --write` = Klartext leeren, nur wo der Hash schon passt; `--zurueck <sicherung>`;
   Sicherung vorher nach Documents/mc-sicherungen). Test partner-token.test.js.
+- backend/utils/link-schluessel.js – Links wieder kopierbar (LK1). Geprueft wird weiter NUR ueber `Token_Hash`; daneben hinten
+  `Token_Verschluesselt` in `Bestellseiten` (SSOT), `Partner`, `FP_Partner` = Token AES-256-GCM (IV je Wert, Auth-Tag, Form
+  `v1.<iv>.<tag>.<geheim>`, Zusatzdaten = Kontext `bestellseite:BS-…` bzw. `lizenz:P-…`/`festpreis:FP-…` - in eine andere Zeile
+  kopiert = unlesbar). Schluessel Secret `LINK_SCHLUESSEL` (32 Byte, `lib/linkSchluessel.js`, NICHT in SECRET_KEYS: fehlt er, laufen
+  die Links, nur Kopieren ist aus). Neuer Link (Bestellseite anlegen/neuer Link, Partner "Link neu erzeugen") schreibt Hash UND
+  Wert; ohne Schluessel wird die Zelle GELEERT (alter Wert gehoerte zum alten Link). "Link kopieren" = `GET /api/bestellseiten/:id/link`,
+  `GET /api/kalkulation/partner/:id/link`, `GET /api/festpreis/partner/:id/link` (hinter dem API-Key, no-store): entschluesselt und
+  prueft gegen den Hash; Altbestand ohne Wert -> 409 `link_alt` ("vor LK1 erstellt – einmal neu erzeugen"), `link_kein_schluessel`,
+  `link_fehler`. Listen liefern nur `kopierbar`, nie den Wert (auch nicht verschluesselt, auch nicht ans Portal). Setup
+  `scripts/setup-link-verschluesselt.js` (Trockenlauf, `--write` nur Kopfzellen). Tests link-schluessel.test.js.
 - backend/routes/anfragen.js – Kundenanfragen Admin (POST /neu, GET /, PATCH /:id/status) – hinter requireApiKey
 - backend/routes/anfragen-chat.js – Chat-Widget public endpoint (POST /chat, kein API-Key) – vor requireApiKey
 - frontend/anfrage.html – Standalone Chat-Widget für Kunden (GitHub Pages, kein MC-Design)

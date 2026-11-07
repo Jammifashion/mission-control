@@ -6458,8 +6458,9 @@
         'pk-saldo':              { name: 'Saldo', text: 'Lizenzanteile (inkl. MwSt) minus interne Bestellungen, noch nicht abgerechnet. Grün bekommt, rot schuldet.' },
         'pk-details':            { name: 'Details', text: 'Öffnet die bisherige Ansicht mit allen Einzelheiten.' },
         'pk-info':               { name: 'ⓘ Saldo', text: 'Erklärt kurz, wie der Saldo gerechnet wird.' },
-        'link-kopieren':         { name: 'Link kopieren', text: 'Kopiert den Portal-Link dieses Partners in die Zwischenablage. Es wird nichts geändert.' },
-        'token-neu':             { name: 'Link (neu) erzeugen', text: 'Erzeugt einen neuen Portal-Link und zeigt ihn einmal an. Ein bisheriger Link geht sofort nicht mehr – nur bei Bedarf.' },
+        'link-kopieren':         { name: 'Link kopieren', text: 'Holt den Portal-Link dieses Partners (MC entschlüsselt ihn) und kopiert ihn. Es wird nichts geändert.' },
+        'link-vor-lk1':          { name: 'Link nicht kopierbar', text: 'Dieser Link wurde vor LK1 erstellt – zum Kopieren einmal neu erzeugen (alter wird ungültig, der Partner braucht dann den neuen).' },
+        'token-neu':             { name: 'Link (neu) erzeugen', text: 'Neuer Portal-Link, danach jederzeit über „Link kopieren“. Ein bisheriger Link geht sofort nicht mehr – nur bei Bedarf.' },
         'partner-zugang':        { name: 'Zugang', text: 'Hat der Partner einen Portal-Link? „alt“ = im Sheet noch lesbar, „gesichert“ = nur als Prüfwert. Der Link bleibt gleich.' },
         'nav-bereich':           { name: 'Bereich', text: 'Öffnet diesen Bereich. Seine Unterpunkte stehen darunter.' },
         'nav-unterreiter':       { name: 'Unterreiter', text: 'Öffnet diesen Unterreiter. Es wird nichts geändert.' },
@@ -6913,8 +6914,10 @@
         'ku-dauer-bestellseite': { name: 'Dauer-Bestellseite', text: 'Dauer-Link für diesen Kunden (z. B. Fanshop): Sortiment aus Shop-Kategorien, mehrere Termine. Gültig bis Saisonende.' },
         'bsm-status':           { name: 'Status', text: 'aktiv = Link geht · gesperrt = von dir gesperrt · abgelaufen = „Gültig bis“ ist vorbei.' },
         'bsm-oeffnen':          { name: 'Bestellseite öffnen', text: 'Zeigt Status, Gültigkeit, Hinweis und Termine. Dort neuer Link, sperren oder verlängern.' },
-        'bsm-link':             { name: 'Link', text: 'Der Link steht nur jetzt hier. Im Sheet liegt nur ein Prüfwert, nicht der Link selbst.' },
-        'bsm-kopieren':         { name: 'Link kopieren', text: 'Kopiert den Link für den Kunden. Nach dem Schließen ist er nicht mehr lesbar.' },
+        'bsm-link':             { name: 'Link', text: 'Link für den Kunden. Im Sheet liegen nur ein Prüfwert und der Link verschlüsselt – nie lesbar.' },
+        'bsm-kopieren':         { name: 'Link kopieren', text: 'Kopiert den Link für den Kunden in die Zwischenablage. Es wird nichts geändert.' },
+        'bsm-link-holen':       { name: 'Link kopieren', text: 'Holt den Link dieser Bestellseite (MC entschlüsselt ihn) und kopiert ihn. Der Link bleibt gleich, nichts wird geändert.' },
+        'bsm-link-alt':         { name: 'Link nicht kopierbar', text: 'Links von vor LK1 stehen nur als Prüfwert im Sheet. Zum Kopieren einmal „neuer Link“ – der alte geht dann nicht mehr.' },
         'bsm-anlegen':          { name: 'Bestellseite anlegen', text: 'Legt die Bestellseite an und zeigt den Link einmal. Schreibt eine Zeile ins Sheet.' },
         'bsm-speichern':        { name: 'Speichern', text: 'Speichert „Gültig bis“, Hinweis und Design-Link. Der Link bleibt gleich.' },
         'bsm-neuer-link':       { name: 'Neuer Link', text: 'Erzeugt einen neuen Link. Der alte geht sofort nicht mehr – den neuen dem Kunden schicken.' },
@@ -6953,7 +6956,7 @@
         'auftragsmonitor': ['wc-erledigt', 'tab-offen', 'tab-protokoll', 'mon-fulfillment', 'dtf-sammel', 'dtf-bestellt', 'lshop-alt-sammel', 'lshop-alt-bestellt', 'korb-aeltere'],
         'artikel': ['modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
         'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
-        'partner': ['fp-artikel-pruefen', 'fp-ohne-festpreis', 'fp-ohne-zeigen', 'pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
+        'partner': ['fp-artikel-pruefen', 'fp-ohne-festpreis', 'fp-ohne-zeigen', 'pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'link-vor-lk1', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
         'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'fp-preis-loeschen'],
         'anfragen': ['anf-neu', 'anf-aktualisieren', 'anf-anlegen', 'anf-speichern'],
         'assistent': ['aw-eintrag-neu', 'aw-eintrag-speichern', 'aw-prompt-speichern', 'aw-prompt-standard', 'aw-prompt-zeigen', 'aw-test-senden', 'aw-test-neu'],
@@ -6977,7 +6980,7 @@
           'au-hist-chip', 'au-hist-aus', 'au-hist-drin', 'au-hist-mehr', 'au-hist-preis', 'au-preis-von', 'au-hist-lfb', 'au-wie-letztes', 'au-vorlage-von',
           'ku-hist', 'ku-hist-neu', 'ku-hist-frei-neu', 'ku-mit-storniert', 'ku-wie-letztes',
           'au-letzte', 'au-letzte-alle', 'au-ns-schliessen', 'au-ns-vorlage', 'au-ek-von', 'au-bestellseite', 'ku-dauer-bestellseite'],   // AM-6, AM-6-1, KS1
-        bestellseiten: ['bsm-status', 'bsm-oeffnen', 'bsm-link', 'bsm-kopieren', 'bsm-anlegen', 'bsm-speichern', 'bsm-neuer-link', 'bsm-sperren', 'bsm-entsperren',
+        bestellseiten: ['bsm-status', 'bsm-oeffnen', 'bsm-link', 'bsm-kopieren', 'bsm-link-holen', 'bsm-link-alt', 'bsm-anlegen', 'bsm-speichern', 'bsm-neuer-link', 'bsm-sperren', 'bsm-entsperren',
           'bsm-ablauf', 'bsm-hinweis', 'bsm-design', 'bsm-sortiment', 'bsm-partner', 'bsm-bilder', 'bsm-bilder-stand',
           'bsm-eintraege', 'bsm-termin-filter', 'bsm-neu', 'bsm-spaet'],   // KS1, KS2
         lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
@@ -12894,7 +12897,7 @@
 
       // ── Dialog: Anlegen / Link / Sperren / Ablauf ──
       async function bsmDialogOeffnen(fuer) {
-        bsmZ.fuer = fuer; bsmZ.link = ''; bsmZ.vorgang = auVorgang();
+        bsmZ.fuer = fuer; bsmZ.link = ''; bsmZ.linkKopierbar = false; bsmZ.vorgang = auVorgang();
         bsmEl('bsm-fehler').hidden = true;
         bsmEl('bsm-dialog').hidden = false;
         bsmEl('bsm-inhalt').innerHTML = '<div class="skeleton"></div>';
@@ -12904,7 +12907,7 @@
         }
         bsmDialogZeichnen();
       }
-      function bsmDialogSchliessen() { bsmEl('bsm-dialog').hidden = true; bsmZ.link = ''; bsmZ.fuer = null; bsmZ.eintraege = {}; }   // KS2: Eintraege nicht aufheben
+      function bsmDialogSchliessen() { bsmEl('bsm-dialog').hidden = true; bsmZ.link = ''; bsmZ.linkKopierbar = false; bsmZ.fuer = null; bsmZ.eintraege = {}; }   // KS2: Eintraege nicht aufheben
       function bsmAktueller() {
         const f = bsmZ.fuer; if (!f) return [];
         if (f.zugangId) return (bsmZ.daten?.zugaenge ?? []).filter(z => z.Zugang_ID === f.zugangId);
@@ -12915,7 +12918,9 @@
         const liste = bsmAktueller();
         const art = f.art ?? liste[0]?.Art;
         bsmEl('bsm-titel').textContent = art === 'dauer' ? `Dauer-Bestellseite · ${f.kundenNr || liste[0]?.Kunden_Nr || ''}` : `Bestellseite · ${f.auftragNr || liste[0]?.Auftrag_Nr || ''}`;
-        const link = bsmZ.link ? `<div class="bsm-link-box"><div class="korb-zaehler">Link für den Kunden – wird nur jetzt angezeigt. Nach dem Schließen ist er nicht mehr lesbar (dann „neuer Link“).</div>`
+        const linkText = bsmZ.linkKopierbar ? 'Link für den Kunden – später jederzeit wieder über „Link kopieren“.'
+          : 'Link für den Kunden – wird nur jetzt angezeigt. Nach dem Schließen ist er nicht mehr lesbar (dann „neuer Link“).';
+        const link = bsmZ.link ? `<div class="bsm-link-box"><div class="korb-zaehler">${linkText}</div>`
           + `<div class="korb-reihe"><input id="bsm-link" class="form-input" type="text" readonly value="${kuEsc(bsmZ.link)}" aria-label="Link für den Kunden" data-hilfe="bsm-link">`
           + `<button type="button" class="korb-aktion korb-aktion-haupt" id="bsm-kopieren" data-hilfe="bsm-kopieren">Link kopieren</button></div></div>` : '';
         const vorhanden = liste.map(z => `<div class="au-gruppe bsm-zugang" data-bsm-zugang="${kuEsc(z.Zugang_ID)}">`
@@ -12925,6 +12930,7 @@
           + (z.Art === 'auftrag' ? `<label class="ku-mit-storniert" data-hilfe="bsm-design"><input type="checkbox" data-bsm-design ${z.Design_Link_Zeigen === 'ja' ? 'checked' : ''}> Design-Link auf der Seite zeigen</label>` : '')
           + `<div class="korb-reihe"><label class="edi-feld" data-hilfe="bsm-ablauf">Gültig bis<input type="date" class="form-input" data-bsm-ablauf value="${kuEsc(z.Ablauf)}"></label>`
           + `<label class="edi-feld bsm-breit" data-hilfe="bsm-hinweis">Hinweis auf der Seite (ohne Namen)<input type="text" class="form-input" maxlength="200" data-bsm-hinweis value="${kuEsc(z.Hinweis)}"></label></div>`
+          + bsmLinkZeileHtml(z)   // LK1
           + `<div class="korb-reihe ku-knoepfe"><button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-speichern data-hilfe="bsm-speichern">Speichern</button>`
           + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-eintraege data-hilfe="bsm-eintraege">Einträge ansehen</button>`   // KS2
           + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-neuer-link data-hilfe="bsm-neuer-link">neuer Link …</button>`
@@ -12946,6 +12952,24 @@
         bsmEl('bsm-inhalt').innerHTML = link + vorhanden + neu || '<p class="korb-zaehler">Nichts gefunden.</p>';
       }
       function bsmFehler(text) { bsmEl('bsm-fehler').textContent = text; bsmEl('bsm-fehler').hidden = !text; }
+      // LK1: "Link kopieren" je Zugang - der Link steht verschluesselt im Sheet, das Backend entschluesselt ihn (hinter dem API-Key).
+      // Altbestand (vor LK1 nur Pruefwert) oder fehlender Schluessel: nur ein Hinweis. Der Link liegt nur in bsmZ.link (Speicher der Seite).
+      function bsmLinkZeileHtml(z) {
+        if (!z.hatLink) return '';
+        if (!z.kopierbar) return `<div class="korb-zaehler" data-hilfe="bsm-link-alt">Dieser Link wurde vor LK1 erstellt – zum Kopieren einmal neu erzeugen (alter wird ungültig).</div>`;
+        if (bsmZ.daten && bsmZ.daten.linkSchluessel === false) return `<div class="korb-zaehler" data-hilfe="bsm-link-alt">Kopieren nicht verfügbar (Link-Schlüssel fehlt). Der Link funktioniert weiter.</div>`;
+        return `<div class="korb-reihe"><button type="button" class="korb-aktion korb-aktion-haupt" data-bsm-link-holen data-hilfe="bsm-link-holen">Link kopieren</button></div>`;
+      }
+      async function bsmLinkHolen(z, knopf) {
+        knopf.disabled = true;
+        try {
+          const r = await bsmApi(`/${encodeURIComponent(z.Zugang_ID)}/link`);
+          bsmZ.link = bsmLink(r.token); bsmZ.linkKopierbar = true;
+          bsmDialogZeichnen();
+          try { await navigator.clipboard.writeText(bsmZ.link); showToast(`${z.Zugang_ID}: Link kopiert.`); }
+          catch { bsmEl('bsm-link')?.select(); showToast('Kopieren ging nicht – Link steht oben, bitte von Hand kopieren.', 'toast-error'); }
+        } catch (e) { bsmFehler(e.message); } finally { knopf.disabled = false; }
+      }
 
       async function bsmAnlegen(knopf) {
         const f = bsmZ.fuer;
@@ -12956,7 +12980,7 @@
         try {
           const r = await bsmApi('/neu', body);
           if (r.schon) { bsmFehler(`${r.zugangId} ist schon angelegt – für einen Link „neuer Link …“.`); }
-          else { bsmZ.link = bsmLink(r.token); showToast(`${r.zugangId}: Bestellseite angelegt – Link jetzt kopieren.`); }
+          else { bsmZ.link = bsmLink(r.token); bsmZ.linkKopierbar = !!r.kopierbar; showToast(`${r.zugangId}: Bestellseite angelegt – Link jetzt kopieren.`); }
           bsmZ.vorgang = auVorgang();
           await bsmLaden();
         } catch (e) { bsmFehler(e.message); } finally { knopf.disabled = false; }
@@ -12974,7 +12998,7 @@
         knopf.disabled = true;
         try {
           const r = await bsmApi('/neuer-link', { zugangId: z.Zugang_ID, stand: z.Stand });
-          bsmZ.link = bsmLink(r.token);
+          bsmZ.link = bsmLink(r.token); bsmZ.linkKopierbar = !!r.kopierbar;
           showToast(`${r.zugangId}: neuer Link erzeugt – jetzt kopieren.`);
           await bsmLaden();
         } catch (e) { bsmFehler(e.message); } finally { knopf.disabled = false; }
@@ -13003,6 +13027,7 @@
           const d = box.querySelector('[data-bsm-design]'); if (d) felder.designLinkZeigen = d.checked;
           bsmAendern(z, felder, b);
         } else if (b.hasAttribute('data-bsm-neuer-link')) bsmNeuerLink(z, b);
+        else if (b.hasAttribute('data-bsm-link-holen')) bsmLinkHolen(z, b);   // LK1
         else if (b.hasAttribute('data-bsm-sperren')) {
           if (await showConfirm('Bestellseite sperren?', `<p>${kuEsc(z.Zugang_ID)}: Der Link geht sofort nicht mehr. „wieder freigeben“ macht das rückgängig.</p>`, 'Sperren')) bsmAendern(z, { aktiv: false }, b);
         } else if (b.hasAttribute('data-bsm-entsperren')) bsmAendern(z, { aktiv: true }, b);
@@ -18798,8 +18823,10 @@
         const d = await r.json().catch(() => ({}));
         if (!r.ok || !d.link) throw new Error(d.error ?? r.statusText);
         const kopieren = await window.showConfirm('Neuer Portal-Link',
-          '<p style="margin:0 0 0.5rem;">Dieser Link wird <strong>nur jetzt</strong> angezeigt – MC speichert ihn nicht. '
-          + 'Bitte direkt an den Partner geben.</p>'
+          (d.kopierbar
+            ? '<p style="margin:0 0 0.5rem;">Bitte an den Partner geben. Später jederzeit wieder über „Link kopieren“ (im Sheet nur verschlüsselt).</p>'
+            : '<p style="margin:0 0 0.5rem;">Dieser Link wird <strong>nur jetzt</strong> angezeigt – MC speichert ihn nicht lesbar. '
+              + 'Bitte direkt an den Partner geben.</p>')
           + `<input class="form-input" readonly value="${_escHtml(d.link)}" style="width:100%;font-size:0.78rem;">`,
           'Link kopieren', 'Schließen');
         if (kopieren) {
@@ -18807,6 +18834,27 @@
           catch { window.showToast('Kopieren fehlgeschlagen – bitte im Feld markieren und kopieren.', 'toast-error'); }
         }
         return true;
+      }
+      // LK1: "Link kopieren" - Link aus dem Backend (entschluesselt dort, nur hinter dem API-Key), nie gespeichert.
+      // kopierbar false = Link vor LK1 (nur Pruefwert) -> Hinweis statt Knopf.
+      function partnerKopierenHtml(art, partnerId, zugang, kopierbar) {
+        if (!zugang) return '';
+        const attr = art === 'festpreis' ? 'data-fp-copy' : 'data-pp-copy';
+        return kopierbar
+          ? `<button class="btn-secondary btn-xs" ${attr}="${_escHtml(partnerId)}" style="margin-left:0.3rem;" data-hilfe="link-kopieren">Link kopieren</button>`
+          : `<span style="margin-left:0.3rem;color:var(--muted);font-size:0.8rem;" data-hilfe="link-vor-lk1">Kopieren: erst neu erzeugen</span>`;
+      }
+      async function partnerLinkKopieren(art, partnerId) {
+        const pfad = art === 'festpreis'
+          ? `/api/festpreis/partner/${encodeURIComponent(partnerId)}/link`
+          : `/api/kalkulation/partner/${encodeURIComponent(partnerId)}/link`;
+        const r = await window.apiFetch(`${window.API_BASE()}${pfad}`);
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || !d.link) { window.showToast(d.error ?? `Link nicht verfügbar (${r.status}).`, 'toast-error'); return; }
+        try { await navigator.clipboard.writeText(d.link); window.showToast(`${partnerId}: Portal-Link kopiert.`); }
+        catch {
+          await window.showConfirm('Portal-Link', `<input class="form-input" readonly value="${_escHtml(d.link)}" style="width:100%;font-size:0.78rem;">`, 'Schließen', 'Schließen');
+        }
       }
       // ── Partner-Link: Ende ──
       // ── Partner-Kacheln: Anfang (wortgleich in index.html und partner.html, Test partner-kacheln.test.js) ──
@@ -18924,9 +18972,7 @@
                     <td style="white-space:nowrap;">
                       <button class="btn-secondary btn-xs" data-pp-edit="${p.id}" data-hilfe="liste-bearbeiten">Bearbeiten</button>
                       <button class="btn-ghost btn-xs" data-pp-toggle="${p.id}" data-aktiv="${p.aktiv}" style="margin-left:0.3rem;" data-hilfe="partner-aktiv">${p.aktiv ? 'Deaktivieren' : 'Aktivieren'}</button>
-                      ${p.token
-                        ? `<button class="btn-secondary btn-xs" data-pp-copy="${p.id}" style="margin-left:0.3rem;" data-hilfe="link-kopieren">Link kopieren</button>`
-                        : ''}
+                      ${partnerKopierenHtml('lizenz', p.id, p.zugang, p.kopierbar)}
                       <button class="btn-secondary btn-xs" data-pp-gen-token="${p.id}" style="margin-left:0.3rem;" data-hilfe="token-neu">${p.zugang ? 'Link neu erzeugen …' : 'Link erzeugen …'}</button>
                     </td>
                   </tr>`).join('')}
@@ -18944,17 +18990,9 @@
           });
           wrap.querySelectorAll('[data-pp-copy]').forEach(btn => {
             btn.addEventListener('click', async () => {
-              const p = _ppPartners.find(x => x.id === btn.dataset.ppCopy);
-              if (!p?.token) return;
-              // Kein &api= mehr: die Partnerseiten haben die Backend-URL fest im Code.
-              const shopParam = p.shop === 'honk' ? '&shop=honk' : '';
-              const link = `https://jammifashion.github.io/mission-control/partner.html?token=${encodeURIComponent(p.token)}${shopParam}`;
-              try {
-                await navigator.clipboard.writeText(link);
-                window.showToast('Partner-Link kopiert!');
-              } catch {
-                window.showToast('Kopieren fehlgeschlagen – bitte manuell kopieren.', 'toast-error');
-              }
+              // LK1: Link kommt aus dem Backend (Klartext im Uebergang oder entschluesselt), nie aus der Liste.
+              btn.disabled = true;
+              try { await partnerLinkKopieren('lizenz', btn.dataset.ppCopy); } finally { btn.disabled = false; }
             });
           });
           wrap.querySelectorAll('[data-pp-gen-token]').forEach(btn => {
@@ -20775,9 +20813,7 @@
                 <td style="color:var(--muted);font-size:0.84rem;">${p['Notiz'] || '–'}</td>
                 <td style="white-space:nowrap;">
                   <button class="btn-secondary btn-xs" data-fp-edit="${p['Partner-ID']}" data-hilfe="liste-bearbeiten">Bearbeiten</button>
-                  ${p['Token']
-                    ? `<button class="btn-secondary btn-xs" data-fp-copy="${p['Partner-ID']}" style="margin-left:0.3rem;" data-hilfe="link-kopieren">Link kopieren</button>`
-                    : ''}
+                  ${partnerKopierenHtml('festpreis', p['Partner-ID'], p._zugang, p._kopierbar)}
                   <button class="btn-secondary btn-xs" data-fp-gen-token="${p['Partner-ID']}" style="margin-left:0.3rem;" data-hilfe="token-neu">${p._zugang ? 'Link neu erzeugen …' : 'Link erzeugen …'}</button>
                   <span style="margin-left:0.4rem;">${partnerZugangHtml(p._zugang)}</span>
                 </td>
@@ -20805,16 +20841,9 @@
             });
             wrap.querySelectorAll('[data-fp-copy]').forEach(btn => {
               btn.addEventListener('click', async () => {
-                const p = _fpPartners.find(x => x['Partner-ID'] === btn.dataset.fpCopy);
-                if (!p?.Token) return;
-                // Kein &api= mehr: die Partnerseiten haben die Backend-URL fest im Code.
-                const link = `https://jammifashion.github.io/mission-control/partner-festpreis.html?token=${encodeURIComponent(p['Token'])}`;
-                try {
-                  await navigator.clipboard.writeText(link);
-                  window.showToast('Festpreis-Partner-Link kopiert!');
-                } catch {
-                  window.showToast('Kopieren fehlgeschlagen.', 'toast-error');
-                }
+                // LK1: Link kommt aus dem Backend (Klartext im Uebergang oder entschluesselt), nie aus der Liste.
+                btn.disabled = true;
+                try { await partnerLinkKopieren('festpreis', btn.dataset.fpCopy); } finally { btn.disabled = false; }
               });
             });
             populateFpPartnerSelects();

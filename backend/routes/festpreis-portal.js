@@ -10,7 +10,8 @@ import { fpArtikelPruefung, fpUebersprungenePruefen } from '../lib/fpArtikel.js'
 import { berechneFestpreisAnteil } from '../utils/festpreis-kalkulation.js';
 import { parseKonfiguration } from '../utils/partner-kalkulation.js';
 import { zugangArt, klartextFuerMc, SPALTE_TOKEN, SPALTE_HASH } from '../utils/partner-token.js';
-import { erzeugeNeuenPartnerLink } from '../lib/partnerLink.js';
+import { erzeugeNeuenPartnerLink, zeigePartnerLink, partnerKopierbar } from '../lib/partnerLink.js';
+import { SPALTE_VERSCHLUESSELT } from '../utils/link-schluessel.js';
 import {
   berechneVerpackung, verpackungsKondition, versandmethodeAus, VERSANDMETHODE,
 } from '../utils/festpreis-verpackung.js';
@@ -251,8 +252,10 @@ router.get('/partner', async (req, res, next) => {
     const partner = rows.map(r => {
       const o = rowToObj(header, r);
       delete o[SPALTE_HASH];
+      delete o[SPALTE_VERSCHLUESSELT];   // LK1: nie an den Browser, auch nicht verschluesselt
       o[SPALTE_TOKEN] = klartextFuerMc(header, r);
       o._zugang = zugangArt(header, r);
+      o._kopierbar = partnerKopierbar(header, r);
       return o;
     });
     res.json({ partner });
@@ -307,6 +310,18 @@ router.post('/partner', async (req, res, next) => {
 router.post('/partner/:partnerId/link-neu', async (req, res, next) => {
   try {
     res.json(await erzeugeNeuenPartnerLink({ art: 'festpreis', partnerId: req.params.partnerId }));
+  } catch (err) {
+    if (err.code && err.status) return res.status(err.status).json({ error: err.message, code: err.code });
+    next(err);
+  }
+});
+
+// ── GET /api/festpreis/partner/:partnerId/link (LK1) ─────────────────────────
+// "Link kopieren": entschluesselt serverseitig, Link nur in dieser Antwort (no-store), nie im Log.
+router.get('/partner/:partnerId/link', async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    res.json(await zeigePartnerLink({ art: 'festpreis', partnerId: req.params.partnerId }));
   } catch (err) {
     if (err.code && err.status) return res.status(err.status).json({ error: err.message, code: err.code });
     next(err);

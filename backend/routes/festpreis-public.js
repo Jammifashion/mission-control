@@ -8,6 +8,7 @@ import { getGoogleAuth } from '../lib/googleAuth.js';
 import { aggregateFpVerkaeufe, loadOffeneInterne, ladeVerpackung } from './festpreis-portal.js';
 import { parseKonfiguration } from '../utils/partner-kalkulation.js';
 import { findeZeileZumToken, SPALTE_TOKEN, SPALTE_HASH } from '../utils/partner-token.js';
+import { SPALTE_VERSCHLUESSELT } from '../utils/link-schluessel.js';
 
 const router = Router();
 
@@ -62,7 +63,7 @@ async function resolvePartner(token) {
     throw Object.assign(new Error('Partner ist nicht aktiv.'), { status: 403 });
   // Zugangsspalten nie weiterreichen (das Partner-Objekt geht in Antworten an das Portal).
   const partner = rowToObj(header, row);
-  delete partner[SPALTE_TOKEN]; delete partner[SPALTE_HASH];
+  delete partner[SPALTE_TOKEN]; delete partner[SPALTE_HASH]; delete partner[SPALTE_VERSCHLUESSELT];   // LK1
   return { partner, sheets, sheetId };
 }
 

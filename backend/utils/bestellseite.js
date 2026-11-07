@@ -21,7 +21,10 @@ export const ZUGANG_SPALTEN = [
   'Empfohlen_Tage', 'Sortiment', 'Hinweis', 'Angelegt', 'Stand',
 ];
 // Hinten: Haken "Design-Link zeigen" (nur Art auftrag) und Vorgang (Doppelklick-Schutz beim Anlegen).
-export const ZUGANG_OPTIONAL = ['Design_Link_Zeigen', 'Vorgang'];
+// LK1: Token_Verschluesselt = Token AES-256-GCM (utils/link-schluessel.js) fuer "Link kopieren"; geprueft wird nur der Hash.
+export const ZUGANG_OPTIONAL = ['Design_Link_Zeigen', 'Vorgang', 'Token_Verschluesselt'];
+/** LK1: Zusatzdaten der Verschluesselung - der Wert gehoert genau zu diesem Zugang. */
+export const zugangKontext = zugangId => `bestellseite:${String(zugangId ?? '').trim()}`;
 export const ZUGANG_ALLE = [...ZUGANG_SPALTEN, ...ZUGANG_OPTIONAL];
 export const TERMIN_SPALTEN = ['Termin_ID', 'Zugang_ID', 'Datum', 'Notiz', 'Bestellschluss', 'Auftrag_Nr', 'Status', 'Angelegt', 'Stand'];
 // Nur angelegt (KS1), beschrieben erst in KS2. Wie bericht-KS0 2, "Spieltag" -> Termin_ID.
@@ -453,9 +456,10 @@ export function seitenAntwort({ zugang, termine, artikel, trikots = [], designLi
   };
 }
 
-/** Zugang fuer MC-Liste: ohne Token_Hash, mit Status. */
+/** Zugang fuer MC-Liste: ohne Token_Hash und ohne verschluesselten Wert (LK1: nur `kopierbar`), mit Status. */
 export function zugangFuerMc(z, jetzt, termine = []) {
-  const { Token_Hash: _h, Vorgang: _v, _zeile, ...rest } = z;
-  return { ...rest, status: zugangStatus(z, jetzt), hatLink: /^[0-9a-f]{64}$/.test(t(z.Token_Hash)),
+  const { Token_Hash: _h, Token_Verschluesselt: _tv, Vorgang: _v, _zeile, ...rest } = z;
+  const hatLink = /^[0-9a-f]{64}$/.test(t(z.Token_Hash));
+  return { ...rest, status: zugangStatus(z, jetzt), hatLink, kopierbar: hatLink && t(z.Token_Verschluesselt) !== '',
     termine: termine.filter(x => x.Zugang_ID === z.Zugang_ID).map(({ _zeile: _, ...x }) => x) };
 }
