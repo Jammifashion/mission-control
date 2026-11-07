@@ -20,7 +20,7 @@ describe('8. Knappheitsfloskeln', () => {
     ['Jetzt dein Exemplar sichern.',                'Jetzt dein Exemplar sichern'],
     ['Es gibt nur noch wenige.',                    'nur noch'],
     ['Eine begrenzte Auflage.',                     'begrenzte'],
-    ['Limitiert auf diese Saison.',                 'Limitiert'],
+    ['Limitiert auf diese Auflage.',                'Limitiert'],   // SG1: "diese Saison" meldet seitdem zusaetzlich Regel 10
     ['Die Limited Edition.',                        'Limited'],
     ['Bald ausverkauft.',                           'ausverkauft'],
   ])('%s -> Meldung', (satz, stelle) => {

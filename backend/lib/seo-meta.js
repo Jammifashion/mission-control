@@ -17,7 +17,7 @@
 
 import {
   materialAusEigenschaften, grammaturAusZeile, faserOhneLabel, MATERIAL_PLACEHOLDER,
-  strukturierteEingabe,
+  strukturierteEingabe, hauptKeyword,
 } from './seo-prompt.js';
 import { groessenRang } from './groessen.js';
 
@@ -242,7 +242,9 @@ export { faserOhneLabel };
  * @returns {{ faserangabe: string|null, faserMeldung: string|null, grammatur: string|null,
  *             faserHinweis: string|null }}
  */
-export function metaEingaben({ eigenschaften, farben, groessen, strukturiert } = {}) {
+export function metaEingaben({ eigenschaften, farben, groessen, strukturiert, produktname } = {}) {
+  // SG1: Rueckfall fuer eine leere Fokus-Keyphrase = Produkttitel ohne Farbe/Groesse (dieselbe Funktion wie der Generator).
+  const ausTitel = String(produktname ?? '').trim() ? hauptKeyword({ keyphrase: '', produktname, farben, groessen }).text : '';
   const struktur = strukturierteEingabe(strukturiert);
   const { material, meldung, faserHinweis } =
     materialAusEigenschaften(eigenschaften, farben, { groessen, strukturiert });
@@ -253,5 +255,6 @@ export function metaEingaben({ eigenschaften, farben, groessen, strukturiert } =
     grammatur:    struktur?.grammaturGesetzt ? struktur.grammatur : grammaturAusEigenschaften(eigenschaften),
     // Nur wenn gesetzt - die Antwort bleibt fuer alle anderen Faelle wie bisher.
     ...(faserHinweis ? { faserHinweis } : {}),
+    ...(ausTitel ? { keyphraseAusTitel: ausTitel } : {}),
   };
 }

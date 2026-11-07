@@ -21,13 +21,14 @@ import { istLaufStopp } from '../lib/hosterPruefseite.js';
 const router = Router();
 
 router.post('/meta-eingaben', (req, res) => {
-  const { eigenschaften = '', farben = [], groessen = [], strukturiert } = req.body ?? {};
+  const { eigenschaften = '', farben = [], groessen = [], strukturiert, produktname = '' } = req.body ?? {};
   res.json(metaEingaben({
     eigenschaften: String(eigenschaften ?? ''),
     farben:   Array.isArray(farben)   ? farben.map(f => String(f ?? ''))   : [],
     groessen: Array.isArray(groessen) ? groessen.map(g => String(g ?? '')) : [],
     // Befehl M1: { faser, grammatur } aus GET /api/sheets/lshop/:catalogNr.
     strukturiert,
+    produktname: String(produktname ?? '').slice(0, 300),   // SG1: Rueckfall-Keyphrase
   }));
 });
 
@@ -89,6 +90,7 @@ router.post('/text-pruefung', async (req, res, next) => {
       keyphrase:           String(b.keyphrase ?? ''),
       artikelkurz:         String(b.artikelkurz ?? ''),
       lshopNr:             String(b.lshopNr ?? ''),
+      kategorien:          String(b.kategorien ?? ''),   // SG1: Regel 10 (Jahr im Kategorienamen ist kein Zeitbezug)
     }) });
   } catch (err) { next(err); }
 });

@@ -159,7 +159,9 @@ describe('Frontend: SEO-Flow reicht Keyphrase, Farben und Größen durch', () =>
     // dem Yoast-Schreibweg sogar wichtiger: Keyphrase und Synonyme gehoeren
     // NICHT in den Body, der short_description/description schreibt. Sie gehen
     // in einem eigenen PUT, der ausschliesslich meta_data enthaelt.
-    const wcPut = saveBlock.slice(0, saveBlock.indexOf('erfassung/patch-fields'));
+    // SG1: Ausschnitt = genau der Beschreibungs-PUT (bis zu seiner Pruefung); danach darf der Rueckfall die Keyphrase setzen.
+    const wcPut = saveBlock.slice(0, saveBlock.indexOf("if (!wcRes.ok) throw new Error('WooCommerce-Update fehlgeschlagen');"));
+    expect(wcPut).toContain('short_description');
     expect(wcPut).not.toMatch(/keyphrase|yoast/i);
   });
 });

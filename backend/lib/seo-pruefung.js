@@ -38,6 +38,11 @@
 //     ("80 % Baumwolle"), muss jede Faser der Artikel-Faserangabe
 //     (strukturiert.faser bzw. LShop_Modelle Consistence) darin stehen.
 //     Reine Stoffe (eine Faser, z. B. 100 % Baumwolle) pruefen nichts.
+// 10. Zeitbezug (SG1, 07.11.): Texte bleiben zeitlos - "dieses Jahr", "diesen Winter", "diese Saison", "heuer",
+//     "naechstes/letztes Jahr …" und Jahreszahlen 20xx. Eine Jahreszahl ist KEIN Zeitbezug, wenn sie im Produktnamen
+//     oder einem Kategorienamen steht, direkt hinter "Kollektion" ("Halloween-Kollektion 2026") oder als Saisonname
+//     "2026/2027" bzw. "2026/27". Bestand 07.11. (624 veroeffentlichte Artikel JFN + HONK): 10 Jahreszahlen, davon
+//     2 im Produktnamen, 6 Kollektions-/Saisonname, 2 echt ("Halloween-Saison 2026"); keine Wendung. NUR hier, nie im Prompt.
 
 import { motivFuer } from './seo-ssot.js';
 import { lshopFuerArtikel } from './lshop.js';
@@ -72,6 +77,30 @@ export const KNAPPHEIT = [
   knapp('limitiert',        `(?:limitiert${W}*|limited)`),
   knapp('ausverkauft',      'ausverkauft'),
 ];
+
+// Regel 10: Zeitbezuege. Name = Anzeige; Jahreszahlen getrennt (Ausnahmen siehe Kopf).
+const ZB = '[A-Za-zÄÖÜäöüß0-9]';
+const zeit = (name, kern) => ({ name, re: new RegExp(`(?<!${ZB})${kern}(?!${ZB})`, 'i') });
+export const ZEITBEZUG = [
+  zeit('dieses Jahr',  String.raw`dies(?:es|em|en)\s+Jahr(?:es)?`),
+  zeit('diese Saison', String.raw`dies(?:e|en|er|em)\s+(?:Saison|Spielzeit|Winter|Sommer|Herbst|Frühling|Fruehling|Weihnachten|Weihnachtszeit|Advent(?:szeit)?)`),
+  zeit('heuer',        'heuer'),
+  zeit('nächstes/letztes Jahr', String.raw`(?:nächst|naechst|letzt|vorig|kommend)(?:es|en|em|er|e)\s+(?:Jahr(?:es)?|Saison|Spielzeit|Winter|Sommer|Weihnachten)`),
+];
+const JAHR_RE = new RegExp(String.raw`(?<!${ZB})20\d\d(?!${ZB})`, 'g');
+/** Jahreszahlen im Klartext, die ein Zeitbezug sind (ohne Kollektions-/Saisonname, ohne Jahr aus Name/Kategorie). */
+export function zeitJahre(t, { produktname = '', kategorien = '' } = {}) {
+  const frei = `${produktname} ${kategorien}`;
+  const aus = [];
+  for (const m of String(t ?? '').matchAll(JAHR_RE)) {
+    const vor = t.slice(Math.max(0, m.index - 12), m.index), nach = t.slice(m.index + 4, m.index + 9);
+    if (frei.includes(m[0])) continue;
+    if (/Kollektion[\s-]*$/i.test(vor)) continue;
+    if (/^\s*\/\s*(?:20)?\d\d(?!\d)/.test(nach) || /(?:20)?\d\d\s*\/\s*$/.test(vor)) continue;
+    aus.push(m[0]);
+  }
+  return aus;
+}
 
 const BUCHST = 'A-Za-zÄÖÜäöüß0-9';
 const escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -229,6 +258,17 @@ export function pruefeGeneratorText(e = {}) {
       if (fehlt.length)
         hinweise.push(`Faserangabe unvollständig in ${n}: "${genannt.join(', ')}" – laut Artikel "${String(e.faser).trim()}", es fehlt ${fehlt.join(', ')}.`);
     }
+  }
+
+  // 10. Zeitbezug (SG1)
+  for (const [n, html] of teile) {
+    const t = text(html);
+    for (const z of ZEITBEZUG) {
+      const m = z.re.exec(t);
+      if (m) hinweise.push(`Zeitbezug "${m[0]}" in ${n} – Texte bleiben zeitlos (kein Jahr, keine Saison).`);
+    }
+    const jahre = zeitJahre(t, { produktname: e.produktname, kategorien: e.kategorien });
+    if (jahre.length) hinweise.push(`Jahreszahl "${[...new Set(jahre)].join(', ')}" in ${n} – Texte bleiben zeitlos (kein Jahr, keine Saison).`);
   }
 
   return hinweise;

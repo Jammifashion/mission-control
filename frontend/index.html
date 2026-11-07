@@ -872,6 +872,14 @@
       .bm-einzeln > span:first-child { min-width: 0; overflow-wrap: anywhere; }
       .bm-einzeln-stueck { margin-left: auto; display: inline-flex; gap: 0.25rem; align-items: baseline; }
       /* BO4a: EDI-Entwurf (Dialog ueber Korb und Bestelluebersicht) */
+      /* SG1: "Beschreibung generieren" direkt unter den Vorgaben im Reiter SEO-Daten */
+      .seo-generieren-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.75rem; margin: 0.25rem 0 1rem; padding: 0.6rem 0.75rem;
+        border: 1px dashed var(--border); border-radius: 8px; min-width: 0; }
+      .seo-generieren-zeile .btn-secondary { flex: none; }
+      .seo-generieren-zeile .field-note { flex: 1 1 14rem; min-width: 0; }
+      .seo-generate-msg { flex: 1 1 100%; font-size: 0.82rem; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+      .seo-generate-msg:empty { display: none; }
+      .seo-generate-msg.seo-msg-rot { color: var(--danger); }
       .edi-dialog { position: fixed; inset: 0; z-index: 50; background: var(--overlay); display: flex; align-items: flex-start; justify-content: center; padding: 1rem; overflow-y: auto; }
       .edi-dialog[hidden] { display: none; }
       .edi-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; width: min(900px, 100%); display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; }
@@ -2461,6 +2469,12 @@
                 <label>Eigenschaften (Grammatur, Schnitt, Passform, etc.)</label>
                 <textarea id="seo-eigenschaften" class="form-input" rows="4" style="resize:vertical;font-family:inherit;" placeholder="Zeilenweise eingeben, z.B.&#10;Grammatur: 280 g/m²&#10;Schnitt: Regular Fit&#10;Passform: Unisex"></textarea>
               </div>
+              <!-- SG1: Vorgaben -> Generieren -> Ergebnis pruefen -> Speichern. Der Knopf steht direkt unter den Vorgaben. -->
+              <div class="seo-generieren-zeile">
+                <button class="btn-secondary" id="btn-seo-generate" data-hilfe="seo-generieren">Beschreibung generieren</button>
+                <span class="field-note">Erzeugt Kurzbeschreibung und Artikelbeschreibung aus den Feldern oben.</span>
+                <div id="seo-generate-msg" class="seo-generate-msg" aria-live="polite"></div>
+              </div>
               <div class="form-field" style="margin-bottom:0.75rem;">
                 <button class="hilfe-i hilfe-i-klein" style="float:right;" type="button" data-hilfe-gruppe="editor" aria-controls="hilfe-editor-seo" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
                 <label>Kurzbeschreibung</label>
@@ -2525,7 +2539,6 @@
               </div>
             </div>
             <div class="panel-actions">
-              <button class="btn-secondary" id="btn-seo-generate" data-hilfe="seo-generieren">Beschreibung generieren</button>
               <button class="btn" id="btn-seo-save" data-hilfe="seo-speichern">SEO Speichern</button>
               <span id="seo-status-msg" style="font-size:0.82rem;color:var(--muted);align-self:center;"></span>
             </div>
@@ -6465,7 +6478,7 @@
         'se-suchen':             { name: 'Suchen', text: 'Sucht den Artikel im Shop. Es wird nur gelesen.' },
         'se-neu-bauen':          { name: 'Titel und Meta neu bauen', text: 'Baut Titel und Meta-Beschreibung neu aus den Artikeldaten. Gespeichert wird noch nichts.' },
         'se-speichern':          { name: 'Yoast-Daten speichern', text: 'Schreibt Titel und Meta in den Shop (Kunden sehen es) und liest sie zurück. Die SEO-Karte wird nachgezogen.' },
-        'seo-generieren':        { name: 'Beschreibung generieren', text: 'Lässt die KI eine Beschreibung schreiben und prüft sie. Gespeichert wird noch nichts.' },
+        'seo-generieren':        { name: 'Beschreibung generieren', text: 'Lässt die KI aus den Feldern oben eine Beschreibung schreiben und prüft sie. Gespeichert wird noch nichts.' },
         'seo-speichern':         { name: 'SEO Speichern', text: 'Schreibt Beschreibung und SEO-Daten in den Shop – Kunden sehen es sofort.' },
         'aid-anlegen':           { name: 'Artikel-ID anlegen', text: 'Legt für diesen Entwurf eine Zeile mit der nächsten Artikel-ID in der Erfassungsmaske an. Nie doppelt.' },
         'hauptbild-upload':      { name: 'Hochladen (Hauptbild)', text: 'Lädt das gewählte Bild in die Mediathek des Shops und nimmt es als Hauptbild.' },
@@ -13848,6 +13861,19 @@
       }
       // Alle Meldungen einer Generierung zusammen: bestehende Pruefungen (hinweis)
       // und die deterministische Pruefung (pruefhinweise).
+      /** SG1: Kurzzeile direkt unter "Beschreibung generieren" - die ganzen Meldungen stehen unten bei "SEO Speichern". */
+      function seoGenerierenKurz(meldungen, groessenUnklar = false) {
+        const n = (meldungen || []).length + (groessenUnklar ? 1 : 0);
+        if (!n) return { text: 'Erzeugt – bitte prüfen, dann unten speichern.', rot: false };
+        return { text: `${n} Hinweis${n === 1 ? '' : 'e'} – siehe unten bei „SEO Speichern“.`, rot: true };
+      }
+      /** SG1: Fokus-Keyphrase fuer SEO-Titel/Meta - das Feld, sonst der Rueckfall "Produkttitel ohne Farbe/Groesse" (Backend). */
+      function seoKeyphraseEffektiv(feld, ausTitel) {
+        const f = String(feld ?? '').trim();
+        if (f) return { wert: f, ausTitel: false };
+        const a = String(ausTitel ?? '').trim();
+        return a ? { wert: a, ausTitel: true } : { wert: '', ausTitel: false };
+      }
       function generatorMeldungen(data) {
         const d = data || {};
         return [d.hinweis, ...(Array.isArray(d.pruefhinweise) ? d.pruefhinweise : [])].filter(Boolean);
@@ -13864,6 +13890,7 @@
           keyphrase:           String(keyphrase ?? '').trim(),
           artikelkurz:         artikelKurzAus(i.artikelnummer),
           lshopNr:             String(i.lshopNr ?? ''),
+          kategorien:          (w.categories ?? []).map(c => c?.name).filter(Boolean).join(', '),   // SG1: Regel 10
         };
       }
       // ── Generator-Eingaben: Ende ──
@@ -15145,6 +15172,7 @@
             body: JSON.stringify({
               eigenschaften, farben: quellen.farben, groessen: quellen.groessen,
               ...(strukturiert ? { strukturiert } : {}),
+              produktname: seoCurrentItem?.produktname || '',   // SG1: Rueckfall-Keyphrase "Produkttitel ohne Farbe/Größe"
             }),
           });
           return await apiJson(r);
@@ -15193,9 +15221,11 @@
       // Berechnet Titel und Meta-Beschreibung samt Schreibentscheidung.
       // Keine Seiteneffekte ausser dem Lesen der Maske.
       function seoMetaStand() {
-        const keyphrase = document.getElementById('seo-keyphrase').value.trim();
         const wcLesbar  = !!(seoQuellenOk && seoQuellenOk.wc);
         const ein       = seoMetaEingabenStand || {};
+        // SG1: leeres Feld -> wie das Etikett verspricht der Produkttitel ohne Farbe/Größe (markiert "aus Produkttitel")
+        const kpEff     = seoKeyphraseEffektiv(document.getElementById('seo-keyphrase').value, ein.keyphraseAusTitel);
+        const keyphrase = kpEff.wert;
 
         // Derselbe Baustein wie in "SEO-Daten aendern" (Befehl SE1).
         const bau   = seoMetaBau({ keyphrase, quellen: seoMetaQuellen(seoVarianten, seoWcProdukt, seoQuellenOk), ein });
@@ -15226,6 +15256,7 @@
           if (descEnt.aktion  !== 'kein-wert') { descEnt.aktion  = 'kein-wert'; descGrund  = grund; }
         }
         return {
+          ausTitel: kpEff.ausTitel,
           titel: { wert: titel, vorhanden: titelVorh, aktion: titelEnt.aktion, grund: titelGrund },
           desc:  { wert: desc.text, laenge: desc.laenge, weggelassen: desc.weggelassen,
                    hinweise: desc.hinweise, vorhanden: descVorh, aktion: descEnt.aktion, grund: descGrund,
@@ -15251,12 +15282,13 @@
           if (feld.aktion === 'unveraendert') zeilen.push('Steht so schon in Yoast – unverändert.');
           return zeilen;
         };
-        const tZeilen = zeige('titel', st.titel);
+        const tZeilen = zeige('titel', st.titel, st.ausTitel ? ', aus Produkttitel' : '');
+        if (st.ausTitel) tZeilen.unshift('Fokus-Keyphrase leer – Titel und Meta aus dem Produkttitel ohne Farbe/Größe. Beim Speichern wird sie als Keyphrase übernommen.');
         if (st.titel.grund) tZeilen.push(st.titel.grund);
         document.getElementById('seo-meta-titel-hinweis').textContent = tZeilen.join(' · ');
 
         const weg = st.desc.weggelassen.length ? `, gekürzt: ${st.desc.weggelassen.join(', ')} weggelassen` : '';
-        const dZeilen = zeige('desc', st.desc, weg);
+        const dZeilen = zeige('desc', st.desc, `${weg}${st.ausTitel ? ', aus Produkttitel' : ''}`);
         if (st.desc.faserHinweis) dZeilen.push(st.desc.faserHinweis);
         for (const h of st.desc.hinweise) if (!dZeilen.includes(h)) dZeilen.push(h);
         if (st.desc.grund && !dZeilen.includes(st.desc.grund)) dZeilen.push(st.desc.grund);
@@ -16213,6 +16245,7 @@
         document.getElementById('seo-motiv').value         = '';
         document.getElementById('seo-motiv-info').textContent    = '';
         document.getElementById('seo-keyphrase-info').textContent = '';
+        document.getElementById('seo-generate-msg').textContent = '';   // SG1
         seoHinweisVorlageStand = '';
         seoTags = []; seoTagsGeladen = false; seoTagsZeigen();
         document.getElementById('seo-tags-info').textContent = '';
@@ -16330,11 +16363,27 @@
         for (const m of sv.meldungen) showToast(m, 'warn', 12000);
       }
 
+      // SG1: leere Fokus-Keyphrase sichtbar mit dem Rueckfall fuellen (Kollisionspruefung gegen SEO_Karte laeuft ueber "change").
+      function seoKeyphraseAusTitelSetzen() {
+        const kf = document.getElementById('seo-keyphrase');
+        const eff = seoKeyphraseEffektiv(kf.value, seoMetaEingabenStand?.keyphraseAusTitel);
+        if (!eff.ausTitel) return false;
+        kf.value = eff.wert;
+        const info = document.getElementById('seo-keyphrase-info');
+        info.textContent = ['Aus dem Produkttitel übernommen (ohne Farbe/Größe) – bitte prüfen.', info.textContent].filter(Boolean).join(' · ');
+        kf.dispatchEvent(new Event('change'));
+        seoMetaVorschau();
+        return true;
+      }
+
       document.getElementById('btn-seo-generate').addEventListener('click', async () => {
         if (!seoCurrentItem) return;
         const statusMsg = document.getElementById('seo-status-msg');
+        const kurzMsg   = document.getElementById('seo-generate-msg');   // SG1: kurz direkt unter dem Knopf
         statusMsg.style.color = 'var(--muted)';
         statusMsg.textContent = 'Beschreibung wird generiert…';
+        kurzMsg.classList.remove('seo-msg-rot');
+        kurzMsg.textContent = 'Beschreibung wird generiert…';
         // Groessen: erst Varianten-Reiter, dann WooCommerce. Die Quelle wird
         // unten angezeigt, damit sichtbar ist, woher sie kamen.
         const gr = seoGroessenQuelle(seoVarianten, seoWcProdukt, seoQuellenOk);
@@ -16396,9 +16445,15 @@
           // beim Speichern auf display:none). Der Text ist trotzdem erzeugt.
           if (data.faser_hinweis) showToast(data.faser_hinweis, 'warn', 15000);
           seoVorschlaegeAnwenden(data.vorschlaege);
+          seoKeyphraseAusTitelSetzen();   // SG1: kein Vorschlag und Feld leer -> Produkttitel ohne Farbe/Größe
+          const kurz = seoGenerierenKurz(meldungenAlle, gemeldet);
+          kurzMsg.textContent = kurz.text;
+          kurzMsg.classList.toggle('seo-msg-rot', kurz.rot);
         } catch (e) {
           statusMsg.textContent = `Fehler: ${e.message}`;
           statusMsg.style.color = 'var(--danger)';
+          kurzMsg.textContent = `Fehler: ${e.message}`;
+          kurzMsg.classList.add('seo-msg-rot');
         }
       });
 
@@ -16443,6 +16498,8 @@
             }),
           });
           if (!wcRes.ok) throw new Error('WooCommerce-Update fehlgeschlagen');
+          // SG1: leeres Feld -> Rueckfall sichtbar ins Feld, bevor Sheet und Yoast es lesen (gleiche Keyphrase wie Titel/Meta)
+          seoKeyphraseAusTitelSetzen();
 
           await apiFetch(`${API_BASE()}/api/sheets/erfassung/patch-fields`, {
             method: 'POST',

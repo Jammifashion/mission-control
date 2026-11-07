@@ -205,6 +205,8 @@ const FREIE_KLAUSEL_RE =
   /([A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß0-9®\-]*(?:\s+[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß0-9®\-]*){0,3})\s*:\s*(\d{1,3}\s*%[^:]*)/g;
 
 const MATERIAL_LINE_RE  = /material|baumwolle|polyester/i;
+// SG1: Textil nur, wenn eine Material-Zeile einen Faser-/Stoffnamen nennt ("Material: Jersey"), nicht "Material: Glas".
+export const TEXTIL_WORT_RE = /baumwolle|polyester|elasth?an|spandex|viskose|wolle|leinen|jersey|fleece|modal|acryl|polyacryl|nylon|polyamid|seide|lyocell|tencel|frottee|sweat|piqu[eé]|twill|canvas|denim|cord|strick|gewebe|stoff|textil|mischgewebe/i;
 // "Farben:", "Farbe:", "Farbe(n):" – die beiden letzten Schreibweisen traf das
 // alte Muster nicht, weil nach "farbe" sofort ein ":" verlangt wurde. Folge:
 // das Label blieb im Wert stehen und landete als "Farben: Farbe(n): Schwarz"
@@ -1084,10 +1086,11 @@ export function materialAusEigenschaften(eigenschaften, farben, { groessen, stru
   const { material, meldung } = filterMaterialFarbenMitMeldung(materialRoh, farbListe);
 
   // Faserangabe fehlt ganz? Nur bei Textilien melden: der Artikel hat eine
-  // Groessen-Achse ODER die Eigenschaften nennen Material ohne Prozent
-  // ("Material: Jersey"). Puck, Fruehstuecksbrett, Thermobecher bleiben still.
+  // Groessen-Achse ODER eine Material-Zeile nennt eine Faser bzw. einen Stoff
+  // ohne Prozent ("Material: Jersey"). SG1: "Material: Glas" (Christbaumkugel),
+  // Keramik, Holz zaehlen nicht - Puck, Kugel, Thermobecher bleiben still.
   // Hat die Nachbedingung schon gemeldet, kein zweiter Hinweis.
-  const textil = parseGroessen(groessen).length > 0 || materialZeilen.length > 0;
+  const textil = parseGroessen(groessen).length > 0 || materialZeilen.some(l => TEXTIL_WORT_RE.test(l));
   const faserHinweis = !meldung && !hatFaserangabe(material) && textil ? FASER_FEHLT_HINWEIS : null;
 
   return { eigenschaftenLines, detailLines, farbListe, materialRoh, material, meldung, faserHinweis };

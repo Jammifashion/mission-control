@@ -1219,6 +1219,16 @@ Seit FM2 dort auch Regel 8 `KNAPPHEIT` (Druck/Knappheit als Muster: "solange …
 Faser aus `strukturiert` der Generierung, beim SEO-Reiter aus LShop_Modelle ueber `lshopNr` als `grundFaser` (ohne die
 Farb-Ausnahmen in Klammern, sonst 340 Fehlalarme im Bestand); reine Stoffe nie). Regel 8 meldet kein Fundwort, das im
 Produktnamen steht (Motivtitel "Rentier war ausverkauft"). Scan 28.10. ueber 569 Artikel: R8 7 Treffer, R9 1.
+SG1 (07.11.): Regel 10 "Zeitbezug" (`ZEITBEZUG`, `zeitJahre`): "dieses Jahr", "diesen Winter", "diese Saison", "heuer", "naechstes/letztes
+Jahr …" und Jahreszahlen 20xx - ausser im Produkt- oder Kategorienamen (`kategorien` geht in Generierung und `text-pruefung` mit), hinter
+"Kollektion" oder als Saisonname "2026/2027" bzw. "2026/27". Scan 07.11. ueber 624 Artikel (JFN + HONK): 10 Jahreszahlen, davon 2 echt,
+keine Wendung; R8 1, R9 1. F2-Faser-Hinweis (`FASER_FEHLT_HINWEIS`) nur bei Textil: Groessen-Achse ODER Material-Zeile mit Faser/Stoff
+(`TEXTIL_WORT_RE`) - "Material: Glas" (Christbaumkugel) bleibt still. Reiter SEO-Daten: "Beschreibung generieren" direkt unter
+"Eigenschaften" (`.seo-generieren-zeile`, Kurzzeile `#seo-generate-msg` = `seoGenerierenKurz`), "SEO Speichern" mit allen Meldungen unten.
+Leere Fokus-Keyphrase: `POST /api/seo/meta-eingaben` liefert mit `produktname` den Rueckfall `keyphraseAusTitel` (= `hauptKeyword`,
+Produkttitel ohne Farbe/Groesse); SEO-Titel/Meta bauen daraus (`seoKeyphraseEffektiv`, markiert "aus Produkttitel"), nach dem Generieren
+bzw. beim Speichern (nach dem Beschreibungs-PUT, vor Sheet/Yoast) steht er sichtbar im Feld (`seoKeyphraseAusTitelSetzen`, Pruefung gegen
+SEO_Karte ueber "change"). SE1 (SEO-Daten aendern) unveraendert. Test seo-sg1.test.js.
 
 ## Script-Scope Problem (gelöst)
 index.html hat zwei Script-Blöcke:

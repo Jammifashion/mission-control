@@ -130,7 +130,7 @@ describe('Frontend: Speichern im SEO-Reiter prueft den gespeicherten Text', () =
     expect(fe.textPruefungBody(item, produkt, ' Crocodiles Hamburg Match Day Cap ')).toEqual({
       kurzbeschreibung: 'Kurz (bearbeitet)', produktbeschreibung: '<h2>X</h2><p>Lang (bearbeitet)</p>',
       produktname: 'Match Day Cap Crocodiles Hamburg', keyphrase: 'Crocodiles Hamburg Match Day Cap',
-      artikelkurz: 'CH-Matchday', lshopNr: 'CB166R',
+      artikelkurz: 'CH-Matchday', lshopNr: 'CB166R', kategorien: '',   // SG1: Kategorienamen fuer Regel 10
     });
   });
 
