@@ -3,6 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
+  <script>
+    // ── Portal-Token: Anfang (PPS1, wortgleich in partner.html und partner-festpreis.html, Test partner-token.test.js) ──
+    // Der Link bleibt derselbe (?token=...). Beim Oeffnen wird der Token gelesen, in sessionStorage dieses Tabs gelegt
+    // (Neu laden geht weiter) und sofort aus der Adresse entfernt - so landet er nicht im Verlauf, nicht in einem neuen
+    // Lesezeichen und nicht in einem Referrer. Alte Lesezeichen mit Token funktionieren weiter.
+    window.PORTAL_TOKEN = (function () {
+      var schluessel = 'portal_token:' + location.pathname;
+      var p = new URLSearchParams(location.search);
+      var t = (p.get('token') || '').trim();
+      try {
+        if (t) sessionStorage.setItem(schluessel, t);
+        else t = sessionStorage.getItem(schluessel) || '';
+      } catch (e) { /* Speicher gesperrt: Token gilt nur fuer diesen Aufruf */ }
+      if (p.has('token')) {
+        p.delete('token');
+        var rest = p.toString();
+        try { history.replaceState(history.state, '', location.pathname + (rest ? '?' + rest : '') + location.hash); } catch (e) { /* alter Browser */ }
+      }
+      return t;
+    })();
+    // ── Portal-Token: Ende ──
+  </script>
   <meta name="theme-color" content="">
   <title>Festpreis Partner Portal – JammiFashion</title>
     <script>
@@ -213,7 +236,7 @@
 
   <script>
     const params   = new URLSearchParams(location.search);
-    const TOKEN    = params.get('token') || '';
+    const TOKEN    = window.PORTAL_TOKEN || '';   // PPS1: aus dem Block Portal-Token (Adresse ist schon bereinigt)
 
     // Backend-URL steht fest im Code. Frueher war sie ueber ?api= setzbar und
     // landete in localStorage['mc_api_url'] - dieser Key wird von allen drei

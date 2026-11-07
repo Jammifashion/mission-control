@@ -7,6 +7,7 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { aggregateFpVerkaeufe, loadOffeneInterne, ladeVerpackung } from './festpreis-portal.js';
 import { parseKonfiguration } from '../utils/partner-kalkulation.js';
+import { findeZeileZumToken, SPALTE_TOKEN, SPALTE_HASH } from '../utils/partner-token.js';
 
 const router = Router();
 
@@ -31,7 +32,7 @@ async function getSheets() {
 
 async function readTab(sheets, sheetId, tabName) {
   const { data } = await sheets.spreadsheets.values.get({
-    spreadsheetId: sheetId, range: `${tabName}!A1:Z`,
+    spreadsheetId: sheetId, range: `${tabName}!A1:ZZ`,   // PPS1: breiter als A1:Z (Token_Hash steht hinten)
   });
   const [header, ...rows] = data.values ?? [];
   return { header: header ?? [], rows: rows.filter(r => r.some(c => c)) };
@@ -53,13 +54,16 @@ async function resolvePartner(token) {
   if (!sheetId) throw Object.assign(new Error('BUSINESS_SHEET_ID nicht konfiguriert.'), { status: 503 });
   const sheets = await getSheets();
   const { header, rows } = await readTab(sheets, sheetId, TAB_FP_PARTNER);
-  const tokenIdx = header.indexOf('Token');
   const aktivIdx = header.indexOf('Aktiv');
-  const row = rows.find(r => token && tokenIdx !== -1 && (r[tokenIdx] ?? '') === token);
+  // PPS1: Hash + timingSafeEqual (Uebergang: Klartext, solange kein Hash da ist).
+  const row = findeZeileZumToken(header, rows, token)?.zeile;
   if (!row) throw Object.assign(new Error('Ungültiger Token.'), { status: 401 });
   if ((row[aktivIdx] ?? '').toLowerCase() !== 'ja')
     throw Object.assign(new Error('Partner ist nicht aktiv.'), { status: 403 });
-  return { partner: rowToObj(header, row), sheets, sheetId };
+  // Zugangsspalten nie weiterreichen (das Partner-Objekt geht in Antworten an das Portal).
+  const partner = rowToObj(header, row);
+  delete partner[SPALTE_TOKEN]; delete partner[SPALTE_HASH];
+  return { partner, sheets, sheetId };
 }
 
 // ── GET /api/festpreis-public/auth ───────────────────────────────────────────

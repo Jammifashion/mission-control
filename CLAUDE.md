@@ -623,6 +623,18 @@ Neue Sektionen immer mit Anker versehen:
   Partner ("nein" blendet NUR die Kachel aus; Setup `scripts/setup-partner-saldo-kachel.js`, P-012 = nein). Frontend-Baustein Block
   `Partner-Kacheln: Anfang/Ende` wortgleich in partner.html und index.html (Test partner-kacheln.test.js); im Portal stehen die bisherigen
   Karten unveraendert unter "Details" (`#pv-details`).
+- backend/utils/partner-token.js – Zugang der Partnerportale (PPS1), einzige Stelle fuer Pruefen/Erzeugen. Reiter `Partner` und
+  `FP_Partner`: Spalte `Token_Hash` hinten = SHA-256 (hex); Pruefung `findeZeileZumToken` (Hash + `timingSafeEqual`, jede Zeile
+  geprueft); Uebergang: ohne Hash gilt der Klartext `Token` (gehasht verglichen), mit Hash NUR der Hash. Der Link der Partner bleibt
+  derselbe (`?token=`). Neue Tokens nur im Backend (`randomBytes(32)` base64url) ueber `lib/partnerLink.js`
+  (`POST /api/kalkulation/partner/:id/link-neu`, `POST /api/festpreis/partner/:id/link-neu`): Hash schreiben, `Token` leeren, Link
+  EINMAL an MC (Block `Partner-Link: Anfang/Ende`, `showConfirm`); PATCH mit `token` -> 400 `token_vom_browser`. MC bekommt den
+  Klartext nur im Uebergang (`klartextFuerMc`, "Link kopieren"), nie den Hash. Bremse `middleware/tokenBremse.js` (20 Fehlversuche
+  = 401 je IP / 15 min, gueltige zaehlen nie) vor `/api/partner` und `/api/festpreis-public`. Portale: Block `Portal-Token:
+  Anfang/Ende` im `<head>` (wortgleich, vor dem Theme-Block) liest den Token, legt ihn in sessionStorage, entfernt ihn per
+  `history.replaceState`; `<meta name="referrer" content="no-referrer">`. Umstellung `scripts/setup-partner-token-hash.js`
+  (Trockenlauf; `--write` = Hashes; `--leeren --write` = Klartext leeren, nur wo der Hash schon passt; `--zurueck <sicherung>`;
+  Sicherung vorher nach Documents/mc-sicherungen). Test partner-token.test.js.
 - backend/routes/anfragen.js – Kundenanfragen Admin (POST /neu, GET /, PATCH /:id/status) – hinter requireApiKey
 - backend/routes/anfragen-chat.js – Chat-Widget public endpoint (POST /chat, kein API-Key) – vor requireApiKey
 - frontend/anfrage.html – Standalone Chat-Widget für Kunden (GitHub Pages, kein MC-Design)

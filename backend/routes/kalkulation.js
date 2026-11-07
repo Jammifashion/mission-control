@@ -11,6 +11,8 @@ import { colLetter, sichereSpalte } from '../utils/sheet-spalten.js';
 import { abrechnungHinweise } from '../utils/sync-logic.js';
 import { saldoRechnung } from '../utils/partner-saldo.js';
 import { leseKacheln } from './partnerPortal.js';
+import { zugangArt, klartextFuerMc } from '../utils/partner-token.js';
+import { erzeugeNeuenPartnerLink } from '../lib/partnerLink.js';
 import { berechnePartnerAnteil, parseKonfiguration, istBekanntePosition, baueLizenzSaetze, lizenzSatzAusZeile, parseVertragAb, baueVertragsbeginne } from '../utils/partner-kalkulation.js';
 
 const router = Router();
@@ -38,7 +40,7 @@ function toDE(date) {
 async function readTab(sheets, sheetId, tabName) {
   const { data } = await sheets.spreadsheets.values.get({
     spreadsheetId: sheetId,
-    range: `${tabName}!A1:Z`,
+    range: `${tabName}!A1:ZZ`,   // PPS1: breiter als A1:Z (Token_Hash steht hinten)
   });
   const [header, ...rows] = data.values ?? [];
   // Echten Sheet-Zeilenindex (_sheetRow) anhängen BEVOR Leerzeilen gefiltert werden,
@@ -109,7 +111,6 @@ router.get('/partner', async (req, res, next) => {
     const idIdx      = header.indexOf('Partner-ID');
     const nameIdx    = header.indexOf('Name');
     const katIdx     = header.indexOf('Hauptkategorie');
-    const tokenIdx   = header.indexOf('Token');
     const aktivIdx   = header.indexOf('Aktiv');
     const lizenzIdx  = header.indexOf('Lizenz-%');
     const portoIdx   = header.indexOf('Porto-Modell');
@@ -127,7 +128,9 @@ router.get('/partner', async (req, res, next) => {
       id:            r[idIdx]    ?? '',
       name:          r[nameIdx]  ?? '',
       kategorie:     r[katIdx]   ?? '',
-      token:         r[tokenIdx] ?? '',
+      // PPS1: Klartext nur im Uebergang (fuer "Link kopieren"), nie der Hash. zugang = 'hash' | 'klartext' | ''.
+      token:         klartextFuerMc(header, r),
+      zugang:        zugangArt(header, r),
       aktiv:         (r[aktivIdx] ?? '').toLowerCase() === 'ja',
       lizenzProzent: toFloat(r[lizenzIdx]),
       portoModell:   r[portoIdx]   ?? 'geteilt-50-50',
@@ -200,6 +203,17 @@ router.post('/partner', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── POST /api/kalkulation/partner/:id/link-neu (PPS1) ────────────────────────
+// Neuer Portal-Link: alter Link sofort ungueltig, der neue kommt genau einmal in der Antwort.
+router.post('/partner/:id/link-neu', async (req, res, next) => {
+  try {
+    res.json(await erzeugeNeuenPartnerLink({ art: 'lizenz', partnerId: req.params.id }));
+  } catch (err) {
+    if (err.code && err.status) return res.status(err.status).json({ error: err.message, code: err.code });
+    next(err);
+  }
+});
+
 // ── PATCH /api/kalkulation/partner/:id ──────────────────────────────────────
 router.patch('/partner/:id', async (req, res, next) => {
   try {
@@ -221,14 +235,16 @@ router.patch('/partner/:id', async (req, res, next) => {
     // Wert (Formular ohne Eingabe) soll das Sheet nicht veraendern.
     if (vertragAb) await sichereSpalte(sheets, sheetId, 'Partner', header, 'Vertrag-ab');
 
-    const { name, kategorie, lizenzProzent, portoModell, aktiv, notiz, token } = req.body;
+    // PPS1: Tokens erzeugt nur noch das Backend (POST .../link-neu), nie aus dem Browser.
+    if (req.body.token !== undefined)
+      return res.status(400).json({ error: 'Token wird nicht mehr gesendet – bitte „Link erzeugen“ nutzen.', code: 'token_vom_browser' });
+    const { name, kategorie, lizenzProzent, portoModell, aktiv, notiz } = req.body;
     const patchShop = req.body.shop === 'honk' ? 'honk' : req.body.shop === 'jfn' ? 'jfn' : undefined;
     const sheetRow = rows[rowIndex]._sheetRow;
 
     const colMap = {
       'Name':           name,
       'Hauptkategorie': kategorie,
-      'Token':          token,
       'Lizenz-%':       lizenzProzent,
       'Porto-Modell':   portoModell,
       'Aktiv':          aktiv !== undefined ? (aktiv ? 'Ja' : 'Nein') : undefined,

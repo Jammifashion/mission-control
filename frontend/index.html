@@ -6387,7 +6387,8 @@
         'pk-details':            { name: 'Details', text: 'Öffnet die bisherige Ansicht mit allen Einzelheiten.' },
         'pk-info':               { name: 'ⓘ Saldo', text: 'Erklärt kurz, wie der Saldo gerechnet wird.' },
         'link-kopieren':         { name: 'Link kopieren', text: 'Kopiert den Portal-Link dieses Partners in die Zwischenablage. Es wird nichts geändert.' },
-        'token-neu':             { name: 'Token gen.', text: 'Erzeugt einen neuen Zugang zum Partnerportal und speichert ihn im Sheet. Der alte Link geht dann nicht mehr.' },
+        'token-neu':             { name: 'Link (neu) erzeugen', text: 'Erzeugt einen neuen Portal-Link und zeigt ihn einmal an. Ein bisheriger Link geht sofort nicht mehr – nur bei Bedarf.' },
+        'partner-zugang':        { name: 'Zugang', text: 'Hat der Partner einen Portal-Link? „alt“ = im Sheet noch lesbar, „gesichert“ = nur als Prüfwert. Der Link bleibt gleich.' },
         'nav-bereich':           { name: 'Bereich', text: 'Öffnet diesen Bereich. Seine Unterpunkte stehen darunter.' },
         'nav-unterreiter':       { name: 'Unterreiter', text: 'Öffnet diesen Unterreiter. Es wird nichts geändert.' },
         'tab-offen':             { name: 'Offen', text: 'Zeigt, was noch nicht als bestellt eingetragen ist.' },
@@ -6854,7 +6855,7 @@
         'auftragsmonitor': ['wc-erledigt', 'tab-offen', 'tab-protokoll', 'mon-fulfillment', 'dtf-sammel', 'dtf-bestellt', 'lshop-alt-sammel', 'lshop-alt-bestellt', 'korb-aeltere'],
         'artikel': ['modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
         'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
-        'partner': ['pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'token-neu', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
+        'partner': ['pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
         'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'fp-preis-loeschen'],
         'anfragen': ['anf-neu', 'anf-aktualisieren', 'anf-anlegen', 'anf-speichern'],
         'assistent': ['aw-eintrag-neu', 'aw-eintrag-speichern', 'aw-prompt-speichern', 'aw-prompt-standard', 'aw-prompt-zeigen', 'aw-test-senden', 'aw-test-neu'],
@@ -18354,6 +18355,39 @@
       }
 
       // ── SECTION: Partnerportal ──
+      // ── Partner-Link: Anfang (PPS1, Lizenz- und Festpreis-Partner; Test partner-token.test.js) ──
+      // Tokens erzeugt nur das Backend (POST .../link-neu); MC zeigt den neuen Link genau einmal und speichert ihn nirgends.
+      // Ein bestehender Link wird dabei sofort ungueltig - darum vorher eine Rueckfrage.
+      function partnerZugangHtml(zugang) {
+        const text = zugang === 'hash' ? 'Link · gesichert' : zugang === 'klartext' ? 'Link · alt' : '–';
+        return `<span style="color:var(--muted);font-size:0.8rem;" data-hilfe="partner-zugang">${text}</span>`;
+      }
+      async function partnerLinkErzeugen(art, partnerId, hatZugang) {
+        if (hatZugang) {
+          const ok = await window.showConfirm('Link neu erzeugen?',
+            `Der bisherige Portal-Link von <strong>${_escHtml(partnerId)}</strong> geht danach <strong>sofort nicht mehr</strong>. `
+            + 'Nur nötig, wenn der Link weitergegeben wurde oder verloren ist – der Partner braucht dann den neuen Link.',
+            'Neu erzeugen');
+          if (!ok) return false;
+        }
+        const pfad = art === 'festpreis'
+          ? `/api/festpreis/partner/${encodeURIComponent(partnerId)}/link-neu`
+          : `/api/kalkulation/partner/${encodeURIComponent(partnerId)}/link-neu`;
+        const r = await window.apiFetch(`${window.API_BASE()}${pfad}`, { method: 'POST' });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || !d.link) throw new Error(d.error ?? r.statusText);
+        const kopieren = await window.showConfirm('Neuer Portal-Link',
+          '<p style="margin:0 0 0.5rem;">Dieser Link wird <strong>nur jetzt</strong> angezeigt – MC speichert ihn nicht. '
+          + 'Bitte direkt an den Partner geben.</p>'
+          + `<input class="form-input" readonly value="${_escHtml(d.link)}" style="width:100%;font-size:0.78rem;">`,
+          'Link kopieren', 'Schließen');
+        if (kopieren) {
+          try { await navigator.clipboard.writeText(d.link); window.showToast('Partner-Link kopiert!'); }
+          catch { window.showToast('Kopieren fehlgeschlagen – bitte im Feld markieren und kopieren.', 'toast-error'); }
+        }
+        return true;
+      }
+      // ── Partner-Link: Ende ──
       // ── Partner-Kacheln: Anfang (wortgleich in index.html und partner.html, Test partner-kacheln.test.js) ──
       // PP1: Startkacheln eines Lizenzpartners aus GET /api/partner/kacheln bzw. /api/kalkulation/partner/:id/kacheln.
       // Saldo > 0 = bekommt noch (gruen), < 0 = schuldet noch (rot). saldoKachel false (Partner-Spalte Saldo_Kachel = nein) -> ohne Saldo.
@@ -18453,7 +18487,7 @@
               <table class="orders-table">
                 <thead><tr>
                   <th>Name</th><th>Hauptkategorie</th><th>Lizenz-%</th>
-                  <th>Porto-Modell</th><th>Shop</th><th>Aktiv</th><th>Token</th><th>Aktionen</th>
+                  <th>Porto-Modell</th><th>Shop</th><th>Aktiv</th><th>Zugang</th><th>Aktionen</th>
                 </tr></thead>
                 <tbody>${_ppPartners.map(p => `
                   <tr>
@@ -18464,16 +18498,15 @@
                     <td>${p.shop === 'honk' ? 'HONK' : p.shop === 'jfn' ? 'JFN' : 'Beide'}</td>
                     <td><span class="badge ${p.aktiv ? 'badge-completed' : 'badge-cancelled'}">${p.aktiv ? 'Aktiv' : 'Inaktiv'}</span></td>
                     <td style="white-space:nowrap;">
-                      ${p.token
-                        ? `<code style="font-size:0.73rem;color:var(--muted);">${p.token.slice(0,8)}…</code>`
-                        : '<span style="color:var(--muted);font-size:0.8rem;">–</span>'}
+                      ${partnerZugangHtml(p.zugang)}
                     </td>
                     <td style="white-space:nowrap;">
                       <button class="btn-secondary btn-xs" data-pp-edit="${p.id}" data-hilfe="liste-bearbeiten">Bearbeiten</button>
                       <button class="btn-ghost btn-xs" data-pp-toggle="${p.id}" data-aktiv="${p.aktiv}" style="margin-left:0.3rem;" data-hilfe="partner-aktiv">${p.aktiv ? 'Deaktivieren' : 'Aktivieren'}</button>
                       ${p.token
                         ? `<button class="btn-secondary btn-xs" data-pp-copy="${p.id}" style="margin-left:0.3rem;" data-hilfe="link-kopieren">Link kopieren</button>`
-                        : `<button class="btn-secondary btn-xs" data-pp-gen-token="${p.id}" style="margin-left:0.3rem;" data-hilfe="token-neu">Token gen.</button>`}
+                        : ''}
+                      <button class="btn-secondary btn-xs" data-pp-gen-token="${p.id}" style="margin-left:0.3rem;" data-hilfe="token-neu">${p.zugang ? 'Link neu erzeugen …' : 'Link erzeugen …'}</button>
                     </td>
                   </tr>`).join('')}
                 </tbody>
@@ -18507,20 +18540,13 @@
             btn.addEventListener('click', async () => {
               const p = _ppPartners.find(x => x.id === btn.dataset.ppGenToken);
               if (!p) return;
-              btn.disabled = true; btn.textContent = '...';
+              btn.disabled = true;
               try {
-                const token = crypto.randomUUID();
-                const r = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/partner/${p.id}`, {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ token }),
-                });
-                if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
-                window.showToast('Token gespeichert.');
-                loadPartner();
+                if (await partnerLinkErzeugen('lizenz', p.id, !!p.zugang)) loadPartner();
+                else btn.disabled = false;
               } catch (e) {
                 window.showToast(`Fehler: ${e.message}`, 'toast-error');
-                btn.disabled = false; btn.textContent = 'Token gen.';
+                btn.disabled = false;
               }
             });
           });
@@ -20330,7 +20356,9 @@
                   <button class="btn-secondary btn-xs" data-fp-edit="${p['Partner-ID']}" data-hilfe="liste-bearbeiten">Bearbeiten</button>
                   ${p['Token']
                     ? `<button class="btn-secondary btn-xs" data-fp-copy="${p['Partner-ID']}" style="margin-left:0.3rem;" data-hilfe="link-kopieren">Link kopieren</button>`
-                    : `<button class="btn-secondary btn-xs" data-fp-gen-token="${p['Partner-ID']}" style="margin-left:0.3rem;" data-hilfe="token-neu">Token gen.</button>`}
+                    : ''}
+                  <button class="btn-secondary btn-xs" data-fp-gen-token="${p['Partner-ID']}" style="margin-left:0.3rem;" data-hilfe="token-neu">${p._zugang ? 'Link neu erzeugen …' : 'Link erzeugen …'}</button>
+                  <span style="margin-left:0.4rem;">${partnerZugangHtml(p._zugang)}</span>
                 </td>
               </tr>`).join('')}</tbody>
             </table></div>`;
@@ -20344,18 +20372,13 @@
               btn.addEventListener('click', async () => {
                 const p = _fpPartners.find(x => x['Partner-ID'] === btn.dataset.fpGenToken);
                 if (!p) return;
-                btn.disabled = true; btn.textContent = '...';
+                btn.disabled = true;
                 try {
-                  const token = crypto.randomUUID();
-                  const r = await window.apiFetch(`${FP()}/api/festpreis/partner/${encodeURIComponent(p['Partner-ID'])}`, {
-                    method: 'PATCH', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ token }),
-                  });
-                  if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
-                  window.showToast('Token gespeichert.');
-                  loadFpPartner();
+                  if (await partnerLinkErzeugen('festpreis', p['Partner-ID'], !!p._zugang)) loadFpPartner();
+                  else btn.disabled = false;
                 } catch (e) {
                   window.showToast(`Fehler: ${e.message}`, 'toast-error');
-                  btn.disabled = false; btn.textContent = 'Token gen.';
+                  btn.disabled = false;
                 }
               });
             });

@@ -8,6 +8,8 @@ import { getWcClient } from '../lib/shopConfig.js';
 import { seitenGrenze, seitenListe } from '../lib/hosterPruefseite.js';
 import { berechneFestpreisAnteil } from '../utils/festpreis-kalkulation.js';
 import { parseKonfiguration } from '../utils/partner-kalkulation.js';
+import { zugangArt, klartextFuerMc, SPALTE_TOKEN, SPALTE_HASH } from '../utils/partner-token.js';
+import { erzeugeNeuenPartnerLink } from '../lib/partnerLink.js';
 import {
   berechneVerpackung, verpackungsKondition, versandmethodeAus, VERSANDMETHODE,
 } from '../utils/festpreis-verpackung.js';
@@ -161,7 +163,7 @@ async function getSheets() {
 
 async function readTab(sheets, sheetId, tabName) {
   const { data } = await sheets.spreadsheets.values.get({
-    spreadsheetId: sheetId, range: `${tabName}!A1:Z`,
+    spreadsheetId: sheetId, range: `${tabName}!A1:ZZ`,   // PPS1: breiter als A1:Z (Token_Hash steht hinten)
   });
   const [header, ...rows] = data.values ?? [];
   // Echten Sheet-Zeilenindex (_sheetRow) anhängen BEVOR Leerzeilen gefiltert werden,
@@ -244,7 +246,14 @@ router.get('/partner', async (req, res, next) => {
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
     const sheets = await getSheets();
     const { header, rows } = await readTab(sheets, sheetId, TAB_FP_PARTNER);
-    const partner = rows.map(r => rowToObj(header, r));
+    // PPS1: nie den Hash, Klartext nur im Uebergang (fuer "Link kopieren"); _zugang = 'hash' | 'klartext' | ''.
+    const partner = rows.map(r => {
+      const o = rowToObj(header, r);
+      delete o[SPALTE_HASH];
+      o[SPALTE_TOKEN] = klartextFuerMc(header, r);
+      o._zugang = zugangArt(header, r);
+      return o;
+    });
     res.json({ partner });
   } catch (err) { next(err); }
 });
@@ -292,18 +301,31 @@ router.post('/partner', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── POST /api/festpreis/partner/:partnerId/link-neu (PPS1) ───────────────────
+// Neuer Portal-Link: alter Link sofort ungueltig, der neue kommt genau einmal in der Antwort.
+router.post('/partner/:partnerId/link-neu', async (req, res, next) => {
+  try {
+    res.json(await erzeugeNeuenPartnerLink({ art: 'festpreis', partnerId: req.params.partnerId }));
+  } catch (err) {
+    if (err.code && err.status) return res.status(err.status).json({ error: err.message, code: err.code });
+    next(err);
+  }
+});
+
 // ── PATCH /api/festpreis/partner/:partnerId ───────────────────────────────────
-// Nur für Token-Feld (weiteres kann später ergänzt werden)
+// Aktiv und Kategorien (PPS1: der Token nicht mehr - dafuer POST .../link-neu)
 router.patch('/partner/:partnerId', async (req, res, next) => {
   try {
     const sheetId = SHEETID();
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
-    const { token, aktiv, kategorien } = req.body;
+    // PPS1: Tokens erzeugt nur noch das Backend (POST .../link-neu), nie aus dem Browser.
+    if (req.body.token !== undefined)
+      return res.status(400).json({ error: 'Token wird nicht mehr gesendet – bitte „Link erzeugen“ nutzen.', code: 'token_vom_browser' });
+    const { aktiv, kategorien } = req.body;
 
     const sheets = await getSheets();
     const { header, rows } = await readTab(sheets, sheetId, TAB_FP_PARTNER);
     const pidIdx   = header.indexOf('Partner-ID');
-    const tokenIdx = header.indexOf('Token');
     const aktivIdx = header.indexOf('Aktiv');
     const katIdx   = header.indexOf('Kategorien');
 
@@ -313,8 +335,6 @@ router.patch('/partner/:partnerId', async (req, res, next) => {
     const sheetRow = rows[rowIdx]._sheetRow;
     const colLetter = i => String.fromCharCode(65 + i);
     const updates = [];
-    if (token !== undefined && tokenIdx !== -1)
-      updates.push({ range: `${TAB_FP_PARTNER}!${colLetter(tokenIdx)}${sheetRow}`, values: [[token]] });
     if (aktiv !== undefined && aktivIdx !== -1)
       updates.push({ range: `${TAB_FP_PARTNER}!${colLetter(aktivIdx)}${sheetRow}`, values: [[aktiv]] });
     if (kategorien !== undefined && katIdx !== -1) {

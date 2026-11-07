@@ -9,6 +9,7 @@ import helmet from 'helmet';
 
 import { loadAllSecrets } from './utils/secrets.js';
 import { apiRateLimiter, requireApiKey } from './middleware/auth.js';
+import { tokenBremse } from './middleware/tokenBremse.js';
 import { hosterPruefseiteHandler } from './middleware/hosterPruefseite.js';
 import { healthHandler } from './utils/stand.js';
 import woocommerceRouter from './routes/woocommerce.js';
@@ -62,9 +63,9 @@ app.use(express.json({ limit: '256kb' }));
 
 // ── Rate limiting → Auth (Reihenfolge: rateLimiter → requireApiKey → Router) ──
 app.use('/api/', apiRateLimiter);
-app.use('/api/partner',      partnerPortalRouter); // Token-Auth oder eigene Key-Prüfung
+app.use('/api/partner',      tokenBremse, partnerPortalRouter); // Token-Auth oder eigene Key-Prüfung; PPS1: Bremse nur fuer 401
 app.use('/api/anfragen',           anfragenChatRouter);   // public: nur /chat (kein API-Key nötig)
-app.use('/api/festpreis-public',   festpreisPublicRouter); // public: Token-Auth (kein API-Key)
+app.use('/api/festpreis-public',   tokenBremse, festpreisPublicRouter); // public: Token-Auth (kein API-Key); PPS1: Bremse
 app.use('/api/intern',             internRouter);          // Cloud Scheduler: OIDC-Token statt API-Key (CS1)
 app.use(requireApiKey);
 

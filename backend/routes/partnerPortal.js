@@ -11,6 +11,7 @@ import { sichereSpalte } from '../utils/sheet-spalten.js';
 import { notify, buildPartnerNachricht } from '../lib/chatNotify.js';
 import { requireHeader } from '../utils/sheet-headers.js';
 import { saldoRechnung, partnerKacheln } from '../utils/partner-saldo.js';
+import { findeZeileZumToken } from '../utils/partner-token.js';
 
 const router = Router();
 
@@ -25,7 +26,7 @@ const getWcClient = (shop) => wcClientForShop(shop);
 
 async function readTab(sheets, sheetId, tabName) {
   const { data } = await sheets.spreadsheets.values.get({
-    spreadsheetId: sheetId, range: `${tabName}!A1:Z`,
+    spreadsheetId: sheetId, range: `${tabName}!A1:ZZ`,   // PPS1: breiter als A1:Z (Token_Hash steht hinten)
   });
   const [header, ...rows] = data.values ?? [];
   // Echten Sheet-Zeilenindex (_sheetRow) anhängen BEVOR Leerzeilen gefiltert werden,
@@ -94,11 +95,11 @@ async function resolvePartnerAnyTab(token) {
       ({ header, rows } = await readTab(sheets, sheetId, tab));
     } catch { continue; }        // Tab evtl. nicht vorhanden
 
-    const tokenIdx = header.indexOf('Token');
     const idIdx    = header.indexOf('Partner-ID');
-    if (tokenIdx === -1 || idIdx === -1) continue;
+    if (idIdx === -1) continue;
 
-    const row = rows.find(r => (r[tokenIdx] ?? '') === token);
+    // PPS1: Hash + timingSafeEqual (Uebergang: Klartext, solange kein Hash da ist).
+    const row = findeZeileZumToken(header, rows, token)?.zeile;
     if (!row) continue;
 
     // trim(): ein versehentliches Leerzeichen im Sheet wuerde den Partner sonst
@@ -180,12 +181,12 @@ async function resolvePartner(token) {
   const sheets = await getSheets();
   const { header, rows } = await readTab(sheets, sheetId, 'Partner');
 
-  const tokenIdx = header.indexOf('Token');
   const idIdx    = header.indexOf('Partner-ID');
   const nameIdx  = header.indexOf('Name');
   const aktivIdx = header.indexOf('Aktiv');
 
-  const row = rows.find(r => token && (r[tokenIdx] ?? '') === token);
+  // PPS1: Hash + timingSafeEqual (Uebergang: Klartext, solange kein Hash da ist).
+  const row = findeZeileZumToken(header, rows, token)?.zeile;
   if (!row) throw Object.assign(new Error('Ungültiger Token.'), { status: 401 });
   if ((row[aktivIdx] ?? '').toLowerCase() !== 'ja')
     throw Object.assign(new Error('Partner ist nicht aktiv.'), { status: 403 });
