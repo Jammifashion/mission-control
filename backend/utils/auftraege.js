@@ -26,7 +26,8 @@ export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung', ...P
 // AM-3: optional ganz hinten in Auftraege - Datum des Schritts "Design" (leer = Schritt nicht genutzt / uebersprungen).
 // AMQ1: Preis_Eingabe ("brutto" oder leer = netto; nur die Eingabe an der Position, gespeichert wird immer netto) und
 // Design_Link (https-Adresse, z. B. Canva) - optional ganz hinten, Setup ergaenzt sie.
-export const AUFTRAG_OPTIONAL = ['Design_Am', 'Rabatt', 'Angebot_Netto', 'Angebot_Brutto', 'Angebot_Stand', 'Zustaendig', 'Preis_Eingabe', 'Design_Link'];
+// AM-6: Vorlage_Von = AU-Nr. des Auftrags, aus dem "Wie letztes Mal" vorbelegt hat (nur beim Anlegen; fehlt die Spalte, ohne).
+export const AUFTRAG_OPTIONAL = ['Design_Am', 'Rabatt', 'Angebot_Netto', 'Angebot_Brutto', 'Angebot_Stand', 'Zustaendig', 'Preis_Eingabe', 'Design_Link', 'Vorlage_Von'];
 export const PREIS_EINGABE = ['netto', 'brutto'];
 export const DESIGN_LINK_MAX = 500;
 // AMQ1 (Inhaber 06.11.): Positionen sind keine Pflicht, solange man noch nicht bestellt - Pflicht erst beim Wechsel auf
@@ -284,11 +285,15 @@ export function anlagePlan({ auftraege, positionen, eingabe, waehlbar, orte, jet
   const status = t(eingabe?.status) || 'Anfrage';
   if (!START_STATUS.includes(status)) throw fehler('Start-Status Anfrage oder Angebot.');
   const pos = pruefePositionen(eingabe?.positionen, { waehlbar, orte, leerErlaubt: true });   // AMQ1: Pflicht erst ab "bestellt"
+  // AM-6: "Wie letztes Mal" - die Vorlage muss ein vorhandener Auftrag sein (sie selbst bleibt unveraendert)
+  const vorlage = t(eingabe?.Vorlage_Von);
+  if (vorlage && (!AU_NR_MUSTER.test(vorlage) || !(auftraege ?? []).some(a => a.Auftrag_Nr === vorlage))) throw fehler('Vorlage: diesen Auftrag gibt es nicht.', 422, 'vorlage');
   const tag = heute(jetzt);
   const nr = naechsteAuftragNr(auftraege, tag.slice(0, 4));
   const auftrag = {
     ...Object.fromEntries(AUFTRAG_SPALTEN.map(s => [s, ''])), ...kopf, Auftrag_Nr: nr, Status: status,
     Anfrage_Am: tag, Angebot_Am: status === 'Angebot' ? tag : '', Angelegt: t(jetzt), Stand: t(jetzt), Vorgang: t(eingabe?.vorgang),
+    Vorlage_Von: vorlage,
   };
   const neu = pos.map((p, i) => ({
     ...Object.fromEntries(POSITION_SPALTEN.map(s => [s, ''])), ...p,

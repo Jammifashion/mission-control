@@ -23,6 +23,7 @@ import {
   statusWechsel, fertigPlan, fertigVorschlag, aktivePositionen, auftragZahlen, auftraegeAntwort, fehler,
   PREIS_SPALTEN, ANGEBOT_SPALTEN, brauchtPreisSpalten, POSITIONEN_PFLICHT_AB,
 } from '../utils/auftraege.js';
+import { kundenHistorie } from '../utils/auftrag-historie.js';   // AM-6
 import { auftragSummen, positionAusZeile, rabattAus, angebotAbweichung, ZUSTAENDIG } from '../utils/auftrag-preise.js';
 import {
   TAB_AUFGABEN, TAB_TODOS, AUFGABE_SPALTEN, TODO_SPALTEN, VERWORFEN, istBezug, aufgabeOffen, aufgabeAnlagePlan, aufgabeBearbeitenPlan,
@@ -307,6 +308,8 @@ export async function legeAuftragAn({ eingabe, sheets: s, jetzt = () => new Date
     if (brauchtPreisSpalten(plan.positionen)) pruefeSpalten(p.idx, PREIS_SPALTEN, 'Preise');   // AM-5
     if (plan.auftrag.Rabatt !== undefined && plan.auftrag.Rabatt !== '') pruefeSpalten(a.idx, ['Rabatt'], 'Rabatt');
     pruefeAmq1Spalten(a.idx, plan.auftrag);   // AMQ1
+    // AM-6: ohne Spalte Vorlage_Von wird trotzdem angelegt (nur ohne Vermerk) - die Antwort sagt es der Oberflaeche
+    const vorlageOhneSpalte = !!plan.auftrag.Vorlage_Von && a.idx.Vorlage_Von === undefined;
     if (plan.auftrag.Status === 'Angebot' && a.idx.Angebot_Stand !== undefined) {   // AM-5: Angebotsstand festhalten
       const { info } = await lshopInfo(sheets, spreadsheetId, nummernAus(plan.positionen));
       Object.assign(plan.auftrag, angebotFelder(summenFuer(plan.auftrag, plan.positionen, info, await leseEkJe(sheets, spreadsheetId)), plan.auftrag.Anfrage_Am));
@@ -315,8 +318,24 @@ export async function legeAuftragAn({ eingabe, sheets: s, jetzt = () => new Date
       { tab: TAB_AUFTRAEGE, alt: wa, zeilen: [alsZeile(a.idx, plan.auftrag, AUFTRAG_SPALTEN, wa[0].length)] },
       { tab: TAB_POSITIONEN, alt: wp, zeilen: plan.positionen.map(x => alsZeile(p.idx, x, POSITION_SPALTEN, wp[0].length)) },
     ] });
-    return { ok: true, schon: false, auftragNr: plan.auftrag.Auftrag_Nr, positionen: plan.positionen.length };
+    return { ok: true, schon: false, auftragNr: plan.auftrag.Auftrag_Nr, positionen: plan.positionen.length, ...(vorlageOhneSpalte ? { vorlageNichtVermerkt: true } : {}) };
   });
+}
+
+/**
+ * AM-6: GET /api/auftraege/kunden/:kundenNr/historie - "Hatte bisher" je Modell + Farbe und freie Positionen (nur lesen).
+ * Nur MC-Auftraege, nur Kunden_Nr in der Antwort; Lieferbarkeit/Katalog heute ueber lshopInfo. Nichts ins Log.
+ */
+export async function leseKundenHistorie({ kundenNr, sheets: s } = {}) {
+  const nr = String(kundenNr ?? '').trim();
+  if (!/^K-\d{5}$/.test(nr)) throw fehler('Kunden-Nr. ungültig.', 422);
+  const sheets = s ?? await sheetsClient();
+  const spreadsheetId = sheetId();
+  const { a, p } = await lies(sheets, spreadsheetId);
+  const eigene = new Set(a.zeilen.filter(x => x.Kunden_Nr === nr).map(x => x.Auftrag_Nr));
+  const pos = p.zeilen.filter(x => eigene.has(x.Auftrag_Nr) && !x.Entfernt);
+  const { info } = await lshopInfo(sheets, spreadsheetId, nummernAus(pos));
+  return kundenHistorie({ auftraege: a.zeilen, positionen: pos, info, kundenNr: nr });
 }
 
 async function mitAuftrag(eingabe, s, fn) {

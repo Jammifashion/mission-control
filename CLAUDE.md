@@ -198,6 +198,19 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   neu mit Rueckruf `nachSpeichern`; Raster BO6 ueber die LESENDEN Endpunkte `.../lshop-korb/modelle`, nie Korb-Schreiben; freie
   Position; Motiv/Druck/Notiz je Gruppe Modell+Farbe). Block `Auftraege-Anzeige: Anfang/Ende` (Test auftraege-frontend.test.js).
   Kundenkarte `#ku-auftraege` = Auftraege des Kunden. Kachel: Hauptzahl offene Auftraege.
+  AM-6 Historie je Kunde: `GET /api/auftraege/kunden/:kundenNr/historie` (`leseKundenHistorie`, Logik utils/auftrag-historie.js, Test
+  auftrag-historie.test.js; nur lesen, nichts ins Log, nur Kunden_Nr): je Modell + Farbe (ueber `lshopInfo`) zuletzt · Anzahl Auftraege ·
+  Stueck · letztes Motiv/Druck/Preis; "hatte" erst ab "bestellt", Anfrage/Angebot/Design = "nur angefragt", storniert zaehlt nicht;
+  `katalog` false = nicht mehr waehlbar (ausgelaufen, 3/6, Nummer fehlt), `lieferbar` = schlechteste BO7-Stufe der gehabten Groessen.
+  Freie Positionen je gleichem Text. Oberflaeche Block `Auftrag-Historie: Anfang/Ende` (Test auftrag-historie-frontend.test.js):
+  Kundenkarte (Auftraege neueste zuerst, Haken "mit stornierten", Karten "Hatte bisher", "Weitere Positionen", Aufgaben fuer den
+  Kunden), Leiste `#au-hist` im Dialog (nur NEUER Auftrag, max. 8 + "mehr …", nur "hatte"): Klick oeffnet das Groessenraster der
+  Farbe mit `auDlg.vorbelegung` (Motiv/Druck/Preis, Mengen leer; gilt nur fuer genau Modell + Farbe), "Preis von AU-… vom …"
+  (`preisVon`, faellt beim Aendern des Preises weg). "Wie letztes Mal" (`#au-wie-letztes`, Kundenkarte `data-ku-wie`): `auVorlageAus`
+  = Kurztitel, Kanal, Preis_Eingabe, Design_Link, Positionen mit Mengen + Preisen; NICHT Termin/Notiz/Rabatt/Status/Angebot/
+  Herkunft-Lager-Korb/Zustaendig/EK von Hand; nicht mehr bestellbare Nummern fallen raus (Liste oben). `Vorlage_Von` hinten in
+  Auftraege (Setup), nur beim Anlegen (422 bei unbekannter Vorlage); fehlt die Spalte, wird ohne Vermerk angelegt
+  (`vorlageNichtVermerkt`). Ansicht "nach Vorlage AU-…".
   AM-3: Ansicht mit "Design überspringen", "Rohlinge bereitstellen …" (Dialog `#ab-dialog`, Vorschau je Position, "Rest bestellen
   (teilen)", Ortswahl), Korb-Stand je Position (Klick `korbSpringeZu`), "Übergabe zurücknehmen", Ware-Kennzeichen, Hinweis freie
   Positionen; Liste: Kennzeichen Ware + Filter "wartet auf Ware". Korb: AU-Referenz als Link `data-korb-au` (Kurztitel ueber

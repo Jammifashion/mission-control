@@ -4,7 +4,7 @@ import { Router } from 'express';
 import {
   leseAuftraege, legeAuftragAn, bearbeiteAuftrag, wechsleStatus, setzePositionFertig,
   legeAufgabeAn, bearbeiteAufgabe, wechsleAufgabeStatus, legeTodoAn, aendereTodo, verschiebeTodo, archiviereTodo,
-  aktualisiereAngebot, setzeZustaendig,
+  aktualisiereAngebot, setzeZustaendig, leseKundenHistorie,
 } from '../lib/auftraege.js';
 import { bereitstellenVorschau, bereitstellen, zuruecknehmen } from '../lib/auftragBereitstellen.js';
 
@@ -20,6 +20,10 @@ const mitMeldung = fn => async (req, res, next) => {
 // ── GET /api/auftraege ────────────────────────────────────────────────────────
 // Alle Auftraege mit aktiven Positionen (L-Shop-Anzeige: Modell, Farbe, Groesse, Lieferbarkeit) und Zahlen.
 router.get('/', mitMeldung(() => leseAuftraege()));
+
+// ── AM-6: GET /api/auftraege/kunden/:kundenNr/historie ────────────────────────
+// "Hatte bisher" je Modell + Farbe und freie Positionen eines Kunden (nur lesen, nichts ins Log).
+router.get('/kunden/:kundenNr/historie', mitMeldung(req => leseKundenHistorie({ kundenNr: req.params.kundenNr })));
 
 // ── POST /api/auftraege/neu ───────────────────────────────────────────────────
 // Body { Kunden_Nr, Kurztitel, Kanal, Termin, Notiz, status: Anfrage|Angebot, vorgang,

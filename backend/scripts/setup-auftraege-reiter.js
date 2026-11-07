@@ -5,7 +5,7 @@
 //
 // Idempotent: Einen vorhandenen Reiter fasst das Skript nicht an; fehlende Pflichtspalten werden nur gemeldet. Nur NEUE Reiter.
 // AM-2-2/AM-3/AM-5: Ausnahme optionale Spalten (Positionen: Herkunft, Lager_Ort, Lager_Buchung, Preise; Auftraege: Design_Am, Rabatt,
-// Angebot_*, Zustaendig; Aufgaben: Zustaendig) - mit --write hinten an die
+// Angebot_*, Zustaendig, AMQ1 Preis_Eingabe/Design_Link, AM-6 Vorlage_Von; Aufgaben: Zustaendig) - mit --write hinten an die
 // Kopfzeile angehaengt (nur Kopfzellen, keine Daten), danach zurueckgelesen.
 // Kopfzeile RAW, fett, fixiert; Textformat fuer Nummern-/Datumsspalten NACH dem Schreiben der Kopfzeile (Befund LS2:
 // values.update loescht das Format beschriebener Zellen; sonst wird "2026-11-03" zum Datumswert). Danach zurueckgelesen.
