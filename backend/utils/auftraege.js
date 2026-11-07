@@ -429,15 +429,29 @@ export function korbStand(z) {
   return { status, schluessel: t(z.Schluessel), bestellId: t(z.Bestell_ID), liefertermin: t(z.Liefertermin), hinweis: t(z.Hinweis) };
 }
 const KORB_ERLEDIGT = ['bestellt', 'bestätigt', 'geliefert', 'Lager'];
+// KS3-1: Verweis auf eine Korb-Zeile ("schon bestellt – verknüpfen") - deren Korb-Stand zaehlt fuer Ware/auto-"bestellt" wie bei 🛒.
+export const VERWEIS_KORB = /^(EIGEN|JFN|HONK):/;
+/** Korb-Schluessel, dessen Stand fuer diese Position zaehlt: 🛒 = Korb_Schluessel, ✓ verknuepft = Verweis auf eine Korb-Zeile. */
+export function korbSchluesselVon(p) {
+  const h = t(p.Herkunft) || (p.Art === ART.LSHOP ? HERKUNFT.BESTELLEN : '');
+  if (h === HERKUNFT.BESTELLEN) return t(p.Korb_Schluessel);
+  if (h === HERKUNFT.VORHANDEN && VERWEIS_KORB.test(t(p.Verweis))) return t(p.Verweis);
+  return '';
+}
+/** Zaehlt die Position fuer den Warenstand? 🛒 (L-Shop, bestellen) und ✓ mit Verweis auf eine Korb-Zeile. */
+const zaehltWare = p => {
+  const h = t(p.Herkunft) || (p.Art === ART.LSHOP ? HERKUNFT.BESTELLEN : '');
+  return (h === HERKUNFT.BESTELLEN && p.Art === ART.LSHOP) || (h === HERKUNFT.VORHANDEN && VERWEIS_KORB.test(t(p.Verweis)));
+};
 
 /**
  * Warenstand je Auftrag (nur 🛒-Positionen = Herkunft bestellen): '' (keine) | offen (mind. eine noch nicht im Korb
  * bestellt) | bestellt (alle bestellt, nicht alle da) | da (alle geliefert bzw. aus dem Lager). Freie Positionen zaehlen nie.
  */
 export function wareStand(positionen, korbJe) {
-  const best = (positionen ?? []).filter(p => p.Art === ART.LSHOP && (t(p.Herkunft) || HERKUNFT.BESTELLEN) === HERKUNFT.BESTELLEN);
+  const best = (positionen ?? []).filter(zaehltWare);   // KS3-1: auch ✓ verknuepft mit einer Korb-Zeile
   if (!best.length) return '';
-  const st = best.map(p => (t(p.Korb_Schluessel) ? korbStand(korbJe.get(t(p.Korb_Schluessel))).status : 'nicht übergeben'));
+  const st = best.map(p => (korbSchluesselVon(p) ? korbStand(korbJe.get(korbSchluesselVon(p))).status : 'nicht übergeben'));
   if (st.some(x => !KORB_ERLEDIGT.includes(x))) return 'offen';
   return st.every(x => ['geliefert', 'Lager'].includes(x)) ? 'da' : 'bestellt';
 }
@@ -449,10 +463,10 @@ export function wareStand(positionen, korbJe) {
 export function autoBestellt(auftrag, positionen, korbJe) {
   if (!['Anfrage', 'Angebot', 'Design'].includes(auftrag.Status)) return false;
   const l = (positionen ?? []).filter(p => p.Art === ART.LSHOP);
-  const best = l.filter(p => (t(p.Herkunft) || HERKUNFT.BESTELLEN) === HERKUNFT.BESTELLEN);
+  const best = (positionen ?? []).filter(zaehltWare);   // KS3-1: ✓ verknuepfte Korb-Zeilen muessen ebenfalls mind. bestellt sein
   const lag = l.filter(p => t(p.Herkunft) === HERKUNFT.LAGER);
   if (!best.length && !lag.length) return false;
-  return best.every(p => t(p.Korb_Schluessel) && KORB_ERLEDIGT.includes(korbStand(korbJe.get(t(p.Korb_Schluessel))).status))
+  return best.every(p => korbSchluesselVon(p) && KORB_ERLEDIGT.includes(korbStand(korbJe.get(korbSchluesselVon(p))).status))
     && lag.every(p => t(p.Lager_Buchung));
 }
 

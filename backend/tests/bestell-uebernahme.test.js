@@ -17,6 +17,9 @@ import { uebernahmePlan, zielAuftrag, ungepruefteZahlen, eintraegeJePosition, ve
 import { _auftraegeCacheLeeren } from '../lib/auftraege.js';
 import { _resetLShopCache } from '../lib/lshop.js';
 import { _lieferbarkeitCacheLeeren } from '../lib/lieferbarkeitLesen.js';
+import { verknuepfKandidaten } from '../utils/bestell-uebernahme.js';   // KS3-1
+import { wareStand, autoBestellt } from '../utils/auftraege.js';
+import { leseAuftraege } from '../lib/auftraege.js';
 
 const hier = dirname(fileURLToPath(import.meta.url));
 process.env.GOOGLE_SHEET_ID = 'test-sheet';
@@ -238,6 +241,90 @@ describe('B. Uebernehmen', () => {
     t.Auftraege[0] = [...AUFTRAG_SPALTEN, 'Vorgang'].filter((x, i, l) => l.indexOf(x) === i);
     await expect(uebernehmen({ eingabe: { zugangId: 'BS-001', terminId: termin, auswahl: a, vorgang: V(60) }, sheets: s.sheets, jetzt: JETZT, trikotsAnlegen })).rejects.toMatchObject({ status: 409, code: 'einrichtung' });
     expect(trikotAufrufe).toHaveLength(0);
+  });
+});
+
+describe('KS3-1: auch offene Korb-Zeilen verknüpfen', () => {
+  const kz = o => KORB_SPALTEN.map(c => o[c] ?? '');
+  async function geprueft(positionen, n = 2) {
+    await absenden(positionen, n);
+    await pruefeEintraege({ eingabe: { zugangId: 'BS-001', aktion: 'geprueft', auswahl: await wahl(e => e.status === 'eingegangen') }, sheets: s.sheets, jetzt: SPAETER });
+    return wahl(e => e.status === 'geprüft');
+  }
+  test('offene Korb-Zeile wird vorgeschlagen und gekennzeichnet; abgewählte und Shop-Zeilen nicht', async () => {
+    t.Warenkorb_LShop.push(
+      kz({ Schluessel: 'EIGEN:2026-0101', Shop: 'JFN', Herkunft: 'eigen', Referenz: 'Fanshop', LShop_ArticleNr: NR_L, Menge: 3, Status: 'offen', Status_Datum: '2026-11-06' }),
+      kz({ Schluessel: 'EIGEN:2026-0102', Shop: 'JFN', Herkunft: 'eigen', Referenz: 'Fanshop', LShop_ArticleNr: NR_L, Menge: 1, Status: 'abgewählt', Status_Datum: '2026-11-06' }),
+      kz({ Schluessel: 'JFN:9001:1', Shop: 'JFN', Herkunft: 'shop', Bestellnummer: '9001', LShop_ArticleNr: NR_L, Menge: 1, Status: 'offen', Status_Datum: '2026-11-06' }));
+    await geprueft([{ art: 'artikel', id: '102', menge: 2 }]);
+    const v = await uebernahmeVorschau({ zugangId: 'BS-001', terminId: termin, sheets: s.sheets, jetzt: JETZT });
+    const k = Object.values(v.kandidaten)[0];
+    expect(k.map(x => x.verweis)).toEqual(['EIGEN:2026-0101']);
+    expect(k[0]).toMatchObject({ status: 'offen', stufe: 'offen', stufeText: 'im Korb, noch nicht gesendet', menge: 3 });
+    expect(k[0].text).toContain('im Korb, noch nicht gesendet');
+  });
+  test('Übernahme ändert die offene Korb-Zeile nie und legt keine an; zweite Verknüpfung: Hinweis + Mengenvergleich, kein Sperren', async () => {
+    t.Warenkorb_LShop.push(kz({ Schluessel: 'EIGEN:2026-0101', Shop: 'JFN', Herkunft: 'eigen', Referenz: 'Fanshop', LShop_ArticleNr: NR_L, Menge: 3, Status: 'offen', Status_Datum: '2026-11-06' }));
+    const korbVorher = JSON.stringify(t.Warenkorb_LShop);
+    const a1 = await geprueft([{ art: 'artikel', id: '102', menge: 2 }]);
+    const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+    const r1 = await uebernehmen({ eingabe: { zugangId: 'BS-001', terminId: termin, auswahl: a1, vorgang: V(70), verknuepfen: { [a1[0].id]: { verweis: 'EIGEN:2026-0101' } } }, sheets: s.sheets, jetzt: JETZT, trikotsAnlegen });
+    expect(r1).toMatchObject({ vorhanden: 1, hinweise: [] });
+    expect(JSON.stringify(t.Warenkorb_LShop)).toBe(korbVorher);
+    const a2 = await geprueft([{ art: 'artikel', id: '102', menge: 2 }], 3);
+    const v = await uebernahmeVorschau({ zugangId: 'BS-001', terminId: termin, sheets: s.sheets, jetzt: JETZT });
+    const k = v.kandidaten[a2[0].id][0];
+    expect(k).toMatchObject({ verknuepftMit: ['AU-2026-0001-01'], verknuepftMenge: 2, menge: 3 });
+    expect(k.text).toContain('bereits verknüpft mit AU-2026-0001-01 (2 von 3 Stück)');
+    const r2 = await uebernehmen({ eingabe: { zugangId: 'BS-001', terminId: termin, auswahl: a2, vorgang: V(71), verknuepfen: { [a2[0].id]: { verweis: 'EIGEN:2026-0101' } } }, sheets: s.sheets, jetzt: JETZT, trikotsAnlegen });
+    expect(r2.hinweise).toEqual(['Korb EIGEN:2026-0101: verknüpft 4 Stück, in der Zeile stehen 3.']);
+    expect(JSON.stringify(t.Warenkorb_LShop)).toBe(korbVorher);   // Status, Menge, Referenz unveraendert
+    expect(s.aufrufe.append).toBe(0);
+    expect([...s.aufrufe.update, ...s.aufrufe.batchUpdate].some(x => /Warenkorb_LShop/.test(x))).toBe(false);
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(new RegExp(`${KUERZEL}|Fanshop`));
+  });
+  test('Verweis folgt dem Korb-Status: Auftragsansicht zeigt den aktuellen Stand, "wartet auf Ware" und auto-"bestellt" laufen mit', async () => {
+    t.Warenkorb_LShop.push(kz({ Schluessel: 'EIGEN:2026-0101', Shop: 'JFN', Herkunft: 'eigen', Referenz: 'Fanshop', LShop_ArticleNr: NR_L, Menge: 3, Status: 'offen', Status_Datum: '2026-11-06' }));
+    const a = await geprueft([{ art: 'artikel', id: '102', menge: 2 }]);
+    await uebernehmen({ eingabe: { zugangId: 'BS-001', terminId: termin, auswahl: a, vorgang: V(80), verknuepfen: { [a[0].id]: { verweis: 'EIGEN:2026-0101' } } }, sheets: s.sheets, jetzt: JETZT, trikotsAnlegen });
+    const lies = async () => { _auftraegeCacheLeeren(); return (await leseAuftraege({ sheets: s.sheets, jetzt: JETZT })).auftraege.find(x => x.Auftrag_Nr === 'AU-2026-0001'); };
+    let au = await lies();
+    expect(au.positionen[0].verweisKorb.status).toBe('offen');
+    expect(au.ware).toBe('offen');
+    expect(au.Status).toBe('Anfrage');   // offen im Korb -> noch nicht "bestellt"
+    const kk = c => t.Warenkorb_LShop[0].indexOf(c);
+    t.Warenkorb_LShop[1][kk('Status')] = 'bestellt';
+    au = await lies();
+    expect(au.positionen[0].verweisKorb.status).toBe('bestellt');
+    expect(au.ware).toBe('bestellt');
+    expect(au.Status).toBe('bestellt');   // auto-"bestellt": die verknuepfte Korb-Zeile ist gesendet
+    t.Warenkorb_LShop[1][kk('Status')] = 'geliefert';
+    au = await lies();
+    expect(au.ware).toBe('da');
+  });
+  test('Logik: Warenstand mit/ohne Verweis, unbekannter Verweis zählt nicht', () => {
+    const korbJe = new Map([['EIGEN:1', { Schluessel: 'EIGEN:1', Status: 'offen' }]]);
+    const p = (o) => ({ Art: 'lshop', Herkunft: 'vorhanden', Verweis: 'EIGEN:1', ...o });
+    expect(wareStand([p()], korbJe)).toBe('offen');
+    expect(wareStand([p({ Verweis: 'LAGER:Wrist', Herkunft: 'lager' })], korbJe)).toBe('');
+    expect(wareStand([p({ Verweis: 'ohne Verweis: x' })], korbJe)).toBe('');
+    expect(autoBestellt({ Status: 'Anfrage' }, [p()], korbJe)).toBe(false);
+    expect(autoBestellt({ Status: 'Anfrage' }, [p()], new Map([['EIGEN:1', { Status: 'bestellt' }]]))).toBe(true);
+    expect(verknuepfKandidaten({ eintrag: { Art: 'extra' }, korb: [], jetzt: '2026-11-07T10:00:00Z' })).toEqual([]);
+  });
+  test('Oberfläche: Kennzeichen "im Korb, noch nicht gesendet" orange, Mengen-Hinweis, Mouse-over', () => {
+    const html = readFileSync(resolve(hier, '../../frontend/index.html'), 'utf8');
+    const a = html.indexOf('// ── Bestellseiten-Pruefen: Anfang'), b = html.indexOf('// ── Bestellseiten-Pruefen: Ende ──');
+    const kuEsc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+    const F = new Function('kuEsc', 'bsmDatum', 'bsmEintragWas', 'BSM_ART', 'bsmNotiz', `${html.slice(a, b)}\nreturn { bsmKandidatInfoHtml };`)(kuEsc, x => x, e => e.id, {}, () => '');
+    const h = F.bsmKandidatInfoHtml({ art: 'korb', stufe: 'offen', stufeText: 'im Korb, noch nicht gesendet', menge: 3, verknuepftMit: ['AU-2026-0001-01'], verknuepftMenge: 2 }, 2);
+    expect(h).toContain('class="ku-chip bsm-k-offen" data-hilfe="bsm-k-offen"');
+    expect(h).toContain('bereits verknüpft mit AU-2026-0001-01');
+    expect(h).toContain('mit diesem Eintrag 4 Stück verknüpft, in der Zeile 3');
+    expect(F.bsmKandidatInfoHtml({ art: 'lager' })).toBe('');
+    expect(html).toMatch(/\.ku-chip\.bsm-k-offen \{ border-color: var\(--warning\); color: var\(--warning\)/);
+    expect(html).toMatch(/auVerweisHtml\(p\.Verweis, p\.verweisKorb\)/);
+    for (const k of ['bsm-k-offen', 'bsm-k-bestellt', 'bsm-k-geliefert', 'bsm-k-lager', 'bsm-k-verknuepft']) expect(html).toMatch(new RegExp(`'${k}':\\s*\\{ name:`));
   });
 });
 

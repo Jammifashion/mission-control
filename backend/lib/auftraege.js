@@ -19,7 +19,7 @@ import { leseLager, ladePartner } from './lager.js';
 import { TAB_KORB, korbZeilen } from '../utils/korb-logic.js';   // AM-3: Korb nur lesen (Rueckmeldung)   // AM-2-2: nur Lagerorte lesen - der Auftrag bucht nie im Lager (das kommt mit AM-3)
 import {
   TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, POSITION_OPTIONAL, AUFTRAG_OPTIONAL, brauchtHerkunftSpalten, zeilenAus,
-  korbStand, wareStand, autoBestellt, ART, HERKUNFT, alsZeile, anlagePlan, bearbeitenPlan,
+  korbStand, wareStand, autoBestellt, ART, HERKUNFT, alsZeile, anlagePlan, bearbeitenPlan, VERWEIS_KORB,
   statusWechsel, fertigPlan, fertigVorschlag, aktivePositionen, auftragZahlen, auftraegeAntwort, fehler,
   PREIS_SPALTEN, ANGEBOT_SPALTEN, brauchtPreisSpalten, POSITIONEN_PFLICHT_AB,
 } from '../utils/auftraege.js';
@@ -244,6 +244,7 @@ export async function leseAuftraege({ sheets: s, jetzt = () => new Date(), autoB
     ...x,
     ...(x.LShop_ArticleNr ? { lshop: info.get(x.LShop_ArticleNr) ?? { bestellbar: false } } : {}),
     ...(x.Korb_Schluessel ? { korb: korbStand(korbJe.get(x.Korb_Schluessel)) } : {}),
+    ...(VERWEIS_KORB.test(String(x.Verweis ?? '')) ? { verweisKorb: korbStand(korbJe.get(String(x.Verweis).trim())) } : {}),   // KS3-1
   });
   const ware = new Map();
   const ekJe = await leseEkJe(sheets, spreadsheetId);   // AM-5

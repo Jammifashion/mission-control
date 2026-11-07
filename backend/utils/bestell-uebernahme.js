@@ -9,7 +9,7 @@
 
 import { E_STATUS, E_ART } from './bestell-eintraege.js';
 import {
-  AUFTRAG_SPALTEN, POSITION_SPALTEN, ART, HERKUNFT, STORNIERT, schrittIndex, naechsteAuftragNr, naechstePositionId, fehler,
+  AUFTRAG_SPALTEN, POSITION_SPALTEN, ART, HERKUNFT, STORNIERT, schrittIndex, naechsteAuftragNr, naechstePositionId, fehler, VERWEIS_KORB,
 } from './auftraege.js';
 import { berlinDatum } from './berlin-tag.js';
 
@@ -71,6 +71,24 @@ export function mcPruefPlan({ zugangId, eintraege, auswahl, aktion, grund, jetzt
 // ── Kandidaten "schon bestellt – verknüpfen" ─────────────────────────────────
 
 const KORB_KANDIDAT = ['offen', 'bestellt', 'geliefert', 'Lager'];
+// KS3-1: Kennzeichen je Korb-Status in der Auswahl ("offen" = liegt im Korb, geht beim naechsten Senden normal raus).
+export const KORB_STUFE = {
+  offen: { stufe: 'offen', text: 'im Korb, noch nicht gesendet' }, bestellt: { stufe: 'bestellt', text: 'bei L-Shop bestellt' },
+  geliefert: { stufe: 'geliefert', text: 'geliefert' }, Lager: { stufe: 'lager', text: 'im Lager' },
+};
+/** KS3-1: Wer ist schon mit einer Korb-Zeile verknuepft? Verweis = Korb-Schluessel, Position nicht entfernt. -> Map Schluessel -> { ids, menge } */
+export function korbVerknuepfungen(positionen) {
+  const je = new Map();
+  for (const p of positionen ?? []) {
+    const v = t(p.Verweis);
+    if (!v || t(p.Entfernt) || !VERWEIS_KORB.test(v)) continue;
+    const e = je.get(v) ?? { ids: [], menge: 0 };
+    e.ids.push(t(p.Position_ID));
+    e.menge += Number(t(p.Menge)) || 0;
+    je.set(v, e);
+  }
+  return je;
+}
 
 /**
  * Passende Quellen fuer EINEN Eintrag (gleiche L-Shop-ArticleNr): Korb-Zeilen der letzten 60 Tage (nicht herausgenommen),
@@ -89,13 +107,21 @@ export function verknuepfKandidaten({ eintrag, korb, auftraege, positionen, kund
   if (t(eintrag?.Art) !== E_ART.ARTIKEL || !/^\d{10}$/.test(nr)) return [];
   const ab = berlinDatum(new Date(new Date(jetzt).getTime() - KANDIDAT_TAGE * 86400000));
   const aus = [];
+  const verkn = korbVerknuepfungen(positionen);
   for (const k of korb ?? []) {
     if (t(k.LShop_ArticleNr) !== nr || !KORB_KANDIDAT.includes(t(k.Status))) continue;
+    // KS3-1: Zeilen aus Shop-Bestellungen gehoeren einem Shop-Kunden - nie als "schon bestellt" fuer die Bestellseite vorschlagen
+    if (t(k.Herkunft) === 'shop') continue;
     const tag = (t(k.Status_Datum) || t(k.Angelegt)).slice(0, 10);
     if (tag && tag < ab) continue;
-    const ref = /^AU-\d{4}-\d{4}$/.test(t(k.Referenz)) ? ` · ${t(k.Referenz)}` : t(k.Herkunft) === 'shop' ? ` · Shop ${t(k.Shop) || 'JFN'} #${t(k.Bestellnummer)}` : '';
-    aus.push({ art: 'korb', verweis: t(k.Schluessel), herkunft: HERKUNFT.VORHANDEN, menge: Number(t(k.Menge)) || 0,
-      text: `Korb ${t(k.Schluessel)} · ${t(k.Status)}${t(k.Bestell_ID) ? ` · ${t(k.Bestell_ID)}` : ''}${ref}` });
+    const ref = /^AU-\d{4}-\d{4}$/.test(t(k.Referenz)) ? ` · ${t(k.Referenz)}` : '';
+    const st = KORB_STUFE[t(k.Status)];
+    const menge = Number(t(k.Menge)) || 0;
+    const v = verkn.get(t(k.Schluessel));
+    aus.push({ art: 'korb', verweis: t(k.Schluessel), herkunft: HERKUNFT.VORHANDEN, menge, status: t(k.Status), stufe: st.stufe, stufeText: st.text,
+      ...(v ? { verknuepftMit: v.ids, verknuepftMenge: v.menge } : {}),
+      text: `Korb ${t(k.Schluessel)} · ${st.text} · ${menge} Stück${t(k.Bestell_ID) ? ` · ${t(k.Bestell_ID)}` : ''}${ref}`
+        + (v ? ` · bereits verknüpft mit ${v.ids.join(', ')} (${v.menge} von ${menge} Stück)` : '') });
   }
   const auJe = new Map((auftraege ?? []).map(a => [a.Auftrag_Nr, a]));
   for (const p of positionen ?? []) {
@@ -125,7 +151,7 @@ export function verknuepfungAus(wahl, kandidaten, eintragId) {
   }
   const k = (kandidaten ?? []).find(x => x.verweis === t(wahl?.verweis));
   if (!k) throw fehler(`Eintrag ${eintragId}: diese Quelle passt nicht (mehr) – bitte neu wählen.`, 409, 'kandidat');
-  return { herkunft: k.herkunft, verweis: k.verweis, lagerOrt: k.lagerOrt ?? '' };
+  return { herkunft: k.herkunft, verweis: k.verweis, lagerOrt: k.lagerOrt ?? '', ...(k.art === 'korb' ? { korbMenge: k.menge, korbVerknuepft: k.verknuepftMenge ?? 0 } : {}) };
 }
 
 // ── Uebernehmen ──────────────────────────────────────────────────────────────
@@ -246,6 +272,18 @@ export function uebernahmePlan({ zugang, termin, eintraege, auswahl, auftraege, 
     for (const e of g.eintraege) eintragFelder.push({ eintrag: e, felder: { Status: E_STATUS.UEBERNOMMEN, Auftrag_Nr: nr, Position_ID: id, Stand: iso } });
   }
   if (frei) hinweise.push(`${frei} Einträge ohne bestellbare L-Shop-Nummer bzw. Extras als freie Position(en).`);
+  // KS3-1: Mengen-Schutz (nur Hinweis, kein Sperren): mehr mit einer Korb-Zeile verknuepft, als darin steht?
+  const jeKorb = new Map();
+  for (const g of gruppen.values()) {
+    if (!VERWEIS_KORB.test(g.Verweis)) continue;
+    const v = [...verknuepft.values()].find(x => x.verweis === g.Verweis);
+    const e = jeKorb.get(g.Verweis) ?? { neu: 0, vorher: v?.korbVerknuepft ?? 0, menge: v?.korbMenge ?? 0 };
+    e.neu += g.Menge;
+    jeKorb.set(g.Verweis, e);
+  }
+  for (const [schluessel, e] of jeKorb) {
+    if (e.menge && e.vorher + e.neu > e.menge) hinweise.push(`Korb ${schluessel}: verknüpft ${e.vorher + e.neu} Stück, in der Zeile stehen ${e.menge}.`);
+  }
   const terminAlt = terminAuftraege(termin);
   const terminAuftragNr = terminAlt.includes(nr) ? null : [...terminAlt, nr].join(', ');
   return { auftragNr: nr, auftragNeu, nachtrag: z.nachtrag, positionenNeu, eintragFelder, trikots, terminAuftragNr, hinweise, anzahl: gewaehlt.length };

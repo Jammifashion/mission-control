@@ -1067,6 +1067,10 @@ Neue Sektionen immer mit Anker versehen:
   Auftrags-Sperre, ein batchUpdate ueber Auftraege + Positionen + Eintraege + Termine, kein append, zurueckgelesen. MC: Block
   `Bestellseiten-Pruefen: Anfang/Ende` (Prüf-Ansicht, Uebernahme-Panel, Packliste nur Druck), Dashboard-Kachel `bestellseiten` (8. Kachel,
   ungeprüfte, Vorlesen zaehlt mit). Tests bestell-uebernahme.test.js.
+  KS3-1: Kandidaten auch Korb-Zeilen "offen" (Kennzeichen orange "im Korb, noch nicht gesendet", `KORB_STUFE`), nie Korb-Zeilen aus
+  Shop-Bestellungen (Herkunft shop); schon verknuepfte Menge (`korbVerknuepfungen`, Verweis = Korb-Schluessel) nur als Hinweis, kein Sperren.
+  Verknuepfte Positionen (✓ + Verweis EIGEN:/JFN:/HONK:) zaehlen ueber `korbSchluesselVon` fuer `wareStand` und `autoBestellt` wie 🛒;
+  `GET /api/auftraege` liefert je Position `verweisKorb` (aktueller Korb-Stand).
 - backend/utils/auftrag-preise.js – Preise je Auftrag (AM-5), einzige Rechen-Stelle; Frontend-Spiegel Block `Auftrag-Preise: Anfang/Ende`
   (Test auftrag-preise.test.js vergleicht beide). Eingabe NETTO, Rechnen in Cent, gerundet erst in der Anzeige (`euroText`). Spalten hinten
   optional: `Auftrag_Positionen` Preis_Netto | Aufpreis_Netto | Aufpreis_Ab | USt_Satz (leer = 19) | EK_Hand, `Auftraege` Rabatt ("10%" Text

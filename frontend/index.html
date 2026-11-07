@@ -306,12 +306,16 @@
       .bsm-eintrag { display: flex; flex-wrap: wrap; gap: 0.2rem 0.5rem; align-items: baseline; font-size: 0.86rem; min-width: 0; overflow-wrap: anywhere; }
       .bsm-was { font-weight: 600; }
       .bsm-storniert .bsm-was { text-decoration: line-through; color: var(--muted); }
-      .bsm-neu { border-color: var(--info); color: var(--info); }
-      .bsm-spaet { border-color: var(--warning); color: var(--warning); }
+      /* KS3-1: .ku-chip.… - die allgemeine .ku-chip-Regel steht spaeter und hat sonst die Farbe ueberschrieben */
+      .ku-chip.bsm-neu { border-color: var(--info); color: var(--info); }
+      .ku-chip.bsm-spaet { border-color: var(--warning); color: var(--warning); }
       /* KS3: Pruefen/Uebernehmen/Packliste */
-      .bsm-gk { border-color: var(--warning); color: var(--warning); font-weight: 600; }
-      .bsm-geprueft { border-color: var(--info); color: var(--info); }
-      .bsm-uebernommen { border-color: var(--success); color: var(--success); }
+      .ku-chip.bsm-gk { border-color: var(--warning); color: var(--warning); font-weight: 600; }
+      .ku-chip.bsm-k-offen { border-color: var(--warning); color: var(--warning); font-weight: 600; }   /* KS3-1: im Korb, noch nicht gesendet */
+      .ku-chip.bsm-k-bestellt { border-color: var(--info); color: var(--info); }
+      .ku-chip.bsm-k-geliefert, .ku-chip.bsm-k-lager { border-color: var(--success); color: var(--success); }
+      .ku-chip.bsm-geprueft { border-color: var(--info); color: var(--info); }
+      .ku-chip.bsm-uebernommen { border-color: var(--success); color: var(--success); }
       .bsm-wahl { display: inline-flex; align-items: center; min-width: 1.6rem; min-height: 1.6rem; }
       .bsm-e-knoepfe { display: inline-flex; flex-wrap: wrap; gap: 0.2rem 0.6rem; }
       .bsm-bearbeiten, .bsm-uebernahme { flex: 1 1 100%; border: 1px solid var(--border); border-left: 4px solid var(--info); background: var(--surface-2); border-radius: 6px; padding: 0.4rem 0.6rem; display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
@@ -6962,6 +6966,11 @@
         'bsm-u-ziel':           { name: 'In Auftrag', text: 'Standard: Auftrag des Termins (sonst neu). Oder an einen vorhandenen Auftrag des Kunden anhängen.' },
         'bsm-u-wahl':           { name: 'Übernehmen', text: 'Haken weg = dieser Eintrag bleibt „geprüft“ und wird jetzt nicht übernommen.' },
         'bsm-u-quelle':         { name: 'Herkunft', text: 'Neu bestellen (später „Rohlinge bereitstellen“) oder schon bestellt: dann kein neuer Korb-Eintrag, nur ein Verweis.' },
+        'bsm-k-offen':          { name: 'Im Korb, noch nicht gesendet', text: 'Liegt im L-Shop-Warenkorb und geht beim nächsten Senden ganz normal raus. Verknüpfen ändert die Korb-Zeile nicht.' },
+        'bsm-k-bestellt':       { name: 'Bei L-Shop bestellt', text: 'Die Korb-Zeile ist an L-Shop gesendet, die Ware ist unterwegs.' },
+        'bsm-k-geliefert':      { name: 'Geliefert', text: 'Die Ware aus dieser Korb-Zeile ist angekommen.' },
+        'bsm-k-lager':          { name: 'Im Lager', text: 'Die Korb-Zeile wurde aus dem Lager bedient.' },
+        'bsm-k-verknuepft':     { name: 'Schon verknüpft', text: 'Andere Positionen nutzen diese Korb-Zeile schon. Nur ein Hinweis – mehr verknüpfen als darin steht geht trotzdem.' },
         'bsm-u-probe':          { name: 'Vorschau', text: 'Zeigt, was angelegt würde (Auftrag, Positionen, Trikots). Es wird nichts gespeichert.' },
         'bsm-u-los':            { name: 'Übernehmen', text: 'Legt Positionen im Auftrag an und setzt die Einträge auf „übernommen“. Bestellt wird noch nichts.' },
         'au-aus-bestellseite':  { name: 'Aus Bestellseite', text: 'Dieser Auftrag sammelt die Einträge einer Bestellseite für einen Termin.' },
@@ -7035,7 +7044,7 @@
         bestellseiten: ['bsm-status', 'bsm-oeffnen', 'bsm-link', 'bsm-kopieren', 'bsm-link-holen', 'bsm-link-alt', 'bsm-anlegen',
           'bsm-e-wahl', 'bsm-e-status', 'bsm-gk', 'bsm-e-auftrag', 'bsm-e-pruefen', 'bsm-e-zurueck', 'bsm-e-aendern', 'bsm-e-ablehnen', 'bsm-e-feld', 'bsm-e-speichern',
           'bsm-alle', 'bsm-s-pruefen', 'bsm-s-grund', 'bsm-s-ablehnen', 'bsm-uebernehmen', 'bsm-packliste', 'bsm-pl-drucken', 'bsm-u-ziel', 'bsm-u-wahl', 'bsm-u-quelle',
-          'bsm-u-probe', 'bsm-u-los', 'bsm-speichern', 'bsm-neuer-link', 'bsm-sperren', 'bsm-entsperren',
+          'bsm-u-probe', 'bsm-u-los', 'bsm-k-offen', 'bsm-k-bestellt', 'bsm-k-geliefert', 'bsm-k-lager', 'bsm-k-verknuepft', 'bsm-speichern', 'bsm-neuer-link', 'bsm-sperren', 'bsm-entsperren',
           'bsm-ablauf', 'bsm-hinweis', 'bsm-design', 'bsm-sortiment', 'bsm-partner', 'bsm-bilder', 'bsm-bilder-stand',
           'bsm-eintraege', 'bsm-termin-filter', 'bsm-neu', 'bsm-spaet'],   // KS1, KS2
         lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
@@ -11697,9 +11706,17 @@
         ? `<div><a href="${kuEsc(String(url).trim())}" target="_blank" rel="noopener noreferrer" class="korb-link" data-hilfe="au-design-link">Design öffnen ↗</a></div>` : '');
       // ── KS3: Auftrag aus Bestellseite - Kürzel/Notiz je Position (nur angezeigt) und Verweis "schon bestellt" ──
       const auBsZ = { je: new Map(), laedt: new Set() };
-      function auVerweisHtml(v) {
+      // KS3-1: aktueller Stand der verknuepften Korb-Zeile (offen -> bestellt -> geliefert)
+      const AU_VERWEIS_STAND = { offen: ['im Korb, noch nicht gesendet', 'offen'], herausgenommen: ['aus dem Korb genommen', 'offen'], bestellt: ['bei L-Shop bestellt', 'bestellt'],
+        'bestätigt': ['von L-Shop bestätigt', 'bestellt'], geliefert: ['geliefert', 'geliefert'], Lager: ['im Lager', 'lager'], fehlt: ['Korb-Zeile fehlt', 'offen'] };
+      function auVerweisHtml(v, korb) {
         const s = String(v ?? '').trim();
         if (!s) return '';
+        if (korb?.status && /^(EIGEN|JFN|HONK):/.test(s)) {
+          const [text, stufe] = AU_VERWEIS_STAND[korb.status] ?? [korb.status, 'bestellt'];
+          return `<button type="button" class="korb-link" data-au-korb="${kuEsc(s)}" data-hilfe="au-verweis">schon bestellt: Korb ${kuEsc(s)}</button>`
+            + bsmKChip(stufe, text);   // gleiche Kennzeichen wie in der Uebernahme (Block Bestellseiten-Pruefen)
+        }
         const auPos = /^(AU-\d{4}-\d{4})-\d+$/.exec(s);
         if (auPos) return `<button type="button" class="korb-link" data-au-verweis-au="${kuEsc(auPos[1])}" data-hilfe="au-verweis">schon bestellt: ${kuEsc(s)}</button>`;
         if (/^(EIGEN|JFN|HONK):/.test(s)) return `<button type="button" class="korb-link" data-au-korb="${kuEsc(s)}" data-hilfe="au-verweis">schon bestellt: Korb ${kuEsc(s)}</button>`;
@@ -11767,7 +11784,7 @@
             + (p.korb ? `<button type="button" class="korb-link au-korb" data-au-korb="${kuEsc(p.Korb_Schluessel)}" data-hilfe="au-korb-stand">🛒 ${kuEsc(auKorbText(p.korb))}</button>` : '')
             + (p.Lager_Buchung ? `<span class="ku-chip" data-hilfe="au-lager-stand">📦 ausgebucht (${kuEsc(p.Lager_Ort || '')})</span>` : '')
             + (auKannZuruecknehmen(a, p) ? `<button type="button" class="korb-link" data-au-zuruecknehmen="${kuEsc(p.Position_ID)}" data-hilfe="au-zuruecknehmen">Übergabe zurücknehmen</button>` : '')
-            + auVerweisHtml(p.Verweis) + auBsEintraegeHtml(auBsZ.je.get(a.Auftrag_Nr), p.Position_ID)).join('');   // KS3
+            + auVerweisHtml(p.Verweis, p.verweisKorb) + auBsEintraegeHtml(auBsZ.je.get(a.Auftrag_Nr), p.Position_ID)).join('');   // KS3, KS3-1
           return `<div class="au-gruppe"><div>${kopf} · ${g.stueck} Stück</div>${neben ? `<div class="ku-meta">${neben}</div>` : ''}<div class="au-pos-zeilen">${zeilen}</div></div>`;
         }).join('') || '<p class="korb-zaehler">Keine Positionen.</p>';
         auDetailPreise(a);   // AM-5
@@ -13000,7 +13017,8 @@
             : `<select class="form-select" data-bsm-u-quelle="${kuEsc(e.id)}" data-hilfe="bsm-u-quelle"><option value="">${e.art === 'artikel' ? 'neu bestellen 🛒' : 'freie Position'}</option>`
               + k.map(x => `<option value="${kuEsc(x.verweis)}"${sel(fq[e.id], x.verweis)}>${x.art === 'lager' ? '📦 aus ' : '✓ schon bestellt: '}${kuEsc(x.text)}</option>`).join('')
               + `<option value="__ohne"${sel(fq[e.id], '__ohne')}>✓ schon vorhanden (ohne Verweis) …</option></select>`
-              + `<input class="form-input bsm-u-notiz" data-bsm-u-notiz="${kuEsc(e.id)}" maxlength="100" placeholder="Notiz, woher die Ware kommt" aria-label="Notiz für schon vorhanden" value="${kuEsc(fn[e.id] ?? '')}"${fq[e.id] === '__ohne' ? '' : ' hidden'}>`;
+              + `<input class="form-input bsm-u-notiz" data-bsm-u-notiz="${kuEsc(e.id)}" maxlength="100" placeholder="Notiz, woher die Ware kommt" aria-label="Notiz für schon vorhanden" value="${kuEsc(fn[e.id] ?? '')}"${fq[e.id] === '__ohne' ? '' : ' hidden'}>`
+              + bsmKandidatInfoHtml(k.find(x => x.verweis === fq[e.id]), e.menge);   // KS3-1
           return `<div class="bsm-u-zeile"><label class="bsm-wahl" data-hilfe="bsm-u-wahl"><input type="checkbox" data-bsm-u-wahl="${kuEsc(e.id)}"${aus.includes(e.id) ? '' : ' checked'} aria-label="übernehmen"></label>`
             + `<span class="bsm-was">${kuEsc(bsmEintragWas(e))}</span>${quelle}</div>`;
         }).join('');
@@ -13011,6 +13029,20 @@
           + `<div class="korb-reihe ku-knoepfe">${gep.length ? `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-u-probe data-hilfe="bsm-u-probe">Vorschau</button>`
             + `<button type="button" class="korb-aktion korb-aktion-haupt" data-bsm-u-los data-hilfe="bsm-u-los">Übernehmen</button>` : ''}`
           + '<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-u-zu data-hilfe="dialog-schliessen">Schließen</button></div></div>';
+      }
+      /** KS3-1: Kennzeichen des gewaehlten Korb-Kandidaten: Status (offen = orange) und schon verknuepfte Menge (nur Hinweis). */
+      // Kennzeichen je Stufe - Mouse-over-Schluessel ausgeschrieben (der Hilfe-Test sucht sie woertlich)
+      const BSM_K_CHIP = {
+        offen: '<span class="ku-chip bsm-k-offen" data-hilfe="bsm-k-offen" tabindex="0">', bestellt: '<span class="ku-chip bsm-k-bestellt" data-hilfe="bsm-k-bestellt" tabindex="0">',
+        geliefert: '<span class="ku-chip bsm-k-geliefert" data-hilfe="bsm-k-geliefert" tabindex="0">', lager: '<span class="ku-chip bsm-k-lager" data-hilfe="bsm-k-lager" tabindex="0">',
+      };
+      const bsmKChip = (stufe, text) => `${BSM_K_CHIP[stufe] ?? BSM_K_CHIP.bestellt}${kuEsc(text)}</span>`;
+      function bsmKandidatInfoHtml(k, menge = 0) {
+        if (!k || k.art !== 'korb') return '';
+        const vorher = Number(k.verknuepftMenge) || 0, gesamt = vorher + (Number(menge) || 0);
+        return bsmKChip(k.stufe, k.stufeText || k.status)
+          + (k.verknuepftMit?.length ? `<span class="korb-zaehler" data-hilfe="bsm-k-verknuepft" tabindex="0">bereits verknüpft mit ${kuEsc(k.verknuepftMit.join(', '))}</span>` : '')
+          + (k.menge && gesamt > k.menge ? `<span class="ku-chip bsm-k-offen" data-hilfe="bsm-k-verknuepft" tabindex="0">mit diesem Eintrag ${gesamt} Stück verknüpft, in der Zeile ${k.menge}</span>` : '');
       }
       /** Text nach Vorschau/Uebernahme (nur Anzahlen). */
       function bsmUebernahmeText(r) {
@@ -13368,6 +13400,7 @@
           if (n) { n.hidden = sel.value !== '__ohne'; if (!n.hidden) n.focus(); }
         }
         if (panel) bsmUebernahmeFormMerken(panel);
+        if (sel) { bsmDialogZeichnen(); document.querySelector(`[data-bsm-u-quelle="${CSS.escape(sel.dataset.bsmUQuelle)}"]`)?.focus(); }   // KS3-1
       });
       bsmEl('bsm-dialog').addEventListener('input', e => { const panel = e.target.closest('[data-bsm-uebernahme]'); if (panel) bsmUebernahmeFormMerken(panel); });
       bsmEl('bsm-dialog').addEventListener('keydown', e => { if (e.key === 'Escape') bsmDialogSchliessen(); });
