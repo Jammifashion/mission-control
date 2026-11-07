@@ -1104,6 +1104,13 @@ Neue Sektionen immer mit Anker versehen:
   das Hauptbild). "Artikelliste aktualisieren" meldet `bilderNeu` / `bilderUnveraendert` / `ohneBild` (MC `bsmBilderText`). Notiz je Position
   (alle Arten, <= 100, Spalte `Notiz` hinten in Bestell_Eintraege, im Raster eine Notiz fuer alle Groessen der Karte), sichtbar in Korb, Liste
   und MC, aenderbar bis "übernommen"; Datenschutz wie Rueckennamen, KS3 uebernimmt sie in die Notiz der Auftragsposition. Test bestellseite-ks21.test.js.
+  KS2-2: "Artikelliste aktualisieren" in STUECKEN (am Stueck dauerte es Minuten, apiFetch bricht nach 60 s ab, Cloud Run Standard 300 s,
+  Hintergrundarbeit nach der Antwort nicht sicher): `POST /api/bestellseiten/bilder/plan` (nur Sheet: Stuecke zu `STUECK_MAX` 6 Produkten,
+  `vorherStand`) -> je Stueck `POST .../bilder/stueck` { ids, ohneVariationen } (Shop, schreibt nichts, MC wartet bis 180 s) -> `POST
+  .../bilder/schreiben` { zeilen, vorherStand, stand, … } (Zeilen geprueft `bilderZeilenPruefen`, Stand seit dem Plan gleich sonst 409, ganzer
+  Reiter in EINEM values.update). MC zeigt "läuft: Stück n von m …", zweiter Klick "läuft schon seit …" (`bsmZ.bilderLauf`). `POST /bilder`
+  (alles in einem Zug, `aktualisiereBilder`) nur noch fuer Tests/Trockenlauf. Seite: Artikelliste auch ohne gewaehlten Termin (nur ansehen,
+  `bsNurAnsehenText`, Raster gesperrt), Legende der Punkte oben ueber der Liste (`bsLegendeHtml`, einmal). Test bestellseite-ks22.test.js.
 - backend/lib/wpMedien.js – Upload in die WordPress-Mediathek (`ladeMedienHoch`, `setzeMedienText`),
   eine Stelle fuer `POST /api/artikel/media-upload` und das Halloween-Skript (fetchMitZeitlimit +
   pruefeFetchAntwort; Titel/ALT als Abfrageparameter).

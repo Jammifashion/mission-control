@@ -6925,7 +6925,7 @@
         'bsm-design':           { name: 'Design-Link zeigen', text: 'Zeigt dem Kunden den Design-Link des Auftrags (z. B. Canva). Standard aus.' },
         'bsm-sortiment':        { name: 'Sortiment', text: 'Shop-Kategorie mit allen Unterkategorien. Gezeigt werden nur veröffentlichte Artikel.' },
         'bsm-partner':          { name: 'Gehört zu Partner', text: 'Nur ein Merkmal (z. B. FP-001). Die Partner-Abrechnung liest die Bestellseite nie.' },
-        'bsm-bilder':           { name: 'Artikelliste aktualisieren', text: 'Nach Bildänderungen im Shop hier klicken; die Seite zeigt sie danach sofort. Holt die Bilder langsam (1 Abruf je 2 s).' },
+        'bsm-bilder':           { name: 'Artikelliste aktualisieren', text: 'Nach Bildänderungen im Shop hier klicken; die Seite zeigt sie danach sofort. Läuft in kleinen Stücken, Fenster offen lassen.' },
         'bsm-eintraege':        { name: 'Einträge ansehen', text: 'Zeigt, was über diesen Link eingetragen wurde – nur lesen. Prüfen und Übernehmen kommt später.' },
         'bsm-termin-filter':    { name: 'Termin', text: 'Zeigt nur die Einträge eines Termins (z. B. eines Spieltags).' },
         'bsm-neu':              { name: 'neu', text: 'In den letzten 24 Stunden eingetragen.' },
@@ -12842,6 +12842,14 @@
         return `<div class="korb-reihe"><label class="edi-feld" data-hilfe="bsm-termin-filter">Termin<select class="form-select" data-bsm-filter>${opt}</select></label></div>`
           + (zeilen || '<p class="korb-zaehler">Noch keine Einträge.</p>');
       }
+      /** KS2-2: Fortschritt im Knopf und Text beim zweiten Klick. */
+      const bsmUhrzeit = ms => new Date(ms).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      function bsmBilderFortschritt(lauf) {
+        return !lauf?.von ? 'läuft: plant …' : `läuft: Stück ${lauf.stueck} von ${lauf.von} …`;
+      }
+      function bsmBilderLaeuft(lauf) {
+        return `Artikelliste wird schon aktualisiert (seit ${bsmUhrzeit(lauf.seit)}${lauf.von ? `, Stück ${lauf.stueck} von ${lauf.von}` : ''}) – bitte warten.`;
+      }
       /** KS2-1: Rueckmeldung nach "Artikelliste aktualisieren" (nur Anzahlen). */
       function bsmBilderText(r) {
         const n = v => Number(v) || 0;
@@ -12853,8 +12861,9 @@
       const bsmEl = id => document.getElementById(id);
       const bsmZ = { daten: null, laedt: false, fuer: null, offen: null, link: '', vorgang: '', kategorien: null, eintraege: {}, filter: {} };   // KS2: eintraege je Zugang
 
-      async function bsmApi(pfad, body) {
-        const res = await apiFetch(`${API_BASE()}/api/bestellseiten${pfad}`, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+      async function bsmApi(pfad, body, { zeitMs } = {}) {
+        // KS2-2: Stuecke von "Artikelliste aktualisieren" duerfen laenger als die 60 s von apiFetch dauern (Shop, 2-s-Takt)
+        const res = await apiFetch(`${API_BASE()}/api/bestellseiten${pfad}`, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), ...(zeitMs ? { signal: AbortSignal.timeout(zeitMs) } : {}) }
           : { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
         const j = await res.json().catch(() => null);
         if (!res.ok) { const e = new Error(j?.error || `HTTP ${res.status}`); e.code = j?.code; throw e; }
@@ -13010,16 +13019,30 @@
         const z = (bsmZ.daten?.zugaenge ?? []).find(x => x.Zugang_ID === b.dataset.bsmOeffnen);
         if (z) bsmDialogOeffnen({ zugangId: z.Zugang_ID, art: z.Art, auftragNr: z.Auftrag_Nr, kundenNr: z.Kunden_Nr });
       });
+      // KS2-2: in Stuecken (Plan -> je Stueck hoechstens 6 Artikel -> Schreiben). Kein Abbruch durch den Browser, kein Cloud-Run-Zeitlimit;
+      // ein zweiter Klick waehrend des Laufs meldet "läuft schon seit …". Bei einem Fehler wird nichts geschrieben.
       bsmEl('bsm-bilder').addEventListener('click', async e => {
         const b = e.currentTarget;
-        if (!await showConfirm('Artikelliste aktualisieren?', '<p>Holt die Bilder der Artikel aller Dauer-Bestellseiten aus dem Shop – langsam, ein Abruf alle 2 Sekunden (etwa 1 Minute). Am Shop wird nichts geändert.</p>', 'Aktualisieren')) return;
-        b.disabled = true; b.textContent = 'läuft …';
+        if (bsmZ.bilderLauf) { showToast(bsmBilderLaeuft(bsmZ.bilderLauf)); return; }
+        if (!await showConfirm('Artikelliste aktualisieren?', '<p>Holt die Bilder der Artikel aller Dauer-Bestellseiten aus dem Shop – langsam, in kleinen Stücken (ein Abruf alle 2 Sekunden, insgesamt einige Minuten). Am Shop wird nichts geändert. Das Fenster bitte offen lassen.</p>', 'Aktualisieren')) return;
+        bsmZ.bilderLauf = { seit: Date.now(), stueck: 0, von: 0 };
+        const zeigen = () => { b.textContent = bsmBilderFortschritt(bsmZ.bilderLauf); };
+        b.setAttribute('aria-busy', 'true'); zeigen();
         try {
-          const r = await bsmApi('/bilder', { dryRun: false });
+          const plan = await bsmApi('/bilder/plan', {});
+          bsmZ.bilderLauf.von = plan.stuecke.length;
+          const zeilen = []; let abrufe = 0;
+          for (const st of plan.stuecke) {
+            bsmZ.bilderLauf.stueck++; zeigen();
+            const r = await bsmApi('/bilder/stueck', st, { zeitMs: 180000 });
+            zeilen.push(...r.zeilen); abrufe += r.abrufe;
+          }
+          b.textContent = 'schreibt …';
+          const r = await bsmApi('/bilder/schreiben', { zeilen, vorherStand: plan.vorherStand, stand: plan.stand, produkte: plan.produkte, trikots: plan.trikots, abrufe }, { zeitMs: 120000 });
           showToast(bsmBilderText(r));   // KS2-1: n neu, m unveraendert, k ohne Bild
           await bsmLaden();
-        } catch (err) { showToast(`Artikelliste nicht aktualisiert: ${err.message}`, 'toast-error'); }
-        finally { b.disabled = false; b.textContent = 'Artikelliste aktualisieren'; }
+        } catch (err) { showToast(`Artikelliste nicht aktualisiert (nichts geschrieben): ${err.message}`, 'toast-error'); }
+        finally { bsmZ.bilderLauf = null; b.removeAttribute('aria-busy'); b.textContent = 'Artikelliste aktualisieren'; }
       });
       // Einstieg aus der Auftragsansicht (Art auftrag) und der Kundenkarte (Art dauer). Ablauf-Vorschlag wie der Server.
       auEl('au-bestellseite').addEventListener('click', () => {

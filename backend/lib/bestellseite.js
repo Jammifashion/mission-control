@@ -326,55 +326,96 @@ export async function neuerLink({ eingabe, sheets: s, jetzt = () => new Date(), 
 
 const warte = ms => new Promise(r => setTimeout(r, ms));
 
+// KS2-2: Der Lauf dauerte am Stueck mehrere Minuten (gut 60 Shop-Abrufe im 2-s-Takt, je 2-4 s Antwort) - der Browser brach nach
+// 60 s ab ("signal timed out"), Cloud Run (Standard 300 s) haette mit mehr Artikeln mitten im Lauf abgebrochen. Hintergrundarbeit
+// nach der Antwort ist in Cloud Run nicht sicher (CPU gedrosselt). Darum in STUECKEN, gesteuert von MC:
+//   1. bilderPlan     - liest nur das Sheet: welche Produkte (Maske + Trikots), Stand vorher. Schnell.
+//   2. bilderStueck   - je Anfrage hoechstens STUECK_MAX Produkte aus dem Shop (Produkt + Variationen), schreibt nichts (~30 s).
+//   3. bilderSchreiben - ganzer Reiter in EINEM values.update, nur wenn der Stand seit dem Plan gleich ist (sonst 409), zurueckgelesen.
+// Die Zeilen wandern zwischen 2 und 3 ueber MC (hinter dem API-Key) und werden beim Schreiben erneut geprueft.
+export const STUECK_MAX = 6;
+const BILD_ARTEN = new Set(['produkt', 'variante']);
+
+/** Plan: Produkt-IDs der nicht gesperrten Dauer-Sortimente (Maske, veroeffentlicht) + Trikots; Stand des Reiters vorher. */
+export async function bilderPlan({ sheets: s, jetzt = () => new Date() } = {}) {
+  const sheets = s ?? await sheetsClient();
+  const spreadsheetId = sheetId();
+  const { z } = await lies(sheets, spreadsheetId);
+  const vorher = await leseBilder(sheets, spreadsheetId);
+  if (!vorher.werte) throw fehler(`Reiter ${TAB_BILDER} fehlt – scripts/setup-bestellseiten-reiter.js --write.`, 409, 'einrichtung');
+  const sortimente = z.zeilen.filter(x => x.Art === ART.DAUER && zugangStatus(x, jetzt().toISOString()) !== STATUS.GESPERRT).map(x => x.Sortiment);
+  const [kategorien, maske] = [await leseKategorien(sheets), await leseMaske(sheets)];
+  const namen = new Set(sortimente.flatMap(so => [...sortimentNamen(so, kategorien)]));
+  const ids = [...new Set(maske.filter(a => t(a.produktId) && /^\d+$/.test(t(a.produktId)) && t(a.status) === 'Veröffentlicht'
+    && t(a.kategorien).split(',').map(t).some(n => namen.has(n))).map(a => t(a.produktId)))];
+  // KS2: Trikots (Trikot_Artikel) stehen nicht in der Maske - ihr Hauptbild + Kategorien kommen mit (ohne Variationen)
+  const trikotIds = sortimente.length ? (await leseTrikotArtikel(sheets)).map(x => t(x.produktId)).filter(x => /^\d+$/.test(x) && !ids.includes(x)) : [];
+  const stuecke = [];
+  const alle = [...ids.map(id => ({ id, variationen: true })), ...trikotIds.map(id => ({ id, variationen: false }))];
+  for (let i = 0; i < alle.length; i += STUECK_MAX) {
+    const teil = alle.slice(i, i + STUECK_MAX);
+    stuecke.push({ ids: teil.filter(x => x.variationen).map(x => x.id), ohneVariationen: teil.filter(x => !x.variationen).map(x => x.id) });
+  }
+  return { ok: true, produkte: ids.length, trikots: trikotIds.length, stuecke, vorherStand: vorher.stand, stand: jetzt().toISOString() };
+}
+
+/** Ein Stueck: Produkte (Hauptbild, Status, Kategorien) + Variationen der `ids`, nacheinander im Takt. Schreibt nichts. */
+export async function bilderStueck({ ids = [], ohneVariationen = [], wc: wcTest, takt = TAKT_MS } = {}) {
+  const nr = l => (Array.isArray(l) ? l.map(t).filter(x => /^\d+$/.test(x)) : []);
+  const mit = [...new Set(nr(ids))], ohne = [...new Set(nr(ohneVariationen))].filter(x => !mit.includes(x));
+  if (!mit.length && !ohne.length) throw fehler('Stück ohne Produkte.', 422);
+  if (mit.length + ohne.length > STUECK_MAX) throw fehler(`Höchstens ${STUECK_MAX} Produkte je Stück.`, 422);
+  const wc = wcTest ?? getWcClient('jfn');
+  const zeilen = [];
+  let abrufe = 0;
+  const hole = async (pfad, params) => { if (abrufe++ && takt) await warte(takt); return (await wc.get(pfad, params)).data; };
+  const liste = seitenListe(await hole('products', { include: [...mit, ...ohne].join(','), per_page: 100, _fields: 'id,status,images,categories' }), { wc, pfad: 'products' });
+  for (const p of liste) zeilen.push([String(p.id), 'produkt', https(p.images?.[0]?.src), String(p.status ?? ''), (p.categories ?? []).map(c => c.id).join(',')]);
+  for (const id of mit) {
+    for (let page = 1; ; page++) {
+      seitenGrenze(page, { wc, pfad: 'products/variations' });
+      const v = seitenListe(await hole(`products/${id}/variations`, { per_page: 100, page, _fields: 'id,image' }), { wc, pfad: 'products/variations' });
+      for (const x of v) zeilen.push([String(x.id), 'variante', https(x.image?.src), '', '']);
+      if (v.length < 100) break;
+    }
+  }
+  return { ok: true, zeilen, abrufe };
+}
+
+/** Eingehende Zeilen pruefen (kommen ueber MC): [WC_ID, Art, Bild_URL, Status, Kategorien]. */
+export function bilderZeilenPruefen(zeilen) {
+  if (!Array.isArray(zeilen) || zeilen.length > 5000) throw fehler('Zeilen fehlen oder zu viele.', 422);
+  const gesehen = new Set();
+  return zeilen.map((r, i) => {
+    const [id, art, url, status, kat] = (Array.isArray(r) ? r : []).map(t);
+    if (!/^\d+$/.test(id) || !BILD_ARTEN.has(art) || (url && !/^https:\/\/[^\s"'<>]+$/.test(url)) || !/^[a-z-]{0,20}$/.test(status) || !/^[\d,]*$/.test(kat)) {
+      throw fehler(`Zeile ${i + 1} ungültig – nichts geschrieben.`, 422);
+    }
+    if (gesehen.has(id)) throw fehler(`WC_ID doppelt – nichts geschrieben.`, 422);
+    gesehen.add(id);
+    return [id, art, url, status, kat];
+  });
+}
+
 /**
- * Bild-URLs (Hauptbild je Produkt, Bild je Variation) der Produkte aller Dauer-Sortimente in Bestell_Bilder.
- * Nacheinander, 2 s Takt, nur _fields id/status/images bzw. id/image. Ganzer Reiter in EINEM values.update
- * (vorher frisch gelesen = Stand vom Anfang, sonst 409; Rest darunter geleert; zurueckgelesen).
+ * Schreiben: ganzer Reiter in EINEM values.update. Nur wenn der Stand seit dem Plan gleich ist (sonst 409, nichts geschrieben).
+ * Rueckmeldung (KS2-1): neu / unveraendert / ohne Bild gegen den Stand vorher.
  */
-export async function aktualisiereBilder({ sheets: s, wc: wcTest, jetzt = () => new Date(), takt = TAKT_MS, dryRun = false } = {}) {
+export async function bilderSchreiben({ zeilen: roh, vorherStand = '', stand, produkte = 0, trikots = 0, abrufe = 0, sheets: s, jetzt = () => new Date(), dryRun = false } = {}) {
+  const zeilen5 = bilderZeilenPruefen(roh);
+  const standNeu = /^\d{4}-\d{2}-\d{2}T/.test(t(stand)) ? t(stand) : jetzt().toISOString();
   return mitSperre(async () => {
     const sheets = s ?? await sheetsClient();
     const spreadsheetId = sheetId();
-    const { z } = await lies(sheets, spreadsheetId);
     const vorher = await leseBilder(sheets, spreadsheetId);
     if (!vorher.werte) throw fehler(`Reiter ${TAB_BILDER} fehlt – scripts/setup-bestellseiten-reiter.js --write.`, 409, 'einrichtung');
-    const sortimente = z.zeilen.filter(x => x.Art === ART.DAUER && zugangStatus(x, jetzt().toISOString()) !== STATUS.GESPERRT).map(x => x.Sortiment);
-    const [kategorien, maske] = [await leseKategorien(sheets), await leseMaske(sheets)];
-    const namen = new Set(sortimente.flatMap(so => [...sortimentNamen(so, kategorien)]));
-    const ids = [...new Set(maske.filter(a => t(a.produktId) && /^\d+$/.test(t(a.produktId)) && t(a.status) === 'Veröffentlicht'
-      && t(a.kategorien).split(',').map(t).some(n => namen.has(n))).map(a => t(a.produktId)))];
-    // KS2: Trikots (Trikot_Artikel) stehen nicht in der Maske - ihr Hauptbild + Kategorien kommen mit (Auswahl je Sortiment)
-    const trikotIds = sortimente.length ? (await leseTrikotArtikel(sheets)).map(x => t(x.produktId)).filter(x => /^\d+$/.test(x) && !ids.includes(x)) : [];
-    const produktIds = [...ids, ...trikotIds];
-    const wc = wcTest ?? getWcClient('jfn');
-    const zeilen = [];
-    const stand = jetzt().toISOString();
-    let abrufe = 0;
-    const hole = async (pfad, params) => { if (abrufe++) await warte(takt); return (await wc.get(pfad, params)).data; };
-    for (let i = 0; i < produktIds.length; i += 100) {
-      const teil = produktIds.slice(i, i + 100);
-      const liste = seitenListe(await hole('products', { include: teil.join(','), per_page: 100, _fields: 'id,status,images,categories' }), { wc, pfad: 'products' });
-      for (const p of liste) zeilen.push([String(p.id), 'produkt', https(p.images?.[0]?.src), String(p.status ?? ''), stand, (p.categories ?? []).map(c => c.id).join(',')]);
-    }
-    for (const id of ids) {
-      for (let page = 1; ; page++) {
-        seitenGrenze(page, { wc, pfad: 'products/variations' });
-        const liste = seitenListe(await hole(`products/${id}/variations`, { per_page: 100, page, _fields: 'id,image' }), { wc, pfad: 'products/variations' });
-        for (const v of liste) zeilen.push([String(v.id), 'variante', https(v.image?.src), '', stand]);
-        if (liste.length < 100) break;
-      }
-    }
-    // KS2-1: Rueckmeldung nach dem Klick - je Zeile neu / unveraendert / ohne Bild gegen den Stand vor dem Abruf (nur Anzahlen)
+    if (t(vorher.stand) !== t(vorherStand)) throw fehler('Bilder wurden inzwischen von einem anderen Lauf geändert – bitte noch einmal aktualisieren.', 409, 'konflikt');
+    const zeilen = zeilen5.map(([id, art, url, status, kat]) => [id, art, url, status, standNeu, kat]);
     const neu = zeilen.filter(r => r[2] && vorher.je.get(r[0])?.url !== r[2]).length;
     const ohneBild = zeilen.filter(r => !r[2]).length;
-    const ergebnis = { produkte: ids.length, trikots: trikotIds.length, zeilen: zeilen.length, mitBild: zeilen.filter(r => r[2]).length, abrufe,
+    const ergebnis = { produkte: Number(produkte) || 0, trikots: Number(trikots) || 0, zeilen: zeilen.length, mitBild: zeilen.length - ohneBild, abrufe: Number(abrufe) || 0,
       bilderNeu: neu, bilderUnveraendert: zeilen.length - neu - ohneBild, ohneBild };
     if (dryRun) return { ok: true, dryRun: true, ...ergebnis };
-    // Stand vom Anfang noch gueltig?
-    const jetztWerte = (await leseBilder(sheets, spreadsheetId)).werte ?? [];
-    if (zeilenAbweichungen(vorher.werte, jetztWerte).length || jetztWerte.length !== vorher.werte.length) {
-      throw fehler('Bilder wurden inzwischen geändert – gleich noch einmal.', 409, 'konflikt');
-    }
     const kopf = vorher.werte[0];
     const idx = Object.fromEntries(kopf.map((k, j) => [t(k), j]));
     const breite = kopf.length;
@@ -393,9 +434,21 @@ export async function aktualisiereBilder({ sheets: s, wc: wcTest, jetzt = () => 
       const { data: zur } = await sheets.spreadsheets.values.get({ spreadsheetId, range, valueRenderOption: 'UNFORMATTED_VALUE' });
       if (zeilenAbweichungen(werte, zur.values ?? []).length) throw fehler('Bilder: Rücklesen weicht ab – bitte prüfen.', 500, 'ruecklesen');
     }
-    console.log(`Bestellseite Bilder: ${ergebnis.produkte} Produkte, ${ergebnis.zeilen} Zeilen, ${ergebnis.abrufe} Abrufe.`);
-    return { ok: true, ...ergebnis, stand };
+    console.log(`Bestellseite Bilder: ${ergebnis.produkte} Produkte, ${ergebnis.zeilen} Zeilen geschrieben.`);
+    return { ok: true, ...ergebnis, stand: standNeu };
   });
+}
+
+/** Alles in einem Zug (Tests, Trockenlauf von Hand): Plan -> alle Stuecke -> Schreiben. MC nutzt die drei Schritte einzeln. */
+export async function aktualisiereBilder({ sheets, wc, jetzt = () => new Date(), takt = TAKT_MS, dryRun = false } = {}) {
+  const plan = await bilderPlan({ sheets, jetzt });
+  const zeilen = [];
+  let abrufe = 0;
+  for (const st of plan.stuecke) {
+    const r = await bilderStueck({ ...st, wc, takt });
+    zeilen.push(...r.zeilen); abrufe += r.abrufe;
+  }
+  return bilderSchreiben({ zeilen, vorherStand: plan.vorherStand, stand: plan.stand, produkte: plan.produkte, trikots: plan.trikots, abrufe, sheets, jetzt, dryRun });
 }
 const https = u => (/^https:\/\/[^\s"'<>]+$/.test(t(u)) ? t(u) : '');
 

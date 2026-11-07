@@ -1,7 +1,7 @@
 // Bestellseiten verwalten (KS1), hinter requireApiKey. Logik in lib/bestellseite.js + utils/bestellseite.js.
 // Der Token-Klartext steht nur in der Antwort von /neu und /neuer-link (einmal, fuer den Kopieren-Knopf), nie im Log.
 import { Router } from 'express';
-import { leseZugaenge, legeZugangAn, bearbeiteZugang, neuerLink, aktualisiereBilder, leseKategorien } from '../lib/bestellseite.js';
+import { leseZugaenge, legeZugangAn, bearbeiteZugang, neuerLink, aktualisiereBilder, leseKategorien, bilderPlan, bilderStueck, bilderSchreiben } from '../lib/bestellseite.js';
 import { leseEintraegeMc } from '../lib/bestellEintraege.js';   // KS2: nur ansehen
 
 const router = Router();
@@ -25,7 +25,14 @@ router.post('/neu', mitMeldung(req => legeZugangAn({ eingabe: req.body ?? {} }))
 router.post('/bearbeiten', mitMeldung(req => bearbeiteZugang({ eingabe: req.body ?? {} })));
 // POST /api/bestellseiten/neuer-link { zugangId, stand } - alter Link sofort ungueltig.
 router.post('/neuer-link', mitMeldung(req => neuerLink({ eingabe: req.body ?? {} })));
-// POST /api/bestellseiten/bilder { dryRun } - Knopf "Artikelliste aktualisieren" (Shop, 2-s-Takt).
+// POST /api/bestellseiten/bilder { dryRun } - alles in einem Zug (nur noch fuer Trockenlauf/Tests; dauert Minuten).
 router.post('/bilder', mitMeldung(req => aktualisiereBilder({ dryRun: req.body?.dryRun === true })));
+// KS2-2: Knopf "Artikelliste aktualisieren" in Stuecken (kein Browser-Abbruch, kein Cloud-Run-Zeitlimit):
+// POST /bilder/plan -> { stuecke, vorherStand, stand, produkte, trikots } (nur Sheet)
+router.post('/bilder/plan', mitMeldung(() => bilderPlan()));
+// POST /bilder/stueck { ids, ohneVariationen } -> { zeilen, abrufe } (Shop, hoechstens 6 Produkte, schreibt nichts)
+router.post('/bilder/stueck', mitMeldung(req => bilderStueck({ ids: req.body?.ids, ohneVariationen: req.body?.ohneVariationen })));
+// POST /bilder/schreiben { zeilen, vorherStand, stand, produkte, trikots, abrufe } -> Rueckmeldung (Stand gleich, sonst 409)
+router.post('/bilder/schreiben', mitMeldung(req => bilderSchreiben({ ...(req.body ?? {}), dryRun: false })));
 
 export default router;

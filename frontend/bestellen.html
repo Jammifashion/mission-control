@@ -131,7 +131,7 @@
     .bs-punkt.auslauf { background: var(--info); }
     .bs-punkt.weg { background: var(--danger); }
     .bs-besorgen { font-size: 0.78rem; color: var(--muted); font-style: italic; }
-    .bs-legende { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; font-size: 0.8rem; color: var(--muted); margin-top: 0.6rem; }
+    .bs-legende { display: flex; flex-wrap: wrap; gap: 0.2rem 0.8rem; font-size: 0.78rem; color: var(--muted); }   /* KS2-2: oben ueber der Liste */
     .bs-legende span { display: inline-flex; align-items: center; gap: 0.3rem; }
     /* Korb und Liste */
     .bs-korb { position: sticky; bottom: 0; z-index: 5; border: 1px solid var(--accent); }
@@ -278,6 +278,18 @@
         + (offen ? `<div class="bs-eintrag-knoepfe"><button type="button" class="btn-ruhig" data-aendern="${bsEsc(e.id)}">ändern</button><button type="button" class="btn-ruhig" data-storno="${bsEsc(e.id)}">stornieren</button></div>` : '')
         + '</div>';
     }
+    /** KS2-2: Legende der Punkte - oben ueber der Artikelliste, eine Zeile, am Handy umbrechend (Texte wie freigegeben). */
+    function bsLegendeHtml() {
+      const s = Object.values(BS_STUFE).filter((x, i, l) => l.findIndex(y => y.klasse === x.klasse) === i)
+        .map(x => `<span><span class="bs-punkt ${x.klasse}"></span>${bsEsc(x.text)}</span>`).join('');
+      return `<div class="bs-legende" aria-label="Was bedeuten die Punkte?">${s}<span><span class="bs-besorgen">noch zu besorgen</span> = besorgen wir gesondert</span></div>`;
+    }
+    /** KS2-2: Artikel ohne gewaehlten Termin (oder bei vorbei) nur ansehen - Hinweis, was zu tun ist. */
+    function bsNurAnsehenText(d, termin) {
+      if (termin?.vergangen) return 'Dieser Termin ist vorbei – die Artikel kannst du nur ansehen.';
+      return d?.termineAnlegen ? 'Erst Termin wählen oder „+ Termin“ anlegen – dann kannst du eintragen. Die Artikel kannst du schon ansehen.'
+        : 'Erst Termin wählen – dann kannst du eintragen. Die Artikel kannst du schon ansehen.';
+    }
     // ── Bestellseite-Anzeige: Ende ──
 
     const BS = { d: null, termin: '', tab: 'artikel', filter: '', suche: '', offen: -1, korb: [], vorgang: '', eintraege: [], laedt: false };
@@ -317,8 +329,6 @@
       const t = terminAkt();
       const kuerzel = kuerzelLesen();
       const artikel = bsArtikelFiltern(d.artikel, BS.filter, BS.suche);
-      const legende = Object.values(BS_STUFE).filter((s, i, l) => l.findIndex(x => x.klasse === s.klasse) === i)
-        .map(s => `<span><span class="bs-punkt ${s.klasse}"></span>${bsEsc(s.text)}</span>`).join('') + '<span><span class="bs-besorgen">noch zu besorgen</span> = besorgen wir gesondert</span>';
       main.innerHTML = `
         ${d.hinweis ? `<section class="card"><p class="bs-hinweis">${bsEsc(d.hinweis)}</p></section>` : ''}
         <section class="card"><h2>${d.termineAnlegen ? 'Termin wählen' : 'Termin'}</h2>${bsTermineHtml(d, BS.termin)}
@@ -328,28 +338,28 @@
             <label class="bs-feld">Notiz (z. B. Gegner)<input type="text" id="bs-t-notiz" maxlength="${BS_MAX.notiz}" autocomplete="off"></label>
             <button type="button" class="btn" id="bs-t-neu">Termin anlegen</button></div></details>` : ''}
         </section>
-        ${t ? `
-        ${bsBannerHtml(t)}
-        <section class="card"><h2>Eintragen für ${t.datum ? `${bsWochentag(t.datum)} ${bsDatum(t.datum)}` : 'den Termin'}</h2>
+        ${t ? bsBannerHtml(t) : ''}
+        <section class="card"><h2>${t ? `Eintragen für ${t.datum ? `${bsWochentag(t.datum)} ${bsDatum(t.datum)}` : 'den Termin'}` : 'Artikel'}</h2>
           ${schreibbar() ? `<label class="bs-feld" style="margin-bottom:0.7rem">Dein Kürzel oder Vorname<input type="text" id="bs-kuerzel" maxlength="${BS_MAX.kuerzel}" value="${bsEsc(kuerzel)}" autocomplete="off" autocapitalize="words"></label>
           <div class="bs-tabs" role="group" aria-label="Was eintragen?">
             <button type="button" data-tab="artikel" aria-pressed="${BS.tab === 'artikel'}">Artikel</button>
             <button type="button" data-tab="extra" aria-pressed="${BS.tab === 'extra'}">Extra</button>
             ${(d.trikots || []).length ? `<button type="button" data-tab="trikot" aria-pressed="${BS.tab === 'trikot'}">Trikot</button>` : ''}
           </div>
-          ${BS.tab === 'artikel' ? `${bsFilterHtml(d.filter, BS.filter, d.artikel.length)}
+` : `<p class="bs-banner" style="margin-bottom:0.7rem">${bsEsc(bsNurAnsehenText(d, t))}</p>`}
+          ${!schreibbar() || BS.tab === 'artikel' ? `${bsFilterHtml(d.filter, BS.filter, d.artikel.length)}
             <input class="bs-suche" id="bs-suche" type="search" placeholder="Artikel suchen …" aria-label="Artikel suchen" autocomplete="off" value="${bsEsc(BS.suche)}" style="margin-bottom:0.5rem">
-            <p class="bs-klein" style="margin-bottom:0.4rem">${artikel.length} von ${d.artikel.length} Artikeln (je Farbe eine Zeile) – antippen, Anzahl je Größe eintragen.</p>
-            <div class="bs-liste">${artikel.map(a => bsArtikelZeileHtml(a, d.artikel.indexOf(a), BS.offen === d.artikel.indexOf(a), true)).join('') || '<p class="bs-klein">Kein Artikel passt.</p>'}</div>
-            <div class="bs-legende">${legende}</div>` : ''}
-          ${BS.tab === 'extra' ? `<div class="bs-reihe"><label class="bs-feld" style="flex-basis:100%">Was wird gebraucht?<input type="text" id="bs-x-text" maxlength="${BS_MAX.freitext}" autocomplete="off"></label>
+            ${bsLegendeHtml()}
+            <p class="bs-klein" style="margin:0.4rem 0">${artikel.length} von ${d.artikel.length} Artikeln (je Farbe eine Zeile)${schreibbar() ? ' – antippen, Anzahl je Größe eintragen.' : '.'}</p>
+            <div class="bs-liste">${artikel.map(a => bsArtikelZeileHtml(a, d.artikel.indexOf(a), BS.offen === d.artikel.indexOf(a), schreibbar())).join('') || '<p class="bs-klein">Kein Artikel passt.</p>'}</div>` : ''}
+          ${schreibbar() && BS.tab === 'extra' ? `<div class="bs-reihe"><label class="bs-feld" style="flex-basis:100%">Was wird gebraucht?<input type="text" id="bs-x-text" maxlength="${BS_MAX.freitext}" autocomplete="off"></label>
             <label class="bs-feld">Anzahl<input type="number" id="bs-x-menge" inputmode="numeric" min="1" max="${BS_MAX.menge}" value="1"></label>
             <label class="bs-feld">Für wen? (optional)<input type="text" id="bs-x-fuer" maxlength="${BS_MAX.fuer}" autocomplete="off"></label></div>
             <p class="bs-klein" style="margin:0.3rem 0">„Für wen“: nur Kürzel oder Funktion, z. B. Trainer.</p>
             <label class="bs-feld" style="margin-bottom:0.3rem">Notiz (optional)<input type="text" id="bs-x-notiz" maxlength="${BS_MAX.positionNotiz}" autocomplete="off"></label>
             <p class="bs-klein" style="margin:0 0 0.4rem">Nur Kürzel oder Vorname, keine Telefonnummern o. Ä.</p>
             <button type="button" class="btn" id="bs-x-neu">In den Korb</button>` : ''}
-          ${BS.tab === 'trikot' ? `<div class="bs-reihe"><label class="bs-feld">Trikot<select id="bs-tr-produkt">${d.trikots.map(x => `<option value="${bsEsc(x.produktId)}">${bsEsc(x.name)}</option>`).join('')}</select></label>
+          ${schreibbar() && BS.tab === 'trikot' ? `<div class="bs-reihe"><label class="bs-feld">Trikot<select id="bs-tr-produkt">${d.trikots.map(x => `<option value="${bsEsc(x.produktId)}">${bsEsc(x.name)}</option>`).join('')}</select></label>
             <label class="bs-feld">Größe<select id="bs-tr-groesse">${(d.trikots[0]?.groessen || []).map(g => `<option>${bsEsc(g)}</option>`).join('')}</select></label>
             <label class="bs-feld">Rückenname<input type="text" id="bs-tr-name" maxlength="${BS_MAX.name}" autocomplete="off" autocapitalize="characters"></label>
             <label class="bs-feld">Nummer<input type="text" id="bs-tr-nummer" inputmode="numeric" pattern="[0-9]*" maxlength="3" autocomplete="off"></label>
@@ -358,9 +368,9 @@
             <label class="bs-feld" style="margin-bottom:0.3rem">Notiz (optional)<input type="text" id="bs-tr-notiz" maxlength="${BS_MAX.positionNotiz}" autocomplete="off"></label>
             <p class="bs-klein" style="margin:0 0 0.4rem">Nur Kürzel oder Vorname, keine Telefonnummern o. Ä.</p>
             <button type="button" class="btn" id="bs-tr-neu">In den Korb</button>` : ''}
-          ` : '<p class="bs-klein">Nur lesen.</p>'}
           ${d.designLink ? `<p class="bs-klein" style="margin-top:0.6rem">Design ansehen: <a class="bs-link" href="${bsEsc(d.designLink)}" target="_blank" rel="noopener noreferrer">Link öffnen</a></p>` : ''}
         </section>
+        ${t ? `
         <section class="card"><h2>Eingetragen für diesen Termin (${BS.eintraege.filter(e => e.status !== 'storniert').length})</h2>
           <div class="bs-liste" id="bs-eintraege">${BS.laedt ? '<p class="bs-klein">wird geladen …</p>' : BS.eintraege.map(e => bsEintragHtml(e, schreibbar())).join('') || '<p class="bs-klein">Noch nichts eingetragen.</p>'}</div>
         </section>
@@ -412,6 +422,7 @@
       if (b.dataset.termin !== undefined) { BS.termin = b.dataset.termin; BS.offen = -1; await eintraegeLaden(); return; }
       if (b.dataset.tab) { BS.tab = b.dataset.tab; zeichnen(); return; }
       if (b.dataset.filter !== undefined) { BS.filter = b.dataset.filter; BS.offen = -1; zeichnen(); return; }
+      if (b.dataset.artikel !== undefined && !schreibbar()) { meldung(bsNurAnsehenText(BS.d, terminAkt())); return; }   // KS2-2
       if (b.dataset.artikel !== undefined) { const i = Number(b.dataset.artikel); BS.offen = BS.offen === i ? -1 : i; zeichnen(); document.querySelector(`[data-artikel="${i}"]`)?.scrollIntoView({ block: 'nearest' }); return; }
       if (b.dataset.zu !== undefined) { BS.offen = -1; zeichnen(); return; }
       if (b.dataset.inKorb !== undefined) {
