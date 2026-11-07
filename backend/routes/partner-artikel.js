@@ -4,6 +4,7 @@ import { getGoogleAuth } from '../lib/googleAuth.js';
 import { sheetsMitWiederholung } from '../lib/googleRetry.js';
 import { getWcClient as wcClientForShop } from '../lib/shopConfig.js';
 import { importiereFuerPartner, artikelAbgleich, abgleichMelden } from '../lib/partnerArtikel.js';
+import { fpArtikelPruefung } from '../lib/fpArtikel.js';   // PA7: Festpreis-Partner nur melden
 import { istLaufStopp } from '../lib/hosterPruefseite.js';
 import { notify, buildArtikelAbgleichNachricht, buildAbgleichLebenszeichen } from '../lib/chatNotify.js';
 
@@ -236,15 +237,25 @@ router.post('/:id/artikel/import', async (req, res, next) => {
 // Taeglicher Abgleich (sync-partner-daily.yml, VOR sync-all): fehlende
 // Partnerartikel fuer alle aktiven Lizenz-Partner + HonkShop anlegen, danach
 // eine Meldung in den Google-Chat-Space der Partnerbestellungen, wenn es
-// Neues oder Offenes gibt. Nie Festpreis-Partner, nie eine vorhandene Zeile.
+// Neues oder Offenes gibt. Nie eine vorhandene Zeile. PA7: Festpreis-Partner nur gemeldet (nichts angelegt).
 router.post('/artikel/abgleich', async (req, res, next) => {
   try {
     const sheetId = requireSheetId(res); if (!sheetId) return;
     const sheets  = await getSheets();
     const bericht = await artikelAbgleich({ sheets, sheetId, wcFuer: shop => wcClientForShop(shop) });
+    // PA7: danach die Festpreis-Partner - NUR LESEN, nichts anlegen, nie ein Festpreis (lib/fpArtikel.js). Ein Fehler hier
+    // stoppt den Lizenz-Teil nicht (steht in festpreis.fehler und im Chat); Hoster-Pruefseite/Zeitlimit stoppen wie ueberall.
+    try {
+      const fp = await fpArtikelPruefung({ sheets, sheetId, wcFuer: shop => wcClientForShop(shop) });
+      bericht.festpreis = { partner: fp.partner, summen: fp.summen };
+    } catch (err) {
+      if (istLaufStopp(err)) throw err;
+      bericht.festpreis = { partner: [], summen: { partner: 0 }, fehler: err.message };
+    }
     // PA6: chat = "gesendet" | "nichts zu melden" | "fehlgeschlagen" | "lebenszeichen gesendet".
     const chat = await abgleichMelden({
-      bericht, notify, baueMeldung: buildArtikelAbgleichNachricht, baueLebenszeichen: buildAbgleichLebenszeichen,
+      bericht, notify, baueMeldung: buildArtikelAbgleichNachricht,
+      baueLebenszeichen: n => buildAbgleichLebenszeichen(n, bericht.festpreis?.summen?.partner ?? 0),   // PA7
     });
     res.json({ ...bericht, chat });
   } catch (err) { next(err); }

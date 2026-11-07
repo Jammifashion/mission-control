@@ -107,7 +107,7 @@ export function buildPartnerNachricht({ partnerName, anzahl, summe }) {
 // (lib/partnerArtikel.js). Nur Partner-IDs und Artikelnamen, keine Betraege.
 // null = nichts Neues und nichts Offenes -> keine Nachricht.
 const ABGLEICH_NAMEN_MAX = 5;
-export function buildArtikelAbgleichNachricht({ partner } = {}) {
+export function buildArtikelAbgleichNachricht({ partner, festpreis } = {}) {
   const zeilen = [];
   for (const e of partner ?? []) {
     const teile = [];
@@ -125,15 +125,29 @@ export function buildArtikelAbgleichNachricht({ partner } = {}) {
     if (e.fehler)            teile.push(`Fehler: ${sauber(e.fehler, 80)}`);
     if (teile.length) zeilen.push(`${sauber(e.id, 12)}: ${teile.join(' · ')}`);
   }
+  // PA7: Festpreis-Partner - nur melden (nichts angelegt, nie ein Festpreis), nur IDs, keine Betraege.
+  for (const e of festpreis?.partner ?? []) {
+    const teile = [];
+    const ids = l => { const k = l.slice(0, FP_IDS_MAX).map(x => sauber(x.produktId, 12)); return `${k.join(', ')}${l.length > k.length ? ` +${l.length - k.length} weitere` : ''}`; };
+    if (e.fehlend?.length) teile.push(`${e.fehlend.length} neue Artikel ohne Eintrag (IDs ${ids(e.fehlend)}) – bitte „Importieren“ und Artikelkategorie setzen`);
+    if (e.ohneFestpreis?.length) teile.push(`${e.ohneFestpreis.length} Artikel ohne Festpreis-Kategorie (IDs ${ids(e.ohneFestpreis)}) – der Sync rechnet sonst mit 0`);
+    if (e.kategorienWeg?.length) teile.push(`Kategorie ${e.kategorienWeg.map(k => sauber(k, 8)).join(', ')} gibt es im Shop nicht mehr`);
+    if (e.fehler) teile.push(`Fehler: ${sauber(e.fehler, 80)}`);
+    if (teile.length) zeilen.push(`Festpreis ${sauber(e.id, 12)}: ${teile.join(' · ')}`);
+  }
+  if (festpreis?.fehler) zeilen.push(`Festpreis-Prüfung fehlgeschlagen: ${sauber(festpreis.fehler, 80)}`);
   if (!zeilen.length) return null;
   return ['🧾 Partnerartikel-Abgleich', ...zeilen, LINK].join('\n');
 }
+const FP_IDS_MAX = 10;
 
 // PA6: Wochen-Lebenszeichen, wenn der Abgleich montags nichts zu melden hat -
 // sonst ist "keine Nachricht" nicht von "Lauf kaputt" zu unterscheiden.
-export function buildAbgleichLebenszeichen(anzahlPartner) {
+export function buildAbgleichLebenszeichen(anzahlPartner, anzahlFestpreis) {
   const n = Number(anzahlPartner);
-  return `Partner-Abgleich: nichts Neues (${Number.isFinite(n) ? n : 0} Partner geprüft)`;
+  // PA7: Festpreis-Partner mitzaehlen (ohne zweite Zahl wie bisher).
+  const f = anzahlFestpreis === undefined ? null : Number(anzahlFestpreis);
+  return `Partner-Abgleich: nichts Neues (${Number.isFinite(n) ? n : 0} Partner${f !== null ? `, ${Number.isFinite(f) ? f : 0} Festpreis-Partner` : ''} geprüft)`;
 }
 
 // LS1: Meldung nach "Übernehmen" der L-Shop-Stammdaten (lib/lshopStammdaten.js).

@@ -880,6 +880,11 @@
       .seo-generate-msg { flex: 1 1 100%; font-size: 0.82rem; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
       .seo-generate-msg:empty { display: none; }
       .seo-generate-msg.seo-msg-rot { color: var(--danger); }
+      /* PA7: Hinweis Festpreis-Artikel (ohne Eintrag / ohne Festpreis-Kategorie) */
+      .fp-artikel-hinweis { border: 1px solid var(--border); border-left: 4px solid var(--warning); background: var(--surface-2); border-radius: 6px;
+        padding: 0.5rem 0.75rem; margin: 0 0 0.8rem; font-size: 0.85rem; line-height: 1.45; overflow-wrap: anywhere; }
+      .fp-artikel-hinweis ul { margin: 0.25rem 0 0 1.1rem; }
+      tr.fp-art-markiert td { background: var(--warning-bg); }
       .edi-dialog { position: fixed; inset: 0; z-index: 50; background: var(--overlay); display: flex; align-items: flex-start; justify-content: center; padding: 1rem; overflow-y: auto; }
       .edi-dialog[hidden] { display: none; }
       .edi-box { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; width: min(900px, 100%); display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; }
@@ -2944,8 +2949,10 @@
                   <option value="">– Partner wählen –</option>
                 </select>
                 <button class="btn-secondary" id="btn-fp-artikel-import" style="font-size:0.82rem;padding:0.42rem 0.85rem;" disabled data-hilfe="partner-artikel-import">↓ Aus WC importieren</button>
+                <button class="btn-secondary" id="btn-fp-artikel-pruefen" style="font-size:0.82rem;padding:0.42rem 0.85rem;" disabled data-hilfe="fp-artikel-pruefen">Fehlende prüfen</button>
               </div>
             </div>
+            <div id="fp-artikel-hinweis" class="fp-artikel-hinweis" aria-live="polite" hidden></div>   <!-- PA7 -->
             <div id="fp-artikel-list-wrap"><p style="color:var(--muted);font-size:0.85rem;">Bitte Partner wählen.</p></div>
           </div>
         </div>
@@ -6478,6 +6485,9 @@
         'se-suchen':             { name: 'Suchen', text: 'Sucht den Artikel im Shop. Es wird nur gelesen.' },
         'se-neu-bauen':          { name: 'Titel und Meta neu bauen', text: 'Baut Titel und Meta-Beschreibung neu aus den Artikeldaten. Gespeichert wird noch nichts.' },
         'se-speichern':          { name: 'Yoast-Daten speichern', text: 'Schreibt Titel und Meta in den Shop (Kunden sehen es) und liest sie zurück. Die SEO-Karte wird nachgezogen.' },
+        'fp-artikel-pruefen':    { name: 'Fehlende prüfen', text: 'Sucht veröffentlichte Shop-Artikel dieses Festpreis-Partners ohne Eintrag hier. Liest nur, setzt keinen Festpreis.' },
+        'fp-ohne-festpreis':     { name: 'Ohne Festpreis-Kategorie', text: 'Diese Artikel haben keine Artikelkategorie mit Festpreis. Der Sync rechnet sie sonst mit Festpreis 0 ab.' },
+        'fp-ohne-zeigen':        { name: 'Zeigen', text: 'Springt zur ersten Zeile ohne Artikelkategorie und markiert alle betroffenen Zeilen.' },
         'seo-generieren':        { name: 'Beschreibung generieren', text: 'Lässt die KI aus den Feldern oben eine Beschreibung schreiben und prüft sie. Gespeichert wird noch nichts.' },
         'seo-speichern':         { name: 'SEO Speichern', text: 'Schreibt Beschreibung und SEO-Daten in den Shop – Kunden sehen es sofort.' },
         'aid-anlegen':           { name: 'Artikel-ID anlegen', text: 'Legt für diesen Entwurf eine Zeile mit der nächsten Artikel-ID in der Erfassungsmaske an. Nie doppelt.' },
@@ -6933,7 +6943,7 @@
         'auftragsmonitor': ['wc-erledigt', 'tab-offen', 'tab-protokoll', 'mon-fulfillment', 'dtf-sammel', 'dtf-bestellt', 'lshop-alt-sammel', 'lshop-alt-bestellt', 'korb-aeltere'],
         'artikel': ['modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
         'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
-        'partner': ['pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
+        'partner': ['fp-artikel-pruefen', 'fp-ohne-festpreis', 'fp-ohne-zeigen', 'pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
         'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'fp-preis-loeschen'],
         'anfragen': ['anf-neu', 'anf-aktualisieren', 'anf-anlegen', 'anf-speichern'],
         'assistent': ['aw-eintrag-neu', 'aw-eintrag-speichern', 'aw-prompt-speichern', 'aw-prompt-standard', 'aw-prompt-zeigen', 'aw-test-senden', 'aw-test-neu'],
@@ -20881,8 +20891,11 @@
         const fpArtikelPartnerSel = document.getElementById('fp-artikel-filter-partner');
         const btnFpImport         = document.getElementById('btn-fp-artikel-import');
 
+        const btnFpPruefen        = document.getElementById('btn-fp-artikel-pruefen');   // PA7
         fpArtikelPartnerSel.addEventListener('change', () => {
           btnFpImport.disabled = !fpArtikelPartnerSel.value;
+          btnFpPruefen.disabled = !fpArtikelPartnerSel.value;
+          fpHinweisZeigen(null, null);
           if (fpArtikelPartnerSel.value) loadFpArtikel(fpArtikelPartnerSel.value);
           else document.getElementById('fp-artikel-list-wrap').innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Bitte Partner wählen.</p>';
         });
@@ -20907,6 +20920,69 @@
           }
         });
 
+        // ── PA7 Festpreis-Hinweis: Anfang (reine Logik, Test backend/tests/fp-artikel.test.js) ──
+        /** Zeilen ohne Artikelkategorie bzw. mit Kategorie, die es in der Festpreis-Liste nicht gibt. */
+        function fpOhneFestpreis(artikel, kategorien) {
+          const k = new Set((kategorien || []).map(x => String(x).trim()).filter(Boolean));
+          return (artikel || []).filter(a => !String(a['Artikelkategorie'] || '').trim() || (k.size && !k.has(String(a['Artikelkategorie']).trim())));
+        }
+        function fpEsc(x) { return String(x ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+        /** Hinweis-HTML: lokal (ohne Festpreis-Kategorie) und Ergebnis von "Fehlende prüfen" (befund). Leer = nichts zu zeigen. */
+        function fpHinweisHtml(ohne, befund) {
+          const teile = [];
+          if (ohne && ohne.length) teile.push(`<div><span data-hilfe="fp-ohne-festpreis" tabindex="0"><strong>${ohne.length} Artikel ohne Festpreis-Kategorie</strong> – der Sync rechnet sie sonst mit Festpreis 0 ab.</span> <button type="button" class="korb-link" data-fp-ohne-zeigen data-hilfe="fp-ohne-zeigen">zeigen</button></div>`);
+          if (befund) {
+            if (befund.fehlend?.length) teile.push(`<div><strong>${befund.fehlend.length} veröffentlichte Shop-Artikel ohne Eintrag</strong> – „Aus WC importieren“ legt sie an, danach Artikelkategorie setzen:<ul>${befund.fehlend.slice(0, 20).map(f => `<li>${fpEsc(f.produktId)} · ${fpEsc(f.name)}</li>`).join('')}</ul></div>`);
+            if (befund.kategorienWeg?.length) teile.push(`<div>Kategorie ${befund.kategorienWeg.map(fpEsc).join(', ')} gibt es im Shop nicht mehr (Liste beim Partner).</div>`);
+            if (!befund.fehlend?.length && !befund.kategorienWeg?.length && !(ohne && ohne.length)) teile.push('<div>Geprüft: alle veröffentlichten Artikel der Partner-Kategorien haben einen Eintrag.</div>');
+          }
+          return teile.join('');
+        }
+        /** PA7: Warnungen nach dem FP-Sync (uebersprungene Verkaeufe, Positionen ohne Festpreis-Kategorie). Ohne Preise. */
+        function fpSyncWarnungen(d) {
+          const w = [];
+          const ohne = d?.ohneEintrag || [];
+          if (ohne.length) {
+            const ab = ohne.map(x => x.ab).filter(Boolean).sort()[0] || '';
+            const datum = /^\d{4}-\d{2}-\d{2}$/.test(ab) ? `${ab.slice(8, 10)}.${ab.slice(5, 7)}.${ab.slice(0, 4)}` : '';
+            const n = ohne.reduce((s, x) => s + (x.bestellungen?.length || 0), 0);
+            w.push(`⚠ ${n} Verkauf/Verkäufe zu Artikeln ohne Festpreis-Eintrag (IDs ${[...new Set(ohne.map(x => x.produktId))].slice(0, 10).join(', ')}) – NICHT abgerechnet. Erst „Aus WC importieren“ und Artikelkategorie setzen, dann Sync${datum ? ` mit Datum ab ${datum}` : ''} wiederholen.`);
+          }
+          if (d?.ohneFestpreisAnzahl) w.push(`⚠ ${d.ohneFestpreisAnzahl} Position(en) ohne Festpreis-Kategorie – mit Festpreis 0 übernommen. Bitte Artikelkategorie prüfen.`);
+          if (d?.pruefungFehler) w.push(`Prüfung auf fehlende Artikel nicht möglich: ${d.pruefungFehler}`);
+          return w;
+        }
+        // ── PA7 Festpreis-Hinweis: Ende ──
+        let fpOhneStand = [];
+        function fpHinweisZeigen(ohne, befund) {
+          const el = document.getElementById('fp-artikel-hinweis');
+          const html = fpHinweisHtml(ohne, befund);
+          el.innerHTML = html; el.hidden = !html;
+        }
+        document.getElementById('fp-artikel-hinweis').addEventListener('click', e => {
+          if (!e.target.closest('[data-fp-ohne-zeigen]')) return;
+          const ids = new Set(fpOhneStand.map(a => String(a['Produkt-ID'])));
+          const zeilen = [...document.querySelectorAll('#fp-artikel-list-wrap tr[data-fp-art-pid]')].filter(tr => ids.has(tr.dataset.fpArtPid));
+          zeilen.forEach(tr => tr.classList.add('fp-art-markiert'));
+          zeilen[0]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          zeilen[0]?.querySelector('.fp-art-ak')?.focus();
+        });
+        btnFpPruefen.addEventListener('click', async () => {
+          const partnerId = fpArtikelPartnerSel.value;
+          if (!partnerId) return;
+          btnFpPruefen.disabled = true; btnFpPruefen.textContent = 'prüft …';
+          try {
+            const r = await window.apiFetch(`${FP()}/api/festpreis/artikel/${encodeURIComponent(partnerId)}/pruefung`);
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error ?? r.statusText);
+            fpHinweisZeigen(fpOhneStand, d);
+          } catch (e) {
+            window.showToast(`Prüfung nicht möglich: ${e.message}`, 'toast-error');
+          } finally {
+            btnFpPruefen.disabled = false; btnFpPruefen.textContent = 'Fehlende prüfen';
+          }
+        });
+
         function initFpArtikelTab() {
           if (fpArtikelPartnerSel.value) loadFpArtikel(fpArtikelPartnerSel.value);
         }
@@ -20921,6 +20997,8 @@
             ]);
             const artikel    = artData.artikel ?? [];
             const kategorien = katData.kategorien ?? [];
+            fpOhneStand = fpOhneFestpreis(artikel, kategorien);   // PA7
+            fpHinweisZeigen(fpOhneStand, null);
             if (!artikel.length) {
               wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Artikel. Bitte aus WC importieren.</p>';
               return;
@@ -21009,6 +21087,7 @@
               bd.remove();
               const afterInfo = d.afterParam ? ` (ab ${d.afterParam.slice(0,10)})` : '';
               window.showToast((d.message || `${d.synced} neue Einträge`) + afterInfo);
+              for (const w of fpSyncWarnungen(d)) window.showToast(w, 'warn', 20000);   // PA7
               if (d.synced > 0 || d.storniert > 0) loadFpVerkaeufe();
             } catch (e) {
               window.showToast(`Sync-Fehler: ${e.message}`, 'toast-error');

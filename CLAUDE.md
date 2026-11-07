@@ -295,6 +295,18 @@ Neue Sektionen immer mit Anker versehen:
   (PA6): "gesendet" | "nichts zu melden" | "fehlgeschlagen" | "lebenszeichen gesendet"; ohne Befund
   montags (Europe/Berlin, `istMontagBerlin`, Uhr `uhr.jetzt` im Test setzbar) ein Lebenszeichen.
   Workflow warnt bei "fehlgeschlagen" (::warning::), bricht den Sync nicht ab.
+  PA7 (07.11.): derselbe Abgleich prueft danach die aktiven **Festpreis-Partner** - NUR MELDEN, nichts anlegen, nie ein Festpreis
+  (`lib/fpArtikel.js` `fpArtikelPruefung`, Logik `utils/fp-artikel.js`). Grund: der FP-Sync holt den Festpreis ueber die
+  Artikelkategorie aus FP_Artikel_Kategorie und rechnet ohne Zuordnung STILL mit Festpreis 0 (Partner bekaeme den ganzen VK) - eine
+  automatisch angelegte Zeile wuerde also nicht gesperrt. Gemeldet (Antwort `festpreis`, Chat in derselben Meldung "Festpreis FP-…: …",
+  Lebenszeichen zaehlt FP-Partner mit): veroeffentlichte Shop-Artikel der Partner-Kategorien inkl. Unterkategorien ohne FP_Artikel-Zeile,
+  FP_Artikel-Zeilen ohne Festpreis-Kategorie (leer oder ohne Zeile in FP_Artikel_Kategorie; Festpreis 0 dort ist bewusst), Kategorie-Nummern
+  nicht im Shop. Fehlende FP-Reiter = keine FP-Partner. Shop: Kategorien + `products?status=publish` mit `_fields`, 1,5 s Takt.
+  MC Festpreis → Artikel: Hinweis `#fp-artikel-hinweis` (ohne Festpreis-Kategorie, "zeigen" markiert Zeilen) und Knopf "Fehlende pruefen"
+  (`GET /api/festpreis/artikel/:partnerId/pruefung`), Block `PA7 Festpreis-Hinweis: Anfang/Ende`. FP-Sync (`POST /api/festpreis/verkaeufe/sync`)
+  ueberspringt Positionen ohne FP_Artikel-Zeile nicht mehr still: Antwort `ohneEintrag` (Partner-Kategorien, je Produkt Bestellungen +
+  fruehestes Datum, `fpUebersprungenePruefen`) und `ohneFestpreisAnzahl`; MC-Toast "NICHT abgerechnet … Sync mit Datum ab … wiederholen"
+  (der Sync liest sonst nur ab dem neuesten Verkauf). Rechnen/Schreiben des Syncs unveraendert. Test fp-artikel.test.js.
   Sperre (PA2 Teil B, routes/partnerPortal.js): fehlt EK oder Druck (LEER, 0 ist erlaubt), schreibt
   der Sync die Verkaufszeile mit Status "gesperrt", Spalte "Sperre" (additiv am Ende) = Grund und
   LEEREN Betraegen. Erster Schritt jedes Sync-Laufs: `entsperren()` rechnet gesperrte Zeilen, deren

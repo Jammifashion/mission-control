@@ -6,6 +6,7 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient } from '../lib/shopConfig.js';
 import { seitenGrenze, seitenListe } from '../lib/hosterPruefseite.js';
+import { fpArtikelPruefung, fpUebersprungenePruefen } from '../lib/fpArtikel.js';   // PA7: nur melden
 import { berechneFestpreisAnteil } from '../utils/festpreis-kalkulation.js';
 import { parseKonfiguration } from '../utils/partner-kalkulation.js';
 import { zugangArt, klartextFuerMc, SPALTE_TOKEN, SPALTE_HASH } from '../utils/partner-token.js';
@@ -349,6 +350,19 @@ router.patch('/partner/:partnerId', async (req, res, next) => {
       });
     }
     res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/festpreis/artikel/:partnerId/pruefung (PA7) ─────────────────────
+// Nur lesen: veroeffentlichte Shop-Artikel der Partner-Kategorien ohne FP_Artikel-Zeile, Zeilen ohne
+// Festpreis-Kategorie, Kategorien nicht im Shop. Schreibt nichts, keine Preise.
+router.get('/artikel/:partnerId/pruefung', async (req, res, next) => {
+  try {
+    const sheetId = SHEETID();
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
+    const r = await fpArtikelPruefung({ sheets: await getSheets(), sheetId, nurPartner: req.params.partnerId });
+    if (!r.partner.length) return res.status(404).json({ error: 'FP-Partner nicht gefunden oder nicht aktiv.' });
+    res.json(r.partner[0]);
   } catch (err) { next(err); }
 });
 
@@ -714,6 +728,10 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
 
     // 7. Zeilen berechnen
     const toWrite = [];
+    // PA7: nicht mehr still - uebersprungene Positionen (Produkt-ID nicht in FP_Artikel) und Zeilen ohne
+    // Festpreis-Kategorie werden gesammelt und in der Antwort gemeldet. Am Rechnen und Schreiben aendert sich nichts.
+    const uebersprungen = {};
+    const ohneFestpreis = [];
 
     for (const [shop, orders] of Object.entries(ordersByShop)) {
       for (const order of orders) {
@@ -723,7 +741,10 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
 
         for (const item of order.line_items) {
           const entries = artikelMap[String(item.product_id || '')];
-          if (!entries) continue;
+          if (!entries) {
+            (uebersprungen[shop] ??= []).push({ produktId: String(item.product_id || ''), bestellung: order.id, datum: String(order.date_created ?? '').slice(0, 10) });
+            continue;
+          }
 
           const itemNetto  = toFloat(item.total);
           const anteil     = orderNetto > 0 ? (itemNetto / orderNetto) : 0;
@@ -745,6 +766,7 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
                                      + (k.paypalPauschale * anteil);
 
             const artikelkategorie = e.artikelkategorie || '';
+            if (!festpreisMap[`${e.partnerId}|${artikelkategorie}`]) ohneFestpreis.push({ partnerId: e.partnerId, produktId: String(item.product_id), bestellung: String(order.id) });   // PA7: melden
             const katPreis = festpreisMap[`${e.partnerId}|${artikelkategorie}`] ?? { festpreis: 0, handlingskosten: 0 };
             const festpreis      = katPreis.festpreis;
             const handlingskosten = katPreis.handlingskosten;
@@ -820,7 +842,19 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
     }
 
     const totalOrders = Object.values(ordersByShop).reduce((s, o) => s + o.length, 0);
+    // PA7: uebersprungene Positionen, deren Produkt in den Kategorien eines aktiven FP-Partners liegt = nicht abgerechnet.
+    // Nach dem Schreiben (aendert nichts am Sync); ein Fehler hier steht in der Antwort, der Sync ist trotzdem gelaufen.
+    let ohneEintrag = [], pruefungFehler = null;
+    try {
+      for (const [shop, liste] of Object.entries(uebersprungen)) {
+        const partnerShop = activePartners.filter(r => partnerShopMap[r[ph('Partner-ID')] ?? ''] === shop)
+          .map(r => ({ id: r[ph('Partner-ID')] ?? '', kategorien: ph('Kategorien') >= 0 ? (r[ph('Kategorien')] ?? '') : '' }));
+        ohneEintrag.push(...await fpUebersprungenePruefen({ wc: getWcClient(shop), uebersprungen: liste, partner: partnerShop }));
+      }
+    } catch (err) { pruefungFehler = err.message; }
     res.json({
+      ohneEintrag, ...(pruefungFehler ? { pruefungFehler } : {}),
+      ohneFestpreis: ohneFestpreis.slice(0, 50), ohneFestpreisAnzahl: ohneFestpreis.length,
       synced:    toWrite.length,
       storniert: stornoRows.length,
       orders:    totalOrders,
