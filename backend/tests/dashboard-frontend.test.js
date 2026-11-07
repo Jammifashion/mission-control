@@ -17,9 +17,9 @@ const kacheln = {
 const klasse = (h, ziel) => h.match(new RegExp(`class="dash-kachel([^"]*)" data-dash-ziel="${ziel}"`))?.[1].trim();
 
 describe('Zu tun', () => {
-  test('immer alle 7 Kacheln, 0 = ruhig, Farben nach Regel', () => {
+  test('immer alle 8 Kacheln (KS3: Bestellseiten), 0 = ruhig, Farben nach Regel', () => {
     const h = F.dbKachelnHtml(kacheln);
-    expect([...h.matchAll(/data-dash-ziel="([a-z]+)"/g)].map(m => m[1])).toEqual(['hinweise', 'lange', 'todos', 'rueckstand', 'ware', 'abholung', 'trikots']);
+    expect([...h.matchAll(/data-dash-ziel="([a-z]+)"/g)].map(m => m[1])).toEqual(['hinweise', 'lange', 'todos', 'rueckstand', 'ware', 'abholung', 'trikots', 'bestellseiten']);
     expect(klasse(h, 'hinweise')).toBe('dash-k-warning');
     expect(klasse(h, 'lange')).toBe('dash-k-danger');
     expect(klasse(h, 'todos')).toBe('dash-k-info');
@@ -29,7 +29,7 @@ describe('Zu tun', () => {
     expect(klasse(h, 'trikots')).toBe('dash-k-warning');
     expect(h).toContain('ältester: 16 Tage');
     expect(h).toContain('1 Goalie offen · 0 über 6 Wochen');
-    for (const ziel of ['hinweise', 'lange', 'todos', 'rueckstand', 'ware', 'abholung', 'trikots']) expect(h).toContain(`data-dash-ziel="${ziel}" data-hilfe="dash-k-${ziel}"`);   // Hilfe je Kachel
+    for (const ziel of ['hinweise', 'lange', 'todos', 'rueckstand', 'ware', 'abholung', 'trikots', 'bestellseiten']) expect(h).toContain(`data-dash-ziel="${ziel}" data-hilfe="dash-k-${ziel}"`);   // Hilfe je Kachel
   });
   test('ueberfaellig = rot, Rueckstand kritisch/veraltet = rot', () => {
     const h = F.dbKachelnHtml({ ...kacheln, todos: { ueberfaellig: 1, heute: 0 }, rueckstand: { ...kacheln.rueckstand, veraltet: true } });
@@ -40,8 +40,8 @@ describe('Zu tun', () => {
   test('Teilfehler: Kachel zeigt "–" und welche Quelle fehlt; alles leer = alle ruhig', () => {
     const h = F.dbKachelnHtml({ ...kacheln, rueckstand: { fehlt: ['rueckstand'] } });
     expect(h).toMatch(/data-dash-ziel="rueckstand"[^>]*><span class="dash-k-zahl">–<\/span>[\s\S]*?nicht geladen: Rückstandsliste/);
-    const leer = F.dbKachelnHtml({ hinweise: { zahl: 0 }, lange: { zahl: 0 }, todos: { ueberfaellig: 0, heute: 0 }, rueckstand: { positionen: 0, liste: true, stueck: 0 }, ware: { zahl: 0 }, abholung: { zahl: 0 }, trikots: { nichtBeimProduzenten: 0, goalie: 0, ueber6Wochen: 0 } });
-    expect((leer.match(/dash-k-ruhig/g) ?? []).length).toBe(7);
+    const leer = F.dbKachelnHtml({ hinweise: { zahl: 0 }, lange: { zahl: 0 }, todos: { ueberfaellig: 0, heute: 0 }, rueckstand: { positionen: 0, liste: true, stueck: 0 }, ware: { zahl: 0 }, abholung: { zahl: 0 }, trikots: { nichtBeimProduzenten: 0, goalie: 0, ueber6Wochen: 0 }, bestellseiten: { zahl: 0 } });
+    expect((leer.match(/dash-k-ruhig/g) ?? []).length).toBe(8);
   });
 });
 

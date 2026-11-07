@@ -10,7 +10,8 @@ import { heuteBerlin, fristen, zugangTage, naechsteTerminId, fehler, ART, TERMIN
 
 // KS2-1: Notiz je Position (alle Arten, <= 100) - eigene Spalte hinten, damit Freitext/Fuer/Wunsch ihre Bedeutung behalten
 // und KS3 sie in die Notiz der Auftragsposition uebernehmen kann. Datenschutz wie Rueckennamen (nie Log/Chat, Leeren nach 12 Monaten).
-export const EINTRAG_OPTIONAL = ['Groesse', 'Bezeichnung', 'Trikot_Produkt', 'Vorgang', 'Geaendert_Von', 'Notiz'];
+// KS3: Ablehn_Grund = kurzer Grund (<= 100), wenn MC einen Eintrag ablehnt (Status storniert); die Seite zeigt "abgelehnt: …".
+export const EINTRAG_OPTIONAL = ['Groesse', 'Bezeichnung', 'Trikot_Produkt', 'Vorgang', 'Geaendert_Von', 'Notiz', 'Ablehn_Grund'];
 export const E_STATUS = { EINGEGANGEN: 'eingegangen', GEPRUEFT: 'geprüft', UEBERNOMMEN: 'übernommen', STORNIERT: 'storniert' };
 export const OFFEN = [E_STATUS.EINGEGANGEN, E_STATUS.GEPRUEFT];
 export const E_ART = { ARTIKEL: 'artikel', EXTRA: 'extra', TRIKOT: 'trikot' };
@@ -87,6 +88,7 @@ export function auswahlIndex({ artikel, trikots, art }) {
     je.set(t(g.id), {
       karte: t(a.key), groesse: t(g.groesse), bezeichnung: [t(a.name), t(a.farbe), t(a.design)].filter(Boolean).join(' · '),
       wcId: art === ART.AUFTRAG ? '' : t(g.id), articleNr: t(g.articleNr),
+      motiv: [t(a.name), t(a.design)].filter(Boolean).join(' · '),   // KS3: Motiv der Auftragsposition (Produkt · Design)
     });
   }
   const tr = new Map((trikots ?? []).map(x => [t(x.produktId), { name: t(x.name), groessen: (x.groessen ?? []).map(t) }]));
@@ -149,21 +151,21 @@ export function absendenPlan({ zugang, termin, eintraege, idx, eingabe, jetzt })
   }));
 }
 
-function aenderbar({ zugang, termin, eintrag, eingabe, jetzt }) {
+function aenderbar({ zugang, termin, eintrag, eingabe, jetzt, vonMc = false }) {
   if (!eintrag || eintrag.Zugang_ID !== zugang.Zugang_ID) throw fehler('Eintrag gibt es auf dieser Bestellseite nicht.', 404);
   if (t(eintrag.Status) === E_STATUS.UEBERNOMMEN) throw fehler('Schon übernommen – nur noch lesen.');
   if (t(eintrag.Status) === E_STATUS.STORNIERT) throw fehler('Schon storniert.');
-  if (terminVergangen(termin, jetzt)) throw fehler('Der Termin ist vorbei – nur noch lesen.');
+  if (!vonMc && terminVergangen(termin, jetzt)) throw fehler('Der Termin ist vorbei – nur noch lesen.');   // KS3: MC darf nachbessern
   if (t(eingabe?.stand) !== t(eintrag.Stand)) throw fehler('Wurde inzwischen geändert – bitte neu laden.', 409, 'konflikt');
-  return kuerzelAus(eingabe?.kuerzel);
+  return vonMc ? 'MC' : kuerzelAus(eingabe?.kuerzel);
 }
 
 /**
  * Aendern: Menge, Groesse (nur innerhalb derselben Karte), Texte. Vermerk "geändert von", Nach_Schluss bleibt bzw. wird ja.
  * @returns {object} neue Zeile
  */
-export function aenderungPlan({ zugang, termin, eintrag, idx, eingabe, jetzt }) {
-  const kuerzel = aenderbar({ zugang, termin, eintrag, eingabe, jetzt });
+export function aenderungPlan({ zugang, termin, eintrag, idx, eingabe, jetzt, vonMc = false }) {
+  const kuerzel = aenderbar({ zugang, termin, eintrag, eingabe, jetzt, vonMc });
   const neu = { ...eintrag };
   const art = t(eintrag.Art);
   if (art === E_ART.ARTIKEL) {
@@ -191,7 +193,11 @@ export function aenderungPlan({ zugang, termin, eintrag, idx, eingabe, jetzt }) 
   }
   if (eingabe.notiz !== undefined) neu.Notiz = text(eingabe.notiz, MAX.positionNotiz, 'Notiz');   // KS2-1, alle Arten
   const stand = new Date(jetzt).toISOString();
-  return { ...neu, Geaendert_Von: kuerzel, Stand: stand, Nach_Schluss: t(eintrag.Nach_Schluss) === 'ja' || nachSchluss(termin, zugang, jetzt) ? 'ja' : '' };
+  // KS3: MC aendert ohne "nach Bestellschluss" und ohne den Status zu aendern ("geändert von MC"). Aendert die Seite einen
+  // schon geprueften Eintrag, ist er wieder "eingegangen" (muss neu geprueft werden).
+  if (vonMc) return { ...neu, Geaendert_Von: kuerzel, Stand: stand };
+  const status = t(eintrag.Status) === E_STATUS.GEPRUEFT ? E_STATUS.EINGEGANGEN : t(eintrag.Status);
+  return { ...neu, Status: status, Geaendert_Von: kuerzel, Stand: stand, Nach_Schluss: t(eintrag.Nach_Schluss) === 'ja' || nachSchluss(termin, zugang, jetzt) ? 'ja' : '' };
 }
 
 /** Stornieren: Status storniert (nie loeschen), Vermerk "geändert von". */
@@ -208,6 +214,7 @@ export function eintragFuerSeite(x) {
     status: t(x.Status) || E_STATUS.EINGEGANGEN, freitext: t(x.Freitext), fuer: t(x.Fuer), trikotName: t(x.Trikot_Name),
     trikotNummer: t(x.Trikot_Nummer), wunsch: t(x.Wunsch), geaendertVon: t(x.Geaendert_Von), stand: t(x.Stand),
     auswahl: t(x.WC_Variation_ID) || t(x.LShop_ArticleNr), trikotProdukt: t(x.Trikot_Produkt), notiz: t(x.Notiz),
+    ablehnGrund: t(x.Ablehn_Grund),   // KS3: "abgelehnt: …" (Status storniert durch MC)
   };
 }
 

@@ -3,6 +3,7 @@
 import { Router } from 'express';
 import { leseZugaenge, legeZugangAn, bearbeiteZugang, neuerLink, zeigeLink, aktualisiereBilder, leseKategorien, bilderPlan, bilderStueck, bilderSchreiben } from '../lib/bestellseite.js';
 import { leseEintraegeMc } from '../lib/bestellEintraege.js';   // KS2: nur ansehen
+import { pruefeEintraege, aendereEintragMc, uebernahmeVorschau, uebernehmen, eintraegeZumAuftrag } from '../lib/bestellUebernahme.js';   // KS3
 
 const router = Router();
 
@@ -19,6 +20,17 @@ router.get('/', mitMeldung(() => leseZugaenge()));
 router.get('/kategorien', mitMeldung(async () => ({ kategorien: (await leseKategorien()).map(k => ({ nr: k.nr, pfad: k.pfad })) })));
 // GET /api/bestellseiten/:zugangId/eintraege - KS2: Eintraege des Zugangs nur ansehen (Rueckennamen nur in der Oberflaeche).
 router.get('/:zugangId/eintraege', mitMeldung(req => leseEintraegeMc({ zugangId: req.params.zugangId })));
+// ── KS3: pruefen, aendern, ablehnen, uebernehmen ──
+// POST /api/bestellseiten/eintraege/pruefen { zugangId, aktion: geprueft|zurueck|ablehnen, auswahl:[{id,stand}], grund }
+router.post('/eintraege/pruefen', mitMeldung(req => pruefeEintraege({ eingabe: req.body ?? {} })));
+// POST /api/bestellseiten/eintraege/aendern { zugangId, eintrag, stand, menge?, id?, freitext?, groesse?, name?, nummer?, wunsch?, notiz? }
+router.post('/eintraege/aendern', mitMeldung(req => aendereEintragMc({ eingabe: req.body ?? {} })));
+// GET /api/bestellseiten/:zugangId/termin/:terminId/uebernahme - Vorschau (anhaengbare AU, Kandidaten "schon bestellt"), nur lesen
+router.get('/:zugangId/termin/:terminId/uebernahme', mitMeldung(req => uebernahmeVorschau({ zugangId: req.params.zugangId, terminId: req.params.terminId })));
+// POST /api/bestellseiten/uebernehmen { zugangId, terminId, auswahl, ziel, verknuepfen, vorgang, dryRun }
+router.post('/uebernehmen', mitMeldung(req => uebernehmen({ eingabe: req.body ?? {} })));
+// GET /api/bestellseiten/auftrag/:nr/eintraege - Kürzel/Notiz je Position (nur Anzeige)
+router.get('/auftrag/:nr/eintraege', mitMeldung(req => eintraegeZumAuftrag({ auftragNr: req.params.nr })));
 // POST /api/bestellseiten/neu { art, auftragNr | kundenNr, sortiment, ablauf, hinweis, partnerId, designLinkZeigen, vorgang }
 router.post('/neu', mitMeldung(req => legeZugangAn({ eingabe: req.body ?? {} })));
 // POST /api/bestellseiten/bearbeiten { zugangId, stand, aktiv?, ablauf?, hinweis?, sortiment?, designLinkZeigen?, bestellschlussTage?, empfohlenTage? }

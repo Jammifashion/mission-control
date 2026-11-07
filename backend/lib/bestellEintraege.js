@@ -7,6 +7,7 @@ import { ersetzeZeile } from './sheet-zeilen.js';
 import { notify } from './chatNotify.js';
 import {
   mitSperre, sheetsClient, sheetId, liesFuerToken, pruefeZugang, katalogFuer, termineDesZugangs, liesEintraege, alsZeile, schreibeBloecke,
+  liesZugaengeTermine,
 } from './bestellseite.js';
 import { TAB_TERMINE, TAB_EINTRAEGE, fehler } from '../utils/bestellseite.js';
 import {
@@ -14,6 +15,7 @@ import {
 } from '../utils/bestell-eintraege.js';
 
 const t = v => String(v ?? '').trim();
+const OFFEN_MC = ['eingegangen', 'geprüft'];   // KS3
 
 async function kontext({ token, sheets: s, jetzt }) {
   const sheets = s ?? await sheetsClient();
@@ -126,5 +128,22 @@ export async function leseEintraegeMc({ zugangId, sheets: s } = {}) {
   const e = await liesEintraege(sheets, spreadsheetId);
   const liste = (e?.zeilen ?? []).filter(x => x.Zugang_ID === t(zugangId))
     .sort((a, b) => t(a.Zeit).localeCompare(t(b.Zeit)) || t(a.Eintrag_ID).localeCompare(t(b.Eintrag_ID)));
-  return { zugangId: t(zugangId), eintraege: liste.map(eintragFuerSeite), eingerichtet: !!e };
+  // KS3: fuer "ändern" in MC die waehlbaren Groessen derselben Karte bzw. des Trikots (nur offene Eintraege)
+  let idx = null;
+  if (liste.some(x => OFFEN_MC.includes(t(x.Status) || 'eingegangen'))) {
+    try {
+      const daten = await liesZugaengeTermine(sheets, spreadsheetId);
+      const zugang = daten.z.zeilen.find(x => x.Zugang_ID === t(zugangId));
+      if (zugang) { const k = await katalogFuer(sheets, spreadsheetId, zugang); idx = auswahlIndex({ artikel: k.artikel, trikots: k.trikots, art: zugang.Art }); }
+    } catch { idx = null; }   // nur Komfort - ohne Katalog geht "ändern" ohne Groessenwahl
+  }
+  const alternativen = x => {
+    if (!idx || t(x.Art) !== 'artikel') return undefined;
+    const karte = idx.je.get(t(x.WC_Variation_ID) || t(x.LShop_ArticleNr))?.karte;
+    return karte ? [...idx.je.entries()].filter(([, w]) => w.karte === karte).map(([id, w]) => ({ id, groesse: w.groesse })) : undefined;
+  };
+  // KS3: in MC zusaetzlich Auftrag/Position (Packliste, Sprung in den Auftrag) und ob die KS3-Spalte da ist
+  return { zugangId: t(zugangId), eintraege: liste.map(x => ({ ...eintragFuerSeite(x), auftragNr: t(x.Auftrag_Nr), positionId: t(x.Position_ID),
+      ...(OFFEN_MC.includes(t(x.Status) || 'eingegangen') ? { alternativen: alternativen(x), trikotGroessen: t(x.Art) === 'trikot' ? idx?.trikots.get(t(x.Trikot_Produkt))?.groessen : undefined } : {}) })),
+    eingerichtet: !!e, ablehnen: !!e && e.idx.Ablehn_Grund !== undefined };
 }

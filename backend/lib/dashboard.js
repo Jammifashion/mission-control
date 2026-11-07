@@ -12,6 +12,7 @@ import { leseAuftraege } from './auftraege.js';
 import { leseKunden } from './kunden.js';
 import { leseRueckstand } from './rueckstand.js';
 import { leseTrikotAnsicht } from './trikotAnsicht.js';
+import { leseUngepruefte } from './bestellUebernahme.js';   // KS3
 import { parseArtikel, TAB_ARTIKEL } from '../utils/trikot-logic.js';
 import {
   SHOPS, TAB_GELESEN, KOPF_GELESEN, baueDashboard, shopBestellung, gelesenAus, gelesenZeile, pruefsumme, tagBerlin, WER,
@@ -92,13 +93,14 @@ export async function leseDashboard({ wer = '', shop = '', jetzt = new Date(), s
     try { return await fn(); } catch (err) { wirfWennPruefseite(err); fehlerText[name] = kurz(err); return null; }
   };
   // Google-Quellen parallel, Shops nacheinander
-  const [au, kunden, rueckstand, trikots, artikel, gelesenWerte] = await Promise.all([
+  const [au, kunden, rueckstand, trikots, artikel, gelesenWerte, bestellseiten] = await Promise.all([
     versuche('auftraege', () => (quellen.auftraege ?? (() => leseAuftraege()))()),
     versuche('kunden', () => (quellen.kunden ?? (() => leseKunden()))()),
     versuche('rueckstand', () => (quellen.rueckstand ?? (() => leseRueckstand()))()),
     versuche('trikots', () => (quellen.trikots ?? (() => leseTrikotAnsicht()))()),
     versuche('trikot_artikel', () => (quellen.trikotArtikel ?? (() => leseTrikotArtikel(sheets)))()),
     versuche('gelesen', () => (quellen.gelesen ?? (() => leseGelesenWerte(sheets)))()),
+    versuche('bestellseiten', () => (quellen.bestellseiten ?? (() => leseUngepruefte({ sheets })))()),   // KS3: nur Zahlen
   ]);
   const trikotOrderIds = new Set((trikots?.gruppen ?? []).flatMap(g => g.zeilen ?? []).map(z => String(z.orderId ?? '').trim()).filter(Boolean));
   const shops = {};
@@ -113,7 +115,7 @@ export async function leseDashboard({ wer = '', shop = '', jetzt = new Date(), s
   const gelesen = gelesenAus(gelesenWerte ?? []);
   // "kunden" fehlt -> nur die Kunden-Nr. statt Name, keine Kachel faellt aus; "gelesen" fehlt -> alles gilt als ungelesen
   const quellFehler = Object.fromEntries(Object.keys(fehlerText).filter(k => !['kunden', 'gelesen'].includes(k)).map(k => [k, true]));
-  const d = baueDashboard({ shops, shop: aktiv.length === 1 ? aktiv[0] : '', au, kunden: kundenMap, rueckstand, trikots, gelesen, wer, jetzt, fehler: quellFehler });
+  const d = baueDashboard({ shops, shop: aktiv.length === 1 ? aktiv[0] : '', au, kunden: kundenMap, rueckstand, trikots, gelesen, wer, jetzt, fehler: quellFehler, bestellseiten });
   return { ...d, fehlerText, einrichtung: { gelesen: gelesenWerte !== null || !!fehlerText.gelesen } };
 }
 

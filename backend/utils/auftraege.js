@@ -22,12 +22,14 @@ export const POSITION_SPALTEN = [
 // AM-2-2: optional ganz hinten - fehlen sie, gilt Herkunft "bestellen" (wie vor AM-2-2). Setup ergaenzt sie.
 // AM-5: Preisfelder je Position (netto, Euro als Zahl), hinten optional. Fehlen sie, werden keine Preise geschrieben (409).
 export const PREIS_SPALTEN = ['Preis_Netto', 'Aufpreis_Netto', 'Aufpreis_Ab', 'USt_Satz', 'EK_Hand'];
-export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung', ...PREIS_SPALTEN];
+// KS3: Verweis = Quelle schon vorhandener Ware (Korb-Schluessel, AU-…-NN, LAGER:<Ort>, "ohne Verweis: …"), nur bei "schon bestellt – verknüpfen".
+export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung', ...PREIS_SPALTEN, 'Verweis'];
 // AM-3: optional ganz hinten in Auftraege - Datum des Schritts "Design" (leer = Schritt nicht genutzt / uebersprungen).
 // AMQ1: Preis_Eingabe ("brutto" oder leer = netto; nur die Eingabe an der Position, gespeichert wird immer netto) und
 // Design_Link (https-Adresse, z. B. Canva) - optional ganz hinten, Setup ergaenzt sie.
 // AM-6: Vorlage_Von = AU-Nr. des Auftrags, aus dem "Wie letztes Mal" vorbelegt hat (nur beim Anlegen; fehlt die Spalte, ohne).
-export const AUFTRAG_OPTIONAL = ['Design_Am', 'Rabatt', 'Angebot_Netto', 'Angebot_Brutto', 'Angebot_Stand', 'Zustaendig', 'Preis_Eingabe', 'Design_Link', 'Vorlage_Von'];
+// KS3: Zugang_ID + Termin_ID = aus Bestellseite <Zugang_ID>, Termin <Termin_ID> (ein AU je Termin; Nachtrag = weiterer AU zum Termin).
+export const AUFTRAG_OPTIONAL = ['Design_Am', 'Rabatt', 'Angebot_Netto', 'Angebot_Brutto', 'Angebot_Stand', 'Zustaendig', 'Preis_Eingabe', 'Design_Link', 'Vorlage_Von', 'Zugang_ID', 'Termin_ID'];
 export const PREIS_EINGABE = ['netto', 'brutto'];
 export const DESIGN_LINK_MAX = 500;
 // AMQ1 (Inhaber 06.11.): Positionen sind keine Pflicht, solange man noch nicht bestellt - Pflicht erst beim Wechsel auf
@@ -45,7 +47,7 @@ export const AUFTRAG_TEXT = ['Auftrag_Nr', 'Kunden_Nr', 'Termin', 'Anfrage_Am', 
   'Uebergeben_Am', 'Bezahlt_Am', 'Storniert_Am'];
 export const POSITION_TEXT = ['Position_ID', 'Auftrag_Nr', 'LShop_ArticleNr', 'Fertig_Am', 'Entfernt'];
 
-export const KANAELE = ['Mail', 'WhatsApp', 'Telefon', 'persönlich', 'Jey'];
+export const KANAELE = ['Mail', 'WhatsApp', 'Telefon', 'persönlich', 'Jey', 'Bestellseite'];   // KS3: Bestellseite
 // Schritte in Reihenfolge, je Schritt sein Datumsfeld. "storniert" steht ausserhalb (Storniert_Am).
 export const SCHRITTE = [
   { status: 'Anfrage', feld: 'Anfrage_Am' }, { status: 'Angebot', feld: 'Angebot_Am' }, { status: 'Design', feld: 'Design_Am' },

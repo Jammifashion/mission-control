@@ -62,7 +62,7 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
 - Stand-Anzeige
 - Helpers (darin: Dashboard DB1, Block `Dashboard-Anzeige: Anfang/Ende` (Test dashboard-frontend.test.js): EINE Route
   `GET /api/dashboard?wer=&shop=` (folgt dem Shop-Kennzeichen, Inhaber 06.11.: nur dieser Shop wird gelesen und gezaehlt, Auftraege
-  immer; Rueckstand/Trikots bei HONK "nur JFN"; lib/dashboard.js, Logik utils/dashboard.js, Test dashboard.test.js) - oben "Zu tun" (7 Kacheln, immer
+  immer; Rueckstand/Trikots bei HONK "nur JFN"; lib/dashboard.js, Logik utils/dashboard.js, Test dashboard.test.js) - oben "Zu tun" (8 Kacheln seit KS3, immer
   sichtbar, 0 grau, fehlende Quelle = "–"), "Neu 24 h", "Am längsten wartend", "Eigene Aufträge", "Geld". Wartet lange = > 7
   Kalendertage Berlin (rot > 14), Shop + Aufträge vor "fertig", OHNE jede JFN-Bestellung mit Trikot-Position (Trikot_Artikel wie
   der Sync + Order-ID im Reiter Trikots). Kundenhinweis "gelesen" fuer alle: Reiter `Hinweis_Gelesen` (nur Shop, Nr, Pruefsumme,
@@ -1052,6 +1052,21 @@ Neue Sektionen immer mit Anker versehen:
   Zuruecknehmen: Korb nur offen/abgewaehlt -> abgewaehlt, Grund "Auftrag geändert"; Lager -> Gegenbuchung (korrektur, Storno_von).
   Korb/Lager schuetzen Auftragszeilen: Korb-Bearbeiten gesperrt (`eigenGesperrtGrund`), kein "bei Ankunft ins Lager"
   (`lagerZielPlan`), keine manuelle Gegenbuchung (`planGegenbuchung`, Quelle auftrag). EDI-`reference` = AU-Nr. (Korb-Referenz).
+- backend/lib/bestellUebernahme.js – Bestellseite pruefen + uebernehmen (KS3), Logik `utils/bestell-uebernahme.js`, Routen in
+  routes/bestellseiten.js (hinter API-Key): `POST .../eintraege/pruefen` { zugangId, aktion geprueft|zurueck|ablehnen, auswahl:[{id,stand}],
+  grund } (Ablehnen = Status storniert + `Ablehn_Grund` <= 100, Seite zeigt "abgelehnt: …"), `POST .../eintraege/aendern` (MC: Status bleibt,
+  "geändert von MC", kein Nach_Schluss; aendert die SEITE einen geprüften Eintrag, ist er wieder "eingegangen"), `GET .../:zugangId/termin/
+  :terminId/uebernahme` (nur lesen: anhaengbare AU, Kandidaten "schon bestellt" je Eintrag = Korb-Zeilen 60 Tage gleiche ArticleNr,
+  Positionen anderer AU desselben Kunden, Lager LS:), `POST .../uebernehmen` { zugangId, terminId, auswahl, ziel ''|'neu'|AU, verknuepfen
+  {id: {verweis}|{ohne, notiz}}, vorgang, dryRun }. Ein AU je Termin (Kanal "Bestellseite", Kurztitel ohne Namen, `Zugang_ID`/`Termin_ID`
+  hinten in Auftraege, `Bestell_Termine.Auftrag_Nr` = Liste); Positionen anhaengen bis "bestellt" (AM-3 Bereitstellen), danach Nachtrags-AU.
+  Artikel mit waehlbarer ArticleNr -> lshop (gleiche Variante + Herkunft + Verweis zusammengefasst, Motiv = Produkt · Design), sonst/Extra ->
+  frei; Trikots ueber TR6 (`legeInterneTrikotsAn`, Referenz AU-Nr., Wunsch = Notiz im Rohtext -> TR8), Vorgang aus den Eintrag-IDs (kein
+  Doppel). Verknuepfen: Herkunft vorhanden + `Verweis` (hinten in Auftrag_Positionen) bzw. lager + Ort (gebucht erst AM-3); nie Korb/Lager
+  schreiben. Kürzel/Notiz NIE in den Auftrag kopiert - Anzeige ueber `GET .../auftrag/:nr/eintraege` (Position_ID). Unter Bestellseiten- UND
+  Auftrags-Sperre, ein batchUpdate ueber Auftraege + Positionen + Eintraege + Termine, kein append, zurueckgelesen. MC: Block
+  `Bestellseiten-Pruefen: Anfang/Ende` (Prüf-Ansicht, Uebernahme-Panel, Packliste nur Druck), Dashboard-Kachel `bestellseiten` (8. Kachel,
+  ungeprüfte, Vorlesen zaehlt mit). Tests bestell-uebernahme.test.js.
 - backend/utils/auftrag-preise.js – Preise je Auftrag (AM-5), einzige Rechen-Stelle; Frontend-Spiegel Block `Auftrag-Preise: Anfang/Ende`
   (Test auftrag-preise.test.js vergleicht beide). Eingabe NETTO, Rechnen in Cent, gerundet erst in der Anzeige (`euroText`). Spalten hinten
   optional: `Auftrag_Positionen` Preis_Netto | Aufpreis_Netto | Aufpreis_Ab | USt_Satz (leer = 19) | EK_Hand, `Auftraege` Rabatt ("10%" Text

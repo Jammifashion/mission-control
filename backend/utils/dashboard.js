@@ -131,7 +131,7 @@ const zust = (x, wer) => !wer || t(x.Zustaendig) === wer;
  * @param {Object<string,{offen:object[],neu:object[],woche:object[]}>} p.shops  normalisierte Bestellungen je Shop
  * @param {{auftraege,aufgaben,todos}|null} p.au
  */
-export function baueDashboard({ shops = {}, shop = '', au = null, kunden = new Map(), rueckstand = null, trikots = null, gelesen = new Map(), wer = '', jetzt = new Date(), fehler = {} }) {
+export function baueDashboard({ shops = {}, shop = '', au = null, kunden = new Map(), rueckstand = null, trikots = null, gelesen = new Map(), wer = '', jetzt = new Date(), fehler = {}, bestellseiten = null }) {
   wer = WER.includes(wer) ? wer : '';
   // Inhaber 06.11.: das Dashboard folgt dem Shop-Kennzeichen (JFN oder HONK); ohne Angabe beide (Tests, Auswertung)
   const AKTIV = SHOPS.includes(shop) ? [shop] : SHOPS;
@@ -201,6 +201,8 @@ export function baueDashboard({ shops = {}, shop = '', au = null, kunden = new M
         nichtBeimProduzenten: trikots?.summen?.offen ?? 0, goalie: trikots?.summen?.goalieOffen ?? 0,
         ueber6Wochen: offenShop.filter(b => b.trikot && (alterTage(b.datum, jetzt) ?? 0) > TRIKOT_LANGE_TAGE).length,
       })),
+      // KS3: ungeprüfte Bestellseiten-Eintraege (nur Zahl + Zugang-IDs), unabhaengig vom Shop-Kennzeichen
+      bestellseiten: kachel(['bestellseiten'], () => ({ zahl: bestellseiten?.zahl ?? 0, jeZugang: bestellseiten?.jeZugang ?? [] })),
     },
     neu: fehlt([...SHOPQ, 'auftraege']).length ? { fehlt: fehlt([...SHOPQ, 'auftraege']) } : neu,
     wartend: kachel([...SHOPQ, 'auftraege', ...TRIKOTQ], () => ({ liste: wartend.slice(0, WARTEND_TOP) })),

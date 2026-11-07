@@ -268,10 +268,12 @@
       return `${e.menge} × ${e.bezeichnung}${e.groesse ? ` · ${e.groesse}` : ''}`;
     }
     /** Ein Eintrag der Liste: was, Kuerzel, Zeit, "nach Bestellschluss – ohne Garantie", Status; aendern/stornieren bis "übernommen". */
+    // KS3: Status eingegangen · geprüft · übernommen · abgelehnt (+ Grund, MC); ab "übernommen" nur lesen.
     function bsEintragHtml(e, schreibbar) {
       const offen = schreibbar && !['übernommen', 'storniert'].includes(e.status);
       return `<div class="bs-eintrag${e.status === 'storniert' ? ' storniert' : ''}" data-eintrag="${bsEsc(e.id)}"><div class="bs-eintrag-kopf"><span class="bs-was">${bsEsc(bsEintragWas(e))}</span>`
-        + `<span class="bs-chip">${bsEsc(BS_STATUS[e.status] || e.status)}</span>${e.nachSchluss ? '<span class="bs-chip bs-spaet">nach Bestellschluss – ohne Garantie</span>' : ''}</div>`
+        + `<span class="bs-chip">${bsEsc(e.status === 'storniert' && e.ablehnGrund ? 'abgelehnt' : (BS_STATUS[e.status] || e.status))}</span>${e.nachSchluss ? '<span class="bs-chip bs-spaet">nach Bestellschluss – ohne Garantie</span>' : ''}</div>`
+        + `${e.status === 'storniert' && e.ablehnGrund ? `<span class="bs-klein">abgelehnt: ${bsEsc(e.ablehnGrund)}</span>` : ''}`
         + `${e.art === 'trikot' && e.wunsch ? `<span class="bs-klein">Wunsch: ${bsEsc(e.wunsch)}</span>` : ''}`
         + `${e.notiz ? `<span class="bs-klein">Notiz: ${bsEsc(e.notiz)}</span>` : ''}`
         + `<span class="bs-klein">${bsEsc(e.kuerzel)} · ${bsEsc(bsUhr(e.zeit))}${e.geaendertVon ? ` · geändert von ${bsEsc(e.geaendertVon)}` : ''}</span>`
