@@ -31,6 +31,8 @@ export const EINTRAG_SPALTEN = [
 ];
 // Zwischenspeicher Bilder (Knopf "Artikelliste aktualisieren"): je Produkt bzw. Variation eine Zeile.
 export const BILD_SPALTEN = ['WC_ID', 'Art', 'Bild_URL', 'Status', 'Stand'];
+// KS2: Kategorie-IDs je Produkt (fuer Trikots aus Trikot_Artikel, die nicht in der Maske stehen) - optional hinten.
+export const BILD_OPTIONAL = ['Kategorien'];
 
 export const ZUGANG_TEXT = ['Zugang_ID', 'Kunden_Nr', 'Auftrag_Nr', 'Ablauf', 'Sortiment', 'Angelegt', 'Stand'];
 export const TERMIN_TEXT = ['Termin_ID', 'Zugang_ID', 'Datum', 'Bestellschluss', 'Auftrag_Nr', 'Angelegt', 'Stand'];
@@ -242,6 +244,43 @@ export function bearbeitenPlan({ zugang, eingabe, kategorien, jetzt }) {
   return neu;
 }
 
+// ── KS2: kleine Bilder ───────────────────────────────────────────────────────
+// Die Shop-Bilder kommen ueber das Jetpack-Bild-CDN (i0.wp.com … ?fit=800,1029, gemessen 07.11.). Dort laesst sich die Groesse
+// sicher ueber die Abfrage setzen (fit=120,120: 1-3 KB statt 17-63 KB). Andere Hosts bleiben unveraendert (keine geratenen Dateinamen).
+export const BILD_KLEIN = 120;
+export const BILD_GROSS = 600;
+export function bildGroesse(url, px) {
+  const u = t(url);
+  if (!/^https:\/\//.test(u)) return '';
+  try {
+    const x = new URL(u);
+    if (!/^i[0-3]\.wp\.com$/.test(x.host)) return u;
+    x.search = `?fit=${px}%2C${px}&quality=80&ssl=1`;
+    return x.toString();
+  } catch { return ''; }
+}
+
+/** Kategorie-Nummern des Sortiments inkl. aller Unterkategorien (ueber den Pfad in Struktur_Kategorien). */
+export function sortimentNummern(sortiment, kategorien) {
+  const ids = new Set(t(sortiment).split(',').map(t).filter(Boolean));
+  const wurzeln = (kategorien ?? []).filter(k => ids.has(t(k.nr))).map(k => t(k.pfad));
+  return new Set((kategorien ?? []).filter(k => wurzeln.some(w => t(k.pfad) === w || t(k.pfad).startsWith(`${w} > `))).map(k => t(k.nr)));
+}
+
+/**
+ * Trikots einer Dauer-Bestellseite: aktive Zeilen aus Trikot_Artikel, deren Shop-Kategorien (Bestell_Bilder.Kategorien,
+ * gefuellt mit "Artikelliste aktualisieren") im Sortiment liegen. Groessen wie TR6 (Kinder cm, dann Erwachsene).
+ * @param {{produktId, name, aktiv}[]} o.trikotArtikel
+ * @param {Map<string,{url,status,kategorien}>} o.bilder
+ */
+export function trikotsDauer({ sortiment, kategorien, trikotArtikel, bilder = new Map(), groessen }) {
+  const nummern = sortimentNummern(sortiment, kategorien);
+  return (trikotArtikel ?? [])
+    .filter(x => t(x.produktId) && !['false', 'nein', '0'].includes(t(x.aktiv).toLowerCase()))
+    .filter(x => { const b = bilder.get(t(x.produktId)); return b && (!b.status || b.status === 'publish') && t(b.kategorien).split(',').map(t).some(n => nummern.has(n)); })
+    .map(x => ({ produktId: t(x.produktId), name: t(x.name) || 'Trikot', bild: bildGroesse(bilder.get(t(x.produktId))?.url, BILD_KLEIN), groessen: [...groessen] }));
+}
+
 // ── Katalog: Art dauer (SSOT: Kategorien, Maske, Varianten) ──────────────────
 
 /**
@@ -296,6 +335,9 @@ const groessenSort = (a, b) => {
  */
 export function katalogDauer({ sortiment, kategorien, maske, varianten, lieferbarkeit = new Map(), bilder = new Map() }) {
   const namen = sortimentNamen(sortiment, kategorien);
+  // KS2: Filter nach Unterkategorie = Sortiment-Namen ohne die Wurzel(n) selbst
+  const ids = new Set(t(sortiment).split(',').map(t).filter(Boolean));
+  const wurzelNamen = new Set((kategorien ?? []).filter(k => ids.has(t(k.nr))).map(k => t(k.name)));
   const artikel = (maske ?? []).filter(a => t(a.status) === 'Veröffentlicht' && t(a.produktId)
     && t(a.kategorien).split(',').map(t).some(n => namen.has(n))
     && (!bilder.get(t(a.produktId))?.status || bilder.get(t(a.produktId)).status === 'publish'));
@@ -316,8 +358,9 @@ export function katalogDauer({ sortiment, kategorien, maske, varianten, lieferba
     for (const [k, g] of gruppen) {
       g.groessen.sort(groessenSort);
       const bild = g.groessen.map(x => bilder.get(x.id)?.url).find(Boolean) || bilder.get(t(a.produktId))?.url || '';
+      const gruppen = t(a.kategorien).split(',').map(t).filter(n => namen.has(n) && !wurzelNamen.has(n));
       karten.push(artikelFuerSeite({
-        key: `${t(a.produktId)}|${k}`, name: t(a.name), farbe: g.farbe, design: g.design, bild, groessen: g.groessen,
+        key: `${t(a.produktId)}|${k}`, name: t(a.name), farbe: g.farbe, design: g.design, bild, groessen: g.groessen, gruppen,
       }));
     }
   }
@@ -369,25 +412,40 @@ export function artikelFuerSeite(a) {
   const groessen = (a.groessen ?? []).map(g => ({
     groesse: t(g.groesse), id: t(g.id), articleNr: t(g.articleNr), lieferbar: t(g.lieferbar), nochZuBesorgen: g.nochZuBesorgen === true,
   }));
+  const bild = BILD_OK.test(t(a.bild)) ? t(a.bild) : '';
   return {
     key: t(a.key), name: t(a.name), farbe: t(a.farbe), ...(t(a.design) ? { design: t(a.design) } : {}),
-    ...(t(a.motiv) ? { motiv: t(a.motiv) } : {}), bild: BILD_OK.test(t(a.bild)) ? t(a.bild) : '',
+    ...(t(a.motiv) ? { motiv: t(a.motiv) } : {}),
+    // KS2: kleines Vorschaubild (ca. 60 px angezeigt) und ein groesseres zum Antippen
+    bild: bild ? bildGroesse(bild, BILD_KLEIN) : '', bildGross: bild ? bildGroesse(bild, BILD_GROSS) : '',
+    gruppen: [...new Set((a.gruppen ?? []).map(t).filter(Boolean))],
     groessen, nochZuBesorgen: groessen.some(g => g.nochZuBesorgen),
   };
 }
 
 /** Antwort GET /api/bestellseite/zugang - feste Auswahl, ohne IDs von Kunde/Partner/Auftrag-Interna. */
-export function seitenAntwort({ zugang, termine, artikel, designLink = '', katalogStand = '' }) {
+export function seitenAntwort({ zugang, termine, artikel, trikots = [], designLink = '', katalogStand = '', anzahlJe = new Map(), jetzt }) {
   const tage = zugangTage(zugang);
+  const karten = (artikel ?? []).map(artikelFuerSeite);
+  const zaehl = new Map();
+  for (const a of karten) for (const g of a.gruppen) zaehl.set(g, (zaehl.get(g) ?? 0) + 1);
+  const heute = jetzt ? heuteBerlin(jetzt) : '';
   return {
-    art: zugang.Art, hinweis: t(zugang.Hinweis), ablauf: t(zugang.Ablauf),
+    art: zugang.Art, hinweis: t(zugang.Hinweis), ablauf: t(zugang.Ablauf), heute,
     regel: { bestellschlussTage: tage.bestellschlussTage, empfohlenTage: tage.empfohlenTage },
-    termine: (termine ?? []).map(x => ({ id: t(x.Termin_ID), datum: t(x.Datum), notiz: t(x.Notiz), ...fristen(x.Datum, tage), status: t(x.Status) }))
-      .sort((a, b) => (a.datum || '9').localeCompare(b.datum || '9')),
-    artikel: (artikel ?? []).map(artikelFuerSeite),
+    termine: (termine ?? []).map(x => {
+      const f = fristen(x.Datum, tage);
+      return { id: t(x.Termin_ID), datum: t(x.Datum), notiz: t(x.Notiz), ...f, status: t(x.Status), eintraege: anzahlJe.get(t(x.Termin_ID)) ?? 0,
+        vergangen: !!(heute && t(x.Datum) && t(x.Datum) < heute), nachSchluss: !!(heute && f.bestellschluss && heute > f.bestellschluss) };
+    }).sort((a, b) => (a.datum || '9').localeCompare(b.datum || '9')),
+    artikel: karten,
+    // KS2: Filter nach Unterkategorie (Name, Anzahl Karten), meiste zuerst
+    filter: [...zaehl].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'de')).map(([name, anzahl]) => ({ name, anzahl })),
+    trikots: (trikots ?? []).map(x => ({ produktId: t(x.produktId), name: t(x.name), bild: BILD_OK.test(t(x.bild)) ? t(x.bild) : '', groessen: (x.groessen ?? []).map(t) })),
     ...(designLink && /^https:\/\//.test(designLink) ? { designLink } : {}),
     katalogStand: t(katalogStand),
-    eintragen: false,   // KS2
+    termineAnlegen: zugang.Art === ART.DAUER,
+    eintragen: true,   // KS2
   };
 }
 

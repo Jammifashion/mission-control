@@ -71,7 +71,7 @@ describe('Anlegen, neuer Link, sperren', () => {
     const { sheets } = machSheets(t);
     const { token } = await legeZugangAn({ eingabe: { art: 'dauer', kundenNr: 'K-00063', sortiment: '549', hinweis: 'Abholung im Laden', vorgang: 'vorgang-0003' }, sheets, jetzt: JETZT, kundenLesen: kunden, zufall });
     const s1 = await leseSeite({ token, sheets, jetzt: JETZT });
-    expect(s1).toMatchObject({ art: 'dauer', hinweis: 'Abholung im Laden', ablauf: '2027-06-30', termine: [], eintragen: false });
+    expect(s1).toMatchObject({ art: 'dauer', hinweis: 'Abholung im Laden', ablauf: '2027-06-30', termine: [], eintragen: true });   // KS2
     expect(s1.artikel.map(a => a.name)).toEqual(['Hoodie Club']);   // nur veroeffentlicht
     expect(s1.artikel[0].groessen.map(g => [g.groesse, g.nochZuBesorgen])).toEqual([['M', false], ['L', true]]);
     expect(JSON.stringify(s1)).not.toMatch(/49,95|49\.95|preis/i);
@@ -119,7 +119,7 @@ describe('Artikelliste aktualisieren (Bilder)', () => {
     const r = await aktualisiereBilder({ sheets, wc: { get }, jetzt: JETZT, takt: 0 });
     expect(r).toMatchObject({ ok: true, produkte: 1, zeilen: 3, mitBild: 2, abrufe: 2 });
     expect(get.mock.calls.map(c => c[0])).toEqual(['products', 'products/11/variations']);
-    expect(get.mock.calls[0][1]).toMatchObject({ include: '11', _fields: 'id,status,images' });
+    expect(get.mock.calls[0][1]).toMatchObject({ include: '11', _fields: 'id,status,images,categories' });   // KS2: Kategorien
     expect(get.mock.calls[1][1]).toMatchObject({ _fields: 'id,image' });
     expect(t.Bestell_Bilder.slice(1).map(z => z.slice(0, 4))).toEqual([
       ['11', 'produkt', 'https://shop.example/p11.jpg', 'publish'], ['101', 'variante', 'https://shop.example/v101.jpg', ''], ['102', 'variante', '', '']]);
@@ -159,6 +159,6 @@ describe('Router /api/bestellseite', () => {
     for (let i = 0; i < FEHLVERSUCHE_MAX; i++) expect((await rufe(a, { Authorization: `Bearer ${'U'.repeat(43)}` })).status).toBe(401);
     const gesperrt = await rufe(a, { Authorization: `Bearer ${'U'.repeat(43)}` });
     expect(gesperrt.status).toBe(429);
-    expect(gesperrt.body.code).toBe('bremse');
+    expect(gesperrt.body.code).toBe('token_bremse');   // KS2: gemeinsamer Baustein middleware/tokenBremse.js
   });
 });

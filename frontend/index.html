@@ -302,6 +302,12 @@
       .bsm-breit { flex: 1 1 16rem; min-width: 0; }
       #bsm-dialog .edi-feld > .form-select, #bsm-dialog .edi-feld > .form-input { flex: none; }   /* .korb-reihe gibt Feldern eine Basis - in der Spalte waere das die Hoehe */
       .bsm-zugang .korb-reihe { flex-wrap: wrap; }
+      .bsm-eintraege { display: flex; flex-direction: column; gap: 0.3rem; border-top: 1px solid var(--border); padding-top: 0.4rem; }   /* KS2 */
+      .bsm-eintrag { display: flex; flex-wrap: wrap; gap: 0.2rem 0.5rem; align-items: baseline; font-size: 0.86rem; min-width: 0; overflow-wrap: anywhere; }
+      .bsm-was { font-weight: 600; }
+      .bsm-storniert .bsm-was { text-decoration: line-through; color: var(--muted); }
+      .bsm-neu { border-color: var(--info); color: var(--info); }
+      .bsm-spaet { border-color: var(--warning); color: var(--warning); }
       @media (max-width: 600px) {   /* ueber die id, sonst gewinnt die spaetere Regel .edi-dialog */
         #au-nachsehen { padding: 0; }
         #au-nachsehen .edi-box { width: 100%; min-height: 100%; border-radius: 0; border: 0; }
@@ -3726,7 +3732,7 @@
               <button type="button" class="korb-link" id="bsm-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
             </div>
             <div id="hilfe-bsm-dialog" class="hilfe-legende" hidden></div>
-            <div class="korb-zaehler">Kunden sehen auf der Seite Artikel, Farben, Größen und Lieferbarkeit – nie Preise. Eintragen kommt mit der nächsten Stufe.</div>
+            <div class="korb-zaehler">Kunden sehen auf der Seite Artikel, Farben, Größen und Lieferbarkeit – nie Preise – und tragen dort je Termin ein. Prüfen und Übernehmen kommt mit der nächsten Stufe.</div>
             <div id="bsm-fehler" class="lager-warnung" hidden></div>
             <div id="bsm-inhalt"></div>
           </div>
@@ -6920,6 +6926,10 @@
         'bsm-sortiment':        { name: 'Sortiment', text: 'Shop-Kategorie mit allen Unterkategorien. Gezeigt werden nur veröffentlichte Artikel.' },
         'bsm-partner':          { name: 'Gehört zu Partner', text: 'Nur ein Merkmal (z. B. FP-001). Die Partner-Abrechnung liest die Bestellseite nie.' },
         'bsm-bilder':           { name: 'Artikelliste aktualisieren', text: 'Holt die Bilder der Dauer-Sortimente aus dem Shop, 1 Abruf je 2 s. Die Kundenseite fragt den Shop nie selbst.' },
+        'bsm-eintraege':        { name: 'Einträge ansehen', text: 'Zeigt, was über diesen Link eingetragen wurde – nur lesen. Prüfen und Übernehmen kommt später.' },
+        'bsm-termin-filter':    { name: 'Termin', text: 'Zeigt nur die Einträge eines Termins (z. B. eines Spieltags).' },
+        'bsm-neu':              { name: 'neu', text: 'In den letzten 24 Stunden eingetragen.' },
+        'bsm-spaet':            { name: 'nach Schluss', text: 'Nach dem Bestellschluss eingetragen oder geändert – ohne Garantie bis zum Termin.' },
         'bsm-bilder-stand':     { name: 'Stand Artikelliste', text: 'Wann die Bilder zuletzt geholt wurden. Neue Artikel brauchen ein „Artikelliste aktualisieren“ für ihr Bild.' },
         'au-wie-letztes':       { name: 'Wie letztes Mal', text: 'Neuer Auftrag mit Kunde, Positionen, Mengen und Preisen von hier. Termin, Notiz und Rabatt bleiben leer.' },
         'au-vorlage-von':       { name: 'Vorlage', text: 'Dieser Auftrag wurde nach diesem Auftrag angelegt. Klick öffnet ihn.' },
@@ -6968,7 +6978,8 @@
           'ku-hist', 'ku-hist-neu', 'ku-hist-frei-neu', 'ku-mit-storniert', 'ku-wie-letztes',
           'au-letzte', 'au-letzte-alle', 'au-ns-schliessen', 'au-ns-vorlage', 'au-ek-von', 'au-bestellseite', 'ku-dauer-bestellseite'],   // AM-6, AM-6-1, KS1
         bestellseiten: ['bsm-status', 'bsm-oeffnen', 'bsm-link', 'bsm-kopieren', 'bsm-anlegen', 'bsm-speichern', 'bsm-neuer-link', 'bsm-sperren', 'bsm-entsperren',
-          'bsm-ablauf', 'bsm-hinweis', 'bsm-design', 'bsm-sortiment', 'bsm-partner', 'bsm-bilder', 'bsm-bilder-stand'],   // KS1
+          'bsm-ablauf', 'bsm-hinweis', 'bsm-design', 'bsm-sortiment', 'bsm-partner', 'bsm-bilder', 'bsm-bilder-stand',
+          'bsm-eintraege', 'bsm-termin-filter', 'bsm-neu', 'bsm-spaet'],   // KS1, KS2
         lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
@@ -12809,10 +12820,31 @@
         return `<ul class="bsm-termine">${t.map(x => `<li><strong>${kuEsc(bsmDatum(x.Datum))}</strong>${x.Notiz ? ` · ${kuEsc(x.Notiz)}` : ''}`
           + `${x.Bestellschluss ? ` · Bestellschluss ${kuEsc(bsmDatum(x.Bestellschluss))}` : ''}${x.Auftrag_Nr ? ` · ${kuEsc(x.Auftrag_Nr)}` : ''}</li>`).join('')}</ul>`;
       }
+      // KS2: Eintraege eines Zugangs nur ansehen (Pruefen/Uebernehmen kommt mit KS3). Rueckennamen nur hier in der Oberflaeche.
+      const BSM_ART = { artikel: 'Artikel', extra: 'Extra', trikot: 'Trikot' };
+      function bsmEintragWas(e) {
+        if (e.art === 'extra') return `${e.menge} × ${e.freitext}${e.fuer ? ` (für ${e.fuer})` : ''}`;
+        if (e.art === 'trikot') return `Trikot ${e.bezeichnung} · ${e.groesse}${e.trikotName ? ` · ${e.trikotName}` : ''}${e.trikotNummer ? ` · ${e.trikotNummer}` : ''}${e.wunsch ? ` · Wunsch: ${e.wunsch}` : ''}`;
+        return `${e.menge} × ${e.bezeichnung}${e.groesse ? ` · ${e.groesse}` : ''}`;
+      }
+      /** Eintraege je Termin (Filter: Termin_ID oder ''), "neu seit gestern" = in den letzten 24 h, "nach Schluss" orange. */
+      function bsmEintraegeHtml(eintraege, termine, filter, jetzt = Date.now()) {
+        const liste = (eintraege ?? []).filter(e => !filter || e.termin === filter);
+        const tJe = new Map((termine ?? []).map(x => [x.Termin_ID, x]));
+        const opt = `<option value="">alle Termine (${(eintraege ?? []).length})</option>` + (termine ?? []).map(x => `<option value="${kuEsc(x.Termin_ID)}"${x.Termin_ID === filter ? ' selected' : ''}>${kuEsc(bsmDatum(x.Datum))}${x.Notiz ? ` · ${kuEsc(x.Notiz)}` : ''} (${(eintraege ?? []).filter(e => e.termin === x.Termin_ID).length})</option>`).join('');
+        const neu = e => (jetzt - new Date(e.zeit).getTime()) < 24 * 3600 * 1000;
+        const zeilen = liste.map(e => `<div class="bsm-eintrag${e.status === 'storniert' ? ' bsm-storniert' : ''}"><span class="bsm-was">${kuEsc(bsmEintragWas(e))}</span>`
+          + `<span class="ku-chip">${kuEsc(BSM_ART[e.art] ?? e.art)}</span><span class="ku-chip">${kuEsc(e.status)}</span>`
+          + (neu(e) ? '<span class="ku-chip bsm-neu" data-hilfe="bsm-neu" tabindex="0">neu</span>' : '')
+          + (e.nachSchluss ? '<span class="ku-chip bsm-spaet" data-hilfe="bsm-spaet" tabindex="0">nach Schluss</span>' : '')
+          + `<span class="korb-zaehler">${kuEsc(bsmDatum(tJe.get(e.termin)?.Datum) || e.termin)} · ${kuEsc(e.kuerzel)} · ${kuEsc(new Date(e.zeit).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }))}${e.geaendertVon ? ` · geändert von ${kuEsc(e.geaendertVon)}` : ''}</span></div>`).join('');
+        return `<div class="korb-reihe"><label class="edi-feld" data-hilfe="bsm-termin-filter">Termin<select class="form-select" data-bsm-filter>${opt}</select></label></div>`
+          + (zeilen || '<p class="korb-zaehler">Noch keine Einträge.</p>');
+      }
       // ── Bestellseiten-MC: Ende ──
 
       const bsmEl = id => document.getElementById(id);
-      const bsmZ = { daten: null, laedt: false, fuer: null, offen: null, link: '', vorgang: '', kategorien: null };
+      const bsmZ = { daten: null, laedt: false, fuer: null, offen: null, link: '', vorgang: '', kategorien: null, eintraege: {}, filter: {} };   // KS2: eintraege je Zugang
 
       async function bsmApi(pfad, body) {
         const res = await apiFetch(`${API_BASE()}/api/bestellseiten${pfad}`, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
@@ -12856,7 +12888,7 @@
         }
         bsmDialogZeichnen();
       }
-      function bsmDialogSchliessen() { bsmEl('bsm-dialog').hidden = true; bsmZ.link = ''; bsmZ.fuer = null; }
+      function bsmDialogSchliessen() { bsmEl('bsm-dialog').hidden = true; bsmZ.link = ''; bsmZ.fuer = null; bsmZ.eintraege = {}; }   // KS2: Eintraege nicht aufheben
       function bsmAktueller() {
         const f = bsmZ.fuer; if (!f) return [];
         if (f.zugangId) return (bsmZ.daten?.zugaenge ?? []).filter(z => z.Zugang_ID === f.zugangId);
@@ -12878,10 +12910,13 @@
           + `<div class="korb-reihe"><label class="edi-feld" data-hilfe="bsm-ablauf">Gültig bis<input type="date" class="form-input" data-bsm-ablauf value="${kuEsc(z.Ablauf)}"></label>`
           + `<label class="edi-feld bsm-breit" data-hilfe="bsm-hinweis">Hinweis auf der Seite (ohne Namen)<input type="text" class="form-input" maxlength="200" data-bsm-hinweis value="${kuEsc(z.Hinweis)}"></label></div>`
           + `<div class="korb-reihe ku-knoepfe"><button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-speichern data-hilfe="bsm-speichern">Speichern</button>`
+          + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-eintraege data-hilfe="bsm-eintraege">Einträge ansehen</button>`   // KS2
           + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-neuer-link data-hilfe="bsm-neuer-link">neuer Link …</button>`
           + (z.status === 'gesperrt' ? `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-entsperren data-hilfe="bsm-entsperren">wieder freigeben</button>`
             : `<button type="button" class="korb-aktion korb-aktion-ruhig ku-gefahr" data-bsm-sperren data-hilfe="bsm-sperren">sperren …</button>`)
-          + '</div></div>').join('');
+          + '</div>'
+          + (bsmZ.eintraege[z.Zugang_ID] ? `<div class="bsm-eintraege">${bsmEintraegeHtml(bsmZ.eintraege[z.Zugang_ID], z.termine, bsmZ.filter[z.Zugang_ID] ?? '')}</div>` : '')   // KS2
+          + '</div>').join('');
         const neuNoetig = !f.zugangId && !bsmHatOffenen(liste);
         const kats = (bsmZ.kategorien ?? []).filter(k => !String(k.pfad).includes(' > '));
         const neu = !neuNoetig ? '' : `<div class="au-gruppe"><div><strong>Neue ${art === 'dauer' ? 'Dauer-Bestellseite' : 'Bestellseite für diesen Auftrag'}</strong></div>`
@@ -12941,6 +12976,12 @@
         const box = b.closest('[data-bsm-zugang]'); if (!box) return;
         const z = (bsmZ.daten?.zugaenge ?? []).find(x => x.Zugang_ID === box.dataset.bsmZugang); if (!z) return;
         bsmFehler('');
+        if (b.hasAttribute('data-bsm-eintraege')) {   // KS2: nur ansehen
+          b.disabled = true;
+          try { bsmZ.eintraege[z.Zugang_ID] = (await bsmApi(`/${encodeURIComponent(z.Zugang_ID)}/eintraege`)).eintraege ?? []; bsmDialogZeichnen(); }
+          catch (err) { bsmFehler(err.message); } finally { b.disabled = false; }
+          return;
+        }
         if (b.hasAttribute('data-bsm-speichern')) {
           const felder = { ablauf: box.querySelector('[data-bsm-ablauf]').value, hinweis: box.querySelector('[data-bsm-hinweis]').value };
           const d = box.querySelector('[data-bsm-design]'); if (d) felder.designLinkZeigen = d.checked;
@@ -12952,6 +12993,11 @@
       });
       globalThis.bsmLaden = bsmLaden;   // fuer den mc:ansicht-Wechsel (steht weiter oben)
       bsmEl('bsm-dialog').addEventListener('keydown', e => { if (e.key === 'Escape') bsmDialogSchliessen(); });
+      bsmEl('bsm-dialog').addEventListener('change', e => {   // KS2: Filter je Termin
+        const sel = e.target.closest('[data-bsm-filter]'); if (!sel) return;
+        const id = sel.closest('[data-bsm-zugang]')?.dataset.bsmZugang; if (!id) return;
+        bsmZ.filter[id] = sel.value; bsmDialogZeichnen();
+      });
       bsmEl('bsm-liste').addEventListener('click', e => {
         const b = e.target.closest('[data-bsm-oeffnen]'); if (!b) return;
         const z = (bsmZ.daten?.zugaenge ?? []).find(x => x.Zugang_ID === b.dataset.bsmOeffnen);

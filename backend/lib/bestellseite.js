@@ -20,24 +20,27 @@ import { seitenGrenze, seitenListe } from './hosterPruefseite.js';
 import { zeilenAus, aktivePositionen } from '../utils/auftraege.js';
 import {
   TAB_ZUGAENGE, TAB_TERMINE, TAB_EINTRAEGE, TAB_BILDER, ZUGANG_SPALTEN, ZUGANG_OPTIONAL, ZUGANG_ALLE, TERMIN_SPALTEN, BILD_SPALTEN,
-  ART, STATUS, fehler, erzeugeToken, tokenHash, findeZugang, zugangStatus, anlagePlan, bearbeitenPlan, katalogDauer, katalogAuftrag,
-  seitenAntwort, zugangFuerMc, sortimentNamen,
+  BILD_OPTIONAL, EINTRAG_SPALTEN, ART, STATUS, fehler, erzeugeToken, tokenHash, findeZugang, zugangStatus, anlagePlan, bearbeitenPlan,
+  katalogDauer, katalogAuftrag, seitenAntwort, zugangFuerMc, sortimentNamen, trikotsDauer,
 } from '../utils/bestellseite.js';
+import { EINTRAG_OPTIONAL, OFFEN } from '../utils/bestell-eintraege.js';
+import { GROESSEN_KINDER, GROESSEN_ERWACHSENE } from '../utils/trikot-intern.js';
 
 const t = v => String(v ?? '').trim();
 const KATALOG_MS = 5 * 60 * 1000;
 export const TAKT_MS = 2000;
-let katalogCache = new Map();   // Zugang_ID|Stand -> { zeit, daten }
+let katalogCache = new Map();   // Zugang_ID|Stand|Bilder-Stand -> { zeit, daten }  (KS2: Bilder-Stand im Schluessel)
 export function _bestellseiteCacheLeeren() { katalogCache = new Map(); }
 
 let laeuft = false;
-async function mitSperre(fn) {
+/** Eine Sperre je Instanz fuer alle Schreiber der Bestellseite (MC und Seite). */
+export async function mitSperre(fn) {
   if (laeuft) throw fehler('Bestellseiten werden gerade gespeichert – gleich noch einmal.', 409, 'laeuft_gerade');
   laeuft = true;
   try { return await fn(); } finally { laeuft = false; katalogCache = new Map(); }
 }
-async function sheetsClient() { return google.sheets({ version: 'v4', auth: await getGoogleAuth() }); }
-function sheetId() {
+export async function sheetsClient() { return google.sheets({ version: 'v4', auth: await getGoogleAuth() }); }
+export function sheetId() {
   const id = process.env.GOOGLE_SHEET_ID;
   if (!id) throw fehler('GOOGLE_SHEET_ID fehlt.', 503);
   return id;
@@ -45,6 +48,7 @@ function sheetId() {
 const istFehlenderReiter = err => err?.code === 400 || err?.response?.status === 400;
 
 /** Zugaenge + Termine frisch lesen. Fehlen Reiter/Spalten -> 409 einrichtung. */
+export async function liesZugaengeTermine(sheets, spreadsheetId) { return lies(sheets, spreadsheetId); }
 async function lies(sheets, spreadsheetId) {
   let data;
   try {
@@ -64,14 +68,29 @@ async function lies(sheets, spreadsheetId) {
   return { wz, wt, z, tr };
 }
 
-const alsZeile = (idx, obj, breite) => {
+/** Objekt -> Zeile in Spaltenfolge des Reiters (jede bekannte Spalte, die das Objekt traegt). */
+export const alsZeile = (idx, obj, breite) => {
   const z = Array.from({ length: breite }, () => '');
-  for (const s of ZUGANG_ALLE.concat(TERMIN_SPALTEN)) if (idx[s] !== undefined && obj[s] !== undefined) z[idx[s]] = obj[s];
+  for (const [s, i] of Object.entries(idx)) if (obj[s] !== undefined) z[i] = obj[s];
   return z;
 };
 
+/** KS2: Bestell_Eintraege lesen (fehlt der Reiter -> null). */
+export async function liesEintraege(sheets, spreadsheetId) {
+  try {
+    const { data } = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${TAB_EINTRAEGE}'`, valueRenderOption: 'UNFORMATTED_VALUE' });
+    const werte = data.values ?? [];
+    const r = zeilenAus(werte, EINTRAG_SPALTEN, 'Eintrag_ID', EINTRAG_OPTIONAL);
+    if (!werte.length || r.fehlt.length) return null;
+    return { werte, ...r };
+  } catch (err) {
+    if (istFehlenderReiter(err)) return null;
+    throw err;
+  }
+}
+
 /** Neue Zeilen in mehreren Reitern in EINEM batchUpdate, danach zurueckgelesen. */
-async function schreibeBloecke(sheets, spreadsheetId, bloecke) {
+export async function schreibeBloecke(sheets, spreadsheetId, bloecke) {
   const data = [], strecken = [];
   for (const b of bloecke.filter(x => x.zeilen.length)) {
     const s = await pruefeZielStrecke(sheets, spreadsheetId, b.tab, b.alt, b.zeilen);
@@ -105,9 +124,9 @@ const leseVarianten = sheets => leseReiterSpalten({
 export async function leseBilder(sheets, spreadsheetId) {
   try {
     const { data } = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${TAB_BILDER}'`, valueRenderOption: 'UNFORMATTED_VALUE' });
-    const r = zeilenAus(data.values ?? [], BILD_SPALTEN, 'WC_ID');
+    const r = zeilenAus(data.values ?? [], BILD_SPALTEN, 'WC_ID', BILD_OPTIONAL);
     if (r.fehlt.length) return { je: new Map(), stand: '' };
-    const je = new Map(r.zeilen.map(x => [x.WC_ID, { url: x.Bild_URL, status: x.Status }]));
+    const je = new Map(r.zeilen.map(x => [x.WC_ID, { url: x.Bild_URL, status: x.Status, kategorien: x.Kategorien }]));
     const stand = r.zeilen.map(x => x.Stand).filter(Boolean).sort().at(-1) ?? '';
     return { je, stand, werte: data.values ?? [] };
   } catch (err) {
@@ -118,15 +137,31 @@ export async function leseBilder(sheets, spreadsheetId) {
 
 // ── Katalog je Zugang ────────────────────────────────────────────────────────
 
-async function katalogFuer(sheets, spreadsheetId, zugang) {
-  const k = `${zugang.Zugang_ID}|${zugang.Stand}`;
+/** Trikots aus Trikot_Artikel (Business-Sheet), nur gelesen; fehlt der Reiter -> keine. */
+async function leseTrikotArtikel(sheets) {
+  const id = process.env.BUSINESS_SHEET_ID;
+  if (!id) return [];
+  try {
+    return await leseReiterSpalten({ tab: 'Trikot_Artikel', spalten: { produktId: 'Produkt-ID' }, optional: { name: 'Produktname', aktiv: 'Aktiv' }, sheets, spreadsheetId: id });
+  } catch { return []; }
+}
+
+/** Katalog eines Zugangs (5 min je Zugang + Stand + Bilder-Stand). KS2: exportiert fuer die Pruefung beim Absenden. */
+export async function katalogFuer(sheets, spreadsheetId, zugang) {
+  // KS2: der Stand der Bilder gehoert in den Schluessel - sonst zeigt eine Instanz nach "Artikelliste aktualisieren"
+  // bis zu 5 min den alten Katalog ohne Bilder (Befund Inhaber 07.11.: alle Karten "ohne Bild").
+  const bilder = zugang.Art === ART.DAUER ? await leseBilder(sheets, spreadsheetId) : { je: new Map(), stand: '' };
+  const k = `${zugang.Zugang_ID}|${zugang.Stand}|${bilder.stand}`;
   const c = katalogCache.get(k);
   if (c && Date.now() - c.zeit < KATALOG_MS) return c.daten;
   const lb = await leseLieferbarkeit({ sheets, spreadsheetId });
   let daten;
   if (zugang.Art === ART.DAUER) {
-    const [kategorien, maske, varianten, bilder] = [await leseKategorien(sheets), await leseMaske(sheets), await leseVarianten(sheets), await leseBilder(sheets, spreadsheetId)];
-    daten = { artikel: katalogDauer({ sortiment: zugang.Sortiment, kategorien, maske, varianten, lieferbarkeit: lb.je, bilder: bilder.je }), stand: bilder.stand };
+    const [kategorien, maske, varianten, trikotArtikel] = [await leseKategorien(sheets), await leseMaske(sheets), await leseVarianten(sheets), await leseTrikotArtikel(sheets)];
+    daten = {
+      artikel: katalogDauer({ sortiment: zugang.Sortiment, kategorien, maske, varianten, lieferbarkeit: lb.je, bilder: bilder.je }), stand: bilder.stand,
+      trikots: trikotsDauer({ sortiment: zugang.Sortiment, kategorien, trikotArtikel, bilder: bilder.je, groessen: [...GROESSEN_KINDER, ...GROESSEN_ERWACHSENE] }),
+    };
   } else {
     const { a, p } = await liesAuftraege(sheets, spreadsheetId);
     const auftrag = a.zeilen.find(x => x.Auftrag_Nr === zugang.Auftrag_Nr);
@@ -134,7 +169,7 @@ async function katalogFuer(sheets, spreadsheetId, zugang) {
     const pos = aktivePositionen(p.zeilen, auftrag.Auftrag_Nr);
     const { info } = await lshopInfo(sheets, spreadsheetId, nummernAus(pos));
     const groessenJe = await groessenJeGruppe(sheets, spreadsheetId, pos, info, lb.je);
-    daten = { artikel: katalogAuftrag({ auftrag, positionen: pos, info, groessenJe }), stand: '', auftrag };
+    daten = { artikel: katalogAuftrag({ auftrag, positionen: pos, info, groessenJe }), stand: '', auftrag, trikots: [] };   // Auftrag: keine Trikots (Positionen kennen keine)
   }
   katalogCache.set(k, { zeit: Date.now(), daten });
   return daten;
@@ -159,26 +194,44 @@ async function groessenJeGruppe(sheets, spreadsheetId, positionen, info, lieferb
 
 // ── Oeffentlich: GET /api/bestellseite/zugang ────────────────────────────────
 
-/** Token pruefen und die Seite liefern. Unbekannt 401, gesperrt/abgelaufen 403 (freundlicher Text). */
-export async function leseSeite({ token, sheets: s, jetzt = () => new Date() } = {}) {
-  const sheets = s ?? await sheetsClient();
-  const spreadsheetId = sheetId();
-  let daten;
-  try { daten = await lies(sheets, spreadsheetId); } catch (err) {
+/**
+ * Token pruefen (gemeinsam fuer Lesen und Schreiben der Seite). Unbekannt 401, gesperrt/abgelaufen 403 (freundlicher Text).
+ * @returns {{ zugang, daten }}  daten = gelesene Reiter Bestellseiten/Bestell_Termine
+ */
+export function pruefeZugang(daten, token, jetzt) {
+  const zugang = findeZugang(daten.z.zeilen, token);
+  if (!zugang) throw fehler('Bestellseite nicht gefunden.', 401, 'unbekannt');
+  const st = zugangStatus(zugang, jetzt);
+  if (st === STATUS.GESPERRT) throw fehler('Diese Bestellseite ist gesperrt. Bitte bei JammiFashion melden.', 403, 'gesperrt');
+  if (st === STATUS.ABGELAUFEN) throw fehler('Dieser Link ist abgelaufen. Bitte bei JammiFashion einen neuen anfordern.', 403, 'abgelaufen');
+  return zugang;
+}
+export async function liesFuerToken(sheets, spreadsheetId) {
+  try { return await lies(sheets, spreadsheetId); } catch (err) {
     if (err.code === 'einrichtung') throw fehler('Bestellseite nicht gefunden.', 401, 'unbekannt');
     throw err;
   }
-  const zugang = findeZugang(daten.z.zeilen, token);
-  if (!zugang) throw fehler('Bestellseite nicht gefunden.', 401, 'unbekannt');
-  const st = zugangStatus(zugang, jetzt());
-  if (st === STATUS.GESPERRT) throw fehler('Diese Bestellseite ist gesperrt. Bitte bei JammiFashion melden.', 403, 'gesperrt');
-  if (st === STATUS.ABGELAUFEN) throw fehler('Dieser Link ist abgelaufen. Bitte bei JammiFashion einen neuen anfordern.', 403, 'abgelaufen');
+}
+/** Termine eines Zugangs; Art auftrag: das Datum fuehrt der Auftrag (Termin), die Termin-Zeile traegt die ID. */
+export function termineDesZugangs(daten, zugang, k) {
+  const termine = daten.tr.zeilen.filter(x => x.Zugang_ID === zugang.Zugang_ID);
+  if (zugang.Art !== ART.AUFTRAG || !k?.auftrag) return termine;
+  return termine.map(x => ({ ...x, Datum: /^\d{4}-\d{2}-\d{2}$/.test(t(k.auftrag.Termin)) ? t(k.auftrag.Termin) : x.Datum }));
+}
+
+export async function leseSeite({ token, sheets: s, jetzt = () => new Date() } = {}) {
+  const sheets = s ?? await sheetsClient();
+  const spreadsheetId = sheetId();
+  const daten = await liesFuerToken(sheets, spreadsheetId);
+  const zugang = pruefeZugang(daten, token, jetzt());
   const k = await katalogFuer(sheets, spreadsheetId, zugang);
-  let termine = daten.tr.zeilen.filter(x => x.Zugang_ID === zugang.Zugang_ID);
-  // Art auftrag: das Datum fuehrt der Auftrag (Termin), die Termin-Zeile traegt die ID.
-  if (zugang.Art === ART.AUFTRAG && k.auftrag) termine = termine.map(x => ({ ...x, Datum: /^\d{4}-\d{2}-\d{2}$/.test(t(k.auftrag.Termin)) ? t(k.auftrag.Termin) : x.Datum }));
+  const termine = termineDesZugangs(daten, zugang, k);
+  // KS2: Zahl der Eintraege je Termin (ohne stornierte)
+  const e = await liesEintraege(sheets, spreadsheetId);
+  const anzahlJe = new Map();
+  for (const x of e?.zeilen ?? []) if (x.Zugang_ID === zugang.Zugang_ID && t(x.Status) !== 'storniert') anzahlJe.set(x.Termin_ID, (anzahlJe.get(x.Termin_ID) ?? 0) + 1);
   const designLink = zugang.Art === ART.AUFTRAG && t(zugang.Design_Link_Zeigen) === 'ja' ? t(k.auftrag?.Design_Link) : '';
-  return seitenAntwort({ zugang, termine, artikel: k.artikel, designLink, katalogStand: k.stand });
+  return seitenAntwort({ zugang, termine, artikel: k.artikel, trikots: k.trikots, designLink, katalogStand: k.stand, anzahlJe, jetzt: jetzt() });
 }
 
 // ── MC: Liste, Anlegen, Bearbeiten, neuer Link ───────────────────────────────
@@ -290,15 +343,18 @@ export async function aktualisiereBilder({ sheets: s, wc: wcTest, jetzt = () => 
     const namen = new Set(sortimente.flatMap(so => [...sortimentNamen(so, kategorien)]));
     const ids = [...new Set(maske.filter(a => t(a.produktId) && /^\d+$/.test(t(a.produktId)) && t(a.status) === 'Veröffentlicht'
       && t(a.kategorien).split(',').map(t).some(n => namen.has(n))).map(a => t(a.produktId)))];
+    // KS2: Trikots (Trikot_Artikel) stehen nicht in der Maske - ihr Hauptbild + Kategorien kommen mit (Auswahl je Sortiment)
+    const trikotIds = sortimente.length ? (await leseTrikotArtikel(sheets)).map(x => t(x.produktId)).filter(x => /^\d+$/.test(x) && !ids.includes(x)) : [];
+    const produktIds = [...ids, ...trikotIds];
     const wc = wcTest ?? getWcClient('jfn');
     const zeilen = [];
     const stand = jetzt().toISOString();
     let abrufe = 0;
     const hole = async (pfad, params) => { if (abrufe++) await warte(takt); return (await wc.get(pfad, params)).data; };
-    for (let i = 0; i < ids.length; i += 100) {
-      const teil = ids.slice(i, i + 100);
-      const liste = seitenListe(await hole('products', { include: teil.join(','), per_page: 100, _fields: 'id,status,images' }), { wc, pfad: 'products' });
-      for (const p of liste) zeilen.push([String(p.id), 'produkt', https(p.images?.[0]?.src), String(p.status ?? ''), stand]);
+    for (let i = 0; i < produktIds.length; i += 100) {
+      const teil = produktIds.slice(i, i + 100);
+      const liste = seitenListe(await hole('products', { include: teil.join(','), per_page: 100, _fields: 'id,status,images,categories' }), { wc, pfad: 'products' });
+      for (const p of liste) zeilen.push([String(p.id), 'produkt', https(p.images?.[0]?.src), String(p.status ?? ''), stand, (p.categories ?? []).map(c => c.id).join(',')]);
     }
     for (const id of ids) {
       for (let page = 1; ; page++) {
@@ -308,7 +364,7 @@ export async function aktualisiereBilder({ sheets: s, wc: wcTest, jetzt = () => 
         if (liste.length < 100) break;
       }
     }
-    const ergebnis = { produkte: ids.length, zeilen: zeilen.length, mitBild: zeilen.filter(r => r[2]).length, abrufe };
+    const ergebnis = { produkte: ids.length, trikots: trikotIds.length, zeilen: zeilen.length, mitBild: zeilen.filter(r => r[2]).length, abrufe };
     if (dryRun) return { ok: true, dryRun: true, ...ergebnis };
     // Stand vom Anfang noch gueltig?
     const jetztWerte = (await leseBilder(sheets, spreadsheetId)).werte ?? [];
@@ -318,7 +374,8 @@ export async function aktualisiereBilder({ sheets: s, wc: wcTest, jetzt = () => 
     const kopf = vorher.werte[0];
     const idx = Object.fromEntries(kopf.map((k, j) => [t(k), j]));
     const breite = kopf.length;
-    const voll = zeilen.map(r => { const x = Array.from({ length: breite }, () => ''); BILD_SPALTEN.forEach((n, j) => { x[idx[n]] = r[j]; }); return x; });
+    const spalten = [...BILD_SPALTEN, ...BILD_OPTIONAL];   // Kategorien nur, wenn die Spalte da ist (Setup)
+    const voll = zeilen.map(r => { const x = Array.from({ length: breite }, () => ''); spalten.forEach((n, j) => { if (idx[n] !== undefined) x[idx[n]] = r[j] ?? ''; }); return x; });
     const leer = Math.max(0, vorher.werte.length - 1 - voll.length);
     const werte = [...voll, ...Array.from({ length: leer }, () => Array.from({ length: breite }, () => ''))];
     const ende = 1 + werte.length;

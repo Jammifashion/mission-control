@@ -2,6 +2,7 @@
 // Der Token-Klartext steht nur in der Antwort von /neu und /neuer-link (einmal, fuer den Kopieren-Knopf), nie im Log.
 import { Router } from 'express';
 import { leseZugaenge, legeZugangAn, bearbeiteZugang, neuerLink, aktualisiereBilder, leseKategorien } from '../lib/bestellseite.js';
+import { leseEintraegeMc } from '../lib/bestellEintraege.js';   // KS2: nur ansehen
 
 const router = Router();
 
@@ -16,6 +17,8 @@ const mitMeldung = fn => async (req, res, next) => {
 router.get('/', mitMeldung(() => leseZugaenge()));
 // GET /api/bestellseiten/kategorien - Auswahl fuer das Sortiment (Nummer, Pfad).
 router.get('/kategorien', mitMeldung(async () => ({ kategorien: (await leseKategorien()).map(k => ({ nr: k.nr, pfad: k.pfad })) })));
+// GET /api/bestellseiten/:zugangId/eintraege - KS2: Eintraege des Zugangs nur ansehen (Rueckennamen nur in der Oberflaeche).
+router.get('/:zugangId/eintraege', mitMeldung(req => leseEintraegeMc({ zugangId: req.params.zugangId })));
 // POST /api/bestellseiten/neu { art, auftragNr | kundenNr, sortiment, ablauf, hinweis, partnerId, designLinkZeigen, vorgang }
 router.post('/neu', mitMeldung(req => legeZugangAn({ eingabe: req.body ?? {} })));
 // POST /api/bestellseiten/bearbeiten { zugangId, stand, aktiv?, ablauf?, hinweis?, sortiment?, designLinkZeigen?, bestellschlussTage?, empfohlenTage? }

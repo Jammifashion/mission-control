@@ -52,7 +52,8 @@ describe('bestellen.html: Sicherheit und Farben', () => {
     expect(seite).toContain('<meta name="referrer" content="no-referrer">');
     expect(seite).toContain('<meta name="robots" content="noindex, nofollow">');
     expect(seite).toContain('Authorization: `Bearer ${BS_TOKEN}`');
-    expect(seite).toMatch(/fetch\(`\$\{API_BASE\}\/api\/bestellseite\/zugang`/);
+    expect(seite).toContain('fetch(`${API_BASE}/api/bestellseite/${pfad}`');   // KS2: ein Weg fuer Lesen und Schreiben
+    expect(seite).toContain("api('zugang')");
     expect(seite).not.toMatch(/zugang\?|token=\$\{/);
     expect(seite).not.toMatch(/console\.(log|info|warn|error)/);
   });
@@ -68,18 +69,18 @@ describe('bestellen.html: Sicherheit und Farben', () => {
     expect(seite).toContain('data-theme-knopf="light"');
     expect(seite).toContain('Rückennamen werden nur für den Druck genutzt und nach 12 Monaten gelöscht');
   });
-  test('Anzeige: Artikel mit Groessen, "noch zu besorgen", Eintragen ausgegraut', () => {
+  test('Anzeige (KS2): Termine, kompakte Artikelzeile, "noch zu besorgen", kein "Eintragen kommt bald" mehr', () => {
     const block = ab(seite, '// ── Bestellseite-Anzeige: Anfang', '// ── Bestellseite-Anzeige: Ende ──');
-    const F = new Function(`${block}\nreturn { bsSeiteHtml, bsFehlerText };`)();
-    const h = F.bsSeiteHtml({ art: 'dauer', hinweis: 'Abholung <b>', ablauf: '2027-06-30', regel: { bestellschlussTage: 4, empfohlenTage: 7 },
-      termine: [{ id: 'BT-0001', datum: '2026-11-21', notiz: 'Gegner X', bestellschluss: '2026-11-17', empfohlen: '2026-11-14' }],
-      artikel: [{ name: 'Hoodie', farbe: 'Black', bild: 'https://x.example/a.jpg', groessen: [{ groesse: 'M', lieferbar: 'lieferbar' }, { groesse: 'L', nochZuBesorgen: true }] }] });
-    expect(h).toContain('Abholung &lt;b&gt;');
+    const F = new Function(`${block}\nreturn { bsTermineHtml, bsArtikelZeileHtml, bsFehlerText };`)();
+    const h = F.bsTermineHtml({ termineAnlegen: true, termine: [{ id: 'BT-0001', datum: '2026-11-21', notiz: 'Gegner <b>', bestellschluss: '2026-11-17', empfohlen: '2026-11-14', eintraege: 3 }] }, 'BT-0001');
+    expect(h).toContain('Gegner &lt;b&gt;');
     expect(h).toContain('Sa 21.11.2026');
     expect(h).toContain('Bestellschluss 17.11.2026 · am besten bis 14.11.2026');
-    expect(h).toContain('noch zu besorgen');
-    expect(h).toMatch(/<button type="button" class="btn" disabled[^>]*>Eintragen<\/button>/);
-    expect(h).toContain('referrerpolicy="no-referrer"');
+    expect(h).toContain('3 Einträge');
+    const z = F.bsArtikelZeileHtml({ name: 'Hoodie', farbe: 'Black', bild: 'https://x.example/a.jpg', groessen: [{ id: '1', groesse: 'M', lieferbar: 'lieferbar' }, { id: '2', groesse: 'L', nochZuBesorgen: true }] }, 0, false, true);
+    expect(z).toContain('noch zu besorgen');
+    expect(z).toContain('referrerpolicy="no-referrer"');
+    expect(seite).not.toContain('Eintragen kommt bald');
     expect(F.bsFehlerText(403, { error: 'Dieser Link ist abgelaufen.' })).toBe('Dieser Link ist abgelaufen.');
   });
 });

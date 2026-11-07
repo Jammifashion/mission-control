@@ -5,7 +5,8 @@
 //   node backend/scripts/setup-bestellseiten-reiter.js --write   legt die fehlenden Reiter an
 //
 // Idempotent: Einen vorhandenen Reiter fasst das Skript nicht an; fehlende Pflichtspalten werden nur gemeldet, fehlende
-// optionale Spalten (Bestellseiten: Design_Link_Zeigen, Vorgang) mit --write hinten an die Kopfzeile gehaengt. Nur Kopfzeilen,
+// optionale Spalten (Bestellseiten: Design_Link_Zeigen, Vorgang; KS2: Bestell_Eintraege Groesse … Geaendert_Von, Bestell_Bilder
+// Kategorien) mit --write hinten an die Kopfzeile gehaengt. Nur Kopfzeilen,
 // keine Daten. Kopfzeile RAW, fett, fixiert; Textformat fuer Nummern-/Datumsspalten NACH dem Schreiben der Kopfzeile (Befund LS2).
 // Danach zurueckgelesen.
 
@@ -17,16 +18,18 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import {
   TAB_ZUGAENGE, TAB_TERMINE, TAB_EINTRAEGE, TAB_BILDER, ZUGANG_SPALTEN, ZUGANG_OPTIONAL, TERMIN_SPALTEN, EINTRAG_SPALTEN, BILD_SPALTEN,
-  ZUGANG_TEXT, TERMIN_TEXT, EINTRAG_TEXT, BILD_TEXT,
+  ZUGANG_TEXT, TERMIN_TEXT, EINTRAG_TEXT, BILD_TEXT, BILD_OPTIONAL,
 } from '../utils/bestellseite.js';
+import { EINTRAG_OPTIONAL } from '../utils/bestell-eintraege.js';
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID;
 const WRITE = process.argv.includes('--write');
 export const REITER = [
   { tab: TAB_ZUGAENGE, spalten: [...ZUGANG_SPALTEN, ...ZUGANG_OPTIONAL], pflicht: ZUGANG_SPALTEN, text: ZUGANG_TEXT, optional: ZUGANG_OPTIONAL },
   { tab: TAB_TERMINE, spalten: TERMIN_SPALTEN, pflicht: TERMIN_SPALTEN, text: TERMIN_TEXT },
-  { tab: TAB_EINTRAEGE, spalten: EINTRAG_SPALTEN, pflicht: EINTRAG_SPALTEN, text: EINTRAG_TEXT },
-  { tab: TAB_BILDER, spalten: BILD_SPALTEN, pflicht: BILD_SPALTEN, text: BILD_TEXT },
+  // KS2: hinten Groesse, Bezeichnung, Trikot_Produkt, Vorgang, Geaendert_Von (Eintraege) und Kategorien (Bilder)
+  { tab: TAB_EINTRAEGE, spalten: [...EINTRAG_SPALTEN, ...EINTRAG_OPTIONAL], pflicht: EINTRAG_SPALTEN, text: EINTRAG_TEXT, optional: EINTRAG_OPTIONAL },
+  { tab: TAB_BILDER, spalten: [...BILD_SPALTEN, ...BILD_OPTIONAL], pflicht: BILD_SPALTEN, text: BILD_TEXT, optional: BILD_OPTIONAL },
 ];
 
 const spalte = i => { let s = '', n = i + 1; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };

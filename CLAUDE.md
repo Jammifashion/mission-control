@@ -1083,7 +1083,23 @@ Neue Sektionen immer mit Anker versehen:
   EINEM values.update, vorher/nachher gelesen). Verwaltung `routes/bestellseiten.js` (`/api/bestellseiten`, hinter requireApiKey: GET /,
   /kategorien, POST /neu, /bearbeiten, /neuer-link, /bilder). KS-Dateien nennen nie die Reiter der Partner-Abrechnung (Quelltext-Test).
   Seite `frontend/bestellen.html` (GitHub Pages): Token im #-Teil, sofort `history.replaceState`, danach nur `sessionStorage` (`bs_token`),
-  `no-referrer`, noindex, Hell/Dunkel (`bs_theme`), Bloecke `Bestellseite-Token` und `Bestellseite-Anzeige`; Eintragen kommt mit KS2.
+  `no-referrer`, noindex, Hell/Dunkel (`bs_theme`), Bloecke `Bestellseite-Token` und `Bestellseite-Anzeige`.
+  KS2 (07.11.) Eintragen: `lib/bestellEintraege.js`, Logik `utils/bestell-eintraege.js`. Oeffentlich (Bearer, Bremse = `baueTokenBremse()` aus
+  middleware/tokenBremse.js mit eigenem Zaehler): `GET /eintraege?termin=`, `POST /termin` { datum, notiz } (nur Art dauer, Datum >= heute,
+  gleiches Datum = vorhandener Termin), `POST /absenden` { termin, kuerzel, vorgang, positionen } (artikel {id,menge} | extra {freitext,menge,fuer} |
+  trikot {produktId,groesse,name,nummer,wunsch}; 1-60 je Absenden, Menge 1-999, <= 500 offene je Termin; nur Groessen/Trikots aus dem Katalog des
+  Zugangs; gleiche Vorgang-Kennung = schon gespeichert), `POST /aendern` / `/stornieren` { eintrag, stand, kuerzel, … } (jedes Kürzel bis
+  "übernommen", Stand wie gesehen sonst 409, Groesse nur innerhalb derselben Karte, Vermerk `Geaendert_Von`, nie loeschen). Vergangener Termin =
+  nur lesen; nach Bestellschluss erlaubt, `Nach_Schluss` = ja. Schreibt NUR Bestell_Termine/Bestell_Eintraege (gemeinsame `mitSperre`, kein
+  append, zurueckgelesen). Chat nach jedem Absenden (`absendenNachricht`): nur Zugang, Anzahl, Termin-Datum - nie Kürzel/Namen/Texte.
+  Bestell_Eintraege hinten `Groesse`, `Bezeichnung`, `Trikot_Produkt`, `Vorgang`, `Geaendert_Von` (EINTRAG_OPTIONAL), Bestell_Bilder hinten
+  `Kategorien` (Setup). Katalog: Cache-Schluessel enthaelt den Bilder-Stand (Befund "ohne Bild" 07.11.); Bilder ueber das Jetpack-CDN klein
+  (`bildGroesse`: fit=120 bzw. 600, nur Host i0-i3.wp.com), je Karte `gruppen` (Unterkategorie, ohne Wurzel) und Antwort `filter`; Trikots aus
+  Trikot_Artikel, wenn ihre Shop-Kategorien (Bestell_Bilder.Kategorien, "Artikelliste aktualisieren" holt sie mit) im Sortiment liegen;
+  Groessen wie TR6. Seite: Termin waehlen/"+ Termin", Kürzel (sessionStorage `bs_kuerzel`), Reiter Artikel (kompakte Zeilen, 60-px-Bild,
+  antippen = Mengen-Raster) · Extra · Trikot, Sammelkorb + "Absenden", Liste je Termin mit ändern/stornieren; "nach Bestellschluss – ohne
+  Garantie" orange. MC: im Dialog je Zugang "Einträge ansehen" (`GET /api/bestellseiten/:zugangId/eintraege`, nur lesen, Filter je Termin,
+  `bsmEintraegeHtml`). Test bestell-eintraege.test.js.
 - backend/lib/wpMedien.js – Upload in die WordPress-Mediathek (`ladeMedienHoch`, `setzeMedienText`),
   eine Stelle fuer `POST /api/artikel/media-upload` und das Halloween-Skript (fetchMitZeitlimit +
   pruefeFetchAntwort; Titel/ALT als Abfrageparameter).

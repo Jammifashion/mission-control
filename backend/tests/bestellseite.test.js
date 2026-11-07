@@ -180,8 +180,9 @@ describe('Keine Preise in der Antwort (erfundene Daten MIT Preisen)', () => {
     expect(text).not.toContain('FP-001');
     expect(text).not.toContain('AU-2026-0001');
     expect(text).not.toContain('a'.repeat(64));
-    expect(antwort.termine[0]).toEqual({ id: 'BT-0001', datum: '2026-11-21', notiz: 'Gegner X', bestellschluss: '2026-11-17', empfohlen: '2026-11-14', status: 'offen' });
-    expect(antwort.eintragen).toBe(false);
+    expect(antwort.termine[0]).toEqual({ id: 'BT-0001', datum: '2026-11-21', notiz: 'Gegner X', bestellschluss: '2026-11-17', empfohlen: '2026-11-14', status: 'offen',
+      eintraege: 0, vergangen: false, nachSchluss: false });   // KS2
+    expect(antwort.eintragen).toBe(true);   // KS2
   });
   test('Bild nur https', () => {
     expect(artikelFuerSeite({ bild: 'javascript:alert(1)' }).bild).toBe('');
