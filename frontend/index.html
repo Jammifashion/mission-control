@@ -2763,7 +2763,7 @@
         <div class="card" id="existing-variants-block" style="display:none;margin-bottom:1rem;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
             <div class="form-section-title" style="margin:0;">Bestehende Varianten</div>
-            <button id="ev-bulk-delete-btn" class="btn-secondary" style="display:none;color:var(--danger);border-color:var(--danger);font-size:0.82rem;padding:0.35rem 0.75rem;" data-hilfe="varianten-loeschen">0 löschen</button>
+            <button id="ev-bulk-delete-btn" class="btn-secondary" style="display:none;color:var(--danger);border-color:var(--danger);font-size:0.82rem;padding:0.35rem 0.75rem;" data-hilfe="varianten-loeschen">0 privat stellen</button>
           </div>
           <div style="overflow-x:auto;">
             <table class="ev-table">
@@ -6539,7 +6539,9 @@
         'aid-anlegen':           { name: 'Artikel-ID anlegen', text: 'Legt für diesen Entwurf eine Zeile mit der nächsten Artikel-ID in der Erfassungsmaske an. Nie doppelt.' },
         'hauptbild-upload':      { name: 'Hochladen (Hauptbild)', text: 'Lädt das gewählte Bild in die Mediathek des Shops und nimmt es als Hauptbild.' },
         'versand-neu-laden':     { name: 'Neu laden', text: 'Liest die Versandklassen erneut aus dem Shop.' },
-        'varianten-loeschen':    { name: 'Varianten löschen', text: 'Löscht die angehakten Variationen ENDGÜLTIG im Shop (kein Papierkorb). Fragt vorher.' },
+        'varianten-loeschen':    { name: 'Varianten privat stellen', text: 'Stellt die angehakten Variationen im Shop privat: unsichtbar, nicht kaufbar, NICHT gelöscht. Fragt vorher.' },
+        'variante-privat':       { name: 'Variante privat stellen', text: 'Stellt diese Variation im Shop privat (unsichtbar, nicht kaufbar, nicht gelöscht). Die übrigen Varianten bleiben, wie sie sind.' },
+        'variante-ist-privat':   { name: 'Variante ist privat', text: 'Diese Variation ist im Shop privat: unsichtbar und nicht kaufbar. Wieder sichtbar machen nur im Shop-Backend.' },
         'eigenschaft-neu':       { name: 'Eigenschaft hinzufügen', text: 'Fügt eine weitere Achse hinzu, z. B. Motiv. Gespeichert wird erst beim Speichern des Artikels.' },
         'varianten-neu':         { name: 'Neue Varianten anlegen', text: 'Legt die angehakten, noch fehlenden Variationen im Shop an. Vorhandene Kombinationen werden übersprungen.' },
         'variantenbild-upload':  { name: 'Hochladen (Variantenbild)', text: 'Lädt das Bild in die Mediathek und ordnet es dem gewählten Wert zu.' },
@@ -7041,7 +7043,7 @@
         'navigation': ['shop-badge', 'shop-wahl', 'nav-bereich', 'nav-ansicht', 'nav-unterreiter', 'trikot-sync'],
         'dialog': ['dialog-abbrechen', 'dialog-schliessen', 'dialog-bestaetigen', 'dialog-speichern', 'liste-bearbeiten', 'zeile-speichern'],
         'auftragsmonitor': ['wc-erledigt', 'tab-offen', 'tab-protokoll', 'mon-fulfillment', 'dtf-sammel', 'dtf-bestellt', 'lshop-alt-sammel', 'lshop-alt-bestellt', 'korb-aeltere'],
-        'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
+        'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
         'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
         'partner': ['fp-artikel-pruefen', 'fp-ohne-festpreis', 'fp-ohne-zeigen', 'fp-sperre', 'fp-sperre-artikel', 'fp-nachrechnen', 'pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'link-vor-lk1', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
         'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'fp-preis-loeschen'],
@@ -13681,7 +13683,10 @@
       let kurzbezManuallyEdited = false; // verhindert Auto-Sync nach manuellem Laden
       let draftList = [];                // gecachte Entwurfsliste
       let currentDraftRow = null;        // Sheet-Zeilennummer des geladenen Entwurfs
-      let existingVariations = [];       // [{ id, attrs:[{name,value}], price, _origPrice, imageId, imageUrl, _origImageId }]
+      let existingVariations = [];       // [{ id, status, attrs:[{name,value,id}], price, _origPrice, imageId, imageUrl, _origImageId }]
+      // VB1: ids der GLOBALEN Eltern-Attribute (pa_farbe, pa_groesse …) aus dem Shop. Ohne id liest
+      // WooCommerce ein Attribut als lokal, ersetzt das globale, und alle Variationen stehen auf "Beliebig".
+      let wcAttrIdsGeladen = new Map();
       let selectedVariationIds = new Set();
       let editMode = false;              // false = Neu anlegen, true = Artikel ändern
       let seoMode  = false;              // SEO Daten Modus
@@ -13736,6 +13741,9 @@
           v.attrs.map(a => `${a.name}=${a.value}`).join('|'),
           {
             price: v.price, _autoFilled: v._autoFilled ?? false, _checked: v._checked ?? true,
+            // VB1: die Shop-Variation bleibt an ihrer Kombination (frueher ging die ID hier
+            // verloren - Aendern schickte alle Variationen als neu).
+            wcVariationId: v.wcVariationId ?? null,
             imageId: v.imageId ?? null, imageUrl: v.imageUrl ?? null, _imageManual: v._imageManual ?? false,
           },
         ]));
@@ -13756,6 +13764,7 @@
             imageId:      existing?.imageId      ?? null,
             imageUrl:     existing?.imageUrl     ?? null,
             _imageManual: existing?._imageManual ?? false,
+            ...(existing?.wcVariationId ? { wcVariationId: existing.wcVariationId } : {}),
           };
         });
         // Neu entstandene (und weiterhin nicht-manuelle) Kombinationen automatisch
@@ -17371,6 +17380,32 @@
           .map(a => `${a.name}=${a.value}`).join('|');
       }
 
+      // ── Variantenbaum: Anfang ──
+      // VB1: Werte, die beim Speichern aus der Auswahl fallen (je Achse), lesbar "Größe 4XL".
+      // Quelle: sichtbare Shop-Variationen vs. angehakte Formular-Varianten. Gleiche Regel wie
+      // entfalleneWerte in backend/utils/variantenbaum.js (Test variantenbaum.test.js).
+      function vbWerteWeg(shopVariationen, aktiv) {
+        const n = s => String(s ?? '').trim().toLowerCase();
+        const bleibt = new Map();
+        (aktiv || []).forEach(v => (v.attrs || []).forEach(a => {
+          if (!bleibt.has(n(a.name))) bleibt.set(n(a.name), new Set());
+          bleibt.get(n(a.name)).add(n(a.value));
+        }));
+        const weg = [];
+        (shopVariationen || []).forEach(v => (v.attrs || []).forEach(a => {
+          const b = bleibt.get(n(a.name));
+          if (!b || !n(a.value) || b.has(n(a.value))) return;
+          const t = `${a.name} ${a.value}`;
+          if (!weg.includes(t)) weg.push(t);
+        }));
+        return weg;
+      }
+      // VB1: Variation privat stellen (nie loeschen).
+      function vbPrivatStellen(produktId, varId) {
+        return apiFetch(`${API_BASE()}/api/woocommerce/products/${produktId}/variations/${varId}/privat`, { method: 'POST' });
+      }
+      // ── Variantenbaum: Ende ──
+
       function renderExistingVariations() {
         const block   = document.getElementById('existing-variants-block');
         const thead   = document.getElementById('ev-thead');
@@ -17399,7 +17434,7 @@
         function syncBulkBtn() {
           const n = selectedVariationIds.size;
           bulkBtn.style.display = n ? '' : 'none';
-          bulkBtn.textContent = `${n} Variante${n !== 1 ? 'n' : ''} löschen`;
+          bulkBtn.textContent = `${n} Variante${n !== 1 ? 'n' : ''} privat stellen`;
         }
 
         // thead mit Master-Checkbox
@@ -17536,19 +17571,25 @@
 
           const delTd = document.createElement('td');
           const delBtn = document.createElement('button');
-          delBtn.textContent = '🗑️';
+          // VB1: privat statt loeschen (umkehrbar; endgueltig loescht nur der Inhaber).
+          delBtn.textContent = v.status === 'private' ? '🔒' : '🚫';
           delBtn.className = 'ev-del-btn';
+          delBtn.dataset.hilfe = 'variante-privat';
+          if (v.status === 'private') { delBtn.dataset.hilfe = 'variante-ist-privat'; delBtn.setAttribute('aria-disabled', 'true'); }
           delBtn.addEventListener('click', async () => {
+            if (v.status === 'private') return;
             const label = v.attrs.map(a => `${a.name}: ${a.value}`).join(' / ');
-            const ok = await showConfirm('Variante löschen',
-              `Variante <strong>${label}</strong> wirklich löschen?`, 'Löschen');
+            const ok = await showConfirm('Variante privat stellen',
+              `Variante <strong>${label}</strong> privat stellen? Sie ist danach im Shop unsichtbar und nicht kaufbar, wird aber nicht gelöscht.`, 'Privat stellen');
             if (!ok) return;
             try {
-              const r = await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations/${v.id}`, { method: 'DELETE' });
-              if (!r.ok) throw new Error('Löschen fehlgeschlagen');
-              existingVariations = existingVariations.filter(x => x.id !== v.id);
-              renderExistingVariations();
-              showToast('Variante gelöscht', 'success');
+              const r = await vbPrivatStellen(wcEditProductId, v.id);
+              const d = await r.json().catch(() => ({}));
+              if (!r.ok) throw new Error(d.error || 'Privat stellen fehlgeschlagen');
+              v.status = 'private';
+              variants.forEach(x => { if (x.wcVariationId === v.id) x._checked = false; });
+              renderExistingVariations(); renderVariants();
+              showToast('Variante privat gestellt (nicht gelöscht)', 'success');
             } catch (e) { showToast(`Fehler: ${e.message}`, 'error'); }
           });
           delTd.appendChild(delBtn);
@@ -17564,8 +17605,8 @@
         const ids = [...selectedVariationIds];
         if (!ids.length) return;
         const n = ids.length;
-        const ok = await showConfirm('Varianten löschen',
-          `${n} Variante${n !== 1 ? 'n' : ''} wirklich löschen?`, 'Löschen');
+        const ok = await showConfirm('Varianten privat stellen',
+          `${n} Variante${n !== 1 ? 'n' : ''} privat stellen? Unsichtbar und nicht kaufbar, nicht gelöscht.`, 'Privat stellen');
         if (!ok) return;
         const bulkBtn = document.getElementById('ev-bulk-delete-btn');
         bulkBtn.disabled = true;
@@ -17573,16 +17614,20 @@
         let gestoppt = null;
         for (const id of ids) {
           try {
-            const r = await apiFetch(`${API_BASE()}/api/woocommerce/products/${wcEditProductId}/variations/${id}`, { method: 'DELETE' });
+            const r = await vbPrivatStellen(wcEditProductId, id);
             const stopp = await laufStopp(r);
             if (stopp) { gestoppt = stopp; break; }   // nicht mit der naechsten weiter
-            if (r.ok) { existingVariations = existingVariations.filter(x => x.id !== id); deleted++; }
+            if (r.ok) {
+              const e = existingVariations.find(x => x.id === id); if (e) e.status = 'private';
+              variants.forEach(x => { if (x.wcVariationId === id) x._checked = false; });
+              deleted++;
+            }
           } catch { /* weiter */ }
         }
         bulkBtn.disabled = false;
-        renderExistingVariations();
-        if (gestoppt) showToast(`${gestoppt} ${deleted} von ${n} sicher gelöscht.`, 'error', 15000);
-        else showToast(`${deleted} Variante${deleted !== 1 ? 'n' : ''} gelöscht`, deleted ? 'success' : 'error');
+        renderExistingVariations(); renderVariants();
+        if (gestoppt) showToast(`${gestoppt} ${deleted} von ${n} sicher privat gestellt.`, 'error', 15000);
+        else showToast(`${deleted} Variante${deleted !== 1 ? 'n' : ''} privat gestellt (nicht gelöscht)`, deleted ? 'success' : 'error');
       });
 
       // ── Neue Varianten anlegen (Ändern-Modus) ───────────────────────────
@@ -17636,7 +17681,8 @@
         const vData = await vRes.json();
         existingVariations = vData.map(v => ({
           id:            v.id,
-          attrs:         (v.attributes || []).map(a => ({ name: a.name, value: a.option })),
+          status:        v.status || 'publish',
+          attrs:         (v.attributes || []).map(a => ({ name: a.name, value: a.option, ...(a.id ? { id: a.id } : {}) })),
           price:         v.regular_price || '',
           _origPrice:    v.regular_price || '',
           imageId:       v.image?.id  ?? null,
@@ -17772,10 +17818,14 @@
           lieferzeitGeladen = lzWertAusMeta(p.meta_data);
           populateLieferzeit();
 
+          // VB1: ids der globalen Attribute merken - Speichern schickt sie mit.
+          wcAttrIdsGeladen = new Map((p.attributes || []).filter(a => a.id).map(a => [a.name, a.id]));
+
           // Bestehende Varianten für Tabelle + Vergleich speichern
           existingVariations = (Array.isArray(vars) ? vars : []).map(v => ({
             id:            v.id,
-            attrs:         (v.attributes || []).map(a => ({ name: a.name, value: a.option })),
+            status:        v.status || 'publish',
+            attrs:         (v.attributes || []).map(a => ({ name: a.name, value: a.option, ...(a.id ? { id: a.id } : {}) })),
             price:         v.regular_price || '',
             _origPrice:    v.regular_price || '',
             imageId:       v.image?.id  ?? null,
@@ -17790,6 +17840,8 @@
             price:         v.price,
             _autoFilled:   false,
             wcVariationId: v.id,
+            // VB1: private Variation = abgewaehlt (wird nicht gesendet, bleibt privat).
+            _checked:      v.status !== 'private',
           }));
 
           const propMap = {};
@@ -17915,9 +17967,12 @@
           showToast(achsenText, 'info', 12000);
         }
 
+        // VB1: globale Attribute IMMER mit id (sonst ersetzt WooCommerce sie durch lokale und
+        // jede Variation steht auf "Beliebig"). Das Backend ergaenzt fehlende ids zusaetzlich.
+        const attrIdVon = name => wcAttrIdsGeladen.get(name);
         const wcVariations = activeVariants.map((v, i) => ({
           id:            v.wcVariationId || undefined,
-          attributes:    v.attrs.map(a => ({ name: a.name, option: a.value })),
+          attributes:    v.attrs.map(a => ({ ...(attrIdVon(a.name) ? { id: attrIdVon(a.name) } : {}), name: a.name, option: a.value })),
           regular_price: String(v.price),
           ...(varSkusUpd.skus ? { sku: varSkusUpd.skus[i] } : {}),
           ...(v.imageId ? { image: { id: v.imageId } } : {}),
@@ -17942,6 +17997,26 @@
           hochgeladen:     hochgeladeneBilder,
         });
 
+        // VB1: abgewaehlte Shop-Variationen und Werte, die aus den Optionen fallen -> privat.
+        // Vorher sagen, was passiert (nie still, nie loeschen).
+        const privatNeu = variants
+          .filter(v => v._checked === false && v.wcVariationId)
+          .map(v => v.wcVariationId)
+          .filter(id => existingVariations.find(e => e.id === id)?.status !== 'private');
+        const wertWeg = vbWerteWeg(existingVariations.filter(e => e.status !== 'private'), activeVariants);
+        if (privatNeu.length || wertWeg.length) {
+          const weiter = await showConfirm('Varianten werden privat',
+            (privatNeu.length ? `${privatNeu.length} abgewählte Variante${privatNeu.length !== 1 ? 'n werden' : ' wird'} im Shop <strong>privat</strong> gestellt (unsichtbar, nicht kaufbar, nicht gelöscht).<br>` : '')
+            + (wertWeg.length ? `Entfällt aus der Auswahl: <strong>${wertWeg.join(', ')}</strong> – alle Varianten damit werden beim Speichern automatisch privat.<br>` : '')
+            + '<br>Alle übrigen Varianten behalten Farbe und Größe.', 'Speichern');
+          if (!weiter) {
+            pushStatus.textContent = 'Abgebrochen – nichts gespeichert.';
+            pushStatus.style.color = 'var(--muted)';
+            btnUpdateWc.disabled = false;
+            return;
+          }
+        }
+
         // Lieferzeit nur schicken, wenn der Nutzer die Auswahl geaendert hat.
         const lieferzeitNeu = lzZuSenden(lieferzeitGeladen, document.getElementById('pf-lieferzeit').value);
 
@@ -17959,8 +18034,10 @@
               ...(statusNeu !== undefined ? { status: statusNeu } : {}),
               categories:        [...selectedCats.keys()].map(id => ({ id: Number(id) })),
               attributes:        Object.entries(attrMap).map(([name, vals]) => ({
-                name, options: [...vals], variation: true, visible: true,
+                ...(attrIdVon(name) ? { id: attrIdVon(name) } : {}), name, options: [...vals], variation: true, visible: true,
               })),
+              // VB1: abgewaehlte Shop-Variationen werden privat (nie geloescht).
+              ...(privatNeu.length ? { privat: privatNeu } : {}),
               shipping_class: document.getElementById('pf-shipping').value,
               ...(lieferzeitNeu !== undefined ? { lieferzeit: lieferzeitNeu } : {}),
               variations:     wcVariations,
@@ -17985,6 +18062,14 @@
           if (galerieUpd) {
             showToast(`Galerie: ${data.galerie ?? galerieUpd.length} Bilder`, 'info', 6000);
             wcGalerieGeladen = galerieUpd;
+          }
+          // VB1: privat gestellte Variationen im Formular nachziehen und melden.
+          if (Array.isArray(data.privat_gesetzt) && data.privat_gesetzt.length) {
+            const ids = new Set(data.privat_gesetzt.map(String));
+            existingVariations.forEach(e => { if (ids.has(String(e.id))) e.status = 'private'; });
+            variants.forEach(v => { if (ids.has(String(v.wcVariationId))) v._checked = false; });
+            renderExistingVariations(); renderVariants();
+            showToast(`${ids.size} Variante${ids.size !== 1 ? 'n' : ''} privat gestellt (nicht gelöscht).`, 'info', 10000);
           }
           // Nicht einsortierbare Groesse: kommt nur vom Backend, darum hier melden.
           if (data.groessen_hinweis) showToast(data.groessen_hinweis, 'info', 12000);

@@ -900,6 +900,13 @@ Neue Sektionen immer mit Anker versehen:
   sie, 409 `einrichtung` vor jedem Schreiben.
 - backend/lib/sheet-zeilen.js – Zeilen ohne `values.append` schreiben (`schreibeNeueZeilen`, `ersetzeZeile`), gemeinsam
   fuer anlageHalloween.js (FM2) und lshopModelle.js (LS4).
+- backend/utils/variantenbaum.js – Variantenbaum im Aenderungspfad (VB1, 08.11.): `PUT /products/:id` liest VOR dem Schreiben
+  Artikel (+ Variationen, wenn Attribute/`privat` mitkommen) und ergaenzt fehlende ids globaler Attribute (Name ohne id = lokal ->
+  WooCommerce ersetzt pa_farbe/pa_groesse, alle Variationen "Beliebig"; Befund BY052). Werte, die aus den Optionen fallen -> deren
+  Variationen PRIVAT im selben Batch (`privat_gesetzt`), Vorblendung mit entfallenem Wert faellt weg; Body `privat` [ids] = abgewaehlte
+  Variationen (fremde -> 422); Shop-Stand nicht lesbar -> 502 `shop_stand`, nichts geschrieben. MC loescht keine Variationen mehr:
+  Knopf = `POST .../variations/:varId/privat` (DELETE-Route entfernt). Maske: `wcAttrIdsGeladen`, `recomputeVariants` behaelt
+  `wcVariationId`, Block `Variantenbaum: Anfang/Ende` (Test variantenbaum.test.js mit WC-Attrappe). Reparatur `scripts/reparatur-vb1.js`.
 - backend/lib/wc-variation-ids.js – WC_Variation_ID zurueckschreiben (VR2), eine Quelle; Frontend-Spiegel
   Block `WC-IDs: Anfang/Ende` (Test vergleicht beide). Zuordnung neue WC-Variation -> Varianten-Zeile NUR
   ueber die Attributkombination (VR1-Schluessel + ae/oe/ue), nie ueber die Position. Nur LEERE IDs fuellen;

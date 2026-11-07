@@ -12,6 +12,8 @@ import { sortiereAttributOptionen, variantenReihenfolge } from '../lib/groessen.
 import { merkeKeyphrase } from '../lib/seo-artikel.js';
 import { wcAttributePaare, leseAlleVariationen, sperreDoppelte, sperreHinweis } from '../lib/wc-variation-ids.js';
 import { letzteTageBerlin, wochentagKurz } from '../utils/berlin-tag.js';
+import { attributeMitIds, variationsAttributeMitIds, entfalleneWerte, variationenMitEntfallenemWert,
+  defaultsBereinigt, privatAusBody } from '../utils/variantenbaum.js';
 
 const router = Router();
 
@@ -228,12 +230,22 @@ router.put('/products/:id/variations/:varId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// DELETE /api/woocommerce/products/:id/variations/:varId
-router.delete('/products/:id/variations/:varId', async (req, res, next) => {
+// POST /api/woocommerce/products/:id/variations/:varId/privat
+// VB1: MC loescht keine Variationen (kein Papierkorb, nicht umkehrbar). Der Knopf in
+// "Artikel ändern" stellt sie PRIVAT (unsichtbar, nicht kaufbar, umkehrbar); endgueltig
+// loescht nur der Inhaber. Die frueher hier stehende DELETE-Route (force: true) ist entfernt.
+router.post('/products/:id/variations/:varId/privat', async (req, res, next) => {
   try {
     const wc = getClient(req);
-    await wc.delete(`products/${req.params.id}/variations/${req.params.varId}`, { force: true });
-    res.json({ deleted: true });
+    const { data: raw } = await wc.get(`products/${req.params.id}/variations/${req.params.varId}`);
+    const v = Array.isArray(raw) ? raw[0] : raw;
+    if (!v?.id || (v.parent_id !== undefined && String(v.parent_id) !== String(req.params.id)))
+      return res.status(404).json({ error: `Variation ${req.params.varId} gehört nicht zu Artikel ${req.params.id}.` });
+    if (v.status === 'private') return res.json({ id: v.id, status: 'private', schon: true });
+    const { data: neu } = await wc.put(`products/${req.params.id}/variations/${req.params.varId}`, { status: 'private' });
+    const n = Array.isArray(neu) ? neu[0] : neu;
+    if (n?.status !== 'private') return res.status(502).json({ error: `WooCommerce meldet Status "${n?.status ?? '?'}" statt privat.` });
+    res.json({ id: n.id, status: n.status });
   } catch (err) { next(err); }
 });
 
@@ -602,6 +614,51 @@ router.put('/products/:id', async (req, res, next) => {
       groessenHinweis    = g.hinweis;
     }
 
+    // VB1: Variantenbaum schuetzen. Vor dem Schreiben Shop-Artikel + Variationen lesen:
+    //  - globale Attribute behalten ihre id (Name allein = lokal -> Variationen "Beliebig"),
+    //  - Werte, die aus den Optionen fallen -> deren Variationen PRIVAT (nie loeschen),
+    //  - Body `privat` (ausdruecklich privat gestellt) nur fuer Variationen dieses Artikels.
+    // Ohne lesbaren Shop-Stand wird nichts geschrieben (kein stiller Rueckfall).
+    const privatBody = Array.isArray(payload.privat) ? payload.privat : [];
+    delete payload.privat;
+    let shopVorher = null;
+    let privatIds  = [];
+    let entfallen  = [];
+    const brauchtStand = Array.isArray(payload.attributes) || privatBody.length
+      || (Array.isArray(variations) && variations.length);
+    if (brauchtStand) {
+      try {
+        const { data: alt } = await wc.get(`products/${req.params.id}`);
+        const produkt = Array.isArray(alt) ? alt[0] : alt;
+        // Variationsliste nur, wenn Optionen wegfallen koennen oder privat gestellt wird
+        // (fuer die ids der globalen Attribute reicht der Artikel).
+        const listeNoetig = Array.isArray(payload.attributes) || privatBody.length;
+        shopVorher = { produkt, variationen: listeNoetig ? await leseAlleVariationen(wc, req.params.id) : [] };
+      } catch (e) {
+        wirfWennPruefseite(e);
+        return res.status(502).json({ error: `Nicht gespeichert: Artikel/Variationen im Shop nicht lesbar (${e.response?.status ?? e.message}). `
+          + 'Ohne Shop-Stand kann MC den Variantenbaum nicht schützen – bitte erneut speichern.', code: 'shop_stand' });
+      }
+      const shopAttr = shopVorher.produkt?.attributes ?? [];
+      if (Array.isArray(payload.attributes)) {
+        payload.attributes = attributeMitIds(payload.attributes, shopAttr).attribute;
+        entfallen = entfalleneWerte(shopAttr, payload.attributes);
+        if (payload.default_attributes === undefined) {
+          const def = defaultsBereinigt(shopVorher.produkt?.default_attributes, payload.attributes);
+          if (def) payload.default_attributes = def;
+        }
+      }
+      if (Array.isArray(variations))
+        for (const v of variations) if (Array.isArray(v?.attributes)) v.attributes = variationsAttributeMitIds(v.attributes, shopAttr);
+      const p = privatAusBody(privatBody, shopVorher.variationen);
+      if (p.fremd.length)
+        return res.status(422).json({ error: `Variation(en) ${p.fremd.join(', ')} gehören nicht zu Artikel ${req.params.id} – nichts gespeichert.`, code: 'fremde_variation' });
+      const aktualisiert = new Set((variations ?? []).filter(v => v?.id).map(v => String(v.id)));
+      const entfallenIds = Array.isArray(payload.attributes)
+        ? variationenMitEntfallenemWert(shopVorher.variationen, payload.attributes, aktualisiert) : [];
+      privatIds = [...new Set([...p.ok, ...entfallenIds])].filter(id => !aktualisiert.has(String(id)));
+    }
+
     const { data: productRaw } = await wc.put(`products/${req.params.id}`, payload);
     const product = Array.isArray(productRaw) ? productRaw[0] : productRaw;
 
@@ -610,6 +667,7 @@ router.put('/products/:id', async (req, res, next) => {
     if (kwNeu) merkeKeyphrase(req.params.id, product?.name, kwNeu.value);
 
     let variationenNeu = [];
+    let privatGesetzt = [];  // VB1
     let sperre = null;         // VR3: Ergebnis von sperreDoppelte
     let sperreFehler = null;   // VR3: Shop-Liste nicht lesbar -> nichts angelegt
     if (Array.isArray(variations) && variations.length) {
@@ -649,17 +707,27 @@ router.put('/products/:id', async (req, res, next) => {
       const anlegen = sperre ? sperre.anlegen.map(i => neu[i]) : [];
       const toCreate = anlegen.map(v =>
         neueVariation(v, { menuOrder: platz.get(variations.indexOf(v)), sku: skuVon(v).sku }));
-      if (toUpdate.length || toCreate.length) {
+      // VB1: entfallene/ausdruecklich privat gestellte Variationen im selben Batch.
+      const update = [...toUpdate, ...privatIds.map(id => ({ id, status: 'private' }))];
+      if (update.length || toCreate.length) {
         // VR2: Antwort nicht mehr verwerfen. WooCommerce (REST V3 batch_items) liefert
         // je create-Eintrag das angelegte Objekt (id, attributes) oder { id: 0, error }.
         const { data: batch } = await wc.post(`products/${req.params.id}/variations/batch`, {
-          ...(toUpdate.length ? { update: toUpdate } : {}),
+          ...(update.length ? { update } : {}),
           ...(toCreate.length ? { create: toCreate } : {}),
         });
         variationenNeu = (batch?.create ?? []).map(c => (c && c.id && !c.error
           ? { id: c.id, attributes: wcAttributePaare(c.attributes) }
           : { id: 0, error: c?.error?.message ?? String(c?.error ?? 'unbekannt') }));
+        privatGesetzt = (batch?.update ?? []).filter(u => u && !u.error && privatIds.some(id => String(id) === String(u.id))).map(u => u.id);
       }
+      privatIds = [];
+    }
+    // Nur privat stellen (keine Varianten im Body): eigener Batch.
+    if (privatIds.length) {
+      const { data: batch } = await wc.post(`products/${req.params.id}/variations/batch`,
+        { update: privatIds.map(id => ({ id, status: 'private' })) });
+      privatGesetzt = (batch?.update ?? []).filter(u => u && !u.error).map(u => u.id);
     }
 
     // VR3: kein stiller Rueckfall - ohne lesbare Shop-Liste wurde nichts angelegt.
@@ -685,6 +753,9 @@ router.put('/products/:id', async (req, res, next) => {
       vorhanden: (sperre?.vorhanden ?? []).map(({ kombination, id, attributes }) => ({ kombination, id, attributes })),
       doppelt_im_request: (sperre?.doppelt ?? []).map(({ kombination }) => ({ kombination })),
       variationen_hinweis: sperre ? sperreHinweis(sperre) : null,
+      // VB1: privat gestellte Variationen (entfallener Wert oder ausdruecklich) und entfallene Werte.
+      privat_gesetzt: privatGesetzt,
+      entfallene_werte: entfallen,
       lieferzeit: lieferzeit === undefined
         ? { gesendet: null, gesetzt: lzShop, status: 'unveraendert' }
         : { gesendet: lieferzeit, gesetzt: lzShop,

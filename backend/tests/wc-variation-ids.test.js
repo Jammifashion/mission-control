@@ -214,6 +214,8 @@ describe('Routen liefern die angelegten Variationen', () => {
 
   test('PUT /products/:id ohne neue Variationen -> variationen_neu leer', async () => {
     wc.put.mockResolvedValue({ data: { id: 100, meta_data: [] } });
+    // VB1: der Aenderungspfad liest vorher den Artikel (ids globaler Attribute).
+    wc.get.mockResolvedValue({ data: { id: 100, attributes: [] } });
     wc.post.mockResolvedValue({ data: { update: [{ id: 501 }] } });
     const res = await request(app).put('/api/woocommerce/products/100').send({
       name: 'Shirt', variations: [{ id: 501, attributes: [{ name: 'Farbe', option: 'Rot' }], regular_price: '22' }],

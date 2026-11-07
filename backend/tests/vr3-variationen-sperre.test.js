@@ -119,9 +119,11 @@ describe('PUT /products/:id - Sperre vor dem create', () => {
     expect(res.body.vorhanden).toHaveLength(7);
     expect(res.body.vorhanden[0]).toEqual({ kombination: 'Größe=3XL', id: 21003, attributes: [{ name: 'Größe', option: '3XL' }] });
     expect(res.body.variationen_hinweis).toMatch(/^7 Varianten existierten bereits – nicht doppelt angelegt/);
-    // Reihenfolge: erst Produkt-PUT, dann Liste lesen.
+    // Reihenfolge: erst Produkt-PUT, dann Liste lesen (die Sperre liest NACH dem PUT; VB1 liest
+    // zusaetzlich vorher, um entfallene Werte zu finden - massgeblich ist hier das letzte Lesen).
     const putOrder = wc.put.mock.invocationCallOrder[0];
-    const getOrder = wc.get.mock.invocationCallOrder[wc.get.mock.calls.findIndex(c => c[0].endsWith('/variations'))];
+    const listenAufrufe = wc.get.mock.calls.map((c, i) => [c, i]).filter(([c]) => c[0].endsWith('/variations'));
+    const getOrder = wc.get.mock.invocationCallOrder[listenAufrufe[listenAufrufe.length - 1][1]];
     expect(putOrder).toBeLessThan(getOrder);
 
     // Oberflaeche: vorhandene IDs ueber denselben Helfer (nur leere IDs).
@@ -137,7 +139,8 @@ describe('PUT /products/:id - Sperre vor dem create', () => {
     expect(res.status).toBe(200);
     const [b] = batchBodies();
     expect(b.create).toHaveLength(1);
-    expect(b.create[0].attributes).toEqual([{ name: 'Farbe', option: 'Schwarz' }, { name: 'Größe', option: 'L' }]);
+    // VB1: globales Attribut des Artikels (Größe, id 2) bekommt seine id - sonst setzt WooCommerce den Wert nicht.
+    expect(b.create[0].attributes).toEqual([{ name: 'Farbe', option: 'Schwarz' }, { id: 2, name: 'Größe', option: 'L' }]);
     expect(b.update).toBeUndefined();
     expect(res.body.variationen_neu).toHaveLength(1);
     expect(res.body.vorhanden.map(v => v.id)).toEqual([501, 502]);
