@@ -13,6 +13,8 @@ import { TAB_TERMINE, TAB_EINTRAEGE, fehler } from '../utils/bestellseite.js';
 import {
   terminPlan, auswahlIndex, absendenPlan, aenderungPlan, stornoPlan, eintragFuerSeite, absendenNachricht, EINTRAG_OPTIONAL,
 } from '../utils/bestell-eintraege.js';
+import { standJe, standJeSeite } from './bestellStand.js';   // KS4
+import { standFuerSeite, standSumme } from '../utils/bestell-stand.js';
 
 const t = v => String(v ?? '').trim();
 const OFFEN_MC = ['eingegangen', 'geprüft'];   // KS3
@@ -30,16 +32,32 @@ async function eintraegeOderEinrichtung(sheets, spreadsheetId) {
   return e;
 }
 
-/** GET /eintraege?termin= - alle Eintraege des Termins (dieses Zugangs), aelteste zuerst. */
-export async function leseEintraege({ token, termin, sheets: s, jetzt = () => new Date() } = {}) {
+/**
+ * GET /eintraege?termin= - alle Eintraege des Termins (dieses Zugangs), aelteste zuerst.
+ * KS4: je Eintrag `fortschritt` (nur Schritt/Text/Datum/Hinweis - keine internen Angaben), `summe` je Termin (nur Zahlen) und die von hier
+ * weg verschobenen Eintraege (`verschobenAuf`, nur lesen).
+ */
+export async function leseEintraege({ token, termin, sheets: s, jetzt = () => new Date(), quellen } = {}) {
   const { sheets, spreadsheetId, daten, zugang } = await kontext({ token, sheets: s, jetzt: jetzt() });
   const k = await katalogFuer(sheets, spreadsheetId, zugang);
-  const tr = termineDesZugangs(daten, zugang, k).find(x => x.Termin_ID === t(termin));
+  const termine = termineDesZugangs(daten, zugang, k);
+  const tr = termine.find(x => x.Termin_ID === t(termin));
   if (!tr) throw fehler('Termin gibt es auf dieser Bestellseite nicht.', 404);
   const e = await liesEintraege(sheets, spreadsheetId);
-  const liste = (e?.zeilen ?? []).filter(x => x.Zugang_ID === zugang.Zugang_ID && x.Termin_ID === tr.Termin_ID)
-    .sort((a, b) => t(a.Zeit).localeCompare(t(b.Zeit)) || t(a.Eintrag_ID).localeCompare(t(b.Eintrag_ID)));
-  return { termin: tr.Termin_ID, eintraege: liste.map(eintragFuerSeite) };
+  const sort = (a, b) => t(a.Zeit).localeCompare(t(b.Zeit)) || t(a.Eintrag_ID).localeCompare(t(b.Eintrag_ID));
+  const alle = (e?.zeilen ?? []).filter(x => x.Zugang_ID === zugang.Zugang_ID);
+  const liste = alle.filter(x => x.Termin_ID === tr.Termin_ID).sort(sort);
+  const weg = alle.filter(x => x.Termin_ID !== tr.Termin_ID && t(x.Verschoben_Von) === tr.Termin_ID).sort(sort);
+  const terminDatum = new Map(termine.map(x => [x.Termin_ID, t(x.Datum)]));
+  let je = new Map();
+  try { je = await standJeSeite({ zugangId: zugang.Zugang_ID, eintraege: liste, terminDatum, sheets, spreadsheetId, quellen }); }
+  catch (err) { console.warn(`Bestellseite ${zugang.Zugang_ID}: Stand nicht lesbar (${err?.status ?? err?.code ?? 'Fehler'}).`); }
+  return {
+    termin: tr.Termin_ID,
+    eintraege: liste.map(x => ({ ...eintragFuerSeite(x), ...(je.has(x.Eintrag_ID) ? { fortschritt: standFuerSeite(je.get(x.Eintrag_ID)) } : {}) })),
+    ...(je.size ? { summe: standSumme(liste.map(x => je.get(x.Eintrag_ID))) } : {}),
+    verschoben: weg.map(x => ({ ...eintragFuerSeite(x), verschobenAuf: terminDatum.get(x.Termin_ID) ?? '' })),
+  };
 }
 
 /** POST /termin { datum, notiz } - nur Art dauer; gleiches Datum = vorhandener Termin. */
@@ -107,14 +125,15 @@ async function aendereEintrag({ token, eingabe, sheets: s, jetzt, plan }) {
     const eintrag = e.zeilen.find(x => x.Eintrag_ID === t(eingabe?.eintrag));
     const k = await katalogFuer(sheets, spreadsheetId, zugang);
     const termin = eintrag ? termineDesZugangs(daten, zugang, k).find(x => x.Termin_ID === eintrag.Termin_ID) : null;
-    const neu = plan({ zugang, termin, eintrag, idx: auswahlIndex({ artikel: k.artikel, trikots: k.trikots, art: zugang.Art }), eingabe, jetzt: jetzt().toISOString() });
+    const termine = termineDesZugangs(daten, zugang, k);
+    const neu = plan({ zugang, termin, eintrag, idx: auswahlIndex({ artikel: k.artikel, trikots: k.trikots, art: zugang.Art }), eingabe, jetzt: jetzt().toISOString(), termine });
     spaltenPruefen(e, [neu]);
     await ersetzeEintrag(sheets, spreadsheetId, e, eintrag, neu);
     console.log(`Bestellseite ${zugang.Zugang_ID}: Eintrag ${eintrag.Eintrag_ID} ${neu.Status === 'storniert' ? 'storniert' : 'geändert'}.`);
     return { ok: true, eintrag: eintragFuerSeite(neu) };
   });
 }
-/** POST /aendern { eintrag, stand, kuerzel, menge?, id?, freitext?, fuer?, groesse?, name?, nummer?, wunsch? } */
+/** POST /aendern { eintrag, stand, kuerzel, menge?, id?, freitext?, fuer?, groesse?, name?, nummer?, wunsch?, notiz?, termin? (KS4) } */
 export const aendereEintragSeite = ({ token, eingabe, sheets, jetzt = () => new Date() } = {}) => aendereEintrag({ token, eingabe, sheets, jetzt, plan: aenderungPlan });
 /** POST /stornieren { eintrag, stand, kuerzel } */
 export const storniereEintragSeite = ({ token, eingabe, sheets, jetzt = () => new Date() } = {}) => aendereEintrag({ token, eingabe, sheets, jetzt, plan: stornoPlan });
@@ -122,7 +141,7 @@ export const storniereEintragSeite = ({ token, eingabe, sheets, jetzt = () => ne
 // ── MC (hinter requireApiKey): Eintraege eines Zugangs nur ansehen ───────────
 
 /** GET /api/bestellseiten/:zugangId/eintraege - Termine mit Eintraegen (alle Status), nur lesen. */
-export async function leseEintraegeMc({ zugangId, sheets: s } = {}) {
+export async function leseEintraegeMc({ zugangId, sheets: s, quellen } = {}) {
   const sheets = s ?? await sheetsClient();
   const spreadsheetId = sheetId();
   const e = await liesEintraege(sheets, spreadsheetId);
@@ -142,8 +161,17 @@ export async function leseEintraegeMc({ zugangId, sheets: s } = {}) {
     const karte = idx.je.get(t(x.WC_Variation_ID) || t(x.LShop_ArticleNr))?.karte;
     return karte ? [...idx.je.entries()].filter(([, w]) => w.karte === karte).map(([id, w]) => ({ id, groesse: w.groesse })) : undefined;
   };
+  // KS4: Stand je Eintrag (mit internen Angaben, nur MC), frisch (ohne Zwischenspeicher der Seite)
+  let stand = new Map(), terminDatum = new Map();
+  try {
+    const d = await liesZugaengeTermine(sheets, spreadsheetId);
+    terminDatum = new Map(d.tr.zeilen.filter(x => x.Zugang_ID === t(zugangId)).map(x => [x.Termin_ID, t(x.Datum)]));
+    stand = await standJe({ eintraege: liste, terminDatum, sheets, spreadsheetId, quellen });
+  } catch (err) { console.warn(`Bestellseite ${t(zugangId)}: Stand nicht lesbar (${err?.status ?? err?.code ?? 'Fehler'}).`); }
   // KS3: in MC zusaetzlich Auftrag/Position (Packliste, Sprung in den Auftrag) und ob die KS3-Spalte da ist
   return { zugangId: t(zugangId), eintraege: liste.map(x => ({ ...eintragFuerSeite(x), auftragNr: t(x.Auftrag_Nr), positionId: t(x.Position_ID),
+      ...(stand.has(x.Eintrag_ID) ? { fortschritt: stand.get(x.Eintrag_ID) } : {}),   // KS4 (nicht `stand` - das ist der Zeitstempel)
       ...(OFFEN_MC.includes(t(x.Status) || 'eingegangen') ? { alternativen: alternativen(x), trikotGroessen: t(x.Art) === 'trikot' ? idx?.trikots.get(t(x.Trikot_Produkt))?.groessen : undefined } : {}) })),
-    eingerichtet: !!e, ablehnen: !!e && e.idx.Ablehn_Grund !== undefined };
+    eingerichtet: !!e, ablehnen: !!e && e.idx.Ablehn_Grund !== undefined,
+    spalten: { verschieben: !!e && e.idx.Verschoben_Von !== undefined && e.idx.Verschoben_Grund !== undefined, geliefert: !!e && e.idx.Geliefert_Am !== undefined } };
 }

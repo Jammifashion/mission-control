@@ -23,7 +23,8 @@ export const POSITION_SPALTEN = [
 // AM-5: Preisfelder je Position (netto, Euro als Zahl), hinten optional. Fehlen sie, werden keine Preise geschrieben (409).
 export const PREIS_SPALTEN = ['Preis_Netto', 'Aufpreis_Netto', 'Aufpreis_Ab', 'USt_Satz', 'EK_Hand'];
 // KS3: Verweis = Quelle schon vorhandener Ware (Korb-Schluessel, AU-…-NN, LAGER:<Ort>, "ohne Verweis: …"), nur bei "schon bestellt – verknüpfen".
-export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung', ...PREIS_SPALTEN, 'Verweis'];
+// KS4: Verschoben_Nach = Position-ID im Auftrag eines anderen Termins (Bestellseite "in Termin … verschieben"); ganz verschoben = auch Entfernt.
+export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung', ...PREIS_SPALTEN, 'Verweis', 'Verschoben_Nach'];
 // AM-3: optional ganz hinten in Auftraege - Datum des Schritts "Design" (leer = Schritt nicht genutzt / uebersprungen).
 // AMQ1: Preis_Eingabe ("brutto" oder leer = netto; nur die Eingabe an der Position, gespeichert wird immer netto) und
 // Design_Link (https-Adresse, z. B. Canva) - optional ganz hinten, Setup ergaenzt sie.
@@ -475,6 +476,9 @@ export function auftraegeAntwort(auftraege, positionen, anreichern = p => p) {
   return (auftraege ?? []).map(({ _zeile, Vorgang, ...a }) => {
     // AM-2-2: Herkunft leer = bestellen (L-Shop) bzw. leer (frei)
     const pos = aktivePositionen(positionen, a.Auftrag_Nr).map(({ _zeile: _z, ...p }) => anreichern({ ...p, Herkunft: p.Herkunft || (p.Art === ART.LSHOP ? HERKUNFT.BESTELLEN : '') }));
-    return { ...a, positionen: pos, stueck: pos.reduce((s, p) => s + (Number(p.Menge) || 0), 0) };
+    // KS4: verschobene Positionen (auch entfernte) nur zur Anzeige "verschoben nach …" - zaehlen nirgends
+    const verschoben = (positionen ?? []).filter(p => p.Auftrag_Nr === a.Auftrag_Nr && t(p.Verschoben_Nach))
+      .map(p => ({ Position_ID: p.Position_ID, nach: t(p.Verschoben_Nach), ganz: !!t(p.Entfernt), Art: p.Art, LShop_ArticleNr: p.LShop_ArticleNr, Freitext: p.Freitext }));
+    return { ...a, positionen: pos, stueck: pos.reduce((s, p) => s + (Number(p.Menge) || 0), 0), ...(verschoben.length ? { verschoben } : {}) };
   });
 }

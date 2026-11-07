@@ -187,6 +187,16 @@ export function anhaengbareAuftraege({ zugang, termin, auftraege }) {
     .map(a => ({ auftragNr: a.Auftrag_Nr, status: a.Status, termin: t(a.Termin), ausTermin: liste.includes(a.Auftrag_Nr) }));
 }
 
+/** Neuer Auftrag fuer einen Termin (KS3 Uebernahme, KS4 Verschieben): Kunde des Zugangs, Termin = Datum, Kanal Bestellseite. */
+export function terminAuftragNeu({ zugang, termin, nr, nachtrag, vorgang, iso, tag }) {
+  return {
+    ...Object.fromEntries(AUFTRAG_SPALTEN.map(s => [s, ''])), Auftrag_Nr: nr, Kunden_Nr: zugang.Kunden_Nr,
+    Kurztitel: `Bestellseite ${zugang.Zugang_ID} · Termin ${tm(termin.Datum)}${nachtrag ? ' · Nachtrag' : ''}`, Kanal: KANAL,
+    Status: 'Anfrage', Termin: t(termin.Datum), Anfrage_Am: tag, Angelegt: iso, Stand: iso, Vorgang: t(vorgang),
+    Zugang_ID: zugang.Zugang_ID, Termin_ID: termin.Termin_ID,
+  };
+}
+
 /**
  * Plan der Uebernahme fuer EINEN Termin.
  * @param {object} o
@@ -213,12 +223,7 @@ export function uebernahmePlan({ zugang, termin, eintraege, auswahl, auftraege, 
   const iso = new Date(jetzt).toISOString(), tag = berlinDatum(new Date(jetzt));
   const z = zielAuftrag({ zugang, termin, auftraege, ziel });
   const nr = z.auftrag ? z.auftrag.Auftrag_Nr : naechsteAuftragNr(auftraege, tag.slice(0, 4));
-  const auftragNeu = z.neu ? {
-    ...Object.fromEntries(AUFTRAG_SPALTEN.map(s => [s, ''])), Auftrag_Nr: nr, Kunden_Nr: zugang.Kunden_Nr,
-    Kurztitel: `Bestellseite ${zugang.Zugang_ID} · Termin ${tm(termin.Datum)}${z.nachtrag ? ' · Nachtrag' : ''}`, Kanal: KANAL,
-    Status: 'Anfrage', Termin: t(termin.Datum), Anfrage_Am: tag, Angelegt: iso, Stand: iso, Vorgang: `KS3-${t(vorgang)}`,
-    Zugang_ID: zugang.Zugang_ID, Termin_ID: termin.Termin_ID,
-  } : null;
+  const auftragNeu = z.neu ? terminAuftragNeu({ zugang, termin, nr, nachtrag: z.nachtrag, vorgang: `KS3-${t(vorgang)}`, iso, tag }) : null;
 
   const gruppen = new Map();   // gleiche Variante (+ gleiche Herkunft/Verweis) = eine Position
   const trikots = [];

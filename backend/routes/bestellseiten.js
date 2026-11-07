@@ -4,6 +4,7 @@ import { Router } from 'express';
 import { leseZugaenge, legeZugangAn, bearbeiteZugang, neuerLink, zeigeLink, aktualisiereBilder, leseKategorien, bilderPlan, bilderStueck, bilderSchreiben } from '../lib/bestellseite.js';
 import { leseEintraegeMc } from '../lib/bestellEintraege.js';   // KS2: nur ansehen
 import { pruefeEintraege, aendereEintragMc, uebernahmeVorschau, uebernehmen, eintraegeZumAuftrag } from '../lib/bestellUebernahme.js';   // KS3
+import { setzeGedruckt, setzeGeliefert, verschiebe } from '../lib/bestellStand.js';   // KS4
 
 const router = Router();
 
@@ -31,6 +32,13 @@ router.get('/:zugangId/termin/:terminId/uebernahme', mitMeldung(req => uebernahm
 router.post('/uebernehmen', mitMeldung(req => uebernehmen({ eingabe: req.body ?? {} })));
 // GET /api/bestellseiten/auftrag/:nr/eintraege - Kürzel/Notiz je Position (nur Anzeige)
 router.get('/auftrag/:nr/eintraege', mitMeldung(req => eintraegeZumAuftrag({ auftragNr: req.params.nr })));
+// ── KS4: gedruckt, an Fanshop geliefert, in anderen Termin verschieben ──
+// POST /api/bestellseiten/gedruckt { positionIds, gedruckt } - Haken "fertig" (= gedruckt) fuer mehrere Positionen (auch Auftragsansicht)
+router.post('/gedruckt', mitMeldung(req => setzeGedruckt({ eingabe: req.body ?? {} })));
+// POST /api/bestellseiten/geliefert { zugangId, terminId | auftragNr, zurueck } - Versendet je Position (+ Trikot-Eintraege), fertig -> übergeben
+router.post('/geliefert', mitMeldung(req => setzeGeliefert({ eingabe: req.body ?? {} })));
+// POST /api/bestellseiten/verschieben { zugangId, auswahl, zielTermin | neuesDatum, notiz, grund, vorgang, dryRun }
+router.post('/verschieben', mitMeldung(req => verschiebe({ eingabe: req.body ?? {} })));
 // POST /api/bestellseiten/neu { art, auftragNr | kundenNr, sortiment, ablauf, hinweis, partnerId, designLinkZeigen, vorgang }
 router.post('/neu', mitMeldung(req => legeZugangAn({ eingabe: req.body ?? {} })));
 // POST /api/bestellseiten/bearbeiten { zugangId, stand, aktiv?, ablauf?, hinweis?, sortiment?, designLinkZeigen?, bestellschlussTage?, empfohlenTage? }

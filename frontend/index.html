@@ -316,6 +316,14 @@
       .ku-chip.bsm-k-geliefert, .ku-chip.bsm-k-lager { border-color: var(--success); color: var(--success); }
       .ku-chip.bsm-geprueft { border-color: var(--info); color: var(--info); }
       .ku-chip.bsm-uebernommen { border-color: var(--success); color: var(--success); }
+      /* KS4: Stand je Eintrag, Warnliste "nach dem Termin", Verschieben */
+      .ku-chip.bsm-fort { border-color: var(--info); color: var(--info); }
+      .ku-chip.bsm-fort-fertig { border-color: var(--success); color: var(--success); }
+      .ku-chip.bsm-fort-spaet { border-color: var(--warning); color: var(--warning); font-weight: 600; }
+      .bsm-gedruckt { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.82rem; min-height: 32px; }
+      .bsm-warn { border: 1px solid var(--warning); border-radius: 8px; padding: 0.5rem 0.65rem; display: flex; flex-direction: column; gap: 0.3rem; margin: 0.4rem 0; }
+      .bsm-warn-titel { color: var(--warning); font-weight: 600; }
+      .bsm-verschieben { border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.7rem; display: flex; flex-direction: column; gap: 0.45rem; margin: 0.4rem 0; }
       .bsm-wahl { display: inline-flex; align-items: center; min-width: 1.6rem; min-height: 1.6rem; }
       .bsm-e-knoepfe { display: inline-flex; flex-wrap: wrap; gap: 0.2rem 0.6rem; }
       .bsm-bearbeiten, .bsm-uebernahme { flex: 1 1 100%; border: 1px solid var(--border); border-left: 4px solid var(--info); background: var(--surface-2); border-radius: 6px; padding: 0.4rem 0.6rem; display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
@@ -6975,6 +6983,20 @@
         'bsm-u-los':            { name: 'Übernehmen', text: 'Legt Positionen im Auftrag an und setzt die Einträge auf „übernommen“. Bestellt wird noch nichts.' },
         'au-aus-bestellseite':  { name: 'Aus Bestellseite', text: 'Dieser Auftrag sammelt die Einträge einer Bestellseite für einen Termin.' },
         'au-bs-eintrag':        { name: 'Eintrag', text: 'Wer es eingetragen hat und die Notiz dazu – nur hier angezeigt, nicht im Auftrag gespeichert.' },
+        'bsm-fortschritt':      { name: 'Stand', text: 'Wo die Position steht (wie auf der Bestellseite). Orange = kommt voraussichtlich erst nach dem Termin. Die Quelle steht davor.' },
+        'bsm-gedruckt':         { name: 'gedruckt', text: 'Haken = gedruckt (derselbe Haken wie „fertig“ im Auftrag). Die Bestellseite zeigt dann „gedruckt“.' },
+        'bsm-s-gedruckt':       { name: 'markierte gedruckt', text: 'Setzt „gedruckt“ für alle markierten übernommenen Einträge (Trikots ausgenommen).' },
+        'bsm-geliefert':        { name: 'an Fanshop geliefert', text: 'Alle übernommenen Positionen dieses Termins gelten als geliefert. Ein Auftrag auf „fertig“ geht auf „übergeben“. Fragt vorher.' },
+        'bsm-geliefert-zurueck': { name: 'geliefert zurücknehmen', text: 'Nimmt „geliefert“ für diesen Termin zurück; „übergeben“ geht zurück auf „fertig“. Fragt vorher.' },
+        'bsm-warn':             { name: 'Nach dem Termin', text: 'Diese Positionen kommen laut Liefertermin bzw. Rückstandsliste erst nach dem Termin. Auf der Seite steht ein Hinweis.' },
+        'bsm-verschieben':      { name: 'In anderen Termin verschieben', text: 'Wählt einen späteren Termin. Übernommenes wandert in dessen Auftrag; Ware und Korb bleiben unverändert.' },
+        'bsm-v-ziel':           { name: 'Ziel-Termin', text: 'Nur spätere Termine dieses Zugangs – oder „+ neuer Termin“ mit Datum.' },
+        'bsm-v-grund':          { name: 'Grund', text: 'Optional, höchstens 100 Zeichen, z. B. „Lieferrückstand“. Steht auf der Bestellseite beim Eintrag.' },
+        'bsm-v-los':            { name: 'Verschieben', text: 'Verschiebt die markierten Einträge in einem Schritt. Geliefertes geht nicht.' },
+        'au-alle-gedruckt':     { name: 'alle gedruckt', text: 'Setzt den Haken „fertig“ (= gedruckt) an allen Positionen dieses Auftrags.' },
+        'au-geliefert':         { name: 'an Fanshop geliefert', text: 'Alle Positionen (und Trikots) gelten als geliefert; steht er auf „fertig“, geht er auf „übergeben“. Fragt vorher.' },
+        'au-geliefert-zurueck': { name: 'geliefert zurücknehmen', text: 'Nimmt „geliefert“ für diesen Auftrag zurück; „übergeben“ geht zurück auf „fertig“. Fragt vorher.' },
+        'au-verschoben':        { name: 'Verschoben', text: 'In den Auftrag eines anderen Termins gewandert, zählt hier nicht mehr. Der Korb trägt weiter diese Nummer. Klick öffnet ihn.' },
         'au-verweis':           { name: 'Schon bestellt', text: 'Die Ware kommt aus dieser Bestellung bzw. diesem Lager – für diese Position wird nichts neu bestellt.' },
         'bsm-link-holen':       { name: 'Link kopieren', text: 'Holt den Link dieser Bestellseite (MC entschlüsselt ihn) und kopiert ihn. Der Link bleibt gleich, nichts wird geändert.' },
         'bsm-link-alt':         { name: 'Link nicht kopierbar', text: 'Links von vor LK1 stehen nur als Prüfwert im Sheet. Zum Kopieren einmal „neuer Link“ – der alte geht dann nicht mehr.' },
@@ -7040,13 +7062,14 @@
           'au-hist-chip', 'au-hist-aus', 'au-hist-drin', 'au-hist-mehr', 'au-hist-preis', 'au-preis-von', 'au-hist-lfb', 'au-wie-letztes', 'au-vorlage-von',
           'ku-hist', 'ku-hist-neu', 'ku-hist-frei-neu', 'ku-mit-storniert', 'ku-wie-letztes',
           'au-letzte', 'au-letzte-alle', 'au-ns-schliessen', 'au-ns-vorlage', 'au-ek-von', 'au-bestellseite', 'ku-dauer-bestellseite',
-          'au-aus-bestellseite', 'au-bs-eintrag', 'au-verweis'],   // AM-6, AM-6-1, KS1, KS3
+          'au-aus-bestellseite', 'au-bs-eintrag', 'au-verweis', 'au-alle-gedruckt', 'au-geliefert', 'au-geliefert-zurueck', 'au-verschoben'],   // AM-6, AM-6-1, KS1, KS3, KS4
         bestellseiten: ['bsm-status', 'bsm-oeffnen', 'bsm-link', 'bsm-kopieren', 'bsm-link-holen', 'bsm-link-alt', 'bsm-anlegen',
           'bsm-e-wahl', 'bsm-e-status', 'bsm-gk', 'bsm-e-auftrag', 'bsm-e-pruefen', 'bsm-e-zurueck', 'bsm-e-aendern', 'bsm-e-ablehnen', 'bsm-e-feld', 'bsm-e-speichern',
           'bsm-alle', 'bsm-s-pruefen', 'bsm-s-grund', 'bsm-s-ablehnen', 'bsm-uebernehmen', 'bsm-packliste', 'bsm-pl-drucken', 'bsm-u-ziel', 'bsm-u-wahl', 'bsm-u-quelle',
           'bsm-u-probe', 'bsm-u-los', 'bsm-k-offen', 'bsm-k-bestellt', 'bsm-k-geliefert', 'bsm-k-lager', 'bsm-k-verknuepft', 'bsm-speichern', 'bsm-neuer-link', 'bsm-sperren', 'bsm-entsperren',
           'bsm-ablauf', 'bsm-hinweis', 'bsm-design', 'bsm-sortiment', 'bsm-partner', 'bsm-bilder', 'bsm-bilder-stand',
-          'bsm-eintraege', 'bsm-termin-filter', 'bsm-neu', 'bsm-spaet'],   // KS1, KS2
+          'bsm-eintraege', 'bsm-termin-filter', 'bsm-neu', 'bsm-spaet',
+          'bsm-fortschritt', 'bsm-gedruckt', 'bsm-s-gedruckt', 'bsm-geliefert', 'bsm-geliefert-zurueck', 'bsm-warn', 'bsm-verschieben', 'bsm-v-ziel', 'bsm-v-grund', 'bsm-v-los'],   // KS1, KS2, KS4
         lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
@@ -11697,6 +11720,13 @@
         if (!res.ok) { const e = new Error(j?.error || `HTTP ${res.status}`); e.code = j?.code; throw e; }
         return j;
       }
+      /** KS4: Schreibwege der Bestellseite (gedruckt, geliefert) aus der Auftragsansicht. */
+      async function auBsPost(pfad, body) {
+        const res = await apiFetch(`${API_BASE()}/api/bestellseiten${pfad}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const j = await res.json().catch(() => null);
+        if (!res.ok) { const e = new Error(j?.error || `HTTP ${res.status}`); e.code = j?.code; throw e; }
+        return j;
+      }
 
       // ── Ansicht ──
       function auDetailOeffnen(nr) { auZ.offen = nr; auBsZ.je.delete(nr); auEl('au-d-fehler').hidden = true; auDetailZeichnen(nr); auEl('au-detail').hidden = false; }
@@ -11747,6 +11777,7 @@
           + auDesignLinkHtml(a.Design_Link)
           + (a.Vorlage_Von ? `<div>nach Vorlage <button type="button" class="korb-link" data-au-vorlage="${kuEsc(a.Vorlage_Von)}" data-hilfe="au-vorlage-von">${kuEsc(a.Vorlage_Von)}</button></div>` : '')   // AM-6
           + (a.Zugang_ID ? `<div><span class="ku-chip" data-hilfe="au-aus-bestellseite" tabindex="0">aus Bestellseite ${kuEsc(a.Zugang_ID)}, Termin ${kuEsc(a.Termin ? auDatum(a.Termin) : '–')}</span></div>` : '')   // KS3
+          + auBsKnoepfeHtml(a) + auVerschobenHtml(a)   // KS4
           + (a.ware ? `<div><span class="ku-chip au-ware au-ware-${a.ware}" data-hilfe="au-ware">${kuEsc(AU_WARE_TEXT[a.ware])}</span></div>` : '')
           + (globalThis.rsAuftragKennzeichen?.(a.Auftrag_Nr) ? `<div>${globalThis.rsAuftragKennzeichen(a.Auftrag_Nr)}</div>` : '')   // RS1
           + (a.freiOffen ? `<div class="korb-zaehler" data-hilfe="au-frei-offen" tabindex="0">${a.freiOffen} freie Position${a.freiOffen === 1 ? '' : 'en'} noch zu besorgen (nicht über L-Shop)</div>` : '');
@@ -11779,7 +11810,7 @@
           const zeilen = g.positionen.map(p => `<label class="au-pos" data-hilfe="au-pos-fertig"><input type="checkbox" data-au-fertig="${kuEsc(p.Position_ID)}" ${p.Fertig === 'ja' ? 'checked' : ''} ${st ? 'disabled' : ''}>`
             + `<span>${kuEsc(g.art === 'lshop' ? (p.lshop?.groesse || '–') : 'Menge')} × ${kuEsc(p.Menge)}</span>`
             + (p.lshop?.lieferbar ? lfbPunkt(p.lshop.lieferbar) : '') + (p.lshop && p.lshop.bestellbar === false ? '<span class="ku-gefahr">nicht mehr bestellbar</span>' : '')
-            + (p.Fertig_Am ? `<small>fertig ${auDatum(p.Fertig_Am)}</small>` : '') + '</label>'
+            + (p.Fertig_Am ? `<small>fertig ${auDatum(p.Fertig_Am)}</small>` : '') + (p.Versendet ? `<small>geliefert ${auDatum(p.Versendet)}</small>` : '') + '</label>'   // KS4
             // AM-3: Rueckmeldung aus Korb/Lager je Position, Sprung zur Korb-Position, "Übergabe zurücknehmen"
             + (p.korb ? `<button type="button" class="korb-link au-korb" data-au-korb="${kuEsc(p.Korb_Schluessel)}" data-hilfe="au-korb-stand">🛒 ${kuEsc(auKorbText(p.korb))}</button>` : '')
             + (p.Lager_Buchung ? `<span class="ku-chip" data-hilfe="au-lager-stand">📦 ausgebucht (${kuEsc(p.Lager_Ort || '')})</span>` : '')
@@ -11791,6 +11822,25 @@
         auDetailZusatz(a);   // AM-4: zugehoerige Aufgaben + To-dos
       }
 
+      /** KS4: Knoepfe fuer Auftraege aus einer Bestellseite: alle gedruckt, an Fanshop geliefert / zuruecknehmen. */
+      function auBsKnoepfeHtml(a) {
+        if (!a.Zugang_ID || a.Status === 'storniert' || !(a.positionen ?? []).length) return '';
+        const alleGedruckt = a.positionen.every(p => p.Fertig === 'ja'), alleGeliefert = a.positionen.every(p => p.Versendet);
+        return '<div class="korb-reihe ku-knoepfe">'
+          + (alleGedruckt ? '' : '<button type="button" class="korb-aktion korb-aktion-ruhig" data-au-alle-gedruckt data-hilfe="au-alle-gedruckt">alle gedruckt</button>')
+          + (alleGeliefert ? '' : '<button type="button" class="korb-aktion korb-aktion-ruhig" data-au-geliefert data-hilfe="au-geliefert">an Fanshop geliefert …</button>')
+          + (a.positionen.some(p => p.Versendet) ? '<button type="button" class="korb-link" data-au-geliefert-zurueck data-hilfe="au-geliefert-zurueck">geliefert zurücknehmen …</button>' : '')
+          + '</div>';
+      }
+      /** KS4: verschobene Positionen - zaehlen hier nicht mehr; Klick oeffnet den Auftrag des neuen Termins. */
+      function auVerschobenHtml(a) {
+        if (!(a.verschoben ?? []).length) return '';
+        return '<div class="korb-zaehler">' + a.verschoben.map(v => {
+          const nach = v.nach.split(',').map(x => x.trim()).filter(Boolean);
+          return `${kuEsc(v.Position_ID)} ${v.ganz ? 'verschoben' : 'teils verschoben'} nach `
+            + nach.map(n => `<button type="button" class="korb-link" data-au-vorlage="${kuEsc(n.slice(0, 12))}" data-hilfe="au-verschoben">${kuEsc(n)}</button>`).join(', ');
+        }).join(' · ') + '</div>';
+      }
       async function auStatus(aktion, frage, extra = {}) {
         const a = (auZ.daten?.auftraege ?? []).find(x => x.Auftrag_Nr === auZ.offen);
         if (!a) return;
@@ -11846,7 +11896,30 @@
         auDetailSchliessen();
         auDialogOeffnen(null, { vorlage: a });
       });
-      auEl('au-d-kopf').addEventListener('click', e => {
+      auEl('au-d-kopf').addEventListener('click', async e => {
+        // KS4: alle gedruckt / an Fanshop geliefert (Auftrag aus Bestellseite)
+        const bk = e.target.closest('[data-au-alle-gedruckt], [data-au-geliefert], [data-au-geliefert-zurueck]');
+        const a = bk && (auZ.daten?.auftraege ?? []).find(x => x.Auftrag_Nr === auZ.offen);
+        if (bk && a) {
+          const fehlerZeigen = err => { auEl('au-d-fehler').textContent = err.message; auEl('au-d-fehler').hidden = false; };
+          if (bk.matches('[data-au-alle-gedruckt]')) {
+            bk.disabled = true;
+            try { const r = await auBsPost('/gedruckt', { positionIds: a.positionen.map(p => p.Position_ID), gedruckt: true }); showToast(`${a.Auftrag_Nr}: ${r.geaendert} Positionen gedruckt.`); }
+            catch (err) { fehlerZeigen(err); }
+          } else {
+            const zurueck = bk.matches('[data-au-geliefert-zurueck]');
+            if (!await showConfirm(zurueck ? '„geliefert“ zurücknehmen?' : 'An Fanshop geliefert?', zurueck
+              ? '<p>Alle Positionen dieses Auftrags gelten wieder als nicht geliefert; „übergeben“ geht zurück auf „fertig“.</p>'
+              : '<p>Alle Positionen dieses Auftrags (und seine Trikots) gelten als geliefert. Steht er auf „fertig“, geht er auf „übergeben“.</p>', zurueck ? 'Zurücknehmen' : 'Geliefert')) return;
+            bk.disabled = true;
+            try {
+              const r = await auBsPost('/geliefert', { zugangId: a.Zugang_ID, auftragNr: a.Auftrag_Nr, zurueck });
+              showToast(r.unveraendert ? 'Nichts zu ändern.' : `${a.Auftrag_Nr}: ${r.positionen} Positionen ${zurueck ? 'nicht mehr geliefert' : 'geliefert'}.${(r.hinweise ?? []).length ? ` ${r.hinweise.join(' ')}` : ''}`);
+            } catch (err) { fehlerZeigen(err); }
+          }
+          await loadAuftraege();
+          return;
+        }
         const vl = e.target.closest('[data-au-vorlage]');
         if (vl) { auDetailOeffnen(vl.dataset.auVorlage); return; }   // AM-6
         const b = e.target.closest('[data-au-kunde]');
@@ -12966,6 +13039,21 @@
       const BSM_GK = /(torwart|goalie|goali|keeper)|\b(gk|goal)\b/i;   // TR8-Stichworte (Wortteil bzw. eigenes Wort)
       const bsmGk = e => e.art === 'trikot' && BSM_GK.test(String(e.wunsch || ''));
       const bsmOffen = e => ['eingegangen', 'geprüft'].includes(e.status);
+      // KS4: markierbar = alles ausser storniert und geliefert (Pruefen/Ablehnen nehmen davon nur die offenen)
+      const bsmGeliefert = e => e.fortschritt?.schritt === 'geliefert';
+      const bsmMarkierbar = e => e.status !== 'storniert' && !bsmGeliefert(e);
+      const bsmGedruckt = e => ['gedruckt', 'geliefert'].includes(e.fortschritt?.schritt);
+      const bsmDruckbar = e => e.status === 'übernommen' && e.art !== 'trikot' && e.positionId && !bsmGeliefert(e);
+      /** KS4: "nach dem Termin" (bekannte Woche) oder Rueckstand ohne Woche - fuer die Warnliste. */
+      const bsmWarnung = e => !!e.fortschritt && (e.fortschritt.spaet || (e.fortschritt.schritt === 'unterwegs' && /^Rückstand/.test(e.fortschritt.text) && !e.fortschritt.kw));
+      /** KS4: Stand als Kennzeichen (Text wie auf der Seite, Quelle nur im Mouse-over). */
+      function bsmFortChip(e) {
+        const f = e.fortschritt;
+        if (!f || e.status !== 'übernommen') return '';
+        const kl = f.spaet ? ' bsm-fort-spaet' : f.schritt === 'geliefert' ? ' bsm-fort-fertig' : '';
+        const quelle = [f.intern?.quelle, f.intern?.korb ? `Korb: ${f.intern.korb}` : '', f.intern?.trikot ? `Trikot: ${f.intern.trikot}` : ''].filter(Boolean).join(' · ');
+        return `<span class="ku-chip bsm-fort${kl}" data-hilfe="bsm-fortschritt"${quelle ? ` data-hilfe-zusatz="${kuEsc(quelle)}"` : ''} tabindex="0">${kuEsc(f.text)}${f.datum ? ` · ${kuEsc(bsmDatum(f.datum))}` : ''}</span>`;
+      }
       const bsmStatusText = e => (e.status === 'storniert' && e.ablehnGrund ? `abgelehnt: ${e.ablehnGrund}` : e.status);
       const bsmTermin = (termine, id) => (termine ?? []).find(x => x.Termin_ID === id);
       /** Bearbeiten-Formular je Art (Menge, Groesse innerhalb der Karte, Texte, Notiz). */
@@ -12985,7 +13073,7 @@
       function bsmPruefZeileHtml(e, { neu = false, gewaehlt = false, bearbeite = '', datum = '' } = {}) {
         const offen = bsmOffen(e);
         return `<div class="bsm-eintrag${e.status === 'storniert' ? ' bsm-storniert' : ''}" data-bsm-e="${kuEsc(e.id)}">`
-          + (offen ? `<label class="bsm-wahl" data-hilfe="bsm-e-wahl"><input type="checkbox" data-bsm-wahl="${kuEsc(e.id)}"${gewaehlt ? ' checked' : ''} aria-label="Eintrag markieren"></label>` : '')
+          + (bsmMarkierbar(e) ? `<label class="bsm-wahl" data-hilfe="bsm-e-wahl"><input type="checkbox" data-bsm-wahl="${kuEsc(e.id)}"${gewaehlt ? ' checked' : ''} aria-label="Eintrag markieren"></label>` : '')
           + `<span class="bsm-was">${kuEsc(bsmEintragWas(e))}</span>${e.notiz ? `<span class="korb-zaehler">${kuEsc(bsmNotiz(e).slice(3))}</span>` : ''}`
           + `<span class="ku-chip">${kuEsc(BSM_ART[e.art] ?? e.art)}</span>`
           + `<span class="ku-chip${e.status === 'geprüft' ? ' bsm-geprueft' : e.status === 'übernommen' ? ' bsm-uebernommen' : ''}" data-hilfe="bsm-e-status" tabindex="0">${kuEsc(bsmStatusText(e))}</span>`
@@ -12994,6 +13082,9 @@
           + (bsmGk(e) ? '<span class="ku-chip bsm-gk" data-hilfe="bsm-gk" tabindex="0">Torwart?</span>' : '')
           + `<span class="korb-zaehler">${kuEsc(datum || e.termin)} · ${kuEsc(e.kuerzel)} · ${kuEsc(new Date(e.zeit).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }))}${e.geaendertVon ? ` · geändert von ${kuEsc(e.geaendertVon)}` : ''}</span>`
           + (e.status === 'übernommen' && e.auftragNr ? `<button type="button" class="korb-link" data-bsm-au="${kuEsc(e.auftragNr)}" data-hilfe="bsm-e-auftrag">→ ${kuEsc(e.auftragNr)}${e.positionId && e.positionId !== e.auftragNr ? ` · ${kuEsc(e.positionId)}` : ''}</button>` : '')
+          + bsmFortChip(e)   // KS4
+          + (e.status === 'übernommen' && e.art !== 'trikot' && e.positionId ? `<label class="bsm-gedruckt" data-hilfe="bsm-gedruckt"><input type="checkbox" data-bsm-gedruckt="${kuEsc(e.positionId)}"${bsmGedruckt(e) ? ' checked' : ''}${bsmGeliefert(e) ? ' disabled' : ''}> gedruckt</label>` : '')
+          + (e.verschobenVon ? `<span class="korb-zaehler">verschoben von ${kuEsc(e.verschobenVonDatum || e.verschobenVon)}${e.verschobenGrund ? ` – ${kuEsc(e.verschobenGrund)}` : ''}</span>` : '')
           + (offen ? `<span class="bsm-e-knoepfe">`
             + (e.status === 'eingegangen' ? `<button type="button" class="korb-link" data-bsm-e-pruefen="${kuEsc(e.id)}" data-hilfe="bsm-e-pruefen">geprüft ✓</button>`
               : `<button type="button" class="korb-link" data-bsm-e-zurueck="${kuEsc(e.id)}" data-hilfe="bsm-e-zurueck">Prüfung zurück</button>`)
@@ -13072,6 +13163,34 @@
             : '<div class="zl-modell">Noch nichts übernommen.</div>')
           + '</div>';
       }
+      /** KS4: Warnliste je Termin - Positionen, die voraussichtlich erst nach dem Termin kommen, mit "verschieben …". */
+      function bsmWarnHtml(liste) {
+        const w = (liste ?? []).filter(e => e.status === 'übernommen' && !bsmGeliefert(e) && bsmWarnung(e));
+        if (!w.length) return '';
+        return `<div class="bsm-warn"><span class="bsm-warn-titel" data-hilfe="bsm-warn" tabindex="0">Kommt voraussichtlich nach dem Termin (${w.length})</span>`
+          + w.map(e => `<div class="korb-reihe"><span class="bsm-was">${kuEsc(bsmEintragWas(e))}</span>${bsmFortChip(e)}`
+            + `<button type="button" class="korb-link" data-bsm-warn-v="${kuEsc(e.id)}" data-hilfe="bsm-verschieben">in anderen Termin verschieben …</button></div>`).join('') + '</div>';
+      }
+      /** KS4: Verschieben-Panel: spaetere Termine des Zugangs oder "+ neuer Termin", Grund (optional). */
+      function bsmVerschiebenHtml(z, eintraege, v) {
+        if (!v) return '';
+        const gew = (eintraege ?? []).filter(e => v.ids.includes(e.id));
+        const tJe = new Map((z.termine ?? []).map(x => [x.Termin_ID, x]));
+        const ab = gew.map(e => tJe.get(e.termin)?.Datum ?? '').sort().at(-1) ?? '';
+        const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
+        const spaeter = (z.termine ?? []).filter(x => x.Datum > ab && x.Datum >= heute);
+        const neu = z.Art === 'dauer';
+        return `<div class="bsm-verschieben" data-bsm-verschieben><div><strong>In anderen Termin verschieben</strong> (${gew.length} Einträge)</div>`
+          + `<div class="korb-reihe"><label class="edi-feld" data-hilfe="bsm-v-ziel">Ziel-Termin<select class="form-select" data-bsm-v-ziel>`
+          + spaeter.map(x => `<option value="${kuEsc(x.Termin_ID)}">${kuEsc(bsmDatum(x.Datum))}${x.Notiz ? ` · ${kuEsc(x.Notiz)}` : ''}</option>`).join('')
+          + (neu ? `<option value="__neu"${spaeter.length ? '' : ' selected'}>+ neuer Termin …</option>` : '') + '</select></label>'
+          + (neu ? `<label class="edi-feld" data-bsm-v-datum-feld${spaeter.length ? ' hidden' : ''}>Datum<input class="form-input" type="date" data-bsm-v-datum min="${kuEsc(ab > heute ? ab : heute)}"></label>` : '')
+          + `<label class="edi-feld bsm-breit" data-hilfe="bsm-v-grund">Grund (optional)<input class="form-input" data-bsm-v-grund maxlength="100" value="${kuEsc(v.grund ?? '')}"></label></div>`
+          + (!spaeter.length && !neu ? '<p class="korb-zaehler">Kein späterer Termin – diese Bestellseite hat nur einen.</p>' : '')
+          + (v.ergebnis ? `<p class="korb-zaehler" aria-live="polite">${kuEsc(v.ergebnis)}</p>` : '')
+          + `<div class="korb-reihe ku-knoepfe"><button type="button" class="korb-aktion korb-aktion-haupt" data-bsm-v-los data-hilfe="bsm-v-los"${gew.length && (spaeter.length || neu) ? '' : ' disabled'}>Verschieben</button>`
+          + '<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-v-zu data-hilfe="dialog-abbrechen">Abbrechen</button></div></div>';
+      }
       /** Liste je Zugang: Terminwahl, Sammelleiste, Zeilen, Uebernahme-Panel, Packliste. */
       function bsmPruefHtml(z, eintraege, filter, k3 = {}, jetzt = Date.now()) {
         const liste = (eintraege ?? []).filter(e => !filter || e.termin === filter);
@@ -13080,20 +13199,27 @@
         const wahl = k3.wahl ?? new Set();
         const offen = liste.filter(bsmOffen);
         const ungeprueft = liste.filter(e => e.status === 'eingegangen').length, geprueft = liste.filter(e => e.status === 'geprüft').length;
+        const gew = liste.filter(e => wahl.has(e.id));
+        const wOffen = gew.filter(bsmOffen).length, wDruck = gew.filter(bsmDruckbar).length;
         const leiste = `<div class="korb-reihe bsm-sammel"><span class="korb-zaehler">${ungeprueft} ungeprüft · ${geprueft} geprüft · ${wahl.size} markiert</span>`
+          + (gew.length ? `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-verschieben data-hilfe="bsm-verschieben">markierte in anderen Termin …</button>` : '')   // KS4
+          + (wDruck ? `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-s-gedruckt data-hilfe="bsm-s-gedruckt">markierte gedruckt (${wDruck})</button>` : '')
           + (offen.length ? `<button type="button" class="korb-link" data-bsm-alle data-hilfe="bsm-alle">alle offenen markieren</button>`
-            + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-s-pruefen data-hilfe="bsm-s-pruefen"${wahl.size ? '' : ' disabled'}>markierte: geprüft ✓</button>`
+            + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-s-pruefen data-hilfe="bsm-s-pruefen"${wOffen ? '' : ' disabled'}>markierte: geprüft ✓</button>`
             + (k3.ablehnen === false ? '<span class="korb-zaehler" data-hilfe="bsm-s-ablehnen" tabindex="0">Ablehnen erst nach Setup</span>'
               : `<label class="edi-feld" data-hilfe="bsm-s-grund">Grund<input class="form-input" data-bsm-grund maxlength="100" value="${kuEsc(k3.grund ?? '')}"></label>`
-              + `<button type="button" class="korb-aktion korb-aktion-ruhig ku-gefahr" data-bsm-s-ablehnen data-hilfe="bsm-s-ablehnen"${wahl.size ? '' : ' disabled'}>markierte ablehnen</button>`) : '')
+              + `<button type="button" class="korb-aktion korb-aktion-ruhig ku-gefahr" data-bsm-s-ablehnen data-hilfe="bsm-s-ablehnen"${wOffen ? '' : ' disabled'}>markierte ablehnen</button>`) : '')
           + '</div>';
         const terminKnoepfe = filter ? `<div class="korb-reihe ku-knoepfe"><button type="button" class="korb-aktion korb-aktion-haupt" data-bsm-uebernehmen data-hilfe="bsm-uebernehmen"${geprueft ? '' : ' disabled'}>Geprüfte übernehmen …</button>`
-          + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-packliste data-hilfe="bsm-packliste">Packliste</button></div>`
+          + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-packliste data-hilfe="bsm-packliste">Packliste</button>`
+          + (liste.some(e => e.status === 'übernommen' && !bsmGeliefert(e)) ? '<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-geliefert data-hilfe="bsm-geliefert">an Fanshop geliefert …</button>' : '')   // KS4
+          + (liste.some(bsmGeliefert) ? '<button type="button" class="korb-link" data-bsm-geliefert-zurueck data-hilfe="bsm-geliefert-zurueck">geliefert zurücknehmen …</button>' : '') + '</div>'
           : '<p class="korb-zaehler">Für „Geprüfte übernehmen“ und die Packliste oben einen Termin wählen.</p>';
         const tJe = new Map((z.termine ?? []).map(x => [x.Termin_ID, x]));
         const zeilen = liste.map(e => bsmPruefZeileHtml(e, { neu: neu(e), gewaehlt: wahl.has(e.id), bearbeite: k3.bearbeite, datum: bsmDatum(tJe.get(e.termin)?.Datum) })).join('');
         return `<div class="korb-reihe"><label class="edi-feld" data-hilfe="bsm-termin-filter">Termin<select class="form-select" data-bsm-filter>${opt}</select></label></div>`
           + leiste + terminKnoepfe
+          + (filter ? bsmWarnHtml(liste) : '') + bsmVerschiebenHtml(z, eintraege, k3.verschieben)   // KS4
           + (filter && k3.uebernahme?.termin === filter ? bsmUebernahmeHtml(liste, k3.uebernahme.vorschau, k3.uebernahme.ergebnis, k3.uebernahme.form) : '')
           + (filter && k3.packliste === filter ? bsmPacklisteHtml(z.Zugang_ID, bsmTermin(z.termine, filter), eintraege) : '')
           + (zeilen || '<p class="korb-zaehler">Noch keine Einträge.</p>');
@@ -13279,8 +13405,10 @@
         bsmZ.eintraege[zugangId] = r.eintraege ?? [];
         const k = bsmK3(zugangId);
         k.ablehnen = r.ablehnen !== false;
-        const offen = new Set(bsmZ.eintraege[zugangId].filter(bsmOffen).map(e => e.id));
+        const offen = new Set(bsmZ.eintraege[zugangId].filter(bsmMarkierbar).map(e => e.id));   // KS4: auch übernommene (verschieben/gedruckt)
         k.wahl = new Set([...k.wahl].filter(id => offen.has(id)));
+        const z = (bsmZ.daten?.zugaenge ?? []).find(x => x.Zugang_ID === zugangId);
+        for (const e of bsmZ.eintraege[zugangId]) if (e.verschobenVon) { const vt = bsmTermin(z?.termine, e.verschobenVon); e.verschobenVonDatum = vt?.Datum ? bsmDatum(vt.Datum) : e.verschobenVon; }
       }
       const bsmStandVon = (zugangId, ids) => ids.map(id => ({ id, stand: (bsmZ.eintraege[zugangId] ?? []).find(e => e.id === id)?.stand ?? '' }));
       async function bsmPruefAktion(z, aktion, ids, knopf) {
@@ -13343,8 +13471,62 @@
         if (b.matches('[data-bsm-alle]')) { (bsmZ.eintraege[z.Zugang_ID] ?? []).filter(x => (!filter || x.termin === filter) && bsmOffen(x)).forEach(x => k.wahl.add(x.id)); bsmDialogZeichnen(); return; }
         if (b.matches('[data-bsm-e-pruefen]')) { bsmPruefAktion(z, 'geprueft', [b.dataset.bsmEPruefen], b); return; }
         if (b.matches('[data-bsm-e-zurueck]')) { bsmPruefAktion(z, 'zurueck', [b.dataset.bsmEZurueck], b); return; }
-        if (b.matches('[data-bsm-s-pruefen]')) { bsmPruefAktion(z, 'geprueft', [...k.wahl], b); return; }
-        if (b.matches('[data-bsm-s-ablehnen]')) { bsmPruefAktion(z, 'ablehnen', [...k.wahl], b); return; }
+        const offeneWahl = () => [...k.wahl].filter(id => bsmOffen((bsmZ.eintraege[z.Zugang_ID] ?? []).find(x => x.id === id) ?? {}));   // KS4
+        if (b.matches('[data-bsm-s-pruefen]')) { bsmPruefAktion(z, 'geprueft', offeneWahl(), b); return; }
+        if (b.matches('[data-bsm-s-ablehnen]')) { bsmPruefAktion(z, 'ablehnen', offeneWahl(), b); return; }
+        // ── KS4: gedruckt, geliefert, verschieben ──
+        if (b.matches('[data-bsm-gedruckt]')) {
+          b.disabled = true;
+          try { await bsmApi('/gedruckt', { positionIds: [b.dataset.bsmGedruckt], gedruckt: b.checked }); showToast(`${b.dataset.bsmGedruckt}: ${b.checked ? 'gedruckt' : 'nicht mehr gedruckt'}.`); }
+          catch (err) { b.checked = !b.checked; bsmFehler(err.message); }
+          await bsmEintraegeLaden(z.Zugang_ID); bsmDialogZeichnen(); loadAuftraege();
+          return;
+        }
+        if (b.matches('[data-bsm-s-gedruckt]')) {
+          const ids = [...new Set((bsmZ.eintraege[z.Zugang_ID] ?? []).filter(x => k.wahl.has(x.id) && bsmDruckbar(x)).map(x => x.positionId))];
+          b.disabled = true;
+          try { const r = await bsmApi('/gedruckt', { positionIds: ids, gedruckt: true }); showToast(`${r.geaendert} Positionen gedruckt${r.unveraendert ? ` (${r.unveraendert} waren es schon)` : ''}.`); k.wahl = new Set(); }
+          catch (err) { bsmFehler(err.message); }
+          await bsmEintraegeLaden(z.Zugang_ID); bsmDialogZeichnen(); loadAuftraege();
+          return;
+        }
+        if (b.matches('[data-bsm-geliefert], [data-bsm-geliefert-zurueck]') && filter) {
+          const zurueck = b.matches('[data-bsm-geliefert-zurueck]');
+          const datum = bsmDatum(bsmTermin(z.termine, filter)?.Datum);
+          if (!await showConfirm(zurueck ? '„geliefert“ zurücknehmen?' : 'An Fanshop geliefert?', zurueck
+            ? `<p>Alle Positionen des Termins ${kuEsc(datum)} gelten wieder als nicht geliefert; ein Auftrag auf „übergeben“ geht zurück auf „fertig“.</p>`
+            : `<p>Alle übernommenen Positionen des Termins ${kuEsc(datum)} gelten als geliefert. Ein Auftrag auf „fertig“ geht auf „übergeben“. Danach lassen sie sich nicht mehr verschieben.</p>`, zurueck ? 'Zurücknehmen' : 'Geliefert')) return;
+          b.disabled = true;
+          try {
+            const r = await bsmApi('/geliefert', { zugangId: z.Zugang_ID, terminId: filter, zurueck });
+            showToast(r.unveraendert ? 'Nichts zu ändern.' : `${r.positionen} Positionen${r.trikots ? `, ${r.trikots} Trikots` : ''} ${zurueck ? 'nicht mehr geliefert' : 'geliefert'}.${(r.hinweise ?? []).length ? ` ${r.hinweise.join(' ')}` : ''}`);
+          } catch (err) { bsmFehler(err.message); }
+          finally { b.disabled = false; }
+          await bsmEintraegeLaden(z.Zugang_ID); bsmDialogZeichnen(); loadAuftraege();
+          return;
+        }
+        if (b.matches('[data-bsm-verschieben]')) { k.verschieben = { ids: [...k.wahl], vorgang: auVorgang(), grund: '' }; k.uebernahme = null; k.packliste = ''; bsmDialogZeichnen(); return; }
+        if (b.matches('[data-bsm-warn-v]')) { k.verschieben = { ids: [b.dataset.bsmWarnV], vorgang: auVorgang(), grund: 'Lieferrückstand' }; k.uebernahme = null; k.packliste = ''; bsmDialogZeichnen(); return; }
+        if (b.matches('[data-bsm-v-zu]')) { k.verschieben = null; bsmDialogZeichnen(); return; }
+        if (b.matches('[data-bsm-v-los]') && k.verschieben) {
+          const panel = box.querySelector('[data-bsm-verschieben]');
+          const ziel = panel.querySelector('[data-bsm-v-ziel]')?.value ?? '';
+          const datum = panel.querySelector('[data-bsm-v-datum]')?.value ?? '';
+          const grund = panel.querySelector('[data-bsm-v-grund]')?.value.trim() ?? '';
+          if (ziel === '__neu' && !datum) { bsmFehler('Bitte das Datum des neuen Termins eintragen.'); return; }
+          const zielText = ziel === '__neu' ? bsmDatum(datum) : bsmDatum(bsmTermin(z.termine, ziel)?.Datum);
+          if (!await showConfirm('Verschieben?', `<p>${k.verschieben.ids.length} Einträge gehen in den Termin ${kuEsc(zielText)}. Übernommene Positionen wandern in dessen Auftrag; die Ware bleibt dieselbe, der Korb bleibt unverändert.</p>`, 'Verschieben')) return;
+          b.disabled = true;
+          try {
+            const r = await bsmApi('/verschieben', { zugangId: z.Zugang_ID, auswahl: bsmStandVon(z.Zugang_ID, k.verschieben.ids), ...(ziel === '__neu' ? { neuesDatum: datum } : { zielTermin: ziel }), grund, vorgang: k.verschieben.vorgang });
+            showToast(r.schon ? 'Schon verschoben.' : `${r.anzahl} Einträge verschoben${r.auftragNr ? ` (Auftrag ${r.auftragNr}${r.auftragNeu ? ', neu' : ''})` : ''}.${(r.hinweise ?? []).length ? ` ${r.hinweise.join(' ')}` : ''}`);
+            k.verschieben = null; k.wahl = new Set();
+            await bsmLaden(); await bsmEintraegeLaden(z.Zugang_ID); loadAuftraege();
+          } catch (err) { bsmFehler(err.message); if (err.code === 'konflikt') await bsmEintraegeLaden(z.Zugang_ID); }
+          finally { b.disabled = false; }
+          bsmDialogZeichnen();
+          return;
+        }
         if (b.matches('[data-bsm-e-ablehnen]')) {
           k.wahl = new Set([b.dataset.bsmEAblehnen]); bsmDialogZeichnen();
           box.querySelector('[data-bsm-grund]')?.focus();
@@ -13403,12 +13585,17 @@
         if (sel) { bsmDialogZeichnen(); document.querySelector(`[data-bsm-u-quelle="${CSS.escape(sel.dataset.bsmUQuelle)}"]`)?.focus(); }   // KS3-1
       });
       bsmEl('bsm-dialog').addEventListener('input', e => { const panel = e.target.closest('[data-bsm-uebernahme]'); if (panel) bsmUebernahmeFormMerken(panel); });
+      bsmEl('bsm-dialog').addEventListener('change', e => {   // KS4: "+ neuer Termin" braucht ein Datum
+        const sel = e.target.closest('[data-bsm-v-ziel]'); if (!sel) return;
+        const feld = sel.closest('[data-bsm-verschieben]')?.querySelector('[data-bsm-v-datum-feld]');
+        if (feld) { feld.hidden = sel.value !== '__neu'; if (!feld.hidden) feld.querySelector('input')?.focus(); }
+      });
       bsmEl('bsm-dialog').addEventListener('keydown', e => { if (e.key === 'Escape') bsmDialogSchliessen(); });
       bsmEl('bsm-dialog').addEventListener('change', e => {   // KS2: Filter je Termin
         const sel = e.target.closest('[data-bsm-filter]'); if (!sel) return;
         const id = sel.closest('[data-bsm-zugang]')?.dataset.bsmZugang; if (!id) return;
         bsmZ.filter[id] = sel.value;
-        if (bsmZ.k3[id]) Object.assign(bsmZ.k3[id], { uebernahme: null, packliste: '', wahl: new Set(), bearbeite: '' });   // KS3
+        if (bsmZ.k3[id]) Object.assign(bsmZ.k3[id], { uebernahme: null, packliste: '', wahl: new Set(), bearbeite: '', verschieben: null });   // KS3, KS4
         bsmDialogZeichnen();
       });
       bsmEl('bsm-liste').addEventListener('click', e => {

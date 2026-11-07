@@ -147,6 +147,20 @@
     .bs-chip { display: inline-block; padding: 0 0.45rem; border-radius: 999px; border: 1px solid var(--border); font-size: 0.76rem; }
     .bs-spaet { border-color: var(--warning); color: var(--warning); }
     .bs-eintrag-knoepfe { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    /* KS4: Stand je Eintrag - aktueller Schritt als Chip, Tippen zeigt alle Schritte; orange = Hinweis, nie rot */
+    .bs-fort summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; min-height: 32px; }
+    .bs-fort summary::-webkit-details-marker { display: none; }
+    .bs-fort summary .bs-chip { border-color: var(--info); color: var(--info); }
+    .bs-fort.fertig summary .bs-chip { border-color: var(--success); color: var(--success); }
+    .bs-fort.spaet summary .bs-chip { border-color: var(--warning); color: var(--warning); }
+    .bs-schritte { list-style: none; display: flex; flex-direction: column; gap: 0.15rem; margin: 0.3rem 0 0.1rem 0.2rem; font-size: 0.82rem; color: var(--muted); }
+    .bs-schritte li::before { content: "○ "; }
+    .bs-schritte li.erreicht { color: var(--text); }
+    .bs-schritte li.erreicht::before { content: "● "; color: var(--success); }
+    .bs-hinweis-spaet { color: var(--warning); font-size: 0.84rem; line-height: 1.4; }
+    .bs-summe { font-size: 0.86rem; color: var(--muted); margin: -0.2rem 0 0.5rem; }
+    .bs-termin-wahl { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: flex-end; }
+    .bs-termin-wahl select { min-height: 44px; padding: 0.45rem 0.65rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; min-width: 0; max-width: 100%; }
     .bs-fehler { background: var(--danger-bg); border: 1px solid var(--danger); border-radius: 8px; padding: 0.8rem; line-height: 1.5; color: var(--text); }
     .bs-ok { border: 1px solid var(--success); background: var(--success-bg); border-radius: 8px; padding: 0.6rem 0.75rem; }
     .bs-laden { color: var(--muted); padding: 2rem 0; text-align: center; }
@@ -267,18 +281,52 @@
       if (e.art === 'trikot') return `Trikot ${e.bezeichnung} · ${e.groesse}${e.trikotName ? ` · ${e.trikotName}` : ''}${e.trikotNummer ? ` · ${e.trikotNummer}` : ''}`;
       return `${e.menge} × ${e.bezeichnung}${e.groesse ? ` · ${e.groesse}` : ''}`;
     }
+    /** KS4: Stand je Eintrag - nur der aktuelle Schritt (+ Datum), Tippen zeigt alle Schritte; Hinweis orange, wenn es nach dem Termin wird. */
+    function bsFortschrittHtml(f) {
+      if (!f || !f.text) return '';
+      const kurz = f.datum ? ` · ${bsDatum(f.datum).slice(0, 6)}` : '';
+      const schritte = (f.schritte || []).length ? `<ol class="bs-schritte">${f.schritte.map(x => `<li${x.erreicht ? ' class="erreicht"' : ''}>${bsEsc(x.text)}</li>`).join('')}</ol>` : '';
+      return `<details class="bs-fort${f.schritt === 'geliefert' ? ' fertig' : f.hinweis ? ' spaet' : ''}"><summary><span class="bs-chip">${bsEsc(f.text)}${bsEsc(kurz)}</span>`
+        + `${schritte ? '<span class="bs-klein">Schritte</span>' : ''}</summary>${schritte}</details>`
+        + (f.hinweis ? `<span class="bs-hinweis-spaet">${bsEsc(f.hinweis)}</span>` : '');
+    }
+    /** KS4: Summe je Termin - nur Zahlen. */
+    function bsSummeHtml(summe) {
+      if (!summe || !summe.gesamt) return '';
+      return `<p class="bs-summe">${summe.beiUns} von ${summe.gesamt} bei uns · ${summe.gedruckt} gedruckt</p>`;
+    }
+    /** KS4: Termin-Datum zu einer Termin-ID (fuer "verschoben von/auf"). */
+    const bsTerminDatum = (d, id) => { const x = (d?.termine || []).find(y => y.id === id); return x?.datum ? bsDatum(x.datum).slice(0, 6) : 'einem anderen Termin'; };
     /** Ein Eintrag der Liste: was, Kuerzel, Zeit, "nach Bestellschluss – ohne Garantie", Status; aendern/stornieren bis "übernommen". */
     // KS3: Status eingegangen · geprüft · übernommen · abgelehnt (+ Grund, MC); ab "übernommen" nur lesen.
-    function bsEintragHtml(e, schreibbar) {
+    // KS4: Stand je Eintrag statt Status-Chip (wenn geliefert), "verschoben von …", Termin ändern bis "übernommen".
+    function bsEintragHtml(e, schreibbar, d = null, terminWahl = '') {
       const offen = schreibbar && !['übernommen', 'storniert'].includes(e.status);
+      const status = e.fortschritt && e.status !== 'storniert' ? bsFortschrittHtml(e.fortschritt)
+        : `<span class="bs-chip">${bsEsc(e.status === 'storniert' && e.ablehnGrund ? 'abgelehnt' : (BS_STATUS[e.status] || e.status))}</span>`;
+      const andere = (d?.termine || []).filter(x => x.id !== e.termin && !x.vergangen);
       return `<div class="bs-eintrag${e.status === 'storniert' ? ' storniert' : ''}" data-eintrag="${bsEsc(e.id)}"><div class="bs-eintrag-kopf"><span class="bs-was">${bsEsc(bsEintragWas(e))}</span>`
-        + `<span class="bs-chip">${bsEsc(e.status === 'storniert' && e.ablehnGrund ? 'abgelehnt' : (BS_STATUS[e.status] || e.status))}</span>${e.nachSchluss ? '<span class="bs-chip bs-spaet">nach Bestellschluss – ohne Garantie</span>' : ''}</div>`
+        + `${status}${e.nachSchluss ? '<span class="bs-chip bs-spaet">nach Bestellschluss – ohne Garantie</span>' : ''}</div>`
+        + (e.verschobenVon ? `<span class="bs-klein">verschoben von ${bsEsc(bsTerminDatum(d, e.verschobenVon))}${e.verschobenGrund ? ` – ${bsEsc(e.verschobenGrund)}` : ''}</span>` : '')
         + `${e.status === 'storniert' && e.ablehnGrund ? `<span class="bs-klein">abgelehnt: ${bsEsc(e.ablehnGrund)}</span>` : ''}`
         + `${e.art === 'trikot' && e.wunsch ? `<span class="bs-klein">Wunsch: ${bsEsc(e.wunsch)}</span>` : ''}`
         + `${e.notiz ? `<span class="bs-klein">Notiz: ${bsEsc(e.notiz)}</span>` : ''}`
         + `<span class="bs-klein">${bsEsc(e.kuerzel)} · ${bsEsc(bsUhr(e.zeit))}${e.geaendertVon ? ` · geändert von ${bsEsc(e.geaendertVon)}` : ''}</span>`
-        + (offen ? `<div class="bs-eintrag-knoepfe"><button type="button" class="btn-ruhig" data-aendern="${bsEsc(e.id)}">ändern</button><button type="button" class="btn-ruhig" data-storno="${bsEsc(e.id)}">stornieren</button></div>` : '')
+        + (offen ? `<div class="bs-eintrag-knoepfe"><button type="button" class="btn-ruhig" data-aendern="${bsEsc(e.id)}">ändern</button>`
+          + (andere.length ? `<button type="button" class="btn-ruhig" data-termin-aendern="${bsEsc(e.id)}" aria-expanded="${terminWahl === e.id}">anderer Termin</button>` : '')
+          + `<button type="button" class="btn-ruhig" data-storno="${bsEsc(e.id)}">stornieren</button></div>` : '')
+        + (offen && terminWahl === e.id && andere.length ? `<div class="bs-termin-wahl"><label class="bs-feld">In Termin<select data-termin-ziel="${bsEsc(e.id)}">`
+          + andere.map(x => `<option value="${bsEsc(x.id)}">${x.datum ? `${bsWochentag(x.datum)} ${bsDatum(x.datum)}` : 'Termin folgt'}${x.notiz ? ` · ${bsEsc(x.notiz)}` : ''}</option>`).join('')
+          + `</select></label><button type="button" class="btn" data-termin-ok="${bsEsc(e.id)}">verschieben</button></div>` : '')
         + '</div>';
+    }
+    /** KS4: von diesem Termin weg verschobene Eintraege - nur lesen. */
+    function bsVerschobenHtml(liste) {
+      if (!(liste || []).length) return '';
+      return `<details class="bs-fort"><summary><span class="bs-klein">${liste.length} in einen anderen Termin verschoben</span></summary><div class="bs-liste">`
+        + liste.map(e => `<div class="bs-eintrag"><span class="bs-was">${bsEsc(bsEintragWas(e))}</span>`
+          + `<span class="bs-klein">verschoben auf ${bsEsc(e.verschobenAuf ? bsDatum(e.verschobenAuf).slice(0, 6) : 'einen anderen Termin')}${e.verschobenGrund ? ` – ${bsEsc(e.verschobenGrund)}` : ''}</span></div>`).join('')
+        + '</div></details>';
     }
     /** KS2-2: Legende der Punkte - oben ueber der Artikelliste, eine Zeile, am Handy umbrechend (Texte wie freigegeben). */
     function bsLegendeHtml() {
@@ -294,7 +342,7 @@
     }
     // ── Bestellseite-Anzeige: Ende ──
 
-    const BS = { d: null, termin: '', tab: 'artikel', filter: '', suche: '', offen: -1, korb: [], vorgang: '', eintraege: [], laedt: false };
+    const BS = { d: null, termin: '', tab: 'artikel', filter: '', suche: '', offen: -1, korb: [], vorgang: '', eintraege: [], laedt: false, summe: null, verschoben: [], terminWahl: '' };
     const neuerVorgang = () => (crypto.randomUUID ? crypto.randomUUID() : `bs-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`);
     const sp = (() => { try { return window.sessionStorage; } catch { return null; } })();
     const kuerzelLesen = () => { try { return sp?.getItem('bs_kuerzel') || ''; } catch { return ''; } };
@@ -374,7 +422,9 @@
         </section>
         ${t ? `
         <section class="card"><h2>Eingetragen für diesen Termin (${BS.eintraege.filter(e => e.status !== 'storniert').length})</h2>
-          <div class="bs-liste" id="bs-eintraege">${BS.laedt ? '<p class="bs-klein">wird geladen …</p>' : BS.eintraege.map(e => bsEintragHtml(e, schreibbar())).join('') || '<p class="bs-klein">Noch nichts eingetragen.</p>'}</div>
+          ${bsSummeHtml(BS.summe)}
+          <div class="bs-liste" id="bs-eintraege">${BS.laedt ? '<p class="bs-klein">wird geladen …</p>' : BS.eintraege.map(e => bsEintragHtml(e, schreibbar(), d, BS.terminWahl)).join('') || '<p class="bs-klein">Noch nichts eingetragen.</p>'}</div>
+          ${BS.laedt ? '' : bsVerschobenHtml(BS.verschoben)}
         </section>
         ${bsKorbHtml(BS.korb, kuerzel, schreibbar())}` : ''}
         <p class="bs-klein">Link gültig bis ${bsDatum(d.ablauf)}.</p>`;
@@ -383,8 +433,8 @@
     async function eintraegeLaden() {
       if (!BS.termin) { BS.eintraege = []; return; }
       BS.laedt = true; zeichnen();
-      try { BS.eintraege = (await api(`eintraege?termin=${encodeURIComponent(BS.termin)}`)).eintraege || []; }
-      catch (e) { BS.eintraege = []; meldung(e.message, true); }
+      try { const r = await api(`eintraege?termin=${encodeURIComponent(BS.termin)}`); BS.eintraege = r.eintraege || []; BS.summe = r.summe || null; BS.verschoben = r.verschoben || []; }
+      catch (e) { BS.eintraege = []; BS.summe = null; BS.verschoben = []; meldung(e.message, true); }
       finally { BS.laedt = false; zeichnen(); }
     }
     function meldung(text, fehler = false) {
@@ -467,6 +517,16 @@
         b.disabled = true;
         try { const r = await api('termin', { datum, notiz }); BS.termin = r.termin; await neuLaden(); meldung(r.schon ? 'Den Termin gibt es schon – er ist jetzt gewählt.' : 'Termin angelegt.'); }
         catch (err) { meldung(err.message, true); b.disabled = false; }
+        return;
+      }
+      if (b.dataset.terminAendern) { BS.terminWahl = BS.terminWahl === b.dataset.terminAendern ? '' : b.dataset.terminAendern; zeichnen(); return; }   // KS4
+      if (b.dataset.terminOk) {
+        const en = BS.eintraege.find(x => x.id === b.dataset.terminOk); const kuerzel = kuerzelLesen();
+        if (!kuerzel) { meldung('Bitte oben dein Kürzel eintragen.', true); return; }
+        const ziel = document.querySelector(`[data-termin-ziel="${CSS.escape(b.dataset.terminOk)}"]`)?.value;
+        if (!en || !ziel) return;
+        try { await api('aendern', { eintrag: en.id, stand: en.stand, kuerzel, termin: ziel }); BS.terminWahl = ''; await neuLaden(); meldung('In den anderen Termin verschoben.'); }
+        catch (err) { meldung(err.message, true); if (err.status === 409) await eintraegeLaden(); }
         return;
       }
       if (b.dataset.storno) {

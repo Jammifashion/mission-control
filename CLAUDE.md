@@ -1071,6 +1071,28 @@ Neue Sektionen immer mit Anker versehen:
   Shop-Bestellungen (Herkunft shop); schon verknuepfte Menge (`korbVerknuepfungen`, Verweis = Korb-Schluessel) nur als Hinweis, kein Sperren.
   Verknuepfte Positionen (✓ + Verweis EIGEN:/JFN:/HONK:) zaehlen ueber `korbSchluesselVon` fuer `wareStand` und `autoBestellt` wie 🛒;
   `GET /api/auftraege` liefert je Position `verweisKorb` (aktueller Korb-Stand).
+- backend/lib/bestellStand.js – Bestellseite KS4: Stand je Eintrag, "gedruckt", "an Fanshop geliefert", "in Termin … verschieben". Logik
+  `utils/bestell-stand.js` (`standFuer`, `standFuerSeite`, `standSumme`, `lieferInfo`, `rueckstandJeKorb`) und `utils/bestell-verschieben.js`
+  (`verschiebenPlan`, `geliefertPlan`, `gedrucktPlan`). **gedruckt = `Fertig`/`Fertig_Am` der AU-Position, geliefert = `Versendet` (Tag)**
+  (vorhandene Felder, bericht-KS4 0.2); Trikots ohne AU-Position: `Geliefert_Am` hinten in Bestell_Eintraege. Schritte eingegangen → geprüft
+  → übernommen → bestellt → lieferbar / ca. KW nn / Rückstand (RS1 vor AB-`Liefertermin` vor BO7) → bei uns → gedruckt → geliefert; Trikot
+  übernommen → beim Produzenten (Charge) → bei uns (Status ok) → geliefert; ✓ ohne Korb-Verweis/📦 ausgebucht = "bei uns". Seite bekommt
+  NUR `fortschritt` { schritt, text, datum, hinweis, schritte } (nie Quelle/Nummern; Feld heisst nicht `stand` - das ist der Zeitstempel),
+  `summe` { gesamt, beiUns, gedruckt } und `verschoben` (Eintraege mit `Verschoben_Von` = dieser Termin, nur lesen); Zwischenspeicher je
+  Zugang + juengstem Eintrags-Stand `STAND_MS` 3 min, MC-Schreibwege leeren ihn; RS1 (Drive) nur bei bestellten Korb-Zeilen, Trikots nur bei
+  uebernommenen Trikots; faellt eine Quelle aus, fehlt nur ihr Teil. Hinweis orange "kommt voraussichtlich erst KW nn – wir melden uns", wenn
+  der erwartete Tag (AB-Datum bzw. Montag der RS1-KW) nach dem Termin liegt. Routen (hinter API-Key): `POST /api/bestellseiten/gedruckt`
+  { positionIds, gedruckt }, `.../geliefert` { zugangId, terminId | auftragNr, zurueck } (AU "fertig" -> "übergeben", davor Hinweis; storniert
+  ausgelassen), `.../verschieben` { zugangId, auswahl, zielTermin | neuesDatum (+notiz), grund <= 100, vorgang, dryRun }: nicht uebernommen =
+  nur `Termin_ID` + `Verschoben_Von`/`Verschoben_Grund`; uebernommen = neue Position im AU des Ziel-Termins (KS3 `zielAuftrag`, ggf. neu bzw.
+  Nachtrag) mit `herkunftNachVerschieben` (🛒 uebergeben/✓ Korb -> ✓ + Verweis Korb-Schluessel, 📦 ausgebucht -> ✓ + Verweis alte Position,
+  sonst wie vorher; Fertig + Preise wandern mit), alte Position `Entfernt` + `Verschoben_Nach` (ganz) bzw. Menge kleiner + `Verschoben_Nach`
+  (Teil); Korb nie, Trikot-Zeile nie (Trikot-Eintrag behaelt Auftrag_Nr). Nur spaetere Termine, nie geliefert/storniert. `GET /api/auftraege`
+  liefert je AU `verschoben` (Anzeige). Seite: "anderer Termin" bis "übernommen" (`aenderungPlan` mit `termin`). Korb-Leser `leseKorbJe`
+  liest seit KS4 auch `Liefertermin`/`AB_Hinweis` (vorher nie -> "bestätigt" fehlte). MC: Block `Bestellseiten-Pruefen` (Stand-Chip, Haken
+  gedruckt, "markierte gedruckt", "an Fanshop geliefert …", Warnliste, Verschieben-Panel), Auftragsansicht "alle gedruckt", "an Fanshop
+  geliefert …", "verschoben nach". Setup: `Verschoben_Nach` (Auftrag_Positionen), `Verschoben_Von`, `Verschoben_Grund`, `Geliefert_Am`
+  (Bestell_Eintraege). Test bestell-stand.test.js.
 - backend/utils/auftrag-preise.js – Preise je Auftrag (AM-5), einzige Rechen-Stelle; Frontend-Spiegel Block `Auftrag-Preise: Anfang/Ende`
   (Test auftrag-preise.test.js vergleicht beide). Eingabe NETTO, Rechnen in Cent, gerundet erst in der Anzeige (`euroText`). Spalten hinten
   optional: `Auftrag_Positionen` Preis_Netto | Aufpreis_Netto | Aufpreis_Ab | USt_Satz (leer = 19) | EK_Hand, `Auftraege` Rabatt ("10%" Text

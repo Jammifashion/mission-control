@@ -11,7 +11,10 @@ import { heuteBerlin, fristen, zugangTage, naechsteTerminId, fehler, ART, TERMIN
 // KS2-1: Notiz je Position (alle Arten, <= 100) - eigene Spalte hinten, damit Freitext/Fuer/Wunsch ihre Bedeutung behalten
 // und KS3 sie in die Notiz der Auftragsposition uebernehmen kann. Datenschutz wie Rueckennamen (nie Log/Chat, Leeren nach 12 Monaten).
 // KS3: Ablehn_Grund = kurzer Grund (<= 100), wenn MC einen Eintrag ablehnt (Status storniert); die Seite zeigt "abgelehnt: …".
-export const EINTRAG_OPTIONAL = ['Groesse', 'Bezeichnung', 'Trikot_Produkt', 'Vorgang', 'Geaendert_Von', 'Notiz', 'Ablehn_Grund'];
+// KS4: Verschoben_Von = bisheriger Termin (MC "in Termin … verschieben" bzw. Seite "Termin ändern"), Verschoben_Grund <= 100,
+// Geliefert_Am = "an Fanshop geliefert" fuer Trikot-Eintraege (die haben keine Auftragsposition; sonst gilt Versendet der Position).
+export const EINTRAG_OPTIONAL = ['Groesse', 'Bezeichnung', 'Trikot_Produkt', 'Vorgang', 'Geaendert_Von', 'Notiz', 'Ablehn_Grund',
+  'Verschoben_Von', 'Verschoben_Grund', 'Geliefert_Am'];
 export const E_STATUS = { EINGEGANGEN: 'eingegangen', GEPRUEFT: 'geprüft', UEBERNOMMEN: 'übernommen', STORNIERT: 'storniert' };
 export const OFFEN = [E_STATUS.EINGEGANGEN, E_STATUS.GEPRUEFT];
 export const E_ART = { ARTIKEL: 'artikel', EXTRA: 'extra', TRIKOT: 'trikot' };
@@ -164,9 +167,17 @@ function aenderbar({ zugang, termin, eintrag, eingabe, jetzt, vonMc = false }) {
  * Aendern: Menge, Groesse (nur innerhalb derselben Karte), Texte. Vermerk "geändert von", Nach_Schluss bleibt bzw. wird ja.
  * @returns {object} neue Zeile
  */
-export function aenderungPlan({ zugang, termin, eintrag, idx, eingabe, jetzt, vonMc = false }) {
+export function aenderungPlan({ zugang, termin, eintrag, idx, eingabe, jetzt, vonMc = false, termine = [] }) {
   const kuerzel = aenderbar({ zugang, termin, eintrag, eingabe, jetzt, vonMc });
   const neu = { ...eintrag };
+  let zielTermin = termin;
+  // KS4: Termin aendern (bis "übernommen"): anderer Termin desselben Zugangs, nicht vorbei. Vermerk Verschoben_Von.
+  if (t(eingabe?.termin) && t(eingabe.termin) !== t(eintrag.Termin_ID)) {
+    zielTermin = (termine ?? []).find(x => x.Termin_ID === t(eingabe.termin) && x.Zugang_ID === zugang.Zugang_ID);
+    if (!zielTermin) throw fehler('Diesen Termin gibt es auf dieser Bestellseite nicht.', 404);
+    if (terminVergangen(zielTermin, jetzt)) throw fehler('Der gewählte Termin ist vorbei.');
+    Object.assign(neu, { Termin_ID: zielTermin.Termin_ID, Verschoben_Von: t(eintrag.Termin_ID), Verschoben_Grund: '' });
+  }
   const art = t(eintrag.Art);
   if (art === E_ART.ARTIKEL) {
     if (eingabe.id !== undefined) {
@@ -197,7 +208,7 @@ export function aenderungPlan({ zugang, termin, eintrag, idx, eingabe, jetzt, vo
   // schon geprueften Eintrag, ist er wieder "eingegangen" (muss neu geprueft werden).
   if (vonMc) return { ...neu, Geaendert_Von: kuerzel, Stand: stand };
   const status = t(eintrag.Status) === E_STATUS.GEPRUEFT ? E_STATUS.EINGEGANGEN : t(eintrag.Status);
-  return { ...neu, Status: status, Geaendert_Von: kuerzel, Stand: stand, Nach_Schluss: t(eintrag.Nach_Schluss) === 'ja' || nachSchluss(termin, zugang, jetzt) ? 'ja' : '' };
+  return { ...neu, Status: status, Geaendert_Von: kuerzel, Stand: stand, Nach_Schluss: t(eintrag.Nach_Schluss) === 'ja' || nachSchluss(zielTermin, zugang, jetzt) ? 'ja' : '' };
 }
 
 /** Stornieren: Status storniert (nie loeschen), Vermerk "geändert von". */
@@ -215,6 +226,7 @@ export function eintragFuerSeite(x) {
     trikotNummer: t(x.Trikot_Nummer), wunsch: t(x.Wunsch), geaendertVon: t(x.Geaendert_Von), stand: t(x.Stand),
     auswahl: t(x.WC_Variation_ID) || t(x.LShop_ArticleNr), trikotProdukt: t(x.Trikot_Produkt), notiz: t(x.Notiz),
     ablehnGrund: t(x.Ablehn_Grund),   // KS3: "abgelehnt: …" (Status storniert durch MC)
+    verschobenVon: t(x.Verschoben_Von), verschobenGrund: t(x.Verschoben_Grund), geliefertAm: t(x.Geliefert_Am).slice(0, 10),   // KS4
   };
 }
 

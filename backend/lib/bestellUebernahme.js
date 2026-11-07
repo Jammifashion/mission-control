@@ -28,7 +28,7 @@ import {
 const t = v => String(v ?? '').trim();
 
 /** Bestell_Eintraege lesen oder 409 einrichtung; Pflicht fuer KS3: Status, Auftrag_Nr, Position_ID, Stand (+ optionale wie gebraucht). */
-async function eintraegeOder409(sheets, spreadsheetId, brauche = []) {
+export async function eintraegeOder409(sheets, spreadsheetId, brauche = []) {
   const e = await liesEintraege(sheets, spreadsheetId);
   if (!e) throw fehler('Reiter Bestell_Eintraege fehlt – scripts/setup-bestellseiten-reiter.js --write.', 409, 'einrichtung');
   const fehlt = brauche.filter(s => e.idx[s] === undefined);
@@ -37,7 +37,7 @@ async function eintraegeOder409(sheets, spreadsheetId, brauche = []) {
 }
 
 /** Zellen + neue Zeilen in EINEM batchUpdate (gleiches Sheet), danach die beschriebenen Bereiche zurueckgelesen. */
-async function schreibe(sheets, spreadsheetId, { zellen = [], bloecke = [] }) {
+export async function schreibe(sheets, spreadsheetId, { zellen = [], bloecke = [] }) {   // KS4: auch fuer Verschieben/geliefert
   const data = zellen.map(z => ({ range: `'${z.tab}'!${spalteBuchstabe(z.spalte)}${z.zeile}`, values: [[z.wert]] }));
   const strecken = [];
   for (const b of bloecke) {
@@ -52,9 +52,9 @@ async function schreibe(sheets, spreadsheetId, { zellen = [], bloecke = [] }) {
   const ab = data.reduce((n, d, i) => n + zeilenAbweichungen(d.values, zurueck.valueRanges?.[i]?.values ?? []).length, 0);
   if (ab) throw fehler(`Bestellseite/Auftrag: Rücklesen weicht in ${ab} Zelle(n) ab – bitte prüfen.`, 500, 'ruecklesen');
 }
-const zellenAus = (tab, idx, zeile, felder) => Object.entries(felder).filter(([f]) => idx[f] !== undefined).map(([f, wert]) => ({ tab, zeile, spalte: idx[f], wert }));
+export const zellenAus = (tab, idx, zeile, felder) => Object.entries(felder).filter(([f]) => idx[f] !== undefined).map(([f, wert]) => ({ tab, zeile, spalte: idx[f], wert }));
 
-async function zugangUndTermin(sheets, spreadsheetId, zugangId, terminId) {
+export async function zugangUndTermin(sheets, spreadsheetId, zugangId, terminId) {
   const daten = await liesZugaengeTermine(sheets, spreadsheetId);
   const zugang = daten.z.zeilen.find(x => x.Zugang_ID === t(zugangId));
   if (!zugang) throw fehler('Zugang gibt es nicht.', 404);

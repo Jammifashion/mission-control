@@ -16,6 +16,7 @@ import { euro } from '../utils/edi-bestellung.js';
 import { leseLieferbarkeit } from './lieferbarkeitLesen.js';
 import { leseKunden } from './kunden.js';
 import { leseLager, ladePartner } from './lager.js';
+import { AB_KORB_SPALTEN } from '../utils/lshop-ab.js';   // KS4: AB-Spalten des Korbs mitlesen
 import { TAB_KORB, korbZeilen } from '../utils/korb-logic.js';   // AM-3: Korb nur lesen (Rueckmeldung)   // AM-2-2: nur Lagerorte lesen - der Auftrag bucht nie im Lager (das kommt mit AM-3)
 import {
   TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, POSITION_OPTIONAL, AUFTRAG_OPTIONAL, brauchtHerkunftSpalten, zeilenAus,
@@ -200,7 +201,14 @@ const zellenAus = (tab, idx, zeile, felder) => Object.entries(felder).filter(([f
 export async function leseKorbJe(sheets, spreadsheetId) {
   try {
     const { data } = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${TAB_KORB}'`, valueRenderOption: 'UNFORMATTED_VALUE' });
-    return new Map(korbZeilen(data.values ?? []).zeilen.map(z => [z.Schluessel, z]));
+    // KS4 (Nebenbefund): korbZeilen liest die AB-Spalten (BO4i) nicht mit - hier nur lesend ergaenzt, damit "bestätigt" und der
+    // Liefertermin ankommen. Ohne die Spalten bleiben beide leer.
+    const kopf = (data.values?.[0] ?? []).map(x => String(x ?? '').trim());
+    const ab = AB_KORB_SPALTEN.map(n => [n, kopf.indexOf(n)]).filter(([, i]) => i >= 0);
+    return new Map(korbZeilen(data.values ?? []).zeilen.map(z => {
+      for (const [n, i] of ab) z[n] = String(data.values[z._zeile - 1]?.[i] ?? '').trim();
+      return [z.Schluessel, z];
+    }));
   } catch { return new Map(); }
 }
 
