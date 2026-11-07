@@ -6925,7 +6925,7 @@
         'bsm-design':           { name: 'Design-Link zeigen', text: 'Zeigt dem Kunden den Design-Link des Auftrags (z. B. Canva). Standard aus.' },
         'bsm-sortiment':        { name: 'Sortiment', text: 'Shop-Kategorie mit allen Unterkategorien. Gezeigt werden nur veröffentlichte Artikel.' },
         'bsm-partner':          { name: 'Gehört zu Partner', text: 'Nur ein Merkmal (z. B. FP-001). Die Partner-Abrechnung liest die Bestellseite nie.' },
-        'bsm-bilder':           { name: 'Artikelliste aktualisieren', text: 'Holt die Bilder der Dauer-Sortimente aus dem Shop, 1 Abruf je 2 s. Die Kundenseite fragt den Shop nie selbst.' },
+        'bsm-bilder':           { name: 'Artikelliste aktualisieren', text: 'Nach Bildänderungen im Shop hier klicken; die Seite zeigt sie danach sofort. Holt die Bilder langsam (1 Abruf je 2 s).' },
         'bsm-eintraege':        { name: 'Einträge ansehen', text: 'Zeigt, was über diesen Link eingetragen wurde – nur lesen. Prüfen und Übernehmen kommt später.' },
         'bsm-termin-filter':    { name: 'Termin', text: 'Zeigt nur die Einträge eines Termins (z. B. eines Spieltags).' },
         'bsm-neu':              { name: 'neu', text: 'In den letzten 24 Stunden eingetragen.' },
@@ -12827,19 +12827,26 @@
         if (e.art === 'trikot') return `Trikot ${e.bezeichnung} · ${e.groesse}${e.trikotName ? ` · ${e.trikotName}` : ''}${e.trikotNummer ? ` · ${e.trikotNummer}` : ''}${e.wunsch ? ` · Wunsch: ${e.wunsch}` : ''}`;
         return `${e.menge} × ${e.bezeichnung}${e.groesse ? ` · ${e.groesse}` : ''}`;
       }
+      const bsmNotiz = e => (e.notiz ? ` · Notiz: ${e.notiz}` : '');   // KS2-1
       /** Eintraege je Termin (Filter: Termin_ID oder ''), "neu seit gestern" = in den letzten 24 h, "nach Schluss" orange. */
       function bsmEintraegeHtml(eintraege, termine, filter, jetzt = Date.now()) {
         const liste = (eintraege ?? []).filter(e => !filter || e.termin === filter);
         const tJe = new Map((termine ?? []).map(x => [x.Termin_ID, x]));
         const opt = `<option value="">alle Termine (${(eintraege ?? []).length})</option>` + (termine ?? []).map(x => `<option value="${kuEsc(x.Termin_ID)}"${x.Termin_ID === filter ? ' selected' : ''}>${kuEsc(bsmDatum(x.Datum))}${x.Notiz ? ` · ${kuEsc(x.Notiz)}` : ''} (${(eintraege ?? []).filter(e => e.termin === x.Termin_ID).length})</option>`).join('');
         const neu = e => (jetzt - new Date(e.zeit).getTime()) < 24 * 3600 * 1000;
-        const zeilen = liste.map(e => `<div class="bsm-eintrag${e.status === 'storniert' ? ' bsm-storniert' : ''}"><span class="bsm-was">${kuEsc(bsmEintragWas(e))}</span>`
+        const zeilen = liste.map(e => `<div class="bsm-eintrag${e.status === 'storniert' ? ' bsm-storniert' : ''}"><span class="bsm-was">${kuEsc(bsmEintragWas(e))}</span>${e.notiz ? `<span class="korb-zaehler">${kuEsc(bsmNotiz(e).slice(3))}</span>` : ''}`
           + `<span class="ku-chip">${kuEsc(BSM_ART[e.art] ?? e.art)}</span><span class="ku-chip">${kuEsc(e.status)}</span>`
           + (neu(e) ? '<span class="ku-chip bsm-neu" data-hilfe="bsm-neu" tabindex="0">neu</span>' : '')
           + (e.nachSchluss ? '<span class="ku-chip bsm-spaet" data-hilfe="bsm-spaet" tabindex="0">nach Schluss</span>' : '')
           + `<span class="korb-zaehler">${kuEsc(bsmDatum(tJe.get(e.termin)?.Datum) || e.termin)} · ${kuEsc(e.kuerzel)} · ${kuEsc(new Date(e.zeit).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }))}${e.geaendertVon ? ` · geändert von ${kuEsc(e.geaendertVon)}` : ''}</span></div>`).join('');
         return `<div class="korb-reihe"><label class="edi-feld" data-hilfe="bsm-termin-filter">Termin<select class="form-select" data-bsm-filter>${opt}</select></label></div>`
           + (zeilen || '<p class="korb-zaehler">Noch keine Einträge.</p>');
+      }
+      /** KS2-1: Rueckmeldung nach "Artikelliste aktualisieren" (nur Anzahlen). */
+      function bsmBilderText(r) {
+        const n = v => Number(v) || 0;
+        return `Artikelliste aktualisiert: ${n(r?.bilderNeu)} Bild${n(r?.bilderNeu) === 1 ? '' : 'er'} neu, ${n(r?.bilderUnveraendert)} unverändert, ${n(r?.ohneBild)} ohne Bild`
+          + ` (${n(r?.produkte)} Artikel${n(r?.trikots) ? `, ${n(r.trikots)} Trikots` : ''}). Die Bestellseite zeigt das sofort.`;
       }
       // ── Bestellseiten-MC: Ende ──
 
@@ -13009,7 +13016,7 @@
         b.disabled = true; b.textContent = 'läuft …';
         try {
           const r = await bsmApi('/bilder', { dryRun: false });
-          showToast(`Artikelliste aktualisiert: ${r.produkte} Artikel, ${r.mitBild} Bilder.`);
+          showToast(bsmBilderText(r));   // KS2-1: n neu, m unveraendert, k ohne Bild
           await bsmLaden();
         } catch (err) { showToast(`Artikelliste nicht aktualisiert: ${err.message}`, 'toast-error'); }
         finally { b.disabled = false; b.textContent = 'Artikelliste aktualisieren'; }

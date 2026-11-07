@@ -188,7 +188,7 @@
       nicht_gefuehrt: { klasse: 'weg', text: 'nicht mehr lieferbar' },
     };
     const BS_STATUS = { eingegangen: 'eingegangen', 'geprüft': 'geprüft', 'übernommen': 'übernommen', storniert: 'storniert' };
-    const BS_MAX = { kuerzel: 12, notiz: 60, freitext: 200, fuer: 40, name: 30, wunsch: 200, positionen: 60, menge: 999 };
+    const BS_MAX = { positionNotiz: 100, kuerzel: 12, notiz: 60, freitext: 200, fuer: 40, name: 30, wunsch: 200, positionen: 60, menge: 999 };
     const bsEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const bsDatum = ymd => (/^\d{4}-\d{2}-\d{2}$/.test(ymd || '') ? `${ymd.slice(8, 10)}.${ymd.slice(5, 7)}.${ymd.slice(0, 4)}` : '');
     const bsWochentag = ymd => (/^\d{4}-\d{2}-\d{2}$/.test(ymd || '') ? ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][new Date(`${ymd}T12:00:00Z`).getUTCDay()] : '');
@@ -236,25 +236,28 @@
       const farbe = [a.farbe, a.design].filter(Boolean).join(' · ');
       const bild = a.bild ? `<img class="bs-thumb" src="${bsEsc(a.bild)}" alt="" width="60" height="60" loading="lazy" referrerpolicy="no-referrer" data-gross="${bsEsc(a.bildGross || a.bild)}">` : '';
       const raster = offen && schreibbar ? `<div class="bs-raster">${(a.groessen || []).map(g => `<label>${bsGroesseHtml(g)}<input class="bs-menge" type="number" inputmode="numeric" min="0" max="${BS_MAX.menge}" placeholder="0" data-raster="${bsEsc(g.id)}" aria-label="Anzahl ${bsEsc(g.groesse || 'eine Größe')}"></label>`).join('')}</div>`
-        + `<div class="bs-raster-fuss"><button type="button" class="btn" data-in-korb="${i}">In den Korb</button><button type="button" class="bs-link" data-zu="${i}">schließen</button></div>` : '';
+        + `<div class="bs-raster-fuss"><label class="bs-feld" style="flex:1 1 100%">Notiz (optional, gilt für diese Größen)<input type="text" data-raster-notiz maxlength="${BS_MAX.positionNotiz}" autocomplete="off"></label>`
+        + `<span class="bs-klein" style="flex-basis:100%">Nur Kürzel oder Vorname, keine Telefonnummern o. Ä.</span>`
+        + `<button type="button" class="btn" data-in-korb="${i}">In den Korb</button><button type="button" class="bs-link" data-zu="${i}">schließen</button></div>` : '';
       return `<div class="bs-zeile"><button type="button" class="bs-zeile-kopf" data-artikel="${i}" aria-expanded="${!!offen}">${bild}<span class="bs-zeile-text">`
         + `<span class="bs-name">${bsEsc(a.name)}</span>${farbe ? `<span class="bs-farbe">${bsEsc(farbe)}</span>` : ''}${a.motiv && a.motiv !== a.name ? `<span class="bs-klein">Motiv: ${bsEsc(a.motiv)}</span>` : ''}`
         + `${(a.groessen || []).length ? `<span class="bs-groessen">${a.groessen.map(bsGroesseHtml).join('')}</span>` : '<span class="bs-klein">Größen nach Absprache</span>'}</span></button>${raster}</div>`;
     }
     /** Raster -> Korb-Positionen (nur Mengen > 0, ganze Zahlen 1-999). */
-    function bsPositionenAusRaster(artikel, werte) {
+    function bsPositionenAusRaster(artikel, werte, notiz = '') {
       const pos = [];
+      const nz = String(notiz || '').trim().slice(0, BS_MAX.positionNotiz);   // KS2-1: eine Notiz fuer alle Groessen dieser Karte
       for (const g of artikel.groessen || []) {
         const n = Number(werte[g.id] || 0);
         if (!Number.isInteger(n) || n <= 0) continue;
-        pos.push({ art: 'artikel', id: g.id, menge: Math.min(n, BS_MAX.menge), text: `${artikel.name}${artikel.farbe ? ` · ${artikel.farbe}` : ''} · ${g.groesse || 'eine Größe'}`, besorgen: !!g.nochZuBesorgen });
+        pos.push({ art: 'artikel', id: g.id, menge: Math.min(n, BS_MAX.menge), text: `${artikel.name}${artikel.farbe ? ` · ${artikel.farbe}` : ''} · ${g.groesse || 'eine Größe'}`, besorgen: !!g.nochZuBesorgen, ...(nz ? { notiz: nz } : {}) });
       }
       return pos;
     }
     function bsKorbHtml(korb, kuerzel, schreibbar) {
       if (!korb.length) return '';
       return `<section class="card bs-korb" aria-live="polite"><h2>Noch nicht abgesendet (${korb.length})</h2>`
-        + korb.map((p, i) => `<div class="bs-pos"><span>${bsEsc(p.menge)} × ${bsEsc(p.text)}${p.besorgen ? ' <span class="bs-besorgen">noch zu besorgen</span>' : ''}</span>`
+        + korb.map((p, i) => `<div class="bs-pos"><span>${bsEsc(p.menge)} × ${bsEsc(p.text)}${p.besorgen ? ' <span class="bs-besorgen">noch zu besorgen</span>' : ''}${p.notiz ? ` <span class="bs-klein">· Notiz: ${bsEsc(p.notiz)}</span>` : ''}</span>`
           + `<button type="button" class="bs-weg" data-korb-weg="${i}" aria-label="Position entfernen">✕</button></div>`).join('')
         + `<div class="bs-reihe" style="margin-top:0.5rem"><button type="button" class="btn" id="bs-absenden" ${schreibbar && kuerzel ? '' : 'disabled'}>Absenden (${korb.length})</button></div>`
         + (kuerzel ? '' : '<p class="bs-klein">Bitte oben dein Kürzel eintragen.</p>') + '</section>';
@@ -270,6 +273,7 @@
       return `<div class="bs-eintrag${e.status === 'storniert' ? ' storniert' : ''}" data-eintrag="${bsEsc(e.id)}"><div class="bs-eintrag-kopf"><span class="bs-was">${bsEsc(bsEintragWas(e))}</span>`
         + `<span class="bs-chip">${bsEsc(BS_STATUS[e.status] || e.status)}</span>${e.nachSchluss ? '<span class="bs-chip bs-spaet">nach Bestellschluss – ohne Garantie</span>' : ''}</div>`
         + `${e.art === 'trikot' && e.wunsch ? `<span class="bs-klein">Wunsch: ${bsEsc(e.wunsch)}</span>` : ''}`
+        + `${e.notiz ? `<span class="bs-klein">Notiz: ${bsEsc(e.notiz)}</span>` : ''}`
         + `<span class="bs-klein">${bsEsc(e.kuerzel)} · ${bsEsc(bsUhr(e.zeit))}${e.geaendertVon ? ` · geändert von ${bsEsc(e.geaendertVon)}` : ''}</span>`
         + (offen ? `<div class="bs-eintrag-knoepfe"><button type="button" class="btn-ruhig" data-aendern="${bsEsc(e.id)}">ändern</button><button type="button" class="btn-ruhig" data-storno="${bsEsc(e.id)}">stornieren</button></div>` : '')
         + '</div>';
@@ -342,6 +346,8 @@
             <label class="bs-feld">Anzahl<input type="number" id="bs-x-menge" inputmode="numeric" min="1" max="${BS_MAX.menge}" value="1"></label>
             <label class="bs-feld">Für wen? (optional)<input type="text" id="bs-x-fuer" maxlength="${BS_MAX.fuer}" autocomplete="off"></label></div>
             <p class="bs-klein" style="margin:0.3rem 0">„Für wen“: nur Kürzel oder Funktion, z. B. Trainer.</p>
+            <label class="bs-feld" style="margin-bottom:0.3rem">Notiz (optional)<input type="text" id="bs-x-notiz" maxlength="${BS_MAX.positionNotiz}" autocomplete="off"></label>
+            <p class="bs-klein" style="margin:0 0 0.4rem">Nur Kürzel oder Vorname, keine Telefonnummern o. Ä.</p>
             <button type="button" class="btn" id="bs-x-neu">In den Korb</button>` : ''}
           ${BS.tab === 'trikot' ? `<div class="bs-reihe"><label class="bs-feld">Trikot<select id="bs-tr-produkt">${d.trikots.map(x => `<option value="${bsEsc(x.produktId)}">${bsEsc(x.name)}</option>`).join('')}</select></label>
             <label class="bs-feld">Größe<select id="bs-tr-groesse">${(d.trikots[0]?.groessen || []).map(g => `<option>${bsEsc(g)}</option>`).join('')}</select></label>
@@ -349,6 +355,8 @@
             <label class="bs-feld">Nummer<input type="text" id="bs-tr-nummer" inputmode="numeric" pattern="[0-9]*" maxlength="3" autocomplete="off"></label>
             <label class="bs-feld" style="flex-basis:100%">Wunsch (optional)<input type="text" id="bs-tr-wunsch" maxlength="${BS_MAX.wunsch}" autocomplete="off"></label></div>
             <p class="bs-klein" style="margin:0.3rem 0">Torwart-Trikot? Einfach „Torwart“ in den Wunsch schreiben – wir prüfen das.</p>
+            <label class="bs-feld" style="margin-bottom:0.3rem">Notiz (optional)<input type="text" id="bs-tr-notiz" maxlength="${BS_MAX.positionNotiz}" autocomplete="off"></label>
+            <p class="bs-klein" style="margin:0 0 0.4rem">Nur Kürzel oder Vorname, keine Telefonnummern o. Ä.</p>
             <button type="button" class="btn" id="bs-tr-neu">In den Korb</button>` : ''}
           ` : '<p class="bs-klein">Nur lesen.</p>'}
           ${d.designLink ? `<p class="bs-klein" style="margin-top:0.6rem">Design ansehen: <a class="bs-link" href="${bsEsc(d.designLink)}" target="_blank" rel="noopener noreferrer">Link öffnen</a></p>` : ''}
@@ -409,20 +417,22 @@
       if (b.dataset.inKorb !== undefined) {
         const a = BS.d.artikel[Number(b.dataset.inKorb)];
         const werte = Object.fromEntries([...document.querySelectorAll('[data-raster]')].map(i => [i.dataset.raster, i.value]));
-        const pos = bsPositionenAusRaster(a, werte);
+        const pos = bsPositionenAusRaster(a, werte, document.querySelector('[data-raster-notiz]')?.value);
         if (!pos.length) { meldung('Bitte bei mindestens einer Größe eine Anzahl eintragen.', true); return; }
         BS.korb.push(...pos); if (!BS.vorgang) BS.vorgang = neuerVorgang(); BS.offen = -1; zeichnen(); return;
       }
       if (b.id === 'bs-x-neu') {
         const text = document.getElementById('bs-x-text').value.trim(), menge = Number(document.getElementById('bs-x-menge').value), fuer = document.getElementById('bs-x-fuer').value.trim();
         if (!text || !Number.isInteger(menge) || menge < 1) { meldung('Bitte Text und Anzahl eintragen.', true); return; }
-        BS.korb.push({ art: 'extra', freitext: text, menge, fuer, text: `${text}${fuer ? ` (für ${fuer})` : ''}` }); if (!BS.vorgang) BS.vorgang = neuerVorgang(); zeichnen(); return;
+        const xn = document.getElementById('bs-x-notiz').value.trim();
+        BS.korb.push({ art: 'extra', freitext: text, menge, fuer, ...(xn ? { notiz: xn } : {}), text: `${text}${fuer ? ` (für ${fuer})` : ''}` }); if (!BS.vorgang) BS.vorgang = neuerVorgang(); zeichnen(); return;
       }
       if (b.id === 'bs-tr-neu') {
         const sel = document.getElementById('bs-tr-produkt'); const name = document.getElementById('bs-tr-name').value.trim(); const nummer = document.getElementById('bs-tr-nummer').value.trim();
         if (nummer && !/^\d{1,3}$/.test(nummer)) { meldung('Nummer: nur Ziffern (höchstens 3).', true); return; }
         const groesse = document.getElementById('bs-tr-groesse').value;
-        BS.korb.push({ art: 'trikot', produktId: sel.value, groesse, name, nummer, wunsch: document.getElementById('bs-tr-wunsch').value.trim(), menge: 1,
+        const tn = document.getElementById('bs-tr-notiz').value.trim();
+        BS.korb.push({ art: 'trikot', produktId: sel.value, groesse, name, nummer, wunsch: document.getElementById('bs-tr-wunsch').value.trim(), menge: 1, ...(tn ? { notiz: tn } : {}),
           text: `Trikot ${sel.selectedOptions[0]?.textContent || ''} · ${groesse}${name ? ` · ${name}` : ''}${nummer ? ` · ${nummer}` : ''}` });
         if (!BS.vorgang) BS.vorgang = neuerVorgang(); zeichnen(); return;
       }
@@ -476,6 +486,7 @@
           const nr = feld('Nummer:', en.trikotNummer); if (nr === undefined) return; body.nummer = nr;
           const w = feld('Wunsch:', en.wunsch); if (w === undefined) return; body.wunsch = w;
         }
+        const nz = feld('Notiz (nur Kürzel/Vorname):', en.notiz); if (nz === undefined) return; body.notiz = nz;   // KS2-1
         try { await api('aendern', body); await neuLaden(); meldung('Geändert.'); }
         catch (err) { meldung(err.message, true); if (err.status === 409) await eintraegeLaden(); }
       }

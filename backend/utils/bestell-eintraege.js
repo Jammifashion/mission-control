@@ -8,11 +8,13 @@
 
 import { heuteBerlin, fristen, zugangTage, naechsteTerminId, fehler, ART, TERMIN_STATUS_OFFEN } from './bestellseite.js';
 
-export const EINTRAG_OPTIONAL = ['Groesse', 'Bezeichnung', 'Trikot_Produkt', 'Vorgang', 'Geaendert_Von'];
+// KS2-1: Notiz je Position (alle Arten, <= 100) - eigene Spalte hinten, damit Freitext/Fuer/Wunsch ihre Bedeutung behalten
+// und KS3 sie in die Notiz der Auftragsposition uebernehmen kann. Datenschutz wie Rueckennamen (nie Log/Chat, Leeren nach 12 Monaten).
+export const EINTRAG_OPTIONAL = ['Groesse', 'Bezeichnung', 'Trikot_Produkt', 'Vorgang', 'Geaendert_Von', 'Notiz'];
 export const E_STATUS = { EINGEGANGEN: 'eingegangen', GEPRUEFT: 'geprüft', UEBERNOMMEN: 'übernommen', STORNIERT: 'storniert' };
 export const OFFEN = [E_STATUS.EINGEGANGEN, E_STATUS.GEPRUEFT];
 export const E_ART = { ARTIKEL: 'artikel', EXTRA: 'extra', TRIKOT: 'trikot' };
-export const MAX = { kuerzel: 12, notiz: 60, freitext: 200, fuer: 40, name: 30, nummer: 3, wunsch: 200, positionen: 60, menge: 999, offenJeTermin: 500 };
+export const MAX = { positionNotiz: 100, kuerzel: 12, notiz: 60, freitext: 200, fuer: 40, name: 30, nummer: 3, wunsch: 200, positionen: 60, menge: 999, offenJeTermin: 500 };
 
 const t = v => String(v ?? '').trim();
 const ein = v => t(v).replace(/\s+/g, ' ');
@@ -141,6 +143,7 @@ export function absendenPlan({ zugang, termin, eintraege, idx, eingabe, jetzt })
     Kuerzel: kuerzel, WC_Variation_ID: '', LShop_ArticleNr: '', Freitext: '', Fuer: '', Trikot_Name: '', Trikot_Nummer: '', Wunsch: '',
     Groesse: '', Bezeichnung: '', Trikot_Produkt: '',
     ...positionFelder(p, idx, i + 1),
+    Notiz: text(p?.notiz, MAX.positionNotiz, `Position ${i + 1}: Notiz`),   // KS2-1
     Zeit: zeit, Nach_Schluss: spaet, Status: E_STATUS.EINGEGANGEN, Auftrag_Nr: '', Position_ID: '', Stand: zeit,
     Vorgang: t(eingabe?.vorgang), Geaendert_Von: '',
   }));
@@ -186,6 +189,7 @@ export function aenderungPlan({ zugang, termin, eintrag, idx, eingabe, jetzt }) 
     if (eingabe.nummer !== undefined) neu.Trikot_Nummer = nummer(eingabe.nummer);
     if (eingabe.wunsch !== undefined) neu.Wunsch = text(eingabe.wunsch, MAX.wunsch, 'Wunsch');
   }
+  if (eingabe.notiz !== undefined) neu.Notiz = text(eingabe.notiz, MAX.positionNotiz, 'Notiz');   // KS2-1, alle Arten
   const stand = new Date(jetzt).toISOString();
   return { ...neu, Geaendert_Von: kuerzel, Stand: stand, Nach_Schluss: t(eintrag.Nach_Schluss) === 'ja' || nachSchluss(termin, zugang, jetzt) ? 'ja' : '' };
 }
@@ -203,7 +207,7 @@ export function eintragFuerSeite(x) {
     menge: Number(t(x.Menge)) || 0, kuerzel: t(x.Kuerzel), zeit: t(x.Zeit), nachSchluss: t(x.Nach_Schluss) === 'ja',
     status: t(x.Status) || E_STATUS.EINGEGANGEN, freitext: t(x.Freitext), fuer: t(x.Fuer), trikotName: t(x.Trikot_Name),
     trikotNummer: t(x.Trikot_Nummer), wunsch: t(x.Wunsch), geaendertVon: t(x.Geaendert_Von), stand: t(x.Stand),
-    auswahl: t(x.WC_Variation_ID) || t(x.LShop_ArticleNr), trikotProdukt: t(x.Trikot_Produkt),
+    auswahl: t(x.WC_Variation_ID) || t(x.LShop_ArticleNr), trikotProdukt: t(x.Trikot_Produkt), notiz: t(x.Notiz),
   };
 }
 

@@ -357,7 +357,11 @@ export function katalogDauer({ sortiment, kategorien, maske, varianten, lieferba
     }
     for (const [k, g] of gruppen) {
       g.groessen.sort(groessenSort);
-      const bild = g.groessen.map(x => bilder.get(x.id)?.url).find(Boolean) || bilder.get(t(a.produktId))?.url || '';
+      // KS2-1: je Karte das erste EIGENE Variationsbild (anders als das Hauptbild), sonst das Hauptbild. Vorher zaehlte schon
+      // das Hauptbild an der ersten Groesse (Variation ohne eigenes Bild bekommt in WooCommerce das Hauptbild) - Befund Babybody 07.11.
+      const haupt = bilder.get(t(a.produktId))?.url || '';
+      const eigene = g.groessen.map(x => bilder.get(x.id)?.url).filter(Boolean);
+      const bild = eigene.find(u => u !== haupt) || haupt || eigene[0] || '';
       const gruppen = t(a.kategorien).split(',').map(t).filter(n => namen.has(n) && !wurzelNamen.has(n));
       karten.push(artikelFuerSeite({
         key: `${t(a.produktId)}|${k}`, name: t(a.name), farbe: g.farbe, design: g.design, bild, groessen: g.groessen, gruppen,

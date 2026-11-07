@@ -1100,6 +1100,10 @@ Neue Sektionen immer mit Anker versehen:
   antippen = Mengen-Raster) · Extra · Trikot, Sammelkorb + "Absenden", Liste je Termin mit ändern/stornieren; "nach Bestellschluss – ohne
   Garantie" orange. MC: im Dialog je Zugang "Einträge ansehen" (`GET /api/bestellseiten/:zugangId/eintraege`, nur lesen, Filter je Termin,
   `bsmEintraegeHtml`). Test bestell-eintraege.test.js.
+  KS2-1: Bild je Farbkarte = erstes EIGENES Variationsbild (anders als das Hauptbild), sonst Hauptbild (Befund Babybody: erste Groesse trug noch
+  das Hauptbild). "Artikelliste aktualisieren" meldet `bilderNeu` / `bilderUnveraendert` / `ohneBild` (MC `bsmBilderText`). Notiz je Position
+  (alle Arten, <= 100, Spalte `Notiz` hinten in Bestell_Eintraege, im Raster eine Notiz fuer alle Groessen der Karte), sichtbar in Korb, Liste
+  und MC, aenderbar bis "übernommen"; Datenschutz wie Rueckennamen, KS3 uebernimmt sie in die Notiz der Auftragsposition. Test bestellseite-ks21.test.js.
 - backend/lib/wpMedien.js – Upload in die WordPress-Mediathek (`ladeMedienHoch`, `setzeMedienText`),
   eine Stelle fuer `POST /api/artikel/media-upload` und das Halloween-Skript (fetchMitZeitlimit +
   pruefeFetchAntwort; Titel/ALT als Abfrageparameter).

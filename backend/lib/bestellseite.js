@@ -364,7 +364,11 @@ export async function aktualisiereBilder({ sheets: s, wc: wcTest, jetzt = () => 
         if (liste.length < 100) break;
       }
     }
-    const ergebnis = { produkte: ids.length, trikots: trikotIds.length, zeilen: zeilen.length, mitBild: zeilen.filter(r => r[2]).length, abrufe };
+    // KS2-1: Rueckmeldung nach dem Klick - je Zeile neu / unveraendert / ohne Bild gegen den Stand vor dem Abruf (nur Anzahlen)
+    const neu = zeilen.filter(r => r[2] && vorher.je.get(r[0])?.url !== r[2]).length;
+    const ohneBild = zeilen.filter(r => !r[2]).length;
+    const ergebnis = { produkte: ids.length, trikots: trikotIds.length, zeilen: zeilen.length, mitBild: zeilen.filter(r => r[2]).length, abrufe,
+      bilderNeu: neu, bilderUnveraendert: zeilen.length - neu - ohneBild, ohneBild };
     if (dryRun) return { ok: true, dryRun: true, ...ergebnis };
     // Stand vom Anfang noch gueltig?
     const jetztWerte = (await leseBilder(sheets, spreadsheetId)).werte ?? [];

@@ -27,7 +27,7 @@ const WRITE = process.argv.includes('--write');
 export const REITER = [
   { tab: TAB_ZUGAENGE, spalten: [...ZUGANG_SPALTEN, ...ZUGANG_OPTIONAL], pflicht: ZUGANG_SPALTEN, text: ZUGANG_TEXT, optional: ZUGANG_OPTIONAL },
   { tab: TAB_TERMINE, spalten: TERMIN_SPALTEN, pflicht: TERMIN_SPALTEN, text: TERMIN_TEXT },
-  // KS2: hinten Groesse, Bezeichnung, Trikot_Produkt, Vorgang, Geaendert_Von (Eintraege) und Kategorien (Bilder)
+  // KS2: hinten Groesse, Bezeichnung, Trikot_Produkt, Vorgang, Geaendert_Von (Eintraege) und Kategorien (Bilder); KS2-1: Notiz (Eintraege)
   { tab: TAB_EINTRAEGE, spalten: [...EINTRAG_SPALTEN, ...EINTRAG_OPTIONAL], pflicht: EINTRAG_SPALTEN, text: EINTRAG_TEXT, optional: EINTRAG_OPTIONAL },
   { tab: TAB_BILDER, spalten: [...BILD_SPALTEN, ...BILD_OPTIONAL], pflicht: BILD_SPALTEN, text: BILD_TEXT, optional: BILD_OPTIONAL },
 ];
