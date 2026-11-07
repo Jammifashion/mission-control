@@ -1,9 +1,9 @@
-// PA7: Artikel-Abgleich fuer Festpreis-Partner - reine Logik, nur MELDEN (Variante B).
+// PA7: Artikel-Abgleich fuer Festpreis-Partner - reine Logik.
 //
-// Warum nur melden: Der FP-Sync holt den Festpreis NICHT aus FP_Artikel, sondern ueber die Artikelkategorie der
-// FP_Artikel-Zeile aus FP_Artikel_Kategorie; fehlt die Zuordnung, rechnet er still mit Festpreis 0 (Partner bekommt den
-// ganzen VK). Eine automatisch angelegte Zeile ohne Artikelkategorie wuerde also NICHT gesperrt, sondern zu viel
-// auszahlen. Deshalb legt PA7 nichts an und setzt nie einen Festpreis - es zeigt nur:
+// Der FP-Sync holt den Festpreis NICHT aus FP_Artikel, sondern ueber die Artikelkategorie der FP_Artikel-Zeile aus
+// FP_Artikel_Kategorie. Seit PA8 (FP-Sperre) wird ein Verkauf ohne gueltige Zuordnung GESPERRT statt mit 0 gerechnet - darum
+// darf der taegliche Abgleich fehlende Artikel jetzt OHNE Artikelkategorie anlegen (Variante A, `fpAnlagePlan`; geschrieben in
+// lib/fpArtikelAnlegen.js), nie mit Festpreis. Gemeldet wird:
 //   - fehlend:      veroeffentlichte Shop-Artikel der Partner-Kategorien (inkl. Unterkategorien) ohne FP_Artikel-Zeile
 //   - ohneFestpreis: FP_Artikel-Zeilen, deren Artikelkategorie leer ist oder keine Zeile in FP_Artikel_Kategorie hat
 //                    (Festpreis 0 in FP_Artikel_Kategorie ist bewusst und zaehlt als gesetzt)
@@ -46,7 +46,7 @@ export function fpPartnerBefund({ partner, kategorien, produkte, artikel, festpr
   const vorhanden = new Set((artikel ?? []).map(a => t(a.produktId)));
   const fehlend = (produkte ?? [])
     .filter(p => t(p.status) === 'publish' && (p.categories ?? []).some(c => ziel.has(Number(c.id))) && !vorhanden.has(String(p.id)))
-    .map(p => ({ produktId: String(p.id), name: t(p.name) }))
+    .map(p => ({ produktId: String(p.id), name: t(p.name), ...(t(p.categories?.[0]?.name) ? { wcKategorie: t(p.categories[0].name) } : {}) }))
     .sort((a, b) => Number(a.produktId) - Number(b.produktId));
   const ohneFestpreis = (artikel ?? [])
     .filter(a => !t(a.artikelkategorie) || !festpreisKategorien.has(t(a.artikelkategorie)))
@@ -77,4 +77,36 @@ export function fpOhneEintragInVerkaeufen({ uebersprungen, produkte, kategorien,
     }
   }
   return [...aus.values()];
+}
+
+/**
+ * PA8 (Variante A): neue FP_Artikel-Zeilen fuer fehlende Artikel - OHNE Artikelkategorie und OHNE Festpreis/EK/Handling
+ * (leer, nicht 0), Versandart P wie "Aus WC importieren". Zeile nach den Spaltennamen des Reiters; schon vorhandene
+ * Partner + Produkt-ID (frisch gelesen) fallen heraus, doppelte im Befund einmal.
+ * @param {string[]} kopf  Kopfzeile FP_Artikel
+ * @param {any[][]} zeilen Datenzeilen FP_Artikel (frisch gelesen)
+ * @param {{id, fehlend: {produktId, name, wcKategorie}[]}[]} befund
+ * @returns {{ zeilen: any[][], neu: {partnerId, produktId}[] }}
+ */
+export function fpAnlagePlan(kopf, zeilen, befund) {
+  const h = c => kopf.indexOf(c);
+  for (const c of ['Partner-ID', 'Produkt-ID', 'Artikelname', 'Artikelkategorie'])
+    if (h(c) === -1) throw Object.assign(new Error(`FP_Artikel: Spalte ${c} fehlt – nichts angelegt.`), { status: 409, code: 'einrichtung' });
+  const da = new Set((zeilen ?? []).map(r => `${t(r[h('Partner-ID')])}|${t(r[h('Produkt-ID')])}`));
+  const aus = [], neu = [];
+  for (const p of befund ?? []) for (const f of p.fehlend ?? []) {
+    const k = `${t(p.id)}|${t(f.produktId)}`;
+    if (!t(p.id) || !/^\d+$/.test(t(f.produktId)) || da.has(k)) continue;
+    da.add(k);
+    const z = Array.from({ length: kopf.length }, () => '');
+    z[h('Partner-ID')] = t(p.id);
+    z[h('Produkt-ID')] = t(f.produktId);
+    z[h('Artikelname')] = t(f.name);
+    if (h('Versandart') !== -1) z[h('Versandart')] = 'P';
+    if (h('WC-Kategorie') !== -1) z[h('WC-Kategorie')] = t(f.wcKategorie);
+    z[h('Artikelkategorie')] = '';   // bewusst leer: Verkaeufe bleiben gesperrt, bis jemand die Kategorie setzt
+    aus.push(z);
+    neu.push({ partnerId: t(p.id), produktId: t(f.produktId) });
+  }
+  return { zeilen: aus, neu };
 }

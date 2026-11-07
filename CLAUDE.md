@@ -325,6 +325,20 @@ Neue Sektionen immer mit Anker versehen:
   OHNE Pauschale, `verpackung.status` "fehlt" + Hinweis (Inhaber: keine Sperre). FP_Verkäufe Spalte W
   `Versandmethode` (method_id, additiv) schreibt der Sync; Bestand: `scripts/fill-fp-versandmethode.js`
   (Trockenlauf Standard, `--write` nur leere Zellen).
+- backend/utils/fp-sperre.js – FP-Sperre (PA8), wie PA2 bei Lizenz-Partnern: der FP-Sync (`routes/festpreis-portal.js`, unter
+  `mitFpSperre` aus lib/fpSperre.js) rechnet NIE mehr still mit Festpreis 0. Ohne gueltige Zuordnung (FP_Artikel.Artikelkategorie leer
+  oder ohne Zeile Partner + Kategorie in FP_Artikel_Kategorie) schreibt er die Zeile mit Status "gesperrt", Spalte X `Sperre` =
+  "Festpreis-Kategorie fehlt" (additiv hinter W, nur beim ersten gesperrten Verkauf angelegt) und LEEREN Betraegen (Festpreis,
+  Handlingskosten, Gesamt-Partner-Netto/-Brutto); Eingaben (VK-Netto, Stueck, Porto, PayPal) bleiben. Festpreis 0 in FP_Artikel_Kategorie
+  = bewusst, gueltig. Storno einer gesperrten Zeile = gesperrt. Schreiben ohne append (`schreibeNeueZeilen`). Erster Schritt jedes Syncs
+  und Knopf "gesperrte nachrechnen" (`POST /api/festpreis/verkaeufe/nachrechnen` { dryRun }): `nachrechnenInSperre` rechnet gesperrte Zeilen
+  mit der AKTUELLEN Artikelkategorie aus den gespeicherten Eingaben (Rechnung wie Mehrkosten-PATCH, berechneFestpreisAnteil), Zeile vorher
+  frisch geprueft, nur Zellen R/S/V/M/N/O/X, zurueckgelesen; abgerechnet/offen nie. Abrechnung und Portal-Saldo nehmen nur "offen";
+  Vorschau/Erstellen melden `sperre` (gesperrt im Zeitraum, Nachzuegler). Portal: "in Prüfung" ohne Betraege/Grund. Mehrkosten an
+  gesperrter Zeile 409. MC: Hinweis `#fp-sperre-hinweis` (Block `PA8 FP-Sperre: Anfang/Ende`, `GET .../verkaeufe/gesperrt`), "zum Artikel",
+  Filter "Gesperrt". Taeglicher Abgleich (Variante A): `lib/fpArtikelAnlegen.js` legt fehlende FP_Artikel OHNE Artikelkategorie und ohne
+  EK/Handling an (`fpAnlagePlan`), Chat "n neue Artikel angelegt", "n Verkäufe gesperrt" (nur IDs). Trockenlauf
+  `scripts/fp-sperre-trockenlauf.js [--shop]`. Test fp-sperre.test.js.
 - backend/utils/shop-spalte.js – Spalte "Shop" (NAV3) in den SSOT-Reitern mit Bestellbezug:
   Produktions_Status (K), LShop_Bestellungen (I), DTF_Bestellungen (H), hinten angehaengt, nur ueber
   den Namen. Werte JFN/HONK aus `?shop=` (apiFetch haengt ihn immer an); leere Zelle = JFN; fehlt die

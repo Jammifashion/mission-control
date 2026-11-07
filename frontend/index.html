@@ -2976,11 +2976,13 @@
                   <option value="">Alle Status</option>
                   <option value="offen">Offen</option>
                   <option value="abgerechnet">Abgerechnet</option>
+                  <option value="gesperrt">Gesperrt</option>
                 </select>
                 <input class="form-input" id="fp-verkaeufe-filter-ab-order" type="number" placeholder="ab Order-ID" style="font-size:0.83rem;padding:0.36rem 0.65rem;width:130px;">
                 <button class="btn-secondary" id="btn-fp-sync" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="wc-sync">↻ WC-Sync</button>
               </div>
             </div>
+            <div id="fp-sperre-hinweis" class="fp-artikel-hinweis" aria-live="polite" hidden></div>   <!-- PA8 -->
             <div id="fp-verkaeufe-list-wrap"><div class="skeleton" style="height:80px;"></div></div>
           </div>
         </div>
@@ -6493,7 +6495,10 @@
         'se-neu-bauen':          { name: 'Titel und Meta neu bauen', text: 'Baut Titel und Meta-Beschreibung neu aus den Artikeldaten. Gespeichert wird noch nichts.' },
         'se-speichern':          { name: 'Yoast-Daten speichern', text: 'Schreibt Titel und Meta in den Shop (Kunden sehen es) und liest sie zurück. Die SEO-Karte wird nachgezogen.' },
         'fp-artikel-pruefen':    { name: 'Fehlende prüfen', text: 'Sucht veröffentlichte Shop-Artikel dieses Festpreis-Partners ohne Eintrag hier. Liest nur, setzt keinen Festpreis.' },
-        'fp-ohne-festpreis':     { name: 'Ohne Festpreis-Kategorie', text: 'Diese Artikel haben keine Artikelkategorie mit Festpreis. Der Sync rechnet sie sonst mit Festpreis 0 ab.' },
+        'fp-ohne-festpreis':     { name: 'Ohne Festpreis-Kategorie', text: 'Diese Artikel haben keine Artikelkategorie mit Festpreis. Verkäufe dazu sind gesperrt (nicht abrechenbar), bis sie gesetzt ist.' },
+        'fp-sperre':             { name: 'Gesperrte Verkäufe', text: 'Verkäufe ohne Festpreis-Kategorie: nicht abrechenbar und nicht im Partner-Saldo. Kategorie setzen, dann nachrechnen.' },
+        'fp-sperre-artikel':     { name: 'Zum Artikel', text: 'Öffnet Festpreis → Artikel dieses Partners und markiert die betroffenen Artikel.' },
+        'fp-nachrechnen':        { name: 'Gesperrte nachrechnen', text: 'Rechnet gesperrte Verkäufe mit dem jetzt gültigen Festpreis und setzt sie auf offen. Abgerechnete bleiben unberührt.' },
         'fp-ohne-zeigen':        { name: 'Zeigen', text: 'Springt zur ersten Zeile ohne Artikelkategorie und markiert alle betroffenen Zeilen.' },
         'seo-generieren':        { name: 'Beschreibung generieren', text: 'Lässt die KI aus den Feldern oben eine Beschreibung schreiben und prüft sie. Gespeichert wird noch nichts.' },
         'seo-speichern':         { name: 'SEO Speichern', text: 'Schreibt Beschreibung und SEO-Daten in den Shop – Kunden sehen es sofort.' },
@@ -6956,7 +6961,7 @@
         'auftragsmonitor': ['wc-erledigt', 'tab-offen', 'tab-protokoll', 'mon-fulfillment', 'dtf-sammel', 'dtf-bestellt', 'lshop-alt-sammel', 'lshop-alt-bestellt', 'korb-aeltere'],
         'artikel': ['modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
         'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
-        'partner': ['fp-artikel-pruefen', 'fp-ohne-festpreis', 'fp-ohne-zeigen', 'pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'link-vor-lk1', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
+        'partner': ['fp-artikel-pruefen', 'fp-ohne-festpreis', 'fp-ohne-zeigen', 'fp-sperre', 'fp-sperre-artikel', 'fp-nachrechnen', 'pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'link-vor-lk1', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
         'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'fp-preis-loeschen'],
         'anfragen': ['anf-neu', 'anf-aktualisieren', 'anf-anlegen', 'anf-speichern'],
         'assistent': ['aw-eintrag-neu', 'aw-eintrag-speichern', 'aw-prompt-speichern', 'aw-prompt-standard', 'aw-prompt-zeigen', 'aw-test-senden', 'aw-test-neu'],
@@ -21035,7 +21040,7 @@
         /** Hinweis-HTML: lokal (ohne Festpreis-Kategorie) und Ergebnis von "Fehlende prüfen" (befund). Leer = nichts zu zeigen. */
         function fpHinweisHtml(ohne, befund) {
           const teile = [];
-          if (ohne && ohne.length) teile.push(`<div><span data-hilfe="fp-ohne-festpreis" tabindex="0"><strong>${ohne.length} Artikel ohne Festpreis-Kategorie</strong> – der Sync rechnet sie sonst mit Festpreis 0 ab.</span> <button type="button" class="korb-link" data-fp-ohne-zeigen data-hilfe="fp-ohne-zeigen">zeigen</button></div>`);
+          if (ohne && ohne.length) teile.push(`<div><span data-hilfe="fp-ohne-festpreis" tabindex="0"><strong>${ohne.length} Artikel ohne Festpreis-Kategorie</strong> – ihre Verkäufe sind gesperrt, bis sie gesetzt ist.</span> <button type="button" class="korb-link" data-fp-ohne-zeigen data-hilfe="fp-ohne-zeigen">zeigen</button></div>`);
           if (befund) {
             if (befund.fehlend?.length) teile.push(`<div><strong>${befund.fehlend.length} veröffentlichte Shop-Artikel ohne Eintrag</strong> – „Aus WC importieren“ legt sie an, danach Artikelkategorie setzen:<ul>${befund.fehlend.slice(0, 20).map(f => `<li>${fpEsc(f.produktId)} · ${fpEsc(f.name)}</li>`).join('')}</ul></div>`);
             if (befund.kategorienWeg?.length) teile.push(`<div>Kategorie ${befund.kategorienWeg.map(fpEsc).join(', ')} gibt es im Shop nicht mehr (Liste beim Partner).</div>`);
@@ -21053,11 +21058,65 @@
             const n = ohne.reduce((s, x) => s + (x.bestellungen?.length || 0), 0);
             w.push(`⚠ ${n} Verkauf/Verkäufe zu Artikeln ohne Festpreis-Eintrag (IDs ${[...new Set(ohne.map(x => x.produktId))].slice(0, 10).join(', ')}) – NICHT abgerechnet. Erst „Aus WC importieren“ und Artikelkategorie setzen, dann Sync${datum ? ` mit Datum ab ${datum}` : ''} wiederholen.`);
           }
-          if (d?.ohneFestpreisAnzahl) w.push(`⚠ ${d.ohneFestpreisAnzahl} Position(en) ohne Festpreis-Kategorie – mit Festpreis 0 übernommen. Bitte Artikelkategorie prüfen.`);
+          if (d?.ohneFestpreisAnzahl) w.push(`⚠ ${d.ohneFestpreisAnzahl} Position(en) ohne Festpreis-Kategorie – gesperrt, NICHT abgerechnet. Artikelkategorie setzen, dann „gesperrte nachrechnen“.`);   // PA8
           if (d?.pruefungFehler) w.push(`Prüfung auf fehlende Artikel nicht möglich: ${d.pruefungFehler}`);
           return w;
         }
         // ── PA7 Festpreis-Hinweis: Ende ──
+        // ── PA8 FP-Sperre: Anfang (reine Logik, Test backend/tests/fp-sperre.test.js) ──
+        /** Hinweis ueber der Verkaufsliste aus GET /api/festpreis/verkaeufe/gesperrt. Leer = nichts gesperrt. Nur Anzahl + IDs. */
+        function fpSperreHinweisHtml(g) {
+          if (!g || !g.anzahl) return '';
+          const teile = (g.jePartner || []).map(p => {
+            const ids = (p.produktIds || []).slice(0, 10).map(fpEsc).join(', ') + ((p.produktIds || []).length > 10 ? ' …' : '');
+            return `<div><span data-hilfe="fp-sperre" tabindex="0"><strong>${Number(p.anzahl)} gesperrt – Festpreis-Kategorie fehlt</strong> (${fpEsc(p.partnerId)}, Artikel ${ids})</span> `
+              + `<button type="button" class="korb-link" data-fp-sperre-artikel="${fpEsc(p.partnerId)}" data-fp-ids="${fpEsc((p.produktIds || []).join(','))}" data-hilfe="fp-sperre-artikel">zum Artikel</button></div>`;
+          });
+          return teile.join('') + '<div><button type="button" class="btn-secondary btn-xs" data-fp-nachrechnen data-hilfe="fp-nachrechnen">gesperrte nachrechnen</button></div>';
+        }
+        /** Hinweise der Abrechnung (Vorschau/Erstellen): gesperrte Zeilen im Zeitraum, Nachzuegler. */
+        function fpSperreAbrText(sperre) {
+          return (sperre && sperre.hinweise && sperre.hinweise.length) ? `⚠ ${sperre.hinweise.join(' ')}` : '';
+        }
+        /** Text nach "gesperrte nachrechnen" bzw. nach dem Sync. */
+        function fpNachrechnenText(d) {
+          const n = Number(d?.nachgerechnet || 0), rest = Number(d?.nochGesperrt || 0);
+          if (!n && !rest) return 'Keine gesperrten Verkäufe.';
+          return `${n} gesperrte Verkäufe nachgerechnet${rest ? `, ${rest} weiter gesperrt (Artikelkategorie fehlt noch)` : ''}.`;
+        }
+        // ── PA8 FP-Sperre: Ende ──
+        let fpMarkierenNach = null;   // PA8: Produkt-IDs, die nach dem naechsten loadFpArtikel markiert werden
+        async function fpSperreLaden(partnerId) {
+          const el = document.getElementById('fp-sperre-hinweis');
+          try {
+            const q = partnerId ? `?partnerId=${encodeURIComponent(partnerId)}` : '';
+            const g = await window.apiFetch(`${FP()}/api/festpreis/verkaeufe/gesperrt${q}`).then(r => r.json());
+            const html = fpSperreHinweisHtml(g);
+            el.innerHTML = html; el.hidden = !html;
+          } catch { el.hidden = true; }
+        }
+        document.getElementById('fp-sperre-hinweis').addEventListener('click', async e => {
+          const zum = e.target.closest('[data-fp-sperre-artikel]');
+          if (zum) {
+            fpMarkierenNach = new Set(String(zum.dataset.fpIds || '').split(',').filter(Boolean));
+            fpArtikelPartnerSel.value = zum.dataset.fpSperreArtikel;
+            document.querySelector('#panel-festpreis .sub-tab[data-fptab="fp-artikel"]')?.click();
+            return;
+          }
+          const btn = e.target.closest('[data-fp-nachrechnen]');
+          if (!btn) return;
+          btn.disabled = true;
+          try {
+            const r = await window.apiFetch(`${FP()}/api/festpreis/verkaeufe/nachrechnen`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+            const d = await r.json();
+            if (!r.ok) throw new Error(d.error ?? r.statusText);
+            window.showToast(fpNachrechnenText(d), d.nochGesperrt ? 'warn' : undefined);
+            loadFpVerkaeufe();
+          } catch (err) {
+            window.showToast(`Nachrechnen nicht möglich: ${err.message}`, 'toast-error');
+            btn.disabled = false;
+          }
+        });
         let fpOhneStand = [];
         function fpHinweisZeigen(ohne, befund) {
           const el = document.getElementById('fp-artikel-hinweis');
@@ -21104,6 +21163,14 @@
             const kategorien = katData.kategorien ?? [];
             fpOhneStand = fpOhneFestpreis(artikel, kategorien);   // PA7
             fpHinweisZeigen(fpOhneStand, null);
+            queueMicrotask(() => {   // PA8: "zum Artikel" aus den gesperrten Verkaeufen
+              if (!fpMarkierenNach) return;
+              const ids = fpMarkierenNach; fpMarkierenNach = null;
+              const zeilen = [...document.querySelectorAll('#fp-artikel-list-wrap tr[data-fp-art-pid]')].filter(tr => ids.has(tr.dataset.fpArtPid));
+              zeilen.forEach(tr => tr.classList.add('fp-art-markiert'));
+              zeilen[0]?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+              zeilen[0]?.querySelector('.fp-art-ak')?.focus();
+            });
             if (!artikel.length) {
               wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Artikel. Bitte aus WC importieren.</p>';
               return;
@@ -21193,7 +21260,8 @@
               const afterInfo = d.afterParam ? ` (ab ${d.afterParam.slice(0,10)})` : '';
               window.showToast((d.message || `${d.synced} neue Einträge`) + afterInfo);
               for (const w of fpSyncWarnungen(d)) window.showToast(w, 'warn', 20000);   // PA7
-              if (d.synced > 0 || d.storniert > 0) loadFpVerkaeufe();
+              if (d.nachgerechnet) window.showToast(fpNachrechnenText(d));   // PA8
+              if (d.synced > 0 || d.storniert > 0 || d.nachgerechnet > 0) loadFpVerkaeufe();
             } catch (e) {
               window.showToast(`Sync-Fehler: ${e.message}`, 'toast-error');
               okBtn.disabled = false; okBtn.textContent = 'Sync starten';
@@ -21215,6 +21283,7 @@
           const params = new URLSearchParams();
           if (partnerId) params.set('partnerId', partnerId);
           if (status)    params.set('status', status);
+          fpSperreLaden(partnerId);   // PA8
           try {
             const data = await window.apiFetch(`${FP()}/api/festpreis/verkaeufe?${params}`).then(r => r.json());
             let rows = data.verkaeufe ?? [];
@@ -21234,6 +21303,8 @@
                 const red = 'color:var(--danger);font-weight:600;';
                 const rowId = r._rowId;
                 const mkVal = parseFloat(String(r['Mehrkosten']||'0').replace(',','.')) || 0;
+                const gesperrt = r['Status Abrechnung'] === 'gesperrt';   // PA8: Betraege leer, keine Mehrkosten
+                const betrag = v => (String(v ?? '').trim() === '' ? '–' : fmt(v) + ' €');
                 return `<tr style="${isStorno ? 'background:color-mix(in srgb, var(--danger) 6%, transparent);' : ''}">
                 <td>${r['Partner-ID']}</td>
                 <td>${r['Datum']}</td>
@@ -21243,11 +21314,11 @@
                 <td style="${isStorno ? red : ''}">${r['Stückzahl']}</td>
                 <td style="font-size:0.8rem;color:var(--muted);">${r['Artikelkategorie'] || '–'}</td>
                 <td style="${isStorno ? red : ''}">${fmt(r['VK-Netto'])} €</td>
-                <td style="${isStorno ? red : ''}">${fmt(r['Festpreis'])} €</td>
-                <td style="color:var(--muted);">${fmt(r['Handlingskosten'])} €</td>
-                <td>${rowId && !isStorno ? `<input type="number" class="form-input fp-mk-input" step="0.01" min="0" value="${mkVal}" data-rowid="${rowId}" style="width:80px;padding:0.25rem 0.4rem;font-size:0.82rem;">` : fmt(r['Mehrkosten']) + ' €'}</td>
-                <td style="font-weight:600;${isStorno ? red : ''}">${fmt(r['Gesamt-Partner-Netto'])} €</td>
-                <td><span class="badge ${r['Status Abrechnung'] === 'abgerechnet' ? 'badge-completed' : 'badge-processing'}">${r['Status Abrechnung']}</span></td>
+                <td style="${isStorno ? red : ''}">${betrag(r['Festpreis'])}</td>
+                <td style="color:var(--muted);">${betrag(r['Handlingskosten'])}</td>
+                <td>${rowId && !isStorno && !gesperrt ? `<input type="number" class="form-input fp-mk-input" step="0.01" min="0" value="${mkVal}" data-rowid="${rowId}" style="width:80px;padding:0.25rem 0.4rem;font-size:0.82rem;">` : fmt(r['Mehrkosten']) + ' €'}</td>
+                <td style="font-weight:600;${isStorno ? red : ''}">${betrag(r['Gesamt-Partner-Netto'])}</td>
+                <td><span class="badge ${r['Status Abrechnung'] === 'abgerechnet' ? 'badge-completed' : gesperrt ? 'badge-on-hold' : 'badge-processing'}"${gesperrt ? ' data-hilfe="fp-sperre" tabindex="0"' : ''}>${r['Status Abrechnung']}</span></td>
               </tr>`;}).join('')}</tbody>
             </table></div>`;
 
@@ -21300,6 +21371,8 @@
               statusEl.style.color = 'var(--danger)';
               statusEl.textContent += ` – ⚠ OHNE Verpackungspauschale: ${(d.verpackung.hinweise || []).join(' ')}`;
             }
+            const sperrTxt = fpSperreAbrText(d.sperre);   // PA8
+            if (sperrTxt) { statusEl.style.color = 'var(--warning)'; statusEl.textContent += ` – ${sperrTxt}`; }
             loadFpAbrechnungen();
           } catch (e) {
             statusEl.style.color = 'var(--danger)'; statusEl.textContent = `Fehler: ${e.message}`;
@@ -21510,7 +21583,8 @@
           try {
             const qs = new URLSearchParams({ partnerId, vonDatum, bisDatum });
             const d = await window.apiFetch(`${FP()}/api/festpreis/verkaeufe/summary?${qs}`).then(r => r.json());
-            statusEl.textContent = '';
+            statusEl.textContent = fpSperreAbrText(d.sperre);   // PA8: gesperrte im Zeitraum / Nachzuegler
+            statusEl.style.color = statusEl.textContent ? 'var(--warning)' : 'var(--muted)';
             renderFpSummaryModal(d, partnerId, vonDatum, bisDatum);
           } catch (e) {
             statusEl.style.color = 'var(--danger)'; statusEl.textContent = `Fehler: ${e.message}`;

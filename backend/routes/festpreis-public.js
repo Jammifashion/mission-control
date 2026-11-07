@@ -88,9 +88,19 @@ router.get('/verkaeufe', async (req, res, next) => {
     const { header, rows } = await readTab(sheets, sheetId, TAB_FP_VERKAEUFE);
     const pidIdx = header.indexOf('Partner-ID');
     const stIdx  = header.indexOf('Status Abrechnung');
+    // PA8: gesperrte Zeilen (Festpreis-Kategorie fehlt) als "in Prüfung", ohne Grund und ohne Betraege; nicht im Saldo.
+    const BETRAEGE = ['Festpreis', 'Handlingskosten', 'Gesamt-Partner-Netto', 'Gesamt-Partner-Brutto'];
     const filtered = rows
       .filter(r => (r[pidIdx] ?? '') === partnerId && (r[stIdx] ?? '') !== 'abgerechnet')
-      .map(r => rowToObj(header, r));
+      .map(r => {
+        const o = rowToObj(header, r);
+        delete o.Sperre;
+        if (String(o['Status Abrechnung'] ?? '').trim() === 'gesperrt') {
+          o['Status Abrechnung'] = 'in Prüfung';
+          for (const b of BETRAEGE) delete o[b];
+        }
+        return o;
+      });
     res.json(filtered);
   } catch (err) { next(err); }
 });

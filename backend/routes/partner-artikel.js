@@ -5,6 +5,8 @@ import { sheetsMitWiederholung } from '../lib/googleRetry.js';
 import { getWcClient as wcClientForShop } from '../lib/shopConfig.js';
 import { importiereFuerPartner, artikelAbgleich, abgleichMelden } from '../lib/partnerArtikel.js';
 import { fpArtikelPruefung } from '../lib/fpArtikel.js';   // PA7: Festpreis-Partner nur melden
+import { fpFehlendeAnlegen } from '../lib/fpArtikelAnlegen.js';   // PA8
+import { leseGesperrte } from '../lib/fpSperre.js';   // PA8
 import { istLaufStopp } from '../lib/hosterPruefseite.js';
 import { notify, buildArtikelAbgleichNachricht, buildAbgleichLebenszeichen } from '../lib/chatNotify.js';
 
@@ -237,17 +239,33 @@ router.post('/:id/artikel/import', async (req, res, next) => {
 // Taeglicher Abgleich (sync-partner-daily.yml, VOR sync-all): fehlende
 // Partnerartikel fuer alle aktiven Lizenz-Partner + HonkShop anlegen, danach
 // eine Meldung in den Google-Chat-Space der Partnerbestellungen, wenn es
-// Neues oder Offenes gibt. Nie eine vorhandene Zeile. PA7: Festpreis-Partner nur gemeldet (nichts angelegt).
+// Neues oder Offenes gibt. Nie eine vorhandene Zeile. PA8: fehlende Festpreis-Artikel ohne Artikelkategorie angelegt (nie ein Festpreis).
 router.post('/artikel/abgleich', async (req, res, next) => {
   try {
     const sheetId = requireSheetId(res); if (!sheetId) return;
     const sheets  = await getSheets();
     const bericht = await artikelAbgleich({ sheets, sheetId, wcFuer: shop => wcClientForShop(shop) });
-    // PA7: danach die Festpreis-Partner - NUR LESEN, nichts anlegen, nie ein Festpreis (lib/fpArtikel.js). Ein Fehler hier
+    // PA7: danach die Festpreis-Partner pruefen (lib/fpArtikel.js, nur lesen; PA8 legt Fehlende unten an). Ein Fehler hier
     // stoppt den Lizenz-Teil nicht (steht in festpreis.fehler und im Chat); Hoster-Pruefseite/Zeitlimit stoppen wie ueberall.
     try {
       const fp = await fpArtikelPruefung({ sheets, sheetId, wcFuer: shop => wcClientForShop(shop) });
       bericht.festpreis = { partner: fp.partner, summen: fp.summen };
+      // PA8 (Variante A): fehlende Artikel OHNE Artikelkategorie anlegen (nie ein Festpreis) - der Sync sperrt deren Verkaeufe,
+      // bis die Kategorie gesetzt ist. Ein Fehler hier stoppt nichts, steht in festpreis.fehlerAnlegen und im Chat.
+      try {
+        const { angelegt } = await fpFehlendeAnlegen({ sheets, sheetId, befund: fp.partner });
+        for (const e of fp.partner) e.angelegt = angelegt.filter(a => a.partnerId === e.id).map(a => ({ produktId: a.produktId }));
+        bericht.festpreis.summen.angelegt = angelegt.length;
+      } catch (err) {
+        if (istLaufStopp(err)) throw err;
+        bericht.festpreis.fehlerAnlegen = err.message;
+      }
+      // PA8: gesperrte Verkaeufe je FP-Partner (nur Anzahl + Produkt-IDs)
+      const gesperrt = await leseGesperrte({ sheets, spreadsheetId: sheetId });
+      for (const e of fp.partner) {
+        const g = gesperrt.jePartner.find(x => x.partnerId === e.id);
+        if (g) { e.gesperrt = g.anzahl; e.gesperrtIds = g.produktIds; }
+      }
     } catch (err) {
       if (istLaufStopp(err)) throw err;
       bericht.festpreis = { partner: [], summen: { partner: 0 }, fehler: err.message };

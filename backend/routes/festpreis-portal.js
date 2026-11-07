@@ -15,6 +15,12 @@ import { SPALTE_VERSCHLUESSELT } from '../utils/link-schluessel.js';
 import {
   berechneVerpackung, verpackungsKondition, versandmethodeAus, VERSANDMETHODE,
 } from '../utils/festpreis-verpackung.js';
+import {
+  STATUS_GESPERRT, SPALTE_SPERRE, SPERRE_INDEX, SYNC_BREITE, GRUND_KATEGORIE, festpreisZuordnungen, zuordnungFuer, sperreZeile,
+  fpAbrechnungHinweise, gesperrtZaehlen,
+} from '../utils/fp-sperre.js';
+import { mitFpSperre, nachrechnenInSperre, nachrechnen as fpNachrechnen } from '../lib/fpSperre.js';
+import { schreibeNeueZeilen } from '../lib/sheet-zeilen.js';
 
 const router = Router();
 
@@ -58,6 +64,7 @@ async function fetchFpOrders(wc, statuses, afterParam) {
 //   14=Status Abrechnung, 15=Produkt-ID, 16=Storno-Status (Q),
 //   17=Artikelkategorie (R), 18=Festpreis (S), 19=Mehrkosten (T),
 //   20=VK-Netto (U), 21=Handlingskosten (V), 22=Versandmethode (W, VP1)
+const STATUS_SPALTE_INDEX = 14;   // PA8: Status Abrechnung, positionsfest wie der Sync
 function buildFpStornoRows(vRows, stornoOrders) {
   const ORD_COL    = 2;
   const ART_COL    = 3;
@@ -97,8 +104,11 @@ function buildFpStornoRows(vRows, stornoOrders) {
       counter[i] = v;
     }
     counter[DATE_COL]   = refundDate.get(oid) || r[DATE_COL] || toDE(new Date());
-    counter[STATUS_COL] = 'offen';
+    // PA8: Storno einer gesperrten Zeile ist ebenfalls gesperrt (leere Betraege bleiben leer, Grund wandert mit).
+    const gesperrt = String(r[STATUS_COL] ?? '').trim() === 'gesperrt';
+    counter[STATUS_COL] = gesperrt ? 'gesperrt' : 'offen';
     counter[STORNO_COL] = FP_STORNO_MARKER;
+    if (gesperrt) counter[23] = r[23] || 'Festpreis-Kategorie fehlt';
     out.push(counter);
   }
   return out;
@@ -610,6 +620,8 @@ router.get('/verkaeufe/summary', async (req, res, next) => {
     });
 
     const { produkteGruppen, summen } = aggregateFpVerkaeufe(filtered, vh);
+    // PA8: gesperrte Zeilen im Zeitraum + Nachzuegler (nur Anzahlen/IDs)
+    const sperrHinweise = partnerId ? fpAbrechnungHinweise({ kopf: header, zeilen: rows, partnerId, von, bis, parseDate }) : null;
 
     // Interne Bestellungen (brutto) im Zeitraum von der Brutto-Auszahlung abziehen.
     const { rows: kRows, header: kH } = await readTab(sheets, sheetId, TAB_FIXKOSTEN);
@@ -641,18 +653,33 @@ router.get('/verkaeufe/summary', async (req, res, next) => {
       verpackung,
       auszahlungNetto, auszahlungBrutto,
       gesamtNetto, gesamtBrutto,
+      ...(sperrHinweise ? { sperre: sperrHinweise } : {}),
     });
   } catch (err) { next(err); }
 });
 
 // ── POST /api/festpreis/verkaeufe/sync ───────────────────────────────────────
+// PA8: unter der FP-Sperre; erster Schritt = gesperrte Zeilen nachrechnen, deren Artikel jetzt eine Festpreis-Kategorie hat.
+// Ohne gueltige Festpreis-Zuordnung wird ein Verkauf "gesperrt" (nicht mehr still Festpreis 0). Schreiben ohne append.
 router.post('/verkaeufe/sync', async (req, res, next) => {
   try {
     const sheetId = SHEETID();
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
-    const { after } = req.body;
+    const ergebnis = await mitFpSperre(() => fpSyncInSperre(req, sheetId));
+    if (ergebnis?.status) return res.status(ergebnis.status).json(ergebnis.body);
+    res.json(ergebnis);
+  } catch (err) {
+    if (err.code === 'laeuft_gerade') return res.status(409).json({ error: err.message, code: err.code });
+    next(err);
+  }
+});
+
+async function fpSyncInSperre(req, sheetId) {
+  {
+    const { after } = req.body ?? {};
 
     const sheets = await getSheets();
+    const nach = await nachrechnenInSperre({ sheets, spreadsheetId: sheetId });   // PA8
 
     // 1. Alle aktiven FP-Partner laden
     const { header: pH, rows: pRows } = await readTab(sheets, sheetId, TAB_FP_PARTNER);
@@ -661,7 +688,7 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
       (r[ph('Aktiv')] ?? '').toLowerCase() === 'ja'
     );
     if (!activePartners.length)
-      return res.json({ synced: 0, orders: 0, message: 'Keine aktiven FP-Partner gefunden.' });
+      return { synced: 0, orders: 0, nachgerechnet: nach.nachgerechnet, message: 'Keine aktiven FP-Partner gefunden.' };
 
     // 2. FP_Artikel → Map: produktId → [{ partnerId, festpreisEK, handlingGebuehr, versandart, artikelkategorie }]
     const { header: aH, rows: aRows } = await readTab(sheets, sheetId, TAB_FP_ARTIKEL);
@@ -684,20 +711,13 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
       });
     }
     if (!Object.keys(artikelMap).length)
-      return res.json({ synced: 0, orders: 0, message: 'Keine FP-Artikel konfiguriert.' });
+      return { synced: 0, orders: 0, nachgerechnet: nach.nachgerechnet, message: 'Keine FP-Artikel konfiguriert.' };
 
     // 2b. FP_Artikel_Kategorie → Map: `${partnerId}|${kategorie}` → festpreis
     const { header: akH, rows: akRows } = await readTab(sheets, sheetId, 'FP_Artikel_Kategorie');
     const akh = col => akH.indexOf(col);
-    const festpreisMap = {};
-    for (const r of akRows) {
-      const pid = r[akh('Festpreispartner-ID')] ?? '';
-      const kat = r[akh('Kategorie')] ?? '';
-      if (pid && kat) festpreisMap[`${pid}|${kat}`] = {
-        festpreis:      toFloat(r[akh('Festpreis')]),
-        handlingskosten: toFloat(r[akh('Handlingskosten')]),
-      };
-    }
+    // PA8: Festpreis 0 in FP_Artikel_Kategorie = bewusst gesetzt (gueltig); KEINE Zeile / leere Kategorie = gesperrt.
+    const zuordnungen = festpreisZuordnungen(akH, akRows);
 
     // 3. Partner-Shop-Map für WC-Credentials
     const partnerShopMap = {};
@@ -743,6 +763,7 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
 
     // 7. Zeilen berechnen
     const toWrite = [];
+    let gesperrt = 0;
     // PA7: nicht mehr still - uebersprungene Positionen (Produkt-ID nicht in FP_Artikel) und Zeilen ohne
     // Festpreis-Kategorie werden gesammelt und in der Antwort gemeldet. Am Rechnen und Schreiben aendert sich nichts.
     const uebersprungen = {};
@@ -780,11 +801,12 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
             const paypalKosten       = (itemNetto * (1 + k.mwstProzent / 100)) * (k.paypalProzent / 100)
                                      + (k.paypalPauschale * anteil);
 
-            const artikelkategorie = e.artikelkategorie || '';
-            if (!festpreisMap[`${e.partnerId}|${artikelkategorie}`]) ohneFestpreis.push({ partnerId: e.partnerId, produktId: String(item.product_id), bestellung: String(order.id) });   // PA7: melden
-            const katPreis = festpreisMap[`${e.partnerId}|${artikelkategorie}`] ?? { festpreis: 0, handlingskosten: 0 };
-            const festpreis      = katPreis.festpreis;
-            const handlingskosten = katPreis.handlingskosten;
+            const artikelkategorie = String(e.artikelkategorie || '').trim();
+            // PA8: ohne gueltige Zuordnung NICHT mehr mit 0 rechnen - die Zeile wird unten gesperrt (Betraege leer).
+            const katPreis = zuordnungFuer(zuordnungen, e.partnerId, artikelkategorie);
+            if (!katPreis) ohneFestpreis.push({ partnerId: e.partnerId, produktId: String(item.product_id), bestellung: String(order.id) });
+            const festpreis      = katPreis?.festpreis ?? 0;
+            const handlingskosten = katPreis?.handlingskosten ?? 0;
 
             const { netto, brutto } = berechneFestpreisAnteil({
               vkNetto: itemNetto,
@@ -799,7 +821,7 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
               mwstProzent: k.mwstProzent,
             });
 
-            toWrite.push([
+            const zeile = ([
               e.partnerId,           // A 0
               orderDate,             // B 1
               order.id,              // C 2
@@ -824,6 +846,8 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
               handlingskosten,       // V 21 Handlingskosten (aus FP_Artikel_Kategorie)
               versandmethodeAus(order), // W 22 Versandmethode (VP1, method_id)
             ]);
+            if (katPreis) toWrite.push(zeile);
+            else { toWrite.push(sperreZeile(zeile, vH)); gesperrt++; }   // PA8
           }
         }
       }
@@ -839,21 +863,32 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
       // Sync schreibt positionsfest A:W - steht sie woanders, nichts schreiben.
       if (vh(VERSANDMETHODE) === -1) {
         if (vH.length !== 22)
-          return res.status(409).json({ error: `FP_Verkäufe: ${vH.length} Spalten statt 22, ${VERSANDMETHODE} nicht angelegt, nichts geschrieben.` });
+          return { status: 409, body: { error: `FP_Verkäufe: ${vH.length} Spalten statt 22, ${VERSANDMETHODE} nicht angelegt, nichts geschrieben.` } };
         await sheets.spreadsheets.values.update({
           spreadsheetId: sheetId, range: `${TAB_FP_VERKAEUFE}!W1`,
           valueInputOption: 'RAW', requestBody: { values: [[VERSANDMETHODE]] },
         });
+        vH[22] = VERSANDMETHODE;
       } else if (vh(VERSANDMETHODE) !== 22) {
-        return res.status(409).json({ error: `FP_Verkäufe: ${VERSANDMETHODE} steht nicht in Spalte W, nichts geschrieben.` });
+        return { status: 409, body: { error: `FP_Verkäufe: ${VERSANDMETHODE} steht nicht in Spalte W, nichts geschrieben.` } };
       }
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: sheetId,
-        range: `${TAB_FP_VERKAEUFE}!A:W`,
-        valueInputOption: 'RAW',
-        insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: allRows },
-      });
+      // PA8: Spalte X "Sperre" additiv direkt hinter W, nur wenn eine Zeile gesperrt ist (oder die Spalte schon da ist).
+      const brauchtSperre = allRows.some(r => r[STATUS_SPALTE_INDEX] === STATUS_GESPERRT);
+      if (vh(SPALTE_SPERRE) === -1 && brauchtSperre) {
+        if (vH.length !== SYNC_BREITE)
+          return { status: 409, body: { error: `FP_Verkäufe: ${vH.length} Spalten statt ${SYNC_BREITE}, ${SPALTE_SPERRE} nicht angelegt, nichts geschrieben.` } };
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: sheetId, range: `${TAB_FP_VERKAEUFE}!X1`,
+          valueInputOption: 'RAW', requestBody: { values: [[SPALTE_SPERRE]] },
+        });
+        vH[SPERRE_INDEX] = SPALTE_SPERRE;
+      } else if (vh(SPALTE_SPERRE) !== -1 && vh(SPALTE_SPERRE) !== SPERRE_INDEX) {
+        return { status: 409, body: { error: `FP_Verkäufe: ${SPALTE_SPERRE} steht nicht in Spalte X, nichts geschrieben.` } };
+      }
+      const breite = vh(SPALTE_SPERRE) === SPERRE_INDEX ? SYNC_BREITE + 1 : SYNC_BREITE;
+      const zeilen = allRows.map(r => Array.from({ length: breite }, (_, i) => r[i] ?? ''));
+      // PA8: ohne values.append - erste freie Zeile, Nachbarzeile + Zielbereich geprueft, RAW, zurueckgelesen.
+      await schreibeNeueZeilen(sheets, sheetId, TAB_FP_VERKAEUFE, zeilen);
     }
 
     const totalOrders = Object.values(ordersByShop).reduce((s, o) => s + o.length, 0);
@@ -867,17 +902,44 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
         ohneEintrag.push(...await fpUebersprungenePruefen({ wc: getWcClient(shop), uebersprungen: liste, partner: partnerShop }));
       }
     } catch (err) { pruefungFehler = err.message; }
-    res.json({
+    return {
       ohneEintrag, ...(pruefungFehler ? { pruefungFehler } : {}),
       ohneFestpreis: ohneFestpreis.slice(0, 50), ohneFestpreisAnzahl: ohneFestpreis.length,
       synced:    toWrite.length,
+      gesperrt,                                   // PA8: davon gesperrt (Festpreis-Kategorie fehlt)
+      nachgerechnet: nach.nachgerechnet, nochGesperrt: nach.nochGesperrt + gesperrt,
       storniert: stornoRows.length,
       orders:    totalOrders,
       afterParam: afterParam || null,
       message: toWrite.length || stornoRows.length
         ? `${[toWrite.length && `${toWrite.length} neue`, stornoRows.length && `${stornoRows.length} stornierte`].filter(Boolean).join(' + ')} Einträge synchronisiert.`
         : 'Alle Einträge bereits vorhanden – nichts Neues.',
-    });
+    };
+  }
+}
+
+// ── POST /api/festpreis/verkaeufe/nachrechnen (PA8) ──────────────────────────
+// Knopf "gesperrte nachrechnen": gesperrte Zeilen, deren Artikel jetzt eine Festpreis-Kategorie hat -> offen mit dem dann
+// gueltigen Festpreis. Body { dryRun }. Nur Anzahlen und Produkt-IDs in der Antwort.
+router.post('/verkaeufe/nachrechnen', async (req, res, next) => {
+  try {
+    const sheetId = SHEETID();
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
+    res.json(await fpNachrechnen({ sheets: await getSheets(), spreadsheetId: sheetId, dryRun: req.body?.dryRun === true }));
+  } catch (err) {
+    if (err.code === 'laeuft_gerade') return res.status(409).json({ error: err.message, code: err.code });
+    next(err);
+  }
+});
+
+// ── GET /api/festpreis/verkaeufe/gesperrt (PA8) ──────────────────────────────
+// Anzahl gesperrter Zeilen je Partner + Produkt-IDs (fuer den Hinweis in MC). Keine Betraege.
+router.get('/verkaeufe/gesperrt', async (req, res, next) => {
+  try {
+    const sheetId = SHEETID();
+    if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
+    const { header, rows } = await readTab(await getSheets(), sheetId, TAB_FP_VERKAEUFE);
+    res.json({ ...gesperrtZaehlen(header, rows, { partnerId: req.query.partnerId || undefined }), grund: GRUND_KATEGORIE });
   } catch (err) { next(err); }
 });
 
@@ -928,10 +990,11 @@ router.post('/abrechnungen', async (req, res, next) => {
 
     const offene = vRows.filter(r => {
       if ((r[vh('Partner-ID')] ?? '') !== partnerId) return false;
-      if ((r[vh('Status Abrechnung')] ?? '').toLowerCase() !== 'offen') return false;
+      if ((r[vh('Status Abrechnung')] ?? '').toLowerCase() !== 'offen') return false;   // PA8: gesperrt nie abrechenbar
       const d = parseDate(r[vh('Datum')] ?? '');
       return d && d >= von && d <= bis;
     });
+    const sperre = fpAbrechnungHinweise({ kopf: vH, zeilen: vRows, partnerId, von, bis, parseDate });   // PA8
 
     if (!offene.length)
       return res.status(400).json({ error: 'Keine offenen Einträge im angegebenen Zeitraum.' });
@@ -997,6 +1060,7 @@ router.post('/abrechnungen', async (req, res, next) => {
     }
 
     res.status(201).json({
+      sperre,   // PA8
       abrechnungsId, partnerId, gesamtNetto, gesamtBrutto,
       positionen: offene.length, interne: interne.positionen.length, interneSumme: interne.summe,
       verpackung: verpackung.status !== 'keine' ? verpackung : null,
@@ -1183,6 +1247,9 @@ router.patch('/verkaeufe-eintrag/:rowId', async (req, res, next) => {
     const h = col => header.indexOf(col);
     const row = rows.find(r => r._sheetRow === sheetRow);
     if (!row) return res.status(404).json({ error: 'Eintrag nicht gefunden.' });
+    // PA8: gesperrte Zeile hat keinen Festpreis - Mehrkosten erst nach dem Nachrechnen (sonst rechnet das hier mit 0).
+    if (String(row[h('Status Abrechnung')] ?? '').trim() === STATUS_GESPERRT)
+      return res.status(409).json({ error: 'Zeile ist gesperrt (Festpreis-Kategorie fehlt) – erst Kategorie setzen und nachrechnen.', code: 'gesperrt' });
 
     // MwSt aus Fixkosten ziehen (für Brutto)
     const { header: kH, rows: kRows } = await readTab(sheets, sheetId, TAB_FIXKOSTEN);
