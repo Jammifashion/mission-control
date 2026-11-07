@@ -403,6 +403,7 @@
       .au-pos-zeilen { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; }
       .au-pos { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; min-height: 44px; }
       .au-pos input { width: 1.3rem; height: 1.3rem; }
+      .pf-kuerzel-hinweis { color: var(--warning); }   /* MK1: Kuerzel nicht ueblich - nur Hinweis */
       .au-pos-haken { display: inline-flex; align-items: center; gap: 0.3rem; min-height: 44px; cursor: pointer; }   /* KS4-1 */
       .au-bald { color: var(--warning); font-weight: 600; }
       /* AM-4: Aufgaben + Checkliste (Handy 375 px: alles bricht um, keine waagerechte Verschiebung) */
@@ -2634,6 +2635,18 @@
         <div class="card" style="margin-bottom:1rem;">
           <div class="form-section-title">1 — Stammdaten</div>
           <div class="form-grid">
+            <div class="form-field form-col-full">
+              <label>Kategorien <span class="field-note">(zuerst wählen – daraus kommt das Kürzel)</span></label>
+              <div class="custom-multiselect" id="pf-cats-wrap">
+                <div class="multiselect-trigger" id="pf-cats-trigger">
+                  <span id="pf-cats-label">Keine ausgewählt</span>
+                  <span style="font-size:0.7rem;color:var(--muted);">&#9662;</span>
+                </div>
+                <div class="multiselect-dropdown" id="pf-cats-dropdown">
+                </div>
+              </div>
+              <a class="link-new" id="link-new-cat">+ Neu anlegen</a>
+            </div>
             <div class="form-field">
               <label>Produktname</label>
               <input id="pf-name" type="text" class="form-input" placeholder="z. B. Hardtekk Hoodie" />
@@ -2651,7 +2664,8 @@
               <label>Artikelkurzbezeichnung <span class="field-note">(Pflicht: 3–20 Zeichen, nur A–Z a–z 0–9 und -)</span></label>
               <input id="pf-short-name" type="text" class="form-input" placeholder="z. B. UglySw01" />
               <div id="pf-short-name-hint" style="font-size:0.78rem;margin-top:0.25rem;"></div>
-              <div id="pf-short-name-vorschlag" class="field-note" style="margin-top:0.2rem;"></div>
+              <div id="pf-short-name-vorschlag" class="field-note" style="margin-top:0.2rem;" data-hilfe="kurz-vorschlag" tabindex="0"></div>
+              <div id="pf-short-name-kuerzel" class="field-note pf-kuerzel-hinweis" style="margin-top:0.2rem;" data-hilfe="kurz-kuerzel-hinweis" tabindex="0" hidden></div>
             </div>
             <div class="form-field">
               <label>Artikelnummer <span class="field-note">(auto)</span></label>
@@ -2741,18 +2755,6 @@
             <div class="form-field">
               <label>Regulärer Preis (€) <span class="field-note">*</span></label>
               <input id="pf-price-regular" type="number" class="form-input" placeholder="z. B. 49.99" step="0.01" min="0" />
-            </div>
-            <div class="form-field form-col-full">
-              <label>Kategorien</label>
-              <div class="custom-multiselect" id="pf-cats-wrap">
-                <div class="multiselect-trigger" id="pf-cats-trigger">
-                  <span id="pf-cats-label">Keine ausgewählt</span>
-                  <span style="font-size:0.7rem;color:var(--muted);">&#9662;</span>
-                </div>
-                <div class="multiselect-dropdown" id="pf-cats-dropdown">
-                </div>
-              </div>
-              <a class="link-new" id="link-new-cat">+ Neu anlegen</a>
             </div>
           </div>
         </div>
@@ -6858,6 +6860,8 @@
         'au-storno':            { name: 'stornieren …', text: 'Fragt vorher. Der Auftrag fällt aus „offen“, nichts wird gelöscht.' },
         'au-storno-zurueck':    { name: 'Storno zurücknehmen', text: 'Holt den Auftrag auf seinen letzten Schritt zurück.' },
         'au-fertig-setzen':     { name: 'Auftrag auf fertig setzen', text: 'Alle Positionen sind abgehakt: setzt den Auftrag bis „fertig“, jeder Schritt mit heutigem Datum.' },
+        'kurz-vorschlag':       { name: 'Vorschlag Kurzbezeichnung', text: 'Kürzel aus der Kategorie: festgelegt in Struktur_Kategorien (Spalte Kuerzel) oder aus dem Bestand. Frei änderbar.' },
+        'kurz-kuerzel-hinweis': { name: 'Kürzel nicht üblich', text: 'Nur ein Hinweis: andere Artikel dieser Kategorie nutzen ein anderes Kürzel. Speichern geht trotzdem.' },
         'au-pos-fertig':        { name: 'fertig', text: 'Haken je Position, mit Datum. Ist die Ware noch nicht da, fragt MC nach. Sind alle fertig, schlägt MC „Auftrag auf fertig“ vor.' },
         'au-kundenkarte':       { name: 'Kundenkarte', text: 'Öffnet die Karte des Kunden mit seinen Aufträgen.' },
         'au-kunde-suche':       { name: 'Kunde', text: 'Tippen sucht in MC (Name, Spitzname, Nummer, Ort). Unten in der Liste: in Lexoffice suchen oder neu anlegen.' },
@@ -7037,7 +7041,7 @@
         'navigation': ['shop-badge', 'shop-wahl', 'nav-bereich', 'nav-ansicht', 'nav-unterreiter', 'trikot-sync'],
         'dialog': ['dialog-abbrechen', 'dialog-schliessen', 'dialog-bestaetigen', 'dialog-speichern', 'liste-bearbeiten', 'zeile-speichern'],
         'auftragsmonitor': ['wc-erledigt', 'tab-offen', 'tab-protokoll', 'mon-fulfillment', 'dtf-sammel', 'dtf-bestellt', 'lshop-alt-sammel', 'lshop-alt-bestellt', 'korb-aeltere'],
-        'artikel': ['modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
+        'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
         'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
         'partner': ['fp-artikel-pruefen', 'fp-ohne-festpreis', 'fp-ohne-zeigen', 'fp-sperre', 'fp-sperre-artikel', 'fp-nachrechnen', 'pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'link-vor-lk1', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
         'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'fp-preis-loeschen'],
@@ -14974,24 +14978,46 @@
       // lib/vorschlaege.js). Nur Anlage; nie Getipptes ueberschreiben.
       let kurzVorschlagStand = '';
       let versandVorschlagStand = '';
+      let kurzUeblich = [];   // MK1: uebliche Kuerzel der gewaehlten Kategorien (nur Hinweis)
+      // ── Kuerzel-Hinweis: Anfang (MK1, Spiegel von kuerzelHinweis in lib/vorschlaege.js, Test vorschlaege-maske.test.js) ──
+      function kuerzelHinweisText(kurz, ueblich) {
+        const l = (ueblich || []).filter(Boolean);
+        const k = String(kurz ?? '').trim();
+        if (!l.length || !k) return null;
+        const m = /^([A-Za-z]{2,4})-/.exec(k);
+        const p = m ? m[1] + '-' : '';
+        if (p && l.some(x => x.toLowerCase() === p.toLowerCase())) return null;
+        return p ? `Kürzel ${p} ist in dieser Kategorie nicht üblich (üblich: ${l.join(', ')}).`
+          : `Ohne Kürzel-Präfix – in dieser Kategorie üblich: ${l.join(', ')}.`;
+      }
+      // ── Kuerzel-Hinweis: Ende ──
+      function kuerzelHinweisZeigen() {
+        const el = document.getElementById('pf-short-name-kuerzel');
+        const h = editMode ? null : kuerzelHinweisText(document.getElementById('pf-short-name').value, kurzUeblich);
+        el.textContent = h || '';
+        el.hidden = !h;
+      }
       async function maskeVorschlaegeLaden() {
         if (editMode) return;
         const name = document.getElementById('pf-name').value.trim();
         const kats = [...selectedCats.keys()].join(',');
         const lshop = document.getElementById('pf-lshop-nr').value.trim();
-        if (!name && !lshop) return;
+        if (!name && !lshop && !kats) { kurzUeblich = []; kuerzelHinweisZeigen(); return; }   // MK1: Kategorie allein reicht
         try {
           const q = new URLSearchParams(Object.entries({ name, kategorien: kats, lshopNr: lshop }).filter(([, v]) => v));
           const d = await apiJson(await apiFetch(`${API_BASE()}/api/sheets/vorschlaege?${q}`));
           const kurzFeld = document.getElementById('pf-short-name');
           const kurzInfo = document.getElementById('pf-short-name-vorschlag');
+          kurzUeblich = d.kurz?.ueblich ?? [];   // MK1
           if (d.kurz && d.kurz.wert) {
             const neu = vorschlagSetzen(kurzFeld.value, kurzVorschlagStand, d.kurz.wert);
             if (neu !== null) { kurzFeld.value = neu; kurzVorschlagStand = neu; updateArticleNr(); }
-            kurzInfo.textContent = `Vorschlag ${d.kurz.wert} – ${d.kurz.quelle}. Frei änderbar.`;
+            kurzInfo.textContent = d.kurz.nurPraefix ? `Kürzel ${d.kurz.wert} – ${d.kurz.quelle}. Nach dem Produktnamen folgt der ganze Vorschlag. Frei änderbar.`
+              : `Vorschlag ${d.kurz.wert} – ${d.kurz.quelle}. Frei änderbar.`;
           } else if (d.kurz) {
-            kurzInfo.textContent = d.kurz.hinweis || d.kurz.fehler || '';
+            kurzInfo.textContent = [d.kurz.hinweis || d.kurz.fehler, d.kurz.quelle].filter(Boolean).join(' · ');
           }
+          kuerzelHinweisZeigen();
           const vFeld = document.getElementById('pf-shipping');
           if (d.versand && d.versand.klasse) {
             const neu = vorschlagSetzen(vFeld.value, versandVorschlagStand, d.versand.klasse);
@@ -15018,6 +15044,7 @@
       pfShortName.addEventListener('input', () => {
         kurzbezManuallyEdited = true;
         updateArticleNr();
+        kuerzelHinweisZeigen();   // MK1: nur Hinweis, kein Sperren
       });
 
       // Standardpreis → auto-belegte Variantenpreise synchron halten

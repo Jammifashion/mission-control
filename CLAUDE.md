@@ -960,6 +960,13 @@ Neue Sektionen immer mit Anker versehen:
   `modellAusSku` (Token bis / _ - Leerzeichen, KING/Queen davor weg, nur CatalogNr aus LShop_Modelle).
   `GET /api/sheets/vorschlaege`.
   Vorschlaege setzen ein Feld nur, wenn es leer ist oder noch den letzten Vorschlag traegt.
+  MK1: Kategorien stehen in der Maske ZUERST (vor Name/Kurzbezeichnung); schon die Kategorie allein liefert das Praefix (`nurPraefix`).
+  Kuerzel je Kategorie festlegbar: optionale Spalte `Kuerzel` hinten in Struktur_Kategorien ("CH-"; "-" = bewusst keins, stoppt auch
+  die Vererbung; gesperrte Teile zaehlen nicht), Setup `scripts/setup-kategorie-kuerzel.js` (Trockenlauf mit Vorschlagsliste, `--write`,
+  `--vorbelegen` = nur eindeutige aus dem Bestand der Kategorie selbst in LEERE Zellen, `--keins=nr,…`). Reihenfolge in
+  `praefixFuerKategorien`: festgelegt > Bestand der Kategorie > Elternkategorien aufwaerts (festgelegt bzw. EINDEUTIG im Bestand; "-" oder
+  gemischt stoppt) > M8b-Hauptkategorie-Regel. Antwort `kurz.ueblich` -> Hinweis (orange, kein Sperren) bei fremdem Praefix,
+  `kuerzelHinweis` + Spiegel Block `Kuerzel-Hinweis: Anfang/Ende` (Test vorschlaege-maske.test.js). Bearbeiten (editMode) unveraendert.
 - backend/lib/schlagwoerter.js – Schlagwoerter (product_tag) fuer den SEO-Generator (M8):
   vorhandene bevorzugt (Liste im Prompt), neue als "neu" (hoechstens 2 neue, zusammen 5),
   Pruefung je Wort (`sperrTreffer`).

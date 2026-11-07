@@ -98,25 +98,65 @@ function praefixZaehlung(erfassung, kategorien) {
 
 const bestes = eintraege => [...eintraege].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
 
+// MK1: Kuerzel je Kategorie festlegen - optionale Spalte `Kuerzel` hinten in Struktur_Kategorien.
+// Wert "CH-" (2-4 Buchstaben, mind. zwei gross, Bindestrich) = festgelegt; "-" = bewusst keins (auch nicht vererben).
+export const SPALTE_KUERZEL = 'Kuerzel';
+export const KUERZEL_KEINS = '-';
+/** Festgelegtes Kuerzel einer Kategorie: { praefix } | { keins: true } | null (leer/ungueltig = nicht festgelegt). */
+export function festgelegtesKuerzel(kat) {
+  const v = t(kat?.kuerzel);
+  if (!v) return null;
+  if (v === KUERZEL_KEINS) return { keins: true };
+  const m = PRAEFIX_RE.exec(v.endsWith('-') ? v : `${v}-`);
+  if (!m || gesperrterTeil(m[1])) return null;
+  return { praefix: m[1] + '-' };
+}
+/** Elternkategorien (naechste zuerst) ueber den Pfad "A > B > C". */
+export function vorfahren(kat, kategorien) {
+  const jePfad = new Map((kategorien ?? []).map(k => [t(k.pfad).toLowerCase(), k]));
+  const teile = t(kat?.pfad).split('>').map(x => t(x)).filter(Boolean);
+  const aus = [];
+  for (let i = teile.length - 1; i >= 1; i--) {
+    const k = jePfad.get(teile.slice(0, i).join(' > ').toLowerCase());
+    if (k) aus.push(k);
+  }
+  return aus;
+}
+
 /**
- * Praefix fuer die gewaehlten Kategorien (M8b): erst je direkter Kategorie,
- * dann die Hauptkategorie - nur wenn das Praefix dort fuer die ganze
- * Hauptkategorie gilt (an ihr selbst oder in mindestens zwei Unterkategorien).
+ * Praefix fuer die gewaehlten Kategorien (M8b, MK1). Reihenfolge:
+ *  1. festgelegt an einer gewaehlten Kategorie (Spalte Kuerzel; "-" = keins)
+ *  2. aus dem Bestand direkt in den gewaehlten Kategorien (haeufigstes; mehrere = `gemischt`)
+ *  3. Elternkategorien aufwaerts: festgelegt ("-" stoppt) oder im Bestand EINDEUTIG (gemischt stoppt - nichts raten)
+ *  4. Rueckfall wie M8b: Hauptkategorie, wenn das Praefix an ihr selbst oder in mind. zwei Unterkategorien steht
  * @param {object[]} erfassung  [{ kurz, kategorien: "Name, Name" }]
- * @param {object[]} kategorien [{ nr, pfad, name }] (Struktur_Kategorien)
+ * @param {object[]} kategorien [{ nr, pfad, name, kuerzel? }] (Struktur_Kategorien)
  * @param {object[]} gewaehlt   die Kategorien des Artikels, gleiche Form
- * @returns {{ praefix: string, anzahl: number, ebene: 'kategorie'|'hauptkategorie', in: string }|null}
+ * @returns {{ praefix, anzahl, ebene: 'kategorie'|'eltern'|'hauptkategorie', in, quelle: 'festgelegt'|'bestand', ueblich: string[], gemischt?, keins? }|null}
  */
 export function praefixFuerKategorien(erfassung, kategorien, gewaehlt) {
   const { haupt, direkt } = praefixZaehlung(erfassung, kategorien);
   const namenZahl = new Map();
   for (const k of kategorien ?? []) { const n = t(k.name).toLowerCase(); namenZahl.set(n, (namenZahl.get(n) ?? 0) + 1); }
+  const direktVon = k => (namenZahl.get(t(k.name).toLowerCase()) === 1 ? direkt.get(t(k.name).toLowerCase()) : null) ?? new Map();
+  const ueblich = new Set();
+  for (const k of gewaehlt ?? []) {
+    for (const p of direktVon(k).keys()) ueblich.add(p);
+    const f = festgelegtesKuerzel(k);
+    if (f?.praefix) ueblich.add(f.praefix);
+  }
+  const fertig = r => (r ? { ...r, ueblich: [...new Set([...(r.praefix ? [r.praefix] : []), ...ueblich])] } : null);
 
+  // 1. festgelegt an einer gewaehlten Kategorie
+  for (const k of gewaehlt ?? []) {
+    const f = festgelegtesKuerzel(k);
+    if (f?.keins) return fertig({ praefix: '', anzahl: 0, ebene: 'kategorie', in: t(k.name), quelle: 'festgelegt', keins: true });
+    if (f) return fertig({ praefix: f.praefix, anzahl: 0, ebene: 'kategorie', in: t(k.name), quelle: 'festgelegt' });
+  }
+  // 2. Bestand direkt
   const summe = new Map(), inNamen = new Map();
   for (const k of gewaehlt ?? []) {
-    const n = t(k.name).toLowerCase();
-    if (namenZahl.get(n) !== 1) continue;          // doppelter Name: nicht eindeutig
-    for (const [p, a] of direkt.get(n) ?? []) {
+    for (const [p, a] of direktVon(k)) {
       summe.set(p, (summe.get(p) ?? 0) + a);
       if (!inNamen.has(p)) inNamen.set(p, []);
       inNamen.get(p).push(t(k.name));
@@ -124,16 +164,49 @@ export function praefixFuerKategorien(erfassung, kategorien, gewaehlt) {
   }
   if (summe.size) {
     const [praefix, anzahl] = bestes(summe);
-    return { praefix, anzahl, ebene: 'kategorie', in: inNamen.get(praefix).join(', ') };
+    return fertig({ praefix, anzahl, ebene: 'kategorie', in: inNamen.get(praefix).join(', '), quelle: 'bestand', ...(summe.size > 1 ? { gemischt: true } : {}) });
   }
-
+  // 3. Elternkategorien aufwaerts
+  let gestoppt = false;
+  for (const k of gewaehlt ?? []) {
+    for (const a of vorfahren(k, kategorien)) {
+      const f = festgelegtesKuerzel(a);
+      if (f?.keins) { gestoppt = true; break; }
+      if (f) return fertig({ praefix: f.praefix, anzahl: 0, ebene: 'eltern', in: t(a.name), quelle: 'festgelegt' });
+      const d = direktVon(a);
+      if (d.size === 1) { const [[praefix, anzahl]] = [...d]; return fertig({ praefix, anzahl, ebene: 'eltern', in: t(a.name), quelle: 'bestand' }); }
+      if (d.size > 1) { gestoppt = true; break; }
+    }
+  }
+  if (gestoppt) return null;
+  // 4. Rueckfall Hauptkategorie (M8b)
   const h = (gewaehlt ?? []).map(k => hauptkategorieVon(k.pfad)).find(Boolean) ?? '';
   const zm = haupt.get(h);
   if (!zm) return null;
   const gilt = [...zm].filter(([, e]) => [...e.direkt].some(n => n.toLowerCase() === h.toLowerCase()) || e.direkt.size >= 2);
   if (!gilt.length) return null;
   const [praefix, anzahl] = bestes(gilt.map(([p, e]) => [p, e.anzahl]));
-  return { praefix, anzahl, ebene: 'hauptkategorie', in: h };
+  return fertig({ praefix, anzahl, ebene: 'hauptkategorie', in: h, quelle: 'bestand' });
+}
+
+/** MK1: passt das Praefix einer eingetippten Kurzbezeichnung zu den ueblichen der Kategorie? Nur Hinweis, nie Sperre. */
+export function kuerzelHinweis(kurz, ueblich) {
+  const l = (ueblich ?? []).filter(Boolean);
+  if (!l.length || !t(kurz)) return null;
+  const m = /^([A-Za-z]{2,4})-/.exec(t(kurz));   // Getipptes: Gross/Klein egal
+  const p = m ? m[1] + '-' : '';
+  if (p && l.some(x => x.toLowerCase() === p.toLowerCase())) return null;
+  return p ? `Kürzel ${p} ist in dieser Kategorie nicht üblich (üblich: ${l.join(', ')}).`
+    : `Ohne Kürzel-Präfix – in dieser Kategorie üblich: ${l.join(', ')}.`;
+}
+
+/** MK1: Herkunft des Praefix fuer die Maske ("aus Kategorie …", festgelegt / aus dem Bestand / Elternkategorie). */
+export function quelleText(p, direkt = '', haupt = '') {
+  if (!p) return `Kein Präfix für ${direkt || haupt || 'die Kategorie'}${haupt && haupt !== direkt ? ` / ${haupt}` : ''}`;
+  if (p.keins) return `Für ${p.in} ist bewusst kein Kürzel festgelegt`;
+  const wo = p.ebene === 'kategorie' ? `aus Kategorie ${p.in}` : p.ebene === 'eltern' ? `aus Elternkategorie ${p.in}` : `aus Hauptkategorie ${p.in}`;
+  return p.quelle === 'festgelegt' ? `Präfix ${p.praefix} ${wo} (festgelegt)`
+    : `Präfix ${p.praefix} ${wo} (${p.anzahl}× im Bestand${p.gemischt ? ', gemischt' : ''})`;
 }
 
 // "T-Shirt" -> "TShirt", "Größe" -> "Groesse"; nur A-Z a-z 0-9.
@@ -246,7 +319,7 @@ const sid = () => process.env.GOOGLE_SHEET_ID;
 const ladeErfassung = () => cache.hole(`erf|${sid()}`, () => leseReiterSpalten({
   tab: 'Erfassungsmaske', spalten: { kurz: 'Artikelkurzbezeichnung', kategorien: 'Kategorien' } }));
 const ladeKategorien = () => cache.hole(`kat|${sid()}`, () => leseReiterSpalten({
-  tab: 'Struktur_Kategorien', spalten: { nr: 'Kategorienummer', pfad: 'Kategorien', name: 'Kategoriename' } }));
+  tab: 'Struktur_Kategorien', spalten: { nr: 'Kategorienummer', pfad: 'Kategorien', name: 'Kategoriename' }, optional: { kuerzel: SPALTE_KUERZEL } }));   // MK1
 const ladeMotivKurz = () => cache.hole(`mot|${sid()}`, () => leseReiterSpalten({
   tab: 'Motive', spalten: { kurz: 'Artikelkurzbezeichnung' } }));
 
@@ -273,22 +346,21 @@ const ladeProdukte = (shop) => cache.hole(`wc|${shop ?? 'jfn'}`, async () => {
 export async function maskenVorschlaege({ name, kategorieIds = [], lshopNr, shop } = {}) {
   const raus = { kurz: null, versand: null };
 
-  if (t(name) && kategorieIds.length) {
+  if (kategorieIds.length) {   // MK1: Kategorie zuerst - ohne Namen nur das Praefix
     try {
       const [erf, kat, mot] = await Promise.all([ladeErfassung(), ladeKategorien(), ladeMotivKurz()]);
       const gewaehlt = kategorieIds.map(id => kat.find(k => t(k.nr) === t(id))).filter(Boolean);
       const haupt = gewaehlt.map(k => hauptkategorieVon(k.pfad)).find(Boolean) ?? '';
       const p = praefixFuerKategorien(erf, kat, gewaehlt);
       const ausschluss = [haupt, ...gewaehlt.map(k => k.name)];
-      const v = kurzVorschlag({
+      const v = t(name) ? kurzVorschlag({
         name, praefix: p?.praefix ?? '', ausschluss,
         belegt: [...erf.map(z => z.kurz), ...mot.map(z => z.kurz)],
-      });
+      }) : { wert: p?.praefix || null, hinweis: p?.praefix ? null : 'Kein Kürzel für diese Kategorie – bitte selbst setzen.', nurPraefix: true };
       const direkt = gewaehlt.map(k => k.name).join(', ');
       raus.kurz = {
-        ...v, hauptkategorie: haupt, praefix: p?.praefix ?? '', praefixEbene: p?.ebene ?? null,
-        quelle: p ? `Präfix ${p.praefix} (${p.anzahl}× in ${p.in})`
-                  : `Kein Präfix für ${direkt || haupt || 'die Kategorie'}${haupt && haupt !== direkt ? ` / ${haupt}` : ''}`,
+        ...v, hauptkategorie: haupt, praefix: p?.praefix ?? '', praefixEbene: p?.ebene ?? null, praefixQuelle: p?.quelle ?? null,
+        ueblich: p?.ueblich ?? [], quelle: quelleText(p, direkt, haupt),
       };
     } catch (e) { wirfWennPruefseite(e); raus.kurz = { wert: null, fehler: e.message }; }
   }

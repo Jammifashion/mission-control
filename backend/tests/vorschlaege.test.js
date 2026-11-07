@@ -178,16 +178,16 @@ describe('Praefix je direkter Kategorie (M8b)', () => {
     expect(v.praefixFuerKategorien(ERF, KAT, [kat('686'), kat('556')]))
       .toMatchObject({ praefix: 'CH-', ebene: 'kategorie' });
   });
-  test('Crocodiles ohne eigenes Praefix in der Unterkategorie -> Hauptkategorie (in mehreren Unterkategorien)', () => {
+  test('Crocodiles ohne eigenes Praefix in der Unterkategorie -> Elternkategorie (MK1, vorher Hauptkategorie)', () => {
     expect(v.praefixFuerKategorien(ERF, KAT, [kat('702')]))
-      .toMatchObject({ praefix: 'CH-', ebene: 'hauptkategorie', in: 'Crocodiles Hamburg' });
+      .toMatchObject({ praefix: 'CH-', ebene: 'eltern', in: 'Kollektion 26/27', quelle: 'bestand' });
   });
   test('Praefix an der Hauptkategorie selbst gilt (BL-)', () => {
     expect(v.praefixFuerKategorien(ERF, KAT, [kat('800')])).toMatchObject({ praefix: 'BL-' });
   });
   test('670 Malle Prinz -> MP-', () => {
     expect(v.praefixFuerKategorien(ERF, KAT, [kat('670')]))
-      .toEqual({ praefix: 'MP-', anzahl: 1, ebene: 'kategorie', in: 'Malle Prinz' });
+      .toEqual({ praefix: 'MP-', anzahl: 1, ebene: 'kategorie', in: 'Malle Prinz', quelle: 'bestand', ueblich: ['MP-'] });
   });
   test('Praefix aus 670 gilt nicht fuer einen anderen Kuenstler', () => {
     expect(v.praefixFuerKategorien(ERF, KAT, [kat('671')])).toBeNull();
@@ -273,5 +273,58 @@ describe('Praefix KaZu und Sperrliste', () => {
     expect(v.kurzVorschlag({ name: 'Logo Shirt', praefix: 'SA-' }).wert).toBeNull();
     expect(v.kurzVorschlag({ name: 'SA Logo Shirt', praefix: '' }).wert).toBe('SAlogo');
     expect(v.kurzVorschlag({ name: 'Santa Shirt', praefix: 'KaZu-' }).wert).toBe('KaZu-Santashirt');
+  });
+});
+
+describe('MK1: Kuerzel je Kategorie (festgelegt > Bestand > Elternkategorie)', () => {
+  const KAT = [
+    { nr: '1', pfad: 'Vereine', name: 'Vereine' },
+    { nr: '2', pfad: 'Vereine > Verein A', name: 'Verein A' },
+    { nr: '3', pfad: 'Vereine > Verein A > Jugend', name: 'Jugend A' },
+    { nr: '4', pfad: 'Vereine > Verein B', name: 'Verein B' },
+    { nr: '5', pfad: 'Vereine > Verein C', name: 'Verein C' },
+    { nr: '6', pfad: 'Weihnacht', name: 'Weihnacht', kuerzel: 'WX-' },
+    { nr: '7', pfad: 'Weihnacht > Damen', name: 'Damen W' },
+    { nr: '8', pfad: 'Marken', name: 'Marken', kuerzel: '-' },
+    { nr: '9', pfad: 'Marken > Kuenstler X', name: 'Kuenstler X' },
+    { nr: '10', pfad: 'Marken > Kuenstler Y', name: 'Kuenstler Y', kuerzel: 'KY' },
+    { nr: '11', pfad: 'Gesperrt', name: 'Gesperrt', kuerzel: 'KZ-' },
+  ];
+  const ERF = [
+    { kurz: 'VA-Hoodie', kategorien: 'Verein A' }, { kurz: 'VA-Shirt', kategorien: 'Verein A' },
+    { kurz: 'VB-Hoodie', kategorien: 'Vereine, Verein B' }, { kurz: 'VA-Cap', kategorien: 'Vereine' },
+    { kurz: 'UCS-Elch', kategorien: 'Weihnacht' }, { kurz: 'XX-Mix', kategorien: 'Weihnacht' },
+    { kurz: 'MX-Ultra', kategorien: 'Marken' }, { kurz: 'KX-Eins', kategorien: 'Kuenstler X' },
+  ];
+  const k = nr => KAT.find(x => x.nr === nr);
+  const f = nrs => v.praefixFuerKategorien(ERF, KAT, nrs.map(k));
+  test('festgelegt an der Kategorie geht vor dem Bestand; ohne Bindestrich ergaenzt', () => {
+    expect(f(['6'])).toMatchObject({ praefix: 'WX-', quelle: 'festgelegt', ebene: 'kategorie' });
+    expect(f(['6']).ueblich).toEqual(expect.arrayContaining(['WX-', 'UCS-', 'XX-']));
+    expect(f(['10'])).toMatchObject({ praefix: 'KY-', quelle: 'festgelegt' });
+  });
+  test('abgeleitet aus dem Bestand der Kategorie; Elternkategorie, wenn die Unterkategorie keins hat', () => {
+    expect(f(['2'])).toMatchObject({ praefix: 'VA-', quelle: 'bestand', ebene: 'kategorie', anzahl: 2 });
+    expect(f(['3'])).toMatchObject({ praefix: 'VA-', quelle: 'bestand', ebene: 'eltern', in: 'Verein A' });
+    expect(f(['7'])).toMatchObject({ praefix: 'WX-', quelle: 'festgelegt', ebene: 'eltern', in: 'Weihnacht' });
+  });
+  test('kein Vorschlag: Eltern gemischt (jeder Verein eigenes), "-" festgelegt, gesperrtes Kuerzel zaehlt nicht', () => {
+    expect(f(['5'])).toBeNull();          // Vereine: VA- und VB- -> nichts raten
+    expect(f(['9'])).toMatchObject({ praefix: 'KX-' });   // eigenes geht vor
+    expect(f(['8'])).toMatchObject({ keins: true, praefix: '' });
+    expect(v.praefixFuerKategorien([], KAT, [k('9')])?.praefix ?? null).toBe(null);
+    expect(v.praefixFuerKategorien([], KAT, [{ nr: '12', pfad: 'Marken > Neu', name: 'Neu' }])).toBeNull();   // "-" an Marken stoppt
+    expect(v.festgelegtesKuerzel(k('11'))).toBeNull();
+    expect(v.festgelegtesKuerzel({ kuerzel: 'Ugly' })).toBeNull();
+  });
+  test('Hinweis bei fremdem Kuerzel (kein Sperren); Quelle als Text', () => {
+    expect(v.kuerzelHinweis('VA-Neu', ['VA-'])).toBeNull();
+    expect(v.kuerzelHinweis('va-neu', ['VA-'])).toBeNull();
+    expect(v.kuerzelHinweis('CH-Neu', ['VA-'])).toBe('Kürzel CH- ist in dieser Kategorie nicht üblich (üblich: VA-).');
+    expect(v.kuerzelHinweis('Hoodie', ['VA-'])).toMatch(/Ohne Kürzel-Präfix/);
+    expect(v.kuerzelHinweis('CH-Neu', [])).toBeNull();
+    expect(v.quelleText(f(['3']))).toBe('Präfix VA- aus Elternkategorie Verein A (2× im Bestand)');
+    expect(v.quelleText(f(['6']))).toBe('Präfix WX- aus Kategorie Weihnacht (festgelegt)');
+    expect(v.quelleText(f(['8']))).toMatch(/bewusst kein Kürzel/);
   });
 });
