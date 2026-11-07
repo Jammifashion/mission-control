@@ -10,7 +10,7 @@ const anzeige = html.slice(html.indexOf('// ── Auftraege-Anzeige: Anfang'), 
 const preise = html.slice(html.indexOf('// ── Auftrag-Preise: Anfang'), html.indexOf('// ── Auftrag-Preise: Ende ──'));
 const kuEsc = x => String(x ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const lfbText = l => ({ auslauf: 'läuft aus', null: 'bei L-Shop 0', auslauf_null: 'läuft aus · schon 0', nicht_gefuehrt: 'nicht mehr geführt' }[l?.stufe] ?? 'lieferbar');
-const F = new Function('kuEsc', 'lfbText', 'grSortiere', `${preise}\n${anzeige}\n${block}\nreturn { auHistChipsHtml, auHistVorbelegung, auHistKundeHtml, auKundeAuftraegeHtml, auVorlageAus, auVorlageHinweisHtml, auHistStufe, auGruppeLfbHtml, auEntwurfAus, auHistTitel };`)(kuEsc, lfbText, undefined);
+const F = new Function('kuEsc', 'lfbText', 'grSortiere', `${preise}\n${anzeige}\n${block}\nreturn { auHistChipsHtml, auHistVorbelegung, auHistKundeHtml, auKundeAuftraegeHtml, auVorlageAus, auVorlageHinweisHtml, auHistStufe, auGruppeLfbHtml, auEntwurfAus, auHistTitel, auLetzteAuftraege, auLetzteHtml, auNachsehenHtml, auHatEingaben };`)(kuEsc, lfbText, undefined);
 
 const letzter = { auftragNr: 'AU-2026-0002', datum: '2026-05-10', motiv: 'Wappen', druck: 'Brust', notiz: '', Preis_Netto: 12.5, Aufpreis_Netto: 2, Aufpreis_Ab: '3XL', USt_Satz: 7 };
 const G = (x = {}) => ({ modell: 'M1', bezeichnung: 'Testshirt', farbe: 'Navy', zuletzt: '2026-05-10', auftraege: 2, stueck: 10, nurAngefragt: false, katalog: true, lieferbar: { stufe: 'lieferbar' }, letzter, ...x });
@@ -109,14 +109,15 @@ describe('Wie letztes Mal - Vorbelegung', () => {
       modell: 'M1', farbe: 'Navy', lieferbar: { stufe: 'auslauf' }, preisVon: 'AU-2026-0004 vom 05.03.2026' });
     expect(v.entwurf[1]).toMatchObject({ art: 'frei', freitext: 'Tasse', menge: 4, preis: 8 });
   });
-  test('NICHT uebernommen: Termin, Notiz, Rabatt, Status, Angebot, Zustaendig, Lexware; Herkunft/Lager/Korb/Fertig zurueck; EK von Hand leer', () => {
+  test('NICHT uebernommen: Termin, Notiz, Rabatt, Status, Angebot, Zustaendig, Lexware; Herkunft/Lager/Korb/Fertig zurueck', () => {
     expect(Object.keys(v.kopf)).not.toEqual(expect.arrayContaining(['Termin']));
     for (const f of ['Termin', 'Notiz', 'Rabatt', 'Status', 'Angebot_Netto', 'Zustaendig', 'Lexoffice_Rechnung']) expect([f, f in v.kopf]).toEqual([f, false]);
     const e0 = v.entwurf[0];
     expect(e0).not.toHaveProperty('positionId');
     expect(e0).toMatchObject({ herkunft: 'bestellen', lagerOrt: '' });
     expect(JSON.stringify(v.entwurf)).not.toMatch(/LB-1|"K1"|Fertig/);
-    expect(v.entwurf[1]).toMatchObject({ herkunft: '', ekHand: '' });
+    expect(v.entwurf[1]).toMatchObject({ herkunft: '' });
+    expect(v.entwurf[0]).toMatchObject({ ekHand: '', ekVon: '' });   // L-Shop: kein EK von Hand
   });
   test('nicht mehr bei L-Shop: nicht uebernommen, oben als Liste', () => {
     expect(v.nicht).toEqual(['M2 Red']);

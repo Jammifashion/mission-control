@@ -211,6 +211,11 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   Herkunft-Lager-Korb/Zustaendig/EK von Hand; nicht mehr bestellbare Nummern fallen raus (Liste oben). `Vorlage_Von` hinten in
   Auftraege (Setup), nur beim Anlegen (422 bei unbekannter Vorlage); fehlt die Spalte, wird ohne Vermerk angelegt
   (`vorlageNichtVermerkt`). Ansicht "nach Vorlage AU-…".
+  AM-6-1: im Dialog (nur neu, mit Kunde) `#au-letzte` = hoechstens 3 letzte AU des Kunden aus `auZ.daten` (`auLetzteAuftraege`: ohne
+  storniert, ohne AG; mehr -> "alle in der Kundenkarte"). Klick = `#au-nachsehen` (eigenes `.edi-dialog` NACH `#au-dialog` im DOM,
+  z-index 51, nur lesen `auNachsehenHtml`, Handy bildschirmfuellend ueber `#au-nachsehen`); Schliessen laesst den Dialog unberuehrt.
+  "Als Vorlage übernehmen" = `auDialogOeffnen(null, { vorlage })`, bei Eingaben (`auHatEingaben`) vorher `showConfirm("Eingaben
+  ersetzen?")`. Vorlage uebernimmt seit AM-6-1 `EK_Hand` der FREIEN Positionen (`ekVon`, "EK von AU-… vom …"). Test auftrag-letzte.test.js.
   AM-3: Ansicht mit "Design überspringen", "Rohlinge bereitstellen …" (Dialog `#ab-dialog`, Vorschau je Position, "Rest bestellen
   (teilen)", Ortswahl), Korb-Stand je Position (Klick `korbSpringeZu`), "Übergabe zurücknehmen", Ware-Kennzeichen, Hinweis freie
   Positionen; Liste: Kennzeichen Ware + Filter "wartet auf Ware". Korb: AU-Referenz als Link `data-korb-au` (Kurztitel ueber

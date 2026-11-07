@@ -282,6 +282,16 @@
       .au-preis-von { font-size: 0.75rem; color: var(--muted); }
       .au-vorlage-hinweis { border: 1px solid var(--border); border-left: 4px solid var(--info); background: var(--surface-2); border-radius: 6px;
         padding: 0.5rem 0.7rem; margin: 0.4rem 0; font-size: 0.85rem; overflow-wrap: anywhere; }
+      /* AM-6-1: letzte Auftraege im Dialog, Nachsehen-Ansicht ueber dem Dialog (am Handy bildschirmfuellend) */
+      .au-letzte { display: flex; flex-direction: column; gap: 0.25rem; margin: 0.4rem 0 0.2rem; min-width: 0; }
+      .au-letzte-zeile { display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; text-align: left; font: inherit; font-size: 0.85rem; color: var(--text);
+        background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 0.35rem 0.55rem; cursor: pointer; min-width: 0; overflow-wrap: anywhere; }
+      .au-letzte-zeile:hover, .au-letzte-zeile:focus-visible { border-color: var(--focus); }
+      .au-nachsehen { z-index: 51; }
+      @media (max-width: 600px) {   /* ueber die id, sonst gewinnt die spaetere Regel .edi-dialog */
+        #au-nachsehen { padding: 0; }
+        #au-nachsehen .edi-box { width: 100%; min-height: 100%; border-radius: 0; border: 0; }
+      }
       .ku-mit-storniert { font-size: 0.8rem; color: var(--muted); display: inline-flex; gap: 0.3rem; align-items: center; }
       .ku-au-zeile { display: flex; flex-wrap: wrap; gap: 0.3rem 0.5rem; align-items: center; min-width: 0; font-size: 0.88rem; }
       .ku-au-zeile.ku-gesperrt .ku-au-oeffnen { color: var(--muted); }
@@ -3503,6 +3513,7 @@
             </fieldset>
             <!-- AM-6: Hinweis "Wie letztes Mal" und Leiste "Hatte bisher" (nur neuer Auftrag mit Kunde) -->
             <div id="au-vorlage-hinweis" class="au-vorlage-hinweis" hidden></div>
+            <div id="au-letzte" class="au-letzte" hidden></div>   <!-- AM-6-1: letzte 3 Auftraege des Kunden zum Nachsehen -->
             <div id="au-hist" class="au-hist" hidden></div>
             <div class="lager-felder ku-felder">
               <label class="ku-breit">Kurztitel<input id="au-Kurztitel" type="text" class="form-input" maxlength="80" autocomplete="off" placeholder="z. B. Polos Saison 27" /></label>
@@ -3585,6 +3596,23 @@
             <div class="korb-reihe ku-knoepfe">
               <span class="korb-zaehler">Nicht dabei?</span>
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="kl-neu" data-hilfe="kl-neu">+ Neuer Kunde in MC</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- AM-6-1: Auftrag nachsehen, ueber "Neuer Auftrag" (nur lesen). Schliessen fuehrt zurueck, der Dialog bleibt wie er war. -->
+        <div id="au-nachsehen" class="edi-dialog au-nachsehen" role="dialog" aria-modal="true" aria-labelledby="au-ns-titel" hidden>
+          <div class="edi-box ku-box au-box">
+            <div class="edi-kopf">
+              <strong id="au-ns-titel">Auftrag</strong>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="auftraege" aria-controls="hilfe-au-ns" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+              <button type="button" class="korb-link" id="au-ns-schliessen" data-hilfe="au-ns-schliessen">Schließen</button>
+            </div>
+            <div id="hilfe-au-ns" class="hilfe-legende" hidden></div>
+            <div id="au-ns-inhalt"></div>
+            <div class="korb-reihe ku-knoepfe">
+              <button type="button" class="korb-aktion korb-aktion-haupt" id="au-ns-vorlage" data-hilfe="au-ns-vorlage">Als Vorlage übernehmen</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-ns-zurueck" data-hilfe="au-ns-schliessen">zurück zum neuen Auftrag</button>
             </div>
           </div>
         </div>
@@ -6810,6 +6838,11 @@
         'ku-hist-neu':          { name: '+ in neuen Auftrag', text: 'Öffnet „Neuer Auftrag“ für diesen Kunden mit dieser Farbe. Mengen trägst du ein.' },
         'ku-hist-frei-neu':     { name: '+ in neuen Auftrag', text: 'Öffnet „Neuer Auftrag“ mit diesem Text als freie Position. Menge trägst du ein.' },
         'ku-mit-storniert':     { name: 'mit stornierten', text: 'Zeigt auch stornierte Aufträge (grau, am Ende).' },
+        'au-letzte':            { name: 'Letzte Aufträge', text: 'Die letzten 3 Aufträge dieses Kunden. Klick zeigt ihn zum Nachsehen – deine Eingaben hier bleiben.' },
+        'au-letzte-alle':       { name: 'alle in der Kundenkarte', text: 'Öffnet die Kundenkarte mit allen Aufträgen. Der neue Auftrag bleibt offen.' },
+        'au-ns-schliessen':     { name: 'Zurück', text: 'Schließt die Ansicht – der neue Auftrag mit allen Eingaben ist wieder da.' },
+        'au-ns-vorlage':        { name: 'Als Vorlage übernehmen', text: 'Wie „Wie letztes Mal“: übernimmt Positionen, Mengen und Preise. Stehen schon Eingaben drin, fragt MC vorher.' },
+        'au-ek-von':            { name: 'EK übernommen', text: 'EK von Hand kommt aus einem früheren Auftrag – frei änderbar.' },
         'ku-wie-letztes':       { name: 'Wie letztes Mal', text: 'Neuer Auftrag nach diesem Auftrag (Positionen, Mengen, Preise). Termin, Notiz und Rabatt bleiben leer.' },
         'au-speichern':         { name: 'Speichern', text: 'Speichert Auftrag und Positionen in einem Schritt. Ein zweiter Klick legt nichts doppelt an.' },
       };
@@ -6843,7 +6876,8 @@
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
         auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern',
           'au-hist-chip', 'au-hist-aus', 'au-hist-drin', 'au-hist-mehr', 'au-hist-preis', 'au-preis-von', 'au-hist-lfb', 'au-wie-letztes', 'au-vorlage-von',
-          'ku-hist', 'ku-hist-neu', 'ku-hist-frei-neu', 'ku-mit-storniert', 'ku-wie-letztes'],   // AM-6
+          'ku-hist', 'ku-hist-neu', 'ku-hist-frei-neu', 'ku-mit-storniert', 'ku-wie-letztes',
+          'au-letzte', 'au-letzte-alle', 'au-ns-schliessen', 'au-ns-vorlage', 'au-ek-von'],   // AM-6, AM-6-1
         lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
@@ -11358,7 +11392,8 @@
       /**
        * "Wie letztes Mal": Vorbelegung aus einem gespeicherten Auftrag. Uebernommen: Kurztitel, Kanal, Preis_Eingabe, Design_Link,
        * L-Shop-Gruppen mit Motiv/Druck/Notiz und Mengen (Vorschlag), freie Positionen mit Menge, Preise (+ Aufpreis/ab, USt).
-       * NICHT: Termin, Notiz, Status, Rabatt, Angebot, Herkunft/Lager/Korb (zurueck auf Standard), Fertig, Lexware, Zustaendig, EK von Hand.
+       * NICHT: Termin, Notiz, Status, Rabatt, Angebot, Herkunft/Lager/Korb (zurueck auf Standard), Fertig, Lexware, Zustaendig.
+       * AM-6-1: EK von Hand der freien Positionen kommt mit (markiert "EK von AU-… vom …").
        * Nicht mehr bestellbare Nummern fallen raus und stehen in `nicht` ("E3005 Navy").
        */
       function auVorlageAus(a) {
@@ -11374,8 +11409,9 @@
           delete e.positionId;
           e.herkunft = p.Art === 'lshop' ? 'bestellen' : '';
           e.lagerOrt = '';
-          e.ekHand = '';
+          if (p.Art !== 'frei') e.ekHand = '';   // AM-6-1 (Inhaber 07.11.): EK von Hand der freien Positionen kommt mit
           e.preisVon = e.preis === '' ? '' : von;
+          e.ekVon = e.ekHand === '' || e.ekHand === undefined ? '' : von;
           entwurf.push(e);
         }
         return {
@@ -11395,6 +11431,38 @@
           .sort((x, y) => AU_LFB_HINWEIS.indexOf(x.stufe) - AU_LFB_HINWEIS.indexOf(y.stufe))[0];
         return l ? ` <span class="au-hist-warn" data-hilfe="au-hist-lfb" tabindex="0">${kuEsc(lfbText(l))}</span>` : '';
       }
+      /** AM-6-1: letzte (hoechstens 3) Auftraege eines Kunden fuer den Dialog - neueste zuerst, ohne stornierte, nur AU-…. */
+      const AU_LETZTE = 3;
+      function auLetzteAuftraege(auftraege, kundenNr) {
+        const alle = (auftraege ?? []).filter(a => a.Kunden_Nr === kundenNr && a.Status !== 'storniert' && /^AU-/.test(String(a.Auftrag_Nr)))
+          .sort((x, y) => String(y.Angelegt).localeCompare(String(x.Angelegt)) || String(y.Auftrag_Nr).localeCompare(String(x.Auftrag_Nr)));
+        return { liste: alle.slice(0, AU_LETZTE), mehr: alle.length > AU_LETZTE };
+      }
+      function auLetzteHtml(auftraege, kundenNr) {
+        const { liste, mehr } = auLetzteAuftraege(auftraege, kundenNr);
+        if (!liste.length) return '';
+        return '<span class="au-hist-titel">Letzte Aufträge:</span>' + liste.map(a => `<button type="button" class="au-letzte-zeile" data-au-letzte="${kuEsc(a.Auftrag_Nr)}" data-hilfe="au-letzte">`
+          + `${kzHtml(a.Auftrag_Nr, false)}<span>${auDatum(a.Anfrage_Am)}</span><span>${kuEsc(a.Kurztitel)}</span><span class="ku-chip${auStatusKlasse(a.Status)}">${kuEsc(a.Status)}</span>`
+          + `<span>${Number(a.stueck) || 0} Stück</span>${a.preise?.netto ? `<span>${apEuroText(a.preise.nettoNach)} netto</span>` : ''}</button>`).join('')
+          + (mehr ? '<button type="button" class="korb-link" data-au-letzte-alle data-hilfe="au-letzte-alle">alle in der Kundenkarte</button>' : '');
+      }
+      /** Nachsehen (nur lesen): Kopf und Gruppen, keine Knoepfe ausser denen der Ansicht. */
+      function auNachsehenHtml(a) {
+        const meta = [`angelegt ${auDatum(a.Anfrage_Am)}`, a.Kanal, a.Termin ? `Termin ${auDatum(a.Termin)}` : '', `${Number(a.stueck) || 0} Stück`,
+          a.preise?.netto ? `${apEuroText(a.preise.nettoNach)} netto` : ''].filter(Boolean).map(x => `<span>${kuEsc(x)}</span>`).join('');
+        const gruppen = auGruppen(a.positionen ?? []).map(g => {
+          const p0 = g.positionen[0];
+          const kopf = g.art === 'lshop' ? `<strong>${kuEsc(g.modell)}</strong> · ${kuEsc(g.farbe || '(ohne Farbe)')}` : `<strong>${kuEsc(g.freitext)}</strong> · frei`;
+          const mengen = g.positionen.map(p => `${kuEsc(g.art === 'lshop' ? (p.lshop?.groesse || '–') : 'Menge')} × ${kuEsc(p.Menge)}`).join(' · ');
+          const neben = [p0.Preis_Netto !== '' && p0.Preis_Netto !== undefined ? `${apEuroText(apCent(Number(p0.Preis_Netto)))}/Stück netto` : 'ohne Preis',
+            p0.Motiv && `Motiv: ${p0.Motiv}`, p0.Druck && `Druck: ${p0.Druck}`].filter(Boolean).map(x => `<span>${kuEsc(x)}</span>`).join('');
+          return `<div class="au-gruppe"><div>${kopf} · ${g.stueck} Stück</div><div class="ku-meta">${mengen}</div><div class="ku-meta">${neben}</div></div>`;
+        }).join('') || '<p class="korb-zaehler">Keine Positionen.</p>';
+        return `<div class="ku-meta"><span class="ku-chip${auStatusKlasse(a.Status)}">${kuEsc(a.Status)}</span>${meta}</div>${gruppen}`;
+      }
+      /** Hat der angefangene neue Auftrag schon Eingaben? (Kunde allein zaehlt nicht.) */
+      const auHatEingaben = ({ entwurf = [], felder = {}, offen = [] } = {}) => entwurf.length > 0
+        || Object.values(felder).some(v => String(v ?? '').trim() !== '') || offen.some(v => String(v ?? '').trim() !== '');
       // ── Auftrag-Historie: Ende ──
 
       const auEl = id => document.getElementById(id);
@@ -11603,7 +11671,46 @@
         return auHist.je.get(nr);
       }
       /** Leiste "Hatte bisher" im Dialog: nur beim NEUEN Auftrag mit gewaehltem Kunden; ohne Historie unsichtbar. */
+      /** AM-6-1: "Letzte Aufträge" im Dialog - nur beim neuen Auftrag mit Kunde, aus den schon geladenen Auftraegen. */
+      function auLetzteZeichnen() {
+        const el = auEl('au-letzte');
+        const html = auDlg.modus === 'neu' && auDlg.kunde?.Kunden_Nr ? auLetzteHtml(auZ.daten?.auftraege, auDlg.kunde.Kunden_Nr) : '';
+        el.innerHTML = html;
+        el.hidden = !html;
+      }
+      /** AM-6-1: Nachsehen ueber dem Dialog (nur lesen). */
+      function auNachsehen(nr) {
+        const a = (auZ.daten?.auftraege ?? []).find(x => x.Auftrag_Nr === nr);
+        if (!a) return;
+        auDlg.nachsehen = nr;
+        auEl('au-ns-titel').innerHTML = `${kzHtml(a.Auftrag_Nr, false)} · ${kuEsc(a.Kurztitel)}`;
+        auEl('au-ns-inhalt').innerHTML = auNachsehenHtml(a);
+        auEl('au-nachsehen').hidden = false;
+        auEl('au-ns-schliessen').focus();
+      }
+      function auNachsehenZu() { auEl('au-nachsehen').hidden = true; auDlg.nachsehen = ''; auEl('au-letzte').querySelector('button')?.focus(); }
+      const auDialogEingaben = () => auHatEingaben({
+        entwurf: auDlg.entwurf, felder: Object.fromEntries(['Kurztitel', 'Kanal', 'Termin', 'Notiz', 'Design_Link', 'rabatt'].map(f => [f, auEl(`au-${f}`).value])),
+        offen: [auEl('au-frei-text').value, auEl('au-frei-menge').value, ...[...auEl('au-raster').querySelectorAll('input[data-nr]')].map(i => i.value)],
+      });
+      async function auNachsehenVorlage() {
+        const a = (auZ.daten?.auftraege ?? []).find(x => x.Auftrag_Nr === auDlg.nachsehen);
+        if (!a) return;
+        if (auDialogEingaben() && !await showConfirm('Eingaben ersetzen?', `<p>Der angefangene Auftrag wird durch ${kuEsc(a.Auftrag_Nr)} als Vorlage ersetzt.</p>`, 'Ersetzen')) return;
+        auEl('au-nachsehen').hidden = true;
+        auDlg.nachsehen = '';
+        auDialogOeffnen(null, { vorlage: a });
+      }
+      auEl('au-letzte').addEventListener('click', e => {
+        if (e.target.closest('[data-au-letzte-alle]')) { const k = auDlg.kunde; if (k) kuDialogOeffnen(auKunde(k.Kunden_Nr) ?? k); return; }
+        const b = e.target.closest('[data-au-letzte]');
+        if (b) auNachsehen(b.dataset.auLetzte);
+      });
+      for (const id of ['au-ns-schliessen', 'au-ns-zurueck']) auEl(id).addEventListener('click', auNachsehenZu);
+      auEl('au-ns-vorlage').addEventListener('click', auNachsehenVorlage);
+      auEl('au-nachsehen').addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); auNachsehenZu(); } });
       function auHistZeichnen() {
+        auLetzteZeichnen();   // AM-6-1
         const el = auEl('au-hist');
         const h = auDlg.modus === 'neu' && auDlg.kunde?.Kunden_Nr ? auHist.je.get(auDlg.kunde.Kunden_Nr) : null;
         const html = h && !h.fehler ? auHistChipsHtml(h.gruppen, auDlg.entwurf, { alle: auHist.alle }) : '';
@@ -11716,7 +11823,8 @@
           const p0 = g.positionen[0];
           // AM-6: uebernommener Preis markiert, laeuft aus / 0 als orange Hinweis an der Gruppe
           const kopf = (g.art === 'lshop' ? `<strong>${kuEsc(g.modell)}</strong> · ${kuEsc(g.farbe || '(ohne Farbe)')}${auGruppeLfbHtml(g)}` : `<strong>${kuEsc(g.freitext)}</strong> · frei`)
-            + (p0.preisVon ? ` <span class="au-preis-von" data-hilfe="au-preis-von" tabindex="0">Preis von ${kuEsc(p0.preisVon)}</span>` : '');
+            + (p0.preisVon ? ` <span class="au-preis-von" data-hilfe="au-preis-von" tabindex="0">Preis von ${kuEsc(p0.preisVon)}</span>` : '')
+            + (p0.ekVon ? ` <span class="au-preis-von" data-hilfe="au-ek-von" tabindex="0">EK von ${kuEsc(p0.ekVon)}</span>` : '');   // AM-6-1
           const mengen = g.positionen.map(p => `${kuEsc(g.art === 'lshop' ? (p.groesse || '–') : 'Menge')} × ${kuEsc(p.menge)}${p.lieferbar ? lfbPunkt(p.lieferbar) : ''}`).join(' · ');
           const feld = (f, ph, max) => `<input type="text" class="form-input" maxlength="${max}" data-au-gruppe="${gi}" data-au-feld="${f}" value="${kuEsc(p0[f] ?? '')}" placeholder="${ph}" ${frei ? '' : 'readonly'} aria-label="${ph}" />`;
           return `<div class="au-gruppe"><div>${kopf} · ${g.stueck} Stück ${frei ? `<button type="button" class="korb-link" data-au-gruppe-weg="${gi}" data-hilfe="au-gruppe-weg">entfernen</button>` : ''}</div>`
@@ -11738,6 +11846,7 @@
           if (['preis', 'aufpreis'].includes(f.dataset.auFeld)) { auPreisSetzen(p, f.dataset.auFeld, f.value); delete p.preisVon; }   // AMQ1: netto/brutto; AM-6: von Hand = nicht mehr uebernommen
           else p[f.dataset.auFeld] = f.value;
         }
+        if (f.dataset.auFeld === 'ekHand') for (const p of g?.positionen ?? []) delete p.ekVon;   // AM-6-1: von Hand = nicht mehr uebernommen
         if (['preis', 'aufpreis', 'ekHand'].includes(f.dataset.auFeld)) auPreisSummeZeichnen();   // AM-5: Summe live
       });
       // AMQ1: Preise im Entwurf immer netto (p.preis/p.aufpreis: Text wie getippt im Netto-Modus oder Zahl mit bis zu 4 Stellen);
