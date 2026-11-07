@@ -1,8 +1,8 @@
 // KS4: Stand je Eintrag der Bestellseite - reine Logik ohne Netz. Lesen in lib/bestellStand.js.
 //
-// Schritte (Inhaber 07.11.): eingegangen → geprüft → übernommen → bestellt → lieferbar / ca. KW nn / Rückstand → bei uns → gedruckt → geliefert.
+// Schritte (Inhaber 07.11.): eingegangen → geprüft → übernommen → bestellt → lieferbar / ca. KW nn / Rückstand → bei uns → fertig → geliefert (KS4-1: "fertig" statt "gedruckt").
 // Trikots: übernommen → beim Produzenten → bei uns → geliefert. "schon vorhanden" (ohne Korb-Verweis): ab übernommen direkt "bei uns".
-// Quellen: AU-Position (Fertig = gedruckt, Versendet = geliefert, KS4 0.2), Korb (Status, Liefertermin/AB_Hinweis aus BO4i),
+// Quellen: AU-Position (Fertig = fertig, Versendet = geliefert, KS4 0.2), Korb (Status, Liefertermin/AB_Hinweis aus BO4i),
 // Rueckstandsliste RS1 (KW), Lieferbarkeit BO7, Trikot-Zeile (Charge, Bestellt_Am, Geliefert_Am, Status), Eintrag `Geliefert_Am` (Trikots).
 // Die Seite bekommt NUR `standFuerSeite` (Schritt, Text, Datum, Woche) - nie Lieferant, Nummern, Quelle, Preise.
 
@@ -38,12 +38,12 @@ export function montagDerWoche(kw, jahr) {
 // Schritte und feste Texte (kundensichtbar - Freigabe Inhaber).
 export const SCHRITT_TEXT = {
   eingegangen: 'eingegangen', geprueft: 'geprüft', uebernommen: 'übernommen', bestellt: 'bestellt', unterwegs: 'unterwegs',
-  beiUns: 'bei uns', gedruckt: 'gedruckt', geliefert: 'geliefert', produzent: 'beim Produzenten', abgelehnt: 'abgelehnt', storniert: 'storniert',
+  beiUns: 'bei uns', fertig: 'fertig', geliefert: 'geliefert', produzent: 'beim Produzenten', abgelehnt: 'abgelehnt', storniert: 'storniert',
 };
 export const WEGE = {
-  bestellen: ['eingegangen', 'geprueft', 'uebernommen', 'bestellt', 'unterwegs', 'beiUns', 'gedruckt', 'geliefert'],
-  vorhanden: ['eingegangen', 'geprueft', 'uebernommen', 'beiUns', 'gedruckt', 'geliefert'],
-  frei: ['eingegangen', 'geprueft', 'uebernommen', 'gedruckt', 'geliefert'],
+  bestellen: ['eingegangen', 'geprueft', 'uebernommen', 'bestellt', 'unterwegs', 'beiUns', 'fertig', 'geliefert'],
+  vorhanden: ['eingegangen', 'geprueft', 'uebernommen', 'beiUns', 'fertig', 'geliefert'],
+  frei: ['eingegangen', 'geprueft', 'uebernommen', 'fertig', 'geliefert'],
   trikot: ['eingegangen', 'geprueft', 'uebernommen', 'produzent', 'beiUns', 'geliefert'],
 };
 export const LIEFERBAR = 'lieferbar';
@@ -146,7 +146,8 @@ export function standFuer(e, ctx = {}) {
   if (!pos) return aus('frei', 'uebernommen', { intern: { position: 'fehlt' } });
   const w = wegUndKorb(pos, ctx.posJe ?? new Map());
   if (tag(pos.Versendet)) return aus(w.weg, 'geliefert', { datum: tag(pos.Versendet) });
-  if (t(pos.Fertig) === 'ja') return aus(w.weg, 'gedruckt', { datum: tag(pos.Fertig_Am) });
+  // KS4-1: "fertig" NUR aus dem Haken Fertig der Auftragsposition (setzt nur der Mensch)
+  if (t(pos.Fertig) === 'ja') return aus(w.weg, 'fertig', { datum: tag(pos.Fertig_Am) });
   if (w.weg === 'vorhanden') return aus('vorhanden', w.beiUns ? 'beiUns' : 'uebernommen');
   if (w.weg === 'frei') return aus('frei', 'uebernommen');
   const korb = w.korbKey ? ctx.korbJe?.get(w.korbKey) : null;
@@ -169,10 +170,10 @@ export function standFuerSeite(s) {
   };
 }
 
-/** Summe je Termin (nur Zahlen): gesamt = nicht stornierte, beiUns = ab "bei uns", gedruckt = ab "gedruckt". */
+/** Summe je Termin (nur Zahlen): gesamt = nicht stornierte, beiUns = ab "bei uns", fertig = ab "fertig" (KS4-1, vorher "gedruckt"). */
 export function standSumme(staende) {
   const l = (staende ?? []).filter(s => s && !['abgelehnt', 'storniert'].includes(s.schritt));
   const ab = (s, schritt) => { const liste = WEGE[s.weg] ?? []; return liste.includes(schritt) ? liste.indexOf(s.schritt) >= liste.indexOf(schritt)
-    : schritt === 'beiUns' && ['gedruckt', 'geliefert'].includes(s.schritt); };
-  return { gesamt: l.length, beiUns: l.filter(s => ab(s, 'beiUns')).length, gedruckt: l.filter(s => ab(s, 'gedruckt')).length };
+    : schritt === 'beiUns' && ['fertig', 'geliefert'].includes(s.schritt); };
+  return { gesamt: l.length, beiUns: l.filter(s => ab(s, 'beiUns')).length, fertig: l.filter(s => ab(s, 'fertig')).length };
 }

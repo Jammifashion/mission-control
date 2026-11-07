@@ -54,7 +54,9 @@ export function bereitstellenPlan({ auftrag, positionen, korbZeilen, buchungen, 
   let eigenN = Number(eigen.slice(-4));
   let buchN = naechsteBuchungNr(buchungen, jahr);
   const neuerKorbKey = () => `${eigenPraefix}${String(eigenN++).padStart(4, '0')}`;
-  const anzeige = p => ({ positionId: p.Position_ID, art: p.Art, articleNr: p.LShop_ArticleNr, freitext: p.Freitext, menge: Number(p.Menge) || 0, ...(info.get(p.LShop_ArticleNr) ?? {}) });
+  // KS4-1: fertig = schon als fertig markiert (Haken) - die Oberflaeche fragt vor dem Bestellen nach
+  const anzeige = p => ({ positionId: p.Position_ID, art: p.Art, articleNr: p.LShop_ArticleNr, freitext: p.Freitext, menge: Number(p.Menge) || 0,
+    ...(String(p.Fertig ?? '').trim() === 'ja' ? { fertig: true } : {}), ...(info.get(p.LShop_ArticleNr) ?? {}) });
 
   const vorschau = [], korbNeu = [], lagerNeu = [], posFelder = [], posNeu = [], probleme = [], knapp = [];
   const korbZeile = (articleNr, menge) => {

@@ -8,7 +8,7 @@ import { machSheets } from './hilfen/korb-sheet.js';
 import { legeZugangAn, _bestellseiteCacheLeeren } from '../lib/bestellseite.js';
 import { legeTerminAn, sendeAb, aendereEintragSeite, leseEintraege, leseEintraegeMc } from '../lib/bestellEintraege.js';
 import { pruefeEintraege, uebernehmen } from '../lib/bestellUebernahme.js';
-import { setzeGedruckt, setzeGeliefert, verschiebe, _standCacheLeeren, STAND_MS } from '../lib/bestellStand.js';
+import { setzeFertig, setzeGeliefert, verschiebe, _standCacheLeeren, STAND_MS } from '../lib/bestellStand.js';
 import { ZUGANG_SPALTEN, ZUGANG_OPTIONAL, TERMIN_SPALTEN, EINTRAG_SPALTEN, BILD_SPALTEN, BILD_OPTIONAL } from '../utils/bestellseite.js';
 import { EINTRAG_OPTIONAL } from '../utils/bestell-eintraege.js';
 import { AUFTRAG_SPALTEN, AUFTRAG_OPTIONAL, POSITION_SPALTEN, POSITION_OPTIONAL, wareStand } from '../utils/auftraege.js';
@@ -113,7 +113,7 @@ describe('Stand-Schritte je Quelle (Logik)', () => {
     expect(standFuer(e(), ctx(p, { 'EIGEN:1': { Status: 'bestellt', AB_Hinweis: 'ok' } }))).toMatchObject({ schritt: 'unterwegs', text: 'lieferbar' });
     expect(standFuer(e(), ctx(p, { 'EIGEN:1': { Status: 'geliefert', Status_Datum: '2026-11-10' } }))).toMatchObject({ schritt: 'beiUns', text: 'bei uns', datum: '2026-11-10' });
     expect(standFuer(e(), ctx(p, { 'EIGEN:1': { Status: 'Lager' } }))).toMatchObject({ schritt: 'beiUns' });
-    expect(standFuer(e(), ctx({ ...p, Fertig: 'ja', Fertig_Am: '2026-11-15' }, { 'EIGEN:1': { Status: 'geliefert' } }))).toMatchObject({ schritt: 'gedruckt', datum: '2026-11-15' });
+    expect(standFuer(e(), ctx({ ...p, Fertig: 'ja', Fertig_Am: '2026-11-15' }, { 'EIGEN:1': { Status: 'geliefert' } }))).toMatchObject({ schritt: 'fertig', text: 'fertig', datum: '2026-11-15' });
     expect(standFuer(e(), ctx({ ...p, Fertig: 'ja', Versendet: '2026-11-22' }))).toMatchObject({ schritt: 'geliefert', text: 'geliefert', datum: '2026-11-22' });
     // noch nicht an den Korb uebergeben
     expect(standFuer(e(), ctx(pos()))).toMatchObject({ schritt: 'uebernommen', intern: { korb: 'nicht übergeben' } });
@@ -150,8 +150,8 @@ describe('Stand-Schritte je Quelle (Logik)', () => {
     const sei = JSON.stringify(standFuerSeite(st));
     expect(sei).not.toMatch(/EIGEN|JFN-|L-Shop|AB|quelle|intern|AU-2026|\d{10}/);
     expect(Object.keys(standFuerSeite(st)).sort()).toEqual(['datum', 'hinweis', 'schritt', 'schritte', 'text']);
-    expect(standSumme([{ schritt: 'beiUns', weg: 'bestellen' }, { schritt: 'gedruckt', weg: 'bestellen' }, { schritt: 'geliefert', weg: 'frei' }, { schritt: 'uebernommen', weg: 'bestellen' }, { schritt: 'abgelehnt', weg: 'bestellen' }]))
-      .toEqual({ gesamt: 4, beiUns: 3, gedruckt: 2 });
+    expect(standSumme([{ schritt: 'beiUns', weg: 'bestellen' }, { schritt: 'fertig', weg: 'bestellen' }, { schritt: 'geliefert', weg: 'frei' }, { schritt: 'uebernommen', weg: 'bestellen' }, { schritt: 'abgelehnt', weg: 'bestellen' }]))
+      .toEqual({ gesamt: 4, beiUns: 3, fertig: 2 });
   });
 });
 
@@ -160,7 +160,7 @@ describe('Seite: Stand je Eintrag', () => {
     await uebernommen([{ art: 'artikel', id: '102', menge: 2, notiz: NOTIZ }, { art: 'artikel', id: '101', menge: 1 }]);
     let r = await seite();
     expect(r.eintraege.map(e => e.fortschritt.text)).toEqual(['übernommen', 'übernommen']);
-    expect(r.summe).toEqual({ gesamt: 2, beiUns: 0, gedruckt: 0 });
+    expect(r.summe).toEqual({ gesamt: 2, beiUns: 0, fertig: 0 });
     // Korb-Zeile wird gesendet, AB mit spaeterem Liefertermin -> Seite (nach Zwischenspeicher) zeigt "ca. KW 48" + Hinweis
     const i = spalte('Warenkorb_LShop', 'Status');
     t.Warenkorb_LShop[1][i] = 'bestellt';
@@ -186,14 +186,14 @@ describe('MC: gedruckt und an Fanshop geliefert', () => {
     const nr = au()[spalte('Auftraege', 'Auftrag_Nr')];
     const ids = t.Auftrag_Positionen.slice(1).map(r => r[0]);
     expect(ids).toHaveLength(2);
-    let r = await setzeGedruckt({ eingabe: { positionIds: ids, gedruckt: true }, sheets: s.sheets, jetzt: JETZT });
+    let r = await setzeFertig({ eingabe: { positionIds: ids, fertig: true }, sheets: s.sheets, jetzt: JETZT });
     expect(r).toMatchObject({ geaendert: 2, unveraendert: 0 });
     expect(zelle('Auftrag_Positionen', 1, 'Fertig')).toBe('ja');
     expect(zelle('Auftrag_Positionen', 1, 'Fertig_Am')).toBe('2026-11-07');
-    r = await setzeGedruckt({ eingabe: { positionIds: ids, gedruckt: true }, sheets: s.sheets, jetzt: JETZT });
+    r = await setzeFertig({ eingabe: { positionIds: ids, fertig: true }, sheets: s.sheets, jetzt: JETZT });
     expect(r).toMatchObject({ geaendert: 0, unveraendert: 2 });   // Doppelklick
-    expect((await seite()).summe).toMatchObject({ gedruckt: 2 });
-    await setzeGedruckt({ eingabe: { positionIds: [ids[1]], gedruckt: false }, sheets: s.sheets, jetzt: JETZT });
+    expect((await seite()).summe).toMatchObject({ fertig: 2 });
+    await setzeFertig({ eingabe: { positionIds: [ids[1]], gedruckt: false }, sheets: s.sheets, jetzt: JETZT });
     expect(zelle('Auftrag_Positionen', 2, 'Fertig')).toBe('');
     // Auftrag noch "Anfrage": geliefert setzt Positionen, Status bleibt mit Hinweis
     r = await setzeGeliefert({ eingabe: { zugangId: 'BS-001', terminId: termin }, sheets: s.sheets, jetzt: JETZT });
@@ -341,9 +341,52 @@ describe('Oberflächen', () => {
     expect(seiteHtml).not.toMatch(/ title="/);
   });
   test('MC: gedruckt, geliefert, Warnliste, verschieben mit Mouse-over', () => {
-    for (const k of ['bsm-gedruckt', 'bsm-s-gedruckt', 'bsm-geliefert', 'bsm-geliefert-zurueck', 'bsm-warn', 'bsm-verschieben', 'bsm-v-ziel', 'bsm-v-grund', 'bsm-v-los', 'bsm-fortschritt', 'au-geliefert', 'au-alle-gedruckt', 'au-verschoben']) {
+    for (const k of ['bsm-fertig', 'bsm-s-fertig', 'bsm-geliefert', 'bsm-geliefert-zurueck', 'bsm-warn', 'bsm-verschieben', 'bsm-v-ziel', 'bsm-v-grund', 'bsm-v-los', 'bsm-fortschritt', 'au-geliefert', 'au-alle-fertig', 'au-verschoben']) {
       expect(html).toMatch(new RegExp(`'${k}':\\s*\\{ name:`));
       expect(html).toMatch(new RegExp(`data-hilfe="${k}"`));
     }
+  });
+});
+
+describe('KS4-1: "fertig" nur vom Menschen, Texte "fertig", Liste oben', () => {
+  const sp = n => spalte('Auftrag_Positionen', n);
+  test('Übernahme setzt Fertig nie; Verschieben übernimmt Fertig nur von echter Quelle (ja)', async () => {
+    await uebernommen([{ art: 'artikel', id: '102', menge: 2 }, { art: 'artikel', id: '101', menge: 1 }]);
+    for (const r of t.Auftrag_Positionen.slice(1)) { expect(r[sp('Fertig')]).toBe(''); expect(r[sp('Fertig_Am')]).toBe(''); }
+    expect((await mc()).eintraege.map(e => e.fortschritt.schritt)).toEqual(['uebernommen', 'uebernommen']);
+    // Quelle ohne echten Haken (Datum ohne "ja", Unsinn) -> neue Position ohne Fertig
+    t.Auftrag_Positionen[1][sp('Fertig')] = 'x'; t.Auftrag_Positionen[1][sp('Fertig_Am')] = '2026-11-07';
+    t.Auftrag_Positionen[2][sp('Fertig')] = 'ja'; t.Auftrag_Positionen[2][sp('Fertig_Am')] = '2026-11-06';
+    _auftraegeCacheLeeren(); _standCacheLeeren();
+    expect((await mc()).eintraege.map(e => e.fortschritt.schritt)).toEqual(['uebernommen', 'fertig']);   // "fertig" nur aus Fertig = ja
+    const a = await wahl();
+    await verschiebe({ eingabe: { zugangId: 'BS-001', auswahl: a, zielTermin: termin2, vorgang: V(120) }, sheets: s.sheets, jetzt: JETZT });
+    const neu = t.Auftrag_Positionen.slice(-2);
+    expect(neu.map(r => [r[sp('Fertig')], r[sp('Fertig_Am')]])).toEqual([['', ''], ['ja', '2026-11-06']]);
+  });
+  test('Texte: Seite und MC sagen "fertig", nie "gedruckt"; Rückfragen bei fehlender Ware und beim Bereitstellen', () => {
+    const html = readFileSync(resolve(hier, '../../frontend/index.html'), 'utf8');
+    const seiteHtml = readFileSync(resolve(hier, '../../frontend/bestellen.html'), 'utf8');
+    expect(seiteHtml.replace(/\/\/.*$/gm, '')).not.toMatch(/gedruckt/);
+    expect(html).not.toMatch(/'(bsm|au)-[a-z-]*gedruckt'/);
+    expect(html).toMatch(/Ware noch nicht da – trotzdem fertig\?/);
+    expect(html).toMatch(/Schon als fertig markiert – trotzdem bestellen\?/);
+    expect(html).toMatch(/<label class="au-pos-haken" data-hilfe="au-pos-fertig">/);   // Haken nicht mehr ueber die ganze Zeile
+  });
+  test('Seite: Liste "Eingetragen" oben direkt nach dem Termin, einklappbar (sessionStorage), Summe im Kopf, Sprung nach Absenden', () => {
+    const seiteHtml = readFileSync(resolve(hier, '../../frontend/bestellen.html'), 'utf8');
+    const z = seiteHtml.slice(seiteHtml.indexOf('function zeichnen()'), seiteHtml.indexOf('async function eintraegeLaden'));
+    expect(z.indexOf('bsEingetragenHtml(')).toBeGreaterThan(0);
+    expect(z.indexOf('bsEingetragenHtml(')).toBeLessThan(z.indexOf('Eintragen für'));
+    expect(seiteHtml).toMatch(/bs_liste_zu/);
+    expect(seiteHtml).not.toMatch(/localStorage\.setItem\('bs_liste/);
+    expect(seiteHtml).toMatch(/getElementById\('bs-eingetragen'\)\?\.scrollIntoView/);
+    const a = seiteHtml.indexOf('// ── Bestellseite-Anzeige: Anfang'), b = seiteHtml.indexOf('// ── Bestellseite-Anzeige: Ende ──');
+    const F = new Function(`${seiteHtml.slice(a, b)}\nreturn { bsEingetragenHtml };`)();
+    const h = F.bsEingetragenHtml({ eintraege: [{ id: 'BE-1', art: 'extra', freitext: 'Fahne', menge: 1, status: 'eingegangen', kuerzel: 'X', zeit: '' }], summe: { gesamt: 3, beiUns: 2, fertig: 1 },
+      verschoben: [], laedt: false, offen: true, schreibbar: false, d: null, terminWahl: '', neu: new Set(['BE-1']) });
+    expect(h).toMatch(/<details class="card bs-eingetragen" id="bs-eingetragen" open><summary><h2>Eingetragen für diesen Termin \(1\)<\/h2><span class="bs-summe">2 von 3 bei uns · 1 fertig<\/span>/);
+    expect(h).toMatch(/class="bs-eintrag neu"/);
+    expect(F.bsEingetragenHtml({ eintraege: [], offen: false, d: null })).not.toMatch(/ open>/);
   });
 });

@@ -1,7 +1,7 @@
-// KS4: Stand je Eintrag der Bestellseite (Seite + MC), "gedruckt", "an Fanshop geliefert", "in Termin … verschieben".
+// KS4: Stand je Eintrag der Bestellseite (Seite + MC), "fertig", "an Fanshop geliefert", "in Termin … verschieben".
 // Logik in utils/bestell-stand.js und utils/bestell-verschieben.js.
 //
-// Lesen: Eintraege -> AU-Positionen (Fertig = gedruckt, Versendet = geliefert), Korb (Status + AB-Liefertermin), Rueckstandsliste RS1,
+// Lesen: Eintraege -> AU-Positionen (Fertig = fertig, Versendet = geliefert), Korb (Status + AB-Liefertermin), Rueckstandsliste RS1,
 // Lieferbarkeit BO7, Trikot-Zeilen (Business-Sheet, nur gelesen). Teure Quellen nur, wenn sie gebraucht werden (RS1 nur bei bestellten
 // Korb-Zeilen, Trikots nur bei uebernommenen Trikots). Fuer die Seite ein Zwischenspeicher je Zugang + juengstem Eintrags-Stand,
 // hoechstens STAND_MS alt; jeder MC-Schreibweg leert ihn. Faellt eine Quelle aus, fehlt nur ihr Teil (nie die ganze Liste).
@@ -18,7 +18,7 @@ import { TAB_TERMINE, TAB_EINTRAEGE, fehler } from '../utils/bestellseite.js';
 import { terminPlan } from '../utils/bestell-eintraege.js';
 import { TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, alsZeile as auZeile, HERKUNFT } from '../utils/auftraege.js';
 import { standFuer, rueckstandJeKorb } from '../utils/bestell-stand.js';
-import { verschiebenPlan, geliefertPlan, gedrucktPlan } from '../utils/bestell-verschieben.js';
+import { verschiebenPlan, geliefertPlan, fertigMehrPlan } from '../utils/bestell-verschieben.js';
 
 const t = v => String(v ?? '').trim();
 /** Stand auf der Seite hoechstens so alt (Korb/AB/RS1 aendern sich stuendlich bzw. woechentlich; MC-Schreibwege leeren sofort). */
@@ -86,16 +86,17 @@ export async function standJeSeite({ zugangId, eintraege, terminDatum, sheets, s
 
 function fertigLeeren() { _standCacheLeeren(); _auftraegeCacheLeeren(); }
 
-/** POST /api/bestellseiten/gedruckt { positionIds, gedruckt } - Haken "fertig" (= gedruckt) fuer mehrere Positionen. */
-export async function setzeGedruckt({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
+/** POST /api/bestellseiten/fertig { positionIds, fertig } - Haken "fertig" fuer mehrere Positionen (KS4-1; `gedruckt` als alter Name erlaubt). */
+export async function setzeFertig({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
   return mitAuftragSperre(async () => {
     const sheets = s ?? await sheetsClient();
     const spreadsheetId = sheetId();
     const { a, p } = await liesAuftraege(sheets, spreadsheetId);
-    const plan = gedrucktPlan({ positionIds: eingabe?.positionIds, gedruckt: eingabe?.gedruckt !== false, auftraege: a.zeilen, positionen: p.zeilen, jetzt: jetzt().toISOString() });
+    const soll = (eingabe?.fertig ?? eingabe?.gedruckt) !== false;
+    const plan = fertigMehrPlan({ positionIds: eingabe?.positionIds, fertig: soll, auftraege: a.zeilen, positionen: p.zeilen, jetzt: jetzt().toISOString() });
     if (plan.aenderungen.length) await schreibe(sheets, spreadsheetId, { zellen: plan.aenderungen.flatMap(x => zellenAus(TAB_POSITIONEN, p.idx, x.zeile, x.felder)) });
     fertigLeeren();
-    console.log(`Bestellseite/Auftrag: ${plan.aenderungen.length} Positionen ${eingabe?.gedruckt !== false ? 'gedruckt' : 'nicht mehr gedruckt'}.`);
+    console.log(`Bestellseite/Auftrag: ${plan.aenderungen.length} Positionen ${soll ? 'fertig' : 'nicht mehr fertig'}.`);
     return { ok: true, geaendert: plan.aenderungen.length, unveraendert: plan.unveraendert };
   });
 }

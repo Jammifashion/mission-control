@@ -158,7 +158,15 @@
     .bs-schritte li.erreicht { color: var(--text); }
     .bs-schritte li.erreicht::before { content: "● "; color: var(--success); }
     .bs-hinweis-spaet { color: var(--warning); font-size: 0.84rem; line-height: 1.4; }
-    .bs-summe { font-size: 0.86rem; color: var(--muted); margin: -0.2rem 0 0.5rem; }
+    .bs-summe { font-size: 0.86rem; color: var(--muted); }
+    /* KS4-1: Liste "Eingetragen" oben, einklappbar */
+    .bs-eingetragen > summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.1rem 0.7rem; min-height: 44px; }
+    .bs-eingetragen > summary::-webkit-details-marker { display: none; }
+    .bs-eingetragen > summary h2 { margin-bottom: 0; }
+    .bs-eingetragen > summary::after { content: "▾"; margin-left: auto; color: var(--muted); }
+    .bs-eingetragen:not([open]) > summary::after { content: "▸"; }
+    .bs-eingetragen[open] > summary { margin-bottom: 0.55rem; }
+    .bs-eintrag.neu { border-color: var(--info); box-shadow: 0 0 0 1px var(--info); }
     .bs-termin-wahl { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: flex-end; }
     .bs-termin-wahl select { min-height: 44px; padding: 0.45rem 0.65rem; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; min-width: 0; max-width: 100%; }
     .bs-fehler { background: var(--danger-bg); border: 1px solid var(--danger); border-radius: 8px; padding: 0.8rem; line-height: 1.5; color: var(--text); }
@@ -293,19 +301,27 @@
     /** KS4: Summe je Termin - nur Zahlen. */
     function bsSummeHtml(summe) {
       if (!summe || !summe.gesamt) return '';
-      return `<p class="bs-summe">${summe.beiUns} von ${summe.gesamt} bei uns · ${summe.gedruckt} gedruckt</p>`;
+      return `<span class="bs-summe">${summe.beiUns} von ${summe.gesamt} bei uns · ${summe.fertig ?? 0} fertig</span>`;   // KS4-1: "fertig" statt "gedruckt"
+    }
+    /** KS4-1: Liste "Eingetragen für diesen Termin" - oben direkt unter dem Termin, einklappbar, Summe im Kopf; neue Eintraege hervorgehoben. */
+    function bsEingetragenHtml({ eintraege, summe, verschoben, laedt, offen, schreibbar, d, terminWahl, neu }) {
+      const n = (eintraege || []).filter(e => e.status !== 'storniert').length;
+      const liste = laedt ? '<p class="bs-klein">wird geladen …</p>'
+        : (eintraege || []).map(e => bsEintragHtml(e, schreibbar, d, terminWahl, neu && neu.has(e.id))).join('') || '<p class="bs-klein">Noch nichts eingetragen.</p>';
+      return `<details class="card bs-eingetragen" id="bs-eingetragen"${offen ? ' open' : ''}><summary><h2>Eingetragen für diesen Termin (${n})</h2>${bsSummeHtml(summe)}</summary>`
+        + `<div class="bs-liste" id="bs-eintraege">${liste}</div>${laedt ? '' : bsVerschobenHtml(verschoben)}</details>`;
     }
     /** KS4: Termin-Datum zu einer Termin-ID (fuer "verschoben von/auf"). */
     const bsTerminDatum = (d, id) => { const x = (d?.termine || []).find(y => y.id === id); return x?.datum ? bsDatum(x.datum).slice(0, 6) : 'einem anderen Termin'; };
     /** Ein Eintrag der Liste: was, Kuerzel, Zeit, "nach Bestellschluss – ohne Garantie", Status; aendern/stornieren bis "übernommen". */
     // KS3: Status eingegangen · geprüft · übernommen · abgelehnt (+ Grund, MC); ab "übernommen" nur lesen.
     // KS4: Stand je Eintrag statt Status-Chip (wenn geliefert), "verschoben von …", Termin ändern bis "übernommen".
-    function bsEintragHtml(e, schreibbar, d = null, terminWahl = '') {
+    function bsEintragHtml(e, schreibbar, d = null, terminWahl = '', neu = false) {
       const offen = schreibbar && !['übernommen', 'storniert'].includes(e.status);
       const status = e.fortschritt && e.status !== 'storniert' ? bsFortschrittHtml(e.fortschritt)
         : `<span class="bs-chip">${bsEsc(e.status === 'storniert' && e.ablehnGrund ? 'abgelehnt' : (BS_STATUS[e.status] || e.status))}</span>`;
       const andere = (d?.termine || []).filter(x => x.id !== e.termin && !x.vergangen);
-      return `<div class="bs-eintrag${e.status === 'storniert' ? ' storniert' : ''}" data-eintrag="${bsEsc(e.id)}"><div class="bs-eintrag-kopf"><span class="bs-was">${bsEsc(bsEintragWas(e))}</span>`
+      return `<div class="bs-eintrag${e.status === 'storniert' ? ' storniert' : ''}${neu ? ' neu' : ''}" data-eintrag="${bsEsc(e.id)}"><div class="bs-eintrag-kopf"><span class="bs-was">${bsEsc(bsEintragWas(e))}</span>`
         + `${status}${e.nachSchluss ? '<span class="bs-chip bs-spaet">nach Bestellschluss – ohne Garantie</span>' : ''}</div>`
         + (e.verschobenVon ? `<span class="bs-klein">verschoben von ${bsEsc(bsTerminDatum(d, e.verschobenVon))}${e.verschobenGrund ? ` – ${bsEsc(e.verschobenGrund)}` : ''}</span>` : '')
         + `${e.status === 'storniert' && e.ablehnGrund ? `<span class="bs-klein">abgelehnt: ${bsEsc(e.ablehnGrund)}</span>` : ''}`
@@ -342,10 +358,14 @@
     }
     // ── Bestellseite-Anzeige: Ende ──
 
-    const BS = { d: null, termin: '', tab: 'artikel', filter: '', suche: '', offen: -1, korb: [], vorgang: '', eintraege: [], laedt: false, summe: null, verschoben: [], terminWahl: '' };
+    const BS = { d: null, termin: '', tab: 'artikel', filter: '', suche: '', offen: -1, korb: [], vorgang: '', eintraege: [], laedt: false, summe: null, verschoben: [], terminWahl: '', neu: null };
     const neuerVorgang = () => (crypto.randomUUID ? crypto.randomUUID() : `bs-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`);
     const sp = (() => { try { return window.sessionStorage; } catch { return null; } })();
     const kuerzelLesen = () => { try { return sp?.getItem('bs_kuerzel') || ''; } catch { return ''; } };
+    // KS4-1: Liste "Eingetragen" auf/zu - nur in dieser Sitzung (sessionStorage); ohne Angabe offen, wenn es Eintraege gibt
+    const listeZuLesen = () => { try { return sp?.getItem('bs_liste_zu'); } catch { return null; } };
+    const listeZuMerken = zu => { try { sp?.setItem('bs_liste_zu', zu ? '1' : '0'); } catch { /* gesperrt */ } };
+    const listeOffen = () => { const z = listeZuLesen(); return z === null ? BS.eintraege.length > 0 || BS.laedt : z !== '1'; };
     const kuerzelMerken = k => { try { sp?.setItem('bs_kuerzel', k); } catch { /* gesperrt */ } };
 
     function themeKnoepfeZeigen() {
@@ -389,6 +409,7 @@
             <button type="button" class="btn" id="bs-t-neu">Termin anlegen</button></div></details>` : ''}
         </section>
         ${t ? bsBannerHtml(t) : ''}
+        ${t ? bsEingetragenHtml({ eintraege: BS.eintraege, summe: BS.summe, verschoben: BS.verschoben, laedt: BS.laedt, offen: listeOffen(), schreibbar: schreibbar(), d, terminWahl: BS.terminWahl, neu: BS.neu }) : ''}
         <section class="card"><h2>${t ? `Eintragen für ${t.datum ? `${bsWochentag(t.datum)} ${bsDatum(t.datum)}` : 'den Termin'}` : 'Artikel'}</h2>
           ${schreibbar() ? `<label class="bs-feld" style="margin-bottom:0.7rem">Dein Kürzel oder Vorname<input type="text" id="bs-kuerzel" maxlength="${BS_MAX.kuerzel}" value="${bsEsc(kuerzel)}" autocomplete="off" autocapitalize="words"></label>
           <div class="bs-tabs" role="group" aria-label="Was eintragen?">
@@ -420,13 +441,7 @@
             <button type="button" class="btn" id="bs-tr-neu">In den Korb</button>` : ''}
           ${d.designLink ? `<p class="bs-klein" style="margin-top:0.6rem">Design ansehen: <a class="bs-link" href="${bsEsc(d.designLink)}" target="_blank" rel="noopener noreferrer">Link öffnen</a></p>` : ''}
         </section>
-        ${t ? `
-        <section class="card"><h2>Eingetragen für diesen Termin (${BS.eintraege.filter(e => e.status !== 'storniert').length})</h2>
-          ${bsSummeHtml(BS.summe)}
-          <div class="bs-liste" id="bs-eintraege">${BS.laedt ? '<p class="bs-klein">wird geladen …</p>' : BS.eintraege.map(e => bsEintragHtml(e, schreibbar(), d, BS.terminWahl)).join('') || '<p class="bs-klein">Noch nichts eingetragen.</p>'}</div>
-          ${BS.laedt ? '' : bsVerschobenHtml(BS.verschoben)}
-        </section>
-        ${bsKorbHtml(BS.korb, kuerzel, schreibbar())}` : ''}
+        ${t ? bsKorbHtml(BS.korb, kuerzel, schreibbar()) : ''}
         <p class="bs-klein">Link gültig bis ${bsDatum(d.ablauf)}.</p>`;
     }
 
@@ -504,9 +519,15 @@
         const kuerzel = kuerzelLesen();
         b.disabled = true; b.textContent = 'wird gesendet …';
         try {
+          const vorher = new Set(BS.eintraege.map(x => x.id));
           const r = await api('absenden', { termin: BS.termin, kuerzel, vorgang: BS.vorgang, positionen: BS.korb.map(({ text, besorgen, ...p }) => p) });
           BS.korb = []; BS.vorgang = '';
           await neuLaden();
+          // KS4-1: Liste oben aufklappen, neue Eintraege kurz hervorheben, dorthin springen
+          BS.neu = new Set(BS.eintraege.map(x => x.id).filter(id => !vorher.has(id)));
+          listeZuMerken(false); zeichnen();
+          document.getElementById('bs-eingetragen')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          setTimeout(() => { BS.neu = null; document.querySelectorAll('.bs-eintrag.neu').forEach(x => x.classList.remove('neu')); }, 4000);
           meldung(`${r.anzahl} Position${r.anzahl === 1 ? '' : 'en'} eingetragen${r.nachSchluss ? ' – nach Bestellschluss, ohne Garantie' : ''}.`);
         } catch (err) { meldung(err.message, true); zeichnen(); }
         return;
@@ -565,6 +586,7 @@
       }
     });
     document.getElementById('bs-gross').addEventListener('click', e => { e.currentTarget.hidden = true; });
+    main.addEventListener('toggle', e => { if (e.target.id === 'bs-eingetragen') listeZuMerken(!e.target.open); }, true);   // KS4-1
 
     async function laden() {
       if (!BS_TOKEN) { fehlerZeigen(bsFehlerText(401)); return; }

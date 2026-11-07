@@ -1,4 +1,4 @@
-// KS4: Bestellseite in MC - "in Termin … verschieben", "an Fanshop geliefert", "gedruckt" - reine Logik ohne Netz.
+// KS4: Bestellseite in MC - "in Termin … verschieben", "an Fanshop geliefert", "fertig" (KS4-1, vorher "gedruckt") - reine Logik ohne Netz.
 // Schreiben in lib/bestellStand.js (Bestellseiten- + Auftrags-Sperre, ein batchUpdate, zurueckgelesen). Nie Korb, nie Trikot-Reiter.
 //
 // Verschieben (bericht-KS4 0.3): nicht uebernommen -> nur Termin_ID. Uebernommen -> neue Position im Auftrag des Ziel-Termins (KS3-Regeln),
@@ -102,7 +102,8 @@ export function verschiebenPlan({ zugang, termine, zielTermin, eintraege, auswah
       positionenNeu.push({
         ...Object.fromEntries(POSITION_SPALTEN.map(s => [s, ''])),
         Position_ID: id, Auftrag_Nr: zielNr, Art: pos.Art, LShop_ArticleNr: t(pos.LShop_ArticleNr), Freitext: t(pos.Freitext), Menge: String(menge),
-        Motiv: t(pos.Motiv), Druck: t(pos.Druck), Notiz: t(pos.Notiz), Fertig: t(pos.Fertig), Fertig_Am: t(pos.Fertig_Am), Stand: iso,
+        Motiv: t(pos.Motiv), Druck: t(pos.Druck), Notiz: t(pos.Notiz), Fertig: t(pos.Fertig) === 'ja' ? 'ja' : '', Fertig_Am: t(pos.Fertig) === 'ja' ? t(pos.Fertig_Am) : '',   // KS4-1: nur echte Quelle
+        Stand: iso,
         ...Object.fromEntries(PREIS_SPALTEN.map(s => [s, pos[s] ?? ''])),
         ...herkunftNachVerschieben(pos),
       });
@@ -162,16 +163,16 @@ export function geliefertPlan({ termin = null, auftragNr = '', zurueck = false, 
 }
 
 /**
- * Plan "gedruckt" (= Haken fertig, KS4 0.2) fuer mehrere Positionen, auch ueber Auftraege hinweg. Schon im Zielzustand = uebersprungen.
+ * Plan "fertig" (= Haken Fertig, KS4 0.2; KS4-1 umbenannt) fuer mehrere Positionen, auch ueber Auftraege hinweg. Schon im Zielzustand = uebersprungen.
  * @returns {{ aenderungen: {zeile, positionId, auftragNr, felder}[], unveraendert: number }}
  */
-export function gedrucktPlan({ positionIds, gedruckt, auftraege, positionen, jetzt }) {
+export function fertigMehrPlan({ positionIds, fertig, auftraege, positionen, jetzt }) {
   const ids = [...new Set((Array.isArray(positionIds) ? positionIds : []).map(t).filter(Boolean))];
   if (!ids.length) throw fehler('Keine Positionen gewählt.');
   if (ids.length > 500) throw fehler('Höchstens 500 Positionen auf einmal.');
   const tag = berlinDatum(new Date(jetzt)), iso = new Date(jetzt).toISOString();
   const auJe = new Map((auftraege ?? []).map(a => [a.Auftrag_Nr, a]));
-  const soll = gedruckt ? 'ja' : '';
+  const soll = fertig ? 'ja' : '';
   const aenderungen = [];
   let unveraendert = 0;
   for (const id of ids) {
@@ -179,7 +180,7 @@ export function gedrucktPlan({ positionIds, gedruckt, auftraege, positionen, jet
     if (!p || t(p.Entfernt)) throw fehler(`Position ${id} gibt es nicht (mehr) – bitte neu laden.`, 409, 'konflikt');
     if (auJe.get(p.Auftrag_Nr)?.Status === STORNIERT) throw fehler(`${p.Auftrag_Nr} ist storniert.`, 409, 'storniert');
     if (t(p.Fertig) === soll) { unveraendert++; continue; }
-    aenderungen.push({ zeile: p._zeile, positionId: id, auftragNr: p.Auftrag_Nr, felder: { Fertig: soll, Fertig_Am: gedruckt ? tag : '', Stand: iso } });
+    aenderungen.push({ zeile: p._zeile, positionId: id, auftragNr: p.Auftrag_Nr, felder: { Fertig: soll, Fertig_Am: fertig ? tag : '', Stand: iso } });
   }
   return { aenderungen, unveraendert };
 }

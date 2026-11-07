@@ -4,7 +4,7 @@ import { Router } from 'express';
 import { leseZugaenge, legeZugangAn, bearbeiteZugang, neuerLink, zeigeLink, aktualisiereBilder, leseKategorien, bilderPlan, bilderStueck, bilderSchreiben } from '../lib/bestellseite.js';
 import { leseEintraegeMc } from '../lib/bestellEintraege.js';   // KS2: nur ansehen
 import { pruefeEintraege, aendereEintragMc, uebernahmeVorschau, uebernehmen, eintraegeZumAuftrag } from '../lib/bestellUebernahme.js';   // KS3
-import { setzeGedruckt, setzeGeliefert, verschiebe } from '../lib/bestellStand.js';   // KS4
+import { setzeFertig, setzeGeliefert, verschiebe } from '../lib/bestellStand.js';   // KS4
 
 const router = Router();
 
@@ -32,9 +32,10 @@ router.get('/:zugangId/termin/:terminId/uebernahme', mitMeldung(req => uebernahm
 router.post('/uebernehmen', mitMeldung(req => uebernehmen({ eingabe: req.body ?? {} })));
 // GET /api/bestellseiten/auftrag/:nr/eintraege - Kürzel/Notiz je Position (nur Anzeige)
 router.get('/auftrag/:nr/eintraege', mitMeldung(req => eintraegeZumAuftrag({ auftragNr: req.params.nr })));
-// ── KS4: gedruckt, an Fanshop geliefert, in anderen Termin verschieben ──
-// POST /api/bestellseiten/gedruckt { positionIds, gedruckt } - Haken "fertig" (= gedruckt) fuer mehrere Positionen (auch Auftragsansicht)
-router.post('/gedruckt', mitMeldung(req => setzeGedruckt({ eingabe: req.body ?? {} })));
+// ── KS4: fertig, an Fanshop geliefert, in anderen Termin verschieben ──
+// POST /api/bestellseiten/fertig { positionIds, fertig } - Haken "fertig" fuer mehrere Positionen (auch Auftragsansicht). KS4-1: vorher /gedruckt
+router.post('/fertig', mitMeldung(req => setzeFertig({ eingabe: req.body ?? {} })));
+router.post('/gedruckt', mitMeldung(req => setzeFertig({ eingabe: req.body ?? {} })));   // alter Name (Oberflaeche bis zum Neuladen)
 // POST /api/bestellseiten/geliefert { zugangId, terminId | auftragNr, zurueck } - Versendet je Position (+ Trikot-Eintraege), fertig -> übergeben
 router.post('/geliefert', mitMeldung(req => setzeGeliefert({ eingabe: req.body ?? {} })));
 // POST /api/bestellseiten/verschieben { zugangId, auswahl, zielTermin | neuesDatum, notiz, grund, vorgang, dryRun }
