@@ -5,12 +5,13 @@ import { leseZugaenge, legeZugangAn, bearbeiteZugang, neuerLink, zeigeLink, aktu
 import { leseEintraegeMc } from '../lib/bestellEintraege.js';   // KS2: nur ansehen
 import { pruefeEintraege, aendereEintragMc, uebernahmeVorschau, uebernehmen, eintraegeZumAuftrag } from '../lib/bestellUebernahme.js';   // KS3
 import { setzeFertig, setzeGeliefert, verschiebe } from '../lib/bestellStand.js';   // KS4
+import { entwuerfeMc, entwurfBildMc, setzeEntwurfOrdner } from '../lib/bestellEntwuerfe.js';   // KS7
 
 const router = Router();
 
 const mitMeldung = fn => async (req, res, next) => {
   try { res.json(await fn(req)); } catch (err) {
-    if ([404, 409, 422].includes(err?.status)) return res.status(err.status).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
+    if ([404, 409, 413, 422, 502].includes(err?.status)) return res.status(err.status).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
     next(err);
   }
 };
@@ -19,6 +20,20 @@ const mitMeldung = fn => async (req, res, next) => {
 router.get('/', mitMeldung(() => leseZugaenge()));
 // GET /api/bestellseiten/kategorien - Auswahl fuer das Sortiment (Nummer, Pfad).
 router.get('/kategorien', mitMeldung(async () => ({ kategorien: (await leseKategorien()).map(k => ({ nr: k.nr, pfad: k.pfad })) })));
+// ── KS7: Entwuerfe (Drive-Ordner) ──
+// GET /api/bestellseiten/:zugangId/entwuerfe - Liste wie die Seite; GET .../entwurf/:nr?groesse= - Bild (Vorschau in MC)
+router.get('/:zugangId/entwuerfe', mitMeldung(req => entwuerfeMc({ zugangId: req.params.zugangId })));
+router.get('/:zugangId/entwurf/:nr', async (req, res, next) => {
+  try {
+    const b = await entwurfBildMc({ zugangId: req.params.zugangId, nr: req.params.nr, groesse: String(req.query.groesse ?? '') });
+    res.set('Cache-Control', 'private, max-age=300'); res.set('Content-Type', b.typ); res.send(b.buf);
+  } catch (err) {
+    if ([404, 409, 413, 422, 502].includes(err?.status)) return res.status(err.status).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
+    next(err);
+  }
+});
+// POST /api/bestellseiten/entwuerfe/ordner { zugangId, stand, link | anlegen | entfernen }
+router.post('/entwuerfe/ordner', mitMeldung(req => setzeEntwurfOrdner({ eingabe: req.body ?? {} })));
 // GET /api/bestellseiten/:zugangId/eintraege - KS2: Eintraege des Zugangs nur ansehen (Rueckennamen nur in der Oberflaeche).
 router.get('/:zugangId/eintraege', mitMeldung(req => leseEintraegeMc({ zugangId: req.params.zugangId })));
 // ── KS3: pruefen, aendern, ablehnen, uebernehmen ──

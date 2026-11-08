@@ -9,11 +9,13 @@ import { baueTokenBremse, FEHLVERSUCHE_MAX as MAX } from '../middleware/tokenBre
 import { leseSeite, schliesseAb } from '../lib/bestellseite.js';
 import { leseEintraege, legeTerminAn, sendeAb, aendereEintragSeite, storniereEintragSeite } from '../lib/bestellEintraege.js';
 import { tokenAusHeader } from '../utils/bestellseite.js';
+import { entwuerfeSeite, entwurfBildSeite } from '../lib/bestellEntwuerfe.js';   // KS7
 
 export const FEHLVERSUCHE_MAX = MAX;
 
 export function bauRouter({ seite = leseSeite, eintraege = leseEintraege, termin = legeTerminAn, absenden = sendeAb,
-  aendern = aendereEintragSeite, stornieren = storniereEintragSeite, abschliessen = schliesseAb } = {}) {
+  aendern = aendereEintragSeite, stornieren = storniereEintragSeite, abschliessen = schliesseAb,
+  entwuerfe = entwuerfeSeite, entwurf = entwurfBildSeite } = {}) {
   const router = Router();
   router.use(baueTokenBremse());
   router.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); res.set('Referrer-Policy', 'no-referrer'); next(); });
@@ -38,6 +40,22 @@ export function bauRouter({ seite = leseSeite, eintraege = leseEintraege, termin
   router.post('/aendern', weg((token, req) => aendern({ token, eingabe: req.body ?? {} })));
   router.post('/stornieren', weg((token, req) => stornieren({ token, eingabe: req.body ?? {} })));
   router.post('/abschliessen', weg(token => abschliessen({ token })));   // KS6: "Bestellung abschließen" (nur Art auftrag, wenn erlaubt)
+  // KS7: Entwuerfe aus dem Drive-Ordner des Zugangs - Liste (nur nr/titel/breite/hoehe) und Bilder als Bytes, nie Drive-Adressen.
+  router.get('/entwuerfe', weg(token => entwuerfe({ token })));
+  router.get('/entwurf/:nr', async (req, res, next) => {
+    try {
+      const token = tokenAusHeader(req.headers.authorization);
+      if (!token) return res.status(401).json({ error: 'Bestellseite nicht gefunden.', code: 'unbekannt' });
+      const b = await entwurf({ token, nr: req.params.nr, groesse: String(req.query.groesse ?? '') });
+      res.set('Cache-Control', 'private, max-age=300');
+      res.set('Content-Type', b.typ);
+      res.set('X-Content-Type-Options', 'nosniff');
+      res.send(b.buf);
+    } catch (err) {
+      if ([401, 403, 404, 409, 413, 422, 502].includes(err.status)) return res.status(err.status).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
+      next(err);
+    }
+  });
   return router;
 }
 

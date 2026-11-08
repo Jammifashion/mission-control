@@ -174,6 +174,19 @@
     .bs-laden { color: var(--muted); padding: 2rem 0; text-align: center; }
     .bs-gross { position: fixed; inset: 0; z-index: 30; background: var(--overlay); display: flex; align-items: center; justify-content: center; padding: 1rem; }
     .bs-gross img { max-width: 100%; max-height: 90vh; border-radius: 8px; background: var(--surface); }
+    /* KS7: Entwuerfe */
+    .bs-ew-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 0.5rem; }
+    .bs-ew { display: flex; flex-direction: column; gap: 0.25rem; padding: 0; border: none; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; min-width: 0; }
+    .bs-ew-rahmen { display: block; aspect-ratio: 1 / 1; border-radius: 8px; overflow: hidden; background: var(--surface-2); border: 1px solid var(--border); }
+    .bs-ew-bild { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .bs-ew-bild:not([src]) { visibility: hidden; }
+    .bs-ew-titel { font-size: 0.8rem; color: var(--muted); overflow-wrap: anywhere; line-height: 1.3; }
+    .bs-ew-gross { position: fixed; inset: 0; z-index: 31; background: var(--overlay); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.75rem; touch-action: pan-y; }
+    .bs-ew-gross img { max-width: 100%; max-height: 78vh; border-radius: 8px; background: var(--surface); object-fit: contain; }
+    .bs-ew-gross .bs-ew-unten { display: flex; align-items: center; gap: 0.5rem; width: 100%; max-width: 640px; }
+    .bs-ew-gross .bs-ew-unten span { flex: 1 1 auto; text-align: center; color: var(--text); background: var(--surface); border-radius: 8px; padding: 0.4rem 0.6rem; overflow-wrap: anywhere; }
+    .bs-ew-gross button { min-width: 44px; min-height: 44px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; font-size: 1.1rem; cursor: pointer; }
+    .bs-ew-zu { position: absolute; top: 0.6rem; right: 0.6rem; }
     footer { max-width: 860px; margin: 0 auto; padding: 0.5rem 1rem 2rem; }
     [hidden] { display: none !important; }
   </style>
@@ -192,6 +205,11 @@
     <p class="bs-laden" id="bs-laden">Bestellseite wird geladen …</p>
   </main>
   <div id="bs-gross" class="bs-gross" hidden role="dialog" aria-label="Bild groß"><img alt="" referrerpolicy="no-referrer"></div>
+  <div id="bs-ew-gross" class="bs-ew-gross" hidden role="dialog" aria-modal="true" aria-label="Entwurf groß">   <!-- KS7 -->
+    <button type="button" class="bs-ew-zu" id="bs-ew-zu" aria-label="Schließen">✕</button>
+    <img alt="" id="bs-ew-bild">
+    <div class="bs-ew-unten"><button type="button" id="bs-ew-zurueck" aria-label="Vorheriger Entwurf">‹</button><span id="bs-ew-titel"></span><button type="button" id="bs-ew-vor" aria-label="Nächster Entwurf">›</button></div>
+  </div>
 
   <footer>
     <p class="bs-klein" id="bs-datenschutz">Bitte nur Kürzel oder Vorname eintragen. Rückennamen werden nur für den Druck genutzt und nach 12 Monaten gelöscht. Keine Telefonnummern, Adressen oder Gesundheitsangaben in Freitexte.</p>
@@ -290,6 +308,20 @@
       return '';
     }
     const bsTextilText = e => [e.trikotName, e.trikotNummer].filter(Boolean).join(' ');
+    // ── KS7: Entwuerfe aus dem Drive-Ordner - Galerie oben; Bilder kommen als Bytes vom Backend (Token im Header), nie eine Drive-Adresse ──
+    /** Galerie: kleine Kacheln (lazy, Bild kommt erst beim Sichtbarwerden), antippen = gross. urls = Map "nr|klein" -> blob-URL. */
+    function bsEntwuerfeHtml(ew, urls) {
+      if (!ew || !(ew.liste || []).length) return '';
+      return `<section class="card bs-entwuerfe" aria-label="Entwürfe"><h2>Entwürfe (${ew.liste.length})</h2>`
+        + '<p class="bs-klein" style="margin-bottom:0.5rem">Antippen = groß ansehen. Unten wählst du Artikel, Größe und Anzahl.</p>'
+        + `<div class="bs-ew-raster">${ew.liste.map(e => {
+          const u = typeof urls?.get(`${e.nr}|klein`) === 'string' ? urls.get(`${e.nr}|klein`) : '';   // waehrend des Ladens liegt dort ein Promise
+          return `<button type="button" class="bs-ew" data-ew="${e.nr}" aria-label="Entwurf ${bsEsc(e.titel)} groß ansehen"><span class="bs-ew-rahmen">`
+            + `<img class="bs-ew-bild" data-ew-nr="${e.nr}" alt="" ${u ? `src="${bsEsc(u)}"` : ''} loading="lazy"></span><span class="bs-ew-titel">${bsEsc(e.titel)}</span></button>`;
+        }).join('')}</div>${ew.mehr ? '<p class="bs-klein">Es gibt noch weitere Entwürfe – bitte bei JammiFashion nachfragen.</p>' : ''}</section>`;
+    }
+    /** Naechster/vorheriger Entwurf (im Kreis). */
+    const bsEwSchritt = (nr, richtung, anzahl) => (anzahl ? ((nr - 1 + richtung + anzahl) % anzahl) + 1 : nr);
     /** Artikel nach Unterkategorie und Suche filtern (jedes Wort muss passen). */
     function bsArtikelFiltern(artikel, filter, suche) {
       const w = String(suche || '').toLowerCase().split(/\s+/).filter(Boolean);
@@ -410,7 +442,7 @@
     }
     // ── Bestellseite-Anzeige: Ende ──
 
-    const BS = { d: null, termin: '', tab: 'artikel', filter: '', suche: '', offen: -1, korb: [], vorgang: '', eintraege: [], laedt: false, summe: null, verschoben: [], terminWahl: '', neu: null };
+    const BS = { ew: null, ewUrls: new Map(), ewOffen: 0, d: null, termin: '', tab: 'artikel', filter: '', suche: '', offen: -1, korb: [], vorgang: '', eintraege: [], laedt: false, summe: null, verschoben: [], terminWahl: '', neu: null };
     const neuerVorgang = () => (crypto.randomUUID ? crypto.randomUUID() : `bs-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`);
     const sp = (() => { try { return window.sessionStorage; } catch { return null; } })();
     const kuerzelLesen = () => { try { return sp?.getItem('bs_kuerzel') || ''; } catch { return ''; } };
@@ -433,12 +465,14 @@
     themeKnoepfeZeigen();
 
     function fehlerZeigen(text) { main.innerHTML = `<div class="bs-fehler">${bsEsc(text)}</div>`; }
+    /** Einzige Netzstelle der Seite: nur die eigene API, Token im Header (KS7: auch fuer die Entwurfs-Bilder). */
+    const anfrage = (pfad, { body, cache = 'no-store' } = {}) => fetch(`${API_BASE}/api/bestellseite/${pfad}`, {
+      method: body ? 'POST' : 'GET', referrerPolicy: 'no-referrer', cache,
+      headers: { Authorization: `Bearer ${BS_TOKEN}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
     async function api(pfad, body) {
-      const res = await fetch(`${API_BASE}/api/bestellseite/${pfad}`, {
-        method: body ? 'POST' : 'GET', referrerPolicy: 'no-referrer', cache: 'no-store',
-        headers: { Authorization: `Bearer ${BS_TOKEN}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
-        ...(body ? { body: JSON.stringify(body) } : {}),
-      });
+      const res = await anfrage(pfad, { body });
       const j = await res.json().catch(() => null);
       if (!res.ok) { const e = new Error(bsFehlerText(res.status, j)); e.status = res.status; throw e; }
       return j;
@@ -462,6 +496,7 @@
             <label class="bs-feld">Notiz (z. B. Gegner)<input type="text" id="bs-t-notiz" maxlength="${BS_MAX.notiz}" autocomplete="off"></label>
             <button type="button" class="btn" id="bs-t-neu">Termin anlegen</button></div></details>` : ''}
         </section>`}
+        ${bsEntwuerfeHtml(BS.ew, BS.ewUrls)}
         ${t || d.abgeschlossen ? bsBannerHtml(t, d) : ''}
         ${t ? bsEingetragenHtml({ eintraege: BS.eintraege, summe: BS.summe, verschoben: BS.verschoben, laedt: BS.laedt, offen: listeOffen(), schreibbar: schreibbar(), d, terminWahl: BS.terminWahl, neu: BS.neu }) : ''}
         <section class="card"><h2>${auftragArt ? (schreibbar() ? 'Eintragen' : 'Artikel') : t ? `Eintragen für ${t.datum ? `${bsWochentag(t.datum)} ${bsDatum(t.datum)}` : 'den Termin'}` : 'Artikel'}</h2>
@@ -498,7 +533,65 @@
         ${t ? bsKorbHtml(BS.korb, kuerzel, schreibbar(), tx) : ''}
         ${bsAbschlussHtml(d)}
         <p class="bs-klein">Link gültig bis ${bsDatum(d.ablauf)}.</p>`;
+      ewBeobachten();   // KS7
     }
+
+    // ── KS7: Entwuerfe laden (einmal je Seitenaufruf), Bilder als Bytes mit dem Token im Header -> blob-URL ──
+    async function apiBild(pfad) {
+      const res = await anfrage(pfad, { cache: 'default' });
+      if (!res.ok) throw new Error(String(res.status));
+      return URL.createObjectURL(await res.blob());
+    }
+    async function ewUrl(nr, groesse) {
+      const k = `${nr}|${groesse}`;
+      if (!BS.ewUrls.has(k)) BS.ewUrls.set(k, apiBild(`entwurf/${nr}?groesse=${groesse}`).catch(() => { BS.ewUrls.delete(k); return ''; }));
+      const u = await BS.ewUrls.get(k);
+      if (u) BS.ewUrls.set(k, u);
+      return u;
+    }
+    let ewBeobachter = null;
+    function ewBeobachten() {
+      const bilder = [...document.querySelectorAll('.bs-ew-bild:not([src])')];
+      if (!bilder.length) return;
+      const laden = async img => { const u = await ewUrl(Number(img.dataset.ewNr), 'klein'); if (u && img.isConnected) img.src = u; };
+      if (!('IntersectionObserver' in window)) { bilder.forEach(laden); return; }
+      ewBeobachter?.disconnect();
+      ewBeobachter = new IntersectionObserver(ev => ev.forEach(x => { if (x.isIntersecting) { ewBeobachter.unobserve(x.target); laden(x.target); } }), { rootMargin: '200px' });
+      bilder.forEach(b => ewBeobachter.observe(b));
+    }
+    async function ewLaden() {
+      if (!BS.d?.entwuerfe || BS.ew) return;
+      try { const r = await api('entwuerfe'); BS.ew = { liste: r.entwuerfe || [], mehr: !!r.mehr }; } catch { BS.ew = { liste: [], mehr: false }; }
+      zeichnen();
+    }
+    const ewEl = id => document.getElementById(id);
+    async function ewZeigen(nr) {
+      const e = (BS.ew?.liste || []).find(x => x.nr === nr); if (!e) return;
+      BS.ewOffen = nr;
+      ewEl('bs-ew-titel').textContent = `${e.titel} (${BS.ew.liste.indexOf(e) + 1}/${BS.ew.liste.length})`;
+      const img = ewEl('bs-ew-bild');
+      img.src = BS.ewUrls.get(`${nr}|klein`) && typeof BS.ewUrls.get(`${nr}|klein`) === 'string' ? BS.ewUrls.get(`${nr}|klein`) : '';
+      ewEl('bs-ew-gross').hidden = false;
+      const u = await ewUrl(nr, 'gross');
+      if (u && BS.ewOffen === nr) img.src = u;
+    }
+    const ewSchliessen = () => { ewEl('bs-ew-gross').hidden = true; BS.ewOffen = 0; };
+    const ewBlaettern = r => ewZeigen(bsEwSchritt(BS.ewOffen, r, BS.ew?.liste.length || 0));
+    ewEl('bs-ew-zu').addEventListener('click', ewSchliessen);
+    ewEl('bs-ew-vor').addEventListener('click', () => ewBlaettern(1));
+    ewEl('bs-ew-zurueck').addEventListener('click', () => ewBlaettern(-1));
+    ewEl('bs-ew-gross').addEventListener('click', e => { if (e.target.id === 'bs-ew-gross') ewSchliessen(); });
+    let ewWischX = null;
+    ewEl('bs-ew-gross').addEventListener('touchstart', e => { ewWischX = e.touches[0]?.clientX ?? null; }, { passive: true });
+    ewEl('bs-ew-gross').addEventListener('touchend', e => {
+      const x = e.changedTouches[0]?.clientX; if (ewWischX === null || x === undefined) return;
+      const d = x - ewWischX; ewWischX = null;
+      if (Math.abs(d) > 50) ewBlaettern(d < 0 ? 1 : -1);
+    });
+    document.addEventListener('keydown', e => {
+      if (ewEl('bs-ew-gross').hidden) return;
+      if (e.key === 'Escape') ewSchliessen(); else if (e.key === 'ArrowRight') ewBlaettern(1); else if (e.key === 'ArrowLeft') ewBlaettern(-1);
+    });
 
     async function eintraegeLaden() {
       if (!BS.termin) { BS.eintraege = []; return; }
@@ -524,6 +617,7 @@
         : (t.find(x => !x.vergangen)?.id || (BS.d.art === 'auftrag' ? t[0]?.id : '') || '');
       if (!(BS.d.trikots || []).length && BS.tab === 'trikot') BS.tab = 'artikel';
       zeichnen();
+      ewLaden();   // KS7: Galerie parallel, stoert das Eintragen nicht
       await eintraegeLaden();
     }
 
@@ -538,6 +632,8 @@
       }
     });
     main.addEventListener('click', async e => {
+      const ew = e.target.closest('[data-ew]');   // KS7
+      if (ew) { ewZeigen(Number(ew.dataset.ew)); return; }
       const g = e.target.closest('[data-gross]');
       if (g) { e.stopPropagation(); const ov = document.getElementById('bs-gross'); ov.querySelector('img').src = g.dataset.gross; ov.hidden = false; return; }
       const b = e.target.closest('button'); if (!b) return;

@@ -317,7 +317,7 @@ export async function legeZugangAn({ eingabe, sheets: s, jetzt = () => new Date(
   });
 }
 
-async function ersetzeZugang(sheets, spreadsheetId, wz, z, alt, neu) {
+export async function ersetzeZugang(sheets, spreadsheetId, wz, z, alt, neu) {   // KS7: auch fuer den Entwurfs-Ordner
   const breite = wz[0].length;
   const altZeile = wz[alt._zeile - 1] ?? [];
   const neuZeile = Array.from({ length: breite }, (_, i) => altZeile[i] ?? '');

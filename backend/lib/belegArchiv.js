@@ -2,6 +2,7 @@
 // (Test beleg-archiv.test.js). Ziel: <geteilte Ablage>/L-Shop Belege/<Art>/<Jahr>/<Dateiname>,
 // Art = Lieferbestaetigung | Auftragsbestaetigung | Rechnung_XML | Rechnung_PDF | Bestellung | Karton. Nie die Bestandsdatei.
 // BO7-1: dazu nur der leere Ordner "L-Shop Auslauf" in der Wurzel (richteAuslaufOrdnerEin).
+// KS7: dazu nur leere Ordner "Entwürfe/<AU-Nr bzw. BS-Nr>" fuer die Bestellseite (richteEntwurfOrdnerEin).
 //
 // Eigene Anmeldung mit dem engsten Scope drive.file: MC sieht und aendert nur Dateien und Ordner, die
 // es selbst angelegt hat (nicht Backups, nicht Stammdaten, nichts von Hand Abgelegtes). Deshalb legt
@@ -143,4 +144,25 @@ export async function richteAuslaufOrdnerEin({ write = false, drive = driveClien
   const o = await ordner(drive, driveId, driveId, AUSLAUF_ORDNER_NAME, true);
   if (!o.id) throw new ArchivFehler(`${AUSLAUF_ORDNER_NAME} nicht angelegt.`);
   return [`✓ Drive: ${AUSLAUF_ORDNER_NAME} angelegt.`];
+}
+
+// ── KS7: Entwurfs-Ordner der Bestellseite: "Entwürfe/<AU-Nr bzw. BS-Nr>" in der Wurzel der Ablage ──
+// Nur Ordner (keine Dateien - die legt der Inhaber von Hand hinein, gelesen wird mit drive.readonly). Vorhanden -> dieselbe ID.
+export const ENTWURF_WURZEL = 'Entwürfe';
+const ENTWURF_NAME = /^(AU-\d{4}-\d{4}|BS-\d{3,})$/;
+export async function richteEntwurfOrdnerEin({ name, write = false, drive = driveClient(), driveId = process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID } = {}) {
+  if (!driveId) throw new ArchivFehler('GOOGLE_DRIVE_SHARED_DRIVE_ID fehlt.');
+  if (!ENTWURF_NAME.test(String(name ?? ''))) throw new ArchivFehler('Ordnername nur AU-JJJJ-NNNN oder BS-NNN.');
+  const ids = [driveId];
+  try {
+    const wurzel = await ordner(drive, driveId, driveId, ENTWURF_WURZEL, write);
+    if (!wurzel.id) return { id: '', neu: false, wuerde: true };
+    const o = await ordner(drive, driveId, wurzel.id, name, write);
+    if (!o.id) return { id: '', neu: false, wuerde: true };
+    return { id: o.id, neu: o.neu };
+  } catch (err) {
+    if (err instanceof ArchivFehler) throw err;
+    const code = err?.code ?? err?.response?.status ?? '';
+    throw new ArchivFehler(`Drive${code ? ` ${code}` : ''}: ${ohneIds(err?.message ?? err, ids)}`);
+  }
 }

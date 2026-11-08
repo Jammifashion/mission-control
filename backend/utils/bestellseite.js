@@ -25,7 +25,9 @@ export const ZUGANG_SPALTEN = [
 // KS6 (nur Art auftrag, Inhaber 08.11.: echter Kundentest): Titel auf der Seite, festes "bestellen bis", Auswahl fuer die Seite OHNE Mengen
 // (JSON, getrennt von den Auftragspositionen), Personalisierung (Name/Nummer auf dem Textil), "Bestellung abschließen" erlaubt + Zeitpunkt.
 export const ZUGANG_KS6 = ['Titel', 'Bestellschluss_Datum', 'Auswahl', 'Personalisierung', 'Abschliessen', 'Abgeschlossen'];
-export const ZUGANG_OPTIONAL = ['Design_Link_Zeigen', 'Vorgang', 'Token_Verschluesselt', ...ZUGANG_KS6];
+// KS7: Drive-Ordner mit Entwuerfen (ID, nur Backend/MC - nie an die Seite; die Seite bekommt nur `entwuerfe: true`).
+export const ZUGANG_KS7 = ['Entwurf_Ordner'];
+export const ZUGANG_OPTIONAL = ['Design_Link_Zeigen', 'Vorgang', 'Token_Verschluesselt', ...ZUGANG_KS6, ...ZUGANG_KS7];
 /** LK1: Zusatzdaten der Verschluesselung - der Wert gehoert genau zu diesem Zugang. */
 export const zugangKontext = zugangId => `bestellseite:${String(zugangId ?? '').trim()}`;
 export const ZUGANG_ALLE = [...ZUGANG_SPALTEN, ...ZUGANG_OPTIONAL];
@@ -588,6 +590,7 @@ export function seitenAntwort({ zugang, termine, artikel, trikots = [], designLi
     ...(designLink && /^https:\/\//.test(designLink) ? { designLink } : {}),
     katalogStand: t(katalogStand),
     termineAnlegen: zugang.Art === ART.DAUER,
+    ...(t(zugang.Entwurf_Ordner) ? { entwuerfe: true } : {}),   // KS7: nur ja/nein, nie die Ordner-ID
     eintragen: true,   // KS2
   };
 }

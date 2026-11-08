@@ -1210,6 +1210,17 @@ Neue Sektionen immer mit Anker versehen:
   Uebernahme: Hinweis, wenn der Ziel-AU Positionen ohne Eintrag hat (doppelt?). Seite: `bsTexte`/`bsKopfAuftragHtml`/`bsAbschlussHtml` (kein
   Termin-Vokabular bei Art auftrag). MC: `bsmAuftragFelderHtml`, `bsmAuswahlHtml` (Modellsuche ueber die LESENDEN Korb-Endpunkte). Test
   bestellseite-ks6.test.js.
+  KS7 (08.11.) Entwuerfe aus einem Drive-Ordner oben auf der Seite (beide Arten): Spalte `Entwurf_Ordner` hinten in `Bestellseiten` (ID, nur
+  Backend/MC; Seite bekommt nur `entwuerfe: true`). NUR Ordner in der geteilten Ablage "Mission Control" (`pruefeOrdner`: Ordner, driveId,
+  nicht im Papierkorb), gelesen mit drive.readonly; "Ordner anlegen" = `Entwürfe/<AU-Nr|BS-Nr>` ueber `richteEntwurfOrdnerEin` (belegArchiv.js,
+  drive.file). `lib/bestellEntwuerfe.js`, Logik `utils/bestell-entwuerfe.js`: oeffentlich `GET /api/bestellseite/entwuerfe` (nur nr/titel/breite/
+  hoehe) und `GET .../entwurf/:nr?groesse=klein|gross` (Bytes, `Cache-Control: private, max-age=300`); MC `GET /api/bestellseiten/:id/entwuerfe`,
+  `.../entwurf/:nr`, `POST .../entwuerfe/ordner` { link | anlegen | entfernen }. Nur jpg/png/webp + PDF (nur Vorschaubild), hoechstens 30, Titel =
+  Dateiname ohne Endung. klein = thumbnailLink `=s400`, gross = Datei <= 8 MB sonst `=s1600`; jede Antwort <= 10 MB, Bildtyp geprueft.
+  **thumbnailLink ist ohne Anmeldung abrufbar (Messung 08.11.) - nie nach aussen geben.** Zwischenspeicher Liste 60 s je Ordner, Bilder je
+  Datei-ID + modifiedTime + Groesse (80 / 40 MB). Seite: eine Netzstelle `anfrage` (auch Bilder als blob-URL mit Token im Header), Galerie
+  `bsEntwuerfeHtml` lazy, gross mit ‹ › / Wischen / Pfeiltasten. MC: `bsmEntwurfHtml` im Zugang (verbinden, anlegen, in Drive öffnen, Vorschau).
+  Test bestellseite-ks7.test.js.
 - backend/lib/wpMedien.js – Upload in die WordPress-Mediathek (`ladeMedienHoch`, `setzeMedienText`),
   eine Stelle fuer `POST /api/artikel/media-upload` und das Halloween-Skript (fetchMitZeitlimit +
   pruefeFetchAntwort; Titel/ALT als Abfrageparameter).

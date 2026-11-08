@@ -318,6 +318,13 @@
       .bsm-aw-form > .edi-feld { flex: none; }   /* bsm-breit ist eine Breite (flex-basis) - in der Spalte waere sie die Hoehe */
       .bsm-aw-form [data-bsm-aw-treffer] { display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; max-height: 14rem; overflow-y: auto; }
       .bsm-aw-farben { display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem; }
+      /* KS7: Entwuerfe (Drive-Ordner) */
+      .bsm-ew { border: 1px solid var(--border); border-left: 4px solid var(--info); background: var(--surface-2); border-radius: 6px; padding: 0.4rem 0.6rem; display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+      .bsm-ew-raster { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 0.4rem; }
+      .bsm-ew-kachel { margin: 0; display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+      .bsm-ew-kachel img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 6px; background: var(--surface); border: 1px solid var(--border); }
+      .bsm-ew-kachel img:not([src]) { visibility: hidden; }
+      .bsm-ew-kachel figcaption { font-size: 0.75rem; color: var(--muted); overflow-wrap: anywhere; }
       /* KS3: Pruefen/Uebernehmen/Packliste */
       .ku-chip.bsm-gk { border-color: var(--warning); color: var(--warning); font-weight: 600; }
       .ku-chip.bsm-k-offen { border-color: var(--warning); color: var(--warning); font-weight: 600; }   /* KS3-1: im Korb, noch nicht gesendet */
@@ -7041,6 +7048,14 @@
         'bsm-aw-abbrechen':     { name: 'Abbrechen', text: 'Schließt das Formular, nichts gespeichert.' },
         'bsm-aw-weg':           { name: 'Aus der Auswahl nehmen', text: 'Entfernt den Artikel von der Bestellseite. Schon eingetragene Bestellungen bleiben.' },
         'bsm-aw-neu':           { name: '+ Artikel', text: 'Weiteren Artikel (Modell + Farben) zur Auswahl hinzufügen.' },
+        // KS7: Entwuerfe aus einem Drive-Ordner
+        'bsm-ew-link':          { name: 'Ordner-Link', text: 'Link eines Ordners in der Ablage „Mission Control“. Andere Ordner gehen nicht – der Kunde sieht nie den Link.' },
+        'bsm-ew-setzen':        { name: 'Ordner verbinden', text: 'Prüft den Ordner (lesbar, in der Ablage) und zeigt seine Bilder oben auf der Bestellseite.' },
+        'bsm-ew-anlegen':       { name: 'Ordner anlegen', text: 'Legt „Entwürfe/AU-Nr.“ in der Ablage an, verbindet ihn und öffnet ihn in Drive zum Hineinlegen.' },
+        'bsm-ew-oeffnen':       { name: 'In Drive öffnen', text: 'Öffnet den Ordner in Google Drive (nur für dich). Bilder dort hineinlegen oder umbenennen.' },
+        'bsm-ew-vorschau':      { name: 'Vorschau', text: 'Zeigt die Entwürfe so, wie der Kunde sie sieht (Titel = Dateiname). Neue Bilder erscheinen nach spätestens 1 Minute.' },
+        'bsm-ew-weg':           { name: 'Ordner entfernen', text: 'Die Seite zeigt keine Entwürfe mehr. Der Ordner und die Bilder in Drive bleiben.' },
+        'bsm-ew-bild':          { name: 'Entwurf', text: 'So sieht der Kunde die Kachel. Titel = Dateiname ohne Endung.' },
         'bsm-sortiment':        { name: 'Sortiment', text: 'Shop-Kategorie mit allen Unterkategorien. Gezeigt werden nur veröffentlichte Artikel.' },
         'bsm-partner':          { name: 'Gehört zu Partner', text: 'Nur ein Merkmal (z. B. FP-001). Die Partner-Abrechnung liest die Bestellseite nie.' },
         'bsm-bilder':           { name: 'Artikelliste aktualisieren', text: 'Nach Bildänderungen im Shop hier klicken; die Seite zeigt sie danach sofort. Läuft in kleinen Stücken, Fenster offen lassen.' },
@@ -7104,7 +7119,8 @@
           'bsm-eintraege', 'bsm-termin-filter', 'bsm-neu', 'bsm-spaet',
           'bsm-fortschritt', 'bsm-fertig', 'bsm-s-fertig', 'bsm-geliefert', 'bsm-geliefert-zurueck', 'bsm-warn', 'bsm-verschieben', 'bsm-v-ziel', 'bsm-v-grund', 'bsm-v-los',
           'bsm-titel', 'bsm-bis', 'bsm-pers', 'bsm-abschl', 'bsm-abgeschlossen', 'bsm-wieder', 'bsm-auswahl', 'bsm-aw-suche', 'bsm-aw-modell', 'bsm-aw-farbe',
-          'bsm-aw-name', 'bsm-aw-motiv', 'bsm-aw-dazu', 'bsm-aw-abbrechen', 'bsm-aw-weg', 'bsm-aw-neu'],   // KS1, KS2, KS4, KS6
+          'bsm-aw-name', 'bsm-aw-motiv', 'bsm-aw-dazu', 'bsm-aw-abbrechen', 'bsm-aw-weg', 'bsm-aw-neu',
+          'bsm-ew-link', 'bsm-ew-setzen', 'bsm-ew-anlegen', 'bsm-ew-oeffnen', 'bsm-ew-vorschau', 'bsm-ew-weg', 'bsm-ew-bild'],   // KS1, KS2, KS4, KS6, KS7
         lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
@@ -13127,6 +13143,28 @@
       }
       /** Text der Bestellseiten-Eintraege: Name/Nummer auf dem Textil (KS6) fuer normale Artikel. */
       const bsmTextil = e => (e.art !== 'trikot' && (e.trikotName || e.trikotNummer) ? ` · Name/Nr.: ${[e.trikotName, e.trikotNummer].filter(Boolean).join(' ')}` : '');
+      // KS7: Entwuerfe aus einem Drive-Ordner (nur in der Ablage "Mission Control"). Die Ordner-ID bleibt in MC; der Kunde bekommt nur Bilder.
+      const bsmDriveOrdnerLink = id => (/^[A-Za-z0-9_-]{10,100}$/.test(id || '') ? `https://drive.google.com/drive/folders/${id}` : '');
+      /** Abschnitt "Entwürfe (Drive-Ordner)" im Zugang: verbunden (Anzahl, in Drive öffnen, Vorschau, entfernen) oder Link einfügen / anlegen. */
+      function bsmEntwurfHtml(z, ew = null) {
+        const id = z.Entwurf_Ordner || '';
+        const hinweis = '<p class="korb-zaehler">Dateinamen werden als Titel gezeigt – sprechend benennen (z. B. „Jacke Rücken“), keine Personennamen. Bilder (JPG, PNG, WebP) oder PDF, höchstens 30.</p>';
+        if (!id) return `<div class="bsm-ew"><div class="korb-zaehler"><strong>Entwürfe (Drive-Ordner)</strong> – optional, oben auf der Bestellseite</div>`
+          + `<div class="korb-reihe"><label class="edi-feld bsm-breit" data-hilfe="bsm-ew-link">Ordner-Link einfügen<input type="url" class="form-input" data-bsm-ew-link placeholder="https://drive.google.com/drive/folders/…" autocomplete="off"></label>`
+          + '<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-ew-setzen data-hilfe="bsm-ew-setzen">Ordner verbinden</button>'
+          + '<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-ew-anlegen data-hilfe="bsm-ew-anlegen">Ordner anlegen</button></div>' + hinweis + '</div>';
+        const liste = ew?.liste ?? null;
+        const kacheln = liste ? (liste.length ? `<div class="bsm-ew-raster">${liste.map(e => {
+          const u = typeof ew.urls?.get(e.nr) === 'string' ? ew.urls.get(e.nr) : '';
+          return `<figure class="bsm-ew-kachel" data-hilfe="bsm-ew-bild" tabindex="0"><img data-bsm-ew-nr="${e.nr}" alt="" ${u ? `src="${kuEsc(u)}"` : ''}><figcaption>${kuEsc(e.titel)}</figcaption></figure>`;
+        }).join('')}</div>` : '<p class="korb-zaehler">Der Ordner ist leer – Bilder hineinlegen, dann „Vorschau“ neu laden.</p>') : '';
+        return `<div class="bsm-ew"><div class="korb-zaehler"><strong>Entwürfe (Drive-Ordner)</strong> · verbunden${liste ? ` · ${liste.length} Entwürfe${ew.mehr ? ' (weitere nicht gezeigt)' : ''}${ew.ausgelassen ? ` · ${ew.ausgelassen} andere ${ew.ausgelassen === 1 ? 'Datei' : 'Dateien'} ausgelassen` : ''}` : ''}</div>`
+          + '<div class="korb-reihe">'
+          + `<a class="korb-link" href="${kuEsc(bsmDriveOrdnerLink(id))}" target="_blank" rel="noopener noreferrer" data-hilfe="bsm-ew-oeffnen">in Drive öffnen</a>`
+          + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-ew-vorschau data-hilfe="bsm-ew-vorschau">${liste ? 'Vorschau neu laden' : 'Vorschau'}</button>`
+          + '<button type="button" class="korb-link ku-gefahr" data-bsm-ew-weg data-hilfe="bsm-ew-weg">Ordner entfernen</button></div>'
+          + (ew?.laedt ? '<p class="korb-zaehler">lädt …</p>' : '') + (ew?.fehler ? `<p class="korb-zaehler">${kuEsc(ew.fehler)}</p>` : '') + kacheln + hinweis + '</div>';
+      }
       // ── Bestellseiten-MC: Ende ──
       // ── Bestellseiten-Pruefen: Anfang (KS3, reine Funktionen, Test backend/tests/bestell-uebernahme-frontend.test.js) ──
       // Eintraege je Termin pruefen (geprüft ✓ · ändern · ablehnen mit Grund), "Geprüfte übernehmen" in den Auftrag des Termins,
@@ -13325,7 +13363,7 @@
       // ── Bestellseiten-Pruefen: Ende ──
 
       const bsmEl = id => document.getElementById(id);
-      const bsmZ = { daten: null, laedt: false, fuer: null, offen: null, link: '', vorgang: '', kategorien: null, eintraege: {}, filter: {}, k3: {}, aw: {} };   // KS6: aw = Auswahl-Formular je Zugang   // KS3: k3 je Zugang   // KS2: eintraege je Zugang
+      const bsmZ = { daten: null, laedt: false, fuer: null, offen: null, link: '', vorgang: '', kategorien: null, eintraege: {}, filter: {}, k3: {}, aw: {}, ew: {} };   // KS7: ew = Entwurfs-Vorschau je Zugang   // KS6: aw = Auswahl-Formular je Zugang   // KS3: k3 je Zugang   // KS2: eintraege je Zugang
 
       async function bsmApi(pfad, body, { zeitMs } = {}) {
         // KS2-2: Stuecke von "Artikelliste aktualisieren" duerfen laenger als die 60 s von apiFetch dauern (Shop, 2-s-Takt)
@@ -13370,7 +13408,7 @@
         }
         bsmDialogZeichnen();
       }
-      function bsmDialogSchliessen() { bsmEl('bsm-dialog').hidden = true; bsmZ.link = ''; bsmZ.linkKopierbar = false; bsmZ.fuer = null; bsmZ.eintraege = {}; bsmZ.k3 = {}; bsmZ.aw = {}; }   // KS2: Eintraege nicht aufheben
+      function bsmDialogSchliessen() { bsmEl('bsm-dialog').hidden = true; bsmZ.link = ''; bsmZ.linkKopierbar = false; bsmZ.fuer = null; bsmZ.eintraege = {}; bsmZ.k3 = {}; bsmZ.aw = {}; bsmEwFreigeben(); }   // KS2: Eintraege nicht aufheben
       function bsmAktueller() {
         const f = bsmZ.fuer; if (!f) return [];
         if (f.zugangId) return (bsmZ.daten?.zugaenge ?? []).filter(z => z.Zugang_ID === f.zugangId);
@@ -13394,6 +13432,7 @@
             + bsmAuftragFelderHtml(z) + bsmAuswahlHtml(z, bsmZ.aw[z.Zugang_ID]) : '')   // KS6
           + `<div class="korb-reihe"><label class="edi-feld" data-hilfe="bsm-ablauf">Gültig bis<input type="date" class="form-input" data-bsm-ablauf value="${kuEsc(z.Ablauf)}"></label>`
           + `<label class="edi-feld bsm-breit" data-hilfe="bsm-hinweis">Hinweis auf der Seite (ohne Namen)<input type="text" class="form-input" maxlength="200" data-bsm-hinweis value="${kuEsc(z.Hinweis)}"></label></div>`
+          + bsmEntwurfHtml(z, bsmZ.ew[z.Zugang_ID])   // KS7
           + bsmLinkZeileHtml(z)   // LK1
           + `<div class="korb-reihe ku-knoepfe"><button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-speichern data-hilfe="bsm-speichern">Speichern</button>`
           + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-eintraege data-hilfe="bsm-eintraege">Einträge ansehen</button>`   // KS2
@@ -13486,6 +13525,24 @@
         const box = b.closest('[data-bsm-zugang]'); if (!box) return;
         const z = (bsmZ.daten?.zugaenge ?? []).find(x => x.Zugang_ID === box.dataset.bsmZugang); if (!z) return;
         bsmFehler('');
+        // ── KS7: Entwurfs-Ordner setzen / anlegen / entfernen, Vorschau ──
+        if (b.hasAttribute('data-bsm-ew-setzen') || b.hasAttribute('data-bsm-ew-anlegen') || b.hasAttribute('data-bsm-ew-weg')) {
+          const art = b.hasAttribute('data-bsm-ew-setzen') ? 'setzen' : b.hasAttribute('data-bsm-ew-anlegen') ? 'anlegen' : 'weg';
+          const link = box.querySelector('[data-bsm-ew-link]')?.value.trim() ?? '';
+          if (art === 'setzen' && !link) { bsmFehler('Bitte den Link des Drive-Ordners einfügen.'); return; }
+          if (art === 'anlegen' && !await showConfirm('Ordner anlegen?', `<p>Legt in der Ablage „Mission Control“ den Ordner „Entwürfe/${kuEsc(z.Auftrag_Nr || z.Zugang_ID)}“ an (oder nimmt ihn, wenn es ihn schon gibt). Danach Bilder hineinlegen.</p>`, 'Anlegen')) return;
+          if (art === 'weg' && !await showConfirm('Ordner entfernen?', '<p>Die Bestellseite zeigt danach keine Entwürfe mehr. Der Ordner in Drive bleibt unverändert.</p>', 'Entfernen')) return;
+          b.disabled = true;
+          try {
+            const r = await bsmApi('/entwuerfe/ordner', { zugangId: z.Zugang_ID, stand: z.Stand, ...(art === 'setzen' ? { link } : art === 'anlegen' ? { anlegen: true } : { entfernen: true }) });
+            showToast(art === 'weg' ? `${r.zugangId}: Entwürfe entfernt.` : `${r.zugangId}: Ordner verbunden – ${r.anzahl} Entwürfe.`);
+            bsmEwFreigeben(z.Zugang_ID);
+            await bsmLaden();
+            if (art === 'anlegen' && r.ordnerId) window.open(bsmDriveOrdnerLink(r.ordnerId), '_blank', 'noopener');
+          } catch (err) { bsmFehler(err.message); } finally { b.disabled = false; }
+          return;
+        }
+        if (b.hasAttribute('data-bsm-ew-vorschau')) { bsmEwVorschau(z.Zugang_ID); return; }
         // ── KS6: Auswahl fuer die Bestellseite, wieder oeffnen ──
         const aw = bsmZ.aw[z.Zugang_ID] ??= { offen: false };
         if (b.hasAttribute('data-bsm-aw-neu')) { Object.assign(aw, { offen: true, q: '', treffer: [], modell: null, farben: new Set(), name: '', motiv: '' }); bsmDialogZeichnen(); box.querySelector('[data-bsm-aw-q]')?.focus(); return; }
@@ -13546,6 +13603,35 @@
         } else if (b.hasAttribute('data-bsm-entsperren')) bsmAendern(z, { aktiv: true }, b);
       });
       globalThis.bsmLaden = bsmLaden;   // fuer den mc:ansicht-Wechsel (steht weiter oben)
+      // KS7: Vorschau der Entwuerfe in MC - dieselben Bilder wie auf der Seite (ueber die MC-Route, als blob-URL)
+      function bsmEwFreigeben(zugangId) {
+        for (const [id, ew] of Object.entries(bsmZ.ew)) {
+          if (zugangId && id !== zugangId) continue;
+          for (const u of ew.urls?.values() ?? []) if (typeof u === 'string') URL.revokeObjectURL(u);
+          delete bsmZ.ew[id];
+        }
+      }
+      async function bsmEwVorschau(zugangId) {
+        bsmEwFreigeben(zugangId);
+        const ew = bsmZ.ew[zugangId] = { laedt: true, urls: new Map() };
+        bsmDialogZeichnen();
+        try {
+          const r = await bsmApi(`/${encodeURIComponent(zugangId)}/entwuerfe`);
+          Object.assign(ew, { liste: r.entwuerfe ?? [], mehr: !!r.mehr, ausgelassen: r.ausgelassen ?? 0, laedt: false, fehler: '' });
+        } catch (e) { Object.assign(ew, { laedt: false, fehler: e.message }); }
+        bsmDialogZeichnen();
+        for (const e of ew.liste ?? []) {
+          if (bsmZ.ew[zugangId] !== ew) return;   // inzwischen neu geladen oder Dialog zu
+          try {
+            const res = await apiFetch(`${API_BASE()}/api/bestellseiten/${encodeURIComponent(zugangId)}/entwurf/${e.nr}?groesse=klein`);
+            if (!res.ok) continue;
+            const u = URL.createObjectURL(await res.blob());
+            ew.urls.set(e.nr, u);
+            const img = document.querySelector(`[data-bsm-zugang="${CSS.escape(zugangId)}"] [data-bsm-ew-nr="${e.nr}"]`);
+            if (img) img.src = u;
+          } catch { /* einzelnes Bild fehlt - Kachel bleibt leer */ }
+        }
+      }
       // ── KS3: Pruefen/Uebernehmen in MC (Ereignisse) ──
       const bsmK3 = id => (bsmZ.k3[id] ??= { wahl: new Set(), bearbeite: '', uebernahme: null, packliste: '', grund: '', ablehnen: true });
       async function bsmEintraegeLaden(zugangId) {
