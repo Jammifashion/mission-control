@@ -199,6 +199,44 @@ async function groessenJeModell(sheets, spreadsheetId, modelle, lieferbarkeit) {
   return aus;
 }
 
+/**
+ * Nachbesserung KS6: alle waehlbaren L-Shop-Nummern der aktiven Bestellseiten (Art auftrag, nicht gesperrt/abgelaufen) - fuer den
+ * Lieferbarkeits-Lauf (BO7-1), damit JEDE angebotene Groesse einen Punkt bekommt. Mit Auswahl: alle Groessen der gewaehlten Modelle in den
+ * gewaehlten Farben; ohne Auswahl (Uebergang): alle Groessen von Modell + Farbe der Auftragspositionen. Nur lesen.
+ * Fehlen die Reiter der Bestellseite: leere Menge.
+ * @returns {Promise<Set<string>>}
+ */
+export async function bestellseitenNummern({ sheets: s, spreadsheetId: id, jetzt = new Date() } = {}) {
+  const sheets = s ?? await sheetsClient();
+  const spreadsheetId = id ?? sheetId();
+  let daten;
+  try { daten = await lies(sheets, spreadsheetId); } catch (err) { if (err.code === 'einrichtung') return new Set(); throw err; }
+  const aktiv = daten.z.zeilen.filter(z => z.Art === ART.AUFTRAG && zugangStatus(z, new Date(jetzt).toISOString()) === STATUS.AKTIV);
+  if (!aktiv.length) return new Set();
+  const wunsch = new Map();   // modell -> Set(farbe)
+  const merke = (m, f) => { if (!m || !f) return; if (!wunsch.has(m)) wunsch.set(m, new Set()); wunsch.get(m).add(f); };
+  const ohneAuswahl = [];
+  for (const z of aktiv) {
+    const a = auswahlLesen(z);
+    if (a.length) for (const x of a) for (const f of x.farben) merke(x.modell, f);
+    else ohneAuswahl.push(z.Auftrag_Nr);
+  }
+  const zeilen = await ladeLShopZeilen({ sheets, spreadsheetId });
+  if (ohneAuswahl.length) {
+    const { p } = await liesAuftraege(sheets, spreadsheetId);
+    const nr = new Set(ohneAuswahl.flatMap(n => aktivePositionen(p.zeilen, n).map(x => t(x.LShop_ArticleNr))).filter(Boolean));
+    for (const z of zeilen) if (nr.has(z.articleNr)) {
+      const v = lshopAuswertung(zeilen.filter(x => x.catalogNr === z.catalogNr)).varianten.find(x => x.articleNr === z.articleNr);
+      merke(z.catalogNr, v?.farbe);
+    }
+  }
+  const aus = new Set();
+  for (const [m, farben] of wunsch) {
+    for (const v of lshopAuswertung(zeilen.filter(x => x.catalogNr === m)).varianten) if (farben.has(v.farbe)) aus.add(v.articleNr);
+  }
+  return aus;
+}
+
 // ── Oeffentlich: GET /api/bestellseite/zugang ────────────────────────────────
 
 /**

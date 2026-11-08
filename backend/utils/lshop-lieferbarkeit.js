@@ -101,8 +101,11 @@ export function listenAlterTage(name, jetzt = new Date()) {
  * Unsere Nummern: Varianten aktiv (Aktiv TRUE), alle Korb-Zeilen, Lager-Schluessel LS:<Nr>.
  * -> { nummern: Set, korbOffen: Map Nr -> Anzahl offener Positionen }
  */
-export function genutzteNummern({ varianten = [], korb = [], buchungen = [] }) {
+export function genutzteNummern({ varianten = [], korb = [], buchungen = [], bestellseiten = [] }) {
   const nummern = new Set();
+  // Nachbesserung KS6: alle waehlbaren Groessen der aktiven Bestellseiten (Art auftrag) - sonst zeigt die Seite nur bei den Groessen einen
+  // Punkt, die schon im Korb/Shop/Lager stehen (Befund Inhaber 08.11.: "nur eine Groesse gruen").
+  for (const nr of bestellseiten) if (NR_RE.test(t(nr))) nummern.add(t(nr));
   for (const v of varianten) if (/^true$/i.test(t(v.Aktiv)) && NR_RE.test(t(v.LShop_ArticleNr))) nummern.add(t(v.LShop_ArticleNr));
   const korbOffen = new Map();
   for (const z of korb) {

@@ -10,6 +10,7 @@
 // FTP-Fehler: 200 mit ftp "fehler", nichts geschrieben; ist der letzte Stand aelter als STAND_ALT_STUNDEN -> 502
 // (Scheduler rot -> Log-Alarm). Auslaufliste nicht lesbar -> Auslauf-Spalten bleiben, Hinweis.
 
+import { bestellseitenNummern } from './bestellseite.js';
 import { google } from 'googleapis';
 import ExcelJS from 'exceljs';
 import { getGoogleAuth } from './googleAuth.js';
@@ -121,7 +122,11 @@ export async function runLieferbarkeit({
       leseReiterSpalten({ tab: 'Warenkorb_LShop', sheets, spreadsheetId, spalten: { LShop_ArticleNr: 'LShop_ArticleNr', Status: 'Status' } }).catch(() => []),
       leseReiterSpalten({ tab: 'Lager_Buchungen', sheets, spreadsheetId, spalten: { Schluessel: 'Schluessel' } }).catch(() => []),
     ]);
-    const { nummern, korbOffen } = genutzteNummern({ varianten, korb, buchungen });
+    const bestellseiten = await bestellseitenNummern({ sheets, spreadsheetId, jetzt: start }).catch(err => {   // Nachbesserung KS6
+      hinweise.push(`Bestellseiten nicht lesbar (${err?.status ?? err?.code ?? 'Fehler'}) - ohne deren Größen.`);
+      return new Set();
+    });
+    const { nummern, korbOffen } = genutzteNummern({ varianten, korb, buchungen, bestellseiten });
 
     // 2. Bestandsdatei
     let datei;

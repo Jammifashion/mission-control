@@ -366,8 +366,28 @@
         + korb.map((p, i) => `<div class="bs-pos"><span>${bsEsc(p.menge)} × ${bsEsc(p.text)}${p.besorgen ? ' <span class="bs-besorgen">noch zu besorgen</span>' : ''}${p.notiz ? ` <span class="bs-klein">· Notiz: ${bsEsc(p.notiz)}</span>` : ''}</span>`
           + `<button type="button" class="bs-weg" data-korb-weg="${i}" aria-label="Position entfernen">✕</button></div>`).join('')
         + `<div class="bs-reihe" style="margin-top:0.5rem"><button type="button" class="btn" id="bs-absenden" ${schreibbar && kuerzel ? '' : 'disabled'}>Absenden (${korb.length})</button></div>`
-        + (kuerzel ? '' : `<p class="bs-klein">${bsEsc(texte?.kuerzelFehlt || 'Bitte oben dein Kürzel eintragen.')}</p>`) + '</section>';
+        + (kuerzel ? '' : `<p class="bs-klein">${bsEsc(texte?.kuerzelFehlt || 'Bitte oben dein Kürzel eintragen.')}</p>`)
+        + '<p class="bs-klein" style="margin-top:0.4rem">Wird automatisch auf diesem Gerät zwischengespeichert – du kannst die Seite schließen und später weitermachen. Bei uns kommt es erst mit „Absenden“ an.</p>'
+        + '</section>';
     }
+    // ── Zwischenstand (Nachbesserung KS6, Inhaber 08.11.): Korb "noch nicht abgesendet" im Speicher DIESES Geraets (localStorage),
+    // je Bestellseite (Schluessel aus einem Pruefwert des Tokens, nie der Token selbst), hoechstens 30 Tage, nach "Absenden" geloescht.
+    const BS_ENTWURF_TAGE = 30;
+    const bsEntwurfSchluessel = hashHex => (/^[0-9a-f]{16,}$/.test(hashHex || '') ? `bs_zwischen_${hashHex.slice(0, 16)}` : '');
+    /** Gespeicherten Zwischenstand pruefen: Form, Alter, Termin noch da und nicht vorbei; nur bekannte Felder. -> { termin, korb, vorgang, zeit } | null */
+    function bsEntwurfLesen(roh, { termine = [], jetzt = Date.now() } = {}) {
+      let x;
+      try { x = JSON.parse(roh || 'null'); } catch { return null; }
+      if (!x || x.v !== 1 || !Array.isArray(x.korb) || !x.korb.length || x.korb.length > BS_MAX.positionen) return null;
+      if (!(jetzt - Number(x.zeit) < BS_ENTWURF_TAGE * 86400000)) return null;
+      const t = termine.find(y => y.id === x.termin);
+      if (!t || t.vergangen) return null;
+      const FELDER = ['art', 'id', 'menge', 'text', 'besorgen', 'notiz', 'name', 'nummer', 'freitext', 'fuer', 'produktId', 'groesse', 'wunsch'];
+      const korb = x.korb.filter(p => p && ['artikel', 'extra', 'trikot'].includes(p.art))
+        .map(p => Object.fromEntries(FELDER.filter(f => p[f] !== undefined).map(f => [f, typeof p[f] === 'boolean' || typeof p[f] === 'number' ? p[f] : String(p[f]).slice(0, 300)])));
+      return korb.length ? { termin: x.termin, korb, vorgang: /^[\w-]{8,64}$/.test(x.vorgang || '') ? x.vorgang : '', zeit: Number(x.zeit) } : null;
+    }
+    const bsEntwurfDaten = (termin, korb, vorgang, jetzt = Date.now()) => JSON.stringify({ v: 1, termin, korb, vorgang, zeit: jetzt });
     function bsEintragWas(e) {
       if (e.art === 'extra') return `${e.menge} × ${e.freitext}${e.fuer ? ` (für ${e.fuer})` : ''}`;
       if (e.art === 'trikot') return `Trikot ${e.bezeichnung} · ${e.groesse}${e.trikotName ? ` · ${e.trikotName}` : ''}${e.trikotNummer ? ` · ${e.trikotNummer}` : ''}`;
@@ -480,7 +500,33 @@
     const terminAkt = () => (BS.d?.termine || []).find(x => x.id === BS.termin) || null;
     const schreibbar = () => { const t = terminAkt(); return !!t && !t.vergangen && !BS.d?.abgeschlossen; };   // KS6: abgeschlossen = nur lesen
 
+    // Zwischenstand: Schluessel je Bestellseite (SHA-256 des Tokens, erste 16 Zeichen), erst nach dem Wiederherstellen schreiben
+    const lsp = (() => { try { return window.localStorage; } catch { return null; } })();
+    const zw = { schluessel: '', bereit: false };
+    async function zwVorbereiten() {
+      try {
+        const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(BS_TOKEN));
+        zw.schluessel = bsEntwurfSchluessel([...new Uint8Array(h)].map(b => b.toString(16).padStart(2, '0')).join(''));
+      } catch { zw.schluessel = ''; }
+    }
+    function zwMerken() {
+      if (!zw.bereit || !zw.schluessel || !lsp) return;
+      try { if (BS.korb.length) lsp.setItem(zw.schluessel, bsEntwurfDaten(BS.termin, BS.korb, BS.vorgang)); else lsp.removeItem(zw.schluessel); } catch { /* voll/gesperrt */ }
+    }
+    function zwWiederherstellen() {
+      if (!zw.schluessel || !lsp) { zw.bereit = true; return; }
+      let x = null;
+      try { x = bsEntwurfLesen(lsp.getItem(zw.schluessel), { termine: BS.d?.termine || [] }); } catch { x = null; }
+      zw.bereit = true;
+      if (!x || BS.korb.length) { zwMerken(); return; }
+      BS.korb = x.korb; BS.vorgang = x.vorgang || neuerVorgang();
+      if (x.termin !== BS.termin) { BS.termin = x.termin; eintraegeLaden(); }
+      zeichnen();
+      meldung(`Dein Zwischenstand ist wieder da (${x.korb.length} Position${x.korb.length === 1 ? '' : 'en'}, noch nicht abgesendet).`);
+    }
+
     function zeichnen() {
+      zwMerken();
       const d = BS.d;
       const t = terminAkt();
       const kuerzel = kuerzelLesen();
@@ -756,7 +802,7 @@
 
     async function laden() {
       if (!BS_TOKEN) { fehlerZeigen(bsFehlerText(401)); return; }
-      try { await neuLaden(false); }
+      try { await zwVorbereiten(); await neuLaden(false); zwWiederherstellen(); }
       catch (e) {
         if (e.status === 401) { try { sessionStorage.removeItem('bs_token'); } catch { /* gesperrt */ } }
         fehlerZeigen(e.status ? e.message : bsFehlerText(0));
