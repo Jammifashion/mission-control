@@ -5,7 +5,8 @@
 // (heute | Reiter Varianten | SKU), "unklar" und fehlende Terme = nicht automatisch (nur Liste).
 // --write: nur Artikel, die vollstaendig automatisch gehen; Sicherung nach Documents/mc-sicherungen,
 // Produkt-PUT + Variations-Batch (<= 50) im 2-s-Takt, zuruecklesen, bei Abweichung Stopp.
-//   node scripts/reparatur-variantenbaum.js --ids 15772[,…] [--shop jfn|honk] [--write]
+//   node scripts/reparatur-variantenbaum.js --ids 15772[,…] [--shop jfn|honk] [--vorblenden] [--write]
+// --vorblenden: Artikel mit genau einer Farbe ohne Vorblendung bekommen diese Farbe vorgeblendet.
 
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
@@ -78,6 +79,14 @@ async function main() {
     const variationen = await leseAlleVariationen(wc, id);
     sicherung.push({ produkt, variationen });
     const p = planeReparatur(produkt, variationen, globale, reiter);
+    // --vorblenden: genau eine Farbe und keine Vorblendung -> diese Farbe vorblenden (Regel Inhaber 12.10.).
+    if (args.includes('--vorblenden') && !p.default_attributes.length) {
+      const i = p.ziel.findIndex(z => norm(z.name) === 'farbe');
+      if (i >= 0 && p.optionen[i].length === 1) {
+        p.default_attributes = [{ ...(p.ziel[i].id ? { id: p.ziel[i].id } : { name: p.ziel[i].name }), option: p.optionen[i][0] }];
+        p.elternAendern = true;
+      }
+    }
     plaene.push({ id, sku: produkt.sku, p });
     const art = a => `${a.id ? 'global' : 'lokal'} ${a.name}=[${a.options}]`;
     console.log(`\n## ${id} ${produkt.sku} (${produkt.status}) · ${p.automatisch ? 'automatisch' : 'NICHT automatisch'}`);
