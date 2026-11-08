@@ -4,6 +4,8 @@
 - Jeder Auftrag aus dem Postfach wird in einem eigenen Worktree unter `.claude/worktrees/<auftrag>` von
   `origin/main` gebaut, nie direkt auf `main` im Hauptordner.
 - Nach `git pull` im Hauptordner: `cd backend && npm ci`.
+- Nach dem Push eines Auftrags den Worktree wieder entfernen (`git worktree remove .claude/worktrees/<auftrag>`, danach
+  `git worktree prune`) - nur wenn sein Commit in `origin/main` steht und `git status` leer ist; sonst stehen lassen und im Bericht nennen.
 
 ## frontend/index.html (große Datei)
 **Dauerregel Mouse-over (Inhaber 02.11.2026):** Jedes neue Bedienelement (Knopf, Kennzeichen, Feld, Filter) bekommt einen
