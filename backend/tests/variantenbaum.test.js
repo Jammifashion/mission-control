@@ -225,6 +225,17 @@ test('Teil-Update ohne Attribute/Varianten (nur Name) liest keinen Shop-Stand', 
   expect(wc.get).not.toHaveBeenCalled();
 });
 
+// ── "Neue Varianten anlegen" (VB2, Befund 2632) ─────────────────────────────
+test('variationen-ergaenzen: neue Variation an globalen Attributen bekommt ihre Werte', async () => {
+  setzeShop({ farben: ['Black'], groessen: ['S'] });
+  const res = await request(app).post('/api/woocommerce/products/100/variationen-ergaenzen')
+    .send({ variations: [{ attributes: [{ name: 'Farbe', option: 'Black' }, { name: 'Größe', option: 'M' }], regular_price: '20' }] });
+  expect(res.status).toBe(201);
+  expect(shop.produkt.attributes.map(a => a.key)).toEqual(['pa_farbe', 'pa_groesse']);
+  const neu = gelesen().find(v => v.attributes.some(a => a.option === 'M'));
+  expect(neu.attributes.map(a => [a.id, a.option])).toEqual([[3, 'Black'], [2, 'M']]);
+});
+
 // ── Knopf "privat stellen" ──────────────────────────────────────────────────
 test('POST …/variations/:id/privat stellt privat, loescht nie', async () => {
   const id = gelesen()[0].id;

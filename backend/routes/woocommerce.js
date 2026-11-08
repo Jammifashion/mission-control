@@ -796,7 +796,10 @@ router.post('/products/:id/variationen-ergaenzen', async (req, res, next) => {
     // Kombinationen, die es schon gibt oder die im Request doppelt stehen, nicht
     // doppelt anlegen - Schluessel wie VR2 (wcSchluessel: Umlaute, ß, Gross/Klein).
     const sperre    = sperreDoppelte(neu, bestehend);
-    const anzulegen = sperre.anlegen.map(i => neu[i]);
+    // VB2: neue Variationen tragen bei globalen Attributen deren id - mit Namen allein setzt
+    // WooCommerce den Wert nicht (Befund 2632 CB445/STH-Logo: Variation ohne Farbe).
+    const anzulegen = sperre.anlegen.map(i => ({ ...neu[i],
+      attributes: variationsAttributeMitIds(neu[i].attributes, produkt?.attributes ?? []) }));
     const doppelt   = sperre.vorhanden.length;
 
     // Optionen vereinigen: Shop-Stand zuerst, neue Werte dazu, dann sortieren.

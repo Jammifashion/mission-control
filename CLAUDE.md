@@ -907,6 +907,9 @@ Neue Sektionen immer mit Anker versehen:
   Variationen (fremde -> 422); Shop-Stand nicht lesbar -> 502 `shop_stand`, nichts geschrieben. MC loescht keine Variationen mehr:
   Knopf = `POST .../variations/:varId/privat` (DELETE-Route entfernt). Maske: `wcAttrIdsGeladen`, `recomputeVariants` behaelt
   `wcVariationId`, Block `Variantenbaum: Anfang/Ende` (Test variantenbaum.test.js mit WC-Attrappe). Reparatur `scripts/reparatur-vb1.js`.
+  VB2: auch `variationen-ergaenzen` gibt neuen Variationen die ids globaler Attribute (Befund 2632). Allgemeine Reparatur
+  `scripts/reparatur-variantenbaum.js --ids …` (Logik utils/variantenbaum-reparatur.js: Werte heute > Reiter Varianten > SKU-Endung,
+  sonst "unklar"; Trockenlauf Standard, `--write` nur vollstaendig ableitbare Artikel; loescht/privatisiert nie).
 - backend/lib/wc-variation-ids.js – WC_Variation_ID zurueckschreiben (VR2), eine Quelle; Frontend-Spiegel
   Block `WC-IDs: Anfang/Ende` (Test vergleicht beide). Zuordnung neue WC-Variation -> Varianten-Zeile NUR
   ueber die Attributkombination (VR1-Schluessel + ae/oe/ue), nie ueber die Position. Nur LEERE IDs fuellen;
