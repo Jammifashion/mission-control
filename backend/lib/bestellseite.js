@@ -24,7 +24,9 @@ import {
   TAB_ZUGAENGE, TAB_TERMINE, TAB_EINTRAEGE, TAB_BILDER, ZUGANG_SPALTEN, ZUGANG_OPTIONAL, ZUGANG_ALLE, TERMIN_SPALTEN, BILD_SPALTEN,
   BILD_OPTIONAL, EINTRAG_SPALTEN, ART, STATUS, fehler, erzeugeToken, tokenHash, findeZugang, zugangStatus, anlagePlan, bearbeitenPlan,
   katalogDauer, katalogAuftrag, seitenAntwort, zugangFuerMc, sortimentNamen, trikotsDauer, zugangKontext,
+  auswahlLesen, auswahlAus, abschlussPlan, abschlussNachricht, ZUGANG_KS6,
 } from '../utils/bestellseite.js';
+import { notify } from './chatNotify.js';
 import { ladeLinkSchluessel } from './linkSchluessel.js';
 import { verschluessele, tokenFuerMc, linkFehler } from '../utils/link-schluessel.js';
 import { EINTRAG_OPTIONAL, OFFEN } from '../utils/bestell-eintraege.js';
@@ -170,18 +172,19 @@ export async function katalogFuer(sheets, spreadsheetId, zugang) {
     const { a, p } = await liesAuftraege(sheets, spreadsheetId);
     const auftrag = a.zeilen.find(x => x.Auftrag_Nr === zugang.Auftrag_Nr);
     if (!auftrag) throw fehler('Diese Bestellseite gibt es nicht mehr.', 403, 'weg');
-    const pos = aktivePositionen(p.zeilen, auftrag.Auftrag_Nr);
-    const { info } = await lshopInfo(sheets, spreadsheetId, nummernAus(pos));
-    const groessenJe = await groessenJeGruppe(sheets, spreadsheetId, pos, info, lb.je);
-    daten = { artikel: katalogAuftrag({ auftrag, positionen: pos, info, groessenJe }), stand: '', auftrag, trikots: [] };   // Auftrag: keine Trikots (Positionen kennen keine)
+    const auswahl = auswahlLesen(zugang);   // KS6: Auswahl ohne Mengen; leer = Uebergang ueber die Positionen
+    const pos = auswahl.length ? [] : aktivePositionen(p.zeilen, auftrag.Auftrag_Nr);
+    const { info } = auswahl.length ? { info: new Map() } : await lshopInfo(sheets, spreadsheetId, nummernAus(pos));
+    const modelle = auswahl.length ? new Set(auswahl.map(x => x.modell)) : new Set(pos.map(x => info.get(t(x.LShop_ArticleNr))?.modell).filter(Boolean));
+    const groessenJe = await groessenJeModell(sheets, spreadsheetId, modelle, lb.je);
+    daten = { artikel: katalogAuftrag({ auftrag, positionen: pos, info, groessenJe, auswahl }), stand: '', auftrag, trikots: [] };   // Auftrag: keine Trikots (Positionen kennen keine)
   }
   katalogCache.set(k, { zeit: Date.now(), daten });
   return daten;
 }
 
-/** Fuer jede Gruppe Modell + Farbe des Auftrags: alle waehlbaren Groessen des Modells in dieser Farbe (LShop_Modelle). */
-async function groessenJeGruppe(sheets, spreadsheetId, positionen, info, lieferbarkeit) {
-  const modelle = new Set(positionen.map(p => info.get(t(p.LShop_ArticleNr))?.modell).filter(Boolean));
+/** Fuer jedes Modell: alle waehlbaren Groessen je Farbe (LShop_Modelle, ohne ausgelaufen/3/6) -> "modell|farbe" -> Groessen. */
+async function groessenJeModell(sheets, spreadsheetId, modelle, lieferbarkeit) {
   if (!modelle.size) return new Map();
   const zeilen = await ladeLShopZeilen({ sheets, spreadsheetId });
   const aus = new Map();
@@ -253,6 +256,24 @@ export async function leseZugaenge({ sheets: s, jetzt = () => new Date(), schlue
   };
 }
 
+/** KS6: Werte fuer die neuen Spalten nur, wenn es die Spalte gibt - sonst gingen sie still verloren (409 einrichtung, nichts geschrieben). */
+function ks6SpaltenPruefen(z, zugang, alt = {}) {
+  const fehlt = ZUGANG_KS6.filter(s => z.idx[s] === undefined && t(zugang[s]) !== t(alt[s]));
+  if (fehlt.length) throw fehler(`Spalten fehlen in Bestellseiten (${fehlt.join(', ')}) – erst scripts/setup-bestellseiten-reiter.js --write.`, 409, 'einrichtung');
+}
+
+/** KS6: waehlbare Farben je Modell (LShop_Modelle ueber lshopAuswertung, ohne ausgelaufen/3/6) fuer die Pruefung der Auswahl. */
+async function farbenJeModell(sheets, spreadsheetId, modelle) {
+  const zeilen = await ladeLShopZeilen({ sheets, spreadsheetId });
+  const je = new Map();
+  for (const m of new Set(modelle)) {
+    const zm = zeilen.filter(x => x.catalogNr === m);
+    if (!zm.length) continue;
+    je.set(m, new Set(lshopAuswertung(zm).varianten.map(v => v.farbe)));
+  }
+  return je;
+}
+
 const kundeDaAus = kunden => nr => kunden.some(k => k.Kunden_Nr === nr && k.Status !== 'gesperrt-DSGVO' && k.Status !== 'archiviert');
 
 /** Neuer Zugang. Antwort enthaelt den Token-Klartext EINMAL (nie gespeichert). Gleiche Vorgang-Kennung = schon angelegt. */
@@ -283,6 +304,7 @@ export async function legeZugangAn({ eingabe, sheets: s, jetzt = () => new Date(
     const { kunden } = await kundenLesen();
     const plan = anlagePlan({ eingabe, zugaenge: z.zeilen, termine: tr.zeilen, auftraege, kategorien, kundeDa: kundeDaAus(kunden), jetzt: jetzt().toISOString() });
     if (plan.zugang.Design_Link_Zeigen && z.idx.Design_Link_Zeigen === undefined) throw fehler('Spalte Design_Link_Zeigen fehlt – Setup.', 409, 'einrichtung');
+    ks6SpaltenPruefen(z, plan.zugang);
     const token = erzeugeToken(zufall);
     plan.zugang.Token_Hash = tokenHash(token);
     const kopierbar = await verschluesselt(z, plan.zugang, token, schluesselLaden);
@@ -315,11 +337,38 @@ export async function bearbeiteZugang({ eingabe, sheets: s, jetzt = () => new Da
     const { wz, z } = await lies(sheets, spreadsheetId);
     const alt = z.zeilen.find(x => x.Zugang_ID === t(eingabe?.zugangId));
     const kategorien = eingabe?.sortiment !== undefined ? await leseKategorien(sheets) : [];
-    const neu = bearbeitenPlan({ zugang: alt, eingabe, kategorien, jetzt: jetzt().toISOString() });
+    // KS6: Auswahl gegen LShop_Modelle pruefen (Modell da, Farben waehlbar), bevor geplant wird
+    const auswahlJson = eingabe?.auswahl !== undefined && alt?.Art === ART.AUFTRAG
+      ? auswahlAus(eingabe.auswahl, await farbenJeModell(sheets, spreadsheetId, (Array.isArray(eingabe.auswahl) ? eingabe.auswahl : []).map(x => t(x?.modell)))) : undefined;
+    const neu = bearbeitenPlan({ zugang: alt, eingabe: { ...eingabe, auswahlJson }, kategorien, jetzt: jetzt().toISOString() });
+    ks6SpaltenPruefen(z, neu, alt);
     await ersetzeZugang(sheets, spreadsheetId, wz, z, alt, neu);
     console.log(`Bestellseite ${alt.Zugang_ID} geändert.`);
     return { ok: true, zugangId: alt.Zugang_ID, status: zugangStatus(neu, jetzt().toISOString()), stand: neu.Stand };
   });
+}
+
+/**
+ * KS6: POST /api/bestellseite/abschliessen (oeffentlich, Bearer) - "Bestellung abschließen": nur wenn am Zugang erlaubt; danach liest die
+ * Seite nur noch. Schreibt nur die Zugang-Zeile (Abgeschlossen + Stand). Chat danach (nur Zugang + Anzahl). Zweiter Klick = schon.
+ */
+export async function schliesseAb({ token, sheets: s, jetzt = () => new Date(), melden = notify } = {}) {
+  const r = await mitSperre(async () => {
+    const sheets = s ?? await sheetsClient();
+    const spreadsheetId = sheetId();
+    const daten = await liesFuerToken(sheets, spreadsheetId);
+    const zugang = pruefeZugang(daten, token, jetzt());
+    const plan = abschlussPlan({ zugang, jetzt: jetzt().toISOString() });
+    if (plan.schon) return { schon: true, abgeschlossen: zugang.Abgeschlossen };
+    if (daten.z.idx.Abgeschlossen === undefined) throw fehler('Bestellseite ist noch nicht fertig eingerichtet – bitte bei JammiFashion melden.', 409, 'einrichtung');
+    await ersetzeZugang(sheets, spreadsheetId, daten.wz, daten.z, zugang, plan.neu);
+    const e = await liesEintraege(sheets, spreadsheetId);
+    const anzahl = (e?.zeilen ?? []).filter(x => x.Zugang_ID === zugang.Zugang_ID && t(x.Status) !== 'storniert').length;
+    console.log(`Bestellseite ${zugang.Zugang_ID}: abgeschlossen (${anzahl} Einträge).`);
+    return { schon: false, abgeschlossen: plan.neu.Abgeschlossen, zugangId: zugang.Zugang_ID, anzahl };
+  });
+  if (!r.schon) await melden(abschlussNachricht({ zugangId: r.zugangId, anzahl: r.anzahl }));   // notify wirft nie
+  return { ok: true, schon: r.schon, abgeschlossen: r.abgeschlossen };
 }
 
 /** Neuer Link: neuer Token, der alte ist sofort ungueltig. Klartext einmal in der Antwort. */

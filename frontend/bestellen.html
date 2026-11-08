@@ -236,12 +236,60 @@
         + `${x.vergangen ? '<span class="bs-klein">vorbei – nur lesen</span>' : x.bestellschluss ? `<span class="bs-schluss">Bestellschluss ${bsDatum(x.bestellschluss)}${x.nachSchluss ? ' – vorbei' : ` · am besten bis ${bsDatum(x.empfohlen)}`}</span>` : ''}`
         + `<span class="bs-zahl">${x.eintraege || 0} Einträge</span></button>`).join('')}</div>`;
     }
-    function bsBannerHtml(termin) {
+    function bsBannerHtml(termin, d = null) {
+      if (d?.abgeschlossen) return `<div class="bs-banner"><strong>Die Bestellung ist abgeschlossen</strong> (${bsEsc(bsUhr(d.abgeschlossen))}) – nur noch lesen. Änderungen bitte bei JammiFashion melden.</div>`;   // KS6
       if (!termin) return '';
+      if (bsIstAuftrag(d)) {   // KS6: einmaliger Auftrag - kein Termin-Vokabular
+        if (termin.vergangen) return '<div class="bs-banner">Der Liefertermin ist vorbei – nur noch lesen.</div>';
+        if (termin.nachSchluss) return `<div class="bs-banner"><strong>Bestellen war bis ${bsDatum(termin.bestellschluss)} möglich.</strong> Du kannst weiter eintragen – <strong>ohne Garantie</strong>.</div>`;
+        return '';
+      }
       if (termin.vergangen) return '<div class="bs-banner">Dieser Termin ist vorbei – nur noch lesen.</div>';
       if (termin.nachSchluss) return `<div class="bs-banner"><strong>Bestellschluss war am ${bsDatum(termin.bestellschluss)}.</strong> Du kannst weiter eintragen – <strong>ohne Garantie bis zum Termin</strong>.</div>`;
       return '';
     }
+    // ── KS6: Bestellung fuer einen Auftrag (Art auftrag) - eigener Wortlaut, der Fanshop (Art dauer) bleibt unveraendert ──
+    const bsIstAuftrag = d => d?.art === 'auftrag';
+    /** Texte, die sich je Art unterscheiden (eine Stelle, Test bestellseite-ks6.test.js). */
+    function bsTexte(d) {
+      const a = bsIstAuftrag(d);
+      return {
+        kuerzel: a ? 'Dein Name oder Kürzel (Vorname reicht)' : 'Dein Kürzel oder Vorname',
+        kuerzelFehlt: a ? 'Bitte oben deinen Namen oder dein Kürzel eintragen.' : 'Bitte oben dein Kürzel eintragen.',
+        eingetragen: a ? 'Bisher eingetragen' : 'Eingetragen für diesen Termin',
+      };
+    }
+    /** Kopf fuer Art auftrag: "Bestellung für <Titel>", "bestellen bis …", geplante Lieferung - statt der Termin-Liste. */
+    function bsKopfAuftragHtml(d, termin) {
+      const bis = termin?.bestellschluss || d.bestellenBis || '';
+      return `<section class="card"><h2>${d.titel ? `Bestellung für ${bsEsc(d.titel)}` : 'Deine Bestellung'}</h2>`
+        + (bis ? `<p class="bs-schluss" style="font-size:0.95rem">bestellen bis ${bsWochentag(bis)} ${bsDatum(bis)}${termin?.nachSchluss ? ' – vorbei' : ''}</p>` : '')
+        + (termin?.datum ? `<p class="bs-klein">Lieferung geplant: ${bsWochentag(termin.datum)} ${bsDatum(termin.datum)}</p>` : '')
+        + `<p class="bs-zahl" style="margin-left:0">${termin?.eintraege || 0} Einträge</p></section>`;
+    }
+    /** "Bestellung abschließen" - nur wenn am Zugang erlaubt und noch offen. */
+    function bsAbschlussHtml(d) {
+      if (!bsIstAuftrag(d) || !d.abschliessen || d.abgeschlossen) return '';
+      return '<section class="card"><h2>Alles eingetragen?</h2><p class="bs-klein" style="margin-bottom:0.5rem">Wenn die Liste vollständig ist, hier abschließen. '
+        + 'Danach kann niemand mehr eintragen oder ändern – wir bekommen Bescheid und legen los.</p>'
+        + '<button type="button" class="btn" id="bs-abschliessen">Bestellung abschließen</button></section>';
+    }
+    /** Name/Nummer auf dem Textil (nur wenn am Zugang eingeschaltet). */
+    function bsTextilHtml() {
+      return `<div class="bs-reihe" style="padding:0 0.55rem 0.4rem"><label class="bs-feld">Name auf dem Textil (optional)<input type="text" data-raster-name maxlength="${BS_MAX.name}" autocomplete="off" autocapitalize="characters"></label>`
+        + '<label class="bs-feld">Nummer (optional)<input type="text" data-raster-nummer inputmode="numeric" pattern="[0-9]*" maxlength="3" autocomplete="off"></label></div>'
+        + '<p class="bs-klein" style="padding:0 0.55rem 0.5rem">Mit Name oder Nummer: je Stück einzeln eintragen (bei einer Größe Anzahl 1).</p>';
+    }
+    /** Pruefung vor "In den Korb": mit Name/Nummer genau eine Groesse mit Anzahl 1. -> Fehlertext oder '' */
+    function bsTextilFehler(artikel, werte, textil) {
+      const name = String(textil?.name || '').trim(), nummer = String(textil?.nummer || '').trim();
+      if (!name && !nummer) return '';
+      if (nummer && !/^\d{1,3}$/.test(nummer)) return 'Nummer: nur Ziffern (höchstens 3).';
+      const mit = (artikel.groessen || []).filter(g => Number(werte[g.id] || 0) > 0);
+      if (mit.length !== 1 || Number(werte[mit[0].id]) !== 1) return 'Mit Name oder Nummer bitte genau eine Größe mit Anzahl 1 – für weitere Stücke noch einmal öffnen.';
+      return '';
+    }
+    const bsTextilText = e => [e.trikotName, e.trikotNummer].filter(Boolean).join(' ');
     /** Artikel nach Unterkategorie und Suche filtern (jedes Wort muss passen). */
     function bsArtikelFiltern(artikel, filter, suche) {
       const w = String(suche || '').toLowerCase().split(/\s+/).filter(Boolean);
@@ -254,10 +302,11 @@
         + filter.map(f => `<button type="button" data-filter="${bsEsc(f.name)}" aria-pressed="${aktiv === f.name}">${bsEsc(f.name)} (${f.anzahl})</button>`).join('') + '</div>';
     }
     /** Kompakte Zeile: kleines Bild (60 px, ohne Bild keine Flaeche), Name, Farbe, Groessen; offen = Mengen-Raster. */
-    function bsArtikelZeileHtml(a, i, offen, schreibbar) {
+    function bsArtikelZeileHtml(a, i, offen, schreibbar, textil = false) {
       const farbe = [a.farbe, a.design].filter(Boolean).join(' · ');
       const bild = a.bild ? `<img class="bs-thumb" src="${bsEsc(a.bild)}" alt="" width="60" height="60" loading="lazy" referrerpolicy="no-referrer" data-gross="${bsEsc(a.bildGross || a.bild)}">` : '';
       const raster = offen && schreibbar ? `<div class="bs-raster">${(a.groessen || []).map(g => `<label>${bsGroesseHtml(g)}<input class="bs-menge" type="number" inputmode="numeric" min="0" max="${BS_MAX.menge}" placeholder="0" data-raster="${bsEsc(g.id)}" aria-label="Anzahl ${bsEsc(g.groesse || 'eine Größe')}"></label>`).join('')}</div>`
+        + (textil ? bsTextilHtml() : '')   // KS6
         + `<div class="bs-raster-fuss"><label class="bs-feld" style="flex:1 1 100%">Notiz (optional, gilt für diese Größen)<input type="text" data-raster-notiz maxlength="${BS_MAX.positionNotiz}" autocomplete="off"></label>`
         + `<span class="bs-klein" style="flex-basis:100%">Nur Kürzel oder Vorname, keine Telefonnummern o. Ä.</span>`
         + `<button type="button" class="btn" data-in-korb="${i}">In den Korb</button><button type="button" class="bs-link" data-zu="${i}">schließen</button></div>` : '';
@@ -266,28 +315,31 @@
         + `${(a.groessen || []).length ? `<span class="bs-groessen">${a.groessen.map(bsGroesseHtml).join('')}</span>` : '<span class="bs-klein">Größen nach Absprache</span>'}</span></button>${raster}</div>`;
     }
     /** Raster -> Korb-Positionen (nur Mengen > 0, ganze Zahlen 1-999). */
-    function bsPositionenAusRaster(artikel, werte, notiz = '') {
+    function bsPositionenAusRaster(artikel, werte, notiz = '', textil = null) {
       const pos = [];
       const nz = String(notiz || '').trim().slice(0, BS_MAX.positionNotiz);   // KS2-1: eine Notiz fuer alle Groessen dieser Karte
+      const name = String(textil?.name || '').trim().slice(0, BS_MAX.name), nummer = String(textil?.nummer || '').trim();   // KS6
+      const tx = [name, nummer].filter(Boolean).join(' ');
       for (const g of artikel.groessen || []) {
         const n = Number(werte[g.id] || 0);
         if (!Number.isInteger(n) || n <= 0) continue;
-        pos.push({ art: 'artikel', id: g.id, menge: Math.min(n, BS_MAX.menge), text: `${artikel.name}${artikel.farbe ? ` · ${artikel.farbe}` : ''} · ${g.groesse || 'eine Größe'}`, besorgen: !!g.nochZuBesorgen, ...(nz ? { notiz: nz } : {}) });
+        pos.push({ art: 'artikel', id: g.id, menge: Math.min(n, BS_MAX.menge), text: `${artikel.name}${artikel.farbe ? ` · ${artikel.farbe}` : ''} · ${g.groesse || 'eine Größe'}${tx ? ` · Name/Nr.: ${tx}` : ''}`,
+          besorgen: !!g.nochZuBesorgen, ...(nz ? { notiz: nz } : {}), ...(name ? { name } : {}), ...(nummer ? { nummer } : {}) });
       }
       return pos;
     }
-    function bsKorbHtml(korb, kuerzel, schreibbar) {
+    function bsKorbHtml(korb, kuerzel, schreibbar, texte = null) {
       if (!korb.length) return '';
       return `<section class="card bs-korb" aria-live="polite"><h2>Noch nicht abgesendet (${korb.length})</h2>`
         + korb.map((p, i) => `<div class="bs-pos"><span>${bsEsc(p.menge)} × ${bsEsc(p.text)}${p.besorgen ? ' <span class="bs-besorgen">noch zu besorgen</span>' : ''}${p.notiz ? ` <span class="bs-klein">· Notiz: ${bsEsc(p.notiz)}</span>` : ''}</span>`
           + `<button type="button" class="bs-weg" data-korb-weg="${i}" aria-label="Position entfernen">✕</button></div>`).join('')
         + `<div class="bs-reihe" style="margin-top:0.5rem"><button type="button" class="btn" id="bs-absenden" ${schreibbar && kuerzel ? '' : 'disabled'}>Absenden (${korb.length})</button></div>`
-        + (kuerzel ? '' : '<p class="bs-klein">Bitte oben dein Kürzel eintragen.</p>') + '</section>';
+        + (kuerzel ? '' : `<p class="bs-klein">${bsEsc(texte?.kuerzelFehlt || 'Bitte oben dein Kürzel eintragen.')}</p>`) + '</section>';
     }
     function bsEintragWas(e) {
       if (e.art === 'extra') return `${e.menge} × ${e.freitext}${e.fuer ? ` (für ${e.fuer})` : ''}`;
       if (e.art === 'trikot') return `Trikot ${e.bezeichnung} · ${e.groesse}${e.trikotName ? ` · ${e.trikotName}` : ''}${e.trikotNummer ? ` · ${e.trikotNummer}` : ''}`;
-      return `${e.menge} × ${e.bezeichnung}${e.groesse ? ` · ${e.groesse}` : ''}`;
+      return `${e.menge} × ${e.bezeichnung}${e.groesse ? ` · ${e.groesse}` : ''}${bsTextilText(e) ? ` · Name/Nr.: ${bsTextilText(e)}` : ''}`;   // KS6
     }
     /** KS4: Stand je Eintrag - nur der aktuelle Schritt (+ Datum), Tippen zeigt alle Schritte; Hinweis orange, wenn es nach dem Termin wird. */
     function bsFortschrittHtml(f) {
@@ -308,7 +360,7 @@
       const n = (eintraege || []).filter(e => e.status !== 'storniert').length;
       const liste = laedt ? '<p class="bs-klein">wird geladen …</p>'
         : (eintraege || []).map(e => bsEintragHtml(e, schreibbar, d, terminWahl, neu && neu.has(e.id))).join('') || '<p class="bs-klein">Noch nichts eingetragen.</p>';
-      return `<details class="card bs-eingetragen" id="bs-eingetragen"${offen ? ' open' : ''}><summary><h2>Eingetragen für diesen Termin (${n})</h2>${bsSummeHtml(summe)}</summary>`
+      return `<details class="card bs-eingetragen" id="bs-eingetragen"${offen ? ' open' : ''}><summary><h2>${bsEsc(bsTexte(d).eingetragen)} (${n})</h2>${bsSummeHtml(summe)}</summary>`
         + `<div class="bs-liste" id="bs-eintraege">${liste}</div>${laedt ? '' : bsVerschobenHtml(verschoben)}</details>`;
     }
     /** KS4: Termin-Datum zu einer Termin-ID (fuer "verschoben von/auf"). */
@@ -392,37 +444,39 @@
       return j;
     }
     const terminAkt = () => (BS.d?.termine || []).find(x => x.id === BS.termin) || null;
-    const schreibbar = () => { const t = terminAkt(); return !!t && !t.vergangen; };
+    const schreibbar = () => { const t = terminAkt(); return !!t && !t.vergangen && !BS.d?.abgeschlossen; };   // KS6: abgeschlossen = nur lesen
 
     function zeichnen() {
       const d = BS.d;
       const t = terminAkt();
       const kuerzel = kuerzelLesen();
       const artikel = bsArtikelFiltern(d.artikel, BS.filter, BS.suche);
+      const tx = bsTexte(d);   // KS6
+      const auftragArt = bsIstAuftrag(d);
       main.innerHTML = `
         ${d.hinweis ? `<section class="card"><p class="bs-hinweis">${bsEsc(d.hinweis)}</p></section>` : ''}
-        <section class="card"><h2>${d.termineAnlegen ? 'Termin wählen' : 'Termin'}</h2>${bsTermineHtml(d, BS.termin)}
+        ${auftragArt ? bsKopfAuftragHtml(d, t) : `<section class="card"><h2>${d.termineAnlegen ? 'Termin wählen' : 'Termin'}</h2>${bsTermineHtml(d, BS.termin)}
           <p class="bs-klein" style="margin-top:0.5rem">Bestellschluss ${d.regel.bestellschlussTage} Tage vor dem Termin, am besten bis ${d.regel.empfohlenTage} Tage vorher.</p>
           ${d.termineAnlegen ? `<details style="margin-top:0.5rem"><summary class="bs-link" style="display:inline-block">+ Termin</summary>
             <div class="bs-reihe" style="margin-top:0.4rem"><label class="bs-feld">Datum<input type="date" id="bs-t-datum" min="${bsEsc(d.heute)}"></label>
             <label class="bs-feld">Notiz (z. B. Gegner)<input type="text" id="bs-t-notiz" maxlength="${BS_MAX.notiz}" autocomplete="off"></label>
             <button type="button" class="btn" id="bs-t-neu">Termin anlegen</button></div></details>` : ''}
-        </section>
-        ${t ? bsBannerHtml(t) : ''}
+        </section>`}
+        ${t || d.abgeschlossen ? bsBannerHtml(t, d) : ''}
         ${t ? bsEingetragenHtml({ eintraege: BS.eintraege, summe: BS.summe, verschoben: BS.verschoben, laedt: BS.laedt, offen: listeOffen(), schreibbar: schreibbar(), d, terminWahl: BS.terminWahl, neu: BS.neu }) : ''}
-        <section class="card"><h2>${t ? `Eintragen für ${t.datum ? `${bsWochentag(t.datum)} ${bsDatum(t.datum)}` : 'den Termin'}` : 'Artikel'}</h2>
-          ${schreibbar() ? `<label class="bs-feld" style="margin-bottom:0.7rem">Dein Kürzel oder Vorname<input type="text" id="bs-kuerzel" maxlength="${BS_MAX.kuerzel}" value="${bsEsc(kuerzel)}" autocomplete="off" autocapitalize="words"></label>
+        <section class="card"><h2>${auftragArt ? (schreibbar() ? 'Eintragen' : 'Artikel') : t ? `Eintragen für ${t.datum ? `${bsWochentag(t.datum)} ${bsDatum(t.datum)}` : 'den Termin'}` : 'Artikel'}</h2>
+          ${schreibbar() ? `<label class="bs-feld" style="margin-bottom:0.7rem">${bsEsc(tx.kuerzel)}<input type="text" id="bs-kuerzel" maxlength="${BS_MAX.kuerzel}" value="${bsEsc(kuerzel)}" autocomplete="off" autocapitalize="words"></label>
           <div class="bs-tabs" role="group" aria-label="Was eintragen?">
             <button type="button" data-tab="artikel" aria-pressed="${BS.tab === 'artikel'}">Artikel</button>
             <button type="button" data-tab="extra" aria-pressed="${BS.tab === 'extra'}">Extra</button>
             ${(d.trikots || []).length ? `<button type="button" data-tab="trikot" aria-pressed="${BS.tab === 'trikot'}">Trikot</button>` : ''}
           </div>
-` : `<p class="bs-banner" style="margin-bottom:0.7rem">${bsEsc(bsNurAnsehenText(d, t))}</p>`}
+` : d.abgeschlossen ? '' : `<p class="bs-banner" style="margin-bottom:0.7rem">${bsEsc(bsNurAnsehenText(d, t))}</p>`}
           ${!schreibbar() || BS.tab === 'artikel' ? `${bsFilterHtml(d.filter, BS.filter, d.artikel.length)}
             <input class="bs-suche" id="bs-suche" type="search" placeholder="Artikel suchen …" aria-label="Artikel suchen" autocomplete="off" value="${bsEsc(BS.suche)}" style="margin-bottom:0.5rem">
             ${bsLegendeHtml()}
             <p class="bs-klein" style="margin:0.4rem 0">${artikel.length} von ${d.artikel.length} Artikeln (je Farbe eine Zeile)${schreibbar() ? ' – antippen, Anzahl je Größe eintragen.' : '.'}</p>
-            <div class="bs-liste">${artikel.map(a => bsArtikelZeileHtml(a, d.artikel.indexOf(a), BS.offen === d.artikel.indexOf(a), schreibbar())).join('') || '<p class="bs-klein">Kein Artikel passt.</p>'}</div>` : ''}
+            <div class="bs-liste">${artikel.map(a => bsArtikelZeileHtml(a, d.artikel.indexOf(a), BS.offen === d.artikel.indexOf(a), schreibbar(), !!d.personalisierung)).join('') || '<p class="bs-klein">Kein Artikel passt.</p>'}</div>` : ''}
           ${schreibbar() && BS.tab === 'extra' ? `<div class="bs-reihe"><label class="bs-feld" style="flex-basis:100%">Was wird gebraucht?<input type="text" id="bs-x-text" maxlength="${BS_MAX.freitext}" autocomplete="off"></label>
             <label class="bs-feld">Anzahl<input type="number" id="bs-x-menge" inputmode="numeric" min="1" max="${BS_MAX.menge}" value="1"></label>
             <label class="bs-feld">Für wen? (optional)<input type="text" id="bs-x-fuer" maxlength="${BS_MAX.fuer}" autocomplete="off"></label></div>
@@ -441,7 +495,8 @@
             <button type="button" class="btn" id="bs-tr-neu">In den Korb</button>` : ''}
           ${d.designLink ? `<p class="bs-klein" style="margin-top:0.6rem">Design ansehen: <a class="bs-link" href="${bsEsc(d.designLink)}" target="_blank" rel="noopener noreferrer">Link öffnen</a></p>` : ''}
         </section>
-        ${t ? bsKorbHtml(BS.korb, kuerzel, schreibbar()) : ''}
+        ${t ? bsKorbHtml(BS.korb, kuerzel, schreibbar(), tx) : ''}
+        ${bsAbschlussHtml(d)}
         <p class="bs-klein">Link gültig bis ${bsDatum(d.ablauf)}.</p>`;
     }
 
@@ -495,9 +550,20 @@
       if (b.dataset.inKorb !== undefined) {
         const a = BS.d.artikel[Number(b.dataset.inKorb)];
         const werte = Object.fromEntries([...document.querySelectorAll('[data-raster]')].map(i => [i.dataset.raster, i.value]));
-        const pos = bsPositionenAusRaster(a, werte, document.querySelector('[data-raster-notiz]')?.value);
+        const textil = { name: document.querySelector('[data-raster-name]')?.value ?? '', nummer: document.querySelector('[data-raster-nummer]')?.value ?? '' };   // KS6
+        const tf = bsTextilFehler(a, werte, textil);
+        if (tf) { meldung(tf, true); return; }
+        const pos = bsPositionenAusRaster(a, werte, document.querySelector('[data-raster-notiz]')?.value, textil);
         if (!pos.length) { meldung('Bitte bei mindestens einer Größe eine Anzahl eintragen.', true); return; }
         BS.korb.push(...pos); if (!BS.vorgang) BS.vorgang = neuerVorgang(); BS.offen = -1; zeichnen(); return;
+      }
+      if (b.id === 'bs-abschliessen') {   // KS6
+        if (BS.korb.length) { meldung('Erst die Positionen unten absenden (oder entfernen) – dann abschließen.', true); return; }
+        if (!confirm('Bestellung abschließen?\nDanach kann niemand mehr eintragen oder ändern.')) return;
+        b.disabled = true;
+        try { await api('abschliessen', {}); await neuLaden(); meldung('Danke – die Bestellung ist abgeschlossen. Wir melden uns.'); }
+        catch (err) { meldung(err.message, true); b.disabled = false; }
+        return;
       }
       if (b.id === 'bs-x-neu') {
         const text = document.getElementById('bs-x-text').value.trim(), menge = Number(document.getElementById('bs-x-menge').value), fuer = document.getElementById('bs-x-fuer').value.trim();
@@ -543,7 +609,7 @@
       if (b.dataset.terminAendern) { BS.terminWahl = BS.terminWahl === b.dataset.terminAendern ? '' : b.dataset.terminAendern; zeichnen(); return; }   // KS4
       if (b.dataset.terminOk) {
         const en = BS.eintraege.find(x => x.id === b.dataset.terminOk); const kuerzel = kuerzelLesen();
-        if (!kuerzel) { meldung('Bitte oben dein Kürzel eintragen.', true); return; }
+        if (!kuerzel) { meldung(bsTexte(BS.d).kuerzelFehlt, true); return; }
         const ziel = document.querySelector(`[data-termin-ziel="${CSS.escape(b.dataset.terminOk)}"]`)?.value;
         if (!en || !ziel) return;
         try { await api('aendern', { eintrag: en.id, stand: en.stand, kuerzel, termin: ziel }); BS.terminWahl = ''; await neuLaden(); meldung('In den anderen Termin verschoben.'); }
@@ -552,7 +618,7 @@
       }
       if (b.dataset.storno) {
         const en = BS.eintraege.find(x => x.id === b.dataset.storno); const kuerzel = kuerzelLesen();
-        if (!kuerzel) { meldung('Bitte oben dein Kürzel eintragen.', true); return; }
+        if (!kuerzel) { meldung(bsTexte(BS.d).kuerzelFehlt, true); return; }
         if (!en || !confirm(`Stornieren?\n${bsEintragWas(en)}`)) return;
         try { await api('stornieren', { eintrag: en.id, stand: en.stand, kuerzel }); await neuLaden(); meldung('Storniert.'); }
         catch (err) { meldung(err.message, true); if (err.status === 409) await eintraegeLaden(); }
@@ -560,7 +626,7 @@
       }
       if (b.dataset.aendern) {
         const en = BS.eintraege.find(x => x.id === b.dataset.aendern); const kuerzel = kuerzelLesen();
-        if (!kuerzel) { meldung('Bitte oben dein Kürzel eintragen.', true); return; }
+        if (!kuerzel) { meldung(bsTexte(BS.d).kuerzelFehlt, true); return; }
         if (!en) return;
         const feld = (frage, wert) => { const v = prompt(frage, wert ?? ''); return v === null ? undefined : v; };
         const body = { eintrag: en.id, stand: en.stand, kuerzel };
@@ -569,6 +635,10 @@
           const groessen = (karte?.groessen || []).map(g => g.groesse).filter(Boolean);
           if (groessen.length > 1) { const gr = feld(`Größe (${groessen.join(', ')}):`, en.groesse); if (gr === undefined) return; const g = karte.groessen.find(x => x.groesse.toLowerCase() === gr.trim().toLowerCase()); if (!g) { meldung('Diese Größe gibt es für den Artikel nicht.', true); return; } if (g.id !== en.auswahl) body.id = g.id; }
           const m = feld('Anzahl:', en.menge); if (m === undefined) return; body.menge = m;
+          if (BS.d.personalisierung || bsTextilText(en)) {   // KS6: Name/Nummer auf dem Textil (leer = ohne)
+            const n = feld('Name auf dem Textil (leer = ohne):', en.trikotName); if (n === undefined) return; body.name = n;
+            const nr = feld('Nummer (leer = ohne):', en.trikotNummer); if (nr === undefined) return; body.nummer = nr;
+          }
         } else if (en.art === 'extra') {
           const x = feld('Was wird gebraucht?', en.freitext); if (x === undefined) return; body.freitext = x;
           const m = feld('Anzahl:', en.menge); if (m === undefined) return; body.menge = m;

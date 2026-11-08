@@ -6,7 +6,7 @@
 // Link sehen und aendern alle Eintraege ihres Zugangs bis "übernommen", "geändert von <Kürzel>"; Kürzel Pflicht (<= 12).
 // Kürzel, Rückennamen, Wünsche, Freitexte stehen nur im Sheet und auf der Seite dieses Zugangs - nie in Log, Chat, Fehlertext.
 
-import { heuteBerlin, fristen, zugangTage, naechsteTerminId, fehler, ART, TERMIN_STATUS_OFFEN } from './bestellseite.js';
+import { heuteBerlin, fristen, zugangTage, naechsteTerminId, fehler, ART, TERMIN_STATUS_OFFEN, terminFristen, istAbgeschlossen } from './bestellseite.js';
 
 // KS2-1: Notiz je Position (alle Arten, <= 100) - eigene Spalte hinten, damit Freitext/Fuer/Wunsch ihre Bedeutung behalten
 // und KS3 sie in die Notiz der Auftragsposition uebernehmen kann. Datenschutz wie Rueckennamen (nie Log/Chat, Leeren nach 12 Monaten).
@@ -54,8 +54,12 @@ const nummer = v => {
 export const terminVergangen = (termin, jetzt) => DATUM.test(t(termin?.Datum)) && t(termin.Datum) < heuteBerlin(jetzt);
 /** Nach Bestellschluss (heute nach Datum - Bestellschluss_Tage)? */
 export function nachSchluss(termin, zugang, jetzt) {
-  const { bestellschluss } = fristen(termin?.Datum, zugangTage(zugang));
+  const { bestellschluss } = terminFristen(termin, zugang);   // KS6: Art auftrag mit festem "bestellen bis"
   return !!bestellschluss && heuteBerlin(jetzt) > bestellschluss;
+}
+/** KS6: Nach "Bestellung abschließen" schreibt die Seite nichts mehr (MC darf weiter nachbessern). */
+export function nichtAbgeschlossen(zugang) {
+  if (istAbgeschlossen(zugang)) throw fehler('Die Bestellung ist abgeschlossen – nur noch lesen. Änderungen bitte bei JammiFashion melden.', 409, 'abgeschlossen');
 }
 
 /**
@@ -84,7 +88,7 @@ export function terminPlan({ zugang, termine, eingabe, jetzt }) {
  * Index der waehlbaren Groessen: id (WC-Variation bzw. ArticleNr bei Art auftrag) -> Karte + Groesse.
  * Trikots: produktId -> { name, groessen }.
  */
-export function auswahlIndex({ artikel, trikots, art }) {
+export function auswahlIndex({ artikel, trikots, art, personalisierung = false }) {
   const je = new Map();
   for (const a of artikel ?? []) for (const g of a.groessen ?? []) {
     if (!t(g.id)) continue;
@@ -95,7 +99,20 @@ export function auswahlIndex({ artikel, trikots, art }) {
     });
   }
   const tr = new Map((trikots ?? []).map(x => [t(x.produktId), { name: t(x.name), groessen: (x.groessen ?? []).map(t) }]));
-  return { je, trikots: tr };
+  return { je, trikots: tr, personalisierung: art === ART.AUFTRAG && personalisierung === true };   // KS6
+}
+
+/**
+ * KS6: Name/Nummer auf dem Textil fuer normale Artikel (nur wenn am Zugang eingeschaltet). Grenzen wie TR6 (Name <= 30, Nummer 0-3
+ * Ziffern); mit Name oder Nummer genau 1 Stueck je Eintrag. Gespeichert in Trikot_Name/Trikot_Nummer (Datenschutz wie Rueckennamen:
+ * nur Sheet + Oberflaeche, nie Log/Chat/Auftrag). -> { Trikot_Name, Trikot_Nummer }
+ */
+function textilFelder(p, idx, mengeWert, was) {
+  const name = text(p?.name, MAX.name, `${was}Name auf dem Textil`), nr = nummer(p?.nummer);
+  if (!name && !nr) return { Trikot_Name: '', Trikot_Nummer: '' };
+  if (!idx.personalisierung) throw fehler(`${was}Name/Nummer auf dem Textil ist auf dieser Bestellseite nicht vorgesehen.`);
+  if (mengeWert !== 1) throw fehler(`${was}mit Name oder Nummer bitte je Stück einzeln eintragen (Anzahl 1).`);
+  return { Trikot_Name: name, Trikot_Nummer: nr };
 }
 
 const naechsteEintragId = (eintraege, versatz) => {
@@ -109,8 +126,9 @@ function positionFelder(p, idx, nr) {
   if (art === E_ART.ARTIKEL) {
     const w = idx.je.get(t(p.id));
     if (!w) throw fehler(`Position ${nr}: Artikel/Größe ist auf dieser Bestellseite nicht wählbar.`);
-    return { Art: art, WC_Variation_ID: w.wcId, LShop_ArticleNr: w.articleNr, Menge: menge(p.menge, `Position ${nr}: Menge`),
-      Groesse: w.groesse, Bezeichnung: w.bezeichnung };
+    const m = menge(p.menge, `Position ${nr}: Menge`);
+    return { Art: art, WC_Variation_ID: w.wcId, LShop_ArticleNr: w.articleNr, Menge: m,
+      Groesse: w.groesse, Bezeichnung: w.bezeichnung, ...textilFelder(p, idx, m, `Position ${nr}: `) };
   }
   if (art === E_ART.EXTRA) {
     return { Art: art, Freitext: text(p.freitext, MAX.freitext, `Position ${nr}: Text`, true), Menge: menge(p.menge, `Position ${nr}: Menge`),
@@ -135,6 +153,7 @@ function positionFelder(p, idx, nr) {
 export function absendenPlan({ zugang, termin, eintraege, idx, eingabe, jetzt }) {
   if (!termin || termin.Zugang_ID !== zugang.Zugang_ID) throw fehler('Termin gibt es auf dieser Bestellseite nicht.', 404);
   if (terminVergangen(termin, jetzt)) throw fehler('Der Termin ist vorbei – nur noch lesen.');
+  nichtAbgeschlossen(zugang);   // KS6
   const kuerzel = kuerzelAus(eingabe?.kuerzel);
   const pos = Array.isArray(eingabe?.positionen) ? eingabe.positionen : [];
   if (!pos.length) throw fehler('Nichts zum Absenden.');
@@ -159,6 +178,7 @@ function aenderbar({ zugang, termin, eintrag, eingabe, jetzt, vonMc = false }) {
   if (t(eintrag.Status) === E_STATUS.UEBERNOMMEN) throw fehler('Schon übernommen – nur noch lesen.');
   if (t(eintrag.Status) === E_STATUS.STORNIERT) throw fehler('Schon storniert.');
   if (!vonMc && terminVergangen(termin, jetzt)) throw fehler('Der Termin ist vorbei – nur noch lesen.');   // KS3: MC darf nachbessern
+  if (!vonMc) nichtAbgeschlossen(zugang);   // KS6
   if (t(eingabe?.stand) !== t(eintrag.Stand)) throw fehler('Wurde inzwischen geändert – bitte neu laden.', 409, 'konflikt');
   return vonMc ? 'MC' : kuerzelAus(eingabe?.kuerzel);
 }
@@ -187,6 +207,14 @@ export function aenderungPlan({ zugang, termin, eintrag, idx, eingabe, jetzt, vo
       Object.assign(neu, { WC_Variation_ID: w.wcId, LShop_ArticleNr: w.articleNr, Groesse: w.groesse, Bezeichnung: w.bezeichnung });
     }
     if (eingabe.menge !== undefined) neu.Menge = menge(eingabe.menge);
+    // KS6: Name/Nummer auf dem Textil - aendern, solange eingeschaltet; leeren geht immer
+    const nameNeu = eingabe.name !== undefined ? ein(eingabe.name) : t(eintrag.Trikot_Name);
+    const nummerNeu = eingabe.nummer !== undefined ? t(eingabe.nummer) : t(eintrag.Trikot_Nummer);
+    if (nameNeu !== t(eintrag.Trikot_Name) || nummerNeu !== t(eintrag.Trikot_Nummer)) {
+      Object.assign(neu, textilFelder({ name: nameNeu, nummer: nummerNeu }, idx, Number(neu.Menge), ''));
+    } else if ((t(neu.Trikot_Name) || t(neu.Trikot_Nummer)) && Number(neu.Menge) !== 1) {
+      throw fehler('Mit Name oder Nummer bitte je Stück einzeln eintragen (Anzahl 1).');
+    }
   } else if (art === E_ART.EXTRA) {
     if (eingabe.freitext !== undefined) neu.Freitext = text(eingabe.freitext, MAX.freitext, 'Text', true);
     if (eingabe.fuer !== undefined) neu.Fuer = text(eingabe.fuer, MAX.fuer, '„für wen“');

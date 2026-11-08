@@ -1199,6 +1199,17 @@ Neue Sektionen immer mit Anker versehen:
   Reiter in EINEM values.update). MC zeigt "läuft: Stück n von m …", zweiter Klick "läuft schon seit …" (`bsmZ.bilderLauf`). `POST /bilder`
   (alles in einem Zug, `aktualisiereBilder`) nur noch fuer Tests/Trockenlauf. Seite: Artikelliste auch ohne gewaehlten Termin (nur ansehen,
   `bsNurAnsehenText`, Raster gesperrt), Legende der Punkte oben ueber der Liste (`bsLegendeHtml`, einmal). Test bestellseite-ks22.test.js.
+  KS6 (08.11., Art auftrag praxistauglich; Fanshop/dauer unveraendert): optionale Spalten hinten in `Bestellseiten` (`ZUGANG_KS6`): `Titel`
+  (Seite "Bestellung für …", leer beim Anlegen = Kurztitel), `Bestellschluss_Datum` (festes "bestellen bis", Vorbelegung Auftragstermin − 7, nicht
+  vor heute; `terminFristen` = EINE Stelle fuer Seite/Absenden/Aendern, ohne "am besten bis"), `Auswahl` (JSON [{modell CatalogNr, farben[],
+  name Pflicht <= 40, motiv}], OHNE Mengen, getrennt von den Positionen, geprueft gegen LShop_Modelle ohne ausgelaufen/3/6 `auswahlAus`; gesetzt
+  = Seite zeigt NUR die Auswahl mit allen waehlbaren Groessen, leer = Uebergang ueber die Positionen wie KS1), `Personalisierung` (Name/Nummer
+  auf dem Textil je Artikel-Eintrag in Trikot_Name/Trikot_Nummer, Grenzen TR6, mit Name nur Menge 1; nie Auftrag/Log/Chat), `Abschliessen` +
+  `Abgeschlossen` (oeffentlich `POST /api/bestellseite/abschliessen` -> `schliesseAb`, danach Seite nur lesen 409 `abgeschlossen`, Chat
+  `abschlussNachricht` nur Zugang + Anzahl; MC "wieder öffnen" = `wiederOeffnen`). Fehlen die Spalten: 409 `einrichtung` vor dem Schreiben.
+  Uebernahme: Hinweis, wenn der Ziel-AU Positionen ohne Eintrag hat (doppelt?). Seite: `bsTexte`/`bsKopfAuftragHtml`/`bsAbschlussHtml` (kein
+  Termin-Vokabular bei Art auftrag). MC: `bsmAuftragFelderHtml`, `bsmAuswahlHtml` (Modellsuche ueber die LESENDEN Korb-Endpunkte). Test
+  bestellseite-ks6.test.js.
 - backend/lib/wpMedien.js – Upload in die WordPress-Mediathek (`ladeMedienHoch`, `setzeMedienText`),
   eine Stelle fuer `POST /api/artikel/media-upload` und das Halloween-Skript (fetchMitZeitlimit +
   pruefeFetchAntwort; Titel/ALT als Abfrageparameter).

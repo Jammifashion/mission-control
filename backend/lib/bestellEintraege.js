@@ -93,7 +93,7 @@ export async function sendeAb({ token, eingabe, sheets: s, jetzt = () => new Dat
     if (schon.length) return { ok: true, schon: true, anzahl: schon.length };
     const k = await katalogFuer(sheets, spreadsheetId, zugang);
     const termin = termineDesZugangs(daten, zugang, k).find(x => x.Termin_ID === t(eingabe?.termin));
-    const zeilen = absendenPlan({ zugang, termin, eintraege: e.zeilen, idx: auswahlIndex({ artikel: k.artikel, trikots: k.trikots, art: zugang.Art }),
+    const zeilen = absendenPlan({ zugang, termin, eintraege: e.zeilen, idx: auswahlIndex({ artikel: k.artikel, trikots: k.trikots, art: zugang.Art, personalisierung: String(zugang.Personalisierung ?? '').trim() === 'ja' }),
       eingabe, jetzt: jetzt().toISOString() });
     spaltenPruefen(e, zeilen);
     await schreibeBloecke(sheets, spreadsheetId, [{ tab: TAB_EINTRAEGE, alt: e.werte, zeilen: zeilen.map(z => alsZeile(e.idx, z, e.werte[0].length)) }]);
@@ -126,7 +126,7 @@ async function aendereEintrag({ token, eingabe, sheets: s, jetzt, plan }) {
     const k = await katalogFuer(sheets, spreadsheetId, zugang);
     const termin = eintrag ? termineDesZugangs(daten, zugang, k).find(x => x.Termin_ID === eintrag.Termin_ID) : null;
     const termine = termineDesZugangs(daten, zugang, k);
-    const neu = plan({ zugang, termin, eintrag, idx: auswahlIndex({ artikel: k.artikel, trikots: k.trikots, art: zugang.Art }), eingabe, jetzt: jetzt().toISOString(), termine });
+    const neu = plan({ zugang, termin, eintrag, idx: auswahlIndex({ artikel: k.artikel, trikots: k.trikots, art: zugang.Art, personalisierung: String(zugang.Personalisierung ?? '').trim() === 'ja' }), eingabe, jetzt: jetzt().toISOString(), termine });
     spaltenPruefen(e, [neu]);
     await ersetzeEintrag(sheets, spreadsheetId, e, eintrag, neu);
     console.log(`Bestellseite ${zugang.Zugang_ID}: Eintrag ${eintrag.Eintrag_ID} ${neu.Status === 'storniert' ? 'storniert' : 'geändert'}.`);
@@ -153,7 +153,7 @@ export async function leseEintraegeMc({ zugangId, sheets: s, quellen } = {}) {
     try {
       const daten = await liesZugaengeTermine(sheets, spreadsheetId);
       const zugang = daten.z.zeilen.find(x => x.Zugang_ID === t(zugangId));
-      if (zugang) { const k = await katalogFuer(sheets, spreadsheetId, zugang); idx = auswahlIndex({ artikel: k.artikel, trikots: k.trikots, art: zugang.Art }); }
+      if (zugang) { const k = await katalogFuer(sheets, spreadsheetId, zugang); idx = auswahlIndex({ artikel: k.artikel, trikots: k.trikots, art: zugang.Art, personalisierung: String(zugang.Personalisierung ?? '').trim() === 'ja' }); }
     } catch { idx = null; }   // nur Komfort - ohne Katalog geht "ändern" ohne Groessenwahl
   }
   const alternativen = x => {

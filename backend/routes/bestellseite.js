@@ -6,14 +6,14 @@
 
 import { Router } from 'express';
 import { baueTokenBremse, FEHLVERSUCHE_MAX as MAX } from '../middleware/tokenBremse.js';
-import { leseSeite } from '../lib/bestellseite.js';
+import { leseSeite, schliesseAb } from '../lib/bestellseite.js';
 import { leseEintraege, legeTerminAn, sendeAb, aendereEintragSeite, storniereEintragSeite } from '../lib/bestellEintraege.js';
 import { tokenAusHeader } from '../utils/bestellseite.js';
 
 export const FEHLVERSUCHE_MAX = MAX;
 
 export function bauRouter({ seite = leseSeite, eintraege = leseEintraege, termin = legeTerminAn, absenden = sendeAb,
-  aendern = aendereEintragSeite, stornieren = storniereEintragSeite } = {}) {
+  aendern = aendereEintragSeite, stornieren = storniereEintragSeite, abschliessen = schliesseAb } = {}) {
   const router = Router();
   router.use(baueTokenBremse());
   router.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); res.set('Referrer-Policy', 'no-referrer'); next(); });
@@ -37,6 +37,7 @@ export function bauRouter({ seite = leseSeite, eintraege = leseEintraege, termin
   router.post('/absenden', weg((token, req) => absenden({ token, eingabe: req.body ?? {} })));
   router.post('/aendern', weg((token, req) => aendern({ token, eingabe: req.body ?? {} })));
   router.post('/stornieren', weg((token, req) => stornieren({ token, eingabe: req.body ?? {} })));
+  router.post('/abschliessen', weg(token => abschliessen({ token })));   // KS6: "Bestellung abschließen" (nur Art auftrag, wenn erlaubt)
   return router;
 }
 

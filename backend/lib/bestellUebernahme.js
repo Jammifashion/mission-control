@@ -90,7 +90,7 @@ export async function aendereEintragMc({ eingabe, sheets: s, jetzt = () => new D
     const eintrag = e.zeilen.find(x => x.Eintrag_ID === t(eingabe?.eintrag) && x.Zugang_ID === zugang.Zugang_ID);
     const k = await katalogFuer(sheets, spreadsheetId, zugang);
     const termin = eintrag ? termineDesZugangs(daten, zugang, k).find(x => x.Termin_ID === eintrag.Termin_ID) : null;
-    const neu = aenderungPlan({ zugang, termin, eintrag, idx: auswahlIndex({ artikel: k.artikel, trikots: k.trikots, art: zugang.Art }), eingabe, jetzt: jetzt().toISOString(), vonMc: true });
+    const neu = aenderungPlan({ zugang, termin, eintrag, idx: auswahlIndex({ artikel: k.artikel, trikots: k.trikots, art: zugang.Art, personalisierung: String(zugang.Personalisierung ?? '').trim() === 'ja' }), eingabe, jetzt: jetzt().toISOString(), vonMc: true });
     const felder = Object.fromEntries(Object.keys(e.idx).filter(f => f !== '_zeile' && t(neu[f]) !== t(eintrag[f])).map(f => [f, neu[f]]));
     await schreibe(sheets, spreadsheetId, { zellen: zellenAus(TAB_EINTRAEGE, e.idx, eintrag._zeile, felder) });
     console.log(`Bestellseite ${zugang.Zugang_ID}: Eintrag ${eintrag.Eintrag_ID} in MC geändert.`);
@@ -152,7 +152,7 @@ export async function uebernehmen({ eingabe, sheets: s, jetzt = () => new Date()
     const schon = a.zeilen.find(x => x.Vorgang === `KS3-${vorgang}`);
     if (schon && !dryRun) return { ok: true, schon: true, auftragNr: schon.Auftrag_Nr };
     const k = await katalogFuer(sheets, spreadsheetId, zugang);
-    const idx = auswahlIndex({ artikel: k.artikel, trikots: k.trikots, art: zugang.Art });
+    const idx = auswahlIndex({ artikel: k.artikel, trikots: k.trikots, art: zugang.Art, personalisierung: String(zugang.Personalisierung ?? '').trim() === 'ja' });
     const auswahl = Array.isArray(eingabe?.auswahl) ? eingabe.auswahl : [];
     const gewaehlt = e.zeilen.filter(x => auswahl.some(w => t(w?.id) === x.Eintrag_ID));
     const { waehlbar } = await lshopInfo(sheets, spreadsheetId, new Set(gewaehlt.map(x => t(x.LShop_ArticleNr)).filter(Boolean)));

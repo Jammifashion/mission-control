@@ -309,6 +309,15 @@
       /* KS3-1: .ku-chip.… - die allgemeine .ku-chip-Regel steht spaeter und hat sonst die Farbe ueberschrieben */
       .ku-chip.bsm-neu { border-color: var(--info); color: var(--info); }
       .ku-chip.bsm-spaet { border-color: var(--warning); color: var(--warning); }
+      /* KS6: Auswahl fuer die Bestellseite (ohne Mengen), "abgeschlossen" = erledigt-Rolle */
+      .ku-chip.bsm-abgeschlossen { border-color: var(--success); color: var(--success); }
+      .bsm-auswahl { border: 1px solid var(--border); border-left: 4px solid var(--info); background: var(--surface-2); border-radius: 6px; padding: 0.4rem 0.6rem; display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+      .bsm-aw-zeile { align-items: center; }
+      .bsm-aw-zeile .bsm-was { flex: 1 1 10rem; min-width: 0; overflow-wrap: anywhere; }
+      .bsm-aw-form { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+      .bsm-aw-form > .edi-feld { flex: none; }   /* bsm-breit ist eine Breite (flex-basis) - in der Spalte waere sie die Hoehe */
+      .bsm-aw-form [data-bsm-aw-treffer] { display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; max-height: 14rem; overflow-y: auto; }
+      .bsm-aw-farben { display: flex; flex-wrap: wrap; gap: 0.2rem 0.9rem; }
       /* KS3: Pruefen/Uebernehmen/Packliste */
       .ku-chip.bsm-gk { border-color: var(--warning); color: var(--warning); font-weight: 600; }
       .ku-chip.bsm-k-offen { border-color: var(--warning); color: var(--warning); font-weight: 600; }   /* KS3-1: im Korb, noch nicht gesendet */
@@ -7015,6 +7024,23 @@
         'bsm-ablauf':           { name: 'Gültig bis', text: 'Letzter Tag, an dem der Link geht. Dauer: Saisonende 30.06., Auftrag: Termin + 30 Tage.' },
         'bsm-hinweis':          { name: 'Hinweis', text: 'Kurzer Text oben auf der Seite, z. B. Abholung. Ohne Namen, höchstens 200 Zeichen.' },
         'bsm-design':           { name: 'Design-Link zeigen', text: 'Zeigt dem Kunden den Design-Link des Auftrags (z. B. Canva). Standard aus.' },
+        // KS6: Bestellseite fuer einen normalen Auftrag
+        'bsm-titel':            { name: 'Titel auf der Seite', text: 'Steht oben als „Bestellung für …“. Leer beim Anlegen = Kurztitel des Auftrags. Ohne Kundennamen.' },
+        'bsm-bis':              { name: 'bestellen bis', text: 'Festes Datum für den Kunden. Danach geht Eintragen weiter, aber „ohne Garantie“. Vorbelegt: Auftragstermin − 7 Tage.' },
+        'bsm-pers':             { name: 'Name/Nummer auf dem Textil', text: 'Je Stück Name und Nummer abfragen (wie Rückennamen). Bleibt in der Bestellseite, geht nie in den Auftrag.' },
+        'bsm-abschl':           { name: '„Bestellung abschließen“ erlauben', text: 'Der Kunde kann die Liste als fertig melden. Danach nur noch lesen; du bekommst eine Chat-Meldung.' },
+        'bsm-abgeschlossen':    { name: 'abgeschlossen', text: 'Der Kunde hat die Bestellung abgeschlossen – auf der Seite geht nur noch Lesen. Prüfen und übernehmen wie immer.' },
+        'bsm-wieder':           { name: 'wieder öffnen', text: 'Hebt „abgeschlossen“ auf – die Leute können wieder eintragen und ändern.' },
+        'bsm-auswahl':          { name: 'Auswahl für die Bestellseite', text: 'Welche Artikel und Farben der Kunde sieht – ohne Mengen, getrennt von den Positionen. Alle lieferbaren Größen des Modells.' },
+        'bsm-aw-suche':         { name: 'Modell suchen', text: 'L-Shop-Modell suchen (Nummer, Name, Hersteller). Der Kunde sieht nie Modellnummer oder Hersteller.' },
+        'bsm-aw-modell':        { name: 'Modell wählen', text: 'Dieses Modell für die Auswahl nehmen – danach Farben, Bezeichnung und Motiv.' },
+        'bsm-aw-farbe':         { name: 'Farbe', text: 'Je gewählter Farbe eine Zeile auf der Bestellseite.' },
+        'bsm-aw-name':          { name: 'Bezeichnung für den Kunden', text: 'Was der Kunde liest, z. B. „T-Shirt“ oder „Hoodie Kinder“ (höchstens 40 Zeichen).' },
+        'bsm-aw-motiv':         { name: 'Motiv', text: 'Optional, z. B. „Vereinslogo vorn“. Steht unter dem Namen.' },
+        'bsm-aw-dazu':          { name: 'Zur Auswahl', text: 'Speichert den Artikel in der Auswahl. Die Seite zeigt ihn sofort.' },
+        'bsm-aw-abbrechen':     { name: 'Abbrechen', text: 'Schließt das Formular, nichts gespeichert.' },
+        'bsm-aw-weg':           { name: 'Aus der Auswahl nehmen', text: 'Entfernt den Artikel von der Bestellseite. Schon eingetragene Bestellungen bleiben.' },
+        'bsm-aw-neu':           { name: '+ Artikel', text: 'Weiteren Artikel (Modell + Farben) zur Auswahl hinzufügen.' },
         'bsm-sortiment':        { name: 'Sortiment', text: 'Shop-Kategorie mit allen Unterkategorien. Gezeigt werden nur veröffentlichte Artikel.' },
         'bsm-partner':          { name: 'Gehört zu Partner', text: 'Nur ein Merkmal (z. B. FP-001). Die Partner-Abrechnung liest die Bestellseite nie.' },
         'bsm-bilder':           { name: 'Artikelliste aktualisieren', text: 'Nach Bildänderungen im Shop hier klicken; die Seite zeigt sie danach sofort. Läuft in kleinen Stücken, Fenster offen lassen.' },
@@ -7076,7 +7102,9 @@
           'bsm-u-probe', 'bsm-u-los', 'bsm-k-offen', 'bsm-k-bestellt', 'bsm-k-geliefert', 'bsm-k-lager', 'bsm-k-verknuepft', 'bsm-speichern', 'bsm-neuer-link', 'bsm-sperren', 'bsm-entsperren',
           'bsm-ablauf', 'bsm-hinweis', 'bsm-design', 'bsm-sortiment', 'bsm-partner', 'bsm-bilder', 'bsm-bilder-stand',
           'bsm-eintraege', 'bsm-termin-filter', 'bsm-neu', 'bsm-spaet',
-          'bsm-fortschritt', 'bsm-fertig', 'bsm-s-fertig', 'bsm-geliefert', 'bsm-geliefert-zurueck', 'bsm-warn', 'bsm-verschieben', 'bsm-v-ziel', 'bsm-v-grund', 'bsm-v-los'],   // KS1, KS2, KS4
+          'bsm-fortschritt', 'bsm-fertig', 'bsm-s-fertig', 'bsm-geliefert', 'bsm-geliefert-zurueck', 'bsm-warn', 'bsm-verschieben', 'bsm-v-ziel', 'bsm-v-grund', 'bsm-v-los',
+          'bsm-titel', 'bsm-bis', 'bsm-pers', 'bsm-abschl', 'bsm-abgeschlossen', 'bsm-wieder', 'bsm-auswahl', 'bsm-aw-suche', 'bsm-aw-modell', 'bsm-aw-farbe',
+          'bsm-aw-name', 'bsm-aw-motiv', 'bsm-aw-dazu', 'bsm-aw-abbrechen', 'bsm-aw-weg', 'bsm-aw-neu'],   // KS1, KS2, KS4, KS6
         lager: ['lager-gesperrt', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lager-bestand', 'lager-null', 'lager-ort', 'lager-einbuchen', 'lager-startbestand', 'lager-ausbuchen', 'lager-umlagern', 'lager-korrektur', 'lager-raster', 'lager-buchen', 'lager-weitere-farbe', 'lager-neuer-artikel', 'lager-gegenbuchung', 'lager-event', 'lager-auftrag', 'lager-partner', 'lager-sammel', 'lager-auswertung', 'lager-auswertung-druck', 'lager-bezug-link', 'lager-ort-waehlen', 'lager-ort-ok', 'lager-ort-abbrechen', 'lager-quelle-bestand', 'lager-quelle-suche', 'lager-best-suche', 'lager-alles', 'lager-alles-gruppe', 'lager-ganzer-ort', 'lager-ausschuss-grund', 'lager-retoure-bestellung', 'lager-retoure-laden', 'lager-retoure-link'],
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
@@ -13013,7 +13041,7 @@
         const termine = z.Art === 'dauer' ? ` · ${z.termine?.length ?? 0} Termin${(z.termine?.length ?? 0) === 1 ? '' : 'e'}` : '';
         return `<button type="button" class="bsm-zeile" data-bsm-oeffnen="${kuEsc(z.Zugang_ID)}" data-hilfe="bsm-oeffnen">`
           + `<strong>${kuEsc(z.Zugang_ID)}</strong><span>${kuEsc(was)}</span><span>${kuEsc(kundeText || z.Kunden_Nr)}</span>`
-          + `${bsmChipHtml(z.status)}<span class="korb-zaehler">bis ${kuEsc(bsmDatum(z.Ablauf))}${kuEsc(termine)}</span></button>`;
+          + `${bsmChipHtml(z.status)}${z.abgeschlossen ? '<span class="ku-chip bsm-abgeschlossen" data-hilfe="bsm-abgeschlossen">abgeschlossen</span>' : ''}<span class="korb-zaehler">bis ${kuEsc(bsmDatum(z.Ablauf))}${kuEsc(termine)}</span></button>`;   // KS6
       }
       /** Termine einer Dauer-Bestellseite (nur sehen; Eintragen auf der Seite kommt mit KS2). */
       function bsmTermineHtml(z) {
@@ -13027,7 +13055,7 @@
       function bsmEintragWas(e) {
         if (e.art === 'extra') return `${e.menge} × ${e.freitext}${e.fuer ? ` (für ${e.fuer})` : ''}`;
         if (e.art === 'trikot') return `Trikot ${e.bezeichnung} · ${e.groesse}${e.trikotName ? ` · ${e.trikotName}` : ''}${e.trikotNummer ? ` · ${e.trikotNummer}` : ''}${e.wunsch ? ` · Wunsch: ${e.wunsch}` : ''}`;
-        return `${e.menge} × ${e.bezeichnung}${e.groesse ? ` · ${e.groesse}` : ''}`;
+        return `${e.menge} × ${e.bezeichnung}${e.groesse ? ` · ${e.groesse}` : ''}${bsmTextil(e)}`;
       }
       const bsmNotiz = e => (e.notiz ? ` · Notiz: ${e.notiz}` : '');   // KS2-1
       /** Eintraege je Termin (Filter: Termin_ID oder ''), "neu seit gestern" = in den letzten 24 h, "nach Schluss" orange. */
@@ -13058,6 +13086,47 @@
         return `Artikelliste aktualisiert: ${n(r?.bilderNeu)} Bild${n(r?.bilderNeu) === 1 ? '' : 'er'} neu, ${n(r?.bilderUnveraendert)} unverändert, ${n(r?.ohneBild)} ohne Bild`
           + ` (${n(r?.produkte)} Artikel${n(r?.trikots) ? `, ${n(r.trikots)} Trikots` : ''}). Die Bestellseite zeigt das sofort.`;
       }
+      // KS6: Bestellseite eines Auftrags - Titel, "bestellen bis", Schalter, Auswahl ohne Mengen (getrennt von den Positionen).
+      /** Felder am Zugang (Art auftrag): Titel, bestellen bis, Name/Nummer auf dem Textil, "Bestellung abschließen" erlauben. */
+      function bsmAuftragFelderHtml(z) {
+        return `<div class="korb-reihe"><label class="edi-feld bsm-breit" data-hilfe="bsm-titel">Titel auf der Seite („Bestellung für …“)<input type="text" class="form-input" maxlength="60" data-bsm-titel value="${kuEsc(z.Titel ?? '')}"></label>`
+          + `<label class="edi-feld" data-hilfe="bsm-bis">bestellen bis<input type="date" class="form-input" data-bsm-bis value="${kuEsc(z.Bestellschluss_Datum ?? '')}"></label></div>`
+          + `<label class="ku-mit-storniert" data-hilfe="bsm-pers"><input type="checkbox" data-bsm-pers ${z.Personalisierung === 'ja' ? 'checked' : ''}> Name/Nummer auf dem Textil abfragen</label>`
+          + `<label class="ku-mit-storniert" data-hilfe="bsm-abschl"><input type="checkbox" data-bsm-abschl ${z.Abschliessen === 'ja' ? 'checked' : ''}> Kunde darf „Bestellung abschließen“</label>`
+          + (z.abgeschlossen ? `<div class="korb-reihe"><span class="ku-chip bsm-abgeschlossen" data-hilfe="bsm-abgeschlossen" tabindex="0">abgeschlossen ${kuEsc(new Date(z.Abgeschlossen).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }))}</span>`
+            + '<button type="button" class="korb-link" data-bsm-wieder data-hilfe="bsm-wieder">wieder öffnen</button></div>' : '');
+      }
+      /** Auswahl fuer die Seite: Liste (Bezeichnung · Motiv · Modell · Farben, ✕) und Formular "+ Artikel" (Modell -> Farben -> Bezeichnung/Motiv). */
+      function bsmAuswahlHtml(z, aw = null) {
+        const liste = z.auswahl ?? [];
+        const zeilen = liste.map((x, i) => `<div class="korb-reihe bsm-aw-zeile"><span class="bsm-was">${kuEsc(x.name)}${x.motiv ? ` · ${kuEsc(x.motiv)}` : ''}</span>`
+          + `<span class="korb-zaehler">${kuEsc(x.modell)} · ${kuEsc(x.farben.join(', '))}</span>`
+          + `<button type="button" class="korb-link ku-gefahr" data-bsm-aw-weg="${i}" data-hilfe="bsm-aw-weg" aria-label="aus der Auswahl nehmen">✕</button></div>`).join('');
+        const leer = liste.length ? '' : '<p class="korb-zaehler">Noch keine Auswahl – die Seite zeigt solange die Artikel der Auftragspositionen (wie bisher). Mit Auswahl zählen die Positionen nicht mehr als Artikelliste.</p>';
+        const form = !aw?.offen ? `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-aw-neu data-hilfe="bsm-aw-neu">+ Artikel …</button>`
+          : `<div class="bsm-aw-form"><label class="edi-feld bsm-breit" data-hilfe="bsm-aw-suche">L-Shop-Modell suchen<input type="search" class="form-input" data-bsm-aw-q autocomplete="off" value="${kuEsc(aw.q ?? '')}"></label>`
+            + `<div data-bsm-aw-treffer>${bsmAwTrefferHtml(aw)}</div>`
+            + (aw.modell ? `<div class="korb-zaehler"><strong>${kuEsc(aw.modell.catalogNr)}</strong>${aw.modell.bezeichnung ? ` · ${kuEsc(aw.modell.bezeichnung)}` : ''}${aw.modell.marke ? ` · ${kuEsc(aw.modell.marke)}` : ''}</div>`
+              + `<div class="bsm-aw-farben">${aw.modell.farben.map(f => `<label class="ku-mit-storniert" data-hilfe="bsm-aw-farbe"><input type="checkbox" data-bsm-aw-farbe="${kuEsc(f)}"${aw.farben?.has(f) ? ' checked' : ''}> ${kuEsc(f)}</label>`).join('') || '<span class="korb-zaehler">Keine wählbare Farbe.</span>'}</div>`
+              + `<div class="korb-reihe"><label class="edi-feld" data-hilfe="bsm-aw-name">Bezeichnung für den Kunden<input type="text" class="form-input" maxlength="40" data-bsm-aw-name placeholder="z. B. T-Shirt" value="${kuEsc(aw.name ?? '')}"></label>`
+              + `<label class="edi-feld bsm-breit" data-hilfe="bsm-aw-motiv">Motiv (optional)<input type="text" class="form-input" maxlength="80" data-bsm-aw-motiv value="${kuEsc(aw.motiv ?? '')}"></label></div>` : '')
+            + `<div class="korb-reihe ku-knoepfe"><button type="button" class="korb-aktion korb-aktion-haupt" data-bsm-aw-dazu data-hilfe="bsm-aw-dazu"${aw.modell ? '' : ' disabled'}>Zur Auswahl</button>`
+            + '<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-aw-abbrechen data-hilfe="bsm-aw-abbrechen">Abbrechen</button></div></div>';
+        return `<div class="bsm-auswahl"><div class="korb-zaehler" data-hilfe="bsm-auswahl" tabindex="0"><strong>Auswahl für die Bestellseite</strong> (ohne Mengen, ${liste.length} Artikel)</div>${zeilen}${leer}${form}</div>`;
+      }
+      function bsmAwTrefferHtml(aw) {
+        if (aw?.laedt) return '<span class="korb-zaehler">sucht …</span>';
+        if (aw?.fehler) return `<span class="korb-zaehler">${kuEsc(aw.fehler)}</span>`;
+        return (aw?.treffer ?? []).map((m, i) => `<button type="button" class="korb-link" data-bsm-aw-modell="${i}" data-hilfe="bsm-aw-modell"${m.bestellbar ? '' : ' disabled'}>`
+          + `<strong>${kuEsc(m.catalogNr)}</strong> ${kuEsc([m.bezeichnung, m.marke].filter(Boolean).join(' · '))}${m.bestellbar ? '' : ' (nur ausgelaufene Varianten)'}</button>`).join('');
+      }
+      /** Neue Auswahl-Liste: vorhandene + der Artikel aus dem Formular (fuer POST /bearbeiten). */
+      function bsmAuswahlMit(z, aw) {
+        const alt = (z.auswahl ?? []).map(x => ({ modell: x.modell, farben: x.farben, name: x.name, ...(x.motiv ? { motiv: x.motiv } : {}) }));
+        return [...alt, { modell: aw.modell.catalogNr, farben: [...(aw.farben ?? [])], name: String(aw.name ?? '').trim(), ...(String(aw.motiv ?? '').trim() ? { motiv: String(aw.motiv).trim() } : {}) }];
+      }
+      /** Text der Bestellseiten-Eintraege: Name/Nummer auf dem Textil (KS6) fuer normale Artikel. */
+      const bsmTextil = e => (e.art !== 'trikot' && (e.trikotName || e.trikotNummer) ? ` · Name/Nr.: ${[e.trikotName, e.trikotNummer].filter(Boolean).join(' ')}` : '');
       // ── Bestellseiten-MC: Ende ──
       // ── Bestellseiten-Pruefen: Anfang (KS3, reine Funktionen, Test backend/tests/bestell-uebernahme-frontend.test.js) ──
       // Eintraege je Termin pruefen (geprüft ✓ · ändern · ablehnen mit Grund), "Geprüfte übernehmen" in den Auftrag des Termins,
@@ -13090,6 +13159,7 @@
         const groesse = (e.alternativen ?? []).length
           ? `<label class="edi-feld" data-hilfe="bsm-e-feld">Größe<select class="form-select" data-bsm-f="id">${e.alternativen.map(x => `<option value="${kuEsc(x.id)}"${x.id === e.auswahl ? ' selected' : ''}>${kuEsc(x.groesse || '–')}</option>`).join('')}</select></label>` : '';
         const felder = e.art === 'artikel' ? groesse + f('menge', 'Menge', e.menge, 'type="number" min="1" max="999"')
+            + (e.trikotName || e.trikotNummer ? f('name', 'Name auf dem Textil', e.trikotName, 'maxlength="30"') + f('nummer', 'Nummer', e.trikotNummer, 'maxlength="3" inputmode="numeric"') : '')   // KS6
           : e.art === 'extra' ? f('freitext', 'Text', e.freitext, 'maxlength="200"') + f('fuer', 'für wen', e.fuer, 'maxlength="40"') + f('menge', 'Menge', e.menge, 'type="number" min="1" max="999"')
           : ((e.trikotGroessen ?? []).length ? `<label class="edi-feld" data-hilfe="bsm-e-feld">Größe<select class="form-select" data-bsm-f="groesse">${e.trikotGroessen.map(g => `<option${g === e.groesse ? ' selected' : ''}>${kuEsc(g)}</option>`).join('')}</select></label>` : '')
             + f('name', 'Rückenname', e.trikotName, 'maxlength="30"') + f('nummer', 'Nummer', e.trikotNummer, 'maxlength="3" inputmode="numeric"') + f('wunsch', 'Wunsch', e.wunsch, 'maxlength="200"');
@@ -13185,7 +13255,7 @@
           + '<span class="zl-knoepfe"><button type="button" class="zl-knopf" data-bsm-pl-drucken data-hilfe="bsm-pl-drucken">Drucken</button>'
           + '<button type="button" class="zl-knopf" data-bsm-pl-zu data-hilfe="dialog-schliessen">Schließen</button></span></div>'
           + (ue.length ? gruppen.map(g => block(`${g} – ${art.filter(e => e.bezeichnung === g).reduce((s, e) => s + e.menge, 0)}`,
-            art.filter(e => e.bezeichnung === g).sort((a, b) => String(a.groesse).localeCompare(String(b.groesse), 'de', { numeric: true })).map(e => zeile(`${e.groesse || '–'} × ${e.menge}`, e)).join(''))).join('')
+            art.filter(e => e.bezeichnung === g).sort((a, b) => String(a.groesse).localeCompare(String(b.groesse), 'de', { numeric: true })).map(e => zeile(`${e.groesse || '–'} × ${e.menge}${e.trikotName || e.trikotNummer ? ` · Name/Nr.: ${[e.trikotName, e.trikotNummer].filter(Boolean).join(' ')}` : ''}`, e)).join(''))).join('')
             + block('Extras', ue.filter(e => e.art === 'extra').map(e => zeile(`${e.menge} × ${e.freitext}${e.fuer ? ` (für ${e.fuer})` : ''}`, e)).join(''))
             + block('Trikots', ue.filter(e => e.art === 'trikot').map(e => zeile(`${e.bezeichnung} · ${e.groesse}${e.trikotName ? ` · ${e.trikotName}` : ''}${e.trikotNummer ? ` · ${e.trikotNummer}` : ''}`, e)).join(''))
             : '<div class="zl-modell">Noch nichts übernommen.</div>')
@@ -13240,7 +13310,7 @@
           + '</div>';
         const terminKnoepfe = filter ? `<div class="korb-reihe ku-knoepfe"><button type="button" class="korb-aktion korb-aktion-haupt" data-bsm-uebernehmen data-hilfe="bsm-uebernehmen"${geprueft ? '' : ' disabled'}>Geprüfte übernehmen …</button>`
           + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-packliste data-hilfe="bsm-packliste">Packliste</button>`
-          + (liste.some(e => e.status === 'übernommen' && !bsmGeliefert(e)) ? '<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-geliefert data-hilfe="bsm-geliefert">an Fanshop geliefert …</button>' : '')   // KS4
+          + (liste.some(e => e.status === 'übernommen' && !bsmGeliefert(e)) ? `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-geliefert data-hilfe="bsm-geliefert">${z.Art === 'auftrag' ? 'an Kunden geliefert …' : 'an Fanshop geliefert …'}</button>` : '')   // KS4
           + (liste.some(bsmGeliefert) ? '<button type="button" class="korb-link" data-bsm-geliefert-zurueck data-hilfe="bsm-geliefert-zurueck">geliefert zurücknehmen …</button>' : '') + '</div>'
           : '<p class="korb-zaehler">Für „Geprüfte übernehmen“ und die Packliste oben einen Termin wählen.</p>';
         const tJe = new Map((z.termine ?? []).map(x => [x.Termin_ID, x]));
@@ -13255,7 +13325,7 @@
       // ── Bestellseiten-Pruefen: Ende ──
 
       const bsmEl = id => document.getElementById(id);
-      const bsmZ = { daten: null, laedt: false, fuer: null, offen: null, link: '', vorgang: '', kategorien: null, eintraege: {}, filter: {}, k3: {} };   // KS3: k3 je Zugang   // KS2: eintraege je Zugang
+      const bsmZ = { daten: null, laedt: false, fuer: null, offen: null, link: '', vorgang: '', kategorien: null, eintraege: {}, filter: {}, k3: {}, aw: {} };   // KS6: aw = Auswahl-Formular je Zugang   // KS3: k3 je Zugang   // KS2: eintraege je Zugang
 
       async function bsmApi(pfad, body, { zeitMs } = {}) {
         // KS2-2: Stuecke von "Artikelliste aktualisieren" duerfen laenger als die 60 s von apiFetch dauern (Shop, 2-s-Takt)
@@ -13300,7 +13370,7 @@
         }
         bsmDialogZeichnen();
       }
-      function bsmDialogSchliessen() { bsmEl('bsm-dialog').hidden = true; bsmZ.link = ''; bsmZ.linkKopierbar = false; bsmZ.fuer = null; bsmZ.eintraege = {}; bsmZ.k3 = {}; }   // KS2: Eintraege nicht aufheben
+      function bsmDialogSchliessen() { bsmEl('bsm-dialog').hidden = true; bsmZ.link = ''; bsmZ.linkKopierbar = false; bsmZ.fuer = null; bsmZ.eintraege = {}; bsmZ.k3 = {}; bsmZ.aw = {}; }   // KS2: Eintraege nicht aufheben
       function bsmAktueller() {
         const f = bsmZ.fuer; if (!f) return [];
         if (f.zugangId) return (bsmZ.daten?.zugaenge ?? []).filter(z => z.Zugang_ID === f.zugangId);
@@ -13320,7 +13390,8 @@
           + `<div><strong>${kuEsc(z.Zugang_ID)}</strong> ${bsmChipHtml(z.status)} · Link gültig bis ${kuEsc(bsmDatum(z.Ablauf))}${z.Partner_ID ? ` · gehört zu ${kuEsc(z.Partner_ID)}` : ''}</div>`
           + (z.Hinweis ? `<div class="ku-meta"><span>Hinweis: ${kuEsc(z.Hinweis)}</span></div>` : '')
           + (z.Art === 'dauer' ? `<div class="korb-zaehler">Sortiment: Kategorie ${kuEsc(z.Sortiment)} mit Unterkategorien · Bestellschluss ${kuEsc(z.Bestellschluss_Tage)} Tage, am besten ${kuEsc(z.Empfohlen_Tage)} Tage vorher</div><div class="korb-zaehler">Termine</div>${bsmTermineHtml(z)}` : '')
-          + (z.Art === 'auftrag' ? `<label class="ku-mit-storniert" data-hilfe="bsm-design"><input type="checkbox" data-bsm-design ${z.Design_Link_Zeigen === 'ja' ? 'checked' : ''}> Design-Link auf der Seite zeigen</label>` : '')
+          + (z.Art === 'auftrag' ? `<label class="ku-mit-storniert" data-hilfe="bsm-design"><input type="checkbox" data-bsm-design ${z.Design_Link_Zeigen === 'ja' ? 'checked' : ''}> Design-Link auf der Seite zeigen</label>`
+            + bsmAuftragFelderHtml(z) + bsmAuswahlHtml(z, bsmZ.aw[z.Zugang_ID]) : '')   // KS6
           + `<div class="korb-reihe"><label class="edi-feld" data-hilfe="bsm-ablauf">Gültig bis<input type="date" class="form-input" data-bsm-ablauf value="${kuEsc(z.Ablauf)}"></label>`
           + `<label class="edi-feld bsm-breit" data-hilfe="bsm-hinweis">Hinweis auf der Seite (ohne Namen)<input type="text" class="form-input" maxlength="200" data-bsm-hinweis value="${kuEsc(z.Hinweis)}"></label></div>`
           + bsmLinkZeileHtml(z)   // LK1
@@ -13340,7 +13411,12 @@
             + `<label class="edi-feld" data-hilfe="bsm-partner">gehört zu Partner (nur Merkmal)<input id="bsm-n-partner" type="text" class="form-input" maxlength="6" placeholder="z. B. FP-001"></label></div>` : '')
           + `<div class="korb-reihe"><label class="edi-feld" data-hilfe="bsm-ablauf">Gültig bis<input id="bsm-n-ablauf" type="date" class="form-input" value="${kuEsc(f.ablaufVorschlag ?? '')}"></label>`
           + `<label class="edi-feld bsm-breit" data-hilfe="bsm-hinweis">Hinweis auf der Seite (ohne Namen)<input id="bsm-n-hinweis" type="text" class="form-input" maxlength="200"></label></div>`
-          + (art === 'auftrag' ? `<label class="ku-mit-storniert" data-hilfe="bsm-design"><input type="checkbox" id="bsm-n-design"> Design-Link auf der Seite zeigen</label>` : '')
+          + (art === 'auftrag' ? `<label class="ku-mit-storniert" data-hilfe="bsm-design"><input type="checkbox" id="bsm-n-design"> Design-Link auf der Seite zeigen</label>`
+            + `<div class="korb-reihe"><label class="edi-feld bsm-breit" data-hilfe="bsm-titel">Titel auf der Seite („Bestellung für …“)<input id="bsm-n-titel" type="text" class="form-input" maxlength="60" placeholder="leer = Kurztitel des Auftrags"></label>`
+            + `<label class="edi-feld" data-hilfe="bsm-bis">bestellen bis<input id="bsm-n-bis" type="date" class="form-input" value="${kuEsc(f.bisVorschlag ?? '')}"></label></div>`
+            + '<label class="ku-mit-storniert" data-hilfe="bsm-pers"><input type="checkbox" id="bsm-n-pers"> Name/Nummer auf dem Textil abfragen</label>'
+            + '<label class="ku-mit-storniert" data-hilfe="bsm-abschl"><input type="checkbox" id="bsm-n-abschl" checked> Kunde darf „Bestellung abschließen“</label>'
+            + '<p class="korb-zaehler">Die Artikel (Modell + Farben, ohne Mengen) legst du nach dem Anlegen unter „Auswahl für die Bestellseite“ fest.</p>' : '')   // KS6
           + `<div class="korb-reihe ku-knoepfe"><button type="button" class="korb-aktion korb-aktion-haupt" id="bsm-anlegen" data-hilfe="bsm-anlegen">Bestellseite anlegen</button></div></div>`;
         bsmEl('bsm-inhalt').innerHTML = link + vorhanden + neu || '<p class="korb-zaehler">Nichts gefunden.</p>';
       }
@@ -13367,7 +13443,8 @@
       async function bsmAnlegen(knopf) {
         const f = bsmZ.fuer;
         const body = { art: f.art, vorgang: bsmZ.vorgang, ablauf: bsmEl('bsm-n-ablauf')?.value || '', hinweis: bsmEl('bsm-n-hinweis')?.value || '' };
-        if (f.art === 'auftrag') Object.assign(body, { auftragNr: f.auftragNr, designLinkZeigen: !!bsmEl('bsm-n-design')?.checked });
+        if (f.art === 'auftrag') Object.assign(body, { auftragNr: f.auftragNr, designLinkZeigen: !!bsmEl('bsm-n-design')?.checked,
+          titel: bsmEl('bsm-n-titel')?.value || '', bestellschluss: bsmEl('bsm-n-bis')?.value || '', personalisierung: !!bsmEl('bsm-n-pers')?.checked, abschliessen: !!bsmEl('bsm-n-abschl')?.checked });   // KS6
         else Object.assign(body, { kundenNr: f.kundenNr, sortiment: bsmEl('bsm-n-sortiment')?.value || '', partnerId: bsmEl('bsm-n-partner')?.value.trim() || '' });
         knopf.disabled = true;
         try {
@@ -13409,6 +13486,46 @@
         const box = b.closest('[data-bsm-zugang]'); if (!box) return;
         const z = (bsmZ.daten?.zugaenge ?? []).find(x => x.Zugang_ID === box.dataset.bsmZugang); if (!z) return;
         bsmFehler('');
+        // ── KS6: Auswahl fuer die Bestellseite, wieder oeffnen ──
+        const aw = bsmZ.aw[z.Zugang_ID] ??= { offen: false };
+        if (b.hasAttribute('data-bsm-aw-neu')) { Object.assign(aw, { offen: true, q: '', treffer: [], modell: null, farben: new Set(), name: '', motiv: '' }); bsmDialogZeichnen(); box.querySelector('[data-bsm-aw-q]')?.focus(); return; }
+        if (b.hasAttribute('data-bsm-aw-abbrechen')) { bsmZ.aw[z.Zugang_ID] = { offen: false }; bsmDialogZeichnen(); return; }
+        if (b.hasAttribute('data-bsm-aw-modell')) {
+          const m = aw.treffer?.[Number(b.dataset.bsmAwModell)]; if (!m) return;
+          b.disabled = true;
+          try {
+            const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/modelle/${encodeURIComponent(m.catalogNr)}/varianten`);
+            const stopp = await laufStopp(res); if (stopp) { bsmFehler(stopp); return; }
+            const v = await apiJson(res);
+            const farben = [...new Set((v.varianten ?? []).map(x => x.farbe).filter(Boolean))].sort((x, y) => x.localeCompare(y, 'de'));
+            Object.assign(aw, { modell: { catalogNr: v.catalogNr, bezeichnung: v.bezeichnung, marke: v.marke, farben }, farben: new Set(farben.length === 1 ? farben : []), treffer: [] });
+            bsmDialogZeichnen();
+          } catch (err) { bsmFehler(err.message); } finally { b.disabled = false; }
+          return;
+        }
+        if (b.hasAttribute('data-bsm-aw-dazu')) {
+          if (!aw.modell) return;
+          if (!aw.farben?.size) { bsmFehler('Bitte mindestens eine Farbe wählen.'); return; }
+          if (!String(aw.name ?? '').trim()) { bsmFehler('Bitte eine Bezeichnung für den Kunden eintragen (z. B. T-Shirt).'); return; }
+          b.disabled = true;
+          try {
+            const r = await bsmApi('/bearbeiten', { zugangId: z.Zugang_ID, stand: z.Stand, auswahl: bsmAuswahlMit(z, aw) });
+            showToast(`${r.zugangId}: Auswahl gespeichert.`);
+            bsmZ.aw[z.Zugang_ID] = { offen: false };
+            await bsmLaden();
+          } catch (err) { bsmFehler(err.message); } finally { b.disabled = false; }
+          return;
+        }
+        if (b.hasAttribute('data-bsm-aw-weg')) {
+          const i = Number(b.dataset.bsmAwWeg);
+          const neu = (z.auswahl ?? []).filter((_, j) => j !== i).map(x => ({ modell: x.modell, farben: x.farben, name: x.name, ...(x.motiv ? { motiv: x.motiv } : {}) }));
+          bsmAendern(z, { auswahl: neu }, b);
+          return;
+        }
+        if (b.hasAttribute('data-bsm-wieder')) {
+          if (await showConfirm('Wieder öffnen?', `<p>${kuEsc(z.Zugang_ID)}: Die Leute können danach wieder eintragen und ändern.</p>`, 'Öffnen')) bsmAendern(z, { wiederOeffnen: true }, b);
+          return;
+        }
         if (b.hasAttribute('data-bsm-eintraege')) {   // KS2: nur ansehen
           b.disabled = true;
           try { await bsmEintraegeLaden(z.Zugang_ID); bsmDialogZeichnen(); }   // KS3
@@ -13418,6 +13535,9 @@
         if (b.hasAttribute('data-bsm-speichern')) {
           const felder = { ablauf: box.querySelector('[data-bsm-ablauf]').value, hinweis: box.querySelector('[data-bsm-hinweis]').value };
           const d = box.querySelector('[data-bsm-design]'); if (d) felder.designLinkZeigen = d.checked;
+          if (z.Art === 'auftrag' && box.querySelector('[data-bsm-titel]')) Object.assign(felder, {   // KS6
+            titel: box.querySelector('[data-bsm-titel]').value, bestellschluss: box.querySelector('[data-bsm-bis]').value,
+            personalisierung: box.querySelector('[data-bsm-pers]').checked, abschliessen: box.querySelector('[data-bsm-abschl]').checked });
           bsmAendern(z, felder, b);
         } else if (b.hasAttribute('data-bsm-neuer-link')) bsmNeuerLink(z, b);
         else if (b.hasAttribute('data-bsm-link-holen')) bsmLinkHolen(z, b);   // LK1
@@ -13619,6 +13739,33 @@
         if (sel) { bsmDialogZeichnen(); document.querySelector(`[data-bsm-u-quelle="${CSS.escape(sel.dataset.bsmUQuelle)}"]`)?.focus(); }   // KS3-1
       });
       bsmEl('bsm-dialog').addEventListener('input', e => { const panel = e.target.closest('[data-bsm-uebernahme]'); if (panel) bsmUebernahmeFormMerken(panel); });
+      // KS6: Auswahl-Formular - Eingaben im Zustand halten (Neuzeichnen verliert nichts), Modellsuche nur die Trefferliste neu zeichnen
+      bsmEl('bsm-dialog').addEventListener('input', e => {
+        const box = e.target.closest('[data-bsm-zugang]'); if (!box) return;
+        const aw = bsmZ.aw[box.dataset.bsmZugang]; if (!aw?.offen) return;
+        if (e.target.matches('[data-bsm-aw-name]')) aw.name = e.target.value;
+        if (e.target.matches('[data-bsm-aw-motiv]')) aw.motiv = e.target.value;
+        if (!e.target.matches('[data-bsm-aw-q]')) return;
+        aw.q = e.target.value;
+        clearTimeout(aw.timer);
+        const ziel = () => box.querySelector('[data-bsm-aw-treffer]');
+        if (aw.q.trim().length < 2) { aw.treffer = []; aw.fehler = ''; if (ziel()) ziel().innerHTML = ''; return; }
+        aw.timer = setTimeout(async () => {
+          aw.laedt = true; aw.fehler = ''; if (ziel()) ziel().innerHTML = bsmAwTrefferHtml(aw);
+          try {
+            const res = await apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/modelle?q=${encodeURIComponent(aw.q.trim())}`);
+            const stopp = await laufStopp(res);
+            if (stopp) aw.fehler = stopp;
+            else { const d = await apiJson(res); aw.treffer = d.modelle ?? []; if (!aw.treffer.length) aw.fehler = d.hinweis || 'Kein L-Shop-Modell gefunden.'; else if (d.mehr) aw.treffer = aw.treffer.slice(0, 20); }
+          } catch (err) { aw.fehler = `Fehler: ${err.message}`; }
+          aw.laedt = false; if (ziel()) ziel().innerHTML = bsmAwTrefferHtml(aw);
+        }, 300);
+      });
+      bsmEl('bsm-dialog').addEventListener('change', e => {
+        const cb = e.target.closest('[data-bsm-aw-farbe]'); if (!cb) return;
+        const aw = bsmZ.aw[cb.closest('[data-bsm-zugang]')?.dataset.bsmZugang]; if (!aw?.farben) return;
+        if (cb.checked) aw.farben.add(cb.dataset.bsmAwFarbe); else aw.farben.delete(cb.dataset.bsmAwFarbe);
+      });
       bsmEl('bsm-dialog').addEventListener('change', e => {   // KS4: "+ neuer Termin" braucht ein Datum
         const sel = e.target.closest('[data-bsm-v-ziel]'); if (!sel) return;
         const feld = sel.closest('[data-bsm-verschieben]')?.querySelector('[data-bsm-v-datum-feld]');
@@ -13668,7 +13815,10 @@
         const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
         const basis = /^\d{4}-\d{2}-\d{2}$/.test(a.Termin || '') && a.Termin > heute ? a.Termin : heute;
         const d = new Date(`${basis}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + 30);
-        bsmDialogOeffnen({ art: 'auftrag', auftragNr: a.Auftrag_Nr, kundenNr: a.Kunden_Nr, ablaufVorschlag: d.toISOString().slice(0, 10) });
+        // KS6: "bestellen bis" wie der Server: Termin - 7 Tage, nicht vor heute; ohne Termin leer
+        let bis = '';
+        if (/^\d{4}-\d{2}-\d{2}$/.test(a.Termin || '')) { const b = new Date(`${a.Termin}T12:00:00Z`); b.setUTCDate(b.getUTCDate() - 7); bis = b.toISOString().slice(0, 10); if (bis < heute) bis = heute; }
+        bsmDialogOeffnen({ art: 'auftrag', auftragNr: a.Auftrag_Nr, kundenNr: a.Kunden_Nr, ablaufVorschlag: d.toISOString().slice(0, 10), bisVorschlag: bis });
       });
       kuEl('ku-dauer-bestellseite').addEventListener('click', () => {
         if (!kuZ.offen) return;

@@ -67,7 +67,7 @@ describe('Anlegen', () => {
   test('auftrag: Kunde vom Auftrag, ein Termin mit Bestellschluss, Ablauf Termin + 30', () => {
     const r = anlagePlan({ eingabe: { art: 'auftrag', auftragNr: 'AU-2026-0007', vorgang: 'v-12345678' }, zugaenge: [], termine: [], auftraege: [AUFTRAG], kategorien: [], kundeDa: () => true, jetzt: JETZT });
     expect(r.zugang).toMatchObject({ Zugang_ID: 'BS-001', Art: 'auftrag', Kunden_Nr: 'K-00001', Auftrag_Nr: 'AU-2026-0007', Aktiv: 'ja', Ablauf: '2026-12-31', Token_Hash: '' });
-    expect(r.termin).toMatchObject({ Termin_ID: 'BT-0001', Zugang_ID: 'BS-001', Datum: '2026-12-01', Bestellschluss: '2026-11-27', Auftrag_Nr: 'AU-2026-0007', Status: 'offen' });
+    expect(r.termin).toMatchObject({ Termin_ID: 'BT-0001', Zugang_ID: 'BS-001', Datum: '2026-12-01', Bestellschluss: '2026-11-24', Auftrag_Nr: 'AU-2026-0007', Status: 'offen' });   // KS6: Art auftrag festes "bestellen bis" = Termin - 7
   });
   test('auftrag: storniert / unbekannt / schon offener Zugang -> Fehler', () => {
     const p = x => () => anlagePlan({ eingabe: { art: 'auftrag', auftragNr: 'AU-2026-0007' }, zugaenge: [], termine: [], auftraege: [AUFTRAG], kategorien: [], jetzt: JETZT, ...x });

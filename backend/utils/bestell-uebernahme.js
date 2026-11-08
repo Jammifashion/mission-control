@@ -289,6 +289,13 @@ export function uebernahmePlan({ zugang, termin, eintraege, auswahl, auftraege, 
   for (const [schluessel, e] of jeKorb) {
     if (e.menge && e.vorher + e.neu > e.menge) hinweise.push(`Korb ${schluessel}: verknüpft ${e.vorher + e.neu} Stück, in der Zeile stehen ${e.menge}.`);
   }
+  // KS6: Haengt die Uebernahme an einen vorhandenen Auftrag, der schon Positionen OHNE Eintrag der Bestellseite hat (z. B. Angebots-
+  // Positionen, die frueher als Artikelliste dienten), koennten Mengen doppelt zaehlen - nur Hinweis, nichts gesperrt.
+  if (z.auftrag) {
+    const ausSeite = new Set((eintraege ?? []).map(e => t(e.Position_ID)).filter(Boolean));
+    const fremd = (positionen ?? []).filter(p => p.Auftrag_Nr === nr && !t(p.Entfernt) && !ausSeite.has(t(p.Position_ID)));
+    if (fremd.length) hinweise.push(`${nr} hat schon ${fremd.length} Position${fremd.length === 1 ? '' : 'en'}, die nicht von der Bestellseite stammen – bitte prüfen, ob etwas doppelt zählt.`);
+  }
   const terminAlt = terminAuftraege(termin);
   const terminAuftragNr = terminAlt.includes(nr) ? null : [...terminAlt, nr].join(', ');
   return { auftragNr: nr, auftragNeu, nachtrag: z.nachtrag, positionenNeu, eintragFelder, trikots, terminAuftragNr, hinweise, anzahl: gewaehlt.length };
