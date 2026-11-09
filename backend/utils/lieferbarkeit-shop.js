@@ -3,6 +3,13 @@
 // Wer drin ist: aktive Varianten-Zeilen (Aktiv TRUE, WC_Variation_ID, LShop_ArticleNr) eines VEROEFFENTLICHTEN JFN-Artikels,
 // deren Rohling bei L-Shop nicht mehr gefuehrt ist (sofort), auf der Auslaufliste steht oder seit >= 14 Tagen am Stueck 0 hat.
 // Nur lesen, nur Vorschlaege als Text (Inhaber: nichts automatisch, kundensichtbare Aenderungen nur im eigenen Auftrag).
+//
+// BO7-5: zwei Gruppen ueber den LAGERSTATUS im Shop (Map Variation-ID -> { lager, rueckstandErlaubt }):
+//  - "Im Rueckstand – bei L-Shop lieferbar": Shop onbackorder (oder Rueckstand erlaubt), L-Shop lieferbar (stock > 0, nicht auf
+//    der Auslaufliste) -> Vorschlag "zurück auf vorrätig". Diese Variationen haben KEIN L-Shop-Problem und kommen nur so herein.
+//  - "Vorrätig – bei L-Shop 0 / weg": Shop instock, L-Shop nicht gefuehrt / laeuft aus · schon 0 / 0 seit >= 14 Tagen
+//    -> Vorschlag "Rückstand oder privat?". Teilmenge der Problemliste.
+// Ohne Lagerstatus (unbekannt) gibt es keine Gruppe.
 
 import { stufeAus, STUFE } from './lshop-lieferbarkeit.js';
 
@@ -10,7 +17,13 @@ export const NULL_AB_TAGE = 14;       // Inhaber 02.11.: Bestand 0 zaehlt erst a
 export const LIEFERZEIT_PRUEFEN_TAGE = 30;
 export const NACHFOLGER_MAX = 3;
 const TAG_MS = 86_400_000;
-const RANG = { [STUFE.WEG]: 0, [STUFE.AUSLAUF_NULL]: 1, [STUFE.AUSLAUF]: 2, [STUFE.NULL]: 3 };   // BO7-4: schon 0 vor laeuft aus
+const RANG = { [STUFE.WEG]: 0, [STUFE.AUSLAUF_NULL]: 1, [STUFE.AUSLAUF]: 2, [STUFE.NULL]: 3, [STUFE.LIEFERBAR]: 4 };   // BO7-4: schon 0 vor laeuft aus
+export const GRUPPE = { RUECKSTAND_LIEFERBAR: 'rueckstand_lieferbar', VORRAETIG_PROBLEM: 'vorraetig_problem' };   // BO7-5
+export const LAGER = { VORRAETIG: 'instock', RUECKSTAND: 'onbackorder', NICHT_VORRAETIG: 'outofstock' };
+const VORRAETIG_PROBLEM_STUFEN = [STUFE.WEG, STUFE.AUSLAUF_NULL, STUFE.NULL];
+export const VORSCHLAG_ZURUECK = 'zurück auf vorrätig';
+export const VORSCHLAG_RUECKSTAND_PRIVAT = 'Rückstand oder privat? (im Shop noch vorrätig)';
+const LAGER_TEXT = { [LAGER.VORRAETIG]: 'Shop: vorrätig', [LAGER.RUECKSTAND]: 'Shop: im Rückstand', [LAGER.NICHT_VORRAETIG]: 'Shop: nicht vorrätig' };
 const t = v => String(v ?? '').trim();
 const NR_RE = /^\d{10}$/;
 
@@ -18,6 +31,39 @@ const NR_RE = /^\d{10}$/;
 export function tageSeit(iso, jetzt = new Date()) {
   const d = Date.parse(t(iso));
   return Number.isFinite(d) ? Math.floor((jetzt.getTime() - d) / TAG_MS) : null;
+}
+
+/** Store-API-Eintrag ({ is_in_stock, is_on_backorder }) -> Lagerstatus wie WooCommerce (instock | onbackorder | outofstock). */
+export function lagerAusStore(p) {
+  if (p?.is_on_backorder === true) return LAGER.RUECKSTAND;
+  if (p?.is_in_stock === true) return LAGER.VORRAETIG;
+  if (p?.is_in_stock === false) return LAGER.NICHT_VORRAETIG;
+  return '';
+}
+
+/** wc/v3-Variation ({ stock_status, backorders }) -> { lager, rueckstandErlaubt }; unbekannte Werte = '' (keine Gruppe). */
+export function lagerAusV3(v) {
+  const st = t(v?.stock_status);
+  const bo = t(v?.backorders);
+  return { lager: Object.values(LAGER).includes(st) ? st : '', rueckstandErlaubt: bo === 'notify' || bo === 'yes' };
+}
+
+/**
+ * Gruppe einer Variation (BO7-5): stufe = L-Shop-Stufe aus dem Reiter (auch "lieferbar"), info = { lager, rueckstandErlaubt }.
+ * Rueckstand zaehlt, wenn der Shop "onbackorder" meldet oder Rueckstand erlaubt ist.
+ */
+export function gruppeFuer(stufe, info) {
+  if (!info?.lager) return '';
+  const rueckstand = info.lager === LAGER.RUECKSTAND || Boolean(info.rueckstandErlaubt);
+  if (rueckstand && stufe === STUFE.LIEFERBAR) return GRUPPE.RUECKSTAND_LIEFERBAR;
+  if (!rueckstand && info.lager === LAGER.VORRAETIG && VORRAETIG_PROBLEM_STUFEN.includes(stufe)) return GRUPPE.VORRAETIG_PROBLEM;
+  return '';
+}
+
+/** Lagerstatus als Kurztext ("Shop: im Rückstand", "… · Rückstand erlaubt"), unbekannt = ''. */
+export function lagerText(v) {
+  const s = LAGER_TEXT[v?.lager] ?? '';
+  return s && v.rueckstandErlaubt && v.lager !== LAGER.RUECKSTAND ? `${s} · Rückstand erlaubt` : s;
 }
 
 /**
@@ -92,8 +138,9 @@ const vergleiche = (a, b) => {
  * @param {Map}      [o.lieferzeitName] Term-ID -> Name (Struktur_Lieferzeiten)
  * @param {object[]} [o.modelle]       LShop_Modelle-Zeilen fuer Nachfolger
  * @param {Map|null} [o.varStatus]     Variation-ID -> Shop-Status (nur nach "Shop-Status prüfen"), sonst null
+ * @param {Map|null} [o.lager]         Variation-ID -> { lager, rueckstandErlaubt } (BO7-5); null = Lagerstatus nicht gelesen
  */
-export function baueProblemliste({ varianten, produktJeSsot, je, produkte, lieferzeitName = new Map(), modelle = [], varStatus = null, jetzt = new Date() }) {
+export function baueProblemliste({ varianten, produktJeSsot, je, produkte, lieferzeitName = new Map(), modelle = [], varStatus = null, lager = null, jetzt = new Date() }) {
   const aktiv = varianten.filter(z => /^true$/i.test(t(z.Aktiv)) && t(z.WC_Variation_ID));
   const jeArtikel = new Map();
   const ausgeblendet = { entwurf: 0, privat: 0, inaktiv: 0 };
@@ -104,8 +151,12 @@ export function baueProblemliste({ varianten, produktJeSsot, je, produkte, liefe
   for (const z of aktiv) {
     const nr = t(z.LShop_ArticleNr);
     if (!NR_RE.test(nr)) continue;
-    const p = problemStufe(je.get(nr), jetzt);
-    if (!p) continue;
+    const l = je.get(nr);
+    const info = lager?.get(t(z.WC_Variation_ID)) ?? null;
+    let p = problemStufe(l, jetzt);
+    const gruppe = gruppeFuer(p?.stufe ?? l?.stufe, info);
+    if (!p && gruppe !== GRUPPE.RUECKSTAND_LIEFERBAR) continue;
+    if (!p) p = { stufe: STUFE.LIEFERBAR, tage: null, auslaufdatum: '', nullSeit: '', stock: l.stock };   // BO7-5: Gruppe 1
     const pid = t(produktJeSsot.get(t(z['SSOT-ID'])));
     const prod = produkte.get(pid);
     if (!prod || prod.status !== 'publish') { ausgeblendet.entwurf++; continue; }
@@ -116,7 +167,10 @@ export function baueProblemliste({ varianten, produktJeSsot, je, produkte, liefe
     if (!jeArtikel.has(pid)) jeArtikel.set(pid, { produktId: pid, ssotId: t(z['SSOT-ID']), variationen: [] });
     jeArtikel.get(pid).variationen.push({
       variationId: vid, articleNr: nr, catalogNr: t(modelle.find(x => t(x.articleNr) === nr)?.catalogNr), farbe: m.farbe, groesse: m.groesse,
-      merkmale: m.text, stufe: p.stufe, stock: p.stock ?? null, tage: p.tage, nullSeit: p.nullSeit, auslaufdatum: p.auslaufdatum, vorschlag: vorschlagFuer(p, nf),
+      merkmale: m.text, stufe: p.stufe, stock: p.stock ?? null, tage: p.tage, nullSeit: p.nullSeit, auslaufdatum: p.auslaufdatum,
+      lager: info?.lager ?? '', rueckstandErlaubt: Boolean(info?.rueckstandErlaubt), gruppe,
+      vorschlag: gruppe === GRUPPE.RUECKSTAND_LIEFERBAR ? VORSCHLAG_ZURUECK
+        : gruppe === GRUPPE.VORRAETIG_PROBLEM ? `${VORSCHLAG_RUECKSTAND_PRIVAT} · ${vorschlagFuer(p, nf)}` : vorschlagFuer(p, nf),
     });
   }
   const artikel = [...jeArtikel.values()].map(a => {
@@ -136,17 +190,19 @@ export function baueProblemliste({ varianten, produktJeSsot, je, produkte, liefe
   }).sort((x, y) => vergleiche(x.variationen[0], y.variationen[0]) || x.name.localeCompare(y.name, 'de'));
   const vars = artikel.flatMap(a => a.variationen.map(v => ({ ...v, produktId: a.produktId })));
   const zaehle = st => ({ variationen: vars.filter(v => v.stufe === st).length, artikel: new Set(vars.filter(v => v.stufe === st).map(v => v.produktId)).size });
+  const zaehleGruppe = g => ({ variationen: vars.filter(v => v.gruppe === g).length, artikel: new Set(vars.filter(v => v.gruppe === g).map(v => v.produktId)).size });
   return {
     artikel,
     zaehler: {
       artikel: artikel.length, variationen: vars.length,
       [STUFE.WEG]: zaehle(STUFE.WEG), [STUFE.AUSLAUF_NULL]: zaehle(STUFE.AUSLAUF_NULL), [STUFE.AUSLAUF]: zaehle(STUFE.AUSLAUF), [STUFE.NULL]: zaehle(STUFE.NULL),
-      ausgeblendet, shopStatusGeprueft: Boolean(varStatus),
+      [GRUPPE.RUECKSTAND_LIEFERBAR]: zaehleGruppe(GRUPPE.RUECKSTAND_LIEFERBAR), [GRUPPE.VORRAETIG_PROBLEM]: zaehleGruppe(GRUPPE.VORRAETIG_PROBLEM),
+      ausgeblendet, shopStatusGeprueft: Boolean(varStatus), lagerGelesen: Boolean(lager),
     },
   };
 }
 
-const STUFE_TEXT = { [STUFE.WEG]: 'nicht mehr geführt', [STUFE.AUSLAUF_NULL]: 'läuft aus · schon 0', [STUFE.AUSLAUF]: 'läuft aus', [STUFE.NULL]: 'bei L-Shop 0' };
+const STUFE_TEXT = { [STUFE.WEG]: 'nicht mehr geführt', [STUFE.AUSLAUF_NULL]: 'läuft aus · schon 0', [STUFE.AUSLAUF]: 'läuft aus', [STUFE.NULL]: 'bei L-Shop 0', [STUFE.LIEFERBAR]: 'bei L-Shop lieferbar' };
 const tagDe = s => (/^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10).split('-').reverse().join('.') : '');
 
 /** Kurztext der Stufe einer Problem-Variation ("läuft aus bis 31.12.2026", "bei L-Shop 0 seit 01.11.2026 (16 Tage)"). */
@@ -154,6 +210,7 @@ export function stufeText(v) {
   if (v.stufe === STUFE.AUSLAUF) return `läuft aus${v.auslaufdatum ? ` bis ${tagDe(v.auslaufdatum)}` : ''}`;
   if (v.stufe === STUFE.AUSLAUF_NULL) return `läuft aus${v.auslaufdatum ? ` bis ${tagDe(v.auslaufdatum)}` : ''} · schon 0${v.nullSeit ? ` seit ${tagDe(v.nullSeit)}` : ''}`;
   if (v.stufe === STUFE.NULL) return `bei L-Shop 0${v.nullSeit ? ` seit ${tagDe(v.nullSeit)}` : ''} (${v.tage} Tage)`;
+  if (v.stufe === STUFE.LIEFERBAR && v.stock !== null && v.stock !== undefined) return `bei L-Shop lieferbar (${v.stock})`;
   return STUFE_TEXT[v.stufe] ?? v.stufe;
 }
 
@@ -162,7 +219,7 @@ export function exportText(liste, { stand = '' } = {}) {
   const kopf = `Lieferbarkeit Shop – ${liste.zaehler.artikel} Artikel, ${liste.zaehler.variationen} Variationen${stand ? ` (Stand ${stand})` : ''}`;
   const zeilen = liste.artikel.flatMap(a => [
     `Artikel ${a.produktId} · ${a.name} · ${a.betroffen} von ${a.gesamt} Variationen${a.schonNull ? ` · ${a.schonNull} davon schon 0` : ''}${a.farbenKomplett.length ? ` · ganze Farbe: ${a.farbenKomplett.join(', ')}` : ''}${a.lieferzeit ? ` · Lieferzeit ${a.lieferzeit.id}${a.lieferzeit.name ? ` (${a.lieferzeit.name})` : ''}` : ''}`,
-    ...a.variationen.map(v => `  Variation ${v.variationId} · ${v.merkmale || '–'} · L-Shop ${v.articleNr} · ${stufeText(v)} · ${v.vorschlag}`),
+    ...a.variationen.map(v => `  Variation ${v.variationId} · ${v.merkmale || '–'} · L-Shop ${v.articleNr} · ${stufeText(v)}${lagerText(v) ? ` · ${lagerText(v)}` : ''} · ${v.vorschlag}`),
   ]);
   return [kopf, ...zeilen].join('\n');
 }

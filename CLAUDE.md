@@ -559,6 +559,16 @@ Neue Sektionen immer mit Anker versehen:
   (CSS `lfb-auslauf_null` orange, Hilfe `lfb-auslauf-null`, Mouse-over "laeuft aus bis … – bei L-Shop schon 0 seit …"), in der
   Problemliste eigener Filter/Zaehler, je Artikel `schonNull` ("x davon schon 0"), Vorschlag "jetzt handeln: …". `auslaufend` in
   lshopAuswertung enthaelt sie mit `schonNull`. Chat (BO7-1): eine Zeile je Nummer, nennt "laeuft aus" UND "schon 0".
+  BO7-5 Gruppen ueber den Shop-LAGERSTATUS (nur Anzeige, nichts automatisch): "Im Rückstand – bei L-Shop lieferbar" (onbackorder
+  oder Rueckstand erlaubt + L-Shop lieferbar, nicht laeuft aus -> "zurück auf vorrätig"; kommen ohne L-Shop-Problem herein, Stufe
+  `lieferbar`) und "Vorrätig – bei L-Shop 0 / weg" (instock + nicht gefuehrt / laeuft aus · schon 0 / 0 >= 14 Tage -> "Rückstand oder
+  privat?"); `gruppeFuer`, Filter `g:<gruppe>` im Stufen-Filter, Zaehler, Export mit `lagerText`. Lagerstatus aus der Store-API
+  `wc/store/v1/products?type=variation` (`ladeLagerStatus`: `stock_status=onbackorder` shopweit + `include=` der Problem-Variationen,
+  je 100 eine Anfrage, 10 min, fetchMitZeitlimit + pruefeFetchAntwort; wc/v3 kann Variationen nicht shopweit nach Lagerstatus
+  listen); private liefert sie nicht (= unbekannt, keine Gruppe). "Shop-Status prüfen" liest `stock_status,backorders` mit (Vorrang).
+  Store-API nicht lesbar = Liste ohne Gruppen + `lagerHinweis`. Teil B: WordPress-Snippet `wordpress/snippets/gla-rueckstand-datum.php`
+  (Code Snippets, vom Inhaber eingefuegt): Filter `woocommerce_gla_product_attribute_values` setzt bei Rueckstand ohne Hand-Datum
+  `availabilityDate` = heute + Lieferzeit, mind. 26 Tage, Montag 00:00 UTC; Verfuegbarkeit bleibt backorder (Test gla-snippet.test.js).
 - backend/lib/lshopBelege.js – Belege-Abruf (BO4b-1), Logik in `utils/lshop-belege.js`. Scheduler
   `POST /api/intern/lshop-belege/abruf` (Job `lshop-belege-abruf`, `7,37 * * * *`) und Knopf
   `POST /api/bestellen/lshop-belege/abruf` (`routes/lshopBelege.js`, eigener Router, damit

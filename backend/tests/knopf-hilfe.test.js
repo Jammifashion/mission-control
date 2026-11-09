@@ -17,6 +17,8 @@ const benutzt = [...[...html.matchAll(/data-hilfe="([a-z0-9-]+)"/g)].map(m => m[
   ...[...html.slice(html.indexOf('function ediKnoepfe('), html.indexOf('function ediNachErzeugen(')).matchAll(/'(edi-[a-z-]+)'/g)].map(m => m[1]),
   // DB1: Mouse-over je Dashboard-Kachel (DB_KACHEL_HILFE)
   ...[...html.slice(html.indexOf('const DB_KACHEL_HILFE = {'), html.indexOf('function dbKachel(')).matchAll(/'(dash-k-[a-z]+)'/g)].map(m => m[1]),
+  // BO7-5: Kennzeichen der Gruppen in "Lieferbarkeit Shop" (LFBS_GRUPPEN)
+  ...[...html.slice(html.indexOf('const LFBS_GRUPPEN = {'), html.indexOf('const LFBS_LAGER_TEXT = {')).matchAll(/'(lfbs-g-[a-z-]+)'/g)].map(m => m[1]),
   // LS4-1: Grund am Knopf "Übernehmen" (L-Shop-Modelle)
   ...[...html.slice(html.indexOf('function lsmUebernehmenGrund('), html.indexOf('function lsmVorschauText(')).matchAll(/'(lsm-[a-z-]+)'/g)].map(m => m[1]),
   // BO7-2: Punkte der L-Shop-Lieferbarkeit - Schluessel stehen im Block (LB_STUFEN, Stand-Zeile)
