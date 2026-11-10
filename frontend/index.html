@@ -1140,6 +1140,18 @@
       .prod-item-name    { font-size: 0.86rem; font-weight: 500; margin-bottom: 0.2rem; }
       .prod-item-sku     { font-size: 0.74rem; color: var(--muted); font-weight: 400; margin-left: 0.3rem; }
       .prod-item-variant { font-size: 0.78rem; color: var(--text); margin-bottom: 0.35rem; }
+      /* BS3: Produktbild je Position */
+      .ps-item-kopf { display: flex; align-items: flex-start; gap: 0.6rem; }
+      .ps-item-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+      .ps-bild { flex: 0 0 48px; width: 48px; height: 48px; padding: 0; border: 1px solid var(--border); border-radius: 6px;
+        background: var(--surface-2); overflow: hidden; cursor: zoom-in; display: block; }
+      .ps-bild img { width: 100%; height: 100%; object-fit: contain; display: block; }
+      .ps-bild:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+      .ps-bild-leer { cursor: default; }
+      .ps-bild-gross { position: fixed; inset: 0; z-index: 10040; background: color-mix(in srgb, var(--bg) 88%, transparent);
+        display: flex; align-items: center; justify-content: center; padding: 16px; cursor: zoom-out; }
+      .ps-bild-gross[hidden] { display: none; }
+      .ps-bild-gross img { max-width: 100%; max-height: 90vh; border-radius: 8px; background: var(--surface); object-fit: contain; }
       .prod-checks { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem 0.75rem; margin: 0.45rem 0; }
       .prod-check-label {
         display: flex; align-items: center; gap: 0.4rem;
@@ -1930,6 +1942,7 @@
             </div>
             <div id="hilfe-produktion" class="hilfe-legende" hidden></div>
             <div id="jfn-orders-list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+            <div id="ps-bild-gross" class="ps-bild-gross" hidden role="dialog" aria-label="Produktbild groß"><img alt="" referrerpolicy="no-referrer"></div>
           </div>
         </div>
 
@@ -5520,6 +5533,26 @@
         };
       }
       /** Ein Artikel. a = Stand aus dem Backend, li = Shop-Position (SKU, Varianten). */
+      // BS3: Produktbild je Position aus line_items[].image.src (kommt mit den schon geladenen Bestellungen, kein Extra-Abruf).
+      // Gemessen 10.11.: alle Bilder liegen auf dem Jetpack-CDN i0-3.wp.com (nicht beim Hoster) - dort verkleinert ?fit=;
+      // Spiegel von bildGroesse in backend/utils/bestellseite.js. Nur https, sonst kein Bild (Platzhalter).
+      const PS_BILD_KLEIN = 96, PS_BILD_GROSS = 800;
+      function psBildUrl(src, px) {
+        const u = String(src ?? '').trim();
+        if (!/^https:\/\//.test(u)) return '';
+        try {
+          const x = new URL(u);
+          if (!/^i[0-3]\.wp\.com$/.test(x.host)) return u;
+          x.search = `?fit=${px}%2C${px}&quality=80&ssl=1`;
+          return x.toString();
+        } catch { return ''; }
+      }
+      function psBildHtml(li) {
+        const klein = psBildUrl(li?.image?.src, PS_BILD_KLEIN);
+        if (!klein) return '<span class="ps-bild ps-bild-leer" aria-hidden="true"></span>';
+        return `<button type="button" class="ps-bild" data-ps-gross="${psEsc(psBildUrl(li.image.src, PS_BILD_GROSS))}" data-hilfe="ps-bild" aria-label="Produktbild groß">`
+          + `<img src="${psEsc(klein)}" alt="" width="48" height="48" loading="lazy" referrerpolicy="no-referrer"></button>`;
+      }
       function psArtikelHtml(orderId, a, li, { fertigSpalte = true } = {}) {
         const variante = psVariante(li);
         // Ohne Zeile in Produktions_Status (Karte noch nie offen) oder ohne Spalte "Fertig": nicht klickbar.
@@ -5529,9 +5562,10 @@
           + `<label class="prod-check-label" data-hilfe="prod-dtf">${box('dtfBestellt')} DTF bestellt</label>`
           + `<label class="prod-check-label" data-hilfe="prod-versendet">${box('versendet')} Versendet</label>`;
         const ohneSpalte = !fertigSpalte ? '<div class="prod-lshop-grund">„Fertig“ ist noch nicht eingerichtet.</div>' : '';
-        return `<div class="prod-item">`
+        return `<div class="prod-item"><div class="ps-item-kopf">${psBildHtml(li)}<div class="ps-item-text">`
           + `<div class="prod-item-name">${psEsc(a.menge)}× ${psEsc(a.name)} <span class="prod-item-sku">(${psEsc(li?.sku || '–')})</span></div>`
           + (variante ? `<div class="prod-item-variant">${psEsc(variante)}</div>` : '')
+          + `</div></div>`
           + psLshopHtml(a.lshop)
           + `<div class="prod-checks">${haken}</div>${ohneSpalte}`
           + `<input class="prod-notiz-input" type="text" placeholder="Notiz…" value="${psEsc(a.notiz)}" data-hilfe="prod-notiz"`
@@ -5851,7 +5885,19 @@
         try { localStorage.setItem(PS_VERSAND_KEY, f); } catch { /* nur fuer diese Sitzung */ }
         psZeichnen();
       });
+      // BS3: Produktbild gross - antippen (oder Esc) schliesst
+      const psGross = document.getElementById('ps-bild-gross');
+      const psGrossZu = () => { if (psGross && !psGross.hidden) { psGross.hidden = true; psGross.querySelector('img').removeAttribute('src'); } };
+      psGross?.addEventListener('click', psGrossZu);
+      document.addEventListener('keydown', ev => { if (ev.key === 'Escape') psGrossZu(); });
+      document.addEventListener('mc:ansicht', psGrossZu);
       document.getElementById('jfn-orders-list')?.addEventListener('click', async ev => {
+        const bild = ev.target.closest('[data-ps-gross]');
+        if (bild) {
+          ev.stopPropagation();
+          if (psGross) { psGross.querySelector('img').src = bild.dataset.psGross; psGross.hidden = false; }
+          return;
+        }
         const tr = ev.target.closest('[data-tr-springe]');
         if (tr) { ev.preventDefault(); ev.stopPropagation(); trSpringeZu(tr.dataset.trSpringe); oeffneAnsicht('bestellen', 'trikots'); return; }
         const link = ev.target.closest('a[data-ps-ziel]');
@@ -6729,6 +6775,7 @@
         'prod-fertig':          { name: 'Fertig (im Karton)', text: 'Hak an, wenn der Artikel bedruckt und gepackt im Karton liegt, der Auftrag aber noch nicht komplett ist.' },
         'prod-dtf':             { name: 'DTF bestellt', text: 'Hak an, wenn du den Druck für diesen Artikel bei DTF bestellt hast.' },
         'prod-versendet':       { name: 'Versendet', text: 'Hak an, wenn dieser Artikel an den Kunden raus ist – auch bei einer Teillieferung. Zählt als fertig.' },
+        'ps-bild':              { name: 'Produktbild', text: 'Bild der Variation aus dem Shop. Antippen zeigt es groß, nochmal antippen oder Esc schließt.' },
         'prod-notiz':           { name: 'Notiz', text: 'Freier Hinweis zu diesem Artikel. Wird gespeichert, sobald du das Feld verlässt.' },
         // TR2: Ansicht "Trikots (JFN)"
         'tr-offen':             { name: 'noch nicht beim Produzenten', text: 'Trikots ohne Bestellnummer (Charge). Die kommen in die nächste Bestellung beim Produzenten.' },
@@ -7110,7 +7157,7 @@
         bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-mehr', 'bei-ankunft-lager', 'lager-ziel-aendern', 'eb-gesperrt-bestellt', 'eb-gesperrt-geliefert', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere', 'rs-block', 'rs-kennzeichen', 'rs-bezug'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'ps-suche', 'ps-suche-weg', 'ps-grenze', 'ps-status-alle', 'ps-status-processing', 'ps-status-on-hold',
-          'ps-status-pending', 'ps-versand-alle', 'ps-versand-filter-abholung', 'ps-versand-filter-versand', 'ps-versand-abholung', 'ps-versand-versand', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz'],
+          'ps-status-pending', 'ps-versand-alle', 'ps-versand-filter-abholung', 'ps-versand-filter-versand', 'ps-versand-abholung', 'ps-versand-versand', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz', 'ps-bild'],
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag', 'tr-aendern-gesperrt', 'ti-goalie', 'tr-goalie', 'tr-gk-pruefen', 'tr-gk-markieren', 'tr-gk-kein'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfbs-g-rueckstand', 'lfbs-g-vorraetig', 'lfbs-lager', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],

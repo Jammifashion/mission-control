@@ -72,7 +72,7 @@ beforeAll(async () => {
   const von = html.indexOf('// ── Produktion-Stand: Anfang');
   const bis = html.indexOf('// ── Produktion-Stand: Ende ──');
   front = { html, von, bis, ...new Function(`${html.slice(von, bis)}
-    return { PS_FELDER, psLshopHtml, psKopfHtml, psArtikelHtml, psSicht, psZaehler, psWartetReihenfolge, psVariante };`)() };
+    return { PS_FELDER, psLshopHtml, psKopfHtml, psArtikelHtml, psSicht, psZaehler, psWartetReihenfolge, psVariante, psBildUrl, psBildHtml };`)() };
 });
 
 const korbZeile = (o = {}) => ({ Schluessel: 'JFN:100:1', Status: 'offen', Grund: '', Bestell_ID: '', ...o });
@@ -395,6 +395,27 @@ describe('Block "Produktion-Stand" in index.html', () => {
     const ohne = front.psArtikelHtml(100, a, li, { fertigSpalte: false });
     expect(ohne).toMatch(/data-field="fertig" checked disabled>/);
     expect(ohne).toContain('noch nicht eingerichtet');
+  });
+
+  test('BS3: Produktbild klein ueber das Jetpack-CDN, gross per Antippen, ohne Bild Platzhalter', () => {
+    const src = 'https://i0.wp.com/shop.example/wp-content/uploads/2026/09/bild.jpg?fit=1200%2C1200&ssl=1';
+    expect(front.psBildUrl(src, 96)).toBe('https://i0.wp.com/shop.example/wp-content/uploads/2026/09/bild.jpg?fit=96%2C96&quality=80&ssl=1');
+    expect(front.psBildUrl('https://shop.example/a.jpg', 96)).toBe('https://shop.example/a.jpg');   // kein CDN: unveraendert
+    expect(front.psBildUrl('http://shop.example/a.jpg', 96)).toBe('');
+    expect(front.psBildUrl('', 96)).toBe('');
+    const h = front.psBildHtml({ image: { src } });
+    expect(h).toContain('fit=96%2C96');
+    expect(h).toContain('data-ps-gross="https://i0.wp.com/shop.example/wp-content/uploads/2026/09/bild.jpg?fit=800%2C800&amp;quality=80&amp;ssl=1"'.replace(/&amp;/g, '&#38;'));
+    expect(h).toContain('loading="lazy"');
+    expect(h).toContain('data-hilfe="ps-bild"');
+    expect(h).not.toContain('title=');
+    for (const li of [undefined, {}, { image: { src: '' } }, { image: { src: 'javascript:alert(1)' } }]) {
+      expect(front.psBildHtml(li)).toContain('ps-bild-leer');
+      expect(front.psBildHtml(li)).not.toContain('<img');
+    }
+    const art = front.psArtikelHtml(1, { wcItemId: '1', name: 'Hoodie', menge: 1, imSheet: true }, { image: { src } });
+    expect(art).toMatch(/class="ps-item-kopf"><button type="button" class="ps-bild"/);
+    expect(front.html).toContain('id="ps-bild-gross"');
   });
 
   test('Kopf: Zusammenfassung und "wartet seit" nur bei wartet auf Teile', () => {
