@@ -70,6 +70,39 @@ export function ohneIds(text) {
     token => AUFRAEUM_PRAEFIXE.some(p => token.startsWith(p)) ? token : '<id>');
 }
 
+// ── Lese-Kontingent Sheets (BK1) ────────────────────────────────────────────
+// Befund BK1 (05./09./10.11.2026): jeder Reiter wurde einzeln und alle gleichzeitig gelesen - 45 + 22 + 2 Reiter
+// = ca. 72 Leseanfragen in 20 s; Google erlaubt 60 je Minute und Nutzer -> das letzte Ziel (KUNDEN) scheiterte mit
+// "Quota exceeded ... Read requests per minute per user". Jetzt je Sheet EIN values.batchGet (2 Leseanfragen je
+// Sheet) und bei Kontingentfehler EINE Wiederholung des Lesens nach KONTINGENT_PAUSE_MS (die Minute ist dann um).
+// Wiederholt wird nur das Lesen, nie das Hochladen (sonst doppelte Dateien).
+export const KONTINGENT_PAUSE_MS = 65_000;
+
+export function istKontingentFehler(err) {
+  const code = err?.code ?? err?.status ?? err?.response?.status;
+  const text = String(err?.message ?? '').toLowerCase();
+  return code === 429 || text.includes('quota exceeded') || text.includes('resource_exhausted');
+}
+
+/** Alle Reiter eines Sheets lesen: spreadsheets.get + EIN values.batchGet. Zuordnung ueber die Reihenfolge. */
+export async function leseSpreadsheet(sheets, id) {
+  const { data: meta } = await sheets.spreadsheets.get({
+    spreadsheetId: id,
+    fields: 'properties.title,sheets.properties',
+  });
+  const sheetName = meta.properties?.title ?? '';
+  const tabTitles = meta.sheets.map(s => s.properties.title);
+  const tabData = {};
+  if (tabTitles.length) {
+    const { data } = await sheets.spreadsheets.values.batchGet({ spreadsheetId: id, ranges: tabTitles });
+    const ranges = data.valueRanges ?? [];
+    if (ranges.length !== tabTitles.length)
+      throw new Error(`batchGet lieferte ${ranges.length} statt ${tabTitles.length} Reiter`);
+    tabTitles.forEach((title, i) => { tabData[title] = ranges[i]?.values ?? []; });
+  }
+  return { sheetName, tabTitles, tabData };
+}
+
 function isRateLimitError(err) {
   const code = err.code ?? err.response?.status;
   const message = (err.message ?? '').toLowerCase();
@@ -95,25 +128,19 @@ function getAuth() {
 // ── Ein Spreadsheet sichern ─────────────────────────────────────────────────
 async function sichereSpreadsheet(sheets, drive, ziel, ctx) {
   const { praefix, id } = ziel;
-  const { now, dailyFolder, monthlyFolder } = ctx;
+  const { now, dailyFolder, monthlyFolder, warte = sleep } = ctx;
 
-  // ── Alle Reiter ermitteln ─────────────────────────────────────────────────
-  const { data: meta } = await sheets.spreadsheets.get({
-    spreadsheetId: id,
-    fields: 'properties.title,sheets.properties',
-  });
-  const sheetName = meta.properties?.title ?? '';
-  const tabTitles = meta.sheets.map(s => s.properties.title);
-
-  // ── Alle Reiter parallel einlesen ─────────────────────────────────────────
-  const tabData = {};
-  await Promise.all(tabTitles.map(async title => {
-    const { data } = await sheets.spreadsheets.values.get({
-      spreadsheetId: id,
-      range: `${title}`,
-    });
-    tabData[title] = data.values ?? [];
-  }));
+  // ── Alle Reiter lesen (BK1: ein batchGet, bei Kontingentfehler einmal wiederholen) ──
+  let gelesen;
+  try {
+    gelesen = await leseSpreadsheet(sheets, id);
+  } catch (err) {
+    if (!istKontingentFehler(err)) throw err;
+    console.warn(`  … Lese-Kontingent bei ${praefix} erschöpft, neuer Versuch in ${KONTINGENT_PAUSE_MS / 1000} s`);
+    await warte(KONTINGENT_PAUSE_MS);
+    gelesen = await leseSpreadsheet(sheets, id);
+  }
+  const { sheetName, tabTitles, tabData } = gelesen;
 
   // ── JSON bauen + komprimieren ─────────────────────────────────────────────
   const payload = {
@@ -179,7 +206,7 @@ async function sichereSpreadsheet(sheets, drive, ziel, ctx) {
 }
 
 // ── Backup-Logik (exportiert für Route-Wiederverwendung) ──────────────────────
-export async function runBackup() {
+export async function runBackup({ warte = sleep } = {}) {
   // Env-Vars hier lesen (nicht auf Top-Level) damit sie beim Import via Express schon gesetzt sind
   const SHARED_DRIVE   = process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID;
   const DAILY_FOLDER   = process.env.GOOGLE_DRIVE_BACKUP_DAILY_ID;
@@ -204,7 +231,7 @@ export async function runBackup() {
   const drive  = google.drive({ version: 'v3', auth });
 
   const now = new Date();
-  const ctx = { now, dailyFolder: DAILY_FOLDER, monthlyFolder: MONTHLY_FOLDER };
+  const ctx = { now, dailyFolder: DAILY_FOLDER, monthlyFolder: MONTHLY_FOLDER, warte };
 
   // Beide Ziele versuchen, auch wenn eines scheitert: die Datei, die sich
   // schreiben laesst, ist besser als keine. Der Lauf endet danach trotzdem rot.

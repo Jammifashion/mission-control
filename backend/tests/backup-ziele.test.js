@@ -19,6 +19,7 @@ jest.unstable_mockModule('dotenv', () => ({
 
 const sheetsGet = jest.fn();
 const valuesGet = jest.fn();
+const valuesBatchGet = jest.fn();
 const filesCreate = jest.fn();
 const filesList = jest.fn();
 const filesDelete = jest.fn();
@@ -27,7 +28,7 @@ const filesUpdate = jest.fn();
 jest.unstable_mockModule('googleapis', () => ({
   google: {
     auth: { GoogleAuth: class { constructor(o) { this.o = o; } } },
-    sheets: jest.fn(() => ({ spreadsheets: { get: sheetsGet, values: { get: valuesGet } } })),
+    sheets: jest.fn(() => ({ spreadsheets: { get: sheetsGet, values: { get: valuesGet, batchGet: valuesBatchGet } } })),
     drive:  jest.fn(() => ({ files: { create: filesCreate, list: filesList, delete: filesDelete, update: filesUpdate } })),
   },
 }));
@@ -84,6 +85,7 @@ beforeEach(() => {
 
   sheetsGet.mockReset();
   valuesGet.mockReset();
+  valuesBatchGet.mockReset();
   filesCreate.mockReset();
   filesList.mockReset();
   filesDelete.mockReset();
@@ -101,6 +103,9 @@ beforeEach(() => {
         ] },
   }));
   valuesGet.mockResolvedValue({ data: { values: [['Kopf'], ['Wert']] } });
+  valuesBatchGet.mockImplementation(async ({ ranges }) => ({
+    data: { valueRanges: ranges.map(r => ({ range: `'${r}'!A1:Z9`, values: [['Kopf'], [`Wert ${r}`]] })) },
+  }));
   filesCreate.mockResolvedValue({ data: { id: 'neue-datei', name: 'x', size: '123' } });
   filesList.mockResolvedValue({ data: { files: [] } });
 });
@@ -156,7 +161,7 @@ describe('beide Spreadsheets werden gesichert', () => {
 
   test('jeder Reiter jedes Spreadsheets wird gelesen', async () => {
     await runBackup();
-    const gelesen = valuesGet.mock.calls.map(c => `${c[0].spreadsheetId}!${c[0].range}`);
+    const gelesen = valuesBatchGet.mock.calls.flatMap(c => c[0].ranges.map(r => `${c[0].spreadsheetId}!${r}`));
     expect(gelesen).toContain('ssot-id!Erfassungsmaske');
     expect(gelesen).toContain('business-id!Partner_Verkäufe');
     expect(gelesen).toContain('business-id!Kalkulation_Fixkosten');
@@ -393,5 +398,75 @@ describe('Retention bleibt wie bisher', () => {
     const ordner = filesList.mock.calls.map(c => c[0].q);
     expect(ordner.filter(q => q.includes('daily-folder'))).toHaveLength(1);
     expect(ordner.filter(q => q.includes('monthly-folder'))).toHaveLength(1);
+  });
+});
+
+// ── BK1: Lese-Kontingent ─────────────────────────────────────────────────────
+// 05./09./10.11.2026: 45 + 22 + 2 Reiter einzeln und gleichzeitig gelesen -> "Quota exceeded ... Read requests per minute
+// per user" beim letzten Ziel (KUNDEN). Jetzt je Sheet ein batchGet und bei Kontingentfehler eine Wiederholung.
+describe('BK1: ein batchGet je Sheet, eine Wiederholung bei Kontingentfehler', () => {
+  const quota = () => Object.assign(new Error("Quota exceeded for quota metric 'Read requests' and limit 'Read requests per minute per user'"), { code: 429 });
+
+  test('je Ziel genau ein spreadsheets.get und ein values.batchGet, kein values.get', async () => {
+    await runBackup({ warte: async () => {} });
+    expect(valuesGet).not.toHaveBeenCalled();
+    expect(sheetsGet).toHaveBeenCalledTimes(3);
+    expect(valuesBatchGet).toHaveBeenCalledTimes(3);
+    expect(valuesBatchGet.mock.calls.find(c => c[0].spreadsheetId === 'business-id')[0].ranges).toEqual(['Partner_Verkäufe', 'Kalkulation_Fixkosten']);
+  });
+
+  test('Reiter landen unter ihrem Namen (Reihenfolge), leerer Reiter = []', async () => {
+    const { leseSpreadsheet } = await import('../scripts/backup-daily.js');
+    valuesBatchGet.mockResolvedValueOnce({ data: { valueRanges: [{ values: [['a']] }, {}] } });
+    const r = await leseSpreadsheet({ spreadsheets: { get: sheetsGet, values: { batchGet: valuesBatchGet } } }, 'business-id');
+    expect(r).toEqual({ sheetName: 'JF_Business', tabTitles: ['Partner_Verkäufe', 'Kalkulation_Fixkosten'],
+      tabData: { 'Partner_Verkäufe': [['a']], Kalkulation_Fixkosten: [] } });
+  });
+
+  test('batchGet mit falscher Anzahl Bereiche -> Fehler, nichts verwechselt', async () => {
+    const { leseSpreadsheet } = await import('../scripts/backup-daily.js');
+    valuesBatchGet.mockResolvedValueOnce({ data: { valueRanges: [{ values: [['a']] }] } });
+    await expect(leseSpreadsheet({ spreadsheets: { get: sheetsGet, values: { batchGet: valuesBatchGet } } }, 'business-id')).rejects.toThrow(/1 statt 2/);
+  });
+
+  test('Kontingentfehler beim Lesen: eine Wiederholung nach 65 s, dann gruen, keine doppelte Datei', async () => {
+    const { KONTINGENT_PAUSE_MS } = await import('../scripts/backup-daily.js');
+    let erst = true;
+    const echt = valuesBatchGet.getMockImplementation();
+    valuesBatchGet.mockImplementation(async q => {
+      if (q.spreadsheetId === 'kunden-id' && erst) { erst = false; throw quota(); }
+      return echt(q);
+    });
+    const warte = jest.fn(async () => {});
+    const r = await runBackup({ warte });
+    expect(KONTINGENT_PAUSE_MS).toBe(65_000);
+    expect(warte).toHaveBeenCalledWith(65_000);
+    expect(r.dateien).toBe(3);
+    expect(namen().filter(n => n.startsWith('KUNDEN_'))).toHaveLength(1);
+  });
+
+  test('zweiter Kontingentfehler: dieses Ziel scheitert, die anderen werden geschrieben, Lauf rot', async () => {
+    const echt = valuesBatchGet.getMockImplementation();
+    valuesBatchGet.mockImplementation(async q => { if (q.spreadsheetId === 'kunden-id') throw quota(); return echt(q); });
+    const warte = jest.fn(async () => {});
+    const err = await runBackup({ warte }).catch(e => e);
+    expect(err.message).toMatch(/1 von 3 fehlgeschlagen: KUNDEN/);
+    expect(warte).toHaveBeenCalledTimes(1);
+    expect(namen()).toHaveLength(2);
+  });
+
+  test('andere Lesefehler werden nicht wiederholt', async () => {
+    sheetsGet.mockImplementation(async () => { throw new Error('The caller does not have permission'); });
+    const warte = jest.fn(async () => {});
+    await runBackup({ warte }).catch(() => {});
+    expect(warte).not.toHaveBeenCalled();
+  });
+
+  test('istKontingentFehler', async () => {
+    const { istKontingentFehler } = await import('../scripts/backup-daily.js');
+    expect(istKontingentFehler(quota())).toBe(true);
+    expect(istKontingentFehler({ response: { status: 429 } })).toBe(true);
+    expect(istKontingentFehler(new Error('RESOURCE_EXHAUSTED'))).toBe(true);
+    expect(istKontingentFehler(new Error('The caller does not have permission'))).toBe(false);
   });
 });
