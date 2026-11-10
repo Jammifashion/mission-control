@@ -8,7 +8,7 @@
   --bg: #0f0f0f;
   --surface: #1a1a1a;
   --surface-2: #232323;    /* abgesetzte Flaeche: Tooltip, Toast, Editor-Leiste, Hover in Listen */
-  --border: #2a2a2a;
+  --border: #3d3d3d;      /* FK6: von #2a2a2a, Rand >= 1,5:1 zu Grund und Karte */
   --disabled: #555;        /* deaktiviert, Platzhalter, "erledigt"-Zaehler */
   --accent: #fcb201;       /* Markengold (Inhaber 06.11., FK5). NUR Hauptaktion + aktiver Reiter/Tab */
   --accent-text: #111;     /* Text auf Gold */
@@ -43,10 +43,10 @@
 /* FK2 (Inhaber 06.11.): heller Modus - hellgrauer Grund, weisse Karten, Navigation pastell. data-theme setzt der
    Block "Theme" im <head> (Wahl System|Hell|Dunkel je Geraet, System = prefers-color-scheme). Nur Farbwerte, sonst nichts. */
 :root[data-theme="light"] {
-  --bg: #f5f5f3;
+  --bg: #ecebe7;          /* FK6: von #f5f5f3, weisse Karten deutlicher */
   --surface: #ffffff;
   --surface-2: #efeee9;
-  --border: #dddad4;
+  --border: #c4c0b8;      /* FK6: von #dddad4, Rand >= 1,5:1 zu Grund und Karte */
   --disabled: #8a8a8a;
   --text: #1a1a1a;
   --muted: #666;

@@ -31,6 +31,9 @@ Farbbloecke (Test farbrollen.test.js). **Partnerportale (FK3/FK4):** Umschalter 
 `data-tipp`), Wahl in `localStorage` `partner_theme` (beide Portale, getrennt von `mc_theme`), Theme-Block wortgleich in beiden
 Portalen (Test partner-farben.test.js, inkl. Syntaxpruefung aller Skripte). `anfrage.html` (Kunden-Widget) und die Offline-Seite in
 `sw.js` sind bewusst nicht angeschlossen.
+**FK6 (Inhaber 10.11.):** Rand `--border` >= 1,5:1 zu `--bg` und `--surface` in beiden Modi (Test farbrollen.test.js); Zeilen in
+Kartenlisten (`.ku-zeile`) = `color-mix(in srgb, var(--text) 4%, var(--surface))`. Kartenlisten Aufträge/To-dos/Kunden: Klasse
+`.inhalt-schmal` (max. 800 px, links buendig) - Breite nur dort aendern. Zuständig in der Liste kompakt (`.form-select.au-zust`).
 **Partnerportal-Listen (PP3):** Block `Portal-Listen: Anfang/Ende` + CSS `Portal-Listen CSS` wortgleich in beiden Portalen (Test
 partner-listen.test.js): Listen zeigen standardmaessig nur Offenes (Status nicht "abgerechnet"), Schalter "auch abgerechnete anzeigen"
 (`localStorage` `partner_abgerechnet_zeigen`, Standard aus); Summen/Saldo ungefiltert. `plTabelleHtml` mit Rollen datum|betrag|haupt|

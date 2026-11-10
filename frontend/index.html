@@ -447,7 +447,7 @@
       .ap-angebot { font-size: 0.85rem; margin: 0.3rem 0; display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
       .ap-rabatt { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: flex-end; }
       .ap-rabatt input { width: 7rem; }
-      .au-zust { min-width: 3.2rem; padding: 0.1rem 0.3rem; font-size: 0.78rem; min-height: 32px; }
+      .form-select.au-zust { width: auto; min-width: 3.2rem; padding: 0.1rem 1.6rem 0.1rem 0.4rem; background-position: right 0.45rem center; font-size: 0.78rem; min-height: 32px; margin-left: auto; }   /* FK6: kompakt rechts, nicht volle Breite */
       .td-block { margin-top: 0.8rem; border-top: 1px solid var(--border); padding-top: 0.5rem; }
       .td-kopf { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: baseline; margin-bottom: 0.2rem; }
       .td-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.5rem; min-height: 44px; border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent); }
@@ -836,10 +836,13 @@
       .ku-knoepfe .ku-luecke { flex: 1 1 auto; }
       .ku-gefahr { color: var(--danger); border-color: var(--danger); }
       .ku-liste { display: flex; flex-direction: column; gap: 0.4rem; }
-      .ku-zeile { display: grid; grid-template-columns: 6.5rem 1fr auto; gap: 0.25rem 0.75rem; align-items: center; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+      .ku-zeile { display: grid; grid-template-columns: 6.5rem 1fr auto; gap: 0.25rem 0.75rem; align-items: center; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 8px;
+        background: color-mix(in srgb, var(--text) 4%, var(--surface)); }   /* FK6: Zeile in der Karte abgesetzt (dunkel heller, hell dunkler) */
+      /* FK6: Kartenlisten (Aufträge, To-dos, Kunden) hoechstens 800 px breit, links buendig wie die uebrigen Panels - nur hier aendern */
+      .inhalt-schmal { max-width: 800px; }
       .ku-nr { font-family: ui-monospace, monospace; font-size: 0.8rem; color: var(--muted); }
       .ku-name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
-      .ku-meta { grid-column: 2 / 3; font-size: 0.78rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0.3rem 0.6rem; }
+      .ku-meta { grid-column: 2 / 3; font-size: 0.78rem; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; }
       .ku-chip { display: inline-block; padding: 0 0.45rem; border-radius: 999px; border: 1px solid var(--border); font-size: 0.74rem; color: var(--text); }
       .ku-zeile.ku-archiviert { opacity: 0.65; }
       .ku-zeile.ku-gesperrt { opacity: 0.5; }
@@ -3374,7 +3377,7 @@
       <!-- AM-1: Aufträge. Unterpunkt Kunden = Kundenstamm (eigenes Kunden-Sheet, GET /api/kunden); Suche nur im Browser,
            der Suchbegriff wird nirgends gespeichert. Unterpunkt Aufträge = Platzhalter bis AM-2. -->
       <section id="panel-auftraege" class="panel">
-        <div class="card" id="ku-ansicht">
+        <div class="card inhalt-schmal" id="ku-ansicht">
           <div class="lshop-offen-header korb-kopf"><span id="ku-summe">Kunden</span></div>
           <div id="ku-einrichtung" class="lager-warnung" hidden></div>
           <div class="korb-bedienung">
@@ -3398,7 +3401,7 @@
           <div id="ku-liste"><div class="skeleton"></div></div>
         </div>
         <!-- AM-2: Auftragsliste (GET /api/auftraege). Kundennamen kommen nur hier aus der Kundenliste dazu. -->
-        <div class="card" id="au-ansicht" hidden>
+        <div class="card inhalt-schmal" id="au-ansicht" hidden>
           <div class="lshop-offen-header korb-kopf"><span id="au-summe">Aufträge</span></div>
           <div id="au-einrichtung" class="lager-warnung" hidden></div>
           <div class="korb-bedienung">
@@ -3432,7 +3435,7 @@
         </div>
 
         <!-- AM-4: Offene To-dos aus Aufträgen und Aufgaben (nach Fälligkeit, abhaken direkt hier). -->
-        <div class="card" id="td-ansicht" hidden>
+        <div class="card inhalt-schmal" id="td-ansicht" hidden>
           <div class="lshop-offen-header korb-kopf"><span id="td-summe">Offene To-dos</span></div>
           <div id="td-einrichtung"></div>
           <div class="korb-bedienung">

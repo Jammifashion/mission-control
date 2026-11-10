@@ -169,7 +169,7 @@ describe('FK2: heller Modus', () => {
       '--shop-jfn', '--shop-honk', '--nav-kachel', '--nav-kachel-text', '--nav2-kachel', '--nav2-text', '--focus']) expect([v, v in parseVars(hellBlock)]).toEqual([v, true]);
   });
   test('Grund hellgrau, Karten weiss; --focus hell eigenstaendig (Info), dunkel = Akzent', () => {
-    expect(HELL['--bg']).toBe('#f5f5f3');
+    expect(HELL['--bg']).toBe('#ecebe7');   // FK6: von #f5f5f3 (Karten deutlicher)
     expect(HELL['--surface']).toBe('#ffffff');
     expect(HELL['--accent']).toBe('#8a5f00');   // Markengold, Inhaber 06.11. (FK5, vorher #8f6b00)
     expect(HELL['--focus']).toBe('var(--info)');
@@ -180,6 +180,16 @@ describe('FK2: heller Modus', () => {
       const k = kontrast(farbe(f, vars), grund(b, vars));
       expect([modus, k >= 4.5 ? 'ok' : k.toFixed(2)]).toEqual([modus, 'ok']);
     }
+  });
+  test('FK6: Rand >= 1,5:1 zu Grund und Karte (beide Modi), Kartenlisten 800 px', () => {
+    for (const [modus, vars] of [['dunkel', DUNKEL], ['hell', HELL]]) {
+      for (const g of ['--bg', '--surface']) {
+        const k = kontrast(farbe('--border', vars), farbe(g, vars));
+        expect([modus, g, k >= 1.5 ? 'ok' : k.toFixed(2)]).toEqual([modus, g, 'ok']);
+      }
+    }
+    expect(html).toMatch(/\.inhalt-schmal \{ max-width: 800px; \}/);
+    for (const id of ['au-ansicht', 'td-ansicht', 'ku-ansicht']) expect(html).toContain(`class="card inhalt-schmal" id="${id}"`);
   });
   test('kein Knopf mit --success als Hintergrund (Aktion = --accent, Erfolg nur Zustand)', () => {
     const knopfKlassen = [...new Set([...html.matchAll(/<button[^>]*class="([^"]+)"/g)].flatMap(m => m[1].split(/\s+/)))].filter(k => /^[a-z][a-z0-9-]*$/.test(k));
