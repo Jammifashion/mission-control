@@ -369,6 +369,9 @@ Neue Sektionen immer mit Anker versehen:
   Zeichen in Elternname der Position (nie im Variantennamen - der traegt bei Trikots den Rueckennamen), SKU, Merkmale Farbe/Groesse und
   Bestell-Nr.; ae = ä; mehrere Woerter alle in EINER Position. Wirkt auf die Sicht des Filters; Kopf "n von m offenen Bestellungen
   enthalten ‚…‘", Treffer-Zeile je Karte. Nur im Speicher der Seite. Mehr als 500 offene -> Hinweis `ps-grenze`.
+  BS3: Produktbild je Position (`psBildHtml`/`psBildUrl` im Block `Produktion-Stand`) aus `line_items[].image.src` der schon geladenen
+  Bestellungen - kein Extra-Abruf. Bilder liegen auf dem Jetpack-CDN `i0-3.wp.com` (nicht beim Hoster), klein `?fit=96`, antippen =
+  `#ps-bild-gross` mit `?fit=800` (Spiegel von `bildGroesse` in utils/bestellseite.js); nicht https = Platzhalter `ps-bild-leer`.
 - backend/lib/lshopKorb.js – L-Shop-Warenkorb (BO2), Logik in `utils/korb-logic.js`. Reiter
   `Warenkorb_LShop` (SSOT) ist ein STEHENDER Bestand: jede L-Shop-bestellfaehige Shop-Position eine
   Zeile, Schluessel `JFN:<Bestellnummer>:<Position>`, Spalte Shop von Anfang an. Abgleich
