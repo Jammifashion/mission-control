@@ -24,7 +24,8 @@ export const POSITION_SPALTEN = [
 export const PREIS_SPALTEN = ['Preis_Netto', 'Aufpreis_Netto', 'Aufpreis_Ab', 'USt_Satz', 'EK_Hand'];
 // KS3: Verweis = Quelle schon vorhandener Ware (Korb-Schluessel, AU-…-NN, LAGER:<Ort>, "ohne Verweis: …"), nur bei "schon bestellt – verknüpfen".
 // KS4: Verschoben_Nach = Position-ID im Auftrag eines anderen Termins (Bestellseite "in Termin … verschieben"); ganz verschoben = auch Entfernt.
-export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung', ...PREIS_SPALTEN, 'Verweis', 'Verschoben_Nach'];
+// KS4-2: Da_Am = Tag, an dem die Ware einer FREIEN Position (noch zu besorgen) bei uns ist - von Hand ("bei uns").
+export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung', ...PREIS_SPALTEN, 'Verweis', 'Verschoben_Nach', 'Da_Am'];
 // AM-3: optional ganz hinten in Auftraege - Datum des Schritts "Design" (leer = Schritt nicht genutzt / uebersprungen).
 // AMQ1: Preis_Eingabe ("brutto" oder leer = netto; nur die Eingabe an der Position, gespeichert wird immer netto) und
 // Design_Link (https-Adresse, z. B. Canva) - optional ganz hinten, Setup ergaenzt sie.
@@ -46,7 +47,7 @@ export const HERKUNFT_LSHOP = ['bestellen', 'lager', 'vorhanden'];
 export const HERKUNFT_FREI = ['', 'vorhanden'];
 export const AUFTRAG_TEXT = ['Auftrag_Nr', 'Kunden_Nr', 'Termin', 'Anfrage_Am', 'Angebot_Am', 'Bestellt_Am', 'Produktion_Am', 'Fertig_Am',
   'Uebergeben_Am', 'Bezahlt_Am', 'Storniert_Am'];
-export const POSITION_TEXT = ['Position_ID', 'Auftrag_Nr', 'LShop_ArticleNr', 'Fertig_Am', 'Entfernt'];
+export const POSITION_TEXT = ['Position_ID', 'Auftrag_Nr', 'LShop_ArticleNr', 'Fertig_Am', 'Entfernt', 'Da_Am'];
 
 export const KANAELE = ['Mail', 'WhatsApp', 'Telefon', 'persönlich', 'Jey', 'Bestellseite'];   // KS3: Bestellseite
 // Schritte in Reihenfolge, je Schritt sein Datumsfeld. "storniert" steht ausserhalb (Storniert_Am).
@@ -444,15 +445,30 @@ const zaehltWare = p => {
   const h = t(p.Herkunft) || (p.Art === ART.LSHOP ? HERKUNFT.BESTELLEN : '');
   return (h === HERKUNFT.BESTELLEN && p.Art === ART.LSHOP) || (h === HERKUNFT.VORHANDEN && VERWEIS_KORB.test(t(p.Verweis)));
 };
+/**
+ * KS4-2: "bei uns" von Hand nur fuer FREIE Positionen, die noch zu besorgen sind (Art frei, ohne Herkunft - wie `freiOffen`).
+ * L-Shop-Positionen laufen ueber Korb/Wareneingang bzw. Lager, "schon vorhanden" ist schon da.
+ */
+export const daHandMoeglich = p => p?.Art === ART.FREI && !t(p.Herkunft);
+/** Warum kein Haken? '' = moeglich; korb = ueber den Wareneingang; lager = kommt mit der Lagerbuchung; vorhanden = schon da. */
+export function daHandGrund(p) {
+  if (daHandMoeglich(p)) return '';
+  const h = t(p?.Herkunft) || (p?.Art === ART.LSHOP ? HERKUNFT.BESTELLEN : '');
+  if (h === HERKUNFT.LAGER) return 'lager';
+  if (h === HERKUNFT.VORHANDEN && !VERWEIS_KORB.test(t(p?.Verweis))) return 'vorhanden';
+  return 'korb';
+}
 
 /**
- * Warenstand je Auftrag (nur 🛒-Positionen = Herkunft bestellen): '' (keine) | offen (mind. eine noch nicht im Korb
- * bestellt) | bestellt (alle bestellt, nicht alle da) | da (alle geliefert bzw. aus dem Lager). Freie Positionen zaehlen nie.
+ * Warenstand je Auftrag (🛒-Positionen = Herkunft bestellen, ✓ mit Korb-Verweis, KS4-2: freie "noch zu besorgen"): '' (keine) |
+ * offen (mind. eine noch nicht im Korb bestellt) | bestellt (alle bestellt bzw. frei ohne "bei uns", nicht alle da) | da.
  */
 export function wareStand(positionen, korbJe) {
   const best = (positionen ?? []).filter(zaehltWare);   // KS3-1: auch ✓ verknuepft mit einer Korb-Zeile
-  if (!best.length) return '';
-  const st = best.map(p => (korbSchluesselVon(p) ? korbStand(korbJe.get(korbSchluesselVon(p))).status : 'nicht übergeben'));
+  const frei = (positionen ?? []).filter(daHandMoeglich);   // KS4-2: freie "noch zu besorgen" - da erst mit dem Haken
+  if (!best.length && !frei.length) return '';
+  const st = [...best.map(p => (korbSchluesselVon(p) ? korbStand(korbJe.get(korbSchluesselVon(p))).status : 'nicht übergeben')),
+    ...frei.map(p => (t(p.Da_Am) ? 'geliefert' : 'bestellt'))];   // ohne Haken = unterwegs/zu besorgen, nie "offen" (= nicht bei L-Shop bestellt)
   if (st.some(x => !KORB_ERLEDIGT.includes(x))) return 'offen';
   return st.every(x => ['geliefert', 'Lager'].includes(x)) ? 'da' : 'bestellt';
 }

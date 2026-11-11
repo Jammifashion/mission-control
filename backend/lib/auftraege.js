@@ -267,7 +267,7 @@ export async function leseAuftraege({ sheets: s, jetzt = () => new Date(), autoB
     ware.set(x.Auftrag_Nr, w);
     return {
       ...x, vorschlagFertig: fertigVorschlag(x, akt), ware: w,
-      freiOffen: akt.filter(y => y.Art === ART.FREI && !y.Herkunft).length,
+      freiOffen: akt.filter(y => y.Art === ART.FREI && !y.Herkunft && !String(y.Da_Am ?? '').trim()).length,   // KS4-2: ohne "bei uns"
       autoBestellt: gesetzt.includes(x.Auftrag_Nr),
       preise: { ...summen, angebotGeaendert: angebotAbweichung(x, summen) },   // AM-5: Cent
     };

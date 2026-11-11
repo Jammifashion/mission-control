@@ -4,7 +4,7 @@ import { Router } from 'express';
 import { leseZugaenge, legeZugangAn, bearbeiteZugang, neuerLink, zeigeLink, aktualisiereBilder, leseKategorien, bilderPlan, bilderStueck, bilderSchreiben } from '../lib/bestellseite.js';
 import { leseEintraegeMc } from '../lib/bestellEintraege.js';   // KS2: nur ansehen
 import { pruefeEintraege, aendereEintragMc, uebernahmeVorschau, uebernehmen, eintraegeZumAuftrag } from '../lib/bestellUebernahme.js';   // KS3
-import { setzeFertig, setzeGeliefert, verschiebe } from '../lib/bestellStand.js';   // KS4
+import { setzeFertig, setzeDa, setzeGeliefert, verschiebe } from '../lib/bestellStand.js';   // KS4
 import { entwuerfeMc, entwurfBildMc, setzeEntwurfOrdner } from '../lib/bestellEntwuerfe.js';   // KS7
 
 const router = Router();
@@ -51,6 +51,8 @@ router.get('/auftrag/:nr/eintraege', mitMeldung(req => eintraegeZumAuftrag({ auf
 // POST /api/bestellseiten/fertig { positionIds, fertig } - Haken "fertig" fuer mehrere Positionen (auch Auftragsansicht). KS4-1: vorher /gedruckt
 router.post('/fertig', mitMeldung(req => setzeFertig({ eingabe: req.body ?? {} })));
 router.post('/gedruckt', mitMeldung(req => setzeFertig({ eingabe: req.body ?? {} })));   // alter Name (Oberflaeche bis zum Neuladen)
+// KS4-2: POST /api/bestellseiten/da { positionIds, da } - "bei uns" von Hand (nur freie Positionen, noch zu besorgen)
+router.post('/da', mitMeldung(req => setzeDa({ eingabe: req.body ?? {} })));
 // POST /api/bestellseiten/geliefert { zugangId, terminId | auftragNr, zurueck } - Versendet je Position (+ Trikot-Eintraege), fertig -> übergeben
 router.post('/geliefert', mitMeldung(req => setzeGeliefert({ eingabe: req.body ?? {} })));
 // POST /api/bestellseiten/verschieben { zugangId, auswahl, zielTermin | neuesDatum, notiz, grund, vorgang, dryRun }

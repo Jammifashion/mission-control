@@ -156,11 +156,13 @@ describe('Rückmeldung, Ware da, automatisches bestellt', () => {
     expect(korbStand({ Status: 'bestellt', AB_Hinweis: 'ok' }).status).toBe('bestätigt');
     expect(korbStand(undefined).status).toBe('fehlt');
   });
-  test('Ware: offen -> bestellt -> da; freie Positionen zaehlen nie', () => {
+  test('Ware: offen -> bestellt -> da; freie Positionen erst ueber "bei uns" (KS4-2)', () => {
     expect(wareStand(p, korbJe('offen'))).toBe('offen');
     expect(wareStand(p, korbJe('bestellt'))).toBe('bestellt');
-    expect(wareStand(p, korbJe('geliefert'))).toBe('da');
-    expect(wareStand([{ Art: 'frei', Freitext: 'x' }], new Map())).toBe('');
+    expect(wareStand(p, korbJe('geliefert'))).toBe('bestellt');   // KS4-2: freie Position 04 noch nicht "bei uns"
+    expect(wareStand(p.map(x => (x.Art === 'frei' ? { ...x, Da_Am: '2026-11-04' } : x)), korbJe('geliefert'))).toBe('da');
+    expect(wareStand([{ Art: 'frei', Freitext: 'x', Herkunft: 'vorhanden' }], new Map())).toBe('');   // KS4-2: "vorhanden" zaehlt nie
+    expect(wareStand([{ Art: 'frei', Freitext: 'x' }], new Map())).toBe('bestellt');   // KS4-2: noch zu besorgen, bis "bei uns"
   });
   test('automatisch bestellt: nur aus Anfrage/Angebot/Design, alle 🛒 bestellt + alle 📦 ausgebucht; frei blockiert nicht', () => {
     expect(autoBestellt({ Status: 'Design' }, p, korbJe('bestellt'))).toBe(true);

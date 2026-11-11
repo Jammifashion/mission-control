@@ -1137,6 +1137,12 @@ Neue Sektionen immer mit Anker versehen:
   `bs_liste_zu`, Standard offen mit Eintraegen; nach Absenden aufgeklappt, neue hervorgehoben, hingesprungen). "fertig" bei fehlender Ware
   (vor "bei uns") nur nach Rueckfrage (Einträge ansehen, Auftragsansicht - dort schaltet nur Kaestchen + "fertig" den Haken, nicht mehr die
   ganze Zeile); Bereitstellen fragt bei Positionen mit Fertig = ja nach (`fertig` in der Vorschau).
+  KS4-2 (11.11.): "bei uns" von Hand NUR fuer freie Positionen "noch zu besorgen" (Art frei, ohne Herkunft = `daHandMoeglich`; Grund sonst
+  `daHandGrund` korb/lager/vorhanden): optionale Spalte `Da_Am` hinten in Auftrag_Positionen (Setup), `POST /api/bestellseiten/da`
+  { positionIds, da } (`setzeDa`/`daMehrPlan`, Korb/Lager nie, 409 `einrichtung` ohne Spalte). Seite: Weg frei hat jetzt "bei uns"; MC sieht
+  `intern.da`. `wareStand` zaehlt freie zu besorgende Positionen (ohne Haken = "bestellt", mit = da), `freiOffen` ohne Haken. Oberflaeche:
+  Auftragsansicht `auDaHtml` (Haken + Datum bzw. "Wareneingang buchen →" bei L-Shop unterwegs), Einträge ansehen `bsmDaHand`/`bsmWe` +
+  "markierte bei uns"; Ruecknahme immer mit Rueckfrage.
 - backend/utils/auftrag-preise.js – Preise je Auftrag (AM-5), einzige Rechen-Stelle; Frontend-Spiegel Block `Auftrag-Preise: Anfang/Ende`
   (Test auftrag-preise.test.js vergleicht beide). Eingabe NETTO, Rechnen in Cent, gerundet erst in der Anzeige (`euroText`). Spalten hinten
   optional: `Auftrag_Positionen` Preis_Netto | Aufpreis_Netto | Aufpreis_Ab | USt_Satz (leer = 19) | EK_Hand, `Auftraege` Rabatt ("10%" Text

@@ -10,7 +10,7 @@ const html = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../.
 const ku = html.slice(html.indexOf('// ── Kunden-Liste: Anfang'), html.indexOf('// ── Kunden-Liste: Ende ──'));
 const block = html.slice(html.indexOf('// ── Auftraege-Anzeige: Anfang'), html.indexOf('// ── Auftraege-Anzeige: Ende ──'));
 const preise = html.slice(html.indexOf('// ── Auftrag-Preise: Anfang'), html.indexOf('// ── Auftrag-Preise: Ende'));   // AM-5: apFeld & Co.
-const F = new Function(`${ku}\n${preise}\n${block}\nreturn { auFiltern, auTerminBald, auGruppen, auPositionenAnfrage, auLeisteHtml, auZeileHtml, auKundeText, auEntwurfAus, auFrei, auHerkunft, auHerkunftText, auLagerStand, auLagerJe, auLagerVorschlag, auBestandOhne, auTeilen, auKannBereitstellen, auKannZuruecknehmen, auKorbText, agLeisteHtml, agFiltern, agFuerText, agZeileHtml, tdStufe, tdVon, tdUebersicht, tdBlockHtml, tdZaehler, auZustPasst, auZustHtml };`)();
+const F = new Function(`${ku}\n${preise}\n${block}\nreturn { auFiltern, auTerminBald, auGruppen, auPositionenAnfrage, auLeisteHtml, auZeileHtml, auKundeText, auEntwurfAus, auFrei, auHerkunft, auHerkunftText, auLagerStand, auLagerJe, auLagerVorschlag, auBestandOhne, auTeilen, auKannBereitstellen, auKannZuruecknehmen, auKorbText, agLeisteHtml, agFiltern, agFuerText, agZeileHtml, tdStufe, tdVon, tdUebersicht, tdBlockHtml, tdZaehler, auZustPasst, auZustHtml, auDaHand, auDaHtml };`)();
 const sektion = html.slice(html.indexOf('// ── SECTION: Aufträge – Liste, Ansicht, Erfassen (AM-2) ──'), html.indexOf('// ── SECTION: Artikelerfassung ──'))
   .split('\n').filter(l => !/^\s*\/\//.test(l)).join('\n');
 
@@ -300,5 +300,24 @@ describe('AM-5: Zuständig (Filter, Kennzeichen, To-dos vom Bezug)', () => {
     const todos = [{ Todo_ID: 'AU-2026-0001-T01', Bezug: 'AU-2026-0001', Erledigt: '', Archiviert: '' }, { Todo_ID: 'AG-2026-0001-T01', Bezug: 'AG-2026-0001', Erledigt: '', Archiviert: '' }];
     expect(F.tdUebersicht(todos, bez, 'alle', HEUTE, 'Nicole').map(x => x.todo.Todo_ID)).toEqual(['AU-2026-0001-T01']);
     expect(F.tdUebersicht(todos, bez, 'alle', HEUTE, 'ohne').map(x => x.todo.Todo_ID)).toEqual(['AG-2026-0001-T01']);
+  });
+});
+
+describe('KS4-2: "bei uns" je Position (Auftragsansicht)', () => {
+  test('freie Position "noch zu besorgen": Haken mit Datum, nur Kaestchen + Wort im Label', () => {
+    const h = F.auDaHtml({ Position_ID: 'AU-2026-0001-01', Art: 'frei', Herkunft: '', Da_Am: '2026-11-07' }, false);
+    expect(h).toMatch(/<label class="au-pos-haken" data-hilfe="au-pos-da"><input type="checkbox" data-au-da="AU-2026-0001-01" checked> bei uns<\/label>/);
+    expect(h).toContain('bei uns 07.11.2026');
+    expect(F.auDaHtml({ Position_ID: 'X', Art: 'frei', Herkunft: '' }, true)).toContain(' disabled');
+    expect(h).not.toContain('title=');
+  });
+  test('L-Shop unterwegs: kein Haken, Hinweis Wareneingang; vorhanden/Lager: nichts', () => {
+    expect(F.auDaHand({ Art: 'lshop', Herkunft: 'bestellen' })).toBe(false);
+    const we = F.auDaHtml({ Position_ID: 'X', Art: 'lshop', Herkunft: 'bestellen', korb: { status: 'bestellt', bestellId: 'JFN-2026-0009' } }, false);
+    expect(we).toContain('data-au-we="JFN-2026-0009"');
+    expect(we).toContain('data-hilfe="au-pos-we"');
+    expect(we).not.toContain('data-au-da');
+    expect(F.auDaHtml({ Position_ID: 'X', Art: 'frei', Herkunft: 'vorhanden' }, false)).toBe('');
+    expect(F.auDaHtml({ Position_ID: 'X', Art: 'lshop', Herkunft: 'bestellen', korb: { status: 'geliefert' } }, false)).toBe('');
   });
 });

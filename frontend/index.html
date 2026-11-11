@@ -420,7 +420,7 @@
       .au-pos { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; min-height: 44px; }
       .au-pos input { width: 1.3rem; height: 1.3rem; }
       .pf-kuerzel-hinweis { color: var(--warning); }   /* MK1: Kuerzel nicht ueblich - nur Hinweis */
-      .au-pos-haken { display: inline-flex; align-items: center; gap: 0.3rem; min-height: 44px; cursor: pointer; }   /* KS4-1 */
+      .au-pos-haken { display: inline-flex; align-items: center; gap: 0.3rem; min-height: 44px; cursor: pointer; white-space: nowrap; }   /* KS4-1, KS4-2: Wort bleibt in einer Zeile */
       .au-bald { color: var(--warning); font-weight: 600; }
       /* AM-4: Aufgaben + Checkliste (Handy 375 px: alles bricht um, keine waagerechte Verschiebung) */
       .ku-chip.ag-chip { border-color: var(--ag); color: var(--ag); }
@@ -6964,6 +6964,8 @@
         'au-fertig-setzen':     { name: 'Auftrag auf fertig setzen', text: 'Alle Positionen sind abgehakt: setzt den Auftrag bis „fertig“, jeder Schritt mit heutigem Datum.' },
         'kurz-vorschlag':       { name: 'Vorschlag Kurzbezeichnung', text: 'Kürzel aus der Kategorie: festgelegt in Struktur_Kategorien (Spalte Kuerzel) oder aus dem Bestand. Frei änderbar.' },
         'kurz-kuerzel-hinweis': { name: 'Kürzel nicht üblich', text: 'Nur ein Hinweis: andere Artikel dieser Kategorie nutzen ein anderes Kürzel. Speichern geht trotzdem.' },
+        'au-pos-da':            { name: 'bei uns', text: 'Haken = Ware dieser freien Position ist bei uns (zugekauft, abgeholt). Mit Datum; Rücknahme fragt nach.' },
+        'au-pos-we':            { name: 'Wareneingang', text: 'L-Shop-Ware wird „bei uns“ über den Wareneingang: unter L-Shop-Bestellungen „Ware angekommen“ buchen.' },
         'au-pos-fertig':        { name: 'fertig', text: 'Haken je Position, mit Datum. Ist die Ware noch nicht da, fragt MC nach. Sind alle fertig, schlägt MC „Auftrag auf fertig“ vor.' },
         'au-kundenkarte':       { name: 'Kundenkarte', text: 'Öffnet die Karte des Kunden mit seinen Aufträgen.' },
         'au-kunde-suche':       { name: 'Kunde', text: 'Tippen sucht in MC (Name, Spitzname, Nummer, Ort). Unten in der Liste: in Lexoffice suchen oder neu anlegen.' },
@@ -7041,7 +7043,7 @@
         'au-korb-stand':        { name: 'Korb-Stand', text: 'Wo die Rohlinge stehen: im Korb, bestellt, bestätigt mit Liefertermin, geliefert. Klick öffnet die Korb-Position.' },
         'au-lager-stand':       { name: 'ausgebucht', text: 'Die Rohlinge wurden für diesen Auftrag aus dem Lager genommen.' },
         'au-zuruecknehmen':     { name: 'Übergabe zurücknehmen', text: 'Nur solange die Korb-Position offen ist bzw. bei Lagerware: nimmt sie aus dem Korb bzw. bucht zurück. Danach bearbeitbar.' },
-        'au-ware':              { name: 'Ware', text: 'offen = noch nicht alles bei L-Shop bestellt · bestellt = unterwegs · da = alles geliefert.' },
+        'au-ware':              { name: 'Ware', text: 'offen = noch nicht alles bei L-Shop bestellt · bestellt = unterwegs bzw. noch zu besorgen · da = alles bei uns.' },
         'au-frei-offen':        { name: 'noch zu besorgen', text: 'Freie Positionen gehen nicht über L-Shop – selbst besorgen. Das automatische „bestellt“ wartet nicht auf sie.' },
         'korb-auftrag':         { name: 'Auftrag', text: 'Diese Position gehört zu einem Auftrag. Klick öffnet ihn; ändern nur dort.' },
         'eb-gesperrt-auftrag':  { name: 'bearbeiten (gesperrt)', text: 'Gehört zu einem Auftrag – dort „Übergabe zurücknehmen“, dann ändern.' },
@@ -7092,6 +7094,9 @@
         'au-bs-eintrag':        { name: 'Eintrag', text: 'Wer es eingetragen hat und die Notiz dazu – nur hier angezeigt, nicht im Auftrag gespeichert.' },
         'bsm-fortschritt':      { name: 'Stand', text: 'Wo die Position steht (wie auf der Bestellseite). Orange = kommt voraussichtlich erst nach dem Termin. Die Quelle steht davor.' },
         'bsm-fertig':           { name: 'fertig', text: 'Haken = fertig (gedruckt, bestickt oder zugekauft; derselbe Haken wie im Auftrag). Ist die Ware noch nicht da, fragt MC nach.' },
+        'bsm-da':               { name: 'bei uns', text: 'Haken = Ware dieses Eintrags ist bei uns (freie Position, z. B. zugekauft). Rücknahme fragt nach.' },
+        'bsm-s-da':             { name: 'markierte bei uns', text: 'Setzt „bei uns“ für alle markierten freien Positionen (L-Shop-Ware kommt über den Wareneingang). Fragt vorher.' },
+        'bsm-we':               { name: 'Wareneingang', text: 'L-Shop-Ware wird „bei uns“ über den Wareneingang: unter L-Shop-Bestellungen „Ware angekommen“ buchen.' },
         'bsm-s-fertig':         { name: 'markierte fertig', text: 'Setzt „fertig“ für alle markierten übernommenen Einträge (Trikots ausgenommen). Fragt vorher.' },
         'bsm-geliefert':        { name: 'an Fanshop geliefert', text: 'Alle übernommenen Positionen dieses Termins gelten als geliefert. Ein Auftrag auf „fertig“ geht auf „übergeben“. Fragt vorher.' },
         'bsm-geliefert-zurueck': { name: 'geliefert zurücknehmen', text: 'Nimmt „geliefert“ für diesen Termin zurück; „übergeben“ geht zurück auf „fertig“. Fragt vorher.' },
@@ -7190,7 +7195,7 @@
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag', 'tr-aendern-gesperrt', 'ti-goalie', 'tr-goalie', 'tr-gk-pruefen', 'tr-gk-markieren', 'tr-gk-kein'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfbs-g-rueckstand', 'lfbs-g-vorraetig', 'lfbs-lager', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
-        auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern',
+        auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-pos-da', 'au-pos-we', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern',
           'au-hist-chip', 'au-hist-aus', 'au-hist-drin', 'au-hist-mehr', 'au-hist-preis', 'au-preis-von', 'au-hist-lfb', 'au-wie-letztes', 'au-vorlage-von',
           'ku-hist', 'ku-hist-neu', 'ku-hist-frei-neu', 'ku-mit-storniert', 'ku-wie-letztes',
           'au-letzte', 'au-letzte-alle', 'au-ns-schliessen', 'au-ns-vorlage', 'au-ek-von', 'au-bestellseite', 'ku-dauer-bestellseite',
@@ -7201,7 +7206,7 @@
           'bsm-u-probe', 'bsm-u-los', 'bsm-k-offen', 'bsm-k-bestellt', 'bsm-k-geliefert', 'bsm-k-lager', 'bsm-k-verknuepft', 'bsm-speichern', 'bsm-neuer-link', 'bsm-sperren', 'bsm-entsperren',
           'bsm-ablauf', 'bsm-hinweis', 'bsm-design', 'bsm-sortiment', 'bsm-partner', 'bsm-bilder', 'bsm-bilder-stand',
           'bsm-eintraege', 'bsm-termin-filter', 'bsm-neu', 'bsm-spaet',
-          'bsm-fortschritt', 'bsm-fertig', 'bsm-s-fertig', 'bsm-geliefert', 'bsm-geliefert-zurueck', 'bsm-warn', 'bsm-verschieben', 'bsm-v-ziel', 'bsm-v-grund', 'bsm-v-los',
+          'bsm-fortschritt', 'bsm-fertig', 'bsm-s-fertig', 'bsm-da', 'bsm-s-da', 'bsm-we', 'bsm-geliefert', 'bsm-geliefert-zurueck', 'bsm-warn', 'bsm-verschieben', 'bsm-v-ziel', 'bsm-v-grund', 'bsm-v-los',
           'bsm-titel', 'bsm-bis', 'bsm-pers', 'bsm-abschl', 'bsm-abgeschlossen', 'bsm-wieder', 'bsm-auswahl', 'bsm-aw-suche', 'bsm-aw-modell', 'bsm-aw-farbe',
           'bsm-aw-name', 'bsm-aw-motiv', 'bsm-aw-dazu', 'bsm-aw-abbrechen', 'bsm-aw-weg', 'bsm-aw-neu',
           'bsm-ew-link', 'bsm-ew-setzen', 'bsm-ew-anlegen', 'bsm-ew-oeffnen', 'bsm-ew-vorschau', 'bsm-ew-weg', 'bsm-ew-bild'],   // KS1, KS2, KS4, KS6, KS7
@@ -11637,6 +11642,16 @@
       const auZustPasst = (x, f) => !f || f === 'alle' || (f === 'ohne' ? !x.Zustaendig : x.Zustaendig === f);
       const auZustHtml = (nr, wert, auswahl) => `<select class="form-select au-zust" data-au-zust="${kuEsc(nr)}" data-hilfe="zust-liste" aria-label="Zuständig">`
         + `<option value="">–</option>${(auswahl ?? []).map(z => `<option value="${kuEsc(z)}"${z === wert ? ' selected' : ''}>${kuEsc(z.slice(0, 1))}</option>`).join('')}</select>`;
+      // KS4-2: "bei uns" von Hand nur fuer freie Positionen "noch zu besorgen" (Spiegel von daHandMoeglich in utils/auftraege.js).
+      const auDaHand = p => p?.Art === 'frei' && !p?.Herkunft;
+      /** L-Shop-Ware unterwegs (bestellt/bestaetigt): Hinweis auf den Wareneingang statt Haken. */
+      const auWeHinweis = p => ['bestellt', 'bestätigt'].includes((p?.korb ?? p?.verweisKorb)?.status);
+      function auDaHtml(p, gesperrt) {
+        if (auDaHand(p)) return `<label class="au-pos-haken" data-hilfe="au-pos-da"><input type="checkbox" data-au-da="${kuEsc(p.Position_ID)}"${p.Da_Am ? ' checked' : ''}${gesperrt ? ' disabled' : ''}> bei uns</label>`
+          + (p.Da_Am ? `<small>bei uns ${auDatum(p.Da_Am)}</small>` : '');
+        const k = p?.korb ?? p?.verweisKorb;
+        return auWeHinweis(p) ? `<button type="button" class="korb-link" data-au-we="${kuEsc(k?.bestellId ?? '')}" data-hilfe="au-pos-we">Wareneingang buchen →</button>` : '';
+      }
       // ── Auftraege-Anzeige: Ende ──
 
       // ── Auftrag-Historie: Anfang (AM-6, reine Anzeige, Test backend/tests/auftrag-historie-frontend.test.js) ──
@@ -11946,7 +11961,8 @@
           const zeilen = g.positionen.map(p => `<div class="au-pos"><label class="au-pos-haken" data-hilfe="au-pos-fertig"><input type="checkbox" data-au-fertig="${kuEsc(p.Position_ID)}" ${p.Fertig === 'ja' ? 'checked' : ''} ${st ? 'disabled' : ''}> fertig</label>`
             + `<span>${kuEsc(g.art === 'lshop' ? (p.lshop?.groesse || '–') : 'Menge')} × ${kuEsc(p.Menge)}</span>`
             + (p.lshop?.lieferbar ? lfbPunkt(p.lshop.lieferbar) : '') + (p.lshop && p.lshop.bestellbar === false ? '<span class="ku-gefahr">nicht mehr bestellbar</span>' : '')
-            + (p.Fertig_Am ? `<small>fertig ${auDatum(p.Fertig_Am)}</small>` : '') + (p.Versendet ? `<small>geliefert ${auDatum(p.Versendet)}</small>` : '') + '</div>'   // KS4
+            + (p.Fertig_Am ? `<small>fertig ${auDatum(p.Fertig_Am)}</small>` : '') + (p.Versendet ? `<small>geliefert ${auDatum(p.Versendet)}</small>` : '')
+            + auDaHtml(p, st || !!p.Versendet) + '</div>'   // KS4, KS4-2
             // AM-3: Rueckmeldung aus Korb/Lager je Position, Sprung zur Korb-Position, "Übergabe zurücknehmen"
             + (p.korb ? `<button type="button" class="korb-link au-korb" data-au-korb="${kuEsc(p.Korb_Schluessel)}" data-hilfe="au-korb-stand">🛒 ${kuEsc(auKorbText(p.korb))}</button>` : '')
             + (p.Lager_Buchung ? `<span class="ku-chip" data-hilfe="au-lager-stand">📦 ausgebucht (${kuEsc(p.Lager_Ort || '')})</span>` : '')
@@ -12024,6 +12040,22 @@
         if (p.Herkunft === 'lager') return !p.Lager_Buchung;
         return false;
       }
+      // KS4-2: "bei uns" je freie Position (Ruecknahme mit Bestaetigung), Sprung zum Wareneingang
+      auEl('au-d-pos').addEventListener('change', async e => {
+        const box = e.target.closest('[data-au-da]');
+        if (!box) return;
+        if (!box.checked && !await showConfirm('„bei uns“ zurücknehmen?', `<p>${kuEsc(box.dataset.auDa)}: die Ware gilt wieder als noch nicht da.</p>`, 'Zurücknehmen')) { box.checked = true; return; }
+        box.disabled = true;
+        try { const r = await auBsPost('/da', { positionIds: [box.dataset.auDa], da: box.checked }); if (!r.unveraendert) showToast(`${box.dataset.auDa}: ${box.checked ? 'bei uns' : 'nicht mehr bei uns'}.`); }
+        catch (err) { box.checked = !box.checked; auEl('au-d-fehler').textContent = err.message; auEl('au-d-fehler').hidden = false; }
+        await loadAuftraege();
+      });
+      auEl('au-d-pos').addEventListener('click', e => {
+        const we = e.target.closest('[data-au-we]');
+        if (!we) return;
+        if (we.dataset.auWe) lbSpringeZu(we.dataset.auWe);
+        oeffneAnsicht('bestellen', 'lshop-bestellungen');
+      });
       auEl('au-d-pos').addEventListener('change', async e => {
         const box = e.target.closest('[data-au-fertig]');
         if (!box) return;
@@ -13263,6 +13295,10 @@
       // KS4-1: Ware laut Stand noch nicht da (vor "bei uns") -> "fertig" nur nach Rueckfrage (Befund: Mützen ungewollt "fertig")
       const bsmWareFehlt = e => ['uebernommen', 'bestellt', 'unterwegs'].includes(e.fortschritt?.schritt) && e.fortschritt?.weg !== 'frei';
       const bsmDruckbar = e => e.status === 'übernommen' && e.art !== 'trikot' && e.positionId && !bsmGeliefert(e);
+      // KS4-2: "bei uns" von Hand nur bei freien Positionen (Weg frei); L-Shop-Ware unterwegs -> Hinweis Wareneingang
+      const bsmDaHand = e => e.status === 'übernommen' && e.art !== 'trikot' && !!e.positionId && e.fortschritt?.weg === 'frei' && !bsmGeliefert(e);
+      const bsmDa = e => !!e.fortschritt?.intern?.da;
+      const bsmWe = e => e.status === 'übernommen' && e.fortschritt?.weg === 'bestellen' && ['bestellt', 'unterwegs'].includes(e.fortschritt?.schritt);
       /** KS4: "nach dem Termin" (bekannte Woche) oder Rueckstand ohne Woche - fuer die Warnliste. */
       const bsmWarnung = e => !!e.fortschritt && (e.fortschritt.spaet || (e.fortschritt.schritt === 'unterwegs' && /^Rückstand/.test(e.fortschritt.text) && !e.fortschritt.kw));
       /** KS4: Stand als Kennzeichen (Text wie auf der Seite, Quelle nur im Mouse-over). */
@@ -13303,6 +13339,8 @@
           + `<span class="korb-zaehler">${kuEsc(datum || e.termin)} · ${kuEsc(e.kuerzel)} · ${kuEsc(new Date(e.zeit).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }))}${e.geaendertVon ? ` · geändert von ${kuEsc(e.geaendertVon)}` : ''}</span>`
           + (e.status === 'übernommen' && e.auftragNr ? `<button type="button" class="korb-link" data-bsm-au="${kuEsc(e.auftragNr)}" data-hilfe="bsm-e-auftrag">→ ${kuEsc(e.auftragNr)}${e.positionId && e.positionId !== e.auftragNr ? ` · ${kuEsc(e.positionId)}` : ''}</button>` : '')
           + bsmFortChip(e)   // KS4
+          + (bsmDaHand(e) ? `<label class="bsm-fertig" data-hilfe="bsm-da"><input type="checkbox" data-bsm-da="${kuEsc(e.positionId)}"${bsmDa(e) ? ' checked' : ''}> bei uns</label>` : '')   // KS4-2
+          + (bsmWe(e) ? '<button type="button" class="korb-link" data-bsm-we data-hilfe="bsm-we">Wareneingang buchen →</button>' : '')
           + (e.status === 'übernommen' && e.art !== 'trikot' && e.positionId ? `<label class="bsm-fertig" data-hilfe="bsm-fertig"><input type="checkbox" data-bsm-fertig="${kuEsc(e.positionId)}"${bsmFertig(e) ? ' checked' : ''}${bsmGeliefert(e) ? ' disabled' : ''}> fertig</label>` : '')
           + (e.verschobenVon ? `<span class="korb-zaehler">verschoben von ${kuEsc(e.verschobenVonDatum || e.verschobenVon)}${e.verschobenGrund ? ` – ${kuEsc(e.verschobenGrund)}` : ''}</span>` : '')
           + (offen ? `<span class="bsm-e-knoepfe">`
@@ -13420,9 +13458,10 @@
         const offen = liste.filter(bsmOffen);
         const ungeprueft = liste.filter(e => e.status === 'eingegangen').length, geprueft = liste.filter(e => e.status === 'geprüft').length;
         const gew = liste.filter(e => wahl.has(e.id));
-        const wOffen = gew.filter(bsmOffen).length, wDruck = gew.filter(bsmDruckbar).length;
+        const wOffen = gew.filter(bsmOffen).length, wDruck = gew.filter(bsmDruckbar).length, wDa = gew.filter(x => bsmDaHand(x) && !bsmDa(x)).length;
         const leiste = `<div class="korb-reihe bsm-sammel"><span class="korb-zaehler">${ungeprueft} ungeprüft · ${geprueft} geprüft · ${wahl.size} markiert</span>`
           + (gew.length ? `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-verschieben data-hilfe="bsm-verschieben">markierte in anderen Termin …</button>` : '')   // KS4
+          + (wDa ? `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-s-da data-hilfe="bsm-s-da">markierte bei uns (${wDa})</button>` : '')   // KS4-2
           + (wDruck ? `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-s-fertig data-hilfe="bsm-s-fertig">markierte fertig (${wDruck})</button>` : '')
           + (offen.length ? `<button type="button" class="korb-link" data-bsm-alle data-hilfe="bsm-alle">alle offenen markieren</button>`
             + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-s-pruefen data-hilfe="bsm-s-pruefen"${wOffen ? '' : ' disabled'}>markierte: geprüft ✓</button>`
@@ -13802,6 +13841,25 @@
           await bsmEintraegeLaden(z.Zugang_ID); bsmDialogZeichnen(); loadAuftraege();
           return;
         }
+        // KS4-2: "bei uns" je Eintrag und gesammelt (nur freie Positionen), Wareneingang-Sprung
+        if (b.matches('[data-bsm-da]')) {
+          if (!b.checked && !await showConfirm('„bei uns“ zurücknehmen?', `<p>${kuEsc(b.dataset.bsmDa)}: die Ware gilt wieder als noch nicht da.</p>`, 'Zurücknehmen')) { b.checked = true; return; }
+          b.disabled = true;
+          try { await bsmApi('/da', { positionIds: [b.dataset.bsmDa], da: b.checked }); showToast(`${b.dataset.bsmDa}: ${b.checked ? 'bei uns' : 'nicht mehr bei uns'}.`); }
+          catch (err) { b.checked = !b.checked; bsmFehler(err.message); }
+          await bsmEintraegeLaden(z.Zugang_ID); bsmDialogZeichnen(); loadAuftraege();
+          return;
+        }
+        if (b.matches('[data-bsm-s-da]')) {
+          const ids = [...new Set((bsmZ.eintraege[z.Zugang_ID] ?? []).filter(x => k.wahl.has(x.id) && bsmDaHand(x) && !bsmDa(x)).map(x => x.positionId))];
+          if (!ids.length || !await showConfirm('Markierte bei uns?', `<p>${ids.length} freie Positionen bekommen den Haken „bei uns“ (heute). L-Shop-Ware kommt über den Wareneingang.</p>`, 'Bei uns')) return;
+          b.disabled = true;
+          try { const r = await bsmApi('/da', { positionIds: ids, da: true }); showToast(`${r.geaendert} Positionen bei uns${r.unveraendert ? ` (${r.unveraendert} waren es schon)` : ''}.`); k.wahl = new Set(); }
+          catch (err) { bsmFehler(err.message); }
+          await bsmEintraegeLaden(z.Zugang_ID); bsmDialogZeichnen(); loadAuftraege();
+          return;
+        }
+        if (b.matches('[data-bsm-we]')) { oeffneAnsicht('bestellen', 'lshop-bestellungen'); return; }
         if (b.matches('[data-bsm-s-fertig]')) {
           const gew = (bsmZ.eintraege[z.Zugang_ID] ?? []).filter(x => k.wahl.has(x.id) && bsmDruckbar(x));
           const ids = [...new Set(gew.map(x => x.positionId))];

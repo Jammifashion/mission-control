@@ -387,3 +387,29 @@ describe('Oberflaeche', () => {
     expect(html).toMatch(/fehlt\(bs, 'bestellseiten'/);
   });
 });
+
+// KS4-2: "bei uns" in "Einträge ansehen" - nur freie Positionen, L-Shop unterwegs -> Hinweis Wareneingang
+describe('KS4-2: Einträge ansehen – bei uns', () => {
+  const html = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../frontend/index.html'), 'utf8');
+  const a = html.indexOf('// ── Bestellseiten-Pruefen: Anfang'), b = html.indexOf('// ── Bestellseiten-Pruefen: Ende ──');
+  const kuEsc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+  const F = new Function('kuEsc', 'bsmDatum', 'bsmEintragWas', 'BSM_ART', 'bsmNotiz', `${html.slice(a, b)}\nreturn { bsmDaHand, bsmDa, bsmWe };`)(kuEsc, x => x, e => e.id, {}, () => '');
+  const e = (weg, schritt, o = {}) => ({ status: 'übernommen', art: 'extra', positionId: 'AU-2026-0001-01', fortschritt: { weg, schritt, intern: {} }, ...o });
+  test('Haken nur bei Weg frei, nicht bei Trikot/geliefert; Zustand aus intern.da', () => {
+    expect(F.bsmDaHand(e('frei', 'uebernommen'))).toBe(true);
+    expect(F.bsmDaHand(e('bestellen', 'bestellt'))).toBe(false);
+    expect(F.bsmDaHand(e('frei', 'geliefert'))).toBe(false);
+    expect(F.bsmDaHand(e('frei', 'uebernommen', { art: 'trikot' }))).toBe(false);
+    expect(F.bsmDa(e('frei', 'fertig', { fortschritt: { weg: 'frei', schritt: 'fertig', intern: { da: '2026-11-07' } } }))).toBe(true);
+  });
+  test('L-Shop bestellt/unterwegs -> Hinweis Wareneingang, sonst nicht', () => {
+    expect(F.bsmWe(e('bestellen', 'unterwegs'))).toBe(true);
+    expect(F.bsmWe(e('bestellen', 'beiUns'))).toBe(false);
+    expect(F.bsmWe(e('frei', 'uebernommen'))).toBe(false);
+  });
+  test('Zeile und Sammelknopf verdrahtet, Ruecknahme fragt nach', () => {
+    expect(html).toContain('data-bsm-da="${kuEsc(e.positionId)}"');
+    expect(html).toContain('data-bsm-s-da data-hilfe="bsm-s-da"');
+    expect(html).toMatch(/if \(b\.matches\('\[data-bsm-da\]'\)\) \{\s*if \(!b\.checked && !await showConfirm\('„bei uns“ zurücknehmen\?'/);
+  });
+});

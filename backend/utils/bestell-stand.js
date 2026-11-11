@@ -43,7 +43,7 @@ export const SCHRITT_TEXT = {
 export const WEGE = {
   bestellen: ['eingegangen', 'geprueft', 'uebernommen', 'bestellt', 'unterwegs', 'beiUns', 'fertig', 'geliefert'],
   vorhanden: ['eingegangen', 'geprueft', 'uebernommen', 'beiUns', 'fertig', 'geliefert'],
-  frei: ['eingegangen', 'geprueft', 'uebernommen', 'fertig', 'geliefert'],
+  frei: ['eingegangen', 'geprueft', 'uebernommen', 'beiUns', 'fertig', 'geliefert'],   // KS4-2: "bei uns" von Hand (Da_Am)
   trikot: ['eingegangen', 'geprueft', 'uebernommen', 'produzent', 'beiUns', 'geliefert'],
 };
 export const LIEFERBAR = 'lieferbar';
@@ -145,11 +145,12 @@ export function standFuer(e, ctx = {}) {
   const pos = ctx.posJe?.get(t(e.Position_ID));
   if (!pos) return aus('frei', 'uebernommen', { intern: { position: 'fehlt' } });
   const w = wegUndKorb(pos, ctx.posJe ?? new Map());
-  if (tag(pos.Versendet)) return aus(w.weg, 'geliefert', { datum: tag(pos.Versendet) });
+  const daI = w.weg === 'frei' ? { da: tag(pos.Da_Am) } : {};   // KS4-2: Hand-Haken "bei uns" (nur MC, nie die Seite)
+  if (tag(pos.Versendet)) return aus(w.weg, 'geliefert', { datum: tag(pos.Versendet), intern: daI });
   // KS4-1: "fertig" NUR aus dem Haken Fertig der Auftragsposition (setzt nur der Mensch)
-  if (t(pos.Fertig) === 'ja') return aus(w.weg, 'fertig', { datum: tag(pos.Fertig_Am) });
+  if (t(pos.Fertig) === 'ja') return aus(w.weg, 'fertig', { datum: tag(pos.Fertig_Am), intern: daI });
   if (w.weg === 'vorhanden') return aus('vorhanden', w.beiUns ? 'beiUns' : 'uebernommen');
-  if (w.weg === 'frei') return aus('frei', 'uebernommen');
+  if (w.weg === 'frei') return tag(pos.Da_Am) ? aus('frei', 'beiUns', { datum: tag(pos.Da_Am), intern: daI }) : aus('frei', 'uebernommen', { intern: daI });   // KS4-2
   const korb = w.korbKey ? ctx.korbJe?.get(w.korbKey) : null;
   const ks = t(korb?.Status);
   const intern = { korb: korb ? (ks === 'abgewählt' ? 'herausgenommen' : ks) : (w.korbKey ? 'fehlt' : 'nicht übergeben') };

@@ -9,7 +9,7 @@
 import { E_STATUS, E_ART, terminVergangen } from './bestell-eintraege.js';
 import {
   POSITION_SPALTEN, PREIS_SPALTEN, HERKUNFT, ART, STORNIERT, fehler, naechstePositionId, naechsteAuftragNr, korbSchluesselVon, aktivePositionen,
-  statusWechsel, schrittIndex,
+  statusWechsel, schrittIndex, daHandGrund
 } from './auftraege.js';
 import { zielAuftrag, terminAuftraege, terminAuftragNeu, GRUND_MAX } from './bestell-uebernahme.js';
 import { berlinDatum } from './berlin-tag.js';
@@ -166,6 +166,35 @@ export function geliefertPlan({ termin = null, auftragNr = '', zurueck = false, 
  * Plan "fertig" (= Haken Fertig, KS4 0.2; KS4-1 umbenannt) fuer mehrere Positionen, auch ueber Auftraege hinweg. Schon im Zielzustand = uebersprungen.
  * @returns {{ aenderungen: {zeile, positionId, auftragNr, felder}[], unveraendert: number }}
  */
+/**
+ * KS4-2: "bei uns" (Da_Am) von Hand fuer mehrere Positionen - nur freie "noch zu besorgen" (`daHandMoeglich`), sonst 422 mit Grund.
+ * Korb und Lager werden nie geaendert. Gleicher Zustand = unveraendert (Doppelklick).
+ */
+export function daMehrPlan({ positionIds, da, auftraege, positionen, jetzt }) {
+  const ids = [...new Set((Array.isArray(positionIds) ? positionIds : []).map(t).filter(Boolean))];
+  if (!ids.length) throw fehler('Keine Positionen gewählt.');
+  if (ids.length > 500) throw fehler('Höchstens 500 Positionen auf einmal.');
+  const tag = berlinDatum(new Date(jetzt)), iso = new Date(jetzt).toISOString();
+  const auJe = new Map((auftraege ?? []).map(a => [a.Auftrag_Nr, a]));
+  const GRUND = {
+    korb: 'kommt über den Wareneingang – unter L-Shop-Bestellungen „Ware angekommen“ buchen',
+    lager: 'kommt mit der Lagerbuchung (Rohlinge bereitstellen)',
+    vorhanden: 'ist schon als „vorhanden“ bei uns',
+  };
+  const aenderungen = [];
+  let unveraendert = 0;
+  for (const id of ids) {
+    const p = (positionen ?? []).find(x => x.Position_ID === id);
+    if (!p || t(p.Entfernt)) throw fehler(`Position ${id} gibt es nicht (mehr) – bitte neu laden.`, 409, 'konflikt');
+    if (auJe.get(p.Auftrag_Nr)?.Status === STORNIERT) throw fehler(`${p.Auftrag_Nr} ist storniert.`, 409, 'storniert');
+    const grund = daHandGrund(p);
+    if (grund) throw fehler(`${id}: ${GRUND[grund]}.`, 422, grund);
+    if (!!t(p.Da_Am) === !!da) { unveraendert++; continue; }
+    aenderungen.push({ zeile: p._zeile, positionId: id, auftragNr: p.Auftrag_Nr, felder: { Da_Am: da ? tag : '', Stand: iso } });
+  }
+  return { aenderungen, unveraendert };
+}
+
 export function fertigMehrPlan({ positionIds, fertig, auftraege, positionen, jetzt }) {
   const ids = [...new Set((Array.isArray(positionIds) ? positionIds : []).map(t).filter(Boolean))];
   if (!ids.length) throw fehler('Keine Positionen gewählt.');

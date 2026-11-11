@@ -18,7 +18,7 @@ import { TAB_TERMINE, TAB_EINTRAEGE, fehler } from '../utils/bestellseite.js';
 import { terminPlan } from '../utils/bestell-eintraege.js';
 import { TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, alsZeile as auZeile, HERKUNFT } from '../utils/auftraege.js';
 import { standFuer, rueckstandJeKorb } from '../utils/bestell-stand.js';
-import { verschiebenPlan, geliefertPlan, fertigMehrPlan } from '../utils/bestell-verschieben.js';
+import { verschiebenPlan, geliefertPlan, fertigMehrPlan, daMehrPlan } from '../utils/bestell-verschieben.js';
 
 const t = v => String(v ?? '').trim();
 /** Stand auf der Seite hoechstens so alt (Korb/AB/RS1 aendern sich stuendlich bzw. woechentlich; MC-Schreibwege leeren sofort). */
@@ -97,6 +97,22 @@ export async function setzeFertig({ eingabe, sheets: s, jetzt = () => new Date()
     if (plan.aenderungen.length) await schreibe(sheets, spreadsheetId, { zellen: plan.aenderungen.flatMap(x => zellenAus(TAB_POSITIONEN, p.idx, x.zeile, x.felder)) });
     fertigLeeren();
     console.log(`Bestellseite/Auftrag: ${plan.aenderungen.length} Positionen ${soll ? 'fertig' : 'nicht mehr fertig'}.`);
+    return { ok: true, geaendert: plan.aenderungen.length, unveraendert: plan.unveraendert };
+  });
+}
+
+/** KS4-2: POST /api/bestellseiten/da { positionIds, da } - "bei uns" von Hand fuer freie Positionen (Spalte Da_Am). */
+export async function setzeDa({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
+  return mitAuftragSperre(async () => {
+    const sheets = s ?? await sheetsClient();
+    const spreadsheetId = sheetId();
+    const { a, p } = await liesAuftraege(sheets, spreadsheetId);
+    if (p.idx.Da_Am === undefined) throw fehler('„bei uns“ ist noch nicht eingerichtet (Spalte Da_Am fehlt in Auftrag_Positionen).', 409, 'einrichtung');
+    const soll = eingabe?.da !== false;
+    const plan = daMehrPlan({ positionIds: eingabe?.positionIds, da: soll, auftraege: a.zeilen, positionen: p.zeilen, jetzt: jetzt().toISOString() });
+    if (plan.aenderungen.length) await schreibe(sheets, spreadsheetId, { zellen: plan.aenderungen.flatMap(x => zellenAus(TAB_POSITIONEN, p.idx, x.zeile, x.felder)) });
+    fertigLeeren();
+    console.log(`Bestellseite/Auftrag: ${plan.aenderungen.length} Positionen ${soll ? 'bei uns' : 'nicht mehr bei uns'}.`);
     return { ok: true, geaendert: plan.aenderungen.length, unveraendert: plan.unveraendert };
   });
 }

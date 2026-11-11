@@ -8,10 +8,10 @@ import { machSheets } from './hilfen/korb-sheet.js';
 import { legeZugangAn, _bestellseiteCacheLeeren } from '../lib/bestellseite.js';
 import { legeTerminAn, sendeAb, aendereEintragSeite, leseEintraege, leseEintraegeMc } from '../lib/bestellEintraege.js';
 import { pruefeEintraege, uebernehmen } from '../lib/bestellUebernahme.js';
-import { setzeFertig, setzeGeliefert, verschiebe, _standCacheLeeren, STAND_MS } from '../lib/bestellStand.js';
+import { setzeFertig, setzeDa, setzeGeliefert, verschiebe, _standCacheLeeren, STAND_MS } from '../lib/bestellStand.js';
 import { ZUGANG_SPALTEN, ZUGANG_OPTIONAL, TERMIN_SPALTEN, EINTRAG_SPALTEN, BILD_SPALTEN, BILD_OPTIONAL } from '../utils/bestellseite.js';
 import { EINTRAG_OPTIONAL } from '../utils/bestell-eintraege.js';
-import { AUFTRAG_SPALTEN, AUFTRAG_OPTIONAL, POSITION_SPALTEN, POSITION_OPTIONAL, wareStand } from '../utils/auftraege.js';
+import { AUFTRAG_SPALTEN, AUFTRAG_OPTIONAL, POSITION_SPALTEN, POSITION_OPTIONAL, wareStand, daHandMoeglich, daHandGrund } from '../utils/auftraege.js';
 import { KORB_SPALTEN } from '../utils/korb-logic.js';
 import { BUCHUNG_SPALTEN, ARTIKEL_SPALTEN, ORTE_SPALTEN } from '../utils/lager.js';
 import { standFuer, standFuerSeite, standSumme, isoWoche, rueckstandJeKorb, lieferInfo } from '../utils/bestell-stand.js';
@@ -388,5 +388,66 @@ describe('KS4-1: "fertig" nur vom Menschen, Texte "fertig", Liste oben', () => {
     expect(h).toMatch(/<details class="card bs-eingetragen" id="bs-eingetragen" open><summary><h2>Eingetragen für diesen Termin \(1\)<\/h2><span class="bs-summe">2 von 3 bei uns · 1 fertig<\/span>/);
     expect(h).toMatch(/class="bs-eintrag neu"/);
     expect(F.bsEingetragenHtml({ eintraege: [], offen: false, d: null })).not.toMatch(/ open>/);
+  });
+});
+
+// ═══ KS4-2: "bei uns" von Hand (nur freie Positionen, Spalte Da_Am) ═══════════════
+describe('KS4-2: bei uns von Hand', () => {
+  test('freie Position: setzen, Doppelklick, Seite zeigt "bei uns", Ware zaehlt, Ruecknahme; Korb/Lager unveraendert, kein append', async () => {
+    const korbVorher = JSON.stringify(t.Warenkorb_LShop), lagerVorher = JSON.stringify(t.Lager_Buchungen);
+    const logs = []; const spy = jest.spyOn(console, 'log').mockImplementation((...a) => logs.push(a.join(' ')));
+    await uebernommen([{ art: 'extra', freitext: 'Sticker', menge: 3 }]);
+    const id = t.Auftrag_Positionen[1][0];
+    const nr = t.Auftraege[1][spalte('Auftraege', 'Auftrag_Nr')];
+    expect(zelle('Auftrag_Positionen', 1, 'Art')).toBe('frei');
+    _standCacheLeeren();
+    expect((await seite()).eintraege[0].fortschritt.text).toBe('übernommen');
+    let au = (await leseAuftraege({ sheets: s.sheets })).auftraege.find(a => a.Auftrag_Nr === nr);
+    expect([au.ware, au.freiOffen]).toEqual(['bestellt', 1]);   // frei ohne Haken = noch zu besorgen, nie "offen"
+    let r = await setzeDa({ eingabe: { positionIds: [id], da: true }, sheets: s.sheets, jetzt: JETZT });
+    expect(r).toMatchObject({ geaendert: 1, unveraendert: 0 });
+    expect(zelle('Auftrag_Positionen', 1, 'Da_Am')).toBe('2026-11-07');
+    r = await setzeDa({ eingabe: { positionIds: [id], da: true }, sheets: s.sheets, jetzt: JETZT });
+    expect(r).toMatchObject({ geaendert: 0, unveraendert: 1 });   // Doppelklick
+    _standCacheLeeren();
+    const sv = await seite();
+    expect(sv.eintraege[0].fortschritt).toMatchObject({ text: 'bei uns', datum: '2026-11-07' });
+    expect(sv.summe).toMatchObject({ gesamt: 1, beiUns: 1 });
+    expect(JSON.stringify(sv)).not.toMatch(/intern|Da_Am/);   // Seite sieht nur den Schritt
+    expect((await mc()).eintraege[0].fortschritt.intern).toMatchObject({ da: '2026-11-07' });
+    _auftraegeCacheLeeren();
+    au = (await leseAuftraege({ sheets: s.sheets })).auftraege.find(a => a.Auftrag_Nr === nr);
+    expect([au.ware, au.freiOffen]).toEqual(['da', 0]);
+    await setzeDa({ eingabe: { positionIds: [id], da: false }, sheets: s.sheets, jetzt: JETZT });
+    expect(zelle('Auftrag_Positionen', 1, 'Da_Am')).toBe('');
+    expect(JSON.stringify(t.Warenkorb_LShop)).toBe(korbVorher);
+    expect(JSON.stringify(t.Lager_Buchungen)).toBe(lagerVorher);
+    expect(s.aufrufe.append).toBe(0);
+    spy.mockRestore();
+    expect(logs.join('\n')).not.toMatch(new RegExp(`${KUERZEL}|Sticker|${NOTIZ}`));
+  });
+
+  test('L-Shop-Position: kein Haken (422 korb, Hinweis Wareneingang), nichts geschrieben; ohne Spalte 409 einrichtung', async () => {
+    await uebernommen([{ art: 'artikel', id: '102', menge: 2 }]);
+    const id = t.Auftrag_Positionen[1][0];
+    const vorher = JSON.stringify(t.Auftrag_Positionen);
+    await expect(setzeDa({ eingabe: { positionIds: [id], da: true }, sheets: s.sheets, jetzt: JETZT }))
+      .rejects.toMatchObject({ status: 422, code: 'korb', message: expect.stringMatching(/Wareneingang/) });
+    expect(JSON.stringify(t.Auftrag_Positionen)).toBe(vorher);
+    const i = spalte('Auftrag_Positionen', 'Da_Am');
+    for (const z of t.Auftrag_Positionen) z.splice(i, 1);
+    _auftraegeCacheLeeren();
+    await expect(setzeDa({ eingabe: { positionIds: [id], da: true }, sheets: s.sheets, jetzt: JETZT })).rejects.toMatchObject({ status: 409, code: 'einrichtung' });
+  });
+
+  test('Regeln: daHandMoeglich/daHandGrund und wareStand', () => {
+    expect(daHandMoeglich({ Art: 'frei', Herkunft: '' })).toBe(true);
+    expect(daHandGrund({ Art: 'frei', Herkunft: 'vorhanden' })).toBe('vorhanden');
+    expect(daHandGrund({ Art: 'lshop', Herkunft: 'lager' })).toBe('lager');
+    expect(daHandGrund({ Art: 'lshop', Herkunft: 'bestellen' })).toBe('korb');
+    expect(daHandGrund({ Art: 'lshop', Herkunft: 'vorhanden', Verweis: 'EIGEN:2026-0101' })).toBe('korb');
+    expect(wareStand([{ Art: 'frei', Herkunft: '' }], new Map())).toBe('bestellt');
+    expect(wareStand([{ Art: 'frei', Herkunft: '', Da_Am: '2026-11-07' }], new Map())).toBe('da');
+    expect(wareStand([{ Art: 'frei', Herkunft: 'vorhanden' }], new Map())).toBe('');
   });
 });
