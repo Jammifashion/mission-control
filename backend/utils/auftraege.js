@@ -386,6 +386,29 @@ export function fertigPlan({ auftrag, positionen, positionId, fertig, jetzt }) {
   return { position: p, felder, vorschlagFertig: fertigVorschlag(auftrag, nachher) };
 }
 
+/**
+ * BS4 Teil B: Position einzeln entfernen bzw. wiederherstellen - nur markieren (Spalte Entfernt = Tag), nie loeschen.
+ * Korb, Lager, Trikots und Bestell_Eintraege bleiben unberuehrt (die Oberflaeche sagt das in der Rueckfrage).
+ * Abgeschlossen (bezahlt, storniert) = nichts. Wiederherstellen nicht bei verschobenen Positionen (KS4 Verschoben_Nach).
+ * @returns {{ position, felder: object|null, lage }}  felder null = schon so (Doppelklick)
+ */
+export function entfernenPlan({ auftrag, positionen, positionId, wiederherstellen = false, jetzt }) {
+  if ([STORNIERT, 'bezahlt'].includes(auftrag.Status)) throw fehler(`${auftrag.Auftrag_Nr} ist abgeschlossen (${auftrag.Status}).`, 409, 'abgeschlossen');
+  const p = (positionen ?? []).find(x => x.Auftrag_Nr === auftrag.Auftrag_Nr && x.Position_ID === t(positionId));
+  if (!p) throw fehler('Position gibt es nicht (mehr) – bitte neu laden.', 409, 'konflikt');
+  if (wiederherstellen && t(p.Verschoben_Nach)) throw fehler(`${p.Position_ID} wurde in einen anderen Termin verschoben (${t(p.Verschoben_Nach)}) – dort bearbeiten.`, 409, 'verschoben');
+  const soll = wiederherstellen ? '' : heute(jetzt);
+  const felder = !!t(p.Entfernt) === !wiederherstellen ? null : { Entfernt: soll, Stand: t(jetzt) };
+  return { position: p, felder, lage: entfernenLage(p) };
+}
+/** Woran haengt die Position? frei | korb (🛒 bzw. Verweis auf Korb-Zeile) | lager (ausgebucht) | beiUns (Haken KS4-2). */
+export function entfernenLage(p) {
+  if (korbSchluesselVon(p)) return 'korb';
+  if (t(p.Lager_Buchung)) return 'lager';
+  if (t(p.Da_Am)) return 'beiUns';
+  return 'frei';
+}
+
 /** AM-3: Position an Korb (Korb_Schluessel) oder Lager (Lager_Buchung) uebergeben? */
 export const istUebergeben = p => !!(t(p.Korb_Schluessel) || t(p.Lager_Buchung));
 
@@ -495,6 +518,9 @@ export function auftraegeAntwort(auftraege, positionen, anreichern = p => p) {
     // KS4: verschobene Positionen (auch entfernte) nur zur Anzeige "verschoben nach …" - zaehlen nirgends
     const verschoben = (positionen ?? []).filter(p => p.Auftrag_Nr === a.Auftrag_Nr && t(p.Verschoben_Nach))
       .map(p => ({ Position_ID: p.Position_ID, nach: t(p.Verschoben_Nach), ganz: !!t(p.Entfernt), Art: p.Art, LShop_ArticleNr: p.LShop_ArticleNr, Freitext: p.Freitext }));
-    return { ...a, positionen: pos, stueck: pos.reduce((s, p) => s + (Number(p.Menge) || 0), 0), ...(verschoben.length ? { verschoben } : {}) };
+    // BS4: von Hand entfernte Positionen (nicht verschoben) nur zur Anzeige "n entfernte" + wiederherstellen - zaehlen nirgends
+    const entfernt = (positionen ?? []).filter(p => p.Auftrag_Nr === a.Auftrag_Nr && t(p.Entfernt) && !t(p.Verschoben_Nach))
+      .map(({ _zeile: _z, ...p }) => ({ Position_ID: p.Position_ID, Art: p.Art, LShop_ArticleNr: p.LShop_ArticleNr, Freitext: p.Freitext, Menge: p.Menge, Entfernt: t(p.Entfernt) }));
+    return { ...a, positionen: pos, stueck: pos.reduce((s, p) => s + (Number(p.Menge) || 0), 0), ...(verschoben.length ? { verschoben } : {}), ...(entfernt.length ? { entfernt } : {}) };
   });
 }

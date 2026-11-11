@@ -420,6 +420,9 @@
       .au-pos { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; min-height: 44px; }
       .au-pos input { width: 1.3rem; height: 1.3rem; }
       .pf-kuerzel-hinweis { color: var(--warning); }   /* MK1: Kuerzel nicht ueblich - nur Hinweis */
+      .au-entfernt { margin-top: 0.6rem; font-size: 0.85rem; color: var(--muted); }   /* BS4 */
+      .au-entfernt summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+      .au-entfernen { margin-left: auto; }
       .au-pos-haken { display: inline-flex; align-items: center; gap: 0.3rem; min-height: 44px; cursor: pointer; white-space: nowrap; }   /* KS4-1, KS4-2: Wort bleibt in einer Zeile */
       .au-bald { color: var(--warning); font-weight: 600; }
       /* AM-4: Aufgaben + Checkliste (Handy 375 px: alles bricht um, keine waagerechte Verschiebung) */
@@ -1142,6 +1145,7 @@
       .prod-item:last-of-type { margin-bottom: 0; }
       .prod-item-name    { font-size: 0.86rem; font-weight: 500; margin-bottom: 0.2rem; }
       .prod-item-sku     { font-size: 0.74rem; color: var(--muted); font-weight: 400; margin-left: 0.3rem; }
+      .ps-shop-link { display: inline-flex; align-items: center; min-height: 32px; font-size: 0.8rem; color: var(--info); white-space: nowrap; }   /* BS4 */
       .prod-item-variant { font-size: 0.78rem; color: var(--text); margin-bottom: 0.35rem; }
       /* BS3: Produktbild je Position */
       .ps-item-kopf { display: flex; align-items: flex-start; gap: 0.6rem; }
@@ -5657,6 +5661,12 @@
           versand: Object.fromEntries(Object.keys(PS_VERSAND).map(k => [k, psFiltern(vs, { versand: k, shop }).length])),
         };
       }
+      // BS4: Bestellung im Shop-Backend oeffnen (DHL-Etikett). Adresse baut das Backend aus WC_URL (mc_admin_url), nur https.
+      function psShopLinkHtml(o) {
+        const u = String(o?.mc_admin_url ?? '');
+        if (!/^https:\/\/[^/]+\/wp-admin\/post\.php\?post=\d+&action=edit$/.test(u)) return '';
+        return `<a class="ps-shop-link" href="${psEsc(u)}" target="_blank" rel="noopener" data-hilfe="ps-shop-link">Im Shop öffnen ↗</a>`;
+      }
       // ── Produktion-Stand: Ende ──
 
       // ── Bestellkarten rendern ─────────────────────────────────────────────
@@ -5684,6 +5694,7 @@
                   <span class="order-card-id">#${o.id}</span>
                   <span class="order-card-customer">${psEsc(name)}${city ? ' · ' + psEsc(city) : ''}</span>
                   <span class="order-card-detail">${date} · ${amount}${payment ? ' · ' + psEsc(payment) : ''}</span>
+                  ${psShopLinkHtml(o)}
                   ${statusBadge(o.status)}
                   ${psVersandHtml(psVersandArt(o, currentShop()))}
                   ${psZustand.trikots ? trKarteHtml(o.id, psZustand.trikots[String(o.id)]) : ''}
@@ -5936,6 +5947,7 @@
         }
         const erledigt = ev.target.closest('.btn-complete-order');
         if (erledigt) { ev.stopPropagation(); completeOrder(erledigt.dataset.orderId); return; }
+        if (ev.target.closest('a.ps-shop-link')) return;   // BS4: Link oeffnet nur den neuen Tab, Karte bleibt wie sie ist
         const header = ev.target.closest('.order-card-header');
         if (!header) return;
         const id = header.dataset.orderId;
@@ -6804,6 +6816,7 @@
         'prod-fertig':          { name: 'Fertig (im Karton)', text: 'Hak an, wenn der Artikel bedruckt und gepackt im Karton liegt, der Auftrag aber noch nicht komplett ist.' },
         'prod-dtf':             { name: 'DTF bestellt', text: 'Hak an, wenn du den Druck für diesen Artikel bei DTF bestellt hast.' },
         'prod-versendet':       { name: 'Versendet', text: 'Hak an, wenn dieser Artikel an den Kunden raus ist – auch bei einer Teillieferung. Zählt als fertig.' },
+        'ps-shop-link':         { name: 'Im Shop öffnen', text: 'Öffnet die Bestellung im Shop-Backend in einem neuen Tab (z. B. für das DHL-Etikett).' },
         'ps-bild':              { name: 'Produktbild', text: 'Bild der Variation aus dem Shop. Antippen zeigt es groß, nochmal antippen oder Esc schließt.' },
         'prod-notiz':           { name: 'Notiz', text: 'Freier Hinweis zu diesem Artikel. Wird gespeichert, sobald du das Feld verlässt.' },
         // TR2: Ansicht "Trikots (JFN)"
@@ -6966,6 +6979,9 @@
         'kurz-kuerzel-hinweis': { name: 'Kürzel nicht üblich', text: 'Nur ein Hinweis: andere Artikel dieser Kategorie nutzen ein anderes Kürzel. Speichern geht trotzdem.' },
         'au-pos-da':            { name: 'bei uns', text: 'Haken = Ware dieser freien Position ist bei uns (zugekauft, abgeholt). Mit Datum; Rücknahme fragt nach.' },
         'au-pos-we':            { name: 'Wareneingang', text: 'L-Shop-Ware wird „bei uns“ über den Wareneingang: unter L-Shop-Bestellungen „Ware angekommen“ buchen.' },
+        'au-entfernen':         { name: 'entfernen', text: 'Nimmt die Position aus dem Auftrag (nicht löschen). Fragt vorher; Korb und Lager bleiben unverändert.' },
+        'au-entfernt-liste':    { name: 'entfernte Positionen', text: 'Positionen, die aus dem Auftrag genommen wurden – zählen nirgends mit, lassen sich wiederherstellen.' },
+        'au-wiederherstellen':  { name: 'wiederherstellen', text: 'Holt die entfernte Position zurück in den Auftrag. Fragt vorher.' },
         'au-pos-fertig':        { name: 'fertig', text: 'Haken je Position, mit Datum. Ist die Ware noch nicht da, fragt MC nach. Sind alle fertig, schlägt MC „Auftrag auf fertig“ vor.' },
         'au-kundenkarte':       { name: 'Kundenkarte', text: 'Öffnet die Karte des Kunden mit seinen Aufträgen.' },
         'au-kunde-suche':       { name: 'Kunde', text: 'Tippen sucht in MC (Name, Spitzname, Nummer, Ort). Unten in der Liste: in Lexoffice suchen oder neu anlegen.' },
@@ -7191,11 +7207,11 @@
         bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-mehr', 'bei-ankunft-lager', 'lager-ziel-aendern', 'eb-gesperrt-bestellt', 'eb-gesperrt-geliefert', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere', 'rs-block', 'rs-kennzeichen', 'rs-bezug'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'ps-suche', 'ps-suche-weg', 'ps-grenze', 'ps-status-alle', 'ps-status-processing', 'ps-status-on-hold',
-          'ps-status-pending', 'ps-versand-alle', 'ps-versand-filter-abholung', 'ps-versand-filter-versand', 'ps-versand-abholung', 'ps-versand-versand', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz', 'ps-bild'],
+          'ps-status-pending', 'ps-versand-alle', 'ps-versand-filter-abholung', 'ps-versand-filter-versand', 'ps-versand-abholung', 'ps-versand-versand', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz', 'ps-bild', 'ps-shop-link'],
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag', 'tr-aendern-gesperrt', 'ti-goalie', 'tr-goalie', 'tr-gk-pruefen', 'tr-gk-markieren', 'tr-gk-kein'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfbs-g-rueckstand', 'lfbs-g-vorraetig', 'lfbs-lager', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
-        auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-pos-da', 'au-pos-we', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern',
+        auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-pos-da', 'au-pos-we', 'au-entfernen', 'au-entfernt-liste', 'au-wiederherstellen', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern',
           'au-hist-chip', 'au-hist-aus', 'au-hist-drin', 'au-hist-mehr', 'au-hist-preis', 'au-preis-von', 'au-hist-lfb', 'au-wie-letztes', 'au-vorlage-von',
           'ku-hist', 'ku-hist-neu', 'ku-hist-frei-neu', 'ku-mit-storniert', 'ku-wie-letztes',
           'au-letzte', 'au-letzte-alle', 'au-ns-schliessen', 'au-ns-vorlage', 'au-ek-von', 'au-bestellseite', 'ku-dauer-bestellseite',
@@ -11652,6 +11668,28 @@
         const k = p?.korb ?? p?.verweisKorb;
         return auWeHinweis(p) ? `<button type="button" class="korb-link" data-au-we="${kuEsc(k?.bestellId ?? '')}" data-hilfe="au-pos-we">Wareneingang buchen →</button>` : '';
       }
+      // BS4 Teil B: Position entfernen (nur markieren). Lage wie entfernenLage in utils/auftraege.js.
+      const auEntfernenLage = p => ((p?.korb || p?.verweisKorb || p?.Korb_Schluessel) ? 'korb' : p?.Lager_Buchung ? 'lager' : p?.Da_Am ? 'beiUns' : 'frei');
+      /** Rueckfrage je Lage: was bleibt stehen (Korb, Lager, "bei uns", Bestellseite). */
+      function auEntfernenText(p, { bestellseite = false } = {}) {
+        const lage = auEntfernenLage(p);
+        const k = p?.korb ?? p?.verweisKorb;
+        const teile = ['<p>Die Position wird aus dem Auftrag genommen – nicht gelöscht, „wiederherstellen“ holt sie zurück. Sie zählt nicht mehr in Summe, Stückzahl und „wartet auf Ware“.</p>'];
+        if (lage === 'korb') teile.push(`<p><strong>Die Korb-Zeile wird NICHT mitgeändert</strong>${k?.status ? ` (Korb: ${kuEsc(k.status)})` : ''}. Soll die Ware nicht mehr bestellt werden: vorher „Übergabe zurücknehmen“ bzw. im Warenkorb herausnehmen.${['bestellt', 'bestätigt', 'geliefert'].includes(k?.status) ? ' Bei L-Shop ist sie schon bestellt.' : ''}</p>`);
+        if (lage === 'lager') teile.push('<p><strong>Der Lager-Abgang bleibt gebucht.</strong> Soll die Ware zurück ins Lager: vorher „Übergabe zurücknehmen“.</p>');
+        if (lage === 'beiUns') teile.push('<p>Die Ware ist als „bei uns“ markiert – das bleibt so.</p>');
+        if (bestellseite) teile.push('<p>Einträge der Bestellseite zu dieser Position zeigen danach „storniert“.</p>');
+        return teile.join('');
+      }
+      /** Eingeklappt "n entfernte" mit "wiederherstellen" (nicht bei abgeschlossenem Auftrag). */
+      function auEntferntHtml(a, gesperrt) {
+        const l = a?.entfernt ?? [];
+        if (!l.length) return '';
+        return `<details class="au-entfernt"><summary data-hilfe="au-entfernt-liste">${l.length} entfernte Position${l.length === 1 ? '' : 'en'}</summary>`
+          + l.map(p => `<div class="au-pos"><span>${kuEsc(p.Art === 'lshop' ? p.LShop_ArticleNr : p.Freitext)} × ${kuEsc(p.Menge)}</span><small>entfernt ${auDatum(p.Entfernt)}</small>`
+            + (gesperrt ? '' : `<button type="button" class="korb-link" data-au-wiederherstellen="${kuEsc(p.Position_ID)}" data-hilfe="au-wiederherstellen">wiederherstellen</button>`) + '</div>').join('')
+          + '</details>';
+      }
       // ── Auftraege-Anzeige: Ende ──
 
       // ── Auftrag-Historie: Anfang (AM-6, reine Anzeige, Test backend/tests/auftrag-historie-frontend.test.js) ──
@@ -11967,9 +12005,11 @@
             + (p.korb ? `<button type="button" class="korb-link au-korb" data-au-korb="${kuEsc(p.Korb_Schluessel)}" data-hilfe="au-korb-stand">🛒 ${kuEsc(auKorbText(p.korb))}</button>` : '')
             + (p.Lager_Buchung ? `<span class="ku-chip" data-hilfe="au-lager-stand">📦 ausgebucht (${kuEsc(p.Lager_Ort || '')})</span>` : '')
             + (auKannZuruecknehmen(a, p) ? `<button type="button" class="korb-link" data-au-zuruecknehmen="${kuEsc(p.Position_ID)}" data-hilfe="au-zuruecknehmen">Übergabe zurücknehmen</button>` : '')
-            + auVerweisHtml(p.Verweis, p.verweisKorb) + auBsEintraegeHtml(auBsZ.je.get(a.Auftrag_Nr), p.Position_ID)).join('');   // KS3, KS3-1
+            + auVerweisHtml(p.Verweis, p.verweisKorb) + auBsEintraegeHtml(auBsZ.je.get(a.Auftrag_Nr), p.Position_ID)   // KS3, KS3-1
+            + (st || a.Status === 'bezahlt' ? '' : `<button type="button" class="korb-link ku-gefahr au-entfernen" data-au-entfernen="${kuEsc(p.Position_ID)}" data-hilfe="au-entfernen">entfernen …</button>`)).join('');   // BS4
           return `<div class="au-gruppe"><div>${kopf} · ${g.stueck} Stück</div>${neben ? `<div class="ku-meta">${neben}</div>` : ''}<div class="au-pos-zeilen">${zeilen}</div></div>`;
         }).join('') || '<p class="korb-zaehler">Keine Positionen.</p>';
+        auEl('au-d-pos').insertAdjacentHTML('beforeend', auEntferntHtml(a, st || a.Status === 'bezahlt'));   // BS4
         auDetailPreise(a);   // AM-5
         auDetailZusatz(a);   // AM-4: zugehoerige Aufgaben + To-dos
       }
@@ -12048,6 +12088,26 @@
         box.disabled = true;
         try { const r = await auBsPost('/da', { positionIds: [box.dataset.auDa], da: box.checked }); if (!r.unveraendert) showToast(`${box.dataset.auDa}: ${box.checked ? 'bei uns' : 'nicht mehr bei uns'}.`); }
         catch (err) { box.checked = !box.checked; auEl('au-d-fehler').textContent = err.message; auEl('au-d-fehler').hidden = false; }
+        await loadAuftraege();
+      });
+      // BS4: Position entfernen / wiederherstellen (nur markieren, Korb/Lager/Bestellseite nie)
+      auEl('au-d-pos').addEventListener('click', async e => {
+        const b = e.target.closest('[data-au-entfernen], [data-au-wiederherstellen]');
+        if (!b) return;
+        const a = (auZ.daten?.auftraege ?? []).find(x => x.Auftrag_Nr === auZ.offen);
+        if (!a) return;
+        const wieder = b.matches('[data-au-wiederherstellen]');
+        const id = wieder ? b.dataset.auWiederherstellen : b.dataset.auEntfernen;
+        const p = a.positionen.find(x => x.Position_ID === id);
+        const ok = wieder
+          ? await showConfirm('Position wiederherstellen?', `<p>${kuEsc(id)} kommt zurück in den Auftrag und zählt wieder mit.</p>`, 'Wiederherstellen')
+          : await showConfirm('Position entfernen?', auEntfernenText(p, { bestellseite: !!auBsEintraegeHtml(auBsZ.je.get(a.Auftrag_Nr), id) }), 'Entfernen');
+        if (!ok) return;
+        b.disabled = true;
+        try {
+          const r = await auPost('position-entfernen', { auftragNr: a.Auftrag_Nr, positionId: id, wiederherstellen: wieder });
+          showToast(r.unveraendert ? 'Nichts zu ändern.' : `${id} ${wieder ? 'wiederhergestellt' : 'entfernt'}.`);
+        } catch (err) { b.disabled = false; auEl('au-d-fehler').textContent = err.message; auEl('au-d-fehler').hidden = false; }
         await loadAuftraege();
       });
       auEl('au-d-pos').addEventListener('click', e => {
@@ -13404,7 +13464,7 @@
       }
       /** Packliste (Druck): nur übernommene Eintraege des Termins, gruppiert, je Zeile Kürzel + Notiz + Abhakkästchen. Keine Preise. */
       function bsmPacklisteHtml(zugangId, termin, eintraege) {
-        const ue = (eintraege ?? []).filter(e => e.termin === termin?.Termin_ID && e.status === 'übernommen');
+        const ue = (eintraege ?? []).filter(e => e.termin === termin?.Termin_ID && e.status === 'übernommen' && e.fortschritt?.schritt !== 'storniert');   // BS4: entfernte Position
         const zeile = (was, e) => `<div class="bsm-pl-zeile"><span class="bsm-pl-kasten" aria-hidden="true"></span><span>${kuEsc(was)}</span>`
           + `<span class="bsm-pl-wer">${kuEsc(e.kuerzel)}${e.notiz ? ` · ${kuEsc(e.notiz)}` : ''}</span></div>`;
         const art = ue.filter(e => e.art === 'artikel');

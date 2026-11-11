@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { getWcClient } from '../lib/shopConfig.js';
+import { mitAdminLink } from '../utils/shop-admin.js';
+import { getWcClient, getShopConfig } from '../lib/shopConfig.js';
 import { seitenGrenze, seitenListe, wirfWennPruefseite, HosterPruefseiteError, ShopZeitueberschreitungError } from '../lib/hosterPruefseite.js';
 import { notifyHosterPruefseite, notifyShopZeitueberschreitung } from '../lib/chatNotify.js';
 import { markeFuerShop } from '../lib/shopMarke.js';
@@ -124,13 +125,13 @@ router.get('/orders', async (req, res, next) => {
       }
       all.sort((a, b) => new Date(b.date_created) - new Date(a.date_created));
       const start = (Number(page) - 1) * perPage;
-      return res.json(all.slice(start, start + perPage));
+      return res.json(mitAdminLink(all.slice(start, start + perPage), getShopConfig(req.query.shop).wcUrl));   // BS4
     }
 
     const params = { per_page: perPage, page: Number(page) };
     if (status) params.status = status;
     const { data } = await wc.get('orders', params);
-    res.json(data);
+    res.json(mitAdminLink(data, getShopConfig(req.query.shop).wcUrl));   // BS4
   } catch (err) {
     next(err);
   }

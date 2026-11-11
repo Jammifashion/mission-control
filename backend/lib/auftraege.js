@@ -21,7 +21,7 @@ import { TAB_KORB, korbZeilen } from '../utils/korb-logic.js';   // AM-3: Korb n
 import {
   TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, POSITION_OPTIONAL, AUFTRAG_OPTIONAL, brauchtHerkunftSpalten, zeilenAus,
   korbStand, wareStand, autoBestellt, ART, HERKUNFT, alsZeile, anlagePlan, bearbeitenPlan, VERWEIS_KORB,
-  statusWechsel, fertigPlan, fertigVorschlag, aktivePositionen, auftragZahlen, auftraegeAntwort, fehler,
+  statusWechsel, fertigPlan, fertigVorschlag, entfernenPlan, aktivePositionen, auftragZahlen, auftraegeAntwort, fehler,
   PREIS_SPALTEN, ANGEBOT_SPALTEN, brauchtPreisSpalten, POSITIONEN_PFLICHT_AB,
 } from '../utils/auftraege.js';
 import { kundenHistorie } from '../utils/auftrag-historie.js';   // AM-6
@@ -423,6 +423,15 @@ export async function setzePositionFertig({ eingabe, sheets: s, jetzt = () => ne
     const plan = fertigPlan({ auftrag, positionen: p.zeilen, positionId: eingabe?.positionId, fertig: !!eingabe?.fertig, jetzt: jetzt().toISOString() });
     if (plan.felder) await schreibe(sheets, spreadsheetId, { zellen: zellenAus(TAB_POSITIONEN, p.idx, plan.position._zeile, plan.felder) });
     return { ok: true, auftragNr: auftrag.Auftrag_Nr, positionId: plan.position.Position_ID, vorschlagFertig: plan.vorschlagFertig, unveraendert: !plan.felder };
+  });
+}
+
+/** BS4: Position entfernen / wiederherstellen (nur Spalte Entfernt + Stand; Korb/Lager/Trikots/Bestellseite nie). */
+export async function entfernePosition({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
+  return mitAuftrag(eingabe, s, async ({ sheets, spreadsheetId, p, auftrag }) => {
+    const plan = entfernenPlan({ auftrag, positionen: p.zeilen, positionId: eingabe?.positionId, wiederherstellen: !!eingabe?.wiederherstellen, jetzt: jetzt().toISOString() });
+    if (plan.felder) await schreibe(sheets, spreadsheetId, { zellen: zellenAus(TAB_POSITIONEN, p.idx, plan.position._zeile, plan.felder) });
+    return { ok: true, auftragNr: auftrag.Auftrag_Nr, positionId: plan.position.Position_ID, lage: plan.lage, unveraendert: !plan.felder };
   });
 }
 

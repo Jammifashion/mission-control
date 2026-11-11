@@ -380,6 +380,9 @@ Neue Sektionen immer mit Anker versehen:
   BS3: Produktbild je Position (`psBildHtml`/`psBildUrl` im Block `Produktion-Stand`) aus `line_items[].image.src` der schon geladenen
   Bestellungen - kein Extra-Abruf. Bilder liegen auf dem Jetpack-CDN `i0-3.wp.com` (nicht beim Hoster), klein `?fit=96`, antippen =
   `#ps-bild-gross` mit `?fit=800` (Spiegel von `bildGroesse` in utils/bestellseite.js); nicht https = Platzhalter `ps-bild-leer`.
+  BS4: Link "Im Shop öffnen ↗" je Karte (`psShopLinkHtml`, neuer Tab, noopener) aus `mc_admin_url`, das `GET /api/woocommerce/orders`
+  anhaengt (`utils/shop-admin.js` `adminBestellLink`: origin von WC_URL bzw. WC_URL_HONK + `/wp-admin/post.php?post=<ID>&action=edit` -
+  gemessen 11.11.: beide Shops ohne HPOS; die Adresse leitet WC auch mit HPOS weiter). Kein Token in der Adresse, kein Extra-Abruf.
 - backend/lib/lshopKorb.js – L-Shop-Warenkorb (BO2), Logik in `utils/korb-logic.js`. Reiter
   `Warenkorb_LShop` (SSOT) ist ein STEHENDER Bestand: jede L-Shop-bestellfaehige Shop-Position eine
   Zeile, Schluessel `JFN:<Bestellnummer>:<Position>`, Spalte Shop von Anfang an. Abgleich
@@ -1082,6 +1085,12 @@ Neue Sektionen immer mit Anker versehen:
   `freiOffen`; Kachel `wartetAufWare`. **Automatisches "bestellt"** (`autoBestellt`/`setzeAutoBestellt`, nur nach vorn aus Anfrage/
   Angebot/Design, alle 🛒 im Korb >= bestellt + alle 📦 ausgebucht): beim Lesen (`GET /api/auftraege`) und nach dem stuendlichen
   Korb-Abgleich (`routes/intern.js`); Sperre belegt = still uebersprungen.
+  BS4 Teil B: Position einzeln entfernen/wiederherstellen (`POST /api/auftraege/position-entfernen` { auftragNr, positionId, wiederherstellen },
+  `entfernenPlan`): nur Spalte `Entfernt` (Tag) + Stand, auch ab "bestellt" und bei uebergebenen Positionen; nicht bei bezahlt/storniert (409
+  `abgeschlossen`), verschobene (Verschoben_Nach) nicht wiederherstellbar. Korb/Lager/Trikots/Bestell_Eintraege nie. Rueckfrage je Lage
+  (`entfernenLage`/`auEntfernenText`: frei · korb · lager · beiUns · Bestellseite). Antwort je AU `entfernt` (nur von Hand, ohne verschobene),
+  Ansicht eingeklappt "n entfernte" mit "wiederherstellen" (`auEntferntHtml`). Bestellseite: Eintrag einer entfernten Position = Schritt
+  "storniert" (bestehender Text), Packliste ohne sie. Test bs4.test.js.
 - backend/lib/auftragBereitstellen.js – Rohlinge eines Auftrags bereitstellen (AM-3), Logik `utils/auftrag-bereitstellen.js`.
   `POST /api/auftraege/bereitstellen/vorschau` (schreibt nichts), `.../bereitstellen` { auftragNr, stand, teilen, ortWahl, vorgang },
   `.../zuruecknehmen` { auftragNr, positionId, vorgang }. Unter Auftrags-, Korb- UND Lager-Sperre alle Reiter frisch (SSOT), EIN

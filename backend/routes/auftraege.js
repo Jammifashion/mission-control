@@ -2,7 +2,7 @@
 // Nur Auftrag_Nr/Kunden_Nr und Zahlen im Log, nie Namen oder Freitexte.
 import { Router } from 'express';
 import {
-  leseAuftraege, legeAuftragAn, bearbeiteAuftrag, wechsleStatus, setzePositionFertig,
+  leseAuftraege, legeAuftragAn, bearbeiteAuftrag, wechsleStatus, setzePositionFertig, entfernePosition,
   legeAufgabeAn, bearbeiteAufgabe, wechsleAufgabeStatus, legeTodoAn, aendereTodo, verschiebeTodo, archiviereTodo,
   aktualisiereAngebot, setzeZustaendig, leseKundenHistorie,
 } from '../lib/auftraege.js';
@@ -53,6 +53,8 @@ router.post('/status', mitMeldung(async req => {
 // ── POST /api/auftraege/position-fertig ───────────────────────────────────────
 // Body { auftragNr, positionId, fertig: true|false }.
 router.post('/position-fertig', mitMeldung(req => setzePositionFertig({ eingabe: req.body ?? {} })));
+// BS4: POST /api/auftraege/position-entfernen { auftragNr, positionId, wiederherstellen } - markieren (Entfernt), nie loeschen
+router.post('/position-entfernen', mitMeldung(req => entfernePosition({ eingabe: req.body ?? {} })));
 
 // ── AM-3: Rohlinge bereitstellen (Korb + Lager) ───────────────────────────────
 // POST /bereitstellen/vorschau { auftragNr, teilen, ortWahl } - schreibt nichts.

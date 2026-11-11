@@ -144,6 +144,8 @@ export function standFuer(e, ctx = {}) {
   }
   const pos = ctx.posJe?.get(t(e.Position_ID));
   if (!pos) return aus('frei', 'uebernommen', { intern: { position: 'fehlt' } });
+  // BS4: Position aus dem Auftrag genommen (nicht verschoben) -> wie storniert, zaehlt nirgends; MC sieht intern.entfernt
+  if (t(pos.Entfernt) && !t(pos.Verschoben_Nach)) return { ...aus(wegArt, 'storniert', { intern: { entfernt: tag(pos.Entfernt) } }), schritte: [] };
   const w = wegUndKorb(pos, ctx.posJe ?? new Map());
   const daI = w.weg === 'frei' ? { da: tag(pos.Da_Am) } : {};   // KS4-2: Hand-Haken "bei uns" (nur MC, nie die Seite)
   if (tag(pos.Versendet)) return aus(w.weg, 'geliefert', { datum: tag(pos.Versendet), intern: daI });
