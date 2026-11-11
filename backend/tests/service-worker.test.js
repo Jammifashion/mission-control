@@ -141,21 +141,24 @@ describe('Kundenseiten kommen nie aus dem Cache', () => {
   });
 });
 
-describe('controllerchange laedt genau einmal neu', () => {
-  test('index.html hoert auf controllerchange und laedt neu', () => {
-    expect(index).toContain("addEventListener('controllerchange'");
-    expect(index).toMatch(/location\.reload\(\)/);
+describe('controllerchange: Hinweis statt Neuladen (NAV6)', () => {
+  const fn = index.match(/addEventListener\('controllerchange'[\s\S]*?\n        \}\);/)?.[0] ?? '';
+  test('index.html hoert auf controllerchange, laedt dort aber NIE direkt neu', () => {
+    expect(fn).not.toBe('');
+    expect(fn).not.toMatch(/location\.reload\(\)/);
+    expect(fn).toContain("getElementById('neue-version').hidden = false");
+    expect(fn).toContain('nvPruefeAutomatisch()');
   });
 
-  test('Erstinstallation loest keinen Reload aus', () => {
+  test('Erstinstallation loest nichts aus, Hinweis nur einmal', () => {
     expect(index).toMatch(/const hatteController = !!navigator\.serviceWorker\.controller/);
-    expect(index).toMatch(/if \(!hatteController \|\| neugeladen\) return;/);
+    expect(fn).toMatch(/if \(!hatteController \|\| nvZ\.da\) return;/);
+    expect(fn.indexOf('nvZ.da = true')).toBeLessThan(fn.indexOf('nvPruefeAutomatisch()'));
   });
 
-  test('die Sperre wird gesetzt, bevor neu geladen wird', () => {
-    const fn = index.match(/addEventListener\('controllerchange'[\s\S]*?\n        \}\);/);
-    expect(fn).not.toBeNull();
-    expect(fn[0].indexOf('neugeladen = true')).toBeLessThan(fn[0].indexOf('location.reload()'));
+  test('genau eine Stelle laedt neu (nvLaden), mit Grund im Log', () => {
+    expect(index.match(/location\.reload\(\)/g)).toHaveLength(1);
+    expect(index).toMatch(/function nvLaden\(grund\) \{\s*console\.info\(`\[MC\] neu laden: \$\{grund\} \(NAV6\)`\);\s*location\.reload\(\);/);
   });
 
   test('nur index.html registriert den Worker', () => {

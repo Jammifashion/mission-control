@@ -1351,6 +1351,10 @@
       .ms-empty { padding: 0.75rem; color: var(--muted); font-size: 13px; text-align: center; }
 
       /* ── Toast ── */
+      .neue-version { position: fixed; left: 50%; transform: translateX(-50%); bottom: 1rem; z-index: 9500; width: max-content; max-width: calc(100% - 2rem);
+        display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; padding: 0.6rem 0.8rem; font-size: 0.88rem;
+        background: var(--surface); border: 1px solid var(--info); border-radius: 8px; box-shadow: 0 4px 16px var(--shadow); }
+      .neue-version[hidden] { display: none; }
       .toast { position: fixed; bottom: 1.5rem; right: 1.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 0.7rem 1rem; font-size: 0.86rem; z-index: 9999; box-shadow: 0 4px 16px var(--shadow); animation: toast-in 0.18s ease; pointer-events: none; max-width: 340px; }
       .toast.success { border-color: var(--success); color: var(--success); }
       .toast.error   { border-color: var(--danger);  color: var(--danger); }
@@ -1816,6 +1820,13 @@
         <div id="status-dot" title="API-Status wird geladen…"></div>
       </div>
     </header>
+
+    <!-- NAV6: neue Version - Hinweis statt automatischem Neuladen -->
+    <div id="neue-version" class="neue-version" role="status" hidden>
+      <span>Neue Version von Mission Control ist da.</span>
+      <button type="button" class="korb-aktion korb-aktion-haupt" id="neue-version-laden" data-hilfe="neue-version-laden">Jetzt neu laden</button>
+      <button type="button" class="korb-aktion korb-aktion-ruhig" id="neue-version-spaeter" data-hilfe="neue-version-spaeter">Später</button>
+    </div>
 
     <!-- Shop-Auswahl Modal (Sprint 5.4) -->
     <div id="shop-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="shop-modal-title">
@@ -4312,6 +4323,12 @@
         const a = findeAnsicht(bereich, punkt);
         return a.p?.shop ?? a.def.shop ?? true;
       }
+      // NAV6: Verlauf. Ein Wechsel durch den Nutzer = neuer Eintrag (die Zurueck-Taste bleibt in MC);
+      // Start, Lesezeichen, Umleitung und die Zurueck-Taste selbst ersetzen nur. Filter erzeugen keine Eintraege.
+      function verlaufSchritt(alterHash, neuerHash, { verlauf = true } = {}) {
+        if (alterHash === neuerHash) return '';
+        return verlauf && alterHash ? 'push' : 'replace';
+      }
       // ── Navigation-Tabelle: Ende ──
 
       const aktuelleAnsicht = { bereich: 'dashboard', punkt: 'start' };
@@ -4339,11 +4356,13 @@
         return p?.id ?? letzterPunkt[bereich] ?? def.punkte[0].id;
       }
 
-      function merkeAnsicht(bereich, punkt) {
+      function merkeAnsicht(bereich, punkt, { verlauf = true } = {}) {
         aktuelleAnsicht.bereich = bereich;
         aktuelleAnsicht.punkt   = punkt;
         const h = hashFuer(bereich, punkt);
-        if (location.hash !== h) history.replaceState(null, '', h);
+        const schritt = verlaufSchritt(location.hash, h, { verlauf });   // NAV6
+        if (schritt === 'push') history.pushState(null, '', h);
+        else if (schritt === 'replace') history.replaceState(null, '', h);
         const badge = document.getElementById('shop-badge');
         if (badge) {
           const wirkt = shopWirkt(bereich, punkt);
@@ -4364,7 +4383,7 @@
 
       // Oeffnet Bereich + Unterpunkt. Ohne Unterpunkt bleibt bei Bestellen/Artikel
       // der zuletzt aktive Reiter stehen (wie vor NAV4 beim Klick auf den Reiter).
-      function oeffneAnsicht(bereich, punkt, { neuLaden = true } = {}) {
+      function oeffneAnsicht(bereich, punkt, { neuLaden = true, verlauf = true } = {}) {
         const a = findeAnsicht(bereich, punkt);
         const b = a.bereich, def = a.def;
         let p = a.p;
@@ -4381,7 +4400,7 @@
           if (k && (!k.classList.contains('active') || (neuLaden && p.neuLaden))) k.click();
         }
         if (p) letzterPunkt[b] = p.id;
-        merkeAnsicht(b, p?.id ?? aktiverPunkt(b));
+        merkeAnsicht(b, p?.id ?? aktiverPunkt(b), { verlauf });
         document.dispatchEvent(new CustomEvent('mc:ansicht', { detail: { bereich: b, punkt: aktuelleAnsicht.punkt, panel } }));
       }
       window.oeffneAnsicht = oeffneAnsicht;
@@ -4401,12 +4420,17 @@
           });
         }
       }
-      // Adresse von Hand geaendert oder Zurueck-Taste
+      // Adresse von Hand geaendert oder Zurueck-/Vor-Taste (NAV6: ohne neuen Verlaufseintrag).
+      // Ist ein Dialog offen, bleibt die Ansicht stehen - sonst laege der Dialog ueber einer fremden Ansicht.
       window.addEventListener('hashchange', () => {
         const a = ansichtAusHash(location.hash);
-        if (a.bereich !== aktuelleAnsicht.bereich || (a.punkt && a.punkt !== aktuelleAnsicht.punkt)) {
-          oeffneAnsicht(a.bereich, a.punkt);
+        if (a.bereich === aktuelleAnsicht.bereich && (!a.punkt || a.punkt === aktuelleAnsicht.punkt)) return;
+        if (document.querySelector(NV_DIALOG)) {
+          history.pushState(null, '', hashFuer(aktuelleAnsicht.bereich, aktuelleAnsicht.punkt));
+          showToast('Erst den offenen Dialog schließen – dann geht „Zurück“ zur vorigen Ansicht.', 'warn', 5000);
+          return;
         }
+        oeffneAnsicht(a.bereich, a.punkt, { verlauf: false });
       });
 
       // ── Status dot ───────────────────────────────────────────────────────
@@ -6568,6 +6592,8 @@
         'link-vor-lk1':          { name: 'Link nicht kopierbar', text: 'Dieser Link wurde vor LK1 erstellt – zum Kopieren einmal neu erzeugen (alter wird ungültig, der Partner braucht dann den neuen).' },
         'token-neu':             { name: 'Link (neu) erzeugen', text: 'Neuer Portal-Link, danach jederzeit über „Link kopieren“. Ein bisheriger Link geht sofort nicht mehr – nur bei Bedarf.' },
         'partner-zugang':        { name: 'Zugang', text: 'Hat der Partner einen Portal-Link? „alt“ = im Sheet noch lesbar, „gesichert“ = nur als Prüfwert. Der Link bleibt gleich.' },
+        'neue-version-laden':    { name: 'Jetzt neu laden', text: 'Lädt Mission Control mit der neuen Version. Sind Eingaben oder ein Dialog offen, wird vorher gefragt.' },
+        'neue-version-spaeter':  { name: 'Später', text: 'Blendet den Hinweis aus. Neu geladen wird beim nächsten Öffnen oder im Hintergrund, wenn nichts offen ist.' },
         'nav-bereich':           { name: 'Bereich', text: 'Öffnet diesen Bereich. Seine Unterpunkte stehen darunter.' },
         'nav-unterreiter':       { name: 'Unterreiter', text: 'Öffnet diesen Unterreiter. Es wird nichts geändert.' },
         'tab-offen':             { name: 'Offen', text: 'Zeigt, was noch nicht als bestellt eingetragen ist.' },
@@ -7139,7 +7165,7 @@
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
         // HT1: Gruppen der aelteren Knoepfe (ⓘ-Liste, sobald es dort ein ⓘ gibt)
-        'navigation': ['shop-badge', 'shop-wahl', 'nav-bereich', 'nav-ansicht', 'nav-unterreiter', 'trikot-sync'],
+        'navigation': ['shop-badge', 'shop-wahl', 'neue-version-laden', 'neue-version-spaeter', 'nav-bereich', 'nav-ansicht', 'nav-unterreiter', 'trikot-sync'],
         'dialog': ['dialog-abbrechen', 'dialog-schliessen', 'dialog-bestaetigen', 'dialog-speichern', 'liste-bearbeiten', 'zeile-speichern'],
         'auftragsmonitor': ['wc-erledigt', 'tab-offen', 'tab-protokoll', 'mon-fulfillment', 'dtf-sammel', 'dtf-bestellt', 'lshop-alt-sammel', 'lshop-alt-bestellt', 'korb-aeltere'],
         'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
@@ -19398,24 +19424,49 @@
       });
 
       // ── Service Worker ───────────────────────────────────────────────────
+      // NAV6 (Befund 10.11.): Jeder Pages-Deploy aendert sw.js (Commit im Cache-Namen). Beim naechsten Oeffnen von MC
+      // installierte sich der neue Worker, uebernahm per skipWaiting + clients.claim die Kontrolle, und controllerchange
+      // lud die Seite SOFORT neu - wenige Sekunden nach dem Oeffnen, Eingaben und Dialoge weg. Jetzt: nur ein Hinweis
+      // "Neue Version da" mit Knopf; automatisch erst, wenn MC im Hintergrund ist, kein Dialog offen und nichts eingegeben.
+      // ── Neue-Version: Anfang (NAV6, Test backend/tests/neue-version.test.js) ──
+      const NV_DIALOG = '.edi-dialog:not([hidden]), .modal-backdrop, .anf-side-panel.is-open, .anf-modal-backdrop.is-open, #shop-modal-overlay.active';
+      const NV_OHNE = ['checkbox', 'radio', 'hidden', 'file', 'button', 'submit', 'reset', 'range', 'color'];
+      /** Gibt es Felder mit getipptem Inhalt (Wert anders als beim Laden der Seite)? */
+      function nvOffeneEingaben(wurzel) {
+        return [...wurzel.querySelectorAll('input, textarea')]
+          .some(el => !NV_OHNE.includes(String(el.type).toLowerCase()) && !el.disabled && el.value !== el.defaultValue);
+      }
+      /** Automatisch neu laden nur im Hintergrund, ohne offenen Dialog und ohne Eingaben. */
+      const nvDarfAutomatisch = ({ versteckt, dialogOffen, eingaben }) => !!versteckt && !dialogOffen && !eingaben;
+      // ── Neue-Version: Ende ──
+      const nvZ = { da: false };
+      function nvLaden(grund) {
+        console.info(`[MC] neu laden: ${grund} (NAV6)`);
+        location.reload();
+      }
+      function nvPruefeAutomatisch() {
+        if (!nvZ.da) return;
+        if (nvDarfAutomatisch({ versteckt: document.visibilityState === 'hidden', dialogOffen: !!document.querySelector(NV_DIALOG),
+          eingaben: nvOffeneEingaben(document) })) nvLaden('neue Version, Seite im Hintergrund');
+      }
+      document.addEventListener('visibilitychange', nvPruefeAutomatisch);
+      document.getElementById('neue-version-laden')?.addEventListener('click', async () => {
+        if (document.querySelector(NV_DIALOG) || nvOffeneEingaben(document)) {
+          const ok = await showConfirm('Jetzt neu laden?', 'Offene Eingaben und Dialoge gehen dabei verloren.', 'Neu laden');
+          if (!ok) return;
+        }
+        nvLaden('neue Version, Knopf');
+      });
+      document.getElementById('neue-version-spaeter')?.addEventListener('click', () => { document.getElementById('neue-version').hidden = true; });
       if ('serviceWorker' in navigator) {
-        // Ob dieser Tab beim Laden schon von einem Worker kontrolliert wurde.
-        // Die Unterscheidung ist der Schutz gegen die Reload-Schleife: bei der
-        // Erstinstallation feuert clients.claim() ebenfalls controllerchange,
-        // ein Reload waere da aber nur Laerm - die Seite laeuft schon mit dem
-        // Code, den der neue Worker ausliefern wuerde.
+        // Erstinstallation feuert clients.claim() ebenfalls controllerchange - da laeuft die Seite schon mit dem neuen Code.
         const hatteController = !!navigator.serviceWorker.controller;
-        let neugeladen = false;
-
-        // Uebernimmt ein neuer Worker die Kontrolle, laeuft dieser Tab noch mit
-        // dem alten JS aus der alten index.html. Genau einmal neu laden, damit
-        // Markup und Skript wieder zum Worker passen. Eine Schleife ist danach
-        // nicht moeglich: der neu geladene Tab hat den neuen Worker von Anfang
-        // an als controller, es aktiviert also keiner mehr.
         navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (!hatteController || neugeladen) return;
-          neugeladen = true;
-          location.reload();
+          if (!hatteController || nvZ.da) return;
+          nvZ.da = true;
+          console.info('[MC] neue Version aktiv - Hinweis statt Neuladen (NAV6)');
+          document.getElementById('neue-version').hidden = false;
+          nvPruefeAutomatisch();
         });
 
         navigator.serviceWorker.register('./sw.js').catch(console.error);
@@ -19734,7 +19785,7 @@
 
       // ── Init ─────────────────────────────────────────────────────────────
       // Startansicht aus der Adresse (#bereich/unterpunkt), sonst Dashboard.
-      { const start = ansichtAusHash(location.hash); oeffneAnsicht(start.bereich, start.punkt); }
+      { const start = ansichtAusHash(location.hash); oeffneAnsicht(start.bereich, start.punkt, { verlauf: false }); }   // NAV6: Start ersetzt nur
       loadSsotData();
       monInitOnLoad();
     </script>
