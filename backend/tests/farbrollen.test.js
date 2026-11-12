@@ -11,7 +11,9 @@ const rootMatch = farbenCss.match(/:root\s*\{[^}]*\}/);
 const root = rootMatch[0];
 const hellMatch = farbenCss.match(/:root\[data-theme="light"\]\s*\{[^}]*\}/);   // FK2: heller Modus, ebenfalls nur Farbwerte
 const hellBlock = hellMatch ? hellMatch[0] : '';
-const ohneRoot = html;   // FK4: index.html hat keine eigenen Farbbloecke mehr, alles steht in farben.css
+// FK7: einzige Ausnahme in index.html ist der Layout-Block (nur Breiten, Inhaber 12.11.) - der Test FK7 prueft, dass dort keine Farbe steht
+const layoutBlock = html.match(/\/\* ── Layout: Anfang[\s\S]*?Layout: Ende ── \*\//)?.[0] || '';
+const ohneRoot = html.replace(layoutBlock, '');   // FK4: index.html hat keine eigenen Farbbloecke mehr, alles steht in farben.css
 const regel = sel => { const m = html.indexOf(`
       ${sel}`); const i = m < 0 ? html.indexOf(sel) : m + 7; return i < 0 ? '' : html.slice(i, html.indexOf('}', i) + 1); };
 
@@ -57,7 +59,7 @@ describe('FK1: Farbwerte nur in :root', () => {
   });
   test('Variablen werden nur in :root definiert, und jede benutzte ist definiert', () => {
     expect(ohneRoot.match(/^\s*--[a-z0-9-]+\s*:/gm)).toBeNull();
-    const definiert = new Set([...(root + hellBlock).matchAll(/(--[a-z0-9-]+)\s*:/g)].map(m => m[1]));
+    const definiert = new Set([...(root + hellBlock + layoutBlock).matchAll(/(--[a-z0-9-]+)\s*:/g)].map(m => m[1]));
     const benutzt = new Set([...html.matchAll(/var\((--[a-z0-9-]+)/g)].map(m => m[1]));
     expect([...benutzt].filter(v => !definiert.has(v))).toEqual([]);
   });
@@ -182,15 +184,37 @@ describe('FK2: heller Modus', () => {
       expect([modus, k >= 4.5 ? 'ok' : k.toFixed(2)]).toEqual([modus, 'ok']);
     }
   });
-  test('FK6: Rand >= 1,5:1 zu Grund und Karte (beide Modi), Kartenlisten 800 px', () => {
+  test('FK6: Rand >= 1,5:1 zu Grund und Karte (beide Modi)', () => {
     for (const [modus, vars] of [['dunkel', DUNKEL], ['hell', HELL]]) {
       for (const g of ['--bg', '--surface']) {
         const k = kontrast(farbe('--border', vars), farbe(g, vars));
         expect([modus, g, k >= 1.5 ? 'ok' : k.toFixed(2)]).toEqual([modus, g, 'ok']);
       }
     }
-    expect(html).toMatch(/\.inhalt-schmal \{ max-width: 800px; \}/);
-    for (const id of ['au-ansicht', 'td-ansicht', 'ku-ansicht']) expect(html).toContain(`class="card inhalt-schmal" id="${id}"`);
+  });
+  test('FK7: Kartenbreite zentral (800 px, Trikots 1000 px), breite Tabellen ausgenommen', () => {
+    const block = layoutBlock;
+    expect(block).not.toBe('');
+    // im Layout-Block stehen nur die zwei Breiten-Variablen, keine Farbe
+    expect([...block.matchAll(/(--[a-z0-9-]+)\s*:/g)].map(m => m[1])).toEqual(['--karten-max-breite', '--listen-max-breite']);
+    expect(block).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|color/);
+    expect(block).toContain('--karten-max-breite: 800px;');
+    expect(block).toContain('--listen-max-breite: 1000px;');
+    expect(block).toContain('.panel .card:not(.inhalt-breit, .inhalt-liste, .card .card) { max-width: var(--karten-max-breite); }');
+    expect(block).toContain('.panel .card.inhalt-liste { max-width: var(--listen-max-breite); }');
+    // Breiten nur im Layout-Block, nie in farben.css; die alte Einzelklasse ist weg
+    expect(farbenCss).not.toMatch(/max-breite/);
+    expect(html).not.toMatch(/inhalt-schmal/);
+    expect(html.replace(block, '')).not.toMatch(/--(karten|listen)-max-breite:/);
+    // Aufträge-Bereich (Kunden, Liste, To-dos, Bestellseiten) folgt der allgemeinen Regel
+    for (const id of ['ku-ansicht', 'au-ansicht', 'td-ansicht', 'bsm-ansicht']) expect(html).toContain(`class="card" id="${id}"`);
+    // Trikots: genau die zwei Karten im Reiter
+    const trikots = html.match(/<div id="tab-trikots"[\s\S]*?<div id="tab-eingaenge"/)[0];
+    expect((trikots.match(/class="card inhalt-liste"/g) || []).length).toBe(2);
+    expect((html.match(/class="card inhalt-liste"/g) || []).length).toBe(2);
+    // Ausnahmeliste (Bericht FK7): neue breite Tabelle = Klasse inhalt-breit und Zahl hier anpassen
+    expect((html.match(/class="card inhalt-breit"/g) || []).length).toBe(26);
+    expect(html).toContain('class="card inhalt-breit" id="existing-variants-block"');
   });
   test('kein Knopf mit --success als Hintergrund (Aktion = --accent, Erfolg nur Zustand)', () => {
     const knopfKlassen = [...new Set([...html.matchAll(/<button[^>]*class="([^"]+)"/g)].flatMap(m => m[1].split(/\s+/)))].filter(k => /^[a-z][a-z0-9-]*$/.test(k));
@@ -218,7 +242,7 @@ describe('FK4: farben.css zentral', () => {
     expect(l).toBeLessThan(s.indexOf('<style>'));
     expect(l).toBeGreaterThan(s.indexOf('Theme: Ende'));
     expect(l).toBeLessThan(s.indexOf('</head>'));
-    expect(s.match(/:root\s*\{|:root\[data-theme/g)).toBeNull();
+    expect(s.replace(layoutBlock, '').match(/:root\s*\{|:root\[data-theme/g)).toBeNull();   // FK7: Layout-Block (nur Breiten) erlaubt
   });
   test('Service Worker laedt farben.css mit der MC-Shell vor (offline)', () => {
     const pre = fe('sw.js').match(/const PRECACHE = \[([\s\S]*?)\];/)[1];

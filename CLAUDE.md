@@ -32,8 +32,14 @@ Farbbloecke (Test farbrollen.test.js). **Partnerportale (FK3/FK4):** Umschalter 
 Portalen (Test partner-farben.test.js, inkl. Syntaxpruefung aller Skripte). `anfrage.html` (Kunden-Widget) und die Offline-Seite in
 `sw.js` sind bewusst nicht angeschlossen.
 **FK6 (Inhaber 10.11.):** Rand `--border` >= 1,5:1 zu `--bg` und `--surface` in beiden Modi (Test farbrollen.test.js); Zeilen in
-Kartenlisten (`.ku-zeile`) = `color-mix(in srgb, var(--text) 4%, var(--surface))`. Kartenlisten Aufträge/To-dos/Kunden: Klasse
-`.inhalt-schmal` (max. 800 px, links buendig) - Breite nur dort aendern. Zuständig in der Liste kompakt (`.form-select.au-zust`).
+Kartenlisten (`.ku-zeile`) = `color-mix(in srgb, var(--text) 4%, var(--surface))`. Zuständig in der Liste kompakt (`.form-select.au-zust`).
+**FK7 Kartenbreite (Inhaber 12.11.):** Block `Layout: Anfang/Ende` am Anfang des ersten `<style>` in index.html (einzige Stelle mit
+Breiten-Variablen, NICHT farben.css; die Farbtests nehmen genau diesen Block aus): `--karten-max-breite` 800px, `--listen-max-breite` 1000px.
+EINE Regel: jede `.card` in einem `.panel` hoechstens 800 px, links buendig (Karte in Karte fuellt die Eltern-Karte); am Handy 100 %.
+Ausnahmen per Klasse: `.inhalt-breit` = volle Breite fuer breite Tabellen (DTF, Bestelluebersicht, Anfragen & Eigenauftraege, Lieferbarkeit
+Shop, Varianten der Maske, Partner-/Festpreis-Tabellen, Agent-Wissen-Tabellen), `.inhalt-liste` = 1000 px (Trikots). Formulare, Kacheln
+(`#pk-mc`), Lager, Aufträge-Bereich = 800. Neue Karte mit breiter Tabelle = `inhalt-breit` + Zahl in farbrollen.test.js (FK7). Partnerportale
+haben eigene 1060 px zentriert (unveraendert). Kachelreihe Dashboard ist keine Karte.
 **Partnerportal-Listen (PP3):** Block `Portal-Listen: Anfang/Ende` + CSS `Portal-Listen CSS` wortgleich in beiden Portalen (Test
 partner-listen.test.js): Listen zeigen standardmaessig nur Offenes (Status nicht "abgerechnet"), Schalter "auch abgerechnete anzeigen"
 (`localStorage` `partner_abgerechnet_zeigen`, Standard aus); Summen/Saldo ungefiltert. `plTabelleHtml` mit Rollen datum|betrag|haupt|

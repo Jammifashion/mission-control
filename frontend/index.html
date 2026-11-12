@@ -71,6 +71,18 @@
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+      /* ── Layout: Anfang (FK7, Inhaber 12.11.) - Breiten nur hier, nicht in farben.css ── */
+      :root {
+        --karten-max-breite: 800px;    /* jede Karte in einem Panel, links buendig */
+        --listen-max-breite: 1000px;   /* Listen mit mehr Spalten (Trikots): Klasse .inhalt-liste */
+      }
+      /* Eine Regel fuer alle Karten; breite Tabellen tragen .inhalt-breit (volle Breite). Karten in Karten
+         fuellen ihre Eltern-Karte. Handy: max-width greift erst darueber, also 100 %. */
+      .panel .card:not(.inhalt-breit, .inhalt-liste, .card .card) { max-width: var(--karten-max-breite); }
+      .panel .card.inhalt-liste { max-width: var(--listen-max-breite); }
+      #pk-mc { max-width: var(--karten-max-breite); }   /* Partner-Kacheln in der breiten Partner-Karte */
+      /* ── Layout: Ende ── */
+
       /* Farben: farben.css (FK4) - hier keine Farbwerte, nur var(--…). */
 
       body {
@@ -841,8 +853,6 @@
       .ku-liste { display: flex; flex-direction: column; gap: 0.4rem; }
       .ku-zeile { display: grid; grid-template-columns: 6.5rem 1fr auto; gap: 0.25rem 0.75rem; align-items: center; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 8px;
         background: color-mix(in srgb, var(--text) 4%, var(--surface)); }   /* FK6: Zeile in der Karte abgesetzt (dunkel heller, hell dunkler) */
-      /* FK6: Kartenlisten (Aufträge, To-dos, Kunden) hoechstens 800 px breit, links buendig wie die uebrigen Panels - nur hier aendern */
-      .inhalt-schmal { max-width: 800px; }
       .ku-nr { font-family: ui-monospace, monospace; font-size: 0.8rem; color: var(--muted); }
       .ku-name { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
       .ku-meta { grid-column: 2 / 3; font-size: 0.78rem; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; }
@@ -1970,7 +1980,7 @@
         </div>
 
         <div id="tab-dtf" class="sub-tab-panel">
-          <div class="card">
+          <div class="card inhalt-breit">
             <div class="lshop-inner-tabs">
               <button class="dtf-tab active" data-dtftab="dtf-offen" data-hilfe="tab-offen">Offen</button>
               <button class="dtf-tab" data-dtftab="dtf-protokoll" data-hilfe="tab-protokoll">Protokoll</button>
@@ -1986,7 +1996,7 @@
           </div>
         </div>
         <div id="tab-lshop" class="sub-tab-panel">
-          <div class="card">
+          <div class="card inhalt-breit">
             <div class="lshop-inner-tabs">
               <button class="lshop-tab active" data-lshoptab="lshop-offen" data-hilfe="tab-offen">Offen</button>
               <button class="lshop-tab" data-lshoptab="lshop-protokoll" data-hilfe="tab-protokoll">Protokoll</button>
@@ -2127,7 +2137,7 @@
 
         <!-- BO3b: Bestelluebersicht - Matrix je Modell und Zaehlliste auf den Warenkorb (nur offen) -->
         <div id="tab-lshop-uebersicht" class="sub-tab-panel">
-          <div class="card">
+          <div class="card inhalt-breit">
             <div class="lshop-offen-header korb-kopf">
               <span id="uebersicht-summe">Bestellübersicht</span>
             </div>
@@ -2298,7 +2308,7 @@
 
         <!-- TR2: Trikot-Bestellungen (Reiter "Trikots") je Produzenten-Bestellung, nur lesen -->
         <div id="tab-trikots" class="sub-tab-panel">
-            <div class="card">
+            <div class="card inhalt-liste">
               <h2>Trikot-Sync</h2>   <!-- DB1: vom Dashboard hierher, Route und geplanter Lauf unveraendert -->
               <p style="color:var(--muted);font-size:0.85rem;">
                 Holt neue Trikot-Bestellungen aus dem JammiFashion-Shop in den Reiter „Trikots“. Vorhandene Zeilen bleiben unverändert.
@@ -2308,7 +2318,7 @@
               </div>
               <p id="trikot-sync-status" style="color:var(--muted);font-size:0.85rem;margin-top:0.5rem;"></p>
             </div>
-          <div class="card">
+          <div class="card inhalt-liste">
             <div class="lshop-offen-header korb-kopf">
               <span id="tr-summe">Trikots (JFN)</span>
             </div>
@@ -2372,11 +2382,11 @@
         </div>
 
         <div id="tab-eingaenge" class="sub-tab-panel">
-          <div class="card">
+          <div class="card inhalt-breit">
             <h2>Kundenanfragen</h2>
             <div id="mon-anfragen-list"><div class="skeleton"></div><div class="skeleton"></div></div>
           </div>
-          <div class="card">
+          <div class="card inhalt-breit">
             <h2>Partner-Eigenaufträge</h2>
             <div id="mon-eigen-list"><div class="skeleton"></div><div class="skeleton"></div></div>
           </div>
@@ -2452,7 +2462,7 @@
 
         <!-- BO7-3: Lieferbarkeit Shop - Shop-Artikel mit nicht lieferbarem L-Shop-Rohling (nur lesen) -->
         <div id="lfbs-panel" style="display:none;">
-          <div class="card" style="margin-bottom:1rem;">
+          <div class="card inhalt-breit" style="margin-bottom:1rem;">
             <div class="form-section-title">Lieferbarkeit Shop
               <button class="hilfe-i" type="button" data-hilfe-gruppe="lieferbarkeit-shop" aria-controls="hilfe-lieferbarkeit-shop" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
             </div>
@@ -2818,7 +2828,7 @@
         </div>
 
         <!-- Bestehende Varianten (nur Ändern-Modus) -->
-        <div class="card" id="existing-variants-block" style="display:none;margin-bottom:1rem;">
+        <div class="card inhalt-breit" id="existing-variants-block" style="display:none;margin-bottom:1rem;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
             <div class="form-section-title" style="margin:0;">Bestehende Varianten</div>
             <button id="ev-bulk-delete-btn" class="btn-secondary" style="display:none;color:var(--danger);border-color:var(--danger);font-size:0.82rem;padding:0.35rem 0.75rem;" data-hilfe="varianten-loeschen">0 privat stellen</button>
@@ -2832,7 +2842,7 @@
         </div>
 
         <!-- Block 3: Artikeleigenschaften -->
-        <div class="card" style="margin-bottom:1rem;">
+        <div class="card inhalt-breit" style="margin-bottom:1rem;">
           <div class="form-section-title">3 — Artikeleigenschaften</div>
           <div id="properties-container"></div>
           <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.25rem;">
@@ -2899,7 +2909,7 @@
         </div>
         <div id="hilfe-partner" class="hilfe-legende" hidden></div>
         <div id="ptab-partner" class="sub-tab-panel active">
-          <div class="card">
+          <div class="card inhalt-breit">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
               <h2>Partner</h2>
               <button class="btn" id="btn-add-partner" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="partner-neu">+ Partner hinzufügen</button>
@@ -2912,7 +2922,7 @@
           </div>
         </div>
         <div id="ptab-artikel" class="sub-tab-panel">
-          <div class="card">
+          <div class="card inhalt-breit">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
               <h2>Partner-Artikel</h2>
               <div id="artikel-jfn-controls" style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
@@ -2930,7 +2940,7 @@
           </div>
         </div>
         <div id="ptab-intern" class="sub-tab-panel">
-          <div class="card">
+          <div class="card inhalt-breit">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
               <h2>Interne Bestellungen</h2>
               <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
@@ -2944,26 +2954,26 @@
           </div>
         </div>
         <div id="ptab-kalkulation" class="sub-tab-panel">
-          <div class="card">
+          <div class="card inhalt-breit">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
               <h2>Druckpreise</h2>
               <button class="btn" id="btn-add-druckpreis" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="partner-dialog-neu">+ Hinzufügen</button>
             </div>
             <div id="druckpreise-table-wrap"><div class="skeleton" style="height:60px;"></div></div>
           </div>
-          <div class="card">
+          <div class="card inhalt-breit">
             <h2>Fixkosten</h2>
             <div id="fixkosten-warn"></div>
             <div id="fixkosten-table-wrap"><div class="skeleton" style="height:60px;"></div></div>
           </div>
-          <div class="card">
+          <div class="card inhalt-breit">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
               <h2>Verkaufspreise</h2>
               <button class="btn" id="btn-add-verkaufspreis" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="partner-dialog-neu">+ Hinzufügen</button>
             </div>
             <div id="verkaufspreise-table-wrap"><div class="skeleton" style="height:60px;"></div></div>
           </div>
-          <div class="card">
+          <div class="card inhalt-breit">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
               <h2>Artikel / EK-Preise</h2>
               <button class="btn" id="btn-add-artikel" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="partner-dialog-neu">+ Hinzufügen</button>
@@ -2972,7 +2982,7 @@
           </div>
         </div>
         <div id="ptab-verkaeufe" class="sub-tab-panel">
-          <div class="card">
+          <div class="card inhalt-breit">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
               <h2>Verkäufe</h2>
               <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
@@ -2992,7 +3002,7 @@
           </div>
         </div>
         <div id="ptab-abrechnungen" class="sub-tab-panel">
-          <div class="card">
+          <div class="card inhalt-breit">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
               <h2>Abrechnungen</h2>
               <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
@@ -3023,7 +3033,7 @@
 
         <!-- Partner -->
         <div id="fptab-fp-partner" class="sub-tab-panel active">
-          <div class="card">
+          <div class="card inhalt-breit">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;">
               <h2>Festpreis-Partner</h2>
               <button class="btn" id="btn-fp-add-partner" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="partner-neu">+ Partner hinzufügen</button>
@@ -3034,7 +3044,7 @@
 
         <!-- Artikel -->
         <div id="fptab-fp-artikel" class="sub-tab-panel">
-          <div class="card">
+          <div class="card inhalt-breit">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
               <h2>Festpreis-Artikel</h2>
               <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
@@ -3052,7 +3062,7 @@
 
         <!-- Bestellungen -->
         <div id="fptab-fp-verkaeufe" class="sub-tab-panel">
-          <div class="card">
+          <div class="card inhalt-breit">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
               <h2>Festpreis-Bestellungen</h2>
               <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
@@ -3098,7 +3108,7 @@
             </div>
             <div id="fp-abr-status" style="margin-top:0.6rem;font-size:0.82rem;min-height:1.1em;"></div>
           </div>
-          <div class="card">
+          <div class="card inhalt-breit">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
               <h2>Abrechnungen</h2>
               <select class="form-select" id="fp-abrechnungen-filter-partner" style="font-size:0.83rem;padding:0.36rem 0.65rem;">
@@ -3111,7 +3121,7 @@
 
         <!-- Zusammenfassung -->
         <div id="fptab-fp-zusammenfassung" class="sub-tab-panel">
-          <div class="card">
+          <div class="card inhalt-breit">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
               <h2>Artikel-Zusammenfassung</h2>
               <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
@@ -3157,7 +3167,7 @@
               <button class="btn" id="btn-fp-preis-add" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="partner-dialog-neu">+ Hinzufügen</button>
             </div>
           </div>
-          <div class="card">
+          <div class="card inhalt-breit">
             <h2 style="margin-bottom:1rem;">Festpreise</h2>
             <div id="fp-preise-list-wrap"><div class="skeleton" style="height:80px;"></div></div>
           </div>
@@ -3165,7 +3175,7 @@
 
         <!-- FP Interne Bestellungen -->
         <div id="fptab-fp-intern" class="sub-tab-panel">
-          <div class="card">
+          <div class="card inhalt-breit">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;">
               <h2>Interne Bestellungen</h2>
               <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
@@ -3296,7 +3306,7 @@
         </div>
 
         <!-- Sektion 2: Tonalität & Kommunikation -->
-        <div class="card" style="margin-bottom:1rem;">
+        <div class="card inhalt-breit" style="margin-bottom:1rem;">
           <div class="form-section-title">Tonalität &amp; Kommunikation</div>
           <div id="aw-ton-wrap"><div class="skeleton" style="height:60px;"></div></div>
           <div style="margin-top:0.75rem;">
@@ -3324,7 +3334,7 @@
         </div>
 
         <!-- Sektion 3: Allgemeine Infos -->
-        <div class="card" style="margin-bottom:1rem;">
+        <div class="card inhalt-breit" style="margin-bottom:1rem;">
           <div class="form-section-title">Allgemeine Infos</div>
           <div id="aw-info-wrap"><div class="skeleton" style="height:60px;"></div></div>
           <div style="margin-top:0.75rem;">
@@ -3398,7 +3408,7 @@
       <!-- AM-1: Aufträge. Unterpunkt Kunden = Kundenstamm (eigenes Kunden-Sheet, GET /api/kunden); Suche nur im Browser,
            der Suchbegriff wird nirgends gespeichert. Unterpunkt Aufträge = Platzhalter bis AM-2. -->
       <section id="panel-auftraege" class="panel">
-        <div class="card inhalt-schmal" id="ku-ansicht">
+        <div class="card" id="ku-ansicht">
           <div class="lshop-offen-header korb-kopf"><span id="ku-summe">Kunden</span></div>
           <div id="ku-einrichtung" class="lager-warnung" hidden></div>
           <div class="korb-bedienung">
@@ -3422,7 +3432,7 @@
           <div id="ku-liste"><div class="skeleton"></div></div>
         </div>
         <!-- AM-2: Auftragsliste (GET /api/auftraege). Kundennamen kommen nur hier aus der Kundenliste dazu. -->
-        <div class="card inhalt-schmal" id="au-ansicht" hidden>
+        <div class="card" id="au-ansicht" hidden>
           <div class="lshop-offen-header korb-kopf"><span id="au-summe">Aufträge</span></div>
           <div id="au-einrichtung" class="lager-warnung" hidden></div>
           <div class="korb-bedienung">
@@ -3456,7 +3466,7 @@
         </div>
 
         <!-- AM-4: Offene To-dos aus Aufträgen und Aufgaben (nach Fälligkeit, abhaken direkt hier). -->
-        <div class="card inhalt-schmal" id="td-ansicht" hidden>
+        <div class="card" id="td-ansicht" hidden>
           <div class="lshop-offen-header korb-kopf"><span id="td-summe">Offene To-dos</span></div>
           <div id="td-einrichtung"></div>
           <div class="korb-bedienung">
