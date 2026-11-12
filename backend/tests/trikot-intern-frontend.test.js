@@ -50,7 +50,7 @@ describe('TR6 Oberflaeche', () => {
     const h = T.trZeileHtml(shop);
     expect(h).toContain('data-ti-aendern="9"');
     expect(h).not.toContain('data-ti-weg');
-    expect(h).toContain('<span class="tr-gk" data-hilfe="tr-goalie">GK</span>');
+    expect(h).toContain('<span class="tr-gk" tabindex="0" data-hilfe="tr-goalie">GK</span>');   // TR10: Fokus fuer den Mouse-over
     const g = T.trZeileHtml({ ...shop, aenderbar: false, aendernGesperrt: true, charge: '4' });
     expect(g).toContain('aria-disabled="true" data-hilfe="tr-aendern-gesperrt">ändern …</button>');
     expect(g).not.toContain('data-ti-aendern');

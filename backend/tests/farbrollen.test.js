@@ -152,6 +152,7 @@ const PAARE = [
   ['--warning', '--surface'], ['--warning', '--warning-bg'], ['--warning', 'mix:--warning:16:--surface'],
   ['--danger', '--surface'], ['--danger', '--danger-bg'], ['--danger', 'mix:--danger:12:--surface'], ['--bg', '--danger'],
   ['--success', '--surface'], ['--success', '--success-bg'], ['--bg', '--success'],
+  ['--bg', '--warning'],   // TR10: bestätigtes GK-Kästchen (Schrift --bg auf --warning)
   ['--status-design', 'mix:--status-design:12:--surface'], ['--au', 'mix:--au:22:--surface'], ['--ag', '--surface'],
   // DB1: Dashboard-Kacheln (Zahl in Rollenfarbe auf der Karte, Grau bei 0) und Shop-Punkte in den Listen
   ['--au', '--surface'], ['--shop-jfn', '--surface'], ['--shop-honk', '--surface'], ['--text', '--surface-2'],

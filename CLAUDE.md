@@ -171,7 +171,10 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   id/status/date_paid, 10 min je Order-ID; Logik `utils/trikot-zahlung.js` `zahlungStufe`: unbezahlt = on-hold/pending/failed OHNE
   date_paid - gemessen 12.11., `needs_payment` taugt nicht; dazu erstattet/storniert/nicht im Shop) + `zahlung` Zaehler. Kennzeichen
   `trZahlungHtml` (orange, rot nur erstattet/storniert) + "Im Shop öffnen ↗" (BS4), Filter `#tr-zahlung-filter` "nicht bezahlt (n)" (nur
-  im Speicher). Rueckfrage (`psUnbezahlt`) in Bestellungen (JFN) bei "Versendet" und "abschließen" - nichts gesperrt.)
+  im Speicher). Rueckfrage (`psUnbezahlt`) in Bestellungen (JFN) bei "Versendet" und "abschließen" - nichts gesperrt.
+  TR10 (Inhaber 12.11.): bestaetigtes GK (`.tr-gk`, Trikotzeile + Auswahl der Produzenten-Bestellung) = gefuelltes Kaestchen
+  `--warning` mit Schrift `--bg` (Kontrast-Paar in farbrollen.test.js), Mouse-over `tr-goalie`; offen "GK? prüfen" (`.tr-gk-frage`) und
+  die Karte der Shop-Bestellung (" · GK") unveraendert. Test trikot-gk.test.js.)
 - Lager (BO5-1: Bereich `lager`, Unterpunkte `lager/bestand` und `lager/buchungen` im Panel `#panel-lager`, geladen ueber
   `mc:ansicht`; Block `Lager-Anzeige: Anfang/Ende` (Test lager-frontend.test.js, braucht grSortiere/grRang); Dialog
   `#lager-dialog` Einbuchen (Haken "Zählung / Startbestand" = Aktion start) · Ausbuchen · Umlagern · Korrektur (gezaehlt);

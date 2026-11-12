@@ -145,14 +145,15 @@ describe('Oberflaeche', () => {
     expect(T.trSummeHtml(d(2))).toMatch(/ · <span class="tr-gk-zaehler">2 Goalie-Hinweise offen<\/span>$/);
     expect(T.trSummeHtml(d(0))).not.toMatch(/tr-gk-zaehler|Goalie/);
   });
-  test('FK1: Goalie-Hinweise --warning (antwort-TR8 war rot), bestaetigtes GK ohne Warnfarbe', () => {
+  test('FK1: Goalie-Hinweise --warning (antwort-TR8 war rot), bestaetigtes GK gefuellt (TR10)', () => {
     const css = html.slice(html.indexOf('.tr-gk-frage {'), html.indexOf('\n', html.indexOf('.tr-gk-frage {')));
     expect(css).toContain('color: var(--warning)');
     expect(css).toContain('border: 1px solid var(--warning)');
     expect(css).not.toContain('danger');
     expect(html).toMatch(/\.tr-gk-zaehler, \.tr-gk-warnung \{ color: var\(--warning\)/);
     const gk = html.slice(html.indexOf('.tr-gk {'), html.indexOf('\n', html.indexOf('.tr-gk {')));
-    expect(gk).not.toMatch(/danger|warning|accent/);
+    expect(gk).not.toMatch(/danger|accent/);   // TR10 (Inhaber 12.11.): bestaetigtes GK jetzt gefuellt in --warning
+    expect(gk).toContain('background: var(--warning)');
     expect(html).toContain("document.getElementById('tr-summe').innerHTML = trSummeHtml(trZustand.daten);");
   });
   test('Formular: nicht vorgewaehlt, Export gesperrt bis zur Klaerung, Warnung nennt die Zeile', () => {

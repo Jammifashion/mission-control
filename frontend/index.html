@@ -1033,7 +1033,8 @@
       /* TR7: Goalie (Torwart-Trikot) */
       .ti-gk { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.8rem; white-space: nowrap; min-height: 44px; }
       .ti-fest { font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .tr-gk { display: inline-block; margin-left: 0.3rem; padding: 0 0.35rem; border: 1px solid var(--muted); border-radius: 4px; color: var(--text); font-size: 0.72rem; font-weight: 700; line-height: 1.4; }
+      /* TR10: bestätigtes GK = gefülltes Kästchen in --warning, Schrift --bg (Kontrast dunkel 8,9:1, hell 5,3:1); offen bleibt .tr-gk-frage */
+      .tr-gk { display: inline-block; margin-left: 0.3rem; padding: 0 0.35rem; border: 1px solid var(--warning); border-radius: 4px; background: var(--warning); color: var(--bg); font-size: 0.72rem; font-weight: 700; line-height: 1.4; }
       .tr-formular tr.tr-goalie-zeile td { font-weight: 600; }
       /* TR8: Goalie-Hinweis "GK? prüfen" */
       .tr-gk-pruefen { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin: 0.25rem 0; }
@@ -6907,7 +6908,7 @@
         'ti-aendern':           { name: 'ändern …', text: 'Größe, Name, Nummer, Goalie, Notiz (intern auch das Trikot) ändern – nur, solange es nicht beim Hersteller ist.' },
         'tr-aendern-gesperrt':  { name: 'ändern …', text: 'Schon beim Hersteller – Änderung nur über Ersatz (TR3b).' },
         'ti-goalie':            { name: 'GK', text: 'Goalie: Torwart-Version des Trikots. Im Formular für den Hersteller steht dann GK vor der Größe und GOALI unter EXTRA.' },
-        'tr-goalie':            { name: 'GK', text: 'Goalie-Trikot (Torwart-Version). Geht an den Hersteller mit GK vor der Größe und GOALI unter EXTRA.' },
+        'tr-goalie':            { name: 'GK', text: 'Goalie bestätigt – beim Produzenten GK-Größe + GOALI.' },
         'tr-gk-pruefen':        { name: 'GK? prüfen', text: 'Im Freitext steht ein Torwart-Stichwort. Bitte klären – Goalie gibt es nur nach Absprache.' },
         'tr-gk-markieren':      { name: 'als Goalie markieren', text: 'Setzt Goalie für dieses Trikot (GK vor der Größe, GOALI im Formular).' },
         'tr-gk-kein':           { name: 'kein Goalie', text: 'Kein Torwart-Trikot – der Hinweis verschwindet für diese Zeile (Goalie = nein).' },
@@ -9521,7 +9522,7 @@
           + `<button type="button" class="korb-link" data-tr-gk="nein" data-zeile="${z.zeile}" data-id="${trEsc(z.id)}" data-hilfe="tr-gk-kein">kein Goalie</button></div>`;
       }
       /** TR7: Goalie-Kennzeichen (Torwart-Version, nur auf Nachfrage). */
-      const trGkHtml = z => (z.goalie ? '<span class="tr-gk" data-hilfe="tr-goalie">GK</span>' : '');
+      const trGkHtml = z => (z.goalie ? '<span class="tr-gk" tabindex="0" data-hilfe="tr-goalie">GK</span>' : '');   // TR10: Tastatur-Fokus fuer den Mouse-over
       /** TR6/TR7: Referenz (AU-… als Link); ohne Charge "ändern …" (Shop + INT), "entfernen" nur INT; mit Charge gesperrt. */
       function trInternHtml(z) {
         const ref = !z.referenz ? '' : /^AU-\d{4}-\d{4}$/.test(z.referenz)
@@ -9677,7 +9678,7 @@
       function trAuswahlHtml(zeilen, gew) {
         if (!zeilen.length) return '<p class="tr-neben">Keine offenen Trikots.</p>';
         return '<div class="tr-wahl">' + zeilen.map(z => `<label><input type="checkbox" data-tr-wahl="${z.zeile}"${gew.has(z.zeile) ? ' checked' : ''}>`
-          + `<span>${trEsc(z.produktKurz)} · ${trEsc(z.groesse || '–')}${z.goalie ? ' <span class="tr-gk">GK</span>' : ''} · <strong>${trEsc(z.name || '–')}</strong> · ${trEsc(z.nummer || '–')}`
+          + `<span>${trEsc(z.produktKurz)} · ${trEsc(z.groesse || '–')}${z.goalie ? ' <span class="tr-gk" data-hilfe="tr-goalie">GK</span>' : ''} · <strong>${trEsc(z.name || '–')}</strong> · ${trEsc(z.nummer || '–')}`
           + `${z.hinweise.length ? ` <span class="tr-hinweis">(${z.hinweise.map(h => trEsc(TR_HINWEISE[h] ?? h)).join(', ')})</span>` : ''}`
           + `${z.goalieOffen ? ' <span class="tr-gk-frage">GK? prüfen</span>' : ''}</span></label>`).join('') + '</div>';
       }
