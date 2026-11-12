@@ -1145,6 +1145,10 @@
       .prod-item:last-of-type { margin-bottom: 0; }
       .prod-item-name    { font-size: 0.86rem; font-weight: 500; margin-bottom: 0.2rem; }
       .prod-item-sku     { font-size: 0.74rem; color: var(--muted); font-weight: 400; margin-left: 0.3rem; }
+      /* TR9: Bezahlstand im Trikot-Reiter - orange = Hinweis, rot nur Storno/Erstattung (Rolle --danger) */
+      .tr-zahlung { display: inline-flex; align-items: center; padding: 0 0.45rem; border-radius: 999px; font-size: 0.74rem; white-space: nowrap;
+        border: 1px solid var(--warning); color: var(--warning); background: var(--warning-bg); }
+      .tr-zahlung-erstattet, .tr-zahlung-storniert { border-color: var(--danger); color: var(--danger); background: var(--danger-bg); }
       .ps-shop-link { display: inline-flex; align-items: center; min-height: 32px; font-size: 0.8rem; color: var(--info); white-space: nowrap; }   /* BS4 */
       .prod-item-variant { font-size: 0.78rem; color: var(--text); margin-bottom: 0.35rem; }
       /* BS3: Produktbild je Position */
@@ -2308,7 +2312,8 @@
               <span id="tr-summe">Trikots (JFN)</span>
             </div>
             <div class="korb-bedienung">
-              <div class="korb-ansicht"><span class="field-note">Interne Trikots erfasst und ändert MC, alles andere das Sheet.</span></div>
+              <div class="korb-ansicht"><span class="field-note">Interne Trikots erfasst und ändert MC, alles andere das Sheet.</span>
+                <span class="korb-filter" role="group" aria-label="Trikots filtern"><button type="button" id="tr-zahlung-filter" aria-pressed="false" data-hilfe="tr-zahlung-filter" hidden>nicht bezahlt (0)</button></span></div>
               <div class="korb-aktionen">
                 <button type="button" class="korb-aktion korb-aktion-ruhig" id="ti-neu" data-hilfe="ti-neu">+ Interne Trikotbestellung</button>
                 <button type="button" class="korb-aktion korb-aktion-haupt" id="tr-formular-oeffnen" data-hilfe="tr-formular">Produzenten-Bestellung …</button>
@@ -5667,6 +5672,9 @@
         if (!/^https:\/\/[^/]+\/wp-admin\/post\.php\?post=\d+&action=edit$/.test(u)) return '';
         return `<a class="ps-shop-link" href="${psEsc(u)}" target="_blank" rel="noopener" data-hilfe="ps-shop-link">Im Shop öffnen ↗</a>`;
       }
+      // TR9: unbezahlt wie utils/trikot-zahlung.js (Status on-hold/pending/failed ohne date_paid) - nur Rueckfrage, nichts gesperrt.
+      const psUnbezahlt = o => !!o && !o.date_paid && ['on-hold', 'pending', 'failed'].includes(String(o.status ?? ''));
+      const psUnbezahltFrage = id => ['Bestellung noch nicht bezahlt', `<p>Bestellung #${psEsc(id)} ist im Shop noch nicht bezahlt. Trotzdem fortfahren?</p>`, 'Trotzdem'];
       // ── Produktion-Stand: Ende ──
 
       // ── Bestellkarten rendern ─────────────────────────────────────────────
@@ -5963,6 +5971,9 @@
         if (cb) {
           const { order, item, field } = cb.dataset;
           const newVal = cb.checked;
+          // TR9: Versendet bei unbezahlter Bestellung nur nach Rueckfrage
+          if (field === 'versendet' && newVal && psUnbezahlt(psZustand.orders.find(o => String(o.id) === String(order)))
+            && !await showConfirm(...psUnbezahltFrage(order))) { cb.checked = false; return; }
           cb.disabled = true;
           try {
             const res = await apiFetch(`${API_BASE()}/api/sheets/produktions-status`, {
@@ -5997,6 +6008,8 @@
 
       // ── Bestellung als erledigt markieren ────────────────────────────────
       async function completeOrder(orderId) {
+        // TR9: Abschliessen einer unbezahlten Bestellung nur nach Rueckfrage
+        if (psUnbezahlt(psZustand.orders.find(o => String(o.id) === String(orderId))) && !await showConfirm(...psUnbezahltFrage(orderId))) return;
         try {
           const res = await apiFetch(`${API_BASE()}/api/woocommerce/orders/${orderId}/status`, {
             method: 'PUT', headers: { 'Content-Type': 'application/json' },
@@ -6816,6 +6829,11 @@
         'prod-fertig':          { name: 'Fertig (im Karton)', text: 'Hak an, wenn der Artikel bedruckt und gepackt im Karton liegt, der Auftrag aber noch nicht komplett ist.' },
         'prod-dtf':             { name: 'DTF bestellt', text: 'Hak an, wenn du den Druck für diesen Artikel bei DTF bestellt hast.' },
         'prod-versendet':       { name: 'Versendet', text: 'Hak an, wenn dieser Artikel an den Kunden raus ist – auch bei einer Teillieferung. Zählt als fertig.' },
+        'tr-zahlung-unbezahlt': { name: 'nicht bezahlt', text: 'Bestellung im Shop noch nicht bezahlt – vor dem Versand prüfen.' },
+        'tr-zahlung-erstattet': { name: 'erstattet', text: 'Bestellung im Shop erstattet – Trikot nicht verschicken, erst klären.' },
+        'tr-zahlung-storniert': { name: 'storniert', text: 'Bestellung im Shop storniert – Trikot nicht verschicken, erst klären.' },
+        'tr-zahlung-fehlt':     { name: 'nicht im Shop', text: 'Bestellung im Shop nicht gefunden (gelöscht oder Papierkorb) – bitte prüfen.' },
+        'tr-zahlung-filter':    { name: 'nicht bezahlt', text: 'Zeigt nur Trikots aus Bestellungen, die im Shop noch nicht bezahlt sind. Nochmal tippen = alle.' },
         'ps-shop-link':         { name: 'Im Shop öffnen', text: 'Öffnet die Bestellung im Shop-Backend in einem neuen Tab (z. B. für das DHL-Etikett).' },
         'ps-bild':              { name: 'Produktbild', text: 'Bild der Variation aus dem Shop. Antippen zeigt es groß, nochmal antippen oder Esc schließt.' },
         'prod-notiz':           { name: 'Notiz', text: 'Freier Hinweis zu diesem Artikel. Wird gespeichert, sobald du das Feld verlässt.' },
@@ -7208,7 +7226,7 @@
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'ps-suche', 'ps-suche-weg', 'ps-grenze', 'ps-status-alle', 'ps-status-processing', 'ps-status-on-hold',
           'ps-status-pending', 'ps-versand-alle', 'ps-versand-filter-abholung', 'ps-versand-filter-versand', 'ps-versand-abholung', 'ps-versand-versand', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz', 'ps-bild', 'ps-shop-link'],
-        trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag', 'tr-aendern-gesperrt', 'ti-goalie', 'tr-goalie', 'tr-gk-pruefen', 'tr-gk-markieren', 'tr-gk-kein'],
+        trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag', 'tr-aendern-gesperrt', 'ti-goalie', 'tr-goalie', 'tr-gk-pruefen', 'tr-gk-markieren', 'tr-gk-kein', 'tr-zahlung-unbezahlt', 'tr-zahlung-erstattet', 'tr-zahlung-storniert', 'tr-zahlung-fehlt', 'tr-zahlung-filter'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfbs-g-rueckstand', 'lfbs-g-vorraetig', 'lfbs-lager', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
         auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'au-suche', 'au-filter', 'au-neu', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-pos-da', 'au-pos-we', 'au-entfernen', 'au-entfernt-liste', 'au-wiederherstellen', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-start', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern',
@@ -9484,6 +9502,7 @@
         return `<div class="tr-zeile${z.hinweise.length ? ' tr-gelb' : ''}"><div class="tr-kopf">${order}`
           + `<span>${trEsc(z.produktKurz)} · ${trEsc(z.groesse || '–')}${trGkHtml(z)}</span>`
           + `<span><strong>${trEsc(z.name || '–')}</strong> · ${trEsc(z.nummer || '–')}</span>${haken}${komplett}`
+          + trZahlungHtml(z)   // TR9
           + `<span class="tr-neben">${neben}</span></div>`
           + (bezug.length ? `<div class="tr-neben" data-hilfe="tr-ersetzt">${bezug.join(' · ')}</div>` : '')
           // BO5-4: das ersetzte (falsche) Trikot liegt hier - ins Lager buchen; der Reiter Trikots bleibt unveraendert.
@@ -9532,7 +9551,29 @@
         const n = g.offen ? 0 : g.zeilen.filter(z => z.abhaken === 'setzen').length;
         return n ? `<div class="tr-alle"><button type="button" class="korb-aktion" data-tr-alle="${trEsc(g.charge)}" data-hilfe="tr-alle-da">alle offenen dieser Bestellung als da (${n})</button></div>` : '';
       }
-      const trListeHtml = d => (d?.gruppen ?? []).map(trGruppeHtml).join('');
+      // TR9: Bezahlstand je Zeile (vom Backend nur bei ?mit=zahlung): Kennzeichen + "Im Shop öffnen ↗" (wie BS4).
+      const TR_ZAHLUNG_HILFE = { unbezahlt: 'data-hilfe="tr-zahlung-unbezahlt"', erstattet: 'data-hilfe="tr-zahlung-erstattet"',
+        storniert: 'data-hilfe="tr-zahlung-storniert"', fehlt: 'data-hilfe="tr-zahlung-fehlt"' };
+      function trZahlungHtml(z) {
+        const k = z?.zahlung;
+        if (!k?.stufe) return '';
+        const link = /^https:\/\/[^/]+\/wp-admin\/post\.php\?post=\d+&action=edit$/.test(String(k.link ?? ''))
+          ? `<a class="ps-shop-link" href="${trEsc(k.link)}" target="_blank" rel="noopener" data-hilfe="ps-shop-link">Im Shop öffnen ↗</a>` : '';
+        const hilfe = TR_ZAHLUNG_HILFE[k.stufe] ?? TR_ZAHLUNG_HILFE.unbezahlt;
+        return `<span class="tr-zahlung tr-zahlung-${trEsc(k.stufe)}" tabindex="0" ${hilfe}>${trEsc(k.text)}</span>${link}`;
+      }
+      /** Filter "nicht bezahlt": nur Zeilen unbezahlter Bestellungen, leere Gruppen fallen weg. */
+      function trNurUnbezahlt(d) {
+        return { ...d, gruppen: (d?.gruppen ?? []).map(g => ({ ...g, zeilen: (g.zeilen ?? []).filter(z => z.zahlung?.stufe === 'unbezahlt') }))
+          .filter(g => g.zeilen.length) };
+      }
+      const trUnbezahltZahl = d => d?.zahlung?.unbezahlt ?? 0;
+      const trListeHtml = (d, { nurUnbezahlt = false } = {}) => {
+        const sicht = nurUnbezahlt ? trNurUnbezahlt(d) : d;
+        if (nurUnbezahlt && !(sicht.gruppen ?? []).length) return '<p class="tr-neben">Keine unbezahlte Trikot-Bestellung.</p>';
+        return (sicht?.gruppen ?? []).map(g => (nurUnbezahlt ? trGruppeHtml(g).replace(/^<details class="tr-gruppe([^"]*)"([^>]*?)( open)?>/, '<details class="tr-gruppe$1"$2 open>') : trGruppeHtml(g))).join('')
+          + (d?.zahlungHinweis ? `<p class="tr-hinweis">${trEsc(d.zahlungHinweis)}</p>` : '');
+      };
       // TR5: "seit X Wochen" ab Bestellt_Am (TT.MM.JJJJ), Kalendertage in Berlin; kein errechnetes Lieferdatum.
       function trSeit(bestelltAm, jetzt = new Date()) {
         const m = String(bestelltAm ?? '').match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
@@ -9567,14 +9608,15 @@
       }
       const trSummeText = d => `Trikots (JFN) · ${d.summen.offen} noch nicht beim Produzenten · ${d.summen.chargen} Bestellung${d.summen.chargen === 1 ? '' : 'en'}`
         + ` · ${d.summen.da} von ${d.summen.zeilen - d.summen.offen} da`
-        + (d.summen.goalieOffen ? ` · ${trGkZaehlerText(d.summen.goalieOffen)}` : '');   // TR8
+        + (d.summen.goalieOffen ? ` · ${trGkZaehlerText(d.summen.goalieOffen)}` : '')   // TR8
+        + (trUnbezahltZahl(d) ? ` · ${trUnbezahltZahl(d)} nicht bezahlt` : '');   // TR9
       const trGkZaehlerText = n => `${n} Goalie-Hinweis${n === 1 ? '' : 'e'} offen`;
       /** antwort-TR8: Summe mit rotem Goalie-Zaehler (nur Zahlen, kein Kundentext). */
       const trSummeHtml = d => trEsc(trSummeText({ ...d, summen: { ...d.summen, goalieOffen: 0 } }))
         + (d.summen.goalieOffen ? ` · <span class="tr-gk-zaehler">${trEsc(trGkZaehlerText(d.summen.goalieOffen))}</span>` : '');
       // ── Trikots: Ende ──
 
-      const trZustand = { daten: null, laedt: false, springe: '' };
+      const trZustand = { daten: null, laedt: false, springe: '', nurUnbezahlt: false };   // TR9: Filter nur im Speicher der Seite
       // TR5: Sprung von der Bestellkarte - Gruppen mit Zeilen dieser Order-ID aufklappen, Zeilen markieren (nur lesen).
       function trSpringeZu(orderId) { trZustand.springe = String(orderId ?? ''); }
       function trSprungAusfuehren(el) {
@@ -9592,10 +9634,11 @@
         trZustand.laedt = true;
         if (!trZustand.daten) el.innerHTML = '<div class="skeleton"></div>';
         try {
-          const res = await apiFetch(`${API_BASE()}/api/bestellen/trikots`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
+          const res = await apiFetch(`${API_BASE()}/api/bestellen/trikots?mit=zahlung`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });   // TR9
           trZustand.daten = await apiJson(res);
           document.getElementById('tr-summe').innerHTML = trSummeHtml(trZustand.daten);
-          el.innerHTML = trListeHtml(trZustand.daten);
+          trFilterZeichnen();
+          el.innerHTML = trListeHtml(trZustand.daten, { nurUnbezahlt: trZustand.nurUnbezahlt });
           trSprungAusfuehren(el);
         } catch (e) {
           el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Trikots konnten nicht geladen werden: ${trEsc(e.message)}</p>`;
@@ -9603,6 +9646,21 @@
           trZustand.laedt = false;
         }
       }
+      // TR9: Filter "nicht bezahlt (n)" - nur sichtbar, wenn es unbezahlte gibt (oder der Filter an ist)
+      function trFilterZeichnen() {
+        const b = document.getElementById('tr-zahlung-filter');
+        if (!b) return;
+        const n = trUnbezahltZahl(trZustand.daten);
+        if (!n) trZustand.nurUnbezahlt = false;
+        b.hidden = !n;
+        b.textContent = `nicht bezahlt (${n})`;
+        b.setAttribute('aria-pressed', String(trZustand.nurUnbezahlt));
+      }
+      document.getElementById('tr-zahlung-filter')?.addEventListener('click', () => {
+        trZustand.nurUnbezahlt = !trZustand.nurUnbezahlt;
+        trFilterZeichnen();
+        document.getElementById('tr-liste').innerHTML = trListeHtml(trZustand.daten, { nurUnbezahlt: trZustand.nurUnbezahlt });
+      });
       document.getElementById('tr-liste')?.addEventListener('click', ev => {
         const link = ev.target.closest('[data-tr-bestellung]');
         if (!link) return;

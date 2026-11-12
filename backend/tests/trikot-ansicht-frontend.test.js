@@ -75,7 +75,7 @@ describe('Einbindung', () => {
     expect(html).toMatch(/if \(btn\.dataset\.subtab === 'tab-trikots'\) loadTrikots\(\);/);
   });
   test('nur lesen: ein GET, kein Schreibweg, kein Kunde', () => {
-    expect(sektion).toMatch(/apiFetch\(`\$\{API_BASE\(\)\}\/api\/bestellen\/trikots`/);
+    expect(sektion).toMatch(/apiFetch\(`\$\{API_BASE\(\)\}\/api\/bestellen\/trikots(\?mit=zahlung)?`/);   // TR9: Bezahlstand mitlesen
     expect(sektion).not.toMatch(/method: '(POST|PUT|PATCH|DELETE)'/);
     expect(sektion).not.toMatch(/localStorage|kunde\b/i);
   });

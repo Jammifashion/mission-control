@@ -9,6 +9,7 @@ import { istLaufStopp } from '../lib/hosterPruefseite.js';
 import { ediVorschau, ediErzeugen, ediAlsGesendet, ediSendenVorschau, ediSenden, ediZurueckAufEntwurf } from '../lib/lshopEdi.js';
 import { leseLShopBestellungen } from '../lib/lshopBestellungen.js';
 import { leseTrikotAnsicht } from '../lib/trikotAnsicht.js';
+import { mitTrikotZahlung } from '../lib/trikotZahlung.js';   // TR9
 import { leseRueckstand } from '../lib/rueckstand.js';
 import { formularVorschau, formularDatei, alsBestelltEintragen } from '../lib/trikotFormular.js';
 import { trikotWareneingang } from '../lib/trikotWareneingang.js';
@@ -280,7 +281,9 @@ router.get('/rueckstand', async (_req, res, next) => {
 
 router.get('/trikots', async (req, res, next) => {
   try {
-    res.json(await leseTrikotAnsicht());
+    const ansicht = await leseTrikotAnsicht();
+    // TR9: Bezahlstand nur auf Wunsch des Trikot-Reiters (?mit=zahlung) - "Bestellungen (JFN)" kennt ihn aus den eigenen Bestellungen
+    res.json(req.query.mit === 'zahlung' ? await mitTrikotZahlung(ansicht) : ansicht);
   } catch (err) { next(err); }
 });
 

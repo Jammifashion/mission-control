@@ -165,7 +165,13 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   Handzeilen), Zeilen wie TK1 (Quelle intern, Bestelldatum Text, Stueck 1, P-T und Zahlart leer), Referenz/Notiz/`MC-Vorgang:` im Rohtext
   (Doppelklick; die Ansicht blendet den Vorgang aus). "ändern …"/"entfernen" nur bei INT + intern + ohne Charge; entfernen = Status
   `storniert` (Zeile bleibt) -> eigene, eingeklappte Gruppe "entfernt", nie im Formular (TR3 lehnt ab) oder in Zaehlern. Auftragsansicht:
-  `#au-d-trikots` "n Trikots (Trikot-Seite)" ueber `referenz` (nur lesen). UI-Code am Ende der Trikot-Sektion (nicht im Lese-Teil).)
+  `#au-d-trikots` "n Trikots (Trikot-Seite)" ueber `referenz` (nur lesen). UI-Code am Ende der Trikot-Sektion (nicht im Lese-Teil).
+  TR9 Bezahlstand (nur Anzeige): `GET /api/bestellen/trikots?mit=zahlung` (nur der Trikot-Reiter; "Bestellungen (JFN)" kennt ihn selbst)
+  haengt `zahlung` { stufe, text, link } an Zeilen offener Shop-Bestellungen (`lib/trikotZahlung.js`: include-Abruf je 100, nur
+  id/status/date_paid, 10 min je Order-ID; Logik `utils/trikot-zahlung.js` `zahlungStufe`: unbezahlt = on-hold/pending/failed OHNE
+  date_paid - gemessen 12.11., `needs_payment` taugt nicht; dazu erstattet/storniert/nicht im Shop) + `zahlung` Zaehler. Kennzeichen
+  `trZahlungHtml` (orange, rot nur erstattet/storniert) + "Im Shop öffnen ↗" (BS4), Filter `#tr-zahlung-filter` "nicht bezahlt (n)" (nur
+  im Speicher). Rueckfrage (`psUnbezahlt`) in Bestellungen (JFN) bei "Versendet" und "abschließen" - nichts gesperrt.)
 - Lager (BO5-1: Bereich `lager`, Unterpunkte `lager/bestand` und `lager/buchungen` im Panel `#panel-lager`, geladen ueber
   `mc:ansicht`; Block `Lager-Anzeige: Anfang/Ende` (Test lager-frontend.test.js, braucht grSortiere/grRang); Dialog
   `#lager-dialog` Einbuchen (Haken "Zählung / Startbestand" = Aktion start) · Ausbuchen · Umlagern · Korrektur (gezaehlt);
