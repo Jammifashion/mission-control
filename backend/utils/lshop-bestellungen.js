@@ -15,6 +15,7 @@ import { normHeader } from './sheet-headers.js';
 import { referenzFuer } from './edi-bestellung.js';
 import { EDI_BEI_LSHOP, istTrackingUrl } from './lshop-belege.js';
 import { abStufe } from './lshop-ab.js';
+import { hinweisSperrt } from './korb-logic.js';
 
 export const BESTELL_STATUS = {
   GESENDET: 'gesendet', BESTAETIGT: 'bestätigt', VERSANDT: 'versandt', TEILWEISE: 'teilweise geliefert', GELIEFERT: 'geliefert',
@@ -99,7 +100,58 @@ function position(z, modelle) {
     liefertermin: t(z.Liefertermin), abHinweis: t(z.AB_Hinweis), abStufe: abStufe(z.AB_Hinweis),
     // BO5-4: "bei Ankunft ins Lager" (nur eigene Positionen) - Kennzeichen und Vorauswahl im Wareneingang
     herkunft: t(z.Herkunft), lagerZiel: t(z.Herkunft) === 'eigen' ? t(z.Lager_Ziel) : '',
+    // WE2: storniert/erstattet/... laut Abgleich -> nie "wahrscheinlich da" (nur das Kennzeichen, nicht der Text)
+    gesperrt: hinweisSperrt(z.Hinweis),
   };
+}
+
+/** WE2 Teil 2: Pakete laut Lieferbestaetigung gegen gescannte Kartons. fehlt = Scan fehlt und noch nicht alles geliefert. */
+export function paketZaehler({ pakete, gescannt, status }) {
+  if (!pakete) return null;
+  return { pakete, gescannt, fehlt: gescannt < pakete && status !== BESTELL_STATUS.GELIEFERT };
+}
+
+/**
+ * WE2 Teil 3 (Regel aus bericht-WE1): "wahrscheinlich da – bitte prüfen". Nur Hinweis, nie Buchung.
+ * Position zaehlt, wenn: Status bestellt, kein sperrender Hinweis, die Bestellung hat Pakete mit Versanddatum (Datum der
+ * Lieferbestaetigung) und es gibt mindestens eine Rueckstandsliste mit Listendatum (aus dem Dateinamen) NACH dem letzten
+ * Versand, auf der die Nummer der Bestellung nicht (bzw. nicht mit der ganzen Menge) steht.
+ * Zusatzregel: AB-Liefertermin nach dem Versanddatum und noch kein spaeteres Paket (nur ein Versandtag) -> nicht melden
+ * (WE1: BY285 stand trotz spaeterem AB-Termin auf keiner Liste und war noch nicht unterwegs).
+ * Teilmenge: Rest = Menge - Rueckstand (groesster Wert der Listen nach dem Versand). Liste -> Korb nur ueber order_id + ArticleNr
+ * (die Liste kennt keine Referenz): mehrere Positionen mit derselben Nummer oder Teilmenge -> "bitte zählen".
+ * Ohne Listen (nicht lesbar) oder ohne Liste nach dem Versand -> null (nichts melden).
+ * @param {object}   o
+ * @param {string}   o.orderId
+ * @param {object[]} o.positionen  aus position()
+ * @param {object[]} o.lieferscheine aus lieferscheine() (datum = Versandtag JJJJ-MM-TT)
+ * @param {{datum:string, positionen:{orderId:string, articleNr:string, rueckstand:number}[]}[]|null} o.listen
+ * -> { liste, positionen: [{ schluessel, menge, rest, zaehlen, text }] } | null
+ */
+export function wahrscheinlichDa({ orderId, positionen, lieferscheine: ls, listen }) {
+  if (!Array.isArray(listen)) return null;
+  const versand = (ls ?? []).map(l => l.datum).filter(Boolean).sort();
+  if (!versand.length) return null;
+  const erster = versand[0], letzter = versand.at(-1);
+  const nachVersand = listen.filter(l => t(l.datum) > letzter).sort((a, b) => a.datum.localeCompare(b.datum));
+  if (!nachVersand.length) return null;
+  const rueckstand = nr => Math.max(0, ...nachVersand.map(l => (l.positionen ?? [])
+    .filter(p => t(p.orderId) === orderId && t(p.articleNr) === nr).reduce((n, p) => n + (Number(p.rueckstand) || 0), 0)));
+  const kandidaten = (positionen ?? []).filter(p => p.status === 'bestellt' && !p.gesperrt
+    && !(p.liefertermin && p.liefertermin > letzter && erster === letzter));
+  const jeNr = new Map();
+  for (const p of kandidaten) (jeNr.get(p.articleNr) ?? jeNr.set(p.articleNr, []).get(p.articleNr)).push(p);
+  const aus = [];
+  for (const [nr, gruppe] of jeNr) {
+    const summe = gruppe.reduce((n, p) => n + p.menge, 0);
+    const rest = summe - rueckstand(nr);
+    if (rest <= 0) continue;
+    const mehrere = gruppe.length > 1, teil = rest < summe;
+    const text = mehrere ? `${gruppe.length} Positionen mit derselben Nummer – ${rest} von ${summe} wahrscheinlich da, bitte zählen`
+      : teil ? `${rest} von ${summe} wahrscheinlich da, Rest im Rückstand – bitte zählen` : 'wahrscheinlich da';
+    for (const p of gruppe) aus.push({ schluessel: p.schluessel, menge: p.menge, rest: mehrere ? null : rest, zaehlen: mehrere || teil, text });
+  }
+  return { liste: nachVersand.at(-1).datum, positionen: aus };
 }
 
 /**
@@ -110,8 +162,10 @@ function position(z, modelle) {
  * @param {Map}      o.modelle    ArticleNr -> LShop_Modelle-Zeile
  * @param {object[]} o.sendungen  LShop_Sendungen als Objekte (sendungenZeilen)
  * @param {Date}     o.jetzt
+ * @param {Map}      [o.kartons]  WE2: order_id -> Anzahl gescannter Kartons (LShop_Kartons); fehlt -> kein Paket-Zaehler
+ * @param {object[]|null} [o.listen] WE2: Rueckstandslisten (leseRueckstandListen); fehlt/null -> kein "wahrscheinlich da"
  */
-export function baueBestellungen({ edi, korb, modelle, sendungen, jetzt = new Date() }) {
+export function baueBestellungen({ edi, korb, modelle, sendungen, jetzt = new Date(), kartons, listen }) {
   const nachBestellId = new Map();
   for (const z of korb) if (t(z.Bestell_ID)) (nachBestellId.get(t(z.Bestell_ID)) ?? nachBestellId.set(t(z.Bestell_ID), []).get(t(z.Bestell_ID))).push(z);
   const nachSchluessel = new Map(korb.map(z => [t(z.Schluessel), z]));
@@ -136,6 +190,8 @@ export function baueBestellungen({ edi, korb, modelle, sendungen, jetzt = new Da
       stueck: positionen.length ? positionen.reduce((n, p) => n + p.menge, 0) : Number(b.stueck) || 0,
       status, pakete: pakete.length, positionen, lieferscheine: ls,
       geliefertSeit,
+      ...(kartons ? { paketZaehler: paketZaehler({ pakete: pakete.length, gescannt: kartons.get(b.orderId) ?? 0, status }) } : {}),
+      ...(listen !== undefined ? { wahrscheinlichDa: wahrscheinlichDa({ orderId: b.orderId, positionen, lieferscheine: ls, listen }) } : {}),
     };
   }).sort((a, b) => b.orderId.localeCompare(a.orderId));
 

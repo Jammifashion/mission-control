@@ -262,7 +262,7 @@ router.get('/lshop-korb', async (req, res, next) => {
 // Lieferscheine mit Paketen/Tracking; dazu Portal-Sendungen. Nur lesen, nur Sheets, nur JFN.
 router.get('/lshop-bestellungen', async (req, res, next) => {
   try {
-    res.json(await leseLShopBestellungen({ shop: req.query.shop }));
+    res.json(await leseLShopBestellungen({ shop: req.query.shop, mitHinweisen: true }));   // WE2: Paket-Zaehler + "wahrscheinlich da"
   } catch (err) { next(err); }
 });
 

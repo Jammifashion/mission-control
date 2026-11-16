@@ -12,7 +12,7 @@ import { korbZeilen, TAB_KORB } from '../utils/korb-logic.js';
 import { referenzFuer } from '../utils/edi-bestellung.js';
 import { berlinDatum } from '../utils/berlin-tag.js';
 import {
-  leseXlsxZeilen, rueckstandPositionen, zuordnen, rueckstandAntwort, neuesteListe, listenDatum, alterTage, VERALTET_TAGE,
+  leseXlsxZeilen, rueckstandPositionen, zuordnen, rueckstandAntwort, neuesteListe, listenDatum, alterTage, VERALTET_TAGE, RUECKSTAND_MUSTER,
 } from '../utils/rueckstand.js';
 
 // Ordner (Inhaber 06.11.). Keine Zugangsdaten - nur die Ablage-Adresse; per Umgebung ueberschreibbar.
@@ -48,6 +48,31 @@ async function dateiPositionen(drive, datei) {
   const positionen = rueckstandPositionen(await leseXlsxZeilen(Buffer.from(res.data), JSZip));
   dateiCache = { key, positionen };
   return positionen;
+}
+
+// WE2: alle Listen mit Listendatum nach einem Stichtag (fuer "wahrscheinlich da"). Je Datei-ID + Aenderungszeit
+// zwischengespeichert (hoechstens 12 Dateien), gelesen nacheinander. Gespeichert/zurueckgegeben nur order_id (Fremdbeleg),
+// ArticleNr und Rueckstand - nie Kommission, Kunden-Nr., Adressen.
+const listenCache = new Map();
+export const _rueckstandListenCacheLeeren = () => listenCache.clear();
+export async function leseRueckstandListen({ nach = '', drive: d } = {}) {
+  const drive = d ?? await driveClient();
+  const dateien = (await ordnerDateien(drive)).filter(f => RUECKSTAND_MUSTER.test(t(f.name)) && listenDatum(f.name) > t(nach))
+    .sort((a, b) => listenDatum(a.name).localeCompare(listenDatum(b.name)));
+  const listen = [];
+  for (const f of dateien) {
+    const key = `${f.id}|${f.modifiedTime}`;
+    if (!listenCache.has(key)) {
+      if (Number(f.size) > MAX_BYTES) throw fehler('Rückstandsliste ist unerwartet groß – nicht gelesen.', 422, 'rueckstand_datei');
+      const res = await drive.files.get({ fileId: f.id, alt: 'media', supportsAllDrives: true }, { responseType: 'arraybuffer' });
+      const pos = rueckstandPositionen(await leseXlsxZeilen(Buffer.from(res.data), JSZip))
+        .map(p => ({ orderId: p.fremdbeleg, articleNr: p.articleNr, rueckstand: p.rueckstand }));
+      if (listenCache.size >= 12) listenCache.delete(listenCache.keys().next().value);
+      listenCache.set(key, pos);
+    }
+    listen.push({ datum: listenDatum(f.name), positionen: listenCache.get(key) });
+  }
+  return listen;
 }
 
 /** Korb (mit Referenz je Position) und unsere order_ids - nur gelesen. */

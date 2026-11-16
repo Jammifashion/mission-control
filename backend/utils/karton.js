@@ -121,11 +121,13 @@ export function leseKartonPdf(buf) {
         const zeile = {};
         for (const s of z) {
           const sp = [...spalten].reverse().find(c => c.x <= s.x + 5);
-          if (sp && sp.feld !== 'qty') zeile[sp.feld] = zeile[sp.feld] ? `${zeile[sp.feld]} ${s.s}` : s.s;
+          if (sp) zeile[sp.feld] = zeile[sp.feld] ? `${zeile[sp.feld]} ${s.s}` : s.s;
         }
         const ord = Number(zeile.ord);
         if (!/^\d{10}$/.test(zeile.sku ?? '') || !Number.isInteger(ord) || ord < 0) { hinweise.push('Zeile nicht lesbar'); continue; }
-        gruppe.zeilen.push({ articleNo: t(zeile.articleNo), sku: zeile.sku, color: t(zeile.color), size: t(zeile.size), ord });
+        // WE2: Qty je Zeile nur merken (Gesamtmenge einer von L-Shop zusammengefassten Zeile), gezaehlt wird weiter Ord.
+        const qty = /^\d{1,4}$/.test(t(zeile.qty)) ? Number(zeile.qty) : null;
+        gruppe.zeilen.push({ articleNo: t(zeile.articleNo), sku: zeile.sku, color: t(zeile.color), size: t(zeile.size), ord, qty });
         continue;
       }
       // Kopf: LA/VA, order_id; sonst Textzeile links (Commission oder reference)
@@ -140,10 +142,11 @@ export function leseKartonPdf(buf) {
   const je = new Map();
   for (const g of gruppen) for (const z of g.zeilen) {
     const k = `${g.reference}\u0000${z.sku}`;
-    const p = je.get(k) ?? je.set(k, { reference: g.reference, sku: z.sku, articleNo: z.articleNo, color: z.color, size: z.size, ord: 0, zeilen: 0 }).get(k);
-    p.ord += z.ord; p.zeilen++;
+    const p = je.get(k) ?? je.set(k, { reference: g.reference, sku: z.sku, articleNo: z.articleNo, color: z.color, size: z.size, ord: 0, zeilen: 0, qtys: [] }).get(k);
+    p.ord += z.ord; p.zeilen++; p.qtys.push(z.qty);
   }
-  const positionen = [...je.values()];
+  // WE2: qty = Qty aller Zeilen dieser reference + SKU, wenn ueberall gleich (sonst null).
+  const positionen = [...je.values()].map(({ qtys, ...p }) => ({ ...p, qty: qtys.every(q => q !== null && q === qtys[0]) ? qtys[0] : null }));
   const stueck = positionen.reduce((n, p) => n + p.ord, 0);
   if (subtotalOrd && subtotalOrd !== stueck) hinweise.push(`Summe Ord. ${stueck} weicht von den Zwischensummen (${subtotalOrd}) ab`);
   if (!orderId) hinweise.push('keine order_id im Karton');
@@ -170,18 +173,22 @@ export function kartonAbgleich({ karton, korbZeilen, referenz, schonDa }) {
   }
   const jeRefSku = new Map();
   for (const z of derBestellung) jeRefSku.set(`${referenz(z)}\u0000${t(z.LShop_ArticleNr)}`, z);
+  const eigeneZeile = new Set(karton.positionen.map(p => `${p.reference}\u0000${p.sku}`));
   const benutzt = new Set();
-  const positionen = karton.positionen.map(p => {
+  const positionen = [];
+  for (const p of karton.positionen) {
     const z = jeRefSku.get(`${p.reference}\u0000${p.sku}`);
+    // WE2: von L-Shop zusammengefasst? Dann gilt die Zeile fuer alle Positionen dieser Nummer in der Bestellung.
+    const gruppe = z ? zusammengefasst({ p, z, derBestellung, eigeneZeile, referenz, benutzt }) : null;
+    if (gruppe) { positionen.push(...gruppe); continue; }
     const basis = { ...p, schluessel: z?.Schluessel ?? '', menge: z ? Number(z.Menge) || 0 : null, status: z?.Status ?? '',
       lagerZiel: z && z.Herkunft === 'eigen' ? t(z.Lager_Ziel) : '' };   // BO5-4: "bei Ankunft ins Lager"
-    if (!z) return { ...basis, ampel: AMPEL.GELB, text: 'nicht im Korb', waehlbar: false, vorgewaehlt: false };
+    if (!z) { positionen.push({ ...basis, ampel: AMPEL.GELB, text: 'nicht im Korb', waehlbar: false, vorgewaehlt: false }); continue; }
     benutzt.add(z.Schluessel);
-    if (z.Status === 'geliefert') return { ...basis, ampel: AMPEL.GELB, text: 'schon geliefert', waehlbar: false, vorgewaehlt: false };
-    if (z.Status !== 'bestellt') return { ...basis, ampel: AMPEL.GELB, text: `Status "${z.Status}"`, waehlbar: false, vorgewaehlt: false };
-    if (basis.menge !== p.ord) return { ...basis, ampel: AMPEL.GELB, text: `Menge anders (Korb ${basis.menge}, Karton ${p.ord})`, waehlbar: true, vorgewaehlt: false };
-    return { ...basis, ampel: AMPEL.OK, text: 'passt', waehlbar: true, vorgewaehlt: true };
-  });
+    positionen.push(statusPruefung(basis, z) ?? (basis.menge !== p.ord
+      ? { ...basis, ampel: AMPEL.GELB, text: `Menge anders (Korb ${basis.menge}, Karton ${p.ord})`, waehlbar: true, vorgewaehlt: false }
+      : { ...basis, ampel: AMPEL.OK, text: 'passt', waehlbar: true, vorgewaehlt: true }));
+  }
   const nichtImKarton = derBestellung.filter(z => !benutzt.has(z.Schluessel) && z.Status === 'bestellt')
     .map(z => ({ schluessel: z.Schluessel, reference: referenz(z), sku: t(z.LShop_ArticleNr), menge: Number(z.Menge) || 0 }));
   const gelb = positionen.some(p => p.ampel !== AMPEL.OK) || karton.hinweise.length > 0;
@@ -189,7 +196,53 @@ export function kartonAbgleich({ karton, korbZeilen, referenz, schonDa }) {
     ampel: schonDa || gelb ? AMPEL.GELB : AMPEL.OK,
     grund: schonDa ? `Karton schon eingegangen am ${t(schonDa.Eingang).slice(0, 10)}` : '',
     positionen, nichtImKarton,
+    // WE2: Stueck im Karton - bei zusammengefassten Zeilen Qty einmal, sonst Summe Ord.
+    stueck: karton.positionen.reduce((n, p) => n + (positionen.some(x => x.zusammengefasst && x.sku === p.sku && x.kopf === p.reference) ? p.qty : p.ord), 0),
   };
+}
+
+/** geliefert / anderer Status -> gelb, nicht waehlbar; sonst null. */
+function statusPruefung(basis, z) {
+  if (z.Status === 'geliefert') return { ...basis, ampel: AMPEL.GELB, text: 'schon geliefert', waehlbar: false, vorgewaehlt: false };
+  if (z.Status !== 'bestellt') return { ...basis, ampel: AMPEL.GELB, text: `Status "${z.Status}"`, waehlbar: false, vorgewaehlt: false };
+  return null;
+}
+
+/**
+ * WE2 (gemessen 16.11., bericht-WE1): Hat eine L-Shop-Bestellung mehrere Positionen mit derselben Nummer, druckt L-Shop sie im
+ * Karton als EINE Zeile mit der Referenz der ersten Position ("Kopf"). Die Zeile steht dann (Anzahl Referenzen)² mal da, "Ord."
+ * ist dabei falsch, "Qty." traegt die Gesamtmenge. Erkannt wird das an Qty > Menge der Kopf-Position (eine nicht zusammengefasste
+ * Zeile hat Qty = ihre Menge). Die Menge (Qty) wird in Korb-Reihenfolge verteilt, Kopf zuerst; Positionen mit eigener Zeile in
+ * diesem Karton bleiben aussen vor. Qty = Summe -> alle gruen und vorgewaehlt, sonst gelb "bitte zählen" (waehlbar).
+ * Ueber mehrere Kartons verteilt: Qty gilt je Karton; schon gelieferte Positionen bleiben gelb (nie doppelt buchen).
+ * -> Eintraege fuer die Anzeige/Buchung oder null (nicht zusammengefasst).
+ */
+function zusammengefasst({ p, z, derBestellung, eigeneZeile, referenz, benutzt }) {
+  const kopfMenge = Number(z.Menge) || 0;
+  // Merkmal: mehrere Zeilen mit gleicher Qty und Summe Ord. != Qty (eine echte Einzelzeile hat Summe Ord. = Qty) oder Qty > Kopf.
+  if (!(p.zeilen > 1) || !Number.isInteger(p.qty) || (p.ord === p.qty && p.qty <= kopfMenge)) return null;
+  const andere = derBestellung.filter(x => x !== z && t(x.LShop_ArticleNr) === p.sku && !benutzt.has(x.Schluessel)
+    && !eigeneZeile.has(`${referenz(x)}\u0000${p.sku}`) && ['bestellt', 'geliefert'].includes(x.Status));
+  if (!andere.length) return null;   // keine weitere Position dieser Nummer: wie bisher (Menge anders / Rest ins Lager)
+  const mitglieder = [z, ...andere];
+  // Qty = Stueck dieser Zeile in DIESEM Karton (gemessen 0008: ueber zwei Kartons 3 + 1 = 4). Verglichen wird mit den noch
+  // offenen Positionen - was ein anderer Karton schon gebucht hat, steht unten als "schon geliefert".
+  const offen = mitglieder.filter(x => x.Status === 'bestellt');
+  const summe = offen.reduce((n, x) => n + (Number(x.Menge) || 0), 0);
+  const passt = summe > 0 && p.qty === summe;
+  const text = passt ? `zusammengefasst unter ${p.reference}`
+    : `zusammengefasst unter ${p.reference} – Karton ${p.qty}, offen zusammen ${summe}: bitte zählen`;
+  return mitglieder.map((x, i) => {
+    benutzt.add(x.Schluessel);
+    const menge = Number(x.Menge) || 0;
+    // ord = verteilte Menge: so schlaegt "Rest ins Lager" nur einen echten Ueberschuss vor (am Kopf).
+    const ord = i === 0 && summe > 0 && p.qty > summe ? menge + (p.qty - summe) : menge;   // alles schon geliefert: kein Rest
+    const basis = { ...p, reference: i === 0 ? p.reference : referenz(x), ord, schluessel: x.Schluessel, menge, status: x.Status,
+      lagerZiel: x.Herkunft === 'eigen' ? t(x.Lager_Ziel) : '', zusammengefasst: true, kopf: p.reference };
+    return statusPruefung(basis, x)
+      ?? (passt ? { ...basis, ampel: AMPEL.OK, text, waehlbar: true, vorgewaehlt: true }
+        : { ...basis, ampel: AMPEL.GELB, text, waehlbar: true, vorgewaehlt: false });
+  });
 }
 
 // Protokoll der bestaetigten Kartons (SSOT). Nie Link, nie Kundennummer.

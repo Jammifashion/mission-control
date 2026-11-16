@@ -999,6 +999,14 @@
       /* BO4b-5: Wareneingang */
       .lb-aktionen { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0; }
       .lb-geliefert { color: var(--success); font-weight: 600; }
+      /* WE2: Paket-Zaehler (orange = Karton-Scan fehlt) und "wahrscheinlich da – bitte prüfen" */
+      .lb-paketzahl { font-size: 0.85rem; color: var(--muted); }
+      .lb-paket-fehlt { color: var(--warning); font-weight: 600; }
+      .lb-wd { border: 1px solid var(--warning); border-radius: 8px; background: color-mix(in srgb, var(--warning) 12%, transparent); padding: 0.5rem 0.6rem; margin: 0.5rem 0; font-size: 0.85rem; }
+      .lb-wd-kopf { font-weight: 600; margin-bottom: 0.3rem; overflow-wrap: anywhere; }
+      .lb-wd-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; padding: 0.3rem 0; border-top: 1px solid color-mix(in srgb, var(--warning) 35%, transparent); }
+      .lb-wd-zeile label { display: flex; align-items: center; gap: 0.4rem; flex: 1 1 14rem; min-width: 0; min-height: 32px; overflow-wrap: anywhere; }
+      .lb-wd-zaehlen { color: var(--warning); font-weight: 600; }
       /* TR2: Trikots (JFN) */
       .tr-gruppe { border: 1px solid var(--border); border-radius: 8px; margin-top: 0.6rem; font-size: 0.84rem; overflow-wrap: anywhere; }
       .tr-gruppe > summary { cursor: pointer; padding: 0.55rem 0.75rem; display: flex; flex-wrap: wrap; gap: 0.4rem 0.75rem; align-items: center; justify-content: space-between; }
@@ -6486,12 +6494,38 @@
           `${b.positionenZahl} Pos. / ${b.stueck} Stk`, b.commission ? lbEsc(b.commission) : '',
           b.versandart ? `Versand ${lbEsc(b.versandart)}` : ''].filter(Boolean).join(' · ');
         const ls = b.lieferscheine.length
-          ? `<div class="lb-abschnitt">Lieferscheine</div>${b.lieferscheine.map(lbLieferscheinHtml).join('')}`
+          ? `<div class="lb-abschnitt">Lieferscheine ${lbPaketZaehlerHtml(b.paketZaehler)}</div>${b.lieferscheine.map(lbLieferscheinHtml).join('')}`
           : '<div class="lb-abschnitt">Lieferscheine</div><div class="lb-leer">noch keine Lieferung</div>';
         return `<details class="lb-karte" data-order="${lbEsc(b.orderId)}"${offen ? ' open' : ''}>`
-          + `<summary><span class="lb-kopf">${kopf}</span>${lbStatusHtml(b)}</summary>`
+          + `<summary><span class="lb-kopf">${kopf}</span>${lbStatusHtml(b)}${b.paketZaehler?.fehlt ? ` <span class="lb-paket-fehlt" data-hilfe="lb-paket-fehlt">${lbEsc(b.paketZaehler.gescannt)}/${lbEsc(b.paketZaehler.pakete)} gescannt</span>` : ''}</summary>`
           + `<div class="lb-inhalt">${lbAbHtml(b.ab)}${b.positionen.map(lbPositionHtml).join('') || '<div class="lb-leer">keine Positionen gefunden</div>'}`
-          + `${lbEingangKnopfHtml(b)}${ls}</div></details>`;
+          + `${lbWahrscheinlichHtml(b)}${lbEingangKnopfHtml(b)}${ls}</div></details>`;
+      }
+      // WE2 Teil 2: "n Pakete laut Lieferbestätigung · m Karton(s) gescannt", orange solange ein Scan fehlt (nicht alles geliefert).
+      function lbPaketZaehlerHtml(z) {
+        if (!z) return '';
+        const text = `· ${lbMehrzahl(z.pakete, 'Paket', 'Pakete')} laut Lieferbestätigung · ${lbMehrzahl(z.gescannt, 'Karton', 'Kartons')} gescannt`;
+        return z.fehlt ? `<span class="lb-paketzahl lb-paket-fehlt" data-hilfe="lb-paket-fehlt">${lbEsc(text)}</span>`
+          : `<span class="lb-paketzahl" data-hilfe="lb-paket-zaehler">${lbEsc(text)}</span>`;
+      }
+      // WE2 Teil 3: "wahrscheinlich da – bitte prüfen" (Regel aus WE1, Server rechnet). Nur Hinweis: gebucht wird ueber
+      // "Ware angekommen" (Dialog #we-dialog mit genau diesen Positionen vorgewaehlt, dort bestaetigen).
+      function lbWahrscheinlichHtml(b) {
+        const wd = b.wahrscheinlichDa;
+        const nach = new Map((b.positionen ?? []).map(p => [p.schluessel, p]));
+        const zeilen = (wd?.positionen ?? []).filter(x => nach.get(x.schluessel)?.status === 'bestellt');
+        if (!zeilen.length) return '';
+        const zeile = x => {
+          const p = nach.get(x.schluessel);
+          const name = [p.reference, p.catalogNr, p.farbe, p.groesse].filter(Boolean).map(lbEsc).join(' · ');
+          return `<div class="lb-wd-zeile"><label><input type="checkbox" data-wd-pos="${lbEsc(x.schluessel)}"${x.zaehlen ? '' : ' checked'}>`
+            + ` <span>${name} <strong>×${lbEsc(p.menge)}</strong>${x.zaehlen ? ` · <span class="lb-wd-zaehlen">${lbEsc(x.text)}</span>` : ''}</span></label>`
+            + `<button type="button" class="korb-link" data-wd-eins="${lbEsc(x.schluessel)}" data-hilfe="wd-eins">angekommen …</button></div>`;
+        };
+        return `<div class="lb-wd" data-wd-order="${lbEsc(b.orderId)}"><div class="lb-wd-kopf" data-hilfe="wd-block">`
+          + `${lbMehrzahl(zeilen.length, 'Position', 'Positionen')} wahrscheinlich da – bitte prüfen`
+          + ` <span class="lb-pos-neben">(nicht in Rückstandsliste vom ${lbEsc(lbDatum(wd.liste))})</span></div>${zeilen.map(zeile).join('')}`
+          + `<div class="lb-aktionen"><button type="button" class="korb-aktion korb-aktion-ruhig" data-wd-alle="${lbEsc(b.orderId)}" data-hilfe="wd-alle">alle markierten als angekommen …</button></div></div>`;
       }
       // BO4b-5: "Ware angekommen …" (offene Positionen) bzw. "Wareneingang …" (alles geliefert, nur Rueckweg).
       function lbEingangKnopfHtml(b) {
@@ -6501,8 +6535,9 @@
         return `<div class="lb-aktionen"><button class="korb-aktion ${offen ? 'korb-aktion-haupt' : 'korb-aktion-ruhig'}" type="button" data-eingang="${lbEsc(b.orderId)}" data-hilfe="ware-angekommen">`
           + `${offen ? 'Ware angekommen …' : 'Wareneingang …'}</button></div>`;
       }
-      /** Dialog-Liste: bestellt = Haekchen (vorgewaehlt), geliefert = grau mit "zurück auf bestellt". */
-      function lbEingangListeHtml(b) {
+      /** Dialog-Liste: bestellt = Haekchen (vorgewaehlt), geliefert = grau mit "zurück auf bestellt".
+       *  WE2: vorwahl (Set der Schluessel, aus "wahrscheinlich da") -> nur diese angehakt, sonst alle bestellten. */
+      function lbEingangListeHtml(b, vorwahl = null) {
         return b.positionen.filter(p => p.status === 'bestellt' || p.status === 'geliefert').map(p => {
           const text = [p.reference, p.catalogNr, p.farbe, p.groesse].filter(Boolean).map(lbEsc).join(' · ') + ` <strong>×${lbEsc(p.menge)}</strong>`;
           if (p.status === 'geliefert') {
@@ -6512,7 +6547,7 @@
           // BO5-4: "bei Ankunft ins Lager" (abwaehlbar) und "mehr gekommen" (Ueberschuss) je Position
           const lager = p.lagerZiel ? `<label class="we-lager" data-hilfe="bei-ankunft-lager"><input type="checkbox" data-we-lager="${lbEsc(p.schluessel)}" checked>`
             + ` davon ins Lager: ${lbEsc(p.menge)} Stück (${lbEsc(p.lagerZiel)})</label>` : '';
-          return `<div class="we-zeile"><label><input type="checkbox" data-we-pos="${lbEsc(p.schluessel)}" checked> <span>${text}</span></label>`
+          return `<div class="we-zeile"><label><input type="checkbox" data-we-pos="${lbEsc(p.schluessel)}"${!vorwahl || vorwahl.has(p.schluessel) ? ' checked' : ''}> <span>${text}</span></label>`
             + `<label class="we-mehr" data-hilfe="we-mehr">mehr gekommen: <input type="number" class="form-input" min="0" max="999" step="1" inputmode="numeric" placeholder="0"`
             + ` data-we-mehr="${lbEsc(p.schluessel)}" aria-label="mehr gekommen"></label>${lager}</div>`;
         }).join('') || '<div class="lb-leer">keine Positionen</div>';
@@ -6562,7 +6597,8 @@
         const sicht = (d?.bestellungen ?? []).filter(b => filter === 'alle' || b.filter?.[filter]);
         const leer = { unterwegs: 'Keine Bestellung unterwegs.', geliefert: 'In den letzten 14 Tagen nichts geliefert.', alle: 'Noch keine L-Shop-Bestellung gesendet.' };
         const karten = sicht.length ? sicht.map(b => lbKarteHtml(b, b.filter?.unterwegs)).join('') : `<p class="lb-leer">${leer[filter] ?? ''}</p>`;
-        return lbEntwuerfeHtml(d?.entwuerfe) + karten + lbPortalHtml(d?.portal, zeigeAeltere);
+        const rsHinweis = d?.rueckstandHinweis ? `<p class="lb-leer">${lbEsc(d.rueckstandHinweis)}</p>` : '';   // WE2
+        return lbEntwuerfeHtml(d?.entwuerfe) + rsHinweis + karten + lbPortalHtml(d?.portal, zeigeAeltere);
       }
       function lbZaehler(d) {
         const b = d?.bestellungen ?? [];
@@ -6579,7 +6615,7 @@
           + `${(r.hinweise ?? []).map(h => `<br>⚠ ${lbEsc(h)}`).join('')}</div>`;
         const zeilen = r.positionen.map(p => {
           const text = `${ampel(p.ampel)} ${[p.reference, p.articleNo, p.color, p.size].filter(Boolean).map(lbEsc).join(' · ')} <strong>×${lbEsc(p.ord)}</strong>`
-            + `${p.ampel === 'ok' ? '' : ` · <em>${lbEsc(p.text)}</em>`}`;
+            + `${p.ampel === 'ok' && !p.zusammengefasst ? '' : ` · <em>${lbEsc(p.text)}</em>`}`;   // WE2: "zusammengefasst unter …" auch bei gruen
           // BO5-4: Ueberschuss (Karton > Korb bzw. nicht im Korb, Menge aus Ord.) als eigener Knopf; Lager_Ziel abwaehlbar.
           const rest = !r.lagerBereit || !(p.lagerRest > 0) ? ''
             : p.lagerGebucht ? ' <span class="ks-lager-ok" data-hilfe="karton-rest-lager">✓ Rest im Lager</span>'
@@ -6816,6 +6852,12 @@
         'karton-angekommen':    { name: 'Karton angekommen', text: 'Bucht die angehakten Positionen als geliefert und legt die Karton-PDF ins Archiv.' },
         'karton-naechster':     { name: 'Nächsten Karton scannen', text: 'Leert die Anzeige und startet die Kamera für den nächsten Karton.' },
         'we-buchen':            { name: 'Als geliefert buchen', text: 'Setzt die angehakten Positionen auf „geliefert“. Nicht angehakte bleiben „bestellt“.' },
+        // WE2: Paket-Zaehler und "wahrscheinlich da – bitte prüfen"
+        'lb-paket-zaehler':     { name: 'Pakete und Kartons', text: 'Wie viele Pakete L-Shop laut Lieferbestätigung verschickt hat und wie viele Kartons davon gescannt sind.' },
+        'lb-paket-fehlt':       { name: 'Karton-Scan fehlt', text: 'Es fehlt noch ein Karton-Scan – Paket angekommen? Dann den QR-Code auf dem Karton scannen.' },
+        'wd-block':             { name: 'Wahrscheinlich da', text: 'Verschickt und nicht auf der Rückstandsliste nach dem Versand. Nichts wird automatisch gebucht – bitte nachsehen.' },
+        'wd-eins':              { name: 'angekommen …', text: 'Öffnet „Ware angekommen“ mit nur dieser Position angehakt. Gebucht wird erst dort.' },
+        'wd-alle':              { name: 'Alle markierten als angekommen …', text: 'Öffnet „Ware angekommen“ mit den markierten Positionen angehakt. Gebucht wird erst dort, nach deiner Bestätigung.' },
         'we-zurueck':           { name: 'zurück auf bestellt', text: 'Nimmt einen versehentlich gebuchten Eingang zurück. Die Position gilt wieder als unterwegs.' },
         // BO4c
         'an-lshop-senden':      { name: 'An L-Shop senden', text: 'Schickt die Bestellung echt an L-Shop. Nur einmal klicken. Grün oben = gesendet, der Dialog schließt sich dann selbst.' },
@@ -7233,7 +7275,7 @@
         leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
         uebersicht: ['bm-zelle', 'bm-gruppe', 'gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
         karton: ['karton-pruefen', 'karton-angekommen', 'karton-naechster', 'karton-rest-lager', 'karton-lager-ort', 'bei-ankunft-lager'],
-        bestellungen: ['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-mehr', 'bei-ankunft-lager', 'lager-ziel-aendern', 'eb-gesperrt-bestellt', 'eb-gesperrt-geliefert', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere', 'rs-block', 'rs-kennzeichen', 'rs-bezug'],
+        bestellungen: ['karton-scannen', 'entwuerfe', 'lb-paket-zaehler', 'lb-paket-fehlt', 'wd-block', 'wd-eins', 'wd-alle', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-mehr', 'bei-ankunft-lager', 'lager-ziel-aendern', 'eb-gesperrt-bestellt', 'eb-gesperrt-geliefert', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere', 'rs-block', 'rs-kennzeichen', 'rs-bezug'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'ps-suche', 'ps-suche-weg', 'ps-grenze', 'ps-status-alle', 'ps-status-processing', 'ps-status-on-hold',
           'ps-status-pending', 'ps-versand-alle', 'ps-versand-filter-abholung', 'ps-versand-filter-versand', 'ps-versand-abholung', 'ps-versand-versand', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz', 'ps-bild', 'ps-shop-link'],
@@ -9029,6 +9071,16 @@
         if (zurueck) { lbZurueckAufEntwurf(zurueck); return; }
         const eingang = ev.target.closest('[data-eingang]');
         if (eingang) { weOeffnen(eingang.dataset.eingang); return; }
+        // WE2: "wahrscheinlich da" -> derselbe Dialog "Ware angekommen", nur die gewaehlten Positionen angehakt (dort bestaetigen)
+        const eins = ev.target.closest('[data-wd-eins]');
+        if (eins) { weOeffnen(eins.closest('[data-wd-order]').dataset.wdOrder, [eins.dataset.wdEins]); return; }
+        const alle = ev.target.closest('[data-wd-alle]');
+        if (alle) {
+          const gewaehlt = [...alle.closest('[data-wd-order]').querySelectorAll('[data-wd-pos]:checked')].map(c => c.dataset.wdPos);
+          if (!gewaehlt.length) { showToast('Keine Position markiert', 'error'); return; }
+          weOeffnen(alle.dataset.wdAlle, gewaehlt);
+          return;
+        }
         if (!ev.target.closest('[data-portal-aeltere]')) return;
         lbZustand.portalAeltere = true;
         lbZeichnen();
@@ -9206,7 +9258,7 @@
       // ── SECTION: Wareneingang (BO4b-5) ──
       // "Ware angekommen" von Hand: Dialog mit den Positionen der L-Shop-Bestellung (bestellt vorgewaehlt). Der
       // Server prueft frisch (nur bestellt -> geliefert) und schreibt Korb + ggf. Wareneingang am Paket in einem Zug.
-      const weZustand = { orderId: '', laeuft: false, vorgang: '' };
+      const weZustand = { orderId: '', laeuft: false, vorgang: '', vorwahl: null };   // WE2: vorwahl aus "wahrscheinlich da"
 
       // ── BO5-4: Lagerort-Auswahl und gemeinsame Helfer fuer Wareneingang, Karton, Korb, Trikots ──
       // Orte kommen aus GET /api/lager/bestand (einmal geladen); Wrist ist vorgewaehlt.
@@ -9267,12 +9319,13 @@
       function weZeichnen() {
         const b = weBestellung(weZustand.orderId);
         document.getElementById('we-titel').textContent = `Ware angekommen · ${weZustand.orderId}`;
-        document.getElementById('we-liste').innerHTML = b ? lbEingangListeHtml(b) : '<div class="lb-leer">Bestellung nicht gefunden – neu laden.</div>';
+        document.getElementById('we-liste').innerHTML = b ? lbEingangListeHtml(b, weZustand.vorwahl) : '<div class="lb-leer">Bestellung nicht gefunden – neu laden.</div>';
         const offen = b ? b.positionen.some(p => p.status === 'bestellt') : false;
         document.getElementById('we-buchen').hidden = !offen;
       }
-      function weOeffnen(orderId) {
+      function weOeffnen(orderId, vorwahl = null) {
         weZustand.orderId = orderId;
+        weZustand.vorwahl = vorwahl ? new Set(vorwahl) : null;   // WE2: nur diese Positionen angehakt
         weZustand.vorgang = korbVorgang();   // BO5-4: Lager-Zugaenge nie doppelt
         document.getElementById('we-ergebnis').textContent = '';
         document.getElementById('we-dialog').hidden = false;

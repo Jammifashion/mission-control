@@ -3,6 +3,7 @@
 // eine bestaetigt, eine versandt mit 2 Paketen in 2 Lieferscheinen, eine teilweise geliefert, eine geliefert,
 // dazu Entwurf/Testdatei (nie sichtbar) und Portal-Sendungen. Keine echten Kunden- oder Adressdaten.
 
+import { jest } from '@jest/globals';
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -102,6 +103,7 @@ describe('leseLShopBestellungen (nur lesen)', () => {
       schluessel: 'JFN:3:1', articleNr: NR2, catalogNr: 'JH030F', bezeichnung: '', farbe: 'Deep Black', groesse: 'XL', menge: 1,
       reference: 'JFN-3-1', status: 'bestellt', statusDatum: '', liefertermin: '', abHinweis: '', abStufe: '',
       herkunft: 'shop', lagerZiel: '',   // BO5-4
+      gesperrt: false,                   // WE2
     });
     expect(nach['JFN-2026-0003']).toMatchObject({ stueck: 2, commission: 'KW45 3', erzeugt: '2026-11-03T08:00:00.000Z' });
     expect(nach['JFN-2026-0009'].positionen.map(p => [p.schluessel, p.reference])).toEqual([['EIGEN:2026-0001', 'Muster']]);   // ueber Korb_Schluessel
@@ -121,6 +123,27 @@ describe('leseLShopBestellungen (nur lesen)', () => {
     expect(await leseLShopBestellungen({ shop: 'honk', sheets })).toEqual({ nurJfn: true, bestellungen: [], portal: [], entwuerfe: [] });
     const leer = machSheets({ LShop_Modelle: grundTabs().LShop_Modelle });
     expect(await leseLShopBestellungen({ shop: 'jfn', sheets: leer.sheets, jetzt: () => JETZT })).toEqual({ nurJfn: false, bestellungen: [], portal: [], entwuerfe: [] });
+  });
+
+  test('WE2 mitHinweisen: ein batchGet, Paket-Zaehler aus LShop_Kartons, Listen ab fruehestem Versandtag, Fehler -> Hinweis', async () => {
+    const { tabs, sheets } = aufbau();
+    tabs.LShop_Kartons = [['Karton_ID', 'LA', 'VA', 'order_id', 'Eingang'], ['111', 'LA00000051', 'VA00000005', 'JFN-2026-0005', '2026-11-06']];
+    const aufrufe = [];
+    const listenLesen = async o => { aufrufe.push(o); return [{ datum: '2026-11-11', positionen: [] }]; };
+    const r = await leseLShopBestellungen({ shop: 'jfn', sheets, jetzt: () => JETZT, mitHinweisen: true, listenLesen });
+    const nach = Object.fromEntries(r.bestellungen.map(b => [b.orderId, b]));
+    expect(nach['JFN-2026-0005'].paketZaehler).toEqual({ pakete: 2, gescannt: 1, fehlt: true });
+    expect(nach['JFN-2026-0006'].paketZaehler).toEqual({ pakete: 1, gescannt: 0, fehlt: true });
+    expect(nach['JFN-2026-0004'].paketZaehler).toBeNull();
+    expect(aufrufe).toEqual([{ nach: '2026-11-05' }]);   // 0006 letzter Versand 05.11. vor 0005 (06.11.)
+    expect(nach['JFN-2026-0005'].wahrscheinlichDa).toMatchObject({ liste: '2026-11-11', positionen: [{ schluessel: 'JFN:3:1' }] });
+    expect(nach['JFN-2026-0004'].wahrscheinlichDa).toBeNull();   // kein Paket
+    expect(r.rueckstandHinweis).toBe('');
+    const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const kaputt = await leseLShopBestellungen({ shop: 'jfn', sheets, jetzt: () => JETZT, mitHinweisen: true, listenLesen: async () => { throw Object.assign(new Error('x'), { code: 403 }); } });
+    warn.mockRestore();
+    expect(kaputt.rueckstandHinweis).toMatch(/nicht lesbar/);
+    expect(kaputt.bestellungen.every(b => b.wahrscheinlichDa === null)).toBe(true);
   });
 
   test('Quelltext: nur Sheets lesen, kein Schreiben, kein FTP, kein Shop', () => {
@@ -220,7 +243,7 @@ describe('Frontend-Block L-Shop-Bestellungen', () => {
     expect(html).toMatch(/if \(btn\.dataset\.subtab === 'tab-lshop-bestellungen'\) loadLShopBestellungen\(\);/);
     expect(html).toContain("sub('tab-lshop-bestellungen', 'L-Shop-Bestellungen');");   // NAV5: Shop-Zusatz haengt sub() als .sub-shop an
     expect(html).toMatch(/\/api\/bestellen\/lshop-bestellungen`/);
-    expect(html).toMatch(/bestellungen: \['karton-scannen', 'entwuerfe', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-mehr', 'bei-ankunft-lager', 'lager-ziel-aendern', 'eb-gesperrt-bestellt', 'eb-gesperrt-geliefert', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere', 'rs-block', 'rs-kennzeichen', 'rs-bezug'\]/);   // BO5-4, BO6-1
+    expect(html).toMatch(/bestellungen: \['karton-scannen', 'entwuerfe', 'lb-paket-zaehler', 'lb-paket-fehlt', 'wd-block', 'wd-eins', 'wd-alle', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-mehr', 'bei-ankunft-lager', 'lager-ziel-aendern', 'eb-gesperrt-bestellt', 'eb-gesperrt-geliefert', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere', 'rs-block', 'rs-kennzeichen', 'rs-bezug'\]/);   // BO5-4, BO6-1
     expect(html).toContain("'filter-alle':          { name: 'Alle', text: 'Alles, was noch nicht bestellt ist: offen und herausgenommen.' }");
   });
 });

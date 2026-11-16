@@ -544,6 +544,13 @@ Neue Sektionen immer mit Anker versehen:
   `scripts/setup-lshop-belege-reiter.js` (Trockenlauf, `--write`). Frontend: Knopf „Karton scannen“ in
   L-Shop-Bestellungen, Dialog `#ks-dialog` (Kamera + `BarcodeDetector`, sonst Link einfuegen), Anzeige `ksErgebnisHtml`
   im Block `L-Shop-Bestellungen`; Link nur in `ksZustand.link`, nie Adresse/localStorage/Anzeige/Toast.
+  WE2 (gemessen 16.11., bericht-WE1): gleiche Nummer in mehreren Positionen EINER L-Shop-Bestellung -> L-Shop druckt EINE Zeile mit
+  der Referenz der ersten Position, (Anzahl Referenzen)² mal, Ord. falsch, Qty. = Gesamtmenge. `leseKartonPdf` merkt `qty` je
+  reference + SKU (alle Zeilen gleich, sonst null; gezaehlt wird weiter Ord.); `kartonAbgleich` -> `zusammengefasst()`: Qty > Menge der
+  Kopf-Position UND weitere bestellt/geliefert-Positionen derselben Nummer ohne eigene Karton-Zeile -> Qty in Korb-Reihenfolge verteilt
+  (Kopf zuerst), je Position ein Eintrag `zusammengefasst`/`kopf`; Qty = Summe gruen + vorgewaehlt ("zusammengefasst unter <Ref>"), sonst
+  gelb waehlbar "bitte zählen". Qty = Stueck dieser Zeile in DIESEM Karton (gemessen 0008: 3 + 1), verglichen mit den noch OFFENEN Positionen; geliefert = gelb wie immer (nie doppelt). Merkmal auch Summe Ord. != Qty. `ord` = verteilte Menge (Ueberschuss nur am Kopf,
+  "Rest ins Lager" bleibt richtig), `stueck` = Qty einmal. Test karton-zusammengefasst.test.js.
 - backend/lib/lshopLieferbarkeit.js – Lieferbarkeit L-Shop (BO7-1), Logik `utils/lshop-lieferbarkeit.js`. Quellen: `stockfile.csv`
   (FTP-Wurzel, Konto "bestand" = Secrets `LSHOP_FTP_USER/PASS`, `ladeBestandsdatei` in lib/lshopFtp.js: nur list + downloadTo,
   <= 10 MB, alle 30 min neu, `article;stock;catalog`, UTF-8 BOM, catalog = CatalogNr) und die Auslaufliste
@@ -649,6 +656,16 @@ Neue Sektionen immer mit Anker versehen:
   ohne AB "Liefertermin folgt". Wareneingang seit BO4b-5 (lib/wareneingang.js, lib/karton.js). Der Korb (`GET .../lshop-korb`) zeigt seit BO4d nur
   `KORB_SICHTBAR` = offen + abgewählt (`summen.positionen` = beide), liefert keine `sendungen` mehr; die
   Zeilen bleiben unveraendert.
+  WE2 (nur mit `mitHinweisen`, die Route setzt es; produktionStand liest ohne): Reiter in EINEM batchGet, dazu `LShop_Kartons`.
+  Je Bestellung `paketZaehler` { pakete (Lieferbestaetigung), gescannt (Kartons), fehlt = weniger gescannt und nicht alles geliefert }
+  und `wahrscheinlichDa` (`wahrscheinlichDa` in utils/lshop-bestellungen.js, Regel bericht-WE1): Status bestellt, kein sperrender Hinweis
+  (`gesperrt`), Pakete mit Versanddatum (Lieferbestaetigungs-Datei), Rueckstandsliste mit Listendatum (Dateiname) NACH dem letzten Versand,
+  Nummer der order_id dort nicht (Rest = Menge − groesster Rueckstand); AB-Liefertermin nach dem Versand bei nur EINEM Versandtag -> nicht
+  melden; mehrere Positionen gleicher Nummer oder Teilmenge -> "bitte zählen"; keine Liste danach / nicht lesbar -> null
+  (`rueckstandHinweis`). Listen: `leseRueckstandListen({ nach })` in lib/rueckstand.js (nur order_id/ArticleNr/Rueckstand, Cache je
+  Datei). Oberflaeche Block `L-Shop-Bestellungen`: `lbPaketZaehlerHtml` (orange "x/y gescannt" im Kopf), `lbWahrscheinlichHtml` (gelber
+  Block, Haken je Position, "angekommen …" / "alle markierten als angekommen …") oeffnen NUR `weOeffnen(order, vorwahl)` = Dialog
+  "Ware angekommen" mit genau diesen Positionen angehakt - gebucht wird erst dort. Nie automatisch. Test wahrscheinlich-da.test.js.
 - backend/lib/rueckstand.js – L-Shop-Rueckstandsliste (RS1), NUR LESEN, Logik `utils/rueckstand.js`. Apps Script (info@) legt jeden
   Mittwoch `Rueckstandsliste_JJJJ-MM-TT.xlsx` in den Ordner "L-Shop Rueckstandsliste" der geteilten Ablage (`RUECKSTAND_ORDNER_ID`,
   per Env ueberschreibbar; drive.readonly). Die Datei hat keinen Standard-Stil (exceljs findet kein Blatt, Blattdatei "Sheet1.xml"):

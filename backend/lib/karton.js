@@ -153,7 +153,7 @@ export async function kartonAngekommen({ link, auswahl, sheets: s, holen, archiv
     if (!kartons.schonDa) {
       const zeile = KARTONS_SPALTEN.map(n => ({
         Karton_ID: kartonId, LA: karton.la, VA: karton.va, order_id: karton.orderId, Eingang: nun, Quelle: 'scan',
-        Positionen: `${gebucht.size} gebucht / ${abgleich.positionen.length} im Karton (${karton.stueck} Stück)`,
+        Positionen: `${gebucht.size} gebucht / ${abgleich.positionen.length} im Karton (${abgleich.stueck ?? karton.stueck} Stück)`,   // WE2: Qty bei zusammengefassten Zeilen
         Abweichungen: String(abweichungen), Datei: datei, Drive_ID: t(ablage?.id), Stand: nun,
       }[n] ?? ''));
       const norm = (kartons.alt[0] ?? []).map(normHeader);
