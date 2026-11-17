@@ -312,6 +312,89 @@ export function kundenAntwort(kunden) {
   return (kunden ?? []).map(({ _zeile, ...k }) => k);
 }
 
+// ── AM-9: neuen MC-Kunden in Lexoffice anlegen ─────────────────────────────────
+// Zuordnung MC -> Lexware (POST /v1/contacts, Doku 17.11.): version 0, roles.customer {}; Firma/Verein -> company.name
+// (+ ein contactPersons-Eintrag aus Ansprechpartner), Person -> person.firstName/lastName (letztes Wort = Nachname).
+// Adresse nur mit gueltigem Laendercode (2 Buchstaben, Pflicht bei Lexware), je Art genau ein Eintrag. Notiz, Spitzname,
+// Kunden_Nr gehen NICHT nach Lexoffice (intern). Keine Werte in Log/Fehlertext.
+
+/** "Max Muster Mann" -> { firstName: 'Max Muster', lastName: 'Mann' }; ein Wort = nur Nachname. */
+export function namensTeile(name) {
+  const w = t(name).split(/\s+/).filter(Boolean);
+  if (!w.length) return { firstName: '', lastName: '' };
+  return { firstName: w.slice(0, -1).join(' '), lastName: w[w.length - 1] };
+}
+
+/** Laendercode fuer Lexware: genau 2 Buchstaben (ISO 3166 alpha-2), sonst ''. */
+export const laenderCode = land => (/^[A-Za-z]{2}$/.test(t(land)) ? t(land).toUpperCase() : '');
+
+/**
+ * MC-Kunde -> Lexware-Kontakt. Liefert { kontakt, hinweise } (hinweise ohne Werte, z. B. "Adresse ohne Länderkürzel
+ * nicht übertragen").
+ */
+export function kontaktFuerLexware(k) {
+  const hinweise = [];
+  const name = t(k?.Name);
+  if (!name) throw fehler('Name fehlt – ohne Namen kein Lexoffice-Kontakt.', 422, 'lex_name');
+  const kontakt = { version: 0, roles: { customer: {} } };
+  const mail = t(k['E-Mail']), tel = t(k.Telefon);
+  if (t(k.Art) === ART.PERSON) {
+    const n = namensTeile(name);
+    kontakt.person = { ...(n.firstName ? { firstName: n.firstName } : {}), lastName: n.lastName };
+    if (mail) kontakt.emailAddresses = { private: [mail] };
+    if (tel) kontakt.phoneNumbers = { private: [tel] };
+  } else {
+    kontakt.company = { name };
+    const ap = namensTeile(k.Ansprechpartner);
+    if (ap.lastName) kontakt.company.contactPersons = [{ ...(ap.firstName ? { firstName: ap.firstName } : {}), lastName: ap.lastName, primary: true }];
+    if (mail) kontakt.emailAddresses = { business: [mail] };
+    if (tel) kontakt.phoneNumbers = { business: [tel] };
+  }
+  const adresse = { street: t(k.Strasse), zip: t(k.PLZ), city: t(k.Ort) };
+  if (Object.values(adresse).some(Boolean)) {
+    const cc = laenderCode(k.Land);
+    if (cc) kontakt.addresses = { billing: [{ ...Object.fromEntries(Object.entries(adresse).filter(([, v]) => v)), countryCode: cc }] };
+    else hinweise.push('Adresse ohne gültiges Länderkürzel (2 Buchstaben) – nicht übertragen.');
+  }
+  return { kontakt, hinweise };
+}
+
+/** Darf dieser MC-Kunde in Lexoffice angelegt werden? Nur aktiv, ohne Lexoffice_ID. Fehlertexte ohne Werte. */
+export function lexAnlagePruefen(k) {
+  if (!k) throw fehler('Kunde gibt es nicht.', 404);
+  if (t(k.Lexoffice_ID)) throw fehler(`${k.Kunden_Nr} ist schon mit Lexoffice verknüpft.`, 409, 'lex_schon');
+  if (t(k.Status) !== STATUS.AKTIV) throw fehler(`${k.Kunden_Nr} ist nicht aktiv.`, 409, 'nicht_aktiv');
+  return k;
+}
+
+/** Suchanfragen fuer die Dublettenpruefung: Name (Firma: ganzer Name, Person: ganzer Name - die Suche filtert den Vornamen selbst), E-Mail. */
+export function dublettenAnfragen(k) {
+  const a = [];
+  if (t(k?.Name).length >= 3) a.push({ feld: 'name', q: t(k.Name) });
+  if (t(k?.['E-Mail']).length >= 3) a.push({ feld: 'email', q: t(k['E-Mail']) });
+  return a;
+}
+
+/** Treffer mehrerer Suchen zusammenfuehren (je Lexoffice-ID einmal). */
+export function dublettenAus(listen) {
+  const je = new Map();
+  for (const c of (listen ?? []).flat()) if (c?.id && !je.has(c.id)) je.set(c.id, c);
+  return [...je.values()];
+}
+
+/**
+ * Lexoffice-ID/-Nr. in die MC-Zeile schreiben (Anlegen oder "diesen verknüpfen"). Nur wenn die Zeile noch keine
+ * Lexoffice_ID hat; dieselbe ID darf kein anderer MC-Kunde tragen. Nichts sonst wird geaendert.
+ */
+export function verknuepfenPlan({ kunden, kundenNr, lexofficeId, lexofficeNr, jetzt }) {
+  const k = lexAnlagePruefen((kunden ?? []).find(x => x.Kunden_Nr === t(kundenNr)));
+  const id = t(lexofficeId);
+  if (!id) throw fehler('Lexoffice-ID fehlt.', 422);
+  const anderer = (kunden ?? []).find(x => x.Kunden_Nr !== k.Kunden_Nr && t(x.Lexoffice_ID) === id);
+  if (anderer) throw fehler(`Dieser Lexoffice-Kontakt gehört schon zu ${anderer.Kunden_Nr}.`, 409, 'lex_anderer');
+  return { kunde: k, nachher: { ...k, Lexoffice_ID: id, Lexoffice_Nr: t(lexofficeNr), Stand: t(jetzt) } };
+}
+
 // ── AM-1-1: einzelne Kunden aus Lexoffice ────────────────────────────────────
 
 /** Kunde im Sheet zu einem Lexware-Kontakt (ID, sonst Nr. bei Zeilen ohne ID) oder null. */

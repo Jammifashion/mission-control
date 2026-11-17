@@ -1,5 +1,7 @@
-// Lexware Office Public API (vormals lexoffice), NUR LESEN (AM-1). Einzige Stelle mit Zugriff auf api.lexware.io.
-// Heute nur Kontakte (GET /v1/contacts, nur Kunden). Kein schreibender Aufruf (Test lexware.test.js: nur GET).
+// Lexware Office Public API (vormals lexoffice). Einzige Stelle mit Zugriff auf api.lexware.io.
+// Lesen (AM-1): GET /v1/contacts mit LEXWARE_API_KEY (nur Leserecht).
+// AM-9: EIN schreibender Aufruf - POST /v1/contacts (neuen Kunden anlegen) in `legeKontaktAn`, NUR mit dem eigenen
+// Schluessel LEXWARE_API_KEY_KONTAKTE_SCHREIBEN. Nie aktualisieren, archivieren, loeschen (Test kunden.test.js).
 //
 // Ratenlimit laut Doku 2 Anfragen/s ueber alle Endpunkte, sonst 429 - wiederholte Verstoesse koennen sperren.
 // Darum ein fester Takt (TAKT_MS) zwischen den Abrufen und bei 429 warten (Retry-After, sonst steigend),
@@ -34,19 +36,26 @@ export class LexwareFehler extends Error {
  */
 export async function lexwareGet(pfad, { schluessel, fetchFn = fetch, warte = schlafen, takt } = {}) {
   if (!schluessel) throw new LexwareFehler('Lexware: Schlüssel LEXWARE_API_KEY fehlt.', 0);
+  return lexwareAnfrage('GET', pfad, { schluessel, fetchFn, warte, takt });
+}
+
+/** Eine Anfrage mit Takt und 429-Behandlung (GET und der eine POST). Fehlertexte: Pfad + Status, nie Inhalt. */
+async function lexwareAnfrage(methode, pfad, { schluessel, body, fetchFn = fetch, warte = schlafen, takt, beiFehler } = {}) {
   const pfadOhneQuery = String(pfad).split('?')[0];
   for (let versuch = 0; ; versuch++) {
     if (takt) await takt();
     let res;
     try {
       res = await fetchFn(`${BASIS}${pfad}`, {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${schluessel}`, Accept: 'application/json' },
+        method: methode,
+        headers: { Authorization: `Bearer ${schluessel}`, Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+        ...(body ? { body: JSON.stringify(body) } : {}),
         redirect: 'error',
       });
     } catch (err) {
       throw new LexwareFehler(`Lexware ${pfadOhneQuery}: keine Verbindung (${err?.code ?? err?.name ?? 'Netz'}).`, 0);
     }
+    if (beiFehler && !res.ok && res.status !== 429) await beiFehler(res);
     if (res.status === 429) {
       if (versuch >= MAX_429) throw new LexwareFehler(`Lexware ${pfadOhneQuery}: Ratenlimit (429) – ${MAX_429} Mal gewartet, abgebrochen.`, 429);
       const ra = Number(res.headers?.get?.('retry-after'));
@@ -159,4 +168,55 @@ export async function leseKontakt({ id, schluessel, fetchFn = fetch, warte = sch
   }
   const key = schluessel ?? await getSecret('LEXWARE_API_KEY');
   return lexwareGet(`/v1/contacts/${sid}`, { schluessel: key, fetchFn, warte, takt: suchTakt });
+}
+
+// ── AM-9: neuen Kunden in Lexoffice anlegen (einziger schreibender Aufruf) ───────────────────────────────
+export const SCHLUESSEL_SCHREIBEN = 'LEXWARE_API_KEY_KONTAKTE_SCHREIBEN';
+export const SCHLUESSEL_FEHLT_TEXT = 'Lexoffice-Schlüssel zum Anlegen fehlt';
+
+/** Schreib-Schluessel fehlt / wird abgelehnt (401/403). Kein Absturz: 503 mit Code, MC-Kunde bleibt. */
+export class LexwareSchluesselFehlt extends Error {
+  constructor(zusatz = '') {
+    super(`${SCHLUESSEL_FEHLT_TEXT}${zusatz ? ` (${zusatz})` : ''} – der Kunde bleibt nur in MC.`);
+    this.name = 'LexwareSchluesselFehlt';
+    this.status = 503;
+    this.code = 'lexware_schluessel';
+  }
+}
+
+/** Schreib-Schluessel lesen; fehlt er (leer, Secret nicht da, kein Zugriff) -> LexwareSchluesselFehlt. Wert nie loggen. */
+export async function schreibSchluessel(lesen = getSecret) {
+  let k = '';
+  try { k = await lesen(SCHLUESSEL_SCHREIBEN); } catch { throw new LexwareSchluesselFehlt('Secret nicht lesbar'); }
+  if (!k) throw new LexwareSchluesselFehlt();
+  return k;
+}
+
+/** Ist der Schreib-Schluessel da? (fuer den Hinweis am Haken; ruft Lexware nicht auf). */
+export async function schreibenBereit(lesen = getSecret) {
+  try { await schreibSchluessel(lesen); return true; } catch { return false; }
+}
+
+/**
+ * POST /v1/contacts mit dem Schreib-Schluessel. Nie wiederholt ausser bei 429 (dann ist nichts angelegt). Liefert die
+ * neue `id`. 401/403 -> LexwareSchluesselFehlt; 400/406 -> Meldung mit den Feldnamen aus der IssueList (nie Werte).
+ */
+export async function legeKontaktAn({ kontakt, schluessel, fetchFn = fetch, warte = schlafen } = {}) {
+  const key = schluessel ?? await schreibSchluessel();
+  const beiFehler = async res => {
+    if (res.status === 401 || res.status === 403) throw new LexwareSchluesselFehlt(`Lexware ${res.status}`);
+    if (res.status === 400 || res.status === 406) {
+      let felder = [];
+      try {
+        const j = await res.json();
+        const liste = Array.isArray(j?.IssueList) ? j.IssueList : Array.isArray(j?.details) ? j.details : [];
+        felder = [...new Set(liste.map(i => String(i?.source ?? i?.field ?? '').replace(/[^\w.\[\]]/g, '')).filter(Boolean))].slice(0, 5);
+      } catch { /* ohne Felder */ }
+      throw new LexwareFehler(`Lexware lehnt die Daten ab (Status ${res.status}${felder.length ? `, Felder: ${felder.join(', ')}` : ''}).`, res.status);
+    }
+  };
+  const d = await lexwareAnfrage('POST', '/v1/contacts', { schluessel: key, body: kontakt, fetchFn, warte, takt: suchTakt, beiFehler });
+  const id = String(d?.id ?? '').trim();
+  if (!id) throw new LexwareFehler('Lexware /v1/contacts: Antwort ohne id.', 200);
+  return { id };
 }

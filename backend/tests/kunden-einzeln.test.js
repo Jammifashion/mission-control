@@ -204,8 +204,15 @@ describe('Navigation und Datenschutz', () => {
     expect(js).not.toMatch(/localStorage|sessionStorage|location\.hash|history\./);
     expect(js).toContain("klPost('lexoffice-suche', { feld, q: q.trim() })");
   });
-  test('Quelltext: weiter kein schreibender Lexware-Aufruf', () => {
+  test('Quelltext: Lexware nur Lesen plus das eine Anlegen (AM-9)', () => {
     const quelle = readFileSync(resolve(hier, '../lib/lexware.js'), 'utf8');
-    expect(quelle.match(/method:\s*'[A-Z]+'/g)).toEqual(["method: 'GET'"]);
+    // AM-9: genau EIN schreibender Aufruf - POST /v1/contacts in legeKontaktAn, nur mit dem Schreib-Schluessel; nie PUT/PATCH/DELETE
+    expect(quelle).not.toMatch(/'(PUT|PATCH|DELETE)'/);
+    expect(quelle.match(/lexwareAnfrage\('([A-Z]+)'/g)).toEqual(["lexwareAnfrage('GET'", "lexwareAnfrage('POST'"]);
+    expect(quelle).toContain("lexwareAnfrage('POST', '/v1/contacts', { schluessel: key,");
+    const post = quelle.slice(quelle.indexOf('export async function legeKontaktAn'), quelle.indexOf("lexwareAnfrage('POST'"));
+    expect(post).toContain('await schreibSchluessel()');
+    expect(post).not.toContain("'LEXWARE_API_KEY'");
+    expect(quelle.match(/getSecret\(SCHLUESSEL_SCHREIBEN\)|lesen\(SCHLUESSEL_SCHREIBEN\)/g)).toEqual(['lesen(SCHLUESSEL_SCHREIBEN)']);
   });
 });

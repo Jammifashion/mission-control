@@ -9,10 +9,11 @@
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 import { schreibeNeueZeilen, ersetzeZeile, pruefeZielStrecke, spalteBuchstabe, zeilenAbweichungen } from './sheet-zeilen.js';
-import { leseKundenKontakte, sucheKundenKontakte, leseKontakt } from './lexware.js';
+import { leseKundenKontakte, sucheKundenKontakte, leseKontakt, legeKontaktAn, schreibenBereit } from './lexware.js';
 import {
   TAB_KUNDEN, kundenZeilen, alsSheetZeile, neuerKunde, bearbeitenPlan, archivPlan, dsgvoPlan, importPlan,
   zaehleKontakte, kundenAntwort, fehler, KUNDEN_SPALTEN, lexTreffer, uebernahmePlan, kundenZahlen,
+  kontaktFuerLexware, lexAnlagePruefen, dublettenAnfragen, dublettenAus, verknuepfenPlan,
 } from '../utils/kunden.js';
 
 const CACHE_MS = 30 * 1000;
@@ -180,6 +181,70 @@ export async function uebernehmeAusLexoffice({ lexofficeId, sheets: s, kontaktLe
     const zeile = await schreibeNeueZeilen(sheets, spreadsheetId, TAB_KUNDEN, [alsSheetZeile(idx, plan.neu, breite)], { alt: werte });
     return { ok: true, schon: false, kundenNr: plan.neu.Kunden_Nr, zeile, kunde: kundenAntwort([plan.neu])[0] };
   });
+}
+
+// ── AM-9: neuen MC-Kunden in Lexoffice anlegen ─────────────────────────────────
+// Der MC-Kunde ist immer schon gespeichert (POST /neu). Hier nur: Dubletten pruefen -> anlegen -> ID/Nr. zurueck-
+// schreiben, oder einen gefundenen Kontakt verknuepfen. In Lexoffice wird nur NEU angelegt, nie geaendert.
+// Eine Sperre je Kunde gegen Doppelklick (zweimal anlegen); die Sheet-Sperre nur fuer das Zurueckschreiben.
+const lexLaeuft = new Set();
+
+/** GET /api/kunden/lexoffice-schreiben: ist der Schreib-Schluessel da? (nur ja/nein) */
+export async function lexofficeSchreibenBereit({ bereit = schreibenBereit } = {}) {
+  return { bereit: await bereit() };
+}
+
+async function schreibeLexVerknuepfung({ sheets, kundenNr, lexofficeId, lexofficeNr, jetzt }) {
+  return mitSperre(async () => {
+    const spreadsheetId = sheetId();
+    const { werte, idx, kunden, breite } = await lies(sheets, spreadsheetId);
+    const plan = verknuepfenPlan({ kunden, kundenNr, lexofficeId, lexofficeNr, jetzt: jetzt().toISOString() });
+    const zeile = plan.kunde._zeile;
+    await ersetzeZeile(sheets, spreadsheetId, TAB_KUNDEN, zeile, werte[zeile - 1] ?? [], alsSheetZeile(idx, plan.nachher, breite));
+    return kundenAntwort([plan.nachher])[0];
+  });
+}
+
+/**
+ * POST /api/kunden/lexoffice-anlegen { kundenNr, trotzdem }. Ohne `trotzdem`: erst Dubletten (Name, E-Mail) - Treffer
+ * -> { treffer } (nichts angelegt). Sonst POST /v1/contacts, GET des neuen Kontakts (Kundennummer), ID + Nr. in den
+ * Reiter. Schlaegt das Zurueckschreiben fehl, findet der naechste Versuch den Kontakt als Dublette (nie doppelt).
+ */
+export async function legeInLexofficeAn({ eingabe, sheets: s, jetzt = () => new Date(),
+  suche = sucheKundenKontakte, anlegen = legeKontaktAn, kontaktLesen = leseKontakt } = {}) {
+  const kundenNr = String(eingabe?.kundenNr ?? '').trim();
+  if (lexLaeuft.has(kundenNr)) throw fehler(`${kundenNr}: Lexoffice-Anlage läuft schon.`, 409, 'laeuft_gerade');
+  lexLaeuft.add(kundenNr);
+  try {
+    const sheets = s ?? await sheetsClient();
+    const { kunden } = await lies(sheets, sheetId());
+    const k = lexAnlagePruefen(kunden.find(x => x.Kunden_Nr === kundenNr));
+    const { kontakt, hinweise } = kontaktFuerLexware(k);
+    if (eingabe?.trotzdem !== true) {
+      const listen = [];
+      for (const a of dublettenAnfragen(k)) listen.push((await suche({ feld: a.feld, q: a.q })).kontakte);
+      const treffer = dublettenAus(listen);
+      if (treffer.length) return { ok: true, angelegt: false, kundenNr, treffer: lexTreffer(treffer, kunden) };
+    }
+    const { id } = await anlegen({ kontakt });
+    let nr = '';
+    try { nr = String((await kontaktLesen({ id }))?.roles?.customer?.number ?? ''); } catch { /* Nr. folgt beim naechsten Lesen nicht - ID reicht zum Verknuepfen */ }
+    try {
+      const kunde = await schreibeLexVerknuepfung({ sheets, kundenNr, lexofficeId: id, lexofficeNr: nr, jetzt });
+      return { ok: true, angelegt: true, kundenNr, lexofficeNr: nr, hinweise, kunde };
+    } catch (err) {
+      throw fehler(`In Lexoffice angelegt${nr ? ` (Nr. ${nr})` : ''}, aber MC konnte es nicht eintragen – „erneut versuchen“ findet den Kontakt und verknüpft ihn.`, 409, 'lex_angelegt');
+    }
+  } finally { lexLaeuft.delete(kundenNr); }
+}
+
+/** POST /api/kunden/lexoffice-verknuepfen { kundenNr, lexofficeId }: vorhandenen Kontakt verknuepfen (Lexoffice unveraendert). */
+export async function verknuepfeMitLexoffice({ eingabe, sheets: s, jetzt = () => new Date(), kontaktLesen = leseKontakt } = {}) {
+  const kontakt = await kontaktLesen({ id: eingabe?.lexofficeId });
+  if (!kontakt?.roles?.customer) throw fehler('Dieser Lexoffice-Kontakt ist kein Kunde.', 422, 'kein_kunde');
+  const sheets = s ?? await sheetsClient();
+  const kunde = await schreibeLexVerknuepfung({ sheets, kundenNr: eingabe?.kundenNr, lexofficeId: kontakt.id, lexofficeNr: String(kontakt.roles.customer.number ?? ''), jetzt });
+  return { ok: true, kundenNr: kunde.Kunden_Nr, lexofficeNr: kunde.Lexoffice_Nr, kunde };
 }
 
 export { KUNDEN_SPALTEN };

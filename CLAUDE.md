@@ -1232,7 +1232,18 @@ Neue Sektionen immer mit Anker versehen:
   waehlbaren Varianten (`farbeZuordnen`, `groesseFinden` XXL = 2XL). Unsicheres orange (`.au-schnell-unsicher`, `au-schnell-grund`,
   Kasten `#au-schnell-box`); nicht zugeordnete Gruppen mit "<Modell> öffnen" (Raster mit Wunschmengen vorbelegt). Vorschlag nur in
   `auDlg.schnell` (Schliessen verwirft). Tests auftrag-schnell*.test.js (KI-Attrappe, nur erfundene Texte).
-- backend/lib/lexware.js – Lexware Office Public API (`https://api.lexware.io`), **NUR LESEN**, einzige Stelle mit Zugriff
+- AM-9 Kunde auch in Lexoffice anlegen: Kunden-Dialog `#ku-dialog` (EINE Stelle fuer alle neuen MC-Kunden: Kundenliste, "Neuer Kunde in MC"
+  im Auftrag/Schnellannahme, Lexoffice-Suche) hat beim neuen Kunden den Haken `#ku-lex-anlegen` (vorausgewaehlt), bei aktiven Kunden ohne
+  Lexoffice_ID orange "nicht in Lexoffice" + Knopf `#ku-lex-nachholen` (Block `Kunde-Lexoffice: Anfang/Ende`). Der MC-Kunde wird IMMER zuerst
+  gespeichert (`/neu`), dann `POST /api/kunden/lexoffice-anlegen { kundenNr, trotzdem }` (`legeInLexofficeAn`): Dubletten ueber die AM-1-1-Suche
+  (Name inkl. Ausweich-Filter, E-Mail; Treffer -> nichts angelegt, Auswahl "diesen verknüpfen" = `POST .../lexoffice-verknuepfen` nur ID+Nr. /
+  "trotzdem neu anlegen"), sonst `legeKontaktAn` (POST /v1/contacts), GET der Kundennummer, ID + Nr. zurueck in die Zeile (`verknuepfenPlan`,
+  nur diese Zellen + Stand). Felder `kontaktFuerLexware` (utils/kunden.js): Firma/Verein -> company (+ ein Ansprechpartner), Person -> person
+  (letztes Wort Nachname), E-Mail/Telefon business bzw. private, Adresse nur mit 2-Buchstaben-Land; Notiz/Spitzname nie. Sperre je Kunde
+  (Doppelklick), Takt wie die Suche. Schreib-Schluessel NUR Secret `LEXWARE_API_KEY_KONTAKTE_SCHREIBEN` (`schreibSchluessel`, nicht in
+  SECRET_KEYS); fehlt er/401/403 -> 503 `lexware_schluessel`, Haken mit Hinweis (`GET .../lexoffice-schreiben` { bereit }). Test
+  kunden-lexoffice-anlegen.test.js.
+- backend/lib/lexware.js – Lexware Office Public API (`https://api.lexware.io`), **lesen + EIN Anlegen (AM-9)**, einzige Stelle mit Zugriff
   (Test kunden.test.js: nur `method: 'GET'`, kein anderer Ort nennt die URL). Heute nur `GET /v1/contacts?customer=true` (alle Seiten; AM-1-1 auch Suche `name`/`email`/`number`, eine Seite)
   und `GET /v1/contacts/{id}`,
   Paging (250, `last`/`totalPages`, max. 200 Seiten), Takt 600 ms (Limit 2/s), 429 -> Retry-After bzw. steigend warten,

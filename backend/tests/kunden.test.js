@@ -269,10 +269,16 @@ describe('Lexware: nur lesen, Takt, 429, Paging', () => {
     expect(e.message).toMatch(/\/v1\/contacts: Status 401/);
     expect(e.message).not.toMatch(/geheim-123|Max Probe|page=/);
   });
-  test('Quelltext: kein schreibender Aufruf an Lexware', () => {
+  test('Quelltext: nur Lesen plus das eine Anlegen (AM-9)', () => {
     const quelle = readFileSync(resolve(hier, '../lib/lexware.js'), 'utf8');
-    expect(quelle).not.toMatch(/method:\s*'(POST|PUT|PATCH|DELETE)'/i);
-    expect(quelle.match(/method:\s*'[A-Z]+'/g)).toEqual(["method: 'GET'"]);
+    // AM-9: genau EIN schreibender Aufruf - POST /v1/contacts in legeKontaktAn, nur mit dem Schreib-Schluessel; nie PUT/PATCH/DELETE
+    expect(quelle).not.toMatch(/'(PUT|PATCH|DELETE)'/);
+    expect(quelle.match(/lexwareAnfrage\('([A-Z]+)'/g)).toEqual(["lexwareAnfrage('GET'", "lexwareAnfrage('POST'"]);
+    expect(quelle).toContain("lexwareAnfrage('POST', '/v1/contacts', { schluessel: key,");
+    const post = quelle.slice(quelle.indexOf('export async function legeKontaktAn'), quelle.indexOf("lexwareAnfrage('POST'"));
+    expect(post).toContain('await schreibSchluessel()');
+    expect(post).not.toContain("'LEXWARE_API_KEY'");
+    expect(quelle.match(/getSecret\(SCHLUESSEL_SCHREIBEN\)|lesen\(SCHLUESSEL_SCHREIBEN\)/g)).toEqual(['lesen(SCHLUESSEL_SCHREIBEN)']);
     // Nur lib/lexware.js spricht mit api.lexware.io
     for (const datei of ['../lib/kunden.js', '../routes/kunden.js', '../utils/kunden.js', '../scripts/kunden-import.js']) {
       expect(readFileSync(resolve(hier, datei), 'utf8')).not.toContain('api.lexware.io');

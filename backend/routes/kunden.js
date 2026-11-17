@@ -4,6 +4,7 @@
 import { Router } from 'express';
 import {
   leseKunden, legeKundeAn, bearbeiteKunde, archiviereKunde, sperreKundeDsgvo, leseKundenZahlen, sucheInLexoffice, uebernehmeAusLexoffice,
+  lexofficeSchreibenBereit, legeInLexofficeAn, verknuepfeMitLexoffice,
 } from '../lib/kunden.js';
 import { leseAuftragZahlen } from '../lib/auftraege.js';
 
@@ -46,6 +47,19 @@ router.post('/lexoffice-uebernehmen', mitMeldung(async req => {
 
 // ── POST /api/kunden/neu ──────────────────────────────────────────────────────
 // Body { Art, Name, Spitzname, Ansprechpartner, E-Mail, Telefon, Strasse, PLZ, Ort, Land, Notiz }; Quelle mc.
+// ── AM-9: neuen MC-Kunden auch in Lexoffice anlegen (Log nur Kunden_Nr + Ergebnis) ──
+router.get('/lexoffice-schreiben', mitMeldung(() => lexofficeSchreibenBereit()));
+router.post('/lexoffice-anlegen', mitMeldung(async req => {
+  const r = await legeInLexofficeAn({ eingabe: req.body ?? {} });
+  console.log(`Kunde ${r.kundenNr}: Lexoffice ${r.angelegt ? 'angelegt' : `nicht angelegt (${r.treffer?.length ?? 0} mögliche Dubletten)`}`);
+  return r;
+}));
+router.post('/lexoffice-verknuepfen', mitMeldung(async req => {
+  const r = await verknuepfeMitLexoffice({ eingabe: req.body ?? {} });
+  console.log(`Kunde ${r.kundenNr}: mit Lexoffice verknüpft`);
+  return r;
+}));
+
 router.post('/neu', mitMeldung(async req => {
   const r = await legeKundeAn({ eingabe: req.body ?? {} });
   console.log(`Kunde neu: ${r.kundenNr}`);
