@@ -1232,6 +1232,11 @@ Neue Sektionen immer mit Anker versehen:
   waehlbaren Varianten (`farbeZuordnen`, `groesseFinden` XXL = 2XL). Unsicheres orange (`.au-schnell-unsicher`, `au-schnell-grund`,
   Kasten `#au-schnell-box`); nicht zugeordnete Gruppen mit "<Modell> öffnen" (Raster mit Wunschmengen vorbelegt). Vorschlag nur in
   `auDlg.schnell` (Schliessen verwirft). Tests auftrag-schnell*.test.js (KI-Attrappe, nur erfundene Texte).
+  SA2: Schema `kundeNeu` { art, name, ansprechpartner, strasse, plz, ort, email, telefon }; MC laesst nur durch, was WOERTLICH im Text
+  steht (`kundeNeuPruefen`: Gross/Klein, Leerzeichen, ß/ss egal, Telefon ueber Ziffern) und die Form passt (`kundeNeuForm`: Laengen wie die
+  Maske, E-Mail, PLZ 4-5 Ziffern, Telefon); nur ohne sicheren Kunden-Treffer in der Antwort. Kasten: Knopf "Neuen Kunden anlegen
+  (vorbelegt)" -> `kuDialogOeffnen(null, { nachSpeichern: auKundeSetzen, vorbelegt })`, vorbelegte Felder `.ku-vorbelegt` (orange, weg beim
+  Bearbeiten), Hinweis `#ku-vorbelegt-hinweis`, Haken Lexoffice wie AM-9. Abbrechen schliesst nur die Kundenmaske. Test auftrag-schnell-kunde.test.js.
 - AM-9 Kunde auch in Lexoffice anlegen: Kunden-Dialog `#ku-dialog` (EINE Stelle fuer alle neuen MC-Kunden: Kundenliste, "Neuer Kunde in MC"
   im Auftrag/Schnellannahme, Lexoffice-Suche) hat beim neuen Kunden den Haken `#ku-lex-anlegen` (vorausgewaehlt), bei aktiven Kunden ohne
   Lexoffice_ID orange "nicht in Lexoffice" + Knopf `#ku-lex-nachholen` (Block `Kunde-Lexoffice: Anfang/Ende`). Der MC-Kunde wird IMMER zuerst

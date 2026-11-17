@@ -18,7 +18,7 @@ import { leseKundenHistorie } from './auftraege.js';
 import { KANAELE } from '../utils/auftraege.js';
 import {
   TEXT_MIN, TEXT_MAX, KI_SCHEMA, systemPrompt, userPrompt, heuteBerlin, pruefeKiAntwort, KiUnsinnError,
-  kundenVorschlaege, terminPruefen, kanalPruefen, modellZuordnen, gruppeVorschlag, baueVorschlag,
+  kundenVorschlaege, terminPruefen, kanalPruefen, modellZuordnen, gruppeVorschlag, baueVorschlag, kundeNeuPruefen,
 } from '../utils/auftrag-schnell.js';
 
 export const ROLLE = 'auftrag-schnell';
@@ -106,5 +106,6 @@ export async function schnellVorschlag({
     gruppen.push(gruppeVorschlag(g, modell, varianten));
   }
 
-  return baueVorschlag({ ki, kunde, termin: terminPruefen(ki.termin, heute.datum), kanal: kanalPruefen(ki.kanal, KANAELE), gruppen });
+  return baueVorschlag({ ki, kunde, termin: terminPruefen(ki.termin, heute.datum), kanal: kanalPruefen(ki.kanal, KANAELE), gruppen,
+    kundeNeu: kundeNeuPruefen(ki.kundeNeu, text) });   // SA2: nur woertlich Belegtes
 }

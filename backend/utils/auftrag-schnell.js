@@ -29,7 +29,7 @@ const STR = { type: 'string' };
 export const KI_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['kunde', 'kurztitel', 'termin', 'kanal', 'gruppen', 'frei', 'todos', 'hinweise', 'wieLetztesMal'],
+  required: ['kunde', 'kurztitel', 'termin', 'kanal', 'gruppen', 'frei', 'todos', 'hinweise', 'wieLetztesMal', 'kundeNeu'],
   properties: {
     kunde: { type: 'array', items: STR },
     kurztitel: STR,
@@ -57,6 +57,12 @@ export const KI_SCHEMA = {
       items: { type: 'object', additionalProperties: false, required: ['text', 'menge'], properties: { text: STR, menge: { type: 'integer' } } },
     },
     todos: { type: 'array', items: STR },
+    // SA2: Angaben zum Kunden fuer "Neuen Kunden anlegen (vorbelegt)" - nur, was woertlich im Text steht
+    kundeNeu: {
+      type: 'object', additionalProperties: false,
+      required: ['art', 'name', 'ansprechpartner', 'strasse', 'plz', 'ort', 'email', 'telefon'],
+      properties: { art: STR, name: STR, ansprechpartner: STR, strasse: STR, plz: STR, ort: STR, email: STR, telefon: STR },
+    },
     hinweise: { type: 'array', items: STR },
   },
 };
@@ -82,6 +88,9 @@ Felder:
 - frei: Positionen, die keine Textilien sind (Tassen, Sticker, Banner, mitgebrachte Ware), mit Menge (1, wenn keine genannt).
 - todos: kurze Aufgaben, die in der Notiz stehen ("Logo als Vektor anfordern", "Angebot schicken"). Ohne Personennamen.
 - hinweise: alles, was unklar ist oder nicht in die Felder passt, kurz und sachlich.
+- kundeNeu: Angaben zum Kunden, NUR wenn sie wörtlich in der Notiz stehen, sonst leer: art ("verein", "firma", "person" oder leer),
+  name (Verein/Firma bzw. Vor- und Nachname der Person), ansprechpartner (Person bei Verein/Firma), strasse (mit Hausnummer), plz, ort,
+  email, telefon. Nichts ergänzen oder ableiten: keine PLZ aus dem Ort, keine E-Mail aus dem Namen, keine Vorwahl dazuerfinden.
 
 Regeln: Erfinde nichts. Was nicht in der Notiz steht, bleibt leer (bzw. leere Liste, Menge 0). Keine Preise berechnen.`;
 }
@@ -143,6 +152,7 @@ export function pruefeKiAntwort(roh) {
       .map(x => ({ text: kappe(x.text, 120), menge: ganz(x.menge, 9999) || 1 })).filter(x => x.text),
     todos: liste(o.todos).map(x => kappe(x, 200)).filter(Boolean).slice(0, 10),
     hinweise: liste(o.hinweise).map(x => kappe(x, 200)).filter(Boolean).slice(0, 10),
+    kundeNeu: kundeNeuForm(o.kundeNeu),
   };
 }
 
@@ -339,7 +349,46 @@ export function gruppeVorschlag(gruppe, modell, varianten) {
 /**
  * Gesamter Vorschlag fuer den Dialog. Enthaelt nur Kunden_Nr (keine Personendaten) und gepruefte Werte.
  */
-export function baueVorschlag({ ki, kunde, termin, kanal, gruppen }) {
+// ── SA2: neuen Kunden aus dem Text vorbelegen ──────────────────────────────────────────────────────────────────
+// Grenzen wie die Kundenmaske (#ku-dialog maxlength). Ungueltige Form -> leer (nie "reparieren").
+export const KUNDE_NEU_FELDER = { name: 120, ansprechpartner: 120, strasse: 120, plz: 12, ort: 80, email: 120, telefon: 40 };
+export const KUNDE_ARTEN = { verein: 'Verein', firma: 'Firma', person: 'Person' };
+const leerKunde = () => ({ art: '', ...Object.fromEntries(Object.keys(KUNDE_NEU_FELDER).map(f => [f, ''])) });
+
+/** Form pruefen (Typen, Laengen, E-Mail, PLZ, Telefon, Art); Ungueltiges -> ''. */
+export function kundeNeuForm(o) {
+  const k = leerKunde();
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return k;
+  for (const [f, max] of Object.entries(KUNDE_NEU_FELDER)) {
+    const v = t(o[f]).replace(/\s+/g, ' ');
+    k[f] = v.length <= max ? v : '';
+  }
+  k.art = KUNDE_ARTEN[klein(o.art)] ?? '';
+  if (k.email && !/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(k.email)) k.email = '';
+  if (k.plz && !/^\d{4,5}$/.test(k.plz)) k.plz = '';
+  if (k.telefon && !/^\+?[\d\s/().-]{5,}$/.test(k.telefon)) k.telefon = '';
+  return k;
+}
+
+/**
+ * Nur, was WOERTLICH im Text steht (Gross/Klein und Leerzeichen egal; Telefon ueber die Ziffern). Was die KI ergaenzt
+ * oder abgeleitet hat, wird leer. Liefert { felder, leer } - leer = nichts Verwertbares (dann kein Knopf).
+ */
+export function kundeNeuPruefen(kundeNeu, text) {
+  const k = kundeNeuForm(kundeNeu);
+  const roh = klein(text).replace(/\s+/g, ' ');
+  const ziffern = String(text ?? '').replace(/\D/g, '');
+  for (const f of Object.keys(KUNDE_NEU_FELDER)) {
+    if (!k[f]) continue;
+    const steht = f === 'telefon' ? k[f].replace(/\D/g, '').length >= 5 && ziffern.includes(k[f].replace(/\D/g, '')) : roh.includes(klein(k[f]));
+    if (!steht) k[f] = '';
+  }
+  const leer = !Object.keys(KUNDE_NEU_FELDER).some(f => k[f]);
+  if (leer) k.art = '';
+  return { felder: k, leer };
+}
+
+export function baueVorschlag({ ki, kunde, termin, kanal, gruppen, kundeNeu = null }) {
   return {
     kunde: { ...kunde, stichwoerter: ki.kunde },   // Stichwoerter nur fuer das Suchfeld im Dialog
     kopf: { Kurztitel: ki.kurztitel, Kanal: kanal.wert, Termin: termin.wert },
@@ -353,5 +402,7 @@ export function baueVorschlag({ ki, kunde, termin, kanal, gruppen }) {
     todos: ki.todos,
     hinweise: ki.hinweise,
     wieLetztesMal: ki.wieLetztesMal,
+    // SA2: nur ohne sicheren Kunden-Treffer und nur mit Angaben aus dem Text (sonst kein Knopf zum Neuanlegen)
+    ...(kundeNeu && !kundeNeu.leer && !kunde.sicher ? { kundeNeu: kundeNeu.felder } : {}),
   };
 }
