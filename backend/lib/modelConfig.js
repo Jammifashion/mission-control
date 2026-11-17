@@ -15,6 +15,8 @@ export const DEFAULT_MODELS = {
   'klassifizierung': 'gemini-3.5-flash-lite',
   'seo-text':        'gemini-3.5-flash-lite',
   'agent-intern':    'claude-sonnet-5-5',
+  // SA1: Schnellannahme. Nur Claude zulaessig (Datenschutz: Rohtext nur an Anthropic, lib/auftragSchnell.js prueft).
+  'auftrag-schnell': 'claude-haiku-5-5',
 };
 
 // Generischer Fallback für Rollen, die nicht in DEFAULT_MODELS bekannt sind.

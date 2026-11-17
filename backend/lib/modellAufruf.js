@@ -32,7 +32,20 @@ import { collectText } from '../utils/json-parse.js';
 export const ARTEN = {
   seo:             { anthropic: { max_tokens: 16000, output_config: { effort: 'low' } } },
   klassifizierung: { anthropic: { max_tokens: 1024, thinking: { type: 'disabled' } } },
+  // SA1 Schnellannahme: nur JSON nach festem Schema (Structured Outputs), Effort low, kein `thinking`-Feld
+  // (Opus 5.5 lehnt "disabled" ab - so laeuft die Art mit jeder Modell-ID aus Config). Zeitlimit kommt vom Aufrufer.
+  schnell:         { anthropic: { max_tokens: 8000, output_config: { effort: 'low' } } },
 };
+
+export const KI_ZEITLIMIT_CODE = 'ki_zeitlimit';
+export class KiZeitlimitError extends Error {
+  constructor({ modellId, ms }) {
+    super(`KI hat nicht rechtzeitig geantwortet (${modellId}, ${Math.round(ms / 1000)} s) – bitte erneut versuchen.`);
+    this.name = 'KiZeitlimitError';
+    this.code = KI_ZEITLIMIT_CODE;
+    this.status = 504;
+  }
+}
 
 export const ANBIETER = {
   anthropic: { praefix: 'claude-', name: 'Anthropic', schluessel: 'ANTHROPIC_API_KEY' },
@@ -102,11 +115,22 @@ export function schluesselFehlt(modellId, rolle) {
  * @param {string} o.modellId  aus getModel(rolle)
  * @param {string} o.system    Systemprompt
  * @param {string} o.prompt    User-Prompt
- * @param {string} o.art       Schluessel in ARTEN ('seo', 'klassifizierung')
+ * @param {string} o.art       Schluessel in ARTEN ('seo', 'klassifizierung', 'schnell')
+ * @param {object} [o.jsonSchema]  Anthropic: Antwort nach diesem Schema (output_config.format json_schema)
+ * @param {number} [o.zeitlimitMs] Zeitlimit des ganzen Aufrufs, ohne Wiederholung -> KiZeitlimitError (504)
  * @returns {Promise<{ text: string, anbieter: string, stopReason: string|null, nutzung: object }>}
  * Wirft KiAbgeschnittenError / KiAbgelehntError; fehlender Schluessel -> Error mit status 503.
  */
-export async function textAufruf({ modellId, system, prompt, art, rolle = art }) {
+export async function textAufruf({ modellId, system, prompt, art, rolle = art, jsonSchema = null, zeitlimitMs = 0 }) {
+  if (!zeitlimitMs) return aufruf({ modellId, system, prompt, art, rolle, jsonSchema });
+  let uhr;
+  const ablauf = new Promise((_, nein) => { uhr = setTimeout(() => nein(new KiZeitlimitError({ modellId, ms: zeitlimitMs })), zeitlimitMs); });
+  try {
+    return await Promise.race([aufruf({ modellId, system, prompt, art, rolle, jsonSchema, zeitlimitMs }), ablauf]);
+  } finally { clearTimeout(uhr); }
+}
+
+async function aufruf({ modellId, system, prompt, art, rolle, jsonSchema, zeitlimitMs = 0 }) {
   const fehlt = schluesselFehlt(modellId, rolle);
   if (fehlt) throw Object.assign(new Error(fehlt), { status: 503 });
   const anbieter = anbieterVon(modellId);
@@ -123,13 +147,10 @@ export async function textAufruf({ modellId, system, prompt, art, rolle = art })
   }
 
   const parameter = anthropicParameter(art);
+  if (jsonSchema) parameter.output_config = { ...(parameter.output_config ?? {}), format: { type: 'json_schema', schema: jsonSchema } };
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const res = await client.messages.create({
-    model: modellId,
-    system,
-    messages: [{ role: 'user', content: prompt }],
-    ...parameter,
-  });
+  const body = { model: modellId, system, messages: [{ role: 'user', content: prompt }], ...parameter };
+  const res = await (zeitlimitMs ? client.messages.create(body, { timeout: zeitlimitMs, maxRetries: 0 }) : client.messages.create(body));
   if (res?.stop_reason === 'max_tokens') throw new KiAbgeschnittenError({ modellId, art, maxTokens: parameter.max_tokens });
   if (res?.stop_reason === 'refusal') throw new KiAbgelehntError({ modellId, kategorie: res.stop_details?.category });
   return {

@@ -7,6 +7,8 @@ import {
   aktualisiereAngebot, setzeZustaendig, leseKundenHistorie,
 } from '../lib/auftraege.js';
 import { bereitstellenVorschau, bereitstellen, zuruecknehmen } from '../lib/auftragBereitstellen.js';
+import rateLimit from 'express-rate-limit';
+import { schnellVorschlag } from '../lib/auftragSchnell.js';
 
 const router = Router();
 
@@ -24,6 +26,28 @@ router.get('/', mitMeldung(() => leseAuftraege()));
 // ── AM-6: GET /api/auftraege/kunden/:kundenNr/historie ────────────────────────
 // "Hatte bisher" je Modell + Farbe und freie Positionen eines Kunden (nur lesen, nichts ins Log).
 router.get('/kunden/:kundenNr/historie', mitMeldung(req => leseKundenHistorie({ kundenNr: req.params.kundenNr })));
+
+// ── SA1: POST /api/auftraege/schnell { text } ─────────────────────────────────
+// KI-Schnellannahme: Freitext -> Vorschlag fuer den Dialog "Neuer Auftrag". Schreibt NICHTS. Der Text geht nur an die
+// Claude-API, nie ins Log - auch nicht im Fehlerfall: Fehler werden hier beantwortet (fester Text), nie an den
+// allgemeinen Fehlerhandler gereicht (der loggt das ganze Fehlerobjekt). Eigene Bremse: SCHNELL_MAX je 15 min und IP.
+export const SCHNELL_MAX = 30;
+const schnellBremse = rateLimit({
+  windowMs: 15 * 60 * 1000, limit: SCHNELL_MAX, standardHeaders: true, legacyHeaders: false,
+  message: { error: `Zu viele Schnellannahmen (höchstens ${SCHNELL_MAX} in 15 Minuten) – bitte kurz warten.`, code: 'schnell_bremse' },
+});
+router.post('/schnell', schnellBremse, async (req, res) => {
+  try {
+    const v = await schnellVorschlag({ eingabe: req.body ?? {} });
+    console.log(`Schnellannahme: ${v.gruppen.length} Gruppen (${v.gruppen.filter(g => g.ok).length} zugeordnet), ${v.frei.length} frei, Kunde ${v.kunde.sicher ? 'eindeutig' : `${v.kunde.vorschlaege.length} Vorschläge`}`);
+    res.json(v);
+  } catch (err) {
+    const status = [422, 502, 503, 504].includes(err?.status) ? err.status : 500;
+    const meldung = status === 500 ? 'Schnellannahme fehlgeschlagen – bitte erneut versuchen.' : err.message;
+    console.warn(`Schnellannahme: Fehler ${status}${err?.code ? ` (${err.code})` : ''}`);
+    res.status(status).json({ error: meldung, code: err?.code ?? 'schnell_fehler' });
+  }
+});
 
 // ── POST /api/auftraege/neu ───────────────────────────────────────────────────
 // Body { Kunden_Nr, Kurztitel, Kanal, Termin, Notiz, status: Anfrage|Angebot, vorgang,

@@ -1211,6 +1211,20 @@ Neue Sektionen immer mit Anker versehen:
   nur gelesen). **AG ist nie Korb-Referenz:** `eigeneZeile`/`eigenBearbeitenPlan` 422, EDI-Regel `reference` rot, `kannBereitstellen`
   false + `bereitstellenVorschau` 422 `aufgabe`. Kachel: `todosUeberfaellig` (nur offene Bezuege), `aufgabenOffen`. Backup: automatisch
   (backup-daily.js sichert alle Reiter des SSOT). Setup `scripts/setup-auftraege-reiter.js` legt beide Reiter an (Trockenlauf, `--write`).
+- backend/lib/auftragSchnell.js – KI-Schnellannahme (SA1), Logik `utils/auftrag-schnell.js`. Feld "Schnell erfassen" oben in
+  Aufträge (Block `Schnellannahme: Anfang/Ende`, Test auftrag-schnell-frontend.test.js) -> `POST /api/auftraege/schnell { text }`
+  (5-3000 Zeichen, eigene Bremse 30 / 15 min je IP) -> normaler Dialog "Neuer Auftrag" vorausgefuellt; **schreibt nichts**, erst
+  "Speichern" legt AU-… an (danach angehakte To-dos ueber `/todo/neu`). Kein Eingang (EG-…) in Stufe 1 (Inhaber 17.11.).
+  KI: Rolle `auftrag-schnell` (Config `modell.auftrag-schnell`, Standard Haiku 5.5), NUR claude-… (sonst 503 `ki_anbieter`), Art
+  `schnell` in modellAufruf.js (Structured Outputs `KI_SCHEMA`, Effort low, kein thinking-Feld, Zeitlimit 30 s ohne Wiederholung ->
+  504 `ki_zeitlimit`; kein/leeres JSON -> 502 `ki_unsinn`). **Datenschutz:** Rohtext nur an Claude, nie Sheet/Log/Chat/Browser-
+  Speicher/Tests mit echten Texten; die Route beantwortet Fehler selbst (fester Text), nie ueber den allgemeinen Fehlerhandler; die
+  Kundenliste geht nie an die KI - die KI liefert Stichwoerter, MC sucht selbst (`kundenVorschlaege` ueber `sucheKunden`, bis 3,
+  nur Kunden_Nr an den Browser). Nichts erfinden: Modell nur aus LShop_Modelle (Nummer/Hersteller-Nr. genau = sicher; sonst
+  Artikelwort -> `ARTIKEL_SUCHE`, Historie AM-6 zuerst, eindeutig = unsicher, sonst Vorschlaege), Farbe/Groesse nur gegen die
+  waehlbaren Varianten (`farbeZuordnen`, `groesseFinden` XXL = 2XL). Unsicheres orange (`.au-schnell-unsicher`, `au-schnell-grund`,
+  Kasten `#au-schnell-box`); nicht zugeordnete Gruppen mit "<Modell> öffnen" (Raster mit Wunschmengen vorbelegt). Vorschlag nur in
+  `auDlg.schnell` (Schliessen verwirft). Tests auftrag-schnell*.test.js (KI-Attrappe, nur erfundene Texte).
 - backend/lib/lexware.js – Lexware Office Public API (`https://api.lexware.io`), **NUR LESEN**, einzige Stelle mit Zugriff
   (Test kunden.test.js: nur `method: 'GET'`, kein anderer Ort nennt die URL). Heute nur `GET /v1/contacts?customer=true` (alle Seiten; AM-1-1 auch Suche `name`/`email`/`number`, eine Seite)
   und `GET /v1/contacts/{id}`,
@@ -1414,7 +1428,7 @@ geschehen, weil es noch niemand gebraucht hat.
 ## Modell-Konfiguration
 Modell-IDs stehen nicht in der `.env`, sondern im Business-Sheet, Reiter
 `Config`: Spalte `Schlüssel` = `modell.<rolle>`, Spalte `Wert` = Modell-ID.
-Rollen: `chat-kunde`, `klassifizierung`, `seo-text`, `agent-intern`.
+Rollen: `chat-kunde`, `klassifizierung`, `seo-text`, `agent-intern`, `auftrag-schnell` (SA1, nur claude-…).
 Gelesen von `backend/lib/modelConfig.js` (`getModel(rolle)`, 5 min Cache).
 Fallback auf `DEFAULT_MODELS`, wenn das Sheet nicht erreichbar ist oder der
 Wert nicht auf `claude-*` / `gemini-*` passt.

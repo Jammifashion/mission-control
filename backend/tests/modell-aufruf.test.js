@@ -226,3 +226,23 @@ describe('Floskeln (seo-pruefung, Regel 7)', () => {
     expect(SEO_SYSTEM_PROMPT).not.toMatch(/einsatzbereit|in deiner Größe sichern/i);
   });
 });
+
+// SA1: Art "schnell" - Schema als output_config.format, Effort low, Zeitlimit ohne Wiederholung.
+describe('textAufruf Art schnell (SA1)', () => {
+  const { KiZeitlimitError } = m;
+  test('Schema und Zeitlimit gehen an das SDK, kein thinking-Feld', async () => {
+    messagesCreate.mockResolvedValueOnce(antwort('{"a":1}'));
+    const schema = { type: 'object', additionalProperties: false, required: ['a'], properties: { a: { type: 'integer' } } };
+    await textAufruf({ modellId: 'claude-haiku-5-5', system: 's', prompt: 'p', art: 'schnell', jsonSchema: schema, zeitlimitMs: 30000 });
+    const [body, opt] = messagesCreate.mock.calls[0];
+    expect(body.output_config).toEqual({ effort: 'low', format: { type: 'json_schema', schema } });
+    expect(body.thinking).toBeUndefined();
+    expect(opt).toEqual({ timeout: 30000, maxRetries: 0 });
+    expect(ARTEN.schnell.anthropic.output_config.format).toBeUndefined();   // Vorlage bleibt unveraendert
+  });
+  test('haengt die KI, kommt nach dem Zeitlimit KiZeitlimitError (504)', async () => {
+    messagesCreate.mockImplementationOnce(() => new Promise(() => {}));
+    await expect(textAufruf({ modellId: 'claude-haiku-5-5', system: 's', prompt: 'p', art: 'schnell', zeitlimitMs: 20 }))
+      .rejects.toBeInstanceOf(KiZeitlimitError);
+  });
+});
