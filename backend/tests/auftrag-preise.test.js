@@ -155,6 +155,11 @@ describe('Schreibwege mit Preisen', () => {
     const t = tabs();
     const { sheets } = machSheets(t);
     await legeAuftragAn({ sheets, jetzt, kundePruefen: kundeOk, eingabe: neu() });
+    // AM-8: neue Auftraege starten mit Design - das Einfrieren beim Wechsel auf "Angebot" gilt nur noch fuer Altdaten:
+    // Zeile wie ein alter Auftrag in "Anfrage" stellen (Status, Design_Am leer).
+    t[TAB_AUFTRAEGE][1][spalte(t, TAB_AUFTRAEGE, 'Status')] = 'Anfrage';
+    t[TAB_AUFTRAEGE][1][spalte(t, TAB_AUFTRAEGE, 'Design_Am')] = '';
+    _auftraegeCacheLeeren();
     let a = (await leseAuftraege({ sheets, jetzt, autoBestellen: false })).auftraege[0];
     await wechsleStatus({ sheets, jetzt, eingabe: { auftragNr: a.Auftrag_Nr, stand: a.Stand, aktion: 'weiter' } });
     const zA = t[TAB_AUFTRAEGE][1];
@@ -198,7 +203,7 @@ describe('Schreibwege mit Preisen', () => {
     expect(r.auftraege[0].preise).toMatchObject({ netto: 0, ohnePreis: 1 });
     expect(r.spalten).toMatchObject({ preise: false, angebot: false, zustaendig: false });
     const a = r.auftraege[0];
-    expect((await wechsleStatus({ sheets, jetzt, eingabe: { auftragNr: a.Auftrag_Nr, stand: a.Stand, aktion: 'weiter' } })).status).toBe('Angebot');
+    expect((await wechsleStatus({ sheets, jetzt, eingabe: { auftragNr: a.Auftrag_Nr, stand: a.Stand, aktion: 'weiter' } })).status).toBe('bestellt');   // AM-8: Start Design -> weiter = bestellt
     await expect(setzeZustaendig({ sheets, eingabe: { nr: a.Auftrag_Nr, zustaendig: 'Nicole' } })).rejects.toMatchObject({ status: 409 });
   });
   test('Zuständig an Auftrag und Aufgabe: setzen, leeren, nur feste Auswahl; Stand bleibt', async () => {

@@ -177,6 +177,7 @@ export async function uebernehmen({ eingabe, sheets: s, jetzt = () => new Date()
     // Spalten pruefen, bevor irgendetwas geschrieben wird
     if (plan.auftragNeu && (a.idx.Zugang_ID === undefined || a.idx.Termin_ID === undefined))
       throw fehler('Spalten Zugang_ID/Termin_ID fehlen in Auftraege – erst scripts/setup-auftraege-reiter.js --write.', 409, 'einrichtung');
+    if (plan.auftragNeu && a.idx.Design_Am === undefined) throw fehler('Spalte Design_Am fehlt in Auftraege – erst scripts/setup-auftraege-reiter.js --write.', 409, 'einrichtung');   // AM-8
     if (plan.positionenNeu.some(x => x.Verweis) && p.idx.Verweis === undefined)
       throw fehler('Spalte Verweis fehlt in Auftrag_Positionen – erst scripts/setup-auftraege-reiter.js --write.', 409, 'einrichtung');
     if (plan.positionenNeu.some(x => x.Herkunft && x.Herkunft !== HERKUNFT.BESTELLEN) && (p.idx.Herkunft === undefined || p.idx.Lager_Ort === undefined))

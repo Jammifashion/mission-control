@@ -97,10 +97,10 @@ describe('kundenHistorie', () => {
 describe('Wie letztes Mal - Backend', () => {
   const auftraege = [A('AU-2026-0001', 'bezahlt')];
   const eingabe = (x = {}) => ({ Kunden_Nr: 'K-00001', Kurztitel: 'Nachbestellung', vorgang: 'test-vorgang-1', positionen: [], ...x });
-  test('Vorlage_Von hinten optional, wird beim Anlegen gesetzt; neue AU-Nr., Status Anfrage', () => {
+  test('Vorlage_Von hinten optional, wird beim Anlegen gesetzt; neue AU-Nr., Status Design (AM-8)', () => {
     expect(AUFTRAG_OPTIONAL.indexOf('Vorlage_Von')).toBeGreaterThan(AUFTRAG_OPTIONAL.indexOf('Design_Link'));   // hinten (KS3 haengt Zugang_ID/Termin_ID dahinter)
     const plan = anlagePlan({ auftraege, positionen: [], eingabe: eingabe({ Vorlage_Von: 'AU-2026-0001' }), waehlbar: new Set(), jetzt: '2026-11-07T10:00:00Z' });
-    expect(plan.auftrag).toMatchObject({ Auftrag_Nr: 'AU-2026-0002', Status: 'Anfrage', Vorlage_Von: 'AU-2026-0001' });
+    expect(plan.auftrag).toMatchObject({ Auftrag_Nr: 'AU-2026-0002', Status: 'Design', Vorlage_Von: 'AU-2026-0001' });
   });
   test('unbekannte oder falsche Vorlage -> 422, nichts geplant', () => {
     for (const v of ['AU-2026-0099', 'K-00001', 'x']) {

@@ -198,7 +198,7 @@ describe('MC: gedruckt und an Fanshop geliefert', () => {
     // Auftrag noch "Anfrage": geliefert setzt Positionen, Status bleibt mit Hinweis
     r = await setzeGeliefert({ eingabe: { zugangId: 'BS-001', terminId: termin }, sheets: s.sheets, jetzt: JETZT });
     expect(r).toMatchObject({ positionen: 2, trikots: 1, auftraege: [] });
-    expect(r.hinweise[0]).toMatch(/steht auf „Anfrage“/);
+    expect(r.hinweise[0]).toMatch(/steht auf „Design“/);
     expect(zelle('Auftrag_Positionen', 1, 'Versendet')).toBe('2026-11-07');
     expect(zelle('Bestell_Eintraege', 3, 'Geliefert_Am')).toBe('2026-11-07');
     _standCacheLeeren();

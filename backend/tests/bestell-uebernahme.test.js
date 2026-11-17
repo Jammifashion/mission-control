@@ -128,7 +128,8 @@ describe('B. Uebernehmen', () => {
     const r = await uebernehmen({ eingabe: { zugangId: 'BS-001', terminId: termin, auswahl, vorgang: V(10) }, sheets: s.sheets, jetzt: JETZT, trikotsAnlegen });
     expect(r).toMatchObject({ ok: true, auftragNr: 'AU-2026-0001', neu: true, eintraege: 5, positionen: 3, lshop: 1, frei: 2, trikots: 1 });
     const au = t.Auftraege[1], ak = c => t.Auftraege[0].indexOf(c);
-    expect([au[ak('Kunden_Nr')], au[ak('Kanal')], au[ak('Status')], au[ak('Termin')], au[ak('Zugang_ID')], au[ak('Termin_ID')]]).toEqual(['K-00063', 'Bestellseite', 'Anfrage', '2026-11-22', 'BS-001', termin]);
+    expect([au[ak('Kunden_Nr')], au[ak('Kanal')], au[ak('Status')], au[ak('Termin')], au[ak('Zugang_ID')], au[ak('Termin_ID')]]).toEqual(['K-00063', 'Bestellseite', 'Design', '2026-11-22', 'BS-001', termin]);
+    expect(au[ak('Design_Am')]).toBe(au[ak('Anfrage_Am')]);   // AM-8: Design ab Anlage
     expect(au[ak('Kurztitel')]).toBe('Bestellseite BS-001 · Termin 22.11.');
     const pk = c => t.Auftrag_Positionen[0].indexOf(c);
     const pos = t.Auftrag_Positionen.slice(1);
@@ -291,7 +292,7 @@ describe('KS3-1: auch offene Korb-Zeilen verknüpfen', () => {
     let au = await lies();
     expect(au.positionen[0].verweisKorb.status).toBe('offen');
     expect(au.ware).toBe('offen');
-    expect(au.Status).toBe('Anfrage');   // offen im Korb -> noch nicht "bestellt"
+    expect(au.Status).toBe('Design');   // AM-8 Start Design; offen im Korb -> noch nicht "bestellt"
     const kk = c => t.Warenkorb_LShop[0].indexOf(c);
     t.Warenkorb_LShop[1][kk('Status')] = 'bestellt';
     au = await lies();

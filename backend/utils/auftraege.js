@@ -58,7 +58,13 @@ export const SCHRITTE = [
   { status: 'bezahlt', feld: 'Bezahlt_Am' },
 ];
 export const STORNIERT = 'storniert';
-export const START_STATUS = ['Anfrage', 'Angebot'];
+// AM-8 (Inhaber + Nicole 17.11.): neue Auftraege starten mit "Design". Anfrage/Angebot bleiben gueltig fuer Altdaten
+// (Lesen, Filter, Leiste), werden aber nicht mehr als Start angeboten. ALT_START kommt nur noch von alten, zwischen-
+// gespeicherten Oberflaechen (Service Worker) und wird zu "Design".
+export const START_STATUS = ['Design'];
+export const ALT_START = ['Anfrage', 'Angebot'];
+/** AM-8: Neuer Ablauf = Auftrag ohne Angebot_Am (Anfrage/Angebot nie durchlaufen). Leiste blendet die beiden dann aus. */
+export const ohneAngebotsweg = a => !t(a?.Angebot_Am) && !ALT_START.includes(a?.Status);
 // Bis einschliesslich Angebot sind Kopf und Positionen frei; ab bestellt nur Notiz/Termin (Korb-Logik folgt mit AM-3).
 export const FREI_BIS = 2;   // AM-3: bis einschliesslich Design
 export const ART = { LSHOP: 'lshop', FREI: 'frei' };
@@ -157,14 +163,19 @@ export function statusWechsel(a, aktion, jetzt, { ueberspringen = false } = {}) 
   switch (aktion) {
     case 'weiter': {
       if (i < 0 || i >= SCHRITTE.length - 1) throw fehler('Kein weiterer Schritt.', 422);
-      if (ueberspringen && a.Status !== 'Angebot') throw fehler('Überspringen geht nur von „Angebot“ zu „bestellt“.', 422);
+      if (ueberspringen && !['Angebot', 'Design'].includes(a.Status)) throw fehler('Überspringen geht nur von „Design“ (bzw. „Angebot“) zu „bestellt“.', 422);
+      // AM-8: von "Design" ueberspringen = kein Design noetig -> bestellt, Design_Am geleert (Leiste: Design grau)
+      if (ueberspringen && a.Status === 'Design') return { Status: 'bestellt', Bestellt_Am: t(a.Bestellt_Am) || tag, Design_Am: '' };
       const n = SCHRITTE[i + (ueberspringen ? 2 : 1)];
       return { Status: n.status, [n.feld]: t(a[n.feld]) || tag };
     }
     case 'zurueck': {
       if (i <= 0) throw fehler('Kein Schritt zurück möglich.', 422);
+      // AM-8: ohne Angebot_Am ist "Design" der erste Schritt - darunter (Anfrage/Angebot) geht es nicht zurueck
+      if (a.Status === 'Design' && !t(a.Angebot_Am)) throw fehler('„Design“ ist der erste Schritt – kein Schritt zurück möglich.', 422);
       let j = i - 1;
       if (SCHRITTE[j].status === 'Design' && !t(a.Design_Am)) j -= 1;   // uebersprungenes Design uebergehen
+      if (SCHRITTE[j].status === 'Angebot' && !t(a.Angebot_Am)) j = schrittIndex('Design');   // AM-8: neuer Ablauf -> zurueck auf Design
       return { Status: SCHRITTE[j].status, [SCHRITTE[i].feld]: '' };
     }
     case 'bezahlt': {
@@ -281,13 +292,17 @@ const gleich = (a, b) => t(a) === t(b) || (t(a) !== '' && t(b) !== '' && Number(
 
 // ── Plaene ───────────────────────────────────────────────────────────────────
 
-/** Neuer Auftrag: Kopf + Positionen. Status Anfrage oder Angebot (Anfrage_Am immer, Angebot_Am bei Angebot). */
+/**
+ * Neuer Auftrag: Kopf + Positionen. AM-8: Status immer "Design" (Design_Am = heute); Anfrage_Am bleibt das Anlagedatum
+ * (Anzeige "angelegt", Historie). Kein Einfrieren eines Angebotsstands, Preise freiwillig.
+ */
 export function anlagePlan({ auftraege, positionen, eingabe, waehlbar, orte, jetzt }) {
   const kopf = pruefeKopf(eingabe);
   if (!kopf.Kunden_Nr) throw fehler('Kunde fehlt.');
   if (!kopf.Kurztitel) throw fehler('Kurztitel fehlt.');
-  const status = t(eingabe?.status) || 'Anfrage';
-  if (!START_STATUS.includes(status)) throw fehler('Start-Status Anfrage oder Angebot.');
+  const gewuenscht = t(eingabe?.status) || START_STATUS[0];
+  if (![...START_STATUS, ...ALT_START].includes(gewuenscht)) throw fehler('Neue Aufträge starten mit „Design“.');
+  const status = START_STATUS[0];   // AM-8: alte Oberflaechen schicken noch Anfrage/Angebot -> Design
   const pos = pruefePositionen(eingabe?.positionen, { waehlbar, orte, leerErlaubt: true });   // AMQ1: Pflicht erst ab "bestellt"
   // AM-6: "Wie letztes Mal" - die Vorlage muss ein vorhandener Auftrag sein (sie selbst bleibt unveraendert)
   const vorlage = t(eingabe?.Vorlage_Von);
@@ -296,7 +311,7 @@ export function anlagePlan({ auftraege, positionen, eingabe, waehlbar, orte, jet
   const nr = naechsteAuftragNr(auftraege, tag.slice(0, 4));
   const auftrag = {
     ...Object.fromEntries(AUFTRAG_SPALTEN.map(s => [s, ''])), ...kopf, Auftrag_Nr: nr, Status: status,
-    Anfrage_Am: tag, Angebot_Am: status === 'Angebot' ? tag : '', Angelegt: t(jetzt), Stand: t(jetzt), Vorgang: t(eingabe?.vorgang),
+    Anfrage_Am: tag, Design_Am: tag, Angelegt: t(jetzt), Stand: t(jetzt), Vorgang: t(eingabe?.vorgang),
     Vorlage_Von: vorlage,
   };
   const neu = pos.map((p, i) => ({

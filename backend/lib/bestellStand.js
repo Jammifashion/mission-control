@@ -179,6 +179,7 @@ export async function verschiebe({ eingabe, sheets: s, jetzt = () => new Date() 
     if (plan.positionenNeu.some(x => x.Herkunft && x.Herkunft !== HERKUNFT.BESTELLEN) && (p.idx.Herkunft === undefined || p.idx.Lager_Ort === undefined))
       throw fehler('Spalten Herkunft/Lager_Ort fehlen in Auftrag_Positionen – erst Setup.', 409, 'einrichtung');
     if (plan.auftragNeu && (a.idx.Zugang_ID === undefined || a.idx.Termin_ID === undefined)) throw fehler('Spalten Zugang_ID/Termin_ID fehlen in Auftraege – erst Setup.', 409, 'einrichtung');
+    if (plan.auftragNeu && a.idx.Design_Am === undefined) throw fehler('Spalte Design_Am fehlt in Auftraege – erst Setup.', 409, 'einrichtung');   // AM-8
     const zusammen = { anzahl: plan.anzahl, zielTermin: zielTermin.Termin_ID, terminNeu: !!terminNeu, auftragNr: plan.zielAuftragNr || null, auftragNeu: !!plan.auftragNeu,
       nachtrag: plan.nachtrag, positionenNeu: plan.positionenNeu.length, positionenGeaendert: plan.positionAenderungen.length, hinweise: plan.hinweise };
     if (dryRun) return { ok: true, dryRun: true, ...zusammen };

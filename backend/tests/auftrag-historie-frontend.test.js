@@ -136,11 +136,12 @@ describe('Wie letztes Mal - Vorbelegung', () => {
 });
 
 describe('Verdrahtung', () => {
-  test('Knopf "Wie letztes Mal" in der Auftragsansicht, Vorlage-Link, Body Vorlage_Von, Start Anfrage', () => {
+  test('Knopf "Wie letztes Mal" in der Auftragsansicht, Vorlage-Link, Body Vorlage_Von, Start Design (AM-8)', () => {
     expect(html).toContain('id="au-wie-letztes" data-hilfe="au-wie-letztes">Wie letztes Mal …</button>');
     expect(html).toContain('data-au-vorlage="${kuEsc(a.Vorlage_Von)}" data-hilfe="au-vorlage-von"');
     expect(html).toContain("...(auDlg.vorlageVon ? { Vorlage_Von: auDlg.vorlageVon } : {})");
-    expect(html).toContain("if (!auftrag) auEl('au-start').value = 'Anfrage';");
+    expect(html).toContain("status: AU_START, vorgang: auDlg.vorgang,");   // AM-8: kein "Start als" mehr
+    expect(html).not.toContain('id="au-start"');
   });
   test('Historie per Route, nicht im Browser-Speicher; Leiste nur beim neuen Auftrag', () => {
     expect(html).toContain('/api/auftraege/kunden/${encodeURIComponent(nr)}/historie');

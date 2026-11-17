@@ -37,6 +37,7 @@ export function _auftraegeCacheLeeren() { cache = null; }
 
 let laeuft = false;
 export async function mitAuftragSperre(fn) { return mitSperre(fn); }
+export const DESIGN_SPALTE_FEHLT = 'Spalte Design_Am fehlt in Auftraege – erst scripts/setup-auftraege-reiter.js --write.';
 export function _auftragSpreadsheet() { return sheetId(); }
 async function mitSperre(fn) {
   if (laeuft) throw fehler('Aufträge werden gerade gespeichert – gleich noch einmal.', 409, 'laeuft_gerade');
@@ -313,6 +314,7 @@ export async function legeAuftragAn({ eingabe, sheets: s, jetzt = () => new Date
     const { waehlbar } = await lshopInfo(sheets, spreadsheetId, nummernAus(eingabe?.positionen));
     const orte = await lagerOrte(sheets, spreadsheetId, eingabe?.positionen);
     const plan = anlagePlan({ auftraege: a.zeilen, positionen: p.zeilen, eingabe, waehlbar, orte, jetzt: jetzt().toISOString() });
+    if (a.idx.Design_Am === undefined) throw fehler(DESIGN_SPALTE_FEHLT, 409, 'einrichtung');   // AM-8: Start "Design" braucht die Spalte
     pruefeHerkunftSpalten(p.idx, plan.positionen);
     if (brauchtPreisSpalten(plan.positionen)) pruefeSpalten(p.idx, PREIS_SPALTEN, 'Preise');   // AM-5
     if (plan.auftrag.Rabatt !== undefined && plan.auftrag.Rabatt !== '') pruefeSpalten(a.idx, ['Rabatt'], 'Rabatt');

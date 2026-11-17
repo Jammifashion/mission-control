@@ -27,7 +27,7 @@ const zeile = (spalten, o) => spalten.map(s => o[s] ?? '');
 function tabs({ auftraege = [], aufgaben = [], todos = [], ohne = [] } = {}) {
   const t = {
     LShop_Modelle: [['ArticleNr', 'CatalogNr', 'color1', 'color2', 'Size', 'Consistence', 'Grammage', 'Brand', 'CatNrManufacturer', 'Discontinued', 'Status', 'Description']],
-    [TAB_AUFTRAEGE]: [AUFTRAG_SPALTEN, ...auftraege.map(o => zeile(AUFTRAG_SPALTEN, o))],
+    [TAB_AUFTRAEGE]: [[...AUFTRAG_SPALTEN, 'Design_Am'], ...auftraege.map(o => zeile([...AUFTRAG_SPALTEN, 'Design_Am'], o))],   // AM-8
     [TAB_POSITIONEN]: [POSITION_SPALTEN],
     [TAB_AUFGABEN]: [AUFGABE_SPALTEN, ...aufgaben.map(o => zeile(AUFGABE_SPALTEN, o))],
     [TAB_TODOS]: [TODO_SPALTEN, ...todos.map(o => zeile(TODO_SPALTEN, o))],

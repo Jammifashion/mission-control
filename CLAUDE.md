@@ -1123,6 +1123,13 @@ Neue Sektionen immer mit Anker versehen:
   (`entfernenLage`/`auEntfernenText`: frei · korb · lager · beiUns · Bestellseite). Antwort je AU `entfernt` (nur von Hand, ohne verschobene),
   Ansicht eingeklappt "n entfernte" mit "wiederherstellen" (`auEntferntHtml`). Bestellseite: Eintrag einer entfernten Position = Schritt
   "storniert" (bestehender Text), Packliste ohne sie. Test bs4.test.js.
+- AM-8 (Inhaber + Nicole 17.11.): **neue Auftraege starten mit "Design"** (`START_STATUS`, Design_Am = Anlagetag, Anfrage_Am bleibt
+  Anlagedatum; ohne Spalte Design_Am 409 `einrichtung`) - Dialog (kein "Start als" mehr), Wie letztes Mal, Schnellannahme, KS3-Uebernahme
+  und KS4-Verschieben (`terminAuftragNeu`). Alte Oberflaechen schicken noch Anfrage/Angebot (`ALT_START`) -> Design. Anfrage/Angebot
+  bleiben fuer Altdaten gueltig: Leiste zeigt sie nur mit Angebot_Am bzw. im Status (`ohneAngebotsweg` / Spiegel `auOhneAngebotsweg`),
+  Filter und Dashboard-Chip nur bei Bestand (`auAltStatusDa`, `DB_AU_NUR_MIT_BESTAND`). Ohne Angebot_Am ist Design der erste Schritt
+  (zurueck 422), "Design überspringen" auch von Design (-> bestellt, Design_Am leer). Kein Einfrieren eines Angebots bei der Anlage,
+  Preise freiwillig; AM-5-Angebotslogik nur noch fuer Altdaten. Test am8-design-start.test.js.
 - backend/lib/auftragBereitstellen.js – Rohlinge eines Auftrags bereitstellen (AM-3), Logik `utils/auftrag-bereitstellen.js`.
   `POST /api/auftraege/bereitstellen/vorschau` (schreibt nichts), `.../bereitstellen` { auftragNr, stand, teilen, ortWahl, vorgang },
   `.../zuruecknehmen` { auftragNr, positionId, vorgang }. Unter Auftrags-, Korb- UND Lager-Sperre alle Reiter frisch (SSOT), EIN

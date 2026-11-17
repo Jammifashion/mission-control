@@ -192,7 +192,7 @@ export function terminAuftragNeu({ zugang, termin, nr, nachtrag, vorgang, iso, t
   return {
     ...Object.fromEntries(AUFTRAG_SPALTEN.map(s => [s, ''])), Auftrag_Nr: nr, Kunden_Nr: zugang.Kunden_Nr,
     Kurztitel: `Bestellseite ${zugang.Zugang_ID} · Termin ${tm(termin.Datum)}${nachtrag ? ' · Nachtrag' : ''}`, Kanal: KANAL,
-    Status: 'Anfrage', Termin: t(termin.Datum), Anfrage_Am: tag, Angelegt: iso, Stand: iso, Vorgang: t(vorgang),
+    Status: 'Design', Termin: t(termin.Datum), Anfrage_Am: tag, Design_Am: tag, Angelegt: iso, Stand: iso, Vorgang: t(vorgang),   // AM-8: Start "Design"
     Zugang_ID: zugang.Zugang_ID, Termin_ID: termin.Termin_ID,
   };
 }
