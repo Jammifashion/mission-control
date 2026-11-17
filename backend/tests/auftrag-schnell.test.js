@@ -275,3 +275,23 @@ describe('Fehler und Datenschutz', () => {
     expect(g).toMatchObject({ ok: false, vorschlaege: ['HD200'], mengenText: 'M × 2' });
   });
 });
+
+// SA1-1: Nachbesserung nach der Messung am echten Reiter (17.11.).
+describe('SA1-1 Farben und Artikelwort', () => {
+  test('Kapuzenpulli sucht nur hood, nicht zusaetzlich sweat', () => {
+    expect(suchwoerter('Kapuzenpulli')).toContain('hood');
+    expect(suchwoerter('Kapuzenpulli')).not.toContain('sweat');
+    expect(suchwoerter('Pulli')).toContain('sweat');
+  });
+  test('"Royal Blue" -> "Royal" (allgemeiner) statt "Alaskan Blue"; orange', () => {
+    const f = ['Alaskan Blue', 'Black', 'Royal', 'Sports Grey (Heather)', 'Fire Red'];
+    expect(farbeZuordnen(gr({ farbe: 'blau', farbeEn: 'Royal Blue' }), f)).toMatchObject({ farbe: 'Royal', sicher: false });
+    expect(farbeZuordnen(gr({ farbe: 'rot', farbeEn: 'Red' }), f)).toMatchObject({ farbe: 'Fire Red', sicher: false });
+    expect(farbeZuordnen(gr({ farbe: 'grau', farbeEn: 'Grey' }), f)).toMatchObject({ farbe: 'Sports Grey (Heather)', sicher: false });
+  });
+  test('mehrere Schwarztoene -> waehlen, nie raten', () => {
+    const r = farbeZuordnen(gr({ farbe: 'schwarz', farbeEn: 'Black' }), ['Deep Black', 'Jet Black', 'Black Smoke', 'Arctic White']);
+    expect(r.farbe).toBeNull();
+    expect(r.auswahl).toHaveLength(3);
+  });
+});

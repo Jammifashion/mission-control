@@ -215,7 +215,9 @@ export function suchwoerter(artikel) {
   const a = klein(artikel);
   const w = new Set();
   if (a.length >= 3) w.add(a);
-  for (const [re, such] of ARTIKEL_SUCHE) if (re.test(a)) such.forEach(x => w.add(x));
+  // Nur die ERSTE passende Artikelart (SA1-1, gemessen 17.11.: "Kapuzenpulli" suchte sonst auch "sweat" - 43 statt 34 Modelle).
+  const art = ARTIKEL_SUCHE.find(([re]) => re.test(a));
+  if (art) art[1].forEach(x => w.add(x));
   return [...w];
 }
 
@@ -275,8 +277,13 @@ export function farbeZuordnen(gruppe, farben) {
     const f = echte.find(x => klein(x) === k);
     if (f) return { farbe: f, sicher: true, grund: '', auswahl: [] };
   }
-  const teil = echte.filter(x => kandidaten.some(k => klein(x).split(/[\s/-]+/).includes(k) || klein(x).startsWith(k)));
+  const woerter = x => klein(x).replace(/\([^)]*\)/g, ' ').split(/[\s/-]+/).filter(Boolean);
   const genannt = t(gruppe.farbe || gruppe.farbeEn);
+  // SA1-1 (gemessen 17.11.): erst Modellfarben, deren Woerter ALLE im genannten Namen stehen ("Royal" bei "Royal Blue"),
+  // dann Modellfarben, die ein genanntes Wort enthalten ("Fire Red" bei "Red"). Beides nur eindeutig, immer orange.
+  const allgemeiner = echte.filter(x => kandidaten.some(k => { const kw = woerter(k); return woerter(x).every(w => kw.includes(w)); }));
+  if (allgemeiner.length === 1) return { farbe: allgemeiner[0], sicher: false, grund: `Farbe „${genannt}“ als „${allgemeiner[0]}“ gedeutet – bitte prüfen.`, auswahl: [] };
+  const teil = echte.filter(x => kandidaten.some(k => woerter(x).includes(k) || klein(x).startsWith(k)));
   if (teil.length === 1) return { farbe: teil[0], sicher: false, grund: `Farbe „${genannt}“ als „${teil[0]}“ gedeutet – bitte prüfen.`, auswahl: [] };
   return {
     farbe: null, sicher: false, auswahl: (teil.length ? teil : echte).slice(0, 8),
