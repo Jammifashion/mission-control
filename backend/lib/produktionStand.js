@@ -12,8 +12,10 @@ import { sheetsMitWiederholung } from './googleRetry.js';
 import { ladeKontext, ladeProdukte } from './lshopKorb.js';
 import { leseLShopBestellungen } from './lshopBestellungen.js';
 import { normalizeShop } from '../utils/shop-spalte.js';
-import { TAB_KORB, korbZeilen, korbSchluessel, stufeEin } from '../utils/korb-logic.js';
-import { psZustaende, baueStand, wartetAufTeile } from '../utils/produktion-stand.js';
+import { TAB_KORB, korbZeilen, korbSchluessel, stufeEin, buendele, KORB_SICHTBAR } from '../utils/korb-logic.js';
+import { psZustaende, baueStand, wartetAufTeile, lagerJeKorb } from '../utils/produktion-stand.js';
+import { korbVorschlaege } from '../utils/lager-korb.js';
+import { leseLagerFuerKorb } from './lager.js';
 
 export const TAB_PS = 'Produktions_Status';
 export const MAX_BESTELLUNGEN = 300;
@@ -51,12 +53,17 @@ export async function leseProduktionStand({ shop, bestellungen: roh, sheets: s, 
   const { zustaende, fertigSpalte } = psZustaende(psDaten.values ?? [], shop);
 
   let korb = new Map();
+  let lagerJe = new Map();   // BO5-8: Korb-Schluessel -> Lager-Hinweis (dieselbe Verteilung wie im Korb)
   const bestellungJe = new Map();
   let einstufen = () => undefined;
   if (jfn && bestellungen.length) {
     const { data: k } = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${TAB_KORB}'`, valueRenderOption: 'FORMATTED_VALUE' });
     const zeilen = (k.values ?? []).length ? korbZeilen(k.values).zeilen : [];
     korb = new Map(zeilen.map(z => [t(z.Schluessel), z]));
+    // BO5-8: "im Lager" wie der Korb - dieselben Zeilen (JFN, sichtbar), dieselbe Funktion, also keine Doppelverplanung.
+    const lager = await leseLagerFuerKorb(sheets, spreadsheetId);
+    const buendel = korbVorschlaege(buendele(zeilen.filter(z => normalizeShop(z.Shop || 'jfn') === 'jfn' && KORB_SICHTBAR.includes(z.Status))), lager.bestand, lager.abgaenge);
+    lagerJe = lagerJeKorb({ buendel, korb, bestand: lager.bestand });
     const bo = await leseLShopBestellungen({ shop, sheets, jetzt });
     for (const b of bo.bestellungen ?? []) for (const p of b.positionen ?? []) bestellungJe.set(t(p.schluessel), b);
 
@@ -71,7 +78,7 @@ export async function leseProduktionStand({ shop, bestellungen: roh, sheets: s, 
   }
 
   const stand = baueStand({
-    shop, bestellungen, ps: zustaende, korb, bestellungJe, einstufen,
+    shop, bestellungen, ps: zustaende, korb, bestellungJe, einstufen, lagerJe,
     korbSchluessel: (nr, pos) => korbSchluessel('jfn', nr, pos), jetzt: jetzt(),
   });
   return {

@@ -393,7 +393,7 @@ export function korbZaehler(zeilen, jetzt = new Date()) {
 // ── BO3: Status aendern (herausnehmen / zurueck auf offen) ───────────────────
 
 // Werteliste "Grund" (antwort-BO1 Frage 5).
-export const GRUENDE = ['Ware da / Lager', 'schon bestellt', 'Bestellung storniert', 'Sonstiges'];
+export const GRUENDE = ['Ware da / Lager', 'schon bestellt', 'Bestellung storniert', 'Bestellung abgeschlossen', 'Sonstiges'];   // BO5-8: abgeschlossen
 export const ZIEL_STATUS_BO3 = [STATUS.ABGEWAEHLT, STATUS.OFFEN];
 const NOTIZ_MAX = 200;
 
@@ -405,8 +405,17 @@ const NOTIZ_MAX = 200;
 export function grundVorschlag(hinweis) {
   const h = t(hinweis).split(TRENNER);
   if (h.some(x => [HINWEIS.STORNIERT, HINWEIS.ERSTATTET, HINWEIS.NICHT_IM_SHOP, HINWEIS.POSITION_WEG].includes(x))) return 'Bestellung storniert';
-  if (h.includes(HINWEIS.ABGESCHLOSSEN)) return 'schon bestellt';
+  if (h.includes(HINWEIS.ABGESCHLOSSEN)) return 'Bestellung abgeschlossen';   // BO5-8 (vorher "schon bestellt")
   return '';
+}
+
+/**
+ * BO5-8 Teil B: offene Shop-Zeile, deren Bestellung im Shop schon abgeschlossen ist (Ware vermutlich aus dem Lager
+ * genommen) - einziger sperrender Hinweis ist "abgeschlossen". Storniert/erstattet/weg zaehlen NICHT dazu.
+ */
+export function nurAbgeschlossen(hinweis) {
+  const h = t(hinweis).split(TRENNER).filter(Boolean);
+  return h.includes(HINWEIS.ABGESCHLOSSEN) && !h.some(x => x !== HINWEIS.ABGESCHLOSSEN && HINWEIS_SPERRT.has(x));
 }
 
 function fehler422(msg) { const e = new Error(msg); e.status = 422; return e; }

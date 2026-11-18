@@ -174,7 +174,7 @@ export function zusammenfassung(artikel, bestelldatum, jetzt = new Date()) {
  * @param {Function} o.einstufen     li -> klasse (nur fuer Positionen ohne Korb-Zeile)
  * @param {Function} o.korbSchluessel (bestellnummer, position) -> Schluessel
  */
-export function baueStand({ shop, bestellungen, ps, korb, bestellungJe, einstufen, korbSchluessel, jetzt = new Date() }) {
+export function baueStand({ shop, bestellungen, ps, korb, bestellungJe, einstufen, korbSchluessel, lagerJe = new Map(), jetzt = new Date() }) {
   const jfn = normalizeShop(shop) === 'jfn';
   return bestellungen.map(o => {
     const artikel = (o.line_items ?? []).map(li => {
@@ -189,10 +189,37 @@ export function baueStand({ shop, bestellungen, ps, korb, bestellungJe, einstufe
         wcItemId: t(li.id), name: t(li.name), menge: Number(li.quantity) || 1, imSheet: Boolean(z),
         fertig: z?.fertig ?? false, fertigAm: z?.fertigAm ?? '', versendet: z?.versendet ?? false,
         dtfBestellt: z?.dtfBestellt ?? false, notiz: z?.notiz ?? '', lshop,
+        ...(lagerJe.get(schl) ? { lager: lagerJe.get(schl) } : {}),   // BO5-8
       };
     });
     return { id: t(o.id), artikel, zusammenfassung: zusammenfassung(artikel, o.date_created, jetzt) };
   });
+}
+
+/**
+ * BO5-8: Lager-Hinweis je Korb-Schluessel fuer die Bestellansicht. Grundlage sind die Korb-Buendel NACH korbVorschlaege
+ * (gleiche Verteilung wie im Korb, keine Doppelverplanung). Nur Rohlinge (LS:<ArticleNr>) - gemessen 18.11.: anderer
+ * Lagerbestand (WC:/EX:/TR:) existiert nicht.
+ *  - art 'offen':    offene Position mit Bestand -> { n, genug } (Knopf "aus Lager nehmen" nur bei genug)
+ *  - art 'bestellt': schon bei L-Shop bestellt/geliefert, aber Bestand da -> nur grauer Hinweis, kein Knopf
+ * @returns {Map<string, object>}
+ */
+export function lagerJeKorb({ buendel, korb, bestand }) {
+  const je = new Map();
+  for (const b of buendel ?? []) {
+    for (const p of b.positionen ?? []) {
+      if (p.status === STATUS.OFFEN && p.lager?.n > 0) {
+        je.set(t(p.schluessel), { art: 'offen', schluessel: p.schluessel, status: p.status, menge: p.menge, n: p.lager.n, genug: p.lager.genug,
+          articleNr: t(b.articleNr), orte: b.lager?.orte ?? [] });
+      }
+    }
+  }
+  for (const [schl, z] of korb ?? new Map()) {
+    if (![STATUS.BESTELLT, STATUS.GELIEFERT].includes(t(z.Status))) continue;
+    const best = bestand?.get(t(z.LShop_ArticleNr));
+    if (best?.summe > 0) je.set(schl, { art: 'bestellt', n: best.summe, articleNr: t(z.LShop_ArticleNr), orte: best.orte ?? [] });
+  }
+  return je;
 }
 
 /** Filter "wartet auf Teile": nur diese Bestellungen, aelteste zuerst. */

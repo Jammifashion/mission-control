@@ -115,7 +115,7 @@ describe('grundVorschlag und Zaehler', () => {
     [HINWEIS.ERSTATTET, 'Bestellung storniert'],
     [HINWEIS.NICHT_IM_SHOP, 'Bestellung storniert'],
     [HINWEIS.POSITION_WEG, 'Bestellung storniert'],
-    [HINWEIS.ABGESCHLOSSEN, 'schon bestellt'],
+    [HINWEIS.ABGESCHLOSSEN, 'Bestellung abgeschlossen'],   // BO5-8 (vorher 'schon bestellt')
     [HINWEIS.UNBEZAHLT, ''],
     ['', ''],
   ])('%s -> %s', (h, g) => { expect(grundVorschlag(h)).toBe(g); });
@@ -125,7 +125,7 @@ describe('grundVorschlag und Zaehler', () => {
       { Status: 'offen', Hinweis: '' }, { Status: 'offen', Hinweis: HINWEIS.UNBEZAHLT },
       { Status: 'abgewählt', Hinweis: HINWEIS.STORNIERT }, { Status: 'bestellt', Hinweis: '' },
     ])).toEqual({ offen: 2, herausgenommen: 1, herausgenommenAktuell: 1, mitHinweis: 1, lager: 0 });   // ohne Datum = aktuell
-    expect(GRUENDE).toEqual(['Ware da / Lager', 'schon bestellt', 'Bestellung storniert', 'Sonstiges']);
+    expect(GRUENDE).toEqual(['Ware da / Lager', 'schon bestellt', 'Bestellung storniert', 'Bestellung abgeschlossen', 'Sonstiges']);
   });
 });
 

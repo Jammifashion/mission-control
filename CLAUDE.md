@@ -872,6 +872,14 @@ Neue Sektionen immer mit Anker versehen:
   (`stornoZurueckInsLager`, `stornoZurueckPlan`): nur Lager-Zeile MIT Hinweis (sonst 422), Gegenbuchung wie zurueck-aus-lager
   (Grund "Storno – zurück ins Lager") + Korb `abgewählt`, Grund `Bestellung storniert` (`STORNO_GRUND`), EIN batchUpdate.
   Storno nach Lieferung (Status geliefert) prueft der Abgleich nicht.
+  BO5-8 (18.11.): Lagerware auch in "Bestellungen (JFN)": `POST .../produktion/stand` haengt je Artikel `lager` an (`lagerJeKorb` in
+  utils/produktion-stand.js ueber `buendele` + `korbVorschlaege` = dieselbe Verteilung wie im Korb, keine Doppelverplanung): 'offen' (n,
+  genug, Orte; Knopf "aus Lager nehmen …" nur bei genug, derselbe Dialog `#korb-lager-dialog` - haengt seit BO5-8 an body - und derselbe
+  Weg `aus-lager`) bzw. 'bestellt' (grau, kein Knopf). Nur `LS:` (gemessen: anderer Bestand existiert nicht). Korb: Bestellnummer = Knopf
+  `data-korb-bestellung` -> `psSpringeZu` + `bestellen/bestellungen` (nur JFN), "↗" = `adminUrl` je Shop-Position (BS4-Baustein). Teil B:
+  Zeilen mit nur "abgeschlossen" (`nurAbgeschlossen`) bekommen `abgeschlossen` + `lagerErledigt` (Bestand NACH den offenen) und die Knoepfe
+  "Aus Lager genommen …" (`aus-lager` mit `erledigt: true`, sonst 422) bzw. "Erledigt – nicht bestellen" (abwaehlen, neuer Grund "Bestellung
+  abgeschlossen" in GRUENDE, auch Vorschlag) + Sammelknopf "alle abgeschlossenen erledigen …" (Liste zum Abhaken). Test bo5-8.test.js.
 - backend/lib/seo-prompt.js – SEO-Prompt: Systemprompt (`SEO_SYSTEM_PROMPT`), User-Template,
   MODUS-Enum, Materialfilter. Serientitel nur als Fanart: steht im Hinweisblock woertlich
   "Fanart zur Serie <Titel>", kommt der Block FANART-SERIE dazu, sonst gilt das Titelverbot.

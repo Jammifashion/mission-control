@@ -294,6 +294,14 @@
       .au-preis-von { font-size: 0.75rem; color: var(--muted); }
       .au-vorlage-hinweis { border: 1px solid var(--border); border-left: 4px solid var(--info); background: var(--surface-2); border-radius: 6px;
         padding: 0.5rem 0.7rem; margin: 0.4rem 0; font-size: 0.85rem; overflow-wrap: anywhere; }
+      /* BO5-8: Lagerware in der Bestellkarte, abgeschlossene Bestellungen im Korb */
+      .ps-lager { margin: 0.25rem 0; font-size: 0.82rem; display: flex; flex-wrap: wrap; gap: 0.3rem 0.5rem; align-items: center; }
+      .ps-lager-text { color: var(--warning); }
+      .ps-lager-bestellt { color: var(--muted); }
+      .korb-erledigt { display: flex; flex-wrap: wrap; gap: 0.3rem 0.5rem; align-items: center; margin-top: 0.25rem; }
+      .korb-lager-knapp { color: var(--warning); font-size: 0.8rem; }
+      .korb-sammel-zeile { display: flex; gap: 0.4rem; align-items: center; padding: 0.15rem 0; font-size: 0.85rem; }
+      .korb-sammel-leiste { display: flex; flex-wrap: wrap; gap: 0.4rem 0.7rem; align-items: center; margin: 0.3rem 0 0.6rem; font-size: 0.85rem; color: var(--warning); }
       /* AM-9: Lexoffice im Kunden-Dialog */
       .ku-lex-block { display: flex; flex-wrap: wrap; gap: 0.35rem 0.7rem; align-items: center; margin: 0.3rem 0 0.5rem; min-width: 0; }
       .ku-lex-dubletten { flex-basis: 100%; display: flex; flex-direction: column; gap: 0.3rem; border-left: 4px solid var(--warning); padding: 0.4rem 0.6rem;
@@ -5662,10 +5670,27 @@
           + `<div class="prod-item-name">${psEsc(a.menge)}× ${psEsc(a.name)} <span class="prod-item-sku">(${psEsc(li?.sku || '–')})</span></div>`
           + (variante ? `<div class="prod-item-variant">${psEsc(variante)}</div>` : '')
           + `</div></div>`
-          + psLshopHtml(a.lshop)
+          + psLshopHtml(a.lshop) + psLagerHtml(orderId, a)   // BO5-8
           + `<div class="prod-checks">${haken}</div>${ohneSpalte}`
           + `<input class="prod-notiz-input" type="text" placeholder="Notiz…" value="${psEsc(a.notiz)}" data-hilfe="prod-notiz"`
           + ` data-order="${psEsc(orderId)}" data-item="${psEsc(a.wcItemId)}"${a.imSheet ? '' : ' disabled'}></div>`;
+      }
+      // BO5-8: Lagerware sichtbar in der Bestellkarte (Werte vom Server, dieselbe Verteilung wie im Korb - nichts doppelt verplant).
+      // offen + genug -> orange Hinweis + "aus Lager nehmen …" (derselbe Dialog/Weg wie im Korb); offen ohne genug -> "n von m";
+      // schon bei L-Shop bestellt -> nur grauer Hinweis. Orte im Mouse-over (data-hilfe-zusatz), kein title.
+      function psLagerHtml(orderId, a) {
+        const l = a?.lager;
+        if (!l) return '';
+        const orte = (l.orte ?? []).map(o => `${o.ort}: ${o.menge}`).join(' · ');
+        if (l.art === 'bestellt') {
+          return `<div class="prod-lshop-grund ps-lager-bestellt" data-hilfe="ps-lager-bestellt" data-hilfe-zusatz="${psEsc(orte)}" tabindex="0">`
+            + `bereits bei L-Shop bestellt – Lagerware bleibt im Lager (im Lager: ${psEsc(l.n)})</div>`;
+        }
+        const ort = l.orte?.[0]?.ort ? ` (${psEsc(l.orte[0].ort)}${l.orte.length > 1 ? ' …' : ''})` : '';
+        const text = l.genug ? `Liegt im Korb – aber im Lager: ${psEsc(l.n)}${ort} – bitte prüfen` : `Liegt im Korb – im Lager: ${psEsc(l.n)} von ${psEsc(l.menge)}${ort}`;
+        return `<div class="ps-lager"><span class="ps-lager-text" data-hilfe="ps-lager" data-hilfe-zusatz="${psEsc(orte)}" tabindex="0">${text}</span>`
+          + (l.genug ? ` <button type="button" class="korb-aktion korb-aktion-ruhig korb-klein" data-ps-aus-lager="${psEsc(l.schluessel)}" data-order="${psEsc(orderId)}" data-item="${psEsc(a.wcItemId)}" data-hilfe="aus-lager">aus Lager nehmen …</button>` : '')
+          + '</div>';
       }
       /** Sichtbare Bestellungen je Filter: alle wie geladen (neueste zuerst), "wartet" in der Reihenfolge des Backends. */
       function psSicht(orders, standDaten, filter) {
@@ -7083,6 +7108,14 @@
         'ku-lex-nachholen':     { name: 'in Lexoffice anlegen', text: 'Kunde steht nur in MC. Prüft auf Dubletten und legt ihn dann in Lexoffice an. Lexoffice wird sonst nicht geändert.' },
         'ku-lex-verknuepfen':   { name: 'diesen verknüpfen', text: 'Kein neuer Lexoffice-Kontakt: MC übernimmt nur Lexoffice-ID und -Nr. dieses vorhandenen Kontakts.' },
         'ku-lex-trotzdem':      { name: 'trotzdem neu anlegen', text: 'Keiner der Treffer ist dieser Kunde: in Lexoffice einen neuen Kontakt anlegen.' },
+        // BO5-8: Lagerware bei Shop-Bestellungen, Bestellnummer im Korb, abgeschlossene Bestellungen
+        'ps-lager':             { name: 'Liegt im Korb, aber im Lager', text: 'Diese Position steht im L-Shop-Korb, die Ware liegt aber im Lager. Bitte prüfen; „aus Lager nehmen“ bucht sie aus.' },
+        'ps-lager-bestellt':    { name: 'Schon bei L-Shop bestellt', text: 'Die Position ist bei L-Shop bestellt. Was im Lager liegt, bleibt dort – kein Ausbuchen.' },
+        'korb-bestellung':      { name: 'Bestellnummer', text: 'Öffnet „Bestellungen (JFN)“ mit dieser Bestellung. ↗ öffnet sie im Shop-Backend.' },
+        'korb-aus-lager-erledigt': { name: 'Aus Lager genommen', text: 'Bestellung ist schon abgeschlossen: Ware jetzt im Lager ausbuchen (Ort wählen), Position kommt aus dem Korb.' },
+        'korb-erledigt':        { name: 'Erledigt – nicht bestellen', text: 'Herausnehmen mit Grund „Bestellung abgeschlossen“. Im Lager wird nichts gebucht.' },
+        'korb-lager-knapp':     { name: 'Im Lager zu wenig erfasst', text: 'Der erfasste Bestand reicht nicht. Ausbuchen geht nicht (nie negativ) – „Erledigt – nicht bestellen“ nutzen.' },
+        'korb-sammel-erledigt': { name: 'Alle abgeschlossenen erledigen', text: 'Liste aller Positionen zu abgeschlossenen Bestellungen zum Abhaken; Abgehakte werden herausgenommen.' },
         // PO1: Festpreis-Porto je Bestellung
         'fp-porto-einnahmen':   { name: 'Porto-Einnahmen', text: 'Ab Bestellungen vom 01.07.2026: volles Versandentgelt je Bestellung (netto), einmal je Bestellung.' },
         'fp-porto-kosten':      { name: 'Porto-Kosten', text: 'Je Bestellung einmal: ein Artikel mit Versandart P = Paket-Satz, sonst Großbrief (+ Versandnebenkosten). Abholung: keine.' },
@@ -7340,7 +7373,7 @@
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag', 'tr-aendern-gesperrt', 'ti-goalie', 'tr-goalie', 'tr-gk-pruefen', 'tr-gk-markieren', 'tr-gk-kein', 'tr-zahlung-unbezahlt', 'tr-zahlung-erstattet', 'tr-zahlung-storniert', 'tr-zahlung-fehlt', 'tr-zahlung-filter'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfbs-g-rueckstand', 'lfbs-g-vorraetig', 'lfbs-lager', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
-        auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'fp-porto-einnahmen', 'fp-porto-kosten', 'ku-lex-anlegen', 'ku-lex-nachholen', 'ku-lex-verknuepfen', 'ku-lex-trotzdem', 'au-suche', 'au-filter', 'au-neu', 'au-schnell-text', 'au-schnell-los', 'au-schnell-datenschutz', 'au-schnell-kunde', 'au-schnell-kunde-neu', 'ku-vorbelegt', 'au-schnell-modell', 'au-schnell-todo', 'au-schnell-unsicher', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-pos-da', 'au-pos-we', 'au-entfernen', 'au-entfernt-liste', 'au-wiederherstellen', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern',
+        auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'fp-porto-einnahmen', 'fp-porto-kosten', 'ps-lager', 'ps-lager-bestellt', 'korb-bestellung', 'korb-aus-lager-erledigt', 'korb-erledigt', 'korb-lager-knapp', 'korb-sammel-erledigt', 'ku-lex-anlegen', 'ku-lex-nachholen', 'ku-lex-verknuepfen', 'ku-lex-trotzdem', 'au-suche', 'au-filter', 'au-neu', 'au-schnell-text', 'au-schnell-los', 'au-schnell-datenschutz', 'au-schnell-kunde', 'au-schnell-kunde-neu', 'ku-vorbelegt', 'au-schnell-modell', 'au-schnell-todo', 'au-schnell-unsicher', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-pos-da', 'au-pos-we', 'au-entfernen', 'au-entfernt-liste', 'au-wiederherstellen', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern',
           'au-hist-chip', 'au-hist-aus', 'au-hist-drin', 'au-hist-mehr', 'au-hist-preis', 'au-preis-von', 'au-hist-lfb', 'au-wie-letztes', 'au-vorlage-von',
           'ku-hist', 'ku-hist-neu', 'ku-hist-frei-neu', 'ku-mit-storniert', 'ku-wie-letztes',
           'au-letzte', 'au-letzte-alle', 'au-ns-schliessen', 'au-ns-vorlage', 'au-ek-von', 'au-bestellseite', 'ku-dauer-bestellseite',
@@ -7592,6 +7625,26 @@
         if (!fehler.length && summe !== Number(menge)) fehler.push(`verteilt ${summe} von ${menge}`);
         return { verteilung, fehler, summe };
       }
+      // BO5-8: Bestellnummer im Korb -> Bestellansicht (nur JFN, dort gibt es die Ansicht) + "↗" ins Shop-Backend (wie BS4, neuer Tab)
+      function korbBestellNrHtml(p) {
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+        const jfn = String(p.shop ?? 'JFN').toUpperCase() === 'JFN';
+        const nr = jfn ? `<button type="button" class="korb-link" data-korb-bestellung="${esc(p.bestellnummer)}" data-hilfe="korb-bestellung">${esc(p.shop)} #${esc(p.bestellnummer)}</button>`
+          : `${esc(p.shop)} #${esc(p.bestellnummer)}`;
+        const ok = /^https:\/\/[^/]+\/wp-admin\/post\.php\?post=\d+&action=edit$/.test(String(p.adminUrl ?? ''));
+        return nr + (ok ? ` <a class="ps-shop-link" href="${esc(p.adminUrl)}" target="_blank" rel="noopener" data-hilfe="ps-shop-link">↗</a>` : '');
+      }
+      // BO5-8 Teil B: Zeile zu einer schon abgeschlossenen Bestellung -> ein Schritt: "Aus Lager genommen …" (nur bei genug erfasstem
+      // Bestand, sonst Hinweis) oder "Erledigt – nicht bestellen" (herausnehmen, Grund "Bestellung abgeschlossen"). Nie negativ.
+      function korbErledigtHtml(p) {
+        if (!p?.abgeschlossen || p.status !== 'offen') return '';
+        const esc = s => String(s ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+        const l = p.lagerErledigt ?? { n: 0, genug: false };
+        const lager = l.genug
+          ? `<button type="button" class="korb-aktion korb-aktion-ruhig korb-klein" data-aus-lager-erledigt="${esc(p.schluessel)}" data-hilfe="korb-aus-lager-erledigt">Aus Lager genommen …</button>`
+          : `<span class="korb-lager-knapp" data-hilfe="korb-lager-knapp" tabindex="0">im Lager nur ${esc(l.n)} erfasst</span>`;
+        return `<div class="korb-erledigt">${lager} <button type="button" class="korb-aktion korb-aktion-ruhig korb-klein" data-korb-erledigt="${esc(p.schluessel)}" data-hilfe="korb-erledigt">Erledigt – nicht bestellen</button></div>`;
+      }
       // ── Korb-Lager: Ende ──
 
       // BO5-4: eigene offene Position - "→ Lager <Ort>" bzw. "+ bei Ankunft ins Lager" (setzen/aendern/entfernen).
@@ -7605,7 +7658,7 @@
         // AM-3: Referenz = Auftragsnummer -> Link zum Auftrag (Kurztitel nur in MC, nie in der EDI-Datei)
         const auNr = p.herkunft === 'eigen' && /^AU-\d{4}-\d{4}$/.test(p.referenz ?? '') ? p.referenz : '';
         const herkunft = (auNr ? `Eigen · <button type="button" class="korb-link" data-korb-au="${korbEsc(auNr)}" data-hilfe="korb-auftrag">${korbEsc([auNr, window.auKurztitel?.(auNr)].filter(Boolean).join(' · '))}</button>`
-          : p.herkunft === 'eigen' ? `Eigen · ${korbEsc(p.referenz)}` : `${korbEsc(p.shop)} #${korbEsc(p.bestellnummer)} · Pos. ${korbEsc(p.position)}`)
+          : p.herkunft === 'eigen' ? `Eigen · ${korbEsc(p.referenz)}` : `${korbBestellNrHtml(p)} · Pos. ${korbEsc(p.position)}`)   // BO5-8
           + ebKnopfHtml(p, korbEsc);   // BO6-1: "bearbeiten …" an eigenen Positionen
         // BO5-6: an Lager-Positionen steht der Hinweis gelb im Lager-Kennzeichen (mit Knopf "zurück ins Lager")
         const hinweis  = p.hinweis && p.status !== 'Lager' ? ` · <span style="color:${p.vorschlag ? 'var(--warning)' : 'var(--danger)'};">⚠ ${korbEsc(p.hinweis)}</span>` : '';
@@ -7624,6 +7677,10 @@
         }
         if (p.status !== 'offen' || !p.bearbeitbar) {
           return `<div class="korb-pos korb-pos-raus"><span class="korb-pos-text">${text} · <strong>${korbEsc(p.status)}</strong>${notiz}${hinweis}</span></div>`;
+        }
+        const erledigt = korbErledigtHtml(p);   // BO5-8 Teil B
+        if (erledigt) {
+          return `<div class="korb-pos korb-pos-raus" data-korb-pos="${korbEsc(p.schluessel)}"><span class="korb-pos-text">${text}${notiz}${hinweis}${erledigt}</span></div>`;
         }
         const an = korbZustand.auswahl.has(p.schluessel) ? 'checked' : '';
         return `<label class="korb-pos" data-korb-pos="${korbEsc(p.schluessel)}" style="${p.vorschlag ? '' : 'opacity:0.7;'}"><input type="checkbox" data-pos="${korbEsc(p.schluessel)}" ${an}>`
@@ -7699,8 +7756,12 @@
           const leer = { offen: 'Keine offenen Positionen.', raus: 'Keine herausgenommenen Positionen in den letzten 14 Tagen.', alle: 'Der Korb ist leer.', lager: 'Keine Position aus dem Lager genommen.' };
           el.innerHTML = `<p style="color:var(--muted);font-size:0.84rem;">${d.buendel.length ? leer[korbZustand.filter] : 'Der Korb ist leer.'}</p>${aeltereLink}`;
         } else {
-          el.innerHTML = sichtbar.map(b => {
-            const waehlbar = b.zeigen.filter(p => p.status === 'offen' && p.bearbeitbar);
+          // BO5-8 Teil B: Sammelknopf, wenn Positionen zu schon abgeschlossenen Bestellungen sichtbar sind
+          const abgeschl = sichtbar.flatMap(b => b.zeigen).filter(p => p.abgeschlossen && p.status === 'offen').length;
+          const sammel = abgeschl ? `<div class="korb-sammel-leiste">${abgeschl} Position${abgeschl === 1 ? '' : 'en'} zu schon abgeschlossenen Bestellungen`
+            + ` <button type="button" class="korb-aktion korb-aktion-ruhig korb-klein" data-korb-sammel-start data-hilfe="korb-sammel-erledigt">alle abgeschlossenen erledigen …</button></div>` : '';
+          el.innerHTML = sammel + sichtbar.map(b => {
+            const waehlbar = b.zeigen.filter(p => p.status === 'offen' && p.bearbeitbar && !p.abgeschlossen);
             const alleAn = waehlbar.length && waehlbar.every(p => korbZustand.auswahl.has(p.schluessel));
             return `
             <div class="lshop-card" style="grid-template-columns: auto 1fr;">
@@ -7850,10 +7911,14 @@
         el.classList.toggle('korb-lager-fehler', r.fehler.length > 0);
         return r;
       }
-      function korbLagerOeffnen(schluessel) {
+      function korbLagerOeffnen(schluessel, opt = {}) {
         const { p, b } = korbLagerFinde(schluessel);
         if (!p || !b?.lager) { showToast('Position nicht mehr da – bitte neu laden.', 'warn'); return; }
-        Object.assign(korbLager, { p, b, vorgang: korbVorgang(), laeuft: false });
+        korbLagerOeffnenMit(p, b, opt);
+      }
+      // BO5-8: derselbe Dialog aus der Bestellkarte (p/b vom Server der Bestellansicht) und fuer "abgeschlossen" (erledigt: true)
+      function korbLagerOeffnenMit(p, b, { erledigt = false, nachher = null } = {}) {
+        Object.assign(korbLager, { p, b, vorgang: korbVorgang(), laeuft: false, erledigt, nachher });
         const herkunft = p.herkunft === 'eigen' ? `Eigen · ${p.referenz}` : `${p.shop} #${p.bestellnummer} · Pos. ${p.position}`;
         document.getElementById('korb-lager-position').textContent = `${herkunft} · ×${p.menge} · ${[b.articleNr, b.catalogNr, b.farbe, b.groesse].filter(Boolean).join(' · ')}`;
         document.getElementById('korb-lager-orte').innerHTML = korbLagerVorbelegung(b.lager.orte, p.menge).map(o => `<label class="korb-lager-ort">`
@@ -7882,12 +7947,13 @@
         btn.disabled = true;
         erg.textContent = 'Wird gebucht …';
         try {
-          const j = await korbLagerPost('aus-lager', { schluessel: korbLager.p.schluessel, status: korbLager.p.status, verteilung: r.verteilung, vorgang: korbLager.vorgang });
+          const j = await korbLagerPost('aus-lager', { schluessel: korbLager.p.schluessel, status: korbLager.p.status, verteilung: r.verteilung, vorgang: korbLager.vorgang,
+            ...(korbLager.erledigt ? { erledigt: true } : {}) });   // BO5-8 Teil B
           showToast(j.schonGebucht ? 'War schon gebucht – nichts doppelt.' : `Aus Lager genommen (${j.buchungen.join(', ')})`, 'success');
           korbLager.vorgang = korbVorgang();
           korbZustand.auswahl.delete(korbLager.p.schluessel);
           korbLagerZu();
-          await loadLShopKorb();
+          if (korbLager.nachher) await korbLager.nachher(); else await loadLShopKorb();   // BO5-8: Bestellansicht laedt sich selbst neu
         } catch (e) {
           const liste = (e.antwort?.probleme ?? []).slice(1, 4).map(x => x.text).join(' · ');
           erg.textContent = e.status ? `Nicht gebucht: ${e.message}${liste ? ` (${liste})` : ''}`
@@ -7895,6 +7961,57 @@
           showToast(erg.textContent, 'error', 10000);
         } finally { korbLager.laeuft = false; btn.disabled = false; }
       }
+      // ── BO5-8: Klicks Bestellnummer / Teil B / Sammel / Bestellkarte ──
+      document.body.appendChild(document.getElementById('korb-lager-dialog'));   // auch aus "Bestellungen" sichtbar (lag im Korb-Unterreiter)
+      const korbSammel = new Set();
+      document.addEventListener('change', e => {
+        const c = e.target.closest?.('[data-korb-sammel]');
+        if (c) { if (c.checked) korbSammel.add(c.dataset.korbSammel); else korbSammel.delete(c.dataset.korbSammel); }
+      });
+      const korbAbgeschlossene = () => (korbZustand.daten?.buendel ?? []).flatMap(b => b.positionen.filter(p => p.abgeschlossen && p.status === 'offen'));
+      async function korbErledigen(liste) {
+        if (!liste.length) return;
+        try {
+          await korbStatusSenden(liste.map(p => ({ schluessel: p.schluessel, status: p.status })), 'abgewählt', 'Bestellung abgeschlossen', undefined);
+          showToast(`${liste.length} Position${liste.length === 1 ? '' : 'en'} erledigt (herausgenommen, Grund „Bestellung abgeschlossen“).`, 'success');
+        } catch (e) { showToast(`Nicht geändert: ${e.message}`, 'error', 10000); }
+        finally { await loadLShopKorb(); }
+      }
+      document.getElementById('korb-liste')?.addEventListener('click', async ev => {
+        const nrK = ev.target.closest('[data-korb-bestellung]');
+        if (nrK) { psSpringeZu(nrK.dataset.korbBestellung); oeffneAnsicht('bestellen', 'bestellungen'); return; }
+        const erl = ev.target.closest('[data-aus-lager-erledigt]');
+        if (erl) {
+          const { p } = korbLagerFinde(erl.dataset.ausLagerErledigt);
+          if (p && await showConfirm('Aus Lager genommen', `Bestellung #${korbEsc(p.bestellnummer)} ist im Shop abgeschlossen. Ware (×${korbEsc(p.menge)}) jetzt im Lager ausbuchen?`
+            + '<br>Im nächsten Fenster den Ort wählen (Wrist vorgewählt).', 'Weiter')) korbLagerOeffnen(p.schluessel, { erledigt: true });
+          return;
+        }
+        const nb = ev.target.closest('[data-korb-erledigt]');
+        if (nb) {
+          const { p } = korbLagerFinde(nb.dataset.korbErledigt);
+          if (p && await showConfirm('Erledigt – nicht bestellen', `Position #${korbEsc(p.bestellnummer)} (×${korbEsc(p.menge)}) herausnehmen? Grund „Bestellung abgeschlossen“. Im Lager wird nichts gebucht.`, 'Erledigt')) await korbErledigen([p]);
+          return;
+        }
+        const sa = ev.target.closest('[data-korb-sammel-start]');
+        if (sa) {
+          const liste = korbAbgeschlossene();
+          korbSammel.clear(); liste.forEach(p => korbSammel.add(p.schluessel));
+          const html = '<p>Diese Positionen gehören zu Bestellungen, die im Shop schon abgeschlossen sind. Abgehakte werden herausgenommen (Grund „Bestellung abgeschlossen“), im Lager wird nichts gebucht – dafür einzeln „Aus Lager genommen …“.</p>'
+            + liste.map(p => `<label class="korb-sammel-zeile"><input type="checkbox" data-korb-sammel="${korbEsc(p.schluessel)}" checked> #${korbEsc(p.bestellnummer)} · Pos. ${korbEsc(p.position)} · ×${korbEsc(p.menge)}</label>`).join('');
+          if (await showConfirm(`Alle abgeschlossenen erledigen (${liste.length})`, html, 'Abgehakte erledigen')) await korbErledigen(liste.filter(p => korbSammel.has(p.schluessel)));
+          return;
+        }
+      });
+      document.getElementById('jfn-orders-list')?.addEventListener('click', ev => {
+        const k = ev.target.closest('[data-ps-aus-lager]');
+        if (!k) return;
+        const art = psZustand.stand?.get?.(String(k.dataset.order))?.artikel?.find(x => x.wcItemId === k.dataset.item);
+        const l = art?.lager;
+        if (!l?.genug) return;
+        korbLagerOeffnenMit({ schluessel: l.schluessel, status: l.status, menge: l.menge, herkunft: 'shop', shop: 'JFN', bestellnummer: k.dataset.order, position: k.dataset.item },
+          { articleNr: l.articleNr, lager: { orte: l.orte } }, { nachher: () => loadOrders() });
+      });
       // BO5-6: Storno nach "aus Lager nehmen" - Ware zurueck ins Lager (Gegenbuchung) und Position herausgenommen
       // (Grund "Bestellung storniert"), beides in einem Schritt; sie wird also nicht wieder zum Bestellen angeboten.
       async function korbStornoZurueck(schluessel, knopf) {

@@ -14,6 +14,7 @@
 // und googleRetry wiederholt kein append. Hinweise per values.batchUpdate auf
 // einzelne Zellen, nachdem Schluessel und alter Hinweis in der Zeile geprueft sind.
 
+import { adminBestellLink } from '../utils/shop-admin.js';   // BO5-8
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 import { getWcClient } from './shopConfig.js';
@@ -525,6 +526,12 @@ export async function leseKorb({ shop, mit, sheets: s, wcFuer = getWcClient, jet
   // Lager-Positionen. Nur Anzeige - geaendert wird nichts (auch nicht im Abgleich).
   const lager = await leseLagerFuerKorb(sheets, spreadsheetId);
   korbVorschlaege(buendel, lager.bestand, lager.abgaenge);
+  // BO5-8: Bestellnummer im Korb -> "↗" ins Shop-Backend (wie BS4, Basis = WC_URL bzw. WC_URL_HONK, nur https)
+  for (const p of buendel.flatMap(b => b.positionen)) {
+    if (p.herkunft !== HERKUNFT.SHOP) continue;
+    const url = adminBestellLink(normalizeShop(p.shop) === 'honk' ? process.env.WC_URL_HONK : process.env.WC_URL, p.bestellnummer);
+    if (url) p.adminUrl = url;
+  }
   // BO7-2: Lieferbarkeit bei L-Shop je Buendel (= eine ArticleNr) aus LShop_Lieferbarkeit; fehlt der Reiter -> ohne Kennzeichen.
   const lb = await leseLieferbarkeit({ sheets, spreadsheetId });
   for (const b of buendel) { const l = lb.je.get(String(b.articleNr ?? '').trim()); if (l) b.lieferbar = l; }

@@ -6,7 +6,7 @@
 // EINEM Schreibvorgang. Rueckweg "zurück in den Korb" = Status offen + Gegenbuchung (Storno_von). Teilen
 // (Lager deckt nur einen Teil der Menge) gibt es in dieser Stufe nicht.
 
-import { STATUS, HERKUNFT, hinweisSperrt, GRUENDE } from './korb-logic.js';
+import { STATUS, HERKUNFT, hinweisSperrt, GRUENDE, nurAbgeschlossen } from './korb-logic.js';
 import { ART, QUELLE, WARENART, bestandAus, bestandVon, naechsteBuchungNr, buchungId, VORGANG_MUSTER, buchungenDesVorgangs } from './lager.js';
 
 const t = v => String(v ?? '').trim();
@@ -58,6 +58,14 @@ export function korbVorschlaege(buendel, bestandJeNr, abgaenge = new Map()) {
       p.lager = { n: rest, genug: rest >= p.menge };
       rest -= Math.min(rest, p.menge);
     }
+    // BO5-8 Teil B: Zeilen zu schon abgeschlossenen Bestellungen bekommen, was danach noch da ist (eigenes Feld -
+    // die BO5-3-Anzeige "im Lager"/"aus Lager nehmen" an offenen Positionen bleibt unveraendert).
+    for (const p of b.positionen ?? []) {
+      if (p.status !== STATUS.OFFEN || p.vorschlag || !nurAbgeschlossen(p.hinweis)) continue;
+      p.abgeschlossen = true;
+      p.lagerErledigt = { n: Math.max(rest, 0), genug: rest >= p.menge };
+      if (rest > 0) rest -= Math.min(rest, p.menge);
+    }
   }
   return buendel;
 }
@@ -88,7 +96,9 @@ export function ausLagerPlan(e, { korbZeilen, buchungen, orte, jetzt = new Date(
   const z = korbZeileZu(korbZeilen, e?.schluessel);
   if (z.Status !== t(e?.status)) throw fehler(`Position ${z.Schluessel} hat sich geändert (jetzt "${z.Status}") - nichts geändert. Bitte neu laden.`, 409, { code: 'konflikt' });
   if (z.Status !== STATUS.OFFEN) throw fehler(`Position ${z.Schluessel} ist "${z.Status}" - nur offene Positionen gehen aus dem Lager.`, 422);
-  if (hinweisSperrt(z.Hinweis)) throw fehler(`Position ${z.Schluessel}: ${z.Hinweis} - nicht aus dem Lager nehmen.`, 422);
+  // BO5-8: bei "abgeschlossen" (Bestellung schon erledigt, Ware ging aus dem Lager) nur auf ausdruecklichen Wunsch (erledigt: true)
+  if (hinweisSperrt(z.Hinweis) && !(e?.erledigt === true && nurAbgeschlossen(z.Hinweis)))
+    throw fehler(`Position ${z.Schluessel}: ${z.Hinweis} - nicht aus dem Lager nehmen.`, 422);
   const nr = t(z.LShop_ArticleNr);
   if (!/^\d{10}$/.test(nr)) throw fehler(`Position ${z.Schluessel} hat keine gültige L-Shop-Artikelnummer.`, 422);
   const menge = Number(z.Menge);
