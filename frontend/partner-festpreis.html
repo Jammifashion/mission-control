@@ -413,7 +413,23 @@
         const positiv  = d.saldoBrutto >= 0;
         const label    = positiv ? 'Offene Auszahlung (brutto)' : 'Aktueller Rückstand (brutto)';
         const colorCls = positiv ? 'saldo-positive' : 'saldo-negative';
-        wrap.innerHTML = `
+        // PO1: Porto je Bestellung (ab Bestellungen vom 01.07.2026) - zwei eigene Zeilen, im Netto enthalten
+        const p = d.porto;
+        const portoHtml = p ? `
+          <div class="saldo-row muted">
+            <span>Artikel (netto)</span>
+            <span class="amount">${fmt((d.auszahlungNetto || 0) - (p.saldo || 0))}</span>
+          </div>
+          <div class="saldo-row">
+            <span>Porto-Einnahmen (${p.einnahmen.anzahl} Bestellungen)</span>
+            <span class="amount saldo-positive">+${fmt(p.einnahmen.summe)}</span>
+          </div>
+          <div class="saldo-row">
+            <span>Porto-Kosten (${p.kosten.anzahl} Bestellungen)</span>
+            <span class="amount saldo-negative">−${fmt(p.kosten.summe)}</span>
+          </div>
+          <div class="saldo-row muted"><span>Porto je Bestellung einmal: Paket-Satz, wenn ein Artikel als Paket geht, sonst Großbrief${p.inPruefung ? ' · teilweise in Prüfung' : ''}</span><span></span></div>` : '';
+        wrap.innerHTML = `${portoHtml}
           <div class="saldo-row">
             <span>Auszahlung Verkäufe (netto)</span>
             <span class="amount saldo-positive">+${fmt(d.auszahlungNetto)}</span>

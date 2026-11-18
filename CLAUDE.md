@@ -350,6 +350,18 @@ Neue Sektionen immer mit Anker versehen:
   OHNE Pauschale, `verpackung.status` "fehlt" + Hinweis (Inhaber: keine Sperre). FP_Verkäufe Spalte W
   `Versandmethode` (method_id, additiv) schreibt der Sync; Bestand: `scripts/fill-fp-versandmethode.js`
   (Trockenlauf Standard, `--write` nur leere Zellen).
+- backend/utils/festpreis-porto.js – Porto je Bestellung (PO1, Inhaber 18.11.): fuer FP-Bestellungen ab Bestelldatum `PORTO_AB` 01.07.2026
+  stecken Porto-Einnahme/-Kosten/Versandnebenkosten NICHT mehr anteilig in den Zeilen (I/J/K = 0), sondern stehen je Abrechnung als zwei
+  Positionen (`berechnePorto`): Porto-Einnahmen = volles `shipping_total` (netto) je Bestellung, Porto-Kosten = je Bestellung EINMAL der
+  hoehere Satz (ein Partner-Artikel P -> Paket, sonst Grossbrief; + Versandnebenkosten), Satz zum Bestelldatum (`satzAus`, gueltig ab/bis);
+  der Partner traegt das volle Porto auch mit fremden Artikeln und bekommt die volle Einnahme. Abholung/ohne Versand: keine Kosten.
+  Erste Abrechnung zaehlt (ist eine Zeile der Bestellung schon abgerechnet: nicht nochmal), Storno = Gegenposition. Zwei FP-Partner: Traeger =
+  Paket vor Grossbrief, dann kleinere Partner-ID. PayPal bleibt anteilig. Basis netto, in "Auszahlung netto" enthalten. Daten je Zeile additiv
+  `Porto_Bestellung` (Y) + `Porto_Versandart` (Z) hinter X "Sperre" (der Sync legt X/Y/Z an; ohne Y = altes Modell, zaehlt nicht -> nie doppelt).
+  Dieselbe Funktion (`ladePorto`/`portoSaldo` in routes/festpreis-portal.js) fuer Summary/Vorschau, POST /abrechnungen (Positionen-JSON `porto`)
+  und Portal-Saldo (festpreis-public, ohne Bestellnummern). MC `fpPortoHTML` (Mouse-over fp-porto-*), Portal zwei Zeilen. Bestand:
+  `scripts/po1-porto-umstellen.js` (Trockenlauf Standard, `--betraege` nur Terminal, `--write` mit Sicherung nach Documents/mc-sicherungen,
+  nur offene Zeilen ab 01.07., je Zeile geprueft, zurueckgelesen; lib/fpPortoUmstellung.js). Test festpreis-porto.test.js.
 - backend/utils/fp-sperre.js – FP-Sperre (PA8), wie PA2 bei Lizenz-Partnern: der FP-Sync (`routes/festpreis-portal.js`, unter
   `mitFpSperre` aus lib/fpSperre.js) rechnet NIE mehr still mit Festpreis 0. Ohne gueltige Zuordnung (FP_Artikel.Artikelkategorie leer
   oder ohne Zeile Partner + Kategorie in FP_Artikel_Kategorie) schreibt er die Zeile mit Status "gesperrt", Spalte X `Sperre` =

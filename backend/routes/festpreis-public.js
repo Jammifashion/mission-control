@@ -5,7 +5,7 @@
 import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
-import { aggregateFpVerkaeufe, loadOffeneInterne, ladeVerpackung } from './festpreis-portal.js';
+import { aggregateFpVerkaeufe, loadOffeneInterne, ladeVerpackung, ladePorto, portoSaldo } from './festpreis-portal.js';
 import { parseKonfiguration } from '../utils/partner-kalkulation.js';
 import { findeZeileZumToken, SPALTE_TOKEN, SPALTE_HASH } from '../utils/partner-token.js';
 import { SPALTE_VERSCHLUESSELT } from '../utils/link-schluessel.js';
@@ -164,7 +164,11 @@ router.get('/saldo', async (req, res, next) => {
       : v.status === 'ok' ? { status: 'ok', anzahl: v.anzahl, betrag: v.betrag, summe: v.summe }
       : { status: 'in_pruefung' };   // Grund und Bestellnummern nur intern
 
-    const auszahlungNetto  = round2(summen.auszahlung);
+    // PO1: Porto je Bestellung (netto) ueber dieselben Zeilen wie die Abrechnung
+    const p = await ladePorto(sheets, sheetId, partnerId, offeneMitStorno, rows, vh);
+    const porto = p.status === 'keine' ? null
+      : { einnahmen: p.einnahmen, kosten: { anzahl: p.kosten.anzahl, summe: p.kosten.summe }, saldo: p.saldo, ...(p.status === 'fehlt' ? { inPruefung: true } : {}) };
+    const auszahlungNetto  = round2(summen.auszahlung + portoSaldo(p));
     const auszahlungBrutto = round2(auszahlungNetto * (1 + mwstProzent / 100));
     const saldoBrutto      = round2(auszahlungBrutto - interne.summe - (verpackung?.summe ?? 0));
     const saldoNetto       = round2(saldoBrutto / (1 + mwstProzent / 100));
@@ -174,6 +178,7 @@ router.get('/saldo', async (req, res, next) => {
       auszahlungNetto, auszahlungBrutto,
       interneSumme: interne.summe,
       verpackung,
+      ...(porto ? { porto } : {}),   // PO1: ohne Bestellnummern
       saldoNetto, saldoBrutto,
     });
   } catch (err) { next(err); }

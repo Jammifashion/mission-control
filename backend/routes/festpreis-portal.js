@@ -15,6 +15,8 @@ import { SPALTE_VERSCHLUESSELT } from '../utils/link-schluessel.js';
 import {
   berechneVerpackung, verpackungsKondition, versandmethodeAus, VERSANDMETHODE,
 } from '../utils/festpreis-verpackung.js';
+import { berechnePorto, satzAus, portoFuerSyncZeile, PORTO_BESTELLUNG, PORTO_VERSANDART } from '../utils/festpreis-porto.js';   // PO1
+const PORTO_INDEX = 24;   // PO1: Y = Porto_Bestellung, Z = Porto_Versandart (hinter X = Sperre)
 import {
   STATUS_GESPERRT, SPALTE_SPERRE, SPERRE_INDEX, SYNC_BREITE, GRUND_KATEGORIE, festpreisZuordnungen, zuordnungFuer, sperreZeile,
   fpAbrechnungHinweise, gesperrtZaehlen,
@@ -250,6 +252,14 @@ async function ladeVerpackung(sheets, sheetId, partnerId, zeilen, alleZeilen, vh
   const partnerZeilen = alleZeilen.filter(r => (r[vh('Partner-ID')] ?? '') === partnerId);
   return berechneVerpackung(zeilen, vh, kondition, partnerZeilen);
 }
+
+// PO1: Porto je Bestellung als eigene Positionen - DIESELBE Funktion fuer Vorschau, Abrechnung und Portal-Saldo.
+async function ladePorto(sheets, sheetId, partnerId, zeilen, alleZeilen, vh) {
+  const { header: kH, rows: kRows } = await readTab(sheets, sheetId, TAB_FIXKOSTEN);
+  return berechnePorto(zeilen, vh, satzAus(parseKonfiguration, kRows, kH), alleZeilen, { partnerId });   // alle Zeilen: Traeger bei 2 Partnern
+}
+/** PO1: Netto-Saldo der Porto-Positionen (0 ohne neue Bestellungen). */
+const portoSaldo = p => (p && p.status !== 'keine' ? p.saldo : 0);
 
 // ── GET /api/festpreis/partner ───────────────────────────────────────────────
 router.get('/partner', async (req, res, next) => {
@@ -639,8 +649,17 @@ router.get('/verkaeufe/summary', async (req, res, next) => {
         }), rows, vh)
       : null;
     const verpackungSumme = verpackung?.status === 'ok' ? verpackung.summe : 0;
+    // PO1: Porto je Bestellung (netto) ueber dieselben Zeilen wie die Verpackung
+    const porto = partnerId
+      ? await ladePorto(sheets, sheetId, partnerId, rows.filter(r => {
+          if ((r[vh('Partner-ID')] ?? '') !== partnerId) return false;
+          if ((r[vh('Status Abrechnung')] ?? '').toLowerCase() !== statusFilter.toLowerCase()) return false;
+          const d = parseDate(r[vh('Datum')] ?? '');
+          return d && (!von || d >= von) && (!bis || d <= bis);
+        }), rows, vh)
+      : null;
 
-    const auszahlungNetto = summen.auszahlung;
+    const auszahlungNetto = Math.round((summen.auszahlung + portoSaldo(porto)) * 100) / 100;
     const auszahlungBrutto = Math.round(auszahlungNetto * (1 + mwstProzent / 100) * 100) / 100;
     const gesamtBrutto = Math.round((auszahlungBrutto - interne.summe - verpackungSumme) * 100) / 100;
     const gesamtNetto  = Math.round((gesamtBrutto / (1 + mwstProzent / 100)) * 100) / 100;
@@ -651,6 +670,7 @@ router.get('/verkaeufe/summary', async (req, res, next) => {
       intern: interne.positionen,
       interneSumme: interne.summe,
       verpackung,
+      ...(porto && porto.status !== 'keine' ? { porto } : {}),   // PO1
       auszahlungNetto, auszahlungBrutto,
       gesamtNetto, gesamtBrutto,
       ...(sperrHinweise ? { sperre: sperrHinweise } : {}),
@@ -795,8 +815,11 @@ async function fpSyncInSperre(req, sheetId) {
             existingKeys.add(key);
 
             const va = e.versandart;
-            const portoKostenAnteil  = (va === 'B' ? k.portoB : k.portoP) * anteil;
-            const versandnkAnteil    = (va === 'B' ? k.versandnebenkostenB : k.versandnebenkostenP) * anteil;
+            // PO1: ab Bestelldatum 01.07.2026 Porto nicht mehr anteilig in der Zeile, sondern je Bestellung (eigene Positionen)
+            const po = portoFuerSyncZeile({ bestelldatumDE: orderDate, shippingNetto, versandart: va });
+            const portoKostenAnteil  = po ? 0 : (va === 'B' ? k.portoB : k.portoP) * anteil;
+            const versandnkAnteil    = po ? 0 : (va === 'B' ? k.versandnebenkostenB : k.versandnebenkostenP) * anteil;
+            const portoEinnahmeZeile = po ? 0 : portoEinnahmeAnteil;
             // PayPal berechnet die Gebühr auf den Brutto-Betrag, den der Kunde zahlt.
             const paypalKosten       = (itemNetto * (1 + k.mwstProzent / 100)) * (k.paypalProzent / 100)
                                      + (k.paypalPauschale * anteil);
@@ -814,7 +837,7 @@ async function fpSyncInSperre(req, sheetId) {
               handlingskosten,
               stueckzahl: item.quantity || 1,
               mehrkosten: 0,
-              portoEinnahmeAnteil,
+              portoEinnahmeAnteil: portoEinnahmeZeile,
               portoKostenAnteil,
               versandnkAnteil,
               paypalKosten,
@@ -830,7 +853,7 @@ async function fpSyncInSperre(req, sheetId) {
               item.quantity,         // F 5
               e.festpreisEK,         // G 6 (legacy, aus FP_Artikel)
               e.handlingGebuehr,     // H 7 (legacy, aus FP_Artikel)
-              Math.round(portoEinnahmeAnteil * 100) / 100,  // I 8
+              Math.round(portoEinnahmeZeile * 100) / 100,   // I 8 (PO1: ab 01.07. = 0)
               Math.round(portoKostenAnteil * 100) / 100,    // J 9
               Math.round(versandnkAnteil * 100) / 100,      // K 10
               Math.round(paypalKosten * 100) / 100,         // L 11
@@ -846,6 +869,7 @@ async function fpSyncInSperre(req, sheetId) {
               handlingskosten,       // V 21 Handlingskosten (aus FP_Artikel_Kategorie)
               versandmethodeAus(order), // W 22 Versandmethode (VP1, method_id)
             ]);
+            if (po) { zeile[PORTO_INDEX] = po.portoBestellung; zeile[PORTO_INDEX + 1] = po.versandart; }   // PO1: Y, Z
             if (katPreis) toWrite.push(zeile);
             else { toWrite.push(sperreZeile(zeile, vH)); gesperrt++; }   // PA8
           }
@@ -885,7 +909,25 @@ async function fpSyncInSperre(req, sheetId) {
       } else if (vh(SPALTE_SPERRE) !== -1 && vh(SPALTE_SPERRE) !== SPERRE_INDEX) {
         return { status: 409, body: { error: `FP_Verkäufe: ${SPALTE_SPERRE} steht nicht in Spalte X, nichts geschrieben.` } };
       }
-      const breite = vh(SPALTE_SPERRE) === SPERRE_INDEX ? SYNC_BREITE + 1 : SYNC_BREITE;
+      // PO1: Spalten Y "Porto_Bestellung" + Z "Porto_Versandart" additiv hinter X; X wird dafuer (nur Kopf) angelegt.
+      const brauchtPorto = allRows.some(r => r[PORTO_INDEX] !== undefined && r[PORTO_INDEX] !== '');
+      if (vh(PORTO_BESTELLUNG) === -1 && brauchtPorto) {
+        if (vh(SPALTE_SPERRE) === -1) {
+          if (vH.length !== SYNC_BREITE)
+            return { status: 409, body: { error: `FP_Verkäufe: ${vH.length} Spalten statt ${SYNC_BREITE}, Porto-Spalten nicht angelegt, nichts geschrieben.` } };
+          vH[SPERRE_INDEX] = SPALTE_SPERRE;
+        }
+        if (vH.length !== SYNC_BREITE + 1)
+          return { status: 409, body: { error: `FP_Verkäufe: ${vH.length} Spalten statt ${SYNC_BREITE + 1}, Porto-Spalten nicht angelegt, nichts geschrieben.` } };
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: sheetId, range: `${TAB_FP_VERKAEUFE}!X1:Z1`,
+          valueInputOption: 'RAW', requestBody: { values: [[SPALTE_SPERRE, PORTO_BESTELLUNG, PORTO_VERSANDART]] },
+        });
+        vH[PORTO_INDEX] = PORTO_BESTELLUNG; vH[PORTO_INDEX + 1] = PORTO_VERSANDART;
+      } else if (vh(PORTO_BESTELLUNG) !== -1 && (vh(PORTO_BESTELLUNG) !== PORTO_INDEX || vh(PORTO_VERSANDART) !== PORTO_INDEX + 1)) {
+        return { status: 409, body: { error: `FP_Verkäufe: Porto-Spalten stehen nicht in Y/Z, nichts geschrieben.` } };
+      }
+      const breite = vh(PORTO_BESTELLUNG) === PORTO_INDEX ? PORTO_INDEX + 2 : vh(SPALTE_SPERRE) === SPERRE_INDEX ? SYNC_BREITE + 1 : SYNC_BREITE;
       const zeilen = allRows.map(r => Array.from({ length: breite }, (_, i) => r[i] ?? ''));
       // PA8: ohne values.append - erste freie Zeile, Nachbarzeile + Zielbereich geprueft, RAW, zurueckgelesen.
       await schreibeNeueZeilen(sheets, sheetId, TAB_FP_VERKAEUFE, zeilen);
@@ -1010,15 +1052,17 @@ router.post('/abrechnungen', async (req, res, next) => {
     // Sperre), aber laut - Antwort und Positionen-JSON tragen status 'fehlt'.
     const verpackung = await ladeVerpackung(sheets, sheetId, partnerId, offene, vRows, vh);
     const verpackungSumme = verpackung.status === 'ok' ? verpackung.summe : 0;
+    const porto = await ladePorto(sheets, sheetId, partnerId, offene, vRows, vh);   // PO1: zwei eigene Positionen
 
     // Offene interne Bestellungen (brutto) im Zeitraum von der Brutto-Auszahlung abziehen.
     const interne = await loadOffeneInterne(sheets, sheetId, partnerId, von, bis);
-    const auszahlungBrutto = Math.round(summen.auszahlung * (1 + mwstProzent / 100) * 100) / 100;
+    const auszahlungBrutto = Math.round((summen.auszahlung + portoSaldo(porto)) * (1 + mwstProzent / 100) * 100) / 100;
     const gesamtBrutto = Math.round((auszahlungBrutto - interne.summe - verpackungSumme) * 100) / 100;
     const gesamtNetto  = Math.round((gesamtBrutto / (1 + mwstProzent / 100)) * 100) / 100;
     const positionenJson = JSON.stringify({
       produkteGruppen, summen, intern: interne.positionen, interneSumme: interne.summe,
       ...(verpackung.status !== 'keine' ? { verpackung } : {}),
+      ...(porto.status !== 'keine' ? { porto } : {}),   // PO1
     });
 
     // Abrechnungs-ID generieren
@@ -1064,6 +1108,7 @@ router.post('/abrechnungen', async (req, res, next) => {
       abrechnungsId, partnerId, gesamtNetto, gesamtBrutto,
       positionen: offene.length, interne: interne.positionen.length, interneSumme: interne.summe,
       verpackung: verpackung.status !== 'keine' ? verpackung : null,
+      porto: porto.status !== 'keine' ? porto : null,   // PO1
     });
   } catch (err) { next(err); }
 });
@@ -1286,6 +1331,6 @@ router.patch('/verkaeufe-eintrag/:rowId', async (req, res, next) => {
 
 // Für die Partner-Sicht (festpreis-public.js) wiederverwendbar – identische
 // Auszahlungs-Aggregation + Interne-Verrechnung wie im Admin.
-export { aggregateFpVerkaeufe, loadOffeneInterne, ladeVerpackung };
+export { aggregateFpVerkaeufe, loadOffeneInterne, ladeVerpackung, ladePorto, portoSaldo };
 
 export default router;
