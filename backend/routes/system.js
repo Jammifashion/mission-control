@@ -5,6 +5,8 @@ import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getWcClient } from '../lib/shopConfig.js';
 import { getModel } from '../lib/modelConfig.js';
 import { runCheck } from '../scripts/check-models.js';
+import { notify } from '../lib/chatNotify.js';
+import { lebenszeichenEingabe, lebenszeichenText } from '../utils/lebenszeichen.js';
 
 // Zwei Router statt einem, der doppelt eingehaengt war (/api/system und
 // /api/health): so gab es auch /api/system/full und /api/health/modell-check.
@@ -101,6 +103,17 @@ router.post('/modell-check', async (_req, res, next) => {
     const r = await runCheck();
     const ok = r.fehlend.length === 0;
     res.status(ok ? 200 : 422).json({ ok, ...r });
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/system/lebenszeichen  (hinter requireApiKey, FIX3 B4) ─────────
+// Body { laeufe: [{ name, n, soll }] } vom Workflow lebenszeichen-weekly.yml (zaehlt ueber die GitHub-API).
+// Sendet EINE Chat-Meldung (fehlende Laeufe orange). 200 { gesendet }, 502 wenn der Chat nicht annimmt.
+router.post('/lebenszeichen', async (req, res, next) => {
+  try {
+    const laeufe = lebenszeichenEingabe(req.body);
+    const gesendet = await notify(lebenszeichenText(laeufe));
+    res.status(gesendet ? 200 : 502).json({ gesendet, unvollstaendig: laeufe.filter(l => l.n < l.soll).map(l => l.name) });
   } catch (err) { next(err); }
 });
 

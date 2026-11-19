@@ -1,0 +1,55 @@
+name: Wochen-Lebenszeichen
+
+on:
+  schedule:
+    - cron: '30 6 * * 1'   # montags 06:30 UTC, nach Backup (02:00), Partner/FP-Sync (03:00), Trikot-Sync (05:00)
+  workflow_dispatch:
+
+# FIX3 B4: zaehlt fuer Backup, Partner-Sync, Trikot-Sync und FP-Sync die Tage mit erfolgreichem Lauf in den
+# letzten 7 Tagen (GitHub-API, nur lesen) und laesst das Backend EINE Chat-Meldung schicken (fehlt ein Lauf: orange).
+# So faellt auch ein Lauf auf, der gar nicht gestartet ist (Zeitplan ausgefallen, Workflow deaktiviert, Secret falsch).
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  lebenszeichen:
+    name: Lebenszeichen zaehlen und melden
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hilfsskripte holen
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+          sparse-checkout-cone-mode: false
+
+      - name: Laeufe zaehlen (GitHub-API)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          node .github/scripts/lebenszeichen.mjs > laeufe.json
+          jq '.laeufe' laeufe.json
+
+      - name: POST /api/system/lebenszeichen
+        env:
+          API_URL: ${{ secrets.BACKEND_URL }}
+          API_KEY: ${{ secrets.MC_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$API_URL" ] || [ -z "$API_KEY" ]; then
+            echo "::error::BACKEND_URL oder MC_API_KEY fehlt in GitHub Secrets."
+            exit 1
+          fi
+          rc=0
+          http=$(curl -sS --fail-with-body --max-time 120 -X POST \
+            -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+            --data @laeufe.json -o response.json -w '%{http_code}' \
+            "$API_URL/api/system/lebenszeichen") || rc=$?
+          echo "HTTP ${http:-?}"
+          if jq -e . response.json >/dev/null 2>&1; then jq '{gesendet, unvollstaendig}' response.json; fi
+          if [ "$rc" -ne 0 ]; then
+            node .github/scripts/antwort-fehler.mjs response.json "${http:-?}" || true
+            echo "::error::Lebenszeichen nicht gemeldet (HTTP ${http:-?})"
+            exit 1
+          fi
