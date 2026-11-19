@@ -2,12 +2,12 @@ import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { notify, buildAnfrageNachricht } from '../lib/chatNotify.js';
+import { KANAL_VALUES } from '../utils/anfrage-felder.js';
 
 const router = Router();
 
 const TAB = 'Kundenanfragen';
 
-const KANAL_VALUES = ['Homepage', 'E-Mail', 'Manuell'];
 const STATUS_VALUES = [
   'Neu', 'Geprüft', 'Angebot-gesendet', 'Bestätigt', 'In-Produktion', 'Abgeschlossen',
 ];
@@ -130,7 +130,7 @@ router.post('/neu', async (req, res, next) => {
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
       range: `${TAB}!A:N`,
-      valueInputOption: 'USER_ENTERED',
+      valueInputOption: 'RAW',
       insertDataOption: 'INSERT_ROWS',
       requestBody: { values: [newRow] },
     });
@@ -227,7 +227,7 @@ router.patch('/:id/status', async (req, res, next) => {
 
     await sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: sheetId,
-      requestBody: { valueInputOption: 'USER_ENTERED', data: updates },
+      requestBody: { valueInputOption: 'RAW', data: updates },
     });
 
     res.json({

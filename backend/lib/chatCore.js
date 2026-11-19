@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { bereinigeSessionData } from '../utils/anfrage-felder.js';
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 import { getModel } from './modelConfig.js';
@@ -154,7 +155,9 @@ function parseAgentAntwort(rawText) {
 // Wirft, wenn die Antwort nicht als JSON lesbar ist - frueher wurde in dem
 // Fall still null geliefert, was als "Agent konnte nicht antworten" durchging
 // und die eigentliche Ursache verdeckt hat.
-export async function callChatAgent({ messages, sessionData, kbBase, history }) {
+export async function callChatAgent({ messages, sessionData: sessionRoh, kbBase, history }) {
+  // Formularstand vom Browser: feste Feldliste, nur Text, begrenzte Laenge.
+  const sessionData  = bereinigeSessionData(sessionRoh);
   const systemBlocks = buildSystemBlocks(kbBase, history, sessionData);
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -213,7 +216,7 @@ export async function callChatAgent({ messages, sessionData, kbBase, history }) 
         reply:       text,
         // Unveraendert: ohne geparstes sessionData gibt es nichts zu uebernehmen.
         // Dieselbe Basis wie im Normalfall, damit 'kanal' gesetzt bleibt.
-        sessionData: { kanal: 'Homepage', ...sessionData },
+        sessionData: bereinigeSessionData(sessionData),
         completed:   false,
         // Signal fuer die Route: von hier geht der Stoerungsalarm raus.
         // chatCore bleibt damit frei von der Benachrichtigungs-Abhaengigkeit,
@@ -222,10 +225,10 @@ export async function callChatAgent({ messages, sessionData, kbBase, history }) 
       };
     }
 
-    // Rohantwort ins Log, sonst ist der Fall nicht nachvollziehbar.
+    // Nur Laenge und Anfang der Form ins Log, nie den Text (kann Kundenangaben enthalten).
     console.error(
-      `[chatCore] Antwort von ${modell} nicht als JSON lesbar. Rohantwort:`,
-      rawText,
+      `[chatCore] Antwort von ${modell} nicht als JSON lesbar `
+      + `(${String(rawText ?? '').length} Zeichen, beginnt mit '{': ${String(rawText ?? '').trim().startsWith('{')}).`,
     );
     const err = new Error(
       `Antwort des Chat-Agenten (${modell}) war kein gueltiges JSON-Objekt mit "reply".`,
@@ -246,7 +249,7 @@ export async function callChatAgent({ messages, sessionData, kbBase, history }) 
 
   return {
     reply:       parsed.reply,
-    sessionData: merged,
+    sessionData: bereinigeSessionData(merged),
     completed:   !!parsed.completed,
   };
 }

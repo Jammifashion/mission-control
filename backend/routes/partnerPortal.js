@@ -12,6 +12,7 @@ import { notify, buildPartnerNachricht } from '../lib/chatNotify.js';
 import { requireHeader } from '../utils/sheet-headers.js';
 import { saldoRechnung, partnerKacheln } from '../utils/partner-saldo.js';
 import { findeZeileZumToken } from '../utils/partner-token.js';
+import { eigenauftragZuLang, EIGENAUFTRAG_MENGE_MAX } from '../utils/eigenauftrag.js';
 
 const router = Router();
 
@@ -948,6 +949,10 @@ router.post('/:id/eigenauftrag', async (req, res, next) => {
     const mengeNum      = toFloat(menge, 0);
     if (!artikelTrim || !variantenTrim || !(mengeNum > 0))
       return res.status(400).json({ error: 'Artikel, Menge und Varianten sind Pflichtfelder.' });
+    const zuLang = eigenauftragZuLang(req.body);
+    if (zuLang) return res.status(400).json({ error: `Eingabe zu lang: ${zuLang}.` });
+    if (mengeNum > EIGENAUFTRAG_MENGE_MAX)
+      return res.status(400).json({ error: `Menge höchstens ${EIGENAUFTRAG_MENGE_MAX}.` });
 
     // Kein Existenz-Check mehr: ein aufgeloester Token belegt bereits, dass es
     // die Partner-Zeile gibt, und resolvePartnerAnyTab liefert den Namen mit.
@@ -1027,7 +1032,7 @@ router.post('/:id/eigenauftrag', async (req, res, next) => {
     await sheets.spreadsheets.values.append({
       spreadsheetId: sheetId,
       range: `Partner_Interne_Bestellungen!A:${colLetter(rowArr.length - 1)}`,
-      valueInputOption: 'USER_ENTERED',
+      valueInputOption: 'RAW',
       insertDataOption: 'INSERT_ROWS',
       requestBody: { values: [rowArr] },
     });

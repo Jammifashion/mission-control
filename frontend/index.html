@@ -5220,7 +5220,7 @@
               <button class="btn-dtf-bestellen" id="dtf-bulk-btn" data-hilfe="dtf-sammel">🖨️ Ausgewählte bestellen</button>
             </div>` + items.map(item => {
             const orderLines = item.betroffeneOrders
-              .map(o => `#${o.orderId} ${o.kunde} ×${o.stueck}`)
+              .map(o => `#${monEsc(o.orderId)} ${monEsc(o.kunde)} ×${monEsc(o.stueck)}`)
               .join(' &nbsp;·&nbsp; ');
             const varLabel = item.variante || '–';
             const safeKey  = item.groupKey.replace(/[^a-z0-9]/gi, '_');
@@ -5231,8 +5231,8 @@
                   <input type="checkbox" class="select-cb dtf-select-cb" data-groupkey="${safeAttr}">
                 </div>
                 <div class="lshop-card-info">
-                  <div class="lshop-card-title">${item.artikelnummer}</div>
-                  <div class="lshop-card-variante">${varLabel}</div>
+                  <div class="lshop-card-title">${monEsc(item.artikelnummer)}</div>
+                  <div class="lshop-card-variante">${monEsc(varLabel)}</div>
                   <div class="lshop-card-bedarf">Bedarf: <strong>${item.stueck} Stück</strong> · ${item.betroffeneOrders.length} Bestellung${item.betroffeneOrders.length !== 1 ? 'en' : ''}</div>
                   <div class="lshop-card-orders">${orderLines}</div>
                 </div>
@@ -5371,12 +5371,12 @@
             const d = new Date(r.bestelldatum).toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'2-digit' });
             return `
               <div class="lshop-proto-row">
-                <span class="lshop-proto-id">${r.bestellId}</span>
+                <span class="lshop-proto-id">${monEsc(r.bestellId)}</span>
                 <span class="lshop-proto-detail">
-                  ${r.artikelnummer}${r.variante ? ' · ' + r.variante : ''}
+                  ${monEsc(r.artikelnummer)}${r.variante ? ' · ' + monEsc(r.variante) : ''}
                   · <strong>${r.stueck} Stk</strong>
                 </span>
-                <span class="lshop-proto-meta">${d}<br>${r.betroffeneOrders ? '#' + r.betroffeneOrders.replace(/,\s*/g,' #') : ''}</span>
+                <span class="lshop-proto-meta">${d}<br>${r.betroffeneOrders ? '#' + monEsc(r.betroffeneOrders).replace(/,\s*/g,' #') : ''}</span>
               </div>`;
           }).join('');
         } catch (e) {
@@ -5404,7 +5404,7 @@
               <button class="btn-lshop-bestellen" id="lshop-bulk-btn" data-hilfe="lshop-alt-sammel">📦 Ausgewählte bestellen</button>
             </div>` + items.map(item => {
             const orderLines = item.betroffeneOrders
-              .map(o => `#${o.orderId} ${o.kunde} ×${o.stueck}`)
+              .map(o => `#${monEsc(o.orderId)} ${monEsc(o.kunde)} ×${monEsc(o.stueck)}`)
               .join(' &nbsp;·&nbsp; ');
             const varLabel = item.variante || '–';
             const safeKey  = item.groupKey.replace(/[^a-z0-9]/gi, '_');
@@ -5415,8 +5415,8 @@
                   <input type="checkbox" class="select-cb lshop-select-cb" data-groupkey="${safeAttr}">
                 </div>
                 <div class="lshop-card-info">
-                  <div class="lshop-card-title">${item.artikelnummer}</div>
-                  <div class="lshop-card-variante">${varLabel}</div>
+                  <div class="lshop-card-title">${monEsc(item.artikelnummer)}</div>
+                  <div class="lshop-card-variante">${monEsc(varLabel)}</div>
                   <div class="lshop-card-bedarf">Bedarf: <strong>${item.stueck} Stück</strong> · ${item.betroffeneOrders.length} Bestellung${item.betroffeneOrders.length !== 1 ? 'en' : ''}</div>
                   <div class="lshop-card-orders">${orderLines}</div>
                 </div>
@@ -5563,13 +5563,13 @@
             const d = new Date(r.bestelldatum).toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'2-digit' });
             return `
               <div class="lshop-proto-row">
-                <span class="lshop-proto-id">${r.bestellId}</span>
+                <span class="lshop-proto-id">${monEsc(r.bestellId)}</span>
                 <span class="lshop-proto-detail">
-                  ${r.artikelnummer}${r.variante ? ' · ' + r.variante : ''}
+                  ${monEsc(r.artikelnummer)}${r.variante ? ' · ' + monEsc(r.variante) : ''}
                   · <strong>${r.stueck} Stk</strong>
                   ${r.kw ? ' · ' + r.kw : ''}
                 </span>
-                <span class="lshop-proto-meta">${d}<br>${r.betroffeneOrders ? '#' + r.betroffeneOrders.replace(/,\s*/g,' #') : ''}</span>
+                <span class="lshop-proto-meta">${d}<br>${r.betroffeneOrders ? '#' + monEsc(r.betroffeneOrders).replace(/,\s*/g,' #') : ''}</span>
               </div>`;
           }).join('');
         } catch (e) {
@@ -20716,7 +20716,7 @@
                 </tr></thead>
                 <tbody>${_ppPartners.map(p => `
                   <tr>
-                    <td>${p.name}</td>
+                    <td>${_escHtml(p.name)}</td>
                     <td>${p.kategorie || '–'}</td>
                     <td>${p.lizenzProzent}%</td>
                     <td>${p.portoModell || '–'}</td>
@@ -21232,7 +21232,7 @@
           wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
             <thead><tr><th>L-Shop-Nr</th><th>Artikelname</th><th>EK Netto</th><th>Kategorie</th><th>Gültig Ab</th><th>Notiz</th><th>Aktionen</th></tr></thead>
             <tbody>${_artRows.map((r, i) => `<tr>
-              <td>${r.lshopNr}</td><td>${r.artikelname}</td><td>${r.ekPreisNetto.toFixed(2)} €</td>
+              <td>${_escHtml(r.lshopNr)}</td><td>${_escHtml(r.artikelname)}</td><td>${r.ekPreisNetto.toFixed(2)} €</td>
               <td>${r.kategorie || '–'}</td><td>${r.gueltigAb || '–'}</td><td>${r.notiz || '–'}</td>
               <td><button class="btn-secondary btn-xs" data-art-i="${i}" data-hilfe="liste-bearbeiten">Bearbeiten</button></td>
             </tr>`).join('')}</tbody>
@@ -21292,7 +21292,7 @@
           const sel = document.getElementById('verkaeufe-filter-partner');
           if (_ppPartners.length) {
             sel.innerHTML = '<option value="">Alle Partner</option>' +
-              _ppPartners.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+              _ppPartners.map(p => `<option value="${p.id}">${_escHtml(p.name)}</option>`).join('');
           }
           _verkaeufeLoaded = true;
         }
@@ -21329,10 +21329,10 @@
                 const numStyle = isStorno ? red : '';
                 return `<tr style="${rowStyle}">
                 <td>${pName(r.partnerId)}</td>
-                <td>${r.datum}</td><td>${r.orderId}</td>
+                <td>${_escHtml(r.datum)}</td><td>${_escHtml(r.orderId)}</td>
                 <td>${r.artikelnummer}${isStorno ? ' <span style="font-size:0.72rem;'+red+'">↩ Storno</span>' : ''}</td>
                 <td>${r.variante || '–'}</td>
-                <td style="${numStyle}">${r.stueckzahl}</td>
+                <td style="${numStyle}">${_escHtml(r.stueckzahl)}</td>
                 <td style="${numStyle}">${r.vkPreisBrutto.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</td>
                 <td class="liz-cell"
                     data-vk-brutto="${r.vkPreisBrutto}"
@@ -21344,7 +21344,7 @@
                     style="${numStyle}">
                   ${r.lizenzgebuehr.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}
                 </td>
-                <td><span class="badge ${r.status==='offen'?'badge-processing':'badge-completed'}">${r.status}</span></td>
+                <td><span class="badge ${r.status==='offen'?'badge-processing':'badge-completed'}">${_escHtml(r.status)}</span></td>
               </tr>`;}).join('')}</tbody>
             </table></div>`;
         } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`; }
@@ -21361,7 +21361,7 @@
       });
 
       function openVerkaufModal() {
-        const opts = _ppPartners.map(p => `<option value="${p.id}">${p.name} (${p.id})</option>`).join('');
+        const opts = _ppPartners.map(p => `<option value="${p.id}">${_escHtml(p.name)} (${p.id})</option>`).join('');
         const bd = document.createElement('div'); bd.className = 'modal-backdrop';
         bd.innerHTML = `<div class="modal-box" style="max-width:480px;width:94%;">
           <div class="modal-title">Verkauf erfassen</div>
@@ -21418,7 +21418,7 @@
           const sel = document.getElementById('abrechnungen-filter-partner');
           if (_ppPartners.length) {
             sel.innerHTML = '<option value="">Alle Partner</option>' +
-              _ppPartners.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+              _ppPartners.map(p => `<option value="${p.id}">${_escHtml(p.name)}</option>`).join('');
           }
           _abrLoaded = true;
         }
@@ -21463,7 +21463,7 @@
               <td>${r.zeitraumVon}</td><td>${r.zeitraumBis}</td>
               <td class="num">${fmt(r.saldo)}</td>
               <td style="font-size:0.8rem;">${r.erstelltAm}</td>
-              <td><span class="badge ${badge(r.status)}">${r.status}</span></td>
+              <td><span class="badge ${badge(r.status)}">${_escHtml(r.status)}</span></td>
             </tr>
             <tr class="abr-detail-row" data-abr-detail="${r.abrechnungId}">
               <td colspan="8" class="abr-detail-cell">${renderAbrDetail(r)}</td>
@@ -21504,10 +21504,10 @@
               return `
                 <tr class="abr-verkauf-master" data-abr-id="${r.abrechnungId}" data-vk-i="${vi}">
                   <td><span class="abr-arrow">▸</span></td>
-                  <td>${v.datum}</td>
-                  <td>${v.orderId}</td>
-                  <td>${v.artikelname}</td>
-                  <td class="num">${v.stueckzahl}</td>
+                  <td>${_escHtml(v.datum)}</td>
+                  <td>${_escHtml(v.orderId)}</td>
+                  <td>${_escHtml(v.artikelname)}</td>
+                  <td class="num">${_escHtml(v.stueckzahl)}</td>
                   <td class="num">${fmt(v.vkBrutto)}</td>
                   <td class="num"><strong>${fmt(v.lizenz)}</strong></td>
                 </tr>
@@ -21526,9 +21526,9 @@
               <th class="num">Anzahl</th><th class="num">Einzelpreis</th><th class="num">Summe</th>
             </tr></thead>
             <tbody>${p.intern.map(i => `<tr>
-              <td>${i.datum}</td>
-              <td>${i.bezeichnung}</td>
-              <td class="num">${i.anzahl}</td>
+              <td>${_escHtml(i.datum)}</td>
+              <td>${_escHtml(i.bezeichnung)}</td>
+              <td class="num">${_escHtml(i.anzahl)}</td>
               <td class="num">${fmt(i.einzelpreis)}</td>
               <td class="num"><strong>${fmt(i.summe)}</strong></td>
             </tr>`).join('')}</tbody>
@@ -21586,7 +21586,7 @@
             </div>`;
         }
 
-        const notiz = r.notiz ? `<p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.4rem;"><em>Notiz:</em> ${r.notiz}</p>` : '';
+        const notiz = r.notiz ? `<p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.4rem;"><em>Notiz:</em> ${_escHtml(r.notiz)}</p>` : '';
 
         return notiz + verkaeufeHTML + internHTML + saldoHTML + actionsHTML;
       }
@@ -21697,7 +21697,7 @@
       }
 
       function openAbrechnungModal() {
-        const opts  = _ppPartners.map(p => `<option value="${p.id}">${p.name} (${p.id})</option>`).join('');
+        const opts  = _ppPartners.map(p => `<option value="${p.id}">${_escHtml(p.name)} (${p.id})</option>`).join('');
         const today = new Date().toISOString().slice(0, 10);
         const vom   = today.slice(0, 7) + '-01';
         const bd = document.createElement('div'); bd.className = 'modal-backdrop';
@@ -21756,19 +21756,19 @@
         const fmt = v => v.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
         const verkaeufeRows = data.verkaeufe.length
           ? data.verkaeufe.map(v => `<tr>
-              <td style="font-size:0.78rem;">${v.datum}</td>
-              <td style="font-size:0.78rem;">${v.orderId}</td>
-              <td style="font-size:0.78rem;">${v.artikelname}</td>
-              <td style="text-align:right;font-size:0.78rem;">${v.stueckzahl}</td>
+              <td style="font-size:0.78rem;">${_escHtml(v.datum)}</td>
+              <td style="font-size:0.78rem;">${_escHtml(v.orderId)}</td>
+              <td style="font-size:0.78rem;">${_escHtml(v.artikelname)}</td>
+              <td style="text-align:right;font-size:0.78rem;">${_escHtml(v.stueckzahl)}</td>
               <td style="text-align:right;font-size:0.78rem;">${fmt(v.vkBrutto)}</td>
               <td style="text-align:right;font-weight:600;font-size:0.78rem;">${fmt(v.lizenz)}</td>
             </tr>`).join('')
           : `<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:0.6rem;font-size:0.82rem;">Keine offenen Verkäufe</td></tr>`;
         const internRows = data.intern.length
           ? data.intern.map(i => `<tr>
-              <td style="font-size:0.78rem;">${i.datum}</td>
-              <td style="font-size:0.78rem;">${i.bezeichnung}</td>
-              <td style="text-align:right;font-size:0.78rem;">${i.anzahl}</td>
+              <td style="font-size:0.78rem;">${_escHtml(i.datum)}</td>
+              <td style="font-size:0.78rem;">${_escHtml(i.bezeichnung)}</td>
+              <td style="text-align:right;font-size:0.78rem;">${_escHtml(i.anzahl)}</td>
               <td style="text-align:right;font-size:0.78rem;">${fmt(i.einzelpreis)}</td>
               <td style="text-align:right;font-weight:600;font-size:0.78rem;">${fmt(i.summe)}</td>
             </tr>`).join('')
@@ -21776,8 +21776,8 @@
 
         const bd = document.createElement('div'); bd.className = 'modal-backdrop';
         bd.innerHTML = `<div class="modal-box" style="max-width:880px;width:96%;max-height:90vh;overflow-y:auto;">
-          <div class="modal-title">Vorschau – ${partnerName} (${data.zeitraumVon} – ${data.zeitraumBis})</div>
-          ${(data.hinweise || []).length ? `<div style="margin-top:0.8rem;padding:0.6rem 0.8rem;border:1px solid var(--warning);border-radius:6px;font-size:0.82rem;color:var(--warning);">${data.hinweise.map(h => `<div>⚠ ${h}</div>`).join('')}</div>` : ''}
+          <div class="modal-title">Vorschau – ${_escHtml(partnerName)} (${data.zeitraumVon} – ${data.zeitraumBis})</div>
+          ${(data.hinweise || []).length ? `<div style="margin-top:0.8rem;padding:0.6rem 0.8rem;border:1px solid var(--warning);border-radius:6px;font-size:0.82rem;color:var(--warning);">${data.hinweise.map(h => `<div>⚠ ${_escHtml(h)}</div>`).join('')}</div>` : ''}
           <div style="margin-top:1rem;">
             <h3 style="font-size:0.92rem;margin:0 0 0.4rem;">Shop-Verkäufe (Lizenz-Einnahmen)</h3>
             <div style="overflow-x:auto;border:1px solid var(--border);border-radius:6px;">
@@ -21921,7 +21921,7 @@
         const sel = document.getElementById('artikel-filter-partner');
         if (sel.options.length <= 1 && _ppPartners.length) {
           sel.innerHTML = '<option value="">– Partner wählen –</option>' +
-            _ppPartners.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+            _ppPartners.map(p => `<option value="${p.id}">${_escHtml(p.name)}</option>`).join('');
         }
         if (!_artikelState.konfig) {
           try {
@@ -21976,7 +21976,7 @@
             <th>B/P</th>
           </tr></thead>
           <tbody>${artikel.map((a, i) => `<tr data-art-i="${i}">
-            <td>${a.artikelname}</td>
+            <td>${_escHtml(a.artikelname)}</td>
             <td style="font-size:0.82rem;color:var(--muted);">${a.produktId}</td>
             <td style="text-align:right;"><input class="form-input art-edit" data-field="ekPreis" type="number" step="0.01" min="0" value="${a.ekPreis ?? ''}" placeholder="fehlt" style="width:80px;text-align:right;font-size:0.82rem;padding:0.22rem 0.4rem;"></td>
             <td style="text-align:right;"><input class="form-input art-edit" data-field="druckkosten" type="number" step="0.01" min="0" value="${a.druckkosten ?? ''}" placeholder="fehlt" style="width:80px;text-align:right;font-size:0.82rem;padding:0.22rem 0.4rem;"></td>
@@ -22090,7 +22090,7 @@
               const lizColor = det.lizenz < 0 ? 'color:var(--danger);' : '';
               return `<tr data-art-i="${i}">
                 <td style="font-size:0.82rem;">${a.artikelnummer}</td>
-                <td>${a.artikelname}</td>
+                <td>${_escHtml(a.artikelname)}</td>
                 <td style="text-align:right;"><input class="form-input art-edit" data-field="ekPreis" type="number" step="0.01" min="0" value="${a.ekPreis ?? ''}" placeholder="fehlt" style="width:80px;text-align:right;font-size:0.82rem;padding:0.22rem 0.4rem;"></td>
                 <td style="text-align:right;"><input class="form-input art-edit" data-field="druckkosten" type="number" step="0.01" min="0" value="${a.druckkosten ?? ''}" placeholder="fehlt" style="width:80px;text-align:right;font-size:0.82rem;padding:0.22rem 0.4rem;"></td>
                 <td><select class="form-select art-edit" data-field="versandart" style="width:60px;font-size:0.82rem;padding:0.22rem 0.4rem;">
@@ -22291,7 +22291,7 @@
         const sel = document.getElementById('intern-filter-partner');
         if (sel.options.length <= 1 && _ppPartners.length) {
           sel.innerHTML = '<option value="">– Partner wählen –</option>' +
-            _ppPartners.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+            _ppPartners.map(p => `<option value="${p.id}">${_escHtml(p.name)}</option>`).join('');
         }
         if (_internState.partnerId) loadInternTable();
       }
@@ -22346,14 +22346,14 @@
               : `<button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;" data-int-edit="${r.rowId}" data-hilfe="liste-bearbeiten">Bearbeiten</button>
                  <button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;margin-top:0.25rem;color:var(--danger);" data-int-del="${r.rowId}" data-hilfe="intern-loeschen">Löschen</button>`;
             return `<tr>
-              <td>${r.datum}</td>
-              <td>${r.bezeichnung}</td>
-              <td style="text-align:right;">${r.anzahl}</td>
+              <td>${_escHtml(r.datum)}</td>
+              <td>${_escHtml(r.bezeichnung)}</td>
+              <td style="text-align:right;">${_escHtml(r.anzahl)}</td>
               <td style="text-align:right;">${fmt(r.einzelpreis)}</td>
               <td style="text-align:right;font-weight:600;">${fmt(r.summe)}</td>
-              <td><span class="badge ${badge(r.status)}" style="margin-bottom:0.35rem;display:inline-block;">${r.status}</span><br>
+              <td><span class="badge ${badge(r.status)}" style="margin-bottom:0.35rem;display:inline-block;">${_escHtml(r.status)}</span><br>
                 <select class="form-select" style="font-size:0.78rem;padding:0.22rem 0.5rem;margin-top:0.15rem;"
-                  data-int-sel="${r.rowId}" data-int-cur="${r.status}">${opts}</select></td>
+                  data-int-sel="${r.rowId}" data-int-cur="${_escHtml(r.status)}">${opts}</select></td>
               <td style="text-align:right;white-space:nowrap;">${actions}</td>
             </tr>`;
           }).join('')}</tbody>
@@ -22394,7 +22394,7 @@
             if (!row) return;
             const ok = await window.showConfirm(
               'Interne Bestellung löschen?',
-              `<strong>${_escHtml(row.bezeichnung)}</strong> (${row.datum}) wird unwiderruflich gelöscht.`,
+              `<strong>${_escHtml(row.bezeichnung)}</strong> (${_escHtml(row.datum)}) wird unwiderruflich gelöscht.`,
               'Löschen', 'Abbrechen'
             );
             if (!ok) return;
@@ -23347,8 +23347,8 @@
           const fmt   = v => Number(v || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
           const saldo = (e, k) => { const v = (e||0) - (k||0); const col = v < 0 ? 'var(--danger)' : 'var(--success)'; return `<span style="color:${col};">${v<0?'−':''}${fmt(Math.abs(v))} €</span>`; };
           const body = d.produkteGruppen.map(g => `<tr>
-            <td style="font-size:0.82rem;">${g.artikelname}<br><span style="color:var(--muted);font-size:0.74rem;">${g.artikelkategorie || '–'} · #${g.produktId}</span></td>
-            <td style="text-align:right;">${g.stueckzahl}</td>
+            <td style="font-size:0.82rem;">${_escHtml(g.artikelname)}<br><span style="color:var(--muted);font-size:0.74rem;">${_escHtml(g.artikelkategorie || '–')} · #${g.produktId}</span></td>
+            <td style="text-align:right;">${_escHtml(g.stueckzahl)}</td>
             <td style="text-align:right;font-weight:600;">${fmt(g.vkNetto)} €</td>
             <td style="text-align:right;color:var(--danger);">${g.festpreisGesamt ? '−'+fmt(g.festpreisGesamt)+' €' : '0,00 €'}</td>
             <td style="text-align:right;color:var(--danger);">−${fmt(g.handlingGesamt)} €</td>
@@ -23372,7 +23372,7 @@
             <tbody>${body}</tbody>
             <tfoot><tr style="font-weight:600;border-top:2px solid var(--border);">
               <td>Gesamt</td>
-              <td style="text-align:right;">${s.stueckzahl}</td>
+              <td style="text-align:right;">${_escHtml(s.stueckzahl)}</td>
               <td style="text-align:right;">${fmt(s.vkNetto)} €</td>
               <td style="text-align:right;color:var(--danger);">${s.festpreisGesamt ? '−'+fmt(s.festpreisGesamt)+' €' : '0,00 €'}</td>
               <td style="text-align:right;color:var(--danger);">−${fmt(s.handlingGesamt)} €</td>
@@ -23392,21 +23392,21 @@
           const fmt = x => Number(x || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
           const k = p.kosten || {}, e = p.einnahmen || {};
           const nicht = [p.abholung ? `${p.abholung} Abholung` : '', p.ohneVersand ? `${p.ohneVersand} ohne Versand` : ''].filter(Boolean).join(', ');
-          const warn = (p.hinweise || []).map(h => `<div style="color:var(--warning);font-size:0.78rem;">⚠ ${h}</div>`).join('');
+          const warn = (p.hinweise || []).map(h => `<div style="color:var(--warning);font-size:0.78rem;">⚠ ${_escHtml(h)}</div>`).join('');
           return `<div style="display:flex;justify-content:space-between;padding:0.15rem 0;" data-hilfe="fp-porto-einnahmen" tabindex="0">
-              <span>+ Porto-Einnahmen (${e.anzahl} Bestellungen)</span><span>+${fmt(e.summe)} €</span></div>
+              <span>+ Porto-Einnahmen (${_escHtml(e.anzahl)} Bestellungen)</span><span>+${fmt(e.summe)} €</span></div>
             <div style="display:flex;justify-content:space-between;padding:0.15rem 0;color:var(--danger);" data-hilfe="fp-porto-kosten" tabindex="0">
-              <span>− Porto-Kosten (${k.anzahl} Bestellungen, davon ${k.paket || 0} Paket)</span><span>−${fmt(k.summe)} €</span></div>
+              <span>− Porto-Kosten (${_escHtml(k.anzahl)} Bestellungen, davon ${k.paket || 0} Paket)</span><span>−${fmt(k.summe)} €</span></div>
             <div style="color:var(--muted);font-size:0.78rem;">netto, in „Auszahlung netto“ enthalten${nicht ? ` · ohne Porto-Kosten: ${nicht}` : ''}</div>${warn}`;
         }
 
         function fpVerpackungHTML(v) {
           if (!v || v.status === 'keine') return '';
           const fmt = x => Number(x || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-          const hinweise = (v.hinweise || []).map(h => `<div style="color:var(--muted);font-size:0.78rem;">${h}</div>`).join('');
+          const hinweise = (v.hinweise || []).map(h => `<div style="color:var(--muted);font-size:0.78rem;">${_escHtml(h)}</div>`).join('');
           if (v.status !== 'ok') return `<div style="padding:0.3rem 0;color:var(--danger);font-weight:600;">⚠ ${(v.hinweise || []).join(' ') || 'Verpackungspauschale nicht berechnet.'} Die Abrechnung enthält dann KEINE Pauschale.</div>`;
           return `<div style="display:flex;justify-content:space-between;padding:0.15rem 0;color:var(--danger);">
-              <span>− Verpackungspauschale: ${v.anzahl} Bestellungen × ${fmt(v.betrag)} € (brutto)</span><span>−${fmt(v.summe)} €</span></div>
+              <span>− Verpackungspauschale: ${_escHtml(v.anzahl)} Bestellungen × ${fmt(v.betrag)} € (brutto)</span><span>−${fmt(v.summe)} €</span></div>
             <div style="color:var(--muted);font-size:0.78rem;">nicht gezählt: ${v.abholung || 0} Abholung, ${v.vorAb || 0} vor ${v.ab || '–'}</div>${hinweise}`;
         }
 
@@ -23422,8 +23422,8 @@
                 <th style="text-align:right;">Einzelpreis</th><th style="text-align:right;">Summe (brutto)</th>
               </tr></thead>
               <tbody>${intern.map(i => `<tr>
-                <td style="font-size:0.82rem;">${i.bezeichnung}<br><span style="color:var(--muted);font-size:0.74rem;">${i.datum}</span></td>
-                <td style="text-align:right;">${i.anzahl}</td>
+                <td style="font-size:0.82rem;">${_escHtml(i.bezeichnung)}<br><span style="color:var(--muted);font-size:0.74rem;">${_escHtml(i.datum)}</span></td>
+                <td style="text-align:right;">${_escHtml(i.anzahl)}</td>
                 <td style="text-align:right;">${fmt(i.einzelpreis)} €</td>
                 <td style="text-align:right;color:var(--danger);">−${fmt(i.summe)} €</td>
               </tr>`).join('')}</tbody>
@@ -23451,7 +23451,7 @@
           const partnerName = _fpPartners.find(p => p['Partner-ID'] === partnerId)?.Name || partnerId;
           const bd = document.createElement('div'); bd.className = 'modal-backdrop';
           bd.innerHTML = `<div class="modal-box" style="max-width:880px;width:97%;max-height:90vh;display:flex;flex-direction:column;">
-            <div class="modal-title">Abrechnung Vorschau – ${partnerName}</div>
+            <div class="modal-title">Abrechnung Vorschau – ${_escHtml(partnerName)}</div>
             <p style="font-size:0.82rem;color:var(--muted);margin:0.6rem 0 1rem;">${vonDatum} – ${bisDatum} &nbsp;·&nbsp; ${d.positionen} Einzelpositionen${(d.intern||[]).length ? ` · ${(d.intern||[]).length} interne Bestellung(en)` : ''}</p>
             <div style="overflow:auto;flex:1;">
               ${fpSummaryTableHTML(d)}
@@ -23547,14 +23547,14 @@
                 ? ''
                 : `<button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;" data-fpi-edit="${r.rowId}" data-hilfe="liste-bearbeiten">Bearbeiten</button>`;
               return `<tr>
-                <td>${r.datum}</td>
-                <td>${r.bezeichnung}</td>
-                <td style="text-align:right;">${r.anzahl}</td>
+                <td>${_escHtml(r.datum)}</td>
+                <td>${_escHtml(r.bezeichnung)}</td>
+                <td style="text-align:right;">${_escHtml(r.anzahl)}</td>
                 <td style="text-align:right;">${fmt(r.einzelpreis)}</td>
                 <td style="text-align:right;font-weight:600;">${fmt(r.summe)}</td>
-                <td><span class="badge ${badge(r.status)}" style="margin-bottom:0.35rem;display:inline-block;">${r.status}</span><br>
+                <td><span class="badge ${badge(r.status)}" style="margin-bottom:0.35rem;display:inline-block;">${_escHtml(r.status)}</span><br>
                   <select class="form-select" style="font-size:0.78rem;padding:0.22rem 0.5rem;margin-top:0.15rem;"
-                    data-fpi-sel="${r.rowId}" data-fpi-cur="${r.status}">${opts}</select></td>
+                    data-fpi-sel="${r.rowId}" data-fpi-cur="${_escHtml(r.status)}">${opts}</select></td>
                 <td style="text-align:right;">${editBtn}</td>
               </tr>`;
             }).join('')}</tbody>

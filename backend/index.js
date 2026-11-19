@@ -41,6 +41,7 @@ import dashboardRouter from './routes/dashboard.js';
 import auftraegeRouter from './routes/auftraege.js';
 import bestellseiteRouter from './routes/bestellseite.js';
 import bestellseitenRouter from './routes/bestellseiten.js';
+import { fehlerHandler } from './middleware/fehlerHandler.js';
 
 // Secrets vor Express-Setup laden – stellt sicher dass process.env.CORS_ORIGIN
 // (und alle anderen Secrets) bereits gesetzt sind wenn die Middleware konfiguriert wird.
@@ -108,13 +109,7 @@ app.use((_req, res) => res.status(404).json({ error: 'Not found' }));
 // ── Error handler ─────────────────────────────────────────────────────────────
 // Hoster-Pruefseite zuerst: 503 + Code "hoster_pruefseite" + Chat (gedrosselt).
 app.use(hosterPruefseiteHandler);
-app.use((err, _req, res, _next) => {
-  console.error(err);
-  const message = process.env.NODE_ENV === 'production'
-    ? (err.message || 'Interner Serverfehler.')
-    : (err.stack || err.message || 'Interner Serverfehler.');
-  res.status(err.status ?? 500).json({ error: message });
-});
+app.use(fehlerHandler);   // loggt nur Name, Meldung, Status, Code, Pfad
 
 app.listen(PORT, () => {
   console.log(`Mission Control backend → http://localhost:${PORT}`);

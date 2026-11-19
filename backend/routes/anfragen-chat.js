@@ -6,6 +6,7 @@ import { loadRecentAnfragen, callChatAgent } from '../lib/chatCore.js';
 import rateLimit from 'express-rate-limit';
 import { notify, buildAnfrageNachricht, notifyFehler, alarmWuerdig } from '../lib/chatNotify.js';
 import { issueSessionToken, verifySessionToken } from '../lib/chatSession.js';
+import { SESSION_LAENGEN, kanalAusListe, preisZelle } from '../utils/anfrage-felder.js';
 
 const router = Router();
 
@@ -133,27 +134,28 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
 
           // Sanitize: user-gesteuerte Felder kappen + unerwünschte Zeichen entfernen
           const safeStr   = (v, max) => String(v ?? '').replace(/[\r\n\t]/g, ' ').slice(0, max);
-          const safeId    = String(merged.partnerId || '').replace(/[^A-Za-z0-9\-]/g, '').slice(0, 20);
-          const safePreis = String(merged.preisvorschlag || '').replace(/[^0-9.,]/g, '').slice(0, 10);
+          const L = SESSION_LAENGEN;
+          const safeId    = String(merged.partnerId || '').replace(/[^A-Za-z0-9\-]/g, '').slice(0, L.partnerId);
+          const safePreis = preisZelle(String(merged.preisvorschlag || '').replace(/[^0-9.,]/g, '').slice(0, L.preisvorschlag));
 
           await sheets.spreadsheets.values.append({
             spreadsheetId: sheetId,
             range: `${TAB}!A:N`,
-            valueInputOption: 'USER_ENTERED',
+            valueInputOption: 'RAW',   // Text bleibt Text, nie Formel
             insertDataOption: 'INSERT_ROWS',
             requestBody: {
               values: [[
                 anfrageId,
                 todayDE(),
-                merged.kanal || 'Homepage',
-                safeStr(merged.kundeName, 100),
-                safeStr(merged.kundeEmail, 200),
-                safeStr(merged.produktBeschreibung, 500),
-                safeStr(merged.menge, 100),
-                safeStr(merged.varianten, 200),
+                kanalAusListe(merged.kanal, 'Homepage'),
+                safeStr(merged.kundeName, L.kundeName),
+                safeStr(merged.kundeEmail, L.kundeEmail),
+                safeStr(merged.produktBeschreibung, L.produktBeschreibung),
+                safeStr(merged.menge, L.menge),
+                safeStr(merged.varianten, L.varianten),
                 safeId,
                 safePreis,
-                safeStr(merged.anmerkungenKunde, 500),
+                safeStr(merged.anmerkungenKunde, L.anmerkungenKunde),
                 'Neu',
                 '', '',
               ]],

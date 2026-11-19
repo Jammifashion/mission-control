@@ -238,7 +238,7 @@ export async function notifyFehler({ art, status, text, titel }) {
     letzterAlarm.set(art, jetzt);
     return await notify(buildFehlerNachricht({ art, status, text, titel }));
   } catch (err) {
-    console.error('[chatNotify] Alarm fehlgeschlagen:', err?.message ?? err);
+    console.error('[chatNotify] Alarm fehlgeschlagen:', String(err?.message ?? 'unbekannt').slice(0, 300));
     return false;
   }
 }
@@ -266,7 +266,7 @@ export async function notifyHosterPruefseite({ ablauf, shop, pfad, httpStatus, t
       LINK,
     ].filter(Boolean).join('\n'));
   } catch (err) {
-    console.error('[chatNotify] Hoster-Meldung fehlgeschlagen:', err?.message ?? err);
+    console.error('[chatNotify] Hoster-Meldung fehlgeschlagen:', String(err?.message ?? 'unbekannt').slice(0, 300));
     return false;
   }
 }
@@ -297,7 +297,7 @@ export async function notifyShopZeitueberschreitung({ ablauf, shop, methode, pfa
       LINK,
     ].filter(Boolean).join('\n'));
   } catch (err) {
-    console.error('[chatNotify] Zeitueberschreitungs-Meldung fehlgeschlagen:', err?.message ?? err);
+    console.error('[chatNotify] Zeitueberschreitungs-Meldung fehlgeschlagen:', String(err?.message ?? 'unbekannt').slice(0, 300));
     return false;
   }
 }
@@ -333,7 +333,7 @@ export async function notify(text) {
   try {
     url = String((await getSecret('GCHAT_WEBHOOK_URL')) ?? '').trim();
   } catch (err) {
-    console.error('[chatNotify] GCHAT_WEBHOOK_URL nicht lesbar:', err?.message ?? err);
+    console.error('[chatNotify] GCHAT_WEBHOOK_URL nicht lesbar:', String(err?.message ?? 'unbekannt').slice(0, 300));
     return false;
   }
 
@@ -383,7 +383,7 @@ export async function notify(text) {
     }
     return true;
   } catch (err) {
-    console.error('[chatNotify] Zustellung fehlgeschlagen:', err?.message ?? err);
+    console.error('[chatNotify] Zustellung fehlgeschlagen:', String(err?.message ?? 'unbekannt').slice(0, 300));
     return false;
   }
 }
