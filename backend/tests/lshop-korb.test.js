@@ -175,13 +175,16 @@ describe('runKorbAbgleich', () => {
     expect(aufrufe.struktur[0][0].appendDimension).toMatchObject({ dimension: 'ROWS', length: 3 });
   });
 
-  test('liest nur JFN und nur processing + on-hold, ohne Kundenfelder', async () => {
+  test('liest nur JFN: processing + on-hold, dazu completed der letzten 14 Tage (FIX3 G11), ohne Kundenfelder', async () => {
     const { sheets } = machSheets(grundTabs());
     const wcJe = { jfn: machWc(offene()), honk: machWc(offene()) };
     await runKorbAbgleich({ sheets, wcFuer: s => wcJe[s], jetzt });
     expect(wcJe.honk.get).not.toHaveBeenCalled();
-    const status = wcJe.jfn.get.mock.calls.filter(([p, q]) => p === 'orders' && !q.include).map(([, q]) => q.status);
-    expect(status).toEqual(['processing', 'on-hold']);
+    const abfragen = wcJe.jfn.get.mock.calls.filter(([p, q]) => p === 'orders' && !q.include).map(([, q]) => q);
+    expect(abfragen.map(q => q.status)).toEqual(['processing', 'on-hold', 'completed']);
+    expect(abfragen[0].after).toBeUndefined();
+    const vor14 = new Date(jetzt().getTime() - 14 * 864e5).toISOString().slice(0, 19);
+    expect(abfragen[2].after).toBe(vor14);
     for (const [, q] of wcJe.jfn.get.mock.calls) expect(q._fields).not.toMatch(/billing|shipping/);
   });
 

@@ -35,6 +35,8 @@ export const KORB_SICHTBAR = [STATUS.OFFEN, STATUS.ABGEWAEHLT, STATUS.LAGER];
 
 // Der Abgleich liest diese Status. Shop: nur JFN, bis HONK selbst EDI-bestellbar ist.
 export const KORB_STATUS_SHOP = ['processing', 'on-hold'];
+// FIX3 G11: zusaetzlich "completed" mit Anlagedatum in den letzten n Tagen (schnell abgeschlossene Bestellungen).
+export const KORB_ABGESCHLOSSEN_TAGE = 14;
 export const KORB_SHOPS = ['jfn'];
 
 // Hinweise schreibt nur der Lauf. Die ersten fuenf stehen in antwort-BO1;

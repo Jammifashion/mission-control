@@ -28,7 +28,7 @@ import { wcVariationMap } from '../utils/varianten-zeilen.js';
 import { colLetter } from '../utils/sheet-spalten.js';
 import { normalizeShop } from '../utils/shop-spalte.js';
 import {
-  TAB_KORB, KORB_SHOPS, KORB_STATUS_SHOP, korbSchluessel, STATUS, HERKUNFT,
+  TAB_KORB, KORB_SHOPS, KORB_STATUS_SHOP, KORB_ABGESCHLOSSEN_TAGE, korbSchluessel, STATUS, HERKUNFT,
   korbZeilen, alsSheetZeile, baueKontext, abgleichPlan, nachzulesendeBestellungen,
   ersteFreieZeile, bereichLeer, vergleicheZurueck, buendele, korbZaehler,
   GRUENDE, statusPlan, naechsteEigenNummer, eigeneZeile, eigeneZeilen, sucheModelle, NICHT_IM_BESTAND, KORB_SICHTBAR,
@@ -66,12 +66,17 @@ const q = tab => `'${tab}'`;
 
 // ── Shop ────────────────────────────────────────────────────────────────────
 
-export async function ladeKorbBestellungen(wc) {
+export async function ladeKorbBestellungen(wc, jetzt = new Date()) {
   const alle = [];
-  for (const status of KORB_STATUS_SHOP) {
+  // FIX3 G11: dazu "abgeschlossen" der letzten KORB_ABGESCHLOSSEN_TAGE (nach Anlagedatum) - eine Bestellung, die
+  // zwischen zwei Stundenlaeufen bezahlt UND abgeschlossen wurde, war nie processing/on-hold. Ihre Positionen kommen
+  // mit dem Hinweis "abgeschlossen" (sperrt EDI; BO5-8: "Aus Lager genommen" / "Erledigt"), schon vorhandene bleiben.
+  const abgeschlossenSeit = new Date(jetzt.getTime() - KORB_ABGESCHLOSSEN_TAGE * 864e5).toISOString().slice(0, 19);
+  const abfragen = [...KORB_STATUS_SHOP.map(status => ({ status })), { status: 'completed', after: abgeschlossenSeit }];
+  for (const a of abfragen) {
     for (let page = 1; ; page++) {
       seitenGrenze(page, { wc, pfad: 'orders' });
-      const liste = seitenListe((await wc.get('orders', { status, per_page: BLOCK, page, _fields: ORDER_FELDER })).data, { wc, pfad: 'orders' });
+      const liste = seitenListe((await wc.get('orders', { ...a, per_page: BLOCK, page, _fields: ORDER_FELDER })).data, { wc, pfad: 'orders' });
       alle.push(...liste);
       if (liste.length < BLOCK) break;
     }
@@ -267,7 +272,7 @@ export async function runKorbAbgleich({ dryRun = false, quelle = 'workflow', lau
     const hinweiseAlle = [];
     for (const shop of KORB_SHOPS) {
       const wc = wcFuer(shop);
-      const offene = await ladeKorbBestellungen(wc);
+      const offene = await ladeKorbBestellungen(wc, jetzt());
       const schonDa = new Set(vorhanden.map(z => z.Schluessel));
       const pids = [...new Set(offene.flatMap(o => (o.line_items ?? [])
         .filter(li => !schonDa.has(korbSchluessel(shop, o.id, li.id)))
