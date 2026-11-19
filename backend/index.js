@@ -42,6 +42,7 @@ import auftraegeRouter from './routes/auftraege.js';
 import bestellseiteRouter from './routes/bestellseite.js';
 import bestellseitenRouter from './routes/bestellseiten.js';
 import { fehlerHandler } from './middleware/fehlerHandler.js';
+import { jobAlarm } from './middleware/jobAlarm.js';
 
 // Secrets vor Express-Setup laden – stellt sicher dass process.env.CORS_ORIGIN
 // (und alle anderen Secrets) bereits gesetzt sind wenn die Middleware konfiguriert wird.
@@ -63,6 +64,7 @@ app.use(cors({
   exposedHeaders: ['X-MC-Stand'],
 }));
 app.use(express.json({ limit: '256kb' }));
+app.use(jobAlarm());   // FIX3 B1: 5xx der Job-Routen -> Chat (gedrosselt, ohne Kundendaten)
 
 // ── Rate limiting → Auth (Reihenfolge: rateLimiter → requireApiKey → Router) ──
 app.use('/api/', apiRateLimiter);
