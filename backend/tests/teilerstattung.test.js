@@ -87,7 +87,25 @@ describe('berechneTeilerstattung', () => {
     expect(r.hinweise[0]).toMatchObject({ refundId: '903', grund: 'unbekannt' });
   });
 
-  test('gleiche Produkt-ID zweimal in der Bestellung -> mehrdeutig, nichts gebucht', () => {
+  test('_refunded_item_id ordnet auch bei gleicher Produkt-ID eindeutig zu', () => {
+    const r = berechneTeilerstattung({
+      items: [item(10, 500, 1), item(11, 500, 1)],
+      refunds: [{ id: 910, lines: [{ product_id: 500, quantity: -1, meta_data: [{ key: '_refunded_item_id', value: '11' }] }] }],
+    });
+    expect(r.hinweise).toEqual([]);
+    expect(r.buchungen[0]).toMatchObject({ positionId: '11', menge: 1 });
+  });
+
+  test('_refunded_item_id zeigt auf fremde Position -> unbekannt, nicht ueber Produkt geraten', () => {
+    const r = berechneTeilerstattung({
+      items: [item(10, 500, 1)],
+      refunds: [{ id: 911, lines: [{ product_id: 500, quantity: -1, meta_data: [{ key: '_refunded_item_id', value: '99' }] }] }],
+    });
+    expect(r.buchungen).toEqual([]);
+    expect(r.hinweise[0]).toMatchObject({ grund: 'unbekannt' });
+  });
+
+  test('gleiche Produkt-ID zweimal in der Bestellung ohne _refunded_item_id -> mehrdeutig, nichts gebucht', () => {
     const r = berechneTeilerstattung({
       items: [item(10, 500, 1), item(11, 500, 1)],
       refunds: [{ id: 904, lines: [{ product_id: 500, quantity: -1 }] }],

@@ -2,7 +2,7 @@
 //
 // Eingabe je Bestellung:
 //   items:   Positionen der Bestellung { id, product_id, variation_id, quantity }
-//   refunds: Erstattungen { id, lines: [{ product_id, variation_id, quantity, total }], versand }
+//   refunds: Erstattungen { id, lines: [{ product_id, variation_id, quantity, total, meta_data }], versand }
 //            quantity/total wie von WooCommerce (negativ) oder positiv - es zaehlt der Betrag (abs).
 //            lines leer = Erstattung nur mit Betrag (kein Positionsbezug).
 //            versand = erstatteter Versand (Betrag, > 0 = Versand erstattet).
@@ -23,6 +23,11 @@ export const refundSchluessel = (refundId, positionId) => `${refundId}|${positio
 
 const zahl = v => { const n = Math.abs(Number(String(v ?? '').replace(',', '.'))); return Number.isFinite(n) ? n : 0; };
 const kombi = (productId, variationId) => `${productId ?? ''}|${Number(variationId || 0)}`;
+/** Original-Position einer Erstattungs-Zeile (meta _refunded_item_id), sonst ''. */
+export function refundedItemId(line) {
+  const m = (line?.meta_data ?? []).find(x => x?.key === '_refunded_item_id');
+  return m && String(m.value ?? '').trim() !== '' ? String(m.value).trim() : '';
+}
 
 /**
  * @returns {{
@@ -46,8 +51,13 @@ export function berechneTeilerstattung({ items = [], refunds = [], gebucht = new
     // Mehrere Zeilen derselben Position in EINER Erstattung zusammenfassen (eine Buchung je Schluessel).
     const jePosition = new Map();
     for (const line of r.lines) {
+      // Gemessen 19.11. (NB1): WooCommerce liefert an jeder Erstattungs-Zeile meta _refunded_item_id = Original-Position.
+      // Die gilt zuerst; nur ohne sie wird ueber Produkt + Variante gesucht (mehrfach = mehrdeutig).
+      const bezug = refundedItemId(line);
       const k = kombi(line.product_id, line.variation_id);
-      const treffer = items.filter(i => kombi(i.product_id, i.variation_id) === k);
+      const treffer = bezug
+        ? items.filter(i => String(i.id) === bezug)
+        : items.filter(i => kombi(i.product_id, i.variation_id) === k);
       const info = { refundId, produktId: line.product_id, variationId: Number(line.variation_id || 0) };
       if (treffer.length === 0) { hinweise.push({ ...info, grund: 'unbekannt' }); continue; }
       if (treffer.length > 1)   { hinweise.push({ ...info, grund: 'mehrdeutig' }); continue; }
