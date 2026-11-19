@@ -35,6 +35,7 @@ export const ZIELE = [
 // ── Retention ───────────────────────────────────────────────────────────────
 const DAILY_RETENTION_DAYS   = 14;
 const MONTHLY_RETENTION_MONTHS = 12;
+export const MONATSKOPIE_NACHHOLEN_BIS_TAG = 7;   // FIX3: fehlende Monatskopie bis zum 7. nachholen
 
 // Befund B19: Cloud Run laeuft als Dienstkonto mit Rolle Content-Manager auf
 // der geteilten Ablage. files.delete verlangt Manager - alte Backups werden
@@ -176,8 +177,8 @@ async function sichereSpreadsheet(sheets, drive, ziel, ctx) {
   });
   console.log(`✓ Daily-Backup hochgeladen: ${dailyName} (${sizeKB} KB, ${tabTitles.length} Reiter, "${sheetName}")`);
 
-  // ── Monthly-Backup (nur am 1. des Monats) ─────────────────────────────────
-  if (now.getDate() === 1) {
+  // ── Monthly-Backup (am 1. des Monats; FIX3: fehlt sie, holt der naechste Lauf sie bis zum 7. nach) ──
+  if (ctx.monatskopie(monthlyName)) {
     await drive.files.create({
       requestBody: {
         name:     monthlyName,
@@ -231,7 +232,23 @@ export async function runBackup({ warte = sleep } = {}) {
   const drive  = google.drive({ version: 'v3', auth });
 
   const now = new Date();
-  const ctx = { now, dailyFolder: DAILY_FOLDER, monthlyFolder: MONTHLY_FOLDER, warte };
+  // FIX3: Die Monatskopie entstand nur, wenn der Lauf am 1. gelang. Vom 2. bis 7. wird geprueft, welche
+  // Monatsdateien schon im Ordner liegen; fehlende werden nachgeholt. Liste nicht lesbar -> nur Warnung.
+  const tag = now.getDate();
+  let monatVorhanden = null;
+  if (tag > 1 && tag <= MONATSKOPIE_NACHHOLEN_BIS_TAG) {
+    try {
+      const { data } = await drive.files.list({
+        q: `'${MONTHLY_FOLDER}' in parents and trashed = false`, fields: 'files(name)', pageSize: 200,
+        supportsAllDrives: true, includeItemsFromAllDrives: true, corpora: 'allDrives',
+      });
+      monatVorhanden = new Set((data.files ?? []).map(f => f.name));
+    } catch (err) {
+      console.warn(`WARNUNG: Monatsordner nicht lesbar, Monatskopie wird nicht nachgeholt: ${ohneIds(err.message ?? err)}`);
+    }
+  }
+  const monatskopie = name => tag === 1 || (monatVorhanden !== null && !monatVorhanden.has(name));
+  const ctx = { now, dailyFolder: DAILY_FOLDER, monthlyFolder: MONTHLY_FOLDER, warte, monatskopie };
 
   // Beide Ziele versuchen, auch wenn eines scheitert: die Datei, die sich
   // schreiben laesst, ist besser als keine. Der Lauf endet danach trotzdem rot.

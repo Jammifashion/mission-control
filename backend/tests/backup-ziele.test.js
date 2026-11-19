@@ -385,6 +385,34 @@ describe('Retention bleibt wie bisher', () => {
     } finally { jest.useRealTimers(); }
   });
 
+  test('FIX3: fehlt die Monatsdatei am 2., wird sie nachgeholt - nur fuer die Ziele ohne Datei', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-02T02:00:00Z'));
+    filesList.mockImplementation(async ({ q }) => ({
+      data: { files: q.includes('monthly-folder') ? [{ id: 'm1', name: 'SSOT_Backup-2026-05.json.gz', createdTime: '2026-05-01T02:00:00Z' }] : [] },
+    }));
+    try {
+      await runBackup();
+      const monatlich = filesCreate.mock.calls
+        .filter(c => c[0].requestBody.parents[0] === 'monthly-folder')
+        .map(c => c[0].requestBody.name);
+      expect(monatlich).toEqual(['BUSINESS_Backup-2026-05.json.gz', 'KUNDEN_Backup-2026-05.json.gz']);
+    } finally { jest.useRealTimers(); }
+  });
+
+  test('FIX3: Monatsordner nicht lesbar -> nichts nachgeholt, Backup laeuft', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-03T02:00:00Z'));
+    let n = 0;
+    filesList.mockImplementation(async ({ q }) => {
+      if (q.includes('monthly-folder') && n++ === 0) throw new Error('kaputt');
+      return { data: { files: [] } };
+    });
+    try {
+      const r = await runBackup();
+      expect(r.dateien).toBe(3);
+      expect(filesCreate.mock.calls.every(c => c[0].requestBody.parents[0] === 'daily-folder')).toBe(true);
+    } finally { jest.useRealTimers(); }
+  });
+
   test('an anderen Tagen keine Monatsdatei', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-05-12T02:00:00Z'));
     try {
