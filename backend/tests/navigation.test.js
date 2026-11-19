@@ -54,7 +54,7 @@ describe('Tabelle BEREICHE deckt alle vorhandenen Ansichten ab', () => {
 
   test('Bereiche mit eigener Leiste haben fuer jeden Unterpunkt eine Beschriftung', () => {
     for (const def of Object.values(BEREICHE).filter(d => d.leiste)) {
-      for (const p of def.punkte) expect(p.label).toBeTruthy();
+      for (const p of def.punkte.filter(x => !x.umleitung)) expect(p.label).toBeTruthy();
     }
   });
 });
@@ -69,14 +69,27 @@ describe('Adresse #bereich/unterpunkt', () => {
 
   test('alte Adresse #bestellen/lshop leitet auf L-Shop-Bestellungen um (BO4d); Umleitungen zeigen auf echte Ansichten', () => {
     expect(ansichtAusHash('#bestellen/lshop')).toMatchObject({ bereich: 'bestellen', punkt: 'lshop-bestellungen' });
-    expect(umleitungen.map(u => `${u.b}/${u.id}->${u.umleitung}`)).toEqual(['bestellen/lshop->lshop-bestellungen']);
+    expect(umleitungen.map(u => `${u.b}/${u.id}->${u.umleitung}`)).toEqual(['auftraege/kunden->kunden/stamm', 'bestellen/lshop->lshop-bestellungen']);
     for (const u of umleitungen) {
       expect(u.panel).toBeUndefined();
       expect(u.knopf).toBeUndefined();
-      expect(punkte.some(p => p.b === u.b && p.id === u.umleitung)).toBe(true);
+      const [zb, zp] = u.umleitung.includes('/') ? u.umleitung.split('/') : [u.b, u.umleitung];
+      expect(punkte.some(p => p.b === zb && p.id === zp)).toBe(true);
     }
     expect(html).not.toMatch(/knopf: '#panel-orders \.sub-tab\[data-subtab="tab-lshop"\]'/);
     expect(html).toMatch(/<button class="sub-tab" data-subtab="tab-lshop-uebersicht"[^>]*>[^<]*<\/button>\s*<button class="sub-tab" data-subtab="tab-lshop-bestellungen"[^>]*>/);
+  });
+
+  test('FIX3: Kundenstamm unter "Kunden" (zuerst), alte Adresse #auftraege/kunden leitet um, Jey-Wissen', () => {
+    expect(ansichtAusHash('#auftraege/kunden')).toMatchObject({ bereich: 'kunden', punkt: 'stamm' });
+    expect(BEREICHE.kunden.label).toBe('Kunden');
+    expect(BEREICHE.kunden.punkte.map(p => p.label)).toEqual(['Kundenstamm', 'Kundenanfragen', 'Jey-Wissen']);
+    expect(BEREICHE.kunden.punkte[0].panel).toBe('auftraege');
+    expect(BEREICHE.auftraege.punkte.filter(p => !p.umleitung).map(p => p.id)).toEqual(['liste', 'todos', 'bestellseiten']);
+    expect(html).toContain('<span class="lang">Kunden</span><span class="kurz">Kunden</span>');
+    expect(html).not.toContain('Kunden &amp; Jey');
+    // Die Leiste zeichnet keine Umleitungs-Zeilen.
+    expect(html).toContain('def.punkte.filter(p => !p.umleitung).map(p =>');
   });
 
   test('nur Bereich -> Bereich ohne Unterpunkt', () => {
@@ -96,7 +109,7 @@ describe('Shop-Badge wirkt nur, wo der Shop zaehlt', () => {
   test.each([
     ['dashboard', 'start', true], ['bestellen', 'dtf', true], ['artikel', 'neu', true],
     ['partner', 'lizenz', true], ['partner', 'festpreis', false],
-    ['kunden', 'anfragen', false], ['kunden', 'wissen', false], ['system', 'einstellungen', false],
+    ['kunden', 'stamm', false], ['kunden', 'anfragen', false], ['kunden', 'wissen', false], ['system', 'einstellungen', false],
   ])('%s/%s -> %s', (b, p, erwartet) => expect(shopWirkt(b, p)).toBe(erwartet));
 });
 
@@ -133,7 +146,7 @@ describe('NAV5: 2. Ebene am Handy als Kacheln (Violett), Desktop unveraendert', 
     expect(html).not.toMatch(/sub\('tab-[a-z-]+',\s*`[^`]*\(\$\{kurz\}\)`\)/);
   });
   test('jeder Unterpunkt einer Bereichsleiste wird als Kachel (Knopf .sub-tab) gezeichnet', () => {
-    expect(html).toContain('`<button class="sub-tab${p.id === punkt ? \' active\' : \'\'}" data-punkt="${p.id}" data-hilfe="nav-ansicht">${p.label}</button>`');
+    expect(html).toContain('`<button class="sub-tab${p.id === punkt ? \' active\' : \'\'}" data-punkt="${p.id}" data-hilfe="nav-ansicht"${p.hilfe ? ` data-hilfe-zusatz="${p.hilfe}"` : \'\'}>${p.label}</button>`');
     for (const [b, def] of Object.entries(BEREICHE).filter(([, d]) => d.leiste)) expect([b, def.punkte.length]).toEqual([b, expect.any(Number)]);
   });
 });

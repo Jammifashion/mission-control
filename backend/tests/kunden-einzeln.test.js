@@ -190,9 +190,10 @@ describe('Navigation und Datenschutz', () => {
     const tabelle = html.slice(html.indexOf('const BEREICHE = {'), html.indexOf('// ── Navigation-Tabelle: Ende ──'));
     expect(tabelle.indexOf('auftraege: {')).toBeGreaterThan(tabelle.indexOf('dashboard: {'));
     expect(tabelle.indexOf('auftraege: {')).toBeLessThan(tabelle.indexOf('bestellen: {'));
-    // Inhaber 03.11.: im Bereich Aufträge der Unterpunkt Aufträge vor Kunden
+    // Inhaber 03.11.: Aufträge zuerst; FIX3 (19.11.): Kunden nur noch als Umleitung auf den Bereich "Kunden" (Kundenstamm)
     const au = tabelle.slice(tabelle.indexOf('auftraege: {'), tabelle.indexOf('bestellen: {'));
-    expect([...au.matchAll(/id: '([a-z]+)'/g)].map(m => m[1])).toEqual(['liste', 'todos', 'kunden', 'bestellseiten']);   // AM-4: Offene To-dos hinter Auftraege; KS1: Bestellseiten am Ende
+    expect([...au.matchAll(/id: '([a-z]+)'/g)].map(m => m[1])).toEqual(['liste', 'todos', 'bestellseiten', 'kunden']);   // AM-4: Offene To-dos hinter Auftraege; KS1: Bestellseiten
+    expect(au).toContain("{ id: 'kunden', umleitung: 'kunden/stamm' }");
   });
   test('Suchbegriff geht per POST (nie in die Adresse), Route loggt keinen Suchbegriff/Namen', () => {
     const route = readFileSync(resolve(hier, '../routes/kunden.js'), 'utf8');

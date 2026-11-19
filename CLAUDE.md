@@ -63,11 +63,13 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
 - Navigation (NAV4: Tabelle `BEREICHE` im Block `Navigation-Tabelle: Anfang/Ende`, Test
   navigation.test.js; `oeffneAnsicht(bereich, unterpunkt)` = einziger Weg, eine Ansicht zu oeffnen,
   auch `window.oeffneAnsicht`; Adresse `#bereich/unterpunkt`; Ereignis `mc:ansicht` fuer den
-  zweiten Script-Block. Bereiche: dashboard · auftraege (liste, kunden; ein Panel `auftraege`, AM-1/AM-2; seit AM-1-1 direkt
+  zweiten Script-Block. Bereiche: dashboard · auftraege (liste, todos, bestellseiten; ein Panel `auftraege`, AM-1/AM-2; seit AM-1-1 direkt
   hinter Dashboard) · bestellen (Panel orders, Unterreiter) · artikel
-  (Panel products, Modus-Knoepfe) · partner (lizenz = partnerportal, festpreis) · kunden (anfragen,
-  agent-wissen) · lager (bestand, buchungen, abgaenge; ein Panel `lager`, BO5-1/BO5-5) · system (settings). Neue Ansicht = Zeile in BEREICHE, nie `nav button.click()`.
-  Alte Adresse = Zeile mit `umleitung: '<unterpunkt>'` ohne panel/knopf (BO4d: `bestellen/lshop`).
+  (Panel products, Modus-Knoepfe) · partner (lizenz = partnerportal, festpreis) · kunden ("Kunden", FIX3 19.11.: stamm = Kundenstamm
+  im Panel `auftraege` zuerst, anfragen, wissen = "Jey-Wissen") · lager (bestand, buchungen, abgaenge; ein Panel `lager`, BO5-1/BO5-5) · system (settings). Neue Ansicht = Zeile in BEREICHE, nie `nav button.click()`.
+  Alte Adresse = Zeile mit `umleitung: '<unterpunkt>'` ohne panel/knopf (BO4d: `bestellen/lshop`), in einen anderen Bereich
+  `umleitung: '<bereich>/<unterpunkt>'` (FIX3: `auftraege/kunden` -> `kunden/stamm`); die Leiste zeichnet Umleitungen nicht.
+  Optional `hilfe` je Unterpunkt = `data-hilfe-zusatz` am Leisten-Knopf.
   NAV6: jeder Ansichtswechsel = Verlaufseintrag (`verlaufSchritt` im Block `Navigation-Tabelle`: Nutzer = pushState, Start/
   Umleitung/Zurueck-Taste = replace), `hashchange` oeffnet ohne neuen Eintrag; offener Dialog (`NV_DIALOG`) = Ansicht bleibt + Toast.
   Neue Version (Service Worker `controllerchange`) laedt NIE sofort neu: Leiste `#neue-version` ("Jetzt neu laden" fragt bei Eingaben/
@@ -199,7 +201,7 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   Zeilen je Position mit Lager-Artikel, "bestellt n · schon m zurückgebucht", Rest vorbelegt), Hinweis Defekt = Ausschuss. Verlauf:
   Retoure verlinkt "Retoure zu JFN #… · Pos. …" (`lagerRetoureBezugHtml` -> `psSpringeZu`), HONK nur Text. Korb "Aus Lager": Position
   mit Hinweis gelb `.korb-storno` + Knopf "zurück ins Lager" (`data-lager-storno`, `korbStornoZurueck`) statt "zurück in den Korb".)
-- Aufträge (AM-1: Bereich `auftraege`, Unterpunkt `auftraege/kunden` = Kundenliste, `auftraege/liste` = Platzhalter bis AM-2;
+- Aufträge (AM-1: Bereich `auftraege`, Kundenliste seit FIX3 unter `kunden/stamm` (gleiches Panel), `auftraege/liste` = Platzhalter bis AM-2;
   Panel `#panel-auftraege`, geladen ueber `mc:ansicht`. Block `Kunden-Liste: Anfang/Ende` (Test kunden-frontend.test.js,
   `kuSuche` = Spiegel von `sucheKunden` in utils/kunden.js). Suche/Filter nur im Browser, Suchbegriff nie gespeichert (kein
   Browser-Speicher, keine Adresse, nie an den Server). Dialog `#ku-dialog`: Quelle lexoffice = nur Spitzname/Ansprechpartner/Notiz aenderbar;
@@ -416,7 +418,8 @@ Neue Sektionen immer mit Anker versehen:
   `Warenkorb_LShop` (SSOT) ist ein STEHENDER Bestand: jede L-Shop-bestellfaehige Shop-Position eine
   Zeile, Schluessel `JFN:<Bestellnummer>:<Position>`, Spalte Shop von Anfang an. Abgleich
   (`POST /api/bestellen/lshop-korb/abgleich` `{ dryRun, quelle }`, Knopf + Workflow
-  `lshop-korb-abgleich.yml` von Hand, stuendlich Cloud Scheduler, CS1) liest nur JFN, Status processing + on-hold, haengt nur NEUE Schluessel
+  `lshop-korb-abgleich.yml` von Hand, stuendlich Cloud Scheduler, CS1) liest nur JFN, Status processing + on-hold (FIX3 G11: dazu completed
+  mit Anlagedatum der letzten 14 Tage, `KORB_ABGESCHLOSSEN_TAGE` - schnell abgeschlossene kommen mit Hinweis "abgeschlossen"), haengt nur NEUE Schluessel
   an, aendert nie Status, loescht nie; schreibt nur `Hinweis` (noch nicht bezahlt / storniert /
   erstattet / abgeschlossen / Menge geaendert / nicht mehr im Shop / Position weg) fuer Zeilen mit
   Status offen oder bestellt. Bestellfaehig = Varianten-Zeile ueber WC_Variation_ID MIT Gegenprobe
@@ -1473,6 +1476,20 @@ nur echte Fehler (Sheets, 401, Zeitlimit) machen den Versuch rot -> Log-Alarm (K
 Dritter Job `lshop-lieferbarkeit` (BO7-1): `47 * * * *` Europe/Berlin, POST auf
 `<BACKEND_URL>/api/intern/lshop-lieferbarkeit/abruf`, gleiches Dienstkonto, gleiche Audience wie CS1, Versuchsfrist 300 s,
 keine Wiederholung. FTP-Fehler sind 200; rot erst, wenn der letzte Stand aelter als 6 h ist (oder Sheets/401/Zeitlimit).
+
+## Betrieb (FIX3)
+- Alarm: `middleware/jobAlarm.js` (vor den Routern) meldet jede 5xx-Antwort der Job-Routen (`JOB_ROUTEN`: Backup, Partner-Artikel-
+  Abgleich, Partner-Sync, FP-Sync, Trikot-Sync, Korb-, Belege-, Lieferbarkeit-Knopf/Workflow, Modell-Check) ueber `notifyFehler`
+  (1/h je Lauf), nur Lauf + Status + Code. Nicht: Pruefseite/Zeitueberschreitung (eigene Meldung), `/api/intern` (meldet selbst).
+- Lebenszeichen: `lebenszeichen-weekly.yml` (montags 06:30 UTC) zaehlt ueber die GitHub-API Tage mit erfolgreichem Schritt
+  (`.github/scripts/lebenszeichen.mjs`, Schrittnamen = `- name:` der Workflows) -> `POST /api/system/lebenszeichen` -> eine Chat-Meldung,
+  fehlende Laeufe orange (utils/lebenszeichen.js). Schrittnamen in backup/partner/trikot-Workflows nicht umbenennen (Test).
+- Pages-Deploy (`deploy.yml`) laeuft erst nach `npm test` in backend. Cloud Run `--timeout 600`, Job-Workflows `curl --max-time 600`.
+- Backup-Rueckweg: `scripts/restore-backup.js --datei <…json.gz> [--ziel <leeres Test-Sheet>] [--modus raw|user] [--write]`
+  (utils/backup-restore.js; nie in ein Original-Sheet, Ziel muss leer sein; meldet Zahl-als-Text, fuehrende Null, Datum). Monatskopie:
+  fehlt sie, holt `backup-daily.js` sie vom 2. bis 7. nach (`MONATSKOPIE_NACHHOLEN_BIS_TAG`).
+- EDI (G5): Position in einer anderen EDI-Zeile "wird gesendet"/"unklar"/"gesendet" ohne AB = Regel `gebunden` rot
+  (`gebundenePositionen`); "zurück auf Entwurf" mit AB_Nr oder Abgeholt = 409 `schon_bei_lshop`.
 
 ## Neues Secret anlegen
 1. Secret im GCP Secret Manager anlegen (Browser, Account gbr@jammifashion.de)

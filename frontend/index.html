@@ -238,7 +238,7 @@
       }
       /* Shop-Badge in Bereichen, in denen der Shop nicht wirkt */
       #shop-badge.shop-inaktiv { opacity: 0.4; }
-      /* 2. Ebene fuer Bereiche mit mehreren Panels (Partner, Kunden & Jey) */
+      /* 2. Ebene fuer Bereiche mit mehreren Panels (Aufträge, Partner, Kunden, Lager) */
       .bereich-leiste { padding: 0 1.5rem; margin-bottom: 0; }
 
       /* ── Main panels ── */
@@ -1910,14 +1910,14 @@
       <button data-bereich="bestellen" data-hilfe="nav-bereich"><span class="lang">Bestellen &amp; Produktion</span><span class="kurz">Bestellen</span><span id="nav-orders-badge" class="nav-badge"></span></button>
       <button data-bereich="artikel" data-hilfe="nav-bereich"><span class="lang">Artikel</span><span class="kurz">Artikel</span></button>
       <button data-bereich="partner" data-hilfe="nav-bereich"><span class="lang">Partner</span><span class="kurz">Partner</span></button>
-      <button data-bereich="kunden" data-hilfe="nav-bereich"><span class="lang">Kunden &amp; Jey</span><span class="kurz">Kunden</span></button>
+      <button data-bereich="kunden" data-hilfe="nav-bereich" data-hilfe-zusatz="Kundenstamm, Kundenanfragen, Jey-Wissen"><span class="lang">Kunden</span><span class="kurz">Kunden</span></button>
       <button data-bereich="lager" data-hilfe="nav-bereich"><span class="lang">Lager</span><span class="kurz">Lager</span></button>
       <button data-bereich="system" data-hilfe="nav-bereich"><span class="lang">System</span><span class="kurz">System</span></button>
     </nav>
 
     <main>
       <div id="hilfe-navigation" class="hilfe-legende" hidden></div>
-      <!-- NAV4: 2. Ebene fuer Partner und Kunden & Jey (baut oeffneAnsicht) -->
+      <!-- NAV4: 2. Ebene fuer Bereiche mit Leiste (baut oeffneAnsicht) -->
       <div id="bereich-leiste" class="sub-tabs bereich-leiste" hidden></div>
       <!-- Dashboard -->
       <section id="panel-dashboard" class="panel active">
@@ -4341,8 +4341,9 @@
         auftraege: { label: 'Aufträge', leiste: true, shop: false, punkte: [
           { id: 'liste',  label: 'Aufträge', panel: 'auftraege' },   // Inhaber 03.11.: Aufträge vor Kunden
           { id: 'todos',  label: 'Offene To-dos', panel: 'auftraege' },   // AM-4: alle offenen Punkte aus Aufträgen und Aufgaben
-          { id: 'kunden', label: 'Kunden',   panel: 'auftraege' },
           { id: 'bestellseiten', label: 'Bestellseiten', panel: 'auftraege' },   // KS1: Bestellseiten per Token
+          // FIX3 (Inhaber 19.11.): Kundenstamm steht jetzt unter "Kunden"; alte Adresse/Lesezeichen leiten um.
+          { id: 'kunden', umleitung: 'kunden/stamm' },
         ] },
         bestellen: { label: 'Bestellen & Produktion', shop: true, punkte: [
           { id: 'bestellungen', panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-jfn-shop"]' },
@@ -4368,9 +4369,12 @@
           { id: 'lizenz',    label: 'Lizenzpartner', panel: 'partnerportal', shop: true },
           { id: 'festpreis', label: 'Festpreis',     panel: 'festpreis',     shop: false },   // Shop je Partner
         ] },
-        kunden: { label: 'Kunden & Jey', leiste: true, shop: false, punkte: [
+        // FIX3 (Inhaber 19.11.): ein Bereich "Kunden" - Kundenstamm zuerst (Panel auftraege, wie bisher unter Aufträge),
+        // dann Kundenanfragen und Jey-Wissen (vorher "Kunden & Jey" mit "Agent-Wissen").
+        kunden: { label: 'Kunden', leiste: true, shop: false, punkte: [
+          { id: 'stamm',    label: 'Kundenstamm',    panel: 'auftraege', hilfe: 'Alle Kunden, auch ohne Auftrag: suchen, anlegen, bearbeiten.' },
           { id: 'anfragen', label: 'Kundenanfragen', panel: 'anfragen' },
-          { id: 'wissen',   label: 'Agent-Wissen',   panel: 'agent-wissen' },
+          { id: 'wissen',   label: 'Jey-Wissen',     panel: 'agent-wissen' },
         ] },
         // BO5-1: beide Unterpunkte im selben Panel; welche Liste sichtbar ist, entscheidet lagerZeigen (Ereignis mc:ansicht).
         lager: { label: 'Lager', leiste: true, shop: false, punkte: [
@@ -4388,6 +4392,11 @@
         const b   = Object.hasOwn(BEREICHE, bereich) ? bereich : 'dashboard';
         const def = BEREICHE[b];
         const p0  = def.punkte.find(x => x.id === punkt) ?? null;
+        // FIX3: Umleitung in einen anderen Bereich ("bereich/unterpunkt"), z. B. #auftraege/kunden -> #kunden/stamm.
+        if (p0?.umleitung?.includes('/')) {
+          const [b2, p2] = p0.umleitung.split('/');
+          if (b2 !== b && Object.hasOwn(BEREICHE, b2)) return findeAnsicht(b2, p2);
+        }
         const p   = p0?.umleitung ? def.punkte.find(x => x.id === p0.umleitung) ?? null : p0;   // BO4d: alte Adressen
         return { bereich: b, punkt: p ? p.id : null, def, p };
       }
@@ -4457,8 +4466,8 @@
         const def = BEREICHE[bereich];
         if (!def.leiste) { el.hidden = true; el.innerHTML = ''; return; }
         el.hidden = false;
-        el.innerHTML = def.punkte.map(p =>
-          `<button class="sub-tab${p.id === punkt ? ' active' : ''}" data-punkt="${p.id}" data-hilfe="nav-ansicht">${p.label}</button>`).join('');
+        el.innerHTML = def.punkte.filter(p => !p.umleitung).map(p =>
+          `<button class="sub-tab${p.id === punkt ? ' active' : ''}" data-punkt="${p.id}" data-hilfe="nav-ansicht"${p.hilfe ? ` data-hilfe-zusatz="${p.hilfe}"` : ''}>${p.label}</button>`).join('');
       }
 
       // Oeffnet Bereich + Unterpunkt. Ohne Unterpunkt bleibt bei Bestellen/Artikel
