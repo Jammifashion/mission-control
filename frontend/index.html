@@ -701,7 +701,7 @@
         /* BO5-3: vier Filter im Korb - zwei Reihen statt seitlich hinaus */
         #korb-filter { flex-wrap: wrap; row-gap: 0.3rem; }
         #korb-filter button { flex: 1 1 40%; border-radius: 6px; margin-left: 0; }
-        .korb-filter button { flex: 1 1 auto; padding: 0 0.4rem; min-width: 0; }
+        .korb-filter button { flex: 1 1 auto; padding: 0.3rem 0.4rem; min-width: 0; height: auto; min-height: 2rem; white-space: normal; line-height: 1.2; }
         .korb-aktionen { margin-left: 0; justify-content: flex-start; }
         .korb-aktion-haupt { flex: 1 1 auto; justify-content: center; }
         .korb-aktionen .hilfe-i { order: 1; }
@@ -826,7 +826,7 @@
       .lfbs-vorschlag { color: var(--muted); }
       @media (max-width: 600px) { .lfbs-var { grid-template-columns: 1fr; } }
       /* BO7-5: Gruppen ueber den Lagerstatus im Shop (FK1: lieferbar = --success, Hinweis = --warning) */
-      .lfbs-gruppe { display: inline-block; font-size: 0.74rem; font-weight: 600; padding: 0 0.4rem; border-radius: 999px; border: 1px solid currentColor; cursor: help; white-space: nowrap; }
+      .lfbs-gruppe { display: inline-block; font-size: 0.74rem; font-weight: 600; padding: 0 0.4rem; border-radius: 999px; border: 1px solid currentColor; cursor: help; white-space: normal; }
       .lfbs-gruppe-rueckstand_lieferbar { color: var(--success); background: color-mix(in srgb, var(--success) 10%, transparent); }
       .lfbs-gruppe-vorraetig_problem { color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, transparent); }
       .korb-raster input.korb-raster-fehler { border-color: var(--danger); }
@@ -1176,7 +1176,7 @@
       .order-card-meta { display: flex; align-items: center; gap: 0.6rem; flex: 1; flex-wrap: wrap; min-width: 0; }
       .order-card-id   { font-weight: 600; font-size: 0.88rem; white-space: nowrap; }
       .order-card-customer { font-size: 0.84rem; }
-      .order-card-detail   { font-size: 0.77rem; color: var(--muted); white-space: nowrap; }
+      .order-card-detail   { font-size: 0.77rem; color: var(--muted); white-space: normal; overflow-wrap: anywhere; }
       .order-progress { display: inline-block; font-size: 0.75rem; font-weight: 500; padding: 0.15em 0.5em; border-radius: 4px; white-space: nowrap; }
       .order-progress.prog-none    { background: var(--surface-2); color: var(--muted); }
       .order-progress.prog-partial { background: var(--warning-bg); color: var(--warning); }
@@ -1429,7 +1429,7 @@
       .btn-danger:hover { opacity: 0.88; }
 
       /* ── Kundenanfragen Extern ── */
-      .anf-header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+      .anf-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
       .anf-header-title h2 { font-size: 1.45rem; font-weight: 700; color: var(--text); margin: 0; letter-spacing: -0.01em; }
       .anf-header-sub { font-size: 0.82rem; color: var(--muted); margin-top: 0.25rem; }
       .anf-new-btn {
@@ -2453,7 +2453,7 @@
           <div class="card" style="margin-bottom:1rem;">
             <div class="form-section-title">Artikel suchen <span class="field-note">(Name, SKU oder Produkt-ID – nur veröffentlichte)</span></div>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
-              <input id="se-suche" type="text" class="form-input" style="flex:1;min-width:12rem;" placeholder="z. B. Oldschool, E3000/CH-Oldschool oder 21044" />
+              <input id="se-suche" type="text" class="form-input" style="flex:1;min-width:12rem;" placeholder="z. B. Oldschool oder 21044" />
               <button class="btn-secondary" id="se-suchen" data-hilfe="se-suchen">Suchen</button>
             </div>
             <select id="se-treffer" class="form-select" style="margin-top:0.5rem;display:none;"></select>
@@ -2516,7 +2516,7 @@
                 <option value="g:rueckstand_lieferbar">Im Rückstand – bei L-Shop lieferbar</option><option value="g:vorraetig_problem">Vorrätig – bei L-Shop 0 / weg</option>
               </select>
               <select id="lfbs-f-kat" class="form-select" aria-label="Kategorie" data-hilfe="lfbs-f-kat"><option value="">alle Kategorien</option></select>
-              <input id="lfbs-suche" class="form-input" type="search" placeholder="Suche: Artikel, Farbe, Größe, Nummer" aria-label="Suche" data-hilfe="lfbs-suche">
+              <input id="lfbs-suche" class="form-input" type="search" placeholder="Suche: Artikel, Farbe, Nr." aria-label="Suche" data-hilfe="lfbs-suche">
             </div>
             <div class="lfbs-leiste">
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="lfbs-shopstatus" data-hilfe="lfbs-shopstatus">Shop-Status prüfen</button>
@@ -2539,7 +2539,7 @@
               Erst „Prüfen“ sucht in der L-Shop-Stammdatei; geschrieben wird nur mit „Übernehmen“.</p>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
               <input id="lsm-eingabe" type="text" class="form-input" style="flex:1;min-width:9rem;" placeholder="Modell oder Name" autocomplete="off" />
-              <input id="lsm-notiz" type="text" class="form-input" style="flex:2;min-width:12rem;" placeholder="Notiz: wofür (optional, keine Kundendaten)" maxlength="80" data-hilfe="lsm-notiz" />
+              <input id="lsm-notiz" type="text" class="form-input" style="flex:2;min-width:12rem;" placeholder="Notiz (optional, keine Kundendaten)" maxlength="80" data-hilfe="lsm-notiz" />
               <button class="korb-aktion korb-aktion-haupt" id="lsm-hinzufuegen" type="button" data-hilfe="lsm-hinzufuegen">Zur Liste</button>
             </div>
             <div id="lsm-liste" class="lsm-liste"></div>
@@ -3453,7 +3453,7 @@
           <div id="ku-einrichtung" class="lager-warnung" hidden></div>
           <div class="korb-bedienung">
             <div class="korb-ansicht lager-filter">
-              <input id="ku-suche" type="search" class="form-input" placeholder="Suche: Name, Spitzname, Nummer, Ort" autocomplete="off" aria-label="Kunden suchen" data-hilfe="ku-suche" />
+              <input id="ku-suche" type="search" class="form-input" placeholder="Suche: Name, Nr., Ort" autocomplete="off" aria-label="Kunden suchen" data-hilfe="ku-suche" />
               <select id="ku-f-art" class="form-select" aria-label="Art" data-hilfe="ku-f-art">
                 <option value="">alle Arten</option><option value="Firma">Firma</option><option value="Verein">Verein</option><option value="Person">Person</option>
               </select>
@@ -3489,7 +3489,7 @@
           </div>
           <div class="korb-bedienung">
             <div class="korb-ansicht lager-filter">
-              <input id="au-suche" type="search" class="form-input" placeholder="Suche: Nr., Titel, Kunde, Spitzname" autocomplete="off" aria-label="Aufträge suchen" data-hilfe="au-suche" />
+              <input id="au-suche" type="search" class="form-input" placeholder="Suche: Nr., Titel, Kunde" autocomplete="off" aria-label="Aufträge suchen" data-hilfe="au-suche" />
               <select id="au-f" class="form-select" aria-label="Filter" data-hilfe="au-filter">
                 <option value="offen">offen</option><option value="termin">Termin in ≤ 7 Tagen</option>
                 <option value="ware">wartet auf Ware</option>
@@ -3766,7 +3766,7 @@
               <legend data-hilfe="ap-summen" tabindex="0">Summe · Rabatt · Kalkulation (netto)</legend>
               <div id="au-preis-hinweis" class="lager-warnung" hidden></div>
               <div class="ap-rabatt">
-                <label data-hilfe="ap-rabatt">Rabatt auf den Auftrag<input id="au-rabatt" type="text" class="form-input" inputmode="decimal" autocomplete="off" placeholder="z. B. 10 oder 25,00" /></label>
+                <label data-hilfe="ap-rabatt">Rabatt auf den Auftrag<input id="au-rabatt" type="text" class="form-input" inputmode="decimal" autocomplete="off" placeholder="z. B. 10" /></label>
                 <select id="au-rabatt-art" class="form-select" aria-label="Rabatt in % oder €"><option value="%">%</option><option value="€">€ netto</option></select>
               </div>
               <div id="au-preis-summe"></div>
@@ -3910,7 +3910,7 @@
                 <option value="trikot">Trikots</option><option value="fremd">Fremdware</option><option value="frei">Sonstiges</option>
               </select>
               <select id="lager-f-ort" class="form-select" aria-label="Ort" data-hilfe="lager-ort"><option value="">alle Orte</option></select>
-              <input id="lager-f-suche" type="search" class="form-input" placeholder="Suche: Modell, Name, Farbe" autocomplete="off" aria-label="Suche" />
+              <input id="lager-f-suche" type="search" class="form-input" placeholder="Suche: Modell, Name" autocomplete="off" aria-label="Suche" />
               <label class="lager-null" id="lager-f-null-wrap" data-hilfe="lager-null"><input type="checkbox" id="lager-f-null"> auch Bestand 0</label>
             </div>
             <div class="korb-aktionen">
@@ -3929,7 +3929,7 @@
           <div id="lager-abgaenge" hidden>
             <div class="korb-ansicht lager-filter lager-a-filter">
               <select id="lager-a-art" class="form-select" aria-label="Art des Abgangs" data-hilfe="lager-auswertung"><option value="">alle Abgänge</option></select>
-              <select id="lager-a-bezug" class="form-select" aria-label="Event, Partner oder Auftrag"><option value="">alle Events / Partner / Aufträge</option></select>
+              <select id="lager-a-bezug" class="form-select" aria-label="Event, Partner oder Auftrag"><option value="">alle</option></select>
               <label class="lager-null">von <input id="lager-a-von" type="date" class="form-input" /></label>
               <label class="lager-null">bis <input id="lager-a-bis" type="date" class="form-input" /></label>
             </div>
@@ -4011,7 +4011,7 @@
           <div id="hilfe-einstellungen" class="hilfe-legende" hidden></div>
           <!-- AMQ1: eigenes Formular nur fuer den Schluessel (Chrome ordnet sonst jedes Textfeld in MC diesem Passwortfeld zu und
                fragt "Passwort speichern?"); das Feld wird nie vorbelegt - gespeichert ist der Schluessel im Browser-Speicher. -->
-          <form id="api-key-form" autocomplete="on" style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+          <form id="api-key-form" autocomplete="on" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.5rem;">
             <input type="text" name="username" autocomplete="username" value="Mission Control" readonly tabindex="-1" aria-hidden="true" class="api-key-name" />
             <input id="api-key" name="password" type="password" autocomplete="current-password" placeholder="MC_API_KEY"
               style="flex:1;min-width:0;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.6rem 0.8rem;color:var(--text);font-size:0.9rem;" />

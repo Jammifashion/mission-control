@@ -19,7 +19,7 @@
   /* NAV5: 2. Ebene am Handy (Unterreiter) - Violett (Inhaber 04.11., Variante B), getrennt von blau (Hauptkacheln) und gold (Shop) */
   --nav2-rand: #6b54a6; --nav2-text: #cbbcf0; --nav2-aktiv: #6a3fc2; --nav2-aktiv-rand: #a184ec;
   --text: #f0f0f0;
-  --muted: #888;
+  --muted: #8f8f8f;        /* NB1 (UI1-9): von #888, 4,43:1 auf --surface-2 -> >= 4,5:1 */
   --info: #4a9eff;         /* Links, Filter-Segmente, "aktuell/heute", Markierung */
   --warning: #f0a030;      /* bald faellig, laeuft aus, Hinweis, Ampel gelb, Goalie, Wartestellung, RS1 sofort/KW */
   --warning-bg: #3d2a0c;
