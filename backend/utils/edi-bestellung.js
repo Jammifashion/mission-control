@@ -142,6 +142,8 @@ export const EDI_REGELN = [
   { id: 'customer_id', stufe: 'rot',  titel: `Kundennummer (Config ${CONFIG_CUSTOMER_ID}) vorhanden, höchstens ${EDI_LAENGEN.customer_id} Zeichen` },
   { id: 'auswahl',     stufe: 'rot',  titel: 'mindestens eine Position gewählt, keine doppelt' },
   { id: 'vorhanden',   stufe: 'rot',  titel: 'Position im Korb vorhanden, unverändert und offen' },
+  // FIX3 G5: nach "unklar" bleibt die Position offen - sie darf nicht ein zweites Mal bestellt werden.
+  { id: 'gebunden',    stufe: 'rot',  titel: 'Position hängt in keiner anderen offenen L-Shop-Datei (wird gesendet, unklar, gesendet ohne AB)' },
   { id: 'shop',        stufe: 'rot',  titel: 'nur Shop JFN' },
   { id: 'hinweis',     stufe: 'rot',  titel: 'kein sperrender Hinweis (storniert, erstattet, abgeschlossen, nicht mehr im Shop, Position weg)' },
   { id: 'artikel',     stufe: 'rot',  titel: 'L-Shop-Artikelnummer 10-stellig, in LShop_Modelle, nicht ausgelaufen, Discontinued nicht 3/6' },
@@ -182,7 +184,7 @@ export function referenzFuer(z) {
  * @param {string} [o.versandartHinweis]  Hinweis zur Vorgabe aus Config (unbekannter Wert)
  * @param {Date} o.jetzt
  */
-export function ediPruefung({ auswahl, zeilen, modelle, customerId, commission, orderId, versandart, versandartHinweis = '', jetzt = new Date(), senden = false }) {
+export function ediPruefung({ auswahl, zeilen, modelle, customerId, commission, orderId, versandart, versandartHinweis = '', jetzt = new Date(), senden = false, gebunden = new Map() }) {
   const treffer = [];
   const melde = (regel, text, schluessel) => treffer.push({ regel, text, schluessel });
 
@@ -203,6 +205,7 @@ export function ediPruefung({ auswahl, zeilen, modelle, customerId, commission, 
     if (!z) { melde('vorhanden', 'nicht mehr im Korb', s); continue; }
     if (t(a.status) !== z.Status) { melde('vorhanden', `Status hat sich geändert (jetzt "${z.Status}") - neu laden`, s); continue; }
     if (z.Status !== STATUS.OFFEN) { melde('vorhanden', `Status "${z.Status}", nur offen ist bestellbar`, s); continue; }
+    if (gebunden.has(s)) melde('gebunden', `steckt schon in ${gebunden.get(s)} - erst klären (AB/Abgeholt prüfen, "Als gesendet markieren" oder "zurück auf Entwurf")`, s);
     // Streng: leere Zelle = JFN (wie im Korb), jeder andere Wert ausser JFN ist rot.
     if ((t(z.Shop) || 'JFN').toUpperCase() !== 'JFN') melde('shop', `Shop "${z.Shop}"`, s);
     if (hinweisSperrt(z.Hinweis)) melde('hinweis', z.Hinweis, s);
@@ -498,12 +501,47 @@ export function sendenStartPlan({ ediWerte, korbZeilen, orderId, jetzt }) {
   };
 }
 
-/** Zurueck auf Entwurf: nur aus "unklar" oder haengendem "wird gesendet" (der Korb ist dabei noch offen). */
+/**
+ * FIX3 G5: Korb-Positionen, die in einer anderen, nicht abgeschlossenen EDI-Zeile haengen:
+ * Status "wird gesendet", "unklar" oder "gesendet" ohne AB (Spalte AB_Nr leer bzw. nicht vorhanden).
+ * -> Map Korb-Schluessel -> "order_id (Status)". `ausser` = die eigene order_id (beim Senden).
+ */
+export function gebundenePositionen(ediWerte, { ausser = '' } = {}) {
+  const [kopf = [], ...rest] = ediWerte ?? [];
+  const out = new Map();
+  if (!kopf.length) return out;
+  const idx = ediSpalten(kopf);
+  const iAb = kopf.map(normHeader).indexOf(normHeader('AB_Nr'));
+  for (const r of rest) {
+    const oid = t(r[idx.order_id]);
+    if (!oid || oid === t(ausser)) continue;
+    const st = t(r[idx.Status]);
+    const ohneAb = iAb < 0 || !t(r[iAb]);
+    if (!(st === EDI_STATUS.WIRD_GESENDET || st === EDI_STATUS.UNKLAR || (st === EDI_STATUS.GESENDET && ohneAb))) continue;
+    for (const s of t(r[idx.Korb_Schluessel]).split(/\s+/).filter(Boolean)) if (!out.has(s)) out.set(s, `${oid} (${st})`);
+  }
+  return out;
+}
+
+/**
+ * Zurueck auf Entwurf: nur aus "unklar" oder haengendem "wird gesendet" (der Korb ist dabei noch offen).
+ * FIX3 G5: liegt schon eine AB vor oder hat L-Shop die Datei abgeholt, ist sie angekommen - dann gesperrt
+ * (sonst koennte dieselbe Ware ein zweites Mal gesendet werden).
+ */
 export function zurueckPlan({ ediWerte, orderId, jetzt }) {
   const { r, zeile: ediZeile, idx } = ediZeileZu(ediWerte, orderId);
   if (!wieUnklar(r, idx, jetzt)) {
     const e = new Error(`${t(orderId)} ist "${t(r[idx.Status])}" - zurück auf Entwurf geht nur aus "unklar" oder einem hängenden Senden.`);
     e.status = 409;
+    throw e;
+  }
+  const iAb = (ediWerte?.[0] ?? []).map(normHeader).indexOf(normHeader('AB_Nr'));
+  const ab = iAb >= 0 ? t(r[iAb]) : '';
+  const abgeholt = t(r[idx.Abgeholt]);
+  if (ab || abgeholt) {
+    const e = new Error(`${t(orderId)}: ${ab ? `Auftragsbestätigung ${ab} liegt vor` : `von L-Shop abgeholt (${abgeholt})`} - die Datei ist bei L-Shop angekommen. Nicht zurück auf Entwurf, sondern "Als gesendet markieren".`);
+    e.status = 409;
+    e.code = 'schon_bei_lshop';
     throw e;
   }
   return {

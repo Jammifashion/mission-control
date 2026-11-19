@@ -30,7 +30,7 @@ import {
   EDI_TAB, EDI_SPALTEN, EDI_STATUS, CONFIG_CUSTOMER_ID, CONFIG_SHIPPING, VERSANDARTEN, versandartVorgabe, gesendetPlan,
   ediSpalten, ediPruefung, baueBestellXml, pruefeBestellXml,
   naechsteOrderId, platzhalterOrderId, standardCommission, ediDatum, ediDateiname, berlinTeile,
-  sendenStartPlan, zurueckPlan, ediZeileZu, staffelStand, nettoSummen,
+  sendenStartPlan, zurueckPlan, ediZeileZu, staffelStand, nettoSummen, gebundenePositionen,
   CONFIG_STUFE_BESCHREIBUNG, buildGesendetNachricht, buildSendenAlarmNachricht,
 } from '../utils/edi-bestellung.js';
 
@@ -90,18 +90,22 @@ async function nettoFuer(sheets, items) {
  * versandart: was der Dialog geschickt hat; fehlt sie, gilt die Vorgabe aus Config (leer -> Standard,
  * unbekannt -> Standard + gelber Hinweis). Ein ungueltiger mitgeschickter Code bleibt stehen und ist rot.
  */
-async function grundlagen(sheets, { auswahl, commission, versandart, jetzt }) {
+async function grundlagen(sheets, { auswahl, commission, versandart, jetzt, ausser = '' }) {
   const spreadsheetId = process.env.GOOGLE_SHEET_ID;
   if (!spreadsheetId) throw fehler('GOOGLE_SHEET_ID fehlt.', 503);
   if (!await reiter(sheets, spreadsheetId, TAB_KORB)) throw fehler(`Reiter "${TAB_KORB}" fehlt.`, 409);
   const { zeilen } = korbZeilen(await werte(sheets, spreadsheetId, TAB_KORB));
+  // FIX3 G5: Positionen in anderen offenen EDI-Dateien (fehlt der Reiter: keine).
+  const gebunden = await reiter(sheets, spreadsheetId, EDI_TAB)
+    ? gebundenePositionen(await werte(sheets, spreadsheetId, EDI_TAB), { ausser })
+    : new Map();
   const modelle = new Map((await ladeLShopZeilen({ sheets, spreadsheetId })).map(z => [z.articleNr, z]));
   const customerId = await leseCustomerId({ sheets });
   const vorgabe = versandartVorgabe(await leseConfigWert(CONFIG_SHIPPING, { sheets }));
   const gewaehlt = versandart === undefined || versandart === null || String(versandart).trim() === '';
   const com = commission === undefined || commission === null ? standardCommission(jetzt) : String(commission).trim();
   return {
-    spreadsheetId, zeilen, modelle, customerId, commission: com, auswahl: Array.isArray(auswahl) ? auswahl : [],
+    spreadsheetId, zeilen, gebunden, modelle, customerId, commission: com, auswahl: Array.isArray(auswahl) ? auswahl : [],
     versandart: gewaehlt ? vorgabe.code : String(versandart).trim(), versandartHinweis: gewaehlt ? vorgabe.hinweis : '', vorgabe,
   };
 }
@@ -279,7 +283,7 @@ async function sendenGrundlagen(sheets, orderId, nun) {
   if (!spreadsheetId) throw fehler('GOOGLE_SHEET_ID fehlt.', 503);
   if (!await reiter(sheets, spreadsheetId, EDI_TAB)) throw fehler(`Reiter "${EDI_TAB}" fehlt.`, 409);
   const ediWerte = await werte(sheets, spreadsheetId, EDI_TAB);
-  const g = await grundlagen(sheets, { auswahl: [], commission: '', versandart: '', jetzt: nun });
+  const g = await grundlagen(sheets, { auswahl: [], commission: '', versandart: '', jetzt: nun, ausser: String(orderId).trim() });
   const start = sendenStartPlan({ ediWerte, korbZeilen: g.zeilen, orderId, jetzt: nun });
   // Commission und Versandart aus dem Entwurf; der Hinweis zur Config-Vorgabe gilt hier nicht.
   const gs = { ...g, auswahl: start.auswahl, commission: start.commission, versandart: start.versandart, versandartHinweis: '' };
