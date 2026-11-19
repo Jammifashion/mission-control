@@ -149,7 +149,9 @@ describe('Anbindung in index.html', () => {
   });
 
   test('jeder Upload wird in Reihenfolge gemerkt, beim Laden die Shop-Galerie', () => {
-    expect([...html.matchAll(/hochgeladeneBilder\.push\(data\.attachmentId\)/g)]).toHaveLength(4);
+    // MK2: Varianten-Uploads (je Kombination und Einzelzuordnung) laufen ueber EINE Stelle, bkHochladen.
+    expect([...html.matchAll(/hochgeladeneBilder\.push\(data\.attachmentId\)/g)]).toHaveLength(3);
+    expect(html).toMatch(/async function bkHochladen[\s\S]{0,900}hochgeladeneBilder\.push\(data\.attachmentId\)/);
     expect(html).toContain('wcGalerieGeladen = galerieIds(p.images || []);');
   });
 

@@ -1687,6 +1687,13 @@
       .variant-imgref-item-remove { background: none; border: none; color: var(--danger); cursor: pointer; font-size: 14px; padding: 0 0.15rem; line-height: 1; }
       .variant-imgref-item-remove:hover { opacity: 0.7; }
       .variant-imgref-empty { font-size: 14px; color: var(--muted); }
+      /* MK2: Bild je Kombination - eine Zeile je Kombination, Zusatz-Eigenschaften als Chips */
+      .variant-imgref-list:has(.variant-imgref-kombi) { flex-direction: column; flex-wrap: nowrap; }
+      .variant-imgref-kombi { flex-wrap: wrap; width: 100%; box-sizing: border-box; }
+      .variant-imgref-label { min-width: 9rem; font-weight: 500; }
+      .variant-imgref-plus { display: inline-flex; flex-wrap: wrap; gap: 0.35rem; }
+      .variant-imgref-chip { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 14px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 0.15rem 0.55rem; }
+      .variant-imgref-hinweis { margin-top: 0.5rem; font-size: 13px; color: var(--warning); }
 
       .prop-suggest-wrap { position: relative; margin-top: 0.2rem; }
       .prop-suggest-trigger { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.78rem; color: var(--muted); cursor: pointer; padding: 0.2rem 0.5rem; border-radius: 4px; border: 1px solid var(--border); background: var(--surface); user-select: none; }
@@ -2897,12 +2904,11 @@
             <div class="variant-imgref-block" id="variant-imgref-block">
               <div class="variant-imgref-title">Bild-Referenz-Eigenschaft</div>
               <div class="variant-imgref-row">
-                <select id="imgref-property-select" class="form-select"></select>
-                <select id="imgref-value-select" class="form-select"></select>
-                <input type="file" accept="image/*" id="imgref-file-inp" class="variant-file-inp" />
-                <button type="button" class="btn-secondary variant-upload-btn" id="imgref-upload-btn" disabled data-hilfe="variantenbild-upload">Hochladen</button>
-                <span class="variant-upload-status" id="imgref-upload-status"></span>
+                <select id="imgref-property-select" class="form-select" aria-label="Bild-Referenz-Eigenschaft" data-hilfe="bildref-eigenschaft"></select>
+                <span id="imgref-plus-liste" class="variant-imgref-plus"></span>
+                <select id="imgref-plus-select" class="form-select" aria-label="Weitere Eigenschaft" data-hilfe="bildref-plus"></select>
               </div>
+              <div id="imgref-hinweis" class="variant-imgref-hinweis" hidden></div>
               <div id="imgref-assigned-list" class="variant-imgref-list"></div>
             </div>
             <div class="variants-toolbar" id="variants-toolbar" style="display:none;">
@@ -6792,8 +6798,11 @@
         'variante-ist-privat':   { name: 'Variante ist privat', text: 'Diese Variation ist im Shop privat: unsichtbar und nicht kaufbar. Wieder sichtbar machen nur im Shop-Backend.' },
         'eigenschaft-neu':       { name: 'Eigenschaft hinzufügen', text: 'Fügt eine weitere Achse hinzu, z. B. Motiv. Gespeichert wird erst beim Speichern des Artikels.' },
         'varianten-neu':         { name: 'Neue Varianten anlegen', text: 'Legt die angehakten, noch fehlenden Variationen im Shop an. Vorhandene Kombinationen werden übersprungen.' },
-        'variantenbild-upload':  { name: 'Hochladen (Variantenbild)', text: 'Lädt das Bild in die Mediathek und ordnet es dem gewählten Wert zu.' },
-        'variantenbild-weg':     { name: '✕ (Bildzuordnung)', text: 'Entfernt die Zuordnung dieses Bilds zum Wert. Das Bild bleibt in der Mediathek.' },
+        'variantenbild-upload':  { name: 'Hochladen (Variantenbild)', text: 'Lädt das Bild einmal in die Mediathek (Name/ALT aus Produkt und Werten), gilt für alle Varianten dieser Kombination.' },
+        'variantenbild-weg':     { name: '✕ (Bildzuordnung)', text: 'Entfernt die Zuordnung dieses Bilds zur Kombination. Das Bild bleibt in der Mediathek.' },
+        'bildref-eigenschaft':   { name: 'Bild-Referenz', text: 'Nach welcher Eigenschaft die Bilder vergeben werden, meist Farbe. Ein Bild gilt für alle Varianten mit diesem Wert.' },
+        'bildref-plus':          { name: '+ Eigenschaft', text: 'Weitere Eigenschaft dazunehmen, z. B. Schriftfarbe: dann ein Bild je Kombination, weiter für alle Größen.' },
+        'bildref-eigenschaft-weg': { name: '✕ (Eigenschaft)', text: 'Nimmt diese Eigenschaft aus der Bild-Referenz. Vorhandene automatische Zuordnungen werden nach Rückfrage gelöscht.' },
         'eigenschaft-weg':       { name: '✕ (Eigenschaft)', text: 'Nimmt diese Eigenschaft aus dem Artikel. Gespeichert wird erst beim Speichern des Artikels.' },
         'varianten-alle':        { name: 'Alle', text: 'Hakt alle Varianten in der Liste an.' },
         'varianten-keine':       { name: 'Keine', text: 'Nimmt alle Haken in der Liste weg.' },
@@ -7365,7 +7374,7 @@
         'navigation': ['shop-badge', 'shop-wahl', 'neue-version-laden', 'neue-version-spaeter', 'nav-bereich', 'nav-ansicht', 'nav-unterreiter', 'trikot-sync'],
         'dialog': ['dialog-abbrechen', 'dialog-schliessen', 'dialog-bestaetigen', 'dialog-speichern', 'liste-bearbeiten', 'zeile-speichern'],
         'auftragsmonitor': ['wc-erledigt', 'tab-offen', 'tab-protokoll', 'mon-fulfillment', 'dtf-sammel', 'dtf-bestellt', 'lshop-alt-sammel', 'lshop-alt-bestellt', 'korb-aeltere'],
-        'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
+        'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'bildref-eigenschaft', 'bildref-plus', 'bildref-eigenschaft-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
         'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
         'partner': ['fp-artikel-pruefen', 'fp-ohne-festpreis', 'fp-ohne-zeigen', 'fp-sperre', 'fp-sperre-artikel', 'fp-nachrechnen', 'pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'link-vor-lk1', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
         'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'fp-preis-loeschen'],
@@ -14735,21 +14744,76 @@
         return p ? p.tags : [];
       }
 
+      // ── Bild-Kombination: Anfang (reine Logik, Test backend/tests/bild-kombination.test.js) ──
+      // MK2 (Inhaber 19.11.): Die Bild-Referenz ist eine ODER mehrere Eigenschaften (z. B. Farbe + Schriftfarbe).
+      // Ein Bild gilt fuer alle Variationen derselben Kombination (alle Groessen) und liegt EINMAL in der Mediathek.
+      // Schluessel = Werte in der Reihenfolge der Eigenschaften, mit " · " verbunden; bei EINER Eigenschaft ist das
+      // genau der Wert (wie vor MK2). Manuell je Zeile hochgeladene Bilder (_imageManual) ueberschreibt nichts.
+      const BK_TRENNER = ' · ';
+      function bkIstGroesse(name) { return /^(gr(ö|oe)(ß|ss)e|size)$/i.test(String(name ?? '').trim()); }
+      function bkSchluessel(attrs, props) {
+        if (!props?.length) return null;
+        const werte = props.map(p => (attrs ?? []).find(a => a.name === p)?.value);
+        return werte.every(w => w !== undefined && w !== null && String(w) !== '') ? werte.join(BK_TRENNER) : null;
+      }
+      /** Alle Kombinationen der gewaehlten Eigenschaften (properties = [{ name, tags }]). */
+      function bkKombinationen(properties, props) {
+        let combos = [[]];
+        for (const p of props ?? []) {
+          const def = (properties ?? []).find(x => x.name === p);
+          if (!def?.tags?.length) return [];
+          combos = combos.flatMap(c => def.tags.map(t => [...c, { name: p, value: t }]));
+        }
+        return (props ?? []).length ? combos.map(w => ({ schluessel: w.map(x => x.value).join(BK_TRENNER), werte: w })) : [];
+      }
+      /** Bild der Kombination auf alle nicht-manuell bebilderten Eintraege (variants / existingVariations). */
+      function bkAnwenden(arr, props, map) {
+        (arr ?? []).forEach(v => {
+          if (v._imageManual) return;
+          const k = bkSchluessel(v.attrs, props);
+          const e = k ? map?.[k] : null;
+          v.imageId  = e?.imageId  ?? null;
+          v.imageUrl = e?.imageUrl ?? null;
+        });
+      }
+      /** Sprechender Titel/ALT und Dateiname aus Produktname + Werten (Werte genau wie in der Variante). */
+      function bkBildText({ produktname, werte, endung }) {
+        const name = String(produktname ?? '').trim();
+        const w = (werte ?? []).map(x => String(x ?? '').trim()).filter(Boolean);
+        const titel = [name, w.join(BK_TRENNER)].filter(Boolean).join(' – ').slice(0, 180);
+        // Dateiname nur ASCII (geht als HTTP-Kopf an WordPress): ä -> ae, ß -> ss, Rest ohne Akzent.
+        const stamm = [name, ...w].join(' ')
+          .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/Ä/g, 'Ae').replace(/Ö/g, 'Oe').replace(/Ü/g, 'Ue').replace(/ß/g, 'ss')
+          .normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9 ._-]+/g, '-')
+          .replace(/\s+/g, '-').replace(/-+/g, '-').replace(/^[-.]+|[-.]+$/g, '')
+          .slice(0, 120) || 'bild';
+        const end = String(endung ?? '').replace(/[^a-z0-9]/gi, '').toLowerCase();
+        return { titel, alt: titel, dateiname: end ? `${stamm}.${end}` : stamm };
+      }
+      // ── Bild-Kombination: Ende ──
+
       // ── Bild-Referenz-Eigenschaft (automatische Varianten-Bild-Zuordnung) ────────
-      let imageRefProperty = null; // z.B. "Farbe" – aktuell gewählte Referenz-Eigenschaft
-      let variantImageMap  = {};   // { [wert]: { imageId, imageUrl } } je Wert der Referenz-Eigenschaft
+      let imageRefProps   = [];   // MK2: z. B. ["Farbe"] oder ["Farbe", "Schriftfarbe"]
+      let variantImageMap = {};   // { [Kombinations-Schluessel]: { imageId, imageUrl } }
 
       // Wendet variantImageMap auf alle nicht-manuell bebilderten Einträge in arr an
       // (arr = variants oder existingVariations). Manuell hochgeladene Bilder
       // (_imageManual) werden nie überschrieben – das ist die einzige Ausnahme.
-      function applyAutoImages(arr) {
-        arr.forEach(v => {
-          if (v._imageManual) return;
-          const val   = imageRefProperty ? v.attrs.find(a => a.name === imageRefProperty)?.value : null;
-          const entry = val ? variantImageMap[val] : null;
-          v.imageId  = entry?.imageId  ?? null;
-          v.imageUrl = entry?.imageUrl ?? null;
-        });
+      function applyAutoImages(arr) { bkAnwenden(arr, imageRefProps, variantImageMap); }
+
+      // Upload mit sprechendem Namen/ALT aus Produktname + Werten (MK2). Eine Datei = ein Medium.
+      async function bkHochladen(file, werte) {
+        const endung = (String(file?.name ?? '').match(/\.([a-z0-9]+)$/i) ?? [])[1] ?? 'jpg';
+        const t = bkBildText({ produktname: document.getElementById('pf-name')?.value, werte, endung });
+        const fd = new FormData();
+        fd.append('file', file, t.dateiname);
+        fd.append('titel', t.titel);
+        fd.append('alt', t.alt);
+        const res  = await apiFetch(`${API_BASE()}/api/artikel/media-upload`, { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        hochgeladeneBilder.push(data.attachmentId);
+        return data;
       }
 
       function recomputeVariants() {
@@ -14924,12 +14988,8 @@
             statusEl.textContent = 'Lädt hoch…';
             statusEl.style.color = 'var(--muted)';
             try {
-              const fd = new FormData();
-              fd.append('file', file);
-              const res  = await apiFetch(`${API_BASE()}/api/artikel/media-upload`, { method: 'POST', body: fd });
-              const data = await res.json();
-              if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-              hochgeladeneBilder.push(data.attachmentId);
+              // MK2: Einzelzuordnung bleibt die Ausnahme fuer genau diese Variation (sprechender Name aus allen Werten).
+              const data = await bkHochladen(file, v.attrs.map(a => a.value));
               variants[realIdx].imageId      = data.attachmentId;
               variants[realIdx].imageUrl     = data.sourceUrl;
               variants[realIdx]._imageManual = true; // manuelles Bild – automatische Zuordnung überschreibt es nie
@@ -14966,70 +15026,131 @@
       }
 
       // ── Bild-Referenz-Eigenschaft: Dropdowns + Zuordnungsliste neu aufbauen ──────
+      // Eigenschaften, die als Bild-Referenz in Frage kommen (mit Werten). Mit L-Shop-Modell (M3) zaehlen dessen
+      // Farben/Groessen wie in recomputeVariants.
+      function bildRefEigenschaften() {
+        const mitModell = !!lshopModell && !editMode;
+        const quelle = mitModell
+          ? [...lshopEigenschaften(lshopModell, lshopGewaehlteFarben()),
+             ...properties.filter(p => !istFarbAchse(p.name) && !grIstGroessenAchse(p.name))]
+          : properties;
+        return quelle.filter(p => p.name && p.tags?.length);
+      }
+
       function renderImageRefBlock() {
-        const block     = document.getElementById('variant-imgref-block');
-        const propSel   = document.getElementById('imgref-property-select');
-        const valSel    = document.getElementById('imgref-value-select');
-        const uploadBtn = document.getElementById('imgref-upload-btn');
-        const fileInp   = document.getElementById('imgref-file-inp');
+        const block   = document.getElementById('variant-imgref-block');
+        const propSel = document.getElementById('imgref-property-select');
+        const plusSel = document.getElementById('imgref-plus-select');
         if (!block) return;
 
-        const availableProps = properties.filter(p => p.name && p.tags.length);
+        const availableProps = bildRefEigenschaften();
         if (!availableProps.length) { block.style.display = 'none'; return; }
         block.style.display = '';
 
-        // Referenz-Eigenschaft bestimmen: aktuelle Wahl falls noch gültig, sonst
-        // "Farbe" falls vorhanden, sonst erste Eigenschaft.
-        const stillValid = availableProps.some(p => p.name === imageRefProperty);
-        if (!stillValid)
-          imageRefProperty = availableProps.some(p => p.name === 'Farbe') ? 'Farbe' : availableProps[0].name;
+        // Referenz bestimmen: gewaehlte Eigenschaften, soweit noch vorhanden; sonst "Farbe" falls vorhanden,
+        // sonst die erste Eigenschaft (wie vor MK2).
+        const namen = availableProps.map(p => p.name);
+        imageRefProps = imageRefProps.filter(n => namen.includes(n));
+        if (!imageRefProps.length) imageRefProps = [namen.includes('Farbe') ? 'Farbe' : namen[0]];
 
+        const erste = imageRefProps[0];
         propSel.innerHTML = availableProps.map(p =>
-          `<option value="${p.name}"${p.name === imageRefProperty ? ' selected' : ''}>${p.name}</option>`
-        ).join('');
+          `<option value="${korbEsc(p.name)}"${p.name === erste ? ' selected' : ''}>${korbEsc(p.name)}</option>`).join('');
 
-        const currentProp = availableProps.find(p => p.name === imageRefProperty);
-        const tags = currentProp ? currentProp.tags : [];
-        const prevValue = valSel.value;
-        valSel.innerHTML = tags.map(t =>
-          `<option value="${t}"${t === prevValue ? ' selected' : ''}>${t}</option>`
-        ).join('');
+        // Weitere Eigenschaften: Chips mit ✕, dazu "+ Eigenschaft" (Groesse zuletzt, als nicht empfohlen markiert).
+        const chips = document.getElementById('imgref-plus-liste');
+        chips.innerHTML = imageRefProps.slice(1).map(n =>
+          `<span class="variant-imgref-chip">+ ${korbEsc(n)} <button type="button" class="variant-imgref-item-remove" data-imgref-weg="${korbEsc(n)}" data-hilfe="bildref-eigenschaft-weg">✕</button></span>`).join('');
+        const rest = namen.filter(n => !imageRefProps.includes(n)).sort((a, b) => Number(bkIstGroesse(a)) - Number(bkIstGroesse(b)));
+        plusSel.hidden = !rest.length;
+        plusSel.innerHTML = '<option value="">+ Eigenschaft …</option>'
+          + rest.map(n => `<option value="${korbEsc(n)}">${korbEsc(n)}${bkIstGroesse(n) ? ' (nicht empfohlen)' : ''}</option>`).join('');
 
-        uploadBtn.disabled = !fileInp.files?.[0];
-        renderImgRefAssignedList();
+        const hinweis = document.getElementById('imgref-hinweis');
+        const gr = imageRefProps.find(bkIstGroesse);
+        hinweis.hidden = !gr;
+        hinweis.textContent = gr ? `${gr} ist dabei: dann braucht jede Größe ein eigenes Bild. Meist reicht Farbe (+ Schriftfarbe), das Bild gilt dann für alle Größen.` : '';
+
+        renderImgRefAssignedList(availableProps);
       }
 
-      function renderImgRefAssignedList() {
+      // MK2: eine Zeile je Kombination - mit Bild (Vorschau + ✕) oder ohne (Datei auswählen + Hochladen).
+      function renderImgRefAssignedList(availableProps = bildRefEigenschaften()) {
         const listEl = document.getElementById('imgref-assigned-list');
         if (!listEl) return;
-        const entries = Object.entries(variantImageMap);
-        if (!entries.length) {
-          listEl.innerHTML = '<span class="variant-imgref-empty">Noch keine Bilder zugeordnet.</span>';
+        const kombis = bkKombinationen(availableProps, imageRefProps);
+        listEl.innerHTML = '';
+        if (!kombis.length) {
+          listEl.innerHTML = '<span class="variant-imgref-empty">Noch keine Werte für die gewählten Eigenschaften.</span>';
           return;
         }
-        listEl.innerHTML = '';
-        entries.forEach(([wert, { imageUrl }]) => {
+        for (const k of kombis) {
+          const eintrag = variantImageMap[k.schluessel];
           const item = document.createElement('div');
-          item.className = 'variant-imgref-item';
+          item.className = 'variant-imgref-item variant-imgref-kombi';
+
+          const label = document.createElement('span');
+          label.className = 'variant-imgref-label';
+          label.textContent = k.schluessel;
 
           const thumb = document.createElement('img');
           thumb.className = 'variant-thumb';
-          thumb.src = imageUrl;
-          thumb.alt = wert;
+          thumb.alt = k.schluessel;
+          thumb.style.display = eintrag ? '' : 'none';
+          if (eintrag) thumb.src = eintrag.imageUrl;
 
-          const label = document.createElement('span');
-          label.textContent = wert;
-
-          const rm = document.createElement('button');
-          rm.type = 'button';
-          rm.className = 'variant-imgref-item-remove';
-          rm.textContent = '✕';
-          rm.dataset.hilfe = 'variantenbild-weg';   // AM-2-1: kein title
-          rm.addEventListener('click', () => removeImageRefEntry(wert));
-
-          item.append(thumb, label, rm);
+          if (eintrag) {
+            const rm = document.createElement('button');
+            rm.type = 'button';
+            rm.className = 'variant-imgref-item-remove';
+            rm.textContent = '✕';
+            rm.dataset.hilfe = 'variantenbild-weg';   // AM-2-1: kein title
+            rm.addEventListener('click', () => removeImageRefEntry(k.schluessel));
+            item.append(thumb, label, rm);
+          } else {
+            const fileInp = document.createElement('input');
+            fileInp.type = 'file';
+            fileInp.accept = 'image/*';
+            fileInp.className = 'variant-file-inp';
+            fileInp.setAttribute('aria-label', `Bild für ${k.schluessel}`);
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn-secondary variant-upload-btn';
+            btn.textContent = 'Hochladen';
+            btn.disabled = true;
+            btn.dataset.hilfe = 'variantenbild-upload';
+            const status = document.createElement('span');
+            status.className = 'variant-upload-status';
+            fileInp.addEventListener('change', () => {
+              const f = fileInp.files?.[0];
+              btn.disabled = !f;
+              if (f) { thumb.src = URL.createObjectURL(f); thumb.style.display = ''; }
+            });
+            btn.addEventListener('click', async () => {
+              const f = fileInp.files?.[0];
+              if (!f) return;
+              btn.disabled = true;
+              status.textContent = 'Lädt hoch…';
+              status.style.color = 'var(--muted)';
+              try {
+                const data = await bkHochladen(f, k.werte.map(w => w.value));
+                variantImageMap[k.schluessel] = { imageId: data.attachmentId, imageUrl: data.sourceUrl };
+                applyAutoImages(variants);
+                applyAutoImages(existingVariations);
+                renderVariants();
+                renderExistingVariations();
+                showToast(`Bild für „${k.schluessel}“ zugeordnet`, 'success');
+              } catch (e) {
+                showToast(`Bild-Upload fehlgeschlagen: ${e.message}`, 'error');
+                status.textContent = 'Fehler';
+                status.style.color = 'var(--danger)';
+                btn.disabled = false;
+              }
+            });
+            item.append(thumb, label, fileInp, btn, status);
+          }
           listEl.appendChild(item);
-        });
+        }
       }
 
       // Entfernt eine Zuordnung + alle davon automatisch gesetzten (nicht-manuellen)
@@ -16376,24 +16497,38 @@
       document.getElementById('btn-ai-suggest').addEventListener('click', handleAiSuggest);
 
       // ── Bild-Referenz-Eigenschaft: Event-Wiring ──────────────────────────────
-      document.getElementById('imgref-property-select').addEventListener('change', async (e) => {
-        const newProp = e.target.value;
-        if (!newProp || newProp === imageRefProperty) return;
-        const hasEntries = Object.keys(variantImageMap).length > 0;
-        if (hasEntries) {
+      // MK2: neue Eigenschaften-Auswahl. Aendert sich die Kombination, passen die Zuordnungen nicht mehr -
+      // mit Zuordnungen vorher fragen (wie bisher beim Wechsel); manuelle Einzelbilder bleiben.
+      async function bildRefSetzen(neu, auswahlZurueck) {
+        if (neu.join('|') === imageRefProps.join('|')) return;
+        if (Object.keys(variantImageMap).length) {
           const ok = await showConfirm(
-            'Referenz-Eigenschaft wechseln?',
-            `Beim Wechsel zu <strong>${newProp}</strong> werden alle automatischen Bild-Zuordnungen für <strong>${imageRefProperty}</strong> gelöscht. Bereits manuell hochgeladene Einzelbilder bleiben erhalten.`,
-            'Wechseln & löschen',
+            'Bild-Referenz ändern?',
+            `Neue Bild-Referenz: <strong>${neu.map(korbEsc).join(' + ')}</strong>. Alle automatischen Bild-Zuordnungen für <strong>${imageRefProps.map(korbEsc).join(' + ')}</strong> werden gelöscht. Bereits manuell hochgeladene Einzelbilder bleiben erhalten.`,
+            'Ändern & löschen',
           );
-          if (!ok) { e.target.value = imageRefProperty; return; }
+          if (!ok) { auswahlZurueck?.(); return; }
         }
-        variantImageMap  = {};
-        imageRefProperty = newProp;
+        variantImageMap = {};
+        imageRefProps   = neu;
         applyAutoImages(variants);
         applyAutoImages(existingVariations);
         renderVariants();
         renderExistingVariations();
+      }
+      document.getElementById('imgref-property-select').addEventListener('change', (e) => {
+        const erste = e.target.value;
+        if (!erste) return;
+        bildRefSetzen([erste, ...imageRefProps.slice(1).filter(n => n !== erste)], () => { e.target.value = imageRefProps[0]; });
+      });
+      document.getElementById('imgref-plus-select').addEventListener('change', (e) => {
+        const dazu = e.target.value;
+        e.target.value = '';
+        if (dazu && !imageRefProps.includes(dazu)) bildRefSetzen([...imageRefProps, dazu]);
+      });
+      document.getElementById('imgref-plus-liste').addEventListener('click', (e) => {
+        const weg = e.target.closest('[data-imgref-weg]')?.dataset.imgrefWeg;
+        if (weg) bildRefSetzen(imageRefProps.filter(n => n !== weg));
       });
 
       // ── Hauptbild (Artikelbild) ──────────────────────────────────────────
@@ -16451,49 +16586,6 @@
           statusEl.textContent = 'Fehler';
           statusEl.style.color = 'var(--danger)';
           btn.disabled = false;
-        }
-      });
-
-      document.getElementById('imgref-file-inp').addEventListener('change', () => {
-        const fileInp   = document.getElementById('imgref-file-inp');
-        const uploadBtn = document.getElementById('imgref-upload-btn');
-        uploadBtn.disabled = !fileInp.files?.[0];
-        document.getElementById('imgref-upload-status').textContent = '';
-      });
-
-      document.getElementById('imgref-upload-btn').addEventListener('click', async () => {
-        const fileInp   = document.getElementById('imgref-file-inp');
-        const valSel    = document.getElementById('imgref-value-select');
-        const uploadBtn = document.getElementById('imgref-upload-btn');
-        const statusEl  = document.getElementById('imgref-upload-status');
-        const file = fileInp.files?.[0];
-        const wert = valSel.value;
-        if (!file || !wert) return;
-
-        uploadBtn.disabled = true;
-        statusEl.textContent = 'Lädt hoch…';
-        statusEl.style.color = 'var(--muted)';
-        try {
-          const fd = new FormData();
-          fd.append('file', file);
-          const res  = await apiFetch(`${API_BASE()}/api/artikel/media-upload`, { method: 'POST', body: fd });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-
-          hochgeladeneBilder.push(data.attachmentId);
-          variantImageMap[wert] = { imageId: data.attachmentId, imageUrl: data.sourceUrl };
-          applyAutoImages(variants);
-          applyAutoImages(existingVariations);
-          fileInp.value = '';
-          statusEl.textContent = '';
-          renderVariants();
-          renderExistingVariations();
-          showToast(`Bild für "${wert}" zugeordnet`, 'success');
-        } catch (e) {
-          showToast(`Bild-Upload fehlgeschlagen: ${e.message}`, 'error');
-          statusEl.textContent = 'Fehler';
-          statusEl.style.color = 'var(--danger)';
-          uploadBtn.disabled = false;
         }
       });
 

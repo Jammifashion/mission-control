@@ -28,10 +28,13 @@ router.post('/media-upload', (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Keine Datei hochgeladen (Feld "file" fehlt).' });
 
+    // MK2: optionale Textfelder titel/alt (Maske: sprechend aus Produktname + Variantenwerten), je hoechstens 200 Zeichen.
+    const text = v => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 200) : '');
     // lib/wpMedien.js: Zeitlimit 60 s (Schreiben), Pruefseite -> HosterPruefseiteError.
     const { ok, status, data, fehlt } = await ladeMedienHoch({
       shop: req.query.shop, buffer: req.file.buffer,
       dateiname: req.file.originalname, mimetype: req.file.mimetype,
+      titel: text(req.body?.titel) || undefined, alt: text(req.body?.alt) || undefined,
     });
     if (fehlt)
       return res.status(503).json({ error: 'WordPress-Zugangsdaten nicht konfiguriert (WC_URL/WP_APP_PASSWORD).' });
