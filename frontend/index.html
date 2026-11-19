@@ -1100,10 +1100,13 @@
       #tr-eintragen[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
       #tr-vorschau p { font-size: 0.82rem; margin: 0.3rem 0; }
       .we-zeile { display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
-      .we-zeile label { display: flex; align-items: center; gap: 0.5rem; flex: 1; min-width: 0; cursor: pointer; }
+      .we-zeile label { display: flex; align-items: center; gap: 0.5rem; flex: 1 1 14rem; min-width: 0; cursor: pointer; }
+      .we-zeile label > span { overflow-wrap: anywhere; }
+      /* UI1: "mehr gekommen" und "ins Lager" sind auch Labels - nicht mit der Position um die Breite streiten */
+      .we-zeile .we-mehr, .we-zeile .we-lager { flex: 0 1 auto; }
       .we-zeile input[type=checkbox] { width: 18px; height: 18px; flex: none; }
       .we-zeile.we-erledigt { color: var(--muted); }
-      @media (max-width: 600px) { .we-zeile { min-height: 40px; } }
+      @media (max-width: 600px) { .we-zeile { min-height: 40px; } .we-zeile > label:first-child { flex-basis: 100%; } }
       .ks-video { width: 100%; max-height: 50vh; background: var(--bg); border-radius: 8px; object-fit: cover; }
       .ks-ampel { display: inline-block; width: 10px; height: 10px; border-radius: 50%; flex: none; }
       .ks-ok { background: var(--success); } .ks-gelb { background: var(--warning); } .ks-rot { background: var(--danger); }
@@ -1490,9 +1493,10 @@
       .anf-refresh-btn.is-loading .anf-refresh-icon { animation: anf-spin 0.9s linear infinite; }
       @keyframes anf-spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
 
+      /* UI1: rollt waagrecht statt abzuschneiden (Status-Spalte fehlte schon bei 1280 px) */
       .anf-table-card {
         background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
-        overflow: hidden;
+        overflow-x: auto;
       }
       .anf-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
       .anf-table thead th {
@@ -1714,6 +1718,7 @@
       .btn-secondary:disabled { opacity: 0.4; cursor: not-allowed; }
 
       /* ── Agent-Wissen ── */
+      #aw-produkt-wrap, #aw-ton-wrap, #aw-info-wrap { overflow-x: auto; }   /* UI1: Tabellen am Handy rollbar statt abgeschnitten */
       .aw-table { width:100%; border-collapse:collapse; font-size:0.88rem; }
       .aw-table th { font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; padding:0.42rem 0.5rem; border-bottom:1px solid var(--border); text-align:left; font-weight:600; }
       .aw-table td { padding:0.45rem 0.5rem; border-bottom:1px solid var(--border); vertical-align:middle; }
@@ -4009,7 +4014,7 @@
           <form id="api-key-form" autocomplete="on" style="display:flex;gap:0.5rem;margin-top:0.5rem;">
             <input type="text" name="username" autocomplete="username" value="Mission Control" readonly tabindex="-1" aria-hidden="true" class="api-key-name" />
             <input id="api-key" name="password" type="password" autocomplete="current-password" placeholder="MC_API_KEY"
-              style="flex:1;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.6rem 0.8rem;color:var(--text);font-size:0.9rem;" />
+              style="flex:1;min-width:0;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.6rem 0.8rem;color:var(--text);font-size:0.9rem;" />
             <button class="btn" id="save-key" type="submit" data-hilfe="api-key-speichern">Speichern</button>
           </form>
           <p id="key-saved" style="color:var(--success);font-size:0.8rem;margin-top:0.5rem;display:none;">Gespeichert.</p>
