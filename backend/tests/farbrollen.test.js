@@ -192,7 +192,7 @@ describe('FK2: heller Modus', () => {
       }
     }
   });
-  test('FK7: Kartenbreite zentral (800 px, Trikots 1000 px), breite Tabellen ausgenommen', () => {
+  test('FK7: Kartenbreite zentral (800 px, Listen 1000 px), breite Tabellen ausgenommen', () => {
     const block = layoutBlock;
     expect(block).not.toBe('');
     // im Layout-Block stehen nur die zwei Breiten-Variablen, keine Farbe
@@ -206,12 +206,17 @@ describe('FK2: heller Modus', () => {
     expect(farbenCss).not.toMatch(/max-breite/);
     expect(html).not.toMatch(/inhalt-schmal/);
     expect(html.replace(block, '')).not.toMatch(/--(karten|listen)-max-breite:/);
-    // Aufträge-Bereich (Kunden, Liste, To-dos, Bestellseiten) folgt der allgemeinen Regel
-    for (const id of ['ku-ansicht', 'au-ansicht', 'td-ansicht', 'bsm-ansicht']) expect(html).toContain(`class="card" id="${id}"`);
+    // UI1 (Inhaber 19.11.): Listen 1000 px - Aufträge-Bereich (Kunden, Liste, To-dos, Bestellseiten) ...
+    for (const id of ['ku-ansicht', 'au-ansicht', 'td-ansicht', 'bsm-ansicht']) expect(html).toContain(`class="card inhalt-liste" id="${id}"`);
+    // ... Bestellungen (JFN), Warenkorb, L-Shop-Bestellungen: die erste Karte im Reiter
+    for (const tab of ['tab-jfn-shop', 'tab-lshop-korb', 'tab-lshop-bestellungen']) {
+      expect(html).toMatch(new RegExp(`<div id="${tab}" class="sub-tab-panel[^"]*">\\s*<div class="card inhalt-liste">`));
+    }
     // Trikots: genau die zwei Karten im Reiter
     const trikots = html.match(/<div id="tab-trikots"[\s\S]*?<div id="tab-eingaenge"/)[0];
     expect((trikots.match(/class="card inhalt-liste"/g) || []).length).toBe(2);
-    expect((html.match(/class="card inhalt-liste"/g) || []).length).toBe(2);
+    // Ausnahmeliste: neue Liste mit 1000 px = Klasse inhalt-liste und Zahl hier anpassen
+    expect((html.match(/class="card inhalt-liste/g) || []).length).toBe(9);
     // Ausnahmeliste (Bericht FK7): neue breite Tabelle = Klasse inhalt-breit und Zahl hier anpassen
     expect((html.match(/class="card inhalt-breit"/g) || []).length).toBe(26);
     expect(html).toContain('class="card inhalt-breit" id="existing-variants-block"');

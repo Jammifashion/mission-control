@@ -74,7 +74,7 @@
       /* ── Layout: Anfang (FK7, Inhaber 12.11.) - Breiten nur hier, nicht in farben.css ── */
       :root {
         --karten-max-breite: 800px;    /* jede Karte in einem Panel, links buendig */
-        --listen-max-breite: 1000px;   /* Listen mit mehr Spalten (Trikots): Klasse .inhalt-liste */
+        --listen-max-breite: 1000px;   /* Listen (UI1, Inhaber 19.11.): Aufträge, To-dos, Kunden, Bestellseiten, Bestellungen, Warenkorb, L-Shop-Bestellungen, Trikots - Klasse .inhalt-liste */
       }
       /* Eine Regel fuer alle Karten; breite Tabellen tragen .inhalt-breit (volle Breite). Karten in Karten
          fuellen ihre Eltern-Karte. Handy: max-width greift erst darueber, also 100 %. */
@@ -1979,7 +1979,7 @@
         </div>
 
         <div id="tab-jfn-shop" class="sub-tab-panel active">
-          <div class="card">
+          <div class="card inhalt-liste">
             <div id="jfn-orders-summary" class="orders-summary" style="display:none;"></div>
             <!-- PS1: Filter "wartet auf Teile" (Nicoles Packliste); Erklaerungen aus KNOPF_HILFE -->
             <div class="korb-bedienung ps-bedienung">
@@ -2051,7 +2051,7 @@
         </div>
 
         <div id="tab-lshop-korb" class="sub-tab-panel">
-          <div class="card">
+          <div class="card inhalt-liste">
             <div class="lshop-offen-header korb-kopf">
               <span id="korb-summe">L-Shop-Warenkorb</span>
             </div>
@@ -2207,7 +2207,7 @@
 
         <!-- BO4d: an L-Shop geschickte Bestellungen (EDI), je Bestellung mit Status, Positionen, Lieferscheinen -->
         <div id="tab-lshop-bestellungen" class="sub-tab-panel">
-          <div class="card">
+          <div class="card inhalt-liste">
             <div class="lshop-offen-header korb-kopf">
               <span id="lb-summe">L-Shop-Bestellungen</span>
             </div>
@@ -3448,7 +3448,7 @@
       <!-- AM-1: Aufträge. Unterpunkt Kunden = Kundenstamm (eigenes Kunden-Sheet, GET /api/kunden); Suche nur im Browser,
            der Suchbegriff wird nirgends gespeichert. Unterpunkt Aufträge = Platzhalter bis AM-2. -->
       <section id="panel-auftraege" class="panel">
-        <div class="card" id="ku-ansicht">
+        <div class="card inhalt-liste" id="ku-ansicht">
           <div class="lshop-offen-header korb-kopf"><span id="ku-summe">Kunden</span></div>
           <div id="ku-einrichtung" class="lager-warnung" hidden></div>
           <div class="korb-bedienung">
@@ -3472,7 +3472,7 @@
           <div id="ku-liste"><div class="skeleton"></div></div>
         </div>
         <!-- AM-2: Auftragsliste (GET /api/auftraege). Kundennamen kommen nur hier aus der Kundenliste dazu. -->
-        <div class="card" id="au-ansicht" hidden>
+        <div class="card inhalt-liste" id="au-ansicht" hidden>
           <div class="lshop-offen-header korb-kopf"><span id="au-summe">Aufträge</span></div>
           <div id="au-einrichtung" class="lager-warnung" hidden></div>
           <!-- SA1: Schnell erfassen - Text (auch diktiert) -> Claude strukturiert -> Dialog "Neuer Auftrag" vorausgefuellt.
@@ -3518,7 +3518,7 @@
         </div>
 
         <!-- AM-4: Offene To-dos aus Aufträgen und Aufgaben (nach Fälligkeit, abhaken direkt hier). -->
-        <div class="card" id="td-ansicht" hidden>
+        <div class="card inhalt-liste" id="td-ansicht" hidden>
           <div class="lshop-offen-header korb-kopf"><span id="td-summe">Offene To-dos</span></div>
           <div id="td-einrichtung"></div>
           <div class="korb-bedienung">
@@ -3540,7 +3540,7 @@
         </div>
 
         <!-- KS1: Bestellseiten (Zugaenge per Token) - Liste, Status, Knopf "Artikelliste aktualisieren" -->
-        <div class="card" id="bsm-ansicht" hidden>
+        <div class="card inhalt-liste" id="bsm-ansicht" hidden>
           <div class="lshop-offen-header korb-kopf"><span>Bestellseiten für Kunden</span></div>
           <div id="bsm-einrichtung" class="lager-warnung" hidden></div>
           <div class="korb-bedienung">

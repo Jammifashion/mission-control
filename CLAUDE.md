@@ -37,8 +37,10 @@ Kartenlisten (`.ku-zeile`) = `color-mix(in srgb, var(--text) 4%, var(--surface))
 Breiten-Variablen, NICHT farben.css; die Farbtests nehmen genau diesen Block aus): `--karten-max-breite` 800px, `--listen-max-breite` 1000px.
 EINE Regel: jede `.card` in einem `.panel` hoechstens 800 px, links buendig (Karte in Karte fuellt die Eltern-Karte); am Handy 100 %.
 Ausnahmen per Klasse: `.inhalt-breit` = volle Breite fuer breite Tabellen (DTF, Bestelluebersicht, Anfragen & Eigenauftraege, Lieferbarkeit
-Shop, Varianten der Maske, Partner-/Festpreis-Tabellen, Agent-Wissen-Tabellen), `.inhalt-liste` = 1000 px (Trikots). Formulare, Kacheln
-(`#pk-mc`), Lager, Aufträge-Bereich = 800. Neue Karte mit breiter Tabelle = `inhalt-breit` + Zahl in farbrollen.test.js (FK7). Partnerportale
+Shop, Varianten der Maske, Partner-/Festpreis-Tabellen, Agent-Wissen-Tabellen), `.inhalt-liste` = 1000 px (UI1, Inhaber 19.11.: Listen - Aufträge,
+To-dos, Kunden, Bestellseiten, Bestellungen (JFN), Warenkorb, L-Shop-Bestellungen, Trikots). Formulare, Dialoge, Auftragsansicht, Kacheln
+(`#pk-mc`), Lager, Artikel-Masken, Einstellungen = 800. Neue Karte mit breiter Tabelle = `inhalt-breit`, neue Liste = `inhalt-liste`, je + Zahl in
+farbrollen.test.js (FK7). Partnerportale
 haben eigene 1060 px zentriert (unveraendert). Kachelreihe Dashboard ist keine Karte.
 **Partnerportal-Listen (PP3):** Block `Portal-Listen: Anfang/Ende` + CSS `Portal-Listen CSS` wortgleich in beiden Portalen (Test
 partner-listen.test.js): Listen zeigen standardmaessig nur Offenes (Status nicht "abgerechnet"), Schalter "auch abgerechnete anzeigen"
