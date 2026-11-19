@@ -46,6 +46,11 @@ describe('Regel je Bestellung', () => {
     const u = P([z({ 'WC-Bestellnummer': '107', Versandmethode: '', [PORTO_BESTELLUNG]: 3, [PORTO_VERSANDART]: 'B' })]);
     expect(u.status).toBe('fehlt');
     expect(u.hinweise[0]).toMatch(/107/);
+    // ohne Versandmethode zaehlen Einnahme UND Kosten nicht - der Saldo nimmt nichts still mit
+    expect(u).toMatchObject({ einnahmen: { anzahl: 0, summe: 0 }, kosten: { anzahl: 0, summe: 0 }, saldo: 0 });
+    const mit = P([z({ 'WC-Bestellnummer': '107', Versandmethode: '', [PORTO_BESTELLUNG]: 3, [PORTO_VERSANDART]: 'B' }),
+      z({ 'WC-Bestellnummer': '109', [PORTO_BESTELLUNG]: 4, [PORTO_VERSANDART]: 'B' })]);
+    expect(mit).toMatchObject({ status: 'fehlt', einnahmen: { anzahl: 1, summe: 4 }, kosten: { anzahl: 1, summe: 1.5 }, saldo: 2.5 });
   });
   test('Bestellung ueber zwei Abrechnungen: zaehlt nur in der ersten', () => {
     const erste = z({ 'WC-Bestellnummer': '108', [PORTO_BESTELLUNG]: 5, [PORTO_VERSANDART]: 'B', 'Status Abrechnung': 'abgerechnet' });

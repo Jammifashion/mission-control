@@ -93,6 +93,8 @@ export function fehler(text, status = 422, code) {
 
 // ── Lesen ────────────────────────────────────────────────────────────────────
 
+// AM-5: Betrags-Spalten (als Zahl ins Sheet und als Zahl gelesen).
+const ZAHL_SPALTEN = new Set(['Preis_Netto', 'Aufpreis_Netto', 'EK_Hand', 'USt_Satz', 'Angebot_Netto', 'Angebot_Brutto', 'Rabatt']);
 /** Reiter-Werte -> { idx, zeilen: [{ ...Spalten, _zeile }], fehlt }. Nur ueber den Spaltennamen. */
 export function zeilenAus(werte, spalten, schluessel, optional = []) {
   const kopf = (werte?.[0] ?? []).map(t);
@@ -100,14 +102,15 @@ export function zeilenAus(werte, spalten, schluessel, optional = []) {
   const fehlt = spalten.filter(s => idx[s] === undefined);
   const zeilen = [];
   (werte ?? []).slice(1).forEach((r, i) => {
-    const o = Object.fromEntries([...spalten, ...optional].map(s => [s, idx[s] === undefined ? '' : t(r?.[idx[s]])]));
+    // Betraege bleiben Zahl (UNFORMATTED gelesen) - als Text waere "12.605" nicht von einem Tausenderpunkt zu unterscheiden.
+    const o = Object.fromEntries([...spalten, ...optional].map(s => [s, idx[s] === undefined ? ''
+      : (ZAHL_SPALTEN.has(s) && typeof r?.[idx[s]] === 'number' ? r[idx[s]] : t(r?.[idx[s]]))]));
     if (o[schluessel]) zeilen.push({ ...o, _zeile: i + 2 });
   });
   return { idx, zeilen, fehlt };
 }
 
 // AM-5: Betrags-Spalten gehen als Zahl ins Sheet (RAW), auch wenn sie als Text gelesen wurden (z. B. beim Teilen einer Position).
-const ZAHL_SPALTEN = new Set(['Preis_Netto', 'Aufpreis_Netto', 'EK_Hand', 'USt_Satz', 'Angebot_Netto', 'Angebot_Brutto', 'Rabatt']);
 export const zellWert = (s, v) => (typeof v === 'number' ? v : ZAHL_SPALTEN.has(s) && /^\d+(\.\d+)?$/.test(t(v)) ? Number(t(v)) : t(v));
 /** Objekt -> Sheet-Zeile in Spaltenfolge des Reiters (Breite = Kopfzeile). Pflicht- und optionale Spalten, soweit da. */
 export function alsZeile(idx, obj, spalten, breite) {

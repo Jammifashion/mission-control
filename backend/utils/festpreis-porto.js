@@ -103,13 +103,14 @@ export function berechnePorto(zeilen, vh, satzAm, alleZeilen = zeilen, { partner
     const plus = h.plus && !b.abgerechnet ? 1 : 0;
     const vorzeichen = plus - h.minus;
     if (vorzeichen === 0) continue;
+    const art = versandArt(b.methode);
+    // ohne Versandmethode zaehlen Einnahme UND Kosten nicht (Hinweis "fehlt"), nie nur die Einnahme.
+    if (art === 'unbekannt') { erg.unbekannt.push(o); continue; }
     const einnahme = b.porto ?? 0;
     erg.einnahmen.anzahl += vorzeichen;
     erg.einnahmen.summe += vorzeichen * einnahme;
-    const art = versandArt(b.methode);
     if (art === 'abholung') { erg.abholung++; continue; }
     if (art === 'ohne_versand') { erg.ohneVersand++; continue; }
-    if (art === 'unbekannt') { erg.unbekannt.push(o); continue; }
     const s = satzAm(b.datum);
     const paket = b.partner.get(fuer)?.arten.has('P') ?? false;
     const kosten = paket ? s.portoP + s.versandnebenkostenP : s.portoB + s.versandnebenkostenB;
@@ -121,7 +122,7 @@ export function berechnePorto(zeilen, vh, satzAm, alleZeilen = zeilen, { partner
   erg.kosten.summe = round2(erg.kosten.summe);
   erg.saldo = round2(erg.einnahmen.summe - erg.kosten.summe);
   if (erg.unbekannt.length) {
-    erg.hinweise.push(`Porto-Kosten ohne Versandmethode nicht berechnet: ${erg.unbekannt.length} Bestellung(en) (${erg.unbekannt.slice(0, 5).join(', ')}${erg.unbekannt.length > 5 ? ', …' : ''}).`);
+    erg.hinweise.push(`Porto (Einnahme und Kosten) ohne Versandmethode nicht berechnet: ${erg.unbekannt.length} Bestellung(en) (${erg.unbekannt.slice(0, 5).join(', ')}${erg.unbekannt.length > 5 ? ', …' : ''}).`);
   }
   const leerErgebnis = !erg.einnahmen.anzahl && !erg.kosten.anzahl && !erg.abholung && !erg.ohneVersand && !erg.unbekannt.length;
   return { ...erg, status: leerErgebnis ? 'keine' : erg.unbekannt.length ? 'fehlt' : 'ok' };

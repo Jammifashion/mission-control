@@ -22,7 +22,11 @@ import {
   fpAbrechnungHinweise, gesperrtZaehlen,
 } from '../utils/fp-sperre.js';
 import { mitFpSperre, nachrechnenInSperre, nachrechnen as fpNachrechnen } from '../lib/fpSperre.js';
-import { schreibeNeueZeilen } from '../lib/sheet-zeilen.js';
+import { schreibeNeueZeilen, pruefeZielStrecke, spalteBuchstabe } from '../lib/sheet-zeilen.js';
+import {
+  aggregateFpVerkaeufe, fpAbrechnungsZeilen, fpZeilenSchluessel, fpLoeschPlan, fpStatusWechselErlaubt,
+  POSITIONEN_MAX_ZEICHEN,
+} from '../utils/fp-abrechnung.js';
 
 const router = Router();
 
@@ -116,57 +120,7 @@ function buildFpStornoRows(vRows, stornoOrders) {
   return out;
 }
 
-// Aggregiert FP_Verkäufe-Zeilen pro Produkt-ID nach dem neuen Modell.
-// (Festpreis/Handling × Stückzahl + Mehrkosten, Porto-Saldo, PayPal → Auszahlung)
-function aggregateFpVerkaeufe(rows, vh) {
-  const round2 = n => Math.round(n * 100) / 100;
-  const gruppen = {};
-  for (const r of rows) {
-    const pid = String(r[vh('Produkt-ID')] ?? 'unbekannt');
-    if (!gruppen[pid]) {
-      gruppen[pid] = {
-        produktId:       pid,
-        artikelname:     r[vh('Artikelname')]      ?? '',
-        artikelkategorie: r[vh('Artikelkategorie')] ?? '',
-        stueckzahl: 0, vkNetto: 0, festpreisGesamt: 0, handlingGesamt: 0,
-        mehrkosten: 0, portoEinnahmen: 0, portoKosten: 0, paypalGesamt: 0, auszahlung: 0,
-      };
-    }
-    const stk             = toFloat(r[vh('Stückzahl')]);
-    const vk              = toFloat(r[vh('VK-Netto')]);
-    const festpreis       = toFloat(r[vh('Festpreis')]);
-    const handlingskosten = toFloat(r[vh('Handlingskosten')]);
-    const mehrkosten      = toFloat(r[vh('Mehrkosten')]);
-    const portoEin        = toFloat(r[vh('Porto-Einnahme')]);
-    const portoKost       = toFloat(r[vh('Porto-Kosten')]) + toFloat(r[vh('Versandnebenkosten')]);
-    const paypal          = toFloat(r[vh('PayPal-Kosten')]);
-    const g = gruppen[pid];
-    g.stueckzahl      += stk;
-    g.vkNetto         += vk;
-    g.festpreisGesamt += festpreis * stk;
-    g.handlingGesamt  += handlingskosten * stk;
-    g.mehrkosten      += mehrkosten;
-    g.portoEinnahmen  += portoEin;
-    g.portoKosten     += portoKost;
-    g.paypalGesamt    += paypal;
-    g.auszahlung      += vk - (festpreis + handlingskosten) * stk - mehrkosten + portoEin - portoKost - paypal;
-  }
-  const produkteGruppen = Object.values(gruppen).map(g => ({
-    ...g,
-    vkNetto: round2(g.vkNetto), festpreisGesamt: round2(g.festpreisGesamt),
-    handlingGesamt: round2(g.handlingGesamt), mehrkosten: round2(g.mehrkosten),
-    portoEinnahmen: round2(g.portoEinnahmen), portoKosten: round2(g.portoKosten),
-    paypalGesamt: round2(g.paypalGesamt), auszahlung: round2(g.auszahlung),
-  }));
-  const summen = produkteGruppen.reduce((s, g) => ({
-    stueckzahl: s.stueckzahl + g.stueckzahl,
-    vkNetto: round2(s.vkNetto + g.vkNetto), festpreisGesamt: round2(s.festpreisGesamt + g.festpreisGesamt),
-    handlingGesamt: round2(s.handlingGesamt + g.handlingGesamt), mehrkosten: round2(s.mehrkosten + g.mehrkosten),
-    portoEinnahmen: round2(s.portoEinnahmen + g.portoEinnahmen), portoKosten: round2(s.portoKosten + g.portoKosten),
-    paypalGesamt: round2(s.paypalGesamt + g.paypalGesamt), auszahlung: round2(s.auszahlung + g.auszahlung),
-  }), { stueckzahl:0, vkNetto:0, festpreisGesamt:0, handlingGesamt:0, mehrkosten:0, portoEinnahmen:0, portoKosten:0, paypalGesamt:0, auszahlung:0 });
-  return { produkteGruppen, summen };
-}
+// aggregateFpVerkaeufe: utils/fp-abrechnung.js (eine Rechnung fuer Vorschau, Abrechnung, Portal-Saldo).
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -617,17 +571,8 @@ router.get('/verkaeufe/summary', async (req, res, next) => {
     const von = vonDatum ? parseDate(vonDatum) : null;
     const bis = bisDatum ? parseDate(bisDatum) : null;
 
-    const filtered = rows.filter(r => {
-      if (partnerId && (r[vh('Partner-ID')] ?? '') !== partnerId) return false;
-      if ((r[vh('Status Abrechnung')] ?? '').toLowerCase() !== statusFilter.toLowerCase()) return false;
-      if ((r[vh('Storno-Status')] ?? '') !== '') return false; // Storno-Gegenbuchungen ausschließen
-      if (von || bis) {
-        const d = parseDate(r[vh('Datum')] ?? '');
-        if (von && d && d < von) return false;
-        if (bis && d && d > bis) return false;
-      }
-      return true;
-    });
+    // Dieselbe Auswahl wie POST /abrechnungen und der Portal-Saldo - Storno-Gegenbuchungen gehoeren dazu.
+    const filtered = fpAbrechnungsZeilen(rows, vh, { partnerId, von, bis, status: statusFilter, parseDate });
 
     const { produkteGruppen, summen } = aggregateFpVerkaeufe(filtered, vh);
     // PA8: gesperrte Zeilen im Zeitraum + Nachzuegler (nur Anzahlen/IDs)
@@ -640,24 +585,10 @@ router.get('/verkaeufe/summary', async (req, res, next) => {
 
     // Verpackungspauschale (brutto) über DIESELBEN Zeilen wie POST /abrechnungen
     // (inkl. Storno-Gegenbuchungen), nur mit Partner.
-    const verpackung = partnerId
-      ? await ladeVerpackung(sheets, sheetId, partnerId, rows.filter(r => {
-          if ((r[vh('Partner-ID')] ?? '') !== partnerId) return false;
-          if ((r[vh('Status Abrechnung')] ?? '').toLowerCase() !== statusFilter.toLowerCase()) return false;
-          const d = parseDate(r[vh('Datum')] ?? '');
-          return d && (!von || d >= von) && (!bis || d <= bis);
-        }), rows, vh)
-      : null;
+    const verpackung = partnerId ? await ladeVerpackung(sheets, sheetId, partnerId, filtered, rows, vh) : null;
     const verpackungSumme = verpackung?.status === 'ok' ? verpackung.summe : 0;
     // PO1: Porto je Bestellung (netto) ueber dieselben Zeilen wie die Verpackung
-    const porto = partnerId
-      ? await ladePorto(sheets, sheetId, partnerId, rows.filter(r => {
-          if ((r[vh('Partner-ID')] ?? '') !== partnerId) return false;
-          if ((r[vh('Status Abrechnung')] ?? '').toLowerCase() !== statusFilter.toLowerCase()) return false;
-          const d = parseDate(r[vh('Datum')] ?? '');
-          return d && (!von || d >= von) && (!bis || d <= bis);
-        }), rows, vh)
-      : null;
+    const porto = partnerId ? await ladePorto(sheets, sheetId, partnerId, filtered, rows, vh) : null;
 
     const auszahlungNetto = Math.round((summen.auszahlung + portoSaldo(porto)) * 100) / 100;
     const auszahlungBrutto = Math.round(auszahlungNetto * (1 + mwstProzent / 100) * 100) / 100;
@@ -1018,190 +949,178 @@ router.post('/abrechnungen', async (req, res, next) => {
   try {
     const sheetId = SHEETID();
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
-    const { partnerId, vonDatum, bisDatum } = req.body;
+    const { partnerId, vonDatum, bisDatum } = req.body ?? {};
     if (!partnerId || !vonDatum || !bisDatum)
       return res.status(400).json({ error: 'partnerId, vonDatum und bisDatum sind erforderlich.' });
-
-    const sheets = await getSheets();
-
-    // FP_Verkäufe: alle offenen Einträge des Partners im Zeitraum summieren
-    const { header: vH, rows: vRows } = await readTab(sheets, sheetId, TAB_FP_VERKAEUFE);
-    const vh = col => vH.indexOf(col);
-    const von = parseDate(vonDatum);
-    const bis = parseDate(bisDatum);
-
-    const offene = vRows.filter(r => {
-      if ((r[vh('Partner-ID')] ?? '') !== partnerId) return false;
-      if ((r[vh('Status Abrechnung')] ?? '').toLowerCase() !== 'offen') return false;   // PA8: gesperrt nie abrechenbar
-      const d = parseDate(r[vh('Datum')] ?? '');
-      return d && d >= von && d <= bis;
-    });
-    const sperre = fpAbrechnungHinweise({ kopf: vH, zeilen: vRows, partnerId, von, bis, parseDate });   // PA8
-
-    if (!offene.length)
-      return res.status(400).json({ error: 'Keine offenen Einträge im angegebenen Zeitraum.' });
-
-    // Summen + Aufschlüsselung aus DERSELBEN Aggregation wie die Vorschau berechnen
-    // (robust gegen Header-Abweichungen der Gesamt-Partner-Netto/-Brutto-Spalten).
-    const { produkteGruppen, summen } = aggregateFpVerkaeufe(offene, vh);
-    const { header: kH, rows: kRows } = await readTab(sheets, sheetId, TAB_FIXKOSTEN);
-    const mwstProzent = parseKonfiguration(kRows, kH).mwstProzent;
-
-    // Verpackungspauschale (VP1) über genau die abzurechnenden Zeilen. Fehlt der
-    // Wert oder eine Versandmethode: Abrechnung ohne Pauschale (Inhaber VP1, keine
-    // Sperre), aber laut - Antwort und Positionen-JSON tragen status 'fehlt'.
-    const verpackung = await ladeVerpackung(sheets, sheetId, partnerId, offene, vRows, vh);
-    const verpackungSumme = verpackung.status === 'ok' ? verpackung.summe : 0;
-    const porto = await ladePorto(sheets, sheetId, partnerId, offene, vRows, vh);   // PO1: zwei eigene Positionen
-
-    // Offene interne Bestellungen (brutto) im Zeitraum von der Brutto-Auszahlung abziehen.
-    const interne = await loadOffeneInterne(sheets, sheetId, partnerId, von, bis);
-    const auszahlungBrutto = Math.round((summen.auszahlung + portoSaldo(porto)) * (1 + mwstProzent / 100) * 100) / 100;
-    const gesamtBrutto = Math.round((auszahlungBrutto - interne.summe - verpackungSumme) * 100) / 100;
-    const gesamtNetto  = Math.round((gesamtBrutto / (1 + mwstProzent / 100)) * 100) / 100;
-    const positionenJson = JSON.stringify({
-      produkteGruppen, summen, intern: interne.positionen, interneSumme: interne.summe,
-      ...(verpackung.status !== 'keine' ? { verpackung } : {}),
-      ...(porto.status !== 'keine' ? { porto } : {}),   // PO1
-    });
-
-    // Abrechnungs-ID generieren
-    const { header: abH, rows: abRows } = await readTab(sheets, sheetId, TAB_FP_ABRECHNUNGEN);
-    const maxAbNr = abRows.reduce((max, r) => {
-      const m = String(r[0] ?? '').match(/^FPA-(\d+)$/i);
-      return m ? Math.max(max, parseInt(m[1], 10)) : max;
-    }, 0);
-    const abrechnungsId = `FPA-${String(maxAbNr + 1).padStart(4, '0')}`;
-    const erstelltAm = toDE(new Date());
-
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: sheetId,
-      range: `${TAB_FP_ABRECHNUNGEN}!A:I`,
-      valueInputOption: 'USER_ENTERED',
-      insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [[abrechnungsId, partnerId, vonDatum, bisDatum, gesamtNetto, gesamtBrutto, 'entwurf', erstelltAm, positionenJson]] },
-    });
-
-    // Zugehörige FP_Verkäufe auf 'abgerechnet' setzen – über echten Sheet-Zeilenindex
-    // (_sheetRow) statt Positions-Match, daher kein erneuter Read nötig.
-    const statusColLetter = String.fromCharCode(65 + vh('Status Abrechnung'));
-    const updates = offene.map(r => ({
-      range: `${TAB_FP_VERKAEUFE}!${statusColLetter}${r._sheetRow}`,
-      values: [['abgerechnet']],
-    }));
-    // Einbezogene interne Bestellungen ebenfalls auf 'abgerechnet' setzen.
-    if (interne.statusCol) {
-      for (const p of interne.positionen) {
-        updates.push({ range: `Partner_Interne_Bestellungen!${interne.statusCol}${p.rowIndex}`, values: [['abgerechnet']] });
-      }
-    }
-
-    if (updates.length > 0) {
-      await sheets.spreadsheets.values.batchUpdate({
-        spreadsheetId: sheetId,
-        requestBody: { valueInputOption: 'RAW', data: updates },
-      });
-    }
-
-    res.status(201).json({
-      sperre,   // PA8
-      abrechnungsId, partnerId, gesamtNetto, gesamtBrutto,
-      positionen: offene.length, interne: interne.positionen.length, interneSumme: interne.summe,
-      verpackung: verpackung.status !== 'keine' ? verpackung : null,
-      porto: porto.status !== 'keine' ? porto : null,   // PO1
-    });
+    if (!/^\d{2}\.\d{2}\.\d{4}$/.test(String(vonDatum)) || !/^\d{2}\.\d{2}\.\d{4}$/.test(String(bisDatum)))
+      return res.status(400).json({ error: 'vonDatum und bisDatum im Format TT.MM.JJJJ.' });
+    // unter der FP-Sperre (wie Sync/Nachrechnen), alles frisch gelesen, EIN Schreibaufruf.
+    const antwort = await mitFpSperre(() => fpAbrechnungErstellen({ sheetId, partnerId, vonDatum, bisDatum }));
+    res.status(antwort.status).json(antwort.body);
   } catch (err) { next(err); }
 });
 
+async function fpAbrechnungErstellen({ sheetId, partnerId, vonDatum, bisDatum }) {
+  const sheets = await getSheets();
+
+  // FP_Verkäufe: offene Einträge des Partners im Zeitraum, inkl. Storno-Gegenbuchungen (dieselbe Auswahl wie die Vorschau)
+  const { header: vH, rows: vRows } = await readTab(sheets, sheetId, TAB_FP_VERKAEUFE);
+  const vh = col => vH.indexOf(col);
+  const von = parseDate(vonDatum);
+  const bis = parseDate(bisDatum);
+  const offene = fpAbrechnungsZeilen(vRows, vh, { partnerId, von, bis, parseDate });   // PA8: gesperrt nie abrechenbar
+  const sperre = fpAbrechnungHinweise({ kopf: vH, zeilen: vRows, partnerId, von, bis, parseDate });   // PA8
+
+  if (!offene.length) return { status: 400, body: { error: 'Keine offenen Einträge im angegebenen Zeitraum.' } };
+  if (vh('Status Abrechnung') === -1) return { status: 409, body: { error: 'Spalte „Status Abrechnung“ fehlt in FP_Verkäufe.' } };
+
+  const { produkteGruppen, summen } = aggregateFpVerkaeufe(offene, vh);
+  const { header: kH, rows: kRows } = await readTab(sheets, sheetId, TAB_FIXKOSTEN);
+  const mwstProzent = parseKonfiguration(kRows, kH).mwstProzent;
+
+  // Verpackungspauschale (VP1) über genau die abzurechnenden Zeilen. Fehlt der
+  // Wert oder eine Versandmethode: Abrechnung ohne Pauschale (Inhaber VP1, keine
+  // Sperre), aber laut - Antwort und Positionen-JSON tragen status 'fehlt'.
+  const verpackung = await ladeVerpackung(sheets, sheetId, partnerId, offene, vRows, vh);
+  const verpackungSumme = verpackung.status === 'ok' ? verpackung.summe : 0;
+  const porto = await ladePorto(sheets, sheetId, partnerId, offene, vRows, vh);   // PO1: zwei eigene Positionen
+
+  // Offene interne Bestellungen (brutto) im Zeitraum von der Brutto-Auszahlung abziehen.
+  const interne = await loadOffeneInterne(sheets, sheetId, partnerId, von, bis);
+  const auszahlungBrutto = Math.round((summen.auszahlung + portoSaldo(porto)) * (1 + mwstProzent / 100) * 100) / 100;
+  const gesamtBrutto = Math.round((auszahlungBrutto - interne.summe - verpackungSumme) * 100) / 100;
+  const gesamtNetto  = Math.round((gesamtBrutto / (1 + mwstProzent / 100)) * 100) / 100;
+  const positionenJson = JSON.stringify({
+    produkteGruppen, summen, intern: interne.positionen.map(({ rowIndex, ...p }) => p), interneSumme: interne.summe,
+    ...(verpackung.status !== 'keine' ? { verpackung } : {}),
+    ...(porto.status !== 'keine' ? { porto } : {}),   // PO1
+    zeilen: offene.map(r => fpZeilenSchluessel(r, vh)),   // Loeschen setzt genau diese Zeilen zurueck
+  });
+  if (positionenJson.length > POSITIONEN_MAX_ZEICHEN)
+    return { status: 422, body: { error: `Zu viele Positionen für eine Abrechnung (${offene.length}) – Zeitraum kürzer wählen.` } };
+
+  // Abrechnungs-ID unter der Sperre aus dem frisch gelesenen Reiter
+  const { data: abData } = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `'${TAB_FP_ABRECHNUNGEN}'`, valueRenderOption: 'UNFORMATTED_VALUE' });
+  const abWerte = abData.values ?? [];
+  const maxAbNr = abWerte.slice(1).reduce((max, r) => {
+    const m = String(r?.[0] ?? '').match(/^FPA-(\d+)$/i);
+    return m ? Math.max(max, parseInt(m[1], 10)) : max;
+  }, 0);
+  const abrechnungsId = `FPA-${String(maxAbNr + 1).padStart(4, '0')}`;
+  const erstelltAm = toDE(new Date());
+  const neueZeile = [abrechnungsId, partnerId, vonDatum, bisDatum, gesamtNetto, gesamtBrutto, 'entwurf', erstelltAm, positionenJson];
+  const ziel = await pruefeZielStrecke(sheets, sheetId, TAB_FP_ABRECHNUNGEN, abWerte, [neueZeile]);
+
+  // Status-Zellen der Verkäufe und internen Bestellungen (Zeilen oben frisch gelesen)
+  const vStCol = spalteBuchstabe(vh('Status Abrechnung'));
+  const data = [
+    { range: ziel.range, values: [neueZeile] },
+    ...offene.map(r => ({ range: `'${TAB_FP_VERKAEUFE}'!${vStCol}${r._sheetRow}`, values: [['abgerechnet']] })),
+    ...(interne.statusCol ? interne.positionen.map(p => ({ range: `'Partner_Interne_Bestellungen'!${interne.statusCol}${p.rowIndex}`, values: [['abgerechnet']] })) : []),
+  ];
+  // EIN Schreibaufruf: Abrechnung und Markierung gelingen zusammen oder gar nicht.
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: sheetId, requestBody: { valueInputOption: 'USER_ENTERED', data },
+  });
+
+  return { status: 201, body: {
+    sperre,   // PA8
+    abrechnungsId, partnerId, gesamtNetto, gesamtBrutto,
+    positionen: offene.length, interne: interne.positionen.length, interneSumme: interne.summe,
+    verpackung: verpackung.status !== 'keine' ? verpackung : null,
+    porto: porto.status !== 'keine' ? porto : null,   // PO1
+  } };
+}
+
 // ── PATCH /api/festpreis/abrechnungen/:id/status ─────────────────────────────
+// nur vorwaerts entwurf -> freigegeben -> bezahlt (und bezahlt -> freigegeben), nie zurueck auf entwurf.
 router.patch('/abrechnungen/:id/status', async (req, res, next) => {
   try {
     const sheetId = SHEETID();
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
-    const { status } = req.body;
+    const { status } = req.body ?? {};
     const ALLOWED = new Set(['entwurf', 'freigegeben', 'bezahlt']);
     if (!status || !ALLOWED.has(status))
       return res.status(400).json({ error: `Ungültiger Status. Erlaubt: ${[...ALLOWED].join(', ')}` });
 
-    const sheets = await getSheets();
-    const { rows } = await readTab(sheets, sheetId, TAB_FP_ABRECHNUNGEN);
-    // Positionsfest: Abrechnungs-ID = Spalte A (0), Status = Spalte G (Index 6)
-    const rowIdx = rows.findIndex(r => (r[0] ?? '') === req.params.id);
-    if (rowIdx === -1) return res.status(404).json({ error: 'Abrechnung nicht gefunden.' });
-
-    const sheetRow = rows[rowIdx]._sheetRow;
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: sheetId,
-      range: `${TAB_FP_ABRECHNUNGEN}!G${sheetRow}`,
-      valueInputOption: 'RAW',
-      requestBody: { values: [[status]] },
+    const antwort = await mitFpSperre(async () => {
+      const sheets = await getSheets();
+      const { rows } = await readTab(sheets, sheetId, TAB_FP_ABRECHNUNGEN);
+      // Positionsfest: Abrechnungs-ID = Spalte A (0), Status = Spalte G (Index 6)
+      const row = rows.find(r => (r[0] ?? '') === req.params.id);
+      if (!row) return { status: 404, body: { error: 'Abrechnung nicht gefunden.' } };
+      const bisher = String(row[6] ?? '').trim() || 'entwurf';
+      if (!fpStatusWechselErlaubt(bisher, status))
+        return { status: 409, body: { error: `Statuswechsel ${bisher} → ${status} ist nicht erlaubt (nur entwurf → freigegeben → bezahlt; zurück nur bezahlt → freigegeben).` } };
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: sheetId,
+        range: `${TAB_FP_ABRECHNUNGEN}!G${row._sheetRow}`,
+        valueInputOption: 'RAW',
+        requestBody: { values: [[status]] },
+      });
+      return { status: 200, body: { ok: true, abrechnungsId: req.params.id, status } };
     });
-    res.json({ ok: true, abrechnungsId: req.params.id, status });
+    res.status(antwort.status).json(antwort.body);
   } catch (err) { next(err); }
 });
 
 // ── DELETE /api/festpreis/abrechnungen/:id ───────────────────────────────────
-// Löscht einen Entwurf und setzt die zugehörigen Verkäufe wieder auf 'offen'.
+// Löscht einen Entwurf und setzt GENAU seine Verkäufe und internen Bestellungen wieder auf 'offen'
+// (Zeilen-Schluessel im Positionen-JSON). Ein Schreibaufruf: Ruecksetzen + Abrechnungszeile leeren.
 router.delete('/abrechnungen/:id', async (req, res, next) => {
   try {
     const sheetId = SHEETID();
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID fehlt.' });
-    const sheets = await getSheets();
-
-    const { rows } = await readTab(sheets, sheetId, TAB_FP_ABRECHNUNGEN);
-    const rowIdx = rows.findIndex(r => (r[0] ?? '') === req.params.id); // Spalte A = Abrechnungs-ID
-    if (rowIdx === -1) return res.status(404).json({ error: 'Abrechnung nicht gefunden.' });
-    const abrRow = rows[rowIdx];
-    if ((abrRow[6] ?? '').toLowerCase() !== 'entwurf')
-      return res.status(400).json({ error: `Nur Entwürfe können gelöscht werden (Status: ${abrRow[6]}).` });
-
-    const partnerId = abrRow[1] ?? '';
-    const von = parseDate(abrRow[2] ?? '');
-    const bis = parseDate(abrRow[3] ?? '');
-
-    // 1. Zugehörige FP_Verkäufe (Partner + Zeitraum, abgerechnet) → 'offen'
-    const { header: vH, rows: vRows } = await readTab(sheets, sheetId, TAB_FP_VERKAEUFE);
-    const vh = col => vH.indexOf(col);
-    const stCol = String.fromCharCode(65 + vh('Status Abrechnung'));
-    const resets = vRows.filter(r => {
-      if ((r[vh('Partner-ID')] ?? '') !== partnerId) return false;
-      if ((r[vh('Status Abrechnung')] ?? '').toLowerCase() !== 'abgerechnet') return false;
-      const d = parseDate(r[vh('Datum')] ?? '');
-      return d && von && bis && d >= von && d <= bis;
-    }).map(r => ({ range: `${TAB_FP_VERKAEUFE}!${stCol}${r._sheetRow}`, values: [['offen']] }));
-
-    // 1b. Zugehörige interne Bestellungen (Partner + Zeitraum, abgerechnet) → 'offen'
-    const { header: iH, rows: iRows } = await readTab(sheets, sheetId, 'Partner_Interne_Bestellungen');
-    const ih = col => iH.indexOf(col);
-    const iStCol = ih('Status') !== -1 ? String.fromCharCode(65 + ih('Status')) : null;
-    if (iStCol) {
-      iRows.filter(r => {
-        if ((r[ih('Partner-ID')] ?? '') !== partnerId) return false;
-        if ((r[ih('Status')] ?? '').toLowerCase() !== 'abgerechnet') return false;
-        const d = parseDate(r[ih('Datum')] ?? '');
-        return d && von && bis && d >= von && d <= bis;
-      }).forEach(r => resets.push({ range: `Partner_Interne_Bestellungen!${iStCol}${r._sheetRow}`, values: [['offen']] }));
-    }
-
-    if (resets.length) {
-      await sheets.spreadsheets.values.batchUpdate({
-        spreadsheetId: sheetId, requestBody: { valueInputOption: 'RAW', data: resets },
-      });
-    }
-
-    // 2. Abrechnungs-Zeile löschen
-    const meta = await sheets.spreadsheets.get({ spreadsheetId: sheetId, fields: 'sheets.properties' });
-    const gid = meta.data.sheets.find(s => s.properties.title === TAB_FP_ABRECHNUNGEN)?.properties.sheetId;
-    if (gid === undefined) return res.status(404).json({ error: 'Tab nicht gefunden.' });
-    const sheetRow = abrRow._sheetRow;
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: sheetId,
-      requestBody: { requests: [{ deleteDimension: { range: { sheetId: gid, dimension: 'ROWS', startIndex: sheetRow - 1, endIndex: sheetRow } } }] },
-    });
-
-    res.json({ ok: true, abrechnungsId: req.params.id, zurueckgesetzt: resets.length });
+    const antwort = await mitFpSperre(() => fpAbrechnungLoeschen({ sheetId, id: req.params.id }));
+    res.status(antwort.status).json(antwort.body);
   } catch (err) { next(err); }
 });
+
+async function fpAbrechnungLoeschen({ sheetId, id }) {
+  const sheets = await getSheets();
+  const { header: aH, rows } = await readTab(sheets, sheetId, TAB_FP_ABRECHNUNGEN);
+  const abrRow = rows.find(r => (r[0] ?? '') === id); // Spalte A = Abrechnungs-ID
+  if (!abrRow) return { status: 404, body: { error: 'Abrechnung nicht gefunden.' } };
+  if ((abrRow[6] ?? '').toLowerCase() !== 'entwurf')
+    return { status: 400, body: { error: `Nur Entwürfe können gelöscht werden (Status: ${abrRow[6]}).` } };
+
+  const partnerId = abrRow[1] ?? '';
+  const von = parseDate(abrRow[2] ?? '');
+  const bis = parseDate(abrRow[3] ?? '');
+  let positionen = null;
+  try { positionen = JSON.parse(abrRow[8] ?? ''); } catch { /* Altbestand ohne JSON */ }
+  const andere = rows.filter(r => r !== abrRow && (r[1] ?? '') === partnerId)
+    .map(r => ({ von: parseDate(r[2] ?? ''), bis: parseDate(r[3] ?? '') }));
+
+  const { header: vH, rows: vRows } = await readTab(sheets, sheetId, TAB_FP_VERKAEUFE);
+  const vh = col => vH.indexOf(col);
+  const { header: iH, rows: iRows } = await readTab(sheets, sheetId, 'Partner_Interne_Bestellungen');
+  const ih = col => iH.indexOf(col);
+
+  const plan = fpLoeschPlan({ positionen, verkaufsZeilen: vRows, internZeilen: iRows, vh, ih, partnerId, von, bis, andere, parseDate });
+  if (plan.fehler) return { status: 409, body: { error: plan.fehler } };
+
+  const stCol = spalteBuchstabe(vh('Status Abrechnung'));
+  const data = plan.verkaeufe.map(r => ({ range: `'${TAB_FP_VERKAEUFE}'!${stCol}${r._sheetRow}`, values: [['offen']] }));
+  if (ih('Status') !== -1) {
+    const iStCol = spalteBuchstabe(ih('Status'));
+    for (const r of plan.intern) data.push({ range: `'Partner_Interne_Bestellungen'!${iStCol}${r._sheetRow}`, values: [['offen']] });
+  }
+  // Abrechnungszeile leeren statt Zeile loeschen: bleibt im selben Schreibaufruf (Leerzeilen liest readTab nicht).
+  const breite = Math.max(aH.length, 9);
+  data.push({ range: `'${TAB_FP_ABRECHNUNGEN}'!A${abrRow._sheetRow}:${spalteBuchstabe(breite - 1)}${abrRow._sheetRow}`, values: [Array(breite).fill('')] });
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: sheetId, requestBody: { valueInputOption: 'RAW', data },
+  });
+
+  const erwartet = Array.isArray(positionen?.zeilen) ? positionen.zeilen.length : null;
+  return { status: 200, body: {
+    ok: true, abrechnungsId: id, zurueckgesetzt: plan.verkaeufe.length + plan.intern.length,
+    ...(erwartet !== null && erwartet !== plan.verkaeufe.length
+      ? { hinweis: `${erwartet - plan.verkaeufe.length} Verkauf/Verkäufe der Abrechnung nicht mehr als „abgerechnet“ gefunden.` } : {}),
+  } };
+}
 
 // ── GET /api/festpreis/preise ─────────────────────────────────────────────────
 // Liest FP_Artikel_Kategorie: Kategorie | Festpreispartner-ID | Festpreis

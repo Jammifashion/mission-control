@@ -15,6 +15,7 @@ import { zugangArt, klartextFuerMc } from '../utils/partner-token.js';
 import { erzeugeNeuenPartnerLink, zeigePartnerLink, partnerKopierbar } from '../lib/partnerLink.js';
 import { berechnePartnerAnteil, parseKonfiguration, istBekanntePosition, baueLizenzSaetze, lizenzSatzAusZeile, parseVertragAb, baueVertragsbeginne } from '../utils/partner-kalkulation.js';
 
+import { lizenzStatusWechselErlaubt } from '../utils/fp-abrechnung.js';
 const router = Router();
 
 function getSheets() {
@@ -775,6 +776,11 @@ router.patch('/abrechnung/:id/status', async (req, res, next) => {
     const rowIndex = rows.findIndex(r => r[abIdIdx] === req.params.id);
     if (rowIndex === -1)
       return res.status(404).json({ error: `Abrechnung "${req.params.id}" nicht gefunden.` });
+
+    // "freigegeben" nur ueber POST /freigeben (markiert die Posten), nie zurueck auf "entwurf".
+    const bisher = String(rows[rowIndex][stIdx] ?? '').trim();
+    if (!lizenzStatusWechselErlaubt(bisher, status))
+      return res.status(409).json({ error: `Statuswechsel ${bisher || '(leer)'} → ${status} ist nicht erlaubt. Freigeben über „Freigeben“; danach nur freigegeben ↔ bezahlt.` });
 
     const sheetRow   = rows[rowIndex]._sheetRow;
     const stColLetter = colLetter(stIdx);

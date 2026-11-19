@@ -22,7 +22,9 @@ beforeAll(async () => {
   const { default: express } = await import('express');
   mockValues = { get: jest.fn(), append: jest.fn().mockResolvedValue({ data: {} }), batchUpdate: jest.fn().mockResolvedValue({ data: {} }) };
   const { google } = await import('googleapis');
-  google.sheets.mockReturnValue({ spreadsheets: { values: mockValues } });
+  // die Abrechnung prueft die Zielzeile (Raster) und schreibt alles in EINEM values.batchUpdate.
+  const meta = { data: { sheets: [{ properties: { title: 'FP_Abrechnungen', sheetId: 7, gridProperties: { rowCount: 1000 } } }] } };
+  google.sheets.mockReturnValue({ spreadsheets: { values: mockValues, get: jest.fn().mockResolvedValue(meta) } });
   app = express();
   app.use(express.json());
   app.use('/api/festpreis', (await import('../routes/festpreis-portal.js')).default);
@@ -46,18 +48,25 @@ beforeEach(() => {
     Partner_Interne_Bestellungen: [['Partner-ID', 'Datum', 'Bezeichnung', 'Anzahl', 'Einzelpreis', 'Summe', 'Status']],
   };
   mockValues.get.mockReset();
-  mockValues.get.mockImplementation(async ({ range }) => ({ data: { values: (tabs[range.split('!')[0]] ?? []).map(r => [...r]) } }));
+  mockValues.get.mockImplementation(async ({ range }) => {
+    const [tab, bereich] = range.split('!');
+    const werte = (tabs[tab.replace(/^'|'$/g, '')] ?? []).map(r => [...r]);
+    const m = /^[A-Z]+(\d+):[A-Z]+(\d+)$/.exec(bereich ?? '');   // fester Zeilenbereich (Zielzeilen-Pruefung)
+    return { data: { values: m ? werte.slice(Number(m[1]) - 1, Number(m[2])) : werte } };
+  });
   mockValues.append.mockClear();
   mockValues.batchUpdate.mockClear();
 });
 
 const body = { partnerId: 'FP-001', vonDatum: '01.01.2026', bisDatum: '30.04.2026' };
+// Positionen-JSON der zuletzt geschriebenen Abrechnungszeile (erster Eintrag des batchUpdate)
+const abrechnungsJson = () => JSON.parse(mockValues.batchUpdate.mock.calls.at(-1)[0].requestBody.data[0].values[0][8]);
 
 test('Abrechnung: eigene Zeile, 2 versendete Bestellungen ab 01.04., Abholung und März nicht', async () => {
   const res = await request(app).post('/api/festpreis/abrechnungen').send(body);
   expect(res.status).toBe(201);
   expect(res.body.verpackung).toMatchObject({ status: 'ok', anzahl: 2, summe: 4, abholung: 1, vorAb: 1 });
-  const json = JSON.parse(mockValues.append.mock.calls[0][0].requestBody.values[0][8]);
+  const json = abrechnungsJson();
   expect(json.verpackung.anzahl).toBe(2);
 });
 
@@ -78,7 +87,7 @@ test('fehlender Betrag -> Abrechnung OHNE Pauschale, laut (status fehlt), nie 0 
   expect(res.body.verpackung.status).toBe('fehlt');
   expect(res.body.verpackung.hinweise[0]).toMatch(/nicht berechnet/);
   expect(res.body.gesamtBrutto).toBeCloseTo(mit.body.gesamtBrutto + 4, 2);
-  const json = JSON.parse(mockValues.append.mock.calls[0][0].requestBody.values[0][8]);
+  const json = abrechnungsJson();
   expect(json.verpackung.status).toBe('fehlt');
 });
 

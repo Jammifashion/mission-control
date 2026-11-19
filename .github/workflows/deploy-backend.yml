@@ -71,6 +71,8 @@ jobs:
           docker push $IMAGE:${{ github.sha }}
           docker push $IMAGE:latest
 
+      # Eine Instanz: die Schreibsperren (Korb, Lager, Auftraege, FP …) gelten je Prozess.
+      # Gleichzeitige Anfragen laufen trotzdem parallel (Standard 80 je Instanz).
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy mission-control-backend \
@@ -82,4 +84,4 @@ jobs:
             --set-env-vars NODE_ENV=production,GOOGLE_PROJECT_ID=mission-control-495711 \
             --memory 512Mi \
             --min-instances 0 \
-            --max-instances 2
+            --max-instances 1

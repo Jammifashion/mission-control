@@ -5,6 +5,7 @@
 import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
+import { fpAbrechnungsZeilen } from '../utils/fp-abrechnung.js';
 import { aggregateFpVerkaeufe, loadOffeneInterne, ladeVerpackung, ladePorto, portoSaldo } from './festpreis-portal.js';
 import { parseKonfiguration } from '../utils/partner-kalkulation.js';
 import { findeZeileZumToken, SPALTE_TOKEN, SPALTE_HASH } from '../utils/partner-token.js';
@@ -142,11 +143,8 @@ router.get('/saldo', async (req, res, next) => {
 
     const { header, rows } = await readTab(sheets, sheetId, TAB_FP_VERKAEUFE);
     const vh = col => header.indexOf(col);
-    const offene = rows.filter(r =>
-      (r[vh('Partner-ID')] ?? '') === partnerId &&
-      (r[vh('Status Abrechnung')] ?? '').toLowerCase() === 'offen' &&
-      (r[vh('Storno-Status')] ?? '') === ''            // Storno-Gegenbuchungen ausschließen
-    );
+    // Dieselbe Auswahl wie Vorschau und Abrechnung: alle offenen Zeilen inkl. Storno-Gegenbuchungen.
+    const offene = fpAbrechnungsZeilen(rows, vh, { partnerId, parseDate: () => null });
     const { summen } = aggregateFpVerkaeufe(offene, vh);
 
     const { header: kH, rows: kRows } = await readTab(sheets, sheetId, TAB_FIXKOSTEN);
@@ -155,10 +153,7 @@ router.get('/saldo', async (req, res, next) => {
 
     // Verpackungspauschale (VP1) über alle offenen Zeilen inkl. Storno-Gegenbuchungen,
     // wie die Abrechnung. Fehlt der Wert: nicht abziehen, Portal zeigt "in Prüfung".
-    const offeneMitStorno = rows.filter(r =>
-      (r[vh('Partner-ID')] ?? '') === partnerId &&
-      (r[vh('Status Abrechnung')] ?? '').toLowerCase() === 'offen'
-    );
+    const offeneMitStorno = offene;
     const v = await ladeVerpackung(sheets, sheetId, partnerId, offeneMitStorno, rows, vh);
     const verpackung = v.status === 'keine' ? null
       : v.status === 'ok' ? { status: 'ok', anzahl: v.anzahl, betrag: v.betrag, summe: v.summe }
