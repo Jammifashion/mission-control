@@ -32,6 +32,25 @@ describe('berechneTeilerstattung', () => {
       ],
     });
     expect(r.buchungen.map(b => b.menge)).toEqual([2, 1]);
+    expect(r.hinweise).toEqual([expect.objectContaining({ refundId: '2', grund: 'mehr_als_rest', menge: 1 })]);
+  });
+
+  test('zwei Zeilen derselben Position in einer Erstattung -> eine Buchung', () => {
+    const r = berechneTeilerstattung({
+      items: [item(10, 500, 3)],
+      refunds: [{ id: 3, lines: [{ product_id: 500, quantity: -1 }, { product_id: 500, quantity: -1 }] }],
+    });
+    expect(r.buchungen).toHaveLength(1);
+    expect(r.buchungen[0]).toMatchObject({ positionId: '10', menge: 2 });
+  });
+
+  test('Betrag ohne Menge an einer Position -> Hinweis, nichts gebucht', () => {
+    const r = berechneTeilerstattung({
+      items: [item(10, 500, 1)],
+      refunds: [{ id: 4, lines: [{ product_id: 500, quantity: 0, total: '-5.00' }] }],
+    });
+    expect(r.buchungen).toEqual([]);
+    expect(r.hinweise[0]).toMatchObject({ refundId: '4', grund: 'betrag_ohne_menge' });
   });
 
   test('Wiederholungslauf: schon gegenbuchte Menge und Erstattung werden nicht erneut gebucht', () => {
@@ -83,17 +102,18 @@ describe('berechneTeilerstattung', () => {
       refunds: [{ id: 905, lines: [{ product_id: 500, quantity: -5 }] }],
     });
     expect(r.buchungen[0].menge).toBe(2);
+    expect(r.hinweise[0]).toMatchObject({ grund: 'mehr_als_rest', menge: 3 });
   });
 
-  test('Versanderstattung ohne Position ist ein Hinweis, Positionen daneben bleiben buchbar', () => {
+  test('Versanderstattung -> Hinweis "versand", nicht "ohne_position"; Positionen daneben bleiben buchbar', () => {
     const r = berechneTeilerstattung({
       items: [item(10, 500, 1)],
       refunds: [
-        { id: 906, lines: [] },
-        { id: 907, lines: [{ product_id: 500, quantity: -1 }] },
+        { id: 906, lines: [], versand: '-4.90' },
+        { id: 907, lines: [{ product_id: 500, quantity: -1 }], versand: '-4.90' },
       ],
     });
-    expect(r.hinweise).toEqual([{ refundId: '906', grund: 'ohne_position' }]);
+    expect(r.hinweise).toEqual([{ refundId: '906', grund: 'versand' }, { refundId: '907', grund: 'versand' }]);
     expect(r.buchungen.map(b => b.refundId)).toEqual(['907']);
   });
 });

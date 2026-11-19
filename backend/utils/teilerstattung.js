@@ -2,55 +2,72 @@
 //
 // Eingabe je Bestellung:
 //   items:   Positionen der Bestellung { id, product_id, variation_id, quantity }
-//   refunds: Erstattungen { id, lines: [{ product_id, variation_id, quantity }] }
-//            quantity positiv (WooCommerce liefert negative Mengen; hier wird abs() genommen).
-//            Ohne lines = Erstattung nur mit Betrag (kein Positionsbezug).
-//   gebucht: Map positionId -> bereits gegenbuchte Menge (aus den Verkaufszeilen)
+//   refunds: Erstattungen { id, lines: [{ product_id, variation_id, quantity, total }], versand }
+//            quantity/total wie von WooCommerce (negativ) oder positiv - es zaehlt der Betrag (abs).
+//            lines leer = Erstattung nur mit Betrag (kein Positionsbezug).
+//            versand = erstatteter Versand (Betrag, > 0 = Versand erstattet).
+//   gebucht: Map positionId -> bereits gegengebuchte Menge (aus den Verkaufszeilen)
 //   gebuchteRefunds: Set "refundId|positionId" fuer schon gebuchte Erstattungen (Dubletten-Schutz)
 //
 // Zuordnung: Erstattungs-Position -> Bestell-Position ueber product_id + variation_id.
-// Gibt es zu einer Erstattungs-Position mehrere Bestell-Positionen, wird NICHT geraten:
-// der Fall geht als "mehrdeutig" in die Hinweise.
-// Erstattungen ohne Positionsbezug werden nur als Hinweis gemeldet, nie gebucht.
+// Nichts wird geraten - jeder Fall, der nicht eindeutig eine Menge einer Position erstattet,
+// geht als Hinweis heraus und wird nicht gebucht:
+//   ohne_position      Erstattung ohne Positionen (Kulanz, nur Betrag)
+//   versand            Versand erstattet (FP: Porto-Einnahme mindern, Lizenz: pruefen)
+//   betrag_ohne_menge  Position mit Betrag, aber Menge 0 (Teilbetrag einer Position)
+//   unbekannt          Produkt/Variante nicht in der Bestellung
+//   mehrdeutig         Produkt/Variante mehrfach in der Bestellung
+//   mehr_als_rest      mehr Menge erstattet als noch offen (gebucht wird nur der Rest)
 
-const schluessel = (refundId, positionId) => `${refundId}|${positionId}`;
+export const refundSchluessel = (refundId, positionId) => `${refundId}|${positionId}`;
+
+const zahl = v => { const n = Math.abs(Number(String(v ?? '').replace(',', '.'))); return Number.isFinite(n) ? n : 0; };
+const kombi = (productId, variationId) => `${productId ?? ''}|${Number(variationId || 0)}`;
 
 /**
  * @returns {{
- *   buchungen: Array<{ refundId, positionId, orderItem, menge, faktor }>,
- *   hinweise:  Array<{ refundId, grund: 'ohne_position' | 'mehrdeutig' | 'unbekannt', produktId?, variationId? }>
+ *   buchungen: Array<{ refundId: string, positionId: string, orderItem: object, menge: number, faktor: number }>,
+ *   hinweise:  Array<{ refundId: string, grund: string, produktId?, variationId?, menge? }>
  * }}
  */
 export function berechneTeilerstattung({ items = [], refunds = [], gebucht = new Map(), gebuchteRefunds = new Set() }) {
   const buchungen = [];
   const hinweise = [];
-  // Verbleibende Menge je Bestell-Position (Original minus schon gegenbucht minus in diesem Lauf vergeben).
-  const rest = new Map(items.map(i => [String(i.id), Number(i.quantity) - Number(gebucht.get(String(i.id)) ?? 0)]));
-  const key = i => `${i.product_id ?? ''}|${Number(i.variation_id || 0)}`;
+  // Offene Menge je Bestell-Position: Original minus schon gegengebucht minus in diesem Lauf vergeben.
+  const rest = new Map(items.map(i => [String(i.id), Math.max(0, Number(i.quantity) - Number(gebucht.get(String(i.id)) ?? 0))]));
 
   for (const r of refunds) {
     const refundId = String(r.id);
+    if (zahl(r.versand) > 0) hinweise.push({ refundId, grund: 'versand' });
     if (!r.lines || r.lines.length === 0) {
-      hinweise.push({ refundId, grund: 'ohne_position' });
+      if (!(zahl(r.versand) > 0)) hinweise.push({ refundId, grund: 'ohne_position' });
       continue;
     }
+    // Mehrere Zeilen derselben Position in EINER Erstattung zusammenfassen (eine Buchung je Schluessel).
+    const jePosition = new Map();
     for (const line of r.lines) {
-      const k = `${line.product_id ?? ''}|${Number(line.variation_id || 0)}`;
-      const treffer = items.filter(i => key(i) === k);
-      if (treffer.length === 0) {
-        hinweise.push({ refundId, grund: 'unbekannt', produktId: line.product_id, variationId: line.variation_id || 0 });
-        continue;
-      }
-      if (treffer.length > 1) {
-        hinweise.push({ refundId, grund: 'mehrdeutig', produktId: line.product_id, variationId: line.variation_id || 0 });
+      const k = kombi(line.product_id, line.variation_id);
+      const treffer = items.filter(i => kombi(i.product_id, i.variation_id) === k);
+      const info = { refundId, produktId: line.product_id, variationId: Number(line.variation_id || 0) };
+      if (treffer.length === 0) { hinweise.push({ ...info, grund: 'unbekannt' }); continue; }
+      if (treffer.length > 1)   { hinweise.push({ ...info, grund: 'mehrdeutig' }); continue; }
+      const menge = zahl(line.quantity);
+      if (menge === 0) {
+        if (zahl(line.total) > 0) hinweise.push({ ...info, grund: 'betrag_ohne_menge' });
         continue;
       }
       const item = treffer[0];
-      const positionId = String(item.id);
-      if (gebuchteRefunds.has(schluessel(refundId, positionId))) continue;   // Dubletten-Schutz
-      const menge = Math.min(Math.abs(Number(line.quantity)), Math.max(0, rest.get(positionId) ?? 0));
+      const pid = String(item.id);
+      const vorher = jePosition.get(pid);
+      jePosition.set(pid, { item, menge: (vorher?.menge ?? 0) + menge, info });
+    }
+    for (const [positionId, { item, menge: gewollt, info }] of jePosition) {
+      if (gebuchteRefunds.has(refundSchluessel(refundId, positionId))) continue;   // Dubletten-Schutz
+      const offen = rest.get(positionId) ?? 0;
+      const menge = Math.min(gewollt, offen);
+      if (gewollt > offen) hinweise.push({ ...info, grund: 'mehr_als_rest', menge: gewollt - offen });
       if (menge <= 0) continue;
-      rest.set(positionId, rest.get(positionId) - menge);
+      rest.set(positionId, offen - menge);
       const orig = Number(item.quantity) || 1;
       buchungen.push({ refundId, positionId, orderItem: item, menge, faktor: menge / orig });
     }
