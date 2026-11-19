@@ -160,11 +160,24 @@ export function buildStornoRows(vRows, vh, stornoOrders, partnerFilter) {
     STORNO_COL, STATUS_COL, DATE_COL, ordIdx, artIdx, varIdx, pIdx, SPERRE_COL, POS_COL, ...NEG_COLS,
   ) + 1;
 
+  // NB1: Teilerstattungs-Zeilen ("Erstattung #…", "Versanderstattung #…") sind keine Ganz-Stornos.
+  // Sie sperren die Gegenbuchung nicht, werden aber mitgerechnet: das Storno negiert die SUMME aus
+  // Ursprungszeile und schon gebuchten Teilerstattungen - sonst waere erstattete Ware doppelt abgezogen.
+  const istTeil = r => {
+    const s = String(r[STORNO_COL] ?? '');
+    return s.startsWith('Erstattung #') || s.startsWith('Versanderstattung #');
+  };
   const stornoDone = new Set();
+  const teilSumme = new Map();   // dupKey -> Summe je NEG-Spalte der Teilerstattungen
   for (const r of vRows) {
-    if ((r[STORNO_COL] ?? '') !== '')
-      stornoDone.add(dupKeyOf(r));
+    if ((r[STORNO_COL] ?? '') === '') continue;
+    if (!istTeil(r)) { stornoDone.add(dupKeyOf(r)); continue; }
+    const k = dupKeyOf(r);
+    const s = teilSumme.get(k) ?? new Map();
+    for (const i of NEG_COLS) if (!leerWert(r[i])) s.set(i, (s.get(i) ?? 0) + toFloat(r[i]));
+    teilSumme.set(k, s);
   }
+  const rund = x => Math.round((x + Number.EPSILON) * 100) / 100;
 
   const out = [];
   for (const r of vRows) {
@@ -177,13 +190,19 @@ export function buildStornoRows(vRows, vh, stornoOrders, partnerFilter) {
     if (stornoDone.has(dupKey)) continue;
     stornoDone.add(dupKey);
 
+    const teil = teilSumme.get(dupKey);
     const counter = [];
     for (let i = 0; i < BREITE; i++) {
       let v = r[i] ?? '';
       // Leer bleibt leer (gesperrte Zeile), 0 bleibt 0 - nie -0.
-      if (NEG_COLS.includes(i) && !leerWert(v)) { const x = toFloat(v); v = x === 0 ? 0 : -x; }
+      if (NEG_COLS.includes(i) && !leerWert(v)) {
+        const x = teil ? rund(toFloat(v) + (teil.get(i) ?? 0)) : toFloat(v);
+        v = x === 0 ? 0 : -x;
+      }
       counter[i] = v;
     }
+    // Alles schon per Teilerstattung zurueck: keine leere Gegenbuchung.
+    if (teil && NEG_COLS.every(i => leerWert(counter[i]) || counter[i] === 0)) continue;
     counter[DATE_COL]   = refundDate.get(oid) || r[DATE_COL] || toDE(new Date());
     counter[STATUS_COL] = (r[STATUS_COL] ?? '') === STATUS_GESPERRT ? STATUS_GESPERRT : 'offen';
     counter[STORNO_COL] = STORNO_MARKER;

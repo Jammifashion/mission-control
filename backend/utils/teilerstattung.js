@@ -13,13 +13,15 @@
 // Nichts wird geraten - jeder Fall, der nicht eindeutig eine Menge einer Position erstattet,
 // geht als Hinweis heraus und wird nicht gebucht:
 //   ohne_position      Erstattung ohne Positionen (Kulanz, nur Betrag)
-//   versand            Versand erstattet (FP: Porto-Einnahme mindern, Lizenz: pruefen)
+//   versand            Versand erstattet (wird im Lizenz-Sync als Porto-Minderung gebucht, buildErstattungRows)
 //   betrag_ohne_menge  Position mit Betrag, aber Menge 0 (Teilbetrag einer Position)
 //   unbekannt          Produkt/Variante nicht in der Bestellung
 //   mehrdeutig         Produkt/Variante mehrfach in der Bestellung
 //   mehr_als_rest      mehr Menge erstattet als noch offen (gebucht wird nur der Rest)
 
-export const refundSchluessel = (refundId, positionId) => `${refundId}|${positionId}`;
+import { parseDeZahl } from './zahl-de.js';
+
+export const refundSchluessel =(refundId, positionId) => `${refundId}|${positionId}`;
 
 const zahl = v => { const n = Math.abs(Number(String(v ?? '').replace(',', '.'))); return Number.isFinite(n) ? n : 0; };
 const kombi = (productId, variationId) => `${productId ?? ''}|${Number(variationId || 0)}`;
@@ -83,4 +85,167 @@ export function berechneTeilerstattung({ items = [], refunds = [], gebucht = new
     }
   }
   return { buchungen, hinweise };
+}
+
+// ── Gegenbuchungen im Lizenz-Verkaeufe-Reiter (Partner_Verkäufe / HK_Partner_Verkäufe) ─────────────
+//
+// Je Erstattung entstehen eigene Zeilen, erkennbar an Storno-Status:
+//   "Erstattung #<Refund-ID>"        erstattete Menge einer Position: alle Betraege der Ursprungszeile
+//                                    anteilig (Menge / Originalmenge) negiert, Stueckzahl = -Menge
+//   "Versanderstattung #<Refund-ID>" erstatteter Versand: Porto-Einnahme der Bestellung gemindert
+//                                    (Inhaber 19.11.: Porto-Saldo mindern). Je Zeile wie im Sync:
+//                                    -Versand netto x Wertanteil x Porto-Modell (partner-traegt 1, sonst 1/2);
+//                                    Lizenzgebuehr und Porto-Saldo um diesen Betrag, Anteil-Brutto mit MwSt.
+// Die Marke mit Refund-ID ist der Dubletten-Schutz (je Ursprungszeile). Gesperrte Ursprungszeilen
+// bekommen nichts (entsperren() rechnet gesperrte Zeilen neu) - Hinweis, der naechste Lauf nach dem
+// Entsperren bucht. Ganz stornierte Positionen (Storniert/Rückerstattet) bekommen nichts.
+
+export const MARKE_ERSTATTUNG = 'Erstattung #';
+export const MARKE_VERSAND    = 'Versanderstattung #';
+export const istErstattungsZeile = storno => {
+  const s = String(storno ?? '');
+  return s.startsWith(MARKE_ERSTATTUNG) || s.startsWith(MARKE_VERSAND);
+};
+
+const NEG_SPALTEN = ['Stückzahl', 'VK-Preis-Brutto', 'Lizenzgebühr', 'Gewinn-netto', 'Lizenz-Anteil', 'Porto-Saldo', 'Anteil-Brutto'];
+const round2 = x => Math.round((x + Number.EPSILON) * 100) / 100;
+const leer = v => v === null || v === undefined || String(v).trim() === '';
+// Sheets-Werte (deutsch "1.234,50") wie toFloat; WC-Werte ("12.50") gehen ebenso durch parseDeZahl.
+const dezimal = v => { const n = parseDeZahl(String(v ?? '').trim()); return Number.isFinite(n) ? n : 0; };
+const ohneMinusNull = x => (x === 0 ? 0 : x);
+const varKey = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
+const artikelName = item => item.name || item.sku || String(item.product_id);
+const datumDE = iso => {
+  const d = new Date(iso);
+  return `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${d.getUTCFullYear()}`;
+};
+
+/**
+ * @param {object} o
+ * @param {any[][]} o.vRows                     Verkaeufe-Zeilen (ohne Kopf)
+ * @param {(c:string)=>number} o.vh             Spaltenindex ueber den Namen
+ * @param {Array<{order:object, refunds:object[]}>} o.bestellungen  WC-Bestellung (Status Verkauf) + rohe /refunds-Antwort
+ * @param {(partnerId:string)=>number} o.portoFaktor   Anteil des Partners am Porto-Saldo (1 oder 0,5)
+ * @param {(order:object)=>number} o.mwstFuer   MwSt-Satz in Prozent zum Bestelldatum
+ * @param {string} o.stornoMarker               Marke der Ganz-Storno-Zeilen
+ * @param {Set<string>|null} [o.partnerFilter]
+ * @returns {{ rows: any[][], hinweise: object[] }}
+ */
+export function buildErstattungRows({ vRows, vh, bestellungen, portoFaktor, mwstFuer, stornoMarker, partnerFilter = null }) {
+  const pflicht = n => {
+    const i = vh(n);
+    if (i === -1) throw Object.assign(new Error(`Spalte "${n}" fehlt in der Kopfzeile der Verkaeufe - Erstattung abgebrochen.`), { status: 500 });
+    return i;
+  };
+  const iOrd = pflicht('Order-ID'), iArt = pflicht('Artikelnummer'), iVar = pflicht('Variante'), iPid = pflicht('Partner-ID');
+  const iDat = pflicht('Datum'), iSt = pflicht('Status'), iSto = pflicht('Storno-Status');
+  const iPos = vh('Positions-ID');
+  const neg = Object.fromEntries(NEG_SPALTEN.map(n => [n, pflicht(n)]));
+  const breite = Math.max(0, ...vRows.map(r => r.length), iSto + 1, iPos + 1, ...Object.values(neg).map(i => i + 1));
+  const posVon = r => (iPos === -1 ? '' : String(r[iPos] ?? '').trim());
+  const keyOf = r => (posVon(r) ? `${r[iOrd]}|pos:${posVon(r)}|${r[iPid]}` : `${r[iOrd]}|${r[iArt]}|${varKey(r[iVar])}|${r[iPid]}`);
+  const kopie = r => Array.from({ length: breite }, (_, i) => r[i] ?? '');
+
+  const rows = [];
+  const hinweise = [];
+  const hinweis = h => {
+    if (!hinweise.some(x => x.orderId === h.orderId && x.refundId === h.refundId && x.grund === h.grund && x.partnerId === h.partnerId)) hinweise.push(h);
+  };
+
+  for (const { order, refunds } of bestellungen ?? []) {
+    if (!(refunds ?? []).length) continue;
+    const oid = String(order.id);
+    const zeilen = vRows.filter(r => String(r[iOrd] ?? '') === oid && (!partnerFilter || partnerFilter.has(r[iPid])));
+    if (!zeilen.length) continue;
+    const ganzStorniert = new Set(zeilen.filter(r => String(r[iSto] ?? '') === stornoMarker).map(keyOf));
+    const items = order.line_items ?? [];
+    const orderNetto = items.reduce((s, i) => s + dezimal(i.total), 0);
+    const roh = refunds.map(rf => ({
+      id: rf.id,
+      lines: (rf.line_items ?? []).map(l => ({ product_id: l.product_id, variation_id: l.variation_id, quantity: l.quantity, total: l.total, meta_data: l.meta_data })),
+      versand: (rf.shipping_lines ?? []).reduce((s, x) => s + Math.abs(dezimal(x.total)), 0),
+    }));
+    const datumVon = new Map(refunds.map(rf => [String(rf.id), datumDE(rf.date_created)]));
+
+    // Ursprungszeilen je Partner, jede einer Bestell-Position zugeordnet.
+    const original = zeilen.filter(r => String(r[iSto] ?? '') === '' && !ganzStorniert.has(keyOf(r)));
+    const jePartner = new Map();
+    for (const r of original) {
+      const item = posVon(r)
+        ? items.find(i => String(i.id) === posVon(r))
+        : items.find(i => artikelName(i) === String(r[iArt] ?? '') && varKey(i.variation_id || 0) === varKey(r[iVar]));
+      if (!item) { hinweis({ orderId: oid, partnerId: r[iPid], grund: 'zeile_ohne_position' }); continue; }
+      const p = r[iPid];
+      if (!jePartner.has(p)) jePartner.set(p, []);
+      jePartner.get(p).push({ r, item, key: keyOf(r) });
+    }
+
+    for (const [partnerId, liste] of jePartner) {
+      const zuPos = new Map(liste.map(x => [String(x.item.id), x]));
+      const zuKey = new Map(liste.map(x => [x.key, x]));
+      // Schon gebuchte Erstattungen dieser Ursprungszeilen.
+      const gebucht = new Map(), gebuchteRefunds = new Set(), versandGebucht = new Set();
+      for (const r of zeilen) {
+        const s = String(r[iSto] ?? '');
+        const x = zuKey.get(keyOf(r));
+        if (!x) continue;
+        if (s.startsWith(MARKE_ERSTATTUNG)) {
+          const pid = String(x.item.id);
+          gebucht.set(pid, (gebucht.get(pid) ?? 0) + Math.abs(dezimal(r[neg['Stückzahl']])));
+          gebuchteRefunds.add(refundSchluessel(s.slice(MARKE_ERSTATTUNG.length), pid));
+        } else if (s.startsWith(MARKE_VERSAND)) {
+          versandGebucht.add(`${s.slice(MARKE_VERSAND.length)}|${x.key}`);
+        }
+      }
+
+      const erg = berechneTeilerstattung({ items, refunds: roh, gebucht, gebuchteRefunds });
+      for (const h of erg.hinweise) {
+        if (h.grund === 'versand') continue;   // wird unten gebucht
+        hinweis({ orderId: oid, partnerId, refundId: h.refundId, grund: h.grund });
+      }
+      for (const b of erg.buchungen) {
+        const x = zuPos.get(b.positionId);
+        if (!x) continue;                       // Position gehoert nicht diesem Partner
+        if (String(x.r[iSt] ?? '') === 'gesperrt') { hinweis({ orderId: oid, partnerId, refundId: b.refundId, grund: 'gesperrt' }); continue; }
+        const z = kopie(x.r);
+        for (const [name, i] of Object.entries(neg)) {
+          if (name === 'Stückzahl') { z[i] = -b.menge; continue; }
+          if (leer(x.r[i])) continue;
+          z[i] = ohneMinusNull(-round2(dezimal(x.r[i]) * b.faktor));
+        }
+        z[iDat] = datumVon.get(b.refundId) || z[iDat];
+        z[iSt]  = 'offen';
+        z[iSto] = MARKE_ERSTATTUNG + b.refundId;
+        if (String(x.r[iSt] ?? '') === 'abgerechnet') hinweis({ orderId: oid, partnerId, refundId: b.refundId, grund: 'nachzuegler' });
+        rows.push(z);
+      }
+
+      // Versand: Porto-Einnahme mindern (je Ursprungszeile, Wertanteil wie im Sync).
+      for (const rf of roh) {
+        if (!(rf.versand > 0)) continue;
+        const refundId = String(rf.id);
+        for (const x of liste) {
+          if (versandGebucht.has(`${refundId}|${x.key}`)) continue;
+          if (String(x.r[iSt] ?? '') === 'gesperrt') { hinweis({ orderId: oid, partnerId, refundId, grund: 'gesperrt' }); continue; }
+          if (leer(x.r[neg['Porto-Saldo']])) continue;
+          const anteil = orderNetto > 0 ? dezimal(x.item.total) / orderNetto : 0;
+          const delta = ohneMinusNull(round2(-rf.versand * anteil * portoFaktor(partnerId)));
+          if (delta === 0) continue;
+          const mwst = mwstFuer(order);
+          if (!Number.isFinite(mwst)) { hinweis({ orderId: oid, partnerId, refundId, grund: 'mwst_fehlt' }); continue; }
+          const z = kopie(x.r);
+          for (const i of Object.values(neg)) z[i] = 0;
+          z[neg['Porto-Saldo']]   = delta;
+          z[neg['Lizenzgebühr']]  = delta;
+          z[neg['Anteil-Brutto']] = ohneMinusNull(round2(delta * (1 + mwst / 100)));
+          z[iDat] = datumVon.get(refundId) || z[iDat];
+          z[iSt]  = 'offen';
+          z[iSto] = MARKE_VERSAND + refundId;
+          if (String(x.r[iSt] ?? '') === 'abgerechnet') hinweis({ orderId: oid, partnerId, refundId, grund: 'nachzuegler' });
+          rows.push(z);
+        }
+      }
+    }
+  }
+  return { rows, hinweise };
 }

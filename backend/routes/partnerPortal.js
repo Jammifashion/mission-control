@@ -4,7 +4,8 @@ import { getGoogleAuth } from '../lib/googleAuth.js';
 import { sheetsMitWiederholung } from '../lib/googleRetry.js';
 import { getWcClient as wcClientForShop, getShopConfig } from '../lib/shopConfig.js';
 import { seitenGrenze, seitenListe, wirfWennPruefseite } from '../lib/hosterPruefseite.js';
-import { berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze, baueVertragsbeginne, verkaufsBetraege } from '../utils/partner-kalkulation.js';
+import { berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze, baueVertragsbeginne, verkaufsBetraege, normalisierePortoModell } from '../utils/partner-kalkulation.js';
+import { buildErstattungRows } from '../utils/teilerstattung.js';
 import { toFloat, toDE, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, buildStornoRows, ordersFuerVerkaufszeilen, vorVertragsbeginn,
   STATUS_GESPERRT, SPALTE_SPERRE, leerWert, sperrGrund,
   SPALTE_POSITION, verkaufsBestand, schonErfasst, syncStart, bestellTag, konfigJeTag, fixkostenLuecken, fixkostenFehler,
@@ -171,6 +172,49 @@ async function fetchOrders(wc, statuses, afterParam) {
     if (listen.every(l => l.length < 100)) break;
   }
   return all;
+}
+
+// ── NB1: Teilerstattungen ────────────────────────────────────────────────────
+// Bestellungen mit Status Verkauf, die eine Erstattung tragen und schon Verkaufszeilen haben:
+// aus dem normalen Abruf und aus allen in den letzten ERSTATTUNG_TAGE geaenderten Bestellungen
+// (eine Erstattung aendert date_modified - so kommen auch aeltere Bestellungen dazu).
+// Je Kandidat EIN Abruf /orders/<id>/refunds, nacheinander mit Pause (Hoster-Pruefseite).
+export const ERSTATTUNG_TAGE = 60;
+const warte = ms => new Promise(r => setTimeout(r, ms));
+
+async function ladeErstattungsBestellungen(wc, orders, vRows, vh) {
+  const seit = new Date(Date.now() - ERSTATTUNG_TAGE * 864e5).toISOString().slice(0, 19);
+  const geaendert = [];
+  for (let page = 1; ; page++) {
+    seitenGrenze(page, { wc, pfad: 'orders' });
+    const listen = [];
+    for (const status of WC_STATES_VERKAUF) {
+      listen.push(seitenListe((await wc.get('orders', { per_page: 100, page, status, modified_after: seit })).data, { wc, pfad: 'orders' }));
+    }
+    for (const l of listen) geaendert.push(...l);
+    if (listen.every(l => l.length < 100)) break;
+  }
+  const mitZeilen = new Set(vRows.map(r => String(r[vh('Order-ID')] ?? '')));
+  const kandidaten = new Map();
+  for (const o of [...orders, ...geaendert]) {
+    if ((o.refunds ?? []).length && mitZeilen.has(String(o.id)) && WC_STATES_VERKAUF.includes(o.status)) kandidaten.set(String(o.id), o);
+  }
+  const out = [];
+  for (const order of kandidaten.values()) {
+    await warte(1000);
+    const refunds = seitenListe((await wc.get(`orders/${order.id}/refunds`, { per_page: 100 })).data, { wc, pfad: 'orders/refunds' });
+    out.push({ order, refunds });
+  }
+  return out;
+}
+
+const portoFaktorAus = modell => (normalisierePortoModell(modell) === 'partner-trägt' ? 1 : 0.5);
+
+function erstattungText(n, hinweise) {
+  const teile = [];
+  if (n) teile.push(`${n} Erstattungs-Gegenbuchung(en)`);
+  if (hinweise.length) teile.push(`${hinweise.length} Erstattungs-Hinweis(e) – bitte prüfen`);
+  return teile.length ? ` ${teile.join(', ')}.` : '';
 }
 
 function extractToken(req) {
@@ -487,7 +531,13 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     await sperreFertig(sheets, sheetId, TAB_VERKAEUFE, vH, toWrite);
     await positionFertig(sheets, sheetId, TAB_VERKAEUFE, vH, toWrite);
     const stornoRows = buildStornoRows([...vRows, ...toWrite], vh, stornoOrders, null);
-    await schreibeVerkaeufe(sheets, sheetId, TAB_VERKAEUFE, vH, [...toWrite, ...stornoRows]);
+    // NB1: Teilerstattungen (Position anteilig, Versand mindert den Porto-Saldo).
+    const erst = buildErstattungRows({
+      vRows: [...vRows, ...toWrite], vh, bestellungen: await ladeErstattungsBestellungen(wc, orders, [...vRows, ...toWrite], vh),
+      portoFaktor: () => portoFaktorAus(portoModell), mwstFuer: o => Number(konfigFuer(bestellTag(o)).mwstProzent),
+      stornoMarker: STORNO_MARKER, partnerFilter: null,
+    });
+    await schreibeVerkaeufe(sheets, sheetId, TAB_VERKAEUFE, vH, [...toWrite, ...stornoRows, ...erst.rows]);
 
     if (uebersprungen.length) {
       console.warn(
@@ -497,9 +547,11 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     }
 
     const message = buildSyncMessage(toWrite.length, stornoRows.length)
-      + (uebersprungen.length ? ` ${uebersprungen.length} übersprungen (Artikel fehlt in ${TAB_HK_ARTIKEL}).` : '');
+      + (uebersprungen.length ? ` ${uebersprungen.length} übersprungen (Artikel fehlt in ${TAB_HK_ARTIKEL}).` : '')
+      + erstattungText(erst.rows.length, erst.hinweise);
     return {
       synced: toWrite.length, storniert: stornoRows.length, orders: orders.length, afterParam: afterParam || null,
+      erstattet: erst.rows.length, erstattungHinweise: erst.hinweise,
       gesperrt, entsperrt: ent.entsperrt, nochGesperrt: ent.nochGesperrt,
       stornoNachgeholt: verkaufsOrders.length - orders.length,
       vorVertragsbeginn: vorVertrag,
@@ -668,11 +720,20 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
   await sperreFertig(sheets, sheetId, TAB_VERKAEUFE, vH, toWrite);
   await positionFertig(sheets, sheetId, TAB_VERKAEUFE, vH, toWrite);
   const stornoRows = buildStornoRows([...vRows, ...toWrite], vh, stornoOrders, partnerFilter);
-  await schreibeVerkaeufe(sheets, sheetId, TAB_VERKAEUFE, vH, [...toWrite, ...stornoRows]);
+  // NB1: Teilerstattungen (Position anteilig, Versand mindert den Porto-Saldo).
+  const erst = buildErstattungRows({
+    vRows: [...vRows, ...toWrite], vh, bestellungen: await ladeErstattungsBestellungen(wc, orders, [...vRows, ...toWrite], vh),
+    portoFaktor: id => portoFaktorAus(partnerInfoMap[id]?.portoModell ?? 'geteilt-50-50'),
+    mwstFuer: o => Number(konfigFuer(bestellTag(o)).mwstProzent),
+    stornoMarker: STORNO_MARKER, partnerFilter,
+  });
+  await schreibeVerkaeufe(sheets, sheetId, TAB_VERKAEUFE, vH, [...toWrite, ...stornoRows, ...erst.rows]);
 
   return {
     synced:     toWrite.length,
     storniert:  stornoRows.length,
+    erstattet:  erst.rows.length,
+    erstattungHinweise: erst.hinweise,
     orders:     orders.length,
     gesperrt,
     entsperrt:  ent.entsperrt,
@@ -680,7 +741,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     stornoNachgeholt: verkaufsOrders.length - orders.length,
     vorVertragsbeginn: vorVertrag,
     afterParam: afterParam || null,
-    message:    buildSyncMessage(toWrite.length, stornoRows.length),
+    message:    buildSyncMessage(toWrite.length, stornoRows.length) + erstattungText(erst.rows.length, erst.hinweise),
   };
 }
 
