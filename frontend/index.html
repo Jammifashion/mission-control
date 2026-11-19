@@ -3910,7 +3910,7 @@
                 <option value="trikot">Trikots</option><option value="fremd">Fremdware</option><option value="frei">Sonstiges</option>
               </select>
               <select id="lager-f-ort" class="form-select" aria-label="Ort" data-hilfe="lager-ort"><option value="">alle Orte</option></select>
-              <input id="lager-f-suche" type="search" class="form-input" placeholder="Suche: Modell, Name" autocomplete="off" aria-label="Suche" />
+              <input id="lager-f-suche" type="search" class="form-input" placeholder="Modell, Name, Farbe" autocomplete="off" aria-label="Suche" />
               <label class="lager-null" id="lager-f-null-wrap" data-hilfe="lager-null"><input type="checkbox" id="lager-f-null"> auch Bestand 0</label>
             </div>
             <div class="korb-aktionen">
@@ -3929,7 +3929,7 @@
           <div id="lager-abgaenge" hidden>
             <div class="korb-ansicht lager-filter lager-a-filter">
               <select id="lager-a-art" class="form-select" aria-label="Art des Abgangs" data-hilfe="lager-auswertung"><option value="">alle Abgänge</option></select>
-              <select id="lager-a-bezug" class="form-select" aria-label="Event, Partner oder Auftrag"><option value="">alle</option></select>
+              <select id="lager-a-bezug" class="form-select" aria-label="Event, Partner oder Auftrag"><option value="">alle Bezüge</option></select>
               <label class="lager-null">von <input id="lager-a-von" type="date" class="form-input" /></label>
               <label class="lager-null">bis <input id="lager-a-bis" type="date" class="form-input" /></label>
             </div>
@@ -10540,7 +10540,7 @@
         for (const p of d.partner ?? []) optionen.set(p.id, lagerBezugText('abgang_partner', p.id, d));
         for (const g of d.ausschussGruende ?? []) optionen.set(g, `Ausschuss: ${g}`);
         for (const b of d.bezuege ?? []) if (b.bezug && !optionen.has(b.bezug)) optionen.set(b.bezug, lagerBezugText(b.art, b.bezug, d));
-        lagerEl('lager-a-bezug').innerHTML = '<option value="">alle Events / Partner / Aufträge</option>'
+        lagerEl('lager-a-bezug').innerHTML = '<option value="">alle Bezüge</option>'
           + [...optionen].map(([k, v]) => `<option value="${korbEsc(k)}"${k === f.bezug ? ' selected' : ''}>${korbEsc(v)}</option>`).join('');
         const gruppen = lagerGruppen(d.posten);
         const titel = ['Abgänge', f.art ? d.artText?.[f.art] : '', f.bezug ? optionen.get(f.bezug) ?? f.bezug : '',
