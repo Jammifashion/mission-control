@@ -62,7 +62,7 @@ jobs:
             exit 1
           fi
           rc=0
-          http=$(curl -sS --fail-with-body --max-time 300 -X POST \
+          http=$(curl -sS --fail-with-body --max-time 600 -X POST \
             -H "x-api-key: $API_KEY" \
             -o response.json -w '%{http_code}' \
             "$API_URL/api/partner/artikel/abgleich") || rc=$?
@@ -91,7 +91,7 @@ jobs:
         run: |
           set -euo pipefail
           rc=0
-          http=$(curl -sS --fail-with-body --max-time 300 -X POST \
+          http=$(curl -sS --fail-with-body --max-time 600 -X POST \
             -H "x-api-key: $API_KEY" \
             -o response.json -w '%{http_code}' \
             "$API_URL/api/partner/verkaeufe/sync-all?shop=jfn") || rc=$?
@@ -123,7 +123,7 @@ jobs:
         run: |
           set -euo pipefail
           rc=0
-          http=$(curl -sS --fail-with-body --max-time 300 -X POST \
+          http=$(curl -sS --fail-with-body --max-time 600 -X POST \
             -H "x-api-key: $API_KEY" \
             -o response.json -w '%{http_code}' \
             "$API_URL/api/partner/verkaeufe/sync-all?shop=honk") || rc=$?
@@ -159,7 +159,7 @@ jobs:
         run: |
           set -euo pipefail
           rc=0
-          http=$(curl -sS --fail-with-body --max-time 300 -X POST \
+          http=$(curl -sS --fail-with-body --max-time 600 -X POST \
             -H "x-api-key: $API_KEY" -H "Content-Type: application/json" -d '{}' \
             -o response.json -w '%{http_code}' \
             "$API_URL/api/festpreis/verkaeufe/sync") || rc=$?

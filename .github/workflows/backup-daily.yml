@@ -63,7 +63,7 @@ jobs:
           fi
 
           rc=0
-          http=$(curl -sS --fail-with-body --max-time 300 -X POST \
+          http=$(curl -sS --fail-with-body --max-time 600 -X POST \
             -H "X-API-Key: $API_KEY" \
             -o response.json -w '%{http_code}' \
             "$API_URL/api/backup/manual") || rc=$?

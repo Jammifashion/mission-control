@@ -67,7 +67,7 @@ jobs:
           echo "Triggere Abgleich mit $payload"
 
           rc=0
-          http=$(curl -sS --fail-with-body --max-time 300 -X POST \
+          http=$(curl -sS --fail-with-body --max-time 600 -X POST \
             -H "X-API-Key: $API_KEY" \
             -H "Content-Type: application/json" \
             -d "$payload" \
