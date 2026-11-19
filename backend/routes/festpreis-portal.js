@@ -134,6 +134,78 @@ function buildFpStornoRows(vRows, stornoOrders) {
 
 // aggregateFpVerkaeufe: utils/fp-abrechnung.js (eine Rechnung fuer Vorschau, Abrechnung, Portal-Saldo).
 
+/**
+ * Eine FP_Verkaeufe-Zeile fuer eine Shop-Position und einen FP-Artikel-Eintrag (Positionsformat A..AA).
+ * EINE Rechnung fuer den Sync und das Nachtragen (scripts/nachtragen-positionen.js).
+ * @returns {{ zeile: any[], katPreis: object|null }}  katPreis null = Festpreis-Kategorie fehlt (Aufrufer sperrt die Zeile)
+ */
+export function fpVerkaufszeile({ order, item, e, k, zuordnungen }) {
+  const orderDate     = toDE(new Date(order.date_created));
+  const shippingNetto = toFloat(order.shipping_total);
+  const orderNetto    = order.line_items.reduce((s, i) => s + toFloat(i.total), 0);
+  const itemNetto  = toFloat(item.total);
+  const anteil     = orderNetto > 0 ? (itemNetto / orderNetto) : 0;
+  const portoEinnahmeAnteil = shippingNetto * anteil;
+  const artikelname = item.name || item.sku || String(item.product_id);
+  const va = e.versandart;
+  // PO1: ab Bestelldatum 01.07.2026 Porto nicht mehr anteilig in der Zeile, sondern je Bestellung (eigene Positionen)
+  const po = portoFuerSyncZeile({ bestelldatumDE: orderDate, shippingNetto, versandart: va });
+  const portoKostenAnteil  = po ? 0 : (va === 'B' ? k.portoB : k.portoP) * anteil;
+  const versandnkAnteil    = po ? 0 : (va === 'B' ? k.versandnebenkostenB : k.versandnebenkostenP) * anteil;
+  const portoEinnahmeZeile = po ? 0 : portoEinnahmeAnteil;
+  // PayPal berechnet die Gebühr auf den Brutto-Betrag, den der Kunde zahlt.
+  const paypalKosten       = (itemNetto * (1 + k.mwstProzent / 100)) * (k.paypalProzent / 100)
+                           + (k.paypalPauschale * anteil);
+
+  const artikelkategorie = String(e.artikelkategorie || '').trim();
+  // PA8: ohne gueltige Zuordnung NICHT mehr mit 0 rechnen - die Zeile wird unten gesperrt (Betraege leer).
+  const katPreis = zuordnungFuer(zuordnungen, e.partnerId, artikelkategorie);
+  const festpreis      = katPreis?.festpreis ?? 0;
+  const handlingskosten = katPreis?.handlingskosten ?? 0;
+
+  const { netto, brutto } = berechneFestpreisAnteil({
+    vkNetto: itemNetto,
+    festpreisEK: festpreis,
+    handlingskosten,
+    stueckzahl: item.quantity || 1,
+    mehrkosten: 0,
+    portoEinnahmeAnteil: portoEinnahmeZeile,
+    portoKostenAnteil,
+    versandnkAnteil,
+    paypalKosten,
+    mwstProzent: k.mwstProzent,
+  });
+
+  const zeile = ([
+    e.partnerId,           // A 0
+    orderDate,             // B 1
+    order.id,              // C 2
+    artikelname,           // D 3
+    item.variation_id || 0, // E 4
+    item.quantity,         // F 5
+    e.festpreisEK,         // G 6 (legacy, aus FP_Artikel)
+    e.handlingGebuehr,     // H 7 (legacy, aus FP_Artikel)
+    Math.round(portoEinnahmeZeile * 100) / 100,   // I 8 (PO1: ab 01.07. = 0)
+    Math.round(portoKostenAnteil * 100) / 100,    // J 9
+    Math.round(versandnkAnteil * 100) / 100,      // K 10
+    Math.round(paypalKosten * 100) / 100,         // L 11
+    netto,                 // M 12 Gesamt-Partner-Netto
+    brutto,                // N 13 Gesamt-Partner-Brutto
+    'offen',               // O 14 Status Abrechnung
+    item.product_id,       // P 15 Produkt-ID
+    '',                    // Q 16 Storno-Status (leer)
+    artikelkategorie,      // R 17 Artikelkategorie
+    festpreis,             // S 18 Festpreis (aus FP_Artikel_Kategorie)
+    0,                     // T 19 Mehrkosten (manuell, default 0)
+    Math.round(itemNetto * 100) / 100, // U 20 VK-Netto
+    handlingskosten,       // V 21 Handlingskosten (aus FP_Artikel_Kategorie)
+    versandmethodeAus(order), // W 22 Versandmethode (VP1, method_id)
+  ]);
+  if (po) { zeile[PORTO_INDEX] = po.portoBestellung; zeile[PORTO_INDEX + 1] = po.versandart; }   // PO1: Y, Z
+  zeile[POSITION_INDEX] = item.id;   // AA: Positions-ID
+  return { zeile, katPreis };
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 async function getSheets() {
@@ -745,10 +817,7 @@ async function fpSyncInSperre(req, sheetId) {
 
     for (const [shop, orders] of Object.entries(ordersByShop)) {
       for (const order of orders) {
-        const orderDate     = toDE(new Date(order.date_created));
-        const k             = konfigFuer(bestellTag(order));   // Kostensatz zum Bestelldatum
-        const shippingNetto = toFloat(order.shipping_total);
-        const orderNetto    = order.line_items.reduce((s, i) => s + toFloat(i.total), 0);
+        const k = konfigFuer(bestellTag(order));   // Kostensatz zum Bestelldatum
 
         for (const item of order.line_items) {
           const entries = artikelMap[String(item.product_id || '')];
@@ -757,9 +826,6 @@ async function fpSyncInSperre(req, sheetId) {
             continue;
           }
 
-          const itemNetto  = toFloat(item.total);
-          const anteil     = orderNetto > 0 ? (itemNetto / orderNetto) : 0;
-          const portoEinnahmeAnteil = shippingNetto * anteil;
           const artikelname = item.name || item.sku || String(item.product_id);
           const variationId = String(item.variation_id || 0);
 
@@ -767,63 +833,8 @@ async function fpSyncInSperre(req, sheetId) {
             if (partnerShopMap[e.partnerId] !== shop) continue;
             if (schonErfasst(bestand, { orderId: order.id, positionId: item.id, artikel: artikelname, variante: variationId, partnerId: e.partnerId })) continue;
 
-            const va = e.versandart;
-            // PO1: ab Bestelldatum 01.07.2026 Porto nicht mehr anteilig in der Zeile, sondern je Bestellung (eigene Positionen)
-            const po = portoFuerSyncZeile({ bestelldatumDE: orderDate, shippingNetto, versandart: va });
-            const portoKostenAnteil  = po ? 0 : (va === 'B' ? k.portoB : k.portoP) * anteil;
-            const versandnkAnteil    = po ? 0 : (va === 'B' ? k.versandnebenkostenB : k.versandnebenkostenP) * anteil;
-            const portoEinnahmeZeile = po ? 0 : portoEinnahmeAnteil;
-            // PayPal berechnet die Gebühr auf den Brutto-Betrag, den der Kunde zahlt.
-            const paypalKosten       = (itemNetto * (1 + k.mwstProzent / 100)) * (k.paypalProzent / 100)
-                                     + (k.paypalPauschale * anteil);
-
-            const artikelkategorie = String(e.artikelkategorie || '').trim();
-            // PA8: ohne gueltige Zuordnung NICHT mehr mit 0 rechnen - die Zeile wird unten gesperrt (Betraege leer).
-            const katPreis = zuordnungFuer(zuordnungen, e.partnerId, artikelkategorie);
+            const { zeile, katPreis } = fpVerkaufszeile({ order, item, e, k, zuordnungen });
             if (!katPreis) ohneFestpreis.push({ partnerId: e.partnerId, produktId: String(item.product_id), bestellung: String(order.id) });
-            const festpreis      = katPreis?.festpreis ?? 0;
-            const handlingskosten = katPreis?.handlingskosten ?? 0;
-
-            const { netto, brutto } = berechneFestpreisAnteil({
-              vkNetto: itemNetto,
-              festpreisEK: festpreis,
-              handlingskosten,
-              stueckzahl: item.quantity || 1,
-              mehrkosten: 0,
-              portoEinnahmeAnteil: portoEinnahmeZeile,
-              portoKostenAnteil,
-              versandnkAnteil,
-              paypalKosten,
-              mwstProzent: k.mwstProzent,
-            });
-
-            const zeile = ([
-              e.partnerId,           // A 0
-              orderDate,             // B 1
-              order.id,              // C 2
-              artikelname,           // D 3
-              item.variation_id || 0, // E 4
-              item.quantity,         // F 5
-              e.festpreisEK,         // G 6 (legacy, aus FP_Artikel)
-              e.handlingGebuehr,     // H 7 (legacy, aus FP_Artikel)
-              Math.round(portoEinnahmeZeile * 100) / 100,   // I 8 (PO1: ab 01.07. = 0)
-              Math.round(portoKostenAnteil * 100) / 100,    // J 9
-              Math.round(versandnkAnteil * 100) / 100,      // K 10
-              Math.round(paypalKosten * 100) / 100,         // L 11
-              netto,                 // M 12 Gesamt-Partner-Netto
-              brutto,                // N 13 Gesamt-Partner-Brutto
-              'offen',               // O 14 Status Abrechnung
-              item.product_id,       // P 15 Produkt-ID
-              '',                    // Q 16 Storno-Status (leer)
-              artikelkategorie,      // R 17 Artikelkategorie
-              festpreis,             // S 18 Festpreis (aus FP_Artikel_Kategorie)
-              0,                     // T 19 Mehrkosten (manuell, default 0)
-              Math.round(itemNetto * 100) / 100, // U 20 VK-Netto
-              handlingskosten,       // V 21 Handlingskosten (aus FP_Artikel_Kategorie)
-              versandmethodeAus(order), // W 22 Versandmethode (VP1, method_id)
-            ]);
-            if (po) { zeile[PORTO_INDEX] = po.portoBestellung; zeile[PORTO_INDEX + 1] = po.versandart; }   // PO1: Y, Z
-            zeile[POSITION_INDEX] = item.id;   // AA: Positions-ID
             if (katPreis) toWrite.push(zeile);
             else { toWrite.push(sperreZeile(zeile, vH)); gesperrt++; }   // PA8
           }

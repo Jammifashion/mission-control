@@ -759,6 +759,9 @@ Neue Sektionen immer mit Anker versehen:
   MwSt; Lizenz: Eigenauftrag ohne Summe / MwSt. Vorschau liefert `klaeren` (MC `abrKlaerenHTML`), Erstellen 409 `erst_klaeren`. Lizenz:
   Erstellen und Freigeben unter einer Sperre, Freigabe vergleicht die Lizenzgebuehren mit dem Entwurf (409 `betraege_geaendert`).
   Zahlen aus Sheets: `parseDeZahl` (utils/zahl-de.js, "1.234,50" = 1234,5). Tests: sync-luecken.test.js, Attrappe tests/hilfen/sheets-attrappe.js.
+  Nachtragen gleicher Positionen aus der Zeit vor der Positions-ID: `scripts/nachtragen-positionen.js --lizenz|--fp [--bestellung …] [--write]`
+  (lib/nachtragPositionen.js, Logik utils/nachtrag-positionen.js; Trockenlauf Standard, Sicherung nach Documents/mc-sicherungen, Rechnung wie der
+  Sync - FP ueber `fpVerkaufszeile`, die auch der FP-Sync nutzt; nur Gruppen mit schon vorhandener Zeile; Lizenz nur JFN).
 - backend/routes/anfragen.js – Kundenanfragen Admin (POST /neu, GET /, PATCH /:id/status) – hinter requireApiKey
 - backend/routes/anfragen-chat.js – Chat-Widget public endpoint (POST /chat, kein API-Key) – vor requireApiKey
 - frontend/anfrage.html – Standalone Chat-Widget für Kunden (GitHub Pages, kein MC-Design)
