@@ -24,7 +24,9 @@ export function bereichAus(range) {
 
 const kopie = rows => rows.map(r => [...(r ?? [])]);
 
-export function sheetsAttrappe(tabsRef) {
+// raster: { <Reiter>: Spaltenzahl } - Schreiben hinter das Raster wirft wie Google ("exceeds grid limits");
+// appendDimension COLUMNS ueber spreadsheets.batchUpdate verbreitert es.
+export function sheetsAttrappe(tabsRef, raster = {}) {
   const tabs = () => tabsRef();
   const lies = range => {
     const { tab, r1, r2, c1, c2 } = bereichAus(range);
@@ -37,6 +39,9 @@ export function sheetsAttrappe(tabsRef) {
   };
   const schreib = (range, values) => {
     const { tab, r1, c1 } = bereichAus(range);
+    const breit = Math.max(0, ...values.map(z => z.length));
+    if (raster[tab] !== undefined && c1 + breit > raster[tab])
+      throw Object.assign(new Error(`Range (${range}) exceeds grid limits. Max columns: ${raster[tab]}`), { code: 400 });
     const t = tabs();
     if (!t[tab]) t[tab] = [];
     values.forEach((zeile, i) => {
@@ -57,8 +62,16 @@ export function sheetsAttrappe(tabsRef) {
   };
   const spreadsheets = {
     values,
-    get: jest.fn(async () => ({ data: { sheets: Object.keys(tabs()).map((title, i) => ({ properties: { title, sheetId: i + 1, gridProperties: { rowCount: 10000 } } })) } })),
-    batchUpdate: jest.fn(async () => ({ data: {} })),
+    get: jest.fn(async () => ({ data: { sheets: Object.keys(tabs()).map((title, i) => ({ properties: { title, sheetId: i + 1,
+      gridProperties: { rowCount: 10000, ...(raster[title] !== undefined ? { columnCount: raster[title] } : {}) } } })) } })),
+    batchUpdate: jest.fn(async ({ requestBody }) => {
+      const namen = Object.keys(tabs());
+      for (const q of requestBody?.requests ?? []) {
+        const a = q.appendDimension;
+        if (a?.dimension === 'COLUMNS') { const tab = namen[a.sheetId - 1]; if (raster[tab] !== undefined) raster[tab] += a.length; }
+      }
+      return { data: {} };
+    }),
   };
   return { spreadsheets };
 }

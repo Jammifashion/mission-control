@@ -9,7 +9,7 @@ import { toFloat, toDE, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, buil
   STATUS_GESPERRT, SPALTE_SPERRE, leerWert, sperrGrund,
   SPALTE_POSITION, verkaufsBestand, schonErfasst, syncStart, bestellTag, konfigJeTag, fixkostenLuecken, fixkostenFehler,
 } from '../utils/sync-logic.js';
-import { schreibeNeueZeilen } from '../lib/sheet-zeilen.js';
+import { schreibeNeueZeilen, sichereSpaltenRaster } from '../lib/sheet-zeilen.js';
 import { sichereSpalte } from '../utils/sheet-spalten.js';
 import { notify, buildPartnerNachricht } from '../lib/chatNotify.js';
 import { requireHeader } from '../utils/sheet-headers.js';
@@ -238,6 +238,7 @@ function gesperrteZeile({ partnerId, orderDate, order, item, grund }) {
 async function sperreFertig(sheets, sheetId, tab, vH, rows) {
   const gesperrt = rows.filter(r => r._sperre);
   if (!gesperrt.length) return;
+  if (vH.indexOf(SPALTE_SPERRE) === -1) await sichereSpaltenRaster(sheets, sheetId, tab, vH.length + 1);   // Raster breit genug
   const i = await sichereSpalte(sheets, sheetId, tab, vH, SPALTE_SPERRE);
   const storno = vH.indexOf('Storno-Status');
   for (const r of gesperrt) {
@@ -250,6 +251,7 @@ async function sperreFertig(sheets, sheetId, tab, vH, rows) {
 // die Positions-ID der Shop-Bestellung eintragen.
 async function positionFertig(sheets, sheetId, tab, vH, rows) {
   if (!rows.length) return;
+  if (vH.indexOf(SPALTE_POSITION) === -1) await sichereSpaltenRaster(sheets, sheetId, tab, vH.length + 1);   // Raster breit genug
   const i = await sichereSpalte(sheets, sheetId, tab, vH, SPALTE_POSITION);
   for (const r of rows) {
     while (r.length <= i) r.push('');

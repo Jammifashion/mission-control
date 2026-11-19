@@ -106,3 +106,44 @@ describe('Ablauf Lizenz und Festpreis', () => {
     expect(tabs['Partner_Verkäufe']).toHaveLength(2);
   });
 });
+
+describe('Raster: neue Spalte hinter dem Raster (z. B. AA bei 26 Spalten)', () => {
+  test('sichereSpaltenRaster verbreitert nur, wenn noetig', async () => {
+    const { sichereSpaltenRaster } = await import('../lib/sheet-zeilen.js');
+    const tabs = { T: [['a']] };
+    const raster = { T: 26 };
+    const a = sheetsAttrappe(() => tabs, raster);
+    expect(await sichereSpaltenRaster(a, 's', 'T', 27)).toBe(1);
+    expect(raster.T).toBe(27);
+    expect(await sichereSpaltenRaster(a, 's', 'T', 27)).toBe(0);
+    expect(a.spreadsheets.batchUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  test('FP-Nachtrag mit Raster A-Z: legt AA an und schreibt', async () => {
+    const { nachtragenPositionen } = await import('../lib/nachtragPositionen.js');
+    const FK = ['Partner-ID', 'Datum', 'WC-Bestellnummer', 'Artikelname', 'Variante', 'Stückzahl', 'Festpreis-EK', 'Handling', 'Porto-Einnahme',
+      'Porto-Kosten', 'Versandnebenkosten', 'PayPal-Kosten', 'Gesamt-Partner-Netto', 'Gesamt-Partner-Brutto', 'Status Abrechnung', 'Produkt-ID',
+      'Storno-Status', 'Artikelkategorie', 'Festpreis', 'Mehrkosten', 'VK-Netto', 'Handlingskosten', 'Versandmethode', 'Sperre', 'Porto_Bestellung', 'Porto_Versandart'];
+    const fz = FK.map(() => ''); Object.assign(fz, { 0: 'FP-001', 1: '10.09.2026', 2: '900', 3: 'Shirt - M', 4: '5', 5: '1', 14: 'offen', 15: '50' });
+    const tabs = {
+      Kalkulation_Fixkosten: FIXKOSTEN_VOLL.map(r => [...r]), 'FP_Verkäufe': [FK, fz],
+      FP_Partner: [['Partner-ID', 'Shop'], ['FP-001', 'jfn']],
+      FP_Artikel: [['Partner-ID', 'Produkt-ID', 'Festpreis-EK-Netto', 'Handling-Gebühr', 'Versandart', 'Artikelkategorie'], ['FP-001', '50', '0', '0', 'P', 'T-Shirt']],
+      FP_Artikel_Kategorie: [['Kategorie', 'Festpreispartner-ID', 'Festpreis', 'Handlingskosten'], ['T-Shirt', 'FP-001', '8', '1']],
+    };
+    const raster = { 'FP_Verkäufe': 26 };
+    const a = sheetsAttrappe(() => tabs, raster);
+    const r = await nachtragenPositionen({ sheets: a, spreadsheetId: 's', art: 'fp', write: true, sicherungOrdner: mkdtempSync(join(tmpdir(), 'n-')),
+      drossel: async () => {}, wcFuer: () => ({ get: async () => ({ data: [ORDER] }) }) });
+    expect(r.geschrieben).toBe(1);
+    expect(raster['FP_Verkäufe']).toBe(27);
+    expect(tabs['FP_Verkäufe'][0][26]).toBe('Positions-ID');
+  });
+
+  test('FP-Sync verbreitert das Raster vor dem Kopf in AA', () => {
+    const src = readFileSync(join(process.cwd(), 'routes', 'festpreis-portal.js'), 'utf8');
+    const i = src.indexOf("await sichereSpaltenRaster(sheets, sheetId, TAB_FP_VERKAEUFE, POSITION_INDEX + 1)");
+    expect(i).toBeGreaterThan(-1);
+    expect(src.indexOf('1:AA1`', i)).toBeGreaterThan(i);
+  });
+});

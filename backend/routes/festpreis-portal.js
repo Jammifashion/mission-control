@@ -23,7 +23,7 @@ import {
   fpAbrechnungHinweise, gesperrtZaehlen,
 } from '../utils/fp-sperre.js';
 import { mitFpSperre, nachrechnenInSperre, nachrechnen as fpNachrechnen } from '../lib/fpSperre.js';
-import { schreibeNeueZeilen, pruefeZielStrecke, spalteBuchstabe } from '../lib/sheet-zeilen.js';
+import { schreibeNeueZeilen, pruefeZielStrecke, spalteBuchstabe, sichereSpaltenRaster } from '../lib/sheet-zeilen.js';
 import {
   SPALTE_POSITION, verkaufsBestand, schonErfasst, syncStart, bestellTag, konfigJeTag, fixkostenLuecken, fixkostenFehler,
 } from '../utils/sync-logic.js';
@@ -899,6 +899,7 @@ async function fpSyncInSperre(req, sheetId) {
           || kopf.slice(0, vH.length - SYNC_BREITE).some((n, i) => vH[SYNC_BREITE + i] !== n))
           return { status: 409, body: { error: `FP_Verkäufe: ${vH.length} Spalten, ${SPALTE_POSITION} nicht angelegt, nichts geschrieben.` } };
         const fehlt = kopf.slice(vH.length - SYNC_BREITE);
+        await sichereSpaltenRaster(sheets, sheetId, TAB_FP_VERKAEUFE, POSITION_INDEX + 1);   // Raster bis AA
         await sheets.spreadsheets.values.update({
           spreadsheetId: sheetId, range: `${TAB_FP_VERKAEUFE}!${spalteBuchstabe(vH.length)}1:AA1`,
           valueInputOption: 'RAW', requestBody: { values: [fehlt] },

@@ -115,3 +115,20 @@ export async function ersetzeZeile(sheets, spreadsheetId, tab, zeile, alt, neu) 
   if (ab.length) throw new Error(`${tab} Z${zeile}: Rücklesen weicht ab (Spalte ${spalteBuchstabe(ab[0].spalte)}).`);
   return daten.length;
 }
+
+/**
+ * Raster eines Reiters auf mindestens `spalten` Spalten bringen (appendDimension COLUMNS) - additiv, keine Zelle
+ * wird veraendert. Noetig, bevor eine neue Spalte hinter dem Raster (z. B. AA bei 26 Spalten) einen Kopf bekommt.
+ * @returns {Promise<number>} Anzahl angehaengter Spalten (0 = schon breit genug)
+ */
+export async function sichereSpaltenRaster(sheets, spreadsheetId, tab, spalten) {
+  const { data: meta } = await sheets.spreadsheets.get({ spreadsheetId, fields: 'sheets.properties(title,sheetId,gridProperties)' });
+  const info = (meta.sheets ?? []).map(s => s.properties).find(p => p.title === tab);
+  if (!info) throw new Error(`Reiter ${tab} fehlt – nichts geschrieben.`);
+  const ist = info.gridProperties?.columnCount;
+  if (ist === undefined || ist >= spalten) return 0;
+  await sheets.spreadsheets.batchUpdate({ spreadsheetId, requestBody: { requests: [
+    { appendDimension: { sheetId: info.sheetId, dimension: 'COLUMNS', length: spalten - ist } },
+  ] } });
+  return spalten - ist;
+}

@@ -8,7 +8,7 @@
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { getWcClient } from './shopConfig.js';
-import { schreibeNeueZeilen } from './sheet-zeilen.js';
+import { schreibeNeueZeilen, sichereSpaltenRaster } from './sheet-zeilen.js';
 import { sichereSpalte } from '../utils/sheet-spalten.js';
 import { parseKonfiguration, baueLizenzSaetze, baueVertragsbeginne, verkaufsBetraege } from '../utils/partner-kalkulation.js';
 import {
@@ -150,15 +150,18 @@ export async function nachtragenPositionen({ sheets, spreadsheetId, art, nur = n
   let iPos;
   if (art === 'lizenz') {
     if (neu.some(r => r._sperre)) {
+      if (kopfNeu.indexOf(SPALTE_SPERRE) === -1) await sichereSpaltenRaster(sheets, spreadsheetId, cfg.tab, kopfNeu.length + 1);
       const iS = await sichereSpalte(sheets, spreadsheetId, cfg.tab, kopfNeu, SPALTE_SPERRE);
       for (const r of neu.filter(x => x._sperre)) { while (r.length <= iS) r.push(''); r[iS] = r._sperre; }
     }
+    if (kopfNeu.indexOf(SPALTE_POSITION) === -1) await sichereSpaltenRaster(sheets, spreadsheetId, cfg.tab, kopfNeu.length + 1);
     iPos = await sichereSpalte(sheets, spreadsheetId, cfg.tab, kopfNeu, SPALTE_POSITION);
     for (const r of neu) { while (r.length <= iPos) r.push(''); r[iPos] = r._pos; }
   } else {
     iPos = kopfNeu.indexOf(SPALTE_POSITION);
     if (iPos === -1) {
       if (kopfNeu.length !== POSITION_INDEX_FP) throw new Error(`${cfg.tab}: ${kopfNeu.length} Spalten, Positions-ID nicht anlegbar – nichts geschrieben.`);
+      await sichereSpaltenRaster(sheets, spreadsheetId, cfg.tab, POSITION_INDEX_FP + 1);   // Raster bis AA
       await sheets.spreadsheets.values.update({ spreadsheetId, range: `'${cfg.tab}'!AA1`, valueInputOption: 'RAW', requestBody: { values: [[SPALTE_POSITION]] } });
       kopfNeu.push(SPALTE_POSITION); iPos = POSITION_INDEX_FP;
     } else if (iPos !== POSITION_INDEX_FP) throw new Error(`${cfg.tab}: Positions-ID steht nicht in Spalte AA – nichts geschrieben.`);
