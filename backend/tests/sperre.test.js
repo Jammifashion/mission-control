@@ -6,6 +6,7 @@
 // Fixkosten und Order wie partner-sync.test.js (Platzhalter).
 
 import { jest } from '@jest/globals';
+import { sheetsAttrappe } from './hilfen/sheets-attrappe.js';
 
 jest.unstable_mockModule('googleapis', () => ({ google: { sheets: jest.fn() } }));
 jest.unstable_mockModule('../lib/googleAuth.js', () => ({ getGoogleAuth: jest.fn().mockResolvedValue({}) }));
@@ -52,28 +53,11 @@ beforeAll(async () => {
   process.env.MC_API_KEY = API_KEY;
   request = (await import('supertest')).default;
   const express = (await import('express')).default;
-  values = {
-    get: jest.fn(async ({ range }) => ({ data: { values: kopie(range.slice(0, range.includes('!') ? range.indexOf('!') : undefined)) } })),
-    append: jest.fn(async ({ range, requestBody }) => { tabs[range.split('!')[0]].push(...requestBody.values.map(r => r.map(c => c))); return { data: {} }; }),
-    update: jest.fn(async ({ range, requestBody }) => {
-      const [tab, z] = range.split('!'); const [, sp, nr] = /^([A-Z]+)(\d+)$/.exec(z);
-      tabs[tab][Number(nr) - 1][colIdx(sp)] = requestBody.values[0][0]; return { data: {} };
-    }),
-    batchGet: jest.fn(async ({ ranges }) => ({ data: { valueRanges: ranges.map(r => {
-      const [tab, z] = r.split('!'); const nr = Number(/^A(\d+):/.exec(z)[1]);
-      return { values: tabs[tab][nr - 1] ? [[...tabs[tab][nr - 1]]] : [] };
-    }) } })),
-    batchUpdate: jest.fn(async ({ requestBody }) => {
-      for (const d of requestBody.data) {
-        const [tab, z] = d.range.split('!'); const [, sp, nr] = /^([A-Z]+)(\d+)$/.exec(z);
-        const row = tabs[tab][Number(nr) - 1]; while (row.length <= colIdx(sp)) row.push('');
-        row[colIdx(sp)] = d.values[0][0];
-      }
-      return { data: {} };
-    }),
-  };
+  // In-Memory-Sheet mit echter Bereichsaufloesung (der Sync schreibt ohne append in gepruefte Zielzeilen).
+  const attrappe = sheetsAttrappe(() => tabs);
+  values = attrappe.spreadsheets.values;
   const { google } = await import('googleapis');
-  google.sheets.mockReturnValue({ spreadsheets: { values, get: jest.fn(async () => ({ data: { sheets: [] } })), batchUpdate: jest.fn() } });
+  google.sheets.mockReturnValue(attrappe);
   wcGet = jest.fn(async (pfad, params = {}) => {
     if (pfad === `orders/${ORDER.id}`) return { data: ORDER };
     if (pfad === 'orders') {
@@ -126,7 +110,7 @@ describe('Sync: fehlender Druck -> gesperrt, 0 ist erlaubt', () => {
     const res = await sync();
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ synced: 2, gesperrt: 1 });
-    expect(V()[0]).toEqual([...VH, 'Sperre']);
+    expect(V()[0]).toEqual([...VH, 'Sperre', 'Positions-ID']);   // beide additiv am Ende
     const [g] = zeileFuer('5420');
     expect(g[h('Status')]).toBe('gesperrt');
     expect(g[h('Sperre')]).toBe('Druck fehlt');
@@ -263,5 +247,42 @@ describe('Partnerportal', () => {
     expect(res.status).toBe(200);
     const nurOffen = V().slice(1).filter(r => r[h('Status')] === 'offen').reduce((s, r) => s + r[h('Lizenzgebühr')], 0);
     expect(res.body.lizenzNetto ?? res.body.lizenzSumme).toBeCloseTo(nurOffen, 2);
+  });
+});
+
+describe('Lizenz-Abrechnung: erst klaeren, Freigabe prueft Betraege', () => {
+  const vorschau = (von, bis) => request(kalkApp).post('/api/kalkulation/abrechnung/vorschau').send({ partnerId: 'P-003', zeitraumVon: von, zeitraumBis: bis });
+  const erstellen = (von, bis) => request(kalkApp).post('/api/kalkulation/abrechnung/erstellen').send({ partnerId: 'P-003', zeitraumVon: von, zeitraumBis: bis });
+  const intern = summe => ['P-003', '15.08.2026', 'Eigenauftrag Portal', '2', '', summe, 'offen'];
+
+  test('Eigenauftrag ohne Preis (Summe leer): Vorschau zeigt ihn, Erstellen 409, nichts angelegt', async () => {
+    await sync();
+    tabs.Partner_Interne_Bestellungen.push(intern(''));
+    const vor = await vorschau('01.08.2026', '31.08.2026');
+    expect(vor.body.klaeren.map(k => k.art)).toEqual(['intern_ohne_preis']);
+    expect(vor.body.klaeren[0].eintraege).toEqual([{ datum: '15.08.2026', bezeichnung: 'Eigenauftrag Portal' }]);
+    const res = await erstellen('01.08.2026', '31.08.2026');
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('erst_klaeren');
+    expect(tabs.Partner_Abrechnungen).toHaveLength(1);
+  });
+
+  test('Summe 0 = bewusst ohne Betrag: Erstellen geht', async () => {
+    await sync();
+    tabs.Partner_Interne_Bestellungen.push(intern('0'));
+    const res = await erstellen('01.08.2026', '31.08.2026');
+    expect(res.status).toBe(201);
+  });
+
+  test('Freigabe: Lizenzgebuehr seit dem Entwurf geaendert -> 409, nichts markiert', async () => {
+    await sync();
+    const e = await erstellen('01.08.2026', '31.08.2026');
+    expect(e.status).toBe(201);
+    const [c] = zeileFuer('7106');
+    c[h('Lizenzgebühr')] = Number(c[h('Lizenzgebühr')]) + 1;
+    const res = await request(kalkApp).post(`/api/kalkulation/abrechnung/${e.body.abrechnungId}/freigeben`);
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('betraege_geaendert');
+    expect(zeileFuer('7106')[0][h('Status')]).toBe('offen');
   });
 });

@@ -22,6 +22,7 @@
 // nicht - so wird nie doppelt gerechnet.
 
 import { versandArt, VERSANDMETHODE } from './festpreis-verpackung.js';
+import { parseDeZahl } from './zahl-de.js';
 
 export const PORTO_AB = '2026-07-01';                 // Bestelldatum (Inhaber 18.11.)
 export const PORTO_BESTELLUNG = 'Porto_Bestellung';   // FP_Verkaeufe, additiv
@@ -33,7 +34,7 @@ const t = v => String(v ?? '').trim();
 const zahl = v => {
   if (v === null || v === undefined || v === '') return null;
   if (typeof v === 'number') return v;
-  const n = parseFloat(String(v).replace(',', '.'));
+  const n = parseDeZahl(String(v));
   return Number.isNaN(n) ? null : n;
 };
 
@@ -92,7 +93,7 @@ export function berechnePorto(zeilen, vh, satzAm, alleZeilen = zeilen, { partner
     hier.set(o, h);
   }
 
-  const erg = { ...leer, einnahmen: { anzahl: 0, summe: 0 }, kosten: { anzahl: 0, summe: 0, paket: 0, grossbrief: 0 }, unbekannt: [], hinweise: [] };
+  const erg = { ...leer, einnahmen: { anzahl: 0, summe: 0 }, kosten: { anzahl: 0, summe: 0, paket: 0, grossbrief: 0 }, unbekannt: [], fixkostenFehlen: [], hinweise: [] };
   for (const [o, h] of hier) {
     const b = original.get(o);
     if (!b || !b.neu || b.datum < PORTO_AB) continue;
@@ -106,6 +107,8 @@ export function berechnePorto(zeilen, vh, satzAm, alleZeilen = zeilen, { partner
     const art = versandArt(b.methode);
     // ohne Versandmethode zaehlen Einnahme UND Kosten nicht (Hinweis "fehlt"), nie nur die Einnahme.
     if (art === 'unbekannt') { erg.unbekannt.push(o); continue; }
+    // Fehlt zum Bestelldatum ein Porto-Satz in Kalkulation_Fixkosten: wie fehlende Versandart (nichts zaehlt, Hinweis).
+    if (art !== 'abholung' && art !== 'ohne_versand' && satzAm(b.datum).fehlt?.length) { erg.fixkostenFehlen.push(o); continue; }
     const einnahme = b.porto ?? 0;
     erg.einnahmen.anzahl += vorzeichen;
     erg.einnahmen.summe += vorzeichen * einnahme;
@@ -124,8 +127,11 @@ export function berechnePorto(zeilen, vh, satzAm, alleZeilen = zeilen, { partner
   if (erg.unbekannt.length) {
     erg.hinweise.push(`Porto (Einnahme und Kosten) ohne Versandmethode nicht berechnet: ${erg.unbekannt.length} Bestellung(en) (${erg.unbekannt.slice(0, 5).join(', ')}${erg.unbekannt.length > 5 ? ', …' : ''}).`);
   }
-  const leerErgebnis = !erg.einnahmen.anzahl && !erg.kosten.anzahl && !erg.abholung && !erg.ohneVersand && !erg.unbekannt.length;
-  return { ...erg, status: leerErgebnis ? 'keine' : erg.unbekannt.length ? 'fehlt' : 'ok' };
+  if (erg.fixkostenFehlen.length) {
+    erg.hinweise.push(`Porto nicht berechnet, Porto-Satz fehlt in Kalkulation_Fixkosten zum Bestelldatum: ${erg.fixkostenFehlen.length} Bestellung(en) (${erg.fixkostenFehlen.slice(0, 5).join(', ')}${erg.fixkostenFehlen.length > 5 ? ', …' : ''}).`);
+  }
+  const leerErgebnis = !erg.einnahmen.anzahl && !erg.kosten.anzahl && !erg.abholung && !erg.ohneVersand && !erg.unbekannt.length && !erg.fixkostenFehlen.length;
+  return { ...erg, status: leerErgebnis ? 'keine' : erg.unbekannt.length || erg.fixkostenFehlen.length ? 'fehlt' : 'ok' };
 }
 
 /** Satz-Funktion aus Kalkulation_Fixkosten (parseKonfiguration mit Datum). */
@@ -134,7 +140,9 @@ export function satzAus(parseKonfiguration, rows, header) {
   return datumISO => {
     if (!cache.has(datumISO)) {
       const k = parseKonfiguration(rows, header, new Date(`${datumISO}T12:00:00Z`));
-      cache.set(datumISO, { portoB: k.portoB, portoP: k.portoP, versandnebenkostenB: k.versandnebenkostenB, versandnebenkostenP: k.versandnebenkostenP });
+      const noetig = ['Porto B', 'Porto P', 'Versandnebenkosten B', 'Versandnebenkosten P'];
+      cache.set(datumISO, { portoB: k.portoB, portoP: k.portoP, versandnebenkostenB: k.versandnebenkostenB, versandnebenkostenP: k.versandnebenkostenP,
+        fehlt: (k.fehlend ?? []).filter(p => noetig.includes(p)) });
     }
     return cache.get(datumISO);
   };

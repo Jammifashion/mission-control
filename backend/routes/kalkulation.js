@@ -15,8 +15,18 @@ import { zugangArt, klartextFuerMc } from '../utils/partner-token.js';
 import { erzeugeNeuenPartnerLink, zeigePartnerLink, partnerKopierbar } from '../lib/partnerLink.js';
 import { berechnePartnerAnteil, parseKonfiguration, istBekanntePosition, baueLizenzSaetze, lizenzSatzAusZeile, parseVertragAb, baueVertragsbeginne } from '../utils/partner-kalkulation.js';
 
-import { lizenzStatusWechselErlaubt } from '../utils/fp-abrechnung.js';
+import { lizenzStatusWechselErlaubt, abrechnungKlaeren, klaerenAntwort, leerZelle } from '../utils/fp-abrechnung.js';
+import { parseDeZahl } from '../utils/zahl-de.js';
 const router = Router();
+
+// Erstellen und Freigeben einer Lizenz-Abrechnung: eine Sperre (Doppelklick, zwei Fenster).
+let abrechnungLaeuft = false;
+async function mitAbrechnungSperre(fn) {
+  if (abrechnungLaeuft) throw Object.assign(new Error('Eine Abrechnung wird gerade geschrieben – gleich noch einmal.'), { status: 409, code: 'laeuft_gerade' });
+  abrechnungLaeuft = true;
+  try { return await fn(); } finally { abrechnungLaeuft = false; }
+}
+const round2 = n => Math.round(n * 100) / 100;
 
 function getSheets() {
   return getGoogleAuth().then(auth => google.sheets({ version: 'v4', auth }));
@@ -53,7 +63,7 @@ async function readTab(sheets, sheetId, tabName) {
 // Robustes parseFloat: behandelt Komma als Dezimaltrennzeichen (DE-Format aus Sheet).
 function toFloat(val, fallback = 0) {
   if (val === null || val === undefined || val === '') return fallback;
-  const n = parseFloat(val.toString().replace(',', '.'));
+  const n = parseDeZahl(val.toString());
   return Number.isNaN(n) ? fallback : n;
 }
 
@@ -415,9 +425,16 @@ router.post('/abrechnung/vorschau', async (req, res, next) => {
         anzahl:      toFloat(row[ih('Anzahl')]),
         einzelpreis: toFloat(row[ih('Einzelpreis')]),
         summe:       toFloat(row[ih('Summe')]),
+        ohneSumme:   leerZelle(row[ih('Summe')]),   // leer = Preis fehlt (0 = bewusst)
       }));
 
-    const mwstProzent  = parseKonfiguration(konfigTab.rows, konfigTab.header).mwstProzent;
+    const konfigHeute  = parseKonfiguration(konfigTab.rows, konfigTab.header);
+    const mwstProzent  = konfigHeute.mwstProzent;
+    // Erst klaeren (Eigenauftraege ohne Preis, MwSt): dieselbe Pruefung wie beim Erstellen (dort 409).
+    const klaeren = abrechnungKlaeren({
+      interneOhneSumme: intern.filter(i => i.ohneSumme),
+      fixkostenFehlen: (konfigHeute.fehlend ?? []).filter(p => p === 'MwSt'),
+    });
     const lizenzNetto  = verkaeufe.reduce((s, v) => s + v.lizenz, 0);
     const interneSumme = intern.reduce((s, i) => s + i.summe, 0);
     // PP1: dieselbe Rechnung wie Portal und Kacheln (utils/partner-saldo.js).
@@ -439,14 +456,18 @@ router.post('/abrechnung/vorschau', async (req, res, next) => {
       hinweise:            hinweis.hinweise,
       gesperrtImZeitraum:  hinweis.gesperrtImZeitraum,
       nachzuegler:         hinweis.nachzuegler,
+      klaeren,
     });
   } catch (err) { next(err); }
 });
 
 // ── POST /api/kalkulation/abrechnung/erstellen ───────────────────────────────
 // Abrechnung für einen Partner für einen Zeitraum erstellen
-router.post('/abrechnung/erstellen', async (req, res, next) => {
-  try {
+router.post('/abrechnung/erstellen', (req, res, next) =>
+  mitAbrechnungSperre(() => abrechnungErstellen(req, res)).catch(next));
+
+async function abrechnungErstellen(req, res) {
+  {
     const sheetId = process.env.BUSINESS_SHEET_ID;
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
 
@@ -613,6 +634,13 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
         return d && d >= vonDatum && d <= bisDatum;
       });
 
+    // Erst klaeren: Eigenauftraege ohne Preis (Summe leer) und fehlende MwSt sperren das Anlegen.
+    const klaeren = abrechnungKlaeren({
+      interneOhneSumme: offeneIntern.filter(({ row }) => leerZelle(row[iSumIdx])).map(({ row }) => ({ datum: row[idatIdx] ?? '', bezeichnung: row[ibezIdx] ?? '' })),
+      fixkostenFehlen: (konfiguration.fehlend ?? []).filter(p => p === 'MwSt'),
+    });
+    if (klaeren.length) { const k = klaerenAntwort(klaeren); return res.status(k.status).json(k.body); }
+
     const interneSumme = offeneIntern.reduce((s, { row }) => s + toFloat(row[iSumIdx]), 0);
     const internPositionen = offeneIntern.map(({ row, rowIndex }) => ({
       rowIndex,
@@ -624,7 +652,6 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
     }));
 
     // Lizenz brutto (netto + MwSt), davon interne (brutto) abziehen → Saldo brutto.
-    const round2 = n => Math.round(n * 100) / 100;
     const mwstProzent  = konfiguration.mwstProzent;
     // PP1: dieselbe Rechnung wie Portal und Kacheln (utils/partner-saldo.js).
     const { lizenzBrutto, saldo } = saldoRechnung({ lizenzNetto: lizenzSumme, interneSumme, mwstProzent });
@@ -676,8 +703,8 @@ router.post('/abrechnung/erstellen', async (req, res, next) => {
       saldo, status: 'entwurf',
       hinweise: hinweis.hinweise, gesperrtImZeitraum: hinweis.gesperrtImZeitraum, nachzuegler: hinweis.nachzuegler,
     });
-  } catch (err) { next(err); }
-});
+  }
+}
 
 // ── GET /api/kalkulation/abrechnungen ────────────────────────────────────────
 // Alle Abrechnungen (optional ?partnerId=X oder ?status=geprüft)
@@ -839,8 +866,11 @@ function ladeEntwurf(abrechnungenTab, id) {
 // den Positionen des Entwurfs zugeordnet (Muster festpreis-portal.js). Fehlt
 // eine Position, wird nichts geschrieben: die Abrechnungssumme stimmt dann
 // nicht mehr mit dem Sheet ueberein.
-router.post('/abrechnung/:id/freigeben', async (req, res, next) => {
-  try {
+router.post('/abrechnung/:id/freigeben', (req, res, next) =>
+  mitAbrechnungSperre(() => abrechnungFreigeben(req, res)).catch(next));
+
+async function abrechnungFreigeben(req, res) {
+  {
     const sheetId = process.env.BUSINESS_SHEET_ID;
     if (!sheetId) return res.status(503).json({ error: 'BUSINESS_SHEET_ID nicht konfiguriert.' });
 
@@ -876,6 +906,21 @@ router.post('/abrechnung/:id/freigeben', async (req, res, next) => {
       });
     }
 
+    // Betraege gegen den Entwurf: hat sich eine Lizenzgebuehr seit dem Entwurf geaendert (z. B. Zeile
+    // entsperrt/nachgerechnet), nicht still mit dem alten Saldo freigeben.
+    const lizIdx = verkäufeTab.header.indexOf('Lizenzgebühr');
+    const jetztLizenz = round2(v.treffer.reduce((s, r) => s + toFloat(r[lizIdx]), 0));
+    const entwurfLizenz = round2((positionen.verkaeufe || []).reduce((s, p) => s + toFloat(p.lizenz), 0));
+    if (lizIdx !== -1 && Math.abs(jetztLizenz - entwurfLizenz) > 0.005) {
+      return res.status(409).json({
+        error: 'Die Lizenzbeträge der Verkäufe haben sich seit dem Entwurf geändert. Nichts markiert – Entwurf verwerfen und neu erstellen.',
+        code: 'betraege_geaendert', entwurf: entwurfLizenz, jetzt: jetztLizenz,
+      });
+    }
+    // Neue offene Zeilen im Zeitraum (nach dem Entwurf erfasst) bleiben offen - Hinweis fuer die naechste Abrechnung.
+    const nichtImEntwurf = verkäufeTab.rows.filter(r => r[v.spalten.partner] === partnerId && (r[v.spalten.status] ?? '') === 'offen'
+      && (() => { const d = parseDatum(r[v.spalten.datum]); return d && d >= von && d <= bis; })()).length - v.treffer.length;
+
     const vStCol = colLetter(v.spalten.status);
     const iStCol = colLetter(i.spalten.status);
     const allRequests = [
@@ -903,9 +948,10 @@ router.post('/abrechnung/:id/freigeben', async (req, res, next) => {
       status:          'freigegeben',
       anzahlVerkäufe:  v.treffer.length,
       anzahlInterne:   i.treffer.length,
+      ...(nichtImEntwurf > 0 ? { hinweis: `${nichtImEntwurf} offene Verkäufe im Zeitraum sind nach dem Entwurf dazugekommen und bleiben offen (nächste Abrechnung).` } : {}),
     });
-  } catch (err) { next(err); }
-});
+  }
+}
 
 // ── DELETE /api/kalkulation/abrechnung/:id ───────────────────────────────────
 // Verwirft einen Entwurf: setzt die zugehoerigen Verkaeufe und internen

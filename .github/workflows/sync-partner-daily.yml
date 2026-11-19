@@ -109,6 +109,12 @@ jobs:
             echo "::error::Sync (jfn) fehlgeschlagen mit HTTP ${http:-?}"
             exit 1
           fi
+          # HTTP 200, aber Fehler im Lauf (errors nicht leer): rot. Partner-IDs meldet das Backend in den Chat.
+          fehler=$(jq -r '(.errors // []) | length' response.json 2>/dev/null || echo 0)
+          if [ "$fehler" != "0" ]; then
+            echo "::error::Sync (jfn) mit $fehler Fehler(n) – Details im Chat (Mission Control)."
+            exit 1
+          fi
 
       - name: POST /api/partner/verkaeufe/sync-all (honk)
         env:
@@ -133,5 +139,40 @@ jobs:
           if [ "$rc" -ne 0 ]; then
             node .github/scripts/antwort-fehler.mjs response.json "${http:-?}" || true
             echo "::error::Sync (honk) fehlgeschlagen mit HTTP ${http:-?}"
+            exit 1
+          fi
+          # HTTP 200, aber Fehler im Lauf (errors nicht leer): rot. Partner-IDs meldet das Backend in den Chat.
+          fehler=$(jq -r '(.errors // []) | length' response.json 2>/dev/null || echo 0)
+          if [ "$fehler" != "0" ]; then
+            echo "::error::Sync (honk) mit $fehler Fehler(n) – Details im Chat (Mission Control)."
+            exit 1
+          fi
+
+      # Festpreis-Sync taeglich (vorher nur per Knopf). Im selben Lauf wie der Lizenz-Sync: gleicher
+      # Schluessel, gleiche Fehlerausgabe, gleiche Zeit; der Knopf in MC bleibt. Laeuft auch, wenn ein
+      # Lizenz-Sync rot war (if: always()), damit ein Fehler dort den FP-Sync nicht mitnimmt.
+      - name: POST /api/festpreis/verkaeufe/sync
+        if: always()
+        env:
+          API_URL: ${{ secrets.BACKEND_URL }}
+          API_KEY: ${{ secrets.MC_API_KEY }}
+        run: |
+          set -euo pipefail
+          rc=0
+          http=$(curl -sS --fail-with-body --max-time 300 -X POST \
+            -H "x-api-key: $API_KEY" -H "Content-Type: application/json" -d '{}' \
+            -o response.json -w '%{http_code}' \
+            "$API_URL/api/festpreis/verkaeufe/sync") || rc=$?
+          echo "HTTP ${http:-?}"
+          if jq -e . response.json >/dev/null 2>&1; then
+            jq 'if .error then {error: "FP-Sync fehlgeschlagen"}
+                else {neu: .synced, storniert, orders, gesperrt, nachgerechnet, nochGesperrt,
+                      ohneFestpreis: (.ohneFestpreisAnzahl // 0), ohneEintrag: ((.ohneEintrag // []) | length)} end' response.json
+          else
+            echo "(Antwort ist kein JSON - nicht ausgegeben)"
+          fi
+          if [ "$rc" -ne 0 ]; then
+            node .github/scripts/antwort-fehler.mjs response.json "${http:-?}" || true
+            echo "::error::FP-Sync fehlgeschlagen mit HTTP ${http:-?}"
             exit 1
           fi

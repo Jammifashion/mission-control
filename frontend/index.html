@@ -20970,6 +20970,21 @@
       function _escHtml(s) {
         return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
       }
+      // Abrechnungs-Vorschau (Lizenz + Festpreis): was vor dem Erstellen zu klaeren ist (Backend `klaeren`).
+      // Erstellen lehnt sonst mit 409 ab. Bestellungen mit Link "Im Shop öffnen".
+      function abrKlaerenHTML(klaeren) {
+        if (!Array.isArray(klaeren) || !klaeren.length) return '';
+        const eintrag = e => e.bestellung
+          ? `#${_escHtml(e.bestellung)}${e.link ? ` <a class="ps-shop-link" href="${_escHtml(e.link)}" target="_blank" rel="noopener" data-hilfe="ps-shop-link">Im Shop öffnen ↗</a>` : ''}`
+          : `${_escHtml(e.datum)} ${_escHtml(e.bezeichnung)}`;
+        return `<div class="abr-klaeren" style="margin-top:0.8rem;padding:0.6rem 0.8rem;border:1px solid var(--warning);border-radius:6px;font-size:0.82rem;">
+          <div style="color:var(--warning);font-weight:600;">Erst klären – so lässt sich die Abrechnung nicht erstellen:</div>
+          ${klaeren.map(k => `<div style="margin-top:0.4rem;"><strong>${_escHtml(k.text)}</strong>
+            <div style="color:var(--muted);">${_escHtml(k.weg)}</div>
+            ${(k.eintraege || []).length ? `<ul style="margin:0.2rem 0 0 1.1rem;padding:0;">${k.eintraege.slice(0, 20).map(e => `<li>${eintrag(e)}</li>`).join('')}${k.eintraege.length > 20 ? `<li>… ${k.eintraege.length - 20} weitere</li>` : ''}</ul>` : ''}
+          </div>`).join('')}
+        </div>`;
+      }
       function _getTodayIso() {
         const d = new Date();
         const y = d.getFullYear();
@@ -21778,6 +21793,7 @@
         bd.innerHTML = `<div class="modal-box" style="max-width:880px;width:96%;max-height:90vh;overflow-y:auto;">
           <div class="modal-title">Vorschau – ${_escHtml(partnerName)} (${data.zeitraumVon} – ${data.zeitraumBis})</div>
           ${(data.hinweise || []).length ? `<div style="margin-top:0.8rem;padding:0.6rem 0.8rem;border:1px solid var(--warning);border-radius:6px;font-size:0.82rem;color:var(--warning);">${data.hinweise.map(h => `<div>⚠ ${_escHtml(h)}</div>`).join('')}</div>` : ''}
+          ${abrKlaerenHTML(data.klaeren)}
           <div style="margin-top:1rem;">
             <h3 style="font-size:0.92rem;margin:0 0 0.4rem;">Shop-Verkäufe (Lizenz-Einnahmen)</h3>
             <div style="overflow-x:auto;border:1px solid var(--border);border-radius:6px;">
@@ -23454,6 +23470,7 @@
             <div class="modal-title">Abrechnung Vorschau – ${_escHtml(partnerName)}</div>
             <p style="font-size:0.82rem;color:var(--muted);margin:0.6rem 0 1rem;">${vonDatum} – ${bisDatum} &nbsp;·&nbsp; ${d.positionen} Einzelpositionen${(d.intern||[]).length ? ` · ${(d.intern||[]).length} interne Bestellung(en)` : ''}</p>
             <div style="overflow:auto;flex:1;">
+              ${abrKlaerenHTML(d.klaeren)}
               ${fpSummaryTableHTML(d)}
               ${fpInterneBlockHTML(d)}
             </div>

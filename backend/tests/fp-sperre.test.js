@@ -1,5 +1,6 @@
 // PA8: FP-Sperre - kein stiller Festpreis 0 mehr. Nur erfundene Daten und Preise (12,34 / 0,66 / 7,77).
 import { jest } from '@jest/globals';
+import { FIXKOSTEN_VOLL } from './hilfen/sheets-attrappe.js';
 import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -22,7 +23,7 @@ const TOKEN = 'erfundener-portal-token-pa8';
 
 function grund() {
   return {
-    FP_Partner: [['Partner-ID', 'Name', 'Shop', 'Aktiv', 'Notiz', 'Token', 'Kategorien'], ['FP-001', 'Testclub', 'jfn', 'Ja', '', TOKEN, '']],
+    FP_Partner: [['Partner-ID', 'Name', 'Shop', 'Aktiv', 'Notiz', 'Token', 'Kategorien', 'Verpackung_je_Bestellung'], ['FP-001', 'Testclub', 'jfn', 'Ja', '', TOKEN, '', 'nein']],
     FP_Artikel: [A_KOPF,
       ['FP-001', '11', 'Shirt', '7.77', '0', 'P', 'Club', 'T-Shirt'],
       ['FP-001', '12', 'Schal', '', '', 'P', 'Club', 'Schal'],          // bewusst Festpreis 0
@@ -30,7 +31,7 @@ function grund() {
       ['FP-001', '14', 'Mütze', '', '', 'P', 'Club', 'Unbekannt']],      // Kategorie ohne Festpreis-Zeile
     FP_Artikel_Kategorie: [['Kategorie', 'Festpreispartner-ID', 'Festpreis', 'Handlingskosten'],
       ['T-Shirt', 'FP-001', 12.34, 0.66], ['Schal', 'FP-001', 0, 0]],
-    Kalkulation_Fixkosten: [['Position', 'Wert', 'Gültig_ab', 'Gültig_bis'], ['MwSt', '19', '', '']],
+    Kalkulation_Fixkosten: FIXKOSTEN_VOLL.map(r => [...r]),
     'FP_Verkäufe': [V_KOPF, [...ABGERECHNET]],
     FP_Abrechnungen: [['Abrechnungs-ID', 'Partner-ID']],
     Partner_Interne_Bestellungen: [['Partner-ID', 'Datum', 'Bezeichnung', 'Anzahl', 'Einzelpreis', 'Summe', 'Status']],
@@ -284,5 +285,40 @@ describe('Quelltext und Oberflaeche', () => {
     for (const k of ['fp-sperre', 'fp-sperre-artikel', 'fp-nachrechnen']) expect(html).toMatch(new RegExp(`'${k}':\\s*\\{ name:`));
     expect(html).toContain('<option value="gesperrt">Gesperrt</option>');
     expect(html).not.toMatch(/mit Festpreis 0 übernommen/);
+  });
+});
+
+describe('FP: Positions-ID und erst klaeren', () => {
+  const fpSync = () => request(app).post('/api/festpreis/verkaeufe/sync').send({ after: '2026-11-01T00:00:00' });
+  test('Positions-ID in Spalte AA, zwei gleiche Positionen = zwei Zeilen', async () => {
+    wcOrders = [{ ...ORDER, line_items: [
+      { id: 71, product_id: 11, variation_id: 0, name: 'Shirt', quantity: 1, total: '20' },
+      { id: 72, product_id: 11, variation_id: 0, name: 'Shirt', quantity: 1, total: '20' },
+    ] }];
+    const res = await fpSync();
+    expect(res.status).toBe(200);
+    expect(res.body.synced).toBe(2);
+    expect(V()[0][26]).toBe('Positions-ID');
+    expect(V().slice(2).map(r => String(r[26]))).toEqual(['71', '72']);
+    const zweiter = await fpSync();
+    expect(zweiter.body.synced).toBe(0);
+  });
+
+  test('Bestellung ohne Versandart: Vorschau zeigt sie, Abrechnung 409, nichts angelegt', async () => {
+    process.env.WC_URL = 'https://shop.example.test';
+    wcOrders = [{ ...ORDER, shipping_lines: [], line_items: [{ id: 71, product_id: 11, variation_id: 0, name: 'Shirt', quantity: 1, total: '20' }] }];
+    await fpSync();
+    const neu = V().slice(2);
+    expect(neu).toHaveLength(1);
+    neu[0][22] = '';   // Versandmethode fehlt
+    const body = { partnerId: 'FP-001', vonDatum: '01.11.2026', bisDatum: '30.11.2026' };
+    const vor = await request(app).get('/api/festpreis/verkaeufe/summary').query(body);
+    expect(vor.body.klaeren.map(k => k.art)).toContain('porto_versandart');
+    const res = await request(app).post('/api/festpreis/abrechnungen').send(body);
+    expect(res.status).toBe(409);
+    const p = res.body.klaeren.find(k => k.art === 'porto_versandart');
+    expect(p.text).toMatch(/Versandart fehlt – erst klären/);
+    expect(p.eintraege).toEqual([{ bestellung: '500', link: 'https://shop.example.test/wp-admin/post.php?post=500&action=edit' }]);
+    expect(tabs.FP_Abrechnungen).toHaveLength(1);
   });
 });

@@ -1,8 +1,9 @@
 // Pure sync-logic helpers – no external dependencies, fully testable.
+import { parseDeZahl } from './zahl-de.js';
 
 export function toFloat(val, fallback = 0) {
   if (val === null || val === undefined || val === '') return fallback;
-  const n = parseFloat(val.toString().replace(',', '.'));
+  const n = parseDeZahl(val.toString());
   return Number.isNaN(n) ? fallback : n;
 }
 
@@ -147,16 +148,22 @@ export function buildStornoRows(vRows, vh, stornoOrders, partnerFilter) {
   // PA2 Teil B: optional. Die Gegenbuchung einer gesperrten Zeile ist ebenfalls
   // gesperrt, mit demselben Grund und leeren Betraegen (das Entsperren rechnet beide).
   const SPERRE_COL = vh(SPALTE_SPERRE);
+  // Positions-ID (optional, neue Zeilen): Gegenbuchung je Position, auch bei zwei gleichen Positionen.
+  const POS_COL = vh('Positions-ID');
+  const dupKeyOf = r => {
+    const posId = POS_COL === -1 ? '' : String(r[POS_COL] ?? '').trim();
+    return posId ? `${r[ordIdx]}|pos:${posId}|${r[pIdx]}` : `${r[ordIdx]}|${r[artIdx]}|${varKey(r[varIdx])}|${r[pIdx]}`;
+  };
 
   // Breite der Gegenbuchung: so weit, wie die Kopfzeile reicht.
   const BREITE = Math.max(
-    STORNO_COL, STATUS_COL, DATE_COL, ordIdx, artIdx, varIdx, pIdx, SPERRE_COL, ...NEG_COLS,
+    STORNO_COL, STATUS_COL, DATE_COL, ordIdx, artIdx, varIdx, pIdx, SPERRE_COL, POS_COL, ...NEG_COLS,
   ) + 1;
 
   const stornoDone = new Set();
   for (const r of vRows) {
     if ((r[STORNO_COL] ?? '') !== '')
-      stornoDone.add(`${r[ordIdx]}|${r[artIdx]}|${varKey(r[varIdx])}|${r[pIdx]}`);
+      stornoDone.add(dupKeyOf(r));
   }
 
   const out = [];
@@ -166,7 +173,7 @@ export function buildStornoRows(vRows, vh, stornoOrders, partnerFilter) {
     if ((r[STORNO_COL] ?? '') !== '') continue;
     if (partnerFilter && !partnerFilter.has(r[pIdx])) continue;
 
-    const dupKey = `${r[ordIdx]}|${r[artIdx]}|${varKey(r[varIdx])}|${r[pIdx]}`;
+    const dupKey = dupKeyOf(r);
     if (stornoDone.has(dupKey)) continue;
     stornoDone.add(dupKey);
 
@@ -183,4 +190,101 @@ export function buildStornoRows(vRows, vh, stornoOrders, partnerFilter) {
     out.push(counter);
   }
   return out;
+}
+
+// ── Schluessel mit Positions-ID, Startpunkt mit Ueberlappung, Kostensatz je Bestelldatum ──
+//
+// Neue Verkaufszeilen tragen die Positions-ID der Shop-Bestellung (line_item.id) in einer
+// eigenen Spalte. Zwei gleiche Positionen einer Bestellung sind damit zwei Zeilen.
+// Altzeilen ohne Positions-ID zaehlen weiter ueber den alten Schluessel
+// (Bestellung | Artikel | Variante | Partner) - eine schon erfasste Bestellung bekommt
+// beim erneuten Lesen also keine zusaetzliche Zeile (Nachtragen nur bewusst).
+export const SPALTE_POSITION   = 'Positions-ID';
+export const UEBERLAPPUNG_TAGE = 14;
+
+const varianteKey = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
+export const posSchluessel = (orderId, positionId, partnerId) => `${orderId}|pos:${positionId}|${partnerId}`;
+export const altSchluessel = (orderId, artikel, variante, partnerId) => `${orderId}|${artikel}|${varianteKey(variante)}|${partnerId}`;
+
+/**
+ * Bestand der schon erfassten Verkaeufe (ohne Storno-Gegenbuchungen).
+ * @param {any[][]} rows
+ * @param {(col:string)=>number} vh
+ * @param {{ bestellung: string, artikel: string }} spalten  Spaltennamen (Lizenz: Order-ID/Artikelnummer, FP: WC-Bestellnummer/Artikelname)
+ */
+export function verkaufsBestand(rows, vh, { bestellung, artikel }) {
+  const pos = new Set(), alt = new Set();
+  const iPos = vh(SPALTE_POSITION), iSt = vh('Storno-Status');
+  for (const r of rows ?? []) {
+    if (iSt !== -1 && String(r[iSt] ?? '') !== '') continue;
+    const o = r[vh(bestellung)] ?? '', p = r[vh('Partner-ID')] ?? '';
+    const posId = iPos === -1 ? '' : String(r[iPos] ?? '').trim();
+    if (posId) pos.add(posSchluessel(o, posId, p));
+    else alt.add(altSchluessel(o, r[vh(artikel)] ?? '', r[vh('Variante')], p));
+  }
+  return { pos, alt };
+}
+
+/** Ist diese Position fuer diesen Partner schon erfasst? Merkt sie sich, wenn nein (merken = true). */
+export function schonErfasst(bestand, { orderId, positionId, artikel, variante, partnerId }, merken = true) {
+  const ak = altSchluessel(orderId, artikel, variante, partnerId);
+  // Ohne Positions-ID (nicht vom Shop geliefert): alter Schluessel wie bisher.
+  if (positionId === undefined || positionId === null || String(positionId) === '') {
+    if (bestand.alt.has(ak)) return true;
+    if (merken) bestand.alt.add(ak);
+    return false;
+  }
+  const pk = posSchluessel(orderId, positionId, partnerId);
+  if (bestand.pos.has(pk) || bestand.alt.has(ak)) return true;
+  if (merken) bestand.pos.add(pk);
+  return false;
+}
+
+/**
+ * Startpunkt fuer den Shop-Abruf: neuestes Bestelldatum im Reiter minus UEBERLAPPUNG_TAGE
+ * (spaet bezahlte Bestellungen mit aelterem Anlagedatum kommen so noch dazu; Dubletten
+ * verhindert der Schluessel). Ohne Zeilen: null (alles).
+ */
+export function syncStart(rows, datumIdx, parseDate, tage = UEBERLAPPUNG_TAGE) {
+  let neuestes = null;
+  for (const r of rows ?? []) {
+    const d = parseDate(r[datumIdx] ?? '');
+    if (d && (!neuestes || d > neuestes)) neuestes = d;
+  }
+  if (!neuestes) return null;
+  return new Date(neuestes.getTime() - tage * 86400000).toISOString().slice(0, 19);
+}
+
+/** Kalendertag der Bestellung (WC date_created, Shop-Ortszeit) als JJJJ-MM-TT. */
+export const bestellTag = order => String(order?.date_created ?? '').slice(0, 10);
+
+/**
+ * Kostensatz je Bestelltag (zwischengespeichert). `parse(datum)` = parseKonfiguration(rows, header, datum).
+ * Liefert die Konfiguration; fehlende Positionen stehen in `.fehlend`.
+ */
+export function konfigJeTag(parse) {
+  const cache = new Map();
+  return tag => {
+    const key = /^\d{4}-\d{2}-\d{2}$/.test(String(tag)) ? tag : new Date().toISOString().slice(0, 10);
+    if (!cache.has(key)) cache.set(key, parse(new Date(`${key}T12:00:00Z`)));
+    return cache.get(key);
+  };
+}
+
+/**
+ * Fehlende Fixkosten fuer die Bestelltage eines Laufs: [{ tag, fehlend: [Position…] }] (leer = alles da).
+ * Der Sync schreibt dann nichts (409), statt mit 0 zu rechnen.
+ */
+export function fixkostenLuecken(tage, konfigFuer) {
+  const out = [];
+  for (const tag of [...new Set(tage)].sort()) {
+    const f = konfigFuer(tag).fehlend ?? [];
+    if (f.length) out.push({ tag, fehlend: f });
+  }
+  return out;
+}
+export function fixkostenFehler(luecken) {
+  const text = luecken.slice(0, 5).map(l => `${l.tag}: ${l.fehlend.join(', ')}`).join('; ');
+  return Object.assign(new Error(`Fixkosten fehlen in Kalkulation_Fixkosten (${text}${luecken.length > 5 ? ' …' : ''}) – nichts geschrieben.`),
+    { status: 409, code: 'fixkosten_fehlen' });
 }

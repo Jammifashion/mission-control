@@ -11,7 +11,7 @@ const schritte = name => Object.values(yaml.load(readFileSync(resolve(dir, name)
 
 // Datei, Anzahl der POST-Schritte
 const WORKFLOWS = [
-  ['sync-partner-daily.yml', 3],
+  ['sync-partner-daily.yml', 4],
   ['trikot-sync-daily.yml', 1],
   ['backup-daily.yml', 1],
   ['lshop-korb-abgleich.yml', 1],

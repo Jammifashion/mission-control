@@ -4,12 +4,13 @@
 // und die erlaubten Status-Wechsel.
 
 import { createHash } from 'crypto';
+import { parseDeZahl } from './zahl-de.js';
 
 const t = v => String(v ?? '').trim();
 
 export function fpZahl(val, fallback = 0) {
   if (val === null || val === undefined || val === '') return fallback;
-  const n = parseFloat(val.toString().replace(',', '.'));
+  const n = parseDeZahl(val.toString());
   return Number.isNaN(n) ? fallback : n;
 }
 const round2 = n => Math.round(n * 100) / 100;
@@ -178,3 +179,58 @@ export function lizenzStatusWechselErlaubt(von, nach) {
   const a = t(von).toLowerCase();
   return a === t(nach).toLowerCase() || (LIZENZ_STATUS_WECHSEL[a] ?? []).includes(t(nach).toLowerCase());
 }
+
+// ── Erst klaeren, dann abrechnen ────────────────────────────────────────────
+// Leitlinie (wie PA8/VP1): fehlt etwas, wird nicht still mit 0 abgerechnet. Vorschau zeigt die Punkte,
+// Erstellen lehnt mit 409 ab, bis sie geklaert sind. Gilt fuer Festpreis (Porto, Verpackung, interne
+// Bestellungen, MwSt) und Lizenz (interne Bestellungen, MwSt).
+
+export const leerZelle = v => v === null || v === undefined || String(v).trim() === '';
+
+/**
+ * @param {object} o
+ * @param {object|null} [o.porto]          Ergebnis berechnePorto (status 'fehlt': unbekannt / fixkostenFehlen)
+ * @param {object|null} [o.verpackung]     Ergebnis berechneVerpackung (status 'fehlt': hinweise)
+ * @param {{datum, bezeichnung}[]} [o.interneOhneSumme]  offene interne Bestellungen mit LEERER Summe (0 = bewusst)
+ * @param {string[]} [o.fixkostenFehlen]   fehlende Fixkosten-Positionen fuer die Abrechnung (z. B. MwSt)
+ * @param {(id:string)=>string} [o.bestellLink]  Link "Bestellung im Shop oeffnen"
+ * @returns {{ art: string, text: string, weg: string, eintraege?: object[] }[]}  leer = nichts zu klaeren
+ */
+export function abrechnungKlaeren({ porto = null, verpackung = null, interneOhneSumme = [], fixkostenFehlen = [], bestellLink = () => '' } = {}) {
+  const punkte = [];
+  if (porto?.unbekannt?.length) punkte.push({
+    art: 'porto_versandart',
+    text: `Versandart fehlt – erst klären: ${porto.unbekannt.length} Bestellung(en)`,
+    weg: 'Bestellung im Shop öffnen und Versandart prüfen; danach die Versandmethode nachtragen (scripts/fill-fp-versandmethode.js) und die Vorschau neu laden.',
+    eintraege: porto.unbekannt.map(id => ({ bestellung: String(id), link: bestellLink(id) })),
+  });
+  if (porto?.fixkostenFehlen?.length) punkte.push({
+    art: 'porto_satz',
+    text: `Porto-Satz fehlt in Kalkulation_Fixkosten zum Bestelldatum: ${porto.fixkostenFehlen.length} Bestellung(en)`,
+    weg: 'In Kalkulation_Fixkosten Porto B/P und Versandnebenkosten B/P mit Gültig_ab vor dem Bestelldatum eintragen.',
+    eintraege: porto.fixkostenFehlen.map(id => ({ bestellung: String(id), link: bestellLink(id) })),
+  });
+  if (verpackung?.status === 'fehlt') punkte.push({
+    art: 'verpackung',
+    text: `Verpackungspauschale nicht berechenbar – erst klären`,
+    weg: (verpackung.hinweise ?? []).join(' ') || 'FP_Partner: Verpackung_je_Bestellung und Verpackung_ab prüfen ("nein" = keine Pauschale).',
+  });
+  if (interneOhneSumme.length) punkte.push({
+    art: 'intern_ohne_preis',
+    text: `Eigenaufträge ohne Preis: ${interneOhneSumme.length}`,
+    weg: 'Preis (Summe) eintragen – 0 = bewusst ohne Betrag – oder den Eintrag aus der Abrechnung nehmen (Status ändern).',
+    eintraege: interneOhneSumme.map(i => ({ datum: i.datum, bezeichnung: i.bezeichnung })),
+  });
+  if (fixkostenFehlen.length) punkte.push({
+    art: 'fixkosten',
+    text: `Fixkosten fehlen in Kalkulation_Fixkosten: ${fixkostenFehlen.join(', ')}`,
+    weg: 'Position mit gültigem Wert (Gültig_ab bis heute) eintragen.',
+  });
+  return punkte;
+}
+
+/** 409-Antwort, wenn noch etwas zu klaeren ist (Erstellen). */
+export const klaerenAntwort = punkte => ({
+  status: 409,
+  body: { error: `Abrechnung gesperrt – erst klären: ${punkte.map(p => p.text).join('; ')}.`, code: 'erst_klaeren', klaeren: punkte },
+});

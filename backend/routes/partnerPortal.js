@@ -6,7 +6,10 @@ import { getWcClient as wcClientForShop, getShopConfig } from '../lib/shopConfig
 import { seitenGrenze, seitenListe, wirfWennPruefseite } from '../lib/hosterPruefseite.js';
 import { berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze, baueVertragsbeginne, verkaufsBetraege } from '../utils/partner-kalkulation.js';
 import { toFloat, toDE, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, buildStornoRows, ordersFuerVerkaufszeilen, vorVertragsbeginn,
-  STATUS_GESPERRT, SPALTE_SPERRE, leerWert, sperrGrund } from '../utils/sync-logic.js';
+  STATUS_GESPERRT, SPALTE_SPERRE, leerWert, sperrGrund,
+  SPALTE_POSITION, verkaufsBestand, schonErfasst, syncStart, bestellTag, konfigJeTag, fixkostenLuecken, fixkostenFehler,
+} from '../utils/sync-logic.js';
+import { schreibeNeueZeilen } from '../lib/sheet-zeilen.js';
 import { sichereSpalte } from '../utils/sheet-spalten.js';
 import { notify, buildPartnerNachricht } from '../lib/chatNotify.js';
 import { requireHeader } from '../utils/sheet-headers.js';
@@ -226,6 +229,7 @@ function gesperrteZeile({ partnerId, orderDate, order, item, grund }) {
     item.product_id, '', '', '', '',
   ];
   row._sperre = grund;
+  row._pos = item.id;
   return row;
 }
 
@@ -242,17 +246,47 @@ async function sperreFertig(sheets, sheetId, tab, vH, rows) {
   }
 }
 
+// Spalte "Positions-ID" additiv am Ende anlegen (nur wenn neue Zeilen kommen) und je neuer Zeile
+// die Positions-ID der Shop-Bestellung eintragen.
+async function positionFertig(sheets, sheetId, tab, vH, rows) {
+  if (!rows.length) return;
+  const i = await sichereSpalte(sheets, sheetId, tab, vH, SPALTE_POSITION);
+  for (const r of rows) {
+    while (r.length <= i) r.push('');
+    r[i] = r._pos ?? '';
+  }
+}
+
+// Neue Verkaufs- und Storno-Zeilen ohne values.append: erste freie Zeile, Nachbarzeile und
+// Zielbereich geprueft, RAW, zurueckgelesen (lib/sheet-zeilen.js).
+async function schreibeVerkaeufe(sheets, sheetId, tab, vH, rows) {
+  if (!rows.length) return;
+  const breite = Math.max(vH.length, ...rows.map(r => r.length));
+  await schreibeNeueZeilen(sheets, sheetId, tab, rows.map(r => Array.from({ length: breite }, (_, i) => r[i] ?? '')));
+}
+
+// Ein Lizenz-Sync zur Zeit (Knopf, taeglicher Lauf). Belegt -> 409.
+let lizenzSyncLaeuft = false;
+async function mitLizenzSyncSperre(fn) {
+  if (lizenzSyncLaeuft) throw Object.assign(new Error('Partner-Sync läuft gerade – gleich noch einmal.'), { status: 409, code: 'laeuft_gerade' });
+  lizenzSyncLaeuft = true;
+  try { return await fn(); } finally { lizenzSyncLaeuft = false; }
+}
+
 /**
  * Gesperrte Zeilen erstmals rechnen.
  * @param {object} o
  * @param {function(string,string):object|null} o.eintragFuer  (Produkt-ID, Partner-ID) -> Artikel-Eintrag
  * @param {function(object):'B'|'P'} o.versandartFuer          Bestellung -> Versandart wie im Sync
+ * @param {function(string):object} o.konfigFuer               Bestelltag (JJJJ-MM-TT) -> Kostensatz (mit .fehlend)
  * @returns {Promise<{ entsperrt: number, nochGesperrt: number }>}
  */
-async function entsperren({ sheets, sheetId, tab, vH, vRows, wc, eintragFuer, versandartFuer, satzFuer, portoFuer, konfiguration, partnerFilter }) {
+async function entsperren({ sheets, sheetId, tab, vH, vRows, wc, eintragFuer, versandartFuer, satzFuer, portoFuer, konfigFuer, partnerFilter }) {
   const h = c => vH.indexOf(c);
   if (h(SPALTE_SPERRE) < 0) return { entsperrt: 0, nochGesperrt: 0 };
-  const schluessel = r => `${r[h('Order-ID')] ?? ''}|${r[h('Artikelnummer')] ?? ''}|${varKeyOf(r[h('Variante')])}|${r[h('Partner-ID')] ?? ''}|${r[h('Storno-Status')] ?? ''}`;
+  const iPos = h(SPALTE_POSITION);
+  const posVon = r => (iPos === -1 ? '' : String(r[iPos] ?? '').trim());
+  const schluessel = r => `${r[h('Order-ID')] ?? ''}|${r[h('Artikelnummer')] ?? ''}|${varKeyOf(r[h('Variante')])}|${r[h('Partner-ID')] ?? ''}|${r[h('Storno-Status')] ?? ''}|${posVon(r)}`;
   const kandidaten = vRows.filter(r => (r[h('Status')] ?? '') === STATUS_GESPERRT
     && (!partnerFilter || partnerFilter.has(r[h('Partner-ID')])));
   const bereit = kandidaten.filter(r => {
@@ -280,9 +314,14 @@ async function entsperren({ sheets, sheetId, tab, vH, vRows, wc, eintragFuer, ve
     const order = orders.get(oid);
     if (!order) continue;
     const pid = String(r[h('Produkt-ID')] ?? '').trim();
-    const item = (order.line_items ?? []).find(i => String(i.product_id) === pid
-      && varKeyOf(i.variation_id || 0) === varKeyOf(r[h('Variante')]) && artikelNameOf(i) === (r[h('Artikelnummer')] ?? ''));
+    const item = posVon(r)
+      ? (order.line_items ?? []).find(i => String(i.id) === posVon(r))
+      : (order.line_items ?? []).find(i => String(i.product_id) === pid
+        && varKeyOf(i.variation_id || 0) === varKeyOf(r[h('Variante')]) && artikelNameOf(i) === (r[h('Artikelnummer')] ?? ''));
     if (!item) continue;
+    // Kostensatz zum Bestelldatum; fehlt eine Position, bleibt die Zeile gesperrt.
+    const konfiguration = konfigFuer(bestellTag(order));
+    if (konfiguration.fehlend?.length) continue;
     const partnerId = r[h('Partner-ID')] ?? '';
     const b = verkaufsBetraege({
       order, item, eintrag: eintragFuer(pid, partnerId), versandart: versandartFuer(order),
@@ -337,7 +376,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     const portoModell    = honkRow[ph('Porto-Modell')] ?? 'geteilt-50-50';
 
     const { header: kH, rows: kRows } = await readTab(sheets, sheetId, 'Kalkulation_Fixkosten');
-    const konfiguration = parseKonfiguration(kRows, kH);
+    const konfigFuer = konfigJeTag(d => parseKonfiguration(kRows, kH, d));   // Kostensatz zum Bestelldatum
 
     // HK_Partner_Artikel → Map Produkt-ID → { ekPreis, druckkosten, versandart }
     const { header: aH, rows: aRows } = await readTab(sheets, sheetId, TAB_HK_ARTIKEL);
@@ -345,10 +384,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
 
     const { header: vH, rows: vRows } = await readTab(sheets, sheetId, TAB_VERKAEUFE);
     const vh = col => vH.indexOf(col);
-    const varKey = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
-    const existingKeys = new Set(
-      vRows.map(r => `${r[vh('Order-ID')] ?? ''}|${r[vh('Artikelnummer')] ?? ''}|${varKey(r[vh('Variante')])}|${r[vh('Partner-ID')] ?? ''}`)
-    );
+    const bestand = verkaufsBestand(vRows, vh, { bestellung: 'Order-ID', artikel: 'Artikelnummer' });
     const wc = getWcClient(shop);
 
     // PA2 Teil B, erster Schritt: gesperrte Zeilen mit jetzt vollstaendigem Eintrag rechnen.
@@ -359,25 +395,20 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     const ent = await entsperren({
       sheets, sheetId, tab: TAB_VERKAEUFE, vH, vRows, wc,
       eintragFuer: pid => artikelMap.get(pid) ?? null, versandartFuer: hkVersandart,
-      satzFuer: () => lizenzProzent, portoFuer: () => portoModell, konfiguration, partnerFilter: null,
+      satzFuer: () => lizenzProzent, portoFuer: () => portoModell, konfigFuer, partnerFilter: null,
     });
 
-    let afterParam = after || null;
-    if (!afterParam && vRows.length) {
-      const datIdx = vh('Datum');
-      let newest = null;
-      for (const r of vRows) {
-        const d = parseDate(r[datIdx] ?? '');
-        if (d && (!newest || d > newest)) newest = d;
-      }
-      if (newest) afterParam = newest.toISOString().slice(0, 19);
-    }
+    // Ab neuestem Bestelldatum minus 14 Tage: spaet bezahlte Bestellungen kommen noch dazu.
+    const afterParam = after || syncStart(vRows, vh('Datum'), parseDate);
 
     const orders = await fetchOrders(wc, WC_STATES_VERKAUF, afterParam);
     // Stornos voll-historisch (ohne after-Filter) – fängt auch ältere Refunds.
     const stornoOrders = await fetchOrders(wc, WC_STATES_STORNO, null);
     // Schon stornierte, bezahlte Bestellungen bekommen Verkauf + Gegenbuchung.
     const verkaufsOrders = ordersFuerVerkaufszeilen(orders, stornoOrders, afterParam);
+    // Fehlt zum Bestelldatum eine Fixkosten-Position: nichts schreiben (nicht mit 0 rechnen).
+    const luecken = fixkostenLuecken(verkaufsOrders.map(bestellTag), konfigFuer);
+    if (luecken.length) throw fixkostenFehler(luecken);
 
     const toWrite = [];
     let gesperrt = 0;
@@ -407,8 +438,8 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
         const portoEinnahmeAnteil = shippingNetto * anteil;
         const artKey = artikelName(item);
         const variationId = String(item.variation_id || 0);
-        const key = `${order.id}|${artKey}|${variationId}|${honkPartnerId}`;
-        if (existingKeys.has(key)) continue;
+        const pos = { orderId: order.id, positionId: item.id, artikel: artKey, variante: variationId, partnerId: honkPartnerId };
+        if (schonErfasst(bestand, pos, false)) continue;
 
         const artikel = artikelMap.get(String(item.product_id ?? ''));
         if (!artikel) {
@@ -421,7 +452,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
           });
           continue;
         }
-        existingKeys.add(key);
+        schonErfasst(bestand, pos);   // jetzt erfasst merken
 
         // PA2 Teil B: EK oder Druck leer -> erfassen, aber sperren (nicht mit 0 rechnen).
         const grund = sperrGrund(artikel);
@@ -435,32 +466,26 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
           vkNetto: itemNetto, ekPreis: artikel.ekPreis, druckkosten: artikel.druckkosten,
           versandart: orderVersandart,
           portoModell, bestellungsAnteil: anteil, stueckzahl: item.quantity,
-          lizenzProzent, portoEinnahmeAnteil, konfiguration,
+          lizenzProzent, portoEinnahmeAnteil, konfiguration: konfigFuer(bestellTag(order)),
         });
         const lizenzAnteilVomGewinn = calc.gewinnNetto * (lizenzProzent || 0) / 100;
-        toWrite.push([
+        const zeile = [
           honkPartnerId, orderDate, order.id,
           artKey, item.variation_id || 0, item.quantity,
           itemNetto, calc.partnerAnteil, 'offen',
           item.product_id, calc.gewinnNetto, lizenzAnteilVomGewinn, calc.portoSaldoPartner, calc.brutto,
-        ]);
+        ];
+        zeile._pos = item.id;
+        toWrite.push(zeile);
       }
     }
 
     // Auch die gerade gebauten Zeilen: sonst bekaeme ein nachgeholter Verkauf
     // seine Gegenbuchung erst im naechsten Lauf.
     await sperreFertig(sheets, sheetId, TAB_VERKAEUFE, vH, toWrite);
+    await positionFertig(sheets, sheetId, TAB_VERKAEUFE, vH, toWrite);
     const stornoRows = buildStornoRows([...vRows, ...toWrite], vh, stornoOrders, null);
-    const allRows = [...toWrite, ...stornoRows];
-    if (allRows.length > 0) {
-      await sheets.spreadsheets.values.append({
-        spreadsheetId: sheetId,
-        range: `${TAB_VERKAEUFE}!A:${colLetter(Math.max(vH.length - 1, 14))}`,
-        valueInputOption: 'RAW',
-        insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: allRows },
-      });
-    }
+    await schreibeVerkaeufe(sheets, sheetId, TAB_VERKAEUFE, vH, [...toWrite, ...stornoRows]);
 
     if (uebersprungen.length) {
       console.warn(
@@ -517,15 +542,12 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
 
   // 1c. Konfiguration
   const { header: kH, rows: kRows } = await readTab(sheets, sheetId, 'Kalkulation_Fixkosten');
-  const konfiguration = parseKonfiguration(kRows, kH);
+  const konfigFuer = konfigJeTag(d => parseKonfiguration(kRows, kH, d));   // Kostensatz zum Bestelldatum
 
   // 2. Partner_Verkäufe → Duplikat-Set + neuestes Datum (shop-spezifischer Tab)
   const { header: vH, rows: vRows } = await readTab(sheets, sheetId, TAB_VERKAEUFE);
   const vh = col => vH.indexOf(col);
-  const varKey = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
-  const existingKeys = new Set(
-    vRows.map(r => `${r[vh('Order-ID')] ?? ''}|${r[vh('Artikelnummer')] ?? ''}|${varKey(r[vh('Variante')])}|${r[vh('Partner-ID')] ?? ''}`)
-  );
+  const bestand = verkaufsBestand(vRows, vh, { bestellung: 'Order-ID', artikel: 'Artikelnummer' });
 
   const wc = getWcClient(shop);
 
@@ -543,19 +565,11 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
     sheets, sheetId, tab: TAB_VERKAEUFE, vH, vRows, wc,
     eintragFuer: (pid, partnerId) => (partnerArtikelMap[pid] ?? []).find(e => e.partnerId === partnerId) ?? null,
     versandartFuer: jfnVersandart, satzFuer: id => lizenzSatz(id),
-    portoFuer: id => partnerInfoMap[id]?.portoModell ?? 'geteilt-50-50', konfiguration, partnerFilter,
+    portoFuer: id => partnerInfoMap[id]?.portoModell ?? 'geteilt-50-50', konfigFuer, partnerFilter,
   });
 
-  let afterParam = after || null;
-  if (!afterParam && vRows.length) {
-    const datIdx = vh('Datum');
-    let newest = null;
-    for (const r of vRows) {
-      const d = parseDate(r[datIdx] ?? '');
-      if (d && (!newest || d > newest)) newest = d;
-    }
-    if (newest) afterParam = newest.toISOString().slice(0, 19);
-  }
+  // Ab neuestem Bestelldatum minus 14 Tage: spaet bezahlte Bestellungen kommen noch dazu.
+  const afterParam = after || syncStart(vRows, vh('Datum'), parseDate);
 
   // 3. WC Bestellungen laden (shop-spezifische Credentials)
   const orders = await fetchOrders(wc, WC_STATES_VERKAUF, afterParam);
@@ -563,6 +577,9 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
   const stornoOrders = await fetchOrders(wc, WC_STATES_STORNO, null);
   // Schon stornierte, bezahlte Bestellungen bekommen Verkauf + Gegenbuchung.
   const verkaufsOrders = ordersFuerVerkaufszeilen(orders, stornoOrders, afterParam);
+  // Fehlt zum Bestelldatum eine Fixkosten-Position: nichts schreiben (nicht mit 0 rechnen).
+  const luecken = fixkostenLuecken(verkaufsOrders.map(bestellTag), konfigFuer);
+  if (luecken.length) throw fixkostenFehler(luecken);
 
   // 4. Iterieren → Sheet-Zeilen sammeln
   const toWrite = [];
@@ -598,9 +615,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
       const variationId = String(item.variation_id || 0);
 
       for (const e of entries) {
-        const key = `${order.id}|${artKey}|${variationId}|${e.partnerId}`;
-        if (existingKeys.has(key)) continue;
-        existingKeys.add(key);
+        if (schonErfasst(bestand, { orderId: order.id, positionId: item.id, artikel: artKey, variante: variationId, partnerId: e.partnerId })) continue;
 
         // PA2 Teil B: EK oder Druck leer -> erfassen, aber sperren (nicht mit 0 rechnen).
         const grund = sperrGrund(e);
@@ -624,13 +639,13 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
           stueckzahl:         item.quantity,
           lizenzProzent,
           portoEinnahmeAnteil,
-          konfiguration,
+          konfiguration:      konfigFuer(bestellTag(order)),   // Kostensatz zum Bestelldatum
         });
 
         // Berechnung Breakdown für Tooltip
         const lizenzAnteilVomGewinn = calc.gewinnNetto * lizenzProzent / 100;
 
-        toWrite.push([
+        const zeile = [
           e.partnerId, orderDate, order.id,
           artKey, item.variation_id || 0, item.quantity,
           itemNetto, calc.partnerAnteil, 'offen',
@@ -639,7 +654,9 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
           lizenzAnteilVomGewinn,
           calc.portoSaldoPartner,
           calc.brutto,
-        ]);
+        ];
+        zeile._pos = item.id;
+        toWrite.push(zeile);
       }
     }
   }
@@ -647,17 +664,9 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
   // Auch die gerade gebauten Zeilen: sonst bekaeme ein nachgeholter Verkauf
   // seine Gegenbuchung erst im naechsten Lauf.
   await sperreFertig(sheets, sheetId, TAB_VERKAEUFE, vH, toWrite);
+  await positionFertig(sheets, sheetId, TAB_VERKAEUFE, vH, toWrite);
   const stornoRows = buildStornoRows([...vRows, ...toWrite], vh, stornoOrders, partnerFilter);
-  const allRows = [...toWrite, ...stornoRows];
-  if (allRows.length > 0) {
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: sheetId,
-      range: `${TAB_VERKAEUFE}!A:${colLetter(Math.max(vH.length - 1, 14))}`,
-      valueInputOption: 'RAW',
-      insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: allRows },
-    });
-  }
+  await schreibeVerkaeufe(sheets, sheetId, TAB_VERKAEUFE, vH, [...toWrite, ...stornoRows]);
 
   return {
     synced:     toWrite.length,
@@ -689,7 +698,7 @@ router.get('/verkaeufe/sync', async (req, res, next) => {
       console.log(`Sync gefiltert auf Partner: ${req.query.partnerId}`);
     }
 
-    const result = await runVerkaeufeSync(sheets, sheetId, { after: req.query.after, partnerFilter, shop: req.query.shop });
+    const result = await mitLizenzSyncSperre(() => runVerkaeufeSync(sheets, sheetId, { after: req.query.after, partnerFilter, shop: req.query.shop }));
     res.json(result);
   } catch (err) { next(err); }
 });
@@ -719,11 +728,20 @@ router.post('/verkaeufe/sync-all', async (req, res, next) => {
     let neueVerkäufe = 0;
     let result = null;
     try {
-      result = await runVerkaeufeSync(sheets, sheetId, { partnerFilter: new Set(aktivePartner), shop: req.query.shop });
+      result = await mitLizenzSyncSperre(() => runVerkaeufeSync(sheets, sheetId, { partnerFilter: new Set(aktivePartner), shop: req.query.shop }));
       neueVerkäufe = result.synced;
     } catch (err) {
       wirfWennPruefseite(err);   // -> 503 hoster_pruefseite, Workflow rot
       errors.push(err.message ?? String(err));
+    }
+    // Fehler nicht nur in der Antwort: Chat-Meldung mit den Partner-IDs des Laufs (keine Betraege).
+    // Der taegliche Workflow wird bei nicht leerem errors rot.
+    if (errors.length) {
+      await notify([
+        `🔴 Partner-Sync mit Fehlern · ${req.query.shop === 'honk' ? 'honk' : 'jfn'}`,
+        `Partner: ${aktivePartner.join(', ')}`,
+        String(errors[0]).slice(0, 200),
+      ].join('\n'));
     }
 
     res.json({

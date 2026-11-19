@@ -14,6 +14,7 @@
 //   MwSt                      %
 
 import { requireHeader, findHeader } from './sheet-headers.js';
+import { parseDeZahl } from './zahl-de.js';
 
 // Kontext fuer die Fehlermeldung, wenn eine Pflichtspalte fehlt.
 const KONTEXT = 'Kalkulation_Fixkosten';
@@ -30,7 +31,7 @@ function _parseDate(str) {
 
 function _toFloat(val) {
   if (val === null || val === undefined || val === '') return 0;
-  const n = parseFloat(val.toString().replace(',', '.'));
+  const n = parseDeZahl(val.toString());
   return Number.isNaN(n) ? 0 : n;
 }
 
@@ -147,7 +148,7 @@ export function getKostenSatz(rows, header, position, datum) {
 
   const matches = [];
   for (const r of rows) {
-    if ((r[posIdx] ?? '') !== position) continue;
+    if (String(r[posIdx] ?? '').trim() !== position) continue;
     const ab = _parseDate(r[abIdx] ?? '');
     if (!ab || ab > d) continue;
     if (bisIdx !== -1 && r[bisIdx] && r[bisIdx].trim() !== '') {
@@ -167,11 +168,16 @@ export function getKostenSatz(rows, header, position, datum) {
  */
 export function parseKonfiguration(rows, header, datum = new Date()) {
   const result = { ...DEFAULT_KONFIG };
+  const fehlend = [];
   for (const [pos, key] of Object.entries(POSITION_MAP)) {
     const val = getKostenSatz(rows, header, pos, datum);
     if (val !== null) result[key] = val;
+    else fehlend.push(pos);
   }
   meldeUnbekanntePositionen(rows, header);
+  // Positionen ohne gueltige Zeile zum Datum. Die Werte oben bleiben fuer Altaufrufer beim
+  // Standard; wer rechnet, prueft `fehlend` und rechnet dann nicht (nicht aufzaehlbar).
+  Object.defineProperty(result, 'fehlend', { value: fehlend, enumerable: false });
   return result;
 }
 
@@ -390,7 +396,7 @@ export function berechnePartnerAnteil({
 // einer gesperrten Zeile): dieselben Eingaben aus der WC-Bestellung, damit eine
 // spaet gerechnete Zeile genau so aussieht, als haette der Sync sie gleich
 // gerechnet. toFloat hier mit Komma, wie in sync-logic.js.
-const _num = v => { if (v === null || v === undefined || v === '') return 0; const n = parseFloat(String(v).replace(',', '.')); return Number.isNaN(n) ? 0 : n; };
+const _num = v => { if (v === null || v === undefined || v === '') return 0; const n = parseDeZahl(String(v)); return Number.isNaN(n) ? 0 : n; };
 
 /**
  * @param {object} o

@@ -3,6 +3,7 @@
 // Summe brutto von der Auszahlung abgezogen. Testbetrag frei gewählt.
 
 import { jest } from '@jest/globals';
+import { FIXKOSTEN_VOLL } from './hilfen/sheets-attrappe.js';
 
 jest.unstable_mockModule('googleapis', () => ({ google: { sheets: jest.fn() } }));
 jest.unstable_mockModule('../lib/googleAuth.js', () => ({ getGoogleAuth: jest.fn().mockResolvedValue({}) }));
@@ -44,7 +45,7 @@ beforeEach(() => {
       zeile('03.04.2026', '101', 'A', 'local_pickup'),
       zeile('04.04.2026', '102', 'A', 'free_shipping')],
     FP_Abrechnungen: [['Abrechnungs-ID', 'Partner-ID']],
-    Kalkulation_Fixkosten: [['Position', 'Wert', 'Gültig_ab', 'Gültig_bis'], ['MwSt', '19', '', '']],
+    Kalkulation_Fixkosten: FIXKOSTEN_VOLL.map(r => [...r]),
     Partner_Interne_Bestellungen: [['Partner-ID', 'Datum', 'Bezeichnung', 'Anzahl', 'Einzelpreis', 'Summe', 'Status']],
   };
   mockValues.get.mockReset();
@@ -78,24 +79,25 @@ test('Vorschau und Abrechnung rechnen dasselbe Brutto', async () => {
   expect(vor.body.gesamtBrutto).toBeCloseTo(vor.body.auszahlungBrutto - 4, 2);
 });
 
-test('fehlender Betrag -> Abrechnung OHNE Pauschale, laut (status fehlt), nie 0 abgezogen', async () => {
-  const mit = await request(app).post('/api/festpreis/abrechnungen').send(body);
+// Inhaber 19.11.: wie beim Porto sperrt "fehlt" die Abrechnung (vorher: ohne Pauschale). Vorschau zeigt den Punkt.
+test('fehlender Betrag -> Abrechnung gesperrt (erst klaeren), nichts geschrieben; Vorschau zeigt den Punkt', async () => {
   tabs.FP_Partner = partner('', '');
-  mockValues.append.mockClear();
   const res = await request(app).post('/api/festpreis/abrechnungen').send(body);
-  expect(res.status).toBe(201);
-  expect(res.body.verpackung.status).toBe('fehlt');
-  expect(res.body.verpackung.hinweise[0]).toMatch(/nicht berechnet/);
-  expect(res.body.gesamtBrutto).toBeCloseTo(mit.body.gesamtBrutto + 4, 2);
-  const json = abrechnungsJson();
-  expect(json.verpackung.status).toBe('fehlt');
+  expect(res.status).toBe(409);
+  expect(res.body.code).toBe('erst_klaeren');
+  expect(res.body.klaeren.map(k => k.art)).toEqual(['verpackung']);
+  expect(res.body.klaeren[0].weg).toMatch(/nicht berechnet/);
+  expect(mockValues.batchUpdate).not.toHaveBeenCalled();
+  const vor = await request(app).get('/api/festpreis/verkaeufe/summary').query({ partnerId: 'FP-001', vonDatum: body.vonDatum, bisDatum: body.bisDatum });
+  expect(vor.body.verpackung.status).toBe('fehlt');
+  expect(vor.body.klaeren.map(k => k.art)).toEqual(['verpackung']);
 });
 
-test('Spalten fehlen ganz -> ebenfalls status fehlt (nie 0 annehmen)', async () => {
+test('Spalten fehlen ganz -> ebenfalls gesperrt (nie 0 annehmen)', async () => {
   tabs.FP_Partner = [['Partner-ID', 'Name', 'Shop', 'Aktiv'], ['FP-001', 'X', 'jfn', 'Ja']];
   const res = await request(app).post('/api/festpreis/abrechnungen').send(body);
-  expect(res.status).toBe(201);
-  expect(res.body.verpackung.status).toBe('fehlt');
+  expect(res.status).toBe(409);
+  expect(res.body.klaeren[0].art).toBe('verpackung');
 });
 
 test('"nein" -> keine Pauschale, Abrechnung wie bisher', async () => {
@@ -110,10 +112,10 @@ test('Zeitraumgrenze: bis 02.04. zählt nur Bestellung 100', async () => {
   expect(res.body.verpackung.anzahl).toBe(1);
 });
 
-test('Bestandszeile ohne Versandmethode -> status fehlt mit Hinweis', async () => {
+test('Bestandszeile ohne Versandmethode -> gesperrt, Hinweis im Klaer-Punkt', async () => {
   tabs['FP_Verkäufe'].push(zeile('05.04.2026', '103', 'A', ''));
   const res = await request(app).post('/api/festpreis/abrechnungen').send(body);
-  expect(res.status).toBe(201);
-  expect(res.body.verpackung.status).toBe('fehlt');
-  expect(res.body.verpackung.hinweise[0]).toMatch(/Versandmethode fehlt/);
+  expect(res.status).toBe(409);
+  expect(res.body.klaeren[0]).toMatchObject({ art: 'verpackung' });
+  expect(res.body.klaeren[0].weg).toMatch(/Versandmethode fehlt/);
 });

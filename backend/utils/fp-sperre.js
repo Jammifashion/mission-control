@@ -9,6 +9,7 @@
 // Abgerechnete Zeilen fasst nichts hiervon an. Nie Preise in Log, Chat, Meldungstexten.
 
 import { berechneFestpreisAnteil } from './festpreis-kalkulation.js';
+import { parseDeZahl } from './zahl-de.js';
 
 export const STATUS_GESPERRT = 'gesperrt';
 export const STATUS_OFFEN = 'offen';
@@ -25,7 +26,7 @@ const t = v => String(v ?? '').trim();
 const zahl = v => {
   if (v === null || v === undefined || v === '') return 0;
   if (typeof v === 'number') return v;
-  const n = parseFloat(String(v).replace(',', '.'));
+  const n = parseDeZahl(String(v));
   return Number.isNaN(n) ? 0 : n;
 };
 

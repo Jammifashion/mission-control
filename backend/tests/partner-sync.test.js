@@ -6,6 +6,10 @@
 // alte Satz 50 %, im Partner-Reiter 40 %.
 
 import { jest } from '@jest/globals';
+import { sheetsAttrappe, neueZeilen } from './hilfen/sheets-attrappe.js';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, resolve } from 'path';
 
 jest.unstable_mockModule('googleapis', () => ({
   google: { sheets: jest.fn() },
@@ -59,12 +63,7 @@ const ORDER_16941 = {
   ],
 };
 
-let request, app, mockValues, mockWcGet, tabs;
-
-function sheetGet({ range }) {
-  const tab = range.slice(0, range.indexOf('!'));
-  return { data: { values: tabs[tab] ?? [] } };
-}
+let request, app, mockValues, mockWcGet, tabs, attrappe;
 
 beforeAll(async () => {
   process.env.BUSINESS_SHEET_ID = 'test-sheet-id';
@@ -74,9 +73,11 @@ beforeAll(async () => {
   request = supertest;
   const { default: express } = await import('express');
 
-  mockValues = { get: jest.fn(), append: jest.fn() };
+  // Echte In-Memory-Tabelle: der Sync schreibt ohne append in gepruefte Zielzeilen.
+  attrappe = sheetsAttrappe(() => tabs);
+  mockValues = attrappe.spreadsheets.values;
   const { google } = await import('googleapis');
-  google.sheets.mockReturnValue({ spreadsheets: { values: mockValues } });
+  google.sheets.mockReturnValue(attrappe);
 
   mockWcGet = jest.fn();
   const { getWcClient } = await import('../lib/shopConfig.js');
@@ -102,10 +103,7 @@ beforeEach(() => {
     Kalkulation_Fixkosten: FIXKOSTEN,
     'Partner_Verkäufe': [VERKAEUFE_HEADER],
   };
-  mockValues.get.mockReset();
-  mockValues.get.mockImplementation(async (args) => sheetGet(args));
-  mockValues.append.mockReset();
-  mockValues.append.mockResolvedValue({ data: {} });
+  allesZuruecksetzen();
   mockWcGet.mockReset();
   mockWcGet.mockImplementation(async (_path, params) => ({
     data: params.status === 'processing' ? [ORDER_16941] : [],
@@ -116,7 +114,11 @@ const sync = (query = '') => request(app)
   .get(`/api/partner/verkaeufe/sync${query}`)
   .set('x-api-key', API_KEY);
 
-const geschrieben = () => mockValues.append.mock.calls[0][0].requestBody.values;
+// Neu geschriebene Verkaufszeilen (beide Shops) - ueber values.update in die Zielzeilen, nie append.
+const geschrieben = () => [...neueZeilen(attrappe, 'Partner_Verkäufe'), ...neueZeilen(attrappe, 'HK_Partner_Verkäufe')];
+function allesZuruecksetzen() {
+  for (const f of Object.values(attrappe.spreadsheets.values)) f.mockClear();
+}
 const col = name => VERKAEUFE_HEADER.indexOf(name);
 
 describe('B16 – Lizenzsatz aus dem Partner-Reiter (JFN)', () => {
@@ -146,7 +148,7 @@ describe('B16 – Lizenzsatz aus dem Partner-Reiter (JFN)', () => {
     const res = await sync('?after=2026-08-01T00:00:00');
     expect(res.status).toBe(500);
     expect(res.body.error).toContain('P-003');
-    expect(mockValues.append).not.toHaveBeenCalled();
+    expect(geschrieben()).toEqual([]);
   });
 
   test('Partner fehlt im Partner-Reiter → Fehler mit Partner-ID', async () => {
@@ -154,7 +156,7 @@ describe('B16 – Lizenzsatz aus dem Partner-Reiter (JFN)', () => {
     const res = await sync('?after=2026-08-01T00:00:00');
     expect(res.status).toBe(500);
     expect(res.body.error).toContain('P-003');
-    expect(mockValues.append).not.toHaveBeenCalled();
+    expect(geschrieben()).toEqual([]);
   });
 
   test('ein Partner ohne Satz, aber ohne Verkauf, blockiert den Sync nicht', async () => {
@@ -213,11 +215,11 @@ describe('Neu-Sync – schon stornierte Bestellungen entstehen als Paar', () => 
   test('zweiter Lauf erzeugt keine Dubletten', async () => {
     await sync('?after=2026-08-01T00:00:00');
     tabs['Partner_Verkäufe'] = [VERKAEUFE_HEADER, ...geschrieben().map(r => r.map(v => String(v ?? '')))];
-    mockValues.append.mockClear();
+    allesZuruecksetzen();
 
     const res = await sync('?after=2026-08-01T00:00:00');
     expect(res.body).toMatchObject({ synced: 0, storniert: 0 });
-    expect(mockValues.append).not.toHaveBeenCalled();
+    expect(geschrieben()).toEqual([]);
   });
 
   test('HonkShop: gleiches Verhalten', async () => {
@@ -269,7 +271,8 @@ describe('HonkShop – EK, Druck, Versandart aus HK_Partner_Artikel', () => {
     expect(res.body.synced).toBe(1);
 
     const [row] = geschrieben();
-    expect(mockValues.append.mock.calls[0][0].range).toMatch(/^HK_Partner_Verkäufe!/);
+    expect(neueZeilen(attrappe, 'HK_Partner_Verkäufe')).toHaveLength(1);
+    expect(mockValues.append).not.toHaveBeenCalled();
     const erwartet = berechnePartnerAnteil({
       vkNetto: 80, ekPreis: 12, druckkosten: 4.5, versandart: 'P',
       portoModell: 'geteilt-50-50', bestellungsAnteil: 0.8, stueckzahl: 2,
@@ -301,7 +304,7 @@ describe('HonkShop – EK, Druck, Versandart aus HK_Partner_Artikel', () => {
     const erstLauf = geschrieben();
     tabs['HK_Partner_Verkäufe'] = [VERKAEUFE_HEADER, ...erstLauf.map(r => r.map(String))];
     tabs.HK_Partner_Artikel.push(['999', 'Nachgetragen', '5', '1', 'P']);
-    mockValues.append.mockClear();
+    allesZuruecksetzen();
 
     const res = await honk();
     expect(res.body.synced).toBe(1);
@@ -317,7 +320,7 @@ describe('HonkShop – EK, Druck, Versandart aus HK_Partner_Artikel', () => {
     expect(res.status).toBe(200);
     expect(res.body.synced).toBe(0);
     expect(res.body.uebersprungen).toHaveLength(2);
-    expect(mockValues.append).not.toHaveBeenCalled();
+    expect(geschrieben()).toEqual([]);
     console.warn.mockRestore();
   });
 
@@ -340,7 +343,7 @@ describe('Vertrag-ab – Sync schreibt nichts vor dem Vertragsbeginn', () => {
       const res = await sync('?after=2026-08-01T00:00:00');
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({ synced: 0, vorVertragsbeginn: 4 });
-      expect(mockValues.append).not.toHaveBeenCalled();
+      expect(geschrieben()).toEqual([]);
     });
 
     test('Bestellung am Stichtag gehört dazu', async () => {
@@ -374,7 +377,7 @@ describe('Vertrag-ab – Sync schreibt nichts vor dem Vertragsbeginn', () => {
       }));
       const res = await sync('?after=2026-08-01T00:00:00');
       expect(res.body).toMatchObject({ synced: 0, storniert: 0 });
-      expect(mockValues.append).not.toHaveBeenCalled();
+      expect(geschrieben()).toEqual([]);
     });
 
     test('ungültiges Vertrag-ab → 500 mit Partner-ID, nichts geschrieben', async () => {
@@ -382,7 +385,7 @@ describe('Vertrag-ab – Sync schreibt nichts vor dem Vertragsbeginn', () => {
       const res = await sync('?after=2026-08-01T00:00:00');
       expect(res.status).toBe(500);
       expect(res.body.error).toContain('P-003');
-      expect(mockValues.append).not.toHaveBeenCalled();
+      expect(geschrieben()).toEqual([]);
     });
   });
 
@@ -425,11 +428,11 @@ describe('Vertrag-ab – Sync schreibt nichts vor dem Vertragsbeginn', () => {
       tabs.Partner = [MIT_VERTRAG, partner('P-004', 'honk', '01.01.2025')];
       await sync('?shop=honk&after=2022-11-25T00:00:00');
       tabs['HK_Partner_Verkäufe'] = [VERKAEUFE_HEADER, ...geschrieben().map(r => r.map(v => String(v ?? '')))];
-      mockValues.append.mockClear();
+      allesZuruecksetzen();
 
       const res = await sync('?shop=honk&after=2022-11-25T00:00:00');
       expect(res.body).toMatchObject({ synced: 0, storniert: 0, vorVertragsbeginn: 2 });
-      expect(mockValues.append).not.toHaveBeenCalled();
+      expect(geschrieben()).toEqual([]);
       console.warn.mockRestore();
     });
 
@@ -471,5 +474,87 @@ describe('baueLizenzSaetze', () => {
 
   test('fehlende Spalte Lizenz-% wirft beim Aufbau', () => {
     expect(() => baueLizenzSaetze(['Partner-ID'], [])).toThrow(/Lizenz-%/);
+  });
+});
+
+describe('Positions-ID, Ueberlappung, Fixkosten (Syncs ohne stille Luecken)', () => {
+  // Zwei GLEICHE Positionen (gleicher Name, gleiche Variante) in einer Bestellung - frueher fiel die zweite weg.
+  const DOPPELT = {
+    id: 17001, status: 'processing', date_created: '2026-09-10T10:00:00', shipping_total: '0.00',
+    line_items: [
+      { id: 801, name: 'Dorflove Shirt - M, Schwarz', product_id: 5420, variation_id: 5431, quantity: 1, total: '21.00' },
+      { id: 802, name: 'Dorflove Shirt - M, Schwarz', product_id: 5420, variation_id: 5431, quantity: 1, total: '21.00' },
+    ],
+  };
+  const pos = () => geschrieben().map(r => String(r[tabs['Partner_Verkäufe'][0].indexOf('Positions-ID')] ?? ''));
+
+  test('zwei gleiche Positionen = zwei Zeilen mit Positions-ID; zweiter Lauf schreibt nichts', async () => {
+    mockWcGet.mockImplementation(async (_p, q) => ({ data: q.status === 'processing' ? [DOPPELT] : [] }));
+    const res = await sync('?after=2026-09-01T00:00:00');
+    expect(res.status).toBe(200);
+    expect(res.body.synced).toBe(2);
+    expect(tabs['Partner_Verkäufe'][0]).toContain('Positions-ID');
+    expect(pos()).toEqual(['801', '802']);
+    expect(mockValues.append).not.toHaveBeenCalled();
+    allesZuruecksetzen();
+    const zweiter = await sync('?after=2026-09-01T00:00:00');
+    expect(zweiter.body.synced).toBe(0);
+    expect(geschrieben()).toEqual([]);
+  });
+
+  test('Storno: je Position eine Gegenbuchung', async () => {
+    mockWcGet.mockImplementation(async (_p, q) => ({ data: q.status === 'processing' ? [DOPPELT] : [] }));
+    await sync('?after=2026-09-01T00:00:00');
+    allesZuruecksetzen();
+    mockWcGet.mockImplementation(async (_p, q) => ({ data: q.status === 'refunded' && (q.page ?? 1) === 1 ? [{ ...DOPPELT, status: 'refunded', date_paid: '2026-09-10T10:00:00' }] : [] }));
+    const res = await sync('?after=2026-09-01T00:00:00');
+    expect(res.body.storniert).toBe(2);
+    expect(pos()).toEqual(['801', '802']);
+  });
+
+  test('Altzeile ohne Positions-ID: erneutes Lesen fuegt keine zweite Zeile hinzu (Nachtragen nur bewusst)', async () => {
+    const h = VERKAEUFE_HEADER;
+    const alt = h.map(() => '');
+    Object.assign(alt, { [h.indexOf('Partner-ID')]: 'P-003', [h.indexOf('Datum')]: '10.09.2026', [h.indexOf('Order-ID')]: '17001',
+      [h.indexOf('Artikelnummer')]: 'Dorflove Shirt - M, Schwarz', [h.indexOf('Variante')]: '5431', [h.indexOf('Status')]: 'offen' });
+    tabs['Partner_Verkäufe'] = [VERKAEUFE_HEADER, alt];
+    mockWcGet.mockImplementation(async (_p, q) => ({ data: q.status === 'processing' ? [DOPPELT] : [] }));
+    const res = await sync('?after=2026-09-01T00:00:00');
+    expect(res.body.synced).toBe(0);
+  });
+
+  test('ohne after: Startpunkt = neuestes Bestelldatum minus 14 Tage', async () => {
+    const h = VERKAEUFE_HEADER;
+    const z = h.map(() => '');
+    Object.assign(z, { [h.indexOf('Partner-ID')]: 'P-003', [h.indexOf('Datum')]: '20.09.2026', [h.indexOf('Order-ID')]: '1', [h.indexOf('Status')]: 'offen' });
+    tabs['Partner_Verkäufe'] = [VERKAEUFE_HEADER, z];
+    const res = await sync();
+    expect(res.status).toBe(200);
+    expect(res.body.afterParam).toBe('2026-09-06T00:00:00');
+    expect(mockWcGet.mock.calls.find(([, q]) => q.status === 'processing')[1].after).toBe('2026-09-06T00:00:00');
+  });
+
+  test('fehlt zum Bestelldatum eine Fixkosten-Position: 409, nichts geschrieben', async () => {
+    tabs.Kalkulation_Fixkosten = FIXKOSTEN.filter(r => r[0] !== 'Porto P');
+    const res = await sync('?after=2026-08-01T00:00:00');
+    expect(res.status).toBe(409);
+    expect(res.body.error).toMatch(/Fixkosten fehlen.*Porto P/);
+    expect(geschrieben()).toEqual([]);
+  });
+
+  test('sync-all: Fehler im Lauf -> errors + Chat-Meldung mit Partner-IDs', async () => {
+    const { notify } = await import('../lib/chatNotify.js');
+    notify.mockClear();
+    tabs.Kalkulation_Fixkosten = FIXKOSTEN.filter(r => r[0] !== 'MwSt');
+    const res = await request(app).post('/api/partner/verkaeufe/sync-all').set('x-api-key', API_KEY);
+    expect(res.status).toBe(200);
+    expect(res.body.errors).toHaveLength(1);
+    expect(notify).toHaveBeenCalledWith(expect.stringMatching(/Partner-Sync mit Fehlern[\s\S]*P-003/));
+  });
+
+  test('Workflow: rot bei errors, FP-Sync taeglich', () => {
+    const yml = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../.github/workflows/sync-partner-daily.yml'), 'utf8');
+    expect((yml.match(/\(\.errors \/\/ \[\]\) \| length' response\.json/g) ?? []).length).toBe(2);
+    expect(yml).toMatch(/\/api\/festpreis\/verkaeufe\/sync"/);
   });
 });

@@ -10,6 +10,7 @@ import { aggregateFpVerkaeufe, loadOffeneInterne, ladeVerpackung, ladePorto, por
 import { parseKonfiguration } from '../utils/partner-kalkulation.js';
 import { findeZeileZumToken, SPALTE_TOKEN, SPALTE_HASH } from '../utils/partner-token.js';
 import { SPALTE_VERSCHLUESSELT } from '../utils/link-schluessel.js';
+import { parseDeZahl } from '../utils/zahl-de.js';
 
 const router = Router();
 
@@ -22,7 +23,7 @@ const TAB_FIXKOSTEN       = 'Kalkulation_Fixkosten';
 
 function toFloat(val, fallback = 0) {
   if (val === null || val === undefined || val === '') return fallback;
-  const n = parseFloat(val.toString().replace(',', '.'));
+  const n = parseDeZahl(val.toString());
   return Number.isNaN(n) ? fallback : n;
 }
 const round2 = n => Math.round(n * 100) / 100;

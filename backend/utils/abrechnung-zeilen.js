@@ -14,6 +14,7 @@
 // frischen Read (_sheetRow), nie aus dem gespeicherten JSON.
 
 import { findHeader, requireHeader } from './sheet-headers.js';
+import { parseDeZahl } from './zahl-de.js';
 
 // DD.MM.YYYY, auch einstellig (Sheets formatiert USER_ENTERED-Daten je nach
 // Gebietsschema als 1.6.2026) oder ISO.
@@ -35,7 +36,7 @@ export function zeitraeumeUeberlappen(von1, bis1, von2, bis2) {
 const text   = v => String(v ?? '').trim();
 const varKey = v => (text(v) === '' ? '0' : text(v));
 const betrag = v => {
-  const n = parseFloat(text(v).replace(',', '.'));
+  const n = parseDeZahl(text(v));
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
 };
 

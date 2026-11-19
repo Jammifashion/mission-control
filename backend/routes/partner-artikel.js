@@ -9,6 +9,7 @@ import { fpFehlendeAnlegen } from '../lib/fpArtikelAnlegen.js';   // PA8
 import { leseGesperrte } from '../lib/fpSperre.js';   // PA8
 import { istLaufStopp } from '../lib/hosterPruefseite.js';
 import { notify, buildArtikelAbgleichNachricht, buildAbgleichLebenszeichen } from '../lib/chatNotify.js';
+import { parseDeZahl } from '../utils/zahl-de.js';
 
 const router = Router();
 
@@ -34,7 +35,7 @@ async function readTab(sheets, sheetId, tabName) {
 
 function toFloat(val, fallback = 0) {
   if (val === null || val === undefined || val === '') return fallback;
-  const n = parseFloat(val.toString().replace(',', '.'));
+  const n = parseDeZahl(val.toString());
   return Number.isNaN(n) ? fallback : n;
 }
 

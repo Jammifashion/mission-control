@@ -748,6 +748,17 @@ Neue Sektionen immer mit Anker versehen:
   prueft gegen den Hash; Altbestand ohne Wert -> 409 `link_alt` ("vor LK1 erstellt – einmal neu erzeugen"), `link_kein_schluessel`,
   `link_fehler`. Listen liefern nur `kopierbar`, nie den Wert (auch nicht verschluesselt, auch nicht ans Portal). Setup
   `scripts/setup-link-verschluesselt.js` (Trockenlauf, `--write` nur Kopfzellen). Tests link-schluessel.test.js.
+- Partner- und FP-Sync / Abrechnungen – nie still mit 0 (Inhaber 19.11.): Neue Verkaufszeilen tragen `Positions-ID` (line_item.id;
+  Lizenz additiv am Ende, FP Spalte AA), Schluessel `verkaufsBestand`/`schonErfasst` in utils/sync-logic.js (zwei gleiche Positionen =
+  zwei Zeilen; Altzeilen ohne ID ueber den alten Schluessel, kein automatisches Nachtragen), Gegenbuchung je Position. Beide Syncs lesen
+  ab neuestem Bestelldatum minus `UEBERLAPPUNG_TAGE` 14 (`syncStart`), rechnen mit dem Kostensatz zum Bestelldatum (`konfigJeTag`) und
+  schreiben nichts (409 `fixkosten_fehlen`), wenn `parseKonfiguration(...).fehlend` (nicht aufzaehlbar, Vergleich mit trim) eine Position
+  nennt. Lizenz-Sync: Sperre je Instanz, kein `values.append` (`schreibeNeueZeilen`); sync-all meldet Fehler mit Partner-IDs in den Chat,
+  der Workflow wird bei nicht leerem `errors` rot und ruft danach taeglich den FP-Sync auf. Abrechnungen: `abrechnungKlaeren`
+  (utils/fp-abrechnung.js) - FP: Versandart fehlt / Porto-Satz fehlt / Verpackung "fehlt" / Eigenauftrag ohne Summe (leer; 0 = bewusst) /
+  MwSt; Lizenz: Eigenauftrag ohne Summe / MwSt. Vorschau liefert `klaeren` (MC `abrKlaerenHTML`), Erstellen 409 `erst_klaeren`. Lizenz:
+  Erstellen und Freigeben unter einer Sperre, Freigabe vergleicht die Lizenzgebuehren mit dem Entwurf (409 `betraege_geaendert`).
+  Zahlen aus Sheets: `parseDeZahl` (utils/zahl-de.js, "1.234,50" = 1234,5). Tests: sync-luecken.test.js, Attrappe tests/hilfen/sheets-attrappe.js.
 - backend/routes/anfragen.js – Kundenanfragen Admin (POST /neu, GET /, PATCH /:id/status) – hinter requireApiKey
 - backend/routes/anfragen-chat.js – Chat-Widget public endpoint (POST /chat, kein API-Key) – vor requireApiKey
 - frontend/anfrage.html – Standalone Chat-Widget für Kunden (GitHub Pages, kein MC-Design)
