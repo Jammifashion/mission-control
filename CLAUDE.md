@@ -1293,6 +1293,16 @@ Neue Sektionen immer mit Anker versehen:
   Maske, E-Mail, PLZ 4-5 Ziffern, Telefon); nur ohne sicheren Kunden-Treffer in der Antwort. Kasten: Knopf "Neuen Kunden anlegen
   (vorbelegt)" -> `kuDialogOeffnen(null, { nachSpeichern: auKundeSetzen, vorbelegt })`, vorbelegte Felder `.ku-vorbelegt` (orange, weg beim
   Bearbeiten), Hinweis `#ku-vorbelegt-hinweis`, Haken Lexoffice wie AM-9. Abbrechen schliesst nur die Kundenmaske. Test auftrag-schnell-kunde.test.js.
+  SA4: Schema `notiz` (Stichpunkte <= 600, nur aus dem Text, ohne Personennamen) -> Feld Notiz orange (`AU_SCHNELL_FELDER`); MC ersetzt
+  bekannte Namen (Drucknamen, Kontakt/Ansprechpartner aus Text und gefundenem Kunden, ohne Anreden) durch "(Name)" (`notizOhneNamen`).
+  Je Gruppe/freier Position `druckname` ("M: Anna, Ben; L: Carl"): nur Namen, die WOERTLICH im Text stehen (`drucknamePruefen`), Groesse
+  nur wenn es sie gibt. **Druckname** = optionale Spalte hinten in `Auftrag_Positionen` (je Position/Groesse; Setup haengt sie an, ohne
+  Spalte 409 `einrichtung` bei nicht leerem Wert), Dialog-Feld je Gruppe (Block `Druckname: Anfang/Ende`: `auDrucknameVerteilen`/
+  `auDrucknameText`), auch ab "bestellt" aenderbar (wie Preise), "Wie letztes Mal" uebernimmt keine Namen, Anzeige nur Auftragsansicht.
+  Datenschutz wie Rueckennamen: nie Korb-/EDI-Referenz, Chat, Log, Postfach (Test auftrag-druckname.test.js). Loeschen: 12 Monate nach
+  bezahlt/storniert (`utils/druckname-loeschen.js`, `leereDrucknamen` in lib/auftraege.js, `scripts/druckname-loeschen.js` Trockenlauf
+  Standard, `--write`; regelmaessiger Lauf zusammen mit FIX4 D2) und bei der DSGVO-Sperre des Kunden (Route `/dsgvo-sperren`, Antwort
+  `drucknamen`).
 - AM-9 Kunde auch in Lexoffice anlegen: Kunden-Dialog `#ku-dialog` (EINE Stelle fuer alle neuen MC-Kunden: Kundenliste, "Neuer Kunde in MC"
   im Auftrag/Schnellannahme, Lexoffice-Suche) hat beim neuen Kunden den Haken `#ku-lex-anlegen` (vorausgewaehlt), bei aktiven Kunden ohne
   Lexoffice_ID orange "nicht in Lexoffice" + Knopf `#ku-lex-nachholen` (Block `Kunde-Lexoffice: Anfang/Ende`). Der MC-Kunde wird IMMER zuerst

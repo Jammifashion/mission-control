@@ -6,7 +6,7 @@ import {
   leseKunden, legeKundeAn, bearbeiteKunde, archiviereKunde, sperreKundeDsgvo, leseKundenZahlen, sucheInLexoffice, uebernehmeAusLexoffice,
   lexofficeSchreibenBereit, legeInLexofficeAn, verknuepfeMitLexoffice,
 } from '../lib/kunden.js';
-import { leseAuftragZahlen } from '../lib/auftraege.js';
+import { leseAuftragZahlen, leereDrucknamen } from '../lib/auftraege.js';
 
 const router = Router();
 
@@ -87,6 +87,14 @@ router.post('/archivieren', mitMeldung(async req => {
 router.post('/dsgvo-sperren', mitMeldung(async req => {
   const r = await sperreKundeDsgvo({ eingabe: req.body ?? {} });
   if (!r.unveraendert) console.log(`Kunde DSGVO gesperrt: ${r.kundenNr}`);
+  // SA4: Drucknamen seiner Auftraege leeren (auch bei "schon gesperrt" - wiederholbar). Scheitert es, bleibt der Kunde
+  // gesperrt; die Antwort sagt es, die Oberflaeche zeigt es (nochmal sperren holt es nach).
+  try {
+    const d = await leereDrucknamen({ kundenNr: r.kundenNr, write: true });
+    r.drucknamen = { geleert: d.leeren, auftraege: d.auftraege.length };
+  } catch (err) {
+    r.drucknamen = { fehler: `Drucknamen nicht geleert (${err.code || err.status || 'Fehler'}) – bitte „DSGVO-Sperre“ noch einmal ausführen.` };
+  }
   return r;
 }));
 

@@ -19,7 +19,10 @@ import { KANAELE } from '../utils/auftraege.js';
 import {
   TEXT_MIN, TEXT_MAX, KI_SCHEMA, systemPrompt, userPrompt, heuteBerlin, pruefeKiAntwort, KiUnsinnError,
   kundenVorschlaege, terminPruefen, kanalPruefen, modellZuordnen, gruppeVorschlag, baueVorschlag, kundeNeuPruefen,
+  drucknamePruefen, notizOhneNamen,
 } from '../utils/auftrag-schnell.js';
+
+const ANREDEN = new Set(['frau', 'herr', 'herrn', 'dr', 'prof', 'familie', 'fam']);   // SA4: Anreden bleiben in der Notiz
 
 export const ROLLE = 'auftrag-schnell';
 export const ZEITLIMIT_MS = 30_000;
@@ -106,6 +109,27 @@ export async function schnellVorschlag({
     gruppen.push(gruppeVorschlag(g, modell, varianten));
   }
 
-  return baueVorschlag({ ki, kunde, termin: terminPruefen(ki.termin, heute.datum), kanal: kanalPruefen(ki.kanal, KANAELE), gruppen,
-    kundeNeu: kundeNeuPruefen(ki.kundeNeu, text) });   // SA2: nur woertlich Belegtes
+  // SA4: Drucknamen nur, wenn woertlich im Text; Groesse davor nur, wenn es sie in der Gruppe gibt.
+  const druckNamen = [];
+  ki.gruppen.forEach((g, i) => {
+    const groessen = [...g.groessen.map(x => x.groesse), ...gruppen[i].positionen.map(x => x.groesse)];
+    const d = drucknamePruefen(g.druckname, text, groessen);
+    druckNamen.push(...d.namen);
+    gruppen[i].druckname = d.wert;
+    gruppen[i].drucknameGrund = d.wert || d.weg ? `Drucknamen von der KI – bitte prüfen.${d.weg ? ` ${d.weg} Name(n) nicht im Text – weggelassen.` : ''}` : '';
+  });
+  const frei = ki.frei.map(f => {
+    const d = drucknamePruefen(f.druckname, text, []);
+    druckNamen.push(...d.namen);
+    return { ...f, druckname: d.wert };
+  });
+  // Notiz ohne Personennamen: Drucknamen, Kontaktnamen aus dem Text, Person/Ansprechpartner der gefundenen Kunden.
+  const kundeNeu = kundeNeuPruefen(ki.kundeNeu, text);   // SA2: nur woertlich Belegtes
+  const kontakt = (kunden ?? []).filter(k => kunde.vorschlaege.includes(k.Kunden_Nr))
+    .flatMap(k => [k.Ansprechpartner, k.Art === 'Person' ? k.Name : '']);
+  const notiz = notizOhneNamen(ki.notiz, [...druckNamen, kundeNeu.felder.ansprechpartner,
+    kundeNeu.felder.art === 'Person' ? kundeNeu.felder.name : '', ...kontakt].flatMap(n => [n, ...String(n ?? '').split(/\s+/).filter(w => w.length >= 3 && !ANREDEN.has(w.toLowerCase().replace(/\.$/, '')))]));
+
+  return baueVorschlag({ ki: { ...ki, frei }, kunde, termin: terminPruefen(ki.termin, heute.datum), kanal: kanalPruefen(ki.kanal, KANAELE), gruppen,
+    kundeNeu, notiz });
 }

@@ -68,8 +68,8 @@ describe('Auftraege-Anzeige', () => {
     const g = F.auGruppen(entwurf);
     expect(g.map(x => [x.art, x.farbe ?? x.freitext, x.stueck])).toEqual([['lshop', 'Black', 3], ['frei', 'Tassen', 10], ['lshop', 'Navy', 1]]);
     const body = F.auPositionenAnfrage(entwurf);
-    expect(body[0]).toEqual({ art: 'lshop', articleNr: '1', menge: 2, motiv: 'Wappen', druck: '', notiz: '', herkunft: 'bestellen', preis: '', aufpreis: '', aufpreisAb: '', ust: '19', ekHand: '' });
-    expect(body[2]).toEqual({ art: 'frei', freitext: 'Tassen', menge: 10, motiv: '', druck: '', notiz: '', herkunft: '', preis: '', ust: '19', ekHand: '' });
+    expect(body[0]).toEqual({ art: 'lshop', articleNr: '1', menge: 2, motiv: 'Wappen', druck: '', notiz: '', druckname: '', herkunft: 'bestellen', preis: '', aufpreis: '', aufpreisAb: '', ust: '19', ekHand: '' });
+    expect(body[2]).toEqual({ art: 'frei', freitext: 'Tassen', menge: 10, motiv: '', druck: '', notiz: '', druckname: '', herkunft: '', preis: '', ust: '19', ekHand: '' });
     expect(body[3].positionId).toBe('AU-2026-0001-04');
     expect(F.auEntwurfAus({ Position_ID: 'P', Art: 'lshop', LShop_ArticleNr: '1', Menge: '2', lshop: { modell: 'X', farbe: 'B', groesse: 'M' } })).toMatchObject({ positionId: 'P', menge: 2, modell: 'X' });
     expect(F.auFrei({ Status: 'Angebot' })).toBe(true);

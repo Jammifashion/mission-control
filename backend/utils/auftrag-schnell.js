@@ -29,21 +29,22 @@ const STR = { type: 'string' };
 export const KI_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['kunde', 'kurztitel', 'termin', 'kanal', 'gruppen', 'frei', 'todos', 'hinweise', 'wieLetztesMal', 'kundeNeu'],
+  required: ['kunde', 'kurztitel', 'termin', 'kanal', 'gruppen', 'frei', 'todos', 'hinweise', 'wieLetztesMal', 'kundeNeu', 'notiz'],
   properties: {
     kunde: { type: 'array', items: STR },
     kurztitel: STR,
     termin: STR,
     kanal: STR,
+    notiz: STR,   // SA4
     wieLetztesMal: { type: 'boolean' },
     gruppen: {
       type: 'array',
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['artikel', 'modellNr', 'farbe', 'farbeEn', 'motiv', 'druck', 'groessen', 'menge'],
+        required: ['artikel', 'modellNr', 'farbe', 'farbeEn', 'motiv', 'druck', 'groessen', 'menge', 'druckname'],
         properties: {
-          artikel: STR, modellNr: STR, farbe: STR, farbeEn: STR, motiv: STR, druck: STR,
+          artikel: STR, modellNr: STR, farbe: STR, farbeEn: STR, motiv: STR, druck: STR, druckname: STR,
           groessen: {
             type: 'array',
             items: { type: 'object', additionalProperties: false, required: ['groesse', 'menge'], properties: { groesse: STR, menge: { type: 'integer' } } },
@@ -54,7 +55,7 @@ export const KI_SCHEMA = {
     },
     frei: {
       type: 'array',
-      items: { type: 'object', additionalProperties: false, required: ['text', 'menge'], properties: { text: STR, menge: { type: 'integer' } } },
+      items: { type: 'object', additionalProperties: false, required: ['text', 'menge', 'druckname'], properties: { text: STR, menge: { type: 'integer' }, druckname: STR } },
     },
     todos: { type: 'array', items: STR },
     // SA2: Angaben zum Kunden fuer "Neuen Kunden anlegen (vorbelegt)" - nur, was woertlich im Text steht
@@ -83,11 +84,17 @@ Felder:
   - modellNr: Modellnummer NUR, wenn sie in der Notiz steht (z. B. "E3000", "JH001"), sonst leer. Nie raten.
   - farbe: Farbe wie genannt (deutsch); farbeEn: dieselbe Farbe als gängiger englischer Textil-Farbname (z. B. "Black", "White", "Navy", "Red", "Heather Grey"), leer wenn keine Farbe genannt.
   - motiv: was gedruckt wird (Logo, Schriftzug), OHNE Personennamen. druck: Position/Technik (z. B. "Brust links", "Rücken groß", "Stick").
+  - druckname: NUR Namen, die laut Notiz auf diese Artikel GEDRUCKT werden (Rückenname, Brustname, Namensliste), genau wie geschrieben.
+    Mit Größe davor, wenn die Notiz sie zuordnet: "M: Anna, Ben; L: Carl", sonst nur die Namen mit Komma. Leer, wenn nichts gedruckt wird.
   - groessen: Liste {groesse, menge}, Größen in der üblichen Schreibweise (XS, S, M, L, XL, XXL, 3XL, 128, 140 …). Leer, wenn keine Größen genannt sind.
   - menge: Gesamtstückzahl, wenn ohne Größen genannt, sonst 0.
-- frei: Positionen, die keine Textilien sind (Tassen, Sticker, Banner, mitgebrachte Ware), mit Menge (1, wenn keine genannt).
+- frei: Positionen, die keine Textilien sind (Tassen, Sticker, Banner, mitgebrachte Ware), mit Menge (1, wenn keine genannt); druckname wie oben.
 - todos: kurze Aufgaben, die in der Notiz stehen ("Logo als Vektor anfordern", "Angebot schicken"). Ohne Personennamen.
 - hinweise: alles, was unklar ist oder nicht in die Felder passt, kurz und sachlich.
+- notiz: was man sich zum Auftrag merken soll und NICHT schon in Positionen, Kurztitel, Termin oder Kanal steht: Absprachen,
+  Wünsche zu Motiv/Druck/Farbe, Lieferung/Abholung, Zahlungsabsprache, offene Fragen an den Kunden. Kurze Stichpunkte, je Zeile
+  mit "- ", höchstens 600 Zeichen. KEINE Personennamen - Rollen statt Namen ("Ansprechpartner", "Trainerin"); zu druckende Namen
+  stehen nur in druckname. Leer, wenn es nichts Merkenswertes gibt (z. B. reine Mengenangaben).
 - kundeNeu: Angaben zum Kunden, NUR wenn sie wörtlich in der Notiz stehen, sonst leer: art ("verein", "firma", "person" oder leer),
   name (Verein/Firma bzw. Vor- und Nachname der Person), ansprechpartner (Person bei Verein/Firma), strasse (mit Hausnummer), plz, ort,
   email, telefon. Nichts ergänzen oder ableiten: keine PLZ aus dem Ort, keine E-Mail aus dem Namen, keine Vorwahl dazuerfinden.
@@ -144,16 +151,62 @@ export function pruefeKiAntwort(roh) {
     wieLetztesMal: o.wieLetztesMal === true,
     gruppen: liste(o.gruppen).slice(0, 20).filter(g => g && typeof g === 'object').map(g => ({
       artikel: kappe(g.artikel, 60), modellNr: kappe(g.modellNr, 20), farbe: kappe(g.farbe, 40), farbeEn: kappe(g.farbeEn, 40),
-      motiv: kappe(g.motiv, 120), druck: kappe(g.druck, 120), menge: ganz(g.menge),
+      motiv: kappe(g.motiv, 120), druck: kappe(g.druck, 120), menge: ganz(g.menge), druckname: kappe(g.druckname, DRUCKNAME_MAX),
       groessen: liste(g.groessen).slice(0, 30).filter(x => x && typeof x === 'object')
         .map(x => ({ groesse: kappe(x.groesse, 20), menge: ganz(x.menge) })).filter(x => x.groesse && x.menge > 0),
     })),
     frei: liste(o.frei).slice(0, 20).filter(x => x && typeof x === 'object')
-      .map(x => ({ text: kappe(x.text, 120), menge: ganz(x.menge, 9999) || 1 })).filter(x => x.text),
+      .map(x => ({ text: kappe(x.text, 120), menge: ganz(x.menge, 9999) || 1, druckname: kappe(x.druckname, DRUCKNAME_MAX) })).filter(x => x.text),
     todos: liste(o.todos).map(x => kappe(x, 200)).filter(Boolean).slice(0, 10),
     hinweise: liste(o.hinweise).map(x => kappe(x, 200)).filter(Boolean).slice(0, 10),
     kundeNeu: kundeNeuForm(o.kundeNeu),
+    notiz: kappe(o.notiz, NOTIZ_MAX),   // SA4
   };
+}
+
+// ── SA4: Notiz und Drucknamen ───────────────────────────────────────────────────────────────────────────────────
+export const NOTIZ_MAX = 600;
+export const DRUCKNAME_MAX = 300;
+const NAME_ERSATZ = '(Name)';
+
+/**
+ * Drucknamen pruefen: nur Namen, die WOERTLICH im Text stehen (Gross/Klein egal). Groesse davor nur, wenn es sie in der
+ * Gruppe gibt ("M: Anna, Ben; L: Carl"); sonst faellt die Groesse weg, die Namen bleiben.
+ * @returns {{ wert: string, namen: string[], weg: number }}
+ */
+export function drucknamePruefen(druckname, text, groessen = []) {
+  const roh = klein(text).replace(/\s+/g, ' ');
+  const gr = new Set((groessen ?? []).map(g => t(g).toUpperCase().replace(/\s+/g, '')));
+  const segmente = [], namen = [];
+  let weg = 0;
+  for (const seg of t(druckname).split(';').map(t).filter(Boolean)) {
+    const m = seg.match(/^([A-Za-z0-9/ ]{1,12}):\s*(.*)$/);
+    const groesse = m && gr.has(m[1].toUpperCase().replace(/\s+/g, '')) ? m[1].trim() : '';
+    const rest = m ? m[2] : seg;   // unbekannte Groesse: Namen bleiben, die Groesse faellt weg
+    const da = rest.split(',').map(x => t(x).replace(/\s+/g, ' ')).filter(Boolean).filter(n => {
+      const ok = n.length >= 2 && n.length <= 40 && roh.includes(klein(n));
+      if (!ok) weg++;
+      return ok;
+    });
+    if (!da.length) continue;
+    namen.push(...da);
+    segmente.push(groesse ? `${groesse}: ${da.join(', ')}` : da.join(', '));
+  }
+  const wert = segmente.join('; ').slice(0, DRUCKNAME_MAX);
+  return { wert, namen, weg };
+}
+
+/** Notiz ohne bekannte Namen (Drucknamen, Kontaktname/Ansprechpartner aus dem Text) - ganze Woerter, Gross/Klein egal. */
+export function notizOhneNamen(notiz, namen = []) {
+  let s = t(notiz);
+  let ersetzt = 0;
+  const sortiert = [...new Set((namen ?? []).map(t).filter(n => n.length >= 2))].sort((a, b) => b.length - a.length);
+  for (const n of sortiert) {
+    const esc = n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+');
+    const re = new RegExp(`(?<![\\p{L}\\p{N}])${esc}(?![\\p{L}\\p{N}])`, 'giu');
+    s = s.replace(re, () => { ersetzt++; return NAME_ERSATZ; });
+  }
+  return { notiz: s.slice(0, NOTIZ_MAX), ersetzt };
 }
 
 // ── Kunde (MC sucht selbst) ─────────────────────────────────────────────────────────────────────────────────────
@@ -388,12 +441,14 @@ export function kundeNeuPruefen(kundeNeu, text) {
   return { felder: k, leer };
 }
 
-export function baueVorschlag({ ki, kunde, termin, kanal, gruppen, kundeNeu = null }) {
+export function baueVorschlag({ ki, kunde, termin, kanal, gruppen, kundeNeu = null, notiz = null }) {
+  const n = notiz ?? { notiz: ki.notiz ?? '', ersetzt: 0 };   // SA4
   return {
     kunde: { ...kunde, stichwoerter: ki.kunde },   // Stichwoerter nur fuer das Suchfeld im Dialog
-    kopf: { Kurztitel: ki.kurztitel, Kanal: kanal.wert, Termin: termin.wert },
+    kopf: { Kurztitel: ki.kurztitel, Kanal: kanal.wert, Termin: termin.wert, Notiz: n.notiz },
     unsicher: {
       ...(ki.kurztitel ? { Kurztitel: 'Kurztitel von der KI – bitte prüfen.' } : {}),
+      ...(n.notiz ? { Notiz: `Notiz von der KI – bitte prüfen.${n.ersetzt ? ` ${n.ersetzt} Name(n) durch „(Name)“ ersetzt.` : ''}` } : {}),
       ...(termin.grund ? { Termin: termin.grund } : {}),
       ...(kanal.grund ? { Kanal: kanal.grund } : {}),
     },

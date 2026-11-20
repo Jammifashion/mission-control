@@ -150,7 +150,7 @@ describe('Faelle', () => {
           groessen: [{ groesse: 'M', menge: 3 }, { groesse: 'L', menge: 4 }, { groesse: 'XXL', menge: 3 }] })] }));
     const v = await p;
     expect(v.kunde).toMatchObject({ vorschlaege: ['K-00001'], sicher: true });
-    expect(v.kopf).toEqual({ Kurztitel: 'Shirts Saison', Kanal: 'WhatsApp', Termin: '2026-11-27' });
+    expect(v.kopf).toEqual({ Kurztitel: 'Shirts Saison', Kanal: 'WhatsApp', Termin: '2026-11-27', Notiz: '' });   // SA4: Notiz leer bei reinem Mengentext
     const g = v.gruppen[0];
     expect(g).toMatchObject({ ok: true, modell: 'TS100', farbe: 'Black', motiv: 'Vereinslogo', druck: 'Brust links', grund: [] });
     expect(g.positionen.map(x => `${x.groesse}×${x.menge}`)).toEqual(['M×3', 'L×4', '2XL×3']);
@@ -174,7 +174,7 @@ describe('Faelle', () => {
   test('4 freie Positionen (Sticker, Tasse)', async () => {
     const v = await lauf('sv testhausen 50 sticker und 10 tassen mit logo',
       ki({ kunde: ['SV Testhausen'], frei: [{ text: 'Sticker mit Logo', menge: 50 }, { text: 'Tasse mit Logo', menge: 10 }] })).p;
-    expect(v.frei).toEqual([{ text: 'Sticker mit Logo', menge: 50 }, { text: 'Tasse mit Logo', menge: 10 }]);
+    expect(v.frei).toEqual([{ text: 'Sticker mit Logo', menge: 50, druckname: '' }, { text: 'Tasse mit Logo', menge: 10, druckname: '' }]);
     expect(v.kunde.sicher).toBe(true);
   });
   test('5 Termin relativ: Datum von Heute (im Prompt) aus, als unsicher markiert', async () => {

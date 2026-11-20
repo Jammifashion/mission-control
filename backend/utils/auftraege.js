@@ -25,7 +25,7 @@ export const PREIS_SPALTEN = ['Preis_Netto', 'Aufpreis_Netto', 'Aufpreis_Ab', 'U
 // KS3: Verweis = Quelle schon vorhandener Ware (Korb-Schluessel, AU-…-NN, LAGER:<Ort>, "ohne Verweis: …"), nur bei "schon bestellt – verknüpfen".
 // KS4: Verschoben_Nach = Position-ID im Auftrag eines anderen Termins (Bestellseite "in Termin … verschieben"); ganz verschoben = auch Entfernt.
 // KS4-2: Da_Am = Tag, an dem die Ware einer FREIEN Position (noch zu besorgen) bei uns ist - von Hand ("bei uns").
-export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung', ...PREIS_SPALTEN, 'Verweis', 'Verschoben_Nach', 'Da_Am'];
+export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung', ...PREIS_SPALTEN, 'Verweis', 'Verschoben_Nach', 'Da_Am', 'Druckname'];
 // AM-3: optional ganz hinten in Auftraege - Datum des Schritts "Design" (leer = Schritt nicht genutzt / uebersprungen).
 // AMQ1: Preis_Eingabe ("brutto" oder leer = netto; nur die Eingabe an der Position, gespeichert wird immer netto) und
 // Design_Link (https-Adresse, z. B. Canva) - optional ganz hinten, Setup ergaenzt sie.
@@ -70,7 +70,17 @@ export const FREI_BIS = 2;   // AM-3: bis einschliesslich Design
 export const ART = { LSHOP: 'lshop', FREI: 'frei' };
 export const MENGE_MAX = 9999;
 export const POSITIONEN_MAX = 200;
-export const MAX = { Kurztitel: 80, Notiz: 1000, Motiv: 120, Druck: 120, PosNotiz: 300, Freitext: 120 };
+export const MAX = { Kurztitel: 80, Notiz: 1000, Motiv: 120, Druck: 120, PosNotiz: 300, Freitext: 120, Druckname: 300 };
+
+// SA4 (Inhaber 19.11.): Namen, die GEDRUCKT werden, je Position in eigener Spalte `Druckname` - Datenschutz wie Rueckennamen:
+// nur Sheet + Oberflaeche/Packliste/Produktion, nie Korb-/EDI-Referenz, Chat, Log, Postfach. Geleert 12 Monate nach bezahlt/
+// storniert (utils/druckname-loeschen.js) und bei der DSGVO-Sperre des Kunden.
+export function drucknameAus(wert, nr = '') {
+  const s = t(wert).replace(/[\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return lang(nr ? `Position ${nr}: Druckname` : 'Druckname', s, MAX.Druckname);
+}
+/** Braucht ein Schreiben die Spalte Druckname? (nur bei nicht leerem Wert - leer schreibt nichts Neues) */
+export const brauchtDrucknameSpalte = positionen => (positionen ?? []).some(p => t(p?.Druckname) !== '');
 /** AMQ1: Design-Link nur https://, ohne Leerzeichen, hoechstens DESIGN_LINK_MAX Zeichen. '' = keiner. */
 export function designLinkAus(v) {
   const s = String(v ?? '').trim();
@@ -250,6 +260,7 @@ export function pruefePositionen(eingabe, { waehlbar, bisher = new Set(), orte =
     const neben = {
       Motiv: lang(`Position ${nr}: Motiv`, t(p?.motiv), MAX.Motiv), Druck: lang(`Position ${nr}: Druck`, t(p?.druck), MAX.Druck),
       Notiz: lang(`Position ${nr}: Notiz`, t(p?.notiz), MAX.PosNotiz),
+      ...(p?.druckname !== undefined ? { Druckname: drucknameAus(p.druckname, nr) } : {}),   // SA4
       ...preisFelder(p, art, nr),
     };
     if (art === ART.LSHOP) {
@@ -352,7 +363,8 @@ export function bearbeitenPlan({ auftrag, positionen, eingabe, waehlbar, orte, j
       const a = alt.find(x => x.Position_ID === p.positionId);
       if (!a) throw fehler(`Position ${p.positionId} gibt es in diesem Auftrag nicht (mehr) – bitte neu laden.`, 409, 'konflikt');
       if (['Art', 'LShop_ArticleNr', 'Freitext', 'Menge'].some(f => !gleich(a[f], p[f]))) throw gesperrt();
-      const felder = Object.fromEntries(PREIS_SPALTEN.filter(f => !gleich(a[f], p[f])).map(f => [f, p[f]]));
+      // SA4: Drucknamen kommen oft spaet - auch ab "bestellt" aenderbar (wie Preise)
+      const felder = Object.fromEntries([...PREIS_SPALTEN, 'Druckname'].filter(f => p[f] !== undefined && !gleich(a[f], p[f])).map(f => [f, p[f]]));
       if (Object.keys(felder).length) aenderungPositionen.push({ zeile: a._zeile, positionId: a.Position_ID, felder: { ...felder, Stand: t(jetzt) } });
     }
   }
@@ -369,10 +381,11 @@ export function bearbeitenPlan({ auftrag, positionen, eingabe, waehlbar, orte, j
         const uebergeben = istUebergeben(a);
         // Herkunft: leer im Sheet = bestellen (L-Shop) - nur echte Aenderungen schreiben
         const herkunftAlt = t(a.Herkunft) || (a.Art === ART.LSHOP ? HERKUNFT.BESTELLEN : '');
-        const felder = Object.fromEntries(['Art', 'LShop_ArticleNr', 'Freitext', 'Menge', 'Motiv', 'Druck', 'Notiz', 'Lager_Ort', ...PREIS_SPALTEN].filter(f => !gleich(a[f], p[f])).map(f => [f, p[f]]));
+        const felder = Object.fromEntries(['Art', 'LShop_ArticleNr', 'Freitext', 'Menge', 'Motiv', 'Druck', 'Notiz', 'Lager_Ort', ...PREIS_SPALTEN, 'Druckname']
+          .filter(f => p[f] !== undefined && !gleich(a[f], p[f])).map(f => [f, p[f]]));
         if (herkunftAlt !== p.Herkunft) felder.Herkunft = p.Herkunft;
         // AM-3: an Korb/Lager uebergeben -> nur Motiv/Druck/Notiz aenderbar; sonst erst "Übergabe zurücknehmen"
-        if (uebergeben && Object.keys(felder).some(f => !['Motiv', 'Druck', 'Notiz', ...PREIS_SPALTEN].includes(f))) {   // AM-5: Preise bleiben aenderbar
+        if (uebergeben && Object.keys(felder).some(f => !['Motiv', 'Druck', 'Notiz', 'Druckname', ...PREIS_SPALTEN].includes(f))) {   // AM-5: Preise bleiben aenderbar
           throw fehler(`Position ${a.Position_ID} ist an Korb/Lager übergeben – erst „Übergabe zurücknehmen“.`, 409, 'uebergeben');
         }
         if (Object.keys(felder).length) aenderungPositionen.push({ zeile: a._zeile, positionId: a.Position_ID, felder: { ...felder, Stand: t(jetzt) } });

@@ -6,6 +6,7 @@
 // Sheet), danach zurueckgelesen. Auftrag-Stand wie gesehen (sonst 409 konflikt). Nie loeschen (Positionen: Entfernt).
 // Log und Fehlertexte: nur Auftrag_Nr/Kunden_Nr und Zahlen, nie Namen.
 
+import { drucknameLoeschPlan } from '../utils/druckname-loeschen.js';
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 import { pruefeZielStrecke, spalteBuchstabe, zeilenAbweichungen } from './sheet-zeilen.js';
@@ -22,7 +23,7 @@ import {
   TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, POSITION_OPTIONAL, AUFTRAG_OPTIONAL, brauchtHerkunftSpalten, zeilenAus,
   korbStand, wareStand, autoBestellt, ART, HERKUNFT, alsZeile, anlagePlan, bearbeitenPlan, VERWEIS_KORB,
   statusWechsel, fertigPlan, fertigVorschlag, entfernenPlan, aktivePositionen, auftragZahlen, auftraegeAntwort, fehler,
-  PREIS_SPALTEN, ANGEBOT_SPALTEN, brauchtPreisSpalten, POSITIONEN_PFLICHT_AB,
+  PREIS_SPALTEN, ANGEBOT_SPALTEN, brauchtPreisSpalten, POSITIONEN_PFLICHT_AB, brauchtDrucknameSpalte,
 } from '../utils/auftraege.js';
 import { kundenHistorie } from '../utils/auftrag-historie.js';   // AM-6
 import { auftragSummen, positionAusZeile, rabattAus, angebotAbweichung, ZUSTAENDIG } from '../utils/auftrag-preise.js';
@@ -195,6 +196,27 @@ async function schreibe(sheets, spreadsheetId, { zellen = [], bloecke = [] }) {
 const zellenAus = (tab, idx, zeile, felder) => Object.entries(felder).filter(([f]) => idx[f] !== undefined)
   .map(([f, wert]) => ({ tab, zeile, spalte: idx[f], wert }));
 
+// ── SA4: Drucknamen leeren (12 Monate nach bezahlt/storniert, oder alle eines Kunden bei der DSGVO-Sperre) ──────
+/**
+ * Unter der Auftrags-Sperre frisch gelesen; nur Zellen Druckname = '' (Stand bleibt, kein Konflikt fuer offene Dialoge),
+ * EIN batchUpdate, zurueckgelesen. Ohne `write` nur zaehlen. Antwort nur Nummern, nie Namen.
+ * Fehlt die Spalte, gibt es nichts zu leeren (spalte: false).
+ */
+export async function leereDrucknamen({ kundenNr = '', write = false, sheets: s, jetzt = () => new Date() } = {}) {
+  return mitSperre(async () => {
+    const sheets = s ?? await sheetsClient();
+    const spreadsheetId = sheetId();
+    const { a, p } = await lies(sheets, spreadsheetId);
+    if (p.idx.Druckname === undefined) return { ok: true, spalte: false, leeren: 0, auftraege: [], zaehler: null, geschrieben: false };
+    const plan = drucknameLoeschPlan({ auftraege: a.zeilen, positionen: p.zeilen, jetzt: jetzt(), kundenNr });
+    const aus = { ok: true, spalte: true, leeren: plan.leeren.length, auftraege: [...new Set(plan.leeren.map(x => x.auftragNr))],
+      zaehler: kundenNr ? null : plan.zaehler, geschrieben: false };
+    if (!write || !plan.leeren.length) return aus;
+    await schreibe(sheets, spreadsheetId, { zellen: plan.leeren.flatMap(x => zellenAus(TAB_POSITIONEN, p.idx, x.zeile, { Druckname: '' })) });
+    return { ...aus, geschrieben: true };
+  });
+}
+
 // ── Lesen ────────────────────────────────────────────────────────────────────
 
 /** GET /api/auftraege: alle Auftraege mit aktiven Positionen (L-Shop-Anzeige dazu), 30 s Zwischenspeicher. */
@@ -317,6 +339,7 @@ export async function legeAuftragAn({ eingabe, sheets: s, jetzt = () => new Date
     if (a.idx.Design_Am === undefined) throw fehler(DESIGN_SPALTE_FEHLT, 409, 'einrichtung');   // AM-8: Start "Design" braucht die Spalte
     pruefeHerkunftSpalten(p.idx, plan.positionen);
     if (brauchtPreisSpalten(plan.positionen)) pruefeSpalten(p.idx, PREIS_SPALTEN, 'Preise');   // AM-5
+    if (brauchtDrucknameSpalte(plan.positionen)) pruefeSpalten(p.idx, ['Druckname'], 'Druckname');   // SA4
     if (plan.auftrag.Rabatt !== undefined && plan.auftrag.Rabatt !== '') pruefeSpalten(a.idx, ['Rabatt'], 'Rabatt');
     pruefeAmq1Spalten(a.idx, plan.auftrag);   // AMQ1
     // AM-6: ohne Spalte Vorlage_Von wird trotzdem angelegt (nur ohne Vermerk) - die Antwort sagt es der Oberflaeche
@@ -372,6 +395,7 @@ export async function bearbeiteAuftrag({ eingabe, sheets: s, jetzt = () => new D
     const plan = bearbeitenPlan({ auftrag, positionen: p.zeilen, eingabe, waehlbar, orte, jetzt: jetzt().toISOString() });
     pruefeHerkunftSpalten(p.idx, [...plan.neuePositionen, ...plan.aenderungPositionen.map(x => x.felder)]);
     if (brauchtPreisSpalten([...plan.neuePositionen, ...plan.aenderungPositionen.map(x => x.felder)])) pruefeSpalten(p.idx, PREIS_SPALTEN, 'Preise');   // AM-5
+    if (brauchtDrucknameSpalte([...plan.neuePositionen, ...plan.aenderungPositionen.map(x => x.felder)])) pruefeSpalten(p.idx, ['Druckname'], 'Druckname');   // SA4
     if (plan.aenderungAuftrag.Rabatt !== undefined) pruefeSpalten(a.idx, ['Rabatt'], 'Rabatt');
     pruefeAmq1Spalten(a.idx, plan.aenderungAuftrag);   // AMQ1
     if (plan.unveraendert) return { ok: true, auftragNr: auftrag.Auftrag_Nr, unveraendert: true };
