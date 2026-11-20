@@ -15,6 +15,7 @@ import {
   motivFuer, motivFuerPrompt, seoHinweisVorlage, keyphraseGegenKarte, keyphraseMeldungen,
 } from '../lib/seo-ssot.js';
 import { pruefeTextMitSsot } from '../lib/seo-pruefung.js';
+import { weitereAchsenSauber } from '../lib/seo-prompt.js';
 import { seoKarteNachziehen } from '../lib/seo-karte.js';
 import { istLaufStopp } from '../lib/hosterPruefseite.js';
 
@@ -91,6 +92,7 @@ router.post('/text-pruefung', async (req, res, next) => {
       artikelkurz:         String(b.artikelkurz ?? ''),
       lshopNr:             String(b.lshopNr ?? ''),
       kategorien:          String(b.kategorien ?? ''),   // SG1: Regel 10 (Jahr im Kategorienamen ist kein Zeitbezug)
+      weitereAchsen:       weitereAchsenSauber(b.weitereAchsen),   // SG2: Regel 12 (Farben-Zeile)
     }) });
   } catch (err) { next(err); }
 });

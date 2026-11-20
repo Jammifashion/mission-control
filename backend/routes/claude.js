@@ -4,6 +4,7 @@ import { sanitizeJsonControlChars } from '../utils/json-parse.js';
 import {
   buildSeoUserPrompt, resolveModus, pruefeSeoText, pruefeH2, h2KorrekturBlock,
   entferneLeereLi, SEO_SYSTEM_PROMPT,
+  materialHandPruefen, weitereAchsenSauber, ersetzeMaterialPlatzhalter,
 } from '../lib/seo-prompt.js';
 import { motivFuer, motivFuerPrompt } from '../lib/seo-ssot.js';
 import { pruefeTextMitSsot, sperrKontext } from '../lib/seo-pruefung.js';
@@ -67,7 +68,12 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
       const {
         produktname, kategorien, eigenschaften, hinweise, motiv, modus, farben,
         groessen, keyphrase, strukturiert, artikelkurz, lshopNr, vorschlagen, wcId,
+        materialHand, weitereAchsen,
       } = req.body;
+      // SG2: Feld "Material (Pflichtangabe)" - ungueltig = 400, nie still verworfen.
+      const hand = materialHandPruefen(materialHand);
+      if (hand.fehler) return res.status(400).json({ error: hand.fehler, code: 'material' });
+      const achsen = weitereAchsenSauber(weitereAchsen);
       if (!produktname) return res.status(400).json({ error: 'produktname ist erforderlich.' });
 
       // Befehl M4: Motiv-Zeile (Reiter Motive) je Artikelkurzbezeichnung und
@@ -130,6 +136,9 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
         druck: motivPrompt,
         // M8: Schlagwoerter / Keyphrase / Synonyme vorschlagen lassen.
         vorschlagen: vorschlagWunsch,
+        // SG2: Handeingabe Material, weitere Achsen (Schriftfarbe ...) als eigene Zeile.
+        materialHand: hand.faser,
+        weitereAchsen: achsen,
       });
       if (materialMeldung) {
         console.warn(`[seo_description] ${materialMeldung}`);
@@ -252,6 +261,12 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
       const leereLi = kurzLi.entfernt + langLi.entfernt;
       const liHinweis = leereLi ? `${leereLi} leere${leereLi === 1 ? 'r' : ''} Listenpunkt${leereLi === 1 ? '' : 'e'} entfernt.` : null;
 
+      // SG2: steht trotz Handeingabe der Material-Platzhalter im Text, deterministisch ersetzen.
+      if (hand.faser) {
+        kurzbeschreibung    = ersetzeMaterialPlatzhalter(kurzbeschreibung, hand.faser).html;
+        produktbeschreibung = ersetzeMaterialPlatzhalter(produktbeschreibung, hand.faser).html;
+      }
+
       const meldungen = pruefeSeoText({
         kurzbeschreibung,
         produktbeschreibung,
@@ -302,6 +317,7 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
         ...await pruefeTextMitSsot({
           kurzbeschreibung, produktbeschreibung, produktname, keyphrase,
           lshopNr, motivZeile, strukturiert, kategorien,
+          weitereAchsen: achsen, ...(hand.faser ? { faser: hand.faser } : {}),
         }),
       ];
 

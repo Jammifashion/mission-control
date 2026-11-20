@@ -13,6 +13,7 @@ import { sortiereAttributOptionen, variantenReihenfolge } from '../lib/groessen.
 import { merkeKeyphrase } from '../lib/seo-artikel.js';
 import { wcAttributePaare, leseAlleVariationen, sperreDoppelte, sperreHinweis } from '../lib/wc-variation-ids.js';
 import { letzteTageBerlin, wochentagKurz } from '../utils/berlin-tag.js';
+import { platzhalterSperre, brauchtShopStand } from '../utils/platzhalter-sperre.js';
 import { attributeMitIds, variationsAttributeMitIds, entfalleneWerte, variationenMitEntfallenemWert,
   defaultsBereinigt, privatAusBody } from '../utils/variantenbaum.js';
 
@@ -324,6 +325,9 @@ router.post('/products', async (req, res, next) => {
     const wc = getClient(req);
     const { ssot_id, variations, brands: _brandsAusBody, lieferzeit, ...rest } = req.body;
 
+    // SG2: die Anlage legt immer als Entwurf an (status 'draft' unten) - die Platzhalter-
+    // Sperre greift erst beim Veroeffentlichen im Aenderungspfad (PUT /products/:id).
+
     // _lieferzeit am Elternartikel: Term-ID als String. Ein kaputter Wert
     // scheitert VOR dem Anlegen. Fehlt das Feld, wird nichts gesetzt und die
     // Antwort sagt es (lieferzeit.status) - der Aufrufer meldet es per Toast.
@@ -500,6 +504,23 @@ router.put('/products/:id', async (req, res, next) => {
   try {
     const wc = getClient(req);
     const { variations, brands: _brandsAusBody, lieferzeit, ...payload } = req.body;
+
+    // SG2: nie mit Platzhalter "[… bitte ergänzen]" veroeffentlichen. Den Shop-Stand
+    // nur lesen, wenn Status oder Texte im Body fehlen; nicht lesbar = gesperrt.
+    if (brauchtShopStand(payload) || platzhalterSperre(payload, {}, 'publish')) {
+      let alt = null;
+      if (brauchtShopStand(payload)) {
+        try {
+          const { data } = await wc.get(`products/${req.params.id}`, { _fields: 'status,description,short_description' });
+          alt = Array.isArray(data) ? data[0] : data;
+        } catch (e) {
+          wirfWennPruefseite(e);
+          return res.status(502).json({ error: `Shop-Stand nicht lesbar (${e.message}) – Platzhalter-Prüfung nicht möglich, nichts gespeichert.`, code: 'shop_stand' });
+        }
+      }
+      const sperre = platzhalterSperre(payload, alt ?? {}, 'publish');
+      if (sperre) return res.status(422).json(sperre);
+    }
 
     // _lieferzeit im Aenderungspfad: nur wenn der Aufrufer sie ausdruecklich
     // mitschickt (Nutzer hat die Auswahl geaendert). Ohne Feld bleibt der

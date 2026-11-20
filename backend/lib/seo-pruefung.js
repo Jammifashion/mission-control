@@ -46,7 +46,7 @@
 
 import { motivFuer } from './seo-ssot.js';
 import { lshopFuerArtikel } from './lshop.js';
-import { strukturierteEingabe } from './seo-prompt.js';
+import { strukturierteEingabe, platzhalterIn, PLATZHALTER_TEXT } from './seo-prompt.js';
 
 // Feste Liste (Entscheidung Otto 25.09.). "Jammi Fashion" nur getrennt
 // geschrieben - "JammiFashion" ist der Markenname und erlaubt.
@@ -269,6 +269,21 @@ export function pruefeGeneratorText(e = {}) {
     }
     const jahre = zeitJahre(t, { produktname: e.produktname, kategorien: e.kategorien });
     if (jahre.length) hinweise.push(`Jahreszahl "${[...new Set(jahre)].join(', ')}" in ${n} – Texte bleiben zeitlos (kein Jahr, keine Saison).`);
+  }
+
+  // 11. Platzhalter im Text (SG2) - sperrt das Veroeffentlichen.
+  for (const [n, html] of teile) {
+    const p = platzhalterIn(html);
+    if (p.length) hinweise.push(`Platzhalter im Text ${p.join(', ')} in ${n} – ${PLATZHALTER_TEXT}. Veröffentlichen gesperrt.`);
+  }
+
+  // 12. Zeile "Farben:" nennt Werte einer anderen Achse (SG2, Schrift-/Druckfarbe)
+  for (const a of e.weitereAchsen ?? []) {
+    const li = String(e.produktbeschreibung ?? '').match(/Farben?(?:\s*<\/strong>)?\s*:(?:\s*<\/strong>)?\s*([^<\n]*)/i);
+    if (!li) continue;
+    const werte = li[1].split(/[,;]/).map(s => text(s).toLowerCase()).filter(Boolean);
+    const fremd = (a.werte ?? []).filter(w => werte.includes(String(w).trim().toLowerCase()));
+    if (fremd.length) hinweise.push(`Zeile „Farben“ nennt ${a.name} (${fremd.join(', ')}) – Farben sind nur die Textilfarben.`);
   }
 
   return hinweise;

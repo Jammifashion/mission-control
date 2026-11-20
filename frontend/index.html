@@ -974,6 +974,12 @@
         border: 1px dashed var(--border); border-radius: 8px; min-width: 0; }
       .seo-generieren-zeile .btn-secondary { flex: none; }
       .seo-generieren-zeile .field-note { flex: 1 1 14rem; min-width: 0; }
+      /* SG2: Material-Pflichtfeld und rote Platzhalter-Meldung */
+      .seo-material-feld { margin-bottom: 0.75rem; padding: 0.5rem 0.75rem; border: 1px solid var(--danger); border-radius: 6px; }
+      .seo-material-zeile { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+      .seo-material-zeile .form-input { flex: 1 1 12rem; min-width: 0; }
+      .seo-platzhalter-msg { color: var(--danger); font-weight: 600; font-size: 0.85rem; margin: 0.25rem 0 0.75rem; }
+      .seo-material-feld[hidden], .seo-platzhalter-msg[hidden] { display: none; }
       .seo-generate-msg { flex: 1 1 100%; font-size: 0.82rem; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
       .seo-generate-msg:empty { display: none; }
       .seo-generate-msg.seo-msg-rot { color: var(--danger); }
@@ -2504,6 +2510,7 @@
               <button class="btn" id="se-speichern" data-hilfe="se-speichern">Yoast-Daten speichern</button>
               <span id="se-status" style="font-size:0.82rem;color:var(--muted);align-self:center;"></span>
             </div>
+            <div id="se-platzhalter" class="seo-platzhalter-msg" role="alert" hidden></div>
           </div>
         </div>
 
@@ -2623,6 +2630,15 @@
                 <label>Eigenschaften (Grammatur, Schnitt, Passform, etc.)</label>
                 <textarea id="seo-eigenschaften" class="form-input" rows="4" style="resize:vertical;font-family:inherit;" placeholder="Zeilenweise eingeben, z.B.&#10;Grammatur: 280 g/m²&#10;Schnitt: Regular Fit&#10;Passform: Unisex"></textarea>
               </div>
+              <!-- SG2: nur sichtbar, wenn das L-Shop-Modell keine Faser liefert oder der Text den Platzhalter traegt. -->
+              <div class="form-field seo-material-feld" id="seo-material-wrap" hidden>
+                <label for="seo-material" data-hilfe="seo-material">Material (Pflichtangabe) <span class="field-note">fehlt im L-Shop-Modell</span></label>
+                <div class="seo-material-zeile">
+                  <input id="seo-material" type="text" class="form-input" maxlength="200" placeholder="z. B. 100 % Polyacryl" data-hilfe="seo-material" />
+                  <button class="btn-secondary" id="seo-material-einsetzen" type="button" data-hilfe="seo-material-einsetzen">In den Text einsetzen</button>
+                </div>
+              </div>
+              <div id="seo-platzhalter-msg" class="seo-platzhalter-msg" role="alert" hidden></div>
               <!-- SG1: Vorgaben -> Generieren -> Ergebnis pruefen -> Speichern. Der Knopf steht direkt unter den Vorgaben. -->
               <div class="seo-generieren-zeile">
                 <button class="btn-secondary" id="btn-seo-generate" data-hilfe="seo-generieren">Beschreibung generieren</button>
@@ -6789,6 +6805,8 @@
         'fp-nachrechnen':        { name: 'Gesperrte nachrechnen', text: 'Rechnet gesperrte Verkäufe mit dem jetzt gültigen Festpreis und setzt sie auf offen. Abgerechnete bleiben unberührt.' },
         'fp-ohne-zeigen':        { name: 'Zeigen', text: 'Springt zur ersten Zeile ohne Artikelkategorie und markiert alle betroffenen Zeilen.' },
         'seo-generieren':        { name: 'Beschreibung generieren', text: 'Lässt die KI aus den Feldern oben eine Beschreibung schreiben und prüft sie. Gespeichert wird noch nichts.' },
+        'seo-material':          { name: 'Material (Pflichtangabe)', text: 'Faser mit Prozent, z. B. 100 % Polyacryl. Nur nötig, wenn das L-Shop-Modell keine liefert. Geht in den Text.' },
+        'seo-material-einsetzen': { name: 'In den Text einsetzen', text: 'Ersetzt „[Material: bitte ergänzen]“ in beiden Texten durch das Material. Kein neues Generieren.' },
         'seo-speichern':         { name: 'SEO Speichern', text: 'Schreibt Beschreibung und SEO-Daten in den Shop – Kunden sehen es sofort.' },
         'aid-anlegen':           { name: 'Artikel-ID anlegen', text: 'Legt für diesen Entwurf eine Zeile mit der nächsten Artikel-ID in der Erfassungsmaske an. Nie doppelt.' },
         'hauptbild-upload':      { name: 'Hochladen (Hauptbild)', text: 'Lädt das gewählte Bild in die Mediathek des Shops und nimmt es als Hauptbild.' },
@@ -7374,7 +7392,7 @@
         'navigation': ['shop-badge', 'shop-wahl', 'neue-version-laden', 'neue-version-spaeter', 'nav-bereich', 'nav-ansicht', 'nav-unterreiter', 'trikot-sync'],
         'dialog': ['dialog-abbrechen', 'dialog-schliessen', 'dialog-bestaetigen', 'dialog-speichern', 'liste-bearbeiten', 'zeile-speichern'],
         'auftragsmonitor': ['wc-erledigt', 'tab-offen', 'tab-protokoll', 'mon-fulfillment', 'dtf-sammel', 'dtf-bestellt', 'lshop-alt-sammel', 'lshop-alt-bestellt', 'korb-aeltere'],
-        'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'bildref-eigenschaft', 'bildref-plus', 'bildref-eigenschaft-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
+        'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-material', 'seo-material-einsetzen', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'bildref-eigenschaft', 'bildref-plus', 'bildref-eigenschaft-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
         'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
         'partner': ['fp-artikel-pruefen', 'fp-ohne-festpreis', 'fp-ohne-zeigen', 'fp-sperre', 'fp-sperre-artikel', 'fp-nachrechnen', 'pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'link-vor-lk1', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
         'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'fp-preis-loeschen'],
@@ -16809,6 +16827,20 @@
         return { groessen: [], quelle: 'unbekannt' };
       }
 
+      // SG2: weitere Farb-Achsen (Schriftfarbe, Druckfarbe …) fuer eine eigene Zeile im Text -
+      // NIE unter "Farben". [{ name, werte }], erst Varianten-Reiter, sonst WooCommerce.
+      function seoWeitereAchsen(varianten, wcProdukt) {
+        const istWeitere = n => n && FARB_ATTR_RE.test(n) && !istFarbAchse(n) && !GROESSEN_ATTR_RE.test(n);
+        const namen = [];
+        for (const v of Array.isArray(varianten) ? varianten : [])
+          for (const n of [v.e1, v.e2, v.e3]) if (istWeitere(n) && !namen.includes(n)) namen.push(n);
+        if (namen.length) return namen.map(n => ({ name: n, werte: seoWerteAusVarianten(varianten, { test: x => x === n }) })).filter(a => a.werte.length);
+        const attrs = Array.isArray(wcProdukt && wcProdukt.attributes) ? wcProdukt.attributes : [];
+        return attrs.filter(a => a && istWeitere(a.name))
+          .map(a => ({ name: a.name, werte: seoWerteAusWcProdukt({ attributes: [a] }, { test: () => true }) }))
+          .filter(a => a.werte.length);
+      }
+
       const SEO_GROESSEN_TEXT = {
         varianten:   'Größen aus Varianten',
         woocommerce: 'Größen aus WooCommerce',
@@ -16975,7 +17007,53 @@
       }
       // ── SEO-Meta: Ende ──
 
-      const seoFarben = () => seoWerteAusVarianten(seoVarianten, FARB_ATTR_RE);
+      // ── Platzhalter: Anfang ──
+      // SG2: Spiegel von lib/seo-prompt.js (platzhalterIn, materialHandPruefen, ersetzeMaterialPlatzhalter).
+      // "[… bitte ergänzen]" im Text = rot, Veroeffentlichen gesperrt (Entwurf geht). Test seo-platzhalter.test.js.
+      const PLATZHALTER_TEXT = 'Material fehlt – bitte eintragen';
+      const PLATZHALTER_QUELLE = String.raw`\[[^\[\]\n]{0,80}?bitte(?:\s|&nbsp;)+erg(?:ä|ae|&auml;)nzen[^\[\]\n]{0,40}\]`;
+      const MATERIAL_PLATZHALTER_QUELLE = String.raw`\[\s*Material\s*:\s*bitte(?:\s|&nbsp;)+erg(?:ä|ae|&auml;)nzen\s*\]`;
+      const PH_FASER_RE = /\d{1,3}\s*%\s*[A-Za-zÄÖÜäöüß][A-Za-zÄÖÜäöüß-]{2,}/;
+      function platzhalterIn(...texte) {
+        const out = [];
+        for (const t of texte) {
+          for (const m of String(t ?? '').matchAll(new RegExp(PLATZHALTER_QUELLE, 'gi')))
+            if (!out.includes(m[0])) out.push(m[0]);
+        }
+        return out;
+      }
+      function materialHandPruefen(wert) {
+        const s = String(wert ?? '').replace(/\s+/g, ' ').trim();
+        if (!s) return { faser: null, fehler: null };
+        if (s.length > 200) return { faser: null, fehler: 'Material: höchstens 200 Zeichen.' };
+        if (/[<>[\]\u0000-\u001f]/.test(s)) return { faser: null, fehler: 'Material: keine Klammern [ ] oder < >.' };
+        if (!PH_FASER_RE.test(s)) return { faser: null, fehler: 'Material: bitte mit Prozent angeben, z. B. 100 % Polyacryl.' };
+        return { faser: s, fehler: null };
+      }
+      function ersetzeMaterialPlatzhalter(html, faser) {
+        const f = materialHandPruefen(faser).faser;
+        if (!f) return { html: String(html ?? ''), ersetzt: 0 };
+        const esc = String(f).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        let ersetzt = 0;
+        const out = String(html ?? '').replace(new RegExp(MATERIAL_PLATZHALTER_QUELLE, 'gi'), () => { ersetzt++; return esc; });
+        return { html: out, ersetzt };
+      }
+      // Platzhalter in Kurz- und Langbeschreibung eines Shop-Produkts (SE1 liest so, ohne selbst Texte anzufassen).
+      function platzhalterImProdukt(p) { return platzhalterIn(p && p.short_description, p && p.description); }
+      // Darf mit diesen Texten gespeichert werden? Gesperrt nur, wenn der Artikel danach veroeffentlicht ist.
+      function platzhalterSperrGrund({ status, texte }) {
+        const p = platzhalterIn(...(texte || []));
+        if (!p.length) return null;
+        return status === 'publish'
+          ? `${PLATZHALTER_TEXT} (${p.join(', ')}) – Veröffentlichen gesperrt. Material eintragen oder als Entwurf speichern.`
+          : null;
+      }
+      // ── Platzhalter: Ende ──
+
+      // SG2: nur die Farbachse "Farbe" (vorher FARB_ATTR_RE - das nahm Schrift-/Druckfarbe mit, die Zeile
+      // "Farben:" nannte sie, und weil die Farbenzahl nicht zum L-Shop-Modell passte, fiel die Faser weg).
+      const seoFarben = () => seoMetaFarben();
+      const seoWeitere = () => seoWeitereAchsen(seoVarianten, seoWcProdukt);
 
       // ── SEO-Meta: Seitenanbindung ────────────────────────────────────────
       // Farben fuer die Meta-Beschreibung aus der FARBACHSE – exakt "Farbe",
@@ -17860,6 +17938,7 @@
           seStand = { produkt, varianten, quellenOk, quellen: seoMetaQuellen(varianten, produkt, quellenOk),
                       // SE1b: Zeile der Erfassungsmaske, falls es eine gibt.
                       ssotRow: (ssot && ssot.ssotId && ssot.row) || null };
+          sePlatzhalterZeigen();   // SG2
 
           const md = produkt.meta_data || [];
           document.getElementById('se-name').value = produkt.name || '';
@@ -17904,8 +17983,18 @@
         seZaehler();
       });
 
+      // SG2: Befund "Platzhalter im Text" auch hier. SE1 schreibt nur Yoast - der Text wird im SEO-Reiter
+      // korrigiert; die Sperre beim Veroeffentlichen liegt im Backend (PUT /products/:id, 422 platzhalter).
+      function sePlatzhalterZeigen() {
+        const p = seStand ? platzhalterImProdukt(seStand.produkt) : [];
+        const el = document.getElementById('se-platzhalter');
+        el.hidden = !p.length;
+        el.textContent = p.length ? `${PLATZHALTER_TEXT}: ${p.join(', ')} steht im veröffentlichten Text – im Reiter „SEO-Daten“ korrigieren.` : '';
+        return p;
+      }
       document.getElementById('se-speichern').addEventListener('click', async () => {
         if (!seStand) return;
+        if (sePlatzhalterZeigen().length) showToast(document.getElementById('se-platzhalter').textContent, 'error', 12000);
         const btn    = document.getElementById('se-speichern');
         const status = document.getElementById('se-status');
         const p      = seStand.produkt;
@@ -18147,6 +18236,9 @@
         initSeoQuillEditors();
         quillSeoShort.root.innerHTML = '';
         quillSeoFull.root.innerHTML  = '';
+        document.getElementById('seo-material').value = '';   // SG2: Handeingabe gilt nur fuer diesen Artikel
+        seoMaterialFaser = null;
+        seoMaterialFehlt = false;
 
         document.getElementById('seo-article-panel').style.display = '';
         document.getElementById('seo-status-msg').textContent = 'Produkt wird geladen…';
@@ -18204,6 +18296,40 @@
         await seoGeneratorEingabenLaden();
         await seoMetaEingabenLaden();
         seoMetaVorschau();
+        await seoMaterialFeldPruefen();   // SG2
+      });
+
+      // ── SG2: Material-Pflichtfeld und Platzhalter-Sperre im SEO-Reiter ──
+      let seoMaterialFaser = null;   // Faser aus dem L-Shop-Modell (null = fehlt)
+      let seoMaterialFehlt = false;  // L-Shop-Nummer ohne Faser oder Faser-Hinweis der Generierung
+      function seoPlatzhalterZeigen() {
+        const p = quillSeoShort ? platzhalterIn(quillSeoShort.root.innerHTML, quillSeoFull.root.innerHTML) : [];
+        const msg = document.getElementById('seo-platzhalter-msg');
+        msg.hidden = !p.length;
+        msg.textContent = p.length ? `${PLATZHALTER_TEXT}: ${p.join(', ')} steht im Text – so wird nicht veröffentlicht.` : '';
+        document.getElementById('seo-material-wrap').hidden = !(p.length || seoMaterialFehlt);
+        return p;
+      }
+      async function seoMaterialFeldPruefen() {
+        if (!seoCurrentItem) return;
+        const s = await seoLshopStruktur(seoCurrentItem.lshopNr, seoFarben());
+        seoMaterialFaser = s && s.faser ? s.faser : null;
+        seoMaterialFehlt = !!String(seoCurrentItem.lshopNr ?? '').trim() && !seoMaterialFaser;
+        seoPlatzhalterZeigen();
+      }
+      document.getElementById('rich-seo-short').addEventListener('input', () => seoPlatzhalterZeigen());
+      document.getElementById('rich-seo-full').addEventListener('input', () => seoPlatzhalterZeigen());
+      document.getElementById('seo-material-einsetzen').addEventListener('click', () => {
+        if (!quillSeoShort || !quillSeoFull) return;
+        const m = materialHandPruefen(document.getElementById('seo-material').value);
+        if (!m.faser) { showToast(m.fehler || 'Material eintragen, z. B. 100 % Polyacryl.', 'error', 8000); return; }
+        let n = 0;
+        for (const ed of [quillSeoShort, quillSeoFull]) {
+          const r = ersetzeMaterialPlatzhalter(ed.root.innerHTML, m.faser);
+          if (r.ersetzt) { ed.root.innerHTML = r.html; n += r.ersetzt; }
+        }
+        showToast(n ? `Material eingesetzt (${n}×) – bitte speichern.` : 'Kein Material-Platzhalter im Text – Material geht beim nächsten Generieren mit.', n ? 'info' : 'warn', 8000);
+        seoPlatzhalterZeigen();
       });
 
       // M8: Vorschlaege aus der Generierung in die Felder (nie Getipptes ueberschreiben).
@@ -18259,6 +18385,13 @@
         // Groessen: erst Varianten-Reiter, dann WooCommerce. Die Quelle wird
         // unten angezeigt, damit sichtbar ist, woher sie kamen.
         const gr = seoGroessenQuelle(seoVarianten, seoWcProdukt, seoQuellenOk);
+        const mh = seoMaterialFaser ? { fehler: null } : materialHandPruefen(document.getElementById('seo-material').value);
+        if (mh.fehler) {
+          statusMsg.textContent = kurzMsg.textContent = mh.fehler;
+          statusMsg.style.color = 'var(--danger)';
+          kurzMsg.classList.add('seo-msg-rot');
+          return;
+        }
         try {
           const res = await apiFetch(`${API_BASE()}/api/claude/generate-product`, {
             method: 'POST',
@@ -18289,6 +18422,9 @@
               groessen:      gr.groessen,
               // M3: Faser/Grammatur aus dem L-Shop-Modell, Vorrang vor dem Freitext.
               strukturiert:  (await seoLshopStruktur(seoCurrentItem.lshopNr, seoFarben())) ?? undefined,
+              // SG2: Handeingabe Material (nur ohne L-Shop-Faser) und weitere Farb-Achsen als eigene Zeile.
+              materialHand:  seoMaterialFaser ? '' : document.getElementById('seo-material').value.trim(),
+              weitereAchsen: seoWeitere(),
             }),
           });
           const data = await res.json();
@@ -18317,6 +18453,8 @@
           // beim Speichern auf display:none). Der Text ist trotzdem erzeugt.
           if (data.faser_hinweis) showToast(data.faser_hinweis, 'warn', 15000);
           seoVorschlaegeAnwenden(data.vorschlaege);
+          if (data.faser_hinweis) seoMaterialFehlt = true;   // SG2: Faser fehlt ganz -> Feld zeigen
+          seoPlatzhalterZeigen();   // SG2
           seoKeyphraseAusTitelSetzen();   // SG1: kein Vorschlag und Feld leer -> Produkttitel ohne Farbe/Größe
           const kurz = seoGenerierenKurz(meldungenAlle, gemeldet);
           kurzMsg.textContent = kurz.text;
@@ -18337,7 +18475,7 @@
           const d = await apiJson(await apiFetch(`${API_BASE()}/api/seo/text-pruefung`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(textPruefungBody(item, produkt, keyphrase)),
+            body: JSON.stringify({ ...textPruefungBody(item, produkt, keyphrase), weitereAchsen: seoWeitere() }),   // SG2: Regel 12
           }));
           const h = d.pruefhinweise || [];
           if (h.length) showToast(`Gespeicherter Text: ${h.join(' · ')}`, 'warn', 20000);
@@ -18355,6 +18493,15 @@
           return;
         }
         const statusMsg = document.getElementById('seo-status-msg');
+        // SG2: Platzhalter im Text + Artikel veroeffentlicht -> nicht speichern (das Backend sperrt auch, 422).
+        const sperrGrund = platzhalterSperrGrund({ status: seoWcProdukt?.status,
+          texte: [quillSeoShort.root.innerHTML, quillSeoFull.root.innerHTML] });
+        seoPlatzhalterZeigen();
+        if (sperrGrund) {
+          statusMsg.textContent = sperrGrund;
+          statusMsg.style.color = 'var(--danger)';
+          return;
+        }
         statusMsg.style.color = 'var(--muted)';
         statusMsg.textContent = 'Wird gespeichert…';
         try {
@@ -18369,7 +18516,10 @@
               ...(seoTagsGeladen ? { tags: tagsFuerPut(seoTags) } : {}),
             }),
           });
-          if (!wcRes.ok) throw new Error('WooCommerce-Update fehlgeschlagen');
+          if (!wcRes.ok) {
+            const fehler = await wcRes.json().catch(() => ({}));
+            throw new Error(fehler.error || 'WooCommerce-Update fehlgeschlagen');   // SG2: 422 platzhalter mit Text
+          }
           // SG1: leeres Feld -> Rueckfall sichtbar ins Feld, bevor Sheet und Yoast es lesen (gleiche Keyphrase wie Titel/Meta)
           seoKeyphraseAusTitelSetzen();
 
@@ -19157,6 +19307,20 @@
 
         // Lieferzeit nur schicken, wenn der Nutzer die Auswahl geaendert hat.
         const lieferzeitNeu = lzZuSenden(lieferzeitGeladen, document.getElementById('pf-lieferzeit').value);
+
+        // SG2: mit "[… bitte ergänzen]" im Text nicht veroeffentlichen (Entwurf geht; Backend sperrt auch).
+        {
+          const statusDanach = ssZuSenden(shopStatusGeladen, statusShopSel.value) ?? shopStatusGeladen;
+          const grund = platzhalterSperrGrund({ status: statusDanach,
+            texte: [quillShort ? quillShort.root.innerHTML : '', quillFull ? quillFull.root.innerHTML : ''] });
+          if (grund) {
+            pushStatus.textContent = grund;
+            pushStatus.style.color = 'var(--danger)';
+            showToast(grund, 'error', 12000);
+            btnUpdateWc.disabled = false;
+            return;
+          }
+        }
 
         try {
           // SS1: status nur bei echter Umstellung senden.

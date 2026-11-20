@@ -916,6 +916,15 @@ Neue Sektionen immer mit Anker versehen:
   Wiederholungslauf), die Keyphrase wird im ersten <p> NACH der <h2> gemessen.
   Die Regeln stehen hier, das ist die Quelle. Begründungen und Historie liegen im
   Claude-Projekt unter METHODE/SEO_Beschreibungs_Framework.md (nicht im Repo).
+  SG2 (20.11.): Platzhalter "[… bitte ergänzen]" (`platzhalterIn`, Spiegel Block `Platzhalter: Anfang/Ende`) wird nie veroeffentlicht:
+  PUT /products/:id mit Ergebnis-Status publish und Platzhalter im Text -> 422 `platzhalter` (`utils/platzhalter-sperre.js`, Shop-Stand nur
+  gelesen, wenn Status/Texte im Body fehlen; nicht lesbar = 502 `shop_stand`); die Anlage legt ohnehin als Entwurf an. Pruefregel 11
+  "Platzhalter im Text" und 12 "Zeile Farben nennt Schrift-/Druckfarbe" (`weitereAchsen`) in seo-pruefung.js. SEO-Reiter: Feld
+  `#seo-material` "Material (Pflichtangabe)" nur bei L-Shop-Nummer ohne Faser, Faser-Hinweis oder Platzhalter im Text; geht als
+  `materialHand` (`materialHandPruefen`: Prozent Pflicht, <= 200) in den Prompt (nach der L-Shop-Faser, vor dem Freitext) und ersetzt den
+  Platzhalter deterministisch (`ersetzeMaterialPlatzhalter`, Knopf "In den Text einsetzen"). `seoFarben` = nur Achse "Farbe" (vorher
+  FARB_ATTR_RE: Schrift-/Druckfarbe landeten unter "Farben" UND die L-Shop-Faser fiel weg, weil die Farbenzahl nicht passte - Befund
+  NT5937); weitere Farb-Achsen (`seoWeitereAchsen`) als eigene Zeile `<li><strong>Schriftfarbe:</strong> …</li>`. Test seo-platzhalter.test.js.
 - backend/lib/seo-meta.js – Yoast SEO-Titel und Meta-Beschreibung, deterministisch
   (kein Modell). Einzige Quelle; index.html spiegelt den Bau-Teil im Block
   `SEO-Meta: Anfang/Ende`. Faserangabe + Grammatur liefert

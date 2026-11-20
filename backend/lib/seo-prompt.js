@@ -21,6 +21,70 @@ import { sortiereGroessen } from './groessen.js';
 
 export const MATERIAL_PLACEHOLDER = '[Material: bitte ergänzen]';
 
+// ── SG2: Platzhalter-Sperre (Inhaber 19.11.) ─────────────────────────────────
+// Der Platzhalter ist gewollt ("nie raten"), darf aber nie veroeffentlicht werden:
+// Text mit "[… bitte ergänzen]" -> Maske/SEO-Reiter rot, Veroeffentlichen gesperrt
+// (Entwurf erlaubt), Backend 422 `platzhalter` (routes/woocommerce.js). Spiegel im
+// Frontend: Block `Platzhalter: Anfang/Ende` (Test seo-platzhalter.test.js).
+export const PLATZHALTER_TEXT = 'Material fehlt – bitte eintragen';
+const PLATZHALTER_QUELLE = String.raw`\[[^\[\]\n]{0,80}?bitte(?:\s|&nbsp;)+erg(?:ä|ae|&auml;)nzen[^\[\]\n]{0,40}\]`;
+const MATERIAL_PLATZHALTER_QUELLE = String.raw`\[\s*Material\s*:\s*bitte(?:\s|&nbsp;)+erg(?:ä|ae|&auml;)nzen\s*\]`;
+
+/** Alle Platzhalter "[… bitte ergänzen]" in den Texten (HTML oder Klartext), ohne Dubletten. */
+export function platzhalterIn(...texte) {
+  const out = [];
+  for (const t of texte) {
+    for (const m of String(t ?? '').matchAll(new RegExp(PLATZHALTER_QUELLE, 'gi')))
+      if (!out.includes(m[0])) out.push(m[0]);
+  }
+  return out;
+}
+
+/**
+ * Handeingabe "Material (Pflichtangabe)": Faser mit Prozent, hoechstens 200 Zeichen,
+ * ohne HTML und Steuerzeichen. @returns {{ faser: string|null, fehler: string|null }}
+ */
+export function materialHandPruefen(wert) {
+  const s = String(wert ?? '').replace(/\s+/g, ' ').trim();
+  if (!s) return { faser: null, fehler: null };
+  if (s.length > 200) return { faser: null, fehler: 'Material: höchstens 200 Zeichen.' };
+  if (/[<>[\]\u0000-\u001f]/.test(s)) return { faser: null, fehler: 'Material: keine Klammern [ ] oder < >.' };
+  if (!FASER_RE.test(s)) return { faser: null, fehler: 'Material: bitte mit Prozent angeben, z. B. 100 % Polyacryl.' };
+  return { faser: s, fehler: null };
+}
+
+const htmlText = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/**
+ * Material-Platzhalter deterministisch durch die Faser ersetzen (kein Neu-Generieren).
+ * Nur "[Material: bitte ergänzen]"; andere "[… bitte ergänzen]" bleiben stehen.
+ * @returns {{ html: string, ersetzt: number }}
+ */
+export function ersetzeMaterialPlatzhalter(html, faser) {
+  const f = materialHandPruefen(faser).faser;
+  if (!f) return { html: String(html ?? ''), ersetzt: 0 };
+  let ersetzt = 0;
+  const out = String(html ?? '').replace(new RegExp(MATERIAL_PLATZHALTER_QUELLE, 'gi'), () => { ersetzt++; return htmlText(f); });
+  return { html: out, ersetzt };
+}
+
+/**
+ * Weitere Achsen neben Farbe/Groesse (Schriftfarbe, Druckfarbe, Motiv …) fuer die
+ * Detailliste: [{ name, werte }]. Name <= 30 Zeichen, Werte <= 60, hoechstens 3 Achsen.
+ */
+export function weitereAchsenSauber(achsen) {
+  const out = [];
+  for (const a of Array.isArray(achsen) ? achsen : []) {
+    const name = String(a?.name ?? '').replace(/\s+/g, ' ').trim();
+    if (!name || name.length > 30 || /[<>:\u0000-\u001f]/.test(name)) continue;
+    if (/^(farben?|gr(?:ö|oe)(?:ß|ss)en?|size)$/i.test(name)) continue;
+    const werte = parseListe((Array.isArray(a?.werte) ? a.werte : []).map(w => String(w ?? '').replace(/[<>\u0000-\u001f]/g, '').slice(0, 60)), /^$/);
+    if (werte.length && !out.some(x => normalize(x.name) === normalize(name))) out.push({ name, werte });
+    if (out.length >= 3) break;
+  }
+  return out;
+}
+
 // Befehl F2: sichtbarer Hinweis, wenn eine Faserangabe mit Prozent GANZ fehlt.
 // Die Nachbedingung in filterMaterialFarbenMitMeldung meldet nur, wenn der
 // Filter eine vorhandene Prozentangabe entfernt hat - wo nie eine war, schwieg
@@ -1024,7 +1088,7 @@ export function strukturierteEingabe(eingabe) {
  * @returns {{ eigenschaftenLines: string[], farbListe: string[],
  *             materialRoh: string, material: string, meldung: string|null }}
  */
-export function materialAusEigenschaften(eigenschaften, farben, { groessen, strukturiert } = {}) {
+export function materialAusEigenschaften(eigenschaften, farben, { groessen, strukturiert, materialHand } = {}) {
   const struktur = strukturierteEingabe(strukturiert);
   const rohLines = eigenschaften ? String(eigenschaften).split('\n').filter(Boolean) : [];
   // ⚠️ Reihenfolge: erst auslesen, dann entfernen. filterEigenschaften() wirft
@@ -1079,6 +1143,11 @@ export function materialAusEigenschaften(eigenschaften, farben, { groessen, stru
       eigenschaftenLines, detailLines, farbListe, materialRoh,
       material: struktur.faser, meldung: null, faserHinweis: null,
     };
+  }
+  // SG2: Feld "Material (Pflichtangabe)" - nur wenn L-Shop keine Faser liefert, vor dem Freitext.
+  const hand = materialHandPruefen(materialHand).faser;
+  if (hand) {
+    return { eigenschaftenLines, detailLines, farbListe, materialRoh, material: hand, meldung: null, faserHinweis: null };
   }
 
   // Die Form MIT Meldung, nicht der Wrapper: die Meldung sagt, dass im
@@ -1146,10 +1215,14 @@ export function buildSeoUserPrompt({
   strukturiert,
   druck,
   vorschlagen,
+  materialHand,
+  weitereAchsen,
 } = {}) {
   const {
     detailLines, farbListe, material, meldung: materialMeldung, faserHinweis,
-  } = materialAusEigenschaften(eigenschaften, farben, { groessen, strukturiert });
+  } = materialAusEigenschaften(eigenschaften, farben, { groessen, strukturiert, materialHand });
+  // SG2: "Farben" = nur Textilfarbe; Schrift-/Druckfarbe & Co. je eine eigene Zeile.
+  const achsen = weitereAchsenSauber(weitereAchsen);
 
   // Größen kommen NUR aus der Variantenauswahl. Kein Fallback auf die
   // Eigenschaften: dort steht der Größenlauf der Baureihe, nicht die Auswahl
@@ -1214,6 +1287,7 @@ export function buildSeoUserPrompt({
       druck?.druckfarben   ? `- DRUCKFARBEN: ${druck.druckfarben}` : '',
       druck?.serieKontext  ? `- KONTEXT: ${druck.serieKontext}` : '',
       `- FARBEN: ${farbenText}`,
+      ...achsen.map(a => `- ${a.name.toUpperCase()}: ${a.werte.join(', ')}`),
       groessenText ? `- GRÖSSEN: ${groessenText}` : '',
       `- Material: ${material}`,
       weitereLines.length ? `- Weitere Eigenschaften: ${weitereLines.join('; ')}` : '',
@@ -1234,6 +1308,9 @@ export function buildSeoUserPrompt({
       '  Vorteil umgedeutet werden, wenn die Eingabe das nicht hergibt.',
       '  "Seitennähte" und "60 °C waschbar" sind Angaben – daraus wird NICHT',
       '  "sorgt für eine beständige Passform nach dem Waschen".',
+      achsen.length
+        ? `- FARBEN sind nur die Textilfarben. ${achsen.map(a => a.name).join(', ')} steht jeweils in einer eigenen Zeile, wie unten vorgegeben.`
+        : '',
       groessenText
         ? '- Größen: nenne ausschließlich die unter GRÖSSEN gelisteten, in GENAU dieser Reihenfolge (aufsteigend).'
         : '- Größen: NENNE KEINE Größen, für diesen Artikel gibt es keine Größen-Variante.',
@@ -1252,6 +1329,7 @@ export function buildSeoUserPrompt({
       '<ul>',
       `<li><strong>Material:</strong> ${material}</li>`,
       `<li><strong>Farben:</strong> ${farbenText}</li>`,
+      ...achsen.map(a => `<li><strong>${a.name}:</strong> ${a.werte.join(', ')}</li>`),
       ...(groessenText ? [`<li><strong>Größen:</strong> ${groessenText}</li>`] : []),
       weitereLi,
       '</ul>',

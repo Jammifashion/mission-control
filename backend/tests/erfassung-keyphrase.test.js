@@ -160,7 +160,10 @@ describe('Frontend: SEO-Flow reicht Keyphrase, Farben und Größen durch', () =>
     // NICHT in den Body, der short_description/description schreibt. Sie gehen
     // in einem eigenen PUT, der ausschliesslich meta_data enthaelt.
     // SG1: Ausschnitt = genau der Beschreibungs-PUT (bis zu seiner Pruefung); danach darf der Rueckfall die Keyphrase setzen.
-    const wcPut = saveBlock.slice(0, saveBlock.indexOf("if (!wcRes.ok) throw new Error('WooCommerce-Update fehlgeschlagen');"));
+    // SG2: die Pruefung liest jetzt die Fehlermeldung des Backends (422 platzhalter) - Ausschnitt bis "if (!wcRes.ok)".
+    const ende = saveBlock.indexOf('if (!wcRes.ok)');
+    expect(ende).toBeGreaterThan(0);
+    const wcPut = saveBlock.slice(0, ende);
     expect(wcPut).toContain('short_description');
     expect(wcPut).not.toMatch(/keyphrase|yoast/i);
   });
