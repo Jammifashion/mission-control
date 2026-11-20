@@ -309,6 +309,21 @@ Sicherheitskorrekturen knapp und neutral, ohne Befund-Nummern oder Anleitung.
   fester Text + Code, nie der interne Fehlertext.
 - Jede Seite hat eine CSP-Meta direkt nach `<meta charset>` (Stufe 1, mit 'unsafe-inline'); neue externe Quelle = dort eintragen.
 
+## UI-Messung (tools/ui-messung, AH1)
+Sichtpruefung aller Ansichten mit Attrappen - **nur von Hand, nicht in CI** (eigenes package.json, nicht im Backend-Image). Ansichten kommen
+aus `BEREICHE` in index.html, Dialoge/Portale aus `ansichten.mjs`; Antworten aus `attrappen/*.mjs` (nur erfundene Daten, Auftraege ueber die
+echten `backend/utils`). Kein Schluessel, jeder fremde Host gesperrt; gemessen wird eine Kopie von frontend/ vom Startzeitpunkt.
+```
+cd tools/ui-messung && npm ci && npx playwright install chromium   # einmal
+npm run messung -- --breite 375 --modus hell,dunkel --zustand voll,leer --aus <Ordner ausserhalb des Repos> [--ansicht auftraege] [--uebersicht]
+npm run auswerten -- <aus>/ergebnis.json [<vorher>/ergebnis.json]   # Tabelle, mit zweiter Datei vorher -> nachher
+```
+Prueft: Ueberlauf, Abschneiden (auch Auswahl/Platzhalter), Rand, Ueberlappung, Seite rollt, Kontrast, Handy: Schrift < 12 px, Tippflaeche
+< 40/44 px, Feld < 16 px (iPhone-Zoom); Ausrichtung (Bloecke ausserhalb der Karten breiter als diese), Felder < 28 px oder leer ohne Platzhalter.
+Zustand `leer` = gleiche Formen, alle Listen leer. Ausgabe: `ergebnis.json`, `funde.md`, `bilder/` (Fundstellen markiert), `uebersicht/`
+(mit `--uebersicht`, Dialoge abschnittsweise) fuer die Sichtpruefung durch das Modell. Neue Ansicht in BEREICHE = automatisch dabei; neuer Dialog =
+Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohne Attrappe").
+
 ## Wichtige Dateien
 - backend/lib/hosterPruefseite.js – Hoster-Pruefseite (ESTUGO, 01.10.2026): nach ~11 schnellen
   Abrufen JS-Pruefseite ("One moment, please...", openresty, **Status 200**), nach >100 nicht

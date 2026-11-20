@@ -17,15 +17,20 @@ const kunden = [
   { Kunden_Nr: 'K-00001', Lexoffice_Nr: '10001', Art: 'Verein', Name: 'Testverein', Spitzname: 'Kicker; die Blauen', Ort: 'Musterstadt', Status: 'aktiv', Quelle: 'lexoffice', Stand: 's1' },
   { Kunden_Nr: 'K-00002', Art: 'Firma', Name: 'Beispiel GmbH', Ort: 'Probehausen', Status: 'archiviert', Quelle: 'mc', Stand: 's2' },
   { Kunden_Nr: 'K-00003', Art: 'Person', Name: 'gelöscht K-00003', Status: 'gesperrt-DSGVO', Quelle: 'mc', Stand: 's3' },
-  { Kunden_Nr: 'K-00004', Art: 'Firma', Name: 'Alpha <b>AG</b>', Ort: 'Musterstadt', Status: 'aktiv', Quelle: 'mc', Stand: 's4' },
+  { Kunden_Nr: 'K-00004', Art: 'Firma', Name: 'Alpha <b>AG</b>', Ort: 'Musterstadt', Status: 'aktiv', Quelle: 'mc', Stand: 's4', Ansprechpartner: 'Paula Platzhalter', 'E-Mail': 'einkauf@alpha.example', Telefon: '0151 / 234 567' },
 ];
 
 describe('Kunden-Liste', () => {
   test('Block gefunden', () => expect(block.length).toBeGreaterThan(500));
   test('Suche gleich wie im Backend (Spitzname, Nummer, Ort, jedes Wort)', () => {
-    for (const q of ['blauen', 'k-00002', '10001', 'musterstadt alpha', 'kicker probehausen', '']) {
+    // AH1 (U5): auch Ansprechpartner, E-Mail, Telefon (Ziffern)
+    for (const q of ['blauen', 'k-00002', '10001', 'musterstadt alpha', 'kicker probehausen', '', 'platzhalter', 'einkauf@alpha', '0151234', '234 567', '0151/234']) {
       expect([q, F.kuSuche(kunden, q).map(k => k.Kunden_Nr)]).toEqual([q, sucheKunden(kunden, q).map(k => k.Kunden_Nr)]);
     }
+  });
+  test('AH1 (U5): findet auch ueber Ansprechpartner, E-Mail und Telefon (Ziffern)', () => {
+    for (const q of ['platzhalter', 'einkauf@alpha', '0151234', '234 567', '0151/234', 'paula musterstadt']) expect([q, sucheKunden(kunden, q).map(k => k.Kunden_Nr)]).toEqual([q, ['K-00004']]);
+    expect(sucheKunden(kunden, '99').map(k => k.Kunden_Nr)).toEqual([]);   // kurze Ziffern nicht ueber das Telefon
   });
   test('Filter Art/Status, sortiert nach Name', () => {
     expect(F.kuFiltern(kunden, { status: 'aktiv' }).map(k => k.Kunden_Nr)).toEqual(['K-00004', 'K-00001']);

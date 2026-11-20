@@ -1,0 +1,13 @@
+{
+  "name": "ui-messung",
+  "private": true,
+  "type": "module",
+  "description": "Sichtpruefung aller MC-Ansichten mit Attrappen-Daten (nur von Hand, nicht in CI)",
+  "scripts": {
+    "messung": "node messung.mjs",
+    "auswerten": "node auswerten.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.49.1"
+  }
+}

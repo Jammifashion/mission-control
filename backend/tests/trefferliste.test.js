@@ -56,7 +56,7 @@ describe('Trefferliste', () => {
     // Enter im Lexoffice-Feld sucht nur, wenn die Liste keine Zeile gewaehlt hat (Reihenfolge der Hoerer)
     expect(html.indexOf('const klTw = twBinden(')).toBeLessThan(html.indexOf("kuEl('kl-q').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.defaultPrevented)"));
     // der Hilfetext zur Kundensuche haengt an der Ueberschrift "Kunde", nicht am Feld
-    expect(html).toContain('<legend data-hilfe="au-kunde-suche" tabindex="0">Kunde</legend>');
+    expect(html).toContain('<legend data-hilfe="au-kunde-suche" tabindex="0">Kunde <span class="au-pflicht" aria-hidden="true">*</span></legend>');   // AH1 (U3): Pflicht markiert
     expect(html.match(/<input id="au-kunde-suche"[^>]*>/)[0]).not.toContain('data-hilfe');
   });
 });

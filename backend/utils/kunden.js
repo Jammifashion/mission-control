@@ -86,8 +86,10 @@ export function sucheKunden(kunden, q) {
   const woerter = klein(q).split(/\s+/).filter(Boolean);
   if (!woerter.length) return [...(kunden ?? [])];
   return (kunden ?? []).filter(k => {
-    const text = [k.Name, k.Spitzname, k.Kunden_Nr, k.Lexoffice_Nr, k.Ort].map(klein).join(' ');
-    return woerter.every(w => text.includes(w));
+    // AH1 (U5): auch Ansprechpartner, E-Mail und Telefon (Telefon ueber die Ziffern: "0151 23" findet "0151/23…")
+    const text = [k.Name, k.Spitzname, k.Kunden_Nr, k.Lexoffice_Nr, k.Ort, k.Ansprechpartner, k['E-Mail']].map(klein).join(' ');
+    const tel = String(k.Telefon ?? '').replace(/\D/g, '');
+    return woerter.every(w => text.includes(w) || (tel && /^\+?[\d/().-]{3,}$/.test(w) && tel.includes(w.replace(/\D/g, ''))));
   });
 }
 
