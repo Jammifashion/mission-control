@@ -23,7 +23,7 @@ import { parseDeZahl } from './zahl-de.js';
 
 export const refundSchluessel =(refundId, positionId) => `${refundId}|${positionId}`;
 
-const zahl = v => { const n = Math.abs(Number(String(v ?? '').replace(',', '.'))); return Number.isFinite(n) ? n : 0; };
+const zahl = v => { const n = Math.abs(parseDeZahl(v)); return Number.isFinite(n) ? n : 0; };
 const kombi = (productId, variationId) => `${productId ?? ''}|${Number(variationId || 0)}`;
 /** Original-Position einer Erstattungs-Zeile (meta _refunded_item_id), sonst ''. */
 export function refundedItemId(line) {
@@ -249,3 +249,170 @@ export function buildErstattungRows({ vRows, vh, bestellungen, portoFaktor, mwst
   }
   return { rows, hinweise };
 }
+
+// ── Gegenbuchungen im Festpreis-Reiter FP_Verkäufe (NB2) ──────────────────────────────────────────
+//
+// Dieselbe Zuordnung wie Lizenz (berechneTeilerstattung), dieselben Marken. Unterschiede durch den FP-Aufbau:
+//   - Festpreis/Handling sind STUECKPREISE (die Abrechnung rechnet sie mal Stueckzahl, aggregateFpVerkaeufe) -
+//     sie werden nur im Vorzeichen gedreht, nie anteilig gerechnet; die Stueckzahl (-Menge) traegt den Abzug.
+//   - Betraege der Zeile (VK, Porto anteilig, PayPal, Mehrkosten, Gesamt netto/brutto) anteilig negiert.
+//   - Versand erstattet:
+//       altes Modell (Bestelldatum vor PO1, Porto anteilig in der Zeile): je Ursprungszeile
+//         Porto-Einnahme = Gesamt-Partner-Netto = -Versand netto x Wertanteil, Brutto mit MwSt.
+//       PO1 (Zeile traegt Porto_Bestellung): EINE Zeile je Erstattung und Partner, alle Betraege 0,
+//         Porto_Bestellung = -Versand netto - berechnePorto (utils/festpreis-porto.js) mindert damit die
+//         Porto-Einnahmen der Bestellung; Porto-Kosten bleiben (verschickt wurde trotzdem).
+export const FP_STUECKPREIS_SPALTEN = ['Festpreis-EK', 'Handling', 'Festpreis', 'Handlingskosten'];
+export const FP_BETRAG_SPALTEN = ['Porto-Einnahme', 'Porto-Kosten', 'Versandnebenkosten', 'PayPal-Kosten',
+  'Gesamt-Partner-Netto', 'Gesamt-Partner-Brutto', 'Mehrkosten', 'VK-Netto'];
+
+/**
+ * @param {object} o  wie buildErstattungRows, ohne portoFaktor (FP: der Partner traegt das Porto voll)
+ * @returns {{ rows: any[][], hinweise: object[] }}
+ */
+export function buildFpErstattungRows({ vRows, vh, bestellungen, mwstFuer, stornoMarker, partnerFilter = null }) {
+  const pflicht = n => {
+    const i = vh(n);
+    if (i === -1) throw Object.assign(new Error(`Spalte "${n}" fehlt in der Kopfzeile von FP_Verkäufe - Erstattung abgebrochen.`), { status: 500 });
+    return i;
+  };
+  const iOrd = pflicht('WC-Bestellnummer'), iArt = pflicht('Artikelname'), iVar = pflicht('Variante'), iPid = pflicht('Partner-ID');
+  const iDat = pflicht('Datum'), iSt = pflicht('Status Abrechnung'), iSto = pflicht('Storno-Status'), iStk = pflicht('Stückzahl');
+  const iPos = vh('Positions-ID'), iPb = vh('Porto_Bestellung');
+  const betrag = Object.fromEntries(FP_BETRAG_SPALTEN.map(n => [n, pflicht(n)]));
+  const stueck = FP_STUECKPREIS_SPALTEN.map(pflicht);
+  const breite = Math.max(0, ...vRows.map(r => r.length), iSto + 1, iPos + 1, iPb + 1, ...Object.values(betrag).map(i => i + 1));
+  const posVon = r => (iPos === -1 ? '' : String(r[iPos] ?? '').trim());
+  const keyOf = r => (posVon(r) ? `${r[iOrd]}|pos:${posVon(r)}|${r[iPid]}` : `${r[iOrd]}|${r[iArt]}|${varKey(r[iVar])}|${r[iPid]}`);
+  const kopie = r => Array.from({ length: breite }, (_, i) => r[i] ?? '');
+  const poNeu = r => iPb !== -1 && !leer(r[iPb]);
+
+  const rows = [];
+  const hinweise = [];
+  const hinweis = h => {
+    if (!hinweise.some(x => x.orderId === h.orderId && x.refundId === h.refundId && x.grund === h.grund && x.partnerId === h.partnerId)) hinweise.push(h);
+  };
+
+  for (const { order, refunds } of bestellungen ?? []) {
+    if (!(refunds ?? []).length) continue;
+    const oid = String(order.id);
+    const zeilen = vRows.filter(r => String(r[iOrd] ?? '') === oid && (!partnerFilter || partnerFilter.has(r[iPid])));
+    if (!zeilen.length) continue;
+    const ganzStorniert = new Set(zeilen.filter(r => String(r[iSto] ?? '') === stornoMarker).map(keyOf));
+    const items = order.line_items ?? [];
+    const orderNetto = items.reduce((s, i) => s + dezimal(i.total), 0);
+    const roh = refunds.map(rf => ({
+      id: rf.id,
+      lines: (rf.line_items ?? []).map(l => ({ product_id: l.product_id, variation_id: l.variation_id, quantity: l.quantity, total: l.total, meta_data: l.meta_data })),
+      versand: (rf.shipping_lines ?? []).reduce((s, x) => s + Math.abs(dezimal(x.total)), 0),
+    }));
+    const datumVon = new Map(refunds.map(rf => [String(rf.id), datumDE(rf.date_created)]));
+
+    const original = zeilen.filter(r => String(r[iSto] ?? '') === '' && !ganzStorniert.has(keyOf(r)));
+    const jePartner = new Map();
+    for (const r of original) {
+      const item = posVon(r)
+        ? items.find(i => String(i.id) === posVon(r))
+        : items.find(i => artikelName(i) === String(r[iArt] ?? '') && varKey(i.variation_id || 0) === varKey(r[iVar]));
+      if (!item) { hinweis({ orderId: oid, partnerId: r[iPid], grund: 'zeile_ohne_position' }); continue; }
+      const p = r[iPid];
+      if (!jePartner.has(p)) jePartner.set(p, []);
+      jePartner.get(p).push({ r, item, key: keyOf(r) });
+    }
+
+    for (const [partnerId, liste] of jePartner) {
+      const zuPos = new Map(liste.map(x => [String(x.item.id), x]));
+      const zuKey = new Map(liste.map(x => [x.key, x]));
+      const gebucht = new Map(), gebuchteRefunds = new Set(), versandGebucht = new Set();
+      for (const r of zeilen) {
+        const s = String(r[iSto] ?? '');
+        if (s.startsWith(MARKE_VERSAND) && String(r[iPid]) === String(partnerId)) {
+          versandGebucht.add(`${s.slice(MARKE_VERSAND.length)}|${keyOf(r)}`);
+          versandGebucht.add(`${s.slice(MARKE_VERSAND.length)}|partner:${partnerId}`);
+          continue;
+        }
+        const x = zuKey.get(keyOf(r));
+        if (!x || !s.startsWith(MARKE_ERSTATTUNG)) continue;
+        const pid = String(x.item.id);
+        gebucht.set(pid, (gebucht.get(pid) ?? 0) + Math.abs(dezimal(r[iStk])));
+        gebuchteRefunds.add(refundSchluessel(s.slice(MARKE_ERSTATTUNG.length), pid));
+      }
+
+      const erg = berechneTeilerstattung({ items, refunds: roh, gebucht, gebuchteRefunds });
+      for (const h of erg.hinweise) {
+        if (h.grund === 'versand') continue;   // wird unten gebucht
+        hinweis({ orderId: oid, partnerId, refundId: h.refundId, grund: h.grund });
+      }
+      for (const b of erg.buchungen) {
+        const x = zuPos.get(b.positionId);
+        if (!x) continue;
+        if (String(x.r[iSt] ?? '') === 'gesperrt') { hinweis({ orderId: oid, partnerId, refundId: b.refundId, grund: 'gesperrt' }); continue; }
+        const z = kopie(x.r);
+        z[iStk] = -b.menge;
+        for (const i of stueck) if (!leer(x.r[i])) z[i] = ohneMinusNull(-Math.abs(dezimal(x.r[i])));
+        for (const i of Object.values(betrag)) if (!leer(x.r[i])) z[i] = ohneMinusNull(-round2(dezimal(x.r[i]) * b.faktor));
+        z[iDat] = datumVon.get(b.refundId) || z[iDat];
+        z[iSt]  = 'offen';
+        z[iSto] = MARKE_ERSTATTUNG + b.refundId;
+        if (String(x.r[iSt] ?? '') === 'abgerechnet') hinweis({ orderId: oid, partnerId, refundId: b.refundId, grund: 'nachzuegler' });
+        rows.push(z);
+      }
+
+      for (const rf of roh) {
+        if (!(rf.versand > 0)) continue;
+        const refundId = String(rf.id);
+        const mwst = mwstFuer(order);
+        const nullZeile = x => {
+          const z = kopie(x.r);
+          z[iStk] = 0;
+          for (const i of Object.values(betrag)) z[i] = 0;
+          z[iDat] = datumVon.get(refundId) || z[iDat];
+          z[iSt]  = 'offen';
+          z[iSto] = MARKE_VERSAND + refundId;
+          if (String(x.r[iSt] ?? '') === 'abgerechnet') hinweis({ orderId: oid, partnerId, refundId, grund: 'nachzuegler' });
+          return z;
+        };
+        if (liste.some(x => poNeu(x.r))) {
+          // PO1: eine Zeile je Erstattung und Partner, Porto_Bestellung = -Versand netto
+          if (versandGebucht.has(`${refundId}|partner:${partnerId}`)) continue;
+          const x = liste.find(y => String(y.r[iSt] ?? '') !== 'gesperrt');
+          if (!x) { hinweis({ orderId: oid, partnerId, refundId, grund: 'gesperrt' }); continue; }
+          const z = nullZeile(x);
+          z[iPb] = ohneMinusNull(-round2(rf.versand));
+          rows.push(z);
+          continue;
+        }
+        if (!Number.isFinite(mwst)) { hinweis({ orderId: oid, partnerId, refundId, grund: 'mwst_fehlt' }); continue; }
+        for (const x of liste) {
+          if (versandGebucht.has(`${refundId}|${x.key}`)) continue;
+          if (String(x.r[iSt] ?? '') === 'gesperrt') { hinweis({ orderId: oid, partnerId, refundId, grund: 'gesperrt' }); continue; }
+          const anteil = orderNetto > 0 ? dezimal(x.item.total) / orderNetto : 0;
+          const delta = ohneMinusNull(round2(-rf.versand * anteil));
+          if (delta === 0) continue;
+          const z = nullZeile(x);
+          z[betrag['Porto-Einnahme']] = delta;
+          z[betrag['Gesamt-Partner-Netto']] = delta;
+          z[betrag['Gesamt-Partner-Brutto']] = ohneMinusNull(round2(delta * (1 + mwst / 100)));
+          rows.push(z);
+        }
+      }
+    }
+  }
+  return { rows, hinweise };
+}
+
+// ── Hinweistexte (Sync-Antwort und Abrechnungsvorschau, Lizenz + FP) ──────────────────────────────
+const GRUND_TEXT = {
+  ohne_position: 'Erstattung nur mit Betrag, ohne Position – bitte prüfen',
+  betrag_ohne_menge: 'Teilbetrag einer Position ohne Menge erstattet – bitte prüfen',
+  unbekannt: 'erstattete Position steht nicht in der Bestellung – bitte prüfen',
+  mehrdeutig: 'erstattete Position ist nicht eindeutig – bitte prüfen',
+  mehr_als_rest: 'mehr erstattet als noch offen – nur der Rest ist gebucht',
+  gesperrt: 'Zeile gesperrt – Erstattung wird nach dem Entsperren gebucht',
+  zeile_ohne_position: 'Verkaufszeile passt zu keiner Position der Bestellung – bitte prüfen',
+  nachzuegler: 'Erstattung zu einer schon abgerechneten Zeile – kommt in die nächste Abrechnung',
+  mwst_fehlt: 'MwSt-Satz zum Bestelldatum fehlt – Versanderstattung nicht gebucht',
+};
+/** Ein Hinweis als Text (nur Bestellnummer und Erstattungs-Nummer, keine Betraege, keine Namen). */
+export const erstattungHinweisText = h =>
+  `Bestellung ${h.orderId}${h.refundId ? ` (Erstattung #${h.refundId})` : ''}: ${GRUND_TEXT[h.grund] ?? h.grund}.`;

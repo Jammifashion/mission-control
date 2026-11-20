@@ -7,6 +7,8 @@
 // ist und nicht nur behauptet.
 
 import { jest } from '@jest/globals';
+import { schreibAttrappe } from './hilfen/schreib-attrappe.js';
+let schreiben;
 
 jest.unstable_mockModule('googleapis', () => ({
   google: { sheets: jest.fn() },
@@ -77,7 +79,9 @@ beforeAll(async () => {
     append: jest.fn().mockResolvedValue({ data: {} }),
   };
   const { google } = await import('googleapis');
-  google.sheets.mockReturnValue({ spreadsheets: { values: mockValues } });
+  // NB2: Portal-Eigenauftrag schreibt ohne append (schreibeNeueZeilen) - Schreib-Attrappe vor der get-Attrappe
+  schreiben = schreibAttrappe(a => mockValues.get(a));
+  google.sheets.mockReturnValue({ spreadsheets: { ...schreiben.spreadsheets, values: { ...mockValues, get: schreiben.values.get, update: schreiben.values.update } } });
 
   ({ notify } = await import('../lib/chatNotify.js'));
   const chatCore = await import('../lib/chatCore.js');
@@ -202,6 +206,9 @@ describe('Partnerbestellung', () => {
       .send({ artikel: 'T-Shirt', menge: 3, varianten: 'S, M, L' });
 
     expect(res.status).toBe(201);
+    // NB2: ohne values.append, eine geprueft geschriebene Zeile
+    expect(mockValues.append).not.toHaveBeenCalled();
+    expect(schreiben.zeilen()).toHaveLength(1);
     expect(notify).toHaveBeenCalledTimes(1);
     expect(buildPartnerNachricht).toHaveBeenCalledWith(
       expect.objectContaining({ partnerName: 'Hamburg Crocodiles', anzahl: 3 }),

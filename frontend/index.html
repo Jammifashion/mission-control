@@ -21556,6 +21556,12 @@
       function _escHtml(s) {
         return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
       }
+      // Abrechnungs-Vorschau (Lizenz + Festpreis): Hinweise, die NICHT sperren (gesperrte Zeilen, Nachzuegler, NB2:
+      // Erstattungen ohne Position, noch nicht gebuchte Erstattungen …).
+      function abrHinweiseHTML(hinweise) {
+        if (!Array.isArray(hinweise) || !hinweise.length) return '';
+        return `<div class="abr-hinweise" style="margin-top:0.8rem;padding:0.6rem 0.8rem;border:1px solid var(--warning);border-radius:6px;font-size:0.82rem;color:var(--warning);">${hinweise.map(h => `<div>⚠ ${_escHtml(h)}</div>`).join('')}</div>`;
+      }
       // Abrechnungs-Vorschau (Lizenz + Festpreis): was vor dem Erstellen zu klaeren ist (Backend `klaeren`).
       // Erstellen lehnt sonst mit 409 ab. Bestellungen mit Link "Im Shop öffnen".
       function abrKlaerenHTML(klaeren) {
@@ -22378,7 +22384,7 @@
         const bd = document.createElement('div'); bd.className = 'modal-backdrop';
         bd.innerHTML = `<div class="modal-box" style="max-width:880px;width:96%;max-height:90vh;overflow-y:auto;">
           <div class="modal-title">Vorschau – ${_escHtml(partnerName)} (${_escHtml(data.zeitraumVon)} – ${_escHtml(data.zeitraumBis)})</div>
-          ${(data.hinweise || []).length ? `<div style="margin-top:0.8rem;padding:0.6rem 0.8rem;border:1px solid var(--warning);border-radius:6px;font-size:0.82rem;color:var(--warning);">${data.hinweise.map(h => `<div>⚠ ${_escHtml(h)}</div>`).join('')}</div>` : ''}
+          ${abrHinweiseHTML(data.hinweise)}
           ${abrKlaerenHTML(data.klaeren)}
           <div style="margin-top:1rem;">
             <h3 style="font-size:0.92rem;margin:0 0 0.4rem;">Shop-Verkäufe (Lizenz-Einnahmen)</h3>
@@ -23413,6 +23419,8 @@
           }
           if (d?.ohneFestpreisAnzahl) w.push(`⚠ ${d.ohneFestpreisAnzahl} Position(en) ohne Festpreis-Kategorie – gesperrt, NICHT abgerechnet. Artikelkategorie setzen, dann „gesperrte nachrechnen“.`);   // PA8
           if (d?.pruefungFehler) w.push(`Prüfung auf fehlende Artikel nicht möglich: ${d.pruefungFehler}`);
+          const eh = d?.erstattungHinweise || [];   // NB2
+          if (eh.length) w.push(`⚠ ${eh.length} Erstattungs-Hinweis(e) – bitte prüfen: ${eh.slice(0, 3).join(' ')}${eh.length > 3 ? ' …' : ''}`);
           return w;
         }
         // ── PA7 Festpreis-Hinweis: Ende ──
@@ -23611,10 +23619,10 @@
               if (!r.ok) throw new Error(d.error ?? r.statusText);
               bd.remove();
               const afterInfo = d.afterParam ? ` (ab ${d.afterParam.slice(0,10)})` : '';
-              window.showToast((d.message || `${d.synced} neue Einträge`) + afterInfo);
+              window.showToast((d.message || `${d.synced} neue Einträge`) + afterInfo + (d.erstattet ? ` · ${d.erstattet} Erstattungs-Gegenbuchung(en)` : ''));   // NB2
               for (const w of fpSyncWarnungen(d)) window.showToast(w, 'warn', 20000);   // PA7
               if (d.nachgerechnet) window.showToast(fpNachrechnenText(d));   // PA8
-              if (d.synced > 0 || d.storniert > 0 || d.nachgerechnet > 0) loadFpVerkaeufe();
+              if (d.synced > 0 || d.storniert > 0 || d.nachgerechnet > 0 || d.erstattet > 0) loadFpVerkaeufe();
             } catch (e) {
               window.showToast(`Sync-Fehler: ${e.message}`, 'toast-error');
               okBtn.disabled = false; okBtn.textContent = 'Sync starten';
@@ -24056,6 +24064,7 @@
             <div class="modal-title">Abrechnung Vorschau – ${_escHtml(partnerName)}</div>
             <p style="font-size:0.82rem;color:var(--muted);margin:0.6rem 0 1rem;">${_escHtml(vonDatum)} – ${_escHtml(bisDatum)} &nbsp;·&nbsp; ${_escHtml(d.positionen)} Einzelpositionen${(d.intern||[]).length ? ` · ${(d.intern||[]).length} interne Bestellung(en)` : ''}</p>
             <div style="overflow:auto;flex:1;">
+              ${abrHinweiseHTML(d.hinweise)}
               ${abrKlaerenHTML(d.klaeren)}
               ${fpSummaryTableHTML(d)}
               ${fpInterneBlockHTML(d)}

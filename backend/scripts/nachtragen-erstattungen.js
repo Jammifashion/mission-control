@@ -2,7 +2,8 @@
 // sieht. Logik in lib/nachtragErstattungen.js, Rechnung wie der Sync (utils/teilerstattung.js).
 //
 // Verwendung:
-//   node backend/scripts/nachtragen-erstattungen.js --jfn | --honk [--bestellung 123,456] [--betraege] [--write]
+//   node backend/scripts/nachtragen-erstattungen.js --jfn | --honk [--fp] [--bestellung 123,456] [--betraege] [--write]
+//   --fp = Festpreis (FP_Verkäufe, nur die FP-Partner des Shops; NB2), sonst Lizenz.
 //
 // Standard ist ein TROCKENLAUF: zeigt je Bestellung die Gegenbuchungen (Partner, Marke, Stueck), schreibt nichts.
 // --betraege zeigt die Betraege zusaetzlich (nur im Terminal, nie ins Postfach).
@@ -22,6 +23,7 @@ import { nachtragErstattungen } from '../lib/nachtragErstattungen.js';
 const args = process.argv.slice(2);
 const shop = args.includes('--honk') ? 'honk' : args.includes('--jfn') ? 'jfn' : null;
 const write = args.includes('--write');
+const fp = args.includes('--fp');
 const betraege = args.includes('--betraege');
 const bi = args.indexOf('--bestellung');
 const nur = bi !== -1 && args[bi + 1] ? new Set(args[bi + 1].split(',').map(s => s.trim()).filter(Boolean)) : null;
@@ -31,8 +33,8 @@ async function run() {
   const spreadsheetId = process.env.BUSINESS_SHEET_ID;
   if (!spreadsheetId) { console.error('BUSINESS_SHEET_ID fehlt.'); process.exit(1); }
   const sheets = google.sheets({ version: 'v4', auth: await getGoogleAuth() });
-  console.log(`== Teilerstattungen nachtragen · ${shop.toUpperCase()} · ${write ? 'SCHREIBEN' : 'Trockenlauf'}${nur ? ` · nur ${[...nur].join(', ')}` : ''}`);
-  const r = await nachtragErstattungen({ sheets, spreadsheetId, shop, nur, write, sicherungOrdner: join(homedir(), 'Documents', 'mc-sicherungen') });
+  console.log(`== Teilerstattungen nachtragen · ${fp ? 'Festpreis' : 'Lizenz'} · ${shop.toUpperCase()} · ${write ? 'SCHREIBEN' : 'Trockenlauf'}${nur ? ` · nur ${[...nur].join(', ')}` : ''}`);
+  const r = await nachtragErstattungen({ sheets, spreadsheetId, shop, fp, nur, write, sicherungOrdner: join(homedir(), 'Documents', 'mc-sicherungen') });
   console.log(`Reiter ${r.tab} · geprüfte Bestellungen: ${r.geprueft}`);
   for (const b of r.bestellungen) {
     console.log(`  Bestellung ${b.bestellung} (${b.status}): ${b.zeilen} Gegenbuchung(en)${b.marken.length ? ' · ' + b.marken.join('; ') : ''}`);
@@ -41,7 +43,8 @@ async function run() {
   if (betraege) {
     const k = c => r.kopf.indexOf(c);
     for (const z of r.rows) {
-      console.log(`    ${z[k('Order-ID')]} ${z[k('Partner-ID')]} ${z[k('Storno-Status')]}: Lizenz ${z[k('Lizenzgebühr')]} · Porto ${z[k('Porto-Saldo')]} · Brutto ${z[k('Anteil-Brutto')]}`);
+      if (r.fp) console.log(`    ${z[k(r.ordSpalte)]} ${z[k('Partner-ID')]} ${z[k('Storno-Status')]}: Stück ${z[k('Stückzahl')]} · Netto ${z[k('Gesamt-Partner-Netto')]} · Porto-Einnahme ${z[k('Porto-Einnahme')]} · Porto_Bestellung ${z[k('Porto_Bestellung')] ?? '–'}`);
+      else console.log(`    ${z[k('Order-ID')]} ${z[k('Partner-ID')]} ${z[k('Storno-Status')]}: Lizenz ${z[k('Lizenzgebühr')]} · Porto ${z[k('Porto-Saldo')]} · Brutto ${z[k('Anteil-Brutto')]}`);
     }
   }
   console.log(`-> ${r.zeilen} Zeile(n)` + (write

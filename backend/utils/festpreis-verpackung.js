@@ -9,6 +9,9 @@
 // (FP_Partner, Spalten VERPACKUNG_BETRAG / VERPACKUNG_AB). Leer = fehlt, nie 0
 // annehmen; "nein" = bewusst keine Pauschale; 0 = bewusst 0.
 
+import { parseDeZahl } from './zahl-de.js';
+import { istErstattungsZeile } from './teilerstattung.js';   // NB2
+
 export const VERPACKUNG_BETRAG = 'Verpackung_je_Bestellung';
 export const VERPACKUNG_AB     = 'Verpackung_ab';
 export const VERSANDMETHODE    = 'Versandmethode';   // FP_Verkäufe, additiv hinter V
@@ -16,10 +19,12 @@ export const OHNE_VERSAND      = '-';                // Bestellung ohne shipping
 
 const round2 = n => Math.round(n * 100) / 100;
 
+// AUD1-Rest (NB2): auch "1.234,50" lesen (vorher nur ein Trennzeichen) - ueber parseDeZahl wie die uebrigen Leser.
 function parseZahl(val) {
   const s = String(val ?? '').trim();
-  if (!/^-?\d+([.,]\d+)?$/.test(s)) return null;
-  return Number(s.replace(',', '.'));
+  if (!/^-?[\d.,]+$/.test(s) || !/\d/.test(s)) return null;
+  const n = parseDeZahl(s);
+  return Number.isFinite(n) ? n : null;
 }
 
 function parseDatumDE(str) {
@@ -88,12 +93,15 @@ export function berechneVerpackung(zeilen, vh, kondition, alleZeilen = zeilen) {
   }
 
   const iOrd = vh('WC-Bestellnummer'), iDat = vh('Datum'), iSto = vh('Storno-Status'), iVm = vh(VERSANDMETHODE);
-  const istStorno = r => String(r[iSto] ?? '') !== '';
+  // NB2: Teilerstattungs-Zeilen ("Erstattung #…", "Versanderstattung #…") sind weder Bestellung noch Storno -
+  // die Pauschale haengt an der verschickten Bestellung, nicht an erstatteten Positionen.
+  const istTeil = r => istErstattungsZeile(r[iSto]);
+  const istStorno = r => String(r[iSto] ?? '') !== '' && !istTeil(r);
 
   // Bestelldatum + Versandmethode aus den Originalzeilen (auch frühere Abrechnungen)
   const original = new Map();
   for (const r of alleZeilen) {
-    if (istStorno(r)) continue;
+    if (istStorno(r) || istTeil(r)) continue;
     const o = String(r[iOrd] ?? '');
     if (!original.has(o)) original.set(o, { datum: parseDatumDE(r[iDat]), methode: iVm === -1 ? '' : String(r[iVm] ?? '') });
   }
@@ -101,7 +109,7 @@ export function berechneVerpackung(zeilen, vh, kondition, alleZeilen = zeilen) {
   const bestellungen = new Map(); // oid -> { plus, minus, methoden:Set, datum }
   for (const r of zeilen) {
     const o = String(r[iOrd] ?? '');
-    if (!o) continue;
+    if (!o || istTeil(r)) continue;
     const b = bestellungen.get(o) ?? { plus: 0, minus: 0, methoden: new Set(), datum: null };
     if (istStorno(r)) b.minus = 1; else b.plus = 1;
     // Storno-Gegenbuchung ohne eigene Methode: Methode der Originalzeile

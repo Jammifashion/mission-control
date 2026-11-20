@@ -23,6 +23,8 @@ import {
   fpAbrechnungHinweise, gesperrtZaehlen,
 } from '../utils/fp-sperre.js';
 import { mitFpSperre, nachrechnenInSperre, nachrechnen as fpNachrechnen } from '../lib/fpSperre.js';
+import { buildFpErstattungRows, erstattungHinweisText, istErstattungsZeile } from '../utils/teilerstattung.js';   // NB2
+import { ladeErstattungsBestellungen, vorschauErstattungsHinweise } from '../lib/erstattungen.js';   // NB2
 import { schreibeNeueZeilen, pruefeZielStrecke, spalteBuchstabe, sichereSpaltenRaster } from '../lib/sheet-zeilen.js';
 import {
   SPALTE_POSITION, verkaufsBestand, schonErfasst, syncStart, bestellTag, konfigJeTag, fixkostenLuecken, fixkostenFehler,
@@ -77,7 +79,7 @@ async function fetchFpOrders(wc, statuses, afterParam) {
 //   17=Artikelkategorie (R), 18=Festpreis (S), 19=Mehrkosten (T),
 //   20=VK-Netto (U), 21=Handlingskosten (V), 22=Versandmethode (W, VP1)
 const STATUS_SPALTE_INDEX = 14;   // PA8: Status Abrechnung, positionsfest wie der Sync
-function buildFpStornoRows(vRows, stornoOrders) {
+export function buildFpStornoRows(vRows, stornoOrders) {
   const ORD_COL    = 2;
   const ART_COL    = 3;
   const VAR_COL    = 4;
@@ -97,12 +99,23 @@ function buildFpStornoRows(vRows, stornoOrders) {
     stornoOrders.map(o => [String(o.id), toDE(new Date(o.date_modified || o.date_created))])
   );
 
-  // Bereits vorhandene Storno-Einträge nicht doppelt anlegen
+  // NB2: Teilerstattungs-Zeilen ("Erstattung #…", "Versanderstattung #…") sind keine Ganz-Stornos - sie sperren die
+  // Gegenbuchung nicht, werden aber verrechnet: das Storno negiert Ursprung + schon erstattete Betraege (wie Lizenz,
+  // utils/sync-logic.js). Stueckpreise (Festpreis-EK, Handling, Festpreis, Handlingskosten) werden NICHT summiert -
+  // die Abrechnung rechnet sie mal Stueckzahl; die Stueckzahl (Summe) traegt den Rest.
+  const SUMME_COLS = [5, 8, 9, 10, 11, 12, 13, 19, 20];
   const stornoDone = new Set();
+  const teilSumme = new Map();
   for (const r of vRows) {
-    if ((r[STORNO_COL] ?? '') !== '')
-      stornoDone.add(dupKeyOf(r));
+    const s = String(r[STORNO_COL] ?? '');
+    if (s === '') continue;
+    if (!istErstattungsZeile(s)) { stornoDone.add(dupKeyOf(r)); continue; }
+    const k = dupKeyOf(r);
+    const m = teilSumme.get(k) ?? new Map();
+    for (const i of SUMME_COLS) if ((r[i] ?? '') !== '') m.set(i, (m.get(i) ?? 0) + toFloat(r[i]));
+    teilSumme.set(k, m);
   }
+  const rund = x => Math.round((x + Number.EPSILON) * 100) / 100;
 
   const out = [];
   for (const r of vRows) {
@@ -114,12 +127,18 @@ function buildFpStornoRows(vRows, stornoOrders) {
     if (stornoDone.has(dupKey)) continue;
     stornoDone.add(dupKey);
 
+    const teil = teilSumme.get(dupKey);
     const counter = [];
     for (let i = 0; i < 23; i++) {
       let v = r[i] ?? '';
-      if (NEG_COLS.has(i) && v !== '') v = -toFloat(v);
+      if (NEG_COLS.has(i) && v !== '') {
+        const x = teil && SUMME_COLS.includes(i) ? rund(toFloat(v) + (teil.get(i) ?? 0)) : toFloat(v);
+        v = x === 0 ? 0 : -x;
+      }
       counter[i] = v;
     }
+    // Alles schon per Teilerstattung zurueck: keine leere Gegenbuchung.
+    if (teil && SUMME_COLS.every(i => counter[i] === '' || counter[i] === 0)) continue;
     counter[DATE_COL]   = refundDate.get(oid) || r[DATE_COL] || toDE(new Date());
     // PA8: Storno einer gesperrten Zeile ist ebenfalls gesperrt (leere Betraege bleiben leer, Grund wandert mit).
     const gesperrt = String(r[STATUS_COL] ?? '').trim() === 'gesperrt';
@@ -691,6 +710,23 @@ router.get('/verkaeufe/summary', async (req, res, next) => {
 
     // Erst klaeren: dieselbe Pruefung wie beim Erstellen (dort 409).
     const klaeren = partnerId ? await fpKlaeren(sheets, sheetId, partnerId, { porto, verpackung, interne, konfiguration: konfigHeute }) : [];
+    // NB2: Erstattungen zu den Bestellungen dieser Zeilen (live aus dem Shop des Partners, dieselbe Rechnung wie der Sync),
+    // nicht sperrend; dazu der Porto-Hinweis (Versanderstattung) als Text.
+    const hinweise = [];
+    if (partnerId && statusFilter === 'offen') {
+      const { header: pH, rows: pRows } = await readTab(sheets, sheetId, TAB_FP_PARTNER);
+      const pRow = pRows.find(r => String(r[pH.indexOf('Partner-ID')] ?? '') === partnerId);
+      const shop = String(pRow?.[pH.indexOf('Shop')] ?? '').toLowerCase() === 'honk' ? 'honk' : 'jfn';
+      const konfigFuer = konfigJeTag(d => parseKonfiguration(kRows, kH, d));
+      const evh = fpErstattungVh(vh);
+      hinweise.push(...await vorschauErstattungsHinweise({
+        wc: () => getWcClient(shop), verkaufStati: FP_STATES_VERKAUF,
+        orderIds: filtered.filter(r => !istErstattungsZeile(r[vh('Storno-Status')])).map(r => r[vh('WC-Bestellnummer')]),
+        orderVon: r => r[evh('WC-Bestellnummer')],
+        rechne: bestellungen => buildFpErstattungRows({ vRows: rows, vh: evh, bestellungen, partnerFilter: new Set([partnerId]),
+          mwstFuer: o => Number(konfigFuer(bestellTag(o)).mwstProzent), stornoMarker: FP_STORNO_MARKER }),
+      }));
+    }
     const auszahlungNetto = Math.round((summen.auszahlung + portoSaldo(porto)) * 100) / 100;
     const auszahlungBrutto = Math.round(auszahlungNetto * (1 + mwstProzent / 100) * 100) / 100;
     const gesamtBrutto = Math.round((auszahlungBrutto - interne.summe - verpackungSumme) * 100) / 100;
@@ -707,6 +743,7 @@ router.get('/verkaeufe/summary', async (req, res, next) => {
       gesamtNetto, gesamtBrutto,
       ...(sperrHinweise ? { sperre: sperrHinweise } : {}),
       klaeren,
+      hinweise,   // NB2: Erstattungen (nicht sperrend)
     });
   } catch (err) { next(err); }
 });
@@ -726,6 +763,29 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
     next(err);
   }
 });
+
+/**
+ * NB2: Spaltenindex fuer die Erstattung - Porto_Bestellung und Positions-ID stehen positionsfest (Y, AA), auch wenn
+ * die Kopfzelle erst beim Schreiben dieses Laufs angelegt wird.
+ */
+const fpErstattungVh = vh => c => (vh(c) !== -1 ? vh(c) : ({ [PORTO_BESTELLUNG]: PORTO_INDEX, [SPALTE_POSITION]: POSITION_INDEX }[c] ?? -1));
+
+/** NB2: Erstattungen des FP-Syncs, je Shop (Abruf wie der Lizenz-Sync, Rechnung buildFpErstattungRows). */
+async function fpErstattungen({ vRows, vh, shops, partnerShopMap, ordersByShop, konfigFuer, laden = ladeErstattungsBestellungen, wcFuer = getWcClient }) {
+  const evh = fpErstattungVh(vh);
+  const rows = [], hinweise = [];
+  for (const shop of shops) {
+    const partner = new Set(Object.entries(partnerShopMap).filter(([, s]) => s === shop).map(([p]) => p));
+    const eigene = vRows.filter(r => partner.has(String(r[evh('Partner-ID')] ?? '')));
+    if (!eigene.length) continue;
+    const mitZeilen = new Set(eigene.map(r => String(r[evh('WC-Bestellnummer')] ?? '')));
+    const bestellungen = await laden(wcFuer(shop), ordersByShop[shop] ?? [], mitZeilen, FP_STATES_VERKAUF);
+    const erg = buildFpErstattungRows({ vRows, vh: evh, bestellungen, partnerFilter: partner,
+      mwstFuer: o => Number(konfigFuer(bestellTag(o)).mwstProzent), stornoMarker: FP_STORNO_MARKER });
+    rows.push(...erg.rows); hinweise.push(...erg.hinweise);
+  }
+  return { rows, hinweise };
+}
 
 async function fpSyncInSperre(req, sheetId) {
   {
@@ -846,7 +906,11 @@ async function fpSyncInSperre(req, sheetId) {
     const allStornoOrders = Object.values(stornoByShop).flat();
     const stornoRows = buildFpStornoRows(vRows, allStornoOrders);
 
-    const allRows = [...toWrite, ...stornoRows];
+    // NB2: Teilerstattungen (Position anteilig, Versand mindert die Porto-Einnahme) - je Shop nur mit dessen Partnern,
+    // weil Bestellnummern von JFN und HONK gleich sein koennen und FP_Verkaeufe keine Shop-Spalte hat.
+    const erst = await fpErstattungen({ vRows: [...vRows, ...toWrite], vh, shops: shopsNeeded, partnerShopMap, ordersByShop, konfigFuer });
+
+    const allRows = [...toWrite, ...stornoRows, ...erst.rows];
     if (allRows.length > 0) {
       // Spalte W "Versandmethode" (VP1): additiv, beim ersten Schreiben anlegen. Der
       // Sync schreibt positionsfest A:W - steht sie woanders, nichts schreiben.
@@ -932,6 +996,8 @@ async function fpSyncInSperre(req, sheetId) {
       gesperrt,                                   // PA8: davon gesperrt (Festpreis-Kategorie fehlt)
       nachgerechnet: nach.nachgerechnet, nochGesperrt: nach.nochGesperrt + gesperrt,
       storniert: stornoRows.length,
+      erstattet: erst.rows.length,                              // NB2
+      erstattungHinweise: erst.hinweise.map(erstattungHinweisText),
       orders:    totalOrders,
       afterParam: afterParam || null,
       message: toWrite.length || stornoRows.length

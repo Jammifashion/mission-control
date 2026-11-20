@@ -6,6 +6,7 @@ import { getWcClient as wcClientForShop, getShopConfig } from '../lib/shopConfig
 import { seitenGrenze, seitenListe, wirfWennPruefseite } from '../lib/hosterPruefseite.js';
 import { berechnePartnerAnteil, parseKonfiguration, baueLizenzSaetze, baueVertragsbeginne, verkaufsBetraege, normalisierePortoModell } from '../utils/partner-kalkulation.js';
 import { buildErstattungRows } from '../utils/teilerstattung.js';
+import { ladeErstattungsBestellungen as ladeErstattungen } from '../lib/erstattungen.js';
 import { toFloat, toDE, WC_STATES_VERKAUF, WC_STATES_STORNO, STORNO_MARKER, buildStornoRows, ordersFuerVerkaufszeilen, vorVertragsbeginn,
   STATUS_GESPERRT, SPALTE_SPERRE, leerWert, sperrGrund,
   SPALTE_POSITION, verkaufsBestand, schonErfasst, syncStart, bestellTag, konfigJeTag, fixkostenLuecken, fixkostenFehler,
@@ -41,27 +42,13 @@ async function readTab(sheets, sheetId, tabName) {
   return { header: header ?? [], rows: rows.filter(r => r.some(c => c)) };
 }
 
-// Bugfix-Migration: Zeilen mit Status 'Neu' (vor dem Status-Bugfix angelegt, siehe
-// partner-artikel.js PATCH /:id/intern/:rowId) einmalig auf 'offen' heben, lazy
-// beim Lesen – damit sie in Saldo-Berechnung und Abrechnung ankommen. Mutiert rows
-// in-place, damit der Aufrufer sofort den korrigierten Wert sieht.
-async function migrateNeuStatus(sheets, sheetId, header, rows) {
+// Altstatus 'Neu' (vor dem Status-Bugfix angelegt) zaehlt wie 'offen'. AUD1-Rest (NB2): das Partnerportal schreibt
+// beim LESEN nicht mehr ins Sheet - die Zeilen werden nur im Speicher behandelt; das Sheet bringt der Wartungslauf
+// scripts/wartung-interne-neu.js (Trockenlauf, --write) in Ordnung. Mutiert rows in-place (nur im Speicher).
+function neuAlsOffen(header, rows) {
   const stIdx = header.indexOf('Status');
   if (stIdx === -1) return;
-  const stCol = colLetter(stIdx);
-  const betroffen = rows.filter(r => (r[stIdx] ?? '') === 'Neu');
-  if (!betroffen.length) return;
-  await sheets.spreadsheets.values.batchUpdate({
-    spreadsheetId: sheetId,
-    requestBody: {
-      valueInputOption: 'RAW',
-      data: betroffen.map(r => ({
-        range: `Partner_Interne_Bestellungen!${stCol}${r._sheetRow}`,
-        values: [['offen']],
-      })),
-    },
-  });
-  betroffen.forEach(r => { r[stIdx] = 'offen'; });
+  for (const r of rows) if ((r[stIdx] ?? '') === 'Neu') r[stIdx] = 'offen';
 }
 
 function parseDate(s) {
@@ -180,34 +167,10 @@ async function fetchOrders(wc, statuses, afterParam) {
 // aus dem normalen Abruf und aus allen in den letzten ERSTATTUNG_TAGE geaenderten Bestellungen
 // (eine Erstattung aendert date_modified - so kommen auch aeltere Bestellungen dazu).
 // Je Kandidat EIN Abruf /orders/<id>/refunds, nacheinander mit Pause (Hoster-Pruefseite).
-export const ERSTATTUNG_TAGE = 60;
-const warte = ms => new Promise(r => setTimeout(r, ms));
-
-async function ladeErstattungsBestellungen(wc, orders, vRows, vh) {
-  const seit = new Date(Date.now() - ERSTATTUNG_TAGE * 864e5).toISOString().slice(0, 19);
-  const geaendert = [];
-  for (let page = 1; ; page++) {
-    seitenGrenze(page, { wc, pfad: 'orders' });
-    const listen = [];
-    for (const status of WC_STATES_VERKAUF) {
-      listen.push(seitenListe((await wc.get('orders', { per_page: 100, page, status, modified_after: seit })).data, { wc, pfad: 'orders' }));
-    }
-    for (const l of listen) geaendert.push(...l);
-    if (listen.every(l => l.length < 100)) break;
-  }
-  const mitZeilen = new Set(vRows.map(r => String(r[vh('Order-ID')] ?? '')));
-  const kandidaten = new Map();
-  for (const o of [...orders, ...geaendert]) {
-    if ((o.refunds ?? []).length && mitZeilen.has(String(o.id)) && WC_STATES_VERKAUF.includes(o.status)) kandidaten.set(String(o.id), o);
-  }
-  const out = [];
-  for (const order of kandidaten.values()) {
-    await warte(1000);
-    const refunds = seitenListe((await wc.get(`orders/${order.id}/refunds`, { per_page: 100 })).data, { wc, pfad: 'orders/refunds' });
-    out.push({ order, refunds });
-  }
-  return out;
-}
+// NB2: der Abruf liegt in lib/erstattungen.js (gemeinsam mit FP-Sync und Abrechnungsvorschau).
+export { ERSTATTUNG_TAGE } from '../lib/erstattungen.js';
+const ladeErstattungsBestellungen = (wc, orders, vRows, vh) =>
+  ladeErstattungen(wc, orders, new Set(vRows.map(r => String(r[vh('Order-ID')] ?? ''))), WC_STATES_VERKAUF);
 
 const portoFaktorAus = modell => (normalisierePortoModell(modell) === 'partner-trägt' ? 1 : 0.5);
 
@@ -868,7 +831,7 @@ router.get('/intern', async (req, res, next) => {
     const sheetId = process.env.BUSINESS_SHEET_ID;
     const sheets  = await getSheets();
     const { header, rows } = await readTab(sheets, sheetId, 'Partner_Interne_Bestellungen');
-    await migrateNeuStatus(sheets, sheetId, header, rows);
+    neuAlsOffen(header, rows);   // NB2: nur im Speicher
     const h = col => header.indexOf(col);
 
     res.json(rows
@@ -900,7 +863,7 @@ router.get('/saldo', async (req, res, next) => {
       readTab(sheets, sheetId, 'Partner_Interne_Bestellungen'),
       readTab(sheets, sheetId, 'Kalkulation_Fixkosten'),
     ]);
-    await migrateNeuStatus(sheets, sheetId, internTab.header, internTab.rows);
+    neuAlsOffen(internTab.header, internTab.rows);   // NB2: nur im Speicher
 
     const mwstProzent = parseKonfiguration(konfigTab.rows, konfigTab.header).mwstProzent;
 
@@ -1111,13 +1074,8 @@ router.post('/:id/eigenauftrag', async (req, res, next) => {
     rowArr[kanalIdx] = 'Portal';
     rowArr[fulIdx]   = 'Beauftragt';
 
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: sheetId,
-      range: `Partner_Interne_Bestellungen!A:${colLetter(rowArr.length - 1)}`,
-      valueInputOption: 'RAW',
-      insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [rowArr] },
-    });
+    // AUD1-Rest (NB2): ohne values.append - erste freie Zeile, Nachbarzeile + Zielbereich geprueft, RAW, zurueckgelesen.
+    await schreibeNeueZeilen(sheets, sheetId, 'Partner_Interne_Bestellungen', [rowArr]);
 
     // Mit await vor der Antwort, siehe anfragen.js. Eine Summe gibt es hier
     // bewusst noch nicht - Einzelpreis/Summe pflegt der Admin spaeter nach.

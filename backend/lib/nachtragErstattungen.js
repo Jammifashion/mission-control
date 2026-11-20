@@ -1,6 +1,8 @@
 // Teilerstattungen nachtragen (NB1 Teil A): Erstattungen, die der taegliche Sync nicht mehr sieht (er liest nur
 // Bestellungen, die in den letzten ERSTATTUNG_TAGE geaendert wurden). Dieselbe Rechnung wie der Sync
-// (buildErstattungRows in utils/teilerstattung.js), nur Lizenz-Reiter (Partner_Verkäufe / HK_Partner_Verkäufe).
+// (utils/teilerstattung.js): Lizenz-Reiter (Partner_Verkäufe / HK_Partner_Verkäufe, buildErstattungRows) oder mit
+// fp: true FP_Verkäufe (buildFpErstattungRows, NB2) - dort nur die FP-Partner dieses Shops (Bestellnummern beider
+// Shops koennen gleich sein, FP_Verkäufe hat keine Shop-Spalte).
 // Trockenlauf Standard; write sichert vorher den ganzen Reiter (JSON), schreibt ohne append in gepruefte
 // Zielzeilen (zurueckgelesen) und misst danach nach (erneuter Lauf muss 0 Zeilen ergeben).
 import { mkdirSync, writeFileSync } from 'fs';
@@ -8,7 +10,7 @@ import { join } from 'path';
 import { getWcClient, getShopConfig } from './shopConfig.js';
 import { seitenGrenze, seitenListe } from './hosterPruefseite.js';
 import { schreibeNeueZeilen } from './sheet-zeilen.js';
-import { buildErstattungRows } from '../utils/teilerstattung.js';
+import { buildErstattungRows, buildFpErstattungRows } from '../utils/teilerstattung.js';
 import { WC_STATES_VERKAUF, STORNO_MARKER, konfigJeTag, bestellTag } from '../utils/sync-logic.js';
 import { parseKonfiguration, normalisierePortoModell } from '../utils/partner-kalkulation.js';
 
@@ -25,21 +27,25 @@ async function lies(sheets, spreadsheetId, tab, valueRenderOption) {
  * @param {Set<string>|null} [o.nur]  nur diese Bestellnummern (sonst alle Bestellungen seit `seit` mit Erstattung)
  * @returns {Promise<{ tab, geprueft, bestellungen: {bestellung, status, zeilen, marken:string[]}[], zeilen, hinweise, geschrieben, sicherung?, nachmessung?, rows }>}
  */
-export async function nachtragErstattungen({ sheets, spreadsheetId, shop, nur = null, write = false, sicherungOrdner,
+export async function nachtragErstattungen({ sheets, spreadsheetId, shop, fp = false, nur = null, write = false, sicherungOrdner,
   seit = '2025-01-01T00:00:00', drossel = () => new Promise(r => setTimeout(r, 1500)), jetzt = () => new Date(), wcFuer = getWcClient }) {
-  const tab = getShopConfig(shop).tabVerkaeufe;
+  const tab = fp ? 'FP_Verkäufe' : getShopConfig(shop).tabVerkaeufe;
+  const ordSpalte = fp ? 'WC-Bestellnummer' : 'Order-ID';
   const werte = await lies(sheets, spreadsheetId, tab);
   const kopf = (werte[0] ?? []).map(t);
   const vh = c => kopf.indexOf(c);
   const zeilen = werte.slice(1);
 
-  const pRows = await lies(sheets, spreadsheetId, 'Partner'); const pH = (pRows[0] ?? []).map(t);
+  const pRows = await lies(sheets, spreadsheetId, fp ? 'FP_Partner' : 'Partner'); const pH = (pRows[0] ?? []).map(t);
   const porto = new Map(pRows.slice(1).map(r => [t(r[pH.indexOf('Partner-ID')]), r[pH.indexOf('Porto-Modell')] ?? 'geteilt-50-50']));
+  // FP: nur die Partner dieses Shops (Spalte Shop, leer = JFN)
+  const fpPartner = fp ? new Set(pRows.slice(1).filter(r => (t(r[pH.indexOf('Shop')]).toLowerCase() === 'honk' ? 'honk' : 'jfn') === shop)
+    .map(r => t(r[pH.indexOf('Partner-ID')]))) : null;
   const kRows = await lies(sheets, spreadsheetId, 'Kalkulation_Fixkosten');
   const konfigFuer = konfigJeTag(d => parseKonfiguration(kRows.slice(1), (kRows[0] ?? []).map(t), d));
 
   const wc = wcFuer(shop);
-  const mitZeilen = new Set(zeilen.map(r => t(r[vh('Order-ID')])));
+  const mitZeilen = new Set(zeilen.filter(r => !fpPartner || fpPartner.has(t(r[vh('Partner-ID')]))).map(r => t(r[vh(ordSpalte)])));
   let ids;
   if (nur) ids = [...nur].filter(id => mitZeilen.has(id));
   else {
@@ -64,19 +70,22 @@ export async function nachtragErstattungen({ sheets, spreadsheetId, shop, nur = 
     bestellungen.push({ order, refunds });
   }
 
-  const rechne = vRows => buildErstattungRows({
-    vRows, vh, bestellungen,
-    portoFaktor: p => (normalisierePortoModell(porto.get(p)) === 'partner-trägt' ? 1 : 0.5),
-    mwstFuer: o => Number(konfigFuer(bestellTag(o)).mwstProzent),
-    stornoMarker: STORNO_MARKER,
-  });
+  const rechne = vRows => (fp
+    ? buildFpErstattungRows({ vRows, vh, bestellungen, partnerFilter: fpPartner,
+      mwstFuer: o => Number(konfigFuer(bestellTag(o)).mwstProzent), stornoMarker: STORNO_MARKER })
+    : buildErstattungRows({
+      vRows, vh, bestellungen,
+      portoFaktor: p => (normalisierePortoModell(porto.get(p)) === 'partner-trägt' ? 1 : 0.5),
+      mwstFuer: o => Number(konfigFuer(bestellTag(o)).mwstProzent),
+      stornoMarker: STORNO_MARKER,
+    }));
   const erg = rechne(zeilen);
   for (const { order } of bestellungen) {
-    const eigene = erg.rows.filter(r => t(r[vh('Order-ID')]) === String(order.id));
+    const eigene = erg.rows.filter(r => t(r[vh(ordSpalte)]) === String(order.id));
     bericht.push({ bestellung: String(order.id), status: order.status, zeilen: eigene.length,
       marken: eigene.map(r => `${r[vh('Partner-ID')]} ${r[vh('Storno-Status')]} (Stück ${r[vh('Stückzahl')]})`) });
   }
-  const ergebnis = { tab, geprueft: ids.length, bestellungen: bericht, zeilen: erg.rows.length, hinweise: erg.hinweise, geschrieben: 0, rows: erg.rows, kopf };
+  const ergebnis = { tab, fp, ordSpalte, geprueft: ids.length, bestellungen: bericht, zeilen: erg.rows.length, hinweise: erg.hinweise, geschrieben: 0, rows: erg.rows, kopf };
   if (!write || !erg.rows.length) return ergebnis;
 
   // Sicherung des ganzen Reiters (ungeformte Werte), dann schreiben

@@ -23,6 +23,7 @@
 
 import { versandArt, VERSANDMETHODE } from './festpreis-verpackung.js';
 import { parseDeZahl } from './zahl-de.js';
+import { MARKE_ERSTATTUNG, MARKE_VERSAND } from './teilerstattung.js';   // NB2
 
 export const PORTO_AB = '2026-07-01';                 // Bestelldatum (Inhaber 18.11.)
 export const PORTO_BESTELLUNG = 'Porto_Bestellung';   // FP_Verkaeufe, additiv
@@ -64,12 +65,24 @@ export function berechnePorto(zeilen, vh, satzAm, alleZeilen = zeilen, { partner
   const leer = { einnahmen: { anzahl: 0, summe: 0 }, kosten: { anzahl: 0, summe: 0, paket: 0, grossbrief: 0 }, saldo: 0,
     abholung: 0, ohneVersand: 0, unbekannt: [], hinweise: [] };
   if (iPb === -1 || iVa === -1) return { ...leer, status: 'keine' };   // Spalten noch nicht angelegt = altes Modell
-  const istStorno = r => t(r[iSto]) !== '';
+  // NB2: Teilerstattungs-Zeilen sind KEIN Storno der Bestellung. "Erstattung #…" (Position) beruehrt das Porto nicht;
+  // "Versanderstattung #…" traegt in Porto_Bestellung den erstatteten Versand (negativ, netto) und mindert die
+  // Porto-Einnahmen der Bestellung (Kosten bleiben - verschickt wurde trotzdem).
+  const istTeil = r => t(r[iSto]).startsWith(MARKE_ERSTATTUNG) || t(r[iSto]).startsWith(MARKE_VERSAND);
+  const istVersandErst = r => t(r[iSto]).startsWith(MARKE_VERSAND);
+  const istStorno = r => t(r[iSto]) !== '' && !istTeil(r);
+  // Erstatteter Versand je Bestellung ueber ALLE Zeilen (fuer das Ganz-Storno: es nimmt nur zurueck, was noch da ist)
+  const versandErstattet = new Map();
+  for (const r of alleZeilen) {
+    if (!istVersandErst(r) || t(r[iPid]) !== fuer) continue;
+    const o = t(r[iOrd]);
+    versandErstattet.set(o, (versandErstattet.get(o) ?? 0) + (zahl(r[iPb]) ?? 0));
+  }
 
   // Originaldaten je Bestellung (auch aus frueheren Abrechnungen): Datum, Porto, Versandmethode, Versandarten, abgerechnet?
   const original = new Map();
   for (const r of alleZeilen) {
-    if (istStorno(r)) continue;
+    if (istStorno(r) || istTeil(r)) continue;
     const o = t(r[iOrd]);
     if (!o) continue;
     const b = original.get(o) ?? { datum: isoAusDE(r[iDat]), porto: null, methode: '', partner: new Map(), abgerechnet: false, neu: false };
@@ -88,8 +101,10 @@ export function berechnePorto(zeilen, vh, satzAm, alleZeilen = zeilen, { partner
   for (const r of zeilen) {
     const o = t(r[iOrd]);
     if (!o) continue;
-    const h = hier.get(o) ?? { plus: 0, minus: 0, erste: true };
-    if (istStorno(r)) h.minus = 1; else h.plus = 1;
+    const h = hier.get(o) ?? { plus: 0, minus: 0, erste: true, versand: 0 };
+    if (istVersandErst(r)) { if (t(r[iPid]) === fuer) h.versand += zahl(r[iPb]) ?? 0; }
+    else if (istTeil(r)) { /* Position erstattet: Porto bleibt */ }
+    else if (istStorno(r)) h.minus = 1; else h.plus = 1;
     hier.set(o, h);
   }
 
@@ -103,15 +118,20 @@ export function berechnePorto(zeilen, vh, satzAm, alleZeilen = zeilen, { partner
     // "erste Abrechnung": Originalzeilen hier zaehlen nur, wenn noch keine Zeile der Bestellung abgerechnet ist
     const plus = h.plus && !b.abgerechnet ? 1 : 0;
     const vorzeichen = plus - h.minus;
-    if (vorzeichen === 0) continue;
+    // Versanderstattung in DIESEN Zeilen: mindert die Einnahme - ausser Plus und Storno heben sich hier ohnehin auf.
+    const versandHier = plus && h.minus ? 0 : h.versand;
+    if (vorzeichen === 0 && !versandHier) continue;
     const art = versandArt(b.methode);
     // ohne Versandmethode zaehlen Einnahme UND Kosten nicht (Hinweis "fehlt"), nie nur die Einnahme.
     if (art === 'unbekannt') { erg.unbekannt.push(o); continue; }
     // Fehlt zum Bestelldatum ein Porto-Satz in Kalkulation_Fixkosten: wie fehlende Versandart (nichts zaehlt, Hinweis).
     if (art !== 'abholung' && art !== 'ohne_versand' && satzAm(b.datum).fehlt?.length) { erg.fixkostenFehlen.push(o); continue; }
-    const einnahme = b.porto ?? 0;
+    // Ganz-Storno nimmt nur die Einnahme zurueck, die nach Versanderstattungen noch da ist (Summe ueber alles = 0).
+    const einnahme = vorzeichen < 0 ? (b.porto ?? 0) + (versandErstattet.get(o) ?? 0) : (b.porto ?? 0);
+    erg.einnahmen.summe += vorzeichen * einnahme + versandHier;
+    if (versandHier) erg.versandErstattet = round2((erg.versandErstattet ?? 0) + versandHier);
+    if (vorzeichen === 0) continue;   // nur Versanderstattung: keine Bestellung mehr oder weniger, keine Kosten
     erg.einnahmen.anzahl += vorzeichen;
-    erg.einnahmen.summe += vorzeichen * einnahme;
     if (art === 'abholung') { erg.abholung++; continue; }
     if (art === 'ohne_versand') { erg.ohneVersand++; continue; }
     const s = satzAm(b.datum);
@@ -130,7 +150,7 @@ export function berechnePorto(zeilen, vh, satzAm, alleZeilen = zeilen, { partner
   if (erg.fixkostenFehlen.length) {
     erg.hinweise.push(`Porto nicht berechnet, Porto-Satz fehlt in Kalkulation_Fixkosten zum Bestelldatum: ${erg.fixkostenFehlen.length} Bestellung(en) (${erg.fixkostenFehlen.slice(0, 5).join(', ')}${erg.fixkostenFehlen.length > 5 ? ', …' : ''}).`);
   }
-  const leerErgebnis = !erg.einnahmen.anzahl && !erg.kosten.anzahl && !erg.abholung && !erg.ohneVersand && !erg.unbekannt.length && !erg.fixkostenFehlen.length;
+  const leerErgebnis = !erg.einnahmen.anzahl && !erg.kosten.anzahl && !erg.versandErstattet && !erg.abholung && !erg.ohneVersand && !erg.unbekannt.length && !erg.fixkostenFehlen.length;
   return { ...erg, status: leerErgebnis ? 'keine' : erg.unbekannt.length || erg.fixkostenFehlen.length ? 'fehlt' : 'ok' };
 }
 
@@ -162,7 +182,7 @@ export function portoZeilen(p) {
   if (!p || p.status === 'keine') return [];
   const fmt = n => Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return [
-    `Porto-Einnahmen (${p.einnahmen.anzahl} Bestellungen): +${fmt(p.einnahmen.summe)} € (netto)`,
+    `Porto-Einnahmen (${p.einnahmen.anzahl} Bestellungen${p.versandErstattet ? `, darin Versand erstattet −${fmt(-p.versandErstattet)} €` : ""}): ${p.einnahmen.summe < 0 ? "−" : "+"}${fmt(Math.abs(p.einnahmen.summe))} € (netto)`,   // NB2
     `Porto-Kosten (${p.kosten.anzahl} Bestellungen, davon ${p.kosten.paket} Paket): −${fmt(p.kosten.summe)} € (netto)`,
   ];
 }

@@ -3,6 +3,8 @@
 // In ESM-Jest muss `jest` explizit aus @jest/globals importiert werden.
 
 import { jest } from '@jest/globals';
+import { schreibAttrappe } from './hilfen/schreib-attrappe.js';
+let schreiben;
 
 jest.unstable_mockModule('googleapis', () => ({
   google: { sheets: jest.fn() },
@@ -74,7 +76,9 @@ beforeAll(async () => {
   };
 
   const { google } = await import('googleapis');
-  google.sheets.mockReturnValue({ spreadsheets: { values: mockValues } });
+  // NB2: Portal-Eigenauftrag schreibt ohne append (schreibeNeueZeilen) - Schreib-Attrappe vor der get-Attrappe
+  schreiben = schreibAttrappe(a => mockValues.get(a));
+  google.sheets.mockReturnValue({ spreadsheets: { ...schreiben.spreadsheets, values: { ...mockValues, get: schreiben.values.get, update: schreiben.values.update } } });
 
   const chatCore = await import('../lib/chatCore.js');
   mockCallChatAgent = chatCore.callChatAgent;

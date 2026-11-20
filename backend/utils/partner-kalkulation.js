@@ -208,8 +208,9 @@ export function baueLizenzSaetze(header, rows) {
         { status: 500 },
       );
     }
-    const s = String(roh.get(id) ?? '').trim().replace('%', '').trim().replace(',', '.');
-    const n = s === '' ? NaN : Number(s);
+    // AUD1-Rest (NB2): ueber parseDeZahl wie die uebrigen Leser (vorher nur das erste Komma ersetzt); streng: nur Ziffern/Trenner.
+    const s = String(roh.get(id) ?? '').trim().replace('%', '').trim();
+    const n = s === '' || !/^-?[\d.,]+$/.test(s) ? NaN : parseDeZahl(s);
     if (!Number.isFinite(n) || n < 0 || n > 100) {
       throw Object.assign(
         new Error(`Lizenzsatz fehlt oder ist ungueltig für Partner ${id}: `
@@ -269,7 +270,8 @@ export function baueVertragsbeginne(header, rows) {
 // (Altzeilen ohne Aufschluesselung, Gewinn 0).
 export function lizenzSatzAusZeile(gewinnNetto, lizenzAnteil) {
   // Sheet liefert deutsch formatierte Strings ("7,5"); Number("7,5") waere NaN.
-  const zahl = v => (typeof v === 'number' ? v : Number(String(v ?? '').trim().replace(',', '.')));
+  // AUD1-Rest (NB2): "1.234,50" (Tausenderpunkt) wurde NaN -> Satz fehlte bei Zeilen ab 1.000 €.
+  const zahl = v => (typeof v === 'number' ? v : /^\s*-?[\d.,]+\s*$/.test(String(v ?? '')) ? parseDeZahl(v) : NaN);
   const g = zahl(gewinnNetto);
   const a = zahl(lizenzAnteil);
   if (!Number.isFinite(g) || !Number.isFinite(a) || Math.abs(g) < 0.005) return null;

@@ -82,7 +82,8 @@ jobs:
           docker push $IMAGE:${{ github.sha }}
           docker push $IMAGE:latest
 
-      # Eine Instanz: die Schreibsperren (Korb, Lager, Auftraege, FP …) gelten je Prozess.
+      # Eine Instanz (--max-instances 1 unten, NICHT erhoehen): die Schreibsperren (Korb, Lager, Auftraege, FP,
+      # Abrechnung …) gelten nur je Instanz/Prozess - mit zwei Instanzen koennten zwei Laeufe gleichzeitig schreiben.
       # Gleichzeitige Anfragen laufen trotzdem parallel (Standard 80 je Instanz).
       # FIX3: Zeitlimit ausdruecklich 600 s (Standard war 300 s) - Backup mit Kontingent-Pause und die Syncs mit
       # Shop-Takt kamen an 300 s heran. Die Workflows warten mit curl --max-time 600 genauso lange.

@@ -1,14 +1,16 @@
 import { Router } from 'express';
 import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
-import { getShopConfig } from '../lib/shopConfig.js';
+import { getShopConfig, getWcClient } from '../lib/shopConfig.js';
 import {
   parseDatum, zeitraeumeUeberlappen, verkaufsSpalten, istStornoZeile,
   verkaufsZeilenDerAbrechnung, interneZeilenDerAbrechnung,
 } from '../utils/abrechnung-zeilen.js';
 import { requireHeader, findHeader } from '../utils/sheet-headers.js';
 import { colLetter, sichereSpalte } from '../utils/sheet-spalten.js';
-import { abrechnungHinweise } from '../utils/sync-logic.js';
+import { abrechnungHinweise, konfigJeTag, bestellTag, STORNO_MARKER, WC_STATES_VERKAUF } from '../utils/sync-logic.js';
+import { buildErstattungRows } from '../utils/teilerstattung.js';   // NB2
+import { vorschauErstattungsHinweise } from '../lib/erstattungen.js';   // NB2
 import { saldoRechnung } from '../utils/partner-saldo.js';
 import { leseKacheln } from './partnerPortal.js';
 import { zugangArt, klartextFuerMc } from '../utils/partner-token.js';
@@ -400,6 +402,14 @@ router.post('/abrechnung/vorschau', async (req, res, next) => {
     // PA2 Teil B: gesperrte Zeilen im Zeitraum werden uebersprungen (Status-Filter
     // oben) und gemeldet; dazu offene Zeilen vor dem Zeitraumbeginn (Nachzuegler).
     const hinweis = abrechnungHinweise({ header: verkäufeTab.header, rows: verkäufeTab.rows, partnerId, von: vonDatum, bis: bisDatum, parseDate });
+    // NB2: Erstattungen zu den Bestellungen im Zeitraum (live aus dem Shop, dieselbe Rechnung wie der Sync), nicht sperrend.
+    const konfigFuerTag = konfigJeTag(d => parseKonfiguration(konfigTab.rows, konfigTab.header, d));
+    hinweis.hinweise.push(...await vorschauErstattungsHinweise({
+      wc: () => getWcClient(req.query.shop), verkaufStati: WC_STATES_VERKAUF,
+      orderIds: offeneImZeitraum.map(row => row[vh('Order-ID')]), orderVon: row => row[vh('Order-ID')],
+      rechne: bestellungen => buildErstattungRows({ vRows: verkäufeTab.rows, vh, bestellungen, partnerFilter: new Set([partnerId]),
+        portoFaktor: () => 1, mwstFuer: o => Number(konfigFuerTag(bestellTag(o)).mwstProzent), stornoMarker: STORNO_MARKER }),
+    }));
 
     const verkaeufe = offeneImZeitraum
       .map(row => ({
