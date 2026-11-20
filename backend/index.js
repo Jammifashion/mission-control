@@ -41,7 +41,7 @@ import dashboardRouter from './routes/dashboard.js';
 import auftraegeRouter from './routes/auftraege.js';
 import bestellseiteRouter from './routes/bestellseite.js';
 import bestellseitenRouter from './routes/bestellseiten.js';
-import { fehlerHandler } from './middleware/fehlerHandler.js';
+import { fehlerHandler, oeffentlich } from './middleware/fehlerHandler.js';
 import { jobAlarm } from './middleware/jobAlarm.js';
 
 // Secrets vor Express-Setup laden – stellt sicher dass process.env.CORS_ORIGIN
@@ -68,11 +68,12 @@ app.use(jobAlarm());   // FIX3 B1: 5xx der Job-Routen -> Chat (gedrosselt, ohne 
 
 // ── Rate limiting → Auth (Reihenfolge: rateLimiter → requireApiKey → Router) ──
 app.use('/api/', apiRateLimiter);
-app.use('/api/partner',      tokenBremse, partnerPortalRouter); // Token-Auth oder eigene Key-Prüfung; PPS1: Bremse nur fuer 401
-app.use('/api/anfragen',           anfragenChatRouter);   // public: nur /chat (kein API-Key nötig)
-app.use('/api/festpreis-public',   tokenBremse, festpreisPublicRouter); // public: Token-Auth (kein API-Key); PPS1: Bremse
+app.use('/api/partner',      oeffentlich, tokenBremse, partnerPortalRouter); // Token-Auth oder eigene Key-Prüfung; PPS1: Bremse nur fuer 401
+app.use('/api/anfragen',           oeffentlich, anfragenChatRouter);   // public: nur /chat (kein API-Key nötig)
+app.use('/api/festpreis-public',   oeffentlich, tokenBremse, festpreisPublicRouter); // public: Token-Auth (kein API-Key); PPS1: Bremse
 app.use('/api/intern',             internRouter);          // Cloud Scheduler: OIDC-Token statt API-Key (CS1)
-app.use('/api/bestellseite',       bestellseiteRouter);    // public: Bestellseite per Token (KS1), Bearer-Token statt API-Key
+app.use('/api/bestellseite',       oeffentlich, bestellseiteRouter);    // public: Bestellseite per Token (KS1), Bearer-Token statt API-Key
+app.use((req, _res, next) => { req.mcOeffentlich = false; next(); });   // FIX4: ab hier MC (API-Schluessel)
 app.use(requireApiKey);
 
 // ── Routes ────────────────────────────────────────────────────────────────────

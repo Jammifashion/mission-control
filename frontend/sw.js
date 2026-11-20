@@ -53,7 +53,10 @@ Bitte neu laden, sobald du wieder online bist.</p></div></body></html>`;
 // iframe in WordPress und liegt nur zufaellig im Scope dieses Workers).
 // partner.html und partner-festpreis.html tragen ihren Token in der URL; die
 // gehoeren nicht in einen Cache, der nach Request-URL schluesselt.
-const NIE_CACHEN = ['/anfrage.html', '/partner.html', '/partner-festpreis.html'];
+// bestellen.html (Bestellseite fuer Kunden, FIX4): eine Kundenseite mit
+// Zugang per Token gehoert nie in den Cache eines fremden Geraets - und eine
+// veraltete Kopie wuerde still mit alten Regeln absenden.
+const NIE_CACHEN = ['/anfrage.html', '/partner.html', '/partner-festpreis.html', '/bestellen.html'];
 
 function istAusgenommen(url) {
   return NIE_CACHEN.some(p => url.pathname.endsWith(p));

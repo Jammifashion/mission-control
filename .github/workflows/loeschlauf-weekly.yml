@@ -1,0 +1,40 @@
+name: Datenschutz-Loeschlauf
+
+on:
+  schedule:
+    - cron: '0 4 * * 0'   # sonntags 04:00 UTC
+  workflow_dispatch:
+
+# Leert Rueckennamen (Bestellseite, Trikots), Kundenanfragen ohne Auftrag und Drucknamen 12 Monate nach Termin/Lieferung/
+# Anfrage/Abschluss. Scharf NUR mit der Repo-Variable LOESCHLAUF_SCHARF = ja (Settings -> Variables), sonst Trockenlauf.
+permissions:
+  contents: read
+
+jobs:
+  loeschlauf:
+    name: Loeschlauf ausfuehren
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST /api/system/loeschlauf
+        env:
+          API_URL: ${{ secrets.BACKEND_URL }}
+          API_KEY: ${{ secrets.MC_API_KEY }}
+          SCHARF: ${{ vars.LOESCHLAUF_SCHARF == 'ja' }}
+        run: |
+          set -euo pipefail
+          if [ -z "$API_URL" ] || [ -z "$API_KEY" ]; then
+            echo "::error::BACKEND_URL oder MC_API_KEY fehlt in GitHub Secrets."
+            exit 1
+          fi
+          echo "scharf: $SCHARF"
+          rc=0
+          http=$(curl -sS --fail-with-body --max-time 600 -X POST \
+            -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+            --data "{\"scharf\": $SCHARF}" -o response.json -w '%{http_code}' \
+            "$API_URL/api/system/loeschlauf") || rc=$?
+          echo "HTTP ${http:-?}"
+          if jq -e . response.json >/dev/null 2>&1; then jq '.ergebnis' response.json; fi
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::Loeschlauf fehlgeschlagen (HTTP ${http:-?})"
+            exit 1
+          fi

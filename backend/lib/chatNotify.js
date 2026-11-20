@@ -72,17 +72,30 @@ function euro(betrag) {
 
 // ── Nachrichtenbau ──────────────────────────────────────────────────────────
 
-export function buildAnfrageNachricht({ anfrageId, kundeName, menge, beschreibung }) {
-  const name  = sauber(kundeName, 60);
+// Kurzthema einer Anfrage aus einer FESTEN Wortliste (nie Freitext): der Space ist ein zweiter Ablageort ohne
+// Loeschkonzept - darum kein Kundenname, kein Zitat der Beschreibung.
+const KURZTHEMEN = [
+  [/kapuze|hoodie|hoody/i, 'Hoodie'], [/sweat|pulli|pullover/i, 'Sweatshirt'], [/zip|jacke/i, 'Jacke'],
+  [/polo/i, 'Polo'], [/trikot/i, 'Trikot'], [/t-?shirt|shirt/i, 'T-Shirt'], [/tank|top/i, 'Top'],
+  [/cap|kappe|mütze|muetze|beanie/i, 'Kopfbedeckung'], [/tasche|beutel|bag/i, 'Tasche'], [/tasse|becher/i, 'Tasse'],
+  [/sticker|aufkleber/i, 'Sticker'], [/banner|fahne/i, 'Banner'], [/hose|jogg/i, 'Hose'],
+];
+export function kurzthema(beschreibung) {
+  const t = String(beschreibung ?? '');
+  const treffer = [];
+  for (const [re, wort] of KURZTHEMEN) if (re.test(t) && !treffer.includes(wort)) treffer.push(wort);
+  return treffer.slice(0, 3).join(', ');
+}
+
+/** Neue Kundenanfrage: nur Anfrage-Nr., Kurzthema (feste Wortliste) und Menge - kein Name, kein Freitext. */
+export function buildAnfrageNachricht({ anfrageId, menge, beschreibung }) {
   const m     = String(menge ?? '').trim();
-  const mStr  = m ? (/^\d+$/.test(m) ? `${m} Stück` : sauber(m, 30)) : '';
-  const zeile2 = [name, mStr].filter(Boolean).join(' · ');
-  const zitat  = sauber(beschreibung, 120);
+  const mStr  = /^\d+$/.test(m) ? `${m} Stück` : '';
+  const zeile2 = [kurzthema(beschreibung), mStr].filter(Boolean).join(' · ');
 
   return [
     `🟢 Neue Anfrage · ${anfrageId}`,
     zeile2,
-    zitat ? `"${zitat}"` : '',
     LINK,
   ].filter(Boolean).join('\n');
 }

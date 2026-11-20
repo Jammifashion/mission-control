@@ -7,6 +7,7 @@ import {
   lexofficeSchreibenBereit, legeInLexofficeAn, verknuepfeMitLexoffice,
 } from '../lib/kunden.js';
 import { leseAuftragZahlen, leereDrucknamen } from '../lib/auftraege.js';
+import { leseFundstellen, leereFundstellen } from '../lib/kundeFundstellen.js';
 
 const router = Router();
 
@@ -95,6 +96,16 @@ router.post('/dsgvo-sperren', mitMeldung(async req => {
   } catch (err) {
     r.drucknamen = { fehler: `Drucknamen nicht geleert (${err.code || err.status || 'Fehler'}) – bitte „DSGVO-Sperre“ noch einmal ausführen.` };
   }
+  return r;
+}));
+
+// ── FIX4: DSGVO-Pruefliste - wo kommt der Kunde sonst noch vor? (nur Anzahlen) ──────────────
+// POST /fundstellen { kundenNr } -> { bereiche: [{ bereich, label, zeilen, zellen }] }
+// POST /fundstellen/leeren { kundenNr, bereich } -> { bereich, geleert } (nach Rueckfrage in MC, nichts automatisch)
+router.post('/fundstellen', mitMeldung(async req => leseFundstellen({ kundenNr: req.body?.kundenNr })));
+router.post('/fundstellen/leeren', mitMeldung(async req => {
+  const r = await leereFundstellen({ kundenNr: req.body?.kundenNr, bereich: String(req.body?.bereich ?? '') });
+  console.log(`DSGVO-Fundstellen geleert: ${r.kundenNr} ${r.bereich} ${r.geleert} Zelle(n)`);
   return r;
 }));
 

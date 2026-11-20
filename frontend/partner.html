@@ -2,6 +2,8 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
+  <!-- FIX4: CSP Stufe 1 (Inline-Skripte noch erlaubt, Stufenplan im Bericht FIX4) -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://mission-control-backend-181760755456.europe-west1.run.app; frame-src 'none'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="referrer" content="no-referrer">
   <script>
@@ -492,7 +494,7 @@
             <span class="amount saldo-positive">+${fmt(lizenzNetto)}</span>
           </div>
           <div class="saldo-row muted">
-            <span>zzgl. MwSt (${data.mwstProzent ?? 0} %)</span>
+            <span>zzgl. MwSt (${plEsc(data.mwstProzent ?? 0)} %)</span>
             <span class="amount">+${fmt(lizenzBrutto - lizenzNetto)}</span>
           </div>
           <div class="saldo-row">
@@ -512,7 +514,7 @@
             Nur offene, noch nicht abgerechnete Positionen${data.saldoNetto !== undefined ? ` · entspricht netto ${fmt(data.saldoNetto)}` : ''}.
           </p>`;
       } catch (e) {
-        wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${e.message}</p>`;
+        wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${plEsc(e.message)}</p>`;
       }
     }
 
@@ -538,7 +540,7 @@
           </p>
           ${rows.map(r => renderAbrechnungBlock(r)).join('')}`;
       } catch (e) {
-        wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${e.message}</p>`;
+        wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${plEsc(e.message)}</p>`;
       }
     }
 
@@ -565,7 +567,7 @@
       const lizenzBrutto = p.lizenzBrutto ?? (lizenzNetto * (1 + mwst / 100));
       const mwstRow = mwst ? `
             <div class="saldo-row muted">
-              <span>zzgl. MwSt (${mwst} %)</span>
+              <span>zzgl. MwSt (${plEsc(mwst)} %)</span>
               <span class="amount">+${fmt(lizenzBrutto - lizenzNetto)}</span>
             </div>` : '';
 
@@ -573,9 +575,9 @@
         <div class="abr-card">
           <div class="abr-header">
             <div>
-              <strong>${r.abrechnungId}</strong>
-              <span class="abr-zeitraum">&nbsp;·&nbsp;${r.zeitraumVon} – ${r.zeitraumBis}</span>
-              <span class="badge ${badgeClass(r.status)}" style="margin-left:0.5rem;">${r.status}</span>
+              <strong>${plEsc(r.abrechnungId)}</strong>
+              <span class="abr-zeitraum">&nbsp;·&nbsp;${plEsc(r.zeitraumVon)} – ${plEsc(r.zeitraumBis)}</span>
+              <span class="badge ${badgeClass(r.status)}" style="margin-left:0.5rem;">${plEsc(r.status)}</span>
             </div>
             <div class="abr-summe ${summeCls}">${summeSign}${fmt(Math.abs(r.saldo))}</div>
           </div>
@@ -676,7 +678,7 @@
       } catch (e) {
         if (e.status === 401 || e.status === 403)
           showError('Kein Zugang.<br>Dein Token ist ungültig oder dein Konto wurde deaktiviert.');
-        else showError(`Fehler beim Laden: ${e.message}`);
+        else showError(`Fehler beim Laden: ${plEsc(e.message)}`);
         return;
       }
 

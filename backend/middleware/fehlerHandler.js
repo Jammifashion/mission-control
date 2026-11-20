@@ -23,10 +23,20 @@ export function fehlerText(err, req) {
   return JSON.stringify(fehlerKurz(err, req));
 }
 
+// Oeffentliche Routen (Partnerportale, Kundenchat, Bestellseite): bei 5xx nie den internen Fehlertext nach aussen -
+// Reiter-, Bereichs- und Modellnamen, Kontingentmeldungen gehoeren nicht in den Browser eines Fremden. Fester Text +
+// Code (nur ein sauberer Code, sonst "fehler"). 4xx-Meldungen sind fuer den Nutzer geschrieben und bleiben.
+export const OEFFENTLICH_TEXT = 'Gerade nicht möglich – bitte später noch einmal versuchen.';
+const sichererCode = c => (typeof c === 'string' && /^[a-z][a-z0-9_]{1,40}$/.test(c) ? c : 'fehler');
+/** Markiert eine Anfrage als oeffentlich (vor den oeffentlichen Routern in index.js eingehaengt). */
+export function oeffentlich(req, _res, next) { req.mcOeffentlich = true; next(); }
+
 export function fehlerHandler(err, req, res, _next) {
   console.error(`[fehler] ${fehlerText(err, req)}`);
+  const status = err?.status ?? 500;
+  if (req?.mcOeffentlich && status >= 500) return res.status(status).json({ error: OEFFENTLICH_TEXT, code: sichererCode(err?.code) });
   const message = process.env.NODE_ENV === 'production'
     ? (err?.message || 'Interner Serverfehler.')
     : (err?.stack || err?.message || 'Interner Serverfehler.');
-  res.status(err?.status ?? 500).json({ error: message });
+  res.status(status).json({ error: message });
 }

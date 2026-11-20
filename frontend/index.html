@@ -2,6 +2,8 @@
 <html lang="de">
   <head>
     <meta charset="UTF-8" />
+    <!-- FIX4: CSP Stufe 1 (Inline-Skripte noch erlaubt, Stufenplan im Bericht FIX4); Bilder aus Shop/Mediathek/CDN = https: -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://mission-control-backend-181760755456.europe-west1.run.app; media-src 'self' data: blob:; frame-src 'none'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0f0f0f" />
     <meta name="description" content="Mission Control – JammiFashion Dashboard" />
@@ -878,6 +880,7 @@
       .ku-knoepfe { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
       .ku-knoepfe .ku-luecke { flex: 1 1 auto; }
       .ku-gefahr { color: var(--danger); border-color: var(--danger); }
+      .ku-funde { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.4rem; }   /* FIX4 */
       .ku-liste { display: flex; flex-direction: column; gap: 0.4rem; }
       .ku-zeile { display: grid; grid-template-columns: 6.5rem 1fr auto; gap: 0.25rem 0.75rem; align-items: center; padding: 0.55rem 0.7rem; border: 1px solid var(--border); border-radius: 8px;
         background: color-mix(in srgb, var(--text) 4%, var(--surface)); }   /* FK6: Zeile in der Karte abgesetzt (dunkel heller, hell dunkler) */
@@ -3425,6 +3428,35 @@
           <div class="aw-hint-box">⚠️ Keine kunden-spezifischen Konditionen hier speichern (Datenschutz)</div>
         </div>
 
+        <!-- Sektion 4 (FIX4): Beispiele fuer den Kundenchat - nur diese gehen in den Prompt, nie echte Anfragen -->
+        <div class="card inhalt-breit" style="margin-bottom:1rem;">
+          <div class="form-section-title">Beispiele für den Kundenchat</div>
+          <div id="aw-beispiel-wrap"><div class="skeleton" style="height:60px;"></div></div>
+          <div style="margin-top:0.75rem;">
+            <button class="btn-secondary" id="aw-beispiel-add-btn" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="aw-eintrag-neu">+ Eintrag hinzufügen</button>
+          </div>
+          <div class="aw-add-form" id="aw-beispiel-add-form" style="display:none;">
+            <div class="aw-add-row">
+              <div class="aw-add-field">
+                <label>Schlüssel (Artikel, anonym)</label>
+                <input class="aw-input" id="aw-beispiel-new-key" placeholder="z.B. Vereinsshirts 1-farbig Brust" />
+              </div>
+              <div class="aw-add-field" style="flex:2;">
+                <label>Wert (Menge und Preis)</label>
+                <input class="aw-input" id="aw-beispiel-new-val" placeholder="z.B. Menge 30 · ca. 14 € je Stück" />
+              </div>
+              <div class="aw-add-field" style="flex:2;">
+                <label>Notiz</label>
+                <input class="aw-input" id="aw-beispiel-new-notiz" placeholder="Optionale Notiz" />
+              </div>
+              <div>
+                <button class="btn" id="aw-beispiel-save-new" style="font-size:0.82rem;padding:0.42rem 0.85rem;" data-hilfe="aw-eintrag-speichern">Hinzufügen</button>
+              </div>
+            </div>
+          </div>
+          <div class="aw-hint-box">Diese Beispiele sieht der Kundenchat (Jey). Nur ausgedachte bzw. anonyme Beispiele – keine Namen, keine Vereine. Leer = keine Beispiele.</div>
+        </div>
+
         <!-- Sektion 4: Agent-Prompt Editor -->
         <div class="card">
           <div class="form-section-title" style="display:flex;align-items:center;gap:0.6rem;">
@@ -3893,6 +3925,8 @@
               <input id="ku-dsgvo-nr" type="text" class="form-input" autocomplete="off" placeholder="Kunden-Nr. eintippen, z. B. K-00012" aria-label="Kunden-Nr. zur Bestätigung" />
               <button type="button" class="korb-aktion korb-aktion-ruhig ku-gefahr" id="ku-dsgvo-ok" data-hilfe="ku-dsgvo-ok">endgültig sperren</button>
             </div>
+            <!-- FIX4: Pruefliste - wo kommt der Kunde sonst noch vor (nur Anzahlen), leeren je Bereich nach Rueckfrage -->
+            <div id="ku-dsgvo-funde" class="ku-funde" data-hilfe="ku-funde" hidden></div>
             <div id="ku-fehler" class="lager-warnung" hidden></div>
             <div class="korb-reihe ku-knoepfe">
               <button type="button" class="korb-aktion korb-aktion-haupt" id="ku-speichern" data-hilfe="ku-speichern">Speichern</button>
@@ -5417,7 +5451,7 @@
               </div>`;
           }).join('');
         } catch (e) {
-          el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Fehler: ${e.message}</p>`;
+          el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Fehler: ${monEsc(e.message)}</p>`;
         }
       }
 
@@ -5610,7 +5644,7 @@
               </div>`;
           }).join('');
         } catch (e) {
-          el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Fehler: ${e.message}</p>`;
+          el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Fehler: ${monEsc(e.message)}</p>`;
         }
       }
 
@@ -7116,6 +7150,8 @@
         'ku-zurueckholen':      { name: 'Zurückholen', text: 'Macht einen archivierten Kunden wieder aktiv.' },
         'ku-dsgvo':             { name: 'DSGVO sperren …', text: 'Löschwunsch des Kunden: leert Name, Kontakt, Adresse und Notiz. Fragt zweimal, nicht rückgängig zu machen.' },
         'ku-dsgvo-ok':          { name: 'endgültig sperren', text: 'Zweite Bestätigung: erst die Kunden-Nr. eintippen, dann sperren.' },
+        'ku-funde':             { name: 'Weitere Fundstellen', text: 'Wo der Kunde sonst noch vorkommt (nur Anzahl). Gesucht über Kunden-Nr., Name und E-Mail.' },
+        'ku-fund-leeren':       { name: 'leeren …', text: 'Leert die genannten Felder in diesem Bereich. Fragt vorher nach, Zeilen bleiben.' },
         // AM-1-1: einzelne Kunden aus Lexoffice holen, Dashboard-Kachel
         'ku-lex-suchen':        { name: 'In Lexoffice suchen …', text: 'Kunde fehlt hier? Sucht in Lexoffice mit deinem Suchbegriff; du wählst den richtigen und übernimmst nur diesen.' },
         'kl-feld':              { name: 'Suchen nach', text: 'Name oder E-Mail (ab 3 Zeichen, auch Teilwörter) oder die Kundennummer aus Lexoffice.' },
@@ -7416,7 +7452,7 @@
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag', 'tr-aendern-gesperrt', 'ti-goalie', 'tr-goalie', 'tr-gk-pruefen', 'tr-gk-markieren', 'tr-gk-kein', 'tr-zahlung-unbezahlt', 'tr-zahlung-erstattet', 'tr-zahlung-storniert', 'tr-zahlung-fehlt', 'tr-zahlung-filter'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfbs-g-rueckstand', 'lfbs-g-vorraetig', 'lfbs-lager', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
-        auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'fp-porto-einnahmen', 'fp-porto-kosten', 'ps-lager', 'ps-lager-bestellt', 'korb-bestellung', 'korb-aus-lager-erledigt', 'korb-erledigt', 'korb-lager-knapp', 'korb-sammel-erledigt', 'ku-lex-anlegen', 'ku-lex-nachholen', 'ku-lex-verknuepfen', 'ku-lex-trotzdem', 'au-suche', 'au-filter', 'au-neu', 'au-schnell-text', 'au-schnell-los', 'au-schnell-datenschutz', 'au-schnell-kunde', 'au-schnell-kunde-neu', 'ku-vorbelegt', 'au-schnell-modell', 'au-schnell-todo', 'au-schnell-unsicher', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-pos-da', 'au-pos-we', 'au-entfernen', 'au-entfernt-liste', 'au-wiederherstellen', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-druckname', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern',
+        auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-funde', 'ku-fund-leeren', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'fp-porto-einnahmen', 'fp-porto-kosten', 'ps-lager', 'ps-lager-bestellt', 'korb-bestellung', 'korb-aus-lager-erledigt', 'korb-erledigt', 'korb-lager-knapp', 'korb-sammel-erledigt', 'ku-lex-anlegen', 'ku-lex-nachholen', 'ku-lex-verknuepfen', 'ku-lex-trotzdem', 'au-suche', 'au-filter', 'au-neu', 'au-schnell-text', 'au-schnell-los', 'au-schnell-datenschutz', 'au-schnell-kunde', 'au-schnell-kunde-neu', 'ku-vorbelegt', 'au-schnell-modell', 'au-schnell-todo', 'au-schnell-unsicher', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-pos-da', 'au-pos-we', 'au-entfernen', 'au-entfernt-liste', 'au-wiederherstellen', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-druckname', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern',
           'au-hist-chip', 'au-hist-aus', 'au-hist-drin', 'au-hist-mehr', 'au-hist-preis', 'au-preis-von', 'au-hist-lfb', 'au-wie-letztes', 'au-vorlage-von',
           'ku-hist', 'ku-hist-neu', 'ku-hist-frei-neu', 'ku-mit-storniert', 'ku-wie-letztes',
           'au-letzte', 'au-letzte-alle', 'au-ns-schliessen', 'au-ns-vorlage', 'au-ek-von', 'au-bestellseite', 'ku-dauer-bestellseite',
@@ -11289,6 +11325,7 @@
         kuEl('ku-dsgvo').hidden = !kunde || gesperrt;
         kuEl('ku-dauer-bestellseite').hidden = !kunde || k.Status !== 'aktiv';   // KS1
         kuEl('ku-dsgvo-schritt').hidden = true;
+        kuEl('ku-dsgvo-funde').hidden = true;   // FIX4
         kuEl('ku-dsgvo-nr').value = '';
         kuDialogFehler('');
         kuEl('ku-auftraege-block').hidden = !kunde;
@@ -11467,7 +11504,46 @@
         if (!ok) return;
         kuEl('ku-dsgvo-schritt').hidden = false;
         kuEl('ku-dsgvo-nr').focus();
+        kuFundeLaden(k.Kunden_Nr);   // FIX4: Pruefliste (vor dem Sperren - danach fehlen Name/Mail fuer die Suche)
       }
+      // ── Kunde-Fundstellen: Anfang (FIX4) ──
+      function kuFundeHtml(bereiche) {
+        const da = (bereiche ?? []).filter(x => x.zeilen > 0);
+        if (!da.length) return '<div class="korb-zaehler">Sonst nirgends gefunden (Aufträge, Aufgaben, Bestellseite, Trikots, Kundenanfragen).</div>';
+        return '<div class="korb-zaehler">Kommt außerdem vor – vor dem Sperren je Bereich leeren (fragt nach):</div>'
+          + da.map(x => `<div class="korb-reihe"><span>${kuEsc(x.label)}: ${x.zeilen} Zeile${x.zeilen === 1 ? '' : 'n'}</span>`
+            + `<button type="button" class="korb-aktion korb-aktion-ruhig ku-gefahr" data-ku-fund-leeren="${kuEsc(x.bereich)}" data-hilfe="ku-fund-leeren">leeren …</button></div>`).join('');
+      }
+      // ── Kunde-Fundstellen: Ende ──
+      async function kuFundeLaden(nr) {
+        const box = kuEl('ku-dsgvo-funde');
+        box.hidden = false;
+        box.innerHTML = '<div class="korb-zaehler">Prüfe weitere Fundstellen …</div>';
+        try {
+          const j = await apiJson(await apiFetch(`${API_BASE()}/api/kunden/fundstellen`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kundenNr: nr }) }));
+          kuZ.funde = j.bereiche;
+          box.innerHTML = kuFundeHtml(j.bereiche);
+        } catch (e) {
+          box.innerHTML = `<div class="lager-warnung">Weitere Fundstellen nicht prüfbar: ${kuEsc(e.message)}</div>`;
+        }
+      }
+      kuEl('ku-dsgvo-funde').addEventListener('click', async e => {
+        const b = e.target.closest('[data-ku-fund-leeren]');
+        const k = kuZ.offen;
+        if (!b || !k) return;
+        const x = (kuZ.funde ?? []).find(f => f.bereich === b.dataset.kuFundLeeren);
+        const ok = await showConfirm('Fundstellen leeren?',
+          `<p>${kuEsc(x?.label ?? '')}: ${x?.zeilen ?? 0} Zeile(n) von ${kuEsc(k.Kunden_Nr)} – die genannten Felder werden geleert, die Zeilen bleiben. Nicht rückgängig zu machen.</p>`, 'Leeren');
+        if (!ok) return;
+        b.disabled = true;
+        try {
+          const r = await apiJson(await apiFetch(`${API_BASE()}/api/kunden/fundstellen/leeren`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kundenNr: k.Kunden_Nr, bereich: b.dataset.kuFundLeeren }) }));
+          showToast(`${r.geleert} Feld(er) geleert.`);
+        } catch (err) {
+          showToast(`Nicht geleert: ${err.message}`, 'error', 10000);
+        }
+        kuFundeLaden(k.Kunden_Nr);
+      });
       async function kuDsgvoOk() {
         const k = kuZ.offen;
         if (!k) return;
@@ -14995,7 +15071,7 @@
           const attrsEl = document.createElement('div');
           attrsEl.className = 'variant-attrs';
           attrsEl.innerHTML = v.attrs.map(a =>
-            `<span class="variant-attr-chip">${a.name}: ${a.value}</span>`
+            `<span class="variant-attr-chip">${monEsc(a.name)}: ${monEsc(a.value)}</span>`
           ).join('');
 
           const priceEl = document.createElement('input');
@@ -17953,7 +18029,7 @@
           const liste = await apiJson(await apiFetch(`${API_BASE()}/api/seo/artikel-suche?q=${encodeURIComponent(q)}`));
           sel.innerHTML = liste.length
             ? '<option value="">— Artikel auswählen —</option>' + liste.map(a =>
-                `<option value="${a.id}">${a.id} – ${a.sku ? a.sku + ' – ' : ''}${a.name}</option>`).join('')
+                `<option value="${monEsc(a.id)}">${monEsc(a.id)} – ${a.sku ? monEsc(a.sku) + ' – ' : ''}${monEsc(a.name)}</option>`).join('')
             : '<option value="">Kein veröffentlichter Artikel gefunden</option>';
         } catch (e) {
           setSelectError(sel, e.message);
@@ -18071,8 +18147,8 @@
           if (dubletten.length) {
             const ok = await showConfirm(
               'Keyphrase schon vergeben',
-              `„${kw.wert}“ hängt schon an:<br>` +
-              dubletten.map(d => `<strong>${d.id}</strong> – ${d.name}`).join('<br>') +
+              `„${monEsc(kw.wert)}“ hängt schon an:<br>` +
+              dubletten.map(d => `<strong>${monEsc(d.id)}</strong> – ${monEsc(d.name)}`).join('<br>') +
               '<br><br>Trotzdem schreiben?',
               'Trotzdem schreiben',
             );
@@ -18141,7 +18217,7 @@
           }
           sel.innerHTML = '<option value="">— Artikel auswählen —</option>' +
             seoPendingList.map((item, i) =>
-              `<option value="${i}">${item.artikelnummer ? item.artikelnummer + ' – ' : ''}${item.produktname}</option>`
+              `<option value="${i}">${item.artikelnummer ? monEsc(item.artikelnummer) + ' – ' : ''}${monEsc(item.produktname)}</option>`
             ).join('');
         } catch (e) {
           seoPendingList = [];
@@ -18682,7 +18758,7 @@
           } else {
             sel.innerHTML = '<option value="">— Artikel auswählen —</option>' +
               seoPendingList.map((item, i) =>
-                `<option value="${i}">${item.artikelnummer ? item.artikelnummer + ' – ' : ''}${item.produktname}</option>`
+                `<option value="${i}">${item.artikelnummer ? monEsc(item.artikelnummer) + ' – ' : ''}${monEsc(item.produktname)}</option>`
               ).join('');
           }
 
@@ -19061,7 +19137,7 @@
             list.forEach(p => {
               const div = document.createElement('div');
               div.className = 'wc-search-item';
-              div.innerHTML = `${p.sku ? `<strong>${p.sku}</strong> – ` : ''}${p.name}<span class="wc-item-status">[${p.status}]</span>`;
+              div.innerHTML = `${p.sku ? `<strong>${monEsc(p.sku)}</strong> – ` : ''}${monEsc(p.name)}<span class="wc-item-status">[${monEsc(p.status)}]</span>`;
               div.addEventListener('click', () => {
                 wcSearchResults.style.display = 'none';
                 wcSearchInput.value = p.sku ? `${p.sku} – ${p.name}` : p.name;
@@ -19256,7 +19332,7 @@
               'Artikelnummer geändert',
               'Die Artikelnummer ist der Upsert-Schlüssel. Nach dem Speichern entsteht eine ' +
               'zweite Zeile in der Erfassungsmaske, die alte muss geprüft und entfernt werden.' +
-              `<br><br>Alt: <strong>${wcEditSkuOriginal}</strong><br>Neu: <strong>${artNrUpd}</strong>`,
+              `<br><br>Alt: <strong>${monEsc(wcEditSkuOriginal)}</strong><br>Neu: <strong>${monEsc(artNrUpd)}</strong>`,
               'Trotzdem speichern',
             );
             if (!weiter) {
@@ -19664,7 +19740,7 @@
 
           const confirmed = await showConfirm(
             'Artikel bereits vorhanden',
-            `Artikel <strong>${artikelnummer}</strong> existiert bereits (ID: <strong>${data.ssotId}</strong>).<br>Wirklich überschreiben?`,
+            `Artikel <strong>${monEsc(artikelnummer)}</strong> existiert bereits (ID: <strong>${monEsc(data.ssotId)}</strong>).<br>Wirklich überschreiben?`,
             'Überschreiben'
           );
 
@@ -20499,7 +20575,7 @@
 
       async function loadAgentWissen() {
         if (awData) return;
-        ['aw-produkt-wrap', 'aw-ton-wrap', 'aw-info-wrap'].forEach(id => {
+        ['aw-produkt-wrap', 'aw-ton-wrap', 'aw-info-wrap', 'aw-beispiel-wrap'].forEach(id => {
           document.getElementById(id).innerHTML = '<div class="skeleton" style="height:60px;"></div>';
         });
         try {
@@ -20509,8 +20585,9 @@
           awRenderSection('produkt');
           awRenderSection('ton');
           awRenderSection('info');
+          awRenderSection('beispiel');   // FIX4: Beispiele fuer den Kundenchat
         } catch (e) {
-          ['aw-produkt-wrap', 'aw-ton-wrap', 'aw-info-wrap'].forEach(id => {
+          ['aw-produkt-wrap', 'aw-ton-wrap', 'aw-info-wrap', 'aw-beispiel-wrap'].forEach(id => {
             document.getElementById(id).innerHTML =
               `<div style="color:var(--danger);font-size:0.85rem;padding:0.5rem 0;">Fehler: ${awEsc(e.message)}</div>`;
           });
@@ -20578,7 +20655,7 @@
       }
 
       // Inline-Formular toggle + POST für alle drei Typen
-      ['produkt', 'ton', 'info'].forEach(typ => {
+      ['produkt', 'ton', 'info', 'beispiel'].forEach(typ => {
         document.getElementById(`aw-${typ}-add-btn`).addEventListener('click', () => {
           const form = document.getElementById(`aw-${typ}-add-form`);
           form.style.display = form.style.display === 'none' ? '' : 'none';
@@ -21035,19 +21112,19 @@
                 <tbody>${_ppPartners.map(p => `
                   <tr>
                     <td>${_escHtml(p.name)}</td>
-                    <td>${p.kategorie || '–'}</td>
-                    <td>${p.lizenzProzent}%</td>
-                    <td>${p.portoModell || '–'}</td>
+                    <td>${_escHtml(p.kategorie || '–')}</td>
+                    <td>${_escHtml(p.lizenzProzent)}%</td>
+                    <td>${_escHtml(p.portoModell || '–')}</td>
                     <td>${p.shop === 'honk' ? 'HONK' : p.shop === 'jfn' ? 'JFN' : 'Beide'}</td>
                     <td><span class="badge ${p.aktiv ? 'badge-completed' : 'badge-cancelled'}">${p.aktiv ? 'Aktiv' : 'Inaktiv'}</span></td>
                     <td style="white-space:nowrap;">
                       ${partnerZugangHtml(p.zugang)}
                     </td>
                     <td style="white-space:nowrap;">
-                      <button class="btn-secondary btn-xs" data-pp-edit="${p.id}" data-hilfe="liste-bearbeiten">Bearbeiten</button>
-                      <button class="btn-ghost btn-xs" data-pp-toggle="${p.id}" data-aktiv="${p.aktiv}" style="margin-left:0.3rem;" data-hilfe="partner-aktiv">${p.aktiv ? 'Deaktivieren' : 'Aktivieren'}</button>
+                      <button class="btn-secondary btn-xs" data-pp-edit="${_escHtml(p.id)}" data-hilfe="liste-bearbeiten">Bearbeiten</button>
+                      <button class="btn-ghost btn-xs" data-pp-toggle="${_escHtml(p.id)}" data-aktiv="${_escHtml(p.aktiv)}" style="margin-left:0.3rem;" data-hilfe="partner-aktiv">${p.aktiv ? 'Deaktivieren' : 'Aktivieren'}</button>
                       ${partnerKopierenHtml('lizenz', p.id, p.zugang, p.kopierbar)}
-                      <button class="btn-secondary btn-xs" data-pp-gen-token="${p.id}" style="margin-left:0.3rem;" data-hilfe="token-neu">${p.zugang ? 'Link neu erzeugen …' : 'Link erzeugen …'}</button>
+                      <button class="btn-secondary btn-xs" data-pp-gen-token="${_escHtml(p.id)}" style="margin-left:0.3rem;" data-hilfe="token-neu">${p.zugang ? 'Link neu erzeugen …' : 'Link erzeugen …'}</button>
                     </td>
                   </tr>`).join('')}
                 </tbody>
@@ -21084,7 +21161,7 @@
             });
           });
         } catch (e) {
-          wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+          wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${_escHtml(e.message)}</p>`;
         }
         // HonkShop: "Neuer Partner" sperren wenn bereits ein Partner vorhanden
         const addBtn = document.getElementById('btn-add-partner');
@@ -21106,7 +21183,7 @@
         const katNames = (window.ssot?.kategorien ?? [])
           .map(k => (k['Kategoriename'] || '').trim()).filter(Boolean);
         const katOptions = katNames.map(k =>
-          `<option value="${k}"${isEdit && partner.kategorie === k ? ' selected' : ''}>${k}</option>`
+          `<option value="${_escHtml(k)}"${isEdit && partner.kategorie === k ? ' selected' : ''}>${_escHtml(k)}</option>`
         ).join('');
         const selPorto = cur =>
           ['geteilt-50-50', 'partner-trägt'].map(v =>
@@ -21120,7 +21197,7 @@
               <div class="form-grid">
                 <div class="form-field form-col-full">
                   <label>Name *</label>
-                  <input class="form-input" id="pp-f-name" value="${isEdit ? partner.name : ''}" placeholder="Partnername">
+                  <input class="form-input" id="pp-f-name" value="${isEdit ? _escHtml(partner.name) : ''}" placeholder="Partnername">
                 </div>
                 <div class="form-field">
                   <label>Hauptkategorie</label>
@@ -21130,7 +21207,7 @@
                 </div>
                 <div class="form-field">
                   <label>Lizenz-%</label>
-                  <input class="form-input" type="number" id="pp-f-lizenz" min="0" max="100" step="0.1" value="${isEdit ? partner.lizenzProzent : 0}">
+                  <input class="form-input" type="number" id="pp-f-lizenz" min="0" max="100" step="0.1" value="${isEdit ? _escHtml(partner.lizenzProzent) : 0}">
                 </div>
                 <div class="form-field">
                   <label>Porto-Modell</label>
@@ -21152,7 +21229,7 @@
                 </div>
                 <div class="form-field">
                   <label>Vertrag ab</label>
-                  <input class="form-input" id="pp-f-vertrag" value="${isEdit ? (partner.vertragAb || '') : ''}" placeholder="TT.MM.JJJJ – leer = keine Grenze"
+                  <input class="form-input" id="pp-f-vertrag" value="${isEdit ? _escHtml(partner.vertragAb || '') : ''}" placeholder="TT.MM.JJJJ – leer = keine Grenze"
                     title="Bestellungen vor diesem Datum synchronisiert der Sync nicht für diesen Partner, und Abrechnungen mit solchen Zeilen werden abgelehnt.">
                 </div>
               </div>
@@ -21197,7 +21274,7 @@
       async function togglePartnerAktiv(id, currentAktiv) {
         const confirmed = await window.showConfirm(
           currentAktiv ? 'Partner deaktivieren?' : 'Partner aktivieren?',
-          `Partner <strong>${id}</strong> wird ${currentAktiv ? 'deaktiviert' : 'aktiviert'}.`,
+          `Partner <strong>${_escHtml(id)}</strong> wird ${currentAktiv ? 'deaktiviert' : 'aktiviert'}.`,
           currentAktiv ? 'Deaktivieren' : 'Aktivieren'
         );
         if (!confirmed) return;
@@ -21331,14 +21408,14 @@
           wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
             <thead><tr><th>Druckposition</th><th>Größe</th><th>Preis Netto</th><th>Gültig Ab</th><th>Aktionen</th></tr></thead>
             <tbody>${_dpRows.map((r, i) => `<tr>
-              <td>${r.druckposition}</td><td>${r.groesse}</td>
-              <td>${r.preisNetto.toFixed(2)} €</td><td>${r.gueltigAb || '–'}</td>
+              <td>${_escHtml(r.druckposition)}</td><td>${_escHtml(r.groesse)}</td>
+              <td>${r.preisNetto.toFixed(2)} €</td><td>${_escHtml(r.gueltigAb || '–')}</td>
               <td><button class="btn-secondary btn-xs" data-dp-i="${i}" data-hilfe="liste-bearbeiten">Bearbeiten</button></td>
             </tr>`).join('')}</tbody>
           </table></div>`;
           wrap.querySelectorAll('[data-dp-i]').forEach(btn =>
             btn.addEventListener('click', () => openDruckpreisModal(_dpRows[+btn.dataset.dpI])));
-        } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`; }
+        } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${_escHtml(e.message)}</p>`; }
       }
 
       function openDruckpreisModal(ex = null) {
@@ -21348,15 +21425,15 @@
           <div class="modal-title">${isNew ? 'Druckpreis hinzufügen' : 'Druckpreis / neue Version'}</div>
           <div style="margin-top:1.1rem;"><div class="form-grid">
             <div class="form-field"><label>Druckposition *</label>
-              <input class="form-input" id="dp-pos" value="${isNew ? '' : ex.druckposition}" placeholder="z.B. Brust vorne"></div>
+              <input class="form-input" id="dp-pos" value="${isNew ? '' : _escHtml(ex.druckposition)}" placeholder="z.B. Brust vorne"></div>
             <div class="form-field"><label>Größe *</label>
               <select class="form-select" id="dp-gr">
                 ${['Klein','Mittel','Groß'].map(v => `<option${(!isNew && ex.groesse===v)?' selected':''}>${v}</option>`).join('')}
               </select></div>
             <div class="form-field"><label>Preis Netto (€) *</label>
-              <input class="form-input" type="number" id="dp-pr" step="0.01" min="0" value="${isNew ? '' : ex.preisNetto}"></div>
+              <input class="form-input" type="number" id="dp-pr" step="0.01" min="0" value="${isNew ? '' : _escHtml(ex.preisNetto)}"></div>
             <div class="form-field"><label>Gültig Ab</label>
-              <input class="form-input" type="date" id="dp-ab" value="${isNew ? '' : _toIso(ex.gueltigAb)}"></div>
+              <input class="form-input" type="date" id="dp-ab" value="${isNew ? '' : _escHtml(_toIso(ex.gueltigAb))}"></div>
           </div><div class="modal-actions" style="margin-top:1.25rem;">
             <button class="btn-secondary" id="dp-x" data-hilfe="dialog-abbrechen">Abbrechen</button>
             <button class="btn" id="dp-ok" data-hilfe="dialog-speichern">Hinzufügen</button>
@@ -21400,7 +21477,7 @@
               <button class="btn-secondary btn-xs" id="fk-hist-toggle" data-hilfe="fk-historie">
                 ${_fkHistorie ? 'Aktive anzeigen' : 'Historie anzeigen'}
               </button>
-              ${legende ? `<span style="font-size:0.78rem;color:var(--muted);">Ausgegraut = ${legende}</span>` : ''}
+              ${legende ? `<span style="font-size:0.78rem;color:var(--muted);">Ausgegraut = ${_escHtml(legende)}</span>` : ''}
             </div>
             <div style="overflow-x:auto;"><table class="orders-table">
               <thead><tr>
@@ -21416,13 +21493,13 @@
                 const origI = _fkRows.indexOf(r);
                 const dimmen = abgelaufen || wirkungslos;
                 return `<tr${dimmen ? ' style="opacity:0.42;"' : ''}>
-                  <td>${r.position}${wirkungslos
+                  <td>${_escHtml(r.position)}${wirkungslos
                     ? ' <span style="font-size:0.72rem;color:var(--muted);white-space:nowrap;">· wird nicht gerechnet</span>'
                     : ''}</td>
-                  <td>${r.betrag}</td><td>${r.einheit}</td>
-                  <td>${r.gueltigAb || '–'}</td>
-                  ${_fkHistorie ? `<td>${r.gueltigBis || '–'}</td>` : ''}
-                  <td>${dimmen ? '' : `<button class="btn-secondary btn-xs" data-fk-i="${origI}" data-hilfe="liste-bearbeiten">Bearbeiten</button>`}</td>
+                  <td>${_escHtml(r.betrag)}</td><td>${_escHtml(r.einheit)}</td>
+                  <td>${_escHtml(r.gueltigAb || '–')}</td>
+                  ${_fkHistorie ? `<td>${_escHtml(r.gueltigBis || '–')}</td>` : ''}
+                  <td>${dimmen ? '' : `<button class="btn-secondary btn-xs" data-fk-i="${Number(origI)}" data-hilfe="liste-bearbeiten">Bearbeiten</button>`}</td>
                 </tr>`;
               }).join('')}</tbody>
             </table></div>`;
@@ -21431,25 +21508,25 @@
           });
           wrap.querySelectorAll('[data-fk-i]').forEach(btn =>
             btn.addEventListener('click', () => openFixkostenModal(_fkRows[+btn.dataset.fkI])));
-        } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`; }
+        } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${_escHtml(e.message)}</p>`; }
       }
 
       function openFixkostenModal(row) {
         const bd = document.createElement('div'); bd.className = 'modal-backdrop';
         const todayIso = _getTodayIso();
         bd.innerHTML = `<div class="modal-box" style="max-width:420px;width:94%;">
-          <div class="modal-title">Neue Version: ${row.position}</div>
+          <div class="modal-title">Neue Version: ${_escHtml(row.position)}</div>
           <p style="font-size:0.8rem;color:var(--muted);margin:0.4rem 0 0.9rem;">
-            Aktuell: <strong>${row.betrag} ${row.einheit}</strong> ab ${row.gueltigAb || '–'}<br>
+            Aktuell: <strong>${_escHtml(row.betrag)} ${_escHtml(row.einheit)}</strong> ab ${_escHtml(row.gueltigAb || '–')}<br>
             Neue Version startet ab dem gewählten Datum; alte Zeile wird davor geschlossen.
           </p>
           <div><div class="form-grid">
             <div class="form-field"><label>Neuer Betrag *</label>
-              <input class="form-input" type="number" id="fk-bt" step="0.01" min="0" value="${row.betrag}"></div>
+              <input class="form-input" type="number" id="fk-bt" step="0.01" min="0" value="${_escHtml(row.betrag)}"></div>
             <div class="form-field"><label>Einheit</label>
-              <input class="form-input" id="fk-ei" value="${row.einheit}"></div>
+              <input class="form-input" id="fk-ei" value="${_escHtml(row.einheit)}"></div>
             <div class="form-field"><label>Gültig ab *</label>
-              <input class="form-input" type="date" id="fk-ab" value="${todayIso}"></div>
+              <input class="form-input" type="date" id="fk-ab" value="${_escHtml(todayIso)}"></div>
           </div><div class="modal-actions" style="margin-top:1.25rem;">
             <button class="btn-secondary" id="fk-x" data-hilfe="dialog-abbrechen">Abbrechen</button>
             <button class="btn" id="fk-ok" data-hilfe="fixkosten-version">Neue Version speichern</button>
@@ -21505,14 +21582,14 @@
           wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
             <thead><tr><th>Produkttyp</th><th>Ab Menge</th><th>VK Brutto</th><th>Gültig Ab</th><th>Notiz</th><th>Aktionen</th></tr></thead>
             <tbody>${_vkRows.map((r, i) => `<tr>
-              <td>${r.produkttyp}</td><td>${r.abMenge}</td><td>${r.vkBrutto.toFixed(2)} €</td>
-              <td>${r.gueltigAb || '–'}</td><td>${r.notiz || '–'}</td>
+              <td>${_escHtml(r.produkttyp)}</td><td>${_escHtml(r.abMenge)}</td><td>${r.vkBrutto.toFixed(2)} €</td>
+              <td>${_escHtml(r.gueltigAb || '–')}</td><td>${_escHtml(r.notiz || '–')}</td>
               <td><button class="btn-secondary btn-xs" data-vk-i="${i}" data-hilfe="liste-bearbeiten">Bearbeiten</button></td>
             </tr>`).join('')}</tbody>
           </table></div>`;
           wrap.querySelectorAll('[data-vk-i]').forEach(btn =>
             btn.addEventListener('click', () => openVerkaufspreisModal(_vkRows[+btn.dataset.vkI])));
-        } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`; }
+        } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${_escHtml(e.message)}</p>`; }
       }
 
       function openVerkaufspreisModal(ex = null) {
@@ -21522,15 +21599,15 @@
           <div class="modal-title">${isNew ? 'Verkaufspreis hinzufügen' : 'Verkaufspreis / neue Version'}</div>
           <div style="margin-top:1.1rem;"><div class="form-grid">
             <div class="form-field form-col-full"><label>Produkttyp *</label>
-              <input class="form-input" id="vk-ty" value="${isNew ? '' : ex.produkttyp}" placeholder="z.B. Premium Shirt"></div>
+              <input class="form-input" id="vk-ty" value="${isNew ? '' : _escHtml(ex.produkttyp)}" placeholder="z.B. Premium Shirt"></div>
             <div class="form-field"><label>Ab Menge *</label>
-              <input class="form-input" type="number" id="vk-mg" min="1" step="1" value="${isNew ? 1 : ex.abMenge}"></div>
+              <input class="form-input" type="number" id="vk-mg" min="1" step="1" value="${isNew ? 1 : _escHtml(ex.abMenge)}"></div>
             <div class="form-field"><label>VK Brutto (€) *</label>
-              <input class="form-input" type="number" id="vk-pr" step="0.01" min="0" value="${isNew ? '' : ex.vkBrutto}"></div>
+              <input class="form-input" type="number" id="vk-pr" step="0.01" min="0" value="${isNew ? '' : _escHtml(ex.vkBrutto)}"></div>
             <div class="form-field"><label>Gültig Ab</label>
-              <input class="form-input" type="date" id="vk-ab" value="${isNew ? '' : _toIso(ex.gueltigAb)}"></div>
+              <input class="form-input" type="date" id="vk-ab" value="${isNew ? '' : _escHtml(_toIso(ex.gueltigAb))}"></div>
             <div class="form-field form-col-full"><label>Notiz</label>
-              <input class="form-input" id="vk-no" value="${isNew ? '' : (ex.notiz||'')}" placeholder="Optional"></div>
+              <input class="form-input" id="vk-no" value="${isNew ? '' : _escHtml(ex.notiz||'')}" placeholder="Optional"></div>
           </div><div class="modal-actions" style="margin-top:1.25rem;">
             <button class="btn-secondary" id="vk-x" data-hilfe="dialog-abbrechen">Abbrechen</button>
             <button class="btn" id="vk-ok" data-hilfe="dialog-speichern">Hinzufügen</button>
@@ -21566,35 +21643,35 @@
             <thead><tr><th>L-Shop-Nr</th><th>Artikelname</th><th>EK Netto</th><th>Kategorie</th><th>Gültig Ab</th><th>Notiz</th><th>Aktionen</th></tr></thead>
             <tbody>${_artRows.map((r, i) => `<tr>
               <td>${_escHtml(r.lshopNr)}</td><td>${_escHtml(r.artikelname)}</td><td>${r.ekPreisNetto.toFixed(2)} €</td>
-              <td>${r.kategorie || '–'}</td><td>${r.gueltigAb || '–'}</td><td>${r.notiz || '–'}</td>
+              <td>${_escHtml(r.kategorie || '–')}</td><td>${_escHtml(r.gueltigAb || '–')}</td><td>${_escHtml(r.notiz || '–')}</td>
               <td><button class="btn-secondary btn-xs" data-art-i="${i}" data-hilfe="liste-bearbeiten">Bearbeiten</button></td>
             </tr>`).join('')}</tbody>
           </table></div>`;
           wrap.querySelectorAll('[data-art-i]').forEach(btn =>
             btn.addEventListener('click', () => openArtikelModal(_artRows[+btn.dataset.artI])));
-        } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`; }
+        } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${_escHtml(e.message)}</p>`; }
       }
 
       function openArtikelModal(ex = null) {
         const isNew = ex === null;
         const bd = document.createElement('div'); bd.className = 'modal-backdrop';
         const katNames = (window.ssot?.kategorien ?? []).map(k => (k['Kategoriename']||'').trim()).filter(Boolean);
-        const katOpts  = katNames.map(k => `<option${(!isNew && ex.kategorie===k)?' selected':''}>${k}</option>`).join('');
+        const katOpts  = katNames.map(k => `<option${(!isNew && ex.kategorie===k)?' selected':''}>${_escHtml(k)}</option>`).join('');
         bd.innerHTML = `<div class="modal-box" style="max-width:480px;width:94%;">
           <div class="modal-title">${isNew ? 'Artikel hinzufügen' : 'Artikel / neue Version'}</div>
           <div style="margin-top:1.1rem;"><div class="form-grid">
             <div class="form-field"><label>L-Shop-Nr *</label>
-              <input class="form-input" id="art-nr" value="${isNew ? '' : ex.lshopNr}" placeholder="Artikelnummer"></div>
+              <input class="form-input" id="art-nr" value="${isNew ? '' : _escHtml(ex.lshopNr)}" placeholder="Artikelnummer"></div>
             <div class="form-field"><label>Artikelname *</label>
-              <input class="form-input" id="art-na" value="${isNew ? '' : ex.artikelname}" placeholder="Name"></div>
+              <input class="form-input" id="art-na" value="${isNew ? '' : _escHtml(ex.artikelname)}" placeholder="Name"></div>
             <div class="form-field"><label>EK Preis Netto (€) *</label>
-              <input class="form-input" type="number" id="art-ek" step="0.01" min="0" value="${isNew ? '' : ex.ekPreisNetto}"></div>
+              <input class="form-input" type="number" id="art-ek" step="0.01" min="0" value="${isNew ? '' : _escHtml(ex.ekPreisNetto)}"></div>
             <div class="form-field"><label>Kategorie</label>
               <select class="form-select" id="art-ka"><option value="">– wählen –</option>${katOpts}</select></div>
             <div class="form-field"><label>Gültig Ab</label>
-              <input class="form-input" type="date" id="art-ab" value="${isNew ? '' : _toIso(ex.gueltigAb)}"></div>
+              <input class="form-input" type="date" id="art-ab" value="${isNew ? '' : _escHtml(_toIso(ex.gueltigAb))}"></div>
             <div class="form-field form-col-full"><label>Notiz</label>
-              <input class="form-input" id="art-no" value="${isNew ? '' : (ex.notiz||'')}" placeholder="Optional"></div>
+              <input class="form-input" id="art-no" value="${isNew ? '' : _escHtml(ex.notiz||'')}" placeholder="Optional"></div>
           </div><div class="modal-actions" style="margin-top:1.25rem;">
             <button class="btn-secondary" id="art-x" data-hilfe="dialog-abbrechen">Abbrechen</button>
             <button class="btn" id="art-ok" data-hilfe="dialog-speichern">Hinzufügen</button>
@@ -21625,7 +21702,7 @@
           const sel = document.getElementById('verkaeufe-filter-partner');
           if (_ppPartners.length) {
             sel.innerHTML = '<option value="">Alle Partner</option>' +
-              _ppPartners.map(p => `<option value="${p.id}">${_escHtml(p.name)}</option>`).join('');
+              _ppPartners.map(p => `<option value="${_escHtml(p.id)}">${_escHtml(p.name)}</option>`).join('');
           }
           _verkaeufeLoaded = true;
         }
@@ -21661,26 +21738,26 @@
                 const rowStyle = isStorno ? 'background:color-mix(in srgb, var(--danger) 6%, transparent);' : '';
                 const numStyle = isStorno ? red : '';
                 return `<tr style="${rowStyle}">
-                <td>${pName(r.partnerId)}</td>
+                <td>${_escHtml(pName(r.partnerId))}</td>
                 <td>${_escHtml(r.datum)}</td><td>${_escHtml(r.orderId)}</td>
-                <td>${r.artikelnummer}${isStorno ? ' <span style="font-size:0.72rem;'+red+'">↩ Storno</span>' : ''}</td>
-                <td>${r.variante || '–'}</td>
+                <td>${_escHtml(r.artikelnummer)}${isStorno ? ' <span style="font-size:0.72rem;'+red+'">↩ Storno</span>' : ''}</td>
+                <td>${_escHtml(r.variante || '–')}</td>
                 <td style="${numStyle}">${_escHtml(r.stueckzahl)}</td>
                 <td style="${numStyle}">${r.vkPreisBrutto.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</td>
                 <td class="liz-cell"
-                    data-vk-brutto="${r.vkPreisBrutto}"
-                    data-lizenz="${r.lizenzgebuehr}"
-                    data-gewinn-netto="${r.gewinnNetto || ''}"
-                    data-lizenz-anteil="${r.lizenzAnteil || ''}"
-                    data-porto-saldo="${r.portoSaldo || ''}"
-                    data-anteil-brutto="${r.anteilBrutto || ''}"
+                    data-vk-brutto="${_escHtml(r.vkPreisBrutto)}"
+                    data-lizenz="${_escHtml(r.lizenzgebuehr)}"
+                    data-gewinn-netto="${_escHtml(r.gewinnNetto || '')}"
+                    data-lizenz-anteil="${_escHtml(r.lizenzAnteil || '')}"
+                    data-porto-saldo="${_escHtml(r.portoSaldo || '')}"
+                    data-anteil-brutto="${_escHtml(r.anteilBrutto || '')}"
                     style="${numStyle}">
                   ${r.lizenzgebuehr.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}
                 </td>
                 <td><span class="badge ${r.status==='offen'?'badge-processing':'badge-completed'}">${_escHtml(r.status)}</span></td>
               </tr>`;}).join('')}</tbody>
             </table></div>`;
-        } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`; }
+        } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${_escHtml(e.message)}</p>`; }
       }
 
       // Tooltip-Delegation für Verkäufe-Lizenz (einmalig, unabhängig von Tabellen-Reload)
@@ -21694,7 +21771,7 @@
       });
 
       function openVerkaufModal() {
-        const opts = _ppPartners.map(p => `<option value="${p.id}">${_escHtml(p.name)} (${p.id})</option>`).join('');
+        const opts = _ppPartners.map(p => `<option value="${_escHtml(p.id)}">${_escHtml(p.name)} (${_escHtml(p.id)})</option>`).join('');
         const bd = document.createElement('div'); bd.className = 'modal-backdrop';
         bd.innerHTML = `<div class="modal-box" style="max-width:480px;width:94%;">
           <div class="modal-title">Verkauf erfassen</div>
@@ -21702,7 +21779,7 @@
             <div class="form-field form-col-full"><label>Partner *</label>
               <select class="form-select" id="sv-p"><option value="">– wählen –</option>${opts}</select></div>
             <div class="form-field"><label>Datum</label>
-              <input class="form-input" type="date" id="sv-dat" value="${new Date().toISOString().slice(0,10)}"></div>
+              <input class="form-input" type="date" id="sv-dat" value="${_escHtml(new Date().toISOString().slice(0,10))}"></div>
             <div class="form-field"><label>Order-ID *</label>
               <input class="form-input" id="sv-ord" placeholder="z.B. 12345"></div>
             <div class="form-field"><label>Artikelnummer *</label>
@@ -21751,7 +21828,7 @@
           const sel = document.getElementById('abrechnungen-filter-partner');
           if (_ppPartners.length) {
             sel.innerHTML = '<option value="">Alle Partner</option>' +
-              _ppPartners.map(p => `<option value="${p.id}">${_escHtml(p.name)}</option>`).join('');
+              _ppPartners.map(p => `<option value="${_escHtml(p.id)}">${_escHtml(p.name)}</option>`).join('');
           }
           _abrLoaded = true;
         }
@@ -21769,7 +21846,7 @@
         try {
           _abrRows = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/abrechnungen?${qs}`).then(r => r.json());
           renderAbrechnungenTable();
-        } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`; }
+        } catch (e) { wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${_escHtml(e.message)}</p>`; }
       }
 
       function renderAbrechnungenTable() {
@@ -21789,16 +21866,16 @@
             <th>Saldo</th><th>Erstellt</th><th>Status</th>
           </tr></thead>
           <tbody>${_abrRows.map((r, i) => `
-            <tr class="abr-master" data-abr-id="${r.abrechnungId}" data-abr-i="${i}">
+            <tr class="abr-master" data-abr-id="${_escHtml(r.abrechnungId)}" data-abr-i="${i}">
               <td><span class="abr-arrow">▸</span></td>
-              <td style="font-size:0.8rem;">${r.abrechnungId}</td>
-              <td>${pName(r.partnerId)}</td>
-              <td>${r.zeitraumVon}</td><td>${r.zeitraumBis}</td>
+              <td style="font-size:0.8rem;">${_escHtml(r.abrechnungId)}</td>
+              <td>${_escHtml(pName(r.partnerId))}</td>
+              <td>${_escHtml(r.zeitraumVon)}</td><td>${_escHtml(r.zeitraumBis)}</td>
               <td class="num">${fmt(r.saldo)}</td>
-              <td style="font-size:0.8rem;">${r.erstelltAm}</td>
+              <td style="font-size:0.8rem;">${_escHtml(r.erstelltAm)}</td>
               <td><span class="badge ${badge(r.status)}">${_escHtml(r.status)}</span></td>
             </tr>
-            <tr class="abr-detail-row" data-abr-detail="${r.abrechnungId}">
+            <tr class="abr-detail-row" data-abr-detail="${_escHtml(r.abrechnungId)}">
               <td colspan="8" class="abr-detail-cell">${renderAbrDetail(r)}</td>
             </tr>
           `).join('')}</tbody>
@@ -21828,14 +21905,14 @@
                 `<span class="abr-calc-line">Druck <strong>${fmt(det.druck)}</strong></span>`,
                 `<span class="abr-calc-line">Nebenkosten <strong>${fmt(det.versandnebenkosten)}</strong></span>`,
                 `<span class="abr-calc-line">PayPal <strong>${fmt(det.paypalKosten)}</strong></span>`,
-                `<span class="abr-calc-line">Versand <strong>${det.versandart || '–'}</strong></span>`,
+                `<span class="abr-calc-line">Versand <strong>${_escHtml(det.versandart || '–')}</strong></span>`,
                 `<span class="abr-calc-line">Porto-Saldo <strong>${fmt(det.portoSaldoPartner)}</strong></span>`,
                 `<span class="abr-calc-line">Gewinn <strong>${fmt(det.gewinnNetto)}</strong></span>`,
-                `<span class="abr-calc-line">× <strong>${det.lizenzProzent || 0}%</strong> = <strong>${fmt(v.lizenz)}</strong></span>`,
+                `<span class="abr-calc-line">× <strong>${_escHtml(det.lizenzProzent || 0)}%</strong> = <strong>${fmt(v.lizenz)}</strong></span>`,
               ].join('') : '<span style="font-style:italic;">Kalkulationsgrundlage nicht verfügbar (kein Match in Partner_Artikel).</span>';
 
               return `
-                <tr class="abr-verkauf-master" data-abr-id="${r.abrechnungId}" data-vk-i="${vi}">
+                <tr class="abr-verkauf-master" data-abr-id="${_escHtml(r.abrechnungId)}" data-vk-i="${vi}">
                   <td><span class="abr-arrow">▸</span></td>
                   <td>${_escHtml(v.datum)}</td>
                   <td>${_escHtml(v.orderId)}</td>
@@ -21844,7 +21921,7 @@
                   <td class="num">${fmt(v.vkBrutto)}</td>
                   <td class="num"><strong>${fmt(v.lizenz)}</strong></td>
                 </tr>
-                <tr class="abr-verkauf-detail-row" data-abr-id="${r.abrechnungId}" data-vk-detail="${vi}">
+                <tr class="abr-verkauf-detail-row" data-abr-id="${_escHtml(r.abrechnungId)}" data-vk-detail="${vi}">
                   <td colspan="7" class="abr-verkauf-detail-cell">${lineParts}</td>
                 </tr>`;
             }).join('')}</tbody>
@@ -21876,7 +21953,7 @@
         const saldoLabel = isPos ? 'Auszahlung an Partner (brutto)' : 'Forderung an Partner (brutto)';
         const mwstRow = mwst ? `
             <div class="abr-saldo-row">
-              <span>zzgl. MwSt (${mwst} %)</span>
+              <span>zzgl. MwSt (${_escHtml(mwst)} %)</span>
               <span class="abr-saldo-pos">+${fmt(lizenzBrutto - lizenzNetto)}</span>
             </div>` : '';
         const saldoHTML = `
@@ -21905,8 +21982,8 @@
         if (r.status === 'entwurf') {
           actionsHTML = `
             <div class="abr-actions">
-              <button class="btn-success" data-abr-action="freigeben" data-abr-id="${r.abrechnungId}" data-hilfe="abrechnung-freigeben">✓ Freigeben</button>
-              <button class="btn-danger" data-abr-action="verwerfen" data-abr-id="${r.abrechnungId}" data-hilfe="abrechnung-verwerfen">✗ Verwerfen</button>
+              <button class="btn-success" data-abr-action="freigeben" data-abr-id="${_escHtml(r.abrechnungId)}" data-hilfe="abrechnung-freigeben">✓ Freigeben</button>
+              <button class="btn-danger" data-abr-action="verwerfen" data-abr-id="${_escHtml(r.abrechnungId)}" data-hilfe="abrechnung-verwerfen">✗ Verwerfen</button>
             </div>
             <p style="font-size:0.78rem;color:var(--muted);margin-top:0.6rem;">
               Bei Freigabe werden alle Verkäufe und interne Bestellungen auf „abgerechnet" gesetzt.
@@ -21915,7 +21992,7 @@
         } else if (r.status === 'freigegeben') {
           actionsHTML = `
             <div class="abr-actions">
-              <button class="btn" data-abr-action="bezahlt" data-abr-id="${r.abrechnungId}" data-hilfe="abrechnung-bezahlt">→ Als bezahlt markieren</button>
+              <button class="btn" data-abr-action="bezahlt" data-abr-id="${_escHtml(r.abrechnungId)}" data-hilfe="abrechnung-bezahlt">→ Als bezahlt markieren</button>
             </div>`;
         }
 
@@ -21958,7 +22035,7 @@
       async function abrFreigeben(id, btn) {
         const confirmed = await window.showConfirm(
           'Abrechnung freigeben?',
-          `<strong>${id}</strong>: die Verkäufe und internen Bestellungen dieses Entwurfs werden auf <strong>abgerechnet</strong> gesetzt. Das Sheet wird dafür frisch gelesen – fehlt eine Position, wird nichts markiert.`,
+          `<strong>${_escHtml(id)}</strong>: die Verkäufe und internen Bestellungen dieses Entwurfs werden auf <strong>abgerechnet</strong> gesetzt. Das Sheet wird dafür frisch gelesen – fehlt eine Position, wird nichts markiert.`,
           'Freigeben'
         );
         if (!confirmed) return;
@@ -21986,7 +22063,7 @@
       async function abrVerwerfen(id, btn) {
         const confirmed = await window.showConfirm(
           'Entwurf verwerfen?',
-          `<strong>${id}</strong> wird gelöscht. Verkäufe und interne Bestellungen dieses Entwurfs sind danach offen.`,
+          `<strong>${_escHtml(id)}</strong> wird gelöscht. Verkäufe und interne Bestellungen dieses Entwurfs sind danach offen.`,
           'Verwerfen'
         );
         if (!confirmed) return;
@@ -22005,8 +22082,8 @@
       async function setAbrStatus(id, newStatus, el, oldStatus) {
         const isSelect = el?.tagName === 'SELECT';
         const confirmed = await window.showConfirm(
-          `Status → "${newStatus}"?`,
-          `Abrechnung <strong>${id}</strong> wird auf <strong>${newStatus}</strong> gesetzt.`,
+          `Status → "${_escHtml(newStatus)}"?`,
+          `Abrechnung <strong>${_escHtml(id)}</strong> wird auf <strong>${_escHtml(newStatus)}</strong> gesetzt.`,
           'Bestätigen'
         );
         if (!confirmed) {
@@ -22030,7 +22107,7 @@
       }
 
       function openAbrechnungModal() {
-        const opts  = _ppPartners.map(p => `<option value="${p.id}">${_escHtml(p.name)} (${p.id})</option>`).join('');
+        const opts  = _ppPartners.map(p => `<option value="${_escHtml(p.id)}">${_escHtml(p.name)} (${_escHtml(p.id)})</option>`).join('');
         const today = new Date().toISOString().slice(0, 10);
         const vom   = today.slice(0, 7) + '-01';
         const bd = document.createElement('div'); bd.className = 'modal-backdrop';
@@ -22040,9 +22117,9 @@
             <div class="form-field form-col-full"><label>Partner *</label>
               <select class="form-select" id="ab-p"><option value="">– wählen –</option>${opts}</select></div>
             <div class="form-field"><label>Zeitraum Von *</label>
-              <input class="form-input" type="date" id="ab-von" value="${vom}"></div>
+              <input class="form-input" type="date" id="ab-von" value="${_escHtml(vom)}"></div>
             <div class="form-field"><label>Zeitraum Bis *</label>
-              <input class="form-input" type="date" id="ab-bis" value="${today}"></div>
+              <input class="form-input" type="date" id="ab-bis" value="${_escHtml(today)}"></div>
             <div class="form-field form-col-full"><label>Notiz</label>
               <input class="form-input" id="ab-no" placeholder="Optional"></div>
           </div>
@@ -22109,7 +22186,7 @@
 
         const bd = document.createElement('div'); bd.className = 'modal-backdrop';
         bd.innerHTML = `<div class="modal-box" style="max-width:880px;width:96%;max-height:90vh;overflow-y:auto;">
-          <div class="modal-title">Vorschau – ${_escHtml(partnerName)} (${data.zeitraumVon} – ${data.zeitraumBis})</div>
+          <div class="modal-title">Vorschau – ${_escHtml(partnerName)} (${_escHtml(data.zeitraumVon)} – ${_escHtml(data.zeitraumBis)})</div>
           ${(data.hinweise || []).length ? `<div style="margin-top:0.8rem;padding:0.6rem 0.8rem;border:1px solid var(--warning);border-radius:6px;font-size:0.82rem;color:var(--warning);">${data.hinweise.map(h => `<div>⚠ ${_escHtml(h)}</div>`).join('')}</div>` : ''}
           ${abrKlaerenHTML(data.klaeren)}
           <div style="margin-top:1rem;">
@@ -22150,7 +22227,7 @@
               <table style="width:100%;font-size:0.88rem;">
                 <tr><td>Lizenz-Summe netto (${data.verkaeufe.length} Verkäufe)</td>
                     <td style="text-align:right;font-weight:600;">${fmt(data.lizenzNetto ?? data.lizenzSumme)}</td></tr>
-                ${data.mwstProzent ? `<tr><td style="color:var(--muted);">zzgl. MwSt (${data.mwstProzent} %)</td>
+                ${data.mwstProzent ? `<tr><td style="color:var(--muted);">zzgl. MwSt (${_escHtml(data.mwstProzent)} %)</td>
                     <td style="text-align:right;color:var(--muted);">+${fmt((data.lizenzBrutto ?? 0) - (data.lizenzNetto ?? 0))}</td></tr>` : ''}
                 <tr><td>Lizenz-Summe brutto</td>
                     <td style="text-align:right;font-weight:600;">${fmt(data.lizenzBrutto ?? data.lizenzSumme)}</td></tr>
@@ -22255,7 +22332,7 @@
         const sel = document.getElementById('artikel-filter-partner');
         if (sel.options.length <= 1 && _ppPartners.length) {
           sel.innerHTML = '<option value="">– Partner wählen –</option>' +
-            _ppPartners.map(p => `<option value="${p.id}">${_escHtml(p.name)}</option>`).join('');
+            _ppPartners.map(p => `<option value="${_escHtml(p.id)}">${_escHtml(p.name)}</option>`).join('');
         }
         if (!_artikelState.konfig) {
           try {
@@ -22282,7 +22359,7 @@
           _artikelState.artikel = raw.map(a => ({ ...a, artikelnummer: a.produktId }));
           renderHonkArtikelTable();
         } catch (e) {
-          wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+          wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${_escHtml(e.message)}</p>`;
         }
       }
 
@@ -22311,9 +22388,9 @@
           </tr></thead>
           <tbody>${artikel.map((a, i) => `<tr data-art-i="${i}">
             <td>${_escHtml(a.artikelname)}</td>
-            <td style="font-size:0.82rem;color:var(--muted);">${a.produktId}</td>
-            <td style="text-align:right;"><input class="form-input art-edit" data-field="ekPreis" type="number" step="0.01" min="0" value="${a.ekPreis ?? ''}" placeholder="fehlt" style="width:80px;text-align:right;font-size:0.82rem;padding:0.22rem 0.4rem;"></td>
-            <td style="text-align:right;"><input class="form-input art-edit" data-field="druckkosten" type="number" step="0.01" min="0" value="${a.druckkosten ?? ''}" placeholder="fehlt" style="width:80px;text-align:right;font-size:0.82rem;padding:0.22rem 0.4rem;"></td>
+            <td style="font-size:0.82rem;color:var(--muted);">${_escHtml(a.produktId)}</td>
+            <td style="text-align:right;"><input class="form-input art-edit" data-field="ekPreis" type="number" step="0.01" min="0" value="${_escHtml(a.ekPreis ?? '')}" placeholder="fehlt" style="width:80px;text-align:right;font-size:0.82rem;padding:0.22rem 0.4rem;"></td>
+            <td style="text-align:right;"><input class="form-input art-edit" data-field="druckkosten" type="number" step="0.01" min="0" value="${_escHtml(a.druckkosten ?? '')}" placeholder="fehlt" style="width:80px;text-align:right;font-size:0.82rem;padding:0.22rem 0.4rem;"></td>
             <td><select class="form-select art-edit" data-field="versandart" style="width:60px;font-size:0.82rem;padding:0.22rem 0.4rem;">
               <option value="B"${a.versandart === 'B' ? ' selected' : ''}>B</option>
               <option value="P"${a.versandart === 'P' ? ' selected' : ''}>P</option>
@@ -22377,7 +22454,7 @@
           ).then(r => r.json());
           renderArtikelTable();
         } catch (e) {
-          wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+          wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${_escHtml(e.message)}</p>`;
         }
       }
 
@@ -22404,7 +22481,7 @@
           <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.75rem;">
             <label style="font-size:0.82rem;color:var(--muted);">VK-Brutto (Vorschau):</label>
             <input class="form-input" type="number" id="artikel-vk-vorschau" min="0" step="0.5"
-              value="${vk}" style="width:90px;font-size:0.85rem;padding:0.32rem 0.5rem;">
+              value="${_escHtml(vk)}" style="width:90px;font-size:0.85rem;padding:0.32rem 0.5rem;">
             <span style="font-size:0.78rem;color:var(--muted);">€  (für Lizenz-Berechnung pro Stück)</span>
           </div>
           <div style="overflow-x:auto;"><table class="orders-table">
@@ -22414,7 +22491,7 @@
               <th style="text-align:right;">Druck €</th>
               <th>B/P</th>
               <th style="text-align:right;color:var(--muted);opacity:0.6;font-weight:normal;" title="wird nicht gerechnet – Satz im Partner-Reiter">Lizenz % (Artikel)<br><span style="font-size:0.7rem;">wird nicht gerechnet – Satz im Partner-Reiter</span></th>
-              <th style="text-align:right;cursor:help;" title="Vorschau bei 1 Artikel ohne Porto-Saldo, mit dem Lizenzsatz aus dem Partner-Reiter. Genaue Lizenz siehe Verkäufe-Tab nach Sync.">Lizenz/Stück (bei VK ${vk}€, ${satz}%) <span style="opacity:0.6;font-size:0.8em;">ⓘ</span></th>
+              <th style="text-align:right;cursor:help;" title="Vorschau bei 1 Artikel ohne Porto-Saldo, mit dem Lizenzsatz aus dem Partner-Reiter. Genaue Lizenz siehe Verkäufe-Tab nach Sync.">Lizenz/Stück (bei VK ${_escHtml(vk)}€, ${_escHtml(satz)}%) <span style="opacity:0.6;font-size:0.8em;">ⓘ</span></th>
             </tr></thead>
             <tbody>${artikel.map((a, i) => {
               const det = berechneLizenzDetail({
@@ -22423,15 +22500,15 @@
               });
               const lizColor = det.lizenz < 0 ? 'color:var(--danger);' : '';
               return `<tr data-art-i="${i}">
-                <td style="font-size:0.82rem;">${a.artikelnummer}</td>
+                <td style="font-size:0.82rem;">${_escHtml(a.artikelnummer)}</td>
                 <td>${_escHtml(a.artikelname)}</td>
-                <td style="text-align:right;"><input class="form-input art-edit" data-field="ekPreis" type="number" step="0.01" min="0" value="${a.ekPreis ?? ''}" placeholder="fehlt" style="width:80px;text-align:right;font-size:0.82rem;padding:0.22rem 0.4rem;"></td>
-                <td style="text-align:right;"><input class="form-input art-edit" data-field="druckkosten" type="number" step="0.01" min="0" value="${a.druckkosten ?? ''}" placeholder="fehlt" style="width:80px;text-align:right;font-size:0.82rem;padding:0.22rem 0.4rem;"></td>
+                <td style="text-align:right;"><input class="form-input art-edit" data-field="ekPreis" type="number" step="0.01" min="0" value="${_escHtml(a.ekPreis ?? '')}" placeholder="fehlt" style="width:80px;text-align:right;font-size:0.82rem;padding:0.22rem 0.4rem;"></td>
+                <td style="text-align:right;"><input class="form-input art-edit" data-field="druckkosten" type="number" step="0.01" min="0" value="${_escHtml(a.druckkosten ?? '')}" placeholder="fehlt" style="width:80px;text-align:right;font-size:0.82rem;padding:0.22rem 0.4rem;"></td>
                 <td><select class="form-select art-edit" data-field="versandart" style="width:60px;font-size:0.82rem;padding:0.22rem 0.4rem;">
                   <option value="B"${a.versandart === 'B' ? ' selected' : ''}>B</option>
                   <option value="P"${a.versandart === 'P' ? ' selected' : ''}>P</option>
                 </select></td>
-                <td style="text-align:right;color:var(--muted);opacity:0.5;" title="wird nicht gerechnet – Satz im Partner-Reiter">${a.lizenzProzent}%</td>
+                <td style="text-align:right;color:var(--muted);opacity:0.5;" title="wird nicht gerechnet – Satz im Partner-Reiter">${_escHtml(a.lizenzProzent)}%</td>
                 <td class="liz-cell" style="text-align:right;font-weight:600;${lizColor}" data-cell="liz">${det.lizenz.toFixed(2)} €</td>
               </tr>`;
             }).join('')}</tbody>
@@ -22578,7 +22655,7 @@
           cell.style.color = liz < 0 ? 'var(--danger)' : '';
         });
         document.querySelector('#artikel-list-wrap th:last-child').innerHTML =
-          `Lizenz/Stück (bei VK ${vk}€, ${satz}%) <span style="opacity:0.6;font-size:0.8em;">ⓘ</span>`;
+          `Lizenz/Stück (bei VK ${_escHtml(vk)}€, ${_escHtml(satz)}%) <span style="opacity:0.6;font-size:0.8em;">ⓘ</span>`;
         hideLizTooltip(); // Tooltip schließen, da Werte sich geändert haben
       }
 
@@ -22625,7 +22702,7 @@
         const sel = document.getElementById('intern-filter-partner');
         if (sel.options.length <= 1 && _ppPartners.length) {
           sel.innerHTML = '<option value="">– Partner wählen –</option>' +
-            _ppPartners.map(p => `<option value="${p.id}">${_escHtml(p.name)}</option>`).join('');
+            _ppPartners.map(p => `<option value="${_escHtml(p.id)}">${_escHtml(p.name)}</option>`).join('');
         }
         if (_internState.partnerId) loadInternTable();
       }
@@ -22648,7 +22725,7 @@
           ).then(r => r.json());
           renderInternTable();
         } catch (e) {
-          wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+          wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${_escHtml(e.message)}</p>`;
         }
       }
 
@@ -22677,8 +22754,8 @@
             ).join('');
             const actions = r.status === 'abgerechnet'
               ? ''
-              : `<button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;" data-int-edit="${r.rowId}" data-hilfe="liste-bearbeiten">Bearbeiten</button>
-                 <button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;margin-top:0.25rem;color:var(--danger);" data-int-del="${r.rowId}" data-hilfe="intern-loeschen">Löschen</button>`;
+              : `<button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;" data-int-edit="${_escHtml(r.rowId)}" data-hilfe="liste-bearbeiten">Bearbeiten</button>
+                 <button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;margin-top:0.25rem;color:var(--danger);" data-int-del="${_escHtml(r.rowId)}" data-hilfe="intern-loeschen">Löschen</button>`;
             return `<tr>
               <td>${_escHtml(r.datum)}</td>
               <td>${_escHtml(r.bezeichnung)}</td>
@@ -22687,7 +22764,7 @@
               <td style="text-align:right;font-weight:600;">${fmt(r.summe)}</td>
               <td><span class="badge ${badge(r.status)}" style="margin-bottom:0.35rem;display:inline-block;">${_escHtml(r.status)}</span><br>
                 <select class="form-select" style="font-size:0.78rem;padding:0.22rem 0.5rem;margin-top:0.15rem;"
-                  data-int-sel="${r.rowId}" data-int-cur="${_escHtml(r.status)}">${opts}</select></td>
+                  data-int-sel="${_escHtml(r.rowId)}" data-int-cur="${_escHtml(r.status)}">${opts}</select></td>
               <td style="text-align:right;white-space:nowrap;">${actions}</td>
             </tr>`;
           }).join('')}</tbody>
@@ -22761,13 +22838,13 @@
           <div class="modal-title">${isEdit ? 'Interne Bestellung bearbeiten' : 'Interne Bestellung erfassen'}</div>
           <div style="margin-top:1.1rem;"><div class="form-grid">
             <div class="form-field"><label>Datum *</label>
-              <input class="form-input" type="date" id="int-d" value="${dVal}"></div>
+              <input class="form-input" type="date" id="int-d" value="${_escHtml(dVal)}"></div>
             <div class="form-field"><label>Anzahl *</label>
-              <input class="form-input" type="number" id="int-a" min="1" step="1" value="${aVal}"></div>
+              <input class="form-input" type="number" id="int-a" min="1" step="1" value="${_escHtml(aVal)}"></div>
             <div class="form-field form-col-full"><label>Bezeichnung *</label>
               <input class="form-input" id="int-b" placeholder="z.B. Werbeshirts April" value="${_escHtml(bVal)}"></div>
             <div class="form-field"><label>Einzelpreis brutto (€)</label>
-              <input class="form-input" type="number" id="int-e" min="0" step="0.01" value="${eVal}"></div>
+              <input class="form-input" type="number" id="int-e" min="0" step="0.01" value="${_escHtml(eVal)}"></div>
           </div>
           <div class="modal-actions" style="margin-top:1.25rem;">
             <button class="btn-secondary" id="int-x" data-hilfe="dialog-abbrechen">Abbrechen</button>
@@ -22840,7 +22917,7 @@
           const missing  = FIXKOSTEN_DEFAULTS.filter(d => !existing.has(d.position)).map(d => d.position);
           if (!missing.length) { box.innerHTML = ''; return []; }
           box.innerHTML = `<div class="fk-warn">
-            ${missing.map(p => `<strong>Position ${p} fehlt – Partneranteile werden falsch berechnet.</strong>`).join('<br>')}
+            ${missing.map(p => `<strong>Position ${_escHtml(p)} fehlt – Partneranteile werden falsch berechnet.</strong>`).join('<br>')}
             <br>Fehlende Positionen werden als 0 gerechnet, nicht als Fehler. Bitte im
             Reiter <code>Kalkulation_Fixkosten</code> mit dem richtigen Wert anlegen –
             eine 0 hier ist keine Lösung.
@@ -22896,15 +22973,15 @@
             wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
               <thead><tr><th>Partner-ID</th><th>Name</th><th>Shop</th><th>Aktiv</th><th>Notiz</th><th>Aktionen</th></tr></thead>
               <tbody>${_fpPartners.map(p => `<tr>
-                <td>${p['Partner-ID'] ?? '–'}</td>
-                <td>${p['Name'] ?? '–'}</td>
-                <td>${(p['Shop'] ?? '').toUpperCase() || 'JFN'}</td>
+                <td>${_escHtml(p['Partner-ID'] ?? '–')}</td>
+                <td>${_escHtml(p['Name'] ?? '–')}</td>
+                <td>${_escHtml((p['Shop'] ?? '').toUpperCase() || 'JFN')}</td>
                 <td><span class="badge ${(p['Aktiv'] ?? '').toLowerCase() === 'ja' ? 'badge-completed' : 'badge-cancelled'}">${(p['Aktiv'] ?? '').toLowerCase() === 'ja' ? 'Aktiv' : 'Inaktiv'}</span></td>
-                <td style="color:var(--muted);font-size:0.84rem;">${p['Notiz'] || '–'}</td>
+                <td style="color:var(--muted);font-size:0.84rem;">${_escHtml(p['Notiz'] || '–')}</td>
                 <td style="white-space:nowrap;">
-                  <button class="btn-secondary btn-xs" data-fp-edit="${p['Partner-ID']}" data-hilfe="liste-bearbeiten">Bearbeiten</button>
+                  <button class="btn-secondary btn-xs" data-fp-edit="${_escHtml(p['Partner-ID'])}" data-hilfe="liste-bearbeiten">Bearbeiten</button>
                   ${partnerKopierenHtml('festpreis', p['Partner-ID'], p._zugang, p._kopierbar)}
-                  <button class="btn-secondary btn-xs" data-fp-gen-token="${p['Partner-ID']}" style="margin-left:0.3rem;" data-hilfe="token-neu">${p._zugang ? 'Link neu erzeugen …' : 'Link erzeugen …'}</button>
+                  <button class="btn-secondary btn-xs" data-fp-gen-token="${_escHtml(p['Partner-ID'])}" style="margin-left:0.3rem;" data-hilfe="token-neu">${p._zugang ? 'Link neu erzeugen …' : 'Link erzeugen …'}</button>
                   <span style="margin-left:0.4rem;">${partnerZugangHtml(p._zugang)}</span>
                 </td>
               </tr>`).join('')}</tbody>
@@ -22938,7 +23015,7 @@
             });
             populateFpPartnerSelects();
           } catch (e) {
-            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${_escHtml(e.message)}</p>`;
           }
         }
 
@@ -22950,7 +23027,7 @@
             const val = sel.value;
             const allOpt = id.includes('filter') ? '<option value="">Alle Partner</option>' : '<option value="">– Partner wählen –</option>';
             sel.innerHTML = allOpt + _fpPartners.map(p =>
-              `<option value="${p['Partner-ID']}"${val === p['Partner-ID'] ? ' selected' : ''}>${p['Name']} (${p['Partner-ID']})</option>`
+              `<option value="${_escHtml(p['Partner-ID'])}"${val === p['Partner-ID'] ? ' selected' : ''}>${_escHtml(p['Name'])} (${_escHtml(p['Partner-ID'])})</option>`
             ).join('');
           });
         }
@@ -22979,10 +23056,10 @@
           const renderKatList = (kats, selected) => {
             const sorted = [...kats].sort((a, b) => a.label.localeCompare(b.label, 'de'));
             return sorted.length
-              ? sorted.map(k => `<label class="fp-kat-item" data-label="${k.label.toLowerCase()}" style="display:flex;align-items:center;gap:0.5rem;padding:0.25rem 0.1rem;font-size:0.84rem;cursor:pointer;">
-                  <input type="checkbox" class="fp-kat-cb" value="${k.id}"${selected.has(k.id) ? ' checked' : ''}
+              ? sorted.map(k => `<label class="fp-kat-item" data-label="${_escHtml(k.label.toLowerCase())}" style="display:flex;align-items:center;gap:0.5rem;padding:0.25rem 0.1rem;font-size:0.84rem;cursor:pointer;">
+                  <input type="checkbox" class="fp-kat-cb" value="${_escHtml(k.id)}"${selected.has(k.id) ? ' checked' : ''}
                     style="accent-color:var(--focus);width:15px;height:15px;flex-shrink:0;">
-                  <span style="color:var(--muted);font-size:0.78rem;margin-right:0.25rem;">${k.id}</span>${k.label}
+                  <span style="color:var(--muted);font-size:0.78rem;margin-right:0.25rem;">${_escHtml(k.id)}</span>${_escHtml(k.label)}
                 </label>`).join('')
               : '<span style="color:var(--muted);font-size:0.82rem;">Keine Kategorien gefunden.</span>';
           };
@@ -23002,7 +23079,7 @@
                 <div class="form-grid">
                   <div class="form-field form-col-full">
                     <label>Name *</label>
-                    <input class="form-input" id="fp-f-name" value="${isEdit ? (partner['Name'] ?? '') : ''}" placeholder="Partnername">
+                    <input class="form-input" id="fp-f-name" value="${isEdit ? _escHtml(partner['Name'] ?? '') : ''}" placeholder="Partnername">
                   </div>
                   <div class="form-field">
                     <label>Shop</label>
@@ -23028,7 +23105,7 @@
                   </div>
                   <div class="form-field form-col-full">
                     <label>Notiz</label>
-                    <input class="form-input" id="fp-f-notiz" value="${isEdit ? (partner['Notiz'] ?? '') : ''}" placeholder="Interne Notiz">
+                    <input class="form-input" id="fp-f-notiz" value="${isEdit ? _escHtml(partner['Notiz'] ?? '') : ''}" placeholder="Interne Notiz">
                   </div>
                 </div>
                 <div class="modal-actions" style="margin-top:1.25rem;">
@@ -23260,25 +23337,25 @@
               wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Artikel. Bitte aus WC importieren.</p>';
               return;
             }
-            const katOpts = kategorien.map(k => `<option value="${k}">${k}</option>`).join('');
+            const katOpts = kategorien.map(k => `<option value="${_escHtml(k)}">${_escHtml(k)}</option>`).join('');
             wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
               <thead><tr>
                 <th>Produkt-ID</th><th>Artikelname</th><th>WC-Kategorie</th>
                 <th>Versandart</th><th>Artikelkategorie</th><th>Speichern</th>
               </tr></thead>
-              <tbody>${artikel.map(a => `<tr data-fp-art-pid="${a['Produkt-ID']}">
-                <td style="font-size:0.8rem;color:var(--muted);">${a['Produkt-ID']}</td>
-                <td style="font-size:0.85rem;">${a['Artikelname']}</td>
-                <td style="font-size:0.82rem;color:var(--muted);">${a['WC-Kategorie'] || '–'}</td>
+              <tbody>${artikel.map(a => `<tr data-fp-art-pid="${_escHtml(a['Produkt-ID'])}">
+                <td style="font-size:0.8rem;color:var(--muted);">${_escHtml(a['Produkt-ID'])}</td>
+                <td style="font-size:0.85rem;">${_escHtml(a['Artikelname'])}</td>
+                <td style="font-size:0.82rem;color:var(--muted);">${_escHtml(a['WC-Kategorie'] || '–')}</td>
                 <td><select class="form-select fp-art-va" style="font-size:0.83rem;padding:0.3rem 0.5rem;">
                   <option value="P"${(a['Versandart'] ?? 'P') !== 'B' ? ' selected' : ''}>Paket (P)</option>
                   <option value="B"${(a['Versandart'] ?? '') === 'B' ? ' selected' : ''}>Brief (B)</option>
                 </select></td>
                 <td><select class="form-select fp-art-ak" style="font-size:0.83rem;padding:0.3rem 0.5rem;">
                   <option value="">– wählen –</option>
-                  ${kategorien.map(k => `<option value="${k}"${(a['Artikelkategorie'] ?? '') === k ? ' selected' : ''}>${k}</option>`).join('')}
+                  ${kategorien.map(k => `<option value="${_escHtml(k)}"${(a['Artikelkategorie'] ?? '') === k ? ' selected' : ''}>${_escHtml(k)}</option>`).join('')}
                 </select></td>
-                <td><button class="btn-secondary btn-xs fp-art-save" data-pid="${a['Produkt-ID']}" data-hilfe="zeile-speichern">Speichern</button></td>
+                <td><button class="btn-secondary btn-xs fp-art-save" data-pid="${_escHtml(a['Produkt-ID'])}" data-hilfe="zeile-speichern">Speichern</button></td>
               </tr>`).join('')}</tbody>
             </table></div>`;
             wrap.querySelectorAll('.fp-art-save').forEach(btn => {
@@ -23302,7 +23379,7 @@
               });
             });
           } catch (e) {
-            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${_escHtml(e.message)}</p>`;
           }
         }
 
@@ -23391,19 +23468,19 @@
                 const gesperrt = r['Status Abrechnung'] === 'gesperrt';   // PA8: Betraege leer, keine Mehrkosten
                 const betrag = v => (String(v ?? '').trim() === '' ? '–' : fmt(v) + ' €');
                 return `<tr style="${isStorno ? 'background:color-mix(in srgb, var(--danger) 6%, transparent);' : ''}">
-                <td>${r['Partner-ID']}</td>
-                <td>${r['Datum']}</td>
-                <td>${r['WC-Bestellnummer']}</td>
-                <td style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${r['Artikelname']}">${r['Artikelname']}${isStorno ? ` <span style="font-size:0.72rem;${red}">↩ Storno</span>` : ''}</td>
-                <td>${r['Variante'] || '–'}</td>
-                <td style="${isStorno ? red : ''}">${r['Stückzahl']}</td>
-                <td style="font-size:0.8rem;color:var(--muted);">${r['Artikelkategorie'] || '–'}</td>
+                <td>${_escHtml(r['Partner-ID'])}</td>
+                <td>${_escHtml(r['Datum'])}</td>
+                <td>${_escHtml(r['WC-Bestellnummer'])}</td>
+                <td style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${_escHtml(r['Artikelname'])}">${_escHtml(r['Artikelname'])}${isStorno ? ` <span style="font-size:0.72rem;${red}">↩ Storno</span>` : ''}</td>
+                <td>${_escHtml(r['Variante'] || '–')}</td>
+                <td style="${isStorno ? red : ''}">${_escHtml(r['Stückzahl'])}</td>
+                <td style="font-size:0.8rem;color:var(--muted);">${_escHtml(r['Artikelkategorie'] || '–')}</td>
                 <td style="${isStorno ? red : ''}">${fmt(r['VK-Netto'])} €</td>
-                <td style="${isStorno ? red : ''}">${betrag(r['Festpreis'])}</td>
-                <td style="color:var(--muted);">${betrag(r['Handlingskosten'])}</td>
-                <td>${rowId && !isStorno && !gesperrt ? `<input type="number" class="form-input fp-mk-input" step="0.01" min="0" value="${mkVal}" data-rowid="${rowId}" style="width:80px;padding:0.25rem 0.4rem;font-size:0.82rem;">` : fmt(r['Mehrkosten']) + ' €'}</td>
-                <td style="font-weight:600;${isStorno ? red : ''}">${betrag(r['Gesamt-Partner-Netto'])}</td>
-                <td><span class="badge ${r['Status Abrechnung'] === 'abgerechnet' ? 'badge-completed' : gesperrt ? 'badge-on-hold' : 'badge-processing'}"${gesperrt ? ' data-hilfe="fp-sperre" tabindex="0"' : ''}>${r['Status Abrechnung']}</span></td>
+                <td style="${isStorno ? red : ''}">${_escHtml(betrag(r['Festpreis']))}</td>
+                <td style="color:var(--muted);">${_escHtml(betrag(r['Handlingskosten']))}</td>
+                <td>${rowId && !isStorno && !gesperrt ? `<input type="number" class="form-input fp-mk-input" step="0.01" min="0" value="${_escHtml(mkVal)}" data-rowid="${_escHtml(rowId)}" style="width:80px;padding:0.25rem 0.4rem;font-size:0.82rem;">` : fmt(r['Mehrkosten']) + ' €'}</td>
+                <td style="font-weight:600;${isStorno ? red : ''}">${_escHtml(betrag(r['Gesamt-Partner-Netto']))}</td>
+                <td><span class="badge ${r['Status Abrechnung'] === 'abgerechnet' ? 'badge-completed' : gesperrt ? 'badge-on-hold' : 'badge-processing'}"${gesperrt ? ' data-hilfe="fp-sperre" tabindex="0"' : ''}>${_escHtml(r['Status Abrechnung'])}</span></td>
               </tr>`;}).join('')}</tbody>
             </table></div>`;
 
@@ -23425,7 +23502,7 @@
               });
             });
           } catch (e) {
-            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${_escHtml(e.message)}</p>`;
           }
         }
 
@@ -23501,18 +23578,18 @@
                     detailCell = `<td colspan="8" style="padding:0.5rem 0.6rem;background:color-mix(in srgb, var(--text) 2%, transparent);"><div style="overflow-x:auto;">${fpSummaryTableHTML(pos)}</div>${fpPortoHTML(pos.porto)}${fpVerpackungHTML(pos.verpackung)}</td>`;
                 } catch {}
                 return `<tr>
-                <td style="font-size:0.82rem;font-weight:600;cursor:pointer;" data-abr-detail="${idSafe}"><span class="fp-abr-caret">▸</span> ${abrId}</td>
-                <td>${r['Partner-ID']}</td>
-                <td>${r['Zeitraum-Von']}</td>
-                <td>${r['Zeitraum-Bis']}</td>
+                <td style="font-size:0.82rem;font-weight:600;cursor:pointer;" data-abr-detail="${idSafe}"><span class="fp-abr-caret">▸</span> ${_escHtml(abrId)}</td>
+                <td>${_escHtml(r['Partner-ID'])}</td>
+                <td>${_escHtml(r['Zeitraum-Von'])}</td>
+                <td>${_escHtml(r['Zeitraum-Bis'])}</td>
                 <td style="font-weight:600;">${fmt(r['Gesamt-Netto'])} €</td>
                 <td>${fmt(r['Gesamt-Brutto'])} €</td>
                 <td>
-                  <span class="badge ${badgeCls(cur)}" style="margin-bottom:0.3rem;display:inline-block;">${cur}</span><br>
-                  <select class="form-select fp-abr-status-sel" data-abr-id="${abrId}" data-abr-cur="${cur}"
+                  <span class="badge ${badgeCls(cur)}" style="margin-bottom:0.3rem;display:inline-block;">${_escHtml(cur)}</span><br>
+                  <select class="form-select fp-abr-status-sel" data-abr-id="${_escHtml(abrId)}" data-abr-cur="${_escHtml(cur)}"
                     style="font-size:0.78rem;padding:0.22rem 0.5rem;margin-top:0.1rem;">${opts}</select>
                 </td>
-                <td style="color:var(--muted);font-size:0.82rem;">${r['Erstellt-Am']}${cur === 'entwurf' ? ` <button class="btn-secondary" style="font-size:0.72rem;padding:0.15rem 0.4rem;margin-left:0.4rem;" data-del-abr="${abrId}" data-hilfe="fp-abrechnung-loeschen">✕</button>` : ''}</td>
+                <td style="color:var(--muted);font-size:0.82rem;">${_escHtml(r['Erstellt-Am'])}${cur === 'entwurf' ? ` <button class="btn-secondary" style="font-size:0.72rem;padding:0.15rem 0.4rem;margin-left:0.4rem;" data-del-abr="${_escHtml(abrId)}" data-hilfe="fp-abrechnung-loeschen">✕</button>` : ''}</td>
               </tr>
               <tr id="fp-abr-det-${idSafe}" style="display:none;">${detailCell}</tr>`;}).join('')}</tbody>
             </table></div>`;
@@ -23532,7 +23609,7 @@
               btn.addEventListener('click', async (e) => {
                 e.stopPropagation();
                 const abrId = btn.dataset.delAbr;
-                if (!await window.showConfirm(`Abrechnung ${abrId} löschen? Die zugehörigen Verkäufe werden wieder auf „offen" gesetzt.`)) return;
+                if (!await window.showConfirm(`Abrechnung ${_escHtml(abrId)} löschen? Die zugehörigen Verkäufe werden wieder auf „offen" gesetzt.`)) return;
                 try {
                   const r = await window.apiFetch(`${FP()}/api/festpreis/abrechnungen/${encodeURIComponent(abrId)}`, { method: 'DELETE' });
                   if (!r.ok) throw new Error((await r.json()).error ?? r.statusText);
@@ -23565,7 +23642,7 @@
               });
             });
           } catch (e) {
-            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${_escHtml(e.message)}</p>`;
           }
         }
 
@@ -23583,21 +23660,21 @@
             wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
               <thead><tr><th>Artikelkategorie</th><th>Partner-ID</th><th style="text-align:right;">Festpreis (€)</th><th style="text-align:right;">Handling (€/Stk)</th><th></th></tr></thead>
               <tbody>${preise.map(p => `<tr>
-                <td>${p['Kategorie'] || '–'}</td>
-                <td style="color:var(--muted);font-size:0.82rem;">${p['Festpreispartner-ID'] || '–'}</td>
+                <td>${_escHtml(p['Kategorie'] || '–')}</td>
+                <td style="color:var(--muted);font-size:0.82rem;">${_escHtml(p['Festpreispartner-ID'] || '–')}</td>
                 <td style="text-align:right;">
                   <input type="number" class="form-input fp-preis-edit" step="0.01" min="0"
                     value="${parseFloat(String(p['Festpreis']||'0').replace(',','.')) || 0}"
-                    data-rowid="${p._rowId}" data-field="festpreis"
+                    data-rowid="${_escHtml(p._rowId)}" data-field="festpreis"
                     style="width:80px;padding:0.25rem 0.4rem;font-size:0.84rem;text-align:right;">
                 </td>
                 <td style="text-align:right;">
                   <input type="number" class="form-input fp-preis-edit" step="0.01" min="0"
                     value="${parseFloat(String(p['Handlingskosten']||'0').replace(',','.')) || 0}"
-                    data-rowid="${p._rowId}" data-field="handlingskosten"
+                    data-rowid="${_escHtml(p._rowId)}" data-field="handlingskosten"
                     style="width:80px;padding:0.25rem 0.4rem;font-size:0.84rem;text-align:right;">
                 </td>
-                <td><button class="btn-secondary" style="font-size:0.75rem;padding:0.25rem 0.5rem;" data-del-preis="${p._rowId}" data-hilfe="fp-preis-loeschen">✕</button></td>
+                <td><button class="btn-secondary" style="font-size:0.75rem;padding:0.25rem 0.5rem;" data-del-preis="${_escHtml(p._rowId)}" data-hilfe="fp-preis-loeschen">✕</button></td>
               </tr>`).join('')}</tbody>
             </table></div>`;
 
@@ -23630,7 +23707,7 @@
               });
             });
           } catch (e) {
-            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${_escHtml(e.message)}</p>`;
           }
         }
 
@@ -23681,7 +23758,7 @@
           const fmt   = v => Number(v || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
           const saldo = (e, k) => { const v = (e||0) - (k||0); const col = v < 0 ? 'var(--danger)' : 'var(--success)'; return `<span style="color:${col};">${v<0?'−':''}${fmt(Math.abs(v))} €</span>`; };
           const body = d.produkteGruppen.map(g => `<tr>
-            <td style="font-size:0.82rem;">${_escHtml(g.artikelname)}<br><span style="color:var(--muted);font-size:0.74rem;">${_escHtml(g.artikelkategorie || '–')} · #${g.produktId}</span></td>
+            <td style="font-size:0.82rem;">${_escHtml(g.artikelname)}<br><span style="color:var(--muted);font-size:0.74rem;">${_escHtml(g.artikelkategorie || '–')} · #${_escHtml(g.produktId)}</span></td>
             <td style="text-align:right;">${_escHtml(g.stueckzahl)}</td>
             <td style="text-align:right;font-weight:600;">${fmt(g.vkNetto)} €</td>
             <td style="text-align:right;color:var(--danger);">${g.festpreisGesamt ? '−'+fmt(g.festpreisGesamt)+' €' : '0,00 €'}</td>
@@ -23730,18 +23807,18 @@
           return `<div style="display:flex;justify-content:space-between;padding:0.15rem 0;" data-hilfe="fp-porto-einnahmen" tabindex="0">
               <span>+ Porto-Einnahmen (${_escHtml(e.anzahl)} Bestellungen)</span><span>+${fmt(e.summe)} €</span></div>
             <div style="display:flex;justify-content:space-between;padding:0.15rem 0;color:var(--danger);" data-hilfe="fp-porto-kosten" tabindex="0">
-              <span>− Porto-Kosten (${_escHtml(k.anzahl)} Bestellungen, davon ${k.paket || 0} Paket)</span><span>−${fmt(k.summe)} €</span></div>
-            <div style="color:var(--muted);font-size:0.78rem;">netto, in „Auszahlung netto“ enthalten${nicht ? ` · ohne Porto-Kosten: ${nicht}` : ''}</div>${warn}`;
+              <span>− Porto-Kosten (${_escHtml(k.anzahl)} Bestellungen, davon ${_escHtml(k.paket || 0)} Paket)</span><span>−${fmt(k.summe)} €</span></div>
+            <div style="color:var(--muted);font-size:0.78rem;">netto, in „Auszahlung netto“ enthalten${nicht ? ` · ohne Porto-Kosten: ${_escHtml(nicht)}` : ''}</div>${warn}`;
         }
 
         function fpVerpackungHTML(v) {
           if (!v || v.status === 'keine') return '';
           const fmt = x => Number(x || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
           const hinweise = (v.hinweise || []).map(h => `<div style="color:var(--muted);font-size:0.78rem;">${_escHtml(h)}</div>`).join('');
-          if (v.status !== 'ok') return `<div style="padding:0.3rem 0;color:var(--danger);font-weight:600;">⚠ ${(v.hinweise || []).join(' ') || 'Verpackungspauschale nicht berechnet.'} Die Abrechnung enthält dann KEINE Pauschale.</div>`;
+          if (v.status !== 'ok') return `<div style="padding:0.3rem 0;color:var(--danger);font-weight:600;">⚠ ${_escHtml((v.hinweise || []).join(' ') || 'Verpackungspauschale nicht berechnet.')} Die Abrechnung enthält dann KEINE Pauschale.</div>`;
           return `<div style="display:flex;justify-content:space-between;padding:0.15rem 0;color:var(--danger);">
               <span>− Verpackungspauschale: ${_escHtml(v.anzahl)} Bestellungen × ${fmt(v.betrag)} € (brutto)</span><span>−${fmt(v.summe)} €</span></div>
-            <div style="color:var(--muted);font-size:0.78rem;">nicht gezählt: ${v.abholung || 0} Abholung, ${v.vorAb || 0} vor ${v.ab || '–'}</div>${hinweise}`;
+            <div style="color:var(--muted);font-size:0.78rem;">nicht gezählt: ${_escHtml(v.abholung || 0)} Abholung, ${_escHtml(v.vorAb || 0)} vor ${_escHtml(v.ab || '–')}</div>${hinweise}`;
         }
 
         // Interne-Bestellungen-Block + finale Auszahlungs-Aufstellung für das Vorschau-Modal.
@@ -23768,7 +23845,7 @@
               <div style="display:flex;justify-content:space-between;padding:0.15rem 0;">
                 <span>Auszahlung netto</span><span>${fmt(d.auszahlungNetto)} €</span></div>
               <div style="display:flex;justify-content:space-between;padding:0.15rem 0;color:var(--muted);">
-                <span>zzgl. MwSt (${mwst} %)</span><span>${fmt((d.auszahlungBrutto||0)-(d.auszahlungNetto||0))} €</span></div>
+                <span>zzgl. MwSt (${_escHtml(mwst)} %)</span><span>${fmt((d.auszahlungBrutto||0)-(d.auszahlungNetto||0))} €</span></div>
               <div style="display:flex;justify-content:space-between;padding:0.15rem 0;font-weight:600;border-top:1px solid var(--border);margin-top:0.25rem;padding-top:0.4rem;">
                 <span>Auszahlung brutto</span><span>${fmt(d.auszahlungBrutto)} €</span></div>
               <div style="display:flex;justify-content:space-between;padding:0.15rem 0;color:var(--danger);">
@@ -23786,7 +23863,7 @@
           const bd = document.createElement('div'); bd.className = 'modal-backdrop';
           bd.innerHTML = `<div class="modal-box" style="max-width:880px;width:97%;max-height:90vh;display:flex;flex-direction:column;">
             <div class="modal-title">Abrechnung Vorschau – ${_escHtml(partnerName)}</div>
-            <p style="font-size:0.82rem;color:var(--muted);margin:0.6rem 0 1rem;">${vonDatum} – ${bisDatum} &nbsp;·&nbsp; ${d.positionen} Einzelpositionen${(d.intern||[]).length ? ` · ${(d.intern||[]).length} interne Bestellung(en)` : ''}</p>
+            <p style="font-size:0.82rem;color:var(--muted);margin:0.6rem 0 1rem;">${_escHtml(vonDatum)} – ${_escHtml(bisDatum)} &nbsp;·&nbsp; ${_escHtml(d.positionen)} Einzelpositionen${(d.intern||[]).length ? ` · ${(d.intern||[]).length} interne Bestellung(en)` : ''}</p>
             <div style="overflow:auto;flex:1;">
               ${abrKlaerenHTML(d.klaeren)}
               ${fpSummaryTableHTML(d)}
@@ -23823,10 +23900,10 @@
               wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Einträge gefunden.</p>'; return;
             }
             wrap.innerHTML = `
-              <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;">${d.positionen} Einzelpositionen · ${d.produkteGruppen.length} Artikel-Gruppen</p>
+              <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;">${_escHtml(d.positionen)} Einzelpositionen · ${d.produkteGruppen.length} Artikel-Gruppen</p>
               <div style="overflow-x:auto;">${fpSummaryTableHTML(d)}</div>`;
           } catch (e) {
-            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${_escHtml(e.message)}</p>`;
           }
         });
 
@@ -23851,7 +23928,7 @@
             ).then(r => r.json());
             renderFpInternTable();
           } catch (e) {
-            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${e.message}</p>`;
+            wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${_escHtml(e.message)}</p>`;
           }
         }
 
@@ -23880,7 +23957,7 @@
               ).join('');
               const editBtn = r.status === 'abgerechnet'
                 ? ''
-                : `<button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;" data-fpi-edit="${r.rowId}" data-hilfe="liste-bearbeiten">Bearbeiten</button>`;
+                : `<button class="btn-secondary" style="font-size:0.76rem;padding:0.28rem 0.6rem;" data-fpi-edit="${_escHtml(r.rowId)}" data-hilfe="liste-bearbeiten">Bearbeiten</button>`;
               return `<tr>
                 <td>${_escHtml(r.datum)}</td>
                 <td>${_escHtml(r.bezeichnung)}</td>
@@ -23889,7 +23966,7 @@
                 <td style="text-align:right;font-weight:600;">${fmt(r.summe)}</td>
                 <td><span class="badge ${badge(r.status)}" style="margin-bottom:0.35rem;display:inline-block;">${_escHtml(r.status)}</span><br>
                   <select class="form-select" style="font-size:0.78rem;padding:0.22rem 0.5rem;margin-top:0.15rem;"
-                    data-fpi-sel="${r.rowId}" data-fpi-cur="${_escHtml(r.status)}">${opts}</select></td>
+                    data-fpi-sel="${_escHtml(r.rowId)}" data-fpi-cur="${_escHtml(r.status)}">${opts}</select></td>
                 <td style="text-align:right;">${editBtn}</td>
               </tr>`;
             }).join('')}</tbody>
@@ -23934,13 +24011,13 @@
             <div class="modal-title">${isEdit ? 'Interne Bestellung bearbeiten' : 'Interne Bestellung erfassen'}</div>
             <div style="margin-top:1.1rem;"><div class="form-grid">
               <div class="form-field"><label>Datum *</label>
-                <input class="form-input" type="date" id="fpi-d" value="${dVal}"></div>
+                <input class="form-input" type="date" id="fpi-d" value="${_escHtml(dVal)}"></div>
               <div class="form-field"><label>Anzahl *</label>
-                <input class="form-input" type="number" id="fpi-a" min="1" step="1" value="${isEdit ? existing.anzahl : 1}"></div>
+                <input class="form-input" type="number" id="fpi-a" min="1" step="1" value="${isEdit ? _escHtml(existing.anzahl) : 1}"></div>
               <div class="form-field form-col-full"><label>Bezeichnung *</label>
                 <input class="form-input" id="fpi-b" placeholder="z.B. Werbeshirts April" value="${isEdit ? _escHtml(existing.bezeichnung) : ''}"></div>
               <div class="form-field"><label>Einzelpreis brutto (€)</label>
-                <input class="form-input" type="number" id="fpi-e" min="0" step="0.01" value="${isEdit ? existing.einzelpreis : 0}"></div>
+                <input class="form-input" type="number" id="fpi-e" min="0" step="0.01" value="${isEdit ? _escHtml(existing.einzelpreis) : 0}"></div>
             </div>
             <div class="modal-actions" style="margin-top:1.25rem;">
               <button class="btn-secondary" id="fpi-x" data-hilfe="dialog-abbrechen">Abbrechen</button>

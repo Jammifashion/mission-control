@@ -5,7 +5,11 @@ import { getGoogleAuth } from './googleAuth.js';
 import { getModel } from './modelConfig.js';
 import { sanitizeJsonControlChars, stripCodeFence, collectText } from '../utils/json-parse.js';
 
-const TAB_ANFRAGEN = 'Kundenanfragen';
+// Beispiele fuer den Kundenchat kommen NUR aus Agent_Wissen, Typ "beispiel" (vom Inhaber gepflegt, anonym) -
+// nie aus echten Anfragen. Leer = keine Beispiele. Schluessel = Artikel, Wert = Menge/Preis (frei formuliert).
+const TAB_WISSEN = 'Agent_Wissen';
+export const BEISPIEL_TYP = 'beispiel';
+export const BEISPIELE_MAX = 20;
 
 let _historyCache   = null;
 let _historyCacheAt = 0;
@@ -15,40 +19,35 @@ function getSheets() {
   return getGoogleAuth().then(auth => google.sheets({ version: 'v4', auth }));
 }
 
+/** Zeilen Agent_Wissen (A:D = Typ | Schluessel | Wert | Notiz) -> [{ text, wert }] nur Typ "beispiel". */
+export function beispieleAus(werte) {
+  const [, ...rows] = werte ?? [];
+  return rows
+    .filter(r => String(r?.[0] ?? '').trim().toLowerCase() === BEISPIEL_TYP)
+    .map(r => ({ text: String(r[1] ?? '').trim().slice(0, 200), wert: String(r[2] ?? '').trim().slice(0, 200) }))
+    .filter(r => r.text)
+    .slice(0, BEISPIELE_MAX);
+}
+
+/** Name bleibt fuer die Aufrufer (Kundenchat, Testchat); liest nur die gepflegten Beispiele. */
 export async function loadRecentAnfragen() {
   if (_historyCache && Date.now() - _historyCacheAt < HISTORY_TTL) return _historyCache;
   const sheetId = process.env.BUSINESS_SHEET_ID;
   if (!sheetId) return [];
   try {
     const sheets = await getSheets();
-    const { data } = await sheets.spreadsheets.values.get({
-      spreadsheetId: sheetId, range: `${TAB_ANFRAGEN}!A1:N`,
-    });
-    const [header, ...rawRows] = data.values ?? [];
-    if (!header) return [];
-    const rows = rawRows.filter(r => r.some(c => c) && !(r[0] ?? '').startsWith('//'));
-    const h = c => header.indexOf(c);
-    const completed = rows
-      .filter(r => (r[h('Status')] ?? '') === 'Abgeschlossen')
-      .slice(-20)
-      .map(r => ({
-        produkt:        r[h('Produkt-Beschreibung')] ?? '',
-        menge:          r[h('Menge')] ?? '',
-        preisvorschlag: r[h('Preisvorschlag')] ?? '',
-      }))
-      .filter(r => r.produkt || r.preisvorschlag);
-    _historyCache   = completed;
+    const { data } = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range: `${TAB_WISSEN}!A:D` });
+    const liste = beispieleAus(data.values);
+    _historyCache   = liste;
     _historyCacheAt = Date.now();
-    return completed;
+    return liste;
   } catch { return []; }
 }
 
 export function buildSystemBlocks(kbBase, history, sessionData) {
   const examples = history.length
-    ? history.map((a, i) =>
-        `${i + 1}. ${a.produkt} | Menge: ${a.menge} | Preis: ${a.preisvorschlag}€`
-      ).join('\n')
-    : '(Noch keine Referenzdaten verfügbar)';
+    ? history.map((a, i) => `${i + 1}. ${a.text}${a.wert ? ` | ${a.wert}` : ''}`).join('\n')
+    : '(keine Beispiele hinterlegt)';
 
   const stateStr = sessionData && Object.keys(sessionData).length > 0
     ? `\nAKTUELLER FORMULARSTAND: ${JSON.stringify(sessionData)}`
@@ -58,7 +57,7 @@ export function buildSystemBlocks(kbBase, history, sessionData) {
     {
       type: 'text',
       // Statischer Teil: kbBase + Beispiele bleiben 10 min konstant → Cache-Hit
-      text: `${kbBase}\n\nREFERENZ-AUFTRÄGE (letzte abgeschlossene):\n${examples}`,
+      text: `${kbBase}\n\nBEISPIELE (zur Orientierung bei Menge und Preis):\n${examples}`,
       cache_control: { type: 'ephemeral' },
     },
     {

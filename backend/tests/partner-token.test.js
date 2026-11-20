@@ -185,8 +185,8 @@ describe('Fehlversuchs-Bremse je IP', () => {
   });
   test('vor beiden Portal-Routern eingehaengt', () => {
     const s = lies('index.js');
-    expect(s).toMatch(/app\.use\('\/api\/partner',\s*tokenBremse, partnerPortalRouter\)/);
-    expect(s).toMatch(/app\.use\('\/api\/festpreis-public',\s*tokenBremse, festpreisPublicRouter\)/);
+    expect(s).toMatch(/app\.use\('\/api\/partner',\s*(oeffentlich, )?tokenBremse, partnerPortalRouter\)/);   // FIX4: oeffentlich markiert nur
+    expect(s).toMatch(/app\.use\('\/api\/festpreis-public',\s*(oeffentlich, )?tokenBremse, festpreisPublicRouter\)/);
   });
 });
 

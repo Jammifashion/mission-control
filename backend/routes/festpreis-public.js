@@ -47,6 +47,28 @@ function rowToObj(header, row) {
   return obj;
 }
 
+// feste Feldlisten statt ganzer Sheet-Zeilen - genau das, was partner-festpreis.html liest.
+// Neue Spalten im Sheet erscheinen so nie ungewollt im Portal (EK, Festpreis, Sperre-Grund, Versandmethode …).
+export const PORTAL_VERKAUF_FELDER = ['Datum', 'WC-Bestellnummer', 'Artikelname', 'Stückzahl', 'Storno-Status', 'Status Abrechnung'];
+export const PORTAL_ABRECHNUNG_FELDER = ['Abrechnungs-ID', 'Zeitraum-Von', 'Zeitraum-Bis', 'Status', 'Erstellt-Am',
+  'Gesamt-Netto', 'Gesamt-Brutto', 'Positionen'];
+
+function nurFelder(obj, felder) {
+  const aus = {};
+  for (const f of felder) aus[f] = obj[f] ?? '';
+  return aus;
+}
+
+/** Positionen-JSON der Abrechnung: das Portal liest nur die verrechneten internen Bestellungen. */
+export function portalPositionen(text) {
+  let pos;
+  try { pos = JSON.parse(String(text ?? '')); } catch { return ''; }
+  if (!pos || typeof pos !== 'object' || Array.isArray(pos)) return '';
+  const intern = (Array.isArray(pos.intern) ? pos.intern : [])
+    .map(i => ({ datum: i?.datum ?? '', bezeichnung: i?.bezeichnung ?? '', anzahl: i?.anzahl ?? '', summe: i?.summe ?? 0 }));
+  return JSON.stringify({ intern, ...(pos.interneSumme !== undefined ? { interneSumme: pos.interneSumme } : {}) });
+}
+
 function extractToken(req) {
   const auth = req.headers.authorization ?? '';
   return auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
@@ -91,16 +113,12 @@ router.get('/verkaeufe', async (req, res, next) => {
     const pidIdx = header.indexOf('Partner-ID');
     const stIdx  = header.indexOf('Status Abrechnung');
     // PA8: gesperrte Zeilen (Festpreis-Kategorie fehlt) als "in Prüfung", ohne Grund und ohne Betraege; nicht im Saldo.
-    const BETRAEGE = ['Festpreis', 'Handlingskosten', 'Gesamt-Partner-Netto', 'Gesamt-Partner-Brutto'];
+    // nur die Felder aus PORTAL_VERKAUF_FELDER (keine Betraege, kein Sperre-Grund).
     const filtered = rows
       .filter(r => (r[pidIdx] ?? '') === partnerId && (r[stIdx] ?? '') !== 'abgerechnet')
       .map(r => {
-        const o = rowToObj(header, r);
-        delete o.Sperre;
-        if (String(o['Status Abrechnung'] ?? '').trim() === 'gesperrt') {
-          o['Status Abrechnung'] = 'in Prüfung';
-          for (const b of BETRAEGE) delete o[b];
-        }
+        const o = nurFelder(rowToObj(header, r), PORTAL_VERKAUF_FELDER);
+        if (String(o['Status Abrechnung'] ?? '').trim() === 'gesperrt') o['Status Abrechnung'] = 'in Prüfung';
         return o;
       });
     res.json(filtered);
@@ -193,11 +211,12 @@ router.get('/abrechnungen', async (req, res, next) => {
     const filtered = rows
       .filter(r => (r[pidIdx] ?? '') === partnerId && (r[header.indexOf('Status')] ?? '') !== 'entwurf')
       .map(r => {
-        const obj = rowToObj(header, r);
+        const obj = nurFelder(rowToObj(header, r), PORTAL_ABRECHNUNG_FELDER);
         // Sheet ist deutsch lokalisiert → "12,34"; als echte Zahl liefern,
         // sonst ergibt Number("12,34") im Frontend NaN (→ Anzeige 0,00).
         obj['Gesamt-Netto']  = toFloat(obj['Gesamt-Netto']);
         obj['Gesamt-Brutto'] = toFloat(obj['Gesamt-Brutto']);
+        obj['Positionen']    = portalPositionen(obj['Positionen']);
         return obj;
       });
     res.json(filtered);

@@ -12,6 +12,10 @@ on:
         required: false
         default: true
 
+# GITHUB_TOKEN nur lesend - der Workflow ruft nur das Backend auf.
+permissions:
+  contents: read
+
 jobs:
   abgleich:
     name: Trigger Abgleich (POST /api/bestellen/lshop-korb/abgleich)
@@ -42,7 +46,7 @@ jobs:
           exit 1
 
       - name: Hilfsskript holen
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           sparse-checkout: .github/scripts
           sparse-checkout-cone-mode: false

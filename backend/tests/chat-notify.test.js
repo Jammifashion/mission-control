@@ -12,7 +12,7 @@ jest.unstable_mockModule('../utils/secrets.js', () => ({
 }));
 
 const {
-  notify, redact, kuerze, buildAnfrageNachricht, buildPartnerNachricht, _resetWarnung,
+  notify, redact, kuerze, buildAnfrageNachricht, buildPartnerNachricht, _resetWarnung, kurzthema,
 } = await import('../lib/chatNotify.js');
 
 const ECHTE_URL = 'https://chat.googleapis.com/v1/spaces/AAA/messages?key=k&token=t';
@@ -459,9 +459,18 @@ describe('Nachrichtenformat', () => {
     });
     const zeilen = msg.split('\n');
     expect(zeilen[0]).toBe('🟢 Neue Anfrage · KA-2026-0042');
-    expect(zeilen[1]).toBe('Grundschule Kellinghusen · 45 Stück');
-    expect(zeilen[2]).toBe('"Abschluss-Shirts Klasse 4b, Wunschtermin 20.10."');
-    expect(zeilen[3]).toContain('Mission Control öffnen');
+    // FIX4: kein Kundenname, kein Zitat - nur Kurzthema aus fester Wortliste + Menge
+    expect(zeilen[1]).toBe('T-Shirt · 45 Stück');
+    expect(zeilen[2]).toContain('Mission Control öffnen');
+    expect(msg).not.toMatch(/Grundschule|Kellinghusen|Klasse|Wunschtermin/);
+  });
+
+  test('Kundenanfrage: Menge nur als Zahl, Kurzthema nur aus der Wortliste', () => {
+    const msg = buildAnfrageNachricht({ anfrageId: 'KA-1', kundeName: 'Erika Beispiel', menge: 'viele für Erika', beschreibung: 'etwas Schönes für Erika' });
+    expect(msg).not.toMatch(/Erika/);
+    expect(msg.split('\n')[0]).toBe('🟢 Neue Anfrage · KA-1');
+    expect(kurzthema('2 Hoodies und 10 Tassen')).toBe('Hoodie, Tasse');
+    expect(kurzthema('Abschluss-Shirts Klasse 4b')).toBe('T-Shirt');
   });
 
   test('Partnerbestellung ohne Summe (Portal-Eigenauftrag)', () => {

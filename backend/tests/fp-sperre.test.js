@@ -120,7 +120,8 @@ describe('Sync: Sperre statt Festpreis 0', () => {
     const saldo = await request(app).get('/api/festpreis-public/saldo').set('Authorization', `Bearer ${TOKEN}`);
     expect(saldo.status).toBe(200);
     const portal = await request(app).get('/api/festpreis-public/verkaeufe').set('Authorization', `Bearer ${TOKEN}`);
-    const p13 = portal.body.find(r => String(r['Produkt-ID']) === '13');
+    // das Portal bekommt nur feste Felder (keine Produkt-ID mehr) - Zeile ueber den Artikelnamen
+    const p13 = portal.body.find(r => String(r['Artikelname']).startsWith('Puck'));
     expect(p13['Status Abrechnung']).toBe('in Prüfung');
     expect(p13).not.toHaveProperty('Sperre');
     expect(p13).not.toHaveProperty('Gesamt-Partner-Netto');

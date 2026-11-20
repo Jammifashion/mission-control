@@ -185,7 +185,7 @@ describe('Keyphrase-Dublette', () => {
     const abbruch   = h.indexOf("if (!ok) {");
     const schreiben = h.indexOf('await yoastSchreiben(');
     expect(confirmAt).toBeGreaterThan(-1);
-    expect(h).toContain('${d.id}</strong> – ${d.name}');
+    expect(h).toContain('${monEsc(d.id)}</strong> – ${monEsc(d.name)}');   // escaped
     expect(abbruch).toBeGreaterThan(confirmAt);
     expect(h.slice(abbruch, h.indexOf('}', abbruch))).toContain('return;');
     expect(schreiben).toBeGreaterThan(abbruch);

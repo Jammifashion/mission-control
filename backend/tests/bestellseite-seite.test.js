@@ -19,11 +19,13 @@ describe('bestellen.html: Token aus der Adresse', () => {
     return w;
   };
   const speicher = () => { const m = new Map(); return { getItem: k => m.get(k) ?? null, setItem: (k, v) => m.set(k, v), removeItem: k => m.delete(k), m }; };
-  test('#t= (bevorzugt) und ?t=, nur gueltige Form', () => {
+  test('nur #t=, nur gueltige Form; ?t= wird nicht mehr gelesen (FIX4)', () => {
     expect(TOKEN).toHaveLength(43);
-    expect(F.bsTokenAusAdresse(`#t=${TOKEN}`, '')).toBe(TOKEN);
-    expect(F.bsTokenAusAdresse('', `?t=${TOKEN}`)).toBe(TOKEN);
-    expect(F.bsTokenAusAdresse('#t=kurz', '')).toBe('');
+    expect(F.bsTokenAusAdresse(`#t=${TOKEN}`)).toBe(TOKEN);
+    expect(F.bsTokenAusAdresse('', `?t=${TOKEN}`)).toBe('');
+    expect(F.bsTokenAusAdresse('#t=kurz')).toBe('');
+    const w = win('', `?t=${TOKEN}`);
+    expect(F.bsTokenUebernehmen(w, speicher())).toBe('');
   });
   test('entfernt den Token sofort aus der Adresse und legt ihn nur in den sessionStorage', () => {
     const w = win(`#t=${TOKEN}`), s = speicher();

@@ -7,6 +7,8 @@ import { getModel } from '../lib/modelConfig.js';
 import { runCheck } from '../scripts/check-models.js';
 import { notify } from '../lib/chatNotify.js';
 import { lebenszeichenEingabe, lebenszeichenText } from '../utils/lebenszeichen.js';
+import { loeschlauf } from '../lib/loeschlauf.js';
+import { loeschlaufText } from '../utils/loeschlauf.js';
 
 // Zwei Router statt einem, der doppelt eingehaengt war (/api/system und
 // /api/health): so gab es auch /api/system/full und /api/health/modell-check.
@@ -114,6 +116,19 @@ router.post('/lebenszeichen', async (req, res, next) => {
     const laeufe = lebenszeichenEingabe(req.body);
     const gesendet = await notify(lebenszeichenText(laeufe));
     res.status(gesendet ? 200 : 502).json({ gesendet, unvollstaendig: laeufe.filter(l => l.n < l.soll).map(l => l.name) });
+  } catch (err) { next(err); }
+});
+
+// ── POST /api/system/loeschlauf  (hinter requireApiKey, FIX4) ─────────────
+// Body { scharf } vom Workflow loeschlauf-weekly.yml (scharf nur mit Repo-Variable LOESCHLAUF_SCHARF = ja).
+// Ohne scharf: nur zaehlen. Chat-Meldung nur mit Anzahlen und nur, wenn etwas faellig/geleert ist oder ein Bereich scheitert.
+router.post('/loeschlauf', async (req, res, next) => {
+  try {
+    const scharf = req.body?.scharf === true;
+    const r = await loeschlauf({ scharf });
+    const werte = Object.values(r.ergebnis);
+    if (werte.some(v => v.fehler || v.zaehler?.faellig)) await notify(loeschlaufText(r));
+    res.status(werte.some(v => v.fehler) ? 502 : 200).json(r);
   } catch (err) { next(err); }
 });
 

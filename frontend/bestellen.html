@@ -2,6 +2,8 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
+  <!-- FIX4: CSP Stufe 1 (Inline-Skripte noch erlaubt); Bilder nur Shop-CDN/Shop, Entwuerfe als blob: -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://i0.wp.com https://i1.wp.com https://i2.wp.com https://i3.wp.com https://jammifashion.de https://www.jammifashion.de; font-src 'self'; connect-src 'self' https://mission-control-backend-181760755456.europe-west1.run.app; frame-src 'none'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex, nofollow">
@@ -11,16 +13,17 @@
     // KS1: Token sofort aus der Adresse nehmen (vor allem anderen), danach nur sessionStorage dieses Tabs.
     // ── Bestellseite-Token: Anfang (reine Logik, Test backend/tests/bestellseite-seite.test.js) ──
     var BS_TOKEN_MUSTER = /^[A-Za-z0-9_-]{43}$/;
-    /** Token aus #t=… (bevorzugt, geht nie an den Server) oder ?t=… */
-    function bsTokenAusAdresse(hash, suche) {
-      var m = /(?:^#|&)t=([^&]+)/.exec(String(hash || '')) || /(?:^\?|&)t=([^&]+)/.exec(String(suche || ''));
-      var tok = m ? decodeURIComponent(m[1]) : '';
+    /** Token NUR aus #t=… (geht nie an den Server; FIX4: kein Rueckfall auf die Abfrage mehr). */
+    function bsTokenAusAdresse(hash) {
+      var m = /(?:^#|&)t=([^&]+)/.exec(String(hash || ''));
+      var tok = '';
+      try { tok = m ? decodeURIComponent(m[1]) : ''; } catch (e) { tok = ''; }
       return BS_TOKEN_MUSTER.test(tok) ? tok : '';
     }
     /** Liest den Token einmal, legt ihn in den Speicher und entfernt ihn aus der Adresse. -> Token oder '' */
     function bsTokenUebernehmen(win, speicher) {
-      var tok = bsTokenAusAdresse(win.location.hash, win.location.search);
-      var hatteTeil = /(?:^#|&)t=/.test(win.location.hash || '') || /(?:^\?|&)t=/.test(win.location.search || '');
+      var tok = bsTokenAusAdresse(win.location.hash);
+      var hatteTeil = /(?:^#|&)t=/.test(win.location.hash || '');
       if (hatteTeil && win.history && win.history.replaceState) win.history.replaceState(null, '', win.location.pathname);
       try {
         if (tok && speicher) speicher.setItem('bs_token', tok);
@@ -368,6 +371,7 @@
         + `<div class="bs-reihe" style="margin-top:0.5rem"><button type="button" class="btn" id="bs-absenden" ${schreibbar && kuerzel ? '' : 'disabled'}>Absenden (${korb.length})</button></div>`
         + (kuerzel ? '' : `<p class="bs-klein">${bsEsc(texte?.kuerzelFehlt || 'Bitte oben dein Kürzel eintragen.')}</p>`)
         + '<p class="bs-klein" style="margin-top:0.4rem">Wird automatisch auf diesem Gerät zwischengespeichert – du kannst die Seite schließen und später weitermachen. Bei uns kommt es erst mit „Absenden“ an.</p>'
+        + '<p style="margin-top:0.2rem"><button type="button" class="bs-link" id="bs-verwerfen">Zwischenstand verwerfen</button></p>'   // FIX4
         + '</section>';
     }
     // ── Zwischenstand (Nachbesserung KS6, Inhaber 08.11.): Korb "noch nicht abgesendet" im Speicher DIESES Geraets (localStorage),
@@ -721,6 +725,14 @@
         BS.korb.push({ art: 'trikot', produktId: sel.value, groesse, name, nummer, wunsch: document.getElementById('bs-tr-wunsch').value.trim(), menge: 1, ...(tn ? { notiz: tn } : {}),
           text: `Trikot ${sel.selectedOptions[0]?.textContent || ''} · ${groesse}${name ? ` · ${name}` : ''}${nummer ? ` · ${nummer}` : ''}` });
         if (!BS.vorgang) BS.vorgang = neuerVorgang(); zeichnen(); return;
+      }
+      if (b.id === 'bs-verwerfen') {   // FIX4: Zwischenstand auf diesem Geraet loeschen, Korb leer
+        const n = BS.korb.length;
+        if (!n || !confirm(`Zwischenstand verwerfen?\nDie ${n === 1 ? 'eine Position' : `${n} Positionen`}, die noch nicht abgesendet ${n === 1 ? 'ist' : 'sind'}, werden von diesem Gerät gelöscht. Bereits Abgesendetes bleibt.`)) return;
+        BS.korb = []; BS.vorgang = '';
+        try { if (zw.schluessel && lsp) lsp.removeItem(zw.schluessel); } catch { /* gesperrt */ }
+        zeichnen(); meldung('Zwischenstand verworfen.');
+        return;
       }
       if (b.dataset.korbWeg !== undefined) { BS.korb.splice(Number(b.dataset.korbWeg), 1); if (!BS.korb.length) BS.vorgang = ''; zeichnen(); return; }
       if (b.id === 'bs-absenden') {

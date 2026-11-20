@@ -16,6 +16,7 @@ import { notify, buildPartnerNachricht } from '../lib/chatNotify.js';
 import { requireHeader } from '../utils/sheet-headers.js';
 import { saldoRechnung, partnerKacheln } from '../utils/partner-saldo.js';
 import { findeZeileZumToken } from '../utils/partner-token.js';
+import { schluesselGleich } from '../middleware/auth.js';
 import { eigenauftragZuLang, EIGENAUFTRAG_MENGE_MAX } from '../utils/eigenauftrag.js';
 
 const router = Router();
@@ -747,7 +748,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
 
 // ── GET /api/partner/verkaeufe/sync   (requires MC_API_KEY) ──────────────────
 router.get('/verkaeufe/sync', async (req, res, next) => {
-  if (req.headers['x-api-key'] !== process.env.MC_API_KEY)
+  if (!schluesselGleich(req.headers['x-api-key'], process.env.MC_API_KEY))
     return res.status(401).json({ error: 'Unauthorized.' });
   try {
     const sheetId = process.env.BUSINESS_SHEET_ID;
@@ -769,7 +770,7 @@ router.get('/verkaeufe/sync', async (req, res, next) => {
 // ── POST /api/partner/verkaeufe/sync-all  (requires MC_API_KEY) ──────────────
 // Sync für alle AKTIVEN Partner. Gedacht für Cron-Jobs (täglich 02:00 Uhr).
 router.post('/verkaeufe/sync-all', async (req, res, next) => {
-  if (req.headers['x-api-key'] !== process.env.MC_API_KEY)
+  if (!schluesselGleich(req.headers['x-api-key'], process.env.MC_API_KEY))
     return res.status(401).json({ error: 'Unauthorized.' });
   try {
     const sheetId = process.env.BUSINESS_SHEET_ID;

@@ -9,6 +9,10 @@ on:
 # Bis 2026-09-15 lief er hier mit GOOGLE_CREDENTIALS_JSON - jenes Dienstkonto
 # hat keinen Zugriff mehr. Status: 200 alles gueltig, 422 Modell fehlt,
 # 500 Sheet- oder API-Fehler.
+# GITHUB_TOKEN nur lesend - der Workflow ruft nur das Backend auf.
+permissions:
+  contents: read
+
 jobs:
   check-models:
     name: Trigger Modell-Check (POST /api/system/modell-check)
@@ -18,7 +22,7 @@ jobs:
       # Fehlerausgabe (oeffentliches Actions-Log): HTTP-Code plus Fehlertext, maskiert und auf
       # 300 Zeichen gekuerzt (.github/scripts/antwort-fehler.mjs, Test antwort-fehler.test.js).
       - name: Hilfsskript holen
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           sparse-checkout: .github/scripts
           sparse-checkout-cone-mode: false

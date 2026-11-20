@@ -109,7 +109,7 @@ describe('Kundenseiten kommen nie aus dem Cache', () => {
   // anfrage.html registriert den Worker nicht, liegt aber in seinem Scope und
   // wird darum mitkontrolliert. Ein veraltetes Widget haette moeglicherweise
   // die falsche Backend-URL oder den falschen Turnstile-Sitekey.
-  test.each(['/anfrage.html', '/partner.html', '/partner-festpreis.html'])(
+  test.each(['/anfrage.html', '/partner.html', '/partner-festpreis.html', '/bestellen.html'])(
     '%s steht in NIE_CACHEN',
     (pfad) => {
       const liste = sw.match(/const NIE_CACHEN = \[([\s\S]*?)\];/);
@@ -135,7 +135,7 @@ describe('Kundenseiten kommen nie aus dem Cache', () => {
   test('precacht wird nur die Shell, keine Kundenseite', () => {
     const pre = sw.match(/const PRECACHE = \[([\s\S]*?)\];/);
     expect(pre).not.toBeNull();
-    for (const p of ['anfrage.html', 'partner.html', 'partner-festpreis.html']) {
+    for (const p of ['anfrage.html', 'partner.html', 'partner-festpreis.html', 'bestellen.html']) {
       expect(pre[1]).not.toContain(p);
     }
   });

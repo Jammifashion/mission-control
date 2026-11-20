@@ -14,6 +14,7 @@ import { merkeKeyphrase } from '../lib/seo-artikel.js';
 import { wcAttributePaare, leseAlleVariationen, sperreDoppelte, sperreHinweis } from '../lib/wc-variation-ids.js';
 import { letzteTageBerlin, wochentagKurz } from '../utils/berlin-tag.js';
 import { platzhalterSperre, brauchtShopStand } from '../utils/platzhalter-sperre.js';
+import { bestellungFuerBrowser, bestellungenFuerBrowser } from '../utils/bestell-felder.js';
 import { attributeMitIds, variationsAttributeMitIds, entfalleneWerte, variationenMitEntfallenemWert,
   defaultsBereinigt, privatAusBody } from '../utils/variantenbaum.js';
 
@@ -126,13 +127,13 @@ router.get('/orders', async (req, res, next) => {
       }
       all.sort((a, b) => new Date(b.date_created) - new Date(a.date_created));
       const start = (Number(page) - 1) * perPage;
-      return res.json(mitAdminLink(all.slice(start, start + perPage), getShopConfig(req.query.shop).wcUrl));   // BS4
+      return res.json(bestellungenFuerBrowser(mitAdminLink(all.slice(start, start + perPage), getShopConfig(req.query.shop).wcUrl)));   // BS4, FIX4
     }
 
     const params = { per_page: perPage, page: Number(page) };
     if (status) params.status = status;
     const { data } = await wc.get('orders', params);
-    res.json(mitAdminLink(data, getShopConfig(req.query.shop).wcUrl));   // BS4
+    res.json(bestellungenFuerBrowser(mitAdminLink(data, getShopConfig(req.query.shop).wcUrl)));   // BS4, FIX4: nur angezeigte Felder
   } catch (err) {
     next(err);
   }
@@ -143,7 +144,7 @@ router.get('/orders/:id', async (req, res, next) => {
   try {
     const wc = getClient(req);
     const { data } = await wc.get(`orders/${req.params.id}`);
-    res.json(data);
+    res.json(bestellungFuerBrowser(data));   // FIX4
   } catch (err) {
     next(err);
   }

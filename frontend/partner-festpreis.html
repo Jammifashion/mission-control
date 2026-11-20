@@ -2,6 +2,8 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
+  <!-- FIX4: CSP Stufe 1 (Inline-Skripte noch erlaubt, Stufenplan im Bericht FIX4) -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://mission-control-backend-181760755456.europe-west1.run.app; frame-src 'none'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="referrer" content="no-referrer">
   <script>
@@ -421,11 +423,11 @@
             <span class="amount">${fmt((d.auszahlungNetto || 0) - (p.saldo || 0))}</span>
           </div>
           <div class="saldo-row">
-            <span>Porto-Einnahmen (${p.einnahmen.anzahl} Bestellungen)</span>
+            <span>Porto-Einnahmen (${plEsc(p.einnahmen.anzahl)} Bestellungen)</span>
             <span class="amount saldo-positive">+${fmt(p.einnahmen.summe)}</span>
           </div>
           <div class="saldo-row">
-            <span>Porto-Kosten (${p.kosten.anzahl} Bestellungen)</span>
+            <span>Porto-Kosten (${plEsc(p.kosten.anzahl)} Bestellungen)</span>
             <span class="amount saldo-negative">−${fmt(p.kosten.summe)}</span>
           </div>
           <div class="saldo-row muted"><span>Porto je Bestellung einmal: Paket-Satz, wenn ein Artikel als Paket geht, sonst Großbrief${p.inPruefung ? ' · teilweise in Prüfung' : ''}</span><span></span></div>` : '';
@@ -435,7 +437,7 @@
             <span class="amount saldo-positive">+${fmt(d.auszahlungNetto)}</span>
           </div>
           <div class="saldo-row muted">
-            <span>zzgl. MwSt (${d.mwstProzent} %)</span>
+            <span>zzgl. MwSt (${plEsc(d.mwstProzent)} %)</span>
             <span class="amount">+${fmt((d.auszahlungBrutto || 0) - (d.auszahlungNetto || 0))}</span>
           </div>
           <div class="saldo-row">
@@ -448,7 +450,7 @@
           </div>
           ${d.verpackung?.status === 'ok' ? `
           <div class="saldo-row">
-            <span>Verpackungspauschale: ${d.verpackung.anzahl} Bestellungen × ${fmt(d.verpackung.betrag)} (brutto)</span>
+            <span>Verpackungspauschale: ${plEsc(d.verpackung.anzahl)} Bestellungen × ${fmt(d.verpackung.betrag)} (brutto)</span>
             <span class="amount saldo-negative">−${fmt(d.verpackung.summe)}</span>
           </div>` : d.verpackung ? `
           <div class="saldo-row muted">
@@ -464,7 +466,7 @@
             Nur offene, noch nicht abgerechnete Positionen &nbsp;·&nbsp; entspricht netto ${fmt(d.saldoNetto)}.
           </p>`;
       } catch (e) {
-        wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${e.message}</p>`;
+        wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${plEsc(e.message)}</p>`;
       }
     }
 
@@ -501,9 +503,9 @@
             <div class="abr-card">
               <div class="abr-header">
                 <div>
-                  <strong>${r['Abrechnungs-ID']}</strong>
-                  <span class="abr-zeitraum">&nbsp;·&nbsp;${r['Zeitraum-Von']} – ${r['Zeitraum-Bis']}</span>
-                  <span class="badge badge-${status}" style="margin-left:0.5rem;">${status}</span>
+                  <strong>${plEsc(r['Abrechnungs-ID'])}</strong>
+                  <span class="abr-zeitraum">&nbsp;·&nbsp;${plEsc(r['Zeitraum-Von'])} – ${plEsc(r['Zeitraum-Bis'])}</span>
+                  <span class="badge badge-${plEsc(status)}" style="margin-left:0.5rem;">${plEsc(status)}</span>
                 </div>
                 <div class="abr-summe pos">${fmt(brutto)}</div>
               </div>
@@ -518,7 +520,7 @@
                 </div>
                 <div class="kalk-info-box">
                   <div class="kalk-info-label">Erstellt am</div>
-                  <div class="kalk-info-value" style="font-size:0.95rem;">${r['Erstellt-Am']}</div>
+                  <div class="kalk-info-value" style="font-size:0.95rem;">${plEsc(r['Erstellt-Am'])}</div>
                 </div>
               </div>
               ${internBlock}
@@ -526,7 +528,7 @@
             </div>`;
           }).join('')}`;
       } catch (e) {
-        wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${e.message}</p>`;
+        wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${plEsc(e.message)}</p>`;
       }
     }
 
@@ -599,7 +601,7 @@
       } catch (e) {
         if (e.status === 401 || e.status === 403)
           showError('Kein Zugang.<br>Dein Token ist ungültig oder dein Konto ist nicht aktiv.');
-        else showError(`Fehler beim Laden: ${e.message}`);
+        else showError(`Fehler beim Laden: ${plEsc(e.message)}`);
         return;
       }
 

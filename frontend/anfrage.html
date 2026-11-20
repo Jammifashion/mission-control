@@ -2,6 +2,8 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
+  <!-- FIX4: CSP Stufe 1; Turnstile braucht Skript + Frame von challenges.cloudflare.com -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://mission-control-backend-181760755456.europe-west1.run.app https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Anfrage stellen – JammiFashion</title>
   <meta name="description" content="Stelle deine individuelle Anfrage für bedruckte Textilien und Merchandise bei JammiFashion.">
@@ -352,6 +354,18 @@
     .send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
     .send-btn svg { width: 17px; height: 17px; }
 
+    /* FIX4: Hinweis KI-Assistent + Datenschutz, immer sichtbar ueber der Eingabe */
+    .ki-hinweis {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      padding: 7px 16px 0;
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--text-2);
+      text-align: center;
+    }
+    .ki-hinweis a { color: var(--text); text-decoration: underline; white-space: nowrap; }
+
     .done-bar {
       background: var(--surface);
       border-top: 1px solid var(--border);
@@ -415,6 +429,10 @@
            data-error-callback="onTurnstileError"
            data-expired-callback="onTurnstileExpired"></div>
     </div>
+
+    <!-- FIX4: Hinweis vor der ersten Eingabe (Wortlaut: Vorschlag, Inhaber bestaetigt) -->
+    <p class="ki-hinweis" id="ki-hinweis">Du schreibst mit einem KI-Assistenten (Claude, Anthropic). Deine Angaben nutzen wir für deine Anfrage.
+      <a href="https://jammifashion.de/datenschutz/" target="_blank" rel="noopener noreferrer">Datenschutz</a></p>
 
     <!-- Input bar -->
     <div class="input-bar" id="input-bar">

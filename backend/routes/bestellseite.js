@@ -48,6 +48,7 @@ export function bauRouter({ seite = leseSeite, eintraege = leseEintraege, termin
       if (!token) return res.status(401).json({ error: 'Bestellseite nicht gefunden.', code: 'unbekannt' });
       const b = await entwurf({ token, nr: req.params.nr, groesse: String(req.query.groesse ?? '') });
       res.set('Cache-Control', 'private, max-age=300');
+      res.vary('Authorization'); // Antwort haengt am Token im Header - nie fuer einen anderen Token aus dem Cache (vary haengt an, ersetzt "Origin" von CORS nicht)
       res.set('Content-Type', b.typ);
       res.set('X-Content-Type-Options', 'nosniff');
       res.send(b.buf);

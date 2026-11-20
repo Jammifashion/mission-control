@@ -291,6 +291,24 @@ Neue Sektionen immer mit Anker versehen:
 // ── SECTION: NAME ──
 ```
 
+## Pruefberichte
+Pruefberichte, Audits und Sicherheitsbefunde nie ins Repo (das Repo ist oeffentlich), nur ins Postfach. Commit-Texte zu
+Sicherheitskorrekturen knapp und neutral, ohne Befund-Nummern oder Anleitung.
+
+## Datenschutz (FIX4)
+- Kundenchat-Beispiele nur aus Agent_Wissen Typ `beispiel` (Sektion "Beispiele für den Kundenchat"), nie aus echten Anfragen
+  (`beispieleAus` in lib/chatCore.js). Chat-Meldung zu Anfragen: nur Anfrage-Nr., Kurzthema aus fester Wortliste, Menge (`kurzthema`).
+- Loeschlauf `lib/loeschlauf.js` (Logik utils/loeschlauf.js): Bestellseite Trikot_Name/Wunsch (12 Monate nach Termin), Trikots
+  Name/Kunde/Rohtext (nach Geliefert_Am, sonst Bestelldatum), Kundenanfragen ohne Auftrag (Name/Mail/Texte, nach Datum), Drucknamen
+  (SA4). Nur Zellen, Compare-and-Set je Zelle, zurueckgelesen. `POST /api/system/loeschlauf { scharf }`, Workflow
+  `loeschlauf-weekly.yml` (sonntags; scharf nur mit Repo-Variable `LOESCHLAUF_SCHARF` = ja), Skript `scripts/loeschlauf.js`.
+- DSGVO-Pruefliste: `POST /api/kunden/fundstellen` (nur Anzahlen je Bereich, Kunden_Nr bzw. Name/E-Mail genau) und
+  `.../fundstellen/leeren { bereich }` (nach Rueckfrage, `lib/kundeFundstellen.js`). Liste im DSGVO-Schritt (`#ku-dsgvo-funde`).
+- `GET /api/woocommerce/orders` liefert nur die angezeigten Felder (`utils/bestell-felder.js`); neues Feld in der Oberflaeche = dort ergaenzen.
+- Oeffentliche Router (Partnerportale, Kundenchat, Bestellseite) sind markiert (`oeffentlich` in middleware/fehlerHandler.js): bei 5xx
+  fester Text + Code, nie der interne Fehlertext.
+- Jede Seite hat eine CSP-Meta direkt nach `<meta charset>` (Stufe 1, mit 'unsafe-inline'); neue externe Quelle = dort eintragen.
+
 ## Wichtige Dateien
 - backend/lib/hosterPruefseite.js – Hoster-Pruefseite (ESTUGO, 01.10.2026): nach ~11 schnellen
   Abrufen JS-Pruefseite ("One moment, please...", openresty, **Status 200**), nach >100 nicht

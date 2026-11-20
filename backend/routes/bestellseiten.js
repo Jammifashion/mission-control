@@ -26,7 +26,7 @@ router.get('/:zugangId/entwuerfe', mitMeldung(req => entwuerfeMc({ zugangId: req
 router.get('/:zugangId/entwurf/:nr', async (req, res, next) => {
   try {
     const b = await entwurfBildMc({ zugangId: req.params.zugangId, nr: req.params.nr, groesse: String(req.query.groesse ?? '') });
-    res.set('Cache-Control', 'private, max-age=300'); res.set('Content-Type', b.typ); res.send(b.buf);
+    res.set('Cache-Control', 'private, max-age=300'); res.vary('X-API-Key'); res.set('Content-Type', b.typ); res.send(b.buf);
   } catch (err) {
     if ([404, 409, 413, 422, 502].includes(err?.status)) return res.status(err.status).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
     next(err);
