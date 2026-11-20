@@ -797,14 +797,21 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   MwSt; Lizenz: Eigenauftrag ohne Summe / MwSt. Vorschau liefert `klaeren` (MC `abrKlaerenHTML`), Erstellen 409 `erst_klaeren`. Lizenz:
   Erstellen und Freigeben unter einer Sperre, Freigabe vergleicht die Lizenzgebuehren mit dem Entwurf (409 `betraege_geaendert`).
   Zahlen aus Sheets: `parseDeZahl` (utils/zahl-de.js, "1.234,50" = 1234,5). Tests: sync-luecken.test.js, Attrappe tests/hilfen/sheets-attrappe.js.
-  Teilerstattungen (NB1, nur Lizenz): `buildErstattungRows` (utils/teilerstattung.js) im Lizenz-Sync JFN + HONK fuer Bestellungen mit
+  Teilerstattungen (NB1 Lizenz, NB2 Festpreis): `buildErstattungRows` (utils/teilerstattung.js) im Lizenz-Sync JFN + HONK fuer Bestellungen mit
   Verkaufsstatus und Erstattung (normaler Abruf + `modified_after` 60 Tage, je Kandidat `/orders/<id>/refunds`). Zuordnung ueber meta
   `_refunded_item_id` (gemessen), Storno-Status "Erstattung #<Refund-ID>" (Betraege anteilig negiert) bzw. "Versanderstattung #<Refund-ID>"
   (Inhaber 19.11.: Porto-Saldo + Lizenzgebuehr um Versand netto x Wertanteil x Porto-Modell gemindert); die Marke ist der Dubletten-Schutz.
   Gesperrte Ursprungszeilen nie (Hinweis). Ganz-Storno (`buildStornoRows`) negiert die Summe aus Ursprung + Teilerstattungen. Hinweise
-  (ohne Position, mehrdeutig, Nachzuegler …) nur in der Sync-Antwort `erstattungHinweise`. Aeltere Erstattungen:
-  `scripts/nachtragen-erstattungen.js --jfn|--honk [--bestellung …] [--betraege] [--write]` (Trockenlauf Standard, Sicherung, Nachmessung).
-  FP-Sync kennt Teilerstattungen noch nicht.
+  (ohne Position, mehrdeutig, Nachzuegler …) in der Sync-Antwort `erstattungHinweise` und (NB2) in der Abrechnungsvorschau Lizenz + FP:
+  `vorschauErstattungsHinweise` (lib/erstattungen.js) liest zu den Bestellungen des Zeitraums live die Erstattungen (include je 100, dann
+  /refunds) und rechnet mit derselben Funktion wie der Sync - meldet Hinweise und noch nicht gebuchte Gegenbuchungen, NIE sperrend (Shop-Fehler/
+  Pruefseite = Hinweistext). Abruf fuer Lizenz- und FP-Sync: `ladeErstattungsBestellungen` (lib/erstattungen.js). Aeltere Erstattungen:
+  `scripts/nachtragen-erstattungen.js --jfn|--honk [--fp] [--bestellung …] [--betraege] [--write]` (Trockenlauf Standard, Sicherung, Nachmessung).
+  FP (NB2, `buildFpErstattungRows`): Position = Stueckzahl -Menge, Betraege anteilig, Festpreis/Handling(-kosten) nur im Vorzeichen (Stueckpreise);
+  Versand: PO1-Bestellung = EINE Zeile je Erstattung + Partner, Betraege 0, `Porto_Bestellung` = -Versand netto -> `berechnePorto` mindert die
+  Porto-Einnahme (Kosten bleiben), Ganz-Storno nimmt nur den Rest zurueck; altes Modell = Porto-Einnahme/Netto je Zeile -Versand x Wertanteil.
+  FP-Sync je Shop nur mit dessen Partnern (keine Shop-Spalte in FP_Verkaeufe). `berechnePorto` und `berechneVerpackung` werten Teilerstattungs-
+  Zeilen nie als Storno (`istErstattungsZeile`); `buildFpStornoRows` verrechnet sie. Test teilerstattung-fp.test.js.
   Nachtragen gleicher Positionen aus der Zeit vor der Positions-ID: `scripts/nachtragen-positionen.js --lizenz|--fp [--bestellung …] [--write]`
   (lib/nachtragPositionen.js, Logik utils/nachtrag-positionen.js; Trockenlauf Standard, Sicherung nach Documents/mc-sicherungen, Rechnung wie der
   Sync - FP ueber `fpVerkaufszeile`, die auch der FP-Sync nutzt; nur Gruppen mit schon vorhandener Zeile; Lizenz nur JFN).
