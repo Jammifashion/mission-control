@@ -472,6 +472,7 @@
     let _booted            = false;  // __init__ wurde bereits ausgeloest
     let _fallbackGezeigt   = false;
     let _turnstileTimer    = null;
+    let _ausstehend        = null;   // SI1: Nachricht, die nach der neuen Bot-Pruefung erneut gesendet wird
 
     // Kontaktdaten aus dem Agent_Wissen-Reiter (Schluessel 'kontakt_fallback'
     // bzw. ERREICHBARKEIT in der Wissensbasis) - hier gespiegelt, weil dieser
@@ -498,7 +499,32 @@
       if (!_booted) {
         _booted = true;
         callChat('__init__', true);
+        return;
       }
+      // SI1: Sitzung war abgelaufen - die letzte Nachricht (Blase steht schon da) jetzt senden.
+      if (_ausstehend !== null) {
+        const text = _ausstehend;
+        _ausstehend = null;
+        callChat(text, true);
+      }
+    }
+
+    // SI1 (S11): Die Chat-Sitzung endet nach 30 min ohne Antwort bzw. spaetestens 2 h nach der Bot-Pruefung.
+    // Kein Fehler fuer den Kunden: freundlicher Hinweis, neue Pruefung, dann geht die Nachricht automatisch raus.
+    function sitzungErneuern(text) {
+      messages.pop();                       // wird nach der Pruefung erneut angehaengt
+      _ausstehend   = text;
+      _chatSession  = null;
+      _turnstileToken = null;
+      appendBubble('agent', 'Kurze Sicherheitsprüfung – danach geht es direkt weiter.');
+      const tw = document.getElementById('turnstile-wrap');
+      if (tw) tw.style.display = 'flex';
+      try { window.turnstile?.reset(); } catch { /* Widget laedt neu */ }
+      clearTimeout(_turnstileTimer);
+      _turnstileTimer = setTimeout(
+        () => zeigeKontaktFallback('Die Sicherheitsprüfung antwortet gerade nicht.'),
+        TURNSTILE_TIMEOUT_MS,
+      );
     }
     function onTurnstileError() {
       zeigeKontaktFallback('Die Sicherheitsprüfung ließ sich nicht laden.');
@@ -719,6 +745,17 @@
           }),
         });
 
+        if (res.status === 401) {
+          const err = await res.json().catch(() => ({}));
+          if (err.code === 'sitzung_abgelaufen' && text !== '__init__') {
+            hideTyping();
+            setStatus('online');
+            sitzungErneuern(text);
+            isWaiting = false;          // Eingabe bleibt gesperrt, bis die Pruefung durch ist
+            return;
+          }
+          throw new Error(err.error || 'HTTP 401');
+        }
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.error || `HTTP ${res.status}`);

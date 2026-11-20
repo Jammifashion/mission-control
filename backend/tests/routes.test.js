@@ -381,10 +381,11 @@ describe('POST /api/anfragen/chat – Stoerungsalarm', () => {
     expect(notifyFehler).not.toHaveBeenCalled();
   });
 
-  test('abgelaufener Session-Token (403) loest KEINEN Alarm aus', async () => {
+  test('abgelaufener Session-Token (SI1: 401 sitzung_abgelaufen) loest KEINEN Alarm aus', async () => {
     const alt = issueSessionToken(Date.now() - SESSION_TTL_MS - 1000);
     const res = await send({ messages: MSGS, chatSession: alt });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
+    expect(res.body.code).toBe('sitzung_abgelaufen');
     expect(notifyFehler).not.toHaveBeenCalled();
   });
 
@@ -477,7 +478,7 @@ describe('POST /api/anfragen/chat – Zugang', () => {
   test('gültiger Turnstile-Token → 200 und liefert einen Session-Token', async () => {
     const res = await send({ messages: MSGS, sessionData: {}, cfTurnstileToken: 'cf-token' });
     expect(res.status).toBe(200);
-    expect(res.body.chatSession).toMatch(/^\d+\.[0-9a-f]{32}\.[0-9a-f]{64}$/);
+    expect(res.body.chatSession).toMatch(/^\d+\.\d+\.[0-9a-f]{32}\.[0-9a-f]{64}$/);   // SI1: mit Start der Bot-Pruefung
     // Cloudflare wurde tatsaechlich gefragt
     expect(global.fetch).toHaveBeenCalledWith(
       'https://challenges.cloudflare.com/turnstile/v0/siteverify',
@@ -509,11 +510,29 @@ describe('POST /api/anfragen/chat – Zugang', () => {
     expect(res.body.chatSession).not.toBe(erst.body.chatSession);
   });
 
-  test('abgelaufener Session-Token → 403', async () => {
+  test('abgelaufener Session-Token → 401 sitzung_abgelaufen (SI1: freundlicher Hinweis, neue Bot-Pruefung)', async () => {
     const alt = issueSessionToken(Date.now() - SESSION_TTL_MS - 1000);
     const res = await send({ messages: MSGS, sessionData: {}, chatSession: alt });
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ code: 'sitzung_abgelaufen', error: 'Kurze Sicherheitsprüfung – danach geht es direkt weiter.' });
     expect(mockCallChatAgent).not.toHaveBeenCalled();
+  });
+
+  test('SI1: Hoechstdauer 2 h ab der Bot-Pruefung - Verlaengern behaelt den Start', async () => {
+    const { SESSION_MAX_MS, pruefeSessionToken } = await import('../lib/chatSession.js');
+    // Start vor 1 h 50 min, letzte Antwort gerade eben -> noch gueltig, neuer Token endet beim Hoechstwert
+    const start = Date.now() - SESSION_MAX_MS + 10 * 60 * 1000;
+    const tok = issueSessionToken(Date.now() - 1000, start);
+    mockCallChatAgent.mockResolvedValue({ reply: 'Gern!', sessionData: {}, completed: false });
+    const res = await send({ messages: MSGS, sessionData: {}, chatSession: tok });
+    expect(res.status).toBe(200);
+    const neu = pruefeSessionToken(res.body.chatSession);
+    expect(neu.gueltig).toBe(true);
+    expect(neu.start).toBe(start);
+    expect(Number(res.body.chatSession.split('.')[0])).toBe(start + SESSION_MAX_MS);   // nicht 30 min weiter
+    // nach 2 h: abgelaufen, auch wenn der Leerlauf noch nicht vorbei waere
+    const spaet = issueSessionToken(Date.now() - 1000, Date.now() - SESSION_MAX_MS - 1000);
+    expect((await send({ messages: MSGS, sessionData: {}, chatSession: spaet })).status).toBe(401);
   });
 
   test('manipulierter Session-Token → 403', async () => {

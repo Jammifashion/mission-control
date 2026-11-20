@@ -12,9 +12,9 @@ beforeAll(async () => {
 });
 
 describe('issueSessionToken', () => {
-  test('Format exp.nonce.sig', () => {
+  test('Format exp.start.nonce.sig (SI1: Start der Bot-Pruefung im Token)', () => {
     const t = issueSessionToken();
-    expect(t).toMatch(/^\d+\.[0-9a-f]{32}\.[0-9a-f]{64}$/);
+    expect(t).toMatch(/^\d+\.\d+\.[0-9a-f]{32}\.[0-9a-f]{64}$/);
   });
 
   test('zwei Token derselben Millisekunde unterscheiden sich (Nonce)', () => {

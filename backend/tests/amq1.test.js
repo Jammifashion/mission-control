@@ -129,7 +129,7 @@ describe('8. Design-Link', () => {
 });
 
 describe('Oberflaeche', () => {
-  const block = (a, b) => html.slice(html.indexOf(a), html.indexOf(b));
+  const block = (a, b) => html.slice(html.indexOf(a), html.indexOf(b, html.indexOf(a)));   // Ende NACH dem Anfang suchen (SI1: weiteres Formular davor)
   test('Spiegel: Brutto-Rueckrechnung wie im Backend', () => {
     const gr = block('// ── Groessen: Anfang', '// ── Groessen: Ende');
     const F = new Function(`${gr}\n${block('// ── Auftrag-Preise: Anfang', '// ── Auftrag-Preise: Ende')}\nreturn { apNettoAusBrutto, apBruttoAusNetto, apEuro, apSummen };`)();

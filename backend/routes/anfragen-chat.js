@@ -5,7 +5,7 @@ import { getAgentSystemPrompt } from '../lib/agentWissenHelper.js';
 import { loadRecentAnfragen, callChatAgent } from '../lib/chatCore.js';
 import rateLimit from 'express-rate-limit';
 import { notify, buildAnfrageNachricht, notifyFehler, alarmWuerdig } from '../lib/chatNotify.js';
-import { issueSessionToken, verifySessionToken } from '../lib/chatSession.js';
+import { issueSessionToken, pruefeSessionToken } from '../lib/chatSession.js';
 import { SESSION_LAENGEN, kanalAusListe, preisZelle } from '../utils/anfrage-felder.js';
 
 const router = Router();
@@ -70,12 +70,18 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
     // die Laenge kommt vom Client, ein Bot haette sonst nur eine erfundene
     // Historie mitschicken muessen, um an der Pruefung vorbeizukommen.
     let sessionToken;
-    if (verifySessionToken(chatSession)) {
-      // Gleitendes Fenster: jede Antwort traegt einen frischen Token, damit
-      // ein laufendes Gespraech nicht nach 30 min abreisst.
-      sessionToken = issueSessionToken();
+    const sitzung = pruefeSessionToken(chatSession);
+    if (sitzung.gueltig) {
+      // Gleitendes Fenster: jede Antwort traegt einen frischen Token (30 min Leerlauf),
+      // SI1: hoechstens SESSION_MAX_MS ab der Bot-Pruefung - der Start wandert mit.
+      sessionToken = issueSessionToken(Date.now(), sitzung.start);
     } else {
       if (!cfTurnstileToken) {
+        // SI1: laufendes Gespraech, Sitzung abgelaufen -> kein Fehler, sondern Hinweis + neue Bot-Pruefung im Widget
+        // (kein Alarm: das ist der Normalfall nach Leerlauf oder 2 h).
+        if (sitzung.grund === 'abgelaufen') {
+          return res.status(401).json({ code: 'sitzung_abgelaufen', error: 'Kurze Sicherheitsprüfung – danach geht es direkt weiter.' });
+        }
         return fehler(res, 403, 'Bot-Verifikation erforderlich. Bitte Seite neu laden.');
       }
       const tsSecret = process.env.TURNSTILE_SECRET_KEY;

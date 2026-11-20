@@ -447,6 +447,13 @@
       .au-fuss { position: sticky; bottom: -1rem; z-index: 2; margin: 0 -1rem -1rem; padding: 0.6rem 1rem 0.75rem; display: flex; flex-direction: column; gap: 0.5rem;
         background: var(--surface); border-top: 1px solid var(--border); border-radius: 0 0 10px 10px; }
       .au-pflicht { color: var(--warning); font-weight: 700; }
+      /* SI1: Anmeldemaske ueber allem (auch ueber der Shop-Wahl), Abmelden im Kopf klein */
+      #anmelde-maske { z-index: 10040; align-items: center; }   /* ueber Shop-Wahl (9999), unter dem Mouse-over (10050) */
+      .anmelde-box { width: min(420px, 100%); }
+      .anmelde-form { display: flex; flex-direction: column; gap: 0.6rem; }
+      .kopf-abmelden { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 999px; padding: 0.15rem 0.6rem; font-size: 0.75rem; cursor: pointer; }
+      .kopf-abmelden:hover { color: var(--text); border-color: var(--muted); }
+      .kopf-abmelden:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
       #au-liste .ku-zeile[data-au-nr], #au-liste .ku-zeile[data-ag-nr] { cursor: pointer; }   /* AH1 (U2): ganze Zeile oeffnet */
       .au-pflicht-hinweis { margin-left: auto; font-size: 0.78rem; color: var(--muted); }
       #au-ansicht[hidden], #au-detail [hidden], #au-dialog [hidden] { display: none !important; }
@@ -1934,6 +1941,7 @@
       <div class="header-actions">
         <button class="hilfe-i" type="button" data-hilfe-gruppe="navigation" aria-controls="hilfe-navigation" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
         <button id="shop-badge" type="button" data-hilfe="shop-badge">JFN</button>
+        <button id="abmelden-kopf" class="kopf-abmelden" type="button" data-hilfe="abmelden">Abmelden</button>
         <div id="status-dot" title="API-Status wird geladen…"></div>
       </div>
     </header>
@@ -1943,6 +1951,25 @@
       <span>Neue Version von Mission Control ist da.</span>
       <button type="button" class="korb-aktion korb-aktion-haupt" id="neue-version-laden" data-hilfe="neue-version-laden">Jetzt neu laden</button>
       <button type="button" class="korb-aktion korb-aktion-ruhig" id="neue-version-spaeter" data-hilfe="neue-version-spaeter">Später</button>
+    </div>
+
+    <!-- SI1: Anmeldemaske - erscheint, solange auf diesem Geraet kein Schluessel gespeichert ist (oder er nicht mehr gilt).
+         Eigenes Formular mit Benutzername-Feld, damit ein Passwort-Manager den Schluessel anbieten kann (wie #api-key-form). -->
+    <div id="anmelde-maske" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="anmelde-titel" hidden>
+      <div class="edi-box anmelde-box">
+        <div class="edi-kopf">
+          <strong id="anmelde-titel">Mission Control – Anmelden</strong>
+          <button class="hilfe-i" type="button" data-hilfe-gruppe="anmelden" aria-controls="hilfe-anmelden" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+        </div>
+        <div id="hilfe-anmelden" class="hilfe-legende" hidden></div>
+        <form id="anmelde-form" autocomplete="on" class="anmelde-form">
+          <input type="text" name="username" autocomplete="username" value="Mission Control" readonly tabindex="-1" aria-hidden="true" class="api-key-name" />
+          <label class="edi-feld">Schlüssel<input id="anmelde-key" name="password" type="password" class="form-input" autocomplete="current-password" required /></label>
+          <div id="anmelde-fehler" class="lager-warnung" role="alert" hidden></div>
+          <button type="submit" class="korb-aktion korb-aktion-haupt" id="anmelde-ok" data-hilfe="anmelden">Anmelden</button>
+        </form>
+        <p class="korb-zaehler">Den Schlüssel gibt dir der Inhaber. Er bleibt auf diesem Gerät gespeichert, bis du dich abmeldest.</p>
+      </div>
     </div>
 
     <!-- Shop-Auswahl Modal (Sprint 5.4) -->
@@ -4118,6 +4145,7 @@
             <input id="api-key" name="password" type="password" autocomplete="current-password" placeholder="MC_API_KEY"
               style="flex:1;min-width:0;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.6rem 0.8rem;color:var(--text);font-size:0.9rem;" />
             <button class="btn" id="save-key" type="submit" data-hilfe="api-key-speichern">Speichern</button>
+            <button class="btn-secondary" id="abmelden" type="button" data-hilfe="abmelden">Auf diesem Gerät abmelden</button>
           </form>
           <p id="key-saved" style="color:var(--success);font-size:0.8rem;margin-top:0.5rem;display:none;">Gespeichert.</p>
         </div>
@@ -4279,14 +4307,52 @@
       // Altlast aus frueheren Links einmalig wegraeumen.
       try { localStorage.removeItem('mc_api_url'); } catch { /* Storage gesperrt */ }
 
-      function getApiKey() {
-        let key = localStorage.getItem('mc_api_key');
-        if (key === null) {
-          key = (prompt('Mission Control API Key eingeben:') ?? '').trim();
-          localStorage.setItem('mc_api_key', key);
-        }
-        return key;
+      // ── Anmelden / Abmelden: Anfang (SI1) ──
+      // Der Schluessel liegt nur in diesem Browser (localStorage mc_api_key). Fehlt er oder gilt er nicht mehr (401 vom
+      // Backend, z. B. nach einem Schluesseltausch), erscheint die Anmeldemaske; alle wartenden Aufrufe bekommen danach
+      // denselben Schluessel. Abmelden loescht Schluessel und Daten-Zwischenspeicher auf DIESEM Geraet (Einstellungen wie
+      // Theme, Shop, Filter bleiben) und laedt neu.
+      const MC_DATEN_SCHLUESSEL = ['mc_api_key', 'mc_api_url', 'mc_product_draft', 'mc_lsm_liste', 'mc_last_login'];
+      const anmeldung = { warten: null, fertig: null };
+      const gespeicherterSchluessel = () => { try { return (localStorage.getItem('mc_api_key') ?? '').trim(); } catch { return ''; } };
+      function anmeldeMaskeZeigen(hinweis = '') {
+        const m = document.getElementById('anmelde-maske');
+        const f = document.getElementById('anmelde-fehler');
+        f.textContent = hinweis; f.hidden = !hinweis;
+        m.hidden = false;
+        setTimeout(() => document.getElementById('anmelde-key')?.focus(), 0);
       }
+      /** Schluessel fuer apiFetch: gespeichert, sonst nach der Eingabe in der Maske. */
+      function schluesselHolen() {
+        const k = gespeicherterSchluessel();
+        if (k) return Promise.resolve(k);
+        if (!anmeldung.warten) anmeldung.warten = new Promise(res => { anmeldung.fertig = res; });
+        if (document.getElementById('anmelde-maske').hidden) anmeldeMaskeZeigen();   // offene Maske (z. B. mit 401-Hinweis) nicht leeren
+        return anmeldung.warten;
+      }
+      document.getElementById('anmelde-form').addEventListener('submit', e => {
+        e.preventDefault();
+        const feld = document.getElementById('anmelde-key');
+        const key = feld.value.trim();
+        if (!key) { anmeldeMaskeZeigen('Bitte den Schlüssel eingeben.'); return; }
+        try { localStorage.setItem('mc_api_key', key); } catch { /* Speicher gesperrt: gilt nur fuer diese Sitzung */ }
+        feld.value = '';
+        document.getElementById('anmelde-maske').hidden = true;
+        const fertig = anmeldung.fertig;
+        anmeldung.warten = null; anmeldung.fertig = null;
+        if (fertig) fertig(key);
+        else nvLaden('angemeldet (SI1)');   // Maske kam von einem 401 - frisch laden, damit alles mit dem neuen Schluessel kommt
+      });
+      async function mcAbmelden() {
+        if (!await showConfirm('Auf diesem Gerät abmelden?',
+          '<p>Der Schlüssel und angefangene Entwürfe werden auf diesem Gerät gelöscht. Danach fragt MC wieder nach dem Schlüssel.</p>'
+          + '<p>Gerät verloren? Dann zusätzlich den Schlüssel im Secret Manager tauschen – sonst gilt er dort weiter.</p>', 'Abmelden')) return;
+        for (const k of MC_DATEN_SCHLUESSEL) { try { localStorage.removeItem(k); } catch { /* egal */ } }
+        try { sessionStorage.clear(); } catch { /* egal */ }
+        nvLaden('abgemeldet (SI1)');
+      }
+      for (const id of ['abmelden', 'abmelden-kopf']) document.getElementById(id)?.addEventListener('click', mcAbmelden);
+      // ── Anmelden / Abmelden: Ende ──
 
       // ── Shop-Wahl (Sprint 5.4) ──────────────────────────────────────────
       // Aktuelle Wahl liegt für die Session in window.__mcShop; persistiert
@@ -4334,10 +4400,16 @@
         } catch { return url; }
       }
 
-      function apiFetch(url, options = {}) {
-        const headers = { ...(options.headers ?? {}), 'X-API-Key': getApiKey() };
+      async function apiFetch(url, options = {}) {
+        const headers = { ...(options.headers ?? {}), 'X-API-Key': await schluesselHolen() };   // SI1: Maske statt prompt
         const signal = options.signal ?? AbortSignal.timeout(60000);
-        return fetch(withShopParam(url), { ...options, headers, signal });
+        const res = await fetch(withShopParam(url), { ...options, headers, signal });
+        // SI1: Schluessel gilt nicht (mehr) - z. B. nach einem Tausch im Secret Manager: Maske mit Hinweis.
+        if (res.status === 401 && url.startsWith(API_BASE())) {
+          try { localStorage.removeItem('mc_api_key'); } catch { /* egal */ }
+          if (document.getElementById('anmelde-maske').hidden) anmeldeMaskeZeigen('Der gespeicherte Schlüssel gilt nicht mehr – bitte neu eingeben.');
+        }
+        return res;
       }
 
       // Antwort auspacken und die Server-Meldung durchreichen statt sie zu
@@ -6948,6 +7020,8 @@
         'lager-verlauf-korb':    { name: 'Korb-Position', text: 'Öffnet die Position im L-Shop-Warenkorb.' },
         'lager-verlauf-bestellung': { name: 'Bestellung', text: 'Öffnet die Shop-Bestellung unter „Bestellungen (JFN)“.' },
         'theme-wahl':            { name: 'Farben', text: 'System folgt dem Gerät (hell/dunkel). Hell oder Dunkel gilt fest – gespeichert nur auf diesem Gerät.' },
+        'abmelden':              { name: 'Abmelden', text: 'Auf diesem Gerät abmelden. Bei verlorenem Gerät: Schlüssel im Secret Manager tauschen.' },
+        'anmelden':              { name: 'Anmelden', text: 'Speichert den Schlüssel auf diesem Gerät und lädt die Daten. Nur der Inhaber vergibt den Schlüssel.' },
         'api-key-speichern':     { name: 'API-Key speichern', text: 'Speichert den Schlüssel nur in diesem Browser. Danach lädt MC neu.' },
         'app-installieren':      { name: 'Zum Startbildschirm hinzufügen', text: 'Legt MC als App auf den Startbildschirm. Es wird nichts im Shop oder Sheet geändert.' },
         'stamm-pruefen':         { name: 'Prüfen', text: 'Liest die neueste L-Shop-Stammdatei und zeigt, was sich ändern würde. Schreibt nichts.' },
@@ -7473,7 +7547,8 @@
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
         // HT1: Gruppen der aelteren Knoepfe (ⓘ-Liste, sobald es dort ein ⓘ gibt)
-        'navigation': ['shop-badge', 'shop-wahl', 'neue-version-laden', 'neue-version-spaeter', 'nav-bereich', 'nav-ansicht', 'nav-unterreiter', 'trikot-sync'],
+        'navigation': ['shop-badge', 'abmelden', 'shop-wahl', 'neue-version-laden', 'neue-version-spaeter', 'nav-bereich', 'nav-ansicht', 'nav-unterreiter', 'trikot-sync'],
+        'anmelden': ['anmelden'],   // SI1: Anmeldemaske
         'dialog': ['dialog-abbrechen', 'dialog-schliessen', 'dialog-bestaetigen', 'dialog-speichern', 'liste-bearbeiten', 'zeile-speichern'],
         'auftragsmonitor': ['wc-erledigt', 'tab-offen', 'tab-protokoll', 'mon-fulfillment', 'dtf-sammel', 'dtf-bestellt', 'lshop-alt-sammel', 'lshop-alt-bestellt', 'korb-aeltere'],
         'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-material', 'seo-material-einsetzen', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'bildref-eigenschaft', 'bildref-plus', 'bildref-eigenschaft-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
@@ -7486,7 +7561,7 @@
         'darstellung': ['theme-wahl'],
         'dashboard': ['dash-vorlesen', 'dash-wer', 'dash-k-hinweise', 'dash-k-lange', 'dash-k-todos', 'dash-k-rueckstand', 'dash-k-ware', 'dash-k-abholung', 'dash-k-trikots', 'dash-k-bestellseiten',
           'dash-gelesen', 'dash-zeile', 'dash-au-status', 'dash-detail-zu', 'dash-geld', 'dash-balken'],
-        'einstellungen': ['api-key-speichern', 'app-installieren', 'stamm-pruefen', 'stamm-uebernehmen'],
+        'einstellungen': ['api-key-speichern', 'abmelden', 'app-installieren', 'stamm-pruefen', 'stamm-uebernehmen'],
         korb:       ['eigen-modell', 'filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-lb-zuerst', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'lager-storno-hinweis', 'lager-storno-zurueck', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'eb-bearbeiten', 'eb-gesperrt-lager', 'eb-farbe', 'eb-groesse', 'eb-menge', 'eb-referenz', 'eb-notiz', 'eb-lager', 'eb-speichern', 'eb-abbrechen', 'abgleich', 'belege', 'lieferbarkeit', 'alle-offenen', 'zurueck'],
         leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
         uebersicht: ['bm-zelle', 'bm-gruppe', 'gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
