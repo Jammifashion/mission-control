@@ -294,6 +294,8 @@ Neue Sektionen immer mit Anker versehen:
 ## Pruefberichte
 Pruefberichte, Audits und Sicherheitsbefunde nie ins Repo (das Repo ist oeffentlich), nur ins Postfach. Commit-Texte zu
 Sicherheitskorrekturen knapp und neutral, ohne Befund-Nummern oder Anleitung.
+Betriebsangaben (Projekt-IDs, Konten, Partner-IDs) nie ins Repo; Code liest sie aus `betrieb-privat.md` im Postfach bzw.
+aus der Umgebung. Schutzmechanismen hier nur als Regel beschreiben ("was gilt"), nie Schwellen, Grenzen oder Schwachstellen.
 
 ## Datenschutz (FIX4)
 - Kundenchat-Beispiele nur aus Agent_Wissen Typ `beispiel` (Sektion "Beispiele für den Kundenchat"), nie aus echten Anfragen
@@ -325,9 +327,8 @@ Zustand `leer` = gleiche Formen, alle Listen leer. Ausgabe: `ergebnis.json`, `fu
 Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohne Attrappe").
 
 ## Wichtige Dateien
-- backend/lib/hosterPruefseite.js – Hoster-Pruefseite (ESTUGO, 01.10.2026): nach ~11 schnellen
-  Abrufen JS-Pruefseite ("One moment, please...", openresty, **Status 200**), nach >100 nicht
-  geloesten Pruefseiten IP-Sperre; jede Wiederholung zaehlt mit. HTML statt JSON (Content-Type
+- backend/lib/hosterPruefseite.js – Hoster-Pruefseite (Hoster und Verhalten: siehe private Betriebsdoku): bei zu
+  vielen Abrufen liefert der Hoster eine JS-Pruefseite mit **Status 200**; jede Wiederholung verschaerft das. HTML statt JSON (Content-Type
   ohne json oder Body beginnt mit "<") -> `HosterPruefseiteError` (503, Code `hoster_pruefseite`),
   sofort, ohne Wiederholung. Meldung: Shop, Pfad, Uhrzeit - nie Query, nie Schluessel.
   **Regel: Jeder neue WooCommerce- oder WordPress-Zugriff laeuft ueber `getWcClient`
@@ -506,7 +507,7 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Schluessel), Schreibmuster des Korbs (kein append, zuruecklesen). Der Korb bleibt unveraendert.
   Aufbau nach Guideline 1.4.1 wie die Testdatei JFN-2026-0001 (L-Shop 23.09. fehlerfrei): `order ->
   orderheader -> orderitems -> item`, `additional_information` weg, **nie** `shippingaddress`/
-  `senderaddress`, Kopf `shipping_method` (BO4e: waehlbar, s. u.), `partial_delivery` -1, `mail` info@,
+  `senderaddress`, Kopf `shipping_method` (BO4e: waehlbar, s. u.), `partial_delivery` -1, `mail` = Firmen-Postfach (siehe private Betriebsdoku),
   `printmode` 0, `order_date` = Tag (Europe/Berlin, TT.MM.JJJJ), **kein `delivery_date`** (BO4e: laut
   Guideline Datum fuer VERSPAETETE Lieferung). Eine Zeile je Korb-Position,
   `reference` = `<Shop>-<Bestellnr>-<Pos>` bzw. die eigene Referenz. `customer_id` NUR aus Business
@@ -532,12 +533,11 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   lshop-ftp.test.js: kein anderer Import, am Client nur access/list/downloadTo/close, kein Schreibweg).
   `mitLShopFtp(fn)` = EINE Verbindung, fn bekommt nur `{ liste, lade }`; feste Ordner (`ORDER` nur Liste,
   nie laden), Dateiname ohne Pfad, 1 MB je Beleg (Rechnungs-PDF 10 MB), 30 s je Befehl. Fehler -> `LShopFtpFehler` (502,
-  `lshop_ftp`) ohne Host/IP/Benutzer. Das EDI-Konto DARF auf dem Server schreiben/loeschen - "nur lesen"
-  sichert allein dieser Code. Schreiben kommt erst mit BO4c: nur in `ORDER`, nur `<order_id>_…xml` aus
+  `lshop_ftp`) ohne Host/IP/Benutzer. Hier gibt es keinen Schreibweg. Schreiben kommt erst mit BO4c: nur in `ORDER`, nur `<order_id>_…xml` aus
   `LShop_EDI_Dateien`, nie loeschen/umbenennen - das macht seit BO4c NUR `lib/lshopFtpSenden.js` (exportiert
   von hier nur `zugang`/`ohneZugang`). Secrets: `LSHOP_FTP_HOST` (gemeinsam, Port 21),
   `LSHOP_EDI_FTP_USER/PASS` (Belege + Bestellen), `LSHOP_FTP_USER/PASS` (Bestandsdatei, ab BO4b-3).
-  Server unverschluesselt (Inhaber 22.10.) und wackelig: alles nacheinander, keine Wiederholung im Lauf.
+  Alles nacheinander, keine Wiederholung im Lauf.
 - backend/lib/lshopFtpSenden.js – **einziger Schreibweg** zum L-Shop-FTP (BO4c), `sendeBestellung({ dateiname,
   inhalt })`: nur `ORDER`, nur `JFN-JJJJ-NNNN_JJJJMMTT-HHMM.xml`, <= 1 MB, EINE Verbindung, genau EIN `uploadFrom`,
   nie remove/rename/ensureDir/Wiederholung (Test edi-senden.test.js: nur hier `uploadFrom`, basic-ftp nur hier und
@@ -577,7 +577,7 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Status_Datum, Stand) + `LShop_Sendungen.Wareneingang` NUR bei genau einem Paket der Bestellung (Rueckweg
   leert ihn, wenn nichts mehr geliefert ist); zurueckgelesen. „geliefert/teilweise“ leitet `bestellStatus` ab.
 - backend/lib/karton.js – Karton-Scan (BO4b-5 Schritt 2), Logik `utils/karton.js`. QR auf dem L-Shop-Karton ->
-  `https://textilelogistics.eu/pdf/<2>/<2>/<Kundennr>_<Karton-ID>_<64 Hex>.pdf` (je KARTON eine PDF, ohne Anmeldung).
+  `https://textilelogistics.eu/pdf/<2>/<2>/<Kundennr>_<Karton-ID>_<64 Hex>.pdf` (je KARTON eine PDF).
   ⚠️ Der Link enthaelt die L-Shop-Kundennummer: nie speichern, loggen, zurueckgeben, nie in Fehlertexte, Tests nur
   erfundene Werte; weitergegeben wird nur die Karton-ID. Abruf nur bei exakt `KARTON_LINK`, Kundennr still gegen Config
   `lshop.customer_id` (sonst 422 vor dem Abruf), 15 s, <= 1 MB, `redirect: 'error'`, muss mit `%PDF-` beginnen.
@@ -716,7 +716,7 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Datei). Oberflaeche Block `L-Shop-Bestellungen`: `lbPaketZaehlerHtml` (orange "x/y gescannt" im Kopf), `lbWahrscheinlichHtml` (gelber
   Block, Haken je Position, "angekommen …" / "alle markierten als angekommen …") oeffnen NUR `weOeffnen(order, vorwahl)` = Dialog
   "Ware angekommen" mit genau diesen Positionen angehakt - gebucht wird erst dort. Nie automatisch. Test wahrscheinlich-da.test.js.
-- backend/lib/rueckstand.js – L-Shop-Rueckstandsliste (RS1), NUR LESEN, Logik `utils/rueckstand.js`. Apps Script (info@) legt jeden
+- backend/lib/rueckstand.js – L-Shop-Rueckstandsliste (RS1), NUR LESEN, Logik `utils/rueckstand.js`. Apps Script (Konto: siehe private Betriebsdoku) legt jeden
   Mittwoch `Rueckstandsliste_JJJJ-MM-TT.xlsx` in den Ordner "L-Shop Rueckstandsliste" der geteilten Ablage (`RUECKSTAND_ORDNER_ID`,
   per Env ueberschreibbar; drive.readonly). Die Datei hat keinen Standard-Stil (exceljs findet kein Blatt, Blattdatei "Sheet1.xml"):
   `leseXlsxZeilen` liest das Zip selbst (jszip 3.10.1, gepinnt), NUR Spalten A-O - P-T (Empfaenger/Adresse) nie. Kommission =
@@ -750,7 +750,7 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Lieferbestaetigung | Auftragsbestaetigung | Rechnung_XML | Rechnung_PDF; Jahr aus dem Dateinamen, sonst
   FTP-Zeit Berlin). Eigene Anmeldung mit Scope **`drive.file`** (`googleAuthMitScopes`): MC sieht nur, was
   es selbst angelegt hat - deshalb legt MC die Ordner selbst an (Setup-Skript bzw. bei Bedarf); ein von
-  Hand angelegter Ordner gleichen Namens waere unsichtbar. Cloud Run und lokal = `mission-control-sa`
+  Hand angelegter Ordner gleichen Namens waere unsichtbar. Cloud Run und lokal = dasselbe Dienstkonto (siehe private Betriebsdoku)
   (sonst saehen sie gegenseitig ihre Ordner nicht). Datei unveraendert (Bytes, Name, keine Umwandlung),
   nach Upload `size` + `md5Checksum` geprueft. Gleicher Name: gleiche MD5 -> vorhandene ID; andere MD5
   oder mehrfach -> `ArchivKonflikt`. Nie loeschen, ueberschreiben, Papierkorb, Freigaben (Quelltext-Test
@@ -761,7 +761,7 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Order-IDs mit offenen/gesperrten Zeilen (netto Stueck > 0), interne = offene (Neu = offen, ohne zu schreiben; leere Summe = 0 + "n ohne
   Betrag"), "seit" = groesstes Zeitraum-Bis der Abrechnungen + 1 Tag, sonst Vertrag-ab. **Saldo nur ueber `saldoRechnung`** - dieselbe
   Funktion nutzen `/api/partner/saldo` und Abrechnung vorschau/erstellen (keine zweite Formel). Optionale Spalte `Saldo_Kachel` im Reiter
-  Partner ("nein" blendet NUR die Kachel aus; Setup `scripts/setup-partner-saldo-kachel.js`, P-012 = nein). Frontend-Baustein Block
+  Partner ("nein" blendet NUR die Kachel aus; Setup `scripts/setup-partner-saldo-kachel.js`; Werte je Partner: siehe private Betriebsdoku). Frontend-Baustein Block
   `Partner-Kacheln: Anfang/Ende` wortgleich in partner.html und index.html (Test partner-kacheln.test.js); im Portal stehen die bisherigen
   Karten unveraendert unter "Details" (`#pv-details`).
 - backend/utils/partner-token.js – Zugang der Partnerportale (PPS1), einzige Stelle fuer Pruefen/Erzeugen. Reiter `Partner` und
@@ -770,8 +770,8 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   derselbe (`?token=`). Neue Tokens nur im Backend (`randomBytes(32)` base64url) ueber `lib/partnerLink.js`
   (`POST /api/kalkulation/partner/:id/link-neu`, `POST /api/festpreis/partner/:id/link-neu`): Hash schreiben, `Token` leeren, Link
   EINMAL an MC (Block `Partner-Link: Anfang/Ende`, `showConfirm`); PATCH mit `token` -> 400 `token_vom_browser`. MC bekommt den
-  Klartext nur im Uebergang (`klartextFuerMc`, "Link kopieren"), nie den Hash. Bremse `middleware/tokenBremse.js` (20 Fehlversuche
-  = 401 je IP / 15 min, gueltige zaehlen nie) vor `/api/partner` und `/api/festpreis-public`. Portale: Block `Portal-Token:
+  Klartext nur im Uebergang (`klartextFuerMc`, "Link kopieren"), nie den Hash. Bremse `middleware/tokenBremse.js` (Fehlversuche
+  je IP, gueltige zaehlen nie) vor `/api/partner` und `/api/festpreis-public`. Portale: Block `Portal-Token:
   Anfang/Ende` im `<head>` (wortgleich, vor dem Theme-Block) liest den Token, legt ihn in sessionStorage, entfernt ihn per
   `history.replaceState`; `<meta name="referrer" content="no-referrer">`. Umstellung `scripts/setup-partner-token-hash.js`
   (Trockenlauf; `--write` = Hashes; `--leeren --write` = Klartext leeren, nur wo der Hash schon passt; `--zurueck <sicherung>`;
@@ -1169,7 +1169,7 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   KEINE Vorblendung, `pruefeVorblendung(…, null)` erwartet leer), Bild je Farbe (`artikel.bilder`, Variationsbild
   `farbBild`, Galerie in Farbreihenfolge); `artikel.kategorieIds`/`kategorienText` vor denen der Kollektion.
   Kollektionen `ucs-lebkuchen` (Sweater 293 + 685/684, `ki`: KI_SATZ nach dem SEO-Text, Vermerk in Motive "Offen" -
-  nie Nur_intern, sonst meldet die Pruefung den KI-Satz) und `tt-fluffy` (P-002, Kat. 121, `motivAenderung` aendert
+  nie Nur_intern, sonst meldet die Pruefung den KI-Satz) und `tt-fluffy` (Partner: siehe private Betriebsdoku; Kat. 121, `motivAenderung` aendert
   die vorhandene Motive-Zeile TT-Logo, alter Inhalt geprueft). Partner_Artikel legt der Import/Abgleich an, nie das Skript.
   Preise `.preise-ucs-lebkuchen.json`, `.preise-tt-fluffy.json` (gitignored).
 - backend/lib/kunden.js – Kundenstamm (AM-1), Logik `utils/kunden.js`, Routen `routes/kunden.js` (`/api/kunden`, hinter
@@ -1316,7 +1316,7 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   (backup-daily.js sichert alle Reiter des SSOT). Setup `scripts/setup-auftraege-reiter.js` legt beide Reiter an (Trockenlauf, `--write`).
 - backend/lib/auftragSchnell.js – KI-Schnellannahme (SA1), Logik `utils/auftrag-schnell.js`. Feld "Schnell erfassen" oben in
   Aufträge (Block `Schnellannahme: Anfang/Ende`, Test auftrag-schnell-frontend.test.js) -> `POST /api/auftraege/schnell { text }`
-  (5-3000 Zeichen, eigene Bremse 30 / 15 min je IP) -> normaler Dialog "Neuer Auftrag" vorausgefuellt; **schreibt nichts**, erst
+  (5-3000 Zeichen, eigene Bremse je IP) -> normaler Dialog "Neuer Auftrag" vorausgefuellt; **schreibt nichts**, erst
   "Speichern" legt AU-… an (danach angehakte To-dos ueber `/todo/neu`). Kein Eingang (EG-…) in Stufe 1 (Inhaber 17.11.).
   KI: Rolle `auftrag-schnell` (Config `modell.auftrag-schnell`, Standard Haiku 5.5), NUR claude-… (sonst 503 `ki_anbieter`), Art
   `schnell` in modellAufruf.js (Structured Outputs `KI_SCHEMA`, Effort low, kein thinking-Feld, Zeitlimit 30 s ohne Wiederholung ->
@@ -1375,8 +1375,8 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   dauer 30.06., auftrag Termin + 30. Je Auftrag bzw. Kunde (dauer) hoechstens ein nicht gesperrter Zugang.
   Oeffentlich `GET /api/bestellseite/zugang` (routes/bestellseite.js, VOR requireApiKey, hinter dem allgemeinen Limiter; Token nur
   `Authorization: Bearer`): 401 unbekannt, 403 gesperrt/abgelaufen (freundlicher Text), sonst `seitenAntwort` = FESTE Feldauswahl
-  (`artikelFuerSeite`) - nie Preis, EK, L-Shop-Name, Kunden-/Partner-/Auftrag-Nr. Kein Limiter je Token (Inhaber), nur Fehlversuchs-Bremse je
-  IP fuer 401 (20 / 15 min). Katalog 5 min je Zugang+Stand zwischengespeichert. Die Seite greift NIE in den Shop: Bilder nur aus
+  (`artikelFuerSeite`) - nie Preis, EK, L-Shop-Name, Kunden-/Partner-/Auftrag-Nr. Fehlversuchs-Bremse je
+  IP fuer 401. Katalog 5 min je Zugang+Stand zwischengespeichert. Die Seite greift NIE in den Shop: Bilder nur aus
   `Bestell_Bilder`, gefuellt per MC-Knopf (`POST /api/bestellseiten/bilder`, nur veroeffentlichte Artikel der nicht gesperrten
   Dauer-Sortimente, getWcClient, nacheinander 2 s Takt, `products?include` + `products/<id>/variations` mit `_fields`, ganzer Reiter in
   EINEM values.update, vorher/nachher gelesen). Verwaltung `routes/bestellseiten.js` (`/api/bestellseiten`, hinter requireApiKey: GET /,
@@ -1428,7 +1428,7 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   hoehe) und `GET .../entwurf/:nr?groesse=klein|gross` (Bytes, `Cache-Control: private, max-age=300`); MC `GET /api/bestellseiten/:id/entwuerfe`,
   `.../entwurf/:nr`, `POST .../entwuerfe/ordner` { link | anlegen | entfernen }. Nur jpg/png/webp + PDF (nur Vorschaubild), hoechstens 30, Titel =
   Dateiname ohne Endung. klein = thumbnailLink `=s400`, gross = Datei <= 8 MB sonst `=s1600`; jede Antwort <= 10 MB, Bildtyp geprueft.
-  **thumbnailLink ist ohne Anmeldung abrufbar (Messung 08.11.) - nie nach aussen geben.** Zwischenspeicher Liste 60 s je Ordner, Bilder je
+  **thumbnailLink nie nach aussen geben.** Zwischenspeicher Liste 60 s je Ordner, Bilder je
   Datei-ID + modifiedTime + Groesse (80 / 40 MB). Seite: eine Netzstelle `anfrage` (auch Bilder als blob-URL mit Token im Header), Galerie
   `bsEntwuerfeHtml` lazy, gross mit ‹ › / Wischen / Pfeiltasten. MC: `bsmEntwurfHtml` im Zugang (verbinden, anlegen, in Drive öffnen, Vorschau).
   Test bestellseite-ks7.test.js.
@@ -1483,11 +1483,11 @@ einer kleineren Pflichtliste: ANTHROPIC_API_KEY, WC_KEY, WC_SECRET, WC_URL,
 GOOGLE_SHEET_ID, GOOGLE_PROJECT_ID – meldet `✗ ENV fehlt: <KEY>`.
 
 ## Deployment (Cloud Run)
-Projekt `mission-control-495711`, Region `europe-west1`, Service
+Projekt `<PROJEKT_ID>` (siehe private Betriebsdoku), Region `europe-west1`, Service
 `mission-control-backend`.
 
 Image in der Artifact Registry:
-`europe-west1-docker.pkg.dev/mission-control-495711/mission-control/backend`
+`europe-west1-docker.pkg.dev/<PROJEKT_ID>/mission-control/backend`
 
 Der GitHub-Actions-Trigger (`.github/workflows/deploy-backend.yml`) feuert nur
 bei **push auf `main` UND** Änderungen unter `backend/**` oder am `Dockerfile`.
@@ -1498,7 +1498,7 @@ Backend nicht anfasst. `deploy-backend.yml` hat **kein** `workflow_dispatch`:
 eine neue Revision entsteht nur über einen Push, der die Pfad-Filter trifft.
 
 In Cloud Run gesetzt sind nur `NODE_ENV=production` und
-`GOOGLE_PROJECT_ID=mission-control-495711`; alle übrigen Werte kommen aus dem
+`GOOGLE_PROJECT_ID=<PROJEKT_ID>`; alle übrigen Werte kommen aus dem
 Secret Manager.
 
 Welcher Code laeuft, zeigt die Fusszeile im Dashboard: "Stand: Oberflaeche <sha> · Backend <sha>".
@@ -1517,8 +1517,8 @@ Ladereihenfolge der Konfiguration: **Env-Var → `.env` → GCP Secret Manager**
 Job `lshop-korb-abgleich` (Region `europe-west1`), Zeitplan `17 * * * *`, Zeitzone
 `Europe/Berlin`, POST auf `<BACKEND_URL>/api/intern/lshop-korb/abgleich`, Versuchsfrist 300 s,
 1 Wiederholung nach 10 min. Anmeldung per **OIDC-Token** des Dienstkontos
-`korb-scheduler@mission-control-495711.iam.gserviceaccount.com` (ohne Rollen; Cloud Run bleibt
-oeffentlich, das Backend prueft das Token selbst): `middleware/schedulerAuth.js`
+(Adresse: siehe private Betriebsdoku; das Backend prueft das Token
+selbst): `middleware/schedulerAuth.js`
 (`requireSchedulerOidc`, Sollwerte aus den Secrets `SCHEDULER_SA_EMAIL` und `SCHEDULER_AUDIENCE`,
 401 ohne Details, Log nur Grund + Pfad). `routes/intern.js` steht VOR `requireApiKey`; ein
 MC_API_KEY oeffnet `/api/intern` nicht. Body wird ignoriert (nie Trockenlauf), Lauf-ID `CS-<Zeit>`.
@@ -1551,7 +1551,7 @@ keine Wiederholung. FTP-Fehler sind 200; rot erst, wenn der letzte Stand aelter 
   (`gebundenePositionen`); "zurück auf Entwurf" mit AB_Nr oder Abgeholt = 409 `schon_bei_lshop`.
 
 ## Neues Secret anlegen
-1. Secret im GCP Secret Manager anlegen (Browser, Account gbr@jammifashion.de)
+1. Secret im GCP Secret Manager anlegen (Browser, Inhaber-Konto - siehe private Betriebsdoku)
 2. Platzhalter in `.env.example` ergänzen
 3. Schlüssel in `SECRET_KEYS` in `backend/utils/secrets.js` eintragen
 4. Pushen
