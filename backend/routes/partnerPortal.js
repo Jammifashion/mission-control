@@ -17,6 +17,9 @@ import { notify, buildPartnerNachricht } from '../lib/chatNotify.js';
 import { requireHeader } from '../utils/sheet-headers.js';
 import { saldoRechnung, partnerKacheln } from '../utils/partner-saldo.js';
 import { findeZeileZumToken } from '../utils/partner-token.js';
+import { verkaufsUebersicht, uebersichtAntwort, bauZwischenspeicher } from '../utils/partner-uebersicht.js';
+import { gebuendelt } from '../lib/sheetsBuendel.js';
+import { berlinDatum } from '../utils/berlin-tag.js';
 import { apiSchluesselName } from '../middleware/auth.js';
 import { eigenauftragZuLang, EIGENAUFTRAG_MENGE_MAX } from '../utils/eigenauftrag.js';
 
@@ -902,6 +905,39 @@ router.get('/kacheln', async (req, res, next) => {
     res.json(await leseKacheln({ partnerId, shop: req.query.shop }));
   } catch (err) { next(err); }
 });
+
+// ── PD1: GET /api/partner/uebersicht ─────────────────────────────────────────
+// Startseite des Portals: Auszahlung (dieselbe Saldo-Rechnung wie Kacheln/Abrechnung), Stueck je Stand, Stueck je Monat
+// mit Vorjahr, Top 5 - nur fertige Zahlen, feste Feldauswahl, keine Bestellnummern. 10 min Zwischenspeicher je Partner,
+// beim Laden alle Reiter in EINEM batchGet. Nur lesen.
+router.get('/uebersicht', async (req, res, next) => {
+  try {
+    const token = extractToken(req);
+    if (!token) return res.status(401).json({ error: 'token fehlt.' });
+    const { partnerId } = await resolvePartner(token);
+    res.set('Cache-Control', 'no-store');
+    res.json(await leseUebersicht({ partnerId, shop: req.query.shop }));
+  } catch (err) { next(err); }
+});
+
+const uebersichtSpeicher = bauZwischenspeicher();
+export const _uebersichtSpeicherLeeren = () => uebersichtSpeicher.leeren();
+
+/** Uebersicht eines Lizenzpartners (Portal). sheets/heute nur fuer Tests. */
+export async function leseUebersicht({ partnerId, shop, sheets: s, heute }) {
+  const sheetId = process.env.BUSINESS_SHEET_ID;
+  if (!sheetId) throw Object.assign(new Error('BUSINESS_SHEET_ID nicht konfiguriert.'), { status: 503 });
+  const cfg = getShopConfig(shop);
+  return uebersichtSpeicher.hole(`lizenz:${cfg.shop}:${partnerId}`, async () => {
+    const sheets = await gebuendelt(s ?? await getSheets(), sheetId,
+      [cfg.tabVerkaeufe, 'Partner_Interne_Bestellungen', cfg.tabAbrechnungen, 'Partner', 'Kalkulation_Fixkosten']);
+    const k = await leseKacheln({ partnerId, shop, sheets });
+    const vk = await readTab(sheets, sheetId, cfg.tabVerkaeufe);
+    const statistik = verkaufsUebersicht({ header: vk.header, rows: vk.rows, partnerId, heute: heute ?? berlinDatum(new Date()),
+      spalten: { order: 'Order-ID', artikel: 'Artikelnummer', status: 'Status', storno: 'Storno-Status' } });
+    return uebersichtAntwort({ auszahlung: k, statistik });
+  });
+}
 
 /** Kacheln eines Partners (Portal und MC-Admin). Liest Verkaeufe/Abrechnungen des Shops, interne Bestellungen, Partner, Fixkosten. */
 export async function leseKacheln({ partnerId, shop, sheets: s }) {

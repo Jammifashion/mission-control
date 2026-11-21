@@ -213,6 +213,69 @@
     }
     /* ── Portal-Listen CSS: Ende ── */
     .ea-msg-err { background: color-mix(in srgb, var(--danger) 10%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); color: var(--danger); padding: 0.7rem 1rem; border-radius: 6px; font-size: 0.88rem; }
+    /* ── Partner-Übersicht CSS: Anfang (PD1, wortgleich in partner.html und partner-festpreis.html, Test pd1-frontend.test.js) ── */
+    .pu-raster { display: grid; gap: 0.75rem; grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-areas: "aus aus" "off pr" "jahr jahr" "kurve kurve" "top top"; }
+    .pu-raster.pu-ohne-saldo { grid-template-areas: "off pr" "jahr jahr" "kurve kurve" "top top"; }
+    .pu-aus { grid-area: aus; } .pu-off { grid-area: off; } .pu-pr { grid-area: pr; } .pu-jahr { grid-area: jahr; }
+    .pu-kurve { grid-area: kurve; } .pu-top { grid-area: top; }
+    @media (min-width: 700px) {
+      .pu-raster { grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-areas: "aus aus kurve kurve" "off pr kurve kurve" "jahr jahr kurve kurve" "top top top top"; }
+      .pu-raster.pu-ohne-saldo { grid-template-areas: "off pr kurve kurve" "jahr jahr kurve kurve" "top top top top"; }
+    }
+    @media (min-width: 1000px) {
+      .pu-raster { grid-template-columns: repeat(12, minmax(0, 1fr));
+        grid-template-areas: "aus aus aus off off off pr pr pr jahr jahr jahr" "kurve kurve kurve kurve kurve kurve kurve kurve top top top top"; }
+      .pu-raster.pu-ohne-saldo { grid-template-areas: "off off off off pr pr pr pr jahr jahr jahr jahr" "kurve kurve kurve kurve kurve kurve kurve kurve top top top top"; }
+    }
+    .pu-kachel { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; min-height: 96px; padding: 0.9rem 1rem;
+      text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: var(--muted); font: inherit; cursor: pointer; }
+    .pu-kachel:hover, .pu-kachel:focus-visible { border-color: var(--info); }
+    .pu-kachel:focus-visible, .pu-i:focus-visible, .pu-details > summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+    .pu-zahl { font-size: 1.6rem; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.15; overflow-wrap: anywhere; }
+    .pu-label { font-size: 0.85rem; color: var(--text); }
+    .pu-klein { font-size: 0.78rem; }
+    .pu-plus .pu-zahl { color: var(--success); }
+    .pu-minus .pu-zahl { color: var(--warning); }
+    .pu-chip { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.76rem; font-weight: 600; }
+    .pu-chip-gut { background: color-mix(in srgb, var(--success) 15%, transparent); color: var(--success); }
+    .pu-chip-warn { background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); }
+    .pu-karte { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem 1.1rem; min-width: 0; }
+    .pu-kopf { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.4rem; }
+    .pu-kopf h2 { font-size: 0.95rem; font-weight: 600; margin: 0; }
+    .pu-i { flex: none; width: 44px; height: 44px; margin: -10px 0 -10px 0; background: none; border: none; color: var(--muted); font-size: 1rem; cursor: pointer; border-radius: 999px; }
+    .pu-i:hover { color: var(--text); }
+    .pu-aus > .pu-i { position: absolute; top: 0; right: 0; margin: 0; }
+    .pu-aus .pu-label { padding-right: 2.2rem; }
+    .pu-info { margin: 0 0 0.5rem; padding: 0.5rem 0.65rem; border-radius: 6px; background: var(--surface-2); color: var(--text); font-size: 0.82rem; line-height: 1.4; }
+    .pu-satz { margin: 0.4rem 0 0; font-size: 0.92rem; color: var(--text); }
+    .pu-leer { margin: 0.6rem 0; color: var(--muted); font-size: 0.9rem; }
+    .pu-legende { display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; margin: 0.3rem 0 0; font-size: 0.8rem; color: var(--muted); }
+    .pu-strich { display: inline-block; width: 18px; height: 0; border-top: 3px solid var(--info); vertical-align: middle; margin-right: 0.3rem; }
+    .pu-strich.pu-vj { border-top: 2px dashed var(--muted); }
+    .dg-linie { display: block; width: 100%; height: auto; max-height: 260px; }
+    .pu-punkt { display: inline-block; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--info); vertical-align: middle; margin-right: 0.3rem; }
+    .dg-balken { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.2rem 0.75rem; align-items: center; font-size: 0.9rem; }
+    .dg-balken-name { overflow-wrap: anywhere; color: var(--text); }
+    .dg-balken-zahl { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+    .dg-balken-spur { grid-column: 1 / -1; height: 8px; border-radius: 4px; background: var(--surface-2); margin-bottom: 0.45rem; }
+    .dg-balken-wert { display: block; height: 100%; border-radius: 4px; background: var(--info); }
+    .pu-tipp { position: relative; }
+    .pu-tipp::after { content: attr(data-tipp); position: absolute; left: 0; top: calc(100% + 6px); z-index: 20; width: max-content; max-width: min(18rem, 80vw);
+      background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 0.35rem 0.55rem; font-size: 0.76rem;
+      line-height: 1.35; font-weight: 400; text-align: left; box-shadow: 0 4px 14px var(--shadow); opacity: 0; pointer-events: none; transition: opacity 0.12s; }
+    .pu-tipp.pu-rechts::after { left: auto; right: 0; }
+    @media (hover: hover) { .pu-tipp:hover::after { opacity: 1; } }
+    .pu-tipp:focus-visible::after { opacity: 1; }
+    .pu-details > summary { min-height: 44px; display: flex; align-items: center; gap: 0.4rem; cursor: pointer; color: var(--info); font-weight: 600; list-style: none; }
+    .pu-details > summary::-webkit-details-marker { display: none; }
+    .pu-details > summary::before { content: '▸'; transition: transform 0.15s; }
+    .pu-details[open] > summary::before { transform: rotate(90deg); }
+    .pu-details[open] > summary { margin-bottom: 0.75rem; }
+    .pu-details-inhalt { display: flex; flex-direction: column; gap: 1.5rem; }
+    @media (max-width: 480px) { .pu-zahl { font-size: 1.35rem; } .pu-kachel { padding: 0.75rem 0.8rem; } .pu-details-inhalt { gap: 1rem; } }
+    /* ── Partner-Übersicht CSS: Ende ── */
   </style>
 </head>
 <body>
@@ -347,6 +410,181 @@
     function fmt(val) {
       return Number(val || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
     }
+
+    // ── Diagramme: Anfang (PD1, wortgleich in partner.html und partner-festpreis.html; spaeter auch MC, Test pd1-frontend.test.js) ──
+    // Selbst gezeichnet, ohne Bibliothek: Linie als SVG mit gestrichelter Vergleichslinie, waagerechte Balken als HTML.
+    // Farben nur ueber var(--…) im style-Attribut - hell/dunkel wechselt ohne Neuzeichnen. null = keine Daten (keine Linie, nicht 0).
+    const DG_MONATE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+    const dgEsc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+    const dgZahl = n => Number(n || 0).toLocaleString('de-DE', { maximumFractionDigits: 2 });
+    /** Obergrenze der Achse: 1, 2, 4 oder 5 mal Zehnerpotenz, mindestens 4 (Mittellinie = Haelfte). */
+    function dgObergrenze(max) {
+      const roh = Math.max(4, max);
+      const p = Math.pow(10, Math.floor(Math.log10(roh)));
+      return [1, 2, 4, 5, 10].map(f => f * p).find(s => s >= roh);
+    }
+    /** Zusammenhaengende Strecken ohne null: [[[i, wert], …], …] */
+    function dgStrecken(werte) {
+      const teile = []; let akt = null;
+      (werte ?? []).forEach((w, i) => {
+        if (w === null || w === undefined) { akt = null; return; }
+        if (!akt) { akt = []; teile.push(akt); }
+        akt.push([i, Number(w) || 0]);
+      });
+      return teile;
+    }
+    /** Linie mit 12 Monaten: haupt (durchgezogen, --info), vergleich (gestrichelt, --muted, optional).
+     *  laufend = Index des laufenden Monats: dorthin gepunktet mit hohlem Punkt ("bisher" - der Monat ist noch nicht um). */
+    function dgLinie({ haupt, vergleich, beschreibung, laufend = null }) {
+      const B = 300, L = 30, R = 10, O = 12, U = 128;
+      const NS = ' vector-effect="non-scaling-stroke"';
+      const werte = [...(haupt ?? []), ...(vergleich ?? [])].filter(w => w !== null && w !== undefined).map(Number);
+      const oben = dgObergrenze(werte.length ? Math.max(...werte) : 0);
+      const x = i => L + i * (B - L - R) / 11;
+      const y = w => U - (w / oben) * (U - O);
+      const pkt = s => s.map(([i, w]) => `${x(i).toFixed(1)},${y(w).toFixed(1)}`).join(' ');
+      let svg = `<svg class="dg-linie" viewBox="0 0 ${B} 160" role="img" aria-label="${dgEsc(beschreibung)}">`;
+      for (const v of [0, oben / 2, oben]) {
+        svg += `<line x1="${L}" y1="${y(v).toFixed(1)}" x2="${B - R}" y2="${y(v).toFixed(1)}" style="stroke:var(--border)" stroke-width="1"${v ? ' stroke-dasharray="2 4"' : ''}${NS}/>`
+          + `<text x="${L - 6}" y="${(y(v) + 3).toFixed(1)}" text-anchor="end" font-size="11" style="fill:var(--muted)">${dgZahl(v)}</text>`;
+      }
+      for (const s of dgStrecken(vergleich)) {
+        svg += s.length > 1
+          ? `<polyline points="${pkt(s)}" fill="none" style="stroke:var(--muted)" stroke-width="2" stroke-dasharray="5 4"${NS}/>`
+          : `<circle cx="${x(s[0][0]).toFixed(1)}" cy="${y(s[0][1]).toFixed(1)}" r="2.5" style="fill:var(--muted)"/>`;
+      }
+      const lw = laufend !== null && laufend !== undefined && haupt?.[laufend] !== null && haupt?.[laufend] !== undefined ? Number(haupt[laufend]) : null;
+      const fest = lw === null ? haupt : (haupt ?? []).map((w, i) => (i === laufend ? null : w));
+      const hs = dgStrecken(fest);
+      for (const s of hs) {
+        svg += s.length > 1
+          ? `<polyline points="${pkt(s)}" fill="none" style="stroke:var(--info)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"${NS}/>`
+          : `<circle cx="${x(s[0][0]).toFixed(1)}" cy="${y(s[0][1]).toFixed(1)}" r="3" style="fill:var(--info)"/>`;
+      }
+      const davor = lw !== null && laufend > 0 ? fest[laufend - 1] : null;
+      if (lw !== null) {
+        if (davor !== null && davor !== undefined) svg += `<line x1="${x(laufend - 1).toFixed(1)}" y1="${y(davor).toFixed(1)}" x2="${x(laufend).toFixed(1)}" y2="${y(lw).toFixed(1)}" style="stroke:var(--info)" stroke-width="2.5" stroke-dasharray="2 4" stroke-linecap="round"${NS}/>`;
+        svg += `<circle cx="${x(laufend).toFixed(1)}" cy="${y(lw).toFixed(1)}" r="4.5" style="fill:var(--surface);stroke:var(--info)" stroke-width="2.5"${NS}/>`;
+      } else {
+        const letzte = hs.length ? hs[hs.length - 1][hs[hs.length - 1].length - 1] : null;
+        if (letzte) svg += `<circle cx="${x(letzte[0]).toFixed(1)}" cy="${y(letzte[1]).toFixed(1)}" r="5" style="fill:var(--info)"/>`;
+      }
+      DG_MONATE.forEach((m, i) => { svg += `<text x="${x(i).toFixed(1)}" y="148" text-anchor="middle" font-size="11" style="fill:var(--muted)">${m[0]}</text>`; });
+      return svg + '</svg>';
+    }
+    /** Waagerechte Balken: [{ name, wert }] - laengster Balken = 100 %. */
+    function dgBalken(eintraege) {
+      if (!eintraege || !eintraege.length) return '';
+      const max = Math.max(...eintraege.map(e => Number(e.wert) || 0)) || 1;
+      return '<div class="dg-balken">' + eintraege.map(e => `<span class="dg-balken-name">${dgEsc(e.name)}</span>`
+        + `<strong class="dg-balken-zahl">${dgZahl(e.wert)}</strong>`
+        + `<span class="dg-balken-spur" aria-hidden="true"><b class="dg-balken-wert" style="width:${Math.max(2, Math.round((Number(e.wert) || 0) / max * 100))}%"></b></span>`).join('') + '</div>';
+    }
+    /** "8 mehr als im Vorjahr" / "3 weniger …" / "genauso viele …"; ohne Vergleichswert ''. */
+    function dgVergleich(wert, vorher) {
+      if (vorher === null || vorher === undefined) return '';
+      const d = Math.round(((Number(wert) || 0) - Number(vorher)) * 100) / 100;
+      if (d > 0) return `${dgZahl(d)} mehr als im Vorjahr`;
+      if (d < 0) return `${dgZahl(-d)} weniger als im Vorjahr`;
+      return 'genauso viele wie im Vorjahr';
+    }
+    /** Satz unter der Kurve: letzter ganzer Monat (mit Vorjahr) + laufender Monat bisher. */
+    function dgSatzMonat({ jahr, monat, reihe }) {
+      const j = reihe?.jahr ?? [], vj = reihe?.vorjahr ?? [];
+      if (monat === 0) {
+        const dez = vj[11];
+        return (dez !== null && dez !== undefined ? `Dezember ${jahr - 1}: ${dgZahl(dez)} Stück. ` : '') + `Januar bisher: ${dgZahl(j[0])} Stück.`;
+      }
+      const m = monat - 1;
+      const vergleich = dgVergleich(j[m], vj[m]);
+      return `${DG_MONATE[m]}: ${dgZahl(j[m])} Stück${vergleich ? `, ${vergleich}` : ''}. ${DG_MONATE[monat]} bisher: ${dgZahl(j[monat])} Stück.`;
+    }
+    // ── Diagramme: Ende ──
+
+    // ── Partner-Übersicht: Anfang (PD1, wortgleich in partner.html und partner-festpreis.html, Test pd1-frontend.test.js) ──
+    // Startseite aus GET …/uebersicht (nur fertige Zahlen, nur Stueck - keine Betraege je Monat): Kacheln Auszahlung · Stueck offen ·
+    // Stueck in Pruefung · Stueck im Jahr, darunter Kurve und Top 5. Mouse-over ueber data-tipp, am Handy das ⓘ. Rot nie (Farbregel).
+    const puEuro = n => Number(n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+    function puSaldo(saldo) {
+      if (saldo > 0) return { klasse: 'pu-plus', wort: 'bekommst du noch', betrag: puEuro(saldo) };
+      if (saldo < 0) return { klasse: 'pu-minus', wort: 'schuldest du noch', betrag: `−${puEuro(Math.abs(saldo))}` };
+      return { klasse: '', wort: 'ausgeglichen', betrag: puEuro(0) };
+    }
+    const puI = (id, tipp, rechts = true) => `<button type="button" class="pu-i pu-tipp${rechts ? ' pu-rechts' : ''}" data-pu-info="${id}" aria-expanded="false" aria-controls="${id}" aria-label="Was bedeutet das?" data-tipp="${dgEsc(tipp)}">ⓘ</button>`;
+    const puInfo = (id, text) => `<p class="pu-info" id="${id}" hidden>${text}</p>`;
+    function puJahrVergleich(d) {
+      if (d.stueckVorjahr !== null && d.stueckVorjahr !== undefined) {
+        const diff = Math.round((d.stueckJahr - d.stueckVorjahr) * 100) / 100;
+        if (diff > 0) return `<span class="pu-chip pu-chip-gut">+${dgZahl(diff)} zum Vorjahr</span>`;
+        if (diff < 0) return `<span class="pu-klein">${dgZahl(diff)} zum Vorjahr</span>`;
+        return '<span class="pu-klein">wie im Vorjahr</span>';
+      }
+      return d.vorjahrDaten ? `<span class="pu-klein">Vorjahr erst ab ${DG_MONATE[d.vorjahrAb] ?? ''}</span>` : '<span class="pu-klein">Vorjahr: keine Daten</span>';
+    }
+    function puHtml(d) {
+      const a = d.auszahlung ?? {};
+      const seit = a.seit ? `seit ${dgEsc(a.seit)}` : 'seit Beginn';
+      const s = puSaldo(Number(a.saldo) || 0);
+      const zusatz = [a.intern ? `${dgZahl(a.intern)} direkte Bestellung${a.intern === 1 ? '' : 'en'} abgezogen` : '', a.inPruefung ? 'ein Teil noch in Prüfung' : '']
+        .filter(Boolean).join(' · ');
+      const ausInfo = `Deine Anteile aus Shop-Verkäufen (inkl. MwSt) minus deine direkten Bestellungen – alles, was noch nicht abgerechnet ist (${seit}). `
+        + 'Positiv: das bekommst du noch. Negativ: das schuldest du noch.'
+        + (a.internOhneBetrag ? ' Direkte Bestellungen ohne Betrag zählen hier mit 0.' : '')
+        + (a.inPruefung ? ' Ein Teil (z. B. Porto oder Verpackung) wird noch geprüft und ist hier noch nicht enthalten.' : '');
+      const aus = a.saldoKachel === false ? ''
+        : `<div class="pu-kachel pu-aus ${s.klasse}"><span class="pu-label">Offene Auszahlung</span><span class="pu-zahl">${s.betrag}</span>`
+          + `<span class="pu-klein">${s.wort} · ${seit}</span>${zusatz ? `<span class="pu-klein">${zusatz}</span>` : ''}`
+          + puI('pu-i-aus', 'Wie wird die Auszahlung gerechnet?') + puInfo('pu-i-aus', ausInfo) + '</div>';
+      const st = d.stand ?? {};
+      const off = `<div class="pu-kachel pu-off pu-tipp" tabindex="0" data-tipp="Verkaufte Stück, die noch nicht abgerechnet sind (ohne die in Prüfung).">`
+        + `<span class="pu-zahl">${dgZahl(st.offen)}</span><span class="pu-label">Stück offen</span><span class="pu-klein">noch nicht abgerechnet</span></div>`;
+      const pr = `<div class="pu-kachel pu-pr pu-tipp pu-rechts" tabindex="0" data-tipp="Stück, bei denen wir vor der Abrechnung noch etwas klären. Sie zählen erst danach zur Auszahlung.">`
+        + `<span class="pu-zahl">${dgZahl(st.inPruefung)}</span><span class="pu-label">Stück in Prüfung</span>`
+        + (st.inPruefung ? '<span class="pu-chip pu-chip-warn">wir prüfen noch</span>' : '<span class="pu-klein">nichts in Prüfung</span>') + '</div>';
+      const bis = DG_MONATE[d.monat] ?? '';
+      const jahr = `<div class="pu-kachel pu-jahr pu-tipp pu-rechts" tabindex="0" data-tipp="${dgEsc(`Verkaufte Stück von Januar bis ${bis} ${d.jahr}, Stornos und Erstattungen abgezogen. Vergleich: derselbe Zeitraum ${d.jahr - 1}.`)}">`
+        + `<span class="pu-zahl">${dgZahl(d.stueckJahr)}</span><span class="pu-label">Stück ${d.jahr}</span>${puJahrVergleich(d)}</div>`;
+      const vj = d.vorjahrDaten;
+      const ohne = d.ohneVerkaeufe || !Array.isArray(d.reihe?.jahr) || !d.reihe.jahr.length;   // auch ohne Reihe: Satz statt leerer Achse
+      const legende = `<p class="pu-legende"><span><i class="pu-strich"></i>${d.jahr}</span><span><i class="pu-punkt"></i>${DG_MONATE[d.monat] ?? ''} bisher</span>`
+        + (vj ? `<span><i class="pu-strich pu-vj"></i>${d.jahr - 1}</span>` : '<span>Vorjahr: keine Daten</span>') + '</p>';
+      const kurve = `<section class="pu-karte pu-kurve"><div class="pu-kopf"><h2>Verkäufe ${d.jahr} (Stück)</h2>`
+        + puI('pu-i-kurve', 'Verkaufte Stück je Monat, Stornos abgezogen. Gestrichelt: das Vorjahr.') + '</div>'
+        + puInfo('pu-i-kurve', 'Jeder Punkt ist ein Monat: verkaufte Stück aus Bestellungen dieses Monats. Stornos und Erstattungen zählen im Monat der Bestellung und sind abgezogen. Die gestrichelte Linie zeigt das Vorjahr, soweit es Daten gibt.')
+        + (ohne
+          ? '<p class="pu-leer">Sobald die ersten Artikel verkauft sind, siehst du hier deine Verkäufe je Monat.</p>'
+          : dgLinie({ haupt: d.reihe.jahr, vergleich: vj ? d.reihe.vorjahr : null, laufend: d.monat,
+            beschreibung: `Verkaufte Stück je Monat ${d.jahr}${vj ? ` im Vergleich zu ${d.jahr - 1}` : ''}` })
+            + legende + `<p class="pu-satz">${dgEsc(dgSatzMonat(d))}</p>`)
+        + '</section>';
+      const top5 = d.top5 ?? [];
+      const top = `<section class="pu-karte pu-top"><div class="pu-kopf"><h2>Top 5 in diesem Jahr</h2>`
+        + puI('pu-i-top', 'Deine fünf meistverkauften Artikel seit Januar, nach Stück.') + '</div>'
+        + puInfo('pu-i-top', 'Gezählt werden verkaufte Stück seit dem 1. Januar, Stornos und Erstattungen abgezogen. Heißt ein Artikel im Shop inzwischen anders, kann er zweimal auftauchen.')
+        + (top5.length
+          ? dgBalken(top5.map(t => ({ name: t.name, wert: t.stueck })))
+            + `<p class="pu-satz">Am meisten verkauft: ${dgEsc(top5[0].name)} (${dgZahl(top5[0].stueck)} Stück).</p>`
+          : '<p class="pu-leer">In diesem Jahr ist noch nichts verkauft.</p>')
+        + '</section>';
+      return `<div class="pu-raster${a.saldoKachel === false ? ' pu-ohne-saldo' : ''}">${aus}${off}${pr}${jahr}${kurve}${top}</div>`;
+    }
+    function puLadeHtml() {
+      return '<div class="pu-raster" aria-busy="true">'
+        + ['pu-aus', 'pu-off', 'pu-pr', 'pu-jahr'].map(k => `<div class="skeleton ${k}" style="height:96px;"></div>`).join('')
+        + '<div class="skeleton pu-kurve" style="height:220px;"></div><div class="skeleton pu-top" style="height:220px;"></div></div>';
+    }
+    function puFehlerHtml() {
+      return '<p class="pu-leer">Übersicht gerade nicht verfügbar – die Details stehen darunter.</p>';
+    }
+    document.addEventListener('click', ev => {
+      const b = ev.target.closest ? ev.target.closest('[data-pu-info]') : null;
+      if (!b) return;
+      const p = document.getElementById(b.dataset.puInfo);
+      if (!p) return;
+      p.hidden = !p.hidden;
+      b.setAttribute('aria-expanded', String(!p.hidden));
+    });
+    // ── Partner-Übersicht: Ende ──
 
     function showError(msg) {
       main.innerHTML = `<div class="error-box" style="max-width:480px;margin:3rem auto;"><p>${msg}</p></div>`;
@@ -605,7 +843,13 @@
         return;
       }
 
+      // PD1: zuerst die Uebersicht (Kacheln, Kurve, Top 5); die bisherigen Karten stehen unveraendert unter "Details" (eingeklappt,
+      // geladen erst beim Aufklappen).
       main.innerHTML = `
+        <div id="pv-uebersicht">${puLadeHtml()}</div>
+        <details class="pu-details" id="pv-details-box">
+          <summary>Details: Verkäufe, direkte Bestellungen, Abrechnungen</summary>
+          <div class="pu-details-inhalt" id="pv-details">
         <div class="card">
           <div class="card-header">
             <h2>Offene Auszahlung</h2>
@@ -662,8 +906,12 @@
         <details class="card pl-abschnitt" id="pv-abr-box">
           <summary class="card-header"><h2>Meine Abrechnungen <span class="pl-anzahl" id="pv-abr-anzahl"></span></h2></summary>
           <div id="pv-abrechnungen"><div class="skeleton"></div></div>
+        </details>
+          </div>
         </details>`;
       plAbschnittOeffnen();   // PP3
+      ladeUebersicht();
+      document.getElementById('pv-details-box').addEventListener('toggle', ev => { if (ev.target.open) detailsLaden(); });
 
       document.getElementById('btn-refresh').addEventListener('click', () => {
         loadVerkaeufe();
@@ -673,8 +921,24 @@
       });
 
       initEigenauftrag();
+    }
 
-      await Promise.all([loadVerkaeufe(), loadIntern(), loadSaldo(), loadAbrechnungen()]);
+    // PD1: Uebersicht laden (eine Anfrage); faellt sie aus, gehen die Details auf.
+    async function ladeUebersicht() {
+      const wrap = document.getElementById('pv-uebersicht');
+      try {
+        wrap.innerHTML = puHtml(await apiFetch('/api/festpreis-public/uebersicht'));
+      } catch (e) {
+        wrap.innerHTML = puFehlerHtml();
+        document.getElementById('pv-details-box').open = true;
+      }
+    }
+    // Details erst beim ersten Aufklappen laden.
+    let detailsGeladen = false;
+    function detailsLaden() {
+      if (detailsGeladen) return;
+      detailsGeladen = true;
+      loadVerkaeufe(); loadIntern(); loadSaldo(); loadAbrechnungen();
     }
 
     init();

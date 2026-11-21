@@ -176,9 +176,10 @@ describe('Frontend: Baustein in Portal und MC wortgleich', () => {
     expect(ohne).not.toContain('data-pk-info');
     expect(h).not.toMatch(/title=/);
   });
-  test('Portal: Kacheln zuerst, bisherige Karten unter Details (unveraendert)', () => {
+  test('Portal: seit PD1 zuerst die Uebersicht, bisherige Karten unter Details (eingeklappt, unveraendert)', () => {
     const p = readFileSync(resolve(hier, '../../frontend/partner.html'), 'utf8');
-    expect(p).toMatch(/id="pv-kacheln-karte"[\s\S]*<div id="pv-details" hidden>[\s\S]*Meine Verkäufe[\s\S]*Meine Abrechnungen/);
-    expect(p).toContain("apiGet('/api/partner/kacheln')");
+    expect(p).toMatch(/id="pv-uebersicht"[\s\S]*<details class="pu-details" id="pv-details-box">[\s\S]*id="pv-details"[\s\S]*Meine Verkäufe[\s\S]*Meine Abrechnungen/);
+    expect(p).toContain("apiGet('/api/partner/uebersicht')");
+    // Der Baustein bleibt wortgleich mit MC (Partner auf einen Blick); das Portal zeigt die Zahlen jetzt ueber die Uebersicht.
   });
 });

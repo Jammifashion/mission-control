@@ -503,6 +503,25 @@ function bsEintraege(termin) {
   return { termin: termin || '', eintraege: [], verschoben: [] };
 }
 
+// ── PD1: Startseite der Portale (nur Stueck, erfundene Zahlen und Artikel) ──
+const UEBERSICHT_LZ = {
+  auszahlung: { saldo: 312.4, seit: '01.10.2026', saldoKachel: true, intern: 2, internOhneBetrag: 1, inPruefung: false },
+  stand: { offen: 14, inPruefung: 2 }, jahr: 2026, monat: 10,
+  reihe: { jahr: [18, 22, 31, 27, 35, 30, 21, 33, 40, 42, 12, null], vorjahr: [null, null, null, 12, 19, 22, 15, 24, 29, 34, 41, 52] },
+  vorjahrDaten: true, vorjahrAb: 3, stueckJahr: 311, stueckVorjahr: null,
+  top5: [{ name: 'Hoodie Wappen Navy', stueck: 61 }, { name: 'Shirt Classic Vereinslogo mit sehr langem Namen für den Umbruch', stueck: 40 },
+    { name: 'Kinder-Shirt Wappen', stueck: 33 }, { name: 'Trainingsjacke', stueck: 21 }, { name: 'Beanie', stueck: 12 }],
+  ohneVerkaeufe: false,
+};
+const UEBERSICHT_FP = {
+  auszahlung: { saldo: -48.9, seit: '01.11.2026', saldoKachel: true, intern: 1, internOhneBetrag: 0, inPruefung: true },
+  stand: { offen: 96, inPruefung: 3 }, jahr: 2026, monat: 10,
+  reihe: { jahr: [9, 14, 30, 48, 52, 61, 44, 57, 63, 80, 31, null], vorjahr: Array(12).fill(null) },
+  vorjahrDaten: false, vorjahrAb: null, stueckJahr: 489, stueckVorjahr: null,
+  top5: [{ name: 'Becher Logo', stueck: 120 }, { name: 'Shirt Motiv A', stueck: 98 }, { name: 'Sticker-Set', stueck: 75 }],
+  ohneVerkaeufe: false,
+};
+
 // ════════════════════════════════════════════════════════════════════════════
 // Verteiler
 // ════════════════════════════════════════════════════════════════════════════
@@ -528,6 +547,7 @@ export function antwort(method, pfad, params, body, seite) {
     return { lizenzNetto, lizenzSumme: lizenzNetto, lizenzBrutto, mwstProzent: mwst, interneSumme, saldo: r2(lizenzBrutto - interneSumme), saldoNetto: r2((lizenzBrutto - interneSumme) / 1.19) };
   }
   if (p === '/api/partner/abrechnungen') return LZ_ABRECHNUNGEN.filter(a => a.partnerId === PORTAL_LZ && a.status !== 'entwurf');
+  if (p === '/api/partner/uebersicht') return UEBERSICHT_LZ;   // PD1, erfundene Zahlen
 
   // ── partner-festpreis.html ──
   if (p === '/api/festpreis-public/auth') return { partnerId: PORTAL_FP, partnerName: FP_PARTNER.find(z => z['Partner-ID'] === PORTAL_FP).Name };
@@ -539,6 +559,7 @@ export function antwort(method, pfad, params, body, seite) {
       saldoBrutto: s.gesamtBrutto, saldoNetto: s.gesamtNetto, porto: { einnahmen: s.porto.einnahmen, kosten: s.porto.kosten, saldo: s.porto.saldo, inPruefung: true }, verpackung: s.verpackung };
   }
   if (p === '/api/festpreis-public/abrechnungen') return fpAbrechnungen(PORTAL_FP).filter(a => a.Status !== 'entwurf');
+  if (p === '/api/festpreis-public/uebersicht') return UEBERSICHT_FP;   // PD1, erfundene Zahlen
 
   // ── index.html: Artikel ──
   if (p === '/api/sheets/kategorien') return KATEGORIEN;

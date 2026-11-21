@@ -11,6 +11,9 @@ import { parseKonfiguration } from '../utils/partner-kalkulation.js';
 import { findeZeileZumToken, SPALTE_TOKEN, SPALTE_HASH } from '../utils/partner-token.js';
 import { SPALTE_VERSCHLUESSELT } from '../utils/link-schluessel.js';
 import { parseDeZahl } from '../utils/zahl-de.js';
+import { verkaufsUebersicht, uebersichtAntwort, bauZwischenspeicher } from '../utils/partner-uebersicht.js';
+import { gebuendelt } from '../lib/sheetsBuendel.js';
+import { berlinDatum } from '../utils/berlin-tag.js';
 
 const router = Router();
 
@@ -158,45 +161,99 @@ router.get('/saldo', async (req, res, next) => {
     const token = extractToken(req);
     if (!token) return res.status(401).json({ error: 'token fehlt.' });
     const { partner, sheets, sheetId } = await resolvePartner(token);
-    const partnerId = partner['Partner-ID'];
-
-    const { header, rows } = await readTab(sheets, sheetId, TAB_FP_VERKAEUFE);
-    const vh = col => header.indexOf(col);
-    // Dieselbe Auswahl wie Vorschau und Abrechnung: alle offenen Zeilen inkl. Storno-Gegenbuchungen.
-    const offene = fpAbrechnungsZeilen(rows, vh, { partnerId, parseDate: () => null });
-    const { summen } = aggregateFpVerkaeufe(offene, vh);
-
-    const { header: kH, rows: kRows } = await readTab(sheets, sheetId, TAB_FIXKOSTEN);
-    const mwstProzent = parseKonfiguration(kRows, kH).mwstProzent;
-    const interne = await loadOffeneInterne(sheets, sheetId, partnerId, null, null);
-
-    // Verpackungspauschale (VP1) über alle offenen Zeilen inkl. Storno-Gegenbuchungen,
-    // wie die Abrechnung. Fehlt der Wert: nicht abziehen, Portal zeigt "in Prüfung".
-    const offeneMitStorno = offene;
-    const v = await ladeVerpackung(sheets, sheetId, partnerId, offeneMitStorno, rows, vh);
-    const verpackung = v.status === 'keine' ? null
-      : v.status === 'ok' ? { status: 'ok', anzahl: v.anzahl, betrag: v.betrag, summe: v.summe }
-      : { status: 'in_pruefung' };   // Grund und Bestellnummern nur intern
-
-    // PO1: Porto je Bestellung (netto) ueber dieselben Zeilen wie die Abrechnung
-    const p = await ladePorto(sheets, sheetId, partnerId, offeneMitStorno, rows, vh);
-    const porto = p.status === 'keine' ? null
-      : { einnahmen: p.einnahmen, kosten: { anzahl: p.kosten.anzahl, summe: p.kosten.summe }, saldo: p.saldo, ...(p.status === 'fehlt' ? { inPruefung: true } : {}) };
-    const auszahlungNetto  = round2(summen.auszahlung + portoSaldo(p));
-    const auszahlungBrutto = round2(auszahlungNetto * (1 + mwstProzent / 100));
-    const saldoBrutto      = round2(auszahlungBrutto - interne.summe - (verpackung?.summe ?? 0));
-    const saldoNetto       = round2(saldoBrutto / (1 + mwstProzent / 100));
-
-    res.json({
-      mwstProzent,
-      auszahlungNetto, auszahlungBrutto,
-      interneSumme: interne.summe,
-      verpackung,
-      ...(porto ? { porto } : {}),   // PO1: ohne Bestellnummern
-      saldoNetto, saldoBrutto,
-    });
+    const { _intern, ...saldo } = await fpSaldo(sheets, sheetId, partner['Partner-ID']);   // interne Positionen nie ans Portal
+    res.json(saldo);
   } catch (err) { next(err); }
 });
+
+/** Offene Auszahlung eines FP-Partners - EINE Rechnung fuer /saldo und /uebersicht (PD1), wie Vorschau/Abrechnung. */
+export async function fpSaldo(sheets, sheetId, partnerId) {
+  const { header, rows } = await readTab(sheets, sheetId, TAB_FP_VERKAEUFE);
+  const vh = col => header.indexOf(col);
+  // Dieselbe Auswahl wie Vorschau und Abrechnung: alle offenen Zeilen inkl. Storno-Gegenbuchungen.
+  const offene = fpAbrechnungsZeilen(rows, vh, { partnerId, parseDate: () => null });
+  const { summen } = aggregateFpVerkaeufe(offene, vh);
+
+  const { header: kH, rows: kRows } = await readTab(sheets, sheetId, TAB_FIXKOSTEN);
+  const mwstProzent = parseKonfiguration(kRows, kH).mwstProzent;
+  const interne = await loadOffeneInterne(sheets, sheetId, partnerId, null, null);
+
+  // Verpackungspauschale (VP1) über alle offenen Zeilen inkl. Storno-Gegenbuchungen,
+  // wie die Abrechnung. Fehlt der Wert: nicht abziehen, Portal zeigt "in Prüfung".
+  const offeneMitStorno = offene;
+  const v = await ladeVerpackung(sheets, sheetId, partnerId, offeneMitStorno, rows, vh);
+  const verpackung = v.status === 'keine' ? null
+    : v.status === 'ok' ? { status: 'ok', anzahl: v.anzahl, betrag: v.betrag, summe: v.summe }
+    : { status: 'in_pruefung' };   // Grund und Bestellnummern nur intern
+
+  // PO1: Porto je Bestellung (netto) ueber dieselben Zeilen wie die Abrechnung
+  const p = await ladePorto(sheets, sheetId, partnerId, offeneMitStorno, rows, vh);
+  const porto = p.status === 'keine' ? null
+    : { einnahmen: p.einnahmen, kosten: { anzahl: p.kosten.anzahl, summe: p.kosten.summe }, saldo: p.saldo, ...(p.status === 'fehlt' ? { inPruefung: true } : {}) };
+  const auszahlungNetto  = round2(summen.auszahlung + portoSaldo(p));
+  const auszahlungBrutto = round2(auszahlungNetto * (1 + mwstProzent / 100));
+  const saldoBrutto      = round2(auszahlungBrutto - interne.summe - (verpackung?.summe ?? 0));
+  const saldoNetto       = round2(saldoBrutto / (1 + mwstProzent / 100));
+
+  return {
+    mwstProzent,
+    auszahlungNetto, auszahlungBrutto,
+    interneSumme: interne.summe,
+    verpackung,
+    ...(porto ? { porto } : {}),   // PO1: ohne Bestellnummern
+    saldoNetto, saldoBrutto,
+    _intern: interne.positionen,   // nur fuer /uebersicht (Anzahl), nie an das Portal
+  };
+}
+
+// ── PD1: GET /api/festpreis-public/uebersicht ────────────────────────────────
+// Startseite des Festpreis-Portals: Auszahlung (fpSaldo), Stueck je Stand, Stueck je Monat mit Vorjahr, Top 5.
+// Feste Feldauswahl, keine Bestellnummern; 10 min Zwischenspeicher je Partner, Reiter in EINEM batchGet.
+router.get('/uebersicht', async (req, res, next) => {
+  try {
+    const token = extractToken(req);
+    if (!token) return res.status(401).json({ error: 'token fehlt.' });
+    const { partner, sheets, sheetId } = await resolvePartner(token);
+    res.set('Cache-Control', 'no-store');
+    res.json(await leseFpUebersicht({ partnerId: partner['Partner-ID'], sheets, sheetId }));
+  } catch (err) { next(err); }
+});
+
+const fpSpeicher = bauZwischenspeicher();
+export const _fpUebersichtSpeicherLeeren = () => fpSpeicher.leeren();
+
+export async function leseFpUebersicht({ partnerId, sheets: roh, sheetId, heute }) {
+  return fpSpeicher.hole(`festpreis:${partnerId}`, async () => {
+    const sheets = await gebuendelt(roh, sheetId,
+      [TAB_FP_VERKAEUFE, TAB_INTERN, TAB_FP_ABRECHNUNGEN, TAB_FP_PARTNER, TAB_FIXKOSTEN]);
+    const s = await fpSaldo(sheets, sheetId, partnerId);
+    const [vk, abr, fpp] = [await readTab(sheets, sheetId, TAB_FP_VERKAEUFE), await readTab(sheets, sheetId, TAB_FP_ABRECHNUNGEN),
+      await readTab(sheets, sheetId, TAB_FP_PARTNER)];
+    const statistik = verkaufsUebersicht({ header: vk.header, rows: vk.rows, partnerId, heute: heute ?? berlinDatum(new Date()),
+      spalten: { order: 'WC-Bestellnummer', artikel: 'Artikelname', status: 'Status Abrechnung', storno: 'Storno-Status' } });
+    return uebersichtAntwort({
+      auszahlung: {
+        saldo: s.saldoBrutto, seit: fpSeit(partnerId, abr, fpp), saldoKachel: true,
+        intern: s._intern.length, internOhneBetrag: s._intern.filter(x => x.ohneSumme).length,
+        inPruefung: s.verpackung?.status === 'in_pruefung' || s.porto?.inPruefung === true,
+      },
+      statistik,
+    });
+  });
+}
+
+// "seit": Tag nach dem groessten Zeitraum-Bis der (nicht entworfenen) Abrechnungen, sonst Vertrag-ab, sonst leer.
+function fpSeit(partnerId, abr, fpp) {
+  const a = n => abr.header.indexOf(n);
+  const bis = abr.rows.filter(r => (r[a('Partner-ID')] ?? '') === partnerId && String(r[a('Status')] ?? '').trim() !== 'entwurf')
+    .map(r => String(r[a('Zeitraum-Bis')] ?? '').trim()).map(s => ({ s, d: deDatum(s) })).filter(x => x.d).sort((x, y) => y.d - x.d)[0];
+  if (bis) { const d = new Date(bis.d); d.setDate(d.getDate() + 1); return deText(d); }
+  const p = fpp.rows.find(r => (r[fpp.header.indexOf('Partner-ID')] ?? '') === partnerId);
+  const v = p ? deDatum(p[fpp.header.indexOf('Vertrag-ab')]) : null;
+  return v ? deText(v) : '';
+}
+const deDatum = s => { const m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(String(s ?? '').trim()); return m ? new Date(+m[3], +m[2] - 1, +m[1]) : null; };
+const deText = d => `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
 
 // ── GET /api/festpreis-public/abrechnungen ────────────────────────────────────
 router.get('/abrechnungen', async (req, res, next) => {

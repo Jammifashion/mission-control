@@ -777,6 +777,21 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Partner ("nein" blendet NUR die Kachel aus; Setup `scripts/setup-partner-saldo-kachel.js`; Werte je Partner: siehe private Betriebsdoku). Frontend-Baustein Block
   `Partner-Kacheln: Anfang/Ende` wortgleich in partner.html und index.html (Test partner-kacheln.test.js); im Portal stehen die bisherigen
   Karten unveraendert unter "Details" (`#pv-details`).
+- backend/utils/partner-uebersicht.js – Partner-Dashboard Stufe 1 (PD1, Inhaber 21.11.: NUR Stueck, keine neuen Betraege, keine Anzahl Bestellungen,
+  keine "naechste Abrechnung"). `GET /api/partner/uebersicht` (routes/partnerPortal.js, `leseUebersicht`) und `GET /api/festpreis-public/uebersicht`
+  (`leseFpUebersicht`): Auszahlung aus der BESTEHENDEN Rechnung (Lizenz `leseKacheln`/`saldoRechnung`, Festpreis `fpSaldo` - dieselbe Funktion wie
+  `/saldo`), Stueck offen / in Pruefung (gesperrt), Stueck je Monat laufendes Jahr + Vorjahr, Top 5 nach Stueck; feste Feldauswahl
+  (`uebersichtAntwort`, keine Bestellnummern/Partner-ID). Zaehlregel `verkaufsUebersicht`: jede Zeile mit ihrer Stueckzahl (offen, gesperrt,
+  abgerechnet), Storno/Teilerstattung negativ, Versanderstattung 0; Monat = fruehestes Datum einer Verkaufszeile DERSELBEN Bestellung (Gegenbuchungen
+  tragen das Erstattungsdatum); Vorjahr erst ab dem ersten Datenmonat (davor null = "keine Daten"), Vergleich nur bei vollem Vorjahreszeitraum.
+  10 min Zwischenspeicher je Portal + Shop + Partner (`bauZwischenspeicher`), Reiter in EINEM batchGet (`lib/sheetsBuendel.js` `gebuendelt`: bedient
+  `values.get` der bestehenden Rechnungen aus dem Speicher; scheitert der Sammelabruf, wird einzeln gelesen). Portale: Startseite = Block
+  `Partner-Übersicht: Anfang/Ende` + `Diagramme: Anfang/Ende` + CSS `Partner-Übersicht CSS` WORTGLEICH in partner.html und partner-festpreis.html
+  (Test pd1-frontend.test.js; Diagramme spaeter auch in MC): Kacheln Offene Auszahlung · Stueck offen · Stueck in Pruefung · Stueck im Jahr, Kurve
+  (SVG ohne Bibliothek, `--info`, Vorjahr `--muted` gestrichelt, laufender Monat gepunktet + hohler Punkt, `vector-effect` non-scaling-stroke, max 260 px
+  hoch) + Top 5 (HTML-Balken), Satz unter jeder Grafik, Mouse-over ueber `data-tipp` + ⓘ (`data-pu-info`), negativer Saldo `--warning` (nie Rot).
+  Bisherige Karten unter `<details id="pv-details-box">` eingeklappt, geladen erst beim Aufklappen (`detailsLaden`). Der Baustein `Partner-Kacheln`
+  bleibt wortgleich mit MC ("Partner auf einen Blick"), das Portal nutzt ihn nicht mehr. Tests pd1-uebersicht.test.js, pd1-frontend.test.js.
 - backend/utils/partner-token.js – Zugang der Partnerportale (PPS1), einzige Stelle fuer Pruefen/Erzeugen. Reiter `Partner` und
   `FP_Partner`: Spalte `Token_Hash` hinten = SHA-256 (hex); Pruefung `findeZeileZumToken` (Hash + `timingSafeEqual`, jede Zeile
   geprueft); Uebergang: ohne Hash gilt der Klartext `Token` (gehasht verglichen), mit Hash NUR der Hash. Der Link der Partner bleibt
