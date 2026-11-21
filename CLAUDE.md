@@ -42,6 +42,11 @@ To-dos, Kunden, Bestellseiten, Bestellungen (JFN), Warenkorb, L-Shop-Bestellunge
 (`#pk-mc`), Lager, Artikel-Masken, Einstellungen = 800. Neue Karte mit breiter Tabelle = `inhalt-breit`, neue Liste = `inhalt-liste`, je + Zahl in
 farbrollen.test.js (FK7). Partnerportale
 haben eigene 1060 px zentriert (unveraendert). Kachelreihe Dashboard ist keine Karte.
+**UI3 Handy-Bausteine (21.11.):** Tabelle am Handy als Karten = Klasse `hk-karten` an der Tabelle + `data-label` je Zelle (`hk-haupt` = Titelzeile,
+`hk-aktion` = Knopfzeile); breite Tabelle, die rollen soll = Wrapper `class="roll-x"` (Schatten am Rand zeigt "geht weiter"), nie `style="overflow-x:auto"`.
+Nummern, die nicht umbrechen duerfen: `nr-fest` (kzHtml tut es selbst). Haken ohne Text immer in `<label class="card-cb-wrap">`. Block `UI3 Handy` steht VOR
+`Handy-Grundgrößen` (der muss der letzte im ersten `<style>` bleiben): Textknoepfe je Bereich mit min-height 44 px - die Zeile waechst, kein negatives Polster.
+Test ui3-restfunde.test.js.
 **Partnerportal-Listen (PP3):** Block `Portal-Listen: Anfang/Ende` + CSS `Portal-Listen CSS` wortgleich in beiden Portalen (Test
 partner-listen.test.js): Listen zeigen standardmaessig nur Offenes (Status nicht "abgerechnet"), Schalter "auch abgerechnete anzeigen"
 (`localStorage` `partner_abgerechnet_zeigen`, Standard aus); Summen/Saldo ungefiltert. `plTabelleHtml` mit Rollen datum|betrag|haupt|
@@ -791,7 +796,7 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   die Links, nur Kopieren ist aus). Neuer Link (Bestellseite anlegen/neuer Link, Partner "Link neu erzeugen") schreibt Hash UND
   Wert; ohne Schluessel wird die Zelle GELEERT (alter Wert gehoerte zum alten Link). "Link kopieren" = `GET /api/bestellseiten/:id/link`,
   `GET /api/kalkulation/partner/:id/link`, `GET /api/festpreis/partner/:id/link` (hinter dem API-Key, no-store): entschluesselt und
-  prueft gegen den Hash; Altbestand ohne Wert -> 409 `link_alt` ("vor LK1 erstellt – einmal neu erzeugen"), `link_kein_schluessel`,
+  prueft gegen den Hash; Altbestand ohne Wert -> 409 `link_alt` ("älterer Link, nicht kopierbar – einmal neu erzeugen"), `link_kein_schluessel`,
   `link_fehler`. Listen liefern nur `kopierbar`, nie den Wert (auch nicht verschluesselt, auch nicht ans Portal). Setup
   `scripts/setup-link-verschluesselt.js` (Trockenlauf, `--write` nur Kopfzellen). Tests link-schluessel.test.js.
 - Partner- und FP-Sync / Abrechnungen – nie still mit 0 (Inhaber 19.11.): Neue Verkaufszeilen tragen `Positions-ID` (line_item.id;

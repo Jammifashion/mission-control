@@ -51,7 +51,7 @@ export function versandartVorgabe(configWert) {
   const w = t(configWert);
   if (!w) return { code: VERSANDART_STANDARD, hinweis: '' };
   if (istVersandart(w)) return { code: w, hinweis: '' };
-  return { code: VERSANDART_STANDARD, hinweis: `Config ${CONFIG_SHIPPING} = "${w.slice(0, 20)}" ist unbekannt - Standard vorbelegt.` };
+  return { code: VERSANDART_STANDARD, hinweis: `Voreingestellte Versandart "${w.slice(0, 20)}" ist unbekannt - Standard vorbelegt (Inhaber: Einstellung ${CONFIG_SHIPPING}).` };
 }
 
 export const EDI_KOPF_FEST = { partial_delivery: '-1', mail: 'info@jammifashion.de', printmode: '0' };
@@ -139,7 +139,7 @@ export function ediSpalten(header) {
 
 // Reihenfolge = Anzeige im Pruefbericht. rot sperrt das Erzeugen, gelb warnt, info nur Hinweis.
 export const EDI_REGELN = [
-  { id: 'customer_id', stufe: 'rot',  titel: `Kundennummer (Config ${CONFIG_CUSTOMER_ID}) vorhanden, höchstens ${EDI_LAENGEN.customer_id} Zeichen` },
+  { id: 'customer_id', stufe: 'rot',  titel: `L-Shop-Kundennummer hinterlegt, höchstens ${EDI_LAENGEN.customer_id} Zeichen` },
   { id: 'auswahl',     stufe: 'rot',  titel: 'mindestens eine Position gewählt, keine doppelt' },
   { id: 'vorhanden',   stufe: 'rot',  titel: 'Position im Korb vorhanden, unverändert und offen' },
   // FIX3 G5: nach "unklar" bleibt die Position offen - sie darf nicht ein zweites Mal bestellt werden.
@@ -153,7 +153,7 @@ export const EDI_REGELN = [
   { id: 'order_id',    stufe: 'rot',  titel: `order_id höchstens ${EDI_LAENGEN.order_id} Zeichen, nur ASCII` },
   { id: 'versandart',  stufe: 'rot',  titel: 'Versandart aus der Liste der Guideline' },
   { id: 'unbezahlt',   stufe: 'gelb', titel: 'Position noch nicht bezahlt' },
-  { id: 'versandart_config', stufe: 'gelb', titel: `Vorgabe der Versandart (Config ${CONFIG_SHIPPING}) bekannt` },
+  { id: 'versandart_config', stufe: 'gelb', titel: `Voreingestellte Versandart ist gültig` },
   { id: 'express_spaet', stufe: 'gelb', titel: 'Express: nach 13:30 Uhr klappt der Termin nicht mehr, Zusatzkosten fallen trotzdem an' },
   // BO4c: beim SENDEN ist Express nach 13:30 rot (beim Erzeugen nur gelb, oben). Nur mit senden: true im Bericht.
   { id: 'express_senden', stufe: 'rot', titel: 'Express nach 13:30 Uhr nicht senden - Versandart ändern (neu erzeugen) oder morgen senden', nurSenden: true },
@@ -189,7 +189,7 @@ export function ediPruefung({ auswahl, zeilen, modelle, customerId, commission, 
   const melde = (regel, text, schluessel) => treffer.push({ regel, text, schluessel });
 
   const cid = t(customerId);
-  if (!cid) melde('customer_id', `Wert fehlt - im Business-Sheet, Reiter Config, Schlüssel ${CONFIG_CUSTOMER_ID} eintragen.`);
+  if (!cid) melde('customer_id', `Kundennummer fehlt - bitte dem Inhaber Bescheid geben (Business-Sheet, Reiter Config, Schlüssel ${CONFIG_CUSTOMER_ID}).`);
   else if (cid.length > EDI_LAENGEN.customer_id || STEUERZEICHEN.test(cid)) melde('customer_id', `Wert ist länger als ${EDI_LAENGEN.customer_id} Zeichen oder enthält Steuerzeichen.`);
 
   const liste = Array.isArray(auswahl) ? auswahl : [];

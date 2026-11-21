@@ -23,7 +23,7 @@ import { zeilenAus, aktivePositionen } from '../utils/auftraege.js';
 import {
   TAB_ZUGAENGE, TAB_TERMINE, TAB_EINTRAEGE, TAB_BILDER, ZUGANG_SPALTEN, ZUGANG_OPTIONAL, ZUGANG_ALLE, TERMIN_SPALTEN, BILD_SPALTEN,
   BILD_OPTIONAL, EINTRAG_SPALTEN, ART, STATUS, fehler, erzeugeToken, tokenHash, findeZugang, zugangStatus, anlagePlan, bearbeitenPlan,
-  katalogDauer, katalogAuftrag, seitenAntwort, zugangFuerMc, sortimentNamen, trikotsDauer, zugangKontext,
+  katalogDauer, katalogAuftrag, seitenAntwort, zugangFuerMc, sortimentNamen, sortimentText, trikotsDauer, zugangKontext,
   auswahlLesen, auswahlAus, abschlussPlan, abschlussNachricht, ZUGANG_KS6,
 } from '../utils/bestellseite.js';
 import { notify } from './chatNotify.js';
@@ -286,8 +286,11 @@ export async function leseZugaenge({ sheets: s, jetzt = () => new Date(), schlue
   const spreadsheetId = sheetId();
   const { z, tr } = await lies(sheets, spreadsheetId);
   const bilder = await leseBilder(sheets, spreadsheetId);
+  // UI3: Kategorienamen statt Nummern in der Liste - nur gelesen, wenn es Dauer-Seiten gibt; nicht lesbar = Nummern wie bisher
+  let kategorien = [];
+  if (z.zeilen.some(x => x.Art === ART.DAUER)) { try { kategorien = await leseKategorien(sheets); } catch { kategorien = []; } }
   return {
-    zugaenge: z.zeilen.map(x => zugangFuerMc(x, jetzt(), tr.zeilen)).sort((a, b) => b.Zugang_ID.localeCompare(a.Zugang_ID)),
+    zugaenge: z.zeilen.map(x => ({ ...zugangFuerMc(x, jetzt(), tr.zeilen), ...(x.Art === ART.DAUER && kategorien.length ? { sortimentText: sortimentText(x.Sortiment, kategorien) } : {}) })).sort((a, b) => b.Zugang_ID.localeCompare(a.Zugang_ID)),
     bilderStand: bilder.stand, bilderAnzahl: bilder.je.size,
     spalten: { designLink: z.idx.Design_Link_Zeigen !== undefined, linkVerschluesselt: z.idx.Token_Verschluesselt !== undefined },
     linkSchluessel: Boolean(await schluesselLaden()),   // LK1: nur ja/nein, nie der Wert

@@ -227,7 +227,7 @@ describe('BO4e: Versandart', () => {
     expect(versandartVorgabe('')).toEqual({ code: 'Standard', hinweis: '' });
     expect(versandartVorgabe(' GLS ')).toEqual({ code: 'GLS', hinweis: '' });
     expect(versandartVorgabe('gls').code).toBe('Standard');
-    expect(versandartVorgabe('Hermes').hinweis).toMatch(/lshop\.shipping_method = "Hermes" ist unbekannt/);
+    expect(versandartVorgabe('Hermes').hinweis).toMatch(/Versandart "Hermes" ist unbekannt/);
   });
 
   test('unbekannter Code -> rot; Vorgabe-Hinweis -> gelb, sperrt nicht', () => {

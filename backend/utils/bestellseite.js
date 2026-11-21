@@ -406,6 +406,15 @@ export function trikotsDauer({ sortiment, kategorien, trikotArtikel, bilder = ne
  * ein Name, den es auch ausserhalb des Sortiments gibt (z. B. "Kinder"), zaehlt allein nicht.
  * @param {{nr, pfad, name}[]} kategorien  Struktur_Kategorien
  */
+/**
+ * UI3: Sortiment ("310,315") als Kategorienamen fuer die Liste in MC ("Fanclub …, Trikots"). Name = letzter Teil des Pfads;
+ * unbekannte Nummer bleibt als "Nr. 310" stehen (nichts raten).
+ */
+export function sortimentText(sortiment, kategorien = []) {
+  const je = new Map((kategorien ?? []).map(k => [String(k.nr ?? '').trim(), String(k.pfad ?? '').split(' > ').pop().trim()]));
+  return String(sortiment ?? '').split(',').map(x => x.trim()).filter(Boolean).map(nr => je.get(nr) || `Nr. ${nr}`).join(', ');
+}
+
 export function sortimentNamen(sortiment, kategorien) {
   const ids = new Set(t(sortiment).split(',').map(t).filter(Boolean));
   const wurzeln = (kategorien ?? []).filter(k => ids.has(t(k.nr))).map(k => t(k.pfad));

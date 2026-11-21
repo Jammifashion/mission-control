@@ -154,7 +154,7 @@ describe('Partner: Link neu erzeugen und kopieren', () => {
     const err = await zeigePartnerLink({ art: 'lizenz', partnerId: 'P-001', sheets: s, schluesselLaden: nurSchluessel(S1) }).catch(e => e);
     expect(err).toMatchObject({ status: 409, code: 'link_alt' });
     expect(err.message).toBe(LINK_HINWEIS.alt);
-    expect(err.message).toMatch(/vor LK1 erstellt – zum Kopieren einmal neu erzeugen \(alter wird ungültig\)/);
+    expect(err.message).toMatch(/lässt sich nicht kopieren – zum Kopieren einmal neu erzeugen \(alter wird ungültig\)/);
     expect(partnerKopierbar(s.werte[0], s.werte[1])).toBe(false);
     expect((await zeigePartnerLink({ art: 'lizenz', partnerId: 'P-002', sheets: s })).link).toMatch(/token=alter-klartext-erfunden$/);
   });
@@ -311,7 +311,7 @@ describe('nichts im Log, Oberflaeche', () => {
     expect(mc).toMatch(/bsmApi\(`\/\$\{encodeURIComponent\(z\.Zugang_ID\)\}\/link`\)/);
     expect(mc).toMatch(/\/api\/kalkulation\/partner\/\$\{encodeURIComponent\(partnerId\)\}\/link`/);
     expect(mc).toMatch(/\/api\/festpreis\/partner\/\$\{encodeURIComponent\(partnerId\)\}\/link`/);
-    expect(mc).toMatch(/Dieser Link wurde vor LK1 erstellt – zum Kopieren einmal neu erzeugen \(alter wird ungültig\)\./);
+    expect(mc).toMatch(/Dieser ältere Link lässt sich nicht kopieren – zum Kopieren einmal neu erzeugen \(alter wird ungültig\)\./);
     for (const k of ['bsm-link-holen', 'bsm-link-alt', 'link-vor-lk1']) {
       expect(mc).toMatch(new RegExp(`'${k}':\\s*\\{ name:`));
       expect(mc).toMatch(new RegExp(`data-hilfe="${k}"`));

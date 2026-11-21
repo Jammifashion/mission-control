@@ -351,7 +351,7 @@ function ediVorschau(body) {
   const orderId = 'JFN-2026-____';
   const unbezahlt = auswahl.filter(({ p }) => p.hinweis.includes('noch nicht bezahlt'));
   const regeln = [
-    ['customer_id', 'rot', 'Kundennummer (Config lshop.customer_id) vorhanden, höchstens 10 Zeichen'],
+    ['customer_id', 'rot', 'L-Shop-Kundennummer hinterlegt, höchstens 10 Zeichen'],
     ['auswahl', 'rot', 'mindestens eine Position gewählt, keine doppelt'],
     ['vorhanden', 'rot', 'Position im Korb vorhanden, unverändert und offen'],
     ['shop', 'rot', 'nur Shop JFN'],
@@ -363,7 +363,7 @@ function ediVorschau(body) {
     ['order_id', 'rot', 'order_id höchstens 30 Zeichen, nur ASCII'],
     ['versandart', 'rot', 'Versandart aus der Liste der Guideline'],
     ['unbezahlt', 'gelb', 'Position noch nicht bezahlt'],
-    ['versandart_config', 'gelb', 'Vorgabe der Versandart (Config lshop.shipping_method) bekannt'],
+    ['versandart_config', 'gelb', 'Voreingestellte Versandart ist gültig'],
     ['express_spaet', 'gelb', 'Express: nach 13:30 Uhr klappt der Termin nicht mehr, Zusatzkosten fallen trotzdem an'],
     ['abholung', 'gelb', 'Abholung im L-Shop-Lager: die Ware wird nicht verschickt'],
     ['express', 'info', 'Express: Datei muss bis 13:30 Uhr bei L-Shop sein, Zusatzkosten'],
@@ -372,7 +372,7 @@ function ediVorschau(body) {
   const treffer = {
     unbezahlt: unbezahlt.length ? unbezahlt.map(({ p }) => ({ schluessel: p.schluessel, text: 'noch nicht bezahlt – Bestellung steht auf Vorkasse, Zahlungseingang abwarten oder bewusst mitbestellen' }))
       : [{ schluessel: 'JFN:48218:9111', text: 'noch nicht bezahlt' }],
-    versandart_config: [{ schluessel: '', text: 'Config lshop.shipping_method = "Hermes" ist unbekannt – Standard genommen' }],
+    versandart_config: [{ schluessel: '', text: 'Voreingestellte Versandart "Hermes" ist unbekannt - Standard vorbelegt (Inhaber: Einstellung lshop.shipping_method).' }],
     abholung: versandart === 'Abholung' ? [{ schluessel: '', text: 'Versandart Abholung gewählt' }] : [],
     bestellschluss: [{ schluessel: '', text: 'jetzt nach 14:00 Uhr (Berlin)' }],
     express: /^EX/.test(versandart) ? [{ schluessel: '', text: 'Express gewählt' }] : [],

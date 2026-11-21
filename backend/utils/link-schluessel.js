@@ -107,7 +107,7 @@ export function tokenFuerMc({ wert, hash, schluessel, kontext }) {
 
 /** Texte fuer MC (ohne Wert). Gemeinsam fuer Bestellseiten und Partner. */
 export const LINK_HINWEIS = {
-  alt: 'Dieser Link wurde vor LK1 erstellt – zum Kopieren einmal neu erzeugen (alter wird ungültig).',
+  alt: 'Dieser ältere Link lässt sich nicht kopieren – zum Kopieren einmal neu erzeugen (alter wird ungültig).',
   kein_schluessel: 'Kopieren nicht verfügbar (Link-Schlüssel fehlt). Der Link funktioniert weiter.',
   fehler: 'Gespeicherter Link passt nicht mehr – zum Kopieren einmal neu erzeugen (alter wird ungültig).',
   ohne_link: 'Noch kein Link erzeugt.',

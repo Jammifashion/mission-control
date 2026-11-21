@@ -323,7 +323,7 @@ const EINTRAEGE = [
 const POS_JE = new Map(POSITIONEN.map(p => [p.Position_ID, p]));
 function zugaengeAntwort() {
   return {
-    zugaenge: ZUGAENGE.map(x => BS.zugangFuerMc(x, ISO, TERMINE)).sort((a, b) => b.Zugang_ID.localeCompare(a.Zugang_ID)),
+    zugaenge: ZUGAENGE.map(x => ({ ...BS.zugangFuerMc(x, ISO, TERMINE), ...(x.Art === 'dauer' ? { sortimentText: BS.sortimentText(x.Sortiment, KATEGORIEN.kategorien) } : {}) })).sort((a, b) => b.Zugang_ID.localeCompare(a.Zugang_ID)),
     bilderStand: '2026-11-15T09:00:00.000Z', bilderAnzahl: 214,
     spalten: { designLink: true, linkVerschluesselt: true },
     linkSchluessel: true,

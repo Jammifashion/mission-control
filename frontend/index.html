@@ -472,7 +472,9 @@
       .au-gruppe { border: 1px solid var(--border); border-radius: 8px; padding: 0.45rem 0.7rem; margin-bottom: 0.4rem; display: flex; flex-direction: column; gap: 0.3rem; }
       .au-gruppe-felder { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.4rem; }
       .au-druckname { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.8rem; color: var(--muted); }   /* SA4 */
-      .au-pos-zeilen { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; }
+      .au-pos-zeilen { display: flex; flex-direction: column; }
+      .au-pos-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 0.2rem 0.9rem; min-width: 0; }   /* UI3: je Groesse eine Zeile, "entfernen" rechts */
+      .au-pos-zeile + .au-pos-zeile { border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent); }
       .au-pos { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; min-height: 44px; }
       .au-pos input { width: 1.3rem; height: 1.3rem; }
       .pf-kuerzel-hinweis { color: var(--warning); }   /* MK1: Kuerzel nicht ueblich - nur Hinweis */
@@ -1752,12 +1754,12 @@
 
       /* ── Agent-Wissen ── */
       #aw-produkt-wrap, #aw-ton-wrap, #aw-info-wrap { overflow-x: auto; }   /* UI1: Tabellen am Handy rollbar statt abgeschnitten */
-      .aw-table { width:100%; border-collapse:collapse; font-size:0.88rem; }
+      .aw-table { width:100%; border-collapse:collapse; font-size:0.88rem; table-layout:fixed; }   /* UI3: feste Spalten, langer Schluessel bricht um */
       .aw-table th { font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; padding:0.42rem 0.5rem; border-bottom:1px solid var(--border); text-align:left; font-weight:600; }
       .aw-table td { padding:0.45rem 0.5rem; border-bottom:1px solid var(--border); vertical-align:middle; }
       .aw-table tbody tr:last-child td { border-bottom:none; }
-      .aw-key { color:var(--muted); font-size:0.82rem; font-family:monospace; white-space:nowrap; }
-      .aw-input { background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:0.3rem 0.5rem; color:var(--text); font-size:0.85rem; width:100%; box-sizing:border-box; }
+      .aw-key { color:var(--muted); font-size:0.82rem; font-family:monospace; overflow-wrap:anywhere; }
+      .aw-input { background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:0.38rem 0.5rem; color:var(--text); font-size:0.85rem; width:100%; box-sizing:border-box; }
       .aw-input:focus { outline:none; border-color:var(--focus); }
       .aw-save-btn { font-size:0.75rem; padding:0.28rem 0.65rem; background:transparent; border:1px solid var(--accent); color:var(--accent); border-radius:4px; cursor:pointer; white-space:nowrap; transition:background 0.15s; }
       .aw-save-btn:hover { background:color-mix(in srgb, var(--accent) 10%, transparent); }
@@ -1901,6 +1903,64 @@
         font-size: 0.7rem;
         opacity: 0.7;
       }
+      /* ── Handy-Karten (UI3): Tabelle mit Klasse hk-karten wird bis 600 px zu Karten; Zelle traegt data-label ── */
+      /* UI3: waagrecht rollbare Tabellen zeigen am Rand einen Schatten, solange dort noch Inhalt liegt (Hinweis "hier geht es weiter") */
+      .roll-x, .edi-tabelle, .bm-tabelle-wrap { overflow-x: auto; background:
+        linear-gradient(to right, var(--surface) 40%, transparent) left center / 2.2rem 100% no-repeat local,
+        linear-gradient(to left, var(--surface) 40%, transparent) right center / 2.2rem 100% no-repeat local,
+        linear-gradient(to right, color-mix(in srgb, var(--text) 22%, transparent), transparent) left center / 0.7rem 100% no-repeat scroll,
+        linear-gradient(to left, color-mix(in srgb, var(--text) 22%, transparent), transparent) right center / 0.7rem 100% no-repeat scroll; }
+      .nr-fest { white-space: nowrap; }
+      .mon-fulfillment-btn { margin-left: 0.4rem; }
+      @media (max-width: 600px) { .mon-fulfillment-btn { margin-left: 0; } }   /* Nummern (AU-…, ANF-…) brechen nie mitten im Wert */
+      @media (max-width: 600px) {
+        table.hk-karten, .hk-karten tbody, .hk-karten tr, .hk-karten td { display: block; width: auto; }
+        .hk-karten thead { display: none; }
+        .hk-karten tr { border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.7rem; margin-bottom: 0.5rem; background: color-mix(in srgb, var(--text) 4%, var(--surface)); }
+        .hk-karten td { border: none; padding: 0.2rem 0; display: grid; grid-template-columns: 6.2rem minmax(0, 1fr); gap: 0.5rem; align-items: center; overflow-wrap: break-word; }
+        .hk-karten td::before { content: attr(data-label); color: var(--muted); font-size: 12px; }
+        .hk-karten td.hk-haupt { display: block; font-weight: 600; padding-bottom: 0.3rem; }
+        .hk-karten td.hk-haupt::before { content: none; }
+        .hk-karten td.hk-aktion { display: flex; justify-content: flex-end; padding-top: 0.4rem; }
+        .hk-karten td.hk-aktion::before { content: none; }
+        .hk-karten td .badge + button { justify-self: start; }
+        .hk-karten td[data-label="Fulfillment"] { align-items: start; }
+        .hk-karten td[data-label="Fulfillment"] > * { grid-column: 2; justify-self: start; }
+        .hk-karten td[data-label="Fulfillment"]::before { grid-row: 1 / span 2; }
+      }
+      /* ── UI3 Handy: Anfang (Restfunde AH1) - Tippflaechen je Bereich: die Zeile waechst (min-height), nichts ueberdeckt Nachbarn ── */
+      .td-text { font-size: 0.92rem; }
+      /* Knopfpaare gleich breit */
+      #lsm-pruefen, #lsm-uebernehmen { flex: 1 1 8rem; max-width: 14rem; }
+      .au-pos > span { white-space: nowrap; }
+      @media (max-width: 600px) {
+        #au-detail .ku-knoepfe, #ag-detail .ku-knoepfe { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+        #au-detail .ku-knoepfe .ku-luecke, #ag-detail .ku-knoepfe .ku-luecke { display: none; }
+      }
+      /* Wortumbruch: lange Woerter trennen mit Trennstrich (lang="de"), Nummern und Kennzeichen brechen nie mitten im Wert */
+      .ku-name, .korb-titel, .korb-pos-text, .td-text, .lsm-zeile, .lfbs-name, .ps-item-text, .order-card-detail, .dash-z-kopf, .lager-titel, .bsm-zeile > span, .hk-karten td { hyphens: auto; }
+      .kz, .nr-fest, .ku-chip, .badge, button, input, select, textarea, code, .aw-key { hyphens: manual; }
+      .kz { white-space: nowrap; }
+      #td-liste .td-zeile > .korb-link { text-align: left; }
+      @media (max-width: 600px) {
+        /* Haken ohne Text (DTF, L-Shop alt, Korb-Buendel): das Label um den Haken ist die Tippflaeche */
+        label.card-cb-wrap { min-width: 44px; min-height: 44px; margin: -0.5rem 0 0 -0.6rem; padding: 0; align-items: center; justify-content: center; cursor: pointer; }
+        .select-cb, .korb-buendel-cb { width: 20px; height: 20px; }
+        .bulk-all-label, .ku-mit-storniert, .lager-null, .we-zeile label, .lb-wd-zeile label { min-height: 44px; }
+        .bulk-all-label { min-width: 44px; }
+        /* Textknoepfe in Listenzeilen und Dialogkoepfen */
+        .ku-zeile > button.korb-link, .lager-buchung button.korb-link, .lager-best-zeile button.korb-link, .lager-best-titel button.korb-link, #lager-event-neu,
+        .lb-pos button.korb-link, .lb-wd-zeile button.korb-link, .lb-entwuerfe button.korb-link, .rs-zeile button.korb-link, .lb-ls a, .korb-pos-text button.korb-link, .korb-pos-text a.ps-shop-link,
+        .tr-kopf a, .tr-intern-knoepfe button.korb-link, .lfbs-meta button.korb-link, .lfbs-meta a, .lsm-kopf button.korb-link, .bsm-zugang button.korb-link,
+        .td-zeile > button.korb-link, .edi-kopf button.korb-link, .korb-ansicht button.korb-link, #korb-alle-btn, #korb-lb-zuerst, .order-card-meta a.ps-shop-link, .order-card-meta .tr-karte {
+          min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
+        .td-zeile > button.korb-link, .lager-buchung button.korb-link { justify-content: flex-start; text-align: left; }
+        .lager-best-zeile button.korb-link, .lager-best-titel button.korb-link, .korb-pos-text a.ps-shop-link { justify-content: center; }
+        .btn-lshop-bestellen, .pk-info-knopf, .bm-liste .bm-zelle { min-height: 44px; min-width: 44px; height: auto; }
+        .edi-kopf button.korb-link { flex: none; white-space: nowrap; }
+        .dash-au-reihe .ku-chip, .anf-new-btn, .anf-refresh-btn, .anf-pill-select, .zl-knopf, :root .sub-tabs > .sub-tab, :root .mode-toggle > .mode-btn, .korb-filter button, .ps-filter-zeile .korb-filter button, button.ku-chip, .dash-kopf-rechts .hilfe-i { min-height: 40px; min-width: 40px; }
+      }
+      /* ── UI3 Handy: Ende ── */
       /* ── Handy-Grundgrößen: Anfang (AH1 U2 + UI2) ──
          Nur bis 600 px, Desktop unverändert. Steht am Ende des ersten <style>: gleich spezifische Regeln davor verlieren,
          spezifischere (z. B. .dash-au-reihe .ku-chip) behalten ihren größeren Wert. Gemessen mit tools/ui-messung.
@@ -2079,7 +2139,7 @@
                 <!-- BS1: Suche in den geladenen offenen Bestellungen (nur im Browser, nie gespeichert, nie an den Server) -->
                 <span class="ps-suche-wrap">
                   <label for="ps-suche" class="ps-suche-label" data-hilfe="ps-suche" tabindex="0">Suche</label>
-                  <input id="ps-suche" type="text" class="form-input" autocomplete="off" placeholder="Artikel, SKU oder Bestell-Nr." aria-label="In offenen Bestellungen suchen" />
+                  <input id="ps-suche" type="text" class="form-input" autocomplete="off" placeholder="Artikel, SKU, Bestell-Nr." aria-label="In offenen Bestellungen suchen" />
                   <button type="button" class="korb-link" id="ps-suche-weg" data-hilfe="ps-suche-weg" aria-label="Suche leeren" hidden>×</button>
                 </span>
               </div>
@@ -2971,7 +3031,7 @@
             <div class="form-section-title" style="margin:0;">Bestehende Varianten</div>
             <button id="ev-bulk-delete-btn" class="btn-secondary" style="display:none;color:var(--danger);border-color:var(--danger);font-size:0.82rem;padding:0.35rem 0.75rem;" data-hilfe="varianten-loeschen">0 privat stellen</button>
           </div>
-          <div style="overflow-x:auto;">
+          <div class="roll-x">
             <table class="ev-table">
               <thead id="ev-thead"></thead>
               <tbody id="ev-tbody"></tbody>
@@ -5317,15 +5377,15 @@
         if (!wrap) return;
         const open = monOpenAnfragen(rows).sort((a, b) => (b.anfrageId || '').localeCompare(a.anfrageId || ''));
         if (!open.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine offenen Kundenanfragen.</p>'; return; }
-        wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+        wrap.innerHTML = `<div class="roll-x"><table class="orders-table hk-karten">
           <thead><tr><th>Anfrage-ID</th><th>Datum</th><th>Kunde</th><th>Produkt</th><th>Menge</th><th>Status</th></tr></thead>
           <tbody>${open.map(a => `<tr>
-            <td>${monEsc(a.anfrageId)}</td>
-            <td>${monEsc(a.datum || '—')}</td>
-            <td>${monEsc(a.kundeName || '—')}</td>
-            <td>${monEsc(a.produktBeschreibung || '—')}</td>
-            <td>${monEsc(a.menge || '—')}</td>
-            <td><span class="badge badge-pending">${monEsc(a.status || '—')}</span></td>
+            <td data-label="Anfrage-ID" class="nr-fest">${monEsc(a.anfrageId)}</td>
+            <td data-label="Datum">${monEsc(a.datum || '—')}</td>
+            <td data-label="Kunde" class="hk-haupt">${monEsc(a.kundeName || '—')}</td>
+            <td data-label="Produkt">${monEsc(a.produktBeschreibung || '—')}</td>
+            <td data-label="Menge">${monEsc(a.menge || '—')}</td>
+            <td data-label="Status"><span class="badge badge-pending">${monEsc(a.status || '—')}</span></td>
           </tr>`).join('')}</tbody></table></div>`;
       }
 
@@ -5352,26 +5412,26 @@
         const all = [...rows].sort((a, b) =>
           (monParseDate(b.datum) - monParseDate(a.datum)) || ((b.rowId || 0) - (a.rowId || 0)));
         if (!all.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Partner-Eigenaufträge.</p>'; return; }
-        wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+        wrap.innerHTML = `<div class="roll-x"><table class="orders-table hk-karten">
           <thead><tr><th>Partner-ID</th><th>Bezeichnung</th><th>Menge</th><th>Status</th><th>Fulfillment</th><th>Kanal</th></tr></thead>
           <tbody>${all.map(e => {
             const erledigt = e.fulfillment === 'Erledigt';
             const naechster = erledigt ? 'Beauftragt' : 'Erledigt';
             const partnerLabel = e.partnerName ? `${monEsc(e.partnerId)} · ${monEsc(e.partnerName)}` : monEsc(e.partnerId);
             return `<tr${erledigt ? ' style="opacity:0.5;"' : ''}>
-            <td>${partnerLabel}</td>
-            <td>${monEsc(e.bezeichnung || '—')}</td>
-            <td>${monEsc(e.anzahl || '—')}</td>
-            <td><span class="badge badge-pending">${monEsc(e.status || '—')}</span></td>
-            <td>
+            <td data-label="Partner">${partnerLabel}</td>
+            <td data-label="Bezeichnung" class="hk-haupt">${monEsc(e.bezeichnung || '—')}</td>
+            <td data-label="Menge">${monEsc(e.anzahl || '—')}</td>
+            <td data-label="Status"><span class="badge badge-pending">${monEsc(e.status || '—')}</span></td>
+            <td data-label="Fulfillment">
               <span class="badge ${erledigt ? 'badge-completed' : 'badge-pending'}">${monEsc(e.fulfillment || 'Beauftragt')}</span>
               <button type="button" class="btn-secondary mon-fulfillment-btn"
-                style="margin-left:0.4rem;font-size:0.78rem;padding:0.3rem 0.6rem;"
+                style="font-size:0.78rem;padding:0.3rem 0.6rem;"
                 data-partner-id="${monEsc(e.partnerId)}" data-row-id="${e.rowId}" data-next="${naechster}" data-hilfe="mon-fulfillment">
                 Als ${naechster} markieren
               </button>
             </td>
-            <td>${monEsc(e.kanal || '—')}</td>
+            <td data-label="Kanal">${monEsc(e.kanal || '—')}</td>
           </tr>`;
           }).join('')}</tbody></table></div>`;
         wrap.querySelectorAll('.mon-fulfillment-btn').forEach(btn => {
@@ -5482,9 +5542,9 @@
             const safeAttr = item.groupKey.replace(/"/g, '');
             return `
               <div class="lshop-card" id="dtf-card-${safeKey}">
-                <div class="card-cb-wrap">
-                  <input type="checkbox" class="select-cb dtf-select-cb" data-groupkey="${safeAttr}">
-                </div>
+                <label class="card-cb-wrap">
+                  <input type="checkbox" class="select-cb dtf-select-cb" data-groupkey="${safeAttr}" aria-label="Zeile wählen">
+                </label>
                 <div class="lshop-card-info">
                   <div class="lshop-card-title">${monEsc(item.artikelnummer)}</div>
                   <div class="lshop-card-variante">${monEsc(varLabel)}</div>
@@ -5666,9 +5726,9 @@
             const safeAttr = item.groupKey.replace(/"/g, '');
             return `
               <div class="lshop-card" id="lshop-card-${safeKey}">
-                <div class="card-cb-wrap">
-                  <input type="checkbox" class="select-cb lshop-select-cb" data-groupkey="${safeAttr}">
-                </div>
+                <label class="card-cb-wrap">
+                  <input type="checkbox" class="select-cb lshop-select-cb" data-groupkey="${safeAttr}" aria-label="Zeile wählen">
+                </label>
                 <div class="lshop-card-info">
                   <div class="lshop-card-title">${monEsc(item.artikelnummer)}</div>
                   <div class="lshop-card-variante">${monEsc(varLabel)}</div>
@@ -6982,7 +7042,7 @@
         'pk-details':            { name: 'Details', text: 'Öffnet die bisherige Ansicht mit allen Einzelheiten.' },
         'pk-info':               { name: 'ⓘ Saldo', text: 'Erklärt kurz, wie der Saldo gerechnet wird.' },
         'link-kopieren':         { name: 'Link kopieren', text: 'Holt den Portal-Link dieses Partners (MC entschlüsselt ihn) und kopiert ihn. Es wird nichts geändert.' },
-        'link-vor-lk1':          { name: 'Link nicht kopierbar', text: 'Dieser Link wurde vor LK1 erstellt – zum Kopieren einmal neu erzeugen (alter wird ungültig, der Partner braucht dann den neuen).' },
+        'link-vor-lk1':          { name: 'Link nicht kopierbar', text: 'Älterer Link, nicht kopierbar – einmal neu erzeugen (alter wird ungültig, der Partner braucht dann den neuen).' },
         'token-neu':             { name: 'Link (neu) erzeugen', text: 'Neuer Portal-Link, danach jederzeit über „Link kopieren“. Ein bisheriger Link geht sofort nicht mehr – nur bei Bedarf.' },
         'partner-zugang':        { name: 'Zugang', text: 'Hat der Partner einen Portal-Link? „alt“ = im Sheet noch lesbar, „gesichert“ = nur als Prüfwert. Der Link bleibt gleich.' },
         'neue-version-laden':    { name: 'Jetzt neu laden', text: 'Lädt Mission Control mit der neuen Version. Sind Eingaben oder ein Dialog offen, wird vorher gefragt.' },
@@ -7557,7 +7617,7 @@
         'au-verschoben':        { name: 'Verschoben', text: 'In den Auftrag eines anderen Termins gewandert, zählt hier nicht mehr. Der Korb trägt weiter diese Nummer. Klick öffnet ihn.' },
         'au-verweis':           { name: 'Schon bestellt', text: 'Die Ware kommt aus dieser Bestellung bzw. diesem Lager – für diese Position wird nichts neu bestellt.' },
         'bsm-link-holen':       { name: 'Link kopieren', text: 'Holt den Link dieser Bestellseite (MC entschlüsselt ihn) und kopiert ihn. Der Link bleibt gleich, nichts wird geändert.' },
-        'bsm-link-alt':         { name: 'Link nicht kopierbar', text: 'Links von vor LK1 stehen nur als Prüfwert im Sheet. Zum Kopieren einmal „neuer Link“ – der alte geht dann nicht mehr.' },
+        'bsm-link-alt':         { name: 'Link nicht kopierbar', text: 'Ältere Links sind nur als Prüfwert gespeichert. Zum Kopieren einmal „neuer Link“ – der alte geht dann nicht mehr.' },
         'bsm-anlegen':          { name: 'Bestellseite anlegen', text: 'Legt die Bestellseite an und zeigt den Link einmal. Schreibt eine Zeile ins Sheet.' },
         'bsm-speichern':        { name: 'Speichern', text: 'Speichert „Gültig bis“, Hinweis und Design-Link. Der Link bleibt gleich.' },
         'bsm-neuer-link':       { name: 'Neuer Link', text: 'Erzeugt einen neuen Link. Der alte geht sofort nicht mehr – den neuen dem Kunden schicken.' },
@@ -8034,7 +8094,7 @@
             const alleAn = waehlbar.length && waehlbar.every(p => korbZustand.auswahl.has(p.schluessel));
             return `
             <div class="lshop-card" style="grid-template-columns: auto 1fr;">
-              <div class="card-cb-wrap">${waehlbar.length ? `<input type="checkbox" class="korb-buendel-cb" data-buendel="${korbEsc(b.articleNr)}" ${alleAn ? 'checked' : ''} aria-label="ganzes Bündel wählen">` : ''}</div>
+              <label class="card-cb-wrap">${waehlbar.length ? `<input type="checkbox" class="korb-buendel-cb" data-buendel="${korbEsc(b.articleNr)}" ${alleAn ? 'checked' : ''} aria-label="ganzes Bündel wählen">` : ''}</label>
               <div class="lshop-card-info">
                 <div class="lshop-card-title korb-titel"><span>${korbKopfText(b)}</span><span class="lshop-stueck">${b.zuBestellen} Stk</span></div>
                 ${b.lieferbar ? `<div class="lshop-card-bedarf">${lfbPunkt(b.lieferbar, { text: true })}</div>` : ''}
@@ -12793,7 +12853,7 @@
           const dnText = auDrucknameText(g.positionen.map(p => ({ druckname: p.Druckname, groesse: p.lshop?.groesse })));
           const neben = [preisText, p0.Motiv && `Motiv: ${p0.Motiv}`, p0.Druck && `Druck: ${p0.Druck}`, p0.Notiz && `Notiz: ${p0.Notiz}`, dnText && `Druckname: ${dnText}`].filter(Boolean).map(x => `<span>${kuEsc(x)}</span>`).join('');
           // KS4-1: nur Kaestchen + "fertig" schalten den Haken (vorher die ganze Zeile - Befund: Mützen versehentlich "fertig")
-          const zeilen = g.positionen.map(p => `<div class="au-pos"><label class="au-pos-haken" data-hilfe="au-pos-fertig"><input type="checkbox" data-au-fertig="${kuEsc(p.Position_ID)}" ${p.Fertig === 'ja' ? 'checked' : ''} ${st ? 'disabled' : ''}> fertig</label>`
+          const zeilen = g.positionen.map(p => `<div class="au-pos-zeile"><div class="au-pos"><label class="au-pos-haken" data-hilfe="au-pos-fertig"><input type="checkbox" data-au-fertig="${kuEsc(p.Position_ID)}" ${p.Fertig === 'ja' ? 'checked' : ''} ${st ? 'disabled' : ''}> fertig</label>`
             + `<span>${kuEsc(g.art === 'lshop' ? (p.lshop?.groesse || '–') : 'Menge')} × ${kuEsc(p.Menge)}</span>`
             + (p.lshop?.lieferbar ? lfbPunkt(p.lshop.lieferbar) : '') + (p.lshop && p.lshop.bestellbar === false ? '<span class="ku-gefahr">nicht mehr bestellbar</span>' : '')
             + (p.Fertig_Am ? `<small>fertig ${auDatum(p.Fertig_Am)}</small>` : '') + (p.Versendet ? `<small>geliefert ${auDatum(p.Versendet)}</small>` : '')
@@ -12803,7 +12863,7 @@
             + (p.Lager_Buchung ? `<span class="ku-chip" data-hilfe="au-lager-stand">📦 ausgebucht (${kuEsc(p.Lager_Ort || '')})</span>` : '')
             + (auKannZuruecknehmen(a, p) ? `<button type="button" class="korb-link" data-au-zuruecknehmen="${kuEsc(p.Position_ID)}" data-hilfe="au-zuruecknehmen">Übergabe zurücknehmen</button>` : '')
             + auVerweisHtml(p.Verweis, p.verweisKorb) + auBsEintraegeHtml(auBsZ.je.get(a.Auftrag_Nr), p.Position_ID)   // KS3, KS3-1
-            + (st || a.Status === 'bezahlt' ? '' : `<button type="button" class="korb-link ku-gefahr au-entfernen" data-au-entfernen="${kuEsc(p.Position_ID)}" data-hilfe="au-entfernen">entfernen …</button>`)).join('');   // BS4
+            + (st || a.Status === 'bezahlt' ? '' : `<button type="button" class="korb-link ku-gefahr au-entfernen" data-au-entfernen="${kuEsc(p.Position_ID)}" data-hilfe="au-entfernen">entfernen …</button>`) + '</div>').join('');   // BS4, UI3: je Position eine Zeile
           return `<div class="au-gruppe"><div>${kopf} · ${g.stueck} Stück</div>${neben ? `<div class="ku-meta">${neben}</div>` : ''}<div class="au-pos-zeilen">${zeilen}</div></div>`;
         }).join('') || '<p class="korb-zaehler">Keine Positionen.</p>';
         auEl('au-d-pos').insertAdjacentHTML('beforeend', auEntferntHtml(a, st || a.Status === 'bezahlt'));   // BS4
@@ -14291,7 +14351,7 @@
         return `<span class="ku-chip bsm-${kuEsc(status)}" data-hilfe="bsm-status">${kuEsc(BSM_STATUS_TEXT[status] ?? status)}</span>`;
       }
       function bsmZeileHtml(z, kundeText = '') {
-        const was = z.Art === 'auftrag' ? `Auftrag ${z.Auftrag_Nr}` : `Dauer · Sortiment ${z.Sortiment}`;
+        const was = z.Art === 'auftrag' ? `Auftrag ${z.Auftrag_Nr}` : `Dauer · Sortiment ${z.sortimentText || z.Sortiment}`;
         const termine = z.Art === 'dauer' ? ` · ${z.termine?.length ?? 0} Termin${(z.termine?.length ?? 0) === 1 ? '' : 'e'}` : '';
         return `<button type="button" class="bsm-zeile" data-bsm-oeffnen="${kuEsc(z.Zugang_ID)}" data-hilfe="bsm-oeffnen">`
           + `<strong>${kuEsc(z.Zugang_ID)}</strong><span>${kuEsc(was)}</span><span>${kuEsc(kundeText || z.Kunden_Nr)}</span>`
@@ -14709,7 +14769,7 @@
       // Altbestand (vor LK1 nur Pruefwert) oder fehlender Schluessel: nur ein Hinweis. Der Link liegt nur in bsmZ.link (Speicher der Seite).
       function bsmLinkZeileHtml(z) {
         if (!z.hatLink) return '';
-        if (!z.kopierbar) return `<div class="korb-zaehler" data-hilfe="bsm-link-alt">Dieser Link wurde vor LK1 erstellt – zum Kopieren einmal neu erzeugen (alter wird ungültig).</div>`;
+        if (!z.kopierbar) return `<div class="korb-zaehler" data-hilfe="bsm-link-alt">Dieser ältere Link lässt sich nicht kopieren – zum Kopieren einmal neu erzeugen (alter wird ungültig).</div>`;
         if (bsmZ.daten && bsmZ.daten.linkSchluessel === false) return `<div class="korb-zaehler" data-hilfe="bsm-link-alt">Kopieren nicht verfügbar (Link-Schlüssel fehlt). Der Link funktioniert weiter.</div>`;
         return `<div class="korb-reihe"><button type="button" class="korb-aktion korb-aktion-haupt" data-bsm-link-holen data-hilfe="bsm-link-holen">Link kopieren</button></div>`;
       }
@@ -18174,7 +18234,7 @@
       function lfbsArtikelHtml(a) {
         const kopf = `<span class="lfbs-name">${lfbsEsc(a.name)}</span>`
           + `<span class="lfbs-meta">${a.betroffen} von ${a.gesamt} Variationen${a.kategorien.length ? ` · ${lfbsEsc(a.kategorien.join(', '))}` : ''}`
-          + `${a.lieferzeit ? ` · Lieferzeit ${lfbsEsc(a.lieferzeit.name || a.lieferzeit.id)} (${lfbsEsc(a.lieferzeit.id)})` : ''}</span>`
+          + `${a.lieferzeit ? ` · Lieferzeit ${lfbsEsc(a.lieferzeit.name || `Nr. ${a.lieferzeit.id} (nicht in der Lieferzeiten-Liste)`)}` : ''}</span>`
           + (a.schonNull ? `<span class="lfb-punkt lfb-auslauf_null" tabindex="0" data-hilfe="lfbs-schon-null">● ${a.schonNull} davon schon 0</span>` : '')   // BO7-4
           + (a.farbenKomplett.length ? `<span class="lfb-punkt lfb-nicht_gefuehrt" tabindex="0" data-hilfe="lfbs-ganze-farbe">● ganze Farbe: ${lfbsEsc(a.farbenKomplett.join(', '))}</span>` : '');
         const links = `<div class="lfbs-meta">Artikel ${lfbsEsc(a.produktId)}`
@@ -20928,22 +20988,22 @@
           return;
         }
         wrap.innerHTML = `
-          <table class="aw-table">
+          <table class="aw-table hk-karten">
             <thead>
               <tr>
-                <th style="width:22%">Schlüssel</th>
-                <th style="width:34%">Wert</th>
-                <th style="width:30%">Notiz</th>
-                <th style="width:14%"></th>
+                <th style="width:24%">Schlüssel</th>
+                <th style="width:36%">Wert</th>
+                <th style="width:28%">Notiz</th>
+                <th style="width:12%"></th>
               </tr>
             </thead>
             <tbody>
               ${rows.map(r => `
                 <tr>
-                  <td class="aw-key">${awEsc(r.schluessel)}</td>
-                  <td><input class="aw-input aw-val" value="${awEsc(r.wert)}" /></td>
-                  <td><input class="aw-input aw-notiz" value="${awEsc(r.notiz)}" /></td>
-                  <td><button class="aw-save-btn" data-schluessel="${awEsc(r.schluessel)}" data-hilfe="zeile-speichern">Speichern</button></td>
+                  <td class="aw-key hk-haupt">${awEsc(r.schluessel)}</td>
+                  <td data-label="Wert"><input class="aw-input aw-val" value="${awEsc(r.wert)}" aria-label="Wert zu ${awEsc(r.schluessel)}" /></td>
+                  <td data-label="Notiz"><input class="aw-input aw-notiz" value="${awEsc(r.notiz)}" aria-label="Notiz zu ${awEsc(r.schluessel)}" /></td>
+                  <td class="hk-aktion"><button class="aw-save-btn" data-schluessel="${awEsc(r.schluessel)}" data-hilfe="zeile-speichern">Speichern</button></td>
                 </tr>`).join('')}
             </tbody>
           </table>`;
@@ -21429,7 +21489,7 @@
             return;
           }
           wrap.innerHTML = `
-            <div style="overflow-x:auto;">
+            <div class="roll-x">
               <table class="orders-table">
                 <thead><tr>
                   <th>Name</th><th>Hauptkategorie</th><th>Lizenz-%</th>
@@ -21737,7 +21797,7 @@
         try {
           _dpRows = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/druckpreise`).then(r => r.json());
           if (!_dpRows.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Einträge.</p>'; return; }
-          wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+          wrap.innerHTML = `<div class="roll-x"><table class="orders-table">
             <thead><tr><th>Druckposition</th><th>Größe</th><th>Preis Netto</th><th>Gültig Ab</th><th>Aktionen</th></tr></thead>
             <tbody>${_dpRows.map((r, i) => `<tr>
               <td>${_escHtml(r.druckposition)}</td><td>${_escHtml(r.groesse)}</td>
@@ -21811,7 +21871,7 @@
               </button>
               ${legende ? `<span style="font-size:0.78rem;color:var(--muted);">Ausgegraut = ${_escHtml(legende)}</span>` : ''}
             </div>
-            <div style="overflow-x:auto;"><table class="orders-table">
+            <div class="roll-x"><table class="orders-table">
               <thead><tr>
                 <th>Position</th><th>Betrag</th><th>Einheit</th><th>Gültig Ab</th>
                 ${_fkHistorie ? '<th>Gültig Bis</th>' : ''}<th>Aktionen</th>
@@ -21911,7 +21971,7 @@
         try {
           _vkRows = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/verkaufspreise`).then(r => r.json());
           if (!_vkRows.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Einträge.</p>'; return; }
-          wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+          wrap.innerHTML = `<div class="roll-x"><table class="orders-table">
             <thead><tr><th>Produkttyp</th><th>Ab Menge</th><th>VK Brutto</th><th>Gültig Ab</th><th>Notiz</th><th>Aktionen</th></tr></thead>
             <tbody>${_vkRows.map((r, i) => `<tr>
               <td>${_escHtml(r.produkttyp)}</td><td>${_escHtml(r.abMenge)}</td><td>${r.vkBrutto.toFixed(2)} €</td>
@@ -21971,7 +22031,7 @@
         try {
           _artRows = await window.apiFetch(`${window.API_BASE()}/api/kalkulation/artikel`).then(r => r.json());
           if (!_artRows.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Artikel erfasst.</p>'; return; }
-          wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+          wrap.innerHTML = `<div class="roll-x"><table class="orders-table">
             <thead><tr><th>L-Shop-Nr</th><th>Artikelname</th><th>EK Netto</th><th>Kategorie</th><th>Gültig Ab</th><th>Notiz</th><th>Aktionen</th></tr></thead>
             <tbody>${_artRows.map((r, i) => `<tr>
               <td>${_escHtml(r.lshopNr)}</td><td>${_escHtml(r.artikelname)}</td><td>${r.ekPreisNetto.toFixed(2)} €</td>
@@ -22059,7 +22119,7 @@
               ${rows.length} Einträge &nbsp;·&nbsp; Lizenz gesamt:
               <strong>${sumLizenz.toLocaleString('de-DE',{style:'currency',currency:'EUR'})}</strong>
             </p>
-            <div style="overflow-x:auto;"><table class="orders-table">
+            <div class="roll-x"><table class="orders-table">
               <thead><tr>
                 <th>Partner</th><th>Datum</th><th>Order-ID</th><th>Artikel</th>
                 <th>Variante</th><th>Stück</th><th>VK Netto</th><th style="cursor:help;" title="Mauszeiger über Betrag → Berechnungsformel anzeigen">Lizenz ⓘ</th><th>Status Abrechnung</th>
@@ -22191,7 +22251,7 @@
         }[s] ?? 'badge-idle');
         const fmt = v => v.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
 
-        wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+        wrap.innerHTML = `<div class="roll-x"><table class="orders-table">
           <thead><tr>
             <th style="width:1.5em;"></th>
             <th>ID</th><th>Partner</th><th>Von</th><th>Bis</th>
@@ -22711,7 +22771,7 @@
           ? `<span class="badge badge-pending" style="font-size:0.78rem;">${ohneKalk} Artikel ohne EK-Preis</span>`
           : '';
 
-        wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+        wrap.innerHTML = `<div class="roll-x"><table class="orders-table">
           <thead><tr>
             <th>Artikelname</th><th>Produkt-ID</th>
             <th style="text-align:right;">EK €</th>
@@ -22816,7 +22876,7 @@
               value="${_escHtml(vk)}" style="width:90px;font-size:0.85rem;padding:0.32rem 0.5rem;">
             <span style="font-size:0.78rem;color:var(--muted);">€  (für Lizenz-Berechnung pro Stück)</span>
           </div>
-          <div style="overflow-x:auto;"><table class="orders-table">
+          <div class="roll-x"><table class="orders-table">
             <thead><tr>
               <th>Artikelnummer</th><th>Name</th>
               <th style="text-align:right;">EK €</th>
@@ -23071,7 +23131,7 @@
         const STATUSES = ['offen', 'abgerechnet'];
         const badge    = s => ({ offen: 'badge-pending', abgerechnet: 'badge-completed' }[s] ?? 'badge-idle');
         const fmt      = v => v.toLocaleString('de-DE',{style:'currency',currency:'EUR'});
-        wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+        wrap.innerHTML = `<div class="roll-x"><table class="orders-table">
           <thead><tr>
             <th>Datum</th><th>Bezeichnung</th>
             <th style="text-align:right;">Anzahl</th>
@@ -23302,7 +23362,7 @@
               wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Noch keine Festpreis-Partner erfasst.</p>';
               return;
             }
-            wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+            wrap.innerHTML = `<div class="roll-x"><table class="orders-table">
               <thead><tr><th>Partner-ID</th><th>Name</th><th>Shop</th><th>Aktiv</th><th>Notiz</th><th>Aktionen</th></tr></thead>
               <tbody>${_fpPartners.map(p => `<tr>
                 <td>${_escHtml(p['Partner-ID'] ?? '–')}</td>
@@ -23672,7 +23732,7 @@
               return;
             }
             const katOpts = kategorien.map(k => `<option value="${_escHtml(k)}">${_escHtml(k)}</option>`).join('');
-            wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+            wrap.innerHTML = `<div class="roll-x"><table class="orders-table">
               <thead><tr>
                 <th>Produkt-ID</th><th>Artikelname</th><th>WC-Kategorie</th>
                 <th>Versandart</th><th>Artikelkategorie</th><th>Speichern</th>
@@ -23789,7 +23849,7 @@
               return;
             }
             const fmt = v => Number(String(v||'0').replace(',','.')||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
-            wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table" style="font-size:0.84rem;">
+            wrap.innerHTML = `<div class="roll-x"><table class="orders-table" style="font-size:0.84rem;">
               <thead><tr>
                 <th>Partner</th><th>Datum</th><th>WC-Nr</th><th>Artikel</th><th>Variante</th>
                 <th>Stk</th><th>Artikelkat.</th><th>VK netto</th><th>Festpreis</th><th>Handling</th><th>Mehrkosten</th><th>Netto</th><th>Status</th>
@@ -23898,7 +23958,7 @@
             const fmt = v => Number(v || 0).toFixed(2).replace('.', ',');
             const badgeCls = s => ({ freigegeben: 'badge-completed', bezahlt: 'badge-completed', entwurf: 'badge-processing' }[s] ?? 'badge-idle');
             const STATI = ['entwurf', 'freigegeben', 'bezahlt'];
-            wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+            wrap.innerHTML = `<div class="roll-x"><table class="orders-table">
               <thead><tr><th>Abr.-ID</th><th>Partner</th><th>Von</th><th>Bis</th><th>Netto</th><th>Brutto</th><th>Status</th><th>Erstellt</th></tr></thead>
               <tbody>${rows.map(r => {
                 const abrId = r['Abrechnungs-ID'];
@@ -23909,7 +23969,7 @@
                 try {
                   const pos = JSON.parse(r['Positionen'] || '');
                   if (pos && pos.produkteGruppen?.length)
-                    detailCell = `<td colspan="8" style="padding:0.5rem 0.6rem;background:color-mix(in srgb, var(--text) 2%, transparent);"><div style="overflow-x:auto;">${fpSummaryTableHTML(pos)}</div>${fpPortoHTML(pos.porto)}${fpVerpackungHTML(pos.verpackung)}</td>`;
+                    detailCell = `<td colspan="8" style="padding:0.5rem 0.6rem;background:color-mix(in srgb, var(--text) 2%, transparent);"><div class="roll-x">${fpSummaryTableHTML(pos)}</div>${fpPortoHTML(pos.porto)}${fpVerpackungHTML(pos.verpackung)}</td>`;
                 } catch {}
                 return `<tr>
                 <td style="font-size:0.82rem;font-weight:600;cursor:pointer;" data-abr-detail="${idSafe}"><span class="fp-abr-caret">▸</span> ${_escHtml(abrId)}</td>
@@ -23991,7 +24051,7 @@
               wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Noch keine Festpreise erfasst.</p>'; return;
             }
             const fmt = v => Number(String(v||'0').replace(',','.')||0).toLocaleString('de-DE',{minimumFractionDigits:2,maximumFractionDigits:2});
-            wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+            wrap.innerHTML = `<div class="roll-x"><table class="orders-table">
               <thead><tr><th>Artikelkategorie</th><th>Partner-ID</th><th style="text-align:right;">Festpreis (€)</th><th style="text-align:right;">Handling (€/Stk)</th><th></th></tr></thead>
               <tbody>${preise.map(p => `<tr>
                 <td>${_escHtml(p['Kategorie'] || '–')}</td>
@@ -24236,7 +24296,7 @@
             }
             wrap.innerHTML = `
               <p style="font-size:0.82rem;color:var(--muted);margin-bottom:0.75rem;">${_escHtml(d.positionen)} Einzelpositionen · ${d.produkteGruppen.length} Artikel-Gruppen</p>
-              <div style="overflow-x:auto;">${fpSummaryTableHTML(d)}</div>`;
+              <div class="roll-x">${fpSummaryTableHTML(d)}</div>`;
           } catch (e) {
             wrap.innerHTML = `<p style="color:var(--danger);font-size:0.85rem;">Fehler: ${_escHtml(e.message)}</p>`;
           }
@@ -24277,7 +24337,7 @@
           const STATUSES = ['offen', 'abgerechnet'];
           const badge    = s => ({ offen: 'badge-pending', abgerechnet: 'badge-completed' }[s] ?? 'badge-idle');
           const fmt      = v => v.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-          wrap.innerHTML = `<div style="overflow-x:auto;"><table class="orders-table">
+          wrap.innerHTML = `<div class="roll-x"><table class="orders-table">
             <thead><tr>
               <th>Datum</th><th>Bezeichnung</th>
               <th style="text-align:right;">Anzahl</th>

@@ -55,8 +55,11 @@ for (const f of ['auftraege.mjs', 'bestellen.mjs', 'rest.mjs']) {
   attrappen.push(m.antwort);
   if (m.setzeBestellseiteArt) setzeArt = m.setzeBestellseiteArt;
 }
-// Zustand "leer": dieselben Formen, aber jede Liste leer (Zaehler bleiben - fuer das Layout egal)
-const leeren = x => Array.isArray(x) ? [] : x && typeof x === 'object' ? Object.fromEntries(Object.entries(x).map(([k, v]) => [k, leeren(v)])) : x;
+// Zustand "leer": dieselben Formen, aber jede Liste leer UND jede Zahl 0 (UI3: sonst zeigen Kacheln Zaehler ueber leeren Listen).
+// Einstellungen bleiben (Tage, Grenzen, Saetze, Jahr, Masse) - sie sind keine Zaehler.
+const KEIN_ZAEHLER = /_tage$|grenze|max|min|satz|ust|jahr|breite|hoehe|rang|stufe|limit/i;
+const leeren = (x, k = '') => Array.isArray(x) ? [] : x && typeof x === 'object' ? Object.fromEntries(Object.entries(x).map(([kk, v]) => [kk, leeren(v, kk)]))
+  : typeof x === 'number' && !KEIN_ZAEHLER.test(k) ? 0 : x;
 
 const ohneAttrappe = {};
 const jsFehler = {};
