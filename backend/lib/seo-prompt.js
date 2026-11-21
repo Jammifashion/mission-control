@@ -18,6 +18,7 @@
 //    darum im Code, und das Ergebnis wird gemeldet, nicht verschluckt.
 
 import { sortiereGroessen } from './groessen.js';
+import { TEXTIL_FASER_RE } from '../utils/sku-extern.js';
 
 export const MATERIAL_PLACEHOLDER = '[Material: bitte ergänzen]';
 
@@ -43,13 +44,23 @@ export function platzhalterIn(...texte) {
 /**
  * Handeingabe "Material (Pflichtangabe)": Faser mit Prozent, hoechstens 200 Zeichen,
  * ohne HTML und Steuerzeichen. @returns {{ faser: string|null, fehler: string|null }}
+ * SG3: Prozentpflicht (EU-Textilkennzeichnung) nur fuer Textil. `textil: false` (Fremdware aus SKU_Extern ohne
+ * Textilfaser, ohne Groessen - entscheidet prozentPflicht in utils/sku-extern.js): ein Materialwort genuegt
+ * ("Keramik", "Edelstahl"); nennt der Text trotzdem eine Textilfaser, bleibt die Prozentangabe Pflicht.
+ * Ein Text mit Prozent ist immer gueltig.
  */
-export function materialHandPruefen(wert) {
+export const MATERIAL_FEHLER_PROZENT = 'Material: bitte mit Prozent angeben, z. B. 100 % Polyacryl.';
+export const MATERIAL_FEHLER_FASER = 'Material: Textilfaser bitte mit Prozent angeben, z. B. 100 % Baumwolle.';
+export const MATERIAL_FEHLER_WORT = 'Material: bitte ein Material nennen, z. B. Keramik.';
+export function materialHandPruefen(wert, { textil = true } = {}) {
   const s = String(wert ?? '').replace(/\s+/g, ' ').trim();
   if (!s) return { faser: null, fehler: null };
   if (s.length > 200) return { faser: null, fehler: 'Material: höchstens 200 Zeichen.' };
   if (/[<>[\]\u0000-\u001f]/.test(s)) return { faser: null, fehler: 'Material: keine Klammern [ ] oder < >.' };
-  if (!FASER_RE.test(s)) return { faser: null, fehler: 'Material: bitte mit Prozent angeben, z. B. 100 % Polyacryl.' };
+  if (FASER_RE.test(s)) return { faser: s, fehler: null };
+  if (textil) return { faser: null, fehler: MATERIAL_FEHLER_PROZENT };
+  if (TEXTIL_FASER_RE.test(s)) return { faser: null, fehler: MATERIAL_FEHLER_FASER };
+  if (!/[A-Za-zÄÖÜäöüß]{3,}/.test(s)) return { faser: null, fehler: MATERIAL_FEHLER_WORT };
   return { faser: s, fehler: null };
 }
 
@@ -60,8 +71,8 @@ const htmlText = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').rep
  * Nur "[Material: bitte ergänzen]"; andere "[… bitte ergänzen]" bleiben stehen.
  * @returns {{ html: string, ersetzt: number }}
  */
-export function ersetzeMaterialPlatzhalter(html, faser) {
-  const f = materialHandPruefen(faser).faser;
+export function ersetzeMaterialPlatzhalter(html, faser, opt = {}) {
+  const f = materialHandPruefen(faser, opt).faser;
   if (!f) return { html: String(html ?? ''), ersetzt: 0 };
   let ersetzt = 0;
   const out = String(html ?? '').replace(new RegExp(MATERIAL_PLATZHALTER_QUELLE, 'gi'), () => { ersetzt++; return htmlText(f); });
@@ -1088,7 +1099,7 @@ export function strukturierteEingabe(eingabe) {
  * @returns {{ eigenschaftenLines: string[], farbListe: string[],
  *             materialRoh: string, material: string, meldung: string|null }}
  */
-export function materialAusEigenschaften(eigenschaften, farben, { groessen, strukturiert, materialHand } = {}) {
+export function materialAusEigenschaften(eigenschaften, farben, { groessen, strukturiert, materialHand, materialTextil = true } = {}) {
   const struktur = strukturierteEingabe(strukturiert);
   const rohLines = eigenschaften ? String(eigenschaften).split('\n').filter(Boolean) : [];
   // ⚠️ Reihenfolge: erst auslesen, dann entfernen. filterEigenschaften() wirft
@@ -1145,7 +1156,7 @@ export function materialAusEigenschaften(eigenschaften, farben, { groessen, stru
     };
   }
   // SG2: Feld "Material (Pflichtangabe)" - nur wenn L-Shop keine Faser liefert, vor dem Freitext.
-  const hand = materialHandPruefen(materialHand).faser;
+  const hand = materialHandPruefen(materialHand, { textil: materialTextil }).faser;
   if (hand) {
     return { eigenschaftenLines, detailLines, farbListe, materialRoh, material: hand, meldung: null, faserHinweis: null };
   }
@@ -1216,11 +1227,12 @@ export function buildSeoUserPrompt({
   druck,
   vorschlagen,
   materialHand,
+  materialTextil = true,
   weitereAchsen,
 } = {}) {
   const {
     detailLines, farbListe, material, meldung: materialMeldung, faserHinweis,
-  } = materialAusEigenschaften(eigenschaften, farben, { groessen, strukturiert, materialHand });
+  } = materialAusEigenschaften(eigenschaften, farben, { groessen, strukturiert, materialHand, materialTextil });
   // SG2: "Farben" = nur Textilfarbe; Schrift-/Druckfarbe & Co. je eine eigene Zeile.
   const achsen = weitereAchsenSauber(weitereAchsen);
 

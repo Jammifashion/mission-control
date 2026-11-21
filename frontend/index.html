@@ -1000,6 +1000,7 @@
       .seo-material-zeile .form-input { flex: 1 1 12rem; min-width: 0; }
       .seo-platzhalter-msg { color: var(--danger); font-weight: 600; font-size: 0.85rem; margin: 0.25rem 0 0.75rem; }
       .seo-material-feld[hidden], .seo-platzhalter-msg[hidden] { display: none; }
+      .seo-material-feld.seo-material-ruhig { border-color: var(--border); }   /* SG3: Fremdware mit Material aus SKU_Extern - kein Alarm */
       .seo-generate-msg { flex: 1 1 100%; font-size: 0.82rem; color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
       .seo-generate-msg:empty { display: none; }
       .seo-generate-msg.seo-msg-rot { color: var(--danger); }
@@ -2767,12 +2768,13 @@
               </div>
               <!-- SG2: nur sichtbar, wenn das L-Shop-Modell keine Faser liefert oder der Text den Platzhalter traegt. -->
               <div class="form-field seo-material-feld" id="seo-material-wrap" hidden>
-                <label for="seo-material" data-hilfe="seo-material">Material (Pflichtangabe) <span class="field-note">fehlt im L-Shop-Modell</span></label>
+                <label for="seo-material" data-hilfe="seo-material">Material (Pflichtangabe) <span class="field-note" id="seo-material-notiz">fehlt im L-Shop-Modell</span></label>
                 <div class="seo-material-zeile">
                   <input id="seo-material" type="text" class="form-input" maxlength="200" placeholder="z. B. 100 % Polyacryl" data-hilfe="seo-material" />
                   <button class="btn-secondary" id="seo-material-einsetzen" type="button" data-hilfe="seo-material-einsetzen">In den Text einsetzen</button>
                 </div>
               </div>
+              <div id="seo-extern-zeilen" class="field-note" hidden></div>
               <div id="seo-platzhalter-msg" class="seo-platzhalter-msg" role="alert" hidden></div>
               <!-- SG1: Vorgaben -> Generieren -> Ergebnis pruefen -> Speichern. Der Knopf steht direkt unter den Vorgaben. -->
               <div class="seo-generieren-zeile">
@@ -6505,6 +6507,20 @@
         return [{ value: LZ_UNBEKANNT, text: `unbekannt (Wert ${geladen === null ? 'leer' : geladen})`, selected: true }, ...opts];
       }
 
+      // SG3: Lieferzeit aus SKU_Extern vorschlagen - nur in der Anlage, nur wenn die Auswahl noch auf dem Standard (oder leer)
+      // steht und der Term im Reiter Struktur_Lieferzeiten vorkommt. Liefert den Hinweistext oder ''.
+      function lzVorschlagAusExtern(id, liste, sel) {
+        const ziel = String(id ?? '').trim();
+        const l = (liste || []).find(x => String(x.id) === ziel);
+        if (!ziel || !l || !sel) return '';
+        const std = (liste || []).find(x => x.standard === true);
+        if (sel.value && sel.value !== String(std ? std.id : '')) return '';   // schon von Hand gewaehlt
+        if (sel.value === ziel) return '';
+        sel.value = ziel;
+        sel.dispatchEvent(new Event('change'));
+        return `Lieferzeit vorgeschlagen: ${l.name}.`;
+      }
+
       // Aenderungspfad: gesendet wird nur, wenn der Nutzer auf einen Term aus
       // dem Reiter umgestellt hat. "unbekannt" oder unveraendert -> nichts.
       function lzZuSenden(geladen, gewaehlt) {
@@ -7084,7 +7100,7 @@
         'fp-nachrechnen':        { name: 'Gesperrte nachrechnen', text: 'Rechnet gesperrte Verkäufe mit dem jetzt gültigen Festpreis und setzt sie auf offen. Abgerechnete bleiben unberührt.' },
         'fp-ohne-zeigen':        { name: 'Zeigen', text: 'Springt zur ersten Zeile ohne Artikelkategorie und markiert alle betroffenen Zeilen.' },
         'seo-generieren':        { name: 'Beschreibung generieren', text: 'Lässt die KI aus den Feldern oben eine Beschreibung schreiben und prüft sie. Gespeichert wird noch nichts.' },
-        'seo-material':          { name: 'Material (Pflichtangabe)', text: 'Faser mit Prozent, z. B. 100 % Polyacryl. Nur nötig, wenn das L-Shop-Modell keine liefert. Geht in den Text.' },
+        'seo-material':          { name: 'Material (Pflichtangabe)', text: 'Textil: Faser mit Prozent, z. B. 100 % Polyacryl. Fremdware ohne Textil: Material genügt, z. B. Keramik.' },
         'seo-material-einsetzen': { name: 'In den Text einsetzen', text: 'Ersetzt „[Material: bitte ergänzen]“ in beiden Texten durch das Material. Kein neues Generieren.' },
         'seo-speichern':         { name: 'SEO Speichern', text: 'Schreibt Beschreibung und SEO-Daten in den Shop – Kunden sehen es sofort.' },
         'aid-anlegen':           { name: 'Artikel-ID anlegen', text: 'Legt für diesen Entwurf eine Zeile mit der nächsten Artikel-ID in der Erfassungsmaske an. Nie doppelt.' },
@@ -16618,6 +16634,14 @@
             if (feld.value.trim() !== nr) return;            // inzwischen geaendert
             if (r.status === 404) {
               hint.textContent = 'Kein L-Shop-Modell – Farben frei eingeben (Fremdware). ';
+              // SG3: steht die Nummer in SKU_Extern, Lieferzeit von dort vorschlagen (nur solange noch der Standard gewaehlt ist).
+              const ex = await seoExternLaden(nr);
+              if (feld.value.trim() !== nr) return;
+              if (ex) {
+                hint.textContent = `Fremdware aus SKU_Extern (${ex.nr}) – Farben frei eingeben. `;
+                const lzText = lzVorschlagAusExtern(ex.lieferzeitId, ssot.lieferzeiten, document.getElementById('pf-lieferzeit'));
+                if (lzText) hint.textContent += lzText + ' ';
+              }
               // LS4: fehlt das Modell nur in der Liste, kann es hier aufgenommen werden.
               const link = document.createElement('button');
               link.type = 'button';
@@ -17522,16 +17546,26 @@
         }
         return out;
       }
-      function materialHandPruefen(wert) {
+      // SG3: Prozentpflicht nur fuer Textil (Spiegel von TEXTIL_FASER_RE in utils/sku-extern.js und materialHandPruefen in lib/seo-prompt.js).
+      const PH_TEXTIL_RE = /(^|[^A-Za-zÄÖÜäöüß])(baumwolle|bio-baumwolle|polyester|elasth?an|spandex|viskose|wolle|schurwolle|leinen|modal|polyacryl|acryl|nylon|polyamid|seide|lyocell|tencel)(?![A-Za-zÄÖÜäöüß])/i;
+      function materialHandPruefen(wert, { textil = true } = {}) {
         const s = String(wert ?? '').replace(/\s+/g, ' ').trim();
         if (!s) return { faser: null, fehler: null };
         if (s.length > 200) return { faser: null, fehler: 'Material: höchstens 200 Zeichen.' };
         if (/[<>[\]\u0000-\u001f]/.test(s)) return { faser: null, fehler: 'Material: keine Klammern [ ] oder < >.' };
-        if (!PH_FASER_RE.test(s)) return { faser: null, fehler: 'Material: bitte mit Prozent angeben, z. B. 100 % Polyacryl.' };
+        if (PH_FASER_RE.test(s)) return { faser: s, fehler: null };
+        if (textil) return { faser: null, fehler: 'Material: bitte mit Prozent angeben, z. B. 100 % Polyacryl.' };
+        if (PH_TEXTIL_RE.test(s)) return { faser: null, fehler: 'Material: Textilfaser bitte mit Prozent angeben, z. B. 100 % Baumwolle.' };
+        if (!/[A-Za-zÄÖÜäöüß]{3,}/.test(s)) return { faser: null, fehler: 'Material: bitte ein Material nennen, z. B. Keramik.' };
         return { faser: s, fehler: null };
       }
-      function ersetzeMaterialPlatzhalter(html, faser) {
-        const f = materialHandPruefen(faser).faser;
+      // Gilt die Prozentpflicht? Spiegel von prozentPflicht (utils/sku-extern.js): ja, ausser Fremdware ohne Textilfaser und ohne Groessen.
+      function materialProzentPflicht({ extern, groessen } = {}) {
+        if ((Array.isArray(groessen) ? groessen : []).some(g => String(g ?? '').trim())) return true;
+        return !(extern && !extern.textil);
+      }
+      function ersetzeMaterialPlatzhalter(html, faser, opt = {}) {
+        const f = materialHandPruefen(faser, opt).faser;
         if (!f) return { html: String(html ?? ''), ersetzt: 0 };
         const esc = String(f).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         let ersetzt = 0;
@@ -18739,6 +18773,7 @@
         document.getElementById('seo-material').value = '';   // SG2: Handeingabe gilt nur fuer diesen Artikel
         seoMaterialFaser = null;
         seoMaterialFehlt = false;
+        seoExtern = null;   // SG3
 
         document.getElementById('seo-article-panel').style.display = '';
         document.getElementById('seo-status-msg').textContent = 'Produkt wird geladen…';
@@ -18807,25 +18842,54 @@
         const msg = document.getElementById('seo-platzhalter-msg');
         msg.hidden = !p.length;
         msg.textContent = p.length ? `${PLATZHALTER_TEXT}: ${p.join(', ')} steht im Text – so wird nicht veröffentlicht.` : '';
-        document.getElementById('seo-material-wrap').hidden = !(p.length || seoMaterialFehlt);
+        const wrap = document.getElementById('seo-material-wrap');
+        wrap.hidden = !(p.length || seoMaterialFehlt || seoExtern);
+        // SG3: Fremdware mit brauchbarem Material = Angabe statt Alarm
+        wrap.classList.toggle('seo-material-ruhig', !!seoExtern && !seoMaterialFehlt && !p.length);
+        document.getElementById('seo-material-notiz').textContent = seoExtern ? `Fremdware: Angaben aus SKU_Extern (${seoExtern.nr})` : 'fehlt im L-Shop-Modell';
+        document.getElementById('seo-material').placeholder = seoMaterialTextil() ? 'z. B. 100 % Polyacryl' : 'z. B. Keramik';
+        const ez = document.getElementById('seo-extern-zeilen');
+        ez.hidden = !(seoExtern && seoExtern.zeilen && seoExtern.zeilen.length);
+        ez.textContent = ez.hidden ? '' : `Aus SKU_Extern gehen mit in den Text: ${seoExtern.zeilen.join(' · ')}`;
         return p;
+      }
+      // SG3: Fremdware (SKU_Extern) zur Nummer des Artikels - null, wenn sie dort nicht steht oder nicht lesbar ist.
+      let seoExtern = null;
+      async function seoExternLaden(nr) {
+        const n = String(nr ?? '').trim();
+        if (!n) return null;
+        try {
+          const r = await apiFetch(`${API_BASE()}/api/sheets/extern/${encodeURIComponent(n)}`);
+          return r.ok ? await r.json() : null;
+        } catch { return null; }
+      }
+      // Prozentpflicht fuer diesen Artikel (Groessen aus Varianten bzw. Shop zaehlen als Textil).
+      function seoMaterialTextil() {
+        const gr = seoCurrentItem ? seoGroessenQuelle(seoVarianten, seoWcProdukt, seoQuellenOk).groessen : [];
+        return materialProzentPflicht({ extern: seoExtern, groessen: gr });
       }
       async function seoMaterialFeldPruefen() {
         if (!seoCurrentItem) return;
-        const s = await seoLshopStruktur(seoCurrentItem.lshopNr, seoFarben());
+        const nr = String(seoCurrentItem.lshopNr ?? '').trim();
+        const s = await seoLshopStruktur(nr, seoFarben());
         seoMaterialFaser = s && s.faser ? s.faser : null;
-        seoMaterialFehlt = !!String(seoCurrentItem.lshopNr ?? '').trim() && !seoMaterialFaser;
+        seoExtern = nr && !seoMaterialFaser ? await seoExternLaden(nr) : null;
+        const feld = document.getElementById('seo-material');
+        const ausExtern = seoExtern ? materialHandPruefen(seoExtern.material, { textil: seoMaterialTextil() }).faser : null;
+        if (ausExtern && !feld.value.trim()) feld.value = ausExtern;   // vorbelegt, aenderbar
+        seoMaterialFehlt = !!nr && !seoMaterialFaser && !ausExtern;
         seoPlatzhalterZeigen();
       }
       document.getElementById('rich-seo-short').addEventListener('input', () => seoPlatzhalterZeigen());
       document.getElementById('rich-seo-full').addEventListener('input', () => seoPlatzhalterZeigen());
       document.getElementById('seo-material-einsetzen').addEventListener('click', () => {
         if (!quillSeoShort || !quillSeoFull) return;
-        const m = materialHandPruefen(document.getElementById('seo-material').value);
-        if (!m.faser) { showToast(m.fehler || 'Material eintragen, z. B. 100 % Polyacryl.', 'error', 8000); return; }
+        const textil = seoMaterialTextil();
+        const m = materialHandPruefen(document.getElementById('seo-material').value, { textil });
+        if (!m.faser) { showToast(m.fehler || (textil ? 'Material eintragen, z. B. 100 % Polyacryl.' : 'Material eintragen, z. B. Keramik.'), 'error', 8000); return; }
         let n = 0;
         for (const ed of [quillSeoShort, quillSeoFull]) {
-          const r = ersetzeMaterialPlatzhalter(ed.root.innerHTML, m.faser);
+          const r = ersetzeMaterialPlatzhalter(ed.root.innerHTML, m.faser, { textil });
           if (r.ersetzt) { ed.root.innerHTML = r.html; n += r.ersetzt; }
         }
         showToast(n ? `Material eingesetzt (${n}×) – bitte speichern.` : 'Kein Material-Platzhalter im Text – Material geht beim nächsten Generieren mit.', n ? 'info' : 'warn', 8000);
@@ -18885,7 +18949,7 @@
         // Groessen: erst Varianten-Reiter, dann WooCommerce. Die Quelle wird
         // unten angezeigt, damit sichtbar ist, woher sie kamen.
         const gr = seoGroessenQuelle(seoVarianten, seoWcProdukt, seoQuellenOk);
-        const mh = seoMaterialFaser ? { fehler: null } : materialHandPruefen(document.getElementById('seo-material').value);
+        const mh = seoMaterialFaser ? { fehler: null } : materialHandPruefen(document.getElementById('seo-material').value, { textil: seoMaterialTextil() });
         if (mh.fehler) {
           statusMsg.textContent = kurzMsg.textContent = mh.fehler;
           statusMsg.style.color = 'var(--danger)';

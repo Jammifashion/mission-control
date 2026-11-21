@@ -98,7 +98,7 @@ describe('3. Prompt: Material-Feld und weitere Achsen', () => {
   });
   test('Route: Material ungueltig = 400, Platzhalter nach Handeingabe ersetzt, Achsen in Prompt und Pruefung', () => {
     expect(QUELLE_CLAUDE).toContain("if (hand.fehler) return res.status(400).json({ error: hand.fehler, code: 'material' });");
-    expect(QUELLE_CLAUDE).toContain('ersetzeMaterialPlatzhalter(produktbeschreibung, hand.faser)');
+    expect(QUELLE_CLAUDE).toContain('ersetzeMaterialPlatzhalter(produktbeschreibung, hand.faser, { textil })');
     expect(QUELLE_CLAUDE).toContain('weitereAchsen: achsen,');
   });
 });

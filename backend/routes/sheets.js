@@ -6,6 +6,7 @@ import { buildRow, mergeRow } from '../utils/sheet-rows.js';
 import { sichereSpalte, sichereTextSpalte, colLetter } from '../utils/sheet-spalten.js';
 import { PS_FERTIG, PS_FERTIG_AM } from '../utils/produktion-stand.js';
 import { ladeLieferzeiten } from '../lib/lieferzeiten.js';
+import { externFuerNummer } from '../lib/skuExtern.js';
 import { lshopFuerArtikel } from '../lib/lshop.js';
 import { maskenVorschlaege } from '../lib/vorschlaege.js';
 import { shopSpalte, gleicherShop, zeileMitShop, normalizeShop } from '../utils/shop-spalte.js';
@@ -248,6 +249,18 @@ router.get('/lshop/:catalogNr', async (req, res, next) => {
     const farben = (Array.isArray(roh) ? roh : String(roh ?? '').split(','))
       .map(f => String(f).trim()).filter(Boolean);
     res.json(await lshopFuerArtikel(req.params.catalogNr, { farben, mitLieferbarkeit: true }));   // BO7-2: Punkte je Groesse
+  } catch (err) { next(err); }
+});
+
+// ── GET /api/sheets/extern/:nr ───────────────────────────────────────────────
+// SG3: Fremdware aus SKU_Extern (ArticleNr oder CatalogNr) fuer SEO-Reiter und Maske: Material, Textil ja/nein,
+// Zeilen fuer den Generator, Lieferzeit als Vorschlag. Feste Feldauswahl (utils/sku-extern.js) - nie Nur_intern/Lieferant.
+// Nicht gefunden = 404 (dann gilt das Pflichtfeld wie bisher).
+router.get('/extern/:nr', async (req, res, next) => {
+  try {
+    const e = await externFuerNummer(req.params.nr);
+    if (!e) return res.status(404).json({ error: 'Nicht in SKU_Extern.', code: 'extern_unbekannt' });
+    res.json(e);
   } catch (err) { next(err); }
 });
 

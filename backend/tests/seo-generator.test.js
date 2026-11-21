@@ -44,6 +44,12 @@ const TABS = {
     // LS2: CatNrManufacturer mit fuehrender Null (LShop_Modelle schreibt Text).
     ['1000311706', 'L03581', 'White', '', '3XL', 'SOL´S', '100% Baumwolle', '150 g/m²', '03581'],
   ],
+  // SG3: Fremdware (erfunden). Lieferant und Nur_intern duerfen nie in den Prompt.
+  SKU_Extern: [
+    ['ArticleNr', 'CatalogNr', 'Description', 'Lieferant', 'Consistence', 'Weight', 'Masse', 'Volumen', 'Eigenschaften_Shop', 'Lieferzeit_ID', 'Nur_intern'],
+    ['PROBE-TASSE', 'PT', 'Tasse weiß', 'Geheimlieferant GmbH', 'Keramik', '330', 'Höhe 9,5 cm', '330 ml', 'spülmaschinenfest', '1203', 'Geheimcode ZX-9'],
+    ['PROBE-SHIRT', 'PS', 'Fremd-Shirt', 'Geheimlieferant GmbH', '', '', '', '', '', '', ''],
+  ],
 };
 
 const buchstabeZuIndex = b => [...b].reduce((n, c) => n * 26 + (c.charCodeAt(0) - 64), 0) - 1;
@@ -238,6 +244,41 @@ describe('seo_description', () => {
     expect(h).toContain('Marke des Rohlings "SOL´S" in Kurzbeschreibung.');
   });
 
+  // SG3: Fremdware aus SKU_Extern
+  const tasse = body => post({ produktname: 'Tasse Probe', keyphrase: 'Tasse Probe', artikelkurz: undefined, lshopNr: 'PROBE-TASSE', farben: [], hinweise: '', ...body });
+  test('SG3 Tasse aus SKU_Extern: Material ohne Prozent ok, Angaben im Prompt, Lieferant/Nur_intern nie', async () => {
+    generateContent.mockResolvedValue(antwort('Tasse Probe aus Keramik.', '<h2>Für den Kaffee</h2><p>Die Tasse Probe fasst 330 ml.</p>'));
+    for (const materialHand of ['', 'Keramik']) {
+      generateContent.mockClear();
+      const res = await tasse({ materialHand });
+      expect(res.status).toBe(200);
+      const prompt = JSON.stringify(generateContent.mock.calls[0]);
+      expect(prompt).toContain('Keramik');
+      expect(prompt).toContain('330 ml');
+      expect(prompt).toContain('spülmaschinenfest');
+      expect(prompt).not.toContain('[Material: bitte ergänzen]');
+      expect(prompt).not.toMatch(/Geheim|ZX-9/);
+      expect(res.body.faser_hinweis ?? null).toBeNull();
+    }
+  });
+  test('SG3 Tasse: Textilfaser ohne Prozent bleibt 400; mit Groessen-Achse gilt die Prozentpflicht', async () => {
+    let res = await tasse({ materialHand: 'Baumwolle' });
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: 'Material: Textilfaser bitte mit Prozent angeben, z. B. 100 % Baumwolle.', code: 'material' });
+    res = await tasse({ materialHand: 'Keramik', groessen: ['S', 'M'] });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Material: bitte mit Prozent angeben, z. B. 100 % Polyacryl.');
+    expect(generateContent).not.toHaveBeenCalled();
+  });
+  test('SG3 unbekannte Nummer ohne SKU_Extern und L-Shop-Modell ohne Prozent: Fehler wie bisher', async () => {
+    for (const lshopNr of ['GIBTSNICHT', 'CB166R']) {
+      const res = await post({ lshopNr, materialHand: 'Keramik' });
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe('material');
+    }
+    const ok = await (generateContent.mockResolvedValue(antwort('Kappe.', '<h2>Logo</h2><p>Kappe</p>')), post({ lshopNr: 'GIBTSNICHT', materialHand: '100 % Polyester' }));
+    expect(ok.status).toBe(200);
+  });
   test('ohne artikelkurz/lshopNr: kein SSOT-Lesen, feste Regeln gelten trotzdem', async () => {
     values.get.mockClear();
     generateContent.mockResolvedValue(antwort('Kappe. Lieferung in 2 Wochen.', '<h2>Logo</h2><p>Kappe</p>'));

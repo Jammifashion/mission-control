@@ -11,6 +11,8 @@ import { pruefeTextMitSsot, sperrKontext } from '../lib/seo-pruefung.js';
 import { ladeSchlagwoerter, promptListe, schlagwortVorschlaege } from '../lib/schlagwoerter.js';
 import { werteGegenKarte } from '../lib/seo-ssot.js';
 import { wirfWennPruefseite } from '../lib/hosterPruefseite.js';
+import { externFuerNummer } from '../lib/skuExtern.js';
+import { prozentPflicht, eigenschaftenMitExtern } from '../utils/sku-extern.js';
 import { textAufruf, schluesselFehlt, KiAbgeschnittenError, KiAbgelehntError } from '../lib/modellAufruf.js';
 
 const router = Router();
@@ -70,8 +72,18 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
         groessen, keyphrase, strukturiert, artikelkurz, lshopNr, vorschlagen, wcId,
         materialHand, weitereAchsen,
       } = req.body;
-      // SG2: Feld "Material (Pflichtangabe)" - ungueltig = 400, nie still verworfen.
-      const hand = materialHandPruefen(materialHand);
+      // SG3: Fremdware - Angaben aus SKU_Extern (Material, Gewicht, Masse, Volumen, Eigenschaften_Shop), wenn die
+      // Nummer dort steht. Nur_intern/Lieferant liest der Weg gar nicht. Lesefehler = ohne Fremdware-Angaben (Hinweis).
+      let extern = null, externFehler = '';
+      if (String(lshopNr ?? '').trim()) {
+        try { extern = await externFuerNummer(lshopNr); }
+        catch (e) { externFehler = `Reiter SKU_Extern nicht lesbar (${e.message}) – ohne Fremdware-Angaben erzeugt.`; }
+      }
+      // Prozentpflicht nur fuer Textil: Fremdware ohne Textilfaser und ohne Groessen braucht nur ein Materialwort.
+      const textil = prozentPflicht({ extern, groessen });
+      // SG2: Feld "Material (Pflichtangabe)" - ungueltig = 400, nie still verworfen. Leer + SKU_Extern = Wert von dort.
+      const handRoh = String(materialHand ?? '').trim() || (strukturiert?.faser ? '' : extern?.material ?? '');
+      const hand = materialHandPruefen(handRoh, { textil });
       if (hand.fehler) return res.status(400).json({ error: hand.fehler, code: 'material' });
       const achsen = weitereAchsenSauber(weitereAchsen);
       if (!produktname) return res.status(400).json({ error: 'produktname ist erforderlich.' });
@@ -80,7 +92,7 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
       // Marke/Modellnummern des Rohlings (LShop_Modelle). Nur wenn der Aufrufer die
       // Schluessel schickt; ein Lesefehler verhindert die Generierung nicht,
       // er steht in den Pruefhinweisen. Nur_intern bleibt hier im Backend.
-      const ssotHinweise = [];
+      const ssotHinweise = externFehler ? [externFehler] : [];
       let motivZeile = null;
       if (String(artikelkurz ?? '').trim()) {
         try { motivZeile = await motivFuer(artikelkurz); }
@@ -122,7 +134,7 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
       const { prompt: userPrompt, meldung: materialMeldung, faserHinweis } = buildSeoUserPrompt({
         produktname,
         kategorien,
-        eigenschaften,
+        eigenschaften: eigenschaftenMitExtern(eigenschaften, extern),   // SG3
         hinweise,
         // M4: getipptes Motiv gewinnt, sonst das Motiv aus dem Reiter.
         motiv: String(motiv ?? '').trim() || motivPrompt?.motiv || '',
@@ -138,6 +150,7 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
         vorschlagen: vorschlagWunsch,
         // SG2: Handeingabe Material, weitere Achsen (Schriftfarbe ...) als eigene Zeile.
         materialHand: hand.faser,
+        materialTextil: textil,
         weitereAchsen: achsen,
       });
       if (materialMeldung) {
@@ -263,8 +276,8 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
 
       // SG2: steht trotz Handeingabe der Material-Platzhalter im Text, deterministisch ersetzen.
       if (hand.faser) {
-        kurzbeschreibung    = ersetzeMaterialPlatzhalter(kurzbeschreibung, hand.faser).html;
-        produktbeschreibung = ersetzeMaterialPlatzhalter(produktbeschreibung, hand.faser).html;
+        kurzbeschreibung    = ersetzeMaterialPlatzhalter(kurzbeschreibung, hand.faser, { textil }).html;
+        produktbeschreibung = ersetzeMaterialPlatzhalter(produktbeschreibung, hand.faser, { textil }).html;
       }
 
       const meldungen = pruefeSeoText({

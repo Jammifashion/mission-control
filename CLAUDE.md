@@ -978,6 +978,14 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Platzhalter deterministisch (`ersetzeMaterialPlatzhalter`, Knopf "In den Text einsetzen"). `seoFarben` = nur Achse "Farbe" (vorher
   FARB_ATTR_RE: Schrift-/Druckfarbe landeten unter "Farben" UND die L-Shop-Faser fiel weg, weil die Farbenzahl nicht passte - Befund
   NT5937); weitere Farb-Achsen (`seoWeitereAchsen`) als eigene Zeile `<li><strong>Schriftfarbe:</strong> …</li>`. Test seo-platzhalter.test.js.
+  SG3 (21.11.): Prozentpflicht nur fuer Textil. `materialHandPruefen(wert, { textil })` (Spiegel im Block `Platzhalter`): mit Prozent immer gueltig;
+  `textil: false` = ein Materialwort genuegt ("Keramik"), eine Textilfaser als eigenes Wort (`TEXTIL_FASER_RE`) braucht trotzdem Prozent. Entscheidung
+  `prozentPflicht({ extern, groessen })` (utils/sku-extern.js, Spiegel `materialProzentPflicht`): keine Pflicht NUR bei Fremdware aus `SKU_Extern` ohne
+  Textilfaser und ohne Groessen-Achse; unbekannte Nummer / L-Shop-Modell = wie bisher. SEO liest `SKU_Extern` (lib/skuExtern.js, nur lesen, 5 min,
+  ArticleNr sonst CatalogNr): `Consistence` = Material (Feld vorbelegt, ohne Alarm, Anzeige "Fremdware: Angaben aus SKU_Extern (…)"), `Weight`/`Masse`/
+  `Volumen`/`Eigenschaften_Shop` als Zeilen vor den Freitext "Eigenschaften" (`eigenschaftenMitExtern`, Freitext gewinnt bei gleichem Label), `Lieferzeit_ID`
+  in der Maske "Neu anlegen" als Vorschlag (nur solange der Standard gewaehlt ist, `lzVorschlagAusExtern`). **`Nur_intern` und `Lieferant` liest dieser Weg
+  nie** (`NIE_LESEN`, Test). `GET /api/sheets/extern/:nr` (404 = nicht dort). Test seo-sg3.test.js.
 - backend/lib/seo-meta.js – Yoast SEO-Titel und Meta-Beschreibung, deterministisch
   (kein Modell). Einzige Quelle; index.html spiegelt den Bau-Teil im Block
   `SEO-Meta: Anfang/Ende`. Faserangabe + Grammatur liefert
