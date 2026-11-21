@@ -11,7 +11,7 @@ import { parseKonfiguration } from '../utils/partner-kalkulation.js';
 import { findeZeileZumToken, SPALTE_TOKEN, SPALTE_HASH } from '../utils/partner-token.js';
 import { SPALTE_VERSCHLUESSELT } from '../utils/link-schluessel.js';
 import { parseDeZahl } from '../utils/zahl-de.js';
-import { verkaufsUebersicht, uebersichtAntwort, bauZwischenspeicher } from '../utils/partner-uebersicht.js';
+import { verkaufsUebersicht, uebersichtAntwort, bauZwischenspeicher, detailAn, fpBetragsUebersicht } from '../utils/partner-uebersicht.js';
 import { gebuendelt } from '../lib/sheetsBuendel.js';
 import { berlinDatum } from '../utils/berlin-tag.js';
 
@@ -231,7 +231,13 @@ export async function leseFpUebersicht({ partnerId, sheets: roh, sheetId, heute 
       await readTab(sheets, sheetId, TAB_FP_PARTNER)];
     const statistik = verkaufsUebersicht({ header: vk.header, rows: vk.rows, partnerId, heute: heute ?? berlinDatum(new Date()),
       spalten: { order: 'WC-Bestellnummer', artikel: 'Artikelname', status: 'Status Abrechnung', storno: 'Storno-Status' } });
+    // PD2: Detailansicht nur, wenn der Partner im Reiter FP_Partner auf "ja" steht - sonst keine Betragsfelder in der Antwort.
+    const zeile = fpp.rows.find(r => (r[fpp.header.indexOf('Partner-ID')] ?? '') === partnerId);
+    const detail = detailAn(fpp.header, zeile)
+      ? fpBetragsUebersicht({ header: vk.header, rows: vk.rows, partnerId, heute: heute ?? berlinDatum(new Date()), mwstProzent: s.mwstProzent })
+      : null;
     return uebersichtAntwort({
+      detail,
       auszahlung: {
         saldo: s.saldoBrutto, seit: fpSeit(partnerId, abr, fpp), saldoKachel: true,
         intern: s._intern.length, internOhneBetrag: s._intern.filter(x => x.ohneSumme).length,

@@ -792,6 +792,15 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   hoch) + Top 5 (HTML-Balken), Satz unter jeder Grafik, Mouse-over ueber `data-tipp` + ⓘ (`data-pu-info`), negativer Saldo `--warning` (nie Rot).
   Bisherige Karten unter `<details id="pv-details-box">` eingeklappt, geladen erst beim Aufklappen (`detailsLaden`). Der Baustein `Partner-Kacheln`
   bleibt wortgleich mit MC ("Partner auf einen Blick"), das Portal nutzt ihn nicht mehr. Tests pd1-uebersicht.test.js, pd1-frontend.test.js.
+  PD2 Detailansicht (Inhaber 21.11.): Schalter = optionale Spalte `Detailansicht` hinten in `FP_Partner` und `Partner` ("ja" = an, leer = aus;
+  `detailAn`, Setup `scripts/setup-partner-detailansicht.js` legt nur die Kopfzellen an, "ja" setzt der Inhaber). Wirkt vorerst NUR im Festpreis-Portal:
+  `fpBetragsUebersicht` -> Antwortfeld `detail` (fehlt ohne Schalter ganz, Test): Umsatz = VK-Netto (line_item.total: nach Rabatt/Gutschein, ohne
+  Steuer/Porto) x MwSt; Erloes (Variante A) = VK-Netto − (|Festpreis| + |Handlingskosten|) × Stueck − Mehrkosten, brutto - NICHT die Summe der
+  Festpreise (das ist JFs Herstellungsanteil, berechneFestpreisAnteil); Porto/PayPal/Verpackung bleiben in der Abrechnung; gesperrte Zeilen nur im Umsatz;
+  Brutto in Cent kaufmaennisch. Monat/Vorjahr wie die Stueck-Reihe (`monatDerBestellung`). Top 10 nach Stueck (Artikel · Stueck · Umsatz · Erloes).
+  Portal: zwei Kacheln Umsatz/Erloes, Umschalter Stueck/Umsatz/Erloes (`data-pu-reihe`, `puKurveInhalt`, Satz mit Euro `DG_EURO`), am Handy (< 700 px)
+  Betraege (`.pu-betrag`) erst nach "Beträge zeigen" (`data-pu-betraege`). Tooltips `data-tipp` nur bei Hover/Fokus im Layout (display). Tests
+  pd2-detail.test.js, pd2-frontend.test.js.
 - backend/utils/partner-token.js – Zugang der Partnerportale (PPS1), einzige Stelle fuer Pruefen/Erzeugen. Reiter `Partner` und
   `FP_Partner`: Spalte `Token_Hash` hinten = SHA-256 (hex); Pruefung `findeZeileZumToken` (Hash + `timingSafeEqual`, jede Zeile
   geprueft); Uebergang: ohne Hash gilt der Klartext `Token` (gehasht verglichen), mit Hash NUR der Hash. Der Link der Partner bleibt

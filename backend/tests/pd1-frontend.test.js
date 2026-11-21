@@ -98,7 +98,7 @@ describe('Partner-Übersicht', () => {
   });
   test('Vorjahresvergleich: mehr = Chip, weniger neutral, keine Daten', () => {
     expect(F.puHtml({ ...basis(), stueckVorjahr: 90 })).toContain('+7 zum Vorjahr');
-    expect(F.puHtml({ ...basis(), stueckVorjahr: 100 })).toContain('<span class="pu-klein">-3 zum Vorjahr</span>');
+    expect(F.puHtml({ ...basis(), stueckVorjahr: 100 })).toContain('<span class="pu-klein">−3 zum Vorjahr</span>')   // typografisches Minus (PD2);
     const ohne = F.puHtml({ ...basis(), vorjahrDaten: false, vorjahrAb: null, reihe: { ...basis().reihe, vorjahr: Array(12).fill(null) } });
     expect(ohne).toContain('Vorjahr: keine Daten');
     expect(ohne).not.toContain('pu-strich pu-vj');

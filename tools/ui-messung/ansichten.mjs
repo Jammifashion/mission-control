@@ -63,6 +63,9 @@ export const ANSICHTEN_ZUSATZ = [
   { id: 'lager/bestand+ausbuchen', hash: 'lager/bestand', aktion: klick('[data-lager-aktion="ausbuchen"]'), wurzel: DLG },
   { id: 'partner.html', url: 'partner.html?token=attrappe-token', wurzel: 'body', seite: 'partner' },
   { id: 'partner-festpreis.html', url: 'partner-festpreis.html?token=attrappe-token', wurzel: 'body', seite: 'festpreis' },
+  // PD2: Detailansicht mit eingeblendeten Betraegen und Kurve auf Umsatz
+  { id: 'partner-festpreis.html+betraege', url: 'partner-festpreis.html?token=attrappe-token', wurzel: 'body', seite: 'festpreis', nurVoll: true,
+    aktion: async p => { const b = p.locator('[data-pu-betraege]'); if (await b.isVisible()) await b.click(); await p.locator('[data-pu-reihe="umsatz"]').click(); await p.mouse.move(1, 1); await p.waitForTimeout(300); } },
   { id: 'bestellen.html', url: `bestellen.html#t=${'A'.repeat(43)}`, wurzel: 'body', seite: 'bestellen', art: 'dauer' },
   { id: 'bestellen.html+auftrag', url: `bestellen.html#t=${'B'.repeat(43)}`, wurzel: 'body', seite: 'bestellen', art: 'auftrag' },
   { id: 'anfrage.html', url: 'anfrage.html', wurzel: 'body', seite: 'anfrage' },

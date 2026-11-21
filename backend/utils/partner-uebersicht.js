@@ -44,17 +44,7 @@ export function verkaufsUebersicht({ header, rows, partnerId, spalten, heute }) 
   const J = jetzt.jahr, M = jetzt.monat;
   const eigene = rows.filter(r => t(r[iP]) === partnerId);
 
-  // Monat der Bestellung = fruehestes Datum einer Verkaufszeile (ohne Storno-Marke) derselben Bestellung.
-  const bestellMonat = new Map();
-  for (const r of eigene) {
-    if (iSt !== -1 && t(r[iSt])) continue;
-    const o = iO === -1 ? '' : t(r[iO]);
-    const d = jahrMonat(r[iD]);
-    if (!o || !d) continue;
-    const alt = bestellMonat.get(o);
-    if (!alt || vor(d, alt)) bestellMonat.set(o, d);
-  }
-  const monatVon = r => (iO !== -1 && bestellMonat.get(t(r[iO]))) || jahrMonat(r[iD]);
+  const monatVon = monatDerBestellung(eigene, { iO, iD, iSt });
 
   const jahr = Array(12).fill(0), vorjahr = Array(12).fill(0);
   const jeArtikel = new Map();
@@ -98,13 +88,102 @@ export function verkaufsUebersicht({ header, rows, partnerId, spalten, heute }) 
   };
 }
 
+/** Monat der Bestellung = fruehestes Datum einer Verkaufszeile (ohne Storno-Marke) derselben Bestellung; sonst eigenes Datum. */
+function monatDerBestellung(eigene, { iO, iD, iSt }) {
+  const bestellMonat = new Map();
+  for (const r of eigene) {
+    if (iSt !== -1 && t(r[iSt])) continue;
+    const o = iO === -1 ? '' : t(r[iO]);
+    const d = jahrMonat(r[iD]);
+    if (!o || !d) continue;
+    const alt = bestellMonat.get(o);
+    if (!alt || vor(d, alt)) bestellMonat.set(o, d);
+  }
+  return r => (iO !== -1 && bestellMonat.get(t(r[iO]))) || jahrMonat(r[iD]);
+}
+
+// ── PD2: Detailansicht (Schalter je Partner, Spalte hinten im Partner-Reiter) ──
+export const DETAIL_SPALTE = 'Detailansicht';
+export const TOP_DETAIL = 10;
+/** Schalter an? Nur "ja" (Gross/Klein egal); leer/fehlt = aus. */
+export function detailAn(header, zeile) {
+  const i = (header ?? []).indexOf(DETAIL_SPALTE);
+  return i !== -1 && t(zeile?.[i]).toLowerCase() === 'ja';
+}
+
+/**
+ * Festpreis-Partner: Umsatz und Erloes je Monat (laufendes Jahr + Vorjahr), Summen, Top 10 - in BRUTTO (x MwSt wie die Auszahlung).
+ * Umsatz = VK-Netto (WooCommerce line_item.total: nach Rabatt/Gutschein, ohne Steuer, ohne Porto).
+ * Erloes (Inhaber 21.11., Variante A) = was dem Partner je Artikel bleibt: VK-Netto − (Festpreis + Handlingskosten) × Stueck − Mehrkosten;
+ *   Porto, PayPal und Verpackung bleiben in der Abrechnung. Festpreis/Handling sind Stueckpreise (nur das Vorzeichen wechselt bei
+ *   Gegenbuchungen) - deshalb Betrag × Stueckzahl wie utils/fp-abrechnung.js. Stornos/Teilerstattungen: negative Zeilen mindern.
+ * Monat und "keine Daten" wie verkaufsUebersicht (dieselbe Zuordnung). Gesperrte Zeilen (Festpreis leer) zaehlen nur im Umsatz.
+ */
+export function fpBetragsUebersicht({ header, rows, partnerId, heute, mwstProzent }) {
+  const h = n => header.indexOf(n);
+  const iP = h('Partner-ID'), iD = h('Datum'), iQ = h('Stückzahl'), iA = h('Artikelname'), iSt = h('Storno-Status'), iO = h('WC-Bestellnummer');
+  const iVk = h('VK-Netto'), iF = h('Festpreis'), iH = h('Handlingskosten'), iM = h('Mehrkosten');
+  const { jahr: J, monat: M } = jahrMonat(heute);
+  const satz = 100 + (Number(mwstProzent) || 0);   // brutto in Cent: netto × (100 + MwSt) - vermeidet 16,065 -> 16,06
+  const eigene = rows.filter(r => t(r[iP]) === partnerId);
+  const monatVon = monatDerBestellung(eigene, { iO, iD, iSt });
+  const reihe = () => ({ jahr: Array(12).fill(0), vorjahr: Array(12).fill(0) });
+  const umsatz = reihe(), erloes = reihe();
+  const jeArtikel = new Map();
+  let erstes = null;
+  for (const r of eigene) {
+    const d = monatVon(r);
+    if (!d) continue;
+    if (!erstes || vor(d, erstes)) erstes = d;
+    const q = zahl(r[iQ]);
+    const vk = iVk === -1 ? 0 : zahl(r[iVk]);
+    const ohnePreis = iF === -1 || t(r[iF]) === '';
+    const er = ohnePreis ? 0 : vk - (Math.abs(zahl(r[iF])) + Math.abs(iH === -1 ? 0 : zahl(r[iH]))) * q - (iM === -1 ? 0 : zahl(r[iM]));
+    const ziel = d.jahr === J && d.monat <= M ? 'jahr' : d.jahr === J - 1 ? 'vorjahr' : null;
+    if (!ziel) continue;
+    umsatz[ziel][d.monat] += vk;
+    erloes[ziel][d.monat] += er;
+    if (ziel === 'jahr') {
+      const name = iA === -1 ? '' : t(r[iA]);
+      if (!name) continue;
+      const a = jeArtikel.get(name) ?? { stueck: 0, umsatz: 0, erloes: 0 };
+      a.stueck += q; a.umsatz += vk; a.erloes += er;
+      jeArtikel.set(name, a);
+    }
+  }
+  const b = n => Math.round(n * satz + (n >= 0 ? 1e-9 : -1e-9)) / 100;   // brutto, kaufmaennisch auf Cent
+  const ohneDaten = (m, jahr) => !erstes || vor({ jahr, monat: m }, erstes);   // vor dem ersten Datenmonat
+  const fertig = x => ({
+    jahr: x.jahr.map((v, m) => (m <= M ? b(v) : null)),
+    vorjahr: x.vorjahr.map((v, m) => (ohneDaten(m, J - 1) ? null : b(v))),
+  });
+  const u = fertig(umsatz), e = fertig(erloes);
+  const summe = (a, bis) => rund(a.slice(0, bis + 1).reduce((s, v) => s + (v ?? 0), 0));
+  const vjGanz = arr => arr.slice(0, M + 1).every(v => v !== null);
+  return {
+    reihe: { umsatz: u, erloes: e },
+    umsatzJahr: summe(u.jahr, M), erloesJahr: summe(e.jahr, M),
+    umsatzVorjahr: vjGanz(u.vorjahr) ? summe(u.vorjahr, M) : null,
+    erloesVorjahr: vjGanz(e.vorjahr) ? summe(e.vorjahr, M) : null,
+    top10: [...jeArtikel].map(([name, a]) => ({ name, stueck: rund(a.stueck), umsatz: b(a.umsatz), erloes: b(a.erloes) }))
+      .filter(x => x.stueck > 0).sort((x, y) => y.stueck - x.stueck || x.name.localeCompare(y.name, 'de')).slice(0, TOP_DETAIL),
+  };
+}
+
 /**
  * Antwort der Route /uebersicht - FESTE Feldauswahl (FIX4): nur, was die Startseite zeigt.
  * auszahlung: { saldo, seit, saldoKachel, intern, internOhneBetrag }
  */
-export function uebersichtAntwort({ auszahlung, statistik }) {
+export function uebersichtAntwort({ auszahlung, statistik, detail = null }) {
   const a = auszahlung ?? {};
+  const kopie = r => ({ jahr: [...r.jahr], vorjahr: [...r.vorjahr] });
   return {
+    // PD2: Betragsfelder NUR bei eingeschalteter Detailansicht - sonst gibt es den Schluessel gar nicht.
+    ...(detail ? { detail: {
+      reihe: { umsatz: kopie(detail.reihe.umsatz), erloes: kopie(detail.reihe.erloes) },
+      umsatzJahr: detail.umsatzJahr, erloesJahr: detail.erloesJahr, umsatzVorjahr: detail.umsatzVorjahr, erloesVorjahr: detail.erloesVorjahr,
+      top10: detail.top10.map(x => ({ name: x.name, stueck: x.stueck, umsatz: x.umsatz, erloes: x.erloes })),
+    } } : {}),
     auszahlung: {
       saldo: Number(a.saldo) || 0,
       seit: t(a.seit),

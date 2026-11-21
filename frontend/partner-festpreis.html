@@ -218,16 +218,40 @@
       grid-template-areas: "aus aus" "off pr" "jahr jahr" "kurve kurve" "top top"; }
     .pu-raster.pu-ohne-saldo { grid-template-areas: "off pr" "jahr jahr" "kurve kurve" "top top"; }
     .pu-aus { grid-area: aus; } .pu-off { grid-area: off; } .pu-pr { grid-area: pr; } .pu-jahr { grid-area: jahr; }
+    .pu-ums { grid-area: ums; } .pu-erl { grid-area: erl; } .pu-betraege-knopf { grid-area: knopf; }
+    /* PD2 Detailansicht: zwei Betrags-Kacheln, am Handy erst nach "Beträge zeigen" */
+    .pu-raster.pu-mit-detail { grid-template-areas: "knopf knopf" "aus aus" "off pr" "jahr jahr" "ums erl" "kurve kurve" "top top"; }
+    .pu-raster.pu-mit-detail.pu-ohne-saldo { grid-template-areas: "knopf knopf" "off pr" "jahr jahr" "ums erl" "kurve kurve" "top top"; }
+    .pu-betraege-knopf { min-height: 44px; padding: 0 1rem; justify-self: start; background: var(--surface); color: var(--info); border: 1px solid var(--border);
+      border-radius: 999px; font: inherit; font-weight: 600; cursor: pointer; }
+    .pu-betraege-knopf:focus-visible, .pu-umschalter button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+    @media (max-width: 699px) { .pu-betraege-aus .pu-betrag { display: none; } .pu-betraege-aus.pu-mit-detail { grid-template-areas: "knopf knopf" "aus aus" "off pr" "jahr jahr" "kurve kurve" "top top"; }
+      .pu-betraege-aus.pu-mit-detail.pu-ohne-saldo { grid-template-areas: "knopf knopf" "off pr" "jahr jahr" "kurve kurve" "top top"; } }
+    @media (min-width: 700px) { .pu-betraege-knopf { display: none; } }
+    .pu-umschalter { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 999px; padding: 2px; margin: 0 0 0.4rem; background: var(--bg); }
+    .pu-umschalter button { min-height: 44px; min-width: 44px; padding: 0 0.8rem; background: none; border: none; border-radius: 999px; color: var(--muted); font: inherit; font-size: 0.85rem; cursor: pointer; }
+    .pu-umschalter button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 0 0 1px var(--border); }
+    .pu-top10 { margin: 0; padding-left: 1.4rem; display: flex; flex-direction: column; gap: 0.45rem; font-size: 0.9rem; }
+    .pu-top10 li { padding-left: 0.2rem; }
+    .pu-top10-name { display: block; color: var(--text); overflow-wrap: anywhere; }
+    .pu-top10-zahlen { display: block; color: var(--muted); font-size: 0.82rem; }
+    .pu-top10-zahlen strong { color: var(--text); font-weight: 600; }
     .pu-kurve { grid-area: kurve; } .pu-top { grid-area: top; }
     @media (min-width: 700px) {
       .pu-raster { grid-template-columns: repeat(4, minmax(0, 1fr));
         grid-template-areas: "aus aus kurve kurve" "off pr kurve kurve" "jahr jahr kurve kurve" "top top top top"; }
       .pu-raster.pu-ohne-saldo { grid-template-areas: "off pr kurve kurve" "jahr jahr kurve kurve" "top top top top"; }
+      .pu-raster.pu-mit-detail { grid-template-areas: "aus aus kurve kurve" "off pr kurve kurve" "jahr jahr kurve kurve" "ums erl kurve kurve" "top top top top"; }
+      .pu-raster.pu-mit-detail.pu-ohne-saldo { grid-template-areas: "off pr kurve kurve" "jahr jahr kurve kurve" "ums erl kurve kurve" "top top top top"; }
     }
     @media (min-width: 1000px) {
       .pu-raster { grid-template-columns: repeat(12, minmax(0, 1fr));
         grid-template-areas: "aus aus aus off off off pr pr pr jahr jahr jahr" "kurve kurve kurve kurve kurve kurve kurve kurve top top top top"; }
       .pu-raster.pu-ohne-saldo { grid-template-areas: "off off off off pr pr pr pr jahr jahr jahr jahr" "kurve kurve kurve kurve kurve kurve kurve kurve top top top top"; }
+      .pu-raster.pu-mit-detail { grid-template-areas: "aus aus aus off off off pr pr pr jahr jahr jahr" "ums ums ums ums ums ums erl erl erl erl erl erl"
+        "kurve kurve kurve kurve kurve kurve kurve kurve top top top top"; }
+      .pu-raster.pu-mit-detail.pu-ohne-saldo { grid-template-areas: "off off off off pr pr pr pr jahr jahr jahr jahr" "ums ums ums ums ums ums erl erl erl erl erl erl"
+        "kurve kurve kurve kurve kurve kurve kurve kurve top top top top"; }
     }
     .pu-kachel { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; min-height: 96px; padding: 0.9rem 1rem;
       text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; color: var(--muted); font: inherit; cursor: pointer; }
@@ -264,10 +288,11 @@
     .pu-tipp { position: relative; }
     .pu-tipp::after { content: attr(data-tipp); position: absolute; left: 0; top: calc(100% + 6px); z-index: 20; width: max-content; max-width: min(18rem, 80vw);
       background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 0.35rem 0.55rem; font-size: 0.76rem;
-      line-height: 1.35; font-weight: 400; text-align: left; box-shadow: 0 4px 14px var(--shadow); opacity: 0; pointer-events: none; transition: opacity 0.12s; }
+      line-height: 1.35; font-weight: 400; text-align: left; box-shadow: 0 4px 14px var(--shadow); pointer-events: none; display: none; }
     .pu-tipp.pu-rechts::after { left: auto; right: 0; }
-    @media (hover: hover) { .pu-tipp:hover::after { opacity: 1; } }
-    .pu-tipp:focus-visible::after { opacity: 1; }
+    /* nur bei Maus bzw. Tastatur-Fokus im Layout - sonst zaehlt der verborgene Text als Ueberlauf */
+    @media (hover: hover) { .pu-tipp:hover::after { display: block; } }
+    .pu-tipp:focus-visible::after { display: block; }
     .pu-details > summary { min-height: 44px; display: flex; align-items: center; gap: 0.4rem; cursor: pointer; color: var(--info); font-weight: 600; list-style: none; }
     .pu-details > summary::-webkit-details-marker { display: none; }
     .pu-details > summary::before { content: '▸'; transition: transform 0.15s; }
@@ -417,6 +442,9 @@
     const DG_MONATE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
     const dgEsc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
     const dgZahl = n => Number(n || 0).toLocaleString('de-DE', { maximumFractionDigits: 2 });
+    const dgEuro = n => Number(n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+    const DG_STUECK = { wert: v => `${dgZahl(v)} Stück`, diff: v => dgZahl(v) };   // Formatierer fuer Saetze
+    const DG_EURO = { wert: v => dgEuro(v), diff: v => dgEuro(v) };
     /** Obergrenze der Achse: 1, 2, 4 oder 5 mal Zehnerpotenz, mindestens 4 (Mittellinie = Haelfte). */
     function dgObergrenze(max) {
       const roh = Math.max(4, max);
@@ -436,10 +464,11 @@
     /** Linie mit 12 Monaten: haupt (durchgezogen, --info), vergleich (gestrichelt, --muted, optional).
      *  laufend = Index des laufenden Monats: dorthin gepunktet mit hohlem Punkt ("bisher" - der Monat ist noch nicht um). */
     function dgLinie({ haupt, vergleich, beschreibung, laufend = null }) {
-      const B = 300, L = 30, R = 10, O = 12, U = 128;
+      const B = 300, R = 10, O = 12, U = 128;
       const NS = ' vector-effect="non-scaling-stroke"';
       const werte = [...(haupt ?? []), ...(vergleich ?? [])].filter(w => w !== null && w !== undefined).map(Number);
       const oben = dgObergrenze(werte.length ? Math.max(...werte) : 0);
+      const L = Math.max(30, Math.ceil(12 + 6.5 * dgZahl(oben).length));   // Platz fuer die laengste Achsenzahl ("2.000")
       const x = i => L + i * (B - L - R) / 11;
       const y = w => U - (w / oben) * (U - O);
       const pkt = s => s.map(([i, w]) => `${x(i).toFixed(1)},${y(w).toFixed(1)}`).join(' ');
@@ -480,24 +509,24 @@
         + `<strong class="dg-balken-zahl">${dgZahl(e.wert)}</strong>`
         + `<span class="dg-balken-spur" aria-hidden="true"><b class="dg-balken-wert" style="width:${Math.max(2, Math.round((Number(e.wert) || 0) / max * 100))}%"></b></span>`).join('') + '</div>';
     }
-    /** "8 mehr als im Vorjahr" / "3 weniger …" / "genauso viele …"; ohne Vergleichswert ''. */
-    function dgVergleich(wert, vorher) {
+    /** "8 mehr als im Vorjahr" / "3 weniger …" / "genauso viele …"; ohne Vergleichswert ''. fmt = DG_STUECK | DG_EURO */
+    function dgVergleich(wert, vorher, fmt = DG_STUECK) {
       if (vorher === null || vorher === undefined) return '';
       const d = Math.round(((Number(wert) || 0) - Number(vorher)) * 100) / 100;
-      if (d > 0) return `${dgZahl(d)} mehr als im Vorjahr`;
-      if (d < 0) return `${dgZahl(-d)} weniger als im Vorjahr`;
-      return 'genauso viele wie im Vorjahr';
+      if (d > 0) return `${fmt.diff(d)} mehr als im Vorjahr`;
+      if (d < 0) return `${fmt.diff(-d)} weniger als im Vorjahr`;
+      return fmt === DG_STUECK ? 'genauso viele wie im Vorjahr' : 'genauso viel wie im Vorjahr';
     }
     /** Satz unter der Kurve: letzter ganzer Monat (mit Vorjahr) + laufender Monat bisher. */
-    function dgSatzMonat({ jahr, monat, reihe }) {
+    function dgSatzMonat({ jahr, monat, reihe }, fmt = DG_STUECK) {
       const j = reihe?.jahr ?? [], vj = reihe?.vorjahr ?? [];
       if (monat === 0) {
         const dez = vj[11];
-        return (dez !== null && dez !== undefined ? `Dezember ${jahr - 1}: ${dgZahl(dez)} Stück. ` : '') + `Januar bisher: ${dgZahl(j[0])} Stück.`;
+        return (dez !== null && dez !== undefined ? `Dezember ${jahr - 1}: ${fmt.wert(dez)}. ` : '') + `Januar bisher: ${fmt.wert(j[0])}.`;
       }
       const m = monat - 1;
-      const vergleich = dgVergleich(j[m], vj[m]);
-      return `${DG_MONATE[m]}: ${dgZahl(j[m])} Stück${vergleich ? `, ${vergleich}` : ''}. ${DG_MONATE[monat]} bisher: ${dgZahl(j[monat])} Stück.`;
+      const vergleich = dgVergleich(j[m], vj[m], fmt);
+      return `${DG_MONATE[m]}: ${fmt.wert(j[m])}${vergleich ? `, ${vergleich}` : ''}. ${DG_MONATE[monat]} bisher: ${fmt.wert(j[monat])}.`;
     }
     // ── Diagramme: Ende ──
 
@@ -512,14 +541,40 @@
     }
     const puI = (id, tipp, rechts = true) => `<button type="button" class="pu-i pu-tipp${rechts ? ' pu-rechts' : ''}" data-pu-info="${id}" aria-expanded="false" aria-controls="${id}" aria-label="Was bedeutet das?" data-tipp="${dgEsc(tipp)}">ⓘ</button>`;
     const puInfo = (id, text) => `<p class="pu-info" id="${id}" hidden>${text}</p>`;
-    function puJahrVergleich(d) {
-      if (d.stueckVorjahr !== null && d.stueckVorjahr !== undefined) {
-        const diff = Math.round((d.stueckJahr - d.stueckVorjahr) * 100) / 100;
-        if (diff > 0) return `<span class="pu-chip pu-chip-gut">+${dgZahl(diff)} zum Vorjahr</span>`;
-        if (diff < 0) return `<span class="pu-klein">${dgZahl(diff)} zum Vorjahr</span>`;
+    function puJahrVergleich(d, jetzt = d.stueckJahr, vorher = d.stueckVorjahr, fmt = DG_STUECK) {
+      if (vorher !== null && vorher !== undefined) {
+        const diff = Math.round((jetzt - vorher) * 100) / 100;
+        if (diff > 0) return `<span class="pu-chip pu-chip-gut">+${fmt.diff(diff)} zum Vorjahr</span>`;
+        if (diff < 0) return `<span class="pu-klein">−${fmt.diff(-diff)} zum Vorjahr</span>`;
         return '<span class="pu-klein">wie im Vorjahr</span>';
       }
       return d.vorjahrDaten ? `<span class="pu-klein">Vorjahr erst ab ${DG_MONATE[d.vorjahrAb] ?? ''}</span>` : '<span class="pu-klein">Vorjahr: keine Daten</span>';
+    }
+    // PD2: Detailansicht (nur wenn die Antwort `detail` traegt) - Reihe der Kurve umschaltbar, Betraege am Handy erst nach Antippen.
+    let puLetzte = null;
+    const PU_REIHEN = { stueck: 'Stück', umsatz: 'Umsatz', erloes: 'Erlös' };
+    function puKurveInhalt(d, art = 'stueck') {
+      const det = d.detail;
+      const vj = d.vorjahrDaten;
+      const reihe = art === 'stueck' || !det ? d.reihe : det.reihe[art];
+      const fmt = art === 'stueck' ? DG_STUECK : DG_EURO;
+      const legende = `<p class="pu-legende"><span><i class="pu-strich"></i>${d.jahr}</span><span><i class="pu-punkt"></i>${DG_MONATE[d.monat] ?? ''} bisher</span>`
+        + (vj ? `<span><i class="pu-strich pu-vj"></i>${d.jahr - 1}</span>` : '<span>Vorjahr: keine Daten</span>') + '</p>';
+      return dgLinie({ haupt: reihe.jahr, vergleich: vj ? reihe.vorjahr : null, laufend: d.monat,
+        beschreibung: `${art === 'stueck' ? 'Verkaufte Stück' : `${PU_REIHEN[art]} in Euro`} je Monat ${d.jahr}${vj ? ` im Vergleich zu ${d.jahr - 1}` : ''}` })
+        + legende + `<p class="pu-satz">${dgEsc(dgSatzMonat({ jahr: d.jahr, monat: d.monat, reihe }, fmt))}</p>`;
+    }
+    function puUmschalterHtml() {
+      return '<div class="pu-umschalter" role="group" aria-label="Kurve zeigt">'
+        + Object.entries(PU_REIHEN).map(([k, n]) => `<button type="button" class="pu-tipp${k === 'stueck' ? '' : ' pu-betrag'}" data-pu-reihe="${k}" aria-pressed="${k === 'stueck'}"`
+          + ` data-tipp="${dgEsc(`Kurve: ${n} je Monat`)}">${n}</button>`).join('') + '</div>';
+    }
+    function puTop10Html(det) {
+      const top = det.top10 ?? [];
+      if (!top.length) return '<p class="pu-leer">In diesem Jahr ist noch nichts verkauft.</p>';
+      return '<ol class="pu-top10">' + top.map(t => `<li><span class="pu-top10-name">${dgEsc(t.name)}</span>`
+        + `<span class="pu-top10-zahlen"><strong>${dgZahl(t.stueck)} Stück</strong><span class="pu-betrag"> · Umsatz ${dgEuro(t.umsatz)} · Erlös ${dgEuro(t.erloes)}</span></span></li>`).join('')
+        + '</ol>' + `<p class="pu-satz">Am meisten verkauft: ${dgEsc(top[0].name)} (${dgZahl(top[0].stueck)} Stück).</p>`;
     }
     function puHtml(d) {
       const a = d.auszahlung ?? {};
@@ -544,19 +599,29 @@
       const bis = DG_MONATE[d.monat] ?? '';
       const jahr = `<div class="pu-kachel pu-jahr pu-tipp pu-rechts" tabindex="0" data-tipp="${dgEsc(`Verkaufte Stück von Januar bis ${bis} ${d.jahr}, Stornos und Erstattungen abgezogen. Vergleich: derselbe Zeitraum ${d.jahr - 1}.`)}">`
         + `<span class="pu-zahl">${dgZahl(d.stueckJahr)}</span><span class="pu-label">Stück ${d.jahr}</span>${puJahrVergleich(d)}</div>`;
-      const vj = d.vorjahrDaten;
       const ohne = d.ohneVerkaeufe || !Array.isArray(d.reihe?.jahr) || !d.reihe.jahr.length;   // auch ohne Reihe: Satz statt leerer Achse
-      const legende = `<p class="pu-legende"><span><i class="pu-strich"></i>${d.jahr}</span><span><i class="pu-punkt"></i>${DG_MONATE[d.monat] ?? ''} bisher</span>`
-        + (vj ? `<span><i class="pu-strich pu-vj"></i>${d.jahr - 1}</span>` : '<span>Vorjahr: keine Daten</span>') + '</p>';
-      const kurve = `<section class="pu-karte pu-kurve"><div class="pu-kopf"><h2>Verkäufe ${d.jahr} (Stück)</h2>`
-        + puI('pu-i-kurve', 'Verkaufte Stück je Monat, Stornos abgezogen. Gestrichelt: das Vorjahr.') + '</div>'
-        + puInfo('pu-i-kurve', 'Jeder Punkt ist ein Monat: verkaufte Stück aus Bestellungen dieses Monats. Stornos und Erstattungen zählen im Monat der Bestellung und sind abgezogen. Die gestrichelte Linie zeigt das Vorjahr, soweit es Daten gibt.')
+      const det = d.detail ?? null;
+      puLetzte = d;
+      const kurve = `<section class="pu-karte pu-kurve"><div class="pu-kopf"><h2>Verkäufe ${d.jahr}${det ? '' : ' (Stück)'}</h2>`
+        + puI('pu-i-kurve', det ? 'Stück, Umsatz oder Erlös je Monat, Stornos abgezogen. Gestrichelt: das Vorjahr.' : 'Verkaufte Stück je Monat, Stornos abgezogen. Gestrichelt: das Vorjahr.') + '</div>'
+        + puInfo('pu-i-kurve', 'Jeder Punkt ist ein Monat: verkaufte Stück aus Bestellungen dieses Monats. Stornos und Erstattungen zählen im Monat der Bestellung und sind abgezogen. Die gestrichelte Linie zeigt das Vorjahr, soweit es Daten gibt.'
+          + (det ? ' Umsatz: was Kunden für deine Artikel bezahlt haben (brutto, nach Rabatt und Gutschein, ohne Porto). Erlös: Umsatz minus Festpreis, Handling und Mehrkosten (brutto) – Porto, PayPal und Verpackung rechnet die Abrechnung.' : ''))
         + (ohne
           ? '<p class="pu-leer">Sobald die ersten Artikel verkauft sind, siehst du hier deine Verkäufe je Monat.</p>'
-          : dgLinie({ haupt: d.reihe.jahr, vergleich: vj ? d.reihe.vorjahr : null, laufend: d.monat,
-            beschreibung: `Verkaufte Stück je Monat ${d.jahr}${vj ? ` im Vergleich zu ${d.jahr - 1}` : ''}` })
-            + legende + `<p class="pu-satz">${dgEsc(dgSatzMonat(d))}</p>`)
+          : (det ? puUmschalterHtml() : '') + `<div class="pu-kurve-inhalt" id="pu-kurve-inhalt">${puKurveInhalt(d)}</div>`)
         + '</section>';
+      if (det) {
+        const top10 = `<section class="pu-karte pu-top"><div class="pu-kopf"><h2>Top 10 in diesem Jahr</h2>`
+          + puI('pu-i-top', 'Deine zehn meistverkauften Artikel seit Januar: Stück, Umsatz und Erlös.') + '</div>'
+          + puInfo('pu-i-top', 'Sortiert nach Stück seit dem 1. Januar, Stornos und Erstattungen abgezogen. Umsatz und Erlös brutto wie oben. Heißt ein Artikel im Shop inzwischen anders, kann er zweimal auftauchen.')
+          + puTop10Html(det) + '</section>';
+        const ums = `<div class="pu-kachel pu-ums pu-betrag pu-tipp" tabindex="0" data-tipp="Was Kunden für deine Artikel bezahlt haben (brutto, nach Rabatt und Gutschein, ohne Porto), Stornos und Erstattungen abgezogen.">`
+          + `<span class="pu-zahl">${dgEuro(det.umsatzJahr)}</span><span class="pu-label">Umsatz ${d.jahr}</span>${puJahrVergleich(d, det.umsatzJahr, det.umsatzVorjahr, DG_EURO)}</div>`;
+        const erl = `<div class="pu-kachel pu-erl pu-betrag pu-tipp pu-rechts" tabindex="0" data-tipp="Was dir von deinen Artikeln bleibt: Umsatz minus Festpreis, Handling und Mehrkosten (brutto). Porto, PayPal und Verpackung rechnet die Abrechnung.">`
+          + `<span class="pu-zahl">${dgEuro(det.erloesJahr)}</span><span class="pu-label">Erlös ${d.jahr}</span>${puJahrVergleich(d, det.erloesJahr, det.erloesVorjahr, DG_EURO)}</div>`;
+        const knopf = '<button type="button" class="pu-betraege-knopf pu-tipp" data-pu-betraege aria-expanded="false" data-tipp="Umsatz und Erlös auf diesem Gerät einblenden">Beträge zeigen</button>';
+        return `<div class="pu-raster pu-mit-detail pu-betraege-aus${a.saldoKachel === false ? ' pu-ohne-saldo' : ''}">${knopf}${aus}${off}${pr}${jahr}${ums}${erl}${kurve}${top10}</div>`;
+      }
       const top5 = d.top5 ?? [];
       const top = `<section class="pu-karte pu-top"><div class="pu-kopf"><h2>Top 5 in diesem Jahr</h2>`
         + puI('pu-i-top', 'Deine fünf meistverkauften Artikel seit Januar, nach Stück.') + '</div>'
@@ -577,6 +642,26 @@
       return '<p class="pu-leer">Übersicht gerade nicht verfügbar – die Details stehen darunter.</p>';
     }
     document.addEventListener('click', ev => {
+      const r = ev.target.closest ? ev.target.closest('[data-pu-reihe]') : null;
+      if (r && puLetzte) {
+        document.querySelectorAll('[data-pu-reihe]').forEach(k => k.setAttribute('aria-pressed', String(k === r)));
+        const ziel = document.getElementById('pu-kurve-inhalt');
+        if (ziel) ziel.innerHTML = puKurveInhalt(puLetzte, r.dataset.puReihe);
+        return;
+      }
+      const bt = ev.target.closest ? ev.target.closest('[data-pu-betraege]') : null;
+      if (bt) {
+        const raster = bt.closest('.pu-raster');
+        const zu = raster.classList.toggle('pu-betraege-aus');
+        bt.setAttribute('aria-expanded', String(!zu));
+        bt.textContent = zu ? 'Beträge zeigen' : 'Beträge ausblenden';
+        if (zu && puLetzte) {   // ausgeblendet: Kurve zurueck auf Stueck
+          document.querySelectorAll('[data-pu-reihe]').forEach(k => k.setAttribute('aria-pressed', String(k.dataset.puReihe === 'stueck')));
+          const ziel = document.getElementById('pu-kurve-inhalt');
+          if (ziel) ziel.innerHTML = puKurveInhalt(puLetzte, 'stueck');
+        }
+        return;
+      }
       const b = ev.target.closest ? ev.target.closest('[data-pu-info]') : null;
       if (!b) return;
       const p = document.getElementById(b.dataset.puInfo);

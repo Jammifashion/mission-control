@@ -520,6 +520,21 @@ const UEBERSICHT_FP = {
   vorjahrDaten: false, vorjahrAb: null, stueckJahr: 489, stueckVorjahr: null,
   top5: [{ name: 'Becher Logo', stueck: 120 }, { name: 'Shirt Motiv A', stueck: 98 }, { name: 'Sticker-Set', stueck: 75 }],
   ohneVerkaeufe: false,
+  // PD2: Detailansicht (Schalter "ja") - erfundene Betraege
+  detail: {
+    reihe: {
+      umsatz: { jahr: [161.1, 250.6, 537, 859.2, 930.8, 1091.9, 787.6, 1020.3, 1127.7, 1432, 554.9, null], vorjahr: Array(12).fill(null) },
+      erloes: { jahr: [62.4, 97.1, 208.1, 333, 360.7, 423.2, 305.2, 395.4, 437, 554.9, 215, null], vorjahr: Array(12).fill(null) },
+    },
+    umsatzJahr: 8753.1, erloesJahr: 3392, umsatzVorjahr: null, erloesVorjahr: null,
+    top10: [
+      { name: 'Becher Logo', stueck: 120, umsatz: 1785, erloes: 642.6 }, { name: 'Shirt Motiv A', stueck: 98, umsatz: 2448.2, erloes: 1017.1 },
+      { name: 'Sticker-Set', stueck: 75, umsatz: 446.3, erloes: 223.1 }, { name: 'Hoodie Motiv B mit langem Namen zum Umbrechen', stueck: 41, umsatz: 2194.3, erloes: 780.8 },
+      { name: 'Beutel', stueck: 33, umsatz: 471.2, erloes: 157.1 }, { name: 'Poster A3', stueck: 30, umsatz: 535.5, erloes: 249.9 },
+      { name: 'Mütze', stueck: 22, umsatz: 497.6, erloes: 165.9 }, { name: 'Schal', stueck: 19, umsatz: 451.7, erloes: 135.5 },
+      { name: 'Kinder-Shirt', stueck: 15, umsatz: 267.8, erloes: 89.3 }, { name: 'Postkarten', stueck: 12, umsatz: 42.8, erloes: 21.4 },
+    ],
+  },
 };
 
 // ════════════════════════════════════════════════════════════════════════════
