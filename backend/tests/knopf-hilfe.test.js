@@ -15,6 +15,8 @@ const { KNOPF_HILFE, HILFE_GRUPPEN, hilfeText, hilfeLegendeHtml, hilfeEinrichten
 const benutzt = [...[...html.matchAll(/data-hilfe="([a-z0-9-]+)"/g)].map(m => m[1]),
   // BO4f: Hilfetexte, die erst im Code gesetzt werden (gesperrter Knopf im Dialog "L-Shop-Bestellung")
   ...[...html.slice(html.indexOf('function ediKnoepfe('), html.indexOf('function ediNachErzeugen(')).matchAll(/'(edi-[a-z-]+)'/g)].map(m => m[1]),
+  // UB1: Mouse-over der Ueberblick-Legende (an dgStapel uebergeben)
+  ...[...html.slice(html.indexOf('function dbUeberblickHtml('), html.indexOf('// ── Dashboard-Anzeige: Ende')).matchAll(/hilfe: '(dash-ub-[a-z]+)'/g)].map(m => m[1]),
   // DB1: Mouse-over je Dashboard-Kachel (DB_KACHEL_HILFE)
   ...[...html.slice(html.indexOf('const DB_KACHEL_HILFE = {'), html.indexOf('function dbKachel(')).matchAll(/'(dash-k-[a-z]+)'/g)].map(m => m[1]),
   // BO7-5: Kennzeichen der Gruppen in "Lieferbarkeit Shop" (LFBS_GRUPPEN)

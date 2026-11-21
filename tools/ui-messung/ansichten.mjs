@@ -35,6 +35,8 @@ async function auftragMitGruppen(p, gruppen) {
 }
 
 export const ANSICHTEN_ZUSATZ = [
+  // UB1: Ueberblick im Dashboard aufgeklappt (am Handy standardmaessig zu)
+  { id: 'dashboard/start+ueberblick', hash: 'dashboard/start', aktion: async p => { await p.evaluate(() => { document.getElementById('dash-ueberblick').open = true; }); await p.waitForTimeout(300); }, wurzel: '#dash-ueberblick' },
   { id: 'auftraege/liste+ansicht', hash: 'auftraege/liste', aktion: klick('#au-ansicht [data-au-oeffnen]'), wurzel: DLG, nurVoll: true },
   { id: 'auftraege/liste+neuer-auftrag', hash: 'auftraege/liste', aktion: klick('#au-neu'), wurzel: DLG },
   // FB1: Feedback-Fenster allein und ueber einem offenen Fenster (gemessen wird nur das Feedback-Fenster)

@@ -93,6 +93,12 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   der Sync + Order-ID im Reiter Trikots). Kundenhinweis "gelesen" fuer alle: Reiter `Hinweis_Gelesen` (nur Shop, Nr, Pruefsumme,
   Kuerzel, Zeit; `scripts/setup-hinweis-gelesen.js`), geaenderte Notiz = neue Pruefsumme = wieder ungelesen. Alle/Christian/Nicole je
   Geraet (`mc_dash_wer`). DB2 "Vorlesen" (`#dash-vorlesen`, Block `Dashboard-Vorlesen: Anfang/Ende`, Test dashboard-vorlesen.test.js):
+  UB1 "Überblick" (21.11.) direkt unter "Zu tun" (`<details id="dash-ueberblick">`, am Handy zu, am Rechner offen, Wahl `mc_dash_ueberblick`): Antwortfeld
+  `ueberblick` { alter: je aktivem Shop `alterKlassen` (offene Bestellungen wie "wartend": ohne Trikots; 0-3 · 4-7 · 8-14 · > 14 Kalendertage Berlin,
+  Grenzen = LANGE_AB_TAGE/ROT_AB_TAGE, aber --warning statt Rot), status: `statusZahlen` (`UEBERBLICK_STATUS` Anfrage…übergeben, bezahlt/storniert nicht)
+  + terminBald } - nur aus schon geladenen Daten, KEINE zusaetzliche Lesung. Anzeige `dbUeberblickHtml` mit `dgStapel` (Baustein `Diagramme`, jetzt
+  wortgleich in MC UND beiden Portalen); Status-Legende = Knoepfe auf die vorhandenen Filter (`au-f`), Alter ohne Knopf (kein Altersfilter). Saetze
+  `ubSatzAlter`/`ubSatzStatus` (Block Vorlesen) unter den Grafiken und im Vorlesetext (nur > 0). Test ub1-ueberblick.test.js.
   Text aus festen Regeln NUR aus den Zahlen der Antwort (nie Namen/Bestell-/AU-Nummern/Hinweistexte), nur was > 0, Geld vor 18 Uhr
   gestern, ab 18 Uhr heute; `speechSynthesis` mit lokaler deutscher Stimme (`localService`, nie Online-Stimmen), Abschnitte <= 180
   Zeichen NACHEINANDER (DB2-1: Android-Chrome bricht eingereihte Aeusserungen ab; cancel() nur wenn etwas laeuft; Fehler = Toast mit

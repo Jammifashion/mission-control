@@ -528,6 +528,22 @@
       const vergleich = dgVergleich(j[m], vj[m], fmt);
       return `${DG_MONATE[m]}: ${fmt.wert(j[m])}${vergleich ? `, ${vergleich}` : ''}. ${DG_MONATE[monat]} bisher: ${fmt.wert(j[monat])}.`;
     }
+    /** UB1: gestapelte Leiste (Anteile) + Legende darunter. teile: [{ name, wert, farbe (CSS-Wert aus var(--…)), daten?, hilfe? }].
+     *  Die Leiste ist nur Bild (aria-hidden); bedienbar ist die Legende: mit daten (data-*-Attribute) ein Knopf, sonst Text. */
+    function dgStapel(teile, { beschreibung = '' } = {}) {
+      const liste = (teile ?? []).filter(Boolean);
+      const summe = liste.reduce((s, t) => s + (Number(t.wert) || 0), 0);
+      const leiste = summe ? liste.filter(t => Number(t.wert) > 0).map(t => `<span class="dg-stapel-teil" style="flex:${Number(t.wert)} 1 0;background:${t.farbe}"></span>`).join('')
+        : '<span class="dg-stapel-teil dg-stapel-leer"></span>';
+      const daten = d => Object.entries(d ?? {}).map(([k, v]) => ` data-${dgEsc(k)}="${dgEsc(v)}"`).join('');
+      const eintrag = t => {
+        const inhalt = `<i class="dg-stapel-farbe" style="background:${t.farbe}" aria-hidden="true"></i>${dgEsc(t.name)}: <strong>${dgZahl(t.wert)}</strong>`;
+        const hilfe = t.hilfe ? ` data-hilfe="${dgEsc(t.hilfe)}"` : '';   // Knopf: Mouse-over Pflicht, darum dort fest im Tag
+        return t.daten ? `<button type="button" class="dg-stapel-knopf"${daten(t.daten)} data-hilfe="${dgEsc(t.hilfe ?? '')}">${inhalt}</button>` : `<span class="dg-stapel-eintrag"${hilfe}>${inhalt}</span>`;
+      };
+      return `<div class="dg-stapel" role="img" aria-label="${dgEsc(beschreibung)}"><div class="dg-stapel-leiste" aria-hidden="true">${leiste}</div></div>`
+        + `<div class="dg-stapel-legende">${liste.map(eintrag).join('')}</div>`;
+    }
     // ── Diagramme: Ende ──
 
     // ── Partner-Übersicht: Anfang (PD1, wortgleich in partner.html und partner-festpreis.html, Test pd1-frontend.test.js) ──

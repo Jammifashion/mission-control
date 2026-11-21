@@ -1957,6 +1957,24 @@
         .hk-karten td[data-label="Fulfillment"] > * { grid-column: 2; justify-self: start; }
         .hk-karten td[data-label="Fulfillment"]::before { grid-row: 1 / span 2; }
       }
+      /* UB1: Ueberblick im Dashboard + gestapelte Leiste aus dem Baustein "Diagramme" (dgStapel) */
+      .dash-ueberblick > summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; list-style-position: inside; }
+      .dash-ub-teil + .dash-ub-teil { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+      .dash-ub-titel { font-size: 0.85rem; font-weight: 600; color: var(--muted); margin: 0.5rem 0 0.4rem; }
+      .dg-stapel-leiste { display: flex; gap: 2px; height: 28px; border-radius: 6px; overflow: hidden; background: var(--surface-2); }
+      .dg-stapel-teil { min-width: 6px; }
+      .dg-stapel-leer { flex: 1 1 auto; }
+      .dg-stapel-legende { display: flex; flex-wrap: wrap; gap: 0.3rem 0.5rem; margin-top: 0.45rem; }
+      .dg-stapel-knopf, .dg-stapel-eintrag { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 36px; padding: 0 0.6rem; font: inherit;
+        font-size: 0.85rem; color: var(--text); background: none; border: 1px solid var(--border); border-radius: 999px; }
+      .dg-stapel-eintrag { border-color: transparent; padding-left: 0.2rem; }
+      .dg-stapel-knopf { cursor: pointer; }
+      .dg-stapel-knopf:hover, .dg-stapel-knopf:focus-visible { border-color: var(--focus); }
+      .dg-stapel-farbe { display: inline-block; width: 12px; height: 12px; border-radius: 3px; flex: none; }
+      .dg-satz { font-size: 0.9rem; margin: 0.35rem 0 0; color: var(--text); }
+      .dash-ub-termin { margin-top: 0.4rem; }
+      @media (max-width: 600px) { .dg-stapel-knopf, .dg-stapel-eintrag, .dash-ub-termin { min-height: 44px; } }
+
       /* ── UI3 Handy: Anfang (Restfunde AH1) - Tippflaechen je Bereich: die Zeile waechst (min-height), nichts ueberdeckt Nachbarn ── */
       .td-text { font-size: 0.92rem; }
       /* Knopfpaare gleich breit */
@@ -2148,6 +2166,11 @@
           <div class="skeleton" style="height:84px;"></div><div class="skeleton" style="height:84px;"></div><div class="skeleton" style="height:84px;"></div>
         </div>
         <div class="card dash-detail" id="dash-detail" hidden></div>
+        <!-- UB1: Ueberblick (offene Bestellungen nach Alter, eigene Auftraege nach Status) - am Handy zu, am Rechner offen; Wahl merkt der Browser -->
+        <details class="card dash-ueberblick" id="dash-ueberblick">
+          <summary class="dash-ub-kopf" data-hilfe="dash-ueberblick">Überblick</summary>
+          <div id="dash-ub-inhalt"><div class="skeleton" style="height:60px;"></div></div>
+        </details>
         <div class="card">
           <h2>Neu in den letzten 24 h</h2>
           <div id="dash-neu"><div class="skeleton"></div></div>
@@ -4953,6 +4976,116 @@
           new Date().toLocaleDateString('de-DE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
       }
 
+      // ── Diagramme: Anfang (PD1, wortgleich in partner.html und partner-festpreis.html; spaeter auch MC, Test pd1-frontend.test.js) ──
+      // Selbst gezeichnet, ohne Bibliothek: Linie als SVG mit gestrichelter Vergleichslinie, waagerechte Balken als HTML.
+      // Farben nur ueber var(--…) im style-Attribut - hell/dunkel wechselt ohne Neuzeichnen. null = keine Daten (keine Linie, nicht 0).
+      const DG_MONATE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+      const dgEsc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+      const dgZahl = n => Number(n || 0).toLocaleString('de-DE', { maximumFractionDigits: 2 });
+      const dgEuro = n => Number(n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+      const DG_STUECK = { wert: v => `${dgZahl(v)} Stück`, diff: v => dgZahl(v) };   // Formatierer fuer Saetze
+      const DG_EURO = { wert: v => dgEuro(v), diff: v => dgEuro(v) };
+      /** Obergrenze der Achse: 1, 2, 4 oder 5 mal Zehnerpotenz, mindestens 4 (Mittellinie = Haelfte). */
+      function dgObergrenze(max) {
+        const roh = Math.max(4, max);
+        const p = Math.pow(10, Math.floor(Math.log10(roh)));
+        return [1, 2, 4, 5, 10].map(f => f * p).find(s => s >= roh);
+      }
+      /** Zusammenhaengende Strecken ohne null: [[[i, wert], …], …] */
+      function dgStrecken(werte) {
+        const teile = []; let akt = null;
+        (werte ?? []).forEach((w, i) => {
+          if (w === null || w === undefined) { akt = null; return; }
+          if (!akt) { akt = []; teile.push(akt); }
+          akt.push([i, Number(w) || 0]);
+        });
+        return teile;
+      }
+      /** Linie mit 12 Monaten: haupt (durchgezogen, --info), vergleich (gestrichelt, --muted, optional).
+       *  laufend = Index des laufenden Monats: dorthin gepunktet mit hohlem Punkt ("bisher" - der Monat ist noch nicht um). */
+      function dgLinie({ haupt, vergleich, beschreibung, laufend = null }) {
+        const B = 300, R = 10, O = 12, U = 128;
+        const NS = ' vector-effect="non-scaling-stroke"';
+        const werte = [...(haupt ?? []), ...(vergleich ?? [])].filter(w => w !== null && w !== undefined).map(Number);
+        const oben = dgObergrenze(werte.length ? Math.max(...werte) : 0);
+        const L = Math.max(30, Math.ceil(12 + 6.5 * dgZahl(oben).length));   // Platz fuer die laengste Achsenzahl ("2.000")
+        const x = i => L + i * (B - L - R) / 11;
+        const y = w => U - (w / oben) * (U - O);
+        const pkt = s => s.map(([i, w]) => `${x(i).toFixed(1)},${y(w).toFixed(1)}`).join(' ');
+        let svg = `<svg class="dg-linie" viewBox="0 0 ${B} 160" role="img" aria-label="${dgEsc(beschreibung)}">`;
+        for (const v of [0, oben / 2, oben]) {
+          svg += `<line x1="${L}" y1="${y(v).toFixed(1)}" x2="${B - R}" y2="${y(v).toFixed(1)}" style="stroke:var(--border)" stroke-width="1"${v ? ' stroke-dasharray="2 4"' : ''}${NS}/>`
+            + `<text x="${L - 6}" y="${(y(v) + 3).toFixed(1)}" text-anchor="end" font-size="11" style="fill:var(--muted)">${dgZahl(v)}</text>`;
+        }
+        for (const s of dgStrecken(vergleich)) {
+          svg += s.length > 1
+            ? `<polyline points="${pkt(s)}" fill="none" style="stroke:var(--muted)" stroke-width="2" stroke-dasharray="5 4"${NS}/>`
+            : `<circle cx="${x(s[0][0]).toFixed(1)}" cy="${y(s[0][1]).toFixed(1)}" r="2.5" style="fill:var(--muted)"/>`;
+        }
+        const lw = laufend !== null && laufend !== undefined && haupt?.[laufend] !== null && haupt?.[laufend] !== undefined ? Number(haupt[laufend]) : null;
+        const fest = lw === null ? haupt : (haupt ?? []).map((w, i) => (i === laufend ? null : w));
+        const hs = dgStrecken(fest);
+        for (const s of hs) {
+          svg += s.length > 1
+            ? `<polyline points="${pkt(s)}" fill="none" style="stroke:var(--info)" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"${NS}/>`
+            : `<circle cx="${x(s[0][0]).toFixed(1)}" cy="${y(s[0][1]).toFixed(1)}" r="3" style="fill:var(--info)"/>`;
+        }
+        const davor = lw !== null && laufend > 0 ? fest[laufend - 1] : null;
+        if (lw !== null) {
+          if (davor !== null && davor !== undefined) svg += `<line x1="${x(laufend - 1).toFixed(1)}" y1="${y(davor).toFixed(1)}" x2="${x(laufend).toFixed(1)}" y2="${y(lw).toFixed(1)}" style="stroke:var(--info)" stroke-width="2.5" stroke-dasharray="2 4" stroke-linecap="round"${NS}/>`;
+          svg += `<circle cx="${x(laufend).toFixed(1)}" cy="${y(lw).toFixed(1)}" r="4.5" style="fill:var(--surface);stroke:var(--info)" stroke-width="2.5"${NS}/>`;
+        } else {
+          const letzte = hs.length ? hs[hs.length - 1][hs[hs.length - 1].length - 1] : null;
+          if (letzte) svg += `<circle cx="${x(letzte[0]).toFixed(1)}" cy="${y(letzte[1]).toFixed(1)}" r="5" style="fill:var(--info)"/>`;
+        }
+        DG_MONATE.forEach((m, i) => { svg += `<text x="${x(i).toFixed(1)}" y="148" text-anchor="middle" font-size="11" style="fill:var(--muted)">${m[0]}</text>`; });
+        return svg + '</svg>';
+      }
+      /** Waagerechte Balken: [{ name, wert }] - laengster Balken = 100 %. */
+      function dgBalken(eintraege) {
+        if (!eintraege || !eintraege.length) return '';
+        const max = Math.max(...eintraege.map(e => Number(e.wert) || 0)) || 1;
+        return '<div class="dg-balken">' + eintraege.map(e => `<span class="dg-balken-name">${dgEsc(e.name)}</span>`
+          + `<strong class="dg-balken-zahl">${dgZahl(e.wert)}</strong>`
+          + `<span class="dg-balken-spur" aria-hidden="true"><b class="dg-balken-wert" style="width:${Math.max(2, Math.round((Number(e.wert) || 0) / max * 100))}%"></b></span>`).join('') + '</div>';
+      }
+      /** "8 mehr als im Vorjahr" / "3 weniger …" / "genauso viele …"; ohne Vergleichswert ''. fmt = DG_STUECK | DG_EURO */
+      function dgVergleich(wert, vorher, fmt = DG_STUECK) {
+        if (vorher === null || vorher === undefined) return '';
+        const d = Math.round(((Number(wert) || 0) - Number(vorher)) * 100) / 100;
+        if (d > 0) return `${fmt.diff(d)} mehr als im Vorjahr`;
+        if (d < 0) return `${fmt.diff(-d)} weniger als im Vorjahr`;
+        return fmt === DG_STUECK ? 'genauso viele wie im Vorjahr' : 'genauso viel wie im Vorjahr';
+      }
+      /** Satz unter der Kurve: letzter ganzer Monat (mit Vorjahr) + laufender Monat bisher. */
+      function dgSatzMonat({ jahr, monat, reihe }, fmt = DG_STUECK) {
+        const j = reihe?.jahr ?? [], vj = reihe?.vorjahr ?? [];
+        if (monat === 0) {
+          const dez = vj[11];
+          return (dez !== null && dez !== undefined ? `Dezember ${jahr - 1}: ${fmt.wert(dez)}. ` : '') + `Januar bisher: ${fmt.wert(j[0])}.`;
+        }
+        const m = monat - 1;
+        const vergleich = dgVergleich(j[m], vj[m], fmt);
+        return `${DG_MONATE[m]}: ${fmt.wert(j[m])}${vergleich ? `, ${vergleich}` : ''}. ${DG_MONATE[monat]} bisher: ${fmt.wert(j[monat])}.`;
+      }
+      /** UB1: gestapelte Leiste (Anteile) + Legende darunter. teile: [{ name, wert, farbe (CSS-Wert aus var(--…)), daten?, hilfe? }].
+       *  Die Leiste ist nur Bild (aria-hidden); bedienbar ist die Legende: mit daten (data-*-Attribute) ein Knopf, sonst Text. */
+      function dgStapel(teile, { beschreibung = '' } = {}) {
+        const liste = (teile ?? []).filter(Boolean);
+        const summe = liste.reduce((s, t) => s + (Number(t.wert) || 0), 0);
+        const leiste = summe ? liste.filter(t => Number(t.wert) > 0).map(t => `<span class="dg-stapel-teil" style="flex:${Number(t.wert)} 1 0;background:${t.farbe}"></span>`).join('')
+          : '<span class="dg-stapel-teil dg-stapel-leer"></span>';
+        const daten = d => Object.entries(d ?? {}).map(([k, v]) => ` data-${dgEsc(k)}="${dgEsc(v)}"`).join('');
+        const eintrag = t => {
+          const inhalt = `<i class="dg-stapel-farbe" style="background:${t.farbe}" aria-hidden="true"></i>${dgEsc(t.name)}: <strong>${dgZahl(t.wert)}</strong>`;
+          const hilfe = t.hilfe ? ` data-hilfe="${dgEsc(t.hilfe)}"` : '';   // Knopf: Mouse-over Pflicht, darum dort fest im Tag
+          return t.daten ? `<button type="button" class="dg-stapel-knopf"${daten(t.daten)} data-hilfe="${dgEsc(t.hilfe ?? '')}">${inhalt}</button>` : `<span class="dg-stapel-eintrag"${hilfe}>${inhalt}</span>`;
+        };
+        return `<div class="dg-stapel" role="img" aria-label="${dgEsc(beschreibung)}"><div class="dg-stapel-leiste" aria-hidden="true">${leiste}</div></div>`
+          + `<div class="dg-stapel-legende">${liste.map(eintrag).join('')}</div>`;
+      }
+      // ── Diagramme: Ende ──
+
       // ── Dashboard-Anzeige: Anfang (reine Anzeige, Test backend/tests/dashboard-frontend.test.js) ──
       // Daten und Zaehlregeln kommen fertig aus GET /api/dashboard (backend/utils/dashboard.js); hier nur HTML.
       // Eigenstaendig (eigene Maskierung), weil das Dashboard vor den Bloecken der Auftraege gezeichnet werden kann.
@@ -5064,6 +5197,30 @@
             `<div class="rev-col" data-hilfe="dash-balken" data-hilfe-zusatz="${dbEsc(`${wt(d.tag)}: ${dbEuro(d.betrag)}`)}"><div class="rev-bar" style="height:${Math.max(Math.round((d.betrag / max) * 62), 2)}px"></div>`
             + `<div class="rev-day">${dbEsc(wt(d.tag))}</div></div>`).join('')}</div></details>`;
       }
+      /** UB1: Abschnitt "Überblick". Farben nur ueber var(--…): jung --info, aelter --warning, ueber 14 Tage --warning voll (kein Rot). */
+      const UB_ALTER = [['k0_3', '0–3 Tage'], ['k4_7', '4–7 Tage'], ['k8_14', '8–14 Tage'], ['k15', 'über 14 Tage']];   // Spiegel von ALTER_KLASSEN (utils/dashboard.js)
+      const UB_ALTER_FARBE = { k0_3: 'color-mix(in srgb, var(--info) 45%, var(--surface))', k4_7: 'var(--info)',
+        k8_14: 'color-mix(in srgb, var(--warning) 55%, var(--surface))', k15: 'var(--warning)' };
+      const UB_STATUS = ['Anfrage', 'Angebot', 'Design', 'bestellt', 'in Produktion', 'fertig', 'übergeben'];   // Spiegel von UEBERBLICK_STATUS
+      const UB_STATUS_FARBE = { Anfrage: 'var(--muted)', Angebot: 'color-mix(in srgb, var(--info) 60%, var(--surface))', Design: 'var(--status-design)',
+        bestellt: 'color-mix(in srgb, var(--au) 60%, var(--surface))', 'in Produktion': 'var(--au)', fertig: 'var(--success)',
+        'übergeben': 'color-mix(in srgb, var(--success) 50%, var(--surface))' };
+      function dbUeberblickHtml(u) {
+        if (!u) return '<p class="dash-leer">–</p>';
+        const alter = (u.alter ?? []).map(a => `<div class="dash-ub-teil"><h3 class="dash-ub-titel">Offene Bestellungen nach Alter · ${dbEsc(a.shopKurz ?? a.shop)}</h3>`
+          + (a.fehlt ? `<p class="dash-leer">– ${dbEsc(dbFehlt(a.fehlt))}</p>`
+            : dgStapel(UB_ALTER.map(([k, name]) => ({ name, wert: a[k] ?? 0, farbe: UB_ALTER_FARBE[k], hilfe: 'dash-ub-alter' })),
+              { beschreibung: `Offene Bestellungen nach Alter: ${UB_ALTER.map(([k, name]) => `${name} ${a[k] ?? 0}`).join(', ')}` })
+              + `<p class="dg-satz">${dbEsc(ubSatzAlter(a))}</p>`) + '</div>').join('');
+        const st = u.status;
+        const status = '<div class="dash-ub-teil"><h3 class="dash-ub-titel">Eigene Aufträge nach Status</h3>' + (!st || st.fehlt ? `<p class="dash-leer">– ${dbEsc(dbFehlt(st?.fehlt))}</p>`
+          : dgStapel(UB_STATUS.filter(k => !DB_AU_NUR_MIT_BESTAND.includes(k) || Number(st[k])).map(k => ({   // AM-8: Anfrage/Angebot nur mit Bestand
+            name: k, wert: st[k] ?? 0, farbe: UB_STATUS_FARBE[k], daten: { 'dash-ub-status': k }, hilfe: 'dash-ub-status' })),
+            { beschreibung: `Eigene Aufträge nach Status: ${UB_STATUS.map(k => `${k} ${st[k] ?? 0}`).join(', ')}` })
+            + `<p class="dg-satz">${dbEsc(ubSatzStatus(st))}</p>`
+            + `<button type="button" class="dg-stapel-knopf dash-ub-termin" data-dash-ub-termin data-hilfe="dash-ub-termin">Termin in den nächsten 7 Tagen: <strong>${dbEsc(st.terminBald ?? 0)}</strong></button>`) + '</div>';
+        return alter + status;
+      }
       // ── Dashboard-Anzeige: Ende ──
 
       // ── Dashboard-Vorlesen: Anfang (DB2, reine Funktion, Test backend/tests/dashboard-vorlesen.test.js) ──
@@ -5076,6 +5233,21 @@
       const dbvGross = s => s.charAt(0).toUpperCase() + s.slice(1);
       const dbvEuro = n => `${Math.round(n).toLocaleString('de-DE')} Euro`;
       const dbvDa = x => x && !x.fehlt && !x.nurJfn;
+      // UB1: Saetze zum Ueberblick - unter den Grafiken und (nur was > 0 ist) beim Vorlesen. Nur Zahlen.
+      const UB_STATUS_TEXT = { Anfrage: 'Anfrage', Angebot: 'Angebot', Design: 'in Design', bestellt: 'bestellt', 'in Produktion': 'in Produktion',
+        fertig: 'fertig', 'übergeben': 'übergeben, nicht bezahlt' };
+      function ubSatzAlter(a) {
+        if (!a || a.fehlt) return '';
+        const g = Number(a.gesamt) || 0, alt = Number(a.k15) || 0, mittel = Number(a.k8_14) || 0;
+        if (!g) return 'Keine offenen Bestellungen.';
+        if (g === 1) return `Eine offene Bestellung – ${alt ? 'sie wartet länger als 14 Tage' : mittel ? 'sie wartet länger als 7 Tage' : 'jünger als 8 Tage'}.`;
+        return `${g} offene Bestellungen, ${alt ? `davon ${alt} länger als 14 Tage` : mittel ? `davon ${mittel} länger als 7 Tage` : 'keine älter als 7 Tage'}.`;
+      }
+      function ubSatzStatus(st) {
+        if (!st || st.fehlt) return '';
+        const teile = Object.keys(UB_STATUS_TEXT).filter(k => Number(st[k])).map(k => `${st[k]} ${UB_STATUS_TEXT[k]}`);
+        return teile.length ? `Offene eigene Aufträge: ${teile.join(', ')}.` : 'Keine offenen eigenen Aufträge.';
+      }
       /** Liste der Saetze (einzeln vorgelesen, damit lange Texte am Handy nicht abbrechen). */
       function dbVorleseSaetze(d, jetzt = new Date()) {
         const stunde = Number(new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', hour: 'numeric', hourCycle: 'h23' }).formatToParts(jetzt).find(p => p.type === 'hour').value);
@@ -5116,6 +5288,16 @@
           if (r.positionen) inhalt.push(`L-Shop-Rückstand: ${dbvZahl(r.positionen, 'eine Position', 'Positionen')}${r.kritisch ? `, davon ${r.kritisch === 1 ? 'eine' : r.kritisch} kritisch` : ''}${alt ? ', Liste veraltet' : ''}.`);
           else if (alt) inhalt.push('Die Rückstandsliste ist veraltet.');
         }
+        // UB1: Ueberblick - nur was > 0 ist
+        for (const a of d.ueberblick?.alter ?? []) {
+          if (a.fehlt || !Number(a.k15)) continue;
+          inhalt.push(`${a.k15 === 1 ? 'Eine Bestellung' : `${a.k15} Bestellungen`} im ${a.shop === 'honk' ? 'HONK-Shop' : 'Jammifashion Shop'} ${a.k15 === 1 ? 'wartet' : 'warten'} länger als 14 Tage.`);
+        }
+        const ubSt = d.ueberblick?.status;
+        if (ubSt && !ubSt.fehlt) {
+          if (ubSatzStatus(ubSt) !== 'Keine offenen eigenen Aufträge.') inhalt.push(ubSatzStatus(ubSt));
+          if (Number(ubSt.terminBald)) inhalt.push(ubSt.terminBald === 1 ? 'Ein Auftrag hat Termin in den nächsten 7 Tagen.' : `${ubSt.terminBald} Aufträge haben Termin in den nächsten 7 Tagen.`);
+        }
         if (dbvDa(k.trikots) && (k.trikots.ueber6Wochen || k.trikots.goalie)) {
           inhalt.push(`Trikots: ${[k.trikots.ueber6Wochen ? `${dbvZahl(k.trikots.ueber6Wochen, 'eine Bestellung', 'Bestellungen')} über 6 Wochen` : '',
             k.trikots.goalie ? `${k.trikots.goalie} Goalie offen` : ''].filter(Boolean).join(', ')}.`);
@@ -5137,6 +5319,16 @@
       // ── Dashboard-Vorlesen: Ende ──
 
       const DB_WER_KEY = 'mc_dash_wer';
+      // UB1: "Überblick" auf/zu je Geraet merken; ohne Wahl am Handy zu, am Rechner offen
+      const DB_UB_KEY = 'mc_dash_ueberblick';
+      (function ubAufZu() {
+        const d = document.getElementById('dash-ueberblick');
+        if (!d) return;
+        let wahl = null;
+        try { wahl = localStorage.getItem(DB_UB_KEY); } catch { /* Speicher gesperrt */ }
+        d.open = wahl ? wahl === 'auf' : !window.matchMedia?.('(max-width: 600px)').matches;
+        d.addEventListener('toggle', () => { try { localStorage.setItem(DB_UB_KEY, d.open ? 'auf' : 'zu'); } catch { /* nur jetzt */ } });
+      })();
       const dbZ = { daten: null, detail: '', wer: (() => { try { const w = localStorage.getItem(DB_WER_KEY); return ['Christian', 'Nicole'].includes(w) ? w : ''; } catch { return ''; } })(), laeuft: false };
       const dbEl = id => document.getElementById(id);
       function dbWerZeigen() { document.querySelectorAll('[data-dash-wer]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.dashWer === dbZ.wer))); }
@@ -5148,6 +5340,7 @@
         dbEl('dash-neu').innerHTML = dbNeuHtml(d.neu);
         dbEl('dash-wartend').innerHTML = d.wartend?.fehlt ? `<p class="dash-leer">– ${dbEsc(dbFehlt(d.wartend.fehlt))}</p>` : dbListeHtml(d.wartend?.liste, 'Nichts wartet.');
         dbEl('dash-au').innerHTML = dbAuHtml(d.auftraege);
+        dbEl('dash-ub-inhalt').innerHTML = dbUeberblickHtml(d.ueberblick);   // UB1
         const handy = window.matchMedia?.('(max-width: 600px)').matches;
         dbEl('dash-geld').innerHTML = dbGeldHtml(d.geld, { offenBalken: !handy });
         const det = dbEl('dash-detail');
@@ -5177,7 +5370,7 @@
           const fe = dbEl('dash-fehler');
           fe.hidden = false;
           fe.textContent = `Dashboard nicht geladen: ${e.message}`;
-          if (!dbZ.daten) for (const id of ['dash-zutun', 'dash-neu', 'dash-wartend', 'dash-au', 'dash-geld']) dbEl(id).innerHTML = '<p class="dash-leer">–</p>';
+          if (!dbZ.daten) for (const id of ['dash-zutun', 'dash-ub-inhalt', 'dash-neu', 'dash-wartend', 'dash-au', 'dash-geld']) dbEl(id).innerHTML = '<p class="dash-leer">–</p>';
         } finally { dbZ.laeuft = false; }
       }
       /** Sprung in die passende, schon gefilterte Ansicht. */
@@ -5309,6 +5502,10 @@
         if (ev.target.closest('[data-dash-detail-zu]')) { dbZ.detail = ''; dbZeichnen(); return; }
         const kachel = ev.target.closest('[data-dash-ziel]');
         if (kachel) { dbKachelKlick(kachel.dataset.dashZiel); return; }
+        // UB1: Segment der Statusleiste bzw. Termin-Zeile -> Auftraege mit dem vorhandenen Filter
+        const ubSt = ev.target.closest('[data-dash-ub-status]');
+        if (ubSt) { dbFilterSetzen({ 'au-f': ubSt.dataset.dashUbStatus, 'au-art': 'auftraege' }); oeffneAnsicht('auftraege', 'liste'); return; }
+        if (ev.target.closest('[data-dash-ub-termin]')) { dbFilterSetzen({ 'au-f': 'termin', 'au-art': 'auftraege' }); oeffneAnsicht('auftraege', 'liste'); return; }
         const auf = ev.target.closest('[data-dash-au-filter]');
         if (auf) { dbFilterSetzen(DB_AU_ZIEL[Number(auf.dataset.dashAuFilter)][2]); oeffneAnsicht('auftraege', 'liste'); return; }
         const zeile = ev.target.closest('[data-dash-shop], [data-dash-au], [data-dash-ag]');
@@ -7491,6 +7688,10 @@
         'dash-k-bestellseiten': { name: 'Bestellseiten', text: 'Neue Einträge auf den Bestellseiten, die noch niemand geprüft hat. Klick öffnet Aufträge → Bestellseiten.' },
         'dash-gelesen':         { name: 'gelesen ✓', text: 'Hinweis ist erledigt – für alle. Ändert der Kunde die Notiz, erscheint sie wieder.' },
         'dash-zeile':           { name: 'Öffnen', text: 'Öffnet diese Bestellung bzw. diesen Auftrag.' },
+        'dash-ueberblick':      { name: 'Überblick', text: 'Offene Bestellungen nach Alter und eigene Aufträge nach Status. Auf/zu merkt sich dieses Gerät.' },
+        'dash-ub-alter':        { name: 'Bestellungen nach Alter', text: 'Offene Bestellungen (ohne Trikots) nach Kalendertagen. Einen Altersfilter gibt es nicht – Einzelne unter „Wartet lange“.' },
+        'dash-ub-status':       { name: 'Aufträge nach Status', text: 'Offene eigene Aufträge je Status. Tippen öffnet die Auftragsliste mit diesem Filter.' },
+        'dash-ub-termin':       { name: 'Termin bald', text: 'Offene Aufträge mit Termin in den nächsten 7 Tagen (auch überfällige). Tippen öffnet die Liste.' },
         'dash-au-status':       { name: 'Aufträge nach Status', text: 'Zahl je Status. Klick öffnet Aufträge mit diesem Filter.' },
         'dash-detail-zu':       { name: 'Liste schließen', text: 'Blendet die Liste unter den Kacheln wieder aus.' },
         'dash-geld':            { name: 'Geld', text: 'Umsatz heute und 7 Tage (Shop oben im Kennzeichen, ohne Storno). Offen = Wartestellung + fertige, unbezahlte Aufträge.' },
@@ -7761,7 +7962,7 @@
         'assistent': ['aw-eintrag-neu', 'aw-eintrag-speichern', 'aw-prompt-speichern', 'aw-prompt-standard', 'aw-prompt-zeigen', 'aw-test-senden', 'aw-test-neu'],
         'lager-dialog': ['lager-treffer', 'lager-liste-weg', 'lager-event-neu', 'lager-event-anlegen', 'lager-artikel-anlegen', 'lager-ort-anlegen', 'lager-verlauf-korb', 'lager-verlauf-bestellung'],
         'darstellung': ['theme-wahl'],
-        'dashboard': ['dash-vorlesen', 'dash-wer', 'dash-k-hinweise', 'dash-k-lange', 'dash-k-todos', 'dash-k-rueckstand', 'dash-k-ware', 'dash-k-abholung', 'dash-k-trikots', 'dash-k-bestellseiten',
+        'dashboard': ['dash-vorlesen', 'dash-wer', 'dash-ueberblick', 'dash-ub-alter', 'dash-ub-status', 'dash-ub-termin', 'dash-k-hinweise', 'dash-k-lange', 'dash-k-todos', 'dash-k-rueckstand', 'dash-k-ware', 'dash-k-abholung', 'dash-k-trikots', 'dash-k-bestellseiten',
           'dash-gelesen', 'dash-zeile', 'dash-au-status', 'dash-detail-zu', 'dash-geld', 'dash-balken'],
         'einstellungen': ['schluessel-aendern', 'abmelden', 'app-installieren', 'stamm-pruefen', 'stamm-uebernehmen'],
         korb:       ['eigen-modell', 'filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-lb-zuerst', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'lager-storno-hinweis', 'lager-storno-zurueck', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'eb-bearbeiten', 'eb-gesperrt-lager', 'eb-farbe', 'eb-groesse', 'eb-menge', 'eb-referenz', 'eb-notiz', 'eb-lager', 'eb-speichern', 'eb-abbrechen', 'abgleich', 'belege', 'lieferbarkeit', 'alle-offenen', 'zurueck'],

@@ -20,6 +20,28 @@ const SHOP_KURZ = { jfn: 'JFN', honk: 'HONK' };
 // Auftrag "wartet" (Kunde wartet auf Ware/Produktion) nur vor "fertig"; danach wartet MC auf Abholung/Zahlung.
 export const AU_WARTET = ['Anfrage', 'Angebot', 'Design', 'bestellt', 'in Produktion'];
 export const AU_STATUS_ZAHLEN = ['Anfrage', 'Angebot', 'Design', 'bestellt', 'in Produktion'];
+// UB1 Ueberblick: Altersklassen der offenen Shop-Bestellungen (Kalendertage Berlin, Obergrenze je Klasse; letzte = darueber).
+// "> 14 Tage" ist dieselbe Grenze wie ROT_AB_TAGE der Kachel "Wartet lange"; im Ueberblick aber --warning (Inhaber 21.11.: kein Rot).
+export const ALTER_KLASSEN = [
+  { id: 'k0_3', name: '0–3 Tage', bis: 3 }, { id: 'k4_7', name: '4–7 Tage', bis: LANGE_AB_TAGE },
+  { id: 'k8_14', name: '8–14 Tage', bis: ROT_AB_TAGE }, { id: 'k15', name: 'über 14 Tage', bis: Infinity },
+];
+// Offene eigene Auftraege in der Reihenfolge des Auftragsreiters; "bezahlt" und "storniert" sind abgeschlossen (istOffen).
+export const UEBERBLICK_STATUS = ['Anfrage', 'Angebot', 'Design', 'bestellt', 'in Produktion', 'fertig', 'übergeben'];
+
+/** Anzahl je Altersklasse; unbekanntes Alter (null) zaehlt nicht. */
+export function alterKlassen(tageListe) {
+  const z = Object.fromEntries(ALTER_KLASSEN.map(k => [k.id, 0]));
+  for (const tage of tageListe ?? []) {
+    if (tage === null || tage === undefined || !Number.isFinite(Number(tage))) continue;
+    z[ALTER_KLASSEN.find(k => Number(tage) <= k.bis).id] += 1;
+  }
+  return { ...z, gesamt: Object.values(z).reduce((a, b) => a + b, 0) };
+}
+/** Anzahl offener Auftraege je Status (feste Reihenfolge, 0 inklusive). */
+export function statusZahlen(auftraege) {
+  return Object.fromEntries(UEBERBLICK_STATUS.map(st => [st, (auftraege ?? []).filter(a => a.Status === st).length]));
+}
 const SHOP_OFFEN = ['processing', 'on-hold'];
 const ZAEHLT_NICHT = new Set(['cancelled', 'refunded', 'failed', 'trash', 'checkout-draft']);
 
@@ -212,6 +234,12 @@ export function baueDashboard({ shops = {}, shop = '', au = null, kunden = new M
       offen: auftraege.filter(istOffen).length, terminBald: auftraege.filter(a => terminBald(a, jetzt.toISOString())).length,
       aufgabenOffen: aufgaben.filter(aufgabeOffen).length,
     })),
+    // UB1: Ueberblick - nur aus den schon geladenen Daten, keine weitere Lesung. Shop-Bestellungen wie "wartend" (offen, ohne Trikots).
+    ueberblick: {
+      alter: AKTIV.map(s => ({ shop: s, shopKurz: SHOP_KURZ[s], ...(fehler[`shop_${s}`] ? { fehlt: [`shop_${s}`] }
+        : alterKlassen(offenShop.filter(b => b.shop === s && !b.trikot).map(b => alterTage(b.datum, jetzt)))) })),
+      status: kachel(['auftraege'], () => ({ ...statusZahlen(auftraege), terminBald: auftraege.filter(a => terminBald(a, jetzt.toISOString())).length })),
+    },
     geld: kachel([...SHOPQ, 'auftraege'], () => ({
       heute: proTag[6].betrag, sieben: runde(proTag.reduce((s, d) => s + d.betrag, 0)),
       offen: runde(offenShop.filter(b => b.status === 'on-hold').reduce((s, b) => s + b.betrag, 0) + fertigNichtBezahlt.reduce((s, a) => s + (a.preise?.brutto ?? 0) / 100, 0)),
