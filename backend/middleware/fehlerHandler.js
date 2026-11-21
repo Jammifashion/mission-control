@@ -4,7 +4,7 @@
 
 const MELDUNG_MAX = 300;
 
-// Kurzform eines Fehlers fuer das Log: Name, Meldung, Status, Code, Pfad.
+// Kurzform eines Fehlers fuer das Log: Name, Meldung, Status, Code, Pfad (+ Name des API-Schluessels).
 export function fehlerKurz(err, req) {
   const e = err && typeof err === 'object' ? err : { message: String(err ?? '') };
   const status = e.status ?? e.statusCode ?? e.response?.status;
@@ -16,6 +16,7 @@ export function fehlerKurz(err, req) {
   if (status !== undefined) kurz.status = status;
   if (code   !== undefined) kurz.code   = code;
   if (req) kurz.pfad = `${req.method ?? ''} ${req.baseUrl ?? ''}${req.path ?? ''}`.trim();
+  if (req?.mcSchluessel) kurz.wer = req.mcSchluessel;   // SI2: nur der Name des Schluessels (inhaber/nicole/automation)
   return kurz;
 }
 

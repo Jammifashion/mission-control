@@ -11,12 +11,18 @@ import { sheetsMitWiederholung } from './googleRetry.js';
 import { korbZeilen, TAB_KORB } from '../utils/korb-logic.js';
 import { referenzFuer } from '../utils/edi-bestellung.js';
 import { berlinDatum } from '../utils/berlin-tag.js';
+import { getSecret } from '../utils/secrets.js';
 import {
   leseXlsxZeilen, rueckstandPositionen, zuordnen, rueckstandAntwort, neuesteListe, listenDatum, alterTage, VERALTET_TAGE, RUECKSTAND_MUSTER,
 } from '../utils/rueckstand.js';
 
-// Ordner (Inhaber 06.11.). Keine Zugangsdaten - nur die Ablage-Adresse; per Umgebung ueberschreibbar.
-export const RUECKSTAND_ORDNER_ID = process.env.RUECKSTAND_ORDNER_ID || '1o70xXT2PhZgqxuI8SM_idOHJdJxTlrtR';
+// Ordner der Liste (SI2: Betriebsangabe, nicht im Code): Umgebung RUECKSTAND_ORDNER_ID, sonst gleichnamiges Secret.
+// Fehlt beides, ist die Rueckstandsliste "nicht eingerichtet" (503) - nie ein geratener Ordner.
+export async function rueckstandOrdnerId() {
+  const env = t(process.env.RUECKSTAND_ORDNER_ID);
+  if (env) return env;
+  try { return t(await getSecret('RUECKSTAND_ORDNER_ID')); } catch { return ''; }
+}
 const TAB_EDI = 'LShop_EDI_Dateien';
 const LISTE_MS = 10 * 60 * 1000;
 const MAX_BYTES = 2 * 1024 * 1024;
@@ -32,8 +38,10 @@ async function sheetsClient() { return sheetsMitWiederholung(google.sheets({ ver
 
 async function ordnerDateien(drive) {
   if (ordnerCache.dateien && Date.now() < ordnerCache.bis) return ordnerCache.dateien;
+  const ordnerId = await rueckstandOrdnerId();
+  if (!ordnerId) throw fehler('Ordner der Rückstandsliste ist nicht eingerichtet (RUECKSTAND_ORDNER_ID).', 503, 'rueckstand_einrichtung');
   const { data } = await drive.files.list({
-    q: `'${RUECKSTAND_ORDNER_ID}' in parents and trashed = false`, fields: 'files(id,name,modifiedTime,size)', pageSize: 200,
+    q: `'${ordnerId.replace(/'/g, '')}' in parents and trashed = false`, fields: 'files(id,name,modifiedTime,size)', pageSize: 200,
     supportsAllDrives: true, includeItemsFromAllDrives: true, corpora: 'allDrives',
   });
   ordnerCache = { bis: Date.now() + LISTE_MS, dateien: data.files ?? [] };
@@ -92,7 +100,7 @@ async function mcDaten(sheets, spreadsheetId) {
 export async function leseRueckstand({ drive: d, sheets: s, spreadsheetId = process.env.GOOGLE_SHEET_ID, jetzt = new Date() } = {}) {
   const drive = d ?? await driveClient();
   let dateien;
-  try { dateien = await ordnerDateien(drive); } catch (e) { throw fehler(`Rückstands-Ordner nicht lesbar (${e?.code ?? e?.status ?? 'Fehler'}).`, 502, 'rueckstand_ordner'); }
+  try { dateien = await ordnerDateien(drive); } catch (e) { if (e?.code === 'rueckstand_einrichtung') throw e; throw fehler(`Rückstands-Ordner nicht lesbar (${e?.code ?? e?.status ?? 'Fehler'}).`, 502, 'rueckstand_ordner'); }
   const datei = neuesteListe(dateien);
   if (!datei) return { liste: null, hinweis: 'Noch keine Rückstandsliste im Ordner „L-Shop Rueckstandsliste“.', positionen: [], je: { korb: {}, auftrag: {}, shop: {} }, zahlen: { positionen: 0, stueck: 0, kritisch: 0, ohneBezug: 0 } };
   const datum = listenDatum(datei.name);

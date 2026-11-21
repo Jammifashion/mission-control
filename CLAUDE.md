@@ -309,7 +309,11 @@ aus der Umgebung. Schutzmechanismen hier nur als Regel beschreiben ("was gilt"),
 - `GET /api/woocommerce/orders` liefert nur die angezeigten Felder (`utils/bestell-felder.js`); neues Feld in der Oberflaeche = dort ergaenzen.
 - Oeffentliche Router (Partnerportale, Kundenchat, Bestellseite) sind markiert (`oeffentlich` in middleware/fehlerHandler.js): bei 5xx
   fester Text + Code, nie der interne Fehlertext.
-- Jede Seite hat eine CSP-Meta direkt nach `<meta charset>` (Stufe 1, mit 'unsafe-inline'); neue externe Quelle = dort eintragen.
+- Jede Seite hat eine CSP-Meta direkt nach `<meta charset>`; neue externe Quelle = dort eintragen. SI2 (CSP Stufe 2): im Repo steht in
+  `script-src` weiter `'unsafe-inline'` (lokale Vorschau), der Pages-Deploy ersetzt es NACH dem Stempeln je Seite durch die `sha256`-Hashes
+  aller Inline-Skripte (`.github/scripts/csp-hashes.mjs --schreiben`, danach `--pruefen`; Abweichung = Deploy bricht ab). Danach darf kein
+  Schritt die Skripte mehr aendern. Nie Inline-Handler (`on…=` im Markup oder in erzeugtem HTML) und keine `javascript:`-URLs - Handler
+  per `addEventListener`/`el.onclick` im Skript. `style-src 'unsafe-inline'` bleibt. Test si2-csp.test.js.
 
 ## UI-Messung (tools/ui-messung, AH1)
 Sichtpruefung aller Ansichten mit Attrappen - **nur von Hand, nicht in CI** (eigenes package.json, nicht im Backend-Image). Ansichten kommen
@@ -345,7 +349,11 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   (Ergebnis unklar) und Pruefseite sofort; Reiter fehlt/Sheets-Fehler = sofort. Routen melden Laufstopps nie selbst (AL1). Frontend:
   `istHosterPruefseite(res)` beendet Schleifen.
 - backend/utils/secrets.js – Secret Manager, loadAllSecrets()
-- backend/middleware/auth.js – X-API-Key Auth + Rate Limiting
+- backend/middleware/auth.js – X-API-Key Auth + Rate Limiting. SI2: drei Schluessel (`API_SCHLUESSEL`): `MC_API_KEY` (Inhaber),
+  `MC_API_KEY_NICOLE`, `MC_API_KEY_AUTOMATION` (Workflows) - je einzeln widerrufbar, keine Rechte-Unterschiede; fehlende Secrets werden
+  uebersprungen (nur MC_API_KEY steht in SECRET_KEYS). `apiSchluesselName` vergleicht jeden zeitkonstant, Name nur ins Fehler-Log (`wer`).
+  Auch die Partner-Sync-Routen pruefen ueber `apiSchluesselName`. Workflows: `secrets.MC_API_KEY_AUTOMATION || secrets.MC_API_KEY`
+  (Test si2-schluessel.test.js). MC: automatisch abmelden nach 30 Tagen ohne Nutzung (`mc_zuletzt_genutzt`, Block `Anmelden / Abmelden`).
 - backend/routes/kalkulation.js – Partner CRUD, Druck-/Fixkosten, Abrechnungen
 - backend/routes/partner-artikel.js – Partner_Artikel + Interne Bestellungen (Admin, MC_API_KEY)
 - backend/lib/partnerArtikel.js – einziger Anleger von Zeilen in Partner_Artikel / HK_Partner_Artikel
@@ -717,8 +725,8 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Block, Haken je Position, "angekommen …" / "alle markierten als angekommen …") oeffnen NUR `weOeffnen(order, vorwahl)` = Dialog
   "Ware angekommen" mit genau diesen Positionen angehakt - gebucht wird erst dort. Nie automatisch. Test wahrscheinlich-da.test.js.
 - backend/lib/rueckstand.js – L-Shop-Rueckstandsliste (RS1), NUR LESEN, Logik `utils/rueckstand.js`. Apps Script (Konto: siehe private Betriebsdoku) legt jeden
-  Mittwoch `Rueckstandsliste_JJJJ-MM-TT.xlsx` in den Ordner "L-Shop Rueckstandsliste" der geteilten Ablage (`RUECKSTAND_ORDNER_ID`,
-  per Env ueberschreibbar; drive.readonly). Die Datei hat keinen Standard-Stil (exceljs findet kein Blatt, Blattdatei "Sheet1.xml"):
+  Mittwoch `Rueckstandsliste_JJJJ-MM-TT.xlsx` in den Ordner "L-Shop Rueckstandsliste" der geteilten Ablage (`RUECKSTAND_ORDNER_ID`
+  aus der Umgebung bzw. gleichnamigem Secret, nie im Code; fehlt er -> 503 `rueckstand_einrichtung`; drive.readonly). Die Datei hat keinen Standard-Stil (exceljs findet kein Blatt, Blattdatei "Sheet1.xml"):
   `leseXlsxZeilen` liest das Zip selbst (jszip 3.10.1, gepinnt), NUR Spalten A-O - P-T (Empfaenger/Adresse) nie. Kommission =
   Kommission der GANZEN Bestellung ("JFN Sammelbestellung KWnn"), nicht die Positions-Referenz: Zuordnung ueber Fremdbeleg
   (`order_id`) + LieferantArtNr auf Korb-Positionen (mehrere moeglich) -> AU (Korb-Referenz AU-…), Shop-Bestellungen, L-Shop-Bestellung;
@@ -1496,6 +1504,10 @@ lösen **kein** Backend-Deployment aus – die Revision bleibt auf dem alten Sta
 `frontend/**` hat einen eigenen Workflow (`deploy.yml` → GitHub Pages), der das
 Backend nicht anfasst. `deploy-backend.yml` hat **kein** `workflow_dispatch`:
 eine neue Revision entsteht nur über einen Push, der die Pfad-Filter trifft.
+
+SI2: Projekt, Dienstkonto und Workload-Identity-Anbieter stehen NICHT im Workflow, sondern als GitHub-Repo-Variablen
+`GCP_PROJECT_ID`, `GCP_SA`, `GCP_WIF_PROVIDER` (Settings → Secrets and variables → Actions → Variables). Fehlt eine oder hat sie
+die falsche Form, stoppt der Schritt "Repo-Variablen pruefen" den Deploy mit Meldung.
 
 In Cloud Run gesetzt sind nur `NODE_ENV=production` und
 `GOOGLE_PROJECT_ID=<PROJEKT_ID>`; alle übrigen Werte kommen aus dem

@@ -65,7 +65,7 @@ describe('MC: Anmelden / Abmelden', () => {
   });
   test('Abmelden loescht Schluessel und Daten-Zwischenspeicher (nicht Theme/Shop/Filter) und laedt ueber nvLaden neu', () => {
     const liste = JSON.parse(block.match(/const MC_DATEN_SCHLUESSEL = (\[[^\]]+\]);/)[1].replace(/'/g, '"'));
-    expect(liste).toEqual(['mc_api_key', 'mc_api_url', 'mc_product_draft', 'mc_lsm_liste', 'mc_last_login']);
+    expect(liste).toEqual(['mc_api_key', 'mc_api_url', 'mc_product_draft', 'mc_lsm_liste', 'mc_last_login', 'mc_zuletzt_genutzt']);   // SI2: + Nutzung
     for (const bleibt of ['mc_theme', 'mc_shop', 'mc_korb_filter']) expect(liste).not.toContain(bleibt);
     expect(block).toContain('sessionStorage.clear()');
     expect(block).toContain("nvLaden('abgemeldet (SI1)');");

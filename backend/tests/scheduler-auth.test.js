@@ -26,7 +26,7 @@ const notifyFehler = jest.fn().mockResolvedValue(undefined);
 jest.unstable_mockModule('../lib/chatNotify.js', () => ({ notifyFehler, notify: jest.fn() }));   // notify: lib/lshopBelege.js (BO4b-1)
 
 const AUD   = 'https://backend.example/api/intern/lshop-korb/abgleich';
-const KONTO = 'korb-scheduler@projekt.iam.gserviceaccount.com';
+const KONTO = 'job-test@projekt.iam.gserviceaccount.com';   // erfunden (SI2)
 const TOKEN = 'eyJ.geheimes-test-token.sig';
 const PFAD  = '/api/intern/lshop-korb/abgleich';
 

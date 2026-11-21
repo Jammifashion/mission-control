@@ -152,13 +152,14 @@ describe('Oberflaeche', () => {
     expect(html).toContain("f.value = k.todos?.ueberfaellig ? 'ueberfaellig' : 'woche';");
     expect(html).not.toContain("oeffneAnsicht('auftraege', 'kunden')");
   });
-  test('2. API-Schluessel: eigenes Formular, Feld nie vorbelegt, Speichern ueber submit', () => {
-    expect(html).toContain('<form id="api-key-form" autocomplete="on"');
-    expect(html).toMatch(/<input id="api-key" name="password" type="password" autocomplete="current-password"/);
+  test('2. API-Schluessel: Einstellungen ohne Passwortfeld, einziges Login-Formular ist die Anmeldemaske (SI2)', () => {
+    expect(html).not.toContain('id="api-key-form"');
+    expect(html).not.toContain('<input id="api-key"');
+    expect((html.match(/type="password"/g) ?? []).length).toBe(1);   // nur #anmelde-key
     expect(html).not.toMatch(/keyInput\.value = localStorage/);
-    expect(html).toContain("document.getElementById('api-key-form').addEventListener('submit'");
-    const form = block('<form id="api-key-form"', '</form>');
-    expect((form.match(/<input/g) ?? []).length).toBe(2);   // nur Name + Schluessel - keine anderen MC-Felder
+    const bereich = block('<div id="api-key-bereich"', '</div>');
+    expect(bereich).not.toMatch(/<input/);
+    expect(bereich).toContain('id="schluessel-aendern"');
   });
   test('4. Termin und Faelligkeit als Kalenderfeld (type=date)', () => {
     expect(html).toContain('<input id="au-Termin" type="date"');

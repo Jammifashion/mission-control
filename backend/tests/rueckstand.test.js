@@ -11,6 +11,8 @@ import {
 } from '../utils/rueckstand.js';
 import { leseRueckstand, _rueckstandCacheLeeren } from '../lib/rueckstand.js';
 
+process.env.RUECKSTAND_ORDNER_ID = 'ordner-erfunden';   // SI2: Ordner kommt aus der Umgebung, nie aus dem Code
+
 const html = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../../frontend/index.html'), 'utf8');
 const KOPF = ['Kunden-Nr.', 'Unser Auftrag', 'INET-Nr.', 'Fremdbeleg-Nr. / Referenz', 'Kommission', 'Bestell-Datum', 'LieferantArtNr', 'Katalognummer',
   'Bezeichnung', 'Farbe', 'Größe', 'Bestellte Menge', 'Geliefert', 'Menge im Rückstand', 'Liefertermin', 'Lieferempfänger', 'Straße', 'PLZ', 'Ort', 'Land'];

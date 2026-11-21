@@ -2,7 +2,7 @@
 <html lang="de">
   <head>
     <meta charset="UTF-8" />
-    <!-- FIX4: CSP Stufe 1 (Inline-Skripte noch erlaubt, Stufenplan im Bericht FIX4); Bilder aus Shop/Mediathek/CDN = https: -->
+    <!-- CSP: im Repo Inline-Skripte erlaubt (lokale Vorschau); der Pages-Deploy ersetzt das durch Hashes (SI2, Stufe 2). Bilder aus Shop/Mediathek/CDN = https: -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://mission-control-backend-181760755456.europe-west1.run.app; media-src 'self' data: blob:; frame-src 'none'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0f0f0f" />
@@ -1954,7 +1954,9 @@
     </div>
 
     <!-- SI1: Anmeldemaske - erscheint, solange auf diesem Geraet kein Schluessel gespeichert ist (oder er nicht mehr gilt).
-         Eigenes Formular mit Benutzername-Feld, damit ein Passwort-Manager den Schluessel anbieten kann (wie #api-key-form). -->
+         SI2 (antwort-SI2-1): EINZIGES Login-Formular in MC, gebaut fuer den Passwort-Manager des Browsers: echtes <form> mit
+         submit, Benutzer (inhaber | nicole, autocomplete=username) + Schluessel (current-password); gespeichert wird erst nach
+         der Pruefung am Backend (GET /api/system/wer), danach verschwindet die Maske = erfolgreicher Login fuer den Browser. -->
     <div id="anmelde-maske" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="anmelde-titel" hidden>
       <div class="edi-box anmelde-box">
         <div class="edi-kopf">
@@ -1962,13 +1964,14 @@
           <button class="hilfe-i" type="button" data-hilfe-gruppe="anmelden" aria-controls="hilfe-anmelden" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
         </div>
         <div id="hilfe-anmelden" class="hilfe-legende" hidden></div>
-        <form id="anmelde-form" autocomplete="on" class="anmelde-form">
-          <input type="text" name="username" autocomplete="username" value="Mission Control" readonly tabindex="-1" aria-hidden="true" class="api-key-name" />
-          <label class="edi-feld">Schlüssel<input id="anmelde-key" name="password" type="password" class="form-input" autocomplete="current-password" required /></label>
+        <form id="anmelde-form" method="post" action="#" autocomplete="on" class="anmelde-form">
+          <label class="edi-feld" data-hilfe="anmelde-name">Benutzer<input id="anmelde-name" name="username" type="text" class="form-input" autocomplete="username" placeholder="inhaber oder nicole" autocapitalize="none" spellcheck="false" required /></label>
+          <label class="edi-feld" data-hilfe="anmelde-key">Schlüssel<input id="anmelde-key" name="password" type="password" class="form-input" autocomplete="current-password" required /></label>
           <div id="anmelde-fehler" class="lager-warnung" role="alert" hidden></div>
           <button type="submit" class="korb-aktion korb-aktion-haupt" id="anmelde-ok" data-hilfe="anmelden">Anmelden</button>
+          <button type="button" class="korb-aktion korb-aktion-ruhig" id="anmelde-abbrechen" data-hilfe="dialog-abbrechen" style="display:none">Abbrechen</button>
         </form>
-        <p class="korb-zaehler">Den Schlüssel gibt dir der Inhaber. Er bleibt auf diesem Gerät gespeichert, bis du dich abmeldest.</p>
+        <p class="korb-zaehler">Den Schlüssel gibt dir der Inhaber. Er bleibt auf diesem Gerät gespeichert, bis du dich abmeldest. Nach 30 Tagen ohne Nutzung automatisch abgemeldet. Du kannst den Schlüssel im Passwort-Manager deines Browsers speichern.</p>
       </div>
     </div>
 
@@ -4138,16 +4141,13 @@
         <div class="card">
           <h2 class="mit-hilfe-i" style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;">API Key <button class="hilfe-i" type="button" data-hilfe-gruppe="einstellungen" aria-controls="hilfe-einstellungen" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button></h2>
           <div id="hilfe-einstellungen" class="hilfe-legende" hidden></div>
-          <!-- AMQ1: eigenes Formular nur fuer den Schluessel (Chrome ordnet sonst jedes Textfeld in MC diesem Passwortfeld zu und
-               fragt "Passwort speichern?"); das Feld wird nie vorbelegt - gespeichert ist der Schluessel im Browser-Speicher. -->
-          <form id="api-key-form" autocomplete="on" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.5rem;">
-            <input type="text" name="username" autocomplete="username" value="Mission Control" readonly tabindex="-1" aria-hidden="true" class="api-key-name" />
-            <input id="api-key" name="password" type="password" autocomplete="current-password" placeholder="MC_API_KEY"
-              style="flex:1;min-width:0;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:0.6rem 0.8rem;color:var(--text);font-size:0.9rem;" />
-            <button class="btn" id="save-key" type="submit" data-hilfe="api-key-speichern">Speichern</button>
+          <!-- SI2 (antwort-SI2-1, Gegenregel AMQ1): hier KEIN Passwortfeld - das einzige Login-Formular ist die Anmeldemaske.
+               "Schlüssel ändern …" oeffnet die Maske; ein Passwortfeld hier liess Chrome bei jeder Eingabe "Passwort speichern?" fragen. -->
+          <div id="api-key-bereich" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.5rem;align-items:center;">
+            <span id="api-key-stand" class="korb-zaehler" style="flex:1 1 100%;"></span>
+            <button class="btn" id="schluessel-aendern" type="button" data-hilfe="schluessel-aendern">Schlüssel ändern …</button>
             <button class="btn-secondary" id="abmelden" type="button" data-hilfe="abmelden">Auf diesem Gerät abmelden</button>
-          </form>
-          <p id="key-saved" style="color:var(--success);font-size:0.8rem;margin-top:0.5rem;display:none;">Gespeichert.</p>
+          </div>
         </div>
         <div class="card">
           <h2>PWA installieren</h2>
@@ -4312,32 +4312,100 @@
       // Backend, z. B. nach einem Schluesseltausch), erscheint die Anmeldemaske; alle wartenden Aufrufe bekommen danach
       // denselben Schluessel. Abmelden loescht Schluessel und Daten-Zwischenspeicher auf DIESEM Geraet (Einstellungen wie
       // Theme, Shop, Filter bleiben) und laedt neu.
-      const MC_DATEN_SCHLUESSEL = ['mc_api_key', 'mc_api_url', 'mc_product_draft', 'mc_lsm_liste', 'mc_last_login'];
+      const MC_DATEN_SCHLUESSEL = ['mc_api_key', 'mc_api_url', 'mc_product_draft', 'mc_lsm_liste', 'mc_last_login', 'mc_zuletzt_genutzt'];
       const anmeldung = { warten: null, fertig: null };
       const gespeicherterSchluessel = () => { try { return (localStorage.getItem('mc_api_key') ?? '').trim(); } catch { return ''; } };
+      // SI2: Benutzer fuer den Passwort-Manager (zwei getrennte Eintraege). "automation" gibt es in der Maske nie.
+      const ANMELDE_NAMEN = ['inhaber', 'nicole'];
+      const ANMELDE_NAME_KEY = 'mc_anmelde_name';   // kein Geheimnis - bleibt beim Abmelden, damit das Ausfuellen passt
+      function anmeldeFehler(text) {
+        const f = document.getElementById('anmelde-fehler');
+        f.textContent = text; f.hidden = !text;
+      }
       function anmeldeMaskeZeigen(hinweis = '') {
         const m = document.getElementById('anmelde-maske');
-        const f = document.getElementById('anmelde-fehler');
-        f.textContent = hinweis; f.hidden = !hinweis;
+        anmeldeFehler(hinweis);
+        const name = document.getElementById('anmelde-name');
+        if (!name.value) { try { name.value = localStorage.getItem(ANMELDE_NAME_KEY) ?? ''; } catch { /* egal */ } }
+        // Abbrechen nur, wenn schon ein Schluessel da ist ("Schlüssel ändern …"); ohne Anmeldung gibt es nichts zu tun.
+        document.getElementById('anmelde-abbrechen').style.display = gespeicherterSchluessel() ? '' : 'none';
         m.hidden = false;
-        setTimeout(() => document.getElementById('anmelde-key')?.focus(), 0);
+        setTimeout(() => document.getElementById(name.value ? 'anmelde-key' : 'anmelde-name')?.focus(), 0);
       }
+      document.getElementById('anmelde-abbrechen').addEventListener('click', () => {
+        document.getElementById('anmelde-key').value = '';
+        anmeldeFehler('');
+        document.getElementById('anmelde-maske').hidden = true;
+      });
+      // SI2: automatisch abmelden nach 30 Tagen ohne Nutzung. Zeitstempel der letzten Nutzung (ms) nur in diesem Browser,
+      // geschrieben beim Start und bei Aufrufen (hoechstens einmal je Stunde). Fehlt er, gilt das Geraet als genutzt.
+      const AUTO_ABMELDEN_TAGE = 30;
+      const AUTO_ABMELDEN_TEXT = 'Nach 30 Tagen ohne Nutzung automatisch abgemeldet.';
+      const NUTZUNG_KEY = 'mc_zuletzt_genutzt';
+      function autoAbmeldenFaellig(zuletzt, jetzt) {
+        const t = Number(zuletzt);
+        if (!zuletzt || !Number.isFinite(t)) return false;
+        return jetzt - t > AUTO_ABMELDEN_TAGE * 24 * 60 * 60 * 1000;
+      }
+      let nutzungGemerkt = 0;
+      function nutzungMerken(jetzt = Date.now()) {
+        if (jetzt - nutzungGemerkt < 60 * 60 * 1000) return;
+        nutzungGemerkt = jetzt;
+        try { localStorage.setItem(NUTZUNG_KEY, String(jetzt)); } catch { /* Speicher gesperrt */ }
+      }
+      function datenAufDiesemGeraetLoeschen() {
+        for (const k of MC_DATEN_SCHLUESSEL) { try { localStorage.removeItem(k); } catch { /* egal */ } }
+        try { sessionStorage.clear(); } catch { /* egal */ }
+      }
+      (() => {
+        let zuletzt = null;
+        try { zuletzt = localStorage.getItem(NUTZUNG_KEY); } catch { /* egal */ }
+        if (gespeicherterSchluessel() && autoAbmeldenFaellig(zuletzt, Date.now())) {
+          datenAufDiesemGeraetLoeschen();
+          anmeldeMaskeZeigen(AUTO_ABMELDEN_TEXT);
+          return;
+        }
+        if (gespeicherterSchluessel()) nutzungMerken();
+      })();
       /** Schluessel fuer apiFetch: gespeichert, sonst nach der Eingabe in der Maske. */
       function schluesselHolen() {
         const k = gespeicherterSchluessel();
-        if (k) return Promise.resolve(k);
+        if (k) { nutzungMerken(); return Promise.resolve(k); }
         if (!anmeldung.warten) anmeldung.warten = new Promise(res => { anmeldung.fertig = res; });
         if (document.getElementById('anmelde-maske').hidden) anmeldeMaskeZeigen();   // offene Maske (z. B. mit 401-Hinweis) nicht leeren
         return anmeldung.warten;
       }
-      document.getElementById('anmelde-form').addEventListener('submit', e => {
+      document.getElementById('anmelde-form').addEventListener('submit', async e => {
         e.preventDefault();
         const feld = document.getElementById('anmelde-key');
+        const nameFeld = document.getElementById('anmelde-name');
         const key = feld.value.trim();
-        if (!key) { anmeldeMaskeZeigen('Bitte den Schlüssel eingeben.'); return; }
-        try { localStorage.setItem('mc_api_key', key); } catch { /* Speicher gesperrt: gilt nur fuer diese Sitzung */ }
+        const name = nameFeld.value.trim().toLowerCase();
+        if (!ANMELDE_NAMEN.includes(name)) { anmeldeFehler('Benutzer bitte „inhaber“ oder „nicole“.'); nameFeld.focus(); return; }
+        if (!key) { anmeldeFehler('Bitte den Schlüssel eingeben.'); feld.focus(); return; }
+        // SI2: erst pruefen, dann speichern - so landet im Passwort-Manager nur ein gueltiger Schluessel.
+        const ok = document.getElementById('anmelde-ok');
+        ok.disabled = true;
+        let wer = null;
+        try {
+          const r = await fetch(`${API_BASE()}/api/system/wer`, { headers: { 'X-API-Key': key }, cache: 'no-store' });
+          if (r.status === 401) { anmeldeFehler('Dieser Schlüssel gilt nicht.'); return; }
+          if (!r.ok) { anmeldeFehler(`Anmelden gerade nicht möglich (HTTP ${r.status}) – bitte gleich noch einmal.`); return; }
+          wer = (await r.json())?.wer ?? null;
+        } catch {
+          anmeldeFehler('Backend nicht erreichbar – bitte gleich noch einmal.'); return;
+        } finally { ok.disabled = false; }
+        if (wer !== name) {
+          anmeldeFehler(ANMELDE_NAMEN.includes(wer) ? `Dieser Schlüssel gehört zu „${wer}“ – bitte diesen Benutzer wählen.` : 'Dieser Schlüssel ist nicht für die Anmeldung.');
+          return;
+        }
+        try { localStorage.setItem('mc_api_key', key); localStorage.setItem(ANMELDE_NAME_KEY, name); } catch { /* Speicher gesperrt: gilt nur fuer diese Sitzung */ }
+        nutzungGemerkt = 0; nutzungMerken();
         feld.value = '';
+        anmeldeFehler('');
         document.getElementById('anmelde-maske').hidden = true;
+        // Fuer den Passwort-Manager: Formular abgeschickt und verschwunden + Verlaufseintrag aktualisiert = erfolgreicher Login.
+        try { history.replaceState(history.state, '', location.href); } catch { /* egal */ }
         const fertig = anmeldung.fertig;
         anmeldung.warten = null; anmeldung.fertig = null;
         if (fertig) fertig(key);
@@ -4347,8 +4415,7 @@
         if (!await showConfirm('Auf diesem Gerät abmelden?',
           '<p>Der Schlüssel und angefangene Entwürfe werden auf diesem Gerät gelöscht. Danach fragt MC wieder nach dem Schlüssel.</p>'
           + '<p>Gerät verloren? Dann zusätzlich den Schlüssel im Secret Manager tauschen – sonst gilt er dort weiter.</p>', 'Abmelden')) return;
-        for (const k of MC_DATEN_SCHLUESSEL) { try { localStorage.removeItem(k); } catch { /* egal */ } }
-        try { sessionStorage.clear(); } catch { /* egal */ }
+        datenAufDiesemGeraetLoeschen();
         nvLaden('abgemeldet (SI1)');
       }
       for (const id of ['abmelden', 'abmelden-kopf']) document.getElementById(id)?.addEventListener('click', mcAbmelden);
@@ -7021,8 +7088,10 @@
         'lager-verlauf-bestellung': { name: 'Bestellung', text: 'Öffnet die Shop-Bestellung unter „Bestellungen (JFN)“.' },
         'theme-wahl':            { name: 'Farben', text: 'System folgt dem Gerät (hell/dunkel). Hell oder Dunkel gilt fest – gespeichert nur auf diesem Gerät.' },
         'abmelden':              { name: 'Abmelden', text: 'Auf diesem Gerät abmelden. Bei verlorenem Gerät: Schlüssel im Secret Manager tauschen.' },
-        'anmelden':              { name: 'Anmelden', text: 'Speichert den Schlüssel auf diesem Gerät und lädt die Daten. Nur der Inhaber vergibt den Schlüssel.' },
-        'api-key-speichern':     { name: 'API-Key speichern', text: 'Speichert den Schlüssel nur in diesem Browser. Danach lädt MC neu.' },
+        'anmelden':              { name: 'Anmelden', text: 'Speichert den Schlüssel auf diesem Gerät. Nur der Inhaber vergibt ihn. Nach 30 Tagen ohne Nutzung automatisch abgemeldet.' },
+        'schluessel-aendern':    { name: 'Schlüssel ändern', text: 'Öffnet die Anmeldemaske für einen neuen Schlüssel. Danach lädt MC neu.' },
+        'anmelde-name':          { name: 'Benutzer', text: '„inhaber“ oder „nicole“ – so hält der Passwort-Manager je Person einen Eintrag.' },
+        'anmelde-key':           { name: 'Schlüssel', text: 'Du kannst den Schlüssel im Passwort-Manager deines Browsers speichern.' },
         'app-installieren':      { name: 'Zum Startbildschirm hinzufügen', text: 'Legt MC als App auf den Startbildschirm. Es wird nichts im Shop oder Sheet geändert.' },
         'stamm-pruefen':         { name: 'Prüfen', text: 'Liest die neueste L-Shop-Stammdatei und zeigt, was sich ändern würde. Schreibt nichts.' },
         'stamm-uebernehmen':     { name: 'Übernehmen', text: 'Schreibt die geprüften Änderungen in die L-Shop-Modelle im Sheet. Geht nur direkt nach „Prüfen“.' },
@@ -7548,7 +7617,7 @@
       const HILFE_GRUPPEN = {
         // HT1: Gruppen der aelteren Knoepfe (ⓘ-Liste, sobald es dort ein ⓘ gibt)
         'navigation': ['shop-badge', 'abmelden', 'shop-wahl', 'neue-version-laden', 'neue-version-spaeter', 'nav-bereich', 'nav-ansicht', 'nav-unterreiter', 'trikot-sync'],
-        'anmelden': ['anmelden'],   // SI1: Anmeldemaske
+        'anmelden': ['anmelde-name', 'anmelde-key', 'anmelden', 'dialog-abbrechen'],   // SI1/SI2: Anmeldemaske
         'dialog': ['dialog-abbrechen', 'dialog-schliessen', 'dialog-bestaetigen', 'dialog-speichern', 'liste-bearbeiten', 'zeile-speichern'],
         'auftragsmonitor': ['wc-erledigt', 'tab-offen', 'tab-protokoll', 'mon-fulfillment', 'dtf-sammel', 'dtf-bestellt', 'lshop-alt-sammel', 'lshop-alt-bestellt', 'korb-aeltere'],
         'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-material', 'seo-material-einsetzen', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'bildref-eigenschaft', 'bildref-plus', 'bildref-eigenschaft-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
@@ -7561,7 +7630,7 @@
         'darstellung': ['theme-wahl'],
         'dashboard': ['dash-vorlesen', 'dash-wer', 'dash-k-hinweise', 'dash-k-lange', 'dash-k-todos', 'dash-k-rueckstand', 'dash-k-ware', 'dash-k-abholung', 'dash-k-trikots', 'dash-k-bestellseiten',
           'dash-gelesen', 'dash-zeile', 'dash-au-status', 'dash-detail-zu', 'dash-geld', 'dash-balken'],
-        'einstellungen': ['api-key-speichern', 'abmelden', 'app-installieren', 'stamm-pruefen', 'stamm-uebernehmen'],
+        'einstellungen': ['schluessel-aendern', 'abmelden', 'app-installieren', 'stamm-pruefen', 'stamm-uebernehmen'],
         korb:       ['eigen-modell', 'filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-lb-zuerst', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'lager-storno-hinweis', 'lager-storno-zurueck', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'eb-bearbeiten', 'eb-gesperrt-lager', 'eb-farbe', 'eb-groesse', 'eb-menge', 'eb-referenz', 'eb-notiz', 'eb-lager', 'eb-speichern', 'eb-abbrechen', 'abgleich', 'belege', 'lieferbarkeit', 'alle-offenen', 'zurueck'],
         leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
         uebersicht: ['bm-zelle', 'bm-gruppe', 'gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
@@ -20658,23 +20727,14 @@
           themeSel.addEventListener('change', () => { window.mcTheme.setze(themeSel.value); });
         }
       }
-      // AMQ1: Feld nie vorbelegen (ein gefuelltes Passwortfeld liess Chrome bei jeder Eingabe "Passwort speichern?" fragen);
-      // gespeichert ist der Schluessel in localStorage, das Feld zeigt nur, ob einer da ist. Speichern = eigenes Formular.
-      const keyInput = document.getElementById('api-key');
-      const keyPlatzhalter = () => { keyInput.placeholder = localStorage.getItem('mc_api_key') ? 'gespeichert – nur zum Ändern neu eingeben' : 'MC_API_KEY'; };
-      keyPlatzhalter();
-      document.getElementById('api-key-form').addEventListener('submit', e => {
-        e.preventDefault();
-        const neu = keyInput.value.trim();
-        if (!neu) return;
-        localStorage.setItem('mc_api_key', neu);
-        keyInput.value = '';
-        keyPlatzhalter();
-        const saved = document.getElementById('key-saved');
-        saved.style.display = 'block';
-        setTimeout(() => saved.style.display = 'none', 2000);
-        loadSsotData();
-      });
+      // SI2: Einstellungen zeigen nur den Stand; "Schlüssel ändern …" oeffnet die Anmeldemaske (einziges Login-Formular).
+      (() => {
+        let name = '';
+        try { name = localStorage.getItem(ANMELDE_NAME_KEY) ?? ''; } catch { /* egal */ }
+        document.getElementById('api-key-stand').textContent = gespeicherterSchluessel()
+          ? (name ? `Angemeldet als ${name}.` : 'Angemeldet.') : 'Nicht angemeldet.';
+      })();
+      document.getElementById('schluessel-aendern').addEventListener('click', () => anmeldeMaskeZeigen());
 
       // ── SECTION: L-Shop-Stammdaten (Befehl LS1) ──
       // Knopf "Prüfen" = POST /api/lshop/stammdaten { modus: "trockenlauf" }

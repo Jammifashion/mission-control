@@ -139,13 +139,13 @@ const PARTNER = [
   { id: 'P-001', name: 'Kreativwerkstatt Nordlicht Illustration & Design GbR', kategorie: 'Fanartikel', lizenzProzent: 30, portoModell: 'geteilt-50-50', shop: 'jfn', aktiv: true, zugang: 'hash', kopierbar: true, vertragAb: '01.03.2025' },
   { id: 'P-002', name: 'Tiefseetaucher Comics', kategorie: 'BoysLove', lizenzProzent: 22.5, portoModell: 'partner-trägt', shop: 'jfn', aktiv: true, zugang: 'klartext', kopierbar: false, vertragAb: '' },
   { id: 'P-003', name: 'Muster Musikverlag', kategorie: '', lizenzProzent: 15, portoModell: 'geteilt-50-50', shop: 'jfn', aktiv: false, zugang: '', kopierbar: false, vertragAb: '' },
-  { id: 'P-012', name: 'Honk Beispielpartner', kategorie: 'Weihnachten', lizenzProzent: 40, portoModell: 'geteilt-50-50', shop: 'honk', aktiv: true, zugang: 'hash', kopierbar: true, vertragAb: '15.09.2026' },
+  { id: 'P-090', name: 'Honk Beispielpartner', kategorie: 'Weihnachten', lizenzProzent: 40, portoModell: 'geteilt-50-50', shop: 'honk', aktiv: true, zugang: 'hash', kopierbar: true, vertragAb: '15.09.2026' },
 ];
 const KACHELN = {
   'P-001': { bestellungen: 1284, intern: 7, internOhneBetrag: 2, saldo: 12345.67, saldoKachel: true, seit: '01.10.2026' },
   'P-002': { bestellungen: 23, intern: 3, internOhneBetrag: 0, saldo: -418.4, saldoKachel: true, seit: '' },
   'P-003': { bestellungen: 0, intern: 0, internOhneBetrag: 0, saldo: 0, saldoKachel: true, seit: '' },
-  'P-012': { bestellungen: 56, intern: 1, internOhneBetrag: 0, saldo: 980.1, saldoKachel: false, seit: '01.11.2026' },
+  'P-090': { bestellungen: 56, intern: 1, internOhneBetrag: 0, saldo: 980.1, saldoKachel: false, seit: '01.11.2026' },
 };
 
 const LZ_ARTIKEL = [

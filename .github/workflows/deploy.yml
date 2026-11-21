@@ -83,6 +83,14 @@ jobs:
           fi
           grep -n 'name="mc-' frontend/index.html
 
+      # SI2: CSP Stufe 2 - je Seite die sha256-Hashes der Inline-Skripte statt 'unsafe-inline' in script-src
+      # (NACH allem Stempeln, die Skripte duerfen sich danach nicht mehr aendern). Abweichung = Deploy bricht ab.
+      - name: CSP-Hashes setzen
+        run: |
+          SEITEN="frontend/index.html frontend/partner.html frontend/partner-festpreis.html frontend/bestellen.html frontend/anfrage.html"
+          node .github/scripts/csp-hashes.mjs --schreiben $SEITEN
+          node .github/scripts/csp-hashes.mjs --pruefen $SEITEN
+
       - name: Configure Pages
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
 

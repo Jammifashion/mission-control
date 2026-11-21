@@ -47,23 +47,45 @@ jobs:
     permissions:
       id-token: write
       contents: read
+    # SI2: Betriebsangaben (Projekt, Dienstkonto, Workload-Identity-Anbieter) stehen als GitHub-Repo-Variablen
+    # (Settings -> Secrets and variables -> Actions -> Variables), nicht im Repo. Region und Service-Name bleiben hier.
+    env:
+      GCP_PROJECT_ID:   ${{ vars.GCP_PROJECT_ID }}
+      GCP_SA:           ${{ vars.GCP_SA }}
+      GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+      REGION: europe-west1
 
     steps:
+      # Fehlt eine Variable, stoppt der Deploy hier mit klarer Meldung - nie mit leerem Projekt/Konto weiter.
+      - name: Repo-Variablen pruefen
+        run: |
+          fehlt=""
+          for n in GCP_PROJECT_ID GCP_SA GCP_WIF_PROVIDER; do
+            if [ -z "${!n}" ]; then fehlt="$fehlt $n"; fi
+          done
+          if [ -n "$fehlt" ]; then
+            echo "::error::GitHub-Repo-Variable(n) fehlen:$fehlt (Settings -> Secrets and variables -> Actions -> Variables). Kein Deploy."
+            exit 1
+          fi
+          case "$GCP_SA" in *@*.iam.gserviceaccount.com) ;; *) echo "::error::GCP_SA ist keine Dienstkonto-Adresse. Kein Deploy."; exit 1;; esac
+          case "$GCP_WIF_PROVIDER" in projects/*/locations/global/workloadIdentityPools/*/providers/*) ;; *) echo "::error::GCP_WIF_PROVIDER hat nicht die Form projects/<nr>/locations/global/workloadIdentityPools/<pool>/providers/<anbieter>. Kein Deploy."; exit 1;; esac
+          echo "Repo-Variablen vorhanden."
+
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Google Auth (Workload Identity)
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
         with:
-          workload_identity_provider: projects/181760755456/locations/global/workloadIdentityPools/github-pool/providers/github-provider
-          service_account: mission-control-sa@mission-control-495711.iam.gserviceaccount.com
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SA }}
           token_format: 'access_token'
 
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
 
       - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker europe-west1-docker.pkg.dev
+        run: gcloud auth configure-docker ${REGION}-docker.pkg.dev
 
       # :latest wird weiter mitgeschoben (bequem fuer "was laeuft ungefaehr"),
       # deployt wird aber der Commit-Tag - sonst ist bei zwei kurz
@@ -74,7 +96,7 @@ jobs:
       # --set-env-vars unten wuerde sie ohnehin bei jedem Deploy ersetzen.
       - name: Build and push Docker image
         run: |
-          IMAGE=europe-west1-docker.pkg.dev/mission-control-495711/mission-control/backend
+          IMAGE=${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/mission-control/backend
           MC_COMMIT="${GITHUB_SHA::7}"
           MC_GEBAUT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           echo "Stand: $MC_COMMIT gebaut $MC_GEBAUT"
@@ -90,12 +112,12 @@ jobs:
       - name: Deploy to Cloud Run
         run: |
           gcloud run deploy mission-control-backend \
-            --image europe-west1-docker.pkg.dev/mission-control-495711/mission-control/backend:${{ github.sha }} \
-            --region europe-west1 \
+            --image ${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/mission-control/backend:${{ github.sha }} \
+            --region ${REGION} \
             --platform managed \
             --allow-unauthenticated \
-            --service-account mission-control-sa@mission-control-495711.iam.gserviceaccount.com \
-            --set-env-vars NODE_ENV=production,GOOGLE_PROJECT_ID=mission-control-495711 \
+            --service-account ${GCP_SA} \
+            --set-env-vars NODE_ENV=production,GOOGLE_PROJECT_ID=${GCP_PROJECT_ID} \
             --memory 512Mi \
             --min-instances 0 \
             --max-instances 1 \

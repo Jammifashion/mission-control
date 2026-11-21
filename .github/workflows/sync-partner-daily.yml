@@ -58,11 +58,11 @@ jobs:
       - name: POST /api/partner/artikel/abgleich
         env:
           API_URL: ${{ secrets.BACKEND_URL }}
-          API_KEY: ${{ secrets.MC_API_KEY }}
+          API_KEY: ${{ secrets.MC_API_KEY_AUTOMATION || secrets.MC_API_KEY }}
         run: |
           set -euo pipefail
           if [ -z "$API_URL" ] || [ -z "$API_KEY" ]; then
-            echo "::error::BACKEND_URL oder MC_API_KEY fehlt in GitHub Secrets."
+            echo "::error::BACKEND_URL oder MC_API_KEY_AUTOMATION (Rueckfall MC_API_KEY) fehlt in GitHub Secrets."
             exit 1
           fi
           rc=0
@@ -91,7 +91,7 @@ jobs:
       - name: POST /api/partner/verkaeufe/sync-all (jfn)
         env:
           API_URL: ${{ secrets.BACKEND_URL }}
-          API_KEY: ${{ secrets.MC_API_KEY }}
+          API_KEY: ${{ secrets.MC_API_KEY_AUTOMATION || secrets.MC_API_KEY }}
         run: |
           set -euo pipefail
           rc=0
@@ -123,7 +123,7 @@ jobs:
       - name: POST /api/partner/verkaeufe/sync-all (honk)
         env:
           API_URL: ${{ secrets.BACKEND_URL }}
-          API_KEY: ${{ secrets.MC_API_KEY }}
+          API_KEY: ${{ secrets.MC_API_KEY_AUTOMATION || secrets.MC_API_KEY }}
         run: |
           set -euo pipefail
           rc=0
@@ -159,7 +159,7 @@ jobs:
         if: always()
         env:
           API_URL: ${{ secrets.BACKEND_URL }}
-          API_KEY: ${{ secrets.MC_API_KEY }}
+          API_KEY: ${{ secrets.MC_API_KEY_AUTOMATION || secrets.MC_API_KEY }}
         run: |
           set -euo pipefail
           rc=0

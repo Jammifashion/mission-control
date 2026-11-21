@@ -45,7 +45,7 @@ describe('schluesselGleich', () => {
     expect(q).not.toMatch(/key\s*!==\s*expected/);
     const pp = lies('routes/partnerPortal.js');
     expect(pp).not.toMatch(/\['x-api-key'\]\s*!==/);
-    expect((pp.match(/schluesselGleich\(req\.headers\['x-api-key'\], process\.env\.MC_API_KEY\)/g) ?? []).length).toBe(2);
+    expect((pp.match(/apiSchluesselName\(req\.headers\['x-api-key'\]\)/g) ?? []).length).toBe(2);   // SI2: Schluessel-Liste
   });
 });
 

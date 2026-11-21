@@ -1,7 +1,6 @@
-// Hoster-Pruefseite (ESTUGO, 01.10.2026): nach etwa 11 schnellen Abrufen liefert
-// der Hoster statt der Shop-Antwort eine JS-Pruefseite ("One moment, please...",
-// openresty) - mit HTTP 200. Nach ueber 100 nicht geloesten Pruefseiten sperrt er
-// die IP. Jeder weitere Abruf zaehlt als weitere gescheiterte Pruefung.
+// Hoster-Pruefseite: bei zu vielen Abrufen liefert der Hoster statt der Shop-Antwort
+// eine JS-Pruefseite - mit HTTP 200. Jeder weitere Abruf verschaerft das.
+// (Hoster und gemessenes Verhalten: private Betriebsdoku, nicht im Repo.)
 //
 // Regel: Liefert WooCommerce oder WordPress HTML statt JSON, bricht der Lauf
 // sofort ab, ohne Wiederholung. Eine Pruefung (pruefeAntwort), ein Fehlertyp

@@ -21,7 +21,7 @@ const notifyFehler = jest.fn().mockResolvedValue(undefined);
 jest.unstable_mockModule('../lib/chatNotify.js', () => ({ notifyFehler, notify: jest.fn() }));
 
 const AUD = 'https://backend.example/api/intern/lshop-korb/abgleich';   // dieselbe Audience wie CS1
-const KONTO = 'korb-scheduler@projekt.iam.gserviceaccount.com';
+const KONTO = 'job-test@projekt.iam.gserviceaccount.com';   // erfunden (SI2)
 const PFAD = '/api/intern/lshop-belege/abruf';
 const ok = { lauf: 'BA-x', dryRun: false, ftp: 'ok', ordner: {}, neueZeilen: 0, alarme: [], abErkannt: [] };
 

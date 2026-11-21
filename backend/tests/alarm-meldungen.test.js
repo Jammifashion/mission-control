@@ -27,7 +27,7 @@ jest.unstable_mockModule('../lib/chatNotify.js', () => ({ notifyFehler, notifySh
 const { ShopZeitueberschreitungError, HosterPruefseiteError } = await import('../lib/hosterPruefseite.js');
 
 const AUD = 'https://backend.example/api/intern/lshop-korb/abgleich';
-const KONTO = 'korb-scheduler@projekt.iam.gserviceaccount.com';
+const KONTO = 'job-test@projekt.iam.gserviceaccount.com';   // erfunden (SI2)
 let request;
 
 beforeAll(async () => {

@@ -54,13 +54,13 @@ jobs:
       - name: POST /api/bestellen/lshop-korb/abgleich
         env:
           API_URL:       ${{ secrets.BACKEND_URL }}
-          API_KEY:       ${{ secrets.MC_API_KEY }}
+          API_KEY:       ${{ secrets.MC_API_KEY_AUTOMATION || secrets.MC_API_KEY }}
           INPUT_DRY_RUN: ${{ inputs.dry_run }}
           RUN_ID:        ${{ github.run_id }}
         run: |
           set -euo pipefail
           if [ -z "$API_URL" ] || [ -z "$API_KEY" ]; then
-            echo "::error::BACKEND_URL oder MC_API_KEY fehlt in GitHub Secrets."
+            echo "::error::BACKEND_URL oder MC_API_KEY_AUTOMATION (Rueckfall MC_API_KEY) fehlt in GitHub Secrets."
             exit 1
           fi
 

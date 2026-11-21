@@ -613,7 +613,7 @@ const ANFRAGEN = [
 ];
 const INTERNE = [
   { rowId: 41, partnerId: 'P-003', partnerName: 'Fanclub Beispielkurve (Test)', datum: '17.11.2026', bezeichnung: 'Schals „Beispielkurve seit 1998“ Jacquard gewebt, beidseitig, 140 × 18 cm, mit Fransen', anzahl: 50, einzelpreis: 9.5, summe: 475, status: 'offen', kanal: 'Portal', fulfillment: 'Beauftragt' },
-  { rowId: 40, partnerId: 'P-012', partnerName: null, datum: '10.11.2026', bezeichnung: 'Hoodies Teamausstattung', anzahl: 12, einzelpreis: 28, summe: 336, status: 'abgerechnet', kanal: 'Portal', fulfillment: 'Erledigt' },
+  { rowId: 40, partnerId: 'P-090', partnerName: null, datum: '10.11.2026', bezeichnung: 'Hoodies Teamausstattung', anzahl: 12, einzelpreis: 28, summe: 336, status: 'abgerechnet', kanal: 'Portal', fulfillment: 'Erledigt' },
   { rowId: 39, partnerId: 'P-003', partnerName: 'Fanclub Beispielkurve (Test)', datum: '02.11.2026', bezeichnung: 'Aufkleber', anzahl: 200, einzelpreis: 0.4, summe: 80, status: 'offen', kanal: 'Manuell', fulfillment: 'Beauftragt' },
 ];
 

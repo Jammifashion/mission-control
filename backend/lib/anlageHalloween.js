@@ -277,7 +277,7 @@ export const UCS_LEBKUCHEN = {
   kategorieSeoHinweis: null, kategorieKarte: null, preise: 'ucs-lebkuchen', fp: null, ki: true,
 };
 
-// NEU1: Tobi Torpedo Fluffy Hoodies (Lizenzpartner P-002, Kat. 121), Logo-Motiv TT-Logo
+// NEU1: Tobi Torpedo Fluffy Hoodies (Lizenzpartner, Kat. 121), Logo-Motiv TT-Logo
 // (vorhanden), mehrere Farben je Artikel, Druckfarbe fest je Textilfarbe (am Mockup).
 // Partner_Artikel legt der Abgleich an (lib/partnerArtikel.js), nicht dieses Skript.
 const TT_FLUFFY_FARBEN = {

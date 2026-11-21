@@ -100,6 +100,13 @@ healthRouter.get('/full', async (req, res, next) => {
 // Models API. 200 alles gültig, 422 mindestens ein Modell fehlt, 500 bei
 // Sheet- oder API-Fehler (über den Error-Handler).
 // Aufrufer: .github/workflows/modell-check.yml
+// SI2: Anmeldemaske prueft den Schluessel, bevor sie ihn speichert (und der Passwort-Manager ihn uebernimmt).
+// Hinter requireApiKey: falscher Schluessel = 401 schon dort. Antwort nur der Name des Schluessels, nichts sonst.
+router.get('/wer', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ wer: req.mcSchluessel ?? null });
+});
+
 router.post('/modell-check', async (_req, res, next) => {
   try {
     const r = await runCheck();

@@ -74,6 +74,6 @@ describe('FK2 Theme', () => {
     expect(html).toContain('data-hilfe-gruppe="darstellung" aria-controls="hilfe-darstellung"');
     expect(html).toContain("'darstellung': ['theme-wahl'],");
     expect(html).toContain("themeSel.addEventListener('change', () => { window.mcTheme.setze(themeSel.value); });");
-    expect(html.indexOf('id="theme-wahl"')).toBeLessThan(html.indexOf('id="api-key-form"'));   // oben in den Einstellungen
+    expect(html.indexOf('id="theme-wahl"')).toBeLessThan(html.indexOf('id="schluessel-aendern"'));   // oben in den Einstellungen
   });
 });

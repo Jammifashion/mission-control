@@ -18,12 +18,12 @@ jobs:
       - name: POST /api/system/loeschlauf
         env:
           API_URL: ${{ secrets.BACKEND_URL }}
-          API_KEY: ${{ secrets.MC_API_KEY }}
+          API_KEY: ${{ secrets.MC_API_KEY_AUTOMATION || secrets.MC_API_KEY }}
           SCHARF: ${{ vars.LOESCHLAUF_SCHARF == 'ja' }}
         run: |
           set -euo pipefail
           if [ -z "$API_URL" ] || [ -z "$API_KEY" ]; then
-            echo "::error::BACKEND_URL oder MC_API_KEY fehlt in GitHub Secrets."
+            echo "::error::BACKEND_URL oder MC_API_KEY_AUTOMATION (Rueckfall MC_API_KEY) fehlt in GitHub Secrets."
             exit 1
           fi
           echo "scharf: $SCHARF"

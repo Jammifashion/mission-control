@@ -1,10 +1,11 @@
-// PP1 (Inhaber 04.11., antwort-PP1): optionale Spalte `Saldo_Kachel` hinten im Business-Reiter `Partner` und fuer P-012 "nein".
+// PP1 (Inhaber 04.11., antwort-PP1): optionale Spalte `Saldo_Kachel` hinten im Business-Reiter `Partner` und fuer die
+// genannten Partner "nein". Welche Partner: private Betriebsdoku (SI2 - Partner-Kennungen nie im Repo).
 //
-//   node backend/scripts/setup-partner-saldo-kachel.js           Trockenlauf (Standard): zeigt nur, was passieren wuerde
-//   node backend/scripts/setup-partner-saldo-kachel.js --write   haengt die Kopfzelle an und setzt P-012 = "nein"
+//   node backend/scripts/setup-partner-saldo-kachel.js --nein=P-0xx[,P-0yy]           Trockenlauf (Standard)
+//   node backend/scripts/setup-partner-saldo-kachel.js --nein=P-0xx[,P-0yy] --write   Kopfzelle anhaengen, "nein" setzen
 //
-// Idempotent. Aendert nichts sonst im Reiter: nur die eine Kopfzelle (falls sie fehlt) und die eine Zelle von P-012 (nur wenn
-// sie leer ist). EIN values.batchUpdate RAW, danach zurueckgelesen. Ausgabe nur IDs und Spaltennummern, keine Namen.
+// Idempotent. Aendert nichts sonst im Reiter: nur die eine Kopfzelle (falls sie fehlt) und je genanntem Partner die eine Zelle
+// (nur wenn sie leer ist). EIN values.batchUpdate RAW, danach zurueckgelesen. Ausgabe nur IDs und Spaltennummern, keine Namen.
 
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
@@ -17,7 +18,9 @@ import { SALDO_KACHEL_SPALTE } from '../utils/partner-saldo.js';
 const SHEET = process.env.BUSINESS_SHEET_ID;
 const WRITE = process.argv.includes('--write');
 const TAB = 'Partner';
-const OHNE_SALDO = { 'P-012': 'nein' };   // Inhaber 04.11.: Lizenz-% bleibt, nur die Kachel faellt weg
+// Inhaber 04.11.: Lizenz-% bleibt, nur die Kachel faellt weg. Partner-IDs nur per Aufruf (--nein=…).
+const OHNE_SALDO = Object.fromEntries((process.argv.find(a => a.startsWith('--nein='))?.slice(7) ?? '')
+  .split(',').map(s => s.trim()).filter(s => /^P-\d{3}$/.test(s)).map(id => [id, 'nein']));
 
 const spalte = i => { let s = '', n = i + 1; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; };
 
