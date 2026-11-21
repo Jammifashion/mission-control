@@ -137,7 +137,7 @@ describe('Quelltext-Regeln', () => {
     for (const verboten of ['files.delete', 'files.update', 'emptyTrash', 'permissions', 'files.copy', 'drives.']) expect(code).not.toContain(verboten);
     expect(code).not.toMatch(/trashed\s*[:=]\s*true/);
     expect(code).not.toMatch(/addParents|removeParents/);
-    expect([...code.matchAll(/files\.(\w+)/g)].map(m => m[1]).sort()).toEqual(['create', 'create', 'list']);
+    expect([...code.matchAll(/files\.(\w+)/g)].map(m => m[1]).sort()).toEqual(['create', 'create', 'create', 'list']);   // FB1: + leeres Sheet "MC Feedback" (nur Setup-Skript)
   });
 
   test('engster Scope drive.file, nur hier', () => {

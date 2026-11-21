@@ -37,6 +37,13 @@ async function auftragMitGruppen(p, gruppen) {
 export const ANSICHTEN_ZUSATZ = [
   { id: 'auftraege/liste+ansicht', hash: 'auftraege/liste', aktion: klick('#au-ansicht [data-au-oeffnen]'), wurzel: DLG, nurVoll: true },
   { id: 'auftraege/liste+neuer-auftrag', hash: 'auftraege/liste', aktion: klick('#au-neu'), wurzel: DLG },
+  // FB1: Feedback-Fenster allein und ueber einem offenen Fenster (gemessen wird nur das Feedback-Fenster)
+  { id: 'dashboard/start+feedback', hash: 'dashboard/start', aktion: async p => {
+      await klick('#feedback-oeffnen')(p);
+      await p.fill('#fb-text', 'Im Lager-Fenster ist der Knopf „alles“ am Handy zu klein, ich treffe ihn kaum. Bitte größer machen.'); }, wurzel: '#fb-dialog' },
+  { id: 'auftraege/liste+ansicht+feedback', hash: 'auftraege/liste', aktion: async p => {
+      await klick('#au-ansicht [data-au-oeffnen]')(p);
+      await p.evaluate(() => document.getElementById('feedback-oeffnen').click()); await p.waitForTimeout(600); }, wurzel: '#fb-dialog', nurVoll: true },
   { id: 'auftraege/liste+neuer-auftrag-3-gruppen', hash: 'auftraege/liste', aktion: p => auftragMitGruppen(p, [['HZ480', 0], ['HZ480', 1], ['TX210', 0]]), wurzel: DLG, nurVoll: true },
   { id: 'auftraege/liste+schnellannahme', hash: 'auftraege/liste', aktion: async p => {
       await p.fill('#au-schnell-text', '20 Shirts JN054 navy, 5x M, 10x L, 5x XL, Druck vorne Logo, bis 10.12., Testverein Nordlicht');

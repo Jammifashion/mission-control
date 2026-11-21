@@ -454,6 +454,34 @@
       .kopf-abmelden { background: none; border: 1px solid var(--border); color: var(--muted); border-radius: 999px; padding: 0.15rem 0.6rem; font-size: 0.75rem; cursor: pointer; }
       .kopf-abmelden:hover { color: var(--text); border-color: var(--muted); }
       .kopf-abmelden:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+      /* FB1: Feedback-Knopf im Kopf und Dialog. Der Dialog liegt ueber allen anderen Fenstern (auch ueber Auftrag/Bestellseite, z-index 52). */
+      .kopf-feedback { color: var(--text); white-space: nowrap; }
+      #fb-dialog { z-index: 60; }
+      .fb-box { width: min(560px, 100%); }
+      .fb-text { width: 100%; resize: vertical; font-family: inherit; min-height: 7rem; }
+      .fb-unter { display: flex; justify-content: space-between; gap: 0.75rem; align-items: baseline; }
+      .fb-unter > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+      .fb-hinweis { margin: 0; }
+      .fb-fuss { display: flex; flex-direction: column; gap: 0.5rem; }
+      .fb-fuss .korb-reihe { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+      @media (max-width: 600px) {
+        .kopf-feedback { min-width: 44px; min-height: 44px; padding: 0 0.5rem; font-size: 1.1rem; display: inline-flex; align-items: center; justify-content: center; }
+        .kopf-feedback-text { display: none; }   /* am Handy nur die Lampe - der Kopf ist schmal */
+        /* Kopf bleibt in 375 px: engere Abstaende, sonst wird die Seite breiter als der Bildschirm (Messung FB1: 406 px) */
+        header { padding-left: 0.75rem; padding-right: 0.75rem; gap: 0.4rem; }
+        header h1 { min-width: 0; font-size: 1rem; letter-spacing: 0.05em; }
+        .header-actions { gap: 0.4rem; flex: none; }
+        #shop-badge { padding-left: 0.5rem; padding-right: 0.5rem; }
+        .kopf-abmelden:not(.kopf-feedback) { padding-left: 0.45rem; padding-right: 0.45rem; }
+        .kopf-feedback { padding: 0; }
+        #fb-dialog { padding: 0.5rem; }           /* Fenster oben: Feld und Senden bleiben ueber der Bildschirmtastatur */
+        #fb-dialog .fb-text { font-size: 16px; min-height: 6rem; }
+        #fb-dialog .korb-aktion, #fb-dialog .hilfe-i { min-height: 44px; }
+        #fb-dialog .hilfe-i { min-width: 44px; }
+        #fb-dialog button.korb-link { min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; flex: none; white-space: nowrap; }
+        #fb-dialog .fb-fuss .korb-aktion { flex: 1 1 8rem; }
+        #fb-dialog .fb-fuss { position: sticky; bottom: -0.5rem; background: var(--surface); padding-bottom: 0.25rem; }
+      }
       #au-liste .ku-zeile[data-au-nr], #au-liste .ku-zeile[data-ag-nr] { cursor: pointer; }   /* AH1 (U2): ganze Zeile oeffnet */
       .au-pflicht-hinweis { margin-left: auto; font-size: 0.78rem; color: var(--muted); }
       #au-ansicht[hidden], #au-detail [hidden], #au-dialog [hidden] { display: none !important; }
@@ -2002,6 +2030,7 @@
       <div class="header-actions">
         <button class="hilfe-i" type="button" data-hilfe-gruppe="navigation" aria-controls="hilfe-navigation" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
         <button id="shop-badge" type="button" data-hilfe="shop-badge">JFN</button>
+        <button id="feedback-oeffnen" class="kopf-abmelden kopf-feedback" type="button" data-hilfe="feedback-oeffnen" aria-haspopup="dialog"><span aria-hidden="true">💡</span><span class="kopf-feedback-text"> Feedback</span></button>
         <button id="abmelden-kopf" class="kopf-abmelden" type="button" data-hilfe="abmelden">Abmelden</button>
         <div id="status-dot" title="API-Status wird geladen…"></div>
       </div>
@@ -2033,6 +2062,30 @@
           <button type="button" class="korb-aktion korb-aktion-ruhig" id="anmelde-abbrechen" data-hilfe="dialog-abbrechen" style="display:none">Abbrechen</button>
         </form>
         <p class="korb-zaehler">Den Schlüssel gibt dir der Inhaber. Er bleibt auf diesem Gerät gespeichert, bis du dich abmeldest. Nach 30 Tagen ohne Nutzung automatisch abgemeldet. Du kannst den Schlüssel im Passwort-Manager deines Browsers speichern.</p>
+      </div>
+    </div>
+
+    <!-- FB1: Feedback - kurze Idee abschicken. Liegt ueber jedem anderen Fenster (z-index ueber die id), aendert nichts an der Ansicht dahinter.
+         In MC gibt es keine Feedback-Ansicht: gespeichert wird im eigenen Sheet "MC Feedback". -->
+    <div id="fb-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="fb-titel" hidden>
+      <div class="edi-box fb-box">
+        <div class="edi-kopf">
+          <strong id="fb-titel">💡 Feedback</strong>
+          <button class="hilfe-i" type="button" data-hilfe-gruppe="feedback" aria-controls="hilfe-feedback" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+          <button type="button" class="korb-link" id="fb-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
+        </div>
+        <div id="hilfe-feedback" class="hilfe-legende" hidden></div>
+        <label class="edi-feld" for="fb-text" data-hilfe="fb-text">Was ist dir aufgefallen? Idee, Fehler, etwas Umständliches …</label>
+        <textarea id="fb-text" class="form-input fb-text" rows="5" maxlength="2000" placeholder="Kurz in eigenen Worten – Diktieren über die Tastatur geht auch." data-hilfe="fb-text"></textarea>
+        <div class="fb-unter"><span id="fb-kontext" class="korb-zaehler"></span><span id="fb-zaehler" class="korb-zaehler">0/2000</span></div>
+        <p class="field-note fb-hinweis">Der Text geht zur Einordnung an Claude (Anthropic) und wird im Feedback-Sheet gespeichert. Bitte keine Kundendaten.</p>
+        <div class="fb-fuss">
+          <div id="fb-fehler" class="lager-warnung" role="alert" hidden></div>
+          <div class="korb-reihe">
+            <button type="button" class="korb-aktion korb-aktion-haupt" id="fb-senden" data-hilfe="fb-senden">Senden</button>
+            <button type="button" class="korb-aktion korb-aktion-ruhig" id="fb-abbrechen" data-hilfe="dialog-abbrechen">Abbrechen</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -7163,6 +7216,9 @@
         'lager-verlauf-korb':    { name: 'Korb-Position', text: 'Öffnet die Position im L-Shop-Warenkorb.' },
         'lager-verlauf-bestellung': { name: 'Bestellung', text: 'Öffnet die Shop-Bestellung unter „Bestellungen (JFN)“.' },
         'theme-wahl':            { name: 'Farben', text: 'System folgt dem Gerät (hell/dunkel). Hell oder Dunkel gilt fest – gespeichert nur auf diesem Gerät.' },
+        'feedback-oeffnen':      { name: 'Feedback', text: 'Kurze Idee, Fehler oder Wunsch abschicken. Die Ansicht dahinter bleibt, wie sie ist.' },
+        'fb-text':               { name: 'Feedback-Text', text: 'Höchstens 2.000 Zeichen. Geht zur Einordnung an Claude und ins Feedback-Sheet. Keine Kundendaten.' },
+        'fb-senden':             { name: 'Senden', text: 'Speichert die Rückmeldung mit Ansicht, Gerät und Uhrzeit. Du bekommst eine FB-Nummer.' },
         'abmelden':              { name: 'Abmelden', text: 'Auf diesem Gerät abmelden. Bei verlorenem Gerät: Schlüssel im Secret Manager tauschen.' },
         'anmelden':              { name: 'Anmelden', text: 'Speichert den Schlüssel auf diesem Gerät. Nur der Inhaber vergibt ihn. Nach 30 Tagen ohne Nutzung automatisch abgemeldet.' },
         'schluessel-aendern':    { name: 'Schlüssel ändern', text: 'Öffnet die Anmeldemaske für einen neuen Schlüssel. Danach lädt MC neu.' },
@@ -7692,7 +7748,8 @@
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
         // HT1: Gruppen der aelteren Knoepfe (ⓘ-Liste, sobald es dort ein ⓘ gibt)
-        'navigation': ['shop-badge', 'abmelden', 'shop-wahl', 'neue-version-laden', 'neue-version-spaeter', 'nav-bereich', 'nav-ansicht', 'nav-unterreiter', 'trikot-sync'],
+        'feedback': ['fb-text', 'fb-senden', 'dialog-abbrechen', 'dialog-schliessen'],   // FB1
+        'navigation': ['shop-badge', 'feedback-oeffnen', 'abmelden', 'shop-wahl', 'neue-version-laden', 'neue-version-spaeter', 'nav-bereich', 'nav-ansicht', 'nav-unterreiter', 'trikot-sync'],
         'anmelden': ['anmelde-name', 'anmelde-key', 'anmelden', 'dialog-abbrechen'],   // SI1/SI2: Anmeldemaske
         'dialog': ['dialog-abbrechen', 'dialog-schliessen', 'dialog-bestaetigen', 'dialog-speichern', 'liste-bearbeiten', 'zeile-speichern'],
         'auftragsmonitor': ['wc-erledigt', 'tab-offen', 'tab-protokoll', 'mon-fulfillment', 'dtf-sammel', 'dtf-bestellt', 'lshop-alt-sammel', 'lshop-alt-bestellt', 'korb-aeltere'],
@@ -20555,6 +20612,116 @@
           pushStatus.style.color = 'var(--danger)';
           anlageLaeuft = false; aktualisiereAnlage();
         }
+      });
+
+      // ── SECTION: Feedback (FB1) ──
+      // Knopf "💡 Feedback" im Kopf -> kleiner Dialog -> POST /api/feedback. MC zeigt Feedback nirgends an (kein Lesen, kein Export).
+      // "Wer" setzt das Backend aus dem Schluessel; hier wird der Name nur angezeigt. Der Text bleibt nur im Speicher der Seite.
+      // ── Feedback: Anfang (reine Logik, backend/tests/feedback-frontend.test.js) ──
+      const FB_TEXT_MAX = 2000;
+      // Fenster mit festem Namen - nie der Titel aus dem Fenster selbst (der traegt Kurztitel/Namen).
+      const FB_DIALOG_NAMEN = {
+        'au-dialog': 'Auftrag erfassen/bearbeiten', 'au-detail': 'Auftragsansicht', 'au-nachsehen': 'Auftrag nachsehen', 'ab-dialog': 'Rohlinge bereitstellen',
+        'ag-dialog': 'Aufgabe erfassen/bearbeiten', 'ag-detail': 'Aufgabenansicht', 'ku-dialog': 'Kunde', 'kl-dialog': 'In Lexoffice suchen',
+        'bsm-dialog': 'Bestellseite', 'lager-dialog': 'Lager buchen', 'lo-dialog': 'Lagerort wählen', 'korb-lager-dialog': 'aus Lager nehmen',
+        'edi-dialog': 'L-Shop-Bestellung', 'senden-dialog': 'An L-Shop senden', 'eb-dialog': 'Eigene Position bearbeiten', 'we-dialog': 'Ware angekommen',
+        'ks-dialog': 'Karton scannen', 'tr-dialog': 'Produzenten-Bestellung', 'ti-dialog': 'Interne Trikotbestellung', 'anf-side-panel': 'Anfrage (Seitenleiste)',
+        'anf-modal-backdrop': 'Neue Anfrage', 'shop-modal-overlay': 'Shop-Auswahl',
+      };
+      const fbDialogName = id => (id ? (FB_DIALOG_NAMEN[id] ?? String(id).replace(/[^a-z0-9-]/gi, '').slice(0, 40)) : '');
+      // Geoeffnetes Objekt NUR als Nummer: erste Nummer dieser Formen im Text, sonst nichts (Namen koennen so nie mitgehen).
+      const FB_OBJEKT_RE = /\b(?:(?:AU|AG|INT)-\d{4}-\d{4}|JFN-\d{4}-\d{4}|(?:K|BS)-\d{3,5})\b/;
+      const fbObjektAus = text => (FB_OBJEKT_RE.exec(String(text ?? '')) ?? [''])[0];
+      // "Aufträge → Offene To-dos" aus der Navigations-Tabelle; ohne Namen im Unterpunkt der Text seines Knopfs (ohne Zaehler).
+      function fbAnsichtLesbar(bereiche, bereich, punkt, knopfText = '') {
+        const b = bereiche?.[bereich];
+        if (!b) return '';
+        const p = (b.punkte ?? []).find(x => x.id === punkt);
+        const name = String(p?.label ?? knopfText ?? '').replace(/\(JFN\)|\(HONK\)/g, '').replace(/\s*\d+\s*$/, '').replace(/[^\p{L}\p{N} &\-.]/gu, ' ').replace(/\s+/g, ' ').trim();
+        const haupt = b.label ?? (bereich.charAt(0).toUpperCase() + bereich.slice(1));
+        return name && name !== haupt ? `${haupt} → ${name}` : (name ? `${haupt} → ${name}` : haupt);
+      }
+      function fbZaehlerText(n) { return `${n}/${FB_TEXT_MAX}`; }
+      function fbKontextText(k, wer) {
+        return [wer ? `Von: ${wer}` : '', k.ansichtLesbar ? `Ansicht: ${k.ansichtLesbar}` : '', k.dialog ? `Fenster: ${k.dialog}` : '', k.objekt].filter(Boolean).join(' · ');
+      }
+      // ── Feedback: Ende ──
+
+      const fbZ = { kontext: null, laeuft: false, zurueck: null };
+      const fbEl = id => document.getElementById(id);
+      function fbKontextSammeln() {
+        // oberstes offenes Fenster (ohne das Feedback-Fenster selbst)
+        const offen = [...document.querySelectorAll(NV_DIALOG)].filter(d => d.id !== 'fb-dialog');
+        const d = offen.sort((a, b) => (Number(getComputedStyle(a).zIndex) || 0) - (Number(getComputedStyle(b).zIndex) || 0)).pop() ?? null;
+        const p = BEREICHE[aktuelleAnsicht.bereich]?.punkte?.find(x => x.id === aktuelleAnsicht.punkt);
+        const knopfText = p && !p.label && p.knopf ? (document.querySelector(p.knopf)?.textContent ?? '') : '';
+        const stand = document.querySelector('meta[name="mc-commit"]')?.content ?? '';
+        return {
+          ansicht: `#${aktuelleAnsicht.bereich}/${aktuelleAnsicht.punkt}`,
+          ansichtLesbar: fbAnsichtLesbar(BEREICHE, aktuelleAnsicht.bereich, aktuelleAnsicht.punkt, knopfText),
+          dialog: fbDialogName(d?.id),
+          objekt: d ? fbObjektAus((d.querySelector('.edi-kopf, .anf-side-head, .anf-modal-head') ?? d).textContent) : '',
+          breite: window.innerWidth,
+          mcStand: /^[0-9a-f]{7,40}$/i.test(stand) ? stand.slice(0, 7) : 'lokal',
+        };
+      }
+      function fbFehler(text) { const f = fbEl('fb-fehler'); f.textContent = text || ''; f.hidden = !text; }
+      function fbOeffnen() {
+        if (!fbEl('anmelde-maske').hidden) return;   // erst anmelden
+        fbZ.kontext = fbKontextSammeln();            // VOR dem Oeffnen: wo man gerade war
+        fbZ.zurueck = document.activeElement;
+        let wer = '';
+        try { wer = localStorage.getItem(ANMELDE_NAME_KEY) || ''; } catch { /* egal */ }
+        fbEl('fb-kontext').textContent = fbKontextText(fbZ.kontext, wer);
+        fbEl('fb-zaehler').textContent = fbZaehlerText(fbEl('fb-text').value.length);
+        fbFehler('');
+        fbEl('fb-dialog').hidden = false;
+        fbEl('fb-text').focus();
+      }
+      function fbSchliessen() {
+        fbEl('fb-dialog').hidden = true;
+        try { fbZ.zurueck?.focus?.(); } catch { /* egal */ }
+        fbZ.zurueck = null;
+      }
+      async function fbSenden() {
+        if (fbZ.laeuft) return;
+        const text = fbEl('fb-text').value.trim();
+        if (!text) { fbFehler('Bitte erst etwas eintippen.'); fbEl('fb-text').focus(); return; }
+        if (text.length > FB_TEXT_MAX) { fbFehler(`Text zu lang (höchstens ${FB_TEXT_MAX} Zeichen) – bitte kürzen.`); return; }
+        fbZ.laeuft = true;
+        const knopf = fbEl('fb-senden');
+        knopf.disabled = true; knopf.textContent = 'Sendet …';
+        fbFehler('');
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/feedback`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text, kontext: fbZ.kontext ?? fbKontextSammeln() }),
+          });
+          const d = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            // Text bleibt stehen - nichts geht verloren
+            fbFehler(res.status === 503 ? 'Feedback gerade nicht möglich – bitte später noch einmal senden. Dein Text bleibt hier stehen.' : (d.error || `Nicht gespeichert (HTTP ${res.status}) – bitte noch einmal senden.`));
+            return;
+          }
+          fbEl('fb-text').value = '';
+          fbSchliessen();
+          showToast(`${d.nr} gespeichert – danke!`, 'success');
+        } catch {
+          fbFehler('Nicht gespeichert (keine Verbindung) – bitte noch einmal senden. Dein Text bleibt hier stehen.');
+        } finally {
+          fbZ.laeuft = false;
+          knopf.disabled = false; knopf.textContent = 'Senden';
+        }
+      }
+      fbEl('feedback-oeffnen').addEventListener('click', fbOeffnen);
+      fbEl('fb-schliessen').addEventListener('click', fbSchliessen);
+      fbEl('fb-abbrechen').addEventListener('click', fbSchliessen);
+      fbEl('fb-senden').addEventListener('click', fbSenden);
+      fbEl('fb-text').addEventListener('input', () => { fbEl('fb-zaehler').textContent = fbZaehlerText(fbEl('fb-text').value.length); });
+      // Tasten bleiben im Feedback-Fenster: Esc schliesst nur dieses, nie das Fenster dahinter.
+      fbEl('fb-dialog').addEventListener('keydown', e => {
+        if (e.key === 'Escape') { e.preventDefault(); fbSchliessen(); }
+        e.stopPropagation();
       });
 
       // ── SECTION: Kundenanfragen Extern ──

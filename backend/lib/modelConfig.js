@@ -17,6 +17,8 @@ export const DEFAULT_MODELS = {
   'agent-intern':    'claude-sonnet-5-5',
   // SA1: Schnellannahme. Nur Claude zulaessig (Datenschutz: Rohtext nur an Anthropic, lib/auftragSchnell.js prueft).
   'auftrag-schnell': 'claude-haiku-5-5',
+  // FB1: Einordnung von Feedback. Nur Claude zulaessig (lib/feedback.js prueft), sonst bleiben die KI-Spalten leer.
+  'feedback':        'claude-haiku-5-5',
 };
 
 // Generischer Fallback für Rollen, die nicht in DEFAULT_MODELS bekannt sind.

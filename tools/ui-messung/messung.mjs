@@ -120,12 +120,16 @@ for (const zustand of ZUSTAENDE) for (const bw of BREITEN) for (const modus of M
     await page.goto(`http://127.0.0.1:${srv.address().port}/${a.url ?? `index.html#${a.hash ?? a.id}`}`);
     await page.waitForTimeout(2200);
     let aktionOk = true;
-    if (a.aktion) { try { await a.aktion(page); } catch { aktionOk = false; } }
+    if (a.aktion) { try { await a.aktion(page); } catch (e) { aktionOk = false; if (process.env.UI_DEBUG) console.log(`Aktion ${a.id}: ${String(e.message).slice(0, 2500)}`); } }   // UI_DEBUG=1 zeigt, warum eine Aktion scheitert
     const wurzel = a.wurzel ?? PANEL;
     let r;
     try { r = await page.evaluate(`(${PRUEF})(${JSON.stringify({ wurzelSel: wurzel, mobil })})`); }
     catch (e) { r = { funde: [], karten: [], seiteRollt: 0, fehler: e.message }; }
     const wurzelDa = await page.evaluate(s => [...document.querySelectorAll(s)].some(e => e.getBoundingClientRect().height > 0 && !e.closest('[hidden]')), wurzel);
+    // FB1: am Handy vergroessert der Browser die Seite, wenn Inhalt breiter ist als der Bildschirm - dann stimmt innerWidth
+    // nicht mehr mit der eingestellten Breite ueberein und die Pruefung in der Seite merkt es nicht.
+    const innen = await page.evaluate(() => window.innerWidth).catch(() => bw);
+    if (!r.seiteRollt && innen > bw + 1) r.seiteRollt = innen;
     if (r.seiteRollt) r.funde.push({ art: 'seite-rollt', sel: 'html', text: '', rect: { x: 0, y: 0, w: bw, h: 200 }, detail: `Seite ${r.seiteRollt}px breit bei ${bw}px` });
     const name = `${a.id.replace(/[/+.]/g, '-')}_${zustand}_${bw}_${modus}`;
     if (UEBERSICHT && wurzel.startsWith('.edi-dialog')) {

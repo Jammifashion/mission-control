@@ -1375,6 +1375,19 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   (Doppelklick), Takt wie die Suche. Schreib-Schluessel NUR Secret `LEXWARE_API_KEY_KONTAKTE_SCHREIBEN` (`schreibSchluessel`, nicht in
   SECRET_KEYS); fehlt er/401/403 -> 503 `lexware_schluessel`, Haken mit Hinweis (`GET .../lexoffice-schreiben` { bereit }). Test
   kunden-lexoffice-anlegen.test.js.
+- backend/lib/feedback.js – Feedback aus MC (FB1), Logik `utils/feedback.js`, Route `routes/feedback.js` (`POST /api/feedback { text, kontext }`, hinter
+  requireApiKey, eigene Bremse). Knopf "💡 Feedback" im Kopf (`#feedback-oeffnen`, am Handy nur die Lampe), Dialog `#fb-dialog` (z-index 60, liegt ueber
+  jedem Fenster, aendert nichts dahinter), SECTION Feedback (FB1) mit Block `Feedback: Anfang/Ende` (Test feedback-frontend.test.js), Hilfe-Gruppe `feedback`.
+  **In MC gibt es kein Lesen, keine Ansicht, keinen Export** - gespeichert wird im eigenen Google Sheet "MC Feedback" (geteilte Ablage, Reiter `Feedback`,
+  Spalten `SPALTEN` ueber den Namen), das Otto direkt liest. Sheet-ID = Secret `FEEDBACK_SHEET_ID` (`getSecret`, NICHT in SECRET_KEYS: fehlt es, startet
+  das Backend, die Route antwortet 503 `feedback_einrichtung`, der Dialog behaelt den Text). "Wer" setzt das Backend aus dem geprueften Schluessel
+  (`werAus(req.mcSchluessel)`: Inhaber/Nicole; Automatik = 403), nie aus dem Body. Kontext vom Browser wird gesiebt (`pruefeEingabe`): Ansicht nur
+  `#bereich/unterpunkt`, Fenster ueber feste Namen (`FB_DIALOG_NAMEN`, nie der Fenstertitel), Objekt nur als Nummer (`OBJEKT_RE`), Geraet aus der Breite.
+  Ablauf unter einer Sperre je Instanz: Reiter EINMAL lesen (naechste `FB-NNNN` = hoechste + 1, Zielzeile, Titel der letzten 200 fuer "aehnlich zu") ->
+  KI-Einordnung (Rolle `feedback`, Standard Haiku, nur claude-…, Art `schnell` mit Structured Outputs, 30 s) -> EINE Zeile ueber `schreibeNeueZeilen` (RAW,
+  kein append, zurueckgelesen). KI faellt aus = Rohtext trotzdem gespeichert, KI-Spalten leer. Text nie ins Log/in Fehlertexte (Route beantwortet Fehler
+  selbst, loggt nur Nummer, Status, Code, Token-Zahlen). Setup `scripts/setup-feedback-sheet.js` (Trockenlauf, `--write`; die leere Datei legt
+  `richteFeedbackSheetEin` in belegArchiv.js an, Sheet-ID nur im Terminal). Tests feedback.test.js, feedback-frontend.test.js.
 - backend/lib/lexware.js – Lexware Office Public API (`https://api.lexware.io`), **lesen + EIN Anlegen (AM-9)**, einzige Stelle mit Zugriff
   (Test kunden.test.js: nur `method: 'GET'`, kein anderer Ort nennt die URL). Heute nur `GET /v1/contacts?customer=true` (alle Seiten; AM-1-1 auch Suche `name`/`email`/`number`, eine Seite)
   und `GET /v1/contacts/{id}`,

@@ -166,3 +166,21 @@ export async function richteEntwurfOrdnerEin({ name, write = false, drive = driv
     throw new ArchivFehler(`Drive${code ? ` ${code}` : ''}: ${ohneIds(err?.message ?? err, ids)}`);
   }
 }
+
+// ── FB1: leeres Google Sheet "MC Feedback" in der Wurzel der Ablage ──
+// Nur das Setup-Skript (scripts/setup-feedback-sheet.js), nur mit write. Vorhanden (von MC angelegt) -> dieselbe ID, nichts angelegt.
+// Inhalt (Reiter, Kopfzeile) schreibt das Skript ueber die Sheets-API; hier entsteht nur die leere Datei.
+export const FEEDBACK_SHEET_NAME = 'MC Feedback';
+const SHEET_MIME = 'application/vnd.google-apps.spreadsheet';
+export async function richteFeedbackSheetEin({ write = false, drive = driveClient(), driveId = process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID } = {}) {
+  if (!driveId) throw new ArchivFehler('GOOGLE_DRIVE_SHARED_DRIVE_ID fehlt.');
+  const da = (await kinder(drive, driveId, driveId, FEEDBACK_SHEET_NAME, false)).filter(f => f.mimeType === SHEET_MIME);
+  if (da.length > 1) throw new ArchivFehler(`"${FEEDBACK_SHEET_NAME}" gibt es mehrfach - bitte in Drive bereinigen.`);
+  if (da.length === 1) return { id: da[0].id, neu: false, wuerde: false };
+  if (!write) return { id: '', neu: false, wuerde: true };
+  const { data } = await drive.files.create({
+    requestBody: { name: FEEDBACK_SHEET_NAME, mimeType: SHEET_MIME, parents: [driveId] }, supportsAllDrives: true, fields: 'id',
+  });
+  if (!data?.id) throw new ArchivFehler(`${FEEDBACK_SHEET_NAME} nicht angelegt.`);
+  return { id: data.id, neu: true, wuerde: false };
+}
