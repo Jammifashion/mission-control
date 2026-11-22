@@ -123,12 +123,13 @@ export function fpBetragsUebersicht({ header, rows, partnerId, heute, mwstProzen
   const h = n => header.indexOf(n);
   const iP = h('Partner-ID'), iD = h('Datum'), iQ = h('Stückzahl'), iA = h('Artikelname'), iSt = h('Storno-Status'), iO = h('WC-Bestellnummer');
   const iVk = h('VK-Netto'), iF = h('Festpreis'), iH = h('Handlingskosten'), iM = h('Mehrkosten');
+  const iSteuer = h('VK-Steuer');   // GT1 Punkt 7: mit Steuer je Zeile ist der Umsatz das bezahlte Brutto (Netto + Steuer), sonst Netto x MwSt
   const { jahr: J, monat: M } = jahrMonat(heute);
   const satz = 100 + (Number(mwstProzent) || 0);   // brutto in Cent: netto × (100 + MwSt) - vermeidet 16,065 -> 16,06
   const eigene = rows.filter(r => t(r[iP]) === partnerId);
   const monatVon = monatDerBestellung(eigene, { iO, iD, iSt });
   const reihe = () => ({ jahr: Array(12).fill(0), vorjahr: Array(12).fill(0) });
-  const umsatz = reihe(), erloes = reihe();
+  const umsatz = reihe(), erloes = reihe(), umsatzBezahlt = reihe();
   const jeArtikel = new Map();
   let erstes = null;
   for (const r of eigene) {
@@ -141,13 +142,16 @@ export function fpBetragsUebersicht({ header, rows, partnerId, heute, mwstProzen
     const er = ohnePreis ? 0 : vk - (Math.abs(zahl(r[iF])) + Math.abs(iH === -1 ? 0 : zahl(r[iH]))) * q - (iM === -1 ? 0 : zahl(r[iM]));
     const ziel = d.jahr === J && d.monat <= M ? 'jahr' : d.jahr === J - 1 ? 'vorjahr' : null;
     if (!ziel) continue;
-    umsatz[ziel][d.monat] += vk;
+    const steuer = iSteuer === -1 ? '' : t(r[iSteuer]);
+    const bezahlt = steuer === '' ? null : vk + zahl(steuer);
+    if (bezahlt === null) umsatz[ziel][d.monat] += vk; else umsatzBezahlt[ziel][d.monat] += bezahlt;
     erloes[ziel][d.monat] += er;
     if (ziel === 'jahr') {
       const name = iA === -1 ? '' : t(r[iA]);
       if (!name) continue;
-      const a = jeArtikel.get(name) ?? { stueck: 0, umsatz: 0, erloes: 0 };
-      a.stueck += q; a.umsatz += vk; a.erloes += er;
+      const a = jeArtikel.get(name) ?? { stueck: 0, umsatz: 0, umsatzBezahlt: 0, erloes: 0 };
+      a.stueck += q; a.erloes += er;
+      if (bezahlt === null) a.umsatz += vk; else a.umsatzBezahlt += bezahlt;
       jeArtikel.set(name, a);
     }
   }
@@ -157,7 +161,12 @@ export function fpBetragsUebersicht({ header, rows, partnerId, heute, mwstProzen
     jahr: x.jahr.map((v, m) => (m <= M ? b(v) : null)),
     vorjahr: x.vorjahr.map((v, m) => (ohneDaten(m, J - 1) ? null : b(v))),
   });
-  const u = fertig(umsatz), e = fertig(erloes);
+  const e = fertig(erloes);
+  const mitBezahlt = (x, bz) => ({   // Umsatz = Netto-Teil brutto gerechnet + schon bezahltes Brutto
+    jahr: x.jahr.map((v, m) => (v === null ? null : rund(v + bz.jahr[m]))),
+    vorjahr: x.vorjahr.map((v, m) => (v === null ? null : rund(v + bz.vorjahr[m]))),
+  });
+  const u = mitBezahlt(fertig(umsatz), umsatzBezahlt);
   const summe = (a, bis) => rund(a.slice(0, bis + 1).reduce((s, v) => s + (v ?? 0), 0));
   const vjGanz = arr => arr.slice(0, M + 1).every(v => v !== null);
   return {
@@ -165,7 +174,7 @@ export function fpBetragsUebersicht({ header, rows, partnerId, heute, mwstProzen
     umsatzJahr: summe(u.jahr, M), erloesJahr: summe(e.jahr, M),
     umsatzVorjahr: vjGanz(u.vorjahr) ? summe(u.vorjahr, M) : null,
     erloesVorjahr: vjGanz(e.vorjahr) ? summe(e.vorjahr, M) : null,
-    top10: [...jeArtikel].map(([name, a]) => ({ name, stueck: rund(a.stueck), umsatz: b(a.umsatz), erloes: b(a.erloes) }))
+    top10: [...jeArtikel].map(([name, a]) => ({ name, stueck: rund(a.stueck), umsatz: rund(b(a.umsatz) + a.umsatzBezahlt), erloes: b(a.erloes) }))
       .filter(x => x.stueck > 0).sort((x, y) => y.stueck - x.stueck || x.name.localeCompare(y.name, 'de')).slice(0, TOP_DETAIL),
   };
 }

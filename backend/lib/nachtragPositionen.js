@@ -166,7 +166,9 @@ export async function nachtragenPositionen({ sheets, spreadsheetId, art, nur = n
       kopfNeu.push(SPALTE_POSITION); iPos = POSITION_INDEX_FP;
     } else if (iPos !== POSITION_INDEX_FP) throw new Error(`${cfg.tab}: Positions-ID steht nicht in Spalte AA – nichts geschrieben.`);
   }
-  const breite = Math.max(kopfNeu.length, ...neu.map(r => r.length));
+  // GT1 Punkt 7: VK-Steuer (FP, Spalte AB) nur schreiben, wenn die Kopfzelle schon da ist (legt der FP-Sync an) - sonst bis AA.
+  const ohneSteuer = !kopfNeu.includes('VK-Steuer');
+  const breite = Math.max(kopfNeu.length, ...neu.map(r => (ohneSteuer ? Math.min(r.length, POSITION_INDEX_FP + 1) : r.length)));
   await schreibeNeueZeilen(sheets, spreadsheetId, cfg.tab, neu.map(r => Array.from({ length: breite }, (_, i) => r[i] ?? '')), { alt: roh });
   ergebnis.geschrieben = neu.length;
   return ergebnis;

@@ -1680,6 +1680,12 @@ keine Wiederholung. FTP-Fehler sind 200; rot erst, wenn der letzte Stand aelter 
 - **Lesebereiche:** keine festen Zeilengrenzen mehr (`A1:ZZ`): auftragsmonitor, routes/sheets.js (`readRange`, Produktions_Status), produktionStand.
 - **Portal-Abrechnungen:** Erlaubt-Liste `ABRECHNUNG_SICHTBAR` (freigegeben, bezahlt; utils/partner-saldo.js) in beiden Portalen, Felder fest.
 - **Pakete:** `@google-cloud/secret-manager` 8 (Node >= 22), `overrides` exceljs -> uuid ^11.1.1; `npm audit --omit=dev` = 0.
+- **Bezahltes Brutto (Punkt 7, Inhaber 22.11.: ab neuen Abrechnungen):** FP-Sync schreibt je Zeile `VK-Steuer` (Spalte AB = WooCommerce
+  `line_item.total_tax`; Storno negiert, Teilerstattung anteilig, Versand-Erstattung 0; legt die Kopfzelle AB an). `aggregateFpVerkaeufe` liefert je Gruppe
+  `vkBrutto` (Summe VK-Netto + VK-Steuer in Cent) NUR, wenn alle Zeilen die Steuer tragen. GS1-Gutschrift: Verkaufszeile je Kategorie = bezahltes Brutto
+  (statt Netto x MwSt), der Rest bis zur Abrechnungssumme als eigene Zeile "Rundungsdifferenz"; ohne vkBrutto (Altzeilen, alte Abrechnungen) wie bisher.
+  PD2-Umsatz: Zeilen mit Steuer = Netto + Steuer. Abrechnungssumme (Gesamt-Brutto) unveraendert = Auszahlung netto x MwSt. Nachtrag offener Zeilen:
+  `scripts/nachtragen-vk-steuer.js` (Trockenlauf Standard, `--write` nur nach Freigabe; abgerechnete Zeilen nie). Test gt1-rundung.test.js.
 
 ## Betrieb (FIX3)
 - Alarm: `middleware/jobAlarm.js` (vor den Routern) meldet jede 5xx-Antwort der Job-Routen (`JOB_ROUTEN`: Backup, Partner-Artikel-

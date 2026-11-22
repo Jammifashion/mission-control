@@ -18,6 +18,10 @@ import {
 import { berechnePorto, satzAus, portoFuerSyncZeile, PORTO_BESTELLUNG, PORTO_VERSANDART } from '../utils/festpreis-porto.js';   // PO1
 const PORTO_INDEX = 24;   // PO1: Y = Porto_Bestellung, Z = Porto_Versandart (hinter X = Sperre)
 const POSITION_INDEX = 26;   // AA = Positions-ID (line_item.id) der Shop-Bestellung
+// GT1 Punkt 7 (Inhaber 22.11.): AB = VK-Steuer (WooCommerce line_item.total_tax) - damit ist das bezahlte Brutto je Position
+// VK-Netto + VK-Steuer (nicht VK-Netto x 1,19, das summiert die Cent-Rundung je Position). Additiv; leer = Altzeile.
+export const STEUER_INDEX = 27;
+export const SPALTE_STEUER = 'VK-Steuer';
 import {
   STATUS_GESPERRT, SPALTE_SPERRE, SPERRE_INDEX, SYNC_BREITE, GRUND_KATEGORIE, festpreisZuordnungen, zuordnungFuer, sperreZeile,
   fpAbrechnungHinweise, gesperrtZaehlen,
@@ -123,7 +127,7 @@ export function buildFpStornoRows(vRows, stornoOrders) {
     if (!istErstattungsZeile(s)) { stornoDone.add(dupKeyOf(r)); continue; }
     const k = dupKeyOf(r);
     const m = teilSumme.get(k) ?? new Map();
-    for (const i of SUMME_COLS) if ((r[i] ?? '') !== '') m.set(i, (m.get(i) ?? 0) + toFloat(r[i]));
+    for (const i of [...SUMME_COLS, STEUER_INDEX]) if ((r[i] ?? '') !== '') m.set(i, (m.get(i) ?? 0) + toFloat(r[i]));
     teilSumme.set(k, m);
   }
   const rund = x => Math.round((x + Number.EPSILON) * 100) / 100;
@@ -157,6 +161,10 @@ export function buildFpStornoRows(vRows, stornoOrders) {
     counter[STORNO_COL] = FP_STORNO_MARKER;
     if (gesperrt) counter[23] = r[23] || 'Festpreis-Kategorie fehlt';
     if (String(r[POSITION_INDEX] ?? '').trim()) counter[POSITION_INDEX] = r[POSITION_INDEX];
+    if (String(r[STEUER_INDEX] ?? '').trim() !== '') {   // GT1 Punkt 7: Steuer der Position mit zurueck (Altzeilen ohne Steuer bleiben leer)
+      const x = rund(toFloat(r[STEUER_INDEX]) + (teil?.get(STEUER_INDEX) ?? 0));
+      counter[STEUER_INDEX] = x === 0 ? 0 : -x;
+    }
     out.push(counter);
   }
   return out;
@@ -233,6 +241,7 @@ export function fpVerkaufszeile({ order, item, e, k, zuordnungen }) {
   ]);
   if (po) { zeile[PORTO_INDEX] = po.portoBestellung; zeile[PORTO_INDEX + 1] = po.versandart; }   // PO1: Y, Z
   zeile[POSITION_INDEX] = item.id;   // AA: Positions-ID
+  zeile[STEUER_INDEX] = Math.round(toFloat(item.total_tax) * 100) / 100;   // AB: Steuer der Position (GT1 Punkt 7)
   return { zeile, katPreis };
 }
 
@@ -780,7 +789,7 @@ router.post('/verkaeufe/sync', async (req, res, next) => {
  * NB2: Spaltenindex fuer die Erstattung - Porto_Bestellung und Positions-ID stehen positionsfest (Y, AA), auch wenn
  * die Kopfzelle erst beim Schreiben dieses Laufs angelegt wird.
  */
-const fpErstattungVh = vh => c => (vh(c) !== -1 ? vh(c) : ({ [PORTO_BESTELLUNG]: PORTO_INDEX, [SPALTE_POSITION]: POSITION_INDEX }[c] ?? -1));
+const fpErstattungVh = vh => c => (vh(c) !== -1 ? vh(c) : ({ [PORTO_BESTELLUNG]: PORTO_INDEX, [SPALTE_POSITION]: POSITION_INDEX, [SPALTE_STEUER]: STEUER_INDEX }[c] ?? -1));
 
 /** NB2: Erstattungen des FP-Syncs, je Shop (Abruf wie der Lizenz-Sync, Rechnung buildFpErstattungRows). */
 async function fpErstattungen({ vRows, vh, shops, partnerShopMap, ordersByShop, konfigFuer, laden = ladeErstattungsBestellungen, wcFuer = getWcClient }) {
@@ -984,7 +993,19 @@ async function fpSyncInSperre(req, sheetId) {
       } else if (vh(SPALTE_POSITION) !== POSITION_INDEX) {
         return { status: 409, body: { error: `FP_Verkäufe: ${SPALTE_POSITION} steht nicht in Spalte AA, nichts geschrieben.` } };
       }
-      const breite = POSITION_INDEX + 1;
+      // GT1 Punkt 7: Spalte AB "VK-Steuer" additiv direkt hinter AA (nur Kopfzelle; Altzeilen bleiben leer)
+      if (vh(SPALTE_STEUER) === -1) {
+        if (vH.length !== POSITION_INDEX + 1)
+          return { status: 409, body: { error: `FP_Verkäufe: ${vH.length} Spalten, ${SPALTE_STEUER} nicht angelegt, nichts geschrieben.` } };
+        await sichereSpaltenRaster(sheets, sheetId, TAB_FP_VERKAEUFE, STEUER_INDEX + 1);
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: sheetId, range: `${TAB_FP_VERKAEUFE}!AB1`, valueInputOption: 'RAW', requestBody: { values: [[SPALTE_STEUER]] },
+        });
+        vH.push(SPALTE_STEUER);
+      } else if (vh(SPALTE_STEUER) !== STEUER_INDEX) {
+        return { status: 409, body: { error: `FP_Verkäufe: ${SPALTE_STEUER} steht nicht in Spalte AB, nichts geschrieben.` } };
+      }
+      const breite = STEUER_INDEX + 1;
       const zeilen = allRows.map(r => Array.from({ length: breite }, (_, i) => r[i] ?? ''));
       // PA8: ohne values.append - erste freie Zeile, Nachbarzeile + Zielbereich geprueft, RAW, zurueckgelesen.
       await schreibeNeueZeilen(sheets, sheetId, TAB_FP_VERKAEUFE, zeilen);

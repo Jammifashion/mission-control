@@ -33,6 +33,7 @@ export function aggregateFpVerkaeufe(rows, vh) {
         artikelkategorie: r[vh('Artikelkategorie')] ?? '',
         stueckzahl: 0, vkNetto: 0, festpreisGesamt: 0, handlingGesamt: 0,
         mehrkosten: 0, portoEinnahmen: 0, portoKosten: 0, paypalGesamt: 0, auszahlung: 0,
+        _bruttoCent: 0, _steuerVoll: true,   // GT1 Punkt 7
       };
     }
     const stk             = fpZahl(r[vh('Stückzahl')]);
@@ -44,6 +45,10 @@ export function aggregateFpVerkaeufe(rows, vh) {
     const portoKost       = fpZahl(r[vh('Porto-Kosten')]) + fpZahl(r[vh('Versandnebenkosten')]);
     const paypal          = fpZahl(r[vh('PayPal-Kosten')]);
     const g = gruppen[pid];
+    // GT1 Punkt 7: bezahltes Brutto = VK-Netto + VK-Steuer je Zeile (Cent), nur wenn ALLE Zeilen der Gruppe die Steuer tragen
+    const steuerRoh = vh('VK-Steuer') === -1 ? '' : String(r[vh('VK-Steuer')] ?? '').trim();
+    if (steuerRoh === '') g._steuerVoll = false;
+    else g._bruttoCent += Math.round(vk * 100) + Math.round(fpZahl(steuerRoh) * 100);
     g.stueckzahl      += stk;
     g.vkNetto         += vk;
     g.festpreisGesamt += festpreis * stk;
@@ -54,8 +59,9 @@ export function aggregateFpVerkaeufe(rows, vh) {
     g.paypalGesamt    += paypal;
     g.auszahlung      += vk - (festpreis + handlingskosten) * stk - mehrkosten + portoEin - portoKost - paypal;
   }
-  const produkteGruppen = Object.values(gruppen).map(g => ({
+  const produkteGruppen = Object.values(gruppen).map(({ _bruttoCent, _steuerVoll, ...g }) => ({
     ...g,
+    ...(_steuerVoll ? { vkBrutto: _bruttoCent / 100 } : {}),   // fehlt bei Altzeilen ohne VK-Steuer -> Gutschrift rechnet wie bisher
     vkNetto: round2(g.vkNetto), festpreisGesamt: round2(g.festpreisGesamt),
     handlingGesamt: round2(g.handlingGesamt), mehrkosten: round2(g.mehrkosten),
     portoEinnahmen: round2(g.portoEinnahmen), portoKosten: round2(g.portoKosten),

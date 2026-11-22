@@ -30,6 +30,8 @@ export const TEXT_PAYPAL = 'tatsächliche Paypalkosten Shop';
 export const TEXT_HANDLING = 'Handlingskosten inkl Nebenkosten Herstellung und Shop';
 export const TEXT_HANDLING_BESCHREIBUNG = 'Plug ins, Cloudspeicher, Server, Homepage (Umsatzabhängig), Nebenkosten Shop und Herstellung etc.';
 export const TEXT_PORTO = 'Porto Saldo';
+export const TEXT_RUNDUNG = 'Rundungsdifferenz';
+export const TEXT_RUNDUNG_BESCHREIBUNG = 'Steuer je Bestellposition gerundet (Verkäufe = bezahlte Bruttobeträge)';
 export const TEXT_PORTO_BESCHREIBUNG = 'tatsächliche Versandkosten abzgl. Portoeinnahmen';
 export const MAX_POSITIONEN = 300;
 export const LINK_BASIS = 'https://app.lexware.de/permalink/credit-notes/edit/';
@@ -114,14 +116,21 @@ export function gutschriftPlan({ abrechnung: a, mwstProzent, kontaktId, voucherD
     let paypal = 0, handling = 0, mehrkosten = 0, portoZeilen = 0;
     for (const g of gruppen) {
       const name = t(g.artikelkategorie) || 'Sonstige Artikel';
-      const k = kat.get(name) ?? { stueck: 0, vk: 0, fest: 0 };
+      const k = kat.get(name) ?? { stueck: 0, vk: 0, fest: 0, bruttoCent: 0, bezahlt: true };
       k.stueck += Number(g.stueckzahl) || 0; k.vk += Number(g.vkNetto) || 0; k.fest += Number(g.festpreisGesamt) || 0;
+      // GT1 Punkt 7: bezahltes Brutto (VK-Netto + VK-Steuer je Position) statt Netto x MwSt - nur wenn jede Gruppe der Kategorie es hat
+      if (typeof g.vkBrutto === 'number') k.bruttoCent += Math.round(g.vkBrutto * 100); else k.bezahlt = false;
       kat.set(name, k);
       paypal += Number(g.paypalGesamt) || 0; handling += Number(g.handlingGesamt) || 0; mehrkosten += Number(g.mehrkosten) || 0;
       portoZeilen += (Number(g.portoEinnahmen) || 0) - (Number(g.portoKosten) || 0);
     }
     const reihe = [...kat].sort((x, y) => y[1].stueck - x[1].stueck || x[0].localeCompare(y[0], 'de'));
-    for (const [name, k] of reihe) if (br(k.vk)) zeilen.push({ art: 'verkauf', name, stueck: k.stueck, cent: br(k.vk) });
+    let mitBezahltem = false;
+    for (const [name, k] of reihe) {
+      const cent = k.bezahlt ? k.bruttoCent : br(k.vk);
+      if (k.bezahlt) mitBezahltem = true;
+      if (cent) zeilen.push({ art: 'verkauf', name, stueck: k.stueck, cent });
+    }
     for (const [name, k] of reihe) if (br(k.fest)) zeilen.push({ art: 'festpreis', name: `${name} interner Preis`, stueck: k.stueck, cent: -br(k.fest) });
     if (br(paypal)) zeilen.push({ art: 'paypal', name: TEXT_PAYPAL, cent: -br(paypal) });
     if (br(handling)) zeilen.push({ art: 'handling', name: TEXT_HANDLING, beschreibung: TEXT_HANDLING_BESCHREIBUNG, cent: -br(handling) });
@@ -130,7 +139,9 @@ export function gutschriftPlan({ abrechnung: a, mwstProzent, kontaktId, voucherD
     // Rundungsrest netto->brutto: auf die betragsgroesste Zeile, damit die Summe genau die der Abrechnung ist.
     const rest = ziel - zeilen.reduce((s2, z) => s2 + z.cent, 0);
     ausgleich = rest;
-    if (rest && zeilen.length) zeilen.reduce((x, y) => (Math.abs(y.cent) > Math.abs(x.cent) ? y : x)).cent += rest;
+    // GT1 Punkt 7: steht das bezahlte Brutto in den Verkaufszeilen, bleibt es unangetastet - der Rest steht als eigene Zeile.
+    if (rest && mitBezahltem) zeilen.push({ art: 'rundung', name: TEXT_RUNDUNG, beschreibung: TEXT_RUNDUNG_BESCHREIBUNG, cent: rest });
+    else if (rest && zeilen.length) zeilen.reduce((x, y) => (Math.abs(y.cent) > Math.abs(x.cent) ? y : x)).cent += rest;
     else if (rest) zeilen.push({ art: 'verkauf', name: 'Shop-Verkäufe', cent: rest });
     for (const p of Array.isArray(pos.intern) ? pos.intern : []) {
       const cent = -inCent(p.summe ?? 0);

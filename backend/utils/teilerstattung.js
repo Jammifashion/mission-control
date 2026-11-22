@@ -276,10 +276,10 @@ export function buildFpErstattungRows({ vRows, vh, bestellungen, mwstFuer, storn
   };
   const iOrd = pflicht('WC-Bestellnummer'), iArt = pflicht('Artikelname'), iVar = pflicht('Variante'), iPid = pflicht('Partner-ID');
   const iDat = pflicht('Datum'), iSt = pflicht('Status Abrechnung'), iSto = pflicht('Storno-Status'), iStk = pflicht('Stückzahl');
-  const iPos = vh('Positions-ID'), iPb = vh('Porto_Bestellung');
+  const iPos = vh('Positions-ID'), iPb = vh('Porto_Bestellung'), iSteuer = vh('VK-Steuer');   // GT1 Punkt 7: VK-Steuer optional
   const betrag = Object.fromEntries(FP_BETRAG_SPALTEN.map(n => [n, pflicht(n)]));
   const stueck = FP_STUECKPREIS_SPALTEN.map(pflicht);
-  const breite = Math.max(0, ...vRows.map(r => r.length), iSto + 1, iPos + 1, iPb + 1, ...Object.values(betrag).map(i => i + 1));
+  const breite = Math.max(0, ...vRows.map(r => r.length), iSto + 1, iPos + 1, iPb + 1, iSteuer + 1, ...Object.values(betrag).map(i => i + 1));
   const posVon = r => (iPos === -1 ? '' : String(r[iPos] ?? '').trim());
   const keyOf = r => (posVon(r) ? `${r[iOrd]}|pos:${posVon(r)}|${r[iPid]}` : `${r[iOrd]}|${r[iArt]}|${varKey(r[iVar])}|${r[iPid]}`);
   const kopie = r => Array.from({ length: breite }, (_, i) => r[i] ?? '');
@@ -349,6 +349,7 @@ export function buildFpErstattungRows({ vRows, vh, bestellungen, mwstFuer, storn
         z[iStk] = -b.menge;
         for (const i of stueck) if (!leer(x.r[i])) z[i] = ohneMinusNull(-Math.abs(dezimal(x.r[i])));
         for (const i of Object.values(betrag)) if (!leer(x.r[i])) z[i] = ohneMinusNull(-round2(dezimal(x.r[i]) * b.faktor));
+        if (iSteuer !== -1 && !leer(x.r[iSteuer])) z[iSteuer] = ohneMinusNull(-round2(dezimal(x.r[iSteuer]) * b.faktor));
         z[iDat] = datumVon.get(b.refundId) || z[iDat];
         z[iSt]  = 'offen';
         z[iSto] = MARKE_ERSTATTUNG + b.refundId;
@@ -364,6 +365,7 @@ export function buildFpErstattungRows({ vRows, vh, bestellungen, mwstFuer, storn
           const z = kopie(x.r);
           z[iStk] = 0;
           for (const i of Object.values(betrag)) z[i] = 0;
+          if (iSteuer !== -1 && !leer(z[iSteuer])) z[iSteuer] = 0;   // Versand-Erstattung: keine Steuer der Artikel-Position
           z[iDat] = datumVon.get(refundId) || z[iDat];
           z[iSt]  = 'offen';
           z[iSto] = MARKE_VERSAND + refundId;
