@@ -95,7 +95,8 @@ describe('Gutschrift-Plan', () => {
     expect(plan(abrechnung({ brutto: 1 }))).toMatch(/weicht/);
     expect(gutschriftPlan({ abrechnung: abrechnung(), mwstProzent: 19, kontaktId: '', voucherDate: 'D' }).probleme.join()).toMatch(/nicht mit einem Lexoffice-Kunden/);
     expect(gutschriftPlan({ abrechnung: abrechnung(), mwstProzent: null, kontaktId: KONTAKT, voucherDate: 'D' }).probleme.join()).toMatch(/MwSt/);
-    expect(abrechnungGrund(abrechnung({ status: 'bezahlt' }))).toBe('');
+    expect(abrechnungGrund(abrechnung({ status: 'freigegeben' }))).toBe('');
+    expect(abrechnungGrund(abrechnung({ status: 'bezahlt' }))).toMatch(/schon bezahlt/);
   });
   test('Hilfen: Datum, Cent, Belegart, Kennzeichen, Chat ohne Betraege', () => {
     expect(deDatum(46020)).toBe('29.12.2025');

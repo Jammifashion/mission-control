@@ -1431,7 +1431,7 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Adresse, Positionstexte. Schluessel NUR Secret `LEXWARE_API_KEY_BELEGE` (Recht "Belege lesen", nicht in SECRET_KEYS -> 503 `lexware_belege`).
   "In Lexware nachsehen" (`sucheEntwuerfe` in lib/lexwareRechnung.js) liest seitdem darueber (der Rechnungen-Schluessel bekommt auf der Belegliste 403,
   gemessen 22.11.). Test lexware-belege.test.js (Quelltext: kein POST/PUT/PATCH/DELETE).
-- backend/lib/gutschrift.js – Gutschrift an Festpreis-Partner (GS1, Inhaber 22.11.): aus einer abgeschlossenen FP-Abrechnung (freigegeben/bezahlt, mit
+- backend/lib/gutschrift.js – Gutschrift an Festpreis-Partner (GS1, Inhaber 22.11.): aus einer freigegebenen FP-Abrechnung (bezahlt ohne Kennzeichen = kein Knopf, mit
   Positionen-JSON) EIN Lexware-ENTWURF "Rechnungsgutschrift" (§ 14 Abs. 2 UStG; Lexware: Rechnungskorrektur, GS-Nummer vergibt Lexware beim Abschliessen),
   Einleitung "Folgende Lieferungen/Leistungen schreiben wir Ihnen gut. Für Shop Verkäufe zwischen <Von> und <Bis>". Logik `utils/gutschrift.js`
   (`gutschriftPlan`): Brutto-Beleg im Aufbau der bisherigen Gutschriften (GS2026GBR0002): je Artikelkategorie Verkauf (+, Menge = Stueck), je

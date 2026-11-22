@@ -24951,6 +24951,7 @@
               + `${g.am ? ` <span class="gs-leer">${_escHtml(gsTag(g.am))}</span>` : ''}<div class="gs-knoepfe">${knoepfe}</div><div data-gs-ns="${id}"></div>`;
           }
           if (eintrag.status === 'entwurf') return '<span class="gs-leer">nach Freigabe</span>';
+          if (eintrag.status === 'bezahlt') return '<span class="gs-leer">–</span>';   // schon bezahlt, ohne MC-Gutschrift: kein Knopf
           const grund = gsAnlegenGrund(eintrag, liste);
           return `<button type="button" class="korb-aktion korb-aktion-haupt" data-gs-anlegen="${id}" data-hilfe="gs-anlegen"${grund ? ` aria-disabled="true" data-hilfe-zusatz="${_escHtml(grund)}"` : ''}>Gutschrift in Lexware anlegen …</button>`;
         }

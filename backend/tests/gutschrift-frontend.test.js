@@ -29,6 +29,9 @@ test('Knopf frei bei abgeschlossener Abrechnung, sonst gesperrt mit Grund', () =
   expect(f.gsZelleHtml(eintrag({ status: 'entwurf', grund: 'Abrechnung ist noch ein Entwurf' }), liste)).toMatch(/nach Freigabe/);
   expect(f.gsZelleHtml(eintrag({ grund: 'alter Stand' }), liste)).toMatch(/aria-disabled="true" data-hilfe-zusatz="alter Stand"/);
   expect(f.gsAnlegenGrund(eintrag(), null)).toMatch(/nicht geladen/);
+  const bezahlt = f.gsZelleHtml(eintrag({ status: 'bezahlt', grund: 'schon bezahlt' }), liste);
+  expect(bezahlt).not.toContain('data-gs-anlegen');
+  expect(f.gsZelleHtml(eintrag({ status: 'bezahlt', gutschrift: { id: ID, am: '2026-11-22', status: 'entwurf' } }), liste)).toContain('In Lexware öffnen');
 });
 
 test('Kennzeichen: Entwurf mit Link, unklar mit Nachsehen, nie ein Anlegen-Knopf', () => {

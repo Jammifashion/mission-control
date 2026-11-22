@@ -6,7 +6,7 @@
 // Kopf wie die bisherigen Gutschriften: Titel "Rechnungsgutschrift", Einleitung mit dem Zeitraum der Abrechnung.
 //
 // Regeln:
-// - Nur Abrechnungen mit Status freigegeben oder bezahlt (nie Entwurf), mit gespeicherten Positionen (JSON), ohne Kennzeichen.
+// - Nur Abrechnungen mit Status freigegeben (nie Entwurf; bezahlt ohne Kennzeichen = laengst erledigt, Gutschrift von Hand - Inhaber 22.11.), mit gespeicherten Positionen (JSON), ohne Kennzeichen.
 // - Summe der Gutschrift (brutto) = Gesamt-Brutto der Abrechnung AUF DEN CENT; sonst nicht senden (Problem).
 // - Brutto-Beleg (taxType gross). Aufbau wie die bisherigen Gutschriften (GS2026GBR0002, gemessen 22.11.): je Artikelkategorie der Verkauf
 //   (+, Menge = Stueck), dann je Kategorie "<Kategorie> interner Preis" (-, Festpreis), dann "tatsächliche Paypalkosten Shop", "Handlingskosten
@@ -19,7 +19,7 @@ export const GUTSCHRIFT_SPALTEN = ['Gutschrift_Lexware_ID', 'Gutschrift_Am', 'Gu
 export const SPALTE_POSITIONEN = 'Positionen';   // Spalte I der Abrechnung (stand ohne Kopf, Setup traegt ihn nach)
 export const SPALTE_KUNDE = 'Kunden_Nr';         // hinten in FP_Partner (auch fuer PD3)
 export const GS_STATUS = { ENTWURF: 'entwurf', UNKLAR: 'unklar' };
-export const ABRECHNUNG_FERTIG = ['freigegeben', 'bezahlt'];
+export const ABRECHNUNG_FERTIG = ['freigegeben'];
 export const BELEGARTEN = ['creditnote'];        // Einstellung Business-Config `gutschrift.belegart` (leer = creditnote)
 export const CONFIG_BELEGART = 'gutschrift.belegart';
 export const TITEL = 'Rechnungsgutschrift';
@@ -76,6 +76,7 @@ export function abrechnungAus(kopf, zeile) {
 /** Gruende, warum fuer diese Abrechnung (noch) keine Gutschrift angelegt werden kann ('' = moeglich, Inhalt egal). */
 export function abrechnungGrund(a) {
   if (hatKennzeichen(a)) return 'Gutschrift schon angelegt';
+  if (a.status === 'bezahlt') return 'Abrechnung ist schon bezahlt – keine Gutschrift über MC';
   if (!ABRECHNUNG_FERTIG.includes(a.status)) return 'Abrechnung ist noch ein Entwurf – erst freigeben';
   if (!a.positionen) return 'Abrechnung ohne gespeicherte Aufschlüsselung (alter Stand) – bitte von Hand';
   return '';
