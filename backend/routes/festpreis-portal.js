@@ -35,8 +35,14 @@ import {
 } from '../utils/fp-abrechnung.js';
 import { adminBestellLink } from '../utils/shop-admin.js';
 import { parseDeZahl } from '../utils/zahl-de.js';
+import { _fpUebersichtSpeicherLeeren } from './festpreis-public.js';   // GS2: Zwischenspeicher der Portal-Uebersicht
 
 const router = Router();
+// GS2: jede schreibende Abrechnungs-Anfrage (erstellen, Status, loeschen) leert die 10-min-Uebersicht des Portals.
+router.use((req, res, next) => {
+  if (req.method !== 'GET' && req.path.startsWith('/abrechnungen')) res.on('finish', () => _fpUebersichtSpeicherLeeren());
+  next();
+});
 
 const SHEETID = () => process.env.BUSINESS_SHEET_ID;
 

@@ -788,6 +788,13 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Partner ("nein" blendet NUR die Kachel aus; Setup `scripts/setup-partner-saldo-kachel.js`; Werte je Partner: siehe private Betriebsdoku). Frontend-Baustein Block
   `Partner-Kacheln: Anfang/Ende` wortgleich in partner.html und index.html (Test partner-kacheln.test.js); im Portal stehen die bisherigen
   Karten unveraendert unter "Details" (`#pv-details`).
+  GS2 (Inhaber 22.11.): **Offene Auszahlung** = noch nicht abgerechnet + Abrechnungen mit Status "freigegeben" (abgerechnet, noch nicht
+  ausgezahlt); erst "bezahlt" nimmt sie heraus. EINE Funktion `offeneAuszahlung` (utils/partner-saldo.js) fuer Lizenz (`partnerKacheln` -> /kacheln,
+  /saldo, /uebersicht, MC "Partner auf einen Blick") und Festpreis (`fpSaldo` -> /saldo, /uebersicht). Festpreis-Entwurf zaehlt mit seinem Brutto zu
+  "noch nicht abgerechnet" (seine Zeilen sind schon "abgerechnet"), Lizenz-Entwurf nicht (Zeilen erst bei Freigabe markiert) - nie doppelt.
+  Antwortfelder `laufend`, `ausstehend`, `ausstehendAnzahl`, `abgerechnetBis` (groesstes Bis der freigegebenen/bezahlten); Anzeige "abgerechnet bis …"
+  und "davon abgerechnet, Auszahlung ausstehend: … · noch nicht abgerechnet: …". Jede schreibende /abrechnung(en)-Anfrage leert die 10-min-Uebersicht
+  (router.use in kalkulation.js und festpreis-portal.js). Test gs2-auszahlung.test.js.
 - backend/utils/partner-uebersicht.js – Partner-Dashboard Stufe 1 (PD1, Inhaber 21.11.: NUR Stueck, keine neuen Betraege, keine Anzahl Bestellungen,
   keine "naechste Abrechnung"). `GET /api/partner/uebersicht` (routes/partnerPortal.js, `leseUebersicht`) und `GET /api/festpreis-public/uebersicht`
   (`leseFpUebersicht`): Auszahlung aus der BESTEHENDEN Rechnung (Lizenz `leseKacheln`/`saldoRechnung`, Festpreis `fpSaldo` - dieselbe Funktion wie

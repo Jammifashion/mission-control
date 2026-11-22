@@ -858,38 +858,20 @@ router.get('/saldo', async (req, res, next) => {
     if (!token) return res.status(401).json({ error: 'token fehlt.' });
     const { partnerId } = await resolvePartner(token);
 
-    const sheetId = process.env.BUSINESS_SHEET_ID;
-    const sheets  = await getSheets();
-    const tabVerkaeufe = getShopConfig(req.query.shop).tabVerkaeufe;
-    const [verkäufeTab, internTab, konfigTab] = await Promise.all([
-      readTab(sheets, sheetId, tabVerkaeufe),
-      readTab(sheets, sheetId, 'Partner_Interne_Bestellungen'),
-      readTab(sheets, sheetId, 'Kalkulation_Fixkosten'),
-    ]);
-    neuAlsOffen(internTab.header, internTab.rows);   // NB2: nur im Speicher
-
-    const mwstProzent = parseKonfiguration(konfigTab.rows, konfigTab.header).mwstProzent;
-
-    const vh = col => verkäufeTab.header.indexOf(col);
-    const lizenzNetto = verkäufeTab.rows
-      .filter(r => r[vh('Partner-ID')] === partnerId && (r[vh('Status')] ?? '') === 'offen')
-      .reduce((s, r) => s + toFloat(r[vh('Lizenzgebühr')]), 0);
-
-    const ih = col => internTab.header.indexOf(col);
-    const interneSumme = internTab.rows
-      .filter(r => r[ih('Partner-ID')] === partnerId && (r[ih('Status')] ?? '') === 'offen')
-      .reduce((s, r) => s + toFloat(r[ih('Summe')]), 0);
-
-    // PP1: dieselbe Rechnung wie Abrechnung und Kacheln (utils/partner-saldo.js).
-    const s = saldoRechnung({ lizenzNetto, interneSumme, mwstProzent });
+    // GS2: dieselbe Rechnung wie Kacheln und /uebersicht (utils/partner-saldo.js: saldoRechnung + offeneAuszahlung).
+    const s = await leseKacheln({ partnerId, shop: req.query.shop });
     res.json({
-      mwstProzent,
+      mwstProzent:  s.mwstProzent,
       lizenzNetto:  s.lizenzNetto,
       lizenzBrutto: s.lizenzBrutto,
       lizenzSumme:  s.lizenzNetto,   // Rückwärtskompatibel (netto)
       interneSumme: s.interneSumme,
-      saldoNetto:   s.saldoNetto,
-      saldo:        s.saldo,          // Saldo jetzt brutto
+      saldoNetto:   s.saldoNetto,    // netto der noch nicht abgerechneten Positionen
+      laufend:      s.laufend,       // brutto, noch nicht abgerechnet
+      ausstehend:   s.ausstehend,    // brutto, freigegeben und noch nicht bezahlt
+      ausstehendAnzahl: s.ausstehendAnzahl,
+      abgerechnetBis: s.abgerechnetBis,
+      saldo:        s.saldo,          // offene Auszahlung brutto = laufend + ausstehend
     });
   } catch (err) { next(err); }
 });

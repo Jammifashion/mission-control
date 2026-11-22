@@ -595,16 +595,20 @@
     function puHtml(d) {
       const a = d.auszahlung ?? {};
       const seit = a.seit ? `seit ${dgEsc(a.seit)}` : 'seit Beginn';
+      // GS2: "abgerechnet bis" statt "seit" (der Tag nach der letzten Abrechnung lag oft in der Zukunft); Aufteilung nur, wenn etwas aussteht
+      const stand = a.abgerechnetBis ? `abgerechnet bis ${dgEsc(a.abgerechnetBis)}` : seit;
       const s = puSaldo(Number(a.saldo) || 0);
+      const puEuroZ = n => (n < 0 ? `−${puEuro(Math.abs(n))}` : puEuro(n));
+      const aufteilung = Number(a.ausstehend) ? `davon abgerechnet, Auszahlung ausstehend: ${puEuroZ(Number(a.ausstehend))} · noch nicht abgerechnet: ${puEuroZ(Number(a.laufend) || 0)}` : '';
       const zusatz = [a.intern ? `${dgZahl(a.intern)} direkte Bestellung${a.intern === 1 ? '' : 'en'} abgezogen` : '', a.inPruefung ? 'ein Teil noch in Prüfung' : '']
         .filter(Boolean).join(' · ');
-      const ausInfo = `Deine Anteile aus Shop-Verkäufen (inkl. MwSt) minus deine direkten Bestellungen – alles, was noch nicht abgerechnet ist (${seit}). `
-        + 'Positiv: das bekommst du noch. Negativ: das schuldest du noch.'
+      const ausInfo = 'Was du noch bekommst: abgerechnete, noch nicht ausgezahlte Beträge plus Verkäufe seit der letzten Abrechnung (inkl. MwSt). '
+        + 'Deine direkten Bestellungen sind schon abgezogen. Positiv: das bekommst du noch. Negativ: das schuldest du noch.'
         + (a.internOhneBetrag ? ' Direkte Bestellungen ohne Betrag zählen hier mit 0.' : '')
         + (a.inPruefung ? ' Ein Teil (z. B. Porto oder Verpackung) wird noch geprüft und ist hier noch nicht enthalten.' : '');
       const aus = a.saldoKachel === false ? ''
         : `<div class="pu-kachel pu-aus ${s.klasse}"><span class="pu-label">Offene Auszahlung</span><span class="pu-zahl">${s.betrag}</span>`
-          + `<span class="pu-klein">${s.wort} · ${seit}</span>${zusatz ? `<span class="pu-klein">${zusatz}</span>` : ''}`
+          + `<span class="pu-klein">${s.wort} · ${stand}</span>${aufteilung ? `<span class="pu-klein">${aufteilung}</span>` : ''}${zusatz ? `<span class="pu-klein">${zusatz}</span>` : ''}`
           + puI('pu-i-aus', 'Wie wird die Auszahlung gerechnet?') + puInfo('pu-i-aus', ausInfo) + '</div>';
       const st = d.stand ?? {};
       const off = `<div class="pu-kachel pu-off pu-tipp" tabindex="0" data-tipp="Verkaufte Stück, die noch nicht abgerechnet sind (ohne die in Prüfung).">`
@@ -751,6 +755,7 @@
       wrap.innerHTML = '<div class="skeleton" style="height:120px;"></div>';
       try {
         const d = await apiFetch('/api/festpreis-public/saldo');
+        const fmtZ = n => `${n < 0 ? '−' : '+'}${fmt(Math.abs(n || 0))}`;   // GS2
         const positiv  = d.saldoBrutto >= 0;
         const label    = positiv ? 'Offene Auszahlung (brutto)' : 'Aktueller Rückstand (brutto)';
         const colorCls = positiv ? 'saldo-positive' : 'saldo-negative';
@@ -796,13 +801,18 @@
             <span>Verpackungspauschale</span>
             <span class="amount">in Prüfung</span>
           </div>` : ''}
+
+          ${(Number(d.ausstehendBrutto) || Number(d.entwurfBrutto)) ? `
+          <div class="saldo-row muted"><span>Zwischensumme: Verkäufe seit der letzten Abrechnung</span><span class="amount">${fmtZ(d.laufendBrutto)}</span></div>
+          ${Number(d.entwurfBrutto) ? `<div class="saldo-row"><span>Abrechnung in Vorbereitung</span><span class="amount">${fmtZ(d.entwurfBrutto)}</span></div>` : ''}
+          ${Number(d.ausstehendBrutto) ? `<div class="saldo-row"><span>Abgerechnet, Auszahlung ausstehend (${plEsc(d.ausstehendAnzahl)} Abrechnung${d.ausstehendAnzahl === 1 ? '' : 'en'})</span><span class="amount saldo-positive">${fmtZ(d.ausstehendBrutto)}</span></div>` : ''}` : ''}
           <hr class="saldo-divider">
           <div class="saldo-row saldo-final">
             <span>${label}</span>
             <span class="amount ${colorCls}">${positiv ? '' : '−'}${fmt(Math.abs(d.saldoBrutto))}</span>
           </div>
           <p class="saldo-row muted" style="padding-top:0.6rem;">
-            Nur offene, noch nicht abgerechnete Positionen &nbsp;·&nbsp; entspricht netto ${fmt(d.saldoNetto)}.
+            Offene Auszahlung = Verkäufe seit der letzten Abrechnung plus abgerechnete, noch nicht ausgezahlte Beträge${d.abgerechnetBis ? ` (abgerechnet bis ${plEsc(d.abgerechnetBis)})` : ''} &nbsp;·&nbsp; entspricht netto ${fmt(d.saldoNetto)}.
           </p>`;
       } catch (e) {
         wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${plEsc(e.message)}</p>`;

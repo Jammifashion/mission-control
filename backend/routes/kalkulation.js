@@ -12,7 +12,7 @@ import { abrechnungHinweise, konfigJeTag, bestellTag, STORNO_MARKER, WC_STATES_V
 import { buildErstattungRows } from '../utils/teilerstattung.js';   // NB2
 import { vorschauErstattungsHinweise } from '../lib/erstattungen.js';   // NB2
 import { saldoRechnung } from '../utils/partner-saldo.js';
-import { leseKacheln } from './partnerPortal.js';
+import { leseKacheln, _uebersichtSpeicherLeeren } from './partnerPortal.js';
 import { zugangArt, klartextFuerMc } from '../utils/partner-token.js';
 import { erzeugeNeuenPartnerLink, zeigePartnerLink, partnerKopierbar } from '../lib/partnerLink.js';
 import { berechnePartnerAnteil, parseKonfiguration, istBekanntePosition, baueLizenzSaetze, lizenzSatzAusZeile, parseVertragAb, baueVertragsbeginne } from '../utils/partner-kalkulation.js';
@@ -20,6 +20,12 @@ import { berechnePartnerAnteil, parseKonfiguration, istBekanntePosition, baueLiz
 import { lizenzStatusWechselErlaubt, abrechnungKlaeren, klaerenAntwort, leerZelle } from '../utils/fp-abrechnung.js';
 import { parseDeZahl } from '../utils/zahl-de.js';
 const router = Router();
+// GS2: jede schreibende Abrechnungs-Anfrage (erstellen, freigeben, Status, loeschen) leert die 10-min-Uebersicht des Portals,
+// damit "Offene Auszahlung" den neuen Status sofort zeigt.
+router.use((req, res, next) => {
+  if (req.method !== 'GET' && req.path.startsWith('/abrechnung')) res.on('finish', () => _uebersichtSpeicherLeeren());
+  next();
+});
 
 // Erstellen und Freigeben einer Lizenz-Abrechnung: eine Sperre (Doppelklick, zwei Fenster).
 let abrechnungLaeuft = false;

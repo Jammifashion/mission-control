@@ -14,6 +14,7 @@ import { parseDeZahl } from '../utils/zahl-de.js';
 import { verkaufsUebersicht, uebersichtAntwort, bauZwischenspeicher, detailAn, fpBetragsUebersicht } from '../utils/partner-uebersicht.js';
 import { gebuendelt } from '../lib/sheetsBuendel.js';
 import { berlinDatum } from '../utils/berlin-tag.js';
+import { offeneAuszahlung } from '../utils/partner-saldo.js';   // GS2
 
 const router = Router();
 
@@ -154,7 +155,7 @@ router.get('/intern', async (req, res, next) => {
 });
 
 // ── GET /api/festpreis-public/saldo ──────────────────────────────────────────
-// Offene Auszahlung (FP-Verkäufe, brutto) − offene interne Bestellungen (brutto).
+// Offene Auszahlung (FP-Verkäufe, brutto) − offene interne Bestellungen (brutto) = laufend; GS2: + freigegebene, noch nicht bezahlte Abrechnungen.
 // Identische Rechnung wie Admin-Vorschau/Abrechnung ("von Brutto abziehen").
 router.get('/saldo', async (req, res, next) => {
   try {
@@ -192,7 +193,16 @@ export async function fpSaldo(sheets, sheetId, partnerId) {
     : { einnahmen: p.einnahmen, kosten: { anzahl: p.kosten.anzahl, summe: p.kosten.summe }, saldo: p.saldo, ...(p.status === 'fehlt' ? { inPruefung: true } : {}) };
   const auszahlungNetto  = round2(summen.auszahlung + portoSaldo(p));
   const auszahlungBrutto = round2(auszahlungNetto * (1 + mwstProzent / 100));
-  const saldoBrutto      = round2(auszahlungBrutto - interne.summe - (verpackung?.summe ?? 0));
+  const laufendBrutto    = round2(auszahlungBrutto - interne.summe - (verpackung?.summe ?? 0));
+  // GS2: + freigegebene, noch nicht bezahlte Abrechnungen; Entwurf zaehlt als "noch nicht abgerechnet" (seine Zeilen sind schon "abgerechnet").
+  const abr = await readTab(sheets, sheetId, TAB_FP_ABRECHNUNGEN);
+  const ah = n => abr.header.indexOf(n);
+  const o = offeneAuszahlung({
+    laufend: laufendBrutto, entwurfZaehlt: true,
+    abrechnungen: abr.rows.filter(r => (r[ah('Partner-ID')] ?? '') === partnerId)
+      .map(r => ({ status: r[ah('Status')], brutto: toFloat(r[ah('Gesamt-Brutto')]), bis: deDatum(r[ah('Zeitraum-Bis')]) })),
+  });
+  const saldoBrutto      = o.saldo;
   const saldoNetto       = round2(saldoBrutto / (1 + mwstProzent / 100));
 
   return {
@@ -202,6 +212,8 @@ export async function fpSaldo(sheets, sheetId, partnerId) {
     verpackung,
     ...(porto ? { porto } : {}),   // PO1: ohne Bestellnummern
     saldoNetto, saldoBrutto,
+    laufendBrutto, entwurfBrutto: round2(o.laufend - laufendBrutto), ausstehendBrutto: o.ausstehend, ausstehendAnzahl: o.ausstehendAnzahl,
+    abgerechnetBis: o.abgerechnetBis ? deText(o.abgerechnetBis) : '',
     _intern: interne.positionen,   // nur fuer /uebersicht (Anzahl), nie an das Portal
   };
 }
@@ -240,6 +252,7 @@ export async function leseFpUebersicht({ partnerId, sheets: roh, sheetId, heute 
       detail,
       auszahlung: {
         saldo: s.saldoBrutto, seit: fpSeit(partnerId, abr, fpp), saldoKachel: true,
+        laufend: round2(s.laufendBrutto + s.entwurfBrutto), ausstehend: s.ausstehendBrutto, ausstehendAnzahl: s.ausstehendAnzahl, abgerechnetBis: s.abgerechnetBis,
         intern: s._intern.length, internOhneBetrag: s._intern.filter(x => x.ohneSumme).length,
         inPruefung: s.verpackung?.status === 'in_pruefung' || s.porto?.inPruefung === true,
       },

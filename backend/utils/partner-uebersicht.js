@@ -191,6 +191,11 @@ export function uebersichtAntwort({ auszahlung, statistik, detail = null }) {
       intern: Number(a.intern) || 0,
       internOhneBetrag: Number(a.internOhneBetrag) || 0,
       inPruefung: a.inPruefung === true,
+      // GS2: Aufteilung der offenen Auszahlung (abgerechnet, aber noch nicht ausgezahlt / noch nicht abgerechnet) + "abgerechnet bis"
+      ausstehend: Number(a.ausstehend) || 0,
+      ausstehendAnzahl: Number(a.ausstehendAnzahl) || 0,
+      laufend: Number.isFinite(Number(a.laufend)) && a.laufend !== undefined ? Number(a.laufend) : Number(a.saldo) || 0,
+      abgerechnetBis: t(a.abgerechnetBis),
     },
     stand: { ...statistik.stand },
     jahr: statistik.jahr, monat: statistik.monat,

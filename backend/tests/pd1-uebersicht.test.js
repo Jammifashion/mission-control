@@ -71,7 +71,8 @@ describe('verkaufsUebersicht (reine Logik)', () => {
   test('Antwort: feste Felder, keine Bestellnummern', () => {
     const a = uebersichtAntwort({ auszahlung: { saldo: 1.5, seit: '01.10.2026', saldoKachel: true, intern: 1, internOhneBetrag: 0, bestellungen: 9, partnerId: 'P-901' }, statistik: r });
     expect(Object.keys(a).sort()).toEqual(['auszahlung', 'jahr', 'monat', 'ohneVerkaeufe', 'reihe', 'stand', 'stueckJahr', 'stueckVorjahr', 'top5', 'vorjahrAb', 'vorjahrDaten']);
-    expect(Object.keys(a.auszahlung).sort()).toEqual(['inPruefung', 'intern', 'internOhneBetrag', 'saldo', 'saldoKachel', 'seit']);
+    expect(Object.keys(a.auszahlung).sort()).toEqual(['abgerechnetBis', 'ausstehend', 'ausstehendAnzahl', 'inPruefung', 'intern', 'internOhneBetrag', 'laufend', 'saldo', 'saldoKachel', 'seit']);
+    expect(a.auszahlung).toMatchObject({ ausstehend: 0, laufend: 1.5, abgerechnetBis: '' });   // GS2: ohne Aufteilung = alles laufend
     for (const nr of ['1001', '1002', '1003', '2001', '3001', 'P-901']) expect(JSON.stringify(a)).not.toContain(nr);
   });
   test('Zwischenspeicher: zweiter Aufruf laedt nicht, nach Ablauf wieder', async () => {

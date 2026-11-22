@@ -22390,17 +22390,21 @@
       function pkKachelnHtml(k) {
         const seit = k.seit ? `seit ${pkEsc(k.seit)}` : 'seit Beginn';
         const s = pkSaldoText(k.saldo);
+        // GS2: Saldo = offene Auszahlung (noch nicht abgerechnet + abgerechnet, noch nicht ausgezahlt); "abgerechnet bis" statt "seit"
+        const stand = k.abgerechnetBis ? `abgerechnet bis ${pkEsc(k.abgerechnetBis)}` : seit;
+        const pkEuroZ = n => (n < 0 ? `−${pkEuro(Math.abs(n))}` : pkEuro(n));
+        const aufteilung = Number(k.ausstehend) ? `<span class="pk-klein">davon abgerechnet, Auszahlung ausstehend: ${pkEuroZ(Number(k.ausstehend))} · noch nicht abgerechnet: ${pkEuroZ(Number(k.laufend) || 0)}</span>` : '';
         const ohne = k.internOhneBetrag ? `<span class="pk-klein">${k.internOhneBetrag} ohne Betrag</span>` : '';
         return '<div class="pk-raster">'
           + `<button type="button" class="pk-kachel" data-pk-ziel="verkaeufe" data-hilfe="pk-bestellungen"><span class="pk-zahl">${Number(k.bestellungen) || 0}</span><span class="pk-label">Bestellungen</span><span class="pk-klein">${seit}</span></button>`
           + `<button type="button" class="pk-kachel" data-pk-ziel="intern" data-hilfe="pk-intern"><span class="pk-zahl">${Number(k.intern) || 0}</span><span class="pk-label">Interne Bestellungen</span>${ohne}</button>`
           + (k.saldoKachel === false ? ''
-            : `<button type="button" class="pk-kachel pk-saldo ${s.klasse}" data-pk-ziel="saldo" data-hilfe="pk-saldo"><span class="pk-zahl">${s.betrag}</span><span class="pk-label">Saldo · ${s.wort}</span><span class="pk-klein">${seit}</span></button>`)
+            : `<button type="button" class="pk-kachel pk-saldo ${s.klasse}" data-pk-ziel="saldo" data-hilfe="pk-saldo"><span class="pk-zahl">${s.betrag}</span><span class="pk-label">Saldo · ${s.wort}</span><span class="pk-klein">${stand}</span>${aufteilung}</button>`)
           + '<button type="button" class="pk-kachel pk-details" data-pk-ziel="details" data-hilfe="pk-details"><span class="pk-zahl">›</span><span class="pk-label">Details</span></button>'
           + '</div>'
           + (k.saldoKachel === false ? '' : '<div class="pk-info-zeile"><button type="button" class="pk-info-knopf" data-pk-info aria-expanded="false" aria-label="Wie wird der Saldo gerechnet?" data-hilfe="pk-info">ⓘ</button>'
-            + `<p class="pk-info" hidden>Saldo = deine Lizenzanteile aus Shop-Verkäufen (inkl. MwSt) minus deine internen Bestellungen – alles, was noch nicht abgerechnet ist (${seit}). `
-            + `Positiv: das bekommst du noch. Negativ: das schuldest du noch.${k.internOhneBetrag ? ' Interne Bestellungen ohne Betrag zählen hier mit 0.' : ''}</p></div>`);
+            + '<p class="pk-info" hidden>Was du noch bekommst: abgerechnete, noch nicht ausgezahlte Beträge plus Verkäufe seit der letzten Abrechnung (Lizenzanteile inkl. MwSt). '
+            + `Deine internen Bestellungen sind schon abgezogen. Positiv: das bekommst du noch. Negativ: das schuldest du noch.${k.internOhneBetrag ? ' Interne Bestellungen ohne Betrag zählen hier mit 0.' : ''}</p></div>`);
       }
       // ── Partner-Kacheln: Ende ──
       // PP1: Auswahl "Partner auf einen Blick" - Kacheln aus GET /api/kalkulation/partner/:id/kacheln (shop haengt apiFetch an).

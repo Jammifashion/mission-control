@@ -91,7 +91,9 @@ describe('Gemeinsame Saldo-Rechnung', () => {
     const kalk = readFileSync(resolve(hier, '../routes/kalkulation.js'), 'utf8');
     for (const q of [portal, kalk]) expect(q).not.toMatch(/\* \(1 \+ mwstProzent \/ 100\)\)/);
     expect(kalk.match(/saldoRechnung\(/g)).toHaveLength(2);   // vorschau + erstellen
-    expect(portal).toMatch(/saldoRechnung\(\{ lizenzNetto, interneSumme, mwstProzent \}\)/);
+    // GS2: /saldo rechnet nicht mehr selbst, sondern ueber leseKacheln (saldoRechnung + offeneAuszahlung)
+    expect(portal).not.toMatch(/saldoRechnung\(\{ lizenzNetto, interneSumme, mwstProzent \}\)/);
+    expect(portal.slice(portal.indexOf("router.get('/saldo'"), portal.indexOf("router.get('/kacheln'"))).toContain('await leseKacheln(');
   });
 });
 
@@ -113,7 +115,10 @@ describe('Kacheln (reine Logik)', () => {
   test('negativer Saldo (schuldet), Saldo_Kachel = nein blendet nur die Kachel aus', () => {
     const r = k('P-902');
     expect(r.saldoKachel).toBe(false);
-    expect(r.saldo).toBe(round2(50 * 1.19 - 99));
+    // GS2: freigegebene, noch nicht bezahlte Abrechnung A-2 (Saldo 1) zaehlt zur offenen Auszahlung
+    expect(r.laufend).toBe(round2(50 * 1.19 - 99));
+    expect(r).toMatchObject({ ausstehend: 1, ausstehendAnzahl: 1, abgerechnetBis: '31.10.2026' });
+    expect(r.saldo).toBe(round2(50 * 1.19 - 99 + 1));
     expect(r.saldo).toBeLessThan(0);
     expect(r.seit).toBe('01.11.2026');
   });

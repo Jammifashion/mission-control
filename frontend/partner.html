@@ -636,16 +636,20 @@
     function puHtml(d) {
       const a = d.auszahlung ?? {};
       const seit = a.seit ? `seit ${dgEsc(a.seit)}` : 'seit Beginn';
+      // GS2: "abgerechnet bis" statt "seit" (der Tag nach der letzten Abrechnung lag oft in der Zukunft); Aufteilung nur, wenn etwas aussteht
+      const stand = a.abgerechnetBis ? `abgerechnet bis ${dgEsc(a.abgerechnetBis)}` : seit;
       const s = puSaldo(Number(a.saldo) || 0);
+      const puEuroZ = n => (n < 0 ? `−${puEuro(Math.abs(n))}` : puEuro(n));
+      const aufteilung = Number(a.ausstehend) ? `davon abgerechnet, Auszahlung ausstehend: ${puEuroZ(Number(a.ausstehend))} · noch nicht abgerechnet: ${puEuroZ(Number(a.laufend) || 0)}` : '';
       const zusatz = [a.intern ? `${dgZahl(a.intern)} direkte Bestellung${a.intern === 1 ? '' : 'en'} abgezogen` : '', a.inPruefung ? 'ein Teil noch in Prüfung' : '']
         .filter(Boolean).join(' · ');
-      const ausInfo = `Deine Anteile aus Shop-Verkäufen (inkl. MwSt) minus deine direkten Bestellungen – alles, was noch nicht abgerechnet ist (${seit}). `
-        + 'Positiv: das bekommst du noch. Negativ: das schuldest du noch.'
+      const ausInfo = 'Was du noch bekommst: abgerechnete, noch nicht ausgezahlte Beträge plus Verkäufe seit der letzten Abrechnung (inkl. MwSt). '
+        + 'Deine direkten Bestellungen sind schon abgezogen. Positiv: das bekommst du noch. Negativ: das schuldest du noch.'
         + (a.internOhneBetrag ? ' Direkte Bestellungen ohne Betrag zählen hier mit 0.' : '')
         + (a.inPruefung ? ' Ein Teil (z. B. Porto oder Verpackung) wird noch geprüft und ist hier noch nicht enthalten.' : '');
       const aus = a.saldoKachel === false ? ''
         : `<div class="pu-kachel pu-aus ${s.klasse}"><span class="pu-label">Offene Auszahlung</span><span class="pu-zahl">${s.betrag}</span>`
-          + `<span class="pu-klein">${s.wort} · ${seit}</span>${zusatz ? `<span class="pu-klein">${zusatz}</span>` : ''}`
+          + `<span class="pu-klein">${s.wort} · ${stand}</span>${aufteilung ? `<span class="pu-klein">${aufteilung}</span>` : ''}${zusatz ? `<span class="pu-klein">${zusatz}</span>` : ''}`
           + puI('pu-i-aus', 'Wie wird die Auszahlung gerechnet?') + puInfo('pu-i-aus', ausInfo) + '</div>';
       const st = d.stand ?? {};
       const off = `<div class="pu-kachel pu-off pu-tipp" tabindex="0" data-tipp="Verkaufte Stück, die noch nicht abgerechnet sind (ohne die in Prüfung).">`
@@ -741,17 +745,21 @@
     function pkKachelnHtml(k) {
       const seit = k.seit ? `seit ${pkEsc(k.seit)}` : 'seit Beginn';
       const s = pkSaldoText(k.saldo);
+      // GS2: Saldo = offene Auszahlung (noch nicht abgerechnet + abgerechnet, noch nicht ausgezahlt); "abgerechnet bis" statt "seit"
+      const stand = k.abgerechnetBis ? `abgerechnet bis ${pkEsc(k.abgerechnetBis)}` : seit;
+      const pkEuroZ = n => (n < 0 ? `−${pkEuro(Math.abs(n))}` : pkEuro(n));
+      const aufteilung = Number(k.ausstehend) ? `<span class="pk-klein">davon abgerechnet, Auszahlung ausstehend: ${pkEuroZ(Number(k.ausstehend))} · noch nicht abgerechnet: ${pkEuroZ(Number(k.laufend) || 0)}</span>` : '';
       const ohne = k.internOhneBetrag ? `<span class="pk-klein">${k.internOhneBetrag} ohne Betrag</span>` : '';
       return '<div class="pk-raster">'
         + `<button type="button" class="pk-kachel" data-pk-ziel="verkaeufe" data-hilfe="pk-bestellungen"><span class="pk-zahl">${Number(k.bestellungen) || 0}</span><span class="pk-label">Bestellungen</span><span class="pk-klein">${seit}</span></button>`
         + `<button type="button" class="pk-kachel" data-pk-ziel="intern" data-hilfe="pk-intern"><span class="pk-zahl">${Number(k.intern) || 0}</span><span class="pk-label">Interne Bestellungen</span>${ohne}</button>`
         + (k.saldoKachel === false ? ''
-          : `<button type="button" class="pk-kachel pk-saldo ${s.klasse}" data-pk-ziel="saldo" data-hilfe="pk-saldo"><span class="pk-zahl">${s.betrag}</span><span class="pk-label">Saldo · ${s.wort}</span><span class="pk-klein">${seit}</span></button>`)
+          : `<button type="button" class="pk-kachel pk-saldo ${s.klasse}" data-pk-ziel="saldo" data-hilfe="pk-saldo"><span class="pk-zahl">${s.betrag}</span><span class="pk-label">Saldo · ${s.wort}</span><span class="pk-klein">${stand}</span>${aufteilung}</button>`)
         + '<button type="button" class="pk-kachel pk-details" data-pk-ziel="details" data-hilfe="pk-details"><span class="pk-zahl">›</span><span class="pk-label">Details</span></button>'
         + '</div>'
         + (k.saldoKachel === false ? '' : '<div class="pk-info-zeile"><button type="button" class="pk-info-knopf" data-pk-info aria-expanded="false" aria-label="Wie wird der Saldo gerechnet?" data-hilfe="pk-info">ⓘ</button>'
-          + `<p class="pk-info" hidden>Saldo = deine Lizenzanteile aus Shop-Verkäufen (inkl. MwSt) minus deine internen Bestellungen – alles, was noch nicht abgerechnet ist (${seit}). `
-          + `Positiv: das bekommst du noch. Negativ: das schuldest du noch.${k.internOhneBetrag ? ' Interne Bestellungen ohne Betrag zählen hier mit 0.' : ''}</p></div>`);
+          + '<p class="pk-info" hidden>Was du noch bekommst: abgerechnete, noch nicht ausgezahlte Beträge plus Verkäufe seit der letzten Abrechnung (Lizenzanteile inkl. MwSt). '
+          + `Deine internen Bestellungen sind schon abgezogen. Positiv: das bekommst du noch. Negativ: das schuldest du noch.${k.internOhneBetrag ? ' Interne Bestellungen ohne Betrag zählen hier mit 0.' : ''}</p></div>`);
     }
     // ── Partner-Kacheln: Ende ──
 
@@ -822,6 +830,7 @@
       wrap.innerHTML = '<div class="skeleton" style="height:120px;"></div>';
       try {
         const data = await apiGet('/api/partner/saldo');
+        const fmtZ = n => `${n < 0 ? '−' : '+'}${fmt(Math.abs(n || 0))}`;   // GS2
         const positiv  = data.saldo >= 0;
         const label    = positiv ? 'Aktuelles Guthaben (brutto)' : 'Aktueller Rückstand (brutto)';
         const colorCls = positiv ? 'saldo-positive' : 'saldo-negative';
@@ -844,13 +853,17 @@
             <span>Direkte Bestellungen (brutto)</span>
             <span class="amount saldo-negative">−${fmt(data.interneSumme)}</span>
           </div>
+
+          ${Number(data.ausstehend) ? `
+          <div class="saldo-row muted"><span>Zwischensumme: Verkäufe seit der letzten Abrechnung</span><span class="amount">${fmtZ(data.laufend)}</span></div>
+          ${Number(data.ausstehend) ? `<div class="saldo-row"><span>Abgerechnet, Auszahlung ausstehend (${plEsc(data.ausstehendAnzahl)} Abrechnung${data.ausstehendAnzahl === 1 ? '' : 'en'})</span><span class="amount saldo-positive">${fmtZ(data.ausstehend)}</span></div>` : ''}` : ''}
           <hr class="saldo-divider">
           <div class="saldo-row saldo-final">
             <span>${label}</span>
             <span class="amount ${colorCls}">${positiv ? '' : '−'}${fmt(Math.abs(data.saldo))}</span>
           </div>
           <p class="saldo-row muted" style="padding-top:0.6rem;">
-            Nur offene, noch nicht abgerechnete Positionen${data.saldoNetto !== undefined ? ` · entspricht netto ${fmt(data.saldoNetto)}` : ''}.
+            Offene Auszahlung = Verkäufe seit der letzten Abrechnung plus abgerechnete, noch nicht ausgezahlte Beträge${data.abgerechnetBis ? ` (abgerechnet bis ${plEsc(data.abgerechnetBis)})` : ''}.
           </p>`;
       } catch (e) {
         wrap.innerHTML = `<p style="color:var(--danger);font-size:0.88rem;">Fehler: ${plEsc(e.message)}</p>`;

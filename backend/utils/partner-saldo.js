@@ -17,6 +17,31 @@ export function saldoRechnung({ lizenzNetto, interneSumme, mwstProzent }) {
   };
 }
 
+// GS2 (Inhaber 22.11.): "Offene Auszahlung" = was der Partner noch bekommt. EINE Rechnung fuer beide Portale, MC-Kacheln und /uebersicht:
+//   laufend (noch nicht abgerechnete Zeilen, wie bisher) + Summe aller Abrechnungen mit Status "freigegeben" (abgerechnet, noch nicht
+//   ausgezahlt). Erst "bezahlt" nimmt eine Abrechnung heraus.
+//   Entwurf: Festpreis markiert die Zeilen schon beim Anlegen des Entwurfs als "abgerechnet" -> dort zaehlt der Entwurf mit seinem Brutto
+//   zu "noch nicht abgerechnet" (entwurfZaehlt true); Lizenz markiert erst beim Freigeben -> die Zeilen stecken noch in laufend, der Entwurf
+//   zaehlt nicht (sonst doppelt). abgerechnetBis = groesstes Zeitraum-Bis der freigegebenen/bezahlten Abrechnungen.
+export const AUSSTEHEND = 'freigegeben';
+const deLokal = d => `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+/**
+ * @param {{ laufend: number, abrechnungen: { status: string, brutto: number, bis: Date|null }[], entwurfZaehlt: boolean }} e
+ * @returns {{ saldo, laufend, ausstehend, ausstehendAnzahl, abgerechnetBis: Date|null }} laufend inkl. Entwurf (falls entwurfZaehlt)
+ */
+export function offeneAuszahlung({ laufend, abrechnungen = [], entwurfZaehlt = false }) {
+  let ausstehend = 0, anzahl = 0, entwurf = 0, bis = null;
+  for (const a of abrechnungen) {
+    const st = String(a.status ?? '').trim() || 'entwurf';
+    const b = Number(a.brutto) || 0;
+    if (st === AUSSTEHEND) { ausstehend += b; anzahl++; }
+    else if (st === 'entwurf') { if (entwurfZaehlt) entwurf += b; continue; }
+    if ((st === AUSSTEHEND || st === 'bezahlt') && a.bis && (!bis || a.bis > bis)) bis = a.bis;
+  }
+  const lauf = round2((Number(laufend) || 0) + entwurf);
+  return { saldo: round2(lauf + ausstehend), laufend: lauf, ausstehend: round2(ausstehend), ausstehendAnzahl: anzahl, abgerechnetBis: bis };
+}
+
 // Inhaber 04.11. (antwort-PP1): optionale Spalte im Reiter Partner, "nein" blendet NUR die Saldo-Kachel aus; leer/fehlt = ja.
 export const SALDO_KACHEL_SPALTE = 'Saldo_Kachel';
 const OFFEN = new Set(['offen', 'Neu']);   // interne Bestellungen: Altwert "Neu" = offen (wie migrateNeuStatus), ohne zu schreiben
@@ -49,6 +74,11 @@ export function partnerKacheln({ partnerId, tabs, mwstProzent, hilfen }) {
   const naechster = letzte ? new Date(letzte) : null;
   if (naechster) naechster.setDate(naechster.getDate() + 1);   // Kalendertag, auch ueber die Zeitumstellung
   const seit = naechster ? toDE(naechster) : vertrag ? toDE(vertrag) : '';
+  // GS2: offene Auszahlung = laufend + freigegebene, noch nicht bezahlte Abrechnungen (Lizenz: Entwurf steckt noch in laufend)
+  const s = saldoRechnung({ lizenzNetto, interneSumme, mwstProzent });
+  const eigeneAbr = tabs.abrechnungen.rows.filter(r => r[a('Partner-ID')] === partnerId)
+    .map(r => ({ status: t(r[a('Status')]), brutto: toFloat(r[a('Saldo')]), bis: parseDate(r[a('Zeitraum-Bis')] ?? '') }));
+  const o = offeneAuszahlung({ laufend: s.saldo, abrechnungen: eigeneAbr, entwurfZaehlt: false });
   return {
     partnerId,
     bestellungen: [...jeBestellung.values()].filter(n => n > 0).length,
@@ -56,6 +86,8 @@ export function partnerKacheln({ partnerId, tabs, mwstProzent, hilfen }) {
     internOhneBetrag: intern.filter(r => t(r[i('Summe')]) === '').length,
     seit, letzteAbrechnung: !!letzte,
     saldoKachel: t(partner[p(SALDO_KACHEL_SPALTE)]).toLowerCase() !== 'nein',
-    ...saldoRechnung({ lizenzNetto, interneSumme, mwstProzent }),
+    ...s,
+    saldo: o.saldo, laufend: o.laufend, ausstehend: o.ausstehend, ausstehendAnzahl: o.ausstehendAnzahl,
+    abgerechnetBis: o.abgerechnetBis ? deLokal(o.abgerechnetBis) : '',   // parseDate liefert lokale Mitternacht - nicht ueber UTC (toDE) formatieren
   };
 }
