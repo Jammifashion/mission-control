@@ -9,6 +9,7 @@ import {
 import { bereitstellenVorschau, bereitstellen, zuruecknehmen } from '../lib/auftragBereitstellen.js';
 import rateLimit from 'express-rate-limit';
 import { schnellVorschlag } from '../lib/auftragSchnell.js';
+import { abrechnenKunden, abrechnenVorschau, rechnungAnlegen, rechnungKennzeichen, rechnungNachsehen } from '../lib/rechnung.js';   // RE1
 
 const router = Router();
 
@@ -134,6 +135,16 @@ router.post('/angebot', mitMeldung(async req => {
   return r;
 }));
 // POST /zustaendig { nr (AU-/AG-), zustaendig: Christian | Nicole | "" }
+// ── RE1: Abrechnen (Sammelrechnung als Lexware-Entwurf) ───────────────────────
+router.get('/rechnung/kunden', mitMeldung(() => abrechnenKunden()));
+router.post('/rechnung/vorschau', mitMeldung(req => abrechnenVorschau({
+  kundenNr: String(req.body?.kundenNr ?? ''), von: String(req.body?.von ?? ''), bis: String(req.body?.bis ?? ''),
+  auswahl: Array.isArray(req.body?.auswahl) ? req.body.auswahl : null,
+})));
+router.post('/rechnung/anlegen', mitMeldung(req => rechnungAnlegen({ eingabe: req.body ?? {} })));
+router.post('/rechnung/kennzeichen', mitMeldung(req => rechnungKennzeichen({ eingabe: req.body ?? {} })));
+router.post('/rechnung/nachsehen', mitMeldung(req => rechnungNachsehen({ nr: req.body?.nr })));
+
 router.post('/zustaendig', mitMeldung(req => setzeZustaendig({ eingabe: req.body ?? {} })));
 
 export default router;

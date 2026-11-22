@@ -68,7 +68,7 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
 - Navigation (NAV4: Tabelle `BEREICHE` im Block `Navigation-Tabelle: Anfang/Ende`, Test
   navigation.test.js; `oeffneAnsicht(bereich, unterpunkt)` = einziger Weg, eine Ansicht zu oeffnen,
   auch `window.oeffneAnsicht`; Adresse `#bereich/unterpunkt`; Ereignis `mc:ansicht` fuer den
-  zweiten Script-Block. Bereiche: dashboard · auftraege (liste, todos, bestellseiten; ein Panel `auftraege`, AM-1/AM-2; seit AM-1-1 direkt
+  zweiten Script-Block. Bereiche: dashboard · auftraege (liste, todos, bestellseiten, abrechnen (RE1); ein Panel `auftraege`, AM-1/AM-2; seit AM-1-1 direkt
   hinter Dashboard) · bestellen (Panel orders, Unterreiter) · artikel
   (Panel products, Modus-Knoepfe) · partner (lizenz = partnerportal, festpreis) · kunden ("Kunden", FIX3 19.11.: stamm = Kundenstamm
   im Panel `auftraege` zuerst, anfragen, wissen = "Jey-Wissen") · lager (bestand, buchungen, abgaenge; ein Panel `lager`, BO5-1/BO5-5) · system (settings). Neue Ansicht = Zeile in BEREICHE, nie `nav button.click()`.
@@ -1410,6 +1410,20 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   (Doppelklick), Takt wie die Suche. Schreib-Schluessel NUR Secret `LEXWARE_API_KEY_KONTAKTE_SCHREIBEN` (`schreibSchluessel`, nicht in
   SECRET_KEYS); fehlt er/401/403 -> 503 `lexware_schluessel`, Haken mit Hinweis (`GET .../lexoffice-schreiben` { bereit }). Test
   kunden-lexoffice-anlegen.test.js.
+- backend/lib/rechnung.js – Abrechnen (RE1): Sammelrechnung aus Auftraegen als Lexware-ENTWURF, Logik `utils/rechnung.js`, der EINE Schreibweg
+  `lib/lexwareRechnung.js` (`POST /v1/invoices` ohne `finalize`, genau ein Versuch, auch bei 429 kein zweiter; nie PUT/DELETE/versenden; Host nur ueber
+  `BASIS` aus lib/lexware.js). Schluessel NUR Secret `LEXWARE_API_KEY_RECHNUNGEN` (nicht in SECRET_KEYS: fehlt er, laeuft die Vorschau, Anlegen = 503
+  `lexware_rechnungen`). Auswahl ueber das Kennzeichen hinten in `Auftraege` (`Rechnung_Lexware_ID`, `Rechnung_Am`, `Rechnung_Status` entwurf|unklar;
+  Setup `setup-auftraege-reiter.js`), NICHT ueber den Status: auch bezahlt; storniert/entfernte Positionen nie, von Hand gefuelltes `Lexoffice_Rechnung` =
+  abgerechnet. Nicht abrechenbar (Grund): Position ohne Preis, Rabatt am Auftrag, brutto/netto gemischt, Kunde ohne Lexoffice_ID. Alle "brutto" =
+  `taxType gross` (grossAmount = `bruttoAusNetto` je Stueck, der vereinbarte Bruttopreis kommt exakt heraus), sonst `net` (netAmount bis 4 Stellen).
+  Je Auftrag eine Textzeile "Lieferung TT.MM.JJJJ · AU-…", Position = Motiv/Freitext · Farbe · Groesse, `description` "für <Name>" aus
+  Bestell_Eintraege.Fuer (Namen nur in Lexware, MC zeigt "für …"). Ablauf `rechnungAnlegen` unter der Auftrags-Sperre: Stand wie gesehen, Kennzeichen
+  "unklar" ZUERST, dann POST -> angelegt: ID + "entwurf" + To-do "Rechnung…" erledigt | 4xx: Kennzeichen wieder leer | Zeitlimit/5xx/ohne id: bleibt
+  "unklar" + Chat (nur AU-Nummern), NIE automatisch erneut. Von Hand (`/rechnung/kennzeichen`): unklar -> angelegt (ID aus "In Lexware nachsehen" =
+  Belegliste lesend) bzw. zuruecksetzen, je ganze Gruppe (Kunde + Tag + ID). Routen `/api/auftraege/rechnung/{kunden,vorschau,anlegen,kennzeichen,
+  nachsehen}`. Oberflaeche Unterpunkt `auftraege/abrechnen` (`#re-ansicht`), SECTION Abrechnen (RE1), Block `Abrechnen: Anfang/Ende`, Hilfe-Gruppe
+  `abrechnen`. Tests rechnung.test.js, rechnung-frontend.test.js.
 - backend/lib/feedback.js – Feedback aus MC (FB1), Logik `utils/feedback.js`, Route `routes/feedback.js` (`POST /api/feedback { text, kontext }`, hinter
   requireApiKey, eigene Bremse). Knopf "💡 Feedback" im Kopf (`#feedback-oeffnen`, am Handy nur die Lampe), Dialog `#fb-dialog` (z-index 60, liegt ueber
   jedem Fenster, aendert nichts dahinter), SECTION Feedback (FB1) mit Block `Feedback: Anfang/Ende` (Test feedback-frontend.test.js), Hilfe-Gruppe `feedback`.

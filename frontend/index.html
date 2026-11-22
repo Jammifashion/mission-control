@@ -2033,6 +2033,31 @@
         .mika-e-zusatz, .mika-gruppe h3, .mika-suche label, .mika-hinweis { font-size: 12px; }
       }
       /* ── Mika: CSS Ende ── */
+      /* RE1: Abrechnen */
+      .re-filter { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-end; }
+      .re-filter .edi-feld:first-child { flex: 1 1 18rem; min-width: 0; }
+      .re-filter #re-kunde { width: 100%; }
+      .re-liste { display: flex; flex-direction: column; gap: 0.3rem; margin: 0.4rem 0; }
+      .re-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.7rem; padding: 0.35rem 0.5rem; border-radius: 7px; background: color-mix(in srgb, var(--text) 4%, var(--surface)); }
+      .re-zeile.re-gesperrt { opacity: 0.75; }
+      .re-text { flex: 1 1 12rem; min-width: 0; }
+      .re-grund { border-color: var(--warning); color: var(--warning); }
+      .re-tabelle { width: 100%; border-collapse: collapse; font-size: 0.86rem; margin-top: 0.4rem; }
+      .re-tabelle th, .re-tabelle td { padding: 0.3rem 0.45rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+      .re-tabelle .re-betrag, .re-tabelle .re-menge { text-align: right; white-space: nowrap; }
+      .re-zwischen td { font-weight: 600; background: color-mix(in srgb, var(--info) 8%, transparent); }
+      .re-summen { margin: 0.6rem 0 0 auto; max-width: 18rem; display: flex; flex-direction: column; gap: 0.15rem; }
+      .re-summen > div { display: flex; justify-content: space-between; gap: 1rem; }
+      .re-gesamt { font-weight: 700; border-top: 1px solid var(--border); padding-top: 0.2rem; }
+      .re-hinweis { color: var(--warning); font-size: 0.86rem; }
+      .re-erfolg { border: 1px solid var(--success); border-radius: 7px; padding: 0.5rem 0.7rem; margin-bottom: 0.6rem; }
+      .re-erfolg.re-unklar { border-color: var(--warning); color: var(--warning); }
+      .re-st-entwurf { border-color: var(--success); color: var(--success); }
+      .re-st-unklar { border-color: var(--warning); color: var(--warning); }
+      .re-ab { margin-top: 0.8rem; }
+      .re-ab summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+      .re-nachsehen { flex-basis: 100%; }
+      .re-funde { margin: 0.3rem 0; padding-left: 1.1rem; display: flex; flex-direction: column; gap: 0.3rem; }
       /* ── UI3 Handy: Anfang (Restfunde AH1) - Tippflaechen je Bereich: die Zeile waechst (min-height), nichts ueberdeckt Nachbarn ── */
       .td-text { font-size: 0.92rem; }
       /* Knopfpaare gleich breit */
@@ -2060,6 +2085,9 @@
         .td-zeile > button.korb-link, .edi-kopf button.korb-link, .korb-ansicht button.korb-link, #korb-alle-btn, #korb-lb-zuerst, .order-card-meta a.ps-shop-link, .order-card-meta .tr-karte {
           min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
         .td-zeile > button.korb-link, .lager-buchung button.korb-link { justify-content: flex-start; text-align: left; }
+        /* RE1: Abrechnen */
+        .re-zeile button.korb-link, .re-zeile a.korb-link, .re-funde a.korb-link, .re-erfolg a.korb-link, .re-zeile .korb-aktion, .re-funde .korb-aktion, #re-anlegen, #re-kunde, #re-ansicht .hilfe-i {
+          min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
         .lager-best-zeile button.korb-link, .lager-best-titel button.korb-link, .korb-pos-text a.ps-shop-link { justify-content: center; }
         .btn-lshop-bestellen, .pk-info-knopf, .bm-liste .bm-zelle { min-height: 44px; min-width: 44px; height: auto; }
         .edi-kopf button.korb-link { flex: none; white-space: nowrap; }
@@ -3905,6 +3933,30 @@
           <div id="bsm-liste"><div class="skeleton"></div></div>
         </div>
 
+        <!-- RE1: Abrechnen - Auftraege ohne Rechnungskennzeichen eines Kunden als EINEN Lexware-Rechnungsentwurf. -->
+        <div class="card inhalt-liste" id="re-ansicht" hidden>
+          <div class="lshop-offen-header korb-kopf"><span>Abrechnen – Rechnungsentwurf in Lexware</span></div>
+          <div id="re-einrichtung" class="lager-warnung" hidden></div>
+          <div id="re-erfolg" class="re-erfolg" role="status" hidden></div>
+          <div class="korb-bedienung">
+            <div class="korb-ansicht re-filter">
+              <label class="edi-feld" data-hilfe="re-kunde">Kunde<select id="re-kunde" class="form-select"></select></label>
+              <label class="edi-feld" data-hilfe="re-zeitraum">von<input type="date" id="re-von" class="form-input"></label>
+              <label class="edi-feld" data-hilfe="re-zeitraum">bis<input type="date" id="re-bis" class="form-input"></label>
+            </div>
+            <div class="korb-aktionen">
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="abrechnen" aria-controls="hilfe-re" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+            </div>
+          </div>
+          <div id="hilfe-re" class="hilfe-legende" hidden></div>
+          <div id="re-liste"><div class="skeleton"></div></div>
+          <div id="re-vorschau"></div>
+          <div class="korb-reihe ku-knoepfe">
+            <button type="button" class="korb-aktion korb-aktion-haupt" id="re-anlegen" data-hilfe="re-anlegen" aria-disabled="true">Rechnungsentwurf in Lexware anlegen …</button>
+          </div>
+          <div id="re-abgerechnet"></div>
+        </div>
+
         <!-- AM-2: Auftragsansicht - Kopf, Status-Leiste, Positionen mit Haken "fertig". -->
         <div id="au-detail" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="au-d-titel" hidden>
           <div class="edi-box ku-box au-box">
@@ -4808,6 +4860,7 @@
           { id: 'liste',  label: 'Aufträge', panel: 'auftraege' },   // Inhaber 03.11.: Aufträge vor Kunden
           { id: 'todos',  label: 'Offene To-dos', panel: 'auftraege' },   // AM-4: alle offenen Punkte aus Aufträgen und Aufgaben
           { id: 'bestellseiten', label: 'Bestellseiten', panel: 'auftraege' },   // KS1: Bestellseiten per Token
+          { id: 'abrechnen', label: 'Abrechnen', panel: 'auftraege' },   // RE1: Sammelrechnung als Lexware-Entwurf
           // FIX3 (Inhaber 19.11.): Kundenstamm steht jetzt unter "Kunden"; alte Adresse/Lesezeichen leiten um.
           { id: 'kunden', umleitung: 'kunden/stamm' },
         ] },
@@ -8068,6 +8121,20 @@
         'au-ns-vorlage':        { name: 'Als Vorlage übernehmen', text: 'Wie „Wie letztes Mal“: übernimmt Positionen, Mengen und Preise. Stehen schon Eingaben drin, fragt MC vorher.' },
         'au-ek-von':            { name: 'EK übernommen', text: 'EK von Hand kommt aus einem früheren Auftrag – frei änderbar.' },
         'ku-wie-letztes':       { name: 'Wie letztes Mal', text: 'Neuer Auftrag nach diesem Auftrag (Positionen, Mengen, Preise). Termin, Notiz und Rabatt bleiben leer.' },
+        // RE1: Abrechnen
+        're-kunde':             { name: 'Kunde', text: 'Kunden mit Aufträgen ohne Rechnungskennzeichen. Kunden mit Bestellseite (Fanshop) stehen oben.' },
+        're-zeitraum':          { name: 'Zeitraum', text: 'Optional: nur Aufträge mit Liefertag (Termin) in diesem Zeitraum.' },
+        're-haken':             { name: 'Abrechnen', text: 'Dieser Auftrag kommt in die Rechnung. Alle abrechenbaren sind vorausgewählt.' },
+        're-gesperrt':          { name: 'Nicht abrechenbar', text: 'Erst klären (z. B. Preis fehlt), dann kommt er in die Auswahl.' },
+        're-au':                { name: 'Auftrag', text: 'Öffnet den Auftrag zum Nachsehen.' },
+        're-fuer':              { name: 'für …', text: 'Die Position trägt einen Namen („für wen“) – er steht in Lexware im Positionstext.' },
+        're-anlegen':           { name: 'Rechnungsentwurf anlegen', text: 'Legt in Lexware EINEN Entwurf mit allen gewählten Aufträgen an – nie abgeschlossen, nie versendet.' },
+        're-abgerechnet':       { name: 'Schon abgerechnet', text: 'Aufträge mit Rechnungskennzeichen – die kommen nie ein zweites Mal in eine Rechnung.' },
+        're-status':            { name: 'Kennzeichen', text: 'Entwurf = in Lexware angelegt. Unklar = Antwort fehlte – erst nachsehen, nie neu anlegen.' },
+        're-link':              { name: 'In Lexware öffnen', text: 'Öffnet den Rechnungsentwurf in Lexware (neuer Tab).' },
+        're-nachsehen':         { name: 'In Lexware nachsehen', text: 'Sucht die Rechnungsentwürfe dieses Kunden seit dem Tag in Lexware (nur lesen).' },
+        're-angelegt':          { name: 'Als angelegt markieren', text: 'Dieser Entwurf gehört zu den unklaren Aufträgen: Kennzeichen wird „Entwurf“ mit seiner ID.' },
+        're-zuruecksetzen':     { name: 'Kennzeichen entfernen', text: 'Nur wenn der Entwurf in Lexware gelöscht ist oder nie angelegt wurde – danach wieder abrechenbar.' },
         'au-speichern':         { name: 'Speichern', text: 'Speichert Auftrag und Positionen in einem Schritt. Ein zweiter Klick legt nichts doppelt an.' },
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
@@ -8106,6 +8173,7 @@
           'ku-hist', 'ku-hist-neu', 'ku-hist-frei-neu', 'ku-mit-storniert', 'ku-wie-letztes',
           'au-letzte', 'au-letzte-alle', 'au-ns-schliessen', 'au-ns-vorlage', 'au-ek-von', 'au-bestellseite', 'ku-dauer-bestellseite',
           'au-aus-bestellseite', 'au-bs-eintrag', 'au-verweis', 'au-alle-fertig', 'au-geliefert', 'au-geliefert-zurueck', 'au-verschoben'],   // AM-6, AM-6-1, KS1, KS3, KS4
+        abrechnen: ['re-kunde', 're-zeitraum', 're-haken', 're-gesperrt', 're-au', 're-fuer', 're-anlegen', 're-abgerechnet', 're-status', 're-link', 're-nachsehen', 're-angelegt', 're-zuruecksetzen'],   // RE1
         bestellseiten: ['bsm-status', 'bsm-oeffnen', 'bsm-link', 'bsm-kopieren', 'bsm-link-holen', 'bsm-link-alt', 'bsm-anlegen',
           'bsm-e-wahl', 'bsm-e-status', 'bsm-gk', 'bsm-e-auftrag', 'bsm-e-pruefen', 'bsm-e-zurueck', 'bsm-e-aendern', 'bsm-e-ablehnen', 'bsm-e-feld', 'bsm-e-speichern',
           'bsm-alle', 'bsm-s-pruefen', 'bsm-s-grund', 'bsm-s-ablehnen', 'bsm-uebernehmen', 'bsm-packliste', 'bsm-pl-drucken', 'bsm-u-ziel', 'bsm-u-wahl', 'bsm-u-quelle',
@@ -12229,13 +12297,16 @@
       document.addEventListener('mc:ansicht', e => {
         if (e.detail?.panel !== 'auftraege') return;
         const liste = e.detail.punkt === 'liste', todos = e.detail.punkt === 'todos', bs = e.detail.punkt === 'bestellseiten';
+        const re = e.detail.punkt === 'abrechnen';   // RE1
         kuDialogSchliessen();
-        kuEl('ku-ansicht').hidden = liste || todos || bs;
+        kuEl('ku-ansicht').hidden = liste || todos || bs || re;
+        document.getElementById('re-ansicht').hidden = !re;
         document.getElementById('au-ansicht').hidden = !liste;
         document.getElementById('td-ansicht').hidden = !todos;   // AM-4
         document.getElementById('bsm-ansicht').hidden = !bs;   // KS1
         for (const id of ['au-detail', 'au-dialog', 'ag-detail', 'ag-dialog', 'bsm-dialog']) document.getElementById(id).hidden = true;
         if (bs) { globalThis.bsmLaden?.(); if (!auZ.daten) loadAuftraege(); }
+        else if (re) globalThis.reLaden?.();
         else if (liste || todos) loadAuftraege(); else loadKunden();
       });
 
@@ -15634,6 +15705,190 @@
         const heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' });
         const j = Number(heute.slice(0, 4));
         bsmDialogOeffnen({ art: 'dauer', kundenNr: kuZ.offen.Kunden_Nr, ablaufVorschlag: heute <= `${j}-06-30` ? `${j}-06-30` : `${j + 1}-06-30` });
+      });
+
+      // ── SECTION: Abrechnen (RE1) ──
+      // Sammelrechnung: Auftraege eines Kunden OHNE Rechnungskennzeichen (auch bezahlte) -> EIN Rechnungsentwurf in Lexware.
+      // Senden genau einmal; unklar -> Kennzeichen "unklar", nie automatisch erneut (nachsehen / von Hand markieren / zuruecksetzen).
+      // Namen ("für wen") stehen nur in Lexware - in MC nur als Kennzeichen "für …", nie in Toast oder Log.
+      // ── Abrechnen: Anfang (reine Logik, Test backend/tests/rechnung-frontend.test.js; braucht kuEsc, apEuroText) ──
+      const RE_STATUS_TEXT = { entwurf: 'Entwurf in Lexware', unklar: 'unklar – nachsehen', hand: 'Rechnung (von Hand)' };
+      const reDatum = ymd => (/^\d{4}-\d{2}-\d{2}$/.test(ymd || '') ? `${ymd.slice(8, 10)}.${ymd.slice(5, 7)}.${ymd.slice(0, 4)}` : '–');
+      /** Kunden-Auswahl: Kunden mit Bestellseite zuerst (Fanshop vorausgewaehlt), dann nach Anzahl offener Auftraege (Reihenfolge vom Server). */
+      function reKundenOptionen(kunden, namen, gewaehlt) {
+        if (!kunden?.length) return '<option value="">keine offenen Aufträge</option>';
+        return kunden.map(k => `<option value="${kuEsc(k.kundenNr)}"${k.kundenNr === gewaehlt ? ' selected' : ''}>${kuEsc(namen(k.kundenNr))} · ${k.offen} offen</option>`).join('');
+      }
+      function reOffenHtml(offen, gewaehlt) {
+        if (!offen?.length) return '<p class="korb-zaehler">Keine Aufträge ohne Rechnungskennzeichen.</p>';
+        return '<div class="re-liste">' + offen.map(a => {
+          const frei = !a.grund;
+          return `<div class="re-zeile${frei ? '' : ' re-gesperrt'}">`
+            + (frei ? '<label class="card-cb-wrap" data-hilfe="re-haken">' : `<label class="card-cb-wrap" data-hilfe="re-gesperrt" data-hilfe-zusatz="${kuEsc(a.grund)}">`) + `<input type="checkbox" data-re-au="${kuEsc(a.auftragNr)}" aria-label="${kuEsc(a.auftragNr)} abrechnen"${frei && gewaehlt.has(a.auftragNr) ? ' checked' : ''}${frei ? '' : ' disabled'}></label>`
+            + `<button type="button" class="korb-link nr-fest" data-re-oeffnen="${kuEsc(a.auftragNr)}" data-hilfe="re-au">${kuEsc(a.auftragNr)}</button>`
+            + `<span class="re-text">${kuEsc(a.kurztitel)}</span><span class="korb-zaehler">${kuEsc(reDatum(a.liefertag))} · ${kuEsc(a.status)} · ${a.positionen} Pos.${a.eingabe === 'brutto' ? ' · brutto' : ''}</span>`
+            + (frei ? '' : `<span class="ku-chip re-grund">${kuEsc(a.grund)}</span>`) + '</div>';
+        }).join('') + '</div>';
+      }
+      /** Vorschau: je Auftrag eine Zwischenzeile, je Position Menge · Text · Einzelpreis · Summe; "für" nur als Kennzeichen. */
+      function reVorschauHtml(v) {
+        if (!v) return '';
+        const brutto = v.taxType === 'gross';
+        const zeilen = (v.positionen ?? []).map(z => z.art === 'text'
+          ? `<tr class="re-zwischen"><td colspan="4" class="hk-haupt">${kuEsc(z.text)}</td></tr>`
+          : `<tr><td class="re-menge" data-label="Menge">${z.menge}</td><td class="hk-haupt" data-label="Position">${kuEsc(z.name)}${z.fuer ? ' <span class="ku-chip" data-hilfe="re-fuer" tabindex="0">für …</span>' : ''}${z.satz !== 19 ? ` <span class="korb-zaehler">${z.satz} %</span>` : ''}</td>`
+            + `<td class="re-betrag" data-label="je Stück">${apEuroText(z.stueck)}</td><td class="re-betrag" data-label="Summe">${apEuroText(z.summe)}</td></tr>`).join('');
+        const mwst = (v.summen?.mwst ?? []).map(m => `<div><span>MwSt ${m.satz} %</span><span>${apEuroText(m.betrag)}</span></div>`).join('');
+        const probleme = (v.probleme ?? []).length ? `<div class="lager-warnung re-probleme"><strong>Noch nicht möglich:</strong><ul>${v.probleme.map(p => `<li>${kuEsc(p)}</li>`).join('')}</ul></div>` : '';
+        return `<div class="re-vorschau">${probleme}${v.hinweis ? `<p class="re-hinweis">${kuEsc(v.hinweis)}</p>` : ''}`
+          + `<p class="korb-zaehler">${brutto ? 'Brutto-Rechnung (Preise wie vereinbart brutto)' : 'Netto-Rechnung'} · ${(v.auftraege ?? []).length} Auftrag/Aufträge</p>`
+          + `<table class="re-tabelle hk-karten"><thead><tr><th>Menge</th><th>Position</th><th>${brutto ? 'brutto' : 'netto'} je Stück</th><th>Summe</th></tr></thead><tbody>${zeilen}</tbody></table>`
+          + `<div class="re-summen"><div><span>netto</span><span>${apEuroText(v.summen?.netto)}</span></div>${mwst}<div class="re-gesamt"><span>brutto</span><span>${apEuroText(v.summen?.brutto)}</span></div></div></div>`;
+      }
+      function reAbgerechnetHtml(liste, linkBasis) {
+        if (!liste?.length) return '';
+        return '<details class="re-ab"><summary data-hilfe="re-abgerechnet">Schon abgerechnet (' + liste.length + ')</summary><div class="re-liste">' + liste.map(a => {
+          const r = a.rechnung ?? {}, st = r.status || (r.hand ? 'hand' : '');
+          const knoepfe = [
+            r.id ? `<a class="korb-link" href="${kuEsc(linkBasis + r.id)}" target="_blank" rel="noopener noreferrer" data-hilfe="re-link">In Lexware öffnen ↗</a>` : '',
+            st === 'unklar' ? `<button type="button" class="korb-aktion korb-aktion-ruhig" data-re-nachsehen="${kuEsc(a.auftragNr)}" data-hilfe="re-nachsehen">In Lexware nachsehen</button>` : '',
+            ['entwurf', 'unklar'].includes(st) ? `<button type="button" class="korb-aktion korb-aktion-ruhig" data-re-zurueck="${kuEsc(a.auftragNr)}" data-hilfe="re-zuruecksetzen">Kennzeichen entfernen …</button>` : '',
+          ].filter(Boolean).join('');
+          return `<div class="re-zeile"><span class="nr-fest">${kuEsc(a.auftragNr)}</span><span class="re-text">${kuEsc(a.kurztitel)}</span>`
+            + `<span class="ku-chip re-st-${kuEsc(st)}" data-hilfe="re-status" tabindex="0">${kuEsc(RE_STATUS_TEXT[st] ?? st)}</span>`
+            + `<span class="korb-zaehler">${r.am ? kuEsc(reDatum(r.am)) : kuEsc(r.hand)}</span>${knoepfe}<div class="re-nachsehen" data-re-ns="${kuEsc(a.auftragNr)}"></div></div>`;
+        }).join('') + '</div></details>';
+      }
+      /** Ergebnis von "In Lexware nachsehen": Entwuerfe mit Knopf "das ist er" (setzt ID + entwurf). */
+      function reNachsehenHtml(nr, r, linkBasis) {
+        if (!r?.ok) return `<p class="korb-zaehler">Nachsehen nicht möglich: ${kuEsc(r?.grund ?? 'Fehler')}. Bitte direkt in Lexware unter Rechnungen → Entwürfe schauen.</p>`;
+        if (!r.entwuerfe?.length) return '<p class="korb-zaehler">Kein Rechnungsentwurf für diesen Kunden seit dem Tag gefunden – dann wurde nichts angelegt: „Kennzeichen entfernen …“ und neu abrechnen.</p>';
+        return '<ul class="re-funde">' + r.entwuerfe.map(e => `<li>${kuEsc(reDatum(String(e.createdDate).slice(0, 10)))} · ${e.totalAmount === null ? '–' : apEuroText(Math.round(Number(e.totalAmount) * 100))}`
+          + ` <a class="korb-link" href="${kuEsc(linkBasis + e.id)}" target="_blank" rel="noopener noreferrer" data-hilfe="re-link">ansehen ↗</a>`
+          + ` <button type="button" class="korb-aktion korb-aktion-ruhig" data-re-angelegt="${kuEsc(nr)}" data-re-id="${kuEsc(e.id)}" data-hilfe="re-angelegt">das ist er – als angelegt markieren</button></li>`).join('') + '</ul>';
+      }
+      /** Darf "anlegen" klicken? Grund fuer Mouse-over/Meldung, sonst ''. */
+      function reAnlegenGrund({ bereit, spalten, gewaehlt, vorschau, laeuft }) {
+        if (laeuft) return 'Läuft gerade – bitte warten.';
+        if (!spalten) return 'Spalten fehlen in Auftraege – erst Setup.';
+        if (!bereit) return 'Lexware-Rechnungen nicht eingerichtet.';
+        if (!gewaehlt) return 'Bitte mindestens einen Auftrag wählen.';
+        if (vorschau?.probleme?.length) return 'Erst die Punkte unter „Noch nicht möglich“ klären.';
+        return '';
+      }
+      // ── Abrechnen: Ende ──
+      const reZ = { kunden: null, kunde: '', daten: null, gewaehlt: new Set(), laeuft: false, bereit: false, spalten: true };
+      const reEl = id => document.getElementById(id);
+      const reName = nr => auKundeText((kuZ.kunden ?? []).find(k => k.Kunden_Nr === nr), nr);
+      async function reJson(pfad, body) {
+        const res = await apiFetch(`${API_BASE()}/api/auftraege/rechnung/${pfad}`, body === undefined ? { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) }
+          : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(90000) });
+        const j = await res.json().catch(() => null);
+        return { ok: res.ok, status: res.status, j: j ?? {} };
+      }
+      function reKnopf() {
+        const grund = reAnlegenGrund({ bereit: reZ.bereit, spalten: reZ.spalten, gewaehlt: reZ.gewaehlt.size, vorschau: reZ.daten?.vorschau, laeuft: reZ.laeuft });
+        const k = reEl('re-anlegen');
+        k.setAttribute('aria-disabled', grund ? 'true' : 'false');
+        if (grund) k.dataset.hilfeZusatz = grund; else delete k.dataset.hilfeZusatz;
+        return grund;
+      }
+      function reZeichnen() {
+        const d = reZ.daten;
+        const ein = reEl('re-einrichtung');
+        const warn = [!reZ.spalten ? 'Spalten Rechnung_* fehlen in Auftraege – erst scripts/setup-auftraege-reiter.js --write.' : '', !reZ.bereit ? 'Lexware-Rechnungen nicht eingerichtet (Schlüssel fehlt) – Vorschau geht, Anlegen nicht.' : ''].filter(Boolean);
+        ein.textContent = warn.join(' '); ein.hidden = !warn.length;
+        reEl('re-kunde').innerHTML = reKundenOptionen(reZ.kunden, reName, reZ.kunde);
+        reEl('re-liste').innerHTML = d ? reOffenHtml(d.offen, reZ.gewaehlt) : '<div class="skeleton"></div>';
+        reEl('re-vorschau').innerHTML = d ? reVorschauHtml(d.vorschau) : '';
+        reEl('re-abgerechnet').innerHTML = d ? reAbgerechnetHtml(d.abgerechnet, d.linkBasis) : '';
+        reKnopf();
+      }
+      async function reVorschau({ neuWaehlen = false } = {}) {
+        if (!reZ.kunde) { reZ.daten = { offen: [], abgerechnet: [], vorschau: null, linkBasis: '' }; reZeichnen(); return; }
+        const body = { kundenNr: reZ.kunde, von: reEl('re-von').value, bis: reEl('re-bis').value, ...(neuWaehlen ? {} : { auswahl: [...reZ.gewaehlt] }) };
+        const r = await reJson('vorschau', body);
+        if (!r.ok) { showToast(r.j.error || `Abrechnen: Fehler ${r.status}`, 'error'); return; }
+        reZ.daten = r.j; reZ.bereit = !!r.j.bereit; reZ.spalten = r.j.spalten !== false;
+        if (neuWaehlen) reZ.gewaehlt = new Set(r.j.vorschau?.auftraege ?? []);
+        reZeichnen();
+      }
+      async function reLaden() {
+        if (!kuZ.kunden) await loadKunden();
+        const r = await reJson('kunden');
+        if (!r.ok) { reEl('re-liste').innerHTML = `<p class="lager-warnung">${kuEsc(r.j.error || `Fehler ${r.status}`)}</p>`; return; }
+        reZ.kunden = r.j.kunden ?? []; reZ.bereit = !!r.j.bereit; reZ.spalten = r.j.spalten !== false;
+        if (!reZ.kunden.some(k => k.kundenNr === reZ.kunde)) reZ.kunde = reZ.kunden[0]?.kundenNr ?? '';
+        await reVorschau({ neuWaehlen: true });
+      }
+      globalThis.reLaden = reLaden;
+      reEl('re-kunde').addEventListener('change', e => { reZ.kunde = e.target.value; reEl('re-erfolg').hidden = true; reVorschau({ neuWaehlen: true }); });
+      for (const id of ['re-von', 're-bis']) reEl(id).addEventListener('change', () => reVorschau({ neuWaehlen: true }));
+      reEl('re-liste').addEventListener('change', e => {
+        const cb = e.target.closest('[data-re-au]');
+        if (!cb) return;
+        if (cb.checked) reZ.gewaehlt.add(cb.dataset.reAu); else reZ.gewaehlt.delete(cb.dataset.reAu);
+        reVorschau();
+      });
+      reEl('re-liste').addEventListener('click', e => {
+        const b = e.target.closest('[data-re-oeffnen]');
+        if (b) window.auOeffnen?.(b.dataset.reOeffnen);
+      });
+      reEl('re-anlegen').addEventListener('click', async () => {
+        const grund = reKnopf();
+        if (grund) { showToast(grund, 'warning'); return; }
+        const v = reZ.daten.vorschau;
+        const ok = await showConfirm('Rechnungsentwurf in Lexware anlegen?',
+          `<p>${v.auftraege.length} Auftrag/Aufträge für <strong>${kuEsc(reName(reZ.kunde))}</strong>, brutto ${apEuroText(v.summen.brutto)}.</p>`
+          + '<p>MC legt genau einen <strong>Entwurf</strong> an – nicht abgeschlossen, nicht versendet. Prüfen und versenden machst du in Lexware.</p>',
+          'Entwurf anlegen', 'Abbrechen');
+        if (!ok) return;
+        reZ.laeuft = true; reKnopf();
+        const auswahl = (reZ.daten.offen ?? []).filter(a => reZ.gewaehlt.has(a.auftragNr)).map(a => ({ nr: a.auftragNr, stand: a.stand }));
+        try {
+          const r = await reJson('anlegen', { kundenNr: reZ.kunde, auftraege: auswahl });
+          const box = reEl('re-erfolg');
+          if (r.ok && r.j.ergebnis === 'angelegt') {
+            box.className = 're-erfolg';
+            box.innerHTML = `Rechnungsentwurf angelegt für ${r.j.auftraege.length} Auftrag/Aufträge${r.j.todos ? ` · ${r.j.todos} To-do „Rechnung“ erledigt` : ''}. `
+              + `<a class="korb-link" href="${kuEsc(r.j.link)}" target="_blank" rel="noopener noreferrer" data-hilfe="re-link">In Lexware öffnen ↗</a>`;
+            box.hidden = false;
+          } else if (r.ok && r.j.ergebnis === 'unklar') {
+            box.className = 're-erfolg re-unklar';
+            box.textContent = `Ergebnis unklar (${r.j.grund}). Kennzeichen „unklar“ gesetzt – bitte NICHT erneut anlegen, sondern unten „In Lexware nachsehen“.`;
+            box.hidden = false;
+          } else {
+            showToast(r.j.error ? `${r.j.error}${r.j.probleme?.length ? ` – ${r.j.probleme[0]}` : ''}` : `Fehler ${r.status}`, 'error');
+          }
+        } catch (err) {
+          showToast('Keine Antwort von MC – Ergebnis unklar. Bitte neu laden und unter „Schon abgerechnet“ nachsehen.', 'error');
+        } finally {
+          reZ.laeuft = false;
+          await reLaden();
+        }
+      });
+      reEl('re-abgerechnet').addEventListener('click', async e => {
+        const ns = e.target.closest('[data-re-nachsehen]'), zu = e.target.closest('[data-re-zurueck]'), an = e.target.closest('[data-re-angelegt]');
+        const finde = nr => (reZ.daten?.abgerechnet ?? []).find(a => a.auftragNr === nr);
+        if (ns) {
+          const nr = ns.dataset.reNachsehen;
+          const ziel = reEl('re-abgerechnet').querySelector(`[data-re-ns="${CSS.escape(nr)}"]`);
+          ziel.textContent = 'sehe nach …';
+          const r = await reJson('nachsehen', { nr });
+          ziel.innerHTML = reNachsehenHtml(nr, r.ok ? r.j : { ok: false, grund: r.j.error || `Fehler ${r.status}` }, reZ.daten?.linkBasis ?? '');
+          return;
+        }
+        if (zu || an) {
+          const nr = zu ? zu.dataset.reZurueck : an.dataset.reAngelegt;
+          const a = finde(nr);
+          if (!a) return;
+          const frage = zu ? ['Rechnungskennzeichen entfernen?', '<p>Nur, wenn der Entwurf in Lexware gelöscht ist oder nie angelegt wurde. Danach sind die Aufträge wieder abrechenbar – sonst droht eine doppelte Rechnung.</p>', 'Kennzeichen entfernen']
+            : ['Als angelegt markieren?', '<p>Dieser Lexware-Entwurf gehört zu den Aufträgen mit dem Kennzeichen „unklar“ von diesem Tag.</p>', 'Als angelegt markieren'];
+          if (!await showConfirm(...frage, 'Abbrechen')) return;
+          const r = await reJson('kennzeichen', { nr, stand: a.stand, aktion: zu ? 'zuruecksetzen' : 'angelegt', lexwareId: an ? an.dataset.reId : '' });
+          showToast(r.ok ? `Kennzeichen ${zu ? 'entfernt' : 'gesetzt'} (${r.j.auftraege.length} Auftrag/Aufträge).` : (r.j.error || `Fehler ${r.status}`), r.ok ? 'success' : 'error');
+          await reLaden();
+        }
       });
 
       // ── SECTION: Artikelerfassung ──

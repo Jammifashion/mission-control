@@ -85,7 +85,7 @@ describe('Adresse #bereich/unterpunkt', () => {
     expect(BEREICHE.kunden.label).toBe('Kunden');
     expect(BEREICHE.kunden.punkte.map(p => p.label)).toEqual(['Kundenstamm', 'Kundenanfragen', 'Jey-Wissen']);
     expect(BEREICHE.kunden.punkte[0].panel).toBe('auftraege');
-    expect(BEREICHE.auftraege.punkte.filter(p => !p.umleitung).map(p => p.id)).toEqual(['liste', 'todos', 'bestellseiten']);
+    expect(BEREICHE.auftraege.punkte.filter(p => !p.umleitung).map(p => p.id)).toEqual(['liste', 'todos', 'bestellseiten', 'abrechnen']);   // RE1
     expect(html).toContain('<span class="lang">Kunden</span><span class="kurz">Kunden</span>');
     expect(html).not.toContain('Kunden &amp; Jey');
     // Die Leiste zeichnet keine Umleitungs-Zeilen.

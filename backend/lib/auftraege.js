@@ -633,3 +633,6 @@ export async function setzeZustaendig({ eingabe, sheets: s } = {}) {
     return { ok: true, nr, zustaendig: wert };
   });
 }
+
+// RE1: Schreib-/Lesebausteine fuer lib/rechnung.js (gleiche Sperre, gleicher Rueckleseweg).
+export { schreibe as schreibeAuftragsZellen, zellenAus as auftragZellenAus, liesZusatz as liesAuftragZusatz };

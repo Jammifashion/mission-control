@@ -192,7 +192,7 @@ describe('Navigation und Datenschutz', () => {
     expect(tabelle.indexOf('auftraege: {')).toBeLessThan(tabelle.indexOf('bestellen: {'));
     // Inhaber 03.11.: Aufträge zuerst; FIX3 (19.11.): Kunden nur noch als Umleitung auf den Bereich "Kunden" (Kundenstamm)
     const au = tabelle.slice(tabelle.indexOf('auftraege: {'), tabelle.indexOf('bestellen: {'));
-    expect([...au.matchAll(/id: '([a-z]+)'/g)].map(m => m[1])).toEqual(['liste', 'todos', 'bestellseiten', 'kunden']);   // AM-4: Offene To-dos hinter Auftraege; KS1: Bestellseiten
+    expect([...au.matchAll(/id: '([a-z]+)'/g)].map(m => m[1])).toEqual(['liste', 'todos', 'bestellseiten', 'abrechnen', 'kunden']);   // AM-4: Offene To-dos hinter Auftraege; KS1: Bestellseiten
     expect(au).toContain("{ id: 'kunden', umleitung: 'kunden/stamm' }");
   });
   test('Suchbegriff geht per POST (nie in die Adresse), Route loggt keinen Suchbegriff/Namen', () => {

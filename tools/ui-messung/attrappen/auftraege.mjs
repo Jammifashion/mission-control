@@ -17,6 +17,7 @@ const BS = await imp('utils/bestellseite.js');
 const BE = await imp('utils/bestell-eintraege.js');
 const BU = await imp('utils/bestell-uebernahme.js');
 const ST = await imp('utils/bestell-stand.js');
+const RE = await imp('utils/rechnung.js');   // RE1
 
 // Fester "Jetzt" fuer alle Rechnungen (Daten liegen um den 19.11.2026)
 const JETZT = new Date('2026-11-19T09:30:00Z');
@@ -381,11 +382,29 @@ function dashboard(wer) {
   return { ...d, fehlerText: {}, einrichtung: { gelesen: true } };
 }
 
+// ── RE1: Abrechnen (wie lib/rechnung.js; Lexware nicht beteiligt) ─────────────
+function reKunden() {
+  const je = new Map();
+  for (const a of AUFTRAEGE) if (!RE.istStorniert(a) && !RE.hatKennzeichen(a)) je.set(a.Kunden_Nr, (je.get(a.Kunden_Nr) ?? 0) + 1);
+  return { kunden: [...je].map(([kundenNr, offen], i) => ({ kundenNr, offen, bestellseite: i === 0 })), bereit: true, spalten: true };
+}
+function reVorschau(body) {
+  const kundenNr = String(body?.kundenNr ?? '');
+  const liste = RE.abrechnenListe({ auftraege: AUFTRAEGE, positionen: POSITIONEN, kundenNr, von: body?.von ?? '', bis: body?.bis ?? '' });
+  const nrn = Array.isArray(body?.auswahl) ? body.auswahl : liste.offen.filter(x => !x.grund).map(x => x.auftragNr);
+  const gew = AUFTRAEGE.filter(a => nrn.includes(a.Auftrag_Nr));
+  const plan = gew.length ? RE.rechnungsPlan({ auftraege: gew, positionen: POSITIONEN, info: INFO, kontaktId: '11111111-2222-4333-8444-555555555555', jetzt: JETZT }) : null;
+  return { ...liste, vorschau: plan && { auftraege: nrn, positionen: plan.positionen, summen: plan.summen, taxType: plan.taxType, probleme: plan.probleme, hinweis: '' },
+    bereit: true, spalten: true, linkBasis: RE.LINK_BASIS };
+}
+
 // ── Router ───────────────────────────────────────────────────────────────────
 export function antwort(method, pfad, params, body) {
   const m = String(method || 'GET').toUpperCase();
   const p = String(pfad || '').split('?')[0].replace(/\/+$/, '') || '/';
+  if (m === 'POST' && p === '/api/auftraege/rechnung/vorschau') return reVorschau(body);   // RE1
   if (m !== 'GET') return undefined;
+  if (p === '/api/auftraege/rechnung/kunden') return reKunden();   // RE1
   if (p === '/health') return { status: 'ok', ts: Date.now(), commit: 'f1x7ure', gebaut: '2026-11-19T08:00:00.000Z' };
   if (p === '/api/health/full') return { ok: true, services: { woocommerce: { ok: true, ms: 120 }, sheet: { ok: true, ms: 80 }, claude: { ok: true, ms: 300 } } };
   if (p === '/api/auftraege') return AUFTRAEGE_ANTWORT;
