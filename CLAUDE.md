@@ -1431,6 +1431,19 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Adresse, Positionstexte. Schluessel NUR Secret `LEXWARE_API_KEY_BELEGE` (Recht "Belege lesen", nicht in SECRET_KEYS -> 503 `lexware_belege`).
   "In Lexware nachsehen" (`sucheEntwuerfe` in lib/lexwareRechnung.js) liest seitdem darueber (der Rechnungen-Schluessel bekommt auf der Belegliste 403,
   gemessen 22.11.). Test lexware-belege.test.js (Quelltext: kein POST/PUT/PATCH/DELETE).
+- backend/lib/gutschrift.js – Gutschrift an Festpreis-Partner (GS1, Inhaber 22.11.): aus einer abgeschlossenen FP-Abrechnung (freigegeben/bezahlt, mit
+  Positionen-JSON) EIN Lexware-ENTWURF "Rechnungsgutschrift" (§ 14 Abs. 2 UStG; Lexware: Rechnungskorrektur, GS-Nummer vergibt Lexware beim Abschliessen),
+  Einleitung "Folgende Lieferungen/Leistungen schreiben wir Ihnen gut. Für Shop Verkäufe zwischen <Von> und <Bis>". Logik `utils/gutschrift.js`
+  (`gutschriftPlan`): Brutto-Beleg, je Zeile Menge 1 + Bruttobetrag in Cent - je Artikelgruppe Auszahlung x MwSt, Porto-Saldo, interne Bestellungen
+  und Verpackung als Abzug; Rundungsrest auf die groesste Zeile; Summe MUSS = Gesamt-Brutto der Abrechnung auf den Cent (sonst Problem, nichts gesendet).
+  Der EINE Schreibweg `lib/lexwareGutschrift.js` (`POST /v1/credit-notes` ohne finalize, ohne Bezugsrechnung, genau ein Versuch), Secret
+  `LEXWARE_API_KEY_GUTSCHRIFTEN` (nicht in SECRET_KEYS -> 503 `lexware_gutschriften`). Kennzeichen hinten in `FP_Abrechnungen` (Kopf I = Positionen,
+  dann `Gutschrift_Lexware_ID`, `Gutschrift_Am`, `Gutschrift_Status` entwurf|unklar), Ablauf wie RE1 unter `mitFpSperre` (unklar zuerst, nie
+  automatisch erneut, `bruttoCent` wie gesehen sonst 409). Kontakt: `FP_Partner.Kunden_Nr` -> Kunden-Sheet Lexoffice_ID (auch fuer PD3). Belegart =
+  Business-Config `gutschrift.belegart` (leer = creditnote, anderes 409). Routen `/api/festpreis/gutschrift` (eigener Router, GET /, POST /vorschau,
+  /anlegen, /kennzeichen, /nachsehen = Belegliste creditnote ueber den Belegleser). Setup `scripts/setup-fp-gutschrift.js` (Trockenlauf; `--partner FP-…
+  --kunde K-… [--lexnr …] --write`). MC: Spalte "Gutschrift" in Festpreis → Abrechnung, Block `FP-Gutschrift: Anfang/Ende`. Nur Festpreis-Partner.
+  Tests gutschrift.test.js, gutschrift-frontend.test.js.
 - backend/lib/feedback.js – Feedback aus MC (FB1), Logik `utils/feedback.js`, Route `routes/feedback.js` (`POST /api/feedback { text, kontext }`, hinter
   requireApiKey, eigene Bremse). Knopf "💡 Feedback" im Kopf (`#feedback-oeffnen`, am Handy nur die Lampe), Dialog `#fb-dialog` (z-index 60, liegt ueber
   jedem Fenster, aendert nichts dahinter), SECTION Feedback (FB1) mit Block `Feedback: Anfang/Ende` (Test feedback-frontend.test.js), Hilfe-Gruppe `feedback`.

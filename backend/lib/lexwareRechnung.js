@@ -82,14 +82,14 @@ export async function legeRechnungsentwurfAn({ payload, schluessel, fetchFn = fe
 }
 
 /**
- * NUR LESEN: Rechnungs-Entwuerfe des Kontakts seit einem Tag (Belegliste). Fuer "In Lexware nachsehen" bei unklar.
+ * NUR LESEN: Rechnungs-Entwuerfe (GS1: voucherType 'creditnote' = Gutschriften) des Kontakts seit einem Tag (Belegliste). Fuer "In Lexware nachsehen" bei unklar.
  * RE2: ueber den Belegleser (lib/lexwareBelege.js, Schluessel LEXWARE_API_KEY_BELEGE) - der Rechnungen-Schluessel bekommt auf
  * /v1/voucherlist 403 (gemessen 22.11.). Fehlt der Belege-Schluessel: ok false mit Hinweis, kein Absturz.
  * @returns {{ ok: true, entwuerfe: [{ id, voucherDate, createdDate, totalAmount }] } | { ok: false, grund }}
  */
-export async function sucheEntwuerfe({ kontaktId, seit, schluessel, fetchFn = fetch, zeitlimitMs = 15000, lesen = leseBelegliste } = {}) {
+export async function sucheEntwuerfe({ kontaktId, seit, voucherType = 'invoice', schluessel, fetchFn = fetch, zeitlimitMs = 15000, lesen = leseBelegliste } = {}) {
   if (!ID_RE.test(String(kontaktId ?? ''))) return { ok: false, grund: 'Kunde ohne Lexoffice-Verknüpfung' };
-  const filter = { voucherType: 'invoice', voucherStatus: 'draft', contactId: kontaktId, sort: 'createdDate,DESC' };
+  const filter = { voucherType, voucherStatus: 'draft', contactId: kontaktId, sort: 'createdDate,DESC' };
   if (/^\d{4}-\d{2}-\d{2}$/.test(String(seit ?? ''))) filter.createdDateFrom = seit;
   try {
     const { belege } = await lesen(filter, { schluessel, fetchFn, zeitlimitMs, maxSeiten: 1, groesse: 25 });

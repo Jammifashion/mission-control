@@ -2051,6 +2051,13 @@
       .re-gesamt { font-weight: 700; border-top: 1px solid var(--border); padding-top: 0.2rem; }
       .re-hinweis { color: var(--warning); font-size: 0.86rem; }
       .re-erfolg { border: 1px solid var(--success); border-radius: 7px; padding: 0.5rem 0.7rem; margin-bottom: 0.6rem; }
+      /* GS1: Gutschrift-Spalte der FP-Abrechnungen */
+      .gs-leer { color: var(--muted); font-size: 0.78rem; }
+      .gs-knoepfe { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.3rem; }
+      .gs-betrag { text-align: right; white-space: nowrap; }
+      .gs-einleitung { font-size: 0.82rem; }
+      .gs-vorschau { max-height: 40vh; overflow-y: auto; }
+      .gs-funde { font-size: 0.78rem; margin: 0.3rem 0 0 1rem; }
       .re-erfolg.re-unklar { border-color: var(--warning); color: var(--warning); }
       .re-st-entwurf { border-color: var(--success); color: var(--success); }
       .re-st-unklar { border-color: var(--warning); color: var(--warning); }
@@ -2087,6 +2094,9 @@
         .td-zeile > button.korb-link, .lager-buchung button.korb-link { justify-content: flex-start; text-align: left; }
         /* RE1: Abrechnen */
         .re-zeile button.korb-link, .re-zeile a.korb-link, .re-funde a.korb-link, .re-erfolg a.korb-link, .re-zeile .korb-aktion, .re-funde .korb-aktion, #re-anlegen, #re-kunde, #re-ansicht .hilfe-i {
+          min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
+        /* GS1: Gutschrift-Spalte */
+        .gs-zelle .korb-aktion, .gs-zelle a.korb-link, .gs-funde a.korb-link, .gs-funde .korb-aktion {
           min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
         .lager-best-zeile button.korb-link, .lager-best-titel button.korb-link, .korb-pos-text a.ps-shop-link { justify-content: center; }
         .btn-lshop-bestellen, .pk-info-knopf, .bm-liste .bm-zelle { min-height: 44px; min-width: 44px; height: auto; }
@@ -7557,6 +7567,12 @@
         'intern-loeschen':       { name: 'Löschen (interne Bestellung)', text: 'Löscht diese interne Bestellung im Sheet – nicht rückgängig zu machen. Fragt vorher.' },
         'fp-abrechnung-erstellen': { name: 'Erstellen', text: 'Legt die Festpreis-Abrechnung für den Zeitraum im Sheet an.' },
         'fp-zusammenfassung':    { name: 'Laden', text: 'Zeigt die Zusammenfassung für den gewählten Zeitraum. Es wird nur gelesen.' },
+        'gs-anlegen':           { name: 'Gutschrift in Lexware anlegen', text: 'Zeigt die Gutschrift (Summe = Auszahlung) und legt nach Rückfrage EINEN Entwurf in Lexware an – nie abgeschlossen, nie versendet.' },
+        'gs-status':            { name: 'Gutschrift-Kennzeichen', text: 'Entwurf = in Lexware angelegt. Unklar = Antwort fehlte – erst nachsehen, nie neu anlegen.' },
+        'gs-link':              { name: 'In Lexware öffnen', text: 'Öffnet den Gutschrift-Entwurf in Lexware (neuer Tab).' },
+        'gs-nachsehen':         { name: 'In Lexware nachsehen', text: 'Sucht die Gutschrift-Entwürfe des Partners seit dem Tag in Lexware (nur lesen).' },
+        'gs-angelegt':          { name: 'Als angelegt markieren', text: 'Dieser Entwurf gehört zur unklaren Abrechnung: Kennzeichen wird „Entwurf“ mit seiner ID.' },
+        'gs-zuruecksetzen':     { name: 'Kennzeichen entfernen', text: 'Nur wenn der Entwurf in Lexware gelöscht ist oder nie angelegt wurde – danach kann die Gutschrift neu angelegt werden.' },
         'fp-abrechnung-loeschen': { name: '✕ Abrechnung', text: 'Löscht diese Abrechnung im Sheet; ihre Verkäufe werden wieder „offen“. Fragt vorher.' },
         'fp-preis-loeschen':     { name: '✕ Festpreis', text: 'Löscht diesen Festpreis im Sheet. Fragt vorher.' },
         'anf-neu':               { name: 'Neue Anfrage', text: 'Öffnet ein Formular für eine Anfrage, die nicht über den Chat kam.' },
@@ -8149,7 +8165,7 @@
         'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-material', 'seo-material-einsetzen', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'bildref-eigenschaft', 'bildref-plus', 'bildref-eigenschaft-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
         'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
         'partner': ['fp-artikel-pruefen', 'fp-ohne-festpreis', 'fp-ohne-zeigen', 'fp-sperre', 'fp-sperre-artikel', 'fp-nachrechnen', 'pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'link-vor-lk1', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
-        'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'fp-preis-loeschen'],
+        'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'gs-anlegen', 'gs-status', 'gs-link', 'gs-nachsehen', 'gs-angelegt', 'gs-zuruecksetzen', 'fp-preis-loeschen'],
         'anfragen': ['anf-neu', 'anf-aktualisieren', 'anf-anlegen', 'anf-speichern'],
         'assistent': ['aw-eintrag-neu', 'aw-eintrag-speichern', 'aw-prompt-speichern', 'aw-prompt-standard', 'aw-prompt-zeigen', 'aw-test-senden', 'aw-test-neu'],
         'lager-dialog': ['lager-treffer', 'lager-liste-weg', 'lager-event-neu', 'lager-event-anlegen', 'lager-artikel-anlegen', 'lager-ort-anlegen', 'lager-verlauf-korb', 'lager-verlauf-bestellung'],
@@ -24910,6 +24926,104 @@
           loadFpAbrechnungen();
         }
 
+        // ── FP-Gutschrift: Anfang (GS1, reine Logik, Test backend/tests/gutschrift-frontend.test.js; braucht _escHtml) ──
+        const GS_STATUS_TEXT = { entwurf: 'Gutschrift-Entwurf in Lexware', unklar: 'Gutschrift unklar – nachsehen' };
+        const gsEuro = c => (c === null || c === undefined ? '–' : `${(c / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`);
+        const gsTag = ymd => (/^\d{4}-\d{2}-\d{2}$/.test(ymd || '') ? `${ymd.slice(8, 10)}.${ymd.slice(5, 7)}.${ymd.slice(0, 4)}` : '');
+        /** Grund, warum "anlegen" nicht geht ('' = geht). */
+        function gsAnlegenGrund(eintrag, liste) {
+          if (!liste) return 'Gutschrift-Stand nicht geladen.';
+          if (!liste.spalten) return 'Spalten fehlen in FP_Abrechnungen – erst Setup (setup-fp-gutschrift.js).';
+          if (!liste.bereit) return 'Lexware-Gutschriften nicht eingerichtet (Schlüssel fehlt).';
+          return eintrag?.grund || '';
+        }
+        /** Zelle "Gutschrift" je Abrechnung. */
+        function gsZelleHtml(eintrag, liste) {
+          if (!eintrag) return '<span class="gs-leer">–</span>';
+          const g = eintrag.gutschrift ?? {}, id = _escHtml(eintrag.id);
+          if (g.status === 'entwurf' || g.status === 'unklar') {
+            const knoepfe = [
+              g.id ? `<a class="korb-link" href="${_escHtml((liste?.linkBasis ?? '') + g.id)}" target="_blank" rel="noopener noreferrer" data-hilfe="gs-link">In Lexware öffnen ↗</a>` : '',
+              g.status === 'unklar' ? `<button type="button" class="korb-aktion korb-aktion-ruhig" data-gs-nachsehen="${id}" data-hilfe="gs-nachsehen">In Lexware nachsehen</button>` : '',
+              `<button type="button" class="korb-aktion korb-aktion-ruhig" data-gs-zurueck="${id}" data-hilfe="gs-zuruecksetzen">Kennzeichen entfernen …</button>`,
+            ].filter(Boolean).join(' ');
+            return `<span class="badge ${g.status === 'entwurf' ? 'badge-completed' : 'badge-processing'}" data-hilfe="gs-status" tabindex="0">${_escHtml(GS_STATUS_TEXT[g.status])}</span>`
+              + `${g.am ? ` <span class="gs-leer">${_escHtml(gsTag(g.am))}</span>` : ''}<div class="gs-knoepfe">${knoepfe}</div><div data-gs-ns="${id}"></div>`;
+          }
+          if (eintrag.status === 'entwurf') return '<span class="gs-leer">nach Freigabe</span>';
+          const grund = gsAnlegenGrund(eintrag, liste);
+          return `<button type="button" class="korb-aktion korb-aktion-haupt" data-gs-anlegen="${id}" data-hilfe="gs-anlegen"${grund ? ` aria-disabled="true" data-hilfe-zusatz="${_escHtml(grund)}"` : ''}>Gutschrift in Lexware anlegen …</button>`;
+        }
+        /** Vorschau im Rueckfrage-Fenster: Zeilen, Summen, Probleme. */
+        function gsVorschauHtml(v) {
+          const zeilen = (v.zeilen ?? []).map(z => `<tr><td>${_escHtml(z.name)}</td><td class="gs-betrag">${gsEuro(z.cent)}</td></tr>`).join('');
+          const probleme = (v.probleme ?? []).length ? `<div class="lager-warnung"><strong>Noch nicht möglich:</strong><ul>${v.probleme.map(p => `<li>${_escHtml(p)}</li>`).join('')}</ul></div>` : '';
+          return `${probleme}<p><strong>${_escHtml(v.titel ?? '')}</strong> an ${_escHtml(v.abrechnung?.partnerId ?? '')} (${_escHtml(v.kundenNr || 'ohne Kunde')}) · ${_escHtml(v.abrechnung?.id ?? '')}</p>`
+            + `<p class="gs-einleitung">${_escHtml(v.einleitung ?? '')}</p>`
+            + `<div class="roll-x gs-vorschau"><table class="orders-table"><thead><tr><th>Position (Menge 1, brutto)</th><th>Betrag</th></tr></thead><tbody>${zeilen}</tbody></table></div>`
+            + `<p>netto ${gsEuro(v.summen?.netto)} · MwSt ${gsEuro(v.summen?.mwst)} · <strong>brutto ${gsEuro(v.summen?.brutto)}</strong>`
+            + ` = Auszahlung der Abrechnung ${gsEuro(v.abrechnung?.bruttoCent)}${v.summen?.brutto === v.abrechnung?.bruttoCent ? ' ✓' : ''}</p>`
+            + (v.ausgleich ? `<p class="gs-leer">Rundung netto → brutto: ${gsEuro(v.ausgleich)} an der größten Position ausgeglichen.</p>` : '')
+            + '<p>MC legt genau einen <strong>Entwurf</strong> an – nicht abgeschlossen, nicht versendet. Die GS-Nummer vergibt Lexware beim Abschließen.</p>';
+        }
+        /** Ergebnis "In Lexware nachsehen". */
+        function gsNachsehenHtml(abrId, r, linkBasis) {
+          if (!r?.ok) return `<p class="gs-leer">Nachsehen nicht möglich: ${_escHtml(r?.grund ?? 'Fehler')}. Bitte in Lexware unter Rechnungskorrekturen → Entwürfe schauen.</p>`;
+          if (!r.entwuerfe?.length) return '<p class="gs-leer">Kein Gutschrift-Entwurf seit dem Tag gefunden – dann wurde nichts angelegt: „Kennzeichen entfernen …“ und neu anlegen.</p>';
+          return '<ul class="gs-funde">' + r.entwuerfe.map(e => `<li>${_escHtml(gsTag(String(e.createdDate).slice(0, 10)))} · ${e.totalAmount === null ? '–' : gsEuro(Math.round(Number(e.totalAmount) * 100))}`
+            + ` <a class="korb-link" href="${_escHtml(linkBasis + e.id)}" target="_blank" rel="noopener noreferrer" data-hilfe="gs-link">ansehen ↗</a>`
+            + ` <button type="button" class="korb-aktion korb-aktion-ruhig" data-gs-angelegt="${_escHtml(abrId)}" data-gs-id="${_escHtml(e.id)}" data-hilfe="gs-angelegt">das ist sie – als angelegt markieren</button></li>`).join('') + '</ul>';
+        }
+        // ── FP-Gutschrift: Ende ──
+        async function gsJson(pfad, body) {
+          const res = await window.apiFetch(`${FP()}/api/festpreis/gutschrift${pfad}`, body === undefined ? {}
+            : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(90000) });
+          const j = await res.json().catch(() => null);
+          return { ok: res.ok, status: res.status, j: j ?? {} };
+        }
+        let gsLaeuft = false;
+        async function gsKlick(e, liste) {
+          const an = e.target.closest('[data-gs-anlegen]'), ns = e.target.closest('[data-gs-nachsehen]');
+          const zu = e.target.closest('[data-gs-zurueck]'), ok = e.target.closest('[data-gs-angelegt]');
+          if (!an && !ns && !zu && !ok) return;
+          e.stopPropagation();
+          if (an) {
+            const eintrag = (liste?.abrechnungen ?? []).find(x => x.id === an.dataset.gsAnlegen);
+            const grund = gsAnlegenGrund(eintrag, liste);
+            if (grund) { window.showToast(grund, 'error'); return; }
+            if (gsLaeuft) { window.showToast('Läuft gerade – bitte warten.', 'error'); return; }
+            const v = await gsJson('/vorschau', { id: eintrag.id });
+            if (!v.ok) { window.showToast(v.j.error || `Fehler ${v.status}`, 'error'); return; }
+            if (v.j.probleme?.length) { await window.showConfirm('Gutschrift noch nicht möglich', gsVorschauHtml(v.j), 'OK', 'Schließen'); return; }
+            if (!await window.showConfirm('Gutschrift-Entwurf in Lexware anlegen?', gsVorschauHtml(v.j), 'Entwurf anlegen', 'Abbrechen')) return;
+            gsLaeuft = true;
+            try {
+              const r = await gsJson('/anlegen', { id: eintrag.id, bruttoCent: v.j.abrechnung.bruttoCent });
+              if (r.ok && r.j.ergebnis === 'angelegt') window.showToast(`Gutschrift-Entwurf für ${r.j.abrechnung} angelegt – „In Lexware öffnen“ in der Liste.`);
+              else if (r.ok && r.j.ergebnis === 'unklar') window.showToast(`Ergebnis unklar (${r.j.grund}). Kennzeichen „unklar“ – bitte NICHT erneut anlegen, sondern „In Lexware nachsehen“.`, 'error');
+              else window.showToast(r.j.error ? `${r.j.error}${r.j.probleme?.length ? ` – ${r.j.probleme[0]}` : ''}` : `Fehler ${r.status}`, 'error');
+            } catch { window.showToast('Keine Antwort von MC – Ergebnis unklar. Bitte neu laden und das Kennzeichen prüfen.', 'error'); }
+            finally { gsLaeuft = false; loadFpAbrechnungen(); }
+            return;
+          }
+          if (ns) {
+            const id = ns.dataset.gsNachsehen;
+            const ziel = document.querySelector(`[data-gs-ns="${CSS.escape(id)}"]`);
+            if (ziel) ziel.textContent = 'sehe nach …';
+            const r = await gsJson('/nachsehen', { id });
+            if (ziel) ziel.innerHTML = gsNachsehenHtml(id, r.ok ? r.j : { ok: false, grund: r.j.error || `Fehler ${r.status}` }, liste?.linkBasis ?? '');
+            return;
+          }
+          const id = zu ? zu.dataset.gsZurueck : ok.dataset.gsAngelegt;
+          const gefragt = zu
+            ? await window.showConfirm('Gutschrift-Kennzeichen entfernen?', '<p>Nur, wenn der Entwurf in Lexware gelöscht ist oder nie angelegt wurde. Danach kann die Gutschrift neu angelegt werden – sonst droht eine doppelte Gutschrift.</p>', 'Kennzeichen entfernen', 'Abbrechen')
+            : await window.showConfirm('Als angelegt markieren?', '<p>Dieser Lexware-Entwurf gehört zur Abrechnung mit dem Kennzeichen „unklar“.</p>', 'Als angelegt markieren', 'Abbrechen');
+          if (!gefragt) return;
+          const r = await gsJson('/kennzeichen', { id, aktion: zu ? 'zuruecksetzen' : 'angelegt', lexwareId: ok ? ok.dataset.gsId : '' });
+          window.showToast(r.ok ? `Kennzeichen ${zu ? 'entfernt' : 'gesetzt'} (${id}).` : (r.j.error || `Fehler ${r.status}`), r.ok ? undefined : 'error');
+          loadFpAbrechnungen();
+        }
+
         async function loadFpAbrechnungen() {
           const wrap = document.getElementById('fp-abrechnungen-list-wrap');
           wrap.innerHTML = '<div class="skeleton" style="height:80px;"></div>';
@@ -24917,6 +25031,8 @@
           const params = partnerId ? `?partnerId=${encodeURIComponent(partnerId)}` : '';
           try {
             const data = await window.apiFetch(`${FP()}/api/festpreis/abrechnungen${params}`).then(r => r.json());
+            let gsListe = null;   // GS1: Kennzeichen je Abrechnung (fehlt die Liste, bleibt die Abrechnung bedienbar)
+            try { const g = await gsJson(''); if (g.ok) gsListe = g.j; } catch { /* ohne Gutschrift-Spalte */ }
             const rows = data.abrechnungen ?? [];
             if (!rows.length) {
               wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine Abrechnungen vorhanden.</p>';
@@ -24926,17 +25042,17 @@
             const badgeCls = s => ({ freigegeben: 'badge-completed', bezahlt: 'badge-completed', entwurf: 'badge-processing' }[s] ?? 'badge-idle');
             const STATI = ['entwurf', 'freigegeben', 'bezahlt'];
             wrap.innerHTML = `<div class="roll-x"><table class="orders-table">
-              <thead><tr><th>Abr.-ID</th><th>Partner</th><th>Von</th><th>Bis</th><th>Netto</th><th>Brutto</th><th>Status</th><th>Erstellt</th></tr></thead>
+              <thead><tr><th>Abr.-ID</th><th>Partner</th><th>Von</th><th>Bis</th><th>Netto</th><th>Brutto</th><th>Status</th><th>Erstellt</th><th>Gutschrift</th></tr></thead>
               <tbody>${rows.map(r => {
                 const abrId = r['Abrechnungs-ID'];
                 const cur   = r['Status'] || 'entwurf';
                 const opts  = STATI.map(s => `<option value="${s}"${s === cur ? ' selected' : ''}>${s}</option>`).join('');
                 const idSafe = String(abrId).replace(/[^A-Za-z0-9_-]/g, '');
-                let detailCell = '<td colspan="8" style="color:var(--muted);font-size:0.82rem;padding:0.6rem;">Keine Aufschlüsselung gespeichert (vor diesem Update erstellt).</td>';
+                let detailCell = '<td colspan="9" style="color:var(--muted);font-size:0.82rem;padding:0.6rem;">Keine Aufschlüsselung gespeichert (vor diesem Update erstellt).</td>';
                 try {
                   const pos = JSON.parse(r['Positionen'] || '');
                   if (pos && pos.produkteGruppen?.length)
-                    detailCell = `<td colspan="8" style="padding:0.5rem 0.6rem;background:color-mix(in srgb, var(--text) 2%, transparent);"><div class="roll-x">${fpSummaryTableHTML(pos)}</div>${fpPortoHTML(pos.porto)}${fpVerpackungHTML(pos.verpackung)}</td>`;
+                    detailCell = `<td colspan="9" style="padding:0.5rem 0.6rem;background:color-mix(in srgb, var(--text) 2%, transparent);"><div class="roll-x">${fpSummaryTableHTML(pos)}</div>${fpPortoHTML(pos.porto)}${fpVerpackungHTML(pos.verpackung)}</td>`;
                 } catch {}
                 return `<tr>
                 <td style="font-size:0.82rem;font-weight:600;cursor:pointer;" data-abr-detail="${idSafe}"><span class="fp-abr-caret">▸</span> ${_escHtml(abrId)}</td>
@@ -24951,9 +25067,12 @@
                     style="font-size:0.78rem;padding:0.22rem 0.5rem;margin-top:0.1rem;">${opts}</select>
                 </td>
                 <td style="color:var(--muted);font-size:0.82rem;">${_escHtml(r['Erstellt-Am'])}${cur === 'entwurf' ? ` <button class="btn-secondary" style="font-size:0.72rem;padding:0.15rem 0.4rem;margin-left:0.4rem;" data-del-abr="${_escHtml(abrId)}" data-hilfe="fp-abrechnung-loeschen">✕</button>` : ''}</td>
+                <td class="gs-zelle">${gsZelleHtml((gsListe?.abrechnungen ?? []).find(g => g.id === abrId), gsListe)}</td>
               </tr>
               <tr id="fp-abr-det-${idSafe}" style="display:none;">${detailCell}</tr>`;}).join('')}</tbody>
             </table></div>`;
+
+            wrap.onclick = e => gsKlick(e, gsListe);   // GS1
 
             wrap.querySelectorAll('[data-abr-detail]').forEach(cell => {
               cell.addEventListener('click', () => {
