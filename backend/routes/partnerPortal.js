@@ -15,13 +15,15 @@ import { schreibeNeueZeilen, sichereSpaltenRaster } from '../lib/sheet-zeilen.js
 import { sichereSpalte } from '../utils/sheet-spalten.js';
 import { notify, buildPartnerNachricht } from '../lib/chatNotify.js';
 import { requireHeader } from '../utils/sheet-headers.js';
-import { saldoRechnung, partnerKacheln } from '../utils/partner-saldo.js';
+import { saldoRechnung, partnerKacheln, ABRECHNUNG_SICHTBAR } from '../utils/partner-saldo.js';
 import { findeZeileZumToken } from '../utils/partner-token.js';
 import { verkaufsUebersicht, uebersichtAntwort, bauZwischenspeicher } from '../utils/partner-uebersicht.js';
 import { gebuendelt } from '../lib/sheetsBuendel.js';
 import { berlinDatum } from '../utils/berlin-tag.js';
 import { apiSchluesselName } from '../middleware/auth.js';
 import { eigenauftragZuLang, EIGENAUFTRAG_MENGE_MAX } from '../utils/eigenauftrag.js';
+import { wcTagDE, deHeuteBerlin } from '../utils/berlin-tag.js';   // GT1 C4
+import { pruefePflichtSpalten } from '../utils/pflicht-spalten.js';   // GT1 B2
 
 const router = Router();
 
@@ -39,6 +41,7 @@ async function readTab(sheets, sheetId, tabName) {
     spreadsheetId: sheetId, range: `${tabName}!A1:ZZ`,   // PPS1: breiter als A1:Z (Token_Hash steht hinten)
   });
   const [header, ...rows] = data.values ?? [];
+  pruefePflichtSpalten(tabName, header);   // GT1 B2: fehlende Pflichtspalte = lauter Fehler, nie still 0
   // Echten Sheet-Zeilenindex (_sheetRow) anhängen BEVOR Leerzeilen gefiltert werden,
   // damit Status-Updates die korrekte Zeile treffen (sonst verschiebt jede Leerzeile alles).
   rows.forEach((r, i) => { r._sheetRow = i + 2; });
@@ -435,7 +438,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
         vorVertrag += order.line_items.length;
         continue;
       }
-      const orderDate = toDE(new Date(order.date_created));
+      const orderDate = wcTagDE(order.date_created);
       const shippingNetto = toFloat(order.shipping_total);
       // Wertanteil bleibt ueber ALLE Positionen der Bestellung - auch ueber
       // die uebersprungenen. Sonst wuerde eine fehlende Position ihren Anteil
@@ -609,7 +612,7 @@ async function runVerkaeufeSync(sheets, sheetId, opts = {}) {
   const artikelName = (item) => item.name || item.sku || String(item.product_id);
 
   for (const order of verkaufsOrders) {
-    const orderDate      = toDE(new Date(order.date_created));
+    const orderDate      = wcTagDE(order.date_created);
     const shippingNetto  = toFloat(order.shipping_total); // net from WC
     const orderNetto     = order.line_items.reduce((s, i) => s + toFloat(i.total), 0);
 
@@ -956,10 +959,9 @@ router.get('/abrechnungen', async (req, res, next) => {
     const tabAbrechnungen = getShopConfig(req.query.shop).tabAbrechnungen;
     const { header, rows } = await readTab(sheets, sheetId, tabAbrechnungen);
     const h = col => header.indexOf(col);
-    const VISIBLE = new Set(['freigegeben', 'bezahlt']);
 
     res.json(rows
-      .filter(r => r[h('Partner-ID')] === partnerId && VISIBLE.has(r[h('Status')] ?? ''))
+      .filter(r => r[h('Partner-ID')] === partnerId && ABRECHNUNG_SICHTBAR.has(String(r[h('Status')] ?? '').trim()))
       .map(r => {
         let positionen = null;
         const posRaw = r[h('Positionen')];
@@ -1083,7 +1085,7 @@ router.post('/:id/eigenauftrag', async (req, res, next) => {
     const rowArr = new Array(Math.max(header.length, kanalIdx + 1, fulIdx + 1)).fill('');
     const setCol = (name, val) => { const i = header.indexOf(name); if (i !== -1) rowArr[i] = val; };
     setCol('Partner-ID',  partnerId);
-    setCol('Datum',       toDE(new Date()));
+    setCol('Datum',       deHeuteBerlin());
     setCol('Bezeichnung', bezeichnung);
     setCol('Anzahl',      mengeNum);
     // Bugfix: Status startet direkt auf 'offen' statt 'Neu' – Portal-Eigenaufträge

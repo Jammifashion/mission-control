@@ -10,6 +10,7 @@ import { leseGesperrte } from '../lib/fpSperre.js';   // PA8
 import { istLaufStopp } from '../lib/hosterPruefseite.js';
 import { notify, buildArtikelAbgleichNachricht, buildAbgleichLebenszeichen } from '../lib/chatNotify.js';
 import { parseDeZahl } from '../utils/zahl-de.js';
+import { pruefePflichtSpalten } from '../utils/pflicht-spalten.js';   // GT1 B2
 
 const router = Router();
 
@@ -24,9 +25,10 @@ const getWcClient = (req) => wcClientForShop(req?.query?.shop);
 
 async function readTab(sheets, sheetId, tabName) {
   const { data } = await sheets.spreadsheets.values.get({
-    spreadsheetId: sheetId, range: `${tabName}!A1:Z`,
+    spreadsheetId: sheetId, range: `${tabName}!A1:ZZ`,   // GT1 B6: breit wie die anderen Geld-Reiter
   });
   const [header, ...rows] = data.values ?? [];
+  pruefePflichtSpalten(tabName, header);   // GT1 B2: fehlende Pflichtspalte = lauter Fehler, nie still 0
   // Echten Sheet-Zeilenindex (_sheetRow) anhängen BEVOR Leerzeilen gefiltert werden,
   // damit Status-Updates die korrekte Zeile treffen (sonst verschiebt jede Leerzeile alles).
   rows.forEach((r, i) => { r._sheetRow = i + 2; });

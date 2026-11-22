@@ -24,6 +24,8 @@ export function saldoRechnung({ lizenzNetto, interneSumme, mwstProzent }) {
 //   zu "noch nicht abgerechnet" (entwurfZaehlt true); Lizenz markiert erst beim Freigeben -> die Zeilen stecken noch in laufend, der Entwurf
 //   zaehlt nicht (sonst doppelt). abgerechnetBis = groesstes Zeitraum-Bis der freigegebenen/bezahlten Abrechnungen.
 export const AUSSTEHEND = 'freigegeben';
+// GT1 C2: Abrechnungen, die ein Partner im Portal sieht - Erlaubt-Liste fuer BEIDE Portale (Entwurf und jeder unbekannte Status bleiben intern).
+export const ABRECHNUNG_SICHTBAR = new Set(['freigegeben', 'bezahlt']);
 const deLokal = d => `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
 /**
  * @param {{ laufend: number, abrechnungen: { status: string, brutto: number, bis: Date|null }[], entwurfZaehlt: boolean }} e

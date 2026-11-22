@@ -33,7 +33,7 @@ function grund() {
       ['T-Shirt', 'FP-001', 12.34, 0.66], ['Schal', 'FP-001', 0, 0]],
     Kalkulation_Fixkosten: FIXKOSTEN_VOLL.map(r => [...r]),
     'FP_Verkäufe': [V_KOPF, [...ABGERECHNET]],
-    FP_Abrechnungen: [['Abrechnungs-ID', 'Partner-ID']],
+    FP_Abrechnungen: [['Abrechnungs-ID', 'Partner-ID', 'Zeitraum-Von', 'Zeitraum-Bis', 'Gesamt-Netto', 'Gesamt-Brutto', 'Status']],
     Partner_Interne_Bestellungen: [['Partner-ID', 'Datum', 'Bezeichnung', 'Anzahl', 'Einzelpreis', 'Summe', 'Status']],
   };
 }

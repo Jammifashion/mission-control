@@ -119,7 +119,7 @@ router.get('/lshop/offen', async (req, res, next) => {
     // Alle Datenquellen parallel laden
     // Sheets parallel; die Shop-Abrufe laufen in offeneBestellungen nacheinander.
     const [psResp, varResp, erfResp, wcOrders] = await Promise.all([
-      sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_PS}!A1:Z5000` }),
+      sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_PS}!A1:ZZ` }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: TAB_VAR }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_ERF}!1:2000` }),
       offeneBestellungen(wc),
@@ -234,7 +234,7 @@ router.get('/lshop/protokoll', async (req, res, next) => {
     const sheets = await getSheets();
     const { data } = await sheets.spreadsheets.values.get({
       spreadsheetId: sid(),
-      range: `${TAB_LSB}!A1:Z5000`,
+      range: `${TAB_LSB}!A1:ZZ`,
     });
     const rows   = data.values ?? [];
     if (rows.length <= 1) return res.json([]);
@@ -281,7 +281,7 @@ router.post('/lshop/bestellen', async (req, res, next) => {
 
     // ── Bestell-ID generieren (LSB-YYYY-NNNN) ────────────────────────────
     const { data: lsbData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_LSB}!A1:Z5000`,
+      spreadsheetId, range: `${TAB_LSB}!A1:ZZ`,
     });
     const year   = new Date().getFullYear();
     const prefix = `LSB-${year}-`;
@@ -307,7 +307,7 @@ router.post('/lshop/bestellen', async (req, res, next) => {
 
     // ── L-Shop_bestellt = TRUE in Produktions_Status ──────────────────────
     const { data: psData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_PS}!A1:Z5000`,
+      spreadsheetId, range: `${TAB_PS}!A1:ZZ`,
     });
     const psRows = psData.values ?? [];
 
@@ -337,7 +337,7 @@ router.get('/dtf/offen', async (req, res, next) => {
 
     // Sheets parallel; die Shop-Abrufe laufen in offeneBestellungen nacheinander.
     const [psResp, varResp, erfResp, wcOrders] = await Promise.all([
-      sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_PS}!A1:Z5000` }),
+      sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_PS}!A1:ZZ` }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: TAB_VAR }),
       sheets.spreadsheets.values.get({ spreadsheetId, range: `${TAB_ERF}!1:2000` }),
       offeneBestellungen(wc),
@@ -443,7 +443,7 @@ router.get('/dtf/protokoll', async (req, res, next) => {
     const sheets = await getSheets();
     const { data } = await sheets.spreadsheets.values.get({
       spreadsheetId: sid(),
-      range: `${TAB_DTF}!A1:Z5000`,
+      range: `${TAB_DTF}!A1:ZZ`,
     });
     const rows = data.values ?? [];
     if (rows.length <= 1) return res.json([]);
@@ -489,7 +489,7 @@ router.post('/dtf/bestellen', async (req, res, next) => {
 
     // ── Bestell-ID generieren (DTFB-YYYY-NNNN) ──────────────────────────────
     const { data: dtfData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_DTF}!A1:Z5000`,
+      spreadsheetId, range: `${TAB_DTF}!A1:ZZ`,
     });
     const year   = new Date().getFullYear();
     const prefix = `DTFB-${year}-`;
@@ -515,7 +515,7 @@ router.post('/dtf/bestellen', async (req, res, next) => {
 
     // ── DTF_bestellt = TRUE in Produktions_Status (Spalte G) ─────────────────
     const { data: psData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_PS}!A1:Z5000`,
+      spreadsheetId, range: `${TAB_PS}!A1:ZZ`,
     });
     const psRows = psData.values ?? [];
 
@@ -551,7 +551,7 @@ router.post('/lshop/bestellen-bulk', async (req, res, next) => {
 
     // Sequenz einmalig lesen, dann lokal inkrementieren
     const { data: lsbData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_LSB}!A1:Z5000`,
+      spreadsheetId, range: `${TAB_LSB}!A1:ZZ`,
     });
     let maxSeq = 0;
     (lsbData.values ?? []).slice(1).forEach(r => {
@@ -564,7 +564,7 @@ router.post('/lshop/bestellen-bulk', async (req, res, next) => {
 
     // Produktions_Status einmalig lesen
     const { data: psData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_PS}!A1:Z5000`,
+      spreadsheetId, range: `${TAB_PS}!A1:ZZ`,
     });
     const psRows = psData.values ?? [];
 
@@ -624,7 +624,7 @@ router.post('/dtf/bestellen-bulk', async (req, res, next) => {
     const prefix        = `DTFB-${year}-`;
 
     const { data: dtfData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_DTF}!A1:Z5000`,
+      spreadsheetId, range: `${TAB_DTF}!A1:ZZ`,
     });
     let maxSeq = 0;
     (dtfData.values ?? []).slice(1).forEach(r => {
@@ -636,7 +636,7 @@ router.post('/dtf/bestellen-bulk', async (req, res, next) => {
     });
 
     const { data: psData } = await sheets.spreadsheets.values.get({
-      spreadsheetId, range: `${TAB_PS}!A1:Z5000`,
+      spreadsheetId, range: `${TAB_PS}!A1:ZZ`,
     });
     const psRows = psData.values ?? [];
 

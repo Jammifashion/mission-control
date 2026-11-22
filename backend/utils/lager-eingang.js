@@ -13,6 +13,7 @@
 import { ART, QUELLE, WARENART, naechsteBuchungNr, buchungId, bestandAus, VORGANG_MUSTER, buchungenDesVorgangs, trikotSchluessel, warenartVon } from './lager.js';
 import { AU_NR_MUSTER } from './auftraege.js';
 import { STATUS, HERKUNFT } from './korb-logic.js';
+import { berlinJahr } from './berlin-tag.js';   // GT1 C4
 
 const t = v => String(v ?? '').trim();
 const fehler = (msg, status, extra = {}) => Object.assign(new Error(msg), { status, ...extra });
@@ -37,7 +38,7 @@ export function eingangsZugaenge(buchungen) {
 export const standardOrt = orte => ((orte ?? []).includes(HAUPTORT) ? HAUPTORT : (orte ?? [])[0] ?? '');
 
 function zeilenAus(bewegungen, { buchungen, jetzt, vorgang }) {
-  const jahr = jetzt.getUTCFullYear();
+  const jahr = berlinJahr(jetzt);   // GT1 C4
   const n0 = naechsteBuchungNr(buchungen, jahr);
   const iso = jetzt.toISOString();
   return bewegungen.map((b, i) => ({

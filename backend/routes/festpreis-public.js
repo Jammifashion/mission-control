@@ -14,7 +14,8 @@ import { parseDeZahl } from '../utils/zahl-de.js';
 import { verkaufsUebersicht, uebersichtAntwort, bauZwischenspeicher, detailAn, fpBetragsUebersicht } from '../utils/partner-uebersicht.js';
 import { gebuendelt } from '../lib/sheetsBuendel.js';
 import { berlinDatum } from '../utils/berlin-tag.js';
-import { offeneAuszahlung } from '../utils/partner-saldo.js';   // GS2
+import { offeneAuszahlung, ABRECHNUNG_SICHTBAR } from '../utils/partner-saldo.js';   // GS2, GT1 C2
+import { pruefePflichtSpalten } from '../utils/pflicht-spalten.js';   // GT1 B2
 
 const router = Router();
 
@@ -42,6 +43,7 @@ async function readTab(sheets, sheetId, tabName) {
     spreadsheetId: sheetId, range: `${tabName}!A1:ZZ`,   // PPS1: breiter als A1:Z (Token_Hash steht hinten)
   });
   const [header, ...rows] = data.values ?? [];
+  pruefePflichtSpalten(tabName, header);   // GT1 B2: fehlende Pflichtspalte = lauter Fehler, nie still 0
   return { header: header ?? [], rows: rows.filter(r => r.some(c => c)) };
 }
 
@@ -299,7 +301,7 @@ router.get('/abrechnungen', async (req, res, next) => {
     const { header, rows } = await readTab(sheets, sheetId, TAB_FP_ABRECHNUNGEN);
     const pidIdx = header.indexOf('Partner-ID');
     const filtered = rows
-      .filter(r => (r[pidIdx] ?? '') === partnerId && (r[header.indexOf('Status')] ?? '') !== 'entwurf')
+      .filter(r => (r[pidIdx] ?? '') === partnerId && ABRECHNUNG_SICHTBAR.has(String(r[header.indexOf('Status')] ?? '').trim()))   // GT1 C2: Erlaubt-Liste
       .map(r => {
         const obj = nurFelder(rowToObj(header, r), PORTAL_ABRECHNUNG_FELDER);
         // Sheet ist deutsch lokalisiert → "12,34"; als echte Zahl liefern,

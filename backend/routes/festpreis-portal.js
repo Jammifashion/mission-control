@@ -35,7 +35,9 @@ import {
 } from '../utils/fp-abrechnung.js';
 import { adminBestellLink } from '../utils/shop-admin.js';
 import { parseDeZahl } from '../utils/zahl-de.js';
+import { wcTagDE, deHeuteBerlin } from '../utils/berlin-tag.js';   // GT1 C4
 import { _fpUebersichtSpeicherLeeren } from './festpreis-public.js';   // GS2: Zwischenspeicher der Portal-Uebersicht
+import { pruefePflichtSpalten } from '../utils/pflicht-spalten.js';   // GT1 B2
 
 const router = Router();
 // GS2: jede schreibende Abrechnungs-Anfrage (erstellen, Status, loeschen) leert die 10-min-Uebersicht des Portals.
@@ -105,7 +107,7 @@ export function buildFpStornoRows(vRows, stornoOrders) {
   };
 
   const refundDate = new Map(
-    stornoOrders.map(o => [String(o.id), toDE(new Date(o.date_modified || o.date_created))])
+    stornoOrders.map(o => [String(o.id), wcTagDE(o.date_modified || o.date_created)])
   );
 
   // NB2: Teilerstattungs-Zeilen ("Erstattung #…", "Versanderstattung #…") sind keine Ganz-Stornos - sie sperren die
@@ -148,7 +150,7 @@ export function buildFpStornoRows(vRows, stornoOrders) {
     }
     // Alles schon per Teilerstattung zurueck: keine leere Gegenbuchung.
     if (teil && SUMME_COLS.every(i => counter[i] === '' || counter[i] === 0)) continue;
-    counter[DATE_COL]   = refundDate.get(oid) || r[DATE_COL] || toDE(new Date());
+    counter[DATE_COL]   = refundDate.get(oid) || r[DATE_COL] || deHeuteBerlin();
     // PA8: Storno einer gesperrten Zeile ist ebenfalls gesperrt (leere Betraege bleiben leer, Grund wandert mit).
     const gesperrt = String(r[STATUS_COL] ?? '').trim() === 'gesperrt';
     counter[STATUS_COL] = gesperrt ? 'gesperrt' : 'offen';
@@ -168,7 +170,7 @@ export function buildFpStornoRows(vRows, stornoOrders) {
  * @returns {{ zeile: any[], katPreis: object|null }}  katPreis null = Festpreis-Kategorie fehlt (Aufrufer sperrt die Zeile)
  */
 export function fpVerkaufszeile({ order, item, e, k, zuordnungen }) {
-  const orderDate     = toDE(new Date(order.date_created));
+  const orderDate     = wcTagDE(order.date_created);
   const shippingNetto = toFloat(order.shipping_total);
   const orderNetto    = order.line_items.reduce((s, i) => s + toFloat(i.total), 0);
   const itemNetto  = toFloat(item.total);
@@ -246,6 +248,7 @@ async function readTab(sheets, sheetId, tabName) {
     spreadsheetId: sheetId, range: `${tabName}!A1:ZZ`,   // PPS1: breiter als A1:Z (Token_Hash steht hinten)
   });
   const [header, ...rows] = data.values ?? [];
+  pruefePflichtSpalten(tabName, header);   // GT1 B2: fehlende Pflichtspalte = lauter Fehler, nie still 0
   // Echten Sheet-Zeilenindex (_sheetRow) anhängen BEVOR Leerzeilen gefiltert werden,
   // damit Status-Updates die korrekte Zeile treffen (sonst verschiebt jede Leerzeile alles).
   rows.forEach((r, i) => { r._sheetRow = i + 2; });
@@ -1136,7 +1139,7 @@ async function fpAbrechnungErstellen({ sheetId, partnerId, vonDatum, bisDatum })
     return m ? Math.max(max, parseInt(m[1], 10)) : max;
   }, 0);
   const abrechnungsId = `FPA-${String(maxAbNr + 1).padStart(4, '0')}`;
-  const erstelltAm = toDE(new Date());
+  const erstelltAm = deHeuteBerlin();
   const neueZeile = [abrechnungsId, partnerId, vonDatum, bisDatum, gesamtNetto, gesamtBrutto, 'entwurf', erstelltAm, positionenJson];
   const ziel = await pruefeZielStrecke(sheets, sheetId, TAB_FP_ABRECHNUNGEN, abWerte, [neueZeile]);
 

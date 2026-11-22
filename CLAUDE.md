@@ -1669,6 +1669,18 @@ Dritter Job `lshop-lieferbarkeit` (BO7-1): `47 * * * *` Europe/Berlin, POST auf
 `<BACKEND_URL>/api/intern/lshop-lieferbarkeit/abruf`, gleiches Dienstkonto, gleiche Audience wie CS1, Versuchsfrist 300 s,
 keine Wiederholung. FTP-Fehler sind 200; rot erst, wenn der letzte Stand aelter als 6 h ist (oder Sheets/401/Zeitlimit).
 
+## Geld-Technik (GT1, Inhaber 22.11.)
+- **Berlin-Zeit:** Geld-Routen rechnen Tage, Jahre und "heute" in Europe/Berlin (`utils/berlin-tag.js`): `wcTagDE` (WooCommerce date_created/
+  date_modified = Shop-Ortszeit ohne Zone -> Tag aus dem Text, mit Zone nach Berlin umgerechnet), `deHeuteBerlin` (Erstellt-Am, Datum neuer
+  Zeilen), `berlinJahr` (Jahr in AB-/LB-/EIGEN-Nummern). Nie `toDE(new Date(order.date_created))` oder `getUTCFullYear()` fuer "jetzt" (Test
+  gt1-geldtechnik.test.js). `toDE` bleibt fuer Sheet-Daten (TT.MM.JJJJ als UTC-Mitternacht).
+- **Pflichtspalten:** `utils/pflicht-spalten.js` (`PFLICHT_SPALTEN` je Geld-Reiter); jeder `readTab` der Geld-Routen (kalkulation, partnerPortal,
+  festpreis-portal, festpreis-public, partner-artikel) ruft `pruefePflichtSpalten` -> fehlt eine, MissingHeaderError (500, Spaltenname), Portale
+  zeigen den festen Text. Neue optionale Spalten NICHT dort eintragen; Spalten nie umbenennen.
+- **Lesebereiche:** keine festen Zeilengrenzen mehr (`A1:ZZ`): auftragsmonitor, routes/sheets.js (`readRange`, Produktions_Status), produktionStand.
+- **Portal-Abrechnungen:** Erlaubt-Liste `ABRECHNUNG_SICHTBAR` (freigegeben, bezahlt; utils/partner-saldo.js) in beiden Portalen, Felder fest.
+- **Pakete:** `@google-cloud/secret-manager` 8 (Node >= 22), `overrides` exceljs -> uuid ^11.1.1; `npm audit --omit=dev` = 0.
+
 ## Betrieb (FIX3)
 - Alarm: `middleware/jobAlarm.js` (vor den Routern) meldet jede 5xx-Antwort der Job-Routen (`JOB_ROUTEN`: Backup, Partner-Artikel-
   Abgleich, Partner-Sync, FP-Sync, Trikot-Sync, Korb-, Belege-, Lieferbarkeit-Knopf/Workflow, Modell-Check) ueber `notifyFehler`

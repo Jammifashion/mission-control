@@ -1,4 +1,5 @@
 // Lager (BO5-1) - reine Logik, ohne Zugriffe. Ein- und Ausgabe in lib/lager.js.
+import { berlinJahr } from './berlin-tag.js';   // GT1 C4
 //
 // Modell A (Inhaber 30.10.): Buchungsjournal "Lager_Buchungen", der Bestand wird gerechnet
 // (Summe Menge je Schluessel + Ort). Nie ueberschreiben: eine Korrektur ist eine Gegenbuchung,
@@ -246,7 +247,7 @@ export function planBuchung(e, { buchungen, orte, gueltig = () => true, bezugPru
   }
   if (probleme.length) return { zeilen: [], probleme };
 
-  const jahr = jetzt.getUTCFullYear();
+  const jahr = berlinJahr(jetzt);   // GT1 C4
   const n0 = naechsteBuchungNr(buchungen, jahr);
   const ids = bewegungen.map((_, i) => buchungId(jahr, n0 + i));
   const iso = jetzt.toISOString();
@@ -295,7 +296,7 @@ export function planGegenbuchung({ buchungId: id, vorgang }, { buchungen, jetzt 
   if (zuWenig) {
     return { zeilen: [], probleme: [fehlerText('bestand', `Geht nicht: am Ort "${zuWenig.ort}" ist davon nichts mehr da (schon ausgebucht). Stimmt der Bestand nicht, bitte zählen.`)] };
   }
-  const jahr = jetzt.getUTCFullYear();
+  const jahr = berlinJahr(jetzt);   // GT1 C4
   const n0 = naechsteBuchungNr(buchungen, jahr);
   const iso = jetzt.toISOString();
   const zeilen = ziele.map((z, i) => ({

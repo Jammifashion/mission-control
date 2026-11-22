@@ -19,7 +19,7 @@ import { leseLagerFuerKorb } from './lager.js';
 
 export const TAB_PS = 'Produktions_Status';
 export const MAX_BESTELLUNGEN = 300;
-const PS_BEREICH = 'A1:Z5000';   // ganze Breite wie routes/sheets.js (Shop, Fertig, Fertig_Am hinten)
+const PS_BEREICH = 'A1:ZZ';   // GT1 B6: ohne Zeilengrenze; ganze Breite wie routes/sheets.js (Shop, Fertig, Fertig_Am hinten)
 
 const t = v => String(v ?? '').trim();
 function fehler(msg, status) { const e = new Error(msg); e.status = status; return e; }

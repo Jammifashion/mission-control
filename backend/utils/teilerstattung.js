@@ -20,6 +20,7 @@
 //   mehr_als_rest      mehr Menge erstattet als noch offen (gebucht wird nur der Rest)
 
 import { parseDeZahl } from './zahl-de.js';
+import { wcTagDE } from './berlin-tag.js';   // GT1 C4
 
 export const refundSchluessel =(refundId, positionId) => `${refundId}|${positionId}`;
 
@@ -115,10 +116,7 @@ const dezimal = v => { const n = parseDeZahl(String(v ?? '').trim()); return Num
 const ohneMinusNull = x => (x === 0 ? 0 : x);
 const varKey = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
 const artikelName = item => item.name || item.sku || String(item.product_id);
-const datumDE = iso => {
-  const d = new Date(iso);
-  return `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${d.getUTCFullYear()}`;
-};
+const datumDE = iso => wcTagDE(iso);   // GT1 C4: Erstattungsdatum = Berliner Kalendertag aus der Shop-Ortszeit
 
 /**
  * @param {object} o

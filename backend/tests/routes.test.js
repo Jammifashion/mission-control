@@ -171,7 +171,7 @@ describe('POST /api/partner/:id/eigenauftrag', () => {
         // Fehlt Fulfillment, laeuft die Route in den Nachruest-Zweig und ruft
         // values.batchUpdate, das dieser Mock nicht kennt → 500.
         return { data: { values: [[
-          'Partner-ID', 'Datum', 'Bezeichnung', 'Anzahl', 'Status', 'Kanal', 'Fulfillment',
+          'Partner-ID', 'Datum', 'Bezeichnung', 'Anzahl', 'Status', 'Kanal', 'Fulfillment', 'Einzelpreis', 'Summe',
         ]] } };
       }
       return { data: { values: [
@@ -247,7 +247,7 @@ describe('POST /api/partner/:id/eigenauftrag', () => {
         if (range.startsWith('FP_Partner!')) return { data: { values: [['Partner-ID', 'Token']] } };
         if (range.startsWith('Partner_Interne_Bestellungen!')) {
           return { data: { values: [[
-            'Partner-ID', 'Datum', 'Bezeichnung', 'Anzahl', 'Status', 'Kanal', 'Fulfillment',
+            'Partner-ID', 'Datum', 'Bezeichnung', 'Anzahl', 'Status', 'Kanal', 'Fulfillment', 'Einzelpreis', 'Summe',
           ]] } };
         }
         return { data: { values: [

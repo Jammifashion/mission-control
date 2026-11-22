@@ -78,13 +78,13 @@ describe('fpBetragsUebersicht (reine Logik)', () => {
 
 // ── Route mit In-Memory-Sheet ──
 const FVH = ['Datum', 'WC-Bestellnummer', 'Partner-ID', 'Artikelname', 'Artikelkategorie', 'Stückzahl', 'VK-Netto', 'PayPal-Gebühren', 'Porto-Einnahme',
-  'Porto-Kosten', 'Versandnebenkosten', 'Festpreis', 'Handlingskosten', 'Gesamt-Partner-Netto', 'Gesamt-Partner-Brutto', 'Storno-Status', 'Status Abrechnung', 'Mehrkosten'];
+  'Porto-Kosten', 'Versandnebenkosten', 'Festpreis', 'Handlingskosten', 'Gesamt-Partner-Netto', 'Gesamt-Partner-Brutto', 'Storno-Status', 'Status Abrechnung', 'Mehrkosten', 'Produkt-ID'];
 const fv = (pid, datum, nr, art, q, vk, f, hk) => [datum, nr, pid, art, 'Shirt', String(q), String(vk), '0', '0', '0', '0', String(f), String(hk), '1', '1.19', '', 'offen', '0'];
 let tabs, request, fpApp, portalApp, values, fpPublic, partnerPortal;
 const tabsNeu = (schalter) => ({
   FP_Partner: [['Partner-ID', 'Name', 'Token', 'Aktiv', 'Detailansicht'], ['FP-901', 'FP Test', 'fptok', 'ja', schalter], ['FP-902', 'FP Zwei', 'fptok2', 'ja', '']],
   'FP_Verkäufe': [FVH, fv('FP-901', '03.11.2026', '7001', 'Muster-Becher', 3, 27, 4, 0.5), fv('FP-902', '03.11.2026', '7002', 'Andere', 1, 10, 2, 0)],
-  FP_Abrechnungen: [['Abrechnungs-ID', 'Partner-ID', 'Zeitraum-Von', 'Zeitraum-Bis', 'Status']],
+  FP_Abrechnungen: [['Abrechnungs-ID', 'Partner-ID', 'Zeitraum-Von', 'Zeitraum-Bis', 'Gesamt-Netto', 'Gesamt-Brutto', 'Status']],
   Partner_Interne_Bestellungen: [['Partner-ID', 'Datum', 'Bezeichnung', 'Anzahl', 'Einzelpreis', 'Summe', 'Status', 'Kanal', 'Fulfillment']],
   Kalkulation_Fixkosten: [['Position', 'Wert', 'Einheit', 'Gültig_ab', 'Gültig_bis'], ['MwSt', '19', '%', '01.01.2022', '']],
   Partner: [['Partner-ID', 'Name', 'Hauptkategorie', 'Token', 'Aktiv', 'Lizenz-%', 'Versand-Modell', 'PayPal-Modell', 'Notiz', 'Porto-Modell', 'Shop', 'Vertrag-ab', 'Detailansicht'],

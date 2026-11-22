@@ -40,6 +40,7 @@ import { leseLieferbarkeit } from './lieferbarkeitLesen.js';
 import { leseLagerFuerKorb, leseLager } from './lager.js';
 import { aktiveOrte } from '../utils/lager.js';
 import { korbVorschlaege } from '../utils/lager-korb.js';
+import { berlinJahr } from '../utils/berlin-tag.js';   // GT1 C4
 
 const TAB_VARIANTEN = 'Varianten';
 const TAB_MASKE     = 'Erfassungsmaske';
@@ -385,7 +386,7 @@ export async function legeEigenePositionAn({ eingabe, sheets: s, jetzt = () => n
     const nr = String(eingabe?.articleNr ?? '').trim();
     const modell = (await ladeLShopZeilen({ sheets, spreadsheetId })).find(z => z.articleNr === nr)?.catalogNr;
     const varianten = modell ? (await modellAuswertung(sheets, spreadsheetId, modell)).varianten : [];
-    const schluessel = naechsteEigenNummer(zeilen, zeit.getUTCFullYear());
+    const schluessel = naechsteEigenNummer(zeilen, berlinJahr(zeit));
     const zeile = eigeneZeile({ eingabe, varianten, schluessel, jetzt: zeit.toISOString() });
 
     const r = await schreibeNeueZeilen({ sheets, spreadsheetId, info, idx, zeilen: [zeile] });
@@ -415,7 +416,7 @@ export async function legeEigenePositionenAn({ eingabe, sheets: s, jetzt = () =>
     const modelle = [...new Set(nummern.map(n => lshop.find(z => z.articleNr === n)?.catalogNr).filter(Boolean))];
     const varianten = [];
     for (const m of modelle) varianten.push(...(await modellAuswertung(sheets, spreadsheetId, m)).varianten);
-    const ersterSchluessel = naechsteEigenNummer(zeilen, zeit.getUTCFullYear());
+    const ersterSchluessel = naechsteEigenNummer(zeilen, berlinJahr(zeit));
     // BO5-4: "bei Ankunft ins Lager" - nur mit Spalte Lager_Ziel und einem aktiven Lagerort.
     const lagerZiel = String(eingabe?.lagerZiel ?? '').trim();
     if (lagerZiel) {

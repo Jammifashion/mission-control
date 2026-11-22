@@ -49,7 +49,7 @@ const FIX = [['Position', 'Wert', 'Einheit', 'Gültig_ab', 'Gültig_bis'], ['MwS
 const VH = ['Partner-ID', 'Datum', 'Order-ID', 'Artikelnummer', 'Variante', 'Stückzahl', 'VK-Preis-Brutto', 'Lizenzgebühr', 'Status', 'Produkt-ID', 'Gewinn-netto', 'Lizenz-Anteil', 'Porto-Saldo', 'Anteil-Brutto', 'Storno-Status'];
 const v = (datum, order, lizenz, status) => ['P-911', datum, order, 'Muster-Shirt', '0', '1', '20', lizenz, status, '1', '', '', '', '', ''];
 const FVH = ['Datum', 'WC-Bestellnummer', 'Partner-ID', 'Artikelname', 'Artikelkategorie', 'Stückzahl', 'VK-Netto', 'PayPal-Gebühren', 'Porto-Einnahme',
-  'Porto-Kosten', 'Versandnebenkosten', 'Festpreis', 'Handlingskosten', 'Gesamt-Partner-Netto', 'Gesamt-Partner-Brutto', 'Storno-Status', 'Status Abrechnung'];
+  'Porto-Kosten', 'Versandnebenkosten', 'Festpreis', 'Handlingskosten', 'Gesamt-Partner-Netto', 'Gesamt-Partner-Brutto', 'Storno-Status', 'Status Abrechnung', 'Produkt-ID'];
 const fv = (datum, nr, netto, status) => [datum, nr, 'FP-911', 'Muster-Becher', 'Becher', '1', '20', '0', '0', '0', '0', '10', '1', netto, '', '', status];
 const FAH = ['Abrechnungs-ID', 'Partner-ID', 'Zeitraum-Von', 'Zeitraum-Bis', 'Gesamt-Netto', 'Gesamt-Brutto', 'Status', 'Erstellt-Am', 'Positionen'];
 
@@ -174,5 +174,23 @@ describe('Anzeige', () => {
       expect(h).toContain('Abgerechnet, Auszahlung ausstehend (');
       expect(h).not.toContain('Nur offene, noch nicht abgerechnete Positionen');
     }
+  });
+});
+
+describe('GT1 C2: Abrechnungen im Portal - Erlaubt-Liste', () => {
+  test('Festpreis: nur freigegeben/bezahlt, unbekannter Status und neue Spalten erscheinen nicht', async () => {
+    tabs.FP_Abrechnungen[0] = [...tabs.FP_Abrechnungen[0], 'Neu_Geheim'];
+    tabs.FP_Abrechnungen.push(['FPA-0009', 'FP-911', '01.11.2026', '22.11.2026', '1', '1,19', 'geprüft', '22.11.2026', '{}', 'nicht-zeigen']);
+    tabs.FP_Abrechnungen[2].push('nicht-zeigen');
+    const r = await request(fpApp).get('/api/festpreis-public/abrechnungen').set('Authorization', 'Bearer fptok911');
+    expect(r.status).toBe(200);
+    expect(r.body.map(a => a['Abrechnungs-ID'])).toEqual(['FPA-0001', 'FPA-0002', 'FPA-0003']);
+    expect(JSON.stringify(r.body)).not.toMatch(/nicht-zeigen|Neu_Geheim/);
+  });
+  test('Lizenz: nur freigegeben/bezahlt, feste Felder', async () => {
+    tabs.Partner_Abrechnungen.push(['A-9', 'P-911', '01.11.2026', '22.11.2026', '1', '1,19', 'geprüft', '22.11.2026', 'interne Notiz', '{}']);
+    const r = await request(portalApp).get('/api/partner/abrechnungen?shop=jfn').set('Authorization', 'Bearer tok911');
+    expect(r.body.map(a => a.abrechnungId)).toEqual(['A-1', 'A-2']);
+    expect(JSON.stringify(r.body)).not.toContain('interne Notiz');
   });
 });

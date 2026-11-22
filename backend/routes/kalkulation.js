@@ -19,6 +19,8 @@ import { berechnePartnerAnteil, parseKonfiguration, istBekanntePosition, baueLiz
 
 import { lizenzStatusWechselErlaubt, abrechnungKlaeren, klaerenAntwort, leerZelle } from '../utils/fp-abrechnung.js';
 import { parseDeZahl } from '../utils/zahl-de.js';
+import { deHeuteBerlin, berlinJahr } from '../utils/berlin-tag.js';   // GT1 C4
+import { pruefePflichtSpalten } from '../utils/pflicht-spalten.js';   // GT1 B2
 const router = Router();
 // GS2: jede schreibende Abrechnungs-Anfrage (erstellen, freigeben, Status, loeschen) leert die 10-min-Uebersicht des Portals,
 // damit "Offene Auszahlung" den neuen Status sofort zeigt.
@@ -62,6 +64,7 @@ async function readTab(sheets, sheetId, tabName) {
     range: `${tabName}!A1:ZZ`,   // PPS1: breiter als A1:Z (Token_Hash steht hinten)
   });
   const [header, ...rows] = data.values ?? [];
+  pruefePflichtSpalten(tabName, header);   // GT1 B2: fehlende Pflichtspalte = lauter Fehler, nie still 0
   // Echten Sheet-Zeilenindex (_sheetRow) anhängen BEVOR Leerzeilen gefiltert werden,
   // damit Status-Updates die korrekte Zeile treffen (sonst verschiebt jede Leerzeile alles).
   rows.forEach((r, i) => { r._sheetRow = i + 2; });
@@ -108,7 +111,7 @@ function pruefeVertragsbeginn(partnerTab, partnerId, zeilen, datumVon) {
 
 // Nächste AB-YYYY-NNNN ID generieren
 function nextAbrechnungId(existingRows, idIdx) {
-  const year = new Date().getUTCFullYear();
+  const year = berlinJahr();   // GT1 C4
   const prefix = `AB-${year}-`;
   const max = existingRows
     .map(r => r[idIdx] ?? '')
@@ -350,7 +353,7 @@ router.post('/partner-verkauf', async (req, res, next) => {
     const lizenzProzent = parseFloat(partner[pLizenzIdx] ?? '0');
     const vkBrutto      = parseFloat(vkPreisBrutto);
     const lizenzgebühr  = parseFloat(((vkBrutto * lizenzProzent) / 100).toFixed(2));
-    const datumStr      = datum ? toDE(new Date(datum)) : toDE(new Date());
+    const datumStr      = datum ? toDE(new Date(datum)) : deHeuteBerlin();
 
     const tabVerkaeufe = getShopConfig(req.query.shop).tabVerkaeufe;
     await sheets.spreadsheets.values.append({
@@ -675,7 +678,7 @@ async function abrechnungErstellen(req, res) {
     // Neue Abrechnungs-ID
     const abIdIdx    = abrechnungenTab.header.indexOf('Abrechnungs-ID');
     const abId       = nextAbrechnungId(abrechnungenTab.rows, abIdIdx);
-    const erstelltAm = toDE(new Date());
+    const erstelltAm = deHeuteBerlin();
 
     const positionenJson = JSON.stringify({
       verkaeufe:    verkaeufePositionen,

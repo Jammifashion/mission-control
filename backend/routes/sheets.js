@@ -52,7 +52,7 @@ function rowsToObjects(rows) {
 function norm(s) { return String(s).toLowerCase().replace(/[\s\-_]+/g, ''); }
 
 
-async function readRange(tab, range = 'A1:Z1000') {
+async function readRange(tab, range = 'A1:ZZ') {   // GT1 B6: ohne Zeilengrenze
   const sheets = await getSheets();
   const { data } = await sheets.spreadsheets.values.get({
     spreadsheetId: sheetId(),
@@ -613,7 +613,7 @@ function normalizeBool(val) {
 // NAV3: Zeilen gehoeren einem Shop (Spalte "Shop" hinten, utils/shop-spalte.js).
 // Bereich ueber die ganze Breite, damit die Spalte mitkommt; feste Positionen
 // A-J bleiben, nur "Shop" wird ueber den Namen gesucht.
-const PS_BEREICH = 'A1:Z5000';
+const PS_BEREICH = 'A1:ZZ';   // GT1 B6: ohne Zeilengrenze
 
 // Zeilenindex (in rows, 0 = Kopf) fuer Shop + Bestellung + Position oder -1.
 function psZeileIndex(rows, shop, orderId, wcItemId) {

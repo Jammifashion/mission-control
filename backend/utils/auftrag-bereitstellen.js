@@ -11,6 +11,7 @@ import { STATUS as KORB_STATUS, HERKUNFT as KORB_HERKUNFT, naechsteEigenNummer }
 import { AG_PRAEFIX } from './aufgaben.js';
 import { ART as LAGER_ART, WARENART, bestandAus, bestandVon, naechsteBuchungNr, buchungId, VORGANG_MUSTER, buchungenDesVorgangs } from './lager.js';
 import { ART, HERKUNFT, aktivePositionen, istUebergeben, naechstePositionId, schrittIndex, fehler, POSITION_SPALTEN, STORNIERT } from './auftraege.js';
+import { berlinJahr } from './berlin-tag.js';   // GT1 C4
 
 const t = v => String(v ?? '').trim();
 export const QUELLE_AUFTRAG = 'auftrag';
@@ -42,7 +43,7 @@ export function bereitstellenPlan({ auftrag, positionen, korbZeilen, buchungen, 
   if (!kannBereitstellen(auftrag)) throw fehler(`${auftrag.Auftrag_Nr}: Rohlinge bereitstellen geht nur bis „${BEREITSTELLEN_BIS}“.`, 409, 'status');
   const nr = auftrag.Auftrag_Nr;
   const iso = new Date(jetzt).toISOString();
-  const jahr = new Date(jetzt).getUTCFullYear();
+  const jahr = berlinJahr(new Date(jetzt));   // GT1 C4
   const akt = aktivePositionen(positionen, nr);
   const offen = akt.filter(p => !istUebergeben(p));
   const bestand = bestandAus(buchungen);
@@ -150,7 +151,7 @@ export function zuruecknehmenPlan({ auftrag, positionen, positionId, korbZeilen,
   if (!p) throw fehler('Position gibt es nicht (mehr) – bitte neu laden.', 409, 'konflikt');
   if (!istUebergeben(p)) return { unveraendert: true, position: p };
   const iso = new Date(jetzt).toISOString();
-  const jahr = new Date(jetzt).getUTCFullYear();
+  const jahr = berlinJahr(new Date(jetzt));   // GT1 C4
   const plan = { position: p, korb: null, lagerNeu: [], posFelder: { Stand: iso } };
   if (t(p.Korb_Schluessel)) {
     const z = (korbZeilen ?? []).find(x => x.Schluessel === t(p.Korb_Schluessel));

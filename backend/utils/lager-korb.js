@@ -8,6 +8,7 @@
 
 import { STATUS, HERKUNFT, hinweisSperrt, GRUENDE, nurAbgeschlossen } from './korb-logic.js';
 import { ART, QUELLE, WARENART, bestandAus, bestandVon, naechsteBuchungNr, buchungId, VORGANG_MUSTER, buchungenDesVorgangs } from './lager.js';
+import { berlinJahr } from './berlin-tag.js';   // GT1 C4
 
 const t = v => String(v ?? '').trim();
 const fehler = (msg, status, extra = {}) => Object.assign(new Error(msg), { status, ...extra });
@@ -127,7 +128,7 @@ export function ausLagerPlan(e, { korbZeilen, buchungen, orte, jetzt = new Date(
   if (probleme.length) throw fehler(probleme[0].text, 422, { probleme, code: 'nicht_gebucht' });
 
   const iso = jetzt.toISOString();
-  const jahr = jetzt.getUTCFullYear();
+  const jahr = berlinJahr(jetzt);   // GT1 C4
   const n0 = naechsteBuchungNr(buchungen, jahr);
   const art = z.Herkunft === HERKUNFT.EIGEN ? ART.ABGANG_EIGEN : ART.ABGANG_SHOP;
   return {
@@ -151,7 +152,7 @@ export function zurueckAusLagerPlan(e, { korbZeilen, buchungen, jetzt = new Date
   const ab = korbAbgaenge(buchungen).get(z.Schluessel) ?? [];
   if (!ab.length) throw fehler(`Zu Position ${z.Schluessel} gibt es keine offene Lager-Buchung - bitte von Hand prüfen, nichts geändert.`, 409, { code: 'konflikt' });
   const iso = jetzt.toISOString();
-  const jahr = jetzt.getUTCFullYear();
+  const jahr = berlinJahr(jetzt);   // GT1 C4
   const n0 = naechsteBuchungNr(buchungen, jahr);
   const nr = t(z.LShop_ArticleNr);
   return {

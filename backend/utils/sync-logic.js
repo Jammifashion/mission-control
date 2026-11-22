@@ -7,6 +7,9 @@ export function toFloat(val, fallback = 0) {
   return Number.isNaN(n) ? fallback : n;
 }
 
+import { wcTagDE, deHeuteBerlin, berlinDatum as berlinTagC4 } from './berlin-tag.js';   // GT1 C4
+
+/** TT.MM.JJJJ eines Zeitpunkts - fuer Sheet-Daten (UTC-Mitternacht) unveraendert; "heute" = deHeuteBerlin, WC-Zeiten = wcTagDE (GT1 C4). */
 export function toDE(date) {
   const d = new Date(date);
   return `${String(d.getUTCDate()).padStart(2, '0')}.${String(d.getUTCMonth() + 1).padStart(2, '0')}.${d.getUTCFullYear()}`;
@@ -116,7 +119,7 @@ export function buildStornoRows(vRows, vh, stornoOrders, partnerFilter) {
   const varKey = v => (v === '' || v === null || v === undefined) ? '0' : String(v);
 
   const refundDate = new Map(
-    stornoOrders.map(o => [String(o.id), toDE(new Date(o.date_modified || o.date_created))])
+    stornoOrders.map(o => [String(o.id), wcTagDE(o.date_modified || o.date_created)])
   );
 
   // Alle Spalten ueber die Kopfzeile aufloesen, nicht nur die vier oben.
@@ -203,7 +206,7 @@ export function buildStornoRows(vRows, vh, stornoOrders, partnerFilter) {
     }
     // Alles schon per Teilerstattung zurueck: keine leere Gegenbuchung.
     if (teil && NEG_COLS.every(i => leerWert(counter[i]) || counter[i] === 0)) continue;
-    counter[DATE_COL]   = refundDate.get(oid) || r[DATE_COL] || toDE(new Date());
+    counter[DATE_COL]   = refundDate.get(oid) || r[DATE_COL] || deHeuteBerlin();
     counter[STATUS_COL] = (r[STATUS_COL] ?? '') === STATUS_GESPERRT ? STATUS_GESPERRT : 'offen';
     counter[STORNO_COL] = STORNO_MARKER;
     out.push(counter);
@@ -284,7 +287,7 @@ export const bestellTag = order => String(order?.date_created ?? '').slice(0, 10
 export function konfigJeTag(parse) {
   const cache = new Map();
   return tag => {
-    const key = /^\d{4}-\d{2}-\d{2}$/.test(String(tag)) ? tag : new Date().toISOString().slice(0, 10);
+    const key = /^\d{4}-\d{2}-\d{2}$/.test(String(tag)) ? tag : berlinTagC4(new Date());
     if (!cache.has(key)) cache.set(key, parse(new Date(`${key}T12:00:00Z`)));
     return cache.get(key);
   };

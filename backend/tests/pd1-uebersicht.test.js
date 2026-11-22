@@ -91,7 +91,7 @@ const AH = ['Abrechnungs-ID', 'Partner-ID', 'Zeitraum-Von', 'Zeitraum-Bis', 'Ver
 const PH = ['Partner-ID', 'Name', 'Hauptkategorie', 'Token', 'Aktiv', 'Lizenz-%', 'Versand-Modell', 'PayPal-Modell', 'Notiz', 'Porto-Modell', 'Shop', 'Vertrag-ab'];
 const FIX = [['Position', 'Wert', 'Einheit', 'Gültig_ab', 'Gültig_bis'], ['MwSt', '19', '%', '01.01.2022', '']];
 const FVH = ['Datum', 'WC-Bestellnummer', 'Partner-ID', 'Artikelname', 'Artikelkategorie', 'Stückzahl', 'VK-Netto', 'PayPal-Gebühren', 'Porto-Einnahme',
-  'Porto-Kosten', 'Versandnebenkosten', 'Festpreis', 'Handlingskosten', 'Gesamt-Partner-Netto', 'Gesamt-Partner-Brutto', 'Storno-Status', 'Status Abrechnung'];
+  'Porto-Kosten', 'Versandnebenkosten', 'Festpreis', 'Handlingskosten', 'Gesamt-Partner-Netto', 'Gesamt-Partner-Brutto', 'Storno-Status', 'Status Abrechnung', 'Produkt-ID'];
 const fv = (datum, nr, art, stueck, netto, status) => [datum, nr, 'FP-901', art, 'Shirt', String(stueck), '20', '0', '0', '0', '0', '10', '1', netto, '', '', status];
 
 function tabsNeu() {
@@ -104,7 +104,7 @@ function tabsNeu() {
     Kalkulation_Fixkosten: FIX,
     FP_Partner: [['Partner-ID', 'Name', 'Token', 'Aktiv', 'Vertrag-ab'], ['FP-901', 'FP Test', 'fptok', 'ja', '01.02.2026']],
     'FP_Verkäufe': [FVH, fv('03.11.2026', '7001', 'Muster-Becher', 3, '27', 'offen'), fv('04.11.2026', '7002', 'Muster-Becher', 1, '9', 'gesperrt')],
-    FP_Abrechnungen: [['Abrechnungs-ID', 'Partner-ID', 'Zeitraum-Von', 'Zeitraum-Bis', 'Status'], ['FA-1', 'FP-901', '01.08.2026', '31.10.2026', 'bezahlt']],
+    FP_Abrechnungen: [['Abrechnungs-ID', 'Partner-ID', 'Zeitraum-Von', 'Zeitraum-Bis', 'Gesamt-Netto', 'Gesamt-Brutto', 'Status'], ['FA-1', 'FP-901', '01.08.2026', '31.10.2026', '0', '0', 'bezahlt']],
   };
 }
 

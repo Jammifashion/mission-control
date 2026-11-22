@@ -3,6 +3,7 @@ import { google } from 'googleapis';
 import { getGoogleAuth } from '../lib/googleAuth.js';
 import { notify, buildAnfrageNachricht } from '../lib/chatNotify.js';
 import { KANAL_VALUES } from '../utils/anfrage-felder.js';
+import { requireHeader } from '../utils/sheet-headers.js';   // GT1 B2
 
 const router = Router();
 
@@ -187,7 +188,7 @@ router.patch('/:id/status', async (req, res, next) => {
     const sheetId = requireSheetId(res); if (!sheetId) return;
     const sheets  = await getSheets();
     const { header, rows } = await readTab(sheets, sheetId);
-    const h = c => header.indexOf(c);
+    const h = c => requireHeader(header, c, 'Kundenanfragen');   // GT1 B2: fehlt Status/Notiz-intern/Anfrage-ID -> Fehler statt Bereich mit Spalte -1
 
     const { status, notizIntern } = req.body ?? {};
     if (status === undefined && notizIntern === undefined) {
