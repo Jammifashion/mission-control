@@ -1424,6 +1424,13 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Belegliste lesend) bzw. zuruecksetzen, je ganze Gruppe (Kunde + Tag + ID). Routen `/api/auftraege/rechnung/{kunden,vorschau,anlegen,kennzeichen,
   nachsehen}`. Oberflaeche Unterpunkt `auftraege/abrechnen` (`#re-ansicht`), SECTION Abrechnen (RE1), Block `Abrechnen: Anfang/Ende`, Hilfe-Gruppe
   `abrechnen`. Tests rechnung.test.js, rechnung-frontend.test.js.
+- backend/lib/lexwareBelege.js – Lexware-Belegleser (RE2), **NUR LESEN**: `leseBelegliste(filter, o)` = `GET /v1/voucherlist` (Filter geprueft
+  `beleglisteAbfrage`: voucherType/voucherStatus aus festen Listen, auch mehrere, contactId, archived, voucherNumber, Datumsfilter JJJJ-MM-TT, sort;
+  sonst 422; alle Seiten bis `MAX_SEITEN_BELEGE`, sonst `mehr`) und `leseRechnung({ id })` = `GET /v1/invoices/{id}`. Ueber `lexwareGet` (lib/lexware.js,
+  jetzt mit `zeitlimitMs` + `recht` fuer den 403-Hinweis), eigener Takt, Zeitlimit 15 s. Feste Feldauswahl `belegAus`/`rechnungAus` OHNE contactName,
+  Adresse, Positionstexte. Schluessel NUR Secret `LEXWARE_API_KEY_BELEGE` (Recht "Belege lesen", nicht in SECRET_KEYS -> 503 `lexware_belege`).
+  "In Lexware nachsehen" (`sucheEntwuerfe` in lib/lexwareRechnung.js) liest seitdem darueber (der Rechnungen-Schluessel bekommt auf der Belegliste 403,
+  gemessen 22.11.). Test lexware-belege.test.js (Quelltext: kein POST/PUT/PATCH/DELETE).
 - backend/lib/feedback.js – Feedback aus MC (FB1), Logik `utils/feedback.js`, Route `routes/feedback.js` (`POST /api/feedback { text, kontext }`, hinter
   requireApiKey, eigene Bremse). Knopf "💡 Feedback" im Kopf (`#feedback-oeffnen`, am Handy nur die Lampe), Dialog `#fb-dialog` (z-index 60, liegt ueber
   jedem Fenster, aendert nichts dahinter), SECTION Feedback (FB1) mit Block `Feedback: Anfang/Ende` (Test feedback-frontend.test.js), Hilfe-Gruppe `feedback`.

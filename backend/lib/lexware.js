@@ -34,26 +34,35 @@ export class LexwareFehler extends Error {
  * Ein GET mit Takt und 429-Behandlung. `pfad` ohne Basis, z. B. "/v1/contacts?page=0".
  * @param {object} o  { schluessel, fetchFn, warte, uhr } - fetchFn/warte im Test ersetzbar
  */
-export async function lexwareGet(pfad, { schluessel, fetchFn = fetch, warte = schlafen, takt } = {}) {
+export async function lexwareGet(pfad, { schluessel, fetchFn = fetch, warte = schlafen, takt, zeitlimitMs, recht } = {}) {
   if (!schluessel) throw new LexwareFehler('Lexware: Schlüssel LEXWARE_API_KEY fehlt.', 0);
-  return lexwareAnfrage('GET', pfad, { schluessel, fetchFn, warte, takt });
+  return lexwareAnfrage('GET', pfad, { schluessel, fetchFn, warte, takt, zeitlimitMs, recht });
 }
 
-/** Eine Anfrage mit Takt und 429-Behandlung (GET und der eine POST). Fehlertexte: Pfad + Status, nie Inhalt. */
-async function lexwareAnfrage(methode, pfad, { schluessel, body, fetchFn = fetch, warte = schlafen, takt, beiFehler } = {}) {
+/**
+ * Eine Anfrage mit Takt und 429-Behandlung (GET und der eine POST). Fehlertexte: Pfad + Status, nie Inhalt.
+ * RE2: `zeitlimitMs` (optional) bricht je Versuch ab (AbortController); `recht` = Name des Rechts im 403-Hinweis.
+ */
+async function lexwareAnfrage(methode, pfad, { schluessel, body, fetchFn = fetch, warte = schlafen, takt, beiFehler, zeitlimitMs, recht = 'Kontakte' } = {}) {
   const pfadOhneQuery = String(pfad).split('?')[0];
   for (let versuch = 0; ; versuch++) {
     if (takt) await takt();
     let res;
+    const ctrl = zeitlimitMs ? new AbortController() : null;
+    const timer = ctrl ? setTimeout(() => ctrl.abort(), zeitlimitMs) : null;
     try {
       res = await fetchFn(`${BASIS}${pfad}`, {
         method: methode,
         headers: { Authorization: `Bearer ${schluessel}`, Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
         ...(body ? { body: JSON.stringify(body) } : {}),
         redirect: 'error',
+        ...(ctrl ? { signal: ctrl.signal } : {}),
       });
     } catch (err) {
+      if (err?.name === 'AbortError') throw new LexwareFehler(`Lexware ${pfadOhneQuery}: Zeitlimit ${Math.round(zeitlimitMs / 1000)} s.`, 0);
       throw new LexwareFehler(`Lexware ${pfadOhneQuery}: keine Verbindung (${err?.code ?? err?.name ?? 'Netz'}).`, 0);
+    } finally {
+      if (timer) clearTimeout(timer);
     }
     if (beiFehler && !res.ok && res.status !== 429) await beiFehler(res);
     if (res.status === 429) {
@@ -63,7 +72,7 @@ async function lexwareAnfrage(methode, pfad, { schluessel, body, fetchFn = fetch
       continue;
     }
     if (!res.ok) {
-      const hinweis = res.status === 401 ? ' (Schlüssel ungültig oder abgelaufen)' : res.status === 403 ? ' (Schlüssel ohne Recht auf Kontakte)' : '';
+      const hinweis = res.status === 401 ? ' (Schlüssel ungültig oder abgelaufen)' : res.status === 403 ? ` (Schlüssel ohne Recht auf ${recht})` : '';
       throw new LexwareFehler(`Lexware ${pfadOhneQuery}: Status ${res.status}${hinweis}.`, res.status);
     }
     try { return await res.json(); } catch {

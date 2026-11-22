@@ -8,7 +8,8 @@
 // Fehlertexte: Pfad + Status (+ Feldnamen aus der IssueList), nie Antwortinhalt, nie Schluessel, nie Namen/Betraege.
 
 import { getSecret } from '../utils/secrets.js';
-import { BASIS, taktgeber } from './lexware.js';
+import { BASIS, taktgeber, LexwareFehler } from './lexware.js';
+import { leseBelegliste, BelegSchluesselFehlt, SCHLUESSEL_BELEGE, BELEGE_NICHT_EINGERICHTET } from './lexwareBelege.js';   // RE2
 
 export const SCHLUESSEL_RECHNUNGEN = 'LEXWARE_API_KEY_RECHNUNGEN';
 export const NICHT_EINGERICHTET = 'Lexware-Rechnungen nicht eingerichtet';
@@ -82,23 +83,20 @@ export async function legeRechnungsentwurfAn({ payload, schluessel, fetchFn = fe
 
 /**
  * NUR LESEN: Rechnungs-Entwuerfe des Kontakts seit einem Tag (Belegliste). Fuer "In Lexware nachsehen" bei unklar.
+ * RE2: ueber den Belegleser (lib/lexwareBelege.js, Schluessel LEXWARE_API_KEY_BELEGE) - der Rechnungen-Schluessel bekommt auf
+ * /v1/voucherlist 403 (gemessen 22.11.). Fehlt der Belege-Schluessel: ok false mit Hinweis, kein Absturz.
  * @returns {{ ok: true, entwuerfe: [{ id, voucherDate, createdDate, totalAmount }] } | { ok: false, grund }}
  */
-export async function sucheEntwuerfe({ kontaktId, seit, schluessel, fetchFn = fetch, zeitlimitMs = 15000 } = {}) {
+export async function sucheEntwuerfe({ kontaktId, seit, schluessel, fetchFn = fetch, zeitlimitMs = 15000, lesen = leseBelegliste } = {}) {
   if (!ID_RE.test(String(kontaktId ?? ''))) return { ok: false, grund: 'Kunde ohne Lexoffice-Verknüpfung' };
-  const key = schluessel ?? await rechnungSchluessel();
-  await takt();
-  const q = new URLSearchParams({ voucherType: 'invoice', voucherStatus: 'draft', contactId: kontaktId, size: '25', sort: 'createdDate,DESC' });
-  if (/^\d{4}-\d{2}-\d{2}$/.test(String(seit ?? ''))) q.set('createdDateFrom', seit);
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), zeitlimitMs);
+  const filter = { voucherType: 'invoice', voucherStatus: 'draft', contactId: kontaktId, sort: 'createdDate,DESC' };
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(seit ?? ''))) filter.createdDateFrom = seit;
   try {
-    const res = await fetchFn(`${BASIS}/v1/voucherlist?${q}`, { method: 'GET', headers: { Authorization: `Bearer ${key}`, Accept: 'application/json' }, redirect: 'error', signal: ctrl.signal });
-    if (!res.ok) return { ok: false, grund: res.status === 403 ? 'Schlüssel darf die Belegliste nicht lesen (403)' : `Lexware /v1/voucherlist: Status ${res.status}` };
-    const j = await res.json();
-    const liste = Array.isArray(j?.content) ? j.content : [];
-    return { ok: true, entwuerfe: liste.map(x => ({ id: String(x.id ?? ''), voucherDate: String(x.voucherDate ?? '').slice(0, 10), createdDate: String(x.createdDate ?? ''), totalAmount: x.totalAmount ?? null })) };
+    const { belege } = await lesen(filter, { schluessel, fetchFn, zeitlimitMs, maxSeiten: 1, groesse: 25 });
+    return { ok: true, entwuerfe: belege.map(x => ({ id: x.id, voucherDate: x.voucherDate, createdDate: x.createdDate, totalAmount: x.totalAmount })) };
   } catch (err) {
-    return { ok: false, grund: err?.name === 'AbortError' ? 'Zeitlimit' : 'keine Verbindung' };
-  } finally { clearTimeout(timer); }
+    if (err instanceof BelegSchluesselFehlt) return { ok: false, grund: `${BELEGE_NICHT_EINGERICHTET} (Secret ${SCHLUESSEL_BELEGE} fehlt)` };
+    if (err?.lexwareStatus === 403 || err?.lexwareStatus === 401) return { ok: false, grund: `Belege-Schlüssel darf die Belegliste nicht lesen (${err.lexwareStatus})` };
+    return { ok: false, grund: err instanceof LexwareFehler ? err.message : 'keine Verbindung' };
+  }
 }
