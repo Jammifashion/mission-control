@@ -66,14 +66,14 @@ describe('offeneBestellungen', () => {
 
   test('Pruefseite (HTML) -> genau ein Abruf, 503', async () => {
     wcGet.mockResolvedValue({ data: '<html>One moment, please...</html>' });
-    const res = await request(app).get('/api/auftragsmonitor/lshop/offen?shop=honk');
+    const res = await request(app).get('/api/auftragsmonitor/dtf/offen?shop=honk');
     expect(res.status).toBe(503);
     expect(wcGet).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('Produkt-ID-Gegenprobe', () => {
-  test.each(['lshop', 'dtf'])('%s/offen: HONK-Position mit gleicher Variations-ID bekommt keine JFN-Daten', async (art) => {
+  test.each(['dtf'])('%s/offen: HONK-Position mit gleicher Variations-ID bekommt keine JFN-Daten', async (art) => {
     wcGet.mockImplementation(async (_p, q) => ({ data: q.status === 'on-hold' ? [bestellung(900, 222, 555)] : [] }));
     const res = await request(app).get(`/api/auftragsmonitor/${art}/offen?shop=honk`);
     expect(res.status).toBe(200);
@@ -85,7 +85,7 @@ describe('Produkt-ID-Gegenprobe', () => {
   test('gleiche Produkt-ID -> Varianten-Zeile wird genutzt', async () => {
     tabs.Produktions_Status[1][10] = 'JFN';
     wcGet.mockImplementation(async (_p, q) => ({ data: q.status === 'processing' ? [bestellung(900, 111, 555)] : [] }));
-    const res = await request(app).get('/api/auftragsmonitor/lshop/offen?shop=jfn');
+    const res = await request(app).get('/api/auftragsmonitor/dtf/offen?shop=jfn');
     expect(res.body[0].ssotId).toBe('0001');
     expect(res.body[0].variante).toBe('Schwarz·M');
   });

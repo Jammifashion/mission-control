@@ -137,20 +137,10 @@ describe('Produktions_Status', () => {
 // ── Auftragsmonitor ─────────────────────────────────────────────────────────
 describe('Auftragsmonitor', () => {
   test('offen: HONK sieht nur HONK-Zeilen, JFN nur JFN-Zeilen', async () => {
-    const h = await request(app).get('/api/auftragsmonitor/lshop/offen?shop=honk');
+    const h = await request(app).get('/api/auftragsmonitor/dtf/offen?shop=honk');   // GT1: lshop/offen entfernt
     const j = await request(app).get('/api/auftragsmonitor/dtf/offen?shop=jfn');
     expect(h.body.map(g => g.artikelnummer)).toEqual(['HK/B']);
     expect(j.body.map(g => g.artikelnummer)).toEqual(['JF/A']);
-  });
-
-  test('bestellen: Protokoll mit Shop, Haekchen nur im eigenen Shop', async () => {
-    const r = await request(app).post('/api/auftragsmonitor/lshop/bestellen?shop=honk').send({
-      artikelnummer: 'HK/B', variante: 'M', stueck: 1, orderIds: ['500'], wcItemIds: [{ orderId: '500', wcItemId: '7' }],
-    });
-    expect(r.body.updated).toBe(1);
-    expect(tabs.LShop_Bestellungen[1][8]).toBe('HONK');
-    expect(tabs.Produktions_Status[1][5]).toBe('FALSE');   // JFN
-    expect(tabs.Produktions_Status[2][5]).toBe(true);      // HONK
   });
 
   test('bestellen-bulk DTF: gleiche Nummer ohne Positionspaar trifft nur den eigenen Shop', async () => {
@@ -162,17 +152,17 @@ describe('Auftragsmonitor', () => {
     expect(tabs.Produktions_Status[2][6]).toBe('FALSE');   // HONK
   });
 
-  test('protokoll: nur Zeilen des Shops, mit Feld shop', async () => {
+  test('protokoll (DTF): nur Zeilen des Shops, mit Feld shop', async () => {
     const heute = new Date().toISOString();
-    tabs.LShop_Bestellungen.push(
-      ['LSB-1', heute, '', 'JF/A', 'M', '1', '', '500', 'JFN'],
-      ['LSB-2', heute, '', 'HK/B', 'M', '1', '', '500', 'HONK'],
-      ['LSB-0', heute, '', 'ALT', 'M', '1', '', '400'],          // Altbestand ohne Shop = JFN
+    tabs.DTF_Bestellungen.push(
+      ['DTF-1', heute, '', 'JF/A', 'M', '1', '500', 'JFN'],
+      ['DTF-2', heute, '', 'HK/B', 'M', '1', '500', 'HONK'],
+      ['DTF-0', heute, '', 'ALT', 'M', '1', '400'],          // Altbestand ohne Shop = JFN
     );
-    const h = await request(app).get('/api/auftragsmonitor/lshop/protokoll?shop=honk');
-    const j = await request(app).get('/api/auftragsmonitor/lshop/protokoll?shop=jfn');
-    expect(h.body.map(e => [e.bestellId, e.shop])).toEqual([['LSB-2', 'HONK']]);
-    expect(j.body.map(e => e.bestellId).sort()).toEqual(['LSB-0', 'LSB-1']);
+    const h = await request(app).get('/api/auftragsmonitor/dtf/protokoll?shop=honk');
+    const j = await request(app).get('/api/auftragsmonitor/dtf/protokoll?shop=jfn');
+    expect(h.body.map(e => [e.bestellId, e.shop])).toEqual([['DTF-2', 'HONK']]);
+    expect(j.body.map(e => e.bestellId).sort()).toEqual(['DTF-0', 'DTF-1']);
   });
 });
 

@@ -35,7 +35,7 @@ describe('Oberflaeche', () => {
   });
   test('Haken ohne Text stehen in einem Label (Tippflaeche), nie in einem div', () => {
     expect(html).not.toContain('<div class="card-cb-wrap">');
-    expect((html.match(/<label class="card-cb-wrap">/g) ?? []).length).toBe(3);
+    expect((html.match(/<label class="card-cb-wrap">/g) ?? []).length).toBe(2);   // GT1: alter L-Shop-Weg entfernt
   });
   test('Lieferzeit in der Problemliste: Name, die Nummer nur wenn der Name fehlt', () => {
     expect(html).toContain('a.lieferzeit.name || `Nr. ${a.lieferzeit.id} (nicht in der Lieferzeiten-Liste)`');

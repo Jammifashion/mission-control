@@ -112,7 +112,7 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   kombiniert mit "wartet auf Teile", BS1-Suche und Shop; Wahl in localStorage `mc_bestellungen_status`/`_versand` (Test
   bestellungen-versand.test.js).
 - L-Shop-Warenkorb (BO2: Unterpunkt `bestellen/lshop-korb`, Anzeige + Knopf "Abgleich jetzt"; der alte
-  Unterreiter "L-Shop Bestellungen" ist seitdem ausgeblendet, nicht entfernt. BO4a am Ende der Sektion:
+  Unterreiter "L-Shop Bestellungen" ist seit GT1 entfernt (Panel, JS, Endpunkte). BO4a am Ende der Sektion:
   "EDI-Entwurf" - Knopf "EDI-Datei erzeugen (Entwurf)" in der Leiste, "alle offenen wählen" (ohne
   gesperrte), Dialog `#edi-dialog` im Panel orders; Block `EDI-Pruefung: Anfang/Ende` (Test
   edi-frontend.test.js): Knopf nur frei bei gruen + Browser-`DOMParser` ok, vor dem Download erneut;
@@ -150,9 +150,9 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   (Kopf, Status-Etikett, Positionen, Lieferscheine mit "Paket 1…n" nur auf textilelogistics.eu), Filter
   Unterwegs · Geliefert (14 Tage) · Alle (`data-bfilter`, `localStorage` `mc_lb_filter`), eingeklappte
   "Portalbestellungen" (30 Tage, "ältere anzeigen" nie gespeichert). Hilfe-Gruppe `bestellungen`.
-  Die alte Adresse `#bestellen/lshop` (ausgeblendeter Vorgaenger des Warenkorbs, schreibt ueber
-  `/api/auftragsmonitor/lshop/*` in `LShop_Bestellungen`/`Produktions_Status`) leitet per `umleitung` in
-  BEREICHE hierher; Panel und Endpunkte stehen noch, Ausbau in eigenem Auftrag. Filter "Bestellt" und
+  Die alte Adresse `#bestellen/lshop` (frueherer Vorgaenger des Warenkorbs) leitet per `umleitung` in BEREICHE hierher. GT1 (Inhaber
+  22.11.): Panel, JS und die Endpunkte `/api/auftragsmonitor/lshop/*` sind entfernt; der Reiter `LShop_Bestellungen` bleibt als Archiv,
+  die Spalte `L-Shop_bestellt` in Produktions_Status nur noch als "von Hand markiert (alt)" gelesen. Filter "Bestellt" und
   Block "Unterwegs von L-Shop" aus BO4b-2 sind entfernt.)
 - Trikots (TR2: Unterpunkt `bestellen/trikots`, Unterreiter "Trikots (JFN)" hinter L-Shop-Bestellungen, `shop: false`;
   Block `Trikots: Anfang/Ende` (Test trikot-ansicht-frontend.test.js), `TR_HINWEISE` = Spiegel von `HINWEISE` in
