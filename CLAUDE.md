@@ -795,6 +795,14 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Antwortfelder `laufend`, `ausstehend`, `ausstehendAnzahl`, `abgerechnetBis` (groesstes Bis der freigegebenen/bezahlten); Anzeige "abgerechnet bis …"
   und "davon abgerechnet, Auszahlung ausstehend: … · noch nicht abgerechnet: …". Jede schreibende /abrechnung(en)-Anfrage leert die 10-min-Uebersicht
   (router.use in kalkulation.js und festpreis-portal.js). Test gs2-auszahlung.test.js.
+  GS2 Teil B "Fanshop-Konto" (nur FP-Partner mit `FP_Partner.Kunden_Nr`): `lib/fanshopKonto.js` (NUR LESEN, 10 min je Partner + Sicht), Logik
+  `utils/fanshop-konto.js`. Saldo = Offene Auszahlung − Fanshop offen; Fanshop offen = RE1-Rechnungen laut Lexware nicht bezahlt (Belegleser, Belegliste
+  invoice+creditnote des Kontakts; Entwurf: MC bei "Rechnungen", Portal bei "noch nicht abgerechnet") + Fanshop-Auftraege ohne Rechnungs-Kennzeichen; Lexware
+  nicht lesbar -> null ("Stand Lexware unbekannt"). Belege = Gutschriften (GS1) + Fanshop-Rechnungen; Portal ohne Entwuerfe und ohne Lexware-IDs. Offene
+  Bestellungen mit Betrag je Position, aus "für wen" NUR der Vorname (`vorname`). Routen `GET /api/festpreis-public/fanshop` (Token; lazy import) und
+  `GET /api/festpreis/fanshop/:partnerId` (MC, routes/fanshop-konto.js). Anzeige Block `Fanshop-Konto: Anfang/Ende` + CSS wortgleich in index.html
+  (Festpreis → Partner, Karte "Fanshop-Konto") und partner-festpreis.html (`#pv-fanshop` ueber der Uebersicht; dort entfaellt dann die Kachel
+  "Offene Auszahlung" der Uebersicht, `saldoKachel` false). Test fanshop-konto.test.js.
 - backend/utils/partner-uebersicht.js – Partner-Dashboard Stufe 1 (PD1, Inhaber 21.11.: NUR Stueck, keine neuen Betraege, keine Anzahl Bestellungen,
   keine "naechste Abrechnung"). `GET /api/partner/uebersicht` (routes/partnerPortal.js, `leseUebersicht`) und `GET /api/festpreis-public/uebersicht`
   (`leseFpUebersicht`): Auszahlung aus der BESTEHENDEN Rechnung (Lizenz `leseKacheln`/`saldoRechnung`, Festpreis `fpSaldo` - dieselbe Funktion wie

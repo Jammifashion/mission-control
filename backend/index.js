@@ -27,6 +27,7 @@ import anfragenChatRouter from './routes/anfragen-chat.js';
 import festpreisRouter from './routes/festpreis-portal.js';
 import festpreisPublicRouter from './routes/festpreis-public.js';
 import festpreisGutschriftRouter from './routes/festpreis-gutschrift.js';   // GS1
+import fanshopKontoRouter from './routes/fanshop-konto.js';   // GS2 Teil B
 import agentWissenRouter from './routes/agent-wissen.js';
 import trikotRouter from './routes/trikot.js';
 import seoMetaRouter from './routes/seo-meta.js';
@@ -94,6 +95,7 @@ app.use('/api/kalkulation', kalkulationRouter);
 app.use('/api/partner',     partnerArtikelRouter); // Admin-Endpunkte (hinter requireApiKey)
 app.use('/api/anfragen',    anfragenRouter);
 app.use('/api/festpreis/gutschrift', festpreisGutschriftRouter);   // GS1: vor dem allgemeinen FP-Router
+app.use('/api/festpreis/fanshop', fanshopKontoRouter);   // GS2 Teil B
 app.use('/api/festpreis',      festpreisRouter);
 app.use('/api/agent-wissen',  agentWissenRouter);
 app.use('/api/trikot',        trikotRouter);        // POST /sync – täglicher Trikot-Sync

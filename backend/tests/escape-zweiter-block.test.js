@@ -25,7 +25,7 @@ function zweiterBlock() {
 }
 
 // Funktionen, deren Ergebnis HTML-sicher ist (Escape oder fertige Bausteine bzw. reine Zahlen/Formate)
-const ESCAPE = new Set(['_escHtml', 'pkEsc', 'fpEsc']);
+const ESCAPE = new Set(['_escHtml', 'pkEsc', 'fpEsc', 'fkEsc']);   // fkEsc: Fanshop-Konto (GS2)
 const SICHER_AUFRUF = new Set([
   'encodeURIComponent', 'Number', 'parseInt', 'parseFloat', 'Math.round', 'Math.abs', 'Math.max', 'Math.min', 'String(Number',
   'pkEuro', '_eur', 'eur', 'fmtEur', '_fmtEur', 'fmt', 'pct',

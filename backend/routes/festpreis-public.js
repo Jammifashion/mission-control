@@ -251,7 +251,8 @@ export async function leseFpUebersicht({ partnerId, sheets: roh, sheetId, heute 
     return uebersichtAntwort({
       detail,
       auszahlung: {
-        saldo: s.saldoBrutto, seit: fpSeit(partnerId, abr, fpp), saldoKachel: true,
+        // GS2 Teil B: mit Fanshop-Konto (Kunden_Nr) steht "Offene Auszahlung" dort neben Saldo und Fanshop offen - hier nicht doppelt
+        saldo: s.saldoBrutto, seit: fpSeit(partnerId, abr, fpp), saldoKachel: !String(zeile?.[fpp.header.indexOf('Kunden_Nr')] ?? '').trim(),
         laufend: round2(s.laufendBrutto + s.entwurfBrutto), ausstehend: s.ausstehendBrutto, ausstehendAnzahl: s.ausstehendAnzahl, abgerechnetBis: s.abgerechnetBis,
         intern: s._intern.length, internOhneBetrag: s._intern.filter(x => x.ohneSumme).length,
         inPruefung: s.verpackung?.status === 'in_pruefung' || s.porto?.inPruefung === true,
@@ -273,6 +274,19 @@ function fpSeit(partnerId, abr, fpp) {
 }
 const deDatum = s => { const m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(String(s ?? '').trim()); return m ? new Date(+m[3], +m[2] - 1, +m[1]) : null; };
 const deText = d => `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+
+// ── GS2 Teil B: GET /api/festpreis-public/fanshop ─────────────────────────────
+// Fanshop-Konto (Saldo, Fanshop offen, Belege ohne Entwuerfe, offene Fanshop-Bestellungen mit Vorname). Ohne Kunden_Nr: { aktiv: false }.
+router.get('/fanshop', async (req, res, next) => {
+  try {
+    const token = extractToken(req);
+    if (!token) return res.status(401).json({ error: 'token fehlt.' });
+    const { partner } = await resolvePartner(token);
+    res.set('Cache-Control', 'no-store');
+    const { leseFanshopKonto } = await import('../lib/fanshopKonto.js');   // erst bei Bedarf (Auftraege/Lexware-Module)
+    res.json(await leseFanshopKonto({ partnerId: partner['Partner-ID'], mitEntwuerfen: false }));
+  } catch (err) { next(err); }
+});
 
 // ── GET /api/festpreis-public/abrechnungen ────────────────────────────────────
 router.get('/abrechnungen', async (req, res, next) => {

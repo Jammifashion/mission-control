@@ -40,7 +40,10 @@ import { _fpUebersichtSpeicherLeeren } from './festpreis-public.js';   // GS2: Z
 const router = Router();
 // GS2: jede schreibende Abrechnungs-Anfrage (erstellen, Status, loeschen) leert die 10-min-Uebersicht des Portals.
 router.use((req, res, next) => {
-  if (req.method !== 'GET' && req.path.startsWith('/abrechnungen')) res.on('finish', () => _fpUebersichtSpeicherLeeren());
+  if (req.method !== 'GET' && req.path.startsWith('/abrechnungen')) res.on('finish', () => {
+    _fpUebersichtSpeicherLeeren();
+    import('../lib/fanshopKonto.js').then(m => m._fanshopKontoLeeren()).catch(() => {});   // GS2 Teil B: erst bei Bedarf geladen
+  });
   next();
 });
 

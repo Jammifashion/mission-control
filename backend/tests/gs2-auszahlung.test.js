@@ -142,7 +142,7 @@ describe('Quelltext', () => {
     const kalk = readFileSync(resolve(hier, '../routes/kalkulation.js'), 'utf8');
     const fp = readFileSync(resolve(hier, '../routes/festpreis-portal.js'), 'utf8');
     expect(kalk).toMatch(/req\.path\.startsWith\('\/abrechnung'\)\) res\.on\('finish', \(\) => _uebersichtSpeicherLeeren\(\)\)/);
-    expect(fp).toMatch(/req\.path\.startsWith\('\/abrechnungen'\)\) res\.on\('finish', \(\) => _fpUebersichtSpeicherLeeren\(\)\)/);
+    expect(fp).toMatch(/req\.path\.startsWith\('\/abrechnungen'\)\) res\.on\('finish', \(\) => \{\s*_fpUebersichtSpeicherLeeren\(\);[^}]*_fanshopKontoLeeren\(\)/);
   });
   test('eine Formel: offeneAuszahlung nur in partner-saldo.js definiert, Festpreis und Lizenz rufen sie', () => {
     const fp = readFileSync(resolve(hier, '../routes/festpreis-public.js'), 'utf8');

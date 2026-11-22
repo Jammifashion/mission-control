@@ -1,9 +1,12 @@
 // GS1: Gutschrift an Festpreis-Partner aus der Abrechnung (Lexware-Entwurf). Hinter requireApiKey, eingehaengt unter
 // /api/festpreis/gutschrift (eigener Router, damit routes/festpreis-portal.js unberuehrt bleibt). Logik lib/gutschrift.js.
 import { Router } from 'express';
+import { _fanshopKontoLeeren } from '../lib/fanshopKonto.js';
 import { gutschriftListe, gutschriftVorschau, gutschriftAnlegen, gutschriftKennzeichen, gutschriftNachsehen } from '../lib/gutschrift.js';
 
 const router = Router();
+// GS2 Teil B: angelegte/geaenderte Gutschrift sofort im Fanshop-Konto (Belege) sichtbar
+router.use((req, res, next) => { if (req.method === 'POST') res.on('finish', () => _fanshopKontoLeeren()); next(); });
 
 const mitMeldung = fn => async (req, res, next) => {
   try { res.json(await fn(req)); } catch (err) {

@@ -301,6 +301,32 @@
     .pu-details-inhalt { display: flex; flex-direction: column; gap: 1.5rem; }
     @media (max-width: 480px) { .pu-zahl { font-size: 1.35rem; } .pu-kachel { padding: 0.75rem 0.8rem; } .pu-details-inhalt { gap: 1rem; } }
     /* ── Partner-Übersicht CSS: Ende ── */
+    /* ── Fanshop-Konto CSS (GS2 Teil B, wortgleich in index.html und partner-festpreis.html) ── */
+    .fk-konto { display: grid; gap: 0.75rem; margin-bottom: 1rem; }
+    .fk-raster { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.6rem; }
+    .fk-kachel { position: relative; display: flex; flex-direction: column; gap: 0.15rem; padding: 0.75rem 3rem 0.75rem 0.9rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); min-width: 0; }
+    .fk-label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .fk-zahl { font-size: 1.25rem; font-weight: 700; color: var(--text); }
+    .fk-saldo .fk-zahl { font-size: 1.6rem; }
+    .fk-plus .fk-zahl { color: var(--success); }
+    .fk-minus .fk-zahl { color: var(--warning); }
+    .fk-klein, .fk-leise { font-size: 0.8rem; color: var(--muted); }
+    .fk-i { position: absolute; top: 0.2rem; right: 0.2rem; min-width: 44px; min-height: 44px; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 1rem; }
+    .fk-info { font-size: 0.8rem; margin: 0.3rem 0 0; color: var(--text); }
+    .fk-karte { border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem 0.9rem; background: var(--surface); }
+    .fk-karte h3 { margin: 0 0 0.5rem; font-size: 0.95rem; color: var(--text); }
+    .fk-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+    .fk-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.7rem; padding: 0.35rem 0.5rem; border-radius: 7px; background: color-mix(in srgb, var(--text) 4%, var(--surface)); font-size: 0.86rem; }
+    .fk-titel { flex: 1 1 10rem; min-width: 0; overflow-wrap: anywhere; }
+    .fk-betrag { margin-left: auto; white-space: nowrap; font-weight: 600; }
+    .fk-chip { font-size: 0.75rem; padding: 0.1rem 0.45rem; border-radius: 999px; border: 1px solid var(--border); color: var(--text); }
+    .fk-st-bezahlt { color: var(--success); border-color: var(--success); }
+    .fk-st-offen, .fk-st-entwurf, .fk-st-unbekannt { color: var(--warning); border-color: var(--warning); }
+    .fk-link { color: var(--info); min-height: 44px; display: inline-flex; align-items: center; }
+    .fk-auftrag summary { display: flex; flex-wrap: wrap; gap: 0.3rem 0.7rem; align-items: center; cursor: pointer; min-height: 44px; font-size: 0.88rem; }
+    .fk-auftrag .fk-liste { margin: 0.3rem 0 0.6rem; }
+    @media (max-width: 600px) { .fk-raster { grid-template-columns: 1fr; } .fk-saldo .fk-zahl { font-size: 1.4rem; } }
+    /* ── Fanshop-Konto CSS: Ende ── */
   </style>
 </head>
 <body>
@@ -545,6 +571,59 @@
         + `<div class="dg-stapel-legende">${liste.map(eintrag).join('')}</div>`;
     }
     // ── Diagramme: Ende ──
+
+    // ── Fanshop-Konto: Anfang (GS2 Teil B, wortgleich in index.html und partner-festpreis.html, Test fanshop-konto.test.js) ──
+    // Saldo = Offene Auszahlung − Fanshop offen. Positiv gruen "bekommst du noch", negativ orange "zahlst du noch" (nie Rot).
+    // Lexware nicht lesbar -> "Stand Lexware unbekannt" statt einer Zahl. Belege-Links nur, wenn linkBasis mitkommt (MC).
+    const fkEsc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+    const fkEuro = n => Number(n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+    const fkEuroZ = n => (n < 0 ? `−${fkEuro(Math.abs(n))}` : fkEuro(n));
+    const fkDatumHtml = s => (/^\d{4}-\d{2}-\d{2}/.test(String(s ?? '')) ? `${String(s).slice(8, 10)}.${String(s).slice(5, 7)}.${String(s).slice(0, 4)}` : fkEsc(s));
+    const FK_STATUS = { entwurf: 'Entwurf', offen: 'offen', bezahlt: 'bezahlt', storniert: 'storniert', unbekannt: 'Stand unbekannt' };
+    const FK_SALDO_INFO = 'Saldo = Offene Auszahlung minus Fanshop offen. Fanshop offen = Fanshop-Rechnungen, die noch nicht bezahlt sind, plus Fanshop-Bestellungen, die noch nicht abgerechnet sind.';
+    function fkKachelnHtml(d) {
+      const a = d.auszahlung ?? {}, f = d.fanshopOffen ?? {};
+      const unbekannt = '<span class="fk-zahl fk-leise">–</span><span class="fk-klein">Stand Lexware unbekannt</span>';
+      const saldo = d.saldo === null || d.saldo === undefined ? unbekannt
+        : `<span class="fk-zahl">${fkEuroZ(d.saldo)}</span><span class="fk-klein">${d.saldo > 0 ? 'bekommst du noch' : d.saldo < 0 ? 'zahlst du noch' : 'ausgeglichen'}</span>`;
+      const klasse = d.saldo > 0 ? ' fk-plus' : d.saldo < 0 ? ' fk-minus' : '';
+      const offen = f.gesamt === null || f.gesamt === undefined ? unbekannt
+        : `<span class="fk-zahl">${fkEuro(f.gesamt)}</span><span class="fk-klein">Rechnungen offen: ${fkEuro(f.rechnungen)} · noch nicht abgerechnet: ${fkEuro(f.auftraege)}</span>`
+          + (f.ohnePreis ? `<span class="fk-klein">${Number(f.ohnePreis)} Position${f.ohnePreis === 1 ? '' : 'en'} noch ohne Preis</span>` : '');
+      return '<div class="fk-raster">'
+        + `<div class="fk-kachel fk-saldo${klasse}"><span class="fk-label">Saldo</span>${saldo}`
+        + `<button type="button" class="fk-i" data-fk-info aria-expanded="false" aria-label="Wie wird der Saldo gerechnet?" data-hilfe="fk-info" data-tipp="${fkEsc(FK_SALDO_INFO)}">ⓘ</button>`
+        + `<p class="fk-info" hidden>${fkEsc(FK_SALDO_INFO)}</p></div>`
+        + `<div class="fk-kachel"><span class="fk-label">Offene Auszahlung</span><span class="fk-zahl">${fkEuroZ(a.saldo)}</span>`
+        + `<span class="fk-klein">${a.abgerechnetBis ? `abgerechnet bis ${fkEsc(a.abgerechnetBis)}` : 'noch nichts abgerechnet'}</span></div>`
+        + `<div class="fk-kachel"><span class="fk-label">Fanshop offen</span>${offen}</div>`
+        + '</div>';
+    }
+    function fkBelegeHtml(belege, linkBasis) {
+      if (!belege?.length) return '<section class="fk-karte"><h3>Belege</h3><p class="fk-leise">Noch keine Gutschriften oder Fanshop-Rechnungen.</p></section>';
+      return '<section class="fk-karte"><h3>Belege</h3><ul class="fk-liste">' + belege.map(b => {
+        const link = linkBasis && b.id ? ` <a class="fk-link" href="${fkEsc((b.art === 'gutschrift' ? linkBasis.gutschrift : linkBasis.rechnung) + b.id)}" target="_blank" rel="noopener noreferrer">In Lexware öffnen ↗</a>` : '';
+        return `<li class="fk-zeile"><span class="fk-art">${b.art === 'gutschrift' ? 'Gutschrift' : 'Fanshop-Rechnung'}</span>`
+          + `<span class="fk-nr">${b.nummer ? fkEsc(b.nummer) : b.status === 'entwurf' ? 'Entwurf' : '–'}</span><span class="fk-leise">${b.datum ? fkDatumHtml(b.datum) : ''}</span>`
+          + `<span class="fk-betrag">${b.betrag === null || b.betrag === undefined ? '–' : fkEuro(b.betrag)}</span>`
+          + `<span class="fk-chip fk-st-${fkEsc(b.status)}">${fkEsc(FK_STATUS[b.status] ?? b.status)}</span>${link}</li>`;
+      }).join('') + '</ul></section>';
+    }
+    function fkAuftraegeHtml(liste) {
+      if (!liste?.length) return '<section class="fk-karte"><h3>Fanshop-Bestellungen, noch nicht abgerechnet</h3><p class="fk-leise">Alles abgerechnet.</p></section>';
+      return '<section class="fk-karte"><h3>Fanshop-Bestellungen, noch nicht abgerechnet</h3>' + liste.map(x => '<details class="fk-auftrag"><summary>'
+        + `<span>${fkDatumHtml(x.datum)}</span><span class="fk-titel">${fkEsc(x.titel)}</span><span>${Number(x.stueck) || 0} Stück</span>`
+        + `<span class="fk-betrag">${fkEuro(x.summe)}${x.ohnePreis ? ' *' : ''}</span><span class="fk-chip">${fkEsc(x.status)}</span></summary><ul class="fk-liste">`
+        + (x.positionen ?? []).map(p => `<li class="fk-zeile"><span>${Number(p.menge) || 0} ×</span><span class="fk-titel">${fkEsc(p.name)}${p.fuer?.length ? ` <span class="fk-leise">für ${p.fuer.map(fkEsc).join(', ')}</span>` : ''}</span>`
+          + `<span class="fk-betrag">${p.summe === null || p.summe === undefined ? 'Preis folgt' : fkEuro(p.summe)}</span></li>`).join('')
+        + '</ul></details>').join('') + (liste.some(x => x.ohnePreis) ? '<p class="fk-leise">* Summe ohne die Positionen, deren Preis noch fehlt.</p>' : '') + '</section>';
+    }
+    /** Ganzes Fanshop-Konto; leer, wenn der Partner nicht verknuepft ist. linkBasis nur in MC. */
+    function fkHtml(d, linkBasis = null) {
+      if (!d?.aktiv) return '';
+      return `<div class="fk-konto">${fkKachelnHtml(d)}${fkBelegeHtml(d.belege, linkBasis)}${fkAuftraegeHtml(d.offeneAuftraege)}</div>`;
+    }
+    // ── Fanshop-Konto: Ende ──
 
     // ── Partner-Übersicht: Anfang (PD1, wortgleich in partner.html und partner-festpreis.html, Test pd1-frontend.test.js) ──
     // Startseite aus GET …/uebersicht (nur fertige Zahlen, nur Stueck - keine Betraege je Monat): Kacheln Auszahlung · Stueck offen ·
@@ -957,6 +1036,7 @@
       // PD1: zuerst die Uebersicht (Kacheln, Kurve, Top 5); die bisherigen Karten stehen unveraendert unter "Details" (eingeklappt,
       // geladen erst beim Aufklappen).
       main.innerHTML = `
+        <div id="pv-fanshop"></div>
         <div id="pv-uebersicht">${puLadeHtml()}</div>
         <details class="pu-details" id="pv-details-box">
           <summary>Details: Verkäufe, direkte Bestellungen, Abrechnungen</summary>
@@ -1022,6 +1102,7 @@
         </details>`;
       plAbschnittOeffnen();   // PP3
       ladeUebersicht();
+      ladeFanshop();   // GS2 Teil B
       document.getElementById('pv-details-box').addEventListener('toggle', ev => { if (ev.target.open) detailsLaden(); });
 
       document.getElementById('btn-refresh').addEventListener('click', () => {
@@ -1033,6 +1114,22 @@
 
       initEigenauftrag();
     }
+
+    // GS2 Teil B: Fanshop-Konto (nur bei verknuepftem Kunden; sonst bleibt der Bereich leer)
+    async function ladeFanshop() {
+      const wrap = document.getElementById('pv-fanshop');
+      if (!wrap) return;
+      try { wrap.innerHTML = fkHtml(await apiFetch('/api/festpreis-public/fanshop')); }
+      catch { wrap.innerHTML = '<p class="fk-leise">Fanshop-Konto gerade nicht verfügbar.</p>'; }
+    }
+    document.addEventListener('click', ev => {
+      const b = ev.target.closest ? ev.target.closest('[data-fk-info]') : null;
+      if (!b) return;
+      const info = b.parentElement.querySelector('.fk-info');
+      if (!info) return;
+      info.hidden = !info.hidden;
+      b.setAttribute('aria-expanded', String(!info.hidden));
+    });
 
     // PD1: Uebersicht laden (eine Anfrage); faellt sie aus, gehen die Details auf.
     async function ladeUebersicht() {
