@@ -50,7 +50,7 @@ const ANSICHTEN = [...ansichtenAusBereiche(), ...ANSICHTEN_ZUSATZ]
 // ── Attrappen ──
 const attrappen = [];
 let setzeArt = () => {};
-for (const f of ['auftraege.mjs', 'bestellen.mjs', 'rest.mjs']) {
+for (const f of ['auftraege.mjs', 'bestellen.mjs', 'rest.mjs', 'mika.mjs']) {   // MI1: mika.mjs (POST /api/mika/*)
   const m = await import(new URL(`./attrappen/${f}`, import.meta.url));
   attrappen.push(m.antwort);
   if (m.setzeBestellseiteArt) setzeArt = m.setzeBestellseiteArt;
@@ -73,7 +73,7 @@ function routeFuer(ref) {
     let body = null; try { body = req.postDataJSON(); } catch { /* kein JSON */ }
     let a;
     for (const f of attrappen) {
-      try { a = f(req.method(), u.pathname, u.searchParams, body, ref.seite); } catch (e) { merke(jsFehler, 'attrappe', `${u.pathname}: ${e.message}`); }
+      try { a = f(req.method(), u.pathname, u.searchParams, body, ref.seite, ref.zustand); } catch (e) { merke(jsFehler, 'attrappe', `${u.pathname}: ${e.message}`); }
       if (a !== undefined) break;
     }
     if (a === undefined) { merke(ohneAttrappe, ref.id, `${req.method()} ${u.pathname}`); a = req.method() === 'GET' ? {} : { ok: true }; }

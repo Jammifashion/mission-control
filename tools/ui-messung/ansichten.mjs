@@ -2,6 +2,7 @@
 // id = Ansicht + "+" + Zusatz; hash = welche Ansicht zuerst geoeffnet wird; wurzel = was gemessen wird.
 const PANEL = 'main > .panel.active';
 export const DLG = '.edi-dialog:not([hidden]), .modal-backdrop';
+const toastsWeg = p => p.evaluate(() => document.querySelectorAll('.toast-bleibt').forEach(t => t.click()));   // MI1
 const klick = s => async p => { await p.locator(s).first().click({ timeout: 3000 }); await p.waitForTimeout(900); };
 
 // Neuer Auftrag mit Kunde und mehreren Gruppen (Modell + Farbe + Mengen), ueber die normale Oberflaeche
@@ -35,6 +36,14 @@ async function auftragMitGruppen(p, gruppen) {
 }
 
 export const ANSICHTEN_ZUSATZ = [
+  // MI1: Mika - Blatt offen (ohne Antwort), mit den drei Antworten; gemessen wird nur das Mika-Fenster
+  // (stehende Fehlermeldungen des Zustands "leer" liegen - wie ueber jedem Fenster - oben; vorher wegtippen, wie ein Mensch)
+  { id: 'dashboard/start+mika', hash: 'dashboard/start', aktion: async p => { await toastsWeg(p); await klick('#mika-knopf')(p); }, wurzel: '#mika-fenster' },
+  { id: 'dashboard/start+mika-heute', hash: 'dashboard/start', aktion: async p => { await toastsWeg(p); await klick('#mika-knopf')(p); await klick('[data-mika-frage="heute"]')(p); }, wurzel: '#mika-fenster' },
+  { id: 'dashboard/start+mika-dringend', hash: 'dashboard/start', aktion: async p => { await toastsWeg(p); await klick('#mika-knopf')(p); await klick('[data-mika-frage="dringend"]')(p); }, wurzel: '#mika-fenster' },
+  { id: 'auftraege/liste+mika-suche', hash: 'auftraege/liste', aktion: async p => {
+      await toastsWeg(p); await klick('#mika-knopf')(p); await klick('[data-mika-frage="suche"]')(p);
+      await p.fill('#mika-nummer', '48190'); await klick('#mika-suchen')(p); }, wurzel: '#mika-fenster' },
   // UB1: Ueberblick im Dashboard aufgeklappt (am Handy standardmaessig zu)
   { id: 'dashboard/start+ueberblick', hash: 'dashboard/start', aktion: async p => { await p.evaluate(() => { document.getElementById('dash-ueberblick').open = true; }); await p.waitForTimeout(300); }, wurzel: '#dash-ueberblick' },
   { id: 'auftraege/liste+ansicht', hash: 'auftraege/liste', aktion: klick('#au-ansicht [data-au-oeffnen]'), wurzel: DLG, nurVoll: true },

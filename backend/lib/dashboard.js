@@ -22,7 +22,14 @@ export const CACHE_MS = 60 * 1000;
 const FELDER = 'id,number,status,date_created,total,currency,billing,customer_note,shipping_lines,line_items';
 const MAX_SEITEN_DASH = 5;   // je Abfrage hoechstens 500 Bestellungen (wie die Bestellansicht)
 let shopCache = new Map();   // shop -> { bis, roh }
-export const _dashboardCacheLeeren = () => { shopCache = new Map(); };
+export const _dashboardCacheLeeren = () => { shopCache = new Map(); zuletzt = new Map(); };
+// MI1: letzte echte Dashboard-Antwort je Ansicht (wer|shop) samt Auftragsdaten - nur fuer Mika ("heute"/"dringend"), damit eine
+// Frage kurz nach dem Dashboard keine zweite Lesung braucht. Das Dashboard selbst liest weiter jedes Mal frisch.
+let zuletzt = new Map();   // `${wer}|${shop}` -> { zeit, d, au }
+export function zuletztDashboard({ wer = '', shop = '', maxMs = CACHE_MS } = {}) {
+  const z = zuletzt.get(`${wer}|${shop}`);
+  return z && Date.now() - z.zeit <= maxMs ? z : null;
+}
 
 const fehler = (text, status, code) => Object.assign(new Error(text), { status, ...(code ? { code } : {}) });
 async function sheetsClient() { return google.sheets({ version: 'v4', auth: await getGoogleAuth() }); }
@@ -116,7 +123,9 @@ export async function leseDashboard({ wer = '', shop = '', jetzt = new Date(), s
   // "kunden" fehlt -> nur die Kunden-Nr. statt Name, keine Kachel faellt aus; "gelesen" fehlt -> alles gilt als ungelesen
   const quellFehler = Object.fromEntries(Object.keys(fehlerText).filter(k => !['kunden', 'gelesen'].includes(k)).map(k => [k, true]));
   const d = baueDashboard({ shops, shop: aktiv.length === 1 ? aktiv[0] : '', au, kunden: kundenMap, rueckstand, trikots, gelesen, wer, jetzt, fehler: quellFehler, bestellseiten });
-  return { ...d, fehlerText, einrichtung: { gelesen: gelesenWerte !== null || !!fehlerText.gelesen } };
+  const antwort = { ...d, fehlerText, einrichtung: { gelesen: gelesenWerte !== null || !!fehlerText.gelesen } };
+  if (!s) zuletzt.set(`${WER.includes(wer) ? wer : ''}|${aktiv.length === 1 ? aktiv[0] : ''}`, { zeit: Date.now(), d: antwort, au });   // MI1
+  return antwort;
 }
 
 // ── Kundenhinweis gelesen (fuer alle) ────────────────────────────────────────

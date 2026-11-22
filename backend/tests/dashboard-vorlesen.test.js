@@ -140,7 +140,8 @@ describe('Textbau', () => {
 });
 
 // ── Knopf ──
-const steuer = html.slice(html.indexOf('      const dbv = { lauf: 0'), html.indexOf("      dbEl('panel-dashboard').addEventListener('click'"));
+// MI1: Steuerung = Vorlesen-Baustein (gemeinsam mit Mika) + Vorleser des Dashboards
+const steuer = html.slice(html.indexOf('      // ── Vorlesen-Baustein: Anfang'), html.indexOf("      dbEl('panel-dashboard').addEventListener('click'"));
 function aufbau({ mitSprache = true, daten = voll() } = {}) {
   const el = { 'dash-vorlesen': { hidden: false, textContent: '', attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } }, 'dash-vorlese-text': { hidden: true, textContent: '' } };
   const gesprochen = [];

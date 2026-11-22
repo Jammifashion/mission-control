@@ -287,6 +287,11 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   `lsm-erst-pruefen`, `lsm-erst-waehlen`, `lsm-nichts-da`, `lsm-nichts-neu`, `lsm-erst-update`) fuer Tooltip und Meldung beim Klick)
 - SEO-Daten aendern (Befehl SE1: Yoast-Felder jedes veroeffentlichten Artikels; nutzt seoMetaBau und yoastSchreiben des SEO-Flows, schreibt nichts ins Sheet)
 - SEO-Flow
+- Mika (MI1, direkt vor Feedback): Knopf `#mika-knopf` unten rechts auf jeder Ansicht, Fenster `#mika-fenster` (am Handy Blatt von unten),
+  Block `Mika: Anfang/Ende` (`mikaAntwortHtml`, `MIKA_LISTEN` = Spiegel von `LISTEN` in utils/mika.js), CSS `Mika: CSS` vor `UI3 Handy`.
+  Der Knopf ist per `body:has(...)` aus, solange ein Fenster offen ist (jede Form aus `NV_DIALOG`); `.korb-leiste` haelt rechts Platz frei,
+  Toasts stehen ueber dem Knopf. Vorlesen ueber den `Vorlesen-Baustein` (`vorleser({ knopf, text, saetze })`, aus DB2 geloest; Dashboard
+  und Mika teilen ihn). Test mika-frontend.test.js.
 - Kundenanfragen Extern
 - Settings
 - L-Shop-Stammdaten (im Settings-Block, Befehl LS1: Knoepfe Pruefen/Uebernehmen)
@@ -1418,6 +1423,16 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   kein append, zurueckgelesen). KI faellt aus = Rohtext trotzdem gespeichert, KI-Spalten leer. Text nie ins Log/in Fehlertexte (Route beantwortet Fehler
   selbst, loggt nur Nummer, Status, Code, Token-Zahlen). Setup `scripts/setup-feedback-sheet.js` (Trockenlauf, `--write`; die leere Datei legt
   `richteFeedbackSheetEin` in belegArchiv.js an, Sheet-ID nur im Terminal). Tests feedback.test.js, feedback-frontend.test.js.
+- backend/lib/mika.js – Assistent "Mika" Stufe 0 (MI1): drei feste Fragen OHNE KI, nur lesen. Regeln `utils/mika.js`, Route `routes/mika.js`
+  (`POST /api/mika/frage { frage: heute|dringend, fuer }`, `POST /api/mika/suche { nummer, shop }`, hinter requireApiKey, nur Schluessel inhaber/
+  nicole, sonst 403). "heute"/"dringend" nur aus Daten, die MC schon laedt: letzte Dashboard-Antwort samt Auftragsdaten (`zuletztDashboard`,
+  60 s), sonst einmal `leseDashboard` mit `leseAuftraege({ autoBestellen: false })` (Mika schreibt nie); "wahrscheinlich da" aus der letzten
+  Antwort der L-Shop-Bestellungen (`zuletztLShopBestellungen`, 10 min); fertige Antwort 60 s je Frage + Ansicht + Shop. Suche: GENAU ein
+  Shop-Abruf `orders/<nr>` (404 = nicht gefunden), Stand ueber `leseProduktionStand({ einstufen: false })`, Positionsname = `parent_name`
+  (der Variantenname traegt bei Trikots den Rueckennamen); AU-Nummer aus den Auftraegen. Antworten: Nummer + Kurztitel, nie Kundennamen,
+  Sprungziele nur `ZIEL_ARTEN`. Nutzung: je Antwort EINE Logzeile `{"event":"mika_frage","frage","wer","treffer"}` (`mikaLogZeile`) - nie
+  Nummer/Suchtext; Fehler beantwortet die Route mit festem Text, Laufstopps gehen ohne Nummer an den Laufstopp-Handler. Test mika.test.js
+  (inkl. Lesungen vorher/nachher).
 - backend/lib/lexware.js – Lexware Office Public API (`https://api.lexware.io`), **lesen + EIN Anlegen (AM-9)**, einzige Stelle mit Zugriff
   (Test kunden.test.js: nur `method: 'GET'`, kein anderer Ort nennt die URL). Heute nur `GET /v1/contacts?customer=true` (alle Seiten; AM-1-1 auch Suche `name`/`email`/`number`, eine Seite)
   und `GET /v1/contacts/{id}`,

@@ -63,6 +63,11 @@ function mitAbFeldern(korbWerte, zeilen) {
  * @param {boolean} [o.mitHinweisen]  WE2: Paket-Zaehler + "wahrscheinlich da" (nur die Ansicht; produktionStand liest ohne)
  * @param {Function} [o.listenLesen]  WE2: Rueckstandslisten nach Stichtag (Standard leseRueckstandListen, Drive) - Test setzbar
  */
+// MI1: letzte Antwort MIT Hinweisen ("wahrscheinlich da") - nur fuer Mika ("dringend"); die Ansicht liest weiter jedes Mal frisch.
+let zuletzt = null;   // { zeit, antwort }
+export function zuletztLShopBestellungen({ maxMs } = {}) { return zuletzt && Date.now() - zuletzt.zeit <= maxMs ? zuletzt.antwort : null; }
+export const _lshopBestellungenZuletztLeeren = () => { zuletzt = null; };
+
 export async function leseLShopBestellungen({ shop, sheets: s, jetzt = () => new Date(), mitHinweisen = false, listenLesen = leseRueckstandListen } = {}) {
   // EDI-Bestellungen gibt es nur fuer JFN (wie Warenkorb und EDI-Datei).
   if (normalizeShop(shop) !== 'jfn') return { nurJfn: true, bestellungen: [], portal: [], entwuerfe: [] };
@@ -96,5 +101,7 @@ export async function leseLShopBestellungen({ shop, sheets: s, jetzt = () => new
     }
   }
   const kartons = kartonsJeBestellung(w[KARTONS_TAB]);
-  return { nurJfn: false, ...baueBestellungen({ edi, korb, modelle, sendungen, jetzt: jetzt(), kartons, listen }), entwuerfe, rueckstandHinweis };
+  const antwort = { nurJfn: false, ...baueBestellungen({ edi, korb, modelle, sendungen, jetzt: jetzt(), kartons, listen }), entwuerfe, rueckstandHinweis };
+  if (!s) zuletzt = { zeit: Date.now(), antwort };   // MI1
+  return antwort;
 }

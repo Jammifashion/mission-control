@@ -1975,6 +1975,64 @@
       .dash-ub-termin { margin-top: 0.4rem; }
       @media (max-width: 600px) { .dg-stapel-knopf, .dg-stapel-eintrag, .dash-ub-termin { min-height: 44px; } }
 
+      /* ── Mika: CSS (MI1) - runder Knopf unten rechts, am Rechner kleines Fenster, am Handy Blatt von unten ──
+         Der Knopf liegt unter jedem Fenster (z-index 40 < .edi-dialog 50) und ist ausgeblendet, solange eins offen ist (:has, Liste
+         = NV_DIALOG + Bild gross + Mika selbst; die Anmeldung ist ein .edi-dialog; Test mika-frontend.test.js). Leisten halten rechts Platz frei. */
+      .mika-knopf { position: fixed; right: 1rem; bottom: 1rem; z-index: 40; width: 3.25rem; height: 3.25rem; border-radius: 50%; padding: 0;
+        border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 0.85rem; font-weight: 700; letter-spacing: 0.01em;
+        box-shadow: 0 4px 14px var(--shadow); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+      .mika-knopf:hover, .mika-knopf:focus-visible { border-color: var(--focus); outline: none; }
+      .mika-knopf:focus-visible { box-shadow: 0 0 0 2px var(--focus); }
+      body:has(.edi-dialog:not([hidden]), .modal-backdrop, .anf-side-panel.is-open, .anf-modal-backdrop.is-open, #shop-modal-overlay.active, #ps-bild-gross:not([hidden]), #mika-fenster:not([hidden])) .mika-knopf { display: none; }
+      body:has(#neue-version:not([hidden])) .mika-knopf { bottom: 5rem; }
+      .panel { padding-bottom: 5rem; }                 /* das Ende jeder Ansicht rollt ueber den Knopf hinaus */
+      .korb-leiste { padding-right: 4.5rem; }          /* Aktionsleiste unten: nichts liegt unter dem Knopf */
+      .toast { bottom: 5rem; }                         /* Meldungen stehen ueber dem Knopf (eine stehende Fehlermeldung verdeckte ihn) */
+      .mika-fenster { position: fixed; right: 1rem; bottom: 1rem; z-index: 45; width: min(25rem, calc(100vw - 2rem)); max-height: min(38rem, calc(100vh - 2rem));
+        overflow-y: auto; overscroll-behavior: contain; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 12px;
+        box-shadow: 0 8px 28px var(--shadow); padding: 0.75rem 0.9rem 0.9rem; display: flex; flex-direction: column; gap: 0.6rem; box-sizing: border-box; }
+      .mika-fenster[hidden] { display: none; }
+      .mika-kopf { display: flex; align-items: center; gap: 0.5rem; }
+      .mika-kopf strong { flex: 1 1 auto; min-width: 0; font-size: 0.95rem; }
+      .mika-kopf .hilfe-i, .mika-kopf .korb-link { flex: none; min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; justify-content: center; }
+      .mika-fragen { display: flex; flex-direction: column; gap: 0.4rem; }
+      .mika-fragen .korb-aktion { justify-content: flex-start; text-align: left; min-height: 44px; width: 100%; }
+      .mika-fragen .korb-aktion[aria-pressed="true"] { border-color: var(--focus); }
+      .mika-suche[hidden] { display: none; }
+      .mika-suche { display: flex; flex-direction: column; gap: 0.3rem; }
+      .mika-suche label { font-size: 0.8rem; color: var(--muted); }
+      .mika-suche-reihe { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+      .mika-suche-reihe .form-input { flex: 1 1 9rem; min-width: 0; min-height: 44px; font-size: 16px; }
+      .mika-suche-reihe .form-select { flex: 0 0 auto; width: auto; min-height: 44px; font-size: 16px; }
+      .mika-suche-reihe .korb-aktion { min-height: 44px; }
+      .mika-antwort:empty { display: none; }
+      .mika-antwort { display: flex; flex-direction: column; gap: 0.55rem; }
+      .mika-a-titel { margin: 0; font-weight: 700; }
+      .mika-gruppe h3 { margin: 0 0 0.25rem; font-size: 0.8rem; font-weight: 600; color: var(--muted); }
+      .mika-zahl { font-weight: 400; }
+      .mika-gruppe ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+      .mika-eintrag { display: flex; align-items: center; gap: 0.5rem; width: 100%; min-height: 44px; padding: 0.35rem 0.55rem; text-align: left; box-sizing: border-box;
+        background: color-mix(in srgb, var(--text) 4%, var(--surface)); color: var(--text); border: 1px solid var(--border); border-radius: 8px; font-size: 0.85rem; }
+      button.mika-eintrag { cursor: pointer; font-family: inherit; }
+      button.mika-eintrag:hover, button.mika-eintrag:focus-visible { border-color: var(--focus); outline: none; }
+      .mika-eintrag-still { cursor: default; }
+      .mika-e-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+      .mika-e-zusatz { flex: 0 1 auto; color: var(--muted); font-size: 0.78rem; text-align: right; overflow-wrap: anywhere; }
+      .mika-pfeil { color: var(--info); font-size: 1.1rem; }
+      .mika-mehr { min-height: 44px; color: var(--info); }
+      .mika-leer, .mika-laedt { margin: 0; color: var(--muted); }
+      .mika-hinweis { margin: 0; color: var(--warning); font-size: 0.8rem; }
+      .mika-fehler { margin: 0; color: var(--danger); }
+      .mika-fuss[hidden] { display: none; }
+      .mika-fuss { display: flex; flex-direction: column; gap: 0.35rem; }
+      .mika-fuss .korb-aktion { align-self: flex-start; min-height: 44px; }
+      @media (max-width: 600px) {
+        .mika-knopf { right: 0.75rem; bottom: 0.75rem; }
+        .mika-fenster { left: 0; right: 0; bottom: 0; width: auto; max-width: none; max-height: 85vh; border-radius: 14px 14px 0 0; border-bottom: none;
+          padding: 0.75rem 1rem calc(1rem + env(safe-area-inset-bottom)); }
+        .mika-e-zusatz, .mika-gruppe h3, .mika-suche label, .mika-hinweis { font-size: 12px; }
+      }
+      /* ── Mika: CSS Ende ── */
       /* ── UI3 Handy: Anfang (Restfunde AH1) - Tippflaechen je Bereich: die Zeile waechst (min-height), nichts ueberdeckt Nachbarn ── */
       .td-text { font-size: 0.92rem; }
       /* Knopfpaare gleich breit */
@@ -2080,6 +2138,35 @@
           <button type="button" class="korb-aktion korb-aktion-ruhig" id="anmelde-abbrechen" data-hilfe="dialog-abbrechen" style="display:none">Abbrechen</button>
         </form>
         <p class="korb-zaehler">Den Schlüssel gibt dir der Inhaber. Er bleibt auf diesem Gerät gespeichert, bis du dich abmeldest. Nach 30 Tagen ohne Nutzung automatisch abgemeldet. Du kannst den Schlüssel im Passwort-Manager deines Browsers speichern.</p>
+      </div>
+    </div>
+
+    <!-- MI1: Mika - hilft beim Finden. Drei feste Fragen, Antworten aus festen Regeln (keine KI), Spruenge in die Ansichten. -->
+    <button id="mika-knopf" class="mika-knopf" type="button" data-hilfe="mika-oeffnen" aria-haspopup="dialog" aria-expanded="false" aria-controls="mika-fenster">Mika</button>
+    <div id="mika-fenster" class="mika-fenster" role="dialog" aria-modal="false" aria-labelledby="mika-titel" hidden>
+      <div class="mika-kopf">
+        <strong id="mika-titel">Mika – hilft dir beim Finden</strong>
+        <button class="hilfe-i" type="button" data-hilfe-gruppe="mika" aria-controls="hilfe-mika" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+        <button type="button" class="korb-link" id="mika-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
+      </div>
+      <div id="hilfe-mika" class="hilfe-legende" hidden></div>
+      <div class="mika-fragen">
+        <button type="button" class="korb-aktion korb-aktion-ruhig" data-mika-frage="heute" data-hilfe="mika-heute" aria-pressed="false">Was liegt heute an?</button>
+        <button type="button" class="korb-aktion korb-aktion-ruhig" data-mika-frage="dringend" data-hilfe="mika-dringend" aria-pressed="false">Was ist dringend?</button>
+        <button type="button" class="korb-aktion korb-aktion-ruhig" data-mika-frage="suche" data-hilfe="mika-suche" aria-pressed="false">Bestellung suchen …</button>
+      </div>
+      <form id="mika-suche" class="mika-suche" autocomplete="off" hidden>
+        <label for="mika-nummer" data-hilfe="mika-nummer">Bestellnummer oder Auftragsnummer</label>
+        <div class="mika-suche-reihe">
+          <input id="mika-nummer" class="form-input" type="text" inputmode="text" maxlength="20" placeholder="12345 oder AU-2026-0012" data-hilfe="mika-nummer">
+          <select id="mika-shop" class="form-select" aria-label="Shop" data-hilfe="mika-shop"><option value="jfn">JFN</option><option value="honk">HONK</option></select>
+          <button type="submit" class="korb-aktion korb-aktion-haupt" id="mika-suchen" data-hilfe="mika-suchen">Suchen</button>
+        </div>
+      </form>
+      <div id="mika-antwort" class="mika-antwort" aria-live="polite"></div>
+      <div id="mika-fuss" class="mika-fuss" hidden>
+        <button type="button" class="korb-aktion korb-aktion-ruhig" id="mika-vorlesen" data-hilfe="mika-vorlesen" aria-pressed="false" hidden>🔊 Vorlesen</button>
+        <p id="mika-vorlese-text" class="field-note" hidden></p>
       </div>
     </div>
 
@@ -5411,70 +5498,96 @@
           setTimeout(() => { const b = dbEl('rs-bereich'); b?.querySelector('details.rs-block')?.setAttribute('open', ''); b?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 600);
         }
       }
-      // DB2: Vorlesen. Abschnitte <= 180 Zeichen je Aeusserung (Chrome bricht lange Aeusserungen ab), `lauf` verhindert, dass ein altes onend
-      // nach Stopp/Neustart den Zustand umschaltet. Stopp bei Klick, Ansichtswechsel, Wechsel Alle/Christian/Nicole, Seite weg.
-      const dbv = { lauf: 0, spricht: false };
-      const dbvSynth = () => (typeof window.speechSynthesis?.speak === 'function' && typeof window.SpeechSynthesisUtterance === 'function' ? window.speechSynthesis : null);
-      function dbvKnopf() {
-        const b = dbEl('dash-vorlesen');
-        b.hidden = !dbvSynth();
-        b.textContent = dbv.spricht ? '⏹ Stopp' : '🔊 Vorlesen';
-        b.setAttribute('aria-pressed', String(dbv.spricht));
-        const t = dbEl('dash-vorlese-text');
-        t.hidden = !dbv.spricht;
-        if (!dbv.spricht) t.textContent = '';
-      }
-      function dbvStopp() {
-        dbv.lauf++;
-        if (dbv.spricht) dbvSynth()?.cancel();
-        dbv.spricht = false;
-        dbvKnopf();
-      }
-      function dbvStart() {
-        const synth = dbvSynth();
-        if (!synth) return dbvKnopf();
-        if (!dbZ.daten) { showToast('Das Dashboard ist noch nicht geladen.', 'error'); return; }
-        const saetze = dbVorleseSaetze(dbZ.daten);
-        // kein Doppelstart: was noch laeuft, endet hier. DB2-1: cancel() nur, wenn wirklich etwas laeuft - Chrome auf Android
-        // bricht sonst die direkt folgende Aeusserung mit einem Fehler ab (Text blitzte nur kurz auf).
-        if (synth.speaking || synth.pending) synth.cancel();
-        const lauf = ++dbv.lauf;
-        const stimmen = synth.getVoices?.() ?? [];
-        // nur Stimmen auf dem Geraet (localService): Online-Stimmen wie "Google Deutsch" schicken den Text an einen Dienst.
-        // Android schreibt die Sprache teils "de_DE".
-        const lokal = stimmen.filter(v => v.localService !== false);
-        const stimme = lokal.find(v => /^de[-_]DE$/i.test(v.lang)) ?? lokal.find(v => /^de(-|_|$)/i.test(v.lang)) ?? null;
-        const stuecke = dbvAbschnitte(saetze);
-        const ende = () => { if (lauf === dbv.lauf) { dbv.spricht = false; dbvKnopf(); } };
-        // DB2-1: Abschnitte NACHEINANDER (der naechste erst nach dem Ende des vorigen) statt alle in die Warteschlange -
-        // Chrome auf Android unterbricht sonst die laufende Aeusserung mit "interrupted".
-        const sprich = (i, mitStimme) => {
-          if (lauf !== dbv.lauf) return;
-          if (i >= stuecke.length) return ende();
-          const u = new SpeechSynthesisUtterance(stuecke[i]);
-          u.lang = 'de-DE';
-          if (mitStimme && stimme) u.voice = stimme;
-          u.rate = 1.1;
-          let gestartet = false;
-          u.onstart = () => { gestartet = true; };
-          u.onend = () => sprich(i + 1, mitStimme);
-          u.onerror = e => {
-            if (lauf !== dbv.lauf) return;
-            // gewaehlte Stimme scheitert gleich am Anfang -> einmal mit der Standardstimme des Geraets (de-DE) versuchen
-            if (i === 0 && !gestartet && mitStimme && stimme) return sprich(0, false);
-            ende();
-            showToast(`Vorlesen abgebrochen (${e?.error || 'unbekannt'}).`, 'error', 8000);
+      // ── Vorlesen-Baustein: Anfang (DB2, seit MI1 auch fuer Mika; Test backend/tests/dashboard-vorlesen.test.js) ──
+      // Liest Saetze mit der Geraete-Stimme vor (nur lokale deutsche Stimmen - Online-Stimmen schicken den Text an einen Dienst).
+      // Abschnitte <= 180 Zeichen je Aeusserung (Chrome bricht lange Aeusserungen ab), NACHEINANDER (Android unterbricht sonst mit
+      // "interrupted"); `lauf` verhindert, dass ein altes onend nach Stopp/Neustart den Zustand umschaltet. Stopp bei Klick,
+      // Ansichtswechsel, Seite weg. Mehrere Vorleser (Dashboard, Mika): startet einer, endet der andere ohne zweites cancel().
+      const vlAlle = [];
+      const vlSynth = () => (typeof window.speechSynthesis?.speak === 'function' && typeof window.SpeechSynthesisUtterance === 'function' ? window.speechSynthesis : null);
+      /**
+       * @param {{ knopf: () => HTMLElement, text: () => HTMLElement, saetze: () => string[]|null, ohneDaten?: string }} o
+       *        saetze() null = noch nichts da (Toast ohneDaten). knopf/text als Funktionen (Elemente koennen spaeter entstehen).
+       */
+      function vorleser({ knopf, text, saetze, ohneDaten = 'Noch nichts zum Vorlesen.' }) {
+        const v = { lauf: 0, spricht: false };
+        function knopfZeigen() {
+          const b = knopf();
+          if (b) {
+            b.hidden = !vlSynth();
+            b.textContent = v.spricht ? '⏹ Stopp' : '🔊 Vorlesen';
+            b.setAttribute('aria-pressed', String(v.spricht));
+          }
+          const t = text();
+          if (!t) return;
+          t.hidden = !v.spricht;
+          if (!v.spricht) t.textContent = '';
+        }
+        // anderer Vorleser startet: nur den Zustand beenden - das cancel() macht der neue (genau einmal, Android)
+        function abbrechen() { v.lauf++; v.spricht = false; knopfZeigen(); }
+        function stopp() {
+          v.lauf++;
+          if (v.spricht) vlSynth()?.cancel();
+          v.spricht = false;
+          knopfZeigen();
+        }
+        function start() {
+          const synth = vlSynth();
+          if (!synth) return knopfZeigen();
+          const liste = saetze();
+          if (!liste) { showToast(ohneDaten, 'error'); return; }
+          for (const x of vlAlle) if (x !== api && x.spricht) x.abbrechen();
+          // kein Doppelstart: was noch laeuft, endet hier. DB2-1: cancel() nur, wenn wirklich etwas laeuft - Chrome auf Android
+          // bricht sonst die direkt folgende Aeusserung mit einem Fehler ab (Text blitzte nur kurz auf).
+          if (synth.speaking || synth.pending) synth.cancel();
+          const lauf = ++v.lauf;
+          const stimmen = synth.getVoices?.() ?? [];
+          // nur Stimmen auf dem Geraet (localService): Online-Stimmen wie "Google Deutsch" schicken den Text an einen Dienst.
+          // Android schreibt die Sprache teils "de_DE".
+          const lokal = stimmen.filter(x => x.localService !== false);
+          const stimme = lokal.find(x => /^de[-_]DE$/i.test(x.lang)) ?? lokal.find(x => /^de(-|_|$)/i.test(x.lang)) ?? null;
+          const stuecke = dbvAbschnitte(liste);
+          const ende = () => { if (lauf === v.lauf) { v.spricht = false; knopfZeigen(); } };
+          // DB2-1: Abschnitte NACHEINANDER (der naechste erst nach dem Ende des vorigen) statt alle in die Warteschlange -
+          // Chrome auf Android unterbricht sonst die laufende Aeusserung mit "interrupted".
+          const sprich = (i, mitStimme) => {
+            if (lauf !== v.lauf) return;
+            if (i >= stuecke.length) return ende();
+            const u = new SpeechSynthesisUtterance(stuecke[i]);
+            u.lang = 'de-DE';
+            if (mitStimme && stimme) u.voice = stimme;
+            u.rate = 1.1;
+            let gestartet = false;
+            u.onstart = () => { gestartet = true; };
+            u.onend = () => sprich(i + 1, mitStimme);
+            u.onerror = e => {
+              if (lauf !== v.lauf) return;
+              // gewaehlte Stimme scheitert gleich am Anfang -> einmal mit der Standardstimme des Geraets (de-DE) versuchen
+              if (i === 0 && !gestartet && mitStimme && stimme) return sprich(0, false);
+              ende();
+              showToast(`Vorlesen abgebrochen (${e?.error || 'unbekannt'}).`, 'error', 8000);
+            };
+            synth.speak(u);
           };
-          synth.speak(u);
-        };
-        dbv.spricht = true;
-        dbvKnopf();
-        dbEl('dash-vorlese-text').textContent = saetze.join(' ');
-        sprich(0, true);
+          v.spricht = true;
+          knopfZeigen();
+          const t = text();
+          if (t) t.textContent = liste.join(' ');
+          sprich(0, true);
+        }
+        const api = { start, stopp, abbrechen, knopfZeigen, get spricht() { return v.spricht; } };
+        vlAlle.push(api);
+        knopfZeigen();
+        return api;
       }
-      dbvKnopf();
-      document.addEventListener('mc:ansicht', dbvStopp);
-      window.addEventListener('pagehide', dbvStopp);
+      document.addEventListener('mc:ansicht', () => vlAlle.forEach(x => x.stopp()));
+      window.addEventListener('pagehide', () => vlAlle.forEach(x => x.stopp()));
+      // ── Vorlesen-Baustein: Ende ──
+      // DB2: Vorlesen des Dashboards - Text aus dbVorleseSaetze (nur Zahlen).
+      const dbv = vorleser({ knopf: () => dbEl('dash-vorlesen'), text: () => dbEl('dash-vorlese-text'),
+        saetze: () => (dbZ.daten ? dbVorleseSaetze(dbZ.daten) : null), ohneDaten: 'Das Dashboard ist noch nicht geladen.' });
+      const dbvStart = () => dbv.start();
+      const dbvStopp = () => dbv.stopp();
       dbEl('panel-dashboard').addEventListener('click', async ev => {
         if (ev.target.closest('#dash-vorlesen')) { if (dbv.spricht) dbvStopp(); else dbvStart(); return; }
         const wer = ev.target.closest('[data-dash-wer]');
@@ -7416,6 +7529,17 @@
         'feedback-oeffnen':      { name: 'Feedback', text: 'Kurze Idee, Fehler oder Wunsch abschicken. Die Ansicht dahinter bleibt, wie sie ist.' },
         'fb-text':               { name: 'Feedback-Text', text: 'Höchstens 2.000 Zeichen. Geht zur Einordnung an Claude und ins Feedback-Sheet. Keine Kundendaten.' },
         'fb-senden':             { name: 'Senden', text: 'Speichert die Rückmeldung mit Ansicht, Gerät und Uhrzeit. Du bekommst eine FB-Nummer.' },
+        // MI1: Mika
+        'mika-oeffnen':          { name: 'Mika', text: 'Hilft dir beim Finden: was heute anliegt, was dringend ist, wo eine Bestellung steht. Antworten aus festen Regeln.' },
+        'mika-heute':            { name: 'Was liegt heute an?', text: 'Fällige und überfällige To-dos und Aufgaben, Aufträge mit Termin heute oder morgen, Zahlen aus „Zu tun“.' },
+        'mika-dringend':         { name: 'Was ist dringend?', text: 'Bestellungen über 14 Tage offen, Termin in ≤ 3 Tagen, fertig und nicht bezahlt, L-Shop-Ware wahrscheinlich da.' },
+        'mika-suche':            { name: 'Bestellung suchen', text: 'Sucht genau eine Bestell- oder Auftragsnummer und zeigt den Stand je Position. Keine Namenssuche.' },
+        'mika-nummer':           { name: 'Nummer', text: 'Bestellnummer nur mit Ziffern (z. B. 12345) oder Auftragsnummer wie AU-2026-0012.' },
+        'mika-shop':             { name: 'Shop', text: 'In welchem Shop die Bestellnummer gesucht wird. Für Auftragsnummern egal.' },
+        'mika-suchen':           { name: 'Suchen', text: 'Fragt den Shop genau einmal nach dieser Nummer.' },
+        'mika-sprung':           { name: 'Öffnen', text: 'Springt in die passende Ansicht und schließt Mika.' },
+        'mika-mehr':             { name: '… und weitere', text: 'Öffnet die ganze Liste dazu.' },
+        'mika-vorlesen':         { name: 'Vorlesen', text: 'Liest die Antwort mit der Stimme deines Geräts vor – ohne Nummern und Namen. Noch einmal tippen = Stopp.' },
         'abmelden':              { name: 'Abmelden', text: 'Auf diesem Gerät abmelden. Bei verlorenem Gerät: Schlüssel im Secret Manager tauschen.' },
         'anmelden':              { name: 'Anmelden', text: 'Speichert den Schlüssel auf diesem Gerät. Nur der Inhaber vergibt ihn. Nach 30 Tagen ohne Nutzung automatisch abgemeldet.' },
         'schluessel-aendern':    { name: 'Schlüssel ändern', text: 'Öffnet die Anmeldemaske für einen neuen Schlüssel. Danach lädt MC neu.' },
@@ -7950,6 +8074,7 @@
       const HILFE_GRUPPEN = {
         // HT1: Gruppen der aelteren Knoepfe (ⓘ-Liste, sobald es dort ein ⓘ gibt)
         'feedback': ['fb-text', 'fb-senden', 'dialog-abbrechen', 'dialog-schliessen'],   // FB1
+        'mika': ['mika-oeffnen', 'mika-heute', 'mika-dringend', 'mika-suche', 'mika-nummer', 'mika-shop', 'mika-suchen', 'mika-sprung', 'mika-mehr', 'mika-vorlesen', 'dialog-schliessen'],   // MI1
         'navigation': ['shop-badge', 'feedback-oeffnen', 'abmelden', 'shop-wahl', 'neue-version-laden', 'neue-version-spaeter', 'nav-bereich', 'nav-ansicht', 'nav-unterreiter', 'trikot-sync'],
         'anmelden': ['anmelde-name', 'anmelde-key', 'anmelden', 'dialog-abbrechen'],   // SI1/SI2: Anmeldemaske
         'dialog': ['dialog-abbrechen', 'dialog-schliessen', 'dialog-bestaetigen', 'dialog-speichern', 'liste-bearbeiten', 'zeile-speichern'],
@@ -7995,7 +8120,7 @@
       };
       const hilfeText = key => String(KNOPF_HILFE[key]?.text ?? '').trim();
       // HT2: Fenster (Dialoge) - der Tooltip haengt im offenen Fenster, ein ⓘ darin listet die Knoepfe genau dieses Fensters.
-      const HILFE_FENSTER = '.edi-dialog, .modal-backdrop, .anf-side-panel, .anf-modal-backdrop, #shop-modal-overlay';
+      const HILFE_FENSTER = '.edi-dialog, .modal-backdrop, .anf-side-panel, .anf-modal-backdrop, #shop-modal-overlay, #mika-fenster';   // MI1: Mika
       /** Schluessel der ⓘ-Liste: im Fenster (wurzel) die Knoepfe darin (Reihenfolge wie auf dem Bildschirm), dazu die Gruppe. */
       function hilfeSchluessel(gruppe, wurzel) {
         const gr = HILFE_GRUPPEN[gruppe] ?? [];
@@ -20813,6 +20938,161 @@
           pushStatus.style.color = 'var(--danger)';
           anlageLaeuft = false; aktualisiereAnlage();
         }
+      });
+
+      // ── SECTION: Mika (MI1) ──
+      // Assistent Stufe 0: Knopf unten rechts -> Fenster mit drei festen Fragen -> POST /api/mika/frage bzw. /api/mika/suche.
+      // Keine KI, kein freies Chatfeld, nichts wird geschrieben. Antworten kommen fertig vom Server (feste Regeln, utils/mika.js);
+      // hier nur Anzeige, Spruenge ueber die vorhandenen Sprungfunktionen und Vorlesen ueber den Vorlesen-Baustein.
+      // Die gesuchte Nummer bleibt nur im Feld (kein Browser-Speicher, keine Adresse).
+      // ── Mika: Anfang (reine Anzeige, Test backend/tests/mika-frontend.test.js) ──
+      const MIKA_FEHLER = 'Mika findet gerade nichts – bitte die Liste direkt öffnen.';
+      const MIKA_ZIEL_ARTEN = ['shop', 'au', 'ag', 'lshop', 'liste'];
+      const mikaEsc = x => String(x ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+      /** Antwort -> { html, ziele }. Sprungziele nur aus fester Auswahl (data-mika-ziel = Index in ziele); jeder Text maskiert. */
+      function mikaAntwortHtml(a) {
+        const ziele = [];
+        if (!a) return { html: '', ziele };
+        const zielAttr = z => { if (!z || !MIKA_ZIEL_ARTEN.includes(z.art)) return ''; ziele.push(z); return ` data-mika-ziel="${ziele.length - 1}"`; };
+        const eintrag = e => {
+          const inhalt = `<span class="mika-e-text">${mikaEsc(e.text)}</span>${e.zusatz ? `<span class="mika-e-zusatz">${mikaEsc(e.zusatz)}</span>` : ''}`;
+          const attr = zielAttr(e.ziel);
+          return attr ? `<li><button type="button" class="mika-eintrag"${attr} data-hilfe="mika-sprung">${inhalt}<span class="mika-pfeil" aria-hidden="true">›</span></button></li>`
+            : `<li class="mika-eintrag mika-eintrag-still">${inhalt}</li>`;
+        };
+        const teile = [`<p class="mika-a-titel">${mikaEsc(a.titel)}</p>`];
+        if (!a.gruppen?.length) teile.push(`<p class="mika-leer">${mikaEsc(a.leer || 'Nichts gefunden.')}</p>`);
+        for (const g of a.gruppen ?? []) {
+          const zeilen = (g.eintraege ?? []).map(eintrag).join('');   // erst die Eintraege, dann "weitere" (Reihenfolge der Ziele)
+          let mehr = '';
+          if (g.mehr > 0) {
+            const attr = zielAttr(g.mehrZiel);
+            mehr = attr ? `<li><button type="button" class="korb-link mika-mehr"${attr} data-hilfe="mika-mehr">… und ${mikaEsc(g.mehr)} weitere</button></li>`
+              : `<li class="mika-eintrag-still">… und ${mikaEsc(g.mehr)} weitere</li>`;
+          }
+          teile.push(`<section class="mika-gruppe"><h3>${mikaEsc(g.titel)}${g.anzahl > 1 ? ` <span class="mika-zahl">(${mikaEsc(g.anzahl)})</span>` : ''}</h3>`
+            + `<ul>${zeilen}${mehr}</ul></section>`);
+        }
+        if (a.unvollstaendig) teile.push('<p class="mika-hinweis">Nicht alles war gerade lesbar – die Antwort kann unvollständig sein.</p>');
+        return { html: teile.join(''), ziele };
+      }
+      /** Liste ("… und n weitere", Zahlen aus "Zu tun") -> wohin. Unbekannt -> nichts. */
+      const MIKA_LISTEN = {
+        hinweise: { dash: 'hinweise' }, lange: { dash: 'lange' },
+        'todos-ueberfaellig': { todos: 'ueberfaellig' }, 'todos-heute': { todos: 'woche' },
+        ware: { kachel: 'ware' }, abholung: { kachel: 'abholung' }, bestellseiten: { kachel: 'bestellseiten' }, trikots: { kachel: 'trikots' }, rueckstand: { kachel: 'rueckstand' },
+        'au-termin': { au: { 'au-f': 'termin', 'au-art': 'auftraege' } }, 'au-fertig': { au: { 'au-f': 'fertig', 'au-art': 'auftraege' } },
+        aufgaben: { au: { 'au-f': 'offen', 'au-art': 'aufgaben' } }, 'lshop-bestellungen': { ansicht: ['bestellen', 'lshop-bestellungen'] },
+      };
+      // ── Mika: Ende ──
+
+      const mkZ = { laeuft: false, antwort: null, ziele: [], zurueck: null };
+      const mkEl = id => document.getElementById(id);
+      const mkv = vorleser({ knopf: () => mkEl('mika-vorlesen'), text: () => mkEl('mika-vorlese-text'),
+        saetze: () => mkZ.antwort?.vorlesen ?? null, ohneDaten: 'Erst eine Frage antippen.' });
+      function mikaZeigen(a) {
+        const { html, ziele } = mikaAntwortHtml(a);
+        mkZ.antwort = a; mkZ.ziele = ziele;
+        mkEl('mika-antwort').innerHTML = html;
+        mkEl('mika-fuss').hidden = !a;
+        mkv.knopfZeigen();
+      }
+      function mikaFehler(text) {
+        mkZ.antwort = null; mkZ.ziele = [];
+        mkEl('mika-antwort').innerHTML = `<p class="mika-fehler" role="alert">${mikaEsc(text)}</p>`;
+        mkEl('mika-fuss').hidden = true;
+      }
+      function mikaFrageMarkieren(f) { document.querySelectorAll('[data-mika-frage]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mikaFrage === f))); }
+      async function mikaFragen(pfad, body) {
+        if (mkZ.laeuft) return;
+        mkZ.laeuft = true;
+        mkv.stopp();
+        mkEl('mika-antwort').innerHTML = '<p class="mika-laedt">Mika sucht …</p>';
+        mkEl('mika-fuss').hidden = true;
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/mika/${pfad}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body), signal: AbortSignal.timeout(45000) });
+          const j = await res.json().catch(() => null);
+          if (res.status === 422 && j?.error) mikaFehler(j.error);   // Eingabe (fester Text vom Server)
+          else if (!res.ok || !j) mikaFehler(MIKA_FEHLER);
+          else mikaZeigen(j);
+        } catch { mikaFehler(MIKA_FEHLER); } finally { mkZ.laeuft = false; }
+      }
+      function mikaOeffnen() {
+        if (!mkEl('anmelde-maske').hidden) return;   // erst anmelden
+        mkZ.zurueck = document.activeElement;
+        mkEl('mika-fenster').hidden = false;
+        mkEl('mika-knopf').setAttribute('aria-expanded', 'true');
+        mkEl('mika-shop').value = currentShop();
+        document.querySelector('[data-mika-frage]')?.focus();
+      }
+      function mikaSchliessen({ fokus = true } = {}) {
+        mkv.stopp();
+        mkEl('mika-fenster').hidden = true;
+        mkEl('mika-knopf').setAttribute('aria-expanded', 'false');
+        if (fokus) { try { (mkZ.zurueck?.isConnected ? mkZ.zurueck : mkEl('mika-knopf')).focus?.(); } catch { /* egal */ } }
+        mkZ.zurueck = null;
+      }
+      function mikaListe(name) {
+        const l = MIKA_LISTEN[name];
+        if (!l) return;
+        if (l.dash) {
+          dbZ.detail = l.dash;
+          oeffneAnsicht('dashboard', 'start');
+          dbZeichnen();
+          setTimeout(() => dbEl('dash-detail')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 300);
+        } else if (l.todos) {
+          const f = dbEl('td-f'); if (f) f.value = l.todos;
+          const z = dbEl('td-zust-f'); if (z) z.value = dbZ.wer || 'alle';
+          oeffneAnsicht('auftraege', 'todos');
+        } else if (l.kachel) dbKachelKlick(l.kachel);
+        else if (l.au) { dbFilterSetzen(l.au); oeffneAnsicht('auftraege', 'liste'); }
+        else if (l.ansicht) oeffneAnsicht(...l.ansicht);
+      }
+      /** Sprung ueber die vorhandenen Sprungfunktionen (wie im Dashboard). Mika schliesst sich dabei. */
+      async function mikaSpringe(z) {
+        if (!z || !MIKA_ZIEL_ARTEN.includes(z.art)) return;
+        mikaSchliessen({ fokus: false });
+        if (z.art === 'shop') {
+          const shop = z.shop === 'honk' ? 'honk' : 'jfn';
+          if (shop !== currentShop()) setCurrentShop(shop, false);
+          psSpringeZu(z.id);
+          oeffneAnsicht('bestellen', 'bestellungen');
+        } else if (z.art === 'au') window.auOeffnen?.(z.nr);
+        else if (z.art === 'ag') {
+          oeffneAnsicht('auftraege', 'liste');
+          if (!auZ.daten) await loadAuftraege();
+          agDetailOeffnen(z.nr);
+        } else if (z.art === 'lshop') { lbSpringeZu(z.orderId); oeffneAnsicht('bestellen', 'lshop-bestellungen'); }
+        else if (z.art === 'liste') mikaListe(z.liste);
+      }
+      mkEl('mika-knopf').addEventListener('click', () => (mkEl('mika-fenster').hidden ? mikaOeffnen() : mikaSchliessen()));
+      mkEl('mika-schliessen').addEventListener('click', () => mikaSchliessen());
+      mkEl('mika-vorlesen').addEventListener('click', () => (mkv.spricht ? mkv.stopp() : mkv.start()));
+      mkEl('mika-fenster').addEventListener('click', ev => {
+        const f = ev.target.closest('[data-mika-frage]');
+        if (f) {
+          const frage = f.dataset.mikaFrage;
+          mikaFrageMarkieren(frage);
+          const suche = frage === 'suche';
+          mkEl('mika-suche').hidden = !suche;
+          if (suche) { mikaZeigen(null); mkEl('mika-nummer').focus(); return; }
+          mikaFragen('frage', { frage, fuer: dbZ.wer || '' });
+          return;
+        }
+        const z = ev.target.closest('[data-mika-ziel]');
+        if (z) mikaSpringe(mkZ.ziele[Number(z.dataset.mikaZiel)]);
+      });
+      mkEl('mika-suche').addEventListener('submit', ev => {
+        ev.preventDefault();
+        const nummer = mkEl('mika-nummer').value.trim();
+        if (!nummer) { mkEl('mika-nummer').focus(); return; }
+        mikaFragen('suche', { nummer, shop: mkEl('mika-shop').value });
+      });
+      // Esc schliesst nur Mika; Tasten bleiben im Fenster.
+      mkEl('mika-fenster').addEventListener('keydown', e => {
+        if (e.key === 'Escape') { e.preventDefault(); mikaSchliessen(); }
+        e.stopPropagation();
       });
 
       // ── SECTION: Feedback (FB1) ──

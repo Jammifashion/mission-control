@@ -42,7 +42,11 @@ export function bestellungenEingabe(roh) {
   }));
 }
 
-export async function leseProduktionStand({ shop, bestellungen: roh, sheets: s, wcFuer = getWcClient, jetzt = () => new Date() } = {}) {
+/**
+ * @param {boolean} [o.einstufen=true]  MI1: false = Positionen ohne Korb-Zeile NICHT einstufen (kein zweiter Shop-Abruf, kein
+ *                                      Abgleich-Kontext) - Mika ruft den Shop je Suche genau einmal; Stand dann "kein" ohne Grund.
+ */
+export async function leseProduktionStand({ shop, bestellungen: roh, sheets: s, wcFuer = getWcClient, jetzt = () => new Date(), einstufen: mitEinstufung = true } = {}) {
   const bestellungen = bestellungenEingabe(roh);
   const spreadsheetId = process.env.GOOGLE_SHEET_ID;
   if (!spreadsheetId) throw fehler('GOOGLE_SHEET_ID fehlt.', 503);
@@ -69,7 +73,7 @@ export async function leseProduktionStand({ shop, bestellungen: roh, sheets: s, 
 
     // Einstufung nur, wo der Korb die Position nicht kennt (heute: Trikots, Fanartikel).
     const ohne = bestellungen.flatMap(o => o.line_items.filter(li => !korb.has(korbSchluessel('jfn', o.id, li.id))));
-    if (ohne.length) {
+    if (ohne.length && mitEinstufung) {
       const ktx = await ladeKontext(sheets, spreadsheetId);
       const pids = [...new Set(ohne.map(li => li.product_id))].filter(x => x && x !== '0');
       const produkte = pids.length ? await ladeProdukte(wcFuer('jfn'), pids) : new Map();
