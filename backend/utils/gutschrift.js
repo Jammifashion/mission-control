@@ -8,9 +8,11 @@
 // Regeln:
 // - Nur Abrechnungen mit Status freigegeben oder bezahlt (nie Entwurf), mit gespeicherten Positionen (JSON), ohne Kennzeichen.
 // - Summe der Gutschrift (brutto) = Gesamt-Brutto der Abrechnung AUF DEN CENT; sonst nicht senden (Problem).
-// - Brutto-Beleg (taxType gross), je Zeile Menge 1 und Bruttobetrag in Cent - so rechnet Lexware genau dieselbe Summe.
-//   Zeilen: je Artikelgruppe die Auszahlung (netto x MwSt), Porto-Saldo (PO1), interne Bestellungen und Verpackungspauschale
-//   als Abzug. Rundungsrest der Netto->Brutto-Umrechnung (wenige Cent) geht auf die groesste Zeile (`ausgleich`).
+// - Brutto-Beleg (taxType gross). Aufbau wie die bisherigen Gutschriften (GS2026GBR0002, gemessen 22.11.): je Artikelkategorie der Verkauf
+//   (+, Menge = Stueck), dann je Kategorie "<Kategorie> interner Preis" (-, Festpreis), dann "tatsächliche Paypalkosten Shop", "Handlingskosten
+//   inkl Nebenkosten Herstellung und Shop", "Porto Saldo" (je -), dazu Mehrkosten, interne Bestellungen und Verpackungspauschale.
+//   Jede Zeile wird in Cent gerechnet (netto x MwSt); geht der Betrag nicht glatt durch die Stueckzahl, Menge 1 und "n Stück" als Beschreibung.
+//   Rundungsrest der Netto->Brutto-Umrechnung (wenige Cent) geht auf die betragsgroesste Zeile (`ausgleich`).
 // - Nur Entwurf; abschliessen/versenden macht der Inhaber in Lexware. Log/Chat nur Abrechnungs-ID und Partner-ID.
 
 export const GUTSCHRIFT_SPALTEN = ['Gutschrift_Lexware_ID', 'Gutschrift_Am', 'Gutschrift_Status'];
@@ -22,7 +24,13 @@ export const BELEGARTEN = ['creditnote'];        // Einstellung Business-Config 
 export const CONFIG_BELEGART = 'gutschrift.belegart';
 export const TITEL = 'Rechnungsgutschrift';
 export const EINLEITUNG = 'Folgende Lieferungen/Leistungen schreiben wir Ihnen gut.';
-export const EINHEIT = 'Posten';
+export const EINHEIT = 'Stück';
+export const SCHLUSS = 'Mit freundlichen Grüßen.';
+export const TEXT_PAYPAL = 'tatsächliche Paypalkosten Shop';
+export const TEXT_HANDLING = 'Handlingskosten inkl Nebenkosten Herstellung und Shop';
+export const TEXT_HANDLING_BESCHREIBUNG = 'Plug ins, Cloudspeicher, Server, Homepage (Umsatzabhängig), Nebenkosten Shop und Herstellung etc.';
+export const TEXT_PORTO = 'Porto Saldo';
+export const TEXT_PORTO_BESCHREIBUNG = 'tatsächliche Versandkosten abzgl. Portoeinnahmen';
 export const MAX_POSITIONEN = 300;
 export const LINK_BASIS = 'https://app.lexware.de/permalink/credit-notes/edit/';
 const ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -94,23 +102,35 @@ export function gutschriftPlan({ abrechnung: a, mwstProzent, kontaktId, voucherD
   const zeilen = [];
   let ausgleich = 0;
   const faktor = 1 + (Number.isFinite(m) ? m : 0) / 100;
+  const br = netto => Math.round((Number(netto) || 0) * faktor * 100);   // netto Euro -> brutto Cent
   if (pos) {
     const gruppen = Array.isArray(pos.produkteGruppen) ? pos.produkteGruppen : [];
     const porto = pos.porto && pos.porto.status !== 'keine' ? Number(pos.porto.saldo) || 0 : 0;
     const auszahlung = Number(pos.summen?.auszahlung) || 0;
     const ziel = Math.round((auszahlung + porto) * faktor * 100);   // wie fpAbrechnungErstellen (auszahlungBrutto)
+    // je Artikelkategorie summieren (Reihenfolge: meiste Stueck zuerst)
+    const kat = new Map();
+    let paypal = 0, handling = 0, mehrkosten = 0, portoZeilen = 0;
     for (const g of gruppen) {
-      const cent = Math.round((Number(g.auszahlung) || 0) * faktor * 100);
-      if (!cent) continue;
-      const stueck = Number(g.stueckzahl) || 0;
-      zeilen.push({ art: 'artikel', name: `${t(g.artikelname) || 'Artikel'}${stueck ? ` · ${stueck} Stück` : ''}`.slice(0, 255), cent });
+      const name = t(g.artikelkategorie) || 'Sonstige Artikel';
+      const k = kat.get(name) ?? { stueck: 0, vk: 0, fest: 0 };
+      k.stueck += Number(g.stueckzahl) || 0; k.vk += Number(g.vkNetto) || 0; k.fest += Number(g.festpreisGesamt) || 0;
+      kat.set(name, k);
+      paypal += Number(g.paypalGesamt) || 0; handling += Number(g.handlingGesamt) || 0; mehrkosten += Number(g.mehrkosten) || 0;
+      portoZeilen += (Number(g.portoEinnahmen) || 0) - (Number(g.portoKosten) || 0);
     }
-    if (porto) zeilen.push({ art: 'porto', name: 'Porto (Einnahmen abzüglich Kosten)', cent: Math.round(porto * faktor * 100) });
-    // Rundungsrest Netto->Brutto: auf die betragsgroesste Zeile, damit die Summe genau die der Abrechnung ist.
-    const rest = ziel - zeilen.reduce((s, z) => s + z.cent, 0);
+    const reihe = [...kat].sort((x, y) => y[1].stueck - x[1].stueck || x[0].localeCompare(y[0], 'de'));
+    for (const [name, k] of reihe) if (br(k.vk)) zeilen.push({ art: 'verkauf', name, stueck: k.stueck, cent: br(k.vk) });
+    for (const [name, k] of reihe) if (br(k.fest)) zeilen.push({ art: 'festpreis', name: `${name} interner Preis`, stueck: k.stueck, cent: -br(k.fest) });
+    if (br(paypal)) zeilen.push({ art: 'paypal', name: TEXT_PAYPAL, cent: -br(paypal) });
+    if (br(handling)) zeilen.push({ art: 'handling', name: TEXT_HANDLING, beschreibung: TEXT_HANDLING_BESCHREIBUNG, cent: -br(handling) });
+    if (br(mehrkosten)) zeilen.push({ art: 'mehrkosten', name: 'Mehrkosten', cent: -br(mehrkosten) });
+    if (br(portoZeilen + porto)) zeilen.push({ art: 'porto', name: TEXT_PORTO, beschreibung: TEXT_PORTO_BESCHREIBUNG, cent: br(portoZeilen + porto) });
+    // Rundungsrest netto->brutto: auf die betragsgroesste Zeile, damit die Summe genau die der Abrechnung ist.
+    const rest = ziel - zeilen.reduce((s2, z) => s2 + z.cent, 0);
     ausgleich = rest;
     if (rest && zeilen.length) zeilen.reduce((x, y) => (Math.abs(y.cent) > Math.abs(x.cent) ? y : x)).cent += rest;
-    else if (rest) zeilen.push({ art: 'artikel', name: 'Shop-Verkäufe', cent: rest });
+    else if (rest) zeilen.push({ art: 'verkauf', name: 'Shop-Verkäufe', cent: rest });
     for (const p of Array.isArray(pos.intern) ? pos.intern : []) {
       const cent = -inCent(p.summe ?? 0);
       if (!cent) continue;
@@ -118,7 +138,7 @@ export function gutschriftPlan({ abrechnung: a, mwstProzent, kontaktId, voucherD
     }
     const v = pos.verpackung;
     if (v && v.status === 'ok' && Number(v.summe)) {
-      zeilen.push({ art: 'verpackung', name: `Verpackungspauschale · ${Number(v.anzahl) || 0} Bestellungen`, cent: -inCent(v.summe) });
+      zeilen.push({ art: 'verpackung', name: 'Verpackungspauschale', beschreibung: `${Number(v.anzahl) || 0} Bestellungen`, cent: -inCent(v.summe) });
     }
   }
   const brutto = zeilen.reduce((s, z) => s + z.cent, 0);
@@ -132,17 +152,27 @@ export function gutschriftPlan({ abrechnung: a, mwstProzent, kontaktId, voucherD
   const payload = {
     voucherDate,
     address: { contactId: t(kontaktId) },
-    lineItems: zeilen.map(z => ({
-      type: 'custom', name: z.name, quantity: 1, unitName: EINHEIT,
-      unitPrice: { currency: 'EUR', grossAmount: z.cent / 100, taxRatePercentage: m },
-      discountPercentage: 0,
-    })),
+    lineItems: zeilen.map(z => lineItem(z, m)),
     totalPrice: { currency: 'EUR' },
     taxConditions: { taxType: 'gross' },
     title: TITEL,
     introduction: einleitung(a.von, a.bis),
+    remark: SCHLUSS,
   };
   return { payload, zeilen, summen: { brutto, netto, mwst: brutto - netto }, ausgleich, probleme: [...new Set(probleme)] };
+}
+
+/** Lexware-Zeile: Menge = Stueck, wenn der Bruttobetrag glatt durch die Stueckzahl geht; sonst Menge 1 + "n Stück". */
+export function lineItem(z, satz) {
+  const n = Number(z.stueck) || 0;
+  const glatt = n > 1 && z.cent % n === 0;
+  const beschreibung = [z.beschreibung, !glatt && n > 1 ? `${n} Stück` : ''].filter(Boolean).join(' · ');
+  return {
+    type: 'custom', name: z.name.slice(0, 255), quantity: glatt ? n : 1, unitName: EINHEIT,
+    unitPrice: { currency: 'EUR', grossAmount: (glatt ? z.cent / n : z.cent) / 100, taxRatePercentage: satz },
+    discountPercentage: 0,
+    ...(beschreibung ? { description: beschreibung.slice(0, 2000) } : {}),
+  };
 }
 
 export const einleitung = (von, bis) => `${EINLEITUNG} Für Shop Verkäufe zwischen ${von} und ${bis}`;

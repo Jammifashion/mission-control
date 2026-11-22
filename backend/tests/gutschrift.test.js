@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 import { machSheets } from './hilfen/korb-sheet.js';
 import { KUNDEN_SPALTEN, TAB_KUNDEN } from '../utils/kunden.js';
 import {
-  gutschriftPlan, abrechnungAus, abrechnungGrund, deDatum, inCent, belegartAus, kennzeichenPlan, chatText, einleitung, GUTSCHRIFT_SPALTEN,
+  gutschriftPlan, lineItem, abrechnungAus, abrechnungGrund, deDatum, inCent, belegartAus, kennzeichenPlan, chatText, einleitung, GUTSCHRIFT_SPALTEN,
 } from '../utils/gutschrift.js';
 import { legeGutschriftsentwurfAn, gutschriftSchluessel } from '../lib/lexwareGutschrift.js';
 import { sucheEntwuerfe } from '../lib/lexwareRechnung.js';
@@ -27,7 +27,13 @@ function bruttoWieAbrechnung(pos, m = 19) {
   return Math.round((auszahlungBrutto - pos.interneSumme - verp) * 100) / 100;
 }
 function positionen({ gruppen = [['Muster-Shirt - L', 3, 20.17], ['Muster-Mütze', 2, 7.33], ['Muster-Puck', 5, 3.41]], porto = -4.2, intern = [['15.03.2026', 'Muster intern', -10]], verpackung = 1.5 } = {}) {
-  const produkteGruppen = gruppen.map(([artikelname, stueckzahl, auszahlung]) => ({ produktId: '1', artikelname, stueckzahl, auszahlung }));
+  // erfundene Gruppen: auszahlung = vkNetto - Festpreis - Handling - Mehrkosten + Porto-Einnahmen - Porto-Kosten - PayPal (wie aggregateFpVerkaeufe)
+  const produkteGruppen = gruppen.map(([artikelkategorie, stueckzahl, auszahlung]) => {
+    const festpreisGesamt = Math.round(stueckzahl * 4.37 * 100) / 100, paypalGesamt = 0.51, handlingGesamt = 0.3, portoEinnahmen = 1.2, portoKosten = 2.05;
+    const vkNetto = Math.round((auszahlung + festpreisGesamt + paypalGesamt + handlingGesamt - portoEinnahmen + portoKosten) * 100) / 100;
+    return { produktId: '1', artikelname: `${artikelkategorie} Modell`, artikelkategorie, stueckzahl, vkNetto, festpreisGesamt, handlingGesamt, mehrkosten: 0,
+      portoEinnahmen, portoKosten, paypalGesamt, auszahlung };
+  });
   const auszahlung = Math.round(gruppen.reduce((s, g) => s + g[2], 0) * 100) / 100;
   return {
     produkteGruppen, summen: { stueckzahl: 10, auszahlung },
@@ -49,11 +55,14 @@ describe('Gutschrift-Plan', () => {
     expect(p.probleme).toEqual([]);
     expect(p.summen.brutto).toBe(Math.round(a.brutto * 100));
     const items = p.payload.lineItems;
-    expect(Math.round(items.reduce((s, x) => s + x.unitPrice.grossAmount * 100, 0))).toBe(Math.round(a.brutto * 100));
-    expect(items.every(x => x.quantity === 1 && x.type === 'custom' && x.unitPrice.taxRatePercentage === 19)).toBe(true);
+    expect(Math.round(items.reduce((s, x) => s + x.quantity * Math.round(x.unitPrice.grossAmount * 100), 0))).toBe(Math.round(a.brutto * 100));
+    expect(items.every(x => x.type === 'custom' && x.unitPrice.taxRatePercentage === 19 && x.unitName === 'Stück')).toBe(true);
     expect(p.payload.taxConditions).toEqual({ taxType: 'gross' });
-    expect(p.zeilen.map(z => z.art)).toEqual(['artikel', 'artikel', 'artikel', 'porto', 'intern', 'verpackung']);
-    expect(p.zeilen[0].name).toBe('Muster-Shirt - L · 3 Stück');
+    expect(p.zeilen.map(z => z.art)).toEqual(['verkauf', 'verkauf', 'verkauf', 'festpreis', 'festpreis', 'festpreis', 'paypal', 'handling', 'porto', 'intern', 'verpackung']);
+    expect(p.zeilen.map(z => z.name).slice(0, 4)).toEqual(['Muster-Puck', 'Muster-Shirt - L', 'Muster-Mütze', 'Muster-Puck interner Preis']);
+    expect(p.zeilen.filter(z => ['festpreis', 'paypal', 'handling'].includes(z.art)).every(z => z.cent < 0)).toBe(true);
+    expect(p.payload.remark).toBe('Mit freundlichen Grüßen.');
+    expect(items.find(x => x.name === 'Porto Saldo').description).toBe('tatsächliche Versandkosten abzgl. Portoeinnahmen');
     expect(p.zeilen.find(z => z.art === 'intern').cent).toBe(1000);       // negative interne Bestellung = Gutschrift an den Partner
     expect(p.zeilen.find(z => z.art === 'verpackung').cent).toBe(-150);
   });
@@ -67,7 +76,8 @@ describe('Gutschrift-Plan', () => {
       const p = gutschriftPlan({ abrechnung: a, mwstProzent: 19, kontaktId: KONTAKT, voucherDate: 'D' });
       if (a.brutto <= 0) { expect(p.probleme.join()).toMatch(/nicht positiv/); continue; }
       expect(p.summen.brutto).toBe(Math.round(a.brutto * 100));
-      expect(Math.abs(p.ausgleich)).toBeLessThanOrEqual(gruppen.length + 1);
+      expect(Math.abs(p.ausgleich)).toBeLessThanOrEqual(p.zeilen.length);
+      expect(p.payload.lineItems.reduce((s2, x) => s2 + x.quantity * Math.round(x.unitPrice.grossAmount * 100), 0)).toBe(Math.round(a.brutto * 100));
     }
   });
   test('Zeitraum im Einleitungstext, Titel Rechnungsgutschrift', () => {
@@ -103,6 +113,12 @@ describe('Gutschrift-Plan', () => {
   });
 });
 
+test('Menge = Stück nur, wenn der Betrag glatt aufgeht; sonst 1 + "n Stück"', () => {
+  expect(lineItem({ name: 'Shirts', stueck: 4, cent: 9600 }, 19)).toMatchObject({ quantity: 4, unitPrice: { grossAmount: 24 } });
+  expect(lineItem({ name: 'Shirts', stueck: 3, cent: 1000 }, 19)).toMatchObject({ quantity: 1, unitPrice: { grossAmount: 10 }, description: '3 Stück' });
+  expect(lineItem({ name: 'Porto Saldo', beschreibung: 'x', cent: -500 }, 19)).toMatchObject({ quantity: 1, description: 'x' });
+});
+
 describe('Lexware-Schreibweg Gutschrift (Attrappe)', () => {
   const antwort = (status, body) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
   test('genau EIN POST auf /v1/credit-notes ohne finalize; 2xx mit id = angelegt', async () => {
@@ -127,7 +143,9 @@ describe('Lexware-Schreibweg Gutschrift (Attrappe)', () => {
   });
   test('Schluessel fehlt -> 503, nicht in SECRET_KEYS', async () => {
     await expect(gutschriftSchluessel(async () => '')).rejects.toMatchObject({ status: 503, code: 'lexware_gutschriften' });
-    expect(SECRET_KEYS).not.toContain('LEXWARE_API_KEY_GUTSCHRIFTEN');
+    expect(SECRET_KEYS).not.toContain('LEXWARE_API_KEY_RECHNUNGEN');
+    const q = readFileSync(resolve(hier, '../lib/lexwareGutschrift.js'), 'utf8');
+    expect(q).toContain('SCHLUESSEL_GUTSCHRIFTEN = SCHLUESSEL_RECHNUNGEN');
   });
   test('Quelltext: kein finalize, kein PUT/PATCH/DELETE, Host nur ueber BASIS', () => {
     const q = readFileSync(resolve(hier, '../lib/lexwareGutschrift.js'), 'utf8');
@@ -180,7 +198,7 @@ describe('Anlegen mit In-Memory-Sheet', () => {
     expect(n).toBe(1);
     expect(kz(t)).toEqual([ID, '2026-11-22', 'entwurf']);
     expect(payload.address).toEqual({ contactId: KONTAKT });
-    expect(Math.round(payload.lineItems.reduce((s, x) => s + x.unitPrice.grossAmount * 100, 0))).toBe(brutto(t));
+    expect(payload.lineItems.reduce((s, x) => s + x.quantity * Math.round(x.unitPrice.grossAmount * 100), 0)).toBe(brutto(t));
     await expect(gutschriftAnlegen({ eingabe: { id: 'FPA-0009', bruttoCent: brutto(t) }, sheets, ...opts(async () => { n++; return {}; }) }))
       .rejects.toMatchObject({ status: 409, code: 'schon' });
     expect(n).toBe(1);

@@ -1434,10 +1434,11 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
 - backend/lib/gutschrift.js – Gutschrift an Festpreis-Partner (GS1, Inhaber 22.11.): aus einer abgeschlossenen FP-Abrechnung (freigegeben/bezahlt, mit
   Positionen-JSON) EIN Lexware-ENTWURF "Rechnungsgutschrift" (§ 14 Abs. 2 UStG; Lexware: Rechnungskorrektur, GS-Nummer vergibt Lexware beim Abschliessen),
   Einleitung "Folgende Lieferungen/Leistungen schreiben wir Ihnen gut. Für Shop Verkäufe zwischen <Von> und <Bis>". Logik `utils/gutschrift.js`
-  (`gutschriftPlan`): Brutto-Beleg, je Zeile Menge 1 + Bruttobetrag in Cent - je Artikelgruppe Auszahlung x MwSt, Porto-Saldo, interne Bestellungen
-  und Verpackung als Abzug; Rundungsrest auf die groesste Zeile; Summe MUSS = Gesamt-Brutto der Abrechnung auf den Cent (sonst Problem, nichts gesendet).
-  Der EINE Schreibweg `lib/lexwareGutschrift.js` (`POST /v1/credit-notes` ohne finalize, ohne Bezugsrechnung, genau ein Versuch), Secret
-  `LEXWARE_API_KEY_GUTSCHRIFTEN` (nicht in SECRET_KEYS -> 503 `lexware_gutschriften`). Kennzeichen hinten in `FP_Abrechnungen` (Kopf I = Positionen,
+  (`gutschriftPlan`): Brutto-Beleg im Aufbau der bisherigen Gutschriften (GS2026GBR0002): je Artikelkategorie Verkauf (+, Menge = Stueck), je
+  Kategorie "<Kategorie> interner Preis" (-), PayPal, Handling, Mehrkosten, Porto Saldo, interne Bestellungen, Verpackung; Schluss "Mit freundlichen
+  Grüßen."; Menge 1 + "n Stück", wenn der Betrag nicht glatt aufgeht; Rundungsrest auf die betragsgroesste Zeile; Summe MUSS = Gesamt-Brutto der Abrechnung auf den Cent (sonst Problem, nichts gesendet).
+  Der EINE Schreibweg `lib/lexwareGutschrift.js` (`POST /v1/credit-notes` ohne finalize, ohne Bezugsrechnung, genau ein Versuch), Schluessel = derselbe
+  wie RE1 (`LEXWARE_API_KEY_RECHNUNGEN`, darf credit-notes, gemessen 22.11.; fehlt er -> 503 `lexware_gutschriften`). Kennzeichen hinten in `FP_Abrechnungen` (Kopf I = Positionen,
   dann `Gutschrift_Lexware_ID`, `Gutschrift_Am`, `Gutschrift_Status` entwurf|unklar), Ablauf wie RE1 unter `mitFpSperre` (unklar zuerst, nie
   automatisch erneut, `bruttoCent` wie gesehen sonst 409). Kontakt: `FP_Partner.Kunden_Nr` -> Kunden-Sheet Lexoffice_ID (auch fuer PD3). Belegart =
   Business-Config `gutschrift.belegart` (leer = creditnote, anderes 409). Routen `/api/festpreis/gutschrift` (eigener Router, GET /, POST /vorschau,

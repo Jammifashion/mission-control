@@ -1,6 +1,7 @@
 // GS1: der EINE Schreibweg fuer Gutschriften - POST /v1/credit-notes als ENTWURF (nie `finalize`, nie PUT/DELETE, nie versenden,
-// ohne Bezugsrechnung `precedingSalesVoucherId`). Nur mit dem eigenen Schluessel LEXWARE_API_KEY_GUTSCHRIFTEN; fehlt er, startet das
-// Backend trotzdem (nicht in SECRET_KEYS) und der Knopf meldet "nicht eingerichtet".
+// ohne Bezugsrechnung `precedingSalesVoucherId`). Schluessel = derselbe wie fuer Rechnungen (LEXWARE_API_KEY_RECHNUNGEN, Inhaber 22.11.:
+// "beide greifen auf dasselbe zu"; gemessen 22.11.: er darf GET /v1/credit-notes/{id}). Fehlt er, startet das Backend trotzdem (nicht in
+// SECRET_KEYS) und der Knopf meldet "nicht eingerichtet".
 //
 // GENAU EIN Versuch, keine Wiederholung - auch nicht bei 429. Ergebnis wie RE1 (lib/lexwareRechnung.js):
 // angelegt (2xx mit id) · nicht (4xx = sicher nicht angelegt) · unklar (Zeitlimit, Netzfehler, 5xx, 2xx ohne id) -> nie automatisch erneut.
@@ -8,8 +9,9 @@
 
 import { getSecret } from '../utils/secrets.js';
 import { BASIS, taktgeber } from './lexware.js';
+import { SCHLUESSEL_RECHNUNGEN } from './lexwareRechnung.js';
 
-export const SCHLUESSEL_GUTSCHRIFTEN = 'LEXWARE_API_KEY_GUTSCHRIFTEN';
+export const SCHLUESSEL_GUTSCHRIFTEN = SCHLUESSEL_RECHNUNGEN;   // ein Schluessel fuer Rechnungen und Gutschriften
 export const NICHT_EINGERICHTET = 'Lexware-Gutschriften nicht eingerichtet';
 export const ZEITLIMIT_MS = 30000;
 const PFAD = '/v1/credit-notes';
@@ -20,7 +22,7 @@ export function _gutschriftTaktNeu(warte, jetzt) { takt = taktgeber(warte, jetzt
 
 export class GutschriftSchluesselFehlt extends Error {
   constructor(zusatz = '') {
-    super(`${NICHT_EINGERICHTET}${zusatz ? ` (${zusatz})` : ''}.`);
+    super(`${NICHT_EINGERICHTET}${zusatz ? ` (${zusatz})` : ' (Secret LEXWARE_API_KEY_RECHNUNGEN fehlt)'}.`);
     this.status = 503; this.code = 'lexware_gutschriften';
   }
 }
