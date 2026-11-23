@@ -216,7 +216,7 @@ describe('FK2: heller Modus', () => {
     const trikots = html.match(/<div id="tab-trikots"[\s\S]*?<div id="tab-eingaenge"/)[0];
     expect((trikots.match(/class="card inhalt-liste"/g) || []).length).toBe(2);
     // Ausnahmeliste: neue Liste mit 1000 px = Klasse inhalt-liste und Zahl hier anpassen
-    expect((html.match(/class="card inhalt-liste/g) || []).length).toBe(10);   // RE1: re-ansicht
+    expect((html.match(/class="card inhalt-liste/g) || []).length).toBe(11);   // RE1: re-ansicht; DK1: dkm-panel
     // Ausnahmeliste (Bericht FK7): neue breite Tabelle = Klasse inhalt-breit und Zahl hier anpassen
     expect((html.match(/class="card inhalt-breit"/g) || []).length).toBe(27);   // GT1: altes L-Shop-Panel entfernt; PR1: + EK gestiegen   // FIX4: + Agent-Wissen "Beispiele für den Kundenchat"
     expect(html).toContain('class="card inhalt-breit" id="existing-variants-block"');

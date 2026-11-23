@@ -17,6 +17,8 @@ import { euro } from '../utils/edi-bestellung.js';
 import { leseLieferbarkeit } from './lieferbarkeitLesen.js';
 import { leseKunden } from './kunden.js';
 import { leseLager, ladePartner } from './lager.js';
+import { leseDruckKontext } from './druckmasse.js';
+import { positionDruck, druckSummen, handText } from '../utils/druckkosten.js';
 import { AB_KORB_SPALTEN } from '../utils/lshop-ab.js';   // KS4: AB-Spalten des Korbs mitlesen
 import { TAB_KORB, korbZeilen } from '../utils/korb-logic.js';   // AM-3: Korb nur lesen (Rueckmeldung)   // AM-2-2: nur Lagerorte lesen - der Auftrag bucht nie im Lager (das kommt mit AM-3)
 import {
@@ -123,6 +125,15 @@ function summenFuer(auftrag, aktive, info, ekJe) {
   let rabatt = null;
   try { rabatt = rabattAus(auftrag.Rabatt); } catch { /* ungueltig im Sheet -> ohne Rabatt */ }
   return auftragSummen(eingaben, rabatt);
+}
+// DK1: Druckkosten je aktiver Position (gleiche Reihenfolge wie summen.positionen) + Summe/Rohertrag nach Druck. Nur Anzeige.
+const istJa = v => /^(ja|true|1|x)$/i.test(String(v ?? '').trim());
+function druckFuer(auftrag, aktive, info, dk, summen) {
+  const express = istJa(auftrag.DTF_Express);
+  const positionen = aktive.map(p => positionDruck(
+    { druck: p.Druck, motiv: p.Motiv, groesse: info.get(p.LShop_ArticleNr)?.groesse ?? '', menge: p.Menge, hand: p.Druckmasse_Hand },
+    { masse: dk.masse, preise: dk.preise, express }));
+  return { express, positionen, ...druckSummen(positionen, summen) };
 }
 /** Angebotsstand festhalten (Status "Angebot" bzw. Knopf): netto/brutto nach Rabatt (Euro) + Tag. */
 const angebotFelder = (summen, tag) => ({ Angebot_Netto: summen.nettoNach / 100, Angebot_Brutto: summen.brutto / 100, Angebot_Stand: tag });
@@ -291,6 +302,7 @@ export async function leseAuftraege({ sheets: s, jetzt = () => new Date(), autoB
   const ekJe = await leseEkJe(sheets, spreadsheetId);   // AM-5
   const verlauf = await leseEkVerlauf(sheets, spreadsheetId);   // PR1
   const auTag = new Map(a.zeilen.map(z => [z.Auftrag_Nr, z.Bestellt_Am || z.Angelegt || '']));
+  const dk = await leseDruckKontext({ sheets, spreadsheetId });   // DK1: Druckmasse + Preise (nur Anzeige)
   const auftraege = auftraegeAntwort(a.zeilen, p.zeilen, x => {
     const y = anreichern(x);
     const e = x.LShop_ArticleNr ? ekJe.get(x.LShop_ArticleNr) : null;
@@ -301,13 +313,14 @@ export async function leseAuftraege({ sheets: s, jetzt = () => new Date(), autoB
   }).map(x => {
     const akt = aktivePositionen(p.zeilen, x.Auftrag_Nr);
     const summen = summenFuer(x, akt, info, ekJe);
+    const druck = druckFuer(x, akt, info, dk, summen);
     const w = wareStand(akt, korbJe);
     ware.set(x.Auftrag_Nr, w);
     return {
       ...x, vorschlagFertig: fertigVorschlag(x, akt), ware: w,
       freiOffen: akt.filter(y => y.Art === ART.FREI && !y.Herkunft && !String(y.Da_Am ?? '').trim()).length,   // KS4-2: ohne "bei uns"
       autoBestellt: gesetzt.includes(x.Auftrag_Nr),
-      preise: { ...summen, angebotGeaendert: angebotAbweichung(x, summen) },   // AM-5: Cent
+      preise: { ...summen, angebotGeaendert: angebotAbweichung(x, summen), druck },   // AM-5: Cent; DK1: Druckkosten netto
     };
   });
   // AM-4: Aufgaben und To-dos (eigene Reiter); fehlen sie, leer + Kennzeichen fuer die Oberflaeche.
@@ -325,6 +338,8 @@ export async function leseAuftraege({ sheets: s, jetzt = () => new Date(), autoB
       preisEingabe: a.idx.Preis_Eingabe !== undefined, designLink: a.idx.Design_Link !== undefined },   // AMQ1
     zustaendigAuswahl: ZUSTAENDIG,
     einrichtung: { aufgaben: !!g && !g.kaputt, todos: !!d && !d.kaputt },
+    // DK1: Spalten fuer freie Druckmasse/Express und ob der Reiter Druckmasse eingerichtet ist (Oberflaeche sperrt sonst mit Hinweis)
+    druck: { hand: p.idx.Druckmasse_Hand !== undefined, express: a.idx.DTF_Express !== undefined, druckmasse: dk.einrichtung },
   };
   if (!s) cache = { zeit: Date.now(), antwort };
   return antwort;
@@ -651,3 +666,47 @@ export async function setzeZustaendig({ eingabe, sheets: s } = {}) {
 
 // RE1: Schreib-/Lesebausteine fuer lib/rechnung.js (gleiche Sperre, gleicher Rueckleseweg).
 export { schreibe as schreibeAuftragsZellen, zellenAus as auftragZellenAus, liesZusatz as liesAuftragZusatz };
+
+// ── DK1: Express-Schalter und freie Druckmasse (einfach ueberschreiben wie "Zuständig", Stand bleibt) ──────────────
+
+/** POST /api/auftraege/dtf-express { auftragNr, express } - Spalte DTF_Express "ja" | "". */
+export async function setzeDtfExpress({ eingabe, sheets: s } = {}) {
+  const nr = String(eingabe?.auftragNr ?? '').trim();
+  const wert = eingabe?.express === true ? 'ja' : '';
+  return mitSperre(async () => {
+    const sheets = s ?? await sheetsClient();
+    const spreadsheetId = sheetId();
+    const { a } = await lies(sheets, spreadsheetId);
+    const x = a.zeilen.find(z => z.Auftrag_Nr === nr);
+    if (!x) throw fehler('Auftrag gibt es nicht.', 404);
+    pruefeSpalten(a.idx, ['DTF_Express'], 'DTF-Express in Aufträgen');
+    if (String(x.DTF_Express ?? '') !== wert) await schreibe(sheets, spreadsheetId, { zellen: zellenAus(TAB_AUFTRAEGE, a.idx, x._zeile, { DTF_Express: wert }) });
+    return { ok: true, auftragNr: nr, express: !!wert };
+  });
+}
+
+/**
+ * POST /api/auftraege/druckmasse-hand { auftragNr, positionIds, teile: [{ position, breite, hoehe }] } - freie Druckmasse fuer
+ * diese Positionen (eine Gruppe), leere Liste = Tabelle Druckmasse gilt wieder. Nicht bei storniert; entfernte Positionen nie.
+ */
+export async function setzeDruckmasseHand({ eingabe, sheets: s } = {}) {
+  const nr = String(eingabe?.auftragNr ?? '').trim();
+  const ids = Array.isArray(eingabe?.positionIds) ? eingabe.positionIds.map(v => String(v).trim()) : [];
+  if (!ids.length) throw fehler('Keine Position gewählt.', 422);
+  const text = handText(eingabe?.teile);
+  return mitSperre(async () => {
+    const sheets = s ?? await sheetsClient();
+    const spreadsheetId = sheetId();
+    const { a, p } = await lies(sheets, spreadsheetId);
+    const x = a.zeilen.find(z => z.Auftrag_Nr === nr);
+    if (!x) throw fehler('Auftrag gibt es nicht.', 404);
+    if (x.Status === 'storniert') throw fehler(`${nr} ist storniert.`, 409, 'abgeschlossen');
+    pruefeSpalten(p.idx, ['Druckmasse_Hand'], 'Druckmaße in Auftrag_Positionen');
+    const akt = aktivePositionen(p.zeilen, nr);
+    const pos = ids.map(id => akt.find(z => z.Position_ID === id));
+    if (pos.some(z => !z)) throw fehler('Position gehört nicht (mehr) zu diesem Auftrag – neu laden.', 409, 'konflikt');
+    const zellen = pos.filter(z => String(z.Druckmasse_Hand ?? '') !== text).flatMap(z => zellenAus(TAB_POSITIONEN, p.idx, z._zeile, { Druckmasse_Hand: text }));
+    if (zellen.length) await schreibe(sheets, spreadsheetId, { zellen });
+    return { ok: true, auftragNr: nr, positionen: ids.length, druckmasse: text };
+  });
+}

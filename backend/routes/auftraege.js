@@ -4,7 +4,7 @@ import { Router } from 'express';
 import {
   leseAuftraege, legeAuftragAn, bearbeiteAuftrag, wechsleStatus, setzePositionFertig, entfernePosition,
   legeAufgabeAn, bearbeiteAufgabe, wechsleAufgabeStatus, legeTodoAn, aendereTodo, verschiebeTodo, archiviereTodo,
-  aktualisiereAngebot, setzeZustaendig, leseKundenHistorie,
+  aktualisiereAngebot, setzeZustaendig, leseKundenHistorie, setzeDtfExpress, setzeDruckmasseHand,
 } from '../lib/auftraege.js';
 import { bereitstellenVorschau, bereitstellen, zuruecknehmen } from '../lib/auftragBereitstellen.js';
 import rateLimit from 'express-rate-limit';
@@ -146,5 +146,8 @@ router.post('/rechnung/kennzeichen', mitMeldung(req => rechnungKennzeichen({ ein
 router.post('/rechnung/nachsehen', mitMeldung(req => rechnungNachsehen({ nr: req.body?.nr })));
 
 router.post('/zustaendig', mitMeldung(req => setzeZustaendig({ eingabe: req.body ?? {} })));
+// ── DK1: Druckkosten - Express-Schalter am Auftrag, freie Druckmasse je Gruppe (nie Betraege ins Log) ──
+router.post('/dtf-express', mitMeldung(req => setzeDtfExpress({ eingabe: req.body ?? {} })));
+router.post('/druckmasse-hand', mitMeldung(req => setzeDruckmasseHand({ eingabe: req.body ?? {} })));
 
 export default router;

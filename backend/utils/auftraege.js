@@ -25,7 +25,8 @@ export const PREIS_SPALTEN = ['Preis_Netto', 'Aufpreis_Netto', 'Aufpreis_Ab', 'U
 // KS3: Verweis = Quelle schon vorhandener Ware (Korb-Schluessel, AU-…-NN, LAGER:<Ort>, "ohne Verweis: …"), nur bei "schon bestellt – verknüpfen".
 // KS4: Verschoben_Nach = Position-ID im Auftrag eines anderen Termins (Bestellseite "in Termin … verschieben"); ganz verschoben = auch Entfernt.
 // KS4-2: Da_Am = Tag, an dem die Ware einer FREIEN Position (noch zu besorgen) bei uns ist - von Hand ("bei uns").
-export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung', ...PREIS_SPALTEN, 'Verweis', 'Verschoben_Nach', 'Da_Am', 'Druckname'];
+// DK1: Druckmasse_Hand = freie Druckmasse dieser Position ("Brust 10,5x5; Rücken 28x17,5", cm) - vor der Tabelle Druckmasse.
+export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung', ...PREIS_SPALTEN, 'Verweis', 'Verschoben_Nach', 'Da_Am', 'Druckname', 'Druckmasse_Hand'];
 // AM-3: optional ganz hinten in Auftraege - Datum des Schritts "Design" (leer = Schritt nicht genutzt / uebersprungen).
 // AMQ1: Preis_Eingabe ("brutto" oder leer = netto; nur die Eingabe an der Position, gespeichert wird immer netto) und
 // Design_Link (https-Adresse, z. B. Canva) - optional ganz hinten, Setup ergaenzt sie.
@@ -33,7 +34,7 @@ export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung', ...P
 // KS3: Zugang_ID + Termin_ID = aus Bestellseite <Zugang_ID>, Termin <Termin_ID> (ein AU je Termin; Nachtrag = weiterer AU zum Termin).
 // RE1: Rechnungskennzeichen (Lexware-Entwurf) - ID, Tag, Status entwurf|unklar; leer = noch nicht abgerechnet.
 export const AUFTRAG_OPTIONAL = ['Design_Am', 'Rabatt', 'Angebot_Netto', 'Angebot_Brutto', 'Angebot_Stand', 'Zustaendig', 'Preis_Eingabe', 'Design_Link', 'Vorlage_Von', 'Zugang_ID', 'Termin_ID',
-  'Rechnung_Lexware_ID', 'Rechnung_Am', 'Rechnung_Status'];
+  'Rechnung_Lexware_ID', 'Rechnung_Am', 'Rechnung_Status', 'DTF_Express'];   // DK1: DTF_Express "ja" = Druckkosten zum Express-Preis
 export const PREIS_EINGABE = ['netto', 'brutto'];
 export const DESIGN_LINK_MAX = 500;
 // AMQ1 (Inhaber 06.11.): Positionen sind keine Pflicht, solange man noch nicht bestellt - Pflicht erst beim Wechsel auf

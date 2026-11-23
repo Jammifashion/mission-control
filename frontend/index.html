@@ -751,6 +751,24 @@
         white-space: nowrap; display: inline-flex; align-items: center; gap: 0.3rem; transition: background 0.15s;
       }
       .korb-aktion:disabled { opacity: 0.5; cursor: not-allowed; }
+      /* DK1: Druckkosten im Auftrag + Pflege-Ansicht Druckmaße */
+      .dk-block { margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
+      .dk-kopf { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
+      .dk-gruppe { padding: 0.4rem 0; border-bottom: 1px solid var(--border); display: grid; gap: 0.2rem; font-size: 0.85rem; }
+      .dk-zeile { display: grid; grid-template-columns: minmax(0, 1fr) 5.5rem auto 5.5rem auto; gap: 0.4rem; align-items: center; margin-bottom: 0.4rem; }
+      .dk-felder { display: grid; gap: 0.3rem; }
+      .dk-bh { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem 0.6rem; }
+      .dk-fehler { color: var(--danger); min-height: 1.2em; }
+      .dkm-haken { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 44px; cursor: pointer; }
+      .dkm-tabelle { width: 100%; border-collapse: collapse; }
+      .dkm-tabelle th, .dkm-tabelle td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border); }
+      .dkm-inaktiv td { color: var(--muted); }
+      @media (max-width: 600px) {
+        .dk-zeile { grid-template-columns: minmax(0, 1fr) 4.5rem auto 4.5rem auto; }
+        /* Tippflaechen >= 44 px (UI3), die Zeile waechst */
+        #dk-dialog button, #dkm-dialog button, #dkm-panel button, .dk-block button { min-height: 44px; }
+        #dk-dialog .dk-weg, #dk-dialog .hilfe-i, #dkm-dialog .hilfe-i, #dkm-panel .hilfe-i { min-width: 44px; }
+      }
       .korb-aktion-haupt { background: none; border: 1px solid var(--accent); color: var(--accent); font-weight: 600; }
       .korb-aktion-haupt:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 15%, transparent); }
       .korb-aktion-ruhig { background: var(--bg); border: 1px solid var(--border); color: var(--text); }
@@ -2819,6 +2837,7 @@
           <button class="mode-btn" id="mode-btn-seoedit" data-hilfe="modus-seo-aendern">🔎 SEO-Daten ändern</button>
           <button class="mode-btn" id="mode-btn-lshopmodelle" data-hilfe="modus-lshop-modelle">🧵 L-Shop-Modelle</button>
           <button class="mode-btn" id="mode-btn-lieferbarkeit" data-hilfe="lfbs-modus">📦 Lieferbarkeit Shop</button>
+          <button class="mode-btn" id="mode-btn-druckmasse" data-hilfe="dkm-modus">📐 Druckmaße</button>
           <button class="hilfe-i" type="button" data-hilfe-gruppe="artikel" aria-controls="hilfe-artikel" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
         </div>
         <div id="hilfe-artikel" class="hilfe-legende" hidden></div>
@@ -2902,6 +2921,56 @@
           </div>
           <div id="lfbs-liste"></div>
           <div id="lfbs-druck" class="zaehlliste" hidden></div>
+        </div>
+
+        <!-- DK1: Druckmaße je Motiv (B × H je Druckposition) - Grundlage der Druckkosten im Auftrag und spaeter des Druckbogens -->
+        <div id="dkm-panel" style="display:none;">
+          <div class="card inhalt-liste" style="margin-bottom:1rem;">
+            <div class="form-section-title">Druckmaße
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="druckmasse" aria-controls="hilfe-druckmasse" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+            </div>
+            <div id="hilfe-druckmasse" class="hilfe-legende" hidden></div>
+            <p class="field-note" style="margin:0 0 0.5rem;" data-hilfe="dkm-regel" tabindex="0">Je Motiv (bzw. Kurzbezeichnung) und Druckposition Breite × Höhe in cm – für eine Größe oder „alle“.
+              Im Auftrag gilt die genaue Größe vor „alle“. Druckkosten je Teil = Summe der Flächen × Preis je m² × (1 + Verschnitt), netto.</p>
+            <div id="dkm-preise" class="korb-zaehler"></div>
+            <div class="lfbs-leiste">
+              <input id="dkm-suche" class="form-input" type="search" placeholder="Suche: Motiv, Position" aria-label="Suche" data-hilfe="dkm-suche">
+              <label class="dkm-haken" data-hilfe="dkm-inaktive"><input type="checkbox" id="dkm-inaktive"> auch inaktive</label>
+              <button type="button" class="korb-aktion korb-aktion-haupt" id="dkm-neu" data-hilfe="dkm-neu">+ Neues Druckmaß</button>
+            </div>
+            <div id="dkm-liste"></div>
+          </div>
+
+          <div id="dkm-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="dkm-titel" hidden>
+            <div class="edi-box">
+              <div class="edi-kopf"><strong id="dkm-titel">Druckmaß</strong>
+                <button class="hilfe-i" type="button" data-hilfe-gruppe="druckmasse" aria-controls="hilfe-dkm-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+              </div>
+              <div id="hilfe-dkm-dialog" class="hilfe-legende" hidden></div>
+              <div class="dk-felder">
+                <label class="form-label" for="dkm-f-bezug">Motiv / Kurzbezeichnung</label>
+                <input id="dkm-f-bezug" class="form-input" maxlength="60" placeholder="z. B. Skyline" data-hilfe="dkm-f-bezug">
+                <label class="form-label" for="dkm-f-position">Druckposition</label>
+                <input id="dkm-f-position" class="form-input" maxlength="30" placeholder="z. B. Brust, Rücken, Ärmel links" data-hilfe="dk-position">
+                <label class="form-label" for="dkm-f-groesse">Größe</label>
+                <input id="dkm-f-groesse" class="form-input" maxlength="20" placeholder="alle" data-hilfe="dkm-f-groesse">
+                <div class="dk-bh">
+                  <label class="form-label" for="dkm-f-breite">Breite (cm)</label>
+                  <label class="form-label" for="dkm-f-hoehe">Höhe (cm)</label>
+                  <input id="dkm-f-breite" class="form-input" inputmode="decimal" placeholder="28" data-hilfe="dk-breite">
+                  <input id="dkm-f-hoehe" class="form-input" inputmode="decimal" placeholder="17,5" data-hilfe="dk-hoehe">
+                </div>
+                <label class="form-label" for="dkm-f-notiz">Notiz</label>
+                <input id="dkm-f-notiz" class="form-input" maxlength="200" placeholder="optional" data-hilfe="dkm-f-notiz">
+                <label class="dkm-haken" id="dkm-f-aktiv-wrap" data-hilfe="dkm-aktiv"><input type="checkbox" id="dkm-f-aktiv" checked> aktiv</label>
+              </div>
+              <div id="dkm-fehler" class="field-note dk-fehler" role="alert"></div>
+              <div class="korb-reihe">
+                <button type="button" class="korb-aktion korb-aktion-haupt" id="dkm-speichern" data-hilfe="dialog-speichern">Speichern</button>
+                <button type="button" class="korb-link" id="dkm-abbrechen" data-hilfe="dialog-abbrechen">Abbrechen</button>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- L-Shop-Modelle (LS4): neue L-Shop-Modelle als Sammelliste aufnehmen -->
@@ -4267,6 +4336,27 @@
         </div>
 
         <!-- AM-6-1: Auftrag nachsehen, ueber "Neuer Auftrag" (nur lesen). Schliessen fuehrt zurueck, der Dialog bleibt wie er war. -->
+        <!-- DK1: freie Druckmaße einer Gruppe im Auftrag (vor der Tabelle Druckmaße). Nur MC, nie Betraege ins Log. -->
+        <div id="dk-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="dk-titel" hidden>
+          <div class="edi-box">
+            <div class="edi-kopf"><strong id="dk-titel">Druckmaße</strong>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="druckmasse" aria-controls="hilfe-dk-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+            </div>
+            <div id="hilfe-dk-dialog" class="hilfe-legende" hidden></div>
+            <div id="dk-text" class="korb-zaehler"></div>
+            <div id="dk-zeilen"></div>
+            <div class="korb-reihe">
+              <button type="button" class="korb-link" id="dk-zeile-neu" data-hilfe="dk-zeile-neu">+ weitere Druckposition</button>
+            </div>
+            <div id="dk-fehler" class="field-note dk-fehler" role="alert"></div>
+            <div class="korb-reihe">
+              <button type="button" class="korb-aktion korb-aktion-haupt" id="dk-speichern" data-hilfe="dialog-speichern">Speichern</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="dk-hand-weg" data-hilfe="dk-hand-weg">freie Maße entfernen</button>
+              <button type="button" class="korb-link" id="dk-abbrechen" data-hilfe="dialog-abbrechen">Abbrechen</button>
+            </div>
+          </div>
+        </div>
+
         <div id="au-nachsehen" class="edi-dialog au-nachsehen" role="dialog" aria-modal="true" aria-labelledby="au-ns-titel" hidden>
           <div class="edi-box ku-box au-box">
             <div class="edi-kopf">
@@ -4947,6 +5037,7 @@
           { id: 'seo-aendern', panel: 'products', knopf: '#mode-btn-seoedit' },
           { id: 'lshop-modelle', panel: 'products', knopf: '#mode-btn-lshopmodelle', neuLaden: true },   // LS4
           { id: 'lieferbarkeit', panel: 'products', knopf: '#mode-btn-lieferbarkeit', neuLaden: true },   // BO7-3
+          { id: 'druckmasse', panel: 'products', knopf: '#mode-btn-druckmasse', neuLaden: true },   // DK1
         ] },
         partner: { label: 'Partner', leiste: true, punkte: [
           { id: 'lizenz',    label: 'Lizenzpartner', panel: 'partnerportal', shop: true },
@@ -7311,6 +7402,34 @@
       // title, sonst zeigt der Browser denselben Text ein zweites Mal. Auf dem Handy oeffnet das ⓘ
       // (data-hilfe-gruppe) die Liste der Gruppe. Neuer Knopf = Text hier + Schluessel in HILFE_GRUPPEN.
       const KNOPF_HILFE = {
+        // DK1: Druckmaße und Druckkosten (DTF)
+        'dkm-modus':            { name: '📐 Druckmaße', text: 'Druckmaße je Motiv und Druckposition pflegen – Grundlage der Druckkosten im Auftrag.' },
+        'dkm-regel':            { name: 'Rechenregel', text: 'Je Teil: Summe B × H × Preis je m² × (1 + Verschnitt), netto. Preis je m² aus Bogen- oder Meterpreis (Einstellungen).' },
+        'dkm-suche':            { name: 'Suche', text: 'Filtert nach Motiv, Position, Größe oder Notiz. Wird nicht gespeichert.' },
+        'dkm-inaktive':         { name: 'auch inaktive', text: 'Zeigt auch Druckmaße, die nicht mehr gelten. Gelöscht wird nie.' },
+        'dkm-neu':              { name: '+ Neues Druckmaß', text: 'Legt ein Druckmaß an: Motiv, Druckposition, Größe (leer = alle), Breite und Höhe in cm.' },
+        'dkm-bearbeiten':       { name: 'bearbeiten …', text: 'Ändert dieses Druckmaß oder setzt es auf inaktiv.' },
+        'dkm-inaktiv-zeichen':  { name: 'inaktiv', text: 'Gilt nicht mehr – zählt in keinem Auftrag.' },
+        'dkm-f-bezug':          { name: 'Motiv', text: 'Genau so geschrieben wie im Feld „Motiv“ der Auftragsposition (Groß/Klein egal).' },
+        'dkm-f-groesse':        { name: 'Größe', text: 'Leer = alle Größen. Eine konkrete Größe geht im Auftrag vor „alle“.' },
+        'dkm-f-notiz':          { name: 'Notiz', text: 'Optional, nur intern (z. B. „Logo klein“).' },
+        'dkm-aktiv':            { name: 'aktiv', text: 'Ohne Haken gilt das Druckmaß nicht mehr. Löschen gibt es nicht.' },
+        'dk-position':          { name: 'Druckposition', text: 'Wo gedruckt wird, z. B. Brust, Rücken, Ärmel links.' },
+        'dk-breite':            { name: 'Breite (cm)', text: 'Breite des Drucks in cm, z. B. 28 oder 10,5.' },
+        'dk-hoehe':             { name: 'Höhe (cm)', text: 'Höhe des Drucks in cm, z. B. 17,5.' },
+        'dk-kosten':            { name: 'Druckkosten zeigen', text: 'Zeigt die DTF-Druckkosten der Positionen (nur in MC).' },
+        'dk-express':           { name: 'Express-Druck', text: 'Rechnet die Druckkosten dieses Auftrags mit dem Express-Preis.' },
+        'dk-masse':             { name: 'Druckmaße', text: 'Druckpositionen dieser Gruppe mit Breite × Höhe und Fläche je Teil.' },
+        'dk-gesamt':            { name: 'Druckkosten netto', text: 'Summe der berechneten Druckkosten aller Positionen, netto.' },
+        'dk-rohertrag':         { name: 'Rohertrag nach Druck', text: 'Rohertrag minus Druckkosten – über Positionen mit Preis und EK, vor Steuern und Nebenkosten.' },
+        'dk-offen':             { name: 'Druckkosten offen', text: 'Hier fehlen Druckmaße – „Maße eingeben …“ oder unter Artikel → Druckmaße hinterlegen.' },
+        'dk-preis-fehlt':       { name: 'Preis fehlt', text: 'Bogen- bzw. Meterpreis, Breite oder Verschnitt fehlen in den Einstellungen – es wird nicht mit 0 gerechnet.' },
+        'dk-kein-dtf':          { name: 'kein DTF', text: 'Druckart ist nicht DTF (Stick, Flex …) – dafür werden keine Druckkosten gerechnet.' },
+        'dk-hand-oeffnen':      { name: 'Maße eingeben …', text: 'Druckmaße nur für diesen Auftrag eingeben – gehen vor den hinterlegten Druckmaßen.' },
+        'dk-merken':            { name: 'als Druckmaß merken', text: 'Übernimmt die freien Maße als Druckmaß für dieses Motiv (alle Größen).' },
+        'dk-zeile-neu':         { name: '+ weitere Druckposition', text: 'Fügt eine Zeile für eine weitere Druckposition hinzu.' },
+        'dk-zeile-weg':         { name: 'Zeile entfernen', text: 'Nimmt diese Druckposition aus der Liste (gespeichert erst mit „Speichern“).' },
+        'dk-hand-weg':          { name: 'freie Maße entfernen', text: 'Löscht die freien Maße dieser Gruppe – danach gelten die hinterlegten Druckmaße.' },
         // HT1 (03.11.2026): Mouse-over fuer die aelteren Knoepfe; gemeinsame Texte (dialog-*, liste-*, editor-*, nav-*) genau einmal.
         'wc-erledigt':          { name: 'Als erledigt markieren', text: 'Setzt die Bestellung im Shop auf „abgeschlossen“ – der Kunde sieht den neuen Status.' },
         'eigen-modell':         { name: 'Modell wählen', text: 'Übernimmt dieses L-Shop-Modell für die eigene Position. Grau = gerade nicht bestellbar.' },
@@ -8014,6 +8133,9 @@
       };
       // ⓘ-Listen: welche Erklaerungen eine Gruppe zeigt (Reihenfolge wie auf dem Bildschirm).
       const HILFE_GRUPPEN = {
+        druckmasse: ['dkm-modus', 'dkm-regel', 'dkm-suche', 'dkm-inaktive', 'dkm-neu', 'dkm-bearbeiten', 'dkm-inaktiv-zeichen', 'dkm-f-bezug', 'dk-position', 'dkm-f-groesse',
+          'dk-breite', 'dk-hoehe', 'dkm-f-notiz', 'dkm-aktiv', 'dk-kosten', 'dk-express', 'dk-masse', 'dk-gesamt', 'dk-rohertrag', 'dk-offen', 'dk-preis-fehlt', 'dk-kein-dtf',
+          'dk-hand-oeffnen', 'dk-merken', 'dk-zeile-neu', 'dk-zeile-weg', 'dk-hand-weg', 'dialog-speichern', 'dialog-abbrechen'],   // DK1
         // HT1: Gruppen der aelteren Knoepfe (ⓘ-Liste, sobald es dort ein ⓘ gibt)
         'feedback': ['fb-text', 'fb-senden', 'dialog-abbrechen', 'dialog-schliessen'],   // FB1
         'mika': ['mika-oeffnen', 'mika-heute', 'mika-dringend', 'mika-suche', 'mika-nummer', 'mika-shop', 'mika-suchen', 'mika-sprung', 'mika-mehr', 'mika-vorlesen', 'dialog-schliessen'],   // MI1
@@ -14437,12 +14559,174 @@
             + ` · <span data-hilfe="ap-ek" data-hilfe-zusatz="${kuEsc(apEkHilfe(p))}" tabindex="0">EK ${apEuroText(w.ek)}</span>`
             + (w.rohertrag !== null ? ` · Rohertrag ${apEuroText(w.rohertrag)}` : '') + '</div>';
         }).join('');
-        const kalk = apKalkulationHtml(s, { offen: apKalkOffen() }).replace('</details>', `${zeilen}</details>`);
+        const kalk = apKalkulationHtml(s, { offen: apKalkOffen() }).replace('</details>', `${zeilen}${dkKalkHtml(a)}</details>`);
+        // DK1: ohne Preise stehen die Druckkosten in einem eigenen, eingeklappten Block
+        const nurDruck = (a.positionen ?? []).length && s.druck
+          ? `<details class="ap-kalk"${apKalkOffen() ? ' open' : ''}><summary data-hilfe="dk-kosten">Druckkosten zeigen</summary>${dkKalkHtml(a)}</details>` : '';
         el.innerHTML = s.netto || s.ohnePreis < (a.positionen ?? []).length ? `<div class="td-kopf"><strong>Preise</strong></div>${apSummenHtml(s)}${angebot}${kalk}`
-          : `<div class="korb-zaehler" data-hilfe="ap-unvollstaendig" tabindex="0">Noch keine Preise – „bearbeiten …“ trägt sie ein.</div>${angebot}`;
+          : `<div class="korb-zaehler" data-hilfe="ap-unvollstaendig" tabindex="0">Noch keine Preise – „bearbeiten …“ trägt sie ein.</div>${angebot}${nurDruck}`;
         auEl('au-angebot-neu').hidden = !geaendert || a.Status === 'storniert';
         auZustWahl(auEl('au-zustaendig'), a.Zustaendig, auZ.daten?.spalten?.zustaendig);
       }
+      // ── Druckkosten-Anzeige: Anfang (DK1, Test druckkosten-frontend.test.js) ──
+      // Rechnung NUR im Backend (utils/druckkosten.js), hier nur Anzeige von a.preise.druck (Cent, netto) und die zwei
+      // Schreibwege: Express-Schalter am Auftrag, freie Druckmaße je Gruppe.
+      const dkZ = { gruppen: [], auftrag: null, gruppe: null, laeuft: false };
+      const dkZahl = n => String(n).replace('.', ',');
+      const dkCm2 = n => `${Number(n).toLocaleString('de-DE', { maximumFractionDigits: 1 })} cm²`;
+      /** Spiegel von handTeile (utils/druckkosten.js): "Brust 10,5x5; Rücken 28x17,5" -> [{ position, breite, hoehe }]. */
+      function dkHandTeile(zelle) {
+        const out = [];
+        for (const teil of apT(zelle).split(';')) {
+          const m = /^(.+?)\s+(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)$/i.exec(apT(teil));
+          if (m) out.push({ position: apT(m[1]), breite: Number(m[2].replace(',', '.')), hoehe: Number(m[3].replace(',', '.')) });
+        }
+        return out;
+      }
+      const dkTeileText = teile => (teile ?? []).map(x => `${x.position} ${dkZahl(x.breite)} × ${dkZahl(x.hoehe)}`).join(', ');
+      /** Positionen eines Auftrags zu Gruppen (Ware + Motiv + Druck + freie Maße) - eine Zeile je Gruppe. */
+      function dkGruppen(a) {
+        const d = a.preise?.druck;
+        if (!d) return [];
+        const je = new Map();
+        (a.positionen ?? []).forEach((p, i) => {
+          const was = p.Art === 'lshop' ? [p.lshop?.modell, p.lshop?.farbe].filter(Boolean).join(' · ') || 'L-Shop' : (p.Freitext || 'freie Position');
+          const k = [was, apT(p.Motiv), apT(p.Druck), apT(p.Druckmasse_Hand)].join('|');
+          const g = je.get(k) ?? { was, motiv: apT(p.Motiv), hand: apT(p.Druckmasse_Hand), ids: [], druck: [], menge: 0 };
+          g.ids.push(p.Position_ID);
+          g.druck.push(d.positionen?.[i] ?? { status: 'ohne_mass', text: 'Druckmaße fehlen' });
+          g.menge += Number(p.Menge) || 0;
+          je.set(k, g);
+        });
+        return [...je.values()];
+      }
+      function dkGruppeHtml(g, gi, darf) {
+        const ok = g.druck.filter(x => x.status === 'ok');
+        const st = [...new Set(g.druck.filter(x => x.status !== 'ok').map(x => x.text))];
+        const mit = g.druck.find(x => x.teile?.length);
+        const kopf = `<strong>${kuEsc(g.was)}</strong>${g.motiv ? ` · Motiv ${kuEsc(g.motiv)}` : ''} · ${g.menge} Stück`;
+        if (g.druck.every(x => x.status === 'kein_dtf')) {
+          return `<div class="dk-gruppe"><div>${kopf}</div><div class="korb-zaehler" data-hilfe="dk-kein-dtf" tabindex="0">Druckkosten nicht berechnet (kein DTF)</div></div>`;
+        }
+        const masse = mit ? `<div data-hilfe="dk-masse" tabindex="0">${kuEsc(dkTeileText(mit.teile))} · ${dkCm2(mit.flaeche)} <span class="korb-zaehler">(${mit.quelle === 'hand' ? 'frei eingegeben' : 'aus Druckmaßen'})</span></div>` : '';
+        const stueck = [...new Set(ok.map(x => x.stueck))];
+        const kosten = ok.length ? `<div>je Teil ${stueck.map(c => apEuroText(c)).join(' / ')} · zusammen <span class="ap-betrag">${apEuroText(ok.reduce((x, y) => x + y.netto, 0))}</span> netto</div>` : '';
+        const hinweis = st.map(t => `<div class="au-lager-knapp" ${/Preis|Einstellungen/.test(t) ? 'data-hilfe="dk-preis-fehlt"' : 'data-hilfe="dk-offen"'} tabindex="0">${kuEsc(t)}</div>`).join('');
+        const knoepfe = darf ? '<div class="korb-reihe">'
+          + `<button type="button" class="korb-link" data-dk-hand="${gi}" data-hilfe="dk-hand-oeffnen">Maße eingeben …</button>`
+          + (g.hand && g.motiv ? `<button type="button" class="korb-link" data-dk-merken="${gi}" data-hilfe="dk-merken">als Druckmaß für „${kuEsc(g.motiv)}“ merken</button>` : '')
+          + '</div>' : '';
+        return `<div class="dk-gruppe"><div>${kopf}</div>${masse}${kosten}${hinweis}${knoepfe}</div>`;
+      }
+      /** Block in der Kalkulation: Express, je Gruppe Maße + Kosten, Summe, Rohertrag nach Druck. */
+      function dkKalkHtml(a) {
+        const d = a.preise?.druck;
+        if (!d) return '';
+        const sp = auZ.daten?.druck ?? {};
+        const darf = a.Status !== 'storniert' && !!sp.hand;
+        dkZ.gruppen = dkGruppen(a);
+        dkZ.auftrag = a.Auftrag_Nr;
+        const pr = d.rohertragNachDruckProzent === null || d.rohertragNachDruckProzent === undefined ? '' : ` (${String(d.rohertragNachDruckProzent).replace('.', ',')} %)`;
+        return '<div class="dk-block"><div class="td-kopf dk-kopf"><strong>Druckkosten (DTF)</strong>'
+          + `<label class="dkm-haken" data-hilfe="dk-express"><input type="checkbox" data-dk-express${d.express ? ' checked' : ''}${sp.express && a.Status !== 'storniert' ? '' : ' disabled'}> Express-Druck</label></div>`
+          + (auZ.daten?.druck?.druckmasse === false ? '<div class="korb-zaehler" data-hilfe="dk-offen" tabindex="0">Druckmaße sind noch nicht eingerichtet – nur freie Maße möglich.</div>' : '')
+          + dkZ.gruppen.map((g, gi) => dkGruppeHtml(g, gi, darf)).join('')
+          + `<div class="ap-summen"><span data-hilfe="dk-gesamt" tabindex="0">Druckkosten netto</span><span class="ap-betrag">${apEuroText(d.gesamt)}</span>`
+          + (a.preise.umsatzMitEk ? `<span data-hilfe="dk-rohertrag" tabindex="0">Rohertrag nach Druck</span><span class="ap-betrag">${apEuroText(d.rohertragNachDruck)}${pr}</span>` : '') + '</div>'
+          + (d.offen ? `<div class="au-lager-knapp" data-hilfe="dk-offen" tabindex="0">Rohertrag nach Druck ohne Druckkosten für ${d.offen} Position${d.offen === 1 ? '' : 'en'} (Maße oder Preis fehlen).</div>` : '')
+          + '</div>';
+      }
+      // ── Druckkosten-Anzeige: Ende ──
+
+      // DK1: Express-Schalter, "Maße eingeben …", "als Druckmaß merken" (Ereignisse am Preise-Block)
+      auEl('au-d-preise').addEventListener('change', async e => {
+        const cb = e.target.closest('[data-dk-express]');
+        if (!cb || !auZ.offen) return;
+        cb.disabled = true;
+        try { await auPost('dtf-express', { auftragNr: auZ.offen, express: cb.checked }); showToast(`${auZ.offen}: Druck ${cb.checked ? 'Express' : 'normal'}`); }
+        catch (err) { showToast(`Express: ${err.message}`, 'error'); }
+        await loadAuftraege();
+      });
+      auEl('au-d-preise').addEventListener('click', async e => {
+        const h = e.target.closest('[data-dk-hand]');
+        if (h) { dkDialogOeffnen(dkZ.gruppen[Number(h.dataset.dkHand)]); return; }
+        const m = e.target.closest('[data-dk-merken]');
+        if (m) await dkMerken(dkZ.gruppen[Number(m.dataset.dkMerken)], m);
+      });
+      async function dkPost(pfad, body) {
+        const res = await apiFetch(`${API_BASE()}/api/druckmasse/${pfad}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const j = await res.json().catch(() => null);
+        if (!res.ok) { const err = new Error(j?.error || `HTTP ${res.status}`); err.code = j?.code; err.anders = j?.anders; throw err; }
+        return j;
+      }
+      window.dkPost = dkPost;   // auch fuer die Pflege-Ansicht (Artikel -> Druckmaße)
+      async function dkMerken(g, knopf) {
+        if (!g?.motiv || !g.hand) return;
+        const teile = dkHandTeile(g.hand);
+        knopf.disabled = true;
+        try {
+          let r;
+          try { r = await dkPost('merken', { bezug: g.motiv, groesse: 'alle', teile }); }
+          catch (err) {
+            if (err.code !== 'anders') throw err;
+            const liste = err.anders.map(x => `<li>${kuEsc(x.position)}: ${kuEsc(x.alt)} → ${kuEsc(x.neu)} cm</li>`).join('');
+            if (!await showConfirm('Druckmaße ersetzen?', `<p>Für „${kuEsc(g.motiv)}“ (alle Größen) ist schon anderes hinterlegt:</p><ul>${liste}</ul><p>Das gilt dann für alle Aufträge mit diesem Motiv.</p>`, 'Ersetzen')) return;
+            r = await dkPost('merken', { bezug: g.motiv, groesse: 'alle', teile, ersetzen: true });
+          }
+          showToast(`Druckmaße für „${g.motiv}“: ${r.neu} neu, ${r.ersetzt} ersetzt${r.schon ? `, ${r.schon} schon da` : ''}`);
+        } catch (err) { showToast(`Merken: ${err.message}`, 'error'); }
+        finally { knopf.disabled = false; }
+      }
+      function dkZeileHtml(x = {}) {
+        return '<div class="dk-zeile">'
+          + `<input class="form-input dk-pos" maxlength="30" placeholder="Brust" aria-label="Druckposition" data-hilfe="dk-position" value="${kuEsc(x.position ?? '')}">`
+          + `<input class="form-input dk-b" inputmode="decimal" placeholder="B cm" aria-label="Breite in cm" data-hilfe="dk-breite" value="${x.breite ? kuEsc(dkZahl(x.breite)) : ''}">`
+          + '<span aria-hidden="true">×</span>'
+          + `<input class="form-input dk-h" inputmode="decimal" placeholder="H cm" aria-label="Höhe in cm" data-hilfe="dk-hoehe" value="${x.hoehe ? kuEsc(dkZahl(x.hoehe)) : ''}">`
+          + '<button type="button" class="korb-link dk-weg" data-hilfe="dk-zeile-weg" aria-label="Zeile entfernen">✕</button></div>';
+      }
+      function dkDialogOeffnen(g) {
+        if (!g) return;
+        dkZ.gruppe = g;
+        const vorlage = g.hand ? dkHandTeile(g.hand) : (g.druck.find(x => x.teile?.length)?.teile ?? []);
+        auEl('dk-text').textContent = `${g.was}${g.motiv ? ` · Motiv ${g.motiv}` : ''} – freie Maße gelten nur für diesen Auftrag und gehen vor den hinterlegten Druckmaßen.`;
+        auEl('dk-zeilen').innerHTML = (vorlage.length ? vorlage : [{}]).map(dkZeileHtml).join('');
+        auEl('dk-hand-weg').hidden = !g.hand;
+        auEl('dk-fehler').textContent = '';
+        auEl('dk-dialog').hidden = false;
+        auEl('dk-zeilen').querySelector('input')?.focus();
+      }
+      const dkSchliessen = () => { auEl('dk-dialog').hidden = true; dkZ.gruppe = null; };
+      async function dkSpeichern(teile) {
+        const g = dkZ.gruppe;
+        if (!g || dkZ.laeuft) return;
+        dkZ.laeuft = true;
+        auEl('dk-speichern').disabled = true;
+        try {
+          await auPost('druckmasse-hand', { auftragNr: dkZ.auftrag, positionIds: g.ids, teile });
+          showToast(`${dkZ.auftrag}: Druckmaße ${teile.length ? 'gespeichert' : 'entfernt'}`);
+          dkSchliessen();
+          await loadAuftraege();
+        } catch (err) { auEl('dk-fehler').textContent = err.message; }
+        finally { dkZ.laeuft = false; auEl('dk-speichern').disabled = false; }
+      }
+      auEl('dk-zeile-neu').addEventListener('click', () => {
+        auEl('dk-zeilen').insertAdjacentHTML('beforeend', dkZeileHtml());
+        auEl('dk-zeilen').lastElementChild.querySelector('input').focus();
+      });
+      auEl('dk-zeilen').addEventListener('click', e => { const w = e.target.closest('.dk-weg'); if (w) w.closest('.dk-zeile').remove(); });
+      auEl('dk-speichern').addEventListener('click', () => {
+        const teile = [...auEl('dk-zeilen').querySelectorAll('.dk-zeile')]
+          .map(z => ({ position: z.querySelector('.dk-pos').value, breite: z.querySelector('.dk-b').value, hoehe: z.querySelector('.dk-h').value }))
+          .filter(x => apT(x.position) || apT(x.breite) || apT(x.hoehe));
+        if (!teile.length) { auEl('dk-fehler').textContent = 'Mindestens eine Druckposition mit Breite und Höhe – oder „freie Maße entfernen“.'; return; }
+        dkSpeichern(teile);
+      });
+      auEl('dk-hand-weg').addEventListener('click', async () => {
+        if (!await showConfirm('Freie Druckmaße entfernen?', '<p>Danach gelten wieder die hinterlegten Druckmaße des Motivs.</p>', 'Entfernen')) return;
+        dkSpeichern([]);
+      });
+      auEl('dk-abbrechen').addEventListener('click', dkSchliessen);
       function auZustWahl(sel, wert, an) {
         const liste = auZ.daten?.zustaendigAuswahl ?? AP_ZUSTAENDIG;
         sel.innerHTML = '<option value="">–</option>' + liste.map(z => `<option value="${kuEsc(z)}"${z === wert ? ' selected' : ''}>${kuEsc(z)}</option>`).join('');
@@ -18679,6 +18963,7 @@
       }
       function lsmAus() {
         lfbsAus();   // BO7-3: andere Modi blenden auch "Lieferbarkeit Shop" aus
+        dkmAus();    // DK1: ... und "Druckmaße"
         lsmModus = false;
         const p = document.getElementById('lsm-panel');
         if (p) p.style.display = 'none';
@@ -18862,6 +19147,124 @@
       document.addEventListener('click', ev => {
         if (ev.target.closest?.('[data-lsm-link]')) { ev.preventDefault(); window.oeffneAnsicht('artikel', 'lshop-modelle'); }
       });
+
+      // ── SECTION: Druckmaße (DK1) ──
+      // Pflege-Ansicht Artikel -> Druckmaße: Reiter Druckmasse lesen (GET /api/druckmasse), anlegen/ändern, nie löschen ("inaktiv").
+      // Preise je m² nur Anzeige (aus Config, nur MC). Suche nur im Speicher der Seite.
+      // ── Druckmaße-Pflege: Anfang (Test druckkosten-frontend.test.js) ──
+      let dkmModus = false;
+      const dkm = { daten: null, laeuft: false, offen: null, speichert: false };
+      const dkmEl = id => document.getElementById(id);
+      const dkmEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const dkmZahl = n => (n === null || n === undefined || n === '' ? '' : String(n).replace('.', ','));
+      const dkmEuro = n => `${Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+      /** Einstellungen als Satz: Preis je m² brutto (Bogen/Meter) bzw. was fehlt. */
+      function dkmPreiseText(p) {
+        if (!p) return '';
+        const tf = (name, x) => (x.ok ? `${name} ${dkmEuro(x.qmBrutto)}/m² brutto (${x.modell === 'meter' ? 'Meterpreis' : 'Bogenpreis'})` : `${name}: ${x.text}`);
+        return [tf('normal', p.normal), tf('Express', p.express), p.verschnitt === null || p.verschnitt === undefined ? 'Verschnitt fehlt (Einstellungen)' : `Verschnitt ${dkmZahl(p.verschnitt)} %`].join(' · ');
+      }
+      /** Filter: jedes Wort in Motiv, Position, Größe oder Notiz; inaktive nur mit Haken. */
+      function dkmFiltern(zeilen, { suche = '', inaktive = false } = {}) {
+        const w = String(suche).toLowerCase().split(/\s+/).filter(Boolean);
+        return (zeilen ?? []).filter(z => (inaktive || z.aktiv) && w.every(x => `${z.bezug} ${z.position} ${z.groesse} ${z.notiz}`.toLowerCase().includes(x)))
+          .sort((a, b) => a.bezug.localeCompare(b.bezug, 'de') || a.position.localeCompare(b.position, 'de') || a.groesse.localeCompare(b.groesse, 'de'));
+      }
+      function dkmListeHtml(zeilen) {
+        if (!zeilen.length) return '<p class="field-note">Keine Druckmaße' + (dkm.daten?.zeilen?.length ? ' für diese Suche.' : ' hinterlegt – „+ Neues Druckmaß“ legt das erste an.') + '</p>';
+        return '<div class="roll-x"><table class="dkm-tabelle hk-karten"><thead><tr><th>Motiv</th><th>Position</th><th>Größe</th><th>B × H (cm)</th><th>Fläche</th><th>Notiz</th><th></th></tr></thead><tbody>'
+          + zeilen.map(z => `<tr class="${z.aktiv ? '' : 'dkm-inaktiv'}">`
+            + `<td class="hk-haupt" data-label="Motiv">${dkmEsc(z.bezug)}${z.aktiv ? '' : ' <span class="korb-zaehler" data-hilfe="dkm-inaktiv-zeichen" tabindex="0">inaktiv</span>'}</td>`
+            + `<td data-label="Position">${dkmEsc(z.position)}</td><td data-label="Größe">${dkmEsc(z.groesse)}</td>`
+            + `<td data-label="B × H"><span class="nr-fest">${dkmZahl(z.breite)} × ${dkmZahl(z.hoehe)}</span></td>`
+            + `<td data-label="Fläche"><span class="nr-fest">${z.breite && z.hoehe ? `${(Math.round(z.breite * z.hoehe * 10) / 10).toLocaleString('de-DE')} cm²` : '–'}</span></td>`
+            + `<td data-label="Notiz">${dkmEsc(z.notiz)}</td>`
+            + `<td class="hk-aktion"><button type="button" class="korb-link" data-dkm-id="${dkmEsc(z.id)}" data-hilfe="dkm-bearbeiten">bearbeiten …</button></td></tr>`).join('')
+          + '</tbody></table></div>';
+      }
+      function dkmZeichnen() {
+        const d = dkm.daten;
+        if (!d) return;
+        dkmEl('dkm-preise').textContent = d.einrichtung ? dkmPreiseText(d.preise) : 'Druckmaße sind noch nicht eingerichtet (Setup fehlt).';
+        dkmEl('dkm-neu').disabled = !d.einrichtung;
+        dkmEl('dkm-liste').innerHTML = dkmListeHtml(dkmFiltern(d.zeilen, { suche: dkmEl('dkm-suche').value, inaktive: dkmEl('dkm-inaktive').checked }));
+      }
+      async function dkmLaden() {
+        if (dkm.laeuft) return;
+        dkm.laeuft = true;
+        if (!dkm.daten) dkmEl('dkm-liste').innerHTML = '<div class="skeleton"></div>';
+        try {
+          dkm.daten = await apiJson(await apiFetch(`${API_BASE()}/api/druckmasse`));
+          dkmZeichnen();
+        } catch (e) {
+          dkmEl('dkm-liste').innerHTML = `<p class="field-note dk-fehler">Fehler: ${dkmEsc(e.message)}</p>`;
+        } finally { dkm.laeuft = false; }
+      }
+      // Wird auch beim Start aus lsmAus() gerufen - deshalb ohne spaeter deklarierte Konstanten.
+      function dkmAus() {
+        dkmModus = false;
+        const p = document.getElementById('dkm-panel');
+        if (p) p.style.display = 'none';
+        document.getElementById('mode-btn-druckmasse')?.classList.remove('active');
+      }
+      function setDkmModus() {
+        lsmAus();
+        dkmModus = true;
+        seoMode = false;
+        editMode = false;
+        seAendernModus = false;
+        productFormArea.style.display = 'none';
+        seoModePanel.style.display    = 'none';
+        seoEditPanel.style.display    = 'none';
+        dkmEl('dkm-panel').style.display = '';
+        [modeBtnNew, modeBtnEdit, modeBtnSeo, modeBtnSeoEdit].forEach(b => b.classList.remove('active'));
+        dkmEl('mode-btn-druckmasse').classList.add('active');
+        dkmLaden();
+      }
+      function dkmDialog(z) {
+        dkm.offen = z ?? null;
+        dkmEl('dkm-titel').textContent = z ? `Druckmaß ${z.id}` : 'Neues Druckmaß';
+        dkmEl('dkm-f-bezug').value = z?.bezug ?? '';
+        dkmEl('dkm-f-position').value = z?.position ?? '';
+        dkmEl('dkm-f-groesse').value = z && z.groesse !== 'alle' ? z.groesse : '';
+        dkmEl('dkm-f-breite').value = dkmZahl(z?.breite);
+        dkmEl('dkm-f-hoehe').value = dkmZahl(z?.hoehe);
+        dkmEl('dkm-f-notiz').value = z?.notiz ?? '';
+        dkmEl('dkm-f-aktiv').checked = z ? z.aktiv : true;
+        dkmEl('dkm-f-aktiv-wrap').hidden = !z;
+        dkmEl('dkm-fehler').textContent = '';
+        dkmEl('dkm-dialog').hidden = false;
+        dkmEl(z ? 'dkm-f-breite' : 'dkm-f-bezug').focus();
+      }
+      async function dkmSpeichern() {
+        if (dkm.speichert) return;
+        const z = dkm.offen;
+        const body = {
+          bezug: dkmEl('dkm-f-bezug').value, position: dkmEl('dkm-f-position').value, groesse: dkmEl('dkm-f-groesse').value || 'alle',
+          breite: dkmEl('dkm-f-breite').value, hoehe: dkmEl('dkm-f-hoehe').value, notiz: dkmEl('dkm-f-notiz').value,
+          ...(z ? { id: z.id, stand: z.stand, aktiv: dkmEl('dkm-f-aktiv').checked } : {}),
+        };
+        dkm.speichert = true;
+        dkmEl('dkm-speichern').disabled = true;
+        try {
+          const r = await window.dkPost(z ? 'aendern' : 'neu', body);
+          showToast(`Druckmaß ${r.id} ${z ? 'gespeichert' : 'angelegt'}`);
+          dkmEl('dkm-dialog').hidden = true;
+          await dkmLaden();
+        } catch (e) { dkmEl('dkm-fehler').textContent = e.message; }
+        finally { dkm.speichert = false; dkmEl('dkm-speichern').disabled = false; }
+      }
+      // ── Druckmaße-Pflege: Ende ──
+      dkmEl('mode-btn-druckmasse')?.addEventListener('click', () => setDkmModus());
+      dkmEl('dkm-suche')?.addEventListener('input', dkmZeichnen);
+      dkmEl('dkm-inaktive')?.addEventListener('change', dkmZeichnen);
+      dkmEl('dkm-neu')?.addEventListener('click', () => dkmDialog(null));
+      dkmEl('dkm-liste')?.addEventListener('click', e => {
+        const b = e.target.closest('[data-dkm-id]');
+        if (b) dkmDialog((dkm.daten?.zeilen ?? []).find(z => z.id === b.dataset.dkmId));
+      });
+      dkmEl('dkm-speichern')?.addEventListener('click', dkmSpeichern);
+      dkmEl('dkm-abbrechen')?.addEventListener('click', () => { dkmEl('dkm-dialog').hidden = true; });
 
       // ── SECTION: Lieferbarkeit Shop (BO7-3) ──
       // Shop-Artikel mit nicht lieferbarem L-Shop-Rohling (GET /api/lieferbarkeit-shop). Nur Anzeige und Text-Vorschlaege.
@@ -21373,6 +21776,7 @@
       const FB_TEXT_MAX = 2000;
       // Fenster mit festem Namen - nie der Titel aus dem Fenster selbst (der traegt Kurztitel/Namen).
       const FB_DIALOG_NAMEN = {
+        'dk-dialog': 'Druckmaße im Auftrag', 'dkm-dialog': 'Druckmaß',   // DK1
         'au-dialog': 'Auftrag erfassen/bearbeiten', 'au-detail': 'Auftragsansicht', 'au-nachsehen': 'Auftrag nachsehen', 'ab-dialog': 'Rohlinge bereitstellen',
         'ag-dialog': 'Aufgabe erfassen/bearbeiten', 'ag-detail': 'Aufgabenansicht', 'ku-dialog': 'Kunde', 'kl-dialog': 'In Lexoffice suchen',
         'bsm-dialog': 'Bestellseite', 'lager-dialog': 'Lager buchen', 'lo-dialog': 'Lagerort wählen', 'korb-lager-dialog': 'aus Lager nehmen',

@@ -280,6 +280,10 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   Link einmal anzeigen + kopieren, Speichern (Gueltig bis, Hinweis, Design-Link), neuer Link, sperren/wieder freigeben, Termine (dauer).
   Der Link (`bestellen.html#t=<Token>`) steht nur in `bsmZ.link`, solange der Dialog offen ist - nie Browser-Speicher/Adresse/Toast.
   Knopf "Artikelliste aktualisieren" = Bilder der Dauer-Sortimente.)
+- Druckmaße (DK1: Unterpunkt `artikel/druckmasse`, Modus-Knopf `#mode-btn-druckmasse`, Panel `#dkm-panel` + Dialog `#dkm-dialog`, SECTION
+  Druckmaße (DK1) VOR Lieferbarkeit Shop, Block `Druckmaße-Pflege: Anfang/Ende`, Praefix `dkm`, Hilfe-Gruppe `druckmasse`; nur `/api/druckmasse`,
+  nie loeschen = "inaktiv". Auftragsansicht: Block `Druckkosten-Anzeige: Anfang/Ende` (Praefix `dk`, in der Kalkulation, Dialog `#dk-dialog`
+  vor `#au-nachsehen`). Test druckkosten-frontend.test.js.)
 - Artikelerfassung (dazu Modus-Knopf "🧵 L-Shop-Modelle", LS4: Unterpunkt `artikel/lshop-modelle`, Panel `#lsm-panel`,
   SECTION L-Shop-Modelle mit Block `L-Shop-Modelle: Anfang/Ende`, Test lshop-modelle-frontend.test.js; Hilfe-Gruppe
   `lshop-modelle`; Links `data-lsm-link` aus Warenkorb "Nicht im Bestand" und Maske "Kein L-Shop-Modell".
@@ -1425,6 +1429,19 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   (Doppelklick), Takt wie die Suche. Schreib-Schluessel NUR Secret `LEXWARE_API_KEY_KONTAKTE_SCHREIBEN` (`schreibSchluessel`, nicht in
   SECRET_KEYS); fehlt er/401/403 -> 503 `lexware_schluessel`, Haken mit Hinweis (`GET .../lexoffice-schreiben` { bereit }). Test
   kunden-lexoffice-anlegen.test.js.
+- backend/utils/druckkosten.js – Druckkosten (DTF) je Auftrag (DK1), Lesen/Schreiben `lib/druckmasse.js`, Routen `routes/druckmasse.js`
+  (`/api/druckmasse`: GET, POST /neu, /aendern, /merken) und in `/api/auftraege` (`/dtf-express`, `/druckmasse-hand`). **Nur MC**: nie Bestellseite,
+  Portal, Lexware, Chat, Log (Test). Reiter `Druckmasse` (SSOT, `DRUCKMASSE_SPALTEN`: Druckmass_ID DM-NNNN | Bezug | Position | Groesse | Breite_cm |
+  Hoehe_cm | Aktiv | Notiz | Angelegt | Stand; Bezug = Text wie im Feld Motiv der Auftragsposition; je Bezug+Position+Groesse hoechstens eine aktive
+  Zeile; spaeter Grundlage des Druckbogens). Nachschlag `masseFuer`: genaue Groesse vor "alle" (XXL = 2XL). Freie Maße je Position = optionale Spalte
+  `Druckmasse_Hand` ("Brust 10,5x5; Rücken 28x17,5", geht vor der Tabelle), Express = optionale Spalte `DTF_Express` ("ja") in Auftraege - beide
+  einfach ueberschrieben wie Zustaendig. Preise NUR in Business `Config` (`DTF_CONFIG`): `dtf.breite_cm` (57) + je Tarif normal/express GENAU
+  EIN Modell - `dtf.preis_je_bogen[_express]_brutto` mit `dtf.bogen_laenge_cm` oder `dtf.preis_je_meter[_express]_brutto` (je laufendem Meter);
+  `dtf.verschnitt_prozent` (15). Kosten je Teil = Flaeche × Preis je m² × (1 + Verschnitt) / 1,19 (netto). Fehlt ein Wert -> "Preis fehlt", beide
+  Modelle eingetragen -> "widersprüchlich", nie 0. Druck leer/"DTF" = DTF; Stick/Flex/Flock/Sieb/Plot/Sublimation/Laser = nicht berechnet.
+  Antwort je AU `preise.druck` { express, positionen, gesamt, rohertragNachDruck (nur Positionen mit Preis+EK), offen, … } und `druck` { hand,
+  express, druckmasse } (Spalten/Reiter da). Setup `scripts/setup-druckmasse.js` (Reiter + Config-Zeilen, Preise leer; Trockenlauf, `--write`),
+  Spalten ueber `setup-auftraege-reiter.js`. Tests druckkosten.test.js.
 - backend/lib/rechnung.js – Abrechnen (RE1): Sammelrechnung aus Auftraegen als Lexware-ENTWURF, Logik `utils/rechnung.js`, der EINE Schreibweg
   `lib/lexwareRechnung.js` (`POST /v1/invoices` ohne `finalize`, genau ein Versuch, auch bei 429 kein zweiter; nie PUT/DELETE/versenden; Host nur ueber
   `BASIS` aus lib/lexware.js). Schluessel NUR Secret `LEXWARE_API_KEY_RECHNUNGEN` (nicht in SECRET_KEYS: fehlt er, laeuft die Vorschau, Anlegen = 503

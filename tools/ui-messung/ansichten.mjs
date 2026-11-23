@@ -48,6 +48,16 @@ export const ANSICHTEN_ZUSATZ = [
   { id: 'dashboard/start+ueberblick', hash: 'dashboard/start', aktion: async p => { await p.evaluate(() => { document.getElementById('dash-ueberblick').open = true; }); await p.waitForTimeout(300); }, wurzel: '#dash-ueberblick' },
   { id: 'auftraege/liste+ansicht', hash: 'auftraege/liste', aktion: klick('#au-ansicht [data-au-oeffnen]'), wurzel: DLG, nurVoll: true },
   { id: 'auftraege/liste+neuer-auftrag', hash: 'auftraege/liste', aktion: klick('#au-neu'), wurzel: DLG },
+  // DK1: Druckkosten in der Auftragsansicht (Kalkulation offen), Dialog "Maße eingeben …", Pflege-Ansicht mit Dialog
+  { id: 'auftraege/liste+ansicht-druck', hash: 'auftraege/liste', aktion: async p => {
+      await klick('#au-ansicht [data-au-oeffnen="AU-2026-0041"]')(p);
+      await p.evaluate(() => document.querySelectorAll('#au-d-preise details').forEach(d => { d.open = true; })); await p.waitForTimeout(300); }, wurzel: DLG, nurVoll: true },
+  { id: 'auftraege/liste+druckmasse-hand', hash: 'auftraege/liste', aktion: async p => {
+      await klick('#au-ansicht [data-au-oeffnen="AU-2026-0041"]')(p);
+      await p.evaluate(() => document.querySelectorAll('#au-d-preise details').forEach(d => { d.open = true; }));
+      await klick('#au-d-preise [data-dk-hand]')(p); }, wurzel: '#dk-dialog', nurVoll: true },
+  { id: 'artikel/druckmasse+neu', hash: 'artikel/druckmasse', aktion: klick('#dkm-neu'), wurzel: '#dkm-dialog' },
+  { id: 'artikel/druckmasse+bearbeiten', hash: 'artikel/druckmasse', aktion: klick('[data-dkm-id]'), wurzel: '#dkm-dialog', nurVoll: true },
   // PR1: Dialog 'Wie letztes Mal' mit Marge-Vergleich
   { id: 'auftraege/liste+wie-letztes-mal', hash: 'auftraege/liste', aktion: async p => { await klick('#au-ansicht [data-au-oeffnen]')(p); await klick('#au-wie-letztes')(p); }, wurzel: DLG, nurVoll: true },
   // FB1: Feedback-Fenster allein und ueber einem offenen Fenster (gemessen wird nur das Feedback-Fenster)
