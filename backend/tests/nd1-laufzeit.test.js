@@ -8,9 +8,7 @@ import { dirname, resolve } from 'path';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const lies = p => readFileSync(resolve(root, p), 'utf8');
 const WF_ORDNER = '.github/workflows';
-// Pages-Workflow folgt im zweiten Schritt (erst nach dem Verkehrswechsel des Backends, Auftrag ND1 Teil 3).
-const SPAETER = ['deploy.yml'];
-const workflows = readdirSync(resolve(root, WF_ORDNER)).filter(n => n.endsWith('.yml') && !SPAETER.includes(n))
+const workflows = readdirSync(resolve(root, WF_ORDNER)).filter(n => n.endsWith('.yml'))
   .map(n => ({ name: n, text: lies(`${WF_ORDNER}/${n}`) }));
 
 const NODE = '26';
