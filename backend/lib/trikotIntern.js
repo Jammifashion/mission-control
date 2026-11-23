@@ -7,6 +7,7 @@
 // Eine Sperre je Instanz, Reiter frisch gelesen (UNFORMATTED). Log nur Zeilen-IDs.
 
 import { google } from 'googleapis';
+import { frischLesen } from './sheetsZentral.js';   // QU1: unter der Sperre immer frisch lesen
 import { getGoogleAuth } from './googleAuth.js';
 import { sheetsMitWiederholung } from './googleRetry.js';
 import { getWcClient } from './shopConfig.js';
@@ -30,7 +31,7 @@ let laeuft = false;
 async function mitSperre(fn) {
   if (laeuft) throw fehler('Trikots werden gerade gespeichert – gleich noch einmal.', 409, { code: 'laeuft_gerade' });
   laeuft = true;
-  try { return await fn(); } finally { laeuft = false; }
+  try { return await frischLesen(fn); } finally { laeuft = false; }
 }
 async function sheetsClient() { return sheetsMitWiederholung(google.sheets({ version: 'v4', auth: await getGoogleAuth() })); }
 function sheetId() {

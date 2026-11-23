@@ -3,6 +3,7 @@ import { dirname, resolve } from 'path';
 import dotenv from 'dotenv';
 dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../.env') });
 import './scripts/check-env.js';
+import { sheetsKontext } from './lib/sheetsZentral.js';   // QU1: ersetzt google.sheets (zaehlen, Zwischenspeicher, 429)
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -69,6 +70,7 @@ app.use(cors({
   exposedHeaders: ['X-MC-Stand'],
 }));
 app.use(express.json({ limit: '256kb' }));
+app.use(sheetsKontext);   // QU1: Ursprung + Lese-Kontext je Anfrage (NACH dem Body-Parser, sonst geht der Kontext verloren)
 app.use(jobAlarm());   // FIX3 B1: 5xx der Job-Routen -> Chat (gedrosselt, ohne Kundendaten)
 
 // ── Rate limiting → Auth (Reihenfolge: rateLimiter → requireApiKey → Router) ──

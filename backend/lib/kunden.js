@@ -7,6 +7,7 @@
 // Log und Fehlertexte: nur Kunden_Nr und Zahlen, nie Namen/Adressen/Mail/Telefon.
 
 import { google } from 'googleapis';
+import { frischLesen } from './sheetsZentral.js';   // QU1: unter der Sperre immer frisch lesen
 import { getGoogleAuth } from './googleAuth.js';
 import { schreibeNeueZeilen, ersetzeZeile, pruefeZielStrecke, spalteBuchstabe, zeilenAbweichungen } from './sheet-zeilen.js';
 import { leseKundenKontakte, sucheKundenKontakte, leseKontakt, legeKontaktAn, schreibenBereit } from './lexware.js';
@@ -24,7 +25,7 @@ let laeuft = null;
 async function mitSperre(fn) {
   if (laeuft) throw fehler('Kundenliste wird gerade gespeichert – gleich noch einmal.', 409, 'laeuft_gerade');
   laeuft = true;
-  try { return await fn(); } finally { laeuft = null; cache = null; }
+  try { return await frischLesen(fn); } finally { laeuft = null; cache = null; }
 }
 
 async function sheetsClient() {

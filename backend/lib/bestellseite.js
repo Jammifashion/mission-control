@@ -10,6 +10,7 @@
 // Log: nur Zugang_ID, Zahlen.
 
 import { google } from 'googleapis';
+import { frischLesen } from './sheetsZentral.js';   // QU1: unter der Sperre immer frisch lesen
 import { getGoogleAuth } from './googleAuth.js';
 import { pruefeZielStrecke, ersetzeZeile, zeilenAbweichungen, spalteBuchstabe } from './sheet-zeilen.js';
 import { leseReiterSpalten } from './ssot-reiter.js';
@@ -43,7 +44,7 @@ let laeuft = false;
 export async function mitSperre(fn) {
   if (laeuft) throw fehler('Bestellseiten werden gerade gespeichert – gleich noch einmal.', 409, 'laeuft_gerade');
   laeuft = true;
-  try { return await fn(); } finally { laeuft = false; katalogCache = new Map(); }
+  try { return await frischLesen(fn); } finally { laeuft = false; katalogCache = new Map(); }
 }
 export async function sheetsClient() { return google.sheets({ version: 'v4', auth: await getGoogleAuth() }); }
 export function sheetId() {

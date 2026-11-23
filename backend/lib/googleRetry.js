@@ -8,11 +8,13 @@
 //    Dublette), values.update/clear, spreadsheets.batchUpdate (Struktur), die Chat-Meldung
 //    (chatNotify.js) und WooCommerce-POST/Create. Diese Aufrufe laufen unveraendert durch
 //    den Wrapper bzw. benutzen ihn nicht.
-//  - 1 Aufruf + bis zu 3 Wiederholungen nach 1 s, 2 s, 4 s.
+//  - 1 Aufruf + bis zu 3 Wiederholungen nach 1 s, 2 s, 4 s; 429 (Kontingent) hoechstens EINMAL (QU1).
 //  - Log mit Versuchsnummer und Status, nie mit Fehlertext, Tabellen-IDs oder Werten.
 //
 // Nicht abgedeckt: Fehler, die Google nie erreichen (Netzwerk, ECONNRESET) und Fehler vor
 // der App (Cloud-Run-Kaltstart) - dafuer der Warm-up-Schritt im Workflow.
+
+import { imWiederholRahmen } from './sheetsZentral.js';   // QU1: dort dann keine zweite 429-Wiederholung
 
 export const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
 export const PAUSEN_MS = [1000, 2000, 4000];
@@ -33,12 +35,14 @@ export function statusVon(err) {
  */
 export async function mitWiederholung(fn, { label = 'google', sleep = pause, log = m => console.warn(m) } = {}) {
   const versuche = PAUSEN_MS.length + 1;
+  let schon429 = false;   // QU1: 429 = Kontingent - nur EINMAL wiederholen, sonst verschaerft jede Lesung die Ueberlast
   for (let v = 1; ; v++) {
     try {
-      return await fn();
+      return await imWiederholRahmen(fn);
     } catch (err) {
       const status = statusVon(err);
       if (v >= versuche || !RETRY_STATUS.has(status)) throw err;
+      if (status === 429) { if (schon429) throw err; schon429 = true; }
       const ms = PAUSEN_MS[v - 1];
       log(`[google-retry] ${label} Versuch ${v}/${versuche} fehlgeschlagen (HTTP ${status}), naechster in ${ms} ms`);
       await sleep(ms);

@@ -4,6 +4,7 @@
 // Log/Antwort: nur Anzahlen und Produkt-IDs, nie Betraege.
 
 import { colLetter } from '../utils/sheet-spalten.js';
+import { frischLesen } from './sheetsZentral.js';   // QU1: unter der Sperre immer frisch lesen
 import { parseKonfiguration } from '../utils/partner-kalkulation.js';
 import {
   STATUS_GESPERRT, STATUS_SPALTE, SPALTE_SPERRE, festpreisZuordnungen, nachrechnenPlan, zeilenSchluessel, gesperrtZaehlen,
@@ -17,7 +18,7 @@ let laeuft = false;
 export async function mitFpSperre(fn) {
   if (laeuft) throw Object.assign(new Error('FP-Verkäufe werden gerade geschrieben – gleich noch einmal.'), { status: 409, code: 'laeuft_gerade' });
   laeuft = true;
-  try { return await fn(); } finally { laeuft = false; }
+  try { return await frischLesen(fn); } finally { laeuft = false; }
 }
 
 async function lies(sheets, spreadsheetId, tab) {

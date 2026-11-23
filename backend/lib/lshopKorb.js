@@ -15,6 +15,7 @@
 // einzelne Zellen, nachdem Schluessel und alter Hinweis in der Zeile geprueft sind.
 
 import { adminBestellLink } from '../utils/shop-admin.js';   // BO5-8
+import { frischLesen } from './sheetsZentral.js';   // QU1: unter der Sperre immer frisch lesen
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 import { getWcClient } from './shopConfig.js';
@@ -239,7 +240,7 @@ export const BESCHAEFTIGT = 'Der Warenkorb wird gerade aktualisiert (Abgleich l√
 async function mitSperre(was, fn) {
   if (laeuft) throw fehler(BESCHAEFTIGT, 409);
   laeuft = was;
-  try { return await fn(); } finally { laeuft = null; }
+  try { return await frischLesen(fn); } finally { laeuft = null; }
 }
 // BO4a: "EDI-Datei erzeugen" liest den Korb und vergibt die order_id unter derselben Sperre.
 export const mitKorbSperre = mitSperre;

@@ -9,6 +9,7 @@
 // Stammdaten nur lesen: LShop_Modelle, Varianten, Erfassungsmaske, SKU_Extern (SSOT), Trikot_Artikel + Trikots (Business).
 
 import { leseLieferbarkeit } from './lieferbarkeitLesen.js';
+import { frischLesen } from './sheetsZentral.js';   // QU1: unter der Sperre immer frisch lesen
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 import { sheetsMitWiederholung } from './googleRetry.js';
@@ -316,7 +317,7 @@ export const BESCHAEFTIGT = 'Gerade wird schon gebucht - bitte gleich noch einma
 export async function mitLagerSperre(fn) {
   if (laeuft) throw fehler(BESCHAEFTIGT, 409, { code: 'laeuft_gerade' });
   laeuft = true;
-  try { return await fn(); } finally { laeuft = false; }
+  try { return await frischLesen(fn); } finally { laeuft = false; }
 }
 
 function pruefeEinrichtung(l) {

@@ -36,6 +36,7 @@
 // Keine Preise.
 
 import { google } from 'googleapis';
+import { frischLesen } from './sheetsZentral.js';   // QU1: unter der Sperre immer frisch lesen
 import { getGoogleAuth } from './googleAuth.js';
 import { getWcClient } from './shopConfig.js';
 import { seitenGrenze, seitenListe } from './hosterPruefseite.js';
@@ -482,7 +483,7 @@ let laufAktiv = null;
 export async function mitStammdatenSperre(art, fn) {
   if (laufAktiv) throw fehler(`Ein L-Shop-Stammdaten-Lauf läuft gerade (${laufAktiv}) – gleich noch einmal versuchen.`, 409, { code: 'laeuft_gerade' });
   laufAktiv = art;
-  try { return await fn(); } finally { laufAktiv = null; }
+  try { return await frischLesen(fn); } finally { laufAktiv = null; }
 }
 
 // ── Lauf ────────────────────────────────────────────────────────────────────

@@ -1733,6 +1733,16 @@ keine Wiederholung. FTP-Fehler sind 200; rot erst, wenn der letzte Stand aelter 
 - EDI (G5): Position in einer anderen EDI-Zeile "wird gesendet"/"unklar"/"gesendet" ohne AB = Regel `gebunden` rot
   (`gebundenePositionen`); "zurück auf Entwurf" mit AB_Nr oder Abgeholt = 409 `schon_bei_lshop`.
 
+- Sheets-Kontingent (QU1): EIN Weg fuer alle Sheets-Zugriffe - `backend/lib/sheetsZentral.js` ersetzt beim Import `google.sheets`
+  (index.js importiert es zuerst), jeder v4-Client laeuft darueber. Zwischenspeicher je Reiter (`TTL_STANDARD_MS` 30 s, `TTL_JE_REITER`
+  fuer Stammdaten 60 s; `SHEETS_CACHE_MS` = 0 schaltet ab) NUR in Lese-Kontexten (`sheetsKontext` nach express.json: GET + `LESENDE_POST`);
+  Schreib-Anfragen, Scheduler/Workflows, Skripte und alles unter einer Schreibsperre (`frischLesen` in den `mit…Sperre`-Helfern) lesen
+  frisch. Jeder Schreibaufruf macht die Eintraege der betroffenen Reiter vor und nach dem Aufruf ungueltig; gleiche gleichzeitige Lesungen
+  teilen eine Anfrage. 429: einmal wiederholen (auch googleRetry nur einmal), sonst Text "Google ist gerade ausgelastet …" (Code
+  `google_ausgelastet`, Status 429). Log je Minute `sheets_req_minute` (Zaehler je Ursprung/Methode/Reiter, Pfadteile mit Ziffern = ":x"),
+  bei 429 `sheets_quota` mit dem Kontingent-Namen. Neue Schreibsperre = `frischLesen(fn)`; neue lesende POST-Route = `LESENDE_POST`.
+  Test qu1-sheets-zentral.test.js.
+
 ## Neues Secret anlegen
 1. Secret im GCP Secret Manager anlegen (Browser, Inhaber-Konto - siehe private Betriebsdoku)
 2. Platzhalter in `.env.example` ergänzen

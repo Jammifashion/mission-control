@@ -6,6 +6,7 @@
 // Aenderung ueber ersetzeZeile (alter Inhalt geprueft, nur geaenderte Zellen, zurueckgelesen). Nie loeschen: "inaktiv".
 
 import { google } from 'googleapis';
+import { frischLesen } from './sheetsZentral.js';   // QU1: unter der Sperre immer frisch lesen
 import { getGoogleAuth } from './googleAuth.js';
 import { schreibeNeueZeilen, ersetzeZeile } from './sheet-zeilen.js';
 import { normHeader } from '../utils/sheet-headers.js';
@@ -28,7 +29,7 @@ let laeuft = null;
 async function mitSperre(fn) {
   if (laeuft) throw fehler('Druckmaße werden gerade gespeichert – gleich noch einmal.', 409, 'laeuft_gerade');
   laeuft = true;
-  try { return await fn(); } finally { laeuft = null; _auftraegeCacheLeeren(); }   // neue Masse wirken sofort in der Auftragsansicht
+  try { return await frischLesen(fn); } finally { laeuft = null; _auftraegeCacheLeeren(); }   // neue Masse wirken sofort in der Auftragsansicht
 }
 
 /** Reiter lesen -> { werte, idx, zeilen [{ ...Spalten, _zeile }] } oder null (Reiter fehlt). */

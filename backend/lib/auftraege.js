@@ -7,6 +7,7 @@
 // Log und Fehlertexte: nur Auftrag_Nr/Kunden_Nr und Zahlen, nie Namen.
 
 import { drucknameLoeschPlan } from '../utils/druckname-loeschen.js';
+import { frischLesen } from './sheetsZentral.js';   // QU1: unter der Sperre immer frisch lesen
 import { google } from 'googleapis';
 import { getGoogleAuth } from './googleAuth.js';
 import { pruefeZielStrecke, spalteBuchstabe, zeilenAbweichungen } from './sheet-zeilen.js';
@@ -46,7 +47,7 @@ export function _auftragSpreadsheet() { return sheetId(); }
 async function mitSperre(fn) {
   if (laeuft) throw fehler('Aufträge werden gerade gespeichert – gleich noch einmal.', 409, 'laeuft_gerade');
   laeuft = true;
-  try { return await fn(); } finally { laeuft = false; cache = null; }
+  try { return await frischLesen(fn); } finally { laeuft = false; cache = null; }
 }
 
 async function sheetsClient() { return google.sheets({ version: 'v4', auth: await getGoogleAuth() }); }
