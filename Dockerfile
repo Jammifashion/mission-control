@@ -1,8 +1,8 @@
-FROM node:24-alpine
+FROM node:26-alpine
 WORKDIR /app
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 COPY backend/package*.json ./backend/
-RUN cd backend && npm ci --only=production
+RUN cd backend && npm ci --omit=dev
 COPY backend/ ./backend/
 EXPOSE 8080
 ENV PORT=8080

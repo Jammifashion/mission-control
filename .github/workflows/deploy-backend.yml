@@ -19,12 +19,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Setup Node.js 24
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      - name: Setup Node.js 26
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24
+          node-version: 26
 
       - name: Install dependencies
         run: npm ci
@@ -53,6 +53,11 @@ jobs:
       GCP_PROJECT_ID:   ${{ vars.GCP_PROJECT_ID }}
       GCP_SA:           ${{ vars.GCP_SA }}
       GCP_WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+      # ND1: optional. Ist die Repo-Variable gesetzt (z. B. "node26"), wird die neue Revision OHNE Verkehr ausgerollt
+      # und nur ueber die Tag-Adresse https://<tag>---<service-adresse> erreichbar. Umschalten danach von Hand mit
+      # "gcloud run services update-traffic ... --to-latest" (nicht --to-revisions: das haelt den Verkehr fest auf einer
+      # Revision, spaetere Pushes bekaemen keinen Verkehr). Danach die Variable wieder loeschen.
+      DEPLOY_TAG_OHNE_VERKEHR: ${{ vars.DEPLOY_TAG_OHNE_VERKEHR }}
       REGION: europe-west1
 
     steps:
@@ -69,20 +74,24 @@ jobs:
           fi
           case "$GCP_SA" in *@*.iam.gserviceaccount.com) ;; *) echo "::error::GCP_SA ist keine Dienstkonto-Adresse. Kein Deploy."; exit 1;; esac
           case "$GCP_WIF_PROVIDER" in projects/*/locations/global/workloadIdentityPools/*/providers/*) ;; *) echo "::error::GCP_WIF_PROVIDER hat nicht die Form projects/<nr>/locations/global/workloadIdentityPools/<pool>/providers/<anbieter>. Kein Deploy."; exit 1;; esac
+          if [ -n "$DEPLOY_TAG_OHNE_VERKEHR" ] && ! printf '%s' "$DEPLOY_TAG_OHNE_VERKEHR" | grep -Eq '^[a-z][a-z0-9-]{0,45}[a-z0-9]$'; then
+            echo "::error::DEPLOY_TAG_OHNE_VERKEHR muss aus Kleinbuchstaben, Ziffern und '-' bestehen (mit Buchstabe beginnen). Kein Deploy."
+            exit 1
+          fi
           echo "Repo-Variablen vorhanden."
 
       - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Google Auth (Workload Identity)
-        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
           service_account: ${{ vars.GCP_SA }}
           token_format: 'access_token'
 
       - name: Setup gcloud
-        uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2.2.1
+        uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
 
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${REGION}-docker.pkg.dev
@@ -111,7 +120,12 @@ jobs:
       # Shop-Takt kamen an 300 s heran. Die Workflows warten mit curl --max-time 600 genauso lange.
       - name: Deploy to Cloud Run
         run: |
-          gcloud run deploy mission-control-backend \
+          VERKEHR=""
+          if [ -n "$DEPLOY_TAG_OHNE_VERKEHR" ]; then
+            VERKEHR="--no-traffic --tag $DEPLOY_TAG_OHNE_VERKEHR"
+            echo "::notice::Revision OHNE Verkehr, Tag '$DEPLOY_TAG_OHNE_VERKEHR'. Umschalten von Hand (update-traffic --to-latest)."
+          fi
+          gcloud run deploy mission-control-backend $VERKEHR \
             --image ${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/mission-control/backend:${{ github.sha }} \
             --region ${REGION} \
             --platform managed \
