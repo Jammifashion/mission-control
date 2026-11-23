@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { stammdatenLauf, mitStammdatenSperre } from '../lib/lshopStammdaten.js';
 import { modelleAmpel, modellePruefen, modelleUebernehmen, modellZurueckziehen, zusatzListe } from '../lib/lshopModelle.js';
 import { notify, buildLShopStammdatenNachricht, buildLShopModelleNachricht } from '../lib/chatNotify.js';
+import { leseEkGestiegen } from '../lib/ekGestiegen.js';   // PR1
 
 const router = Router();
 
@@ -74,6 +75,16 @@ router.post('/modelle/zurueckziehen', async (req, res, next) => {
 // GET /api/lshop/modelle/liste - Eintraege der Liste (neueste zuerst)
 router.get('/modelle/liste', async (req, res, next) => {
   try { res.json(await zusatzListe()); } catch (err) { next(err); }
+});
+
+// ── PR1: GET /api/lshop/ek-gestiegen?prozent=5&seit=JJJJ-MM-TT ── NUR LESEN (EK/Marge nur MC)
+router.get('/ek-gestiegen', async (req, res, next) => {
+  try {
+    const p = Number(String(req.query.prozent ?? '').replace(',', '.'));
+    const seit = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.seit ?? '')) ? String(req.query.seit) : '';
+    res.set('Cache-Control', 'no-store');
+    res.json(await leseEkGestiegen({ prozent: Number.isFinite(p) && p >= 0 && p <= 500 ? p : 5, seit }));
+  } catch (err) { next(err); }
 });
 
 export default router;

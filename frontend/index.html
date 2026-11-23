@@ -322,6 +322,22 @@
       .au-schnell-box ul { margin: 0; padding-left: 1.1rem; }
       .au-schnell-box .korb-link { min-height: 32px; }
       .au-schnell-reihe { display: flex; flex-wrap: wrap; gap: 0.25rem 0.6rem; align-items: center; }
+      /* PR1: Leseliste EK gestiegen */
+      .ekg-hinweis, .ekg-klein { color: var(--muted); font-size: 0.84rem; }
+      .ekg-leiste { display: flex; flex-wrap: wrap; gap: 0.5rem 0.8rem; align-items: end; margin: 0.5rem 0; }
+      .ekg-leiste .form-input { width: 9rem; }
+      .ekg-tabelle { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+      .ekg-tabelle th, .ekg-tabelle td { text-align: left; padding: 0.3rem 0.4rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+      .ekg-plus { color: var(--warning); }
+      /* PR1: Preisvergleich im Dialog */
+      .au-pv summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+      .pv-einstellungen { display: flex; flex-wrap: wrap; gap: 0.5rem 0.8rem; align-items: end; margin: 0.4rem 0 0.6rem; }
+      .pv-einstellungen .form-input { width: 7rem; }
+      .pv-tabelle { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+      .pv-tabelle th, .pv-tabelle td { text-align: left; padding: 0.3rem 0.4rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+      .pv-klein, .pv-grund { color: var(--muted); font-size: 0.78rem; }
+      .pv-grund { color: var(--warning); }
+      .pv-summe { font-size: 0.84rem; margin: 0.5rem 0 0; }
       .au-schnell-unsicher, .ku-vorbelegt { border-color: var(--warning) !important; box-shadow: 0 0 0 1px var(--warning); }   /* SA2: auch Kundenmaske */
       .au-schnell-grund { display: block; font-size: 0.75rem; color: var(--warning); font-weight: normal; }
       /* AM-6-1: letzte Auftraege im Dialog, Nachsehen-Ansicht ueber dem Dialog (am Handy bildschirmfuellend) */
@@ -4200,6 +4216,16 @@
               </div>
               <div id="au-preis-summe"></div>
             </fieldset>
+            <!-- PR1: nur bei "Wie letztes Mal" - Marge der Vorlage halten (nur MC, nichts gespeichert ohne "Speichern") -->
+            <details class="au-block au-pv" id="au-pv-block" hidden>
+              <summary data-hilfe="pv-titel">Preisvergleich zur Vorlage (Marge halten)</summary>
+              <div class="pv-einstellungen">
+                <label data-hilfe="pv-aufschlag">Aufschlag %<input id="au-pv-aufschlag" type="text" class="form-input" inputmode="decimal" autocomplete="off" value="0" placeholder="0" /></label>
+                <label data-hilfe="pv-stufe">Runden auf € (brutto)<input id="au-pv-stufe" type="text" class="form-input" inputmode="decimal" autocomplete="off" value="0,50" placeholder="0,50" /></label>
+                <button type="button" class="korb-aktion korb-aktion-haupt" id="au-pv-alle" data-hilfe="pv-alle">Alle Vorschläge übernehmen</button>
+              </div>
+              <div id="au-pv-tabelle"></div>
+            </details>
             <!-- AH1 (U3): Fehlermeldung + Speichern/Abbrechen fest am unteren Rand des Dialogs -->
             <div class="au-fuss">
               <div id="au-fehler" class="lager-warnung" role="alert" hidden></div>
@@ -4469,6 +4495,19 @@
           </div>
           <p id="lshop-stamm-status" style="color:var(--muted);font-size:0.85rem;margin-top:0.5rem;"></p>
           <div id="lshop-stamm-ergebnis" style="font-size:0.85rem;margin-top:0.5rem;"></div>
+        </div>
+        <!-- PR1 Teil B: Leseliste "EK gestiegen" (nur lesen; Preise aendert der Inhaber selbst) -->
+        <div class="card inhalt-breit" id="ekg-card">
+          <h2>EK gestiegen</h2>
+          <p class="ekg-hinweis">Shop-Artikel, deren L-Shop-EK beim letzten Stammdaten-Update um mehr als x % gestiegen ist. Nur lesen – Preise änderst du selbst. Festpreis-Artikel: dort entscheidet der Partner.</p>
+          <div class="ekg-leiste">
+            <label data-hilfe="ekg-prozent">mehr als %<input id="ekg-prozent" type="text" class="form-input" inputmode="decimal" value="5" /></label>
+            <label data-hilfe="ekg-kategorie">Kategorie enthält<input id="ekg-kategorie" type="text" class="form-input" placeholder="z. B. Crocodiles" /></label>
+            <label data-hilfe="ekg-partner">Partner<select id="ekg-partner" class="form-select"><option value="">alle</option><option value="festpreis">nur Festpreis</option><option value="lizenz">nur Lizenz</option><option value="ohne">ohne Partner</option></select></label>
+            <button type="button" class="korb-aktion korb-aktion-haupt" id="ekg-laden" data-hilfe="ekg-laden">Liste laden</button>
+            <button type="button" class="korb-aktion korb-aktion-ruhig" id="ekg-kopieren" data-hilfe="ekg-kopieren" aria-disabled="true">Liste kopieren</button>
+          </div>
+          <div id="ekg-ergebnis"></div>
         </div>
       </section>
     </main>
@@ -7728,6 +7767,19 @@
         'au-schnell-modell':    { name: 'Modell wählen', text: 'Öffnet das Größenraster dieses L-Shop-Modells; Farbe und Mengen bitte prüfen und übernehmen.' },
         'au-schnell-todo':      { name: 'To-dos', text: 'Angehakt = nach dem Speichern als To-dos am neuen Auftrag angelegt.' },
         'au-vorbelegt':         { name: 'Von der letzten Gruppe übernommen', text: 'Motiv, Druck und Preis wie bei der zuletzt angelegten Farbe. Prüfen und ggf. ändern – beim Bearbeiten verschwindet die Markierung.' },
+        'ekg-prozent':          { name: 'Schwelle', text: 'Nur Artikel, deren EK um mehr als diesen Prozentsatz gestiegen ist (Standard 5 %).' },
+        'ekg-kategorie':        { name: 'Kategorie', text: 'Filtert auf Artikel, deren Kategorie diesen Text enthält.' },
+        'ekg-partner':          { name: 'Partner', text: 'Filtert nach Festpreis-, Lizenz- oder Artikeln ohne Partner.' },
+        'ekg-laden':            { name: 'Liste laden', text: 'Liest die EK-Änderungen des letzten L-Shop-Stammdaten-Updates (nur lesen, keine Preise werden geändert).' },
+        'ekg-kopieren':         { name: 'Liste kopieren', text: 'Kopiert die gefilterte Liste als Text in die Zwischenablage.' },
+        'ekg-festpreis':        { name: 'Festpreis-Artikel', text: 'Hier entscheidet der Festpreis-Partner über den VK – nur Hinweis.' },
+        'pv-titel':             { name: 'Preisvergleich', text: 'Vergleicht die Vorlage mit heute: Preis alt, EK damals und heute, Marge – und schlägt Preise vor, die die alte Marge halten.' },
+        'pv-aufschlag':         { name: 'Aufschlag %', text: 'Hebt alle Vorschläge um diesen Prozentsatz an, z. B. für gestiegene Nebenkosten (auch wenn der EK gleich blieb).' },
+        'pv-stufe':             { name: 'Runden auf', text: 'Vorschläge werden brutto auf diese Stufe aufgerundet (Standard 0,50 €).' },
+        'pv-alle':              { name: 'Alle Vorschläge übernehmen', text: 'Trägt alle Vorschläge in die Preisfelder ein (orange). Gespeichert wird erst mit „Speichern“.' },
+        'pv-uebernehmen':       { name: 'Vorschlag übernehmen', text: 'Trägt den Vorschlag dieser Gruppe in Preis und Aufpreis ein (orange). Gespeichert wird erst mit „Speichern“.' },
+        'pv-ek-unbekannt':      { name: 'Kein Vorschlag', text: 'Der EK von damals ist nicht bekannt (L-Shop-Stammdaten danach geändert) – Preis bitte selbst prüfen.' },
+        'pv-summe':             { name: 'Rohertrag', text: 'Netto-Rohertrag der verglichenen Gruppen: wie damals, mit den alten Preisen zum heutigen EK und mit den Vorschlägen.' },
         'au-schnell-unsicher':  { name: 'Bitte prüfen', text: 'Von der Schnellannahme gefüllt, aber nicht sicher. Prüfen und ggf. ändern – beim Bearbeiten verschwindet die Markierung.' },
         'au-oeffnen':           { name: 'Auftrag öffnen', text: 'Zeigt Kopf, Status mit Datum je Schritt und die Positionen mit Haken „fertig“.' },
         'au-weiter':            { name: 'weiter zu …', text: 'Setzt den nächsten Schritt mit heutigem Datum. Design = Motiv/Entwurf in Arbeit oder wartet auf Freigabe.' },
@@ -7979,7 +8031,7 @@
         'darstellung': ['theme-wahl'],
         'dashboard': ['dash-vorlesen', 'dash-wer', 'dash-ueberblick', 'dash-ub-alter', 'dash-ub-status', 'dash-ub-termin', 'dash-k-hinweise', 'dash-k-lange', 'dash-k-todos', 'dash-k-rueckstand', 'dash-k-ware', 'dash-k-abholung', 'dash-k-trikots', 'dash-k-bestellseiten',
           'dash-gelesen', 'dash-zeile', 'dash-au-status', 'dash-detail-zu', 'dash-geld', 'dash-balken'],
-        'einstellungen': ['schluessel-aendern', 'abmelden', 'app-installieren', 'stamm-pruefen', 'stamm-uebernehmen'],
+        'einstellungen': ['schluessel-aendern', 'abmelden', 'app-installieren', 'stamm-pruefen', 'stamm-uebernehmen', 'ekg-prozent', 'ekg-kategorie', 'ekg-partner', 'ekg-laden', 'ekg-kopieren', 'ekg-festpreis'],
         korb:       ['eigen-modell', 'filter-offen', 'filter-raus', 'filter-alle', 'filter-lager', 'korb-lb-zuerst', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste', 'korb-im-lager', 'aus-lager', 'aus-lager-buchen', 'zurueck-in-korb', 'lager-storno-hinweis', 'lager-storno-zurueck', 'eigen', 'eigen-raster', 'eigen-referenz', 'eigen-hinzufuegen', 'eigen-weitere-farbe', 'eigen-lager', 'lager-ziel-aendern', 'eb-bearbeiten', 'eb-gesperrt-lager', 'eb-farbe', 'eb-groesse', 'eb-menge', 'eb-referenz', 'eb-notiz', 'eb-lager', 'eb-speichern', 'eb-abbrechen', 'abgleich', 'belege', 'lieferbarkeit', 'alle-offenen', 'zurueck'],
         leiste:     ['netto-summe', 'grund', 'notiz', 'herausnehmen', 'edi', 'auswahl-weg', 'versandart'],
         uebersicht: ['bm-zelle', 'bm-gruppe', 'gruppe-modell', 'gruppe-hersteller', 'gruppe-dringlichkeit', 'zaehlliste', 'eigen-link', 'abgleich', 'zl-drucken', 'zl-zurueck'],
@@ -7991,7 +8043,7 @@
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag', 'tr-aendern-gesperrt', 'ti-goalie', 'tr-goalie', 'tr-gk-pruefen', 'tr-gk-markieren', 'tr-gk-kein', 'tr-zahlung-unbezahlt', 'tr-zahlung-erstattet', 'tr-zahlung-storniert', 'tr-zahlung-fehlt', 'tr-zahlung-filter'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfbs-g-rueckstand', 'lfbs-g-vorraetig', 'lfbs-lager', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
-        auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-funde', 'ku-fund-leeren', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'fp-porto-einnahmen', 'fp-porto-kosten', 'ps-lager', 'ps-lager-bestellt', 'korb-bestellung', 'korb-aus-lager-erledigt', 'korb-erledigt', 'korb-lager-knapp', 'korb-sammel-erledigt', 'ku-lex-anlegen', 'ku-lex-nachholen', 'ku-lex-verknuepfen', 'ku-lex-trotzdem', 'au-suche', 'au-filter', 'au-neu', 'au-schnell-text', 'au-schnell-los', 'au-schnell-datenschutz', 'au-schnell-kunde', 'au-schnell-kunde-neu', 'ku-vorbelegt', 'au-schnell-modell', 'au-schnell-todo', 'au-schnell-unsicher', 'au-vorbelegt', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-pos-da', 'au-pos-we', 'au-entfernen', 'au-entfernt-liste', 'au-wiederherstellen', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-druckname', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern',
+        auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-funde', 'ku-fund-leeren', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'fp-porto-einnahmen', 'fp-porto-kosten', 'ps-lager', 'ps-lager-bestellt', 'korb-bestellung', 'korb-aus-lager-erledigt', 'korb-erledigt', 'korb-lager-knapp', 'korb-sammel-erledigt', 'ku-lex-anlegen', 'ku-lex-nachholen', 'ku-lex-verknuepfen', 'ku-lex-trotzdem', 'au-suche', 'au-filter', 'au-neu', 'au-schnell-text', 'au-schnell-los', 'au-schnell-datenschutz', 'au-schnell-kunde', 'au-schnell-kunde-neu', 'ku-vorbelegt', 'au-schnell-modell', 'au-schnell-todo', 'au-schnell-unsicher', 'au-vorbelegt', 'pv-titel', 'pv-aufschlag', 'pv-stufe', 'pv-alle', 'pv-uebernehmen', 'pv-ek-unbekannt', 'pv-summe', 'au-oeffnen', 'au-weiter', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-pos-da', 'au-pos-we', 'au-entfernen', 'au-entfernt-liste', 'au-wiederherstellen', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-druckname', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern',
           'au-hist-chip', 'au-hist-aus', 'au-hist-drin', 'au-hist-mehr', 'au-hist-preis', 'au-preis-von', 'au-hist-lfb', 'au-wie-letztes', 'au-vorlage-von',
           'ku-hist', 'ku-hist-neu', 'ku-hist-frei-neu', 'ku-mit-storniert', 'ku-wie-letztes',
           'au-letzte', 'au-letzte-alle', 'au-ns-schliessen', 'au-ns-vorlage', 'au-ek-von', 'au-bestellseite', 'ku-dauer-bestellseite',
@@ -12446,6 +12498,97 @@
           + '</details>';
       }
       // ── Auftrag-Preise: Ende ──
+      // ── Preisvergleich: Anfang (PR1, reine Logik, Test backend/tests/preisvergleich-frontend.test.js; braucht Block Auftrag-Preise, kuEsc) ──
+      // "Wie letztes Mal": je Gruppe (Modell+Farbe bzw. freie Position) VK alt · EK alt (damals) · EK heute · Marge alt (€, %) und ein Vorschlag,
+      // der die alte Marge in % haelt: VK neu = EK heute / (1 − Marge alt) × (1 + Aufschlag %), skaliert auf Preis und Aufpreis, brutto aufgerundet
+      // auf die Stufe (Standard 0,50 €). EK alt unbekannt -> kein Vorschlag. Nur MC; nichts wird gespeichert ohne "Speichern".
+      const PV_STUFE_STANDARD = 0.5;
+      /** Zahl aus Eingabe ("2,5", "0,50") oder null. */
+      function pvZahl(v) {
+        const s = String(v ?? '').trim().replace(/\s/g, '').replace('%', '');
+        if (!s) return null;
+        const n = Number(s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s);
+        return Number.isFinite(n) ? n : null;
+      }
+      /** Brutto auf die Stufe AUFrunden (Marge wird nie kleiner als vorgeschlagen). */
+      function pvRunden(brutto, stufe) {
+        const st = Number(stufe) > 0 ? Number(stufe) : PV_STUFE_STANDARD;
+        return Math.round(Math.ceil(Math.round(brutto * 10000) / 10000 / st - 1e-9) * st * 100) / 100;
+      }
+      /**
+       * Eine Gruppe -> Vergleich. Positionen tragen pvPreisAlt/pvAufpreisAlt (netto Euro, wie in der Vorlage), pvEkAlt (Euro|null), pvEkNeu (Euro|null),
+       * menge, groesse, aufpreisAb, ust, art. Ergebnis in Cent (Summen der Gruppe), Vorschlag als Netto-Euro je Stueck fuer Preis/Aufpreis.
+       */
+      function pvGruppe(g, { aufschlag = 0, stufe = PV_STUFE_STANDARD } = {}) {
+        const pos = g.positionen.filter(p => p.pvPreisAlt !== undefined);
+        if (!pos.length) return null;
+        const p0 = pos[0], ust = Number(p0.ust ?? AP_UST_STANDARD) || 0;
+        const stk = p => ({ ...p, preis: p.pvPreisAlt, aufpreis: p.pvAufpreisAlt });
+        let vk = 0, ekAlt = 0, ekNeu = 0, altBekannt = true, neuBekannt = true, menge = 0;
+        for (const p of pos) {
+          const w = apPositionWerte({ ...stk(p), ekHand: '', ekAuto: null });
+          if (w.netto === null) return { ohnePreis: true, stueck: pos.reduce((s, x) => s + (Number(x.menge) || 0), 0) };
+          vk += w.netto; menge += w.menge;
+          if (p.pvEkAlt === null || p.pvEkAlt === undefined) altBekannt = false; else ekAlt += Math.round(apCent(p.pvEkAlt) * w.menge);
+          if (p.pvEkNeu === null || p.pvEkNeu === undefined) neuBekannt = false; else ekNeu += Math.round(apCent(p.pvEkNeu) * w.menge);
+        }
+        vk = Math.round(vk);
+        const erg = { stueck: menge, ust, vkAlt: vk, preisAlt: Number(p0.pvPreisAlt), aufpreisAlt: p0.pvAufpreisAlt === '' ? null : Number(p0.pvAufpreisAlt),
+          ekAlt: altBekannt ? ekAlt : null, ekNeu: neuBekannt ? ekNeu : null };
+        if (!altBekannt) return { ...erg, grund: 'EK damals unbekannt' };
+        erg.margeAlt = vk - ekAlt;
+        erg.margeAltProzent = vk > 0 ? Math.round((erg.margeAlt / vk) * 1000) / 10 : null;
+        if (neuBekannt) erg.margeHeute = vk - ekNeu;
+        if (!neuBekannt) return { ...erg, grund: 'EK heute unbekannt' };
+        if (vk <= 0 || erg.margeAlt / vk >= 1) return { ...erg, grund: 'keine Marge berechenbar' };
+        const ziel = (ekNeu / (1 - erg.margeAlt / vk)) * (1 + (Number(aufschlag) || 0) / 100);
+        const f = ziel / vk;
+        const neu = netto => (netto === null || netto === '' || Number(netto) === 0 ? (netto === '' ? '' : netto)
+          : apNettoAusBrutto(pvRunden(apBruttoAusNetto(Number(netto) * f, ust), stufe), ust));
+        const preis = neu(p0.pvPreisAlt), aufpreis = p0.pvAufpreisAlt === '' || p0.pvAufpreisAlt === undefined ? '' : neu(p0.pvAufpreisAlt);
+        let vkNeu = 0;
+        for (const p of pos) vkNeu += apPositionWerte({ ...p, preis, aufpreis, ekHand: '', ekAuto: null }).netto;
+        vkNeu = Math.round(vkNeu);
+        erg.vorschlag = { preis, aufpreis, vk: vkNeu, marge: vkNeu - ekNeu, margeProzent: vkNeu > 0 ? Math.round(((vkNeu - ekNeu) / vkNeu) * 1000) / 10 : null };
+        return erg;
+      }
+      /** Summenzeile: Rohertrag alt · mit alten Preisen heute · mit Vorschlag (nur Gruppen mit bekanntem EK). */
+      function pvSummen(liste) {
+        const s = { alt: 0, heute: 0, vorschlag: 0, gruppen: 0, ohne: 0 };
+        for (const e of liste) {
+          if (!e || e.margeAlt === undefined || e.margeHeute === undefined || !e.vorschlag) { s.ohne++; continue; }
+          s.alt += e.margeAlt; s.heute += e.margeHeute; s.vorschlag += e.vorschlag.marge; s.gruppen++;
+        }
+        return s;
+      }
+      /** Tabelle (am Handy Karten). brutto: Preise in Brutto zeigen (Preis-Eingabe des Auftrags). */
+      function pvHtml(gruppen, ergebnisse, { brutto = false } = {}) {
+        const preisText = (netto, ust) => (netto === null || netto === '' || netto === undefined ? '–'
+          : apEuroText(Math.round((brutto ? apBruttoAusNetto(netto, ust) : Number(netto)) * 100)));
+        const proz = p => (p === null || p === undefined ? '' : ` (${String(p).replace('.', ',')} %)`);
+        const zeilen = gruppen.map((g, gi) => {
+          const e = ergebnisse[gi];
+          if (!e) return '';
+          const name = g.art === 'lshop' ? [g.modell, g.farbe].filter(Boolean).join(' · ') : (g.freitext || 'freie Position');
+          const vor = e.vorschlag
+            ? `${preisText(e.vorschlag.preis, e.ust)}${e.vorschlag.aufpreis !== '' && e.vorschlag.aufpreis !== null ? ` <span class="pv-klein">+ ${preisText(e.vorschlag.aufpreis, e.ust)} groß</span>` : ''}`
+              + ` <span class="pv-klein">Marge ${apEuroText(e.vorschlag.marge)}${proz(e.vorschlag.margeProzent)}</span>`
+              + ` <button type="button" class="korb-aktion korb-aktion-ruhig" data-pv-uebernehmen="${gi}" data-hilfe="pv-uebernehmen">übernehmen</button>`
+            : `<span class="pv-grund" data-hilfe="pv-ek-unbekannt" tabindex="0">${kuEsc(e.ohnePreis ? 'Vorlage ohne Preis' : e.grund)}</span>`;
+          return `<tr><td class="hk-haupt" data-label="Position">${kuEsc(name)} <span class="pv-klein">${e.stueck} Stück</span></td>`
+            + `<td data-label="Preis/Stück alt">${preisText(e.preisAlt, e.ust)}</td>`
+            + `<td data-label="EK alt (gesamt)">${e.ekAlt === null || e.ekAlt === undefined ? '–' : apEuroText(e.ekAlt)}</td>`
+            + `<td data-label="EK heute (gesamt)">${e.ekNeu === null || e.ekNeu === undefined ? '–' : apEuroText(e.ekNeu)}</td>`
+            + `<td data-label="Marge alt (gesamt)">${e.margeAlt === undefined ? '–' : `${apEuroText(e.margeAlt)}${proz(e.margeAltProzent)}`}</td>`
+            + `<td data-label="Vorschlag/Stück">${vor}</td></tr>`;
+        }).join('');
+        const s = pvSummen(ergebnisse.filter(Boolean));
+        const summe = s.gruppen ? `<p class="pv-summe" data-hilfe="pv-summe" tabindex="0">Rohertrag (netto, ${s.gruppen} Gruppe${s.gruppen === 1 ? '' : 'n'}): alt ${apEuroText(s.alt)}`
+          + ` · mit alten Preisen heute ${apEuroText(s.heute)} · mit Vorschlag ${apEuroText(s.vorschlag)}${s.ohne ? ` · ${s.ohne} ohne Vergleich` : ''}</p>` : '';
+        return `<div class="roll-x"><table class="pv-tabelle hk-karten"><thead><tr><th>Position</th><th>Preis/Stück alt</th><th>EK alt (gesamt)</th><th>EK heute (gesamt)</th><th>Marge alt (gesamt)</th><th>Vorschlag/Stück</th></tr></thead>`
+          + `<tbody>${zeilen}</tbody></table></div>${summe}`;
+      }
+      // ── Preisvergleich: Ende ──
       // ── Auftraege-Anzeige: Anfang (reine Logik, Test backend/tests/auftraege-frontend.test.js) ──
       const AU_SCHRITTE = [['Anfrage', 'Anfrage_Am'], ['Angebot', 'Angebot_Am'], ['Design', 'Design_Am'], ['bestellt', 'Bestellt_Am'], ['in Produktion', 'Produktion_Am'],
         ['fertig', 'Fertig_Am'], ['übergeben', 'Uebergeben_Am'], ['bezahlt', 'Bezahlt_Am']];
@@ -12902,6 +13045,11 @@
           if (p.Art !== 'frei') e.ekHand = '';   // AM-6-1 (Inhaber 07.11.): EK von Hand der freien Positionen kommt mit
           e.preisVon = e.preis === '' ? '' : von;
           e.ekVon = e.ekHand === '' || e.ekHand === undefined ? '' : von;
+          // PR1: Vergleich "Marge halten" - alte Preise, EK damals (EK_Hand bzw. aus dem EK-Verlauf) und EK heute
+          e.pvPreisAlt = e.preis; e.pvAufpreisAlt = e.aufpreis;
+          const ekHand = apT(p.EK_Hand) === '' || !Number.isFinite(Number(p.EK_Hand)) ? null : Number(p.EK_Hand);
+          e.pvEkAlt = ekHand ?? (p.Art === 'lshop' ? p.ekDamals?.ek ?? null : null);
+          e.pvEkNeu = p.Art === 'lshop' ? (p.ekAuto ?? null) : ekHand;   // freie Position: EK von Hand bleibt (Vorschlag dann nur ueber Aufschlag)
           entwurf.push(e);
         }
         return {
@@ -13498,6 +13646,9 @@
         auSchnellAnwenden(auDlg.schnell);   // SA1: vorbelegen + orange markieren (ohne Vorschlag: Markierungen weg)
         auEntwurfZeichnen();
         auPreisSummeZeichnen();
+        auEl('au-pv-aufschlag').value = '0'; auEl('au-pv-stufe').value = '0,50';   // PR1: je Dialog neu
+        auEl('au-pv-block').open = window.matchMedia('(min-width: 601px)').matches;
+        auPvZeichnen();
         auEl('au-dialog').hidden = false;
         auDlg.startStand = auDialogStand();   // AH1 (U1)
         if (!auLager.geladen) auLagerLaden();   // AM-2-2: Bestand fuer "aus Lager" (nur lesen)
@@ -13613,6 +13764,17 @@
           + `<label data-hilfe="ap-ust">USt<select class="form-select" data-au-wahl="ust" data-au-gruppe="${gi}" ${an ? '' : 'disabled'}>${AP_UST.map(u => `<option value="${u}"${String(u) === String(p0.ust ?? '19') ? ' selected' : ''}>${u} %</option>`).join('')}</select></label>`
           + (g.art === 'frei' ? feld('ekHand', 'EK €/Stück (optional)', 'data-hilfe="ap-ek-hand"') : '') + '</div>';
       }
+      // PR1: Preisvergleich - Einstellungen und Uebernehmen
+      for (const id of ['au-pv-aufschlag', 'au-pv-stufe']) auEl(id).addEventListener('input', () => auPvZeichnen());
+      auEl('au-pv-block').addEventListener('click', e => {
+        const b = e.target.closest('[data-pv-uebernehmen]'), alle = e.target.closest('#au-pv-alle');
+        if (!b && !alle) return;
+        if (alle && alle.getAttribute('aria-disabled') === 'true') { showToast('Kein Vorschlag – EK damals unbekannt.', 'warning'); return; }
+        const n = b ? Number(auPvUebernehmen(Number(b.dataset.pvUebernehmen)))
+          : (auDlg.pv?.ergebnisse ?? []).reduce((s, x, gi) => s + (x?.vorschlag && auPvUebernehmen(gi) ? 1 : 0), 0);
+        auEntwurfZeichnen(); auPreisSummeZeichnen(); auPvZeichnen();
+        showToast(n ? `Vorschlag für ${n} Gruppe${n === 1 ? '' : 'n'} eingetragen – orange markiert, gespeichert wird erst mit „Speichern“.` : 'Nichts übernommen.', n ? 'success' : 'warning');
+      });
       auEl('au-pos-liste').addEventListener('change', e => {
         const w = e.target.closest('[data-au-wahl]');
         if (!w) return;
@@ -13634,6 +13796,37 @@
         auPreisSummeZeichnen();
       });
       function auRabattEingabe() { return { art: auEl('au-rabatt-art').value, wert: auEl('au-rabatt').value }; }
+      // PR1: Preisvergleich zeichnen (nur mit Vorlage); am Rechner offen, am Handy zu
+      function auPvEinstellungen() {
+        const a = pvZahl(auEl('au-pv-aufschlag').value), st = pvZahl(auEl('au-pv-stufe').value);
+        return { aufschlag: a ?? 0, stufe: st && st > 0 ? st : PV_STUFE_STANDARD };
+      }
+      function auPvZeichnen() {
+        const box = auEl('au-pv-block');
+        const gruppen = auGruppen(auDlg.entwurf);
+        const ergebnisse = gruppen.map(g => (auDlg.vorlageVon ? pvGruppe(g, auPvEinstellungen()) : null));
+        box.hidden = !auDlg.vorlageVon || !ergebnisse.some(Boolean);
+        if (box.hidden) { auEl('au-pv-tabelle').innerHTML = ''; return; }
+        auDlg.pv = { gruppen, ergebnisse };
+        auEl('au-pv-tabelle').innerHTML = pvHtml(gruppen, ergebnisse, { brutto: auBrutto() });
+        auEl('au-pv-alle').setAttribute('aria-disabled', String(!ergebnisse.some(e => e?.vorschlag)));
+      }
+      /** Vorschlag einer Gruppe in die Preisfelder (nur Dialog-Speicher), orange markiert wie die Schnellannahme. */
+      function auPvUebernehmen(gi) {
+        const g = auDlg.pv?.gruppen[gi], e = auDlg.pv?.ergebnisse[gi];
+        if (!g || !e?.vorschlag) return false;
+        for (const p of g.positionen.filter(x => x.pvPreisAlt !== undefined)) {
+          for (const f of ['preis', 'aufpreis']) {
+            const netto = e.vorschlag[f];
+            if (netto === '' || netto === null || netto === undefined) continue;
+            p[f] = netto;
+            delete p[`${f}Text`];
+            p.vorbelegt = [...new Set([...(p.vorbelegt ?? []), f])];
+          }
+          p.vorbelegtVon = 'dem Marge-Vorschlag';
+        }
+        return true;
+      }
       function auPreisSummeZeichnen() {
         const el = auEl('au-preis-summe');
         let rabatt = null, fehler = '';
@@ -21586,6 +21779,60 @@
       })();
       document.getElementById('schluessel-aendern').addEventListener('click', () => anmeldeMaskeZeigen());
 
+      // ── EK-gestiegen: Anfang (PR1 Teil B, reine Logik, Test backend/tests/ek-gestiegen.test.js; braucht kuEsc) ──
+      /** Filter im Browser (Kategorie-Teilwort, Partnerart). */
+      function ekgFiltern(artikel, { kategorie = '', partner = '' } = {}) {
+        const k = String(kategorie).trim().toLowerCase();
+        return (artikel ?? []).filter(a => (!k || String(a.kategorien).toLowerCase().includes(k))
+          && (!partner || (partner === 'festpreis' ? !!a.festpreis : partner === 'lizenz' ? !!a.lizenz : !a.festpreis && !a.lizenz)));
+      }
+      function ekgHtml(r, filter) {
+        if (r?.hinweis) return `<p class="ekg-hinweis">${kuEsc(r.hinweis)}</p>`;
+        const liste = ekgFiltern(r?.artikel, filter);
+        const e = n => (n === null || n === undefined ? '–' : Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €');
+        const p = n => (n === null || n === undefined ? '–' : `${String(n).replace('.', ',')} %`);
+        if (!liste.length) return `<p class="ekg-hinweis">Kein Artikel über ${p(r?.prozent)} seit ${kuEsc(r?.seit ?? '–')}${(r?.artikel ?? []).length ? ' (mit diesem Filter)' : ''}.</p>`;
+        return `<p class="ekg-hinweis">${liste.length} Artikel · EK-Änderungen seit ${kuEsc(r.seit)} · mehr als ${p(r.prozent)}</p>`
+          + '<div class="roll-x"><table class="ekg-tabelle hk-karten"><thead><tr><th>Artikel</th><th>Modell · Farbe · Größe</th><th>EK alt → neu</th><th>VK heute</th><th>Marge alt → neu</th></tr></thead><tbody>'
+          + liste.map(a => a.zeilen.map((x, i) => `<tr>${i === 0 ? `<td class="hk-haupt" data-label="Artikel" rowspan="${a.zeilen.length}">${kuEsc(a.name)} <span class="ekg-klein">${kuEsc(a.produktId)}</span>`
+              + (a.festpreis ? ` <span class="ku-chip ekg-fp" data-hilfe="ekg-festpreis" tabindex="0">Festpreis ${kuEsc(a.festpreis)}</span>` : '')
+              + (a.lizenz ? ` <span class="ku-chip">Lizenz ${kuEsc(a.lizenz)}</span>` : '') + '</td>' : ''}`
+            + `<td data-label="Modell · Farbe · Größe">${kuEsc([x.modell, x.farbe, x.groesse].filter(Boolean).join(' · '))}</td>`
+            + `<td data-label="EK alt → neu">${e(x.ekAlt)} → ${e(x.ekNeu)} <span class="ekg-plus">+${p(x.plus)}</span></td>`
+            + `<td data-label="VK heute">${e(x.vk)}</td><td data-label="Marge alt → neu">${p(x.margeAlt)} → ${p(x.margeNeu)}</td></tr>`).join('')).join('')
+          + '</tbody></table></div>';
+      }
+      // ── EK-gestiegen: Ende ──
+      {
+        const ekg = { daten: null };
+        const el = id => document.getElementById(id);
+        const filter = () => ({ kategorie: el('ekg-kategorie').value, partner: el('ekg-partner').value });
+        const zeichnen = () => { el('ekg-ergebnis').innerHTML = ekg.daten ? ekgHtml(ekg.daten, filter()) : ''; el('ekg-kopieren').setAttribute('aria-disabled', String(!ekg.daten?.artikel?.length)); };
+        async function ekgLaden() {
+          el('ekg-ergebnis').innerHTML = '<div class="skeleton"></div>';
+          try {
+            const p = encodeURIComponent(el('ekg-prozent').value.replace(',', '.'));
+            const res = await apiFetch(`${API_BASE()}/api/lshop/ek-gestiegen?prozent=${p}`);
+            ekg.daten = await apiJson(res);
+          } catch (err) { ekg.daten = { hinweis: `Liste nicht lesbar: ${err.message}` }; }
+          zeichnen();
+        }
+        window.ekgLaden = ekgLaden;
+        el('ekg-laden').addEventListener('click', ekgLaden);
+        for (const id of ['ekg-kategorie', 'ekg-partner']) el(id).addEventListener('input', zeichnen);
+        el('ekg-kopieren').addEventListener('click', async () => {
+          if (!ekg.daten?.artikel?.length) { showToast('Erst die Liste laden.', 'warning'); return; }
+          const liste = ekgFiltern(ekg.daten.artikel, filter());
+          const ids = new Set(liste.map(a => a.produktId));
+          const zeilen = String(ekg.daten.text ?? '').split('\n');
+          // nur die gefilterten Artikel: Kopfzeile + Bloecke, deren erste Zeile die Produkt-ID traegt
+          const aus = [zeilen[0]]; let mit = false;
+          for (const z of zeilen.slice(1)) { if (!z.startsWith('  ')) mit = [...ids].some(id => z.includes(`(${id})`)); if (mit) aus.push(z); }
+          try { await navigator.clipboard.writeText(aus.join('\n')); showToast(`${liste.length} Artikel kopiert.`, 'success'); }
+          catch { showToast('Kopieren nicht möglich – Browser erlaubt die Zwischenablage nicht.', 'error'); }
+        });
+      }
+
       // ── SECTION: L-Shop-Stammdaten (Befehl LS1) ──
       // Knopf "Prüfen" = POST /api/lshop/stammdaten { modus: "trockenlauf" }
       // (schreibt nichts), danach "Übernehmen" mit dem Dateinamen der Prüfung.
@@ -21656,6 +21903,7 @@
               const ok = r.rueckgelesen?.ok;
               status.textContent = ok ? 'Übernommen und zurückgelesen.' : 'Übernommen – Rücklese-Prüfung mit Abweichung, bitte Reiter prüfen.';
               showToast(ok ? 'L-Shop-Stammdaten übernommen' : 'Übernommen, aber Rücklese-Prüfung abweichend', ok ? 'success' : 'error', ok ? 3500 : 10000);
+              window.ekgLaden?.();   // PR1: Leseliste "EK gestiegen" gleich nach dem Uebernehmen
             }
           } catch (err) {
             geprueft = null;

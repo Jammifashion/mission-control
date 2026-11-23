@@ -230,7 +230,8 @@ function auftraegeAntwort() {
   const auftraege = AU.auftraegeAntwort(AUFTRAEGE, POSITIONEN, x => {
     const y = anreichern(x);
     const e = x.LShop_ArticleNr ? EK_JE.get(x.LShop_ArticleNr) : null;
-    return e ? { ...y, ekAuto: e.ek, ekStand: e.stand } : y;
+    // PR1: erfundener EK damals (7 % unter heute) - der Marge-Vergleich bei "Wie letztes Mal" hat dann Werte
+    return e ? { ...y, ekAuto: e.ek, ekStand: e.stand, ekDamals: { ek: Math.round(e.ek * 0.93 * 100) / 100, quelle: 'verlauf' } } : y;
   }).map(x => {
     const akt = AU.aktivePositionen(POSITIONEN, x.Auftrag_Nr);
     const summen = summenFuer(x, akt);

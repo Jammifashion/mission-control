@@ -27,6 +27,7 @@ import {
 } from '../utils/auftraege.js';
 import { kundenHistorie } from '../utils/auftrag-historie.js';   // AM-6
 import { auftragSummen, positionAusZeile, rabattAus, angebotAbweichung, ZUSTAENDIG } from '../utils/auftrag-preise.js';
+import { TAB_EK_VERLAUF, verlaufJe, ekZumTag } from '../utils/ek-verlauf.js';   // PR1
 import {
   TAB_AUFGABEN, TAB_TODOS, AUFGABE_SPALTEN, TODO_SPALTEN, VERWORFEN, istBezug, aufgabeOffen, aufgabeAnlagePlan, aufgabeBearbeitenPlan,
   aufgabeStatusWechsel, todoAnlagePlan, todoAendernPlan, todoArchivPlan, todoVerschiebenPlan, aufgabenZahlen, ohneIntern, todoAktiv,
@@ -103,8 +104,17 @@ function brauche(x, tab) {
 // Nur Anzeige in MC. EK = L-Shop-Preis ab 10 Kartons der ArticleNr (je Groesse; keine Mengenstaffel in der Quelle).
 async function leseEkJe(sheets, spreadsheetId) {
   try {
-    const zeilen = await leseReiterSpalten({ tab: TAB_LSHOP, spalten: { articleNr: 'ArticleNr' }, optional: { preis: '10CartonsPrice', stand: 'Quelle_Datum' }, sheets, spreadsheetId });
-    return new Map(zeilen.map(z => [String(z.articleNr ?? '').trim(), { ek: euro(z.preis), stand: z.stand ?? '' }]));   // formatiert gelesen ("4,10") -> Zahl
+    const zeilen = await leseReiterSpalten({ tab: TAB_LSHOP, spalten: { articleNr: 'ArticleNr' }, optional: { preis: '10CartonsPrice', stand: 'Quelle_Datum', geaendert: 'Stand' }, sheets, spreadsheetId });
+    // PR1: geaendert = letzte inhaltliche Aenderung der Zeile (fuer "EK damals")
+    return new Map(zeilen.map(z => [String(z.articleNr ?? '').trim(), { ek: euro(z.preis), stand: z.stand ?? '', geaendert: z.geaendert ?? '' }]));   // formatiert gelesen ("4,10") -> Zahl
+  } catch { return new Map(); }
+}
+/** PR1: EK-Verlauf (LShop_EK_Verlauf) je ArticleNr; fehlt der Reiter: leer (dann nur "heute" bzw. "unbekannt"). */
+async function leseEkVerlauf(sheets, spreadsheetId) {
+  try {
+    const { data } = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${TAB_EK_VERLAUF}'`, valueRenderOption: 'UNFORMATTED_VALUE' });
+    const [kopf = [], ...z] = data.values ?? [];
+    return verlaufJe(z.map(r => Object.fromEntries(kopf.map((k, i) => [String(k).trim(), r[i]]))));
   } catch { return new Map(); }
 }
 /** Summen eines Auftrags aus den aktiven Positionen (Groesse aus info, EK aus ekJe). */
@@ -279,10 +289,15 @@ export async function leseAuftraege({ sheets: s, jetzt = () => new Date(), autoB
   });
   const ware = new Map();
   const ekJe = await leseEkJe(sheets, spreadsheetId);   // AM-5
+  const verlauf = await leseEkVerlauf(sheets, spreadsheetId);   // PR1
+  const auTag = new Map(a.zeilen.map(z => [z.Auftrag_Nr, z.Bestellt_Am || z.Angelegt || '']));
   const auftraege = auftraegeAntwort(a.zeilen, p.zeilen, x => {
     const y = anreichern(x);
     const e = x.LShop_ArticleNr ? ekJe.get(x.LShop_ArticleNr) : null;
-    return e ? { ...y, ekAuto: e.ek, ekStand: e.stand } : y;
+    if (!e) return y;
+    // PR1: EK zum Auftragsdatum (Bestellt_Am, sonst Angelegt) - nur Anzeige in MC ("Wie letztes Mal": Marge-Vergleich)
+    const ekDamals = ekZumTag({ tag: auTag.get(x.Auftrag_Nr), ekHeute: e.ek, geaendertAm: e.geaendert, aenderungen: verlauf.get(x.LShop_ArticleNr) ?? [] });
+    return { ...y, ekAuto: e.ek, ekStand: e.stand, ekDamals };
   }).map(x => {
     const akt = aktivePositionen(p.zeilen, x.Auftrag_Nr);
     const summen = summenFuer(x, akt, info, ekJe);

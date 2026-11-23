@@ -43,6 +43,8 @@ import { leseReiterSpalten } from './ssot-reiter.js';
 import { colLetter } from '../utils/sheet-spalten.js';
 import { TAB_LSHOP, STATUS_AKTIV, STATUS_AUSGELAUFEN } from './lshop.js';
 import { istZurueckgezogen, QUELLE_NEU } from '../utils/lshop-modelle.js';
+import { TAB_EK_VERLAUF, verlaufZeilenAus } from '../utils/ek-verlauf.js';   // PR1
+import { schreibeNeueZeilen } from './sheet-zeilen.js';   // PR1
 
 export { STATUS_AKTIV, STATUS_AUSGELAUFEN };
 
@@ -313,6 +315,7 @@ export function abgleich({ bestand = [], csv = new Map(), datei, stand }) {
   const zaehler = {
     neu: 0, geaendert: 0, unveraendert: 0, ausgelaufen: 0, bleibtAusgelaufen: 0, reaktiviert: 0,
     preisAenderungen: 0, nameErgaenzt: 0, spalten: {}, neuJeModell: {},
+    ekAenderungen: [],   // PR1: { articleNr, alt, neu } je geaendertem 10CartonsPrice -> LShop_EK_Verlauf
   };
   const nrs = new Set();
   const zeilen = [];
@@ -332,7 +335,7 @@ export function abgleich({ bestand = [], csv = new Map(), datei, stand }) {
     if (!altName && neuName) zaehler.nameErgaenzt++;
     else if (altName !== neuName) diff.push(NAME_SPALTE);
     for (const n of diff) {
-      if (n === PREIS_SPALTE) zaehler.preisAenderungen++;
+      if (n === PREIS_SPALTE) { zaehler.preisAenderungen++; zaehler.ekAenderungen.push({ articleNr: nr, alt: alt[n], neu: neu[n] }); }
       else zaehler.spalten[n] = (zaehler.spalten[n] ?? 0) + 1;
     }
     if (warAus) zaehler.reaktiviert++;
@@ -567,6 +570,8 @@ export async function stammdatenLauf({
 
   // ── Uebernehmen ──
   if (vorSchreiben) await vorSchreiben(antwort);
+  // PR1: alten EK je geaenderter ArticleNr sichern, BEVOR LShop_Modelle ueberschrieben wird (Marge-Vergleich, Leseliste "EK gestiegen").
+  antwort.ekVerlauf = await sichereEkVerlauf({ sheets, ssotId, aenderungen: zaehler.ekAenderungen, tag: stand.slice(0, 10), datei: d.name });
   const sheetId = await sichereReiter({ sheets, ssotId, zeilenBedarf: zeilen.length + 1, kopfErgaenzen: !!bestand.kopfAlt });
   await schreibeZeilen({ sheets, ssotId, zeilen, zeilenVorher: bestand.zeilen.length });
   // Textformat NACH dem Schreiben (Befund LS2): values.update setzt das Format
@@ -589,6 +594,20 @@ export async function stammdatenLauf({
     antwort.chat = ok ? 'gesendet' : 'fehlgeschlagen';
   }
   return antwort;
+}
+
+/** PR1: Verlauf-Zeilen ohne append schreiben; fehlt der Reiter, nur Hinweis (Setup scripts/setup-ek-verlauf.js). */
+async function sichereEkVerlauf({ sheets, ssotId, aenderungen, tag, datei }) {
+  const zeilen = verlaufZeilenAus(aenderungen, { tag, datei });
+  if (!zeilen.length) return { geschrieben: 0 };
+  try {
+    await sheets.spreadsheets.values.get({ spreadsheetId: ssotId, range: `'${TAB_EK_VERLAUF}'!1:1` });
+  } catch (err) {
+    if (err?.code === 400 || err?.status === 400 || err?.response?.status === 400 || /Unable to parse range/.test(err?.message ?? '')) return { geschrieben: 0, hinweis: `Reiter ${TAB_EK_VERLAUF} fehlt – alter EK nicht gesichert (scripts/setup-ek-verlauf.js --write).` };
+    throw err;
+  }
+  await schreibeNeueZeilen(sheets, ssotId, TAB_EK_VERLAUF, zeilen);
+  return { geschrieben: zeilen.length };
 }
 
 // Reiter anlegen (Kopfzeile) bzw. Raster vergroessern. Das Textformat setzt

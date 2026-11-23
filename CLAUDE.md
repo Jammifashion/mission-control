@@ -1669,6 +1669,21 @@ Dritter Job `lshop-lieferbarkeit` (BO7-1): `47 * * * *` Europe/Berlin, POST auf
 `<BACKEND_URL>/api/intern/lshop-lieferbarkeit/abruf`, gleiches Dienstkonto, gleiche Audience wie CS1, Versuchsfrist 300 s,
 keine Wiederholung. FTP-Fehler sind 200; rot erst, wenn der letzte Stand aelter als 6 h ist (oder Sheets/401/Zeitlimit).
 
+## Preisrunde (PR1, Inhaber 22./23.11.) - nur MC, nie automatisch Preise aendern
+- **EK-Verlauf:** `LShop_EK_Verlauf` (SSOT: ArticleNr | EK_alt | EK_neu | Geaendert_Am | Quelle_Datei, Setup `scripts/setup-ek-verlauf.js`). Das
+  L-Shop-Stammdaten-Update schreibt je geaendertem `10CartonsPrice` eine Zeile, BEVOR LShop_Modelle ueberschrieben wird (`sichereEkVerlauf`, fehlt der
+  Reiter: nur Hinweis `ekVerlauf`). Nie rueckwirkend EK in Auftraegen/Partner-Reitern aendern.
+- **EK damals** (`utils/ek-verlauf.js` `ekZumTag`): je Auftragsposition in `GET /api/auftraege` als `ekDamals` { ek, quelle verlauf|heute|unbekannt }
+  zum Tag Bestellt_Am bzw. Angelegt: EK_alt der fruehesten Aenderung danach; sonst heutiger EK, wenn LShop_Modelle.Stand (letzte inhaltliche Aenderung)
+  am/vor dem Tag liegt; sonst unbekannt. EK_Hand der Position geht vor.
+- **Marge-Vergleich "Wie letztes Mal":** Block `Preisvergleich: Anfang/Ende` (`pvGruppe`, `pvSummen`, `pvHtml`), Dialog `#au-pv-block` (nur mit Vorlage,
+  am Handy zu): je Gruppe Preis alt · EK alt/heute · Marge alt · Vorschlag "gleiche Marge %" (x Aufschlag %, brutto AUFgerundet auf die Stufe, Standard
+  0,50 €; Preis und Aufpreis skaliert). EK damals unbekannt -> kein Vorschlag. "übernehmen" setzt nur Preisfelder im Dialog (orange, `vorbelegt`).
+- **Leseliste "EK gestiegen":** `GET /api/lshop/ek-gestiegen?prozent=5` (lib/ekGestiegen.js, utils/ek-gestiegen.js, NUR LESEN, nur Sheets): Shop-Artikel
+  (Varianten.LShop_ArticleNr -> Erfassungsmaske) mit EK-Anstieg > x % im letzten Verlauf-Lauf; VK = Varianten.Preis (brutto), Marge alt/neu; Festpreis-
+  und Lizenz-Partner gekennzeichnet. MC Einstellungen, Karte `#ekg-card` (Block `EK-gestiegen: Anfang/Ende`), laedt nach "Übernehmen" der Stammdaten.
+- Test pr1-preisrunde.test.js. EK/Marge nie in Bestellseite, Portal, Lexware, Chat, Log.
+
 ## Geld-Technik (GT1, Inhaber 22.11.)
 - **Berlin-Zeit:** Geld-Routen rechnen Tage, Jahre und "heute" in Europe/Berlin (`utils/berlin-tag.js`): `wcTagDE` (WooCommerce date_created/
   date_modified = Shop-Ortszeit ohne Zone -> Tag aus dem Text, mit Zone nach Berlin umgerechnet), `deHeuteBerlin` (Erstellt-Am, Datum neuer
