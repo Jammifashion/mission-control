@@ -188,6 +188,10 @@ describe('Reiter Druckmasse (Attrappe)', () => {
     expect(tabs.Druckmasse[0]).toEqual(KOPF);
     const cfg = Object.fromEntries(tabs.Config.slice(1).map(r => [r[0], r[1]]));
     expect(cfg).toMatchObject({ 'dtf.breite_cm': '57', 'dtf.verschnitt_prozent': '15', 'dtf.preis_je_bogen_brutto': '', 'dtf.bogen_laenge_cm': '' });
+    // Config wird UNFORMATTED gelesen - sonst sieht eine Datumszelle (17.11.2026 = Zahl) beim Ruecklesen "geändert" aus (Befund Setup 23.11.)
+    const cfgLesen = s.spreadsheets.values.get.mock.calls.map(c => c[0]).filter(x => String(x.range).startsWith("'Config'"));
+    expect(cfgLesen.length).toBeGreaterThan(0);
+    for (const x of cfgLesen) expect(x.valueRenderOption).toBe('UNFORMATTED_VALUE');
   });
 });
 

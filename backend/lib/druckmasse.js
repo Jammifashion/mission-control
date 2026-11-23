@@ -203,7 +203,7 @@ export async function richteDruckmasseEin({ write = false, sheets: s } = {}) {
     const fehlt = DRUCKMASSE_SPALTEN.filter(x => !kopf.map(normHeader).includes(normHeader(x)));
     if (fehlt.length) throw new Error(`${TAB_DRUCKMASSE} hat eine andere Kopfzeile (fehlt: ${fehlt.join(', ')}) – bitte von Hand prüfen.`);
   }
-  const { data: c } = await sheets.spreadsheets.values.get({ spreadsheetId: business, range: `'${TAB_CONFIG}'` });
+  const { data: c } = await sheets.spreadsheets.values.get({ spreadsheetId: business, range: `'${TAB_CONFIG}'`, valueRenderOption: 'UNFORMATTED_VALUE' });   // wie schreibeNeueZeilen vergleicht (Datum = Zahl)
   const [ck = [], ...cz] = c.values ?? [];
   const iS = ck.map(normHeader).indexOf(normHeader('Schlüssel')), iW = ck.map(normHeader).indexOf(normHeader('Wert'));
   if (iS < 0 || iW < 0) throw new Error('Config: Spalten Schlüssel/Wert fehlen.');
