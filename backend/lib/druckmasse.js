@@ -13,8 +13,8 @@ import { normHeader } from '../utils/sheet-headers.js';
 import { berlinDatum } from '../utils/berlin-tag.js';
 import { _auftraegeCacheLeeren } from './auftraege.js';   // zyklisch, nur zur Laufzeit benutzt
 import {
-  TAB_DRUCKMASSE, DRUCKMASSE_SPALTEN, DTF_CONFIG_SCHLUESSEL, dtfPreise, druckmassEingabe, istAktiv, massSchluessel,
-  naechsteDruckmassId, normBezug, GROESSE_ALLE,
+  TAB_DRUCKMASSE, DRUCKMASSE_SPALTEN, DRUCKMASSE_OPTIONAL, DTF_CONFIG_SCHLUESSEL, dtfPreise, druckmassEingabe, istAktiv, massSchluessel,
+  naechsteDruckmassId, normBezug, GROESSE_ALLE, FUEHREND, fuehrendAus, massSets, POSITIONEN,
 } from '../utils/druckkosten.js';
 
 const TAB_CONFIG = 'Config';
@@ -43,9 +43,10 @@ async function liesReiter(sheets, spreadsheetId) {
     throw err;
   }
   const kopf = (werte[0] ?? []).map(normHeader);
-  const idx = Object.fromEntries(DRUCKMASSE_SPALTEN.map(s => [s, kopf.indexOf(normHeader(s))]).filter(([, i]) => i >= 0));
+  const alle = [...DRUCKMASSE_SPALTEN, ...DRUCKMASSE_OPTIONAL];   // DK2: Fuehrend, Modell optional hinten
+  const idx = Object.fromEntries(alle.map(s => [s, kopf.indexOf(normHeader(s))]).filter(([, i]) => i >= 0));
   if (DRUCKMASSE_SPALTEN.some(s => idx[s] === undefined)) return null;
-  const zeilen = werte.slice(1).map((r, i) => ({ ...Object.fromEntries(DRUCKMASSE_SPALTEN.map(s => [s, r[idx[s]] ?? ''])), _zeile: i + 2 }))
+  const zeilen = werte.slice(1).map((r, i) => ({ ...Object.fromEntries(alle.map(s => [s, idx[s] === undefined ? '' : r[idx[s]] ?? ''])), _zeile: i + 2 }))
     .filter(z => t(z.Druckmass_ID));
   return { werte, idx, zeilen, breite: (werte[0] ?? []).length };
 }
@@ -53,6 +54,13 @@ const brauche = x => {
   if (!x) throw fehler(`Reiter "${TAB_DRUCKMASSE}" fehlt oder Spalten fehlen – erst scripts/setup-druckmasse.js --write.`, 409, 'einrichtung');
   return x;
 };
+/** DK2: Hoehe fuehrend oder ein Modell brauchen die optionalen Spalten (Breite fuehrend = leer, geht auch ohne). */
+function pruefeOptional(r, liste) {
+  const fehlt = [];
+  if (r.idx.Fuehrend === undefined && liste.some(e => e.Fuehrend === FUEHREND.HOEHE)) fehlt.push('Fuehrend');
+  if (r.idx.Modell === undefined && liste.some(e => t(e.Modell))) fehlt.push('Modell');
+  if (fehlt.length) throw fehler(`Spalte fehlt in ${TAB_DRUCKMASSE} (${fehlt.join(', ')}) – erst scripts/setup-druckmasse.js --write.`, 409, 'einrichtung');
+}
 
 /** Config dtf.* (Business) -> { schluessel: wert }; fehlt der Reiter/das Sheet: leer. Werte nie ins Log. */
 export async function leseDtfConfig({ sheets, spreadsheetId = process.env.BUSINESS_SHEET_ID } = {}) {
@@ -75,7 +83,7 @@ export async function leseDruckKontext({ sheets, spreadsheetId = process.env.GOO
   let r = null;
   try { r = await liesReiter(sheets, spreadsheetId); } catch { r = null; }
   const preise = dtfPreise(await leseDtfConfig({ sheets }));
-  return { masse: r ? r.zeilen.filter(istAktiv) : [], preise, einrichtung: !!r };
+  return { masse: r ? r.zeilen.filter(istAktiv) : [], preise, einrichtung: !!r, spalten: { fuehrend: r?.idx.Fuehrend !== undefined, modell: r?.idx.Modell !== undefined } };
 }
 
 /** Anzeige der Einstellungen in der Pflege-Ansicht: Preis je m² (Euro brutto) bzw. was fehlt. */
@@ -87,6 +95,7 @@ function preiseAnzeige(p) {
 const antwortZeile = z => ({
   id: t(z.Druckmass_ID), bezug: t(z.Bezug), position: t(z.Position), groesse: t(z.Groesse) || GROESSE_ALLE,
   breite: Number(z.Breite_cm) || null, hoehe: Number(z.Hoehe_cm) || null, aktiv: istAktiv(z), notiz: t(z.Notiz), stand: t(z.Stand),
+  fuehrend: fuehrendAus(z.Fuehrend), modell: t(z.Modell),   // DK2
 });
 
 /** GET /api/druckmasse: alle Zeilen (auch inaktive) + Einstellungen. */
@@ -94,7 +103,9 @@ export async function leseDruckmasse({ sheets: s } = {}) {
   const sheets = s ?? await sheetsClient();
   const r = await liesReiter(sheets, process.env.GOOGLE_SHEET_ID);
   const preise = preiseAnzeige(dtfPreise(await leseDtfConfig({ sheets })));
-  return { einrichtung: !!r, zeilen: r ? r.zeilen.map(antwortZeile) : [], preise };
+  // DK2: Maß-Sets fuer die Auswahl im Auftrag, feste Positionsliste, Spalten (Fuehrend/Modell da?)
+  return { einrichtung: !!r, zeilen: r ? r.zeilen.map(antwortZeile) : [], preise, sets: massSets(r?.zeilen ?? []), positionen: POSITIONEN,
+    spalten: { fuehrend: r?.idx.Fuehrend !== undefined, modell: r?.idx.Modell !== undefined } };
 }
 
 function zeileAus(idx, breite, felder) {
@@ -111,6 +122,7 @@ export async function legeDruckmassAn({ eingabe, sheets: s, jetzt = () => new Da
     const sheets = s ?? await sheetsClient();
     const id = process.env.GOOGLE_SHEET_ID;
     const r = brauche(await liesReiter(sheets, id));
+    pruefeOptional(r, [e]);
     if (r.zeilen.some(z => istAktiv(z) && massSchluessel(z) === massSchluessel(e))) throw fehler(doppeltText(e), 409, 'vorhanden');
     const nr = naechsteDruckmassId(r.zeilen.map(z => z.Druckmass_ID));
     const zeit = jetzt();
@@ -121,7 +133,6 @@ export async function legeDruckmassAn({ eingabe, sheets: s, jetzt = () => new Da
 
 /** POST /api/druckmasse/aendern { id, stand, bezug, position, groesse, breite, hoehe, notiz, aktiv } */
 export async function aendereDruckmass({ eingabe = {}, sheets: s, jetzt = () => new Date() } = {}) {
-  const e = druckmassEingabe(eingabe);
   const aktiv = eingabe.aktiv !== false;
   return mitSperre(async () => {
     const sheets = s ?? await sheetsClient();
@@ -129,38 +140,44 @@ export async function aendereDruckmass({ eingabe = {}, sheets: s, jetzt = () => 
     const r = brauche(await liesReiter(sheets, id));
     const z = r.zeilen.find(x => t(x.Druckmass_ID) === t(eingabe.id));
     if (!z) throw fehler('Druckmaß gibt es nicht.', 404);
+    const e = druckmassEingabe({ ...eingabe, positionAlt: z.Position });   // DK2: alte Position (nicht aus der Liste) bleibt erlaubt
+    pruefeOptional(r, [e]);
     if (t(z.Stand) !== t(eingabe.stand)) throw fehler(`${z.Druckmass_ID} wurde inzwischen geändert – neu laden.`, 409, 'konflikt');
     if (aktiv && r.zeilen.some(x => x !== z && istAktiv(x) && massSchluessel(x) === massSchluessel(e))) throw fehler(doppeltText(e), 409, 'vorhanden');
     const alt = r.werte[z._zeile - 1] ?? [];
     const neu = Array.from({ length: Math.max(alt.length, r.breite) }, (_, i) => alt[i] ?? '');
-    for (const [f, w] of Object.entries({ ...e, Aktiv: aktiv ? 'ja' : 'nein', Stand: jetzt().toISOString() })) neu[r.idx[f]] = w;
+    for (const [f, w] of Object.entries({ ...e, Aktiv: aktiv ? 'ja' : 'nein', Stand: jetzt().toISOString() })) if (r.idx[f] !== undefined) neu[r.idx[f]] = w;
     await ersetzeZeile(sheets, id, TAB_DRUCKMASSE, z._zeile, alt, neu);
     return { ok: true, id: z.Druckmass_ID };
   });
 }
 
 /**
- * POST /api/druckmasse/merken { bezug, groesse, teile: [{ position, breite, hoehe }], ersetzen }
- * "als Druckmaß für dieses Motiv merken": je Teil eine Zeile Bezug + Position + Groesse. Gleiche aktive Zeile mit gleichen
+ * POST /api/druckmasse/merken { bezug, groesse, modell, teile: [{ position, breite, hoehe, fuehrend }], ersetzen }
+ * "für dieses Motiv merken": je Teil eine Zeile Bezug + Position + Groesse (+ Modell). Gleiche aktive Zeile mit gleichen
  * Massen = schon da; mit anderen Massen -> 409 `anders` (Liste), es sei denn `ersetzen`. Erst alles pruefen, dann schreiben.
+ * Danach rechnet der Auftrag sofort damit (Sperre leert den Auftrags-Zwischenspeicher, der Reiter wird frisch gelesen).
  */
 export async function merkeDruckmasse({ eingabe = {}, sheets: s, jetzt = () => new Date() } = {}) {
   const teile = Array.isArray(eingabe.teile) ? eingabe.teile : [];
   if (!teile.length) throw fehler('Keine Druckmaße zum Merken.');
-  const liste = teile.map(x => druckmassEingabe({ bezug: eingabe.bezug, groesse: eingabe.groesse, position: x.position, breite: x.breite, hoehe: x.hoehe }));
+  const liste = teile.map(x => druckmassEingabe({ bezug: eingabe.bezug, groesse: eingabe.groesse, modell: eingabe.modell, position: x.position, breite: x.breite, hoehe: x.hoehe, fuehrend: x.fuehrend }));
   if (new Set(liste.map(massSchluessel)).size !== liste.length) throw fehler('Eine Druckposition steht doppelt.');
   return mitSperre(async () => {
     const sheets = s ?? await sheetsClient();
     const id = process.env.GOOGLE_SHEET_ID;
     const r = brauche(await liesReiter(sheets, id));
+    pruefeOptional(r, liste);
     const zeit = jetzt();
     const neu = [], ersetzen = [], anders = [];
     let schon = 0;
     for (const e of liste) {
       const z = r.zeilen.find(x => istAktiv(x) && massSchluessel(x) === massSchluessel(e));
       if (!z) { neu.push(e); continue; }
-      if (Number(z.Breite_cm) === e.Breite_cm && Number(z.Hoehe_cm) === e.Hoehe_cm) { schon += 1; continue; }
-      anders.push({ position: e.Position, alt: `${z.Breite_cm} × ${z.Hoehe_cm}`, neu: `${e.Breite_cm} × ${e.Hoehe_cm}` });
+      const gleich = (a, b) => (t(a) === '' && t(b) === '') || Number(a) === Number(b);
+      if (gleich(z.Breite_cm, e.Breite_cm) && gleich(z.Hoehe_cm, e.Hoehe_cm) && fuehrendAus(z.Fuehrend) === e.Fuehrend) { schon += 1; continue; }
+      const txt = (b, h, f) => `${t(b) || '?'} × ${t(h) || '?'}${fuehrendAus(f) === FUEHREND.HOEHE ? ' (Höhe führend)' : ''}`;
+      anders.push({ position: e.Position, alt: txt(z.Breite_cm, z.Hoehe_cm, z.Fuehrend), neu: txt(e.Breite_cm, e.Hoehe_cm, e.Fuehrend) });
       ersetzen.push({ z, e });
     }
     if (anders.length && eingabe.ersetzen !== true) throw Object.assign(fehler('Für dieses Motiv sind schon andere Druckmaße hinterlegt.', 409, 'anders'), { anders });
@@ -168,6 +185,7 @@ export async function merkeDruckmasse({ eingabe = {}, sheets: s, jetzt = () => n
       const alt = r.werte[z._zeile - 1] ?? [];
       const zeile = Array.from({ length: Math.max(alt.length, r.breite) }, (_, i) => alt[i] ?? '');
       zeile[r.idx.Breite_cm] = e.Breite_cm; zeile[r.idx.Hoehe_cm] = e.Hoehe_cm; zeile[r.idx.Stand] = zeit.toISOString();
+      if (r.idx.Fuehrend !== undefined) zeile[r.idx.Fuehrend] = e.Fuehrend;
       await ersetzeZeile(sheets, id, TAB_DRUCKMASSE, z._zeile, alt, zeile);
     }
     if (neu.length) {
@@ -204,6 +222,10 @@ export async function richteDruckmasseEin({ write = false, sheets: s } = {}) {
     const fehlt = DRUCKMASSE_SPALTEN.filter(x => !kopf.map(normHeader).includes(normHeader(x)));
     if (fehlt.length) throw new Error(`${TAB_DRUCKMASSE} hat eine andere Kopfzeile (fehlt: ${fehlt.join(', ')}) – bitte von Hand prüfen.`);
   }
+  // DK2: optionale Spalten Fuehrend, Modell hinten anhaengen (nur Kopfzellen; leere Zellen lesen sich als Breite / alle Modelle)
+  const optFehlt = DRUCKMASSE_OPTIONAL.filter(x => !kopf.map(normHeader).includes(normHeader(x)));
+  const kopfLaenge = da && kopf.length ? kopf.length : 0;
+  if (kopfLaenge && optFehlt.length) plan.push(`Spalten hinten in ${TAB_DRUCKMASSE}: ${optFehlt.join(', ')} (bestehende Zeilen bleiben leer = Breite führend)`);
   const { data: c } = await sheets.spreadsheets.values.get({ spreadsheetId: business, range: `'${TAB_CONFIG}'`, valueRenderOption: 'UNFORMATTED_VALUE' });   // wie schreibeNeueZeilen vergleicht (Datum = Zahl)
   const [ck = [], ...cz] = c.values ?? [];
   const iS = ck.map(normHeader).indexOf(normHeader('Schlüssel')), iW = ck.map(normHeader).indexOf(normHeader('Wert'));
@@ -218,7 +240,15 @@ export async function richteDruckmasseEin({ write = false, sheets: s } = {}) {
   if (!write || !plan.length) return { plan, geschrieben: false };
   if (!da) await sheets.spreadsheets.batchUpdate({ spreadsheetId: ssot, requestBody: { requests: [{ addSheet: { properties: { title: TAB_DRUCKMASSE, gridProperties: { frozenRowCount: 1 } } } }] } });
   if (!da || !kopf.length) {
-    await sheets.spreadsheets.values.update({ spreadsheetId: ssot, range: `'${TAB_DRUCKMASSE}'!A1`, valueInputOption: 'RAW', requestBody: { values: [DRUCKMASSE_SPALTEN] } });
+    await sheets.spreadsheets.values.update({ spreadsheetId: ssot, range: `'${TAB_DRUCKMASSE}'!A1`, valueInputOption: 'RAW', requestBody: { values: [[...DRUCKMASSE_SPALTEN, ...DRUCKMASSE_OPTIONAL]] } });
+  } else if (optFehlt.length) {
+    const spalte = n => { let x = ''; for (let i = n + 1; i > 0; i = Math.floor((i - 1) / 26)) x = String.fromCharCode(65 + ((i - 1) % 26)) + x; return x; };
+    const ziel = `'${TAB_DRUCKMASSE}'!${spalte(kopfLaenge)}1:${spalte(kopfLaenge + optFehlt.length - 1)}1`;
+    const vorher = (await sheets.spreadsheets.values.get({ spreadsheetId: ssot, range: ziel })).data.values ?? [];
+    if ((vorher[0] ?? []).some(v => t(v))) throw new Error(`${ziel} ist nicht leer – bitte von Hand prüfen.`);
+    await sheets.spreadsheets.values.update({ spreadsheetId: ssot, range: ziel, valueInputOption: 'RAW', requestBody: { values: [optFehlt] } });
+    const nach = ((await sheets.spreadsheets.values.get({ spreadsheetId: ssot, range: ziel })).data.values ?? [[]])[0] ?? [];
+    if (nach.join('|') !== optFehlt.join('|')) throw new Error(`${ziel}: Rücklesen weicht ab.`);
   }
   if (configNeu.length) await schreibeNeueZeilen(sheets, business, TAB_CONFIG, configNeu, { alt: c.values ?? [] });
   return { plan, geschrieben: true };

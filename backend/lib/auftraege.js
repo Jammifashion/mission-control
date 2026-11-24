@@ -132,7 +132,8 @@ const istJa = v => /^(ja|true|1|x)$/i.test(String(v ?? '').trim());
 function druckFuer(auftrag, aktive, info, dk, summen) {
   const express = istJa(auftrag.DTF_Express);
   const positionen = aktive.map(p => positionDruck(
-    { druck: p.Druck, motiv: p.Motiv, groesse: info.get(p.LShop_ArticleNr)?.groesse ?? '', menge: p.Menge, hand: p.Druckmasse_Hand },
+    // DK2: je Position (= Groessenzeile) nur ihre eigenen Masse; Modell fuer Druckmasse-Zeilen mit Modell
+    { druck: p.Druck, motiv: p.Motiv, groesse: info.get(p.LShop_ArticleNr)?.groesse ?? '', modell: info.get(p.LShop_ArticleNr)?.modell ?? '', menge: p.Menge, hand: p.Druckmasse_Hand },
     { masse: dk.masse, preise: dk.preise, express }));
   return { express, positionen, ...druckSummen(positionen, summen) };
 }
@@ -340,7 +341,8 @@ export async function leseAuftraege({ sheets: s, jetzt = () => new Date(), autoB
     zustaendigAuswahl: ZUSTAENDIG,
     einrichtung: { aufgaben: !!g && !g.kaputt, todos: !!d && !d.kaputt },
     // DK1: Spalten fuer freie Druckmasse/Express und ob der Reiter Druckmasse eingerichtet ist (Oberflaeche sperrt sonst mit Hinweis)
-    druck: { hand: p.idx.Druckmasse_Hand !== undefined, express: a.idx.DTF_Express !== undefined, druckmasse: dk.einrichtung },
+    druck: { hand: p.idx.Druckmasse_Hand !== undefined, express: a.idx.DTF_Express !== undefined, druckmasse: dk.einrichtung,
+      fuehrend: !!dk.spalten?.fuehrend, modell: !!dk.spalten?.modell },   // DK2: Spalten Fuehrend/Modell in Druckmasse
   };
   if (!s) cache = { zeit: Date.now(), antwort };
   return antwort;
@@ -371,6 +373,7 @@ export async function legeAuftragAn({ eingabe, sheets: s, jetzt = () => new Date
     pruefeHerkunftSpalten(p.idx, plan.positionen);
     if (brauchtPreisSpalten(plan.positionen)) pruefeSpalten(p.idx, PREIS_SPALTEN, 'Preise');   // AM-5
     if (brauchtDrucknameSpalte(plan.positionen)) pruefeSpalten(p.idx, ['Druckname'], 'Druckname');   // SA4
+    if (plan.positionen.some(x => x.Druckmasse_Hand)) pruefeSpalten(p.idx, ['Druckmasse_Hand'], 'Druckmaße in Auftrag_Positionen');   // DK2: Wie letztes Mal
     if (plan.auftrag.Rabatt !== undefined && plan.auftrag.Rabatt !== '') pruefeSpalten(a.idx, ['Rabatt'], 'Rabatt');
     pruefeAmq1Spalten(a.idx, plan.auftrag);   // AMQ1
     // AM-6: ohne Spalte Vorlage_Von wird trotzdem angelegt (nur ohne Vermerk) - die Antwort sagt es der Oberflaeche
@@ -427,6 +430,7 @@ export async function bearbeiteAuftrag({ eingabe, sheets: s, jetzt = () => new D
     pruefeHerkunftSpalten(p.idx, [...plan.neuePositionen, ...plan.aenderungPositionen.map(x => x.felder)]);
     if (brauchtPreisSpalten([...plan.neuePositionen, ...plan.aenderungPositionen.map(x => x.felder)])) pruefeSpalten(p.idx, PREIS_SPALTEN, 'Preise');   // AM-5
     if (brauchtDrucknameSpalte([...plan.neuePositionen, ...plan.aenderungPositionen.map(x => x.felder)])) pruefeSpalten(p.idx, ['Druckname'], 'Druckname');   // SA4
+    if (plan.neuePositionen.some(x => x.Druckmasse_Hand)) pruefeSpalten(p.idx, ['Druckmasse_Hand'], 'Druckmaße in Auftrag_Positionen');   // DK2
     if (plan.aenderungAuftrag.Rabatt !== undefined) pruefeSpalten(a.idx, ['Rabatt'], 'Rabatt');
     pruefeAmq1Spalten(a.idx, plan.aenderungAuftrag);   // AMQ1
     if (plan.unveraendert) return { ok: true, auftragNr: auftrag.Auftrag_Nr, unveraendert: true };
@@ -687,8 +691,10 @@ export async function setzeDtfExpress({ eingabe, sheets: s } = {}) {
 }
 
 /**
- * POST /api/auftraege/druckmasse-hand { auftragNr, positionIds, teile: [{ position, breite, hoehe }] } - freie Druckmasse fuer
- * diese Positionen (eine Gruppe), leere Liste = Tabelle Druckmasse gilt wieder. Nicht bei storniert; entfernte Positionen nie.
+ * POST /api/auftraege/druckmasse-hand { auftragNr, positionIds, teile: [{ position, breite, hoehe, fuehrend }] } - freie Druckmasse
+ * fuer diese Positionen; leere Liste = Tabelle Druckmasse gilt wieder. Nicht bei storniert; entfernte Positionen nie.
+ * DK2 (antwort-DK2-1): die Oberflaeche schickt je Groessenzeile genau EINE Position ("für alle Größen der Gruppe" = mehrere mit
+ * denselben Massen) - die Rechnung nimmt je Position nur ihre eigene Zelle. Position nur aus der festen Liste, fuehrende Seite im Text.
  */
 export async function setzeDruckmasseHand({ eingabe, sheets: s } = {}) {
   const nr = String(eingabe?.auftragNr ?? '').trim();

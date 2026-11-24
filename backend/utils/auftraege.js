@@ -4,6 +4,7 @@
 
 import { berlinDatum } from './berlin-tag.js';
 import { euroZahl, ustAus, rabattAus, rabattZelle, UST_STANDARD, AUFPREIS_AB_STANDARD, ZUSTAENDIG } from './auftrag-preise.js';
+import { handTextAusZelle } from './druckkosten.js';   // DK2
 
 export const TAB_AUFTRAEGE = 'Auftraege';
 export const TAB_POSITIONEN = 'Auftrag_Positionen';
@@ -264,6 +265,8 @@ export function pruefePositionen(eingabe, { waehlbar, bisher = new Set(), orte =
       Motiv: lang(`Position ${nr}: Motiv`, t(p?.motiv), MAX.Motiv), Druck: lang(`Position ${nr}: Druck`, t(p?.druck), MAX.Druck),
       Notiz: lang(`Position ${nr}: Notiz`, t(p?.notiz), MAX.PosNotiz),
       ...(p?.druckname !== undefined ? { Druckname: drucknameAus(p.druckname, nr) } : {}),   // SA4
+      // DK2: "Wie letztes Mal" uebernimmt die freien Druckmasse (nur zugeordnete, sonst leer); nur beim Anlegen neuer Positionen
+      ...(String(p?.druckmasseHand ?? '').trim() && !t(p?.positionId) ? { Druckmasse_Hand: handTextAusZelle(p.druckmasseHand) } : {}),
       ...preisFelder(p, art, nr),
     };
     if (art === ART.LSHOP) {

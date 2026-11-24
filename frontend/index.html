@@ -755,18 +755,27 @@
       .dk-block { margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
       .dk-kopf { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; }
       .dk-gruppe { padding: 0.4rem 0; border-bottom: 1px solid var(--border); display: grid; gap: 0.2rem; font-size: 0.85rem; }
-      .dk-zeile { display: grid; grid-template-columns: minmax(0, 1fr) 5.5rem auto 5.5rem auto; gap: 0.4rem; align-items: center; margin-bottom: 0.4rem; }
+      .dk-zeile { display: grid; grid-template-columns: minmax(0, 1fr) 5rem auto 5rem auto auto; gap: 0.4rem; align-items: center; margin-bottom: 0.4rem; }
       .dk-felder { display: grid; gap: 0.3rem; }
       .dk-bh { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem 0.6rem; }
       .dk-fehler { color: var(--danger); min-height: 1.2em; }
+      /* DK2: Maße je Größenzeile, führende Seite */
+      .dk-pos { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; font-size: 0.85rem; padding: 0.15rem 0 0.3rem; }
+      .dk-pos b, .dk-zeile-anzeige b { font-weight: 700; }
+      .dk-zeile-anzeige { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.5rem; padding: 0.15rem 0; }
+      .dk-grund { display: inline-flex; }
+      .dk-fuehrend-feld { border-color: var(--focus); border-width: 2px; font-weight: 700; }
+      .dk-alt { margin: 0.4rem 0; }
+      .dk-alt-liste { margin: 0.3rem 0 0.3rem 1.2rem; padding: 0; font-size: 0.85rem; }
       .dkm-haken { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 44px; cursor: pointer; }
       .dkm-tabelle { width: 100%; border-collapse: collapse; }
       .dkm-tabelle th, .dkm-tabelle td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border); }
       .dkm-inaktiv td { color: var(--muted); }
       @media (max-width: 600px) {
-        .dk-zeile { grid-template-columns: minmax(0, 1fr) 4.5rem auto 4.5rem auto; }
+        .dk-zeile { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto auto; }
+        .dk-zeile .dk-pos-wahl { grid-column: 1 / -1; }
         /* Tippflaechen >= 44 px (UI3), die Zeile waechst */
-        #dk-dialog button, #dkm-dialog button, #dkm-panel button, .dk-block button { min-height: 44px; }
+        #dk-dialog button, #dkm-dialog button, #dkm-panel button, .dk-block button, #dk-dialog select, #dkm-dialog select, #dkm-panel select { min-height: 44px; }
         #dk-dialog .dk-weg, #dk-dialog .hilfe-i, #dkm-dialog .hilfe-i, #dkm-panel .hilfe-i { min-width: 44px; }
       }
       .korb-aktion-haupt { background: none; border: 1px solid var(--accent); color: var(--accent); font-weight: 600; }
@@ -2930,11 +2939,15 @@
               <button class="hilfe-i" type="button" data-hilfe-gruppe="druckmasse" aria-controls="hilfe-druckmasse" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
             </div>
             <div id="hilfe-druckmasse" class="hilfe-legende" hidden></div>
-            <p class="field-note" style="margin:0 0 0.5rem;" data-hilfe="dkm-regel" tabindex="0">Je Motiv (bzw. Kurzbezeichnung) und Druckposition Breite × Höhe in cm – für eine Größe oder „alle“.
-              Im Auftrag gilt die genaue Größe vor „alle“. Druckkosten je Teil = Summe der Flächen × Preis je m² × (1 + Verschnitt), netto.</p>
+            <p class="field-note" style="margin:0 0 0.5rem;" data-hilfe="dkm-regel" tabindex="0">Je Motiv (bzw. Kurzbezeichnung) und Druckposition Breite × Höhe in cm – für eine Größe oder „alle“,
+              eine Seite führend (fett, danach skaliert der Drucker). Im Auftrag gilt die genaue Größe vor „alle“, ein Modell vor „alle Modelle“.
+              Druckkosten je Teil = Summe der Flächen × Preis je m² × (1 + Verschnitt), netto.</p>
             <div id="dkm-preise" class="korb-zaehler"></div>
             <div class="lfbs-leiste">
               <input id="dkm-suche" class="form-input" type="search" placeholder="Suche: Motiv, Position" aria-label="Suche" data-hilfe="dkm-suche">
+              <select id="dkm-fuehrend-filter" class="form-select" aria-label="Führende Seite" data-hilfe="dkm-fuehrend-filter">
+                <option value="">führend: alle</option><option value="Breite">Breite führend</option><option value="Hoehe">Höhe führend</option>
+              </select>
               <label class="dkm-haken" data-hilfe="dkm-inaktive"><input type="checkbox" id="dkm-inaktive"> auch inaktive</label>
               <button type="button" class="korb-aktion korb-aktion-haupt" id="dkm-neu" data-hilfe="dkm-neu">+ Neues Druckmaß</button>
             </div>
@@ -2951,7 +2964,7 @@
                 <label class="form-label" for="dkm-f-bezug">Motiv / Kurzbezeichnung</label>
                 <input id="dkm-f-bezug" class="form-input" maxlength="60" placeholder="z. B. Skyline" data-hilfe="dkm-f-bezug">
                 <label class="form-label" for="dkm-f-position">Druckposition</label>
-                <input id="dkm-f-position" class="form-input" maxlength="30" placeholder="z. B. Brust, Rücken, Ärmel links" data-hilfe="dk-position">
+                <select id="dkm-f-position" class="form-select" data-hilfe="dk-position"></select>
                 <label class="form-label" for="dkm-f-groesse">Größe</label>
                 <input id="dkm-f-groesse" class="form-input" maxlength="20" placeholder="alle" data-hilfe="dkm-f-groesse">
                 <div class="dk-bh">
@@ -2960,6 +2973,12 @@
                   <input id="dkm-f-breite" class="form-input" inputmode="decimal" placeholder="28" data-hilfe="dk-breite">
                   <input id="dkm-f-hoehe" class="form-input" inputmode="decimal" placeholder="17,5" data-hilfe="dk-hoehe">
                 </div>
+                <label class="form-label" for="dkm-f-fuehrend">Führende Seite</label>
+                <select id="dkm-f-fuehrend" class="form-select" data-hilfe="dk-fuehrend">
+                  <option value="Breite">Breite führend</option><option value="Hoehe">Höhe führend</option>
+                </select>
+                <label class="form-label" for="dkm-f-modell">Modell (optional)</label>
+                <input id="dkm-f-modell" class="form-input" maxlength="20" placeholder="leer = alle Modelle, z. B. BCWU03K" data-hilfe="dkm-f-modell">
                 <label class="form-label" for="dkm-f-notiz">Notiz</label>
                 <input id="dkm-f-notiz" class="form-input" maxlength="200" placeholder="optional" data-hilfe="dkm-f-notiz">
                 <label class="dkm-haken" id="dkm-f-aktiv-wrap" data-hilfe="dkm-aktiv"><input type="checkbox" id="dkm-f-aktiv" checked> aktiv</label>
@@ -4336,7 +4355,8 @@
         </div>
 
         <!-- AM-6-1: Auftrag nachsehen, ueber "Neuer Auftrag" (nur lesen). Schliessen fuehrt zurueck, der Dialog bleibt wie er war. -->
-        <!-- DK1: freie Druckmaße einer Gruppe im Auftrag (vor der Tabelle Druckmaße). Nur MC, nie Betraege ins Log. -->
+        <!-- DK1/DK2: Druckmaße einer Auftragsposition (= Größenzeile, antwort-DK2-1) - Auswahl hinterlegter Maß-Sets oder Eingabe.
+             Nur MC, nie Betraege ins Log. -->
         <div id="dk-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="dk-titel" hidden>
           <div class="edi-box">
             <div class="edi-kopf"><strong id="dk-titel">Druckmaße</strong>
@@ -4344,14 +4364,22 @@
             </div>
             <div id="hilfe-dk-dialog" class="hilfe-legende" hidden></div>
             <div id="dk-text" class="korb-zaehler"></div>
+            <div id="dk-alt" class="dk-alt" hidden></div>
+            <div class="dk-felder">
+              <label class="form-label" for="dk-set">Hinterlegte Maße</label>
+              <select id="dk-set" class="form-select" data-hilfe="dk-set"></select>
+            </div>
             <div id="dk-zeilen"></div>
             <div class="korb-reihe">
               <button type="button" class="korb-link" id="dk-zeile-neu" data-hilfe="dk-zeile-neu">+ weitere Druckposition</button>
             </div>
+            <label class="dkm-haken" id="dk-alle-wrap" data-hilfe="dk-alle-groessen"><input type="checkbox" id="dk-alle-groessen"> <span id="dk-alle-text">für alle Größen dieser Gruppe</span></label>
+            <label class="dkm-haken" id="dk-merken-wrap" data-hilfe="dk-merken"><input type="checkbox" id="dk-merken"> <span id="dk-merken-text">für dieses Motiv merken</span></label>
+            <label class="dkm-haken" id="dk-modell-wrap" data-hilfe="dk-nur-modell"><input type="checkbox" id="dk-nur-modell"> <span id="dk-modell-text">nur für dieses Modell</span></label>
             <div id="dk-fehler" class="field-note dk-fehler" role="alert"></div>
             <div class="korb-reihe">
               <button type="button" class="korb-aktion korb-aktion-haupt" id="dk-speichern" data-hilfe="dialog-speichern">Speichern</button>
-              <button type="button" class="korb-aktion korb-aktion-ruhig" id="dk-hand-weg" data-hilfe="dk-hand-weg">freie Maße entfernen</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="dk-hand-weg" data-hilfe="dk-hand-weg">Maße von Hand entfernen</button>
               <button type="button" class="korb-link" id="dk-abbrechen" data-hilfe="dialog-abbrechen">Abbrechen</button>
             </div>
           </div>
@@ -7425,11 +7453,21 @@
         'dk-offen':             { name: 'Druckkosten offen', text: 'Hier fehlen Druckmaße – „Maße eingeben …“ oder unter Artikel → Druckmaße hinterlegen.' },
         'dk-preis-fehlt':       { name: 'Preis fehlt', text: 'Bogen- bzw. Meterpreis, Breite oder Verschnitt fehlen in den Einstellungen – es wird nicht mit 0 gerechnet.' },
         'dk-kein-dtf':          { name: 'kein DTF', text: 'Druckart ist nicht DTF (Stick, Flex …) – dafür werden keine Druckkosten gerechnet.' },
-        'dk-hand-oeffnen':      { name: 'Maße eingeben …', text: 'Druckmaße nur für diesen Auftrag eingeben – gehen vor den hinterlegten Druckmaßen.' },
-        'dk-merken':            { name: 'als Druckmaß merken', text: 'Übernimmt die freien Maße als Druckmaß für dieses Motiv (alle Größen).' },
+        'dk-hand-oeffnen':      { name: 'Maße …', text: 'Maße dieser Größenzeile wählen oder eingeben – von Hand gehen sie vor den hinterlegten Druckmaßen.' },
+        'dk-merken':            { name: 'für dieses Motiv merken', text: 'Speichert die Maße als Maß-Set für das Motiv und diese Größe – künftige Aufträge mit dem Motiv rechnen damit.' },
+        'dk-pos-masse':         { name: 'Maße …', text: 'Zeigt die Druckmaße dieser Größenzeile (führende Seite fett). Klick: Maß-Set wählen oder Maße eingeben.' },
+        'dk-set':               { name: 'Hinterlegte Maße', text: 'Maß-Sets aus Artikel → Druckmaße, die für dieses Motiv zuerst. Auswahl füllt die Zeilen unten.' },
+        'dk-fuehrend':          { name: 'führend', text: 'Schaltet die führende Seite (B oder H) – danach skaliert der Drucker. Für die Kosten braucht es trotzdem beide.' },
+        'dk-alle-groessen':     { name: 'für alle Größen', text: 'Speichert dieselben Maße für jede Größenzeile dieser Gruppe – sonst nur für diese Zeile.' },
+        'dk-nur-modell':        { name: 'nur für dieses Modell', text: 'Das gemerkte Maß-Set gilt nur für dieses Modell – sonst für alle Modelle mit dem Motiv.' },
+        'dk-zuordnen':          { name: 'bitte zuordnen', text: 'Alter Freitext ohne feste Druckposition – zählt nicht, bis die Maße hier je Größe zugeordnet sind.' },
+        'dk-vorschlag':         { name: 'Vorschlag übernehmen', text: 'Trägt die Zeilen des alten Freitexts ein, die zu dieser Größe passen. Gespeichert wird erst mit „Speichern“.' },
+        'dk-aktualisiert':      { name: 'gerade aktualisiert', text: 'Werte aus dem Sheet werden bis zu 2 Minuten zwischengespeichert. Was MC selbst speichert, gilt sofort.' },
+        'dkm-fuehrend-filter':  { name: 'führend', text: 'Zeigt nur Druckmaße mit Breite bzw. Höhe als führender Seite.' },
+        'dkm-f-modell':         { name: 'Modell', text: 'Optional: gilt nur für dieses Modell (z. B. BCWU03K) und geht dann vor „alle Modelle“.' },
         'dk-zeile-neu':         { name: '+ weitere Druckposition', text: 'Fügt eine Zeile für eine weitere Druckposition hinzu.' },
         'dk-zeile-weg':         { name: 'Zeile entfernen', text: 'Nimmt diese Druckposition aus der Liste (gespeichert erst mit „Speichern“).' },
-        'dk-hand-weg':          { name: 'freie Maße entfernen', text: 'Löscht die freien Maße dieser Gruppe – danach gelten die hinterlegten Druckmaße.' },
+        'dk-hand-weg':          { name: 'Maße von Hand entfernen', text: 'Löscht die Maße von Hand dieser Größenzeile – danach gelten die hinterlegten Druckmaße.' },
         // HT1 (03.11.2026): Mouse-over fuer die aelteren Knoepfe; gemeinsame Texte (dialog-*, liste-*, editor-*, nav-*) genau einmal.
         'wc-erledigt':          { name: 'Als erledigt markieren', text: 'Setzt die Bestellung im Shop auf „abgeschlossen“ – der Kunde sieht den neuen Status.' },
         'eigen-modell':         { name: 'Modell wählen', text: 'Übernimmt dieses L-Shop-Modell für die eigene Position. Grau = gerade nicht bestellbar.' },
@@ -8135,7 +8173,8 @@
       const HILFE_GRUPPEN = {
         druckmasse: ['dkm-modus', 'dkm-regel', 'dkm-suche', 'dkm-inaktive', 'dkm-neu', 'dkm-bearbeiten', 'dkm-inaktiv-zeichen', 'dkm-f-bezug', 'dk-position', 'dkm-f-groesse',
           'dk-breite', 'dk-hoehe', 'dkm-f-notiz', 'dkm-aktiv', 'dk-kosten', 'dk-express', 'dk-masse', 'dk-gesamt', 'dk-rohertrag', 'dk-offen', 'dk-preis-fehlt', 'dk-kein-dtf',
-          'dk-hand-oeffnen', 'dk-merken', 'dk-zeile-neu', 'dk-zeile-weg', 'dk-hand-weg', 'dialog-speichern', 'dialog-abbrechen'],   // DK1
+          'dk-hand-oeffnen', 'dk-merken', 'dk-zeile-neu', 'dk-zeile-weg', 'dk-hand-weg', 'dk-pos-masse', 'dk-set', 'dk-fuehrend', 'dk-alle-groessen',
+          'dk-nur-modell', 'dk-zuordnen', 'dk-vorschlag', 'dk-aktualisiert', 'dkm-fuehrend-filter', 'dkm-f-modell', 'dialog-speichern', 'dialog-abbrechen'],   // DK1, DK2
         // HT1: Gruppen der aelteren Knoepfe (ⓘ-Liste, sobald es dort ein ⓘ gibt)
         'feedback': ['fb-text', 'fb-senden', 'dialog-abbrechen', 'dialog-schliessen'],   // FB1
         'mika': ['mika-oeffnen', 'mika-heute', 'mika-dringend', 'mika-suche', 'mika-nummer', 'mika-shop', 'mika-suchen', 'mika-sprung', 'mika-mehr', 'mika-vorlesen', 'dialog-schliessen'],   // MI1
@@ -12857,6 +12896,7 @@
         ...(p.positionId ? { positionId: p.positionId } : {}), art: p.art,
         ...(p.art === 'lshop' ? { articleNr: p.articleNr } : { freitext: p.freitext }),
         menge: Number(p.menge), motiv: p.motiv ?? '', druck: p.druck ?? '', notiz: p.notiz ?? '', druckname: p.druckname ?? '',   // SA4
+        ...(!p.positionId && p.druckmasseHand ? { druckmasseHand: p.druckmasseHand } : {}),   // DK2: Wie letztes Mal
         herkunft: auHerkunft(p), ...(auHerkunft(p) === 'lager' ? { lagerOrt: p.lagerOrt ?? '' } : {}),
         preis: p.preis ?? '', ...(p.art === 'lshop' ? { aufpreis: p.aufpreis ?? '', aufpreisAb: p.aufpreisAb ?? '' } : {}), ust: p.ust ?? '19', ekHand: p.ekHand ?? '',   // AM-5
       }));
@@ -13164,6 +13204,7 @@
           e.herkunft = p.Art === 'lshop' ? 'bestellen' : '';
           e.lagerOrt = '';
           e.druckname = ''; e.drucknameAlt = '';   // SA4: Drucknamen gehoeren zu genau diesem Auftrag
+          e.druckmasseHand = apT(p.Druckmasse_Hand);   // DK2: Maße von Hand kommen mit (alter Freitext fällt im Backend weg)
           if (p.Art !== 'frei') e.ekHand = '';   // AM-6-1 (Inhaber 07.11.): EK von Hand der freien Positionen kommt mit
           e.preisVon = e.preis === '' ? '' : von;
           e.ekVon = e.ekHand === '' || e.ekHand === undefined ? '' : von;
@@ -13421,6 +13462,7 @@
             + (p.lshop?.lieferbar ? lfbPunkt(p.lshop.lieferbar) : '') + (p.lshop && p.lshop.bestellbar === false ? '<span class="ku-gefahr">nicht mehr bestellbar</span>' : '')
             + (p.Fertig_Am ? `<small>fertig ${auDatum(p.Fertig_Am)}</small>` : '') + (p.Versendet ? `<small>geliefert ${auDatum(p.Versendet)}</small>` : '')
             + auDaHtml(p, st || !!p.Versendet) + '</div>'   // KS4, KS4-2
+            + dkPosFeldHtml(a, p)   // DK2: Maße je Größenzeile sichtbar, Klick = Auswahl/Eingabe
             // AM-3: Rueckmeldung aus Korb/Lager je Position, Sprung zur Korb-Position, "Übergabe zurücknehmen"
             + (p.korb ? `<button type="button" class="korb-link au-korb" data-au-korb="${kuEsc(p.Korb_Schluessel)}" data-hilfe="au-korb-stand">🛒 ${kuEsc(auKorbText(p.korb))}</button>` : '')
             + (p.Lager_Buchung ? `<span class="ku-chip" data-hilfe="au-lager-stand">📦 ausgebucht (${kuEsc(p.Lager_Ort || '')})</span>` : '')
@@ -14568,77 +14610,129 @@
         auEl('au-angebot-neu').hidden = !geaendert || a.Status === 'storniert';
         auZustWahl(auEl('au-zustaendig'), a.Zustaendig, auZ.daten?.spalten?.zustaendig);
       }
-      // ── Druckkosten-Anzeige: Anfang (DK1, Test druckkosten-frontend.test.js) ──
-      // Rechnung NUR im Backend (utils/druckkosten.js), hier nur Anzeige von a.preise.druck (Cent, netto) und die zwei
-      // Schreibwege: Express-Schalter am Auftrag, freie Druckmaße je Gruppe.
-      const dkZ = { gruppen: [], auftrag: null, gruppe: null, laeuft: false };
-      const dkZahl = n => String(n).replace('.', ',');
+      // ── Druckkosten-Anzeige: Anfang (DK1/DK2, Test druckkosten-frontend.test.js) ──
+      // Rechnung NUR im Backend (utils/druckkosten.js), hier nur Anzeige von a.preise.druck (Cent, netto) und die Schreibwege:
+      // Express-Schalter am Auftrag, Druckmaße je Auftragsposition (= Größenzeile, antwort-DK2-1), merken als Maß-Set.
+      // Kann MC nicht rechnen, steht der Grund an der Position (orange) - nie still nichts.
+      const DK_POSITIONEN = ['Brust', 'Brust links', 'Brust rechts', 'Rücken', 'Nacken', 'Ärmel links', 'Ärmel rechts', 'Vorderseite', 'Kapuze', 'Bein', 'Bein links', 'Bein rechts'];   // Spiegel POSITIONEN
+      const dkZ = { auftrag: null, a: null, pos: null, gruppe: null, laeuft: false, sets: [] };
+      const dkZahl = n => (n === null || n === undefined ? '?' : String(n).replace('.', ','));
       const dkCm2 = n => `${Number(n).toLocaleString('de-DE', { maximumFractionDigits: 1 })} cm²`;
-      /** Spiegel von handTeile (utils/druckkosten.js): "Brust 10,5x5; Rücken 28x17,5" -> [{ position, breite, hoehe }]. */
+      const dkFuehrendAus = v => (/^(h|hoehe|höhe)$/i.test(apT(v)) ? 'Hoehe' : 'Breite');
+      const dkUmlaut = v => apT(v).toLowerCase().replace(/\s+/g, ' ').replace(/ae/g, 'ä').replace(/oe/g, 'ö').replace(/ue/g, 'ü');
+      const dkPositionAusListe = v => { const n = dkUmlaut(v); return n ? DK_POSITIONEN.find(x => dkUmlaut(x) === n) ?? null : null; };
+      const dkMass = v => { const n = Number(String(v).replace(',', '.')); return n > 0 && n <= 300 ? n : null; };
+      /** Spiegel von handTeile (utils/druckkosten.js): "Brust 11x12,5; Rücken 28x31 H" -> [{ position, breite, hoehe, fuehrend, zuordnen }]. */
       function dkHandTeile(zelle) {
         const out = [];
         for (const teil of apT(zelle).split(';')) {
-          const m = /^(.+?)\s+(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)$/i.exec(apT(teil));
-          if (m) out.push({ position: apT(m[1]), breite: Number(m[2].replace(',', '.')), hoehe: Number(m[3].replace(',', '.')) });
+          const m = /^(.+?)\s+(\d+(?:[.,]\d+)?|\?)\s*[x×]\s*(\d+(?:[.,]\d+)?|\?)(?:\s+([BH]))?$/i.exec(apT(teil));
+          if (!m) continue;
+          const breite = m[2] === '?' ? null : dkMass(m[2]), hoehe = m[3] === '?' ? null : dkMass(m[3]);
+          if (!breite && !hoehe) continue;
+          const liste = dkPositionAusListe(m[1]);
+          out.push({ position: liste ?? apT(m[1]), breite, hoehe, fuehrend: dkFuehrendAus(m[4]), zuordnen: !liste });
         }
         return out;
       }
-      const dkTeileText = teile => (teile ?? []).map(x => `${x.position} ${dkZahl(x.breite)} × ${dkZahl(x.hoehe)}`).join(', ');
-      /** Positionen eines Auftrags zu Gruppen (Ware + Motiv + Druck + freie Maße) - eine Zeile je Gruppe. */
+      /** Spiegel von zuordnenVorschlag: alter Freitext -> Position + Größe raten (nur Vorschlag, gespeichert erst mit „Speichern“). */
+      function dkZuordnenVorschlag(zelle) {
+        return dkHandTeile(zelle).map(x => {
+          const w = apT(x.position).split(/\s+/);
+          let position = null;
+          for (let n = Math.min(2, w.length); n >= 1 && !position; n -= 1) position = dkPositionAusListe(w.slice(0, n).join(' '));
+          const g = w.find(v => /^(xs|s|m|l|x{0,5}l|\d?xl)$/i.test(v));
+          return { text: x.position, position, groesse: g ? g.toUpperCase() : '', breite: x.breite, hoehe: x.hoehe };
+        });
+      }
+      /** Ein Teil "Rücken 28 × 31" mit der führenden Seite fett. */
+      const dkTeilHtml = x => `${kuEsc(x.position)} ${x.fuehrend === 'Hoehe' ? dkZahl(x.breite) : `<b>${dkZahl(x.breite)}</b>`} × ${x.fuehrend === 'Hoehe' ? `<b>${dkZahl(x.hoehe)}</b>` : dkZahl(x.hoehe)}`;
+      const dkTeileHtml = teile => (teile ?? []).map(dkTeilHtml).join(' · ');
+      const dkQuelle = d => (d?.quelle === 'hand' ? 'von Hand' : d?.quelle === 'tabelle' ? 'hinterlegt' : '');
+      const dkGroesse = p => (p.Art === 'lshop' ? (p.lshop?.groesse || '–') : 'Menge');
+      /** Position_ID -> Druckkosten der Position (Reihenfolge wie a.positionen = aktive Positionen). */
+      function dkDruckJe(a) {
+        const d = a.preise?.druck;
+        return new Map((a.positionen ?? []).map((p, i) => [p.Position_ID, d?.positionen?.[i] ?? null]));
+      }
+      const dkDarf = a => a.Status !== 'storniert' && !!auZ.daten?.druck?.hand;
+      /** Grund in einem Satz, orange (Preis fehlt -> Hilfe zu den Einstellungen). */
+      const dkGrundHtml = d => (d && d.status !== 'ok'
+        ? `<span class="au-lager-knapp dk-grund" ${d.status === 'preis_fehlt' ? 'data-hilfe="dk-preis-fehlt"' : d.status === 'kein_dtf' ? 'data-hilfe="dk-kein-dtf"' : d.status === 'zuordnen' ? 'data-hilfe="dk-zuordnen"' : 'data-hilfe="dk-offen"'} tabindex="0">${kuEsc(d.text)}</span>` : '');
+      /** DK2: Feld „Maße …“ je Größenzeile in der Auftragsansicht - zeigt, was gilt, Klick öffnet die Auswahl/Eingabe. */
+      function dkPosFeldHtml(a, p) {
+        const d = dkDruckJe(a).get(p.Position_ID);
+        if (!d || d.status === 'kein_dtf') return '';   // Stick/Flex …: steht einmal in der Kalkulation, nicht an jeder Größe
+        const zeigt = d.teile?.length && d.status !== 'zuordnen';
+        const text = zeigt ? `Maße: ${dkTeileHtml(d.teile)}` : d.status === 'zuordnen' ? 'Maße zuordnen …' : 'Maße wählen …';
+        const neben = (zeigt && dkQuelle(d) ? ` <small>(${dkQuelle(d)})</small>` : '') + (d.status === 'ok' ? ` <small>· ${apEuroText(Math.round(d.stueck))} je Teil netto</small>` : '');
+        const feld = d.status === 'kein_dtf' ? ''
+          : dkDarf(a) ? `<button type="button" class="korb-link dk-pos-feld" data-dk-pos="${kuEsc(p.Position_ID)}" data-hilfe="dk-pos-masse">${text}</button>${neben}`
+            : `<span class="dk-pos-feld" data-hilfe="dk-masse" tabindex="0">${text}</span>${neben}`;
+        return `<div class="dk-pos">${feld}${dkGrundHtml(d)}</div>`;
+      }
+      /** Positionen eines Auftrags zu Gruppen (Ware + Motiv + Druck) - in der Kalkulation je Gruppe die Größenzeilen. */
       function dkGruppen(a) {
         const d = a.preise?.druck;
         if (!d) return [];
         const je = new Map();
         (a.positionen ?? []).forEach((p, i) => {
           const was = p.Art === 'lshop' ? [p.lshop?.modell, p.lshop?.farbe].filter(Boolean).join(' · ') || 'L-Shop' : (p.Freitext || 'freie Position');
-          const k = [was, apT(p.Motiv), apT(p.Druck), apT(p.Druckmasse_Hand)].join('|');
-          const g = je.get(k) ?? { was, motiv: apT(p.Motiv), hand: apT(p.Druckmasse_Hand), ids: [], druck: [], menge: 0 };
+          const k = [was, apT(p.Motiv), apT(p.Druck)].join('|');
+          const g = je.get(k) ?? { was, motiv: apT(p.Motiv), modell: p.lshop?.modell ?? '', ids: [], zeilen: [], menge: 0 };
           g.ids.push(p.Position_ID);
-          g.druck.push(d.positionen?.[i] ?? { status: 'ohne_mass', text: 'Druckmaße fehlen' });
+          g.zeilen.push({ p, d: d.positionen?.[i] ?? { status: 'ohne_mass', text: 'Maß fehlt' } });
           g.menge += Number(p.Menge) || 0;
           je.set(k, g);
         });
         return [...je.values()];
       }
-      function dkGruppeHtml(g, gi, darf) {
-        const ok = g.druck.filter(x => x.status === 'ok');
-        const st = [...new Set(g.druck.filter(x => x.status !== 'ok').map(x => x.text))];
-        const mit = g.druck.find(x => x.teile?.length);
+      function dkGruppeHtml(g, darf) {
         const kopf = `<strong>${kuEsc(g.was)}</strong>${g.motiv ? ` · Motiv ${kuEsc(g.motiv)}` : ''} · ${g.menge} Stück`;
-        if (g.druck.every(x => x.status === 'kein_dtf')) {
-          return `<div class="dk-gruppe"><div>${kopf}</div><div class="korb-zaehler" data-hilfe="dk-kein-dtf" tabindex="0">Druckkosten nicht berechnet (kein DTF)</div></div>`;
-        }
-        const masse = mit ? `<div data-hilfe="dk-masse" tabindex="0">${kuEsc(dkTeileText(mit.teile))} · ${dkCm2(mit.flaeche)} <span class="korb-zaehler">(${mit.quelle === 'hand' ? 'frei eingegeben' : 'aus Druckmaßen'})</span></div>` : '';
-        const stueck = [...new Set(ok.map(x => x.stueck))];
-        const kosten = ok.length ? `<div>je Teil ${stueck.map(c => apEuroText(c)).join(' / ')} · zusammen <span class="ap-betrag">${apEuroText(ok.reduce((x, y) => x + y.netto, 0))}</span> netto</div>` : '';
-        const hinweis = st.map(t => `<div class="au-lager-knapp" ${/Preis|Einstellungen/.test(t) ? 'data-hilfe="dk-preis-fehlt"' : 'data-hilfe="dk-offen"'} tabindex="0">${kuEsc(t)}</div>`).join('');
-        const knoepfe = darf ? '<div class="korb-reihe">'
-          + `<button type="button" class="korb-link" data-dk-hand="${gi}" data-hilfe="dk-hand-oeffnen">Maße eingeben …</button>`
-          + (g.hand && g.motiv ? `<button type="button" class="korb-link" data-dk-merken="${gi}" data-hilfe="dk-merken">als Druckmaß für „${kuEsc(g.motiv)}“ merken</button>` : '')
-          + '</div>' : '';
-        return `<div class="dk-gruppe"><div>${kopf}</div>${masse}${kosten}${hinweis}${knoepfe}</div>`;
+        if (g.zeilen.every(({ d }) => d.status === 'kein_dtf')) return `<div class="dk-gruppe"><div>${kopf}</div>${dkGrundHtml(g.zeilen[0].d)}</div>`;   // einmal je Gruppe
+        const zeilen = g.zeilen.map(({ p, d }) => {
+          const masse = d.teile?.length && d.status !== 'zuordnen'
+            ? `<span data-hilfe="dk-masse" tabindex="0">${dkTeileHtml(d.teile)}${d.flaeche ? ` · ${dkCm2(d.flaeche)}` : ''}</span> <small>(${dkQuelle(d)})</small>` : '';
+          const kosten = d.status === 'ok' ? ` · <span class="ap-betrag">${apEuroText(d.netto)}</span> netto` : '';
+          const knopf = darf && d.status !== 'kein_dtf' ? ` <button type="button" class="korb-link" data-dk-pos="${kuEsc(p.Position_ID)}" data-hilfe="dk-hand-oeffnen">Maße …</button>` : '';
+          return `<div class="dk-zeile-anzeige"><span class="nr-fest">${kuEsc(dkGroesse(p))} × ${kuEsc(p.Menge)}</span> ${masse}${kosten}${knopf}${dkGrundHtml(d)}</div>`;
+        }).join('');
+        return `<div class="dk-gruppe"><div>${kopf}</div>${zeilen}</div>`;
       }
-      /** Block in der Kalkulation: Express, je Gruppe Maße + Kosten, Summe, Rohertrag nach Druck. */
+      /** Block in der Kalkulation: Express, je Gruppe die Größenzeilen mit Maßen + Kosten, Summe, Rohertrag nach Druck. */
       function dkKalkHtml(a) {
         const d = a.preise?.druck;
         if (!d) return '';
         const sp = auZ.daten?.druck ?? {};
-        const darf = a.Status !== 'storniert' && !!sp.hand;
-        dkZ.gruppen = dkGruppen(a);
         dkZ.auftrag = a.Auftrag_Nr;
         const pr = d.rohertragNachDruckProzent === null || d.rohertragNachDruckProzent === undefined ? '' : ` (${String(d.rohertragNachDruckProzent).replace('.', ',')} %)`;
+        // Hand-Aenderungen im Sheet (Preise, Druckmaße) erscheinen erst nach dem Zwischenspeicher - dann sagen wir das statt still nichts
+        const vielleicht = (d.positionen ?? []).some(x => x.status === 'preis_fehlt' || x.status === 'ohne_mass');
         return '<div class="dk-block"><div class="td-kopf dk-kopf"><strong>Druckkosten (DTF)</strong>'
           + `<label class="dkm-haken" data-hilfe="dk-express"><input type="checkbox" data-dk-express${d.express ? ' checked' : ''}${sp.express && a.Status !== 'storniert' ? '' : ' disabled'}> Express-Druck</label></div>`
-          + (auZ.daten?.druck?.druckmasse === false ? '<div class="korb-zaehler" data-hilfe="dk-offen" tabindex="0">Druckmaße sind noch nicht eingerichtet – nur freie Maße möglich.</div>' : '')
-          + dkZ.gruppen.map((g, gi) => dkGruppeHtml(g, gi, darf)).join('')
+          + (sp.druckmasse === false ? '<div class="korb-zaehler" data-hilfe="dk-offen" tabindex="0">Druckmaße sind noch nicht eingerichtet – nur Maße von Hand möglich.</div>' : '')
+          + dkGruppen(a).map(g => dkGruppeHtml(g, dkDarf(a))).join('')
           + `<div class="ap-summen"><span data-hilfe="dk-gesamt" tabindex="0">Druckkosten netto</span><span class="ap-betrag">${apEuroText(d.gesamt)}</span>`
           + (a.preise.umsatzMitEk ? `<span data-hilfe="dk-rohertrag" tabindex="0">Rohertrag nach Druck</span><span class="ap-betrag">${apEuroText(d.rohertragNachDruck)}${pr}</span>` : '') + '</div>'
-          + (d.offen ? `<div class="au-lager-knapp" data-hilfe="dk-offen" tabindex="0">Rohertrag nach Druck ohne Druckkosten für ${d.offen} Position${d.offen === 1 ? '' : 'en'} (Maße oder Preis fehlen).</div>` : '')
+          + (d.offen ? `<div class="au-lager-knapp" data-hilfe="dk-offen" tabindex="0">Rohertrag nach Druck ohne Druckkosten für ${d.offen} Position${d.offen === 1 ? '' : 'en'} (Grund an der Position).</div>` : '')
+          + (vielleicht ? '<div class="korb-zaehler" data-hilfe="dk-aktualisiert" tabindex="0">Preise oder Druckmaße gerade im Sheet eingetragen? Werte werden gerade aktualisiert – in 1–2 Minuten neu laden.</div>' : '')
           + '</div>';
+      }
+      const dkSetText = s => `${s.bezug} – ${s.groesse === 'alle' ? 'alle Größen' : `Größe ${s.groesse}`}${s.modell ? ` · ${s.modell}` : ''}: ${s.teile.map(x => `${x.position} ${dkZahl(x.breite)}×${dkZahl(x.hoehe)}`).join(', ')}`;
+      /** Maß-Sets: zuerst die für dieses Motiv + diese Größe (oder alle) + dieses Modell (oder alle), dann die übrigen. */
+      function dkSetOptionen(sets, motiv, groesse, modell) {
+        const n = v => apT(v).toLowerCase().replace(/\s+/g, ' ');
+        const g = n(groesse).replace(/^xxl$/, '2xl');
+        const passt = s => n(s.bezug) === n(motiv) && (n(s.groesse) === 'alle' || n(s.groesse).replace(/^xxl$/, '2xl') === g) && (!s.modell || n(s.modell) === n(modell));
+        const opt = (s, i) => `<option value="${i}">${kuEsc(dkSetText(s))}</option>`;
+        const eigene = sets.map((s, i) => [s, i]).filter(([s]) => passt(s)), andere = sets.map((s, i) => [s, i]).filter(([s]) => !passt(s));
+        return `<option value="">${eigene.length ? 'Maß-Set wählen …' : 'kein Maß-Set – unten eingeben'}</option>`
+          + (eigene.length ? `<optgroup label="für dieses Motiv">${eigene.map(([s, i]) => opt(s, i)).join('')}</optgroup>` : '')
+          + (andere.length ? `<optgroup label="andere Motive">${andere.map(([s, i]) => opt(s, i)).join('')}</optgroup>` : '');
       }
       // ── Druckkosten-Anzeige: Ende ──
 
-      // DK1: Express-Schalter, "Maße eingeben …", "als Druckmaß merken" (Ereignisse am Preise-Block)
+      // DK1/DK2: Express-Schalter, Feld „Maße …“ (Auftragsansicht und Kalkulation), Dialog je Größenzeile
       auEl('au-d-preise').addEventListener('change', async e => {
         const cb = e.target.closest('[data-dk-express]');
         if (!cb || !auZ.offen) return;
@@ -14647,12 +14741,14 @@
         catch (err) { showToast(`Express: ${err.message}`, 'error'); }
         await loadAuftraege();
       });
-      auEl('au-d-preise').addEventListener('click', async e => {
-        const h = e.target.closest('[data-dk-hand]');
-        if (h) { dkDialogOeffnen(dkZ.gruppen[Number(h.dataset.dkHand)]); return; }
-        const m = e.target.closest('[data-dk-merken]');
-        if (m) await dkMerken(dkZ.gruppen[Number(m.dataset.dkMerken)], m);
-      });
+      const dkPosKlick = e => {
+        const h = e.target.closest('[data-dk-pos]');
+        if (!h) return;
+        const a = (auZ.daten?.auftraege ?? []).find(x => x.Auftrag_Nr === auZ.offen);
+        if (a) dkDialogOeffnen(a, h.dataset.dkPos);
+      };
+      auEl('au-d-preise').addEventListener('click', dkPosKlick);
+      auEl('au-d-pos').addEventListener('click', dkPosKlick);
       async function dkPost(pfad, body) {
         const res = await apiFetch(`${API_BASE()}/api/druckmasse/${pfad}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         const j = await res.json().catch(() => null);
@@ -14660,70 +14756,126 @@
         return j;
       }
       window.dkPost = dkPost;   // auch fuer die Pflege-Ansicht (Artikel -> Druckmaße)
-      async function dkMerken(g, knopf) {
-        if (!g?.motiv || !g.hand) return;
-        const teile = dkHandTeile(g.hand);
-        knopf.disabled = true;
-        try {
-          let r;
-          try { r = await dkPost('merken', { bezug: g.motiv, groesse: 'alle', teile }); }
-          catch (err) {
-            if (err.code !== 'anders') throw err;
-            const liste = err.anders.map(x => `<li>${kuEsc(x.position)}: ${kuEsc(x.alt)} → ${kuEsc(x.neu)} cm</li>`).join('');
-            if (!await showConfirm('Druckmaße ersetzen?', `<p>Für „${kuEsc(g.motiv)}“ (alle Größen) ist schon anderes hinterlegt:</p><ul>${liste}</ul><p>Das gilt dann für alle Aufträge mit diesem Motiv.</p>`, 'Ersetzen')) return;
-            r = await dkPost('merken', { bezug: g.motiv, groesse: 'alle', teile, ersetzen: true });
-          }
-          showToast(`Druckmaße für „${g.motiv}“: ${r.neu} neu, ${r.ersetzt} ersetzt${r.schon ? `, ${r.schon} schon da` : ''}`);
-        } catch (err) { showToast(`Merken: ${err.message}`, 'error'); }
-        finally { knopf.disabled = false; }
-      }
       function dkZeileHtml(x = {}) {
-        return '<div class="dk-zeile">'
-          + `<input class="form-input dk-pos" maxlength="30" placeholder="Brust" aria-label="Druckposition" data-hilfe="dk-position" value="${kuEsc(x.position ?? '')}">`
-          + `<input class="form-input dk-b" inputmode="decimal" placeholder="B cm" aria-label="Breite in cm" data-hilfe="dk-breite" value="${x.breite ? kuEsc(dkZahl(x.breite)) : ''}">`
+        const f = x.fuehrend === 'Hoehe' ? 'Hoehe' : 'Breite';
+        const pos = dkPositionAusListe(x.position) ?? '';
+        return `<div class="dk-zeile" data-fuehrend="${f}">`
+          + `<select class="form-select dk-pos-wahl" aria-label="Druckposition" data-hilfe="dk-position"><option value="">Position …</option>${DK_POSITIONEN.map(o => `<option${o === pos ? ' selected' : ''}>${kuEsc(o)}</option>`).join('')}</select>`
+          + `<input class="form-input dk-b${f === 'Breite' ? ' dk-fuehrend-feld' : ''}" inputmode="decimal" placeholder="B cm" aria-label="Breite in cm" data-hilfe="dk-breite" value="${x.breite ? kuEsc(dkZahl(x.breite)) : ''}">`
           + '<span aria-hidden="true">×</span>'
-          + `<input class="form-input dk-h" inputmode="decimal" placeholder="H cm" aria-label="Höhe in cm" data-hilfe="dk-hoehe" value="${x.hoehe ? kuEsc(dkZahl(x.hoehe)) : ''}">`
+          + `<input class="form-input dk-h${f === 'Hoehe' ? ' dk-fuehrend-feld' : ''}" inputmode="decimal" placeholder="H cm" aria-label="Höhe in cm" data-hilfe="dk-hoehe" value="${x.hoehe ? kuEsc(dkZahl(x.hoehe)) : ''}">`
+          + `<button type="button" class="korb-link dk-fuehrend" data-hilfe="dk-fuehrend" aria-label="Führende Seite umschalten">führend: ${f === 'Hoehe' ? 'H' : 'B'}</button>`
           + '<button type="button" class="korb-link dk-weg" data-hilfe="dk-zeile-weg" aria-label="Zeile entfernen">✕</button></div>';
       }
-      function dkDialogOeffnen(g) {
-        if (!g) return;
-        dkZ.gruppe = g;
-        const vorlage = g.hand ? dkHandTeile(g.hand) : (g.druck.find(x => x.teile?.length)?.teile ?? []);
-        auEl('dk-text').textContent = `${g.was}${g.motiv ? ` · Motiv ${g.motiv}` : ''} – freie Maße gelten nur für diesen Auftrag und gehen vor den hinterlegten Druckmaßen.`;
-        auEl('dk-zeilen').innerHTML = (vorlage.length ? vorlage : [{}]).map(dkZeileHtml).join('');
-        auEl('dk-hand-weg').hidden = !g.hand;
+      async function dkDialogOeffnen(a, positionId) {
+        const p = (a.positionen ?? []).find(x => x.Position_ID === positionId);
+        if (!p) return;
+        const d = dkDruckJe(a).get(positionId);
+        const g = dkGruppen(a).find(x => x.ids.includes(positionId));
+        Object.assign(dkZ, { auftrag: a.Auftrag_Nr, a, pos: p, gruppe: g });
+        const gr = dkGroesse(p);
+        auEl('dk-titel').textContent = `Druckmaße · ${gr} × ${p.Menge}`;
+        auEl('dk-text').textContent = `${g?.was ?? ''}${p.Motiv ? ` · Motiv ${p.Motiv}` : ' · ohne Motiv'} – Maße von Hand gelten nur für diesen Auftrag und gehen vor den hinterlegten.`;
+        const hand = dkHandTeile(p.Druckmasse_Hand);
+        const alt = hand.some(x => x.zuordnen);
+        auEl('dk-alt').hidden = !alt;
+        auEl('dk-alt').innerHTML = alt ? '<div class="au-lager-knapp" data-hilfe="dk-zuordnen" tabindex="0">Alter Freitext – bitte zuordnen (gilt bis dahin nicht):</div>'
+          + `<ul class="dk-alt-liste">${dkZuordnenVorschlag(p.Druckmasse_Hand).map(v => `<li>${kuEsc(v.text)} ${dkZahl(v.breite)} × ${dkZahl(v.hoehe)}${v.position ? ` → ${kuEsc(v.position)}${v.groesse ? ` (Größe ${kuEsc(v.groesse)})` : ''}` : ' → ?'}</li>`).join('')}</ul>`
+          + '<button type="button" class="korb-link" id="dk-vorschlag" data-hilfe="dk-vorschlag">Vorschlag für diese Größe übernehmen</button>' : '';
+        const start = !alt && hand.length ? hand : (!alt && d?.teile?.length ? d.teile : []);
+        auEl('dk-zeilen').innerHTML = (start.length ? start : [{}]).map(dkZeileHtml).join('');
+        auEl('dk-hand-weg').hidden = !apT(p.Druckmasse_Hand);
+        const mehr = (g?.ids.length ?? 1) > 1;
+        auEl('dk-alle-wrap').hidden = !mehr;
+        auEl('dk-alle-groessen').checked = false;
+        auEl('dk-merken-wrap').hidden = !apT(p.Motiv);
+        auEl('dk-merken').checked = false;
+        auEl('dk-merken-text').textContent = `für Motiv „${apT(p.Motiv)}“ merken (Größe ${gr})`;
+        const modell = p.lshop?.modell ?? '';
+        auEl('dk-modell-wrap').hidden = !apT(p.Motiv) || !modell || !auZ.daten?.druck?.modell;
+        auEl('dk-nur-modell').checked = false;
+        auEl('dk-modell-text').textContent = `nur für Modell ${modell}`;
         auEl('dk-fehler').textContent = '';
+        auEl('dk-set').innerHTML = '<option value="">Maß-Sets werden geladen …</option>';
         auEl('dk-dialog').hidden = false;
-        auEl('dk-zeilen').querySelector('input')?.focus();
+        auEl('dk-zeilen').querySelector('select')?.focus();
+        try {
+          const r = await apiJson(await apiFetch(`${API_BASE()}/api/druckmasse`));
+          dkZ.sets = r.sets ?? [];
+        } catch { dkZ.sets = []; }
+        if (dkZ.pos === p) auEl('dk-set').innerHTML = dkSetOptionen(dkZ.sets, p.Motiv, gr, modell);
       }
-      const dkSchliessen = () => { auEl('dk-dialog').hidden = true; dkZ.gruppe = null; };
+      const dkSchliessen = () => { auEl('dk-dialog').hidden = true; dkZ.pos = null; dkZ.gruppe = null; };
+      const dkTeileAusDialog = () => [...auEl('dk-zeilen').querySelectorAll('.dk-zeile')]
+        .map(z => ({ position: z.querySelector('.dk-pos-wahl').value, breite: z.querySelector('.dk-b').value, hoehe: z.querySelector('.dk-h').value, fuehrend: z.dataset.fuehrend }))
+        .filter(x => apT(x.position) || apT(x.breite) || apT(x.hoehe));
+      /** Speichern: Maße von Hand für diese Größenzeile (bzw. alle der Gruppe); mit „merken“ als Maß-Set ins Motiv - dann gilt das Set. */
       async function dkSpeichern(teile) {
-        const g = dkZ.gruppe;
-        if (!g || dkZ.laeuft) return;
+        const p = dkZ.pos, g = dkZ.gruppe;
+        if (!p || dkZ.laeuft) return;
+        const alle = auEl('dk-alle-groessen').checked && g;
+        const ids = alle ? g.ids : [p.Position_ID];
+        const merken = teile.length && auEl('dk-merken').checked && apT(p.Motiv);
         dkZ.laeuft = true;
         auEl('dk-speichern').disabled = true;
         try {
-          await auPost('druckmasse-hand', { auftragNr: dkZ.auftrag, positionIds: g.ids, teile });
-          showToast(`${dkZ.auftrag}: Druckmaße ${teile.length ? 'gespeichert' : 'entfernt'}`);
+          if (merken) {
+            const body = { bezug: p.Motiv, groesse: alle ? 'alle' : dkGroesse(p), modell: auEl('dk-nur-modell').checked ? (p.lshop?.modell ?? '') : '', teile };
+            let r;
+            try { r = await dkPost('merken', body); }
+            catch (err) {
+              if (err.code !== 'anders') throw err;
+              const liste = err.anders.map(x => `<li>${kuEsc(x.position)}: ${kuEsc(x.alt)} → ${kuEsc(x.neu)} cm</li>`).join('');
+              if (!await showConfirm('Druckmaße ersetzen?', `<p>Für „${kuEsc(p.Motiv)}“ (${kuEsc(body.groesse === 'alle' ? 'alle Größen' : `Größe ${body.groesse}`)}) ist schon anderes hinterlegt:</p><ul>${liste}</ul><p>Das gilt dann für alle Aufträge mit diesem Motiv.</p>`, 'Ersetzen')) return;
+              r = await dkPost('merken', { ...body, ersetzen: true });
+            }
+            // gemerkt = das Set gilt; Maße von Hand dieser Zeilen leeren, damit nur EINE Quelle zählt
+            await auPost('druckmasse-hand', { auftragNr: dkZ.auftrag, positionIds: ids, teile: [] });
+            showToast(`Druckmaße für „${p.Motiv}“ gemerkt: ${r.neu} neu, ${r.ersetzt} ersetzt${r.schon ? `, ${r.schon} schon da` : ''}`);
+          } else {
+            await auPost('druckmasse-hand', { auftragNr: dkZ.auftrag, positionIds: ids, teile });
+            showToast(`${dkZ.auftrag}: Druckmaße ${teile.length ? 'gespeichert' : 'entfernt'}`);
+          }
           dkSchliessen();
-          await loadAuftraege();
+          await loadAuftraege();   // Ansicht neu: Maße und Druckkosten sofort sichtbar
         } catch (err) { auEl('dk-fehler').textContent = err.message; }
         finally { dkZ.laeuft = false; auEl('dk-speichern').disabled = false; }
       }
       auEl('dk-zeile-neu').addEventListener('click', () => {
         auEl('dk-zeilen').insertAdjacentHTML('beforeend', dkZeileHtml());
-        auEl('dk-zeilen').lastElementChild.querySelector('input').focus();
+        auEl('dk-zeilen').lastElementChild.querySelector('select').focus();
       });
-      auEl('dk-zeilen').addEventListener('click', e => { const w = e.target.closest('.dk-weg'); if (w) w.closest('.dk-zeile').remove(); });
+      auEl('dk-zeilen').addEventListener('click', e => {
+        const w = e.target.closest('.dk-weg');
+        if (w) { w.closest('.dk-zeile').remove(); return; }
+        const f = e.target.closest('.dk-fuehrend');
+        if (!f) return;
+        const z = f.closest('.dk-zeile');
+        z.dataset.fuehrend = z.dataset.fuehrend === 'Hoehe' ? 'Breite' : 'Hoehe';
+        z.querySelector('.dk-b').classList.toggle('dk-fuehrend-feld', z.dataset.fuehrend === 'Breite');
+        z.querySelector('.dk-h').classList.toggle('dk-fuehrend-feld', z.dataset.fuehrend === 'Hoehe');
+        f.textContent = `führend: ${z.dataset.fuehrend === 'Hoehe' ? 'H' : 'B'}`;
+      });
+      auEl('dk-set').addEventListener('change', () => {
+        const s = dkZ.sets[Number(auEl('dk-set').value)];
+        if (s) auEl('dk-zeilen').innerHTML = s.teile.map(dkZeileHtml).join('');
+      });
+      auEl('dk-alt').addEventListener('click', e => {
+        if (!e.target.closest('#dk-vorschlag') || !dkZ.pos) return;
+        const gr = dkGroesse(dkZ.pos).toUpperCase().replace(/^XXL$/, '2XL');
+        const v = dkZuordnenVorschlag(dkZ.pos.Druckmasse_Hand).filter(x => x.position && (!x.groesse || x.groesse.replace(/^XXL$/, '2XL') === gr));
+        if (!v.length) { auEl('dk-fehler').textContent = 'Kein Vorschlag für diese Größe – bitte von Hand eintragen.'; return; }
+        auEl('dk-zeilen').innerHTML = v.map(dkZeileHtml).join('');
+        auEl('dk-fehler').textContent = '';
+      });
       auEl('dk-speichern').addEventListener('click', () => {
-        const teile = [...auEl('dk-zeilen').querySelectorAll('.dk-zeile')]
-          .map(z => ({ position: z.querySelector('.dk-pos').value, breite: z.querySelector('.dk-b').value, hoehe: z.querySelector('.dk-h').value }))
-          .filter(x => apT(x.position) || apT(x.breite) || apT(x.hoehe));
-        if (!teile.length) { auEl('dk-fehler').textContent = 'Mindestens eine Druckposition mit Breite und Höhe – oder „freie Maße entfernen“.'; return; }
+        const teile = dkTeileAusDialog();
+        if (!teile.length) { auEl('dk-fehler').textContent = 'Mindestens eine Druckposition mit Maß – oder „Maße von Hand entfernen“.'; return; }
         dkSpeichern(teile);
       });
       auEl('dk-hand-weg').addEventListener('click', async () => {
-        if (!await showConfirm('Freie Druckmaße entfernen?', '<p>Danach gelten wieder die hinterlegten Druckmaße des Motivs.</p>', 'Entfernen')) return;
+        if (!await showConfirm('Maße von Hand entfernen?', '<p>Danach gelten wieder die hinterlegten Druckmaße des Motivs.</p>', 'Entfernen')) return;
+        auEl('dk-merken').checked = false;
         dkSpeichern([]);
       });
       auEl('dk-abbrechen').addEventListener('click', dkSchliessen);
@@ -19164,19 +19316,21 @@
         const tf = (name, x) => (x.ok ? `${name} ${dkmEuro(x.qmBrutto)}/m² brutto (${x.modell === 'meter' ? 'Meterpreis' : 'Bogenpreis'})` : `${name}: ${x.text}`);
         return [tf('normal', p.normal), tf('Express', p.express), p.verschnitt === null || p.verschnitt === undefined ? 'Verschnitt fehlt (Einstellungen)' : `Verschnitt ${dkmZahl(p.verschnitt)} %`].join(' · ');
       }
-      /** Filter: jedes Wort in Motiv, Position, Größe oder Notiz; inaktive nur mit Haken. */
-      function dkmFiltern(zeilen, { suche = '', inaktive = false } = {}) {
+      /** Filter: jedes Wort in Motiv, Position, Größe, Modell oder Notiz; inaktive nur mit Haken; DK2: führende Seite (leer = alle). */
+      function dkmFiltern(zeilen, { suche = '', inaktive = false, fuehrend = '' } = {}) {
         const w = String(suche).toLowerCase().split(/\s+/).filter(Boolean);
-        return (zeilen ?? []).filter(z => (inaktive || z.aktiv) && w.every(x => `${z.bezug} ${z.position} ${z.groesse} ${z.notiz}`.toLowerCase().includes(x)))
+        return (zeilen ?? []).filter(z => (inaktive || z.aktiv) && (!fuehrend || (z.fuehrend || 'Breite') === fuehrend)
+          && w.every(x => `${z.bezug} ${z.position} ${z.groesse} ${z.modell ?? ''} ${z.notiz}`.toLowerCase().includes(x)))
           .sort((a, b) => a.bezug.localeCompare(b.bezug, 'de') || a.position.localeCompare(b.position, 'de') || a.groesse.localeCompare(b.groesse, 'de'));
       }
       function dkmListeHtml(zeilen) {
         if (!zeilen.length) return '<p class="field-note">Keine Druckmaße' + (dkm.daten?.zeilen?.length ? ' für diese Suche.' : ' hinterlegt – „+ Neues Druckmaß“ legt das erste an.') + '</p>';
-        return '<div class="roll-x"><table class="dkm-tabelle hk-karten"><thead><tr><th>Motiv</th><th>Position</th><th>Größe</th><th>B × H (cm)</th><th>Fläche</th><th>Notiz</th><th></th></tr></thead><tbody>'
+        const fett = (z, seite, n) => ((z.fuehrend || 'Breite') === seite ? `<b>${dkmZahl(n) || '?'}</b>` : dkmZahl(n) || '?');
+        return '<div class="roll-x"><table class="dkm-tabelle hk-karten"><thead><tr><th>Motiv</th><th>Position</th><th>Größe</th><th>Modell</th><th>B × H (cm)</th><th>Fläche</th><th>Notiz</th><th></th></tr></thead><tbody>'
           + zeilen.map(z => `<tr class="${z.aktiv ? '' : 'dkm-inaktiv'}">`
             + `<td class="hk-haupt" data-label="Motiv">${dkmEsc(z.bezug)}${z.aktiv ? '' : ' <span class="korb-zaehler" data-hilfe="dkm-inaktiv-zeichen" tabindex="0">inaktiv</span>'}</td>`
-            + `<td data-label="Position">${dkmEsc(z.position)}</td><td data-label="Größe">${dkmEsc(z.groesse)}</td>`
-            + `<td data-label="B × H"><span class="nr-fest">${dkmZahl(z.breite)} × ${dkmZahl(z.hoehe)}</span></td>`
+            + `<td data-label="Position">${dkmEsc(z.position)}</td><td data-label="Größe">${dkmEsc(z.groesse)}</td><td data-label="Modell">${dkmEsc(z.modell || 'alle')}</td>`
+            + `<td data-label="B × H"><span class="nr-fest" data-hilfe="dk-fuehrend" tabindex="0">${fett(z, 'Breite', z.breite)} × ${fett(z, 'Hoehe', z.hoehe)}</span></td>`
             + `<td data-label="Fläche"><span class="nr-fest">${z.breite && z.hoehe ? `${(Math.round(z.breite * z.hoehe * 10) / 10).toLocaleString('de-DE')} cm²` : '–'}</span></td>`
             + `<td data-label="Notiz">${dkmEsc(z.notiz)}</td>`
             + `<td class="hk-aktion"><button type="button" class="korb-link" data-dkm-id="${dkmEsc(z.id)}" data-hilfe="dkm-bearbeiten">bearbeiten …</button></td></tr>`).join('')
@@ -19187,7 +19341,7 @@
         if (!d) return;
         dkmEl('dkm-preise').textContent = d.einrichtung ? dkmPreiseText(d.preise) : 'Druckmaße sind noch nicht eingerichtet (Setup fehlt).';
         dkmEl('dkm-neu').disabled = !d.einrichtung;
-        dkmEl('dkm-liste').innerHTML = dkmListeHtml(dkmFiltern(d.zeilen, { suche: dkmEl('dkm-suche').value, inaktive: dkmEl('dkm-inaktive').checked }));
+        dkmEl('dkm-liste').innerHTML = dkmListeHtml(dkmFiltern(d.zeilen, { suche: dkmEl('dkm-suche').value, inaktive: dkmEl('dkm-inaktive').checked, fuehrend: dkmEl('dkm-fuehrend-filter').value }));
       }
       async function dkmLaden() {
         if (dkm.laeuft) return;
@@ -19225,7 +19379,13 @@
         dkm.offen = z ?? null;
         dkmEl('dkm-titel').textContent = z ? `Druckmaß ${z.id}` : 'Neues Druckmaß';
         dkmEl('dkm-f-bezug').value = z?.bezug ?? '';
-        dkmEl('dkm-f-position').value = z?.position ?? '';
+        // DK2: Position aus der festen Liste; eine schon gespeicherte andere Position bleibt waehlbar
+        const liste = ['Brust', 'Brust links', 'Brust rechts', 'Rücken', 'Nacken', 'Ärmel links', 'Ärmel rechts', 'Vorderseite', 'Kapuze', 'Bein', 'Bein links', 'Bein rechts'];
+        const pos = z?.position ?? '';
+        dkmEl('dkm-f-position').innerHTML = '<option value="">Position …</option>'
+          + [...(pos && !liste.includes(pos) ? [pos] : []), ...liste].map(o => `<option${o === pos ? ' selected' : ''}>${dkmEsc(o)}</option>`).join('');
+        dkmEl('dkm-f-fuehrend').value = z?.fuehrend === 'Hoehe' ? 'Hoehe' : 'Breite';
+        dkmEl('dkm-f-modell').value = z?.modell ?? '';
         dkmEl('dkm-f-groesse').value = z && z.groesse !== 'alle' ? z.groesse : '';
         dkmEl('dkm-f-breite').value = dkmZahl(z?.breite);
         dkmEl('dkm-f-hoehe').value = dkmZahl(z?.hoehe);
@@ -19242,6 +19402,7 @@
         const body = {
           bezug: dkmEl('dkm-f-bezug').value, position: dkmEl('dkm-f-position').value, groesse: dkmEl('dkm-f-groesse').value || 'alle',
           breite: dkmEl('dkm-f-breite').value, hoehe: dkmEl('dkm-f-hoehe').value, notiz: dkmEl('dkm-f-notiz').value,
+          fuehrend: dkmEl('dkm-f-fuehrend').value, modell: dkmEl('dkm-f-modell').value,   // DK2
           ...(z ? { id: z.id, stand: z.stand, aktiv: dkmEl('dkm-f-aktiv').checked } : {}),
         };
         dkm.speichert = true;
@@ -19258,6 +19419,7 @@
       dkmEl('mode-btn-druckmasse')?.addEventListener('click', () => setDkmModus());
       dkmEl('dkm-suche')?.addEventListener('input', dkmZeichnen);
       dkmEl('dkm-inaktive')?.addEventListener('change', dkmZeichnen);
+      dkmEl('dkm-fuehrend-filter')?.addEventListener('change', dkmZeichnen);   // DK2
       dkmEl('dkm-neu')?.addEventListener('click', () => dkmDialog(null));
       dkmEl('dkm-liste')?.addEventListener('click', e => {
         const b = e.target.closest('[data-dkm-id]');

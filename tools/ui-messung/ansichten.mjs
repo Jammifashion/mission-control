@@ -55,7 +55,11 @@ export const ANSICHTEN_ZUSATZ = [
   { id: 'auftraege/liste+druckmasse-hand', hash: 'auftraege/liste', aktion: async p => {
       await klick('#au-ansicht [data-au-oeffnen="AU-2026-0041"]')(p);
       await p.evaluate(() => document.querySelectorAll('#au-d-preise details').forEach(d => { d.open = true; }));
-      await klick('#au-d-preise [data-dk-hand]')(p); }, wurzel: '#dk-dialog', nurVoll: true },
+      await klick('#au-d-pos [data-dk-pos]')(p); await p.waitForTimeout(300); }, wurzel: '#dk-dialog', nurVoll: true },
+  // DK2: Dialog mit altem Freitext ("bitte zuordnen" + Vorschlag)
+  { id: 'auftraege/liste+druckmasse-zuordnen', hash: 'auftraege/liste', aktion: async p => {
+      await klick('#au-ansicht [data-au-oeffnen="AU-2026-0041"]')(p);
+      await klick('#au-d-pos [data-dk-pos="AU-2026-0041-16"]')(p); await p.waitForTimeout(300); }, wurzel: '#dk-dialog', nurVoll: true },
   { id: 'artikel/druckmasse+neu', hash: 'artikel/druckmasse', aktion: klick('#dkm-neu'), wurzel: '#dkm-dialog' },
   { id: 'artikel/druckmasse+bearbeiten', hash: 'artikel/druckmasse', aktion: klick('[data-dkm-id]'), wurzel: '#dkm-dialog', nurVoll: true },
   // PR1: Dialog 'Wie letztes Mal' mit Marge-Vergleich

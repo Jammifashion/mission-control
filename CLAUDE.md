@@ -283,7 +283,9 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
 - Druckmaße (DK1: Unterpunkt `artikel/druckmasse`, Modus-Knopf `#mode-btn-druckmasse`, Panel `#dkm-panel` + Dialog `#dkm-dialog`, SECTION
   Druckmaße (DK1) VOR Lieferbarkeit Shop, Block `Druckmaße-Pflege: Anfang/Ende`, Praefix `dkm`, Hilfe-Gruppe `druckmasse`; nur `/api/druckmasse`,
   nie loeschen = "inaktiv". Auftragsansicht: Block `Druckkosten-Anzeige: Anfang/Ende` (Praefix `dk`, in der Kalkulation, Dialog `#dk-dialog`
-  vor `#au-nachsehen`). Test druckkosten-frontend.test.js.)
+  vor `#au-nachsehen`). DK2: je Größenzeile der Auftragsansicht Feld „Maße …“ (`dkPosFeldHtml`, führende Seite fett, Grund orange), Dialog je
+  Position (Maß-Sets aus `GET /api/druckmasse` `sets`, Position nur aus `DK_POSITIONEN` = Spiegel `POSITIONEN`, Umschalter führend, "für alle Größen",
+  "für dieses Motiv merken" -> Set mit Größe der Zeile, danach Hand-Zelle leer). Test druckkosten-frontend.test.js, druckkosten-dk2.test.js.)
 - Artikelerfassung (dazu Modus-Knopf "🧵 L-Shop-Modelle", LS4: Unterpunkt `artikel/lshop-modelle`, Panel `#lsm-panel`,
   SECTION L-Shop-Modelle mit Block `L-Shop-Modelle: Anfang/Ende`, Test lshop-modelle-frontend.test.js; Hilfe-Gruppe
   `lshop-modelle`; Links `data-lsm-link` aus Warenkorb "Nicht im Bestand" und Maske "Kein L-Shop-Modell".
@@ -1442,6 +1444,14 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Antwort je AU `preise.druck` { express, positionen, gesamt, rohertragNachDruck (nur Positionen mit Preis+EK), offen, … } und `druck` { hand,
   express, druckmasse } (Spalten/Reiter da). Setup `scripts/setup-druckmasse.js` (Reiter + Config-Zeilen, Preise leer; Trockenlauf, `--write`),
   Spalten ueber `setup-auftraege-reiter.js`. Tests druckkosten.test.js.
+  DK2 (Inhaber 24.11. + antwort-DK2-1): Rechnung je AUFTRAGSPOSITION (= Größenzeile) nur mit ihrer eigenen Zelle `Druckmasse_Hand` (vorher schrieb der
+  Dialog einen Text auf alle Größen der Gruppe -> Summe aller Zeilen je Teil). Je Maß EINE Seite führend (`Fuehrend` Breite|Hoehe, leer = Breite, nie
+  nachgeschrieben), die andere darf fehlen -> Grund statt Betrag. Optionale Spalten hinten in `Druckmasse`: `Fuehrend`, `Modell` (Modell genau vor alle
+  Modelle, fremdes Modell nie; Setup haengt die Kopfzellen an, ohne Spalte 409 `einrichtung` nur bei Höhe führend/Modell). Hand-Text
+  "Brust 11x12,5; Rücken 28x31 H" ("?" = fehlt, B|H am Ende). Position nur aus `POSITIONEN`; alter Freitext (Größe/Motiv im Positionsnamen) wird nie
+  umgedeutet -> Status `zuordnen` ("bitte zuordnen", `zuordnenVorschlag` nur als Vorschlag im Dialog). Status je Position: ok | kein_dtf | ohne_mass |
+  zuordnen | seite_fehlt | preis_fehlt, `text` = Grund in einem Satz. "Wie letztes Mal" uebernimmt `druckmasseHand` (nur neue Positionen,
+  `handTextAusZelle`: alter Freitext faellt weg). Hand-Aenderungen im Sheet wirken erst nach dem Zwischenspeicher (Hinweis `dk-aktualisiert`).
 - backend/lib/rechnung.js – Abrechnen (RE1): Sammelrechnung aus Auftraegen als Lexware-ENTWURF, Logik `utils/rechnung.js`, der EINE Schreibweg
   `lib/lexwareRechnung.js` (`POST /v1/invoices` ohne `finalize`, genau ein Versuch, auch bei 429 kein zweiter; nie PUT/DELETE/versenden; Host nur ueber
   `BASIS` aus lib/lexware.js). Schluessel NUR Secret `LEXWARE_API_KEY_RECHNUNGEN` (nicht in SECRET_KEYS: fehlt er, laeuft die Vorschau, Anlegen = 503

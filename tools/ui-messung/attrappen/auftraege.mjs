@@ -23,7 +23,8 @@ const DK = await imp('utils/druckkosten.js');   // DK1
 // DK1: erfundene Druckmasse und Preise (Express absichtlich ohne Preis -> Hinweis "Preis fehlt" sichtbar)
 const DK_MASSE = [
   { Druckmass_ID: 'DM-0001', Bezug: 'Logo Brust', Position: 'Brust', Groesse: 'alle', Breite_cm: 10, Hoehe_cm: 8, Aktiv: 'ja', Notiz: '', Angelegt: '2026-11-20', Stand: '2026-11-20T08:00:00.000Z' },
-  { Druckmass_ID: 'DM-0002', Bezug: 'Skyline Hoodie', Position: 'Rücken', Groesse: 'alle', Breite_cm: 28, Hoehe_cm: 17.5, Aktiv: 'ja', Notiz: 'großes Motiv', Angelegt: '2026-11-20', Stand: '2026-11-20T08:00:00.000Z' },
+  { Druckmass_ID: 'DM-0002', Bezug: 'Skyline Hoodie', Position: 'Rücken', Groesse: 'alle', Breite_cm: 28, Hoehe_cm: 17.5, Fuehrend: 'Hoehe', Aktiv: 'ja', Notiz: 'großes Motiv', Angelegt: '2026-11-20', Stand: '2026-11-20T08:00:00.000Z' },
+  { Druckmass_ID: 'DM-0006', Bezug: 'Skyline Hoodie', Position: 'Nacken', Groesse: 'M', Breite_cm: 8, Hoehe_cm: '', Fuehrend: 'Breite', Modell: 'BCTU01T', Aktiv: 'ja', Notiz: 'Höhe kommt mit der Datei', Angelegt: '2026-11-24', Stand: '2026-11-24T08:00:00.000Z' },   // DK2: Höhe fehlt
   { Druckmass_ID: 'DM-0003', Bezug: 'Skyline Hoodie', Position: 'Brust', Groesse: 'alle', Breite_cm: 10.5, Hoehe_cm: 5, Aktiv: 'ja', Notiz: '', Angelegt: '2026-11-20', Stand: '2026-11-20T08:00:00.000Z' },
   { Druckmass_ID: 'DM-0004', Bezug: 'Skyline Hoodie', Position: 'Rücken', Groesse: 'XS', Breite_cm: 22, Hoehe_cm: 14, Aktiv: 'ja', Notiz: 'Kindergrößen kleiner', Angelegt: '2026-11-21', Stand: '2026-11-21T08:00:00.000Z' },
   { Druckmass_ID: 'DM-0005', Bezug: 'Vereinswappen alt', Position: 'Ärmel links', Groesse: 'alle', Breite_cm: 6, Hoehe_cm: 6, Aktiv: 'nein', Notiz: '', Angelegt: '2026-10-01', Stand: '2026-11-01T08:00:00.000Z' },
@@ -114,6 +115,10 @@ au({ Auftrag_Nr: 'AU-2026-0041', Kunden_Nr: 'K-00001', Kurztitel: 'Aufwärmshirt
   frei('Rückennummern-Satz Flex (Sonderfarbe Vereinsgold)', 38, { Preis_Netto: 1.5, USt_Satz: 19, EK_Hand: 0.4, Notiz: 'Folie noch besorgen' }),
   ...gruppe('BCTU01T', 'black', { XS: 2, M: 3, L: 2 }, { Motiv: 'Skyline Hoodie', Druck: 'DTF', Preis_Netto: 24.9, USt_Satz: 19 }),   // DK1
   frei('Tasse mit Teamfoto', 4, { Motiv: 'Teamfoto 2026', Druck: 'DTF', Preis_Netto: 9.9, USt_Satz: 19, EK_Hand: 3.2, Druckmasse_Hand: 'Vorderseite 8x8' }),   // DK1
+  // DK2: alter Freitext aus DK1 (Größe im Text) -> "bitte zuordnen"; eine Zeile mit Maßen von Hand und führender Höhe
+  ...gruppe('BCTU01T', 'black', { M: 1, L: 1 }, { Motiv: 'Brettspiel Muster', Druck: 'DTF', Preis_Netto: 34, USt_Satz: 19,
+    Druckmasse_Hand: 'Ruecken L Brettspiel Muster 29x32; ruecken M Brettspiel Muster 28x31; Brust M Brettspiel Muster 11x12.5' }),
+  ...gruppe('BCTU01T', 'black', { XL: 1 }, { Motiv: 'Brettspiel Muster klein', Druck: 'DTF', Preis_Netto: 34, USt_Satz: 19, Druckmasse_Hand: 'Brust 11x12,5; Rücken 29x32 H' }),
 ]);
 au({ Auftrag_Nr: 'AU-2026-0040', Kunden_Nr: 'K-00007', Kurztitel: 'Jugendtrainingsanzüge Hoodies', Kanal: 'Mail', Status: 'bestellt',
   Termin: '2026-11-28', Anfrage_Am: '2026-11-03', Design_Am: '2026-11-04', Bestellt_Am: '2026-11-10', Angelegt: '2026-11-03T12:30:00.000Z', Zustaendig: 'Christian' }, [
@@ -248,7 +253,7 @@ function auftraegeAntwort() {
   }).map(x => {
     const akt = AU.aktivePositionen(POSITIONEN, x.Auftrag_Nr);
     const summen = summenFuer(x, akt);
-    const dkPos = akt.map(y => DK.positionDruck({ druck: y.Druck, motiv: y.Motiv, groesse: INFO.get(y.LShop_ArticleNr)?.groesse ?? '', menge: y.Menge, hand: y.Druckmasse_Hand },
+    const dkPos = akt.map(y => DK.positionDruck({ druck: y.Druck, motiv: y.Motiv, groesse: INFO.get(y.LShop_ArticleNr)?.groesse ?? '', modell: INFO.get(y.LShop_ArticleNr)?.modell ?? '', menge: y.Menge, hand: y.Druckmasse_Hand },
       { masse: DK_MASSE, preise: DK_PREISE, express: x.DTF_Express === 'ja' }));   // DK1
     const w = AU.wareStand(akt, KORB);
     ware.set(x.Auftrag_Nr, w);
@@ -268,7 +273,7 @@ function auftraegeAntwort() {
     spalten: { preise: true, rabatt: true, angebot: true, zustaendig: true, zustaendigAufgaben: true, preisEingabe: true, designLink: true },
     zustaendigAuswahl: PR.ZUSTAENDIG,
     einrichtung: { aufgaben: true, todos: true },
-    druck: { hand: true, express: true, druckmasse: true },   // DK1
+    druck: { hand: true, express: true, druckmasse: true, fuehrend: true, modell: true },   // DK1, DK2
   };
 }
 const AUFTRAEGE_ANTWORT = auftraegeAntwort();
@@ -428,7 +433,9 @@ export function antwort(method, pfad, params, body) {
   if (p === '/api/druckmasse') {   // DK1: wie leseDruckmasse
     const tf = t => (t.fehlt?.length || t.doppelt ? { ok: false, text: t.text, fehlt: t.fehlt ?? [] } : { ok: true, modell: t.modell, qmBrutto: Math.round(t.qmBruttoCent) / 100 });
     return { einrichtung: true, preise: { normal: tf(DK_PREISE.normal), express: tf(DK_PREISE.express), verschnitt: DK_PREISE.verschnitt },
-      zeilen: DK_MASSE.map(z => ({ id: z.Druckmass_ID, bezug: z.Bezug, position: z.Position, groesse: z.Groesse, breite: z.Breite_cm, hoehe: z.Hoehe_cm, aktiv: DK.istAktiv(z), notiz: z.Notiz, stand: z.Stand })) };
+      zeilen: DK_MASSE.map(z => ({ id: z.Druckmass_ID, bezug: z.Bezug, position: z.Position, groesse: z.Groesse, breite: z.Breite_cm || null, hoehe: z.Hoehe_cm || null, aktiv: DK.istAktiv(z), notiz: z.Notiz, stand: z.Stand,
+        fuehrend: DK.fuehrendAus(z.Fuehrend), modell: z.Modell ?? '' })),
+      sets: DK.massSets(DK_MASSE), positionen: DK.POSITIONEN, spalten: { fuehrend: true, modell: true } };   // DK2
   }
   let x = /^\/api\/(?:auftraege\/)?kunden\/(K-\d{5})\/historie$/.exec(p);
   if (x) return historie(x[1]);

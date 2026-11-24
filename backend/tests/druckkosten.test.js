@@ -60,7 +60,7 @@ describe('Preise aus Config', () => {
 
 describe('Druckmaße nachschlagen', () => {
   test('genaue Größe vor "alle", inaktive Zeilen zählen nicht', () => {
-    expect(dk.masseFuer(MASSE, 'skyline', 'XS')).toEqual([
+    expect(dk.masseFuer(MASSE, 'skyline', 'XS').map(({ position, breite, hoehe, groesse }) => ({ position, breite, hoehe, groesse }))).toEqual([
       { position: 'Rücken', breite: 22, hoehe: 14, groesse: 'XS' }, { position: 'Brust', breite: 10.5, hoehe: 5, groesse: 'alle' }]);
     expect(dk.masseFuer(MASSE, 'Skyline', 'L').map(m => m.breite)).toEqual([28, 10.5]);
     expect(dk.masseFuer(MASSE, 'Anderes', 'L')).toEqual([]);
@@ -84,7 +84,7 @@ describe('Kosten je Position', () => {
   });
   test('fehlender Preis: Status preis_fehlt mit Text, keine 0', () => {
     const d = dk.positionDruck({ motiv: 'Skyline', groesse: 'M', menge: 1 }, { masse: MASSE, preise: dk.dtfPreise({}) });
-    expect(d).toMatchObject({ status: 'preis_fehlt', text: 'Druckkosten: Preis fehlt (Einstellungen)', flaeche: 542.5 });
+    expect(d).toMatchObject({ status: 'preis_fehlt', text: 'Preis fehlt (Einstellungen)', flaeche: 542.5 });
     expect(d.netto).toBeUndefined();
   });
   test('Nicht-DTF (Stick, Flex …) wird nicht berechnet; "DTF" oder leer schon', () => {
@@ -96,19 +96,19 @@ describe('Kosten je Position', () => {
   });
   test('ohne Maß: ohne_mass', () => {
     expect(dk.positionDruck({ motiv: 'Unbekannt', menge: 1 }, { masse: MASSE, preise }).status).toBe('ohne_mass');
-    expect(dk.positionDruck({ motiv: '', menge: 1 }, { masse: MASSE, preise }).text).toMatch(/frei eingeben/);
+    expect(dk.positionDruck({ motiv: '', menge: 1 }, { masse: MASSE, preise }).text).toMatch(/Motiv leer/);
   });
   test('freie Eingabe geht vor der Tabelle', () => {
     const hand = dk.handText([{ position: 'Brust', breite: '10,5', hoehe: 5 }, { position: 'Rücken', breite: 28, hoehe: '17,5' }]);
     expect(hand).toBe('Brust 10,5x5; Rücken 28x17,5');
-    expect(dk.handTeile(hand)).toEqual([{ position: 'Brust', breite: 10.5, hoehe: 5 }, { position: 'Rücken', breite: 28, hoehe: 17.5 }]);
+    expect(dk.handTeile(hand)).toEqual([{ position: 'Brust', breite: 10.5, hoehe: 5, fuehrend: 'Breite', zuordnen: false }, { position: 'Rücken', breite: 28, hoehe: 17.5, fuehrend: 'Breite', zuordnen: false }]);
     const d = dk.positionDruck({ motiv: 'Skyline', groesse: 'XS', menge: 1, hand: 'Brust 10x10' }, { masse: MASSE, preise });
     expect(d).toMatchObject({ status: 'ok', quelle: 'hand', flaeche: 100 });
   });
   test('freie Eingabe prüft Maße und Namen', () => {
     expect(() => dk.handText([{ position: 'Brust', breite: 0, hoehe: 5 }])).toThrow(/Breite/);
     expect(() => dk.handText([{ position: 'Brust', breite: 400, hoehe: 5 }])).toThrow(/300/);
-    expect(() => dk.handText([{ position: '', breite: 5, hoehe: 5 }])).toThrow(/Name fehlt/);
+    expect(() => dk.handText([{ position: '', breite: 5, hoehe: 5 }])).toThrow(/bitte wählen/);
     expect(dk.handText([])).toBe('');
   });
   test('Summe und Rohertrag nach Druck nur über Positionen mit Preis und EK', () => {
@@ -185,7 +185,7 @@ describe('Reiter Druckmasse (Attrappe)', () => {
     expect(r.geschrieben).toBe(false);
     expect(s.spreadsheets.values.update).not.toHaveBeenCalled();
     await lib.richteDruckmasseEin({ write: true, sheets: s });
-    expect(tabs.Druckmasse[0]).toEqual(KOPF);
+    expect(tabs.Druckmasse[0]).toEqual([...KOPF, ...dk.DRUCKMASSE_OPTIONAL]);   // DK2: Fuehrend, Modell hinten
     const cfg = Object.fromEntries(tabs.Config.slice(1).map(r => [r[0], r[1]]));
     expect(cfg).toMatchObject({ 'dtf.breite_cm': '57', 'dtf.verschnitt_prozent': '15', 'dtf.preis_je_bogen_brutto': '', 'dtf.bogen_laenge_cm': '' });
     // Config wird UNFORMATTED gelesen - sonst sieht eine Datumszelle (17.11.2026 = Zahl) beim Ruecklesen "geändert" aus (Befund Setup 23.11.)
