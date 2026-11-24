@@ -12,6 +12,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: read   # DK2: Warteschritt liest die Artefaktliste dieses Laufs
 
 concurrency:
   group: pages
@@ -101,6 +102,20 @@ jobs:
         with:
           path: frontend/
           name: github-pages-${{ github.run_attempt }}
+
+      # DK2 (24.11.): die Artefaktliste der API hinkt dem Upload hinterher - deploy-pages fand das gerade hochgeladene Artefakt dreimal
+      # nicht (je Versuch fehlte immer das neueste). Darum erst warten, bis es gelistet ist (alle 5 s, hoechstens 2 min).
+      - name: Auf Artefakt warten
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NAME: github-pages-${{ github.run_attempt }}
+        run: |
+          for i in $(seq 1 24); do
+            n=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" --jq "[.artifacts[] | select(.name == \"$NAME\")] | length")
+            if [ "$n" = "1" ]; then echo "$NAME gelistet nach $(( (i - 1) * 5 )) s"; sleep 5; exit 0; fi
+            sleep 5
+          done
+          echo "::error::$NAME nach 2 min nicht gelistet"; exit 1
 
       # SI2: deploy-pages v4.0.5 (2024, Node 20) fand am 21.11. das hochgeladene Artefakt nicht mehr ("No artifacts named
       # github-pages-N"), zweimal hintereinander, GitHub ohne Stoerung. Daher alle drei Pages-Aktionen auf die Node-24-Staende.
