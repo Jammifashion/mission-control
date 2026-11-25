@@ -15,7 +15,7 @@ import { normalizeShop } from '../utils/shop-spalte.js';
 import { TAB_KORB, korbZeilen, korbSchluessel, stufeEin, buendele, KORB_SICHTBAR } from '../utils/korb-logic.js';
 import { psZustaende, baueStand, wartetAufTeile, lagerJeKorb } from '../utils/produktion-stand.js';
 import { korbVorschlaege } from '../utils/lager-korb.js';
-import { leseLagerFuerKorb } from './lager.js';
+import { leseLagerFuerBestellungen } from './lager.js';
 
 export const TAB_PS = 'Produktions_Status';
 export const MAX_BESTELLUNGEN = 300;
@@ -58,6 +58,7 @@ export async function leseProduktionStand({ shop, bestellungen: roh, sheets: s, 
 
   let korb = new Map();
   let lagerJe = new Map();   // BO5-8: Korb-Schluessel -> Lager-Hinweis (dieselbe Verteilung wie im Korb)
+  let lagerFrei = null;      // BO5-9: Einbuchen-Vorschlag und Lager-Hinweis fuer Positionen ohne Korb-Zeile
   const bestellungJe = new Map();
   let einstufen = () => undefined;
   if (jfn && bestellungen.length) {
@@ -65,7 +66,10 @@ export async function leseProduktionStand({ shop, bestellungen: roh, sheets: s, 
     const zeilen = (k.values ?? []).length ? korbZeilen(k.values).zeilen : [];
     korb = new Map(zeilen.map(z => [t(z.Schluessel), z]));
     // BO5-8: "im Lager" wie der Korb - dieselben Zeilen (JFN, sichtbar), dieselbe Funktion, also keine Doppelverplanung.
-    const lager = await leseLagerFuerKorb(sheets, spreadsheetId);
+    // BO5-9: Stammdaten (gepflegte Varianten) nur, wenn es Positionen ohne Korb-Zeile mit Variation gibt.
+    const mitStamm = bestellungen.some(o => o.line_items.some(li => !korb.has(korbSchluessel('jfn', o.id, li.id)) && li.variation_id && li.variation_id !== '0'));
+    const lager = await leseLagerFuerBestellungen(sheets, spreadsheetId, { mitStamm });
+    lagerFrei = { bestandJe: lager.bestandJe, genommenJe: lager.genommenJe, wcBekannt: lager.wcBekannt };
     const buendel = korbVorschlaege(buendele(zeilen.filter(z => normalizeShop(z.Shop || 'jfn') === 'jfn' && KORB_SICHTBAR.includes(z.Status))), lager.bestand, lager.abgaenge);
     lagerJe = lagerJeKorb({ buendel, korb, bestand: lager.bestand });
     const bo = await leseLShopBestellungen({ shop, sheets, jetzt });
@@ -77,12 +81,12 @@ export async function leseProduktionStand({ shop, bestellungen: roh, sheets: s, 
       const ktx = await ladeKontext(sheets, spreadsheetId);
       const pids = [...new Set(ohne.map(li => li.product_id))].filter(x => x && x !== '0');
       const produkte = pids.length ? await ladeProdukte(wcFuer('jfn'), pids) : new Map();
-      einstufen = li => stufeEin(li, produkte.get(li.product_id), ktx).klasse;
+      einstufen = li => stufeEin(li, produkte.get(li.product_id), ktx);   // BO5-9: mit articleNr
     }
   }
 
   const stand = baueStand({
-    shop, bestellungen, ps: zustaende, korb, bestellungJe, einstufen, lagerJe,
+    shop, bestellungen, ps: zustaende, korb, bestellungJe, einstufen, lagerJe, lagerFrei,
     korbSchluessel: (nr, pos) => korbSchluessel('jfn', nr, pos), jetzt: jetzt(),
   });
   return {

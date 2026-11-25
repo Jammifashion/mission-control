@@ -7,7 +7,7 @@
 // (Lager deckt nur einen Teil der Menge) gibt es in dieser Stufe nicht.
 
 import { STATUS, HERKUNFT, hinweisSperrt, GRUENDE, nurAbgeschlossen } from './korb-logic.js';
-import { ART, QUELLE, WARENART, bestandAus, bestandVon, naechsteBuchungNr, buchungId, VORGANG_MUSTER, buchungenDesVorgangs } from './lager.js';
+import { ART, QUELLE, WARENART, BESTELL_POSITION, bestandAus, bestandVon, naechsteBuchungNr, buchungId, VORGANG_MUSTER, buchungenDesVorgangs } from './lager.js';
 import { berlinJahr } from './berlin-tag.js';   // GT1 C4
 
 const t = v => String(v ?? '').trim();
@@ -38,6 +38,38 @@ export function korbAbgaenge(buchungen) {
     const l = m.get(b.bezug) ?? [];
     l.push({ id: b.id, ort: b.ort, menge: -b.menge, art: b.art, datum: b.datum });
     m.set(b.bezug, l);
+  }
+  return m;
+}
+
+/**
+ * BO5-9: Bestand je Lager-Schluessel (alle Warenarten): Map schluessel -> { summe, orte: [{ ort, menge }] }, nur Orte mit
+ * Bestand > 0, meiste zuerst. Fuer Positionen ohne Korb-Zeile (Fertigware WC:, Rohling vor dem Korb-Abgleich).
+ */
+export function bestandJeSchluessel(buchungen) {
+  const m = new Map();
+  for (const e of bestandAus(buchungen).values()) {
+    if (e.menge <= 0) continue;
+    const g = m.get(e.schluessel) ?? { summe: 0, orte: [] };
+    g.summe += e.menge;
+    g.orte.push({ ort: e.ort, menge: e.menge });
+    m.set(e.schluessel, g);
+  }
+  for (const g of m.values()) g.orte.sort((a, b) => b.menge - a.menge || a.ort.localeCompare(b.ort));
+  return m;
+}
+
+/**
+ * BO5-9: von Hand ausgebuchte Shop-Abgaenge je Bestellposition (Art abgang_shop, Bezug "<JFN|HONK>:<Nr>:<Position>",
+ * nicht ueber den Korb), Gegenbuchungen abgezogen: Map bezug -> Stueck. So weiss die Bestellkarte, dass die Ware schon
+ * aus dem Lager genommen ist (Fertigware hat keine Korb-Zeile, deren Status es sagen koennte).
+ */
+export function shopAbgaengeJePosition(buchungen) {
+  const gegen = new Set((buchungen ?? []).filter(b => b.stornoVon).map(b => b.stornoVon));
+  const m = new Map();
+  for (const b of buchungen ?? []) {
+    if (b.art !== ART.ABGANG_SHOP || b.quelle === QUELLE.KORB || gegen.has(b.id) || !BESTELL_POSITION.test(b.bezug)) continue;
+    m.set(b.bezug, (m.get(b.bezug) ?? 0) - b.menge);
   }
   return m;
 }

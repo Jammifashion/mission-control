@@ -47,7 +47,10 @@ export const ART_TEXT = {
 export const ZUGANG_ARTEN = [ART.VORRAT, ART.UEBERSCHUSS, ART.RETOURE, ART.STORNO];
 export const ABGANG_ARTEN = [ART.ABGANG_VORORT, ART.ABGANG_AUFTRAG, ART.ABGANG_PARTNER, ART.ABGANG_SHOP, ART.ABGANG_AUSSCHUSS];
 // BO5-3: Quelle korb = "aus Lager nehmen" bzw. "zurück in den Korb" im L-Shop-Warenkorb (Bezug = Korb-Schluessel).
-export const QUELLE = { KNOPF: 'knopf', START: 'start', INVENTUR: 'inventur', KORB: 'korb', AUFTRAG: 'auftrag' };   // AM-3: auftrag = Rohlinge eines Auftrags
+export const QUELLE = { KNOPF: 'knopf', START: 'start', INVENTUR: 'inventur', KORB: 'korb', AUFTRAG: 'auftrag', BESTELLUNG: 'bestellung' };   // AM-3: auftrag = Rohlinge eines Auftrags
+// BO5-9: "Liegt im Lager – einbuchen …" aus der Bestellkarte = Startbestand (Art inventur: Ware war da, nur nicht erfasst),
+// Quelle bestellung, Bezug = Position der Shop-Bestellung "<JFN|HONK>:<Nr>:<Position>" (keine Namen).
+export const BESTELL_POSITION = /^(JFN|HONK):(\d{1,12}):(\d{1,12})$/;
 export const AKTIONEN = ['einbuchen', 'ausbuchen', 'umlagern', 'zaehlung', 'start'];
 
 export const MENGE_MAX = 9999;
@@ -177,7 +180,10 @@ export function planBuchung(e, { buchungen, orte, gueltig = () => true, bezugPru
   else art = ART.INVENTUR;
   if (aktion === 'einbuchen' && !ZUGANG_ARTEN.includes(art)) probleme.push(fehlerText('art', 'Bitte eine Art des Zugangs wählen.'));
   if (aktion === 'ausbuchen' && !ABGANG_ARTEN.includes(art)) probleme.push(fehlerText('art', 'Bitte eine Art des Abgangs wählen.'));
-  const quelle = aktion === 'start' ? QUELLE.START : aktion === 'zaehlung' ? QUELLE.INVENTUR : QUELLE.KNOPF;
+  const ausBestellung = aktion === 'start' && t(e.quelle) === QUELLE.BESTELLUNG;
+  if (t(e.quelle) && !ausBestellung) probleme.push(fehlerText('quelle', 'Quelle „bestellung“ gibt es nur bei Zählung / Startbestand.'));
+  if (ausBestellung && !BESTELL_POSITION.test(t(e.bezug))) probleme.push(fehlerText('bezug', 'Bezug fehlt: Shop-Bestellung und Position (z. B. JFN:22200:123).'));
+  const quelle = ausBestellung ? QUELLE.BESTELLUNG : aktion === 'start' ? QUELLE.START : aktion === 'zaehlung' ? QUELLE.INVENTUR : QUELLE.KNOPF;
 
   const ortListe = (orte ?? []).map(t);
   const ort = t(e.ort);

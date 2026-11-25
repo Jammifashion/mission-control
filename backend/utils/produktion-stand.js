@@ -9,7 +9,7 @@
 
 import { findHeader } from './sheet-headers.js';
 import { shopSpalte, gleicherShop, normalizeShop } from './shop-spalte.js';
-import { STATUS, KLASSE } from './korb-logic.js';
+import { STATUS, KLASSE, hinweisSperrt } from './korb-logic.js';
 
 export const PS_FERTIG    = 'Fertig';
 export const PS_FERTIG_AM = 'Fertig_Am';
@@ -174,22 +174,29 @@ export function zusammenfassung(artikel, bestelldatum, jetzt = new Date()) {
  * @param {Function} o.einstufen     li -> klasse (nur fuer Positionen ohne Korb-Zeile)
  * @param {Function} o.korbSchluessel (bestellnummer, position) -> Schluessel
  */
-export function baueStand({ shop, bestellungen, ps, korb, bestellungJe, einstufen, korbSchluessel, lagerJe = new Map(), jetzt = new Date() }) {
+export function baueStand({ shop, bestellungen, ps, korb, bestellungJe, einstufen, korbSchluessel, lagerJe = new Map(), lagerFrei = null, jetzt = new Date() }) {
   const jfn = normalizeShop(shop) === 'jfn';
   return bestellungen.map(o => {
     const artikel = (o.line_items ?? []).map(li => {
       const z = ps.get(psSchluessel(o.id, li.id));
       const schl = jfn ? korbSchluessel(o.id, li.id) : '';
       const k = jfn ? korb.get(schl) : undefined;
+      // einstufen liefert die Klasse (Tests) oder das ganze Ergebnis von stufeEin ({ klasse, articleNr }).
+      const st = jfn && !k ? einstufen(li) : undefined;
+      const stufe = st && typeof st === 'object' ? st : { klasse: st };
       const lshop = lshopStand({
         jfn, korb: k, bestellung: k ? bestellungJe.get(schl) : undefined,
-        klasse: jfn && !k ? einstufen(li) : undefined, altHaken: z?.altLShop ?? false,
+        klasse: stufe.klasse, altHaken: z?.altLShop ?? false,
       });
+      const lager = lagerJe.get(schl);   // BO5-8
+      const fertig = z?.fertig ?? false, versendet = z?.versendet ?? false;
+      const bo59 = lagerFrei ? einbuchenJeArtikel({ jfn, orderId: o.id, li, korbZeile: k, stufe, lager, fertig, versendet, ...lagerFrei }) : {};
       return {
         wcItemId: t(li.id), name: t(li.name), menge: Number(li.quantity) || 1, imSheet: Boolean(z),
-        fertig: z?.fertig ?? false, fertigAm: z?.fertigAm ?? '', versendet: z?.versendet ?? false,
+        fertig, fertigAm: z?.fertigAm ?? '', versendet,
         dtfBestellt: z?.dtfBestellt ?? false, notiz: z?.notiz ?? '', lshop,
-        ...(lagerJe.get(schl) ? { lager: lagerJe.get(schl) } : {}),   // BO5-8
+        ...(lager ? { lager } : {}),
+        ...bo59,   // BO5-9: einbuchen / lagerFrei
       };
     });
     return { id: t(o.id), artikel, zusammenfassung: zusammenfassung(artikel, o.date_created, jetzt) };
@@ -227,4 +234,50 @@ export function wartetAufTeile(stand) {
   return stand.filter(b => b.zusammenfassung.wartetAufTeile)
     .sort((a, b) => (Date.parse(a.zusammenfassung.wartetSeit) || Infinity) - (Date.parse(b.zusammenfassung.wartetSeit) || Infinity)
       || a.id.localeCompare(b.id, 'de', { numeric: true }));
+}
+
+/**
+ * BO5-9 "Liegt im Lager – einbuchen …": Ware liegt physisch da, ist aber nie eingebucht. Nur JFN (Korb und Varianten gibt es
+ * nur dort), nur Positionen, die weder fertig noch versendet sind.
+ *  - mit Korb-Zeile: nur Status offen und ohne "aus Lager nehmen" (BO5-8 genug); Schluessel LS:<ArticleNr der Korb-Zeile>,
+ *    Menge = was fehlt (Positionsmenge minus schon verplanter Bestand).
+ *  - ohne Korb-Zeile: Rohling LS:<ArticleNr> (bestellbar, Abgleich noch nicht gelaufen), sonst Fertigware WC:<Variation> (nur
+ *    wenn die Variante im Lager gepflegt ist); sonst Schluessel leer -> Dialog mit Artikelsuche, Grund in der Karte.
+ *    Trikots nie (eigener Weg auf der Trikot-Seite).
+ *    Dazu `lagerFrei` { schluessel, n, orte, genommen, menge, erledigt, korbFehlt }, sobald Bestand da ist oder schon etwas
+ *    fuer diese Position ausgebucht wurde (abgang_shop mit Bezug der Position).
+ * Einbuchen und Entnehmen bleiben zwei Schritte - hier wird nur angezeigt.
+ * @param {object} o
+ * @param {Map}    o.bestandJe  schluessel -> { summe, orte } (bestandJeSchluessel)
+ * @param {Map}    o.genommenJe bezug "JFN:<Nr>:<Pos>" -> Stueck (shopAbgaengeJePosition)
+ * @param {Set}    o.wcBekannt  im Lager gepflegte WC_Variation_IDs (null = unbekannt, dann kein WC-Vorschlag)
+ */
+export const EINBUCHEN_OHNE_SCHLUESSEL = 'Kein Lager-Artikel zu dieser Position bekannt – im Dialog suchen oder als Sonstiges anlegen.';
+export function einbuchenJeArtikel({ jfn, orderId, li, korbZeile, stufe = {}, lager, fertig, versendet, bestandJe = new Map(), genommenJe = new Map(), wcBekannt = null }) {
+  if (!jfn || fertig || versendet) return {};
+  const menge = Number(li?.quantity) || 1;
+  const bezug = `JFN:${t(orderId)}:${t(li?.id)}`;
+  if (korbZeile) {
+    if (t(korbZeile.Status) !== STATUS.OFFEN || lager?.genug || hinweisSperrt(korbZeile.Hinweis)) return {};   // gesperrt: nie im Lager-Vorschlag
+    const nr = t(korbZeile.LShop_ArticleNr);
+    const m = Number(t(korbZeile.Menge)) || menge;
+    const fehlt = Math.max(1, m - (Number(lager?.n) || 0));
+    return { einbuchen: { schluessel: /^\d{10}$/.test(nr) ? `LS:${nr}` : '', menge: fehlt, bezug, ...(/^\d{10}$/.test(nr) ? {} : { grund: EINBUCHEN_OHNE_SCHLUESSEL }) } };
+  }
+  if (stufe.klasse === KLASSE.TRIKOT) return {};   // Trikots: eigener Weg auf der Trikot-Seite (TR4 "ins Lager"), nie hier
+  const vid = t(li?.variation_id);
+  let schluessel = '';
+  if (stufe.klasse === KLASSE.BESTELLBAR && /^\d{10}$/.test(t(stufe.articleNr))) schluessel = `LS:${t(stufe.articleNr)}`;
+  else if (vid && vid !== '0' && wcBekannt?.has(vid)) schluessel = `WC:${vid}`;
+  const genommen = genommenJe.get(bezug) ?? 0;
+  const best = schluessel ? bestandJe.get(schluessel) : null;
+  const n = best?.summe ?? 0;
+  const out = {};
+  if (schluessel && (n > 0 || genommen > 0)) {
+    out.lagerFrei = { schluessel, n, orte: best?.orte ?? [], genommen, menge, erledigt: genommen >= menge, korbFehlt: schluessel.startsWith('LS:'), bezug };
+  }
+  const rest = menge - genommen;
+  if (rest <= 0 || (schluessel && n >= rest)) return out;
+  out.einbuchen = { schluessel, menge: Math.max(1, rest - n), bezug, ...(schluessel ? {} : { grund: EINBUCHEN_OHNE_SCHLUESSEL }) };
+  return out;
 }

@@ -19,7 +19,7 @@ import { istGroessenAchse } from './groessen.js';
 import { schreibeNeueZeilen } from './sheet-zeilen.js';
 import { getWcClient } from './shopConfig.js';
 import { sucheModelle } from '../utils/korb-logic.js';
-import { rohlingBestandJeNr, korbAbgaenge } from '../utils/lager-korb.js';
+import { rohlingBestandJeNr, korbAbgaenge, bestandJeSchluessel, shopAbgaengeJePosition } from '../utils/lager-korb.js';
 import {
   TAB_BUCHUNGEN, TAB_ARTIKEL, TAB_ORTE, BUCHUNG_SPALTEN, ARTIKEL_SPALTEN, ORTE_SPALTEN, WARENART, STATUS_AKTIV,
   buchungenAus, reiterZeilen, orteAus, aktiveOrte, artikelAus, warenartVon, planBuchung, planGegenbuchung,
@@ -435,6 +435,30 @@ export async function leseLagerFuerKorb(sheets, spreadsheetId) {
   } catch (err) {
     console.warn(`Korb: Lager nicht lesbar (${err?.status ?? err?.code ?? 'Fehler'})`);
     return { bestand: new Map(), abgaenge: new Map(), hinweis: 'Lager gerade nicht lesbar - ohne „im Lager“-Vorschläge.' };
+  }
+}
+
+/**
+ * BO5-9: fuer die Bestellansicht - dasselbe wie leseLagerFuerKorb plus Bestand je Schluessel (alle Warenarten), von Hand
+ * ausgebuchte Shop-Abgaenge je Position und (nur mit `mitStamm`) die im Lager gepflegten WC_Variation_IDs. Fehlt das
+ * Lager oder ist es nicht lesbar, laeuft die Ansicht ohne Lager-Hinweise weiter.
+ */
+export async function leseLagerFuerBestellungen(sheets, spreadsheetId, { mitStamm = false } = {}) {
+  const leer = { bestand: new Map(), abgaenge: new Map(), bestandJe: new Map(), genommenJe: new Map(), wcBekannt: null };
+  try {
+    const l = await leseLager(sheets, spreadsheetId);
+    if (l.einrichtung.length) return { ...leer, hinweis: '' };
+    let wcBekannt = null;
+    if (mitStamm) {
+      try { wcBekannt = new Set((await ladeStamm(sheets)).wc.keys()); } catch (err) {
+        console.warn(`Bestellungen: Lager-Stammdaten nicht lesbar (${err?.status ?? err?.code ?? 'Fehler'})`);
+      }
+    }
+    return { bestand: rohlingBestandJeNr(l.buchungen), abgaenge: korbAbgaenge(l.buchungen), bestandJe: bestandJeSchluessel(l.buchungen),
+      genommenJe: shopAbgaengeJePosition(l.buchungen), wcBekannt, hinweis: '' };
+  } catch (err) {
+    console.warn(`Bestellungen: Lager nicht lesbar (${err?.status ?? err?.code ?? 'Fehler'})`);
+    return { ...leer, hinweis: 'Lager gerade nicht lesbar - ohne „im Lager“-Hinweise.' };
   }
 }
 

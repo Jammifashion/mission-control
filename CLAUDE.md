@@ -1034,6 +1034,16 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Zeilen mit nur "abgeschlossen" (`nurAbgeschlossen`) bekommen `abgeschlossen` + `lagerErledigt` (Bestand NACH den offenen) und die Knoepfe
   "Aus Lager genommen …" (`aus-lager` mit `erledigt: true`, sonst 422) bzw. "Erledigt – nicht bestellen" (abwaehlen, neuer Grund "Bestellung
   abgeschlossen" in GRUENDE, auch Vorschlag) + Sammelknopf "alle abgeschlossenen erledigen …" (Liste zum Abhaken). Test bo5-8.test.js.
+  BO5-9 (25.11.): Ware liegt da, war aber nie eingebucht -> Knopf "Liegt im Lager – einbuchen …" je Position in "Bestellungen (JFN)" (nur JFN,
+  nicht fertig/versendet, nie Trikots): `POST .../produktion/stand` haengt `einbuchen` { schluessel, menge, bezug, grund? } an (`einbuchenJeArtikel`
+  in utils/produktion-stand.js): Korb-Zeile offen ohne genug Bestand (nicht gesperrt) -> `LS:<ArticleNr>`, Menge = was fehlt; ohne Korb-Zeile
+  bestellbar -> `LS:`, sonst gepflegte Variante -> `WC:<Variation>` (`leseLagerFuerBestellungen` in lib/lager.js, Stammdaten nur bei Bedarf),
+  sonst Schluessel leer + Grund (Dialog mit Artikelsuche). Ohne Korb-Zeile zusaetzlich `lagerFrei` { n, orte, genommen, erledigt, korbFehlt }
+  (`bestandJeSchluessel`, `shopAbgaengeJePosition` in utils/lager-korb.js: abgang_shop mit Bezug der Position, Gegenbuchung abgezogen).
+  Dialog = der Lager-Dialog (`lagerVonBestellung`, haengt an body): Einbuchen = Zaehlung/Startbestand (Art inventur, keine neue Art), Quelle
+  `bestellung` (`QUELLE.BESTELLUNG`, nur bei Aktion start, Bezug Pflicht `BESTELL_POSITION` "JFN:<Nr>:<Pos>"), Ort Wrist; "aus Lager nehmen …"
+  ohne Korb-Zeile = Ausbuchen Shop-Bestellung mit Bezug der Position. Nach dem Buchen nur die Karte neu (`psEinzelnNeu`). Gegenbuchbar wie
+  jede Knopf-Buchung. Test bo5-9.test.js.
 - backend/lib/seo-prompt.js – SEO-Prompt: Systemprompt (`SEO_SYSTEM_PROMPT`), User-Template,
   MODUS-Enum, Materialfilter. Serientitel nur als Fanart: steht im Hinweisblock woertlich
   "Fanart zur Serie <Titel>", kommt der Block FANART-SERIE dazu, sonst gilt das Titelverbot.

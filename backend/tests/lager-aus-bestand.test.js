@@ -141,7 +141,7 @@ describe('Dialog (Verdrahtung)', () => {
     }
   });
   test('aus Bestand nur bei Umlagern und Ausbuchen; Einbuchen bleibt ueber die Stammdaten', () => {
-    expect(html).toMatch(/const lagerAusBestand = \(\) => \['umlagern', 'ausbuchen'\]\.includes\(lagerDlg\.modus\) && lagerDlg\.herkunft !== 'suche';/);
+    expect(html).toMatch(/const lagerAusBestand = \(\) => \['umlagern', 'ausbuchen'\]\.includes\(lagerDlg\.modus\) && lagerDlg\.herkunft !== 'suche' && !lagerDlg\.vonBestellung\?\.schluessel;/);   // BO5-9: vorbelegter Artikel aus der Bestellkarte
   });
   test('ganzer Ort fragt vorher nach', () => {
     const fn = html.slice(html.indexOf('async function lagerGanzerOrt'), html.indexOf('async function lagerGanzerOrt') + 1500);
