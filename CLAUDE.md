@@ -1420,6 +1420,12 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   bezahlt/storniert (`utils/druckname-loeschen.js`, `leereDrucknamen` in lib/auftraege.js, `scripts/druckname-loeschen.js` Trockenlauf
   Standard, `--write`; regelmaessiger Lauf zusammen mit FIX4 D2) und bei der DSGVO-Sperre des Kunden (Route `/dsgvo-sperren`, Antwort
   `drucknamen`).
+  SA5 (FB-0002): Was nicht als Position ankommt (Modell unklar/fehlt, Farbe fehlt, Groesse nicht beim Modell), steht als Stichpunkte OBEN in der
+  Notiz (`notizMitStichpunkten`, Kopf `NOTIZ_KOPF`, gesamt <= 1000 = MAX.Notiz; nur gepruefte Werte des Vorschlags), Notiz orange mit Zaehler.
+  Genannte Modellnummer, die es in LShop_Modelle nicht gibt (`fehlendesModell`, Antwort `fehlendeModelle`), wird nie ueber das Artikelwort
+  zugeordnet (nur Vorschlaege) - Hinweis "nicht in L-Shop-Modellen – aufnehmen?" mit Link `#artikel/lshop-modelle` im NEUEN Tab (der Dialog
+  bleibt offen). Kurztitel "<Auftraggeber> – <grober Inhalt>" (Verein/Firma, Artikelarten im Plural), nie ein Personenname
+  (`kurztitelOhneNamen`, gleiche Namensliste wie die Notiz). Test auftrag-schnell-sa5.test.js.
 - AM-9 Kunde auch in Lexoffice anlegen: Kunden-Dialog `#ku-dialog` (EINE Stelle fuer alle neuen MC-Kunden: Kundenliste, "Neuer Kunde in MC"
   im Auftrag/Schnellannahme, Lexoffice-Suche) hat beim neuen Kunden den Haken `#ku-lex-anlegen` (vorausgewaehlt), bei aktiven Kunden ohne
   Lexoffice_ID orange "nicht in Lexoffice" + Knopf `#ku-lex-nachholen` (Block `Kunde-Lexoffice: Anfang/Ende`). Der MC-Kunde wird IMMER zuerst

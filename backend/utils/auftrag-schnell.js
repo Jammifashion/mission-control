@@ -75,7 +75,11 @@ Die Notiz kann diktiert sein: ohne Satzzeichen, mit Tippfehlern, umgangssprachli
 
 Felder:
 - kunde: Stichwörter, an denen man den Kunden erkennt (Vereins-/Firmenname, Spitzname, Ort). Höchstens 3, kurz. Leer, wenn keiner genannt ist.
-- kurztitel: kurzer Titel des Auftrags, höchstens 60 Zeichen, OHNE Personennamen (z. B. "Hoodies Jugend 2027").
+- kurztitel: höchstens 60 Zeichen, Aufbau "<Auftraggeber> – <grober Inhalt>". Auftraggeber = Verein oder Firma, kurz wie genannt
+  (z. B. "TSV Musterdorf", "Beispiel Bau"); ist der Auftraggeber eine Privatperson oder nicht genannt, nur der Inhalt - NIE ein
+  Personenname. Inhalt = Artikelarten im Plural, grob und ohne Mengen/Größen/Farben ("Shirts", "Jacken", "Hoodies + Shirts",
+  "Shirts + Tassen"; bei mehr als zwei Arten "Teamkleidung" bzw. "Textilien"); ein Anlass/Zweck darf dazu ("Jugend 2027", "Sommerfest").
+  Beispiele: "TSV Musterdorf – Hoodies Jugend 2027", "Beispiel Bau – Shirts + Jacken", "Polos Sommerfest".
 - termin: Liefer-/Wunschtermin als JJJJ-MM-TT. Relative Angaben ("nächsten Freitag", "in 2 Wochen") vom angegebenen Heute aus rechnen. Leer, wenn keiner genannt.
 - kanal: genau einer aus [${kanaele.join(', ')}] oder leer, wenn er nicht genannt ist.
 - wieLetztesMal: true, wenn die Notiz sich auf einen früheren Auftrag bezieht ("wie letztes Mal", "wie immer", "nochmal").
@@ -209,6 +213,13 @@ export function notizOhneNamen(notiz, namen = []) {
   return { notiz: s.slice(0, NOTIZ_MAX), ersetzt };
 }
 
+/** SA5: Kurztitel ohne bekannte Personennamen (wie die Notiz); der Name faellt ganz weg, Trenner werden aufgeraeumt. */
+export function kurztitelOhneNamen(kurztitel, namen = []) {
+  const { notiz } = notizOhneNamen(kurztitel, namen);
+  return notiz.replace(/\(Name\)/g, ' ').replace(/\s{2,}/g, ' ').replace(/^[\s–\-:,·]+|[\s–\-:,·]+$/g, '')
+    .replace(/(\s[–\-]\s)(?:[–\-]\s)+/g, '$1').trim().slice(0, 80);
+}
+
 // ── Kunde (MC sucht selbst) ─────────────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -304,8 +315,17 @@ export function modellZuordnen(gruppe, zeilen, historie = []) {
     for (const m of sucheModelle(zeilen, w).modelle) if (m.bestellbar > 0) kand.set(m.catalogNr, m);
   }
   const ausHist = historie.filter(c => kand.has(c));
-  const was = [nr && `Modell „${nr}“`, t(gruppe.artikel) && `„${t(gruppe.artikel)}“`].filter(Boolean).join(' / ') || 'Artikel';
-  if (nr && !kand.size) return { catalogNr: '', sicher: false, grund: `${was} nicht in LShop_Modelle.`, vorschlaege: [] };
+  // SA5 (FB-0002): eine genannte Nummer, die es nicht gibt, wird nie still uebergangen - Grund nennt sie immer,
+  // `fehlendesModell` traegt sie fuer den Hinweis "in L-Shop-Modellen aufnehmen?". Zugeordnet wird dann NIE
+  // (auch nicht ueber das Artikelwort), nur Vorschlaege.
+  const fehlt = nr ? { fehlendesModell: nr } : {};
+  const nrText = nr ? `Modell „${nr}“ nicht in L-Shop-Modellen.` : '';
+  const was = t(gruppe.artikel) ? `„${t(gruppe.artikel)}“` : 'Artikel';
+  if (nr) {
+    const vorschlaege = [...new Set([...ausHist, ...kand.keys()])].slice(0, MODELL_VORSCHLAEGE_MAX);
+    return { catalogNr: '', sicher: false, vorschlaege, ...fehlt,
+      grund: vorschlaege.length ? `${nrText} Ähnliche Modelle zu ${was} – bitte wählen.` : nrText };
+  }
   if (ausHist.length === 1) return { catalogNr: ausHist[0], sicher: false, grund: `${was}: Modell aus früheren Aufträgen des Kunden – bitte prüfen.`, vorschlaege: [] };
   if (kand.size === 1) return { catalogNr: [...kand.keys()][0], sicher: false, grund: `${was}: einziges passendes Modell – bitte prüfen.`, vorschlaege: [] };
   const vorschlaege = [...new Set([...ausHist, ...kand.keys()])].slice(0, MODELL_VORSCHLAEGE_MAX);
@@ -376,7 +396,8 @@ export function gruppeVorschlag(gruppe, modell, varianten) {
     mengenText: gruppe.groessen.length ? gruppe.groessen.map(x => `${x.groesse} × ${x.menge}`).join(', ') : (gruppe.menge ? `${gruppe.menge} Stück` : ''),
   };
   if (!modell.catalogNr) {
-    return { ...basis, ok: false, modell: '', farbe: '', positionen: [], grund: [modell.grund], vorschlaege: modell.vorschlaege, farbAuswahl: [] };
+    return { ...basis, ok: false, modell: '', farbe: '', positionen: [], grund: [modell.grund], vorschlaege: modell.vorschlaege, farbAuswahl: [],
+      ...(modell.fehlendesModell ? { fehlendesModell: modell.fehlendesModell } : {}) };
   }
   const grund = modell.sicher ? [] : [modell.grund];
   const f = farbeZuordnen(gruppe, varianten.map(v => v.farbe));
@@ -394,9 +415,44 @@ export function gruppeVorschlag(gruppe, modell, varianten) {
     else positionen.push({ articleNr: v.articleNr, groesse: v.groesse, menge: x.menge, ...(v.lieferbar ? { lieferbar: v.lieferbar } : {}) });
   }
   if (fehlt.length) grund.push(`Größe nicht beim Modell: ${fehlt.join(', ')}.`);
+  if (fehlt.length) basis.fehltText = fehlt.join(', ');   // SA5: kommt als Stichpunkt in die Notiz
   if (!gruppe.groessen.length && gruppe.menge) grund.push(`${gruppe.menge} Stück ohne Größen – im Raster verteilen.`);
   else if (!gruppe.groessen.length) grund.push('Keine Größen/Mengen genannt.');
   return { ...basis, ok: positionen.length > 0, modell: modell.catalogNr, farbe: f.farbe, positionen, grund, vorschlaege: [], farbAuswahl: f.auswahl };
+}
+
+// ── SA5 (FB-0002): nicht uebernommene Angaben als Stichpunkte in die Notiz ──────────────────────────────────────
+// Was nicht als Position ankommt (Modell fehlt/unklar, Farbe fehlt, Groesse nicht beim Modell), geht sonst beim Speichern
+// verloren - der Kasten "Nicht übernommen" lebt nur, solange der Dialog offen ist. Nur Werte, die schon geprueft im
+// Vorschlag stehen (Stichwort, Modell, Mengen, Motiv, Druck) - nichts erfunden.
+export const NOTIZ_GESAMT_MAX = 1000;   // = MAX.Notiz in utils/auftraege.js
+export const NOTIZ_KOPF = 'Aus „Schnell erfassen“ nicht übernommen:';
+
+/** Ein Stichpunkt je nicht (ganz) uebernommener Gruppe; [] wenn alles als Position da ist. */
+export function notizStichpunkte(gruppen) {
+  const zeilen = [];
+  for (const g of gruppen ?? []) {
+    const mengen = g.ok ? g.fehltText : g.mengenText;
+    if (g.ok && !g.fehltText) continue;
+    const modell = g.modell || g.fehlendesModell || '';
+    const was = [t(g.stichwort) || 'Artikel', modell && !klein(g.stichwort).includes(klein(modell)) ? `Modell ${modell}` : '',
+      mengen, g.motiv && `Motiv: ${g.motiv}`, g.druck && `Druck: ${g.druck}`].filter(Boolean).join(' · ');
+    const warum = g.fehlendesModell ? `Modell ${g.fehlendesModell} nicht in L-Shop-Modellen`
+      : g.ok ? 'Größe nicht beim Modell'
+      : !g.modell ? 'Modell nicht eindeutig'
+      : !g.farbe ? 'Farbe fehlt/unklar'
+      : 'Größen/Mengen nicht zugeordnet';
+    zeilen.push(`- ${was} (${warum})`);
+  }
+  return zeilen;
+}
+
+/** Notiz der KI + Stichpunkte; die Stichpunkte zuerst, damit sie nie abgeschnitten werden. */
+export function notizMitStichpunkten(notiz, gruppen) {
+  const zeilen = notizStichpunkte(gruppen);
+  if (!zeilen.length) return { notiz: t(notiz), stichpunkte: 0 };
+  const kopf = [NOTIZ_KOPF, ...zeilen].join('\n');
+  return { notiz: [kopf, t(notiz)].filter(Boolean).join('\n').slice(0, NOTIZ_GESAMT_MAX), stichpunkte: zeilen.length };
 }
 
 /**
@@ -442,13 +498,16 @@ export function kundeNeuPruefen(kundeNeu, text) {
 }
 
 export function baueVorschlag({ ki, kunde, termin, kanal, gruppen, kundeNeu = null, notiz = null }) {
-  const n = notiz ?? { notiz: ki.notiz ?? '', ersetzt: 0 };   // SA4
+  const n0 = notiz ?? { notiz: ki.notiz ?? '', ersetzt: 0 };   // SA4
+  const sp = notizMitStichpunkten(n0.notiz, gruppen);   // SA5
+  const n = { ...n0, notiz: sp.notiz };
   return {
     kunde: { ...kunde, stichwoerter: ki.kunde },   // Stichwoerter nur fuer das Suchfeld im Dialog
     kopf: { Kurztitel: ki.kurztitel, Kanal: kanal.wert, Termin: termin.wert, Notiz: n.notiz },
     unsicher: {
       ...(ki.kurztitel ? { Kurztitel: 'Kurztitel von der KI – bitte prüfen.' } : {}),
-      ...(n.notiz ? { Notiz: `Notiz von der KI – bitte prüfen.${n.ersetzt ? ` ${n.ersetzt} Name(n) durch „(Name)“ ersetzt.` : ''}` } : {}),
+      ...(n.notiz ? { Notiz: `Notiz von der KI – bitte prüfen.${n.ersetzt ? ` ${n.ersetzt} Name(n) durch „(Name)“ ersetzt.` : ''}`
+        + (sp.stichpunkte ? ` ${sp.stichpunkte} nicht übernommene Angabe(n) stehen oben – nach dem Wählen im Raster dort löschen.` : '') } : {}),
       ...(termin.grund ? { Termin: termin.grund } : {}),
       ...(kanal.grund ? { Kanal: kanal.grund } : {}),
     },
@@ -457,6 +516,8 @@ export function baueVorschlag({ ki, kunde, termin, kanal, gruppen, kundeNeu = nu
     todos: ki.todos,
     hinweise: ki.hinweise,
     wieLetztesMal: ki.wieLetztesMal,
+    // SA5: genannte Modellnummern, die es in LShop_Modelle nicht gibt (Hinweis "aufnehmen?" mit Sprung)
+    fehlendeModelle: [...new Set((gruppen ?? []).map(g => g.fehlendesModell).filter(Boolean))],
     // SA2: nur ohne sicheren Kunden-Treffer und nur mit Angaben aus dem Text (sonst kein Knopf zum Neuanlegen)
     ...(kundeNeu && !kundeNeu.leer && !kunde.sicher ? { kundeNeu: kundeNeu.felder } : {}),
   };

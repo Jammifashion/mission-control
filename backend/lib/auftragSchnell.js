@@ -19,7 +19,7 @@ import { KANAELE } from '../utils/auftraege.js';
 import {
   TEXT_MIN, TEXT_MAX, KI_SCHEMA, systemPrompt, userPrompt, heuteBerlin, pruefeKiAntwort, KiUnsinnError,
   kundenVorschlaege, terminPruefen, kanalPruefen, modellZuordnen, gruppeVorschlag, baueVorschlag, kundeNeuPruefen,
-  drucknamePruefen, notizOhneNamen,
+  drucknamePruefen, notizOhneNamen, kurztitelOhneNamen,
 } from '../utils/auftrag-schnell.js';
 
 const ANREDEN = new Set(['frau', 'herr', 'herrn', 'dr', 'prof', 'familie', 'fam']);   // SA4: Anreden bleiben in der Notiz
@@ -127,9 +127,11 @@ export async function schnellVorschlag({
   const kundeNeu = kundeNeuPruefen(ki.kundeNeu, text);   // SA2: nur woertlich Belegtes
   const kontakt = (kunden ?? []).filter(k => kunde.vorschlaege.includes(k.Kunden_Nr))
     .flatMap(k => [k.Ansprechpartner, k.Art === 'Person' ? k.Name : '']);
-  const notiz = notizOhneNamen(ki.notiz, [...druckNamen, kundeNeu.felder.ansprechpartner,
-    kundeNeu.felder.art === 'Person' ? kundeNeu.felder.name : '', ...kontakt].flatMap(n => [n, ...String(n ?? '').split(/\s+/).filter(w => w.length >= 3 && !ANREDEN.has(w.toLowerCase().replace(/\.$/, '')))]));
+  const namen = [...druckNamen, kundeNeu.felder.ansprechpartner,
+    kundeNeu.felder.art === 'Person' ? kundeNeu.felder.name : '', ...kontakt].flatMap(n => [n, ...String(n ?? '').split(/\s+/).filter(w => w.length >= 3 && !ANREDEN.has(w.toLowerCase().replace(/\.$/, '')))]);
+  const notiz = notizOhneNamen(ki.notiz, namen);
+  const kurztitel = kurztitelOhneNamen(ki.kurztitel, namen);   // SA5: Titel "Auftraggeber – Inhalt", nie ein Personenname
 
-  return baueVorschlag({ ki: { ...ki, frei }, kunde, termin: terminPruefen(ki.termin, heute.datum), kanal: kanalPruefen(ki.kanal, KANAELE), gruppen,
+  return baueVorschlag({ ki: { ...ki, frei, kurztitel }, kunde, termin: terminPruefen(ki.termin, heute.datum), kanal: kanalPruefen(ki.kanal, KANAELE), gruppen,
     kundeNeu, notiz });
 }

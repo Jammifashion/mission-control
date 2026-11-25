@@ -60,6 +60,9 @@ export const ANSICHTEN_ZUSATZ = [
   { id: 'auftraege/liste+druckmasse-zuordnen', hash: 'auftraege/liste', aktion: async p => {
       await klick('#au-ansicht [data-au-oeffnen="AU-2026-0041"]')(p);
       await klick('#au-d-pos [data-dk-pos="AU-2026-0041-16"]')(p); await p.waitForTimeout(300); }, wurzel: '#dk-dialog', nurVoll: true },
+  // SA5 (FB-0003): Reiter 3 Artikeleigenschaften mit zwei Eigenschaften (Feldbreite am PC)
+  { id: 'artikel/neu+eigenschaften', hash: 'artikel/neu', aktion: async p => { await klick('#btn-add-property')(p); await klick('#btn-add-property')(p);
+      await p.evaluate(() => document.querySelector('.property-row')?.scrollIntoView()); }, wurzel: '#properties-container' },
   { id: 'artikel/druckmasse+neu', hash: 'artikel/druckmasse', aktion: klick('#dkm-neu'), wurzel: '#dkm-dialog' },
   { id: 'artikel/druckmasse+bearbeiten', hash: 'artikel/druckmasse', aktion: klick('[data-dkm-id]'), wurzel: '#dkm-dialog', nurVoll: true },
   // PR1: Dialog 'Wie letztes Mal' mit Marge-Vergleich
