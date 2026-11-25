@@ -135,34 +135,13 @@ describe('Produktions_Status', () => {
 });
 
 // ── Auftragsmonitor ─────────────────────────────────────────────────────────
+// DT1: die alte DTF-Liste (dtf/offen, protokoll, bestellen) ist entfernt - DTF laeuft ueber den DTF-Warenkorb.
 describe('Auftragsmonitor', () => {
-  test('offen: HONK sieht nur HONK-Zeilen, JFN nur JFN-Zeilen', async () => {
-    const h = await request(app).get('/api/auftragsmonitor/dtf/offen?shop=honk');   // GT1: lshop/offen entfernt
-    const j = await request(app).get('/api/auftragsmonitor/dtf/offen?shop=jfn');
-    expect(h.body.map(g => g.artikelnummer)).toEqual(['HK/B']);
-    expect(j.body.map(g => g.artikelnummer)).toEqual(['JF/A']);
-  });
-
-  test('bestellen-bulk DTF: gleiche Nummer ohne Positionspaar trifft nur den eigenen Shop', async () => {
-    await request(app).post('/api/auftragsmonitor/dtf/bestellen-bulk?shop=jfn').send({
-      bestellungen: [{ artikelnummer: 'JF/A', variante: 'M', stueck: 1, orderIds: ['500'] }],
-    });
-    expect(tabs.DTF_Bestellungen[1][7]).toBe('JFN');
-    expect(tabs.Produktions_Status[1][6]).toBe(true);      // JFN
-    expect(tabs.Produktions_Status[2][6]).toBe('FALSE');   // HONK
-  });
-
-  test('protokoll (DTF): nur Zeilen des Shops, mit Feld shop', async () => {
-    const heute = new Date().toISOString();
-    tabs.DTF_Bestellungen.push(
-      ['DTF-1', heute, '', 'JF/A', 'M', '1', '500', 'JFN'],
-      ['DTF-2', heute, '', 'HK/B', 'M', '1', '500', 'HONK'],
-      ['DTF-0', heute, '', 'ALT', 'M', '1', '400'],          // Altbestand ohne Shop = JFN
-    );
-    const h = await request(app).get('/api/auftragsmonitor/dtf/protokoll?shop=honk');
-    const j = await request(app).get('/api/auftragsmonitor/dtf/protokoll?shop=jfn');
-    expect(h.body.map(e => [e.bestellId, e.shop])).toEqual([['DTF-2', 'HONK']]);
-    expect(j.body.map(e => e.bestellId).sort()).toEqual(['DTF-0', 'DTF-1']);
+  test('alte DTF-Endpunkte gibt es nicht mehr; DTF_Bestellungen bleibt unberuehrt', async () => {
+    const vorher = JSON.stringify(tabs.DTF_Bestellungen);
+    for (const pfad of ['dtf/offen', 'dtf/protokoll']) expect((await request(app).get(`/api/auftragsmonitor/${pfad}?shop=jfn`)).status).toBe(404);
+    expect((await request(app).post('/api/auftragsmonitor/dtf/bestellen-bulk?shop=jfn').send({ bestellungen: [] })).status).toBe(404);
+    expect(JSON.stringify(tabs.DTF_Bestellungen)).toBe(vorher);
   });
 });
 

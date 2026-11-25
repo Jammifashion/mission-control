@@ -226,7 +226,7 @@ describe('FK2: heller Modus', () => {
     const css = html.match(/<style>([\s\S]*?)<\/style>/g).join('\n');
     const gruen = knopfKlassen.filter(k => new RegExp(`\\.${k}(?![a-z0-9-])[^{]*\\{[^}]*background(?:-color)?:\\s*(?:var\\(--success|color-mix\\(in srgb, var\\(--success)`).test(css));
     expect(gruen).toEqual([]);
-    for (const k of ['btn-dtf-bestellen', 'btn-lshop-bestellen', 'btn-complete-order', 'btn-success']) {
+    for (const k of ['btn-lshop-bestellen', 'btn-complete-order', 'btn-success']) {
       expect([k, new RegExp(`\\.${k} \\{[^}]*background: var\\(--accent\\); color: var\\(--accent-text\\)`).test(css)]).toEqual([k, true]);
     }
     expect(html).not.toMatch(/<button[^>]*style="[^"]*background:\s*var\(--success/);

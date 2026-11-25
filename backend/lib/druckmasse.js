@@ -193,7 +193,7 @@ export async function merkeDruckmasse({ eingabe = {}, sheets: s, jetzt = () => n
       const zeilen = neu.map(e => {
         const nr = naechsteDruckmassId(ids);
         ids.push(nr);
-        return zeileAus(r.idx, r.breite, { ...e, Notiz: 'aus Auftrag gemerkt', Druckmass_ID: nr, Aktiv: 'ja', Angelegt: berlinDatum(zeit), Stand: zeit.toISOString() });
+        return zeileAus(r.idx, r.breite, { ...e, Notiz: t(eingabe.notiz) || 'aus Auftrag gemerkt', Druckmass_ID: nr, Aktiv: 'ja', Angelegt: berlinDatum(zeit), Stand: zeit.toISOString() });
       });
       await schreibeNeueZeilen(sheets, id, TAB_DRUCKMASSE, zeilen, { alt: ersetzen.length ? undefined : r.werte });
     }

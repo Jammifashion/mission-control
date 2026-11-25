@@ -152,7 +152,7 @@ describe('Quelltext-Regeln', () => {
       }
     };
     lauf(backend);
-    expect(treffer).toEqual(['lib/belegArchiv.js']);
+    expect(treffer.sort()).toEqual(['lib/belegArchiv.js', 'lib/dtfAblage.js']);   // DT1: DTF-Ablage (eigene geteilte Ablage)
   });
 
   test('Drive-Dateien anlegen nur im Archiv und im Backup', () => {
@@ -166,6 +166,6 @@ describe('Quelltext-Regeln', () => {
       }
     };
     lauf(backend);
-    expect(treffer.sort()).toEqual(['lib/belegArchiv.js', 'scripts/backup-daily.js']);
+    expect(treffer.sort()).toEqual(['lib/belegArchiv.js', 'lib/dtfAblage.js', 'scripts/backup-daily.js']);   // DT1: Motive/Kundenmotive/Bestell-XML
   });
 });

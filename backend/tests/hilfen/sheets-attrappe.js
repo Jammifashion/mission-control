@@ -52,7 +52,13 @@ export function sheetsAttrappe(tabsRef, raster = {}) {
   };
   const values = {
     get: jest.fn(async ({ range }) => ({ data: { values: lies(range) } })),
-    batchGet: jest.fn(async ({ ranges }) => ({ data: { valueRanges: ranges.map(r => ({ range: r, values: lies(r) })) } })),
+    // DT1: majorDimension COLUMNS (leseReiterSpalten) wie Google - Spalten statt Zeilen
+    batchGet: jest.fn(async ({ ranges, majorDimension }) => ({ data: { valueRanges: ranges.map(r => {
+      const z = lies(r);
+      if (majorDimension !== 'COLUMNS') return { range: r, values: z };
+      const breite = Math.max(0, ...z.map(x => x.length));
+      return { range: r, values: Array.from({ length: breite }, (_, j) => z.map(x => x[j] ?? '')) };
+    }) } })),
     update: jest.fn(async ({ range, requestBody }) => { schreib(range, requestBody.values); return { data: {} }; }),
     batchUpdate: jest.fn(async ({ requestBody }) => { for (const d of requestBody.data) schreib(d.range, d.values); return { data: {} }; }),
     append: jest.fn(async ({ range, requestBody }) => {

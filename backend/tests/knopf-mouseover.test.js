@@ -39,7 +39,7 @@ describe('HT1: gemeinsame Texte', () => {
   const von = html.indexOf('const KNOPF_HILFE = {'), bis = html.indexOf('const hilfeText = ');
   const block = html.slice(von, bis);
   const GEMEINSAM = ['dialog-abbrechen', 'dialog-schliessen', 'dialog-bestaetigen', 'dialog-speichern', 'liste-bearbeiten', 'zeile-speichern',
-    'link-kopieren', 'token-neu', 'nav-bereich', 'nav-unterreiter', 'tab-offen', 'tab-protokoll',
+    'link-kopieren', 'token-neu', 'nav-bereich', 'nav-unterreiter',   // DT1: tab-offen/-protokoll mit der alten DTF-Liste entfernt
     'editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'];
   test('die Bestandsliste ist leer', () => expect(bestand.size).toBe(0));
   test('jeder gemeinsame Text steht genau einmal im Block und wird mehrfach benutzt', () => {

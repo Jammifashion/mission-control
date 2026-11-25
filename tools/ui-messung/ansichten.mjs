@@ -63,6 +63,10 @@ export const ANSICHTEN_ZUSATZ = [
   // SA5 (FB-0003): Reiter 3 Artikeleigenschaften mit zwei Eigenschaften (Feldbreite am PC)
   { id: 'artikel/neu+eigenschaften', hash: 'artikel/neu', aktion: async p => { await klick('#btn-add-property')(p); await klick('#btn-add-property')(p);
       await p.evaluate(() => document.querySelector('.property-row')?.scrollIntoView()); }, wurzel: '#properties-container' },
+  // DT1: DTF-Korb - Zuordnen, Bestellung, Scan-Karte
+  { id: 'bestellen/dtf+zuordnen', hash: 'bestellen/dtf', aktion: klick('[data-dtf-zuordnen]'), wurzel: '#dtf-zu-dialog', nurVoll: true },
+  { id: 'bestellen/dtf+bestellung', hash: 'bestellen/dtf', aktion: async p => { await klick('#dtf-alle-bereit')(p); await klick('#dtf-bestellen')(p); }, wurzel: '#dtf-best-dialog', nurVoll: true },
+  { id: 'bestellen/dtf+scan', hash: 'dtf/scan/DTF-2026-0002-01', aktion: async p => { await p.waitForTimeout(900); }, wurzel: '#dtf-scan', nurVoll: true },
   { id: 'artikel/druckmasse+neu', hash: 'artikel/druckmasse', aktion: klick('#dkm-neu'), wurzel: '#dkm-dialog' },
   { id: 'artikel/druckmasse+bearbeiten', hash: 'artikel/druckmasse', aktion: klick('[data-dkm-id]'), wurzel: '#dkm-dialog', nurVoll: true },
   // PR1: Dialog 'Wie letztes Mal' mit Marge-Vergleich

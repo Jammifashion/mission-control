@@ -107,7 +107,7 @@ describe('Adresse #bereich/unterpunkt', () => {
 
 describe('Shop-Badge wirkt nur, wo der Shop zaehlt', () => {
   test.each([
-    ['dashboard', 'start', true], ['bestellen', 'dtf', true], ['artikel', 'neu', true],
+    ['dashboard', 'start', true], ['bestellen', 'dtf', false], ['artikel', 'neu', true],
     ['partner', 'lizenz', true], ['partner', 'festpreis', false],
     ['kunden', 'stamm', false], ['kunden', 'anfragen', false], ['kunden', 'wissen', false], ['system', 'einstellungen', false],
   ])('%s/%s -> %s', (b, p, erwartet) => expect(shopWirkt(b, p)).toBe(erwartet));

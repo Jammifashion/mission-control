@@ -123,7 +123,7 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   und Tastatur-Fokus, kein `title`; ⓘ (`data-hilfe-gruppe`) blendet die Liste ein (Handy). Neuer Knopf =
   Text + Schluessel dort. HT1 (03.11.): JEDER Knopf hat jetzt einen Mouse-over, `knopf-ohne-hilfe-bestand.json` ist leer (Test ohne
   Ausnahmen). Wiederkehrende Knoepfe teilen EINEN Text: `dialog-abbrechen`, `dialog-schliessen`, `dialog-bestaetigen`, `dialog-speichern`,
-  `liste-bearbeiten`, `zeile-speichern`, `link-kopieren`, `token-neu`, `nav-bereich`, `nav-unterreiter`, `tab-offen/-protokoll`,
+  `liste-bearbeiten`, `zeile-speichern`, `link-kopieren`, `token-neu`, `nav-bereich`, `nav-unterreiter`,
   `editor-*` (Test knopf-mouseover.test.js) - neue Dialoge nutzen sie, keine Kopien. Gruppen ohne ⓘ stehen in `GRUPPEN_OHNE_I`
   (knopf-hilfe.test.js). HT2: jede Gruppe hat ein ⓘ (`GRUPPEN_OHNE_I` leer); jedes Fenster (`HILFE_FENSTER`: .edi-dialog,
   .modal-backdrop, Anfragen-Fenster, Shop-Wahl) hat eins im Kopf - im Code erzeugte Fenster bekommen es beim Oeffnen (`fensterI`,
@@ -154,6 +154,11 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   22.11.): Panel, JS und die Endpunkte `/api/auftragsmonitor/lshop/*` sind entfernt; der Reiter `LShop_Bestellungen` bleibt als Archiv,
   die Spalte `L-Shop_bestellt` in Produktions_Status nur noch als "von Hand markiert (alt)" gelesen. Filter "Bestellt" und
   Block "Unterwegs von L-Shop" aus BO4b-2 sind entfernt.)
+- DTF-Korb (DT1, Inhaber 24./25.11., antwort-DT1-1/-3): Unterpunkt `bestellen/dtf` (`shop: false`, Panel `tab-dtf`, ersetzt die alte DTF-Liste;
+  `DTF_Bestellungen` + Spalte `DTF_bestellt` = Archiv), SECTION DTF-Korb (DT1), Block `DTF-Meter: Anfang/Ende` (Spiegel `meterSchaetzung`, Test
+  dtf-frontend.test.js), Praefix `dtf`, Hilfe-Gruppen `dtf`, `dtf-zuordnen`, `dtf-bestellung`; Dialoge `#dtf-zu-dialog`, `#dtf-best-dialog`, `#dtf-ab-dialog`.
+  Scan-Adresse `#dtf/scan/<Druck- oder Bestell-ID>` (QR in Nicos XML) -> `ansichtAusHash` setzt `window.mcDtfScan`, Karte `#dtf-scan` (nur nach Anmeldung).
+  Auftragsansicht: Chip `au-dtf-stand` "Druck bestellt" aus `p.dtf`.
 - Trikots (TR2: Unterpunkt `bestellen/trikots`, Unterreiter "Trikots (JFN)" hinter L-Shop-Bestellungen, `shop: false`;
   Block `Trikots: Anfang/Ende` (Test trikot-ansicht-frontend.test.js), `TR_HINWEISE` = Spiegel von `HINWEISE` in
   utils/trikot-ansicht.js; Hilfe-Gruppe `trikots`. Nur lesen. Klick auf die Bestellnummer: `psSpringeZu` + Bestellansicht,
@@ -559,6 +564,19 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   `Status_Datum`, `Stand`; alles zurueckgelesen. Kein FTP, keine Uebertragung. Knopf im Abschnitt
   "Entwuerfe" des Unterreiters L-Shop-Bestellungen (`entwuerfeAus`: Entwurf mit nicht mehr offenen
   Positionen = ueberholt, ohne Knopf; Testdatei nie), mit `showConfirm`.
+- backend/lib/dtfKorb.js – DTF-Warenkorb (DT1), Logik `utils/dtf-korb.js`, Drive `lib/dtfAblage.js`, Routen `routes/dtf.js` (`/api/dtf`, hinter API-Key)
+  + Scheduler `POST /api/intern/dtf-korb/abgleich` (Job `dtf-korb-abgleich`, legt der Inhaber an). SSOT-Reiter `Warenkorb_DTF` (Schluessel
+  `Quelle:Nummer:Position:Druckposition`, Quelle JFN|AU, "-" = Druckposition noch unbekannt; Zeilen nie geloescht), `DTF_Dateien` (Datei je Bezug + Position
+  + Modell/Textilfarbe/Groesse, je Feld genau vor "alle"), `DTF_Bestellprotokoll` (DTF-JJJJ-NNNN, Status wird abgelegt|abgelegt|unklar|abgebrochen|geliefert,
+  `Posten` JSON ohne Namen). Abgleich: offene JFN-Bestellungen (ohne Trikots, Druckart aus optionaler Spalte `Motive.Druckart`, leer = DTF) + AU bis
+  "in Produktion" mit `istDtf(Druck)`, ab Config `dtf.start_datum` (aeltere nur per "trotzdem aufnehmen"); aendert nie den Status, schreibt nur `Hinweis`
+  (storniert, Menge, "Namensdruck separat" - Drucknamen gehen nie an Nico). Mass (Druckmasse bzw. Druckmasse_Hand, Bezug = Kuerzel bzw. Motiv) und Datei
+  werden LIVE nachgeschlagen, beim Absenden in der Zeile festgeschrieben. Zuordnen = DTF_Dateien + `merkeDruckmasse`. Absenden (antwort-DT1-3): erst alle
+  Bilder (Motive frisch geprueft, Kundenmotive aus `Entwürfe/<AU>` lesen -> nach `Kunden/<AU>/` hochladen, MD5), XML ZULETZT nach `Bestellungen/<ID>.xml`,
+  genau ein Versuch; unklar -> Status unklar + Chat, Knopf "Prüfen"; abgelegt wird nie geaendert, Korrektur = neue Bestellung mit `ersetzt`. XML: Pfad, mm,
+  fuehrend, Anzahl, Referenz, Kuerzel, Druckposition, Druck-ID + `qr` (Config `dtf.scan_basis_url`) - nie Namen/Preise/Adressen. DTF-Ablage = Secret
+  `DTF_ORDNER_ID` (nicht in SECRET_KEYS), lesen drive.readonly, schreiben drive.file (Ordner Motive/ Kunden/ Bestellungen/ Rueckmeldung/ legt das Setup an).
+  Setup `scripts/setup-dtf-korb.js` (Trockenlauf, `--write`). Tests dtf-korb.test.js, dtf-korb-ablauf.test.js.
 - backend/lib/lshopFtp.js – L-Shop-FTP, **NUR LESEN** (BO4b-1), einzige Stelle mit `basic-ftp` (Test
   lshop-ftp.test.js: kein anderer Import, am Client nur access/list/downloadTo/close, kein Schreibweg).
   `mitLShopFtp(fn)` = EINE Verbindung, fn bekommt nur `{ liste, lade }`; feste Ordner (`ORDER` nur Liste,

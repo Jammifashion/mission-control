@@ -24,7 +24,7 @@ describe('Sortiment als Kategorienamen', () => {
 
 describe('Oberflaeche', () => {
   test('Anfragen & Eigenauftraege und Jey-Wissen: Tabellen werden am Handy Karten, jede Zelle mit Beschriftung', () => {
-    expect((html.match(/class="orders-table hk-karten"/g) ?? []).length).toBe(2);
+    expect((html.match(/class="orders-table hk-karten"/g) ?? []).length).toBe(4);   // DT1: DTF-Bestellungen, Was fehlt
     expect(html).toContain('class="aw-table hk-karten"');
     for (const l of ['Anfrage-ID', 'Datum', 'Kunde', 'Produkt', 'Menge', 'Status', 'Partner', 'Bezeichnung', 'Fulfillment', 'Kanal', 'Wert', 'Notiz']) expect(html).toContain(`data-label="${l}"`);
     expect(html).toMatch(/@media \(max-width: 600px\) \{\s*table\.hk-karten/);
@@ -35,7 +35,7 @@ describe('Oberflaeche', () => {
   });
   test('Haken ohne Text stehen in einem Label (Tippflaeche), nie in einem div', () => {
     expect(html).not.toContain('<div class="card-cb-wrap">');
-    expect((html.match(/<label class="card-cb-wrap">/g) ?? []).length).toBe(2);   // GT1: alter L-Shop-Weg entfernt
+    expect((html.match(/<label class="card-cb-wrap">/g) ?? []).length).toBe(1);   // GT1: alter L-Shop-Weg entfernt, DT1: alte DTF-Liste entfernt
   });
   test('Lieferzeit in der Problemliste: Name, die Nummer nur wenn der Name fehlt', () => {
     expect(html).toContain('a.lieferzeit.name || `Nr. ${a.lieferzeit.id} (nicht in der Lieferzeiten-Liste)`');

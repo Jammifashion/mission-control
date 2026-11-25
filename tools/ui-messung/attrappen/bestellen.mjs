@@ -585,19 +585,57 @@ function trikots(mitZahlung) {
   };
 }
 
-// ── DTF (Auftragsmonitor) ───────────────────────────────────────────────────
-const DTF_OFFEN = [
-  { groupKey: 'SSOT-0412|HZ480/NL-Nordlicht|Black / M', ssotId: 'SSOT-0412', artikelnummer: 'HZ480/NL-Nordlicht', variante: 'Black / M', stueck: 4,
-    betroffeneOrders: [{ orderId: '48219', kunde: 'H. Beispiel-Musterfrau', stueck: 1, wcItemIds: ['9101'] }, { orderId: '48190', kunde: 'Testkunde Nr. 4', stueck: 2, wcItemIds: ['9022'] }, { orderId: '48212', kunde: 'O. Fiktiv', stueck: 1, wcItemIds: ['9171'] }] },
-  { groupKey: 'SSOT-0418|TX210/VD-1921|Deep Navy / XXL', ssotId: 'SSOT-0418', artikelnummer: 'TX210/VD-1921-Mein-Verein-mein-Dorf-meine-Leute', variante: 'Deep Navy / XXL – Rückendruck groß, Brustlogo links', stueck: 3,
-    betroffeneOrders: [{ orderId: '48213', kunde: 'R. Testerin', stueck: 3, wcItemIds: ['9161'] }] },
-  { groupKey: 'SSOT-0420|KB150/KK-Kicker|', ssotId: 'SSOT-0420', artikelnummer: 'KB150/KK-Kicker', variante: '', stueck: 1,
-    betroffeneOrders: [{ orderId: '48212', kunde: 'O. Fiktiv', stueck: 1, wcItemIds: ['9173'] }] },
-];
-const DTF_PROTOKOLL = [
-  { bestellId: 'DTF-2026-0311', artikelnummer: 'CP045/DK-Logo', variante: 'Black', stueck: 2, bestelldatum: '2026-11-17T10:00:00.000Z', betroffeneOrders: '48217' },
-  { bestellId: 'DTF-2026-0310', artikelnummer: 'HZ480/NL-Nordlicht', variante: 'Bottle Green / M', stueck: 1, bestelldatum: '2026-11-15T09:30:00.000Z', betroffeneOrders: '48217, 48177' },
-];
+// ── DTF-Korb (DT1) ─────────────────────────────────────────────────────────
+const DTF_Z = (x) => ({ quelle: 'JFN', nummer: '48219', position: '9101', referenz: 'JFN-48219', druckposition: 'Brust', kuerzel: 'NL-Nordlicht',
+  modell: 'HZ480', farbe: 'Black', groesse: 'M', menge: 1, express: false, status: 'offen', grund: '', notiz: '', hinweis: '', bestellung: '', druckId: '',
+  angelegt: '2026-11-25', stand: '2026-11-25T08:00:00.000Z', mass: { breite: 22, hoehe: 11, fuehrend: 'breite', quelle: 'tabelle' }, massAmpel: 'ok',
+  datei: { id: 'f-nl', name: 'Nordlicht_SW_White.png', pfad: 'Motive/NL-Nordlicht/Nordlicht_SW_White.png' }, dateiAmpel: 'ok', bereit: true, grundNicht: '', platzhalter: false, ...x,
+  schluessel: `${x?.quelle ?? 'JFN'}:${x?.nummer ?? '48219'}:${x?.position ?? '9101'}:${x?.druckposition ?? 'Brust'}` });
+const DTF_KORB = {
+  einrichtung: { korb: true, dateien: true, protokoll: true }, ablage: true,
+  einstellungen: { breiteCm: 57, verschnitt: 15, mindestCm: 200, start: '2026-11-25', scanBasis: true, tarif: { normal: { qmBruttoCent: 2100 }, express: { qmBruttoCent: 2900 } } },
+  positionen: ['Brust', 'Brust links', 'Brust rechts', 'Rücken', 'Nacken', 'Ärmel links', 'Ärmel rechts', 'Vorderseite', 'Kapuze', 'Bein', 'Bein links', 'Bein rechts'],
+  gruende: ['schon gedruckt', 'anderer Drucker', 'Kunde hat storniert', 'wird nicht gedruckt', 'Sonstiges'],
+  lieferarten: { abholung: 'Abholung', versand_dhl: 'Versand DHL' },
+  zeilen: [
+    DTF_Z({}),
+    DTF_Z({ nummer: '48190', position: '9022', referenz: 'JFN-48190', groesse: 'XXL', menge: 2 }),
+    DTF_Z({ nummer: '48213', position: '9161', referenz: 'JFN-48213', kuerzel: 'VD-1921-Mein-Verein-mein-Dorf', modell: 'TX210', farbe: 'Deep Navy', groesse: 'XXL', druckposition: 'Rücken',
+      menge: 3, mass: { breite: 28, hoehe: null, fuehrend: 'breite', quelle: 'tabelle' }, massAmpel: 'halb', datei: null, dateiAmpel: 'fehlt', bereit: false, grundNicht: 'mass', hinweis: 'Menge jetzt 4 · Namensdruck separat' }),
+    DTF_Z({ nummer: '48212', position: '9173', referenz: 'JFN-48212', kuerzel: 'KK-Kicker', modell: 'KB150', farbe: 'Red', groesse: '5/6 (S)', druckposition: '', platzhalter: true,
+      mass: null, massAmpel: 'fehlt', datei: null, dateiAmpel: 'fehlt', bereit: false, grundNicht: 'druckposition' }),
+    DTF_Z({ quelle: 'AU', nummer: 'AU-2026-0041', position: 'AU-2026-0041-03', referenz: 'AU-2026-0041', kuerzel: 'Vereinswappen Blau-Weiß', modell: 'TX210', farbe: 'White', groesse: 'L',
+      druckposition: 'Brust links', menge: 14, express: true, mass: { breite: 9, hoehe: 10.5, fuehrend: 'hoehe', quelle: 'hand' }, datei: { id: 'ent-7', name: 'wappen_final_v3.png', pfad: 'wappen_final_v3.png' } }),
+    DTF_Z({ nummer: '48177', position: '8990', referenz: 'JFN-48177', status: 'abgewählt', grund: 'schon gedruckt', bereit: false, grundNicht: 'status' }),
+    DTF_Z({ nummer: '48160', position: '8901', referenz: 'JFN-48160', status: 'bestellt', bestellung: 'DTF-2026-0002', druckId: 'DTF-2026-0002-01', bereit: false, grundNicht: 'status', hinweis: 'Bestellung storniert' }),
+  ],
+  bestellungen: [
+    { id: 'DTF-2026-0003', erstellt: '2026-11-26T09:00:00.000Z', status: 'unklar', lieferart: 'abholung', express: false, positionen: 4, stueck: 9, laengeCm: 80, abgelegt: '', geliefert: '', hinweis: 'unklar: keine Antwort', haengt: false, nachricht: '' },
+    { id: 'DTF-2026-0002', erstellt: '2026-11-25T14:00:00.000Z', status: 'abgelegt', lieferart: 'versand_dhl', express: false, positionen: 12, stueck: 31, laengeCm: 140, abgelegt: '2026-11-25T14:00:05.000Z', geliefert: '', hinweis: '', haengt: false,
+      nachricht: 'Hallo Nico, neue DTF-Bestellung DTF-2026-0002 liegt im Ordner „Bestellungen“ (12 Motive, ≈ 1,4 m, Versand DHL). Danke!' },
+    { id: 'DTF-2026-0001', erstellt: '2026-11-20T10:00:00.000Z', status: 'geliefert', lieferart: 'abholung', express: true, positionen: 2, stueck: 20, laengeCm: 60, abgelegt: '2026-11-20T10:00:04.000Z', geliefert: '2026-11-22', hinweis: '', haengt: false,
+      nachricht: 'Hallo Nico, neue DTF-Bestellung DTF-2026-0001 liegt im Ordner „Bestellungen“ (2 Motive, ≈ 0,6 m, Abholung, Express). Danke!' },
+  ],
+  aelter: [{ quelle: 'JFN', nummer: '48101', datum: '2026-11-18', positionen: 2 }, { quelle: 'AU', nummer: 'AU-2026-0038', datum: '2026-11-12', positionen: 5 }],
+  abgleich: { zeit: '2026-11-26T08:27:00.000Z', shopPositionen: 6, auPositionen: 1, neu: 2, hinweise: 1, aelter: 2 },
+};
+const DTF_ZUORDNEN = {
+  schluessel: 'JFN:48213:9161:Rücken', quelle: 'JFN', referenz: 'JFN-48213', bezug: 'VD-1921-Mein-Verein-mein-Dorf', position: 'Rücken', modell: 'TX210', farbe: 'Deep Navy', groesse: 'XXL',
+  geschwister: [
+    { modell: 'TX210', farbe: 'Deep Navy', groesse: 'XXL', eigen: true, mass: { breite: 28, hoehe: null, fuehrend: 'breite' }, datei: null },
+    ...['S', 'M', 'L', 'XL'].map(g => ({ modell: 'TX210', farbe: 'Deep Navy', groesse: g, eigen: false, mass: null, datei: null })),
+    ...['S', 'M', 'L'].map(g => ({ modell: 'TX210', farbe: 'White', groesse: g, eigen: false, mass: null, datei: null })),
+  ],
+  verwendet: [{ id: 'f-vd1', name: 'Verein_1921_Ruecken_White.png', pfad: 'Motive/VD-1921/Verein_1921_Ruecken_White.png', breitePx: 2400, hoehePx: 2700, ablage: 'dtf', da: true }],
+  entwuerfe: [], positionen: DTF_KORB.positionen, ablage: true,
+};
+const DTF_FEHLT = { liste: [
+  { kuerzel: 'VD-1921-Mein-Verein-mein-Dorf', druckposition: 'Rücken', modell: 'TX210', farbe: 'Deep Navy', groesse: 'XXL', schluessel: 'JFN:48213:9161:Rücken', massFehlt: true, dateiFehlt: true, offen: 3, verkauft90: 17 },
+  { kuerzel: 'KK-Kicker', druckposition: '', modell: 'KB150', farbe: 'Red', groesse: '5/6 (S)', schluessel: 'JFN:48212:9173:-', massFehlt: true, dateiFehlt: true, offen: 1, verkauft90: 4 },
+], verkaufHinweis: '' };
+const DTF_VORSCHAU = { ok: true, probleme: [], warnungen: [], express: false, anzahl: 2, stueck: 3,
+  meter: { flaecheCm2: 726, laengeCm: 20, kostenBruttoCent: 239, kostenNettoCent: 201, mindestCm: 200, lohnt: false, fehltCm: 180, ohneMass: 0 }, kundenmotive: 0,
+  xml: '<?xml version="1.0" encoding="UTF-8"?>\n<dtfBestellung id="DTF-2026-____" datum="2026-11-26" lieferart="abholung" express="nein">\n  <notiz><![CDATA[]]></notiz>\n  <position druckId="DTF-2026-____-01" datei="Motive/NL-Nordlicht/Nordlicht_SW_White.png" breite_mm="220" hoehe_mm="110" fuehrend="breite" anzahl="1" referenz="JFN-48219" kuerzel="NL-Nordlicht" druckposition="Brust"/>\n  <summe geschaetzteLaengeCm="20" breiteCm="57"/>\n</dtfBestellung>\n' };
 
 // ── Anfragen & Eigenauftraege ───────────────────────────────────────────────
 const ANFRAGEN = [
@@ -630,8 +668,13 @@ export function antwort(method, pfad, params, body) {
     return status.length ? ORDERS.filter(o => status.includes(o.status)) : ORDERS;
   }
   if (m === 'POST' && p === '/api/bestellen/produktion/stand') return produktionStand(body);
-  if (m === 'GET' && p === '/api/auftragsmonitor/dtf/offen') return DTF_OFFEN;
-  if (m === 'GET' && p === '/api/auftragsmonitor/dtf/protokoll') return DTF_PROTOKOLL;
+  if (m === 'GET' && p === '/api/dtf/korb') return DTF_KORB;
+  if (m === 'GET' && p === '/api/dtf/zuordnen') return DTF_ZUORDNEN;
+  if (m === 'GET' && p === '/api/dtf/was-fehlt') return DTF_FEHLT;
+  if (m === 'GET' && p === '/api/dtf/datei/suche') return { dateien: DTF_ZUORDNEN.verwendet };
+  if (m === 'POST' && p === '/api/dtf/bestellung/vorschau') return DTF_VORSCHAU;
+  if (m === 'GET' && /^\/api\/dtf\/scan\//.test(p)) return { id: 'DTF-2026-0002-01', art: 'motiv', bestellung: 'DTF-2026-0002', motive: [{ druckId: 'DTF-2026-0002-01', quelle: 'JFN', nummer: '48160',
+    referenz: 'JFN-48160', kuerzel: 'NL-Nordlicht', druckposition: 'Brust', modell: 'HZ480', farbe: 'Black', groesse: 'M', menge: 1, status: 'bestellt', fuer: 'Erika' }] };
   if (m === 'GET' && p === '/api/bestellen/lshop-korb') return lshopKorb(q);
   if (m === 'GET' && p === '/api/bestellen/lshop-korb/modelle') return modelleSuche(q.get('q'));
   if (m === 'GET') {

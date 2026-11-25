@@ -6,6 +6,7 @@ import { notifyFehler } from '../lib/chatNotify.js';
 import { istLaufStopp } from '../lib/hosterPruefseite.js';
 import { runBelegeAbruf, BELEGE_BESCHAEFTIGT } from '../lib/lshopBelege.js';
 import { runLieferbarkeit, LIEFERBARKEIT_BESCHAEFTIGT } from '../lib/lshopLieferbarkeit.js';
+import { runDtfAbgleich, DTF_BESCHAEFTIGT } from '../lib/dtfKorb.js';
 
 // Endpunkte fuer Google Cloud Scheduler (CS1). Stehen VOR requireApiKey und nur
 // hinter requireSchedulerOidc - ein MC_API_KEY oeffnet sie nicht.
@@ -89,6 +90,21 @@ router.post('/lshop-lieferbarkeit/abruf', async (_req, res, next) => {
     }
     if (!istLaufStopp(err) && (err?.status ?? 500) >= 500) {
       await notifyFehler({ art: 'L-Shop-Lieferbarkeit', status: err?.status ?? 500, text: err?.message, titel: 'Störung' });
+    }
+    next(err);
+  }
+});
+
+// ── POST /api/intern/dtf-korb/abgleich  (Job dtf-korb-abgleich, stuendlich :27 Europe/Berlin, DT1) ──
+// Body wird ignoriert. Sperre = 200 "uebersprungen"; 5xx bleibt 5xx (Chat + Log-Alarm).
+router.post('/dtf-korb/abgleich', async (_req, res, next) => {
+  const laufId = `DK-${new Date().toISOString().slice(0, 16)}Z`;
+  try {
+    res.json(await runDtfAbgleich({ dryRun: false, quelle: 'scheduler', laufId }));
+  } catch (err) {
+    if (err?.status === 409 && err?.message === DTF_BESCHAEFTIGT) return res.json({ uebersprungen: 'läuft schon', lauf: laufId });
+    if (!istLaufStopp(err) && err?.code !== 'hoster_pruefseite' && (err?.status ?? 500) >= 500) {
+      await notifyFehler({ art: 'DTF-Korb-Abgleich', status: err?.status ?? 500, text: err?.message, titel: 'Störung' });
     }
     next(err);
   }

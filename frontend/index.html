@@ -646,7 +646,7 @@
       /* ── Sub-tabs (Auftragsmonitor) ── */
       /* Jede Reiterzeile scrollt fuer sich waagrecht (Handy), nicht die ganze Seite. */
       .sub-tabs { display: flex; gap: 0; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border); overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
-      .sub-tab, .mode-btn, .lshop-tab, .dtf-tab { white-space: nowrap; flex-shrink: 0; }
+      .sub-tab, .mode-btn, .lshop-tab { white-space: nowrap; flex-shrink: 0; }
       .sub-tab {
         background: none; border: none; border-bottom: 2px solid transparent;
         color: var(--muted); cursor: pointer; font-size: 0.85rem; font-weight: 500;
@@ -675,23 +675,54 @@
       .lshop-panel { display: none; }
       .lshop-panel.active { display: block; }
 
-      /* ── DTF inner tabs ── */
-      .dtf-tab {
-        background: none; border: none; border-bottom: 2px solid transparent;
-        color: var(--muted); cursor: pointer; font-size: 0.82rem; font-weight: 500;
-        padding: 0.4rem 0.9rem; margin-bottom: -1px; transition: color 0.15s;
+      /* ── DTF-Korb (DT1) ── */
+      .dtf-suche { max-width: 260px; }
+      .dtf-meter { margin: 0.6rem 0; padding: 0.6rem 0.8rem; border: 1px solid var(--border); border-radius: 8px; font-size: 0.86rem; }
+      .dtf-meter:empty { display: none; }
+      .dtf-meter strong { color: var(--text); }
+      .dtf-lohnt { color: var(--success); }
+      .dtf-noch { color: var(--warning); }
+      .dtf-gruppe-titel { margin: 0.8rem 0 0.3rem; font-size: 0.9rem; color: var(--text); }
+      .dtf-tabelle td { vertical-align: middle; }
+      .dtf-bild { width: 48px; height: 48px; object-fit: contain; border-radius: 4px; background: color-mix(in srgb, var(--text) 6%, var(--surface)); display: block; }
+      .dtf-bild-leer { width: 48px; height: 48px; border-radius: 4px; border: 1px dashed var(--border); }
+      .dtf-ampel { display: inline-block; padding: 0.1rem 0.45rem; border-radius: 999px; font-size: 0.76rem; border: 1px solid currentColor; white-space: nowrap; }
+      .dtf-a-ok { color: var(--success); }
+      .dtf-a-halb, .dtf-a-fehlt, .dtf-a-unbekannt { color: var(--warning); }
+      .dtf-a-weg { color: var(--danger); }
+      .dtf-sperrt { color: var(--danger); }
+      .dtf-hinw { color: var(--warning); font-size: 0.8rem; }
+      .dtf-express { color: var(--warning); font-weight: 600; font-size: 0.78rem; }
+      .dtf-box { margin-top: 0.8rem; }
+      .dtf-box > summary { cursor: pointer; font-weight: 600; padding: 0.3rem 0; }
+      .dtf-zu-box { max-width: 760px; }
+      .dtf-zu-ueber { margin: 0.8rem 0 0.3rem; font-size: 0.9rem; }
+      .dtf-feld { display: inline-flex; flex-direction: column; gap: 0.2rem; font-size: 0.82rem; margin-right: 0.6rem; }
+      .dtf-feld-breit { display: flex; margin: 0.5rem 0; }
+      .dtf-feld .form-input { max-width: 120px; }
+      .dtf-feld-breit .form-input { max-width: none; }
+      .dtf-kacheln { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.3rem 0; }
+      .dtf-kachel { display: flex; flex-direction: column; align-items: center; gap: 0.2rem; width: 96px; padding: 0.3rem; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 0.72rem; cursor: pointer; }
+      .dtf-kachel[aria-pressed="true"] { border-color: var(--focus); box-shadow: 0 0 0 2px var(--focus); }
+      .dtf-kachel span { max-width: 88px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .dtf-upload { cursor: pointer; }
+      .dtf-haken { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.82rem; margin-right: 0.8rem; }
+      .dtf-xml { max-height: 260px; overflow: auto; font-size: 0.72rem; white-space: pre-wrap; word-break: break-all; background: color-mix(in srgb, var(--text) 4%, var(--surface)); padding: 0.5rem; border-radius: 6px; }
+      .dtf-scan { margin: 0.6rem 0; padding: 0.8rem; border: 2px solid var(--info); border-radius: 10px; }
+      .dtf-scan-titel { font-size: 1.3rem; font-weight: 700; color: var(--text); }
+      .dtf-scan-motiv { font-size: 1.05rem; margin: 0.5rem 0; line-height: 1.5; }
+      .dtf-scan-motiv strong { color: var(--text); }
+      .dtf-geschw input.form-input { max-width: 70px; }
+      @media (max-width: 600px) {
+        .dtf-suche { max-width: none; width: 100%; }
+        .dtf-scan-titel { font-size: 1.5rem; }
+        .dtf-scan-motiv { font-size: 1.15rem; }
+        .dtf-feld .form-input { max-width: none; font-size: 16px; }
+        #tab-dtf button, #dtf-zu-dialog button, #dtf-best-dialog button, #dtf-ab-dialog button, #dtf-zu-dialog select, .dtf-upload { min-height: 44px; }
+        #dtf-zu-dialog .korb-link { min-width: 44px; }
+        .dtf-ampel, .dtf-express, .dtf-hinw, .dtf-kachel span { font-size: 12px; }
       }
-      .dtf-tab:hover { color: var(--text); }
-      .dtf-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-      .dtf-panel { display: none; }
-      .dtf-panel.active { display: block; }
-      .btn-dtf-bestellen {
-        background: var(--accent); color: var(--accent-text); border: 1px solid var(--accent);   /* FK2: Hauptaktion (vorher gruen) */
-        border-radius: 5px; padding: 0.3rem 0.65rem; font-size: 0.8rem; font-weight: 500;
-        cursor: pointer; white-space: nowrap; transition: background 0.15s;
-      }
-      .btn-dtf-bestellen:hover:not(:disabled) { opacity: 0.88; }
-      .btn-dtf-bestellen:disabled { opacity: 0.5; cursor: not-allowed; }
+      /* ── DTF-Korb Ende ── */
 
       .lshop-offen-header { font-size: 0.82rem; font-weight: 600; color: var(--muted); margin-bottom: 0.75rem; letter-spacing: 0.03em; display: flex; align-items: center; justify-content: space-between; }
       .bulk-all-label { font-size: 0.78rem; font-weight: 400; display: flex; align-items: center; gap: 0.3rem; cursor: pointer; letter-spacing: 0; }
@@ -2186,7 +2217,7 @@
       @media (max-width: 600px) {
         input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]):not([type=color]), select, textarea { font-size: 16px !important; }
         .form-input, .form-select { min-height: 40px; }
-        .korb-aktion, .btn, .btn-secondary, .sub-tab, .korb-filter button, .dtf-tab, button.ku-chip, .mode-toggle button, .btn-dtf-bestellen, .aw-save-btn { min-height: 40px; height: auto; }
+        .korb-aktion, .btn, .btn-secondary, .sub-tab, .korb-filter button, button.ku-chip, .mode-toggle button, .aw-save-btn { min-height: 40px; height: auto; }
         .korb-aktion { white-space: normal; min-width: 0; text-align: center; line-height: 1.2; }   /* Hoehe ist frei - lieber umbrechen als ueber die Karte */
         .hilfe-i { min-width: 40px; min-height: 40px; }
         /* Polster schmaler: mit 16 px Schrift passen Auswahl- und Platzhaltertexte sonst nicht mehr (Messung AH1) */
@@ -2389,7 +2420,7 @@
       <section id="panel-orders" class="panel">
         <div class="sub-tabs">
           <button class="sub-tab active" data-subtab="tab-jfn-shop" data-hilfe="nav-unterreiter">Bestellungen</button>
-          <button class="sub-tab" data-subtab="tab-dtf" data-hilfe="nav-unterreiter">DTF Bestellungen</button>
+          <button class="sub-tab" data-subtab="tab-dtf" data-hilfe="nav-unterreiter">DTF-Korb</button>
           <button class="sub-tab" data-subtab="tab-lshop-korb" data-hilfe="nav-unterreiter">L-Shop-Warenkorb</button>
           <button class="sub-tab" data-subtab="tab-lshop-uebersicht" data-hilfe="nav-unterreiter">Bestellübersicht</button>
           <button class="sub-tab" data-subtab="tab-lshop-bestellungen" data-hilfe="nav-unterreiter">L-Shop-Bestellungen</button>
@@ -2438,19 +2469,143 @@
           </div>
         </div>
 
+        <!-- DT1: DTF-Warenkorb - Zeilen aus Shop (JFN) und Auftraegen, Mass/Datei live, Bestellung als XML in die DTF-Ablage -->
         <div id="tab-dtf" class="sub-tab-panel">
           <div class="card inhalt-breit">
-            <div class="lshop-inner-tabs">
-              <button class="dtf-tab active" data-dtftab="dtf-offen" data-hilfe="tab-offen">Offen</button>
-              <button class="dtf-tab" data-dtftab="dtf-protokoll" data-hilfe="tab-protokoll">Protokoll</button>
-              <button class="hilfe-i hilfe-i-klein" type="button" data-hilfe-gruppe="auftragsmonitor" aria-controls="hilfe-auftragsmonitor" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+            <div class="lshop-offen-header korb-kopf">
+              <span id="dtf-summe">DTF-Warenkorb</span>
             </div>
-            <div id="hilfe-auftragsmonitor" class="hilfe-legende" hidden></div>
-            <div id="dtf-offen" class="dtf-panel active">
-              <div class="skeleton"></div><div class="skeleton"></div>
+            <div class="korb-bedienung">
+              <div class="korb-ansicht">
+                <span class="korb-filter" id="dtf-filter" role="group" aria-label="Zeilen filtern">
+                  <button type="button" data-dfilter="offen" data-hilfe="dtf-f-offen" aria-pressed="true">Offen</button>
+                  <button type="button" data-dfilter="fehlt" data-hilfe="dtf-f-fehlt" aria-pressed="false">Fehlt etwas</button>
+                  <button type="button" data-dfilter="abgewaehlt" data-hilfe="dtf-f-abgewaehlt" aria-pressed="false">Abgewählt</button>
+                  <button type="button" data-dfilter="bestellt" data-hilfe="dtf-f-bestellt" aria-pressed="false">Bestellt</button>
+                  <button type="button" data-dfilter="alle" data-hilfe="dtf-f-alle" aria-pressed="false">Alle</button>
+                </span>
+                <input id="dtf-suche" type="search" class="form-input dtf-suche" placeholder="Suche: Kürzel, Nummer, Modell" aria-label="DTF-Korb durchsuchen" data-hilfe="dtf-suche" autocomplete="off">
+              </div>
+              <div class="korb-aktionen">
+                <button class="korb-aktion korb-aktion-haupt" id="dtf-bestellen" type="button" data-hilfe="dtf-bestellen">DTF-Bestellung …</button>
+                <button class="korb-aktion korb-aktion-ruhig" id="dtf-abgleich" type="button" data-hilfe="dtf-abgleich">↻ Jetzt abgleichen</button>
+                <button class="hilfe-i" type="button" data-hilfe-gruppe="dtf" aria-controls="hilfe-dtf" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+              </div>
             </div>
-            <div id="dtf-protokoll" class="dtf-panel" style="display:none;">
-              <div class="skeleton"></div><div class="skeleton"></div>
+            <div id="hilfe-dtf" class="hilfe-legende" hidden></div>
+            <div id="dtf-scan" class="dtf-scan" hidden></div>
+            <div id="dtf-hinweise" class="korb-zaehler"></div>
+            <div id="dtf-meter" class="dtf-meter" aria-live="polite"></div>
+            <div id="dtf-liste"><div class="skeleton"></div><div class="skeleton"></div></div>
+            <details id="dtf-fehlt-box" class="dtf-box">
+              <summary data-hilfe="dtf-was-fehlt">Was fehlt (Datei / Maß)</summary>
+              <div id="dtf-fehlt" class="korb-zaehler">wird beim Aufklappen geladen …</div>
+            </details>
+            <details id="dtf-aelter-box" class="dtf-box" hidden>
+              <summary data-hilfe="dtf-aelter">Ältere Bestellungen und Aufträge (vor dem Start)</summary>
+              <div id="dtf-aelter"></div>
+            </details>
+            <details id="dtf-best-box" class="dtf-box" open>
+              <summary data-hilfe="dtf-bestellungen">DTF-Bestellungen</summary>
+              <div id="dtf-bestellungen"></div>
+            </details>
+          </div>
+        </div>
+
+        <!-- DT1: Datei und Mass zuordnen (je Varianten-SKU), "Auch uebernehmen fuer" -->
+        <div id="dtf-zu-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="dtf-zu-titel" hidden>
+          <div class="edi-box dtf-zu-box">
+            <div class="edi-kopf">
+              <strong id="dtf-zu-titel">Zuordnen</strong>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="dtf-zuordnen" aria-controls="hilfe-dtf-zu-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+              <button type="button" class="korb-link" id="dtf-zu-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
+            </div>
+            <div id="hilfe-dtf-zu-dialog" class="hilfe-legende" hidden></div>
+            <div id="dtf-zu-kopf" class="korb-zaehler"></div>
+            <label class="dtf-feld">Druckposition
+              <select id="dtf-zu-position" class="form-select" data-hilfe="dtf-zu-position"></select>
+            </label>
+            <h4 class="dtf-zu-ueber">Datei</h4>
+            <div id="dtf-zu-datei-wahl" class="korb-zaehler"></div>
+            <div id="dtf-zu-verwendet" class="dtf-kacheln"></div>
+            <div id="dtf-zu-entwuerfe" class="dtf-kacheln"></div>
+            <div class="korb-reihe">
+              <input id="dtf-zu-suche" type="search" class="form-input" placeholder="In der DTF-Ablage suchen (Dateiname)" aria-label="Datei suchen" data-hilfe="dtf-zu-suche" autocomplete="off">
+              <label class="korb-link dtf-upload" data-hilfe="dtf-zu-hochladen">Hochladen …<input id="dtf-zu-datei" type="file" accept="image/png,image/jpeg,image/webp,image/tiff,image/svg+xml,application/pdf" hidden></label>
+            </div>
+            <div id="dtf-zu-treffer" class="dtf-kacheln"></div>
+            <h4 class="dtf-zu-ueber">Maß</h4>
+            <div class="korb-reihe dtf-mass-reihe">
+              <span class="korb-filter" id="dtf-zu-fuehrend" role="group" aria-label="Führende Seite">
+                <button type="button" data-dfuehrend="breite" data-hilfe="dtf-zu-fuehrend" aria-pressed="true">Breite führend</button>
+                <button type="button" data-dfuehrend="hoehe" data-hilfe="dtf-zu-fuehrend" aria-pressed="false">Höhe führend</button>
+              </span>
+              <label class="dtf-feld">Breite (cm)<input id="dtf-zu-breite" class="form-input" inputmode="decimal" data-hilfe="dtf-zu-breite" autocomplete="off"></label>
+              <label class="dtf-feld">Höhe (cm)<input id="dtf-zu-hoehe" class="form-input" inputmode="decimal" data-hilfe="dtf-zu-hoehe" autocomplete="off"></label>
+            </div>
+            <div id="dtf-zu-mass-hinweis" class="korb-zaehler"></div>
+            <h4 class="dtf-zu-ueber">Auch übernehmen für …</h4>
+            <div class="korb-reihe">
+              <button type="button" class="korb-link" id="dtf-zu-alle-groessen" data-hilfe="dtf-zu-alle-groessen">alle Größen dieser Farbe</button>
+              <button type="button" class="korb-link" id="dtf-zu-alle-farben" data-hilfe="dtf-zu-alle-farben">alle Farben dieses Modells</button>
+              <button type="button" class="korb-link" id="dtf-zu-keine" data-hilfe="dtf-zu-keine">keine</button>
+            </div>
+            <div id="dtf-zu-geschwister" class="roll-x"></div>
+            <div class="korb-reihe">
+              <label class="card-cb-wrap dtf-haken"><input type="checkbox" id="dtf-zu-alle-g" data-hilfe="dtf-zu-gilt-alle"> Datei gilt für alle Größen und Farben („alle“)</label>
+              <label class="card-cb-wrap dtf-haken"><input type="checkbox" id="dtf-zu-mass-alle" data-hilfe="dtf-zu-mass-alle"> Maß gilt für alle Größen („alle“)</label>
+            </div>
+            <div class="korb-reihe">
+              <button type="button" class="btn-lshop-bestellen" id="dtf-zu-speichern" data-hilfe="dialog-speichern">Speichern</button>
+              <button type="button" class="korb-link" id="dtf-zu-abbrechen" data-hilfe="dialog-abbrechen">Abbrechen</button>
+            </div>
+            <div id="dtf-zu-ergebnis" class="korb-zaehler" aria-live="polite"></div>
+          </div>
+        </div>
+
+        <!-- DT1: DTF-Bestellung erstellen und absenden (XML in die DTF-Ablage) -->
+        <div id="dtf-best-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="dtf-best-titel" hidden>
+          <div class="edi-box">
+            <div class="edi-kopf">
+              <strong id="dtf-best-titel">DTF-Bestellung</strong>
+              <button class="hilfe-i" type="button" data-hilfe-gruppe="dtf-bestellung" aria-controls="hilfe-dtf-best-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
+              <button type="button" class="korb-link" id="dtf-best-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
+            </div>
+            <div id="hilfe-dtf-best-dialog" class="hilfe-legende" hidden></div>
+            <div id="dtf-best-kopf" class="korb-zaehler"></div>
+            <div class="korb-reihe">
+              <span class="korb-filter" id="dtf-best-lieferart" role="group" aria-label="Lieferart">
+                <button type="button" data-dlieferart="abholung" data-hilfe="dtf-abholung" aria-pressed="true">Abholung</button>
+                <button type="button" data-dlieferart="versand_dhl" data-hilfe="dtf-dhl" aria-pressed="false">Versand DHL</button>
+              </span>
+            </div>
+            <label class="dtf-feld">Ersetzt Bestellung (optional)
+              <input id="dtf-best-ersetzt" class="form-input" maxlength="13" placeholder="DTF-JJJJ-NNNN" data-hilfe="dtf-ersetzt" autocomplete="off">
+            </label>
+            <label class="dtf-feld dtf-feld-breit">Notiz an Nico (optional)
+              <textarea id="dtf-best-notiz" class="form-input" rows="2" maxlength="300" data-hilfe="dtf-notiz"></textarea>
+            </label>
+            <div id="dtf-best-pruefung" class="korb-zaehler" aria-live="polite"></div>
+            <details id="dtf-best-xml-box"><summary data-hilfe="dtf-xml">Vorschau der Datei für Nico</summary><pre id="dtf-best-xml" class="dtf-xml"></pre></details>
+            <div class="korb-reihe">
+              <button type="button" class="btn-lshop-bestellen" id="dtf-best-senden" data-hilfe="dtf-absenden">Absenden …</button>
+              <button type="button" class="korb-link" id="dtf-best-abbrechen" data-hilfe="dialog-abbrechen">Abbrechen</button>
+            </div>
+            <div id="dtf-best-ergebnis" class="korb-zaehler" aria-live="polite"></div>
+          </div>
+        </div>
+
+        <!-- DT1: Zeile abwaehlen (Grund) -->
+        <div id="dtf-ab-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="dtf-ab-titel" hidden>
+          <div class="edi-box lo-box">
+            <div class="edi-kopf"><strong id="dtf-ab-titel">Nicht drucken lassen</strong><button class="hilfe-i" type="button" data-hilfe-gruppe="dialog" aria-controls="hilfe-dtf-ab-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button></div>
+            <div id="hilfe-dtf-ab-dialog" class="hilfe-legende" hidden></div>
+            <div id="dtf-ab-text" class="korb-zaehler"></div>
+            <select id="dtf-ab-grund" class="form-select" aria-label="Grund" data-hilfe="dtf-ab-grund"></select>
+            <input id="dtf-ab-notiz" class="form-input" maxlength="200" placeholder="Notiz (optional)" aria-label="Notiz" data-hilfe="dtf-ab-notiz" autocomplete="off">
+            <div class="korb-reihe">
+              <button type="button" class="btn-lshop-bestellen" id="dtf-ab-ok" data-hilfe="dialog-bestaetigen">Abwählen</button>
+              <button type="button" class="korb-link" id="dtf-ab-abbrechen" data-hilfe="dialog-abbrechen">Abbrechen</button>
             </div>
           </div>
         </div>
@@ -4908,7 +5063,6 @@
         // NAV5: Shop-Zusatz in eigenem span - am Handy ausgeblendet (.sub-shop), Desktop unveraendert.
         const sub = (k, text) => { const el = document.querySelector(`[data-subtab="${k}"]`); if (el) el.innerHTML = `${text}<span class="sub-shop"> (${kurz})</span>`; };
         sub('tab-jfn-shop', 'Bestellungen');
-        sub('tab-dtf',      'DTF Bestellungen');
         sub('tab-lshop-korb', 'L-Shop-Warenkorb');
         sub('tab-lshop-uebersicht', 'Bestellübersicht');
         sub('tab-lshop-bestellungen', 'L-Shop-Bestellungen');
@@ -5050,7 +5204,7 @@
         ] },
         bestellen: { label: 'Bestellen & Produktion', shop: true, punkte: [
           { id: 'bestellungen', panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-jfn-shop"]' },
-          { id: 'dtf',          panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-dtf"]',       neuLaden: true },
+          { id: 'dtf',          panel: 'orders', knopf: '#panel-orders .sub-tab[data-subtab="tab-dtf"]',       neuLaden: true, shop: false },   // DT1: JFN + Aufträge
           // BO4d: die alte Adresse (ausgeblendeter Vorgaenger des Warenkorbs, schreibt in LShop_Bestellungen)
           // leitet auf den neuen Unterreiter um; das alte Panel bleibt im Code, ist aber nicht mehr erreichbar.
           { id: 'lshop',        umleitung: 'lshop-bestellungen' },
@@ -5106,7 +5260,9 @@
       }
       // "#bestellen/dtf" -> Ansicht
       function ansichtAusHash(hash) {
-        const [b = '', p = ''] = String(hash ?? '').replace(/^#\/?/, '').split('/');
+        const [b = '', p = '', x = ''] = String(hash ?? '').replace(/^#\/?/, '').split('/');
+        // DT1: QR-Code am Motiv -> "#dtf/scan/<Druck- oder Bestell-ID>"; die Anzeige kommt erst nach der Anmeldung (API-Schluessel)
+        if (b === 'dtf' && p === 'scan' && /^DTF-\d{4}-\d{4}(-\d{2,3})?$/.test(x)) { window.mcDtfScan = x; return findeAnsicht('bestellen', 'dtf'); }
         let bd = b, pd = p;
         try { bd = decodeURIComponent(b); pd = decodeURIComponent(p); } catch { /* kaputte Adresse -> roh */ }
         return findeAnsicht(bd, pd);
@@ -5923,7 +6079,7 @@
           if (btn.dataset.subtab === 'tab-trikots') loadTrikots();
           korbLeisteParken();
           uebersichtZeichnen();   // setzt/entfernt die Druckklasse der Zaehlliste je nach sichtbarem Unterreiter
-          if (btn.dataset.subtab === 'tab-dtf')       loadDtfOffen();
+          if (btn.dataset.subtab === 'tab-dtf')       dtfLaden();
           if (btn.dataset.subtab === 'tab-eingaenge') loadAuftragsMonitor();
         });
       });
@@ -6091,202 +6247,576 @@
         localStorage.setItem(LAST_KEY, String(Date.now()));
       }
 
-      // ── DTF inner Tab-Wechsel ─────────────────────────────────────────────
-      document.querySelectorAll('.dtf-tab').forEach(btn => {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.dtf-tab').forEach(b => b.classList.remove('active'));
-          document.querySelectorAll('.dtf-panel').forEach(p => { p.classList.remove('active'); p.style.display = 'none'; });
-          btn.classList.add('active');
-          const panel = document.getElementById(btn.dataset.dtftab);
-          panel.classList.add('active');
-          panel.style.display = 'block';
-          if (btn.dataset.dtftab === 'dtf-protokoll') loadDtfProtokoll();
+      // ── SECTION: DTF-Korb (DT1) ──
+      // DTF-Warenkorb (Bestellen & Produktion -> DTF-Korb): Zeilen aus offenen Shop-Bestellungen (JFN) und Auftraegen, je Druckposition.
+      // Mass und Datei schlaegt das Backend LIVE nach (Druckmasse / DTF_Dateien) - nach "Zuordnen …" sind alle passenden Zeilen gruen.
+      // Bestellung: XML in den Ordner "Bestellungen" der DTF-Ablage, genau ein Versuch; "unklar" -> "Prüfen", nie erneut senden.
+      // Vorschaubilder nur ueber das Backend (Blob mit API-Schluessel). Keine Namen in Liste/XML; der Vorname steht nur in der Scan-Karte.
+      const dtfZ = { daten: null, filter: 'offen', suche: '', auswahl: new Set(), lieferart: 'abholung', zu: null, bilder: new Map(), fehltGeladen: false };
+      const dtfEsc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      const dtfEl = id => document.getElementById(id);
+      const dtfCm = n => (n === null || n === undefined || n === '' ? '?' : String(Math.round(Number(n) * 10) / 10).replace('.', ','));
+      const dtfZahl = v => { const n = Number(String(v ?? '').trim().replace(',', '.')); return Number.isFinite(n) && n > 0 ? n : null; };
+      const dtfEuro = cent => (Number(cent) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+      const DTF_STATUS_TEXT = { 'wird abgelegt': 'wird abgelegt …', abgelegt: 'abgelegt', unklar: 'unklar – prüfen', abgebrochen: 'nicht abgelegt', geliefert: 'geliefert' };
+
+      // ── DTF-Meter: Anfang (Spiegel von meterSchaetzung in backend/utils/dtf-korb.js, Test dtf-frontend.test.js) ──
+      function dtfMeter(posten, { breiteCm = 57, verschnitt = 15, tarif = null, mindestCm = null } = {}) {
+        let flaeche = 0, ohneMass = 0;
+        for (const p of posten ?? []) {
+          const b = Number(p.breite), h = Number(p.hoehe), m = Number(p.menge) || 0;
+          if (!(b > 0) || !(h > 0)) { ohneMass += 1; continue; }
+          flaeche += b * h * m;
+        }
+        const v = Number.isFinite(Number(verschnitt)) ? Number(verschnitt) : 15;
+        const roh = breiteCm > 0 ? (flaeche * (1 + v / 100)) / breiteCm : 0;
+        const laengeCm = roh > 0 ? Math.ceil(Math.round(roh * 1000) / 1000 / 10) * 10 : 0;
+        const qm = tarif && !tarif.fehlt && tarif.qmBruttoCent > 0 ? tarif.qmBruttoCent : null;
+        const kostenBruttoCent = qm !== null ? Math.round((laengeCm / 100) * (breiteCm / 100) * qm) : null;
+        const min = Number(mindestCm) > 0 ? Number(mindestCm) : null;
+        return { flaecheCm2: Math.round(flaeche * 100) / 100, laengeCm, kostenBruttoCent, kostenNettoCent: kostenBruttoCent === null ? null : Math.round(kostenBruttoCent * 100 / 119),
+          mindestCm: min, lohnt: min === null ? null : laengeCm >= min, fehltCm: min === null ? null : Math.max(0, min - laengeCm), ohneMass };
+      }
+      // ── DTF-Meter: Ende ──
+
+      async function dtfLaden({ still = false } = {}) {
+        const el = dtfEl('dtf-liste');
+        if (!still) el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
+        try {
+          dtfZ.daten = await apiFetch(`${API_BASE()}/api/dtf/korb`).then(apiJson);
+        } catch (e) {
+          el.innerHTML = `<p class="korb-zaehler dtf-sperrt">DTF-Korb nicht lesbar: ${dtfEsc(e.message)}</p>`;
+          return;
+        }
+        const sicht = new Set(dtfZ.daten.zeilen.filter(z => z.bereit).map(z => z.schluessel));
+        for (const k of [...dtfZ.auswahl]) if (!sicht.has(k)) dtfZ.auswahl.delete(k);
+        dtfZeichnen();
+        if (window.mcDtfScan) { const id = window.mcDtfScan; window.mcDtfScan = null; dtfScanZeigen(id); }
+      }
+
+      function dtfSichtbar() {
+        const z = dtfZ.daten?.zeilen ?? [];
+        const f = dtfZ.filter;
+        const q = dtfZ.suche.trim().toLowerCase();
+        return z.filter(x => {
+          if (f === 'offen' && x.status !== 'offen') return false;
+          if (f === 'fehlt' && !(x.status === 'offen' && (x.massAmpel !== 'ok' || x.dateiAmpel !== 'ok'))) return false;
+          if (f === 'abgewaehlt' && x.status !== 'abgewählt') return false;
+          if (f === 'bestellt' && !['bestellt', 'geliefert'].includes(x.status)) return false;
+          if (q.length >= 2 && ![x.kuerzel, x.referenz, x.nummer, x.modell, x.farbe, x.groesse, x.druckposition, x.bestellung].join(' ').toLowerCase().includes(q)) return false;
+          return true;
         });
+      }
+
+      function dtfAmpelHtml(art, stufe) {
+        const wort = art === 'mass' ? 'Maß' : 'Datei';
+        if (stufe === 'ok') return `<span class="dtf-ampel dtf-a-ok" data-hilfe="dtf-a-ok">${wort} ✓</span>`;
+        if (stufe === 'halb') return `<span class="dtf-ampel dtf-a-halb" data-hilfe="dtf-a-halb">${wort} halb</span>`;
+        if (stufe === 'weg') return `<span class="dtf-ampel dtf-a-weg" data-hilfe="dtf-a-weg">${wort} weg</span>`;
+        if (stufe === 'unbekannt') return `<span class="dtf-ampel dtf-a-unbekannt" data-hilfe="dtf-a-unbekannt">${wort} ?</span>`;
+        return `<span class="dtf-ampel dtf-a-fehlt" data-hilfe="dtf-a-fehlt">${wort} fehlt</span>`;
+      }
+      function dtfMassText(z) {
+        if (!z.mass) return '';
+        const f = z.mass.fuehrend === 'hoehe' ? ' (H)' : '';
+        return `${dtfCm(z.mass.breite)} × ${dtfCm(z.mass.hoehe)} cm${f}`;
+      }
+      function dtfZeileHtml(z) {
+        const haken = z.bereit
+          ? `<label class="card-cb-wrap" data-hilfe="dtf-haken"><input type="checkbox" data-dtf-wahl="${dtfEsc(z.schluessel)}" ${dtfZ.auswahl.has(z.schluessel) ? 'checked' : ''} aria-label="Zeile wählen"></label>` : '';
+        const bild = z.datei?.id && z.dateiAmpel !== 'weg'
+          ? `<img class="dtf-bild" alt="" data-dtf-bild="${dtfEsc(z.datei.id)}" data-hilfe="dtf-vorschau">` : '<span class="dtf-bild-leer"></span>';
+        const sperrt = /storniert|erstattet|abgeschlossen|nicht mehr im Shop|Position weg|Position entfernt|kein DTF mehr|Auftrag (storniert|schon fertig|fehlt)/.test(z.hinweis);
+        const aktionen = [];
+        if (z.status === 'offen') {
+          aktionen.push(`<button type="button" class="korb-link" data-dtf-zuordnen="${dtfEsc(z.schluessel)}" data-hilfe="dtf-zuordnen">Zuordnen …</button>`);
+          aktionen.push(`<button type="button" class="korb-link" data-dtf-ab="${dtfEsc(z.schluessel)}" data-hilfe="dtf-abwaehlen">abwählen …</button>`);
+        }
+        if (z.status === 'abgewählt') aktionen.push(`<button type="button" class="korb-link" data-dtf-zurueck="${dtfEsc(z.schluessel)}" data-hilfe="dtf-zurueckholen">zurückholen</button>`);
+        const status = z.status === 'offen' ? '' : `<div class="ku-meta">${dtfEsc(z.status)}${z.bestellung ? ` · ${dtfEsc(z.bestellung)}` : ''}${z.grund ? ` · ${dtfEsc(z.grund)}` : ''}</div>`;
+        return `<tr>
+          <td data-label="" class="hk-aktion">${haken}</td>
+          <td data-label="Bild">${bild}</td>
+          <td data-label="Bestellung" class="hk-haupt"><span class="nr-fest">${dtfEsc(z.referenz)}</span>${z.express ? ' <span class="dtf-express" data-hilfe="dtf-express">Express</span>' : ''}${status}</td>
+          <td data-label="Motiv"><strong>${dtfEsc(z.kuerzel || '–')}</strong><div class="ku-meta">${dtfEsc(z.druckposition || 'Druckposition offen')}</div></td>
+          <td data-label="Textil">${dtfEsc([z.modell, z.farbe, z.groesse].filter(Boolean).join(' · ') || '–')}</td>
+          <td data-label="Menge">${dtfEsc(z.menge)}</td>
+          <td data-label="Maß">${dtfAmpelHtml('mass', z.massAmpel)}<div class="ku-meta">${dtfEsc(dtfMassText(z))}</div></td>
+          <td data-label="Datei">${dtfAmpelHtml('datei', z.dateiAmpel)}<div class="ku-meta">${dtfEsc(z.datei?.name ?? '')}</div></td>
+          <td data-label="Hinweis">${z.hinweis ? `<span class="${sperrt ? 'dtf-sperrt' : 'dtf-hinw'}" data-hilfe="dtf-hinweis">${dtfEsc(z.hinweis)}</span>` : ''}</td>
+          <td data-label="" class="hk-aktion">${aktionen.join(' ')}</td>
+        </tr>`;
+      }
+      function dtfTabelleHtml(zeilen) {
+        return `<div class="roll-x"><table class="orders-table hk-karten dtf-tabelle"><thead><tr><th></th><th>Bild</th><th>Bestellung</th><th>Motiv</th><th>Textil</th><th>Menge</th><th>Maß</th><th>Datei</th><th>Hinweis</th><th></th></tr></thead>
+          <tbody>${zeilen.map(dtfZeileHtml).join('')}</tbody></table></div>`;
+      }
+
+      function dtfZeichnen() {
+        const d = dtfZ.daten;
+        if (!d) return;
+        const hinweise = [];
+        if (!d.einrichtung?.korb) hinweise.push('DTF-Korb ist noch nicht eingerichtet (Setup durch den Inhaber).');
+        if (!d.ablage) hinweise.push('DTF-Ablage ist nicht verbunden – Dateien und Absenden gehen erst danach.');
+        if (d.einstellungen?.start) hinweise.push(`Im Korb: Bestellungen und Aufträge ab ${d.einstellungen.start.split('-').reverse().join('.')}.`);
+        if (d.abgleich) hinweise.push(`Letzter Abgleich ${new Date(d.abgleich.zeit).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}: ${d.abgleich.neu} neu.`);
+        dtfEl('dtf-hinweise').textContent = hinweise.join(' ');
+        const offen = d.zeilen.filter(z => z.status === 'offen');
+        dtfEl('dtf-summe').textContent = `DTF-Warenkorb · ${offen.length} offen · ${offen.filter(z => z.bereit).length} bereit`;
+        document.querySelectorAll('#dtf-filter [data-dfilter]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.dfilter === dtfZ.filter)));
+        const sicht = dtfSichtbar();
+        const normal = sicht.filter(z => !z.express), express = sicht.filter(z => z.express);
+        const teile = [];
+        if (sicht.some(z => z.bereit)) teile.push('<button type="button" class="korb-link" id="dtf-alle-bereit" data-hilfe="dtf-alle-bereiten">alle bereiten wählen</button>');
+        if (normal.length) teile.push(`${express.length ? '<h4 class="dtf-gruppe-titel">Normal</h4>' : ''}${dtfTabelleHtml(normal)}`);
+        if (express.length) teile.push(`<h4 class="dtf-gruppe-titel">Express (eigene Bestellung)</h4>${dtfTabelleHtml(express)}`);
+        dtfEl('dtf-liste').innerHTML = teile.join('') || '<p class="korb-zaehler">Keine Zeilen in dieser Ansicht.</p>';
+        dtfMeterZeichnen();
+        dtfBestellungenZeichnen();
+        dtfAelterZeichnen();
+        dtfBilderLaden(dtfEl('dtf-liste'));
+      }
+
+      function dtfGewaehlt() { return (dtfZ.daten?.zeilen ?? []).filter(z => dtfZ.auswahl.has(z.schluessel)); }
+      function dtfMeterZeichnen() {
+        const e = dtfZ.daten?.einstellungen ?? {};
+        const g = dtfGewaehlt();
+        const el = dtfEl('dtf-meter');
+        if (!g.length) { el.innerHTML = ''; return; }
+        const teil = (liste, express) => {
+          if (!liste.length) return '';
+          const m = dtfMeter(liste.map(z => ({ breite: z.mass?.breite, hoehe: z.mass?.hoehe, menge: z.menge })),
+            { breiteCm: e.breiteCm, verschnitt: e.verschnitt, tarif: e.tarif?.[express ? 'express' : 'normal'], mindestCm: e.mindestCm });
+          const kosten = m.kostenBruttoCent === null ? 'Preis fehlt (Einstellungen)' : `≈ ${dtfEuro(m.kostenBruttoCent)} brutto`;
+          const schwelle = m.lohnt === null ? '' : m.lohnt ? ' · <span class="dtf-lohnt">lohnt sich</span>' : ` · <span class="dtf-noch">noch ${m.fehltCm} cm bis zur Schwelle</span>`;
+          return `<div>${express ? 'Express' : 'Normal'}: <strong>${liste.length} Motiv${liste.length === 1 ? '' : 'e'}, ${liste.reduce((s, z) => s + z.menge, 0)} Stück · ≈ ${(m.laengeCm / 100).toFixed(1).replace('.', ',')} m</strong> (${m.laengeCm} cm × ${e.breiteCm} cm) · ${kosten}${schwelle}</div>`;
+        };
+        el.innerHTML = `<span data-hilfe="dtf-meter">Meter-Schätzung</span>${teil(g.filter(z => !z.express), false)}${teil(g.filter(z => z.express), true)}`;
+      }
+
+      function dtfBestellungenZeichnen() {
+        const b = dtfZ.daten?.bestellungen ?? [];
+        dtfEl('dtf-bestellungen').innerHTML = b.length ? `<div class="roll-x"><table class="orders-table hk-karten"><thead><tr><th>Bestellung</th><th>Stand</th><th>Lieferart</th><th>Motive</th><th>Länge</th><th></th></tr></thead><tbody>${b.map(x => `<tr>
+          <td class="hk-haupt" data-label="Bestellung"><span class="nr-fest">${dtfEsc(x.id)}</span>${x.express ? ' <span class="dtf-express" data-hilfe="dtf-express">Express</span>' : ''}<div class="ku-meta">${dtfEsc(new Date(x.erstellt).toLocaleDateString('de-DE'))}</div></td>
+          <td data-label="Stand"><span class="${x.status === 'unklar' || x.haengt ? 'dtf-sperrt' : ''}">${dtfEsc(DTF_STATUS_TEXT[x.status] ?? x.status)}${x.haengt ? ' (hängt)' : ''}</span>${x.hinweis ? `<div class="ku-meta">${dtfEsc(x.hinweis)}</div>` : ''}${x.geliefert ? `<div class="ku-meta">geliefert ${dtfEsc(x.geliefert)}</div>` : ''}</td>
+          <td data-label="Lieferart">${x.lieferart === 'versand_dhl' ? 'Versand DHL' : 'Abholung'}</td>
+          <td data-label="Motive">${dtfEsc(x.positionen)} · ${dtfEsc(x.stueck)} Stk</td>
+          <td data-label="Länge">${dtfEsc(x.laengeCm)} cm</td>
+          <td class="hk-aktion" data-label="">${[
+            x.nachricht ? `<button type="button" class="korb-link" data-dtf-nachricht="${dtfEsc(x.id)}" data-hilfe="dtf-nachricht">Nachricht an Nico kopieren</button>` : '',
+            x.status === 'unklar' || x.haengt ? `<button type="button" class="korb-link" data-dtf-pruefen="${dtfEsc(x.id)}" data-hilfe="dtf-pruefen">Prüfen</button>` : '',
+            x.status === 'abgelegt' ? `<button type="button" class="korb-link" data-dtf-da="${dtfEsc(x.id)}" data-hilfe="dtf-lieferung-da">DTF-Lieferung da</button>` : '',
+          ].join(' ')}</td></tr>`).join('')}</tbody></table></div>` : '<p class="korb-zaehler">Noch keine DTF-Bestellung.</p>';
+      }
+
+      function dtfAelterZeichnen() {
+        const a = dtfZ.daten?.aelter;
+        const box = dtfEl('dtf-aelter-box');
+        box.hidden = !a?.length;
+        if (!a?.length) return;
+        dtfEl('dtf-aelter').innerHTML = `<p class="korb-zaehler">Kommen nur auf Wunsch in den Korb (z. B. wenn sie noch nicht gedruckt sind).</p>`
+          + a.map(x => `<div class="korb-reihe"><span class="nr-fest">${dtfEsc(x.quelle === 'AU' ? x.nummer : `JFN-${x.nummer}`)}</span><span class="ku-meta">${dtfEsc(x.datum.split('-').reverse().join('.'))} · ${dtfEsc(x.positionen)} Position${x.positionen === 1 ? '' : 'en'}</span>`
+            + `<button type="button" class="korb-link" data-dtf-aufnehmen="${dtfEsc(x.quelle)}|${dtfEsc(x.nummer)}" data-hilfe="dtf-aufnehmen">trotzdem aufnehmen</button></div>`).join('');
+      }
+
+      async function dtfBilderLaden(wurzel) {
+        const imgs = [...wurzel.querySelectorAll('img[data-dtf-bild]')].slice(0, 80);
+        for (const img of imgs) {
+          const id = img.dataset.dtfBild;
+          let url = dtfZ.bilder.get(id);
+          if (url === undefined) {
+            try {
+              const r = await apiFetch(`${API_BASE()}/api/dtf/datei/${encodeURIComponent(id)}/vorschau?groesse=klein`);
+              url = r.ok ? URL.createObjectURL(await r.blob()) : '';
+            } catch { url = ''; }
+            dtfZ.bilder.set(id, url);
+          }
+          if (url) img.src = url; else img.replaceWith(Object.assign(document.createElement('span'), { className: 'dtf-bild-leer' }));
+        }
+      }
+
+      async function dtfWasFehltLaden() {
+        const el = dtfEl('dtf-fehlt');
+        el.textContent = 'lädt …';
+        try {
+          const r = await apiFetch(`${API_BASE()}/api/dtf/was-fehlt`).then(apiJson);
+          el.innerHTML = (r.verkaufHinweis ? `<p class="korb-zaehler">${dtfEsc(r.verkaufHinweis)}</p>` : '') + (r.liste.length
+            ? `<div class="roll-x"><table class="orders-table hk-karten"><thead><tr><th>Motiv</th><th>Position</th><th>Textil</th><th>fehlt</th><th>offen</th><th>90 Tage</th><th></th></tr></thead><tbody>${r.liste.map(x => `<tr>
+              <td class="hk-haupt" data-label="Motiv"><strong>${dtfEsc(x.kuerzel)}</strong></td><td data-label="Position">${dtfEsc(x.druckposition || '–')}</td>
+              <td data-label="Textil">${dtfEsc([x.modell, x.farbe, x.groesse].filter(Boolean).join(' · '))}</td>
+              <td data-label="fehlt">${[x.massFehlt ? 'Maß' : '', x.dateiFehlt ? 'Datei' : ''].filter(Boolean).join(' + ')}</td>
+              <td data-label="offen">${dtfEsc(x.offen)}</td><td data-label="90 Tage">${dtfEsc(x.verkauft90)}</td>
+              <td class="hk-aktion" data-label=""><button type="button" class="korb-link" data-dtf-zuordnen="${dtfEsc(x.schluessel)}" data-hilfe="dtf-zuordnen">Zuordnen …</button></td></tr>`).join('')}</tbody></table></div>`
+            : '<p class="korb-zaehler">Nichts – alle offenen Zeilen haben Datei und Maß.</p>');
+          dtfZ.fehltGeladen = true;
+        } catch (e) { el.innerHTML = `<span class="dtf-sperrt">${dtfEsc(e.message)}</span>`; }
+      }
+
+      // ── Ereignisse der Ansicht ──
+      dtfEl('dtf-filter')?.addEventListener('click', e => {
+        const b = e.target.closest('[data-dfilter]');
+        if (!b) return;
+        dtfZ.filter = b.dataset.dfilter;
+        dtfZeichnen();
+      });
+      dtfEl('dtf-suche')?.addEventListener('input', e => { dtfZ.suche = e.target.value; dtfZeichnen(); });
+      dtfEl('dtf-abgleich')?.addEventListener('click', async e => {
+        const k = e.currentTarget;
+        k.disabled = true;
+        try {
+          const r = await apiFetch(`${API_BASE()}/api/dtf/abgleich`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(300000) }).then(apiJson);
+          showToast(r.uebersprungen ? 'Abgleich läuft gerade schon.' : `Abgleich: ${r.neu} neu, ${r.hinweise} Hinweise${r.aelter ? `, ${r.aelter} ältere` : ''}.`);
+          await dtfLaden({ still: true });
+        } catch (err) { showToast(`Abgleich: ${err.message}`, 'error', 6000); }
+        finally { k.disabled = false; }
+      });
+      dtfEl('dtf-fehlt-box')?.addEventListener('toggle', e => { if (e.currentTarget.open) dtfWasFehltLaden(); });
+      dtfEl('tab-dtf')?.addEventListener('change', e => {
+        const cb = e.target.closest('[data-dtf-wahl]');
+        if (!cb) return;
+        if (cb.checked) dtfZ.auswahl.add(cb.dataset.dtfWahl); else dtfZ.auswahl.delete(cb.dataset.dtfWahl);
+        dtfMeterZeichnen();
+      });
+      dtfEl('tab-dtf')?.addEventListener('click', async e => {
+        const t = e.target;
+        if (t.closest('#dtf-alle-bereit')) {
+          // Express geht in eine eigene Bestellung: erst die normalen; gibt es keine, die Express-Zeilen
+          const bereit = dtfSichtbar().filter(z => z.bereit);
+          const art = bereit.some(z => !z.express) ? false : true;
+          dtfZ.auswahl.clear();
+          for (const z of bereit) if (z.express === art) dtfZ.auswahl.add(z.schluessel);
+          return dtfZeichnen();
+        }
+        const zu = t.closest('[data-dtf-zuordnen]');
+        if (zu) return dtfZuOeffnen(zu.dataset.dtfZuordnen);
+        const ab = t.closest('[data-dtf-ab]');
+        if (ab) return dtfAbOeffnen(ab.dataset.dtfAb);
+        const zr = t.closest('[data-dtf-zurueck]');
+        if (zr) return dtfStatusSetzen(zr.dataset.dtfZurueck, 'offen');
+        const na = t.closest('[data-dtf-nachricht]');
+        if (na) {
+          const b = (dtfZ.daten?.bestellungen ?? []).find(x => x.id === na.dataset.dtfNachricht);
+          try { await navigator.clipboard.writeText(b?.nachricht ?? ''); showToast('Nachricht an Nico kopiert.'); } catch { showToast('Kopieren ging nicht – Text bitte markieren.', 'warn'); }
+          return;
+        }
+        const pr = t.closest('[data-dtf-pruefen]');
+        if (pr) {
+          try {
+            const r = await apiFetch(`${API_BASE()}/api/dtf/bestellung/pruefen`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: pr.dataset.dtfPruefen }) }).then(apiJson);
+            showToast(r.ergebnis === 'abgelegt' ? `${r.id}: liegt im Ordner – als bestellt gebucht.` : `${r.id}: nicht abgelegt – Zeilen bleiben offen.`, r.ergebnis === 'abgelegt' ? 'success' : 'warn', 6000);
+          } catch (err) { showToast(err.message, 'error', 6000); }
+          return dtfLaden({ still: true });
+        }
+        const da = t.closest('[data-dtf-da]');
+        if (da) {
+          if (!await showConfirm('DTF-Lieferung da?', `<p>Alle Zeilen von ${dtfEsc(da.dataset.dtfDa)} werden „geliefert“.</p>`, 'Ja, geliefert')) return;
+          try {
+            const r = await apiFetch(`${API_BASE()}/api/dtf/bestellung/geliefert`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: da.dataset.dtfDa }) }).then(apiJson);
+            showToast(`${r.id}: ${r.zeilen} Zeilen geliefert.`);
+          } catch (err) { showToast(err.message, 'error', 6000); }
+          return dtfLaden({ still: true });
+        }
+        const au = t.closest('[data-dtf-aufnehmen]');
+        if (au) {
+          const [quelle, nummer] = au.dataset.dtfAufnehmen.split('|');
+          au.disabled = true;
+          try {
+            const r = await apiFetch(`${API_BASE()}/api/dtf/aufnehmen`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ quelle, nummer }), signal: AbortSignal.timeout(300000) }).then(apiJson);
+            showToast(`${r.neu} Zeile${r.neu === 1 ? '' : 'n'} aufgenommen.`);
+          } catch (err) { showToast(err.message, 'error', 6000); }
+          return dtfLaden({ still: true });
+        }
+        const sp = t.closest('[data-dtf-sprung]');
+        if (sp) {
+          const [quelle, nummer] = sp.dataset.dtfSprung.split('|');
+          if (quelle === 'AU') window.auOeffnen?.(nummer);
+          else { psSpringeZu(nummer); oeffneAnsicht('bestellen', 'bestellungen'); }
+        }
       });
 
-      // ── DTF: Offen laden ─────────────────────────────────────────────────
-      async function loadDtfOffen() {
-        const el = document.getElementById('dtf-offen');
-        el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+      // ── Abwaehlen / zurueckholen ──
+      async function dtfStatusSetzen(schluessel, ziel, grund = '', notiz = '') {
+        const z = (dtfZ.daten?.zeilen ?? []).find(x => x.schluessel === schluessel);
+        if (!z) return;
         try {
-          const items = await apiFetch(`${API_BASE()}/api/auftragsmonitor/dtf/offen`).then(apiJson);
-          if (!Array.isArray(items) || items.length === 0) {
-            el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Keine offenen DTF-Aufträge.</p>';
-            return;
-          }
-          el.innerHTML = `
-            <div class="lshop-offen-header">
-              <span>🔴 OFFEN (${items.length} Variante${items.length !== 1 ? 'n' : ''})</span>
-              <label class="bulk-all-label"><input type="checkbox" class="select-cb" id="dtf-select-all"> Alle</label>
-            </div>
-            <div class="bulk-bar" id="dtf-bulk-bar" style="display:none;">
-              <span class="bulk-count" id="dtf-bulk-count"></span>
-              <button class="btn-dtf-bestellen" id="dtf-bulk-btn" data-hilfe="dtf-sammel">🖨️ Ausgewählte bestellen</button>
-            </div>` + items.map(item => {
-            const orderLines = item.betroffeneOrders
-              .map(o => `#${monEsc(o.orderId)} ${monEsc(o.kunde)} ×${monEsc(o.stueck)}`)
-              .join(' &nbsp;·&nbsp; ');
-            const varLabel = item.variante || '–';
-            const safeKey  = item.groupKey.replace(/[^a-z0-9]/gi, '_');
-            const safeAttr = item.groupKey.replace(/"/g, '');
-            return `
-              <div class="lshop-card" id="dtf-card-${safeKey}">
-                <label class="card-cb-wrap">
-                  <input type="checkbox" class="select-cb dtf-select-cb" data-groupkey="${safeAttr}" aria-label="Zeile wählen">
-                </label>
-                <div class="lshop-card-info">
-                  <div class="lshop-card-title">${monEsc(item.artikelnummer)}</div>
-                  <div class="lshop-card-variante">${monEsc(varLabel)}</div>
-                  <div class="lshop-card-bedarf">Bedarf: <strong>${item.stueck} Stück</strong> · ${item.betroffeneOrders.length} Bestellung${item.betroffeneOrders.length !== 1 ? 'en' : ''}</div>
-                  <div class="lshop-card-orders">${orderLines}</div>
-                </div>
-                <div class="lshop-card-right">
-                  <span class="lshop-stueck">${item.stueck} Stk</span>
-                  <button class="btn-dtf-bestellen" data-groupkey="${safeAttr}" data-hilfe="dtf-bestellt">🖨️ DTF bestellt</button>
-                </div>
-              </div>`;
-          }).join('');
+          await apiFetch(`${API_BASE()}/api/dtf/status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ schluessel, ziel, grund, notiz, stand: z.stand }) }).then(apiJson);
+          dtfZ.auswahl.delete(schluessel);
+          await dtfLaden({ still: true });
+        } catch (err) { showToast(err.message, 'error', 6000); }
+      }
+      function dtfAbOeffnen(schluessel) {
+        const z = (dtfZ.daten?.zeilen ?? []).find(x => x.schluessel === schluessel);
+        if (!z) return;
+        dtfEl('dtf-ab-text').textContent = `${z.referenz} · ${z.kuerzel} · ${z.druckposition || 'Druckposition offen'}`;
+        dtfEl('dtf-ab-grund').innerHTML = '<option value="">Grund wählen …</option>' + (dtfZ.daten.gruende ?? []).map(g => `<option>${dtfEsc(g)}</option>`).join('');
+        dtfEl('dtf-ab-notiz').value = '';
+        dtfEl('dtf-ab-dialog').dataset.schluessel = schluessel;
+        dtfEl('dtf-ab-dialog').hidden = false;
+        dtfEl('dtf-ab-grund').focus();
+      }
+      dtfEl('dtf-ab-abbrechen')?.addEventListener('click', () => { dtfEl('dtf-ab-dialog').hidden = true; });
+      dtfEl('dtf-ab-ok')?.addEventListener('click', async () => {
+        const grund = dtfEl('dtf-ab-grund').value;
+        if (!grund) { showToast('Bitte einen Grund wählen.', 'warn'); return; }
+        dtfEl('dtf-ab-dialog').hidden = true;
+        await dtfStatusSetzen(dtfEl('dtf-ab-dialog').dataset.schluessel, 'abgewählt', grund, dtfEl('dtf-ab-notiz').value);
+      });
 
-          window._dtfOffenData = Object.fromEntries(items.map(i => [i.groupKey, i]));
+      // ── Zuordnen ──
+      function dtfKachelHtml(d, art, gewaehlt) {
+        const innen = `<img class="dtf-bild" alt="" data-dtf-bild="${dtfEsc(d.id)}"><span>${dtfEsc(d.name)}</span></button>`;
+        const an = `data-dtf-datei="${dtfEsc(d.id)}" aria-pressed="${String(gewaehlt === d.id)}"`;
+        if (art === 'entwurf') return `<button type="button" class="dtf-kachel" data-hilfe="dtf-zu-entwurf" ${an}>${innen}`;
+        if (art === 'treffer') return `<button type="button" class="dtf-kachel" data-hilfe="dtf-zu-treffer" ${an}>${innen}`;
+        return `<button type="button" class="dtf-kachel" data-hilfe="dtf-zu-verwendet" ${an}>${innen}`;
+      }
+      function dtfZuDateiMerken(d) {
+        const zu = dtfZ.zu;
+        zu.dateien.set(d.id, d);
+        zu.datei = d;
+        dtfEl('dtf-zu-datei-wahl').textContent = `Gewählt: ${d.name}${d.breitePx && d.hoehePx ? ` (${d.breitePx} × ${d.hoehePx} px)` : ' – Seitenverhältnis unbekannt, Höhe bitte eintragen'}`;
+        document.querySelectorAll('#dtf-zu-dialog [data-dtf-datei]').forEach(k => k.setAttribute('aria-pressed', String(k.dataset.dtfDatei === d.id)));
+        dtfZuMassRechnen();
+      }
+      function dtfZuVerhaeltnis() {
+        const d = dtfZ.zu?.datei;
+        if (d?.breitePx && d?.hoehePx) return d.hoehePx / d.breitePx;
+        const b = dtfZahl(dtfEl('dtf-zu-breite').value), h = dtfZahl(dtfEl('dtf-zu-hoehe').value);
+        return b && h ? h / b : null;
+      }
+      function dtfZuMassRechnen() {
+        const zu = dtfZ.zu;
+        const d = zu.datei;
+        if (!(d?.breitePx && d?.hoehePx)) { dtfEl('dtf-zu-mass-hinweis').textContent = d ? 'PDF/SVG oder unbekannt: bitte beide Seiten eintragen.' : ''; return; }
+        const r = d.hoehePx / d.breitePx;
+        if (zu.fuehrend === 'breite') {
+          const b = dtfZahl(dtfEl('dtf-zu-breite').value);
+          if (b) dtfEl('dtf-zu-hoehe').value = dtfCm(b * r);
+        } else {
+          const h = dtfZahl(dtfEl('dtf-zu-hoehe').value);
+          if (h) dtfEl('dtf-zu-breite').value = dtfCm(h / r);
+        }
+        dtfEl('dtf-zu-mass-hinweis').textContent = `Andere Seite aus dem Seitenverhältnis der Datei (${zu.fuehrend === 'breite' ? 'Breite' : 'Höhe'} führend).`;
+        dtfZuGeschwisterRechnen();
+      }
+      function dtfZuGeschwisterHtml() {
+        const zu = dtfZ.zu;
+        const andere = zu.ctx.geschwister.filter(g => !g.eigen);
+        if (!andere.length) return '<p class="korb-zaehler">Keine weiteren Varianten bekannt.</p>';
+        return `<table class="orders-table dtf-geschw"><thead><tr><th></th><th>Modell · Farbe · Größe</th><th>Datei</th><th>Maß</th><th>Breite</th><th>Höhe</th><th>heute</th></tr></thead><tbody>${andere.map((g, i) => `<tr>
+          <td><label class="card-cb-wrap" data-hilfe="dtf-zu-geschw"><input type="checkbox" data-dtf-g="${i}" aria-label="auch übernehmen"></label></td>
+          <td>${dtfEsc([g.modell, g.farbe, g.groesse].filter(Boolean).join(' · '))}</td>
+          <td><label class="card-cb-wrap" data-hilfe="dtf-zu-geschw-datei"><input type="checkbox" data-dtf-gd="${i}" checked aria-label="Datei übernehmen"></label></td>
+          <td><label class="card-cb-wrap" data-hilfe="dtf-zu-geschw-mass"><input type="checkbox" data-dtf-gm="${i}" checked aria-label="Maß übernehmen"></label></td>
+          <td><input class="form-input" data-dtf-gb="${i}" inputmode="decimal" aria-label="Breite" data-hilfe="dtf-zu-geschw-breite" autocomplete="off"></td>
+          <td data-dtf-gh="${i}"></td>
+          <td class="ku-meta">${g.mass ? `${dtfCm(g.mass.breite)} × ${dtfCm(g.mass.hoehe)}` : 'kein Maß'} · ${g.datei ? dtfEsc(g.datei.name) : 'keine Datei'}</td></tr>`).join('')}</tbody></table>`;
+      }
+      function dtfZuGeschwisterRechnen() {
+        const r = dtfZuVerhaeltnis();
+        const haupt = dtfZahl(dtfEl('dtf-zu-breite').value);
+        document.querySelectorAll('#dtf-zu-geschwister [data-dtf-gb]').forEach(inp => {
+          const i = inp.dataset.dtfGb;
+          if (!inp.value && haupt) inp.placeholder = dtfCm(haupt);
+          const b = dtfZahl(inp.value) ?? haupt;
+          const zelle = document.querySelector(`#dtf-zu-geschwister [data-dtf-gh="${i}"]`);
+          if (zelle) zelle.textContent = b && r ? dtfCm(b * r) : '–';
+        });
+      }
+      async function dtfZuOeffnen(schluessel) {
+        const dlg = dtfEl('dtf-zu-dialog');
+        dtfEl('dtf-zu-ergebnis').textContent = '';
+        dtfEl('dtf-zu-kopf').textContent = 'lädt …';
+        dlg.hidden = false;
+        let ctx;
+        try { ctx = await apiFetch(`${API_BASE()}/api/dtf/zuordnen?schluessel=${encodeURIComponent(schluessel)}`).then(apiJson); }
+        catch (e) { dtfEl('dtf-zu-kopf').textContent = e.message; return; }
+        const z = (dtfZ.daten?.zeilen ?? []).find(x => x.schluessel === schluessel);
+        dtfZ.zu = { ctx, schluessel, datei: null, dateien: new Map(), fuehrend: z?.mass?.fuehrend ?? 'breite' };
+        dtfEl('dtf-zu-titel').textContent = `Zuordnen: ${ctx.bezug}`;
+        dtfEl('dtf-zu-kopf').textContent = `${ctx.referenz} · Modell ${ctx.modell || '–'} · ${ctx.farbe || '–'} · ${ctx.groesse || '–'}${ctx.ablage ? '' : ' · DTF-Ablage nicht verbunden'}`;
+        const pos = dtfEl('dtf-zu-position');
+        pos.innerHTML = (ctx.position ? '' : '<option value="">bitte wählen …</option>') + ctx.positionen.map(p => `<option${p === ctx.position ? ' selected' : ''}>${dtfEsc(p)}</option>`).join('');
+        pos.disabled = !!ctx.position;
+        dtfEl('dtf-zu-verwendet').innerHTML = ctx.verwendet.length ? ctx.verwendet.map(d => dtfKachelHtml(d, 'verwendet', z?.datei?.id)).join('') : '<p class="korb-zaehler">Für dieses Kürzel ist noch keine Datei zugeordnet.</p>';
+        dtfEl('dtf-zu-entwuerfe').innerHTML = ctx.entwuerfe.length ? `<p class="korb-zaehler">Entwürfe des Auftrags:</p>${ctx.entwuerfe.map(d => dtfKachelHtml(d, 'entwurf', '')).join('')}` : '';
+        for (const d of [...ctx.verwendet, ...ctx.entwuerfe]) dtfZ.zu.dateien.set(d.id, d);
+        dtfEl('dtf-zu-treffer').innerHTML = '';
+        dtfEl('dtf-zu-suche').value = '';
+        dtfEl('dtf-zu-breite').value = z?.mass?.breite ? dtfCm(z.mass.breite) : '';
+        dtfEl('dtf-zu-hoehe').value = z?.mass?.hoehe ? dtfCm(z.mass.hoehe) : '';
+        dtfEl('dtf-zu-alle-g').checked = false;
+        dtfEl('dtf-zu-mass-alle').checked = false;
+        document.querySelectorAll('#dtf-zu-fuehrend [data-dfuehrend]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.dfuehrend === dtfZ.zu.fuehrend)));
+        dtfEl('dtf-zu-datei-wahl').textContent = z?.datei ? `Bisher: ${z.datei.name}` : 'Noch keine Datei gewählt.';
+        if (z?.datei && dtfZ.zu.dateien.has(z.datei.id)) dtfZuDateiMerken(dtfZ.zu.dateien.get(z.datei.id));
+        dtfEl('dtf-zu-geschwister').innerHTML = dtfZuGeschwisterHtml();
+        dtfZuGeschwisterRechnen();
+        dtfBilderLaden(dlg);
+      }
+      const dtfZuSchliessen = () => { dtfEl('dtf-zu-dialog').hidden = true; dtfZ.zu = null; };
+      dtfEl('dtf-zu-schliessen')?.addEventListener('click', dtfZuSchliessen);
+      dtfEl('dtf-zu-abbrechen')?.addEventListener('click', dtfZuSchliessen);
+      dtfEl('dtf-zu-dialog')?.addEventListener('click', e => {
+        const k = e.target.closest('[data-dtf-datei]');
+        if (k && dtfZ.zu?.dateien.has(k.dataset.dtfDatei)) return dtfZuDateiMerken(dtfZ.zu.dateien.get(k.dataset.dtfDatei));
+        const f = e.target.closest('[data-dfuehrend]');
+        if (f && dtfZ.zu) {
+          dtfZ.zu.fuehrend = f.dataset.dfuehrend;
+          document.querySelectorAll('#dtf-zu-fuehrend [data-dfuehrend]').forEach(b => b.setAttribute('aria-pressed', String(b === f)));
+          return dtfZuMassRechnen();
+        }
+        const setze = test => document.querySelectorAll('#dtf-zu-geschwister [data-dtf-g]').forEach(cb => { cb.checked = test(dtfZ.zu.ctx.geschwister.filter(g => !g.eigen)[cb.dataset.dtfG]); });
+        if (e.target.closest('#dtf-zu-alle-groessen')) return setze(g => g.modell === dtfZ.zu.ctx.modell && g.farbe === dtfZ.zu.ctx.farbe);
+        if (e.target.closest('#dtf-zu-alle-farben')) return setze(g => g.modell === dtfZ.zu.ctx.modell);
+        if (e.target.closest('#dtf-zu-keine')) return setze(() => false);
+      });
+      dtfEl('dtf-zu-breite')?.addEventListener('input', () => { if (dtfZ.zu?.fuehrend === 'breite') dtfZuMassRechnen(); else dtfZuGeschwisterRechnen(); });
+      dtfEl('dtf-zu-hoehe')?.addEventListener('input', () => { if (dtfZ.zu?.fuehrend === 'hoehe') dtfZuMassRechnen(); else dtfZuGeschwisterRechnen(); });
+      dtfEl('dtf-zu-geschwister')?.addEventListener('input', e => { if (e.target.closest('[data-dtf-gb]')) dtfZuGeschwisterRechnen(); });
+      let dtfSuchUhr = null;
+      dtfEl('dtf-zu-suche')?.addEventListener('input', e => {
+        clearTimeout(dtfSuchUhr);
+        const q = e.target.value.trim();
+        if (q.length < 2) { dtfEl('dtf-zu-treffer').innerHTML = ''; return; }
+        dtfSuchUhr = setTimeout(async () => {
+          try {
+            const r = await apiFetch(`${API_BASE()}/api/dtf/datei/suche?q=${encodeURIComponent(q)}`).then(apiJson);
+            for (const d of r.dateien) dtfZ.zu?.dateien.set(d.id, d);
+            dtfEl('dtf-zu-treffer').innerHTML = r.dateien.length ? r.dateien.map(d => dtfKachelHtml(d, 'treffer', dtfZ.zu?.datei?.id)).join('') : '<p class="korb-zaehler">Keine Datei gefunden.</p>';
+            dtfBilderLaden(dtfEl('dtf-zu-treffer'));
+          } catch (err) { dtfEl('dtf-zu-treffer').textContent = err.message; }
+        }, 400);
+      });
+      dtfEl('dtf-zu-datei')?.addEventListener('change', async e => {
+        const f = e.target.files?.[0];
+        e.target.value = '';
+        if (!f || !dtfZ.zu) return;
+        dtfEl('dtf-zu-datei-wahl').textContent = `lädt hoch: ${f.name} …`;
+        try {
+          const r = await apiFetch(`${API_BASE()}/api/dtf/datei/hochladen?bezug=${encodeURIComponent(dtfZ.zu.ctx.bezug)}&name=${encodeURIComponent(f.name)}`,
+            { method: 'POST', headers: { 'Content-Type': f.type || 'application/octet-stream' }, body: f, signal: AbortSignal.timeout(180000) }).then(apiJson);
+          dtfZuDateiMerken(r.datei);
+          showToast(r.vorhanden ? 'Datei lag schon in der Ablage – ausgewählt.' : 'Hochgeladen und ausgewählt.');
+        } catch (err) { dtfEl('dtf-zu-datei-wahl').textContent = err.message; }
+      });
+      dtfEl('dtf-zu-speichern')?.addEventListener('click', async e => {
+        const zu = dtfZ.zu;
+        if (!zu) return;
+        const position = dtfEl('dtf-zu-position').value;
+        if (!position) { showToast('Bitte eine Druckposition wählen.', 'warn'); return; }
+        const breite = dtfZahl(dtfEl('dtf-zu-breite').value), hoehe = dtfZahl(dtfEl('dtf-zu-hoehe').value);
+        const mass = breite || hoehe ? { breite, hoehe, fuehrend: zu.fuehrend } : null;
+        if (!zu.datei && !mass) { showToast('Bitte eine Datei wählen und/oder ein Maß eintragen.', 'warn'); return; }
+        const r = dtfZuVerhaeltnis();
+        const andere = zu.ctx.geschwister.filter(g => !g.eigen);
+        const auch = [...document.querySelectorAll('#dtf-zu-geschwister [data-dtf-g]')].filter(cb => cb.checked).map(cb => {
+          const i = cb.dataset.dtfG, g = andere[i];
+          const b = dtfZahl(document.querySelector(`#dtf-zu-geschwister [data-dtf-gb="${i}"]`).value) ?? breite;
+          return { modell: g.modell, farbe: g.farbe, groesse: g.groesse, datei: document.querySelector(`#dtf-zu-geschwister [data-dtf-gd="${i}"]`).checked,
+            mass: document.querySelector(`#dtf-zu-geschwister [data-dtf-gm="${i}"]`).checked, breite: b, hoehe: b && r ? Math.round(b * r * 10) / 10 : hoehe };
+        });
+        const k = e.currentTarget;
+        k.disabled = true;
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/dtf/zuordnen`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+            bezug: zu.ctx.bezug, position, modell: zu.ctx.modell, farbe: zu.ctx.farbe, groesse: zu.ctx.groesse,
+            datei: zu.datei ? { id: zu.datei.id, name: zu.datei.name } : null, mass, auch,
+            dateiAlleFarben: dtfEl('dtf-zu-alle-g').checked, massAlleGroessen: dtfEl('dtf-zu-mass-alle').checked,
+          }) }).then(apiJson);
+          showToast(`Gespeichert: Datei ${res.datei.neu + res.datei.ersetzt} · Maß ${res.mass.neu + res.mass.ersetzt}. Nächster Abgleich legt fehlende Druckpositionen an.`, 'success', 6000);
+          dtfZuSchliessen();
+          await dtfLaden({ still: true });
+          if (dtfZ.fehltGeladen && dtfEl('dtf-fehlt-box').open) dtfWasFehltLaden();
+        } catch (err) { dtfEl('dtf-zu-ergebnis').textContent = err.message; }
+        finally { k.disabled = false; }
+      });
 
-          function updateDtfBulkBar() {
-            const cbs     = el.querySelectorAll('.dtf-select-cb');
-            const checked = el.querySelectorAll('.dtf-select-cb:checked');
-            const n = checked.length;
-            const bar = el.querySelector('#dtf-bulk-bar');
-            const bulkBtn = el.querySelector('#dtf-bulk-btn');
-            const cnt = el.querySelector('#dtf-bulk-count');
-            const all = el.querySelector('#dtf-select-all');
-            if (bar) bar.style.display = n > 0 ? 'flex' : 'none';
-            if (bulkBtn) bulkBtn.textContent = `🖨️ ${n} ausgewählte bestellen`;
-            if (cnt) cnt.textContent = `${n} von ${cbs.length} ausgewählt`;
-            if (all) { all.checked = n === cbs.length && cbs.length > 0; all.indeterminate = n > 0 && n < cbs.length; }
-          }
-
-          el.querySelector('#dtf-select-all')?.addEventListener('change', e => {
-            el.querySelectorAll('.dtf-select-cb').forEach(cb => cb.checked = e.target.checked);
-            updateDtfBulkBar();
+      // ── Bestellung ──
+      async function dtfBestVorschau() {
+        const g = dtfGewaehlt();
+        dtfEl('dtf-best-pruefung').textContent = 'prüft …';
+        dtfEl('dtf-best-senden').disabled = true;
+        try {
+          const r = await apiFetch(`${API_BASE()}/api/dtf/bestellung/vorschau`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+            auswahl: g.map(z => ({ schluessel: z.schluessel, stand: z.stand })), lieferart: dtfZ.lieferart, notiz: dtfEl('dtf-best-notiz').value, ersetzt: dtfEl('dtf-best-ersetzt').value }) }).then(apiJson);
+          const m = r.meter;
+          dtfEl('dtf-best-kopf').textContent = `${r.anzahl} Motiv${r.anzahl === 1 ? '' : 'e'} · ${r.stueck} Stück · ≈ ${(m.laengeCm / 100).toFixed(1).replace('.', ',')} m${r.express ? ' · Express' : ''}`
+            + (m.kostenBruttoCent !== null ? ` · ≈ ${dtfEuro(m.kostenBruttoCent)} brutto` : '') + (r.kundenmotive ? ` · ${r.kundenmotive} Kundenmotiv(e) werden kopiert` : '');
+          dtfEl('dtf-best-pruefung').innerHTML = [...r.probleme.map(p => `<div class="dtf-sperrt">✗ ${dtfEsc(p.text)}</div>`), ...r.warnungen.map(w => `<div class="dtf-hinw">⚠ ${dtfEsc(w)}</div>`)].join('') || '<div class="dtf-lohnt">✓ bereit</div>';
+          dtfEl('dtf-best-xml').textContent = r.xml;
+          dtfEl('dtf-best-senden').disabled = !r.ok;
+        } catch (err) { dtfEl('dtf-best-pruefung').innerHTML = `<span class="dtf-sperrt">${dtfEsc(err.message)}</span>`; }
+      }
+      dtfEl('dtf-bestellen')?.addEventListener('click', () => {
+        const g = dtfGewaehlt();
+        if (!g.length) { showToast('Erst Zeilen anhaken (nur Zeilen mit Datei und Maß).', 'warn'); return; }
+        if (new Set(g.map(z => z.express)).size > 1) { showToast('Express- und normale Zeilen bitte getrennt bestellen.', 'warn'); return; }
+        dtfZ.lieferart = 'abholung';
+        document.querySelectorAll('#dtf-best-lieferart [data-dlieferart]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.dlieferart === 'abholung')));
+        dtfEl('dtf-best-notiz').value = '';
+        dtfEl('dtf-best-ersetzt').value = '';
+        dtfEl('dtf-best-ergebnis').innerHTML = '';
+        dtfEl('dtf-best-dialog').hidden = false;
+        dtfBestVorschau();
+      });
+      const dtfBestSchliessen = () => { dtfEl('dtf-best-dialog').hidden = true; };
+      dtfEl('dtf-best-schliessen')?.addEventListener('click', dtfBestSchliessen);
+      dtfEl('dtf-best-abbrechen')?.addEventListener('click', dtfBestSchliessen);
+      dtfEl('dtf-best-lieferart')?.addEventListener('click', e => {
+        const b = e.target.closest('[data-dlieferart]');
+        if (!b) return;
+        dtfZ.lieferart = b.dataset.dlieferart;
+        document.querySelectorAll('#dtf-best-lieferart [data-dlieferart]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+        dtfBestVorschau();
+      });
+      let dtfNotizUhr = null;
+      dtfEl('dtf-best-notiz')?.addEventListener('input', () => { clearTimeout(dtfNotizUhr); dtfNotizUhr = setTimeout(dtfBestVorschau, 600); });
+      dtfEl('dtf-best-ersetzt')?.addEventListener('input', () => { clearTimeout(dtfNotizUhr); dtfNotizUhr = setTimeout(dtfBestVorschau, 600); });
+      dtfEl('dtf-best-senden')?.addEventListener('click', async e => {
+        const g = dtfGewaehlt();
+        const art = dtfZ.lieferart === 'versand_dhl' ? 'Versand DHL' : 'Abholung';
+        if (!await showConfirm('An Nico absenden?', `<p>${g.length} Motiv(e) · ${art}. Die Datei landet im Ordner „Bestellungen“ der DTF-Ablage, die Zeilen werden „bestellt“.</p>`
+          + '<p>Es gibt genau einen Versuch. Ist das Ergebnis unklar, nicht noch einmal senden – „Prüfen“ in der Liste.</p>', 'Absenden')) return;
+        const k = e.currentTarget;
+        k.disabled = true;
+        dtfEl('dtf-best-ergebnis').textContent = 'legt ab …';
+        try {
+          const r = await apiFetch(`${API_BASE()}/api/dtf/bestellung/absenden`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+            auswahl: g.map(z => ({ schluessel: z.schluessel, stand: z.stand })), lieferart: dtfZ.lieferart, notiz: dtfEl('dtf-best-notiz').value, ersetzt: dtfEl('dtf-best-ersetzt').value }), signal: AbortSignal.timeout(300000) }).then(apiJson);
+          dtfZ.auswahl.clear();
+          dtfEl('dtf-best-ergebnis').innerHTML = `<div class="dtf-lohnt">✓ ${dtfEsc(r.id)} abgelegt.</div><p>${dtfEsc(r.nachricht)}</p>`
+            + `<button type="button" class="korb-link" id="dtf-best-kopieren" data-hilfe="dtf-nachricht">Nachricht an Nico kopieren</button>`;
+          dtfEl('dtf-best-kopieren').addEventListener('click', async () => {
+            try { await navigator.clipboard.writeText(r.nachricht); showToast('Nachricht an Nico kopiert.'); } catch { showToast('Kopieren ging nicht – Text bitte markieren.', 'warn'); }
           });
-          el.querySelectorAll('.dtf-select-cb').forEach(cb => cb.addEventListener('change', updateDtfBulkBar));
-          el.querySelector('#dtf-bulk-btn')?.addEventListener('click', () => dtfBestellenBulk(el));
-          el.querySelectorAll('.btn-dtf-bestellen[data-groupkey]').forEach(btn => {
-            btn.addEventListener('click', () => dtfBestellen(btn.dataset.groupkey, el));
-          });
-        } catch (e) {
-          el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Fehler: ${monEsc(e.message)}</p>`;
+          await dtfLaden({ still: true });
+        } catch (err) {
+          dtfEl('dtf-best-ergebnis').innerHTML = `<span class="dtf-sperrt">${dtfEsc(err.message)}</span>`;
+          await dtfLaden({ still: true });
         }
-      }
+      });
 
-      // ── DTF: Bestellen ────────────────────────────────────────────────────
-      async function dtfBestellen(groupKey, listEl) {
-        const item = window._dtfOffenData?.[groupKey];
-        if (!item) return;
-
-        const cardId = `dtf-card-${groupKey.replace(/[^a-z0-9]/gi,'_')}`;
-        const card   = document.getElementById(cardId);
-        const btn    = card?.querySelector('.btn-dtf-bestellen');
-        if (btn) btn.disabled = true;
-
-        const orderIds  = item.betroffeneOrders.map(o => o.orderId);
-        const wcItemIds = item.betroffeneOrders.flatMap(o =>
-          o.wcItemIds.map(wid => ({ orderId: o.orderId, wcItemId: wid }))
-        );
-
+      // ── Scan (QR am Motiv): "#dtf/scan/<id>" ──
+      async function dtfScanZeigen(id) {
+        const el = dtfEl('dtf-scan');
+        el.hidden = false;
+        el.textContent = 'lädt …';
+        el.scrollIntoView({ block: 'start' });
         try {
-          const resp = await apiFetch(`${API_BASE()}/api/auftragsmonitor/dtf/bestellen`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ssotId:        item.ssotId,
-              artikelnummer: item.artikelnummer,
-              variante:      item.variante,
-              stueck:        item.stueck,
-              orderIds,
-              wcItemIds,
-            }),
-          }).then(r => r.json());
-
-          if (!resp.ok) throw new Error(resp.error ?? 'Unbekannter Fehler');
-          card?.remove();
-          showToast(`${item.artikelnummer} · ${item.variante || '–'} als DTF bestellt markiert (${resp.bestellId})`);
-
-          if (!listEl.querySelector('.lshop-card')) {
-            listEl.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Alle Aufträge bestellt.</p>';
-          }
-          loadDtfOffen();
-          loadDtfProtokoll();
-        } catch (e) {
-          if (btn) btn.disabled = false;
-          showToast(`Fehler: ${e.message}`, 'error');
-        }
+          const r = await apiFetch(`${API_BASE()}/api/dtf/scan/${encodeURIComponent(id)}`).then(apiJson);
+          el.innerHTML = `<div class="dtf-scan-titel nr-fest">${dtfEsc(r.id)}</div>`
+            + (r.art === 'bestellung' ? `<p class="korb-zaehler">${r.motive.length} Motiv${r.motive.length === 1 ? '' : 'e'} dieser Bestellung</p>` : '')
+            + r.motive.map(m => `<div class="dtf-scan-motiv"><strong>${dtfEsc(m.referenz)}</strong>${m.fuer ? ` · für ${dtfEsc(m.fuer)}` : ''}<br>`
+              + `${dtfEsc(m.kuerzel)} · ${dtfEsc(m.druckposition)}<br>${dtfEsc([m.modell, m.farbe, m.groesse].filter(Boolean).join(' · '))} · ${dtfEsc(m.menge)} Stück`
+              + `${r.art === 'bestellung' ? ` <span class="ku-meta">(${dtfEsc(m.druckId)})</span>` : ''}<br>`
+              + `<button type="button" class="korb-aktion korb-aktion-haupt" data-dtf-sprung="${dtfEsc(m.quelle)}|${dtfEsc(m.nummer)}" data-hilfe="dtf-scan-sprung">zur Bestellung</button></div>`).join('');
+        } catch (err) { el.innerHTML = `<span class="dtf-sperrt">${dtfEsc(err.message)}</span>`; }
       }
-
-      // ── DTF: Sammelbestellung ─────────────────────────────────────────────
-      async function dtfBestellenBulk(listEl) {
-        const checked = [...listEl.querySelectorAll('.dtf-select-cb:checked')];
-        if (checked.length === 0) return;
-        const btn = listEl.querySelector('#dtf-bulk-btn');
-        if (btn) btn.disabled = true;
-
-        const bestellungen = checked.map(cb => {
-          const item = window._dtfOffenData?.[cb.dataset.groupkey];
-          if (!item) return null;
-          return {
-            ssotId:        item.ssotId,
-            artikelnummer: item.artikelnummer,
-            variante:      item.variante,
-            stueck:        item.stueck,
-            orderIds:      item.betroffeneOrders.map(o => o.orderId),
-            wcItemIds:     item.betroffeneOrders.flatMap(o =>
-              o.wcItemIds.map(wid => ({ orderId: o.orderId, wcItemId: wid }))
-            ),
-          };
-        }).filter(Boolean);
-
-        try {
-          const resp = await apiFetch(`${API_BASE()}/api/auftragsmonitor/dtf/bestellen-bulk`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ bestellungen }),
-          }).then(r => r.json());
-
-          if (resp.errors?.length) {
-            showToast(`${resp.totalOrdered} bestellt · ${resp.errors.length} Fehler`, 'error');
-          } else {
-            showToast(`${resp.totalOrdered} DTF-Auftrag${resp.totalOrdered !== 1 ? 'e' : ''} bestellt`);
-          }
-          loadDtfOffen();
-          loadDtfProtokoll();
-        } catch (e) {
-          if (btn) btn.disabled = false;
-          showToast(`Fehler: ${e.message}`, 'error');
-        }
-      }
-
-      // ── DTF: Protokoll laden ──────────────────────────────────────────────
-      async function loadDtfProtokoll() {
-        const el = document.getElementById('dtf-protokoll');
-        el.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div>';
-        try {
-          const rows = await apiFetch(`${API_BASE()}/api/auftragsmonitor/dtf/protokoll?days=7`).then(r => r.json());
-          if (!Array.isArray(rows) || rows.length === 0) {
-            el.innerHTML = '<p style="color:var(--muted);font-size:0.84rem;">Keine Einträge in den letzten 7 Tagen.</p>';
-            return;
-          }
-          el.innerHTML = rows.map(r => {
-            const d = new Date(r.bestelldatum).toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'2-digit' });
-            return `
-              <div class="lshop-proto-row">
-                <span class="lshop-proto-id">${monEsc(r.bestellId)}</span>
-                <span class="lshop-proto-detail">
-                  ${monEsc(r.artikelnummer)}${r.variante ? ' · ' + monEsc(r.variante) : ''}
-                  · <strong>${r.stueck} Stk</strong>
-                </span>
-                <span class="lshop-proto-meta">${d}<br>${r.betroffeneOrders ? '#' + monEsc(r.betroffeneOrders).replace(/,\s*/g,' #') : ''}</span>
-              </div>`;
-          }).join('');
-        } catch (e) {
-          el.innerHTML = `<p style="color:var(--danger);font-size:0.84rem;">Fehler: ${monEsc(e.message)}</p>`;
-        }
-      }
+      window.dtfScanZeigen = dtfScanZeigen;
+      // Adresse waehrend MC offen ist geaendert (QR erneut gescannt): die Navigation bleibt ggf. auf derselben Ansicht
+      window.addEventListener('hashchange', () => { if (window.mcDtfScan) { const id = window.mcDtfScan; window.mcDtfScan = null; dtfScanZeigen(id); } });
+      // ── SECTION: DTF-Korb Ende ──
 
       // ── Produktion-Stand: Anfang (PS1, Test backend/tests/produktion-stand.test.js) ──
       // Reine Anzeige der Bestellansicht "Bestellungen (JFN)" aus POST /api/bestellen/produktion/stand:
@@ -7432,6 +7962,64 @@
       // title, sonst zeigt der Browser denselben Text ein zweites Mal. Auf dem Handy oeffnet das ⓘ
       // (data-hilfe-gruppe) die Liste der Gruppe. Neuer Knopf = Text hier + Schluessel in HILFE_GRUPPEN.
       const KNOPF_HILFE = {
+        // DT1: DTF-Warenkorb
+        'dtf-f-offen':          { name: 'Offen', text: 'Zeilen, die noch zu Nico müssen.' },
+        'dtf-f-fehlt':          { name: 'Fehlt etwas', text: 'Offene Zeilen ohne Datei oder Maß – hier „Zuordnen …“.' },
+        'dtf-f-abgewaehlt':     { name: 'Abgewählt', text: 'Zeilen, die du bewusst nicht drucken lässt (mit Grund). „zurückholen“ macht sie wieder offen.' },
+        'dtf-f-bestellt':       { name: 'Bestellt', text: 'Zeilen, die schon in einer DTF-Bestellung bei Nico liegen bzw. geliefert sind.' },
+        'dtf-f-alle':           { name: 'Alle', text: 'Alle Zeilen, auch abgewählte und bestellte.' },
+        'dtf-suche':            { name: 'Suche', text: 'Filtert nach Kürzel/Motiv, Bestell- oder Auftragsnummer, Modell, Farbe, Größe. Wird nicht gespeichert.' },
+        'dtf-bestellen':        { name: 'DTF-Bestellung …', text: 'Öffnet die Bestellung für die angehakten Zeilen: Lieferart, Notiz an Nico, Vorschau, Absenden.' },
+        'dtf-abgleich':         { name: 'Jetzt abgleichen', text: 'Holt neue DTF-Positionen aus offenen Shop-Bestellungen und Aufträgen. Läuft sonst stündlich von selbst.' },
+        'dtf-alle-bereiten':    { name: 'alle bereiten wählen', text: 'Hakt alle sichtbaren Zeilen mit Datei und Maß an – erst die normalen; Express kommt in eine eigene Bestellung.' },
+        'dtf-haken':            { name: 'Haken', text: 'Diese Zeile kommt in die nächste DTF-Bestellung. Nur möglich, wenn Datei und Maß da sind.' },
+        'dtf-zuordnen':         { name: 'Zuordnen …', text: 'Datei und Maß für dieses Motiv festlegen – auf Wunsch gleich für weitere Größen und Farben.' },
+        'dtf-abwaehlen':        { name: 'abwählen …', text: 'Diese Zeile nicht drucken lassen (mit Grund). Die Zeile bleibt in der Liste.' },
+        'dtf-zurueckholen':     { name: 'zurückholen', text: 'Macht eine abgewählte Zeile wieder offen.' },
+        'dtf-a-ok':             { name: 'grün', text: 'Vorhanden.' },
+        'dtf-a-halb':           { name: 'halb', text: 'Nur eine Seite des Maßes bekannt – „Zuordnen …“ und die andere ergänzen.' },
+        'dtf-a-fehlt':          { name: 'fehlt', text: 'Fehlt noch – „Zuordnen …“.' },
+        'dtf-a-weg':            { name: 'Datei weg', text: 'Die zugeordnete Datei ist in der Ablage nicht mehr zu finden – neu zuordnen.' },
+        'dtf-a-unbekannt':      { name: 'unbekannt', text: 'Die Ablage war gerade nicht erreichbar – später noch einmal laden.' },
+        'dtf-express':          { name: 'Express', text: 'Der Auftrag ist als Express markiert – geht in eine eigene Bestellung.' },
+        'dtf-hinweis':          { name: 'Hinweis', text: 'Rückmeldung des Abgleichs, z. B. storniert oder Menge geändert. Rot gesperrt = kann nicht bestellt werden.' },
+        'dtf-meter':            { name: 'Meter-Schätzung', text: 'Fläche × Menge × (1 + Verschnitt) ÷ Bogenbreite, aufgerundet auf 10 cm. Kosten aus dem Preis in den Einstellungen.' },
+        'dtf-was-fehlt':        { name: 'Was fehlt', text: 'Je Motiv, Position, Farbe und Größe: was fehlt, wie viele Stück offen sind und wie viele in 90 Tagen verkauft.' },
+        'dtf-aelter':           { name: 'Ältere', text: 'Bestellungen und Aufträge von vor dem Start – kommen nur auf Wunsch in den Korb.' },
+        'dtf-aufnehmen':        { name: 'trotzdem aufnehmen', text: 'Holt diese ältere Bestellung bzw. diesen Auftrag in den DTF-Korb.' },
+        'dtf-bestellungen':     { name: 'DTF-Bestellungen', text: 'Alle abgelegten Bestellungen mit Stand: abgelegt, unklar, geliefert.' },
+        'dtf-nachricht':        { name: 'Nachricht an Nico kopieren', text: 'Kopiert einen fertigen Text für Nico („neue Bestellung liegt im Ordner“) in die Zwischenablage.' },
+        'dtf-pruefen':          { name: 'Prüfen', text: 'Schaut nach, ob die Datei doch im Ordner liegt. Ja = bestellt, nein = Zeilen bleiben offen. Nie erneut senden.' },
+        'dtf-lieferung-da':     { name: 'DTF-Lieferung da', text: 'Markiert alle Zeilen dieser Bestellung als geliefert.' },
+        'dtf-scan-sprung':      { name: 'zur Bestellung', text: 'Öffnet die Shop-Bestellung bzw. den Auftrag zu diesem Motiv.' },
+        'dtf-vorschau':         { name: 'Vorschau', text: 'Kleines Bild der zugeordneten Datei.' },
+        'dtf-ab-grund':         { name: 'Grund', text: 'Warum diese Zeile nicht gedruckt wird – Pflicht.' },
+        'dtf-ab-notiz':         { name: 'Notiz', text: 'Optional, nur intern.' },
+        'au-dtf-stand':         { name: 'Druck bestellt', text: 'Diese Position steckt in einer DTF-Bestellung bei Nico (bzw. ist geliefert).' },
+        'dtf-zu-position':      { name: 'Druckposition', text: 'Wo das Motiv sitzt (Brust, Rücken …). Steht sie schon fest, ist sie gesperrt.' },
+        'dtf-zu-verwendet':     { name: 'schon verwendet', text: 'Dateien, die für dieses Kürzel schon zugeordnet sind – antippen zum Auswählen.' },
+        'dtf-zu-entwurf':       { name: 'Entwurf', text: 'Entwurf aus dem Ordner des Auftrags. Wird beim Absenden in die DTF-Ablage kopiert.' },
+        'dtf-zu-suche':         { name: 'Suche', text: 'Sucht in der ganzen DTF-Ablage nach dem Dateinamen (ab 2 Zeichen).' },
+        'dtf-zu-treffer':       { name: 'Treffer', text: 'Antippen wählt diese Datei.' },
+        'dtf-zu-hochladen':     { name: 'Hochladen …', text: 'Lädt eine Datei in den Ordner Motive/<Kürzel>. Der Name bleibt, wie er ist.' },
+        'dtf-zu-fuehrend':      { name: 'führende Seite', text: 'Diese Seite gilt genau; die andere rechnet MC aus dem Seitenverhältnis der Datei (zur Info für Nico).' },
+        'dtf-zu-breite':        { name: 'Breite', text: 'Breite in cm, z. B. 22 oder 21,5.' },
+        'dtf-zu-hoehe':         { name: 'Höhe', text: 'Höhe in cm. Wird bei PNG/JPG aus dem Seitenverhältnis gerechnet, bei PDF/SVG bitte eintragen.' },
+        'dtf-zu-alle-groessen': { name: 'alle Größen dieser Farbe', text: 'Hakt alle anderen Größen derselben Farbe an.' },
+        'dtf-zu-alle-farben':   { name: 'alle Farben dieses Modells', text: 'Hakt alle Farben und Größen desselben Modells an.' },
+        'dtf-zu-keine':         { name: 'keine', text: 'Nimmt alle Haken bei „Auch übernehmen für“ weg.' },
+        'dtf-zu-geschw':        { name: 'auch übernehmen', text: 'Diese Variante bekommt dieselbe Zuordnung.' },
+        'dtf-zu-geschw-datei':  { name: 'Datei', text: 'Die gewählte Datei auch für diese Variante.' },
+        'dtf-zu-geschw-mass':   { name: 'Maß', text: 'Das Maß auch für diese Variante – Breite je Zeile änderbar.' },
+        'dtf-zu-geschw-breite': { name: 'Breite je Zeile', text: 'Eigene Breite für diese Größe (z. B. XL 23, L 22, M 21). Höhe folgt dem Seitenverhältnis.' },
+        'dtf-zu-gilt-alle':     { name: 'für alle', text: 'Speichert die Datei als „alle Größen und Farben“ – nur, wenn das Motiv wirklich überall gleich ist.' },
+        'dtf-zu-mass-alle':     { name: 'Maß für alle', text: 'Speichert das Maß als „alle Größen“ dieses Modells.' },
+        'dtf-abholung':         { name: 'Abholung', text: 'Wir holen die Drucke bei Nico ab (Standard).' },
+        'dtf-dhl':              { name: 'Versand DHL', text: 'Nico schickt an unsere hinterlegte Adresse.' },
+        'dtf-notiz':            { name: 'Notiz an Nico', text: 'Steht in der Datei für Nico. Keine Kundennamen.' },
+        'dtf-xml':              { name: 'Vorschau der Datei', text: 'So sieht die Datei aus, die im Ordner „Bestellungen“ landet. Ohne Namen, Preise, Adressen.' },
+        'dtf-ersetzt':          { name: 'Ersetzt Bestellung', text: 'Nur bei einer Korrektur: Nummer der alten Bestellung. Die alte bleibt unverändert, Nico sieht „ersetzt …“.' },
+        'dtf-absenden':         { name: 'Absenden …', text: 'Legt die Datei nach Rückfrage in den Ordner „Bestellungen“; die Zeilen werden „bestellt“.' },
         // DK1: Druckmaße und Druckkosten (DTF)
         'dkm-modus':            { name: '📐 Druckmaße', text: 'Druckmaße je Motiv und Druckposition pflegen – Grundlage der Druckkosten im Auftrag.' },
         'dkm-regel':            { name: 'Rechenregel', text: 'Je Teil: Summe B × H × Preis je m² × (1 + Verschnitt), netto. Preis je m² aus Bogen- oder Meterpreis (Einstellungen).' },
@@ -7496,8 +8084,6 @@
         'neue-version-spaeter':  { name: 'Später', text: 'Blendet den Hinweis aus. Neu geladen wird beim nächsten Öffnen oder im Hintergrund, wenn nichts offen ist.' },
         'nav-bereich':           { name: 'Bereich', text: 'Öffnet diesen Bereich. Seine Unterpunkte stehen darunter.' },
         'nav-unterreiter':       { name: 'Unterreiter', text: 'Öffnet diesen Unterreiter. Es wird nichts geändert.' },
-        'tab-offen':             { name: 'Offen', text: 'Zeigt, was noch nicht als bestellt eingetragen ist.' },
-        'tab-protokoll':         { name: 'Protokoll', text: 'Zeigt, was schon als bestellt eingetragen wurde.' },
         'editor-b':              { name: 'B', text: 'Markierten Text fett.' },
         'editor-i':              { name: 'I', text: 'Markierten Text kursiv.' },
         'editor-u':              { name: 'U', text: 'Markierten Text unterstrichen.' },
@@ -7511,8 +8097,6 @@
         'nav-ansicht':           { name: 'Ansicht', text: 'Öffnet diese Ansicht des Bereichs.' },
         'trikot-sync':           { name: 'Trikot-Sync jetzt', text: 'Holt neue Trikot-Bestellungen aus dem JFN-Shop in die Trikot-Liste im Sheet. Vorhandene Zeilen bleiben.' },
         'mon-fulfillment':       { name: 'Als … markieren', text: 'Setzt den Stand dieser internen Partner-Bestellung eine Stufe weiter (Sheet). Erneut klicken geht weiter.' },
-        'dtf-sammel':            { name: 'Ausgewählte bestellen', text: 'Trägt die angehakten Motive als bei DTF bestellt ein (Sheet). Bei DTF selbst wird nichts bestellt.' },
-        'dtf-bestellt':          { name: 'DTF bestellt', text: 'Trägt dieses Motiv als bei DTF bestellt ein (Sheet). Bei DTF selbst wird nichts bestellt.' },
         'korb-aeltere':          { name: 'ältere anzeigen', text: 'Zeigt auch herausgenommene Positionen, die älter als 14 Tage sind.' },
         'modus-neu':             { name: 'Neu anlegen', text: 'Leere Maske für einen neuen Artikel.' },
         'modus-aendern':         { name: 'Artikel ändern', text: 'Einen vorhandenen Shop-Artikel suchen und ändern.' },
@@ -8184,7 +8768,13 @@
         'navigation': ['shop-badge', 'feedback-oeffnen', 'abmelden', 'shop-wahl', 'neue-version-laden', 'neue-version-spaeter', 'nav-bereich', 'nav-ansicht', 'nav-unterreiter', 'trikot-sync'],
         'anmelden': ['anmelde-name', 'anmelde-key', 'anmelden', 'dialog-abbrechen'],   // SI1/SI2: Anmeldemaske
         'dialog': ['dialog-abbrechen', 'dialog-schliessen', 'dialog-bestaetigen', 'dialog-speichern', 'liste-bearbeiten', 'zeile-speichern'],
-        'auftragsmonitor': ['wc-erledigt', 'tab-offen', 'tab-protokoll', 'mon-fulfillment', 'dtf-sammel', 'dtf-bestellt', 'korb-aeltere'],
+        dtf: ['dtf-f-offen', 'dtf-f-fehlt', 'dtf-f-abgewaehlt', 'dtf-f-bestellt', 'dtf-f-alle', 'dtf-suche', 'dtf-bestellen', 'dtf-abgleich', 'dtf-alle-bereiten', 'dtf-haken',
+          'dtf-zuordnen', 'dtf-abwaehlen', 'dtf-zurueckholen', 'dtf-a-ok', 'dtf-a-halb', 'dtf-a-fehlt', 'dtf-a-weg', 'dtf-a-unbekannt', 'dtf-express', 'dtf-hinweis', 'dtf-meter',
+          'dtf-was-fehlt', 'dtf-aelter', 'dtf-aufnehmen', 'dtf-bestellungen', 'dtf-nachricht', 'dtf-pruefen', 'dtf-lieferung-da', 'dtf-scan-sprung', 'dtf-vorschau', 'au-dtf-stand', 'dtf-ab-grund', 'dtf-ab-notiz'],   // DT1
+        'dtf-zuordnen': ['dtf-zu-position', 'dtf-zu-verwendet', 'dtf-zu-entwurf', 'dtf-zu-suche', 'dtf-zu-treffer', 'dtf-zu-hochladen', 'dtf-zu-fuehrend', 'dtf-zu-breite', 'dtf-zu-hoehe',
+          'dtf-zu-alle-groessen', 'dtf-zu-alle-farben', 'dtf-zu-keine', 'dtf-zu-geschw', 'dtf-zu-geschw-datei', 'dtf-zu-geschw-mass', 'dtf-zu-geschw-breite', 'dtf-zu-gilt-alle', 'dtf-zu-mass-alle',
+          'dialog-speichern', 'dialog-abbrechen', 'dialog-schliessen'],   // DT1
+        'dtf-bestellung': ['dtf-abholung', 'dtf-dhl', 'dtf-ersetzt', 'dtf-notiz', 'dtf-xml', 'dtf-absenden', 'dtf-nachricht', 'dialog-abbrechen', 'dialog-schliessen'],   // DT1
         'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-material', 'seo-material-einsetzen', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'bildref-eigenschaft', 'bildref-plus', 'bildref-eigenschaft-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
         'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
         'partner': ['fp-artikel-pruefen', 'fp-ohne-festpreis', 'fp-ohne-zeigen', 'fp-sperre', 'fp-sperre-artikel', 'fp-nachrechnen', 'pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'link-vor-lk1', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
@@ -8203,7 +8793,7 @@
         bestellungen: ['karton-scannen', 'entwuerfe', 'lb-paket-zaehler', 'lb-paket-fehlt', 'wd-block', 'wd-eins', 'wd-alle', 'an-lshop-senden', 'als-gesendet', 'zurueck-entwurf', 'ware-angekommen', 'we-mehr', 'bei-ankunft-lager', 'lager-ziel-aendern', 'eb-gesperrt-bestellt', 'eb-gesperrt-geliefert', 'we-buchen', 'we-zurueck', 'lb-unterwegs', 'lb-geliefert', 'lb-alle', 'tracking', 'portal', 'portal-aeltere', 'rs-block', 'rs-kennzeichen', 'rs-bezug'],
         'edi-dialog': ['edi-senden', 'edi-entwurf', 'edi-gesperrt', 'edi-pruefen', 'versandart'],
         produktion: ['ps-alle', 'ps-wartet', 'ps-suche', 'ps-suche-weg', 'ps-grenze', 'ps-status-alle', 'ps-status-processing', 'ps-status-on-hold',
-          'ps-status-pending', 'ps-versand-alle', 'ps-versand-filter-abholung', 'ps-versand-filter-versand', 'ps-versand-abholung', 'ps-versand-versand', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz', 'ps-bild', 'ps-shop-link'],
+          'ps-status-pending', 'ps-versand-alle', 'ps-versand-filter-abholung', 'ps-versand-filter-versand', 'ps-versand-abholung', 'ps-versand-versand', 'prod-lshop', 'prod-fertig', 'prod-dtf', 'prod-versendet', 'prod-notiz', 'ps-bild', 'ps-shop-link', 'wc-erledigt', 'mon-fulfillment', 'korb-aeltere'],   // DT1: aus der alten Gruppe Auftragsmonitor
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag', 'tr-aendern-gesperrt', 'ti-goalie', 'tr-goalie', 'tr-gk-pruefen', 'tr-gk-markieren', 'tr-gk-kein', 'tr-zahlung-unbezahlt', 'tr-zahlung-erstattet', 'tr-zahlung-storniert', 'tr-zahlung-fehlt', 'tr-zahlung-filter'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfbs-g-rueckstand', 'lfbs-g-vorraetig', 'lfbs-lager', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
@@ -13469,6 +14059,7 @@
             // AM-3: Rueckmeldung aus Korb/Lager je Position, Sprung zur Korb-Position, "Übergabe zurücknehmen"
             + (p.korb ? `<button type="button" class="korb-link au-korb" data-au-korb="${kuEsc(p.Korb_Schluessel)}" data-hilfe="au-korb-stand">🛒 ${kuEsc(auKorbText(p.korb))}</button>` : '')
             + (p.Lager_Buchung ? `<span class="ku-chip" data-hilfe="au-lager-stand">📦 ausgebucht (${kuEsc(p.Lager_Ort || '')})</span>` : '')
+            + (p.dtf ? `<span class="ku-chip" data-hilfe="au-dtf-stand">🖨️ Druck ${p.dtf.status === 'geliefert' ? 'geliefert' : 'bestellt'} (${kuEsc(p.dtf.bestellung)})</span>` : '')   // DT1
             + (auKannZuruecknehmen(a, p) ? `<button type="button" class="korb-link" data-au-zuruecknehmen="${kuEsc(p.Position_ID)}" data-hilfe="au-zuruecknehmen">Übergabe zurücknehmen</button>` : '')
             + auVerweisHtml(p.Verweis, p.verweisKorb) + auBsEintraegeHtml(auBsZ.je.get(a.Auftrag_Nr), p.Position_ID)   // KS3, KS3-1
             + (st || a.Status === 'bezahlt' ? '' : `<button type="button" class="korb-link ku-gefahr au-entfernen" data-au-entfernen="${kuEsc(p.Position_ID)}" data-hilfe="au-entfernen">entfernen …</button>`) + '</div>').join('');   // BS4, UI3: je Position eine Zeile
@@ -21947,6 +22538,7 @@
       const FB_TEXT_MAX = 2000;
       // Fenster mit festem Namen - nie der Titel aus dem Fenster selbst (der traegt Kurztitel/Namen).
       const FB_DIALOG_NAMEN = {
+        'dtf-zu-dialog': 'DTF zuordnen', 'dtf-best-dialog': 'DTF-Bestellung', 'dtf-ab-dialog': 'DTF abwählen',   // DT1
         'dk-dialog': 'Druckmaße im Auftrag', 'dkm-dialog': 'Druckmaß',   // DK1
         'au-dialog': 'Auftrag erfassen/bearbeiten', 'au-detail': 'Auftragsansicht', 'au-nachsehen': 'Auftrag nachsehen', 'ab-dialog': 'Rohlinge bereitstellen',
         'ag-dialog': 'Aufgabe erfassen/bearbeiten', 'ag-detail': 'Aufgabenansicht', 'ku-dialog': 'Kunde', 'kl-dialog': 'In Lexoffice suchen',

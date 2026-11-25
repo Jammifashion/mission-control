@@ -294,8 +294,12 @@ export async function leseAuftraege({ sheets: s, jetzt = () => new Date(), autoB
   const { a, p } = await lies(sheets, spreadsheetId);
   const korbJe = await leseKorbJe(sheets, spreadsheetId);
   const { info } = await lshopInfo(sheets, spreadsheetId, nummernAus(p.zeilen.filter(x => !x.Entfernt)));
+  // DT1: "Druck bestellt" je Position aus dem DTF-Korb (nur lesen; fehlt der Reiter: nichts)
+  let dtfJe = new Map();
+  try { dtfJe = await (await import('./dtfKorb.js')).leseDtfJeAuPosition({ sheets, spreadsheetId }); } catch { dtfJe = new Map(); }
   const anreichern = x => ({
     ...x,
+    ...(dtfJe.has(x.Position_ID) ? { dtf: dtfJe.get(x.Position_ID) } : {}),
     ...(x.LShop_ArticleNr ? { lshop: info.get(x.LShop_ArticleNr) ?? { bestellbar: false } } : {}),
     ...(x.Korb_Schluessel ? { korb: korbStand(korbJe.get(x.Korb_Schluessel)) } : {}),
     ...(VERWEIS_KORB.test(String(x.Verweis ?? '')) ? { verweisKorb: korbStand(korbJe.get(String(x.Verweis).trim())) } : {}),   // KS3-1

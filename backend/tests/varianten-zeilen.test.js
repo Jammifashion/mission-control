@@ -173,7 +173,7 @@ describe('Auftragsmonitor: wcVariationMap liest ueber Namen', () => {
 
   test('auftragsmonitor.js nutzt wcVariationMap, keine festen Varianten-Indizes/Ranges', () => {
     const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '../routes/auftragsmonitor.js'), 'utf8');
-    expect(src.match(/wcVariationMap\(varResp\.data\.values/g)).toHaveLength(1);   // GT1: lshop/offen entfernt, bleibt dtf/offen
+    expect(src).not.toMatch(/wcVariationMap\(varResp/);   // GT1/DT1: lshop/offen und dtf/offen entfernt
     expect(src).not.toMatch(/TAB_VAR\}!A1:L/);
     expect(src).not.toMatch(/const VI\s*=/);
   });

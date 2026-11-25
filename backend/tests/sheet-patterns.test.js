@@ -260,7 +260,6 @@ describe('R3 – fehlender Header wirft statt still zu leeren', () => {
   // stumm die L-Shop-Nummer zeigt, erzeugt Fehlbestellungen.
   test.each([
     'GET /api/auftragsmonitor/lshop/offen',
-    'GET /api/auftragsmonitor/dtf/offen',
   ])('Auftragsmonitor %s wirft bei fehlender Artikelnummer', (ctx) => {
     const ohne = ERF_HEADER.filter(h => h !== 'Artikelnummer');
     expect(() => requireHeader(ohne, 'Artikelnummer', ctx)).toThrow(MissingHeaderError);

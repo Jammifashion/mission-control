@@ -43,6 +43,7 @@ import kundenRouter from './routes/kunden.js';
 import dashboardRouter from './routes/dashboard.js';
 import auftraegeRouter from './routes/auftraege.js';
 import druckmasseRouter from './routes/druckmasse.js';
+import dtfRouter from './routes/dtf.js';
 import feedbackRouter from './routes/feedback.js';
 import mikaRouter from './routes/mika.js';
 import bestellseiteRouter from './routes/bestellseite.js';
@@ -113,6 +114,7 @@ app.use('/api/kunden',        kundenRouter);        // Kundenstamm, eigenes Shee
 app.use('/api/dashboard',     dashboardRouter);     // DB1: gebuendeltes Dashboard + Kundenhinweis gelesen
 app.use('/api/auftraege',     auftraegeRouter);     // Auftraege im SSOT, nur Kunden_Nr (AM-2)
 app.use('/api/druckmasse',    druckmasseRouter);    // DK1: Druckmasse (SSOT) + DTF-Preise aus Config, nur MC
+app.use('/api/dtf',           dtfRouter);           // DT1: DTF-Warenkorb, Zuordnung, Bestellung (XML in die DTF-Ablage), Scan
 app.use('/api/feedback',      feedbackRouter);      // FB1: Feedback ins eigene Sheet (FEEDBACK_SHEET_ID), kein Lesen
 app.use('/api/mika',          mikaRouter);          // MI1: Assistent Mika Stufe 0 - drei feste Fragen ohne KI, nur lesen
 app.use('/api/bestellseiten', bestellseitenRouter); // KS1: Bestellseiten verwalten (Token nur einmal in der Antwort)

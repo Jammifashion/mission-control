@@ -1,4 +1,4 @@
-// BO2-Fix: lshop/offen und dtf/offen lesen die offenen Bestellungen nacheinander
+// BO2-Fix: die offenen Bestellungen werden nacheinander gelesen
 // mit Seitenschleife und pruefen die Produkt-ID der Varianten-Zeile gegen
 // (HONK-Variations-IDs koennen JFN-Zeilen treffen, Befund BO1).
 
@@ -64,29 +64,16 @@ describe('offeneBestellungen', () => {
     expect(aktiv.max).toBe(1);
   });
 
-  test('Pruefseite (HTML) -> genau ein Abruf, 503', async () => {
+  test('Pruefseite (HTML) -> HosterPruefseite, genau ein Abruf', async () => {
     wcGet.mockResolvedValue({ data: '<html>One moment, please...</html>' });
-    const res = await request(app).get('/api/auftragsmonitor/dtf/offen?shop=honk');
-    expect(res.status).toBe(503);
+    await expect(offeneBestellungen({ get: wcGet })).rejects.toMatchObject({ code: 'hoster_pruefseite' });
     expect(wcGet).toHaveBeenCalledTimes(1);
   });
 });
 
-describe('Produkt-ID-Gegenprobe', () => {
-  test.each(['dtf'])('%s/offen: HONK-Position mit gleicher Variations-ID bekommt keine JFN-Daten', async (art) => {
-    wcGet.mockImplementation(async (_p, q) => ({ data: q.status === 'on-hold' ? [bestellung(900, 222, 555)] : [] }));
-    const res = await request(app).get(`/api/auftragsmonitor/${art}/offen?shop=honk`);
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveLength(1);
-    expect(res.body[0].ssotId).toBe('');
-    expect(res.body[0].artikelnummer).toBe('X/Y');
-  });
-
-  test('gleiche Produkt-ID -> Varianten-Zeile wird genutzt', async () => {
-    tabs.Produktions_Status[1][10] = 'JFN';
-    wcGet.mockImplementation(async (_p, q) => ({ data: q.status === 'processing' ? [bestellung(900, 111, 555)] : [] }));
-    const res = await request(app).get('/api/auftragsmonitor/dtf/offen?shop=jfn');
-    expect(res.body[0].ssotId).toBe('0001');
-    expect(res.body[0].variante).toBe('Schwarz·M');
+// DT1: dtf/offen ist entfernt (DTF-Warenkorb, routes/dtf.js); die Produkt-ID-Gegenprobe prueft dort der Abgleich.
+describe('alte DTF-Liste', () => {
+  test('dtf/offen gibt es nicht mehr', async () => {
+    expect((await request(app).get('/api/auftragsmonitor/dtf/offen?shop=jfn')).status).toBe(404);
   });
 });

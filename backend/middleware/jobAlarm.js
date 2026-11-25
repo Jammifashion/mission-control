@@ -17,6 +17,7 @@ export const JOB_ROUTEN = [
   { pfad: '/api/bestellen/lshop-belege/abruf',        lauf: 'L-Shop-Belege' },
   { pfad: '/api/bestellen/lshop-lieferbarkeit/abruf', lauf: 'L-Shop-Lieferbarkeit' },
   { pfad: '/api/system/modell-check',                 lauf: 'Modell-Check' },
+  { pfad: '/api/dtf/abgleich',                        lauf: 'DTF-Korb-Abgleich' },
 ];
 const EIGENE_MELDUNG = new Set([HOSTER_PRUEFSEITE_CODE, SHOP_TIMEOUT_CODE]);
 
