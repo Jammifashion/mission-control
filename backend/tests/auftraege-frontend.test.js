@@ -92,7 +92,7 @@ describe('Verdrahtung', () => {
   });
   test('Hinweis "keine Personennamen" an Notiz und Motiv', () => {
     expect(html).toContain('Notiz (keine Personennamen)');
-    expect(sektion).toContain('Motiv (keine Personennamen)');
+    expect(sektion).toContain('Motiv (keine Namen)');   // AP1: kuerzer, passt ins Feld; Mouse-over sagt "Keine Namen von Personen"
   });
 });
 

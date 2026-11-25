@@ -2234,7 +2234,8 @@
         /* Haken ohne Text (DTF, L-Shop alt, Korb-Buendel): das Label um den Haken ist die Tippflaeche */
         label.card-cb-wrap { min-width: 44px; min-height: 44px; margin: -0.5rem 0 0 -0.6rem; padding: 0; align-items: center; justify-content: center; cursor: pointer; }
         .select-cb, .korb-buendel-cb { width: 20px; height: 20px; }
-        .bulk-all-label, .ku-mit-storniert, .lager-null, .we-zeile label, .lb-wd-zeile label { min-height: 44px; }
+        .bulk-all-label, .ku-mit-storniert, .lager-null, .we-zeile label, .lb-wd-zeile label, .au-re-vorkasse { min-height: 44px; }   /* AP1: Vorkasse-Haken (RE3) */
+        .au-re-vorkasse input[type="checkbox"] { width: 20px; height: 20px; }
         .bulk-all-label { min-width: 44px; }
         /* Textknoepfe in Listenzeilen und Dialogkoepfen */
         .ku-zeile > button.korb-link, .lager-buchung button.korb-link, .lager-best-zeile button.korb-link, .lager-best-titel button.korb-link, #lager-event-neu,
@@ -14829,7 +14830,7 @@
           const dn = `<div class="au-dn-feld"${dnZeigen ? '' : ' hidden'}><label class="au-druckname" data-hilfe="au-druckname">Druckname<input type="text" class="form-input${dnGrund ? ' au-schnell-unsicher' : ''}" maxlength="300" data-au-gruppe="${gi}" data-au-feld="druckname" `
             + `value="${kuEsc(auDrucknameText(g.positionen))}" placeholder="${g.art === 'lshop' ? 'z. B. M: Anna, Ben; L: Carl' : 'Namen, die gedruckt werden'}" ${dnAn ? '' : 'readonly'} autocomplete="off" />`
             + (dnGrund ? `<span class="au-schnell-grund" data-hilfe="au-schnell-unsicher" tabindex="0">${kuEsc(dnGrund)}</span>` : '') + '</label></div>';
-          const felder = `<div class="au-gruppe-felder" data-hilfe="au-gruppe-felder">${feld('motiv', 'Motiv (keine Personennamen)', 120)}${feld('druck', 'Druck: Position/Technik', 120)}${feld('notiz', 'Notiz', 300)}${dn}${dnKnopf}</div>`;
+          const felder = `<div class="au-gruppe-felder" data-hilfe="au-gruppe-felder">${feld('motiv', 'Motiv (keine Namen)', 120)}${feld('druck', 'Druck: Position/Technik', 120)}${feld('notiz', 'Notiz', 300)}${dn}${dnKnopf}</div>`;
           if (!gFrei) {   // AU-UX1: gesperrt (ab "bestellt") = eine Lesezeile + Preisfelder, Rest unter "Details"
             const lese = [p0.motiv && `Motiv: ${p0.motiv}`, p0.druck && `Druck: ${p0.druck}`].filter(Boolean).map(x => `<span>${kuEsc(x)}</span>`).join('');
             return `<div class="au-gruppe au-gruppe-gesperrt"><div>${kopf} · ${g.stueck} Stück · <span class="au-mengen-kurz">${mengen}</span></div>`
