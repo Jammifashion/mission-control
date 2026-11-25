@@ -14,6 +14,7 @@ import { tokenBremse } from './middleware/tokenBremse.js';
 import { hosterPruefseiteHandler } from './middleware/hosterPruefseite.js';
 import { healthHandler } from './utils/stand.js';
 import woocommerceRouter from './routes/woocommerce.js';
+import zwillingRouter from './routes/zwilling.js';
 import artikelRouter from './routes/artikel.js';
 import claudeRouter from './routes/claude.js';
 import sheetsRouter from './routes/sheets.js';
@@ -89,6 +90,7 @@ app.use(requireApiKey);
 app.get('/health', healthHandler);
 
 app.use('/api/woocommerce', woocommerceRouter);
+app.use('/api/zwilling', zwillingRouter);   // ZW1
 app.use('/api/artikel', artikelRouter);
 app.use('/api/claude', claudeRouter);
 app.use('/api/sheets', sheetsRouter);

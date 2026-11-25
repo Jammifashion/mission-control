@@ -763,6 +763,8 @@
       .lshop-offen-header { font-size: 0.82rem; font-weight: 600; color: var(--muted); margin-bottom: 0.75rem; letter-spacing: 0.03em; display: flex; align-items: center; justify-content: space-between; }
       .bulk-all-label { font-size: 0.78rem; font-weight: 400; display: flex; align-items: center; gap: 0.3rem; cursor: pointer; letter-spacing: 0; }
       .card-cb-wrap { display: flex; align-items: flex-start; padding-top: 0.18rem; }
+      .zw-haken { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 44px; font-size: 0.85rem; color: var(--text); cursor: pointer; }   /* ZW1 */
+      .zw-haken[hidden] { display: none; }
       .select-cb { width: 15px; height: 15px; cursor: pointer; accent-color: var(--focus); flex-shrink: 0; }
       .bulk-bar {
         display: flex; align-items: center; gap: 0.65rem;
@@ -3609,6 +3611,8 @@
           <button class="btn-secondary" id="btn-save-draft" data-hilfe="entwurf-speichern">Entwurf speichern</button>
           <button class="btn" id="btn-create-wc" disabled data-hilfe="wc-anlegen">In WooCommerce anlegen</button>
           <span id="btn-create-wc-grund" class="field-note" style="align-self:center;"></span>
+          <label id="pf-zwilling-wrap" class="zw-haken" data-hilfe="zwilling-haken" hidden><input type="checkbox" id="pf-zwilling"> auch im HONK!-Shop anlegen</label>
+          <span id="pf-zwilling-stand" class="field-note" style="align-self:center;" hidden></span>
           <button class="btn" id="btn-update-wc" style="display:none;" data-hilfe="wc-aendern">Änderungen speichern</button>
           <span id="prod-push-status" style="font-size:0.82rem;color:var(--muted);align-self:center;"></span>
         </div>
@@ -5127,6 +5131,7 @@
         window.__mcShop = s;
         if (persist) localStorage.setItem(SHOP_KEY, s);
         updateShopBadge(s);
+        window.dispatchEvent(new CustomEvent('mc:shop', { detail: { shop: s } }));   // ZW1
       }
       function updateShopBadge(shop) {
         const b = document.getElementById('shop-badge');
@@ -8283,6 +8288,8 @@
         'ki-vorschlag':          { name: 'KI Vorschlag', text: 'Lässt die KI Varianten vorschlagen. Übernommen wird erst, was du anhakst und speicherst.' },
         'entwurf-speichern':     { name: 'Entwurf speichern', text: 'Speichert die Maske als Entwurf in der Erfassungsmaske (Sheet). Im Shop ändert sich nichts.' },
         'wc-anlegen':            { name: 'In WooCommerce anlegen', text: 'Legt den Artikel mit Variationen im Shop an und schreibt die IDs ins Sheet.' },
+        'zwilling-haken':        { name: 'auch im HONK!-Shop anlegen', text: 'Legt danach einen Zwilling in honkshop.de als Entwurf an (gleiche SKUs, Preise, Bilder). Fehlt eine Zuordnung, nur JFN.' },
+        'zwilling-link':         { name: 'Zwilling in HONK!', text: 'Öffnet den Zwilling im HONK!-Backend. Änderungen hier gehen nur an JFN, der Zwilling bleibt wie er ist.' },
         'wc-aendern':            { name: 'Änderungen speichern', text: 'Schreibt die Änderungen in den Shop – Kunden sehen sie sofort – und zieht das Sheet nach.' },
         'partner-neu':           { name: 'Partner hinzufügen', text: 'Öffnet den Dialog für einen neuen Lizenzpartner.' },
         'partner-aktiv':         { name: 'Aktivieren / Deaktivieren', text: 'Schaltet den Partner aktiv oder inaktiv (Sheet). Inaktive bekommen keine neuen Verkäufe.' },
@@ -8959,7 +8966,7 @@
           'dtf-zu-alle-groessen', 'dtf-zu-alle-farben', 'dtf-zu-keine', 'dtf-zu-geschw', 'dtf-zu-geschw-datei', 'dtf-zu-geschw-mass', 'dtf-zu-geschw-breite', 'dtf-zu-gilt-alle', 'dtf-zu-mass-alle',
           'dialog-speichern', 'dialog-abbrechen', 'dialog-schliessen'],   // DT1
         'dtf-bestellung': ['dtf-abholung', 'dtf-dhl', 'dtf-ersetzt', 'dtf-notiz', 'dtf-xml', 'dtf-absenden', 'dtf-nachricht', 'dialog-abbrechen', 'dialog-schliessen'],   // DT1
-        'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-material', 'seo-material-einsetzen', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'bildref-eigenschaft', 'bildref-plus', 'bildref-eigenschaft-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'wc-aendern'],
+        'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-material', 'seo-material-einsetzen', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'bildref-eigenschaft', 'bildref-plus', 'bildref-eigenschaft-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'zwilling-haken', 'zwilling-link', 'wc-aendern'],
         'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
         'partner': ['fp-artikel-pruefen', 'fp-ohne-festpreis', 'fp-ohne-zeigen', 'fp-sperre', 'fp-sperre-artikel', 'fp-nachrechnen', 'pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'link-vor-lk1', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
         'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'gs-anlegen', 'gs-status', 'gs-link', 'gs-nachsehen', 'gs-angelegt', 'gs-zuruecksetzen', 'fk-partner', 'fk-info', 'fp-preis-loeschen'],
@@ -18150,10 +18157,13 @@
       // Pflichtpruefungen wie beim Klick (Varianten/Preise, Farbachse,
       // Lieferzeit, SKU). Die Fehlertexte kommen aus den Pruefungen selbst.
       // M3: dazu Versandklasse (Pflicht bei der Anlage) und L-Shop-Farben.
+      const ANLAGE_HONK_GRUND = 'Shop HONK! gewählt: angelegt wird nur in JammiFashion – oben auf JFN wechseln und den Haken „auch im HONK!-Shop anlegen“ setzen.';
       function anlageZustand({ editMode, laeuft, ssotId, variantenAnzahl, aktiveAnzahl, preiseFehlen,
-                               achsenFehler, lieferzeitFehler, skuFehler, versandFehler, lshopFehler } = {}) {
+                               achsenFehler, lieferzeitFehler, skuFehler, versandFehler, lshopFehler, shopHonk } = {}) {
         if (editMode) return { aktiv: false, grund: '' };
         if (laeuft)   return { aktiv: false, grund: '' };
+        // ZW1: angelegt wird nur in JFN. HONK!-Artikel entstehen als Zwilling (Haken „auch im HONK!-Shop anlegen“).
+        if (shopHonk) return { aktiv: false, grund: ANLAGE_HONK_GRUND };
         if (!String(ssotId ?? '').trim())
           return { aktiv: false, grund: 'Artikel-ID fehlt – zuerst „Artikel-ID anlegen“.' };
         if (variantenAnzahl > 0 && aktiveAnzahl === 0)
@@ -18829,14 +18839,19 @@
           skuFehler:        artNr.fehler || skuBaueVariantenSkus(artNr.artikelnummer, aktive).fehler || null,
           versandFehler:    document.getElementById('pf-shipping').value ? null : 'keine Versandklasse gewählt',
           lshopFehler:      lshopModell ? lshopFarbFehler(lshopModell, lshopGewaehlteFarben()) : null,
+          shopHonk:         currentShop() === 'honk',
         });
         btn.disabled = !z.aktiv;
         document.getElementById('btn-create-wc-grund').textContent = z.grund;
+        // ZW1: Haken nur bei Neuanlage in JFN
+        document.getElementById('pf-zwilling-wrap').hidden = editMode || currentShop() === 'honk';
+        if (!editMode) document.getElementById('pf-zwilling-stand').hidden = true;
       }
       // Jede Eingabe im Formular kann die Freigabe aendern (Preise, Lieferzeit,
       // Kopfdaten, Haekchen der Varianten).
       document.getElementById('product-form-area').addEventListener('input',  aktualisiereAnlage);
       document.getElementById('product-form-area').addEventListener('change', aktualisiereAnlage);
+      window.addEventListener('mc:shop', aktualisiereAnlage);   // ZW1: Shopwechsel sperrt/entsperrt die Anlage
 
       aktualisiereAid();   // Anfangszustand: gesperrt, Grund sichtbar
 
@@ -22003,6 +22018,7 @@
             currentDraftRow = ssotData.row;
           }
           document.getElementById('prod-status-text').textContent = ssotData.status || '—';
+          zwillingStandZeigen(p.id);   // ZW1
 
           // Stammdaten
           pfName.value = p.name || '';
@@ -22404,6 +22420,7 @@
 
           const varPriceMsg = changedVars.length ? `, ${changedVars.length} Variante${changedVars.length !== 1 ? 'n' : ''} aktualisiert` : '';
           pushStatus.textContent = `Gespeichert – WC-ID: ${data.id}${varPriceMsg}`;
+          if (zwillingStand.honkId) showToast(`Zwilling in HONK! (#${zwillingStand.honkId}) nicht mitgeändert.`, 'warn', 10000);   // ZW1
           pushStatus.style.color = 'var(--success)';
           showToast(`Artikel aktualisiert – WC-ID: ${data.id}${varPriceMsg}`, 'success');
           btnUpdateWc.disabled = false;
@@ -22649,8 +22666,52 @@
         }
       }
 
+      // ── Zwilling: Anfang (ZW1) ──
+      // HONK!-Zwilling anlegen (POST /api/zwilling/anlegen) und in „Artikel ändern“ anzeigen (GET /api/zwilling).
+      let zwillingStand = { honkId: '' };
+      const ZW_STATUS_TEXT = { draft: 'Entwurf', publish: 'öffentlich', private: 'privat', pending: 'ausstehend', fehlt: 'im Shop nicht gefunden', unbekannt: 'Stand unbekannt' };
+      async function zwillingAnlegen(jfnId, ssotId) {
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/zwilling/anlegen`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            signal: AbortSignal.timeout(540000),
+            body: JSON.stringify({ jfnId, ssotId }),
+          });
+          const d = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            showToast(`HONK!-Zwilling nicht angelegt: ${d.error || res.status}`, 'error', 20000);
+            return { ok: false, text: 'HONK!-Zwilling nicht angelegt (Grund im Hinweis)' };
+          }
+          const ab = d.abweichungen || [];
+          if (ab.length) showToast(`HONK!-Zwilling #${d.honkId} angelegt, aber: ${ab.join(' · ')}`, 'warn', 20000);
+          else showToast(`HONK!-Zwilling #${d.honkId} als Entwurf angelegt (${d.variationen} Variationen, ${d.bilder} Bilder).`, 'success', 8000);
+          if (d.ssot && !d.ssot.geschrieben) showToast(d.ssot.hinweis, 'warn', 15000);
+          else if (d.ssot?.ohneZuordnung) showToast(`HONK_Variation_ID: ${d.ssot.ohneZuordnung} ohne Zuordnung – ${(d.ssot.hinweise || []).join(' · ')}`, 'warn', 15000);
+          return { ok: !ab.length, text: `HONK!-Zwilling #${d.honkId} (${d.status})` };
+        } catch (e) {
+          showToast(`HONK!-Zwilling: keine Antwort (${e.message}) – bitte in HONK! nachsehen, nicht doppelt anlegen.`, 'error', 20000);
+          return { ok: false, text: 'HONK!-Zwilling: Ergebnis unklar' };
+        }
+      }
+      async function zwillingStandZeigen(jfnId) {
+        const el = document.getElementById('pf-zwilling-stand');
+        zwillingStand = { honkId: '' };
+        el.hidden = true; el.textContent = '';
+        try {
+          const d = await apiJson(await apiFetch(`${API_BASE()}/api/zwilling?jfnId=${encodeURIComponent(jfnId)}`));
+          if (Number(document.getElementById('pf-wc-id').value) !== Number(jfnId) || !d.honkId) return;
+          zwillingStand = d;
+          const a = document.createElement('a');
+          a.href = d.link; a.target = '_blank'; a.rel = 'noopener'; a.dataset.hilfe = 'zwilling-link';
+          a.textContent = `Zwilling in HONK!: #${d.honkId} (${ZW_STATUS_TEXT[d.status] ?? d.status}) ↗`;
+          el.append(a); el.hidden = false;
+        } catch { /* nur Anzeige */ }
+      }
+      // ── Zwilling: Ende ──
+
       // Create in WooCommerce – mit automatischem Draft-Save falls nötig
       document.getElementById('btn-create-wc').addEventListener('click', async () => {
+        if (currentShop() === 'honk') { showToast(ANLAGE_HONK_GRUND, 'error', 10000); return; }   // ZW1
         const activeVariants = variants.filter(v => v._checked !== false);
         if (activeVariants.length === 0 && variants.length > 0) {
           showToast('Bitte mindestens eine Variante auswählen', 'error');
@@ -22910,6 +22971,15 @@
             : (failed ? 'var(--warning)' : 'var(--success)');
           showToast(`Produkt angelegt – WC-ID: ${wcId}, ${varMsg}`, failed ? 'info' : 'success');
           if (data1.hinweis) showToast(data1.hinweis, 'error', 8000);
+
+          // ZW1: Zwilling in HONK! (Entwurf). JFN bleibt angelegt, egal was hier passiert.
+          if (document.getElementById('pf-zwilling').checked && ssotId) {
+            pushStatus.textContent += ' · HONK!-Zwilling wird angelegt (Bilder, Entwurf)…';
+            const zw = await zwillingAnlegen(wcId, ssotId);
+            pushStatus.textContent = pushStatus.textContent.replace(/ · HONK!-Zwilling wird angelegt.*$/, '') + ` · ${zw.text}`;
+            if (!zw.ok) pushStatus.style.color = 'var(--warning)';
+          }
+          document.getElementById('pf-zwilling').checked = false;
 
           // Formular zurücksetzen für nächsten Artikel
           resetForm();

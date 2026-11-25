@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { mitAdminLink } from '../utils/shop-admin.js';
 import { getWcClient, getShopConfig } from '../lib/shopConfig.js';
+import { ANLAGE_NUR_JFN_TEXT } from '../utils/zwilling.js';
 import { seitenGrenze, seitenListe, wirfWennPruefseite, HosterPruefseiteError, ShopZeitueberschreitungError } from '../lib/hosterPruefseite.js';
 import { notifyHosterPruefseite, notifyShopZeitueberschreitung } from '../lib/chatNotify.js';
 import { markeFuerShop } from '../lib/shopMarke.js';
@@ -323,6 +324,10 @@ router.get('/stats', async (req, res, next) => {
 // Die Antwort enthaelt den Markennamen aus der WooCommerce-Antwort.
 router.post('/products', async (req, res, next) => {
   try {
+    // ZW1: neu angelegt wird nur in JFN - die Maske kennt nur JFN-Kategorien, -Lieferzeiten und -Bilder.
+    // HONK!-Artikel entstehen als Zwilling (POST /api/zwilling/anlegen).
+    if (String(req.query.shop ?? '').toLowerCase().trim() === 'honk')
+      return res.status(409).json({ error: ANLAGE_NUR_JFN_TEXT, code: 'anlage_nur_jfn' });
     const wc = getClient(req);
     const { ssot_id, variations, brands: _brandsAusBody, lieferzeit, ...rest } = req.body;
 

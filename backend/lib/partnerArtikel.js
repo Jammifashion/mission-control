@@ -177,16 +177,19 @@ const heute = (jetzt = new Date()) => {
 // EK aus L-Shop fuer eine Liste Produkt-IDs (SSOT: Erfassungsmaske -> Varianten -> LShop_Modelle).
 // LS2: auch Zeilen mit Status "ausgelaufen" zaehlen - der EK einer vorhandenen
 // Variante bleibt lesbar.
-async function ekFuerProdukte(pids, { ssotSheets } = {}) {
+async function ekFuerProdukte(pids, { ssotSheets, shop = 'jfn' } = {}) {
   const ergebnis = new Map();
   if (!pids.length) return ergebnis;
   const o = ssotSheets ? { sheets: ssotSheets } : {};
   const [erf, varianten, lshop] = await Promise.all([
-    leseReiterSpalten({ tab: 'Erfassungsmaske', spalten: { ssot: 'ID', pid: 'Produkt-ID' }, ...o }),
+    // ZW1: HONK!-Zwillinge stehen in derselben Zeile wie der JFN-Artikel (Spalte HONK_Produkt_ID, optional).
+    leseReiterSpalten({ tab: 'Erfassungsmaske', spalten: { ssot: 'ID', pid: 'Produkt-ID' }, optional: { honk: 'HONK_Produkt_ID' }, ...o }),
     leseReiterSpalten({ tab: 'Varianten', spalten: { ssot: 'SSOT-ID', aktiv: 'Aktiv' }, optional: { nr: 'LShop_ArticleNr' }, ...o }),
     leseReiterSpalten({ tab: TAB_LSHOP, spalten: { articleNr: 'ArticleNr', catalogNr: 'CatalogNr', color1: 'color1', color2: 'color2', size: 'Size', preis: '10CartonsPrice' }, ...o }),
   ]);
-  const ssotVon = new Map(erf.filter(z => z.pid).map(z => [z.pid, z.ssot]));
+  // Produkt-IDs sind je Shop vergeben (zwei Installationen) - HONK nur ueber HONK_Produkt_ID, nie ueber Produkt-ID.
+  const idVon = z => (shop === 'honk' ? z.honk : z.pid);
+  const ssotVon = new Map(erf.filter(z => idVon(z)).map(z => [idVon(z), z.ssot]));
   for (const pid of pids) {
     const ssot = ssotVon.get(pid);
     const nrs = ssot ? varianten.filter(v => v.ssot === ssot && t(v.aktiv).toUpperCase() !== 'FALSE').map(v => v.nr ?? '') : [];
@@ -228,7 +231,7 @@ export async function importiereFuerPartner({ sheets, sheetId, partner, wc, ssot
   const vorhanden = new Set(eigene.map(r => t(r[iPid])));
 
   const fehlend = produkte.filter(p => !vorhanden.has(String(p.id))).map(p => String(p.id));
-  const ek = await ekFuerProdukte(fehlend, { ssotSheets });
+  const ek = await ekFuerProdukte(fehlend, { ssotSheets, shop });
   const { heuteIso, heuteDe } = heute(jetzt);
   const neu = neueZeilen({ shop, partnerId: partner.id, produkte, vorhanden, ek, heuteIso, heuteDe });
 

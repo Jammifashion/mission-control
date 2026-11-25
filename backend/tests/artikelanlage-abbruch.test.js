@@ -30,7 +30,7 @@ const BODY = {
   attributes: [{ name: 'Farbe', options: ['Schwarz'], variation: true }, { name: 'Größe', options: ['S', 'M', 'L'], variation: true }],
   variations: [groesse('S'), groesse('M'), groesse('L')],
 };
-const anlegen = () => request(app).post('/api/woocommerce/products?shop=honk').send(BODY);
+const anlegen = () => request(app).post('/api/woocommerce/products?shop=jfn').send(BODY);   // ZW1: Anlage nur in JFN
 const variationsPosts = () => wc.post.mock.calls.filter(c => c[0] !== 'products');
 
 beforeEach(() => {

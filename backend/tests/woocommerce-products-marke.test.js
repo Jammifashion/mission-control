@@ -86,13 +86,14 @@ describe('POST /products – Marke', () => {
     expect(clients.jfn.post).not.toHaveBeenCalled();
   });
 
-  test('honk → kein brands-Feld, auch wenn der Body eines schickt; marke leer', async () => {
+  // ZW1: neu angelegt wird nur in JFN - HONK!-Artikel entstehen als Zwilling (POST /api/zwilling/anlegen).
+  test('honk → 409 anlage_nur_jfn, nichts an WooCommerce', async () => {
     const res = await request(app).post('/api/woocommerce/products?shop=honk')
       .send({ ...BASIS, brands: [{ id: 3 }] });
-    expect(res.status).toBe(201);
-    expect(produktPost('honk')[0][1]).not.toHaveProperty('brands');
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('anlage_nur_jfn');
+    expect(clients.honk.post).not.toHaveBeenCalled();
     expect(clients.honk.get).not.toHaveBeenCalled();
-    expect(res.body.marke).toBe('');
   });
 
   test('SKU-Retry behaelt die Marke', async () => {
