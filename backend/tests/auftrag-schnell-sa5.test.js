@@ -111,5 +111,6 @@ describe('Oberflaeche', () => {
   test('FB-0003: Eigenschaften in Reiter 3 auf Kartenbreite, im Layout-Block', () => {
     const layout = html.match(/\/\* ── Layout: Anfang[\s\S]*?Layout: Ende ── \*\//)[0];
     expect(layout).toMatch(/#properties-container, #properties-rule-hint \{ max-width: calc\(var\(--karten-max-breite\) - 2\.5rem - 2px\); \}/);
+    expect(layout).toContain('.panel .card.inhalt-breit:has(> #properties-container):has(> #variants-section[style*="none"]) { max-width: var(--karten-max-breite); }');
   });
 });

@@ -85,6 +85,7 @@
       #pk-mc { max-width: var(--karten-max-breite); }   /* Partner-Kacheln in der breiten Partner-Karte */
       .panel .status-bar { max-width: var(--karten-max-breite); }   /* AH1: Statuszeile der Artikelmaske endet mit den Karten */
       #properties-container, #properties-rule-hint { max-width: calc(var(--karten-max-breite) - 2.5rem - 2px); }   /* SA5: Eigenschaften (Reiter 3) enden wie die Felder der 800-px-Karten (Innenrand + Rahmen abgezogen); die Karte bleibt breit für die Variantentabelle */
+      .panel .card.inhalt-breit:has(> #properties-container):has(> #variants-section[style*="none"]) { max-width: var(--karten-max-breite); }   /* SA5: Rahmen von Reiter 3 = 800 px, solange keine Variantentabelle steht; mit Tabelle breit */
       /* ── Layout: Ende ── */
 
       /* Farben: farben.css (FK4) - hier keine Farbwerte, nur var(--…). */
