@@ -13,7 +13,7 @@ import { normHeader } from '../utils/sheet-headers.js';
 import { berlinDatum } from '../utils/berlin-tag.js';
 import { _auftraegeCacheLeeren } from './auftraege.js';   // zyklisch, nur zur Laufzeit benutzt
 import {
-  TAB_DRUCKMASSE, DRUCKMASSE_SPALTEN, DRUCKMASSE_OPTIONAL, DTF_CONFIG_SCHLUESSEL, dtfPreise, druckmassEingabe, istAktiv, massSchluessel,
+  TAB_DRUCKMASSE, DRUCKMASSE_SPALTEN, DRUCKMASSE_OPTIONAL, DTF_CONFIG_SCHLUESSEL, DTF_START_SCHLUESSEL, startDatumAus, dtfPreise, druckmassEingabe, istAktiv, massSchluessel,
   naechsteDruckmassId, normBezug, GROESSE_ALLE, FUEHREND, fuehrendAus, massSets, POSITIONEN,
 } from '../utils/druckkosten.js';
 
@@ -71,7 +71,7 @@ export async function leseDtfConfig({ sheets, spreadsheetId = process.env.BUSINE
     const norm = kopf.map(normHeader);
     const iS = norm.indexOf(normHeader('Schlüssel')), iW = norm.indexOf(normHeader('Wert'));
     if (iS < 0 || iW < 0) return {};
-    return Object.fromEntries(rest.filter(r => DTF_CONFIG_SCHLUESSEL.includes(t(r[iS]))).map(r => [t(r[iS]), r[iW] ?? '']));
+    return Object.fromEntries(rest.filter(r => DTF_CONFIG_SCHLUESSEL.includes(t(r[iS])) || t(r[iS]) === DTF_START_SCHLUESSEL).map(r => [t(r[iS]), r[iW] ?? '']));
   } catch { return {}; }
 }
 
@@ -82,8 +82,10 @@ export async function leseDtfConfig({ sheets, spreadsheetId = process.env.BUSINE
 export async function leseDruckKontext({ sheets, spreadsheetId = process.env.GOOGLE_SHEET_ID } = {}) {
   let r = null;
   try { r = await liesReiter(sheets, spreadsheetId); } catch { r = null; }
-  const preise = dtfPreise(await leseDtfConfig({ sheets }));
-  return { masse: r ? r.zeilen.filter(istAktiv) : [], preise, einrichtung: !!r, spalten: { fuehrend: r?.idx.Fuehrend !== undefined, modell: r?.idx.Modell !== undefined } };
+  const cfg = await leseDtfConfig({ sheets });
+  const preise = dtfPreise(cfg);
+  // AU-UX1: Startdatum des DTF-Korbs nur fuer die Anzeige (Maß-Warnung erst fuer Auftraege ab diesem Tag)
+  return { masse: r ? r.zeilen.filter(istAktiv) : [], preise, einrichtung: !!r, start: startDatumAus(cfg[DTF_START_SCHLUESSEL]), spalten: { fuehrend: r?.idx.Fuehrend !== undefined, modell: r?.idx.Modell !== undefined } };
 }
 
 /** Anzeige der Einstellungen in der Pflege-Ansicht: Preis je m² (Euro brutto) bzw. was fehlt. */

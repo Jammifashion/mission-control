@@ -273,7 +273,7 @@ function auftraegeAntwort() {
     spalten: { preise: true, rabatt: true, angebot: true, zustaendig: true, zustaendigAufgaben: true, preisEingabe: true, designLink: true, vorkasse: true, versand: true },   // RE3
     zustaendigAuswahl: PR.ZUSTAENDIG,
     einrichtung: { aufgaben: true, todos: true },
-    druck: { hand: true, express: true, druckmasse: true, fuehrend: true, modell: true },   // DK1, DK2
+    druck: { hand: true, express: true, druckmasse: true, fuehrend: true, modell: true, start: '2026-11-15' },   // DK1, DK2; AU-UX1: dtf.start_datum (aeltere Auftraege = Maß-Warnung leise)
   };
 }
 const AUFTRAEGE_ANTWORT = auftraegeAntwort();

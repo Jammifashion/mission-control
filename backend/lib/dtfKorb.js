@@ -20,7 +20,7 @@ import * as ablageStandard from './dtfAblage.js';
 import { normHeader } from '../utils/sheet-headers.js';
 import { wcVariationMap, varianteDerPosition } from '../utils/varianten-zeilen.js';
 import { berlinDatum, berlinJahr, wcTagDE } from '../utils/berlin-tag.js';
-import { dtfPreise, istDtf, POSITIONEN, normBezug, istAktiv, masseFuer, GROESSE_ALLE } from '../utils/druckkosten.js';
+import { dtfPreise, istDtf, POSITIONEN, normBezug, istAktiv, masseFuer, GROESSE_ALLE, startDatumAus } from '../utils/druckkosten.js';
 import {
   TAB_DTF_KORB, KORB_SPALTEN, TAB_DTF_DATEIEN, DATEI_SPALTEN, TAB_DTF_PROTOKOLL, PROTOKOLL_SPALTEN, QUELLE, STATUS, GRUENDE,
   BESTELL_STATUS, LIEFERARTEN, CONFIG, SHOP_STATUS_OFFEN, BREITE_STANDARD_CM, VERSCHNITT_STANDARD, BESTELL_ID_RE, DRUCK_ID_RE,
@@ -98,14 +98,7 @@ export async function leseDtfEinstellungen({ sheets, spreadsheetId = process.env
     return Object.fromEntries(rest.filter(r => t(r[iS]).startsWith('dtf.')).map(r => [t(r[iS]), r[iW] ?? '']));
   } catch { return {}; }
 }
-/** Zahl/Datum aus Config: Startdatum als JJJJ-MM-TT (Sheets-Seriennummer oder Text). */
-export function startDatumAus(w) {
-  if (typeof w === 'number' && w > 30000) return berlinDatum(new Date(Math.round((w - 25569) * 864e5)));
-  const s = t(w);
-  const de = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(s);
-  if (de) return `${de[3]}-${de[2].padStart(2, '0')}-${de[1].padStart(2, '0')}`;
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
-}
+export { startDatumAus };   // AU-UX1: Parser liegt in utils/druckkosten.js (auch fuer die Auftragsansicht)
 function meterEinstellungen(cfg) {
   const p = dtfPreise(cfg);
   const breite = Number(String(cfg['dtf.breite_cm'] ?? '').replace(',', '.')) || BREITE_STANDARD_CM;

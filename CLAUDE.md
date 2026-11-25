@@ -298,7 +298,13 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   nie loeschen = "inaktiv". Auftragsansicht: Block `Druckkosten-Anzeige: Anfang/Ende` (Praefix `dk`, in der Kalkulation, Dialog `#dk-dialog`
   vor `#au-nachsehen`). DK2: je Größenzeile der Auftragsansicht Feld „Maße …“ (`dkPosFeldHtml`, führende Seite fett, Grund orange), Dialog je
   Position (Maß-Sets aus `GET /api/druckmasse` `sets`, Position nur aus `DK_POSITIONEN` = Spiegel `POSITIONEN`, Umschalter führend, "für alle Größen",
-  "für dieses Motiv merken" -> Set mit Größe der Zeile, danach Hand-Zelle leer). Test druckkosten-frontend.test.js, druckkosten-dk2.test.js.)
+  "für dieses Motiv merken" -> Set mit Größe der Zeile, danach Hand-Zelle leer). Test druckkosten-frontend.test.js, druckkosten-dk2.test.js.
+  AU-UX1 (25.11.): Maß, Fläche und Druckkosten je Größenzeile stehen in der Positionskarte (`dkPosFeldHtml`); die Kalkulation zeigt nur Express, "Druckkosten netto",
+  "Rohertrag nach Druck" (+ "unvollständig"). Fehlendes Maß = kleines Kennzeichen `.dk-kz` + EIN Sammelhinweis oben (`dkSammelHtml`, `#au-d-dk`), orange NUR bei
+  offener Position, Auftrag vor "fertig" und angelegt ab `dtf.start_datum` (`dkWarnung`; `GET /api/auftraege` liefert `druck.start`), sonst grau in der Kalkulation.
+  Auftragsansicht: sichtbar weiter/bereitstellen/"als bezahlt markieren"/Abrechnen (`#au-re-knopf`)/+ Aufgabe, Rest im Menü `#au-mehr` (stornieren zuletzt);
+  Preise = eine Zeile `.ap-kurz`, Rest unter "Kalkulation zeigen/verbergen". Dialog: gesperrte Gruppen als Lesezeile + Preise + "Details", Aufpreis nur bei > 1 Größe,
+  Druckname auf Klick. Test au-ux1.test.js.)
 - Artikelerfassung (dazu Modus-Knopf "🧵 L-Shop-Modelle", LS4: Unterpunkt `artikel/lshop-modelle`, Panel `#lsm-panel`,
   SECTION L-Shop-Modelle mit Block `L-Shop-Modelle: Anfang/Ende`, Test lshop-modelle-frontend.test.js; Hilfe-Gruppe
   `lshop-modelle`; Links `data-lsm-link` aus Warenkorb "Nicht im Bestand" und Maske "Kein L-Shop-Modell".

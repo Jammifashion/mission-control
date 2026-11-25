@@ -348,7 +348,8 @@ export async function leseAuftraege({ sheets: s, jetzt = () => new Date(), autoB
     einrichtung: { aufgaben: !!g && !g.kaputt, todos: !!d && !d.kaputt },
     // DK1: Spalten fuer freie Druckmasse/Express und ob der Reiter Druckmasse eingerichtet ist (Oberflaeche sperrt sonst mit Hinweis)
     druck: { hand: p.idx.Druckmasse_Hand !== undefined, express: a.idx.DTF_Express !== undefined, druckmasse: dk.einrichtung,
-      fuehrend: !!dk.spalten?.fuehrend, modell: !!dk.spalten?.modell },   // DK2: Spalten Fuehrend/Modell in Druckmasse
+      fuehrend: !!dk.spalten?.fuehrend, modell: !!dk.spalten?.modell,   // DK2: Spalten Fuehrend/Modell in Druckmasse
+      start: dk.start ?? '' },   // AU-UX1: dtf.start_datum (JJJJ-MM-TT) - nur Anzeige: Maß-Warnung orange erst ab diesem Tag
   };
   if (!s) cache = { zeit: Date.now(), antwort };
   return antwort;

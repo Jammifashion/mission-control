@@ -18,6 +18,7 @@
 
 import { parseDeZahl } from './zahl-de.js';
 import { UST_STANDARD } from './auftrag-preise.js';
+import { berlinDatum } from './berlin-tag.js';
 
 export const TAB_DRUCKMASSE = 'Druckmasse';
 export const DRUCKMASSE_SPALTEN = ['Druckmass_ID', 'Bezug', 'Position', 'Groesse', 'Breite_cm', 'Hoehe_cm', 'Aktiv', 'Notiz', 'Angelegt', 'Stand'];
@@ -42,6 +43,8 @@ export const DTF_CONFIG = {
   verschnitt: 'dtf.verschnitt_prozent',
 };
 export const DTF_CONFIG_SCHLUESSEL = Object.values(DTF_CONFIG);
+// DT1: Start des DTF-Korbs (legt scripts/setup-dtf-korb.js an, nicht das Druckmaß-Setup). AU-UX1: auch Anzeige-Regel der Maß-Warnung.
+export const DTF_START_SCHLUESSEL = 'dtf.start_datum';
 // Vorbelegung des Setups (keine Preise): Breite 57 cm (Inhaber 23.11.: der Bogen ist immer 57 cm breit), Verschnitt 15 %.
 // Bogenlaenge nur beim Bogenpreis noetig - traegt der Inhaber ein (Abrechnung in 10-cm-Schritten bis 3 m, antwort-DK1-1).
 export const DTF_CONFIG_VORGABE = { [DTF_CONFIG.breite]: '57', [DTF_CONFIG.verschnitt]: '15' };
@@ -51,6 +54,15 @@ const NICHT_DTF = /(stick|flex|flock|sieb|plott?|sublim|laser|gravur)/i;
 export const istDtf = druck => /\bdtf\b/i.test(String(druck ?? '')) || !NICHT_DTF.test(String(druck ?? ''));
 
 const t = v => String(v ?? '').trim();
+
+/** Zahl/Datum aus Config: Startdatum als JJJJ-MM-TT (Sheets-Seriennummer oder Text), sonst ''. */
+export function startDatumAus(w) {
+  if (typeof w === 'number' && w > 30000) return berlinDatum(new Date(Math.round((w - 25569) * 864e5)));
+  const s = t(w);
+  const de = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(s);
+  if (de) return `${de[3]}-${de[2].padStart(2, '0')}-${de[1].padStart(2, '0')}`;
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
+}
 export const normBezug = v => t(v).toLowerCase().replace(/\s+/g, ' ');
 /** Groesse vergleichbar: Gross/Klein egal, XXL = 2XL, XXXL = 3XL. */
 export function normGroesse(v) {
