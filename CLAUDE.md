@@ -1648,6 +1648,16 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Datei-ID + modifiedTime + Groesse (80 / 40 MB). Seite: eine Netzstelle `anfrage` (auch Bilder als blob-URL mit Token im Header), Galerie
   `bsEntwuerfeHtml` lazy, gross mit ‹ › / Wischen / Pfeiltasten. MC: `bsmEntwurfHtml` im Zugang (verbinden, anlegen, in Drive öffnen, Vorschau).
   Test bestellseite-ks7.test.js.
+- backend/lib/zwilling.js – HONK!-Zwilling (ZW1), Logik `utils/zwilling.js`, Route `routes/zwilling.js` (`POST /api/zwilling/anlegen { jfnId, ssotId }`,
+  `GET /api/zwilling?jfnId=`). Neu angelegt wird NUR in JFN (Maske gesperrt bei Shop HONK, `POST /api/woocommerce/products?shop=honk` = 409
+  `anlage_nur_jfn`). Haken "auch im HONK!-Shop anlegen" (`#pf-zwilling`, Block `Zwilling: Anfang/Ende`): nach der JFN-Anlage liest MC den JFN-Artikel
+  zurueck und legt in HONK einen ENTWURF an - gleiche SKUs/Varianten/Preise, Attribute LOKAL (keine Terme in HONK), Kategorien ueber
+  `Struktur_Kategorien.HONK_Kategorie`, Lieferzeit ueber `Struktur_Lieferzeiten.Term_ID_HONK` (Variationen "-1"), `_wc_gla_color` wie JFN, keine Marke.
+  Fehlt eine Zuordnung (422 `zuordnung`), ist eine SKU in HONK vergeben (409, kein "-v2") oder scheitert ein Bild-Upload (JFN-Bild -> HONK-Mediathek
+  ueber `ladeMedienHoch`): in HONK kein Artikel. Danach zurueckgelesen; Verknuepfung `Erfassungsmaske.HONK_Produkt_ID` + `HONK_Status`,
+  `Varianten.HONK_Variation_ID` (Kombination, nur leere Zellen) - keine zweite Zeile. "Artikel aendern" zeigt "Zwilling in HONK!: #ID (Status) ↗",
+  Speichern meldet "nicht mitgeaendert". Partner-Zeile legt nur der Abgleich an (HONK: erst veroeffentlicht; EK ueber HONK_Produkt_ID).
+  Setup `scripts/setup-zwilling.js` (Trockenlauf, `--write`; HONK_Kategorie nur bei gleichem Namen vorbelegt). Test zwilling.test.js.
 - backend/lib/wpMedien.js – Upload in die WordPress-Mediathek (`ladeMedienHoch`, `setzeMedienText`),
   eine Stelle fuer `POST /api/artikel/media-upload` und das Halloween-Skript (fetchMitZeitlimit +
   pruefeFetchAntwort; Titel/ALT als Abfrageparameter).
