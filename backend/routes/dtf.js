@@ -3,7 +3,7 @@
 import express, { Router } from 'express';
 import {
   runDtfAbgleich, leseDtfKorb, setzeDtfStatus, zuordnenKontext, zuordnen, dateiHochladen, bestellVorschau, bestellungAbsenden,
-  bestellungPruefen, lieferungDa, scan, leseWasFehlt, DTF_BESCHAEFTIGT,
+  bestellungPruefen, lieferungDa, scan, leseWasFehlt, DTF_BESCHAEFTIGT, setzeDtfKarte,
 } from '../lib/dtfKorb.js';
 import { sucheDateien, vorschau } from '../lib/dtfAblage.js';
 import { quellSchluessel, QUELLE, DATEI_TYPEN, DATEI_MAX_BYTE } from '../utils/dtf-korb.js';
@@ -33,6 +33,8 @@ router.post('/aufnehmen', mitMeldung(async req => {
   return runDtfAbgleich({ quelle: 'aufnehmen', zwang: new Set([quellSchluessel(quelle, nummer)]) });
 }));
 router.post('/status', mitMeldung(req => setzeDtfStatus({ eingabe: req.body ?? {} })));
+// BO5-9 Teil B: Knoepfe "DTF bestellen" / "DTF aus dem Lager" in der Bestellkarte (nur JFN)
+router.post('/karte', mitMeldung(req => setzeDtfKarte({ eingabe: req.body ?? {} })));
 router.get('/zuordnen', mitMeldung(req => zuordnenKontext({ schluessel: req.query.schluessel })));
 router.post('/zuordnen', mitMeldung(req => zuordnen({ eingabe: req.body ?? {} })));
 router.get('/datei/suche', mitMeldung(async req => ({ dateien: await sucheDateien(req.query.q) })));

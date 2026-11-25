@@ -159,6 +159,14 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   dtf-frontend.test.js), Praefix `dtf`, Hilfe-Gruppen `dtf`, `dtf-zuordnen`, `dtf-bestellung`; Dialoge `#dtf-zu-dialog`, `#dtf-best-dialog`, `#dtf-ab-dialog`.
   Scan-Adresse `#dtf/scan/<Druck- oder Bestell-ID>` (QR in Nicos XML) -> `ansichtAusHash` setzt `window.mcDtfScan`, Karte `#dtf-scan` (nur nach Anmeldung).
   Auftragsansicht: Chip `au-dtf-stand` "Druck bestellt" aus `p.dtf`.
+  BO5-9 Teil B (antwort-BO5-9-1, B1): DTF-Stand in "Bestellungen (JFN)" NUR aus dem DTF-Korb - drei Knoepfe `psDtfHtml` (Block Produktion-Stand)
+  "DTF bestellen" · "DTF bestellt" (nur Anzeige, setzt das Absenden) · "DTF aus dem Lager" (= abgewaehlt mit `GRUND_LAGER` "schon da (aus dem
+  Lager)" in `GRUENDE`, keine Lager-Buchung; bei bestellt gesperrt). `POST /api/dtf/karte` { nummer, position, ziel bestellen|lager, gesehen }
+  -> `setzeDtfKarte` (Sperre, Vorher-Pruefung je Zeile, `dtfKartenPlan`); ohne Korb-Zeile "bestellen" = wie "trotzdem aufnehmen" (ganze
+  Bestellung), "lager" = nur diese Position gleich abgewaehlt (`abgleichKern` mit `nurPosition`/`alsLager`); solche Zeilen machen eine aeltere
+  Bestellung im Abgleich NICHT bekannt. Stand je Position `dtfStandJePosition` -> `leseDtfJePosition` -> `dtf` je Artikel (`dtfFuerKarte`,
+  Korb fehlt = Knoepfe aus mit Grund, Trikot ohne Knoepfe). `Produktions_Status.DTF_bestellt` = Archiv: PUT 400, in der Karte nur Hinweis
+  "früher als „DTF bestellt“ markiert"; Mika liest `dtf`. Auftrag: Chip "DTF schon da". Test bo5-9b.test.js.
 - Trikots (TR2: Unterpunkt `bestellen/trikots`, Unterreiter "Trikots (JFN)" hinter L-Shop-Bestellungen, `shop: false`;
   Block `Trikots: Anfang/Ende` (Test trikot-ansicht-frontend.test.js), `TR_HINWEISE` = Spiegel von `HINWEISE` in
   utils/trikot-ansicht.js; Hilfe-Gruppe `trikots`. Nur lesen. Klick auf die Bestellnummer: `psSpringeZu` + Bestellansicht,

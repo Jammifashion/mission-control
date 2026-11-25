@@ -174,7 +174,7 @@ export function zusammenfassung(artikel, bestelldatum, jetzt = new Date()) {
  * @param {Function} o.einstufen     li -> klasse (nur fuer Positionen ohne Korb-Zeile)
  * @param {Function} o.korbSchluessel (bestellnummer, position) -> Schluessel
  */
-export function baueStand({ shop, bestellungen, ps, korb, bestellungJe, einstufen, korbSchluessel, lagerJe = new Map(), lagerFrei = null, jetzt = new Date() }) {
+export function baueStand({ shop, bestellungen, ps, korb, bestellungJe, einstufen, korbSchluessel, lagerJe = new Map(), lagerFrei = null, dtf = null, jetzt = new Date() }) {
   const jfn = normalizeShop(shop) === 'jfn';
   return bestellungen.map(o => {
     const artikel = (o.line_items ?? []).map(li => {
@@ -197,6 +197,7 @@ export function baueStand({ shop, bestellungen, ps, korb, bestellungJe, einstufe
         dtfBestellt: z?.dtfBestellt ?? false, notiz: z?.notiz ?? '', lshop,
         ...(lager ? { lager } : {}),
         ...bo59,   // BO5-9: einbuchen / lagerFrei
+        ...(jfn && dtf ? { dtf: dtfFuerKarte(dtf, `JFN:${t(o.id)}:${t(li.id)}`, stufe.klasse) } : {}),   // BO5-9 Teil B
       };
     });
     return { id: t(o.id), artikel, zusammenfassung: zusammenfassung(artikel, o.date_created, jetzt) };
@@ -280,4 +281,19 @@ export function einbuchenJeArtikel({ jfn, orderId, li, korbZeile, stufe = {}, la
   if (rest <= 0 || (schluessel && n >= rest)) return out;
   out.einbuchen = { schluessel, menge: Math.max(1, rest - n), bezug, ...(schluessel ? {} : { grund: EINBUCHEN_OHNE_SCHLUESSEL }) };
   return out;
+}
+
+/**
+ * BO5-9 Teil B: DTF-Stand einer Position fuer die drei Knoepfe der Bestellkarte (Quelle = Warenkorb_DTF, eine Quelle).
+ *  - { aus: Grund }  Knoepfe aus: Korb nicht eingerichtet / gerade nicht lesbar
+ *  - null            Trikot (kommt nie in den DTF-Korb) -> keine Knoepfe
+ *  - { stand: 'keine' } noch keine Korb-Zeile (Abgleich nicht gelaufen / vor dem Start-Datum) - Knoepfe legen sie an
+ *  - sonst dtfStandJePosition (bestellen | bestellt | lager | abgewaehlt) mit den gesehenen Zeilen-Staenden
+ */
+export const DTF_AUS = { einrichtung: 'DTF-Korb noch nicht eingerichtet', lesen: 'DTF-Korb gerade nicht lesbar' };
+export function dtfFuerKarte(dtf, posKey, klasse) {
+  if (klasse === KLASSE.TRIKOT) return null;
+  if (dtf.einrichtung === false) return { aus: DTF_AUS.einrichtung };
+  if (dtf.einrichtung !== true) return { aus: DTF_AUS.lesen };
+  return dtf.je.get(posKey) ?? { stand: 'keine', zeilen: [] };
 }

@@ -59,6 +59,7 @@ export async function leseProduktionStand({ shop, bestellungen: roh, sheets: s, 
   let korb = new Map();
   let lagerJe = new Map();   // BO5-8: Korb-Schluessel -> Lager-Hinweis (dieselbe Verteilung wie im Korb)
   let lagerFrei = null;      // BO5-9: Einbuchen-Vorschlag und Lager-Hinweis fuer Positionen ohne Korb-Zeile
+  let dtf = null;            // BO5-9 Teil B: DTF-Stand je Position aus Warenkorb_DTF (nur JFN)
   const bestellungJe = new Map();
   let einstufen = () => undefined;
   if (jfn && bestellungen.length) {
@@ -70,6 +71,11 @@ export async function leseProduktionStand({ shop, bestellungen: roh, sheets: s, 
     const mitStamm = bestellungen.some(o => o.line_items.some(li => !korb.has(korbSchluessel('jfn', o.id, li.id)) && li.variation_id && li.variation_id !== '0'));
     const lager = await leseLagerFuerBestellungen(sheets, spreadsheetId, { mitStamm });
     lagerFrei = { bestandJe: lager.bestandJe, genommenJe: lager.genommenJe, wcBekannt: lager.wcBekannt };
+    // dynamisch wie in lib/auftraege.js: dtfKorb zieht Drive (dtfAblage) mit, das die Bestellansicht sonst nicht braucht
+    try { dtf = await (await import('./dtfKorb.js')).leseDtfJePosition({ sheets, spreadsheetId }); } catch (err) {
+      console.warn(`Bestellungen: DTF-Korb nicht lesbar (${err?.status ?? err?.code ?? 'Fehler'})`);
+      dtf = { einrichtung: null, je: new Map() };   // null = gerade nicht lesbar
+    }
     const buendel = korbVorschlaege(buendele(zeilen.filter(z => normalizeShop(z.Shop || 'jfn') === 'jfn' && KORB_SICHTBAR.includes(z.Status))), lager.bestand, lager.abgaenge);
     lagerJe = lagerJeKorb({ buendel, korb, bestand: lager.bestand });
     const bo = await leseLShopBestellungen({ shop, sheets, jetzt });
@@ -86,7 +92,7 @@ export async function leseProduktionStand({ shop, bestellungen: roh, sheets: s, 
   }
 
   const stand = baueStand({
-    shop, bestellungen, ps: zustaende, korb, bestellungJe, einstufen, lagerJe, lagerFrei,
+    shop, bestellungen, ps: zustaende, korb, bestellungJe, einstufen, lagerJe, lagerFrei, dtf,
     korbSchluessel: (nr, pos) => korbSchluessel('jfn', nr, pos), jetzt: jetzt(),
   });
   return {

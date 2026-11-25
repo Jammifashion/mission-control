@@ -25,7 +25,9 @@ export const PROTOKOLL_SPALTEN = [
 
 export const QUELLE = { JFN: 'JFN', AU: 'AU' };
 export const STATUS = { OFFEN: 'offen', ABGEWAEHLT: 'abgewählt', BESTELLT: 'bestellt', GELIEFERT: 'geliefert' };
-export const GRUENDE = ['schon gedruckt', 'anderer Drucker', 'Kunde hat storniert', 'wird nicht gedruckt', 'Sonstiges'];
+// BO5-9 Teil B (antwort-BO5-9-1): "DTF aus dem Lager" = abgewaehlt mit diesem Grund - nur eine Markierung, keine Lager-Buchung.
+export const GRUND_LAGER = 'schon da (aus dem Lager)';
+export const GRUENDE = ['schon gedruckt', GRUND_LAGER, 'anderer Drucker', 'Kunde hat storniert', 'wird nicht gedruckt', 'Sonstiges'];
 export const BESTELL_STATUS = { WIRD: 'wird abgelegt', ABGELEGT: 'abgelegt', UNKLAR: 'unklar', ABGEBROCHEN: 'abgebrochen', GELIEFERT: 'geliefert' };
 export const LIEFERARTEN = { abholung: 'Abholung', versand_dhl: 'Versand DHL' };
 export const LIEFERART_XML = { abholung: 'abholung', versand_dhl: 'versand-dhl' };
@@ -181,9 +183,11 @@ export function hinweisFuer(z, quellen) {
  * @param {Set} [a.zwang]       quellSchluessel, die trotz Startdatum aufgenommen werden ("trotzdem aufnehmen")
  * @returns {{ neu: object[], hinweise: [{ zeile, schluessel, alt, neu }], aelter: [{ quelle, nummer, datum, positionen }] }}
  */
-export function dtfAbgleichPlan({ vorhanden = [], kandidaten = [], quellen = new Map(), start = '', zwang = new Set() } = {}) {
+export function dtfAbgleichPlan({ vorhanden = [], kandidaten = [], quellen = new Map(), start = '', zwang = new Set(), alsLager = new Set() } = {}) {
   const schon = new Set(vorhanden.map(z => t(z.Schluessel)));
-  const bekannt = new Set(vorhanden.map(z => quellSchluessel(z.Quelle, z.Nummer)));
+  // BO5-9: Zeilen, die nur aus "DTF aus dem Lager" in der Bestellkarte stammen, machen eine aeltere Bestellung NICHT bekannt -
+  // sonst holte der naechste Abgleich alle anderen Positionen dieser Bestellung als offen in den Korb.
+  const bekannt = new Set(vorhanden.filter(z => !istLagerZeile(z)).map(z => quellSchluessel(z.Quelle, z.Nummer)));
   const neu = [], aelterJe = new Map();
   for (const k of kandidaten) {
     const qs = quellSchluessel(k.quelle, k.nummer);
@@ -204,6 +208,8 @@ export function dtfAbgleichPlan({ vorhanden = [], kandidaten = [], quellen = new
         Schluessel: s, Quelle: k.quelle, Nummer: t(k.nummer), Position: t(k.position), Druckposition: dp,
         Kuerzel: t(k.kuerzel), Modell: t(k.modell), Textilfarbe: t(k.farbe), Groesse: t(k.groesse), Menge: Number(k.menge) || 0,
         Express: k.express ? 'ja' : '', Status: STATUS.OFFEN, Hinweis: k.druckname ? NAMENSDRUCK : '',
+        // BO5-9: aus der Bestellkarte "DTF aus dem Lager" ohne Korb-Zeile - gleich abgewaehlt mit dem Grund anlegen
+        ...(alsLager.has(`${k.quelle}:${t(k.nummer)}:${t(k.position)}`) ? { Status: STATUS.ABGEWAEHLT, Grund: GRUND_LAGER } : {}),
       });
     }
   }
@@ -461,6 +467,66 @@ export function nachrichtAnNico({ id, anzahl, laengeCm, lieferart, express, noti
 /** Chat an uns: nur ID, Laenge, Lieferart. */
 export const chatText = ({ id, laengeCm, lieferart, express }) =>
   `🖨️ ${id} abgelegt · ${meterText(laengeCm)} · ${LIEFERARTEN[lieferart] ?? 'Abholung'}${express ? ' · Express' : ''}`;
+
+// ── BO5-9 Teil B: DTF-Stand je Bestellposition (Bestellkarte) ──────────────────
+
+export const istLagerZeile = z => t(z.Status) === STATUS.ABGEWAEHLT && t(z.Grund) === GRUND_LAGER;
+export const DTF_STAND = { BESTELLEN: 'bestellen', BESTELLT: 'bestellt', LAGER: 'lager', ABGEWAEHLT: 'abgewaehlt' };
+/**
+ * Stand je Bestellposition "<Quelle>:<Nummer>:<Position>" aus den Korb-Zeilen (alle Druckpositionen; Platzhalter nur ohne echte).
+ *  - bestellt: mind. eine Zeile bestellt/geliefert (Bestell-ID, "geliefert" erst wenn alle bestellten geliefert sind)
+ *  - lager:    alle Zeilen abgewaehlt mit GRUND_LAGER
+ *  - bestellen: mind. eine Zeile offen
+ *  - abgewaehlt: sonst (anderer Grund) - Grund steht dabei
+ * @returns {Map<string, { stand, geliefert, bestellung, grund, zeilen: [{ schluessel, status, stand }] }>}
+ */
+export function dtfStandJePosition(zeilen) {
+  const je = new Map();
+  for (const z of sichtbareZeilen(zeilen ?? [])) {
+    const k = positionsSchluessel(z);
+    const l = je.get(k) ?? [];
+    l.push(z);
+    je.set(k, l);
+  }
+  const m = new Map();
+  for (const [k, l] of je) {
+    const st = l.map(z => t(z.Status));
+    const best = l.filter(z => [STATUS.BESTELLT, STATUS.GELIEFERT].includes(t(z.Status)));
+    let stand = DTF_STAND.ABGEWAEHLT;
+    if (best.length) stand = DTF_STAND.BESTELLT;
+    else if (l.every(istLagerZeile)) stand = DTF_STAND.LAGER;
+    else if (st.includes(STATUS.OFFEN)) stand = DTF_STAND.BESTELLEN;
+    const grund = stand === DTF_STAND.ABGEWAEHLT ? [...new Set(l.map(z => t(z.Grund)).filter(Boolean))].join(', ') : '';
+    m.set(k, {
+      stand, geliefert: best.length > 0 && best.every(z => t(z.Status) === STATUS.GELIEFERT),
+      bestellung: [...new Set(best.map(z => t(z.DTF_Bestellung)).filter(Boolean))].join(', '), grund,
+      zeilen: l.map(z => ({ schluessel: t(z.Schluessel), status: t(z.Status), stand: t(z.Stand) })),
+    });
+  }
+  return m;
+}
+
+/**
+ * Was "DTF bestellen" (ziel offen) bzw. "DTF aus dem Lager" (ziel lager) an den Zeilen EINER Position aendert. Gesehener Stand je
+ * Zeile wie im Browser (sonst 409). Bestellt/geliefert sperrt "aus dem Lager" (schliessen sich aus). Nichts zu tun = leere Liste.
+ * @returns {{ schluessel, felder }[]}
+ */
+export function dtfKartenPlan(zeilen, { ziel, gesehen = [] }) {
+  if (![DTF_STAND.BESTELLEN, DTF_STAND.LAGER].includes(ziel)) throw fehler('Ziel unbekannt.');
+  const sicht = new Map((gesehen ?? []).map(g => [t(g.schluessel), t(g.stand)]));
+  for (const z of zeilen) {
+    if (sicht.has(t(z.Schluessel)) && sicht.get(t(z.Schluessel)) !== t(z.Stand)) throw fehler('Der DTF-Stand wurde inzwischen geändert – Karte neu laden.', 409, 'konflikt');
+  }
+  if (zeilen.some(z => !sicht.has(t(z.Schluessel)))) throw fehler('Inzwischen gibt es weitere DTF-Zeilen zu dieser Position – Karte neu laden.', 409, 'konflikt');
+  if (ziel === DTF_STAND.LAGER) {
+    if (zeilen.some(z => [STATUS.BESTELLT, STATUS.GELIEFERT].includes(t(z.Status)))) {
+      throw fehler('DTF ist für diese Position schon bestellt – „aus dem Lager“ geht dann nicht.', 409, 'bestellt');
+    }
+    return zeilen.filter(z => t(z.Status) === STATUS.OFFEN || (t(z.Status) === STATUS.ABGEWAEHLT && t(z.Grund) !== GRUND_LAGER))
+      .map(z => ({ schluessel: t(z.Schluessel), felder: { Status: STATUS.ABGEWAEHLT, Grund: GRUND_LAGER, Notiz: '' } }));
+  }
+  return zeilen.filter(z => t(z.Status) === STATUS.ABGEWAEHLT).map(z => ({ schluessel: t(z.Schluessel), felder: { Status: STATUS.OFFEN, Grund: '', Notiz: '' } }));
+}
 
 /** Haengt ein "wird abgelegt" laenger als HAENGT_MIN? */
 export const haengt = (p, jetzt = new Date()) => t(p.Status) === BESTELL_STATUS.WIRD && t(p.Stand) && (jetzt - new Date(t(p.Stand))) > HAENGT_MIN * 60000;

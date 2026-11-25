@@ -598,8 +598,7 @@ const PI = Object.fromEntries(PS_COLS.map((c, i) => [c, i]));
 // PS1: "L-Shop_bestellt" ist nicht mehr schreibbar - der Stand kommt aus dem Warenkorb
 // (lib/produktionStand.js); die Spalte bleibt als Altstand stehen. "fertig" schreibt die
 // Spalten "Fertig" + "Fertig_Am" hinten (ueber den Namen, eigener Weg unten).
-const PS_FIELD_MAP = {
-  dtfBestellt:   'DTF_bestellt',
+const PS_FIELD_MAP = {   // BO5-9: dtfBestellt nicht mehr (Archiv, Stand aus dem DTF-Korb)
   gedruckt:      'Gedruckt',
   versendet:     'Versendet',
 };
@@ -711,6 +710,10 @@ router.put('/produktions-status', async (req, res, next) => {
     }
     if (field === 'lshopBestellt') {
       return res.status(400).json({ error: '„L-Shop bestellt“ wird aus dem Warenkorb gelesen und ist nicht mehr von Hand setzbar.' });
+    }
+    // BO5-9 Teil B: "DTF_bestellt" ist Archiv (DT1) - der DTF-Stand kommt aus dem DTF-Korb; ablehnen statt still ignorieren
+    if (field === 'dtfBestellt') {
+      return res.status(400).json({ error: '„DTF bestellt“ kommt aus dem DTF-Korb und ist nicht mehr von Hand setzbar.' });
     }
     if (field === 'fertig') return await psFertigSetzen(req, res);
     const colHeader = PS_FIELD_MAP[field];

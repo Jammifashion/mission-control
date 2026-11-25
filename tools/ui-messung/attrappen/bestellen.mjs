@@ -129,21 +129,28 @@ const L = {
   kein: grund => ({ art: 'kein', text: 'kein L-Shop-Artikel', grund, kurz: '', ziel: '' }),
   pruefen: grund => ({ art: 'pruefen', text: 'L-Shop-Nummer fehlt', grund, kurz: 'L-Shop-Nummer fehlt', ziel: '' }),
 };
+// BO5-9 Teil B: DTF-Stand je Position aus dem DTF-Korb
+const D = {
+  keine: { stand: 'keine', zeilen: [] },
+  bestellen: k => ({ stand: 'bestellen', geliefert: false, bestellung: '', grund: '', zeilen: [{ schluessel: `${k}:Brust`, status: 'offen', stand: '2026-11-25T08:00:00.000Z' }] }),
+  bestellt: (k, id) => ({ stand: 'bestellt', geliefert: false, bestellung: id, grund: '', zeilen: [{ schluessel: `${k}:Brust`, status: 'bestellt', stand: '2026-11-24T08:00:00.000Z' }] }),
+  lager: k => ({ stand: 'lager', geliefert: false, bestellung: '', grund: '', zeilen: [{ schluessel: `${k}:Brust`, status: 'abgewählt', stand: '2026-11-25T09:00:00.000Z' }] }),
+};
 const STAND = {
   '48219|9101': { imSheet: true, lshop: L.offen, lager: { art: 'offen', schluessel: 'JFN:48219:9101', status: 'offen', menge: 1, n: 3, genug: true, articleNr: nr('HZ480', 'Black', 'M'), orte: [{ ort: 'Wrist', menge: 2 }, { ort: 'Itzehoe Lagerraum Keller', menge: 1 }] } },
   '48219|9102': { imSheet: true, fertig: true, fertigAm: '2026-11-19T09:12:00.000Z', lshop: L.kein('Trikot') },
-  '48218|9111': { imSheet: false, lshop: L.offen, einbuchen: { schluessel: `LS:${nr('HZ480', 'Black', 'L')}`, menge: 1, bezug: 'JFN:48218:9111' } },   // BO5-9
+  '48218|9111': { imSheet: false, lshop: L.offen, dtf: D.bestellen('JFN:48218:9111'), einbuchen: { schluessel: `LS:${nr('HZ480', 'Black', 'L')}`, menge: 1, bezug: 'JFN:48218:9111' } },   // BO5-9
   '48217|9121': { imSheet: true, fertig: true, fertigAm: '2026-11-08T15:30:00.000Z', dtfBestellt: true, lshop: L.geliefert('JFN-2026-0039'), notiz: 'Druck links etwas schief – nachgemessen, passt noch' },
-  '48217|9122': { imSheet: true, dtfBestellt: true, lshop: L.bestellt('JFN-2026-0044', 'versandt · GLS · Paket 1') },
+  '48217|9122': { imSheet: true, dtfBestellt: true, dtf: D.bestellt('JFN:48217:9122', 'DTF-2026-0007'), lshop: L.bestellt('JFN-2026-0044', 'versandt · GLS · Paket 1') },
   '48217|9123': { imSheet: true, lshop: L.bestellt('JFN-2026-0046', 'bestätigt (AB) · Liefertermin 03.12.2026') },
   '48216|9131': { imSheet: true, lshop: L.kein('Trikot') },
   '48216|9132': { imSheet: true, lshop: L.kein('Trikot') },
   '48215|9141': { imSheet: false, lshop: L.pruefen('Nummer nicht in den L-Shop-Daten') },
   '48214|9151': { imSheet: true, lshop: L.raus('Ware da / Lager'), lager: { art: 'bestellt', n: 2, articleNr: nr('HZ480', 'Black', 'L'), orte: [{ ort: 'Wrist', menge: 2 }] } },
-  '48213|9161': { imSheet: true, lshop: L.nichtImKorb, lagerFrei: { schluessel: `LS:${nr('HZ480', 'Black', 'S')}`, n: 1, orte: [{ ort: 'Wrist', menge: 1 }], genommen: 0, menge: 1, erledigt: false, korbFehlt: true, bezug: 'JFN:48213:9161' } },   // BO5-9
+  '48213|9161': { imSheet: true, lshop: L.nichtImKorb, dtf: D.keine, lagerFrei: { schluessel: `LS:${nr('HZ480', 'Black', 'S')}`, n: 1, orte: [{ ort: 'Wrist', menge: 1 }], genommen: 0, menge: 1, erledigt: false, korbFehlt: true, bezug: 'JFN:48213:9161' } },   // BO5-9
   '48212|9171': { imSheet: true, fertig: true, fertigAm: '2026-11-03T10:00:00.000Z', versendet: true, lshop: L.geliefert('JFN-2026-0039') },
   '48212|9172': { imSheet: true, fertig: true, fertigAm: '2026-11-05T12:20:00.000Z', lshop: L.geliefert('JFN-2026-0039') },
-  '48212|9173': { imSheet: true, lshop: L.bestellt('JFN-2026-0044', 'versandt · GLS · Paket 2') },
+  '48212|9173': { imSheet: true, dtf: D.lager('JFN:48212:9173'), lshop: L.bestellt('JFN-2026-0044', 'versandt · GLS · Paket 2') },
   '48212|9174': { imSheet: true, versendet: true, lshop: L.kein('Artikel ohne Variation') },
   '48211|9181': { imSheet: true, lshop: L.kein('Trikot'), notiz: 'Kunde meldet sich noch wegen Name/Nummer' },
   '48211|9182': { imSheet: true, lshop: L.kein('Fremdware'), einbuchen: { schluessel: '', menge: 1, bezug: 'JFN:48211:9182', grund: 'Kein Lager-Artikel zu dieser Position bekannt – im Dialog suchen oder als Sonstiges anlegen.' } },   // BO5-9
@@ -178,6 +185,7 @@ function produktionStand(body) {
         fertig: !!s.fertig, fertigAm: s.fertigAm ?? '', versendet: !!s.versendet, dtfBestellt: !!s.dtfBestellt, notiz: s.notiz ?? '',
         lshop: s.lshop, ...(s.lager ? { lager: s.lager } : {}),
         ...(s.einbuchen ? { einbuchen: s.einbuchen } : {}), ...(s.lagerFrei ? { lagerFrei: s.lagerFrei } : {}),   // BO5-9
+        ...(s.dtf !== undefined ? { dtf: s.dtf } : {}),   // BO5-9 Teil B
       };
     });
     return { id: String(o.id), artikel, zusammenfassung: zusammenfassung(artikel, o.date_created) };

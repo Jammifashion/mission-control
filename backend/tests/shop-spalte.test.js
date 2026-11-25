@@ -111,9 +111,16 @@ describe('Produktions_Status', () => {
 
   test('PUT setzt das Haekchen nur in der Zeile des Shops', async () => {
     await request(app).put('/api/sheets/produktions-status?shop=honk')
+      .send({ orderId: '500', wcItemId: '7', field: 'versendet', value: true });
+    expect(tabs.Produktions_Status[1][8]).toBe('FALSE');   // JFN unberuehrt
+    expect(tabs.Produktions_Status[2][8]).toBe(true);      // HONK
+  });
+
+  test('BO5-9: "DTF bestellt" ist Archiv - PUT 400, nichts geschrieben', async () => {
+    const r = await request(app).put('/api/sheets/produktions-status?shop=honk')
       .send({ orderId: '500', wcItemId: '7', field: 'dtfBestellt', value: true });
-    expect(tabs.Produktions_Status[1][6]).toBe('FALSE');   // JFN unberuehrt
-    expect(tabs.Produktions_Status[2][6]).toBe(true);      // HONK
+    expect(r.status).toBe(400);
+    expect(tabs.Produktions_Status[2][6]).toBe('FALSE');
   });
 
   test('leere Shop-Zelle zaehlt als JFN', async () => {

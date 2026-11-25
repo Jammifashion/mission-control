@@ -365,8 +365,9 @@ describe('PUT /api/sheets/produktions-status', () => {
 describe('Block "Produktion-Stand" in index.html', () => {
   test('Block gefunden', () => { expect(front.von).toBeGreaterThan(0); expect(front.bis).toBeGreaterThan(front.von); });
 
-  test('Haekchen: Fertig · DTF · Versendet - kein "L-Shop bestellt", kein "Gedruckt"', () => {
-    expect(front.PS_FELDER).toEqual(['fertig', 'dtfBestellt', 'versendet']);
+  test('Haekchen: Fertig · Versendet - kein "L-Shop bestellt", kein "Gedruckt", DTF nicht mehr als Haken (BO5-9)', () => {
+    expect(front.PS_FELDER).toEqual(['fertig', 'versendet']);
+    expect(front.html).not.toContain('data-field="${key}"'.replace('${key}', 'dtfBestellt'));
     for (const k of front.PS_FELDER) expect(front.psArtikelHtml(1, { wcItemId: '1', imSheet: true }, {})).toContain(`data-field="${k}"`);
     expect(front.html).not.toMatch(/data-field="lshopBestellt"|key: 'lshopBestellt'/);
     expect(front.html).not.toMatch(/key: 'gedruckt'/);
@@ -391,7 +392,7 @@ describe('Block "Produktion-Stand" in index.html', () => {
     expect(h).toMatch(/data-field="fertig" checked>/);
     expect(h).toContain('Größe: L');
     expect(h).not.toContain('x: y');
-    expect(front.psArtikelHtml(100, { ...a, imSheet: false }, li).match(/disabled/g)).toHaveLength(4);   // 3 Haekchen + Notiz
+    expect(front.psArtikelHtml(100, { ...a, imSheet: false }, li).match(/disabled/g)).toHaveLength(3);   // 2 Haekchen + Notiz (BO5-9: DTF = Knoepfe)
     const ohne = front.psArtikelHtml(100, a, li, { fertigSpalte: false });
     expect(ohne).toMatch(/data-field="fertig" checked disabled>/);
     expect(ohne).toContain('noch nicht eingerichtet');

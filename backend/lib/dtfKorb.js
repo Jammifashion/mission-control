@@ -27,7 +27,7 @@ import {
   fehler, reiterZeilen, alsZeile, shopEinstufung, druckpositionenFuer, dtfAbgleichPlan, shopZustand, auZustand, quellSchluessel,
   zeileAnsicht, sichtbareZeilen, meterSchaetzung, naechsteBestellId, druckIdFuer, bestellEingabe, bestellAuswahl, baueDtfXml,
   nachrichtAnNico, chatText, haengt, statusPlan, zuordnenPlan, dateiSchluessel, dateiFuer, wasFehlt, verkaufSchluessel, istJa, referenzFuer,
-  scanAdresse, farbeGroesse,
+  scanAdresse, farbeGroesse, GRUND_LAGER, istLagerZeile, dtfStandJePosition, dtfKartenPlan, DTF_STAND, positionsSchluessel,
 } from '../utils/dtf-korb.js';
 
 const TAB_VARIANTEN = 'Varianten', TAB_MASKE = 'Erfassungsmaske', TAB_MOTIVE = 'Motive', TAB_TRIKOT = 'Trikot_Artikel', TAB_CONFIG = 'Config';
@@ -178,10 +178,16 @@ const tagAus = v => {
  * Abgleich: legt fehlende Zeilen an, schreibt nur Hinweise. Knopf (POST /api/dtf/abgleich), Scheduler (/api/intern/dtf-korb/abgleich).
  * @param {object} o { dryRun, quelle, laufId, zwang: Set quellSchluessel ("trotzdem aufnehmen") }
  */
-export async function runDtfAbgleich({ dryRun = false, quelle = 'knopf', laufId, zwang = new Set(), sheets: s, wcFuer = getWcClient, auftraege = auftraegeLesen } = {}) {
+export async function runDtfAbgleich({ sheets: s, ...rest } = {}) {
+  return mitDtfSperre(async () => abgleichKern({ ...rest, sheets: s ?? await sheetsClient() }));
+}
+/**
+ * Abgleich unter der schon gehaltenen Sperre. BO5-9: `nurPosition` ("JFN:<Nr>:<Pos>") nimmt aus der gezwungenen Bestellung nur diese
+ * Position; `alsLager` legt sie gleich als abgewaehlt mit GRUND_LAGER an ("DTF aus dem Lager" ohne Korb-Zeile).
+ */
+async function abgleichKern({ dryRun = false, quelle = 'knopf', laufId, zwang = new Set(), nurPosition = '', alsLager = false, sheets, wcFuer = getWcClient, auftraege = auftraegeLesen } = {}) {
   const lauf = laufId ?? `DTF-${new Date().toISOString().slice(0, 16)}Z`;
-  return mitDtfSperre(async () => {
-    const sheets = s ?? await sheetsClient();
+  {
     const spreadsheetId = ssotId();
     let { korb } = await liesAlles(sheets, spreadsheetId);
     // Trockenlauf geht auch vor dem Setup (leerer Korb) - so laesst sich messen, was der erste Lauf anlegen wuerde
@@ -239,7 +245,11 @@ export async function runDtfAbgleich({ dryRun = false, quelle = 'knopf', laufId,
       quellen.set(quellSchluessel(QUELLE.AU, a.Auftrag_Nr), { zustand, positionen });
     }
 
-    const plan = dtfAbgleichPlan({ vorhanden: korb.zeilen, kandidaten, quellen, start: cfg.start, zwang });
+    const nur = t(nurPosition);
+    const nurQs = nur ? nur.split(':').slice(0, 2).join(':') : '';
+    const auswahl = nur ? kandidaten.filter(k => quellSchluessel(k.quelle, k.nummer) !== nurQs || `${k.quelle}:${t(k.nummer)}:${t(k.position)}` === nur) : kandidaten;
+    const plan = dtfAbgleichPlan({ vorhanden: korb.zeilen, kandidaten: auswahl, quellen, start: cfg.start, zwang,
+      alsLager: nur && alsLager ? new Set([nur]) : new Set() });
     const zaehler = { shopPositionen, auPositionen, neu: plan.neu.length, hinweise: plan.hinweise.length, aelter: plan.aelter.length };
     letzterAbgleich = { zeit: new Date().toISOString(), aelter: plan.aelter, zaehler, start: cfg.start };
     if (dryRun) return { lauf, dryRun: true, quelle, ...zaehler, aelter: plan.aelter };
@@ -256,7 +266,7 @@ export async function runDtfAbgleich({ dryRun = false, quelle = 'knopf', laufId,
     }
     console.log(`DTF-Abgleich ${lauf} (${quelle}): shop=${shopPositionen} au=${auPositionen} neu=${plan.neu.length} hinweise=${plan.hinweise.length} aelter=${plan.aelter.length}`);
     return { lauf, quelle, ...zaehler, aelter: plan.aelter };
-  });
+  }
 }
 
 // ── Anzeige ──────────────────────────────────────────────────────────────────
@@ -672,11 +682,69 @@ export async function leseDtfJeAuPosition({ sheets, spreadsheetId = ssotId() } =
   const m = new Map();
   if (!k || k.fehlt.length) return m;
   for (const z of k.zeilen) {
-    if (t(z.Quelle) !== QUELLE.AU || ![STATUS.BESTELLT, STATUS.GELIEFERT].includes(t(z.Status))) continue;
+    if (t(z.Quelle) !== QUELLE.AU) continue;
+    // BO5-9: "DTF aus dem Lager" heisst im Auftrag "schon da" (nur wenn keine Zeile der Position bestellt ist)
+    if (istLagerZeile(z)) { if (!m.has(t(z.Position))) m.set(t(z.Position), { status: 'schon da', bestellung: '' }); continue; }
+    if (![STATUS.BESTELLT, STATUS.GELIEFERT].includes(t(z.Status))) continue;
     const alt = m.get(t(z.Position));
-    if (!alt || (alt.status === STATUS.GELIEFERT && t(z.Status) === STATUS.BESTELLT)) m.set(t(z.Position), { status: t(z.Status), bestellung: t(z.DTF_Bestellung) });
+    if (!alt || alt.status === 'schon da' || (alt.status === STATUS.GELIEFERT && t(z.Status) === STATUS.BESTELLT)) m.set(t(z.Position), { status: t(z.Status), bestellung: t(z.DTF_Bestellung) });
   }
   return m;
+}
+
+// ── BO5-9 Teil B: DTF-Stand in der Bestellkarte ──────────────────────────────
+
+/** Fuer die Bestellansicht: Stand je "JFN:<Nr>:<Pos>" aus Warenkorb_DTF. Reiter fehlt -> einrichtung false (Knoepfe aus, mit Grund). */
+export async function leseDtfJePosition({ sheets, spreadsheetId = ssotId() } = {}) {
+  const w = await liesTab(sheets, spreadsheetId, TAB_DTF_KORB);
+  const k = tabelle(w, KORB_SPALTEN);
+  if (!k || k.fehlt.length) return { einrichtung: false, je: new Map() };
+  return { einrichtung: true, je: dtfStandJePosition(k.zeilen.filter(z => t(z.Quelle) === QUELLE.JFN)) };
+}
+
+/**
+ * POST /api/dtf/karte { nummer, position, ziel: bestellen|lager, gesehen: [{ schluessel, stand }] } - die Knoepfe der Bestellkarte.
+ * Derselbe Schreibweg wie "abwählen"/"zurückholen" im Korb (Sperre, frisch gelesen, ersetzeZeile mit Vorher-Pruefung). Ohne
+ * Korb-Zeile: "bestellen" = wie "trotzdem aufnehmen" (ganze Bestellung), "lager" = nur diese Position, gleich abgewaehlt.
+ * Gibt den neuen Stand der Position zurueck.
+ */
+export async function setzeDtfKarte({ eingabe = {}, sheets: s, wcFuer = getWcClient, auftraege = auftraegeLesen, jetzt = () => new Date() } = {}) {
+  const nummer = t(eingabe.nummer), position = t(eingabe.position), ziel = t(eingabe.ziel);
+  if (!/^\d{1,12}$/.test(nummer) || !/^\d{1,12}$/.test(position)) throw fehler('Bestellung/Position unbekannt.');
+  if (![DTF_STAND.BESTELLEN, DTF_STAND.LAGER].includes(ziel)) throw fehler('Ziel unbekannt.');
+  const posKey = `${QUELLE.JFN}:${nummer}:${position}`;
+  return mitDtfSperre(async () => {
+    const sheets = s ?? await sheetsClient();
+    const spreadsheetId = ssotId();
+    const zeilenDerPosition = async () => {
+      const korb = brauche((await liesAlles(sheets, spreadsheetId)).korb, TAB_DTF_KORB);
+      return { korb, zeilen: korb.zeilen.filter(z => positionsSchluessel(z) === posKey) };
+    };
+    let { korb, zeilen } = await zeilenDerPosition();
+    let angelegt = 0;
+    if (!zeilen.length) {
+      const r = await abgleichKern({ sheets, quelle: 'karte', zwang: new Set([`${QUELLE.JFN}:${nummer}`]), wcFuer, auftraege,
+        ...(ziel === DTF_STAND.LAGER ? { nurPosition: posKey, alsLager: true } : {}) });
+      ({ korb, zeilen } = await zeilenDerPosition());
+      angelegt = r.neu ?? 0;
+      if (!zeilen.length) throw fehler('Für diese Position legt der DTF-Korb keine Zeile an (kein DTF-Druck, Trikot oder Bestellung nicht offen).', 422, 'kein_dtf');
+      if (ziel === DTF_STAND.BESTELLEN || zeilen.every(istLagerZeile)) {
+        return { ok: true, angelegt, dtf: dtfStandJePosition(zeilen).get(posKey) };
+      }
+    }
+    const plan = dtfKartenPlan(zeilen, { ziel, gesehen: angelegt ? zeilen.map(z => ({ schluessel: z.Schluessel, stand: z.Stand })) : eingabe.gesehen });
+    const zeit = jetzt();
+    for (const { schluessel, felder } of plan) {
+      const z = zeilen.find(x => t(x.Schluessel) === schluessel);
+      const alt = korb.werte[z._zeile - 1] ?? [];
+      const neu = Array.from({ length: Math.max(alt.length, korb.breite) }, (_, i) => alt[i] ?? '');
+      for (const [f, w] of Object.entries({ ...felder, Status_Datum: berlinDatum(zeit), Stand: zeit.toISOString() })) neu[korb.idx[f]] = w;
+      await ersetzeZeile(sheets, spreadsheetId, TAB_DTF_KORB, z._zeile, alt, neu);
+    }
+    if (plan.length) ({ zeilen } = await zeilenDerPosition());
+    console.log(`DTF-Karte ${posKey}: ${ziel}, ${plan.length} Zeile(n)${angelegt ? `, ${angelegt} angelegt` : ''}`);
+    return { ok: true, angelegt, geaendert: plan.length, dtf: dtfStandJePosition(zeilen).get(posKey) };
+  });
 }
 
 // ── "Was fehlt" ──────────────────────────────────────────────────────────────
