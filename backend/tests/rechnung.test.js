@@ -42,7 +42,7 @@ describe('Auswahl über das Kennzeichen', () => {
     expect(l.offen[0].grund).toBe('');
   });
   test('entfernte Positionen zaehlen nicht, ohne Preis = Grund', () => {
-    expect(l.offen[1]).toMatchObject({ positionen: 1, ohnePreis: 1, grund: '1 Position ohne Preis' });
+    expect(l.offen[1]).toMatchObject({ positionen: 1, ohnePreis: 1, grund: 'AU-2026-0005-01 ohne Preis (Muster AU-2026-0005-01)' });   // RE3: konkret, mit Position
   });
 });
 

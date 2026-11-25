@@ -148,7 +148,7 @@ describe('Schreibwege mit Preisen', () => {
     const p = r.auftraege[0].preise;
     expect(p).toMatchObject({ netto: 3750 + 2900 + 4990, rabatt: 1164, ek: 1230 + 1040 + 2000, ekFehlt: 0, angebotGeaendert: null });
     expect(r.auftraege[0].positionen[0]).toMatchObject({ ekAuto: 4.1, ekStand: '01.11.2026' });
-    expect(r.spalten).toEqual({ preise: true, rabatt: true, angebot: true, zustaendig: true, zustaendigAufgaben: true, preisEingabe: true, designLink: true });
+    expect(r.spalten).toEqual({ preise: true, rabatt: true, angebot: true, zustaendig: true, zustaendigAufgaben: true, preisEingabe: true, designLink: true, vorkasse: true, versand: true });   // RE3
     expect(r.zustaendigAuswahl).toEqual(ZUSTAENDIG);
   });
   test('Angebot festhalten beim Statuswechsel, "geändert seit Angebot", aktualisieren', async () => {

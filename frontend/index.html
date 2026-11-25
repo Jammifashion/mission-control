@@ -2116,6 +2116,17 @@
       .re-filter { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-end; }
       .re-filter .edi-feld:first-child { flex: 1 1 18rem; min-width: 0; }
       .re-filter #re-kunde { width: 100%; }
+      /* RE3: Abrechnen aus dem Auftrag, Vorkasse, Versand */
+      .au-re-box { margin: 0.6rem 0; display: flex; flex-direction: column; gap: 0.35rem; }
+      .au-re-box:empty { display: none; }
+      .au-re-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.6rem; }
+      .au-re-gruende { margin: 0; padding-left: 1.1rem; font-size: 0.85rem; }
+      .au-re-gruende li { margin: 0.15rem 0; }
+      .au-re-orange, .re-vk-offen { color: var(--warning); border-color: color-mix(in srgb, var(--warning) 60%, transparent); }
+      .au-re-vorkasse { display: flex; align-items: center; gap: 0.4rem; }
+      .au-re-indiv { display: grid; grid-template-columns: 1fr 2fr; gap: 0.5rem; }
+      @media (max-width: 600px) { .au-re-indiv { grid-template-columns: 1fr; } }
+      .re-hinweise { color: var(--warning); font-size: 0.85rem; margin: 0.3rem 0; }
       .re-liste { display: flex; flex-direction: column; gap: 0.3rem; margin: 0.4rem 0; }
       .re-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.7rem; padding: 0.35rem 0.5rem; border-radius: 7px; background: color-mix(in srgb, var(--text) 4%, var(--surface)); }
       .re-zeile.re-gesperrt { opacity: 0.75; }
@@ -4281,6 +4292,7 @@
             <div id="au-d-fehler" class="lager-warnung" hidden></div>
             <div id="au-d-pos"></div>
             <div id="au-d-preise"></div>
+            <div id="au-d-re" class="au-re-box"></div><!-- RE3: Abrechnen … / Gruende / Vorkasse / Rechnungskennzeichen -->
             <div class="korb-reihe ku-knoepfe"><button type="button" class="korb-aktion korb-aktion-ruhig" id="au-angebot-neu" data-hilfe="ap-angebot-neu" hidden>Angebotsstand aktualisieren</button></div>
             <div id="au-d-trikots"></div>
             <div id="au-d-aufgaben" class="td-block-zusatz"></div>
@@ -4463,6 +4475,20 @@
                 <select id="au-rabatt-art" class="form-select" aria-label="Rabatt in % oder €"><option value="%">%</option><option value="€">€ netto</option></select>
               </div>
               <div id="au-preis-summe"></div>
+            </fieldset>
+            <!-- RE3: Vorkasse (nur Markierung) und Versand als Rechnungszeile - eigener Schreibweg nach dem Speichern, jederzeit aenderbar -->
+            <fieldset class="au-block" id="au-re-felder">
+              <legend data-hilfe="au-re-felder" tabindex="0">Abrechnung: Vorkasse · Versand</legend>
+              <div id="au-re-felder-hinweis" class="lager-warnung" hidden></div>
+              <label class="au-re-vorkasse" data-hilfe="au-vorkasse"><input type="checkbox" id="au-vorkasse"> Vorkasse (100 %)</label>
+              <label data-hilfe="au-versand-art">Versand<select id="au-versand-art" class="form-select">
+                <option value="abholung">Abholung (keine Versandzeile)</option><option value="brief">Brief/Warensendung</option><option value="paket">Paket</option><option value="individuell">individuell</option>
+              </select></label>
+              <div id="au-versand-indiv" class="au-re-indiv" hidden>
+                <label data-hilfe="au-versand-betrag">Betrag brutto (€)<input id="au-versand-betrag" type="text" class="form-input" inputmode="decimal" autocomplete="off" placeholder="z. B. 6,90" /></label>
+                <label data-hilfe="au-versand-text">Text auf der Rechnung<input id="au-versand-text" type="text" class="form-input" maxlength="100" autocomplete="off" placeholder="Versandkosten" /></label>
+              </div>
+              <div id="au-versand-info" class="korb-zaehler"></div>
             </fieldset>
             <!-- PR1: nur bei "Wie letztes Mal" - Marge der Vorlage halten (nur MC, nichts gespeichert ohne "Speichern") -->
             <details class="au-block au-pv" id="au-pv-block" hidden>
@@ -8829,6 +8855,18 @@
         'au-ek-von':            { name: 'EK übernommen', text: 'EK von Hand kommt aus einem früheren Auftrag – frei änderbar.' },
         'ku-wie-letztes':       { name: 'Wie letztes Mal', text: 'Neuer Auftrag nach diesem Auftrag (Positionen, Mengen, Preise). Termin, Notiz und Rabatt bleiben leer.' },
         // RE1: Abrechnen
+        // RE3: Abrechnen aus dem Auftrag, Vorkasse, Versand
+        'au-abrechnen':         { name: 'Abrechnen …', text: 'Öffnet „Abrechnen“ mit diesem Kunden; nur dieser Auftrag ist angehakt. Rechnung wie immer als Entwurf in Lexware.' },
+        'au-abrechnen-gesperrt': { name: 'Abrechnen (noch nicht)', text: 'Noch nicht abrechenbar – die Gründe stehen darunter, jeweils mit Sprung zur Stelle.' },
+        'au-re-grund':          { name: 'Grund', text: 'Springt dorthin, wo du es klärst: Preise und Versand im Auftrag, Lexoffice in der Kundenkarte.' },
+        'au-re-geaendert':      { name: 'Nach der Rechnung geändert', text: 'Positionen, Preise oder Versand sind seit der Rechnung anders. MC rechnet nichts nach – Differenz von Hand in Lexware.' },
+        'au-re-felder':         { name: 'Vorkasse und Versand', text: 'Vorkasse ist nur eine Markierung. Versand wird eine eigene Rechnungszeile (19 %).' },
+        'au-vorkasse':          { name: 'Vorkasse (100 %)', text: 'Kunde zahlt vorab. Nur Markierung: im Auftrag steht, ob die Rechnung in Lexware offen oder bezahlt ist.' },
+        'au-versand-art':       { name: 'Versand', text: 'Abholung = keine Zeile. Brief/Paket: Betrag aus den Einstellungen, beim Wählen übernommen. Individuell: Betrag von Hand.' },
+        'au-versand-betrag':    { name: 'Versandbetrag', text: 'Bruttobetrag der Versandzeile (19 %). Ohne Betrag ist der Auftrag nicht abrechenbar.' },
+        'au-versand-text':      { name: 'Text der Versandzeile', text: 'So steht die Zeile auf der Rechnung. Leer = „Versandkosten“.' },
+        'au-vorkasse-chip':     { name: 'Vorkasse', text: 'Vorkasse-Auftrag. Orange = Rechnung noch nicht bezahlt (Stand aus Lexware, bis 10 Minuten alt).' },
+        're-auch':              { name: 'Auch abrechnen?', text: 'Weitere abrechenbare Aufträge dieses Kunden – anhaken, wenn sie in dieselbe Rechnung sollen.' },
         're-kunde':             { name: 'Kunde', text: 'Kunden mit Aufträgen ohne Rechnungskennzeichen. Kunden mit Bestellseite (Fanshop) stehen oben.' },
         're-zeitraum':          { name: 'Zeitraum', text: 'Optional: nur Aufträge mit Liefertag (Termin) in diesem Zeitraum.' },
         're-haken':             { name: 'Abrechnen', text: 'Dieser Auftrag kommt in die Rechnung. Alle abrechenbaren sind vorausgewählt.' },
@@ -8890,7 +8928,7 @@
           'ku-hist', 'ku-hist-neu', 'ku-hist-frei-neu', 'ku-mit-storniert', 'ku-wie-letztes',
           'au-letzte', 'au-letzte-alle', 'au-ns-schliessen', 'au-ns-vorlage', 'au-ek-von', 'au-bestellseite', 'ku-dauer-bestellseite',
           'au-aus-bestellseite', 'au-bs-eintrag', 'au-verweis', 'au-alle-fertig', 'au-geliefert', 'au-geliefert-zurueck', 'au-verschoben'],   // AM-6, AM-6-1, KS1, KS3, KS4
-        abrechnen: ['re-kunde', 're-zeitraum', 're-haken', 're-gesperrt', 're-au', 're-fuer', 're-anlegen', 're-abgerechnet', 're-status', 're-link', 're-nachsehen', 're-angelegt', 're-zuruecksetzen'],   // RE1
+        abrechnen: ['au-abrechnen', 'au-abrechnen-gesperrt', 'au-re-grund', 'au-re-geaendert', 'au-re-felder', 'au-vorkasse', 'au-versand-art', 'au-versand-betrag', 'au-versand-text', 'au-vorkasse-chip', 're-auch', 're-kunde', 're-zeitraum', 're-haken', 're-gesperrt', 're-au', 're-fuer', 're-anlegen', 're-abgerechnet', 're-status', 're-link', 're-nachsehen', 're-angelegt', 're-zuruecksetzen'],   // RE1
         bestellseiten: ['bsm-status', 'bsm-oeffnen', 'bsm-link', 'bsm-kopieren', 'bsm-link-holen', 'bsm-link-alt', 'bsm-anlegen',
           'bsm-e-wahl', 'bsm-e-status', 'bsm-gk', 'bsm-e-auftrag', 'bsm-e-pruefen', 'bsm-e-zurueck', 'bsm-e-aendern', 'bsm-e-ablehnen', 'bsm-e-feld', 'bsm-e-speichern',
           'bsm-alle', 'bsm-s-pruefen', 'bsm-s-grund', 'bsm-s-ablehnen', 'bsm-uebernehmen', 'bsm-packliste', 'bsm-pl-drucken', 'bsm-u-ziel', 'bsm-u-wahl', 'bsm-u-quelle',
@@ -13583,7 +13621,46 @@
           + (termin ? `<span class="${bald.trim()}">${kuEsc(termin)}</span>` : '') + `<span>${Number(a.stueck) || 0} Stück</span>`
           + (a.ware ? `<span class="ku-chip au-ware au-ware-${a.ware}" data-hilfe="au-ware">${kuEsc(AU_WARE_TEXT[a.ware])}</span>` : '') + tdChip(nTodos)
           + (a.preise?.netto ? `<span class="ku-chip" data-hilfe="ap-summe-liste" tabindex="0">${apEuroText(a.preise.nettoNach)} netto${a.preise.ohnePreis ? ' *' : ''}</span>` : '')   // AM-5
+          + auVorkasseChip(a)   // RE3
           + (zust ? auZustHtml(a.Auftrag_Nr, a.Zustaendig, zust) : '') + '</div></div>';
+      }
+      // ── RE3: Abrechnen aus dem Auftrag, Vorkasse, Versand (Regeln NUR im Backend: auftragGruende in utils/rechnung.js) ──
+      const auReZ = { je: new Map(), vorkasse: {}, laedt: new Set() };
+      const RE_VK_TEXT = { keine: 'noch keine Rechnung', entwurf: 'Rechnung im Entwurf', offen: 'Rechnung offen', bezahlt: 'bezahlt', storniert: 'Rechnung storniert', unbekannt: 'Stand in Lexware unbekannt' };
+      /** Chip in der Liste: "Vorkasse" (bezahlt) bzw. orange "Vorkasse offen" (alles andere, auch ohne Rechnung). */
+      function auVorkasseChip(a) {
+        if (a.Vorkasse !== 'ja' || a.Status === 'storniert') return '';
+        const st = auReZ.vorkasse[a.Auftrag_Nr];
+        return st === 'bezahlt' ? '<span class="ku-chip" data-hilfe="au-vorkasse-chip" tabindex="0">Vorkasse · bezahlt</span>'
+          : `<span class="ku-chip re-vk-offen" data-hilfe="au-vorkasse-chip" data-hilfe-zusatz="${kuEsc(RE_VK_TEXT[st] ?? '')}" tabindex="0">Vorkasse offen</span>`;
+      }
+      /** Box in der Auftragsansicht aus GET /rechnung/pruefen. */
+      function auReHtml(r) {
+        if (!r) return '';
+        const teile = [];
+        if (r.vorkasse?.ja) {
+          const st = r.vorkasse.stand;
+          teile.push(`<div class="au-re-zeile"><span class="ku-chip${st === 'bezahlt' ? '' : ' re-vk-offen'}" data-hilfe="au-vorkasse-chip" tabindex="0">${st === 'bezahlt' ? 'Vorkasse · bezahlt' : 'Vorkasse offen'}</span>`
+            + `<span class="korb-zaehler">Vorkasse-Rechnung${r.vorkasse.nummer ? ` ${kuEsc(r.vorkasse.nummer)}` : ''} · ${kuEsc(RE_VK_TEXT[st] ?? st)}</span></div>`);
+        }
+        if (r.kennzeichen) {
+          const k = r.kennzeichen;
+          teile.push(`<div class="au-re-zeile"><span class="ku-chip re-st-${kuEsc(k.status || 'hand')}" data-hilfe="re-status" tabindex="0">${kuEsc(r.gruende?.[0]?.text ?? 'abgerechnet')}</span>`
+            + (k.link ? `<a class="korb-link" href="${kuEsc(k.link)}" target="_blank" rel="noopener noreferrer" data-hilfe="re-link">In Lexware öffnen ↗</a>` : '') + '</div>');
+          if (r.geaendert) teile.push(`<div class="au-re-zeile au-re-orange" data-hilfe="au-re-geaendert" tabindex="0">⚠ ${kuEsc(r.geaendert)}</div>`);
+          return teile.join('');
+        }
+        if (r.abrechenbar) {
+          teile.push(`<div class="au-re-zeile"><button type="button" class="korb-aktion korb-aktion-haupt" data-au-abrechnen="${kuEsc(r.auftragNr)}" data-hilfe="au-abrechnen">Abrechnen …</button></div>`);
+          return teile.join('');
+        }
+        if ((r.gruende ?? []).some(g => g.code === 'storniert')) return teile.join('');
+        const sprung = g => g.code === 'kein_lexoffice' ? `<button type="button" class="korb-link" data-au-kunde="${kuEsc(r.kundenNr)}" data-hilfe="au-re-grund">zur Kundenkarte</button>`
+          : ['ohne_preis', 'rabatt', 'versand'].includes(g.code) ? `<button type="button" class="korb-link" data-au-re-dialog="${kuEsc(r.auftragNr)}"${g.positionId ? ` data-au-re-pos="${kuEsc(g.positionId)}"` : ''} data-hilfe="au-re-grund">ändern …</button>` : '';
+        teile.push(`<div class="au-re-zeile"><button type="button" class="korb-aktion korb-aktion-ruhig" aria-disabled="true" data-au-abrechnen-gesperrt="${kuEsc(r.auftragNr)}" data-hilfe="au-abrechnen-gesperrt">Abrechnen …</button>`
+          + '<span class="korb-zaehler">noch nicht abrechenbar:</span></div>'
+          + `<ul class="au-re-gruende">${(r.gruende ?? []).map(g => `<li>${kuEsc(g.text)} ${sprung(g)}</li>`).join('')}</ul>`);
+        return teile.join('');
       }
       /** Status-Leiste: je Schritt Name + Datum, aktueller hervorgehoben; storniert extra. */
       function auLeisteHtml(a) {
@@ -14059,6 +14136,8 @@
             throw new Error(j?.error || `HTTP ${res.status}`);
           }
           auZ.daten = j;
+          auReZ.je.clear();   // RE3: Abrechnen-Stand neu (Stand-Schluessel aendert sich ohnehin)
+          auVorkasseLaden();   // RE3: Chips "Vorkasse offen"
           rsLaden().then(() => { if (auZ.offen) auDetailZeichnen(auZ.offen); });   // RS1: Rueckstand am Auftrag
           for (const x of j.auftraege ?? []) if (x.autoBestellt) showToast(`${x.Auftrag_Nr}: Rohlinge bestellt – automatisch auf „bestellt“ gesetzt.`);
           auZeichnen();
@@ -14224,6 +14303,7 @@
         }).join('') || '<p class="korb-zaehler">Keine Positionen.</p>';
         auEl('au-d-pos').insertAdjacentHTML('beforeend', auEntferntHtml(a, st || a.Status === 'bezahlt'));   // BS4
         auDetailPreise(a);   // AM-5
+        auReLaden(a);   // RE3: Abrechnen … / Gruende / Vorkasse
         auDetailZusatz(a);   // AM-4: zugehoerige Aufgaben + To-dos
       }
 
@@ -14552,6 +14632,7 @@
         auEl('au-rabatt-art').disabled = !auPreisEditierbar();
         auEl('au-preis-hinweis').textContent = auZ.daten?.spalten?.preise === false ? 'Preis-Spalten fehlen noch – Einrichtung fehlt, bitte dem Inhaber Bescheid geben.' : '';
         auEl('au-preis-hinweis').hidden = !auEl('au-preis-hinweis').textContent;
+        auReFelderFuellen(auftrag);   // RE3
         auEl('au-raster-form').hidden = true;
         auDlg.getippt = null;   // AH1 (U13)
         auEl('au-modell-suche').value = '';
@@ -15044,6 +15125,7 @@
           showToast(a ? (r.unveraendert ? `${r.auftragNr}: nichts geändert.` : `${r.auftragNr} gespeichert.`) : `${r.auftragNr} angelegt.`
             + (r.vorlageNichtVermerkt ? ' Vorlage nicht vermerkt (Spalte Vorlage_Von fehlt noch).' : ''));
           if (!a && auDlg.kunde?.Kunden_Nr) auHist.je.delete(auDlg.kunde.Kunden_Nr);   // AM-6: Historie neu laden
+          await auReFelderSpeichern(r.auftragNr, a, auReFelderLesen());   // RE3: Vorkasse/Versand (eigener Weg)
           auDialogSchliessen();
           if (schnell) await auSchnellNachSpeichern(r.auftragNr, todos);   // SA1: To-dos anlegen, Feld leeren
           await loadAuftraege();
@@ -15054,6 +15136,85 @@
         } finally { auDlg.laeuft = false; auEl('au-speichern').disabled = false; }
       }
       auEl('au-speichern').addEventListener('click', auSpeichern);
+      // RE3: DOM-Teil zu Abrechnen/Vorkasse/Versand (Anzeige-Funktionen auReHtml/auVorkasseChip stehen im Block oben)
+      async function auReLaden(a) {
+        const el = auEl('au-d-re');
+        if (!el) return;
+        if (/^AG-/.test(a.Auftrag_Nr)) { el.innerHTML = ''; return; }
+        const key = `${a.Auftrag_Nr}|${a.Stand}`;
+        if (auReZ.je.has(key)) { el.innerHTML = auReHtml(auReZ.je.get(key)); return; }
+        el.innerHTML = '';
+        if (auReZ.laedt.has(key)) return;
+        auReZ.laedt.add(key);
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/auftraege/rechnung/pruefen?nr=${encodeURIComponent(a.Auftrag_Nr)}`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
+          const j = await res.json().catch(() => null);
+          if (!res.ok) throw new Error(j?.error || `HTTP ${res.status}`);
+          auReZ.je.set(key, j);
+          if (auZ.offen === a.Auftrag_Nr) el.innerHTML = auReHtml(j);
+        } catch (e) {
+          if (auZ.offen === a.Auftrag_Nr) el.innerHTML = `<div class="korb-zaehler">Abrechnen: Stand nicht lesbar (${kuEsc(e.message)}).</div>`;
+        } finally { auReZ.laedt.delete(key); }
+      }
+      /** Chips "Vorkasse offen" der Liste: Stand je Vorkasse-Auftrag (Belegleser, nur lesen) - nach dem Laden der Liste. */
+      async function auVorkasseLaden() {
+        if (!(auZ.daten?.auftraege ?? []).some(a => a.Vorkasse === 'ja')) return;
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/auftraege/rechnung/vorkasse`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
+          const j = await res.json().catch(() => null);
+          if (!res.ok) return;
+          auReZ.vorkasse = j.je ?? {};
+          auZeichnen();
+        } catch { /* Chips bleiben "offen" */ }
+      }
+      const auReBetragText = v => (v === null || v === undefined || String(v).trim() === '' ? '' : String(Number(String(v).replace(',', '.')).toFixed(2)).replace('.', ','));
+      function auReFelderFuellen(a) {
+        const sp = auZ.daten?.spalten ?? {};
+        const ohne = sp.vorkasse === false || sp.versand === false;
+        auEl('au-re-felder-hinweis').textContent = ohne ? 'Spalten für Vorkasse/Versand fehlen noch – Einrichtung fehlt, bitte dem Inhaber Bescheid geben.' : '';
+        auEl('au-re-felder-hinweis').hidden = !ohne;
+        auEl('au-vorkasse').checked = a?.Vorkasse === 'ja';
+        auEl('au-vorkasse').disabled = sp.vorkasse === false;
+        auEl('au-versand-art').value = a?.Versand_Art || 'abholung';
+        auEl('au-versand-art').disabled = sp.versand === false;
+        auEl('au-versand-betrag').value = a?.Versand_Art === 'individuell' ? auReBetragText(a.Versand_Betrag) : '';
+        auEl('au-versand-text').value = a?.Versand_Art === 'individuell' ? (a.Versand_Text || '') : '';
+        auReVersandInfo(a);
+      }
+      function auReVersandInfo(a = null) {
+        const art = auEl('au-versand-art').value;
+        auEl('au-versand-indiv').hidden = art !== 'individuell';
+        const alt = a ?? (auZ.daten?.auftraege ?? []).find(x => x.Auftrag_Nr === auDlg.auftrag?.Auftrag_Nr);
+        auEl('au-versand-info').textContent = art === 'abholung' ? 'Keine Versandzeile auf der Rechnung.'
+          : art === 'individuell' ? 'Eigene Zeile, 19 % – Betrag brutto.'
+            : alt?.Versand_Art === art && auReBetragText(alt.Versand_Betrag) ? `Übernommen: ${auReBetragText(alt.Versand_Betrag)} € brutto (bleibt, auch wenn sich die Einstellungen ändern).`
+              : 'Betrag kommt beim Speichern aus den Einstellungen (Config) und bleibt dann am Auftrag.';
+      }
+      auEl('au-versand-art')?.addEventListener('change', () => auReVersandInfo());
+      const auReFelderLesen = () => ({ vorkasse: auEl('au-vorkasse').checked, versandArt: auEl('au-versand-art').value,
+        versandBetrag: auEl('au-versand-betrag').value.trim(), versandText: auEl('au-versand-text').value.trim() });
+      /** Nach dem Speichern des Auftrags: nur Geaendertes an POST /abrechnung-felder (eigener Weg, jederzeit ausser storniert). */
+      async function auReFelderSpeichern(nr, a, f) {
+        const sp = auZ.daten?.spalten ?? {};
+        const body = { auftragNr: nr };
+        if (sp.vorkasse !== false && f.vorkasse !== (a?.Vorkasse === 'ja')) body.vorkasse = f.vorkasse;
+        const artAlt = a?.Versand_Art || 'abholung';
+        const indivAnders = f.versandArt === 'individuell' && (f.versandBetrag !== auReBetragText(a?.Versand_Betrag) || f.versandText !== (a?.Versand_Text || ''));
+        if (sp.versand !== false && (f.versandArt !== artAlt || indivAnders)) Object.assign(body, { versandArt: f.versandArt, versandBetrag: f.versandBetrag, versandText: f.versandText });
+        if (Object.keys(body).length === 1) return;
+        try {
+          const r = await auPost('abrechnung-felder', body);
+          if (r.versand?.grund) showToast(`${nr}: ${r.versand.grund}`, 'warning', 10000);
+          if (r.hinweis) showToast(`${nr}: ${r.hinweis}`, 'warning', 10000);
+        } catch (e) { showToast(`${nr}: Vorkasse/Versand nicht gespeichert – ${e.message}`, 'error', 10000); }
+      }
+      auEl('au-detail')?.addEventListener('click', ev => {
+        const ab = ev.target.closest('[data-au-abrechnen]');
+        if (ab) { const a = (auZ.daten?.auftraege ?? []).find(x => x.Auftrag_Nr === ab.dataset.auAbrechnen); if (a) globalThis.reAbrechnenFuer?.(a.Kunden_Nr, a.Auftrag_Nr); return; }
+        if (ev.target.closest('[data-au-abrechnen-gesperrt]')) { showToast('Noch nicht abrechenbar – die Gründe stehen darunter.', 'warning'); return; }
+        const dl = ev.target.closest('[data-au-re-dialog]');
+        if (dl) auEl('au-bearbeiten').click();
+      });
 
       // ── Schnellannahme: Anfang ── (SA1) Feld "Schnell erfassen" -> POST /api/auftraege/schnell -> Dialog "Neuer Auftrag"
       // vorausgefuellt. Der Text bleibt nur im Feld (nie Browser-Speicher, Adresse, Toast oder Log), der Vorschlag nur in
@@ -15362,7 +15523,11 @@
         // DK1: ohne Preise stehen die Druckkosten in einem eigenen, eingeklappten Block
         const nurDruck = (a.positionen ?? []).length && s.druck
           ? `<details class="ap-kalk"${apKalkOffen() ? ' open' : ''}><summary data-hilfe="dk-kosten">Druckkosten zeigen</summary>${dkKalkHtml(a)}</details>` : '';
-        el.innerHTML = s.netto || s.ohnePreis < (a.positionen ?? []).length ? `<div class="td-kopf"><strong>Preise</strong></div>${apSummenHtml(s)}${angebot}${kalk}`
+        // RE3: Versand (brutto, eigene Rechnungszeile) unter den Summen; Rohertrag bleibt ohne Versand
+        const vs = s.versand;
+        const versand = vs && vs.art !== 'abholung' ? `<div class="korb-zaehler au-re-zeile" data-hilfe="au-versand-art" tabindex="0">${kuEsc(vs.text || vs.name)}: `
+          + (vs.betrag !== null ? `${apEuroText(Math.round(vs.betrag * 100))} brutto · Summe inkl. Versand ${apEuroText(s.brutto + Math.round(vs.betrag * 100))} brutto` : `<span class="au-re-orange">${kuEsc(vs.grund)}</span>`) + '</div>' : '';
+        el.innerHTML = s.netto || s.ohnePreis < (a.positionen ?? []).length ? `<div class="td-kopf"><strong>Preise</strong></div>${apSummenHtml(s)}${versand}${angebot}${kalk}`
           : `<div class="korb-zaehler" data-hilfe="ap-unvollstaendig" tabindex="0">Noch keine Preise – „bearbeiten …“ trägt sie ein.</div>${angebot}${nurDruck}`;
         auEl('au-angebot-neu').hidden = !geaendert || a.Status === 'storniert';
         auZustWahl(auEl('au-zustaendig'), a.Zustaendig, auZ.daten?.spalten?.zustaendig);
@@ -16936,9 +17101,12 @@
             + (frei ? '<label class="card-cb-wrap" data-hilfe="re-haken">' : `<label class="card-cb-wrap" data-hilfe="re-gesperrt" data-hilfe-zusatz="${kuEsc(a.grund)}">`) + `<input type="checkbox" data-re-au="${kuEsc(a.auftragNr)}" aria-label="${kuEsc(a.auftragNr)} abrechnen"${frei && gewaehlt.has(a.auftragNr) ? ' checked' : ''}${frei ? '' : ' disabled'}></label>`
             + `<button type="button" class="korb-link nr-fest" data-re-oeffnen="${kuEsc(a.auftragNr)}" data-hilfe="re-au">${kuEsc(a.auftragNr)}</button>`
             + `<span class="re-text">${kuEsc(a.kurztitel)}</span><span class="korb-zaehler">${kuEsc(reDatum(a.liefertag))} · ${kuEsc(a.status)} · ${a.positionen} Pos.${a.eingabe === 'brutto' ? ' · brutto' : ''}</span>`
-            + (frei ? '' : `<span class="ku-chip re-grund">${kuEsc(a.grund)}</span>`) + '</div>';
+            + (frei ? '' : `<span class="ku-chip re-grund">${kuEsc(a.grund)}</span>`)
+            + (a.vorkasse ? ' <span class="ku-chip" data-hilfe="au-vorkasse-chip" tabindex="0">Vorkasse</span>' : '') + '</div>';   // RE3
         }).join('') + '</div>';
       }
+      /** RE3: Hinweise zur Auswahl (z. B. brutto/netto gemischt) schon in der Liste. */
+      const reHinweiseHtml = h => ((h ?? []).length ? `<div class="re-hinweise">${h.map(x => kuEsc(x)).join('<br>')}</div>` : '');
       /** Vorschau: je Auftrag eine Zwischenzeile, je Position Menge · Text · Einzelpreis · Summe; "für" nur als Kennzeichen. */
       function reVorschauHtml(v) {
         if (!v) return '';
@@ -16986,7 +17154,7 @@
         return '';
       }
       // ── Abrechnen: Ende ──
-      const reZ = { kunden: null, kunde: '', daten: null, gewaehlt: new Set(), laeuft: false, bereit: false, spalten: true };
+      const reZ = { kunden: null, kunde: '', daten: null, gewaehlt: new Set(), laeuft: false, bereit: false, spalten: true, vorwahl: null, ausAuftrag: '' };   // RE3: vorwahl/ausAuftrag
       const reEl = id => document.getElementById(id);
       const reName = nr => auKundeText((kuZ.kunden ?? []).find(k => k.Kunden_Nr === nr), nr);
       async function reJson(pfad, body) {
@@ -17008,7 +17176,9 @@
         const warn = [!reZ.spalten ? 'Spalten Rechnung_* fehlen in Auftraege – erst scripts/setup-auftraege-reiter.js --write.' : '', !reZ.bereit ? 'Lexware-Rechnungen nicht eingerichtet (Schlüssel fehlt) – Vorschau geht, Anlegen nicht.' : ''].filter(Boolean);
         ein.textContent = warn.join(' '); ein.hidden = !warn.length;
         reEl('re-kunde').innerHTML = reKundenOptionen(reZ.kunden, reName, reZ.kunde);
-        reEl('re-liste').innerHTML = d ? reOffenHtml(d.offen, reZ.gewaehlt) : '<div class="skeleton"></div>';
+        const auch = reZ.ausAuftrag && (d?.offen ?? []).some(x => !x.grund && x.auftragNr !== reZ.ausAuftrag)
+          ? `<p class="korb-zaehler" data-hilfe="re-auch" tabindex="0">Aus ${kuEsc(reZ.ausAuftrag)} geöffnet – weitere abrechenbare Aufträge dieses Kunden stehen darunter: auch abrechnen?</p>` : '';
+        reEl('re-liste').innerHTML = d ? auch + reHinweiseHtml(d.hinweise) + reOffenHtml(d.offen, reZ.gewaehlt) : '<div class="skeleton"></div>';   // RE3
         reEl('re-vorschau').innerHTML = d ? reVorschauHtml(d.vorschau) : '';
         reEl('re-abgerechnet').innerHTML = d ? reAbgerechnetHtml(d.abgerechnet, d.linkBasis) : '';
         reKnopf();
@@ -17027,11 +17197,17 @@
         const r = await reJson('kunden');
         if (!r.ok) { reEl('re-liste').innerHTML = `<p class="lager-warnung">${kuEsc(r.j.error || `Fehler ${r.status}`)}</p>`; return; }
         reZ.kunden = r.j.kunden ?? []; reZ.bereit = !!r.j.bereit; reZ.spalten = r.j.spalten !== false;
+        // RE3: aus dem Auftrag geoeffnet -> dieser Kunde, nur dieser Auftrag angehakt (einmal)
+        const vw = reZ.vorwahl; reZ.vorwahl = null;
+        if (vw) { reZ.kunde = vw.kunde; reZ.ausAuftrag = vw.nr; reZ.gewaehlt = new Set([vw.nr]); await reVorschau(); return; }
+        reZ.ausAuftrag = '';
         if (!reZ.kunden.some(k => k.kundenNr === reZ.kunde)) reZ.kunde = reZ.kunden[0]?.kundenNr ?? '';
         await reVorschau({ neuWaehlen: true });
       }
       globalThis.reLaden = reLaden;
-      reEl('re-kunde').addEventListener('change', e => { reZ.kunde = e.target.value; reEl('re-erfolg').hidden = true; reVorschau({ neuWaehlen: true }); });
+      /** RE3: Knopf "Abrechnen …" im Auftrag - dieselbe Ansicht, kein zweiter Rechnungsweg. */
+      globalThis.reAbrechnenFuer = (kundenNr, nr) => { reZ.vorwahl = { kunde: kundenNr, nr }; oeffneAnsicht('auftraege', 'abrechnen'); };
+      reEl('re-kunde').addEventListener('change', e => { reZ.kunde = e.target.value; reZ.ausAuftrag = ''; reEl('re-erfolg').hidden = true; reVorschau({ neuWaehlen: true }); });
       for (const id of ['re-von', 're-bis']) reEl(id).addEventListener('change', () => reVorschau({ neuWaehlen: true }));
       reEl('re-liste').addEventListener('change', e => {
         const cb = e.target.closest('[data-re-au]');

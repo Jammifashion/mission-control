@@ -1508,6 +1508,17 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Belegliste lesend) bzw. zuruecksetzen, je ganze Gruppe (Kunde + Tag + ID). Routen `/api/auftraege/rechnung/{kunden,vorschau,anlegen,kennzeichen,
   nachsehen}`. Oberflaeche Unterpunkt `auftraege/abrechnen` (`#re-ansicht`), SECTION Abrechnen (RE1), Block `Abrechnen: Anfang/Ende`, Hilfe-Gruppe
   `abrechnen`. Tests rechnung.test.js, rechnung-frontend.test.js.
+  RE3 (Inhaber 25.11., antwort-RE3-3 = S2: KEINE Statusregel, es zaehlt das Kennzeichen): Gruende EINE Stelle `auftragGruende` (utils/rechnung.js) fuer
+  Liste und Auftrag (je Position ohne Preis mit Position_ID, Rabatt, Versand, Lexoffice-Verknuepfung, abgerechnet am …); brutto/netto gemischt als
+  `hinweise` der Liste. Auftrag: Box `#au-d-re` aus `GET /api/auftraege/rechnung/pruefen?nr=` (`rechnungPruefen`: Gruende mit Sprung - Kundenkarte
+  bzw. "ändern …", Kennzeichen + "In Lexware öffnen ↗", Vorkasse-Stand), Knopf "Abrechnen …" = `reAbrechnenFuer(kunde, nr)` -> dieselbe Ansicht,
+  Kunde vorgewaehlt, nur dieser Auftrag angehakt. Vorkasse = nur Markierung (Spalte `Vorkasse` "ja"): Chip in Liste/Auftrag, "Vorkasse offen" orange bis
+  Lexware "bezahlt" (`GET .../rechnung/vorkasse`, Belegleser RE2, 10 min je Kontakt). Versand (Teil C): `Versand_Art` abholung|brief|paket|individuell,
+  `Versand_Betrag` (brutto, Euro, eingefroren - Brief/Paket beim WECHSEL der Art aus Business-Config `versand.brief_brutto`/`versand.paket_brutto`, Setup
+  `scripts/setup-versand-config.js`), `Versand_Text` (individuell) -> eigene Rechnungszeile 19 % (`versandAus`), fehlt der Betrag = Grund. Setzen
+  `POST /api/auftraege/abrechnung-felder` (`abrechnungsFelderPlan`, jederzeit ausser storniert; Dialog-Fieldset `#au-re-felder`, nach dem Speichern).
+  `Rechnung_Pruef` = Pruefsumme beim Anlegen (`rechnungPruef`); weicht sie ab -> orange "nach der Rechnung geändert – Differenz von Hand in Lexware",
+  nichts nachberechnet. Rohertrag ohne Versand. Spalten hinten in Auftraege (AUFTRAG_OPTIONAL). Test re3.test.js.
 - backend/lib/lexwareBelege.js – Lexware-Belegleser (RE2), **NUR LESEN**: `leseBelegliste(filter, o)` = `GET /v1/voucherlist` (Filter geprueft
   `beleglisteAbfrage`: voucherType/voucherStatus aus festen Listen, auch mehrere, contactId, archived, voucherNumber, Datumsfilter JJJJ-MM-TT, sort;
   sonst 422; alle Seiten bis `MAX_SEITEN_BELEGE`, sonst `mehr`) und `leseRechnung({ id })` = `GET /v1/invoices/{id}`. Ueber `lexwareGet` (lib/lexware.js,

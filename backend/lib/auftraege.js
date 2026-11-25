@@ -31,6 +31,7 @@ import {
 import { kundenHistorie } from '../utils/auftrag-historie.js';   // AM-6
 import { auftragSummen, positionAusZeile, rabattAus, angebotAbweichung, ZUSTAENDIG } from '../utils/auftrag-preise.js';
 import { TAB_EK_VERLAUF, verlaufJe, ekZumTag } from '../utils/ek-verlauf.js';   // PR1
+import { versandAus } from '../utils/rechnung.js';   // RE3
 import {
   TAB_AUFGABEN, TAB_TODOS, AUFGABE_SPALTEN, TODO_SPALTEN, VERWORFEN, istBezug, aufgabeOffen, aufgabeAnlagePlan, aufgabeBearbeitenPlan,
   aufgabeStatusWechsel, todoAnlagePlan, todoAendernPlan, todoArchivPlan, todoVerschiebenPlan, aufgabenZahlen, ohneIntern, todoAktiv,
@@ -326,7 +327,7 @@ export async function leseAuftraege({ sheets: s, jetzt = () => new Date(), autoB
       ...x, vorschlagFertig: fertigVorschlag(x, akt), ware: w,
       freiOffen: akt.filter(y => y.Art === ART.FREI && !y.Herkunft && !String(y.Da_Am ?? '').trim()).length,   // KS4-2: ohne "bei uns"
       autoBestellt: gesetzt.includes(x.Auftrag_Nr),
-      preise: { ...summen, angebotGeaendert: angebotAbweichung(x, summen), druck },   // AM-5: Cent; DK1: Druckkosten netto
+      preise: { ...summen, angebotGeaendert: angebotAbweichung(x, summen), druck, versand: versandAus(x) },   // AM-5: Cent; DK1: Druckkosten netto; RE3: Versand (brutto, Euro)
     };
   });
   // AM-4: Aufgaben und To-dos (eigene Reiter); fehlen sie, leer + Kennzeichen fuer die Oberflaeche.
@@ -341,7 +342,8 @@ export async function leseAuftraege({ sheets: s, jetzt = () => new Date(), autoB
     // AM-5: welche Spalten es schon gibt (Oberflaeche sperrt sonst Preise/Zustaendig mit Hinweis), feste Auswahl "Zuständig"
     spalten: { preise: PREIS_SPALTEN.every(s => p.idx[s] !== undefined), rabatt: a.idx.Rabatt !== undefined, angebot: ANGEBOT_SPALTEN.every(s => a.idx[s] !== undefined),
       zustaendig: a.idx.Zustaendig !== undefined, zustaendigAufgaben: !!g && !g.kaputt && g.idx.Zustaendig !== undefined,
-      preisEingabe: a.idx.Preis_Eingabe !== undefined, designLink: a.idx.Design_Link !== undefined },   // AMQ1
+      preisEingabe: a.idx.Preis_Eingabe !== undefined, designLink: a.idx.Design_Link !== undefined,   // AMQ1
+      vorkasse: a.idx.Vorkasse !== undefined, versand: ['Versand_Art', 'Versand_Betrag', 'Versand_Text'].every(c => a.idx[c] !== undefined) },   // RE3
     zustaendigAuswahl: ZUSTAENDIG,
     einrichtung: { aufgaben: !!g && !g.kaputt, todos: !!d && !d.kaputt },
     // DK1: Spalten fuer freie Druckmasse/Express und ob der Reiter Druckmasse eingerichtet ist (Oberflaeche sperrt sonst mit Hinweis)

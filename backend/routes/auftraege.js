@@ -9,7 +9,7 @@ import {
 import { bereitstellenVorschau, bereitstellen, zuruecknehmen } from '../lib/auftragBereitstellen.js';
 import rateLimit from 'express-rate-limit';
 import { schnellVorschlag } from '../lib/auftragSchnell.js';
-import { abrechnenKunden, abrechnenVorschau, rechnungAnlegen, rechnungKennzeichen, rechnungNachsehen } from '../lib/rechnung.js';   // RE1
+import { abrechnenKunden, abrechnenVorschau, rechnungAnlegen, rechnungKennzeichen, rechnungNachsehen, rechnungPruefen, vorkasseStaende, setzeAbrechnungsFelder } from '../lib/rechnung.js';   // RE1, RE3
 
 const router = Router();
 
@@ -144,6 +144,10 @@ router.post('/rechnung/vorschau', mitMeldung(req => abrechnenVorschau({
 router.post('/rechnung/anlegen', mitMeldung(req => rechnungAnlegen({ eingabe: req.body ?? {} })));
 router.post('/rechnung/kennzeichen', mitMeldung(req => rechnungKennzeichen({ eingabe: req.body ?? {} })));
 router.post('/rechnung/nachsehen', mitMeldung(req => rechnungNachsehen({ nr: req.body?.nr })));
+// RE3: Knopf "Abrechnen …" im Auftrag (Gruende, Kennzeichen, Vorkasse-Stand) - nur lesen; Vorkasse-Chips der Liste; Vorkasse/Versand setzen
+router.get('/rechnung/pruefen', mitMeldung(req => rechnungPruefen({ nr: String(req.query?.nr ?? '') })));
+router.get('/rechnung/vorkasse', mitMeldung(() => vorkasseStaende()));
+router.post('/abrechnung-felder', mitMeldung(req => setzeAbrechnungsFelder({ eingabe: req.body ?? {} })));
 
 router.post('/zustaendig', mitMeldung(req => setzeZustaendig({ eingabe: req.body ?? {} })));
 // ── DK1: Druckkosten - Express-Schalter am Auftrag, freie Druckmasse je Gruppe (nie Betraege ins Log) ──

@@ -137,7 +137,7 @@ au({ Auftrag_Nr: 'AU-2026-0038', Kunden_Nr: 'K-00004', Kurztitel: 'Komplettausst
   ...gruppe('RT076', 'navy/white', { 'one size': 250 }, { Motiv: 'Logo Stick', Druck: 'Stick', Preis_Netto: 8.9, USt_Satz: 19, Fertig: 'ja', Fertig_Am: '2026-11-13', Korb_Schluessel: 'EIGEN:2026-0071' }),
   frei('Einrichtung Stickprogramm Firmenlogo', 1, { Preis_Netto: 89, USt_Satz: 19, Herkunft: 'vorhanden', Fertig: 'ja', Fertig_Am: '2026-11-10' }),
 ]);
-au({ Auftrag_Nr: 'AU-2026-0037', Kunden_Nr: 'K-00006', Kurztitel: 'Geburtstagsshirts Familie', Kanal: 'WhatsApp', Status: 'übergeben',
+au({ Auftrag_Nr: 'AU-2026-0037', Kunden_Nr: 'K-00006', Kurztitel: 'Geburtstagsshirts Familie', Kanal: 'WhatsApp', Status: 'übergeben', Vorkasse: 'ja', Versand_Art: 'paket', Versand_Betrag: 6.49,   // RE3
   Termin: '2026-11-15', Anfrage_Am: '2026-10-30', Design_Am: '2026-10-30', Bestellt_Am: '2026-11-02', Produktion_Am: '2026-11-08', Fertig_Am: '2026-11-12', Uebergeben_Am: '2026-11-14',
   Angelegt: '2026-10-30T18:00:00.000Z', Preis_Eingabe: 'brutto' }, [
   ...gruppe('BCTU01T', 'red', { S: 1, M: 2, L: 2 }, { Motiv: '„Team Geburtstag 50“', Druck: 'Flex gold', Preis_Netto: 16.8067, USt_Satz: 19, Fertig: 'ja', Fertig_Am: '2026-11-12', Versendet: '2026-11-14', Herkunft: 'vorhanden', Verweis: 'LAGER:Wrist' }),
@@ -261,7 +261,7 @@ function auftraegeAntwort() {
       ...x, vorschlagFertig: AU.fertigVorschlag(x, akt), ware: w,
       freiOffen: akt.filter(y => y.Art === AU.ART.FREI && !y.Herkunft && !String(y.Da_Am ?? '').trim()).length,
       autoBestellt: false,
-      preise: { ...summen, angebotGeaendert: PR.angebotAbweichung(x, summen), druck: { express: x.DTF_Express === 'ja', positionen: dkPos, ...DK.druckSummen(dkPos, summen) } },
+      preise: { ...summen, angebotGeaendert: PR.angebotAbweichung(x, summen), druck: { express: x.DTF_Express === 'ja', positionen: dkPos, ...DK.druckSummen(dkPos, summen) }, versand: RE.versandAus(x) },   // RE3
     };
   });
   const todos = TODOS.filter(AG.todoAktiv);
@@ -270,7 +270,7 @@ function auftraegeAntwort() {
     auftraege, aufgaben: AUFGABEN.map(AG.ohneIntern), todos: todos.map(AG.ohneIntern),
     zahlen: { ...AU.auftragZahlen(AUFTRAEGE, ISO, ware), ...AG.aufgabenZahlen(AUFGABEN, todos, ISO, nr => offenJe.get(nr) ?? false) },
     designSpalte: true,
-    spalten: { preise: true, rabatt: true, angebot: true, zustaendig: true, zustaendigAufgaben: true, preisEingabe: true, designLink: true },
+    spalten: { preise: true, rabatt: true, angebot: true, zustaendig: true, zustaendigAufgaben: true, preisEingabe: true, designLink: true, vorkasse: true, versand: true },   // RE3
     zustaendigAuswahl: PR.ZUSTAENDIG,
     einrichtung: { aufgaben: true, todos: true },
     druck: { hand: true, express: true, druckmasse: true, fuehrend: true, modell: true },   // DK1, DK2
@@ -420,6 +420,16 @@ function reVorschau(body) {
     bereit: true, spalten: true, linkBasis: RE.LINK_BASIS };
 }
 
+// RE3: Knopf "Abrechnen …" im Auftrag - dieselben Regeln (utils/rechnung.js) auf den erfundenen Daten; K-00007 ohne Lexoffice
+function rePruefen(nr) {
+  const a = AUFTRAEGE.find(x => x.Auftrag_Nr === nr);
+  if (!a) return { __status: 404, __body: { error: `${nr} gibt es nicht.` } };
+  const kontaktId = a.Kunden_Nr === 'K-00007' ? '' : '11111111-2222-4333-8444-555555555555';
+  const gruende = RE.auftragGruende({ auftrag: a, positionen: POSITIONEN, info: INFO, kontaktId });
+  return { auftragNr: nr, kundenNr: a.Kunden_Nr, stand: a.Stand ?? '', abrechenbar: !gruende.length, gruende, kennzeichen: null, geaendert: '',
+    vorkasse: a.Vorkasse === 'ja' ? { ja: true, stand: 'keine' } : { ja: false }, versand: RE.versandAus(a), spalten: true };
+}
+
 // ── Router ───────────────────────────────────────────────────────────────────
 export function antwort(method, pfad, params, body) {
   const m = String(method || 'GET').toUpperCase();
@@ -427,6 +437,8 @@ export function antwort(method, pfad, params, body) {
   if (m === 'POST' && p === '/api/auftraege/rechnung/vorschau') return reVorschau(body);   // RE1
   if (m !== 'GET') return undefined;
   if (p === '/api/auftraege/rechnung/kunden') return reKunden();   // RE1
+  if (p === '/api/auftraege/rechnung/pruefen') return rePruefen(String(params?.get?.('nr') ?? ''));   // RE3
+  if (p === '/api/auftraege/rechnung/vorkasse') return { je: { 'AU-2026-0037': 'offen' } };   // RE3
   if (p === '/health') return { status: 'ok', ts: Date.now(), commit: 'f1x7ure', gebaut: '2026-11-19T08:00:00.000Z' };
   if (p === '/api/health/full') return { ok: true, services: { woocommerce: { ok: true, ms: 120 }, sheet: { ok: true, ms: 80 }, claude: { ok: true, ms: 300 } } };
   if (p === '/api/auftraege') return AUFTRAEGE_ANTWORT;

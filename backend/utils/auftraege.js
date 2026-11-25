@@ -35,7 +35,8 @@ export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung', ...P
 // KS3: Zugang_ID + Termin_ID = aus Bestellseite <Zugang_ID>, Termin <Termin_ID> (ein AU je Termin; Nachtrag = weiterer AU zum Termin).
 // RE1: Rechnungskennzeichen (Lexware-Entwurf) - ID, Tag, Status entwurf|unklar; leer = noch nicht abgerechnet.
 export const AUFTRAG_OPTIONAL = ['Design_Am', 'Rabatt', 'Angebot_Netto', 'Angebot_Brutto', 'Angebot_Stand', 'Zustaendig', 'Preis_Eingabe', 'Design_Link', 'Vorlage_Von', 'Zugang_ID', 'Termin_ID',
-  'Rechnung_Lexware_ID', 'Rechnung_Am', 'Rechnung_Status', 'DTF_Express'];   // DK1: DTF_Express "ja" = Druckkosten zum Express-Preis
+  'Rechnung_Lexware_ID', 'Rechnung_Am', 'Rechnung_Status', 'DTF_Express',
+  'Vorkasse', 'Versand_Art', 'Versand_Betrag', 'Versand_Text', 'Rechnung_Pruef'];   // RE3: Vorkasse (Markierung), Versand als Rechnungszeile, Pruefsumme   // DK1: DTF_Express "ja" = Druckkosten zum Express-Preis
 export const PREIS_EINGABE = ['netto', 'brutto'];
 export const DESIGN_LINK_MAX = 500;
 // AMQ1 (Inhaber 06.11.): Positionen sind keine Pflicht, solange man noch nicht bestellt - Pflicht erst beim Wechsel auf
@@ -50,7 +51,7 @@ export const HERKUNFT = { BESTELLEN: 'bestellen', LAGER: 'lager', VORHANDEN: 'vo
 export const HERKUNFT_LSHOP = ['bestellen', 'lager', 'vorhanden'];
 export const HERKUNFT_FREI = ['', 'vorhanden'];
 export const AUFTRAG_TEXT = ['Auftrag_Nr', 'Kunden_Nr', 'Termin', 'Anfrage_Am', 'Angebot_Am', 'Bestellt_Am', 'Produktion_Am', 'Fertig_Am',
-  'Uebergeben_Am', 'Bezahlt_Am', 'Storniert_Am', 'Rechnung_Lexware_ID', 'Rechnung_Am'];
+  'Uebergeben_Am', 'Bezahlt_Am', 'Storniert_Am', 'Rechnung_Lexware_ID', 'Rechnung_Am', 'Versand_Text', 'Rechnung_Pruef'];   // RE3
 export const POSITION_TEXT = ['Position_ID', 'Auftrag_Nr', 'LShop_ArticleNr', 'Fertig_Am', 'Entfernt', 'Da_Am'];
 
 export const KANAELE = ['Mail', 'WhatsApp', 'Telefon', 'persönlich', 'Jey', 'Bestellseite'];   // KS3: Bestellseite
