@@ -28,7 +28,7 @@ describe('Aktionsleiste', () => {
     expect(leiste).toMatch(/id="au-mehr" aria-haspopup="menu" aria-expanded="false" aria-controls="au-mehr-menue" data-hilfe="au-mehr">mehr …<\/button>/);
   });
   test('Menü „mehr …“: seltene Aktionen, stornieren zuletzt in --danger, jeder Punkt mit Mouse-over', () => {
-    expect(ids(menue)).toEqual(['au-zurueck', 'au-design-skip', 'au-bezahlt-zurueck', 'au-wie-letztes', 'au-bestellseite', 'au-bearbeiten', 'au-storno']);
+    expect(ids(menue)).toEqual(['au-zurueck', 'au-design-skip', 'au-bezahlt-zurueck', 'au-wie-letztes', 'au-bestellseite', 'au-bearbeiten', 'au-plus-position', 'au-storno']);
     expect(menue).toMatch(/role="menu"/);
     for (const b of menue.match(/<button[^>]*>/g)) {
       expect(b).toContain('role="menuitem"');
@@ -92,7 +92,7 @@ describe('Doppelungen und Beschriftung', () => {
 describe('Bearbeiten-Dialog', () => {
   const f = html.slice(html.indexOf('function auEntwurfZeichnen() {'), html.indexOf('// AMQ1: ohne Positionen speicherbar'));
   test('gesperrte Gruppen: Lesezeile + Preisfelder, Rest unter „Details“ (Zustand bleibt beim Neuzeichnen)', () => {
-    expect(f).toContain('if (!frei) {');
+    expect(f).toContain('if (!gFrei) {');   // AP1: neue Gruppen im gesperrten Auftrag sind frei
     expect(f).toContain('<div class="au-gruppe au-gruppe-gesperrt">');
     expect(f).toMatch(/auPreisZeileHtml\(g, gi\)\s*\n?\s*\+ `<details class="au-gruppe-details" data-au-details=/);
     expect(f).toContain('<summary data-hilfe="au-gruppe-details">Details</summary>${auHerkunftHtml(g, gi, frei)}${felder}</details>');

@@ -129,6 +129,7 @@ au({ Auftrag_Nr: 'AU-2026-0039', Kunden_Nr: 'K-00008', Kurztitel: 'Arbeitsshirts
   Termin: '2026-11-21', Anfrage_Am: '2026-10-20', Design_Am: '2026-10-21', Bestellt_Am: '2026-10-24', Produktion_Am: '2026-11-17', Angelegt: '2026-10-20T08:00:00.000Z' }, [
   ...gruppe('BCTU01T', 'black', { M: 4, L: 6, XL: 4 }, { Motiv: 'Logo Rücken', Druck: 'DTF Rücken A3', Preis_Netto: 11.5, USt_Satz: 19, Fertig: 'ja', Fertig_Am: '2026-11-18' }).map((p, i) => ({ ...p, Korb_Schluessel: `EIGEN:2026-009${i}` })),
   { Art: 'lshop', LShop_ArticleNr: nrVon('RT076', 'black', 'one size'), Menge: '14', Herkunft: 'lager', Lager_Ort: 'Wrist', Lager_Buchung: 'LB-2026-00412', Motiv: 'Stick vorne', Druck: 'Stick', Preis_Netto: 9.9, USt_Satz: 19 },
+  ...gruppe('BCTU01T', 'royal blue', { L: 2 }, { Motiv: 'Logo Rücken', Druck: 'DTF Rücken A3', Preis_Netto: 11.5, USt_Satz: 19, Nachtrag_Am: '2026-11-24' }),   // AP1: Nachtrag, noch nicht bereitgestellt
 ]);
 au({ Auftrag_Nr: 'AU-2026-0038', Kunden_Nr: 'K-00004', Kurztitel: 'Komplettausstattung Belegschaft 2027 (Shirts, Hoodies, Caps) – Niederlassung Nord und Süd', Kanal: 'persönlich', Status: 'fertig',
   Termin: '2026-11-20', Anfrage_Am: '2026-09-15', Angebot_Am: '2026-09-20', Bestellt_Am: '2026-10-01', Produktion_Am: '2026-10-20', Fertig_Am: '2026-11-14', Angelegt: '2026-09-15T10:00:00.000Z',
@@ -136,6 +137,7 @@ au({ Auftrag_Nr: 'AU-2026-0038', Kunden_Nr: 'K-00004', Kurztitel: 'Komplettausst
   ...gruppe('SG40', 'black', { M: 60, L: 120, XL: 90, '2XL': 40, '3XL': 15 }, { Motiv: 'Firmenlogo Brust + Rücken groß', Druck: 'Siebdruck 2-farbig', Preis_Netto: 31.5, Aufpreis_Netto: 3, Aufpreis_Ab: '2XL', USt_Satz: 19, Fertig: 'ja', Fertig_Am: '2026-11-14', Korb_Schluessel: 'EIGEN:2026-0070' }),
   ...gruppe('RT076', 'navy/white', { 'one size': 250 }, { Motiv: 'Logo Stick', Druck: 'Stick', Preis_Netto: 8.9, USt_Satz: 19, Fertig: 'ja', Fertig_Am: '2026-11-13', Korb_Schluessel: 'EIGEN:2026-0071' }),
   frei('Einrichtung Stickprogramm Firmenlogo', 1, { Preis_Netto: 89, USt_Satz: 19, Herkunft: 'vorhanden', Fertig: 'ja', Fertig_Am: '2026-11-10' }),
+  frei('Aufnäher Firmenlogo nachbestellt', 20, { Preis_Netto: 3.5, USt_Satz: 19, Nachtrag_Am: '2026-11-24' }),   // AP1: Nachtrag offen im fertigen Auftrag
 ]);
 au({ Auftrag_Nr: 'AU-2026-0037', Kunden_Nr: 'K-00006', Kurztitel: 'Geburtstagsshirts Familie', Kanal: 'WhatsApp', Status: 'übergeben', Vorkasse: 'ja', Versand_Art: 'paket', Versand_Betrag: 6.49,   // RE3
   Termin: '2026-11-15', Anfrage_Am: '2026-10-30', Design_Am: '2026-10-30', Bestellt_Am: '2026-11-02', Produktion_Am: '2026-11-08', Fertig_Am: '2026-11-12', Uebergeben_Am: '2026-11-14',

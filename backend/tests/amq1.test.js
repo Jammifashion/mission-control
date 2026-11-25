@@ -172,7 +172,7 @@ describe('Oberflaeche', () => {
     expect(i('id="au-preis-block"')).toBeLessThan(i('id="au-speichern"'));
   });
   test('7. Angefangene freie Position / Raster wird beim Speichern uebernommen, Enter uebernimmt', () => {
-    expect(html).toContain('if (frei && !auOffeneEingaben()) return;');
+    expect(html).toContain('if ((frei || nachtragAn) && !auOffeneEingaben()) return;');   // AP1: auch beim Nachtrag
     expect(html).toContain("if (e.key === 'Enter') { e.preventDefault(); auFreiUebernehmen(); }");
     expect(html).toContain('Nicht übernommene Eingabe im Größenraster');
     expect(html).not.toContain("auFehler('Mindestens eine Position.')");

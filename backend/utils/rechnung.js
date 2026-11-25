@@ -106,7 +106,13 @@ export function rechnungPruef({ auftrag: a, positionen, info = new Map() }) {
   return createHash('sha256').update(teile.join('|')).digest('hex').slice(0, 16);
 }
 /** Ist der Auftrag nach der Rechnung geaendert? Nur mit gespeicherter Pruefsumme (sonst unbekannt = false). */
-export const nachRechnungGeaendert = o => !!t(o.auftrag?.Rechnung_Pruef) && t(o.auftrag.Rechnung_Pruef) !== rechnungPruef(o);
+export const nachRechnungGeaendert = o => (t(o.auftrag?.Rechnung_Pruef) ? t(o.auftrag.Rechnung_Pruef) !== rechnungPruef(o) : nachtragNachRechnung(o));
+/** AP1: Kennzeichen ohne Pruefsumme (vor RE3) - geaendert, wenn eine Position am/nach dem Rechnungstag nachgetragen wurde. */
+export function nachtragNachRechnung({ auftrag: a, positionen }) {
+  const am = t(a?.Rechnung_Am);
+  if (!/^\d{4}-\d{2}-\d{2}/.test(am)) return false;
+  return aktiv(positionen, t(a?.Auftrag_Nr)).some(p => t(p.Nachtrag_Am) && t(p.Nachtrag_Am) >= am.slice(0, 10));
+}
 
 const fehlerMit = (text, status, code) => Object.assign(new Error(text), { status, ...(code ? { code } : {}) });
 /**

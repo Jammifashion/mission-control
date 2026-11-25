@@ -58,6 +58,16 @@ export const ANSICHTEN_ZUSATZ = [
       await klick('#au-ansicht [data-au-oeffnen="AU-2026-0040"]')(p);
       if (await p.locator('#au-mehr:visible').count()) await klick('#au-mehr')(p);
       await klick('#au-bearbeiten')(p); }, wurzel: '#au-dialog', nurVoll: true },
+  // AP1: fertiger Auftrag mit offenem Nachtrag (oranger Hinweis, Kennzeichen) und "+ Position …" im laufenden Auftrag (neue Gruppe frei)
+  { id: 'auftraege/liste+ansicht-nachtrag', hash: 'auftraege/liste', aktion: async p => {
+      await p.evaluate(() => { const s = document.getElementById('au-f'); if (s) { s.value = 'alle'; s.dispatchEvent(new Event('change')); } }); await p.waitForTimeout(400);
+      await klick('#au-ansicht [data-au-oeffnen="AU-2026-0038"]')(p); }, wurzel: DLG, nurVoll: true },
+  { id: 'auftraege/liste+plus-position', hash: 'auftraege/liste', aktion: async p => {
+      await p.evaluate(() => { const s = document.getElementById('au-f'); if (s) { s.value = 'alle'; s.dispatchEvent(new Event('change')); } }); await p.waitForTimeout(400);
+      await klick('#au-ansicht [data-au-oeffnen="AU-2026-0039"]')(p);
+      if (await p.locator('#au-mehr:visible').count()) await klick('#au-mehr')(p);
+      await klick('#au-plus-position')(p);
+      await p.fill('#au-frei-text', 'Aufnäher nachbestellt'); await p.fill('#au-frei-menge', '5'); await klick('#au-frei-hinzu')(p); }, wurzel: '#au-dialog', nurVoll: true },
   // DK1: Druckkosten in der Auftragsansicht (Kalkulation offen), Dialog "Maße eingeben …", Pflege-Ansicht mit Dialog
   { id: 'auftraege/liste+ansicht-druck', hash: 'auftraege/liste', aktion: async p => {
       await klick('#au-ansicht [data-au-oeffnen="AU-2026-0041"]')(p);

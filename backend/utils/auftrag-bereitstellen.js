@@ -10,7 +10,7 @@
 import { STATUS as KORB_STATUS, HERKUNFT as KORB_HERKUNFT, naechsteEigenNummer } from './korb-logic.js';
 import { AG_PRAEFIX } from './aufgaben.js';
 import { ART as LAGER_ART, WARENART, bestandAus, bestandVon, naechsteBuchungNr, buchungId, VORGANG_MUSTER, buchungenDesVorgangs } from './lager.js';
-import { ART, HERKUNFT, aktivePositionen, istUebergeben, naechstePositionId, schrittIndex, fehler, POSITION_SPALTEN, STORNIERT } from './auftraege.js';
+import { ART, HERKUNFT, aktivePositionen, istUebergeben, naechstePositionId, schrittIndex, fehler, POSITION_SPALTEN, STORNIERT, istNachtrag, nachtragMoeglich } from './auftraege.js';
 import { berlinJahr } from './berlin-tag.js';   // GT1 C4
 
 const t = v => String(v ?? '').trim();
@@ -19,10 +19,18 @@ export const GRUND_GEAENDERT = 'Auftrag geändert';
 // Bereitstellen und Zuruecknehmen gehen bis einschliesslich "bestellt" (Rohlinge oft parallel zum Design).
 export const BEREITSTELLEN_BIS = 'bestellt';
 
-/** Darf der Auftrag (noch) Rohlinge bereitstellen? Haengt spaeter auch an der Auftragsart (AM-3a, "Aufgabe" ohne Rohlinge). */
-export function kannBereitstellen(auftrag) {
+/** AP1: hinter "bestellt" zaehlen nur Nachtrags-Positionen (Nachtrag_Am) - alte, nie uebergebene bleiben unangetastet. */
+export const nurNachtraege = auftrag => schrittIndex(auftrag?.Status) > schrittIndex(BEREITSTELLEN_BIS);
+
+/**
+ * Darf der Auftrag (noch) Rohlinge bereitstellen? Bis "bestellt" immer; AP1: danach bis "übergeben" nur, wenn er
+ * Nachtrags-Positionen hat (positionen = alle Positionen des Reiters oder des Auftrags).
+ */
+export function kannBereitstellen(auftrag, positionen = []) {
   if (AG_PRAEFIX.test(String(auftrag?.Auftrag_Nr ?? auftrag?.Aufgabe_Nr ?? ''))) return false;   // AM-4: Aufgaben haben keine Rohlinge
-  return auftrag.Status !== STORNIERT && schrittIndex(auftrag.Status) >= 0 && schrittIndex(auftrag.Status) <= schrittIndex(BEREITSTELLEN_BIS);
+  if (auftrag.Status === STORNIERT || schrittIndex(auftrag.Status) < 0) return false;
+  if (!nurNachtraege(auftrag)) return true;
+  return nachtragMoeglich(auftrag) && aktivePositionen(positionen, auftrag.Auftrag_Nr).some(istNachtrag);
 }
 
 /**
@@ -40,12 +48,12 @@ export function kannBereitstellen(auftrag) {
  * @param {string}   o.vorgang       Kennung gegen Doppelklick (steht in den Lager-Zeilen)
  */
 export function bereitstellenPlan({ auftrag, positionen, korbZeilen, buchungen, orte, waehlbar, info = new Map(), teilen = false, ortWahl = {}, vorgang = '', jetzt }) {
-  if (!kannBereitstellen(auftrag)) throw fehler(`${auftrag.Auftrag_Nr}: Rohlinge bereitstellen geht nur bis „${BEREITSTELLEN_BIS}“.`, 409, 'status');
+  if (!kannBereitstellen(auftrag, positionen)) throw fehler(`${auftrag.Auftrag_Nr}: Rohlinge bereitstellen geht nur bis „${BEREITSTELLEN_BIS}“ (danach nur für nachträglich hinzugefügte Positionen).`, 409, 'status');
   const nr = auftrag.Auftrag_Nr;
   const iso = new Date(jetzt).toISOString();
   const jahr = berlinJahr(new Date(jetzt));   // GT1 C4
   const akt = aktivePositionen(positionen, nr);
-  const offen = akt.filter(p => !istUebergeben(p));
+  const offen = akt.filter(p => !istUebergeben(p) && (!nurNachtraege(auftrag) || istNachtrag(p)));   // AP1
   const bestand = bestandAus(buchungen);
   const verbraucht = new Map();
   const frei = (schluessel, ort) => bestandVon(bestand, schluessel, ort) - (verbraucht.get(`${schluessel}|${ort}`) ?? 0);
@@ -146,9 +154,10 @@ export const schonBereitgestellt = (buchungen, vorgang) => VORGANG_MUSTER.test(t
  *  Lager: Gegenbuchung (korrektur, Storno_von) der Abgang-Buchung, Lager_Buchung leer.
  */
 export function zuruecknehmenPlan({ auftrag, positionen, positionId, korbZeilen, buchungen, vorgang = '', jetzt }) {
-  if (!kannBereitstellen(auftrag)) throw fehler(`${auftrag.Auftrag_Nr}: zurücknehmen geht nur bis „${BEREITSTELLEN_BIS}“.`, 409, 'status');
+  if (!kannBereitstellen(auftrag, positionen)) throw fehler(`${auftrag.Auftrag_Nr}: zurücknehmen geht nur bis „${BEREITSTELLEN_BIS}“.`, 409, 'status');
   const p = aktivePositionen(positionen, auftrag.Auftrag_Nr).find(x => x.Position_ID === t(positionId));
   if (!p) throw fehler('Position gibt es nicht (mehr) – bitte neu laden.', 409, 'konflikt');
+  if (nurNachtraege(auftrag) && !istNachtrag(p)) throw fehler(`${auftrag.Auftrag_Nr}: zurücknehmen geht nach „${BEREITSTELLEN_BIS}“ nur bei nachträglich hinzugefügten Positionen.`, 409, 'status');
   if (!istUebergeben(p)) return { unveraendert: true, position: p };
   const iso = new Date(jetzt).toISOString();
   const jahr = berlinJahr(new Date(jetzt));   // GT1 C4

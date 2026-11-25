@@ -24,7 +24,7 @@ import { dtfPreise, istDtf, POSITIONEN, normBezug, istAktiv, masseFuer, GROESSE_
 import {
   TAB_DTF_KORB, KORB_SPALTEN, TAB_DTF_DATEIEN, DATEI_SPALTEN, TAB_DTF_PROTOKOLL, PROTOKOLL_SPALTEN, QUELLE, STATUS, GRUENDE,
   BESTELL_STATUS, LIEFERARTEN, CONFIG, SHOP_STATUS_OFFEN, BREITE_STANDARD_CM, VERSCHNITT_STANDARD, BESTELL_ID_RE, DRUCK_ID_RE,
-  fehler, reiterZeilen, alsZeile, shopEinstufung, druckpositionenFuer, dtfAbgleichPlan, shopZustand, auZustand, quellSchluessel,
+  fehler, reiterZeilen, alsZeile, shopEinstufung, druckpositionenFuer, dtfAbgleichPlan, shopZustand, auZustand, nachtragOffen, quellSchluessel,
   zeileAnsicht, sichtbareZeilen, meterSchaetzung, naechsteBestellId, druckIdFuer, bestellEingabe, bestellAuswahl, baueDtfXml,
   nachrichtAnNico, chatText, haengt, statusPlan, zuordnenPlan, dateiSchluessel, dateiFuer, wasFehlt, verkaufSchluessel, istJa, referenzFuer,
   scanAdresse, farbeGroesse, GRUND_LAGER, istLagerZeile, dtfStandJePosition, dtfKartenPlan, DTF_STAND, positionsSchluessel,
@@ -224,12 +224,13 @@ async function abgleichKern({ dryRun = false, quelle = 'knopf', laufId, zwang = 
       const positionen = new Map();
       for (const p of a.positionen ?? []) {
         const dtf = istDtf(p.Druck);
-        positionen.set(t(p.Position_ID), { menge: Number(p.Menge) || 0, dtf, druckname: !!t(p.Druckname) });
-        if (zustand !== 'offen' || !dtf) continue;
+        const nachtrag = zustand === 'au_fertig' && nachtragOffen(p);   // AP1
+        positionen.set(t(p.Position_ID), { menge: Number(p.Menge) || 0, dtf, druckname: !!t(p.Druckname), ...(nachtrag ? { nachtragOffen: true } : {}) });
+        if ((zustand !== 'offen' && !nachtrag) || !dtf) continue;
         auPositionen += 1;
         const info = p.lshop ?? {};
         kandidaten.push({
-          quelle: QUELLE.AU, nummer: t(a.Auftrag_Nr), position: t(p.Position_ID), datum: tagAus(a.Angelegt),
+          quelle: QUELLE.AU, nummer: t(a.Auftrag_Nr), position: t(p.Position_ID), datum: tagAus(p.Nachtrag_Am) || tagAus(a.Angelegt),   // AP1: Nachtrag zaehlt ab seinem Tag
           kuerzel: t(p.Motiv), modell: t(info.modell), farbe: t(info.farbe), groesse: t(info.groesse), menge: Number(p.Menge) || 0,
           express: istJa(a.DTF_Express), druckname: !!t(p.Druckname),
           druckpositionen: t(p.Motiv) || t(p.Druckmasse_Hand) ? druckpositionenFuer({ hand: p.Druckmasse_Hand, bezug: p.Motiv, groesse: info.groesse, modell: info.modell }, masse) : [],

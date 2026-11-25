@@ -27,7 +27,9 @@ export const PREIS_SPALTEN = ['Preis_Netto', 'Aufpreis_Netto', 'Aufpreis_Ab', 'U
 // KS4: Verschoben_Nach = Position-ID im Auftrag eines anderen Termins (Bestellseite "in Termin … verschieben"); ganz verschoben = auch Entfernt.
 // KS4-2: Da_Am = Tag, an dem die Ware einer FREIEN Position (noch zu besorgen) bei uns ist - von Hand ("bei uns").
 // DK1: Druckmasse_Hand = freie Druckmasse dieser Position ("Brust 10,5x5; Rücken 28x17,5", cm) - vor der Tabelle Druckmasse.
-export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung', ...PREIS_SPALTEN, 'Verweis', 'Verschoben_Nach', 'Da_Am', 'Druckname', 'Druckmasse_Hand'];
+export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung', ...PREIS_SPALTEN, 'Verweis', 'Verschoben_Nach', 'Da_Am', 'Druckname', 'Druckmasse_Hand', 'Nachtrag_Am'];
+// AP1: Nachtrag_Am = Tag, an dem die Position NACH "bestellt" dazukam. Nur solche Positionen gehen hinter "bestellt" noch in
+// Korb/Lager (Bereitstellen) und in den DTF-Korb - alte, nie uebergebene Positionen bleiben unangetastet (keine Doppelbestellung).
 // AM-3: optional ganz hinten in Auftraege - Datum des Schritts "Design" (leer = Schritt nicht genutzt / uebersprungen).
 // AMQ1: Preis_Eingabe ("brutto" oder leer = netto; nur die Eingabe an der Position, gespeichert wird immer netto) und
 // Design_Link (https-Adresse, z. B. Canva) - optional ganz hinten, Setup ergaenzt sie.
@@ -52,7 +54,7 @@ export const HERKUNFT_LSHOP = ['bestellen', 'lager', 'vorhanden'];
 export const HERKUNFT_FREI = ['', 'vorhanden'];
 export const AUFTRAG_TEXT = ['Auftrag_Nr', 'Kunden_Nr', 'Termin', 'Anfrage_Am', 'Angebot_Am', 'Bestellt_Am', 'Produktion_Am', 'Fertig_Am',
   'Uebergeben_Am', 'Bezahlt_Am', 'Storniert_Am', 'Rechnung_Lexware_ID', 'Rechnung_Am', 'Versand_Text', 'Rechnung_Pruef'];   // RE3
-export const POSITION_TEXT = ['Position_ID', 'Auftrag_Nr', 'LShop_ArticleNr', 'Fertig_Am', 'Entfernt', 'Da_Am'];
+export const POSITION_TEXT = ['Position_ID', 'Auftrag_Nr', 'LShop_ArticleNr', 'Fertig_Am', 'Entfernt', 'Da_Am', 'Nachtrag_Am'];
 
 export const KANAELE = ['Mail', 'WhatsApp', 'Telefon', 'persönlich', 'Jey', 'Bestellseite'];   // KS3: Bestellseite
 // Schritte in Reihenfolge, je Schritt sein Datumsfeld. "storniert" steht ausserhalb (Storniert_Am).
@@ -162,6 +164,11 @@ const heute = jetzt => berlinDatum(new Date(jetzt));
 
 /** Darf der Auftrag frei bearbeitet werden (Kopf + Positionen)? */
 export const istFrei = a => a.Status !== STORNIERT && schrittIndex(a.Status) >= 0 && schrittIndex(a.Status) <= FREI_BIS;
+/** AP1: neue Positionen nach "bestellt" (Nachtrag) - bis "übergeben"; bezahlt/storniert sind abgeschlossen. */
+export const NACHTRAG_STATUS = ['bestellt', 'in Produktion', 'fertig', 'übergeben'];
+export const nachtragMoeglich = a => NACHTRAG_STATUS.includes(t(a?.Status));
+/** AP1: Position kam nach "bestellt" dazu (Spalte Nachtrag_Am). */
+export const istNachtrag = p => !!t(p?.Nachtrag_Am);
 
 /**
  * Statuswechsel. aktion: weiter | zurueck | bezahlt | bezahlt_zurueck | stornieren | storno_zurueck.
@@ -347,7 +354,9 @@ export const aktivePositionen = (positionen, nr) => (positionen ?? []).filter(p 
 
 /**
  * Bearbeiten. Frei (bis Angebot): Kopf + Positionen (vorhandene ueber positionId aendern, neue anlegen, fehlende als
- * entfernt markieren). Ab bestellt: nur Notiz/Termin; Positionen im Body -> 409 gesperrt. Storniert: nichts.
+ * entfernt markieren). Ab bestellt: nur Notiz/Termin; vorhandene Positionen nur Preise/Druckname (alle muessen mitkommen, sonst
+ * 409 gesperrt). AP1: neue Positionen (ohne positionId) bis "übergeben", geprueft wie beim Anlegen, mit Nachtrag_Am = heute.
+ * Storniert: nichts.
  * Liefert { aenderungAuftrag: {feld: wert}, aenderungPositionen: [{ zeile, felder }], neuePositionen: [...] }.
  */
 export function bearbeitenPlan({ auftrag, positionen, eingabe, waehlbar, orte, jetzt }) {
@@ -362,10 +371,18 @@ export function bearbeitenPlan({ auftrag, positionen, eingabe, waehlbar, orte, j
     // AM-5: ab "bestellt" nur Preise nachtragen/aendern - jede Position muss bleiben, wie sie ist.
     const alt = aktivePositionen(positionen, auftrag.Auftrag_Nr);
     const bisher = new Set(alt.map(p => p.LShop_ArticleNr).filter(Boolean));
-    const gesperrt = () => fehler(`${auftrag.Auftrag_Nr}: ab „bestellt“ sind Positionen gesperrt – nur Preise änderbar.`, 409, 'gesperrt');
-    if (!Array.isArray(eingabe.positionen) || eingabe.positionen.length !== alt.length || !alt.length) throw gesperrt();
-    const pos = pruefePositionen(eingabe.positionen, { waehlbar: bisher, bisher, orte: null });
-    if (pos.some(p => !p.positionId)) throw gesperrt();
+    const gesperrt = () => fehler(`${auftrag.Auftrag_Nr}: ab „bestellt“ sind bestehende Positionen gesperrt – nur Preise änderbar.`, 409, 'gesperrt');
+    if (!Array.isArray(eingabe.positionen)) throw gesperrt();
+    // AP1: vorhandene (mit positionId) muessen alle mitkommen und bleiben; neue (ohne positionId) sind ein Nachtrag
+    const altEin = eingabe.positionen.filter(p => t(p?.positionId));
+    const neuEin = eingabe.positionen.filter(p => !t(p?.positionId));
+    if (altEin.length !== alt.length || (!alt.length && !neuEin.length)) throw gesperrt();
+    const pos = pruefePositionen(altEin, { waehlbar: bisher, bisher, orte: null, leerErlaubt: true });
+    if (neuEin.length) {
+      if (!nachtragMoeglich(auftrag)) throw fehler(`${auftrag.Auftrag_Nr} ist abgeschlossen (${auftrag.Status}) – keine neuen Positionen.`, 409, 'abgeschlossen');
+      const neu = pruefePositionen(neuEin, { waehlbar, orte });
+      neuePositionen.push(...neu.map(p => ({ ...p, Nachtrag_Am: heute(jetzt) })));
+    }
     for (const p of pos) {
       const a = alt.find(x => x.Position_ID === p.positionId);
       if (!a) throw fehler(`Position ${p.positionId} gibt es in diesem Auftrag nicht (mehr) – bitte neu laden.`, 409, 'konflikt');

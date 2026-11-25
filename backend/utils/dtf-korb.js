@@ -151,6 +151,8 @@ export function shopZustand(order) {
   if (s === 'completed') return 'abgeschlossen';
   return 'offen';
 }
+/** AP1: Position kam nach "bestellt" dazu und ist noch nicht fertig - geht auch bei fertigem Auftrag in den DTF-Korb. */
+export const nachtragOffen = p => !!t(p?.Nachtrag_Am) && t(p?.Fertig) !== 'ja';
 /** AU-Status -> Zustand. */
 export function auZustand(a) {
   if (!a) return 'au_weg';
@@ -162,8 +164,9 @@ export function auZustand(a) {
 export function hinweisFuer(z, quellen) {
   const st = quellen.get(quellSchluessel(z.Quelle, z.Nummer));
   if (!st) return undefined;
-  if (st.zustand !== 'offen') return ZUSTAND_TEXT[st.zustand] ?? st.zustand;
   const p = st.positionen.get(t(z.Position));
+  // AP1: Nachtrags-Position (noch nicht fertig) in einem schon fertigen Auftrag gilt fuer sich als offen
+  if (st.zustand !== 'offen' && !(st.zustand === 'au_fertig' && p?.nachtragOffen)) return ZUSTAND_TEXT[st.zustand] ?? st.zustand;
   if (!p) return t(z.Quelle) === QUELLE.AU ? 'Position entfernt' : 'Position weg';
   const teile = [];
   if (!p.dtf) teile.push('kein DTF mehr');

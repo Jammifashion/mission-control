@@ -438,6 +438,7 @@ export async function bearbeiteAuftrag({ eingabe, sheets: s, jetzt = () => new D
     if (brauchtPreisSpalten([...plan.neuePositionen, ...plan.aenderungPositionen.map(x => x.felder)])) pruefeSpalten(p.idx, PREIS_SPALTEN, 'Preise');   // AM-5
     if (brauchtDrucknameSpalte([...plan.neuePositionen, ...plan.aenderungPositionen.map(x => x.felder)])) pruefeSpalten(p.idx, ['Druckname'], 'Druckname');   // SA4
     if (plan.neuePositionen.some(x => x.Druckmasse_Hand)) pruefeSpalten(p.idx, ['Druckmasse_Hand'], 'Druckmaße in Auftrag_Positionen');   // DK2
+    if (plan.neuePositionen.some(x => x.Nachtrag_Am)) pruefeSpalten(p.idx, ['Nachtrag_Am'], 'Position nachträglich hinzufügen');   // AP1
     if (plan.aenderungAuftrag.Rabatt !== undefined) pruefeSpalten(a.idx, ['Rabatt'], 'Rabatt');
     pruefeAmq1Spalten(a.idx, plan.aenderungAuftrag);   // AMQ1
     if (plan.unveraendert) return { ok: true, auftragNr: auftrag.Auftrag_Nr, unveraendert: true };
