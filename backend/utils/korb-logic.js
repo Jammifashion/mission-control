@@ -395,7 +395,8 @@ export function korbZaehler(zeilen, jetzt = new Date()) {
 // ── BO3: Status aendern (herausnehmen / zurueck auf offen) ───────────────────
 
 // Werteliste "Grund" (antwort-BO1 Frage 5).
-export const GRUENDE = ['Ware da / Lager', 'schon bestellt', 'Bestellung storniert', 'Bestellung abgeschlossen', 'Sonstiges'];   // BO5-8: abgeschlossen
+export const GRUENDE = ['Ware da / Lager', 'schon bestellt', 'Bestellung storniert', 'Bestellung abgeschlossen', 'im Auftrag entfernt', 'Sonstiges'];   // BO5-8: abgeschlossen, KS8: im Auftrag entfernt
+export const GRUND_IM_AUFTRAG_ENTFERNT = 'im Auftrag entfernt';   // KS8
 export const ZIEL_STATUS_BO3 = [STATUS.ABGEWAEHLT, STATUS.OFFEN];
 const NOTIZ_MAX = 200;
 

@@ -125,7 +125,7 @@ describe('grundVorschlag und Zaehler', () => {
       { Status: 'offen', Hinweis: '' }, { Status: 'offen', Hinweis: HINWEIS.UNBEZAHLT },
       { Status: 'abgewählt', Hinweis: HINWEIS.STORNIERT }, { Status: 'bestellt', Hinweis: '' },
     ])).toEqual({ offen: 2, herausgenommen: 1, herausgenommenAktuell: 1, mitHinweis: 1, lager: 0 });   // ohne Datum = aktuell
-    expect(GRUENDE).toEqual(['Ware da / Lager', 'schon bestellt', 'Bestellung storniert', 'Bestellung abgeschlossen', 'Sonstiges']);
+    expect(GRUENDE).toEqual(['Ware da / Lager', 'schon bestellt', 'Bestellung storniert', 'Bestellung abgeschlossen', 'im Auftrag entfernt', 'Sonstiges']);
   });
 });
 

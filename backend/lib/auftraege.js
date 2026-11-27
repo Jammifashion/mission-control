@@ -495,13 +495,31 @@ export async function setzePositionFertig({ eingabe, sheets: s, jetzt = () => ne
   });
 }
 
-/** BS4: Position entfernen / wiederherstellen (nur Spalte Entfernt + Stand; Korb/Lager/Trikots/Bestellseite nie). */
+/**
+ * BS4: Position entfernen / wiederherstellen (Spalte Entfernt + Stand; Lager/Trikots/Bestellseite nie).
+ * KS8: ihre eigene Korb-Zeile (Korb_Schluessel) zieht mit - offen -> abgewählt "im Auftrag entfernt" bzw. zurueck; schon bestellt =
+ * nur Hinweis. Unter Auftrags- UND Korb-Sperre, EIN Schreibaufruf, zurueckgelesen.
+ */
 export async function entfernePosition({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
-  return mitAuftrag(eingabe, s, async ({ sheets, spreadsheetId, p, auftrag }) => {
-    const plan = entfernenPlan({ auftrag, positionen: p.zeilen, positionId: eingabe?.positionId, wiederherstellen: !!eingabe?.wiederherstellen, jetzt: jetzt().toISOString() });
-    if (plan.felder) await schreibe(sheets, spreadsheetId, { zellen: zellenAus(TAB_POSITIONEN, p.idx, plan.position._zeile, plan.felder) });
-    return { ok: true, auftragNr: auftrag.Auftrag_Nr, positionId: plan.position.Position_ID, lage: plan.lage, unveraendert: !plan.felder };
-  });
+  const { mitKorbSperre } = await import('./lshopKorb.js');   // dynamisch: lshopKorb liest selbst Auftraege
+  const { entfernenKorbPlan } = await import('../utils/auftrag-bereitstellen.js');
+  const { GRUND_IM_AUFTRAG_ENTFERNT } = await import('../utils/korb-logic.js');
+  return mitAuftrag(eingabe, s, ({ sheets, spreadsheetId, p, auftrag }) => mitKorbSperre('entfernen', async () => {
+    const wieder = !!eingabe?.wiederherstellen;
+    const plan = entfernenPlan({ auftrag, positionen: p.zeilen, positionId: eingabe?.positionId, wiederherstellen: wieder, jetzt: jetzt().toISOString() });
+    let korb = { korb: null, hinweis: '' };
+    const zellen = plan.felder ? zellenAus(TAB_POSITIONEN, p.idx, plan.position._zeile, plan.felder) : [];
+    if (plan.felder && String(plan.position.Korb_Schluessel ?? '').trim()) {
+      const { data } = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${TAB_KORB}'`, valueRenderOption: 'UNFORMATTED_VALUE' });
+      const kz = korbZeilen(data.values ?? []);
+      korb = entfernenKorbPlan({ position: plan.position, korbZeilen: kz.zeilen, wiederherstellen: wieder, jetzt: jetzt(), grund: GRUND_IM_AUFTRAG_ENTFERNT });
+      if (korb.korb) zellen.push(...zellenAus(TAB_KORB, kz.idx, korb.korb.zeile, korb.korb.werte));
+    }
+    if (zellen.length) await schreibe(sheets, spreadsheetId, { zellen });
+    if (korb.korb) { const { _korbCacheLeeren } = await import('./lshopKorb.js'); _korbCacheLeeren?.(); }
+    return { ok: true, auftragNr: auftrag.Auftrag_Nr, positionId: plan.position.Position_ID, lage: plan.lage, unveraendert: !plan.felder,
+      ...(korb.korb ? { korb: { schluessel: korb.korb.schluessel, status: korb.korb.werte.Status } } : {}), ...(korb.hinweis ? { korbHinweis: korb.hinweis } : {}) };
+  }));
 }
 
 // ── AM-4: Aufgaben ───────────────────────────────────────────────────────────

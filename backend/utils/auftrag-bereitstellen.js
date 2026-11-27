@@ -186,3 +186,25 @@ export function zuruecknehmenPlan({ auftrag, positionen, positionId, korbZeilen,
   }
   return plan;
 }
+
+/**
+ * KS8 (Storno-Gegenrichtung): Position im Auftrag entfernt/wiederhergestellt -> ihre eigene Korb-Zeile (Korb_Schluessel) mitziehen.
+ * Entfernen: offen -> abgewählt mit Grund "im Auftrag entfernt"; schon bestellt/geliefert -> nichts buchen, nur Hinweis.
+ * Wiederherstellen: nur eine Zeile, die mit genau diesem Grund abgewählt ist -> wieder offen. Lager bleibt (Gegenbuchung nur von Hand).
+ * @returns {{ korb: { zeile, schluessel, werte } | null, hinweis: string }}
+ */
+export function entfernenKorbPlan({ position, korbZeilen, wiederherstellen = false, jetzt, grund }) {
+  const k = t(position?.Korb_Schluessel);
+  if (!k) return { korb: null, hinweis: '' };
+  const z = (korbZeilen ?? []).find(x => x.Schluessel === k);
+  if (!z) return { korb: null, hinweis: `Korb-Zeile ${k} nicht gefunden – bitte im Korb prüfen.` };
+  const iso = new Date(jetzt).toISOString();
+  if (!wiederherstellen) {
+    if (z.Status === KORB_STATUS.OFFEN) return { korb: { zeile: z._zeile, schluessel: k, werte: { Status: KORB_STATUS.ABGEWAEHLT, Grund: grund, Status_Datum: iso, Stand: iso } }, hinweis: '' };
+    if (z.Status === KORB_STATUS.ABGEWAEHLT) return { korb: null, hinweis: '' };
+    return { korb: null, hinweis: `Korb ${k}: bei L-Shop schon „${z.Status}“ – Rest ins Lager? (nichts automatisch gebucht)` };
+  }
+  if (z.Status === KORB_STATUS.ABGEWAEHLT && t(z.Grund) === grund)
+    return { korb: { zeile: z._zeile, schluessel: k, werte: { Status: KORB_STATUS.OFFEN, Grund: '', Status_Datum: iso, Stand: iso } }, hinweis: '' };
+  return { korb: null, hinweis: z.Status === KORB_STATUS.OFFEN ? '' : `Korb ${k} steht auf „${z.Status}“ – bitte im Korb prüfen.` };
+}

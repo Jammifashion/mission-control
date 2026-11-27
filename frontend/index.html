@@ -14175,7 +14175,12 @@
         const lage = auEntfernenLage(p);
         const k = p?.korb ?? p?.verweisKorb;
         const teile = ['<p>Die Position wird aus dem Auftrag genommen – nicht gelöscht, „wiederherstellen“ holt sie zurück. Sie zählt nicht mehr in Summe, Stückzahl und „wartet auf Ware“.</p>'];
-        if (lage === 'korb') teile.push(`<p><strong>Die Korb-Zeile wird NICHT mitgeändert</strong>${k?.status ? ` (Korb: ${kuEsc(k.status)})` : ''}. Soll die Ware nicht mehr bestellt werden: vorher „Übergabe zurücknehmen“ bzw. im Warenkorb herausnehmen.${['bestellt', 'bestätigt', 'geliefert'].includes(k?.status) ? ' Bei L-Shop ist sie schon bestellt.' : ''}</p>`);
+        // KS8: die eigene Korb-Zeile (bereitgestellt) zieht mit - offen -> abgewählt "im Auftrag entfernt"; schon bestellt = nur Hinweis
+        const schonBestellt = ['bestellt', 'bestätigt', 'geliefert'].includes(k?.status);
+        if (lage === 'korb' && String(p?.Korb_Schluessel ?? '').trim()) teile.push(schonBestellt
+          ? `<p><strong>Bei L-Shop schon bestellt</strong> (Korb: ${kuEsc(k.status)}) – nichts wird automatisch gebucht. Rest später ins Lager?</p>`
+          : '<p>Die offene Korb-Zeile wird mit abgewählt (Grund „im Auftrag entfernt“). „wiederherstellen“ macht sie wieder offen.</p>');
+        else if (lage === 'korb') teile.push(`<p><strong>Die verknüpfte Korb-Zeile wird NICHT mitgeändert</strong>${k?.status ? ` (Korb: ${kuEsc(k.status)})` : ''} – sie gehört zu einer anderen Bestellung.${schonBestellt ? ' Bei L-Shop ist sie schon bestellt.' : ''}</p>`);
         if (lage === 'lager') teile.push('<p><strong>Der Lager-Abgang bleibt gebucht.</strong> Soll die Ware zurück ins Lager: vorher „Übergabe zurücknehmen“.</p>');
         if (lage === 'beiUns') teile.push('<p>Die Ware ist als „bei uns“ markiert – das bleibt so.</p>');
         if (bestellseite) teile.push('<p>Einträge der Bestellseite zu dieser Position zeigen danach „storniert“.</p>');
@@ -14720,7 +14725,8 @@
         b.disabled = true;
         try {
           const r = await auPost('position-entfernen', { auftragNr: a.Auftrag_Nr, positionId: id, wiederherstellen: wieder });
-          showToast(r.unveraendert ? 'Nichts zu ändern.' : `${id} ${wieder ? 'wiederhergestellt' : 'entfernt'}.`);
+          showToast(r.unveraendert ? 'Nichts zu ändern.' : `${id} ${wieder ? 'wiederhergestellt' : 'entfernt'}.${r.korb ? ` Korb-Zeile ${r.korb.schluessel}: ${r.korb.status}.` : ''}`);
+          if (r.korbHinweis) showToast(r.korbHinweis, 'warn', 15000);   // KS8: schon bei L-Shop bestellt
           auDFehler('');
         } catch (err) { b.disabled = false; auDFehler(err.message, b); }
         await loadAuftraege();
