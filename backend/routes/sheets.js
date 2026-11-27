@@ -350,7 +350,8 @@ router.get('/erfassung/list', async (req, res, next) => {
     const drafts = [];
     rows.slice(1).forEach((row, i) => {
       const rowStatus = (row[statusIdx] ?? '').trim().toLowerCase();
-      if (rowStatus !== 'entwurf' && rowStatus !== 'draft') return;
+      // ZW2: "Bereit zur Anlage" (Altstand der entfallenen Auswahl, abgebrochene Anlage) gilt als Entwurf
+      if (rowStatus !== 'entwurf' && rowStatus !== 'draft' && rowStatus !== 'bereit zur anlage') return;
       const rowObj = Object.fromEntries(headers.map((h, hi) => [h, row[hi] ?? '']));
       drafts.push({
         row:           i + 2,

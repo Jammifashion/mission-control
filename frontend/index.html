@@ -3429,10 +3429,6 @@
         <div class="status-bar">
           <div class="status-field">
             <label>Status</label>
-            <select id="prod-status" class="form-select accent">
-              <option value="draft">Entwurf</option>
-              <option value="ready">Bereit zur Anlage</option>
-            </select>
             <span id="prod-status-text" class="form-input accent" style="display:none;cursor:default;">—</span>
           </div>
           <div class="status-field">
@@ -3639,7 +3635,7 @@
         <!-- Bottom Actions -->
         <div class="panel-actions">
           <button class="btn-secondary" id="btn-save-draft" data-hilfe="entwurf-speichern">Entwurf speichern</button>
-          <button class="btn" id="btn-create-wc" disabled data-hilfe="wc-anlegen">In WooCommerce anlegen</button>
+          <button class="btn" id="btn-create-wc" disabled data-hilfe="wc-anlegen">In JFN anlegen (Entwurf)</button>
           <span id="btn-create-wc-grund" class="field-note" style="align-self:center;"></span>
           <label id="pf-zwilling-wrap" class="zw-haken" data-hilfe="zwilling-haken" hidden><input type="checkbox" id="pf-zwilling"> auch im HONK!-Shop anlegen</label>
           <span id="pf-zwilling-stand" class="field-note zw-stand" hidden></span>
@@ -8350,7 +8346,7 @@
         'varianten-keine':       { name: 'Keine', text: 'Nimmt alle Haken in der Liste weg.' },
         'ki-vorschlag':          { name: 'KI Vorschlag', text: 'Lässt die KI Varianten vorschlagen. Übernommen wird erst, was du anhakst und speicherst.' },
         'entwurf-speichern':     { name: 'Entwurf speichern', text: 'Speichert die Maske als Entwurf in der Erfassungsmaske (Sheet). Im Shop ändert sich nichts.' },
-        'wc-anlegen':            { name: 'In WooCommerce anlegen', text: 'Legt den Artikel mit Variationen im Shop an und schreibt die IDs ins Sheet.' },
+        'wc-anlegen':            { name: 'In JFN anlegen (Entwurf)', text: 'Legt den Artikel als Entwurf in JFN an (Variationen, IDs ins Sheet). Veröffentlichen später über „Status Shop“.' },
         'zwilling-haken':        { name: 'auch im HONK!-Shop anlegen', text: 'Legt danach einen Zwilling in honkshop.de als Entwurf an (gleiche SKUs, Preise, Bilder). Fehlt eine Zuordnung, nur JFN.' },
         'zwilling-link':         { name: 'Zwilling in HONK!', text: 'Öffnet den Zwilling im HONK!-Backend. Änderungen hier gehen nur an JFN, der Zwilling bleibt wie er ist.' },
         'zwilling-nachholen':    { name: 'Zwilling in HONK! anlegen', text: 'Legt den Zwilling in honkshop.de nachträglich als Entwurf an. Gibt es die SKUs dort schon, wird nichts angelegt.' },
@@ -18254,13 +18250,12 @@
           return laufend;
         };
       }
-      // Welcher Status beim Speichern ins Sheet geht. "Entwurf speichern" und
-      // "Artikel-ID anlegen" schreiben immer "Entwurf", egal was im Statusfeld
-      // steht - sonst faellt die Zeile aus /erfassung/list (liest nur Entwuerfe).
-      // Nur der Anlagepfad ("In WooCommerce anlegen", Schritt 0) uebernimmt die Auswahl.
-      const SPEICHER_STATUS_TEXT = { draft: 'Entwurf', ready: 'Bereit zur Anlage' };
-      function speicherStatus(weg, auswahl) {
-        return weg === 'anlage' ? auswahl : 'draft';
+      // Welcher Status beim Speichern ins Sheet geht: immer "Entwurf" (ZW2 Teil C, Inhaber 27.11.: die Auswahl
+      // "Entwurf / Bereit zur Anlage" ist entfallen - sie wirkte nur aufs Sheet, und eine abgebrochene Anlage fiel
+      // damit aus /erfassung/list). Nach der Anlage setzt MC "Im Shop"; der Shop-Artikel entsteht immer als Entwurf.
+      const SPEICHER_STATUS_TEXT = { draft: 'Entwurf' };
+      function speicherStatus() {
+        return 'draft';
       }
       // Befehl AID2: "In WooCommerce anlegen" braucht nicht mehr den Status
       // "Bereit zur Anlage", sondern die Artikel-ID und dieselben
@@ -19131,7 +19126,7 @@
       });
 
       // Status bar
-      const prodStatusSel  = document.getElementById('prod-status');
+      const prodStatusText = document.getElementById('prod-status-text');   // ZW2: nur Anzeige, keine Auswahl mehr
       const seoStatusSel   = document.getElementById('prod-seo-status');
       const statusShopSel  = document.getElementById('prod-status-shop');
       const statusShopWrap = document.getElementById('pf-status-shop-wrap');
@@ -19563,8 +19558,7 @@
         updateArticleNr();
 
         // ── Status ───────────────────────────────────────────────────────
-        const statusRaw = (d.data['Status'] || '').toLowerCase();
-        prodStatusSel.value = statusRaw === 'bereit zur anlage' ? 'ready' : 'draft';
+        prodStatusText.textContent = d.data['Status'] || 'Entwurf';
 
         // ── Shop-Einstellungen ───────────────────────────────────────────
         versandSetzen(d.data['Versandklasse'] || '');
@@ -20231,8 +20225,9 @@
         btnSaveDraft.style.display   = edit ? 'none' : '';
 
         // Status: Dropdown (Neu) vs. Read-only Text (Ändern)
-        prodStatusSel.style.display                                     = edit ? 'none' : '';
-        document.getElementById('prod-status-text').style.display       = edit ? '' : 'none';
+        // ZW2: Status nur noch als Text (Neu: "Entwurf" bzw. Sheet-Stand, Ändern: Sheet-Stand)
+        prodStatusText.style.display = '';
+        if (!edit) prodStatusText.textContent = 'Entwurf';
 
         // Status Shop: nur im Ändern-Modus
         statusShopWrap.style.display = edit ? '' : 'none';
@@ -22641,7 +22636,7 @@
         }
 
         const draft = {
-          status:       speicherStatus(weg, prodStatusSel.value),
+          status:       speicherStatus(weg),
           seoStatus:    seoStatusSel.value,
           name:         document.getElementById('pf-name').value,
           lshopNr:      document.getElementById('pf-lshop-nr').value,
@@ -22686,7 +22681,7 @@
           if (!data.exists) {
             // Neue Zeile angelegt
             applyId(data.ssotId);
-            prodStatusSel.value = draft.status;   // Feld zeigt, was im Sheet steht
+            prodStatusText.textContent = SPEICHER_STATUS_TEXT[draft.status];   // Feld zeigt, was im Sheet steht
             if (data.row) currentDraftRow = data.row;
             resetBtn();
             if (showButton) showToast(`Gespeichert – SSOT-ID: ${data.ssotId}`, 'success');
@@ -22734,7 +22729,7 @@
           if (!res2.ok || !data2.success) throw new Error(data2.error || 'Overwrite-Fehler');
 
           applyId(data2.ssotId);
-          prodStatusSel.value = draft.status;
+          prodStatusText.textContent = SPEICHER_STATUS_TEXT[draft.status];
           if (data.row) currentDraftRow = data.row;
           resetBtn();
           if (showButton) showToast(`Überschrieben – SSOT-ID: ${data2.ssotId}`, 'success');
@@ -23143,7 +23138,7 @@
           // Formular zurücksetzen für nächsten Artikel
           resetForm();
           renderVariants();
-          prodStatusSel.value = 'draft';
+          prodStatusText.textContent = 'Entwurf';
           anlageLaeuft = false; aktualisiereAnlage();
           seoStatusSel.value = 'pending';
           seoStatusSel.classList.remove('accent');

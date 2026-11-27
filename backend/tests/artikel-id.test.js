@@ -215,21 +215,14 @@ describe('Freigabe "In WooCommerce anlegen"', () => {
 });
 
 // ════════════════════════════════════════════════════════════════════════════
-// "Entwurf speichern" schreibt immer "Entwurf", egal was im Statusfeld steht.
-// Nur der Anlagepfad uebernimmt die Auswahl ("Bereit zur Anlage").
+// ZW2 Teil C: die Auswahl "Entwurf / Bereit zur Anlage" ist entfallen - jeder Weg schreibt "Entwurf".
 describe('Status beim Speichern', () => {
-  test.each([
-    ['entwurf', 'ready', 'draft'],
-    ['entwurf', 'draft', 'draft'],
-    ['aid',     'ready', 'draft'],
-    ['anlage',  'ready', 'ready'],
-    ['anlage',  'draft', 'draft'],
-  ])('Weg %s, Auswahl %s -> %s', (weg, auswahl, soll) => {
-    expect(fe.speicherStatus(weg, auswahl)).toBe(soll);
+  test.each(['entwurf', 'aid', 'anlage'])('Weg %s -> draft', weg => {
+    expect(fe.speicherStatus(weg)).toBe('draft');
   });
 
-  test('Auswahl "Bereit zur Anlage" + "Entwurf speichern" -> Zeile steht in /erfassung/list', async () => {
-    const status = fe.SPEICHER_STATUS_TEXT[fe.speicherStatus('entwurf', 'ready')];
+  test('"Entwurf speichern" -> Zeile steht in /erfassung/list', async () => {
+    const status = fe.SPEICHER_STATUS_TEXT[fe.speicherStatus('entwurf')];
     expect(status).toBe('Entwurf');
     const d = await request(app).post('/api/sheets/erfassung').send({
       'Produktname': GUT.name, 'L-Shop-Artikelnummer': GUT.lshop, 'Artikelkurzbezeichnung': GUT.kurz,
@@ -240,13 +233,19 @@ describe('Status beim Speichern', () => {
     expect(liste.body.map(x => x.artikelnummer)).toContain('E3000/CH-Oldschool');
   });
 
-  test('Gegenprobe: mit "Bereit zur Anlage" faellt die Zeile aus der Liste (bisheriges Verhalten)', async () => {
+  test('Altstand "Bereit zur Anlage" (abgebrochene Anlage) steht wieder in der Liste', async () => {
     await request(app).post('/api/sheets/erfassung').send({
       'Produktname': GUT.name, 'L-Shop-Artikelnummer': GUT.lshop, 'Artikelkurzbezeichnung': GUT.kurz,
-      'Artikelnummer': `${GUT.lshop}/${GUT.kurz}`, 'Status': fe.SPEICHER_STATUS_TEXT.ready,
+      'Artikelnummer': `${GUT.lshop}/${GUT.kurz}`, 'Status': 'Bereit zur Anlage',
     });
     const liste = await request(app).get('/api/sheets/erfassung/list');
-    expect(liste.body.map(x => x.artikelnummer)).not.toContain('E3000/CH-Oldschool');
+    expect(liste.body.map(x => x.artikelnummer)).toContain('E3000/CH-Oldschool');
+  });
+
+  test('Maske: keine Auswahl mehr, Knopf "In JFN anlegen (Entwurf)" mit Haken daneben', () => {
+    expect(html).not.toContain('id="prod-status"');
+    expect(html).not.toContain('prodStatusSel');
+    expect(html).toMatch(/id="btn-create-wc"[^>]*>In JFN anlegen \(Entwurf\)<\/button>[\s\S]{0,400}id="pf-zwilling-wrap"/);
   });
 
   test('Anbindung: jeder Aufruf nennt seinen Weg, das Statusfeld geht nur ueber speicherStatus', () => {
@@ -254,7 +253,6 @@ describe('Status beim Speichern', () => {
     expect(html).toContain("await saveDraft(false, 'aid');");
     expect(html).toContain("await saveDraft(false, 'anlage');");
     expect(html).not.toMatch(/await saveDraft\((true|false)\);/);
-    expect(html).toContain('status:       speicherStatus(weg, prodStatusSel.value),');
-    expect(html).not.toMatch(/status:\s+prodStatusSel\.value/);
+    expect(html).toContain('status:       speicherStatus(weg),');
   });
 });
