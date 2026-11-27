@@ -348,7 +348,8 @@ const EINTRAEGE = [
 const POS_JE = new Map(POSITIONEN.map(p => [p.Position_ID, p]));
 function zugaengeAntwort() {
   return {
-    zugaenge: ZUGAENGE.map(x => ({ ...BS.zugangFuerMc(x, ISO, TERMINE), ...(x.Art === 'dauer' ? { sortimentText: BS.sortimentText(x.Sortiment, KATEGORIEN.kategorien) } : {}) })).sort((a, b) => b.Zugang_ID.localeCompare(a.Zugang_ID)),
+    zugaenge: ZUGAENGE.map(x => ({ ...BS.zugangFuerMc(x, ISO, TERMINE), offenEintraege: EINTRAEGE.filter(e => e.Zugang_ID === x.Zugang_ID && ['eingegangen', 'geprüft'].includes(e.Status)).length,   // KS8
+      ...(x.Art === 'dauer' ? { sortimentText: BS.sortimentText(x.Sortiment, KATEGORIEN.kategorien) } : {}) })).sort((a, b) => b.Zugang_ID.localeCompare(a.Zugang_ID)),
     bilderStand: '2026-11-15T09:00:00.000Z', bilderAnzahl: 214,
     spalten: { designLink: true, linkVerschluesselt: true },
     linkSchluessel: true,
@@ -459,6 +460,11 @@ export function antwort(method, pfad, params, body) {
   if (p === '/api/bestellen/rueckstand') return RUECKSTAND;
   if (p === '/api/bestellseiten') return zugaengeAntwort();
   if (p === '/api/bestellseiten/kategorien') return KATEGORIEN;
+  // KS8: Herkunft-Vorschlaege je offenem Eintrag des Termins
+  { const m = p.match(/^\/api\/bestellseiten\/(BS-\d+)\/termin\/(BT-\d+)\/uebernahme$/);
+    if (m) return { terminAuftraege: [], anhaengbar: [], kandidaten: {}, spalten: { verweis: true, zugang: true, herkunft: true },
+      vorschlag: Object.fromEntries(EINTRAEGE.filter(e => e.Zugang_ID === m[1] && e.Termin_ID === m[2] && ['eingegangen', 'geprüft'].includes(e.Status))
+        .map((e, i) => [e.Eintrag_ID, e.Art === 'trikot' ? { herkunft: 'trikot' } : i % 2 ? { herkunft: 'lager', ort: 'Wrist' } : { herkunft: 'bestellen' }])) }; }
   x = /^\/api\/bestellseiten\/auftrag\/([^/]+)\/eintraege$/.exec(p);
   if (x) { const nr = decodeURIComponent(x[1]); return { auftragNr: nr, eintraege: BU.eintraegeJePosition(EINTRAEGE, nr) }; }
   x = /^\/api\/bestellseiten\/([^/]+)\/eintraege$/.exec(p);

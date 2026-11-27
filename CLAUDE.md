@@ -1433,6 +1433,18 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   `intern.da`. `wareStand` zaehlt freie zu besorgende Positionen (ohne Haken = "bestellt", mit = da), `freiOffen` ohne Haken. Oberflaeche:
   Auftragsansicht `auDaHtml` (Haken + Datum bzw. "Wareneingang buchen →" bei L-Shop unterwegs), Einträge ansehen `bsmDaHand`/`bsmWe` +
   "markierte bei uns"; Ruecknahme immer mit Rueckfrage.
+  KS8 (Inhaber 27.11.): Schritt "geprüft" entfaellt - `uebernahmePlan` nimmt `UEBERNEHMBAR` (eingegangen + Altstand geprüft). Je offenem Eintrag
+  Herkunft (`herkunftVorschlag`: Lager-Bestand LS: deckt -> lager + Ort, L-Shop bestellbar -> bestellen, sonst vorhanden "bei uns"; Vorschau liefert
+  `vorschlag`) + Knopf "Übernehmen", "alle neuen übernehmen" je Termin; POST /uebernehmen { herkunft, bereitstellen: true } =
+  `uebernehmenUndBereitstellen` (danach AM-3-Bereitstellen nur fuer die neuen Positionen, `nurPositionen`; "aus Lager" sofort ausgebucht; scheitert es,
+  steht der Auftrag + Hinweis). Festpreis (FP-Partner ueber Zugang.Partner_ID bzw. FP_Partner.Kunden_Nr): `Preis_Netto` = FP_Artikel_Kategorie.Festpreis
+  der Artikelkategorie (FP_Artikel ueber die Produkt-ID der Karte), OHNE Handling (Inhaber: Fanshop ohne Versand/Verpackung); fehlt -> leer + Notiz
+  "Festpreis fehlt für …". Trikots laufen weiter ueber TR6 ohne Preis. Entfernen einer Position mit eigener Korb-Zeile (Korb_Schluessel): offen ->
+  abgewählt Grund "im Auftrag entfernt" (`entfernenKorbPlan`, neu in GRUENDE), bestellt/geliefert -> nur Hinweis; wiederherstellen kehrt um.
+  Katalog: Shop-Status aus Bestell_Bilder vor der Sheet-Spalte (`istVeroeffentlicht`), "Artikelliste aktualisieren" liest alle Sortiment-Artikel und
+  zieht "Status Shop" der Erfassungsmaske nach (`statusKorrekturPlan`, nur abweichende Zellen, vorher geprueft, zurueckgelesen). Dialog: Termine kommend
+  sichtbar, vergangene eingeklappt; "Einträge (n neu)" (`offenEintraege` in GET /api/bestellseiten); "Seite öffnen ↗"; "Sortiment ändern …"
+  (Kategorien). Einträge-Ansicht startet beim naechsten Termin mit offenen (`bsmStartTermin`), Standard nur offene. Test ks8.test.js.
 - backend/utils/auftrag-preise.js – Preise je Auftrag (AM-5), einzige Rechen-Stelle; Frontend-Spiegel Block `Auftrag-Preise: Anfang/Ende`
   (Test auftrag-preise.test.js vergleicht beide). Eingabe NETTO, Rechnen in Cent, gerundet erst in der Anzeige (`euroText`). Spalten hinten
   optional: `Auftrag_Positionen` Preis_Netto | Aufpreis_Netto | Aufpreis_Ab | USt_Satz (leer = 19) | EK_Hand, `Auftraege` Rabatt ("10%" Text

@@ -121,6 +121,8 @@ export const ANSICHTEN_ZUSATZ = [
     wurzel: '#anf-side-panel', nurVoll: true },
   { id: 'bestellen/anfragen+karte', hash: 'bestellen/anfragen', aktion: klick('[data-anf-oeffnen]'), wurzel: '#anf-side-panel', nurVoll: true },
   { id: 'auftraege/bestellseiten+dialog', hash: 'auftraege/bestellseiten', aktion: klick('[data-bsm-oeffnen]'), wurzel: DLG, nurVoll: true },
+  // KS8: Einträge mit Herkunft + "Übernehmen" je Eintrag
+  { id: 'auftraege/bestellseiten+eintraege', hash: 'auftraege/bestellseiten', aktion: async p => { await klick('[data-bsm-oeffnen]')(p); await klick('[data-bsm-eintraege]')(p); await p.waitForTimeout(600); }, wurzel: DLG, nurVoll: true },
   { id: 'bestellen/lshop-korb+aus-lager', hash: 'bestellen/lshop-korb', aktion: klick('[data-aus-lager]'), wurzel: DLG, nurVoll: true },
   { id: 'bestellen/lshop-korb+edi', hash: 'bestellen/lshop-korb', aktion: async p => {
       await p.locator('#korb-alle-btn').first().click().catch(() => {});
