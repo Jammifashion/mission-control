@@ -8,12 +8,29 @@
 // Vorbelegung HONK_Kategorie (Inhaber 25.11.): nur JFN-Kategorien unter "HONK!", deren NAME es in HONK genau einmal gibt (Gross/Klein
 // egal), nur in LEERE Zellen. Die Wurzel "HONK!" und Kategorien ohne Namensgleiche (z. B. HohoHonk!) bleiben leer.
 // Liest beide Shops nur (Kategorien, Takt 2 s), keine IDs im Code. Ausgabe nur Kategorienummern und Namen.
+// ZW1-2: Business-Config `zwilling.honk_standard_kategorie` = ID der HONK-Kategorie "Merch" (ueber den Namen gesucht, genau
+// ein Treffer), nur wenn der Schluessel fehlt - eine neue Zeile ohne append (lib/sheet-zeilen.js), zurueckgelesen. Ein
+// vorhandener Wert bleibt unangetastet.
 
 import { fileURLToPath } from 'url';
 import { dirname, resolve } from 'path';
 import dotenv from 'dotenv';
 dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), '../../.env') });
-import { SPALTE_ERF_HONK_ID, SPALTE_ERF_HONK_STATUS, SPALTE_VAR_HONK_ID, SPALTE_KAT_HONK, SPALTE_LZ_HONK } from '../utils/zwilling.js';
+import { SPALTE_ERF_HONK_ID, SPALTE_ERF_HONK_STATUS, SPALTE_VAR_HONK_ID, SPALTE_KAT_HONK, SPALTE_LZ_HONK, CONFIG_STANDARD_KAT,
+  configWert } from '../utils/zwilling.js';
+
+export const STANDARD_KAT_NAME = 'Merch';
+
+/** ZW1-2: Plan fuer die Config-Zeile (reine Logik). -> { neu: [schluessel, wert] | null, text } */
+export function standardKategoriePlan(configWerte, honkKategorien) {
+  const [kopf = [], ...rest] = configWerte ?? [];
+  const iS = kopf.map(klein).findIndex(x => x === 'schlüssel' || x === 'schluessel');
+  const steht = configWert(configWerte, CONFIG_STANDARD_KAT);
+  if (iS >= 0 && rest.some(r => t(r[iS]) === CONFIG_STANDARD_KAT)) return { neu: null, text: `✓ Config ${CONFIG_STANDARD_KAT} steht schon (${steht || 'leer'}) – bleibt.` };
+  const treffer = (honkKategorien ?? []).filter(h => klein(h.name) === klein(STANDARD_KAT_NAME));
+  if (treffer.length !== 1) return { neu: null, text: `✗ HONK-Kategorie „${STANDARD_KAT_NAME}“ ${treffer.length ? 'mehrdeutig' : 'nicht gefunden'} – Config-Zeile bitte von Hand.` };
+  return { neu: [CONFIG_STANDARD_KAT, String(treffer[0].id)], text: `+ Config ${CONFIG_STANDARD_KAT} = ${treffer[0].id} (${STANDARD_KAT_NAME})` };
+}
 
 const t = v => String(v ?? '').trim();
 const klein = v => t(v).toLowerCase();
@@ -99,8 +116,29 @@ async function main() {
     if (schreiben) zellen.push({ range: `'Struktur_Kategorien'!${spalte(iHonk)}${zi + 2}`, wert: v.honkId });
   }
 
-  if (!zellen.length) { console.log('Nichts zu schreiben.'); return; }
-  if (!WRITE) { console.log(`Trockenlauf – nichts geschrieben (${zellen.length} Zelle(n) wären es). Mit --write.`); return; }
+  // ZW1-2: Standardkategorie in der Business-Config
+  const BUSINESS = process.env.BUSINESS_SHEET_ID;
+  if (!BUSINESS) throw new Error('BUSINESS_SHEET_ID fehlt.');
+  const { data: cfg } = await sheets.spreadsheets.values.get({ spreadsheetId: BUSINESS, range: "'Config'", valueRenderOption: 'UNFORMATTED_VALUE' });
+  const cPlan = standardKategoriePlan(cfg.values ?? [], honkKat);
+  console.log(cPlan.text);
+
+  if (!zellen.length && !cPlan.neu) { console.log('Nichts zu schreiben.'); return; }
+  if (!WRITE) { console.log(`Trockenlauf – nichts geschrieben (${zellen.length} Zelle(n)${cPlan.neu ? ' + 1 Config-Zeile' : ''} wären es). Mit --write.`); return; }
+  if (cPlan.neu) {
+    const [ck = []] = cfg.values ?? [];
+    const n = ck.map(x => klein(x));
+    const iS = n.findIndex(x => x === 'schlüssel' || x === 'schluessel'), iW = n.indexOf('wert');
+    if (iS < 0 || iW < 0) throw new Error('Config: Spalten Schlüssel/Wert fehlen.');
+    const zeile = Array.from({ length: Math.max(iS, iW) + 1 }, () => '');
+    zeile[iS] = cPlan.neu[0]; zeile[iW] = cPlan.neu[1];
+    const { schreibeNeueZeilen } = await import('../lib/sheet-zeilen.js');
+    await schreibeNeueZeilen(sheets, BUSINESS, 'Config', [zeile], { alt: cfg.values ?? [] });
+    const { data: nachCfg } = await sheets.spreadsheets.values.get({ spreadsheetId: BUSINESS, range: "'Config'", valueRenderOption: 'UNFORMATTED_VALUE' });
+    const steht = configWert(nachCfg.values, CONFIG_STANDARD_KAT);
+    console.log(steht === cPlan.neu[1] ? `✓ Config ${CONFIG_STANDARD_KAT} = ${steht} geschrieben und zurückgelesen.` : `✗ Config ${CONFIG_STANDARD_KAT} zurückgelesen: „${steht}“.`);
+  }
+  if (!zellen.length) return;
   await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: SHEET, requestBody: { valueInputOption: 'RAW',
     data: zellen.map(z => ({ range: z.range, values: [[z.wert]] })) } });
   const { data: nach } = await sheets.spreadsheets.values.batchGet({ spreadsheetId: SHEET, ranges: zellen.map(z => z.range) });

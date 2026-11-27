@@ -3,7 +3,9 @@
 // 25.11.: keine Terme in HONK anlegen), Kategorien und Lieferzeit ueber die Zuordnung im SSOT:
 //   Struktur_Kategorien.HONK_Kategorie   (HONK-Kategorie-ID je JFN-Kategorie; leer = keine Zuordnung)
 //   Struktur_Lieferzeiten.Term_ID_HONK   (HONK-Term-ID je JFN-Lieferzeit; leer = keine Zuordnung)
-// Fehlt eine Zuordnung, wird in HONK NICHTS angelegt (kein halber Zwilling) - Grund in `gruende`.
+// ZW1-2 (Inhaber 27.11.): honkshop.de hat keine Kategorienavigation - JFN-Kategorien ohne HONK_Kategorie landen in der
+// Standardkategorie aus Business-Config `zwilling.honk_standard_kategorie` (Merch). Fehlt auch die, wird in HONK NICHTS
+// angelegt (kein halber Zwilling) - Grund in `gruende`. Ebenso fehlende Lieferzeit-Zuordnung.
 // Verknuepfung: Erfassungsmaske.HONK_Produkt_ID + HONK_Status, Varianten.HONK_Variation_ID (keine zweite Zeile).
 
 export const SPALTE_ERF_HONK_ID     = 'HONK_Produkt_ID';
@@ -15,6 +17,7 @@ export const SPALTE_LZ_HONK         = 'Term_ID_HONK';
 export const ANLAGE_NUR_JFN_TEXT = 'Neu angelegt wird nur in JammiFashion. HONK!-Artikel entstehen als Zwilling '
   + '(Haken „auch im HONK!-Shop anlegen“).';
 
+export const CONFIG_STANDARD_KAT = 'zwilling.honk_standard_kategorie';
 export const LIEFERZEIT_WIE_ELTERN = '-1';
 export const BATCH_MAX = 50;
 
@@ -65,21 +68,25 @@ export function dateinameAus(src, id) {
  * @param {object[]} o.variationen JFN-Variationen
  * @param {Map} o.kategorien      JFN-Kategorie-ID -> HONK-ID ('' = leer)
  * @param {Map} o.lieferzeiten    JFN-Term-ID -> HONK-Term-ID ('' = leer)
+ * @param {string} [o.standardKategorie]  HONK-ID fuer Kategorien ohne Zuordnung (Config, ZW1-2)
  * @returns {{ gruende: string[], produkt?: object, variationen?: object[], skus: string[] }}
  */
-export function zwillingPlan({ produkt, variationen, kategorien, lieferzeiten }) {
+export function zwillingPlan({ produkt, variationen, kategorien, lieferzeiten, standardKategorie }) {
   const gruende = [];
   if (!produkt?.id) return { gruende: ['JFN-Artikel nicht gelesen.'], skus: [] };
   if (produkt.type !== 'variable') gruende.push(`JFN-Artikel ist vom Typ „${produkt.type}“ – Zwilling nur für variable Artikel.`);
   const sku = t(produkt.sku);
   if (!sku) gruende.push('JFN-Artikel hat keine SKU.');
 
-  // Kategorien: jede braucht eine Zuordnung, sonst nichts anlegen.
+  // Kategorien: Zuordnung aus Struktur_Kategorien, sonst Standard (ZW1-2); Menge ohne Dubletten.
   const katIds = [];
+  const standard = /^\d+$/.test(t(standardKategorie)) ? t(standardKategorie) : '';
   for (const k of produkt.categories ?? []) {
     const von = String(k.id);
-    const nach = kategorien?.get(von) ?? '';
-    if (!/^\d+$/.test(nach)) gruende.push(`Kategorie „${t(k.name) || von}“ (${von}) hat keine HONK_Kategorie in Struktur_Kategorien.`);
+    const zu = kategorien?.get(von) ?? '';
+    const nach = /^\d+$/.test(zu) ? zu : standard;
+    if (!nach) gruende.push(`Kategorie „${t(k.name) || von}“ (${von}) hat keine HONK_Kategorie in Struktur_Kategorien `
+      + `und Config ${CONFIG_STANDARD_KAT} ist leer.`);
     else if (!katIds.includes(Number(nach))) katIds.push(Number(nach));
   }
   if (!(produkt.categories ?? []).length) gruende.push('JFN-Artikel hat keine Kategorie.');
@@ -162,10 +169,10 @@ export const stuecke = (liste, n = BATCH_MAX) => {
  * Rueckgelesenen HONK-Zwilling gegen den Plan pruefen.
  * @returns {string[]} Abweichungen (leer = alles da)
  */
-export function vergleicheZwilling({ plan, produkt, variationen, bilderErwartet }) {
+export function vergleicheZwilling({ plan, produkt, variationen, bilderErwartet, statusEgal = false }) {
   const ab = [];
   if (!produkt?.id) return ['HONK-Artikel nicht zurückgelesen.'];
-  if (produkt.status !== 'draft') ab.push(`Status „${produkt.status}“ statt Entwurf.`);
+  if (!statusEgal && produkt.status !== 'draft') ab.push(`Status „${produkt.status}“ statt Entwurf.`);
   if (t(produkt.sku) !== plan.produkt.sku) ab.push(`SKU „${t(produkt.sku)}“ statt „${plan.produkt.sku}“.`);
   const lz = t(meta(produkt.meta_data, '_lieferzeit'));
   const lzSoll = plan.produkt.meta_data.find(m => m.key === '_lieferzeit').value;
@@ -192,3 +199,15 @@ export function vergleicheZwilling({ plan, produkt, variationen, bilderErwartet 
 /** Statuswert fuer Erfassungsmaske.HONK_Status. */
 export const honkStatusText = (status, abweichungen) =>
   (abweichungen?.length ? 'unvollständig' : status === 'publish' ? 'Veröffentlicht' : status === 'private' ? 'Privat' : 'Entwurf');
+
+/** ZW1-2: Kategorienamen fuer die Rueckmeldung ("Merch", "Specials"); ohne Namen die ID. */
+export const kategorieNamen = kat => (kat ?? []).map(k => t(k?.name) || `#${k?.id}`).filter(Boolean);
+
+/** ZW1-2: Wert aus Config-Zeilen (Kopf mit Schlüssel/Wert). */
+export function configWert(werte, schluessel) {
+  const [kopf = [], ...rest] = werte ?? [];
+  const n = kopf.map(x => t(x).toLowerCase());
+  const iS = n.findIndex(x => x === 'schlüssel' || x === 'schluessel'), iW = n.indexOf('wert');
+  if (iS < 0 || iW < 0) return '';
+  return t(rest.find(r => t(r[iS]) === schluessel)?.[iW]);
+}

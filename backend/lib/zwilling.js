@@ -2,9 +2,12 @@
 //
 // Ablauf `legeZwillingAn({ jfnId, ssotId })` - erst alles lesen und pruefen, dann schreiben:
 //   1. SSOT: Erfassungsmaske-Zeile (ID + Produkt-ID muessen passen, HONK_Produkt_ID leer), Zuordnungen aus
-//      Struktur_Kategorien.HONK_Kategorie und Struktur_Lieferzeiten.Term_ID_HONK. Fehlen Spalten -> 409 `einrichtung`.
+//      Struktur_Kategorien.HONK_Kategorie und Struktur_Lieferzeiten.Term_ID_HONK, Business-Config
+//      zwilling.honk_standard_kategorie (ZW1-2). Alles FRISCH (frischLesen, nie der QU1-Zwischenspeicher), damit eine gerade
+//      nachgetragene Zuordnung sofort zaehlt. Fehlen Spalten -> 409 `einrichtung`.
 //   2. JFN-Artikel + Variationen lesen -> Plan. Fehlt eine Zuordnung -> 422 mit Gruenden, in HONK nichts angelegt.
-//   3. HONK: gibt es eine der SKUs schon -> 409 `sku_vergeben` (kein "-v2" wie bei der JFN-Anlage).
+//   3. Doppelschutz: gibt es eine der SKUs in HONK schon -> 409 `sku_vergeben` mit Link (kein "-v2" wie bei der JFN-Anlage).
+// Nachholen (ZW1-2): derselbe Weg aus "Artikel ändern" (Knopf "Zwilling in HONK! anlegen …"); `pruefeZwilling` liest nur.
 //   4. Bilder: aus JFN laden, in die HONK-Mediathek hochladen (lib/wpMedien.js, Name/Titel/ALT gleich). Scheitert
 //      eines (z. B. WP-Rolle ohne Upload-Recht) -> 502 `bilder`, KEIN Artikel (kein Zwilling ohne Bilder).
 //   5. Artikel als ENTWURF anlegen, Variationen per batch (<= 50), Takt 2 s.
@@ -25,8 +28,9 @@ import { findHeader, findHeaderAny } from '../utils/sheet-headers.js';
 import { colLetter } from '../utils/sheet-spalten.js';
 import { adminBestellLink } from '../utils/shop-admin.js';
 import {
-  SPALTE_ERF_HONK_ID, SPALTE_ERF_HONK_STATUS, SPALTE_VAR_HONK_ID, SPALTE_KAT_HONK, SPALTE_LZ_HONK,
+  SPALTE_ERF_HONK_ID, SPALTE_ERF_HONK_STATUS, SPALTE_VAR_HONK_ID, SPALTE_KAT_HONK, SPALTE_LZ_HONK, CONFIG_STANDARD_KAT,
   zuordnungAus, bildListe, dateinameAus, zwillingPlan, mitBildern, stuecke, vergleicheZwilling, honkStatusText,
+  kategorieNamen, configWert,
 } from '../utils/zwilling.js';
 
 const TAKT_MS = 2000;
@@ -47,9 +51,10 @@ async function leseReiter(sheets, spreadsheetId, tab) {
 }
 
 /** Alles, was im SSOT fuer den Zwilling gebraucht wird. */
-async function leseSsot(sheets, spreadsheetId, { jfnId, ssotId }) {
+async function leseSsot(sheets, spreadsheetId, { jfnId, ssotId, honkErlaubt = false, businessId }) {
   const [erf, kat, lz, varianten] = await Promise.all(['Erfassungsmaske', 'Struktur_Kategorien', 'Struktur_Lieferzeiten', 'Varianten']
     .map(tab => leseReiter(sheets, spreadsheetId, tab)));
+  const standardKategorie = await leseStandardKategorie(sheets, businessId);
   const fehlt = [];
   const sp = (r, name, tab) => { const i = findHeader(r.kopf, name); if (i < 0) fehlt.push(`${tab}.${name}`); return i; };
   const e = {
@@ -66,14 +71,23 @@ async function leseSsot(sheets, spreadsheetId, { jfnId, ssotId }) {
   const zeile = erf.zeilen[zi];
   if (t(zeile[e.pid]) !== String(jfnId)) throw fehler(409, 'ssot', `Erfassungsmaske ${ssotId} gehört zu Produkt ${t(zeile[e.pid]) || '–'}, nicht ${jfnId}.`);
   const vorhanden = t(zeile[e.honk]);
-  if (vorhanden) throw fehler(409, 'schon_da', `Zwilling in HONK! besteht schon (#${vorhanden}).`, { honkId: vorhanden });
+  if (vorhanden && !honkErlaubt) throw fehler(409, 'schon_da', `Zwilling in HONK! besteht schon (#${vorhanden}).`, { honkId: vorhanden });
 
   return {
-    erf, e, sheetZeile: zi + 2,
+    erf, e, sheetZeile: zi + 2, honkId: vorhanden, standardKategorie,
     kategorien: zuordnungAus(kat.zeilen.map(z => ({ von: z[k.nr], nach: z[k.honk] }))),
     lieferzeiten: zuordnungAus(lz.zeilen.map(z => ({ von: z[l.id], nach: z[l.honk] }))),
     varianten, v,
   };
+}
+
+/** ZW1-2: Standardkategorie aus Business-Config (frisch). Reiter/Wert fehlt = '' (dann gilt: ohne Zuordnung kein Zwilling). */
+async function leseStandardKategorie(sheets, spreadsheetId) {
+  if (!spreadsheetId) return '';
+  try {
+    const { data } = await sheets.spreadsheets.values.get({ spreadsheetId, range: "'Config'", valueRenderOption: 'UNFORMATTED_VALUE' });
+    return configWert(data.values, CONFIG_STANDARD_KAT);
+  } catch { return ''; }
 }
 
 /** Bild aus JFN laden (statische Datei). HTML statt Bild = Pruefseite -> Stopp. */
@@ -112,13 +126,16 @@ async function ladeBilderHoch(bilder) {
   return { map, hochgeladen };
 }
 
-/** SKUs in HONK pruefen (Produkte; Variations-SKUs schuetzt WooCommerce beim Anlegen - dann Abbruch vor den Variationen). */
+/**
+ * Doppelschutz (ZW1-2 Punkt 7): SKUs in HONK suchen (status any, auch Entwuerfe). Variations-SKUs schuetzt WooCommerce
+ * zusaetzlich beim Anlegen. -> [{ id, sku, artikel }] (artikel = Eltern-ID bei Variationen, sonst id).
+ */
 async function pruefeSkusFrei(wc, skus) {
   const belegt = [];
   for (const teil of stuecke(skus, 50)) {
-    const { data } = await wc.get('products', { sku: teil.join(','), status: 'any', per_page: 100, _fields: 'id,sku' });
+    const { data } = await wc.get('products', { sku: teil.join(','), status: 'any', per_page: 100, _fields: 'id,sku,parent_id' });
     await uhr.pause(TAKT_MS);
-    for (const p of Array.isArray(data) ? data : []) belegt.push(`${p.sku} (#${p.id})`);
+    for (const p of Array.isArray(data) ? data : []) belegt.push({ id: p.id, sku: p.sku, artikel: Number(p.parent_id) || p.id });
   }
   return belegt;
 }
@@ -135,7 +152,7 @@ const laufend = new Set();
  * @param {Function} [o.bilderHochladen]  (Tests)
  */
 export async function legeZwillingAn({ jfnId, ssotId, sheets, wcJfn, wcHonk, bilderHochladen = ladeBilderHoch,
-  spreadsheetId = process.env.GOOGLE_SHEET_ID } = {}) {
+  spreadsheetId = process.env.GOOGLE_SHEET_ID, businessId = process.env.BUSINESS_SHEET_ID } = {}) {
   const id = Number(jfnId);
   if (!Number.isInteger(id) || id <= 0) throw fehler(400, 'eingabe', 'JFN-Produkt-ID fehlt.');
   if (!t(ssotId)) throw fehler(400, 'eingabe', 'Artikel-ID fehlt.');
@@ -147,14 +164,20 @@ export async function legeZwillingAn({ jfnId, ssotId, sheets, wcJfn, wcHonk, bil
       const jfn = wcJfn ?? getWcClient('jfn');
       const honk = wcHonk ?? getWcClient('honk');
 
-      const ssot = await leseSsot(s, spreadsheetId, { jfnId: id, ssotId });
+      const ssot = await leseSsot(s, spreadsheetId, { jfnId: id, ssotId, businessId });
       const { data: produkt } = await jfn.get(`products/${id}`);
       const variationen = await leseAlleVariationen(jfn, id);
-      const plan = zwillingPlan({ produkt, variationen, kategorien: ssot.kategorien, lieferzeiten: ssot.lieferzeiten });
+      const plan = zwillingPlan({ produkt, variationen, kategorien: ssot.kategorien, lieferzeiten: ssot.lieferzeiten,
+        standardKategorie: ssot.standardKategorie });
       if (plan.gruende.length) throw fehler(422, 'zuordnung', 'HONK!-Zwilling nicht angelegt: ' + plan.gruende.join(' · '), { gruende: plan.gruende });
 
       const belegt = await pruefeSkusFrei(honk, plan.skus);
-      if (belegt.length) throw fehler(409, 'sku_vergeben', `SKU in HONK! schon vergeben: ${belegt.join(', ')} – kein Zwilling angelegt.`);
+      if (belegt.length) {
+        const artikel = belegt[0].artikel;
+        throw fehler(409, 'sku_vergeben', `In HONK! gibt es schon einen Artikel mit diesen SKUs (${belegt.map(b => b.sku).slice(0, 3).join(', ')}`
+          + `${belegt.length > 3 ? ' …' : ''}, #${artikel}) – kein Zwilling angelegt.`,
+          { honkId: String(artikel), link: adminBestellLink(getShopConfig('honk').wcUrl, artikel) });
+      }
 
       const bilder = bildListe(produkt, variationen);
       const { map: bildMap } = await bilderHochladen(bilder);
@@ -189,9 +212,9 @@ export async function legeZwillingAn({ jfnId, ssotId, sheets, wcJfn, wcHonk, bil
         ...vergleicheZwilling({ plan: fertig, produkt: zurueck, variationen: honkVariationen, bilderErwartet: fertig.galerieAnzahl })];
       const status = honkStatusText(zurueck?.status, abweichungen);
 
-      const ssotErgebnis = await schreibeVerknuepfung(s, spreadsheetId, { ssotId, jfnId: id, honkId, status, honkVariationen });
+      const ssotErgebnis = await schreibeVerknuepfung(s, spreadsheetId, { ssotId, jfnId: id, honkId, status, honkVariationen, businessId });
       return {
-        honkId, status, abweichungen,
+        honkId, status, abweichungen, kategorien: kategorieNamen(zurueck?.categories),
         link: adminBestellLink(getShopConfig('honk').wcUrl, honkId),
         variationen: honkVariationen.length, bilder: bildMap.size,
         ssot: ssotErgebnis,
@@ -203,9 +226,9 @@ export async function legeZwillingAn({ jfnId, ssotId, sheets, wcJfn, wcHonk, bil
 }
 
 /** HONK_Produkt_ID/HONK_Status + HONK_Variation_ID schreiben (frisch gelesen, nur leere Zellen, RAW, zurueckgelesen). */
-async function schreibeVerknuepfung(sheets, spreadsheetId, { ssotId, jfnId, honkId, status, honkVariationen }) {
+async function schreibeVerknuepfung(sheets, spreadsheetId, { ssotId, jfnId, honkId, status, honkVariationen, businessId }) {
   const ssot = await (async () => {
-    try { return await leseSsot(sheets, spreadsheetId, { jfnId, ssotId }); }
+    try { return await leseSsot(sheets, spreadsheetId, { jfnId, ssotId, businessId }); }
     catch (e) { if (e.code === 'schon_da') return null; throw e; }
   })();
   if (!ssot) return { geschrieben: false, hinweis: 'HONK_Produkt_ID stand inzwischen schon in der Erfassungsmaske – nichts überschrieben.' };
@@ -236,18 +259,23 @@ async function schreibeVerknuepfung(sheets, spreadsheetId, { ssotId, jfnId, honk
 }
 
 /**
- * Stand des Zwillings fuer "Artikel ändern" - nur lesen.
- * @returns {Promise<{ honkId: string, status: string, link: string } | { honkId: '' }>}
+ * Stand des Zwillings fuer "Artikel ändern" - nur lesen (frisch: ein gerade angelegter Zwilling steht sofort da).
+ * ZW1-2: dazu `ssotId` (Zeile der Erfassungsmaske, leer = nicht dort -> kein Nachholen) und `honkStatus` (Spalte HONK_Status).
+ * @returns {Promise<{ honkId: string, ssotId: string, honkStatus?: string, status?: string, link?: string }>}
  */
-export async function leseZwilling({ jfnId, sheets, wcHonk, spreadsheetId = process.env.GOOGLE_SHEET_ID } = {}) {
+export function leseZwilling(o = {}) { return frischLesen(() => leseZwillingRoh(o)); }
+async function leseZwillingRoh({ jfnId, sheets, wcHonk, spreadsheetId = process.env.GOOGLE_SHEET_ID } = {}) {
   const s = sheets ?? await sheetsClient();
   const erf = await leseReiter(s, spreadsheetId, 'Erfassungsmaske');
   const pid = findHeader(erf.kopf, 'Produkt-ID');
   const honk = findHeader(erf.kopf, SPALTE_ERF_HONK_ID);
-  if (pid < 0 || honk < 0) return { honkId: '', einrichtung: honk < 0 };
+  const iId = findHeaderAny(erf.kopf, ['ID', 'SSOT-ID']);
+  const iStatus = findHeader(erf.kopf, SPALTE_ERF_HONK_STATUS);
+  if (pid < 0 || honk < 0) return { honkId: '', ssotId: '', einrichtung: honk < 0 };
   const z = erf.zeilen.find(r => t(r[pid]) === String(jfnId));
   const honkId = t(z?.[honk]);
-  if (!honkId) return { honkId: '' };
+  const ssotId = iId >= 0 ? t(z?.[iId]) : '';
+  if (!honkId) return { honkId: '', ssotId };
   let status = '';
   try {
     const { data } = await (wcHonk ?? getWcClient('honk')).get(`products/${honkId}`, { _fields: 'id,status' });
@@ -256,5 +284,45 @@ export async function leseZwilling({ jfnId, sheets, wcHonk, spreadsheetId = proc
     wirfWennPruefseite(err);
     status = err.response?.status === 404 ? 'fehlt' : 'unbekannt';
   }
-  return { honkId, status, link: adminBestellLink(getShopConfig('honk').wcUrl, honkId) };
+  return { honkId, ssotId, honkStatus: iStatus >= 0 ? t(z?.[iStatus]) : '', status, link: adminBestellLink(getShopConfig('honk').wcUrl, honkId) };
+}
+
+/**
+ * ZW1-2: "Zwilling prüfen …" - NUR LESEN. JFN-Artikel + Zuordnung (frisch) gegen den HONK-Zwilling vergleichen wie nach der Anlage
+ * (ohne Status: veroeffentlicht ist kein Fehler). Schreibt nichts, legt nichts an.
+ * @returns {Promise<{ honkId, status, abweichungen: string[], kategorien: string[], link }>}
+ */
+export function pruefeZwilling(o = {}) { return frischLesen(() => pruefeZwillingRoh(o)); }
+async function pruefeZwillingRoh({ jfnId, sheets, wcJfn, wcHonk, spreadsheetId = process.env.GOOGLE_SHEET_ID,
+  businessId = process.env.BUSINESS_SHEET_ID } = {}) {
+  const id = Number(jfnId);
+  if (!Number.isInteger(id) || id <= 0) throw fehler(400, 'eingabe', 'JFN-Produkt-ID fehlt.');
+  const s = sheets ?? await sheetsClient();
+  const erf = await leseReiter(s, spreadsheetId, 'Erfassungsmaske');
+  const pid = findHeader(erf.kopf, 'Produkt-ID');
+  const iId = findHeaderAny(erf.kopf, ['ID', 'SSOT-ID']);
+  const z = pid >= 0 ? erf.zeilen.find(r => t(r[pid]) === String(id)) : null;
+  if (!z || iId < 0) throw fehler(404, 'ssot', `Produkt ${id} nicht in der Erfassungsmaske.`);
+  const ssot = await leseSsot(s, spreadsheetId, { jfnId: id, ssotId: t(z[iId]), honkErlaubt: true, businessId });
+  if (!ssot.honkId) throw fehler(404, 'kein_zwilling', 'Kein Zwilling in HONK! verknüpft.');
+  const jfn = wcJfn ?? getWcClient('jfn');
+  const honk = wcHonk ?? getWcClient('honk');
+  const { data: produkt } = await jfn.get(`products/${id}`);
+  const variationen = await leseAlleVariationen(jfn, id);
+  const plan = zwillingPlan({ produkt, variationen, kategorien: ssot.kategorien, lieferzeiten: ssot.lieferzeiten,
+    standardKategorie: ssot.standardKategorie });
+  const link = adminBestellLink(getShopConfig('honk').wcUrl, ssot.honkId);
+  let honkProdukt;
+  try {
+    ({ data: honkProdukt } = await honk.get(`products/${ssot.honkId}`));
+  } catch (err) {
+    wirfWennPruefseite(err);
+    if (err.response?.status === 404) return { honkId: ssot.honkId, status: 'fehlt', abweichungen: ['Zwilling in HONK! nicht gefunden.'], kategorien: [], link };
+    throw err;
+  }
+  const honkVariationen = await leseAlleVariationen(honk, ssot.honkId);
+  const abweichungen = plan.gruende.length
+    ? plan.gruende.map(g => `Vergleich unvollständig: ${g}`)
+    : vergleicheZwilling({ plan, produkt: honkProdukt, variationen: honkVariationen, bilderErwartet: (plan.galerieJfn ?? []).length, statusEgal: true });
+  return { honkId: ssot.honkId, status: honkProdukt?.status ?? '', abweichungen, kategorien: kategorieNamen(honkProdukt?.categories), link };
 }

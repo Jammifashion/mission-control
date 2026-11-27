@@ -1679,6 +1679,11 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   `Varianten.HONK_Variation_ID` (Kombination, nur leere Zellen) - keine zweite Zeile. "Artikel aendern" zeigt "Zwilling in HONK!: #ID (Status) ↗",
   Speichern meldet "nicht mitgeaendert". Partner-Zeile legt nur der Abgleich an (HONK: erst veroeffentlicht; EK ueber HONK_Produkt_ID).
   Setup `scripts/setup-zwilling.js` (Trockenlauf, `--write`; HONK_Kategorie nur bei gleichem Namen vorbelegt). Test zwilling.test.js.
+  ZW1-2 (Inhaber 27.11.): JFN-Kategorie ohne HONK_Kategorie -> Standard aus Business-Config `zwilling.honk_standard_kategorie` (Merch; das Setup legt
+  die Zeile ueber den Namen "Merch" an, vorhandener Wert bleibt), Menge der IDs ohne Dubletten; fehlt auch die Config -> 422 wie bisher. Zuordnungen +
+  Config FRISCH (`frischLesen`). Doppelschutz: SKU schon in HONK -> 409 `sku_vergeben` mit `honkId` + `link`. Antwort `kategorien` (Namen). "Artikel
+  aendern" (nur Shop JFN, Zeile in der Erfassungsmaske, HONK_Produkt_ID leer): Knopf "Zwilling in HONK! anlegen …" (Rueckfrage, derselbe POST);
+  HONK_Status "unvollständig": Knopf "Zwilling prüfen …" = `GET /api/zwilling/pruefen?jfnId=` (`pruefeZwilling`, nur lesen, Status egal).
 - backend/lib/wpMedien.js – Upload in die WordPress-Mediathek (`ladeMedienHoch`, `setzeMedienText`),
   eine Stelle fuer `POST /api/artikel/media-upload` und das Halloween-Skript (fetchMitZeitlimit +
   pruefeFetchAntwort; Titel/ALT als Abfrageparameter).

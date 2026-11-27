@@ -765,6 +765,8 @@
       .card-cb-wrap { display: flex; align-items: flex-start; padding-top: 0.18rem; }
       .zw-haken { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 44px; font-size: 0.85rem; color: var(--text); cursor: pointer; }   /* ZW1 */
       .zw-haken[hidden] { display: none; }
+      .zw-stand { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }   /* ZW1-2 */
+      .zw-stand[hidden] { display: none; }
       .select-cb { width: 15px; height: 15px; cursor: pointer; accent-color: var(--focus); flex-shrink: 0; }
       .bulk-bar {
         display: flex; align-items: center; gap: 0.65rem;
@@ -3640,7 +3642,7 @@
           <button class="btn" id="btn-create-wc" disabled data-hilfe="wc-anlegen">In WooCommerce anlegen</button>
           <span id="btn-create-wc-grund" class="field-note" style="align-self:center;"></span>
           <label id="pf-zwilling-wrap" class="zw-haken" data-hilfe="zwilling-haken" hidden><input type="checkbox" id="pf-zwilling"> auch im HONK!-Shop anlegen</label>
-          <span id="pf-zwilling-stand" class="field-note" style="align-self:center;" hidden></span>
+          <span id="pf-zwilling-stand" class="field-note zw-stand" hidden></span>
           <button class="btn" id="btn-update-wc" style="display:none;" data-hilfe="wc-aendern">Änderungen speichern</button>
           <span id="prod-push-status" style="font-size:0.82rem;color:var(--muted);align-self:center;"></span>
         </div>
@@ -8351,6 +8353,8 @@
         'wc-anlegen':            { name: 'In WooCommerce anlegen', text: 'Legt den Artikel mit Variationen im Shop an und schreibt die IDs ins Sheet.' },
         'zwilling-haken':        { name: 'auch im HONK!-Shop anlegen', text: 'Legt danach einen Zwilling in honkshop.de als Entwurf an (gleiche SKUs, Preise, Bilder). Fehlt eine Zuordnung, nur JFN.' },
         'zwilling-link':         { name: 'Zwilling in HONK!', text: 'Öffnet den Zwilling im HONK!-Backend. Änderungen hier gehen nur an JFN, der Zwilling bleibt wie er ist.' },
+        'zwilling-nachholen':    { name: 'Zwilling in HONK! anlegen', text: 'Legt den Zwilling in honkshop.de nachträglich als Entwurf an. Gibt es die SKUs dort schon, wird nichts angelegt.' },
+        'zwilling-pruefen':      { name: 'Zwilling prüfen', text: 'Vergleicht den Zwilling in HONK! mit dem JFN-Artikel (Lieferzeit, Bilder, Variationen, Preise). Nur lesen.' },
         'wc-aendern':            { name: 'Änderungen speichern', text: 'Schreibt die Änderungen in den Shop – Kunden sehen sie sofort – und zieht das Sheet nach.' },
         'partner-neu':           { name: 'Partner hinzufügen', text: 'Öffnet den Dialog für einen neuen Lizenzpartner.' },
         'partner-aktiv':         { name: 'Aktivieren / Deaktivieren', text: 'Schaltet den Partner aktiv oder inaktiv (Sheet). Inaktive bekommen keine neuen Verkäufe.' },
@@ -9040,7 +9044,7 @@
           'dtf-zu-alle-groessen', 'dtf-zu-alle-farben', 'dtf-zu-keine', 'dtf-zu-geschw', 'dtf-zu-geschw-datei', 'dtf-zu-geschw-mass', 'dtf-zu-geschw-breite', 'dtf-zu-gilt-alle', 'dtf-zu-mass-alle',
           'dialog-speichern', 'dialog-abbrechen', 'dialog-schliessen'],   // DT1
         'dtf-bestellung': ['dtf-abholung', 'dtf-dhl', 'dtf-ersetzt', 'dtf-notiz', 'dtf-xml', 'dtf-absenden', 'dtf-nachricht', 'dialog-abbrechen', 'dialog-schliessen'],   // DT1
-        'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-material', 'seo-material-einsetzen', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'bildref-eigenschaft', 'bildref-plus', 'bildref-eigenschaft-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'zwilling-haken', 'zwilling-link', 'wc-aendern'],
+        'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-material', 'seo-material-einsetzen', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'bildref-eigenschaft', 'bildref-plus', 'bildref-eigenschaft-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'zwilling-haken', 'zwilling-link', 'zwilling-nachholen', 'zwilling-pruefen', 'wc-aendern'],
         'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
         'partner': ['fp-artikel-pruefen', 'fp-ohne-festpreis', 'fp-ohne-zeigen', 'fp-sperre', 'fp-sperre-artikel', 'fp-nachrechnen', 'pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'link-vor-lk1', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
         'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'gs-anlegen', 'gs-status', 'gs-link', 'gs-nachsehen', 'gs-angelegt', 'gs-zuruecksetzen', 'fk-partner', 'fk-info', 'fp-preis-loeschen'],
@@ -22774,6 +22778,8 @@
 
       // ── Zwilling: Anfang (ZW1) ──
       // HONK!-Zwilling anlegen (POST /api/zwilling/anlegen) und in „Artikel ändern“ anzeigen (GET /api/zwilling).
+      // ZW1-2: in „Artikel ändern“ ohne Zwilling Knopf „Zwilling in HONK! anlegen …“ (derselbe Weg), bei HONK_Status
+      // „unvollständig“ Knopf „Zwilling prüfen …“ (GET /api/zwilling/pruefen, nur lesen) - nie ein zweiter Zwilling.
       let zwillingStand = { honkId: '' };
       const ZW_STATUS_TEXT = { draft: 'Entwurf', publish: 'öffentlich', private: 'privat', pending: 'ausstehend', fehlt: 'im Shop nicht gefunden', unbekannt: 'Stand unbekannt' };
       async function zwillingAnlegen(jfnId, ssotId) {
@@ -22786,11 +22792,13 @@
           const d = await res.json().catch(() => ({}));
           if (!res.ok) {
             showToast(`HONK!-Zwilling nicht angelegt: ${d.error || res.status}`, 'error', 20000);
+            if (d.code === 'sku_vergeben' && d.link) zwillingStandSetzen({ honkId: d.honkId, link: d.link, vorhanden: true });
             return { ok: false, text: 'HONK!-Zwilling nicht angelegt (Grund im Hinweis)' };
           }
           const ab = d.abweichungen || [];
-          if (ab.length) showToast(`HONK!-Zwilling #${d.honkId} angelegt, aber: ${ab.join(' · ')}`, 'warn', 20000);
-          else showToast(`HONK!-Zwilling #${d.honkId} als Entwurf angelegt (${d.variationen} Variationen, ${d.bilder} Bilder).`, 'success', 8000);
+          const kat = (d.kategorien || []).length ? ` in ${d.kategorien.map(k => `„${k}“`).join(', ')}` : '';
+          if (ab.length) showToast(`HONK!-Zwilling #${d.honkId}${kat} angelegt, aber: ${ab.join(' · ')}`, 'warn', 20000);
+          else showToast(`HONK!-Zwilling #${d.honkId} als Entwurf${kat} angelegt (${d.variationen} Variationen, ${d.bilder} Bilder).`, 'success', 8000);
           if (d.ssot && !d.ssot.geschrieben) showToast(d.ssot.hinweis, 'warn', 15000);
           else if (d.ssot?.ohneZuordnung) showToast(`HONK_Variation_ID: ${d.ssot.ohneZuordnung} ohne Zuordnung – ${(d.ssot.hinweise || []).join(' · ')}`, 'warn', 15000);
           return { ok: !ab.length, text: `HONK!-Zwilling #${d.honkId} (${d.status})` };
@@ -22799,18 +22807,63 @@
           return { ok: false, text: 'HONK!-Zwilling: Ergebnis unklar' };
         }
       }
+      function zwKnopf(text, beiKlick) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'btn-secondary'; b.textContent = text;
+        b.addEventListener('click', beiKlick);
+        return b;
+      }
+      // Zeile „Zwilling in HONK!: #ID ↗“ (+ „Zwilling prüfen …“ bei unvollständig). `vorhanden` = per SKU gefunden, nicht verknüpft.
+      function zwillingStandSetzen(d, jfnId) {
+        const el = document.getElementById('pf-zwilling-stand');
+        el.textContent = '';
+        const a = document.createElement('a');
+        a.href = d.link; a.target = '_blank'; a.rel = 'noopener'; a.dataset.hilfe = 'zwilling-link';
+        a.textContent = d.vorhanden ? `In HONK! schon vorhanden: #${d.honkId} ↗`
+          : `Zwilling in HONK!: #${d.honkId} (${ZW_STATUS_TEXT[d.status] ?? d.status}) ↗`;
+        el.append(a);
+        if (!d.vorhanden && d.honkStatus === 'unvollständig' && jfnId) {
+          const b = zwKnopf('Zwilling prüfen …', () => zwillingPruefen(jfnId));
+          b.dataset.hilfe = 'zwilling-pruefen';
+          el.append(b);
+        }
+        el.hidden = false;
+      }
+      async function zwillingPruefen(jfnId) {
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/zwilling/pruefen?jfnId=${encodeURIComponent(jfnId)}`, { signal: AbortSignal.timeout(180000) });
+          const d = await res.json().catch(() => ({}));
+          if (!res.ok) { showToast(`Zwilling nicht geprüft: ${d.error || res.status}`, 'error', 12000); return; }
+          const kat = (d.kategorien || []).join(', ') || '–';
+          if ((d.abweichungen || []).length) showToast(`Zwilling #${d.honkId} weicht ab: ${d.abweichungen.join(' · ')} (Kategorien: ${kat})`, 'warn', 25000);
+          else showToast(`Zwilling #${d.honkId} stimmt mit JFN überein (Kategorien: ${kat}). HONK_Status bitte von Hand auf den Stand setzen.`, 'success', 12000);
+        } catch (e) { showToast(`Zwilling nicht geprüft: ${e.message}`, 'error', 12000); }
+      }
+      async function zwillingNachholen(jfnId, ssotId) {
+        const ok = await showConfirm('Zwilling in HONK! anlegen?',
+          `Legt für JFN-Artikel #${jfnId} einen Zwilling in honkshop.de als <strong>Entwurf</strong> an (gleiche SKUs, Preise, Bilder). Das dauert je nach Bildern einige Minuten.`,
+          'Zwilling anlegen');
+        if (!ok) return;
+        const el = document.getElementById('pf-zwilling-stand');
+        el.querySelectorAll('button').forEach(b => { b.disabled = true; });
+        el.append(document.createTextNode(' wird angelegt …'));
+        await zwillingAnlegen(jfnId, ssotId);
+        if (Number(document.getElementById('pf-wc-id').value) === Number(jfnId)) await zwillingStandZeigen(jfnId);
+      }
       async function zwillingStandZeigen(jfnId) {
         const el = document.getElementById('pf-zwilling-stand');
         zwillingStand = { honkId: '' };
         el.hidden = true; el.textContent = '';
+        if (currentShop() !== 'jfn') return;   // Zwillinge gibt es nur zu JFN-Artikeln
         try {
           const d = await apiJson(await apiFetch(`${API_BASE()}/api/zwilling?jfnId=${encodeURIComponent(jfnId)}`));
-          if (Number(document.getElementById('pf-wc-id').value) !== Number(jfnId) || !d.honkId) return;
-          zwillingStand = d;
-          const a = document.createElement('a');
-          a.href = d.link; a.target = '_blank'; a.rel = 'noopener'; a.dataset.hilfe = 'zwilling-link';
-          a.textContent = `Zwilling in HONK!: #${d.honkId} (${ZW_STATUS_TEXT[d.status] ?? d.status}) ↗`;
-          el.append(a); el.hidden = false;
+          if (Number(document.getElementById('pf-wc-id').value) !== Number(jfnId)) return;
+          if (d.honkId) { zwillingStand = d; zwillingStandSetzen(d, jfnId); return; }
+          if (!d.ssotId || d.einrichtung) return;   // nicht in der Erfassungsmaske -> kein Nachholen
+          const b = zwKnopf('Zwilling in HONK! anlegen …', () => zwillingNachholen(jfnId, d.ssotId));
+          b.dataset.hilfe = 'zwilling-nachholen';
+          el.append(b);
+          el.hidden = false;
         } catch { /* nur Anzeige */ }
       }
       // ── Zwilling: Ende ──
