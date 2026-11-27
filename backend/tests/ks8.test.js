@@ -55,6 +55,33 @@ describe('Uebernahme ohne "geprüft", mit Festpreis', () => {
   });
 });
 
+describe('Trikots beim Festpreis-Kunden: extra Abrechnungsposition', () => {
+  const zugang = { Zugang_ID: 'BS-009', Kunden_Nr: 'K-00009', Art: 'dauer' };
+  const termin = { Termin_ID: 'BT-0009', Zugang_ID: 'BS-009', Datum: '2026-12-06', Auftrag_Nr: '' };
+  const tr = (id, o = {}) => ({ Eintrag_ID: id, Zugang_ID: 'BS-009', Termin_ID: 'BT-0009', Art: 'trikot', Trikot_Produkt: '900', Bezeichnung: 'Heimtrikot',
+    Groesse: 'L', Trikot_Name: 'GEHEIMNAME', Trikot_Nummer: '7', Menge: '1', Status: 'eingegangen', Stand: 's', ...o });
+  const fpArtikel = [{ partnerId: 'FP-009', produktId: '900', artikelkategorie: 'Trikots' }];
+  test('Festpreis + Handling_Fanshop; fehlt das Handling -> Grund', () => {
+    expect(U.festpreisFuer({ produktId: '900', partnerId: 'FP-009', fpArtikel, fpKategorie: [{ partnerId: 'FP-009', kategorie: 'Trikots', festpreis: '20,00', handlingFanshop: '1,10' }], trikot: true })).toEqual({ netto: 21.1 });
+    expect(U.festpreisFuer({ produktId: '900', partnerId: 'FP-009', fpArtikel, fpKategorie: [{ partnerId: 'FP-009', kategorie: 'Trikots', festpreis: '20,00' }], trikot: true }).grund).toMatch(/Handling_Fanshop/);
+  });
+  test('eine Position je Modell + Größe, ohne Name/Nummer, Druck nie DTF; Eintrag behält die Trikot-Zeile', async () => {
+    const eintraege = [tr('BE-1'), tr('BE-2', { Trikot_Name: 'ANDERER' }), tr('BE-3', { Groesse: 'M' })];
+    const preisJe = new Map(eintraege.map(e => [e.Eintrag_ID, { netto: 21.1 }]));
+    const p = U.uebernahmePlan({ zugang, termin, eintraege, auswahl: eintraege.map(e => ({ id: e.Eintrag_ID, stand: 's' })), auftraege: [], positionen: [],
+      vorgang: 'vorgang-ks8-3', jetzt: '2026-11-28T10:00:00Z', preisJe });
+    expect(p.trikots).toHaveLength(3);
+    expect(p.positionenNeu.map(x => [x.Freitext, x.Menge, x.Preis_Netto, x.Druck])).toEqual([['Trikot Heimtrikot · L', '2', 21.1, U.TRIKOT_DRUCK], ['Trikot Heimtrikot · M', '1', 21.1, U.TRIKOT_DRUCK]]);
+    expect(JSON.stringify(p.positionenNeu)).not.toMatch(/GEHEIMNAME|ANDERER/);
+    expect(p.eintragFelder.every(f => f.trikot !== undefined)).toBe(true);
+    const { istDtf } = await import('../utils/druckkosten.js');
+    expect(istDtf(U.TRIKOT_DRUCK)).toBe(false);
+    // ohne Festpreis-Partner: wie bisher nur Trikot-Seite, keine Position
+    expect(U.uebernahmePlan({ zugang, termin, eintraege, auswahl: eintraege.map(e => ({ id: e.Eintrag_ID, stand: 's' })), auftraege: [], positionen: [],
+      vorgang: 'vorgang-ks8-4', jetzt: '2026-11-28T10:00:00Z' }).positionenNeu).toEqual([]);
+  });
+});
+
 describe('Bereitstellen nur für die neuen Positionen', () => {
   test('nurPositionen begrenzt die offenen Positionen', () => {
     const auftrag = { Auftrag_Nr: 'AU-2026-0900', Status: 'Design', Stand: 's' };

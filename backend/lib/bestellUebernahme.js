@@ -266,10 +266,12 @@ async function festpreiseFuer({ sheets, zugang, eintraege, idx }) {
     if (!partnerId) return null;
     const [fpArtikel, fpKategorie] = [
       await leseReiterSpalten({ tab: 'FP_Artikel', spalten: { partnerId: 'Partner-ID', produktId: 'Produkt-ID', artikelkategorie: 'Artikelkategorie' }, sheets, spreadsheetId: business }),
-      await leseReiterSpalten({ tab: 'FP_Artikel_Kategorie', spalten: { kategorie: 'Kategorie', partnerId: 'Festpreispartner-ID', festpreis: 'Festpreis' }, sheets, spreadsheetId: business }),
+      await leseReiterSpalten({ tab: 'FP_Artikel_Kategorie', spalten: { kategorie: 'Kategorie', partnerId: 'Festpreispartner-ID', festpreis: 'Festpreis' },
+        optional: { handlingFanshop: 'Handling_Fanshop' }, sheets, spreadsheetId: business }),
     ];
     const aus = new Map();
     for (const e of eintraege) {
+      if (t(e.Art) === 'trikot') { aus.set(e.Eintrag_ID, festpreisFuer({ produktId: t(e.Trikot_Produkt), partnerId, fpArtikel, fpKategorie, trikot: true })); continue; }   // KS8
       const karte = idx.je.get(t(e.WC_Variation_ID))?.karte ?? '';
       aus.set(e.Eintrag_ID, festpreisFuer({ produktId: karte.split('|')[0], partnerId, fpArtikel, fpKategorie }));
     }

@@ -239,6 +239,15 @@ export function uebernahmePlan({ zugang, termin, eintraege, auswahl, auftraege, 
       if (v) throw fehler(`Eintrag ${e.Eintrag_ID}: Trikots laufen über die Trikot-Seite, nicht „schon bestellt“.`);
       trikots.push({ eintragId: e.Eintrag_ID, produktId: t(e.Trikot_Produkt), groesse: t(e.Groesse), name: t(e.Trikot_Name), nummer: t(e.Trikot_Nummer), notiz: t(e.Wunsch) });
       eintragFelder.push({ eintrag: e, felder: { Status: E_STATUS.UEBERNOMMEN, Auftrag_Nr: nr, Stand: iso }, trikot: trikots.length - 1 });
+      // KS8 (Inhaber 27.11.): beim Festpreis-Kunden zusaetzlich EINE Abrechnungsposition je Trikot-Modell + Groesse (nie Name/Nummer)
+      if (preisJe) {
+        const key = `T|${t(e.Trikot_Produkt)}|${t(e.Groesse)}`;
+        if (!gruppen.has(key)) gruppen.set(key, { key, Art: ART.FREI, LShop_ArticleNr: '', Freitext: kurz(`Trikot ${ein(e.Bezeichnung) || t(e.Trikot_Produkt)} · ${ein(e.Groesse)}`, FREITEXT_MAX),
+          Motiv: '', Herkunft: '', Lager_Ort: '', Verweis: '', Druck: TRIKOT_DRUCK, trikotPos: true, Menge: 0, eintraege: [] });
+        const g = gruppen.get(key);
+        g.Menge += 1;
+        g.eintraege.push(e);
+      }
       continue;
     }
     let pos;
@@ -276,10 +285,12 @@ export function uebernahmePlan({ zugang, termin, eintraege, auswahl, auftraege, 
     positionenNeu.push({
       ...Object.fromEntries(POSITION_SPALTEN.map(s => [s, ''])),
       Position_ID: id, Auftrag_Nr: nr, Art: g.Art, LShop_ArticleNr: g.LShop_ArticleNr, Freitext: g.Freitext, Menge: String(g.Menge),
-      Motiv: g.Motiv, Druck: '', Notiz: preis.notiz, Stand: iso, Herkunft: g.Herkunft, Lager_Ort: g.Lager_Ort, Verweis: g.Verweis,
+      Motiv: g.Motiv, Druck: g.Druck ?? '', Notiz: [g.trikotPos ? 'Abrechnung Trikots (Ware über die Trikot-Seite)' : '', preis.notiz].filter(Boolean).join(' · '),
+      Stand: iso, Herkunft: g.Herkunft, Lager_Ort: g.Lager_Ort, Verweis: g.Verweis,
       ...(preis.netto !== '' ? { Preis_Netto: preis.netto } : {}),
     });
-    for (const e of g.eintraege) eintragFelder.push({ eintrag: e, felder: { Status: E_STATUS.UEBERNOMMEN, Auftrag_Nr: nr, Position_ID: id, Stand: iso } });
+    // Trikot-Eintraege behalten ihre Trikot-Zeile als Position_ID (Stand auf der Seite) - die Abrechnungsposition haengt nur am Auftrag
+    if (!g.trikotPos) for (const e of g.eintraege) eintragFelder.push({ eintrag: e, felder: { Status: E_STATUS.UEBERNOMMEN, Auftrag_Nr: nr, Position_ID: id, Stand: iso } });
   }
   if (frei) hinweise.push(`${frei} Einträge ohne bestellbare L-Shop-Nummer bzw. Extras als freie Position(en).`);
   // KS3-1: Mengen-Schutz (nur Hinweis, kein Sperren): mehr mit einer Korb-Zeile verknuepft, als darin steht?
@@ -334,7 +345,7 @@ export function herkunftVorschlag(eintrag, { waehlbar = new Set(), bestand = new
  * versandt/verpackt). Weg: Produkt-ID -> FP_Artikel.Artikelkategorie -> FP_Artikel_Kategorie.Festpreis (Partner + Kategorie).
  * Fehlt etwas -> { grund }, nie 0 still. Festpreis 0 im Sheet = bewusst 0.
  */
-export function festpreisFuer({ produktId, partnerId, fpArtikel = [], fpKategorie = [] }) {
+export function festpreisFuer({ produktId, partnerId, fpArtikel = [], fpKategorie = [], trikot = false }) {
   const pid = t(produktId), fp = t(partnerId);
   if (!pid) return { grund: 'Produkt unbekannt' };
   const a = fpArtikel.find(x => t(x.partnerId) === fp && t(x.produktId) === pid);
@@ -344,10 +355,20 @@ export function festpreisFuer({ produktId, partnerId, fpArtikel = [], fpKategori
   const k = fpKategorie.find(x => t(x.partnerId) === fp && t(x.kategorie) === kat);
   const roh = t(k?.festpreis);
   if (!k || roh === '') return { grund: `Festpreis fehlt für Kategorie „${kat}“` };
-  const n = Number(roh.replace(/\./g, '').replace(',', '.'));
+  const zahl = v => Number(t(v).replace(/\./g, '').replace(',', '.'));
+  const n = zahl(roh);
   if (!Number.isFinite(n) || n < 0) return { grund: `Festpreis ungültig für Kategorie „${kat}“` };
-  return { netto: Math.round(n * 100) / 100 };
+  if (!trikot) return { netto: Math.round(n * 100) / 100 };
+  // KS8: Trikots = Festpreis + niedrigeres Handling (Bestellprozess beim Hersteller), Spalte Handling_Fanshop (netto, Inhaber traegt ein)
+  const h = t(k.handlingFanshop);
+  if (h === '') return { grund: `Trikot-Handling fehlt (FP_Artikel_Kategorie.Handling_Fanshop, Kategorie „${kat}“)` };
+  const hn = zahl(h);
+  if (!Number.isFinite(hn) || hn < 0) return { grund: `Trikot-Handling ungültig für Kategorie „${kat}“` };
+  return { netto: Math.round((n + hn) * 100) / 100 };
 }
+
+/** KS8: Druckart der Trikot-Abrechnungsposition (nie DTF, siehe NICHT_DTF in druckkosten.js). */
+export const TRIKOT_DRUCK = 'Trikot (Hersteller)';
 
 /** Preis einer Gruppe: alle Eintraege gleicher Netto-Preis -> der; sonst/fehlt -> leer + Notiz. */
 function gruppenPreis(eintraege, preisJe) {

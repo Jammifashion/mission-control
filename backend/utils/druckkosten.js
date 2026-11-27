@@ -50,7 +50,7 @@ export const DTF_START_SCHLUESSEL = 'dtf.start_datum';
 export const DTF_CONFIG_VORGABE = { [DTF_CONFIG.breite]: '57', [DTF_CONFIG.verschnitt]: '15' };
 
 // Druckart: leer oder "DTF" = DTF (Standard im Betrieb); Stick, Flex, Flock, Siebdruck, Plot, Sublimation, Laser/Gravur = nicht DTF.
-const NICHT_DTF = /(stick|flex|flock|sieb|plott?|sublim|laser|gravur)/i;
+const NICHT_DTF = /(stick|flex|flock|sieb|plott?|sublim|laser|gravur|trikot)/i;   // KS8: "Trikot (Hersteller)" = Abrechnungsposition, kein DTF
 export const istDtf = druck => /\bdtf\b/i.test(String(druck ?? '')) || !NICHT_DTF.test(String(druck ?? ''));
 
 const t = v => String(v ?? '').trim();
