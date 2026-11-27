@@ -2403,6 +2403,28 @@
 
     <!-- FB1: Feedback - kurze Idee abschicken. Liegt ueber jedem anderen Fenster (z-index ueber die id), aendert nichts an der Ansicht dahinter.
          In MC gibt es keine Feedback-Ansicht: gespeichert wird im eigenen Sheet "MC Feedback". -->
+        <!-- ZW2 Teil D: Fremdware in SKU_Extern aufnehmen (Inhaber 27.11.: ArticleNr, Name, Material, Lieferzeit - Rest im Sheet) -->
+        <div id="ex-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="ex-titel" hidden>
+          <div class="edi-box lo-box">
+            <div class="edi-kopf"><strong id="ex-titel">Als Fremdware anlegen</strong><button class="hilfe-i" type="button" data-hilfe-gruppe="fremdware" aria-controls="hilfe-ex-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button></div>
+            <div id="hilfe-ex-dialog" class="hilfe-legende" hidden></div>
+            <div class="korb-zaehler">Neue Zeile in SKU_Extern. Weitere Angaben (Lieferant, Gewicht, Maße …) bitte im Sheet ergänzen.</div>
+            <label for="ex-nr" data-hilfe="ex-nr" tabindex="0">Artikelnummer</label>
+            <input id="ex-nr" type="text" class="form-input" maxlength="40" autocomplete="off" placeholder="z. B. TASSE-LENA" />
+            <label for="ex-name" data-hilfe="ex-name" tabindex="0">Name</label>
+            <input id="ex-name" type="text" class="form-input" maxlength="120" autocomplete="off" placeholder="z. B. Keramiktasse weiß 330 ml" />
+            <label for="ex-material" data-hilfe="ex-material" tabindex="0">Material</label>
+            <input id="ex-material" type="text" class="form-input" maxlength="200" autocomplete="off" placeholder="z. B. Keramik" />
+            <label for="ex-lieferzeit" data-hilfe="ex-lieferzeit" tabindex="0">Lieferzeit</label>
+            <select id="ex-lieferzeit" class="form-select"></select>
+            <div id="ex-fehler" class="field-note seo-msg-rot" role="alert"></div>
+            <div class="korb-reihe">
+              <button type="button" class="btn-lshop-bestellen" id="ex-ok" data-hilfe="ex-anlegen">Anlegen</button>
+              <button type="button" class="korb-link" id="ex-abbrechen" data-hilfe="dialog-abbrechen">Abbrechen</button>
+            </div>
+          </div>
+        </div>
+
     <div id="fb-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="fb-titel" hidden>
       <div class="edi-box fb-box">
         <div class="edi-kopf">
@@ -2932,28 +2954,6 @@
         </div>
 
         <!-- BO5-4: Lagerort waehlen (Wrist vorgewaehlt) - fuer "bei Ankunft ins Lager" und "falsches Trikot ins Lager". -->
-        <!-- ZW2 Teil D: Fremdware in SKU_Extern aufnehmen (Inhaber 27.11.: ArticleNr, Name, Material, Lieferzeit - Rest im Sheet) -->
-        <div id="ex-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="ex-titel" hidden>
-          <div class="edi-box lo-box">
-            <div class="edi-kopf"><strong id="ex-titel">Als Fremdware anlegen</strong><button class="hilfe-i" type="button" data-hilfe-gruppe="fremdware" aria-controls="hilfe-ex-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button></div>
-            <div id="hilfe-ex-dialog" class="hilfe-legende" hidden></div>
-            <div class="korb-zaehler">Neue Zeile in SKU_Extern. Weitere Angaben (Lieferant, Gewicht, Maße …) bitte im Sheet ergänzen.</div>
-            <label for="ex-nr" data-hilfe="ex-nr" tabindex="0">Artikelnummer</label>
-            <input id="ex-nr" type="text" class="form-input" maxlength="40" autocomplete="off" placeholder="z. B. TASSE-LENA" />
-            <label for="ex-name" data-hilfe="ex-name" tabindex="0">Name</label>
-            <input id="ex-name" type="text" class="form-input" maxlength="120" autocomplete="off" placeholder="z. B. Keramiktasse weiß 330 ml" />
-            <label for="ex-material" data-hilfe="ex-material" tabindex="0">Material</label>
-            <input id="ex-material" type="text" class="form-input" maxlength="200" autocomplete="off" placeholder="z. B. Keramik" />
-            <label for="ex-lieferzeit" data-hilfe="ex-lieferzeit" tabindex="0">Lieferzeit</label>
-            <select id="ex-lieferzeit" class="form-select"></select>
-            <div id="ex-fehler" class="field-note seo-msg-rot" role="alert"></div>
-            <div class="korb-reihe">
-              <button type="button" class="btn-lshop-bestellen" id="ex-ok" data-hilfe="ex-anlegen">Anlegen</button>
-              <button type="button" class="korb-link" id="ex-abbrechen" data-hilfe="dialog-abbrechen">Abbrechen</button>
-            </div>
-          </div>
-        </div>
-
         <div id="lo-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="lo-titel" hidden>
           <div class="edi-box lo-box">
             <div class="edi-kopf"><strong id="lo-titel">Lagerort</strong><button class="hilfe-i" type="button" data-hilfe-gruppe="dialog" aria-controls="hilfe-lo-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
@@ -3555,7 +3555,7 @@
             </div>
             <div class="form-field">
               <label for="pf-lshop-nr" data-hilfe="pf-lshop-suche" tabindex="0">L-Shop Artikelnummer</label>
-              <input id="pf-lshop-nr" type="text" class="form-input" placeholder="Nummer oder Name, z. B. E3000 oder Tasse" autocomplete="off" aria-label="L-Shop Artikelnummer" />
+              <input id="pf-lshop-nr" type="text" class="form-input" placeholder="z. B. E3000 oder Tasse" autocomplete="off" aria-label="L-Shop Artikelnummer" />
               <div id="pf-lshop-treffer" class="tw-box" hidden></div>
               <div id="pf-lshop-hint" class="field-note" style="margin-top:0.25rem;"></div>
             </div>
@@ -21866,10 +21866,11 @@
       // M4b: nach dem Speichern den Shop-Stand zuruecklesen und pruefen
       // (lib/seo-pruefung.js, pruefeTextMitSsot). Nur Warn-Toast, blockiert nie.
       async function seoTextNachSpeichernPruefen(item, keyphrase, shop = '') {
-        const id = shop === 'honk' ? item.honkId : item.wcId;   // ZW2: auch der Zwilling
-        const vor = shop === 'honk' ? 'HONK!-Text' : 'Gespeicherter Text';
+        const vor = shop === 'honk' ? 'HONK!-Text' : 'Gespeicherter Text';   // ZW2: auch der Zwilling
+        const url = shop === 'honk' ? `${API_BASE()}/api/woocommerce/products/${item.honkId}?shop=honk`
+          : `${API_BASE()}/api/woocommerce/products/${item.wcId}`;
         try {
-          const produkt = await apiJson(await apiFetch(`${API_BASE()}/api/woocommerce/products/${id}${shop ? `?shop=${shop}` : ''}`));
+          const produkt = await apiJson(await apiFetch(url));
           const d = await apiJson(await apiFetch(`${API_BASE()}/api/seo/text-pruefung`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -23713,6 +23714,7 @@
       const FB_DIALOG_NAMEN = {
         'dtf-zu-dialog': 'DTF zuordnen', 'dtf-best-dialog': 'DTF-Bestellung', 'dtf-ab-dialog': 'DTF abwählen',   // DT1
         'dk-dialog': 'Druckmaße im Auftrag', 'dkm-dialog': 'Druckmaß',   // DK1
+        'ex-dialog': 'Als Fremdware anlegen',   // ZW2
         'au-dialog': 'Auftrag erfassen/bearbeiten', 'au-detail': 'Auftragsansicht', 'au-nachsehen': 'Auftrag nachsehen', 'ab-dialog': 'Rohlinge bereitstellen',
         'ag-dialog': 'Aufgabe erfassen/bearbeiten', 'ag-detail': 'Aufgabenansicht', 'ku-dialog': 'Kunde', 'kl-dialog': 'In Lexoffice suchen',
         'bsm-dialog': 'Bestellseite', 'lager-dialog': 'Lager buchen', 'lo-dialog': 'Lagerort wählen', 'korb-lager-dialog': 'aus Lager nehmen',

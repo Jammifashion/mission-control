@@ -7,8 +7,6 @@ import { sichereSpalte, sichereTextSpalte, colLetter } from '../utils/sheet-spal
 import { PS_FERTIG, PS_FERTIG_AM } from '../utils/produktion-stand.js';
 import { ladeLieferzeiten } from '../lib/lieferzeiten.js';
 import { externFuerNummer, sucheExternArtikel, legeExternAn } from '../lib/skuExtern.js';
-import { getShopConfig } from '../lib/shopConfig.js';
-import { adminBestellLink } from '../utils/shop-admin.js';
 import { lshopFuerArtikel } from '../lib/lshop.js';
 import { maskenVorschlaege } from '../lib/vorschlaege.js';
 import { shopSpalte, gleicherShop, zeileMitShop, normalizeShop } from '../utils/shop-spalte.js';
@@ -275,16 +273,21 @@ router.get('/erfassung/artikelnummer', async (req, res, next) => {
     const nr = String(req.query.nr ?? '').trim().toLowerCase();
     if (nr.length < 3) return res.json({ treffer: [] });
     const sheets = await getSheets();
-    const { data } = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId(), range: 'Erfassungsmaske!A1:ZZ' });
+    const { data } = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId(), range: 'Erfassungsmaske!1:2000' });
     const [kopf = [], ...rows] = data.values ?? [];
     const CTX = 'GET /api/sheets/erfassung/artikelnummer';
     const iNr = requireHeader(kopf, 'Artikelnummer', CTX), iP = requireHeader(kopf, 'Produkt-ID', CTX);
     const iId = requireHeaderAny(kopf, ['SSOT-ID', 'ID'], CTX), iSt = findHeader(kopf, 'Status');
+    // Link ins JFN-Backend; Module erst hier laden (andere Tests ersetzen shopConfig.js ohne getShopConfig)
+    const { getShopConfig } = await import('../lib/shopConfig.js');
+    const { adminBestellLink } = await import('../utils/shop-admin.js');
+    let basis = '';
+    try { basis = getShopConfig('jfn').wcUrl; } catch { basis = ''; }
     res.json({ treffer: rows.filter(r => String(r[iNr] ?? '').trim().toLowerCase() === nr)
       .map(r => {
         const produktId = String(r[iP] ?? '').trim();
         let link = '';
-        if (/^\d+$/.test(produktId)) { try { link = adminBestellLink(getShopConfig('jfn').wcUrl, produktId); } catch { link = ''; } }
+        if (/^\d+$/.test(produktId) && basis) link = adminBestellLink(basis, produktId);
         return { ssotId: String(r[iId] ?? ''), produktId, status: iSt >= 0 ? String(r[iSt] ?? '') : '', link };
       }) });
   } catch (err) { next(err); }

@@ -60,7 +60,7 @@ const ENTWUERFE = [
 ];
 
 const SEO_OFFEN = [
-  { artikelnummer: 'JFN-SW-0977', produktname: 'Weihnachtspullover „Rentier war ausverkauft“ aus Bio-Baumwolle mit gesticktem Schriftzug, Unisex', wcId: 18342, ssotId: 'SSOT-00977', row: 979, lshopNr: 'SG29', keyphrase: '', synonyme: '' },
+  { artikelnummer: 'JFN-SW-0977', produktname: 'Weihnachtspullover „Rentier war ausverkauft“ aus Bio-Baumwolle mit gesticktem Schriftzug, Unisex', wcId: 18342, ssotId: 'SSOT-00977', row: 979, lshopNr: 'SG29', keyphrase: '', synonyme: '', honkId: '2199' },   // ZW2: mit Zwilling
   { artikelnummer: 'JFN-TA-0981', produktname: 'Tasse Fanmeet 2026', wcId: 18350, ssotId: 'SSOT-00981', row: 983, lshopNr: '', keyphrase: 'Fanmeet Tasse', synonyme: '' },
   { artikelnummer: '', produktname: 'Turnbeutel mit Vereinswappen (ohne Artikelnummer)', wcId: 18361, ssotId: 'SSOT-00990', row: 992, lshopNr: 'BG10', keyphrase: '', synonyme: '' },
 ];
@@ -584,6 +584,8 @@ export function antwort(method, pfad, params, body, seite) {
   if (p === '/api/sheets/struktur-lieferzeiten') return LIEFERZEITEN;
   if (p === '/api/sheets/erfassung/list') return ENTWUERFE;
   if (p === '/api/sheets/erfassung/seo-pending') return SEO_OFFEN;
+  if (p === '/api/sheets/extern-suche') return { treffer: [], mehr: false };   // ZW2 Teil D
+  if (p === '/api/sheets/erfassung/artikelnummer') return { treffer: [] };
   if (p === '/api/lieferbarkeit-shop') { x = lieferbarkeitShop(); if (q('shopStatus')) { x.zaehler.shopStatusGeprueft = true; x.zaehler.ausgeblendet.privat = 2; } return x; }
   if (p === '/api/lshop/modelle/liste') return LSM_LISTE;
 

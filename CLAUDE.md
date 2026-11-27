@@ -1684,6 +1684,16 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Config FRISCH (`frischLesen`). Doppelschutz: SKU schon in HONK -> 409 `sku_vergeben` mit `honkId` + `link`. Antwort `kategorien` (Namen). "Artikel
   aendern" (nur Shop JFN, Zeile in der Erfassungsmaske, HONK_Produkt_ID leer): Knopf "Zwilling in HONK! anlegen …" (Rueckfrage, derselbe POST);
   HONK_Status "unvollständig": Knopf "Zwilling prüfen …" = `GET /api/zwilling/pruefen?jfnId=` (`pruefeZwilling`, nur lesen, Status egal).
+  ZW2 (Inhaber 27.11.): Maske ohne Auswahl "Entwurf/Bereit zur Anlage" (Status nur Text, `speicherStatus` = immer Entwurf; /erfassung/list nimmt
+  Altzeilen "Bereit zur Anlage" mit), Knopf "In JFN anlegen (Entwurf)". SEO-Reiter mit Zwilling (`honkId` aus seo-pending/by-wc-id): obere Editoren =
+  HONK! (voll), Block `#seo-jfn-block` = JFN (kurz); "Kurzfassung für JFN erzeugen" = Aktion `seo_kurzfassung` (utils/kurzfassung.js: Modell schreibt nur
+  <h2>/Einleitung/Schluss/Kurzbeschreibung, Produktdetails-Block 1:1 kopiert, Satzvergleich deterministisch, ein zweiter Lauf bei gleichen Saetzen;
+  Spiegel Block `Satzvergleich: Anfang/Ende`). Speichern: JFN kurz -> JFN, voll -> Zwilling (`?shop=honk`, Status bleibt), Yoast Keyphrase/Titel/Meta
+  wie JFN auch in den Zwilling (keine Synonyme, keine SEO_Karte). SEO-Daten aendern: Suche mit Status (Standard alle; `sucheArtikel` ohne Angabe =
+  publish fuer andere Aufrufer), Knopf `#se-texte` oeffnet den Artikel im SEO-Reiter (`seoArtikelOeffnen`, Sheet nur mit Zeile). Maske: Trefferliste
+  am L-Shop-Feld (`twBinden`, Block `Maske-Treffer: Anfang/Ende`, Quellen `.../lshop-korb/modelle` + `GET /api/sheets/extern-suche`), "schon angelegt"
+  (`GET /api/sheets/erfassung/artikelnummer`), Dialog `#ex-dialog` "als Fremdware anlegen" = `POST /api/sheets/extern/neu` (`legeExternAn`: eine Zeile
+  SKU_Extern - ArticleNr, Description, Consistence, Lieferzeit_ID; nie wenn schon da oder L-Shop-Modell; kein append). Tests kurzfassung, zw2-*.
 - backend/lib/wpMedien.js – Upload in die WordPress-Mediathek (`ladeMedienHoch`, `setzeMedienText`),
   eine Stelle fuer `POST /api/artikel/media-upload` und das Halloween-Skript (fetchMitZeitlimit +
   pruefeFetchAntwort; Titel/ALT als Abfrageparameter).

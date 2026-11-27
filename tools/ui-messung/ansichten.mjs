@@ -87,6 +87,14 @@ export const ANSICHTEN_ZUSATZ = [
   { id: 'bestellen/dtf+zuordnen', hash: 'bestellen/dtf', aktion: klick('[data-dtf-zuordnen]'), wurzel: '#dtf-zu-dialog', nurVoll: true },
   { id: 'bestellen/dtf+bestellung', hash: 'bestellen/dtf', aktion: async p => { await klick('#dtf-alle-bereit')(p); await klick('#dtf-bestellen')(p); }, wurzel: '#dtf-best-dialog', nurVoll: true },
   { id: 'bestellen/dtf+scan', hash: 'dtf/scan/DTF-2026-0002-01', aktion: async p => { await p.waitForTimeout(900); }, wurzel: '#dtf-scan', nurVoll: true },
+  // ZW2: SEO-Reiter mit HONK!-Zwilling (zwei Textpaare), Trefferliste am L-Shop-Feld ohne Treffer, Dialog "als Fremdware anlegen"
+  { id: 'artikel/seo+zwilling', hash: 'artikel/seo', aktion: async p => { await p.selectOption('#seo-article-select', '0'); await p.waitForTimeout(1200);
+      await p.evaluate(() => document.getElementById('seo-jfn-block')?.scrollIntoView()); }, wurzel: '#seo-article-panel', nurVoll: true },
+  { id: 'artikel/neu+treffer', hash: 'artikel/neu', aktion: async p => { await p.locator('#pf-lshop-nr').pressSequentially('Zauberhut', { delay: 20 });
+      await p.waitForTimeout(1200); }, wurzel: '#pf-lshop-treffer' },
+  { id: 'artikel/neu+fremdware', hash: 'artikel/neu', aktion: async p => { await p.locator('#pf-lshop-nr').pressSequentially('Zauberhut', { delay: 20 });
+      await p.waitForTimeout(1200); await p.locator('#pf-lshop-treffer .tw-zeile', { hasText: 'als Fremdware' }).click();
+      await p.waitForTimeout(600); }, wurzel: '#ex-dialog' },
   { id: 'artikel/druckmasse+neu', hash: 'artikel/druckmasse', aktion: klick('#dkm-neu'), wurzel: '#dkm-dialog' },
   { id: 'artikel/druckmasse+bearbeiten', hash: 'artikel/druckmasse', aktion: klick('[data-dkm-id]'), wurzel: '#dkm-dialog', nurVoll: true },
   // PR1: Dialog 'Wie letztes Mal' mit Marge-Vergleich

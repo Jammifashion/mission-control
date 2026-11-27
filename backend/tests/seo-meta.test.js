@@ -434,8 +434,9 @@ describe('Frontend: Vorschau und Schreibweg', () => {
     expect(saveBlock).toMatch(/metaMeldung\('SEO-Titel'/);
     expect(saveBlock).toMatch(/metaMeldung\('Meta-Beschreibung'/);
     expect(saveBlock).toMatch(/showToast\(\s*\[[^\]]*yoastText\s*\]/);
+    // ZW2: davor stehen Toasts zum HONK!-Zwilling - entscheidend ist der Abschluss-Toast mit yoastText
     expect(saveBlock.indexOf("metaMeldung('SEO-Titel'"))
-      .toBeLessThan(saveBlock.indexOf('showToast('));
+      .toBeLessThan(saveBlock.lastIndexOf('showToast('));
   });
 
   test('kein Sprachmodell: weder seo-text noch agent-intern noch generate-product', () => {
