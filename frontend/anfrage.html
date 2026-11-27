@@ -365,6 +365,7 @@
       text-align: center;
     }
     .ki-hinweis a { color: var(--text); text-decoration: underline; white-space: nowrap; }
+    .ki-hinweis-verlauf { border-top: 0; padding-top: 3px; font-size: 11.5px; }
 
     .done-bar {
       background: var(--surface);
@@ -433,6 +434,8 @@
     <!-- FIX4: Hinweis vor der ersten Eingabe (Wortlaut: Vorschlag, Inhaber bestaetigt) -->
     <p class="ki-hinweis" id="ki-hinweis">Du schreibst mit einem KI-Assistenten (Claude, Anthropic). Deine Angaben nutzen wir für deine Anfrage.
       <a href="https://jammifashion.de/datenschutz/" target="_blank" rel="noopener noreferrer">Datenschutz</a></p>
+    <!-- KA2: Gespraechsverlauf - Wortlaut vom Inhaber freigegeben (27.11.), nicht ohne Freigabe aendern -->
+    <p class="ki-hinweis ki-hinweis-verlauf" id="verlauf-hinweis">Wenn Sie Ihre Anfrage absenden, speichern wir den Gesprächsverlauf zusammen mit der Anfrage, damit wir sie bearbeiten und die Qualität unserer Beratung prüfen können. Er wird spätestens 12 Monate nach der Anfrage gelöscht.</p>
 
     <!-- Input bar -->
     <div class="input-bar" id="input-bar">
@@ -473,6 +476,10 @@
     let _fallbackGezeigt   = false;
     let _turnstileTimer    = null;
     let _ausstehend        = null;   // SI1: Nachricht, die nach der neuen Bot-Pruefung erneut gesendet wird
+    let _langHinweis       = false;  // KA2: Hinweis "langes Gespraech" schon gezeigt
+    // KA2 Teil A: hoechstens so viele Nachrichten gehen mit (Spiegel MAX_VERLAUF in backend/utils/anfrage-verlauf.js);
+    // das Gespraech laeuft weiter, nur die aeltesten fallen weg. Nie ein Fehler fuer den Kunden.
+    const MAX_NACHRICHTEN = 60;
 
     // Kontaktdaten aus dem Agent_Wissen-Reiter (Schluessel 'kontakt_fallback'
     // bzw. ERREICHBARKEIT in der Wissensbasis) - hier gespiegelt, weil dieser
@@ -721,6 +728,11 @@
       // Add to state + optionally show user bubble
       messages.push({ role: 'user', content: text });
       if (!hidden) appendBubble('user', text);
+      // KA2: langes Gespraech - einmal freundlich auf Absenden/direkten Kontakt hinweisen, dann normal weiter
+      if (messages.length > MAX_NACHRICHTEN && !_langHinweis) {
+        _langHinweis = true;
+        appendBubble('agent', `Unser Gespräch ist schon recht lang. Bitte sende deine Anfrage jetzt ab – oder schreib uns direkt: ${KONTAKT.email} · ${KONTAKT.telefon} (${KONTAKT.zeiten}).`);
+      }
 
       isWaiting = true;
       sendBtn.disabled = true;
@@ -737,7 +749,7 @@
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body:    JSON.stringify({
-            messages,
+            messages: messages.slice(-MAX_NACHRICHTEN),   // KA2: gedeckelt, nie ein 400 wegen der Laenge
             sessionData,
             website: document.getElementById('hp-website')?.value ?? '',
             ...(tokenToSend   ? { cfTurnstileToken: tokenToSend } : {}),

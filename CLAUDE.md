@@ -928,6 +928,16 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   `#anf-side-panel` (alle Felder, mailto mit Betreff "Ihre Anfrage KA-…", Angaben bearbeiten, Abschließen/Abgelehnt mit Rückfrage) aus
   Kunden → Kundenanfragen UND der Karte in Bestellen → Anfragen & Eigenaufträge (`window.anfOeffnen`); Filter Standard "Offene"
   (`localStorage` `mc_anf_filter`). Auftragsansicht "aus Anfrage KA-…". Test ka1-anfragen.test.js.
+  KA2 (Inhaber 27.11.): Kundenchat ohne Laengenabbruch - Seite schickt hoechstens 60 Nachrichten (`MAX_NACHRICHTEN`, darueber einmal
+  Hinweis "jetzt absenden oder direkt schreiben" + Kontakt), Backend behaelt die letzten 60 (`nachrichtenAus`, 400 nur > 1000/kaputt),
+  ans Modell die letzten 20 ab einer Kunden-Nachricht (`fuerModell`, utils/anfrage-verlauf.js). Gespraechsverlauf NUR beim Abschluss im
+  selben Aufruf (`speichereVerlauf`, lib/anfrageVerlauf.js, ohne append) in Reiter `Kundenanfragen_Verlauf` (Anfrage-ID | Zeitpunkt ISO |
+  Nachrichten JSON [{r: kunde|jey, t}], <= 60, <= 45000 Zeichen; Setup `scripts/setup-kundenanfragen-verlauf.js`); scheitert es, steht die
+  Anfrage trotzdem (Log nur KA-Nr. + Code). Kundensichtbarer Satz unter dem KI-Hinweis (`#verlauf-hinweis`, Wortlaut vom Inhaber, nicht
+  ohne Freigabe aendern). Loeschlauf: Nachrichten IMMER 12 Monate nach Zeitpunkt (`verlaufPlan`, auch mit Auftrag); DSGVO-Pruefliste
+  Bereich `verlauf` (ueber die KA-Nr. der passenden Anfragen), "anfragen" leeren nimmt ihn mit; DSGVO-Sperre leert ihn (Name/Mail VOR der
+  Sperre gelesen, `kundeFuerSperre`). MC: `<details id="anf-side-verlauf">` im Anfrage-Dialog, geladen erst beim Aufklappen
+  (`GET /api/anfragen/:id/verlauf`, no-store). Nie in Log, Chat-Meldung, Postfach, Bericht. Test ka2-verlauf.test.js.
 - backend/routes/anfragen-chat.js – Chat-Widget public endpoint (POST /chat, kein API-Key) – vor requireApiKey
 - frontend/anfrage.html – Standalone Chat-Widget für Kunden (GitHub Pages, kein MC-Design)
 - backend/utils/partner-kalkulation.js – berechnePartnerAnteil() Helper

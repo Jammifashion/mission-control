@@ -7,7 +7,8 @@ import { getGoogleAuth } from './googleAuth.js';
 import { spalteBuchstabe } from './sheet-zeilen.js';
 import { mitSperre as mitBestellSperre } from './bestellseite.js';
 import { leereDrucknamen } from './auftraege.js';
-import { bestellEintraegePlan, trikotsPlan, anfragenPlan } from '../utils/loeschlauf.js';
+import { bestellEintraegePlan, trikotsPlan, anfragenPlan, verlaufPlan } from '../utils/loeschlauf.js';
+import { TAB_VERLAUF } from '../utils/anfrage-verlauf.js';
 
 const q = tab => `'${tab}'`;
 const lies = async (sheets, spreadsheetId, tab) =>
@@ -54,6 +55,12 @@ export async function loeschlauf({ scharf = false, jetzt = () => new Date(), she
   await bereich('Kundenanfragen', async () => {
     const plan = anfragenPlan({ anfragen: await lies(sheets, business, 'Kundenanfragen'), auftraege: await lies(sheets, ssot, 'Auftraege'), jetzt: nun });
     return { zaehler: plan.zaehler, geleert: scharf ? await leereZellen(sheets, business, 'Kundenanfragen', plan) : 0 };
+  });
+  await bereich('Gesprächsverlauf', async () => {   // KA2: fehlt der Reiter, gibt es nichts zu loeschen
+    let verlauf;
+    try { verlauf = await lies(sheets, business, TAB_VERLAUF); } catch { return { zaehler: { faellig: 0 }, geleert: 0 }; }
+    const plan = verlaufPlan({ verlauf, jetzt: nun });
+    return { zaehler: plan.zaehler, geleert: scharf ? await leereZellen(sheets, business, TAB_VERLAUF, plan) : 0 };
   });
   await bereich('Drucknamen', async () => {
     const d = await leereDrucknamen({ write: scharf, sheets, jetzt });

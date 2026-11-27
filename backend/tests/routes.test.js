@@ -374,8 +374,9 @@ describe('POST /api/anfragen/chat – Stoerungsalarm', () => {
     expect(notifyFehler).not.toHaveBeenCalled();
   });
 
-  test('zu lange Nachrichtenliste (400) loest KEINEN Alarm aus', async () => {
-    const viele = Array.from({ length: 21 }, () => ({ role: 'user', content: 'x' }));
+  test('kaputte Nachrichtenliste (400) loest KEINEN Alarm aus', async () => {
+    // KA2: lange Gespraeche sind kein Fehler mehr (letzte 60 behalten) - 400 nur noch bei Missbrauch/kaputtem Body
+    const viele = Array.from({ length: 1001 }, () => ({ role: 'user', content: 'x' }));
     const res = await send({ messages: viele, cfTurnstileToken: 'cf' });
     expect(res.status).toBe(400);
     expect(notifyFehler).not.toHaveBeenCalled();

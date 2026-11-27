@@ -12,9 +12,9 @@ import { fundstellenPlan, fundstellenAntwort, BEREICHE } from '../utils/kunde-fu
 const TABS = {
   auftraege: ['ssot', 'Auftraege'], positionen: ['ssot', 'Auftrag_Positionen'], aufgaben: ['ssot', 'Aufgaben'],
   bestellseiten: ['ssot', 'Bestellseiten'], eintraege: ['ssot', 'Bestell_Eintraege'],
-  trikots: ['business', 'Trikots'], anfragen: ['business', 'Kundenanfragen'],
+  trikots: ['business', 'Trikots'], anfragen: ['business', 'Kundenanfragen'], verlauf: ['business', 'Kundenanfragen_Verlauf'],
 };
-const ZIEL = { auftraege: 'auftraege', positionen: 'positionen', aufgaben: 'aufgaben', bestellseite: 'eintraege', trikots: 'trikots', anfragen: 'anfragen' };
+const ZIEL = { auftraege: 'auftraege', positionen: 'positionen', aufgaben: 'aufgaben', bestellseite: 'eintraege', trikots: 'trikots', anfragen: 'anfragen', verlauf: 'verlauf' };
 
 const fehler = (msg, status = 400, code) => Object.assign(new Error(msg), { status, ...(code ? { code } : {}) });
 
@@ -38,6 +38,9 @@ async function kundeVon(kundenNr) {
 }
 
 /** Pruefliste: je Bereich Anzahl Zeilen/Zellen. Vor dem Sperren aufrufen (danach fehlen Name/Mail fuer die Suche). */
+/** KA2: Kunde vor der DSGVO-Sperre lesen (Name/Mail fuer die Verlauf-Zuordnung). */
+export async function kundeFuerSperre(kundenNr) { return kundeVon(kundenNr); }
+
 export async function leseFundstellen({ kundenNr, sheets: s } = {}) {
   const k = await kundeVon(kundenNr);
   const sheets = s ?? google.sheets({ version: 'v4', auth: await getGoogleAuth() });
@@ -45,18 +48,27 @@ export async function leseFundstellen({ kundenNr, sheets: s } = {}) {
   return { kundenNr: k.Kunden_Nr, bereiche: fundstellenAntwort(fundstellenPlan({ kundenNr: k.Kunden_Nr, kunde: k, ...d })) };
 }
 
-/** Einen Bereich leeren (nach Rueckfrage). -> { bereich, geleert } (Zellen). */
-export async function leereFundstellen({ kundenNr, bereich, sheets: s } = {}) {
+/**
+ * Einen Bereich leeren (nach Rueckfrage). -> { bereich, geleert } (Zellen).
+ * KA2: "anfragen" leert den Gespraechsverlauf derselben Anfragen mit (danach waere er ueber Name/Mail nicht mehr zu finden).
+ * `kunde` = vor einer DSGVO-Sperre gelesener Stand (danach fehlen Name/Mail fuer die Zuordnung).
+ */
+export async function leereFundstellen({ kundenNr, bereich, kunde, sheets: s } = {}) {
   if (!BEREICHE[bereich]) throw fehler('Bereich unbekannt.', 422);
-  const k = await kundeVon(kundenNr);
+  const k = kunde ?? await kundeVon(kundenNr);
   const sheets = s ?? google.sheets({ version: 'v4', auth: await getGoogleAuth() });
   const sperre = ['auftraege', 'positionen', 'aufgaben'].includes(bereich) ? mitAuftragSperre
     : bereich === 'bestellseite' ? mitBestellSperre : fn => fn();
   return sperre(async () => {
     const { d, id } = await lesen(sheets);
     const plan = fundstellenPlan({ kundenNr: k.Kunden_Nr, kunde: k, ...d })[bereich];
+    let geleert = 0;
+    if (bereich === 'anfragen') {
+      const v = fundstellenPlan({ kundenNr: k.Kunden_Nr, kunde: k, ...d }).verlauf;
+      geleert += await leereZellen(sheets, id.business, TABS.verlauf[1], v);
+    }
     const [sheet, tab] = TABS[ZIEL[bereich]];
-    const geleert = await leereZellen(sheets, id[sheet], tab, plan);
+    geleert += await leereZellen(sheets, id[sheet], tab, plan);
     return { kundenNr: k.Kunden_Nr, bereich, geleert };
   });
 }

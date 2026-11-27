@@ -7,7 +7,7 @@ import {
   lexofficeSchreibenBereit, legeInLexofficeAn, verknuepfeMitLexoffice,
 } from '../lib/kunden.js';
 import { leseAuftragZahlen, leereDrucknamen } from '../lib/auftraege.js';
-import { leseFundstellen, leereFundstellen } from '../lib/kundeFundstellen.js';
+import { leseFundstellen, leereFundstellen, kundeFuerSperre } from '../lib/kundeFundstellen.js';
 
 const router = Router();
 
@@ -86,6 +86,9 @@ router.post('/archivieren', mitMeldung(async req => {
 // ── POST /api/kunden/dsgvo-sperren ────────────────────────────────────────────
 // Body { kundenNr, stand, bestaetigung (= Kunden-Nr. getippt) }. Personenfelder leer, Kunden_Nr bleibt.
 router.post('/dsgvo-sperren', mitMeldung(async req => {
+  // KA2: Name/Mail VOR der Sperre lesen - danach sind sie leer und der Gespraechsverlauf nicht mehr zuzuordnen
+  let vorher = null;
+  try { vorher = await kundeFuerSperre(req.body?.kundenNr); } catch { vorher = null; }
   const r = await sperreKundeDsgvo({ eingabe: req.body ?? {} });
   if (!r.unveraendert) console.log(`Kunde DSGVO gesperrt: ${r.kundenNr}`);
   // SA4: Drucknamen seiner Auftraege leeren (auch bei "schon gesperrt" - wiederholbar). Scheitert es, bleibt der Kunde
@@ -95,6 +98,11 @@ router.post('/dsgvo-sperren', mitMeldung(async req => {
     r.drucknamen = { geleert: d.leeren, auftraege: d.auftraege.length };
   } catch (err) {
     r.drucknamen = { fehler: `Drucknamen nicht geleert (${err.code || err.status || 'Fehler'}) – bitte „DSGVO-Sperre“ noch einmal ausführen.` };
+  }
+  // KA2: Gespraechsverlauf seiner Anfragen leeren (ueber Name/Mail von vorher; schon gesperrt = nichts mehr zuzuordnen)
+  if (vorher && String(vorher.Status ?? '') !== 'gesperrt-DSGVO') {
+    try { r.verlauf = { geleert: (await leereFundstellen({ kundenNr: r.kundenNr, bereich: 'verlauf', kunde: vorher })).geleert }; }
+    catch (err) { r.verlauf = { fehler: `Gesprächsverlauf nicht geleert (${err.code || err.status || 'Fehler'}) – bitte in der Prüfliste „Gesprächsverlauf“ leeren.` }; }
   }
   return r;
 }));

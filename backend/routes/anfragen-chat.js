@@ -6,6 +6,8 @@ import { notify, buildAnfrageNachricht, notifyFehler, alarmWuerdig } from '../li
 import { issueSessionToken, pruefeSessionToken } from '../lib/chatSession.js';
 import { kanalAusListe } from '../utils/anfrage-felder.js';
 import { legeAnfrageAn } from '../lib/anfragen.js';
+import { speichereVerlauf } from '../lib/anfrageVerlauf.js';
+import { nachrichtenAus, fuerModell } from '../utils/anfrage-verlauf.js';
 
 const router = Router();
 
@@ -38,7 +40,10 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
       return fehler(res, 400, 'Ungültige Anfrage.');
     }
 
-    if (!Array.isArray(messages) || messages.length > 20) {
+    // KA2 Teil A: lange Gespraeche brechen nicht mehr ab - die Seite schickt hoechstens 60 Nachrichten, ans Modell gehen die
+    // letzten 20 (die Felder der Anfrage stehen in sessionData). 400 nur noch bei kaputtem Body/Missbrauch.
+    const verlauf = nachrichtenAus(messages);
+    if (!verlauf) {
       return fehler(res, 400, 'Ungültige Anfrage.');
     }
 
@@ -78,9 +83,7 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
       sessionToken = issueSessionToken();
     }
 
-    const validMsgs = messages
-      .filter(m => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-      .map(m => ({ role: m.role, content: m.content.slice(0, 500) }));
+    const validMsgs = fuerModell(verlauf);
 
     const [history, kbBase] = await Promise.all([loadRecentAnfragen(), getAgentSystemPrompt()]);
     const result = await callChatAgent({ messages: validMsgs, sessionData, kbBase, history });
@@ -124,6 +127,11 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
             menge:        merged.menge,
             beschreibung: merged.produktBeschreibung,
           }));
+
+          // KA2 Teil B: Verlauf nur beim Abschluss, im selben Aufruf. Scheitert nur das, steht die Anfrage trotzdem;
+          // ins Log nur der Code, nie Inhalt.
+          try { await speichereVerlauf({ anfrageId, nachrichten: verlauf, antwort: reply }); }
+          catch (e) { console.warn(`Chat-Verlauf nicht gespeichert: ${anfrageId} (${e.code || e.status || 'Fehler'})`); }
         }
       } catch (err) {
         console.error('Chat-Anfrage Erstellung fehlgeschlagen:', err.message);

@@ -14,6 +14,8 @@ export const BEREICHE = {
   bestellseite:{ label: 'Bestellseite (Kürzel, Notiz, Rückenname, Wunsch)', felder: ['Kuerzel', 'Notiz', 'Trikot_Name', 'Wunsch'] },
   trikots:     { label: 'Trikots (Kunde, Rückenname, Rohtext)', felder: ['Kunde', 'Name', 'Rohtext'] },
   anfragen:    { label: 'Kundenanfragen (Name, Mail, Texte)', felder: ['Kunde-Name', 'Kunde-Email', 'Produkt-Beschreibung', 'Varianten', 'Anmerkungen-Kunde', 'Notiz-intern'] },
+  // KA2: Gespraechsverlauf der passenden Anfragen (ueber die KA-Nr.); wird beim Leeren der Anfragen mitgeleert
+  verlauf:     { label: 'Gesprächsverlauf der Kundenanfragen', felder: ['Nachrichten'] },
 };
 
 /** Zeilen, die passen und mindestens ein nicht leeres Feld haben -> { kopf, leeren: [{ zeile, id, zellen }] }. */
@@ -29,7 +31,7 @@ export function treffer(werte, passt, felder, idSpalte) {
 }
 
 /**
- * @param {object} d  { kundenNr, kunde: { Name, 'E-Mail' }, auftraege, positionen, aufgaben, bestellseiten, eintraege, trikots, anfragen } (Werte je Reiter)
+ * @param {object} d  { kundenNr, kunde: { Name, 'E-Mail' }, auftraege, positionen, aufgaben, bestellseiten, eintraege, trikots, anfragen, verlauf } (Werte je Reiter)
  * @returns {{ [bereich]: { kopf, leeren } }}
  */
 export function fundstellenPlan(d) {
@@ -37,14 +39,16 @@ export function fundstellenPlan(d) {
   const name = norm(d.kunde?.Name), mail = norm(d.kunde?.['E-Mail']);
   const auNr = new Set(zeilenAus(d.auftraege).zeilen.filter(z => t(z.Kunden_Nr) === nr).map(z => t(z.Auftrag_Nr)));
   const zugaenge = new Set(zeilenAus(d.bestellseiten).zeilen.filter(z => t(z.Kunden_Nr) === nr).map(z => t(z.Zugang_ID)));
+  const passtAnfrage = z => (!!name && norm(z['Kunde-Name']) === name) || (!!mail && norm(z['Kunde-Email']) === mail);
+  const kaNr = new Set(zeilenAus(d.anfragen).zeilen.filter(passtAnfrage).map(z => t(z['Anfrage-ID'])).filter(Boolean));
   return {
     auftraege:    treffer(d.auftraege, z => t(z.Kunden_Nr) === nr, BEREICHE.auftraege.felder, 'Auftrag_Nr'),
     positionen:   treffer(d.positionen, z => auNr.has(t(z.Auftrag_Nr)), BEREICHE.positionen.felder, 'Position_ID'),
     aufgaben:     treffer(d.aufgaben, z => t(z.Fuer) === nr, BEREICHE.aufgaben.felder, 'Aufgabe_Nr'),
     bestellseite: treffer(d.eintraege, z => zugaenge.has(t(z.Zugang_ID)), BEREICHE.bestellseite.felder, 'Eintrag_ID'),
     trikots:      treffer(d.trikots, z => !!name && norm(z.Kunde) === name, BEREICHE.trikots.felder, 'Zeilen-ID'),
-    anfragen:     treffer(d.anfragen, z => (!!name && norm(z['Kunde-Name']) === name) || (!!mail && norm(z['Kunde-Email']) === mail),
-      BEREICHE.anfragen.felder, 'Anfrage-ID'),
+    anfragen:     treffer(d.anfragen, passtAnfrage, BEREICHE.anfragen.felder, 'Anfrage-ID'),
+    verlauf:      treffer(d.verlauf, z => kaNr.has(t(z['Anfrage-ID'])), BEREICHE.verlauf.felder, 'Anfrage-ID'),
   };
 }
 

@@ -695,6 +695,14 @@ export function antwort(method, pfad, params, body) {
   if (m === 'GET' && p === '/api/bestellen/rueckstand') return rueckstand();
   if (m === 'GET' && p === '/api/bestellen/trikots') return trikots(String(q.get('mit') ?? '').split(',').includes('zahlung'));
   if (m === 'GET' && p === '/api/anfragen') return ANFRAGEN;
+  // KA2: Gespraechsverlauf (erfunden)
+  if (m === 'GET' && /^\/api\/anfragen\/[^/]+\/verlauf$/.test(p)) return { status: 'da', zeitpunkt: '2026-11-27T09:41:00.000Z', nachrichten: [
+    { von: 'jey', text: 'Hallo! Ich bin Jey. Was dürfen wir für dich bedrucken?' },
+    { von: 'kunde', text: 'Wir brauchen Trainingsanzüge für unsere Jugend, ca. 38 Stück mit Wappen.' },
+    { von: 'jey', text: 'Gern! Welche Größen braucht ihr ungefähr, und bis wann soll alles da sein?' },
+    { von: 'kunde', text: '128 bis 164 und S bis XXL, am liebsten vor der Winterpause.' },
+    { von: 'jey', text: 'Danke, deine Anfrage ist abgeschickt. Wir melden uns mit einem Angebot.' },
+  ] };
   if (m === 'GET' && p === '/api/partner/interne-bestellungen') return INTERNE;
   return undefined;
 }

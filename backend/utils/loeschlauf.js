@@ -6,6 +6,8 @@
 //  - Trikots (Business-Reiter Trikots): Name, Kunde, Rohtext 12 Monate nach Geliefert_Am, sonst nach Bestelldatum.
 //  - Kundenanfragen (Business): Anfragen OHNE Auftrag (keine Auftraege.Anfrage_ID, keine WC-Order-ID) 12 Monate nach
 //    Datum -> Kunde-Name, Kunde-Email, Produkt-Beschreibung, Varianten, Anmerkungen-Kunde, Notiz-intern leer.
+//  - Gespraechsverlauf (Business Kundenanfragen_Verlauf, KA2): IMMER 12 Monate nach dem Zeitpunkt (= Absenden der Anfrage),
+//    auch wenn aus der Anfrage ein Auftrag wurde -> Nachrichten leer (Zusage im Chat-Hinweis, Inhaber 27.11.).
 //  - Drucknamen der Auftraege: utils/druckname-loeschen.js (SA4), derselbe Lauf ruft leereDrucknamen auf.
 
 export const LOESCH_MONATE = 12;
@@ -14,6 +16,7 @@ export const FELDER = {
   bestellEintraege: ['Trikot_Name', 'Wunsch'],
   trikots: ['Name', 'Kunde', 'Rohtext'],
   anfragen: ['Kunde-Name', 'Kunde-Email', 'Produkt-Beschreibung', 'Varianten', 'Anmerkungen-Kunde', 'Notiz-intern'],
+  verlauf: ['Nachrichten'],
 };
 
 const t = v => String(v ?? '').trim();
@@ -89,6 +92,11 @@ export function anfragenPlan({ anfragen, auftraege, jetzt }) {
   return bereichPlan({ werte: anfragen, felder: FELDER.anfragen, idSpalte: 'Anfrage-ID', jetzt,
     stichtag: z => datumAus(z.Datum),
     ausnahme: z => mitAuftrag.has(t(z['Anfrage-ID'])) || t(z['WC-Order-ID']) !== '' });
+}
+
+/** KA2: Gespraechsverlauf - immer nach Zeitpunkt, keine Ausnahme fuer Anfragen mit Auftrag. */
+export function verlaufPlan({ verlauf, jetzt }) {
+  return bereichPlan({ werte: verlauf, felder: FELDER.verlauf, idSpalte: 'Anfrage-ID', jetzt, stichtag: z => datumAus(z.Zeitpunkt) });
 }
 
 /** Chat-Text: nur Anzahlen. */

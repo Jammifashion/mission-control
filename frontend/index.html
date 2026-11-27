@@ -1796,10 +1796,15 @@
       .anf-side-auftrag { margin-top: 0.6rem; font-size: 0.86rem; }
       .anf-side-customer-email a { color: var(--info); text-decoration: underline; overflow-wrap: anywhere; }
       .anf-mon-zeile { cursor: pointer; }
+      .anf-verlauf > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; margin-bottom: 0; }
+      .anf-verlauf[open] > summary { margin-bottom: 0.6rem; }
+      .anf-verlauf-zeit { font-size: 0.78rem; color: var(--muted); }
+      .anf-bubble.anf-bubble-jey { border-left: 2px solid var(--muted); align-self: flex-end; }
       .anf-mon-zeile:hover td { background: color-mix(in srgb, var(--text) 3%, transparent); }
+      /* KA2: das ganze Fenster rollt (auch am Rechner) - sonst bliebe fuer Verlauf und Bearbeiten neben der Fussleiste kaum Platz */
+      .anf-side-panel { overflow-y: auto; }
+      .anf-side-body { flex: none; overflow: visible; }
       @media (max-width: 600px) {
-        .anf-side-panel { overflow-y: auto; }
-        .anf-side-body { flex: none; overflow: visible; }
         .anf-side-row-inline { grid-template-columns: 1fr; }
         .anf-side-close { min-width: 44px; min-height: 44px; }
         .anf-side-customer-email a { display: inline-flex; align-items: center; min-height: 44px; }
@@ -4932,6 +4937,12 @@
           <div class="anf-side-row"><span class="anf-side-label">Anmerkungen des Kunden</span><span class="anf-side-val anf-side-text" id="anf-side-anmerkungen">—</span></div>
           <button type="button" class="btn btn-ghost anf-side-knopf" id="anf-side-bearbeiten" data-hilfe="anf-bearbeiten">Angaben bearbeiten …</button>
         </section>
+
+        <!-- KA2: Gespraechsverlauf (nur lesen, geladen erst beim Aufklappen) -->
+        <details class="anf-side-section anf-verlauf" id="anf-side-verlauf">
+          <summary class="anf-side-section-title" data-hilfe="anf-verlauf" tabindex="0">Gesprächsverlauf</summary>
+          <div class="anf-side-chat" id="anf-side-verlauf-inhalt"></div>
+        </details>
 
         <section class="anf-side-section" id="anf-side-form" hidden>
           <div class="anf-side-section-title">Angaben bearbeiten</div>
@@ -8382,6 +8393,7 @@
         'anf-ablehnen':          { name: 'Abgelehnt / kein Auftrag', text: 'Markiert die Anfrage als erledigt ohne Auftrag. Gelöscht wird erst im Löschlauf nach 12 Monaten.' },
         'anf-auftrag':           { name: 'Als Auftrag übernehmen', text: 'Öffnet „Neuer Auftrag“ über die Schnellannahme. Erst „Speichern“ legt ihn an und verknüpft die Anfrage.' },
         'anf-auftrag-link':      { name: 'Auftrag öffnen', text: 'Öffnet den Auftrag, der aus dieser Anfrage entstanden ist.' },
+        'anf-verlauf':           { name: 'Gesprächsverlauf', text: 'Das Chat-Gespräch mit Jey, gespeichert beim Absenden (ab 27.11.). Nur lesen, nach 12 Monaten gelöscht.' },
         'anf-verknuepfen':       { name: 'Verknüpfung nachholen', text: 'Trägt die AU-Nummer in die Anfrage ein und setzt sie auf „Bestätigt“.' },
         'au-aus-anfrage':        { name: 'Aus Anfrage', text: 'Öffnet die Kundenanfrage, aus der dieser Auftrag entstanden ist.' },
         'au-anfrage-loesen':     { name: 'nicht verknüpfen', text: 'Der Auftrag wird ohne Bezug zur Kundenanfrage angelegt; die Anfrage bleibt unverändert.' },
@@ -9032,7 +9044,7 @@
         'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
         'partner': ['fp-artikel-pruefen', 'fp-ohne-festpreis', 'fp-ohne-zeigen', 'fp-sperre', 'fp-sperre-artikel', 'fp-nachrechnen', 'pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'link-vor-lk1', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
         'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'gs-anlegen', 'gs-status', 'gs-link', 'gs-nachsehen', 'gs-angelegt', 'gs-zuruecksetzen', 'fk-partner', 'fk-info', 'fp-preis-loeschen'],
-        'anfragen': ['anf-neu', 'anf-aktualisieren', 'anf-anlegen', 'anf-filter', 'anf-oeffnen', 'anf-mail', 'anf-bearbeiten', 'anf-status', 'anf-speichern', 'anf-auftrag', 'anf-abschliessen', 'anf-ablehnen', 'anf-auftrag-link', 'anf-verknuepfen'],
+        'anfragen': ['anf-neu', 'anf-aktualisieren', 'anf-anlegen', 'anf-filter', 'anf-oeffnen', 'anf-mail', 'anf-bearbeiten', 'anf-status', 'anf-speichern', 'anf-auftrag', 'anf-abschliessen', 'anf-ablehnen', 'anf-auftrag-link', 'anf-verknuepfen', 'anf-verlauf'],
         'assistent': ['aw-eintrag-neu', 'aw-eintrag-speichern', 'aw-prompt-speichern', 'aw-prompt-standard', 'aw-prompt-zeigen', 'aw-test-senden', 'aw-test-neu'],
         'lager-dialog': ['lager-treffer', 'lager-liste-weg', 'lager-event-neu', 'lager-event-anlegen', 'lager-artikel-anlegen', 'lager-ort-anlegen', 'lager-verlauf-korb', 'lager-verlauf-bestellung'],
         'darstellung': ['theme-wahl'],
@@ -13221,6 +13233,7 @@
         if (!r) return;
         kuUebernehmen(r.kunde);
         showToast(`${r.kundenNr} gesperrt (DSGVO).`);
+        for (const f of [r.drucknamen?.fehler, r.verlauf?.fehler].filter(Boolean)) showToast(f, 'error', 9000);   // SA4, KA2
         kuDialogSchliessen();
       }
 
@@ -23531,6 +23544,10 @@
         for (const f of ANF_FELDER) document.getElementById(`anf-e-${f}`).value = r[f] ?? '';
         document.getElementById('anf-side-form').hidden = true;
         document.getElementById('anf-side-ansicht').hidden = false;
+        const verlaufBox = document.getElementById('anf-side-verlauf');
+        verlaufBox.open = false;
+        verlaufBox.dataset.geladen = '';
+        document.getElementById('anf-side-verlauf-inhalt').innerHTML = '';
 
         // Status: der Altwert "In-Produktion" bleibt waehlbar, solange er gesetzt ist
         const sel = document.getElementById('anf-side-status-sel');
@@ -23557,8 +23574,35 @@
         document.getElementById('anf-side-body').scrollTop = 0;
       }
 
+      // KA2: Gespraechsverlauf - erst beim Aufklappen geladen, nie gespeichert (nur im DOM, solange der Dialog offen ist)
+      function anfVerlaufHtml(v) {
+        if (!v || v.status === 'keiner') return '<div class="anf-empty anf-empty-soft">Kein Verlauf gespeichert (Anfrage vor dem 27.11. oder von Hand angelegt).</div>';
+        if (v.status === 'geloescht') return '<div class="anf-empty anf-empty-soft">Verlauf gelöscht (12 Monate abgelaufen oder DSGVO).</div>';
+        const zeit = v.zeitpunkt ? new Date(v.zeitpunkt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }) : '';
+        return (zeit ? `<div class="anf-verlauf-zeit">abgesendet ${anfEscape(zeit)} · ${v.nachrichten.length} Nachrichten</div>` : '')
+          + v.nachrichten.map(n => `<div class="anf-bubble ${n.von === 'kunde' ? 'anf-bubble-kunde' : 'anf-bubble-jey'}"><div class="anf-bubble-label">${n.von === 'kunde' ? 'Kunde' : 'Jey'}</div>${anfEscape(n.text)}</div>`).join('');
+      }
+      async function anfVerlaufLaden() {
+        const box = document.getElementById('anf-side-verlauf');
+        const id = anfCurrentId;
+        if (!box.open || !id || box.dataset.geladen === id) return;
+        box.dataset.geladen = id;
+        const inhalt = document.getElementById('anf-side-verlauf-inhalt');
+        inhalt.innerHTML = '<div class="anf-empty anf-empty-soft">Lade …</div>';
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/anfragen/${encodeURIComponent(id)}/verlauf`);
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+          if (anfCurrentId === id) inhalt.innerHTML = anfVerlaufHtml(data);
+        } catch (e) {
+          box.dataset.geladen = '';
+          if (anfCurrentId === id) inhalt.innerHTML = `<div class="anf-empty anf-empty-soft">Verlauf nicht geladen: ${anfEscape(e.message)}</div>`;
+        }
+      }
+
       function anfCloseSide() {
         anfCurrentId = null;
+        document.getElementById('anf-side-verlauf-inhalt').innerHTML = '';
         document.getElementById('anf-side-backdrop').classList.remove('is-open');
         const panel = document.getElementById('anf-side-panel');
         panel.classList.remove('is-open');
@@ -23737,6 +23781,7 @@
       document.getElementById('anf-side-backdrop').addEventListener('click', anfCloseSide);
       document.getElementById('anf-side-save').addEventListener('click', () => anfSpeichern());
       document.getElementById('anf-side-bearbeiten').addEventListener('click', anfBearbeitenUmschalten);
+      document.getElementById('anf-side-verlauf').addEventListener('toggle', anfVerlaufLaden);
       document.getElementById('anf-side-abschliessen').addEventListener('click', () => anfSchliessenMit('Abgeschlossen'));
       document.getElementById('anf-side-ablehnen').addEventListener('click', () => anfSchliessenMit('Abgelehnt'));
       document.getElementById('anf-side-uebernehmen').addEventListener('click', anfUebernehmen);

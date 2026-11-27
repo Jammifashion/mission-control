@@ -83,7 +83,7 @@ describe('DSGVO-Pruefliste', () => {
   };
   test('Treffer je Bereich, nur Anzahlen nach aussen', () => {
     const a = fundstellenAntwort(fundstellenPlan(d));
-    expect(Object.fromEntries(a.map(x => [x.bereich, x.zeilen]))).toEqual({ auftraege: 1, positionen: 1, aufgaben: 0, bestellseite: 1, trikots: 1, anfragen: 1 });
+    expect(Object.fromEntries(a.map(x => [x.bereich, x.zeilen]))).toEqual({ auftraege: 1, positionen: 1, aufgaben: 0, bestellseite: 1, trikots: 1, anfragen: 1, verlauf: 0 });   // KA2: ohne Verlauf-Reiter 0
     expect(JSON.stringify(a)).not.toMatch(/Erika|Lotta|ruft/);
   });
   test('MC: Liste im DSGVO-Schritt, leeren nur nach Rueckfrage', () => {

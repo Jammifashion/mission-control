@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { notify, buildAnfrageNachricht } from '../lib/chatNotify.js';
 import { leseAnfragen, legeAnfrageAn, bearbeiteAnfrage, verknuepfeAuftrag } from '../lib/anfragen.js';
+import { leseVerlauf } from '../lib/anfrageVerlauf.js';
 
 // Kundenanfragen Admin (hinter requireApiKey). KA1: duenne Aufrufer von lib/anfragen.js - kein values.append,
 // Bearbeiten mit Stand wie gesehen (409), nie loeschen (Abschliessen/Ablehnen = Status, Loeschen macht der Loeschlauf).
@@ -50,6 +51,16 @@ router.post('/bearbeiten', async (req, res, next) => {
 router.post('/auftrag', async (req, res, next) => {
   try {
     res.json(await verknuepfeAuftrag({ anfrageId: req.body?.anfrageId, auftragNr: req.body?.auftragNr }));
+  } catch (err) { antwortFehler(res, next, err); }
+});
+
+// ── GET /:id/verlauf ── KA2: Gespraechsverlauf (nur lesen; nichts ins Log)
+router.get('/:id/verlauf', async (req, res, next) => {
+  try {
+    const id = String(req.params.id ?? '');
+    if (!/^KA-\d{4}-\d{4}$/.test(id)) return res.status(422).json({ error: 'Anfrage-Nummer ungültig.' });
+    res.set('Cache-Control', 'no-store');
+    res.json(await leseVerlauf({ anfrageId: id }));
   } catch (err) { antwortFehler(res, next, err); }
 });
 

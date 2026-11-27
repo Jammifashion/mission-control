@@ -109,6 +109,8 @@ export const ANSICHTEN_ZUSATZ = [
     wurzel: '#anf-side-panel', nurVoll: true },
   { id: 'kunden/anfragen+uebernehmen', hash: 'kunden/anfragen', aktion: async p => { await klick('#anf-tbody tr[data-id]')(p); await klick('#anf-side-uebernehmen')(p);
       await p.waitForTimeout(1500); }, wurzel: DLG, nurVoll: true },
+  { id: 'kunden/anfragen+verlauf', hash: 'kunden/anfragen', aktion: async p => { await klick('#anf-tbody tr[data-id]')(p); await klick('#anf-side-verlauf > summary')(p); },
+    wurzel: '#anf-side-panel', nurVoll: true },
   { id: 'bestellen/anfragen+karte', hash: 'bestellen/anfragen', aktion: klick('[data-anf-oeffnen]'), wurzel: '#anf-side-panel', nurVoll: true },
   { id: 'auftraege/bestellseiten+dialog', hash: 'auftraege/bestellseiten', aktion: klick('[data-bsm-oeffnen]'), wurzel: DLG, nurVoll: true },
   { id: 'bestellen/lshop-korb+aus-lager', hash: 'bestellen/lshop-korb', aktion: klick('[data-aus-lager]'), wurzel: DLG, nurVoll: true },
