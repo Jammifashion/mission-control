@@ -1148,6 +1148,11 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Discontinued (M8b): 0/leer normal; 3 und 6 = Variante nicht waehlbar (fehlt in Farben/Groessen/
   Varianten, steht in `gesperrt`, Hinweis fuer gewaehlte Farben); jeder andere Wert waehlbar, aber
   `auslauf` an der Variante + Liste `auslaufend` (Maske markiert "läuft aus (Wert n)", kein Hinweis).
+  MA1 (27.11.): 100-%-Pruefung (`prozentAbschnitte`) trennt ausserhalb der Klammern an jedem Doppelpunkt ("Außen: … Innen: …",
+  "Futter:", "Oberstoff:", "Ribbündchen:") - vorher galten 19 Modelle als 200 % und verloren die Faser (gemessen: keine leere Consistence).
+  SEO-Reiter fragt das Modell auch OHNE Farben (= alle Farben, Toast), Feldtext = echter Grund (`seoLshopGrund`/`SEO_MATERIAL_GRUND`).
+  Regel 13 in seo-pruefung.js: Prozent-Faser im generierten Text, obwohl das Modell keine bekam (`faserQuelle` = `materialAusEigenschaften`
+  wie im Prompt) -> Hinweis "ohne Quelle", nie sperrend. Test ma1-faser.test.js.
 
 - Anlage (M3): Versandklasse ist Pflicht (Frontend anlageZustand + Backend 400 `feld:
   shipping_class`); Aenderungspfad speichert ohne Klasse weiter, mit Hinweis (S2b). Jede NEU

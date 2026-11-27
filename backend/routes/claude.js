@@ -4,7 +4,7 @@ import { sanitizeJsonControlChars } from '../utils/json-parse.js';
 import {
   buildSeoUserPrompt, resolveModus, pruefeSeoText, pruefeH2, h2KorrekturBlock,
   entferneLeereLi, SEO_SYSTEM_PROMPT,
-  materialHandPruefen, weitereAchsenSauber, ersetzeMaterialPlatzhalter,
+  materialHandPruefen, weitereAchsenSauber, ersetzeMaterialPlatzhalter, materialAusEigenschaften,
 } from '../lib/seo-prompt.js';
 import { motivFuer, motivFuerPrompt } from '../lib/seo-ssot.js';
 import { pruefeTextMitSsot, sperrKontext } from '../lib/seo-pruefung.js';
@@ -332,6 +332,9 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
           kurzbeschreibung, produktbeschreibung, produktname, keyphrase,
           lshopNr, motivZeile, strukturiert, kategorien,
           weitereAchsen: achsen, ...(hand.faser ? { faser: hand.faser } : {}),
+          // MA1c: was das Modell als Material bekam (dieselbe Stelle wie der Prompt) - Regel 13.
+          faserQuelle: materialAusEigenschaften(eigenschaftenMitExtern(eigenschaften, extern), farben,
+            { groessen, strukturiert, materialHand: hand.faser, materialTextil: textil }).material,
         }),
       ];
 

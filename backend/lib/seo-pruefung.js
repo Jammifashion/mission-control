@@ -183,6 +183,7 @@ const woerter = s => String(s ?? '').toLowerCase().split(/[^a-zäöüß0-9]+/i).
  * @param {string[]} [e.modellnummern]  CatalogNr + CatNrManufacturer
  * @param {boolean}  [e.druck]          Motiv beschreibt einen Druck
  * @param {string}   [e.faser]          Faserangabe des Artikels (Regel 9)
+ * @param {string}   [e.faserQuelle]    MA1c: Materialangabe, die das Modell bekam (Regel 13; fehlt = nicht pruefen)
  * @returns {string[]} Hinweise, leer wenn alles in Ordnung.
  */
 export function pruefeGeneratorText(e = {}) {
@@ -275,6 +276,18 @@ export function pruefeGeneratorText(e = {}) {
   for (const [n, html] of teile) {
     const p = platzhalterIn(html);
     if (p.length) hinweise.push(`Platzhalter im Text ${p.join(', ')} in ${n} – ${PLATZHALTER_TEXT}. Veröffentlichen gesperrt.`);
+  }
+
+  // 13. Faser im Text ohne Quelle (MA1c): das Modell bekam KEINE Faserangabe mit Prozent (weder L-Shop noch
+  // Pflichtfeld noch Eigenschaften - im Prompt stand der Platzhalter), der Text nennt aber eine. Dann hat das
+  // Modell sie selbst eingesetzt (Befund Honkmas 27.11.). Nur wenn der Aufrufer die Eingabe kennt (`faserQuelle`,
+  // nur bei der Generierung); nie sperrend.
+  if (e.faserQuelle !== undefined && ![...String(e.faserQuelle ?? '').matchAll(FASER_RE)].length) {
+    for (const [n, html] of teile) {
+      const genannt = [...text(html).matchAll(FASER_RE)].map(m => m[0]);
+      if (genannt.length)
+        hinweise.push(`Materialangabe "${[...new Set(genannt)].join(', ')}" in ${n} ohne Quelle – das Modell bekam keine Faserangabe. Bitte prüfen und im Feld Material eintragen.`);
+    }
   }
 
   // 12. Zeile "Farben:" nennt Werte einer anderen Achse (SG2, Schrift-/Druckfarbe)

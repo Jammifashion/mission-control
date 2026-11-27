@@ -20224,23 +20224,43 @@
       async function seoLshopStruktur(lshopNr, farben) {
         const nr = String(lshopNr ?? '').trim();
         const f  = (Array.isArray(farben) ? farben : []).map(x => String(x ?? '').trim()).filter(Boolean);
-        if (!nr || !f.length) return null;
+        // MA1b: ohne Farben (Artikel noch ohne Varianten) gilt das ganze Modell ("leer = alle Farben" im Backend) -
+        // vorher hiess das still "keine Faser" und das Pflichtfeld meldete faelschlich "fehlt im L-Shop-Modell".
+        if (!nr) return null;
         const key = `${nr}|${f.join('|')}`;
         if (seoLshopCache.has(key)) return seoLshopCache.get(key);
-        let erg = null;
+        let erg = null, grund = 'nicht_lesbar';
         try {
           const q = f.map(x => `farben=${encodeURIComponent(x)}`).join('&');
-          const r = await apiFetch(`${API_BASE()}/api/sheets/lshop/${encodeURIComponent(nr)}?${q}`);
+          const r = await apiFetch(`${API_BASE()}/api/sheets/lshop/${encodeURIComponent(nr)}${q ? `?${q}` : ''}`);
           if (r.ok) {
             const d = await r.json();
-            if ((d.farben || []).length === f.length) {
+            if (!f.length || (d.farben || []).length === f.length) {
               erg = { faser: d.faser ?? null, grammatur: d.grammatur ?? null };
               for (const h of d.hinweise || []) showToast(h, 'warn', 12000);
-            }
-          }
-        } catch { /* ohne Modell: Freitext wie bisher */ }
+              const unklar = (d.hinweise || []).some(h => /Faserangabe/.test(h));
+              grund = erg.faser ? (f.length ? 'ok' : 'alle_farben') : (unklar ? 'unklar' : 'fehlt');
+            } else grund = 'farben';
+          } else grund = r.status === 404 ? 'kein_modell' : 'nicht_lesbar';
+        } catch { grund = 'nicht_lesbar'; /* ohne Modell: Freitext wie bisher */ }
         seoLshopCache.set(key, erg);
+        seoLshopGrund.set(key, grund);
         return erg;
+      }
+      // MA1b: warum keine L-Shop-Faser da ist (fuer den Text am Pflichtfeld) - getrennt von `strukturiert`,
+      // das unveraendert ans Backend geht. Werte: ok | alle_farben | unklar | fehlt | farben | kein_modell | nicht_lesbar.
+      const seoLshopGrund = new Map();
+      const SEO_MATERIAL_GRUND = {
+        unklar:       'L-Shop-Faserangabe nicht eindeutig – bitte prüfen',
+        fehlt:        'fehlt im L-Shop-Modell',
+        farben:       'Farben passen nicht zum L-Shop-Modell',
+        kein_modell:  'Nummer nicht in den L-Shop-Modellen',
+        nicht_lesbar: 'L-Shop-Modell gerade nicht lesbar',
+      };
+      function seoMaterialGrundText(lshopNr, farben) {
+        const nr = String(lshopNr ?? '').trim();
+        const f  = (Array.isArray(farben) ? farben : []).map(x => String(x ?? '').trim()).filter(Boolean);
+        return SEO_MATERIAL_GRUND[seoLshopGrund.get(`${nr}|${f.join('|')}`)] || SEO_MATERIAL_GRUND.fehlt;
       }
 
       // Faserangabe/Grammatur (+ Faser-Hinweis F2) rechnet das Backend.
@@ -21678,7 +21698,8 @@
         wrap.hidden = !(p.length || seoMaterialFehlt || seoExtern);
         // SG3: Fremdware mit brauchbarem Material = Angabe statt Alarm
         wrap.classList.toggle('seo-material-ruhig', !!seoExtern && !seoMaterialFehlt && !p.length);
-        document.getElementById('seo-material-notiz').textContent = seoExtern ? `Fremdware: Angaben aus SKU_Extern (${seoExtern.nr})` : 'fehlt im L-Shop-Modell';
+        document.getElementById('seo-material-notiz').textContent = seoExtern ? `Fremdware: Angaben aus SKU_Extern (${seoExtern.nr})`
+          : seoMaterialGrundText(seoCurrentItem?.lshopNr, seoFarben());   // MA1b: der echte Grund, nicht immer "fehlt"
         document.getElementById('seo-material').placeholder = seoMaterialTextil() ? 'z. B. 100 % Polyacryl' : 'z. B. Keramik';
         const ez = document.getElementById('seo-extern-zeilen');
         ez.hidden = !(seoExtern && seoExtern.zeilen && seoExtern.zeilen.length);
@@ -21705,6 +21726,8 @@
         const nr = String(seoCurrentItem.lshopNr ?? '').trim();
         const s = await seoLshopStruktur(nr, seoFarben());
         seoMaterialFaser = s && s.faser ? s.faser : null;
+        // MA1b: Artikel noch ohne Farben - Faser gilt fuer das ganze Modell (inkl. Ausnahmen je Farbe), einmal sagen.
+        if (seoMaterialFaser && !seoFarben().length) showToast(`Noch keine Farben gewählt – Faserangabe gilt für alle Farben von ${nr}.`, 'info', 10000);
         seoExtern = nr && !seoMaterialFaser ? await seoExternLaden(nr) : null;
         const feld = document.getElementById('seo-material');
         const ausExtern = seoExtern ? materialHandPruefen(seoExtern.material, { textil: seoMaterialTextil() }).faser : null;

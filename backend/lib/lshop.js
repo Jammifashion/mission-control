@@ -107,7 +107,7 @@ export function farbwert(color1, color2) {
  * Summen der Prozentwerte je Abschnitt einer Faserangabe. Ein Abschnitt ist
  * der Text ausserhalb der Klammern und jede Klausel in einer Klammer (Trenner
  * ";"), dort gezaehlt ab dem ersten Doppelpunkt. Abschnitte ohne Prozent
- * zaehlen nicht.
+ * zaehlen nicht. MA1a: ausserhalb der Klammern trennt jeder Doppelpunkt einen Abschnitt.
  *
  * @returns {{ teil: string, summe: number }[]}
  */
@@ -122,7 +122,13 @@ export function prozentAbschnitte(faser) {
   for (const g of [...gruppen].reverse()) aussen = aussen.slice(0, g.start) + ' ' + aussen.slice(g.ende);
 
   const abschnitte = [];
-  if (hatProzent(aussen)) abschnitte.push({ teil: aussen.replace(/[\s,;]+/g, ' ').trim(), summe: summe(aussen) });
+  // MA1a: Teilangaben OHNE Klammer ("Außen: 100% Nylon Innen: 100% Polyester", "… Oberstoff: 100% Baumwolle",
+  // "Futter:", "Ribbündchen:", "Schulter Panel:") sind eigene Abschnitte. Gezaehlt werden nur Prozentzahlen -
+  // jede vor einem Doppelpunkt gehoert zum Abschnitt davor, jede danach zum naechsten. Darum genuegt das
+  // Teilen am Doppelpunkt; wo das Etikett-Wort steht, ist fuer die Summe egal.
+  for (const stueck of aussen.split(':')) {
+    if (hatProzent(stueck)) abschnitte.push({ teil: stueck.replace(/[\s,;]+/g, ' ').trim(), summe: summe(stueck) });
+  }
   for (const g of gruppen) {
     for (const klausel of g.inhalt.split(';').map(k => k.trim()).filter(Boolean)) {
       const i = klausel.indexOf(':');
