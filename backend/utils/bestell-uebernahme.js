@@ -209,15 +209,17 @@ export function terminAuftragNeu({ zugang, termin, nr, nachtrag, vorgang, iso, t
  * @param {Map<string,{herkunft, verweis, lagerOrt}>} o.verknuepft  Eintrag_ID -> gepruefte Verknuepfung
  * @returns {{ auftragNr, auftragNeu, positionenNeu, eintragFelder: {eintrag, felder, trikot?}[], trikots, terminAuftragNr, hinweise, anzahl }}
  */
-export function uebernahmePlan({ zugang, termin, eintraege, auswahl, auftraege, positionen, motivJe = new Map(), waehlbar = new Set(), verknuepft = new Map(), ziel, vorgang, jetzt }) {
+export function uebernahmePlan({ zugang, termin, eintraege, auswahl, auftraege, positionen, motivJe = new Map(), waehlbar = new Set(), verknuepft = new Map(), ziel, vorgang, jetzt,
+  preisJe = null }) {
   if (!termin || termin.Zugang_ID !== zugang.Zugang_ID) throw fehler('Termin gibt es auf dieser Bestellseite nicht.', 404);
   const liste = Array.isArray(auswahl) ? auswahl : [];
-  if (!liste.length) throw fehler('Keine geprüften Einträge gewählt.');
+  if (!liste.length) throw fehler('Keine Einträge gewählt.');
   const gewaehlt = liste.map(w => {
     const e = (eintraege ?? []).find(x => x.Eintrag_ID === t(w?.id) && x.Zugang_ID === zugang.Zugang_ID);
     if (!e || e.Termin_ID !== termin.Termin_ID) throw fehler(`Eintrag ${t(w?.id)} gehört nicht zu diesem Termin.`, 404);
     if (t(w?.stand) !== t(e.Stand)) throw fehler(`Eintrag ${e.Eintrag_ID} wurde inzwischen geändert – bitte neu laden.`, 409, 'konflikt');
-    if (t(e.Status) !== E_STATUS.GEPRUEFT) throw fehler(`Eintrag ${e.Eintrag_ID} ist nicht „geprüft“ (${t(e.Status) || 'eingegangen'}).`, 409, 'nicht_geprueft');
+    // KS8 (Inhaber 27.11.): der Schritt "geprüft" entfaellt - uebernommen wird jeder offene Eintrag (eingegangen oder Altstand geprüft)
+    if (!UEBERNEHMBAR.includes(t(e.Status) || E_STATUS.EINGEGANGEN)) throw fehler(`Eintrag ${e.Eintrag_ID} ist nicht mehr offen (${t(e.Status)}).`, 409, 'nicht_offen');
     return e;
   });
   const iso = new Date(jetzt).toISOString(), tag = berlinDatum(new Date(jetzt));
@@ -260,7 +262,7 @@ export function uebernahmePlan({ zugang, termin, eintraege, auswahl, auftraege, 
     }
     // Extras nie zusammenfassen (jeder Text eigen); Artikel gleicher Variante + Herkunft + Verweis schon.
     const key = art === E_ART.EXTRA ? `${pos.key}|${e.Eintrag_ID}` : pos.key;
-    if (!gruppen.has(key)) gruppen.set(key, { ...pos, Menge: 0, eintraege: [] });
+    if (!gruppen.has(key)) gruppen.set(key, { ...pos, Menge: 0, eintraege: [] });   // KS8: Preis je Gruppe unten (preisJe)
     const g = gruppen.get(key);
     g.Menge += menge;
     g.eintraege.push(e);
@@ -269,10 +271,13 @@ export function uebernahmePlan({ zugang, termin, eintraege, auswahl, auftraege, 
   const positionenNeu = [];
   for (const g of gruppen.values()) {
     const id = naechstePositionId([...bisher, ...positionenNeu], nr);
+    const preis = preisJe ? gruppenPreis(g.eintraege, preisJe) : { netto: '', notiz: '' };   // KS8: Festpreis
+    if (preis.notiz) hinweise.push(`${id}: ${preis.notiz}`);
     positionenNeu.push({
       ...Object.fromEntries(POSITION_SPALTEN.map(s => [s, ''])),
       Position_ID: id, Auftrag_Nr: nr, Art: g.Art, LShop_ArticleNr: g.LShop_ArticleNr, Freitext: g.Freitext, Menge: String(g.Menge),
-      Motiv: g.Motiv, Druck: '', Notiz: '', Stand: iso, Herkunft: g.Herkunft, Lager_Ort: g.Lager_Ort, Verweis: g.Verweis,
+      Motiv: g.Motiv, Druck: '', Notiz: preis.notiz, Stand: iso, Herkunft: g.Herkunft, Lager_Ort: g.Lager_Ort, Verweis: g.Verweis,
+      ...(preis.netto !== '' ? { Preis_Netto: preis.netto } : {}),
     });
     for (const e of g.eintraege) eintragFelder.push({ eintrag: e, felder: { Status: E_STATUS.UEBERNOMMEN, Auftrag_Nr: nr, Position_ID: id, Stand: iso } });
   }
@@ -299,6 +304,58 @@ export function uebernahmePlan({ zugang, termin, eintraege, auswahl, auftraege, 
   const terminAlt = terminAuftraege(termin);
   const terminAuftragNr = terminAlt.includes(nr) ? null : [...terminAlt, nr].join(', ');
   return { auftragNr: nr, auftragNeu, nachtrag: z.nachtrag, positionenNeu, eintragFelder, trikots, terminAuftragNr, hinweise, anzahl: gewaehlt.length };
+}
+
+// ── KS8: Herkunft-Vorschlag, Festpreis ───────────────────────────────────────
+
+/** Uebernehmbare Status (KS8: "geprüft" entfaellt, Altdaten "geprüft" bleiben gueltig). */
+export const UEBERNEHMBAR = [E_STATUS.EINGEGANGEN, E_STATUS.GEPRUEFT];
+
+/**
+ * Herkunft-Vorschlag je Eintrag (Inhaber 27.11.): Lager-Bestand (LS:) deckt die Menge -> aus Lager (Ort mit dem meisten Bestand),
+ * L-Shop-Rohling bestellbar -> neu bestellen, sonst (Extra/ohne L-Shop-Nummer) -> bei uns. Trikots: Trikot-Seite.
+ * @param {Map<string,{summe:number, orte:{ort,menge}[]}>} bestand  ArticleNr -> Rohling-Bestand
+ */
+export function herkunftVorschlag(eintrag, { waehlbar = new Set(), bestand = new Map() } = {}) {
+  const art = t(eintrag?.Art);
+  if (art === E_ART.TRIKOT) return { herkunft: 'trikot', text: 'Trikot-Seite' };
+  const nr = t(eintrag?.LShop_ArticleNr);
+  const menge = Number(t(eintrag?.Menge)) || 0;
+  const lshop = art === E_ART.ARTIKEL && /^\d{10}$/.test(nr) && waehlbar.has(nr);
+  if (!lshop) return { herkunft: HERKUNFT.VORHANDEN, text: 'bei uns' };
+  const b = bestand.get(nr);
+  const ort = b?.orte?.find(o => o.menge >= menge)?.ort ?? '';
+  if (menge > 0 && ort) return { herkunft: HERKUNFT.LAGER, ort, text: `aus Lager (${ort})` };
+  return { herkunft: HERKUNFT.BESTELLEN, text: 'neu bestellen' };
+}
+
+/**
+ * Festpreis (netto) je Eintrag fuer Kunden mit Festpreis-Partner (Inhaber 27.11.: Festpreis OHNE Handling - beim Fanshop wird nichts
+ * versandt/verpackt). Weg: Produkt-ID -> FP_Artikel.Artikelkategorie -> FP_Artikel_Kategorie.Festpreis (Partner + Kategorie).
+ * Fehlt etwas -> { grund }, nie 0 still. Festpreis 0 im Sheet = bewusst 0.
+ */
+export function festpreisFuer({ produktId, partnerId, fpArtikel = [], fpKategorie = [] }) {
+  const pid = t(produktId), fp = t(partnerId);
+  if (!pid) return { grund: 'Produkt unbekannt' };
+  const a = fpArtikel.find(x => t(x.partnerId) === fp && t(x.produktId) === pid);
+  if (!a) return { grund: `Festpreis fehlt für Produkt ${pid} (nicht in FP_Artikel)` };
+  const kat = t(a.artikelkategorie);
+  if (!kat) return { grund: `Festpreis fehlt für Produkt ${pid} (keine Artikelkategorie)` };
+  const k = fpKategorie.find(x => t(x.partnerId) === fp && t(x.kategorie) === kat);
+  const roh = t(k?.festpreis);
+  if (!k || roh === '') return { grund: `Festpreis fehlt für Kategorie „${kat}“` };
+  const n = Number(roh.replace(/\./g, '').replace(',', '.'));
+  if (!Number.isFinite(n) || n < 0) return { grund: `Festpreis ungültig für Kategorie „${kat}“` };
+  return { netto: Math.round(n * 100) / 100 };
+}
+
+/** Preis einer Gruppe: alle Eintraege gleicher Netto-Preis -> der; sonst/fehlt -> leer + Notiz. */
+function gruppenPreis(eintraege, preisJe) {
+  const werte = eintraege.map(e => preisJe.get(e.Eintrag_ID) ?? { grund: 'Festpreis fehlt' });
+  const grund = werte.find(w => w.grund)?.grund;
+  if (grund) return { netto: '', notiz: grund };
+  const n = [...new Set(werte.map(w => w.netto))];
+  return n.length === 1 ? { netto: n[0], notiz: '' } : { netto: '', notiz: 'Festpreis: Einträge mit verschiedenen Preisen zusammengefasst – bitte prüfen' };
 }
 
 // ── Zahlen und Anzeige ───────────────────────────────────────────────────────

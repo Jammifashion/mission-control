@@ -47,13 +47,15 @@ export function kannBereitstellen(auftrag, positionen = []) {
  * @param {object}   o.ortWahl       Position_ID -> Ort (wenn der gespeicherte Ort nicht mehr aktiv ist)
  * @param {string}   o.vorgang       Kennung gegen Doppelklick (steht in den Lager-Zeilen)
  */
-export function bereitstellenPlan({ auftrag, positionen, korbZeilen, buchungen, orte, waehlbar, info = new Map(), teilen = false, ortWahl = {}, vorgang = '', jetzt }) {
+export function bereitstellenPlan({ auftrag, positionen, korbZeilen, buchungen, orte, waehlbar, info = new Map(), teilen = false, ortWahl = {}, vorgang = '', jetzt,
+  nurPositionen = null }) {
   if (!kannBereitstellen(auftrag, positionen)) throw fehler(`${auftrag.Auftrag_Nr}: Rohlinge bereitstellen geht nur bis „${BEREITSTELLEN_BIS}“ (danach nur für nachträglich hinzugefügte Positionen).`, 409, 'status');
   const nr = auftrag.Auftrag_Nr;
   const iso = new Date(jetzt).toISOString();
   const jahr = berlinJahr(new Date(jetzt));   // GT1 C4
   const akt = aktivePositionen(positionen, nr);
-  const offen = akt.filter(p => !istUebergeben(p) && (!nurNachtraege(auftrag) || istNachtrag(p)));   // AP1
+  const nur = Array.isArray(nurPositionen) && nurPositionen.length ? new Set(nurPositionen.map(String)) : null;   // KS8: nur die eben uebernommenen
+  const offen = akt.filter(p => !istUebergeben(p) && (!nurNachtraege(auftrag) || istNachtrag(p)) && (!nur || nur.has(p.Position_ID)));   // AP1
   const bestand = bestandAus(buchungen);
   const verbraucht = new Map();
   const frei = (schluessel, ort) => bestandVon(bestand, schluessel, ort) - (verbraucht.get(`${schluessel}|${ort}`) ?? 0);

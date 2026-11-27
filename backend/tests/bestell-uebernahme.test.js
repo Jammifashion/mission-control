@@ -335,7 +335,7 @@ describe('Logik', () => {
     expect(zielAuftrag({ zugang: zg, termin: { Auftrag_Nr: '' }, auftraege: [] })).toEqual({ auftrag: null, neu: true, nachtrag: false });
     expect(zielAuftrag({ zugang: zg, termin: { Auftrag_Nr: 'AU-2026-0001' }, auftraege: [{ Auftrag_Nr: 'AU-2026-0001', Kunden_Nr: 'K-00063', Status: 'fertig' }] })).toMatchObject({ neu: true, nachtrag: true });
     expect(() => verknuepfungAus({ ohne: true, notiz: 'x'.repeat(101) }, [], 'BE-1')).toThrow(/100/);
-    expect(() => uebernahmePlan({ zugang: zg, termin: { Termin_ID: 'BT-1', Zugang_ID: 'BS-001' }, eintraege: [], auswahl: [], auftraege: [], positionen: [], jetzt: '2026-11-07T10:00:00Z' })).toThrow(/Keine geprüften/);
+    expect(() => uebernahmePlan({ zugang: zg, termin: { Termin_ID: 'BT-1', Zugang_ID: 'BS-001' }, eintraege: [], auswahl: [], auftraege: [], positionen: [], jetzt: '2026-11-07T10:00:00Z' })).toThrow(/Keine Einträge gewählt/);
   });
   test('Dashboard-Zahl und Anzeige je Position', async () => {
     expect(ungepruefteZahlen([{ Zugang_ID: 'BS-001', Status: 'eingegangen' }, { Zugang_ID: 'BS-001', Status: '' }, { Zugang_ID: 'BS-002', Status: 'geprüft' }]))

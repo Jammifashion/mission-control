@@ -71,7 +71,7 @@ export async function bereitstellen({ eingabe = {}, sheets: s, jetzt = () => new
     const akt = aktivePositionen(au.p.zeilen, auftrag.Auftrag_Nr);
     const { waehlbar, info } = await lshopInfo(sheets, spreadsheetId, nummernAus(akt));
     const plan = bereitstellenPlan({ auftrag, positionen: au.p.zeilen, korbZeilen: korb.zeilen, buchungen: l.buchungen, orte: aktiveOrte(l.orte),
-      waehlbar, info, teilen: !!eingabe.teilen, ortWahl: eingabe.ortWahl ?? {}, vorgang: eingabe.vorgang, jetzt: jetzt() });
+      waehlbar, info, teilen: !!eingabe.teilen, ortWahl: eingabe.ortWahl ?? {}, vorgang: eingabe.vorgang, jetzt: jetzt(), nurPositionen: eingabe.nurPositionen });
     if (!plan.zuTun && !plan.probleme.length) return { ok: true, schon: true, auftragNr: auftrag.Auftrag_Nr };   // alles schon uebergeben
     if (String(eingabe.stand ?? '').trim() !== auftrag.Stand) throw fehler(`${auftrag.Auftrag_Nr} wurde inzwischen geändert – bitte neu laden.`, 409, 'konflikt');
     if (plan.probleme.length) throw Object.assign(fehler(plan.probleme[0].text, 409, plan.probleme[0].code), { probleme: plan.probleme, knapp: plan.knapp });

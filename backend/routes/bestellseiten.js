@@ -3,7 +3,7 @@
 import { Router } from 'express';
 import { leseZugaenge, legeZugangAn, bearbeiteZugang, neuerLink, zeigeLink, aktualisiereBilder, leseKategorien, bilderPlan, bilderStueck, bilderSchreiben } from '../lib/bestellseite.js';
 import { leseEintraegeMc } from '../lib/bestellEintraege.js';   // KS2: nur ansehen
-import { pruefeEintraege, aendereEintragMc, uebernahmeVorschau, uebernehmen, eintraegeZumAuftrag } from '../lib/bestellUebernahme.js';   // KS3
+import { pruefeEintraege, aendereEintragMc, uebernahmeVorschau, uebernehmen, uebernehmenUndBereitstellen, eintraegeZumAuftrag } from '../lib/bestellUebernahme.js';   // KS3
 import { setzeFertig, setzeDa, setzeGeliefert, verschiebe } from '../lib/bestellStand.js';   // KS4
 import { entwuerfeMc, entwurfBildMc, setzeEntwurfOrdner } from '../lib/bestellEntwuerfe.js';   // KS7
 
@@ -44,7 +44,7 @@ router.post('/eintraege/aendern', mitMeldung(req => aendereEintragMc({ eingabe: 
 // GET /api/bestellseiten/:zugangId/termin/:terminId/uebernahme - Vorschau (anhaengbare AU, Kandidaten "schon bestellt"), nur lesen
 router.get('/:zugangId/termin/:terminId/uebernahme', mitMeldung(req => uebernahmeVorschau({ zugangId: req.params.zugangId, terminId: req.params.terminId })));
 // POST /api/bestellseiten/uebernehmen { zugangId, terminId, auswahl, ziel, verknuepfen, vorgang, dryRun }
-router.post('/uebernehmen', mitMeldung(req => uebernehmen({ eingabe: req.body ?? {} })));
+router.post('/uebernehmen', mitMeldung(req => uebernehmenUndBereitstellen({ eingabe: req.body ?? {} })));   // KS8: mit bereitstellen: true gleich in Korb/Lager
 // GET /api/bestellseiten/auftrag/:nr/eintraege - Kürzel/Notiz je Position (nur Anzeige)
 router.get('/auftrag/:nr/eintraege', mitMeldung(req => eintraegeZumAuftrag({ auftragNr: req.params.nr })));
 // ── KS4: fertig, an Fanshop geliefert, in anderen Termin verschieben ──

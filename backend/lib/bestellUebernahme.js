@@ -13,6 +13,8 @@ import { pruefeZielStrecke, spalteBuchstabe, zeilenAbweichungen } from './sheet-
 import { mitSperre, sheetsClient, sheetId, liesZugaengeTermine, liesEintraege, katalogFuer, termineDesZugangs } from './bestellseite.js';
 import { mitAuftragSperre, liesAuftraege, lshopInfo, _auftraegeCacheLeeren } from './auftraege.js';
 import { legeInterneTrikotsAn } from './trikotIntern.js';
+import { bereitstellen } from './auftragBereitstellen.js';
+import { leseReiterSpalten } from './ssot-reiter.js';
 import { leseLagerFuerKorb } from './lager.js';
 import { TAB_KORB, korbZeilen } from '../utils/korb-logic.js';
 import { TAB_TERMINE, TAB_EINTRAEGE, fehler } from '../utils/bestellseite.js';
@@ -22,7 +24,7 @@ import {
 } from '../utils/auftraege.js';
 import {
   mcPruefPlan, verknuepfKandidaten, verknuepfungAus, uebernahmePlan, anhaengbareAuftraege, terminAuftraege, eintraegeJePosition,
-  ungepruefteZahlen,
+  ungepruefteZahlen, UEBERNEHMBAR, herkunftVorschlag, festpreisFuer,
 } from '../utils/bestell-uebernahme.js';
 
 const t = v => String(v ?? '').trim();
@@ -108,7 +110,7 @@ async function kandidatenKontext(sheets, spreadsheetId) {
   } catch { korb = []; }
   const { bestand } = await leseLagerFuerKorb(sheets, spreadsheetId);
   const lager = new Map([...bestand.entries()].map(([nr, g]) => [`LS:${nr}`, g.orte]));
-  return { korb, lager };
+  return { korb, lager, bestand };
 }
 
 /** GET /api/bestellseiten/:zugangId/termin/:terminId/uebernahme - Vorschau: anhaengbare Auftraege + Kandidaten je Eintrag. Nur lesen. */
@@ -119,9 +121,12 @@ export async function uebernahmeVorschau({ zugangId, terminId, sheets: s, jetzt 
   const e = await liesEintraege(sheets, spreadsheetId);
   const { a, p } = await liesAuftraege(sheets, spreadsheetId);
   const ctx = await kandidatenKontext(sheets, spreadsheetId);
-  const geprueft = (e?.zeilen ?? []).filter(x => x.Termin_ID === termin.Termin_ID && x.Zugang_ID === zugang.Zugang_ID && t(x.Status) === E_STATUS.GEPRUEFT);
+  // KS8: alle offenen Eintraege (eingegangen + Altstand geprüft), dazu ein Herkunft-Vorschlag je Eintrag
+  const geprueft = (e?.zeilen ?? []).filter(x => x.Termin_ID === termin.Termin_ID && x.Zugang_ID === zugang.Zugang_ID && UEBERNEHMBAR.includes(t(x.Status) || E_STATUS.EINGEGANGEN));
   const ohne = terminAuftraege(termin);
+  const { waehlbar } = await lshopInfo(sheets, spreadsheetId, new Set(geprueft.map(x => t(x.LShop_ArticleNr)).filter(Boolean)));
   return {
+    vorschlag: Object.fromEntries(geprueft.map(x => [x.Eintrag_ID, herkunftVorschlag(x, { waehlbar, bestand: ctx.bestand })])),
     terminAuftraege: ohne, anhaengbar: anhaengbareAuftraege({ zugang, termin, auftraege: a.zeilen }),
     kandidaten: Object.fromEntries(geprueft.map(x => [x.Eintrag_ID, verknuepfKandidaten({
       eintrag: x, korb: ctx.korb, auftraege: a.zeilen, positionen: p.zeilen, kundenNr: zugang.Kunden_Nr, lager: ctx.lager, ohneAuftraege: ohne, jetzt: jetzt().toISOString(),
@@ -169,11 +174,31 @@ export async function uebernehmen({ eingabe, sheets: s, jetzt = () => new Date()
         verknuepft.set(id, verknuepfungAus(w, kandidaten, id));
       }
     }
+    // KS8: Herkunft je Eintrag (Vorschlag aus der Vorschau, am Eintrag aenderbar) - eine Verknuepfung "schon bestellt" geht vor
+    const herkunftWahl = eingabe?.herkunft && typeof eingabe.herkunft === 'object' ? eingabe.herkunft : {};
+    if (Object.keys(herkunftWahl).length) {
+      const ctx = await kandidatenKontext(sheets, spreadsheetId);
+      for (const [id, wahl] of Object.entries(herkunftWahl)) {
+        if (verknuepft.has(id)) continue;
+        const x = gewaehlt.find(y => y.Eintrag_ID === id);
+        if (!x) throw fehler(`Eintrag ${id} ist nicht in der Auswahl.`);
+        if (wahl === HERKUNFT.VORHANDEN) verknuepft.set(id, { herkunft: HERKUNFT.VORHANDEN, verweis: '', lagerOrt: '' });
+        else if (wahl === HERKUNFT.LAGER) {
+          const v = herkunftVorschlag(x, { waehlbar, bestand: ctx.bestand });
+          if (v.herkunft !== HERKUNFT.LAGER) throw fehler(`Eintrag ${id}: nicht genug im Lager – „neu bestellen“ wählen.`, 409, 'knapp');
+          verknuepft.set(id, { herkunft: HERKUNFT.LAGER, verweis: '', lagerOrt: v.ort });
+        } else if (wahl !== HERKUNFT.BESTELLEN) throw fehler(`Eintrag ${id}: Herkunft unbekannt.`);
+      }
+    }
+    // KS8: Festpreis bei Kunden mit Festpreis-Partner (nur lesen, Business-Sheet)
+    const preisJe = await festpreiseFuer({ sheets, zugang, eintraege: gewaehlt, idx });
     const plan = uebernahmePlan({
       zugang, termin, eintraege: e.zeilen, auswahl, auftraege: a.zeilen, positionen: p.zeilen,
       motivJe: new Map([...idx.je.entries()].map(([id, x]) => [id, { motiv: x.motiv }])), waehlbar, verknuepft,
-      ziel: eingabe?.ziel, vorgang, jetzt: jetzt().toISOString(),
+      ziel: eingabe?.ziel, vorgang, jetzt: jetzt().toISOString(), preisJe,
     });
+    if (plan.positionenNeu.some(x => x.Preis_Netto !== undefined && x.Preis_Netto !== '') && p.idx.Preis_Netto === undefined)
+      throw fehler('Spalte Preis_Netto fehlt in Auftrag_Positionen – erst scripts/setup-auftraege-reiter.js --write.', 409, 'einrichtung');
     // Spalten pruefen, bevor irgendetwas geschrieben wird
     if (plan.auftragNeu && (a.idx.Zugang_ID === undefined || a.idx.Termin_ID === undefined))
       throw fehler('Spalten Zugang_ID/Termin_ID fehlen in Auftraege – erst scripts/setup-auftraege-reiter.js --write.', 409, 'einrichtung');
@@ -186,7 +211,8 @@ export async function uebernehmen({ eingabe, sheets: s, jetzt = () => new Date()
       auftragNr: plan.auftragNr, neu: !!plan.auftragNeu, nachtrag: plan.nachtrag, eintraege: plan.anzahl,
       positionen: plan.positionenNeu.length, lshop: plan.positionenNeu.filter(x => x.Art === 'lshop').length, frei: plan.positionenNeu.filter(x => x.Art === 'frei').length,
       vorhanden: plan.positionenNeu.filter(x => x.Herkunft === HERKUNFT.VORHANDEN).length, lager: plan.positionenNeu.filter(x => x.Herkunft === HERKUNFT.LAGER).length,
-      trikots: plan.trikots.length, hinweise: plan.hinweise,
+      trikots: plan.trikots.length, hinweise: plan.hinweise, positionIds: plan.positionenNeu.map(x => x.Position_ID),
+      festpreis: preisJe ? { partner: preisJe.partner, mitPreis: plan.positionenNeu.filter(x => x.Preis_Netto !== undefined && x.Preis_Netto !== '').length } : null,
     };
     if (dryRun) return { ok: true, dryRun: true, ...zusammen };
 
@@ -218,6 +244,62 @@ export async function uebernehmen({ eingabe, sheets: s, jetzt = () => new Date()
     console.log(`Bestellseite ${zugang.Zugang_ID}: ${plan.anzahl} Einträge von ${termin.Termin_ID} übernommen in ${plan.auftragNr} (${plan.positionenNeu.length} Positionen, ${plan.trikots.length} Trikots).`);
     return { ok: true, schon: false, ...zusammen, trikotIds };
   }));
+}
+
+// ── KS8: Festpreis, Uebernehmen + gleich bereitstellen ───────────────────────
+
+/**
+ * Festpreise der gewaehlten Eintraege (Map Eintrag_ID -> { netto } | { grund }) oder null, wenn der Kunde keinen Festpreis-Partner hat.
+ * Partner: `Partner_ID` am Zugang (FP-…) bzw. FP_Partner mit gleicher Kunden_Nr (wie GS2). Nur lesen.
+ */
+async function festpreiseFuer({ sheets, zugang, eintraege, idx }) {
+  const business = process.env.BUSINESS_SHEET_ID;
+  if (!business) return null;
+  let partnerId = /^FP-\d+$/.test(t(zugang.Partner_ID)) ? t(zugang.Partner_ID) : '';
+  try {
+    if (!partnerId) {
+      let fp;
+      try { fp = await leseReiterSpalten({ tab: 'FP_Partner', spalten: { partnerId: 'Partner-ID' }, optional: { kundenNr: 'Kunden_Nr' }, sheets, spreadsheetId: business }); }
+      catch (err) { if (/Unable to parse range/i.test(err.message ?? '') || err.code === 400 || err.status === 400) return null; throw err; }   // keine FP-Partner eingerichtet
+      partnerId = t(fp.find(x => t(x.kundenNr) && t(x.kundenNr) === t(zugang.Kunden_Nr))?.partnerId);
+    }
+    if (!partnerId) return null;
+    const [fpArtikel, fpKategorie] = [
+      await leseReiterSpalten({ tab: 'FP_Artikel', spalten: { partnerId: 'Partner-ID', produktId: 'Produkt-ID', artikelkategorie: 'Artikelkategorie' }, sheets, spreadsheetId: business }),
+      await leseReiterSpalten({ tab: 'FP_Artikel_Kategorie', spalten: { kategorie: 'Kategorie', partnerId: 'Festpreispartner-ID', festpreis: 'Festpreis' }, sheets, spreadsheetId: business }),
+    ];
+    const aus = new Map();
+    for (const e of eintraege) {
+      const karte = idx.je.get(t(e.WC_Variation_ID))?.karte ?? '';
+      aus.set(e.Eintrag_ID, festpreisFuer({ produktId: karte.split('|')[0], partnerId, fpArtikel, fpKategorie }));
+    }
+    aus.partner = partnerId;
+    return aus;
+  } catch (err) {
+    const aus = new Map(eintraege.map(e => [e.Eintrag_ID, { grund: `Festpreis nicht lesbar (${err.code || err.status || 'Fehler'})` }]));
+    aus.partner = partnerId || '?';
+    return aus;
+  }
+}
+
+/**
+ * KS8: Uebernehmen und die neuen Positionen gleich bereitstellen ("neu bestellen" -> L-Shop-Korb, "aus Lager" -> ausgebucht; Inhaber
+ * 27.11.: sofort). Bereitstellen laeuft NACH dem Uebernehmen unter seinen eigenen Sperren; scheitert es, steht der Auftrag trotzdem und
+ * die Antwort traegt `bereitstellen.fehler` (dann wie bisher "Rohlinge bereitstellen …" im Auftrag).
+ */
+export async function uebernehmenUndBereitstellen({ eingabe, sheets: s, jetzt = () => new Date(), trikotsAnlegen, bereitstellenFn = bereitstellen } = {}) {
+  const r = await uebernehmen({ eingabe, sheets: s, jetzt, ...(trikotsAnlegen ? { trikotsAnlegen } : {}) });
+  if (r.dryRun || r.schon || eingabe?.bereitstellen !== true || !r.positionIds?.length || !(r.lshop > 0)) return r;
+  try {
+    const sheets = s ?? await sheetsClient();
+    const { a } = await liesAuftraege(sheets, sheetId());
+    const au = a.zeilen.find(x => x.Auftrag_Nr === r.auftragNr);
+    const b = await bereitstellenFn({ eingabe: { auftragNr: r.auftragNr, stand: au?.Stand ?? '', teilen: true, nurPositionen: r.positionIds,
+      vorgang: `KS8-${t(eingabe.vorgang).replace(/_/g, '-')}`.slice(0, 64) }, sheets: s, jetzt });
+    return { ...r, bereitstellen: { korb: b.korb ?? 0, lager: b.lager ?? 0, schon: !!b.schon } };
+  } catch (err) {
+    return { ...r, bereitstellen: { fehler: `Rohlinge nicht bereitgestellt (${err.message}) – im Auftrag „Rohlinge bereitstellen …“.` } };
+  }
 }
 
 // ── Anzeige ──────────────────────────────────────────────────────────────────
