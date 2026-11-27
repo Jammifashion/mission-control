@@ -9,6 +9,7 @@ import {
 import { bereitstellenVorschau, bereitstellen, zuruecknehmen } from '../lib/auftragBereitstellen.js';
 import rateLimit from 'express-rate-limit';
 import { schnellVorschlag } from '../lib/auftragSchnell.js';
+import { pruefeAnfrageDa, verknuepfeAuftrag } from '../lib/anfragen.js';   // KA1
 import { abrechnenKunden, abrechnenVorschau, rechnungAnlegen, rechnungKennzeichen, rechnungNachsehen, rechnungPruefen, vorkasseStaende, setzeAbrechnungsFelder } from '../lib/rechnung.js';   // RE1, RE3
 
 const router = Router();
@@ -54,8 +55,16 @@ router.post('/schnell', schnellBremse, async (req, res) => {
 // Body { Kunden_Nr, Kurztitel, Kanal, Termin, Notiz, status: Anfrage|Angebot, vorgang,
 //        positionen: [{ art: lshop|frei, articleNr | freitext, menge, motiv, druck, notiz }] }.
 router.post('/neu', mitMeldung(async req => {
+  const anfrageId = String(req.body?.Anfrage_ID ?? '').trim();
+  if (anfrageId) await pruefeAnfrageDa({ anfrageId });   // KA1: Anfrage gibt es (sonst 404, nichts angelegt)
   const r = await legeAuftragAn({ eingabe: req.body ?? {} });
-  if (!r.schon) console.log(`Auftrag neu: ${r.auftragNr} (${r.positionen} Positionen)`);
+  if (!r.schon) console.log(`Auftrag neu: ${r.auftragNr} (${r.positionen} Positionen)${anfrageId ? ` aus ${anfrageId}` : ''}`);
+  // KA1: Anfrage auf "Bestätigt" + Auftrag_Nr. Scheitert das, steht der Auftrag trotzdem (Anfrage_ID ist vermerkt) -
+  // die Oberflaeche bietet "Verknüpfung nachholen" (POST /api/anfragen/auftrag).
+  if (anfrageId) {
+    try { await verknuepfeAuftrag({ anfrageId, auftragNr: r.auftragNr }); r.anfrage = { anfrageId, verknuepft: true }; }
+    catch (e) { r.anfrage = { anfrageId, verknuepft: false, grund: e.message, code: e.code ?? '' }; }
+  }
   return r;
 }));
 

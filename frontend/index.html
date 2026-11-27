@@ -1784,6 +1784,29 @@
       .anf-side-savestatus { font-size: 0.78rem; text-align: center; min-height: 1em; }
       .anf-side-savestatus.is-success { color: var(--success); }
       .anf-side-savestatus.is-error   { color: var(--danger); }
+      /* KA1: Detail-Dialog - Knoepfe, Bearbeiten-Felder, Auftrag-Verweis; am Handy rollt das ganze Fenster */
+      .au-anfrage-hinweis { margin: 0 0 0.75rem; padding: 0.5rem 0.75rem; border-radius: 8px; font-size: 0.86rem;
+        background: color-mix(in srgb, var(--info) 10%, transparent); border: 1px solid color-mix(in srgb, var(--info) 35%, transparent); }
+      .anf-side-knoepfe { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+      .anf-side-knoepfe .btn { flex: 1 1 auto; min-height: 44px; }
+      .anf-side-knopf { margin-top: 0.4rem; min-height: 44px; }
+      .anf-side-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+      .anf-side-feld { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.78rem; color: var(--muted); margin-bottom: 0.6rem; }
+      .anf-side-feld .form-input { width: 100%; }
+      .anf-side-auftrag { margin-top: 0.6rem; font-size: 0.86rem; }
+      .anf-side-customer-email a { color: var(--info); text-decoration: underline; overflow-wrap: anywhere; }
+      .anf-mon-zeile { cursor: pointer; }
+      .anf-mon-zeile:hover td { background: color-mix(in srgb, var(--text) 3%, transparent); }
+      @media (max-width: 600px) {
+        .anf-side-panel { overflow-y: auto; }
+        .anf-side-body { flex: none; overflow: visible; }
+        .anf-side-row-inline { grid-template-columns: 1fr; }
+        .anf-side-close { min-width: 44px; min-height: 44px; }
+        .anf-side-customer-email a { display: inline-flex; align-items: center; min-height: 44px; }
+        #anf-side-status-sel, .anf-side-knopf, #anf-btn-new, .anf-filters .anf-pill-select { min-height: 44px; }
+        .anf-cell-customer-sub { font-size: 0.75rem; }
+        .anf-side-section-title, .anf-side-label, .anf-side-edit-label { font-size: 0.75rem; }
+      }
 
       /* ── Modal Neue Anfrage ── */
       .anf-modal-backdrop {
@@ -3948,20 +3971,21 @@
           </div>
           <div class="anf-kpi anf-kpi-done" data-status-group="done">
             <div class="anf-kpi-value" id="anf-kpi-done-val">—</div>
-            <div class="anf-kpi-label">Abgeschlossen</div>
+            <div class="anf-kpi-label">Erledigt</div>
           </div>
         </div>
 
         <div class="anf-filters">
           <div class="anf-pill-wrap">
-            <select class="anf-pill-select" id="anf-filter-status">
+            <select class="anf-pill-select" id="anf-filter-status" aria-label="Status" data-hilfe="anf-filter">
+              <option value="offen">Offene</option>
               <option value="">Alle Status</option>
               <option value="Neu">Neu</option>
               <option value="Geprüft">Geprüft</option>
               <option value="Angebot-gesendet">Angebot gesendet</option>
               <option value="Bestätigt">Bestätigt</option>
-              <option value="In-Produktion">In Produktion</option>
               <option value="Abgeschlossen">Abgeschlossen</option>
+              <option value="Abgelehnt">Abgelehnt / kein Auftrag</option>
             </select>
           </div>
           <div class="anf-pill-wrap">
@@ -4462,6 +4486,7 @@
               <button type="button" class="korb-link" id="au-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
             </div>
             <div id="hilfe-au-dialog" class="hilfe-legende" hidden></div>
+            <div id="au-anfrage-hinweis" class="au-anfrage-hinweis" hidden></div>
             <fieldset class="au-block" id="au-kunde-block">
               <legend data-hilfe="au-kunde-suche" tabindex="0">Kunde <span class="au-pflicht" aria-hidden="true">*</span></legend>
               <!-- AM-2-1: gewaehlter Kunde mit "ändern", sonst Suchfeld mit Trefferliste (Baustein twBinden) -->
@@ -4889,10 +4914,11 @@
             <span class="anf-badge anf-badge-kanal" id="anf-side-kanal"></span>
             <span class="anf-badge anf-badge-status" id="anf-side-status-badge"></span>
           </div>
+          <div class="anf-side-auftrag" id="anf-side-auftrag" hidden></div>
         </section>
 
-        <section class="anf-side-section">
-          <div class="anf-side-section-title">Produkt</div>
+        <section class="anf-side-section" id="anf-side-ansicht">
+          <div class="anf-side-section-title">Anfrage</div>
           <div class="anf-side-row"><span class="anf-side-label">Beschreibung</span><span class="anf-side-val" id="anf-side-produkt">—</span></div>
           <div class="anf-side-row anf-side-row-inline">
             <div><span class="anf-side-label">Menge</span><span class="anf-side-val" id="anf-side-menge">—</span></div>
@@ -4902,34 +4928,48 @@
             <div><span class="anf-side-label">Preisvorschlag</span><span class="anf-side-val" id="anf-side-preis">—</span></div>
             <div><span class="anf-side-label">Partner</span><span class="anf-side-val" id="anf-side-partner">—</span></div>
           </div>
-          <div class="anf-side-row"><span class="anf-side-label">WC-Order</span><span class="anf-side-val" id="anf-side-wcorder">—</span></div>
+          <div class="anf-side-row" id="anf-side-wcorder-zeile"><span class="anf-side-label">WC-Order</span><span class="anf-side-val" id="anf-side-wcorder">—</span></div>
+          <div class="anf-side-row"><span class="anf-side-label">Anmerkungen des Kunden</span><span class="anf-side-val anf-side-text" id="anf-side-anmerkungen">—</span></div>
+          <button type="button" class="btn btn-ghost anf-side-knopf" id="anf-side-bearbeiten" data-hilfe="anf-bearbeiten">Angaben bearbeiten …</button>
         </section>
 
-        <section class="anf-side-section">
-          <div class="anf-side-section-title">Gesprächsverlauf</div>
-          <div class="anf-side-chat" id="anf-side-chat">
-            <div class="anf-empty anf-empty-soft">Keine Anmerkungen.</div>
+        <section class="anf-side-section" id="anf-side-form" hidden>
+          <div class="anf-side-section-title">Angaben bearbeiten</div>
+          <label class="anf-side-feld">Name<input class="form-input" id="anf-e-kundeName" maxlength="100" autocomplete="off" /></label>
+          <label class="anf-side-feld">E-Mail<input class="form-input" id="anf-e-kundeEmail" type="email" maxlength="200" autocomplete="off" /></label>
+          <label class="anf-side-feld">Beschreibung<textarea class="form-input" id="anf-e-produktBeschreibung" rows="3" maxlength="500"></textarea></label>
+          <div class="anf-side-row-inline">
+            <label class="anf-side-feld">Menge<input class="form-input" id="anf-e-menge" maxlength="100" autocomplete="off" /></label>
+            <label class="anf-side-feld">Preisvorschlag (€)<input class="form-input" id="anf-e-preisvorschlag" inputmode="decimal" maxlength="10" autocomplete="off" placeholder="z. B. 580" /></label>
           </div>
+          <label class="anf-side-feld">Varianten<input class="form-input" id="anf-e-varianten" maxlength="200" autocomplete="off" /></label>
+          <label class="anf-side-feld">Partner-ID<input class="form-input" id="anf-e-partnerId" maxlength="20" autocomplete="off" placeholder="leer = kein Partner" /></label>
+          <label class="anf-side-feld">Anmerkungen des Kunden<textarea class="form-input" id="anf-e-anmerkungenKunde" rows="3" maxlength="500"></textarea></label>
         </section>
       </div>
 
       <footer class="anf-side-footer">
         <div class="anf-side-edit">
-          <label class="anf-side-edit-label">Status ändern</label>
-          <select class="anf-pill-select" id="anf-side-status-sel">
+          <label class="anf-side-edit-label" for="anf-side-status-sel">Status</label>
+          <select class="anf-pill-select" id="anf-side-status-sel" data-hilfe="anf-status">
             <option value="Neu">Neu</option>
             <option value="Geprüft">Geprüft</option>
             <option value="Angebot-gesendet">Angebot gesendet</option>
             <option value="Bestätigt">Bestätigt</option>
-            <option value="In-Produktion">In Produktion</option>
             <option value="Abgeschlossen">Abgeschlossen</option>
+            <option value="Abgelehnt">Abgelehnt / kein Auftrag</option>
           </select>
         </div>
         <div class="anf-side-edit">
-          <label class="anf-side-edit-label">Interne Notiz</label>
-          <textarea class="anf-side-notiz" id="anf-side-notiz" rows="3" placeholder="Notiz hinzufügen oder bestehende überschreiben…"></textarea>
+          <label class="anf-side-edit-label" for="anf-side-notiz">Interne Notiz</label>
+          <textarea class="anf-side-notiz" id="anf-side-notiz" rows="3" maxlength="1000" placeholder="Nur für uns – der Kunde sieht sie nie."></textarea>
         </div>
-        <button class="btn anf-side-save" id="anf-side-save" data-hilfe="anf-speichern">Speichern</button>
+        <div class="anf-side-knoepfe">
+          <button class="btn anf-side-save" id="anf-side-save" data-hilfe="anf-speichern">Speichern</button>
+          <button type="button" class="btn btn-ghost" id="anf-side-uebernehmen" data-hilfe="anf-auftrag">Als Auftrag übernehmen …</button>
+          <button type="button" class="btn btn-ghost" id="anf-side-abschliessen" data-hilfe="anf-abschliessen">Abschließen …</button>
+          <button type="button" class="btn btn-ghost" id="anf-side-ablehnen" data-hilfe="anf-ablehnen">Abgelehnt / kein Auftrag …</button>
+        </div>
         <div class="anf-side-savestatus" id="anf-side-savestatus"></div>
       </footer>
     </aside>
@@ -6217,17 +6257,27 @@
         if (!wrap) return;
         const open = monOpenAnfragen(rows).sort((a, b) => (b.anfrageId || '').localeCompare(a.anfrageId || ''));
         if (!open.length) { wrap.innerHTML = '<p style="color:var(--muted);font-size:0.85rem;">Keine offenen Kundenanfragen.</p>'; return; }
+        // KA1: Karte/Zeile antippen oeffnet den Anfrage-Dialog (alle Felder, bearbeiten, als Auftrag uebernehmen)
         wrap.innerHTML = `<div class="roll-x"><table class="orders-table hk-karten">
-          <thead><tr><th>Anfrage-ID</th><th>Datum</th><th>Kunde</th><th>Produkt</th><th>Menge</th><th>Status</th></tr></thead>
-          <tbody>${open.map(a => `<tr>
+          <thead><tr><th>Anfrage-ID</th><th>Datum</th><th>Kunde</th><th>Produkt</th><th>Menge</th><th>Status</th><th></th></tr></thead>
+          <tbody>${open.map(a => `<tr class="anf-mon-zeile" data-anf-id="${monEsc(a.anfrageId)}">
             <td data-label="Anfrage-ID" class="nr-fest">${monEsc(a.anfrageId)}</td>
             <td data-label="Datum">${monEsc(a.datum || '—')}</td>
-            <td data-label="Kunde" class="hk-haupt">${monEsc(a.kundeName || '—')}</td>
+            <td data-label="Kunde" class="hk-haupt">${monEsc(a.kundeName || '—')}${a.kundeEmail ? `<div class="anf-cell-customer-sub">${monEsc(a.kundeEmail)}</div>` : ''}</td>
             <td data-label="Produkt">${monEsc(a.produktBeschreibung || '—')}</td>
             <td data-label="Menge">${monEsc(a.menge || '—')}</td>
             <td data-label="Status"><span class="badge badge-pending">${monEsc(a.status || '—')}</span></td>
+            <td class="hk-aktion"><button type="button" class="btn btn-ghost" data-anf-oeffnen="${monEsc(a.anfrageId)}" data-hilfe="anf-oeffnen">öffnen …</button></td>
           </tr>`).join('')}</tbody></table></div>`;
+        if (!wrap.dataset.klick) {
+          wrap.dataset.klick = '1';
+          wrap.addEventListener('click', e => {
+            const z = e.target.closest('[data-anf-oeffnen], tr[data-anf-id]');
+            if (z) window.anfOeffnen?.(z.dataset.anfOeffnen || z.dataset.anfId);
+          });
+        }
       }
+      window.monNeuLaden = () => { monCache = null; };   // KA1: nach Aenderungen an Anfragen beim naechsten Oeffnen neu laden
 
       // Fulfillment-Status umschalten (Admin-only Endpoint) und Sektion neu laden.
       async function monToggleFulfillment(partnerId, rowId, next) {
@@ -8322,7 +8372,19 @@
         'anf-neu':               { name: 'Neue Anfrage', text: 'Öffnet ein Formular für eine Anfrage, die nicht über den Chat kam.' },
         'anf-aktualisieren':     { name: 'Aktualisieren', text: 'Lädt die Anfragen neu. Es wird nichts geändert.' },
         'anf-anlegen':           { name: 'Anfrage anlegen', text: 'Speichert die neue Anfrage im Sheet und meldet sie im Chat.' },
-        'anf-speichern':         { name: 'Speichern (Anfrage)', text: 'Speichert Status und Notiz dieser Anfrage im Sheet.' },
+        'anf-speichern':         { name: 'Speichern (Anfrage)', text: 'Speichert Status, Notiz und geänderte Angaben dieser Anfrage im Sheet.' },
+        'anf-filter':            { name: 'Status-Filter', text: 'Standard „Offene“: ohne abgeschlossene und abgelehnte. „Alle Status“ zeigt auch die erledigten.' },
+        'anf-oeffnen':           { name: 'Anfrage öffnen', text: 'Zeigt alle Angaben der Anfrage – bearbeiten, abschließen oder als Auftrag übernehmen.' },
+        'anf-mail':              { name: 'E-Mail an den Kunden', text: 'Öffnet dein Mailprogramm, im Betreff steht schon die Anfrage-Nummer.' },
+        'anf-bearbeiten':        { name: 'Angaben bearbeiten', text: 'Name, E-Mail, Produkt, Menge usw. ändern. Gespeichert wird erst mit „Speichern“.' },
+        'anf-status':            { name: 'Status', text: 'Neu → Geprüft → Angebot gesendet → Bestätigt → Abgeschlossen; oder abgelehnt. Gilt nach „Speichern“.' },
+        'anf-abschliessen':      { name: 'Abschließen', text: 'Status „Abgeschlossen“ – die Anfrage verlässt die offene Liste. Nichts wird gelöscht.' },
+        'anf-ablehnen':          { name: 'Abgelehnt / kein Auftrag', text: 'Markiert die Anfrage als erledigt ohne Auftrag. Gelöscht wird erst im Löschlauf nach 12 Monaten.' },
+        'anf-auftrag':           { name: 'Als Auftrag übernehmen', text: 'Öffnet „Neuer Auftrag“ über die Schnellannahme. Erst „Speichern“ legt ihn an und verknüpft die Anfrage.' },
+        'anf-auftrag-link':      { name: 'Auftrag öffnen', text: 'Öffnet den Auftrag, der aus dieser Anfrage entstanden ist.' },
+        'anf-verknuepfen':       { name: 'Verknüpfung nachholen', text: 'Trägt die AU-Nummer in die Anfrage ein und setzt sie auf „Bestätigt“.' },
+        'au-aus-anfrage':        { name: 'Aus Anfrage', text: 'Öffnet die Kundenanfrage, aus der dieser Auftrag entstanden ist.' },
+        'au-anfrage-loesen':     { name: 'nicht verknüpfen', text: 'Der Auftrag wird ohne Bezug zur Kundenanfrage angelegt; die Anfrage bleibt unverändert.' },
         'aw-eintrag-neu':        { name: 'Eintrag hinzufügen', text: 'Öffnet die Zeile für einen neuen Wissens-Eintrag.' },
         'aw-eintrag-speichern':  { name: 'Hinzufügen (Wissen)', text: 'Speichert den neuen Eintrag im Sheet. Der Kunden-Chat nutzt ihn ab sofort.' },
         'aw-prompt-speichern':   { name: 'Speichern & aktivieren', text: 'Speichert den eigenen Prompt im Sheet. Der Kunden-Chat nutzt ihn ab sofort.' },
@@ -8970,7 +9032,7 @@
         'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
         'partner': ['fp-artikel-pruefen', 'fp-ohne-festpreis', 'fp-ohne-zeigen', 'fp-sperre', 'fp-sperre-artikel', 'fp-nachrechnen', 'pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'link-vor-lk1', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
         'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'gs-anlegen', 'gs-status', 'gs-link', 'gs-nachsehen', 'gs-angelegt', 'gs-zuruecksetzen', 'fk-partner', 'fk-info', 'fp-preis-loeschen'],
-        'anfragen': ['anf-neu', 'anf-aktualisieren', 'anf-anlegen', 'anf-speichern'],
+        'anfragen': ['anf-neu', 'anf-aktualisieren', 'anf-anlegen', 'anf-filter', 'anf-oeffnen', 'anf-mail', 'anf-bearbeiten', 'anf-status', 'anf-speichern', 'anf-auftrag', 'anf-abschliessen', 'anf-ablehnen', 'anf-auftrag-link', 'anf-verknuepfen'],
         'assistent': ['aw-eintrag-neu', 'aw-eintrag-speichern', 'aw-prompt-speichern', 'aw-prompt-standard', 'aw-prompt-zeigen', 'aw-test-senden', 'aw-test-neu'],
         'lager-dialog': ['lager-treffer', 'lager-liste-weg', 'lager-event-neu', 'lager-event-anlegen', 'lager-artikel-anlegen', 'lager-ort-anlegen', 'lager-verlauf-korb', 'lager-verlauf-bestellung'],
         'darstellung': ['theme-wahl'],
@@ -8988,7 +9050,7 @@
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag', 'tr-aendern-gesperrt', 'ti-goalie', 'tr-goalie', 'tr-gk-pruefen', 'tr-gk-markieren', 'tr-gk-kein', 'tr-zahlung-unbezahlt', 'tr-zahlung-erstattet', 'tr-zahlung-storniert', 'tr-zahlung-fehlt', 'tr-zahlung-filter'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfbs-g-rueckstand', 'lfbs-g-vorraetig', 'lfbs-lager', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
-        auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-funde', 'ku-fund-leeren', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'fp-porto-einnahmen', 'fp-porto-kosten', 'ps-lager', 'ps-einbuchen', 'ps-einbuchen-grund', 'ps-lager-frei', 'ps-lager-frei-korb', 'ps-aus-lager-frei', 'ps-lager-genommen', 'ps-lager-bestellt', 'korb-bestellung', 'korb-aus-lager-erledigt', 'korb-erledigt', 'korb-lager-knapp', 'korb-sammel-erledigt', 'ku-lex-anlegen', 'ku-lex-nachholen', 'ku-lex-verknuepfen', 'ku-lex-trotzdem', 'au-suche', 'au-filter', 'au-neu', 'au-schnell-text', 'au-schnell-los', 'au-schnell-datenschutz', 'au-schnell-kunde', 'au-schnell-kunde-neu', 'ku-vorbelegt', 'au-schnell-modell', 'au-schnell-lsm', 'au-schnell-todo', 'au-schnell-unsicher', 'au-vorbelegt', 'pv-titel', 'pv-aufschlag', 'pv-stufe', 'pv-alle', 'pv-uebernehmen', 'pv-ek-unbekannt', 'pv-summe', 'au-oeffnen', 'au-weiter', 'au-mehr', 'ap-kurz', 'au-druckname-zeigen', 'au-gruppe-details', 'dk-sammel', 'dk-zur-ersten', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-plus-position', 'au-nachtrag', 'au-nachtrag-offen', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-pos-da', 'au-pos-we', 'au-entfernen', 'au-entfernt-liste', 'au-wiederherstellen', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-druckname', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern',
+        auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-funde', 'ku-fund-leeren', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'fp-porto-einnahmen', 'fp-porto-kosten', 'ps-lager', 'ps-einbuchen', 'ps-einbuchen-grund', 'ps-lager-frei', 'ps-lager-frei-korb', 'ps-aus-lager-frei', 'ps-lager-genommen', 'ps-lager-bestellt', 'korb-bestellung', 'korb-aus-lager-erledigt', 'korb-erledigt', 'korb-lager-knapp', 'korb-sammel-erledigt', 'ku-lex-anlegen', 'ku-lex-nachholen', 'ku-lex-verknuepfen', 'ku-lex-trotzdem', 'au-suche', 'au-filter', 'au-neu', 'au-aus-anfrage', 'au-anfrage-loesen', 'au-schnell-text', 'au-schnell-los', 'au-schnell-datenschutz', 'au-schnell-kunde', 'au-schnell-kunde-neu', 'ku-vorbelegt', 'au-schnell-modell', 'au-schnell-lsm', 'au-schnell-todo', 'au-schnell-unsicher', 'au-vorbelegt', 'pv-titel', 'pv-aufschlag', 'pv-stufe', 'pv-alle', 'pv-uebernehmen', 'pv-ek-unbekannt', 'pv-summe', 'au-oeffnen', 'au-weiter', 'au-mehr', 'ap-kurz', 'au-druckname-zeigen', 'au-gruppe-details', 'dk-sammel', 'dk-zur-ersten', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-plus-position', 'au-nachtrag', 'au-nachtrag-offen', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-pos-da', 'au-pos-we', 'au-entfernen', 'au-entfernt-liste', 'au-wiederherstellen', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-druckname', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern',
           'au-hist-chip', 'au-hist-aus', 'au-hist-drin', 'au-hist-mehr', 'au-hist-preis', 'au-preis-von', 'au-hist-lfb', 'au-wie-letztes', 'au-vorlage-von',
           'ku-hist', 'ku-hist-neu', 'ku-hist-frei-neu', 'ku-mit-storniert', 'ku-wie-letztes',
           'au-letzte', 'au-letzte-alle', 'au-ns-schliessen', 'au-ns-vorlage', 'au-ek-von', 'au-bestellseite', 'ku-dauer-bestellseite',
@@ -14341,6 +14403,7 @@
           + (a.Notiz ? `<div class="au-notiz">${kuEsc(a.Notiz)}</div>` : '')
           + auDesignLinkHtml(a.Design_Link)
           + (a.Vorlage_Von ? `<div>nach Vorlage <button type="button" class="korb-link" data-au-vorlage="${kuEsc(a.Vorlage_Von)}" data-hilfe="au-vorlage-von">${kuEsc(a.Vorlage_Von)}</button></div>` : '')   // AM-6
+          + (a.Anfrage_ID ? `<div>aus Anfrage <button type="button" class="korb-link" data-au-anfrage="${kuEsc(a.Anfrage_ID)}" data-hilfe="au-aus-anfrage">${kuEsc(a.Anfrage_ID)}</button></div>` : '')   // KA1
           + (a.Zugang_ID ? `<div><span class="ku-chip" data-hilfe="au-aus-bestellseite" tabindex="0">aus Bestellseite ${kuEsc(a.Zugang_ID)}, Termin ${kuEsc(a.Termin ? auDatum(a.Termin) : '–')}</span></div>` : '')   // KS3
           + auBsKnoepfeHtml(a) + auVerschobenHtml(a)   // KS4
           + (a.ware ? `<div><span class="ku-chip au-ware au-ware-${a.ware}" data-hilfe="au-ware">${kuEsc(AU_WARE_TEXT[a.ware])}</span></div>` : '')
@@ -14606,6 +14669,8 @@
         }
         const vl = e.target.closest('[data-au-vorlage]');
         if (vl) { auDetailOeffnen(vl.dataset.auVorlage); return; }   // AM-6
+        const anf = e.target.closest('[data-au-anfrage]');
+        if (anf) { window.anfOeffnen?.(anf.dataset.auAnfrage); return; }   // KA1
         const b = e.target.closest('[data-au-kunde]');
         const k = b && auKunde(b.dataset.auKunde);
         if (k) kuDialogOeffnen(k);
@@ -14744,6 +14809,8 @@
         auDlg.schnell = !auftrag && schnell ? schnell : null;   // SA1: nur im Speicher, solange der Dialog offen ist
         auDlg.schnellRaster = null;
         auDlg.auftrag = auftrag ?? null;
+        auDlg.anfrage = !auftrag ? (window.auSchnellAnfrage?.() ?? '') : '';   // KA1: "Als Auftrag übernehmen" aus einer Kundenanfrage
+        auAnfrageHinweis();
         auDlg.vorgang = auVorgang();
         auDlg.vorbelegung = null;   // AM-6
         const v = !auftrag && vorlage ? auVorlageAus(vorlage) : null;
@@ -15300,7 +15367,7 @@
         auEl('au-speichern').disabled = true;
         try {
           const body = !a ? { ...kopf, ...rabatt, Kunden_Nr: auDlg.kunde.Kunden_Nr, status: AU_START, vorgang: auDlg.vorgang, positionen: auPositionenAnfrage(auDlg.entwurf),
-              ...(auDlg.vorlageVon ? { Vorlage_Von: auDlg.vorlageVon } : {}) }   // AM-6
+              ...(auDlg.vorlageVon ? { Vorlage_Von: auDlg.vorlageVon } : {}), ...(auDlg.anfrage ? { Anfrage_ID: auDlg.anfrage } : {}) }   // AM-6, KA1
             : frei ? { auftragNr: a.Auftrag_Nr, stand: a.Stand, ...kopf, ...rabatt, Kunden_Nr: auDlg.kunde.Kunden_Nr, positionen: auPositionenAnfrage(auDlg.entwurf) }
             : { auftragNr: a.Auftrag_Nr, stand: a.Stand, Termin: kopf.Termin, Notiz: kopf.Notiz, ...(kopf.Design_Link !== undefined ? { Design_Link: kopf.Design_Link } : {}),
               ...(preise ? { ...rabatt, ...(kopf.Preis_Eingabe !== undefined ? { Preis_Eingabe: kopf.Preis_Eingabe } : {}), positionen: auPositionenAnfrage(auDlg.entwurf) } : {}),   // AM-5: ab "bestellt" nur Preise
@@ -15309,7 +15376,11 @@
           const schnell = !a ? auDlg.schnell : null;   // SA1
           const todos = schnell ? auSchnellTodos() : [];
           showToast(a ? (r.unveraendert ? `${r.auftragNr}: nichts geändert.` : `${r.auftragNr} gespeichert.`) : `${r.auftragNr} angelegt.`
-            + (r.vorlageNichtVermerkt ? ' Vorlage nicht vermerkt (Spalte Vorlage_Von fehlt noch).' : ''));
+            + (r.vorlageNichtVermerkt ? ' Vorlage nicht vermerkt (Spalte Vorlage_Von fehlt noch).' : '')
+            + (r.anfrage?.verknuepft ? ` ${r.anfrage.anfrageId} ist jetzt „Bestätigt“.` : ''));
+          if (r.anfrage && !r.anfrage.verknuepft)   // KA1: Auftrag steht (mit Anfrage_ID), nur die Anfrage ist nicht nachgezogen
+            showToast(`${r.anfrage.anfrageId} nicht verknüpft: ${r.anfrage.grund} In der Anfrage „Verknüpfung nachholen“.`, 'error', 9000);
+          if (r.anfrage) { window.auSchnellAnfrageLoesen?.(); window.loadAnfragen?.(); window.monNeuLaden?.(); }
           if (!a && auDlg.kunde?.Kunden_Nr) auHist.je.delete(auDlg.kunde.Kunden_Nr);   // AM-6: Historie neu laden
           await auReFelderSpeichern(r.auftragNr, a, auReFelderLesen());   // RE3: Vorkasse/Versand (eigener Weg)
           auDialogSchliessen();
@@ -15407,7 +15478,29 @@
       // vorausgefuellt. Der Text bleibt nur im Feld (nie Browser-Speicher, Adresse, Toast oder Log), der Vorschlag nur in
       // auDlg.schnell, solange der Dialog offen ist. Kunde/Modell/Farbe/Groesse hat MC gegen eigene Daten geprueft; was nicht
       // sicher ist, steht orange mit Grund da. Gespeichert wird erst mit "Speichern" (normaler Weg, normale Pruefungen).
-      const auSchnellZ = { laeuft: false };
+      const auSchnellZ = { laeuft: false, anfrage: '' };   // KA1: anfrage = KA-Nr., solange der Text aus einer Kundenanfrage stammt
+      window.auSchnellAnfrage = () => auSchnellZ.anfrage;
+      window.auSchnellAnfrageLoesen = () => { auSchnellZ.anfrage = ''; auAnfrageHinweis(); };
+      /** KA1: aus dem Anfrage-Dialog - Aufträge öffnen, Text ins Feld, Schnellannahme starten; verknüpft wird erst beim Speichern. */
+      window.auAusAnfrage = async ({ anfrageId, text }) => {
+        oeffneAnsicht('auftraege', 'liste');
+        auEl('au-schnell-text').value = text;
+        auSchnellZ.anfrage = anfrageId;
+        await auSchnellLos();
+      };
+      /** KA1: Auftrag (nicht storniert), der diese Anfrage traegt - fuer "Verknüpfung nachholen" im Anfrage-Dialog. */
+      window.auZuAnfrage = id => (auZ.daten?.auftraege ?? []).find(a => a.Anfrage_ID === id && a.Status !== 'storniert')?.Auftrag_Nr ?? '';
+      function auAnfrageHinweis() {
+        const h = auEl('au-anfrage-hinweis');
+        const id = auDlg.anfrage;
+        h.hidden = !id;
+        h.innerHTML = id ? `Aus Kundenanfrage <strong>${kuEsc(id)}</strong> – beim Speichern wird sie „Bestätigt“ und mit dem Auftrag verknüpft.`
+          + ` <button type="button" class="korb-link" id="au-anfrage-loesen" data-hilfe="au-anfrage-loesen">nicht verknüpfen</button>` : '';
+      }
+      auEl('au-anfrage-hinweis').addEventListener('click', e => {
+        if (e.target.closest('#au-anfrage-loesen')) { auDlg.anfrage = ''; auSchnellZ.anfrage = ''; auAnfrageHinweis(); }
+      });
+      auEl('au-schnell-text').addEventListener('input', () => { if (!auEl('au-schnell-text').value.trim()) auSchnellZ.anfrage = ''; });
       const AU_SCHNELL_FELDER = ['Kurztitel', 'Kanal', 'Termin', 'Notiz'];   // SA4: Notiz von der KI (orange)
       function auSchnellMeldung(text) { const m = auEl('au-schnell-meldung'); m.textContent = text ?? ''; m.hidden = !text; }
       async function auSchnellLos() {
@@ -23269,9 +23362,16 @@
 
       // ── SECTION: Kundenanfragen Extern ──
       const ANF_ACTIVE_STATES = ['Geprüft', 'Angebot-gesendet', 'Bestätigt', 'In-Produktion'];
+      // KA1: Abgeschlossen + Abgelehnt = erledigt (Spiegel STATUS_ZU in backend/utils/anfragen.js). Nie loeschen - das macht der Loeschlauf.
+      const ANF_ZU = ['Abgeschlossen', 'Abgelehnt'];
+      const ANF_STATUS = ['Neu', 'Geprüft', 'Angebot-gesendet', 'Bestätigt', 'Abgeschlossen', 'Abgelehnt'];
+      const ANF_FELDER = ['kundeName', 'kundeEmail', 'produktBeschreibung', 'menge', 'varianten', 'partnerId', 'preisvorschlag', 'anmerkungenKunde'];
+      const ANF_FILTER_KEY = 'mc_anf_filter';   // nur der Status-Filter, nie Suchtext
       let anfCache = [];          // alle vom Server geladenen Anfragen
-      let anfCurrentId = null;    // aktuell im Side-Panel geöffnete Anfrage-ID
+      let anfCurrentId = null;    // aktuell im Dialog geöffnete Anfrage-ID
       let anfSearchTimer = null;
+      let anfBearbeiten = false;  // Angaben-Felder offen
+      let anfLaeuft = false;
 
       function anfCssSafeKanal(kanal) {
         return (kanal || '').replace(/-/g, '').replace(/[^A-Za-z0-9]/g, '');
@@ -23290,19 +23390,24 @@
         if (!Number.isFinite(n)) return anfEscape(v);
         return n.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
       }
+      const anfStatusText = st => ({ 'Angebot-gesendet': 'Angebot gesendet', 'In-Produktion': 'In Produktion', Abgelehnt: 'Abgelehnt / kein Auftrag' }[st] ?? st);
       function anfKanalBadge(kanal) {
         if (!kanal) return '';
         return `<span class="anf-badge anf-kanal-${anfCssSafeKanal(kanal)}">${anfEscape(kanal)}</span>`;
       }
       function anfStatusBadge(status) {
         if (!status) return '';
-        return `<span class="anf-badge anf-status-${anfCssSafeStatus(status)}">${anfEscape(status)}</span>`;
+        return `<span class="anf-badge anf-status-${anfCssSafeStatus(status)}">${anfEscape(anfStatusText(status))}</span>`;
+      }
+      /** KA1: mailto mit Betreff "Ihre Anfrage KA-…". */
+      function anfMailHref(r) {
+        return `mailto:${encodeURIComponent(r.kundeEmail).replace(/%40/g, '@')}?subject=${encodeURIComponent(`Ihre Anfrage ${r.anfrageId}`)}`;
       }
 
       function anfUpdateKpis(rows) {
         const cNeu    = rows.filter(r => r.status === 'Neu').length;
         const cActive = rows.filter(r => ANF_ACTIVE_STATES.includes(r.status)).length;
-        const cDone   = rows.filter(r => r.status === 'Abgeschlossen').length;
+        const cDone   = rows.filter(r => ANF_ZU.includes(r.status)).length;
         document.getElementById('anf-kpi-neu-val').textContent    = cNeu;
         document.getElementById('anf-kpi-active-val').textContent = cActive;
         document.getElementById('anf-kpi-done-val').textContent   = cDone;
@@ -23313,10 +23418,10 @@
         const kanal  = document.getElementById('anf-filter-kanal').value;
         const search = document.getElementById('anf-filter-search').value.trim().toLowerCase();
         return anfCache.filter(r => {
-          if (status && r.status !== status) return false;
+          if (status === 'offen' ? ANF_ZU.includes(r.status) : status && r.status !== status) return false;
           if (kanal  && r.kanal  !== kanal)  return false;
           if (search) {
-            const hay = `${r.kundeName} ${r.kundeEmail} ${r.produktBeschreibung}`.toLowerCase();
+            const hay = `${r.anfrageId} ${r.kundeName} ${r.kundeEmail} ${r.produktBeschreibung}`.toLowerCase();
             if (!hay.includes(search)) return false;
           }
           return true;
@@ -23327,7 +23432,8 @@
         const tbody = document.getElementById('anf-tbody');
         const rows  = anfApplyFilters();
         if (!rows.length) {
-          tbody.innerHTML = `<tr><td colspan="9" class="anf-empty">Keine Anfragen gefunden.</td></tr>`;
+          const zu = document.getElementById('anf-filter-status').value === 'offen' && anfCache.length;
+          tbody.innerHTML = `<tr><td colspan="9" class="anf-empty">${zu ? 'Keine offenen Anfragen – „Alle Status“ zeigt auch erledigte.' : 'Keine Anfragen gefunden.'}</td></tr>`;
           return;
         }
         // Sortierung: neueste zuerst (anhand Anfrage-ID, da diese aufsteigend pro Jahr läuft)
@@ -23341,11 +23447,11 @@
               <div class="anf-cell-customer">${anfEscape(r.kundeName || '—')}</div>
               <div class="anf-cell-customer-sub">${anfEscape(r.kundeEmail || '')}</div>
             </td>
-            <td><div class="anf-cell-produkt" title="${anfEscape(r.produktBeschreibung)}">${anfEscape(r.produktBeschreibung || '—')}</div></td>
+            <td><div class="anf-cell-produkt">${anfEscape(r.produktBeschreibung || '—')}</div></td>
             <td class="anf-num">${anfEscape(r.menge || '—')}</td>
             <td class="anf-num">${anfFormatPreis(r.preisvorschlag)}</td>
-            <td>${anfStatusBadge(r.status)}</td>
-            <td class="anf-num"><span class="anf-row-action">›</span></td>
+            <td>${anfStatusBadge(r.status)}${r.auftragNr ? `<div class="anf-cell-customer-sub">${anfEscape(r.auftragNr)}</div>` : ''}</td>
+            <td class="anf-num"><button type="button" class="anf-row-action korb-link" data-hilfe="anf-oeffnen" aria-label="Anfrage ${anfEscape(r.anfrageId)} öffnen">›</button></td>
           </tr>
         `).join('');
         tbody.querySelectorAll('tr[data-id]').forEach(tr => {
@@ -23371,10 +23477,29 @@
       }
       window.loadAnfragen = loadAnfragen;
 
+      /** KA1: von ueberall oeffnen (Monitor-Karte, Auftragsansicht) - laedt die Liste, wenn die Anfrage noch fehlt. */
+      window.anfOeffnen = async id => {
+        if (!anfCache.some(x => x.anfrageId === id)) await loadAnfragen();
+        if (!anfCache.some(x => x.anfrageId === id)) { showToast(`Anfrage ${id} nicht gefunden.`, 'error'); return; }
+        anfOpenSide(id);
+      };
+
+      function anfSetText(id, wert) { document.getElementById(id).textContent = wert || '—'; }
+      function anfAuftragHtml(r) {
+        if (r.auftragNr) {
+          const titel = window.auKurztitel?.(r.auftragNr);
+          return `Übernommen als <button type="button" class="korb-link" data-anf-auftrag="${anfEscape(r.auftragNr)}" data-hilfe="anf-auftrag-link">${anfEscape(r.auftragNr)}${titel ? ` · ${anfEscape(titel)}` : ''}</button>`;
+        }
+        const au = window.auZuAnfrage?.(r.anfrageId);   // Auftrag traegt die Anfrage_ID, in der Anfrage fehlt die Verknuepfung
+        if (au) return `${anfEscape(au)} kam aus dieser Anfrage. <button type="button" class="korb-link" data-anf-verknuepfen="${anfEscape(au)}" data-hilfe="anf-verknuepfen">Verknüpfung nachholen</button>`;
+        return '';
+      }
+
       function anfOpenSide(anfrageId) {
         const r = anfCache.find(x => x.anfrageId === anfrageId);
         if (!r) return;
         anfCurrentId = anfrageId;
+        anfBearbeiten = false;
 
         document.getElementById('anf-side-id').textContent   = r.anfrageId;
         document.getElementById('anf-side-date').textContent = r.datum || '—';
@@ -23382,7 +23507,7 @@
         document.getElementById('anf-side-cust-name').textContent  = r.kundeName || '—';
         const emailEl = document.getElementById('anf-side-cust-email');
         emailEl.innerHTML = r.kundeEmail
-          ? `<a href="mailto:${anfEscape(r.kundeEmail)}">${anfEscape(r.kundeEmail)}</a>`
+          ? `<a href="${anfEscape(anfMailHref(r))}" data-hilfe="anf-mail">${anfEscape(r.kundeEmail)}</a>`
           : '<span class="anf-side-val-empty">Keine E-Mail</span>';
 
         const kanalEl = document.getElementById('anf-side-kanal');
@@ -23390,27 +23515,36 @@
         kanalEl.textContent = r.kanal || '—';
         const statusBadgeEl = document.getElementById('anf-side-status-badge');
         statusBadgeEl.className = `anf-badge anf-status-${anfCssSafeStatus(r.status || 'Neu')}`;
-        statusBadgeEl.textContent = r.status || '—';
+        statusBadgeEl.textContent = anfStatusText(r.status || '—');
+        const auftragEl = document.getElementById('anf-side-auftrag');
+        auftragEl.innerHTML = anfAuftragHtml(r);
+        auftragEl.hidden = !auftragEl.innerHTML;
 
-        document.getElementById('anf-side-produkt').textContent   = r.produktBeschreibung || '—';
-        document.getElementById('anf-side-menge').textContent     = r.menge || '—';
-        document.getElementById('anf-side-varianten').textContent = r.varianten || '—';
-        document.getElementById('anf-side-preis').textContent     = r.preisvorschlag ? anfFormatPreis(r.preisvorschlag) : '—';
-        document.getElementById('anf-side-partner').textContent   = r.partnerId || '—';
-        document.getElementById('anf-side-wcorder').textContent   = r.wcOrderId || '—';
+        anfSetText('anf-side-produkt', r.produktBeschreibung);
+        anfSetText('anf-side-menge', r.menge);
+        anfSetText('anf-side-varianten', r.varianten);
+        document.getElementById('anf-side-preis').textContent = r.preisvorschlag ? anfFormatPreis(r.preisvorschlag) : '—';
+        anfSetText('anf-side-partner', r.partnerId);
+        anfSetText('anf-side-wcorder', r.wcOrderId);
+        document.getElementById('anf-side-wcorder-zeile').hidden = !r.wcOrderId;
+        anfSetText('anf-side-anmerkungen', r.anmerkungenKunde);
+        for (const f of ANF_FELDER) document.getElementById(`anf-e-${f}`).value = r[f] ?? '';
+        document.getElementById('anf-side-form').hidden = true;
+        document.getElementById('anf-side-ansicht').hidden = false;
 
-        const chat = document.getElementById('anf-side-chat');
-        const bubbles = [];
-        if (r.anmerkungenKunde) {
-          bubbles.push(`<div class="anf-bubble anf-bubble-kunde"><div class="anf-bubble-label">Kunde</div>${anfEscape(r.anmerkungenKunde)}</div>`);
+        // Status: der Altwert "In-Produktion" bleibt waehlbar, solange er gesetzt ist
+        const sel = document.getElementById('anf-side-status-sel');
+        sel.querySelectorAll('option[data-alt]').forEach(o => o.remove());
+        if (r.status && !ANF_STATUS.includes(r.status)) {
+          const o = new Option(anfStatusText(r.status), r.status);
+          o.dataset.alt = '1';
+          sel.add(o);
         }
-        if (r.notizIntern) {
-          bubbles.push(`<div class="anf-bubble anf-bubble-intern"><div class="anf-bubble-label">Intern</div>${anfEscape(r.notizIntern)}</div>`);
-        }
-        chat.innerHTML = bubbles.length ? bubbles.join('') : '<div class="anf-empty anf-empty-soft">Noch keine Anmerkungen.</div>';
-
-        document.getElementById('anf-side-status-sel').value = r.status || 'Neu';
-        document.getElementById('anf-side-notiz').value      = r.notizIntern || '';
+        sel.value = r.status || 'Neu';
+        document.getElementById('anf-side-notiz').value = r.notizIntern || '';
+        document.getElementById('anf-side-uebernehmen').hidden = !!r.auftragNr || !!window.auZuAnfrage?.(r.anfrageId);
+        document.getElementById('anf-side-abschliessen').hidden = r.status === 'Abgeschlossen';
+        document.getElementById('anf-side-ablehnen').hidden = ANF_ZU.includes(r.status);
         const saveStatus = document.getElementById('anf-side-savestatus');
         saveStatus.textContent = '';
         saveStatus.className   = 'anf-side-savestatus';
@@ -23419,6 +23553,8 @@
         const panel = document.getElementById('anf-side-panel');
         panel.classList.add('is-open');
         panel.setAttribute('aria-hidden', 'false');
+        panel.scrollTop = 0;
+        document.getElementById('anf-side-body').scrollTop = 0;
       }
 
       function anfCloseSide() {
@@ -23429,50 +23565,112 @@
         panel.setAttribute('aria-hidden', 'true');
       }
 
-      async function anfSaveSide() {
-        if (!anfCurrentId) return;
-        const original    = anfCache.find(x => x.anfrageId === anfCurrentId);
-        const status      = document.getElementById('anf-side-status-sel').value;
-        const notizIntern = document.getElementById('anf-side-notiz').value;
-        const body = {};
-        if (original?.status !== status)               body.status = status;
-        if ((original?.notizIntern ?? '') !== notizIntern) body.notizIntern = notizIntern;
+      function anfBearbeitenUmschalten() {
+        anfBearbeiten = !anfBearbeiten;
+        document.getElementById('anf-side-form').hidden = !anfBearbeiten;
+        document.getElementById('anf-side-ansicht').hidden = anfBearbeiten;
+        if (anfBearbeiten) document.getElementById('anf-e-kundeName').focus();
+      }
 
+      /** Geaenderte Felder gegen die geladene Anfrage (nur was sich wirklich aendert). */
+      function anfAenderungen(original, { status } = {}) {
+        const felder = {};
+        const st = status ?? document.getElementById('anf-side-status-sel').value;
+        if ((original.status ?? '') !== st) felder.status = st;
+        const notiz = document.getElementById('anf-side-notiz').value.trim();
+        if ((original.notizIntern ?? '') !== notiz) felder.notizIntern = notiz;
+        if (anfBearbeiten) for (const f of ANF_FELDER) {
+          const v = document.getElementById(`anf-e-${f}`).value.trim();
+          if (String(original[f] ?? '') !== v) felder[f] = v;
+        }
+        return felder;
+      }
+
+      async function anfSpeichern({ status, meldung } = {}) {
+        if (!anfCurrentId || anfLaeuft) return false;
+        const original = anfCache.find(x => x.anfrageId === anfCurrentId);
+        if (!original) return false;
+        const felder = anfAenderungen(original, { status });
         const saveStatus = document.getElementById('anf-side-savestatus');
-        const saveBtn    = document.getElementById('anf-side-save');
-
-        if (!Object.keys(body).length) {
+        if (!Object.keys(felder).length) {
           saveStatus.textContent = 'Keine Änderungen.';
           saveStatus.className   = 'anf-side-savestatus';
-          return;
+          return true;
         }
-
-        saveBtn.disabled = true;
+        anfLaeuft = true;
+        document.querySelectorAll('.anf-side-knoepfe .btn').forEach(b => { b.disabled = true; });
         saveStatus.textContent = 'Speichere…';
         saveStatus.className   = 'anf-side-savestatus';
         try {
-          const res = await apiFetch(`${API_BASE()}/api/anfragen/${encodeURIComponent(anfCurrentId)}/status`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
+          const res = await apiFetch(`${API_BASE()}/api/anfragen/bearbeiten`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ anfrageId: original.anfrageId, stand: original.stand, felder }),
           });
-          const data = await res.json();
+          const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-          if (original) {
-            if (body.status      !== undefined) original.status      = body.status;
-            if (body.notizIntern !== undefined) original.notizIntern = body.notizIntern;
-          }
+          Object.assign(original, data.anfrage);
           anfUpdateKpis(anfCache);
           anfRenderTable();
-          saveStatus.textContent = 'Gespeichert.';
-          saveStatus.className   = 'anf-side-savestatus is-success';
-          showToast('Anfrage aktualisiert', 'success');
+          window.monNeuLaden?.();
+          showToast(meldung ?? `${original.anfrageId} gespeichert.`, 'success');
+          anfOpenSide(original.anfrageId);
+          return true;
         } catch (e) {
-          saveStatus.textContent = `Fehler: ${e.message}`;
+          saveStatus.textContent = `Nicht gespeichert: ${e.message}`;
           saveStatus.className   = 'anf-side-savestatus is-error';
+          return false;
         } finally {
-          saveBtn.disabled = false;
+          anfLaeuft = false;
+          document.querySelectorAll('.anf-side-knoepfe .btn').forEach(b => { b.disabled = false; });
         }
+      }
+
+      async function anfSchliessenMit(status) {
+        const r = anfCache.find(x => x.anfrageId === anfCurrentId);
+        if (!r) return;
+        const text = status === 'Abgelehnt'
+          ? `${r.anfrageId} als „abgelehnt / kein Auftrag“ markieren? Sie verschwindet aus den offenen Anfragen. Gelöscht wird nichts – das macht der Löschlauf nach 12 Monaten.`
+          : `${r.anfrageId} abschließen? Sie verschwindet aus den offenen Anfragen. Gelöscht wird nichts.`;
+        if (!await showConfirm(text)) return;
+        await anfSpeichern({ status, meldung: `${r.anfrageId}: ${anfStatusText(status)}.` });
+      }
+
+      /** Text fuer die Schnellannahme (SA1/SA2) aus den Anfragefeldern - mit Name/E-Mail, damit SA2 den Kunden vorbelegen kann. */
+      function anfSchnellText(r) {
+        return [
+          `Kundenanfrage ${r.anfrageId}`,
+          `Kunde: ${[r.kundeName, r.kundeEmail].filter(Boolean).join(', ')}`,
+          r.produktBeschreibung && `Produkt: ${r.produktBeschreibung}`,
+          r.menge && `Menge: ${r.menge}`,
+          r.varianten && `Varianten: ${r.varianten}`,
+          r.anmerkungenKunde && `Anmerkungen: ${r.anmerkungenKunde}`,
+          r.partnerId && `Partner: ${r.partnerId}`,
+          r.preisvorschlag && `Preisvorstellung: ${r.preisvorschlag} €`,
+        ].filter(Boolean).join('\n').slice(0, 3000);
+      }
+      async function anfUebernehmen() {
+        const r = anfCache.find(x => x.anfrageId === anfCurrentId);
+        if (!r || !window.auAusAnfrage) return;
+        if (Object.keys(anfAenderungen(r)).length && !await showConfirm('Es gibt ungespeicherte Änderungen an dieser Anfrage. Ohne sie weiter zum Auftrag?')) return;
+        anfCloseSide();
+        await window.auAusAnfrage({ anfrageId: r.anfrageId, text: anfSchnellText(r) });
+      }
+
+      async function anfVerknuepfen(auftragNr) {
+        const r = anfCache.find(x => x.anfrageId === anfCurrentId);
+        if (!r) return;
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/anfragen/auftrag`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ anfrageId: r.anfrageId, auftragNr }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+          showToast(`${r.anfrageId} mit ${auftragNr} verknüpft.`, 'success');
+          await loadAnfragen();
+          window.monNeuLaden?.();
+          anfOpenSide(r.anfrageId);
+        } catch (e) { showToast(`Nicht verknüpft: ${e.message}`, 'error'); }
       }
 
       function anfOpenModal() {
@@ -23537,7 +23735,23 @@
       });
       document.getElementById('anf-side-close').addEventListener('click', anfCloseSide);
       document.getElementById('anf-side-backdrop').addEventListener('click', anfCloseSide);
-      document.getElementById('anf-side-save').addEventListener('click', anfSaveSide);
+      document.getElementById('anf-side-save').addEventListener('click', () => anfSpeichern());
+      document.getElementById('anf-side-bearbeiten').addEventListener('click', anfBearbeitenUmschalten);
+      document.getElementById('anf-side-abschliessen').addEventListener('click', () => anfSchliessenMit('Abgeschlossen'));
+      document.getElementById('anf-side-ablehnen').addEventListener('click', () => anfSchliessenMit('Abgelehnt'));
+      document.getElementById('anf-side-uebernehmen').addEventListener('click', anfUebernehmen);
+      document.getElementById('anf-side-auftrag').addEventListener('click', e => {
+        const au = e.target.closest('[data-anf-auftrag]');
+        if (au) { anfCloseSide(); window.auOeffnen?.(au.dataset.anfAuftrag); return; }
+        const vk = e.target.closest('[data-anf-verknuepfen]');
+        if (vk) anfVerknuepfen(vk.dataset.anfVerknuepfen);
+      });
+      // KA1: Standard "Offene" (Wahl je Geraet, nur der Filter)
+      {
+        const f = document.getElementById('anf-filter-status');
+        try { const w = localStorage.getItem(ANF_FILTER_KEY); if (w !== null && [...f.options].some(o => o.value === w)) f.value = w; } catch { /* egal */ }
+        f.addEventListener('change', () => { try { localStorage.setItem(ANF_FILTER_KEY, f.value); } catch { /* egal */ } });
+      }
       document.getElementById('anf-btn-new').addEventListener('click', anfOpenModal);
       document.getElementById('anf-modal-close').addEventListener('click', anfCloseModal);
       document.getElementById('anf-modal-cancel').addEventListener('click', anfCloseModal);

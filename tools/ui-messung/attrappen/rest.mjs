@@ -107,15 +107,15 @@ const LSM_LISTE = {
 // Kunden & Jey
 // ════════════════════════════════════════════════════════════════════════════
 const ANFRAGEN = [
-  { anfrageId: 'ANF-2026-0148', datum: '19.11.2026', kanal: 'Homepage', kundeName: 'Testkunde Beispielverein e. V. – Abteilung Jugendfußball', kundeEmail: 'jugend@beispielverein.invalid',
+  { anfrageId: 'KA-2026-0148', stand: 'a1b2c3d4e5f60718', auftragNr: '', datum: '19.11.2026', kanal: 'Homepage', kundeName: 'Testkunde Beispielverein e. V. – Abteilung Jugendfußball', kundeEmail: 'jugend@beispielverein.invalid',
     produktBeschreibung: '45 Trainingsanzüge mit Vereinswappen auf der Brust und Rückennummern, dazu Taschen mit Namensdruck für die Saison 2026/27', menge: '45', preisvorschlag: '12345.50',
     status: 'Neu', varianten: '10× 128, 15× 140, 12× 152, 8× S', partnerId: '', wcOrderId: '', anmerkungenKunde: 'Wäre schön, wenn alles bis Mitte Januar da ist. Wir können das Logo als Vektordatei schicken.', notizIntern: '' },
-  { anfrageId: 'ANF-2026-0147', datum: '18.11.2026', kanal: 'E-Mail', kundeName: 'A. Muster', kundeEmail: 'a.muster@beispiel.invalid', produktBeschreibung: 'Hoodie mit eigenem Motiv', menge: '3',
+  { anfrageId: 'KA-2026-0147', stand: 'b1b2c3d4e5f60718', auftragNr: 'AU-2026-0041', datum: '18.11.2026', kanal: 'E-Mail', kundeName: 'A. Muster', kundeEmail: 'a.muster@beispiel.invalid', produktBeschreibung: 'Hoodie mit eigenem Motiv', menge: '3',
     preisvorschlag: '', status: 'Geprüft', varianten: 'M, L, XL', partnerId: 'P-002', wcOrderId: '', anmerkungenKunde: '', notizIntern: 'Motiv kommt per Mail nach' },
-  { anfrageId: 'ANF-2026-0139', datum: '11.11.2026', kanal: 'Manuell', kundeName: 'Beispiel-Kita Regenbogen', kundeEmail: '', produktBeschreibung: 'Kinder-T-Shirts für das Sommerfest', menge: '60',
+  { anfrageId: 'KA-2026-0139', stand: 'c1b2c3d4e5f60718', auftragNr: '', datum: '11.11.2026', kanal: 'Manuell', kundeName: 'Beispiel-Kita Regenbogen', kundeEmail: '', produktBeschreibung: 'Kinder-T-Shirts für das Sommerfest', menge: '60',
     preisvorschlag: '540', status: 'Angebot-gesendet', varianten: '', partnerId: '', wcOrderId: '', anmerkungenKunde: '', notizIntern: '' },
-  { anfrageId: 'ANF-2026-0121', datum: '28.10.2026', kanal: 'Homepage', kundeName: 'B. Beispiel', kundeEmail: 'b.beispiel@beispiel.invalid', produktBeschreibung: 'Tasse mit Foto', menge: '1',
-    preisvorschlag: '19.9', status: 'Abgeschlossen', varianten: '', partnerId: '', wcOrderId: '21877', anmerkungenKunde: 'Danke!', notizIntern: '' },
+  { anfrageId: 'KA-2026-0121', stand: 'd1b2c3d4e5f60718', auftragNr: '', datum: '28.10.2026', kanal: 'Homepage', kundeName: 'B. Beispiel', kundeEmail: 'b.beispiel@beispiel.invalid', produktBeschreibung: 'Tasse mit Foto', menge: '1',
+    preisvorschlag: '19.9', status: 'Abgelehnt', varianten: '', partnerId: '', wcOrderId: '21877', anmerkungenKunde: 'Danke!', notizIntern: '' },
 ];
 
 const AGENT_WISSEN = [

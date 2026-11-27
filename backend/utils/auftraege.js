@@ -335,12 +335,17 @@ export function anlagePlan({ auftraege, positionen, eingabe, waehlbar, orte, jet
   // AM-6: "Wie letztes Mal" - die Vorlage muss ein vorhandener Auftrag sein (sie selbst bleibt unveraendert)
   const vorlage = t(eingabe?.Vorlage_Von);
   if (vorlage && (!AU_NR_MUSTER.test(vorlage) || !(auftraege ?? []).some(a => a.Auftrag_Nr === vorlage))) throw fehler('Vorlage: diesen Auftrag gibt es nicht.', 422, 'vorlage');
+  // KA1: "Als Auftrag übernehmen" aus einer Kundenanfrage - Anfrage_ID nur KA-Nummer, je Anfrage ein (nicht stornierter) Auftrag
+  const anfrage = t(eingabe?.Anfrage_ID);
+  if (anfrage && !/^KA-\d{4}-\d{4}$/.test(anfrage)) throw fehler('Anfrage-Nummer ungültig.', 422, 'anfrage');
+  const schonAus = anfrage ? (auftraege ?? []).find(a => a.Anfrage_ID === anfrage && a.Status !== 'storniert') : null;
+  if (schonAus) throw fehler(`${anfrage} ist schon als ${schonAus.Auftrag_Nr} übernommen.`, 409, 'anfrage_schon');
   const tag = heute(jetzt);
   const nr = naechsteAuftragNr(auftraege, tag.slice(0, 4));
   const auftrag = {
     ...Object.fromEntries(AUFTRAG_SPALTEN.map(s => [s, ''])), ...kopf, Auftrag_Nr: nr, Status: status,
     Anfrage_Am: tag, Design_Am: tag, Angelegt: t(jetzt), Stand: t(jetzt), Vorgang: t(eingabe?.vorgang),
-    Vorlage_Von: vorlage,
+    Vorlage_Von: vorlage, Anfrage_ID: anfrage,
   };
   const neu = pos.map((p, i) => ({
     ...Object.fromEntries(POSITION_SPALTEN.map(s => [s, ''])), ...p,

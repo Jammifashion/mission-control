@@ -916,7 +916,18 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   Nachtragen gleicher Positionen aus der Zeit vor der Positions-ID: `scripts/nachtragen-positionen.js --lizenz|--fp [--bestellung …] [--write]`
   (lib/nachtragPositionen.js, Logik utils/nachtrag-positionen.js; Trockenlauf Standard, Sicherung nach Documents/mc-sicherungen, Rechnung wie der
   Sync - FP ueber `fpVerkaufszeile`, die auch der FP-Sync nutzt; nur Gruppen mit schon vorhandener Zeile; Lizenz nur JFN).
-- backend/routes/anfragen.js – Kundenanfragen Admin (POST /neu, GET /, PATCH /:id/status) – hinter requireApiKey
+- backend/routes/anfragen.js – Kundenanfragen Admin (POST /neu, GET /, POST /bearbeiten, POST /auftrag) – hinter requireApiKey.
+  KA1 (Inhaber 27.11.): Logik `utils/anfragen.js`, Lesen/Schreiben `lib/anfragen.js` (Sperre je Instanz, frisch gelesen, KEIN append -
+  auch der Kundenchat-Abschluss schreibt ueber `legeAnfrageAn` mit `locker: true`: Form-Fehler bleiben als Text, nie verloren). Spalten ueber
+  den Namen (fehlt eine Pflichtspalte -> Fehler). `stand` je Anfrage = Pruefsumme der Zeile (keine Spalte), Bearbeiten nur wie gesehen (409),
+  nur geaenderte Zellen. Status Neu → Geprüft → Angebot-gesendet → Bestätigt → Abgeschlossen + `Abgelehnt` ("abgelehnt/kein Auftrag");
+  `In-Produktion` nur Altwert. Nie loeschen (Loeschlauf FIX4). Optionale Spalte `Auftrag_Nr` hinten (`scripts/setup-kundenanfragen-ka1.js`,
+  Trockenlauf, `--write`). "Als Auftrag übernehmen …" = Schnellannahme mit Anfragetext (`window.auAusAnfrage`), `POST /api/auftraege/neu`
+  mit `Anfrage_ID` (KA-Nr., je Anfrage ein nicht stornierter Auftrag, 409 `anfrage_schon`), danach `verknuepfeAuftrag` (Bestätigt +
+  Auftrag_Nr; scheitert es, steht der Auftrag trotzdem, Antwort `anfrage.verknuepft` false, Dialog "Verknüpfung nachholen"). MC: ein Dialog
+  `#anf-side-panel` (alle Felder, mailto mit Betreff "Ihre Anfrage KA-…", Angaben bearbeiten, Abschließen/Abgelehnt mit Rückfrage) aus
+  Kunden → Kundenanfragen UND der Karte in Bestellen → Anfragen & Eigenaufträge (`window.anfOeffnen`); Filter Standard "Offene"
+  (`localStorage` `mc_anf_filter`). Auftragsansicht "aus Anfrage KA-…". Test ka1-anfragen.test.js.
 - backend/routes/anfragen-chat.js – Chat-Widget public endpoint (POST /chat, kein API-Key) – vor requireApiKey
 - frontend/anfrage.html – Standalone Chat-Widget für Kunden (GitHub Pages, kein MC-Design)
 - backend/utils/partner-kalkulation.js – berechnePartnerAnteil() Helper

@@ -81,7 +81,13 @@ beforeAll(async () => {
   const { google } = await import('googleapis');
   // NB2: Portal-Eigenauftrag schreibt ohne append (schreibeNeueZeilen) - Schreib-Attrappe vor der get-Attrappe
   schreiben = schreibAttrappe(a => mockValues.get(a));
-  google.sheets.mockReturnValue({ spreadsheets: { ...schreiben.spreadsheets, values: { ...mockValues, get: schreiben.values.get, update: schreiben.values.update } } });
+  // KA1: der Kundenchat schreibt ebenfalls ohne append (lib/anfragen.js) - Reiter Kundenanfragen mit vollem Kopf
+  const metaGet = schreiben.spreadsheets.get;
+  schreiben.spreadsheets.get = jest.fn(async () => {
+    const { data } = await metaGet();
+    return { data: { sheets: [...data.sheets, { properties: { title: 'Kundenanfragen', sheetId: 8, gridProperties: { rowCount: 1000 } } }] } };
+  });
+  google.sheets.mockReturnValue({ spreadsheets: { ...schreiben.spreadsheets, values: { ...mockValues, get: schreiben.values.get, update: schreiben.values.update, batchUpdate: jest.fn(async () => ({ data: {} })) } } });
 
   ({ notify } = await import('../lib/chatNotify.js'));
   const chatCore = await import('../lib/chatCore.js');
@@ -112,9 +118,12 @@ beforeAll(async () => {
   partnerApp.use(errHandler);
 });
 
+const KOPF_ANFRAGEN = ['Anfrage-ID', 'Datum', 'Kanal', 'Kunde-Name', 'Kunde-Email', 'Produkt-Beschreibung', 'Menge', 'Varianten',
+  'Partner-ID', 'Preisvorschlag', 'Anmerkungen-Kunde', 'Status', 'Notiz-intern', 'WC-Order-ID'];
 beforeEach(() => {
   notify.mockClear();
   mockValues.append.mockClear();
+  mockValues.get.mockImplementation(async ({ range }) => ({ data: { values: String(range).includes('Kundenanfragen') ? [KOPF_ANFRAGEN] : [['Anfrage-ID']] } }));
   mockCallChatAgent.mockReset();
 });
 
@@ -128,7 +137,11 @@ describe('Kundenanfrage', () => {
       .send({ messages: [{ role: 'user', content: 'Hallo' }], chatSession: issueSessionToken() });
 
     expect(res.status).toBe(200);
-    expect(mockValues.append).toHaveBeenCalledTimes(1);
+    expect(mockValues.append).not.toHaveBeenCalled();   // KA1: ohne append
+    const zeile = [...schreiben.geschrieben.entries()].find(([r]) => r.startsWith("'Kundenanfragen'!A2"))?.[1]?.[0];
+    expect(zeile?.[0]).toMatch(/^KA-\d{4}-0001$/);
+    expect(zeile?.[11]).toBe('Neu');
+    expect(res.body.anfrageId).toBe(zeile?.[0]);
     expect(notify).toHaveBeenCalledTimes(1);
   });
 

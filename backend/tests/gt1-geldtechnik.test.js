@@ -68,10 +68,10 @@ describe('B2: Pflichtspalten der Geld-Reiter', () => {
       const leser = q.slice(q.indexOf('async function readTab('), q.indexOf('async function readTab(') + 700);
       expect(leser).toContain('pruefePflichtSpalten(tabName, header)');
     }
-    const a = quelle('routes/anfragen.js');
-    const patch = a.slice(a.indexOf("router.patch('/:id/status'"), a.indexOf("router.patch('/:id/status'") + 800);
-    expect(patch).toContain("requireHeader(header, c, 'Kundenanfragen')");
-    expect(patch).not.toContain('header.indexOf(c)');
+    // KA1: Kundenanfragen lesen/schreiben in lib/anfragen.js - fehlende Pflichtspalte = Fehler, nie Spalte -1
+    const a = quelle('lib/anfragen.js');
+    expect(a).toContain('fehlendeSpalten(r.idx)');
+    expect(quelle('routes/anfragen.js')).not.toContain('indexOf(');
   });
   test('Portal: oeffentliche Router geben bei 5xx nur den festen Text aus (Spaltenname bleibt intern)', () => {
     const idx = quelle('index.js');

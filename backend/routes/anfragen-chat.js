@@ -1,12 +1,11 @@
 import { Router } from 'express';
-import { google } from 'googleapis';
-import { getGoogleAuth } from '../lib/googleAuth.js';
 import { getAgentSystemPrompt } from '../lib/agentWissenHelper.js';
 import { loadRecentAnfragen, callChatAgent } from '../lib/chatCore.js';
 import rateLimit from 'express-rate-limit';
 import { notify, buildAnfrageNachricht, notifyFehler, alarmWuerdig } from '../lib/chatNotify.js';
 import { issueSessionToken, pruefeSessionToken } from '../lib/chatSession.js';
-import { SESSION_LAENGEN, kanalAusListe, preisZelle } from '../utils/anfrage-felder.js';
+import { kanalAusListe } from '../utils/anfrage-felder.js';
+import { legeAnfrageAn } from '../lib/anfragen.js';
 
 const router = Router();
 
@@ -17,27 +16,6 @@ const chatLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Zu viele Anfragen. Bitte in 15 Minuten erneut versuchen.' },
 });
-
-const TAB = 'Kundenanfragen';
-
-function todayDE() {
-  const d = new Date();
-  return `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;
-}
-
-function generateAnfrageId(existingIds, year) {
-  const prefix = `KA-${year}-`;
-  const max = existingIds
-    .filter(id => id.startsWith(prefix))
-    .map(id => parseInt(id.slice(prefix.length), 10))
-    .filter(n => Number.isFinite(n))
-    .reduce((acc, n) => Math.max(acc, n), 0);
-  return `${prefix}${String(max + 1).padStart(4, '0')}`;
-}
-
-function getSheets() {
-  return getGoogleAuth().then(auth => google.sheets({ version: 'v4', auth }));
-}
 
 // Fehlerantwort mit Alarm. Der Alarm geht mit await raus, VOR der Antwort -
 // Cloud Run drosselt die CPU danach, ein spaeter laufender fetch ginge verloren
@@ -129,44 +107,13 @@ router.post('/chat', chatLimiter, async (req, res, next) => {
 
     if (completed && merged.kundeName && merged.kundeEmail) {
       try {
-        const sheetId = process.env.BUSINESS_SHEET_ID;
-        if (sheetId) {
-          const sheets = await getSheets();
-          const { data: idData } = await sheets.spreadsheets.values.get({
-            spreadsheetId: sheetId, range: `${TAB}!A:A`,
-          });
-          const ids = (idData.values ?? []).flat();
-          anfrageId = generateAnfrageId(ids, new Date().getFullYear());
-
-          // Sanitize: user-gesteuerte Felder kappen + unerwünschte Zeichen entfernen
-          const safeStr   = (v, max) => String(v ?? '').replace(/[\r\n\t]/g, ' ').slice(0, max);
-          const L = SESSION_LAENGEN;
-          const safeId    = String(merged.partnerId || '').replace(/[^A-Za-z0-9\-]/g, '').slice(0, L.partnerId);
-          const safePreis = preisZelle(String(merged.preisvorschlag || '').replace(/[^0-9.,]/g, '').slice(0, L.preisvorschlag));
-
-          await sheets.spreadsheets.values.append({
-            spreadsheetId: sheetId,
-            range: `${TAB}!A:N`,
-            valueInputOption: 'RAW',   // Text bleibt Text, nie Formel
-            insertDataOption: 'INSERT_ROWS',
-            requestBody: {
-              values: [[
-                anfrageId,
-                todayDE(),
-                kanalAusListe(merged.kanal, 'Homepage'),
-                safeStr(merged.kundeName, L.kundeName),
-                safeStr(merged.kundeEmail, L.kundeEmail),
-                safeStr(merged.produktBeschreibung, L.produktBeschreibung),
-                safeStr(merged.menge, L.menge),
-                safeStr(merged.varianten, L.varianten),
-                safeId,
-                safePreis,
-                safeStr(merged.anmerkungenKunde, L.anmerkungenKunde),
-                'Neu',
-                '', '',
-              ]],
-            },
-          });
+        if (process.env.BUSINESS_SHEET_ID) {
+          // KA1: ohne values.append (lib/anfragen.js, Sperre + Zielzeile geprueft, RAW, zurueckgelesen).
+          // locker: eine Anfrage geht nie an einer Formfrage verloren - Werte gekappt wie bisher, Kanal aus der Liste.
+          ({ anfrageId } = await legeAnfrageAn({
+            eingabe: { ...merged, kanal: kanalAusListe(merged.kanal, 'Homepage'), notizIntern: '', wcOrderId: '' },
+            kanalErsatz: 'Homepage', locker: true,
+          }));
 
           // Genau hier, nicht pro Chat-Nachricht: es gibt jetzt eine Zeile.
           // Mit await, vor der Antwort - Cloud Run drosselt die CPU nach dem

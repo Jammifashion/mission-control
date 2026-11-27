@@ -103,6 +103,13 @@ export const ANSICHTEN_ZUSATZ = [
       await p.fill('#au-schnell-text', '20 Shirts JN054 navy, 5x M, 10x L, 5x XL, Druck vorne Logo, bis 10.12., Testverein Nordlicht');
       await p.click('#au-schnell-los'); await p.waitForTimeout(1500); }, wurzel: DLG, nurVoll: true },
   { id: 'kunden/stamm+neuer-kunde', hash: 'kunden/stamm', aktion: klick('#ku-neu'), wurzel: DLG },
+  // KA1: Anfrage-Dialog (Tabelle, Bearbeiten, Monitor-Karte)
+  { id: 'kunden/anfragen+dialog', hash: 'kunden/anfragen', aktion: klick('#anf-tbody tr[data-id]'), wurzel: '#anf-side-panel', nurVoll: true },
+  { id: 'kunden/anfragen+bearbeiten', hash: 'kunden/anfragen', aktion: async p => { await klick('#anf-tbody tr[data-id]')(p); await klick('#anf-side-bearbeiten')(p); },
+    wurzel: '#anf-side-panel', nurVoll: true },
+  { id: 'kunden/anfragen+uebernehmen', hash: 'kunden/anfragen', aktion: async p => { await klick('#anf-tbody tr[data-id]')(p); await klick('#anf-side-uebernehmen')(p);
+      await p.waitForTimeout(1500); }, wurzel: DLG, nurVoll: true },
+  { id: 'bestellen/anfragen+karte', hash: 'bestellen/anfragen', aktion: klick('[data-anf-oeffnen]'), wurzel: '#anf-side-panel', nurVoll: true },
   { id: 'auftraege/bestellseiten+dialog', hash: 'auftraege/bestellseiten', aktion: klick('[data-bsm-oeffnen]'), wurzel: DLG, nurVoll: true },
   { id: 'bestellen/lshop-korb+aus-lager', hash: 'bestellen/lshop-korb', aktion: klick('[data-aus-lager]'), wurzel: DLG, nurVoll: true },
   { id: 'bestellen/lshop-korb+edi', hash: 'bestellen/lshop-korb', aktion: async p => {
