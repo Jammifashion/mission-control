@@ -66,12 +66,17 @@ export function merkeKeyphrase(id, name, keyphrase) {
  * Veroeffentlichte Artikel nach Name, SKU oder Produkt-ID.
  * Zahl -> zuerst als ID; dazu immer Namens- und SKU-Suche.
  */
-export async function sucheArtikel(wc, q) {
+// ZW2 Teil B: Status waehlbar (publish | draft | private | any = alle drei). Ohne Angabe wie bisher nur veroeffentlichte
+// (andere Aufrufer, z. B. Aufgabe "fuer Shop-Artikel"); SEO-Daten aendern schickt die Wahl (Standard alle).
+export const SUCH_STATUS = ['any', 'publish', 'draft', 'private'];
+export async function sucheArtikel(wc, q, { status = 'publish' } = {}) {
   const text = String(q ?? '').trim();
   if (!text) return [];
+  const st = SUCH_STATUS.includes(status) ? status : 'publish';
+  const erlaubt = st === 'any' ? ['publish', 'draft', 'private'] : [st];
   const treffer = new Map();
   const nimm = p => {
-    if (p && p.id && p.status === 'publish' && !treffer.has(p.id))
+    if (p && p.id && erlaubt.includes(p.status) && !treffer.has(p.id))
       treffer.set(p.id, { id: p.id, name: p.name, sku: p.sku ?? '', status: p.status });
   };
 
@@ -84,8 +89,8 @@ export async function sucheArtikel(wc, q) {
     }
   }
   const [nachName, nachSku] = await Promise.all([
-    wc.get('products', { search: text, status: 'publish', per_page: 40 }),
-    wc.get('products', { sku: text, status: 'publish', per_page: 40 }),
+    wc.get('products', { search: text, status: st, per_page: 40 }),
+    wc.get('products', { sku: text, status: st, per_page: 40 }),
   ]);
   for (const p of [...seitenListe(nachSku.data, { wc, pfad: 'products' }), ...seitenListe(nachName.data, { wc, pfad: 'products' })]) nimm(p);
   return [...treffer.values()];

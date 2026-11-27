@@ -34,10 +34,10 @@ router.post('/meta-eingaben', (req, res) => {
 });
 
 // ── Befehl SE1: Reiter "SEO-Daten aendern" ──────────────────────────────────
-// GET /api/seo/artikel-suche?q= – veroeffentlichte Artikel nach Name, SKU, ID.
+// GET /api/seo/artikel-suche?q=&status= – Artikel nach Name, SKU, ID (ZW2: Status any/publish/draft/private, ohne = publish).
 router.get('/artikel-suche', async (req, res, next) => {
   try {
-    res.json(await sucheArtikel(getWcClient(req.query.shop), req.query.q));
+    res.json(await sucheArtikel(getWcClient(req.query.shop), req.query.q, { status: req.query.status }));
   } catch (err) { next(err); }
 });
 

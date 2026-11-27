@@ -765,6 +765,7 @@
       .card-cb-wrap { display: flex; align-items: flex-start; padding-top: 0.18rem; }
       .zw-haken { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 44px; font-size: 0.85rem; color: var(--text); cursor: pointer; }   /* ZW1 */
       .zw-haken[hidden] { display: none; }
+      .se-texte-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.75rem; }   /* ZW2 Teil B */
       .seo-paar-titel { font-weight: 600; color: var(--text); margin: 0.6rem 0 0.4rem; }   /* ZW2 */
       .seo-paar-titel[hidden], .seo-jfn-block[hidden] { display: none; }
       .seo-jfn-block { border-top: 1px solid var(--border); margin-top: 1rem; padding-top: 0.5rem; }
@@ -3097,9 +3098,15 @@
         <!-- SEO-Daten aendern (Befehl SE1): jeder veroeffentlichte Artikel, auch ohne SSOT-Zeile -->
         <div id="seoedit-panel" style="display:none;">
           <div class="card" style="margin-bottom:1rem;">
-            <div class="form-section-title">Artikel suchen <span class="field-note">(Name, SKU oder Produkt-ID – nur veröffentlichte)</span></div>
+            <div class="form-section-title">Artikel suchen <span class="field-note">(Name, SKU oder Produkt-ID)</span></div>
             <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
               <input id="se-suche" type="text" class="form-input" style="flex:1;min-width:12rem;" placeholder="z. B. Oldschool oder 21044" />
+              <select id="se-status-wahl" class="form-select" style="width:auto;" data-hilfe="se-status-wahl" aria-label="Status">
+                <option value="any">alle</option>
+                <option value="publish">veröffentlicht</option>
+                <option value="draft">Entwurf</option>
+                <option value="private">privat</option>
+              </select>
               <button class="btn-secondary" id="se-suchen" data-hilfe="se-suchen">Suchen</button>
             </div>
             <select id="se-treffer" class="form-select" style="margin-top:0.5rem;display:none;"></select>
@@ -3112,6 +3119,10 @@
                 <div class="form-field"><label>SKU</label><input id="se-sku" class="form-input accent" readonly /></div>
                 <div class="form-field"><label>Produkt-ID</label><input id="se-id" class="form-input accent" readonly /></div>
                 <div class="form-field"><label>SSOT-ID</label><input id="se-ssot" class="form-input accent" readonly /></div>
+              </div>
+              <div class="se-texte-zeile">
+                <button class="btn-secondary" id="se-texte" type="button" data-hilfe="se-texte">Texte bearbeiten / neu generieren …</button>
+                <span id="se-texte-info" class="field-note"></span>
               </div>
             </div>
             <div class="card" style="margin-bottom:1rem;">
@@ -8357,9 +8368,11 @@
         'modus-neu':             { name: 'Neu anlegen', text: 'Leere Maske für einen neuen Artikel.' },
         'modus-aendern':         { name: 'Artikel ändern', text: 'Einen vorhandenen Shop-Artikel suchen und ändern.' },
         'modus-seo':             { name: 'SEO Daten', text: 'SEO-Text für einen Artikel erzeugen, prüfen und speichern.' },
-        'modus-seo-aendern':     { name: 'SEO-Daten ändern', text: 'Yoast-Titel und Meta-Beschreibung eines veröffentlichten Artikels ändern.' },
+        'modus-seo-aendern':     { name: 'SEO-Daten ändern', text: 'Yoast eines bestehenden Artikels ändern; Texte über „Texte bearbeiten …“.' },
         'modus-lshop-modelle':   { name: 'L-Shop-Modelle', text: 'Neue L-Shop-Modelle als Liste prüfen und aufnehmen.' },
         'se-suchen':             { name: 'Suchen', text: 'Sucht den Artikel im Shop. Es wird nur gelesen.' },
+        'se-status-wahl':        { name: 'Status', text: 'Welche Artikel die Suche findet: alle, nur veröffentlichte, Entwürfe oder private.' },
+        'se-texte':              { name: 'Texte bearbeiten / neu generieren', text: 'Öffnet den Artikel unter „SEO-Daten“: Texte ansehen, ändern, neu erzeugen – mit Zwilling auch die JFN-Kurzfassung.' },
         'se-neu-bauen':          { name: 'Titel und Meta neu bauen', text: 'Baut Titel und Meta-Beschreibung neu aus den Artikeldaten. Gespeichert wird noch nichts.' },
         'se-speichern':          { name: 'Yoast-Daten speichern', text: 'Schreibt Titel und Meta in den Shop (Kunden sehen es) und liest sie zurück. Die SEO-Karte wird nachgezogen.' },
         'fp-artikel-pruefen':    { name: 'Fehlende prüfen', text: 'Sucht veröffentlichte Shop-Artikel dieses Festpreis-Partners ohne Eintrag hier. Liest nur, setzt keinen Festpreis.' },
@@ -9085,7 +9098,7 @@
           'dtf-zu-alle-groessen', 'dtf-zu-alle-farben', 'dtf-zu-keine', 'dtf-zu-geschw', 'dtf-zu-geschw-datei', 'dtf-zu-geschw-mass', 'dtf-zu-geschw-breite', 'dtf-zu-gilt-alle', 'dtf-zu-mass-alle',
           'dialog-speichern', 'dialog-abbrechen', 'dialog-schliessen'],   // DT1
         'dtf-bestellung': ['dtf-abholung', 'dtf-dhl', 'dtf-ersetzt', 'dtf-notiz', 'dtf-xml', 'dtf-absenden', 'dtf-nachricht', 'dialog-abbrechen', 'dialog-schliessen'],   // DT1
-        'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-kurzfassung', 'seo-material', 'seo-material-einsetzen', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'bildref-eigenschaft', 'bildref-plus', 'bildref-eigenschaft-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'zwilling-haken', 'zwilling-link', 'zwilling-nachholen', 'zwilling-pruefen', 'wc-aendern'],
+        'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-status-wahl', 'se-texte', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-kurzfassung', 'seo-material', 'seo-material-einsetzen', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'bildref-eigenschaft', 'bildref-plus', 'bildref-eigenschaft-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'zwilling-haken', 'zwilling-link', 'zwilling-nachholen', 'zwilling-pruefen', 'wc-aendern'],
         'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
         'partner': ['fp-artikel-pruefen', 'fp-ohne-festpreis', 'fp-ohne-zeigen', 'fp-sperre', 'fp-sperre-artikel', 'fp-nachrechnen', 'pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'link-vor-lk1', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
         'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'gs-anlegen', 'gs-status', 'gs-link', 'gs-nachsehen', 'gs-angelegt', 'gs-zuruecksetzen', 'fk-partner', 'fk-info', 'fp-preis-loeschen'],
@@ -20346,7 +20359,7 @@
         lsmAus();
 
         resetForm();
-        loadSeoPendingList();
+        return loadSeoPendingList();   // ZW2: Aufrufer (Teil B) wartet, bevor er einen Artikel oeffnet
       }
 
       modeBtnNew.addEventListener('click',  () => { if (editMode || seoMode || seAendernModus || lsmModus || lfbsModus) setMode(false); });
@@ -21013,11 +21026,13 @@
         sel.style.display = '';
         sel.innerHTML = '<option value="">Wird gesucht…</option>';
         try {
-          const liste = await apiJson(await apiFetch(`${API_BASE()}/api/seo/artikel-suche?q=${encodeURIComponent(q)}`));
+          const st = document.getElementById('se-status-wahl').value;
+          const liste = await apiJson(await apiFetch(`${API_BASE()}/api/seo/artikel-suche?q=${encodeURIComponent(q)}&status=${encodeURIComponent(st)}`));
+          const STW = { publish: 'veröffentlicht', draft: 'Entwurf', private: 'privat' };
           sel.innerHTML = liste.length
             ? '<option value="">— Artikel auswählen —</option>' + liste.map(a =>
-                `<option value="${monEsc(a.id)}">${monEsc(a.id)} – ${a.sku ? monEsc(a.sku) + ' – ' : ''}${monEsc(a.name)}</option>`).join('')
-            : '<option value="">Kein veröffentlichter Artikel gefunden</option>';
+                `<option value="${monEsc(a.id)}">${monEsc(a.id)} – ${a.sku ? monEsc(a.sku) + ' – ' : ''}${monEsc(a.name)}${a.status && a.status !== 'publish' ? ` (${STW[a.status] ?? monEsc(a.status)})` : ''}</option>`).join('')
+            : '<option value="">Kein Artikel gefunden</option>';
         } catch (e) {
           setSelectError(sel, e.message);
         }
@@ -21048,7 +21063,12 @@
           }
           seStand = { produkt, varianten, quellenOk, quellen: seoMetaQuellen(varianten, produkt, quellenOk),
                       // SE1b: Zeile der Erfassungsmaske, falls es eine gibt.
-                      ssotRow: (ssot && ssot.ssotId && ssot.row) || null };
+                      ssotRow: (ssot && ssot.ssotId && ssot.row) || null, ssot: ssot || {} };
+          // ZW2 Teil B: Texte nur fuer JFN-Artikel (Zwillinge haengen an JFN)
+          const texteKnopf = document.getElementById('se-texte');
+          texteKnopf.hidden = currentShop() !== 'jfn';
+          document.getElementById('se-texte-info').textContent = currentShop() !== 'jfn' ? ''
+            : (ssot && ssot.honkId ? `mit HONK!-Zwilling #${ssot.honkId} – zwei Textpaare` : '');
           sePlatzhalterZeigen();   // SG2
 
           const md = produkt.meta_data || [];
@@ -21073,6 +21093,24 @@
       }
       document.getElementById('se-treffer').addEventListener('change', function () {
         if (this.value) seLaden(this.value);
+      });
+
+      // ZW2 Teil B: Artikel im SEO-Reiter oeffnen (derselbe Editor mit Generator, Material, Motiv, Pruefungen; mit Zwilling
+      // beide Textpaare). Sheet nur mit Zeile in der Erfassungsmaske; nicht aus der Liste "ausstehend".
+      document.getElementById('se-texte').addEventListener('click', async () => {
+        if (!seStand || currentShop() !== 'jfn') return;
+        const p = seStand.produkt, x = seStand.ssot || {};
+        const md = p.meta_data || [];
+        const item = {
+          row: seStand.ssotRow, ssotId: x.ssotId || '', ausSuche: true,
+          artikelnummer: x.artikelnummer || p.sku || '', produktname: x.produktname || p.name || '',
+          wcId: String(p.id), lshopNr: x.lshopNr || '', honkId: x.honkId || '',
+          keyphrase: x.keyphrase || seMetaWert(md, '_yoast_wpseo_focuskw'),
+          synonyme: x.synonyme || seMetaWert(md, '_yoast_wpseo_keywordsynonyms'),
+        };
+        await setSeoMode();
+        await seoArtikelOeffnen(item);
+        document.getElementById('seo-status-msg').textContent = `Aus „SEO-Daten ändern“ geöffnet (#${item.wcId}) – nicht in der Liste „ausstehend“.`;
       });
 
       // Derselbe Baustein wie der SEO-Reiter: seoMetaBau + seoMetaEingabenHolen.
@@ -21765,7 +21803,7 @@
           // SG1: leeres Feld -> Rueckfall sichtbar ins Feld, bevor Sheet und Yoast es lesen (gleiche Keyphrase wie Titel/Meta)
           seoKeyphraseAusTitelSetzen();
 
-          await apiFetch(`${API_BASE()}/api/sheets/erfassung/patch-fields`, {
+          if (seoCurrentItem.row) await apiFetch(`${API_BASE()}/api/sheets/erfassung/patch-fields`, {   // ZW2: aus der Suche ohne Zeile kein Sheet
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

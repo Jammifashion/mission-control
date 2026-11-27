@@ -316,6 +316,10 @@ router.get('/erfassung/by-wc-id', async (req, res, next) => {
     const ssotIdx      = requireHeaderAny(headers, ['SSOT-ID', 'ID'], CTX);
     const produktIdIdx = requireHeader(headers, 'Produkt-ID', CTX);
     const statusIdx    = requireHeader(headers, 'Status', CTX);
+    // ZW2 Teil B: was der SEO-Reiter fuer einen bestehenden Artikel braucht (optionale Spalten, weich)
+    const opt = name => { const i = findHeader(headers, name); return r => (i >= 0 ? String(r[i] ?? '') : ''); };
+    const felder = { artikelnummer: opt('Artikelnummer'), produktname: opt('Produktname'), lshopNr: opt('L-Shop-Artikelnummer'),
+      keyphrase: opt('Fokus_Keyphrase'), synonyme: opt('Fokus_Synonyme'), honkId: opt('HONK_Produkt_ID') };
 
     for (let i = 1; i < rows.length; i++) {
       if ((rows[i][produktIdIdx] ?? '').trim() === wcId) {
@@ -323,6 +327,7 @@ router.get('/erfassung/by-wc-id', async (req, res, next) => {
           ssotId: rows[i][ssotIdx]  ?? '',
           row:    i + 1,
           status: rows[i][statusIdx] ?? '',
+          ...Object.fromEntries(Object.entries(felder).map(([k, f]) => [k, f(rows[i]).trim()])),
         });
       }
     }
