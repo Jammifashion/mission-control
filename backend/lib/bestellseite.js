@@ -287,11 +287,16 @@ export async function leseZugaenge({ sheets: s, jetzt = () => new Date(), schlue
   const spreadsheetId = sheetId();
   const { z, tr } = await lies(sheets, spreadsheetId);
   const bilder = await leseBilder(sheets, spreadsheetId);
+  // KS8: offene Eintraege (eingegangen + Altstand geprüft) je Zugang fuer den Knopf "Einträge (n neu)" - nur Zahlen
+  const offenJe = new Map();
+  try { for (const e of (await liesEintraege(sheets, spreadsheetId))?.zeilen ?? []) if (OFFEN.includes(t(e.Status) || 'eingegangen')) offenJe.set(e.Zugang_ID, (offenJe.get(e.Zugang_ID) ?? 0) + 1); }
+  catch { /* ohne Zahl */ }
   // UI3: Kategorienamen statt Nummern in der Liste - nur gelesen, wenn es Dauer-Seiten gibt; nicht lesbar = Nummern wie bisher
   let kategorien = [];
   if (z.zeilen.some(x => x.Art === ART.DAUER)) { try { kategorien = await leseKategorien(sheets); } catch { kategorien = []; } }
   return {
-    zugaenge: z.zeilen.map(x => ({ ...zugangFuerMc(x, jetzt(), tr.zeilen), ...(x.Art === ART.DAUER && kategorien.length ? { sortimentText: sortimentText(x.Sortiment, kategorien) } : {}) })).sort((a, b) => b.Zugang_ID.localeCompare(a.Zugang_ID)),
+    zugaenge: z.zeilen.map(x => ({ ...zugangFuerMc(x, jetzt(), tr.zeilen), offenEintraege: offenJe.get(x.Zugang_ID) ?? 0,
+      ...(x.Art === ART.DAUER && kategorien.length ? { sortimentText: sortimentText(x.Sortiment, kategorien) } : {}) })).sort((a, b) => b.Zugang_ID.localeCompare(a.Zugang_ID)),
     bilderStand: bilder.stand, bilderAnzahl: bilder.je.size,
     spalten: { designLink: z.idx.Design_Link_Zeigen !== undefined, linkVerschluesselt: z.idx.Token_Verschluesselt !== undefined },
     linkSchluessel: Boolean(await schluesselLaden()),   // LK1: nur ja/nein, nie der Wert

@@ -763,6 +763,8 @@
       .lshop-offen-header { font-size: 0.82rem; font-weight: 600; color: var(--muted); margin-bottom: 0.75rem; letter-spacing: 0.03em; display: flex; align-items: center; justify-content: space-between; }
       .bulk-all-label { font-size: 0.78rem; font-weight: 400; display: flex; align-items: center; gap: 0.3rem; cursor: pointer; letter-spacing: 0; }
       .card-cb-wrap { display: flex; align-items: flex-start; padding-top: 0.18rem; }
+      .bsm-herkunft { width: auto; min-width: 9rem; }   /* KS8 */
+      .bsm-termine-alt > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--muted); }
       .bsm-sortiment-wahl > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--info); }   /* KS8 */
       .bsm-sortiment-liste { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.25rem 1rem; padding: 0.4rem 0; }
       .bsm-sortiment-kat { display: flex; align-items: center; gap: 0.4rem; min-height: 44px; font-size: 0.85rem; color: var(--text); }
@@ -5830,7 +5832,7 @@
             stufe: tr?.goalie || tr?.ueber6Wochen ? 'warning' : tr?.nichtBeimProduzenten ? '' : 'ruhig' }),
           // KS3: ungepruefte Eintraege der Bestellseiten (nur Zahl)
           fehlt(bs, 'bestellseiten', 'Bestellseiten ungeprüft') ?? dbKachel('bestellseiten', { zahl: bs?.zahl ?? 0, name: 'Bestellseiten: neue Einträge',
-            unter: bs?.zahl ? 'ungeprüft' : '', stufe: bs?.zahl ? 'info' : 'ruhig' }),
+            unter: bs?.zahl ? 'noch nicht übernommen' : '', stufe: bs?.zahl ? 'info' : 'ruhig' }),
         ].join('');
       }
       const dbTage = n => `<span class="dash-tage${n > 14 ? ' dash-tage-danger' : n > 7 ? ' dash-tage-warning' : ''}">seit ${dbEsc(n)} ${n === 1 ? 'Tag' : 'Tagen'}</span>`;
@@ -5979,7 +5981,7 @@
         }
         if (dbvDa(k.ware) && k.ware.zahl) inhalt.push(k.ware.zahl === 1 ? 'Ein Auftrag wartet auf Ware.' : `${k.ware.zahl} Aufträge warten auf Ware.`);
         if (dbvDa(k.abholung) && k.abholung.zahl) inhalt.push(`${dbvGross(dbvZahl(k.abholung.zahl, 'eine Abholung', 'Abholungen'))} offen.`);
-        if (dbvDa(k.bestellseiten) && k.bestellseiten.zahl) inhalt.push(k.bestellseiten.zahl === 1 ? 'Ein neuer Eintrag auf einer Bestellseite ist ungeprüft.' : `${k.bestellseiten.zahl} neue Einträge auf Bestellseiten sind ungeprüft.`);   // KS3
+        if (dbvDa(k.bestellseiten) && k.bestellseiten.zahl) inhalt.push(k.bestellseiten.zahl === 1 ? 'Ein neuer Eintrag auf einer Bestellseite ist noch nicht übernommen.' : `${k.bestellseiten.zahl} neue Einträge auf Bestellseiten sind noch nicht übernommen.`);   // KS3
         if (dbvDa(k.rueckstand)) {
           const r = k.rueckstand;
           const alt = r.liste && r.veraltet;
@@ -8991,14 +8993,11 @@
         'bsm-e-status':         { name: 'Status', text: 'eingegangen → geprüft → übernommen. Abgelehnt = mit Grund, den die Leute auf der Seite sehen.' },
         'bsm-gk':               { name: 'Torwart?', text: 'Im Wunsch steht ein Torwart-Stichwort. Bitte klären – auf der Trikot-Seite gibt es dann den Goalie-Hinweis.' },
         'bsm-e-auftrag':        { name: 'Im Auftrag', text: 'Öffnet den Auftrag, in den dieser Eintrag übernommen wurde.' },
-        'bsm-e-pruefen':        { name: 'Geprüft', text: 'Eintrag ist in Ordnung und kann übernommen werden. Ändert die Seite ihn danach, muss er neu geprüft werden.' },
-        'bsm-e-zurueck':        { name: 'Prüfung zurück', text: 'Setzt den Eintrag wieder auf „eingegangen“. Er wird dann nicht übernommen.' },
         'bsm-e-aendern':        { name: 'Ändern', text: 'Menge, Größe (gleicher Artikel), Texte oder Notiz ändern. Auf der Seite steht dann „geändert von MC“.' },
         'bsm-e-ablehnen':       { name: 'Ablehnen', text: 'Markiert nur diesen Eintrag. Dann oben einen Grund eintragen und „markierte ablehnen“.' },
         'bsm-e-feld':           { name: 'Feld', text: 'Neuer Wert für diesen Eintrag. Gespeichert wird erst mit „Speichern“.' },
         'bsm-e-speichern':      { name: 'Speichern', text: 'Speichert die Änderung am Eintrag. Der Status bleibt, wie er ist.' },
         'bsm-alle':             { name: 'Alle markieren', text: 'Markiert alle offenen Einträge der Auswahl (eingegangen und geprüft).' },
-        'bsm-s-pruefen':        { name: 'Markierte prüfen', text: 'Setzt alle markierten Einträge auf „geprüft“.' },
         'bsm-s-grund':          { name: 'Grund', text: 'Kurzer Grund (höchstens 100 Zeichen). Steht auf der Bestellseite: „abgelehnt: …“.' },
         'bsm-s-ablehnen':       { name: 'Markierte ablehnen', text: 'Lehnt alle markierten Einträge mit dem Grund ab. Nichts wird gelöscht.' },
         'bsm-uebernehmen':      { name: 'Geprüfte übernehmen', text: 'Öffnet die Übernahme: geprüfte Einträge gehen in den Auftrag dieses Termins, Trikots auf die Trikot-Seite.' },
@@ -9069,6 +9068,12 @@
         'bsm-ew-vorschau':      { name: 'Vorschau', text: 'Zeigt die Entwürfe so, wie der Kunde sie sieht (Titel = Dateiname). Neue Bilder erscheinen nach spätestens 1 Minute.' },
         'bsm-ew-weg':           { name: 'Ordner entfernen', text: 'Die Seite zeigt keine Entwürfe mehr. Der Ordner und die Bilder in Drive bleiben.' },
         'bsm-ew-bild':          { name: 'Entwurf', text: 'So sieht der Kunde die Kachel. Titel = Dateiname ohne Endung.' },
+        'bsm-e-uebernehmen':    { name: 'Übernehmen', text: 'Nimmt den Eintrag in den Auftrag des Termins. „neu bestellen“ kommt gleich in den L-Shop-Korb, „aus Lager“ wird gleich ausgebucht.' },
+        'bsm-e-herkunft':       { name: 'Herkunft', text: 'Woher die Ware kommt. Vorschlag: Lager, wenn genug da ist, sonst neu bestellen; Extras „bei uns“.' },
+        'bsm-alle-uebernehmen': { name: 'alle neuen übernehmen', text: 'Übernimmt alle offenen Einträge dieses Termins mit der jeweils gewählten Herkunft – nach einer Rückfrage.' },
+        'bsm-alle-zeigen':      { name: 'alle anzeigen', text: 'Zeigt auch übernommene und abgelehnte Einträge. Standard: nur offene.' },
+        'bsm-seite-oeffnen':    { name: 'Seite öffnen', text: 'Öffnet die Bestellseite in einem neuen Tab, so wie der Kunde sie sieht. Öffnen trägt nichts ein.' },
+        'bsm-termine-alt':      { name: 'vergangene Termine', text: 'Termine, die schon vorbei sind. Die Einträge dazu stehen unter „Einträge“.' },
         'bsm-sortiment-aendern': { name: 'Sortiment ändern', text: 'Welche Shop-Kategorien (mit Unterkategorien) die Kunden sehen. Speichern, dann „Artikelliste aktualisieren“.' },
         'bsm-sortiment':        { name: 'Sortiment', text: 'Shop-Kategorie mit allen Unterkategorien. Gezeigt werden nur veröffentlichte Artikel.' },
         'bsm-partner':          { name: 'Gehört zu Partner', text: 'Nur ein Merkmal (z. B. FP-001). Die Partner-Abrechnung liest die Bestellseite nie.' },
@@ -9167,10 +9172,10 @@
           'au-aus-bestellseite', 'au-bs-eintrag', 'au-verweis', 'au-alle-fertig', 'au-geliefert', 'au-geliefert-zurueck', 'au-verschoben'],   // AM-6, AM-6-1, KS1, KS3, KS4
         abrechnen: ['au-abrechnen', 'au-abrechnen-gesperrt', 'au-re-grund', 'au-re-geaendert', 'au-re-felder', 'au-vorkasse', 'au-versand-art', 'au-versand-betrag', 'au-versand-text', 'au-vorkasse-chip', 're-auch', 're-kunde', 're-zeitraum', 're-haken', 're-gesperrt', 're-au', 're-fuer', 're-anlegen', 're-abgerechnet', 're-status', 're-link', 're-nachsehen', 're-angelegt', 're-zuruecksetzen'],   // RE1
         bestellseiten: ['bsm-status', 'bsm-oeffnen', 'bsm-link', 'bsm-kopieren', 'bsm-link-holen', 'bsm-link-alt', 'bsm-anlegen',
-          'bsm-e-wahl', 'bsm-e-status', 'bsm-gk', 'bsm-e-auftrag', 'bsm-e-pruefen', 'bsm-e-zurueck', 'bsm-e-aendern', 'bsm-e-ablehnen', 'bsm-e-feld', 'bsm-e-speichern',
-          'bsm-alle', 'bsm-s-pruefen', 'bsm-s-grund', 'bsm-s-ablehnen', 'bsm-uebernehmen', 'bsm-packliste', 'bsm-pl-drucken', 'bsm-u-ziel', 'bsm-u-wahl', 'bsm-u-quelle',
+          'bsm-e-wahl', 'bsm-e-status', 'bsm-gk', 'bsm-e-auftrag', 'bsm-e-aendern', 'bsm-e-ablehnen', 'bsm-e-feld', 'bsm-e-speichern',
+          'bsm-alle', 'bsm-s-grund', 'bsm-s-ablehnen', 'bsm-uebernehmen', 'bsm-packliste', 'bsm-pl-drucken', 'bsm-u-ziel', 'bsm-u-wahl', 'bsm-u-quelle',
           'bsm-u-probe', 'bsm-u-los', 'bsm-k-offen', 'bsm-k-bestellt', 'bsm-k-geliefert', 'bsm-k-lager', 'bsm-k-verknuepft', 'bsm-speichern', 'bsm-neuer-link', 'bsm-sperren', 'bsm-entsperren',
-          'bsm-ablauf', 'bsm-hinweis', 'bsm-design', 'bsm-sortiment', 'bsm-sortiment-aendern', 'bsm-partner', 'bsm-bilder', 'bsm-bilder-stand',
+          'bsm-ablauf', 'bsm-hinweis', 'bsm-design', 'bsm-sortiment', 'bsm-sortiment-aendern', 'bsm-e-uebernehmen', 'bsm-e-herkunft', 'bsm-alle-uebernehmen', 'bsm-alle-zeigen', 'bsm-seite-oeffnen', 'bsm-termine-alt', 'bsm-partner', 'bsm-bilder', 'bsm-bilder-stand',
           'bsm-eintraege', 'bsm-termin-filter', 'bsm-neu', 'bsm-spaet',
           'bsm-fortschritt', 'bsm-fertig', 'bsm-s-fertig', 'bsm-da', 'bsm-s-da', 'bsm-we', 'bsm-geliefert', 'bsm-geliefert-zurueck', 'bsm-warn', 'bsm-verschieben', 'bsm-v-ziel', 'bsm-v-grund', 'bsm-v-los',
           'bsm-titel', 'bsm-bis', 'bsm-pers', 'bsm-abschl', 'bsm-abgeschlossen', 'bsm-wieder', 'bsm-auswahl', 'bsm-aw-suche', 'bsm-aw-modell', 'bsm-aw-farbe',
@@ -16640,11 +16645,21 @@
           + `${bsmChipHtml(z.status)}${z.abgeschlossen ? '<span class="ku-chip bsm-abgeschlossen" data-hilfe="bsm-abgeschlossen">abgeschlossen</span>' : ''}<span class="korb-zaehler">bis ${kuEsc(bsmDatum(z.Ablauf))}${kuEsc(termine)}</span></button>`;   // KS6
       }
       /** Termine einer Dauer-Bestellseite (nur sehen; Eintragen auf der Seite kommt mit KS2). */
-      function bsmTermineHtml(z) {
+      // KS8: nur kommende Termine sichtbar, vergangene eingeklappt
+      function bsmTermineHtml(z, heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' })) {
         const t = (z.termine ?? []).slice().sort((a, b) => String(a.Datum).localeCompare(String(b.Datum)));
         if (!t.length) return '<p class="korb-zaehler">Noch keine Termine.</p>';
-        return `<ul class="bsm-termine">${t.map(x => `<li><strong>${kuEsc(bsmDatum(x.Datum))}</strong>${x.Notiz ? ` · ${kuEsc(x.Notiz)}` : ''}`
-          + `${x.Bestellschluss ? ` · Bestellschluss ${kuEsc(bsmDatum(x.Bestellschluss))}` : ''}${x.Auftrag_Nr ? ` · ${kuEsc(x.Auftrag_Nr)}` : ''}</li>`).join('')}</ul>`;
+        const li = x => `<li><strong>${kuEsc(bsmDatum(x.Datum))}</strong>${x.Notiz ? ` · ${kuEsc(x.Notiz)}` : ''}`
+          + `${x.Bestellschluss ? ` · Bestellschluss ${kuEsc(bsmDatum(x.Bestellschluss))}` : ''}${x.Auftrag_Nr ? ` · ${kuEsc(x.Auftrag_Nr)}` : ''}</li>`;
+        const kommend = t.filter(x => String(x.Datum) >= heute), vergangen = t.filter(x => String(x.Datum) < heute).reverse();
+        return (kommend.length ? `<ul class="bsm-termine">${kommend.map(li).join('')}</ul>` : '<p class="korb-zaehler">Kein kommender Termin.</p>')
+          + (vergangen.length ? `<details class="bsm-termine-alt"><summary data-hilfe="bsm-termine-alt" tabindex="0">vergangene (${vergangen.length}) anzeigen</summary><ul class="bsm-termine">${vergangen.map(li).join('')}</ul></details>` : '');
+      }
+      /** KS8: naechster Termin mit offenen Eintraegen, sonst naechster kommender, sonst '' (alle). */
+      function bsmStartTermin(z, eintraege, heute = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Berlin' })) {
+        const t = (z?.termine ?? []).slice().sort((a, b) => String(a.Datum).localeCompare(String(b.Datum)));
+        const offen = new Set((eintraege ?? []).filter(e => ['eingegangen', 'geprüft'].includes(e.status)).map(e => e.termin));
+        return (t.find(x => offen.has(x.Termin_ID) && String(x.Datum) >= heute) ?? t.find(x => offen.has(x.Termin_ID)) ?? t.find(x => String(x.Datum) >= heute))?.Termin_ID ?? '';
       }
       // KS2: Eintraege eines Zugangs nur ansehen (Pruefen/Uebernehmen kommt mit KS3). Rueckennamen nur hier in der Oberflaeche.
       const BSM_ART = { artikel: 'Artikel', extra: 'Extra', trikot: 'Trikot' };
@@ -16804,8 +16819,18 @@
           + `<div class="korb-reihe ku-knoepfe"><button type="button" class="korb-aktion korb-aktion-haupt" data-bsm-e-speichern="${kuEsc(e.id)}" data-hilfe="bsm-e-speichern">Speichern</button>`
           + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-e-abbrechen data-hilfe="dialog-abbrechen">Abbrechen</button></div></div>`;
       }
+      // KS8: Herkunft je offenem Eintrag (Vorschlag vom Server, am Eintrag aenderbar) - Werte wie POST /uebernehmen { herkunft }
+      function bsmHerkunftHtml(e, vorschlag, wahl) {
+        if (e.art === 'trikot') return '<span class="korb-zaehler">→ Trikot-Seite</span>';
+        const soll = wahl || vorschlag?.herkunft || (e.art === 'artikel' ? 'bestellen' : 'vorhanden');
+        const opt = (wert, text) => `<option value="${wert}"${wert === soll ? ' selected' : ''}>${text}</option>`;
+        const o = e.art === 'artikel'
+          ? opt('bestellen', 'neu bestellen 🛒') + (vorschlag?.herkunft === 'lager' || soll === 'lager' ? opt('lager', `aus Lager 📦${vorschlag?.ort ? ` (${kuEsc(vorschlag.ort)})` : ''}`) : '') + opt('vorhanden', 'bei uns ✓')
+          : opt('vorhanden', 'bei uns ✓') + opt('bestellen', 'noch zu besorgen');
+        return `<select class="form-select bsm-herkunft" data-bsm-h="${kuEsc(e.id)}" data-hilfe="bsm-e-herkunft" aria-label="Herkunft">${o}</select>`;
+      }
       /** Eine Zeile: Haken (nur offene), was, Kennzeichen, Status/abgelehnt, Aktionen; bei "übernommen" Sprung in den Auftrag. */
-      function bsmPruefZeileHtml(e, { neu = false, gewaehlt = false, bearbeite = '', datum = '' } = {}) {
+      function bsmPruefZeileHtml(e, { neu = false, gewaehlt = false, bearbeite = '', datum = '', vorschlag = null, herkunft = '' } = {}) {
         const offen = bsmOffen(e);
         return `<div class="bsm-eintrag${e.status === 'storniert' ? ' bsm-storniert' : ''}" data-bsm-e="${kuEsc(e.id)}">`
           + (bsmMarkierbar(e) ? `<label class="bsm-wahl" data-hilfe="bsm-e-wahl"><input type="checkbox" data-bsm-wahl="${kuEsc(e.id)}"${gewaehlt ? ' checked' : ''} aria-label="Eintrag markieren"></label>` : '')
@@ -16822,9 +16847,8 @@
           + (bsmWe(e) ? '<button type="button" class="korb-link" data-bsm-we data-hilfe="bsm-we">Wareneingang buchen →</button>' : '')
           + (e.status === 'übernommen' && e.art !== 'trikot' && e.positionId ? `<label class="bsm-fertig" data-hilfe="bsm-fertig"><input type="checkbox" data-bsm-fertig="${kuEsc(e.positionId)}"${bsmFertig(e) ? ' checked' : ''}${bsmGeliefert(e) ? ' disabled' : ''}> fertig</label>` : '')
           + (e.verschobenVon ? `<span class="korb-zaehler">verschoben von ${kuEsc(e.verschobenVonDatum || e.verschobenVon)}${e.verschobenGrund ? ` – ${kuEsc(e.verschobenGrund)}` : ''}</span>` : '')
-          + (offen ? `<span class="bsm-e-knoepfe">`
-            + (e.status === 'eingegangen' ? `<button type="button" class="korb-link" data-bsm-e-pruefen="${kuEsc(e.id)}" data-hilfe="bsm-e-pruefen">geprüft ✓</button>`
-              : `<button type="button" class="korb-link" data-bsm-e-zurueck="${kuEsc(e.id)}" data-hilfe="bsm-e-zurueck">Prüfung zurück</button>`)
+          + (offen ? `<span class="bsm-e-knoepfe">${bsmHerkunftHtml(e, vorschlag, herkunft)}`   // KS8: kein Schritt "geprüft" mehr
+            + `<button type="button" class="korb-aktion korb-aktion-haupt" data-bsm-e-uebernehmen="${kuEsc(e.id)}" data-hilfe="bsm-e-uebernehmen">Übernehmen</button>`
             + `<button type="button" class="korb-link" data-bsm-e-aendern="${kuEsc(e.id)}" data-hilfe="bsm-e-aendern">ändern</button>`
             + `<button type="button" class="korb-link ku-gefahr" data-bsm-e-ablehnen="${kuEsc(e.id)}" data-hilfe="bsm-e-ablehnen">ablehnen …</button></span>` : '')
           + (bearbeite === e.id ? bsmBearbeitenHtml(e) : '')
@@ -16834,7 +16858,7 @@
       function bsmUebernahmeHtml(eintraege, v, ergebnis = '', form = {}) {
         const fq = form.quelle ?? {}, fn = form.notiz ?? {}, aus = form.aus ?? [];
         const sel = (wert, soll) => (wert === soll ? ' selected' : '');
-        const gep = (eintraege ?? []).filter(e => e.status === 'geprüft');
+        const gep = (eintraege ?? []).filter(bsmOffen);   // KS8: alle offenen (kein Schritt "geprüft" mehr)
         const ziel = `<label class="edi-feld bsm-breit" data-hilfe="bsm-u-ziel">In Auftrag<select class="form-select" data-bsm-u-ziel>`
           + `<option value="">${v?.terminAuftraege?.length ? `Termin-Auftrag (${kuEsc(v.terminAuftraege.join(', '))})` : 'neuer Auftrag für diesen Termin'}</option>`
           + (v?.anhaengbar ?? []).filter(a => !(v.terminAuftraege ?? []).includes(a.auftragNr)).map(a => `<option value="${kuEsc(a.auftragNr)}"${sel(form.ziel, a.auftragNr)}>an ${kuEsc(a.auftragNr)} anhängen (${kuEsc(a.status)}, Termin ${kuEsc(bsmDatum(a.termin))})</option>`).join('')
@@ -16850,8 +16874,8 @@
           return `<div class="bsm-u-zeile"><label class="bsm-wahl" data-hilfe="bsm-u-wahl"><input type="checkbox" data-bsm-u-wahl="${kuEsc(e.id)}"${aus.includes(e.id) ? '' : ' checked'} aria-label="übernehmen"></label>`
             + `<span class="bsm-was">${kuEsc(bsmEintragWas(e))}</span>${quelle}</div>`;
         }).join('');
-        return `<div class="bsm-uebernahme" data-bsm-uebernahme><div><strong>Geprüfte übernehmen</strong> (${gep.length})</div>`
-          + (gep.length ? `<div class="korb-reihe">${ziel}</div>${zeilen}` : '<p class="korb-zaehler">Keine geprüften Einträge für diesen Termin.</p>')
+        return `<div class="bsm-uebernahme" data-bsm-uebernahme><div><strong>Übernehmen mit Verknüpfung</strong> (${gep.length})</div>`
+          + (gep.length ? `<div class="korb-reihe">${ziel}</div>${zeilen}` : '<p class="korb-zaehler">Keine offenen Einträge für diesen Termin.</p>')
           + (v && v.spalten && (!v.spalten.zugang || !v.spalten.verweis) ? '<p class="korb-zaehler">Hinweis: Spalten für Bestellseite/Verweis fehlen noch im Auftrag – erst Setup.</p>' : '')
           + (ergebnis ? `<p class="korb-zaehler" aria-live="polite">${kuEsc(ergebnis)}</p>` : '')
           + `<div class="korb-reihe ku-knoepfe">${gep.length ? `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-u-probe data-hilfe="bsm-u-probe">Vorschau</button>`
@@ -16930,7 +16954,8 @@
       }
       /** Liste je Zugang: Terminwahl, Sammelleiste, Zeilen, Uebernahme-Panel, Packliste. */
       function bsmPruefHtml(z, eintraege, filter, k3 = {}, jetzt = Date.now()) {
-        const liste = (eintraege ?? []).filter(e => !filter || e.termin === filter);
+        const imTermin = (eintraege ?? []).filter(e => !filter || e.termin === filter);
+        const liste = k3.alleZeigen ? imTermin : imTermin.filter(bsmOffen);   // KS8: Standard offen
         const opt = `<option value="">alle Termine (${(eintraege ?? []).length})</option>` + (z.termine ?? []).map(x => `<option value="${kuEsc(x.Termin_ID)}"${x.Termin_ID === filter ? ' selected' : ''}>${kuEsc(bsmDatum(x.Datum))}${x.Notiz ? ` · ${kuEsc(x.Notiz)}` : ''} (${(eintraege ?? []).filter(e => e.termin === x.Termin_ID).length})</option>`).join('');
         const neu = e => (jetzt - new Date(e.zeit).getTime()) < 24 * 3600 * 1000;
         const wahl = k3.wahl ?? new Set();
@@ -16938,29 +16963,38 @@
         const ungeprueft = liste.filter(e => e.status === 'eingegangen').length, geprueft = liste.filter(e => e.status === 'geprüft').length;
         const gew = liste.filter(e => wahl.has(e.id));
         const wOffen = gew.filter(bsmOffen).length, wDruck = gew.filter(bsmDruckbar).length, wDa = gew.filter(x => bsmDaHand(x) && !bsmDa(x)).length;
-        const leiste = `<div class="korb-reihe bsm-sammel"><span class="korb-zaehler">${ungeprueft} ungeprüft · ${geprueft} geprüft · ${wahl.size} markiert</span>`
+        const leiste = `<div class="korb-reihe bsm-sammel"><span class="korb-zaehler">${ungeprueft + geprueft} offen · ${wahl.size} markiert</span>`
+          + `<button type="button" class="korb-link" data-bsm-alle-zeigen data-hilfe="bsm-alle-zeigen">${k3.alleZeigen ? 'nur offene zeigen' : `alle anzeigen (${imTermin.length})`}</button>`
           + (gew.length ? `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-verschieben data-hilfe="bsm-verschieben">markierte in anderen Termin …</button>` : '')   // KS4
           + (wDa ? `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-s-da data-hilfe="bsm-s-da">markierte bei uns (${wDa})</button>` : '')   // KS4-2
           + (wDruck ? `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-s-fertig data-hilfe="bsm-s-fertig">markierte fertig (${wDruck})</button>` : '')
           + (offen.length ? `<button type="button" class="korb-link" data-bsm-alle data-hilfe="bsm-alle">alle offenen markieren</button>`
-            + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-s-pruefen data-hilfe="bsm-s-pruefen"${wOffen ? '' : ' disabled'}>markierte: geprüft ✓</button>`
             + (k3.ablehnen === false ? '<span class="korb-zaehler" data-hilfe="bsm-s-ablehnen" tabindex="0">Ablehnen erst nach Setup</span>'
               : `<label class="edi-feld" data-hilfe="bsm-s-grund">Grund<input class="form-input" data-bsm-grund maxlength="100" value="${kuEsc(k3.grund ?? '')}"></label>`
               + `<button type="button" class="korb-aktion korb-aktion-ruhig ku-gefahr" data-bsm-s-ablehnen data-hilfe="bsm-s-ablehnen"${wOffen ? '' : ' disabled'}>markierte ablehnen</button>`) : '')
           + '</div>';
-        const terminKnoepfe = filter ? `<div class="korb-reihe ku-knoepfe"><button type="button" class="korb-aktion korb-aktion-haupt" data-bsm-uebernehmen data-hilfe="bsm-uebernehmen"${geprueft ? '' : ' disabled'}>Geprüfte übernehmen …</button>`
+        const terminKnoepfe = filter ? `<div class="korb-reihe ku-knoepfe">`
+          + (offen.length ? `<button type="button" class="korb-aktion korb-aktion-haupt" data-bsm-alle-uebernehmen data-hilfe="bsm-alle-uebernehmen">alle neuen übernehmen (${offen.length})</button>` : '')   // KS8
+          + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-uebernehmen data-hilfe="bsm-uebernehmen"${offen.length ? '' : ' disabled'}>mit Verknüpfung übernehmen …</button>`
           + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-packliste data-hilfe="bsm-packliste">Packliste</button>`
           + (liste.some(e => e.status === 'übernommen' && !bsmGeliefert(e)) ? `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-geliefert data-hilfe="bsm-geliefert">${z.Art === 'auftrag' ? 'an Kunden geliefert …' : 'an Fanshop geliefert …'}</button>` : '')   // KS4
           + (liste.some(bsmGeliefert) ? '<button type="button" class="korb-link" data-bsm-geliefert-zurueck data-hilfe="bsm-geliefert-zurueck">geliefert zurücknehmen …</button>' : '') + '</div>'
-          : '<p class="korb-zaehler">Für „Geprüfte übernehmen“ und die Packliste oben einen Termin wählen.</p>';
+          : '<p class="korb-zaehler">Für „alle neuen übernehmen“ und die Packliste oben einen Termin wählen.</p>';
         const tJe = new Map((z.termine ?? []).map(x => [x.Termin_ID, x]));
-        const zeilen = liste.map(e => bsmPruefZeileHtml(e, { neu: neu(e), gewaehlt: wahl.has(e.id), bearbeite: k3.bearbeite, datum: bsmDatum(tJe.get(e.termin)?.Datum) })).join('');
+        const zeilen = liste.map(e => bsmPruefZeileHtml(e, { neu: neu(e), gewaehlt: wahl.has(e.id), bearbeite: k3.bearbeite, datum: bsmDatum(tJe.get(e.termin)?.Datum),
+          vorschlag: k3.vorschlag?.[e.id] ?? null, herkunft: k3.herkunft?.[e.id] ?? '' })).join('');
         return `<div class="korb-reihe"><label class="edi-feld" data-hilfe="bsm-termin-filter">Termin<select class="form-select" data-bsm-filter>${opt}</select></label></div>`
           + leiste + terminKnoepfe
           + (filter ? bsmWarnHtml(liste) : '') + bsmVerschiebenHtml(z, eintraege, k3.verschieben)   // KS4
           + (filter && k3.uebernahme?.termin === filter ? bsmUebernahmeHtml(liste, k3.uebernahme.vorschau, k3.uebernahme.ergebnis, k3.uebernahme.form) : '')
           + (filter && k3.packliste === filter ? bsmPacklisteHtml(z.Zugang_ID, bsmTermin(z.termine, filter), eintraege) : '')
-          + (zeilen || '<p class="korb-zaehler">Noch keine Einträge.</p>');
+          + (zeilen || `<p class="korb-zaehler">${imTermin.length && !k3.alleZeigen ? 'Keine offenen Einträge – „alle anzeigen“ zeigt die erledigten.' : 'Noch keine Einträge.'}</p>`);
+      }
+      /** KS8: Text nach "Übernehmen" (nur Anzahlen) inkl. Korb/Lager. */
+      function bsmSchnellText(r) {
+        const b = r?.bereitstellen;
+        return bsmUebernahmeText(r) + (b?.fehler ? ` ${b.fehler}` : b && !b.schon ? ` Bereitgestellt: ${b.korb} im L-Shop-Korb, ${b.lager} aus dem Lager.` : '')
+          + (r?.festpreis ? ` Festpreis (${r.festpreis.partner}): ${r.festpreis.mitPreis} von ${r.positionen} Positionen mit Preis.` : '');
       }
       // ── Bestellseiten-Pruefen: Ende ──
 
@@ -17038,7 +17072,8 @@
           + bsmEntwurfHtml(z, bsmZ.ew[z.Zugang_ID])   // KS7
           + bsmLinkZeileHtml(z)   // LK1
           + `<div class="korb-reihe ku-knoepfe"><button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-speichern data-hilfe="bsm-speichern">Speichern</button>`
-          + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-eintraege data-hilfe="bsm-eintraege">Einträge ansehen</button>`   // KS2
+          + (z.offenEintraege ? `<button type="button" class="korb-aktion korb-aktion-haupt" data-bsm-eintraege data-hilfe="bsm-eintraege">Einträge (${Number(z.offenEintraege)} neu)</button>`
+            : '<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-eintraege data-hilfe="bsm-eintraege">Einträge ansehen</button>')   // KS2, KS8
           + `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-neuer-link data-hilfe="bsm-neuer-link">neuer Link …</button>`
           + (z.status === 'gesperrt' ? `<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-entsperren data-hilfe="bsm-entsperren">wieder freigeben</button>`
             : `<button type="button" class="korb-aktion korb-aktion-ruhig ku-gefahr" data-bsm-sperren data-hilfe="bsm-sperren">sperren …</button>`)
@@ -17069,7 +17104,18 @@
         if (!z.hatLink) return '';
         if (!z.kopierbar) return `<div class="korb-zaehler" data-hilfe="bsm-link-alt">Dieser ältere Link lässt sich nicht kopieren – zum Kopieren einmal neu erzeugen (alter wird ungültig).</div>`;
         if (bsmZ.daten && bsmZ.daten.linkSchluessel === false) return `<div class="korb-zaehler" data-hilfe="bsm-link-alt">Kopieren nicht verfügbar (Link-Schlüssel fehlt). Der Link funktioniert weiter.</div>`;
-        return `<div class="korb-reihe"><button type="button" class="korb-aktion korb-aktion-haupt" data-bsm-link-holen data-hilfe="bsm-link-holen">Link kopieren</button></div>`;
+        return `<div class="korb-reihe"><button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-link-holen data-hilfe="bsm-link-holen">Link kopieren</button>`
+          + '<button type="button" class="korb-aktion korb-aktion-ruhig" data-bsm-seite-oeffnen data-hilfe="bsm-seite-oeffnen">Seite öffnen ↗</button></div>';   // KS8
+      }
+      // KS8: Bestellseite in neuem Tab ansehen - Fenster sofort (Klick), Link danach holen; nie in Adresse/Speicher von MC
+      async function bsmSeiteOeffnen(z, knopf) {
+        const w = window.open('', '_blank');
+        if (w) w.opener = null;
+        knopf.disabled = true;
+        try {
+          const r = await bsmApi(`/${encodeURIComponent(z.Zugang_ID)}/link`);
+          if (w) w.location.replace(bsmLink(r.token)); else bsmFehler('Neuer Tab wurde blockiert – „Link kopieren“ und selbst öffnen.');
+        } catch (e) { if (w) w.close(); bsmFehler(e.message); } finally { knopf.disabled = false; }
       }
       async function bsmLinkHolen(z, knopf) {
         knopf.disabled = true;
@@ -17207,6 +17253,7 @@
           bsmAendern(z, felder, b);
         } else if (b.hasAttribute('data-bsm-neuer-link')) bsmNeuerLink(z, b);
         else if (b.hasAttribute('data-bsm-link-holen')) bsmLinkHolen(z, b);   // LK1
+        else if (b.hasAttribute('data-bsm-seite-oeffnen')) bsmSeiteOeffnen(z, b);   // KS8
         else if (b.hasAttribute('data-bsm-sperren')) {
           if (await showConfirm('Bestellseite sperren?', `<p>${kuEsc(z.Zugang_ID)}: Der Link geht sofort nicht mehr. „wieder freigeben“ macht das rückgängig.</p>`, 'Sperren')) bsmAendern(z, { aktiv: false }, b);
         } else if (b.hasAttribute('data-bsm-entsperren')) bsmAendern(z, { aktiv: true }, b);
@@ -17242,7 +17289,7 @@
         }
       }
       // ── KS3: Pruefen/Uebernehmen in MC (Ereignisse) ──
-      const bsmK3 = id => (bsmZ.k3[id] ??= { wahl: new Set(), bearbeite: '', uebernahme: null, packliste: '', grund: '', ablehnen: true });
+      const bsmK3 = id => (bsmZ.k3[id] ??= { wahl: new Set(), bearbeite: '', uebernahme: null, packliste: '', grund: '', ablehnen: true, vorschlag: {}, herkunft: {}, alleZeigen: false });
       async function bsmEintraegeLaden(zugangId) {
         const r = await bsmApi(`/${encodeURIComponent(zugangId)}/eintraege`);
         bsmZ.eintraege[zugangId] = r.eintraege ?? [];
@@ -17252,6 +17299,38 @@
         k.wahl = new Set([...k.wahl].filter(id => offen.has(id)));
         const z = (bsmZ.daten?.zugaenge ?? []).find(x => x.Zugang_ID === zugangId);
         for (const e of bsmZ.eintraege[zugangId]) if (e.verschobenVon) { const vt = bsmTermin(z?.termine, e.verschobenVon); e.verschobenVonDatum = vt?.Datum ? bsmDatum(vt.Datum) : e.verschobenVon; }
+        if (bsmZ.filter[zugangId] === undefined) bsmZ.filter[zugangId] = bsmStartTermin(z, bsmZ.eintraege[zugangId]);   // KS8
+        await bsmVorschlagLaden(zugangId);
+      }
+      // KS8: Herkunft-Vorschlaege fuer den gewaehlten Termin (GET .../uebernahme, nur lesen); scheitert es, gilt der Standard je Art
+      async function bsmVorschlagLaden(zugangId) {
+        const k = bsmK3(zugangId), termin = bsmZ.filter[zugangId] ?? '';
+        if (!termin) { k.vorschlag = {}; return; }
+        try { k.vorschlag = (await bsmApi(`/${encodeURIComponent(zugangId)}/termin/${encodeURIComponent(termin)}/uebernahme`)).vorschlag ?? {}; }
+        catch { k.vorschlag = {}; }
+      }
+      // KS8: Uebernehmen je Eintrag bzw. alle offenen des Termins - gleich in Korb/Lager bereitstellen
+      async function bsmSchnellUebernehmen(z, ids, knopf, { frage = false } = {}) {
+        const k = bsmK3(z.Zugang_ID);
+        const liste = (bsmZ.eintraege[z.Zugang_ID] ?? []).filter(e => ids.includes(e.id) && bsmOffen(e));
+        if (!liste.length) return;
+        const termine = [...new Set(liste.map(e => e.termin))];
+        if (termine.length !== 1) { bsmFehler('Bitte einen Termin wählen – übernommen wird je Termin.'); return; }
+        if (frage && !await showConfirm('Alle neuen übernehmen?', `<p>${liste.length} Einträge gehen in den Auftrag des Termins. „neu bestellen“ kommt gleich in den L-Shop-Korb, „aus Lager“ wird gleich ausgebucht.</p>`, 'Übernehmen')) return;
+        const herkunft = {};
+        for (const e of liste) if (e.art !== 'trikot') herkunft[e.id] = k.herkunft?.[e.id] || k.vorschlag?.[e.id]?.herkunft || (e.art === 'artikel' ? 'bestellen' : 'vorhanden');
+        if (knopf) knopf.disabled = true;
+        try {
+          const r = await bsmApi('/uebernehmen', { zugangId: z.Zugang_ID, terminId: termine[0], auswahl: bsmStandVon(z.Zugang_ID, liste.map(e => e.id)),
+            ziel: '', herkunft, vorgang: auVorgang(), bereitstellen: true });
+          showToast(`${z.Zugang_ID}: ${bsmSchnellText(r)}`, r.bereitstellen?.fehler ? 'warn' : 'success', 12000);
+          for (const e of liste) { delete k.herkunft?.[e.id]; k.wahl.delete(e.id); }
+          await bsmEintraegeLaden(z.Zugang_ID);
+          await bsmLaden();
+          loadAuftraege();
+          bsmDialogZeichnen();
+        } catch (e) { bsmFehler(e.message); if (e.code === 'konflikt') { await bsmEintraegeLaden(z.Zugang_ID); bsmDialogZeichnen(); } }
+        finally { if (knopf) knopf.disabled = false; }
       }
       const bsmStandVon = (zugangId, ids) => ids.map(id => ({ id, stand: (bsmZ.eintraege[zugangId] ?? []).find(e => e.id === id)?.stand ?? '' }));
       async function bsmPruefAktion(z, aktion, ids, knopf) {
@@ -17312,10 +17391,13 @@
         const filter = bsmZ.filter[z.Zugang_ID] ?? '';
         if (b.matches('[data-bsm-wahl]')) { if (b.checked) k.wahl.add(b.dataset.bsmWahl); else k.wahl.delete(b.dataset.bsmWahl); bsmDialogZeichnen(); return; }
         if (b.matches('[data-bsm-alle]')) { (bsmZ.eintraege[z.Zugang_ID] ?? []).filter(x => (!filter || x.termin === filter) && bsmOffen(x)).forEach(x => k.wahl.add(x.id)); bsmDialogZeichnen(); return; }
-        if (b.matches('[data-bsm-e-pruefen]')) { bsmPruefAktion(z, 'geprueft', [b.dataset.bsmEPruefen], b); return; }
-        if (b.matches('[data-bsm-e-zurueck]')) { bsmPruefAktion(z, 'zurueck', [b.dataset.bsmEZurueck], b); return; }
+        if (b.matches('[data-bsm-e-uebernehmen]')) { bsmSchnellUebernehmen(z, [b.dataset.bsmEUebernehmen], b); return; }   // KS8
+        if (b.matches('[data-bsm-alle-uebernehmen]')) {
+          bsmSchnellUebernehmen(z, (bsmZ.eintraege[z.Zugang_ID] ?? []).filter(x => x.termin === filter && bsmOffen(x)).map(x => x.id), b, { frage: true });
+          return;
+        }
+        if (b.matches('[data-bsm-alle-zeigen]')) { k.alleZeigen = !k.alleZeigen; bsmDialogZeichnen(); return; }
         const offeneWahl = () => [...k.wahl].filter(id => bsmOffen((bsmZ.eintraege[z.Zugang_ID] ?? []).find(x => x.id === id) ?? {}));   // KS4
-        if (b.matches('[data-bsm-s-pruefen]')) { bsmPruefAktion(z, 'geprueft', offeneWahl(), b); return; }
         if (b.matches('[data-bsm-s-ablehnen]')) { bsmPruefAktion(z, 'ablehnen', offeneWahl(), b); return; }
         // ── KS4: fertig (KS4-1, vorher "gedruckt"), geliefert, verschieben ──
         if (b.matches('[data-bsm-fertig]')) {
@@ -17453,6 +17535,11 @@
         if (sel) { bsmDialogZeichnen(); document.querySelector(`[data-bsm-u-quelle="${CSS.escape(sel.dataset.bsmUQuelle)}"]`)?.focus(); }   // KS3-1
       });
       bsmEl('bsm-dialog').addEventListener('input', e => { const panel = e.target.closest('[data-bsm-uebernahme]'); if (panel) bsmUebernahmeFormMerken(panel); });
+      bsmEl('bsm-dialog').addEventListener('change', e => {   // KS8: Herkunft je Eintrag merken (bis zum Übernehmen)
+        const sel = e.target.closest('[data-bsm-h]'); if (!sel) return;
+        const box = sel.closest('[data-bsm-zugang]'); if (!box) return;
+        bsmK3(box.dataset.bsmZugang).herkunft[sel.dataset.bsmH] = sel.value;
+      });
       // KS6: Auswahl-Formular - Eingaben im Zustand halten (Neuzeichnen verliert nichts), Modellsuche nur die Trefferliste neu zeichnen
       bsmEl('bsm-dialog').addEventListener('input', e => {
         const box = e.target.closest('[data-bsm-zugang]'); if (!box) return;
@@ -17486,11 +17573,12 @@
         if (feld) { feld.hidden = sel.value !== '__neu'; if (!feld.hidden) feld.querySelector('input')?.focus(); }
       });
       bsmEl('bsm-dialog').addEventListener('keydown', e => { if (e.key === 'Escape') bsmDialogSchliessen(); });
-      bsmEl('bsm-dialog').addEventListener('change', e => {   // KS2: Filter je Termin
+      bsmEl('bsm-dialog').addEventListener('change', async e => {   // KS2: Filter je Termin
         const sel = e.target.closest('[data-bsm-filter]'); if (!sel) return;
         const id = sel.closest('[data-bsm-zugang]')?.dataset.bsmZugang; if (!id) return;
         bsmZ.filter[id] = sel.value;
         if (bsmZ.k3[id]) Object.assign(bsmZ.k3[id], { uebernahme: null, packliste: '', wahl: new Set(), bearbeite: '', verschieben: null });   // KS3, KS4
+        await bsmVorschlagLaden(id);   // KS8
         bsmDialogZeichnen();
       });
       bsmEl('bsm-liste').addEventListener('click', e => {

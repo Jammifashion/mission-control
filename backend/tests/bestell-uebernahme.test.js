@@ -371,8 +371,13 @@ describe('Oberflaeche', () => {
     const z = { Zugang_ID: 'BS-001', termine: [{ Termin_ID: 'BT-0001', Datum: '2026-11-22' }] };
     const h = F.bsmPruefHtml(z, [E({ id: 'BE-1', status: 'eingegangen', art: 'trikot', wunsch: 'Goalie bitte' }), E({ id: 'BE-2', status: 'storniert', ablehnGrund: 'gibt es nicht' }), E({ id: 'BE-3', status: 'geprüft' })], 'BT-0001', { wahl: new Set(['BE-1']) }, Date.parse('2026-11-07T10:00:00Z'));
     expect(h).toContain('data-hilfe="bsm-gk"');
-    expect(h).toContain('abgelehnt: gibt es nicht');
     expect((h.match(/data-bsm-e-aendern=/g) ?? []).length).toBe(2);
+    // KS8: kein Schritt "geprüft" mehr - je offenem Eintrag Herkunft + "Übernehmen", dazu "alle neuen übernehmen"
+    expect(h).not.toContain('data-bsm-e-pruefen');
+    expect((h.match(/data-bsm-e-uebernehmen=/g) ?? []).length).toBe(2);
+    expect(h).toContain('data-bsm-alle-uebernehmen');
+    expect(h).not.toContain('gibt es nicht');   // abgelehnt ist nicht offen -> Standard "nur offene"
+    expect(F.bsmPruefHtml(z, [E({ id: 'BE-2', status: 'storniert', ablehnGrund: 'gibt es nicht' })], 'BT-0001', { alleZeigen: true })).toContain('abgelehnt: gibt es nicht');
     expect(h).toContain('data-bsm-uebernehmen');
     expect(h).toContain('data-bsm-packliste');
     expect(h).not.toMatch(/ title=/);
@@ -382,7 +387,7 @@ describe('Oberflaeche', () => {
     expect(F.bsmGk({ art: 'trikot', wunsch: 'Goalgetter' })).toBe(false);   // "goal" nur als eigenes Wort (wie TR8)
   });
   test('Mouse-over für alle neuen Knöpfe, Kanal Bestellseite in der Auswahl, Dashboard-Kachel', () => {
-    for (const k of ['bsm-e-pruefen', 'bsm-e-aendern', 'bsm-e-ablehnen', 'bsm-s-ablehnen', 'bsm-uebernehmen', 'bsm-packliste', 'bsm-u-los', 'bsm-u-quelle', 'au-verweis', 'au-bs-eintrag', 'dash-k-bestellseiten'])
+    for (const k of ['bsm-e-uebernehmen', 'bsm-e-herkunft', 'bsm-alle-uebernehmen', 'bsm-e-aendern', 'bsm-e-ablehnen', 'bsm-s-ablehnen', 'bsm-uebernehmen', 'bsm-packliste', 'bsm-u-los', 'bsm-u-quelle', 'au-verweis', 'au-bs-eintrag', 'dash-k-bestellseiten'])
       expect(html).toMatch(new RegExp(`'${k}':\\s*\\{ name:`));
     expect(html).toContain('<option>Bestellseite</option>');
     expect(html).toMatch(/fehlt\(bs, 'bestellseiten'/);
