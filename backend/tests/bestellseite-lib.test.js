@@ -108,25 +108,29 @@ describe('Anlegen, neuer Link, sperren', () => {
 });
 
 describe('Artikelliste aktualisieren (Bilder)', () => {
-  test('nur veroeffentlichte Artikel der Dauer-Sortimente, nacheinander mit Takt, _fields, ein Schreibvorgang', async () => {
+  test('KS8: alle Artikel der Dauer-Sortimente (Sheet-Status egal), Takt, _fields, ein Schreibvorgang, Status Shop aufgeraeumt', async () => {
     const t = tabs();
     const { sheets } = machSheets(t);
     await legeZugangAn({ eingabe: { art: 'dauer', kundenNr: 'K-00063', sortiment: '549', vorgang: 'vorgang-0005' }, sheets, jetzt: JETZT, kundenLesen: kunden, zufall });
+    // Shop: 11 veroeffentlicht, 12 im Sheet "Entwurf", im Shop aber veroeffentlicht (Befund BS-001)
     const get = jest.fn(async (pfad, q) => {
-      if (pfad === 'products') return { data: [{ id: 11, status: 'publish', images: [{ src: 'https://shop.example/p11.jpg' }], price: '49.95' }] };
+      if (pfad === 'products') return { data: [{ id: 11, status: 'publish', images: [{ src: 'https://shop.example/p11.jpg' }], price: '49.95' }, { id: 12, status: 'publish', images: [] }] };
+      if (pfad === 'products/12/variations') return { data: [{ id: 201, image: {} }] };
       return { data: [{ id: 101, image: { src: 'https://shop.example/v101.jpg' } }, { id: 102, image: { src: 'http://unsicher.example/x.jpg' } }] };
     });
     const r = await aktualisiereBilder({ sheets, wc: { get }, jetzt: JETZT, takt: 0 });
-    expect(r).toMatchObject({ ok: true, produkte: 1, zeilen: 3, mitBild: 2, abrufe: 2 });
-    expect(get.mock.calls.map(c => c[0])).toEqual(['products', 'products/11/variations']);
-    expect(get.mock.calls[0][1]).toMatchObject({ include: '11', _fields: 'id,status,images,categories' });   // KS2: Kategorien
+    expect(r).toMatchObject({ ok: true, produkte: 2, zeilen: 5, mitBild: 2, abrufe: 3, statusKorrigiert: 1 });
+    expect(get.mock.calls.map(c => c[0])).toEqual(['products', 'products/11/variations', 'products/12/variations']);
+    expect(get.mock.calls[0][1]).toMatchObject({ include: '11,12', _fields: 'id,status,images,categories' });   // KS2: Kategorien
     expect(get.mock.calls[1][1]).toMatchObject({ _fields: 'id,image' });
-    expect(t.Bestell_Bilder.slice(1).map(z => z.slice(0, 4))).toEqual([
-      ['11', 'produkt', 'https://shop.example/p11.jpg', 'publish'], ['101', 'variante', 'https://shop.example/v101.jpg', ''], ['102', 'variante', '', '']]);
+    expect(t.Bestell_Bilder.slice(1, 4).map(z => z.slice(0, 4))).toEqual([
+      ['11', 'produkt', 'https://shop.example/p11.jpg', 'publish'], ['12', 'produkt', '', 'publish'], ['101', 'variante', 'https://shop.example/v101.jpg', '']]);
+    expect(t.Erfassungsmaske[2][1]).toBe('Veröffentlicht');   // KS8: nur diese Zelle nachgezogen
+    expect(t.Erfassungsmaske[1][1]).toBe('Veröffentlicht');
     expect(JSON.stringify(t.Bestell_Bilder)).not.toContain('49.95');
     _bestellseiteCacheLeeren();
     const z = (await leseZugaenge({ sheets, jetzt: JETZT }));
-    expect(z.bilderAnzahl).toBe(3);
+    expect(z.bilderAnzahl).toBe(5);
   });
 });
 

@@ -763,6 +763,9 @@
       .lshop-offen-header { font-size: 0.82rem; font-weight: 600; color: var(--muted); margin-bottom: 0.75rem; letter-spacing: 0.03em; display: flex; align-items: center; justify-content: space-between; }
       .bulk-all-label { font-size: 0.78rem; font-weight: 400; display: flex; align-items: center; gap: 0.3rem; cursor: pointer; letter-spacing: 0; }
       .card-cb-wrap { display: flex; align-items: flex-start; padding-top: 0.18rem; }
+      .bsm-sortiment-wahl > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--info); }   /* KS8 */
+      .bsm-sortiment-liste { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.25rem 1rem; padding: 0.4rem 0; }
+      .bsm-sortiment-kat { display: flex; align-items: center; gap: 0.4rem; min-height: 44px; font-size: 0.85rem; color: var(--text); }
       .zw-haken { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 44px; font-size: 0.85rem; color: var(--text); cursor: pointer; }   /* ZW1 */
       .zw-haken[hidden] { display: none; }
       .pf-schon { margin-top: 0.3rem; font-size: 0.82rem; color: var(--warning); }   /* ZW2 Teil D */
@@ -9066,6 +9069,7 @@
         'bsm-ew-vorschau':      { name: 'Vorschau', text: 'Zeigt die Entwürfe so, wie der Kunde sie sieht (Titel = Dateiname). Neue Bilder erscheinen nach spätestens 1 Minute.' },
         'bsm-ew-weg':           { name: 'Ordner entfernen', text: 'Die Seite zeigt keine Entwürfe mehr. Der Ordner und die Bilder in Drive bleiben.' },
         'bsm-ew-bild':          { name: 'Entwurf', text: 'So sieht der Kunde die Kachel. Titel = Dateiname ohne Endung.' },
+        'bsm-sortiment-aendern': { name: 'Sortiment ändern', text: 'Welche Shop-Kategorien (mit Unterkategorien) die Kunden sehen. Speichern, dann „Artikelliste aktualisieren“.' },
         'bsm-sortiment':        { name: 'Sortiment', text: 'Shop-Kategorie mit allen Unterkategorien. Gezeigt werden nur veröffentlichte Artikel.' },
         'bsm-partner':          { name: 'Gehört zu Partner', text: 'Nur ein Merkmal (z. B. FP-001). Die Partner-Abrechnung liest die Bestellseite nie.' },
         'bsm-bilder':           { name: 'Artikelliste aktualisieren', text: 'Nach Bildänderungen im Shop hier klicken; die Seite zeigt sie danach sofort. Läuft in kleinen Stücken, Fenster offen lassen.' },
@@ -9166,7 +9170,7 @@
           'bsm-e-wahl', 'bsm-e-status', 'bsm-gk', 'bsm-e-auftrag', 'bsm-e-pruefen', 'bsm-e-zurueck', 'bsm-e-aendern', 'bsm-e-ablehnen', 'bsm-e-feld', 'bsm-e-speichern',
           'bsm-alle', 'bsm-s-pruefen', 'bsm-s-grund', 'bsm-s-ablehnen', 'bsm-uebernehmen', 'bsm-packliste', 'bsm-pl-drucken', 'bsm-u-ziel', 'bsm-u-wahl', 'bsm-u-quelle',
           'bsm-u-probe', 'bsm-u-los', 'bsm-k-offen', 'bsm-k-bestellt', 'bsm-k-geliefert', 'bsm-k-lager', 'bsm-k-verknuepft', 'bsm-speichern', 'bsm-neuer-link', 'bsm-sperren', 'bsm-entsperren',
-          'bsm-ablauf', 'bsm-hinweis', 'bsm-design', 'bsm-sortiment', 'bsm-partner', 'bsm-bilder', 'bsm-bilder-stand',
+          'bsm-ablauf', 'bsm-hinweis', 'bsm-design', 'bsm-sortiment', 'bsm-sortiment-aendern', 'bsm-partner', 'bsm-bilder', 'bsm-bilder-stand',
           'bsm-eintraege', 'bsm-termin-filter', 'bsm-neu', 'bsm-spaet',
           'bsm-fortschritt', 'bsm-fertig', 'bsm-s-fertig', 'bsm-da', 'bsm-s-da', 'bsm-we', 'bsm-geliefert', 'bsm-geliefert-zurueck', 'bsm-warn', 'bsm-verschieben', 'bsm-v-ziel', 'bsm-v-grund', 'bsm-v-los',
           'bsm-titel', 'bsm-bis', 'bsm-pers', 'bsm-abschl', 'bsm-abgeschlossen', 'bsm-wieder', 'bsm-auswahl', 'bsm-aw-suche', 'bsm-aw-modell', 'bsm-aw-farbe',
@@ -16667,10 +16671,25 @@
         return `Artikelliste wird schon aktualisiert (seit ${bsmUhrzeit(lauf.seit)}${lauf.von ? `, Stück ${lauf.stueck} von ${lauf.von}` : ''}) – bitte warten.`;
       }
       /** KS2-1: Rueckmeldung nach "Artikelliste aktualisieren" (nur Anzahlen). */
+      // KS8: Sortiment einer Dauer-Bestellseite aendern (Kategorien, mehrere; Inhaber 27.11.: nur Kategorien, keine Einzelartikel)
+      function bsmSortimentText(sortiment) {
+        const je = new Map((bsmZ.kategorien ?? []).map(k => [String(k.nr), String(k.pfad).split(' > ').pop()]));
+        return String(sortiment ?? '').split(',').map(x => x.trim()).filter(Boolean).map(nr => je.get(nr) || `Nr. ${nr}`).join(', ') || '–';
+      }
+      function bsmSortimentWahlHtml(z) {
+        const kats = (bsmZ.kategorien ?? []).filter(k => !String(k.pfad).includes(' > '));
+        if (!kats.length) return '';
+        const drin = new Set(String(z.Sortiment ?? '').split(',').map(x => x.trim()));
+        return `<details class="bsm-sortiment-wahl"><summary data-hilfe="bsm-sortiment-aendern" tabindex="0">Sortiment ändern …</summary><div class="bsm-sortiment-liste">`
+          + kats.map(k => `<label class="card-cb-wrap bsm-sortiment-kat"><input type="checkbox" data-bsm-sortiment value="${kuEsc(k.nr)}" ${drin.has(String(k.nr)) ? 'checked' : ''}> ${kuEsc(k.pfad)}</label>`).join('')
+          + '<p class="korb-zaehler">Mit „Speichern“ übernehmen. Danach „Artikelliste aktualisieren“, damit Bilder und Status der neuen Artikel da sind.</p></div></details>';
+      }
       function bsmBilderText(r) {
         const n = v => Number(v) || 0;
         return `Artikelliste aktualisiert: ${n(r?.bilderNeu)} Bild${n(r?.bilderNeu) === 1 ? '' : 'er'} neu, ${n(r?.bilderUnveraendert)} unverändert, ${n(r?.ohneBild)} ohne Bild`
-          + ` (${n(r?.produkte)} Artikel${n(r?.trikots) ? `, ${n(r.trikots)} Trikots` : ''}). Die Bestellseite zeigt das sofort.`;
+          + ` (${n(r?.produkte)} Artikel${n(r?.trikots) ? `, ${n(r.trikots)} Trikots` : ''}). Die Bestellseite zeigt das sofort.`
+          + (n(r?.statusKorrigiert) ? ` „Status Shop“ im Sheet bei ${n(r.statusKorrigiert)} Artikel${n(r.statusKorrigiert) === 1 ? '' : 'n'} nachgezogen.` : '')   // KS8
+          + (r?.statusHinweis ? ` ${r.statusHinweis}` : '');
       }
       // KS6: Bestellseite eines Auftrags - Titel, "bestellen bis", Schalter, Auswahl ohne Mengen (getrennt von den Positionen).
       /** Felder am Zugang (Art auftrag): Titel, bestellen bis, Name/Nummer auf dem Textil, "Bestellung abschließen" erlauben. */
@@ -17004,7 +17023,8 @@
         const vorhanden = liste.map(z => `<div class="au-gruppe bsm-zugang" data-bsm-zugang="${kuEsc(z.Zugang_ID)}">`
           + `<div><strong>${kuEsc(z.Zugang_ID)}</strong> ${bsmChipHtml(z.status)} · Link gültig bis ${kuEsc(bsmDatum(z.Ablauf))}${z.Partner_ID ? ` · gehört zu ${kuEsc(z.Partner_ID)}` : ''}</div>`
           + (z.Hinweis ? `<div class="ku-meta"><span>Hinweis: ${kuEsc(z.Hinweis)}</span></div>` : '')
-          + (z.Art === 'dauer' ? `<div class="korb-zaehler">Sortiment: Kategorie ${kuEsc(z.Sortiment)} mit Unterkategorien · Bestellschluss ${kuEsc(z.Bestellschluss_Tage)} Tage, am besten ${kuEsc(z.Empfohlen_Tage)} Tage vorher</div><div class="korb-zaehler">Termine</div>${bsmTermineHtml(z)}` : '')
+          + (z.Art === 'dauer' ? `<div class="korb-zaehler">Sortiment: ${kuEsc(bsmSortimentText(z.Sortiment))} mit Unterkategorien · Bestellschluss ${kuEsc(z.Bestellschluss_Tage)} Tage, am besten ${kuEsc(z.Empfohlen_Tage)} Tage vorher</div>`
+            + bsmSortimentWahlHtml(z) + `<div class="korb-zaehler">Termine</div>${bsmTermineHtml(z)}` : '')
           + (z.Art === 'auftrag' ? `<label class="ku-mit-storniert" data-hilfe="bsm-design"><input type="checkbox" data-bsm-design ${z.Design_Link_Zeigen === 'ja' ? 'checked' : ''}> Design-Link auf der Seite zeigen</label>`
             + bsmAuftragFelderHtml(z) + bsmAuswahlHtml(z, bsmZ.aw[z.Zugang_ID]) : '')   // KS6
           + `<div class="korb-reihe"><label class="edi-feld" data-hilfe="bsm-ablauf">Gültig bis<input type="date" class="form-input" data-bsm-ablauf value="${kuEsc(z.Ablauf)}"></label>`
@@ -17169,6 +17189,12 @@
         if (b.hasAttribute('data-bsm-speichern')) {
           const felder = { ablauf: box.querySelector('[data-bsm-ablauf]').value, hinweis: box.querySelector('[data-bsm-hinweis]').value };
           const d = box.querySelector('[data-bsm-design]'); if (d) felder.designLinkZeigen = d.checked;
+          const kats = [...box.querySelectorAll('[data-bsm-sortiment]')];   // KS8: Sortiment nur mitschicken, wenn geaendert
+          if (kats.length) {
+            const neu = kats.filter(x => x.checked).map(x => x.value).join(',');
+            if (!neu) { bsmFehler('Sortiment: mindestens eine Kategorie wählen.'); return; }
+            if (neu !== String(z.Sortiment ?? '').split(',').map(x => x.trim()).filter(Boolean).join(',')) felder.sortiment = neu;
+          }
           if (z.Art === 'auftrag' && box.querySelector('[data-bsm-titel]')) Object.assign(felder, {   // KS6
             titel: box.querySelector('[data-bsm-titel]').value, bestellschluss: box.querySelector('[data-bsm-bis]').value,
             personalisierung: box.querySelector('[data-bsm-pers]').checked, abschliessen: box.querySelector('[data-bsm-abschl]').checked });

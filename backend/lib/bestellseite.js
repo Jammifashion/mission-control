@@ -24,7 +24,7 @@ import { zeilenAus, aktivePositionen } from '../utils/auftraege.js';
 import {
   TAB_ZUGAENGE, TAB_TERMINE, TAB_EINTRAEGE, TAB_BILDER, ZUGANG_SPALTEN, ZUGANG_OPTIONAL, ZUGANG_ALLE, TERMIN_SPALTEN, BILD_SPALTEN,
   BILD_OPTIONAL, EINTRAG_SPALTEN, ART, STATUS, fehler, erzeugeToken, tokenHash, findeZugang, zugangStatus, anlagePlan, bearbeitenPlan,
-  katalogDauer, katalogAuftrag, seitenAntwort, zugangFuerMc, sortimentNamen, sortimentText, trikotsDauer, zugangKontext,
+  katalogDauer, katalogAuftrag, seitenAntwort, zugangFuerMc, sortimentNamen, sortimentText, trikotsDauer, zugangKontext, statusKorrekturPlan,
   auswahlLesen, auswahlAus, abschlussPlan, abschlussNachricht, ZUGANG_KS6,
 } from '../utils/bestellseite.js';
 import { notify } from './chatNotify.js';
@@ -461,7 +461,7 @@ const warte = ms => new Promise(r => setTimeout(r, ms));
 export const STUECK_MAX = 6;
 const BILD_ARTEN = new Set(['produkt', 'variante']);
 
-/** Plan: Produkt-IDs der nicht gesperrten Dauer-Sortimente (Maske, veroeffentlicht) + Trikots; Stand des Reiters vorher. */
+/** Plan: Produkt-IDs der nicht gesperrten Dauer-Sortimente (Maske, KS8: egal welcher Sheet-Status - der Shop entscheidet) + Trikots. */
 export async function bilderPlan({ sheets: s, jetzt = () => new Date() } = {}) {
   const sheets = s ?? await sheetsClient();
   const spreadsheetId = sheetId();
@@ -471,7 +471,7 @@ export async function bilderPlan({ sheets: s, jetzt = () => new Date() } = {}) {
   const sortimente = z.zeilen.filter(x => x.Art === ART.DAUER && zugangStatus(x, jetzt().toISOString()) !== STATUS.GESPERRT).map(x => x.Sortiment);
   const [kategorien, maske] = [await leseKategorien(sheets), await leseMaske(sheets)];
   const namen = new Set(sortimente.flatMap(so => [...sortimentNamen(so, kategorien)]));
-  const ids = [...new Set(maske.filter(a => t(a.produktId) && /^\d+$/.test(t(a.produktId)) && t(a.status) === 'Veröffentlicht'
+  const ids = [...new Set(maske.filter(a => t(a.produktId) && /^\d+$/.test(t(a.produktId))
     && t(a.kategorien).split(',').map(t).some(n => namen.has(n))).map(a => t(a.produktId)))];
   // KS2: Trikots (Trikot_Artikel) stehen nicht in der Maske - ihr Hauptbild + Kategorien kommen mit (ohne Variationen)
   const trikotIds = sortimente.length ? (await leseTrikotArtikel(sheets)).map(x => t(x.produktId)).filter(x => /^\d+$/.test(x) && !ids.includes(x)) : [];
@@ -559,9 +559,37 @@ export async function bilderSchreiben({ zeilen: roh, vorherStand = '', stand, pr
       const { data: zur } = await sheets.spreadsheets.values.get({ spreadsheetId, range, valueRenderOption: 'UNFORMATTED_VALUE' });
       if (zeilenAbweichungen(werte, zur.values ?? []).length) throw fehler('Bilder: Rücklesen weicht ab – bitte prüfen.', 500, 'ruecklesen');
     }
-    console.log(`Bestellseite Bilder: ${ergebnis.produkte} Produkte, ${ergebnis.zeilen} Zeilen geschrieben.`);
-    return { ok: true, ...ergebnis, stand: standNeu };
+    // KS8: veraltete "Status Shop" der Erfassungsmaske gleich mit aufraeumen (nur diese Zellen, RAW, zurueckgelesen).
+    let statusKorrigiert = 0, statusHinweis = '';
+    try { statusKorrigiert = await statusShopAufraeumen(sheets, spreadsheetId, zeilen5); }
+    catch (e) { statusHinweis = `Status Shop im Sheet nicht aufgeräumt (${e.message}).`; }
+    console.log(`Bestellseite Bilder: ${ergebnis.produkte} Produkte, ${ergebnis.zeilen} Zeilen geschrieben, Status Shop ${statusKorrigiert} korrigiert.`);
+    return { ok: true, ...ergebnis, statusKorrigiert, ...(statusHinweis ? { statusHinweis } : {}), stand: standNeu };
   });
+}
+
+/** KS8: Spalte "Status Shop" der Erfassungsmaske an den gelesenen Shop-Status angleichen. -> Anzahl geaenderter Zellen */
+async function statusShopAufraeumen(sheets, spreadsheetId, zeilen5) {
+  const shopStatus = new Map(zeilen5.filter(r => r[1] === 'produkt' && r[3]).map(r => [r[0], r[3]]));
+  if (!shopStatus.size) return 0;
+  const { data } = await sheets.spreadsheets.values.get({ spreadsheetId, range: "'Erfassungsmaske'!1:3000", valueRenderOption: 'UNFORMATTED_VALUE' });
+  const [kopf = [], ...rows] = data.values ?? [];
+  const iP = kopf.map(t).indexOf('Produkt-ID'), iS = kopf.map(t).indexOf('Status Shop');
+  if (iP < 0 || iS < 0) return 0;
+  const maske = rows.map((r, i) => ({ zeile: i + 2, produktId: r[iP], status: r[iS] }));
+  const plan = statusKorrekturPlan(maske, shopStatus);
+  if (!plan.length) return 0;
+  const sp = spalteBuchstabe(iS);
+  const daten = plan.map(p => ({ range: `'Erfassungsmaske'!${sp}${p.zeile}`, values: [[p.neu]] }));
+  // vorher je Zelle frisch pruefen: steht noch der gelesene alte Wert? Sonst diese Zelle auslassen.
+  const { data: vor } = await sheets.spreadsheets.values.batchGet({ spreadsheetId, ranges: daten.map(d => d.range), valueRenderOption: 'UNFORMATTED_VALUE' });
+  const frei = daten.filter((d, i) => t(vor.valueRanges?.[i]?.values?.[0]?.[0]) === plan[i].alt);
+  if (!frei.length) return 0;
+  await sheets.spreadsheets.values.batchUpdate({ spreadsheetId, requestBody: { valueInputOption: 'RAW', data: frei } });
+  const { data: nach } = await sheets.spreadsheets.values.batchGet({ spreadsheetId, ranges: frei.map(d => d.range), valueRenderOption: 'UNFORMATTED_VALUE' });
+  const falsch = frei.filter((d, i) => t(nach.valueRanges?.[i]?.values?.[0]?.[0]) !== d.values[0][0]).length;
+  if (falsch) throw new Error(`${falsch} Zelle(n) anders zurückgelesen`);
+  return frei.length;
 }
 
 /** Alles in einem Zug (Tests, Trockenlauf von Hand): Plan -> alle Stuecke -> Schreiben. MC nutzt die drei Schritte einzeln. */

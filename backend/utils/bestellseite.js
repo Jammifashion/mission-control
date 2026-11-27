@@ -430,6 +430,36 @@ export function sortimentNamen(sortiment, kategorien) {
   return namen;
 }
 
+/**
+ * KS8 (Befund BS-001: 8 Artikel im Shop veroeffentlicht, im Sheet noch "Entwurf"): Shop-Status aus Bestell_Bilder (vom Knopf
+ * "Artikelliste aktualisieren") geht vor; die Sheet-Spalte "Status Shop" zaehlt nur, wenn es dort keinen Stand gibt.
+ */
+export function istVeroeffentlicht(a, bilder = new Map()) {
+  const shop = t(bilder.get(t(a?.produktId))?.status);
+  return shop ? shop === 'publish' : t(a?.status) === 'Veröffentlicht';
+}
+
+/** WooCommerce-Status -> Text der Spalte "Status Shop" (Spiegel wcStatusLabel in index.html). */
+export const statusShopText = s => (s === 'publish' ? 'Veröffentlicht' : s === 'draft' ? 'Entwurf' : t(s));
+
+/**
+ * KS8 (Inhaber 27.11.: "Sheet nachholen, aufraeumen"): Zellen "Status Shop" der Erfassungsmaske, die vom gelesenen Shop-Status
+ * abweichen. -> [{ zeile, alt, neu, produktId }] (zeile = Sheet-Zeile). Nur Produkte mit genau EINER Maskenzeile.
+ */
+export function statusKorrekturPlan(maske, shopStatus) {
+  const zaehle = new Map();
+  for (const m of maske ?? []) zaehle.set(t(m.produktId), (zaehle.get(t(m.produktId)) ?? 0) + 1);
+  const aus = [];
+  for (const m of maske ?? []) {
+    const id = t(m.produktId);
+    const s = shopStatus.get(id);
+    if (!id || !s || zaehle.get(id) !== 1) continue;
+    const neu = statusShopText(s);
+    if (neu && neu !== t(m.status)) aus.push({ zeile: m.zeile, alt: t(m.status), neu, produktId: id });
+  }
+  return aus;
+}
+
 const ACHSE_FARBE = /^farbe$/i;
 const istGroesse = e => /^gr(ö|oe|o)(ß|ss)e$/i.test(t(e));
 
@@ -465,9 +495,8 @@ export function katalogDauer({ sortiment, kategorien, maske, varianten, lieferba
   // KS2: Filter nach Unterkategorie = Sortiment-Namen ohne die Wurzel(n) selbst
   const ids = new Set(t(sortiment).split(',').map(t).filter(Boolean));
   const wurzelNamen = new Set((kategorien ?? []).filter(k => ids.has(t(k.nr))).map(k => t(k.name)));
-  const artikel = (maske ?? []).filter(a => t(a.status) === 'Veröffentlicht' && t(a.produktId)
-    && t(a.kategorien).split(',').map(t).some(n => namen.has(n))
-    && (!bilder.get(t(a.produktId))?.status || bilder.get(t(a.produktId)).status === 'publish'));
+  const artikel = (maske ?? []).filter(a => t(a.produktId) && istVeroeffentlicht(a, bilder)
+    && t(a.kategorien).split(',').map(t).some(n => namen.has(n)));
   const karten = [];
   for (const a of artikel) {
     const vs = (varianten ?? []).filter(v => t(v.ssotId) === t(a.id) && istJa(v.aktiv) && /^\d+$/.test(t(v.wcId)));
