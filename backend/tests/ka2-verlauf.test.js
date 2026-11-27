@@ -107,7 +107,7 @@ describe('Teil B: Verlauf', () => {
     expect(lies('../lib/anfrageVerlauf.js')).not.toMatch(/console\./);
   });
   test('Chat-Seite: freigegebener Satz woertlich', () => {
-    expect(lies('../../frontend/anfrage.html')).toContain('Wenn Sie Ihre Anfrage absenden, speichern wir den Gesprächsverlauf zusammen mit der Anfrage, damit wir sie bearbeiten und die Qualität unserer Beratung prüfen können. Er wird spätestens 12 Monate nach der Anfrage gelöscht.');
+    expect(lies('../../frontend/anfrage.html')).toContain('Wenn du deine Anfrage absendest, speichern wir den Gesprächsverlauf zusammen mit der Anfrage, damit wir sie bearbeiten und die Qualität unserer Beratung prüfen können. Er wird spätestens 12 Monate nach der Anfrage gelöscht.');
   });
   test('MC: Verlauf im Dialog erst beim Aufklappen, Hinweis ohne Verlauf', () => {
     const html = lies('../../frontend/index.html');
