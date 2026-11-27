@@ -12,7 +12,7 @@ const t = v => String(v ?? '').replace(/\s+/g, ' ').trim();
 export const SPALTEN_EXTERN = { articleNr: 'ArticleNr' };
 export const OPTIONAL_EXTERN = {
   catalogNr: 'CatalogNr', material: 'Consistence', gewicht: 'Weight', masse: 'Masse', volumen: 'Volumen',
-  eigenschaften: 'Eigenschaften_Shop', lieferzeitId: 'Lieferzeit_ID',
+  eigenschaften: 'Eigenschaften_Shop', lieferzeitId: 'Lieferzeit_ID', name: 'Description',
 };
 /** Spalten, die der SEO-Weg bewusst NICHT liest (Test). */
 export const NIE_LESEN = ['Nur_intern', 'Lieferant'];
@@ -77,4 +77,42 @@ export function eigenschaftenMitExtern(eigenschaften, extern) {
   const labels = new Set(frei.split('\n').map(l => schluessel(l.split(/[:\t]/)[0])).filter(Boolean));
   const neu = extern.zeilen.filter(l => !l.includes(':') || !labels.has(schluessel(l.split(':')[0])));
   return [...neu, frei].filter(x => x.trim()).join('\n');
+}
+
+// ── ZW2 Teil D: Trefferliste in der Maske und "als Fremdware anlegen" ─────────────────────────────────────────────────────
+export const EXTERN_TREFFER_MAX = 20;
+
+/** Suche in SKU_Extern: ab 2 Zeichen, ArticleNr/CatalogNr/Name enthaelt das Wort. -> [{ nr, catalogNr, name }] (nie Nur_intern/Lieferant) */
+export function sucheExtern(zeilen, q) {
+  const k = schluessel(q);
+  if (k.length < 2) return { treffer: [], mehr: false };
+  const liste = (Array.isArray(zeilen) ? zeilen : []).filter(z => [z.articleNr, z.catalogNr, z.name].some(x => schluessel(x).includes(k)));
+  liste.sort((a, b) => (schluessel(b.articleNr) === k) - (schluessel(a.articleNr) === k) || t(a.articleNr).localeCompare(t(b.articleNr)));
+  return {
+    treffer: liste.slice(0, EXTERN_TREFFER_MAX).map(z => ({ nr: t(z.articleNr), catalogNr: t(z.catalogNr), name: sauber(z.name, 120) })),
+    mehr: liste.length > EXTERN_TREFFER_MAX,
+  };
+}
+
+/** Spalten, die "als Fremdware anlegen" schreibt (Inhaber 27.11., Antwort 4a: Rest von Hand im Sheet). */
+export const EXTERN_NEU_SPALTEN = { articleNr: 'ArticleNr', name: 'Description', material: 'Consistence', lieferzeitId: 'Lieferzeit_ID' };
+
+/**
+ * Eingabe pruefen. -> { fehler } | { werte: { ArticleNr, Description, Consistence, Lieferzeit_ID } }
+ * ArticleNr 2-40 Zeichen ohne Leerzeichen und ohne "/" (sonst kollidiert sie mit der Artikelnummer <Modell>/<Kuerzel>).
+ */
+export function externNeuPruefen(eingabe, { zeilen = [], lshopModelle = new Set(), lieferzeiten = null } = {}) {
+  const nr = t(eingabe?.articleNr);
+  const name = sauber(eingabe?.name, 120);
+  const material = sauber(eingabe?.material, 200);
+  const lz = t(eingabe?.lieferzeitId);
+  if (!/^[^\s/]{2,40}$/.test(nr)) return { fehler: 'Artikelnummer: 2–40 Zeichen, ohne Leerzeichen und ohne „/“.' };
+  if (name.length < 2) return { fehler: 'Name fehlt.' };
+  if (lz && !/^\d+$/.test(lz)) return { fehler: 'Lieferzeit ungültig.' };
+  if (lz && lieferzeiten && !lieferzeiten.has(lz)) return { fehler: `Lieferzeit ${lz} gibt es nicht.` };
+  const k = schluessel(nr);
+  if ((Array.isArray(zeilen) ? zeilen : []).some(z => schluessel(z.articleNr) === k || schluessel(z.catalogNr) === k))
+    return { fehler: `${nr} steht schon in SKU_Extern.`, code: 'schon_da' };
+  if (lshopModelle.has(k)) return { fehler: `${nr} ist ein L-Shop-Modell – keine Fremdware.`, code: 'lshop' };
+  return { werte: { ArticleNr: nr, Description: name, Consistence: material, Lieferzeit_ID: lz } };
 }

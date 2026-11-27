@@ -765,6 +765,10 @@
       .card-cb-wrap { display: flex; align-items: flex-start; padding-top: 0.18rem; }
       .zw-haken { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 44px; font-size: 0.85rem; color: var(--text); cursor: pointer; }   /* ZW1 */
       .zw-haken[hidden] { display: none; }
+      .pf-schon { margin-top: 0.3rem; font-size: 0.82rem; color: var(--warning); }   /* ZW2 Teil D */
+      .pf-schon[hidden] { display: none; }
+      .pf-schon a { color: var(--info); }
+      #ex-dialog label { display: block; margin-top: 0.5rem; font-size: 0.85rem; }
       .se-texte-zeile { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.75rem; }   /* ZW2 Teil B */
       .seo-paar-titel { font-weight: 600; color: var(--text); margin: 0.6rem 0 0.4rem; }   /* ZW2 */
       .seo-paar-titel[hidden], .seo-jfn-block[hidden] { display: none; }
@@ -2928,6 +2932,28 @@
         </div>
 
         <!-- BO5-4: Lagerort waehlen (Wrist vorgewaehlt) - fuer "bei Ankunft ins Lager" und "falsches Trikot ins Lager". -->
+        <!-- ZW2 Teil D: Fremdware in SKU_Extern aufnehmen (Inhaber 27.11.: ArticleNr, Name, Material, Lieferzeit - Rest im Sheet) -->
+        <div id="ex-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="ex-titel" hidden>
+          <div class="edi-box lo-box">
+            <div class="edi-kopf"><strong id="ex-titel">Als Fremdware anlegen</strong><button class="hilfe-i" type="button" data-hilfe-gruppe="fremdware" aria-controls="hilfe-ex-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button></div>
+            <div id="hilfe-ex-dialog" class="hilfe-legende" hidden></div>
+            <div class="korb-zaehler">Neue Zeile in SKU_Extern. Weitere Angaben (Lieferant, Gewicht, Maße …) bitte im Sheet ergänzen.</div>
+            <label for="ex-nr" data-hilfe="ex-nr" tabindex="0">Artikelnummer</label>
+            <input id="ex-nr" type="text" class="form-input" maxlength="40" autocomplete="off" placeholder="z. B. TASSE-LENA" />
+            <label for="ex-name" data-hilfe="ex-name" tabindex="0">Name</label>
+            <input id="ex-name" type="text" class="form-input" maxlength="120" autocomplete="off" placeholder="z. B. Keramiktasse weiß 330 ml" />
+            <label for="ex-material" data-hilfe="ex-material" tabindex="0">Material</label>
+            <input id="ex-material" type="text" class="form-input" maxlength="200" autocomplete="off" placeholder="z. B. Keramik" />
+            <label for="ex-lieferzeit" data-hilfe="ex-lieferzeit" tabindex="0">Lieferzeit</label>
+            <select id="ex-lieferzeit" class="form-select"></select>
+            <div id="ex-fehler" class="field-note seo-msg-rot" role="alert"></div>
+            <div class="korb-reihe">
+              <button type="button" class="btn-lshop-bestellen" id="ex-ok" data-hilfe="ex-anlegen">Anlegen</button>
+              <button type="button" class="korb-link" id="ex-abbrechen" data-hilfe="dialog-abbrechen">Abbrechen</button>
+            </div>
+          </div>
+        </div>
+
         <div id="lo-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="lo-titel" hidden>
           <div class="edi-box lo-box">
             <div class="edi-kopf"><strong id="lo-titel">Lagerort</strong><button class="hilfe-i" type="button" data-hilfe-gruppe="dialog" aria-controls="hilfe-lo-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
@@ -3528,14 +3554,16 @@
               <input type="text" class="form-input" value="Variabel" readonly />
             </div>
             <div class="form-field">
-              <label>L-Shop Artikelnummer</label>
-              <input id="pf-lshop-nr" type="text" class="form-input" placeholder="z. B. HS-001" />
+              <label for="pf-lshop-nr" data-hilfe="pf-lshop-suche" tabindex="0">L-Shop Artikelnummer</label>
+              <input id="pf-lshop-nr" type="text" class="form-input" placeholder="Nummer oder Name, z. B. E3000 oder Tasse" autocomplete="off" aria-label="L-Shop Artikelnummer" />
+              <div id="pf-lshop-treffer" class="tw-box" hidden></div>
               <div id="pf-lshop-hint" class="field-note" style="margin-top:0.25rem;"></div>
             </div>
             <div class="form-field">
               <label>Artikelkurzbezeichnung <span class="field-note">(Pflicht: 3–20 Zeichen, nur A–Z a–z 0–9 und -)</span></label>
               <input id="pf-short-name" type="text" class="form-input" placeholder="z. B. UglySw01" />
               <div id="pf-short-name-hint" style="font-size:0.78rem;margin-top:0.25rem;"></div>
+              <div id="pf-schon-angelegt" class="pf-schon" data-hilfe="pf-schon-angelegt" hidden></div>
               <div id="pf-short-name-vorschlag" class="field-note" style="margin-top:0.2rem;" data-hilfe="kurz-vorschlag" tabindex="0"></div>
               <div id="pf-short-name-kuerzel" class="field-note pf-kuerzel-hinweis" style="margin-top:0.2rem;" data-hilfe="kurz-kuerzel-hinweis" tabindex="0" hidden></div>
             </div>
@@ -8371,6 +8399,13 @@
         'modus-seo-aendern':     { name: 'SEO-Daten ändern', text: 'Yoast eines bestehenden Artikels ändern; Texte über „Texte bearbeiten …“.' },
         'modus-lshop-modelle':   { name: 'L-Shop-Modelle', text: 'Neue L-Shop-Modelle als Liste prüfen und aufnehmen.' },
         'se-suchen':             { name: 'Suchen', text: 'Sucht den Artikel im Shop. Es wird nur gelesen.' },
+        'pf-lshop-suche':        { name: 'L-Shop Artikelnummer', text: 'Nummer oder Name tippen: Treffer aus L-Shop-Modellen und Fremdware. Pfeiltasten + Enter wählen.' },
+        'pf-schon-angelegt':     { name: 'Schon angelegt', text: 'Es gibt schon einen Artikel mit dieser Artikelnummer (Modell + Kürzel). Doppelt anlegen vermeiden.' },
+        'ex-nr':                 { name: 'Artikelnummer', text: 'Eigene Nummer der Fremdware, ohne Leerzeichen und ohne „/“. Kommt in die Artikelnummer.' },
+        'ex-name':               { name: 'Name', text: 'Wie die Ware heißt, z. B. „Keramiktasse weiß 330 ml“.' },
+        'ex-material':           { name: 'Material', text: 'Material für den Shoptext, z. B. Keramik. Bei Textil mit Prozent.' },
+        'ex-lieferzeit':         { name: 'Lieferzeit', text: 'Lieferzeit, die die Maske bei dieser Ware vorschlägt.' },
+        'ex-anlegen':            { name: 'Anlegen', text: 'Schreibt die neue Zeile in SKU_Extern und setzt die Nummer in die Maske.' },
         'se-status-wahl':        { name: 'Status', text: 'Welche Artikel die Suche findet: alle, nur veröffentlichte, Entwürfe oder private.' },
         'se-texte':              { name: 'Texte bearbeiten / neu generieren', text: 'Öffnet den Artikel unter „SEO-Daten“: Texte ansehen, ändern, neu erzeugen – mit Zwilling auch die JFN-Kurzfassung.' },
         'se-neu-bauen':          { name: 'Titel und Meta neu bauen', text: 'Baut Titel und Meta-Beschreibung neu aus den Artikeldaten. Gespeichert wird noch nichts.' },
@@ -9098,7 +9133,8 @@
           'dtf-zu-alle-groessen', 'dtf-zu-alle-farben', 'dtf-zu-keine', 'dtf-zu-geschw', 'dtf-zu-geschw-datei', 'dtf-zu-geschw-mass', 'dtf-zu-geschw-breite', 'dtf-zu-gilt-alle', 'dtf-zu-mass-alle',
           'dialog-speichern', 'dialog-abbrechen', 'dialog-schliessen'],   // DT1
         'dtf-bestellung': ['dtf-abholung', 'dtf-dhl', 'dtf-ersetzt', 'dtf-notiz', 'dtf-xml', 'dtf-absenden', 'dtf-nachricht', 'dialog-abbrechen', 'dialog-schliessen'],   // DT1
-        'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-status-wahl', 'se-texte', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-kurzfassung', 'seo-material', 'seo-material-einsetzen', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'bildref-eigenschaft', 'bildref-plus', 'bildref-eigenschaft-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'zwilling-haken', 'zwilling-link', 'zwilling-nachholen', 'zwilling-pruefen', 'wc-aendern'],
+        'fremdware': ['ex-nr', 'ex-name', 'ex-material', 'ex-lieferzeit', 'ex-anlegen', 'dialog-abbrechen'],
+        'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-status-wahl', 'se-texte', 'pf-lshop-suche', 'pf-schon-angelegt', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-kurzfassung', 'seo-material', 'seo-material-einsetzen', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'bildref-eigenschaft', 'bildref-plus', 'bildref-eigenschaft-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'zwilling-haken', 'zwilling-link', 'zwilling-nachholen', 'zwilling-pruefen', 'wc-aendern'],
         'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
         'partner': ['fp-artikel-pruefen', 'fp-ohne-festpreis', 'fp-ohne-zeigen', 'fp-sperre', 'fp-sperre-artikel', 'fp-nachrechnen', 'pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'link-vor-lk1', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
         'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'gs-anlegen', 'gs-status', 'gs-link', 'gs-nachsehen', 'gs-angelegt', 'gs-zuruecksetzen', 'fk-partner', 'fk-info', 'fp-preis-loeschen'],
@@ -18991,6 +19027,7 @@
         const r     = skuBaueArtikelnummer(lshop, kurz);
 
         document.getElementById('pf-article-nr').value = r.artikelnummer ?? '';
+        try { pfSchonPruefen(r.fehler ? '' : (r.artikelnummer ?? '')); } catch { /* ZW2 Teil D: nur Hinweis */ }
         if (hint) {
           hint.textContent = r.fehler ?? '';
           hint.style.color = 'var(--danger)';
@@ -19139,6 +19176,118 @@
         aktualisiereAnlage();
       }
       document.getElementById('pf-lshop-nr').addEventListener('change', lshopLaden);
+
+      // ── Maske-Treffer: Anfang (ZW2 Teil D, Test zw2-treffer.test.js) ──
+      // Trefferliste am L-Shop-Feld: L-Shop-Modelle + Fremdware (SKU_Extern). Kein Treffer = sichtbar "noch nicht bekannt" +
+      // Aktionszeilen am Ende (L-Shop-Modell aufnehmen / als Fremdware anlegen) - nie stilles Nichts.
+      function maskeTreffer(q, modelle, extern) {
+        const m = (modelle?.modelle ?? []).map(x => ({ fett: x.catalogNr, haupt: [x.bezeichnung, x.marke].filter(Boolean).join(' · '),
+          rechts: x.bestellbar ? 'L-Shop' : 'L-Shop · nur ausgelaufene', aus: !x.bestellbar, nr: x.catalogNr }));
+        const e = (extern?.treffer ?? []).map(x => ({ fett: x.nr, haupt: x.name || '', rechts: 'Fremdware', nr: x.nr }));
+        const raus = [...m, ...e];
+        if (modelle?.mehr || extern?.mehr) raus.push({ haupt: 'Weitere Treffer – Suche genauer eingrenzen', aus: true });
+        if (!m.length && !e.length) {
+          raus.push({ haupt: `„${q}“ noch nicht bekannt`, aus: true });
+          raus.push({ haupt: 'L-Shop-Modell aufnehmen …', aktion: 'lsm' });
+          raus.push({ haupt: 'als Fremdware anlegen …', aktion: 'extern' });
+        }
+        return raus;
+      }
+      /** "schon angelegt: #ID ↗" (Erfassungsmaske, gleiche Artikelnummer, mit Produkt-ID) - Text ohne HTML. */
+      function schonAngelegtListe(treffer) {
+        return (treffer ?? []).filter(t => /^\d+$/.test(String(t.produktId ?? '')));
+      }
+      // ── Maske-Treffer: Ende ──
+      const pfLshopFeld = document.getElementById('pf-lshop-nr');
+      const pfLshopTw = twBinden(pfLshopFeld, document.getElementById('pf-lshop-treffer'), e => {
+        if (e.aktion === 'lsm') { window.oeffneAnsicht('artikel', 'lshop-modelle'); return; }
+        if (e.aktion === 'extern') { exOeffnen(pfLshopFeld.value.trim()); return; }
+        pfLshopFeld.value = e.nr;
+        pfLshopFeld.dispatchEvent(new Event('input'));
+        pfLshopFeld.dispatchEvent(new Event('change'));
+      });
+      let pfLshopSuchNr = 0, pfLshopTimer = null;
+      pfLshopFeld.addEventListener('input', ev => {
+        if (!ev.isTrusted) return;   // gewaehlter Treffer loest input aus - keine neue Suche
+        clearTimeout(pfLshopTimer);
+        const q = pfLshopFeld.value.trim();
+        const nr = ++pfLshopSuchNr;
+        if (editMode || q.length < 2) { pfLshopTw.zu(); return; }
+        pfLshopTimer = setTimeout(async () => {
+          try {
+            const [m, x] = await Promise.all([
+              apiFetch(`${API_BASE()}/api/bestellen/lshop-korb/modelle?q=${encodeURIComponent(q)}`).then(apiJson),
+              apiFetch(`${API_BASE()}/api/sheets/extern-suche?q=${encodeURIComponent(q)}`).then(apiJson),
+            ]);
+            if (nr === pfLshopSuchNr && document.activeElement === pfLshopFeld) pfLshopTw.zeigen(maskeTreffer(q, m, x));
+          } catch (e) { if (nr === pfLshopSuchNr) pfLshopTw.zeigen([{ haupt: `Fehler: ${e.message}`, aus: true }]); }
+        }, 300);
+      });
+      pfLshopFeld.addEventListener('blur', () => setTimeout(() => pfLshopTw.zu(), 150));
+
+      // "schon angelegt" - sobald Modell + Kuerzel eine gueltige Artikelnummer ergeben (nur Neu-Anlage)
+      // Zustand am Funktionsobjekt (updateArticleNr ruft das schon beim Start auf - kein let vor der Initialisierung)
+      function pfSchonPruefen(artikelnummer) {
+        const box = document.getElementById('pf-schon-angelegt');
+        clearTimeout(pfSchonPruefen.timer);
+        const nr = pfSchonPruefen.nr = (pfSchonPruefen.nr || 0) + 1;
+        if (editMode || !artikelnummer) { box.hidden = true; box.textContent = ''; return; }
+        pfSchonPruefen.timer = setTimeout(async () => {
+          try {
+            const d = await apiJson(await apiFetch(`${API_BASE()}/api/sheets/erfassung/artikelnummer?nr=${encodeURIComponent(artikelnummer)}`));
+            if (nr !== pfSchonPruefen.nr) return;
+            const eigene = document.getElementById('pf-ssot-id').value.trim();
+            const liste = schonAngelegtListe(d.treffer).filter(t => t.ssotId !== eigene);
+            box.textContent = '';
+            if (!liste.length) { box.hidden = true; return; }
+            box.append(document.createTextNode('schon angelegt: '));
+            liste.forEach((t, i) => {
+              if (i) box.append(document.createTextNode(', '));
+              const a = document.createElement('a');
+              a.href = t.link || '#'; a.target = '_blank'; a.rel = 'noopener';
+              a.textContent = `#${t.produktId} ↗`;
+              box.append(a);
+            });
+            box.hidden = false;
+          } catch { /* nur Hinweis */ }
+        }, 400);
+      }
+
+      // Fremdware anlegen (Dialog #ex-dialog -> POST /api/sheets/extern/neu)
+      function exOeffnen(vorschlag) {
+        const sel = document.getElementById('ex-lieferzeit');
+        sel.innerHTML = '<option value="">(keine)</option>' + [...document.getElementById('pf-lieferzeit').options]
+          .filter(o => /^\d+$/.test(o.value)).map(o => `<option value="${monEsc(o.value)}">${monEsc(o.textContent)}</option>`).join('');
+        document.getElementById('ex-nr').value = /^[^\s/]+$/.test(vorschlag) ? vorschlag : '';
+        document.getElementById('ex-name').value = /\s/.test(vorschlag) ? vorschlag : '';
+        document.getElementById('ex-material').value = '';
+        document.getElementById('ex-fehler').textContent = '';
+        document.getElementById('ex-dialog').hidden = false;
+        document.getElementById(document.getElementById('ex-nr').value ? 'ex-name' : 'ex-nr').focus();
+      }
+      const exZu = () => { document.getElementById('ex-dialog').hidden = true; };
+      document.getElementById('ex-abbrechen').addEventListener('click', exZu);
+      document.getElementById('ex-dialog').addEventListener('keydown', ev => { if (ev.key === 'Escape') exZu(); });
+      document.getElementById('ex-ok').addEventListener('click', async () => {
+        const btn = document.getElementById('ex-ok');
+        const f = document.getElementById('ex-fehler');
+        btn.disabled = true; f.textContent = '';
+        try {
+          const r = await apiFetch(`${API_BASE()}/api/sheets/extern/neu`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ articleNr: document.getElementById('ex-nr').value, name: document.getElementById('ex-name').value,
+              material: document.getElementById('ex-material').value, lieferzeitId: document.getElementById('ex-lieferzeit').value }),
+          });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) { f.textContent = d.error || `HTTP ${r.status}`; return; }
+          exZu();
+          showToast(`Fremdware ${d.nr} in SKU_Extern angelegt.`, 'success', 6000);
+          pfLshopFeld.value = d.nr;
+          pfLshopFeld.dispatchEvent(new Event('input'));
+          pfLshopFeld.dispatchEvent(new Event('change'));
+        } catch (e) { f.textContent = e.message; }
+        finally { btn.disabled = false; }
+      });
 
       // M8: Kurzbezeichnung und Versandklasse vorschlagen (GET /api/sheets/vorschlaege,
       // lib/vorschlaege.js). Nur Anlage; nie Getipptes ueberschreiben.

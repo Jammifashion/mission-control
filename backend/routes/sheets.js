@@ -6,7 +6,9 @@ import { buildRow, mergeRow } from '../utils/sheet-rows.js';
 import { sichereSpalte, sichereTextSpalte, colLetter } from '../utils/sheet-spalten.js';
 import { PS_FERTIG, PS_FERTIG_AM } from '../utils/produktion-stand.js';
 import { ladeLieferzeiten } from '../lib/lieferzeiten.js';
-import { externFuerNummer } from '../lib/skuExtern.js';
+import { externFuerNummer, sucheExternArtikel, legeExternAn } from '../lib/skuExtern.js';
+import { getShopConfig } from '../lib/shopConfig.js';
+import { adminBestellLink } from '../utils/shop-admin.js';
 import { lshopFuerArtikel } from '../lib/lshop.js';
 import { maskenVorschlaege } from '../lib/vorschlaege.js';
 import { shopSpalte, gleicherShop, zeileMitShop, normalizeShop } from '../utils/shop-spalte.js';
@@ -249,6 +251,42 @@ router.get('/lshop/:catalogNr', async (req, res, next) => {
     const farben = (Array.isArray(roh) ? roh : String(roh ?? '').split(','))
       .map(f => String(f).trim()).filter(Boolean);
     res.json(await lshopFuerArtikel(req.params.catalogNr, { farben, mitLieferbarkeit: true }));   // BO7-2: Punkte je Groesse
+  } catch (err) { next(err); }
+});
+
+// ── ZW2 Teil D: Trefferliste und "als Fremdware anlegen" in der Maske ─────────────────────────────────────
+// GET /api/sheets/extern-suche?q= -> { treffer: [{ nr, catalogNr, name }], mehr } (nur lesen, nie Nur_intern/Lieferant)
+router.get('/extern-suche', async (req, res, next) => {
+  try { res.json(await sucheExternArtikel(req.query.q)); } catch (err) { next(err); }
+});
+// POST /api/sheets/extern/neu { articleNr, name, material, lieferzeitId } -> eine Zeile in SKU_Extern (lib/skuExtern.js)
+router.post('/extern/neu', async (req, res, next) => {
+  try {
+    res.json(await legeExternAn({ eingabe: req.body ?? {} }));
+  } catch (err) {
+    if (err.code && err.status && err.status < 500) return res.status(err.status).json({ error: err.message, code: err.code });
+    next(err);
+  }
+});
+// GET /api/sheets/erfassung/artikelnummer?nr=<Modell>/<Kuerzel> -> { treffer: [{ ssotId, produktId, status }] }
+// "schon angelegt" in der Maske, nur aus der Erfassungsmaske (kein Shop-Abruf), Gross/Klein egal.
+router.get('/erfassung/artikelnummer', async (req, res, next) => {
+  try {
+    const nr = String(req.query.nr ?? '').trim().toLowerCase();
+    if (nr.length < 3) return res.json({ treffer: [] });
+    const sheets = await getSheets();
+    const { data } = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId(), range: 'Erfassungsmaske!A1:ZZ' });
+    const [kopf = [], ...rows] = data.values ?? [];
+    const CTX = 'GET /api/sheets/erfassung/artikelnummer';
+    const iNr = requireHeader(kopf, 'Artikelnummer', CTX), iP = requireHeader(kopf, 'Produkt-ID', CTX);
+    const iId = requireHeaderAny(kopf, ['SSOT-ID', 'ID'], CTX), iSt = findHeader(kopf, 'Status');
+    res.json({ treffer: rows.filter(r => String(r[iNr] ?? '').trim().toLowerCase() === nr)
+      .map(r => {
+        const produktId = String(r[iP] ?? '').trim();
+        let link = '';
+        if (/^\d+$/.test(produktId)) { try { link = adminBestellLink(getShopConfig('jfn').wcUrl, produktId); } catch { link = ''; } }
+        return { ssotId: String(r[iId] ?? ''), produktId, status: iSt >= 0 ? String(r[iSt] ?? '') : '', link };
+      }) });
   } catch (err) { next(err); }
 });
 
