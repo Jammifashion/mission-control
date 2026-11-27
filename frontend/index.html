@@ -765,6 +765,10 @@
       .card-cb-wrap { display: flex; align-items: flex-start; padding-top: 0.18rem; }
       .zw-haken { display: inline-flex; align-items: center; gap: 0.4rem; min-height: 44px; font-size: 0.85rem; color: var(--text); cursor: pointer; }   /* ZW1 */
       .zw-haken[hidden] { display: none; }
+      .seo-paar-titel { font-weight: 600; color: var(--text); margin: 0.6rem 0 0.4rem; }   /* ZW2 */
+      .seo-paar-titel[hidden], .seo-jfn-block[hidden] { display: none; }
+      .seo-jfn-block { border-top: 1px solid var(--border); margin-top: 1rem; padding-top: 0.5rem; }
+      .seo-kurz-gleich { color: var(--warning); }
       .zw-stand { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }   /* ZW1-2 */
       .zw-stand[hidden] { display: none; }
       .select-cb { width: 15px; height: 15px; cursor: pointer; accent-color: var(--focus); flex-shrink: 0; }
@@ -3335,6 +3339,7 @@
                 <span class="field-note">Erzeugt Kurzbeschreibung und Artikelbeschreibung aus den Feldern oben.</span>
                 <div id="seo-generate-msg" class="seo-generate-msg" aria-live="polite"></div>
               </div>
+              <div class="seo-paar-titel" id="seo-paar-honk" hidden>HONK! (voll) <span class="field-note">– geht in den Zwilling auf honkshop.de</span></div>
               <div class="form-field" style="margin-bottom:0.75rem;">
                 <button class="hilfe-i hilfe-i-klein" style="float:right;" type="button" data-hilfe-gruppe="editor" aria-controls="hilfe-editor-seo" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
                 <label>Kurzbeschreibung</label>
@@ -3366,6 +3371,45 @@
                     <button type="button" data-cmd="createLink" data-hilfe="editor-link">&#128279;</button>
                   </div>
                   <div id="rich-seo-full" class="rich-content" contenteditable="true" data-placeholder="Artikelbeschreibung…"></div>
+                </div>
+              </div>
+              <!-- ZW2 Teil A: eigene, kuerzere JFN-Fassung, wenn der Artikel einen HONK!-Zwilling hat -->
+              <div id="seo-jfn-block" class="seo-jfn-block" hidden>
+                <div class="seo-paar-titel">JammiFashion (kurz) <span class="field-note">– eigene Sätze, Produktdetails wie oben</span></div>
+                <div class="seo-generieren-zeile">
+                  <button class="btn-secondary" id="btn-seo-kurz" type="button" data-hilfe="seo-kurzfassung">Kurzfassung für JFN erzeugen</button>
+                  <div id="seo-kurz-msg" class="seo-generate-msg" aria-live="polite"></div>
+                </div>
+                <div class="form-field" style="margin-bottom:0.75rem;">
+                  <label>Kurzbeschreibung (JFN)</label>
+                  <div class="rich-editor">
+                  <div class="rich-toolbar">
+                    <button type="button" data-cmd="bold" data-hilfe="editor-b"><b>B</b></button>
+                    <button type="button" data-cmd="italic" data-hilfe="editor-i"><i>I</i></button>
+                    <span class="rich-sep"></span>
+                    <button type="button" data-cmd="createLink" data-hilfe="editor-link">&#128279;</button>
+                  </div>
+                    <div id="rich-seo-jfn-short" class="rich-content" contenteditable="true" data-placeholder="Kurzbeschreibung für JFN…"></div>
+                  </div>
+                </div>
+                <div class="form-field">
+                  <label>Artikelbeschreibung (JFN)</label>
+                  <div class="rich-editor">
+                  <div class="rich-toolbar">
+                    <button type="button" data-cmd="bold" data-hilfe="editor-b"><b>B</b></button>
+                    <button type="button" data-cmd="italic" data-hilfe="editor-i"><i>I</i></button>
+                    <button type="button" data-cmd="underline" data-hilfe="editor-u"><u>U</u></button>
+                    <span class="rich-sep"></span>
+                    <button type="button" data-cmd="formatBlock" data-val="h2" data-hilfe="editor-h2">H2</button>
+                    <button type="button" data-cmd="formatBlock" data-val="h3" data-hilfe="editor-h3">H3</button>
+                    <span class="rich-sep"></span>
+                    <button type="button" data-cmd="insertOrderedList" data-hilfe="editor-ol">1.</button>
+                    <button type="button" data-cmd="insertUnorderedList" data-hilfe="editor-ul">&#8226;</button>
+                    <span class="rich-sep"></span>
+                    <button type="button" data-cmd="createLink" data-hilfe="editor-link">&#128279;</button>
+                  </div>
+                    <div id="rich-seo-jfn-full" class="rich-content" contenteditable="true" data-placeholder="Artikelbeschreibung für JFN…"></div>
+                  </div>
                 </div>
               </div>
               <div class="form-grid" style="margin-top:1rem;">
@@ -8324,6 +8368,7 @@
         'fp-sperre-artikel':     { name: 'Zum Artikel', text: 'Öffnet Festpreis → Artikel dieses Partners und markiert die betroffenen Artikel.' },
         'fp-nachrechnen':        { name: 'Gesperrte nachrechnen', text: 'Rechnet gesperrte Verkäufe mit dem jetzt gültigen Festpreis und setzt sie auf offen. Abgerechnete bleiben unberührt.' },
         'fp-ohne-zeigen':        { name: 'Zeigen', text: 'Springt zur ersten Zeile ohne Artikelkategorie und markiert alle betroffenen Zeilen.' },
+        'seo-kurzfassung':       { name: 'Kurzfassung für JFN erzeugen', text: 'Schreibt aus der vollen HONK!-Fassung eine eigene, kürzere JFN-Fassung. Produktdetails bleiben gleich, kein Satz doppelt.' },
         'seo-generieren':        { name: 'Beschreibung generieren', text: 'Lässt die KI aus den Feldern oben eine Beschreibung schreiben und prüft sie. Gespeichert wird noch nichts.' },
         'seo-material':          { name: 'Material (Pflichtangabe)', text: 'Textil: Faser mit Prozent, z. B. 100 % Polyacryl. Fremdware ohne Textil: Material genügt, z. B. Keramik.' },
         'seo-material-einsetzen': { name: 'In den Text einsetzen', text: 'Ersetzt „[Material: bitte ergänzen]“ in beiden Texten durch das Material. Kein neues Generieren.' },
@@ -9040,7 +9085,7 @@
           'dtf-zu-alle-groessen', 'dtf-zu-alle-farben', 'dtf-zu-keine', 'dtf-zu-geschw', 'dtf-zu-geschw-datei', 'dtf-zu-geschw-mass', 'dtf-zu-geschw-breite', 'dtf-zu-gilt-alle', 'dtf-zu-mass-alle',
           'dialog-speichern', 'dialog-abbrechen', 'dialog-schliessen'],   // DT1
         'dtf-bestellung': ['dtf-abholung', 'dtf-dhl', 'dtf-ersetzt', 'dtf-notiz', 'dtf-xml', 'dtf-absenden', 'dtf-nachricht', 'dialog-abbrechen', 'dialog-schliessen'],   // DT1
-        'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-material', 'seo-material-einsetzen', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'bildref-eigenschaft', 'bildref-plus', 'bildref-eigenschaft-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'zwilling-haken', 'zwilling-link', 'zwilling-nachholen', 'zwilling-pruefen', 'wc-aendern'],
+        'artikel': ['kurz-vorschlag', 'kurz-kuerzel-hinweis', 'modus-neu', 'modus-aendern', 'modus-seo', 'modus-seo-aendern', 'modus-lshop-modelle', 'se-suchen', 'se-neu-bauen', 'se-speichern', 'seo-generieren', 'seo-kurzfassung', 'seo-material', 'seo-material-einsetzen', 'seo-speichern', 'aid-anlegen', 'hauptbild-upload', 'versand-neu-laden', 'varianten-loeschen', 'variante-privat', 'variante-ist-privat', 'eigenschaft-neu', 'varianten-neu', 'variantenbild-upload', 'variantenbild-weg', 'bildref-eigenschaft', 'bildref-plus', 'bildref-eigenschaft-weg', 'eigenschaft-weg', 'varianten-alle', 'varianten-keine', 'ki-vorschlag', 'entwurf-speichern', 'wc-anlegen', 'zwilling-haken', 'zwilling-link', 'zwilling-nachholen', 'zwilling-pruefen', 'wc-aendern'],
         'editor': ['editor-b', 'editor-i', 'editor-u', 'editor-h2', 'editor-h3', 'editor-ol', 'editor-ul', 'editor-link'],
         'partner': ['fp-artikel-pruefen', 'fp-ohne-festpreis', 'fp-ohne-zeigen', 'fp-sperre', 'fp-sperre-artikel', 'fp-nachrechnen', 'pk-wahl', 'pk-bestellungen', 'pk-intern', 'pk-saldo', 'pk-details', 'pk-info', 'fk-historie', 'partner-neu', 'partner-aktiv', 'link-kopieren', 'link-vor-lk1', 'token-neu', 'partner-zugang', 'partner-artikel-import', 'honk-artikel-import', 'partner-dialog-neu', 'wc-sync', 'wc-sync-starten', 'verkauf-neu', 'abrechnung-neu', 'abrechnung-vorschau', 'abrechnung-erstellen', 'abrechnung-freigeben', 'abrechnung-verwerfen', 'abrechnung-bezahlt', 'fixkosten-version', 'intern-loeschen'],
         'festpreis': ['fp-abrechnung-erstellen', 'fp-zusammenfassung', 'fp-abrechnung-loeschen', 'gs-anlegen', 'gs-status', 'gs-link', 'gs-nachsehen', 'gs-angelegt', 'gs-zuruecksetzen', 'fk-partner', 'fk-info', 'fp-preis-loeschen'],
@@ -18653,6 +18698,45 @@
       }
       // ── Generator-Eingaben: Ende ──
 
+      // ── Satzvergleich: Anfang (ZW2, Spiegel von backend/utils/kurzfassung.js; Test kurzfassung.test.js) ──
+      const SV_MIN_WOERTER = 4;
+      const SV_ENT = { '&amp;': '&', '&nbsp;': ' ', '&quot;': '"', '&#39;': "'", '&lt;': '<', '&gt;': '>', '&shy;': '' };
+      const svEntity = x => x.replace(/&(amp|nbsp|quot|#39|lt|gt|shy);/g, m => SV_ENT[m]);
+      function svNorm(x) {
+        return svEntity(String(x ?? '')).toLowerCase()
+          .replace(/[„“"'‚‘’«»()[\]{}:;,.!?…–—-]/g, ' ')
+          .replace(/\s+/g, ' ').trim();
+      }
+      function svSaetze(html) {
+        const ohneListen = String(html ?? '').replace(/<li\b[^>]*>[\s\S]*?<\/li>/gi, ' ');
+        const bloecke = ohneListen.replace(/<\/(h[1-6]|p|div|ul|ol)>/gi, '\n').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' ');
+        const raus = [];
+        for (const block of svEntity(bloecke).split('\n')) {
+          for (const teil of block.split(/(?<=[.!?…])\s+/)) {
+            const text = teil.replace(/\s+/g, ' ').trim();
+            const norm = svNorm(text);
+            if (norm.split(' ').filter(Boolean).length >= SV_MIN_WOERTER) raus.push({ text, norm });
+          }
+        }
+        return raus;
+      }
+      function svGleich(a, ...bs) {
+        const inB = new Set(bs.flatMap(b => svSaetze(b).map(x => x.norm)));
+        const gesehen = new Set();
+        const raus = [];
+        for (const x of svSaetze(a)) if (inB.has(x.norm) && !gesehen.has(x.norm)) { gesehen.add(x.norm); raus.push(x.text); }
+        return raus;
+      }
+      function svPaare({ jfnKurz, jfnLang, honkKurz, honkLang }) {
+        return [...new Set([...svGleich(jfnLang, honkLang, honkKurz), ...svGleich(jfnKurz, honkLang, honkKurz)])];
+      }
+      function svHinweis(gleich) {
+        if (!gleich.length) return '';
+        return `${gleich.length} Satz${gleich.length === 1 ? '' : 'e'} in beiden Texten – bitte von Hand ändern: `
+          + gleich.slice(0, 3).map(x => `„${x.length > 70 ? x.slice(0, 70) + '…' : x}“`).join(' · ') + (gleich.length > 3 ? ' …' : '');
+      }
+      // ── Satzvergleich: Ende ──
+
       // ── Vorschlaege: Anfang (reine Logik, backend/tests/vorschlaege.test.js) ──
       // Befehl M8. Vorschlaege ueberschreiben nie Getipptes: ein Feld wird nur
       // gesetzt, wenn es leer ist oder noch genau den letzten Vorschlag traegt.
@@ -21223,7 +21307,19 @@
           seoCurrentItem = null;
           return;
         }
-        seoCurrentItem = seoPendingList[Number(idx)];
+        await seoArtikelOeffnen(seoPendingList[Number(idx)]);
+      });
+
+      // ZW2: einen Artikel im SEO-Reiter oeffnen - aus der Liste "ausstehend" oder (Teil B) aus "SEO-Daten ändern"
+      // (`ausSuche`: nicht in der Liste, Sheet nur mit Zeile). Mit HONK!-Zwilling (`honkId`) zwei Textpaare.
+      let seoHonkProdukt = null;   // geladener Zwilling (HONK!), null = keiner
+      async function seoArtikelOeffnen(item) {
+        seoCurrentItem = item;
+        seoHonkProdukt = null;
+        const mitZwilling = !!String(item.honkId ?? '').trim();
+        document.getElementById('seo-paar-honk').hidden = !mitZwilling;
+        document.getElementById('seo-jfn-block').hidden = !mitZwilling;
+        document.getElementById('seo-kurz-msg').textContent = '';
         document.getElementById('seo-produktname').value   = seoCurrentItem.produktname;
         document.getElementById('seo-artikelnummer').value = seoCurrentItem.artikelnummer;
         document.getElementById('seo-lshop-nr').value      = seoCurrentItem.lshopNr  || '';
@@ -21263,6 +21359,8 @@
         initSeoQuillEditors();
         quillSeoShort.root.innerHTML = '';
         quillSeoFull.root.innerHTML  = '';
+        quillSeoJfnShort.root.innerHTML = '';
+        quillSeoJfnFull.root.innerHTML  = '';
         document.getElementById('seo-material').value = '';   // SG2: Handeingabe gilt nur fuer diesen Artikel
         seoMaterialFaser = null;
         seoMaterialFehlt = false;
@@ -21279,8 +21377,11 @@
             apiFetch(`${API_BASE()}/api/woocommerce/products/${seoCurrentItem.wcId}`)
               .then(r => r.json())
               .then(async p => {
-                quillSeoShort.root.innerHTML = p.short_description || '';
-                quillSeoFull.root.innerHTML  = p.description || '';
+                // ZW2: mit Zwilling steht der JFN-Text im JFN-Paar, die oberen Editoren zeigen den HONK!-Text.
+                const jfnKurz = mitZwilling ? quillSeoJfnShort : quillSeoShort;
+                const jfnLang = mitZwilling ? quillSeoJfnFull : quillSeoFull;
+                jfnKurz.root.innerHTML = p.short_description || '';
+                jfnLang.root.innerHTML = p.description || '';
                 // Fuer den Groessen-Fallback merken. Gelesen ist es nur, wenn
                 // wirklich ein Produkt kam - eine Fehlerantwort hat keine id.
                 seoWcProdukt     = p;
@@ -21301,6 +21402,20 @@
                 }
               })
               .catch(() => {})
+          );
+        }
+
+        // ZW2: Zwilling lesen (HONK!) -> obere Editoren
+        if (mitZwilling) {
+          loadPromises.push(
+            apiFetch(`${API_BASE()}/api/woocommerce/products/${encodeURIComponent(item.honkId)}?shop=honk`)
+              .then(r => apiJson(r))
+              .then(h => {
+                seoHonkProdukt = h && h.id ? h : null;
+                quillSeoShort.root.innerHTML = h.short_description || '';
+                quillSeoFull.root.innerHTML  = h.description || '';
+              })
+              .catch(e => showToast(`HONK!-Zwilling #${item.honkId} nicht lesbar: ${e.message}`, 'error', 12000))
           );
         }
 
@@ -21325,6 +21440,43 @@
         await seoMetaEingabenLaden();
         seoMetaVorschau();
         await seoMaterialFeldPruefen();   // SG2
+      }
+
+      // ZW2 Teil A: JFN-Kurzfassung aus der vollen Fassung (obere Editoren)
+      document.getElementById('btn-seo-kurz').addEventListener('click', async () => {
+        if (!seoCurrentItem) return;
+        const msg = document.getElementById('seo-kurz-msg');
+        msg.classList.remove('seo-msg-rot', 'seo-kurz-gleich');
+        msg.textContent = 'Kurzfassung wird erzeugt…';
+        try {
+          const gr = seoGroessenQuelle(seoVarianten, seoWcProdukt, seoQuellenOk);
+          const res = await apiFetch(`${API_BASE()}/api/claude/generate-product`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'seo_kurzfassung',
+              produktname: seoCurrentItem.produktname,
+              keyphrase: document.getElementById('seo-keyphrase').value.trim(),
+              full_description: quillSeoFull.root.innerHTML,
+              short_description: quillSeoShort.root.innerHTML,
+              farben: seoFarben(), groessen: gr.groessen,
+              lshopNr: seoCurrentItem.lshopNr || '', artikelkurz: artikelKurzAus(seoCurrentItem.artikelnummer),
+              kategorien: seoKategorien,
+              strukturiert: (await seoLshopStruktur(seoCurrentItem.lshopNr, seoFarben())) ?? undefined,
+            }),
+          });
+          const d = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+          quillSeoJfnShort.root.innerHTML = d.short_description || '';
+          quillSeoJfnFull.root.innerHTML  = d.full_description || '';
+          const meldungen = [...(d.hinweise || []), ...(d.pruefhinweise || [])];
+          const gleich = svHinweis(d.gleicheSaetze || []);
+          msg.textContent = [gleich, ...meldungen, d.versuch === 2 ? 'im zweiten Versuch erzeugt' : ''].filter(Boolean).join(' · ') || 'Kurzfassung erzeugt – noch nicht gespeichert.';
+          msg.classList.toggle('seo-kurz-gleich', !!gleich || meldungen.length > 0);
+          if (gleich) showToast(gleich, 'warn', 15000);
+        } catch (e) {
+          msg.textContent = `Fehler: ${e.message}`;
+          msg.classList.add('seo-msg-rot');
+        }
       });
 
       // ── SG2: Material-Pflichtfeld und Platzhalter-Sperre im SEO-Reiter ──
@@ -21526,16 +21678,18 @@
 
       // M4b: nach dem Speichern den Shop-Stand zuruecklesen und pruefen
       // (lib/seo-pruefung.js, pruefeTextMitSsot). Nur Warn-Toast, blockiert nie.
-      async function seoTextNachSpeichernPruefen(item, keyphrase) {
+      async function seoTextNachSpeichernPruefen(item, keyphrase, shop = '') {
+        const id = shop === 'honk' ? item.honkId : item.wcId;   // ZW2: auch der Zwilling
+        const vor = shop === 'honk' ? 'HONK!-Text' : 'Gespeicherter Text';
         try {
-          const produkt = await apiJson(await apiFetch(`${API_BASE()}/api/woocommerce/products/${item.wcId}`));
+          const produkt = await apiJson(await apiFetch(`${API_BASE()}/api/woocommerce/products/${id}${shop ? `?shop=${shop}` : ''}`));
           const d = await apiJson(await apiFetch(`${API_BASE()}/api/seo/text-pruefung`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...textPruefungBody(item, produkt, keyphrase), weitereAchsen: seoWeitere() }),   // SG2: Regel 12
           }));
           const h = d.pruefhinweise || [];
-          if (h.length) showToast(`Gespeicherter Text: ${h.join(' · ')}`, 'warn', 20000);
+          if (h.length) showToast(`${vor}: ${h.join(' · ')}`, 'warn', 20000);
         } catch (e) {
           showToast(`Prüfung nach dem Speichern nicht möglich: ${e.message}`, 'warn', 10000);
         }
@@ -21550,9 +21704,23 @@
           return;
         }
         const statusMsg = document.getElementById('seo-status-msg');
-        // SG2: Platzhalter im Text + Artikel veroeffentlicht -> nicht speichern (das Backend sperrt auch, 422).
-        const sperrGrund = platzhalterSperrGrund({ status: seoWcProdukt?.status,
-          texte: [quillSeoShort.root.innerHTML, quillSeoFull.root.innerHTML] });
+        // ZW2: mit Zwilling geht das JFN-Paar nach JFN und das obere (volle) Paar in den Zwilling.
+        const zw = String(seoCurrentItem.honkId ?? '').trim();
+        const jfnKurz = zw ? quillSeoJfnShort.root.innerHTML : quillSeoShort.root.innerHTML;
+        const jfnLang = zw ? quillSeoJfnFull.root.innerHTML  : quillSeoFull.root.innerHTML;
+        if (zw && !String(jfnLang).replace(/<[^>]+>/g, '').trim()) {
+          statusMsg.textContent = 'JFN-Fassung ist leer – erst „Kurzfassung für JFN erzeugen“.';
+          statusMsg.style.color = 'var(--danger)';
+          return;
+        }
+        if (zw && !seoHonkProdukt) {
+          statusMsg.textContent = `HONK!-Zwilling #${zw} nicht gelesen – Artikel neu öffnen.`;
+          statusMsg.style.color = 'var(--danger)';
+          return;
+        }
+        // SG2: Platzhalter im Text + Artikel veroeffentlicht -> nicht speichern (das Backend sperrt auch, 422). Je Shop.
+        const sperrGrund = platzhalterSperrGrund({ status: seoWcProdukt?.status, texte: [jfnKurz, jfnLang] })
+          || (zw ? platzhalterSperrGrund({ status: seoHonkProdukt?.status, texte: [quillSeoShort.root.innerHTML, quillSeoFull.root.innerHTML] }) : '');
         seoPlatzhalterZeigen();
         if (sperrGrund) {
           statusMsg.textContent = sperrGrund;
@@ -21566,8 +21734,8 @@
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              short_description: quillSeoShort.root.innerHTML,
-              description:       quillSeoFull.root.innerHTML,
+              short_description: jfnKurz,
+              description:       jfnLang,
               // M8: ganze Schlagwort-Liste (ein tags-Array ersetzt alle). Nur wenn
               // die vorhandenen gelesen wurden - sonst gar kein tags-Feld.
               ...(seoTagsGeladen ? { tags: tagsFuerPut(seoTags) } : {}),
@@ -21576,6 +21744,23 @@
           if (!wcRes.ok) {
             const fehler = await wcRes.json().catch(() => ({}));
             throw new Error(fehler.error || 'WooCommerce-Update fehlgeschlagen');   // SG2: 422 platzhalter mit Text
+          }
+          // ZW2: gleiche Saetze nur melden (Inhaber entscheidet), dann der Zwilling. Scheitert HONK!, bleibt JFN gespeichert.
+          let honkText = '';
+          if (zw) {
+            const gleich = svHinweis(svPaare({ jfnKurz, jfnLang, honkKurz: quillSeoShort.root.innerHTML, honkLang: quillSeoFull.root.innerHTML }));
+            if (gleich) showToast(gleich, 'warn', 15000);
+            try {
+              const hr = await apiFetch(`${API_BASE()}/api/woocommerce/products/${encodeURIComponent(zw)}?shop=honk`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ short_description: quillSeoShort.root.innerHTML, description: quillSeoFull.root.innerHTML }),
+              });
+              if (!hr.ok) throw new Error((await hr.json().catch(() => ({}))).error || `HTTP ${hr.status}`);
+              honkText = `HONK!-Text #${zw} gespeichert`;
+            } catch (e) {
+              honkText = `HONK!-Text #${zw} NICHT gespeichert (${e.message}) – JFN ist gespeichert`;
+              showToast(honkText, 'error', 15000);
+            }
           }
           // SG1: leeres Feld -> Rueckfall sichtbar ins Feld, bevor Sheet und Yoast es lesen (gleiche Keyphrase wie Titel/Meta)
           seoKeyphraseAusTitelSetzen();
@@ -21596,6 +21781,7 @@
           // M4b: Pruefung gegen den gespeicherten Text (Shop-Stand zurueckgelesen),
           // nicht blockierend. Bewusst NACH dem Beschreibungs-PUT und dem Sheet.
           seoTextNachSpeichernPruefen(seoCurrentItem, document.getElementById('seo-keyphrase').value);
+          if (zw && /gespeichert$/.test(honkText)) seoTextNachSpeichernPruefen(seoCurrentItem, document.getElementById('seo-keyphrase').value, 'honk');
 
           // ── Yoast-Schreibweg ────────────────────────────────────────────
           // NACH dem Sheet-Schreiben, in eigenem try/catch: das Sheet ist die
@@ -21680,6 +21866,28 @@
             metaMeldung('SEO-Titel',        metaStand.titel, '_yoast_wpseo_title'),
             metaMeldung('Meta-Beschreibung', metaStand.desc,  '_yoast_wpseo_metadesc'),
           ].filter(Boolean).join(' · ');
+
+          // ZW2: Yoast in den Zwilling - Keyphrase, Titel, Meta wie JFN jetzt (Inhaber 27.11.: gleich in beiden Shops);
+          // Synonyme nur JFN (HONK! ohne Premium). Keine SEO_Karte (nur JFN).
+          if (zw) {
+            const quelle = (yoastNach ?? seoWcProdukt)?.meta_data || [];
+            const wert = (md, k) => ((md || []).find(m => m.key === k) || {}).value ?? '';
+            const soll = ['_yoast_wpseo_focuskw', '_yoast_wpseo_title', '_yoast_wpseo_metadesc']
+              .map(k => ({ key: k, value: wert(quelle, k) }))
+              .filter(m => m.value && m.value !== wert(seoHonkProdukt?.meta_data, m.key));
+            if (soll.length) {
+              try {
+                const r = await apiFetch(`${API_BASE()}/api/woocommerce/products/${encodeURIComponent(zw)}?shop=honk`, {
+                  method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ meta_data: soll }),
+                });
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                const nachH = await apiJson(await apiFetch(`${API_BASE()}/api/woocommerce/products/${encodeURIComponent(zw)}?shop=honk`));
+                const falsch = soll.filter(m => wert(nachH.meta_data, m.key) !== m.value).length;
+                honkText += falsch ? ` · HONK!-Yoast: ${falsch} Feld(er) anders zurückgelesen` : ` · HONK!-Yoast: ${soll.length} Feld(er) geschrieben`;
+              } catch (e) { honkText += ` · HONK!-Yoast NICHT geschrieben (${e.message})`; }
+            } else honkText += ' · HONK!-Yoast unverändert';
+            yoastText = [yoastText, honkText].filter(Boolean).join(' · ');
+          }
 
           seoPendingList = seoPendingList.filter(item => item.row !== seoCurrentItem.row);
           seoCurrentItem = null;
@@ -24442,8 +24650,8 @@
         line-height: 1.5;
       }
       .rich-content:empty::before { content: attr(data-placeholder); color: var(--disabled); pointer-events: none; display: block; }
-      #rich-short-desc, #rich-seo-short { min-height: 70px; max-height: 160px; }
-      #rich-description, #rich-seo-full  { min-height: 140px; max-height: 520px; }
+      #rich-short-desc, #rich-seo-short, #rich-seo-jfn-short { min-height: 70px; max-height: 160px; }
+      #rich-description, #rich-seo-full, #rich-seo-jfn-full  { min-height: 140px; max-height: 520px; }
       .rich-content a { color: var(--info); }
       .rich-content table { border-collapse: collapse; width: 100%; margin: 0.4rem 0; }
       .rich-content td, .rich-content th { border: 1px solid var(--disabled); padding: 0.3rem 0.5rem; font-size: 0.85rem; vertical-align: top; color: inherit; }
@@ -24455,6 +24663,8 @@
       var quillFull     = null;
       var quillSeoShort = null;
       var quillSeoFull  = null;
+      var quillSeoJfnShort = null;   // ZW2: JFN-Kurzfassung (nur mit HONK!-Zwilling)
+      var quillSeoJfnFull  = null;
 
       function makeRichEditor(id) {
         const el = document.getElementById(id);
@@ -24471,6 +24681,8 @@
         if (quillSeoShort) return;
         quillSeoShort = makeRichEditor('rich-seo-short');
         quillSeoFull  = makeRichEditor('rich-seo-full');
+        quillSeoJfnShort = makeRichEditor('rich-seo-jfn-short');
+        quillSeoJfnFull  = makeRichEditor('rich-seo-jfn-full');
       }
 
       // ── SECTION: Partnerportal ──

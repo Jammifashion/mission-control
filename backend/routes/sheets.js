@@ -389,6 +389,7 @@ router.get('/erfassung/seo-pending', async (req, res, next) => {
     const lshopUrlIdx  = findHeader(headers, 'L-Shop URL');
     const keyphraseIdx = findHeader(headers, 'Fokus_Keyphrase');
     const synonymeIdx  = findHeader(headers, 'Fokus_Synonyme');
+    const honkIdx      = findHeader(headers, 'HONK_Produkt_ID');   // ZW2: Zwilling -> zwei Textpaare im SEO-Reiter
 
     const pending = [];
     rows.slice(1).forEach((row, i) => {
@@ -404,6 +405,7 @@ router.get('/erfassung/seo-pending', async (req, res, next) => {
         lshopUrl:      lshopUrlIdx >= 0 ? (row[lshopUrlIdx] ?? '') : '',
         keyphrase:     keyphraseIdx >= 0 ? (row[keyphraseIdx] ?? '') : '',
         synonyme:      synonymeIdx  >= 0 ? (row[synonymeIdx]  ?? '') : '',
+        honkId:        honkIdx      >= 0 ? String(row[honkIdx] ?? '').trim() : '',
       });
     });
 

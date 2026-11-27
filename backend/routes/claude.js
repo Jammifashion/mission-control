@@ -14,6 +14,7 @@ import { wirfWennPruefseite } from '../lib/hosterPruefseite.js';
 import { externFuerNummer } from '../lib/skuExtern.js';
 import { prozentPflicht, eigenschaftenMitExtern } from '../utils/sku-extern.js';
 import { textAufruf, schluesselFehlt, KiAbgeschnittenError, KiAbgelehntError } from '../lib/modellAufruf.js';
+import { detailsBlock, baueKurzfassung, kurzfassungPrompt, gleicheSaetzePaare } from '../utils/kurzfassung.js';
 
 const router = Router();
 
@@ -349,7 +350,66 @@ Gib nur die Keys zurück, keinen weiteren Text.`;
       });
     }
 
-    return res.status(400).json({ error: 'Unbekannte action. Erwartet: seo_description oder suggest_variants' });
+    // ZW2 Teil A: JFN-Kurzfassung zur vollen (HONK!-)Fassung. Das Modell schreibt nur <h2>, Einleitung, Schlusssatz und
+    // Kurzbeschreibung; den Produktdetails-Block kopiert MC 1:1 (utils/kurzfassung.js). Gleiche Saetze -> genau EIN zweiter
+    // Lauf mit den Treffern als "nicht verwenden", sonst `gleicheSaetze` in der Antwort (Hinweis, Speichern bleibt moeglich).
+    if (action === 'seo_kurzfassung') {
+      const { produktname, keyphrase, full_description: voll, short_description: kurzVoll, farben, groessen,
+        lshopNr, artikelkurz, strukturiert, kategorien } = req.body ?? {};
+      if (!produktname) return res.status(400).json({ error: 'produktname ist erforderlich.' });
+      const details = detailsBlock(voll);
+      if (!details) return res.status(422).json({ error: 'In der vollen Fassung fehlt der Block „Produktdetails“ – erst die volle Fassung erzeugen.', code: 'details_fehlen' });
+
+      const modellId = await getModel('seo-text');
+      const schluesselFehler = schluesselFehlt(modellId, 'seo-text');
+      if (schluesselFehler) return res.status(503).json({ error: schluesselFehler });
+
+      const lauf = async verboten => {
+        let raw;
+        try {
+          raw = (await textAufruf({ modellId, system: SEO_SYSTEM_PROMPT, art: 'seo', rolle: 'seo-text',
+            prompt: kurzfassungPrompt({ produktname, keyphrase, voll, kurzVoll, verboten }) })).text;
+        } catch (e) {
+          if (e instanceof KiAbgeschnittenError || e instanceof KiAbgelehntError) throw Object.assign(new Error(e.message), { status: 502, code: e.code });
+          throw e;
+        }
+        const m = String(raw ?? '').replace(/^```(?:json)?\s*/, '').match(/\{[\s\S]*\}/);
+        if (!m) throw Object.assign(new Error('KI-Antwort ohne JSON.'), { status: 502, code: 'ki_unsinn' });
+        const p = JSON.parse(sanitizeJsonControlChars(m[0]));
+        if (!String(p.einleitung ?? '').trim()) throw Object.assign(new Error('KI-Antwort ohne Einleitung.'), { status: 502, code: 'ki_unsinn' });
+        const lang = baueKurzfassung({ h2: p.h2, einleitung: p.einleitung, abschluss: p.abschluss, details });
+        const kurz = String(p.kurzbeschreibung ?? '').replace(/<[^>]+>/g, '').trim();
+        return { kurz, lang, gleich: gleicheSaetzePaare({ jfnKurz: kurz, jfnLang: lang, honkKurz: kurzVoll, honkLang: voll }) };
+      };
+
+      let erg, versuch = 1;
+      try {
+        erg = await lauf([]);
+        if (erg.gleich.length) {
+          try {
+            const zwei = await lauf(erg.gleich);
+            versuch = 2;
+            if (zwei.gleich.length <= erg.gleich.length) erg = zwei;
+          } catch (e) { console.warn(`[seo_kurzfassung] zweiter Lauf fehlgeschlagen (${e.message}) – erster bleibt.`); }
+        }
+      } catch (e) {
+        if (e.status) return res.status(e.status).json({ error: e.message, code: e.code });
+        throw e;
+      }
+
+      const hinweise = pruefeSeoText({ kurzbeschreibung: erg.kurz, produktbeschreibung: erg.lang, keyphrase, produktname, farben, groessen });
+      let pruefhinweise = [];
+      try {
+        let motivZeile = null;
+        if (String(artikelkurz ?? '').trim()) { try { motivZeile = await motivFuer(artikelkurz); } catch { motivZeile = null; } }
+        pruefhinweise = await pruefeTextMitSsot({ kurzbeschreibung: erg.kurz, produktbeschreibung: erg.lang, produktname, keyphrase,
+          lshopNr, motivZeile, strukturiert, kategorien });
+      } catch (e) { pruefhinweise = [`Prüfung nicht möglich (${e.message}).`]; }
+
+      return res.json({ short_description: erg.kurz, full_description: erg.lang, versuch, gleicheSaetze: erg.gleich, hinweise, pruefhinweise });
+    }
+
+    return res.status(400).json({ error: 'Unbekannte action. Erwartet: seo_description, seo_kurzfassung oder suggest_variants' });
   } catch (err) {
     next(err);
   }
