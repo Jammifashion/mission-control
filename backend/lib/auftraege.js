@@ -21,11 +21,13 @@ import { leseLager, ladePartner } from './lager.js';
 import { leseDruckKontext } from './druckmasse.js';
 import { positionDruck, druckSummen, handText } from '../utils/druckkosten.js';
 import { AB_KORB_SPALTEN } from '../utils/lshop-ab.js';   // KS4: AB-Spalten des Korbs mitlesen
-import { TAB_KORB, korbZeilen } from '../utils/korb-logic.js';   // AM-3: Korb nur lesen (Rueckmeldung)   // AM-2-2: nur Lagerorte lesen - der Auftrag bucht nie im Lager (das kommt mit AM-3)
+import { TAB_KORB, korbZeilen } from '../utils/korb-logic.js';
+import { TAB_DTF_KORB } from '../utils/dtf-korb.js';   // AS1
+import { koerbePlan, stornoText, GRUND_IM_AUFTRAG_ENTFERNT } from '../utils/auftrag-storno.js';   // AS1   // AM-3: Korb nur lesen (Rueckmeldung)   // AM-2-2: nur Lagerorte lesen - der Auftrag bucht nie im Lager (das kommt mit AM-3)
 import {
   TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, POSITION_OPTIONAL, AUFTRAG_OPTIONAL, brauchtHerkunftSpalten, zeilenAus,
   korbStand, wareStand, autoBestellt, ART, HERKUNFT, alsZeile, anlagePlan, bearbeitenPlan, VERWEIS_KORB,
-  statusWechsel, fertigPlan, fertigVorschlag, entfernenPlan, aktivePositionen, auftragZahlen, auftraegeAntwort, fehler,
+  statusWechsel, STORNIERT, fertigPlan, fertigVorschlag, entfernenPlan, aktivePositionen, auftragZahlen, auftraegeAntwort, fehler,
   PREIS_SPALTEN, ANGEBOT_SPALTEN, brauchtPreisSpalten, POSITIONEN_PFLICHT_AB, brauchtDrucknameSpalte,
 } from '../utils/auftraege.js';
 import { kundenHistorie } from '../utils/auftrag-historie.js';   // AM-6
@@ -460,6 +462,82 @@ function pruefeAmq1Spalten(idx, felder) {
   if (felder.Design_Link) pruefeSpalten(idx, ['Design_Link'], 'Design-Link');
 }
 
+// ── AS1: Storno raeumt L-Shop- und DTF-Korb mit auf (Logik utils/auftrag-storno.js) ──
+/** Beide Koerbe lesen (unter den Sperren frisch). DTF-Reiter fehlt = keine DTF-Zeilen. */
+async function koerbeLesen(sheets, spreadsheetId) {
+  const { data } = await sheets.spreadsheets.values.get({ spreadsheetId, range: `'${TAB_KORB}'`, valueRenderOption: 'UNFORMATTED_VALUE' });
+  const kz = korbZeilen(data.values ?? []);
+  const { leseDtfKorbZeilen } = await import('./dtfKorb.js');
+  const d = await leseDtfKorbZeilen({ sheets, spreadsheetId });
+  return { kz, d };
+}
+/** Plan -> Zellen fuer L-Shop-Korb + DTF-Korb. */
+function koerbeZellen(plan, { kz, d }) {
+  return [...plan.korb.flatMap(x => zellenAus(TAB_KORB, kz.idx, x.zeile, x.werte)),
+    ...(d.einrichtung ? plan.dtf.flatMap(x => zellenAus(TAB_DTF_KORB, d.idx, x.zeile, x.werte)) : [])];
+}
+async function koerbeCachesLeeren(plan) {
+  if (plan.korb.length) { const { _korbCacheLeeren } = await import('./lshopKorb.js'); _korbCacheLeeren?.(); }
+  if (plan.dtf.length) { const { _dtfKorbZustandLeeren } = await import('./dtfKorb.js'); _dtfKorbZustandLeeren?.(); }
+}
+const koerbeAntwort = plan => ({ korb: { abgewaehlt: plan.korb.length, bestellt: plan.korbBestellt }, dtf: { abgewaehlt: plan.dtf.length, bestellt: plan.dtfBestellt },
+  lager: { teile: plan.lagerTeile, positionen: plan.lagerPositionen } });
+/** Korb + DTF-Sperre um fn (dynamisch: lshopKorb/dtfKorb lesen selbst Auftraege). */
+async function mitKorbUndDtf(was, fn) {
+  const { mitKorbSperre } = await import('./lshopKorb.js');
+  const { mitDtfSperre } = await import('./dtfKorb.js');
+  return mitKorbSperre(was, () => mitDtfSperre(fn));
+}
+
+/**
+ * AS1: GET /api/auftraege/:nr/storno-vorschau - was "stornieren" bzw. "Storno zurücknehmen" in den Koerben aendert. Nur lesen.
+ */
+export async function stornoVorschau({ auftragNr, sheets: s, jetzt = () => new Date() } = {}) {
+  const sheets = s ?? await sheetsClient();
+  const spreadsheetId = sheetId();
+  const { a, p } = await lies(sheets, spreadsheetId);
+  const auftrag = a.zeilen.find(x => x.Auftrag_Nr === String(auftragNr ?? '').trim());
+  if (!auftrag) throw fehler('Auftrag gibt es nicht.', 404);
+  const k = await koerbeLesen(sheets, spreadsheetId);
+  const richtung = auftrag.Status === STORNIERT ? 'zurueck' : 'storno';
+  const plan = koerbePlan({ auftrag, positionen: p.zeilen, korbZeilen: k.kz.zeilen, dtfZeilen: k.d.zeilen, richtung, jetzt: jetzt() });
+  return { auftragNr: auftrag.Auftrag_Nr, richtung, text: richtung === 'storno' ? stornoText(plan) : '', ...koerbeAntwort(plan) };
+}
+
+/**
+ * AS1 Altlast: offene Korb-/DTF-Zeilen schon stornierter Auftraege und entfernter Positionen (vor AS1 entstanden).
+ * Ohne write nur zaehlen (Nummern, keine Namen); mit write unter Auftrags-, Korb- und DTF-Sperre EIN Schreibaufruf, zurueckgelesen.
+ * Grund wie der neue Weg: "Auftrag storniert" bzw. "im Auftrag entfernt" (Storno zuruecknehmen / wiederherstellen holen sie zurueck).
+ */
+export async function stornoAltlast({ write = false, sheets: s, jetzt = () => new Date() } = {}) {
+  return mitSperre(async () => mitKorbUndDtf('as1-altlast', async () => {
+    const sheets = s ?? await sheetsClient();
+    const spreadsheetId = sheetId();
+    const { a, p } = await lies(sheets, spreadsheetId);
+    const k = await koerbeLesen(sheets, spreadsheetId);
+    const liste = [], zellen = [];
+    const dazu = (art, nr, plan) => {
+      if (!plan.korb.length && !plan.dtf.length) return;
+      liste.push({ art, nr, korb: plan.korb.map(x => x.schluessel), dtf: plan.dtf.map(x => x.schluessel) });
+      zellen.push(...koerbeZellen(plan, k));
+    };
+    for (const au of a.zeilen.filter(x => x.Status === STORNIERT)) {
+      dazu('storniert', au.Auftrag_Nr, koerbePlan({ auftrag: au, positionen: p.zeilen, korbZeilen: k.kz.zeilen, dtfZeilen: k.d.zeilen, jetzt: jetzt() }));
+    }
+    for (const pos of p.zeilen.filter(x => String(x.Entfernt ?? '').trim())) {
+      const au = a.zeilen.find(x => x.Auftrag_Nr === pos.Auftrag_Nr);
+      if (!au || au.Status === STORNIERT) continue;   // schon oben
+      dazu('entfernt', pos.Position_ID, koerbePlan({ auftrag: au, positionen: p.zeilen, korbZeilen: k.kz.zeilen, dtfZeilen: k.d.zeilen,
+        positionId: pos.Position_ID, grund: GRUND_IM_AUFTRAG_ENTFERNT, jetzt: jetzt() }));
+    }
+    if (write && zellen.length) {
+      await schreibe(sheets, spreadsheetId, { zellen });
+      await koerbeCachesLeeren({ korb: liste.flatMap(x => x.korb), dtf: liste.flatMap(x => x.dtf) });
+    }
+    return { write, liste, zeilen: liste.reduce((n, x) => n + x.korb.length + x.dtf.length, 0) };
+  }));
+}
+
 /** Statuswechsel (weiter | zurueck | bezahlt | bezahlt_zurueck | stornieren | storno_zurueck). */
 export async function wechsleStatus({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
   return mitAuftrag(eingabe, s, async ({ sheets, spreadsheetId, a, p, auftrag }) => {
@@ -480,6 +558,18 @@ export async function wechsleStatus({ eingabe, sheets: s, jetzt = () => new Date
       const summen = summenFuer(auftrag, akt, info, await leseEkJe(sheets, spreadsheetId));
       if (ANGEBOT_SPALTEN.every(s => a.idx[s] !== undefined)) Object.assign(felder, angebotFelder(summen, felder.Angebot_Am || berlinDatum(jetzt())));
       else if (summen.netto) pruefeSpalten(a.idx, ANGEBOT_SPALTEN, 'Angebotsstand');
+    }
+    const aktion = String(eingabe?.aktion ?? '');
+    if (aktion === 'stornieren' || aktion === 'storno_zurueck') {
+      // AS1: offene Korb-/DTF-Zeilen abwaehlen bzw. die mit "Auftrag storniert" abgewaehlten zurueckholen - im selben Schreibaufruf
+      return mitKorbUndDtf('storno', async () => {
+        const k = await koerbeLesen(sheets, spreadsheetId);
+        const plan = koerbePlan({ auftrag, positionen: p.zeilen, korbZeilen: k.kz.zeilen, dtfZeilen: k.d.zeilen,
+          richtung: aktion === 'stornieren' ? 'storno' : 'zurueck', jetzt: jetzt() });
+        await schreibe(sheets, spreadsheetId, { zellen: [...zellenAus(TAB_AUFTRAEGE, a.idx, auftrag._zeile, felder), ...koerbeZellen(plan, k)] });
+        await koerbeCachesLeeren(plan);
+        return { ok: true, auftragNr: auftrag.Auftrag_Nr, status: felder.Status ?? auftrag.Status, ...koerbeAntwort(plan) };
+      });
     }
     await schreibe(sheets, spreadsheetId, { zellen: zellenAus(TAB_AUFTRAEGE, a.idx, auftrag._zeile, felder) });
     return { ok: true, auftragNr: auftrag.Auftrag_Nr, status: felder.Status ?? auftrag.Status };
@@ -515,10 +605,23 @@ export async function entfernePosition({ eingabe, sheets: s, jetzt = () => new D
       korb = entfernenKorbPlan({ position: plan.position, korbZeilen: kz.zeilen, wiederherstellen: wieder, jetzt: jetzt(), grund: GRUND_IM_AUFTRAG_ENTFERNT });
       if (korb.korb) zellen.push(...zellenAus(TAB_KORB, kz.idx, korb.korb.zeile, korb.korb.werte));
     }
-    if (zellen.length) await schreibe(sheets, spreadsheetId, { zellen });
+    // AS1: offene DTF-Zeilen der Position ziehen mit (wie der L-Shop-Korb seit KS8); wiederherstellen holt genau diese zurueck
+    let dtfPlan = { korb: [], dtf: [], dtfBestellt: [] };
+    if (plan.felder) {
+      const { mitDtfSperre, leseDtfKorbZeilen } = await import('./dtfKorb.js');
+      await mitDtfSperre(async () => {
+        const d = await leseDtfKorbZeilen({ sheets, spreadsheetId });
+        dtfPlan = koerbePlan({ auftrag, positionen: p.zeilen, korbZeilen: [], dtfZeilen: d.zeilen, positionId: plan.position.Position_ID,
+          richtung: wieder ? 'zurueck' : 'storno', grund: GRUND_IM_AUFTRAG_ENTFERNT, jetzt: jetzt() });
+        if (d.einrichtung) zellen.push(...dtfPlan.dtf.flatMap(x => zellenAus(TAB_DTF_KORB, d.idx, x.zeile, x.werte)));
+        if (zellen.length) await schreibe(sheets, spreadsheetId, { zellen });
+      });
+      if (dtfPlan.dtf.length) { const { _dtfKorbZustandLeeren } = await import('./dtfKorb.js'); _dtfKorbZustandLeeren?.(); }
+    }
     if (korb.korb) { const { _korbCacheLeeren } = await import('./lshopKorb.js'); _korbCacheLeeren?.(); }
     return { ok: true, auftragNr: auftrag.Auftrag_Nr, positionId: plan.position.Position_ID, lage: plan.lage, unveraendert: !plan.felder,
-      ...(korb.korb ? { korb: { schluessel: korb.korb.schluessel, status: korb.korb.werte.Status } } : {}), ...(korb.hinweis ? { korbHinweis: korb.hinweis } : {}) };
+      ...(korb.korb ? { korb: { schluessel: korb.korb.schluessel, status: korb.korb.werte.Status } } : {}), ...(korb.hinweis ? { korbHinweis: korb.hinweis } : {}),
+      dtf: { geaendert: dtfPlan.dtf.length, bestellt: dtfPlan.dtfBestellt } };
   }));
 }
 

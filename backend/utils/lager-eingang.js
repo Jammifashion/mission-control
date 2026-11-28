@@ -164,10 +164,10 @@ export function trikotLagerPlan({ zeile, ort, buchungen, orte, vorgang, jetzt = 
 }
 
 /** "bei Ankunft ins Lager" setzen/entfernen: nur eigene Positionen, nur offen/bestellt, Ort aktiv (leer = entfernen). */
-export function lagerZielPlan({ korbZeile: z, status, ziel, orte }) {
+export function lagerZielPlan({ korbZeile: z, status, ziel, orte, auStorniert = false }) {   // AS1: auStorniert
   if (!z) throw fehler('Position gibt es nicht (mehr) - nichts geändert.', 409);
   if (z.Herkunft !== HERKUNFT.EIGEN) throw fehler('Nur eigene Positionen können direkt ins Lager gehen (Shop-Positionen gehören einem Kunden).', 422);
-  if (AU_NR_MUSTER.test(t(z.Referenz)) && t(ziel)) throw fehler(`Position ${z.Schluessel} gehört zu Auftrag ${t(z.Referenz)} (Kundenrohlinge) – nicht ins Lager.`, 422);
+  if (AU_NR_MUSTER.test(t(z.Referenz)) && t(ziel) && !auStorniert) throw fehler(`Position ${z.Schluessel} gehört zu Auftrag ${t(z.Referenz)} (Kundenrohlinge) – nicht ins Lager.`, 422);
   if (z.Status !== t(status)) throw fehler(`Position ${z.Schluessel} hat sich geändert (jetzt "${z.Status}") - bitte neu laden.`, 409);
   if (![STATUS.OFFEN, STATUS.BESTELLT].includes(z.Status)) throw fehler(`Position ${z.Schluessel} ist "${z.Status}" - nur bis zum Wareneingang änderbar.`, 422);
   const neu = t(ziel);

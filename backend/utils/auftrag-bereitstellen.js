@@ -156,15 +156,17 @@ export const schonBereitgestellt = (buchungen, vorgang) => VORGANG_MUSTER.test(t
  *  Lager: Gegenbuchung (korrektur, Storno_von) der Abgang-Buchung, Lager_Buchung leer.
  */
 export function zuruecknehmenPlan({ auftrag, positionen, positionId, korbZeilen, buchungen, vorgang = '', jetzt }) {
-  if (!kannBereitstellen(auftrag, positionen)) throw fehler(`${auftrag.Auftrag_Nr}: zurücknehmen geht nur bis „${BEREITSTELLEN_BIS}“.`, 409, 'status');
+  const storno = auftrag.Status === STORNIERT;   // AS1: im stornierten Auftrag nur "zurück ins Lager"
+  if (!storno && !kannBereitstellen(auftrag, positionen)) throw fehler(`${auftrag.Auftrag_Nr}: zurücknehmen geht nur bis „${BEREITSTELLEN_BIS}“.`, 409, 'status');
   const p = aktivePositionen(positionen, auftrag.Auftrag_Nr).find(x => x.Position_ID === t(positionId));
   if (!p) throw fehler('Position gibt es nicht (mehr) – bitte neu laden.', 409, 'konflikt');
-  if (nurNachtraege(auftrag) && !istNachtrag(p)) throw fehler(`${auftrag.Auftrag_Nr}: zurücknehmen geht nach „${BEREITSTELLEN_BIS}“ nur bei nachträglich hinzugefügten Positionen.`, 409, 'status');
+  if (storno && !t(p.Lager_Buchung)) throw fehler(`${auftrag.Auftrag_Nr} ist storniert – hier geht nur „zurück ins Lager“.`, 409, 'status');
+  if (!storno && nurNachtraege(auftrag) && !istNachtrag(p)) throw fehler(`${auftrag.Auftrag_Nr}: zurücknehmen geht nach „${BEREITSTELLEN_BIS}“ nur bei nachträglich hinzugefügten Positionen.`, 409, 'status');
   if (!istUebergeben(p)) return { unveraendert: true, position: p };
   const iso = new Date(jetzt).toISOString();
   const jahr = berlinJahr(new Date(jetzt));   // GT1 C4
   const plan = { position: p, korb: null, lagerNeu: [], posFelder: { Stand: iso } };
-  if (t(p.Korb_Schluessel)) {
+  if (t(p.Korb_Schluessel) && !storno) {   // AS1: Korb hat der Storno schon erledigt
     const z = (korbZeilen ?? []).find(x => x.Schluessel === t(p.Korb_Schluessel));
     if (z && ![KORB_STATUS.OFFEN, KORB_STATUS.ABGEWAEHLT].includes(z.Status)) {
       throw fehler(`Position ${p.Position_ID}: im Korb schon „${z.Status}“ – nicht mehr zurücknehmbar.`, 409, 'gesperrt');

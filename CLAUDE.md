@@ -1397,6 +1397,16 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   (`entfernenLage`/`auEntfernenText`: frei · korb · lager · beiUns · Bestellseite). Antwort je AU `entfernt` (nur von Hand, ohne verschobene),
   Ansicht eingeklappt "n entfernte" mit "wiederherstellen" (`auEntferntHtml`). Bestellseite: Eintrag einer entfernten Position = Schritt
   "storniert" (bestehender Text), Packliste ohne sie. Test bs4.test.js.
+- AS1 (Inhaber 28.11.): Auftrag stornieren raeumt L-Shop- und DTF-Korb mit auf (Logik `utils/auftrag-storno.js` `koerbePlan`, Schreiben in
+  lib/auftraege.js `wechsleStatus`): Aktion `stornieren` waehlt unter Auftrags- + Korb- + DTF-Sperre im SELBEN Schreibaufruf alle OFFENEN Zeilen
+  des Auftrags ab (L-Shop: Korb_Schluessel der Positionen + eigene Zeilen mit Referenz = AU-Nr.; DTF: Quelle AU + Nummer), Grund
+  `GRUND_AUFTRAG_STORNIERT` "Auftrag storniert" (nicht in den Hand-Gruenden); `storno_zurueck` holt genau die mit diesem Grund zurueck. Schon
+  bestellt (L-Shop bestellt, DTF bestellt) bleibt -> Antwort `korb.bestellt`/`dtf.bestellt`; Lager nie automatisch (`lager.teile`). Vorschau
+  `GET /api/auftraege/:nr/storno-vorschau` (nur lesen) fuer die Rueckfrage (`auStornoFrageHtml`, Hinweise --warning). Am stornierten Auftrag
+  `#au-d-storno` (`auStornoHinweisHtml`): "bei Ankunft ins Lager …" (BO5-4-Weg; `lagerZielPlan` erlaubt Zeilen eines stornierten AU,
+  `auStorniert`) und "zurück ins Lager" (`zuruecknehmenPlan` im stornierten Auftrag NUR Lager-Gegenbuchung, Korb bleibt). Position entfernen zieht
+  jetzt auch die offenen DTF-Zeilen der Position mit ("im Auftrag entfernt", wiederherstellen holt zurueck). Altlast:
+  `scripts/as1-altlast.js` (`stornoAltlast`, Trockenlauf Standard, `--write` nur nach Freigabe). `korbStand` liefert `lagerZiel`. Test as1.test.js.
 - AM-8 (Inhaber + Nicole 17.11.): **neue Auftraege starten mit "Design"** (`START_STATUS`, Design_Am = Anlagetag, Anfrage_Am bleibt
   Anlagedatum; ohne Spalte Design_Am 409 `einrichtung`) - Dialog (kein "Start als" mehr), Wie letztes Mal, Schnellannahme, KS3-Uebernahme
   und KS4-Verschieben (`terminAuftragNeu`). Alte Oberflaechen schicken noch Anfrage/Angebot (`ALT_START`) -> Design. Anfrage/Angebot

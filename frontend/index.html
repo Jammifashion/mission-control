@@ -344,6 +344,7 @@
       .au-schnell-grund { display: block; font-size: 0.75rem; color: var(--warning); font-weight: normal; }
       .au-nachtrag-hinweis { font-size: 0.85rem; margin: 0.25rem 0; }   /* AP1 */
       .au-nachtrag-hinweis[hidden] { display: none; }
+      .au-warn { color: var(--warning); }   /* AS1: Storno-Rueckfrage, orange (nie Rot) */
       /* AM-6-1: letzte Auftraege im Dialog, Nachsehen-Ansicht ueber dem Dialog (am Handy bildschirmfuellend) */
       .au-letzte { display: flex; flex-direction: column; gap: 0.25rem; margin: 0.4rem 0 0.2rem; min-width: 0; }
       .au-letzte-zeile { display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; text-align: left; font: inherit; font-size: 0.85rem; color: var(--text);
@@ -4462,6 +4463,7 @@
               </div>
             </div>
             <div id="au-d-nachtrag" class="au-schnell-grund au-nachtrag-hinweis" data-hilfe="au-nachtrag-offen" tabindex="0" hidden></div><!-- AP1 -->
+            <div id="au-d-storno" class="au-schnell-grund au-nachtrag-hinweis" hidden></div><!-- AS1 -->
             <div id="au-d-dk"></div><!-- AU-UX1: Sammelhinweis "Maß fehlt" (einmal, mit Sprung) -->
             <div id="au-d-vorschlag" class="au-vorschlag" hidden>
               <span>Alle Positionen sind fertig.</span>
@@ -9049,6 +9051,9 @@
         'ab-ok':                { name: 'Bereitstellen', text: 'Legt die Korb-Positionen an (Referenz = Auftragsnummer) und bucht im Lager aus. Alles oder nichts, nie doppelt.' },
         'au-korb-stand':        { name: 'Korb-Stand', text: 'Wo die Rohlinge stehen: im Korb, bestellt, bestätigt mit Liefertermin, geliefert. Klick öffnet die Korb-Position.' },
         'au-lager-stand':       { name: 'ausgebucht', text: 'Die Rohlinge wurden für diesen Auftrag aus dem Lager genommen.' },
+        'au-storno-lager-ziel': { name: 'Bei Ankunft ins Lager', text: 'Die schon bestellte Ware des stornierten Auftrags beim Wareneingang gleich ins Lager buchen (Ort wählen).' },
+        'au-storno-lager':      { name: 'Zurück ins Lager', text: 'Bucht die für den Auftrag entnommene Ware wieder ins Lager (Gegenbuchung), mit Rückfrage.' },
+        'au-storno-dtf':        { name: 'DTF schon bestellt', text: 'Der Druck ist schon bei Nico bestellt und bleibt. Im DTF-Korb nachsehen.' },
         'au-zuruecknehmen':     { name: 'Übergabe zurücknehmen', text: 'Nur solange die Korb-Position offen ist bzw. bei Lagerware: nimmt sie aus dem Korb bzw. bucht zurück. Danach bearbeitbar.' },
         'au-uebergeben-block':  { name: 'Übergeben', text: 'Aufträge, die schon beim Kunden sind. Klick klappt die Liste auf oder zu (merkt sich dieses Gerät).' },
         'au-nicht-bezahlt':     { name: 'Nicht bezahlt', text: 'Der Auftrag ist übergeben, die Zahlung fehlt noch.' },
@@ -9256,7 +9261,7 @@
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag', 'tr-aendern-gesperrt', 'ti-goalie', 'tr-goalie', 'tr-gk-pruefen', 'tr-gk-markieren', 'tr-gk-kein', 'tr-zahlung-unbezahlt', 'tr-zahlung-erstattet', 'tr-zahlung-storniert', 'tr-zahlung-fehlt', 'tr-zahlung-filter'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfbs-g-rueckstand', 'lfbs-g-vorraetig', 'lfbs-lager', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
-        auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-funde', 'ku-fund-leeren', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'fp-porto-einnahmen', 'fp-porto-kosten', 'ps-lager', 'ps-einbuchen', 'ps-einbuchen-grund', 'ps-lager-frei', 'ps-lager-frei-korb', 'ps-aus-lager-frei', 'ps-lager-genommen', 'ps-fertig-lager', 'ps-fertig-nehmen', 'ps-fertig-genommen', 'ps-fertig-zurueck', 'ps-lager-bestellt', 'korb-bestellung', 'korb-aus-lager-erledigt', 'korb-erledigt', 'korb-lager-knapp', 'korb-sammel-erledigt', 'ku-lex-anlegen', 'ku-lex-nachholen', 'ku-lex-verknuepfen', 'ku-lex-trotzdem', 'au-suche', 'au-filter', 'au-neu', 'au-aus-anfrage', 'au-anfrage-loesen', 'au-schnell-text', 'au-schnell-los', 'au-schnell-datenschutz', 'au-schnell-kunde', 'au-schnell-kunde-neu', 'ku-vorbelegt', 'au-schnell-modell', 'au-schnell-lsm', 'au-schnell-todo', 'au-schnell-unsicher', 'au-vorbelegt', 'pv-titel', 'pv-aufschlag', 'pv-stufe', 'pv-alle', 'pv-uebernehmen', 'pv-ek-unbekannt', 'pv-summe', 'au-oeffnen', 'au-weiter', 'au-mehr', 'ap-kurz', 'au-druckname-zeigen', 'au-gruppe-details', 'dk-sammel', 'dk-zur-ersten', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-plus-position', 'au-nachtrag', 'au-nachtrag-offen', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-pos-da', 'au-pos-we', 'au-entfernen', 'au-zuordnen', 'au-zu-weg', 'au-entfernt-liste', 'au-wiederherstellen', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-druckname', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-ware', 'au-uebergeben-block', 'au-nicht-bezahlt', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern',
+        auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-funde', 'ku-fund-leeren', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'fp-porto-einnahmen', 'fp-porto-kosten', 'ps-lager', 'ps-einbuchen', 'ps-einbuchen-grund', 'ps-lager-frei', 'ps-lager-frei-korb', 'ps-aus-lager-frei', 'ps-lager-genommen', 'ps-fertig-lager', 'ps-fertig-nehmen', 'ps-fertig-genommen', 'ps-fertig-zurueck', 'ps-lager-bestellt', 'korb-bestellung', 'korb-aus-lager-erledigt', 'korb-erledigt', 'korb-lager-knapp', 'korb-sammel-erledigt', 'ku-lex-anlegen', 'ku-lex-nachholen', 'ku-lex-verknuepfen', 'ku-lex-trotzdem', 'au-suche', 'au-filter', 'au-neu', 'au-aus-anfrage', 'au-anfrage-loesen', 'au-schnell-text', 'au-schnell-los', 'au-schnell-datenschutz', 'au-schnell-kunde', 'au-schnell-kunde-neu', 'ku-vorbelegt', 'au-schnell-modell', 'au-schnell-lsm', 'au-schnell-todo', 'au-schnell-unsicher', 'au-vorbelegt', 'pv-titel', 'pv-aufschlag', 'pv-stufe', 'pv-alle', 'pv-uebernehmen', 'pv-ek-unbekannt', 'pv-summe', 'au-oeffnen', 'au-weiter', 'au-mehr', 'ap-kurz', 'au-druckname-zeigen', 'au-gruppe-details', 'dk-sammel', 'dk-zur-ersten', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-plus-position', 'au-nachtrag', 'au-nachtrag-offen', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-pos-da', 'au-pos-we', 'au-entfernen', 'au-zuordnen', 'au-zu-weg', 'au-entfernt-liste', 'au-wiederherstellen', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-druckname', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-storno-lager-ziel', 'au-storno-lager', 'au-storno-dtf', 'au-ware', 'au-uebergeben-block', 'au-nicht-bezahlt', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern',
           'au-hist-chip', 'au-hist-aus', 'au-hist-drin', 'au-hist-mehr', 'au-hist-preis', 'au-preis-von', 'au-hist-lfb', 'au-wie-letztes', 'au-vorlage-von',
           'ku-hist', 'ku-hist-neu', 'ku-hist-frei-neu', 'ku-mit-storniert', 'ku-wie-letztes',
           'au-letzte', 'au-letzte-alle', 'au-ns-schliessen', 'au-ns-vorlage', 'au-ek-von', 'au-bestellseite', 'ku-dauer-bestellseite',
@@ -13973,6 +13978,37 @@
       const AU_WARE_TEXT = { offen: 'Ware offen', bestellt: 'Ware bestellt', da: 'Ware da' };
       const AU_KORB_TEXT = { offen: 'im Korb, offen', herausgenommen: 'im Korb herausgenommen', bestellt: 'bei L-Shop bestellt', 'bestätigt': 'bestätigt',
         geliefert: 'geliefert', Lager: 'aus dem Lager (Korb)', fehlt: 'Korb-Zeile fehlt' };
+      // ── AS1: Storno raeumt die Koerbe auf - Rueckfrage mit Zahlen, Hinweis am stornierten Auftrag ──
+      /** Rueckfrage vor "stornieren" bzw. "Storno zurücknehmen" aus GET /:nr/storno-vorschau (nur Zahlen). */
+      function auStornoFrageHtml(v, zurueck = false) {
+        const n = (x, eins, mehr) => `${x} ${x === 1 ? eins : mehr}`;
+        if (zurueck) {
+          const teile = [v?.korb?.abgewaehlt ? n(v.korb.abgewaehlt, 'Zeile im L-Shop-Korb', 'Zeilen im L-Shop-Korb') : '', v?.dtf?.abgewaehlt ? n(v.dtf.abgewaehlt, 'Zeile im DTF-Korb', 'Zeilen im DTF-Korb') : ''].filter(Boolean);
+          return '<p>Der Auftrag kommt auf seinen letzten Schritt zurück.</p>'
+            + (teile.length ? `<p>${kuEsc(teile.join(' und '))} ${v.korb.abgewaehlt + v.dtf.abgewaehlt === 1 ? 'kommt' : 'kommen'} zurück in den Korb (nur die mit „Auftrag storniert“ abgewählten).</p>` : '');
+        }
+        const bestellt = (v?.korb?.bestellt?.length ?? 0), dtfB = (v?.dtf?.bestellt?.length ?? 0), lager = v?.lager?.teile ?? 0;
+        return '<p>Der Auftrag wird storniert und aus „offen“ genommen. Nichts wird gelöscht; „Storno zurücknehmen“ macht es rückgängig.</p>'
+          + `<p>${kuEsc(v?.text || 'Keine offenen Zeilen in den Körben.')}</p>`
+          + (bestellt ? `<p class="au-warn">${n(bestellt, 'Zeile ist', 'Zeilen sind')} bei L-Shop schon bestellt und bleiben – danach am Auftrag „bei Ankunft ins Lager …“.</p>` : '')
+          + (dtfB ? `<p class="au-warn">${n(dtfB, 'Druck ist', 'Drucke sind')} schon bestellt und bleiben – bitte im DTF-Korb prüfen.</p>` : '')
+          + (lager ? `<p class="au-warn">${n(lager, 'Teil wurde', 'Teile wurden')} aus dem Lager genommen – danach am Auftrag „zurück ins Lager“.</p>` : '');
+      }
+      /** Hinweis am stornierten Auftrag: was schon bestellt ist bzw. aus dem Lager kam (nichts automatisch). */
+      function auStornoHinweisHtml(a) {
+        if (a?.Status !== 'storniert') return '';
+        const pos = (a.positionen ?? []).filter(p => !p.Entfernt);
+        const bestellt = pos.filter(p => p.Korb_Schluessel && ['bestellt', 'bestätigt'].includes(p.korb?.status));
+        const lager = pos.filter(p => p.Lager_Buchung);
+        const dtf = pos.filter(p => p.dtf && p.dtf.status === 'bestellt');
+        if (!bestellt.length && !lager.length && !dtf.length) return '';
+        return '<div><strong>Storniert – noch offen:</strong></div>'
+          + bestellt.map(p => `<div class="korb-reihe">${kuEsc(p.Position_ID)}: bei L-Shop schon bestellt${p.korb?.lagerZiel ? ` · kommt ins Lager ${kuEsc(p.korb.lagerZiel)}` : ''}`
+            + ` <button type="button" class="korb-link" data-lager-ziel="${kuEsc(p.Korb_Schluessel)}" data-lager-ziel-status="bestellt" data-lager-ziel-wert="${kuEsc(p.korb?.lagerZiel ?? '')}" data-hilfe="au-storno-lager-ziel">bei Ankunft ins Lager …</button></div>`).join('')
+          + lager.map(p => `<div class="korb-reihe">${kuEsc(p.Position_ID)}: ${kuEsc(p.Menge)} aus dem Lager genommen (${kuEsc(p.Lager_Ort || '')})`
+            + ` <button type="button" class="korb-link" data-au-storno-lager="${kuEsc(p.Position_ID)}" data-hilfe="au-storno-lager">zurück ins Lager</button></div>`).join('')
+          + (dtf.length ? `<div class="korb-reihe" data-hilfe="au-storno-dtf" tabindex="0">${dtf.length} Druck${dtf.length === 1 ? '' : 'e'} schon bestellt – bitte im DTF-Korb prüfen.</div>` : '');
+      }
       function auKorbText(k) {
         if (!k) return '';
         const t = AU_KORB_TEXT[k.status] ?? k.status;
@@ -14752,6 +14788,9 @@
         const nh = auNachtragHinweis(a);   // AP1: Status nie automatisch zurueck - der Mensch entscheidet
         auEl('au-d-nachtrag').textContent = nh ? `⚠ ${nh}` : '';
         auEl('au-d-nachtrag').hidden = !nh;
+        const sh = auStornoHinweisHtml(a);   // AS1
+        auEl('au-d-storno').innerHTML = sh;
+        auEl('au-d-storno').hidden = !sh;
         auEl('au-bestellseite').hidden = st || a.Status === 'bezahlt';   // KS1
         auEl('au-d-vorschlag').hidden = !a.vorschlagFertig;
         auMehrZeichnen();   // AU-UX1
@@ -14885,8 +14924,39 @@
       auEl('au-zurueck').addEventListener('click', () => auStatus('zurueck', ['Einen Schritt zurück?', 'Der Auftrag geht einen Schritt zurück; das Datum des jetzigen Schritts wird geleert.', 'Zurück']));
       auEl('au-bezahlt').addEventListener('click', () => auStatus('bezahlt'));
       auEl('au-bezahlt-zurueck').addEventListener('click', () => auStatus('bezahlt_zurueck', ['„bezahlt“ zurücknehmen?', 'Das Bezahlt-Datum wird geleert.', 'Zurücknehmen']));
-      auEl('au-storno').addEventListener('click', () => auStatus('stornieren', ['Auftrag stornieren?', 'Der Auftrag wird storniert und aus „offen“ genommen. Nichts wird gelöscht; „Storno zurücknehmen“ macht es rückgängig.', 'Stornieren']));
-      auEl('au-storno-zurueck').addEventListener('click', () => auStatus('storno_zurueck', ['Storno zurücknehmen?', 'Der Auftrag kommt auf seinen letzten Schritt zurück.', 'Zurücknehmen']));
+      // AS1: vor der Rueckfrage nachsehen, was in L-Shop- und DTF-Korb passiert (nur lesen)
+      async function auStornoKlick(zurueck) {
+        const a = (auZ.daten?.auftraege ?? []).find(x => x.Auftrag_Nr === auZ.offen);
+        if (!a) return;
+        let v = null;
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/auftraege/${encodeURIComponent(a.Auftrag_Nr)}/storno-vorschau`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
+          v = await res.json().catch(() => null);
+          if (!res.ok) throw new Error(v?.error || `HTTP ${res.status}`);
+        } catch (err) { auDFehler(`Körbe nicht gelesen: ${err.message}`); return; }
+        if (!await showConfirm(zurueck ? 'Storno zurücknehmen?' : 'Auftrag stornieren?', auStornoFrageHtml(v, zurueck), zurueck ? 'Zurücknehmen' : 'Stornieren')) return;
+        try {
+          const r = await auPost('status', { auftragNr: a.Auftrag_Nr, stand: a.Stand, aktion: zurueck ? 'storno_zurueck' : 'stornieren' });
+          const z = (r.korb?.abgewaehlt ?? 0) + (r.dtf?.abgewaehlt ?? 0);
+          showToast(`${r.auftragNr}: ${r.status}${z ? ` · ${z} Korb-Zeile${z === 1 ? '' : 'n'} ${zurueck ? 'zurückgeholt' : 'abgewählt'}` : ''}`);
+          auDFehler('');
+        } catch (e) { auDFehler(e.message); }
+        await loadAuftraege();
+      }
+      auEl('au-storno').addEventListener('click', () => auStornoKlick(false));
+      auEl('au-storno-zurueck').addEventListener('click', () => auStornoKlick(true));
+      // AS1: Hinweis am stornierten Auftrag - "bei Ankunft ins Lager" (BO5-4-Weg) und "zurück ins Lager" (Gegenbuchung wie "Übergabe zurücknehmen")
+      auEl('au-d-storno').addEventListener('click', async e => {
+        const z = e.target.closest('[data-lager-ziel]');
+        if (z) { lagerZielAendern(z, () => loadAuftraege()); return; }
+        const b = e.target.closest('[data-au-storno-lager]');
+        if (!b) return;
+        if (!await showConfirm('Zurück ins Lager?', `<p>${kuEsc(b.dataset.auStornoLager)}: die entnommene Ware wird wieder eingebucht (Gegenbuchung im Lager).</p>`, 'Zurück ins Lager')) return;
+        b.disabled = true;
+        try { await auPost('zuruecknehmen', { auftragNr: auZ.offen, positionId: b.dataset.auStornoLager, vorgang: auVorgang() }); showToast(`${b.dataset.auStornoLager}: zurück ins Lager gebucht.`); auDFehler(''); }
+        catch (err) { b.disabled = false; auDFehler(err.message, b); }
+        await loadAuftraege();
+      });
       auEl('au-d-schliessen').addEventListener('click', auDetailSchliessen);
       auEl('au-detail').addEventListener('keydown', e => { if (e.key === 'Escape' && auEl('au-dialog').hidden) auDetailSchliessen(); });
       auEl('au-bearbeiten').addEventListener('click', () => {

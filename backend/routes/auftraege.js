@@ -2,7 +2,7 @@
 // Nur Auftrag_Nr/Kunden_Nr und Zahlen im Log, nie Namen oder Freitexte.
 import { Router } from 'express';
 import {
-  leseAuftraege, legeAuftragAn, bearbeiteAuftrag, wechsleStatus, setzePositionFertig, entfernePosition,
+  leseAuftraege, legeAuftragAn, bearbeiteAuftrag, wechsleStatus, stornoVorschau, setzePositionFertig, entfernePosition,
   legeAufgabeAn, bearbeiteAufgabe, wechsleAufgabeStatus, legeTodoAn, aendereTodo, verschiebeTodo, archiviereTodo,
   aktualisiereAngebot, setzeZustaendig, leseKundenHistorie, setzeDtfExpress, setzeDruckmasseHand,
 } from '../lib/auftraege.js';
@@ -75,6 +75,9 @@ router.post('/bearbeiten', mitMeldung(async req => {
   if (!r.unveraendert) console.log(`Auftrag bearbeitet: ${r.auftragNr}`);
   return r;
 }));
+
+// AS1: GET /api/auftraege/:nr/storno-vorschau - was Stornieren bzw. Storno zuruecknehmen in L-Shop- und DTF-Korb aendert (nur lesen)
+router.get('/:nr/storno-vorschau', mitMeldung(req => stornoVorschau({ auftragNr: req.params.nr })));
 
 // ── POST /api/auftraege/status ────────────────────────────────────────────────
 // Body { auftragNr, stand, aktion: weiter | zurueck | bezahlt | bezahlt_zurueck | stornieren | storno_zurueck }.

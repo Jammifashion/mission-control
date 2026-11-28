@@ -119,7 +119,14 @@ export async function setzeLagerZiel({ schluessel, status, ziel, sheets: s } = {
     const treffer = zeilen.filter(z => z.Schluessel === t(schluessel));
     if (treffer.length > 1) throw fehler(`Position ${t(schluessel)} steht mehrfach im Warenkorb - nichts geändert.`, 409);
     const l = t(ziel) ? await lagerFrisch(sheets, spreadsheetId) : null;
-    const plan = lagerZielPlan({ korbZeile: treffer[0], status, ziel, orte: l ? aktiveOrte(l.orte) : [] });
+    // AS1: Zeile eines stornierten Auftrags darf "bei Ankunft ins Lager" (Auftrag nur gelesen)
+    let auStorniert = false;
+    const ref = t(treffer[0]?.Referenz);
+    if (/^AU-\d{4}-\d{4}$/.test(ref) && t(ziel)) {
+      const { leseAuftraege } = await import('./auftraege.js');
+      auStorniert = ((await leseAuftraege({ autoBestellen: false })).auftraege ?? []).some(a => a.Auftrag_Nr === ref && a.Status === 'storniert');
+    }
+    const plan = lagerZielPlan({ korbZeile: treffer[0], status, ziel, orte: l ? aktiveOrte(l.orte) : [], auStorniert });
     if (plan.alt === plan.neu) return { ok: true, schluessel: plan.schluessel, ziel: plan.neu, unveraendert: true };
     const range = `${q(TAB_KORB)}!${colLetter(idx.Lager_Ziel)}${plan.zeile}`;
     await sheets.spreadsheets.values.update({ spreadsheetId, range, valueInputOption: 'RAW', requestBody: { values: [[plan.neu]] } });

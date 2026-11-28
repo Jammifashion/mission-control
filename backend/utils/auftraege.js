@@ -511,7 +511,7 @@ export function korbStand(z) {
   if (!z) return { status: 'fehlt' };
   const st = t(z.Status);
   const status = st === 'abgewählt' ? 'herausgenommen' : st === 'bestellt' && t(z.AB_Hinweis) ? 'bestätigt' : st;
-  return { status, schluessel: t(z.Schluessel), bestellId: t(z.Bestell_ID), liefertermin: t(z.Liefertermin), hinweis: t(z.Hinweis) };
+  return { status, schluessel: t(z.Schluessel), bestellId: t(z.Bestell_ID), liefertermin: t(z.Liefertermin), hinweis: t(z.Hinweis), lagerZiel: t(z.Lager_Ziel) };   // AS1: "kommt ins Lager"
 }
 const KORB_ERLEDIGT = ['bestellt', 'bestätigt', 'geliefert', 'Lager'];
 // KS3-1: Verweis auf eine Korb-Zeile ("schon bestellt – verknüpfen") - deren Korb-Stand zaehlt fuer Ware/auto-"bestellt" wie bei 🛒.
