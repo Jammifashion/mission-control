@@ -297,7 +297,13 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   (`#ku-dauer-bestellseite`, Kundenkarte, Art dauer). Ein Dialog `#bsm-dialog` (nach `#ku-dialog` im DOM, z-index 52 ueber die id): Anlegen,
   Link einmal anzeigen + kopieren, Speichern (Gueltig bis, Hinweis, Design-Link), neuer Link, sperren/wieder freigeben, Termine (dauer).
   Der Link (`bestellen.html#t=<Token>`) steht nur in `bsmZ.link`, solange der Dialog offen ist - nie Browser-Speicher/Adresse/Toast.
-  Knopf "Artikelliste aktualisieren" = Bilder der Dauer-Sortimente.)
+  Knopf "Artikelliste aktualisieren" = Bilder der Dauer-Sortimente.
+  AU-UX2 (28.11.): Zahl der noch nicht uebernommenen Eintraege am Hauptreiter "Aufträge" (`#nav-auftraege-badge`) und am Unterpunkt "Bestellseiten"
+  (Block `Bestellseiten-Zahl: Anfang/Ende`, Optik `.nav-badge` wie Bestellen). EINE Zaehlregel `ungepruefteZahlen` (UEBERNEHMBAR = eingegangen + Altstand
+  geprüft) fuer Dashboard-Kachel, KS8-Knopf "Einträge (n neu)" und Menue; Start `GET /api/bestellseiten/offen` { zahl }, danach aus jeder Dashboard-Antwort
+  und `GET /api/bestellseiten` nachgefuehrt, kein Zeitgeber. Aufträge → Aufträge: Status "übergeben" unten im eingeklappten Block "Übergeben (n)"
+  (`auTeileUebergeben`/`auUebBlockHtml`, ✓, ruhig), ohne Bezahlt_Am Kennzeichen "nicht bezahlt" `--warning` (nie Rot); auf/zu je Geraet
+  `mc_au_uebergeben_offen` (Helfer beim Navigations-Block - die Auftrags-Sektion bleibt ohne Browser-Speicher). Test au-ux2.test.js.)
 - Druckmaße (DK1: Unterpunkt `artikel/druckmasse`, Modus-Knopf `#mode-btn-druckmasse`, Panel `#dkm-panel` + Dialog `#dkm-dialog`, SECTION
   Druckmaße (DK1) VOR Lieferbarkeit Shop, Block `Druckmaße-Pflege: Anfang/Ende`, Praefix `dkm`, Hilfe-Gruppe `druckmasse`; nur `/api/druckmasse`,
   nie loeschen = "inaktiv". Auftragsansicht: Block `Druckkosten-Anzeige: Anfang/Ende` (Praefix `dk`, in der Kalkulation, Dialog `#dk-dialog`

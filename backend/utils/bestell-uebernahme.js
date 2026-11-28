@@ -381,11 +381,12 @@ function gruppenPreis(eintraege, preisJe) {
 
 // ── Zahlen und Anzeige ───────────────────────────────────────────────────────
 
-/** Dashboard: ungeprüfte Eintraege (Status eingegangen) je Zugang - nur Zahlen und Zugang-IDs. */
+/** Noch nicht uebernommene Eintraege (UEBERNEHMBAR: eingegangen + Altstand geprüft) je Zugang - nur Zahlen und Zugang-IDs.
+ *  EINE Regel (AU-UX2) fuer Dashboard-Kachel, KS8-Knopf "Einträge (n neu)" und Menue-Zahl an Aufträge/Bestellseiten. */
 export function ungepruefteZahlen(eintraege) {
   const je = new Map();
   for (const e of eintraege ?? []) {
-    if ((t(e.Status) || E_STATUS.EINGEGANGEN) !== E_STATUS.EINGEGANGEN) continue;
+    if (!UEBERNEHMBAR.includes(t(e.Status) || E_STATUS.EINGEGANGEN)) continue;   // AU-UX2: eine Regel fuer Dashboard, KS8-Knopf und Menue-Zahl
     je.set(e.Zugang_ID, (je.get(e.Zugang_ID) ?? 0) + 1);
   }
   const jeZugang = [...je.entries()].map(([zugangId, anzahl]) => ({ zugangId, anzahl })).sort((a, b) => b.anzahl - a.anzahl);

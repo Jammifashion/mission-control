@@ -339,7 +339,7 @@ describe('Logik', () => {
   });
   test('Dashboard-Zahl und Anzeige je Position', async () => {
     expect(ungepruefteZahlen([{ Zugang_ID: 'BS-001', Status: 'eingegangen' }, { Zugang_ID: 'BS-001', Status: '' }, { Zugang_ID: 'BS-002', Status: 'geprüft' }]))
-      .toEqual({ zahl: 2, jeZugang: [{ zugangId: 'BS-001', anzahl: 2 }] });
+      .toEqual({ zahl: 3, jeZugang: [{ zugangId: 'BS-001', anzahl: 2 }, { zugangId: 'BS-002', anzahl: 1 }] });   // AU-UX2: Altstand geprüft zaehlt mit
     await absenden([{ art: 'artikel', id: '101', menge: 1 }]);
     expect(await leseUngepruefte({ sheets: s.sheets })).toEqual({ zahl: 1, jeZugang: [{ zugangId: 'BS-001', anzahl: 1 }] });
     expect(eintraegeJePosition([{ Eintrag_ID: 'BE-1', Status: 'übernommen', Auftrag_Nr: 'AU-2026-0001', Position_ID: 'AU-2026-0001-01', Kuerzel: 'X', Notiz: 'n', Menge: '2' }], 'AU-2026-0001'))

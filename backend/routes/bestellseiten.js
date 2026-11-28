@@ -3,7 +3,7 @@
 import { Router } from 'express';
 import { leseZugaenge, legeZugangAn, bearbeiteZugang, neuerLink, zeigeLink, aktualisiereBilder, leseKategorien, bilderPlan, bilderStueck, bilderSchreiben } from '../lib/bestellseite.js';
 import { leseEintraegeMc } from '../lib/bestellEintraege.js';   // KS2: nur ansehen
-import { pruefeEintraege, aendereEintragMc, uebernahmeVorschau, uebernehmen, uebernehmenUndBereitstellen, eintraegeZumAuftrag } from '../lib/bestellUebernahme.js';   // KS3
+import { leseUngepruefte, pruefeEintraege, aendereEintragMc, uebernahmeVorschau, uebernehmen, uebernehmenUndBereitstellen, eintraegeZumAuftrag } from '../lib/bestellUebernahme.js';   // KS3
 import { setzeFertig, setzeDa, setzeGeliefert, verschiebe } from '../lib/bestellStand.js';   // KS4
 import { entwuerfeMc, entwurfBildMc, setzeEntwurfOrdner } from '../lib/bestellEntwuerfe.js';   // KS7
 
@@ -19,6 +19,8 @@ const mitMeldung = fn => async (req, res, next) => {
 // GET /api/bestellseiten - alle Zugaenge (ohne Hash), Status, Termine, Stand der Bilder.
 router.get('/', mitMeldung(() => leseZugaenge()));
 // GET /api/bestellseiten/kategorien - Auswahl fuer das Sortiment (Nummer, Pfad).
+// AU-UX2: GET /api/bestellseiten/offen - nur die Zahl der noch nicht uebernommenen Eintraege (Menue-Zahl), Regel = ungepruefteZahlen.
+router.get('/offen', mitMeldung(async () => ({ zahl: (await leseUngepruefte()).zahl })));
 router.get('/kategorien', mitMeldung(async () => ({ kategorien: (await leseKategorien()).map(k => ({ nr: k.nr, pfad: k.pfad })) })));
 // ── KS7: Entwuerfe (Drive-Ordner) ──
 // GET /api/bestellseiten/:zugangId/entwuerfe - Liste wie die Seite; GET .../entwurf/:nr?groesse= - Bild (Vorschau in MC)

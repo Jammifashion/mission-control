@@ -460,6 +460,7 @@ export function antwort(method, pfad, params, body) {
   if (p === '/api/bestellen/rueckstand') return RUECKSTAND;
   if (p === '/api/bestellseiten') return zugaengeAntwort();
   if (p === '/api/bestellseiten/kategorien') return KATEGORIEN;
+  if (p === '/api/bestellseiten/offen') return { zahl: BU.ungepruefteZahlen(EINTRAEGE).zahl };   // AU-UX2: Menue-Zahl
   // KS8: Herkunft-Vorschlaege je offenem Eintrag des Termins
   { const m = p.match(/^\/api\/bestellseiten\/(BS-\d+)\/termin\/(BT-\d+)\/uebernahme$/);
     if (m) return { terminAuftraege: [], anhaengbar: [], kandidaten: {}, spalten: { verweis: true, zugang: true, herkunft: true },

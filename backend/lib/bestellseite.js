@@ -30,7 +30,8 @@ import {
 import { notify } from './chatNotify.js';
 import { ladeLinkSchluessel } from './linkSchluessel.js';
 import { verschluessele, tokenFuerMc, linkFehler } from '../utils/link-schluessel.js';
-import { EINTRAG_OPTIONAL, OFFEN } from '../utils/bestell-eintraege.js';
+import { EINTRAG_OPTIONAL } from '../utils/bestell-eintraege.js';
+import { ungepruefteZahlen } from '../utils/bestell-uebernahme.js';   // AU-UX2: eine Zaehlregel
 import { GROESSEN_KINDER, GROESSEN_ERWACHSENE } from '../utils/trikot-intern.js';
 
 const t = v => String(v ?? '').trim();
@@ -289,7 +290,7 @@ export async function leseZugaenge({ sheets: s, jetzt = () => new Date(), schlue
   const bilder = await leseBilder(sheets, spreadsheetId);
   // KS8: offene Eintraege (eingegangen + Altstand geprüft) je Zugang fuer den Knopf "Einträge (n neu)" - nur Zahlen
   const offenJe = new Map();
-  try { for (const e of (await liesEintraege(sheets, spreadsheetId))?.zeilen ?? []) if (OFFEN.includes(t(e.Status) || 'eingegangen')) offenJe.set(e.Zugang_ID, (offenJe.get(e.Zugang_ID) ?? 0) + 1); }
+  try { for (const x of ungepruefteZahlen((await liesEintraege(sheets, spreadsheetId))?.zeilen ?? []).jeZugang) offenJe.set(x.zugangId, x.anzahl); }   // AU-UX2: eine Regel
   catch { /* ohne Zahl */ }
   // UI3: Kategorienamen statt Nummern in der Liste - nur gelesen, wenn es Dauer-Seiten gibt; nicht lesbar = Nummern wie bisher
   let kategorien = [];
