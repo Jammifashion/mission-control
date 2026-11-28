@@ -117,16 +117,18 @@ export async function runLieferbarkeit({
     if (!info) hinweise.push(`Reiter ${LIEFERBARKEIT_TAB} fehlt noch (Trockenlauf rechnet ohne Vorher-Stand).`);
     const altWerte = info ? await lies(sheets, spreadsheetId, LIEFERBARKEIT_TAB) : [];
     const alt = altAusWerten(altWerte);
-    const [varianten, korb, buchungen] = await Promise.all([
+    const [varianten, korb, buchungen, modelle] = await Promise.all([
       leseReiterSpalten({ tab: 'Varianten', sheets, spreadsheetId, spalten: { LShop_ArticleNr: 'LShop_ArticleNr' }, optional: { Aktiv: 'Aktiv' } }),
       leseReiterSpalten({ tab: 'Warenkorb_LShop', sheets, spreadsheetId, spalten: { LShop_ArticleNr: 'LShop_ArticleNr', Status: 'Status' } }).catch(() => []),
       leseReiterSpalten({ tab: 'Lager_Buchungen', sheets, spreadsheetId, spalten: { Schluessel: 'Schluessel' } }).catch(() => []),
+      // AU-UX3: alle waehlbaren Modell-Nummern (fehlt der Reiter: ohne)
+      leseReiterSpalten({ tab: 'LShop_Modelle', sheets, spreadsheetId, spalten: { articleNr: 'ArticleNr' }, optional: { status: 'Status', discontinued: 'Discontinued' } }).catch(() => []),
     ]);
     const bestellseiten = await bestellseitenNummern({ sheets, spreadsheetId, jetzt: start }).catch(err => {   // Nachbesserung KS6
       hinweise.push(`Bestellseiten nicht lesbar (${err?.status ?? err?.code ?? 'Fehler'}) - ohne deren Größen.`);
       return new Set();
     });
-    const { nummern, korbOffen } = genutzteNummern({ varianten, korb, buchungen, bestellseiten });
+    const { nummern, korbOffen } = genutzteNummern({ varianten, korb, buchungen, bestellseiten, modelle });
 
     // 2. Bestandsdatei
     let datei;

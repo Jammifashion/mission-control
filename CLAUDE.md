@@ -680,7 +680,11 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   `Auslaufartikel - Stand TT.MM.JJJJ….xlsx` (Ordner "L-Shop Auslauf" in der Ablage, sonst ablageweite Suche; neueste nach
   NAMENSdatum; Spalten `Artikelnummer`, `Auslaufdatum` ueber den Namen; gelesen mit drive.readonly, nie gespeichert; > 14 Tage
   alt -> Hinweis). Reiter `LShop_Lieferbarkeit` (SSOT): ArticleNr | CatalogNr | stock | Stand_Datei | Auslauf | Auslaufdatum |
-  Quelle_Liste | Geaendert_Am | Null_seit, NUR unsere Nummern (Varianten Aktiv TRUE, alle Korb-Zeilen, Lager `LS:`); stock leer =
+  Quelle_Liste | Geaendert_Am | Null_seit, NUR unsere Nummern (Varianten Aktiv TRUE, alle Korb-Zeilen, Lager `LS:`, Bestellseiten; AU-UX3 28.11.: dazu
+  ALLE waehlbaren Nummern aus LShop_Modelle - ohne ausgelaufen/3/6 -, damit Auftrags-/Korb-Raster auch fuer neue Modelle/Farben Punkte haben; Chat
+  bleibt bei Nummern mit offenen Korb-Positionen. Auftrags-Raster: oranger Hinweis `#au-raster-warn` bei Menge in einer Problemgroesse,
+  `lfbMengenWarnung`, nie sperrend. Sichtbarer Name von "Rohlinge bereitstellen" = "Textil beschaffen …" (Dialog "Textil beschaffen", Knopf
+  "Beschaffen"); Routen/Funktionen/IDs heissen weiter bereitstellen. Test au-ux3.test.js); stock leer =
   nicht mehr bei L-Shop gefuehrt; `Null_seit` = seit wann durchgehend 0/nicht gefuehrt (BO7-3: 14 Tage). Jeder Lauf schreibt den
   ganzen Reiter in EINEM values.update (kein append, vorher frisch gelesen = Stand vom Anfang, sonst 409; Rest darunter geleert;
   zurueckgelesen). "laeuft aus" NUR aus der Liste; `Discontinued` 3/6 bleibt harte Sperre (Anzeige-Umstellung BO7-2). Chat

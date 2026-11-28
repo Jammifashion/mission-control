@@ -142,12 +142,13 @@ function machDrive(dateien, { ordner = [{ id: 'ORD', name: 'L-Shop Auslauf' }] }
 }
 const ftp = (zeilen, stand = '2026-11-03T10:30:12.000Z') => jest.fn(async () => { const buf = csv(zeilen); return { buf, stand, bytes: buf.length }; });
 
-function tabsMit({ korb = [], lieferbarkeit = [LIEFERBARKEIT_SPALTEN] } = {}) {
+function tabsMit({ korb = [], lieferbarkeit = [LIEFERBARKEIT_SPALTEN], modelle = null } = {}) {   // AU-UX3: modelle null = Reiter LShop_Modelle leer
   const tabs = grundTabs();
   tabs.Varianten = [['SSOT-ID', 'Aktiv', 'WC_Variation_ID', 'LShop_ArticleNr'], ['0001', 'TRUE', '501', A], ['0001', 'TRUE', '502', B], ['0002', 'FALSE', '503', D]];
   tabs[TAB_KORB] = [KORB_SPALTEN, ...korb.map(o => KORB_SPALTEN.map(n => o[n] ?? ''))];
   tabs.Lager_Buchungen = [['Buchung_ID', 'Schluessel'], ['LB-2026-00001', `LS:${C}`]];
   if (lieferbarkeit) tabs[LIEFERBARKEIT_TAB] = lieferbarkeit;
+  tabs.LShop_Modelle = [['ArticleNr', 'CatalogNr', 'Status', 'Discontinued'], ...(modelle ?? [])];
   return tabs;
 }
 const korbZeile = (nr, status = 'offen') => ({ Schluessel: `JFN:1:${nr}`, Herkunft: 'shop', LShop_ArticleNr: nr, Menge: '1', Status: status });
@@ -156,6 +157,18 @@ describe('runLieferbarkeit', () => {
   beforeEach(() => {
     process.env.GOOGLE_SHEET_ID = 'ssot';
     _lieferbarkeitSperreLoesen();
+  });
+  test('AU-UX3: alle waehlbaren Modell-Nummern kommen dazu (ohne ausgelaufen/3/6), ohne Chat', async () => {
+    const NEU = '1000777001', AUS = '1000777002', D3 = '1000777003';
+    const tabs = tabsMit({ modelle: [[NEU, 'NEU1', 'aktiv', '0'], [AUS, 'NEU1', 'ausgelaufen', '0'], [D3, 'NEU1', 'aktiv', '3']] });
+    const { sheets } = machSheets(tabs);
+    const notifyFn = jest.fn();
+    await runLieferbarkeit({ sheets, drive: machDrive(await liste30()), driveId: 'D', ftpLade: ftp([[NEU, 0, 'NEU1']]), notifyFn, jetzt: () => T1 });
+    const nr = tabs[LIEFERBARKEIT_TAB].map(z => z[0]);
+    expect(nr).toContain(NEU);
+    expect(nr).not.toContain(AUS);
+    expect(nr).not.toContain(D3);
+    expect(notifyFn).not.toHaveBeenCalled();
   });
   const liste30 = async () => [{ id: 'L30', name: 'Auslaufartikel - Stand 30.10.2026.de.xlsx', modifiedTime: '2026-10-30T14:00:00Z', size: '1000', imOrdner: true, buf: await xlsx([[B, '2026-12-31']]) }];
 

@@ -101,8 +101,16 @@ export function listenAlterTage(name, jetzt = new Date()) {
  * Unsere Nummern: Varianten aktiv (Aktiv TRUE), alle Korb-Zeilen, Lager-Schluessel LS:<Nr>.
  * -> { nummern: Set, korbOffen: Map Nr -> Anzahl offener Positionen }
  */
-export function genutzteNummern({ varianten = [], korb = [], buchungen = [], bestellseiten = [] }) {
+export function genutzteNummern({ varianten = [], korb = [], buchungen = [], bestellseiten = [], modelle = [] }) {
   const nummern = new Set();
+  // AU-UX3 (Inhaber 28.11.): alle waehlbaren Nummern der Modelle in LShop_Modelle (nicht ausgelaufen, nicht Discontinued 3/6) - sonst hat ein
+  // Modell/eine Farbe, die wir noch nie hatten, im Auftrags-/Korb-Raster keinen Punkt (Befund BY284 Navy). Chat bleibt bei korbOffen.
+  for (const m of modelle) {
+    const nr = t(m.articleNr ?? m.ArticleNr);
+    if (!NR_RE.test(nr)) continue;
+    if (t(m.status ?? m.Status).toLowerCase() === 'ausgelaufen' || ['3', '6'].includes(t(m.discontinued ?? m.Discontinued))) continue;
+    nummern.add(nr);
+  }
   // Nachbesserung KS6: alle waehlbaren Groessen der aktiven Bestellseiten (Art auftrag) - sonst zeigt die Seite nur bei den Groessen einen
   // Punkt, die schon im Korb/Shop/Lager stehen (Befund Inhaber 08.11.: "nur eine Groesse gruen").
   for (const nr of bestellseiten) if (NR_RE.test(t(nr))) nummern.add(t(nr));

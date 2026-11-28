@@ -4442,7 +4442,7 @@
             <!-- AU-UX1: sichtbar nur Hauptaktion, bereitstellen (wenn moeglich), bezahlt, Abrechnen (RE3, wenn abrechenbar), + Aufgabe; der Rest im Menue "mehr …" -->
             <div class="korb-reihe ku-knoepfe au-aktionen">
               <button type="button" class="korb-aktion korb-aktion-haupt" id="au-weiter" data-hilfe="au-weiter">weiter …</button>
-              <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-bereitstellen" data-hilfe="au-bereitstellen">Rohlinge bereitstellen …</button>
+              <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-bereitstellen" data-hilfe="au-bereitstellen">Textil beschaffen …</button>
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-bezahlt" data-hilfe="au-bezahlt">als bezahlt markieren</button>
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="au-storno-zurueck" data-hilfe="au-storno-zurueck">Storno zurücknehmen</button>
               <span id="au-re-knopf" class="au-re-knopf"></span>
@@ -4485,7 +4485,7 @@
         <div id="ab-dialog" class="edi-dialog" role="dialog" aria-modal="true" aria-labelledby="ab-titel" hidden>
           <div class="edi-box ku-box au-box">
             <div class="edi-kopf">
-              <strong id="ab-titel">Rohlinge bereitstellen</strong>
+              <strong id="ab-titel">Textil beschaffen</strong>
               <button class="hilfe-i" type="button" data-hilfe-gruppe="auftraege" aria-controls="hilfe-ab-dialog" aria-expanded="false" aria-label="Was tun die Knöpfe?">ⓘ</button>
               <button type="button" class="korb-link" id="ab-schliessen" data-hilfe="dialog-schliessen">Schließen</button>
             </div>
@@ -4498,7 +4498,7 @@
             </div>
             <div id="ab-fehler" class="lager-warnung" hidden></div>
             <div class="korb-reihe ku-knoepfe">
-              <button type="button" class="korb-aktion korb-aktion-haupt" id="ab-ok" data-hilfe="ab-ok">Bereitstellen</button>
+              <button type="button" class="korb-aktion korb-aktion-haupt" id="ab-ok" data-hilfe="ab-ok">Beschaffen</button>
               <button type="button" class="korb-aktion korb-aktion-ruhig" id="ab-abbrechen" data-hilfe="dialog-abbrechen">Abbrechen</button>
             </div>
           </div>
@@ -4635,6 +4635,7 @@
                   <select id="au-farbe" class="form-select" aria-label="Farbe"></select>
                   <div id="au-raster" class="korb-raster" role="group" aria-label="Menge je Größe"></div>
                   <div id="au-raster-lb" class="korb-zaehler"></div>
+                  <div id="au-raster-warn" class="korb-zaehler au-warn" data-hilfe="au-raster-warn" tabindex="0" aria-live="polite" hidden></div><!-- AU-UX3 -->
                   <div id="au-raster-lager" class="korb-zaehler"></div>
                   <div id="au-raster-summe" class="korb-zaehler" aria-live="polite"></div>
                   <div class="korb-reihe ku-knoepfe">
@@ -8964,7 +8965,7 @@
         'au-bezahlt-zurueck':   { name: 'bezahlt zurücknehmen', text: 'Fragt vorher und leert das Bezahlt-Datum.' },
         'au-bearbeiten':        { name: 'bearbeiten …', text: 'Bis „Design“ alles änderbar. Ab „bestellt“ nur Notiz, Termin und Preise – neue Positionen gehen bis „übergeben“.' },
         'au-plus-position':     { name: '+ Position', text: 'Neue Position dazu – auch wenn der Auftrag schon läuft. Bestehende Positionen bleiben unverändert.' },
-        'au-nachtrag':          { name: 'Nachtrag', text: 'Kam nach „bestellt“ dazu und läuft eigenständig: Rohlinge bereitstellen und DTF nur für diese Position.' },
+        'au-nachtrag':          { name: 'Nachtrag', text: 'Kam nach „bestellt“ dazu und läuft eigenständig: Textil beschaffen und DTF nur für diese Position.' },
         'au-nachtrag-offen':    { name: 'Nachtrag offen', text: 'Eine nachgetragene Position ist noch nicht fertig. MC setzt den Status nie zurück – ggf. „einen Schritt zurück“.' },
         'au-storno':            { name: 'stornieren …', text: 'Fragt vorher. Der Auftrag fällt aus „offen“, nichts wird gelöscht.' },
         'au-storno-zurueck':    { name: 'Storno zurücknehmen', text: 'Holt den Auftrag auf seinen letzten Schritt zurück.' },
@@ -9047,9 +9048,10 @@
         'au-teilen':            { name: 'teilen', text: 'Nimmt aus dem Lager, was da ist, und macht für den Rest eine Position „bestellen“.' },
         'au-herkunft-zeichen':  { name: 'Herkunft', text: '🛒 wird bestellt · 📦 kommt aus dem Lager (Ort) · ✓ liegt schon bereit.' },
         'au-design-skip':       { name: 'Design überspringen', text: 'Kein Design nötig: weiter direkt zu „bestellt“. Der Schritt Design wird grau.' },
-        'au-bereitstellen':     { name: 'Rohlinge bereitstellen …', text: 'Zeigt je Position, was passiert: 🛒 in den Korb, 📦 aus dem Lager, ✓ nichts. Erst „Bereitstellen“ bucht – in einem Schritt.' },
+        'au-raster-warn':       { name: 'Lieferbarkeit', text: 'In einer Größe mit L-Shop-Problem steht eine Menge. Bestellen geht, L-Shop liefert evtl. später bzw. nicht mehr.' },
+        'au-bereitstellen':     { name: 'Textil beschaffen …', text: 'Bestellt fehlende Ware bei L-Shop, nimmt Vorhandenes aus dem Lager – vorher Übersicht.' },
         'ab-teilen':            { name: 'Rest bestellen (teilen)', text: 'Reicht der Lagerbestand nicht: was da ist, kommt aus dem Lager, der Rest geht in den Korb.' },
-        'ab-ok':                { name: 'Bereitstellen', text: 'Legt die Korb-Positionen an (Referenz = Auftragsnummer) und bucht im Lager aus. Alles oder nichts, nie doppelt.' },
+        'ab-ok':                { name: 'Beschaffen', text: 'Legt die Korb-Positionen an (Referenz = Auftragsnummer) und bucht im Lager aus. Alles oder nichts, nie doppelt.' },
         'au-korb-stand':        { name: 'Korb-Stand', text: 'Wo die Rohlinge stehen: im Korb, bestellt, bestätigt mit Liefertermin, geliefert. Klick öffnet die Korb-Position.' },
         'au-lager-stand':       { name: 'ausgebucht', text: 'Die Rohlinge wurden für diesen Auftrag aus dem Lager genommen.' },
         'au-storno-lager-ziel': { name: 'Bei Ankunft ins Lager', text: 'Die schon bestellte Ware des stornierten Auftrags beim Wareneingang gleich ins Lager buchen (Ort wählen).' },
@@ -9103,7 +9105,7 @@
         'bsm-pl-drucken':       { name: 'Drucken', text: 'Druckt nur die Packliste.' },
         'bsm-u-ziel':           { name: 'In Auftrag', text: 'Standard: Auftrag des Termins (sonst neu). Oder an einen vorhandenen Auftrag des Kunden anhängen.' },
         'bsm-u-wahl':           { name: 'Übernehmen', text: 'Haken weg = dieser Eintrag bleibt „geprüft“ und wird jetzt nicht übernommen.' },
-        'bsm-u-quelle':         { name: 'Herkunft', text: 'Neu bestellen (später „Rohlinge bereitstellen“) oder schon bestellt: dann kein neuer Korb-Eintrag, nur ein Verweis.' },
+        'bsm-u-quelle':         { name: 'Herkunft', text: 'Neu bestellen (später „Textil beschaffen“) oder schon bestellt: dann kein neuer Korb-Eintrag, nur ein Verweis.' },
         'bsm-k-offen':          { name: 'Im Korb, noch nicht gesendet', text: 'Liegt im L-Shop-Warenkorb und geht beim nächsten Senden ganz normal raus. Verknüpfen ändert die Korb-Zeile nicht.' },
         'bsm-k-bestellt':       { name: 'Bei L-Shop bestellt', text: 'Die Korb-Zeile ist an L-Shop gesendet, die Ware ist unterwegs.' },
         'bsm-k-geliefert':      { name: 'Geliefert', text: 'Die Ware aus dieser Korb-Zeile ist angekommen.' },
@@ -9263,7 +9265,7 @@
         trikots: ['tr-offen', 'tr-da', 'tr-seit', 'tr-karte', 'tr-bestellung', 'tr-kundenangabe', 'tr-ersetzt', 'tr-formular', 'tr-herunterladen', 'tr-eintragen', 'tr-erst-download', 'tr-haken', 'tr-zurueck', 'tr-alle-da', 'tr-komplett', 'trikot-ins-lager', 'ti-neu', 'ti-plus', 'ti-zeile-weg', 'ti-referenz', 'ti-speichern', 'ti-aendern', 'ti-entfernen', 'ti-entfernt', 'ti-auftrag', 'ti-im-auftrag', 'tr-aendern-gesperrt', 'ti-goalie', 'tr-goalie', 'tr-gk-pruefen', 'tr-gk-markieren', 'tr-gk-kein', 'tr-zahlung-unbezahlt', 'tr-zahlung-erstattet', 'tr-zahlung-storniert', 'tr-zahlung-fehlt', 'tr-zahlung-filter'],
         'lieferbarkeit-shop': ['lfbs-modus', 'lfbs-f-stufe', 'lfbs-f-kat', 'lfbs-suche', 'lfbs-shopstatus', 'lfbs-kopieren', 'lfbs-drucken', 'lfbs-shop', 'lfbs-maske', 'lfbs-schon-null', 'lfbs-ganze-farbe', 'lfbs-vorschlag', 'lfbs-maske-hinweis', 'lfbs-g-rueckstand', 'lfbs-g-vorraetig', 'lfbs-lager', 'lfb-lieferbar', 'lfb-null', 'lfb-auslauf', 'lfb-auslauf-null', 'lfb-nicht-gefuehrt', 'lfb-stand', 'lfb-veraltet', 'lfb-liste'],
         'lshop-modelle': ['lsm-lieferbar', 'lsm-notiz', 'lsm-hinzufuegen', 'lsm-entfernen', 'lsm-meintest', 'lsm-pruefen', 'lsm-uebernehmen', 'lsm-laeuft', 'lsm-erst-pruefen', 'lsm-erst-waehlen', 'lsm-nichts-da', 'lsm-nichts-neu', 'lsm-erst-update', 'lsm-zurueckziehen', 'lsm-link'],
-        auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-funde', 'ku-fund-leeren', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'fp-porto-einnahmen', 'fp-porto-kosten', 'ps-lager', 'ps-einbuchen', 'ps-einbuchen-grund', 'ps-lager-frei', 'ps-lager-frei-korb', 'ps-aus-lager-frei', 'ps-lager-genommen', 'ps-fertig-lager', 'ps-fertig-nehmen', 'ps-fertig-genommen', 'ps-fertig-zurueck', 'ps-lager-bestellt', 'korb-bestellung', 'korb-aus-lager-erledigt', 'korb-erledigt', 'korb-lager-knapp', 'korb-sammel-erledigt', 'ku-lex-anlegen', 'ku-lex-nachholen', 'ku-lex-verknuepfen', 'ku-lex-trotzdem', 'au-suche', 'au-filter', 'au-neu', 'au-aus-anfrage', 'au-anfrage-loesen', 'au-schnell-text', 'au-schnell-los', 'au-schnell-datenschutz', 'au-schnell-kunde', 'au-schnell-kunde-neu', 'ku-vorbelegt', 'au-schnell-modell', 'au-schnell-lsm', 'au-schnell-todo', 'au-schnell-unsicher', 'au-vorbelegt', 'pv-titel', 'pv-aufschlag', 'pv-stufe', 'pv-alle', 'pv-uebernehmen', 'pv-ek-unbekannt', 'pv-summe', 'au-oeffnen', 'au-weiter', 'au-mehr', 'ap-kurz', 'au-druckname-zeigen', 'au-gruppe-details', 'dk-sammel', 'dk-zur-ersten', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-plus-position', 'au-nachtrag', 'au-nachtrag-offen', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-pos-da', 'au-pos-we', 'au-entfernen', 'au-zuordnen', 'au-zu-weg', 'au-entfernt-liste', 'au-wiederherstellen', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-druckname', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-storno-lager-ziel', 'au-storno-lager', 'au-storno-dtf', 'au-ware', 'au-uebergeben-block', 'au-nicht-bezahlt', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern',
+        auftraege: ['au-design-link', 'ap-eingabe', 'ku-suche', 'ku-f-art', 'ku-f-status', 'ku-neu', 'ku-spitzname', 'ku-speichern', 'ku-archivieren', 'ku-zurueckholen', 'ku-dsgvo', 'ku-dsgvo-ok', 'ku-funde', 'ku-fund-leeren', 'ku-lex-suchen', 'kl-feld', 'kl-suchen', 'kl-uebernehmen', 'kl-neu', 'fp-porto-einnahmen', 'fp-porto-kosten', 'ps-lager', 'ps-einbuchen', 'ps-einbuchen-grund', 'ps-lager-frei', 'ps-lager-frei-korb', 'ps-aus-lager-frei', 'ps-lager-genommen', 'ps-fertig-lager', 'ps-fertig-nehmen', 'ps-fertig-genommen', 'ps-fertig-zurueck', 'ps-lager-bestellt', 'korb-bestellung', 'korb-aus-lager-erledigt', 'korb-erledigt', 'korb-lager-knapp', 'korb-sammel-erledigt', 'ku-lex-anlegen', 'ku-lex-nachholen', 'ku-lex-verknuepfen', 'ku-lex-trotzdem', 'au-suche', 'au-filter', 'au-neu', 'au-aus-anfrage', 'au-anfrage-loesen', 'au-schnell-text', 'au-schnell-los', 'au-schnell-datenschutz', 'au-schnell-kunde', 'au-schnell-kunde-neu', 'ku-vorbelegt', 'au-schnell-modell', 'au-schnell-lsm', 'au-schnell-todo', 'au-schnell-unsicher', 'au-vorbelegt', 'pv-titel', 'pv-aufschlag', 'pv-stufe', 'pv-alle', 'pv-uebernehmen', 'pv-ek-unbekannt', 'pv-summe', 'au-oeffnen', 'au-weiter', 'au-mehr', 'ap-kurz', 'au-druckname-zeigen', 'au-gruppe-details', 'dk-sammel', 'dk-zur-ersten', 'au-zurueck', 'au-bezahlt', 'au-bezahlt-zurueck', 'au-bearbeiten', 'au-plus-position', 'au-nachtrag', 'au-nachtrag-offen', 'au-storno', 'au-storno-zurueck', 'au-fertig-setzen', 'au-pos-fertig', 'au-pos-da', 'au-pos-we', 'au-entfernen', 'au-zuordnen', 'au-zu-weg', 'au-entfernt-liste', 'au-wiederherstellen', 'au-kundenkarte', 'au-kunde-suche', 'au-kunde-aendern', 'au-keine-namen', 'au-pos-gesperrt', 'au-modell', 'au-raster-hinzu', 'au-raster-weiter', 'au-frei-hinzu', 'au-gruppe-weg', 'au-gruppe-felder', 'au-druckname', 'au-herkunft', 'au-lager-ort', 'au-teilen', 'au-raster-lager', 'au-lager-vorschlag', 'au-lager-nehmen', 'ap-preis', 'ap-aufpreis', 'ap-aufpreis-ab', 'ap-ust', 'ap-ek-hand', 'ap-rabatt', 'ap-summen', 'ap-unvollstaendig', 'ap-kalkulation', 'ap-ek', 'ap-rohertrag', 'ap-ek-unbekannt', 'ap-angebot', 'ap-angebot-neu', 'ap-summe-liste', 'zust-setzen', 'zust-liste', 'zust-filter', 'au-art', 'ag-neu', 'ag-oeffnen', 'ag-kennzeichen', 'au-nr', 'ag-nr', 'ag-weiter', 'ag-erledigt', 'ag-zurueck', 'ag-verwerfen', 'ag-verwerfen-zurueck', 'ag-bearbeiten', 'ag-wartet-ok', 'ag-fuer', 'ag-fuer-aendern', 'ag-gehoert', 'ag-gehoert-aendern', 'ag-gehoert-link', 'ag-speichern', 'au-aufgabe-neu', 'td-haken', 'td-faellig', 'td-hoch', 'td-runter', 'td-aendern', 'td-weg', 'td-speichern', 'td-neu', 'td-erledigt-liste', 'td-zahl', 'td-filter', 'td-bezug', 'au-herkunft-zeichen', 'au-design-skip', 'au-bereitstellen', 'ab-teilen', 'ab-ok', 'au-korb-stand', 'au-lager-stand', 'au-zuruecknehmen', 'au-raster-warn', 'au-storno-lager-ziel', 'au-storno-lager', 'au-storno-dtf', 'au-ware', 'au-uebergeben-block', 'au-nicht-bezahlt', 'au-frei-offen', 'korb-auftrag', 'eb-gesperrt-auftrag', 'lager-auftrag-link', 'au-speichern',
           'au-hist-chip', 'au-hist-aus', 'au-hist-drin', 'au-hist-mehr', 'au-hist-preis', 'au-preis-von', 'au-hist-lfb', 'au-wie-letztes', 'au-vorlage-von',
           'ku-hist', 'ku-hist-neu', 'ku-hist-frei-neu', 'ku-mit-storniert', 'ku-wie-letztes',
           'au-letzte', 'au-letzte-alle', 'au-ns-schliessen', 'au-ns-vorlage', 'au-ek-von', 'au-bestellseite', 'ku-dauer-bestellseite',
@@ -9463,6 +9465,12 @@
         const prob = (liste ?? []).filter(r => r?.lieferbar && r.lieferbar.stufe !== 'lieferbar');
         if (!prob.length) return '';
         return `Bei L-Shop: ${prob.map(r => `${r.groesse || '–'}: ${lfbText(r.lieferbar)}`).join(' · ')} – wählbar bleiben sie, L-Shop liefert nach.`;
+      }
+      /** AU-UX3: Menge > 0 in einer Groesse mit L-Shop-Problem -> ein Satz (orange), sonst ''. Nicht sperren. */
+      function lfbMengenWarnung(liste, mengen) {
+        const prob = (liste ?? []).filter(r => r?.lieferbar && r.lieferbar.stufe !== 'lieferbar' && Number(mengen?.[r.articleNr]) > 0);
+        if (!prob.length) return '';
+        return `Achtung: ${prob.map(r => `${r.groesse || '–'} (${lfbText(r.lieferbar)})`).join(' · ')} – bestellbar, aber L-Shop liefert evtl. später bzw. nicht mehr.`;
       }
       // ── Lieferbarkeit-Anzeige: Ende ──
 
@@ -14043,7 +14051,7 @@
       /** Rueckfrage vor dem Speichern (nur Nachtrag in einem Auftrag ab "bestellt"), HTML. abgerechnet = Rechnungs-Kennzeichen da. */
       function auNachtragFrageHtml(a, anzahl, abgerechnet) {
         return `<p>${kuEsc(a.Auftrag_Nr)} ist schon „${kuEsc(a.Status)}“. ${anzahl === 1 ? 'Die neue Position läuft' : `Die ${anzahl} neuen Positionen laufen`} eigenständig: `
-          + 'Rohlinge bereitstellen und DTF getrennt, der Auftragsstatus bleibt.</p>'
+          + 'Textil beschaffen und DTF getrennt, der Auftragsstatus bleibt.</p>'
           + (abgerechnet ? '<p>Die Rechnung ist schon angelegt – die Differenz bitte von Hand in Lexware.</p>' : '');
       }
       const auOffen = a => a.Status !== 'storniert' && a.Status !== 'bezahlt';
@@ -15710,6 +15718,9 @@
         const mengen = Object.fromEntries([...auEl('au-raster').querySelectorAll('input[data-nr]')].map(i => [i.dataset.nr, i.value]));
         const a = eigenRasterAuswahl(auDlg.raster, mengen);
         auEl('au-raster-summe').textContent = eigenSummeText(a);
+        const w = lfbMengenWarnung(auDlg.raster, mengen);   // AU-UX3
+        auEl('au-raster-warn').textContent = w;
+        auEl('au-raster-warn').hidden = !w;
         return a;
       }
       async function auModellWaehlen(catalogNr) {
@@ -16177,7 +16188,7 @@
       }
       function abOeffnen(a) {
         Object.assign(abZ, { auftragNr: a.Auftrag_Nr, stand: a.Stand, vorgang: auVorgang(), ortWahl: {}, laeuft: false, daten: null, fehler: '' });
-        auEl('ab-titel').textContent = `Rohlinge bereitstellen · ${a.Auftrag_Nr}`;
+        auEl('ab-titel').textContent = `Textil beschaffen · ${a.Auftrag_Nr}`;
         auEl('ab-teilen').checked = false;
         auEl('ab-liste').innerHTML = '<div class="skeleton"></div>';
         auEl('ab-fehler').hidden = true;
@@ -16195,7 +16206,7 @@
         auEl('ab-ok').disabled = true;
         try {
           const r = await auPost('bereitstellen', { auftragNr: abZ.auftragNr, stand: abZ.stand, vorgang: abZ.vorgang, teilen: auEl('ab-teilen').checked, ortWahl: abZ.ortWahl });
-          showToast(r.schon ? `${r.auftragNr}: schon bereitgestellt.` : `${r.auftragNr}: ${r.korbStueck} Stück in den Korb, ${r.lagerStueck} Stück aus dem Lager.`);
+          showToast(r.schon ? `${r.auftragNr}: schon beschafft.` : `${r.auftragNr}: ${r.korbStueck} Stück in den Korb, ${r.lagerStueck} Stück aus dem Lager.`);
           auEl('ab-dialog').hidden = true;
           await loadAuftraege();
         } catch (e) {
@@ -17376,7 +17387,7 @@
       /** KS8: Text nach "Übernehmen" (nur Anzahlen) inkl. Korb/Lager. */
       function bsmSchnellText(r) {
         const b = r?.bereitstellen;
-        return bsmUebernahmeText(r) + (b?.fehler ? ` ${b.fehler}` : b && !b.schon ? ` Bereitgestellt: ${b.korb} im L-Shop-Korb, ${b.lager} aus dem Lager.` : '')
+        return bsmUebernahmeText(r) + (b?.fehler ? ` ${b.fehler}` : b && !b.schon ? ` Beschafft: ${b.korb} im L-Shop-Korb, ${b.lager} aus dem Lager.` : '')
           + (r?.festpreis ? ` Festpreis (${r.festpreis.partner}): ${r.festpreis.mitPreis} von ${r.positionen} Positionen mit Preis.` : '');
       }
       // ── Bestellseiten-Pruefen: Ende ──
@@ -17750,7 +17761,7 @@
         const k = bsmK3(z.Zugang_ID), u = k.uebernahme;
         const { ids, verknuepfen, ziel } = bsmUebernahmeEingabe(box);
         if (!ids.length) { bsmFehler('Nichts markiert.'); return; }
-        if (!dryRun && !await showConfirm('Übernehmen?', `<p>${ids.length} geprüfte Einträge gehen in den Auftrag des Termins. Danach sind sie auf der Seite nur noch lesbar. Bestellt wird erst über „Rohlinge bereitstellen“ im Auftrag.</p>`, 'Übernehmen')) return;
+        if (!dryRun && !await showConfirm('Übernehmen?', `<p>${ids.length} geprüfte Einträge gehen in den Auftrag des Termins. Danach sind sie auf der Seite nur noch lesbar. Bestellt wird erst über „Textil beschaffen“ im Auftrag.</p>`, 'Übernehmen')) return;
         knopf.disabled = true;
         try {
           const r = await bsmApi('/uebernehmen', { zugangId: z.Zugang_ID, terminId: u.termin, auswahl: bsmStandVon(z.Zugang_ID, ids), verknuepfen, ziel, vorgang: u.vorgang, dryRun });
@@ -24280,7 +24291,7 @@
         'dtf-zu-dialog': 'DTF zuordnen', 'dtf-best-dialog': 'DTF-Bestellung', 'dtf-ab-dialog': 'DTF abwählen',   // DT1
         'dk-dialog': 'Druckmaße im Auftrag', 'dkm-dialog': 'Druckmaß',   // DK1
         'ex-dialog': 'Als Fremdware anlegen',   // ZW2
-        'au-dialog': 'Auftrag erfassen/bearbeiten', 'au-detail': 'Auftragsansicht', 'au-nachsehen': 'Auftrag nachsehen', 'ab-dialog': 'Rohlinge bereitstellen',
+        'au-dialog': 'Auftrag erfassen/bearbeiten', 'au-detail': 'Auftragsansicht', 'au-nachsehen': 'Auftrag nachsehen', 'ab-dialog': 'Textil beschaffen',
         'ag-dialog': 'Aufgabe erfassen/bearbeiten', 'ag-detail': 'Aufgabenansicht', 'ku-dialog': 'Kunde', 'kl-dialog': 'In Lexoffice suchen',
         'bsm-dialog': 'Bestellseite', 'lager-dialog': 'Lager buchen', 'lo-dialog': 'Lagerort wählen', 'korb-lager-dialog': 'aus Lager nehmen',
         'edi-dialog': 'L-Shop-Bestellung', 'senden-dialog': 'An L-Shop senden', 'eb-dialog': 'Eigene Position bearbeiten', 'we-dialog': 'Ware angekommen',

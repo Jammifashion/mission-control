@@ -182,7 +182,7 @@ export async function zuordnePositionMc({ eingabe, sheets: s, jetzt = () => new 
       vorgang: `KS9-${r.positionId}-${Date.now()}`.slice(0, 64) }, sheets: s, jetzt });
     return { ...r, bereitstellen: { korb: b.korb ?? 0, lager: b.lager ?? 0, schon: !!b.schon } };
   } catch (err) {
-    return { ...r, bereitstellen: { fehler: `Rohling nicht bereitgestellt (${err.message}) – im Auftrag „Rohlinge bereitstellen …“.` } };
+    return { ...r, bereitstellen: { fehler: `Textil nicht beschafft (${err.message}) – im Auftrag „Textil beschaffen …“.` } };
   }
 }
 
@@ -459,7 +459,7 @@ export async function uebernehmenUndBereitstellen({ eingabe, sheets: s, jetzt = 
       vorgang: `KS8-${t(eingabe.vorgang).replace(/_/g, '-')}`.slice(0, 64) }, sheets: s, jetzt });
     return { ...r, bereitstellen: { korb: b.korb ?? 0, lager: b.lager ?? 0, schon: !!b.schon } };
   } catch (err) {
-    return { ...r, bereitstellen: { fehler: `Rohlinge nicht bereitgestellt (${err.message}) – im Auftrag „Rohlinge bereitstellen …“.` } };
+    return { ...r, bereitstellen: { fehler: `Textil nicht beschafft (${err.message}) – im Auftrag „Textil beschaffen …“.` } };
   }
 }
 

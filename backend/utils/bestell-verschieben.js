@@ -178,7 +178,7 @@ export function daMehrPlan({ positionIds, da, auftraege, positionen, jetzt }) {
   const auJe = new Map((auftraege ?? []).map(a => [a.Auftrag_Nr, a]));
   const GRUND = {
     korb: 'kommt über den Wareneingang – unter L-Shop-Bestellungen „Ware angekommen“ buchen',
-    lager: 'kommt mit der Lagerbuchung (Rohlinge bereitstellen)',
+    lager: 'kommt mit der Lagerbuchung (Textil beschaffen)',
     vorhanden: 'ist schon als „vorhanden“ bei uns',
   };
   const aenderungen = [];

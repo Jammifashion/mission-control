@@ -49,7 +49,7 @@ export function kannBereitstellen(auftrag, positionen = []) {
  */
 export function bereitstellenPlan({ auftrag, positionen, korbZeilen, buchungen, orte, waehlbar, info = new Map(), teilen = false, ortWahl = {}, vorgang = '', jetzt,
   nurPositionen = null }) {
-  if (!kannBereitstellen(auftrag, positionen)) throw fehler(`${auftrag.Auftrag_Nr}: Rohlinge bereitstellen geht nur bis „${BEREITSTELLEN_BIS}“ (danach nur für nachträglich hinzugefügte Positionen).`, 409, 'status');
+  if (!kannBereitstellen(auftrag, positionen)) throw fehler(`${auftrag.Auftrag_Nr}: Textil beschaffen geht nur bis „${BEREITSTELLEN_BIS}“ (danach nur für nachträglich hinzugefügte Positionen).`, 409, 'status');
   const nr = auftrag.Auftrag_Nr;
   const iso = new Date(jetzt).toISOString();
   const jahr = berlinJahr(new Date(jetzt));   // GT1 C4
