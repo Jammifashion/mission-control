@@ -419,3 +419,89 @@ describe('KS4-2: Einträge ansehen – bei uns', () => {
     expect(html).toMatch(/if \(b\.matches\('\[data-bsm-da\]'\)\) \{\s*if \(!b\.checked && !await showConfirm\('„bei uns“ zurücknehmen\?'/);
   });
 });
+
+describe('KS9: Freitext einem Artikel des Sortiments zuordnen', () => {
+  const zu = async (eingabe, jetzt = SPAETER) => (await import('../lib/bestellUebernahme.js')).zuordneEintragMc({ eingabe: { zugangId: 'BS-001', ...eingabe }, sheets: s.sheets, jetzt });
+  test('Eintrag: extra -> artikel (Menge + Freitext bleiben), danach Übernahme als L-Shop-Position; Rückweg nur vor der Übernahme', async () => {
+    await absenden([{ art: 'extra', freitext: 'Hoodie schwarz gross', menge: 2, fuer: 'Trainer' }]);
+    let e = (await mc()).eintraege[0];
+    expect(e.zugeordnet).toBe(false);
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    await zu({ eintrag: e.id, stand: e.stand, id: '102' });
+    e = (await mc()).eintraege[0];
+    expect(e).toMatchObject({ art: 'artikel', groesse: 'L', menge: 2, freitext: 'Hoodie schwarz gross', fuer: 'Trainer', zugeordnet: true, geaendertVon: 'MC', status: 'eingegangen' });
+    const seite = await leseEintraege({ token, termin, sheets: s.sheets, jetzt: JETZT });
+    expect(seite.eintraege[0]).toMatchObject({ zugeordnet: true, freitext: 'Hoodie schwarz gross' });
+    // Rueckweg vor der Uebernahme
+    await zu({ eintrag: e.id, stand: e.stand, aufheben: true });
+    e = (await mc()).eintraege[0];
+    expect(e).toMatchObject({ art: 'extra', groesse: '', zugeordnet: false, freitext: 'Hoodie schwarz gross' });
+    await zu({ eintrag: e.id, stand: e.stand, id: '102' });
+    e = (await mc()).eintraege[0];
+    const r = await uebernehmen({ eingabe: { zugangId: 'BS-001', terminId: termin, auswahl: [{ id: e.id, stand: e.stand }], vorgang: V(30) }, sheets: s.sheets, jetzt: JETZT, trikotsAnlegen });
+    expect(r).toMatchObject({ lshop: 1, frei: 0 });
+    const pk = c => t.Auftrag_Positionen[0].indexOf(c);
+    expect(t.Auftrag_Positionen.slice(1).map(p => [p[pk('Art')], p[pk('LShop_ArticleNr')], p[pk('Menge')]])).toEqual([['lshop', NR_L, '2']]);
+    e = (await mc()).eintraege[0];
+    await expect(zu({ eintrag: e.id, stand: e.stand, aufheben: true })).rejects.toMatchObject({ status: 422 });   // schon übernommen
+  });
+  test('nur Sortiment; nur Freitext; veralteter Stand 409; ohne Spalte Zugeordnet_Am 409 einrichtung', async () => {
+    await absenden([{ art: 'extra', freitext: 'Etwas', menge: 1 }, { art: 'artikel', id: '101', menge: 1 }]);
+    const [x, a] = (await mc()).eintraege;
+    await expect(zu({ eintrag: x.id, stand: x.stand, id: '999' })).rejects.toMatchObject({ status: 422, code: 'nicht_im_sortiment' });
+    await expect(zu({ eintrag: a.id, stand: a.stand, id: '102' })).rejects.toMatchObject({ status: 422 });
+    await expect(zu({ eintrag: a.id, stand: a.stand, aufheben: true })).rejects.toMatchObject({ status: 422 });   // nicht von MC zugeordnet
+    await expect(zu({ eintrag: x.id, stand: 'alt', id: '101' })).rejects.toMatchObject({ status: 409, code: 'konflikt' });
+    const i = t.Bestell_Eintraege[0].indexOf('Zugeordnet_Am');
+    for (const z of t.Bestell_Eintraege) z.splice(i, 1);
+    await expect(zu({ eintrag: x.id, stand: x.stand, id: '101' })).rejects.toMatchObject({ status: 409, code: 'einrichtung' });
+  });
+  test('Katalog für die Suche: nur Artikel des Sortiments, ohne Preise', async () => {
+    const { katalogMc } = await import('../lib/bestellUebernahme.js');
+    const k = await katalogMc({ zugangId: 'BS-001', sheets: s.sheets });
+    expect(k.artikel.length).toBeGreaterThan(0);
+    expect(JSON.stringify(k)).not.toMatch(/49[,.]95|preis/i);
+    expect(k.artikel.flatMap(a => a.groessen.map(g => g.id)).sort()).toEqual(['101', '102', '103']);
+  });
+  test('freie Position im Auftrag: -> L-Shop + Bereitstellen, Freitext als "war:", Eintrag mitgezogen; ohne L-Shop-Nr. 422; Rückweg', async () => {
+    await absenden([{ art: 'extra', freitext: 'Hoodie wie letztes Mal', menge: 3 }]);
+    let e = (await mc()).eintraege[0];
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    await uebernehmen({ eingabe: { zugangId: 'BS-001', terminId: termin, auswahl: [{ id: e.id, stand: e.stand }], vorgang: V(31) }, sheets: s.sheets, jetzt: JETZT, trikotsAnlegen });
+    const pk = c => t.Auftrag_Positionen[0].indexOf(c);
+    const pos = () => t.Auftrag_Positionen[1];
+    expect(pos()[pk('Art')]).toBe('frei');
+    const { zuordnePositionMc } = await import('../lib/bestellUebernahme.js');
+    const aufrufe = [];
+    const bereitstellenFn = async ({ eingabe }) => { aufrufe.push(eingabe); return { korb: 1 }; };
+    const z = (eingabe) => zuordnePositionMc({ eingabe: { auftragNr: 'AU-2026-0001', positionId: pos()[pk('Position_ID')], stand: pos()[pk('Stand')], ...eingabe }, sheets: s.sheets, jetzt: SPAETER, bereitstellenFn });
+    await expect(z({ id: '103' })).rejects.toMatchObject({ status: 422, code: 'nicht_bestellbar' });
+    await expect(z({ id: '999' })).rejects.toMatchObject({ status: 422, code: 'nicht_im_sortiment' });
+    const r = await z({ id: '101' });
+    expect(r).toMatchObject({ ok: true, eintraege: 1, nachtrag: false, bereitstellen: { korb: 1 } });
+    expect(aufrufe[0]).toMatchObject({ auftragNr: 'AU-2026-0001', nurPositionen: [pos()[pk('Position_ID')]] });
+    expect([pos()[pk('Art')], pos()[pk('LShop_ArticleNr')], pos()[pk('Freitext')], pos()[pk('Herkunft')], pos()[pk('Menge')]]).toEqual(['lshop', NR_M, '', 'bestellen', '3']);
+    expect(pos()[pk('Notiz')]).toBe('war: Hoodie wie letztes Mal');
+    expect(pos()[pk('Zugeordnet_Am')]).toBeTruthy();
+    e = (await mc()).eintraege[0];
+    expect(e).toMatchObject({ art: 'artikel', groesse: 'M', zugeordnet: true, status: 'übernommen' });
+    // Rueckweg
+    const r2 = await z({ aufheben: true });
+    expect(r2).toMatchObject({ ok: true });
+    expect([pos()[pk('Art')], pos()[pk('LShop_ArticleNr')], pos()[pk('Freitext')], pos()[pk('Notiz')], pos()[pk('Zugeordnet_Am')]]).toEqual(['frei', '', 'Hoodie wie letztes Mal', '', '']);
+    expect((await mc()).eintraege[0]).toMatchObject({ art: 'extra', zugeordnet: false });
+    // uebergeben -> erst "Übergabe zurücknehmen"
+    await z({ id: '101' });
+    pos()[pk('Korb_Schluessel')] = 'EIGEN:2026-0001';
+    await expect(z({ aufheben: true })).rejects.toMatchObject({ status: 409, code: 'uebergeben' });
+  });
+  test('Oberfläche: Knöpfe nur an offenen Freitext-Einträgen bzw. freien Positionen aus Bestellseiten, Mouse-over, Seite zeigt "deine Notiz"', () => {
+    const html = readFileSync(resolve(hier, '../../frontend/index.html'), 'utf8');
+    const seite = readFileSync(resolve(hier, '../../frontend/bestellen.html'), 'utf8');
+    expect(html).toContain('data-bsm-e-zuordnen="${kuEsc(e.id)}" data-hilfe="bsm-e-zuordnen">JFN-Artikel zuordnen …</button>');
+    expect(html).toContain("if (g.art === 'frei' && zid.length === 1) return");
+    const keys = ['bsm-e-zuordnen', 'bsm-e-zu-weg', 'bsm-zu-suche', 'bsm-zu-karte', 'bsm-zu-zurueck', 'bsm-zu-groesse', 'au-zuordnen', 'au-zu-weg'];
+    for (const k of keys) expect(html).toMatch(new RegExp(`'${k}':\\s+\\{ name:`));
+    expect(seite).toContain('deine Notiz: ${e.freitext}');
+  });
+});

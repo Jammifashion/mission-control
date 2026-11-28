@@ -14,7 +14,7 @@ import { heuteBerlin, fristen, zugangTage, naechsteTerminId, fehler, ART, TERMIN
 // KS4: Verschoben_Von = bisheriger Termin (MC "in Termin … verschieben" bzw. Seite "Termin ändern"), Verschoben_Grund <= 100,
 // Geliefert_Am = "an Fanshop geliefert" fuer Trikot-Eintraege (die haben keine Auftragsposition; sonst gilt Versendet der Position).
 export const EINTRAG_OPTIONAL = ['Groesse', 'Bezeichnung', 'Trikot_Produkt', 'Vorgang', 'Geaendert_Von', 'Notiz', 'Ablehn_Grund',
-  'Verschoben_Von', 'Verschoben_Grund', 'Geliefert_Am'];
+  'Verschoben_Von', 'Verschoben_Grund', 'Geliefert_Am', 'Zugeordnet_Am'];   // KS9: Zugeordnet_Am = MC hat einen Freitext einem Katalog-Artikel zugeordnet
 export const E_STATUS = { EINGEGANGEN: 'eingegangen', GEPRUEFT: 'geprüft', UEBERNOMMEN: 'übernommen', STORNIERT: 'storniert' };
 export const OFFEN = [E_STATUS.EINGEGANGEN, E_STATUS.GEPRUEFT];
 export const E_ART = { ARTIKEL: 'artikel', EXTRA: 'extra', TRIKOT: 'trikot' };
@@ -246,6 +246,31 @@ export function stornoPlan({ zugang, termin, eintrag, eingabe, jetzt }) {
 }
 
 /** Feste Auswahl fuer Seite und MC (keine IDs anderer Zugaenge, keine Preise). */
+/**
+ * KS9 (Inhaber 28.11.): Freitext-Eintrag (Art extra) einem Artikel aus dem Katalog DIESER Bestellseite zuordnen (nur Sortiment bzw.
+ * Auswahl - nur dann gibt es Festpreis, Bild und gepruefte Groesse). Danach ist er ein normaler Katalog-Eintrag (Art artikel): Uebernahme,
+ * Festpreis, Herkunft-Vorschlag, L-Shop-Korb wie KS8. Menge, Freitext, "für wen" und Notiz bleiben (Seite zeigt den Freitext als "deine
+ * Notiz"). Vermerk Zugeordnet_Am. Rueckweg (aufheben): nur eine von MC zugeordnete Position, solange nicht uebernommen.
+ * @param {{ stand, id?, aufheben? }} o.eingabe  id = Groessen-Kennung aus dem Katalog (wie beim Absenden)
+ * @returns {object} neue Zeile
+ */
+export function zuordnungPlan({ zugang, termin, eintrag, idx, eingabe, jetzt }) {
+  aenderbar({ zugang, termin, eintrag, eingabe, jetzt, vonMc: true });
+  const stand = new Date(jetzt).toISOString();
+  const art = t(eintrag.Art);
+  if (eingabe?.aufheben === true) {
+    if (art !== E_ART.ARTIKEL || !t(eintrag.Zugeordnet_Am)) throw fehler('Nur eine in MC zugeordnete Freitext-Position lässt sich zurücksetzen.');
+    return { ...eintrag, Art: E_ART.EXTRA, WC_Variation_ID: '', LShop_ArticleNr: '', Groesse: '', Bezeichnung: 'Extra', Zugeordnet_Am: '',
+      Geaendert_Von: 'MC', Stand: stand };
+  }
+  if (art !== E_ART.EXTRA) throw fehler('Nur Freitext-Positionen lassen sich einem Artikel zuordnen.');
+  if (!t(eintrag.Freitext)) throw fehler('Freitext fehlt – bitte erst prüfen.');
+  const w = idx.je.get(t(eingabe?.id));
+  if (!w) throw fehler('Dieser Artikel bzw. diese Größe steht nicht im Sortiment dieser Bestellseite.', 422, 'nicht_im_sortiment');
+  return { ...eintrag, Art: E_ART.ARTIKEL, WC_Variation_ID: w.wcId, LShop_ArticleNr: w.articleNr, Groesse: w.groesse, Bezeichnung: w.bezeichnung,
+    Zugeordnet_Am: stand, Geaendert_Von: 'MC', Stand: stand };
+}
+
 export function eintragFuerSeite(x) {
   return {
     id: t(x.Eintrag_ID), termin: t(x.Termin_ID), art: t(x.Art), bezeichnung: t(x.Bezeichnung), groesse: t(x.Groesse),
@@ -255,6 +280,7 @@ export function eintragFuerSeite(x) {
     auswahl: t(x.WC_Variation_ID) || t(x.LShop_ArticleNr), trikotProdukt: t(x.Trikot_Produkt), notiz: t(x.Notiz),
     ablehnGrund: t(x.Ablehn_Grund),   // KS3: "abgelehnt: …" (Status storniert durch MC)
     verschobenVon: t(x.Verschoben_Von), verschobenGrund: t(x.Verschoben_Grund), geliefertAm: t(x.Geliefert_Am).slice(0, 10),   // KS4
+    zugeordnet: !!t(x.Zugeordnet_Am),   // KS9: Freitext von JammiFashion einem Artikel zugeordnet (Freitext = "deine Notiz")
   };
 }
 

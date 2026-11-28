@@ -89,6 +89,8 @@ router.post('/status', mitMeldung(async req => {
 router.post('/position-fertig', mitMeldung(req => setzePositionFertig({ eingabe: req.body ?? {} })));
 // BS4: POST /api/auftraege/position-entfernen { auftragNr, positionId, wiederherstellen } - markieren (Entfernt), nie loeschen
 router.post('/position-entfernen', mitMeldung(req => entfernePosition({ eingabe: req.body ?? {} })));
+// KS9: POST /api/auftraege/position-zuordnen { auftragNr, positionId, stand, id | aufheben } - freie Position aus einer Bestellseite -> Artikel des Sortiments
+router.post('/position-zuordnen', mitMeldung(async req => (await import('../lib/bestellUebernahme.js')).zuordnePositionMc({ eingabe: req.body ?? {} })));
 
 // ── AM-3: Rohlinge bereitstellen (Korb + Lager) ───────────────────────────────
 // POST /bereitstellen/vorschau { auftragNr, teilen, ortWahl } - schreibt nichts.

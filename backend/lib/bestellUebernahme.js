@@ -14,17 +14,18 @@ import { mitSperre, sheetsClient, sheetId, liesZugaengeTermine, liesEintraege, k
 import { mitAuftragSperre, liesAuftraege, lshopInfo, _auftraegeCacheLeeren } from './auftraege.js';
 import { legeInterneTrikotsAn } from './trikotIntern.js';
 import { bereitstellen } from './auftragBereitstellen.js';
+import { nurNachtraege } from '../utils/auftrag-bereitstellen.js';   // KS9
 import { leseReiterSpalten } from './ssot-reiter.js';
 import { leseLagerFuerKorb } from './lager.js';
 import { TAB_KORB, korbZeilen } from '../utils/korb-logic.js';
 import { TAB_TERMINE, TAB_EINTRAEGE, fehler } from '../utils/bestellseite.js';
-import { auswahlIndex, aenderungPlan, eintragFuerSeite, E_STATUS } from '../utils/bestell-eintraege.js';
+import { auswahlIndex, aenderungPlan, zuordnungPlan, eintragFuerSeite, E_STATUS } from '../utils/bestell-eintraege.js';
 import {
   TAB_AUFTRAEGE, TAB_POSITIONEN, AUFTRAG_SPALTEN, POSITION_SPALTEN, alsZeile as auZeile, HERKUNFT,
 } from '../utils/auftraege.js';
 import {
   mcPruefPlan, verknuepfKandidaten, verknuepfungAus, uebernahmePlan, anhaengbareAuftraege, terminAuftraege, eintraegeJePosition,
-  ungepruefteZahlen, UEBERNEHMBAR, herkunftVorschlag, festpreisFuer,
+  ungepruefteZahlen, UEBERNEHMBAR, herkunftVorschlag, festpreisFuer, positionZuordnenPlan,
 } from '../utils/bestell-uebernahme.js';
 
 const t = v => String(v ?? '').trim();
@@ -98,6 +99,96 @@ export async function aendereEintragMc({ eingabe, sheets: s, jetzt = () => new D
     console.log(`Bestellseite ${zugang.Zugang_ID}: Eintrag ${eintrag.Eintrag_ID} in MC geändert.`);
     return { ok: true, eintrag: eintragFuerSeite(neu) };
   });
+}
+
+/** KS9: POST /api/bestellseiten/eintraege/zuordnen { zugangId, eintrag, stand, id | aufheben } - Freitext -> Katalog-Artikel (nur Sortiment). */
+export async function zuordneEintragMc({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
+  return mitSperre(async () => {
+    const sheets = s ?? await sheetsClient();
+    const spreadsheetId = sheetId();
+    const { daten, zugang } = await zugangUndTermin(sheets, spreadsheetId, eingabe?.zugangId);
+    const e = await eintraegeOder409(sheets, spreadsheetId, ['Geaendert_Von', 'Zugeordnet_Am']);
+    const eintrag = e.zeilen.find(x => x.Eintrag_ID === t(eingabe?.eintrag) && x.Zugang_ID === zugang.Zugang_ID);
+    const k = await katalogFuer(sheets, spreadsheetId, zugang);
+    const termin = eintrag ? termineDesZugangs(daten, zugang, k).find(x => x.Termin_ID === eintrag.Termin_ID) : null;
+    const neu = zuordnungPlan({ zugang, termin, eintrag, idx: auswahlIndex({ artikel: k.artikel, trikots: k.trikots, art: zugang.Art }), eingabe, jetzt: jetzt().toISOString() });
+    const felder = Object.fromEntries(Object.keys(e.idx).filter(f => f !== '_zeile' && t(neu[f]) !== t(eintrag[f])).map(f => [f, neu[f]]));
+    await schreibe(sheets, spreadsheetId, { zellen: zellenAus(TAB_EINTRAEGE, e.idx, eintrag._zeile, felder) });
+    console.log(`Bestellseite ${zugang.Zugang_ID}: Eintrag ${eintrag.Eintrag_ID} ${eingabe?.aufheben === true ? 'Zuordnung aufgehoben' : 'einem Artikel zugeordnet'}.`);
+    return { ok: true, eintrag: eintragFuerSeite(neu) };
+  });
+}
+
+/**
+ * KS9: POST /api/auftraege/position-zuordnen { auftragNr, positionId, stand, id | aufheben } - freie Position aus einer Bestellseite einem Artikel
+ * des Sortiments zuordnen (bzw. aufheben). Unter Bestellseiten- UND Auftrags-Sperre, EIN Schreibaufruf ueber Positionen + Eintraege, zurueckgelesen.
+ * Danach (nicht aufheben, nur bei bestellbarer Nummer): Festpreis wie KS8 (nur wenn die Position noch keinen Preis hat) und Bereitstellen in den
+ * L-Shop-Korb, wenn der Auftrag das zulaesst (AM-3 bzw. AP1 als Nachtrag).
+ */
+export async function zuordnePositionMc({ eingabe, sheets: s, jetzt = () => new Date(), bereitstellenFn = bereitstellen } = {}) {
+  const aufheben = eingabe?.aufheben === true;
+  const r = await mitSperre(() => mitAuftragSperre(async () => {
+    const sheets = s ?? await sheetsClient();
+    const spreadsheetId = sheetId();
+    const { a, p } = await liesAuftraege(sheets, spreadsheetId);
+    const auftrag = a.zeilen.find(x => x.Auftrag_Nr === t(eingabe?.auftragNr));
+    if (!auftrag) throw fehler('Auftrag gibt es nicht.', 404);
+    const position = p.zeilen.find(x => x.Auftrag_Nr === auftrag.Auftrag_Nr && x.Position_ID === t(eingabe?.positionId));
+    if (position && t(eingabe?.stand) !== t(position.Stand)) throw fehler(`${position.Position_ID} wurde inzwischen geändert – bitte neu laden.`, 409, 'konflikt');
+    const fehlt = ['Zugeordnet_Am', 'Herkunft', 'Nachtrag_Am'].filter(sp => p.idx[sp] === undefined);
+    if (fehlt.length) throw fehler(`Spalte fehlt in Auftrag_Positionen (${fehlt.join(', ')}) – scripts/setup-auftraege-reiter.js --write.`, 409, 'einrichtung');
+    const e = await eintraegeOder409(sheets, spreadsheetId, ['Geaendert_Von', 'Zugeordnet_Am']);
+    let w = null, waehlbar = new Set(), zugang = null, idx = null;
+    if (!aufheben) {
+      const zid = [...new Set(e.zeilen.filter(x => t(x.Position_ID) === t(position?.Position_ID) && t(x.Auftrag_Nr) === auftrag.Auftrag_Nr).map(x => x.Zugang_ID))];
+      if (zid.length === 1) {
+        ({ zugang } = await zugangUndTermin(sheets, spreadsheetId, zid[0]));
+        const k = await katalogFuer(sheets, spreadsheetId, zugang);
+        idx = auswahlIndex({ artikel: k.artikel, trikots: k.trikots, art: zugang.Art });
+        w = idx.je.get(t(eingabe?.id)) ?? null;
+        if (w) ({ waehlbar } = await lshopInfo(sheets, spreadsheetId, [t(w.articleNr)]));
+      }
+    }
+    const plan = positionZuordnenPlan({ auftrag, position, eintraege: e.zeilen, w, aufheben, waehlbar, nachtrag: nurNachtraege(auftrag), jetzt: jetzt() });
+    // Festpreis (KS8) - nur ohne vorhandenen Preis und nur beim Festpreis-Kunden; die verbundenen Eintraege tragen jetzt die Variation
+    let preisHinweis = '';
+    if (!aufheben && zugang && t(position.Preis_Netto) === '' && p.idx.Preis_Netto !== undefined) {
+      const neuE = plan.eintragFelder.map(x => ({ ...x.eintrag, ...x.felder }));
+      const preise = await festpreiseFuer({ sheets, zugang, eintraege: neuE, idx });
+      const werte = neuE.map(x => preise?.get(x.Eintrag_ID)).filter(Boolean);
+      const n = [...new Set(werte.filter(x => x.netto !== undefined).map(x => x.netto))];
+      if (werte.length && werte.every(x => x.netto !== undefined) && n.length === 1) plan.felder.Preis_Netto = n[0];
+      else preisHinweis = werte.find(x => x.grund)?.grund ?? '';
+    }
+    const zellen = [...zellenAus(TAB_POSITIONEN, p.idx, position._zeile, plan.felder),
+      ...plan.eintragFelder.flatMap(x => zellenAus(TAB_EINTRAEGE, e.idx, x.eintrag._zeile, x.felder))];
+    await schreibe(sheets, spreadsheetId, { zellen });
+    _auftraegeCacheLeeren?.();
+    console.log(`${auftrag.Auftrag_Nr}: Position ${position.Position_ID} ${aufheben ? 'Zuordnung aufgehoben' : 'einem Artikel zugeordnet'}.`);
+    return { ok: true, auftragNr: auftrag.Auftrag_Nr, positionId: position.Position_ID, eintraege: plan.eintragFelder.length,
+      nachtrag: plan.nachtrag, preis: plan.felder.Preis_Netto !== undefined, ...(preisHinweis ? { preisHinweis } : {}) };
+  }));
+  if (aufheben) return r;
+  try {
+    const sheets = s ?? await sheetsClient();
+    const { a } = await liesAuftraege(sheets, sheetId());
+    const au = a.zeilen.find(x => x.Auftrag_Nr === r.auftragNr);
+    const b = await bereitstellenFn({ eingabe: { auftragNr: r.auftragNr, stand: au?.Stand ?? '', teilen: true, nurPositionen: [r.positionId],
+      vorgang: `KS9-${r.positionId}-${Date.now()}`.slice(0, 64) }, sheets: s, jetzt });
+    return { ...r, bereitstellen: { korb: b.korb ?? 0, lager: b.lager ?? 0, schon: !!b.schon } };
+  } catch (err) {
+    return { ...r, bereitstellen: { fehler: `Rohling nicht bereitgestellt (${err.message}) – im Auftrag „Rohlinge bereitstellen …“.` } };
+  }
+}
+
+/** KS9: GET /api/bestellseiten/:zugangId/katalog - Artikel des Sortiments fuer "JFN-Artikel zuordnen …" (ohne Preise). */
+export async function katalogMc({ zugangId, sheets: s } = {}) {
+  const sheets = s ?? await sheetsClient();
+  const spreadsheetId = sheetId();
+  const { zugang } = await zugangUndTermin(sheets, spreadsheetId, zugangId);
+  const k = await katalogFuer(sheets, spreadsheetId, zugang);
+  return { zugangId: zugang.Zugang_ID, artikel: (k.artikel ?? []).map(a => ({ key: t(a.key), produktId: t(a.key).split('|')[0], name: t(a.name), farbe: t(a.farbe),
+    design: t(a.design), groessen: (a.groessen ?? []).filter(g => t(g.id)).map(g => ({ id: t(g.id), groesse: t(g.groesse), lshop: /^\d{10}$/.test(t(g.articleNr)) })) })) };
 }
 
 // ── Kandidaten fuer "schon bestellt – verknüpfen" ────────────────────────────

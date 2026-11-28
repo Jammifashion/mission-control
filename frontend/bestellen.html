@@ -395,7 +395,8 @@
     function bsEintragWas(e) {
       if (e.art === 'extra') return `${e.menge} × ${e.freitext}${e.fuer ? ` (für ${e.fuer})` : ''}`;
       if (e.art === 'trikot') return `Trikot ${e.bezeichnung} · ${e.groesse}${e.trikotName ? ` · ${e.trikotName}` : ''}${e.trikotNummer ? ` · ${e.trikotNummer}` : ''}`;
-      return `${e.menge} × ${e.bezeichnung}${e.groesse ? ` · ${e.groesse}` : ''}${bsTextilText(e) ? ` · Name/Nr.: ${bsTextilText(e)}` : ''}`;   // KS6
+      return `${e.menge} × ${e.bezeichnung}${e.groesse ? ` · ${e.groesse}` : ''}${bsTextilText(e) ? ` · Name/Nr.: ${bsTextilText(e)}` : ''}`   // KS6
+        + (e.zugeordnet && e.freitext ? ` · deine Notiz: ${e.freitext}${e.fuer ? ` (für ${e.fuer})` : ''}` : '');   // KS9: Freitext von JammiFashion einem Artikel zugeordnet
     }
     /** KS4: Stand je Eintrag - nur der aktuelle Schritt (+ Datum), Tippen zeigt alle Schritte; Hinweis orange, wenn es nach dem Termin wird. */
     function bsFortschrittHtml(f) {

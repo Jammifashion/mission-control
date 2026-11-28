@@ -27,7 +27,7 @@ export const PREIS_SPALTEN = ['Preis_Netto', 'Aufpreis_Netto', 'Aufpreis_Ab', 'U
 // KS4: Verschoben_Nach = Position-ID im Auftrag eines anderen Termins (Bestellseite "in Termin … verschieben"); ganz verschoben = auch Entfernt.
 // KS4-2: Da_Am = Tag, an dem die Ware einer FREIEN Position (noch zu besorgen) bei uns ist - von Hand ("bei uns").
 // DK1: Druckmasse_Hand = freie Druckmasse dieser Position ("Brust 10,5x5; Rücken 28x17,5", cm) - vor der Tabelle Druckmasse.
-export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung', ...PREIS_SPALTEN, 'Verweis', 'Verschoben_Nach', 'Da_Am', 'Druckname', 'Druckmasse_Hand', 'Nachtrag_Am'];
+export const POSITION_OPTIONAL = ['Herkunft', 'Lager_Ort', 'Lager_Buchung', ...PREIS_SPALTEN, 'Verweis', 'Verschoben_Nach', 'Da_Am', 'Druckname', 'Druckmasse_Hand', 'Nachtrag_Am', 'Zugeordnet_Am'];   // KS9: Zugeordnet_Am = freie Position einem Artikel zugeordnet (Rueckweg)
 // AP1: Nachtrag_Am = Tag, an dem die Position NACH "bestellt" dazukam. Nur solche Positionen gehen hinter "bestellt" noch in
 // Korb/Lager (Bereitstellen) und in den DTF-Korb - alte, nie uebergebene Positionen bleiben unangetastet (keine Doppelbestellung).
 // AM-3: optional ganz hinten in Auftraege - Datum des Schritts "Design" (leer = Schritt nicht genutzt / uebersprungen).

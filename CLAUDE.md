@@ -1480,6 +1480,18 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   zieht "Status Shop" der Erfassungsmaske nach (`statusKorrekturPlan`, nur abweichende Zellen, vorher geprueft, zurueckgelesen). Dialog: Termine kommend
   sichtbar, vergangene eingeklappt; "Einträge (n neu)" (`offenEintraege` in GET /api/bestellseiten); "Seite öffnen ↗"; "Sortiment ändern …"
   (Kategorien). Einträge-Ansicht startet beim naechsten Termin mit offenen (`bsmStartTermin`), Standard nur offene. Test ks8.test.js.
+  KS9 (Inhaber 28.11.): Freitext-Eintrag (Art extra) einem Artikel aus dem Katalog DIESER Bestellseite zuordnen ("JFN-Artikel zuordnen …" in den
+  Einträgen, `POST /api/bestellseiten/eintraege/zuordnen` { zugangId, eintrag, stand, id | aufheben }, `zuordnungPlan`): Art -> artikel mit
+  WC_Variation_ID/LShop_ArticleNr/Groesse/Bezeichnung aus `idx.je`, Menge/Freitext/Fuer/Notiz bleiben, Vermerk `Zugeordnet_Am` (EINTRAG_OPTIONAL;
+  ohne Spalte 409 einrichtung). Nur Sortiment bzw. Auswahl (Inhaber: nur dann Festpreis/Bild/Groesse sicher), 422 `nicht_im_sortiment`. Danach wie
+  ein Katalog-Eintrag (KS8-Herkunft, Festpreis, Korb). Rueckweg nur fuer zugeordnete, solange nicht uebernommen. Suche = `GET /api/bestellseiten/
+  :zugangId/katalog` (ohne Preise), `bsmZuTreffer`/`bsmZuListeHtml`. Seite: "deine Notiz: <Freitext>" (`zugeordnet` in eintragFuerSeite).
+  Freie Auftragsposition aus einer Bestellseite: "JFN-Artikel zuordnen …" an der Positionszeile, `POST /api/auftraege/position-zuordnen`
+  { auftragNr, positionId, stand, id | aufheben } (`zuordnePositionMc`/`positionZuordnenPlan`): nur Art frei, nicht entfernt, nicht uebergeben,
+  Auftrag nicht bezahlt/storniert, Katalog des verbundenen Zugangs, nur bestellbare L-Shop-Nr. (422 `nicht_bestellbar`) -> Art lshop, Herkunft
+  bestellen, Motiv wie KS3, Notiz "war: <Freitext>", `Zugeordnet_Am` (POSITION_OPTIONAL), nach "bestellt" `Nachtrag_Am` (AP1); verbundene Eintraege
+  bekommen die Katalogfelder; Festpreis nur ohne Preis; danach Bereitstellen (`nurPositionen`) in den L-Shop-Korb. Rueckweg nur ohne Korb/Lager
+  (sonst 409 `uebergeben` -> erst "Übergabe zurücknehmen"), Freitext aus "war:" zurueck. Test bestell-uebernahme.test.js (KS9).
 - backend/utils/auftrag-preise.js – Preise je Auftrag (AM-5), einzige Rechen-Stelle; Frontend-Spiegel Block `Auftrag-Preise: Anfang/Ende`
   (Test auftrag-preise.test.js vergleicht beide). Eingabe NETTO, Rechnen in Cent, gerundet erst in der Anzeige (`euroText`). Spalten hinten
   optional: `Auftrag_Positionen` Preis_Netto | Aufpreis_Netto | Aufpreis_Ab | USt_Satz (leer = 19) | EK_Hand, `Auftraege` Rabatt ("10%" Text

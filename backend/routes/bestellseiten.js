@@ -3,7 +3,7 @@
 import { Router } from 'express';
 import { leseZugaenge, legeZugangAn, bearbeiteZugang, neuerLink, zeigeLink, aktualisiereBilder, leseKategorien, bilderPlan, bilderStueck, bilderSchreiben } from '../lib/bestellseite.js';
 import { leseEintraegeMc } from '../lib/bestellEintraege.js';   // KS2: nur ansehen
-import { leseUngepruefte, pruefeEintraege, aendereEintragMc, uebernahmeVorschau, uebernehmen, uebernehmenUndBereitstellen, eintraegeZumAuftrag } from '../lib/bestellUebernahme.js';   // KS3
+import { leseUngepruefte, zuordneEintragMc, katalogMc, pruefeEintraege, aendereEintragMc, uebernahmeVorschau, uebernehmen, uebernehmenUndBereitstellen, eintraegeZumAuftrag } from '../lib/bestellUebernahme.js';   // KS3
 import { setzeFertig, setzeDa, setzeGeliefert, verschiebe } from '../lib/bestellStand.js';   // KS4
 import { entwuerfeMc, entwurfBildMc, setzeEntwurfOrdner } from '../lib/bestellEntwuerfe.js';   // KS7
 
@@ -43,6 +43,9 @@ router.get('/:zugangId/eintraege', mitMeldung(req => leseEintraegeMc({ zugangId:
 router.post('/eintraege/pruefen', mitMeldung(req => pruefeEintraege({ eingabe: req.body ?? {} })));
 // POST /api/bestellseiten/eintraege/aendern { zugangId, eintrag, stand, menge?, id?, freitext?, groesse?, name?, nummer?, wunsch?, notiz? }
 router.post('/eintraege/aendern', mitMeldung(req => aendereEintragMc({ eingabe: req.body ?? {} })));
+// KS9: Freitext-Eintrag einem Artikel des Sortiments zuordnen bzw. Zuordnung aufheben; Katalog (ohne Preise) fuer die Suche
+router.post('/eintraege/zuordnen', mitMeldung(req => zuordneEintragMc({ eingabe: req.body ?? {} })));
+router.get('/:zugangId/katalog', mitMeldung(req => katalogMc({ zugangId: req.params.zugangId })));
 // GET /api/bestellseiten/:zugangId/termin/:terminId/uebernahme - Vorschau (anhaengbare AU, Kandidaten "schon bestellt"), nur lesen
 router.get('/:zugangId/termin/:terminId/uebernahme', mitMeldung(req => uebernahmeVorschau({ zugangId: req.params.zugangId, terminId: req.params.terminId })));
 // POST /api/bestellseiten/uebernehmen { zugangId, terminId, auswahl, ziel, verknuepfen, vorgang, dryRun }

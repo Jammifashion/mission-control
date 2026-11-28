@@ -400,3 +400,52 @@ export function eintraegeJePosition(eintraege, auftragNr) {
       kuerzel: t(e.Kuerzel), notiz: t(e.Notiz), menge: Number(t(e.Menge)) || 0, groesse: t(e.Groesse),
       trikotName: t(e.Trikot_Name), trikotNummer: t(e.Trikot_Nummer), wunsch: t(e.Wunsch) }));
 }
+
+// ── KS9: freie Auftragsposition einem Artikel des Sortiments zuordnen ───────────
+
+/** Notiz-Vorsatz mit dem alten Freitext (Rueckweg liest ihn wieder heraus). */
+export const WAR_PRAEFIX = 'war: ';
+const NOTIZ_MAX = 300;   // = MAX.PosNotiz in utils/auftraege.js
+
+/**
+ * KS9 (Inhaber 28.11.): freie Position (Art frei) aus einer Bestellseite -> L-Shop-Position mit dem Artikel aus dem Sortiment der
+ * Bestellseite (nur dort: Festpreis/Bild/Groesse geprueft). Nur, solange die Position nicht uebergeben ist (kein Korb/Lager), nicht entfernt,
+ * Auftrag nicht bezahlt/storniert. Freitext wandert als "war: …" vorn in die Notiz. Ist der Auftrag schon nach "bestellt", gilt die Position
+ * als Nachtrag (AP1: Nachtrag_Am), damit Bereitstellen und DTF sie wie neue Ware behandeln. Die verbundenen Bestellseiten-Eintraege bekommen
+ * dieselben Katalogfelder (Seite zeigt den Artikel). Rueckweg: nur zugeordnete (Zugeordnet_Am), nicht uebergeben.
+ * @param {{ wcId, articleNr, groesse, bezeichnung, motiv }} o.w  Katalog-Eintrag (idx.je)
+ * @returns {{ felder, eintragFelder: {eintrag, felder}[], nachtrag: boolean }}
+ */
+export function positionZuordnenPlan({ auftrag, position, eintraege = [], w = null, aufheben = false, waehlbar = new Set(), nachtrag = false, jetzt }) {
+  if (['storniert', 'bezahlt'].includes(t(auftrag?.Status))) throw fehler(`${t(auftrag?.Auftrag_Nr)} ist abgeschlossen (${t(auftrag?.Status)}).`, 409, 'abgeschlossen');
+  if (!position || t(position.Entfernt)) throw fehler('Position gibt es nicht (mehr) – bitte neu laden.', 409, 'konflikt');
+  if (t(position.Korb_Schluessel) || t(position.Lager_Buchung)) throw fehler(`${position.Position_ID} ist schon an Korb/Lager übergeben – erst „Übergabe zurücknehmen“.`, 409, 'uebergeben');
+  const iso = new Date(jetzt).toISOString();
+  const verbunden = (eintraege ?? []).filter(e => t(e.Position_ID) === t(position.Position_ID) && t(e.Auftrag_Nr) === t(auftrag.Auftrag_Nr));
+  if (aufheben) {
+    if (t(position.Art) !== ART.LSHOP || !t(position.Zugeordnet_Am)) throw fehler('Nur eine in MC zugeordnete Position lässt sich zurücksetzen.');
+    const notiz = t(position.Notiz);
+    const [war, ...rest] = notiz.startsWith(WAR_PRAEFIX) ? notiz.slice(WAR_PRAEFIX.length).split(' · ') : ['', notiz];
+    return {
+      felder: { Art: ART.FREI, LShop_ArticleNr: '', Freitext: kurz(war || 'Position aus Bestellseite', FREITEXT_MAX), Notiz: rest.join(' · '),
+        Herkunft: HERKUNFT.VORHANDEN, Zugeordnet_Am: '', Stand: iso },
+      eintragFelder: verbunden.filter(e => t(e.Zugeordnet_Am)).map(e => ({ eintrag: e,
+        felder: { Art: E_ART.EXTRA, WC_Variation_ID: '', LShop_ArticleNr: '', Groesse: '', Bezeichnung: 'Extra', Zugeordnet_Am: '', Geaendert_Von: 'MC', Stand: iso } })),
+      nachtrag: false,
+    };
+  }
+  if (t(position.Art) !== ART.FREI) throw fehler('Nur freie Positionen lassen sich einem Artikel zuordnen.');
+  if (!verbunden.length) throw fehler('Nur Positionen aus einer Bestellseite – sonst die Position im Auftrag bearbeiten.', 422, 'ohne_bestellseite');
+  if (!w) throw fehler('Dieser Artikel bzw. diese Größe steht nicht im Sortiment der Bestellseite.', 422, 'nicht_im_sortiment');
+  if (!/^\d{10}$/.test(t(w.articleNr)) || !waehlbar.has(t(w.articleNr))) throw fehler('Dieser Artikel hat keine bestellbare L-Shop-Nummer – die Position bleibt frei.', 422, 'nicht_bestellbar');
+  const war = t(position.Freitext);
+  const notiz = kurz([war ? `${WAR_PRAEFIX}${war}` : '', t(position.Notiz)].filter(Boolean).join(' · '), NOTIZ_MAX);
+  return {
+    felder: { Art: ART.LSHOP, LShop_ArticleNr: t(w.articleNr), Freitext: '', Motiv: t(position.Motiv) || kurz(t(w.motiv), MOTIV_MAX), Notiz: notiz,
+      Herkunft: HERKUNFT.BESTELLEN, Lager_Ort: '', Zugeordnet_Am: iso, ...(nachtrag ? { Nachtrag_Am: iso.slice(0, 10) } : {}), Stand: iso },
+    eintragFelder: verbunden.filter(e => t(e.Art) === E_ART.EXTRA).map(e => ({ eintrag: e,
+      felder: { Art: E_ART.ARTIKEL, WC_Variation_ID: t(w.wcId), LShop_ArticleNr: t(w.articleNr), Groesse: t(w.groesse), Bezeichnung: t(w.bezeichnung),
+        Zugeordnet_Am: iso, Geaendert_Von: 'MC', Stand: iso } })),
+    nachtrag,
+  };
+}
