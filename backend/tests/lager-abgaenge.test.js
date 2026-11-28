@@ -9,7 +9,7 @@ import {
   warenartVon, planBuchung, planNeuesEvent, bezugRegel, eventVorschlag, abgaengeAuswertung,
 } from '../utils/lager.js';
 import { reiterPlan, orteFehlend, orteAusArgs } from '../utils/lager-setup.js';
-import { bucheLager, neuesEvent, leseBestand, leseAbgaenge, sucheFertig, lagerCacheLeeren, _stammCacheLeeren, _partnerCacheLeeren } from '../lib/lager.js';
+import { bucheLager, neuesEvent, leseBestand, leseAbgaenge, sucheFertigMaske, lagerCacheLeeren, _stammCacheLeeren, _partnerCacheLeeren } from '../lib/lager.js';
 import { _resetLShopCache } from '../lib/lshop.js';
 import { machSheets, grundTabs, NR, NR2 } from './hilfen/korb-sheet.js';
 
@@ -196,8 +196,9 @@ describe('lib/lager.js BO5-5', () => {
 
   test('Fertigware-Suche: jedes Wort muss passen, auch Variantenwerte (Farbe/Motiv)', async () => {
     const { sheets } = machSheets(tabsMit());
-    expect((await sucheFertig({ q: 'sweater navy', sheets })).artikel.map(a => a.ssotId)).toEqual(['0001']);
-    expect((await sucheFertig({ q: 'sweater rot', sheets })).artikel).toEqual([]);
+    // LG1: die Suche geht jetzt ueber den Shop (lg1.test.js); die alte Masken-Suche bleibt als sucheFertigMaske
+    expect((await sucheFertigMaske({ q: 'sweater navy', sheets })).artikel.map(a => a.ssotId)).toEqual(['0001']);
+    expect((await sucheFertigMaske({ q: 'sweater rot', sheets })).artikel).toEqual([]);
   });
 });
 

@@ -80,7 +80,10 @@ export const korbSchluessel = (shop, bestellnummer, position) =>
 // (leer = nein), nur an eigenen Positionen: "bei Ankunft ins Lager".
 // BO6-1: Aenderung = Spur von "bearbeiten …" an eigenen Positionen (leer = nie geaendert).
 export const SPALTE_AENDERUNG = 'Aenderung';
-export const KORB_OPTIONAL = ['Lager_Ziel', SPALTE_AENDERUNG];
+export const KORB_OPTIONAL = ['Lager_Ziel', SPALTE_AENDERUNG, 'Aus_Lager'];   // LG1: Aus_Lager = Stueck Fertigware aus dem Lager
+// LG1 (Spiegel von utils/lager-fertig.js, ohne Import - sonst Kreis ueber utils/lager.js): Menge = Rest, Aus_Lager = genommen.
+export const GRUND_FERTIG = 'Fertigware aus Lager';
+export const ausLagerZahl = z => { const n = Number(t(z?.Aus_Lager)); return Number.isInteger(n) && n > 0 ? n : 0; };
 export function korbSpalten(header) {
   const norm = (header ?? []).map(normHeader);
   const idx = {};
@@ -198,7 +201,7 @@ export function hinweisFuer(zeile, bestellung) {
   else if (s === 'trash') h.push(HINWEIS.NICHT_IM_SHOP);
   const li = (bestellung.line_items ?? []).find(l => t(l.id) === t(zeile.Position));
   if (!li) h.push(HINWEIS.POSITION_WEG);
-  else if (t(zeile.Menge) && Number(t(zeile.Menge)) !== Number(li.quantity)) h.push(HINWEIS.MENGE);
+  else if (t(zeile.Menge) && Number(t(zeile.Menge)) + ausLagerZahl(zeile) !== Number(li.quantity)) h.push(HINWEIS.MENGE);   // LG1: + Aus_Lager
   return h.join(TRENNER);
 }
 
@@ -455,6 +458,8 @@ export function statusPlan({ zeilen, auswahl, ziel, grund, notiz, jetzt }) {
     if (!z) throw fehler409(`Position ${s} gibt es nicht (mehr) - nichts geändert.`);
     if (z.Status !== t(a.status)) throw fehler409(`Position ${s} hat sich geändert (jetzt "${z.Status}") - nichts geändert. Bitte neu laden.`);
     if (z.Status !== von) throw fehler422(`Position ${s} ist "${z.Status}" - von dort geht "${ziel}" nicht.`);
+    // LG1: Fertigware aus dem Lager nur ueber "zurück" in der Bestellkarte (sonst bleibt der Lager-Abgang stehen)
+    if (ziel === STATUS.OFFEN && t(z.Grund) === GRUND_FERTIG) throw fehler422(`Position ${s}: Fertigware aus dem Lager – bitte in „Bestellungen (JFN)“ „zurück“ nehmen.`);
     const werte = {
       Status: ziel,
       Grund: ziel === STATUS.ABGEWAEHLT ? t(grund) : '',

@@ -47,7 +47,7 @@ export const ART_TEXT = {
 export const ZUGANG_ARTEN = [ART.VORRAT, ART.UEBERSCHUSS, ART.RETOURE, ART.STORNO];
 export const ABGANG_ARTEN = [ART.ABGANG_VORORT, ART.ABGANG_AUFTRAG, ART.ABGANG_PARTNER, ART.ABGANG_SHOP, ART.ABGANG_AUSSCHUSS];
 // BO5-3: Quelle korb = "aus Lager nehmen" bzw. "zurück in den Korb" im L-Shop-Warenkorb (Bezug = Korb-Schluessel).
-export const QUELLE = { KNOPF: 'knopf', START: 'start', INVENTUR: 'inventur', KORB: 'korb', AUFTRAG: 'auftrag', BESTELLUNG: 'bestellung' };   // AM-3: auftrag = Rohlinge eines Auftrags
+export const QUELLE = { KNOPF: 'knopf', START: 'start', INVENTUR: 'inventur', KORB: 'korb', AUFTRAG: 'auftrag', BESTELLUNG: 'bestellung', FERTIG: 'fertig' };   // LG1: fertig = Fertigware aus der Bestellkarte   // AM-3: auftrag = Rohlinge eines Auftrags
 // BO5-9: "Liegt im Lager – einbuchen …" aus der Bestellkarte = Startbestand (Art inventur: Ware war da, nur nicht erfasst),
 // Quelle bestellung, Bezug = Position der Shop-Bestellung "<JFN|HONK>:<Nr>:<Position>" (keine Namen).
 export const BESTELL_POSITION = /^(JFN|HONK):(\d{1,12}):(\d{1,12})$/;
@@ -282,6 +282,8 @@ export function planGegenbuchung({ buchungId: id, vorgang }, { buchungen, jetzt 
   if (b.art === ART.KORREKTUR || b.stornoVon) return { zeilen: [], probleme: [fehlerText('korrektur', 'Eine Gegenbuchung kann man nicht gegenbuchen.')] };
   // BO5-3: Abgaenge aus dem Korb nur ueber "zurück in den Korb" - sonst stimmt der Korb-Status nicht mehr.
   if (b.quelle === QUELLE.KORB) return { zeilen: [], probleme: [fehlerText('korb', 'Diese Buchung kam aus dem Warenkorb - bitte dort „zurück in den Korb“ nehmen.')] };
+  // LG1: Fertigware aus der Bestellkarte nur ueber "zurück" dort - sonst stehen die Korb-Zeilen noch auf "aus Lager".
+  if (b.quelle === QUELLE.FERTIG) return { zeilen: [], probleme: [fehlerText('fertig', `Diese Buchung gehört zur Bestellposition ${b.bezug} - bitte in „Bestellungen (JFN)“ dort „zurück“ nehmen.`)] };
   if (b.quelle === QUELLE.AUFTRAG) return { zeilen: [], probleme: [fehlerText('auftrag', `Diese Buchung gehört zu Auftrag ${b.bezug} - bitte dort „Übergabe zurücknehmen“.`)] };
   const ziele = [b];
   if (b.art === ART.UMLAGERUNG) {
@@ -382,7 +384,7 @@ export function buchungsVerlauf(buchungen, beschreibe, { limit = 300 } = {}) {
   return [...buchungen].sort((a, b) => b.datum.localeCompare(a.datum) || b.id.localeCompare(a.id)).slice(0, limit).map(b => ({
     id: b.id, datum: b.datum, art: b.art, artText: ART_TEXT[b.art] ?? b.art, warenart: b.warenart, schluessel: b.schluessel,
     menge: b.menge, ort: b.ort, grund: b.grund, bezug: b.bezug, quelle: b.quelle, notiz: b.notiz, stornoVon: b.stornoVon,
-    gegengebucht: gegen.has(b.id), gegenbuchbar: !gegen.has(b.id) && b.art !== ART.KORREKTUR && !b.stornoVon && b.quelle !== QUELLE.KORB,
+    gegengebucht: gegen.has(b.id), gegenbuchbar: !gegen.has(b.id) && b.art !== ART.KORREKTUR && !b.stornoVon && b.quelle !== QUELLE.KORB && b.quelle !== QUELLE.FERTIG,
     ...beschreibe(b.schluessel),
   }));
 }

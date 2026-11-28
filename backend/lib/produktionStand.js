@@ -70,7 +70,7 @@ export async function leseProduktionStand({ shop, bestellungen: roh, sheets: s, 
     // BO5-9: Stammdaten (gepflegte Varianten) nur, wenn es Positionen ohne Korb-Zeile mit Variation gibt.
     const mitStamm = bestellungen.some(o => o.line_items.some(li => !korb.has(korbSchluessel('jfn', o.id, li.id)) && li.variation_id && li.variation_id !== '0'));
     const lager = await leseLagerFuerBestellungen(sheets, spreadsheetId, { mitStamm });
-    lagerFrei = { bestandJe: lager.bestandJe, genommenJe: lager.genommenJe, wcBekannt: lager.wcBekannt };
+    lagerFrei = { bestandJe: lager.bestandJe, genommenJe: lager.genommenJe, fertigJe: lager.fertigJe ?? new Map(), wcBekannt: lager.wcBekannt };
     // dynamisch wie in lib/auftraege.js: dtfKorb zieht Drive (dtfAblage) mit, das die Bestellansicht sonst nicht braucht
     try { dtf = await (await import('./dtfKorb.js')).leseDtfJePosition({ sheets, spreadsheetId }); } catch (err) {
       console.warn(`Bestellungen: DTF-Korb nicht lesbar (${err?.status ?? err?.code ?? 'Fehler'})`);

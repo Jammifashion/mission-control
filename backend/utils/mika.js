@@ -215,6 +215,9 @@ export function shopPositionStand(a) {
   if (ls.art === 'kein' && !ls.grund) teile.push('nicht im L-Shop-Korb');
   else if (ls.text) teile.push(/^(bestellt|geliefert)/.test(ls.text) ? `L-Shop ${ls.text}` : ls.text === 'im Korb offen' ? 'im L-Shop-Korb' : ls.text);
   if (a.lager?.art === 'offen') teile.push(`im Lager ${a.lager.n}${a.lager.genug ? '' : ' (zu wenig)'}`);
+  // LG1: Fertigware (unser Shop-Artikel) im Lager
+  if (a.fertigLager?.genommen) teile.push(`Fertigware aus Lager genommen: ${a.fertigLager.genommen}`);
+  else if (a.fertigLager?.n > 0 && !a.fertigLager.erledigt) teile.push(`fertig im Lager ${a.fertigLager.n}`);
   // BO5-9 Teil B: DTF-Stand aus dem DTF-Korb (nicht mehr aus dem Archiv-Haken DTF_bestellt)
   if (a.dtf?.stand === 'bestellt') teile.push(a.dtf.geliefert ? 'DTF geliefert' : 'DTF bestellt');
   else if (a.dtf?.stand === 'lager') teile.push('DTF schon da');

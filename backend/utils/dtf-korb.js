@@ -27,6 +27,10 @@ export const QUELLE = { JFN: 'JFN', AU: 'AU' };
 export const STATUS = { OFFEN: 'offen', ABGEWAEHLT: 'abgewählt', BESTELLT: 'bestellt', GELIEFERT: 'geliefert' };
 // BO5-9 Teil B (antwort-BO5-9-1): "DTF aus dem Lager" = abgewaehlt mit diesem Grund - nur eine Markierung, keine Lager-Buchung.
 export const GRUND_LAGER = 'schon da (aus dem Lager)';
+// LG1: Fertigware aus dem Lager (Bestellkarte) - nicht von Hand waehlbar, gleiche Zeichenkette wie utils/korb-logic.js GRUND_FERTIG.
+export const GRUND_FERTIG = 'Fertigware aus Lager';
+export const KORB_OPTIONAL = ['Aus_Lager'];   // LG1: Menge = Rest, Aus_Lager = Stueck aus dem Lager
+const ausLagerZahl = z => { const n = Number(t(z?.Aus_Lager)); return Number.isInteger(n) && n > 0 ? n : 0; };
 export const GRUENDE = ['schon gedruckt', GRUND_LAGER, 'anderer Drucker', 'Kunde hat storniert', 'wird nicht gedruckt', 'Sonstiges'];
 export const BESTELL_STATUS = { WIRD: 'wird abgelegt', ABGELEGT: 'abgelegt', UNKLAR: 'unklar', ABGEBROCHEN: 'abgebrochen', GELIEFERT: 'geliefert' };
 export const LIEFERARTEN = { abholung: 'Abholung', versand_dhl: 'Versand DHL' };
@@ -170,7 +174,7 @@ export function hinweisFuer(z, quellen) {
   if (!p) return t(z.Quelle) === QUELLE.AU ? 'Position entfernt' : 'Position weg';
   const teile = [];
   if (!p.dtf) teile.push('kein DTF mehr');
-  if (Number(p.menge) !== Number(z.Menge) && t(z.Menge) !== '') teile.push(`Menge jetzt ${p.menge}`);
+  if (Number(p.menge) !== Number(z.Menge) + ausLagerZahl(z) && t(z.Menge) !== '') teile.push(`Menge jetzt ${p.menge}`);   // LG1: + Aus_Lager
   if (p.druckname) teile.push(NAMENSDRUCK);
   return teile.join(' · ');
 }
@@ -186,11 +190,25 @@ export function hinweisFuer(z, quellen) {
  * @param {Set} [a.zwang]       quellSchluessel, die trotz Startdatum aufgenommen werden ("trotzdem aufnehmen")
  * @returns {{ neu: object[], hinweise: [{ zeile, schluessel, alt, neu }], aelter: [{ quelle, nummer, datum, positionen }] }}
  */
+/** LG1: Felder einer neuen Zeile, deren Position schon (ganz/teilweise) Fertigware aus dem Lager hat. */
+function fertigFelder(f, menge) {
+  if (!f) return {};
+  if (f.ganz || f.aus >= menge) return { Status: STATUS.ABGEWAEHLT, Grund: GRUND_FERTIG };
+  return { Menge: menge - f.aus, Aus_Lager: String(f.aus) };
+}
+
 export function dtfAbgleichPlan({ vorhanden = [], kandidaten = [], quellen = new Map(), start = '', zwang = new Set(), alsLager = new Set() } = {}) {
   const schon = new Set(vorhanden.map(z => t(z.Schluessel)));
   // BO5-9: Zeilen, die nur aus "DTF aus dem Lager" in der Bestellkarte stammen, machen eine aeltere Bestellung NICHT bekannt -
   // sonst holte der naechste Abgleich alle anderen Positionen dieser Bestellung als offen in den Korb.
   const bekannt = new Set(vorhanden.filter(z => !istLagerZeile(z)).map(z => quellSchluessel(z.Quelle, z.Nummer)));
+  // LG1: Fertigware aus dem Lager - neue Druckpositionen einer Position uebernehmen deren Stand (sonst wuerde der Druck doch bestellt)
+  const fertigJe = new Map();
+  for (const z of vorhanden) {
+    const ps = positionsSchluessel(z);
+    if (t(z.Grund) === GRUND_FERTIG) fertigJe.set(ps, { ganz: true });
+    else if (ausLagerZahl(z) && !fertigJe.has(ps)) fertigJe.set(ps, { aus: ausLagerZahl(z) });
+  }
   const neu = [], aelterJe = new Map();
   for (const k of kandidaten) {
     const qs = quellSchluessel(k.quelle, k.nummer);
@@ -213,6 +231,7 @@ export function dtfAbgleichPlan({ vorhanden = [], kandidaten = [], quellen = new
         Express: k.express ? 'ja' : '', Status: STATUS.OFFEN, Hinweis: k.druckname ? NAMENSDRUCK : '',
         // BO5-9: aus der Bestellkarte "DTF aus dem Lager" ohne Korb-Zeile - gleich abgewaehlt mit dem Grund anlegen
         ...(alsLager.has(`${k.quelle}:${t(k.nummer)}:${t(k.position)}`) ? { Status: STATUS.ABGEWAEHLT, Grund: GRUND_LAGER } : {}),
+        ...fertigFelder(fertigJe.get(`${k.quelle}:${t(k.nummer)}:${t(k.position)}`), Number(k.menge) || 0),
       });
     }
   }
@@ -521,6 +540,8 @@ export function dtfKartenPlan(zeilen, { ziel, gesehen = [] }) {
     if (sicht.has(t(z.Schluessel)) && sicht.get(t(z.Schluessel)) !== t(z.Stand)) throw fehler('Der DTF-Stand wurde inzwischen geändert – Karte neu laden.', 409, 'konflikt');
   }
   if (zeilen.some(z => !sicht.has(t(z.Schluessel)))) throw fehler('Inzwischen gibt es weitere DTF-Zeilen zu dieser Position – Karte neu laden.', 409, 'konflikt');
+  // LG1: Fertigware aus dem Lager - die Knoepfe aendern dann nichts, Rueckweg ist "zurück" bei der Fertigware
+  if (zeilen.some(z => t(z.Grund) === GRUND_FERTIG || ausLagerZahl(z))) throw fehler('Fertigware aus dem Lager – erst dort „zurück“, dann hier.', 409, 'fertig');
   if (ziel === DTF_STAND.LAGER) {
     if (zeilen.some(z => [STATUS.BESTELLT, STATUS.GELIEFERT].includes(t(z.Status)))) {
       throw fehler('DTF ist für diese Position schon bestellt – „aus dem Lager“ geht dann nicht.', 409, 'bestellt');
@@ -549,6 +570,7 @@ export function statusPlan(z, { ziel, grund, notiz, stand }) {
   }
   if (ziel === STATUS.OFFEN) {
     if (t(z.Status) !== STATUS.ABGEWAEHLT) throw fehler('Nur abgewählte Zeilen lassen sich zurückholen.', 409, 'status');
+    if (t(z.Grund) === GRUND_FERTIG) throw fehler('Fertigware aus dem Lager – bitte in „Bestellungen (JFN)“ „zurück“ nehmen.', 409, 'fertig');   // LG1
     return { Status: STATUS.OFFEN, Grund: '', Notiz: '' };
   }
   throw fehler('Ziel unbekannt.');

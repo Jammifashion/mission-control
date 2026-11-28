@@ -10,6 +10,7 @@
 import { findHeader } from './sheet-headers.js';
 import { shopSpalte, gleicherShop, normalizeShop } from './shop-spalte.js';
 import { STATUS, KLASSE, hinweisSperrt } from './korb-logic.js';
+import { fertigSchluessel, fertigFuerKarte } from './lager-fertig.js';
 
 export const PS_FERTIG    = 'Fertig';
 export const PS_FERTIG_AM = 'Fertig_Am';
@@ -191,12 +192,17 @@ export function baueStand({ shop, bestellungen, ps, korb, bestellungJe, einstufe
       const lager = lagerJe.get(schl);   // BO5-8
       const fertig = z?.fertig ?? false, versendet = z?.versendet ?? false;
       const bo59 = lagerFrei ? einbuchenJeArtikel({ jfn, orderId: o.id, li, korbZeile: k, stufe, lager, fertig, versendet, ...lagerFrei }) : {};
+      // LG1: Fertigware (WC:) im Lager - Hinweis + "aus Lager nehmen" (Korb- und DTF-Zeilen der Position gehen mit)
+      const posKey = `JFN:${t(o.id)}:${t(li.id)}`;
+      const fertigLager = lagerFrei ? fertigFuerKarte({ jfn, orderId: o.id, li, trikot: stufe.klasse === KLASSE.TRIKOT, fertig, versendet, korbZeile: k,
+        dtfZeilen: dtf?.je?.get?.(posKey)?.zeilen ?? [], bestandJe: lagerFrei.bestandJe, fertigJe: lagerFrei.fertigJe, genommenJe: lagerFrei.genommenJe }) : null;
       return {
         wcItemId: t(li.id), name: t(li.name), menge: Number(li.quantity) || 1, imSheet: Boolean(z),
         fertig, fertigAm: z?.fertigAm ?? '', versendet,
         dtfBestellt: z?.dtfBestellt ?? false, notiz: z?.notiz ?? '', lshop,
         ...(lager ? { lager } : {}),
         ...bo59,   // BO5-9: einbuchen / lagerFrei
+        ...(fertigLager ? { fertigLager } : {}),   // LG1
         ...(jfn && dtf ? { dtf: dtfFuerKarte(dtf, `JFN:${t(o.id)}:${t(li.id)}`, stufe.klasse) } : {}),   // BO5-9 Teil B
       };
     });
@@ -266,15 +272,16 @@ export function einbuchenJeArtikel({ jfn, orderId, li, korbZeile, stufe = {}, la
     return { einbuchen: { schluessel: /^\d{10}$/.test(nr) ? `LS:${nr}` : '', menge: fehlt, bezug, ...(/^\d{10}$/.test(nr) ? {} : { grund: EINBUCHEN_OHNE_SCHLUESSEL }) } };
   }
   if (stufe.klasse === KLASSE.TRIKOT) return {};   // Trikots: eigener Weg auf der Trikot-Seite (TR4 "ins Lager"), nie hier
-  const vid = t(li?.variation_id);
   let schluessel = '';
   if (stufe.klasse === KLASSE.BESTELLBAR && /^\d{10}$/.test(t(stufe.articleNr))) schluessel = `LS:${t(stufe.articleNr)}`;
-  else if (vid && vid !== '0' && wcBekannt?.has(vid)) schluessel = `WC:${vid}`;
+  // LG1: Fertigware ueber den Shop (WC:<Variation>, einfacher Artikel WC:<Produkt>) - geprueft wird beim Buchen im Shop
+  else schluessel = fertigSchluessel(li);
   const genommen = genommenJe.get(bezug) ?? 0;
   const best = schluessel ? bestandJe.get(schluessel) : null;
   const n = best?.summe ?? 0;
   const out = {};
-  if (schluessel && (n > 0 || genommen > 0)) {
+  // LG1: Fertigware zeigt fertigLager (eigener Knopf) - lagerFrei nur noch fuer Rohlinge
+  if (schluessel.startsWith('LS:') && (n > 0 || genommen > 0)) {
     out.lagerFrei = { schluessel, n, orte: best?.orte ?? [], genommen, menge, erledigt: genommen >= menge, korbFehlt: schluessel.startsWith('LS:'), bezug };
   }
   const rest = menge - genommen;

@@ -17,6 +17,7 @@ import { wareneingangBuchen, wareneingangZurueck } from '../lib/wareneingang.js'
 import { kartonPruefen, kartonAngekommen } from '../lib/karton.js';
 import { leseProduktionStand } from '../lib/produktionStand.js';
 import { ausLagerNehmen, zurueckAusLager, stornoZurueckInsLager } from '../lib/lagerKorb.js';
+import { fertigAusLager, fertigZurueck } from '../lib/lager.js';
 import { kartonUeberschuss, setzeLagerZiel, trikotInsLager } from '../lib/lagerEingang.js';
 
 const router = Router();
@@ -117,6 +118,23 @@ for (const [pfad, fn] of [['/lshop-korb/aus-lager', ausLagerNehmen], ['/lshop-ko
       res.json(r);
     } catch (err) {
       if ([409, 422].includes(err?.status)) return res.status(err.status).json({ error: err.message, probleme: err.probleme ?? [], code: err.code });
+      next(err);
+    }
+  });
+}
+
+// ── LG1: Fertigware aus dem Lager (Bestellkarte) ─────────────────────────────
+// POST /produktion/fertig-aus-lager { nummer, position, schluessel, verteilung: [{ ort, menge }], korb: { schluessel, status }|null,
+//   dtf: [{ schluessel, stand }], vorgang } - Abgang (Quelle fertig) + L-Shop- und DTF-Zeile der Position in EINEM Schreibaufruf.
+// POST /produktion/fertig-zurueck { nummer, position, vorgang } - Gegenbuchung + Korb-Zeilen zurueck.
+for (const [pfad, fn] of [['/produktion/fertig-aus-lager', fertigAusLager], ['/produktion/fertig-zurueck', fertigZurueck]]) {
+  router.post(pfad, async (req, res, next) => {
+    try {
+      const r = await fn({ eingabe: req.body ?? {} });
+      console.log(`Fertigware ${pfad.split('/').pop()} JFN ${r.nummer ?? ''}: ${r.schonGebucht ? 'schon gebucht' : `${r.buchungen.length} Lager-Zeile(n), Korb ${r.korb.length}, DTF ${r.dtf.length}`}`);
+      res.json(r);
+    } catch (err) {
+      if ([404, 409, 422].includes(err?.status)) return res.status(err.status).json({ error: err.message, probleme: err.probleme ?? [], code: err.code });
       next(err);
     }
   });

@@ -20,6 +20,8 @@ import { schreibeNeueZeilen } from './sheet-zeilen.js';
 import { getWcClient } from './shopConfig.js';
 import { sucheModelle } from '../utils/korb-logic.js';
 import { rohlingBestandJeNr, korbAbgaenge, bestandJeSchluessel, shopAbgaengeJePosition } from '../utils/lager-korb.js';
+import { fertigAbgaengeJePosition } from '../utils/lager-fertig.js';
+import { sucheFertigShop, fertigVariantenShop, fertigInfo, fertigInfoGemerkt, fertigAusLager as fertigAusLagerRoh, fertigZurueck as fertigZurueckRoh } from './lagerFertig.js';
 import {
   TAB_BUCHUNGEN, TAB_ARTIKEL, TAB_ORTE, BUCHUNG_SPALTEN, ARTIKEL_SPALTEN, ORTE_SPALTEN, WARENART, STATUS_AKTIV,
   buchungenAus, reiterZeilen, orteAus, aktiveOrte, artikelAus, warenartVon, planBuchung, planGegenbuchung,
@@ -168,7 +170,10 @@ function beschreiber(stamm, artikel) {
     }
     if (wa === WARENART.FERTIG) {
       const v = stamm.wc.get(rest);
-      if (!v) return { modell: `Variante ${rest}`, name: '', farbe: '', groesse: '', hinweis: 'Variante nicht mehr gepflegt' };
+      // LG1: nicht im Reiter Varianten (einfacher Artikel, Altbestand) -> Name aus dem Shop (zwischengespeichert)
+      const info = v ? null : fertigInfoGemerkt(rest);
+      if (info?.name) return { modell: info.name, name: '', farbe: info.farbe, groesse: info.groesse, hinweis: info.gueltig ? '' : info.grund };
+      if (!v) return { modell: `Shop-Artikel ${rest}`, name: '', farbe: '', groesse: '', hinweis: 'Name gerade nicht lesbar' };
       const teile = variantenTeile(v);
       return { modell: t(stamm.maskeId.get(t(v.ssotId))?.name) || `Artikel ${t(v.ssotId)}`, name: '', farbe: teile.farbe, groesse: teile.groesse, hinweis: '' };
     }
@@ -192,12 +197,17 @@ function beschreiber(stamm, artikel) {
 }
 
 /** Ist der Schluessel gepflegt? true oder Text. */
-function pruefer(stamm, artikel) {
+function pruefer(stamm, artikel, shopInfo = new Map()) {
   const la = new Map(artikel.map(a => [a.laNr, a]));
   return schluessel => {
     const s = t(schluessel), wa = warenartVon(s), rest = s.slice(s.indexOf(':') + 1);
     if (wa === WARENART.ROHLING) return stamm.lshopNr.has(rest) || `${rest} steht nicht in den L-Shop-Stammdaten.`;
-    if (wa === WARENART.FERTIG) return stamm.wc.has(rest) || `Variante ${rest} ist nicht gepflegt.`;
+    // LG1: gueltig, wenn im Reiter Varianten ODER im JFN-Shop eine Variation / ein einfacher Artikel (nie Trikot)
+    if (wa === WARENART.FERTIG) {
+      if (stamm.wc.has(rest)) return true;
+      const i = shopInfo.get(rest);
+      return i?.gueltig === true || `Shop-Artikel ${rest}: ${i?.grund || 'nicht gefunden'}.`;
+    }
     if (wa === WARENART.TRIKOT) return stamm.trikotArtikel.some(a => t(a.produktId) === rest.split(':')[0]) || `Trikot ${rest.split(':')[0]} ist nicht gepflegt.`;
     if (wa === WARENART.FREMD) return stamm.extern.has(rest) || `${rest} steht nicht in der Fremdware-Liste.`;
     if (wa === WARENART.FREI) return (la.has(rest) && la.get(rest).status === STATUS_AKTIV) || `${rest} gibt es nicht (mehr).`;
@@ -213,6 +223,7 @@ export async function leseBestand({ sheets: s, jetzt = Date.now() } = {}) {
   const sheets = s ?? await sheetsClient();
   const l = await leseLager(sheets, ssotId());
   const stamm = await ladeStamm(sheets);
+  const shopHinweis = await fertigNamenLaden(stamm, l.buchungen);   // LG1
   const beschreibe = beschreiber(stamm, l.artikel);
   const partner = await ladePartner(sheets);
   const daten = {
@@ -223,7 +234,7 @@ export async function leseBestand({ sheets: s, jetzt = Date.now() } = {}) {
     verlauf: buchungsVerlauf(l.buchungen, beschreibe),
     orte: l.orte, artikel: l.artikel.filter(a => a.status === STATUS_AKTIV),
     arten: { zugang: ZUGANG_ARTEN, abgang: ABGANG_ARTEN, text: ART_TEXT, ausschussGruende: AUSSCHUSS_GRUENDE }, artikelWarenarten: ARTIKEL_WARENARTEN, mengeMax: MENGE_MAX,
-    hinweise: [...l.hinweise, ...(stamm.trikotHinweis ? [stamm.trikotHinweis] : []), ...(partner.hinweis ? [partner.hinweis] : []),
+    hinweise: [...l.hinweise, ...(shopHinweis ? [shopHinweis] : []), ...(stamm.trikotHinweis ? [stamm.trikotHinweis] : []), ...(partner.hinweis ? [partner.hinweis] : []),
       ...(l.eventsDa ? [] : [`Reiter ${TAB_EVENTS} fehlt - „Verkauf vor Ort“ geht erst nach der Einrichtung.`])], buchungen: l.buchungen.length, stand: new Date(jetzt).toISOString(),
   };
   if (!s) cache = { bis: jetzt + CACHE_MS, daten };
@@ -256,8 +267,33 @@ export async function rohlingVarianten({ catalogNr, sheets: s } = {}) {
   };
 }
 
-/** Fertigware: Artikel der Erfassungsmaske mit WC-Varianten, Suche ueber Name und Artikelnummer. */
-export async function sucheFertig({ q: suche, sheets: s } = {}) {
+const trikotIdsVon = stamm => new Set(stamm.trikotArtikel.map(a => t(a.produktId)));
+
+/** LG1: Namen der WC-Schluessel im Journal, die der Reiter Varianten nicht kennt (Shop, zwischengespeichert). Fehler = Hinweis. */
+async function fertigNamenLaden(stamm, buchungen) {
+  const ids = [...new Set((buchungen ?? []).map(b => t(b.schluessel)).filter(x => warenartVon(x) === WARENART.FERTIG && !stamm.wc.has(x.slice(3))).map(x => x.slice(3)))];
+  if (!ids.length) return '';
+  try { await fertigInfo(ids, { trikotIds: trikotIdsVon(stamm) }); return ''; } catch (err) {
+    console.warn(`Lager: Shop-Namen der Fertigware nicht lesbar (${err?.status ?? err?.code ?? 'Fehler'})`);
+    return 'Shop gerade nicht lesbar – Fertigware ohne Namen.';
+  }
+}
+
+/**
+ * LG1: Fertigware-Suche ueber den JFN-Shop (Name, SKU auch Teile, Produkt-ID). Die Erfassungsmaske liefert zusaetzliche
+ * Suchtexte (Kurzbezeichnung, Variantenwerte). Trikots raus.
+ */
+export async function sucheFertig({ q: suche, sheets: s, wcFuer = getWcClient } = {}) {
+  const sheets = s ?? await sheetsClient();
+  const stamm = await ladeStamm(sheets);
+  const werte = new Map();
+  for (const v of stamm.varianten) werte.set(t(v.ssotId), `${werte.get(t(v.ssotId)) ?? ''} ${[v.v1, v.v2, v.v3].map(t).join(' ')}`);
+  const zusatz = new Map(stamm.maske.filter(m => t(m.produktId)).map(m => [t(m.produktId), `${t(m.kurz)} ${t(m.artikelnummer)} ${werte.get(t(m.id)) ?? ''}`]));
+  return sucheFertigShop({ q: suche, trikotIds: trikotIdsVon(stamm), zusatz, wcFuer });
+}
+
+/** Alte Suche nur in der Erfassungsmaske (vor LG1) - bleibt fuer Tests/Vergleich. */
+export async function sucheFertigMaske({ q: suche, sheets: s } = {}) {
   const sheets = s ?? await sheetsClient();
   const stamm = await ladeStamm(sheets);
   const qq = t(suche).toLowerCase();
@@ -278,9 +314,11 @@ export async function sucheFertig({ q: suche, sheets: s } = {}) {
   return { artikel: treffer.slice(0, 25), mehr: treffer.length > 25 };
 }
 
-export async function fertigVarianten({ ssotId: id, sheets: s } = {}) {
+export async function fertigVarianten({ ssotId: id, sheets: s, wcFuer = getWcClient } = {}) {
   const sheets = s ?? await sheetsClient();
   const stamm = await ladeStamm(sheets);
+  // LG1: Produkt-ID (Zahl) = Shop; SSOT-ID (JFN-...) wie bisher ueber den Reiter Varianten
+  if (/^\d{1,12}$/.test(t(id)) && !stamm.maskeId.has(t(id))) return fertigVariantenShop({ produktId: t(id), trikotIds: trikotIdsVon(stamm), wcFuer });
   const varianten = stamm.varianten.filter(v => t(v.ssotId) === t(id) && t(v.wcId));
   if (!varianten.length) throw fehler(`Artikel ${t(id)} hat keine Varianten mit Shop-ID.`, 404);
   return {
@@ -356,7 +394,11 @@ export async function bucheLager({ eingabe, sheets: s, jetzt = () => new Date(),
       const best = await ladeRetoureBestellung({ bezug: eingabe.bezug, wcFuer });
       retoureGrenzen = new Map(best.positionen.map(p => [p.bezug, p.menge]));
     }
-    const plan = planBuchung(eingabe, { buchungen: l.buchungen, orte: aktiveOrte(l.orte), gueltig: pruefer(stamm, l.artikel), bezugPruefen, retoureGrenzen, jetzt: jetzt() });
+    // LG1: WC-Schluessel, die der Reiter Varianten nicht kennt, im Shop pruefen (einfacher Artikel, Altbestand)
+    const wcIds = (Array.isArray(eingabe?.posten) ? eingabe.posten : []).map(p => t(p?.schluessel))
+      .filter(x => warenartVon(x) === WARENART.FERTIG && !stamm.wc.has(x.slice(3))).map(x => x.slice(3));
+    const shopInfo = wcIds.length ? await fertigInfo(wcIds, { trikotIds: trikotIdsVon(stamm), wcFuer }) : new Map();
+    const plan = planBuchung(eingabe, { buchungen: l.buchungen, orte: aktiveOrte(l.orte), gueltig: pruefer(stamm, l.artikel, shopInfo), bezugPruefen, retoureGrenzen, jetzt: jetzt() });
     if (plan.schonGebucht) return { ok: true, schonGebucht: true, ...antwortZeilen(plan.schonGebucht) };
     if (plan.probleme.length) {
       // In der Meldung den Artikel so nennen, wie ihn die Ansicht zeigt (Modell Farbe Groesse), nicht als Schluessel.
@@ -444,7 +486,7 @@ export async function leseLagerFuerKorb(sheets, spreadsheetId) {
  * Lager oder ist es nicht lesbar, laeuft die Ansicht ohne Lager-Hinweise weiter.
  */
 export async function leseLagerFuerBestellungen(sheets, spreadsheetId, { mitStamm = false } = {}) {
-  const leer = { bestand: new Map(), abgaenge: new Map(), bestandJe: new Map(), genommenJe: new Map(), wcBekannt: null };
+  const leer = { bestand: new Map(), abgaenge: new Map(), bestandJe: new Map(), genommenJe: new Map(), fertigJe: new Map(), wcBekannt: null };
   try {
     const l = await leseLager(sheets, spreadsheetId);
     if (l.einrichtung.length) return { ...leer, hinweis: '' };
@@ -455,7 +497,7 @@ export async function leseLagerFuerBestellungen(sheets, spreadsheetId, { mitStam
       }
     }
     return { bestand: rohlingBestandJeNr(l.buchungen), abgaenge: korbAbgaenge(l.buchungen), bestandJe: bestandJeSchluessel(l.buchungen),
-      genommenJe: shopAbgaengeJePosition(l.buchungen), wcBekannt, hinweis: '' };
+      genommenJe: shopAbgaengeJePosition(l.buchungen), fertigJe: fertigAbgaengeJePosition(l.buchungen), wcBekannt, hinweis: '' };
   } catch (err) {
     console.warn(`Bestellungen: Lager nicht lesbar (${err?.status ?? err?.code ?? 'Fehler'})`);
     return { ...leer, hinweis: 'Lager gerade nicht lesbar - ohne „im Lager“-Hinweise.' };
@@ -547,3 +589,14 @@ export async function leseRetourePositionen({ bestellung, sheets: s, wcFuer = ge
     }),
   };
 }
+
+// ── LG1: Fertigware aus der Bestellkarte ─────────────────────────────────────
+
+/** Trikots nie als Fertigware: die Produkt-IDs aus Trikot_Artikel gehen mit. */
+async function mitTrikots(fn, o = {}) {
+  const sheets = o.sheets ?? await sheetsClient();
+  const stamm = await ladeStamm(sheets);
+  return fn({ ...o, sheets, trikotIds: trikotIdsVon(stamm) });
+}
+export const fertigAusLager = o => mitTrikots(fertigAusLagerRoh, o);
+export const fertigZurueck = o => mitTrikots(fertigZurueckRoh, o);

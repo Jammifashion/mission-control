@@ -224,7 +224,12 @@ im Code und hier bewusst ohne Nummern, weil sie bei jeder Aenderung veralten):
   BO5-6: Einbuchen Art "Retoure vom Kunden" = Shop-Wahl + Bestellnummer + "Positionen laden" im `#lager-bezug` (`lagerDlg.retoure`,
   Zeilen je Position mit Lager-Artikel, "bestellt n · schon m zurückgebucht", Rest vorbelegt), Hinweis Defekt = Ausschuss. Verlauf:
   Retoure verlinkt "Retoure zu JFN #… · Pos. …" (`lagerRetoureBezugHtml` -> `psSpringeZu`), HONK nur Text. Korb "Aus Lager": Position
-  mit Hinweis gelb `.korb-storno` + Knopf "zurück ins Lager" (`data-lager-storno`, `korbStornoZurueck`) statt "zurück in den Korb".)
+  mit Hinweis gelb `.korb-storno` + Knopf "zurück ins Lager" (`data-lager-storno`, `korbStornoZurueck`) statt "zurück in den Korb".
+  LG1 (Inhaber 28.11.): in Lager → Bestand nur EIN Knopf "Lager bearbeiten …" (`data-lager-aktion="einbuchen"`, Hauptaktion `--accent`, Hilfe
+  `lager-bearbeiten`), die vier Aktionen sind die Reiter im Fenster. Reiterwechsel leert alles, was nur zu einem Reiter gehoert (`lagerReiterLeeren`:
+  Grund, Notiz, Art, Zaehlung, Bezug/Event/Partner/Auftrag/Retoure, Liste "auszubuchen", Mengen) - Ort und Artikel bleiben. Fertigware-Suche
+  Platzhalter "Name, SKU oder Produkt-ID", Treffer-ID = Produkt-ID (`a.id ?? a.ssotId`). Bestellkarte: `psFertigHtml` ("Fertig im Lager: n (Ort)",
+  "aus Lager nehmen …" / "Fertigware aus Lager genommen" + "zurück …"), Rueckfrage `showConfirm` mit Ort + Stueck (`#ps-fl-ort`, `#ps-fl-menge`).)
 - Aufträge (AM-1: Bereich `auftraege`, Kundenliste seit FIX3 unter `kunden/stamm` (gleiches Panel), `auftraege/liste` = Platzhalter bis AM-2;
   Panel `#panel-auftraege`, geladen ueber `mc:ansicht`. Block `Kunden-Liste: Anfang/Ende` (Test kunden-frontend.test.js,
   `kuSuche` = Spiegel von `sucheKunden` in utils/kunden.js). Suche/Filter nur im Browser, Suchbegriff nie gespeichert (kein
@@ -1079,6 +1084,28 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   `bestellung` (`QUELLE.BESTELLUNG`, nur bei Aktion start, Bezug Pflicht `BESTELL_POSITION` "JFN:<Nr>:<Pos>"), Ort Wrist; "aus Lager nehmen …"
   ohne Korb-Zeile = Ausbuchen Shop-Bestellung mit Bezug der Position. Nach dem Buchen nur die Karte neu (`psEinzelnNeu`). Gegenbuchbar wie
   jede Knopf-Buchung. Test bo5-9.test.js.
+- backend/lib/lagerFertig.js – Fertigware im Lager (LG1, Inhaber 28.11.), Logik `utils/lager-fertig.js`. Fertigware = Artikel des **JFN-Shops**
+  (nie HONK, nie Trikots - die haben `TR:`): Schluessel `WC:<WC_Variation_ID>`, einfacher Artikel ohne Variationen `WC:<Produkt-ID>` (Produkt- und
+  Variations-IDs sind Beitrags-IDs aus derselben Zaehlung; `fertigSchluessel(li)`). Auswahl im Dialog ueber den Shop (nur lesen, getWcClient):
+  Artikelliste id/name/sku/type/status, alle Seiten nacheinander, 30 min (`ladeShopListe`; die WC-Suche findet keine SKU-Teile), Suche `fertigSuche`
+  (jedes Wort in Name/SKU/Produkt-ID + Suchtexte der Erfassungsmaske), `GET /api/lager/auswahl/fertig/:id` mit Produkt-ID -> `fertigVariantenShop`
+  (SSOT-ID wie bisher ueber Varianten). Gueltig beim Buchen (`pruefer` in lib/lager.js): im Reiter Varianten ODER laut Shop Variation/einfacher
+  Artikel (`fertigInfo` -> `fertigInfoAus`, 60 min; variabler Eltern-Artikel, Trikot, unbekannt = 422). Namen im Bestand aus demselben Speicher.
+  Bestellkarte "Fertig im Lager" (`fertigFuerKarte` -> Feld `fertigLager` in POST .../produktion/stand; nur JFN, ohne Trikot/fertig/versendet; Bestand
+  `WC:` > 0 oder schon genommen). `POST /api/bestellen/produktion/fertig-aus-lager` { nummer, position, schluessel, verteilung, korb: { schluessel,
+  status }|null, dtf: [{ schluessel, stand }], vorgang } (`fertigAusLagerPlan`): Bestellung frisch aus dem Shop (nur diese), unter Korb- + DTF- +
+  Lager-Sperre alle Reiter frisch, EIN values.batchUpdate ueber Lager_Buchungen + Warenkorb_LShop + Warenkorb_DTF, zurueckgelesen. Abgang Art
+  abgang_shop, Quelle **`fertig`** (`QUELLE.FERTIG`), Bezug `JFN:<Nr>:<Pos>`, Grund "Fertigware aus Lager"; nie negativ, nie mehr als bestellt (von Hand
+  Ausgebuchtes zaehlt mit), je Position nur eine offene Fertig-Buchung. Offene Korb-/DTF-Zeile der Position: ganze Menge -> abgewaehlt, Grund
+  **`GRUND_FERTIG` "Fertigware aus Lager"** (eine Konstante in utils/korb-logic.js, Spiegel in utils/dtf-korb.js; nicht in GRUENDE = nicht von Hand
+  waehlbar, nie umbenennen); **Teilmenge -> Zeile bleibt offen, `Menge` = Rest, optionale Spalte `Aus_Lager` = genommen** (so bestellen EDI/Matrix/
+  Zaehlliste/DTF-Absenden nur den Rest; ohne Spalte 409 `einrichtung`, Setup `scripts/setup-lg1-aus-lager.js`, Trockenlauf, `--write` nur Kopfzellen).
+  Nicht offene Zeilen bleiben (Hinweis). Die Abgleiche vergleichen die Shop-Menge mit `Menge + Aus_Lager`; neue DTF-Druckpositionen einer solchen
+  Position uebernehmen den Stand (`fertigFelder` in dtfAbgleichPlan). `POST .../produktion/fertig-zurueck` { nummer, position, vorgang }
+  (`fertigZurueckPlan`): Gegenbuchung + Zeilen zurueck (offen bzw. Menge + Aus_Lager; Rest schon bestellt -> Hinweis "von Hand nachbestellen").
+  Fertig-Buchungen sind im Lager-Verlauf nicht von Hand gegenbuchbar; Zeilen mit GRUND_FERTIG lassen sich in beiden Koerben (Status von Hand,
+  DTF-Kartenknoepfe) nicht zurueckholen. BO5-9 `einbuchen` schlaegt fuer Shop-Positionen ohne Korb-Zeile `fertigSchluessel` vor (geprueft beim Buchen),
+  `lagerFrei` gibt es nur noch fuer Rohlinge. Mika: "fertig im Lager n" / "Fertigware aus Lager genommen: n". Test lg1.test.js.
 - backend/lib/seo-prompt.js – SEO-Prompt: Systemprompt (`SEO_SYSTEM_PROMPT`), User-Template,
   MODUS-Enum, Materialfilter. Serientitel nur als Fanart: steht im Hinweisblock woertlich
   "Fanart zur Serie <Titel>", kommt der Block FANART-SERIE dazu, sonst gilt das Titelverbot.

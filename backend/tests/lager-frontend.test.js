@@ -69,8 +69,10 @@ describe('Bereich Lager in der Seite', () => {
     expect(html).toMatch(/lager: \{ label: 'Lager', leiste: true, shop: false, punkte: \[\s*\{ id: 'bestand',[^\n]*panel: 'lager' \},\s*\{ id: 'buchungen',[^\n]*panel: 'lager' \}/);
     expect(html).toMatch(/addEventListener\('mc:ansicht', e => \{\s*if \(e\.detail\?\.panel !== 'lager'\) return;/);
   });
-  test('je Aktion ein Knopf, alle mit Hilfetext; Mengenfelder mit Zifferntastatur', () => {
-    for (const a of ['einbuchen', 'ausbuchen', 'umlagern', 'zaehlung']) expect(html).toMatch(new RegExp(`data-lager-aktion="${a}" data-hilfe="lager-`));
+  test('LG1: EIN Knopf „Lager bearbeiten …“ (Hauptaktion, Einbuchen vorgewaehlt), im Fenster je Aktion ein Reiter mit Hilfetext; Mengenfelder mit Zifferntastatur', () => {
+    expect(html.match(/data-lager-aktion="/g)).toHaveLength(1);
+    expect(html).toMatch(/class="korb-aktion korb-aktion-haupt" data-lager-aktion="einbuchen" data-hilfe="lager-bearbeiten">Lager bearbeiten …</);
+    for (const a of ['einbuchen', 'ausbuchen', 'umlagern', 'zaehlung']) expect(html).toMatch(new RegExp(`data-lager-modus="${a}" data-hilfe="lager-`));
     expect(html).toMatch(/type="number"[^<]{0,120}inputmode="numeric"[\s\S]{0,200}data-schluessel=/);
   });
   test('Buchen schickt die Vorgangs-Kennung, sperrt den Knopf und erneuert die Kennung erst nach Erfolg', () => {

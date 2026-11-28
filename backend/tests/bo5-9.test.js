@@ -84,11 +84,16 @@ describe('Knopf in der Bestellkarte (einbuchenJeArtikel)', () => {
     const r = einbuchenJeArtikel({ jfn: true, orderId: '1', li: li('11', { quantity: 3 }), korbZeile: korbZ({ Menge: '3' }), lager: { n: 1, genug: false }, ...leer });
     expect(r.einbuchen.menge).toBe(2);
   });
-  test('Fertigware ohne Korb-Zeile: WC:<Variation>, nur wenn gepflegt; sonst ohne Schluessel mit Grund', () => {
+  test('Fertigware ohne Korb-Zeile: WC:<Variation> bzw. (LG1) WC:<Produkt> fuer einfache Artikel; ohne Shop-ID ohne Schluessel mit Grund', () => {
     const fertig = einbuchenJeArtikel({ jfn: true, orderId: '1', li: li('12'), stufe: { klasse: KLASSE.EINFACH }, ...leer });
     expect(fertig.einbuchen).toEqual({ schluessel: 'WC:501', menge: 1, bezug: 'JFN:1:12' });
+    // LG1: jede Shop-Position ist Fertigware - geprueft wird beim Buchen im Shop (nicht mehr nur gepflegte Varianten)
     const fremd = einbuchenJeArtikel({ jfn: true, orderId: '1', li: li('12', { variation_id: '777' }), stufe: { klasse: KLASSE.EXTERN }, ...leer });
-    expect(fremd.einbuchen).toEqual({ schluessel: '', menge: 1, bezug: 'JFN:1:12', grund: EINBUCHEN_OHNE_SCHLUESSEL });
+    expect(fremd.einbuchen).toEqual({ schluessel: 'WC:777', menge: 1, bezug: 'JFN:1:12' });
+    const einfach = einbuchenJeArtikel({ jfn: true, orderId: '1', li: li('12', { variation_id: '0', product_id: '14717' }), stufe: { klasse: KLASSE.EINFACH }, ...leer });
+    expect(einfach.einbuchen.schluessel).toBe('WC:14717');
+    const ohne = einbuchenJeArtikel({ jfn: true, orderId: '1', li: li('12', { variation_id: '0', product_id: '0' }), stufe: { klasse: KLASSE.EINFACH }, ...leer });
+    expect(ohne.einbuchen).toEqual({ schluessel: '', menge: 1, bezug: 'JFN:1:12', grund: EINBUCHEN_OHNE_SCHLUESSEL });
   });
   test('Trikots nie (eigener Weg auf der Trikot-Seite)', () => {
     expect(einbuchenJeArtikel({ jfn: true, orderId: '1', li: li('14'), stufe: { klasse: KLASSE.TRIKOT }, ...leer })).toEqual({});
@@ -104,10 +109,10 @@ describe('Knopf in der Bestellkarte (einbuchenJeArtikel)', () => {
   test('Fertigware: nach dem Einbuchen "im Lager: n", nach dem Ausbuchen "aus Lager genommen" - kein zweiter Einbuchen-Knopf', () => {
     const bestandJe = new Map([['WC:501', { summe: 1, orte: [{ ort: 'Wrist', menge: 1 }] }]]);
     const da = einbuchenJeArtikel({ jfn: true, orderId: '1', li: li('12'), stufe: { klasse: KLASSE.EINFACH }, ...leer, bestandJe });
-    expect(da).toEqual({ lagerFrei: { schluessel: 'WC:501', n: 1, orte: [{ ort: 'Wrist', menge: 1 }], genommen: 0, menge: 1, erledigt: false, korbFehlt: false, bezug: 'JFN:1:12' } });
+    // LG1: Fertigware zeigt den Bestand ueber fertigLager (eigener Knopf, lg1.test.js) - hier nur: kein Einbuchen-Knopf
+    expect(da).toEqual({});
     const weg = einbuchenJeArtikel({ jfn: true, orderId: '1', li: li('12'), stufe: { klasse: KLASSE.EINFACH }, ...leer, genommenJe: new Map([['JFN:1:12', 1]]) });
-    expect(weg.einbuchen).toBeUndefined();
-    expect(weg.lagerFrei).toMatchObject({ erledigt: true, genommen: 1 });
+    expect(weg).toEqual({});
   });
   test('baueStand haengt einbuchen an (einstufen darf die Klasse oder das ganze Ergebnis liefern)', () => {
     const stand = baueStand({ shop: 'jfn', jetzt: JETZT, ps: new Map(), korb: new Map(), bestellungJe: new Map(),

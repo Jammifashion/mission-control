@@ -139,7 +139,9 @@ const D = {
 const STAND = {
   '48219|9101': { imSheet: true, lshop: L.offen, lager: { art: 'offen', schluessel: 'JFN:48219:9101', status: 'offen', menge: 1, n: 3, genug: true, articleNr: nr('HZ480', 'Black', 'M'), orte: [{ ort: 'Wrist', menge: 2 }, { ort: 'Itzehoe Lagerraum Keller', menge: 1 }] } },
   '48219|9102': { imSheet: true, fertig: true, fertigAm: '2026-11-19T09:12:00.000Z', lshop: L.kein('Trikot') },
-  '48218|9111': { imSheet: false, lshop: L.offen, dtf: D.bestellen('JFN:48218:9111'), einbuchen: { schluessel: `LS:${nr('HZ480', 'Black', 'L')}`, menge: 1, bezug: 'JFN:48218:9111' } },   // BO5-9
+  '48218|9111': { imSheet: false, lshop: L.offen, dtf: D.bestellen('JFN:48218:9111'), einbuchen: { schluessel: `LS:${nr('HZ480', 'Black', 'L')}`, menge: 1, bezug: 'JFN:48218:9111' },   // BO5-9
+    fertigLager: { schluessel: 'WC:501', n: 3, orte: [{ ort: 'Wrist', menge: 2 }, { ort: 'Itzehoe Lagerraum Keller', menge: 1 }], genommen: 0, genommenAlle: 0, menge: 1, bedarf: 1,
+      erledigt: false, bezug: 'JFN:48218:9111', korb: { schluessel: 'JFN:48218:9111', status: 'offen' }, dtf: [] } },   // LG1
   '48217|9121': { imSheet: true, fertig: true, fertigAm: '2026-11-08T15:30:00.000Z', dtfBestellt: true, lshop: L.geliefert('JFN-2026-0039'), notiz: 'Druck links etwas schief – nachgemessen, passt noch' },
   '48217|9122': { imSheet: true, dtfBestellt: true, dtf: D.bestellt('JFN:48217:9122', 'DTF-2026-0007'), lshop: L.bestellt('JFN-2026-0044', 'versandt · GLS · Paket 1') },
   '48217|9123': { imSheet: true, lshop: L.bestellt('JFN-2026-0046', 'bestätigt (AB) · Liefertermin 03.12.2026') },
@@ -186,6 +188,7 @@ function produktionStand(body) {
         lshop: s.lshop, ...(s.lager ? { lager: s.lager } : {}),
         ...(s.einbuchen ? { einbuchen: s.einbuchen } : {}), ...(s.lagerFrei ? { lagerFrei: s.lagerFrei } : {}),   // BO5-9
         ...(s.dtf !== undefined ? { dtf: s.dtf } : {}),   // BO5-9 Teil B
+        ...(s.fertigLager ? { fertigLager: s.fertigLager } : {}),   // LG1
       };
     });
     return { id: String(o.id), artikel, zusammenfassung: zusammenfassung(artikel, o.date_created) };

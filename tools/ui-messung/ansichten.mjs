@@ -133,7 +133,15 @@ export const ANSICHTEN_ZUSATZ = [
       await klick('[data-hilfe="ware-angekommen"]')(p); }, wurzel: DLG, nurVoll: true },
   { id: 'partner/lizenz+partner', hash: 'partner/lizenz', aktion: async p => { await p.selectOption('#pk-partner', 'P-001'); await p.waitForTimeout(1500); }, wurzel: PANEL, nurVoll: true },
   { id: 'lager/bestand+einbuchen', hash: 'lager/bestand', aktion: klick('[data-lager-aktion="einbuchen"]'), wurzel: DLG },
-  { id: 'lager/bestand+ausbuchen', hash: 'lager/bestand', aktion: klick('[data-lager-aktion="ausbuchen"]'), wurzel: DLG },
+  // LG1: ein Knopf "Lager bearbeiten …" (Einbuchen vorgewaehlt), die anderen Aktionen ueber die Reiter im Fenster
+  { id: 'lager/bestand+ausbuchen', hash: 'lager/bestand', aktion: async p => { await klick('[data-lager-aktion="einbuchen"]')(p); await klick('[data-lager-modus="ausbuchen"]')(p); }, wurzel: DLG },
+  { id: 'lager/bestand+fertigware', hash: 'lager/bestand', aktion: async p => { await klick('[data-lager-aktion="einbuchen"]')(p); await p.selectOption('#lager-warenart', 'fertig'); await p.waitForTimeout(400); }, wurzel: DLG },
+  { id: 'bestellen/bestellungen+fertig-lager', hash: 'bestellen/bestellungen', aktion: async p => {
+      await p.locator('#order-card-48218').first().waitFor({ timeout: 8000 }).catch(e => { throw new Error(`Karte: ${e.message}`); });
+      const offen = await p.locator('#order-card-48218.open').count();
+      if (!offen) await klick('#order-card-48218 .order-card-id')(p);
+      await p.locator('[data-ps-fertig="nehmen"]').first().waitFor({ timeout: 8000 }).catch(async e => { throw new Error(`Knopf (offen vorher ${offen}, jetzt ${await p.locator('#order-card-48218.open').count()}): ${e.message.slice(0, 200)}`); });
+      await klick('[data-ps-fertig="nehmen"]')(p); }, wurzel: '.modal-backdrop', nurVoll: true },
   { id: 'partner.html', url: 'partner.html?token=attrappe-token', wurzel: 'body', seite: 'partner' },
   { id: 'partner-festpreis.html', url: 'partner-festpreis.html?token=attrappe-token', wurzel: 'body', seite: 'festpreis' },
   // PD2: Detailansicht mit eingeblendeten Betraegen und Kurve auf Umsatz

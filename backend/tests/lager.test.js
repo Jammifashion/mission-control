@@ -307,7 +307,9 @@ describe('lib/lager.js', () => {
 
   test('nicht gepflegte Variante und unbekannter Ort werden abgelehnt', async () => {
     const { sheets } = machSheets(lagerTabs());
-    await expect(bucheLager({ eingabe: ein(11, [{ schluessel: 'WC:999', menge: 1 }]), sheets })).rejects.toMatchObject({ status: 422 });
+    // LG1: nicht im Reiter Varianten -> der Shop wird gefragt (hier 404 = unbekannt) -> 422
+    const wc404 = () => ({ get: async () => { throw Object.assign(new Error('nicht da'), { response: { status: 404 } }); } });
+    await expect(bucheLager({ eingabe: ein(11, [{ schluessel: 'WC:999', menge: 1 }]), sheets, wcFuer: wc404 })).rejects.toMatchObject({ status: 422 });
     await expect(bucheLager({ eingabe: ein(12, [{ schluessel: LS, menge: 1 }], { ort: 'Keller' }), sheets })).rejects.toMatchObject({ status: 422 });
   });
 

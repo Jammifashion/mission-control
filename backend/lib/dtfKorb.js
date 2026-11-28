@@ -27,7 +27,7 @@ import {
   fehler, reiterZeilen, alsZeile, shopEinstufung, druckpositionenFuer, dtfAbgleichPlan, shopZustand, auZustand, nachtragOffen, quellSchluessel,
   zeileAnsicht, sichtbareZeilen, meterSchaetzung, naechsteBestellId, druckIdFuer, bestellEingabe, bestellAuswahl, baueDtfXml,
   nachrichtAnNico, chatText, haengt, statusPlan, zuordnenPlan, dateiSchluessel, dateiFuer, wasFehlt, verkaufSchluessel, istJa, referenzFuer,
-  scanAdresse, farbeGroesse, GRUND_LAGER, istLagerZeile, dtfStandJePosition, dtfKartenPlan, DTF_STAND, positionsSchluessel,
+  scanAdresse, farbeGroesse, GRUND_LAGER, istLagerZeile, dtfStandJePosition, dtfKartenPlan, DTF_STAND, positionsSchluessel, KORB_OPTIONAL,
 } from '../utils/dtf-korb.js';
 
 const TAB_VARIANTEN = 'Varianten', TAB_MASKE = 'Erfassungsmaske', TAB_MOTIVE = 'Motive', TAB_TRIKOT = 'Trikot_Artikel', TAB_CONFIG = 'Config';
@@ -80,7 +80,7 @@ const brauche = (x, tab) => {
 async function liesAlles(sheets, spreadsheetId = ssotId()) {
   const [k, d, p] = await Promise.all([TAB_DTF_KORB, TAB_DTF_DATEIEN, TAB_DTF_PROTOKOLL].map(tab => liesTab(sheets, spreadsheetId, tab)));
   return {
-    korb: tabelle(k, KORB_SPALTEN),
+    korb: tabelle(k, [...KORB_SPALTEN, ...KORB_OPTIONAL], KORB_SPALTEN),   // LG1: Aus_Lager optional
     dateien: tabelle(d, DATEI_SPALTEN),
     protokoll: tabelle(p, PROTOKOLL_SPALTEN, PROTOKOLL_SPALTEN.filter(x => x !== 'Ersetzt')),
   };
@@ -689,6 +689,16 @@ export async function leseDtfJeAuPosition({ sheets, spreadsheetId = ssotId() } =
 // ── BO5-9 Teil B: DTF-Stand in der Bestellkarte ──────────────────────────────
 
 /** Fuer die Bestellansicht: Stand je "JFN:<Nr>:<Pos>" aus Warenkorb_DTF. Reiter fehlt -> einrichtung false (Knoepfe aus, mit Grund). */
+/**
+ * LG1: Zeilen des DTF-Korbs fuer "Fertigware aus Lager" (lib/lagerFertig.js) - nur lesen, unter dessen Sperren.
+ * @returns {{ einrichtung: boolean, idx, zeilen, hatAusLager }}
+ */
+export async function leseDtfKorbZeilen({ sheets, spreadsheetId = ssotId() } = {}) {
+  const k = (await liesAlles(sheets, spreadsheetId)).korb;
+  if (!k || k.fehlt.length) return { einrichtung: false, idx: {}, zeilen: [], hatAusLager: false };
+  return { einrichtung: true, idx: k.idx, zeilen: k.zeilen, hatAusLager: k.idx.Aus_Lager !== undefined };
+}
+
 export async function leseDtfJePosition({ sheets, spreadsheetId = ssotId() } = {}) {
   const w = await liesTab(sheets, spreadsheetId, TAB_DTF_KORB);
   const k = tabelle(w, KORB_SPALTEN);
