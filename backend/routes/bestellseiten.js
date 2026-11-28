@@ -3,7 +3,7 @@
 import { Router } from 'express';
 import { leseZugaenge, legeZugangAn, bearbeiteZugang, neuerLink, zeigeLink, aktualisiereBilder, leseKategorien, bilderPlan, bilderStueck, bilderSchreiben } from '../lib/bestellseite.js';
 import { leseEintraegeMc } from '../lib/bestellEintraege.js';   // KS2: nur ansehen
-import { leseUngepruefte, zuordneEintragMc, katalogMc, pruefeEintraege, aendereEintragMc, uebernahmeVorschau, uebernehmen, uebernehmenUndBereitstellen, eintraegeZumAuftrag } from '../lib/bestellUebernahme.js';   // KS3
+import { leseUngepruefte, zuordneEintragMc, katalogMc, shopVariantenMc, pruefeEintraege, aendereEintragMc, uebernahmeVorschau, uebernehmen, uebernehmenUndBereitstellen, eintraegeZumAuftrag } from '../lib/bestellUebernahme.js';   // KS3
 import { setzeFertig, setzeDa, setzeGeliefert, verschiebe } from '../lib/bestellStand.js';   // KS4
 import { entwuerfeMc, entwurfBildMc, setzeEntwurfOrdner } from '../lib/bestellEntwuerfe.js';   // KS7
 
@@ -46,6 +46,8 @@ router.post('/eintraege/aendern', mitMeldung(req => aendereEintragMc({ eingabe: 
 // KS9: Freitext-Eintrag einem Artikel des Sortiments zuordnen bzw. Zuordnung aufheben; Katalog (ohne Preise) fuer die Suche
 router.post('/eintraege/zuordnen', mitMeldung(req => zuordneEintragMc({ eingabe: req.body ?? {} })));
 router.get('/:zugangId/katalog', mitMeldung(req => katalogMc({ zugangId: req.params.zugangId })));
+// KS9-1: Variationen eines Shop-Artikels des Sortiments (nur lesen)
+router.get('/:zugangId/shop-artikel/:produktId', mitMeldung(req => shopVariantenMc({ zugangId: req.params.zugangId, produktId: req.params.produktId })));
 // GET /api/bestellseiten/:zugangId/termin/:terminId/uebernahme - Vorschau (anhaengbare AU, Kandidaten "schon bestellt"), nur lesen
 router.get('/:zugangId/termin/:terminId/uebernahme', mitMeldung(req => uebernahmeVorschau({ zugangId: req.params.zugangId, terminId: req.params.terminId })));
 // POST /api/bestellseiten/uebernehmen { zugangId, terminId, auswahl, ziel, verknuepfen, vorgang, dryRun }

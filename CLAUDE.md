@@ -1502,6 +1502,14 @@ Zeile in `ansichten.mjs`, neuer Endpunkt = Attrappe (sonst `{}` und Hinweis "Ohn
   bestellen, Motiv wie KS3, Notiz "war: <Freitext>", `Zugeordnet_Am` (POSITION_OPTIONAL), nach "bestellt" `Nachtrag_Am` (AP1); verbundene Eintraege
   bekommen die Katalogfelder; Festpreis nur ohne Preis; danach Bereitstellen (`nurPositionen`) in den L-Shop-Korb. Rueckweg nur ohne Korb/Lager
   (sonst 409 `uebergeben` -> erst "Übergabe zurücknehmen"), Freitext aus "war:" zurueck. Test bestell-uebernahme.test.js (KS9).
+  KS9-1 (Inhaber 28.11., Puck): die Suche nimmt zusaetzlich alle veroeffentlichten JFN-Shop-Artikel (simple/variable) der Sortiment-Kategorien, die der
+  Seiten-Katalog nicht fuehrt (nicht in der Erfassungsmaske bzw. ohne Varianten-Zeilen; ohne Trikots) - `shopArtikelDesSortiments` (je Kategorie
+  `products?category=`, 30 min je Zugang), Antwortfeld `shop` von `.../katalog`, Variationen `GET .../:zugangId/shop-artikel/:produktId`
+  (`fertigVariantenShop`). Zuordnen mit `shop: { produktId }` prueft serverseitig (`shopTrefferFuer`); einfacher Artikel = Kennung Produkt-ID (wie LG1).
+  Neue Spalte `WC_Produkt_ID` (EINTRAG_OPTIONAL) an jedem zugeordneten Eintrag - `festpreiseFuer` nimmt sie vor der Katalog-Karte. Ohne bestellbare
+  L-Shop-Nr. bleibt eine freie Auftragsposition frei (Freitext = Shop-Name, Herkunft vorhanden, `Zugeordnet_Am`, kein Bereitstellen; Rueckweg wie KS9).
+  Herkunft "aus Lager" fuer `WC:` gibt es (noch) nicht (Bereitstellen kennt nur `LS:`). Trefferliste: ein Treffer je Zeile (`.bsm-zuordnen .korb-link`,
+  >= 44 px), Kennzeichen "Shop". Diese Artikel stehen (noch) nicht auf der Bestellseite selbst (eigener Auftrag).
 - backend/utils/auftrag-preise.js – Preise je Auftrag (AM-5), einzige Rechen-Stelle; Frontend-Spiegel Block `Auftrag-Preise: Anfang/Ende`
   (Test auftrag-preise.test.js vergleicht beide). Eingabe NETTO, Rechnen in Cent, gerundet erst in der Anzeige (`euroText`). Spalten hinten
   optional: `Auftrag_Positionen` Preis_Netto | Aufpreis_Netto | Aufpreis_Ab | USt_Satz (leer = 19) | EK_Hand, `Auftraege` Rabatt ("10%" Text

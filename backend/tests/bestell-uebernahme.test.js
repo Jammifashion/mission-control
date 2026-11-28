@@ -463,7 +463,7 @@ describe('KS9: Freitext einem Artikel des Sortiments zuordnen', () => {
     expect(JSON.stringify(k)).not.toMatch(/49[,.]95|preis/i);
     expect(k.artikel.flatMap(a => a.groessen.map(g => g.id)).sort()).toEqual(['101', '102', '103']);
   });
-  test('freie Position im Auftrag: -> L-Shop + Bereitstellen, Freitext als "war:", Eintrag mitgezogen; ohne L-Shop-Nr. 422; Rückweg', async () => {
+  test('freie Position im Auftrag: -> L-Shop + Bereitstellen, Freitext als "war:", Eintrag mitgezogen; Rückweg', async () => {
     await absenden([{ art: 'extra', freitext: 'Hoodie wie letztes Mal', menge: 3 }]);
     let e = (await mc()).eintraege[0];
     jest.spyOn(console, 'log').mockImplementation(() => {});
@@ -475,7 +475,6 @@ describe('KS9: Freitext einem Artikel des Sortiments zuordnen', () => {
     const aufrufe = [];
     const bereitstellenFn = async ({ eingabe }) => { aufrufe.push(eingabe); return { korb: 1 }; };
     const z = (eingabe) => zuordnePositionMc({ eingabe: { auftragNr: 'AU-2026-0001', positionId: pos()[pk('Position_ID')], stand: pos()[pk('Stand')], ...eingabe }, sheets: s.sheets, jetzt: SPAETER, bereitstellenFn });
-    await expect(z({ id: '103' })).rejects.toMatchObject({ status: 422, code: 'nicht_bestellbar' });
     await expect(z({ id: '999' })).rejects.toMatchObject({ status: 422, code: 'nicht_im_sortiment' });
     const r = await z({ id: '101' });
     expect(r).toMatchObject({ ok: true, eintraege: 1, nachtrag: false, bereitstellen: { korb: 1 } });
@@ -499,9 +498,72 @@ describe('KS9: Freitext einem Artikel des Sortiments zuordnen', () => {
     const html = readFileSync(resolve(hier, '../../frontend/index.html'), 'utf8');
     const seite = readFileSync(resolve(hier, '../../frontend/bestellen.html'), 'utf8');
     expect(html).toContain('data-bsm-e-zuordnen="${kuEsc(e.id)}" data-hilfe="bsm-e-zuordnen">JFN-Artikel zuordnen …</button>');
-    expect(html).toContain("if (g.art === 'frei' && zid.length === 1) return");
+    expect(html).toContain("if (g.art === 'frei' && zid.length === 1 && !p.Zugeordnet_Am) return");
     const keys = ['bsm-e-zuordnen', 'bsm-e-zu-weg', 'bsm-zu-suche', 'bsm-zu-karte', 'bsm-zu-zurueck', 'bsm-zu-groesse', 'au-zuordnen', 'au-zu-weg'];
     for (const k of keys) expect(html).toMatch(new RegExp(`'${k}':\\s+\\{ name:`));
     expect(seite).toContain('deine Notiz: ${e.freitext}');
+  });
+});
+
+describe('KS9-1: Shop-Artikel ohne L-Shop-Nr. (einfache Artikel, nicht in der Maske)', () => {
+  const PUCK = { id: 777, name: 'Praesentationspuck Test', sku: 'P-TEST', type: 'simple', status: 'publish' };
+  const wcFuer = () => ({ get: async (pfad, params = {}) => {
+    if (pfad === 'products' && params.category === '554') return { data: params.page > 1 ? [] : [PUCK, { id: 11, name: 'Hoodie Club', type: 'variable' }] };
+    if (pfad === 'products' && params.category === '561') return { data: params.page > 1 ? [] : [{ id: 901, name: 'Heimtrikot Test', type: 'simple' }] };
+    if (pfad === 'products') return { data: [] };
+    if (pfad === 'products/777') return { data: PUCK };
+    throw Object.assign(new Error('unbekannt'), { response: { status: 404 } });
+  } });
+  beforeEach(async () => { (await import('../lib/bestellUebernahme.js'))._shopSortimentCacheLeeren(); });
+  test('Suche: nur Shop-Artikel des Sortiments, ohne Katalog-Artikel und Trikots; einfacher Artikel = eine Wahl', async () => {
+    const { katalogMc } = await import('../lib/bestellUebernahme.js');
+    const k = await katalogMc({ zugangId: 'BS-001', sheets: s.sheets, wcFuer });
+    expect(k.shop).toEqual([{ key: 'S|777', produktId: '777', name: 'Praesentationspuck Test', sku: 'P-TEST', typ: 'simple', groessen: [{ id: '777', groesse: '', lshop: false }] }]);
+  });
+  test('Eintrag: zuordnen speichert WC_Produkt_ID, Übernahme als freie Position mit Shop-Namen; fremde Produkt-ID 422', async () => {
+    const { zuordneEintragMc, uebernehmen: ueb } = await import('../lib/bestellUebernahme.js');
+    await absenden([{ art: 'extra', freitext: 'Puck skyline', menge: 5, fuer: 'Shop' }]);
+    let e = (await mc()).eintraege[0];
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    await expect(zuordneEintragMc({ eingabe: { zugangId: 'BS-001', eintrag: e.id, stand: e.stand, id: '999', shop: { produktId: '999' } }, sheets: s.sheets, jetzt: SPAETER, wcFuer }))
+      .rejects.toMatchObject({ status: 422, code: 'nicht_im_sortiment' });
+    await zuordneEintragMc({ eingabe: { zugangId: 'BS-001', eintrag: e.id, stand: e.stand, id: '777', shop: { produktId: '777' } }, sheets: s.sheets, jetzt: SPAETER, wcFuer });
+    const ek = c => t.Bestell_Eintraege[0].indexOf(c);
+    expect([t.Bestell_Eintraege[1][ek('Art')], t.Bestell_Eintraege[1][ek('WC_Variation_ID')], t.Bestell_Eintraege[1][ek('WC_Produkt_ID')], t.Bestell_Eintraege[1][ek('LShop_ArticleNr')]])
+      .toEqual(['artikel', '777', '777', '']);
+    e = (await mc()).eintraege[0];
+    expect(e).toMatchObject({ art: 'artikel', menge: 5, zugeordnet: true, freitext: 'Puck skyline' });
+    const r = await ueb({ eingabe: { zugangId: 'BS-001', terminId: termin, auswahl: [{ id: e.id, stand: e.stand }], vorgang: V(40) }, sheets: s.sheets, jetzt: JETZT, trikotsAnlegen });
+    expect(r).toMatchObject({ lshop: 0, frei: 1 });
+    const pk = c => t.Auftrag_Positionen[0].indexOf(c);
+    expect([t.Auftrag_Positionen[1][pk('Art')], t.Auftrag_Positionen[1][pk('Freitext')], t.Auftrag_Positionen[1][pk('Menge')]]).toEqual(['frei', 'Praesentationspuck Test', '5']);
+  });
+  test('freie Position: Shop-Artikel -> bleibt frei, Shop-Name + Vermerk, kein Bereitstellen; Rückweg', async () => {
+    const { zuordnePositionMc, uebernehmen: ueb } = await import('../lib/bestellUebernahme.js');
+    await absenden([{ art: 'extra', freitext: 'Puck skyline', menge: 5 }]);
+    const e = (await mc()).eintraege[0];
+    jest.spyOn(console, 'log').mockImplementation(() => {});
+    await ueb({ eingabe: { zugangId: 'BS-001', terminId: termin, auswahl: [{ id: e.id, stand: e.stand }], vorgang: V(41) }, sheets: s.sheets, jetzt: JETZT, trikotsAnlegen });
+    const pk = c => t.Auftrag_Positionen[0].indexOf(c);
+    const pos = () => t.Auftrag_Positionen[1];
+    const aufrufe = [];
+    const z = eingabe => zuordnePositionMc({ eingabe: { auftragNr: 'AU-2026-0001', positionId: pos()[pk('Position_ID')], stand: pos()[pk('Stand')], ...eingabe }, sheets: s.sheets, jetzt: SPAETER,
+      wcFuer, bereitstellenFn: async x => { aufrufe.push(x); return { korb: 1 }; } });
+    const r = await z({ id: '777', shop: { produktId: '777' } });
+    expect(r).toMatchObject({ ok: true, frei: true, eintraege: 1 });
+    expect(aufrufe).toEqual([]);
+    expect([pos()[pk('Art')], pos()[pk('Freitext')], pos()[pk('Notiz')], pos()[pk('Herkunft')]]).toEqual(['frei', 'Praesentationspuck Test', 'war: Puck skyline', 'vorhanden']);
+    expect(pos()[pk('Zugeordnet_Am')]).toBeTruthy();
+    expect((await mc()).eintraege[0]).toMatchObject({ art: 'artikel', zugeordnet: true });
+    await expect(z({ id: '101' })).rejects.toMatchObject({ status: 422 });   // schon zugeordnet
+    await z({ aufheben: true });
+    expect([pos()[pk('Art')], pos()[pk('Freitext')], pos()[pk('Zugeordnet_Am')]]).toEqual(['frei', 'Puck skyline', '']);
+    expect((await mc()).eintraege[0]).toMatchObject({ art: 'extra', zugeordnet: false });
+  });
+  test('Oberfläche: Trefferliste ein Treffer je Zeile (≥ 44 px), Shop-Artikel gekennzeichnet, Variationen nachgeladen', () => {
+    const html = readFileSync(resolve(hier, '../../frontend/index.html'), 'utf8');
+    expect(html).toMatch(/\.bsm-zuordnen \.korb-link \{[^}]*display: block;[^}]*min-height: 44px;/);
+    expect(html).toContain('/shop-artikel/');
+    expect(html).toContain("data-hilfe=\"bsm-zu-shop\"");
   });
 });

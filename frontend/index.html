@@ -344,7 +344,8 @@
       .au-schnell-grund { display: block; font-size: 0.75rem; color: var(--warning); font-weight: normal; }
       .au-nachtrag-hinweis { font-size: 0.85rem; margin: 0.25rem 0; }   /* AP1 */
       .au-nachtrag-hinweis[hidden] { display: none; }
-      .au-warn { color: var(--warning); }   /* AS1: Storno-Rueckfrage, orange (nie Rot) */
+      .au-warn { color: var(--warning); }
+      .bsm-zuordnen .korb-link { display: block; min-height: 44px; width: 100%; text-align: left; padding: 0.35rem 0.25rem; }   /* KS9-1: ein Treffer je Zeile */   /* AS1: Storno-Rueckfrage, orange (nie Rot) */
       /* AM-6-1: letzte Auftraege im Dialog, Nachsehen-Ansicht ueber dem Dialog (am Handy bildschirmfuellend) */
       .au-letzte { display: flex; flex-direction: column; gap: 0.25rem; margin: 0.4rem 0 0.2rem; min-width: 0; }
       .au-letzte-zeile { display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; text-align: left; font: inherit; font-size: 0.85rem; color: var(--text);
@@ -9086,6 +9087,7 @@
         'bsm-e-zuordnen':       { name: 'JFN-Artikel zuordnen', text: 'Freitext einem Artikel aus dem Sortiment zuordnen. Danach wie ein normaler Eintrag (Festpreis, Korb); der Text bleibt als Notiz.' },
         'bsm-e-zu-weg':         { name: 'Zuordnung aufheben', text: 'Macht die Position wieder zum Freitext (nur solange sie nicht übernommen ist).' },
         'bsm-zu-suche':         { name: 'Suche im Sortiment', text: 'Jedes Wort muss in Name, Farbe, Design oder Produkt-ID vorkommen. Nur Artikel dieser Bestellseite.' },
+        'bsm-zu-shop':          { name: 'Shop-Artikel', text: 'Steht im Shop im Sortiment, aber nicht auf der Bestellseite (z. B. einfacher Artikel). Festpreis über die Produkt-ID.' },
         'bsm-zu-karte':         { name: 'Artikel', text: 'Diesen Artikel wählen, danach die Größe.' },
         'bsm-zu-zurueck':       { name: 'Anderer Artikel', text: 'Zurück zur Trefferliste.' },
         'bsm-zu-groesse':       { name: 'Größe', text: 'Ordnet den Eintrag diesem Artikel in dieser Größe zu (mit Rückfrage). Ohne L-Shop-Nummer bleibt er beim Übernehmen frei.' },
@@ -9268,7 +9270,7 @@
           'au-aus-bestellseite', 'au-bs-eintrag', 'au-verweis', 'au-alle-fertig', 'au-geliefert', 'au-geliefert-zurueck', 'au-verschoben'],   // AM-6, AM-6-1, KS1, KS3, KS4
         abrechnen: ['au-abrechnen', 'au-abrechnen-gesperrt', 'au-re-grund', 'au-re-geaendert', 'au-re-felder', 'au-vorkasse', 'au-versand-art', 'au-versand-betrag', 'au-versand-text', 'au-vorkasse-chip', 're-auch', 're-kunde', 're-zeitraum', 're-haken', 're-gesperrt', 're-au', 're-fuer', 're-anlegen', 're-abgerechnet', 're-status', 're-link', 're-nachsehen', 're-angelegt', 're-zuruecksetzen'],   // RE1
         bestellseiten: ['bsm-status', 'bsm-oeffnen', 'bsm-link', 'bsm-kopieren', 'bsm-link-holen', 'bsm-link-alt', 'bsm-anlegen',
-          'bsm-e-wahl', 'bsm-e-status', 'bsm-gk', 'bsm-e-auftrag', 'bsm-e-aendern', 'bsm-e-zuordnen', 'bsm-e-zu-weg', 'bsm-zu-suche', 'bsm-zu-karte', 'bsm-zu-zurueck', 'bsm-zu-groesse', 'bsm-e-ablehnen', 'bsm-e-feld', 'bsm-e-speichern',
+          'bsm-e-wahl', 'bsm-e-status', 'bsm-gk', 'bsm-e-auftrag', 'bsm-e-aendern', 'bsm-e-zuordnen', 'bsm-e-zu-weg', 'bsm-zu-suche', 'bsm-zu-karte', 'bsm-zu-shop', 'bsm-zu-zurueck', 'bsm-zu-groesse', 'bsm-e-ablehnen', 'bsm-e-feld', 'bsm-e-speichern',
           'bsm-alle', 'bsm-s-grund', 'bsm-s-ablehnen', 'bsm-uebernehmen', 'bsm-packliste', 'bsm-pl-drucken', 'bsm-u-ziel', 'bsm-u-wahl', 'bsm-u-quelle',
           'bsm-u-probe', 'bsm-u-los', 'bsm-k-offen', 'bsm-k-bestellt', 'bsm-k-geliefert', 'bsm-k-lager', 'bsm-k-verknuepft', 'bsm-speichern', 'bsm-neuer-link', 'bsm-sperren', 'bsm-entsperren',
           'bsm-ablauf', 'bsm-hinweis', 'bsm-design', 'bsm-sortiment', 'bsm-sortiment-aendern', 'bsm-e-uebernehmen', 'bsm-e-herkunft', 'bsm-alle-uebernehmen', 'bsm-alle-zeigen', 'bsm-seite-oeffnen', 'bsm-termine-alt', 'bsm-partner', 'bsm-bilder', 'bsm-bilder-stand',
@@ -14731,8 +14733,8 @@
       function auZuordnenKnopf(a, g, p, gesperrt) {
         if (gesperrt || a.Status === 'bezahlt' || p.Korb_Schluessel || p.Lager_Buchung) return '';
         const zid = [...new Set((auBsZ.je.get(a.Auftrag_Nr) ?? []).filter(e => e.positionId === p.Position_ID).map(e => e.zugangId))];
-        if (g.art === 'frei' && zid.length === 1) return `<button type="button" class="korb-link" data-au-zuordnen="${kuEsc(p.Position_ID)}" data-zugang="${kuEsc(zid[0])}" data-hilfe="au-zuordnen">JFN-Artikel zuordnen …</button>`;
-        if (g.art === 'lshop' && p.Zugeordnet_Am) return `<button type="button" class="korb-link" data-au-zu-weg="${kuEsc(p.Position_ID)}" data-hilfe="au-zu-weg">Zuordnung aufheben</button>`;
+        if (g.art === 'frei' && zid.length === 1 && !p.Zugeordnet_Am) return `<button type="button" class="korb-link" data-au-zuordnen="${kuEsc(p.Position_ID)}" data-zugang="${kuEsc(zid[0])}" data-hilfe="au-zuordnen">JFN-Artikel zuordnen …</button>`;
+        if (p.Zugeordnet_Am) return `<button type="button" class="korb-link" data-au-zu-weg="${kuEsc(p.Position_ID)}" data-hilfe="au-zu-weg">Zuordnung aufheben</button>`;
         return '';
       }
       const auZuListe = zu => bsmZuListeHtml(zu).replaceAll('data-bsm-zu-', 'data-au-zu-');
@@ -15005,8 +15007,9 @@
               const res = await apiFetch(`${API_BASE()}/api/bestellseiten/${encodeURIComponent(zid)}/katalog`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
               const d = await res.json().catch(() => null);
               if (!res.ok) throw new Error(d?.error || `HTTP ${res.status}`);
-              bsmZ.katalog = { ...(bsmZ.katalog ?? {}), [zid]: d.artikel ?? [] };
-              if (auZuZ.zu) Object.assign(auZuZ.zu, { katalog: d.artikel ?? [], laedt: false });
+              const kat = bsmKatalogMitShop(d);
+              bsmZ.katalog = { ...(bsmZ.katalog ?? {}), [zid]: kat };
+              if (auZuZ.zu) Object.assign(auZuZ.zu, { katalog: kat, laedt: false });
             } catch (err) { if (auZuZ.zu) Object.assign(auZuZ.zu, { laedt: false, fehler: `Sortiment nicht geladen: ${err.message}` }); }
             auDetailZeichnen(a.Auftrag_Nr);
           }
@@ -15014,7 +15017,7 @@
           return;
         }
         if (b.matches('[data-au-zu-abbrechen]')) { auZuZ.zu = null; auDetailZeichnen(a.Auftrag_Nr); return; }
-        if (b.matches('[data-au-zu-karte]') && auZuZ.zu) { auZuZ.zu.karte = b.dataset.auZuKarte; auDetailZeichnen(a.Auftrag_Nr); return; }
+        if (b.matches('[data-au-zu-karte]') && auZuZ.zu) { auZuZ.zu.karte = b.dataset.auZuKarte; auDetailZeichnen(a.Auftrag_Nr); bsmZuShopLaden(auZuZ.zu, auZuZ.zu.zugangId, () => auDetailZeichnen(a.Auftrag_Nr)); return; }
         const zuWeg = b.matches('[data-au-zu-weg]');
         const id = zuWeg ? b.dataset.auZuWeg : auZuZ.zu?.positionId;
         const p = a.positionen.find(x => x.Position_ID === id);
@@ -15027,15 +15030,16 @@
           const zu = auZuZ.zu, karte = (zu.katalog ?? []).find(x => x.key === zu.karte), g = karte?.groessen.find(x => x.id === b.dataset.auZuGroesse);
           if (!g) return;
           const nachtrag = ['in Produktion', 'fertig', 'übergeben'].includes(a.Status);
-          if (!await showConfirm('Artikel zuordnen?', `<p>${kuEsc(id)} „${kuEsc(p.Freitext)}“ wird zu <strong>${kuEsc(karte.name)}</strong> · ${kuEsc([karte.farbe, karte.design].filter(Boolean).join(' · '))} · ${kuEsc(g.groesse)} (Menge ${kuEsc(p.Menge)}).</p>`
-            + `<p>Der Rohling geht danach in den L-Shop-Korb${nachtrag ? ' (als Nachtrag – der Auftrag ist schon weiter)' : ''}; ohne Preis setzt MC den Festpreis des Partners.</p>`, 'Zuordnen')) return;
-          body = { auftragNr: a.Auftrag_Nr, positionId: id, stand: p.Stand, id: g.id };
+          if (!await showConfirm('Artikel zuordnen?', `<p>${kuEsc(id)} „${kuEsc(p.Freitext)}“ wird zu <strong>${kuEsc(karte.name)}</strong> · ${kuEsc([karte.farbe, karte.design, g.groesse].filter(Boolean).join(' · '))} (Menge ${kuEsc(p.Menge)}).</p>`
+            + (g.lshop ? `<p>Der Rohling geht danach in den L-Shop-Korb${nachtrag ? ' (als Nachtrag – der Auftrag ist schon weiter)' : ''}; ohne Preis setzt MC den Festpreis des Partners.</p>`
+              : '<p>Ohne L-Shop-Nummer bleibt die Position frei (kein Korb); ohne Preis setzt MC den Festpreis des Partners.</p>'), 'Zuordnen')) return;
+          body = { auftragNr: a.Auftrag_Nr, positionId: id, stand: p.Stand, id: g.id, ...(karte.shop ? { shop: { produktId: karte.produktId } } : {}) };
         }
         b.disabled = true;
         try {
           const r = await auPost('position-zuordnen', body);
           auZuZ.zu = null;
-          showToast(zuWeg ? `${id}: Zuordnung aufgehoben.` : `${id}: Artikel zugeordnet${r.preis ? ', Festpreis gesetzt' : ''}${r.bereitstellen?.korb ? ', Rohling im L-Shop-Korb' : ''}.`);
+          showToast(zuWeg ? `${id}: Zuordnung aufgehoben.` : `${id}: Artikel zugeordnet${r.preis ? ', Festpreis gesetzt' : ''}${r.bereitstellen?.korb ? ', Rohling im L-Shop-Korb' : ''}${r.frei ? ' (bleibt frei, kein Korb)' : ''}.`);
           if (r.preisHinweis) showToast(r.preisHinweis, 'warn', 12000);
           if (r.bereitstellen?.fehler) showToast(r.bereitstellen.fehler, 'warn', 15000);
           auDFehler('');
@@ -17170,18 +17174,35 @@
       const BSM_ZU_MAX = 15;
       function bsmZuTreffer(artikel, q) {
         const w = String(q ?? '').toLowerCase().split(/s+/).filter(Boolean);
-        return (artikel ?? []).filter(a => { const s = [a.name, a.farbe, a.design, a.produktId].join(' ').toLowerCase(); return w.every(x => s.includes(x)); }).slice(0, BSM_ZU_MAX);
+        return (artikel ?? []).filter(a => { const s = [a.name, a.farbe, a.design, a.produktId, a.sku].join(' ').toLowerCase(); return w.every(x => s.includes(x)); }).slice(0, BSM_ZU_MAX);
+      }
+      /** KS9-1: Katalog der Seite + Shop-Artikel des Sortiments (einfache Artikel, nicht in der Maske) in einer Liste. */
+      const bsmKatalogMitShop = d => [...(d?.artikel ?? []), ...(d?.shop ?? []).map(x => ({ ...x, farbe: '', design: '', shop: true }))];
+      /** Variationen eines variablen Shop-Artikels nachladen (nur lesen); danach zeigt die Liste die Groessen. */
+      async function bsmZuShopLaden(zu, zugangId, neuZeichnen) {
+        const karte = (zu?.katalog ?? []).find(a => a.key === zu.karte);
+        if (!karte || !karte.shop || karte.groessen) return;
+        try {
+          const res = await apiFetch(`${API_BASE()}/api/bestellseiten/${encodeURIComponent(zugangId)}/shop-artikel/${encodeURIComponent(karte.produktId)}`, { signal: AbortSignal.timeout(LESE_TIMEOUT_MS) });
+          const d = await res.json().catch(() => null);
+          if (!res.ok) throw new Error(d?.error || `HTTP ${res.status}`);
+          karte.groessen = d.groessen ?? [];
+        } catch (err) { karte.groessen = []; zu.fehler = `Varianten nicht geladen: ${err.message}`; }
+        neuZeichnen();
       }
       function bsmZuListeHtml(zu) {
         if (zu.laedt) return '<p class="korb-zaehler">lädt Sortiment …</p>';
         if (zu.fehler) return `<p class="korb-zaehler">${kuEsc(zu.fehler)}</p>`;
         const karte = (zu.katalog ?? []).find(a => a.key === zu.karte);
-        if (karte) return `<div class="korb-zaehler"><strong>${kuEsc(karte.name)}</strong> · ${kuEsc([karte.farbe, karte.design].filter(Boolean).join(' · '))}</div><div class="bsm-zu-groessen">`
-          + karte.groessen.map(g => `<button type="button" class="korb-link" data-bsm-zu-groesse="${kuEsc(g.id)}" data-hilfe="bsm-zu-groesse">${kuEsc(g.groesse)}${g.lshop ? '' : ' (ohne L-Shop-Nr.)'}</button>`).join('')
+        if (karte && !karte.groessen) return '<p class="korb-zaehler">lädt Varianten aus dem Shop …</p>';   // KS9-1
+        if (karte) return `<div class="korb-zaehler"><strong>${kuEsc(karte.name)}</strong>${[karte.farbe, karte.design].filter(Boolean).length ? ` · ${kuEsc([karte.farbe, karte.design].filter(Boolean).join(' · '))}` : ''}${karte.shop ? ' · Shop-Artikel' : ''}</div><div class="bsm-zu-groessen">`
+          + (karte.groessen.length ? '' : '<p class="korb-zaehler">Keine aktive Variante im Shop.</p>')
+          + karte.groessen.map(g => `<button type="button" class="korb-link" data-bsm-zu-groesse="${kuEsc(g.id)}" data-hilfe="bsm-zu-groesse">${kuEsc(g.groesse || 'einfacher Artikel (ohne Größe)')}${g.lshop ? '' : ' · ohne L-Shop-Nr.'}</button>`).join('')
           + '</div><button type="button" class="korb-link" data-bsm-zu-karte="" data-hilfe="bsm-zu-zurueck">← anderer Artikel</button>';
         const t = bsmZuTreffer(zu.katalog, zu.q);
         if (!t.length) return '<p class="korb-zaehler">Kein Artikel im Sortiment dieser Bestellseite passt – ggf. Sortiment ändern.</p>';
-        return t.map(a => `<button type="button" class="korb-link bsm-zu-karte" data-bsm-zu-karte="${kuEsc(a.key)}" data-hilfe="bsm-zu-karte"><strong>${kuEsc(a.name)}</strong> ${kuEsc([a.farbe, a.design].filter(Boolean).join(' · '))}</button>`).join('');
+        return t.map(a => `<button type="button" class="korb-link bsm-zu-karte" data-bsm-zu-karte="${kuEsc(a.key)}" data-hilfe="bsm-zu-karte"><strong>${kuEsc(a.name)}</strong>${[a.farbe, a.design].filter(Boolean).length ? ` · ${kuEsc([a.farbe, a.design].filter(Boolean).join(' · '))}` : ''}`
+          + (a.shop ? ' <span class="ku-chip" data-hilfe="bsm-zu-shop">Shop</span>' : '') + '</button>').join('');   // KS9-1: ein Treffer je Zeile
       }
       function bsmZuordnenHtml(e, zu) {
         return `<div class="bsm-zuordnen" data-bsm-zuordnen="${kuEsc(e.id)}"><div class="korb-zaehler">JFN-Artikel aus dem Sortiment für „${kuEsc(e.freitext)}“ (Menge ${kuEsc(e.menge)} bleibt):</div>`
@@ -17852,7 +17873,7 @@
           k.zuordnen = { id: b.dataset.bsmEZuordnen, q: '', karte: '', katalog: bsmZ.katalog?.[z.Zugang_ID] ?? null, laedt: !bsmZ.katalog?.[z.Zugang_ID], fehler: '' };
           bsmDialogZeichnen();
           if (!k.zuordnen.katalog) {
-            try { const d = await bsmApi(`/${encodeURIComponent(z.Zugang_ID)}/katalog`); bsmZ.katalog = { ...(bsmZ.katalog ?? {}), [z.Zugang_ID]: d.artikel ?? [] }; if (k.zuordnen) Object.assign(k.zuordnen, { katalog: d.artikel ?? [], laedt: false }); }
+            try { const d = await bsmApi(`/${encodeURIComponent(z.Zugang_ID)}/katalog`); const kat = bsmKatalogMitShop(d); bsmZ.katalog = { ...(bsmZ.katalog ?? {}), [z.Zugang_ID]: kat }; if (k.zuordnen) Object.assign(k.zuordnen, { katalog: kat, laedt: false, fehler: d.shopHinweis ?? '' }); }
             catch (err) { if (k.zuordnen) Object.assign(k.zuordnen, { laedt: false, fehler: `Sortiment nicht geladen: ${err.message}` }); }
             bsmDialogZeichnen();
           }
@@ -17860,14 +17881,14 @@
           return;
         }
         if (b.matches('[data-bsm-zu-abbrechen]')) { k.zuordnen = null; bsmDialogZeichnen(); return; }
-        if (b.matches('[data-bsm-zu-karte]') && k.zuordnen) { k.zuordnen.karte = b.dataset.bsmZuKarte; bsmDialogZeichnen(); return; }
+        if (b.matches('[data-bsm-zu-karte]') && k.zuordnen) { k.zuordnen.karte = b.dataset.bsmZuKarte; bsmDialogZeichnen(); bsmZuShopLaden(k.zuordnen, z.Zugang_ID, bsmDialogZeichnen); return; }
         if (b.matches('[data-bsm-zu-groesse]') && k.zuordnen) {
           const zu = k.zuordnen, alt = (bsmZ.eintraege[z.Zugang_ID] ?? []).find(x => x.id === zu.id);
           const karte = (zu.katalog ?? []).find(a => a.key === zu.karte), g = karte?.groessen.find(x => x.id === b.dataset.bsmZuGroesse);
           if (!alt || !g) return;
-          if (!await showConfirm('Artikel zuordnen?', `<p>${kuEsc(alt.id)}: „${kuEsc(alt.freitext)}“ wird zu <strong>${kuEsc(karte.name)}</strong> · ${kuEsc([karte.farbe, karte.design].filter(Boolean).join(' · '))} · ${kuEsc(g.groesse)} (Menge ${kuEsc(alt.menge)}). Der Freitext bleibt als Notiz des Kunden sichtbar; Festpreis, Herkunft und Korb laufen danach wie bei normalen Einträgen.</p>`, 'Zuordnen')) return;
+          if (!await showConfirm('Artikel zuordnen?', `<p>${kuEsc(alt.id)}: „${kuEsc(alt.freitext)}“ wird zu <strong>${kuEsc(karte.name)}</strong> · ${kuEsc([karte.farbe, karte.design, g.groesse].filter(Boolean).join(' · '))} (Menge ${kuEsc(alt.menge)}). Der Freitext bleibt als Notiz des Kunden sichtbar; Festpreis, Herkunft und Korb laufen danach wie bei normalen Einträgen.</p>`, 'Zuordnen')) return;
           b.disabled = true;
-          try { await bsmApi('/eintraege/zuordnen', { zugangId: z.Zugang_ID, eintrag: alt.id, stand: alt.stand, id: g.id }); showToast(`${alt.id}: Artikel zugeordnet.`); k.zuordnen = null; await bsmEintraegeLaden(z.Zugang_ID); bsmDialogZeichnen(); }
+          try { await bsmApi('/eintraege/zuordnen', { zugangId: z.Zugang_ID, eintrag: alt.id, stand: alt.stand, id: g.id, ...(karte.shop ? { shop: { produktId: karte.produktId } } : {}) }); showToast(`${alt.id}: Artikel zugeordnet.`); k.zuordnen = null; await bsmEintraegeLaden(z.Zugang_ID); bsmDialogZeichnen(); }
           catch (err) { bsmFehler(err.message); if (err.code === 'konflikt') { await bsmEintraegeLaden(z.Zugang_ID); bsmDialogZeichnen(); } } finally { b.disabled = false; }
           return;
         }

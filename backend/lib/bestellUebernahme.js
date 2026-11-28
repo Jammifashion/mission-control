@@ -10,13 +10,17 @@
 
 import { createHash } from 'crypto';
 import { pruefeZielStrecke, spalteBuchstabe, zeilenAbweichungen } from './sheet-zeilen.js';
-import { mitSperre, sheetsClient, sheetId, liesZugaengeTermine, liesEintraege, katalogFuer, termineDesZugangs } from './bestellseite.js';
+import { mitSperre, sheetsClient, sheetId, liesZugaengeTermine, liesEintraege, katalogFuer, termineDesZugangs, leseKategorien } from './bestellseite.js';
 import { mitAuftragSperre, liesAuftraege, lshopInfo, _auftraegeCacheLeeren } from './auftraege.js';
 import { legeInterneTrikotsAn } from './trikotIntern.js';
 import { bereitstellen } from './auftragBereitstellen.js';
 import { nurNachtraege } from '../utils/auftrag-bereitstellen.js';   // KS9
 import { leseReiterSpalten } from './ssot-reiter.js';
 import { leseLagerFuerKorb } from './lager.js';
+import { getWcClient } from './shopConfig.js';   // KS9-1
+import { seitenGrenze, seitenListe } from './hosterPruefseite.js';
+import { fertigVariantenShop } from './lagerFertig.js';
+import { sortimentNamen } from '../utils/bestellseite.js';
 import { TAB_KORB, korbZeilen } from '../utils/korb-logic.js';
 import { TAB_TERMINE, TAB_EINTRAEGE, fehler } from '../utils/bestellseite.js';
 import { auswahlIndex, aenderungPlan, zuordnungPlan, eintragFuerSeite, E_STATUS } from '../utils/bestell-eintraege.js';
@@ -102,16 +106,17 @@ export async function aendereEintragMc({ eingabe, sheets: s, jetzt = () => new D
 }
 
 /** KS9: POST /api/bestellseiten/eintraege/zuordnen { zugangId, eintrag, stand, id | aufheben } - Freitext -> Katalog-Artikel (nur Sortiment). */
-export async function zuordneEintragMc({ eingabe, sheets: s, jetzt = () => new Date() } = {}) {
+export async function zuordneEintragMc({ eingabe, sheets: s, jetzt = () => new Date(), wcFuer } = {}) {
   return mitSperre(async () => {
     const sheets = s ?? await sheetsClient();
     const spreadsheetId = sheetId();
     const { daten, zugang } = await zugangUndTermin(sheets, spreadsheetId, eingabe?.zugangId);
-    const e = await eintraegeOder409(sheets, spreadsheetId, ['Geaendert_Von', 'Zugeordnet_Am']);
+    const e = await eintraegeOder409(sheets, spreadsheetId, ['Geaendert_Von', 'Zugeordnet_Am', ...(eingabe?.shop ? ['WC_Produkt_ID'] : [])]);
     const eintrag = e.zeilen.find(x => x.Eintrag_ID === t(eingabe?.eintrag) && x.Zugang_ID === zugang.Zugang_ID);
     const k = await katalogFuer(sheets, spreadsheetId, zugang);
     const termin = eintrag ? termineDesZugangs(daten, zugang, k).find(x => x.Termin_ID === eintrag.Termin_ID) : null;
-    const neu = zuordnungPlan({ zugang, termin, eintrag, idx: auswahlIndex({ artikel: k.artikel, trikots: k.trikots, art: zugang.Art }), eingabe, jetzt: jetzt().toISOString() });
+    const shopTreffer = eingabe?.shop && eingabe?.aufheben !== true ? await shopTrefferFuer({ sheets, zugang, produktId: eingabe.shop.produktId, id: eingabe.id, wcFuer }) : null;   // KS9-1
+    const neu = zuordnungPlan({ zugang, termin, eintrag, idx: auswahlIndex({ artikel: k.artikel, trikots: k.trikots, art: zugang.Art }), eingabe, jetzt: jetzt().toISOString(), shopTreffer });
     const felder = Object.fromEntries(Object.keys(e.idx).filter(f => f !== '_zeile' && t(neu[f]) !== t(eintrag[f])).map(f => [f, neu[f]]));
     await schreibe(sheets, spreadsheetId, { zellen: zellenAus(TAB_EINTRAEGE, e.idx, eintrag._zeile, felder) });
     console.log(`Bestellseite ${zugang.Zugang_ID}: Eintrag ${eintrag.Eintrag_ID} ${eingabe?.aufheben === true ? 'Zuordnung aufgehoben' : 'einem Artikel zugeordnet'}.`);
@@ -125,7 +130,7 @@ export async function zuordneEintragMc({ eingabe, sheets: s, jetzt = () => new D
  * Danach (nicht aufheben, nur bei bestellbarer Nummer): Festpreis wie KS8 (nur wenn die Position noch keinen Preis hat) und Bereitstellen in den
  * L-Shop-Korb, wenn der Auftrag das zulaesst (AM-3 bzw. AP1 als Nachtrag).
  */
-export async function zuordnePositionMc({ eingabe, sheets: s, jetzt = () => new Date(), bereitstellenFn = bereitstellen } = {}) {
+export async function zuordnePositionMc({ eingabe, sheets: s, jetzt = () => new Date(), bereitstellenFn = bereitstellen, wcFuer } = {}) {
   const aufheben = eingabe?.aufheben === true;
   const r = await mitSperre(() => mitAuftragSperre(async () => {
     const sheets = s ?? await sheetsClient();
@@ -137,7 +142,7 @@ export async function zuordnePositionMc({ eingabe, sheets: s, jetzt = () => new 
     if (position && t(eingabe?.stand) !== t(position.Stand)) throw fehler(`${position.Position_ID} wurde inzwischen geändert – bitte neu laden.`, 409, 'konflikt');
     const fehlt = ['Zugeordnet_Am', 'Herkunft', 'Nachtrag_Am'].filter(sp => p.idx[sp] === undefined);
     if (fehlt.length) throw fehler(`Spalte fehlt in Auftrag_Positionen (${fehlt.join(', ')}) – scripts/setup-auftraege-reiter.js --write.`, 409, 'einrichtung');
-    const e = await eintraegeOder409(sheets, spreadsheetId, ['Geaendert_Von', 'Zugeordnet_Am']);
+    const e = await eintraegeOder409(sheets, spreadsheetId, ['Geaendert_Von', 'Zugeordnet_Am', ...(eingabe?.shop ? ['WC_Produkt_ID'] : [])]);
     let w = null, waehlbar = new Set(), zugang = null, idx = null;
     if (!aufheben) {
       const zid = [...new Set(e.zeilen.filter(x => t(x.Position_ID) === t(position?.Position_ID) && t(x.Auftrag_Nr) === auftrag.Auftrag_Nr).map(x => x.Zugang_ID))];
@@ -145,7 +150,7 @@ export async function zuordnePositionMc({ eingabe, sheets: s, jetzt = () => new 
         ({ zugang } = await zugangUndTermin(sheets, spreadsheetId, zid[0]));
         const k = await katalogFuer(sheets, spreadsheetId, zugang);
         idx = auswahlIndex({ artikel: k.artikel, trikots: k.trikots, art: zugang.Art });
-        w = idx.je.get(t(eingabe?.id)) ?? null;
+        w = eingabe?.shop ? await shopTrefferFuer({ sheets, zugang, produktId: eingabe.shop.produktId, id: eingabe.id, wcFuer }) : idx.je.get(t(eingabe?.id)) ?? null;   // KS9-1
         if (w) ({ waehlbar } = await lshopInfo(sheets, spreadsheetId, [t(w.articleNr)]));
       }
     }
@@ -165,10 +170,10 @@ export async function zuordnePositionMc({ eingabe, sheets: s, jetzt = () => new 
     await schreibe(sheets, spreadsheetId, { zellen });
     _auftraegeCacheLeeren?.();
     console.log(`${auftrag.Auftrag_Nr}: Position ${position.Position_ID} ${aufheben ? 'Zuordnung aufgehoben' : 'einem Artikel zugeordnet'}.`);
-    return { ok: true, auftragNr: auftrag.Auftrag_Nr, positionId: position.Position_ID, eintraege: plan.eintragFelder.length,
+    return { ok: true, auftragNr: auftrag.Auftrag_Nr, positionId: position.Position_ID, eintraege: plan.eintragFelder.length, frei: !!plan.frei,
       nachtrag: plan.nachtrag, preis: plan.felder.Preis_Netto !== undefined, ...(preisHinweis ? { preisHinweis } : {}) };
   }));
-  if (aufheben) return r;
+  if (aufheben || r.frei) return r;   // KS9-1: frei geblieben = kein Korb
   try {
     const sheets = s ?? await sheetsClient();
     const { a } = await liesAuftraege(sheets, sheetId());
@@ -181,13 +186,76 @@ export async function zuordnePositionMc({ eingabe, sheets: s, jetzt = () => new 
   }
 }
 
+// ── KS9-1: Shop-Artikel des Sortiments (auch einfache, auch ohne Erfassungsmaske) fuer "JFN-Artikel zuordnen …" ──
+const shopCache = new Map();   // Zugang|Sortiment -> { bis, daten }
+const SHOP_MS = 30 * 60 * 1000;
+export function _shopSortimentCacheLeeren() { shopCache.clear(); }
+/**
+ * Veroeffentlichte JFN-Artikel (simple/variable), deren Shop-Kategorie im Sortiment liegt (Kategorienummer = Shop-Kategorie, Namen wie
+ * sortimentNamen inkl. Unterkategorien), ohne Trikots und ohne die Artikel, die der Katalog der Seite schon fuehrt. Nur lesen, nacheinander.
+ * Art auftrag: keine (kein Sortiment).
+ */
+export async function shopArtikelDesSortiments({ sheets, zugang, katalog, wcFuer = getWcClient } = {}) {
+  if (zugang.Art !== 'dauer' || !t(zugang.Sortiment)) return [];
+  const key = `${zugang.Zugang_ID}|${t(zugang.Sortiment)}`;
+  const c = shopCache.get(key);
+  let liste = c && Date.now() < c.bis ? c.daten : null;
+  if (!liste) {
+    const kategorien = await leseKategorien(sheets);
+    const namen = sortimentNamen(zugang.Sortiment, kategorien);
+    const ids = [...new Set(kategorien.filter(x => namen.has(t(x.name)) && /^\d+$/.test(t(x.nr))).map(x => t(x.nr)))];
+    const wc = wcFuer('jfn');
+    const je = new Map();
+    for (const kat of ids) {
+      for (let page = 1; ; page++) {
+        seitenGrenze(page, { wc, pfad: 'products' });
+        const teil = seitenListe((await wc.get('products', { category: kat, status: 'publish', per_page: 100, page, _fields: 'id,name,sku,type' })).data, { wc, pfad: 'products' });
+        for (const p of teil) if (['simple', 'variable'].includes(t(p.type))) je.set(t(p.id), { produktId: t(p.id), name: t(p.name), sku: t(p.sku), typ: t(p.type) });
+        if (teil.length < 100) break;
+      }
+    }
+    liste = [...je.values()];
+    shopCache.set(key, { bis: Date.now() + SHOP_MS, daten: liste });
+  }
+  const imKatalog = new Set((katalog?.artikel ?? []).map(a => t(a.key).split('|')[0]));
+  const trikots = new Set((katalog?.trikots ?? []).map(x => t(x.produktId)));
+  return liste.filter(p => !imKatalog.has(p.produktId) && !trikots.has(p.produktId))
+    .map(p => ({ key: `S|${p.produktId}`, produktId: p.produktId, name: p.name, sku: p.sku, typ: p.typ,
+      groessen: p.typ === 'simple' ? [{ id: p.produktId, groesse: '', lshop: false }] : null }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+}
+/** KS9-1: GET /api/bestellseiten/:zugangId/shop-artikel/:produktId - Variationen eines Shop-Artikels des Sortiments (Farbe/Groesse). */
+export async function shopVariantenMc({ zugangId, produktId, sheets: s, wcFuer = getWcClient } = {}) {
+  const sheets = s ?? await sheetsClient();
+  const { zugang } = await zugangUndTermin(sheets, sheetId(), zugangId);
+  const k = await katalogFuer(sheets, sheetId(), zugang);
+  const p = (await shopArtikelDesSortiments({ sheets, zugang, katalog: k, wcFuer })).find(x => x.produktId === t(produktId));
+  if (!p) throw fehler('Dieser Artikel steht nicht im Sortiment dieser Bestellseite.', 422, 'nicht_im_sortiment');
+  const d = await fertigVariantenShop({ produktId: p.produktId, wcFuer });
+  return { produktId: p.produktId, name: d.name, groessen: d.varianten.filter(v => v.aktiv).map(v => ({ id: v.schluessel.slice(3), groesse: [v.farbe, v.groesse].filter(Boolean).join(' · '), lshop: false })) };
+}
+/** Server-Pruefung eines Shop-Treffers: Produkt im Sortiment, id = Produkt (simple) bzw. eine seiner aktiven Variationen. -> w wie idx.je */
+async function shopTrefferFuer({ sheets, zugang, produktId, id, wcFuer = getWcClient }) {
+  const k = await katalogFuer(sheets, sheetId(), zugang);
+  const p = (await shopArtikelDesSortiments({ sheets, zugang, katalog: k, wcFuer })).find(x => x.produktId === t(produktId));
+  if (!p) throw fehler('Dieser Artikel steht nicht im Sortiment dieser Bestellseite.', 422, 'nicht_im_sortiment');
+  const d = await fertigVariantenShop({ produktId: p.produktId, wcFuer });
+  const v = d.varianten.find(x => x.aktiv && x.schluessel === `WC:${t(id)}`);
+  if (!v) throw fehler('Diese Variante gibt es für den Artikel nicht (mehr).', 422, 'nicht_im_sortiment');
+  const zusatz = [v.farbe, v.groesse].filter(Boolean).join(' · ');
+  return { wcId: t(id), articleNr: '', groesse: v.groesse, bezeichnung: [d.name, v.farbe].filter(Boolean).join(' · '), produktId: p.produktId, karte: '', motiv: d.name, zusatz };
+}
+
 /** KS9: GET /api/bestellseiten/:zugangId/katalog - Artikel des Sortiments fuer "JFN-Artikel zuordnen …" (ohne Preise). */
-export async function katalogMc({ zugangId, sheets: s } = {}) {
+export async function katalogMc({ zugangId, sheets: s, wcFuer } = {}) {
   const sheets = s ?? await sheetsClient();
   const spreadsheetId = sheetId();
   const { zugang } = await zugangUndTermin(sheets, spreadsheetId, zugangId);
   const k = await katalogFuer(sheets, spreadsheetId, zugang);
-  return { zugangId: zugang.Zugang_ID, artikel: (k.artikel ?? []).map(a => ({ key: t(a.key), produktId: t(a.key).split('|')[0], name: t(a.name), farbe: t(a.farbe),
+  let shop = [], shopHinweis = '';
+  try { shop = await shopArtikelDesSortiments({ sheets, zugang, katalog: k, wcFuer }); }   // KS9-1
+  catch (err) { shopHinweis = `Shop-Artikel nicht gelesen (${err.code || err.status || 'Fehler'}) – nur Artikel der Bestellseite.`; }
+  return { zugangId: zugang.Zugang_ID, shop, ...(shopHinweis ? { shopHinweis } : {}), artikel: (k.artikel ?? []).map(a => ({ key: t(a.key), produktId: t(a.key).split('|')[0], name: t(a.name), farbe: t(a.farbe),
     design: t(a.design), groessen: (a.groessen ?? []).filter(g => t(g.id)).map(g => ({ id: t(g.id), groesse: t(g.groesse), lshop: /^\d{10}$/.test(t(g.articleNr)) })) })) };
 }
 
@@ -364,7 +432,7 @@ async function festpreiseFuer({ sheets, zugang, eintraege, idx }) {
     for (const e of eintraege) {
       if (t(e.Art) === 'trikot') { aus.set(e.Eintrag_ID, festpreisFuer({ produktId: t(e.Trikot_Produkt), partnerId, fpArtikel, fpKategorie, trikot: true })); continue; }   // KS8
       const karte = idx.je.get(t(e.WC_Variation_ID))?.karte ?? '';
-      aus.set(e.Eintrag_ID, festpreisFuer({ produktId: karte.split('|')[0], partnerId, fpArtikel, fpKategorie }));
+      aus.set(e.Eintrag_ID, festpreisFuer({ produktId: t(e.WC_Produkt_ID) || karte.split('|')[0], partnerId, fpArtikel, fpKategorie }));   // KS9-1
     }
     aus.partner = partnerId;
     return aus;

@@ -423,29 +423,38 @@ export function positionZuordnenPlan({ auftrag, position, eintraege = [], w = nu
   const iso = new Date(jetzt).toISOString();
   const verbunden = (eintraege ?? []).filter(e => t(e.Position_ID) === t(position.Position_ID) && t(e.Auftrag_Nr) === t(auftrag.Auftrag_Nr));
   if (aufheben) {
-    if (t(position.Art) !== ART.LSHOP || !t(position.Zugeordnet_Am)) throw fehler('Nur eine in MC zugeordnete Position lässt sich zurücksetzen.');
+    if (!t(position.Zugeordnet_Am)) throw fehler('Nur eine in MC zugeordnete Position lässt sich zurücksetzen.');   // KS9-1: auch frei geblieben
     const notiz = t(position.Notiz);
     const [war, ...rest] = notiz.startsWith(WAR_PRAEFIX) ? notiz.slice(WAR_PRAEFIX.length).split(' · ') : ['', notiz];
     return {
       felder: { Art: ART.FREI, LShop_ArticleNr: '', Freitext: kurz(war || 'Position aus Bestellseite', FREITEXT_MAX), Notiz: rest.join(' · '),
         Herkunft: HERKUNFT.VORHANDEN, Zugeordnet_Am: '', Stand: iso },
       eintragFelder: verbunden.filter(e => t(e.Zugeordnet_Am)).map(e => ({ eintrag: e,
-        felder: { Art: E_ART.EXTRA, WC_Variation_ID: '', LShop_ArticleNr: '', Groesse: '', Bezeichnung: 'Extra', Zugeordnet_Am: '', Geaendert_Von: 'MC', Stand: iso } })),
+        felder: { Art: E_ART.EXTRA, WC_Variation_ID: '', LShop_ArticleNr: '', Groesse: '', Bezeichnung: 'Extra', Zugeordnet_Am: '', WC_Produkt_ID: '', Geaendert_Von: 'MC', Stand: iso } })),
       nachtrag: false,
     };
   }
-  if (t(position.Art) !== ART.FREI) throw fehler('Nur freie Positionen lassen sich einem Artikel zuordnen.');
+  if (t(position.Art) !== ART.FREI || t(position.Zugeordnet_Am)) throw fehler('Nur freie, noch nicht zugeordnete Positionen lassen sich einem Artikel zuordnen.');
   if (!verbunden.length) throw fehler('Nur Positionen aus einer Bestellseite – sonst die Position im Auftrag bearbeiten.', 422, 'ohne_bestellseite');
   if (!w) throw fehler('Dieser Artikel bzw. diese Größe steht nicht im Sortiment der Bestellseite.', 422, 'nicht_im_sortiment');
-  if (!/^\d{10}$/.test(t(w.articleNr)) || !waehlbar.has(t(w.articleNr))) throw fehler('Dieser Artikel hat keine bestellbare L-Shop-Nummer – die Position bleibt frei.', 422, 'nicht_bestellbar');
   const war = t(position.Freitext);
   const notiz = kurz([war ? `${WAR_PRAEFIX}${war}` : '', t(position.Notiz)].filter(Boolean).join(' · '), NOTIZ_MAX);
+  const eintragFelder = verbunden.filter(e => t(e.Art) === E_ART.EXTRA).map(e => ({ eintrag: e,
+    felder: { Art: E_ART.ARTIKEL, WC_Variation_ID: t(w.wcId), LShop_ArticleNr: t(w.articleNr), Groesse: t(w.groesse), Bezeichnung: t(w.bezeichnung),
+      WC_Produkt_ID: t(w.produktId) || t(w.karte).split('|')[0], Zugeordnet_Am: iso, Geaendert_Von: 'MC', Stand: iso } }));
+  // KS9-1: ohne bestellbare L-Shop-Nr. (Shop-Artikel, Fremdware, einfacher Artikel) bleibt die Position frei - Text = Shop-Artikel,
+  // Festpreis ueber die Produkt-ID der Eintraege; kein Korb.
+  if (!/^\d{10}$/.test(t(w.articleNr)) || !waehlbar.has(t(w.articleNr))) {
+    return {
+      felder: { Freitext: kurz([t(w.bezeichnung), t(w.groesse)].filter(Boolean).join(' · ') || war, FREITEXT_MAX), Notiz: notiz, Herkunft: HERKUNFT.VORHANDEN,
+        Zugeordnet_Am: iso, Stand: iso },
+      eintragFelder, nachtrag: false, frei: true,
+    };
+  }
   return {
     felder: { Art: ART.LSHOP, LShop_ArticleNr: t(w.articleNr), Freitext: '', Motiv: t(position.Motiv) || kurz(t(w.motiv), MOTIV_MAX), Notiz: notiz,
       Herkunft: HERKUNFT.BESTELLEN, Lager_Ort: '', Zugeordnet_Am: iso, ...(nachtrag ? { Nachtrag_Am: iso.slice(0, 10) } : {}), Stand: iso },
-    eintragFelder: verbunden.filter(e => t(e.Art) === E_ART.EXTRA).map(e => ({ eintrag: e,
-      felder: { Art: E_ART.ARTIKEL, WC_Variation_ID: t(w.wcId), LShop_ArticleNr: t(w.articleNr), Groesse: t(w.groesse), Bezeichnung: t(w.bezeichnung),
-        Zugeordnet_Am: iso, Geaendert_Von: 'MC', Stand: iso } })),
+    eintragFelder,
     nachtrag,
   };
 }

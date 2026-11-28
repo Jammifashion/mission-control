@@ -14,7 +14,7 @@ import { heuteBerlin, fristen, zugangTage, naechsteTerminId, fehler, ART, TERMIN
 // KS4: Verschoben_Von = bisheriger Termin (MC "in Termin … verschieben" bzw. Seite "Termin ändern"), Verschoben_Grund <= 100,
 // Geliefert_Am = "an Fanshop geliefert" fuer Trikot-Eintraege (die haben keine Auftragsposition; sonst gilt Versendet der Position).
 export const EINTRAG_OPTIONAL = ['Groesse', 'Bezeichnung', 'Trikot_Produkt', 'Vorgang', 'Geaendert_Von', 'Notiz', 'Ablehn_Grund',
-  'Verschoben_Von', 'Verschoben_Grund', 'Geliefert_Am', 'Zugeordnet_Am'];   // KS9: Zugeordnet_Am = MC hat einen Freitext einem Katalog-Artikel zugeordnet
+  'Verschoben_Von', 'Verschoben_Grund', 'Geliefert_Am', 'Zugeordnet_Am', 'WC_Produkt_ID'];   // KS9-1: WC_Produkt_ID = Produkt des zugeordneten Artikels (Festpreis)   // KS9: Zugeordnet_Am = MC hat einen Freitext einem Katalog-Artikel zugeordnet
 export const E_STATUS = { EINGEGANGEN: 'eingegangen', GEPRUEFT: 'geprüft', UEBERNOMMEN: 'übernommen', STORNIERT: 'storniert' };
 export const OFFEN = [E_STATUS.EINGEGANGEN, E_STATUS.GEPRUEFT];
 export const E_ART = { ARTIKEL: 'artikel', EXTRA: 'extra', TRIKOT: 'trikot' };
@@ -254,21 +254,21 @@ export function stornoPlan({ zugang, termin, eintrag, eingabe, jetzt }) {
  * @param {{ stand, id?, aufheben? }} o.eingabe  id = Groessen-Kennung aus dem Katalog (wie beim Absenden)
  * @returns {object} neue Zeile
  */
-export function zuordnungPlan({ zugang, termin, eintrag, idx, eingabe, jetzt }) {
+export function zuordnungPlan({ zugang, termin, eintrag, idx, eingabe, jetzt, shopTreffer = null }) {   // KS9-1: shopTreffer = gepruefter Shop-Artikel
   aenderbar({ zugang, termin, eintrag, eingabe, jetzt, vonMc: true });
   const stand = new Date(jetzt).toISOString();
   const art = t(eintrag.Art);
   if (eingabe?.aufheben === true) {
     if (art !== E_ART.ARTIKEL || !t(eintrag.Zugeordnet_Am)) throw fehler('Nur eine in MC zugeordnete Freitext-Position lässt sich zurücksetzen.');
-    return { ...eintrag, Art: E_ART.EXTRA, WC_Variation_ID: '', LShop_ArticleNr: '', Groesse: '', Bezeichnung: 'Extra', Zugeordnet_Am: '',
+    return { ...eintrag, Art: E_ART.EXTRA, WC_Variation_ID: '', LShop_ArticleNr: '', Groesse: '', Bezeichnung: 'Extra', Zugeordnet_Am: '', WC_Produkt_ID: '',
       Geaendert_Von: 'MC', Stand: stand };
   }
   if (art !== E_ART.EXTRA) throw fehler('Nur Freitext-Positionen lassen sich einem Artikel zuordnen.');
   if (!t(eintrag.Freitext)) throw fehler('Freitext fehlt – bitte erst prüfen.');
-  const w = idx.je.get(t(eingabe?.id));
+  const w = shopTreffer ?? idx.je.get(t(eingabe?.id));
   if (!w) throw fehler('Dieser Artikel bzw. diese Größe steht nicht im Sortiment dieser Bestellseite.', 422, 'nicht_im_sortiment');
   return { ...eintrag, Art: E_ART.ARTIKEL, WC_Variation_ID: w.wcId, LShop_ArticleNr: w.articleNr, Groesse: w.groesse, Bezeichnung: w.bezeichnung,
-    Zugeordnet_Am: stand, Geaendert_Von: 'MC', Stand: stand };
+    WC_Produkt_ID: t(w.produktId) || t(w.karte).split('|')[0], Zugeordnet_Am: stand, Geaendert_Von: 'MC', Stand: stand };
 }
 
 export function eintragFuerSeite(x) {
